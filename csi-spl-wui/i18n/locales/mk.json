@@ -2372,7 +2372,13 @@
     "synced_link": "Промени во репозиториумот",
     "copy_link": "Копирај врска",
     "link_copied": "Врската е копирана",
-    "not_available": "Овој настан не е достапен за вас."
+    "not_available": "Овој настан не е достапен за вас.",
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Денови од неделата",

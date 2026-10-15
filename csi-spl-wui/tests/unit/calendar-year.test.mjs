@@ -80,7 +80,9 @@ describe('the mock answers 6.1', () => {
   const today = '2026-10-05'
   it('every item has exactly the 6.1.1 fields, strings never null, lists arrays', () => {
     for (const x of mockCalendarItems(today)) {
-      assert.deepEqual(Object.keys(x).sort(), [...FIELDS].sort(), x.id)
+      /* SPL-2034: an issue deadline also carries its issue status and assignee */
+      const want = x.source === 'issue' ? [...FIELDS, 'status', 'assignee'] : FIELDS
+      assert.deepEqual(Object.keys(x).sort(), [...want].sort(), x.id)
       for (const k of FIELDS) assert.notEqual(x[k], null, `${x.id}.${k}`)
       assert.ok(Array.isArray(x.mentions))
       assert.ok(['event', 'issue', 'official_day'].includes(x.source))

@@ -14,6 +14,18 @@
 //        link opens the event. A link to an event the reader may not see
 //        opens the calendar on its day saying "not available to you", with
 //        no dialog, no pop-over and never the title (desktop and phone).
+// SPL-2034 (design B, t1 edc177bc): an issue with a deadline links to the
+//        calendar and back. Its detail has "Show in calendar" (a real link,
+//        red once the deadline passed, 48 px); it opens the week with the
+//        deadline's read-only pop-over open (status, assignee, Open issue);
+//        Open issue opens that issue; Back returns to the week with the
+//        pop-over closed. A phone opens Day with the peek, the stored view
+//        untouched, and Back closes the peek before it leaves. A link to an
+//        issue the reader cannot read says "not available" with Open issue
+//        disabled. CONTROL: no deadline, no button; a stored event's
+//        pop-over has no Open issue. Before SPL-2034 there is no
+//        [data-test=issues-show-in-calendar] and a deadline opens nothing,
+//        so these checks FAIL.
 // The dialog fits 1440 px with no sideways scroll (a phone adds in
 // CalendarPhoneSheet since spec 106 T011: calendar-phone-sheet); the calendar code
 // stays in its own chunk (calendar.test.mjs AC-02 holds the 155 KB check).
@@ -34,7 +46,7 @@ import { pathToFileURL } from 'node:url'
 import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calWeekDays } from '../../src/utils/calendar-year.mjs'
+import { calAddDays, calWeekDays } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -134,6 +146,110 @@ const catchClipboard = (p) => p.evaluate(() => {
 const copiedText = (p) => p.evaluate(() => window.__copied || '')
 const keyed = (p, sel) => p.waitForFunction((q) => document.querySelector(q)?.getAttribute('data-key') === 'calendar_event.link_copied', { timeout: 5000 }, sel).then(() => true, () => false)
 
+/* SPL-2034: issue deadline <-> calendar, both ways */
+const POP = '[data-test=calendar-event-popover]'
+const routerPush = (pg, to) => pg.evaluate((u) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(u), to)
+const urlIs = (pg, path, issue) => pg.waitForFunction((pa, is) => location.pathname.endsWith(pa) && (new URLSearchParams(location.search).get('issue') || '') === is,
+  { timeout: 10000 }, path, issue).then(() => true, () => false)
+const tapHeight = (pg, sel) => pg.$eval(sel, (el) => Math.round(el.getBoundingClientRect().height)).catch(() => 0)
+async function setDeadline(pg, local) {
+  await pg.$eval('[data-test=issues-deadline]', (el) => { el.focus(); el.select() })
+  await pg.type('[data-test=issues-deadline]', local)
+  await pg.keyboard.press('Enter')
+}
+async function deadlineLinks(br) {
+  console.log('-- SPL-2034 issue deadline <-> calendar')
+  const r = await br.newPage()
+  await pinClock(r)
+  await setPageViewport(r, { width: 1440, height: 900 })
+  await r.goto(`${server.base}/issues?issue=SPL-1`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await r.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+  ok('SPL-2034 CONTROL no deadline, no Show in calendar', !(await r.$('[data-test=issues-show-in-calendar]')))
+  await setDeadline(r, `${today} 09:00`)
+  const BTN = '[data-test=issues-show-in-calendar]'
+  const past = await r.waitForSelector(`${BTN}[data-overdue=true]`, { visible: true, timeout: 10000 }).then(() => true, () => false)
+  ok('SPL-2034 a passed deadline shows Show in calendar, tinted red', past)
+  await setDeadline(r, `${today} 15:00`)
+  const fresh = await r.waitForFunction((b) => { const el = document.querySelector(b); return el && !el.hasAttribute('data-overdue') }, { timeout: 10000 }, BTN).then(() => true, () => false)
+  ok('SPL-2034 a coming deadline: the button, no tint', fresh, await r.$eval('[data-test=issues-deadline]', (el) => el.value).catch(() => ''))
+  const href = await r.$eval(BTN, (el) => el.getAttribute('href')).catch(() => '')
+  ok('SPL-2034 it is a real link to the deadline day with issue=', href.endsWith(`/calendar?d=${today}&issue=SPL-1`), href)
+  ok('SPL-2034 the button is a 48 px target', (await tapHeight(r, BTN)) >= 48, await tapHeight(r, BTN))
+  await shot(r, 'issue-show-in-calendar-1440')
+  await r.click(BTN)
+  const pop = await r.waitForSelector(`${POP}[data-id="SPL-1"]`, { visible: true, timeout: 15000 }).then(() => true, () => false)
+  ok('SPL-2034 the calendar opens with the deadline pop-over open', pop)
+  const got = await r.evaluate(() => ({
+    status: document.querySelector('[data-test=calendar-popover-status]')?.getAttribute('data-status') || '',
+    assignee: document.querySelector('[data-test=calendar-popover-assignee]')?.textContent?.trim() || '',
+    edit: Boolean(document.querySelector('[data-test=calendar-popover-edit], [data-test=calendar-popover-duplicate]')),
+    open: Boolean(document.querySelector('[data-test=calendar-popover-open-issue]')),
+    url: location.pathname + location.search,
+  }))
+  /* the mock's epic SPL-1: status wip, nobody assigned */
+  ok('SPL-2034 the pop-over paints status and assignee from the item, no Edit', got.status === 'wip' && got.assignee === '–' && !got.edit && got.open, got)
+  ok('SPL-2034 the URL keeps d= and issue=', got.url.endsWith(`/calendar?d=${today}&issue=SPL-1`), got)
+  const inView = await r.evaluate(() => {
+    const el = document.querySelector('[data-test=calendar-item][data-id="SPL-1"]')
+    const box = document.querySelector('[data-test=calendar-week]')?.getBoundingClientRect()
+    const b = el?.getBoundingClientRect()
+    return Boolean(b && box && b.top >= box.top - 1 && b.bottom <= box.bottom + 1)
+  })
+  ok('SPL-2034 the deadline is scrolled into view', inView)
+  await shot(r, 'deadline-popover-1440')
+  await r.click('[data-test=calendar-popover-open-issue]')
+  ok('SPL-2034 Open issue opens that issue', await urlIs(r, '/issues', 'SPL-1') &&
+    await r.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: 10000 }).then(() => true, () => false))
+  await r.goBack()
+  ok('SPL-2034 Back returns to the week, issue= dropped', await urlIs(r, '/calendar', ''))
+  await r.waitForFunction(() => document.querySelector('[data-test=calendar-main]')?.getAttribute('data-state') === 'ready', { timeout: 10000 }).catch(() => {})
+  await new Promise((res) => setTimeout(res, 400))
+  ok('SPL-2034 ... with the pop-over closed', !(await r.$(POP)))
+  await r.goBack()
+  ok('SPL-2034 Back again returns to the open issue', await urlIs(r, '/issues', 'SPL-1'))
+  await r.close()
+
+  /* a link to an issue the reader cannot read */
+  const n = await br.newPage()
+  await pinClock(n)
+  await setPageViewport(n, { width: 1440, height: 900 })
+  await n.goto(`${server.base}/calendar?d=${today}&issue=SPL-999`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const na = await n.waitForFunction(() => document.querySelector('[data-test=calendar-notice]')?.getAttribute('data-key') === 'calendar_event.not_available', { timeout: 10000 }).then(() => true, () => false)
+  const dis = await n.$eval('[data-test=calendar-notice-open-issue]', (el) => el.disabled && Boolean(el.title)).catch(() => false)
+  ok('SPL-2034 an unreadable issue\'s link says not available, Open issue disabled with a tooltip', na && dis && !(await n.$(POP)), { na, dis })
+  await n.close()
+
+  /* phone: Day with the peek; Back closes the peek first */
+  const vp = { width: 390, height: 844, hasTouch: true }
+  const u = await br.newPage()
+  await pinClock(u)
+  await setPageViewport(u, vp)
+  await u.goto(`${server.base}/issues`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await applyViewport(u, vp)
+  /* the mock's seeded deadline, SPL-12: two days on at 17:00Z (the page runs UTC) */
+  const day = calAddDays(today, 2)
+  await routerPush(u, `/calendar?d=${day}&issue=SPL-12`)
+  const peek = await u.waitForSelector('[data-test=calpeek][data-id="SPL-12"]', { visible: true, timeout: 15000 }).then(() => true, () => false)
+  const ph = await u.evaluate(() => ({
+    view: document.querySelector('[data-test=calendar-phone]')?.getAttribute('data-view') || '',
+    stored: localStorage.getItem('spool-calendar-phone-view'),
+    status: document.querySelector('[data-test=calpeek-status]')?.getAttribute('data-status') || '',
+    assignee: document.querySelector('[data-test=calpeek-assignee]')?.textContent?.trim() || '',
+    del: Boolean(document.querySelector('[data-test=calpeek-delete], [data-test=calpeek-edit]')),
+  }))
+  ok('SPL-2034 390px: the link opens Day with the deadline peek', peek && ph.view === 'day', ph)
+  ok('SPL-2034 390px: the stored view is untouched', ph.stored === null, ph)
+  ok('SPL-2034 390px: status and assignee, no Edit or Delete', ph.status === 'todo' && ph.assignee === 'HUM-1' && !ph.del, ph)
+  ok('SPL-2034 390px: Open issue is a 48 px target', (await tapHeight(u, '[data-test=calpeek-open-issue]')) >= 48, await tapHeight(u, '[data-test=calpeek-open-issue]'))
+  await shot(u, 'deadline-peek-390')
+  await u.goBack()
+  const shut = await u.waitForFunction(() => !document.querySelector('[data-test=calpeek]'), { timeout: 5000 }).then(() => true, () => false)
+  ok('SPL-2034 390px: Back closes the peek first, the calendar stays', shut && await urlIs(u, '/calendar', ''))
+  await u.goBack()
+  ok('SPL-2034 390px: the next Back leaves the calendar', await urlIs(u, '/issues', ''))
+  await u.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -208,6 +324,7 @@ try {
   if (peekCopy) await peekCopy.click()
   ok('Copy link: the pop-over says "Link copied"', await keyed(p, '[data-test=calendar-popover-copied]'))
   ok('Copy link: the pop-over copies the event link', (await copiedText(p)) === want, { got: await copiedText(p), want })
+  ok('SPL-2034 CONTROL a stored event\'s pop-over has no Open issue', !(await p.$('[data-test=calendar-popover-open-issue]')))
   await shot(p, 'popover-copy-link-1440')
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=calendar-event-popover]'), { timeout: 5000 }).catch(() => {})
@@ -303,6 +420,8 @@ try {
   await new Promise((r) => setTimeout(r, 400))
   ok('CONTROL a click on an issue deadline opens no dialog', !(await p.$(DIALOG)))
   await p.close()
+
+  await deadlineLinks(browser)
 
 } finally {
   await browser.close()

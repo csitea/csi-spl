@@ -2372,7 +2372,13 @@
     "synced_link": "Изменить в репозитории",
     "copy_link": "Копировать ссылку",
     "link_copied": "Ссылка скопирована",
-    "not_available": "Это событие вам недоступно."
+    "not_available": "Это событие вам недоступно.",
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Дни недели",

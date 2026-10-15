@@ -834,17 +834,34 @@
               </span>
             </div>
             <!-- Deadline. owner, topic 778ad161: a calendar plus a 24-hour time,
-                 shown and typed as YYYY-MM-DD HH:MM in every locale -->
+                 shown and typed as YYYY-MM-DD HH:MM in every locale.
+                 SPL-2034 (design B, t1 edc177bc): a set deadline has "Show in
+                 calendar" beside it, a real link; red once the deadline passed.
+                 Labelled, not a second bare calendar icon next to the
+                 picker's own; it wraps under the picker in a narrow panel. -->
             <div class="issues-prow">
               <span class="issues-prow__k">{{ t('issues.field_deadline') }}</span>
-              <DeadlinePicker
-                class="issues-deadline"
-                :model-value="form.deadline"
-                :label="t('issues.field_deadline')"
-                test-id="issues-deadline"
-                time-test-id="issues-deadline-time"
-                @update:model-value="applyDeadline"
-              />
+              <div class="issues-deadline-row">
+                <DeadlinePicker
+                  class="issues-deadline"
+                  :model-value="form.deadline"
+                  :label="t('issues.field_deadline')"
+                  test-id="issues-deadline"
+                  time-test-id="issues-deadline-time"
+                  @update:model-value="applyDeadline"
+                />
+                <NuxtLink
+                  v-if="detailCalendarHref"
+                  :to="localePath(detailCalendarHref)"
+                  class="issues-iconbtn issues-to-calendar"
+                  :class="{ 'issues-to-calendar--overdue': detailOverdue }"
+                  data-test="issues-show-in-calendar"
+                  :data-overdue="detailOverdue ? 'true' : undefined"
+                  :title="t(detailOverdue ? 'calendar_event.show_in_calendar_overdue' : 'calendar_event.show_in_calendar')"
+                >
+                  <UiIcon name="calendar" :size="16" /><span>{{ t('calendar_event.show_in_calendar') }}</span>
+                </NuxtLink>
+              </div>
             </div>
             <!-- Labels -->
             <div class="issues-prow">
@@ -1181,6 +1198,8 @@ import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
+import { deadlineOverdue, issueCalendarHref } from '~/utils/issue-calendar-link.mjs'
+import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
@@ -1920,6 +1939,8 @@ async function save(key: string, body: Record<string, unknown>) {
   try {
     const data = await withSessionRetry(api, () => api.updateIssue(key, body))
     keepOrDrop(key, data)
+    /* SPL-2034: a calendar open in this tab reads its deadlines again */
+    if ('deadline' in body) window.dispatchEvent(new Event(CALENDAR_CHANGED_EVENT))
   } catch (e) {
     /* SPL-1643: an epic with open issues closes only once confirmed */
     const open = epicCloseOpenCount(e)
@@ -1978,6 +1999,11 @@ async function saveDescription(value: string) {
   if (!saveError.value) void poke({ text: value, before, where: { issue: true, issueKey: key } })
   return !saveError.value
 }
+/* SPL-2034: the open issue's calendar link (a set deadline only) and its
+   overdue tint */
+const localePath = useLocalePath()
+const detailCalendarHref = computed(() => (!creating.value && detail.value ? issueCalendarHref(detail.value.key, detail.value.deadline) : ''))
+const detailOverdue = computed(() => Boolean(detailCalendarHref.value) && deadlineOverdue(detail.value?.deadline || ''))
 function applyDeadline(local: string) {
   if (creating.value) { draft.deadlineLocal = local; return }
   if (!detail.value) return
@@ -3774,6 +3800,11 @@ select.issues-pctl { appearance: auto; }
 .issues-comment-files__list li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; min-width: 0; overflow-wrap: anywhere; }
 .issues-comment-files > p { margin: 0; align-self: stretch; font-size: 0.8125rem; }
 .issues-deadline { display: flex; gap: 6px; flex-wrap: wrap; }
+.issues-deadline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+/* SPL-2034: a 48 px target; red once the deadline passed */
+.issues-to-calendar { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--color-accent); font-size: 0.875rem; text-decoration: none; }
+.issues-to-calendar:hover { text-decoration: underline; }
+.issues-to-calendar--overdue { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
 .issues-deadline select { min-width: 5.5rem; }
 .issues-subs { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .issues-subs h3 { margin: 8px 0 0; font-size: 0.875rem; }

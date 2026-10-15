@@ -65,6 +65,11 @@ export function calSynced(ev) {
   return Boolean(ev && ev.source_key)
 }
 
+/** SPL-2034: an issue deadline (source `issue`); it opens a read-only pop-over, never the editor. */
+export function calDeadline(ev) {
+  return Boolean(ev && ev.id && ev.source === 'issue')
+}
+
 /** Only a member's stored event is edited here: not a synced one, an issue deadline or an official day. */
 export function calEditable(ev) {
   return calStored(ev) && !calSynced(ev)

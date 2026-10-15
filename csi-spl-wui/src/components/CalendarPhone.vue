@@ -57,7 +57,13 @@
       <!-- the one period announcement (S4-2), outside the turning pages -->
       <span class="sr-only" aria-live="polite" data-test="calphone-live">{{ announced }}</span>
     </header>
-    <p v-if="notice" class="calphone__notice" role="status" data-test="calendar-notice" :data-key="notice">{{ t(notice) }}</p>
+    <p v-if="notice" class="calphone__notice" role="status" data-test="calendar-notice" :data-key="notice">
+      {{ t(notice) }}
+      <template v-if="issueMiss && notice === issueMiss.key">
+        <NuxtLink v-if="!issueMiss.denied" :to="localePath(issuePageHref(issueMiss.issue))" class="btn ghost calphone__open" data-test="calendar-notice-open-issue">{{ t('calendar_event.open_issue') }}</NuxtLink>
+        <button v-else type="button" class="btn ghost calphone__open" data-test="calendar-notice-open-issue" disabled :title="t('calendar_event.open_issue_denied')">{{ t('calendar_event.open_issue') }}</button>
+      </template>
+    </p>
 
     <div
       ref="viewEl"
@@ -204,7 +210,7 @@
       @update:open="(v: boolean) => { if (!v && panel === 'add') panel = '' }"
     />
     <!-- T009: an event's peek, its own chunk on the first tap (openPeek is provided to the views) -->
-    <LazyCalendarPhonePeek v-if="peekOn" :event="peekEv" :today="today" @close="peekEv = null" @edit="fromPeek($event, false)" @duplicate="fromPeek($event, true)" />
+    <LazyCalendarPhonePeek v-if="peekOn" :event="peekEv" :today="today" @close="closePeek" @open-issue="openIssue" @edit="fromPeek($event, false)" @duplicate="fromPeek($event, true)" />
     <!-- spec 107 v1.2 T011 (owner R11): the menu's Hours opens the hours tabs as a sheet -->
     <div v-if="panel === 'menu'" class="calphone-menu-back" data-test="calphone-menu-backdrop" @click.self="panel = ''">
       <div class="calphone-menu" role="menu" data-test="calphone-menu-panel">
@@ -228,6 +234,8 @@ import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
+import { calDeadline } from '~/utils/calendar-event-form.mjs'
+import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calAddDays, calLoadWindow } from '~/utils/calendar-year.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
@@ -255,7 +263,8 @@ function storedView(): View {
   } catch { return 'week' }
 }
 const VIEWS = CAL_PHONE_VIEWS as View[]
-const view = ref<View>(storedView())
+/* SPL-2034: a deadline link (?issue=) opens Day, the stored view untouched */
+const view = ref<View>(useRoute().query.issue ? 'day' : storedView())
 function setView(v: View) {
   if (v === view.value) return
   view.value = v
@@ -364,6 +373,24 @@ const peekOn = ref(false)
 function openPeek(ev: CalendarItem) {
   peekOn.value = true
   peekEv.value = ev
+  /* SPL-2034: a deadline's peek is in the URL (replace, no history entry) */
+  if (calDeadline(ev) && route.query.issue !== ev.id) {
+    askedIssue = ev.id
+    void router.replace({ query: { ...route.query, issue: ev.id, event: undefined } })
+  }
+}
+/* Open issue: one history entry, the day left behind without issue= */
+async function openIssue(to: string) {
+  peekEv.value = null
+  askedIssue = ''
+  if (route.query.issue) await router.replace({ query: { ...route.query, issue: undefined } })
+  await router.push(to)
+}
+function closePeek() {
+  peekEv.value = null
+  if (!route.query.issue) return
+  askedIssue = ''
+  void router.replace({ query: { ...route.query, issue: undefined } })
 }
 provide('calphone-peek', openPeek)
 function fromPeek(ev: CalendarItem, copy: boolean) {
@@ -405,8 +432,10 @@ async function fetchRange(r: { from: string, to: string }, signal: AbortSignal):
   const { start, end } = calLoadWindow(r.from, r.to) || { start: '', end: '' }
   let body: { events?: CalendarItem[] }
   if (api.mock) {
-    const { mockCalendarEvents } = await import('~/utils/calendar-mock.mjs')
-    body = mockCalendarEvents(start, end, props.today)
+    const { mockCalendarEvents, mockWithIssueDeadlines } = await import('~/utils/calendar-mock.mjs')
+    /* SPL-2034: the mock workspace's issue deadlines, as the hub's */
+    const rows = await api.listIssues().then((r) => r.issues, () => [])
+    body = mockWithIssueDeadlines(mockCalendarEvents(start, end, props.today), rows)
   } else {
     const q = new URLSearchParams({ start, end })
     const res = await fetch(`${api.base}/v1/calendar/events?${q}`, { credentials: api.credentials, headers: hubJsonHeaders(api.token), signal })
@@ -449,6 +478,8 @@ watch([view, shownDay], () => { void settle() })
 /* 089 T006: /calendar?event=<id> (a reminder's Open) peeks that event once
    the shown range holds it (spec 106 T011, as the desktop's main view) */
 const route = useRoute()
+const router = useRouter()
+const localePath = useLocalePath()
 let askedEvent = ''
 watch([items, state, () => route.query.event], () => {
   const id = String(route.query.event || '')
@@ -476,6 +507,53 @@ async function linkMissing(id: string, day: string) {
     noticeTimer = setTimeout(() => { notice.value = '' }, 6000)
   } catch { /* nothing to say */ }
 }
+/* SPL-2034: /calendar?d=<day>&issue=<KEY> peeks that deadline once the
+   shown day holds it; a miss reads the issue once and says why, beside
+   Open issue (disabled when not available), or turns to its day */
+let askedIssue = ''
+const issueMiss = shallowRef<{ issue: string, key: string, denied: boolean } | null>(null)
+watch([items, state, () => route.query.issue], () => {
+  const key = String(route.query.issue || '')
+  if (!key) { askedIssue = ''; return }
+  if (key === askedIssue) return
+  const ev = items.value.find((x) => calDeadline(x) && x.id === key)
+  if (!ev) {
+    if (state.value === 'ready') void issueLinkMissing(key)
+    return
+  }
+  askedIssue = key
+  openPeek(ev)
+})
+async function issueLinkMissing(key: string) {
+  askedIssue = key
+  const r = calPhoneRange(view.value, shownDay.value)
+  if (!r) return
+  const { deadlineLinkMiss } = await import('~/utils/issue-calendar-miss.mjs')
+  const miss = await deadlineLinkMiss(api, key, r.from, r.to)
+  if (String(route.query.issue || '') !== key) return
+  if (miss.moveTo) {
+    askedIssue = ''
+    shownDay.value = miss.moveTo
+    emit('move', miss.moveTo)
+    return
+  }
+  issueMiss.value = { issue: key, key: miss.notice, denied: miss.denied }
+  clearTimeout(noticeTimer)
+  notice.value = miss.notice
+}
+/* SPL-2034 (D5): on a phone, Back closes an open peek first, then leaves.
+   The peek adds no history entry, so the Back that would leave is refused
+   (the router puts the URL back) and closes the peek instead. The router
+   runs this guard inside its popstate handler, so the event in flight tells
+   a Back from an in-app link (Open issue closes the peek before it goes);
+   issue= is dropped once the router's own revert (another popstate) landed,
+   never while the history still stands on the page Back went to. */
+onBeforeRouteLeave(() => {
+  if (!peekEv.value || globalThis.event?.type !== 'popstate') return true
+  peekEv.value = null
+  window.addEventListener('popstate', () => setTimeout(closePeek, 0), { once: true })
+  return false
+})
 function onChanged() {
   cache.clear()
   void settle()
@@ -483,10 +561,13 @@ function onChanged() {
 onMounted(() => {
   void settle()
   window.addEventListener(CALENDAR_CHANGED_EVENT, onChanged)
+  /* SPL-2034: a deadline saved in another tab shows on return */
+  window.addEventListener('focus', onChanged)
 })
 onBeforeUnmount(() => {
   ctl?.abort()
   window.removeEventListener(CALENDAR_CHANGED_EVENT, onChanged)
+  window.removeEventListener('focus', onChanged)
   cancelAnimationFrame(raf)
   clearTimeout(noticeTimer)
 })
@@ -627,6 +708,7 @@ async function turn(dir: 1 | -1, from = 0) {
 }
 
 /* ---- header: one row, <= 48 px at level 3 ---- */
+.calphone__open { min-height: 48px; margin-inline-start: 8px; text-decoration: none; }
 .calphone__notice {
   margin: 4px 16px;
   padding: 6px 10px;

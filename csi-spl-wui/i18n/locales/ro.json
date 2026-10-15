@@ -2372,7 +2372,13 @@
     "synced_link": "Schimbă în depozit",
     "copy_link": "Copiază linkul",
     "link_copied": "Link copiat",
-    "not_available": "Acest eveniment nu îți este disponibil."
+    "not_available": "Acest eveniment nu îți este disponibil.",
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Zilele săptămânii",

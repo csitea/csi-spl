@@ -222,7 +222,7 @@ export function mockCalendarItems(todayIso) {
   const seeded = [
     item({ id: '00000000-0000-4000-8000-000000000101', title: 'Release', kind: 'release', starts_at: at(0, '09:00'), ends_at: at(0, '10:00'), release_version: 'v1.4.0' }),
     item({ id: '00000000-0000-4000-8000-000000000102', title: 'Database maintenance', kind: 'maintenance', starts_at: at(2, '10:00'), ends_at: at(2, '11:00'), creator_type: 'agent', creator_id: 'c-007' }),
-    item({ id: 'SPL-12', source: 'issue', title: 'Issue deadline', kind: 'deadline', starts_at: at(2, '17:00'), ends_at: at(2, '17:00'), issue_key: 'SPL-12' }),
+    item({ id: 'SPL-12', source: 'issue', title: 'Issue deadline', kind: 'deadline', starts_at: at(2, '17:00'), ends_at: at(2, '17:00'), issue_key: 'SPL-12', status: 'todo', assignee: 'HUM-1' }),
     item({ id: '00000000-0000-4000-8000-000000000103', title: 'Planning', kind: 'other', starts_at: at(30, '13:00'), ends_at: at(30, '14:00') }),
     item({ id: `official:XX:${year}-12-25`, source: 'official_day', title: 'Official day', description: '', kind: 'official_day', starts_at: `${year}-12-25T00:00:00Z`, ends_at: `${calAddDays(`${year}-12-25`, 1)}T00:00:00Z`, all_day: true, creator_type: 'system', creator_id: '', created_at: '', updated_at: '' }),
   ]
@@ -243,6 +243,28 @@ export function mockCalendarEvents(start, end, todayIso) {
     .filter((x) => Date.parse(x.starts_at) < e && (Date.parse(x.ends_at) > s || (x.starts_at === x.ends_at && Date.parse(x.starts_at) >= s)))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.id.localeCompare(b.id))
   return { start, end, events }
+}
+
+/**
+ * SPL-2034: the mock hub's deadline items come from the mock workspace's
+ * issues, as the hub's from issues.deadline: an open issue (not done or
+ * diss, SPL-37) with a deadline in [start, end) is a read-only item with its
+ * status and assignee; it replaces a seeded item of the same key.
+ * @param {{ start: string, end: string, events: ReturnType<typeof item>[] }} body mockCalendarEvents' answer
+ * @param {{ key?: string, title?: string, status?: string, assignee?: string, deadline?: string, created_by?: string }[]} issues
+ */
+export function mockWithIssueDeadlines(body, issues) {
+  const s = Date.parse(body.start)
+  const e = Date.parse(body.end)
+  const due = (Array.isArray(issues) ? issues : [])
+    .filter((i) => i && i.key && i.deadline && i.status !== 'done' && i.status !== 'diss')
+    .filter((i) => { const at = Date.parse(i.deadline); return at >= s && at < e })
+    .map((i) => item({ id: i.key, source: 'issue', title: i.title || '', kind: 'deadline', starts_at: i.deadline, ends_at: i.deadline,
+      issue_key: i.key, creator_id: i.created_by || 'HUM-1', status: i.status || '', assignee: i.assignee || '' }))
+  const keys = new Set(due.map((x) => x.id))
+  const events = [...body.events.filter((x) => !(x.source === 'issue' && keys.has(x.id))), ...due]
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.id.localeCompare(b.id))
+  return { ...body, events }
 }
 
 /**

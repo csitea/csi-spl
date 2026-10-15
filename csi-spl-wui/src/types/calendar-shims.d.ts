@@ -27,6 +27,8 @@ declare module '~/utils/calendar-mock.mjs' {
     time_zone?: string, location?: string, color?: string, reminders?: { amount: number, unit: string, method?: string }[],
     /** specs/112 HUB-1: a synced event's key ('' or absent = a member's event) and its roadmap link */
     source_key?: string, roadmap_url?: string,
+    /** SPL-2034: an issue deadline's issue status and assignee (absent on an event, or unassigned) */
+    status?: string, assignee?: string,
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
   export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
@@ -35,6 +37,10 @@ declare module '~/utils/calendar-mock.mjs' {
   export function mockCalendarRestore(id: string): CalendarItem
   export function mockCalendarTrash(nowMs?: number): (CalendarItem & { deleted_at: string })[]
   export function mockCalendarEvents(start: string, end: string, todayIso: string): { start: string, end: string, events: CalendarItem[] }
+  export function mockWithIssueDeadlines(
+    body: { start: string, end: string, events: CalendarItem[] },
+    issues: { key?: string, title?: string, status?: string, assignee?: string, deadline?: string, created_by?: string }[],
+  ): { start: string, end: string, events: CalendarItem[] }
   export function mockCalendarMarks(startYear: number, endYear: number, todayIso: string): {
     start_year: number, end_year: number,
     days: { day: string, count: number, kinds: string[] }[],
@@ -70,6 +76,7 @@ declare module '~/utils/calendar-event-form.mjs' {
   export function calStored(ev: Item | null | undefined): boolean
   export function calSynced(ev: Item | null | undefined): boolean
   export function calEditable(ev: Item | null | undefined): boolean
+  export function calDeadline(ev: Item | null | undefined): boolean
   export function calRoadmapHref(ev: Item | null | undefined): string
   export function calAudienceSwitched<F extends { private: boolean, public: boolean }>(form: F, which: 'private' | 'public'): F
   export const CAL_PUBLIC_WIRE: string
@@ -114,5 +121,20 @@ declare module '~/utils/calendar-drag.mjs' {
 }
 
 declare module '~/utils/calendar-event-link.mjs' {
-  export function calEventLink(ev: { id?: string, all_day?: boolean, starts_at?: string } | null | undefined, origin: string): string
+  export function calEventLink(ev: { id?: string, source?: string, all_day?: boolean, starts_at?: string } | null | undefined, origin: string): string
+}
+
+/* SPL-2034: the links between an issue deadline and the calendar */
+declare module '~/utils/issue-calendar-link.mjs' {
+  export function issueCalendarHref(issueKey: string, deadline: string): string
+  export function issuePageHref(issueKey: string): string
+  export function deadlineOverdue(deadline: string, nowMs?: number): boolean
+}
+
+/* SPL-2034: a calendar link to a deadline the shown range lacks */
+declare module '~/utils/issue-calendar-miss.mjs' {
+  export function deadlineLinkMiss(
+    api: { getIssue: (ref: string) => Promise<{ issue?: { status?: string, deadline?: string } }> },
+    key: string, from: string, to: string,
+  ): Promise<{ notice: string, denied: boolean, moveTo: string }>
 }

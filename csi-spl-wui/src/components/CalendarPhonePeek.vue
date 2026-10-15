@@ -10,7 +10,10 @@
      The sheet is role="dialog" aria-modal="true": focus goes to its heading
      and back to the control that opened it (S4-2). CalendarPhone mounts it
      lazily on the first peek; Edit and Duplicate go back to the shell, whose
-     add / edit sheet is T008's. -->
+     add / edit sheet is T008's.
+     SPL-2034 (design B, t1 edc177bc): an issue deadline peeks read-only -
+     key and title, due time, status, assignee - with "Open issue" full width
+     in the bottom row (it navigates) and Copy link; no Edit, no Delete. -->
 <template>
   <div v-if="event" class="calpeek" data-test="calpeek-layer">
     <div class="calpeek__scrim" data-test="calpeek-scrim" aria-hidden="true" @click="close" />
@@ -32,7 +35,7 @@
           :style="{ background: event.color ? `var(--cal-color-${event.color})` : 'var(--color-accent)' }"
           aria-hidden="true"
         />
-        <h2 :id="headId" ref="headEl" class="calpeek__title" tabindex="-1" data-test="calpeek-title">{{ event.title }}</h2>
+        <h2 :id="headId" ref="headEl" class="calpeek__title" tabindex="-1" data-test="calpeek-title"><span v-if="deadline" class="calpeek__key" dir="ltr">{{ event.id }}</span>{{ event.title }}</h2>
         <button
           type="button"
           class="calpeek__icon"
@@ -49,6 +52,12 @@
         <UiIcon name="calendar" :size="16" />
         <span>{{ when }}<span v-if="ownZone" class="calpeek__zone" data-test="calpeek-zone"> ({{ ownZone }})</span></span>
       </p>
+      <dl v-if="deadline" class="calpeek__facts" data-test="calpeek-deadline">
+        <dt>{{ t('issues.field_status') }}</dt>
+        <dd data-test="calpeek-status" :data-status="event.status || ''">{{ event.status ? statusLabel(event.status) : '–' }}</dd>
+        <dt>{{ t('issues.field_assignee') }}</dt>
+        <dd data-test="calpeek-assignee">{{ event.assignee || '–' }}</dd>
+      </dl>
       <p v-if="event.location" class="calpeek__line" data-test="calpeek-location">
         <UiIcon name="pin" :size="16" /><span>{{ event.location }}</span>
       </p>
@@ -78,6 +87,12 @@
         <button type="button" class="calpeek__btn calpeek__btn--wide calpeek__btn--quiet" data-test="calpeek-scope-cancel" @click="asking = false">{{ t('common.cancel') }}</button>
       </div>
 
+      <div v-else-if="deadline" class="calpeek__actions calpeek__actions--deadline" data-test="calpeek-deadline-actions">
+        <button type="button" class="calpeek__btn calpeek__btn--quiet" data-test="calpeek-copy-link" @click="copyLink(event)">
+          <UiIcon name="copy" :size="16" />{{ t(copied || 'calendar_event.copy_link') }}
+        </button>
+        <a :href="issueLink" class="calpeek__btn calpeek__btn--open" data-test="calpeek-open-issue" @click="onOpenIssue">{{ t('calendar_event.open_issue') }}</a>
+      </div>
       <div v-else-if="editable" class="calpeek__actions" data-test="calpeek-actions">
         <button type="button" class="calpeek__btn" data-test="calpeek-edit" @click="act('edit')">{{ t('calendar_event.edit') }}</button>
         <button type="button" class="calpeek__btn" data-test="calpeek-duplicate" @click="act('duplicate')">{{ t('calendar_event.duplicate') }}</button>
@@ -110,7 +125,10 @@ import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { calAddDays } from '~/utils/calendar-year.mjs'
 import { isoClock, isoDate, isoDateTime, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
-import { calEditable } from '~/utils/calendar-event-form.mjs'
+import { calDeadline, calEditable } from '~/utils/calendar-event-form.mjs'
+import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
+import { statusLabel } from '~/utils/issues-view.mjs'
+import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
 import { HUB_WRITE_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { calendarDelete, calendarRestore } from '~/utils/calendar-events-api.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
@@ -121,7 +139,7 @@ type Scope = 'this' | 'following' | 'all'
 type Peeked = CalendarItem & { rrule?: string, recurring_event_id?: string, guests?: { type: string, id: string }[] }
 
 const props = defineProps<{ event: Peeked | null, today: string }>()
-const emit = defineEmits<{ close: [], edit: [CalendarItem], duplicate: [CalendarItem] }>()
+const emit = defineEmits<{ close: [], edit: [CalendarItem], duplicate: [CalendarItem], 'open-issue': [to: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
@@ -131,6 +149,21 @@ const UNDO_MS = 10000
 const headId = 'calpeek-head'
 
 const editable = computed(() => calEditable(props.event))
+/* SPL-2034: an issue deadline peeks read-only */
+const deadline = computed(() => calDeadline(props.event))
+const localePath = useLocalePath()
+const router = useRouter()
+const { copied, copyLink } = useCalendarEventLink()
+/* a real link; a plain tap goes through the shell (CalendarPhone), which
+   drops issue= first so Back returns to the day with the peek closed */
+const issueTo = computed(() => localePath(issuePageHref(props.event?.issue_key || props.event?.id || '')))
+const issueLink = computed(() => router.resolve(issueTo.value).href)
+function onOpenIssue(e: MouseEvent) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  opener = null
+  emit('open-issue', issueTo.value)
+}
 const repeating = computed(() => Boolean(props.event?.rrule || props.event?.recurring_event_id))
 const guests = computed(() => (Array.isArray(props.event?.guests) ? props.event!.guests! : []))
 
@@ -138,6 +171,7 @@ const guests = computed(() => (Array.isArray(props.event?.guests) ? props.event!
 const when = computed(() => {
   const ev = props.event
   if (!ev) return ''
+  if (calDeadline(ev)) return isoDateTime(ev.starts_at)
   if (ev.all_day) {
     const a = ev.starts_at.slice(0, 10)
     const b = calAddDays(ev.ends_at.slice(0, 10), -1)
@@ -194,7 +228,7 @@ function act(kind: 'edit' | 'duplicate') {
 }
 /* aria-modal: Tab stays in the sheet */
 function trapTab(e: KeyboardEvent) {
-  const els = [...(sheetEl.value?.querySelectorAll<HTMLElement>('button:not([disabled])') || [])]
+  const els = [...(sheetEl.value?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]') || [])]
   if (!els.length) return
   const first = els[0]!
   const last = els[els.length - 1]!
@@ -405,11 +439,20 @@ async function undo() {
   cursor: pointer;
 }
 .calpeek__btn--wide { flex: 0 0 auto; width: 100%; }
+/* SPL-2034: the deadline's row - Open issue takes the thumb's side, 48 px */
+.calpeek__actions--deadline { flex-wrap: wrap; }
+.calpeek__actions--deadline .calpeek__btn { min-height: 48px; gap: 6px; }
+.calpeek__btn--open { flex: 1 0 100%; order: 2; text-decoration: none; font-weight: 600; }
+.calpeek__key { color: var(--color-muted); font-weight: 400; margin-inline-end: 0.35em; }
+.calpeek__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.calpeek__facts dt { color: var(--color-muted); font-size: 0.875rem; }
+.calpeek__facts dd { margin: 0; overflow-wrap: anywhere; }
 .calpeek__btn--quiet { box-shadow: none; background: transparent; }
 .calpeek__btn--danger { color: var(--color-danger, var(--color-fg)); }
 .calpeek__btn:active { transform: translateY(1px); box-shadow: var(--bevel-shade); }
 .calpeek__btn:disabled { opacity: .6; cursor: default; }
-.calpeek button:focus-visible {
+.calpeek button:focus-visible,
+.calpeek a:focus-visible {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: var(--focus-offset);
 }

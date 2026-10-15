@@ -18,7 +18,14 @@
      specs/112 WUI-2 (4.1, 4.4): an event with a `source_key` (the roadmap
      sync's) is read-only here - no drag, no resize, a pop-over with no Edit
      and a "change it in the repo" link - and /calendar?d=<iso>&event=<id>
-     (a roadmap row) opens its pop-over. -->
+     (a roadmap row) opens its pop-over.
+     SPL-2034 (design B, t1 edc177bc): an issue deadline is clickable (never
+     dragged) and opens its read-only pop-over; /calendar?d=<day>&issue=<KEY>
+     opens it on load, scrolled into view. Opening and closing it replace
+     the URL's issue=, never a history entry. A link the week lacks reads the
+     issue once and says closed / no deadline / not available, beside an Open
+     issue (disabled when not available). The week reads again on window
+     focus and on CALENDAR_CHANGED_EVENT (a deadline saved on Issues). -->
 <template>
   <section
     class="cal-main"
@@ -53,7 +60,13 @@
       </button>
     </div>
     <p v-if="state === 'failed'" class="muted" role="alert" data-test="calendar-failed">{{ t('calendar.load_failed') }}</p>
-    <p v-if="notice" class="cal-main__notice" role="status" data-test="calendar-notice" :data-key="notice">{{ t(notice) }}</p>
+    <p v-if="notice" class="cal-main__notice" role="status" data-test="calendar-notice" :data-key="notice">
+      {{ t(notice) }}
+      <template v-if="issueMiss && notice === issueMiss.key">
+        <NuxtLink v-if="!issueMiss.denied" :to="localePath(issuePageHref(issueMiss.issue))" class="btn ghost cal-main__open" data-test="calendar-notice-open-issue">{{ t('calendar_event.open_issue') }}</NuxtLink>
+        <button v-else type="button" class="btn ghost cal-main__open" data-test="calendar-notice-open-issue" disabled :title="t('calendar_event.open_issue_denied')">{{ t('calendar_event.open_issue') }}</button>
+      </template>
+    </p>
     <div ref="weekEl" class="cal-week cal-week--grid" :style="{ '--cal-days': shown.length }" data-test="calendar-week">
       <div class="cal-week__gutter" aria-hidden="true">
         <div class="cal-week__top" />
@@ -149,7 +162,7 @@
       </div>
     </div>
     <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" :hours="hoursEntry" @saved="reload" @deleted="onDeleted" />
-    <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" />
+    <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" @open-issue="openIssue" />
     <UiPointMenu
       :open="menu !== null"
       :x="menu?.x || 0"
@@ -197,7 +210,7 @@ import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
-import { CAL_COLORS, calEditable, calStored, calSynced } from '~/utils/calendar-event-form.mjs'
+import { CAL_COLORS, calDeadline, calEditable, calStored, calSynced } from '~/utils/calendar-event-form.mjs'
 import { calendarRestore, calendarUpdate } from '~/utils/calendar-events-api.mjs'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
@@ -210,6 +223,7 @@ import type { CalTimes } from '~/utils/calendar-drag.mjs'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
+import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -284,15 +298,17 @@ let seq = 0
 /* GET /v1/calendar/events (6.1.2) for the viewer's week: a day wider than
    [Monday 00:00Z, next Monday 00:00Z), or local Monday 00:00-03:00 at +03 is
    never fetched. The mock workspace answers from calendar-mock. */
-async function load() {
+async function load(deadlinesOnly = false) {
   const mine = ++seq
   const { start, end } = calLoadWindow(weekStart.value, calAddDays(weekStart.value, 7)) || { start: '', end: '' }
-  state.value = 'loading'
+  if (!deadlinesOnly) state.value = 'loading'
   try {
     let body: { events?: CalendarItem[] }
     if (api.mock) {
-      const { mockCalendarEvents } = await import('~/utils/calendar-mock.mjs')
-      body = mockCalendarEvents(start, end, props.today)
+      const { mockCalendarEvents, mockWithIssueDeadlines } = await import('~/utils/calendar-mock.mjs')
+      /* SPL-2034: the mock workspace's issue deadlines, as the hub's */
+      const rows = await api.listIssues().then((r) => r.issues, () => [])
+      body = mockWithIssueDeadlines(mockCalendarEvents(start, end, props.today), rows)
     } else {
       const headers = hubJsonHeaders(api.token)
       const q = new URLSearchParams({ start, end })
@@ -301,16 +317,31 @@ async function load() {
       body = await r.json()
     }
     if (mine !== seq) return
-    items.value = Array.isArray(body?.events) ? body.events : []
+    const fresh = Array.isArray(body?.events) ? body.events : []
+    /* SPL-2034: a focus re-read swaps only the deadlines; a stored event
+       keeps the copy this view read, so a stale drag still meets
+       edit_conflict (If-Match) as before */
+    items.value = deadlinesOnly ? [...items.value.filter((x) => !calDeadline(x)), ...fresh.filter(calDeadline)] : fresh
     state.value = 'ready'
   } catch {
-    if (mine !== seq) return
+    if (mine !== seq || deadlinesOnly) return
     items.value = []
     state.value = 'failed'
   }
 }
 watch(weekStart, () => { void load() })
 onMounted(() => { void load() })
+/* SPL-2034: a deadline saved on Issues (this tab) or elsewhere (another tab,
+   seen on focus) shows without a reload */
+const reloadDeadlines = () => { if (state.value === 'ready') void load(true) }
+onMounted(() => {
+  window.addEventListener(CALENDAR_CHANGED_EVENT, reload)
+  window.addEventListener('focus', reloadDeadlines)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener(CALENDAR_CHANGED_EVENT, reload)
+  window.removeEventListener('focus', reloadDeadlines)
+})
 
 /* 097 T013: a grid opens scrolled to the morning, or to the first event
    shown when it starts earlier */
@@ -340,6 +371,8 @@ watch([state, () => shown.value.join()], async () => {
    097 T014 (G11): a click shows the event's pop-over first; its Edit opens
    the dialog, its Duplicate a new event filled from it. */
 const route = useRoute()
+const router = useRouter()
+const localePath = useLocalePath()
 const dialogOpen = ref(false)
 const dialogEvent = shallowRef<CalendarItem | null>(null)
 const dialogDay = ref(props.focus)
@@ -366,9 +399,14 @@ function openEdit(ev: CalendarItem) {
   dialogOpen.value = true
 }
 function openPeek(ev: CalendarItem) {
-  if (!calStored(ev)) return
+  if (!calStored(ev) && !calDeadline(ev)) return
   peekEvent.value = ev
   peekOpen.value = true
+  /* SPL-2034: a deadline's pop-over is in the URL (replace, no history entry) */
+  if (calDeadline(ev) && route.query.issue !== ev.id) {
+    askedIssue = ev.id
+    void router.replace({ query: { ...route.query, issue: ev.id, event: undefined } })
+  }
 }
 function openDuplicate(ev: CalendarItem) {
   peekOpen.value = false
@@ -485,6 +523,48 @@ async function linkMissing(id: string, day: string) {
   } catch { /* nothing to say */ }
 }
 
+/* SPL-2034: /calendar?d=<day>&issue=<KEY> opens that deadline's pop-over,
+   scrolled into view, once the shown week holds it; closing it drops
+   issue= (replace). A miss reads the issue once (deadlineLinkMiss). */
+let askedIssue = ''
+const issueMiss = shallowRef<{ issue: string, key: string, denied: boolean } | null>(null)
+watch([items, state, () => route.query.issue], () => {
+  const key = String(route.query.issue || '')
+  if (!key) { askedIssue = ''; return }
+  if (key === askedIssue) return
+  const ev = items.value.find((x) => calDeadline(x) && x.id === key)
+  if (!ev) {
+    if (state.value === 'ready') void issueLinkMissing(key)
+    return
+  }
+  askedIssue = key
+  openPeek(ev)
+  void nextTick(() => weekEl.value?.querySelector<HTMLElement>(`[data-source=issue][data-id="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center', inline: 'nearest' }))
+})
+watch(peekOpen, (open) => {
+  if (open || !route.query.issue) return
+  askedIssue = ''
+  void router.replace({ query: { ...route.query, issue: undefined } })
+})
+/* Open issue: one history entry, the week left behind without issue= */
+async function openIssue(to: string) {
+  askedIssue = ''
+  if (route.query.issue) await router.replace({ query: { ...route.query, issue: undefined } })
+  peekOpen.value = false
+  await router.push(to)
+}
+async function issueLinkMissing(key: string) {
+  askedIssue = key
+  const { deadlineLinkMiss } = await import('~/utils/issue-calendar-miss.mjs')
+  const miss = await deadlineLinkMiss(api, key, weekStart.value, calAddDays(weekStart.value, 7))
+  if (String(route.query.issue || '') !== key) return
+  if (miss.moveTo) { askedIssue = ''; emit('move', miss.moveTo); return }
+  /* it stays (no fade): the week is otherwise blank about the link */
+  issueMiss.value = { issue: key, key: miss.notice, denied: miss.denied }
+  if (noticeTimer) clearTimeout(noticeTimer)
+  notice.value = miss.notice
+}
+
 /* ---- 097 T013: drag ---------------------------------------------------- */
 
 type Gesture = {
@@ -514,12 +594,13 @@ const dragClick = (e: Event) => e.timeStamp - upStamp < 100
 
 function itemAttrs(ev: CalendarItem) {
   const edit = calEditable(ev)
-  const peek = calStored(ev)
+  const peek = calStored(ev) || calDeadline(ev)
   return {
     class: ['cal-week__item', {
       'cal-ev': !ev.all_day,
       'cal-week__item--edit': edit,
       'cal-week__item--synced': calSynced(ev),
+      'cal-week__item--deadline': calDeadline(ev),
       'cal-week__item--lifted': lifted.value === ev.id,
       'cal-week__item--left': preview.value?.id === ev.id,
             'cal-week__item--saving': saving.value === ev.id,
@@ -739,6 +820,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-main { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; min-width: 0; height: 100%; min-height: 0; }
 .cal-main__bar { display: flex; align-items: center; gap: 6px; }
 .cal-main__range { margin: 0 0 0 8px; font-size: 1rem; font-weight: 600; }
+.cal-main__open { min-height: 48px; margin-inline-start: 8px; text-decoration: none; }
 .cal-main__notice {
   margin: 0;
   padding: 6px 10px;

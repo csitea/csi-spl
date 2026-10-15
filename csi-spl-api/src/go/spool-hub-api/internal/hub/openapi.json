@@ -5678,6 +5678,138 @@
         "tags": [
           "me"
         ]
+      },
+      "put": {
+        "description": "The signed-in person only: 403 person_only under act-as or without a member session; 400 bad_scope with X-Spool-Tenant or member=. Rows are grouped by workspace; each group is one transaction in that workspace through the 107 entry write, groups run one after another, with no atomicity across workspaces. A group's refusal is the status of each of its rows; the answer is 200. Contract: csi-spl-doc/specs/118-multi-workspace-hours/spec.md §7.2, task T004.",
+        "operationId": "putMeRealmHours",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One row: minutes only (an unplaced entry; its minutes as given) or start and end (a manual span, split at the member's local midnight in that workspace and added to the row). Rows with split, share or percent are 400 no_split (D2); other unknown fields are 400 bad_json.",
+                  "properties": {
+                    "day": {
+                      "description": "required with minutes; with start and end it must be the start's day in that workspace when given",
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "end": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "minutes": {
+                      "maximum": 1440,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "note": {
+                      "maxLength": 500,
+                      "type": "string"
+                    },
+                    "op_id": {
+                      "description": "the client's id of the row, unique in the save; echoed in the answer. A retry of the same rows writes nothing new.",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "start": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "state": {
+                      "description": "default approved",
+                      "enum": [
+                        "approved",
+                        "rejected"
+                      ],
+                      "type": "string"
+                    },
+                    "target": {
+                      "description": "t:<task_id>, ch:<channel>, or ws, as GET /v1/me/realm/targets offers it, or a row the member already holds that day",
+                      "type": "string"
+                    },
+                    "workspace": {
+                      "description": "the workspace (tenant id) the row is written into; must be among the caller's memberships",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workspace",
+                    "op_id",
+                    "target"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "rows": {
+                      "items": {
+                        "properties": {
+                          "detail": {
+                            "type": "string"
+                          },
+                          "op_id": {
+                            "type": "string"
+                          },
+                          "replayed": {
+                            "description": "true when the row's times were already stored: nothing was written",
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "enum": [
+                              "ok",
+                              "period_frozen",
+                              "day_over_1440",
+                              "overlap_in_workspace",
+                              "unknown_target",
+                              "not_a_member",
+                              "bad_row",
+                              "unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          "workspace": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: one status per row, in the request's order."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Save the person's hours into several workspaces",
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/me/realm/profile": {
@@ -5941,6 +6073,90 @@
           }
         },
         "summary": "Set my realm settings",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/targets": {
+      "get": {
+        "description": "W's root topics and channels the caller may read there, plus ws; newest first, a few per kind without q. Never another workspace's target. The signed-in person only (as PUT /v1/me/realm/hours). Contract: csi-spl-doc/specs/118-multi-workspace-hours/spec.md §7.1, task T004.",
+        "operationId": "getMeRealmTargets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "case-insensitive filter on the label",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "targets": {
+                      "items": {
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "topic",
+                              "channel",
+                              "workspace"
+                            ],
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "workspace": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "not_a_member: the caller enters no hours in that workspace; person_only: not the person's own session"
+          }
+        },
+        "summary": "The targets one of the person's workspaces offers them",
         "tags": [
           "me"
         ]

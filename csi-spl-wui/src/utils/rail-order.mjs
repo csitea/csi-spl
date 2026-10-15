@@ -22,7 +22,7 @@ export const RAIL_TABS = Object.freeze([
      "Messages"; desktop keeps "Direct messages" (railLabelKey) */
   Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages', phoneLabelKey: 'sidebar.messages' }),
   /* Owner 2026-09-26: Issues is the third tab. */
-  Object.freeze({ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }),
+  Object.freeze({ id: 'issues', icon: 'alert-triangle', labelKey: 'sidebar.issues' }),
   /* owner HUM-10 (t1 e4bfddb1, msg a78e06c8): no Topics tab any more; the
      hub still stores its id (RAIL_RETIRED) */
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
@@ -30,7 +30,7 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
   /* the personal Event log (owner, topic 4335f075); last by default
      since 2026-09-27 (topic 116646c8 left it out of the named order). */
-  Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
+  Object.freeze({ id: 'events', icon: 'clock', labelKey: 'sidebar.events' }),
   /* CLE-77794 (owner 2026-09-30, topic 1fc29f99): People lists every member
      with their interests on the right; Agents lists the tenant's agents with
      their kind (Claude / Antigravity / Grok / Mistral / Qwen). Both reorder and collapse

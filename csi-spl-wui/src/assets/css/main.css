@@ -871,6 +871,93 @@ html.pane-dragging * {
   :root { --top-bar-h: calc(58px + env(safe-area-inset-top, 0px)); }
   .spool-shell {
     padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+
+  /* Mobile rail: scroll-snap for whole-icon scrolling */
+  .sidebar-rail {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+  .sidebar-rail::-webkit-scrollbar {
+    display: none; /* Safari/Chrome */
+  }
+  .sidebar-rail__tabs {
+    display: flex;
+    flex-direction: row;
+    scroll-snap-align: start;
+    padding: 0 4px;
+  }
+  .sidebar-tab {
+    scroll-snap-align: center;
+    flex: 0 0 auto;
+    min-width: 44px; /* Touch target */
+  }
+  /* Recompute item width on resize/rotation to ensure whole icons */
+  .sidebar-rail__tabs {
+    width: fit-content;
+    max-width: 100%;
+  }
+  /* Tap animations for rail icons */
+  .sidebar-tab {
+    transition: transform 0.1s ease, opacity 0.1s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-tab,
+    .dock-back:active,
+    .attach:active,
+    .composer-send:active,
+    .composer-go:active,
+    .search-syntax-btn:active {
+      transition: none;
+      animation: none !important;
+    }
+  }
+  .sidebar-tab:active,
+  .dock-back:active,
+  .attach:active,
+  .composer-send:active,
+  .composer-go:active,
+  .search-syntax-btn:active {
+    transform: scale(0.95);
+  }
+  /* Per-icon animations */
+  .sidebar-tab[data-reorder-id="issues"]:active {
+    animation: tap-bounce 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="events"]:active {
+    animation: tap-flip 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="boxes"]:active {
+    animation: tap-pulse 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="monitoring"]:active {
+    animation: tap-pulse 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="calendar"]:active {
+    animation: tap-flip-page 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="dm"]:active,
+  .sidebar-tab[data-reorder-id="channels"]:active {
+    animation: tap-bounce 0.4s ease;
+  }
+  .sidebar-tab[data-reorder-id="flow"]:active {
+    animation: tap-bounce 0.4s ease;
+  }
+  /* Bottom bar button animations */
+  .composer-send:active,
+  .composer-go:active {
+    animation: tap-nudge-forward 0.4s ease;
+  }
+  .attach:active {
+    animation: tap-wiggle 0.4s ease;
+  }
+  .dock-back:active {
+    animation: tap-hop-left 0.4s ease;
+  }
+  .search-syntax-btn:active {
+    animation: tap-tilt 0.4s ease;
+  }
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .spool-shell > .pane-divider,
@@ -957,6 +1044,41 @@ html.pane-dragging * {
 @keyframes mobile-panel-in {
   from { transform: translateX(24px); opacity: .6; }
   to { transform: none; opacity: 1; }
+}
+
+/* Tap animations for mobile rail and bottom bar */
+@keyframes tap-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+@keyframes tap-flip {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(15deg); }
+}
+@keyframes tap-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+@keyframes tap-flip-page {
+  0%, 100% { transform: rotateY(0deg); }
+  50% { transform: rotateY(-15deg); }
+}
+@keyframes tap-nudge-forward {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+@keyframes tap-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+@keyframes tap-hop-left {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-4px); }
+}
+@keyframes tap-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-10deg); }
 }
 @media (max-width: 820px) and (prefers-reduced-motion: reduce) {
   .spool-shell > .sidebar,

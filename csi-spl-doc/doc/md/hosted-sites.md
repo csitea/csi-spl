@@ -1,9 +1,12 @@
 # Hosted static sites: step 021 and do_deploy_hosted_site
 
+> Generated from qto doc `01fad16e-4fed-4809-ad27-d148beedbd8c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 SPL-1985. A static website that is not the spool app gets its OWN Firebase
 Hosting site in the env's project, its own host `<name>.<fqdn>` and its own
 DNS records. The WUI site (019) is never touched: its host serves the spool.
 
+<a id="ws-doc-e12ea587-b903-4499-a498-2f7b53d60cdd"></a>
 ## 1. The cnf
 
 One entry per site, keyed by its name. The shared values go in
@@ -29,6 +32,7 @@ One entry per site, keyed by its name. The shared values go in
   the overlay's `forms_only` list too, or the hygiene gate refuses that word.
 - Render: `cd csi-spl-iac && ENV=<env> ./run -a do_tpl_gen`.
 
+<a id="ws-doc-8fd9b9d5-46ed-4f44-96bf-31639ee99c8e"></a>
 ## 2. The infrastructure: step 021-firebase-hosted-sites
 
 Per site: `google_firebase_hosting_site` (`prevent_destroy`: a deleted site
@@ -44,6 +48,7 @@ Plan, then apply with the go (repo CLAUDE.md: tf-runner only, dev leads prd):
 Firebase verifies the host and mints its certificate asynchronously, minutes
 to an hour after the records exist.
 
+<a id="ws-doc-4e50c74b-bd11-411e-955c-3927cb28e924"></a>
 ## 3. The deploy: do_deploy_hosted_site
 
 Builds `src_dir` at a commit (default its HEAD) from a clean clone, never its

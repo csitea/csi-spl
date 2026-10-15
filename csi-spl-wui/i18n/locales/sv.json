@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Din status: online",
     "your_status_offline": "Din status: offline",
-    "monitoring": "Monitoring"
+    "monitoring": "Övervakning"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -2918,12 +2918,12 @@
     "retry": "Försök igen"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Övervakning",
+    "tabs_label": "Övervakningsflikar",
     "tab": {
       "agents": "Agenter",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Token"
     }
   }
 }

@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Tu estado: en línea",
     "your_status_offline": "Tu estado: sin conexión",
-    "monitoring": "Monitoring"
+    "monitoring": "Monitorización"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -2918,8 +2918,8 @@
     "retry": "Reintentar"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Monitorización",
+    "tabs_label": "Pestañas de monitorización",
     "tab": {
       "agents": "Agentes",
       "boxes": "Equipos",

@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Starea ta: online",
     "your_status_offline": "Starea ta: offline",
-    "monitoring": "Monitoring"
+    "monitoring": "Monitorizare"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -2918,12 +2918,12 @@
     "retry": "Încearcă din nou"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Monitorizare",
+    "tabs_label": "File de monitorizare",
     "tab": {
       "agents": "Agenți",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokenuri"
     }
   }
 }

@@ -2919,7 +2919,7 @@
   },
   "monitoring": {
     "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "tabs_label": "Monitoringtabbladen",
     "tab": {
       "agents": "Agents",
       "boxes": "Boxes",

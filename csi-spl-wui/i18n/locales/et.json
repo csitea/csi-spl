@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Sinu olek: võrgus",
     "your_status_offline": "Sinu olek: võrguühenduseta",
-    "monitoring": "Monitoring"
+    "monitoring": "Seire"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -2918,12 +2918,12 @@
     "retry": "Proovi uuesti"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Seire",
+    "tabs_label": "Seire vahelehed",
     "tab": {
       "agents": "Agendid",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokenid"
     }
   }
 }

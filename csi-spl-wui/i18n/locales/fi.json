@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Tilasi: paikalla",
     "your_status_offline": "Tilasi: offline",
-    "monitoring": "Monitoring"
+    "monitoring": "Valvonta"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -2918,12 +2918,12 @@
     "retry": "Yritä uudelleen"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Valvonta",
+    "tabs_label": "Valvonnan välilehdet",
     "tab": {
       "agents": "Agentit",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokenit"
     }
   }
 }

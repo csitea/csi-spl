@@ -2919,11 +2919,11 @@
   },
   "monitoring": {
     "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "tabs_label": "Karty monitoringu",
     "tab": {
       "agents": "Agenci",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokeny"
     }
   }
 }

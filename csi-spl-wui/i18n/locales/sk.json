@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Váš stav: online",
     "your_status_offline": "Váš stav: offline",
-    "monitoring": "Monitoring"
+    "monitoring": "Monitorovanie"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -2918,12 +2918,12 @@
     "retry": "Skúsiť znova"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Monitorovanie",
+    "tabs_label": "Karty monitorovania",
     "tab": {
       "agents": "Agenti",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokeny"
     }
   }
 }

@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Jūsu statuss: tiešsaistē",
     "your_status_offline": "Jūsu statuss: bezsaistē",
-    "monitoring": "Monitoring"
+    "monitoring": "Pārraudzība"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -2918,12 +2918,12 @@
     "retry": "Mēģināt vēlreiz"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Pārraudzība",
+    "tabs_label": "Pārraudzības cilnes",
     "tab": {
       "agents": "Aģenti",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Marķieri"
     }
   }
 }

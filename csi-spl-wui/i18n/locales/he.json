@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "הסטטוס שלך: מקוון",
     "your_status_offline": "הסטטוס שלך: לא מקוון",
-    "monitoring": "Monitoring"
+    "monitoring": "ניטור"
   },
   "composer": {
     "biz_owner": "בעל העסק",
@@ -2918,12 +2918,12 @@
     "retry": "נסו שוב"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "ניטור",
+    "tabs_label": "כרטיסיות ניטור",
     "tab": {
       "agents": "סוכנים",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "אסימונים"
     }
   }
 }

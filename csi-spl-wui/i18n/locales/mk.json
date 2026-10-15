@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Вашиот статус: онлајн",
     "your_status_offline": "Вашиот статус: офлајн",
-    "monitoring": "Monitoring"
+    "monitoring": "Мониторинг"
   },
   "composer": {
     "biz_owner": "сопственик на бизнисот",
@@ -2918,12 +2918,12 @@
     "retry": "Обидете се повторно"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Мониторинг",
+    "tabs_label": "Јазичиња за мониторинг",
     "tab": {
       "agents": "Агенти",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Токени"
     }
   }
 }

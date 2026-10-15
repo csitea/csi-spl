@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Ваш статус: в сети",
     "your_status_offline": "Ваш статус: не в сети",
-    "monitoring": "Monitoring"
+    "monitoring": "Мониторинг"
   },
   "composer": {
     "biz_owner": "владелец бизнеса",
@@ -2918,12 +2918,12 @@
     "retry": "Повторить"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Мониторинг",
+    "tabs_label": "Вкладки мониторинга",
     "tab": {
       "agents": "Агенты",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Токены"
     }
   }
 }

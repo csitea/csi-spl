@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Jūsų būsena: prisijungęs",
     "your_status_offline": "Jūsų būsena: neprisijungęs",
-    "monitoring": "Monitoring"
+    "monitoring": "Stebėsena"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -2918,12 +2918,12 @@
     "retry": "Bandyti dar kartą"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "Stebėsena",
+    "tabs_label": "Stebėsenos skirtukai",
     "tab": {
       "agents": "Agentai",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Žetonai"
     }
   }
 }

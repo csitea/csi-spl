@@ -554,7 +554,7 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Durumunuz: çevrimiçi",
     "your_status_offline": "Durumunuz: çevrimdışı",
-    "monitoring": "Monitoring"
+    "monitoring": "İzleme"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -2918,12 +2918,12 @@
     "retry": "Tekrar deneyin"
   },
   "monitoring": {
-    "title": "Monitoring",
-    "tabs_label": "Monitoring tabs",
+    "title": "İzleme",
+    "tabs_label": "İzleme sekmeleri",
     "tab": {
       "agents": "Ajanlar",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Belirteçler"
     }
   }
 }

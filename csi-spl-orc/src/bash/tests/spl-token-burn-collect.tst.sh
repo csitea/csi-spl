@@ -18,8 +18,10 @@
 #   6. a tick that finds the lock held skips (rc 0), changes nothing
 #   7. token-burn-collect-cron.sh refuses an agent worktree; allowed, it logs
 #      one tick line per tick with its milliseconds
-#   8. the fast path: a new project dir's transcript is read the next tick,
-#      one in a dir whose mtime did not move at the next full listing
+#   8. only the first tick lists every transcript dir: a new project dir's
+#      transcript and an active session's new subagent are read the next
+#      tick, an idle session's on its dir's slice. Control: without the
+#      active-session listing that subagent waits
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -122,26 +124,49 @@ out="$(env TOKEN_BURN_ALLOW_WORKTREE=1 TOKEN_BURN_TICKS=2 TOKEN_BURN_TICK_S=0 TO
 [[ "$rc" == 0 && "$(grep -c 'token-burn tick mode=next .* ms=[0-9]' <<<"$out")" == 2 ]] &&
   pass "7. allowed, it logs one tick line per tick with its ms" || fail "7. rc=$rc $out"
 
-# 8. the fast path (real clock): a new transcript in a new project dir is read
-# the next tick; one in a dir whose mtime did not move waits for the full
-# listing (every TOKEN_BURN_FULL_S)
-H9="$T/home9" S9="$T/state9"
-SL="$H9/.claude/projects/-opt-x-wt-c-111"; mkdir -p "$SL/33333333-3333-3333-3333-333333333333/subagents"
+# 8. the scan after the first tick (real clock): no tick lists every dir. A
+# new project dir's transcript is read the next tick; a new subagent file of
+# a session whose transcript moved in the last TOKEN_BURN_ACTIVE_S too; one
+# of an idle session, in a dir whose mtime did not move, on the tick of its
+# dir's slice (crc32 of the dir name), within TOKEN_BURN_SLICES ticks
+H9="$T/home9" S9="$T/state9" P9="$T/home9/.claude/projects"
 tick9() {
   env TOKEN_BURN_STATE_DIR="$S9" TOKEN_BURN_HOMES="$H9" TOKEN_BURN_LIVE_CMD=true TOKEN_BURN_PUSH=0 SPOOL_ROOT="$T/spool" \
     COLLECT_FUNC="$PROJ_ROOT/src/bash/run/spl-token-burn-collect.func.sh" "$@" bash -c 'source "$COLLECT_FUNC"; do_spl_token_burn_collect' 2>&1
 }
 burn9() { awk -F'\t' -v a="$1" '$1 == a { o += $6 } END { print o + 0 }' "$S9/buckets.tsv"; }
-touch -d '-1 hour' "$SL/33333333-3333-3333-3333-333333333333/subagents" "$SL/33333333-3333-3333-3333-333333333333" "$SL"
-tick9 >/dev/null; tick9 >/dev/null
-mkdir -p "$H9/.claude/projects/-opt-x-wt-c-112"; crow "$(date +%s)" msg_F1 5 >"$H9/.claude/projects/-opt-x-wt-c-112/44444444-4444-4444-4444-444444444444.jsonl"
-crow "$(date +%s)" msg_F2 6 >"$SL/33333333-3333-3333-3333-333333333333/subagents/agent-a1.jsonl"
-touch -d '-1 hour' "$SL/33333333-3333-3333-3333-333333333333/subagents"
+listed() { sed -n 's/.* listed=\([0-9]*\) .*/\1/p' <<<"$1"; }
+sess() { mkdir -p "$P9/-opt-x-wt-$1/$2/subagents"; crow "$(date +%s)" "msg_$1" 0 >"$P9/-opt-x-wt-$1/$2.jsonl"; }
+for i in $(seq 120 139); do sess "c-$i" "s$i"; done
+sess c-111 33333333-3333-3333-3333-333333333333; sess c-113 55555555-5555-5555-5555-555555555555
+find "$P9" -exec touch -d '-1 hour' {} +
+touch "$P9/-opt-x-wt-c-113/55555555-5555-5555-5555-555555555555.jsonl"
+out0="$(tick9)"; tick9 >/dev/null
+mkdir -p "$P9/-opt-x-wt-c-112"; crow "$(date +%s)" msg_F1 5 >"$P9/-opt-x-wt-c-112/44444444-4444-4444-4444-444444444444.jsonl"
+for a in c-111/33333333-3333-3333-3333-333333333333 c-113/55555555-5555-5555-5555-555555555555; do
+  crow "$(date +%s)" "msg_sub_${a%%/*}" 6 >"$P9/-opt-x-wt-$a/subagents/agent-a1.jsonl"
+  touch -d '-1 hour' "$P9/-opt-x-wt-$a/subagents" "$P9/-opt-x-wt-$a" "$P9/-opt-x-wt-${a%%/*}"
+done
 out="$(tick9)"
-[[ "$out" == *"scan=fast"* && "$(burn9 c-112)" == 5 && "$(burn9 c-111)" == 0 ]] &&
-  pass "8. fast tick: the new project dir's transcript is read, the unmoved dir's waits" || fail "8. fast: c-112=$(burn9 c-112) c-111=$(burn9 c-111) | $out"
-out="$(tick9 TOKEN_BURN_FULL_S=0)"
-[[ "$out" == *"scan=full"* && "$(burn9 c-111)" == 6 ]] && pass "8. the full listing finds it" || fail "8. full: c-111=$(burn9 c-111) | $out"
+[[ "$out0" == *"scan=full"* && "$out" == *"scan=slice"* && "$(listed "$out")" -lt "$(listed "$out0")" ]] &&
+  pass "8. only the first tick lists every dir (listed $(listed "$out0")), the next one a slice ($(listed "$out"))" || fail "8. listing: $out0 | $out"
+[[ "$(burn9 c-112)" == 5 && "$(burn9 c-113)" == 6 ]] &&
+  pass "8. the next tick reads a new project dir's transcript and an active session's new subagent" || fail "8. next: c-112=$(burn9 c-112) c-113=$(burn9 c-113) | $out"
+slice() { python3 -c 'import sys, zlib; print(zlib.crc32(sys.argv[1].encode()) % 10)' "$1"; }
+want="$(slice -opt-x-wt-c-111)"
+got=-; [[ "$(burn9 c-111)" == 6 ]] && got="${out##*scan=slice}"
+for _ in $(seq 1 10); do
+  [[ "$got" == - ]] || break
+  out="$(tick9)"; [[ "$(burn9 c-111)" == 6 ]] && got="${out##*scan=slice}"
+done
+got="${got%% *}"
+[[ "$got" == "$want" ]] && pass "8. the idle session's subagent is read on its dir's slice ($want of 10)" || fail "8. slice: got=$got want=$want | $out"
+rm -rf "$S9"; tick9 >/dev/null
+crow "$(date +%s)" msg_sub2 7 >"$P9/-opt-x-wt-c-113/55555555-5555-5555-5555-555555555555/subagents/agent-a2.jsonl"
+touch "$P9/-opt-x-wt-c-113/55555555-5555-5555-5555-555555555555.jsonl"
+touch -d '-1 hour' "$P9/-opt-x-wt-c-113/55555555-5555-5555-5555-555555555555/subagents" "$P9/-opt-x-wt-c-113"
+out="$(tick9 TOKEN_BURN_ACTIVE_S=0)"
+[[ "$out" != *"scan=slice$(slice -opt-x-wt-c-113) "* && "$(burn9 c-113)" == 0 ]] && pass "8. control: without the active-session listing that subagent waits for its slice" || fail "8. control: c-113=$(burn9 c-113) | $out"
 
 echo "spl-token-burn-collect: $fails failure(s)"
 exit "$fails"

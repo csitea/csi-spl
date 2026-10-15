@@ -72,9 +72,16 @@ Where the build differs from spec section 2, and why:
 - **Finding the transcripts** costs more than reading them: a listing of every
   transcript dir is ~2700 stats (~0.4 s on sat at load 15-25). So a tick stats
   only the files it tracks (changed in the last 3 h) and lists only the dirs
-  whose mtime moved since the last tick; every dir is listed every 5 min. A new
-  file in a dir whose mtime does not move (a subagent file in an existing
-  `subagents/`) is read up to 5 min late, never lost.
+  whose mtime moved since the last tick, plus one slice of the rest (10
+  slices by the crc32 of the dir name, one a tick: every dir within 5 min).
+  Only the first tick lists every dir. A claude session whose transcript
+  moved in the last 10 min also has its `subagents/` listed, so a new
+  subagent file is read the next tick; a new file in an idle dir whose mtime
+  does not move is read on its slice, up to 5 min late, never lost.
+- **Forks** (SPL-2055): a tick forks flock, the reader (via sudo), awk twice,
+  one mv and one rm, and jq only when a transcript grew by a usage row; the
+  users' homes and the live pane ids are cached in the state dir. On a loaded
+  box each fork waits for a core.
 - **Buckets** hold the full totals of each agent's minute for the last 60
   minutes; a changed bucket stays queued until a push is acked, and is sent
   whole (the hub replaces on `(box_tag, agent_id, minute_bucket)`).
@@ -83,8 +90,10 @@ Where the build differs from spec section 2, and why:
   minutes. The hub settings come from `push.env`, written hourly by
   `do_spl_token_burn_push_env`.
 - **Cron** (T023): `src/bash/scripts/token-burn-collect-cron.sh` runs 2 ticks a
-  minute, 30 s apart, sourcing the two func files directly: `./run`'s start
-  alone measured ~0.8 s on sat (n=3), more than a tick's budget.
+  minute, 30 s apart (spec 2.1; a 60 s tick would spend the whole 60 s lag
+  budget of spec 1.2 on collection alone), at nice 10 and `ionice -c 2 -n 7`,
+  sourcing the two func files directly: `./run`'s start alone measured
+  ~0.8 s on sat (n=3), more than a tick's budget.
 - **Performance gate: FAILED, so the cron entry (T023) stays OFF.** Measured on
   sat (16 cores, 12 agent windows, load 13..99), code c7b5e8b0f (same logic as
   487a20957), push off, as the cron runs it (2 ticks a minute):

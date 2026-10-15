@@ -32,64 +32,101 @@ declare -F spl_cost_tokens_jq_def >/dev/null || source "$(dirname "${BASH_SOURCE
 # Seconds a bucket and a late row stay in reach (spec 140 1.1 lag is 60 s);
 # the per-id MAX cache keeps 2 h (spec 140 2.4); a transcript is tracked
 # while it changed in the last 3 h (one idle longer is read again from 0 when
-# it moves: its old rows fall outside the window); every transcript dir is
-# listed every 5 min, in between only the dirs whose mtime moved.
+# it moves: its old rows fall outside the window). Only the first tick lists
+# every transcript dir; after it a tick lists the dirs whose mtime moved,
+# one slice of the rest (TOKEN_BURN_SLICES, one slice a tick: every dir in
+# 10 x 30 s = 5 min) and the subagents dir of each claude session whose
+# transcript moved in the last TOKEN_BURN_ACTIVE_S.
 TOKEN_BURN_WINDOW_S=3600 TOKEN_BURN_ID_TTL_S=7200 TOKEN_BURN_FILE_MMIN=180
-TOKEN_BURN_FULL_S="${TOKEN_BURN_FULL_S:-300}"
+TOKEN_BURN_SLICES="${TOKEN_BURN_SLICES:-10}" TOKEN_BURN_ACTIVE_S="${TOKEN_BURN_ACTIVE_S:-600}"
 
+# A tick forks few processes (flock, the reader, jq only when a transcript
+# grew by a usage row, awk twice, mv, rm): on a loaded box every fork waits
+# for a core.
 do_spl_token_burn_collect() {
-  local dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}" t0 now mode rc
-  t0="$(date +%s%3N)" now="${TOKEN_BURN_NOW:-$(date +%s)}"
-  mkdir -p "$dir" || { echo "FATAL cannot create $dir" >&2; return 1; }
+  local dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}" t0="${EPOCHREALTIME//[.,]/}" now mode rc stats
+  now="${TOKEN_BURN_NOW:-$EPOCHSECONDS}"
+  [[ -d "$dir/next" ]] || mkdir -p "$dir/next" || { echo "FATAL cannot create $dir" >&2; return 1; }
   exec 9>"$dir/collect.lock"
   flock -n 9 || { echo "SKIP token-burn: another tick holds $dir/collect.lock"; exec 9>&-; return 0; }
   mode=next; [[ -e "$dir/state.v1" ]] || mode=first
   spl_token_burn_tick "$dir" "$now" "$mode"; rc=$?
-  (( rc != 0 )) || touch "$dir/state.v1"
+  (( rc != 0 )) || [[ "$mode" == next ]] || : >"$dir/state.v1"
   exec 9>&-
   (( rc == 0 )) || return "$rc"
-  echo "$(cat "$dir/tick.stats") ms=$(( $(date +%s%3N) - t0 ))"
+  read -r stats <"$dir/tick.stats"
+  echo "$stats ms=$(( (${EPOCHREALTIME//[.,]/} - t0) / 1000 ))"
 }
 
-# spl_token_burn_tick DIR NOW MODE: read, sum, write the state, push.
+# spl_token_burn_tick DIR NOW MODE: read, sum, write the state, push. The
+# reader exits 3 when it found usage rows: only then does jq run (it passes
+# the file rows through), else the sum reads the reader's rows as they are.
+# DIR/scan.since holds the last tick's time and slice; without it (first
+# tick, lost state) the tick lists every dir.
 spl_token_burn_tick() {
-  local dir="$1" now="$2" mode="$3" raw ev since=0 last full
-  touch "$dir/files.tsv" "$dir/ids.tsv" "$dir/sessions.tsv" "$dir/buckets.tsv" "$dir/agents.tsv" || return 1
-  raw="$dir/tick.raw" ev="$dir/tick.events"
-  if [[ "$mode" == next ]] && read -r last full 2>/dev/null <"$dir/scan.since" && (( now - full < TOKEN_BURN_FULL_S )); then
-    since=$((last - 2))
+  local dir="$1" now="$2" mode="$3" raw="$1/tick.raw" ev="$1/tick.events" live="$1/tick.live" src s since=0 last slot=-1 rc
+  for s in files ids sessions buckets agents; do [[ -e "$dir/$s.tsv" ]] || : >"$dir/$s.tsv" || return 1; done
+  if [[ "$mode" == next ]] && read -r last s 2>/dev/null <"$dir/scan.since" && [[ "$last" =~ ^[0-9]+$ && "$s" =~ ^[0-9]+$ ]]; then
+    since=$((last - 2)) slot=$(( (s + 1) % TOKEN_BURN_SLICES ))
   fi
-  spl_token_burn_read "$mode" "$since" <"$dir/files.tsv" >"$raw" || { echo "FATAL token-burn: reading the transcripts failed" >&2; rm -f "$raw"; return 1; }
-  spl_token_burn_events "$now" <"$raw" >"$ev" || { echo "FATAL token-burn: parsing the new rows failed" >&2; rm -f "$raw" "$ev"; return 1; }
-  rm -f "$raw"
-  spl_token_burn_agents "$dir" "$ev"
-  spl_token_burn_live "$dir" "$now" >>"$ev"
-  spl_token_burn_sum "$dir" "$now" "$mode" <"$ev" || { echo "FATAL token-burn: summing the tick failed" >&2; return 1; }
-  rm -f "$ev"
-  printf '%s %s\n' "$now" "$( (( since == 0 )) && echo "$now" || echo "$full")" >"$dir/scan.since"
-  printf ' scan=%s' "$( (( since == 0 )) && echo full || echo fast)" >>"$dir/tick.stats"
+  spl_token_burn_read "$dir" "$mode" "$since" "$slot" >"$raw"; rc=$?
+  src="$raw"
+  if (( rc == 3 )); then
+    spl_token_burn_events "$now" <"$raw" >"$ev" || { echo "FATAL token-burn: parsing the new rows failed" >&2; rm -f "$raw" "$ev"; return 1; }
+    src="$ev"
+  elif (( rc != 0 )); then
+    echo "FATAL token-burn: reading the transcripts failed" >&2; rm -f "$raw"; return 1
+  fi
+  spl_token_burn_agents "$dir" "$src"
+  spl_token_burn_live "$dir" "$now" >"$live"
+  spl_token_burn_sum "$dir" "$now" "$mode" "$src" "$live" || { echo "FATAL token-burn: summing the tick failed" >&2; rm -f "$raw" "$ev" "$live"; return 1; }
+  rm -f "$raw" "$ev" "$live"
+  printf '%s %s\n' "$now" "$(( slot < 0 ? 0 : slot ))" >"$dir/scan.since"
+  printf ' scan=%s' "$( (( slot < 0 )) && echo full || echo "slice$slot")" >>"$dir/tick.stats"
   spl_token_burn_push "$dir"
 }
 
-# spl_token_burn_read MODE SINCE <files.tsv: the reader (spl_token_burn_reader_py)
-# over every home, each as its user (transcripts are mode 600). Its "F" rows
-# are the next files.tsv; "R" rows carry a new transcript line, "M" a vibe
-# session's start dir, "V" the vibe model. Nothing of it is written to disk.
+# spl_token_burn_read DIR MODE SINCE SLOT: the reader (spl_token_burn_reader_py)
+# over every home, each as its user (transcripts are mode 600), on
+# DIR/files.tsv. Its "F" rows are the next files.tsv, "L" the dirs it
+# listed; "R" rows carry a new transcript line, "M" a vibe session's start
+# dir, "V" the vibe model. Exit 3: some home had "R" rows, 0: none.
 spl_token_burn_read() {
-  local mode="$1" since="$2" prev u h prog
-  prev="$(awk -F'\t' -v OFS='\t' 'NF >= 4 {print $1, $2, $3, $4}')"
-  prog="$(spl_token_burn_reader_py)"
+  local dir="$1" row u h rc=0 r TOKEN_BURN_PY
+  local -a homes=() args=("$2" "$TOKEN_BURN_FILE_MMIN" "" "$3" "$4" "$TOKEN_BURN_SLICES" "$TOKEN_BURN_ACTIVE_S")
+  spl_token_burn_reader_py
+  spl_token_burn_homes "$dir"
+  for row in "${homes[@]}"; do
+    u="${row%% *}" h="${row#* }" args[2]="$h"
+    if [[ "$u" == - ]]; then python3 -I -S -c "$TOKEN_BURN_PY" "${args[@]}" <"$dir/files.tsv"; r=$?
+    else sudo -n -u "$u" python3 -I -S -c "$TOKEN_BURN_PY" "${args[@]}" <"$dir/files.tsv"; r=$?
+    fi
+    case "$r" in 0) ;; 3) rc=3 ;; *) return 1 ;; esac
+  done
+  return "$rc"
+}
+
+# spl_token_burn_homes DIR: the caller's homes[] as "<user> <home>" per
+# agent user, the user "-" when it is the current one (no sudo), and one
+# "- <home>" per TOKEN_BURN_HOMES entry. Cached an hour in DIR/homes.txt
+# (first line its epoch): resolving them forks six times.
+spl_token_burn_homes() {
+  local f="$1/homes.txt" u h me
   if [[ -n "${TOKEN_BURN_HOMES:-}" ]]; then
-    for h in $TOKEN_BURN_HOMES; do
-      python3 -I -c "$prog" "$mode" "$TOKEN_BURN_FILE_MMIN" "$h" "$since" <<<"$prev" || return 1
-    done
+    for h in $TOKEN_BURN_HOMES; do homes+=("- $h"); done
     return 0
   fi
+  [[ -s "$f" ]] && mapfile -t homes <"$f"
+  if [[ "${homes[0]:-}" =~ ^[0-9]+$ ]] && (( EPOCHSECONDS - homes[0] < 3600 )); then
+    homes=("${homes[@]:1}")
+    return 0
+  fi
+  homes=() me="$(id -un)"
   for u in $(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}"); do
     h="$(getent passwd "$u" | cut -d: -f6)"
-    [[ -n "$h" ]] || continue
-    spl_cost_as "$u" python3 -I -c "$prog" "$mode" "$TOKEN_BURN_FILE_MMIN" "$h" "$since" <<<"$prev" || return 1
+    [[ -n "$h" ]] && homes+=("$([[ "$u" == "$me" ]] && echo - || echo "$u") $h")
   done
+  printf '%s\n' "$EPOCHSECONDS" "${homes[@]}" >"$f"
 }
 
 # The reader: byte IO and file bookkeeping only, it parses no transcript
@@ -97,20 +134,27 @@ spl_token_burn_read() {
 # keep the lines that can carry usage. A new inode or a file shorter than
 # its offset starts again at 0. MODE first (no state yet) starts every
 # jsonl at its end. grok usage.json is small and rewritten whole: re-read
-# when its mtime moved. SINCE 0 lists every transcript dir; else only the
-# known files are stat'ed and only the dirs whose mtime moved since SINCE
-# are listed (a walk of every dir costs ~0.4 s on a busy box: 2700 stats).
+# when its mtime moved. SLOT -1 lists every transcript dir; else only the
+# known files are stat'ed, and a dir is listed when its mtime moved since
+# SINCE or when it falls in this tick's SLOT of SLICES (crc32 of its name):
+# a walk of every dir is ~2700 entries (~0.4 s on a busy box). A claude
+# transcript that moved in the last ACTIVE s has its subagents dir listed:
+# a subagent's new file does not move any dir the walk would list.
+# Sets the caller's TOKEN_BURN_PY: read builtins, no process forked.
 spl_token_burn_reader_py() {
+  local a b
   spl_token_burn_reader_py_find
   spl_token_burn_reader_py_read
+  TOKEN_BURN_PY="$a$b"
 }
 
 # The reader's first half: the state in, the candidate transcripts found.
 spl_token_burn_reader_py_find() {
-  cat <<'EOF_PY'
-import json, os, re, sys, time
-mode, mmin, home, since = sys.argv[1], int(sys.argv[2]), sys.argv[3], float(sys.argv[4])
-cutoff, cap, out = time.time() - mmin * 60, 32 << 20, sys.stdout
+  IFS= read -r -d '' a <<'EOF_PY' || :
+import json, os, sys, time, zlib
+mode, mmin, home, since, slot, slices, active = sys.argv[1], int(sys.argv[2]), sys.argv[3], float(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]), int(sys.argv[7])
+now = time.time()
+cutoff, cap, out, listed, rows = now - mmin * 60, 32 << 20, sys.stdout, [0], [0]
 prev, cand = {}, {}
 for l in sys.stdin:
     p = l.rstrip("\n").split("\t")
@@ -122,12 +166,16 @@ def emit(*a):
 def ls(d):
     try:
         with os.scandir(d) as it:
-            return list(it)
+            r = list(it)
     except OSError:
         return []
-def moved(d):
+    listed[0] += 1
+    return r
+def look(name, d):
+    if slot < 0 or zlib.crc32(name.encode("utf-8", "surrogateescape")) % slices == slot:
+        return True
     try:
-        return since <= 0 or os.stat(d).st_mtime >= since
+        return os.stat(d).st_mtime >= since
     except OSError:
         return False
 def jsonl(entries, vendor):
@@ -135,17 +183,17 @@ def jsonl(entries, vendor):
         if f.name.endswith(".jsonl"):
             cand[f.path] = vendor
 for e in ls(home + "/.claude/projects"):
-    if e.is_dir() and moved(e.path):
+    if e.is_dir() and look(e.name, e.path):
         sub = ls(e.path)
         jsonl(sub, "claude")
         for s in sub:
             if s.is_dir():
                 jsonl(ls(s.path + "/subagents"), "claude")
 for e in ls(home + "/.vibe/logs/session/unified"):
-    if moved(e.path + "/journal"):
+    if look(e.name, e.path + "/journal"):
         jsonl(ls(e.path + "/journal"), "mistral")
 for e in ls(home + "/.grok/sessions"):
-    if e.is_dir() and moved(e.path):
+    if e.is_dir() and look(e.name, e.path):
         for s in ls(e.path):
             if s.is_dir():
                 cand[s.path + "/usage.json"] = "grok"
@@ -154,7 +202,7 @@ EOF_PY
 
 # The reader's second half: each candidate read from its offset.
 spl_token_burn_reader_py_read() {
-  cat <<'EOF_PY'
+  IFS= read -r -d '' b <<'EOF_PY' || :
 def tail(vendor, f, st, needles):
     ino, size, old = str(st.st_ino), st.st_size, prev.get(f)
     if old is None:
@@ -171,6 +219,7 @@ def tail(vendor, f, st, needles):
             for line in data[:cut].split(b"\n"):
                 if all(n in line for n in needles):
                     emit("R", vendor, f, line.decode("utf-8", "replace"))
+                    rows[0] += 1
             off += cut + 1
     emit("F", vendor, f, ino, str(off))
     return off != start
@@ -179,11 +228,12 @@ def grok(f, st):
     if old is None or old[0] != ino or str(old[1]) != mt:
         try:
             emit("R", "grok", f, json.dumps(json.load(open(f)), separators=(",", ":")))
+            rows[0] += 1
         except (OSError, ValueError):
             pass
     emit("F", "grok", f, ino, mt)
-vibe = set()
-for f, vendor in cand.items():
+vibe, todo = set(), list(cand.items())
+for f, vendor in todo:
     try:
         st = os.stat(f)
     except OSError:
@@ -197,12 +247,18 @@ for f, vendor in cand.items():
             vibe.add(os.path.dirname(os.path.dirname(f)))
     else:
         tail(vendor, f, st, (b'"usage"', b'"assistant"'))
+        if st.st_mtime >= now - active and "/subagents/" not in f:
+            for s in ls(f[:-6] + "/subagents"):
+                if s.name.endswith(".jsonl") and s.path not in cand:
+                    cand[s.path] = "claude"
+                    todo.append((s.path, "claude"))
 for d in vibe:
     try:
         emit("M", "mistral", d, json.load(open(d + "/meta.json")).get("origin_directory") or "")
     except (OSError, ValueError):
         pass
 if vibe:
+    import re
     try:
         cfg = open(home + "/.vibe/config.toml").read()
         act = re.search(r'^active_model\s*=\s*"([^"]+)"', cfg, re.M)
@@ -211,13 +267,16 @@ if vibe:
         emit("V", "mistral", alias.get(act.group(1), act.group(1)) if act else "unknown")
     except OSError:
         emit("V", "mistral", "unknown")
+emit("L", str(listed[0]))
+out.flush()
+sys.exit(3 if rows[0] else 0)
 EOF_PY
 }
 
 # spl_token_burn_events NOW <reader rows: one normalized row per usage:
 #   C <path> <message id> <ts> <model> <in> <out> <cache_read> <cache_write>
 #   S <vendor> <session> <ts> <model> <in> <out> <cache_read> <cache_write> <created> <path>
-# (S = a session's cumulative counters). F, M, V rows pass through. Input
+# (S = a session's cumulative counters). F, L, M, V rows pass through. Input
 # counts exclude cache reads, as claude's input_tokens do.
 spl_token_burn_events() {
   jq -R -r --argjson now "$1" "$(spl_cost_tokens_jq_def)"'
@@ -260,32 +319,38 @@ spl_token_burn_agents() {
 # spl_token_burn_live DIR NOW: "U <vendor> <id>" for each agy or qwen lane
 # with a live pane (spl_lane_live_here), whose transcripts are not read: an
 # unmetered sample, never 0 tokens (spec 140 2.3.4). The pane list is cached
-# for 120 s: a tmux read every tick costs more than the rest of it.
+# for 120 s in DIR/live.txt (first line its epoch): a tmux read every tick
+# costs more than the rest of it. The sum keeps the agy and qwen ids.
 spl_token_burn_live() {
-  local cache="$1/live.ids" ids
+  local cache="$1/live.txt" ids
+  local -a c=()
   if [[ -n "${TOKEN_BURN_LIVE_CMD:-}" ]]; then
-    ids="$($TOKEN_BURN_LIVE_CMD 2>/dev/null)"
-  elif [[ -s "$cache" ]] && (( $2 - $(stat -c %Y "$cache") < 120 )); then
-    ids="$(cat "$cache")"
-  else
-    declare -F spl_lane_live_here >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
-    ids="$(spl_lane_live_here | jq -r '.[]?' 2>/dev/null)"
-    printf '%s\n' "$ids" >"$cache"
+    $TOKEN_BURN_LIVE_CMD 2>/dev/null
+    return 0
   fi
-  printf '%s\n' "$ids" | awk -v OFS='\t' '{ id = $1; sub(/@.*/, "", id) }
-    id ~ /^(a-[0-9]+|AGY-[0-9]+)$/ { print "U", "agy", id }
-    id ~ /^(q-[0-9]+|QWN-[0-9]+)$/ { print "U", "qwen", id }'
+  [[ -s "$cache" ]] && mapfile -t c <"$cache"
+  if [[ "${c[0]:-}" =~ ^[0-9]+$ ]] && (( $2 - c[0] < 120 )); then
+    printf '%s\n' "${c[@]:1}"
+    return 0
+  fi
+  declare -F spl_lane_live_here >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
+  ids="$(spl_lane_live_here | jq -r '.[]?' 2>/dev/null)"
+  printf '%s\n%s\n' "$2" "$ids" >"$cache"
+  printf '%s\n' "$ids"
 }
 
-# spl_token_burn_sum DIR NOW MODE <events: the per-id MAX (claude) and the
+# spl_token_burn_sum DIR NOW MODE ROWS LIVE: the per-id MAX (claude) and the
 # session counter deltas (mistral, grok) added to the agent's minute bucket.
 # A row older than the window is counted late and dropped: its bucket is
 # gone, and the hub replaces a bucket with what it is sent. A session seen
 # for the first time counts from 0 when it began inside the window, else its
-# counters are the baseline. Writes the next state files, then tick.stats.
+# counters are the baseline. LIVE: the live lane ids, one per line; an agy
+# or qwen lane is an unmetered sample. Writes the next state files into
+# DIR/next and moves them in with one mv, then tick.stats.
 spl_token_burn_sum() {
-  local dir="$1"
-  awk -F'\t' -v OFS='\t' -v now="$2" -v mode="$3" -v win="$TOKEN_BURN_WINDOW_S" -v ttl="$TOKEN_BURN_ID_TTL_S" -v d="$dir" '
+  local dir="$1" n="$1/next" s
+  for s in files ids sessions buckets; do : >"$n/$s.tsv" || return 1; done
+  awk -F'\t' -v OFS='\t' -v now="$2" -v mode="$3" -v win="$TOKEN_BURN_WINDOW_S" -v ttl="$TOKEN_BURN_ID_TTL_S" -v d="$dir" -v nx="$n" -v live="$5" '
     function minute(t) { if (t > now) t = now; if (t < now - win) t = now; return t - t % 60 }
     function agent_of(p,   i) {
       gsub(/%2[Ff]/, "/", p)
@@ -303,7 +368,12 @@ spl_token_burn_sum() {
     FILENAME == d "/sessions.tsv" { if ($7 >= now - 172800) { k = $1 SUBSEP $2; sseen[k] = $7; for (j = 1; j <= 4; j++) sc[k, j] = $(j + 2) }; next }
     FILENAME == d "/agents.tsv" { agent[$1] = $2; next }
     FILENAME == d "/buckets.tsv" { if ($4 >= now - win) { k = $1 SUBSEP $4; bv[k] = $2; bm[k] = $3; b1[k] = $5; b2[k] = $6; b3[k] = $7; b4[k] = $8; bmet[k] = $9; dirty[k] = $10 }; next }
-    $1 == "F" { print $2, $3, $4, $5 > (d "/files.tsv.new"); files++; next }
+    FILENAME == live { id = $1; sub(/@.*/, "", id)
+      if (id ~ /^(a-[0-9]+|AGY-[0-9]+)$/) ev[++n] = "U\tagy\t" id
+      else if (id ~ /^(q-[0-9]+|QWN-[0-9]+)$/) ev[++n] = "U\tqwen\t" id
+      next }
+    $1 == "F" { print $2, $3, $4, $5 > (nx "/files.tsv"); files++; next }
+    $1 == "L" { listed += $2; next }
     $1 == "M" { origin[$3] = $4; next }
     $1 == "V" { vmodel = $3; next }
     { ev[++n] = $0 }
@@ -326,18 +396,14 @@ spl_token_burn_sum() {
         a = agent_of(f[2] == "mistral" ? origin[f[11]] : f[11])
         add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); sessions++
       }
-      for (id in iseen) print id, iseen[id], im[id, 1] + 0, im[id, 2] + 0, im[id, 3] + 0, im[id, 4] + 0 > (d "/ids.tsv.new")
-      for (k in sseen) { split(k, p, SUBSEP); print p[1], p[2], sc[k, 1] + 0, sc[k, 2] + 0, sc[k, 3] + 0, sc[k, 4] + 0, sseen[k] > (d "/sessions.tsv.new") }
+      for (id in iseen) print id, iseen[id], im[id, 1] + 0, im[id, 2] + 0, im[id, 3] + 0, im[id, 4] + 0 > (nx "/ids.tsv")
+      for (k in sseen) { split(k, p, SUBSEP); print p[1], p[2], sc[k, 1] + 0, sc[k, 2] + 0, sc[k, 3] + 0, sc[k, 4] + 0, sseen[k] > (nx "/sessions.tsv") }
       for (k in bv) { split(k, p, SUBSEP); q += dirty[k]; nb++
-        print p[1], bv[k], bm[k], p[2], b1[k] + 0, b2[k] + 0, b3[k] + 0, b4[k] + 0, bmet[k], dirty[k] + 0 > (d "/buckets.tsv.new") }
-      printf "token-burn tick mode=%s files=%d claude_rows=%d session_rows=%d unmetered=%d late=%d buckets=%d queued=%d",
-        mode, files, claude, sessions, unm, late, nb, q > (d "/tick.stats")
-    }' "$dir/ids.tsv" "$dir/sessions.tsv" "$dir/agents.tsv" "$dir/buckets.tsv" - || return 1
-  local s
-  for s in files ids sessions buckets; do
-    [[ -e "$dir/$s.tsv.new" ]] || : >"$dir/$s.tsv.new"
-    mv -f "$dir/$s.tsv.new" "$dir/$s.tsv" || return 1
-  done
+        print p[1], bv[k], bm[k], p[2], b1[k] + 0, b2[k] + 0, b3[k] + 0, b4[k] + 0, bmet[k], dirty[k] + 0 > (nx "/buckets.tsv") }
+      printf "token-burn tick mode=%s files=%d listed=%d claude_rows=%d session_rows=%d unmetered=%d late=%d buckets=%d queued=%d",
+        mode, files, listed, claude, sessions, unm, late, nb, q > (d "/tick.stats")
+    }' "$dir/ids.tsv" "$dir/sessions.tsv" "$dir/agents.tsv" "$dir/buckets.tsv" "$4" "$5" || return 1
+  mv -f -t "$dir" "$n/files.tsv" "$n/ids.tsv" "$n/sessions.tsv" "$n/buckets.tsv" || return 1
 }
 
 # spl_token_burn_frame DIR: the queued buckets as one fleet_tokens_push frame
@@ -353,8 +419,9 @@ spl_token_burn_frame() {
 # spl_token_burn_push DIR: push the queued buckets; an ack unqueues them,
 # anything else keeps them queued for the next tick (still inside the window).
 spl_token_burn_push() {
-  local dir="$1" frame out rc n
-  n="$(awk -F'\t' '$10 == 1' "$dir/buckets.tsv" | wc -l)"
+  local dir="$1" frame out rc n=0 stats
+  read -r stats <"$dir/tick.stats"
+  [[ "$stats" =~ \ queued=([0-9]+) ]] && n="${BASH_REMATCH[1]}"
   [[ "${TOKEN_BURN_PUSH:-1}" == 1 && "$n" -gt 0 ]] || { printf ' pushed=0' >>"$dir/tick.stats"; return 0; }
   frame="$(spl_token_burn_frame "$dir")" || return 1
   printf '%s\n' "$frame" >"$dir/last-frame.json"

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # token-burn-collect-cron.sh - the live token burn collector (spec 140 T022,
 # T023) from the box user's crontab: every minute, TOKEN_BURN_TICKS (2) ticks
-# of do_spl_token_burn_collect TOKEN_BURN_TICK_S (30) s apart, under nice.
+# of do_spl_token_burn_collect TOKEN_BURN_TICK_S (30) s apart (spec 140 2.1:
+# every 30 s, inside the 60 s lag budget of 1.2), at nice 10 and the lowest
+# best-effort IO priority: the agents' turns go first on a loaded box.
 # Installed by do_install_box_crons as the row token-burn of
 # cnf/box-crons/box-crons.manifest (`# csi-spl:box-cron:token-burn`).
 # A tick sources the two func files instead of `./run` (whose start alone is
@@ -24,6 +26,7 @@ esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 cd "$ORC" || exit 2
 renice -n 10 -p $$ >/dev/null 2>&1 || true
+ionice -c 2 -n 7 -p $$ >/dev/null 2>&1 || true
 
 dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"
 if [ "${TOKEN_BURN_PUSH:-1}" = 1 ] && { [ ! -s "$dir/push.env" ] || [ $(( $(date +%s) - $(stat -c %Y "$dir/push.env") )) -ge 3600 ]; }; then

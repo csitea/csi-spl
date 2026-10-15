@@ -1,5 +1,7 @@
 # graft — a local, zero-egress code index for the agents
 
+> Generated from qto doc `b74c4da0-2b75-406a-83a3-97e09368718c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The spool agents' `graft` command and skill (spec 069 Y6, moved here from the
 box engine). graft is a third-party tree-sitter code index; this feature keeps
 it local and keeps its index current. graft itself is installed separately
@@ -17,6 +19,7 @@ it local and keeps its index current. graft itself is installed separately
 | `assets/agy-rules/graft.md` | the agy rule (`~/.gemini/config/rules/graft.md` links here) |
 | `assets/tags/`, `assets/wasm/` | tags queries and grammars graft's vendor bundle lacks |
 
+<a id="ws-doc-e23c5079-9240-4ea1-8fbf-82b25546e588"></a>
 ## Box state
 
 `GRAFT_VAR_ROOT` (default `/var/csi/csi-spl/graft`) is box-wide, because one OS
@@ -28,6 +31,7 @@ user builds the index and every agent user reads it:
 | `index/<slug>/` | each repo's index |
 | `graft-cron.log`, `graft-cron.lock` | the scheduled run (`GRAFT_CRON_LOG`, `GRAFT_CRON_LOCK` override) |
 
+<a id="ws-doc-c58bade7-9fe4-4bd7-81ce-579ef6f60f34"></a>
 ## Install
 
 `install.sh` (spool-install) runs `steps/y6-graft.sh` for the user it runs as:
@@ -36,6 +40,7 @@ the `graft` stub on `<prefix>/bin` is pointed at this checkout's `graft-safe.sh`
 pointed here. `install.sh --dry-run` prints the plan. The cron lines are
 written by the box cron action, running `scripts/graft-cron.sh`.
 
+<a id="ws-doc-667b0551-a60f-4b34-b283-85bfc5b0b1ea"></a>
 ## Tests
 
 `bash csi-spl-orc/src/bash/features/graft/tests/run-all.sh` (hermetic: sandbox

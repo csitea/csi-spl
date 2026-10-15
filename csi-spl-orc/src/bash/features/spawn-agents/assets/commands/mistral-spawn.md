@@ -10,14 +10,18 @@ description: >
 
 # /mistral-spawn — spawn a Mistral Vibe (mistral) worker (m-NNN) or message a running one
 
+> Generated from qto doc `02d95a11-86bb-44c3-84c2-06173cd8ff7c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 | Invocation | Mode |
 |---|---|
 | `/mistral-spawn <brief...>` | **Spawn** a new `m-NNN` window with that brief |
 | `/mistral-spawn m-NNN <message...>` | **Message** the running `m-NNN` through the spool |
 | `/mistral-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
+<a id="ws-doc-6ab3d73c-093d-49da-a4ea-42c4b2a40a0e"></a>
 ## 1. Spawn
 
+<a id="ws-doc-e0d7fa39-9cd8-497a-a0e3-b7d0c4183ffc"></a>
 ### 1.1 Count the live agents first
 
 The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
@@ -27,6 +31,7 @@ yourself or close a finished agent first, and say which you did.
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
+<a id="ws-doc-811344aa-3f5f-42af-ab5d-292d6c72abbd"></a>
 ### 1.2 Write the brief to a file
 
 Put the full task in a markdown file: the scope, the files it must NOT touch
@@ -34,6 +39,7 @@ Put the full task in a markdown file: the scope, the files it must NOT touch
 agent on every machine, which `git worktree list` cannot see - so the new scope
 is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and how "done" is proven.
 
+<a id="ws-doc-903b6ac0-9d81-42a1-95ed-2115b570aafb"></a>
 ### 1.3 Start the window
 
 `spawn-window.sh` allocates the next free `m-NNN`, claims its spool dir in
@@ -49,6 +55,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNE
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
 that is not a git checkout runs in place, with no worktree.
 
+<a id="ws-doc-ff796cb2-d29d-4434-bdb8-e7fc2f4dde7c"></a>
 ### 1.4 Prove it is visible
 
 The window is created with `new-window -d`; never `select-window` or
@@ -58,6 +65,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
+<a id="ws-doc-6e270479-ba46-480e-8b80-d3ef251bf748"></a>
 ## 2. Message a running m-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
@@ -76,6 +84,7 @@ Reports sent to you, not seen yet:
 SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
 ```
 
+<a id="ws-doc-74f2319e-26ac-479e-ad46-d6842d95d303"></a>
 ## 3. Mistral Vibe (mistral) specifics
 
 - The CLI is `vibe` (PyPI `mistral-vibe`), installed for the agent user by
@@ -95,6 +104,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
 - Vibe cannot name a session: the window name (riname) is the one a human reads.
 - mistral holds no role seat: `m-001`..`m-003` are reserved, never handed out.
 
+<a id="ws-doc-486cad4f-789d-402e-b0fd-b763a890313b"></a>
 ## 4. Rules that hold for every kind
 
 - One agent, one worktree, one branch. Name the files it must not touch.

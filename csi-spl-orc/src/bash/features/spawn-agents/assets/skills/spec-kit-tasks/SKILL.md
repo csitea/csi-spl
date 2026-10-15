@@ -15,10 +15,13 @@ disable-model-invocation: false
 
 # /spec-kit-tasks — generate a dependency-ordered tasks.md from a Spec-Kit feature's design docs
 
+> Generated from qto doc `1c0e4110-a152-4c49-8fcb-a4fd1fd284d2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Produce `tasks.md` for a Spec-Kit feature by reading whatever design artifacts
 already exist and decomposing them into concrete, independently-testable,
 dependency-ordered implementation tasks.
 
+<a id="ws-doc-8b9928df-c7fa-45af-b173-1d4e287c7e65"></a>
 ## User input
 
 ```text
@@ -29,6 +32,7 @@ Treat `$ARGUMENTS` as an optional feature selector (a `specs/<NNN>-<slug>` path
 or bare slug/number) and/or extra constraints (e.g. "include tests",
 "backend only"). Consider it before proceeding.
 
+<a id="ws-doc-46b6a0f8-6884-4a9f-87dd-56c5dfc40c80"></a>
 ## 1. Locate the feature directory
 
 1. If `$ARGUMENTS` names a feature dir or slug, resolve it under `specs/`.
@@ -46,6 +50,7 @@ or bare slug/number) and/or extra constraints (e.g. "include tests",
 
 Set `TASKS_FILE = FEATURE_DIR/tasks.md`.
 
+<a id="ws-doc-f7a08fff-2e7c-41dd-82c6-d99d333aa039"></a>
 ## 2. Load all available design context
 
 Read every artifact that exists (absence is fine — adapt, don't fail):
@@ -66,6 +71,7 @@ Also read `.specify/memory/constitution.md` when present and respect its gates
 (e.g. env-driven/fail-fast, deterministic output, no secrets) as task
 acceptance criteria.
 
+<a id="ws-doc-51ad6aa9-fe7f-4ca7-9726-a5f0ec70af57"></a>
 ## 3. Decompose into tasks
 
 Group tasks into phases so that **each user story is an independently testable,
@@ -84,6 +90,7 @@ shippable slice** (P1 alone = MVP):
 4. **Final Phase — Polish / cross-cutting**: docs, end-to-end validation
    against `quickstart.md`, success-criteria verification, cleanup.
 
+<a id="ws-doc-eb7b9742-74ff-4511-ba07-06ef7d56c697"></a>
 ## 4. Task format
 
 One checklist line per task using `[ID] [P?] [Story] Description (file path)`:
@@ -103,6 +110,7 @@ Rules:
 - **Dependencies**: when a task depends on others, say so (`(depends on T0xx)`).
 - Make each task small enough to complete and verify on its own.
 
+<a id="ws-doc-35cf2485-a1fc-4ebd-bed9-701a633db554"></a>
 ## 5. Assemble `tasks.md`
 
 Start from `tasks-template.md` if present; otherwise emit this structure:
@@ -136,6 +144,7 @@ Add a final mapping note tying tasks back to FR-### / SC-### / contracts so
 coverage is auditable. Append a `last-edit:` marker only if the repo's
 conventions (e.g. CLAUDE.md) require it for merges.
 
+<a id="ws-doc-1ea124a1-891a-425d-b2d6-3d276e6a8e10"></a>
 ## 6. Write, report, and offer next step
 
 - Write `TASKS_FILE`.

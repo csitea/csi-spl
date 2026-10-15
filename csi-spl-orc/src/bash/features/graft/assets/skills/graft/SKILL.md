@@ -11,6 +11,8 @@ description: >
 
 # /graft — use the graft index for orientation, never for enumeration
 
+> Generated from qto doc `5ed1155f-f00a-4ed9-addc-5be3315680de`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The index on this box is **partial by construction**. Its grammars cover shell,
 SQL, TypeScript, Python and JavaScript; the trees it runs over are 47-70% code
 by file count on a good day, and the remainder -- JSON, Terraform, Markdown,
@@ -19,6 +21,7 @@ by file count on a good day, and the remainder -- JSON, Terraform, Markdown,
 
 That single fact drives every rule below.
 
+<a id="ws-doc-fd823b05-bd04-494e-9bae-a5653dfcc5a5"></a>
 ## The rule
 
 > **graft first for structure and orientation. `grep` / `git grep` remain
@@ -37,6 +40,7 @@ other three. A rename driven off that first answer compiles, passes, and is
 wrong in nineteen places. The same caveat applies to the MCP `graft_find_all`
 tool, whose name is the strongest version of the claim and the least true.
 
+<a id="ws-doc-af2a65c5-01a5-4f0f-8ee1-0c9f34c0fc94"></a>
 ## Use graft for
 
 - **Orienting in a repo you have not read** -- what defines what, which module
@@ -46,6 +50,7 @@ tool, whose name is the strongest version of the claim and the least true.
 - **Narrowing before grepping**: let the index point at the subsystem, then
   grep that subsystem properly.
 
+<a id="ws-doc-510d3928-0247-4706-8c98-c0e93accc573"></a>
 ## Do NOT use graft for
 
 - **"Find every X"** -- every rename, every call-site sweep, every
@@ -56,6 +61,7 @@ tool, whose name is the strongest version of the claim and the least true.
 - **Config, data, docs, templates.** Not indexed. A graft miss there means
   nothing at all.
 
+<a id="ws-doc-f81c7fab-0968-4adc-aafe-cae5f93d999b"></a>
 ## How to phrase a graft result
 
 Say what it is:
@@ -71,6 +77,7 @@ If you have already answered from graft and the question turns out to be a
 completeness question, **redo it with grep and say you did.** A quietly
 narrowed answer is worse than a slow one.
 
+<a id="ws-doc-e4efd2fd-f998-4feb-a812-0c406a97919d"></a>
 ## The commands (0.18.0)
 
 | command | what it is for |
@@ -83,6 +90,7 @@ narrowed answer is worse than a slow one.
 
 There is no `graft grep` in this version; `ask` is the retrieval path.
 
+<a id="ws-doc-e48cb34d-d385-4073-b72c-090d5a8ac50c"></a>
 ## Invocation on this box
 
 Local only. Two things must stay true on every call:
@@ -112,6 +120,7 @@ inside a git repo, so `graft ask` reads the index the scheduled build writes and
 `graft/` directory inside a repo is a leftover of an older in-tree build: it is
 stale, do not read it, and say so.
 
+<a id="ws-doc-3a9de7ce-2851-43b4-b1cb-ffdb82e2610e"></a>
 ## When the index is stale
 
 It is a build artefact, not a live view. After someone else's push, after a

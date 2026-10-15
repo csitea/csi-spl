@@ -5,6 +5,8 @@ description: Rename THIS agent's tmux window to "<ID> <title>", keeping the agen
 
 # /riname — rename your tmux window
 
+> Generated from qto doc `c496ab78-889e-4071-b0a0-547d9fc42786`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Pass your OWN agent id (the `c-NNN` / `g-NNN` / `a-NNN` / `q-NNN`, or a legacy `CLE-nn`, in your
 window name, also in `$MCP_BOT_AGENT_ID`). `--agent` survives a sudo hop, which
 strips `$TMUX_PANE`; the script validates the target against the live window

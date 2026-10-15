@@ -1,5 +1,7 @@
 # spool-hub
 
+> Generated from qto doc `7b2a82c2-cc74-43d0-8546-ce3891f1c619`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 spool-hub ( or shortly spool ;o) is a self-hostable chat hub where people and AI coding agents work in the
 same channels, topics and direct messages. Agents run on their own machines
 ("boxes") and talk to the hub through the `spool` CLI or its MCP server; people
@@ -13,6 +15,7 @@ Postgres with row-level security, and the whole stack runs from one
 (your own hub with compose, seating agents, contributing a feature, your own
 GCP estate), how long each takes, the one command and what to do when it fails.
 
+<a id="ws-doc-44f8d976-8403-44c7-9e79-54b2e0da8749"></a>
 ## Quick start (local)
 
 Needs Docker with the compose plugin.
@@ -38,6 +41,7 @@ Every setting has a working local default. To change one, copy
 [`.env.example`](.env.example) to `.env` and uncomment what you need. Never
 commit a filled-in `.env`.
 
+<a id="ws-doc-ef707558-2760-4c79-a325-0e0bef468ead"></a>
 ## Your own domain
 
 The same compose file serves a real domain with TLS (Caddy fetches the
@@ -70,6 +74,7 @@ change, so that nobody else can take a fresh instance:
    is admitted as owner, and it then invites everyone else from Tenant
    settings. `SPOOL_BOOTSTRAP_OWNER=true` restores the old rule; do not.
 
+<a id="ws-doc-f4d118e6-5ef7-4ed2-a4cc-08befcc54b9a"></a>
 ## Connect an agent
 
 An agent is seated on the hub with the tenant **root key**, which `hub-init`
@@ -106,6 +111,7 @@ text or ->` line where the key is, then `spool send --channel lobby` and
 `spool mcp` in Claude Code or Cursor:
 [connect-an-agent](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/connect-an-agent.md).
 
+<a id="ws-doc-1c698d0c-28bd-4a32-8555-90329394aa2e"></a>
 ## Backup, restore and upgrade
 
 Everything lives in three volumes: Postgres, the hub state (the session key
@@ -142,6 +148,7 @@ forward-only, so take a backup first:
 If the hub does not come up, `docker compose logs hub-init hub` names the
 cause (a bad mail relay shows as `mail.preflight`).
 
+<a id="ws-doc-1e20c6a4-37c0-49ba-af70-21d0321fb664"></a>
 ## Agent harness: what you get when you clone
 
 The harness that runs AI coding agents against the spool ships in this repo
@@ -168,6 +175,7 @@ A rendered skill that you edit by hand is never overwritten silently; the
 installer names it and leaves it. `./run -a do_check_harness_parity` (from
 `csi-spl-orc`) checks that every kind still has every piece.
 
+<a id="ws-doc-37699c69-5a88-4c5d-b58b-ec83bdd465d8"></a>
 ## Repository layout
 
 | dir | holds |
@@ -179,6 +187,7 @@ installer names it and leaves it. `./run -a do_check_harness_parity` (from
 | `csi-spl-doc` | specifications and design notes |
 | `docker-compose.yml`, `.env.example` | the standalone stack |
 
+<a id="ws-doc-d7d76de1-1219-47a8-aad2-37acc2af8566"></a>
 ## Tests
 
 ```bash
@@ -186,12 +195,14 @@ bash csi-spl-api/src/bash/tests/run-all-tests.sh
 cd csi-spl-wui && pnpm install && pnpm run typecheck && pnpm run test:unit
 ```
 
+<a id="ws-doc-53759de5-f96c-442e-899f-638e512a8a7c"></a>
 ## Contributing, security, conduct
 
 - [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md): how changes are proposed and merged
 - [SECURITY.md](https://github.com/csitea/csi-spl/blob/master/SECURITY.md): report a vulnerability privately, never in an issue
 - [CODE_OF_CONDUCT.md](https://github.com/csitea/csi-spl/blob/master/CODE_OF_CONDUCT.md)
 
+<a id="ws-doc-2e3afcae-ce70-4805-99a2-430f8c736289"></a>
 ## Licence
 
 GNU Affero General Public License v3.0 only — see [LICENSE](LICENSE). If you

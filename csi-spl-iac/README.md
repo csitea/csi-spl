@@ -1,5 +1,7 @@
 # csi-spl-iac
 
+> Generated from qto doc `5d6e2a6f-4cb6-447c-97f6-7e6d606477d7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 `./run` actions and terraform for the spool. See
 `../csi-spl-doc/doc/md/csi-spl.feature.md` sections 5–7.
 
@@ -26,6 +28,7 @@ and DSN are made out of band (see `040-cloud-sql-postgres/03-cloud-sql.tf`).
 The hub's env-var names are published in `csi-spl-cnf/csi-spl/all.env.yaml`
 under `env.hub.env`.
 
+<a id="ws-doc-dbb15c3b-2538-43b1-9ee1-c8af615ff547"></a>
 ## Bootstrap
 
 This section follows csi-rel-iac's README. Terraform needs a GCP project, a
@@ -35,6 +38,7 @@ three imperatively (idempotent, a dry run unless `DRY_RUN=0`). Everything
 after that is terraform, and terraform runs **only** in the tf-runner
 container (see [Usage](#usage)), never on the host.
 
+<a id="ws-doc-44451b5c-534c-4e2c-8191-e7a0be0f9767"></a>
 ### Facts come from the environment, never from literals
 
 | Variable | Meaning |
@@ -68,6 +72,7 @@ If the file is missing, `terraform init` refuses and names the file. It does
 **not** fall back to the caller's gcloud ADC
 (`src/bash/tests/tf-init-project-key.tst.sh`).
 
+<a id="ws-doc-57dc04b1-85de-4c13-80f1-285ee4c9a078"></a>
 ### The one human step
 
 `do_gcp_000_bootstrap_gcp_env` cannot run unattended. Creating a project
@@ -82,6 +87,7 @@ gcloud auth login "${GCP_ACCOUNT:?GCP_ACCOUNT must be set}"
 The actions pass `--account="${GCP_ACCOUNT}"` on every gcloud call. They
 never run `gcloud config set` and never change the shared gcloud config.
 
+<a id="ws-doc-e48c02ef-fbc4-4269-9243-47d46dae95a2"></a>
 ### Run bootstrap once per env
 
 Run it from this module directory, with the variables set in the environment.
@@ -108,6 +114,7 @@ What it does, in order (each sub-step is idempotent):
    needs before it can start. Step `001-enable-gcp-services` enables the
    full set.
 
+<a id="ws-doc-1b3a520f-c080-4edf-97ee-711eeaf541dc"></a>
 ## Prerequisites
 
 1. `make`, `bash`, `docker` (with compose v2) on the host, and `gcloud` for
@@ -123,6 +130,7 @@ cd ../csi-spl-orc && GITHUB_TOKEN="${GITHUB_TOKEN:?GITHUB_TOKEN must be set}" ma
 3. The per-env service-account keys at `~/.gcp/.<org>/key-<org>-<app>-<env>.json`.
    `do_gcp_000_bootstrap_gcp_env` creates them after the human login.
 
+<a id="ws-doc-48521680-0fe4-416f-ab4c-52c1f920e66c"></a>
 ## Usage
 
 Every terraform target runs `docker exec` into this tree's tf-runner
@@ -148,6 +156,7 @@ and wipes that directory first on every run. Every step keeps its state in
 the gcs bucket `<org>-<app>-<env>-tfstate`, so a run directory never holds
 the only copy of a state.
 
+<a id="ws-doc-886c42f8-4165-43c7-8bb9-a0827732681c"></a>
 ## Tests
 
 ```bash

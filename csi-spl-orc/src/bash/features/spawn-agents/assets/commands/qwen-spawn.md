@@ -10,14 +10,18 @@ description: >
 
 # /qwen-spawn — spawn a Qwen Code (qwen) worker (q-NNN) or message a running one
 
+> Generated from qto doc `7f083e23-76c4-442f-b1ee-b0eed737c8a6`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 | Invocation | Mode |
 |---|---|
 | `/qwen-spawn <brief...>` | **Spawn** a new `q-NNN` window with that brief |
 | `/qwen-spawn q-NNN <message...>` | **Message** the running `q-NNN` through the spool |
 | `/qwen-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
+<a id="ws-doc-8d76aefb-0fe0-4767-a4f1-c13da583fc97"></a>
 ## 1. Spawn
 
+<a id="ws-doc-a6424da1-f534-4108-a80b-e144dbe8c442"></a>
 ### 1.1 Count the live agents first
 
 The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
@@ -27,6 +31,7 @@ yourself or close a finished agent first, and say which you did.
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
+<a id="ws-doc-4cf3e4f1-55a7-4e47-8e63-28f4904e829e"></a>
 ### 1.2 Write the brief to a file
 
 Put the full task in a markdown file: the scope, the files it must NOT touch
@@ -34,6 +39,7 @@ Put the full task in a markdown file: the scope, the files it must NOT touch
 agent on every machine, which `git worktree list` cannot see - so the new scope
 is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and how "done" is proven.
 
+<a id="ws-doc-485f084a-fe81-4fa4-ae0a-019f06ff0113"></a>
 ### 1.3 Start the window
 
 `spawn-window.sh` allocates the next free `q-NNN`, claims its spool dir in
@@ -49,6 +55,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNE
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
 that is not a git checkout runs in place, with no worktree.
 
+<a id="ws-doc-d9445d4a-df59-4207-ac6d-814962f1be27"></a>
 ### 1.4 Prove it is visible
 
 The window is created with `new-window -d`; never `select-window` or
@@ -58,6 +65,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
+<a id="ws-doc-a78b607d-085d-4c55-905f-8b5a2fa2f3a2"></a>
 ## 2. Message a running q-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
@@ -76,6 +84,7 @@ Reports sent to you, not seen yet:
 SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
 ```
 
+<a id="ws-doc-c2a6e1a1-f105-4544-84aa-0f3a7bf89a0d"></a>
 ## 3. Qwen Code (qwen) specifics
 
 - qwen is the cheap lane: mechanical, well-specified work. Its hosted endpoints
@@ -86,6 +95,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
   `~/.qwen/.env` (mode 0600). The launcher passes no key on any command line.
 - qwen cannot name a session: the window name (riname) is the one a human reads.
 
+<a id="ws-doc-bffde713-d589-42c2-9ca0-65380d55f2f5"></a>
 ## 4. Rules that hold for every kind
 
 - One agent, one worktree, one branch. Name the files it must not touch.

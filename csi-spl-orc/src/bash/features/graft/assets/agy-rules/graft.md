@@ -1,5 +1,7 @@
 # Graft for code search
 
+> Generated from qto doc `5e8cbc2b-c4ec-4bbc-9953-7dd2ccc3c4e1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 When searching, orienting, or tracing a codebase on this box, use `graft` first.
 Do not open with grep, glob, find, or a full-tree read.
 

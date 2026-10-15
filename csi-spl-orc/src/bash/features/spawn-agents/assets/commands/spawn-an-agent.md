@@ -11,14 +11,18 @@ description: >
 
 # /spawn-an-agent — pick the launcher, then spawn
 
+> Generated from qto doc `47fef649-d866-4853-8e3f-93f8326a827c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 You do not ask which launcher to use. You estimate, route, run the launcher's
 spawn steps in this turn, and report which one you picked and why.
 
+<a id="ws-doc-8fd7b748-d600-4ff1-8e64-2eb34b8abfba"></a>
 ## 1. Message mode
 
 If the first word is an agent id (`c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, `m-NNN`, or a legacy `CLE-nn`), send
 the rest to that agent (section 2 of its launcher command) and stop.
 
+<a id="ws-doc-982ffadd-6615-4caa-82a8-4f378d7ace78"></a>
 ## 2. Pick the launcher
 
 Name the task kind, estimate difficulty against your own maximum capacity
@@ -55,6 +59,7 @@ Multilingual text that carries personal data (`LANE_MIX_KIND=i18n LANE_MIX_SENSI
 A vendor whose CLI is not installed or not signed in on this box is skipped.
 The backup vendor is tried next, and if it is also unavailable, the work falls to claude (the default and last fallback). An `i18n` task with no agy on the box falls to claude, but the text WAITS for an agy review before it ships.
 
+<a id="ws-doc-54af7b9d-1f14-4959-9aba-4648d6a2ac97"></a>
 ## 3. Before spawning
 
 - Count the live agents (the launcher's section 1.1); the ceiling is {{AGENT_CEILING}}.
@@ -74,6 +79,7 @@ The backup vendor is tried next, and if it is also unavailable, the work falls t
   `SPAWN_BOX=<box>` pins it. The band and order are the hub's instance setting;
   only the operator workspace's admin changes them (`PATCH /v1/operator/fleet-load`).
 
+<a id="ws-doc-d67ced65-8c52-46bf-881f-d5994fbb2526"></a>
 ## 4. Spawn
 
 Follow the chosen launcher command's section 1, in this turn.

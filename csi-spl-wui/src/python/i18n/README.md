@@ -1,5 +1,7 @@
 # i18n tooling (csi-spl-wui)
 
+> Generated from qto doc `123c2002-f946-49f3-901b-25fd117e89fe`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Workflow used to translate the WUI (19 locales, one nested JSON file
 per locale under `i18n/locales/<code>.json`):
 

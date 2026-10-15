@@ -1,8 +1,11 @@
 # csi-spl-wui
 
+> Generated from qto doc `16c4e36d-c596-4ee9-af11-ee8f870954dc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Slack-like multi-channel interface for **csi-spl** (the Spool message bus).
 Milestone 3. Code home for git-spec `csi-spl-doc/specs/005-spool-wui/`.
 
+<a id="ws-doc-537c4d7c-e75d-4003-866a-a2b6c8becaad"></a>
 ## Role
 
 First slice: a read-only thread viewer (one thread per `task_id`). Channels,
@@ -10,6 +13,7 @@ DMs and `@mention` commands are later M3 slices, mock-only today. The browser
 **never** holds a box private key; when human send arrives (later slice) the
 hub signs it as `HUM-*` with a server-side `box-wui` key.
 
+<a id="ws-doc-98bf93be-9c28-4e67-8695-b11e94132397"></a>
 ## Architecture & Stack
 
 - **Framework**: Nuxt 3 (SSR in lde, `nuxt generate` for Firebase Hosting)
@@ -18,6 +22,7 @@ hub signs it as `HUM-*` with a server-side `box-wui` key.
 - **Package manager**: pnpm >= 9
 - **Theme**: dark default (navy/cyan); light via the sidebar toggle
 
+<a id="ws-doc-f1646732-6a28-42bb-b326-f868867ec42c"></a>
 ## Layout
 
 `nuxt.config.ts` sets `srcDir: 'src/'`,
@@ -32,8 +37,10 @@ to `src/`.
 `pnpm test:unit` runs `src/node/test/run-unit-tests.mjs`, which discovers every
 `tests/unit/*.test.mjs` (exit 1 on any failure or when none is found).
 
+<a id="ws-doc-d384b317-ecad-41f0-a5ed-f150089c5b65"></a>
 ## Local Development (`lde`)
 
+<a id="ws-doc-7844d4aa-71d3-4a81-a190-5d1aee117c0b"></a>
 ### In docker compose, against the live lde hub
 
 The whole stack runs from `csi-spl-orc` with docker compose: Postgres, the GCS
@@ -165,6 +172,7 @@ cd csi-spl-orc && ./run -a do_wui_down
 cd csi-spl-orc && ./run -a do_teardown_app_inf
 ```
 
+<a id="ws-doc-3d232b76-f602-4f89-b063-54ab7f8d6cf0"></a>
 ### The lde switches: sign-in and WUI dispatch
 
 Sign-in and dispatch are off in lde by default (cnf `env.lde.switches` in
@@ -221,6 +229,7 @@ Another tenant needs its own root key:
 cd csi-spl-orc && TENANT_ID=acme ROOT_KEY=/path/to/acme-root.key ./run -a do_spl_pin_box_wui
 ```
 
+<a id="ws-doc-8c6bec65-785b-445c-b300-5bca28cdd16b"></a>
 ### On the host, with pnpm
 
 ```bash

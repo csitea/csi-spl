@@ -9,6 +9,8 @@ description: >
 
 # /paste-html-into-chrome — end the reply with the full source of any HTML file you hand over
 
+> Generated from qto doc `821f9f02-b6b2-4259-ae8b-918debfb62b2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 When you give the user an HTML file (created, updated, or just pointed at):
 
 1. Write/save the file as usual.

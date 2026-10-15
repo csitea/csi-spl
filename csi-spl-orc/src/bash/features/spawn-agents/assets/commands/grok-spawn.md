@@ -10,14 +10,18 @@ description: >
 
 # /grok-spawn — spawn a grok worker (g-NNN) or message a running one
 
+> Generated from qto doc `bf778149-30cb-4f04-8c86-09a0ae50fc98`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 | Invocation | Mode |
 |---|---|
 | `/grok-spawn <brief...>` | **Spawn** a new `g-NNN` window with that brief |
 | `/grok-spawn g-NNN <message...>` | **Message** the running `g-NNN` through the spool |
 | `/grok-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
+<a id="ws-doc-e6bf7cdf-71a2-4418-ac9d-135f49697a7f"></a>
 ## 1. Spawn
 
+<a id="ws-doc-4ad174c4-2c68-4e77-9307-e555689aeb33"></a>
 ### 1.1 Count the live agents first
 
 The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
@@ -27,6 +31,7 @@ yourself or close a finished agent first, and say which you did.
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
+<a id="ws-doc-9f75741e-a830-43a2-b42d-25bc75f2f354"></a>
 ### 1.2 Write the brief to a file
 
 Put the full task in a markdown file: the scope, the files it must NOT touch
@@ -34,6 +39,7 @@ Put the full task in a markdown file: the scope, the files it must NOT touch
 agent on every machine, which `git worktree list` cannot see - so the new scope
 is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and how "done" is proven.
 
+<a id="ws-doc-6d817a9e-e8cc-4a03-9f06-733b39caa105"></a>
 ### 1.3 Start the window
 
 `spawn-window.sh` allocates the next free `g-NNN`, claims its spool dir in
@@ -49,6 +55,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNE
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
 that is not a git checkout runs in place, with no worktree.
 
+<a id="ws-doc-2572e868-0df7-4992-b6de-143c30a57cf4"></a>
 ### 1.4 Prove it is visible
 
 The window is created with `new-window -d`; never `select-window` or
@@ -58,6 +65,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
+<a id="ws-doc-e1228c1a-7d5f-4503-b3db-402e30014cf6"></a>
 ## 2. Message a running g-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
@@ -76,6 +84,7 @@ Reports sent to you, not seen yet:
 SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
 ```
 
+<a id="ws-doc-0da88a36-5a3a-4351-b433-8928df922e8e"></a>
 ## 3. grok specifics
 
 - grok's TUI binds `Ctrl+J`. If that is your tmux prefix, reach the fleet by a
@@ -85,6 +94,7 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
   msgs 26117740, 474f32a0; the data rule in `/spawn-an-agent`); a g-NNN brief
   still never names a credential path.
 
+<a id="ws-doc-9e30acbb-09de-4e69-98f6-7dbf4ec1dab9"></a>
 ## 4. Rules that hold for every kind
 
 - One agent, one worktree, one branch. Name the files it must not touch.

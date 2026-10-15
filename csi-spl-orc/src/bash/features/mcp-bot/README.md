@@ -1,5 +1,7 @@
 # mcp-bot — a browser for AI agents, one profile per agent
 
+> Generated from qto doc `dbc7ebea-31d6-4baf-92fb-2197905f5ef4`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 `scripts/mcp-start-chrome.sh` (the agents' `chrome` MCP) and
 `scripts/mcp-start.sh` (their `firefox` MCP) are the stdio entrypoints of a
 Playwright MCP server (`@playwright/mcp`). Each agent gets its own browser
@@ -9,6 +11,7 @@ Ported from the box engine's mcp-bot feature, which is frozen for harness
 work (the Firefox launcher and its profile reaper in spec 069 lane Y1). This
 copy is canonical.
 
+<a id="ws-doc-9f1ee716-1cdd-467b-b963-8f7f0eabdb73"></a>
 ## 1. Layout
 
 | path | role |
@@ -23,8 +26,10 @@ Runtime state lives under `MCP_BOT_HOME` (default `~/.local/mcp-bot`) of the
 desktop user and is never committed: `cr-profile-<ID>/` per agent,
 `run/mcp-config-chrome-<ID>.json`, `run/chrome-activity-<PID>` stamps.
 
+<a id="ws-doc-653b7c57-7cf1-4758-b7b3-8f6da8dc8cb8"></a>
 ## 2. Install
 
+<a id="ws-doc-87007a51-ed3d-4338-bf00-93b00fec3979"></a>
 ### 2.1 Link the entrypoints and seed the configs
 
 `spool-install/install.sh` does it, run as the desktop user (step
@@ -38,6 +43,7 @@ is never rewritten. `SPOOL_INSTALL_MCP_BOT=0` skips the step. The plan alone:
 bash csi-spl-orc/src/bash/features/spool-install/install.sh --dry-run --no-seat --cli none
 ```
 
+<a id="ws-doc-354768ad-de9b-4e6b-abc1-17d0cda00ddc"></a>
 ### 2.2 Harness entry
 
 The agent user runs the entrypoint as the desktop user (`<BOX_USER>`) and
@@ -53,6 +59,7 @@ The `firefox` entry is the same with `<MCP_BOT_HOME>/mcp-start.sh`.
 
 A running agent picks up a changed entrypoint only when its CLI restarts.
 
+<a id="ws-doc-2aa53021-5848-4d73-b9e5-62ffc6f53b9d"></a>
 ## 3. Profile per agent
 
 First match wins: `MCP_BOT_CHROME_PROFILE` (explicit dir), `MCP_BOT_AGENT_ID`
@@ -65,6 +72,7 @@ Every start removes `cr-profile-*` dirs unused for `MCP_BOT_CHROME_TTL_DAYS`
 (default 14) that no live browser holds. `MCP_BOT_CHROME_HEADLESS=0` opens a
 visible window instead of running headless.
 
+<a id="ws-doc-6372ff4a-f784-49b6-bac8-f05bfa9f15e4"></a>
 ## 4. Idle timeout
 
 A browser nobody drives is closed. Measured 2026-10-01: an agent's headless
@@ -88,6 +96,7 @@ page state do not.
 Each close is logged to stderr (the CLI's MCP server log) as
 `idle <N>s >= <limit>s: closing browser pid <PID>`.
 
+<a id="ws-doc-549241b2-a879-474b-87a7-3f87cc38ce8f"></a>
 ## 5. Tests
 
 `tests/test-install-links.sh` runs the install step in a sandbox `HOME`

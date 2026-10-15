@@ -10,14 +10,18 @@ description: >
 
 # /claude-spawn — spawn a Claude Code worker (c-NNN) or message a running one
 
+> Generated from qto doc `98be3ff7-b996-49b4-a917-0d6ca6729fc0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 | Invocation | Mode |
 |---|---|
 | `/claude-spawn <brief...>` | **Spawn** a new `c-NNN` window with that brief |
 | `/claude-spawn c-NNN <message...>` | **Message** the running `c-NNN` through the spool |
 | `/claude-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
+<a id="ws-doc-4886f41d-e165-4e91-be5d-a10ed322dcb2"></a>
 ## 1. Spawn
 
+<a id="ws-doc-f503ae06-51e1-457e-9ad4-fcafe912ab67"></a>
 ### 1.1 Count the live agents first
 
 The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
@@ -27,6 +31,7 @@ yourself or close a finished agent first, and say which you did.
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
+<a id="ws-doc-ce968707-9902-4fc3-b2b2-64e83591f350"></a>
 ### 1.2 Write the brief to a file
 
 Put the full task in a markdown file: the scope, the files it must NOT touch
@@ -34,6 +39,7 @@ Put the full task in a markdown file: the scope, the files it must NOT touch
 agent on every machine, which `git worktree list` cannot see - so the new scope
 is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and how "done" is proven.
 
+<a id="ws-doc-1edf8ad3-d693-43aa-9fd5-f3f2389eaf87"></a>
 ### 1.3 Start the window
 
 `spawn-window.sh` allocates the next free `c-NNN`, claims its spool dir in
@@ -69,6 +75,7 @@ succeeds the first time:
 - after the push, check the scanner workflows on that sha
   (`gh run list --commit <sha>`) and fix a red one in the same lane.
 
+<a id="ws-doc-e28d08cb-de6c-4821-bb2b-637179874981"></a>
 ### 1.4 Prove it is visible
 
 The window is created with `new-window -d`; never `select-window` or
@@ -78,6 +85,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
+<a id="ws-doc-8fdb3729-c44a-4d30-9e4e-ba1b72daf8ec"></a>
 ## 2. Message a running c-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
@@ -96,12 +104,14 @@ Reports sent to you, not seen yet:
 SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
 ```
 
+<a id="ws-doc-b15e407b-e4f8-4692-8b13-ee050e5e2be6"></a>
 ## 3. Claude Code specifics
 
 - The session names itself: the seed prompt asks it to run `/rename`.
 - Use this lane for architectural, ambiguous or correctness-critical work,
   and for any work that carries personal data or secrets.
 
+<a id="ws-doc-62996340-365a-44b3-936d-8297c5bba70b"></a>
 ## 4. Rules that hold for every kind
 
 - One agent, one worktree, one branch. Name the files it must not touch.

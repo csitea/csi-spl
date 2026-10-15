@@ -1,7 +1,10 @@
 # Goals, Strategy, and Roadmap
 
+> Generated from qto doc `a8cc35c0-dc42-4ea4-9806-8f21a4cbbe4b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This directory holds goal and strategy documents for the csi-spl project.
 
+<a id="ws-doc-4d81a20c-ef70-4e6a-9684-dff09125aa24"></a>
 ## How to Create a Goal
 
 1. **Copy the template**:
@@ -29,6 +32,7 @@ This directory holds goal and strategy documents for the csi-spl project.
    - Push to a branch and request a review from the approver role.
    - After approval, merge to `master`.
 
+<a id="ws-doc-a9a1cf01-3e54-4db1-9e1c-3a525ee80316"></a>
 ## Rules
 
 - **Public by default (D1)**: All documents are public unless `public: false` is set in `goal.yaml`. `public:` is the repo-doc flag, never the calendar audience (audience = workspace switch, RDB-2).
@@ -36,11 +40,13 @@ This directory holds goal and strategy documents for the csi-spl project.
 - **Retrospective**: After the deadline, document outcomes in `strategy.md`.
 - **Language review**: agy reviews all documents last (LANE_MIX_KIND=i18n).
 
+<a id="ws-doc-3522e1bf-0b63-47b6-8012-a068f074dbb9"></a>
 ## Backfill
 
 - **Git**: Major milestones are backfilled from git history (e.g., `v1.0.0` tags, specs turned done).
 - **DB**: Owner decisions are backfilled from spool topics (audience: `internal`).
 
+<a id="ws-doc-f2db76d3-0359-48d4-87b6-8317acdb7c30"></a>
 ## Templates
 
 - [`template-goal.yaml`](./template-goal.yaml): Goal metadata.

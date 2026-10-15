@@ -1,5 +1,7 @@
 # csi-spl git-spec — index, redo ground rules, integrator decisions
 
+> Generated from qto doc `59cba1d3-fb50-4045-82ff-13f5c140566f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This file is the **in-repo authority for the git-spec redo** started
 2026-09-18. It holds three things: the rules every spec area follows, the
 index of spec dirs (numbering and cross-references), and the cross-spec
@@ -11,6 +13,7 @@ pass: the **integrator** lane. Each `NNN-*` dir is owned by its area lane.
 
 ---
 
+<a id="ws-doc-aecbc358-c057-4c71-9979-c4dfd0e8e9ed"></a>
 ## 1. Why the redo
 
 The git-spec grew across ~30 parallel lanes and drifted: specs contradicted
@@ -23,6 +26,7 @@ instead of first.
 
 ---
 
+<a id="ws-doc-b25f3bdf-4b2f-4cdc-b3fc-6a27e2f2d706"></a>
 ## 2. Ground rules (every area lane)
 
 1. **`002-box-agent-messaging` is kept untouched.** Local messaging is shipped.
@@ -50,6 +54,7 @@ instead of first.
 
 ---
 
+<a id="ws-doc-0466daef-0dc8-4aff-a806-9c20f3db39a4"></a>
 ## 3. Binding authorities (reconcile to these)
 
 | Topic | Authority |
@@ -66,6 +71,7 @@ instead of first.
 | Relay estate | `../doc/md/csi-spl.feature.md` |
 | 003 open questions OQ-01..15 | folded into `003-spool-message-bus/spec.md` (Clarifications) |
 
+<a id="ws-doc-e51d4845-317c-4c7a-b5fd-8384e804924b"></a>
 ### 3.1 Canon every spec respects
 
 - **Trust:** local mode is **unsigned** (no keys). Hub mode is **one Ed25519
@@ -82,6 +88,7 @@ instead of first.
 
 ---
 
+<a id="ws-doc-7424e207-0253-40b8-bb81-6a4e7c122a85"></a>
 ## 4. Index — spec dirs, owners, milestone
 
 Numbering is **kept as-is** (no dir is renamed in the redo; every existing
@@ -159,6 +166,7 @@ Dependency order between specs:
 
 ---
 
+<a id="ws-doc-69fa843a-3dce-41d7-b7f8-0fc6793fa5a0"></a>
 ## 5. Seams — who writes what where two specs meet
 
 | Seam | Owner of the text | The other spec |
@@ -197,6 +205,7 @@ Dependency order between specs:
 
 ---
 
+<a id="ws-doc-d34a4e8b-95cf-472d-ae14-8caf52f1e678"></a>
 ## 6. Canonical provisioning order (007 encodes it; others cite it)
 
 Per environment, **dev fully, then prd**. DNS comes **before** anything that
@@ -219,6 +228,7 @@ needs a name, and ingress comes **last**:
 `007-dns`); the full gate-per-step table is
 `007-spool-hub-api-infra/contracts/provisioning-order.md`.
 
+<a id="ws-doc-a9dde9d5-d092-4528-8d23-439fb8b52433"></a>
 ### 6.1 Measured DNS state (2026-09-18T19:05Z) — read before writing the DNS step
 
 | Check | Result |
@@ -256,6 +266,7 @@ DNS authority. `api`, `www` and `dev` are reserved tenant labels
 
 ---
 
+<a id="ws-doc-8957b28a-0eba-4d82-a023-49fef9f88ccb"></a>
 ## 7. Consistency pass (integrator, after the area lanes push)
 
 A `speckit-analyze`-style pass, recorded in section 8:
@@ -267,12 +278,14 @@ A `speckit-analyze`-style pass, recorded in section 8:
 - trust, `delivery`, and milestone tags agree across 003/004/005/006/007/008;
 - every Implemented status carries a checkable citation.
 
+<a id="ws-doc-3b7006af-6bf9-431d-ab36-b496ed116983"></a>
 ## 8. Consistency record
 
 Pass run by the integrator on trunk `a27078c`, after every area lane landed
 (001 `cacc7a8`, 003 `a4a5918`+`01eed0a`, 004 `6f1e759`, 005 `4942381`+`3e2f1f5`,
 006 `523c953`, 007 `16fbda7`, 008 `a27078c`).
 
+<a id="ws-doc-292fb783-e19c-49ef-9cbb-73d0e09b08e4"></a>
 ### 8.1 Checks
 
 | Check | Result |
@@ -287,6 +300,7 @@ Pass run by the integrator on trunk `a27078c`, after every area lane landed
 | Status codes (402 / 409 / 429 / 78) agree 003 ↔ 004 ↔ 006 | yes — 003 `error-envelope.md` is the table, 004/006 cite it |
 | Dead relative links in `specs/` | none |
 
+<a id="ws-doc-0b1a6164-44ea-4f34-bb85-87b5dd045815"></a>
 ### 8.2 Seams fixed by the integrator
 
 - `331badd` — external liveness gates (005, 006, 007 step 10, SC-004) probe
@@ -298,6 +312,7 @@ Pass run by the integrator on trunk `a27078c`, after every area lane landed
   post-M1), the rental door is the box key on hello + envelope, the DNS-zone
   step is `025-gcp-dns-zone`.
 
+<a id="ws-doc-d915429f-44ed-431d-bb39-9d89bcbeb47a"></a>
 ### 8.3 FRs accepted without a task
 
 Invariants already verified in their spec with a cited check; no work remains:
@@ -306,6 +321,7 @@ ids), 005 FR-003 (no key or signed URL in the browser), 006 FR-017 (no
 `tenant_id` on `v:1`). 007 FR-001 is the ordering rule itself; its open
 steps are each a task.
 
+<a id="ws-doc-a8cebf55-f8b9-4cc9-883c-ddc6c1627e8d"></a>
 ### 8.4 Open after the redo (not seams — owners named)
 
 | Item | Owner |
@@ -330,6 +346,7 @@ Resolved since the first record (kept for audit):
 ~~Missing message visibility in recipient terminal~~ (028 spec + orc renderer, `31355bd`) ·
 ~~WUI channel/DM threads sorted by initial root ts~~ (CLE-3425: sorted by last activity `activityOf`, `9adb06c`).
 
+<a id="ws-doc-a8554a5b-2b2a-4129-ab2a-e75c98218e00"></a>
 ### 8.5 Master trunk sync pass (specs 017 through 028, trunk through cea65d2)
 
 Pass run by the integrator reconciling git-spec with trunk source code and infrastructure:
@@ -349,6 +366,7 @@ Pass run by the integrator reconciling git-spec with trunk source code and infra
 | **028 Terminal Delivery** | Implemented through T050, including the proof (T040–T042 are `[x]` in `028/tasks.md`, not planned). The earlier "proof planned" cell in this table was stale against that file. | `31355bd`, `d5b6042`, `028/tasks.md` |
 | **WUI Feed Ordering & Shell** | Implemented & Live: thread cards and sidebar channel/DM lists ordered by LAST activity (`activityOf`, `9adb06c`, `cea65d2`); single thread section in shell layout (`e54e4db`, CLE-3429); syntax-highlighted wrapping code snippets & generic modal dialog (`469c432`, CLE-3423) | `9adb06c`, `cea65d2`, `e54e4db`, `469c432`, `list-order.test.mjs` (28 PASS) |
 
+<a id="ws-doc-99910775-82cb-4b27-95ea-ef06c23798d5"></a>
 ### 8.6 Spec-vs-code pass (tree `324a071`, 2026-09-23)
 
 Code prevails. Live GCP was not re-queried. Citations are `git grep` / file reads on this tree, n=1.

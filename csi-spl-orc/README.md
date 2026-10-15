@@ -1,5 +1,7 @@
 # csi-spl-orc
 
+> Generated from qto doc `df35c4d5-17d7-4fe8-85b6-01a9a6c041e8`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Local dev orchestration (`lde`) for the spool **hub**: Postgres, a GCS
 emulator and `spool serve` in docker compose, wired from `csi-spl-cnf` and
 nothing else. Shaped like `sibling-prj-orc` (compose split -infra / -rdb / -api,
@@ -18,6 +20,7 @@ only host tool they need (spec 072 A46): the hub builds inside docker.
 | `./run -a do_provision_spool_root` | make the box's `/var/spool-hub` (cnf `env.box`) with the group-only perms model (017 FR-SEC-001) |
 | `./run -a do_repair_spool_root` | migrate an existing box spool to that model: group, members, perms; `DRY_RUN=1` default |
 
+<a id="ws-doc-daf4a33b-f7e0-479e-9a6b-f008a6dfb17c"></a>
 ## Cloud actions (dev / prd) -- owner-gated
 
 Mutating cloud actions are a **dry run unless `DRY_RUN=0`**. They read every
@@ -35,6 +38,7 @@ wait, so it polls (read-only) until the 032 mapping cert is provisioned.
 | `ENV=dev ./run -a do_export_all_dns_settings` | snapshot Cloud DNS zones + record-sets to JSON under the env's cloud state dir; `DRY_RUN=1` default |
 | `TEST_DOMAIN=example.test ./run -a do_flush_dns` | flush the operator host resolver cache; `DRY_RUN=1` default (the real run sudo-mutates the host) |
 
+<a id="ws-doc-a7a70887-2a48-4046-8dee-b407ed0e6cfa"></a>
 ## Gandi LiveDNS (public DNS)
 
 Public NS stay on Gandi LiveDNS. These actions talk to Gandi's v5 API
@@ -52,6 +56,7 @@ is `$DOMAIN` or cnf `env.dns.BASE_DOMAIN`. Token: `GANDI_PAT` or
 | `RRSET_NAME=* RRSET_TYPE=A RRSET_VALUES=<ip> ./run -a do_gandi_set_dns_record` | upsert one record (`CONFIRM=yes` to apply) |
 | `NAMESERVERS=ns-101-a.gandi.net,... ./run -a do_gandi_set_nameservers` | dry-run only; never re-delegates |
 
+<a id="ws-doc-353877e8-551e-45d9-8379-5a6f41aa70c1"></a>
 ## Where things come from
 
 | thing | source |
@@ -65,12 +70,14 @@ Each git tree gets its own compose project (`csi-spl-lde-<tree>`), volumes and
 image tag. Host ports bind 127.0.0.1 only; to run two trees at once, override
 `LDE_PG_PORT`, `LDE_GCS_PORT`, `LDE_HUB_PORT`.
 
+<a id="ws-doc-4c04c173-ecb5-4b96-ac7e-38cdddd4939d"></a>
 ## Exit codes of do_setup_app_inf
 
 `0` every check PASS; `3` nothing failed but a check is BLOCKED (the hub
 binary on this tree lacks a verb, e.g. `serve`, which the 003 hub lane ships);
 `1` a check FAILED. BLOCKED is never counted as green.
 
+<a id="ws-doc-e5cac5b5-96ff-4372-b99a-a5a09b6452da"></a>
 ## /var/spool-hub permissions model
 
 Spec 017 FR-SEC-001 (local mail is unsigned, so the spool is closed to every
@@ -103,6 +110,7 @@ setgid on every dir, applies the ACLs and proves `nobody` can neither list nor
 write the root. Until then `do_provision_spool_root` leaves an existing root
 as it is, with a WARN. `do_setup_app_inf` runs it only with `LDE_SPOOL_ROOT=1`.
 
+<a id="ws-doc-ef4c996e-5827-4682-9a1a-8c190e6fda37"></a>
 ## Tests
 
 `bash src/bash/tests/run-all-tests.sh`

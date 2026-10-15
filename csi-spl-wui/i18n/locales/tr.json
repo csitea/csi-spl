@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Durumunuz: çevrimiçi",
-    "your_status_offline": "Durumunuz: çevrimdışı"
+    "your_status_offline": "Durumunuz: çevrimdışı",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -2915,5 +2916,14 @@
     "load": "Bu yüklenemedi. Biraz sonra tekrar deneyin.",
     "other": "Bir şey çalışmadı. Biraz sonra tekrar deneyin.",
     "retry": "Tekrar deneyin"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Ajanlar",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

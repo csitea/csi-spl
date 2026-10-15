@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Вашиот статус: онлајн",
-    "your_status_offline": "Вашиот статус: офлајн"
+    "your_status_offline": "Вашиот статус: офлајн",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "сопственик на бизнисот",
@@ -2915,5 +2916,14 @@
     "load": "Ова не можеше да се вчита. Обидете се повторно за момент.",
     "other": "Нешто не функционираше. Обидете се повторно за момент.",
     "retry": "Обидете се повторно"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Агенти",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Ваш статус: онлайн",
-    "your_status_offline": "Ваш статус: офлайн"
+    "your_status_offline": "Ваш статус: офлайн",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "власник бізнесу",
@@ -2915,5 +2916,14 @@
     "load": "Не вдалося завантажити. Спробуйте ще раз трохи згодом.",
     "other": "Щось не спрацювало. Спробуйте ще раз трохи згодом.",
     "retry": "Спробувати ще раз"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Агенти",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

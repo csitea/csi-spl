@@ -38,6 +38,7 @@ const RAIL_HELP = {
   agents: { slug: 'agents', word: 'agent' },
   boxes: { slug: 'boxes', word: 'box' },
   calendar: { slug: 'calendar', word: 'calendar' },
+  monitoring: { slug: 'monitoring', word: 'monitoring' },
 }
 
 let failed = 0

@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Jūsų būsena: prisijungęs",
-    "your_status_offline": "Jūsų būsena: neprisijungęs"
+    "your_status_offline": "Jūsų būsena: neprisijungęs",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -2915,5 +2916,14 @@
     "load": "Nepavyko įkelti. Bandykite dar kartą po akimirkos.",
     "other": "Kažkas nepavyko. Bandykite dar kartą po akimirkos.",
     "retry": "Bandyti dar kartą"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agentai",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

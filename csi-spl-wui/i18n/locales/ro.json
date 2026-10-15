@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Starea ta: online",
-    "your_status_offline": "Starea ta: offline"
+    "your_status_offline": "Starea ta: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -2915,5 +2916,14 @@
     "load": "Nu s-a putut încărca. Încearcă din nou peste puțin timp.",
     "other": "Ceva nu a funcționat. Încearcă din nou peste puțin timp.",
     "retry": "Încearcă din nou"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agenți",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

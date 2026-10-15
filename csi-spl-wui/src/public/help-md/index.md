@@ -78,6 +78,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [20. Release notes](./release-notes.md) | How to open the release notes in the app, and how a commit carries its note. |
 | [21. Calendar](./calendar.md) | The Calendar tab: the three-year strip of small months, event dots and official-day tints, and the week view. |
 | [22. Working Hours](./hours.md) | Your suggested hours in the Calendar: what counts as time worked, approving your days, the weekly freeze, the biz owner's approval and the CSV / Excel download, who sees what, and the "Count my reading time" switch. |
+| [23. Monitoring](./monitoring.md) | The Monitoring tab: the workspace's agents and boxes in one section, one tab each, each tab its own address. |
 
 ---
 

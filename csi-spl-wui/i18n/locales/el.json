@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Η κατάστασή σας: συνδεδεμένος",
-    "your_status_offline": "Η κατάστασή σας: εκτός σύνδεσης"
+    "your_status_offline": "Η κατάστασή σας: εκτός σύνδεσης",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "ιδιοκτήτης επιχείρησης",
@@ -2915,5 +2916,14 @@
     "load": "Δεν ήταν δυνατή η φόρτωση. Δοκιμάστε ξανά σε λίγο.",
     "other": "Κάτι δεν λειτούργησε. Δοκιμάστε ξανά σε λίγο.",
     "retry": "Δοκιμάστε ξανά"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Πράκτορες",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

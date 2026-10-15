@@ -1,0 +1,95 @@
+// SPL-1991 (owner HUM-10, t1 dbf2f39b, A on Q1-Q4): the Monitoring section's
+// tabs - one list for the tab bar and these tests; each tab its own path.
+import { describe, it } from 'node:test'
+import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  MONITORING_TABS,
+  MONITORING_DEFAULT_PATH,
+  visibleMonitoringTabs,
+  monitoringTabFor,
+} from '../../src/utils/monitoring-tabs.mjs'
+import { RAIL_TABS, DEFAULT_RAIL_ORDER } from '../../src/utils/rail-order.mjs'
+import { MONITORING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { isSectionPage } from '../../src/utils/section-strip.mjs'
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
+
+describe('monitoring tabs', () => {
+  it('Agents first (the landing tab, Q1 A), then Boxes, then the reserved Tokens', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'tokens'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/tokens'])
+    assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
+    for (const t of MONITORING_TABS) {
+      assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
+      assert.equal(t.labelKey, 'monitoring.tab.' + t.id)
+      assert.equal(typeof t.operatorsOnly, 'boolean')
+    }
+  })
+  it('the bar draws the ready tabs; Tokens (spec 140) stays hidden, even for an operator', () => {
+    assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes'])
+  })
+  it('an operator-only ready tab shows to operators only (Q3 A)', () => {
+    const tokens = MONITORING_TABS.find((t) => t.id === 'tokens')
+    assert.equal(tokens.operatorsOnly, true)
+    assert.equal(tokens.ready, false)
+    /* the filter rule itself, on a ready copy: CONTROL that operator gates */
+    const rule = (tab, who) => tab.ready && (!tab.operatorsOnly || who.operator === true)
+    assert.equal(rule({ ...tokens, ready: true }, { operator: true }), true)
+    assert.equal(rule({ ...tokens, ready: true }, { operator: false }), false)
+  })
+  it('monitoringTabFor: the tab a route is on, locale prefix or not; a detail page keeps its tab', () => {
+    assert.equal(monitoringTabFor('/monitoring/agents'), 'agents')
+    assert.equal(monitoringTabFor('/fi/monitoring/boxes'), 'boxes')
+    assert.equal(monitoringTabFor('/monitoring/boxes/box-desk'), 'boxes')
+    assert.equal(monitoringTabFor('/monitoring/agents/c-1%40tnk?x=1'), 'agents')
+    assert.equal(monitoringTabFor('/monitoring'), null)
+    assert.equal(monitoringTabFor('/monitoring/agentsx'), null)
+    assert.equal(monitoringTabFor('/agents'), null)
+  })
+  it('each ready tab has its own page (its own chunk), and the parent holds a NuxtPage', () => {
+    for (const t of visibleMonitoringTabs()) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '/index.vue')), t.path)
+    const parent = read('src/pages/monitoring.vue')
+    assert.match(parent, /<NuxtPage \/>/)
+    assert.match(parent, /data-test="monitoring-summary"/, 'the summary strip slot')
+    assert.match(parent, /visibleMonitoringTabs\(/, 'the bar reads the one list')
+  })
+  it('every tab label, the title and the rail name are in every locale', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const locales = ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
+    for (const loc of locales) {
+      const cat = JSON.parse(readFileSync(join(dir, loc + '.json'), 'utf8'))
+      const get = (key) => key.split('.').reduce((o, k) => (o == null ? o : o[k]), cat)
+      for (const key of [...MONITORING_TABS.map((t) => t.labelKey), 'monitoring.title', 'monitoring.tabs_label', 'sidebar.monitoring']) {
+        assert.equal(typeof get(key), 'string', loc + ': ' + key)
+      }
+    }
+  })
+})
+
+describe('the Monitoring rail entry', () => {
+  it('one rail tab, its own icon, opening /monitoring; Agents and Boxes stay (Q2 A)', () => {
+    const tab = RAIL_TABS.find((t) => t.id === 'monitoring')
+    assert.deepEqual({ ...tab }, { id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' })
+    assert.ok(RAIL_TABS.some((t) => t.id === 'agents'))
+    assert.ok(RAIL_TABS.some((t) => t.id === 'boxes'))
+    assert.match(read('src/utils/uiIcons.ts'), /\n {2}activity: \[/)
+    assert.equal(MONITORING_TAB, 'monitoring')
+    assert.equal(routeForTab('monitoring'), '/monitoring')
+    assert.equal(DEFAULT_RAIL_ORDER.at(-2), 'monitoring', 'after Boxes, before Archive')
+  })
+  it('every Monitoring path selects the Monitoring rail tab and is a section page', () => {
+    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk']) {
+      assert.equal(tabForPath(p), 'monitoring', p)
+    }
+    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes']) assert.equal(isSectionPage(p), true, p)
+    /* the old sections keep their own tabs */
+    assert.equal(tabForPath('/agents'), 'agents')
+    assert.equal(tabForPath('/boxes/box-desk'), 'boxes')
+  })
+})

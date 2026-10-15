@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Tilasi: paikalla",
-    "your_status_offline": "Tilasi: offline"
+    "your_status_offline": "Tilasi: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -2915,5 +2916,14 @@
     "load": "Tätä ei voitu ladata. Yritä hetken päästä uudelleen.",
     "other": "Jokin ei toiminut. Yritä hetken päästä uudelleen.",
     "retry": "Yritä uudelleen"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agentit",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

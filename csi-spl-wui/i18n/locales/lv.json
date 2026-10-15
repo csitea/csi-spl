@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Jūsu statuss: tiešsaistē",
-    "your_status_offline": "Jūsu statuss: bezsaistē"
+    "your_status_offline": "Jūsu statuss: bezsaistē",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -2915,5 +2916,14 @@
     "load": "To neizdevās ielādēt. Mēģiniet vēlreiz pēc brīža.",
     "other": "Kaut kas neizdevās. Mēģiniet vēlreiz pēc brīža.",
     "retry": "Mēģināt vēlreiz"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Aģenti",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

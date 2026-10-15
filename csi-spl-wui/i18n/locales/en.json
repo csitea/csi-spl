@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Your status: online",
-    "your_status_offline": "Your status: offline"
+    "your_status_offline": "Your status: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -2915,5 +2916,14 @@
     "load": "This could not be loaded. Try again in a moment.",
     "other": "Something did not work. Try again in a moment.",
     "retry": "Try again"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agents",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

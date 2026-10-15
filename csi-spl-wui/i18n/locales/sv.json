@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Din status: online",
-    "your_status_offline": "Din status: offline"
+    "your_status_offline": "Din status: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -2915,5 +2916,14 @@
     "load": "Det gick inte att läsa in. Försök igen om en stund.",
     "other": "Något fungerade inte. Försök igen om en stund.",
     "retry": "Försök igen"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agenter",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

@@ -321,7 +321,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const AGENTS_TAB: 'agents'
   export const BOXES_TAB: 'boxes'
   export const CALENDAR_TAB: 'calendar'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null
+  export const MONITORING_TAB: 'monitoring'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring' | null
   export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'flow' | '' | null
 }
@@ -1888,10 +1889,11 @@ declare module '~/utils/palette.mjs' {
 }
 
 declare module '~/utils/rail-order.mjs' {
-  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar'
+  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
   export const RAIL_IDS: readonly RailId[]
   export const RAIL_RETIRED: readonly string[]
+  export const RAIL_HUB_PENDING: readonly string[]
   export function wireRailOrder(order: readonly string[]): string[]
   export const RAIL_PINNED_LAST: 'archive'
   export const DEFAULT_RAIL_ORDER: readonly RailId[]

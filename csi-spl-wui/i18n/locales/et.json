@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Sinu olek: võrgus",
-    "your_status_offline": "Sinu olek: võrguühenduseta"
+    "your_status_offline": "Sinu olek: võrguühenduseta",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -2915,5 +2916,14 @@
     "load": "Seda ei õnnestunud laadida. Proovi hetke pärast uuesti.",
     "other": "Midagi ei toiminud. Proovi hetke pärast uuesti.",
     "retry": "Proovi uuesti"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agendid",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

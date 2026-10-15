@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Ваш статус: в сети",
-    "your_status_offline": "Ваш статус: не в сети"
+    "your_status_offline": "Ваш статус: не в сети",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "владелец бизнеса",
@@ -2915,5 +2916,14 @@
     "load": "Не удалось загрузить. Попробуйте ещё раз чуть позже.",
     "other": "Что-то не сработало. Попробуйте ещё раз чуть позже.",
     "retry": "Повторить"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Агенты",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

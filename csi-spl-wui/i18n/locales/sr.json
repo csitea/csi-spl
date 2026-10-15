@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Ваш status: на мрежи",
-    "your_status_offline": "Ваш status: ван мреже"
+    "your_status_offline": "Ваш status: ван мреже",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "власник пословања",
@@ -2915,5 +2916,14 @@
     "load": "Ово није могло да се учита. Покушајте поново за тренутак.",
     "other": "Нешто није успело. Покушајте поново за тренутак.",
     "retry": "Покушајте поново"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Агенти",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Jouw status: online",
-    "your_status_offline": "Jouw status: offline"
+    "your_status_offline": "Jouw status: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -2915,5 +2916,14 @@
     "load": "Dit kon niet worden geladen. Probeer het zo meteen opnieuw.",
     "other": "Er werkte iets niet. Probeer het zo meteen opnieuw.",
     "retry": "Opnieuw proberen"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agents",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

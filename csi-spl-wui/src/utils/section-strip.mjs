@@ -17,6 +17,10 @@ const SECTION_PAGES = new Set([
   '/agents',
   '/boxes',
   '/calendar',
+  /* SPL-1991: Monitoring and each of its tabs (a tab is a path, not a drill-down) */
+  '/monitoring',
+  '/monitoring/agents',
+  '/monitoring/boxes',
   '/help',
   '/docs',
   '/tenant-settings',

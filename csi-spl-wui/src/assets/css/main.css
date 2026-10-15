@@ -209,8 +209,8 @@ html.pane-dragging * {
     white-space: nowrap;
     font-size: 0.625rem;
   }
-  .sidebar-rail :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar]) + :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=archive])::before,
-  .sidebar-rail :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=archive]) + :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar])::before {
+  .sidebar-rail :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar]) + :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=archive])::before,
+  .sidebar-rail :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=archive]) + :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar])::before {
     content: "";
     position: absolute;
     inset-inline: 20%;
@@ -1516,3 +1516,15 @@ html.pane-dragging * {
   border-inline-start: 0;
   box-shadow: none;
 }
+
+/* SPL-1991: the Monitoring section (pages/monitoring.vue and its tabs). Here,
+   not in each page, so the three pages add no CSS chunk to the router's
+   dependency map in the first-load JS (ci_initial_gzip_kb). */
+.monitoring-summary:empty { display: none; }
+.monitoring-tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--color-border); }
+.monitoring-tab { padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.monitoring-tab:hover, .monitoring-tab--active { color: var(--color-fg); }
+.monitoring-tab--active { border-bottom-color: var(--color-accent); }
+.monitoring-list { padding: 8px; }
+.monitoring-empty { padding: 8px; margin: 0; }
+.monitoring-kind { margin-left: auto; }

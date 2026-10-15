@@ -53,6 +53,12 @@ export const RAIL_TABS = Object.freeze([
      Calendar appended (parseRailOrder), and the hub's IsRailOrder + rdb 0133
      admit the eleven. */
   Object.freeze({ id: 'calendar', icon: 'calendar', labelKey: 'sidebar.calendar' }),
+  /* SPL-1991 (owner HUM-10, t1 dbf2f39b, msg 94283d6b, A on Q1-Q4):
+     Monitoring opens /monitoring, its tabs Agents and Boxes; the Agents and
+     Boxes tabs above stay (Q2 A). Reorders and collapses like the rest; a
+     stored order from before it is drawn with Monitoring appended
+     (parseRailOrder). The hub admits it once its lane lands (RAIL_HUB_PENDING). */
+  Object.freeze({ id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' }),
 ])
 
 /** Every drawn rail id - a set, not the drawn order. */
@@ -67,9 +73,22 @@ export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
  */
 export const RAIL_RETIRED = Object.freeze(['topics'])
 
-/** A drawn order as the hub stores it: the retired ids added, Archive last. */
+/**
+ * SPL-1991: ids the rail draws before the hub admits them (auth.RailTabs and
+ * the humans.rail_order CHECK lag the WUI by one lane). A saved order leaves
+ * them out, so the hub keeps admitting it, and parseRailOrder appends them
+ * when it is read back. Empty this list in the commit after the hub lands
+ * the id: until then a dragged Monitoring is drawn back before Archive.
+ */
+export const RAIL_HUB_PENDING = Object.freeze(['monitoring'])
+
+/**
+ * A drawn order as the hub stores it: the retired ids added, the ids the hub
+ * does not admit yet left out, Archive last.
+ */
 export function wireRailOrder(order) {
-  return pinRailOrder([...order.filter((id) => !RAIL_RETIRED.includes(id)), ...RAIL_RETIRED])
+  const drop = (id) => RAIL_RETIRED.includes(id) || RAIL_HUB_PENDING.includes(id)
+  return pinRailOrder([...order.filter((id) => !drop(id)), ...RAIL_RETIRED])
 }
 
 /**

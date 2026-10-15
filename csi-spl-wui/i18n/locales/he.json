@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "הסטטוס שלך: מקוון",
-    "your_status_offline": "הסטטוס שלך: לא מקוון"
+    "your_status_offline": "הסטטוס שלך: לא מקוון",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "בעל העסק",
@@ -2915,5 +2916,14 @@
     "load": "לא ניתן היה לטעון את זה. נסו שוב בעוד רגע.",
     "other": "משהו לא עבד. נסו שוב בעוד רגע.",
     "retry": "נסו שוב"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "סוכנים",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

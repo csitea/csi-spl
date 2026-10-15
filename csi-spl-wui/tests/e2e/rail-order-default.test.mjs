@@ -248,7 +248,7 @@ async function noTopicsView(browser, base) {
    strip is unchanged: no divider, its names always shown, the same boxes
    whether the setting is on or off. CONTROL: with the feature reverted the
    divider and labels-on asserts fail. */
-const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'archive'])
+const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'monitoring', 'archive'])
 /* the divider is a ::before line on the tab below the boundary (main.css):
    a drawn one has content and a top border */
 const railSeq = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.flatMap((e) => {
@@ -326,6 +326,47 @@ async function railDividerLabels(browser, base) {
   await p.close()
 }
 
+/* SPL-1991 (owner HUM-10, t1 dbf2f39b, A on Q1-Q4): the Monitoring rail tab
+   opens /monitoring, which lands on its Agents tab; Boxes is the second tab,
+   each tab its own path, so Back walks them and a deep link opens one. The
+   sidebar keeps the icon rail only; the reserved Tokens tab is not drawn;
+   the old Agents and Boxes rail tabs stay (Q2 A). CONTROL: before SPL-1991
+   there is no sidebar-tab-monitoring and every check here FAILs. */
+async function monitoringSection(browser, base) {
+  const path = (p) => new URL(p.url()).pathname
+  const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { timeout: 15000 }, want).then(() => true, () => false)
+  const bar = (p) => p.$$eval('[data-test=monitoring-tabs] a', (els) => els.map((e) => [e.getAttribute('data-test'), e.getAttribute('aria-current') || '']))
+  for (const [width, touch] of [[1440, false], [360, true]]) {
+    const tag = `${width}px monitoring`
+    const p = await browser.newPage()
+    await p.setViewport({ width, height: 900, isMobile: touch, hasTouch: touch })
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+    if (!(await signIn(p, undefined))) throw new Error('no session store')
+    await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+    await sleep(400)
+    const rail = await railOf(p)
+    check(`${tag}: the rail has Monitoring after Boxes, and keeps Agents and Boxes`, rail.includes('agents') && rail.includes('boxes') && rail.indexOf('monitoring') === rail.indexOf('boxes') + 1, { rail })
+    await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-monitoring]')?.click())
+    check(`${tag}: the rail tab lands on /monitoring/agents`, await at(p, '/monitoring/agents'), path(p))
+    await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)
+    check(`${tag}: the bar draws Agents (current) then Boxes, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', '']]), await bar(p))
+    check(`${tag}: the summary strip slot is there`, Boolean(await p.$('[data-test=monitoring-summary]')))
+    check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-monitoring]', (e) => e.getAttribute('aria-selected'))) === 'true')
+    if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))
+    await p.click('[data-test=monitoring-tab-boxes]')
+    check(`${tag}: the Boxes tab is its own path`, await at(p, '/monitoring/boxes'), path(p))
+    check(`${tag}: the Boxes tab renders`, Boolean(await p.waitForSelector('[data-test=monitoring-boxes]', { visible: true, timeout: NAV }).catch(() => null)))
+    await p.goBack()
+    check(`${tag}: Back returns to the Agents tab`, await at(p, '/monitoring/agents'), path(p))
+    await p.goto(`${base}/monitoring/boxes`, { waitUntil: 'networkidle2', timeout: NAV })
+    check(`${tag}: a deep link opens the Boxes tab`, Boolean(await p.waitForSelector('[data-test=monitoring-boxes]', { visible: true, timeout: NAV }).catch(() => null)) && path(p) === '/monitoring/boxes', path(p))
+    check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-${width}.png` })
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -334,6 +375,7 @@ try {
   await sameRouteTabs(browser, server.base)
   await noTopicsView(browser, server.base)
   await railDividerLabels(browser, server.base)
+  await monitoringSection(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

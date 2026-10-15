@@ -553,7 +553,8 @@
     },
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Váš stav: online",
-    "your_status_offline": "Váš stav: offline"
+    "your_status_offline": "Váš stav: offline",
+    "monitoring": "Monitoring"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -2915,5 +2916,14 @@
     "load": "Nepodarilo sa to načítať. Skúste to znova o chvíľu.",
     "other": "Niečo nefungovalo. Skúste to znova o chvíľu.",
     "retry": "Skúsiť znova"
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "tabs_label": "Monitoring tabs",
+    "tab": {
+      "agents": "Agenti",
+      "boxes": "Boxes",
+      "tokens": "Tokens"
+    }
   }
 }

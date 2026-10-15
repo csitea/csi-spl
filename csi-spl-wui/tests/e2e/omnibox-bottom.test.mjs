@@ -45,6 +45,23 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. A box still moving between the bar and the dock is
+    not yet the layout the checks measure. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+
 async function launch() {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
@@ -121,7 +138,7 @@ async function open(browser, vp, path = PATH) {
     console.log('no feed', p.url(), JSON.stringify(await p.evaluate(() => document.body.innerText.slice(0, 400))), errors)
     throw e
   }
-  await sleep(400)
+  await until(() => geometry(p))
   return { p, errors }
 }
 
@@ -130,15 +147,14 @@ const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: join(SHO
 async function typeInBox(p, text) {
   await p.$eval(TA, (el) => { el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })
   await p.type(TA, text)
-  await sleep(250)
+  await until(() => p.$eval(TA, (el) => el.value), (v) => v === text, 100, 3000)
 }
 
 async function desktopCase(browser, width, height) {
   const tag = `${width}px`
   const { p, errors } = await open(browser, { width, height })
   await setPosition(p, undefined)
-  await sleep(300)
-  const g0 = await geometry(p)
+  const g0 = await until(() => geometry(p))
   await shot(p, `${width}-top`)
   ok(`${tag} default: the box is in the top bar, the dock is empty and takes no room`,
     g0.inBar && !g0.inDock && g0.dock === null && g0.dockOn === null && g0.search === null && g0.boxes === 1, g0)
@@ -147,8 +163,8 @@ async function desktopCase(browser, width, height) {
   await typeInBox(p, 'draft c6994436')
   await p.$eval(TA, (el) => el.blur())
   await setPosition(p, 'bottom')
-  await sleep(500)
-  const g1 = await geometry(p)
+  /* moved off the bar, and still */
+  const g1 = await until(() => geometry(p), (g) => !g.inBar)
   const draft = await p.$eval(TA, (el) => el.value)
   await shot(p, `${width}-bottom`)
   ok(`${tag} bottom: the same box moved into the dock (the draft is still in it, one composer)`,
@@ -166,8 +182,8 @@ async function desktopCase(browser, width, height) {
   /* set, not typed: Enter sends by default (SPL-976) */
   await p.$eval(TA, (el, v) => { el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })) },
     Array.from({ length: 14 }, (_, i) => `line ${i}`).join('\n'))
-  await sleep(300)
-  const g2 = await geometry(p)
+  /* the dock once it has stopped growing */
+  const g2 = await until(() => geometry(p), (g) => Boolean(g.dock && g1.dock && g.dock.h !== g1.dock.h))
   await shot(p, `${width}-bottom-tall`)
   ok(`${tag} B1 a tall draft: the dock grows up, stays at the bottom, the feed still ends at its top`,
     Boolean(g2.dock && g2.dock.h > g1.dock.h + 40 && Math.abs(g2.dock.b - g2.vh) <= 1 && g2.feed && g2.feed.b <= g2.dock.t + 1 && g2.docScroll <= 0),
@@ -191,14 +207,13 @@ async function desktopCase(browser, width, height) {
   /* B3: the /search syntax help opens upward */
   await typeInBox(p, '/search ')
   await p.click('form.composer.omnibox--global [data-test=search-syntax-help]')
-  await sleep(250)
-  const help = await p.evaluate(() => {
+  const help = await until(() => p.evaluate(() => {
     const l = document.querySelector('[data-test=search-syntax-panel]')
     const f = document.querySelector('form.composer.omnibox--global .omnibox-field')
     if (!l || !f) return null
     const a = l.getBoundingClientRect(), b = f.getBoundingClientRect()
     return { top: Math.round(a.top), bottom: Math.round(a.bottom), fieldTop: Math.round(b.top) }
-  })
+  }), Boolean, 200, 3000)
   await shot(p, `${width}-bottom-syntax`)
   ok(`${tag} B3 the search syntax help opens UP, inside the window`,
     Boolean(help && help.bottom <= help.fieldTop + 5 && help.top >= 0), help)
@@ -219,17 +234,16 @@ async function desktopCase(browser, width, height) {
     await p.mouse.move(grip.x, grip.y - 60, { steps: 6 })
     await p.mouse.move(grip.x, grip.y - 120, { steps: 6 })
     await p.mouse.up()
-    await sleep(200)
   }
-  const h2 = await p.$eval(TA, (el) => Math.round(el.getBoundingClientRect().height))
+  /* the box's height once the drag has settled */
+  const h2 = await until(() => p.$eval(TA, (el) => Math.round(el.getBoundingClientRect().height)), () => true, 200, 3000)
   ok(`${tag} B2 the grip sits on the field's top edge and dragging it UP grows the box`,
     Boolean(grip && Math.abs(grip.y - grip.fieldTop) <= 8 && h2 >= grip.h + 80), { grip, h2 })
 
   /* the top bar's search button */
   await typeInBox(p, '')
   await p.click('[data-test=top-bar-search]')
-  await sleep(250)
-  const s = await p.evaluate(() => ({ v: document.querySelector('form.composer.omnibox--global textarea').value, focused: document.activeElement === document.querySelector('form.composer.omnibox--global textarea') }))
+  const s = await until(() => p.evaluate(() => ({ v: document.querySelector('form.composer.omnibox--global textarea').value, focused: document.activeElement === document.querySelector('form.composer.omnibox--global textarea') })), (v) => v.v !== '', 200, 3000)
   ok(`${tag} the top bar's search button puts "/search " in the bottom box, focused`, s.v === '/search ' && s.focused, s)
   await typeInBox(p, '')
 
@@ -242,8 +256,8 @@ async function desktopCase(browser, width, height) {
 
   /* back to the top: the box returns to the bar, the dock is empty again */
   await setPosition(p, 'top')
-  await sleep(400)
-  const g3 = await geometry(p)
+  /* moved off the dock, and still */
+  const g3 = await until(() => geometry(p), (g) => !g.inDock)
   ok(`${tag} back to top: the box is in the bar again and the dock takes no room`,
     g3.inBar && !g3.inDock && g3.dock === null && g3.search === null && g3.boxes === 1, { inBar: g3.inBar, dock: g3.dock })
   ok(`${tag} the page never scrolls`, g1.docScroll <= 0 && g3.docScroll <= 0, { g1: g1.docScroll, g3: g3.docScroll })
@@ -255,21 +269,23 @@ async function desktopCase(browser, width, height) {
 async function overlayCase(browser) {
   const { p, errors } = await open(browser, { width: 1000, height: 800 })
   await setPosition(p, 'bottom')
-  await sleep(300)
+  await until(() => geometry(p), (g) => !g.inBar)
   const card = await p.evaluate(() => {
     const el = [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].find((e) => e.getBoundingClientRect().height > 30)
     const b = (el.querySelector('.msg-body') || el).getBoundingClientRect()
     return { x: Math.round(b.left + Math.min(40, b.width / 2)), y: Math.round(b.top + Math.min(10, b.height / 2)) }
   })
   await p.mouse.click(card.x, card.y)
-  await sleep(700)
-  const g = await geometry(p)
-  const pane = await p.evaluate(() => {
+  /* the thread pane once it is open and has stopped sliding */
+  const paneOf = () => p.evaluate(() => {
     const el = document.querySelector('aside.live-pane')
     if (!el || !el.getClientRects().length) return null
     const b = el.getBoundingClientRect()
-    return { b: Math.round(b.bottom), pos: getComputedStyle(el).position }
+    return { b: Math.round(b.bottom), pos: getComputedStyle(el).position, l: Math.round(b.left) }
   })
+  await until(paneOf, Boolean, 300, 5000)
+  const g = await geometry(p)
+  const pane = await paneOf()
   await shot(p, '1000-bottom-thread')
   ok('1000px a thread open over the middle pane ends above the bottom dock',
     Boolean(pane && g.dock && (pane.pos !== 'fixed' || pane.b <= g.dock.t + 1)), { pane, dock: g.dock })
@@ -286,20 +302,18 @@ async function deepLinkCase(browser) {
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(server.base + '/search?q=deploy', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(TA, { timeout: NAV_TIMEOUT })
-  await sleep(600)
-  const top = await p.$eval(TA, (el) => el.value)
+  /* the box's value once the deep link has filled it (the Teleport mounts it late) */
+  const top = await until(() => p.$eval(TA, (el) => el.value), (v) => v !== '', 300, 5000)
   ok('1440px a /search?q= deep link shows its query in the box (default, top)', top === '/search deploy', { top })
   await setPosition(p, 'bottom')
-  await sleep(400)
-  const g = await geometry(p)
+  const g = await until(() => geometry(p), (v) => !v.inBar)
   const bottom = await p.$eval(TA, (el) => el.value)
   ok('1440px ... and still after the box moved to the bottom dock', g.inDock && bottom === '/search deploy', { inDock: g.inDock, bottom })
   await p.goto(server.base + '/search?q=release', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(TA, { timeout: NAV_TIMEOUT })
   await setPosition(p, 'bottom')
-  await sleep(600)
-  const g2 = await geometry(p)
-  const fresh = await p.$eval(TA, (el) => el.value)
+  const g2 = await until(() => geometry(p), (v) => !v.inBar)
+  const fresh = await until(() => p.$eval(TA, (el) => el.value), (v) => v !== '', 300, 5000)
   ok('1440px a deep link opened with the box at the bottom shows its query there', g2.inDock && fresh === '/search release', { inDock: g2.inDock, fresh })
   ok('1440px deep link: no page error', errors.length === 0, errors)
   await p.close()
@@ -310,8 +324,7 @@ async function phoneCase(browser, width, height) {
   const { p, errors } = await open(browser, { width, height, isMobile: true, hasTouch: true })
   for (const pos of ['top', 'bottom']) {
     await setPosition(p, pos)
-    await sleep(400)
-    const g = await geometry(p)
+    const g = await until(() => geometry(p))
     await shot(p, `${width}-${pos}`)
     ok(`${width}px ${pos}: the phone dock as before, the desktop dock empty, no bar search button`,
       g.phoneDock && !g.inDock && g.dock === null && g.search === null && g.boxes === 1, { phoneDock: g.phoneDock, inDock: g.inDock, dock: g.dock })

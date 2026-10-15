@@ -205,6 +205,11 @@ Counted from the actions and make targets, for ONE new estate with two envs.
 6 hand-set variables.** 047's figure of 2-3 working days for a GCP expert is
 an **estimate, not measured**; nobody has run P2 in a second org.
 
+The step times, who acts and the critical path, from the live estate's own
+records (SQL create 13-14 min, hub certificate 10-17 min, n=2 each):
+[research 21](research/21-new-cloud-baseline-hours.md). Its baseline: one
+working day for someone who knows this repo, 2-3 days for a first-timer.
+
 ### 4.4 P3 agent boxes
 
 | # | finding | check |

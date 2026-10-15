@@ -245,6 +245,12 @@
       "installed": "Installerad",
       "manual": "Den här webbläsaren har ingen installationsknapp: öppna dess meny (Dela på iPhone) och välj Lägg till på hemskärmen.",
       "same_app": "Samma app som den här arbetsytan"
+    },
+    "await_anim": {
+      "label": "Tänkanimation",
+      "hourglass": "Timglas",
+      "robot": "Springande robot",
+      "brain": "Hjärna"
     }
   },
   "auth": {

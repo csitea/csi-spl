@@ -245,6 +245,12 @@
       "installed": "Nainštalované",
       "manual": "Tento prehliadač nemá tlačidlo inštalácie: otvorte jeho ponuku (Zdieľať na iPhone) a vyberte Pridať na plochu.",
       "same_app": "Rovnaká aplikácia ako tento pracovný priestor"
+    },
+    "await_anim": {
+      "label": "Animácia premýšľania",
+      "hourglass": "Presýpacie hodiny",
+      "robot": "Bežiaci robot",
+      "brain": "Mozog"
     }
   },
   "auth": {

@@ -4,10 +4,12 @@
 // Run: node tests/unit/await-reply.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
 import {
-  AWAIT_ANIMATIONS, AWAIT_SHOW_MAX_MS, DEFAULT_AWAIT_ANIM, awaitAnimation, awaitSpinMs, awaitState,
-  isAgentPost, isPersonPost, nextAwaitChange,
+  AWAIT_ANIMATIONS, AWAIT_ANIM_IDS, AWAIT_ANIM_KEY, AWAIT_SHOW_MAX_MS, DEFAULT_AWAIT_ANIM, awaitAnimKey, awaitAnimation,
+  awaitSpinMs, awaitState, isAgentPost, isPersonPost, nextAwaitChange, readAwaitAnim, writeAwaitAnim,
 } from '../../src/utils/await-reply.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 
 const T0 = Date.parse('2026-10-15T12:00:00Z')
 const MIN = 60 * 1000
@@ -167,5 +169,85 @@ describe('the animation seam', () => {
         assert.ok(a.src && /^(image\/webp|video\/)/.test(a.type), id)
       }
     }
+  })
+})
+
+// SPL-2027 (owner HUM-10, t1 72898ea2 msgs c4aae6fc, 1689b768, f7779032)
+const VUE = readFileSync(new URL('../../src/components/AwaitReply.vue', import.meta.url), 'utf8')
+const LOCALES = new URL('../../i18n/locales/', import.meta.url)
+
+describe('SPL-2027: a running robot and a popping brain', () => {
+  for (const id of ['robot', 'brain']) {
+    it(`${id} is an entry, a css animation with its own class`, () => {
+      assert.deepEqual(awaitAnimation(id), { id, kind: 'css', className: `await-anim--${id}` })
+      assert.ok(AWAIT_ANIM_IDS.includes(id))
+    })
+    it(`${id} has its own drawing and keyframes in AwaitReply.vue`, () => {
+      assert.ok(VUE.includes(`look.id === '${id}'`), 'drawing')
+      assert.match(VUE, new RegExp(`@keyframes await-${id}\\b`), 'keyframes')
+      assert.match(VUE, new RegExp(`\\.await-anim--${id}\\.await-reply--spin`), 'only while spinning')
+    })
+  }
+
+  it('the hourglass stays first and the default', () => {
+    assert.equal(AWAIT_ANIM_IDS[0], 'hourglass')
+    assert.equal(DEFAULT_AWAIT_ANIM, 'hourglass')
+  })
+
+  it('reduced motion: every animation runs only under prefers-reduced-motion: no-preference', () => {
+    const css = VUE.slice(VUE.indexOf('<style')).replace(/\/\*[\s\S]*?\*\//g, '')
+    let outside = css
+    for (const block of css.match(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/g) || []) outside = outside.replace(block, '')
+    assert.ok(css.length > outside.length, 'a no-preference block exists')
+    assert.doesNotMatch(outside, /\banimation(-name)?:/, 'no animation outside the no-preference blocks')
+  })
+
+  it('20% bigger than the 14 px hourglass, inside the unchanged 16 px box; no :style (CSP)', () => {
+    assert.match(VUE, /\.await-reply__glyph \{ inline-size: 16\.8px; block-size: 16\.8px;/)
+    assert.match(VUE, /inline-size: 16px;\n  block-size: 16px;/)
+    assert.doesNotMatch(VUE, /:style=/)
+  })
+
+  it('every locale names the setting and each animation', () => {
+    for (const f of readdirSync(LOCALES).filter((x) => x.endsWith('.json'))) {
+      const a = JSON.parse(readFileSync(new URL(f, LOCALES), 'utf8')).settings?.await_anim || {}
+      for (const k of ['label', ...AWAIT_ANIM_IDS]) assert.ok(String(a[k] || '').trim(), `${f} settings.await_anim.${k}`)
+    }
+  })
+})
+
+describe('SPL-2027: the per-person pick', () => {
+  const ann = { hum: 'HUM-10', t: 't1' }
+  const bob = { hum: 'HUM-24', t: 't1' }
+
+  it('nothing stored: the default', () => {
+    assert.equal(readAwaitAnim(ann, memoryStore()), 'hourglass')
+  })
+
+  it('a pick is read back, per person and tenant', () => {
+    const store = memoryStore()
+    assert.equal(writeAwaitAnim(ann, 'robot', store), 'robot')
+    writeAwaitAnim(bob, 'brain', store)
+    assert.equal(readAwaitAnim(ann, store), 'robot')
+    assert.equal(readAwaitAnim(bob, store), 'brain')
+    assert.equal(readAwaitAnim({ hum: 'HUM-10', t: 't2' }, store), 'hourglass')
+    assert.equal(store.getItem('spool-await-anim:t1:HUM-10'), 'robot')
+  })
+
+  it('an unknown id (stored or written) falls back to the default', () => {
+    const store = memoryStore({ [awaitAnimKey(ann)]: 'unicorn' })
+    assert.equal(readAwaitAnim(ann, store), 'hourglass')
+    assert.equal(writeAwaitAnim(ann, 'unicorn', store), 'hourglass')
+  })
+
+  it('signed out: one browser-wide key', () => {
+    assert.equal(awaitAnimKey(null), AWAIT_ANIM_KEY)
+    assert.equal(awaitAnimKey({ hum: 'HUM-1' }), 'spool-await-anim:HUM-1')
+  })
+
+  it('a broken storage reads the default and never throws', () => {
+    const broken = { getItem() { throw new Error('denied') }, setItem() { throw new Error('denied') } }
+    assert.equal(readAwaitAnim(ann, broken), 'hourglass')
+    assert.equal(writeAwaitAnim(ann, 'brain', broken), 'brain')
   })
 })

@@ -245,6 +245,12 @@
       "installed": "Zainstalowano",
       "manual": "Ta przeglądarka nie ma przycisku instalacji: otwórz jej menu (Udostępnij na iPhonie) i wybierz Do ekranu początkowego.",
       "same_app": "Ta sama aplikacja co ten obszar roboczy"
+    },
+    "await_anim": {
+      "label": "Animacja myślenia",
+      "hourglass": "Klepsydra",
+      "robot": "Biegnący robot",
+      "brain": "Mózg"
     }
   },
   "auth": {

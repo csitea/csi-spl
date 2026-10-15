@@ -245,6 +245,12 @@
       "installed": "Instalada",
       "manual": "Este navegador no tiene botón de instalar: abre su menú (Compartir en iPhone) y elige Añadir a pantalla de inicio.",
       "same_app": "La misma app que este espacio de trabajo"
+    },
+    "await_anim": {
+      "label": "Animación de espera",
+      "hourglass": "Reloj de arena",
+      "robot": "Robot corriendo",
+      "brain": "Cerebro"
     }
   },
   "auth": {

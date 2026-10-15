@@ -245,6 +245,12 @@
       "installed": "Asennettu",
       "manual": "Tässä selaimessa ei ole asennuspainiketta: avaa sen valikko (iPhonessa Jaa) ja valitse Lisää Koti-valikkoon.",
       "same_app": "Sama sovellus kuin tämä työtila"
+    },
+    "await_anim": {
+      "label": "Ajatteluanimaatio",
+      "hourglass": "Tiimalasi",
+      "robot": "Juokseva robotti",
+      "brain": "Aivot"
     }
   },
   "auth": {

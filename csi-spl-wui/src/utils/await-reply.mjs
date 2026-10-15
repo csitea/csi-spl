@@ -14,10 +14,17 @@
 // The animation is ONE swappable piece (owner msgs ad9882d2, 0f442e7c): an
 // animation id names an entry of AWAIT_ANIMATIONS, either a CSS animation (a
 // class) or a short looping clip (animated WebP or a video, lazy-loaded, no
-// autoplay under prefers-reduced-motion). A later lane adds entries and a
-// per-person setting; components/AwaitReply.vue renders whichever is picked.
+// autoplay under prefers-reduced-motion). components/AwaitReply.vue renders
+// whichever is picked.
+//
+// SPL-2027 (owner HUM-10, t1 72898ea2 msgs c4aae6fc, 1689b768, f7779032):
+// more of them - a small robot running, a brain that swells and pops from too
+// much thinking - and a per-person pick (Settings -> Appearance), kept in this
+// browser per signed-in person (no hub field). Every one draws 20% bigger
+// than the first hourglass, inside the same box.
 
 import { isAgentId } from './agent-id.mjs'
+import { storageGet, storageSet } from './prefs.mjs'
 
 /** The animation used when nobody picked one. */
 export const DEFAULT_AWAIT_ANIM = 'hourglass'
@@ -30,7 +37,12 @@ export const DEFAULT_AWAIT_ANIM = 'hourglass'
  */
 export const AWAIT_ANIMATIONS = Object.freeze({
   hourglass: Object.freeze({ kind: 'css', className: 'await-anim--hourglass' }),
+  robot: Object.freeze({ kind: 'css', className: 'await-anim--robot' }),
+  brain: Object.freeze({ kind: 'css', className: 'await-anim--brain' }),
 })
+
+/** The ids a person can pick, in the order the setting lists them. */
+export const AWAIT_ANIM_IDS = Object.freeze(Object.keys(AWAIT_ANIMATIONS))
 
 /** The entry for `id`; the default one for an unknown or empty id. */
 export function awaitAnimation(id) {
@@ -38,6 +50,28 @@ export function awaitAnimation(id) {
   const known = Object.prototype.hasOwnProperty.call(AWAIT_ANIMATIONS, key)
   const pick = known ? key : DEFAULT_AWAIT_ANIM
   return { id: pick, ...AWAIT_ANIMATIONS[pick] }
+}
+
+/** localStorage key of a pick made signed out; the prefix of each person's own key. */
+export const AWAIT_ANIM_KEY = 'spool-await-anim'
+/** A person's pick key, per tenant and person, so a shared browser keeps each one's own. */
+export function awaitAnimKey(claims) {
+  const hum = String((claims && claims.hum) || '')
+  if (!hum) return AWAIT_ANIM_KEY
+  const tenant = String((claims && claims.t) || '')
+  return `${AWAIT_ANIM_KEY}:${tenant ? tenant + ':' : ''}${hum}`
+}
+
+/** The person's picked animation id; the default when none or an unknown one is stored. */
+export function readAwaitAnim(claims, store) {
+  return awaitAnimation(storageGet(awaitAnimKey(claims), '', store)).id
+}
+
+/** Store the person's pick (an unknown id stores the default); returns the stored id. */
+export function writeAwaitAnim(claims, id, store) {
+  const pick = awaitAnimation(id).id
+  storageSet(awaitAnimKey(claims), pick, store)
+  return pick
 }
 
 export const DEFAULT_AWAIT_MINUTES = 10

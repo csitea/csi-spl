@@ -245,6 +245,12 @@
       "installed": "Geïnstalleerd",
       "manual": "Deze browser heeft geen installatieknop: open het menu (Deel op iPhone) en kies Zet op beginscherm.",
       "same_app": "Dezelfde app als deze werkruimte"
+    },
+    "await_anim": {
+      "label": "Denkanimatie",
+      "hourglass": "Zandloper",
+      "robot": "Rennende robot",
+      "brain": "Brein"
     }
   },
   "auth": {

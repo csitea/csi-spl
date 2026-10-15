@@ -245,6 +245,12 @@
       "installed": "Instalēta",
       "manual": "Šajā pārlūkā nav instalēšanas pogas: atveriet tā izvēlni (iPhone tālrunī Kopīgot) un izvēlieties Pievienot sākuma ekrānam.",
       "same_app": "Tā pati lietotne, kas šī darbvieta"
+    },
+    "await_anim": {
+      "label": "Domāšanas animācija",
+      "hourglass": "Smilšu pulkstenis",
+      "robot": "Skrejošs robots",
+      "brain": "Smadzenes"
     }
   },
   "auth": {

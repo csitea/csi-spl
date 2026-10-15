@@ -245,6 +245,12 @@
       "installed": "Įdiegta",
       "manual": "Šioje naršyklėje nėra diegimo mygtuko: atidarykite jos meniu (iPhone telefone Bendrinti) ir pasirinkite Pridėti prie pradžios ekrano.",
       "same_app": "Ta pati programėlė kaip ši darbo sritis"
+    },
+    "await_anim": {
+      "label": "Mąstymo animacija",
+      "hourglass": "Smėlio laikrodis",
+      "robot": "Bėgantis robotas",
+      "brain": "Smegenys"
     }
   },
   "auth": {

@@ -245,6 +245,12 @@
       "installed": "Instalată",
       "manual": "Acest browser nu are un buton de instalare: deschide-i meniul (Partajează pe iPhone) și alege Adaugă pe ecranul principal.",
       "same_app": "Aceeași aplicație ca acest spațiu de lucru"
+    },
+    "await_anim": {
+      "label": "Animație de gândire",
+      "hourglass": "Clepsidră",
+      "robot": "Robot care aleargă",
+      "brain": "Creier"
     }
   },
   "auth": {

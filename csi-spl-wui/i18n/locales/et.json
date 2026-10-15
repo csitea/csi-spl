@@ -245,6 +245,12 @@
       "installed": "Paigaldatud",
       "manual": "Selles brauseris pole paigaldusnuppu: ava selle menüü (iPhone'is Jaga) ja vali Lisa avakuvale.",
       "same_app": "Sama rakendus mis see tööruum"
+    },
+    "await_anim": {
+      "label": "Mõtlemise animatsioon",
+      "hourglass": "Liivakell",
+      "robot": "Jooksev robot",
+      "brain": "Aju"
     }
   },
   "auth": {

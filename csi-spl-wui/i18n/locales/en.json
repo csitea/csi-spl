@@ -245,6 +245,12 @@
       "installed": "Installed",
       "manual": "This browser has no install button: open its menu (Share on iPhone) and choose Add to Home Screen.",
       "same_app": "Same app as this workspace"
+    },
+    "await_anim": {
+      "label": "Thinking animation",
+      "hourglass": "Hourglass",
+      "robot": "Running robot",
+      "brain": "Brain"
     }
   },
   "auth": {

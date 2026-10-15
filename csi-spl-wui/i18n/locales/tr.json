@@ -245,6 +245,12 @@
       "installed": "Yüklendi",
       "manual": "Bu tarayıcıda yükleme düğmesi yok: menüsünü açın (iPhone'da Paylaş) ve Ana Ekrana Ekle'yi seçin.",
       "same_app": "Bu çalışma alanıyla aynı uygulama"
+    },
+    "await_anim": {
+      "label": "Düşünme animasyonu",
+      "hourglass": "Kum saati",
+      "robot": "Koşan robot",
+      "brain": "Beyin"
     }
   },
   "auth": {

@@ -1,5 +1,6 @@
 <!-- Settings → Appearance (the theme, the font size, the time zone (CLE-77908);
-     specs/023 §3.4; the "Debug pane" checkbox). -->
+     specs/023 §3.4; the "Debug pane" checkbox; the thinking animation,
+     SPL-2027). -->
 <template>
   <SettingsSection id="settings-appearance" :title="t('settings.appearance')" data-test="settings-appearance">
     <div class="settings__row">
@@ -40,6 +41,7 @@
         </label>
       </div>
     </div>
+    <AwaitAnimSetting />
     <DebugPaneSetting />
   </SettingsSection>
   <AppsInstallSetting />
@@ -50,6 +52,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import FontSizeSetting from '~/components/FontSizeSetting.vue'
 import TimeZoneSetting from '~/components/TimeZoneSetting.vue'
 import DebugPaneSetting from '~/components/DebugPaneSetting.vue'
+import AwaitAnimSetting from '~/components/AwaitAnimSetting.vue'
 import AppsInstallSetting from '~/components/AppsInstallSetting.vue'
 import { useCardClipDefault } from '~/composables/useCardClip'
 import { CARD_CLIP_MODES } from '~/utils/card-clip.mjs'

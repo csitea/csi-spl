@@ -12,14 +12,22 @@
 // the text back. That is the HTML parser's own reference table, the one
 // `entities` copies. Unit-tested by tests/unit/entities-browser.test.mjs.
 
-
-
 /** @type {HTMLTextAreaElement | null} */
 let box = null;
 
+// Lazy-load the `entities` package in Node.js; the browser build aliases this file to replace it.
+async function getEntities() {
+  const entities = await import('entities');
+  return entities;
+}
+
 /** Decode character references as the HTML parser does in text (legacy prefixes included). */
-export function decodeHTML(s) {
+export async function decodeHTML(s) {
   if (s.indexOf('&') < 0) return s;
+  if (typeof document === 'undefined') {
+    const entities = await getEntities();
+    return entities.decodeHTML(s);
+  }
   if (!box) box = document.createElement('textarea');
   box.innerHTML = s;
   return box.value;
@@ -29,4 +37,10 @@ export function decodeHTML(s) {
  * Strict decoder: only decodes valid named entities, matching markdown-it 15's behavior.
  * Uses the `entities` package's decodeHTMLStrict directly.
  */
-export const decodeHTMLStrict = decodeHTML;
+export async function decodeHTMLStrict(s) {
+  if (typeof document === 'undefined') {
+    const entities = await getEntities();
+    return entities.decodeHTMLStrict(s);
+  }
+  return decodeHTML(s);
+}

@@ -1966,39 +1966,41 @@ const names = [
   "&zwnj;"
 ]
 
-// strictEntityDecoder must equal entities.decodeHTMLStrict on every name
-for (const name of names) {
-  const our = decodeHTMLStrict(name)
-  const ref = entities.decodeHTMLStrict(name)
-  assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`)
-}
-
-// decodeHTML must equal entities.decodeHTML on every name (browser-only)
-if (typeof document !== 'undefined') {
+await (async () => {
+  // strictEntityDecoder must equal entities.decodeHTMLStrict on every name
   for (const name of names) {
-    const our = decodeHTML(name)
-    const ref = entities.decodeHTML(name)
-    assert.equal(our, ref, `decodeHTML(${name}) !== entities.decodeHTML(${name})`)
+    const our = await decodeHTMLStrict(name);
+    const ref = entities.decodeHTMLStrict(name);
+    assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`);
   }
-}
 
-// strictEntityDecoder must preserve legacy-prefix names (e.g. &ampfoo;)
-const legacyPrefixes = [
-  '&amp;', '&lt;', '&gt;', '&quot;', '&apos;'
-]
-for (const prefix of legacyPrefixes) {
-  const name = `${prefix}foo;`
-  const our = decodeHTMLStrict(name)
-  const ref = entities.decodeHTMLStrict(name)
-  assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`)
-}
+  // decodeHTML must equal entities.decodeHTML on every name (browser-only)
+  if (typeof document !== 'undefined') {
+    for (const name of names) {
+      const our = await decodeHTML(name);
+      const ref = entities.decodeHTML(name);
+      assert.equal(our, ref, `decodeHTML(${name}) !== entities.decodeHTML(${name})`);
+    }
+  }
 
-// strictEntityDecoder must preserve bogus names (e.g. &notaname;)
-const bogusNames = [
-  '&notaname;', '&123;', '&;', '&a;', '&quot;'
-]
-for (const name of bogusNames) {
-  const our = decodeHTMLStrict(name)
-  const ref = entities.decodeHTMLStrict(name)
-  assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`)
-}
+  // strictEntityDecoder must preserve legacy-prefix names (e.g. &ampfoo;)
+  const legacyPrefixes = [
+    '&amp;', '&lt;', '&gt;', '&quot;', '&apos;'
+  ];
+  for (const prefix of legacyPrefixes) {
+    const name = `${prefix}foo;`;
+    const our = await decodeHTMLStrict(name);
+    const ref = entities.decodeHTMLStrict(name);
+    assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`);
+  }
+
+  // strictEntityDecoder must preserve bogus names (e.g. &notaname;)
+  const bogusNames = [
+    '&notaname;', '&123;', '&;', '&a;', '&quot;'
+  ];
+  for (const name of bogusNames) {
+    const our = await decodeHTMLStrict(name);
+    const ref = entities.decodeHTMLStrict(name);
+    assert.equal(our, ref, `decodeHTMLStrict(${name}) !== entities.decodeHTMLStrict(${name})`);
+  }
+})();

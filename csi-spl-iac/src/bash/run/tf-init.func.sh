@@ -14,18 +14,30 @@ do_tf_init() {
   do_require_var STEP "${STEP:-}"
   do_require_var ACTION "${ACTION:-provision}" # fail safe, never destroy if something breaks
 
-  # Canonicalise APP — accept either the suffix-only form ("spl", per the
-  # do_resolve_oap convention <base>/<ORG>/<ORG>-<APP>/) OR the legacy
-  # full-name form ("csi-spl", from the docker .env.cin). Strip a leading
-  # "${ORG}-" if present so that ${ORG}-${APP} is always "csi-spl" — not
-  # "csi-csi-spl". Export so downstream callers (tf-plan, tf-apply, ...) see
-  # the normalised value when they compute the per-step paths.
+  tf_init_normalise_app
+  tf_init_export_vars
+  tf_init_switch_terraform
+  tf_init_copy_step
+  tf_init_private_vars
+}
+
+# Canonicalise APP — accept either the suffix-only form ("spl", per the
+# do_resolve_oap convention <base>/<ORG>/<ORG>-<APP>/) OR the legacy
+# full-name form ("csi-spl", from the docker .env.cin). Strip a leading
+# "${ORG}-" if present so that ${ORG}-${APP} is always "csi-spl" — not
+# "csi-csi-spl". Export so downstream callers (tf-plan, tf-apply, ...) see
+# the normalised value when they compute the per-step paths.
+tf_init_normalise_app() {
   if [[ "${APP}" == "${ORG}-"* ]]; then
     APP="${APP#${ORG}-}"
     export APP
     do_log "INFO normalised APP -> ${APP} (was prefixed with ${ORG}-)"
   fi
+}
 
+# tf_init_export_vars: the env.json sections as TF_VAR_* and plain vars, the
+# run path, the versions and the step's service account key.
+tf_init_export_vars() {
   ENV_CONF_JSON_FLE="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json"
 
   do_export_json_section_vars_as_tf_vars "$ENV_CONF_JSON_FLE" ".env.aws"
@@ -60,12 +72,20 @@ do_tf_init() {
   key_project=$(jq -r --arg s "$STEP" '.env.steps[$s].tf_key_project // empty' "$ENV_CONF_JSON_FLE" 2>/dev/null)
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json"
   export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
+}
 
+# tf_init_switch_terraform: the plugin cache dir, then the pinned terraform
+# version; quit_on exits when the switch failed.
+tf_init_switch_terraform() {
   if [[ ! -d "$TF_PLUGIN_CACHE_DIR" ]]; then mkdir -p "$TF_PLUGIN_CACHE_DIR"; fi
 
   flock /tmp/tfswitch.lock tfswitch ${TERRAFORM_VERSION}
   quit_on "switching  to terraform version ${TERRAFORM_VERSION}"
+}
 
+# tf_init_copy_step: wipe the run dir first (one run per env + step), copy the
+# step into it and keep ../modules in sync with the source by md5.
+tf_init_copy_step() {
   tf_src_path="$PROJ_PATH/src/terraform/$tf_proj"
   # Only remove the tf_run_path if the ACTION is destroy
   # if [[ "${ACTION}" == "destroy" ]]; then
@@ -95,8 +115,6 @@ do_tf_init() {
   fi
 
   do_log "INFO copying ${tf_src_path} to ${tf_run_path}"
-
-  tf_init_private_vars
 }
 
 # tf_init_private_vars (SPL-1874): the step's tfvars as terraform reads them,

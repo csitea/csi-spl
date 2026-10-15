@@ -251,6 +251,8 @@ One shape for every item on the grid, whatever its `source`:
 | `topic_id` | string | the linked topic, `""` = none |
 | `release_version` | string | the `v<X.Y.Z>` badge of a release event, `""` = none; no event is made per git tag |
 | `issue_key` | string | the issue for an `issue` item (equal to `id`), `""` otherwise |
+| `status` | string | an `issue` item's issue status (SPL-2034), so its read-only pop-over paints without reading the issue; absent on any other item |
+| `assignee` | string | an `issue` item's assignee id (SPL-2034); absent when unassigned and on any other item |
 | `created_at` | string | `""` for an `official_day` |
 | `updated_at` | string | `""` for an `official_day` |
 

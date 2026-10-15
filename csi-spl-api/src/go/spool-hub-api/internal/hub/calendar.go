@@ -103,6 +103,10 @@ type calendarEventJSON struct {
 	RoadmapURL string   `json:"roadmap_url"`
 	Specs      []string `json:"specs"`
 	DoneLines  []string `json:"done_lines"`
+	// SPL-2034: a deadline item's issue status and assignee, so its read-only
+	// pop-over paints without reading the issue (omitted on an event).
+	Status   string `json:"status,omitempty"`
+	Assignee string `json:"assignee,omitempty"`
 }
 
 // calendarGuestJSON is one guest and their answer (spec 4.1).
@@ -176,7 +180,8 @@ func deadlineJSON(i store.Issue) calendarEventJSON {
 	return calendarEventJSON{ID: i.Key(), Source: calendarSourceIssue, Title: i.Title, Description: i.Description,
 		Kind: calendarKindDeadline, StartsAt: at, EndsAt: at, Audience: store.CalendarWorkspace, Mentions: []string{},
 		CreatorType: "human", CreatorID: i.CreatedBy, IssueKey: i.Key(), CreatedAt: rfc(i.CreatedAt), UpdatedAt: rfc(i.UpdatedAt),
-		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}, Specs: []string{}, DoneLines: []string{}}
+		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}, Specs: []string{}, DoneLines: []string{},
+		Status: i.Status, Assignee: i.Assignee}
 }
 
 // ---- requests --------------------------------------------------------------------

@@ -48,6 +48,22 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+
 async function launch() {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
@@ -113,8 +129,10 @@ async function send(p, text) {
   await p.focus(ta)
   await p.type(ta, text)
   await p.click('form.composer.omnibox--global [data-testid=send]')
-  await sleep(800)
 }
+/* the sent row once it is in the store, drawn, and still for 500 ms (a late
+   second copy would change the read, so "drawn once" still sees it) */
+const landed = (p, text) => until(() => sentRow(p, text), (r) => Boolean(r && r.middle + r.right > 0), 500)
 
 async function open(browser, vp) {
   const p = await browser.newPage()
@@ -123,7 +141,7 @@ async function open(browser, vp) {
   await p.setViewport(vp)
   await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('.spool-main article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
-  await sleep(400)
+  await until(() => firstCard(p), Boolean)
   return { p, errors }
 }
 
@@ -133,14 +151,13 @@ async function desktopCase(browser, n, name, between, expectReply, prefix = '') 
   const { p, errors } = await open(browser, { width: 1440, height: 900 })
   const card = await firstCard(p)
   await p.mouse.click(card.x, card.y)
-  await sleep(600)
-  const opened = await state(p)
+  const opened = await until(() => state(p), (v) => Boolean(v.topic))
   await between(p, card)
   const before = await state(p)
   const text = `spl996 desktop case ${n} ${Date.now()}`
   /* the stored body drops a leading @mention (it becomes the recipient) */
   await send(p, prefix + text)
-  const r = await sentRow(p, text)
+  const r = await landed(p, text)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `topic-send-target-1440-${n}.png`) })
   if (expectReply) {
     ok(`1440px ${n} ${name}: is_parent 0 into the open topic, drawn in the topic only`,
@@ -160,12 +177,11 @@ async function phoneCase(browser, width, height) {
   const { p, errors } = await open(browser, { width, height, isMobile: true, hasTouch: true })
   const card = await firstCard(p)
   await p.touchscreen.tap(card.x, card.y)
-  await sleep(700)
-  const opened = await state(p)
+  const opened = await until(() => state(p), (v) => Boolean(v.topic))
   const level = await p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
   const text = `spl996 phone ${width} ${Date.now()}`
   await send(p, text)
-  const r = await sentRow(p, text)
+  const r = await landed(p, text)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `topic-send-target-${width}.png`) })
   ok(`${tag} a post from the docked composer on an open topic (level 3) goes into it, drawn there only`,
     Boolean(level === '3' && isReplyInto(r, opened.topic) && r.middle === 0 && r.right === 1 && r.bornCards === 0),
@@ -304,8 +320,8 @@ async function pollChatCase(browser, vp, tag) {
   await clickIn(p, `${form} [data-testid=poll-chat]`, touch)
   await p.keyboard.type('I did reset it manually')
   await p.click('form.composer.omnibox--global [data-testid=send]')
-  await sleep(900)
-  const sent = await pollReplies(p, seeded.msg_id)
+  /* the reply once it is in, and still for 500 ms ("goes once" sees a second) */
+  const sent = await until(() => pollReplies(p, seeded.msg_id), (v) => v.length > 0, 500)
   const picked = (form) => p.evaluate((form) => ({
     chat: document.querySelector(`${form} [data-testid=poll-chat] input`)?.checked,
     options: [...document.querySelectorAll(`${form} [data-testid=poll-option] input`)].filter((i) => i.checked).length,
@@ -326,8 +342,7 @@ async function pollChatCase(browser, vp, tag) {
   await p.close()
   ;({ p, errors } = await open(browser, vp))
   form = await openPoll(p, seeded, touch)
-  await sleep(400)
-  const reloaded = await picked(form)
+  const reloaded = await until(() => picked(form), (v) => v.chat !== undefined)
   ok(`${tag} poll chat: after a reload the form still shows "Chat about this" picked`, reloaded.chat === true && reloaded.options === 0, reloaded)
   ok(`${tag} poll chat: no page error`, pageErrors.length + errors.length === 0, [...pageErrors, ...errors])
   await p.close()

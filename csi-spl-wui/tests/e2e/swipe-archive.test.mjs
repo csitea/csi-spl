@@ -148,6 +148,10 @@ const midState = (sel) => (p) => p.evaluate((sel) => {
     stripW: strip ? Math.round(strip.getBoundingClientRect().width) : 0,
     icon: Boolean(strip && strip.querySelector('svg')),
     shifted: Boolean(m && m !== 'none' && !/matrix\(1, 0, 0, 1, 0, 0\)/.test(m)),
+    /* evidence only: which transform, on which card state (wf 10 38697596380
+       read "shifted" with tx 0 and no strip, twice) */
+    transform: m || 'none',
+    cls: e.className,
   }
 }, sel)
 
@@ -381,6 +385,9 @@ try {
   await d.evaluate(() => { const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel'); ch.refresh = async () => {} })
   const c = await seed(d, 'C')
   await d.waitForSelector(card(c.top), { visible: true, timeout: 10000 })
+  /* the seeded card at rest before the drag (r28 fb4245013 dropped the 400 ms
+     here): a read during any transform of its arrival is not the drag's */
+  await restedIn(d, card(c.top))
   ok('C desktop: the card offers no swipe and keeps its default touch-action',
     await d.evaluate((sel) => { const e = document.querySelector(sel); return !e.hasAttribute('data-swipe-archive') && getComputedStyle(e).touchAction !== 'pan-y' }, card(c.top)))
   const cb = await boxOf(d, `${card(c.top)} .msg-main`)

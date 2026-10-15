@@ -45,6 +45,26 @@ async function launch() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+/* the read once it differs from `from` and holds still: the waits name only
+   that the page moved on, what it moved to is the checks' to judge */
+const movedOn = (read, from) => until(read, (v) => JSON.stringify(v) !== JSON.stringify(from))
+const scrollOf = (p) => p.evaluate(() => Math.round(document.querySelector('.live-feed')?.closest('.feed-body')?.scrollTop ?? -1))
 const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
 /* the read boundary and the two message batches around it (same day, ordered) */
 const BOUNDARY = '2026-09-18T12:00:00.000Z'
@@ -126,15 +146,17 @@ async function run(browser, base, width) {
   await freezeMockPoll(p)
 
   /* older-than-boundary context, still nothing unread: no divider (today's look) */
+  const L0 = await layout(p)
   await injectAt(p, 10, 'read', READ_BASE)
-  await sleep(600)
+  /* the 10 rows are drawn (a positive event: it presumes nothing about a divider) */
+  await until(() => layout(p), (v) => v.seq.length > L0.seq.length)
   check(`${tag} control: nothing newer than the boundary draws no divider`, (await layout(p)).dividerIdx < 0, await layout(p))
 
   /* a tall block of messages newer than the boundary: divider + highlight appear */
   const NEW_N = 14
+  const L1 = await layout(p)
   await injectAt(p, NEW_N, 'new', NEW_BASE)
-  await sleep(700)
-  let L = await layout(p)
+  let L = await movedOn(() => layout(p), L1)
   check(`${tag} a divider appears once there is unread`, L.dividerIdx >= 0, { dividerIdx: L.dividerIdx })
   check(`${tag} every message after the boundary is marked unread`, L.unreadCount === NEW_N, { unreadCount: L.unreadCount })
   /* default is newest-first: unread sit at the top, the divider is BELOW them */
@@ -145,7 +167,7 @@ async function run(browser, base, width) {
   /* newest-first jump: scroll down away from the top (the unread), the "N new"
      button shows, is hittable, and takes the reader back up to them */
   await p.evaluate(() => { const sc = document.querySelector('.live-feed')?.closest('.feed-body'); if (sc) sc.scrollTop = sc.scrollHeight })
-  await sleep(500)
+  await until(() => scrollOf(p))
   const jump = await p.evaluate(() => {
     const el = document.querySelector('[data-testid=unread-jump]')
     const r = el ? el.getBoundingClientRect() : null
@@ -160,16 +182,17 @@ async function run(browser, base, width) {
     check(`${tag} scrolled away, a "N new" jump button is on screen and hittable`, jump.present && jump.hit && jump.onScreen && /\d/.test(jump.text), jump)
   }
   if (width > 820 && jump.hit) {
+    const s0 = await scrollOf(p)
     await p.click('[data-testid=unread-jump]')
-    await sleep(1000)
+    await movedOn(() => scrollOf(p), s0)
     check(`${tag} the jump button brings the reader to the new messages`, await unreadRegionVisible(p))
   }
 
   /* newest-last (the owner's own view): the divider sits BEFORE the unread, and
      the feed scrolls to it on open so the reader lands at the first unread */
+  const L2 = await layout(p)
   await setOrder(p, 'newest-last')
-  await sleep(900)
-  L = await layout(p)
+  L = await movedOn(() => layout(p), L2)
   check(`${tag} newest-last: the divider sits before the unread block`,
     L.dividerIdx >= 0 && L.unreadIdx.length === NEW_N && L.dividerIdx < Math.min(...L.unreadIdx),
     { dividerIdx: L.dividerIdx, unreadIdx: L.unreadIdx })
@@ -181,16 +204,17 @@ async function run(browser, base, width) {
      asserts it is not counted. Run in newest-first with the feed at the top, so
      the own row (the newest) is the first card and is always rendered at every
      width (the newest-last variant leaves it off the mobile render window). */
+  const L3 = await layout(p)
   await setOrder(p, 'newest-first')
-  await sleep(700)
+  await movedOn(() => layout(p), L3)
   await p.evaluate(() => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
     const ts = new Date(Date.parse('2026-09-18T20:00:00.000Z')).toISOString()
     s.messages = [...s.messages, { v: 1, msg_id: 'own-0', task_id: 't-own-0', is_parent: 1, ts, received_at: ts, from: 'HUM-1', from_box: 'box-wui', to: '@channel', channel: 'alerts', kind: 'note', body: 'my own reply', files: [] }]
   })
-  await sleep(700)
   await p.evaluate(() => { const sc = document.querySelector('.live-feed')?.closest('.feed-body'); if (sc) sc.scrollTop = 0 })
-  await sleep(300)
+  /* the own row is drawn (newest-first, at the top) and the feed holds still */
+  await until(() => layout(p), (v) => v.seq.some((x) => x.key === 'own-0'))
   const withOwn = await layout(p)
   const ownRow = withOwn.seq.find((x) => x.t === 'card' && x.key === 'own-0')
   check(`${tag} the reader's own message is not marked unread`, Boolean(ownRow) && !ownRow.unread && withOwn.unreadCount === NEW_N, { own: ownRow, unreadCount: withOwn.unreadCount })

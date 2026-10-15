@@ -32,10 +32,53 @@ Docs only: this task list defines the work; implementation lanes execute it ([RE
 
 | ID | Status | Area | Lane | Summary, Gate & Red Control |
 |---|---|---|---|---|
-| **T020** | **Planned** | `orc` | `collector-tokens` | **Incremental transcript parser for Claude, Vibe, and Grok** (§2.3). Bash/Python parser reading Claude `.jsonl` (taking MAX token usage per `message.id`), Vibe session journals and compacted `chunks/`, and Grok session updates. Extracts `tokens_in`, `tokens_out`, `cache_read`, `cache_write`, and model name without extracting any prompt or completion text.<br>• *Gate*: Unit test `spl-token-burn-parse.tst.sh` parses sample transcripts of all 3 vendors and produces exact token counts.<br>• *Red Control*: Streaming Claude chunks parsed naively without deduplicating `message.id` doubles token count; fixture verifies MAX deduplication produces exact expected count. |
-| **T021** | **Planned** | `orc` | `collector-tokens` | **Agy unmetered detection & agent identity mapping** (§2.3.4, §2.5). Cross-reference active tmux panes, `/var/spool-hub/registry.tsv`, and project slugs (`-wt[0-9]*-<id>`). Detect running Agravity (agy) lanes and mark them `is_metered: false` and `vendor: agy`.<br>• *Gate*: Test with mock running agy session emits telemetry sample with `is_metered: false` and `tokens_in: 0`.<br>• *Red Control*: An agy session reported as metered with 0 tokens fails assertion requiring `is_metered: false`. |
-| **T022** | **Planned** | `orc` | `collector-tokens` | **Persistent offset tracker & named action `do_spl_token_burn_collect`** (§2.1, §2.4). Implement `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh` with persistent `/var/csi/csi-spl/token-burn/collector-state.json`. Reads incremental byte offsets, detects inode rotations, batches delta samples, and pushes via WebSocket frame `lane_op fleet_tokens_push` using box CLI (`spool fleet-tokens push`) over the live session (owner decision 1 = B).<br>• *Gate*: `spl-token-burn-collect.tst.sh` verifies appending 500 bytes to transcript on second run transmits only the 500 new bytes.<br>• *Red Control*: Truncating transcript file or changing inode resets offset to 0 instead of reading past EOF. |
+| **T020** | **Implemented** | `orc` | `collector-tokens` | **Incremental transcript parser for Claude, Vibe, and Grok** (§2.3). Bash/Python parser reading Claude `.jsonl` (taking MAX token usage per `message.id`), Vibe session journals and compacted `chunks/`, and Grok session updates. Extracts `tokens_in`, `tokens_out`, `cache_read`, `cache_write`, and model name without extracting any prompt or completion text.<br>• *Gate*: Unit test `spl-token-burn-parse.tst.sh` parses sample transcripts of all 3 vendors and produces exact token counts.<br>• *Red Control*: Streaming Claude chunks parsed naively without deduplicating `message.id` doubles token count; fixture verifies MAX deduplication produces exact expected count. |
+| **T021** | **Implemented** | `orc` | `collector-tokens` | **Agy unmetered detection & agent identity mapping** (§2.3.4, §2.5). Cross-reference active tmux panes, `/var/spool-hub/registry.tsv`, and project slugs (`-wt[0-9]*-<id>`). Detect running Agravity (agy) lanes and mark them `is_metered: false` and `vendor: agy`.<br>• *Gate*: Test with mock running agy session emits telemetry sample with `is_metered: false` and `tokens_in: 0`.<br>• *Red Control*: An agy session reported as metered with 0 tokens fails assertion requiring `is_metered: false`. |
+| **T022** | **Implemented** | `orc` | `collector-tokens` | **Persistent offset tracker & named action `do_spl_token_burn_collect`** (§2.1, §2.4). Implement `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh` with persistent `/var/csi/csi-spl/token-burn/collector-state.json`. Reads incremental byte offsets, detects inode rotations, batches delta samples, and pushes via WebSocket frame `lane_op fleet_tokens_push` using box CLI (`spool fleet-tokens push`) over the live session (owner decision 1 = B).<br>• *Gate*: `spl-token-burn-collect.tst.sh` verifies appending 500 bytes to transcript on second run transmits only the 500 new bytes.<br>• *Red Control*: Truncating transcript file or changing inode resets offset to 0 instead of reading past EOF. |
 | **T023** | **Planned** | `orc` | `collector-tokens` | **Box cron registration** (§2.1). Register `do_spl_token_burn_collect` in `cnf/box-crons/box-crons.manifest` to execute every 30 seconds on runner boxes.<br>• *Gate*: `spl-box-crons.tst.sh` validates manifest entry syntax and execution schedule.<br>• *Red Control*: Removing cron entry prevents collector action from running automatically. |
+
+### 2.1 As built (`collector-tokens`, SPL-2037)
+
+Where the build differs from spec section 2, and why:
+
+- **Claude** uses the spec 123 parse, not a second one: `spl_cost_tokens_jq_def`
+  in `spl-cost-tokens-read.func.sh` is the jq def both the daily reader and the
+  collector run (MAX per `message.id`). The daily file of 2026-10-14 on sat's
+  transcripts is byte-identical before and after the refactor (sha256
+  `ef43849e…`, 334 lines).
+- **Mistral (vibe)** is read from the session's cumulative `tokenUsage` counters
+  (`payload.delta[].state.session`, in the journal), not from per-call `usage`
+  objects: every call's usage is written twice there (`result.usage` and
+  `command.result.usage`), and a counter delta loses or doubles nothing when
+  vibe compacts a journal into `chunks/`. Input is `inputTokens -
+  cachedInputTokens`. The model is the `[[models]]` name of `config.toml`'s
+  `active_model` alias.
+- **Grok** is read from each session's `usage.json` (cumulative session
+  counters, rewritten whole at each turn's end), not `updates.jsonl`: so grok
+  burn shows when a turn ends, not while it runs.
+- **A session first seen** counts from 0 when it began inside the 60-minute
+  window, else its counters are the baseline (no history counted as burn).
+  The first tick on a box starts every transcript at its end.
+- **State** is TSV files in `/var/csi/csi-spl/token-burn/` (`files.tsv`
+  offsets and inodes, `ids.tsv` the 2-hour per-id MAX, `sessions.tsv`,
+  `buckets.tsv`), not one `collector-state.json`: awk reads and writes them
+  in the tick's one pass, jq would cost a process per file.
+- **Finding the transcripts** costs more than reading them: a listing of every
+  transcript dir is ~2700 stats (~0.4 s on sat at load 15-25). So a tick stats
+  only the files it tracks (changed in the last 3 h) and lists only the dirs
+  whose mtime moved since the last tick; every dir is listed every 5 min. A new
+  file in a dir whose mtime does not move (a subagent file in an existing
+  `subagents/`) is read up to 5 min late, never lost.
+- **Buckets** hold the full totals of each agent's minute for the last 60
+  minutes; a changed bucket stays queued until a push is acked, and is sent
+  whole (the hub replaces on `(box_tag, agent_id, minute_bucket)`).
+- **Push**: `spool fleet-tokens push --json -` is not on master yet (hub lane
+  `hub-tokens`): until it is, every push fails and buckets stay queued for 60
+  minutes. The hub settings come from `push.env`, written hourly by
+  `do_spl_token_burn_push_env`.
+- **Cron** (T023): `src/bash/scripts/token-burn-collect-cron.sh` runs 2 ticks a
+  minute, 30 s apart, sourcing the two func files directly: `./run`'s start
+  alone measured ~0.8 s on sat (n=3), more than a tick's budget.
 
 ---
 
@@ -73,4 +116,4 @@ To enable concurrent execution without git merge collisions, tasks are partition
 
 ---
 
-<!-- version: 0.2.0 · updated: 2026-10-15 · last-edit: 2026-10-15T17:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-15 · last-edit: 2026-10-15T18:40:00Z -->

@@ -162,15 +162,23 @@ spl_cost_tokens_agent() {
   if [[ "$slug" =~ -wt[0-9]*-([A-Za-z]+-[0-9]+)$ ]]; then echo "${BASH_REMATCH[1]}"; else echo unattributed; fi
 }
 
-# The DAY assistant rows of one transcript: agent, model, tier, message id,
-# input, output, cache_read, cache_creation. Counts and ids only, no text.
+# The one claude transcript parse, shared with the per-minute collector
+# (spl-token-burn-collect.func.sh, spec 140 T020): a jq def mapping one
+# assistant row with a usage object to model, tier, message id, input,
+# output, cache_read, cache_creation. Counts and ids only, no text.
+spl_cost_tokens_jq_def() {
+  printf '%s\n' 'def claude_usage_row: select(.type == "assistant" and (.message.usage | type) == "object") |
+    .message as $m | $m.usage as $u |
+    [($m.model // "unknown"), ($u.service_tier // "unknown"), ($m.id // ("uuid:" + (.uuid // "?"))),
+     ($u.input_tokens // 0), ($u.output_tokens // 0), ($u.cache_read_input_tokens // 0),
+     ($u.cache_creation_input_tokens // 0)];'
+}
+
+# The DAY assistant rows of one transcript: agent, then claude_usage_row.
 spl_cost_tokens_extract() {
   spl_cost_as "$2" grep -hF "\"timestamp\":\"$1" "$3" 2>/dev/null | grep -F '"assistant"' |
-    jq -r --arg d "$1" --arg a "$4" 'select(.type == "assistant" and (.timestamp // "" | startswith($d))
-        and (.message.usage | type) == "object") | .message as $m | $m.usage as $u |
-      [$a, ($m.model // "unknown"), ($u.service_tier // "unknown"), ($m.id // ("uuid:" + (.uuid // "?"))),
-       ($u.input_tokens // 0), ($u.output_tokens // 0), ($u.cache_read_input_tokens // 0),
-       ($u.cache_creation_input_tokens // 0)] | @tsv' 2>/dev/null || true
+    jq -r --arg d "$1" --arg a "$4" "$(spl_cost_tokens_jq_def)"'
+      select(.timestamp // "" | startswith($d)) | [$a] + claude_usage_row | @tsv' 2>/dev/null || true
 }
 
 # One row per agent of another vendor (agy, grok, mistral, qwen) seen on

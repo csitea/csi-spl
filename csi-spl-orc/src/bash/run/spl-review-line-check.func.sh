@@ -9,7 +9,9 @@
 # @description `*_test.go` by basename, `go test <pkg>`, `pnpm run <script>`)
 # @description needs a `"command"` value in the `log:` file that names it: a
 # @description claude `.jsonl`, a vibe journal file or session dir or a grok
-# @description `chat_history.jsonl`; a dir is read whole (every `*.json` and
+# @description `chat_history.jsonl` or an agy `transcript.jsonl` /
+# @description `transcript_full.jsonl` (`args.CommandLine` of a `run_command`
+# @description tool call, JSON-quoted in `transcript.jsonl`); a dir is read whole (every `*.json` and
 # @description `*.jsonl` under it), the command found as a JSON key or inside a
 # @description JSON-encoded arguments string. vibe compacts a session into
 # @description `chunks/*.json` and deletes the journal file a line named: such a
@@ -87,8 +89,19 @@ import json, os, re, sys
 path = sys.argv[1]
 names = [l.split(" ", 1) for l in sys.stdin.read().splitlines() if " " in l]
 cmds = []
+def agy(v):
+    a = v.get("args") if v.get("name") == "run_command" else None
+    c = a.get("CommandLine") if isinstance(a, dict) else None
+    if isinstance(c, str) and c[:1] == "\"":
+        try:
+            c = json.loads(c)
+        except ValueError:
+            pass
+    if isinstance(c, str):
+        cmds.append(c)
 def walk(v):
     if isinstance(v, dict):
+        agy(v)
         for k, x in v.items():
             if k == "command" and isinstance(x, str):
                 cmds.append(x)

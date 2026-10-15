@@ -16,6 +16,9 @@
 #      gone journal file both read the store -> OK; control: chunks holding the
 #      test only in tool output -> MISSING; a gone file outside a vibe store
 #      is still refused
+#   7. agy transcripts: `args.CommandLine` of a `run_command` tool call, JSON-
+#      quoted in transcript.jsonl, plain in transcript_full.jsonl -> OK;
+#      control: the test only in tool output, or another tool -> MISSING
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -97,6 +100,24 @@ out="$(chk REVIEW_LINE="$(line "bash $TST" "$C/journal/0001.jsonl")")"; rc=$?
 mkdir -p "$T/plain/journal"
 out="$(chk REVIEW_LINE="$(line "bash $TST" "$T/plain/journal/0001.jsonl")")"; rc=$?
 [[ $rc -eq 1 && "$out" == *"not readable"* ]] && pass "6. a gone journal file outside a vibe store -> exit 1" || fail "6. plain gone (rc $rc: $out)"
+
+# 7. agy transcripts ----------------------------------------------------------
+A="$T/agy/logs"; mkdir -p "$A"
+printf '%s\n' '{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"git diff --stat origin/master\"","Cwd":"\"/x\""}}]}' \
+  '{"step_index":4,"source":"SYSTEM","type":"RUN_COMMAND","content":" '"$TST"' | 40 +++"}' >"$A/transcript.jsonl"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$A/transcript.jsonl")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING git-prune-round-branches.tst.sh"* ]] \
+  && pass "7. control: an agy transcript holding the test only in tool output -> MISSING, exit 3" || fail "7. agy control (rc $rc: $out)"
+printf '%s\n' '{"step_index":9,"source":"MODEL","type":"PLANNER_RESPONSE","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"cd /x && bash '"$TST"'\"","Cwd":"\"/x\""}}]}' >>"$A/transcript.jsonl"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$A/transcript.jsonl")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "7. agy transcript.jsonl: a JSON-quoted run_command CommandLine -> OK 1 of 1" || fail "7. agy transcript (rc $rc: $out)"
+printf '%s\n' '{"step_index":9,"tool_calls":[{"name":"run_command","args":{"CommandLine":"go test -count=1 ./cmd/spool/","Cwd":"/x","WaitMsBeforeAsync":2000}}]}' >"$A/transcript_full.jsonl"
+rm "$A/transcript.jsonl"
+out="$(chk REVIEW_LINE="$(line "go test ./cmd/spool/" "$A/transcript_full.jsonl")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "7. agy transcript_full.jsonl: a plain CommandLine -> OK 1 of 1" || fail "7. agy full (rc $rc: $out)"
+printf '%s\n' '{"tool_calls":[{"name":"view_file","args":{"CommandLine":"\"bash '"$TST"'\""}}]}' >"$A/transcript_full.jsonl"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$A/transcript_full.jsonl")")"; rc=$?
+[[ $rc -eq 3 ]] && pass "7. a CommandLine outside a run_command call does not count" || fail "7. agy other tool (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

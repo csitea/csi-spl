@@ -70,6 +70,10 @@ robots() { jq -r '[.hosting.headers[] | select(.source == "**") | .headers[] | s
 grep -qF 'NUXT_PUBLIC_NOINDEX="\"$noindex\""' "$A" && pass "the noindex flag reaches Nuxt as the string '1' (JSON-quoted)" ||
   fail "NUXT_PUBLIC_NOINDEX is not JSON-quoted: Nuxt turns a bare 1 into a number and the site indexes"
 
+grep -qF -- '--config.use-node-version="${FIREBASE_NODE_VERSION:-22.20.0}" dlx firebase-tools' "$A" &&
+  pass "firebase-tools runs on a pinned node (the box node 20.19.2 cannot fetch a token)" ||
+  fail "firebase-tools runs on the box node: 'Failed to authenticate' on node 20.19.2"
+
 # --- 3. the dry run touches nothing -------------------------------------------
 R="$T/site"; git init -q -b main "$R"
 SHA=$(git -C "$R" -c user.email=t@example.com -c user.name="FirstName LastName" commit -q --allow-empty -m one && git -C "$R" rev-parse HEAD)

@@ -54,6 +54,9 @@ work tree: `pnpm install --frozen-lockfile`, `pnpm run generate` with
 (`"1"`): Nuxt parses a `NUXT_PUBLIC_*` value, and a bare `1` becomes a
 number that a `=== '1'` test never matches. Then `firebase deploy --only hosting` with
 the env's project SA key, and a probe of `<site_id>.web.app/build.json`.
+firebase-tools runs on a pinned node (`FIREBASE_NODE_VERSION`, default
+22.20.0): on node 20.19.2 its token fetch fails ("Premature close", reported
+as "Failed to authenticate").
 
 `cd csi-spl-orc && ENV=dev ./run -a do_deploy_hosted_site`
 

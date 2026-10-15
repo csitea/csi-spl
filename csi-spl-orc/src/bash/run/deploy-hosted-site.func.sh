@@ -27,6 +27,7 @@
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: deploy
 # @param DEPLOY_LOCK_WAIT_S / DEPLOY_LOCK_DIR / DEPLOY_WORK_DIR (optional) - as do_deploy_wui
 # @param KEEP_WORKTREE (optional) - 1 keeps the build clone for a post-mortem
+# @param FIREBASE_NODE_VERSION (optional) - the node firebase-tools runs on, default 22.20.0
 # @example ENV=dev ./run -a do_deploy_hosted_site
 # @example ENV=dev DRY_RUN=0 SITE=ws-hidden-12 ./run -a do_deploy_hosted_site
 #------------------------------------------------------------------------------
@@ -126,8 +127,14 @@ _hosted_site_steps() {
   printf '{"commit":"%s","built_at":"%s"}\n' "$sha" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$wt/.output/public/build.json"
   _hosted_site_firebase_json "$site_id" "$noindex" >"$wt/firebase.json" || return 1
   fbcfg="$(mktemp -d)" || return 1
+  # firebase-tools runs on a pinned node (pnpm fetches it once): on the box's
+  # node 20.19.2 its node-fetch 2.7.0 fails every gzip token response with
+  # "Premature close" -> "Failed to authenticate" (SPL-1985, n=3; the same key
+  # mints a token in gcloud). 20.18 and 22.11 lack require(esm), which the
+  # dlx tree's uuid@14 needs; 22.20.0 has both.
   (cd "$wt" && GOOGLE_APPLICATION_CREDENTIALS="$key" XDG_CONFIG_HOME="$fbcfg" \
-    pnpm dlx firebase-tools@13 deploy --only hosting --project "$SPL_PROJECT" --non-interactive) || rc=$?
+    pnpm --config.use-node-version="${FIREBASE_NODE_VERSION:-22.20.0}" dlx firebase-tools@13 \
+    deploy --only hosting --project "$SPL_PROJECT" --non-interactive) || rc=$?
   rm -rf "$fbcfg"
   ((rc == 0)) || { do_log "FATAL firebase deploy failed (rc $rc)"; return 1; }
   _hosted_site_probe "$sha" "$site_id" "$host"

@@ -106,7 +106,10 @@ cp "$PROJ_ROOT/../csi-spl-orc/src/bash/features/run-ci-tests.sh" "$F6/"
 printf 'exit 0\n' >"$F6/quick/tests/test-quick.sh"
 printf 'sleep 30\n' >"$F6/slow/tests/test-slow.sh"
 printf '#!/bin/sh\nexit 0\n' >"$ROOT/bin/tmux"; chmod +x "$ROOT/bin/tmux"
-_pp_budget() { echo 6; }
+# 12 s, not 6: on a starved runner 6 s ran out before the runner set its
+# TERM trap (wf 10 38693664604), so "slow is running" did not hold; 6b covers
+# that case. Still well under the 30 s the slow file sleeps.
+_pp_budget() { echo 12; }
 _PPF_FEATS="quick slow"; s6=$SECONDS
 out="$(PATH="$ROOT/bin:$PATH" _pp_part_orc_features "$T6")"; rc=$?
 eq "a part that runs out of time fails with 124" 124 "$rc"
@@ -114,7 +117,16 @@ grep -qx 'FAILED: slow/test-slow.sh (still running at the timeout)' <<<"$out" \
   && pass "the file still running is named" || fail "the file still running is named" "$out"
 grep -q 'FAILED: quick/' <<<"$out" && fail "CONTROL: a finished file is not named" "$out" \
   || pass "CONTROL: a finished file is not named"
-(( SECONDS - s6 < 20 )) && pass "the timeout stops the run (no 30 s wait)" || fail "the timeout stops the run" "$((SECONDS - s6)) s"
+(( SECONDS - s6 < 26 )) && pass "the timeout stops the run (no 30 s wait)" || fail "the timeout stops the run" "$((SECONDS - s6)) s"
+# 6b: the TERM lands before the runner sets its trap (BASH_ENV runs before the
+# script and sleeps past the budget; the CI shape: "runs quick slow" and
+# nothing else). The part still names what it stopped.
+printf 'sleep 4\n' >"$ROOT/slow-start.env"
+_pp_budget() { echo 2; }
+out="$(PATH="$ROOT/bin:$PATH" BASH_ENV="$ROOT/slow-start.env" _pp_part_orc_features "$T6")"; rc=$?
+eq "a TERM before the runner's trap fails with 124" 124 "$rc"
+grep -qx 'FAILED: run-ci-tests.sh (stopped before it set its TERM trap: quick slow)' <<<"$out" \
+  && pass "a TERM before the runner's trap still names the runner and its features" || fail "a TERM before the trap names nothing" "$out"
 # 7: TERM before the runner lists its files (wf 10 38537641629, a loaded
 # runner: no trap yet, "Terminated", nothing named) still names one. A stale
 # spool build check that sleeps holds the runner in that phase.

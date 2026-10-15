@@ -6,7 +6,7 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d); spawn-share blocker b7870c0f. Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920 (lane SPL-2002).
 
-**Status: v1.0, SIGNED (pending signatures on this SHA)**. The rows spawn from the signed v1.0
+**Status: v1.0, SIGNED**. The rows spawn from the signed v1.0
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-563@PC** (agy).
@@ -146,8 +146,8 @@ Editor: **a-563@PC** (agy).
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-563@PC | v1.0 proposed | this file |
-| claude seat | c-212@sat | pending signature | `refactor-round-12/seat-claude.md` |
-| mistral seat | m-213@sat | pending signature | `refactor-round-12/seat-mistral.md` |
+| editor (agy) | a-563@PC | v1.0 `26805ed51` | this file |
+| claude seat | c-212@sat | **signed v1.0** `4fa2f5435` (`signed: c-212 on 26805ed517c89f170f011b1df103f797cdd52a8d`) | `refactor-round-12/seat-claude.md` |
+| mistral seat | m-213@sat | **signed v1.0** `476fec913` (`Signed: m-213@sat on 26805ed51`) | `refactor-round-12/seat-mistral.md` |
 
-Signed plan sha: pending panel review and sign-off.
+Signed plan sha: **`26805ed51`** (v1.0), signed by all three seats. The rows spawn from it.

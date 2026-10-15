@@ -402,6 +402,21 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if got, err := h.RailOrder(ctx, hum); err != nil || strings.Join(got, ",") != strings.Join(rev, ",") {
 				t.Fatalf("rail order got %v %v", got, err)
 			}
+			// SPL-1990 (rdb 0198): the twelve with monitoring store; the eleven still do
+			eleven := []string{"calendar", "boxes", "agents", "people", "archive", "events", "flow", "topics", "issues", "channels", "dm"}
+			if err := h.SetRailOrder(ctx, hum, eleven); err != nil {
+				t.Fatal("eleven", err)
+			}
+			twelve := append([]string{"monitoring"}, eleven...)
+			if err := h.SetRailOrder(ctx, hum, twelve); err != nil {
+				t.Fatal("twelve with monitoring", err)
+			}
+			if got, err := h.RailOrder(ctx, hum); err != nil || strings.Join(got, ",") != strings.Join(twelve, ",") {
+				t.Fatalf("rail order with monitoring got %v %v", got, err)
+			}
+			if err := h.SetRailOrder(ctx, hum, append([]string{"monitoring"}, eleven[1:]...)); err == nil {
+				t.Fatal("SetRailOrder accepted monitoring without calendar")
+			}
 			if err := h.SetRailOrder(ctx, hum, nil); err != nil {
 				t.Fatal(err)
 			}

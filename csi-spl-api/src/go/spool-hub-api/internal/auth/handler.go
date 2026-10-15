@@ -985,11 +985,12 @@ func IsViewPref(key, value string) bool {
 // RailTabs are the reorderable left-rail entries (SPL-979) in their default
 // order: channels, direct messages, issues, topics, flow, archive (SPL-983),
 // the event log (owner 2026-09-27, topic 116646c8), People and Agents
-// (CLE-77794), Boxes (CLE-77799) and Calendar last (spec 089 T007) (the
-// admin-only Users tab stays last and is not one of them). The DB check
-// humans_rail_order_check (rdb 0063, 0064, 0087, 0090, 0133) admits their
-// permutations and the legacy ones of the first six, seven, nine or ten.
-var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes", "calendar"}
+// (CLE-77794), Boxes (CLE-77799), Calendar (spec 089 T007) and Monitoring
+// last (owner HUM-10, t1 dbf2f39b; SPL-1990) (the admin-only Users tab stays
+// last and is not one of them). The DB check humans_rail_order_check (rdb
+// 0063, 0064, 0087, 0090, 0133, 0151, 0198) admits their permutations and the
+// legacy ones of the first six, seven, nine, ten or eleven.
+var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes", "calendar", "monitoring"}
 
 // legacyRailTabs6 is RailTabs before SPL-983 added archive: an order stored
 // then (or sent by a WUI still cached from then) holds exactly these six.
@@ -1010,10 +1011,16 @@ var legacyRailTabs9 = []string{"channels", "dm", "issues", "topics", "flow", "ar
 // appends Calendar (parseRailOrder), so a save carries all eleven.
 var legacyRailTabs10 = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes"}
 
+// legacyRailTabs11 is RailTabs before SPL-1990 added Monitoring: the ten plus
+// Calendar. Every order stored before it holds exactly these eleven (or a
+// legacy set above), and stays valid; the WUI appends Monitoring
+// (parseRailOrder), so a save carries all twelve.
+var legacyRailTabs11 = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes", "calendar"}
+
 // IsRailOrder reports whether order holds every RailTabs id exactly once, or
 // every legacy set once (the WUI appends the tabs added since to it).
 func IsRailOrder(order []string) bool {
-	return isPermutation(order, RailTabs) || isPermutation(order, legacyRailTabs6) || isPermutation(order, legacyRailTabs7) || isPermutation(order, legacyRailTabs9) || isPermutation(order, legacyRailTabs10)
+	return isPermutation(order, RailTabs) || isPermutation(order, legacyRailTabs6) || isPermutation(order, legacyRailTabs7) || isPermutation(order, legacyRailTabs9) || isPermutation(order, legacyRailTabs10) || isPermutation(order, legacyRailTabs11)
 }
 
 func isPermutation(order, of []string) bool {

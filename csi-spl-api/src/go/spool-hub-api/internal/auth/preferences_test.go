@@ -547,6 +547,17 @@ func TestPreferencesRailOrder(t *testing.T) {
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+eleven+`}`); got.code != http.StatusOK {
 		t.Fatalf("eleven tabs: %d %s", got.code, got.raw)
 	}
+	// SPL-1990: the twelve (+ Monitoring) is a valid new order, read back by the
+	// session; the eleven above stays valid (a WUI cached from before it).
+	twelve := `["monitoring","calendar","boxes","agents","people","events","archive","flow","topics","issues","channels","dm"]`
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+twelve+`}`); got.code != http.StatusOK {
+		t.Fatalf("twelve tabs: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); true {
+		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != twelve {
+			t.Fatalf("session after twelve: %s", got.raw)
+		}
+	}
 	// ten ids with Calendar but without Boxes is no set the hub admits
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["calendar","agents","people","events","archive","flow","topics","issues","channels","dm"]}`); got.code != http.StatusBadRequest {
 		t.Fatalf("ten with calendar, no boxes: %d %s", got.code, got.raw)

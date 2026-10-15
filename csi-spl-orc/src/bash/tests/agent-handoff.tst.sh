@@ -153,6 +153,27 @@ touch "$T/go"; wait "$a"; wait "$b"; rc=$?
   && pass "with the lock both composes finish and the brief survives" || fail "with the lock the brief was lost (rc=$rc)"
 mv "$T/brief.gone" "$T/brief.md"
 
+# --- a first session: no session.json, no HANDOFF_BRIEF, only the spawn's
+# lifetime/brief.md (m-560 2026-10-15: its restart handoff read "(none)")
+I2=c-902; D2="$R/$I2"
+mkdir -p "$D2/lifetime"
+( ID="$I2" HANDOFF_BRIEF='' do_spl_agent_handoff ) >/dev/null 2>&1
+[[ "$(sect "$D2/handoff.md" "2. brief")" == "(none)" ]] \
+  && pass "CONTROL no brief anywhere -> (none)" || fail "CONTROL no brief anywhere ($(sect "$D2/handoff.md" "2. brief"))"
+rm -f "$D2/handoff.md"
+printf '# Lane brief: spawned remote\n\nKeep the plan position.\n' >"$D2/lifetime/brief.md"
+( ID="$I2" HANDOFF_BRIEF='' do_spl_agent_handoff ) >/dev/null 2>&1
+sect "$D2/handoff.md" "2. brief" | grep 'Keep the plan position.' >/dev/null \
+  && pass "a first session's brief comes from lifetime/brief.md" || fail "a first session's brief: $(sect "$D2/handoff.md" "2. brief")"
+
+rm -f "$D2/handoff.md"
+{ for n in 2 1; do printf '# Brief: you are %s@box-t, restarted by the watchdog (r%s)\n\n## A. Your brief (x)\n\n' "$I2" "$n"; done
+  printf 'Keep the plan position.\n\n## B. The handoff\n\n# handoff %s\n' "$I2"; } >"$D2/lifetime/brief.md"
+( ID="$I2" HANDOFF_BRIEF='' do_spl_agent_handoff ) >/dev/null 2>&1
+sect "$D2/handoff.md" "2. brief" >"$T/b2"
+grep -q 'Keep the plan position.' "$T/b2" && ! grep -q 'restarted by the watchdog\|# handoff' "$T/b2" \
+  && pass "a brief.md nested in restart seeds -> only the innermost brief" || fail "nested brief.md: $(cat "$T/b2")"
+
 # --- a held lock -> exit 4
 exec 7>>"$D/lifetime/handoff.lock"; flock -x 7
 ( HANDOFF_LOCK_WAIT=0 do_spl_agent_handoff ) >/dev/null 2>&1; rc=$?

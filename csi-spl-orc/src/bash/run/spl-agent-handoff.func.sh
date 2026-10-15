@@ -16,7 +16,7 @@
 # @param ID (optional) - the agent id, default $SPOOL_AGENT_ID
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param HANDOFF_WORKDIR (optional) - the agent's worktree, default its registry row, else $PWD
-# @param HANDOFF_BRIEF (optional) - the brief path, default lifetime/session.json .brief
+# @param HANDOFF_BRIEF (optional) - the brief path, default lifetime/session.json .brief, else lifetime/brief.md
 # @param HANDOFF_HARD_KILLED (optional) - 1 sets hard_killed: true in the header (the restart)
 # @param HANDOFF_CAPTURE_CMD (optional) - seam: prints the pane's lines (default tmux capture-pane -J)
 # @param HANDOFF_LOCK (optional, SPOOL_TEST=1 only) - 0 composes without the lock (the test control)
@@ -172,11 +172,36 @@ section(1, "header", "\n".join([
     "- composed: %s" % iso(now),
 ]))
 
+# A lifetime/brief.md that is a restart seed (seeds copied over it, c-539@sat
+# 2026-10-09) -> its innermost section A, as the restart's
+# spl_ars_brief_unnest cuts it; None when nothing but seeds is left.
+def unnest(text):
+    if not text or not (text.startswith("# Brief: you are %s@" % aid)
+                        and ", restarted by the watchdog" in text.split("\n", 1)[0]):
+        return text
+    buf, on = [], False
+    for line in text.splitlines():
+        if line.startswith("## A. Your brief"):
+            buf, on = [], True
+        elif line == "## B. The handoff":
+            on = False
+        elif on and (buf or line):
+            buf.append(line)
+    inner = "\n".join(buf).strip("\n")
+    return None if not inner or inner.startswith("# Brief: you are %s@" % aid) else inner + "\n"
+
 # 2 the brief: filled once, then carried from the previous file
 brief = prev_section("2. brief")
 if not brief or brief == "(none)":
+    # lifetime/brief.md is the spawn's copy: a first session has no
+    # session.json yet (the restart's SEED writes it after this compose), so
+    # without it a lane's first restart handoff read "(none)" (m-560 and
+    # m-211, 2026-10-15). Same chain as the restart's spl_ars_brief.
     path = os.environ.get("HANDOFF_BRIEF") or sess.get("brief") or ""
     text = read(path) if path else None
+    if not path:
+        path = os.path.join(d, "lifetime", "brief.md")
+        text = unnest(read(path))
     brief = "" if text is None else "brief: %s\n\n%s" % (
         path, "\n".join(cap(text.splitlines()[:CAP["brief"] + 1], CAP["brief"], path)))
 section(2, "brief", brief)

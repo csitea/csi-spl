@@ -295,7 +295,7 @@ agent's files and never writes them. The rotation's
 | # | section | source | refreshed |
 |---|---|---|---|
 | 1 | header: id, box, harness, session number and start, age, rebirth and restart counts, freshness, `hard_killed` | `lifetime/` | every compose |
-| 2 | **the brief** (H1) | the seed's brief path | once |
+| 2 | **the brief** (H1) | the seed's brief path (`lifetime/session.json` `.brief`), else `lifetime/brief.md`, the spawn's copy: a first session has no `session.json` until its first restart's SEED, which runs after this compose (SPL-2007); a `brief.md` nested in restart seeds gives its innermost section A | once |
 | 3 | **done**: commits since the base, sha, pushed or not | `git log origin/master..HEAD`, `git branch -r --contains` | every compose |
 | 4 | **in flight**: dirty files, the running tool, the last 30 terminal lines | `git status --porcelain`, `heartbeat.json`, `capture-pane -J` | every compose |
 | 5 | **next step** | `handoff.d/next.md` | as the agent writes it |

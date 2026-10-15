@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agents",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokens",
+      "costs": "Costs"
     },
     "alloc": {
       "title": "Allocation",
@@ -2957,6 +2958,40 @@
       "place": "Place in the box order",
       "place_val": "{n} of {total}",
       "place_none": "Not in the box order"
+    },
+    "costs": {
+      "month": "Month",
+      "month_so_far": "{month} (so far)",
+      "so_far": "So far: {n} of {total} days",
+      "scope_estate": "Whole estate",
+      "scope_workspace": "This workspace",
+      "loading": "Loading…",
+      "forbidden": "Costs need the {perm} permission (workspace owner or admin).",
+      "error": "The cost report could not be read.",
+      "empty_source": "No cost data yet for {source}",
+      "pie_label": "Share of the month's cost (USD)",
+      "no_pie": "No cost data yet this month, so no pie.",
+      "col_part": "Part",
+      "col_pct": "% of month",
+      "col_list": "List price",
+      "hand": "entered by hand",
+      "estimate": "estimate",
+      "outside_gcp": "Machines outside GCP",
+      "not_tracked": "not tracked",
+      "no_rows": "No cost lines this month.",
+      "total": "Total",
+      "other": "Other ({n} parts)",
+      "coverage_title": "Days complete per source",
+      "coverage_row": "{n} of {total} days complete",
+      "coverage_partial": "{n} partial",
+      "coverage_missing": "{n} missing",
+      "coverage_unrecorded": "{n} not recorded",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Fleet tokens",
+        "agent_hours": "Agent hours",
+        "hand": "Invoices"
+      }
     }
   }
 }

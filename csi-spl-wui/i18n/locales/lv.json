@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Aģenti",
       "boxes": "Boxes",
-      "tokens": "Marķieri"
+      "tokens": "Marķieri",
+      "costs": "Izmaksas"
     },
     "alloc": {
       "title": "Sadalījums",
@@ -2957,6 +2958,40 @@
       "place": "Vieta mašīnu secībā",
       "place_val": "{n} no {total}",
       "place_none": "Nav mašīnu secībā"
+    },
+    "costs": {
+      "month": "Mēnesis",
+      "month_so_far": "{month} (līdz šim)",
+      "so_far": "Līdz šim: {n} no {total} dienām",
+      "scope_estate": "Visa infrastruktūra",
+      "scope_workspace": "Šī darbvieta",
+      "loading": "Ielādē…",
+      "forbidden": "Izmaksu skatīšanai vajag atļauju {perm} (darbvietas īpašnieks vai administrators).",
+      "error": "Izmaksu pārskatu neizdevās nolasīt.",
+      "empty_source": "Avotam {source} vēl nav izmaksu datu",
+      "pie_label": "Daļa no mēneša izmaksām (USD)",
+      "no_pie": "Šim mēnesim vēl nav izmaksu datu, tāpēc nav sektoru diagrammas.",
+      "col_part": "Daļa",
+      "col_pct": "% no mēneša",
+      "col_list": "Cenrāža cena",
+      "hand": "ievadīts manuāli",
+      "estimate": "aplēse",
+      "outside_gcp": "Mašīnas ārpus GCP",
+      "not_tracked": "netiek izsekots",
+      "no_rows": "Šomēnes nav izmaksu rindu.",
+      "total": "Kopā",
+      "other": "Citas ({n} daļas)",
+      "coverage_title": "Pilnās dienas pa avotiem",
+      "coverage_row": "{n} no {total} dienām pilnas",
+      "coverage_partial": "{n} daļējas",
+      "coverage_missing": "{n} trūkst",
+      "coverage_unrecorded": "{n} nav reģistrētas",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Flotes marķieri",
+        "agent_hours": "Aģentu stundas",
+        "hand": "Rēķini"
+      }
     }
   }
 }

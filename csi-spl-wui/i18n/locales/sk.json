@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agenti",
       "boxes": "Boxes",
-      "tokens": "Tokeny"
+      "tokens": "Tokeny",
+      "costs": "Náklady"
     },
     "alloc": {
       "title": "Pridelenie",
@@ -2957,6 +2958,40 @@
       "place": "Miesto v poradí strojov",
       "place_val": "{n} z {total}",
       "place_none": "Nie je v poradí strojov"
+    },
+    "costs": {
+      "month": "Mesiac",
+      "month_so_far": "{month} (doteraz)",
+      "so_far": "Doteraz: {n} z {total} dní",
+      "scope_estate": "Celá infraštruktúra",
+      "scope_workspace": "Tento pracovný priestor",
+      "loading": "Načítava sa…",
+      "forbidden": "Náklady vyžadujú oprávnenie {perm} (vlastník alebo správca pracovného priestoru).",
+      "error": "Prehľad nákladov sa nepodarilo načítať.",
+      "empty_source": "Pre {source} zatiaľ nie sú údaje o nákladoch",
+      "pie_label": "Podiel na nákladoch mesiaca (USD)",
+      "no_pie": "Za tento mesiac zatiaľ nie sú údaje o nákladoch, preto chýba koláčový graf.",
+      "col_part": "Položka",
+      "col_pct": "% mesiaca",
+      "col_list": "Cenníková cena",
+      "hand": "zadané ručne",
+      "estimate": "odhad",
+      "outside_gcp": "Stroje mimo GCP",
+      "not_tracked": "nesleduje sa",
+      "no_rows": "Tento mesiac nie sú žiadne riadky nákladov.",
+      "total": "Spolu",
+      "other": "Ostatné ({n} položiek)",
+      "coverage_title": "Úplné dni podľa zdroja",
+      "coverage_row": "{n} z {total} úplných dní",
+      "coverage_partial": "{n} čiastočných",
+      "coverage_missing": "{n} chýba",
+      "coverage_unrecorded": "{n} nezaznamenaných",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Tokeny flotily",
+        "agent_hours": "Hodiny agentov",
+        "hand": "Faktúry"
+      }
     }
   }
 }

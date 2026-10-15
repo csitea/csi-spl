@@ -128,6 +128,33 @@ one table. Its API, `csi-spl-api/.../internal/hub/cost_read.go` and
 - Tests: `TestCostMonthReadSums`, `TestCostMonthReadRLS` (store, Postgres),
   `TestCostRead*`, `TestCostWindow`, `TestCostMonthAnswer` (hub).
 
+### 5.3 The WUI tab (build lane 5, SPL-2056)
+
+`/monitoring/costs`, the **Costs** tab of Monitoring, over 5.2:
+
+- **Who**: the tab shows once `/v1/view/me` answered and the member holds
+  `costs.read` (`csi-spl-wui/src/utils/monitoring-tabs.mjs`, `perm`); a direct
+  URL without it shows the hub's 403, naming `costs.read`.
+- **Month**: a picker of the current UTC month (marked "so far" with
+  "n of N days") and the 11 before it; never a future month.
+- **Table**: one row per part (source, project or vendor, kind, units), USD
+  and EUR, % of the month, the list price where `list_value_micros` > 0, an
+  "entered by hand" mark, a total row; in the estate view one "Machines
+  outside GCP: not tracked" row (Q-7). Under it "n of N days complete" per
+  source, its partial, missing and unrecorded days named.
+- **Pie**: inline SVG (`MonitoringCostsPie.vue`, imported only by the page),
+  one slice per part over 1 % of the USD total, the rest one "other" slice.
+- **Honest empties**: a source whose parts sum to 0 USD (today's fleet tokens
+  and agent hours, counts only) and, in the estate view, GCP while it has no
+  row, each read "No cost data yet for <source>"; no money at all draws no
+  pie.
+- **Budget**: `ci_costs_route_gzip_kb` 12 KB in
+  `027-spool-performance/contracts/perf-budgets.json` (5.7 KB measured);
+  `ci_initial_gzip_kb` stays 155.
+- **Not built yet**: the hand-entry form (4.4: no hub API; `POST
+  /v1/operator/cost/day` refuses origin `hand` and `invoice`) and the token
+  gap view.
+
 ## 6. The 1-Month Collection Plan
 
 - **First month**: 2026-10 (Q-5), with what is live; each source is marked missing for every day before it runs. October is the iteration month (Q-3: "we will iterate during October and start for real in Nov").

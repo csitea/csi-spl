@@ -350,7 +350,9 @@ async function monitoringSection(browser, base) {
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-monitoring]')?.click())
     check(`${tag}: the rail tab lands on /monitoring/agents`, await at(p, '/monitoring/agents'), path(p))
     await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)
-    check(`${tag}: the bar draws Agents (current) then Boxes, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', '']]), await bar(p))
+    /* Costs (spec 123, SPL-2056) shows once /v1/view/me answered; the mock's me is unrestricted */
+    await p.waitForSelector('[data-test=monitoring-tab-costs]', { timeout: NAV }).catch(() => null)
+    check(`${tag}: the bar draws Agents (current), Boxes, then Costs, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', ''], ['monitoring-tab-costs', '']]), await bar(p))
     check(`${tag}: the summary strip slot is there`, Boolean(await p.$('[data-test=monitoring-summary]')))
     check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-monitoring]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))

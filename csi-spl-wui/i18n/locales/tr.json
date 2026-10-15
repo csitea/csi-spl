@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Ajanlar",
       "boxes": "Boxes",
-      "tokens": "Belirteçler"
+      "tokens": "Belirteçler",
+      "costs": "Maliyetler"
     },
     "alloc": {
       "title": "Tahsis",
@@ -2957,6 +2958,40 @@
       "place": "Makine sırasındaki yeri",
       "place_val": "{total} içinde {n}",
       "place_none": "Makine sırasında değil"
+    },
+    "costs": {
+      "month": "Ay",
+      "month_so_far": "{month} (şimdiye kadar)",
+      "so_far": "Şimdiye kadar: {total} günün {n} günü",
+      "scope_estate": "Tüm altyapı",
+      "scope_workspace": "Bu çalışma alanı",
+      "loading": "Yükleniyor…",
+      "forbidden": "Maliyetler için {perm} izni gerekir (çalışma alanı sahibi veya yöneticisi).",
+      "error": "Maliyet raporu okunamadı.",
+      "empty_source": "{source} için henüz maliyet verisi yok",
+      "pie_label": "Ayın maliyetindeki pay (USD)",
+      "no_pie": "Bu ay için henüz maliyet verisi yok, bu yüzden pasta grafik yok.",
+      "col_part": "Kalem",
+      "col_pct": "Ayın %'si",
+      "col_list": "Liste fiyatı",
+      "hand": "elle girildi",
+      "estimate": "tahmin",
+      "outside_gcp": "GCP dışındaki makineler",
+      "not_tracked": "izlenmiyor",
+      "no_rows": "Bu ay maliyet satırı yok.",
+      "total": "Toplam",
+      "other": "Diğer ({n} kalem)",
+      "coverage_title": "Kaynağa göre tamamlanan günler",
+      "coverage_row": "{total} günün {n} günü tamam",
+      "coverage_partial": "{n} kısmi",
+      "coverage_missing": "{n} eksik",
+      "coverage_unrecorded": "{n} kaydedilmemiş",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Filo belirteçleri",
+        "agent_hours": "Ajan saatleri",
+        "hand": "Faturalar"
+      }
     }
   }
 }

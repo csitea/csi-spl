@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agenți",
       "boxes": "Boxes",
-      "tokens": "Tokenuri"
+      "tokens": "Tokenuri",
+      "costs": "Costuri"
     },
     "alloc": {
       "title": "Alocare",
@@ -2957,6 +2958,40 @@
       "place": "Locul în ordinea mașinilor",
       "place_val": "{n} din {total}",
       "place_none": "Nu este în ordinea mașinilor"
+    },
+    "costs": {
+      "month": "Luna",
+      "month_so_far": "{month} (până acum)",
+      "so_far": "Până acum: {n} din {total} zile",
+      "scope_estate": "Întreaga infrastructură",
+      "scope_workspace": "Acest spațiu de lucru",
+      "loading": "Se încarcă…",
+      "forbidden": "Costurile necesită permisiunea {perm} (proprietar sau administrator al spațiului de lucru).",
+      "error": "Raportul de costuri nu a putut fi citit.",
+      "empty_source": "Încă nu există date de cost pentru {source}",
+      "pie_label": "Cota din costul lunii (USD)",
+      "no_pie": "Încă nu există date de cost în această lună, deci nu există diagramă circulară.",
+      "col_part": "Componentă",
+      "col_pct": "% din lună",
+      "col_list": "Preț de listă",
+      "hand": "introdus manual",
+      "estimate": "estimare",
+      "outside_gcp": "Mașini din afara GCP",
+      "not_tracked": "neurmărite",
+      "no_rows": "Nicio linie de cost în această lună.",
+      "total": "Total",
+      "other": "Altele ({n} componente)",
+      "coverage_title": "Zile complete pe sursă",
+      "coverage_row": "{n} din {total} zile complete",
+      "coverage_partial": "{n} parțiale",
+      "coverage_missing": "{n} lipsă",
+      "coverage_unrecorded": "{n} neînregistrate",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Tokenuri ale flotei",
+        "agent_hours": "Ore ale agenților",
+        "hand": "Facturi"
+      }
     }
   }
 }

@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agentes",
       "boxes": "Equipos",
-      "tokens": "Tokens"
+      "tokens": "Tokens",
+      "costs": "Costes"
     },
     "alloc": {
       "title": "Asignación",
@@ -2957,6 +2958,40 @@
       "place": "Puesto en el orden de máquinas",
       "place_val": "{n} de {total}",
       "place_none": "Fuera del orden de máquinas"
+    },
+    "costs": {
+      "month": "Mes",
+      "month_so_far": "{month} (hasta ahora)",
+      "so_far": "Hasta ahora: {n} de {total} días",
+      "scope_estate": "Toda la infraestructura",
+      "scope_workspace": "Este espacio de trabajo",
+      "loading": "Cargando…",
+      "forbidden": "Los costes requieren el permiso {perm} (propietario o administrador del espacio de trabajo).",
+      "error": "No se pudo leer el informe de costes.",
+      "empty_source": "Aún no hay datos de costes para {source}",
+      "pie_label": "Parte del coste del mes (USD)",
+      "no_pie": "Aún no hay datos de costes este mes, así que no hay gráfico circular.",
+      "col_part": "Partida",
+      "col_pct": "% del mes",
+      "col_list": "Precio de lista",
+      "hand": "introducido a mano",
+      "estimate": "estimación",
+      "outside_gcp": "Máquinas fuera de GCP",
+      "not_tracked": "sin seguimiento",
+      "no_rows": "No hay líneas de coste este mes.",
+      "total": "Total",
+      "other": "Otras ({n} partidas)",
+      "coverage_title": "Días completos por fuente",
+      "coverage_row": "{n} de {total} días completos",
+      "coverage_partial": "{n} parciales",
+      "coverage_missing": "{n} faltan",
+      "coverage_unrecorded": "{n} sin registrar",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Tokens de la flota",
+        "agent_hours": "Horas de agentes",
+        "hand": "Facturas"
+      }
     }
   }
 }

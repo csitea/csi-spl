@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agendid",
       "boxes": "Boxes",
-      "tokens": "Tokenid"
+      "tokens": "Tokenid",
+      "costs": "Kulud"
     },
     "alloc": {
       "title": "Jaotus",
@@ -2957,6 +2958,40 @@
       "place": "Koht masinate järjekorras",
       "place_val": "{n} / {total}",
       "place_none": "Pole masinate järjekorras"
+    },
+    "costs": {
+      "month": "Kuu",
+      "month_so_far": "{month} (seni)",
+      "so_far": "Seni: {n} päeva {total}-st",
+      "scope_estate": "Kogu taristu",
+      "scope_workspace": "See tööruum",
+      "loading": "Laadimine…",
+      "forbidden": "Kulude vaatamiseks on vaja õigust {perm} (tööruumi omanik või administraator).",
+      "error": "Kuluaruannet ei õnnestunud lugeda.",
+      "empty_source": "Allika {source} kohta pole veel kuluandmeid",
+      "pie_label": "Osa kuu kuludest (USD)",
+      "no_pie": "Selle kuu kohta pole veel kuluandmeid, seega sektordiagrammi pole.",
+      "col_part": "Osa",
+      "col_pct": "% kuust",
+      "col_list": "Hinnakirja hind",
+      "hand": "sisestatud käsitsi",
+      "estimate": "hinnang",
+      "outside_gcp": "Masinad väljaspool GCP-d",
+      "not_tracked": "ei jälgita",
+      "no_rows": "Sel kuul pole kuluridu.",
+      "total": "Kokku",
+      "other": "Muu ({n} osa)",
+      "coverage_title": "Täielikud päevad allika kaupa",
+      "coverage_row": "{n} päeva {total}-st täielikud",
+      "coverage_partial": "{n} osaliselt",
+      "coverage_missing": "{n} puudu",
+      "coverage_unrecorded": "{n} salvestamata",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Laevastiku tokenid",
+        "agent_hours": "Agentide tunnid",
+        "hand": "Arved"
+      }
     }
   }
 }

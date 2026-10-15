@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { useOperatorPane } from '~/stores/operator-pane'
+import { useAccessStore } from '~/stores/access'
 import { MONITORING_DEFAULT_PATH, monitoringTabFor, visibleMonitoringTabs } from '~/utils/monitoring-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -40,12 +41,17 @@ const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
 const operator = useOperatorPane()
-const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible }))
+const access = useAccessStore()
+/* a permission tab (Costs: costs.read) shows once /v1/view/me answered;
+   access.can fails open (no answer = unrestricted), the hub's 403 is the control */
+const meRead = ref(false)
+const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, can: meRead.value ? access.can : undefined }))
 const active = computed(() => monitoringTabFor(route.path))
 
 /* /monitoring has no page of its own: it lands on the first tab (Q1 A). In
    the browser only, so the prerendered page is the bar, never a redirect. */
 onMounted(() => {
+  void access.load().finally(() => { meRead.value = true })
   watch(() => route.path, (p) => {
     if (productPath(p) === '/monitoring') void navigateTo(localePath(MONITORING_DEFAULT_PATH), { replace: true })
   }, { immediate: true })

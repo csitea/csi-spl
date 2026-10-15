@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agenter",
       "boxes": "Boxes",
-      "tokens": "Token"
+      "tokens": "Token",
+      "costs": "Kostnader"
     },
     "alloc": {
       "title": "Tilldelning",
@@ -2957,6 +2958,40 @@
       "place": "Plats i maskinordningen",
       "place_val": "{n} av {total}",
       "place_none": "Inte i maskinordningen"
+    },
+    "costs": {
+      "month": "Månad",
+      "month_so_far": "{month} (hittills)",
+      "so_far": "Hittills: {n} av {total} dagar",
+      "scope_estate": "Hela infrastrukturen",
+      "scope_workspace": "Den här arbetsytan",
+      "loading": "Laddar…",
+      "forbidden": "Kostnader kräver behörigheten {perm} (arbetsytans ägare eller administratör).",
+      "error": "Kostnadsrapporten kunde inte läsas.",
+      "empty_source": "Inga kostnadsdata ännu för {source}",
+      "pie_label": "Andel av månadens kostnad (USD)",
+      "no_pie": "Inga kostnadsdata ännu den här månaden, så inget cirkeldiagram.",
+      "col_part": "Post",
+      "col_pct": "% av månaden",
+      "col_list": "Listpris",
+      "hand": "inmatat för hand",
+      "estimate": "uppskattning",
+      "outside_gcp": "Maskiner utanför GCP",
+      "not_tracked": "spåras inte",
+      "no_rows": "Inga kostnadsrader den här månaden.",
+      "total": "Totalt",
+      "other": "Övrigt ({n} poster)",
+      "coverage_title": "Fullständiga dagar per källa",
+      "coverage_row": "{n} av {total} dagar fullständiga",
+      "coverage_partial": "{n} delvis",
+      "coverage_missing": "{n} saknas",
+      "coverage_unrecorded": "{n} ej registrerade",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Flottans token",
+        "agent_hours": "Agenttimmar",
+        "hand": "Fakturor"
+      }
     }
   }
 }

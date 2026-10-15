@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "סוכנים",
       "boxes": "Boxes",
-      "tokens": "אסימונים"
+      "tokens": "אסימונים",
+      "costs": "עלויות"
     },
     "alloc": {
       "title": "הקצאה",
@@ -2957,6 +2958,40 @@
       "place": "מקום בסדר המכונות",
       "place_val": "{n} מתוך {total}",
       "place_none": "לא בסדר המכונות"
+    },
+    "costs": {
+      "month": "חודש",
+      "month_so_far": "{month} (עד כה)",
+      "so_far": "עד כה: {n} מתוך {total} ימים",
+      "scope_estate": "כל התשתית",
+      "scope_workspace": "סביבת עבודה זו",
+      "loading": "טוען…",
+      "forbidden": "צפייה בעלויות דורשת את ההרשאה {perm} (בעלים או מנהל של סביבת העבודה).",
+      "error": "לא ניתן היה לקרוא את דוח העלויות.",
+      "empty_source": "עדיין אין נתוני עלות עבור {source}",
+      "pie_label": "חלק מעלות החודש (USD)",
+      "no_pie": "עדיין אין נתוני עלות החודש, לכן אין תרשים עוגה.",
+      "col_part": "רכיב",
+      "col_pct": "% מהחודש",
+      "col_list": "מחיר מחירון",
+      "hand": "הוזן ידנית",
+      "estimate": "הערכה",
+      "outside_gcp": "מכונות מחוץ ל-GCP",
+      "not_tracked": "לא במעקב",
+      "no_rows": "אין שורות עלות החודש.",
+      "total": "סה״כ",
+      "other": "אחר ({n} רכיבים)",
+      "coverage_title": "ימים מלאים לפי מקור",
+      "coverage_row": "{n} מתוך {total} ימים מלאים",
+      "coverage_partial": "{n} חלקיים",
+      "coverage_missing": "{n} חסרים",
+      "coverage_unrecorded": "{n} לא נרשמו",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "אסימוני הצי",
+        "agent_hours": "שעות סוכנים",
+        "hand": "חשבוניות"
+      }
     }
   }
 }

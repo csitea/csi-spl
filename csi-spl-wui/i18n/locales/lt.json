@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agentai",
       "boxes": "Boxes",
-      "tokens": "Žetonai"
+      "tokens": "Žetonai",
+      "costs": "Išlaidos"
     },
     "alloc": {
       "title": "Paskirstymas",
@@ -2957,6 +2958,40 @@
       "place": "Vieta mašinų eilėje",
       "place_val": "{n} iš {total}",
       "place_none": "Ne mašinų eilėje"
+    },
+    "costs": {
+      "month": "Mėnuo",
+      "month_so_far": "{month} (iki šiol)",
+      "so_far": "Iki šiol: {n} iš {total} dienų",
+      "scope_estate": "Visa infrastruktūra",
+      "scope_workspace": "Ši darbo sritis",
+      "loading": "Įkeliama…",
+      "forbidden": "Išlaidoms peržiūrėti reikia teisės {perm} (darbo srities savininkas arba administratorius).",
+      "error": "Nepavyko perskaityti išlaidų ataskaitos.",
+      "empty_source": "Šaltiniui {source} išlaidų duomenų dar nėra",
+      "pie_label": "Mėnesio išlaidų dalis (USD)",
+      "no_pie": "Šį mėnesį išlaidų duomenų dar nėra, todėl skritulinės diagramos nėra.",
+      "col_part": "Dalis",
+      "col_pct": "% mėnesio",
+      "col_list": "Kainyno kaina",
+      "hand": "įvesta rankiniu būdu",
+      "estimate": "įvertis",
+      "outside_gcp": "Mašinos už GCP ribų",
+      "not_tracked": "nesekama",
+      "no_rows": "Šį mėnesį išlaidų eilučių nėra.",
+      "total": "Iš viso",
+      "other": "Kita ({n} dalių)",
+      "coverage_title": "Užbaigtos dienos pagal šaltinį",
+      "coverage_row": "Užbaigta {n} iš {total} dienų",
+      "coverage_partial": "{n} dalinės",
+      "coverage_missing": "{n} trūksta",
+      "coverage_unrecorded": "{n} neįrašyta",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Parko žetonai",
+        "agent_hours": "Agentų valandos",
+        "hand": "Sąskaitos"
+      }
     }
   }
 }

@@ -19,9 +19,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
-  it('Agents first (the landing tab, Q1 A), then Boxes, then the reserved Tokens', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'tokens'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/tokens'])
+  it('Agents first (the landing tab, Q1 A), then Boxes, Costs (spec 123), then the reserved Tokens', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/monitoring/tokens'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
@@ -32,6 +32,17 @@ describe('monitoring tabs', () => {
   it('the bar draws the ready tabs; Tokens (spec 140) stays hidden, even for an operator', () => {
     assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes'])
     assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes'])
+  })
+  it('Costs (spec 123 5, SPL-2056) shows to a member holding costs.read only, operator or not', () => {
+    const costs = MONITORING_TABS.find((t) => t.id === 'costs')
+    assert.equal(costs.perm, 'costs.read')
+    assert.equal(costs.operatorsOnly, false, 'any workspace: biz_owner and admin read their own rows')
+    const holds = (perms) => (p) => perms.includes(p)
+    assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs'])
+    /* CONTROL: without the permission (or before /v1/view/me answered) it is hidden */
+    assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes'])
     assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes'])
   })
   it('an operator-only ready tab shows to operators only (Q3 A)', () => {
@@ -53,7 +64,7 @@ describe('monitoring tabs', () => {
     assert.equal(monitoringTabFor('/agents'), null)
   })
   it('each ready tab has its own page (its own chunk), and the parent holds a NuxtPage', () => {
-    for (const t of visibleMonitoringTabs()) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '/index.vue')), t.path)
+    for (const t of visibleMonitoringTabs({ can: () => true })) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '/index.vue')), t.path)
     const parent = read('src/pages/monitoring.vue')
     assert.match(parent, /<NuxtPage \/>/)
     assert.match(parent, /data-test="monitoring-summary"/, 'the summary strip slot')
@@ -84,7 +95,7 @@ describe('the Monitoring rail entry', () => {
     assert.equal(DEFAULT_RAIL_ORDER.at(-2), 'monitoring', 'after Boxes, before Archive')
   })
   it('every Monitoring path selects the Monitoring rail tab and is a section page', () => {
-    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk']) {
+    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk']) {
       assert.equal(tabForPath(p), 'monitoring', p)
     }
     for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes']) assert.equal(isSectionPage(p), true, p)

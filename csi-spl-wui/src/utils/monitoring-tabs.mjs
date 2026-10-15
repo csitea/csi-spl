@@ -14,6 +14,8 @@ import { productPath } from './signed-out-redirect.mjs'
 export const MONITORING_TABS = Object.freeze([
   Object.freeze({ id: 'agents', path: '/monitoring/agents', labelKey: 'monitoring.tab.agents', operatorsOnly: false, ready: true }),
   Object.freeze({ id: 'boxes', path: '/monitoring/boxes', labelKey: 'monitoring.tab.boxes', operatorsOnly: false, ready: true }),
+  /* spec 123 5 (SPL-2056): the month's costs, for a member holding costs.read (biz_owner, admin) */
+  Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true, perm: 'costs.read' }),
   /* spec 140 (live token burn per agent type and agent): reserved, hidden until its page lands */
   Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: false }),
 ])
@@ -23,11 +25,13 @@ export const MONITORING_DEFAULT_PATH = MONITORING_TABS[0].path
 
 /**
  * The tabs the bar draws for this reader: the ready ones, the operator-only
- * ones only for an operator.
- * @param {{ operator?: boolean }} [who]
+ * ones only for an operator, a tab naming a `perm` only when `who.can`
+ * grants it (no `can` = not known yet: hidden; the hub's 403 is the control).
+ * @param {{ operator?: boolean, can?: (perm: string) => boolean }} [who]
  */
 export function visibleMonitoringTabs(who = {}) {
-  return MONITORING_TABS.filter((tab) => tab.ready && (!tab.operatorsOnly || who.operator === true))
+  return MONITORING_TABS.filter((tab) => tab.ready && (!tab.operatorsOnly || who.operator === true)
+    && (!tab.perm || (typeof who.can === 'function' && who.can(tab.perm) === true)))
 }
 
 /**

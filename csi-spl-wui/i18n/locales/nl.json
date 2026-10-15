@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agents",
       "boxes": "Boxes",
-      "tokens": "Tokens"
+      "tokens": "Tokens",
+      "costs": "Kosten"
     },
     "alloc": {
       "title": "Toewijzing",
@@ -2957,6 +2958,40 @@
       "place": "Plaats in de machinevolgorde",
       "place_val": "{n} van {total}",
       "place_none": "Niet in de machinevolgorde"
+    },
+    "costs": {
+      "month": "Maand",
+      "month_so_far": "{month} (tot nu toe)",
+      "so_far": "Tot nu toe: {n} van {total} dagen",
+      "scope_estate": "Hele infrastructuur",
+      "scope_workspace": "Deze werkruimte",
+      "loading": "Laden…",
+      "forbidden": "Voor kosten is de machtiging {perm} nodig (eigenaar of beheerder van de werkruimte).",
+      "error": "Het kostenrapport kon niet worden gelezen.",
+      "empty_source": "Nog geen kostengegevens voor {source}",
+      "pie_label": "Aandeel in de kosten van de maand (USD)",
+      "no_pie": "Nog geen kostengegevens deze maand, dus geen cirkeldiagram.",
+      "col_part": "Onderdeel",
+      "col_pct": "% van de maand",
+      "col_list": "Catalogusprijs",
+      "hand": "handmatig ingevoerd",
+      "estimate": "schatting",
+      "outside_gcp": "Machines buiten GCP",
+      "not_tracked": "niet bijgehouden",
+      "no_rows": "Geen kostenregels deze maand.",
+      "total": "Totaal",
+      "other": "Overig ({n} onderdelen)",
+      "coverage_title": "Volledige dagen per bron",
+      "coverage_row": "{n} van {total} dagen volledig",
+      "coverage_partial": "{n} gedeeltelijk",
+      "coverage_missing": "{n} ontbreken",
+      "coverage_unrecorded": "{n} niet vastgelegd",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Vloottokens",
+        "agent_hours": "Agent-uren",
+        "hand": "Facturen"
+      }
     }
   }
 }

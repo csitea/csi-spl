@@ -17,7 +17,7 @@ import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-cli
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { MOCK_RELEASES, flowByNewest, foldFlowEvents, foldReleases, parseFlowLines } from './flow-fold.mjs'
 import { loadCursors } from './read-cursor.mjs'
-import { mockArchivePolicy } from './act-as-mock.mjs'
+import { mockArchivePolicy, mockMeGet } from './act-as-mock.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
 import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
 import { mockPreviews } from './link-preview-lookup.mjs'
@@ -1597,6 +1597,19 @@ async function getFleetLoad(ctx) {
   return live('/v1/operator/fleet-load')
 }
 
+/**
+ * Spec 123 5.2 (SPL-2056): GET /v1/tenant/costs?month=YYYY-MM, the month's
+ * cost parts, totals and coverage (costs.read; 403 names it). No month =
+ * the current month so far. The mock answers from tenant-costs.mjs, which
+ * loads only here and on the costs page.
+ */
+async function getTenantCosts(ctx, month = '') {
+  const { live, mock } = ctx
+  const tc = await import('./tenant-costs.mjs')
+  if (mock) return tc.mockTenantCosts(month, { me: mockMeGet() })
+  return live('/v1/tenant/costs' + tc.costsQuery(month))
+}
+
 /** PATCH /v1/operator/fleet-load. A JSON null resets that field to the default. */
 async function patchFleetLoad(ctx, patch = {}) {
   const { live, mock } = ctx
@@ -1705,6 +1718,7 @@ export const lazySpoolMethods = {
   boxStats,
   getFleetLoad,
   patchFleetLoad,
+  getTenantCosts,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

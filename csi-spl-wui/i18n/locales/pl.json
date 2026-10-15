@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agenci",
       "boxes": "Boxes",
-      "tokens": "Tokeny"
+      "tokens": "Tokeny",
+      "costs": "Koszty"
     },
     "alloc": {
       "title": "Przydział",
@@ -2957,6 +2958,40 @@
       "place": "Miejsce w kolejności maszyn",
       "place_val": "{n} z {total}",
       "place_none": "Poza kolejnością maszyn"
+    },
+    "costs": {
+      "month": "Miesiąc",
+      "month_so_far": "{month} (do tej pory)",
+      "so_far": "Do tej pory: {n} z {total} dni",
+      "scope_estate": "Cała infrastruktura",
+      "scope_workspace": "Ten obszar roboczy",
+      "loading": "Ładowanie…",
+      "forbidden": "Koszty wymagają uprawnienia {perm} (właściciel lub administrator obszaru roboczego).",
+      "error": "Nie udało się odczytać raportu kosztów.",
+      "empty_source": "Brak jeszcze danych o kosztach dla {source}",
+      "pie_label": "Udział w kosztach miesiąca (USD)",
+      "no_pie": "Brak jeszcze danych o kosztach w tym miesiącu, więc nie ma wykresu kołowego.",
+      "col_part": "Pozycja",
+      "col_pct": "% miesiąca",
+      "col_list": "Cena katalogowa",
+      "hand": "wprowadzono ręcznie",
+      "estimate": "szacunek",
+      "outside_gcp": "Maszyny poza GCP",
+      "not_tracked": "nieśledzone",
+      "no_rows": "Brak pozycji kosztów w tym miesiącu.",
+      "total": "Razem",
+      "other": "Inne ({n} pozycji)",
+      "coverage_title": "Pełne dni według źródła",
+      "coverage_row": "{n} z {total} pełnych dni",
+      "coverage_partial": "{n} częściowych",
+      "coverage_missing": "{n} brakujących",
+      "coverage_unrecorded": "{n} niezapisanych",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Tokeny floty",
+        "agent_hours": "Godziny agentów",
+        "hand": "Faktury"
+      }
     }
   }
 }

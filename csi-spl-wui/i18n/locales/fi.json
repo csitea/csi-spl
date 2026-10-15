@@ -2940,7 +2940,8 @@
     "tab": {
       "agents": "Agentit",
       "boxes": "Boxes",
-      "tokens": "Tokenit"
+      "tokens": "Tokenit",
+      "costs": "Kulut"
     },
     "alloc": {
       "title": "Allokointi",
@@ -2957,6 +2958,40 @@
       "place": "Paikka konejärjestyksessä",
       "place_val": "{n} / {total}",
       "place_none": "Ei konejärjestyksessä"
+    },
+    "costs": {
+      "month": "Kuukausi",
+      "month_so_far": "{month} (tähän asti)",
+      "so_far": "Tähän asti: {n}/{total} päivää",
+      "scope_estate": "Koko infrastruktuuri",
+      "scope_workspace": "Tämä työtila",
+      "loading": "Ladataan…",
+      "forbidden": "Kulujen näkeminen vaatii oikeuden {perm} (työtilan omistaja tai ylläpitäjä).",
+      "error": "Kuluraporttia ei voitu lukea.",
+      "empty_source": "Lähteelle {source} ei ole vielä kulutietoja",
+      "pie_label": "Osuus kuukauden kuluista (USD)",
+      "no_pie": "Tälle kuukaudelle ei ole vielä kulutietoja, joten piirakkakaaviota ei ole.",
+      "col_part": "Osa",
+      "col_pct": "% kuukaudesta",
+      "col_list": "Listahinta",
+      "hand": "syötetty käsin",
+      "estimate": "arvio",
+      "outside_gcp": "GCP:n ulkopuoliset koneet",
+      "not_tracked": "ei seurata",
+      "no_rows": "Tällä kuukaudella ei ole kulurivejä.",
+      "total": "Yhteensä",
+      "other": "Muut ({n} osaa)",
+      "coverage_title": "Valmiit päivät lähteittäin",
+      "coverage_row": "{n}/{total} päivää valmiina",
+      "coverage_partial": "{n} osittain",
+      "coverage_missing": "{n} puuttuu",
+      "coverage_unrecorded": "{n} kirjaamatta",
+      "source": {
+        "gcp": "GCP",
+        "fleet_tokens": "Laivueen tokenit",
+        "agent_hours": "Agenttien tunnit",
+        "hand": "Laskut"
+      }
     }
   }
 }

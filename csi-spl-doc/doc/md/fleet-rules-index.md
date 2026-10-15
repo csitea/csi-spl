@@ -1,5 +1,7 @@
 # Fleet rules: where each rule lives (index)
 
+> Generated from qto doc `9d7d5428-f4b3-45bb-9217-de2d10bcef8b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner, t1 5c3bb16a (2026-10-08): "is that manageable", "does it need somekind
 of optimization / rationalization", then "go". This page lists every source of
 fleet rules, what it governs, and the ONE home of each rule that used to be

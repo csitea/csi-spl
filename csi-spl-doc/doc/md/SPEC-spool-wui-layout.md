@@ -1,5 +1,7 @@
 # SPEC: Spool WUI 3-Pane Vertical Layout, Top Omnibox & Reverse Prepend Architecture
 
+> Generated from qto doc `1dd1ea07-172a-46ab-8cab-1d4f0928a234`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **Binding Specification — Milestone 3 (M3)**  
 Related: `SPEC-spool-wui.md`, `SPEC-spool-avatars.md`, `SPEC-spool-chat-reverse.md`, `csi-spl-doc/specs/005-spool-wui/`  
 Code Home: `csi-spl-wui/`

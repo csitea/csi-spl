@@ -1,5 +1,7 @@
 # SPEC: Spool milestones
 
+> Generated from qto doc `91135de7-b088-4b0d-8146-606b8fe1e33e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding product cut  
 Related: `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-wui.md`
 

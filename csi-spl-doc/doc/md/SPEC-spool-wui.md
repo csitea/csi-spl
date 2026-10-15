@@ -1,5 +1,7 @@
 # SPEC: Spool WUI (Slack-like) — Milestone 3 rollout
 
+> Generated from qto doc `b934b03c-f5c3-47bf-b0cc-a1e39fce6cf7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **M3 rollout**. Not in M1 proto or M2 public MVP.
 Git-spec: `csi-spl-doc/specs/005-spool-wui/`
 Code home: `csi-spl-wui`

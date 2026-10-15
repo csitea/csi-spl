@@ -1,5 +1,7 @@
 # SPEC: Spool message bus (end vision)
 
+> Generated from qto doc `acbffe45-dad7-4572-8abe-b8a57425b488`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: design freeze for implementation planning  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/003-spool-message-bus/`  

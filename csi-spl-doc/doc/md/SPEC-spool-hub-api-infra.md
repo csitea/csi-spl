@@ -1,5 +1,7 @@
 # SPEC: spool-hub-api infra — copy csi-rel + sibling-prj (not the shop)
 
+> Generated from qto doc `2704ae7e-d204-49be-b069-885f5b8d755d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding for Milestone 1 hub hosting and Milestone 2 public DNS  
 Git-spec: `csi-spl-doc/specs/007-spool-hub-api-infra/`  
 Code: `csi-spl-api` (Go hub), `csi-spl-iac` (terraform + `./run`), `csi-spl-orc` (lde / docker / deploy), `csi-spl-cnf`, `csi-spl-rdb` (Postgres **spool** schema only)

@@ -1,5 +1,7 @@
 # Workspace rules: one section per workspace
 
+> Generated from qto doc `28f00408-013e-4fa1-8c13-772377568a61`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 A rule the owner set for ONE workspace lives here, in that workspace's
 section, named only by its workspace id. A dispatcher writing a brief for a
 lane that works for a workspace copies that workspace's section into the

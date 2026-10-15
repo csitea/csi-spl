@@ -27,7 +27,6 @@ LONG="
   csi-spl-iac/src/bash/run/run.sh execute_step 99
 
   csi-spl-iac/src/bash/run/tf-init.func.sh do_tf_init 95
-  csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh do_spl_cloud_cnf 96
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh spawn_main 185
   csi-spl-orc/src/bash/run/run.sh do_log 143
   csi-spl-orc/src/bash/run/run.sh execute_step 99

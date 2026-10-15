@@ -74,21 +74,28 @@ spl_cnf_private_resolve() {
     do_log "WARN no private overlay ($(spl_private_cnf_path)): the hidden workspaces of $ENV stay placeholders in SPL_CNF" >&2
 }
 
-do_spl_cloud_cnf() {
-  spl_require_cloud_env || return 1
+# The steps of do_spl_cloud_cnf below set its locals cnf_dir and iac_lib
+# (bash dynamic scope) and the SPL_* globals; each logs FATAL and returns 1.
+
+# spl_cloud_cnf_locate: SPL_ORG_APP from $PROJ_PATH, the cnf dir and the iac
+# lib dir, and the iac helpers the merge needs.
+spl_cloud_cnf_locate() {
   local proj_base
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
   [[ "$proj_base" =~ ^([a-z]+)-([a-z]+)-orc$ ]] || {
     do_log "FATAL cannot read <org>-<app> from $PROJ_PATH (expected <org>-<app>-orc)"; return 1; }
   SPL_ORG_APP="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
-  local cnf_dir="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP"
-  local iac_lib="$APP_PATH/$SPL_ORG_APP-iac/lib/bash/funcs"
+  cnf_dir="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP"
+  iac_lib="$APP_PATH/$SPL_ORG_APP-iac/lib/bash/funcs"
   [[ -f "$iac_lib/spl-merged-cnf.func.sh" ]] || { do_log "FATAL missing $iac_lib/spl-merged-cnf.func.sh"; return 1; }
   # shellcheck disable=SC1091
   source "$iac_lib/spl-merged-cnf.func.sh"
   # shellcheck disable=SC1091
   source "$iac_lib/gcp-require-live-account.func.sh"
+}
 
+# spl_cloud_cnf_write: SPL_STATE_DIR and SPL_CNF, the merged cnf of $ENV.
+spl_cloud_cnf_write() {
   SPL_STATE_DIR="${SPL_STATE_DIR:-$HOME/.local/share/$SPL_ORG_APP/cloud/$ENV}"
   mkdir -p "$SPL_STATE_DIR" && chmod 700 "$SPL_STATE_DIR" || return 1
   # The merge is CACHED, content-addressed (2026-09-25): the cache file's name
@@ -117,7 +124,10 @@ do_spl_cloud_cnf() {
   SPL_CNF="$SPL_STATE_DIR/$ENV.env.yaml"
   tmp="$SPL_CNF.tmp.$$"
   spl_cnf_copy_cache "$cache" "$tmp" && spl_cnf_private_resolve "$iac_lib" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
+}
 
+# spl_cloud_cnf_read: the SPL_* values out of $SPL_CNF.
+spl_cloud_cnf_read() {
   # Every value in ONE yq call: a yq process per value was ~50 ms each.
   local -a vals=()
   mapfile -t vals < <(yq -r '[.env.gcp.gcp_project, .env.gcp.gcp_region, .env.dns.fqdn, .env.hub.image.ref,
@@ -130,20 +140,7 @@ do_spl_cloud_cnf() {
   SPL_REGION="${vals[1]}"
   SPL_FQDN="${vals[2]}"
   SPL_IMAGE_REF="${vals[3]}"
-  # cnf hub.image.tag is the FLOOR (= .version); the tag a deploy ships is the
-  # release version CI mints for its commit (do_release_version), handed in as
-  # SPL_HUB_IMAGE_TAG. SPL_IMAGE_CNF_REF keeps the cnf reference for readers
-  # that compare against the floor (do_check_hub_deploy, the regress check).
-  # Past 9.9.9 the tag is the release KEY, e.g. 1.0.1-c2 (spl-release-version
-  # CYCLES): the registry's tags are immutable and cycle 1's :1.0.1 exists.
-  SPL_IMAGE_CNF_REF="$SPL_IMAGE_REF"
-  if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then
-    # shellcheck source=spl-release-version.func.sh
-    declare -f spl_release_key_valid >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-release-version.func.sh"
-    spl_release_key_valid "$SPL_HUB_IMAGE_TAG" ||
-      { do_log "FATAL SPL_HUB_IMAGE_TAG must be a release key (d.d.d, or d.d.d-c<N> past 9.9.9), got: '$SPL_HUB_IMAGE_TAG'"; return 1; }
-    SPL_IMAGE_REF="${SPL_IMAGE_REF%:*}:$SPL_HUB_IMAGE_TAG"
-  fi
+  spl_cloud_cnf_image_tag || return 1
   SPL_IMAGE_SQL_SRC="$APP_PATH/${vals[4]}"
   SPL_MIGRATIONS_DIR="${vals[5]}"
   SPL_SQL_INSTANCE="${vals[6]}"
@@ -157,7 +154,29 @@ do_spl_cloud_cnf() {
   SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$SPL_SQL_INSTANCE"
   SPL_REGISTRY_HOST="${SPL_IMAGE_REF%%/*}"
   SPL_DB_ROLES_SQL="$APP_PATH/$SPL_ORG_APP-rdb/src/sql/postgres/spool-hub-roles"
+}
 
+# spl_cloud_cnf_image_tag: SPL_IMAGE_CNF_REF, and SPL_IMAGE_REF at the
+# release tag. cnf hub.image.tag is the FLOOR (= .version); the tag a deploy
+# ships is the release version CI mints for its commit (do_release_version),
+# handed in as SPL_HUB_IMAGE_TAG. SPL_IMAGE_CNF_REF keeps the cnf reference for
+# readers that compare against the floor (do_check_hub_deploy, the regress
+# check). Past 9.9.9 the tag is the release KEY, e.g. 1.0.1-c2
+# (spl-release-version CYCLES): the registry's tags are immutable and cycle
+# 1's :1.0.1 exists.
+spl_cloud_cnf_image_tag() {
+  SPL_IMAGE_CNF_REF="$SPL_IMAGE_REF"
+  [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]] || return 0
+  # shellcheck source=spl-release-version.func.sh
+  declare -f spl_release_key_valid >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-release-version.func.sh"
+  spl_release_key_valid "$SPL_HUB_IMAGE_TAG" ||
+    { do_log "FATAL SPL_HUB_IMAGE_TAG must be a release key (d.d.d, or d.d.d-c<N> past 9.9.9), got: '$SPL_HUB_IMAGE_TAG'"; return 1; }
+  SPL_IMAGE_REF="${SPL_IMAGE_REF%:*}:$SPL_HUB_IMAGE_TAG"
+}
+
+# spl_cloud_cnf_check: every value set, the two db logins apart, and the
+# project named by the convention.
+spl_cloud_cnf_check() {
   local v
   for v in SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME \
            SPL_DB_USER SPL_DSN_SECRET SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_SQL_PROXY_IMAGE; do
@@ -166,6 +185,12 @@ do_spl_cloud_cnf() {
   [[ "$SPL_DB_USER" != "$SPL_DB_OWNER_USER" && "$SPL_DSN_SECRET" != "$SPL_OWNER_DSN_SECRET" ]] ||
     { do_log "FATAL cnf hub.db_user / db_owner_user (and their secrets) must differ (017 T029)"; return 1; }
   [[ "$SPL_PROJECT" == "$SPL_ORG_APP-$ENV" ]] || { do_log "FATAL cnf gcp_project=$SPL_PROJECT, the convention says $SPL_ORG_APP-$ENV; refusing"; return 1; }
+}
+
+do_spl_cloud_cnf() {
+  spl_require_cloud_env || return 1
+  local cnf_dir iac_lib
+  spl_cloud_cnf_locate && spl_cloud_cnf_write && spl_cloud_cnf_read && spl_cloud_cnf_check || return 1
   export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_IMAGE_CNF_REF SPL_IMAGE_SQL_SRC \
     SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME SPL_DB_USER SPL_DSN_SECRET SPL_SQL_CONN SPL_REGISTRY_HOST \
     SPL_SQL_PROXY_IMAGE SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_DB_ROLES_SQL

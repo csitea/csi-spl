@@ -15,7 +15,9 @@
 #      config (CLOUDSDK_CONFIG unset, or the default dir) and asks gcloud nothing.
 #   3. Static: in every src/bash/run/gcp-*.func.sh that runs `gcloud auth
 #      activate-service-account` / `gcloud auth login`, each such statement is
-#      followed by a re-pin, and the function isolates its config.
+#      followed by a re-pin, and the function isolates its config; every
+#      run/ and lib/ file that names spl_gcp_temp_sdk_config calls it as
+#      `|| return 1` with its RETURN trap (CONTROL: one with the call deleted fails).
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -110,6 +112,36 @@ done
 # 16 files since CLE-77915 folded 11 actions onto the 2 helpers (was 25).
 [[ $n_files -ge 12 ]] && pass "static: $n_sites activation/login statement(s) in $n_files action(s), each re-pinned in an isolated config" \
   || fail "static: saw only $n_files action(s) -- the scan is blind"
+
+# Every run/ and lib/ file that names the helper (refactor round 11 row 02: 12
+# of 23 callers were outside the scan above) calls it as `|| return 1` and keeps
+# the caller RETURN trap that restores CLOUDSDK_CONFIG. The helper itself is not
+# a caller. scan_callers <dir>... -> a BROKEN line per bad caller, then the count.
+scan_callers() {
+  local f calls traps n=0
+  while IFS= read -r f; do
+    [[ "$(basename "$f")" == gcp-temp-sdk-config.func.sh ]] && continue
+    n=$((n + 1))
+    calls=$(grep -cE '^\s*spl_gcp_temp_sdk_config \|\| return 1$' "$f")
+    traps=$(grep -cE "^\s*trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN$" "$f")
+    (( calls >= 1 )) || echo "BROKEN $(basename "$f"): names spl_gcp_temp_sdk_config, never calls it as '|| return 1'"
+    [[ "$traps" -eq "$calls" ]] || echo "BROKEN $(basename "$f"): $calls call(s), $traps RETURN trap(s) spl_gcp_temp_sdk_config_restore"
+  done < <(grep -rlE 'spl_gcp_temp_sdk_config\b' --include='*.sh' "$@")
+  echo "$n"
+}
+out=$(scan_callers "$RUN" "$PROJ_ROOT/lib/bash/funcs")
+n_callers=$(tail -1 <<<"$out"); broken=$(grep '^BROKEN' <<<"$out")
+# 26 callers after round 11 row 01; fewer means the scan went blind.
+if [[ -n "$broken" ]]; then fail "static: helper callers: $broken"
+elif (( n_callers < 26 )); then fail "static: saw only $n_callers helper caller(s) -- the scan is blind"
+else pass "static: $n_callers helper caller(s) of spl_gcp_temp_sdk_config, each '|| return 1' with its RETURN trap"; fi
+
+# CONTROL: a copy of one caller with the call deleted is caught.
+mkdir -p "$T/blind"; cp "$RUN/spl-gh-app-key-put.func.sh" "$T/blind/"
+sed -i '/^\s*spl_gcp_temp_sdk_config || return 1$/d' "$T/blind/spl-gh-app-key-put.func.sh"
+grep -q '^BROKEN spl-gh-app-key-put' <<<"$(scan_callers "$T/blind")" \
+  && pass "CONTROL: a caller with the spl_gcp_temp_sdk_config call deleted is caught" \
+  || fail "CONTROL: a caller with the call deleted passed the scan"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

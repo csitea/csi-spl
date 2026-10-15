@@ -283,4 +283,4 @@ coding 3 (05, 07, P3). R7 cross-vendor review is unchanged.
 
 ## 5. Signature
 
-`pending v1.0`
+`signed: c-243@sat on 1a1e01c8433af5a974f6ffd0c698e22bd8ce2401` (plan v1.0; rows unchanged from v0.4 `5356c84d5`, checked with `git diff 5356c84d5 1a1e01c84 -- csi-spl-doc/doc/md/refactor-round-13-plan.md`)

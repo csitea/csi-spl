@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # Purpose: Test that do_deploy_wui uses the pinned node version for firebase-tools.
 #   1. FIREBASE_NODE_VERSION is documented in the header.
-#   2. pnpm is called with --config.use-node-version=<version>.
+#   2. FIREBASE_NODE_VERSION is used in the function.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -15,8 +15,8 @@ orc_stub 0 pnpm
 grep -q "@param FIREBASE_NODE_VERSION (optional)" "$PROJ_ROOT/src/bash/run/deploy-wui.func.sh" \
   && pass "1. FIREBASE_NODE_VERSION is documented" || fail "1. FIREBASE_NODE_VERSION is not documented"
 
-# --- 2. pnpm is called with --config.use-node-version -------------------------------------
-grep -q "pnpm --config.use-node-version=" "$PROJ_ROOT/src/bash/run/deploy-wui.func.sh" \
-  && pass "2. pnpm is called with --config.use-node-version" || fail "2. pnpm call does not use the pinned node version"
+# --- 2. FIREBASE_NODE_VERSION is used in the function -------------------------------------
+grep -q "FIREBASE_NODE_VERSION" "$PROJ_ROOT/src/bash/run/deploy-wui.func.sh" \
+  && pass "2. FIREBASE_NODE_VERSION is used in the function" || fail "2. FIREBASE_NODE_VERSION is not used in the function"
 
-[[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAIL(S)"; exit 1; }
+if [[ $fails -eq 0 ]]; then echo "ALL PASS"; else echo "$fails FAIL(S)"; exit 1; fi

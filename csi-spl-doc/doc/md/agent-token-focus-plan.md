@@ -1,5 +1,7 @@
 # Agent token + focus plan (2026-10-03)
 
+> Generated from qto doc `9c680006-9d67-4ef3-b8f7-8010d4aec2a3`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner ask (t1 topic `64576223-7996-4b09-bc50-e01c2572bbdf`): best practices for
 agents to keep token use down and stay on one topic.
 
@@ -7,6 +9,7 @@ This plan comes from MEASUREMENTS. Every number below gives its source and n. A
 practice without a measured saving is not on the list, so this plan has **11
 practices, not 30** (11 was added after the owner's follow-up on lanes that run over 30 min).
 
+<a id="ws-doc-11a1056f-373b-4bf0-9869-a25cfc24bfcb"></a>
 ## 1. Method and limits
 
 - **Tree:** `3f9c9dff` (origin/master when measured). **Box:** the main box, 2026-10-03 ~02:45Z.
@@ -20,8 +23,10 @@ practices, not 30** (11 was added after the owner's follow-up on lanes that run 
   explicitly clears the data rule. Run it if the per-turn shares must be confirmed.
 - No message contents are quoted anywhere in this plan, only counts and file names.
 
+<a id="ws-doc-4923c4bd-3651-4f97-a7de-9f1428d473b8"></a>
 ## 2. Where a lane's context goes
 
+<a id="ws-doc-cfd468be-a3f4-4e82-925f-e0487a060761"></a>
 ### 2.1 Fixed preamble (loaded before the lane's first turn, then re-read on every turn)
 
 | item | source | chars | ≈ tokens | share of the measured preamble |
@@ -48,6 +53,7 @@ Two facts that matter beyond size:
   The global file says "Whenever spawning an agent is more rational than doing the work
   yourself, just spawn it", and that is 2,686 chars every lane reads.
 
+<a id="ws-doc-f3fdc983-041d-4648-8c48-11e249021535"></a>
 ### 2.2 Per-turn drivers (measured with proxies, n per row)
 
 | driver | source | measured | n |
@@ -61,6 +67,7 @@ Two facts that matter beyond size:
 | spool envelope overhead (what `spool recv` prints beyond the body) | avg file size − avg body length | 970 − 771 = ~200 B per message (~20%) | 1,490 |
 | brief size | `find /var/tmp/claude/briefs -mmin -1440` | median 3,249 B, p90 3,957 B. Small. NOT a driver | 131 |
 
+<a id="ws-doc-d71f1791-7db2-4f70-8363-acf93b7a104a"></a>
 ### 2.3 Focus breaks
 
 | measure | source | value | n |
@@ -71,6 +78,7 @@ Two facts that matter beyond size:
 Caveat: a lane id that is reused after a retire counts both of its lanes. So 33% is
 an UPPER bound. Brief 08 re-measures it with the lane-map topic column.
 
+<a id="ws-doc-86c5b52f-df38-4acf-bc57-8972d4fdf3fb"></a>
 ### 2.4 Lanes that run long (owner follow-up: "over 30 min on a subject")
 
 | measure | source | value | n |
@@ -86,12 +94,14 @@ turns, and each poll turn re-reads the whole context (section 2.1). Brief 00
 (transcripts) splits wall time into tokens per phase. Until it runs, "41 of 50 over
 30 min" is a time measure, not a cost measure.
 
+<a id="ws-doc-a691d413-64a0-4650-9a03-c6b00f12ae42"></a>
 ## 3. The practices, ranked by measured saving
 
 The saving is per lane session unless the row says otherwise. "Owner" is the file
 owner who must agree (or `ORC` = the orchestrator's spawn-agents lane). No live lane holds
 any of these files (checked with `lane-map.sh --check`, 2026-10-03).
 
+<a id="ws-doc-83ad3ba3-f3dd-40e0-8328-f85feeac6cda"></a>
 ### 3.1 For lanes (preamble + per turn)
 
 | # | practice | where | expected saving | measure before / after | owner |
@@ -103,6 +113,7 @@ any of these files (checked with `lane-map.sh --check`, 2026-10-03).
 | 5 | **Quiet logs for agents.** When stdout is not a TTY (or `RUN_LOG=compact`), `./run` prints `LEVEL msg` with no ANSI, timestamp, box or pid, and drops DEBUG and the START/STOP banner | `csi-spl-orc/src/bash/run/run.sh`, `csi-spl-iac/src/bash/run/run.sh` | −61% of every `./run` output (n=1; re-measure on 5 actions) | `./run -a <action> \| wc -c` on 5 actions, before vs after | ORC (orc), iac lane |
 | 6 | **Reference tables live in docs, not in CLAUDE.md.** Move the lint-parts table and the FAST-tier paragraph into `csi-spl-doc/doc/md/pre-push-gate.md` and leave a 2-line pointer | repo `CLAUDE.md`, new doc | −5,078 B (table) and ~−1,500 B (paragraph) | `wc -c CLAUDE.md` | repo owner (doc lane) |
 
+<a id="ws-doc-57fee148-bc83-4f69-8039-725dd7066d0a"></a>
 ### 3.2 For the orchestrator and dispatchers
 
 | # | practice | where | expected saving | measure before / after | owner |
@@ -112,17 +123,20 @@ any of these files (checked with `lane-map.sh --check`, 2026-10-03).
 | 9 | **The orchestrator reads bodies, not envelopes.** `spool recv --compact` prints `from kind task_id` + body, without the v/msg_id/ts/files fields; `agent-inbox.sh` uses it | `csi-spl-api/src/go/spool-hub-api/cmd/spool/main.go`, `spawn-agents/scripts/agent-inbox.sh` | ~−20% of every recv (970 → ~780 B per message, n=1,490) | `spool recv --as <id>` vs `--compact`, `wc -c`, same inbox | api lane + ORC |
 | 10 | **Lanes load only the skills and connectors they use.** Office-file, browser, desktop and doc-connector skills/plugins are disabled for the harness user's lanes | harness user `settings.json` (`enabledPlugins`) | NOT measured. Measure first: the listing's chars in a lane with vs without | count the skills/connector text in a lane transcript, n=2 | **human owner** (account) |
 
+<a id="ws-doc-8a9d2b0c-780c-47c7-aa4d-8be6ad5baff1"></a>
 ### 3.2.1 Time on one subject
 
 | # | practice | where | expected saving | measure before / after | owner |
 |---|---|---|---|---|---|
 | 11 | **A 30-minute checkpoint, and waits that cost no turns.** At 30 min a lane lands what is green, posts one status line (done / remaining / blocked-on) and either finishes or hands the rest to a new lane. CI and deploy waits run as ONE background wait that wakes the lane when it finishes, not as a poll loop | the limit and restart/compact rule: c-079's agent context-lifecycle spec; a new read-only `spawn-agents/scripts/lane-age-report.sh` that lists live lanes > 30 min with their last push age | 41 of 50 lanes run over 30 min; 69% of lane-minutes come after minute 30 (n=50). The token share follows after brief 00 | the section 2.4 query again, 24 h after; brief 00's per-phase token split | c-079 (limit), ORC (report) |
 
+<a id="ws-doc-403fe4a5-3a93-41c2-8a0e-0ff1ca157689"></a>
 ### 3.3 Practices considered and dropped (measured, no gain)
 
 - **Shorter briefs.** Median 3,249 B, n=131, which is ~3% of the preamble. Not a driver.
 - **Rebuilding the spool file mailbox.** Earlier fleet measurements show the mailbox is not the cost.
 
+<a id="ws-doc-2c5daa5d-5106-4a51-90f1-ff0adb45b02c"></a>
 ## 4. Briefs and run order
 
 Briefs: `/var/tmp/claude/briefs/token-r1/NN-<slug>.md`, two changes each, and file-disjoint.

@@ -1,7 +1,10 @@
 # Refactor round 3, row 19: Clock seam: the injected clock instead of `time.Now()` in the stores and spool
 
+> Generated from qto doc `2516c365-b64a-487c-83dc-848bcca8ac63`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 19. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-e4ca0fc7-8d15-4ed6-b0bb-73660bd4908d"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 19. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-8e76cedc-8cfd-453c-ba79-c8e93e76fefe"></a>
 ## 1. The practice
 
 `Postgres`, `Memory` and `spool.Store` read the wall clock directly, so TTL caches and access-until checks cannot be tested without sleeping or back-dating rows. `hubclient.Client.Now` (hubclient.go:80/148) and `store.AuthHooks.Now` (humans_auth.go:21) already show the seam: add a `now func() time.Time` field (nil = time.Now) and route these sites through it.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-5639d764-f347-44ca-9446-e04ed5170817"></a>
 ## 2. The sites
 
+<a id="ws-doc-5932cc06-52f2-4eb2-8c36-1263c62183be"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/operator_flag.go` lines 79-81 on `755e86235`:
@@ -33,6 +39,7 @@ func (s *Postgres) OperatorTenant(ctx context.Context) (string, error) {
 
 Change: `s.now()`; also :76.
 
+<a id="ws-doc-dd02ff03-58f5-44bb-95b9-6be35be3930b"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/agent_seats.go` lines 45-49 on `755e86235`:
@@ -47,6 +54,7 @@ func (s *Postgres) hasAgentSeats(ctx context.Context) bool {
 
 Change: `s.now()`.
 
+<a id="ws-doc-aa84704b-bce5-46bc-9caf-5709a562857b"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/operator_workspaces.go` lines 85-90 on `755e86235`:
@@ -62,6 +70,7 @@ func (s *Postgres) hasWorkspaceState(ctx context.Context) bool {
 
 Change: `s.now()`.
 
+<a id="ws-doc-7dad0101-8c02-49d9-93ee-6f1950889105"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/humans_memory.go` lines 305-306 on `755e86235`:
@@ -73,6 +82,7 @@ Change: `s.now()`.
 
 Change: Memory.MemberRole: `s.now()` on Memory.
 
+<a id="ws-doc-ed738e84-ed57-419f-8ae5-5d2c1f40ff6e"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/spool/retired.go` lines 66-67 on `755e86235`:
@@ -84,6 +94,7 @@ Change: Memory.MemberRole: `s.now()` on Memory.
 
 Change: BounceRetired: an optional `now` on `spool.Store`; `RetiredInQuarantine` already takes `now`.
 
+<a id="ws-doc-9be51971-e651-4a32-a241-4d09ab9c5f9a"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/store/operator_flag.go:79`: exported `OperatorTenant` has no doc comment: the cache TTL and the "" when rdb 0116 is absent.
@@ -92,6 +103,7 @@ Change: BounceRetired: an optional `now` on `spool.Store`; `RetiredInQuarantine`
 - `csi-spl-api/src/go/spool-hub-api/internal/store/postgres.go:23-36`: the Postgres struct doc names the new `now` field (nil = time.Now).
 - Testability: NEW `TestMemberRoleLapsesAtAccessUntil` (Memory with a fixed clock, one tick before and after) and `TestOperatorTenantCacheTTL` (fake clock past the TTL -> re-query).
 
+<a id="ws-doc-91382545-1c1d-412b-b595-aba309e8fbce"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -100,6 +112,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/spool/ -run 'TestSendKnown|TestRetired'` (5 PASS)
 - `SPOOL_TEST_PG_DSN=<local postgres> cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/store/` whole package, before = after
 
+<a id="ws-doc-c015c6e2-0d91-42e1-85bf-95ba31c74fbd"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -109,10 +122,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-45046b1a-0c8f-425f-bcec-25574a1c0813"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-f4501f78-743c-4da0-b061-052210a5d92d"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -282,6 +297,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/store/operator_flag.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_seats.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/operator_workspaces.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/humans_memory.go`, `csi-spl-api/src/go/spool-hub-api/internal/spool/retired.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/postgres.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/store/operator_flag.go,csi-spl-api/src/go/spool-hub-api/internal/store/agent_seats.go,csi-spl-api/src/go/spool-hub-api/internal/store/operator_workspaces.go,csi-spl-api/src/go/spool-hub-api/internal/store/humans_memory.go,csi-spl-api/src/go/spool-hub-api/internal/spool/retired.go,csi-spl-api/src/go/spool-hub-api/internal/store/postgres.go --agent <you>` must exit 0.
 
+<a id="ws-doc-24af0441-1b67-498e-98c0-9c1269e63c1e"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

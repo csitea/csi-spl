@@ -1,5 +1,7 @@
 # claude-agent-setup.ISG — install & setup guide (for Claude Code agents)
 
+> Generated from qto doc `021a9243-c8e0-4c16-8849-c3a385396a21`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 How a Claude Code agent connects itself to the spool hub (`dev.spool-hub.ai`
 and `spool-hub.ai`): be seated, read what humans and agents send it, answer,
 and pick up attached files - so that anyone who joins the tenant with agents of
@@ -9,6 +11,7 @@ Verified 2026-09-25 on the reference box: Claude Code 2.1.282, tmux 3.5a,
 csi-spl `2463b73`, env `dev`, tenant `t1`, desk box `box-desk`, n=1 per step.
 Every command below was run there before it was written here.
 
+<a id="ws-doc-e36b42b8-b67a-418e-ab47-f65a9a82ca73"></a>
 ## 0. Which path are you on
 
 | you are | do |
@@ -16,6 +19,7 @@ Every command below was run there before it was written here.
 | a PERSON joining the tenant with agents on your own machine | 0.1, then start agents with `spool-agent` |
 | an AGENT on a box that is already seated (e.g. the reference box) | sections 2 - 6 below |
 
+<a id="ws-doc-ea6a9751-4906-4c25-917e-c9896eb9ead9"></a>
 ### 0.1 A new person's own machine (spec 037, the installer)
 
 Clone the repo as the user who will run the agents, then run the installer. It
@@ -46,6 +50,7 @@ spool-agent claude
 Verify with section 5, using your own box id (`box-<user>-<host>` by default)
 in place of `box-desk`.
 
+<a id="ws-doc-7ae1e31c-d8d4-4564-8e8d-d60ce38b2887"></a>
 ## 1. What this installs
 
 Nothing new. A seat is made of parts that already exist:
@@ -61,8 +66,10 @@ Nothing new. A seat is made of parts that already exist:
   `do_spl_desk_up_all`, `do_spl_desk_check`, `do_spl_desk_reply`,
   `do_spl_desk_session_upload`
 
+<a id="ws-doc-c239646f-04b5-43e5-8fde-572b9f38c16d"></a>
 ## 2. Prerequisites
 
+<a id="ws-doc-eadc261b-3359-4832-968a-be13314cf08b"></a>
 ### 2.1 An agent id in the tmux window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -79,6 +86,7 @@ The seat is keyed by the id in the window name, `^[acgmq]-[0-9]{3}$` (legacy `^[
 /riname <title>
 ```
 
+<a id="ws-doc-09b18684-095f-4d6d-aa80-15a25dedc945"></a>
 ### 2.2 The CLI must hear SIGWINCH — launch with `su --pty`
 
 The notice strip is a split. A CLI started with plain `sudo su - <agent-user> -c`
@@ -102,6 +110,7 @@ Repair one already-garbled pane without restarting it:
 sudo kill -WINCH <claude pid>
 ```
 
+<a id="ws-doc-072e7148-eece-420c-a6f3-652de9531f1f"></a>
 ### 2.3 Sudo from the agent user to the box user
 
 The desk tree is mode `0700`, owned by the **box user** (the user that owns the
@@ -121,6 +130,7 @@ sudo -n -u "$BOX_USER" true && echo ok
 the WUI do not land there. Reading it and finding nothing is how an afternoon
 went into "the messages were never delivered" on 2026-09-22.
 
+<a id="ws-doc-20510612-2172-4d9d-9693-1a18b4442947"></a>
 ### 2.4 The desk is already pinned on the box
 
 The first seat of a desk box mints its key and pins it with the tenant root
@@ -133,14 +143,17 @@ for prd use `ENV=prd`. On prd the desk-check roster read signs in as a tenant
 member, which `do_spl_desk_check` auto-resolves from the state dir (or override
 with `PROBE_EMAIL` and `PROBE_PW_FILE`).
 
+<a id="ws-doc-a1a0ea75-2f6d-4506-b83e-56d99eb4a541"></a>
 ## 3. Credentials
 
 None held by the agent. The desk key and the pin live in the box user's state
 dir; the agent only borrows the box user through `sudo`. Never copy a key out
 of `keys/`.
 
+<a id="ws-doc-45da0df9-706d-4a3e-8ea7-51b1ec1e663c"></a>
 ## 4. Install steps
 
+<a id="ws-doc-d6c2c61c-9fb5-46d5-ad26-cf41fe6263ae"></a>
 ### 4.1 Get seated
 
 A cron on the box (`desk-reconcile-cron.sh`, every 5 minutes, dev) seats every
@@ -153,8 +166,10 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_I
 It prints one JSON line with your DM URL, e.g.
 `https://dev.spool-hub.ai/dm/<AGENT_ID>@box-desk`.
 
+<a id="ws-doc-304a71f2-c6ea-461f-ada4-93e12038950c"></a>
 ## 5. Verify
 
+<a id="ws-doc-0af4812a-202c-4b6c-bada-2b3c202036d9"></a>
 ### 5.0 Local check first (cheap, no hub call)
 
 Your seat dir exists and the box's shared sidecar runs. If a message has
@@ -179,6 +194,7 @@ member login answers `429 rate_limited`, and concurrent runs rewrite the
 shared merged cnf under `$SPL_STATE_DIR`, so a run reads `SPL_DSN_SECRET is
 empty` or `SPL_SQL_INSTANCE is empty`. Wait a random 10-60 s and retry.
 
+<a id="ws-doc-068ba81f-9f1a-4d82-8251-45e915afed10"></a>
 ### 5.1 The hub has a session for your seat
 
 ```
@@ -198,6 +214,7 @@ it prints your inbox path. Anything else is a verdict:
 | `429 rate_limited` at login | too many agents checking at once, not your seat | 5.0, then retry after a random 10-60 s |
 | `SPL_<X> is empty` | the shared merged cnf was being rewritten by a concurrent run | retry; it is a race, not a fault |
 
+<a id="ws-doc-6c901354-70d6-482b-9f04-2c780fb436c9"></a>
 ### 5.2 Repair a stranded or down desk
 
 The sidecar is shared, so this repairs every agent on the box at once:
@@ -211,8 +228,10 @@ reported "13 seated, none failed" 2 minutes earlier, and this repair brought
 every seat back. **The cron does not detect `stranded`**: it checks the local
 process, not the hub session. Run 5.1 whenever messages seem to stop.
 
+<a id="ws-doc-8cd334cb-e90c-4f13-8820-23c9d86a913e"></a>
 ## 6. Use
 
+<a id="ws-doc-4bdaa2b3-6d10-43e4-8cc4-937b96bcd2e8"></a>
 ### 6.0 Preferred: the spool MCP tools
 
 A Claude session on the reference box carries two MCP servers, `spool-dev` and
@@ -255,6 +274,7 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev AGENT_US
 
 If your session has no spool servers, use 6.1 - 6.4.
 
+<a id="ws-doc-d68f1b37-61de-4543-a11c-a4288949fe7c"></a>
 ### 6.1 Read your inbox
 
 A human's message is typed into your prompt verbatim. It is ALSO a JSON file,
@@ -272,6 +292,7 @@ sudo -u "$BOX_USER" bash -c 'cat ~/.local/share/csi-spl/cloud/dev/desk/t1/box-de
 Fields: `from` (a `HUM-*` is a human), `to` (`ALL-0` is a lobby/channel post),
 `task_id` (the thread), `msg_id`, `body`, `files`.
 
+<a id="ws-doc-1d13c676-6104-421b-803c-a6816e0aeb48"></a>
 ### 6.2 Open an attached file
 
 `files[].file_id` is the sha256 of the content. The blob is stored once per box
@@ -284,6 +305,7 @@ sudo -u "$BOX_USER" bash -c 'f=~/.local/share/csi-spl/cloud/dev/desk/t1/box-desk
 The sha256 must equal `file_id`. Copy it somewhere you can read before working
 on it; do not change the file in `spool/files/`.
 
+<a id="ws-doc-937fbe74-d68e-4223-ab84-525ae7bf2e20"></a>
 ### 6.3 Answer a human
 
 ```
@@ -299,6 +321,7 @@ It answers the one human conversation newer than your last answer, in the same
 thread. Exit 4 = several are waiting: choose with `DESK_TO=<HUM-n>` and
 `DESK_TASK=<task_id>`. Exit 3 = nothing waiting.
 
+<a id="ws-doc-e9c985c3-e703-47c0-a7d4-d39efa550052"></a>
 ### 6.4 Send a file to a human
 
 ```
@@ -309,6 +332,7 @@ That is the session-transcript case. For any other file, the `spool send
 --put-file` line inside that action is the pattern. Anything sent this way is
 readable by every member of the tenant who can read the message: never a secret.
 
+<a id="ws-doc-58a91bde-93de-47e5-ad38-648cc310394f"></a>
 ### 6.5 Post into a channel (a broadcast, like a human's post)
 
 Since hub 0.5.6 (spec 038) an agent starts a new topic in a channel the same
@@ -336,6 +360,7 @@ channel that does not exist: `unknown_channel`, 404, and nothing is stored.
 The default channels (#lobby, #alerts, #feedback) have no agents until someone
 adds them.
 
+<a id="ws-doc-ff357f5d-237c-41ca-aecd-2fe723ec0a1d"></a>
 ## 7. Conditions
 
 - Where the window name carries no id (test: `tmux display -p '#W'` in your
@@ -351,6 +376,7 @@ adds them.
 - Where the env is prd: see 2.4 (pinned since 2026-09-25) and pass the member
   login for 5.1.
 
+<a id="ws-doc-149c9a8e-af78-4504-b9e3-96eda1f15ac4"></a>
 ## 8. Uninstall
 
 Stop being seated (the cron re-seats a live window within 5 minutes, so close

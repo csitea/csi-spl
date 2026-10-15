@@ -1,7 +1,10 @@
 # Refactor round 3, row 3: Lock-scoped helper with `defer Unlock` instead of manual unlocks on every path
 
+> Generated from qto doc `d99c4d54-b8c8-4341-91bd-bc725c96c6a7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 3. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-445bb9f5-77e2-4bb9-b990-74527ce87fe7"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 3. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-4b818d3c-1ef0-4563-8f24-ef2d4cbb2846"></a>
 ## 1. The practice
 
 `mu.Lock()` followed by two or three hand-written `Unlock()` calls on different return paths: a panic between them, or a later early return, leaves the mutex held forever. Move the locked part into a small method with `defer mu.Unlock()`; the I/O stays outside the lock, so behaviour is the same.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-b4d173d8-3e24-487f-a594-c2ca59c388f0"></a>
 ## 2. The sites
 
+<a id="ws-doc-a6003263-2b5d-4f7f-9fe3-5495c0899ab7"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/hub/perf_ingest.go` lines 217-222 on `755e86235`:
@@ -36,6 +42,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: becomes `if !pi.claimLogSlot(now) { return }`, the defer inside the helper.
 
+<a id="ws-doc-78cc4270-3b28-412d-b588-33a010b5ee8f"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_signature.go` lines 157-162 on `755e86235`:
@@ -51,6 +58,7 @@ Change: becomes `if !pi.claimLogSlot(now) { return }`, the defer inside the help
 
 Change: becomes `if key := v.cachedCert(certURL); key != nil { return key, nil }`.
 
+<a id="ws-doc-97fd499e-370a-4bef-afa7-282f3bb21849"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_payments.go` lines 119-124 on `755e86235`:
@@ -66,6 +74,7 @@ Change: becomes `if key := v.cachedCert(certURL); key != nil { return key, nil }
 
 Change: becomes `if tok, ok := p.cachedToken(); ok { return tok, nil }`.
 
+<a id="ws-doc-76fc987c-a122-4278-b477-c254686b3f9c"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/hub/fileusage.go` lines 45-47 on `755e86235`:
@@ -78,6 +87,7 @@ Change: becomes `if tok, ok := p.cachedToken(); ok { return tok, nil }`.
 
 Change: becomes `e, ok := u.entry(tenant)`; the write at :55-57 becomes `u.store(tenant, used, now)`.
 
+<a id="ws-doc-13a551c7-8e35-43fc-a623-c05ff89a5bcc"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/notify/queue.go` lines 67-76 on `755e86235`:
@@ -97,6 +107,7 @@ Change: becomes `e, ok := u.entry(tenant)`; the write at :55-57 becomes `u.store
 
 Change: Stop: move into `closeLanes() bool` with a defer, `q.wg.Wait()` outside it. Do NOT try to fix the enqueue race here (section 'Behaviour bugs' of the plan): that is its own lane.
 
+<a id="ws-doc-24dcabb2-5b6c-439b-825d-c22c6c28b6c3"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_signature.go:154-155`: the doc says "fetching + caching it on first use" but two concurrent first uses both fetch (the lock is released before the fetch): say so.
@@ -105,6 +116,7 @@ Change: Stop: move into `closeLanes() bool` with a defer, `q.wg.Wait()` outside 
 - `csi-spl-api/src/go/spool-hub-api/internal/notify/queue.go:89-90`: the `enqueue` doc should state its contract with Stop (today not safe: plan section 4).
 - Testability: NEW `TestPayPalVerifierCachesCert` (Fetch stubbed and counted: one fetch for two verifies); no test covers `publicKey` today.
 
+<a id="ws-doc-39bb5578-b703-48aa-9360-50ff9b6a352e"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -115,6 +127,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/notify/` (13 PASS; TestStopIsIdempotentAndRestoresTheSynchronousPath covers Stop)
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -race ./internal/notify/ ./internal/payments/` before = after
 
+<a id="ws-doc-20f23fa8-82c1-4aa4-a188-164b3518a24a"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -124,10 +137,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-be7921d8-511c-4b92-bf04-d2d3f75c1395"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-37f2b9e0-a319-4129-a104-117a8cf152a6"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -298,6 +313,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/hub/perf_ingest.go`, `csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_signature.go`, `csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_payments.go`, `csi-spl-api/src/go/spool-hub-api/internal/hub/fileusage.go`, `csi-spl-api/src/go/spool-hub-api/internal/notify/queue.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/hub/perf_ingest.go,csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_signature.go,csi-spl-api/src/go/spool-hub-api/internal/payments/paypal_payments.go,csi-spl-api/src/go/spool-hub-api/internal/hub/fileusage.go,csi-spl-api/src/go/spool-hub-api/internal/notify/queue.go --agent <you>` must exit 0.
 
+<a id="ws-doc-bbf9698c-6c9e-4a71-b8d6-40d583351c6a"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

@@ -1,7 +1,10 @@
 # Refactor round 3, row 17: `errors.New` for constant error messages (`fmt.Errorf` with no verb)
 
+> Generated from qto doc `ed148d3d-99bb-4131-9ae4-e3fa18feee4b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 17. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: clean. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-2fe84965-ab1f-4790-a907-c72d3f8f2f52"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 17. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-86664703-7554-47d1-9b16-5a045ac45b2c"></a>
 ## 1. The practice
 
 `fmt.Errorf("literal")` with no verb is `errors.New` plus a format parse, and a `%` added later silently becomes a verb. The five files hold 36 such calls (`grep -cE 'fmt\.Errorf\("[^"%]*"\)'`: config.go 13, payments/config.go 7, cicdlogs.go 6, react.go 5, answer_once.go 4); convert every one in these files. The value is the same. Runs on PC: answer_once.go is in store.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-e0742530-6d65-47e2-86d7-1eef0ab83aae"></a>
 ## 2. The sites
 
+<a id="ws-doc-39e2dee0-6598-41bf-816c-b38fea4d7427"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/config/config.go` lines 141-143 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `fmt.Errorf("...")` -> `errors.New("...")` (all 13 in the file).
 
+<a id="ws-doc-ceb7cb06-57aa-421d-84f9-3107b769b782"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/payments/config.go` lines 177-179 on `755e86235`:
@@ -45,6 +52,7 @@ Change: `fmt.Errorf("...")` -> `errors.New("...")` (all 13 in the file).
 
 Change: all 7 in the file.
 
+<a id="ws-doc-f2f81c15-3875-43d8-8cb7-a0c217017c70"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/cicdlogs/cicdlogs.go` lines 171-173 on `755e86235`:
@@ -57,6 +65,7 @@ Change: all 7 in the file.
 
 Change: all 6 (`errors` already imported).
 
+<a id="ws-doc-13b917e5-fcf4-4ffb-a395-9b3ddb27672e"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/action/react.go` lines 31-33 on `755e86235`:
@@ -69,6 +78,7 @@ Change: all 6 (`errors` already imported).
 
 Change: all 5.
 
+<a id="ws-doc-6d4ce61b-e434-42ed-a828-3a4afd9f5d30"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/answer_once.go` lines 55-58 on `755e86235`:
@@ -82,6 +92,7 @@ Change: all 5.
 
 Change: all 4 (`errors` already imported).
 
+<a id="ws-doc-1c03c8b3-1184-41c5-8b17-ce562ae336b1"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/store/answer_once.go:52`: the `checkAnswer` doc names rdb 0111 CHECKs; add that the messages are part of the 400 body (the hub answers them verbatim).
@@ -89,6 +100,7 @@ Change: all 4 (`errors` already imported).
 - `csi-spl-api/src/go/spool-hub-api/internal/payments/config.go:175`: check the `checkPrices` doc against its body and correct it.
 - Testability: split the tenant-tokens loop of `csi-spl-api/src/go/spool-hub-api/internal/cicdlogs/cicdlogs.go:168-175` into a pure `parseTenantTokens(string) (map[string]string, error)` and table-test it; NEW `TestReactRefusals` in internal/action (no hub URL, bad --msg, bad --task -> exact messages).
 
+<a id="ws-doc-50b7d972-ea3e-4fa0-a2ce-52e593f26a94"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -97,6 +109,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `SPOOL_TEST_PG_DSN=<local postgres> cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/store/ -run TestAnswerOnceStore`
 - the hub tests that assert these messages verbatim: `grep -rn` each changed message under internal/hub and run those tests
 
+<a id="ws-doc-840c7f34-c3f4-461a-8b01-46b41659d80f"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -106,10 +119,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-6c729dcd-4a52-4443-9ea9-8f462c0c2bf0"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-0d021a2d-f89e-49db-acca-02b15f8bd868"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -280,6 +295,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/config/config.go`, `csi-spl-api/src/go/spool-hub-api/internal/payments/config.go`, `csi-spl-api/src/go/spool-hub-api/internal/cicdlogs/cicdlogs.go`, `csi-spl-api/src/go/spool-hub-api/internal/action/react.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/answer_once.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/config/config.go,csi-spl-api/src/go/spool-hub-api/internal/payments/config.go,csi-spl-api/src/go/spool-hub-api/internal/cicdlogs/cicdlogs.go,csi-spl-api/src/go/spool-hub-api/internal/action/react.go,csi-spl-api/src/go/spool-hub-api/internal/store/answer_once.go --agent <you>` must exit 0.
 
+<a id="ws-doc-3b3fc4a6-5a1b-4d5e-a2e7-e04ef716ffb1"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

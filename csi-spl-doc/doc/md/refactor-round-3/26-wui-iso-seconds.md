@@ -1,7 +1,10 @@
 # Refactor round 3, row 26: One `isoSeconds()` helper for the "ISO without milliseconds" stamp
 
+> Generated from qto doc `8ecaa400-ffa9-4a44-a76e-bd9b384f45cd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 26. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-3965111a-18c5-4216-ba17-b78f9de25dcc"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,6 +16,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 26. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-9032ced3-7dbf-41dc-acf3-5c40e47127ad"></a>
 ## 1. The practice
 
 `new Date().toISOString().replace(/\.\d+Z$/, 'Z')` is hand-written 9 times with two regex variants; they agree only because `toISOString` always emits 3 fraction digits. One helper in a NEW `src/utils/iso-seconds.mjs` (not `date-iso.mjs`: that is the display-format module, on first paint, and its test bans other things; keep it untouched) names the intent.
@@ -21,8 +25,10 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 5 sites in 3 files: the other 4 copies are in files earlier rounds own (`spool-client-lazy.mjs:503,817`, `channel-feed.mjs:255`, `issues-view.mjs:229`); allow-list them in the guard.
 
+<a id="ws-doc-65281d2e-d666-436c-954e-9aead3a153d4"></a>
 ## 2. The sites
 
+<a id="ws-doc-bf1f8d7a-23fc-4e36-9d4c-0935662cb5c4"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/move-mock.mjs` lines 20-20 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `const at = isoSeconds()`; same at :96 and :157 (3 sites).
 
+<a id="ws-doc-8c50a63d-c746-4da9-b25d-fb2289942142"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/mock-merge.mjs` lines 30-30 on `755e86235`:
@@ -43,6 +50,7 @@ Change: `const at = isoSeconds()`; same at :96 and :157 (3 sites).
 
 Change: `isoSeconds()`.
 
+<a id="ws-doc-4d357fa4-b347-4bea-a7a2-73a5bfd61f4e"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/tenant-users.mjs` lines 94-99 on `755e86235`:
@@ -58,12 +66,14 @@ export function accessUntilOfDate(day) {
 
 Change: `isoSeconds(at)`; the helper takes an optional Date, the NaN guard stays at the call site.
 
+<a id="ws-doc-421be65b-f37c-4adb-a5a1-8e3bb3b80b6a"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/tenant-users.mjs:89-92`: the `accessUntilOfDate` doc adds "seconds precision, no fraction".
 - `csi-spl-wui/src/utils/move-mock.mjs:20,96,157`: comment that each mock op stamps its own now, so one move's rows can differ by a second.
 - Testability: NEW `tests/unit/iso-seconds.test.mjs`: `isoSeconds(new Date(Date.UTC(2026,0,2,3,4,5,678)))` -> `'2026-01-02T03:04:05Z'`, plus a source guard: no `toISOString().replace(` outside iso-seconds.mjs (the 3 files above allow-listed).
 
+<a id="ws-doc-4c04c2b0-2a22-4507-b8a8-32c089f8f8f2"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -72,6 +82,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `pnpm run typecheck` (needs `pnpm install`)
 - e2e: `tests/e2e/merge-by-drag.test.mjs`, `promote-by-drag.test.mjs`, `users-admin.test.mjs`
 
+<a id="ws-doc-b3c6791e-beec-40a2-8e8a-23ea21f86c1d"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -81,10 +92,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-d8e36db8-123c-4918-a65b-9a70549e3487"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-9b8d2e32-f044-48c9-8776-123518ffa321"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -255,6 +268,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/move-mock.mjs`, `csi-spl-wui/src/utils/mock-merge.mjs`, `csi-spl-wui/src/utils/tenant-users.mjs`, `csi-spl-wui/src/utils/iso-seconds.mjs`, `csi-spl-wui/tests/unit/iso-seconds.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/move-mock.mjs,csi-spl-wui/src/utils/mock-merge.mjs,csi-spl-wui/src/utils/tenant-users.mjs,csi-spl-wui/src/utils/iso-seconds.mjs,csi-spl-wui/tests/unit/iso-seconds.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-f6ab1535-808d-4625-ae19-27c11c1b3caa"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

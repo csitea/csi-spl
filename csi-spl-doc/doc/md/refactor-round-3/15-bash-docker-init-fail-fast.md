@@ -1,7 +1,10 @@
 # Refactor round 3, row 15: Container init scripts fail fast before the keep-alive
 
+> Generated from qto doc `bef28ade-0a33-4fae-979a-0ca4e902fbc4`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 15. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low-med. Run on: **PC**. Agent: **grok**. Batch: 1.
 
+<a id="ws-doc-a49b92d0-813b-468c-8934-d607141e3eff"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,6 +16,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 15. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-1024851a-b093-43cc-8885-7407b5742aa4"></a>
 ## 1. The practice
 
 The three tf-infra container entrypoints (docker-compose-tf-infra.yaml:65,129,189) run setup with no `set -u`/`pipefail` and unquoted paths, then `sleep infinity`: a failed `poetry install` gives a container that looks up but has no venv, and the error shows later as a tpl-gen or terraform failure. Only 3 such scripts exist. Change on the failure path only: a setup failure now ends the container; the keep-alive stays.
@@ -21,8 +25,10 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 3 sites: only three docker-init scripts exist in the tree.
 
+<a id="ws-doc-66eaf8c9-cbf7-4807-aa04-daaf239d3815"></a>
 ## 2. The sites
 
+<a id="ws-doc-a534e535-d927-4ac9-b3b0-ee6090334987"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/src/bash/scripts/docker-init-tf-runner.sh` lines 3-13 on `755e86235`:
@@ -43,6 +49,7 @@ IAC_PROJ_PATH_FIXED=$(echo $IAC_PROJ_PATH | perl -ne "s|/home/$APPUSR||g;print")
 
 Change: `set -uo pipefail` after `set -x`, `: "${HOME_IAC_PROJ_PATH:?}"`, quote `${PROJ_DIR}` at :35 and :38.
 
+<a id="ws-doc-4e389f39-e26a-438e-a03b-0b07e657bd49"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/src/bash/scripts/docker-init-tpl-gen.sh` lines 7-18 on `755e86235`:
@@ -64,6 +71,7 @@ perl -pi -e "s|/home/$APPUSR||g" $venv_path/bin/activate
 
 Change: `set -uo pipefail`; `cd "$PROJ_PATH/src/python/$MODULE" && poetry install || { echo "FATAL poetry install"; exit 1; }`; quote `$venv_path`.
 
+<a id="ws-doc-8cdfb679-3223-4f31-b01a-59bbdf9d763a"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/scripts/docker-init-conf-validator.sh` lines 7-19 on `755e86235`:
@@ -86,6 +94,7 @@ if [[ ! -f "$venv_path/bin/activate" ]]; then
 
 Change: same as tpl-gen.
 
+<a id="ws-doc-ab6fac03-acd7-4d2b-8705-fc317af2d902"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/src/bash/scripts/docker-init-tf-runner.sh:5-33`: the venv-copy block targets `src/python/gsheet-secrets-to-gcp`, which does not exist in this tree: comment it as a csi-rel leftover (deleting it is behaviour; leave that to its own lane).
@@ -93,6 +102,7 @@ Change: same as tpl-gen.
 - A 3-line purpose header on each script: which compose service runs it and what the container needs before the keep-alive.
 - Testability: NEW `csi-spl-orc/src/bash/tests/docker-init-scripts.tst.sh`: stubs first on PATH (`poetry` exits 1, `perl`/`git` no-ops, `sleep` exits 0); rc != 0 and a FATAL line when poetry fails, rc 0 with the `.bashrc` lines on success; control: `HOME_IAC_PROJ_PATH` unset -> non-zero.
 
+<a id="ws-doc-a628c7d0-d1d1-48f7-9245-8ecb659f3169"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -101,6 +111,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - the new docker-init-scripts.tst.sh
 - `make do-setup-app-inf` is NOT run by this lane (one infra stack per box, main checkout only): say so in the result
 
+<a id="ws-doc-9ed10819-e6d3-4d4b-a894-5c12d5bfb9b8"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -109,10 +120,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-46b41358-5d3f-4c6c-86c3-663a06bcb96a"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-2a1c33df-e534-442c-a910-c4a3fdf687fc"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -284,6 +297,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/src/bash/scripts/docker-init-tf-runner.sh`, `csi-spl-orc/src/bash/scripts/docker-init-tpl-gen.sh`, `csi-spl-orc/src/bash/scripts/docker-init-conf-validator.sh`, `csi-spl-orc/src/bash/tests/docker-init-scripts.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/src/bash/scripts/docker-init-tf-runner.sh,csi-spl-orc/src/bash/scripts/docker-init-tpl-gen.sh,csi-spl-orc/src/bash/scripts/docker-init-conf-validator.sh,csi-spl-orc/src/bash/tests/docker-init-scripts.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-b71c0655-0153-47d6-9dea-0d5c359657ff"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

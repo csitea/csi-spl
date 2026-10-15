@@ -1,7 +1,10 @@
 # Refactor round 3, row 6: Put a timeout on every raw `fetch()` in composables and pages
 
+> Generated from qto doc `41209123-0ced-4a46-a388-8a45d660e240`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 6. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low-med. Run on: **PC** (browser proof). Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-a828c3ca-77ec-465c-819e-51b464791d81"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 6. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-4ce80b66-11bf-4600-8c7e-313393f7c8aa"></a>
 ## 1. The practice
 
 These reads call the browser `fetch` with no `signal`. A hung TCP connection (a phone changing networks, a stalled proxy) never settles, so `loading` stays forever; in `usePaletteItems` the memo `repoLoad` holds a never-settling promise for the page's life. Pass `signal: AbortSignal.timeout(<named ms>)`; every caller already maps a rejection to 'failed', so the normal path is unchanged.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-87ec57e2-705b-4c44-a019-512355c44aa2"></a>
 ## 2. The sites
 
+<a id="ws-doc-30d1ec60-3b55-4f0c-986e-e9a285c953e1"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/composables/useLive.ts` lines 100-105 on `755e86235`:
@@ -36,6 +42,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: add `signal: AbortSignal.timeout(REVISION_FETCH_MS)`; live-ws `checkRevision()` already maps a rejection to ''.
 
+<a id="ws-doc-1d63b5bd-0ebd-43a8-b01f-1056084fe40c"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/composables/usePaletteItems.ts` lines 119-123 on `755e86235`:
@@ -50,6 +57,7 @@ Change: add `signal: AbortSignal.timeout(REVISION_FETCH_MS)`; live-ws `checkRevi
 
 Change: add the timeout signal; :160 then retries on the next palette open instead of hanging.
 
+<a id="ws-doc-07da044b-1953-48cc-834c-e7df47165f0f"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/composables/useWorkspaceDocs.ts` lines 24-28 on `755e86235`:
@@ -64,6 +72,7 @@ Change: add the timeout signal; :160 then retries on the next palette open inste
 
 Change: `signal: init.signal ?? AbortSignal.timeout(...)`; reads short, PUT/DELETE longer (a large save must not be cut).
 
+<a id="ws-doc-512fd766-422f-4dd0-865d-787a9e3df80e"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/pages/docs.vue` lines 147-150 on `755e86235`:
@@ -77,6 +86,7 @@ Change: `signal: init.signal ?? AbortSignal.timeout(...)`; reads short, PUT/DELE
 
 Change: add the timeout signal in `hubDoc()`; keep `definePageMeta({ path: '/docs/:path(.*)*' })` and `/v1/docs/` (docs.test.mjs:113,117 pin them).
 
+<a id="ws-doc-d983ebd1-c146-46d6-92c8-72c9b94085cf"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/pages/help/[[page]].vue` lines 85-90 on `755e86235`:
@@ -92,6 +102,7 @@ async function getText(path: string): Promise<string | null> {
 
 Change: add the timeout signal in `getText`.
 
+<a id="ws-doc-0310b9a4-2efc-428d-b630-6c26738fdae4"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/composables/usePaletteItems.ts:116`: the doc says "[] when off or failed", but the mock branch at :117 (`JSON.parse(raw)` with no try) rejects on a bad mock body: wrap it or fix the doc.
@@ -100,6 +111,7 @@ Change: add the timeout signal in `getText`.
 - `csi-spl-wui/src/composables/useLive.ts:99`: add the contract: "may reject; live-ws checkRevision maps a rejection to ''".
 - Testability: NEW `src/utils/fetch-timeouts.mjs` (`DOC_READ_TIMEOUT_MS`, `DOC_WRITE_TIMEOUT_MS`, `REVISION_FETCH_MS`) + `tests/unit/fetch-timeouts.test.mjs` (write > read > 0, and each of the five call sites passes `signal:`).
 
+<a id="ws-doc-9a21707b-6831-4509-ad1d-255c3011cb08"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -109,6 +121,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - e2e: `tests/e2e/docs.test.mjs`, `docs-ws-edit.test.mjs`, `command-palette.test.mjs`, `topic-pane-single.test.mjs`
 - browser proof: a stalled `/v1/docs/` read (devtools throttle / offline) shows 'failed' instead of spinning
 
+<a id="ws-doc-3658c833-b1bf-485e-8c03-345d90c68e8a"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -118,12 +131,14 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-a7110c5d-6a63-48ce-9e9b-c685084c21f7"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
 Browser proof: drive the changed screen on dev and prd after the deploy (the e2e/proof specs in section 4) and name the build.json version you saw.
 
+<a id="ws-doc-204c2fe8-538c-4d51-9828-4a95eafd41fc"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -292,6 +307,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/composables/useLive.ts`, `csi-spl-wui/src/composables/usePaletteItems.ts`, `csi-spl-wui/src/composables/useWorkspaceDocs.ts`, `csi-spl-wui/src/pages/docs.vue`, `csi-spl-wui/src/pages/help/[[page]].vue`, `csi-spl-wui/src/utils/fetch-timeouts.mjs`, `csi-spl-wui/tests/unit/fetch-timeouts.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/composables/useLive.ts,csi-spl-wui/src/composables/usePaletteItems.ts,csi-spl-wui/src/composables/useWorkspaceDocs.ts,csi-spl-wui/src/pages/docs.vue,csi-spl-wui/src/pages/help/[[page]].vue,csi-spl-wui/src/utils/fetch-timeouts.mjs,csi-spl-wui/tests/unit/fetch-timeouts.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-46ef2334-abcc-4fcc-92a5-3ed4dd1f620c"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

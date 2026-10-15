@@ -1,7 +1,10 @@
 # Refactor round 3, row 29: Annotate and document out-parameter globals (SC2034)
 
+> Generated from qto doc `f66b1164-bc2f-48b2-b1ea-d6726f5eab54`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 29. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-37c222c6-f51b-4d76-ba9c-8c749bd57b22"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 29. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-030cdc84-4a70-405e-be7d-94811c7a4bdf"></a>
 ## 1. The practice
 
 These functions return results through globals other files read; shellcheck flags each as "appears unused" (SC2034) and nothing at the assignment says who reads it, so a reader cannot tell an out-param from dead code. Add `# shellcheck disable=SC2034  # read by <file>` and an `@output` line on the function. Run after row 14 (desk-welcome.tst.sh is red until then).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-eb357ad2-1fcc-4148-a9ef-02b738e0a9f9"></a>
 ## 2. The sites
 
+<a id="ws-doc-82f546d3-30f5-4e3a-b751-4e1ed8478b01"></a>
 ### 2.1 Site 1
 
 `csi-spl-iac/lib/bash/funcs/satellite.func.sh` lines 68-69 on `755e86235`:
@@ -32,6 +38,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: directive + "read by satellite-verify.func.sh:167,173"; `SATELLITE_HOST` has no reader (`grep -rn SATELLITE_HOST csi-spl-iac --include=*.sh` -> this line only): say so in the comment.
 
+<a id="ws-doc-ac39c566-5b46-4fba-8f18-eda58abacdfb"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/lib/bash/funcs/spl-hub-operator.func.sh` lines 50-51 on `755e86235`:
@@ -43,6 +50,7 @@ Change: directive + "read by satellite-verify.func.sh:167,173"; `SATELLITE_HOST`
 
 Change: directive (the header at :25-27 documents the contract).
 
+<a id="ws-doc-f7eecfa5-54e2-4851-9582-7ee046ff7f00"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh` lines 17-17 on `755e86235`:
@@ -53,6 +61,7 @@ Change: directive (the header at :25-27 documents the contract).
 
 Change: directive + "read by spl-payment-secret-seed.func.sh:61" (also :21).
 
+<a id="ws-doc-69e05233-1ce8-4cb6-bba5-26ea93cb2a91"></a>
 ### 2.4 Site 4
 
 `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh` lines 603-603 on `755e86235`:
@@ -63,6 +72,7 @@ SPL_ROLE_IDS='biz_owner|product_owner|admin|developer|tester|pure_agent|biz_cust
 
 Change: directive + "read by spl-hub-invite:39, spl-tenant-member-add:90, spl-tenant-member-role:29".
 
+<a id="ws-doc-38eae887-d29a-4bfe-a205-d8c1d91683d1"></a>
 ### 2.5 Site 5
 
 `csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh` lines 298-298 on `755e86235`:
@@ -73,6 +83,7 @@ Change: directive + "read by spl-hub-invite:39, spl-tenant-member-add:90, spl-te
 
 Change: directive + "consumed by the db proxy helpers in spl-cloud-cnf.func.sh:475-494"; replace the `&& echo || echo` subshell with an `if`.
 
+<a id="ws-doc-8a9db0c9-c39e-4c22-88f7-fe430a68d7d2"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh:10`: the header names `SPL_STRIPE_SHARED` but not `SPL_STRIPE_KEY_DIR`: add both under `@output`.
@@ -80,6 +91,7 @@ Change: directive + "consumed by the db proxy helpers in spl-cloud-cnf.func.sh:4
 - `csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh:298`: comment what 55487/55488 are (dev/prd db proxy ports) and point at spl-cloud-cnf.func.sh:488.
 - Testability: gate `shellcheck -S warning -i SC2034 <5 files>` -> 0; a NEW assertion in payment-secret-seed.tst.sh that `SPL_STRIPE_KEY_DIR` is set after the call (pins the out-param contract).
 
+<a id="ws-doc-29e1a0e7-b94e-443e-a287-e09c5ed5cd46"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -89,6 +101,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `sudo -u <DEV_USER> bash csi-spl-orc/src/bash/tests/payment-secret-seed.tst.sh` (27 PASS)
 - `sudo -u <DEV_USER> bash csi-spl-orc/src/bash/tests/desk-welcome.tst.sh` (green only after row 14)
 
+<a id="ws-doc-b8fb869f-e1ad-4bf7-8e2e-d908a6116dab"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -97,10 +110,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-f28d8fe4-d2b9-4963-8e50-444130587292"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-97fe25b5-af47-47c9-a5d5-c32799fe16d9"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -271,6 +286,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-iac/lib/bash/funcs/satellite.func.sh`, `csi-spl-orc/lib/bash/funcs/spl-hub-operator.func.sh`, `csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-iac/lib/bash/funcs/satellite.func.sh,csi-spl-orc/lib/bash/funcs/spl-hub-operator.func.sh,csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh,csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh,csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-a654b497-303a-4c20-abc1-fddf98152ef9"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

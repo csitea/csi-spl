@@ -1,7 +1,10 @@
 # Refactor round 3, row 22: Doc comments on undocumented exported util functions
 
+> Generated from qto doc `59c4dcac-5b07-42fd-a216-d1ff8c0699fd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 22. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-c83ea116-f219-4e0d-af8f-c42d0b0d6417"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 22. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-e9fc8fe9-9c19-451d-81e1-8d96c4fcc774"></a>
 ## 1. The practice
 
 Most exported utils carry a `/** ... */`; these modules export several functions with none, so a component calls `parseLevel` or `num` blind. Prose-only JSDoc (types live in `src/types/mjs-shims.d.ts`; no `@param {type}` that could drift). No code change.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-ef3c9d5e-6d87-410a-a7bc-58321bb35eda"></a>
 ## 2. The sites
 
+<a id="ws-doc-d7a8b4a7-9096-4f11-9cbe-cb42e1572881"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/verbosity.mjs` lines 27-33 on `755e86235`:
@@ -37,6 +43,7 @@ export function parseLevel(v) {
 
 Change: docs on all 6 exports: `verbosityOf` (:27), `parseLevel` (:31), `messageVisible` (:35), `applyVerbosity` (:41, returns a copy), `loadVerbosity` (:47), `saveVerbosity` (:51).
 
+<a id="ws-doc-7e683efe-3722-48b6-84a5-b3076f2b500e"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/slash-focus.mjs` lines 48-51 on `755e86235`:
@@ -50,6 +57,7 @@ export function isOpenModal(root) {
 
 Change: docs on `isTypingTarget` (:29), `isOpenModal` (:48), `isMobileViewport` (:53), `eventInOmnibox` (:58), `slashFocusContext` (:87).
 
+<a id="ws-doc-53a5672e-d988-4f4b-bcef-9cf8b2ec9a34"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/font-size.mjs` lines 48-50 on `755e86235`:
@@ -62,6 +70,7 @@ export function readStoredFontSize(store, fallback = FONT_SIZE_DEFAULT) {
 
 Change: docs on `canShrinkFont` (:40), `canGrowFont` (:44), `readStoredFontSize` (:48), `writeStoredFontSize` (:52), `applyFontSizeAttr` (:56).
 
+<a id="ws-doc-489900a7-0281-4453-b1c9-321c7137acea"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/theme.mjs` lines 28-30 on `755e86235`:
@@ -74,6 +83,7 @@ export function parseTheme(raw, fallback = THEME_DEFAULT) {
 
 Change: docs on `parseTheme` (:28), `readStoredTheme` (:43), `writeStoredTheme` (:47), `applyThemeAttr` (:51).
 
+<a id="ws-doc-23eef6fe-c4ac-4c33-b54d-5dc00a327f33"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/utils/pane-widths.mjs` lines 30-30 on `755e86235`:
@@ -84,6 +94,7 @@ export function num(v, fallback) {
 
 Change: docs on the 14 undocumented exports: `num` (:30), `clamp` (:35), `sidebarShown` (:41), `topicShown` (:84), `clampSidebar` (:97), `clampTopic` (:105), `clampPair` (:119), `sidebarRange` (:136), `topicRange` (:143), `applySeparatorKey` (:158), `pointerDelta` (:168), `loadPaneViews` (:237), `loadPaneWidths` (:241), `resetPane` (:282).
 
+<a id="ws-doc-d89e137d-f7d8-4325-83d0-f865a5d77f11"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/pane-widths.mjs:30`: grep the callers of `num` before documenting it as public; say whether it is meant for outside use.
@@ -91,6 +102,7 @@ Change: docs on the 14 undocumented exports: `num` (:30), `clamp` (:35), `sideba
 - `csi-spl-wui/src/utils/theme.mjs:43` / `font-size.mjs:48`: document that `store` defaults to localStorage via prefs.mjs and a blocked store returns `fallback`.
 - Testability: NEW `tests/unit/util-docs.test.mjs`, a ratchet like cleancode: per `src/utils/*.mjs`, the count of `^export (async )?function` lines with no doc above may not rise; these five files start at 0 (today pane-widths 14/24, verbosity 6/6, slash-focus 5/6, font-size 5/7, theme 4/7).
 
+<a id="ws-doc-0d6ed43c-0188-4691-a636-397f0a5f6b21"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -98,6 +110,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-wui && node tests/unit/verbosity.test.mjs` (5 pass on 755e86235, n=1); `slash-focus.test.mjs` (15); `font-size.test.mjs` (11); `pane-widths.test.mjs` (34); `theme-toggle.test.mjs`
 - `pnpm run typecheck` (needs `pnpm install`)
 
+<a id="ws-doc-e96e1402-0b55-49ef-b962-946838f9a82b"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -107,10 +120,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-7184f1ef-966c-45f3-8c41-b6a14cbcfd28"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-f621c334-f09e-4ade-9574-42e0404f7fb3"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -280,6 +295,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/verbosity.mjs`, `csi-spl-wui/src/utils/slash-focus.mjs`, `csi-spl-wui/src/utils/font-size.mjs`, `csi-spl-wui/src/utils/theme.mjs`, `csi-spl-wui/src/utils/pane-widths.mjs`, `csi-spl-wui/tests/unit/util-docs.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/verbosity.mjs,csi-spl-wui/src/utils/slash-focus.mjs,csi-spl-wui/src/utils/font-size.mjs,csi-spl-wui/src/utils/theme.mjs,csi-spl-wui/src/utils/pane-widths.mjs,csi-spl-wui/tests/unit/util-docs.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-b318eb4b-b8fe-4691-9ff0-d9e33cb6c1eb"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

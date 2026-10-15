@@ -1,7 +1,10 @@
 # Refactor round 3, row 8: Drop stale async answers with a request token
 
+> Generated from qto doc `0e2e2528-35f5-49f6-aba9-a4d42db2c78d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 8. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low. Run on: **PC** (browser proof). Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-41f735ba-1a24-4a82-bab1-5caf4bfd1d58"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 8. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-4b40a46c-f8f4-432f-83d1-cca4054eb012"></a>
 ## 1. The practice
 
 Each loader writes refs after an `await` with no check that it is still the newest request: a dialog re-opened for another message or person can show the older answer, and in `archive.vue` a live `topic_archived` reload races "Load more". The repo's own pattern is `const mine = ++seq; ...; if (mine !== seq) return` (`pages/boxes/[id].vue:181-193`).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-b82fabae-08d7-4f71-958b-48565cceecaf"></a>
 ## 2. The sites
 
+<a id="ws-doc-570153cd-5d01-4696-b529-080d5292eec5"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/components/MergeConfirmDialog.vue` lines 48-54 on `755e86235`:
@@ -37,6 +43,7 @@ async function load(msgId: string) {
 
 Change: `const mine = ++seq`; return early in try and catch when `mine !== seq`.
 
+<a id="ws-doc-f1e9fcb7-bba2-40c2-b9ba-3387c7e010fe"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/components/TopicDeleteDialog.vue` lines 60-67 on `755e86235`:
@@ -54,6 +61,7 @@ async function load() {
 
 Change: add the token; keep `withSessionRetry(api, () => api.topicSize(props.msgId))` verbatim (topic-archive.test.mjs:184).
 
+<a id="ws-doc-fcda4ab7-ebbf-4808-a497-323121f1fce2"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/components/PersonActivityDialog.vue` lines 114-122 on `755e86235`:
@@ -72,6 +80,7 @@ async function load() {
 
 Change: add the token; only the newest load clears `loading`.
 
+<a id="ws-doc-950e05a9-debb-461e-bb7f-7cd31b6839d4"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/components/ActAsPicker.vue` lines 88-93 on `755e86235`:
@@ -87,6 +96,7 @@ async function fetchMembers() {
 
 Change: add the token (close and re-open starts a second read).
 
+<a id="ws-doc-1040b560-8b68-4fa3-8975-108b2d6a3008"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/pages/archive.vue` lines 96-104 on `755e86235`:
@@ -105,6 +115,7 @@ async function load(more = false) {
 
 Change: a full `load()` bumps `seq`; a stale `load(true)` drops its page. Keep `withSessionRetry(api, () => api.listArchived(`, `api.archiveTopic(id, false)`, `LazyTopicDeleteDialog` (topic-archive.test.mjs:198-200).
 
+<a id="ws-doc-ccca861f-bf03-449c-b324-18cc78e884ec"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/tests/unit/topic-archive.test.mjs:185-186` asserts `/:disabled="replies === null"/` but matches only the comment at `TopicDeleteDialog.vue:78`: the test passes vacuously. Make it assert the template no longer gates on it (doesNotMatch on the template) and reword the comment.
@@ -112,6 +123,7 @@ Change: a full `load()` bumps `seq`; a stale `load(true)` drops its page. Keep `
 - `csi-spl-wui/src/pages/archive.vue:141`: the comment should say the reload supersedes any in-flight "Load more".
 - Testability: NEW 6-line `src/utils/latest-only.mjs` (`createLatest()` -> `{ next(), isLatest(token) }`, no imports) + `tests/unit/latest-only.test.mjs` with two interleaved fake loads, the slow older one must not win; the five sites share it.
 
+<a id="ws-doc-6acfb63d-471a-412c-b118-9e11b1f9499b"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -121,6 +133,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - e2e: `tests/e2e/merge-by-drag.test.mjs`, `delete-confirm.test.mjs`, `act-as.test.mjs`, `archive-undo.test.mjs`
 - browser proof: archive with a live frame during "Load more" (two tabs)
 
+<a id="ws-doc-2211aaad-601b-4e96-97d5-6ac13ff662ef"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -130,12 +143,14 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-82d5c289-bb04-4bd5-9f9e-e2d5d5ef69fc"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
 Browser proof: drive the changed screen on dev and prd after the deploy (the e2e/proof specs in section 4) and name the build.json version you saw.
 
+<a id="ws-doc-97f0047d-7326-44b8-8883-f4514cdc99af"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -303,6 +318,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/components/MergeConfirmDialog.vue`, `csi-spl-wui/src/components/TopicDeleteDialog.vue`, `csi-spl-wui/src/components/PersonActivityDialog.vue`, `csi-spl-wui/src/components/ActAsPicker.vue`, `csi-spl-wui/src/pages/archive.vue`, `csi-spl-wui/src/utils/latest-only.mjs`, `csi-spl-wui/tests/unit/latest-only.test.mjs`, `csi-spl-wui/tests/unit/topic-archive.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/components/MergeConfirmDialog.vue,csi-spl-wui/src/components/TopicDeleteDialog.vue,csi-spl-wui/src/components/PersonActivityDialog.vue,csi-spl-wui/src/components/ActAsPicker.vue,csi-spl-wui/src/pages/archive.vue,csi-spl-wui/src/utils/latest-only.mjs,csi-spl-wui/tests/unit/latest-only.test.mjs,csi-spl-wui/tests/unit/topic-archive.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-b137eaed-45e8-4743-8111-b727842b5eab"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

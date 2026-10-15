@@ -1,7 +1,10 @@
 # Refactor round 3, row 23: Inject the clock into time-dependent utils
 
+> Generated from qto doc `9e902b45-014b-41f5-b018-ed8ad0065931`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 23. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-1cdea6de-668e-4088-be8b-c50aa227d56e"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 23. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-2fd9a23e-4b59-400e-9349-15884403fa75"></a>
 ## 1. The practice
 
 These utils read `Date.now()` / `new Date()` directly, so their tests either sleep in real time (`open-message.test.mjs:227-266` waits ~285 ms) or cannot pin the time. Add a `now` (and `setTimer` where there is a timer) option defaulting to today's behaviour.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-a7c0b00b-8e06-4264-ac61-abe04c0e1bed"></a>
 ## 2. The sites
 
+<a id="ws-doc-f4a50da2-fc57-4548-80ed-607c3f7656ad"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/open-message.mjs` lines 166-171 on `755e86235`:
@@ -36,6 +42,7 @@ export function markOpened(msgId, { tries = 100, every = 100, hold = OPEN_FOCUS_
 
 Change: `now = Date.now` and `setTimer = setTimeout` options, used at :178, :179, :184.
 
+<a id="ws-doc-1b07034f-a464-4b3b-b32e-4c3144448658"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/link-target.mjs` lines 254-254 on `755e86235`:
@@ -46,6 +53,7 @@ Change: `now = Date.now` and `setTimer = setTimeout` options, used at :178, :179
 
 Change: a module-level `let clock = () => Date.now()` with an exported test setter (also :275, :278, :292); do not add a param (`messageLinkPointerUp` has 5, cleancode allows 6). Keep `noopener noreferrer nofollow` (msg-links.test.mjs:149-150).
 
+<a id="ws-doc-1aa1c119-ff8c-4e4a-8a9f-12d6dd8bdfd5"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/read-cursor.mjs` lines 48-52 on `755e86235`:
@@ -60,6 +68,7 @@ export function markReadAt(cursors, key, msg) {
 
 Change: a trailing `now = () => new Date()` on `markReadAt` and `markTopicReadAt` (:66).
 
+<a id="ws-doc-af35ca69-0e94-478b-82fe-c3c9630d4bd6"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/tenant-users-mock.mjs` lines 96-99 on `755e86235`:
@@ -73,6 +82,7 @@ Change: a trailing `now = () => new Date()` on `markReadAt` and `markTopicReadAt
 
 Change: use the injected `now()` from `createMockDirectory` (:39): `<= now().getTime()`. Mock only; the default `now` keeps today's result.
 
+<a id="ws-doc-7604ea78-6d61-4c64-9ed2-2e205b4e65e6"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/utils/perf-mark.mjs` lines 166-168 on `755e86235`:
@@ -85,6 +95,7 @@ export function perfDelivered(m) {
 
 Change: an injectable wall clock mirroring `perf-rum.mjs:181` `opts.wallNow`.
 
+<a id="ws-doc-cb98adaa-8ad3-456a-ae9e-7a645991f517"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/open-message.mjs:160-165`: the `markOpened` doc lists `now` / `setTimer` and says the timer chain stops itself after `hold` or `tries`.
@@ -92,6 +103,7 @@ Change: an injectable wall clock mirroring `perf-rum.mjs:181` `opts.wallNow`.
 - `csi-spl-wui/src/utils/read-cursor.mjs:48`: `markReadAt` has no doc: "msg null -> mark read now (wall clock)".
 - Testability: rewrite the three `markOpened` tests (`tests/unit/open-message.test.mjs:218-266`) with a manual timer and clock instead of real sleeps; NEW `tenant-users.test.mjs` case for `access_ended` with a fixed `now`; NEW `link-target.test.mjs` case for the `GHOST_CLICK_MS` window with a fake clock.
 
+<a id="ws-doc-34eb0c54-3384-4935-b745-18808be4bba4"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -99,6 +111,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-wui && node tests/unit/open-message.test.mjs` (24 pass on 755e86235, n=1); `read-cursor.test.mjs` (21); `tenant-users.test.mjs`; `perf-mark.test.mjs` (24)
 - `link-target`, `msg-links` unit and `pnpm run typecheck` (need `pnpm install`)
 
+<a id="ws-doc-84d0a50e-7d8b-46da-b4ec-f2699d2234d7"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -108,10 +121,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-4a8f9a7f-ea8d-4340-892f-6a068ea303a2"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-3fe6dcd9-9695-4acd-823f-a7f20ba2487f"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -281,6 +296,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/open-message.mjs`, `csi-spl-wui/src/utils/link-target.mjs`, `csi-spl-wui/src/utils/read-cursor.mjs`, `csi-spl-wui/src/utils/tenant-users-mock.mjs`, `csi-spl-wui/src/utils/perf-mark.mjs`, `csi-spl-wui/tests/unit/open-message.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/open-message.mjs,csi-spl-wui/src/utils/link-target.mjs,csi-spl-wui/src/utils/read-cursor.mjs,csi-spl-wui/src/utils/tenant-users-mock.mjs,csi-spl-wui/src/utils/perf-mark.mjs,csi-spl-wui/tests/unit/open-message.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-02e7dfc9-9288-468c-af4d-9c612243dfe5"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

@@ -1,5 +1,7 @@
 # Lane issue and docs: how the rule is enforced
 
+> Generated from qto doc `eda81f36-f08f-436c-b370-48eecdc55aec`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The rule's one home is the fleet fragment
 `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/27-lane-issue-and-docs.md`,
 rendered into every seat's global `CLAUDE.md` (and `AGENTS.md` for vibe).
@@ -21,6 +23,7 @@ closing commit lands), Q4 A (msg 910b14c9, the source link and the restart
 card at the top of the description, the key posted back in the topic, no
 migration; the source link is an enforced link since SPL-1593, section 0.2).
 
+<a id="ws-doc-d435f230-282c-4ef0-a51c-601fb1aa6381"></a>
 ## 0. A discussion's issue, at the first answer
 
 Whoever takes a discussion files its issue with the first answer (no lane
@@ -33,6 +36,7 @@ announcements file none (no `LANE_ISSUE_TITLE`: refused).
 cd csi-spl-orc && AGENT_ID=<taker> LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=<topic uuid> LANE_ISSUE_TITLE='<the work>' LANE_ISSUE_ANSWER=1 DRY_RUN=0 ./run -a do_spl_lane_issue
 ```
 
+<a id="ws-doc-fa5a0388-7fa7-451f-a746-4b5a794e8fb8"></a>
 ### 0.1 The card and the key in the topic
 
 Every issue this code files (0, and 1.1 with no key) starts its description
@@ -63,6 +67,7 @@ keeps its card current with
 A lane placed later from that discussion carries the key in its brief
 (`Issue: <KEY>`), so it links that issue instead of filing a second one.
 
+<a id="ws-doc-072a8acd-990f-4887-970d-02abf5618e3b"></a>
 ### 0.2 The issue links its discussion (SPL-1593, rdb 0194)
 
 Every issue links to one or more discussions, enforced by the database
@@ -81,6 +86,7 @@ never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
 the card's `Source` line carries the full id the hub linked, and the key is
 posted back only in a named topic, never in the default one.
 
+<a id="ws-doc-33e2dfe3-ac34-4c97-a628-cbcb87906328"></a>
 ## 1. The life of a lane's issue
 
 | step | what happens | code |
@@ -108,6 +114,7 @@ the placement comment, and the placing desk is the assignee.
 A respawn of an id (`SPAWN_REUSE_ID=1`: the rotation, a restart) keeps the key
 it has. A lane placed before this rule has no key; its exit is not checked.
 
+<a id="ws-doc-edd9e6f3-8469-4103-aaa2-519b185699e4"></a>
 ## 2. Docs kept current
 
 At the same exit gate (1.6): the lane's commits on trunk (those naming its key in the subject scope, any type, or in a `Closes:` trailer)
@@ -124,6 +131,7 @@ The pre-push gate does not check it: a lane pushes each commit as it is green
 (seed INTEGRATION (2)), so the doc change often lands in a later push than the
 code. The exit is the first point where the lane's whole change is known.
 
+<a id="ws-doc-c5ae354f-5463-4a6d-b48d-d5a6e9760a43"></a>
 ## 3. Tests
 
 `csi-spl-orc/src/bash/features/spawn-agents/tests/test-lane-issue.sh`: every
@@ -135,6 +143,7 @@ placement, discussion and end, the card (0.1) and the key posted back.
 `csi-spl-orc/src/bash/tests/spl-issue-key-rate.tst.sh`: what the key rate (4)
 counts.
 
+<a id="ws-doc-94dc154f-5e0c-4ce2-a8ec-fe039d404563"></a>
 ## 4. The key rate, weekly
 
 Owner Q6 A (msg 910b14c9): the key is enforced at the lane's exit (1.6), not

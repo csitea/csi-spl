@@ -1,5 +1,7 @@
 # SPEC: Social auth on the spool web UI
 
+> Generated from qto doc `5e6307c9-5f4e-4d49-8550-78d3b273dc1f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **preferred registration and login** for humans (M2 checkout +
 M3 WUI). Not M1 (IAP/IP allowlist).
 
@@ -10,6 +12,7 @@ shop modules.
 
 ---
 
+<a id="ws-doc-3296c038-b6f7-4462-8e49-ddcd0e38ec0d"></a>
 ## 0. Preferred way to register
 
 **People register by signing in with an IdP** (Google, Facebook, Microsoft,
@@ -26,6 +29,7 @@ sign-up form.
 - IdP must yield a **verified email** (or a stable `sub` if email is
   withheld); otherwise refuse and ask another provider.
 
+<a id="ws-doc-51fac399-ae22-4768-9d11-a817fa471e70"></a>
 ## 1. Providers
 
 | Slug | Kind | Source |
@@ -50,6 +54,7 @@ Wire (all of them):
 
 ---
 
+<a id="ws-doc-58f9b7a4-5d5f-47d5-b615-570131701c9c"></a>
 ## 2. Fork sources (Google / Facebook donors)
 
 | Donor | What it already is |
@@ -71,6 +76,7 @@ New files in the fork: `microsoft_idp.go`, `linkedin_idp.go`, `xai_idp.go`
 
 ---
 
+<a id="ws-doc-bc7fd28b-35ac-4ebd-8b54-8d0be75d151c"></a>
 ## 3. Spool mapping
 
 After a successful callback (any slug):
@@ -83,6 +89,7 @@ After a successful callback (any slug):
 
 ---
 
+<a id="ws-doc-023d7877-ac76-47ac-a885-363769287bae"></a>
 ## 4. Where the buttons appear
 
 | Surface | When |
@@ -93,6 +100,7 @@ After a successful callback (any slug):
 
 ---
 
+<a id="ws-doc-63c5147f-7302-43d3-9ac1-09a2a80842f7"></a>
 ## 5. Secrets and URLs
 
 Per provider, per env, Secret Manager (fork `029`): client id + secret.

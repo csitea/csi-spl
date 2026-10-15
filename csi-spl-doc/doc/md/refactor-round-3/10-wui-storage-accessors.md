@@ -1,7 +1,10 @@
 # Refactor round 3, row 10: Read storage through the prefs.mjs accessors, not hand-rolled try/catch + JSON.parse
 
+> Generated from qto doc `6d4472b8-7c67-4940-b518-46e6588aee53`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 10. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-2a9bf37a-ad7b-49cd-a0d1-795d344b63c5"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 10. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-d08c4ddf-fa41-4350-b73d-31eb4782fc74"></a>
 ## 1. The practice
 
 `src/utils/prefs.mjs` has `storageGet` / `storageGetJson`, guarded for private mode and bad JSON. These five readers re-implement the guard in three different styles. CAUTION: `prefs.mjs` falls back to `globalThis.localStorage` on a null store, so every site keeps its own "no store" guard before calling the accessor. `prefs.mjs` itself is not edited (excluded this round).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-55a3f0d8-ec75-4457-bacc-045e490e2c0f"></a>
 ## 2. The sites
 
+<a id="ws-doc-090f0971-8977-40d8-939c-a765fd34b143"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/pane-collapse.mjs` lines 131-138 on `755e86235`:
@@ -38,6 +44,7 @@ export function loadCollapsed(storage) {
 
 Change: `if (!storage || typeof storage.getItem !== 'function') return normalizeCollapsed(null); return normalizeCollapsed(storageGetJson(COLLAPSE_STORAGE_KEY, null, storage))`.
 
+<a id="ws-doc-0e7f5c27-8a22-4127-843f-7424b613e179"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/hidden-cards.mjs` lines 43-50 on `755e86235`:
@@ -55,6 +62,7 @@ export function readHiddenCards(store) {
 
 Change: `const s = storage(store); return s ? normalizeHiddenIds(storageGetJson(HIDDEN_CARDS_KEY, null, s)) : []`.
 
+<a id="ws-doc-02cd3e59-f217-48fe-9f57-32c9594010b2"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/fleet-load.mjs` lines 192-198 on `755e86235`:
@@ -71,6 +79,7 @@ function readStored(store) {
 
 Change: `const p = store ? storageGetJson(FLEET_STORE_KEY, null, store) : null`; keep the `{low:null,...}` fallback.
 
+<a id="ws-doc-83507d8a-6fd9-4c19-a316-3d842b1211c1"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/operator-console.mjs` lines 152-161 on `755e86235`:
@@ -90,6 +99,7 @@ function mockRead(store) {
 
 Change: `const rows = store ? storageGetJson(OPERATOR_MOCK_STORE_KEY, null, store) : null; return Array.isArray(rows) ? rows : operatorMockSeed()`.
 
+<a id="ws-doc-ebdde28b-3e72-4016-b933-b4835c310cb4"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/utils/card-clip.mjs` lines 85-94 on `755e86235`:
@@ -109,6 +119,7 @@ export function readCardClipSession(pane = 'msgs', bag) {
 
 Change: `const raw = storageGet(cardClipSessionKey(pane), null, s)` (already imported at :24).
 
+<a id="ws-doc-ad99b972-35be-49f9-9f47-e0532eea372c"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/hidden-cards.mjs:11-12`: stale: "tests/unit/hidden-cards.test.mjs pins it"; that file does not exist, the tests are `tests/unit/swipe-hide.test.mjs:105`.
@@ -116,6 +127,7 @@ Change: `const raw = storageGet(cardClipSessionKey(pane), null, s)` (already imp
 - `csi-spl-wui/src/utils/fleet-load.mjs:185-190` and `operator-console.mjs:128-133` are byte-identical private `browserStore()`: add a comment at each naming the twin (merging is a later lane).
 - Testability: NEW one case per reader with a Storage whose `getItem` throws, and one with `null`: pins the "no store" guard.
 
+<a id="ws-doc-190eca91-7cef-4af1-88e7-1c72c960b3f8"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -124,6 +136,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - initial chunk: confirm the 160 KB budget after `pnpm generate` (prefs.mjs is already on first paint via theme/font-size)
 - e2e: `tests/e2e/panel-collapse.test.mjs`, `swipe-hide.test.mjs`, `fleet-load.test.mjs`, `operator-console.test.mjs`
 
+<a id="ws-doc-d6d18dd0-941f-4bf3-8cfe-43e0471494ac"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -133,10 +146,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-8a497e2a-2a03-490e-8c8e-723a4085673c"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-69dc53b0-efbd-4cfb-a512-32a10d231dd6"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -307,6 +322,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/pane-collapse.mjs`, `csi-spl-wui/src/utils/hidden-cards.mjs`, `csi-spl-wui/src/utils/fleet-load.mjs`, `csi-spl-wui/src/utils/operator-console.mjs`, `csi-spl-wui/src/utils/card-clip.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/pane-collapse.mjs,csi-spl-wui/src/utils/hidden-cards.mjs,csi-spl-wui/src/utils/fleet-load.mjs,csi-spl-wui/src/utils/operator-console.mjs,csi-spl-wui/src/utils/card-clip.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-54440ee5-a8ab-4215-b964-0740bcd1285b"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

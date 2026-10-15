@@ -1,5 +1,7 @@
 # Perf round 5 — seat g2 (grok, reviewer)
 
+> Generated from qto doc `cd307010-2513-4ef8-ab82-ed1ca453f885`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Seat `g2` reviews `c1` (claude), `m1` (mistral) and `a1` (agy). Doc only.
 Commands below ran on tree `7ad80c2eb` from the repo root, n=1 each, read-only.
 `issues.vue` lines were re-read on `origin/master` `fda858ca5`: `46b4bc2b4`
@@ -16,6 +18,7 @@ An action is AGREE when the site still exists, the work is not already
 landed or superseded, and the gain is measured or the row carries a gate
 that drops it when the measurement says no.
 
+<a id="ws-doc-cb4442d0-2261-4821-95b4-1439c77aeb75"></a>
 ## 1. Summary
 
 | seat | AGREE | DISAGREE | note |
@@ -24,6 +27,7 @@ that drops it when the measurement says no.
 | m1 | 0 | 10 | every row is landed, superseded, or has no measured gain |
 | a1 | 1 | 9 | #5 is the remaining hot `map[string]any` frames; the other nine are superseded, unmeasured, or already cached |
 
+<a id="ws-doc-4477a889-2d7f-4e2b-a98b-0a94a16dd6de"></a>
 ## 2. Review of c1
 
 c1's pool correction holds: `grep -n DBMaxConns $A/config/config.go` ->
@@ -32,6 +36,7 @@ c1's pool correction holds: `grep -n DBMaxConns $A/config/config.go` ->
 -> `"4"`. A 2.4 s statement holds one of an instance's four connections.
 A 0.28 ms statement does not.
 
+<a id="ws-doc-490ad91b-be22-46d1-8b02-8101d3c741ca"></a>
 ### 4.1 Relay tick cadence and one set read per tenant: AGREE, with the saving corrected
 
 The site is the 5 s tick. `sed -n 43,86p $A/hub/relay.go` shows `RunRelay`
@@ -65,6 +70,7 @@ Keep c1's drop gate: drop the cadence part if escalation p95
 and unheard set read can land even if the cadence is dropped. The SQL
 predicates stay.
 
+<a id="ws-doc-927c75e3-86f1-41ba-9c3d-22795a8344e9"></a>
 ### 4.2 Unanswered sweep reads changed topics only: AGREE
 
 `grep -n 'WITH k AS MATERIALIZED' csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh`
@@ -83,6 +89,7 @@ only `DISTINCT ON` for heads saves the small key, not the 198 ms. The
 hourly full reconcile is the right guard for expiry and a mid-topic
 archive. Drop if the insights mean stays above 80 ms at n >= 200, as c1 says.
 
+<a id="ws-doc-264b1cdd-49e8-4046-96c0-59603a32c38e"></a>
 ### 4.3 `topic_head_apply_marks` add path stays O(probes): AGREE, lab first
 
 `sed -n 300,314p $R/0144_topic_heads.sql` shows `topic_head_add` taking
@@ -96,6 +103,7 @@ under 5 ms. This lane touches the message write path, so it lands before
 any later counter trigger on the same path, and its insert measurement
 is taken on a tree where it is the only new write-path work.
 
+<a id="ws-doc-aa5a4aa4-c88e-4809-8612-1074578747cf"></a>
 ### 4.4 Channel 304 gate: AGREE as a measurement, ranked last
 
 The gate exists and the client never reaches it.
@@ -126,6 +134,7 @@ match. The client file is outside the API and DB tree; the lane owns
 that one WUI change or the row cannot gain anything. Do not build the
 maintained channel counter in this lane.
 
+<a id="ws-doc-a1d0ff68-7fe7-4ebb-bd08-1cdc1e426019"></a>
 ### 4.5 `search_sig` full compare off the per-deploy path: AGREE
 
 `grep -n do_spl_search_sig_check .github/workflows/20_hub-build-deploy.yml`
@@ -137,6 +146,7 @@ full compare on a server-version change. Record the server version the
 last full check passed on, and skip it on an application deploy that
 does not change that version.
 
+<a id="ws-doc-2cd11144-153a-4648-bbae-bc0df11193cb"></a>
 ### 4.6 Flow fold as one anti-join: AGREE, EXPLAIN first
 
 `flowFoldSQL` is `$A/store/flow_fold.go:312`. It selects `flowEventCols`,
@@ -153,6 +163,7 @@ doc). Drop the row if the correlated subplan is not where the time goes.
 The lane's file is `flow_fold.go`. `flowCoveredSQL` stays for
 `flowCountsSQL`.
 
+<a id="ws-doc-9f19b71a-c6bb-4ac9-a9a8-4da9ecffa2fd"></a>
 ### 4.7 DM pointers, top-N per arm: AGREE, EXPLAIN first, drop if the time is the heap read
 
 `sed -n 24,44p $A/store/dm_pointers_postgres.go` shows both arms of the
@@ -166,6 +177,7 @@ time, the fix is an index, which is a write cost on `messages`. Measure
 that insert cost and drop the row if it is not smaller than the read.
 Same rows as today, including a fixture whose newest lines are archived.
 
+<a id="ws-doc-7d7b026a-3bc9-4a37-9a15-d311caa47c47"></a>
 ### 4.8 Issue list omits `description`: AGREE, only with a one-issue read on open
 
 `issueCols` at `$A/store/issues_postgres.go:15` includes `description`.
@@ -187,6 +199,7 @@ still returns the text. Drop if `EXPLAIN (ANALYZE, BUFFERS)` shows the
 mean falling by under 2 ms (the column may be toasted and never
 detoasted on the list).
 
+<a id="ws-doc-b5edfda1-b3d8-45ef-a48f-28791a665298"></a>
 ### 4.9 Release-note page by keyset: AGREE
 
 `releaseNumberedSQL` (`$A/store/release_note_postgres.go`, `row_number()
@@ -197,6 +210,7 @@ g1's 43.64 ms (n=219) six hours earlier. The mean grows with the table.
 Proof is equal page contents (version, sha, seq) and an EXPLAIN that
 stops at the page. Small today, unbounded by design.
 
+<a id="ws-doc-5bc1b70e-086e-41d3-ae17-2263b0759604"></a>
 ### c1's "not worth" list: AGREE with the drops this seat re-checked
 
 - Box hello, 135 886 × 0.32 ms. The stamp interval is
@@ -227,6 +241,7 @@ stops at the page. Small today, unbounded by design.
   restart), and a read replica. The database is 1.2 % busy in c1's window
   (1 041.6 s of DB time per day).
 
+<a id="ws-doc-503cb9cd-d476-43de-9b1c-ece8e63e25ae"></a>
 ## 3. Review of m1
 
 m1's measurement table is the 2026-10-06 baseline. Flow counts at
@@ -274,6 +289,7 @@ A later review that marks all ten AGREE is agreeing with work that is
 already on master. Those ten do not count toward the three-vendor bar
 for a new lane.
 
+<a id="ws-doc-a4f44711-1a04-497e-b36f-2a3fac1d73b0"></a>
 ## 4. Review of a1
 
 a1's section 3 correctly lists ap-01a/b, ap-02, ap-04, ap-00 and ap-07
@@ -342,6 +358,7 @@ a1's insights were taken on tree `0adcd4a2b`.
     the install was ~32 s). `grep -n 'actions/cache' .github/workflows/65_iac-checkov.yml`
     -> line 51.
 
+<a id="ws-doc-0bbe7c75-435e-437f-86d3-0843f440701c"></a>
 ## 5. What the merger should take from this seat
 
 Ordered by measured gain. A gated row stays in this order only while its

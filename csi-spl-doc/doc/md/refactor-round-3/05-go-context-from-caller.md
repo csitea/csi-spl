@@ -1,7 +1,10 @@
 # Refactor round 3, row 5: Derive contexts from the caller, and bound detached ones
 
+> Generated from qto doc `cdde0d15-e426-4e9d-b401-74c672ac1d11`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 5. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: stability. Risk: low-med. Run on: **PC**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-b2be6361-8044-47dc-9a2d-e26aa76f083b"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 5. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-67df5ab6-90cd-4af9-a4ae-d86f85cba9c4"></a>
 ## 1. The practice
 
 `context.Background()` inside a session or command means a cancelled session or a Ctrl-C does not stop the work, and an unbounded Background on a cleanup call can hang forever. Use the session or caller ctx, `interruptible()` (cmd/spool/main.go:529) for CLI verbs, or `context.WithoutCancel(ctx)` plus a timeout for cleanup. Runs on PC: the store site needs Postgres.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-37efcb07-16e2-47ca-ac7d-7a5b5971db23"></a>
 ## 2. The sites
 
+<a id="ws-doc-716cb053-1abc-4639-9042-23545fd99128"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/hubclient/hubclient.go` lines 474-476 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: keepalive: `context.WithTimeout(s.ctx, wait)`. Do NOT change `readLoop` :498 (the conn close ends that read); add a comment there instead.
 
+<a id="ws-doc-6e052013-317a-4b46-a37e-021dde92d605"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/hubclient/commit.go` lines 33-35 on `755e86235`:
@@ -45,6 +52,7 @@ Change: keepalive: `context.WithTimeout(s.ctx, wait)`. Do NOT change `readLoop` 
 
 Change: commit: `context.WithTimeout(s.ctx, 5*time.Second)`; a lost session waits up to 5 s on a dead socket today.
 
+<a id="ws-doc-afafc2ff-1bdf-4809-acfa-6cf99a9ac0b9"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go` lines 590-591 on `755e86235`:
@@ -56,6 +64,7 @@ Change: commit: `context.WithTimeout(s.ctx, 5*time.Second)`; a lost session wait
 
 Change: cmdHubTenant: `ctx, stop := interruptible(); defer stop()`; same at :621, :680, :726, :781 (the hub-* admin verbs).
 
+<a id="ws-doc-03313884-44a9-412e-82ba-1e39c0215ea4"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/notify/notify.go` lines 76-78 on `755e86235`:
@@ -68,6 +77,7 @@ Change: cmdHubTenant: `ctx, stop := interruptible(); defer stop()`; same at :621
 
 Change: add `RunCtx(ctx, cfg, m, to)`; `Run` calls it with Background, so Queue.serve can later pass a ctx that Stop cancels.
 
+<a id="ws-doc-3cebee1b-8820-4e5e-942e-fb17dfd9d174"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` lines 47-50 on `755e86235`:
@@ -81,6 +91,7 @@ Change: add `RunCtx(ctx, cfg, m, to)`; `Run` calls it with Background, so Queue.
 
 Change: keep the unlock surviving a cancelled ctx but bound it: `uctx, c := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)`. This is the Go migrate runner, not a migration file.
 
+<a id="ws-doc-4658c124-fbf5-429e-96bd-faadcbf618bf"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/hubclient/hubclient.go:498`: comment why `readLoop` reads on Background (the conn close at :486 / :543 ends the read).
@@ -89,6 +100,7 @@ Change: keep the unlock surviving a cancelled ctx but bound it: `uctx, c := cont
 - `csi-spl-api/src/go/spool-hub-api/internal/notify/notify.go:55-60`: the Run doc says "blocks for at most cfg.NotifyTimeout"; with WaitDelay (:83) it is NotifyTimeout + 1 s: say so.
 - Testability: NEW `TestRunCtxCancelledKillsNotifier` (NotifyCmd=`sleep 5`, cancel -> returns in < 1 s).
 
+<a id="ws-doc-b4a97acc-a4cd-4114-ae06-37b004b871ca"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -99,6 +111,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/notify/` (13 PASS) + the new test
 - `SPOOL_TEST_PG_DSN=<local postgres:16-alpine> cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/store/ -run Migrat` (skips without a DSN: run it WITH one)
 
+<a id="ws-doc-1391a066-a0b0-48c8-ba06-5aa963576fca"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -108,10 +121,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-c48a1ab9-0d88-4f24-86d7-896735cf5de3"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-19161e6e-a98c-449d-9761-eb85a08ffbed"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -282,6 +297,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/hubclient/hubclient.go`, `csi-spl-api/src/go/spool-hub-api/internal/hubclient/commit.go`, `csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go`, `csi-spl-api/src/go/spool-hub-api/internal/notify/notify.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/hubclient/hubclient.go,csi-spl-api/src/go/spool-hub-api/internal/hubclient/commit.go,csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go,csi-spl-api/src/go/spool-hub-api/internal/notify/notify.go,csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go --agent <you>` must exit 0.
 
+<a id="ws-doc-461bbb06-9eff-490f-b6cb-a7de10669d75"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

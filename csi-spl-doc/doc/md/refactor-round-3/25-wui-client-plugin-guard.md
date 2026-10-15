@@ -1,7 +1,10 @@
 # Refactor round 3, row 25: Remove the dead `import.meta.client` guard from `*.client.ts` plugins
 
+> Generated from qto doc `90860310-f71d-4f55-b3f4-20a4e87da0a1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 25. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-f1458900-efb9-4183-9716-ac227a0a5909"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 25. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-ccb1918c-0cc9-435d-b50c-a97a6c9bb67c"></a>
 ## 1. The practice
 
 Nuxt loads a `*.client.ts` plugin only in the client bundle, where `import.meta.client` is statically true: `if (!import.meta.client) return` is dead and suggests the plugin may run on the server. Keep the guard where it sits inside a nested hook (`0.0.runtime-config.client.ts:16`) and in non-`.client` files.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-ffa87ca0-7feb-405e-81ad-cf5d92227935"></a>
 ## 2. The sites
 
+<a id="ws-doc-3d237b83-dc97-4d43-9a42-df4be554fabd"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/plugins/chunk-reload.client.ts` lines 7-8 on `755e86235`:
@@ -32,6 +38,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
 Change: drop the guard; keep `'vite:preloadError'`, `'app:chunkError'`, `shouldReload(` (chunk-reload.test.mjs:29-36).
 
+<a id="ws-doc-d953040e-e495-45e5-9bec-8123fb98f648"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/plugins/preferred-locale.client.ts` lines 14-15 on `755e86235`:
@@ -43,6 +50,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
 Change: drop the guard; keep `registerLocaleRoutes(` before the last `switchLocalePath` (locale-routes.test.mjs:114-116).
 
+<a id="ws-doc-f56028eb-e692-45ba-88f0-763b81bdf039"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/plugins/preferred-theme.client.ts` lines 8-9 on `755e86235`:
@@ -54,6 +62,7 @@ export default defineNuxtPlugin(() => {
 
 Change: drop the guard.
 
+<a id="ws-doc-a3c67d6c-73cc-4fc7-95bb-d757d5d3c9c8"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/plugins/event-log.client.ts` lines 13-14 on `755e86235`:
@@ -65,6 +74,7 @@ export default defineNuxtPlugin(() => {
 
 Change: drop the guard; keep the texts events-rail.test.mjs:38-42 pins.
 
+<a id="ws-doc-fbf42470-4a77-4620-8e8f-5af9c41e7292"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/plugins/lobby-warm.client.ts` lines 12-13 on `755e86235`:
@@ -76,12 +86,14 @@ export default defineNuxtPlugin(() => {
 
 Change: drop the guard.
 
+<a id="ws-doc-6b0e18bd-a683-4f7c-ad20-df14a0ca66cd"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/plugins/preferred-theme.client.ts:1-7`: the header says "client-only by file suffix" (replaces the guard as the explanation).
 - `csi-spl-wui/src/plugins/preferred-locale.client.ts:18`: `MARK = 'csi-spl-pref-locale-applied'` is a function-local storage key; hoist it to a module constant (same for `preferred-theme.client.ts:13` `MARK` and `chunk-reload.client.ts:5` `KEY`) so a key-uniqueness test can see it.
 - Testability: NEW `tests/unit/client-plugins-no-guard.test.mjs`: no `src/plugins/*.client.ts` starts its default export with `if (!import.meta.client) return` (allow-list `spool-live`, `tenant-host`, `locale-cookie` until a later round).
 
+<a id="ws-doc-449f7b51-895a-45eb-b38f-11b8d186b49b"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -90,6 +102,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `locale-routes` unit and `pnpm run typecheck` (need `pnpm install`)
 - e2e: `tests/e2e/i18n-split.test.mjs`, `settings-lang-width.test.mjs`
 
+<a id="ws-doc-9de77b0b-2ad6-4095-a541-28b3f5b3e3c9"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -99,10 +112,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-e079091d-75af-4319-a84d-bbcfdbe3b6a9"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-89a666d3-cfb6-408d-b6e7-af7cc0b21362"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -272,6 +287,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/plugins/chunk-reload.client.ts`, `csi-spl-wui/src/plugins/preferred-locale.client.ts`, `csi-spl-wui/src/plugins/preferred-theme.client.ts`, `csi-spl-wui/src/plugins/event-log.client.ts`, `csi-spl-wui/src/plugins/lobby-warm.client.ts`, `csi-spl-wui/tests/unit/client-plugins-no-guard.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/plugins/chunk-reload.client.ts,csi-spl-wui/src/plugins/preferred-locale.client.ts,csi-spl-wui/src/plugins/preferred-theme.client.ts,csi-spl-wui/src/plugins/event-log.client.ts,csi-spl-wui/src/plugins/lobby-warm.client.ts,csi-spl-wui/tests/unit/client-plugins-no-guard.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-c3209fc7-a212-4690-a30c-a65ac95995a1"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

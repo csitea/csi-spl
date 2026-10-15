@@ -1,7 +1,10 @@
 # Refactor round 3, row 30: Fix stale comments that contradict the tree
 
+> Generated from qto doc `c4091c4e-b0a6-4ebc-a774-e24d1d90dd1a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 30. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-7894028f-6aab-4e56-b911-ac2502c49aec"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 30. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-60ccb086-5f69-4562-9392-0e68542af344"></a>
 ## 1. The practice
 
 Each comment below names a file, path or prefix that does not exist (each checked with `git ls-files`); a reader who follows one finds nothing, or another org's naming (which the distribution-hygiene rules ban).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-ab551a34-4575-4262-9fdd-fe489e335276"></a>
 ## 2. The sites
 
+<a id="ws-doc-6fa26edd-0bb7-49a3-9553-7579a0b7fb19"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/lib/bash/funcs/define-all-run-vars.func.sh` lines 2-2 on `755e86235`:
@@ -31,6 +37,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: the real name is `define-all-run-vars.func.sh`; add an `@description` that says it runs `set -u -o pipefail` (:5) and so changes the CALLER's shell options.
 
+<a id="ws-doc-83fbe031-8da6-4719-b3a6-d55c99df0c1a"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/src/bash/run/spl-tenant-host-provision.func.sh` lines 90-90 on `755e86235`:
@@ -41,6 +48,7 @@ Change: the real name is `define-all-run-vars.func.sh`; add an `@description` th
 
 Change: the test is `csi-spl-orc/src/bash/tests/tenant-host.tst.sh` (its :86 compares `SPL_TH_RESERVED`).
 
+<a id="ws-doc-8d4d0c8f-20b3-4078-8335-db998c82186b"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh` lines 5-5 on `755e86235`:
@@ -51,6 +59,7 @@ Change: the test is `csi-spl-orc/src/bash/tests/tenant-host.tst.sh` (its :86 com
 
 Change: no tf-120 importer exists (`git ls-files | grep -c tf-120-import` -> 0): name `src/bash/scripts/tf-import-table.sh` or drop the reference.
 
+<a id="ws-doc-f25ce424-99fe-4b71-8f9d-1c1c006810f7"></a>
 ### 2.4 Site 4
 
 `csi-spl-orc/lib/bash/funcs/parse-metadata.func.sh` lines 7-8 on `755e86235`:
@@ -62,6 +71,7 @@ Change: no tf-120 importer exists (`git ls-files | grep -c tf-120-import` -> 0):
 
 Change: point the `@example` at a real action (the iac copy is row 28).
 
+<a id="ws-doc-c5c48c89-7c58-47a9-93ca-a7c151507043"></a>
 ### 2.5 Site 5
 
 `csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh` lines 46-46 on `755e86235`:
@@ -72,6 +82,7 @@ Change: point the `@example` at a real action (the iac copy is row 28).
 
 Change: write the generic `<org>-<app>-<env>-api-`; :78 carries another org's prefix: make it generic too.
 
+<a id="ws-doc-763ed835-5d5d-4124-bf84-3a11b7083b2a"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/lib/bash/funcs/define-all-run-vars.func.sh:5`: document that `set -u -o pipefail` inside the function leaks into the caller (or `local -` with a comment; only if the tests stay green).
@@ -79,6 +90,7 @@ Change: write the generic `<org>-<app>-<env>-api-`; :78 carries another org's pr
 - `csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh:3-10`: add an `@output` line naming the import log path.
 - Testability: NEW `csi-spl-iac/src/bash/tests/comment-refs-exist.tst.sh`: per production `.sh`, extract `*.sh`/`*.tst.sh` basenames from comment lines and fail on any `git ls-files` does not contain (allow-list external names such as `dockerd-rootless-setuptool.sh`); a first pass found ~10 dangling names.
 
+<a id="ws-doc-45f51afe-5794-4687-ae8f-468c12b39c53"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -88,6 +100,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `sudo -u <DEV_USER> bash csi-spl-orc/src/bash/tests/parse-metadata-nofork.tst.sh` (5 PASS)
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene`
 
+<a id="ws-doc-6e1ffc37-3594-4e32-8473-029f5caeeec1"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -96,10 +109,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-eced5f76-f077-41d8-b121-3b935ae9d6f9"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-a233f6ab-a78f-42c6-944f-51cdfa61cd4b"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -269,6 +284,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/lib/bash/funcs/define-all-run-vars.func.sh`, `csi-spl-orc/src/bash/run/spl-tenant-host-provision.func.sh`, `csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh`, `csi-spl-orc/lib/bash/funcs/parse-metadata.func.sh`, `csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh`, `csi-spl-iac/src/bash/tests/comment-refs-exist.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/lib/bash/funcs/define-all-run-vars.func.sh,csi-spl-orc/src/bash/run/spl-tenant-host-provision.func.sh,csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh,csi-spl-orc/lib/bash/funcs/parse-metadata.func.sh,csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh,csi-spl-iac/src/bash/tests/comment-refs-exist.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-e6aea23b-7c0c-48c1-9d24-f9b18f9fc8bd"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

@@ -1,5 +1,7 @@
 # API (hub) performance round: measured baseline, v0.1 proposal and v0.2 panel consensus (2026-10-06)
 
+> Generated from qto doc `51b0e609-9dce-4cba-99e1-0a698687517a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in order:
 
 1. msg 857e077a: "api related performance improvement refactoring round"
@@ -12,12 +14,14 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 
 **Basis:** trunk `929edfa3e`. Live hub revisions, from the request log: prd `csi-spl-hub-prd-00451..`, dev `csi-spl-hub-dev-00441..00444`. Row slug **`ap-NN`**. Status is generated, never hand-kept: `git log origin/master --grep='ap-[0-9][0-9]'` plus the served `/version`.
 
+<a id="ws-doc-341f657a-c92e-4b80-bf26-651af56cf665"></a>
 ## 0. v0.2: the panel's consensus (2026-10-06)
 
 **Status:** this is the list the owner reviews. **No build lane starts before the owner's go** (msg 6a16e1fd). Sections 1..8 below are the v0.1 baseline the panel debated. Where they differ, this section wins.
 
 **Panel:** 6 seats, 2 claude (c-401 correctness, c-402 measurement) and 4 grok (g-403 Go read paths, g-404 WUI, g-405 Postgres write path, g-406 plan shape). Each wrote an independent round 1 and a rebuttal round 2. All 12 files are in, none missing: `/var/spool-hub/dispatch/api-perf-panel/opinions/<id>.r{1,2}.md`. The panel read the code on trunk `4ff91fbc1` / `c1927a3c`. c-001 ran the panel's prd reads (read-only, 12:27..12:29Z, n=1 snapshot each).
 
+<a id="ws-doc-c3abe8e8-61dd-4212-82cf-b5abdf1009b3"></a>
 ### 0.1 Answer
 
 1. **The panel recommends 6 small commits, not 10.** All 6 seats refused to pad the list: the other candidates either lost their A/B already (ap-03, ap-09) or have no measured cost yet (ap-06, ap-08). Three more are kept, gated on a named read or on the owner's decision.
@@ -31,6 +35,7 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
    - **Migrations 0134 and 0135 are taken on trunk.** ap-01a reserves **0136**, ap-04 reserves **0137**.
 4. **The proof tool is the first fix (ap-00).** `do_spl_db_hot_measure` already runs the hub's planner settings (`spl-db-hot-measure.func.sh:89-95`). What is stale is its statement text (`grep -c archived_at` on it gives 0), and it has no Flow-count or channel statements. So 64 % of prd DB time has no hub-conditions lab proof today.
 
+<a id="ws-doc-7c1a5f7d-2a2b-44c0-b991-8def113e1b23"></a>
 ### 0.2 The 6 commits, in review order (gain per risk)
 
 | # | commit | what and why, in one plain sentence | files | measured cost now (n, span) | expected gain | risk | proof before / after (same method, same n) | gate | box | agent | wave |
@@ -42,6 +47,7 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 | 5 | **ap-01a** | Store on each Flow event the place it belongs to and the time used for read coverage, and keep both current when a line is moved or merged, so the badge count can later skip everything already read. | new migration `0136_flow_events_place_key.sql`: `place_key` (the keys expression, `flow_postgres.go:93-95`) + `cov_at` (= the message's `received_at`), backfill **by msg_id**, index `(tenant_id, member_id, place_key, cov_at, msg_id)`, one `AFTER UPDATE OF channel, task_id, from_id, from_box, received_at ON messages` trigger that refreshes both and **never `at`**; `api:internal/store/flow_postgres.go` `flowInsertCTE` (:26-50) writes them | enabler: 0 on its own; the write cost is one index entry per event | 0 | med: prd DDL, the migration deploys before the hub; a stale key would undercount | backfill rows = flow_events rows; after the backfill, a prd read of `place_key` / `cov_at` vs the message = **0** mismatches (n = all events); a Postgres store test (mark, move a line, merge a topic, `FlowRead` equals today's statement); message-insert Insights mean within noise | **owner's DDL go** | main | claude | 1 |
 | 6 | **ap-01b** | Count a member's Flow unread only from the events after each read mark (seek on the stored place and time), then run today's per-message rules on that short tail, instead of checking every event the member ever got. | `api:internal/store/flow_postgres.go` `flowCountsSQL` only (:91-119; `FlowRead` :155 and `FlowFanout` :193 use it unchanged); both DM marks (`dm:<from>`, `dm:<from>@<box>`) applied at read time | prd 24 h: 865.5 s (37.8 %), n=11 229 x 77.1 ms + `FlowFanout` 59.1 s, n=680 x 87.0 ms; per call ~3 530 events x 3 probes (n=3) | 77 -> under 10 ms per call (estimate), up to ~-800 s/day | med: the door, archive, `f:` and `t:` rules must stay per message on the tail | result md5 old vs new for **every** member with flow_events in prd t1 and dev (n = all members, not 3); ap-00 `flow_counts` n=20 before/after under `pgScopeTenant`; Insights `WITH fc` and `FlowFanout` mean (the per-call number gates, not the daily total) | ap-01a served + its 0-mismatch read + the move/merge test; and c-402's generic-plan / JIT read (below) | main | claude | 2 |
 
+<a id="ws-doc-a537ae76-68e6-41d7-b0dd-b5c4a089d7b0"></a>
 ### 0.3 Gated, not in the first wave
 
 | item | why it waits | the read that opens it |
@@ -63,6 +69,7 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 - **ap-01a maintenance.** A trigger, not Go move and merge writers: 4 of 6 seats, and it keeps the move and merge files out of the batch.
 - **ap-03.** Some seats keep it alive behind ap-00, others drop it. Decision: gated, not reserved.
 
+<a id="ws-doc-1f5fe887-ef87-47af-9da7-82fc87713402"></a>
 ### 0.4 Waves: 4 lanes, 2 per box, files disjoint
 
 | wave | main lane A | main lane B | sat lane A | sat lane B |
@@ -76,12 +83,14 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 - **Proof windows:** one hub roll per 24 h after-window, and ap-05 rolls alone. For ap-01b, ap-02 and ap-04 the gating number is per call (ap-00 n=20, twice before and twice after, plus the Insights mean); daily seconds are reported but do not gate.
 - **Done = served:** dev and prd `/version` (hub) or `build.json` (WUI) contain the sha, and the proof is re-run with the same n.
 
+<a id="ws-doc-d2d42027-de10-4ce7-aa1c-9ffb999fd29e"></a>
 ### 0.5 Summary for the owner (3 lines)
 
 1. The panel (2 claude + 4 grok, 12 opinions) agrees on 6 small commits, and asks you not to pad to 10: the other candidates either lost their speed test already or have no measured cost yet.
 2. The cheapest big win is in the browser: an open channel makes each tab re-read the whole channel list every 5 s, and those reads are about a quarter of all database time. Next come two database fixes (the channel list and the Flow badge count) and the measuring tool that proves them.
 3. You decide three things: go for the two prd schema changes (0136 for the Flow badge, 0137 for the messages autovacuum setting), whether the "topic head" redesign (ap-07) gets a spec, and go for the build.
 
+<a id="ws-doc-c6e1dfd6-3f2a-4cda-aeef-e2efbef49723"></a>
 ## 1. Answer
 
 1. **The API's time is in a few SQL statements, not in the hub process.** On prd the DB spent **2 290 s in 24 h**:
@@ -102,6 +111,7 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 4. **The hub process is not the bottleneck.** Route time minus DB time is a few ms per route (round 2: 1..3 ms). At the snapshot: 9 of 25 backends in use, 0 lock waits, no new deadlocks since E02.
 5. **One tool gap blocks honest walk proofs.** `do_spl_db_hot_measure` keeps a copy of the walk text frozen at SPL-984. On prd it reads walk_dm **22.0 ms p50 (n=20)**. The store's current statement takes **114..286 ms (n=3)** on the same tenant and reader, and Insights says **456 ms mean (n=245)**. Row ap-00 fixes the tool.
 
+<a id="ws-doc-ac85f083-af0b-43df-afd6-b042b864dbab"></a>
 ## 2. How it was measured
 
 | layer | command (read-only, from `csi-spl-orc`, env SA) | window, n |
@@ -120,8 +130,10 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
   - prd t1: 21 921 live messages, 4 994 flow_events (HUM-10: ~3 590), 1 006 read_marks, 388 archived cards.
   - dev t1: 13 026 messages, 12 649 of them DMs in 504 topics.
 
+<a id="ws-doc-49c4b3af-d159-416b-a4de-ac3fd90007b9"></a>
 ## 3. Baseline
 
+<a id="ws-doc-a38f2309-69b6-435e-9735-75f747708a00"></a>
 ### 3.1 prd routes by total server time (8.4 h)
 
 | route | n | p50 ms | p95 ms | max ms | 5xx | p50 KB | p95 KB |
@@ -153,6 +165,7 @@ The topics route split by query shape (`ROUTE_QUERY=1`, same window):
 - **WebSockets:** `/v1/ws` (boxes) n=11 429 upgrades in 8.4 h, 715 refused; `/v1/wui/ws` (browsers) n=84.
 - The search 503 (`search_budget`) belongs to lane c-389 and counts here only as an input.
 
+<a id="ws-doc-f0d15328-4d59-494b-9f21-e0d5c8793b11"></a>
 ### 3.2 prd DB time by statement (Insights, 24 h, 2 290 s)
 
 | # | statement (store builder) | calls | mean ms | total s | share |
@@ -173,6 +186,7 @@ The topics route split by query shape (`ROUTE_QUERY=1`, same window):
 - Rows 1 + 7 = **40.4 %**, rows 2 + 3 + 11 = **26.3 %**, rows 4 + 5 + 8 = **10.5 %**.
 - **Trend:** the perf edition of 2026-10-04 (same method) had the Flow counts at 8 413 x 35.5 ms. Now they are **11 229 x 77.1 ms: 2.9x the DB time in two days**. The read_marks sweep (E01, 28.4 % then) is out of the 24 h top 25.
 
+<a id="ws-doc-0401f7dd-8da7-4cb0-8805-5f0cd474ed75"></a>
 ### 3.3 prd plans (operator scope, t1 / HUM-10, n=3)
 
 | statement | execution ms | buffers | what the plan does |
@@ -186,6 +200,7 @@ The topics route split by query shape (`ROUTE_QUERY=1`, same window):
 
 Dev, same statements, t1 / HUM-9, n=3: Flow counts 117.5 / 6.6 / 7.0 ms. DM walk 726.9 / 74.0 / 75.2 ms, 23 525 buffers, 2 374 messages visited for 51 topics.
 
+<a id="ws-doc-0843a5c7-2446-4140-a9e0-d4b6d7bfd912"></a>
 ### 3.4 Rewrites tried (A/B, same n, result md5 old vs new)
 
 | rewrite | prd ms (n=3) | dev ms (n=3) | md5 equal | verdict |
@@ -197,12 +212,14 @@ Dev, same statements, t1 / HUM-9, n=3: Flow counts 117.5 / 6.6 / 7.0 ms. DM walk
 
 Rewrite scripts and texts (not in git): `/var/tmp/c392-sql/{explain,eq,hot}.sh`, `/var/tmp/c392-sql/<env>/*.sql`.
 
+<a id="ws-doc-eef50b1e-46ed-4f65-b4b9-46e771a40569"></a>
 ### 3.5 Hub process, pool, WebSocket fan-out
 
 - **CPU and memory per request class:** not re-measured. No read-only action reads the Cloud Run Monitoring series; the perf edition used a one-off call. Last numbers (2026-10-04, prd 24 h): CPU per-minute p99 0.04, memory p99 <= 0.25; prd runs `GOMAXPROCS=1`. Example: channels route p50 40.5 ms against ~48 ms of DB per call (five statements in one pipelined batch). The hub's own share is not visible.
 - **DB connections:** 9 of 25 in use (8 pool + LISTEN), 0 sessions waiting on a lock. The deadlock counter is still 47, as on 10-04, so E02 holds. 0 5xx on PUT /v1/me/reads in 8.4 h. Settings: `statement_timeout` 30 s, `work_mem` 4 MB, `jit` on (the walks turn it off).
 - **WS fan-out per message:** the encode side is done (E16: 208 us / 224 allocs per 10 sockets, n=6). The DB side of a new line is `FlowFanout`, **87 ms per line** (n=680/day): it runs the Flow counts once per member who has a socket. ap-01 fixes it too.
 
+<a id="ws-doc-97ba3083-a985-47ad-b483-5235cf8cc116"></a>
 ## 4. Candidate rows, ordered by measured gain
 
 One row = ONE improvement at the named sites = one small commit `perf(ap-NN): <what>`, in the owner's row-lane template (t1 e0dda261, msg 7a55486d):
@@ -235,6 +252,7 @@ One row = ONE improvement at the named sites = one small commit `perf(ap-NN): <w
 | ap-08 | Find what makes a message insert take 46..86 ms on prd and remove the biggest single cost. Candidates: the Flow-candidate CTE `flowInsertCTE`, 18 indexes on messages, 3 row triggers. | measure first: `api:internal/store/postgres.go` (the `WITH ins AS (INSERT ..)` send path), `api:internal/store/flow_postgres.go:26-50` | prd 24 h: n=590 x 46.1 ms and n=247 x 85.5 ms; every send pays it | unknown until a lab profile names it; drop if the largest piece is < 10 ms | local pg16 with prd-sized rows, rolled-back insert, `EXPLAIN (ANALYZE, BUFFERS, WAL)`, n=20 | send-path tests on Postgres | med | sat | claude | 3 (runner-up; after ap-01a: same file) |
 | ap-09 | Pick each listed topic's subject line through the covering index and fetch only that one row. | `api:internal/store/view_postgres.go:351-375` (`summary`) | prd DM walk plan: 51 x 1.5 ms = ~76 ms of 286 ms (n=1) | the text rewrite tried was **worse on dev** (3.4); only with a shape that wins under ap-00 | ap-00 hot-measure walk_dm n=20 A/B | `view_topics_subject_test.go`, `view_topics_test.go` | med | either | claude | runner-up (same file as ap-07) |
 
+<a id="ws-doc-94b393ee-1cc9-42ef-9b67-b12254b56152"></a>
 ### 4.1 Dropped: real but a user would not notice the gain
 
 | what | measured (prd 24 h unless noted) | why dropped |
@@ -247,12 +265,14 @@ One row = ONE improvement at the named sites = one small commit `perf(ap-NN): <w
 | POST /api/v1/auth/login | n=166, p50 122.6 ms | the password hash cost is deliberate |
 | GET /v1/view/search 503 | n=5, 4 x 5xx | lane c-389 owns it (`internal/store/search.go`, `internal/search`) |
 
+<a id="ws-doc-c4744b95-34da-4779-a617-a6f21c390074"></a>
 ### 4.2 Runners-up (not rows yet)
 
 - A read-only action for the Cloud Run CPU / memory / instance series (`do_spl_hub_cloud_run_metrics`) to give per-request-class hub cost.
 - A hub-side cache of the reader-independent channel counts per tenant, invalidated by the message wake and a short TTL. Only if ap-02 + ap-04 leave channels above 20 ms of DB. A change-stamp key does not work: read_marks bumps the tenant stamp on every PUT.
 - `cloudsql.enable_pg_stat_statements` for exact per-statement timing: it restarts the instance, so it is the owner's call, not a row.
 
+<a id="ws-doc-14d5e672-a1a1-494d-afc1-af2079165bcf"></a>
 ## 5. Batches: 4 lanes at a time, 2 per box, files disjoint
 
 | batch | main | sat | gate before it starts |
@@ -269,12 +289,14 @@ One row = ONE improvement at the named sites = one small commit `perf(ap-NN): <w
 - **One spawn per slug across both boxes.** The box column names the only box that spawns that slug.
 - **Done = served.** A row is done when dev AND prd serve a hub (`/version`) that contains its sha (`git merge-base --is-ancestor`), and its proof has been re-run after the roll with the same n.
 
+<a id="ws-doc-0b96327d-1cc2-41f8-9532-8d3f2c53a09a"></a>
 ## 6. Summary for the owner (3 lines)
 
 1. The API is slow in four database statements, not in the server. One Flow-badge count is 38 % of all DB time, and its cost nearly tripled in two days. The channel list is 26 %. The topic lists are what you wait for: 0.15..0.35 s typical, up to 1.5 s.
 2. Each one has a named cause seen on prd. The badge count re-checks every Flow event a person ever got, about 3 500, on each read. The channel list builds 4 849 archived lines and uses none. Each topic-list step re-reads ~370 archived cards.
 3. 9 candidate rows (10 commits with ap-01 split in two) plus a proof-tool fix. Three quick SQL rewrites were measured on prd and none helped, so the top row is a small schema change: it needs your go for prd.
 
+<a id="ws-doc-3fcd5d1a-7baa-4d6f-becd-2f57e679bba6"></a>
 ## 7. Not measured, and what it needs
 
 - **Hub CPU / memory per request class today:** needs the runner-up Monitoring action, not a one-off call.
@@ -282,34 +304,40 @@ One row = ONE improvement at the named sites = one small commit `perf(ap-NN): <w
 - **The walk under the hub's planner settings and current text:** ap-00.
 - **prd route window:** the 50 000-entry log limit gave 8.4 h. Use `ROUTE_LIMIT=200000` for the after-proofs.
 
+<a id="ws-doc-84b92508-93d3-4097-969e-2a0522563b25"></a>
 ## 8. Commands to reproduce
 
 All read-only, from `csi-spl-orc`, as the env SA; prd only through c-001.
 
+<a id="ws-doc-e21dd060-405a-406a-a693-ae645093f6b3"></a>
 ### 8.1 Routes by total server time
 
 ```bash
 ENV=prd ROUTE_HOURS=24 ROUTE_TOP=40 ROUTE_LIMIT=200000 ./run -a do_spl_hub_route_latency
 ```
 
+<a id="ws-doc-7bf042dd-63be-4c20-93b4-da9984c4b2e6"></a>
 ### 8.2 Routes by query shape
 
 ```bash
 ENV=prd ROUTE_HOURS=24 ROUTE_TOP=40 ROUTE_LIMIT=200000 ROUTE_QUERY=1 ./run -a do_spl_hub_route_latency
 ```
 
+<a id="ws-doc-ea13aa39-ad9d-4063-8a83-c5efebd0724e"></a>
 ### 8.3 Statements by DB time
 
 ```bash
 ENV=prd INSIGHTS_HOURS=24 INSIGHTS_TOP=25 ./run -a do_spl_db_insights
 ```
 
+<a id="ws-doc-cee6c340-386d-475b-b773-b9abae4f57a4"></a>
 ### 8.4 DB load and counters
 
 ```bash
 ENV=prd SECTION=load ./run -a do_spl_db_health
 ```
 
+<a id="ws-doc-3a5bd87b-20e3-45c2-a624-a618c640cc0a"></a>
 ### 8.5 One plan of a store statement
 
 ```bash

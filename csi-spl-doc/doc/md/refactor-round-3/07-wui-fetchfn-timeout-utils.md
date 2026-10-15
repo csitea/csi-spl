@@ -1,7 +1,10 @@
 # Refactor round 3, row 7: Put a timeout on `fetchFn` reads in the injectable utils
 
+> Generated from qto doc `1a8f5ee2-794a-4df1-8e7a-9a9c58ac3a24`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 7. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low-med. Run on: **PC**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-d1019945-bd1c-43b7-8d0c-5551a60ee74d"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 7. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-ccc394eb-282f-44e3-ba10-da00dd66a005"></a>
 ## 1. The practice
 
 These utils take `fetchFn` so they can be unit tested, and their docs promise "never throws", but none bounds the wait: `readLiveCommit` never resolves, the footer stamp never paints, a hung avatar fetch is cached for the page's life, the tenant-host `locate` never hops, the sign-in buttons never show. `tenant-host-boot.mjs:39-48` (`hostAnswers`) already has the house pattern (AbortController + timer cleared in `finally`).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-fd7d0a56-6611-4a20-ac65-47e8d05fd6c2"></a>
 ## 2. The sites
 
+<a id="ws-doc-d8944c35-bdb4-47ab-8229-fa833da1b5d1"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/build-watch.mjs` lines 122-125 on `755e86235`:
@@ -34,6 +40,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: add a `signal` with `BUILD_JSON_TIMEOUT_MS`; the catch returns `{ commit: '', stamp: null }`.
 
+<a id="ws-doc-17c97f4b-a457-4b59-b785-114a13545ca0"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/build-stamp.mjs` lines 54-57 on `755e86235`:
@@ -47,6 +54,7 @@ Change: add a `signal` with `BUILD_JSON_TIMEOUT_MS`; the catch returns `{ commit
 
 Change: the same signal; the catch returns null.
 
+<a id="ws-doc-4a315b14-e7e8-4d76-aeda-cdf4e3bd13f7"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/avatar.mjs` lines 309-312 on `755e86235`:
@@ -60,6 +68,7 @@ Change: the same signal; the catch returns null.
 
 Change: add the signal; an abort lands in the catch (`transient = true`) and the URL is asked again on the next mount. Keep: no `createObjectURL` (feed-avatar.test.mjs:274-275).
 
+<a id="ws-doc-794389ba-c777-4353-a2bc-fb1ed1423413"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/tenant-host-boot.mjs` lines 107-110 on `755e86235`:
@@ -73,6 +82,7 @@ Change: add the signal; an abort lands in the catch (`transient = true`) and the
 
 Change: reuse `PROBE_TIMEOUT_MS` (:29) with the `hostAnswers` pattern; the catch returns ''.
 
+<a id="ws-doc-4b4f1561-20aa-4bf3-9dee-653f8589b609"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/utils/auth-client.mjs` lines 259-266 on `755e86235`:
@@ -90,6 +100,7 @@ Change: reuse `PROBE_TIMEOUT_MS` (:29) with the `hostAnswers` pattern; the catch
 
 Change: `call('/providers', { signal })`: scope the timeout to this GET only, NOT the shared `call()` at :227.
 
+<a id="ws-doc-f9db7ef3-a00b-4f63-be46-893cb9e2ca95"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/build-stamp.mjs:49-50` and `build-watch.mjs:116-118`: "Never throws and never rejects" -> add "bounded by BUILD_JSON_TIMEOUT_MS".
@@ -98,6 +109,7 @@ Change: `call('/providers', { signal })`: scope the timeout to this GET only, NO
 - `csi-spl-wui/src/utils/auth-client.mjs:279-282`: the "Resolves (never throws)" contract is only on `post`; repeat it on `savePreferences` (:378), `saveDisplayName` (:394) and `saveIssuesSort` (:451).
 - Testability: an optional `timeoutMs` on `readLiveCommit`, `readBuildStamp`, `loadAvatarImageUrl` and `hostAnswers` (today 8000 ms hard-coded at :29/:40); NEW one case per util with a never-settling fake `fetchFn` that honours `init.signal`.
 
+<a id="ws-doc-0b1f067f-774e-415b-832f-7159e89ec039"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -106,6 +118,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `tenant-host-boot`, `tenant-host-old-links`, `auth-client` unit suites and `pnpm run typecheck` (need `pnpm install`)
 - e2e: `tests/e2e/build-watch.test.mjs`, `avatars-visible.test.mjs`, `top-bar-tenant.test.mjs`
 
+<a id="ws-doc-e5aea3a8-102d-4bdc-a224-05d39462c6e1"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -115,10 +128,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-0d4b9bd1-426f-4ff9-af2a-2ae2af968f5b"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-e560d00d-fe2b-47d8-b174-ec70a4cac4ea"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -289,6 +304,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/build-watch.mjs`, `csi-spl-wui/src/utils/build-stamp.mjs`, `csi-spl-wui/src/utils/avatar.mjs`, `csi-spl-wui/src/utils/tenant-host-boot.mjs`, `csi-spl-wui/src/utils/auth-client.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/build-watch.mjs,csi-spl-wui/src/utils/build-stamp.mjs,csi-spl-wui/src/utils/avatar.mjs,csi-spl-wui/src/utils/tenant-host-boot.mjs,csi-spl-wui/src/utils/auth-client.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-fee37019-bd55-4719-a10d-e9d6c3537265"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

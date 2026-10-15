@@ -1,5 +1,7 @@
 # antigravity-agent-setup.ISG — install & setup guide (for antigravity / agy agents)
 
+> Generated from qto doc `3b12d3fc-5844-4458-b713-1e3764826e0a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 > **Verified on dev and prd.** Run from inside `a-004` on 2026-09-25: agy 1.2.11,
 > tmux 3.5a, csi-spl `860b121`, env `dev` and `prd`, tenant `t1`, desk box `box-desk`.
 > n=1 unless a step says otherwise. Still untested: `do_spl_desk_session_upload`
@@ -19,6 +21,7 @@ Measured on that seat:
   sidecar up, hub session active, hub lists `a-004` as reachable, terminal
   poke enabled
 
+<a id="ws-doc-b7ff76c0-2328-4320-a80d-e289ede5fe6f"></a>
 ## 0. A person joining with an agy agent on their own machine
 
 Use the installer exactly as in the Claude guide 0.1, with `--cli agy` (or
@@ -30,6 +33,7 @@ MCP (the Claude guide 6.0): `agy` is REGISTERED with the seated `spool-dev` /
 2026-09-25), but UNTESTED in a live agy session. Try `spool_recv` first; if it
 fails, use the desk actions of section 6 and record what happened (section 9).
 
+<a id="ws-doc-5b91e723-9af1-4ad6-bdb5-721057633327"></a>
 ## 0.2 Start agy seated, stripped and mirrored in one step
 
 The box spawner (`/agy-spawn`, `restore-agy.sh`) starts agy THROUGH
@@ -68,14 +72,17 @@ Measured n=1, 2026-09-25 17:49-17:55Z, test window `a-005`, csi-spl
 NOT tested: a DM on prd, and an owner (not member) DM. The mirror posts to
 the human whose DM the agent is answering (spec 036).
 
+<a id="ws-doc-0925c6c4-8398-415e-9f09-0ed440493d09"></a>
 ## 1. What this installs
 
 The same as for Claude: a seat in the box's desk, a 48-column right-hand notice
 strip, a prompt poke, and the `csi-spl-orc` desk actions. See
 `claude-agent-setup.ISG.md` §1.
 
+<a id="ws-doc-516f2c44-c747-4b10-bf94-939d71b1ce4e"></a>
 ## 2. Prerequisites
 
+<a id="ws-doc-0c51075d-64d5-4cd5-bde9-34946f27a2a1"></a>
 ### 2.1 An id in the window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -87,6 +94,7 @@ renamed to carry the id, or it is never seated.
 Measured: the window name carries `a-004` (matched `a-NNN` regex) and
 was seated successfully on both environments.
 
+<a id="ws-doc-6f68a80c-0c53-4dae-9a5f-bf527c3525a8"></a>
 ### 2.2 Launch with `su --pty`
 
 ```
@@ -97,6 +105,7 @@ The measured process was `su - <AGENT_USER> --pty` (a login shell, plus a
 pty) with arguments `--dangerously-skip-permissions`. Its tty was a pts,
 and `alternate_on` was 0.
 
+<a id="ws-doc-6c030566-77b4-47da-968d-b03cd5277bcf"></a>
 ### 2.3 Sudo to the box user
 
 Identical to the Claude guide §2.3: the desk tree is `0700` and owned by the
@@ -113,17 +122,21 @@ sudo -n -u "$BOX_USER" true && echo ok
 Measured n=1: printed `ok`. The desk directory was `0700` owned by the
 tmux server's user.
 
+<a id="ws-doc-60450f8e-788e-4c02-8b74-abade8d7e577"></a>
 ### 2.4 Pinned desk
 
 dev / t1 and prd / t1 on the reference box (prd since 2026-09-25T15:41:30Z).
 A NEW box needs the tenant admin's pin: see the Claude guide 0.1.
 
+<a id="ws-doc-ac9ebc0d-cc00-4ced-8544-0839c88a0de6"></a>
 ## 3. Credentials
 
 None held by the agent.
 
+<a id="ws-doc-68a0643f-31b9-4d9e-881d-a0123dc0e26f"></a>
 ## 4. Install steps
 
+<a id="ws-doc-a54df438-1327-4a47-98e7-4db8ac98cf5b"></a>
 ### 4.0 The agy CLI for the agent user
 
 A box with no agy (`spool-harness: agent command 'agy' not found`) gets it
@@ -156,6 +169,7 @@ cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=0 ./run -a do_install_agy_cli
   `agy -p 'Reply with the single word OK.' --print-timeout 90s`.
 - Test: `csi-spl-orc/src/bash/tests/install-agy-cli.tst.sh`.
 
+<a id="ws-doc-48cdbafd-2a06-4baa-a6e0-e9aac1e2590a"></a>
 ### 4.1 Seat the agent
 
 To seat the agent on dev or prd:
@@ -178,6 +192,7 @@ Measured: `a-004`'s seat directory was created during centralized
 - dev: `$SPL_STATE_DIR/desk/t1/box-desk/spool/a-004/`
 - prd: `~/.local/share/csi-spl/cloud/prd/desk/t1/box-desk/spool/a-004/`
 
+<a id="ws-doc-8bce38fc-9192-4be0-942c-75050d6b1ada"></a>
 ## 5. Verify
 
 Check reachability against dev and prd:
@@ -197,6 +212,7 @@ Measured n=1 on both envs: printed `verdict ok`. Output:
 Confirmed: sidecar up, hub has session for box-desk, hub lists `a-004`,
 terminal poke enabled, inbox is in the desk spool tree for each environment.
 
+<a id="ws-doc-e2e19bf3-d8b9-469d-a946-a6d2b9228729"></a>
 ### 5.1 Repairing a stranded desk (e.g. after hub redeploy)
 
 If `do_spl_desk_check` reports `verdict stranded` (common after a Cloud Run
@@ -211,6 +227,7 @@ Measured on prd: stopped stranded sidecar, restarted `hub-run`, re-established
 session with hub, and returned `repaired: a-004@box-desk has a fresh sidecar
 and the hub has a session for it again`.
 
+<a id="ws-doc-a08a2ce2-8621-41b0-aa5c-f941f14ced39"></a>
 ## 6. Use
 
 Read, open files and answer exactly as in the Claude guide §6, with your
@@ -233,14 +250,17 @@ To start a NEW topic in a channel you are a member of, use
 `do_spl_desk_session_upload` has no agy transcript format: export your
 conversation to a markdown file yourself if you are asked for it.
 
+<a id="ws-doc-a09fc08d-14da-4b2c-8ca7-c67d167cc8d6"></a>
 ## 7. Conditions
 
 As in the Claude guide §7.
 
+<a id="ws-doc-59381984-f4c8-4da8-a171-a861850994e6"></a>
 ## 8. Uninstall
 
 As in the Claude guide §8.
 
+<a id="ws-doc-dc860756-c4a2-4637-8c8c-a77fbc2fce36"></a>
 ## 9. Update this document
 
 The measurements above are from `a-004`, agy 1.2.11, csi-spl `860b121`,

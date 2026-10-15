@@ -1,7 +1,10 @@
 # Refactor round 3, row 11: Put a time limit on every curl call
 
+> Generated from qto doc `264bef53-ae1b-4a39-940b-3718df8e8990`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 11. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 1.
 
+<a id="ws-doc-de4a9099-a24a-4061-80e4-e6c7902dc51a"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 11. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-3a7f24c0-edcb-4833-ad2e-40805d9df7b8"></a>
 ## 1. The practice
 
 A curl call with no `--max-time` waits forever on a half-open connection or a stalled TLS handshake, so the `./run` action, cron or CI job hangs instead of failing. The tree already does it right at `spl-hub-operator.func.sh:40` (`-sS -m 30`) and `verify-hub-endpoints.sh:78`.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-e6b741b1-5330-4c9b-a6a4-466615317df7"></a>
 ## 2. The sites
 
+<a id="ws-doc-21976373-33db-4249-9071-7b66c2cc8e13"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/lib/bash/funcs/spl-db-roles.func.sh` lines 265-266 on `755e86235`:
@@ -32,6 +38,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: add `--connect-timeout 10 --max-time 60` to the Cloud SQL Admin users POST/PUT.
 
+<a id="ws-doc-9d70756a-29cd-4a8b-bb04-58a5bb85e653"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/lib/bash/funcs/gandi-api.func.sh` lines 71-73 on `755e86235`:
@@ -44,6 +51,7 @@ Change: add `--connect-timeout 10 --max-time 60` to the Cloud SQL Admin users PO
 
 Change: add `--connect-timeout 10 --max-time "${GANDI_MAX_TIME:-30}"` to `args`.
 
+<a id="ws-doc-feb16392-4791-4fd7-b181-497486437d38"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/run/spl-db-health.func.sh` lines 140-144 on `755e86235`:
@@ -58,6 +66,7 @@ Change: add `--connect-timeout 10 --max-time "${GANDI_MAX_TIME:-30}"` to `args`.
 
 Change: add `--connect-timeout 10 --max-time 30` to each per-metric call.
 
+<a id="ws-doc-38a74945-b999-49ce-9928-96930dacd443"></a>
 ### 2.4 Site 4
 
 `csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh` lines 65-65 on `755e86235`:
@@ -68,6 +77,7 @@ Change: add `--connect-timeout 10 --max-time 30` to each per-metric call.
 
 Change: add `-m 30` here and to `_req`'s args at :79.
 
+<a id="ws-doc-f9eeed74-692c-4b1d-9170-724932e86c32"></a>
 ### 2.5 Site 5
 
 `csi-spl-orc/src/bash/run/setup-app-inf.func.sh` lines 139-142 on `755e86235`:
@@ -81,6 +91,7 @@ Change: add `-m 30` here and to `_req`'s args at :79.
 
 Change: add `--max-time 2` so the 20 x 0.5 s readiness loop is really bounded; same at :144, :147, :170.
 
+<a id="ws-doc-aa8067d9-8bbe-4e0c-b5e3-28df2bf701e3"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/src/bash/run/spl-db-health.func.sh:129`: stale/false comment: "The token goes in a header, never in argv", but :141 passes `-H "Authorization: Bearer $tok"` on argv. Fix the comment to say what is true (moving it to a `-K` file is a behaviour change: plan section 4).
@@ -89,6 +100,7 @@ Change: add `--max-time 2` so the 20 x 0.5 s readiness loop is really bounded; s
 - `csi-spl-orc/lib/bash/funcs/spl-db-roles.func.sh:246-249`: the `spl_db_api_user_set` header should list the HTTP calls it makes.
 - Testability: NEW `csi-spl-orc/src/bash/tests/curl-time-bounded.tst.sh`: a curl stub first on PATH logs its argv; call `_gandi_api`, `spl_db_health_metrics`, `spl_db_api_user_set`, `_req`; assert every line has `--max-time` or `-m `; control: the stub exits 28 and each caller returns non-zero.
 
+<a id="ws-doc-e56e4676-2a34-48e2-9c26-7d1f51a8c66f"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -98,6 +110,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `checkout-fake-buy.tst.sh` and `setup-app-inf-demands.tst.sh` need docker/Postgres: run where available, else say SKIP
 - the new curl-time-bounded.tst.sh
 
+<a id="ws-doc-6c269bb1-3e48-4981-83de-167e5dc2af5d"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -106,10 +119,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-7b1f33ba-bda7-48db-83db-4d73b4213e97"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-ba14c104-9553-48cd-bf69-0f0088f278d4"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -279,6 +294,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/lib/bash/funcs/spl-db-roles.func.sh`, `csi-spl-orc/lib/bash/funcs/gandi-api.func.sh`, `csi-spl-orc/src/bash/run/spl-db-health.func.sh`, `csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh`, `csi-spl-orc/src/bash/run/setup-app-inf.func.sh`, `csi-spl-orc/src/bash/tests/curl-time-bounded.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/lib/bash/funcs/spl-db-roles.func.sh,csi-spl-orc/lib/bash/funcs/gandi-api.func.sh,csi-spl-orc/src/bash/run/spl-db-health.func.sh,csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh,csi-spl-orc/src/bash/run/setup-app-inf.func.sh,csi-spl-orc/src/bash/tests/curl-time-bounded.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-399511c8-db96-427c-9778-d5ece911ef0d"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

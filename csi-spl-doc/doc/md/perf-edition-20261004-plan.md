@@ -1,9 +1,12 @@
 # Performance edition 20261004: 30 measured improvements, end to end (plan, 2026-10-04)
 
+> Generated from qto doc `5d518d09-8987-43c6-9925-11ae942c5197`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner, prd t1 topic `7d7e86a9`: "performance improvements - edition 20261004." / "Basically check the best practices from the previously archived and conducted performance improvements ... Pick 30 performance improvements and implement as much as possibly based on empirical evidence" / "A yes" (measure first, one lane per fix, before/after numbers each). Scope addition (same topic): "well add the scope to be e2e - aka investigate backend , db problems as well .."
 
 This lane plans and measures. It changes no product code. Each row in section 3 is one lane with its own brief in `perf-edition-20261004-briefs/<id>.md`. The rows cover the whole path: the browser (WUI), the hub API and its WebSocket fan-out, the live database, and the CI/bash tooling that every change goes through. Sources: round 3 (`perf-audit-round3-2026-10-02.md`), the DB payload rounds (`db-payload-audit-round2-2026-10-02.md`), round 4 (`perf-round-4-plan.md` and its commits on master), specs `027-spool-performance` (budgets) and `066-perceived-performance-metrics`. Open choices were decided by the evidence-backed default, written down here; the owner asked for no more questions.
 
+<a id="ws-doc-363bb4af-a983-4e04-9ffd-11eb4bc54394"></a>
 ## 0. Lessons from round 4: which practices paid off
 
 Round 4 planned 30 practices x 2 sites (`3616013c`). 26 practices landed, 4 never started: their lanes hit a usage limit on 2026-10-03 and were not resumed (W7, W1, W8, W11). "Now" is a re-measurement on trunk `751ccd61` (v8.9.8), 2026-10-04 19:00..22:30Z, by the methods of section 2.
@@ -41,6 +44,7 @@ What paid off most per hour of lane time, in order: **round-trip removal on the 
 
 **The biggest gap round 4 never looked at was the live database.** Every r4 DB number came from a private Postgres behind a counting proxy. The live read in section 2.4 shows that one background sweep holds 28.4 % of prd DB time, and one PUT route deadlocks 47 times a day. Neither can be seen in a round-trip count.
 
+<a id="ws-doc-a0d79958-5609-4413-8403-74afb2f8cf9d"></a>
 ## 1. Rules for every lane
 
 - Measured on trunk `751ccd61` (v8.9.8). Every site carries its cost now, with n. Before the change, re-measure on your rebased trunk with the row's method; a change that shows no gain is dropped and reported, never shipped.
@@ -51,22 +55,27 @@ What paid off most per hour of lane time, in order: **round-trip removal on the 
 - GCP: per-environment service-account keys only, never the owner account. Live measurements are read-only.
 - Box: `satellite` = the satellite box (Chrome, lower load: WUI timing rows); `main` = the main box (it holds both env SA keys, so live before/after reads run there; also the ssh-to-satellite row); `either`.
 
+<a id="ws-doc-7924f2f0-0a9b-4dd9-bcf8-c30c7cbd5b9b"></a>
 ## 2. How it was measured
 
+<a id="ws-doc-08f30b33-4003-4f1f-ac6f-4a1f486437d1"></a>
 ### 2.1 Hub (lab)
 
 `go test -bench -benchmem -count=6` (median; B/op and allocs/op are exact, ns/op is 2..4x high under box load 26..75). DB round trips through the counting pgProxy of `onsend_bench_test.go` against a private postgres:16-alpine with a non-superuser owner (RLS on), n=5: the committed `TestRoundTripsPerRequest`, `TestChannelHumansReadOncePerRequest` (MEMO_RT_N=5), `TestWriteBatchRoundTrips`, `TestNPlus1RoundTrips*`, plus a throwaway door rig (a prod-like session door, one member) for the routes those tests do not cover, and one `log_statement=all` sample per route to name the statements. The rig is not committed; each lane adds the route it changes to `TestRoundTripsPerRequest` or a new test beside its file.
 
+<a id="ws-doc-8595cb5b-66c4-43a7-8014-d2928919a10c"></a>
 ### 2.2 WUI (lab)
 
 A mock `nuxt generate` with sourcemaps (`NUXT_PUBLIC_USE_MOCK=1 NUXT_CLIENT_SOURCEMAP=true`), served by `tests/e2e/lib/serve-hosting-h2.mjs` (h2, Hosting's headers), driven by puppeteer-core with the round-3 harness (`perf-audit-round3-2026-10-02.harness.txt`: `mk.mjs`, `prof.mjs`, `crit.mjs`, `attr.cjs`) and three additions: per-path interleaved timings with hidden-element and non-passive-listener counts, median-per-frame profiles, and a forced-layout census from a Chrome trace (Layout / UpdateLayoutTree events that carry a JS stack, sourcemapped). m390 = 390x844 DPR 3 at CPU 4x; d1440 = desktop, no throttle. n=5 per cell interleaved. Box load 10..59 (recorded per batch): **quote ratios and deterministic counts** (DOM, listeners, forced-layout count), not absolute ms. The live-config build's 3 initial chunks were byte-identical to the mock's, so bundle bytes hold for both. Node micro-benches n=12 in fresh processes.
 
 Sourcemap traps, verified against the minified code: frames mapped to `utils/topic-in.mjs:144` are `MessageComposer.vue` (dock rect and `innerHeight`), frames mapped to `utils/flow-keys.mjs:52` are SFC setups (mainly ChannelSidebar).
 
+<a id="ws-doc-acd2cb17-7c36-4240-af4e-26196df56d47"></a>
 ### 2.3 CI and bash
 
 `gh api` job and step durations of the last 20 successful master runs per workflow (pulled 2026-10-04 ~21:40Z; per-row run-id ranges in the briefs). Commit-to-live = run `created_at` -> deploy job `completed_at`, only runs that rolled. Per-piece times of the hub suite from 3 job logs (`== <piece> ==` timestamps). Local `time` n=10 and `strace -f -c` at load < 5 (load is noted per number; the CI-lane batch at load 43..103 was discarded).
 
+<a id="ws-doc-a1670572-726e-4090-bae8-33e7c9f1758b"></a>
 ### 2.4 Live hub and DB (new this round, read-only, as the env SA)
 
 | layer | how | window |
@@ -85,6 +94,7 @@ Live images: spool-hub 8.9.6 on both envs. Headline facts the rows below build o
 - **pg_stat_database prd:** deadlocks 47, temp_files 614 / 4.2 GB since 2026-09-18.
 - The 7-day Insights ranking is stale (its top entry, the old walk shape, has had no calls since 2026-10-02). Plan from the 24 h ranking.
 
+<a id="ws-doc-01e0b43a-90c7-4328-b8ae-f4a513eabbd9"></a>
 ## 3. The 30 items, in run order (largest measured gain first)
 
 One row = one lane = one brief (`perf-edition-20261004-briefs/<id>.md`). `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`, `wui/` = `csi-spl-wui/src/`. Layer: DB = the live database, hub = hub API and WS, WUI = the browser, CI / bash / ops = the tooling path. "now" quotes trunk `751ccd61` (v8.9.8) unless it names a live window.
@@ -122,6 +132,7 @@ One row = one lane = one brief (`perf-edition-20261004-briefs/<id>.md`). `api/` 
 | 29 | E29 | WUI | Keep the initial JS to the first screen: import rare helpers lazily (r4 W11, open) | wui/stores/live.ts:5,15 (static mention-poke); wui/stores/channel.ts:36 (static `applyReactions` from emoji.mjs); wui/stores/topic.ts (static emoji.mjs); wui/composables/useMentionPoke.ts | initial set carries mention-poke.mjs 2 535 + useMentionPoke.ts 1 771 + emoji.mjs 2 007 B raw = 2.8 KB gz standalone (n=1 build, mock = live); `ci_initial_gzip_kb` 149.0 (ceiling 155) | -1.5..2.5 KB gz initial | `perf-budget.py bundle` on 2 builds before/after (byte-identical); drop a site that saves < 0.5 KB gz | satellite | 5 |
 | 30 | E30 | bash | Cache a control's verdict per tool version | csi-spl-iac/src/bash/run/sec-trufflehog.func.sh:70-77 (the planted-pair control scan runs on every call) | control 3.1 s (2.9..3.4) of a ~7 s `do_sec_trufflehog` on 1 file (n=3, load 5); it runs in every pre-push lint and in wf64 | ~-3 s per trufflehog call after the first per version | `time` n=10 before/after; a cache keyed on the trufflehog version + binary hash; a broken binary (control fails) is still caught: the cache stores only a PASS and is ignored when the key changes | either | 5 |
 
+<a id="ws-doc-5a481ef8-dc43-4632-9ff5-897916912c6c"></a>
 ### 3.1 Waves (<= 6 lanes each, files disjoint; a later wave may start when its dependencies have landed)
 
 | wave | rows | boxes | depends on |
@@ -134,6 +145,7 @@ One row = one lane = one brief (`perf-edition-20261004-briefs/<id>.md`). `api/` 
 
 By layer: DB 6 (E01, E02, E04, E09, E17, E20), hub 8 (E03 and E11 are hub changes whose gain is DB time and payload), WUI 10, CI / bash / ops 6 (E05, E10, E15, E18, E26, E30). Every DB and hub row that runs in production proves its gain live (section 2.4) after the roll.
 
+<a id="ws-doc-a918b785-f2b9-4c25-8d97-22d7c2467e0f"></a>
 ## 4. Risks and notes per lane
 
 - **E01** same rows: a non-uuid `f:` key still yields NULL and is deleted as before; keep `LIMIT $2` chunking
@@ -167,6 +179,7 @@ By layer: DB 6 (E01, E02, E04, E09, E17, E20), hub 8 (E03 and E11 are hub change
 - **E29** all three importers of emoji.mjs must go async or no byte leaves; read a dynamic import's export as a member (the P3-15 trap)
 - **E30** a cache that hides a broken scanner: key on version AND binary hash, and keep CI uncached (no cache dir on the runner)
 
+<a id="ws-doc-ff5d6e40-01ba-4057-b820-8afe6b641379"></a>
 ## 5. Measured and not proposed
 
 Each of these was measured; none is a row, for the reason given.

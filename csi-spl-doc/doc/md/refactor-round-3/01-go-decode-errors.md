@@ -1,7 +1,10 @@
 # Refactor round 3, row 1: Handle discarded decode / encode errors
 
+> Generated from qto doc `171a6791-0d81-4504-9dea-4f2291f1128a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 1. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-edb13932-3abb-46bc-8354-be3ca349662e"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 1. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-6a8698ba-a2ea-4296-9372-10b33b9b0382"></a>
 ## 1. The practice
 
 `_ = json.Unmarshal(...)` and `x, _ := Parse(...)` turn bad input into a silent zero value: an envelope that does not decode yields a DM row with empty ends, an error body that does not decode is handled as an empty body. Handle the error, or keep the discard on purpose with a `//nolint:errcheck // <reason>` comment that states why it cannot fail.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-d95cab3a-a205-4925-bfb7-30076ec886e4"></a>
 ## 2. The sites
 
+<a id="ws-doc-c4916506-032e-46a7-9730-742638e055b0"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/hub/view_dm_counts.go` lines 147-147 on `755e86235`:
@@ -31,6 +37,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: metaOf: on a decode error log at debug with `m.MsgID` and keep the row's channel; callers get the same result, a corrupt envelope becomes visible.
 
+<a id="ws-doc-260299ea-37c0-402f-bd2e-f6a5e4118e7b"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/cmd/spool/doc.go` lines 412-412 on `755e86235`:
@@ -41,6 +48,7 @@ Change: metaOf: on a decode error log at debug with `m.MsgID` and keep the row's
 
 Change: docStatusError: `if json.Unmarshal(body, &eb) != nil { ... }` or a reason comment; the `string(body)` fallback already covers a non-JSON body, say so.
 
+<a id="ws-doc-6a2e5464-48fb-454a-8d9f-2667dbc084e7"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/search/values.go` lines 222-223 on `755e86235`:
@@ -52,6 +60,7 @@ Change: docStatusError: `if json.Unmarshal(body, &eb) != nil { ... }` or a reaso
 
 Change: sizeValue: return `op + ": must be bytes..."` on a parse error instead of `_`; today safe only because `sizeRe` caps the input (values.go:21). Same for `strconv.Atoi` at :238 (`ageRe`).
 
+<a id="ws-doc-663b60cb-5578-47ee-892a-cb927d106bac"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/config.go` lines 220-224 on `755e86235`:
@@ -66,6 +75,7 @@ Change: sizeValue: return `op + ": must be bytes..."` on a parse error instead o
 
 Change: have `checkURL` (config.go:303) return the parsed `*url.URL`, so the parse happens once and the second, discarded `url.Parse` goes away.
 
+<a id="ws-doc-0bfe9df8-95f7-4b19-902a-882385c2663b"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/action/action.go` lines 363-366 on `755e86235`:
@@ -79,6 +89,7 @@ Change: have `checkURL` (config.go:303) return the parsed `*url.URL`, so the par
 
 Change: Tail already returns an error: return the `msg.Marshal` error instead of writing an empty NDJSON line.
 
+<a id="ws-doc-b9254f46-ec83-4ca9-ae04-abc426515597"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/cmd/spool/doc.go:401`: `docStatusError` has no doc comment; add "maps a hub doc-API status to a CLI error; detail = JSON detail > error > raw body".
@@ -87,6 +98,7 @@ Change: Tail already returns an error: return the `msg.Marshal` error instead of
 - `csi-spl-api/src/go/spool-hub-api/internal/auth/config.go:303`: update the `checkURL` doc to say it returns the parsed URL.
 - Testability: NEW `TestDocStatusErrorNonJSONBody` (cmd/spool, an HTML 502 body -> detail is the trimmed body) and NEW `TestTailJSONOneLinePerMessage` in `internal/action/tail_test.go`.
 
+<a id="ws-doc-d5ebd571-ee8b-49de-91a5-abb4719af452"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -98,6 +110,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/action/` (8 PASS, none covers Tail) + the new Tail test
 - whole module: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`, before = after
 
+<a id="ws-doc-5b9796f2-8041-4537-bad6-37b2aa4cd825"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -107,10 +120,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-f78f432e-5a93-4016-be84-3e2f8c6a7efa"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-be15070c-e113-4db6-a27f-2fbbead05bb4"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -281,6 +296,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/hub/view_dm_counts.go`, `csi-spl-api/src/go/spool-hub-api/cmd/spool/doc.go`, `csi-spl-api/src/go/spool-hub-api/internal/search/values.go`, `csi-spl-api/src/go/spool-hub-api/internal/auth/config.go`, `csi-spl-api/src/go/spool-hub-api/internal/action/action.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/hub/view_dm_counts.go,csi-spl-api/src/go/spool-hub-api/cmd/spool/doc.go,csi-spl-api/src/go/spool-hub-api/internal/search/values.go,csi-spl-api/src/go/spool-hub-api/internal/auth/config.go,csi-spl-api/src/go/spool-hub-api/internal/action/action.go --agent <you>` must exit 0.
 
+<a id="ws-doc-c0e6431b-1da1-4953-9833-1f3543633f68"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

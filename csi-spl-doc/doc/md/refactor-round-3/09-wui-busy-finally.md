@@ -1,7 +1,10 @@
 # Refactor round 3, row 9: Reset busy flags in `finally`
 
+> Generated from qto doc `3436c109-4ab4-423c-825d-b01abce0ba2f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 9. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low. Run on: **PC** (browser proof). Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-53cbb84e-f31f-48b4-a642-e1dbfab3ac54"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 9. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-662a0e49-67f4-4acd-8b4f-e882f94ee773"></a>
 ## 1. The practice
 
 Each handler sets `saving`/`busy = true`, awaits, and resets it on the next line with no try/finally: if the awaited call ever throws, the control is dead until a reload (and in IssuesSortSetting the optimistic sort is not reverted). Wrap in `try { ... } finally { flag = false }`; the success path is identical.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-bc48258d-514e-40f4-8e58-28fc0e54e2c9"></a>
 ## 2. The sites
 
+<a id="ws-doc-0229591b-39b3-42ee-b8e3-3a64995748a3"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/components/LanguageSetting.vue` lines 82-88 on `755e86235`:
@@ -37,6 +43,7 @@ async function savePreferredLocale() {
 
 Change: try/finally; keep `auth.savePreferences` BEFORE `switchTo(want` and `await switchTo(want, true)` (language-switcher.test.mjs:439-447).
 
+<a id="ws-doc-cb4e3b29-0a99-4045-abbd-16d1259d4138"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/components/IssuesSortSetting.vue` lines 84-93 on `755e86235`:
@@ -56,6 +63,7 @@ async function pick(col: string, dir: string) {
 
 Change: try/catch/finally; on a throw revert to `prev` as on `!res.ok`.
 
+<a id="ws-doc-686eabd9-acc2-40f1-b608-4555b009bea0"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/components/DisplayNameSetting.vue` lines 68-76 on `755e86235`:
@@ -74,6 +82,7 @@ async function save() {
 
 Change: try/finally (`session.setName` runs outside applyDisplayName's own try); keep `void people.refresh()` (display-names.test.mjs:116).
 
+<a id="ws-doc-bf8d28b7-5a09-4586-93df-786ee9df0eef"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/components/ViewPrefsSetting.vue` lines 67-72 on `755e86235`:
@@ -89,6 +98,7 @@ async function pick(key: ViewPrefKey, want: string) {
 
 Change: try/finally.
 
+<a id="ws-doc-ef0698d6-fe0d-4b32-9ef3-69f84e002b2b"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/components/MovePickerDialog.vue` lines 119-128 on `755e86235`:
@@ -108,6 +118,7 @@ async function pick(row: Row) {
 
 Change: try/finally around :122-126.
 
+<a id="ws-doc-db6e92a3-e7cd-4252-8905-67fd93a5613f"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/components/IssuesSortSetting.vue:91`: `// optimistic` -> "reverted on !ok (and on a throw)".
@@ -115,6 +126,7 @@ Change: try/finally around :122-126.
 - `csi-spl-wui/src/components/MovePickerDialog.vue:119`: `pick` has no comment that the dialog closes BEFORE the move runs (emit at :122); add it.
 - Testability: NEW `tests/unit/busy-finally.test.mjs`, a source guard over these five files: every `(saving|busy).value = true` is followed by a `finally` within its function.
 
+<a id="ws-doc-5539055e-4aff-4a66-a1ec-66a5d1cd4dfa"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -123,6 +135,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `pnpm run typecheck` (needs `pnpm install`)
 - e2e: `tests/e2e/settings-lang-width.test.mjs`, `display-name.test.mjs`, `message-order.test.mjs`, `issues.test.mjs` (sort), `move-by-drag.test.mjs`
 
+<a id="ws-doc-949d5c3f-f31c-40be-b37b-1236d345ed9e"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -132,12 +145,14 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-4ab67d5b-026a-4679-9a3a-ac385a164327"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
 Browser proof: drive the changed screen on dev and prd after the deploy (the e2e/proof specs in section 4) and name the build.json version you saw.
 
+<a id="ws-doc-cd1539fe-5f1b-4270-ae5a-6fc5dffa9cd6"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -307,6 +322,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/components/LanguageSetting.vue`, `csi-spl-wui/src/components/IssuesSortSetting.vue`, `csi-spl-wui/src/components/DisplayNameSetting.vue`, `csi-spl-wui/src/components/ViewPrefsSetting.vue`, `csi-spl-wui/src/components/MovePickerDialog.vue`, `csi-spl-wui/tests/unit/busy-finally.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/components/LanguageSetting.vue,csi-spl-wui/src/components/IssuesSortSetting.vue,csi-spl-wui/src/components/DisplayNameSetting.vue,csi-spl-wui/src/components/ViewPrefsSetting.vue,csi-spl-wui/src/components/MovePickerDialog.vue,csi-spl-wui/tests/unit/busy-finally.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-c3d0fc11-facd-47c2-90b8-4e815a7601db"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

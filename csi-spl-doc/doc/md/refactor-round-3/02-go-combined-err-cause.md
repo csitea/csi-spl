@@ -1,7 +1,10 @@
 # Refactor round 3, row 2: Keep the cause in combined `err != nil || cond` checks
 
+> Generated from qto doc `49bd9ffb-f544-4c47-9f4f-728a23b8a59c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 2. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-e6a8785d-28f3-4942-a637-a7cd515c56d8"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 2. Owner topic `3e0809f
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-e7c13bb0-92d3-4f75-bba0-0fb15f5dafa4"></a>
 ## 1. The practice
 
 `if err := readJSON(resp, &tok); err != nil || resp.StatusCode != 200 || ...` reports `token status 200` when the IdP answered 200 with a body that does not decode: the decode error is dropped and an IdP outage reads as a status mismatch in the logs. Split it: wrap `err` with `%w`, then test the condition. The sign-in outcome (non-nil error) is unchanged.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-c865e584-30b3-46b2-855b-afc5b538330a"></a>
 ## 2. The sites
 
+<a id="ws-doc-c9703a6d-af5c-4e62-a1fa-5d4d8bdfee27"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go` lines 133-135 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: Google exchange; the same shape at :153, :213 and :242 (Facebook) in this file.
 
+<a id="ws-doc-138ece2b-0b64-4c1e-aeea-dc369e28a49e"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/oidc.go` lines 70-72 on `755e86235`:
@@ -45,6 +52,7 @@ Change: Google exchange; the same shape at :153, :213 and :242 (Facebook) in thi
 
 Change: generic OIDC token; same at :91 (userinfo).
 
+<a id="ws-doc-cbe5e2ad-0dc6-4263-a87d-fa506260f751"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/microsoft.go` lines 186-188 on `755e86235`:
@@ -57,6 +65,7 @@ Change: generic OIDC token; same at :91 (userinfo).
 
 Change: Microsoft token exchange.
 
+<a id="ws-doc-d2c27626-b23f-4962-bc92-5249ac099518"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/idtoken.go` lines 99-101 on `755e86235`:
@@ -69,6 +78,7 @@ Change: Microsoft token exchange.
 
 Change: JWKS fetch: a truncated JWKS body is reported as "status 200" today.
 
+<a id="ws-doc-b6a4b502-4078-4efa-8de0-1f74d9bf47f4"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/auth/password.go` lines 59-61 on `755e86235`:
@@ -81,6 +91,7 @@ Change: JWKS fetch: a truncated JWKS body is reported as "status 200" today.
 
 Change: VerifyPassword: split into "hash version parse: %w" and "hash version mismatch"; both stay non-nil.
 
+<a id="ws-doc-22b738ef-f494-437a-93c4-1ff5eaea19fe"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go:76`: `readJSON` has no doc comment; add "closes resp.Body; reads at most 1 MiB; a decode error is returned, never swallowed".
@@ -88,6 +99,7 @@ Change: VerifyPassword: split into "hash version parse: %w" and "hash version mi
 - Testability: extract `exchangeToken(ctx, hc, req) (tokenResp, error)` from `csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go:132,212` (Google, Facebook and OIDC repeat it almost line for line) and unit test it with an httptest server; keep every func under the 80-line / depth-4 gate.
 - NEW `TestExchangeKeepsDecodeError` in `internal/auth/oidc_flow_test.go`: a fake IdP answers 200 with `{`; assert `errors.Is(err, errExchange)` and that the message carries "unexpected EOF".
 
+<a id="ws-doc-3af2e2e0-47d4-48a7-9d54-3f737c80b9cd"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -96,6 +108,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/auth/ -run TestPassword` (3 PASS; TestPasswordRejectsBadInput covers :59)
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/auth/` whole package before = after, plus the new test
 
+<a id="ws-doc-1f31a488-0f89-44ba-97b0-d8698a7641be"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -105,10 +118,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-9ce2125e-d9f9-4f58-8682-236ebfebc730"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-701f29ef-fc9a-4cac-8302-231434903ccb"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -279,6 +294,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go`, `csi-spl-api/src/go/spool-hub-api/internal/auth/oidc.go`, `csi-spl-api/src/go/spool-hub-api/internal/auth/microsoft.go`, `csi-spl-api/src/go/spool-hub-api/internal/auth/idtoken.go`, `csi-spl-api/src/go/spool-hub-api/internal/auth/password.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go,csi-spl-api/src/go/spool-hub-api/internal/auth/oidc.go,csi-spl-api/src/go/spool-hub-api/internal/auth/microsoft.go,csi-spl-api/src/go/spool-hub-api/internal/auth/idtoken.go,csi-spl-api/src/go/spool-hub-api/internal/auth/password.go --agent <you>` must exit 0.
 
+<a id="ws-doc-9307b13a-e695-433a-901d-9661c02977e9"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

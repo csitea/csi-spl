@@ -1,5 +1,7 @@
 # SPEC: Task lifecycle and `kind`
 
+> Generated from qto doc `e4ba6d72-5948-4c3a-9d6c-81c882dd9064`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding addendum  
 Related: `specs/002-box-agent-messaging/contracts/message-schema.md`
 
@@ -9,6 +11,7 @@ workflow on top of spool.
 
 ---
 
+<a id="ws-doc-3437209a-5bbd-422d-a681-377409b7f6dc"></a>
 ## 1. A task is a thread, not a job object
 
 There is no separate “task” resource in 002. A `task_id` (UUIDv4) is the
@@ -27,6 +30,7 @@ Who mints it:
 
 ---
 
+<a id="ws-doc-a79a6196-652f-45b9-b3d4-33a41ba1b1e8"></a>
 ## 2. `kind` semantics
 
 | kind | Means | Who may send |
@@ -56,12 +60,14 @@ WUI treats the **latest** `result`/`reject` as the thread status.
 
 ---
 
+<a id="ws-doc-ac9bafed-4b27-4fb2-acd3-97215660a68b"></a>
 ## 2.1 Peer mesh
 
 Any pinned agent may send `task` to any other agent id in the tenant. The
 protocol does not know “human vs worker” except as id prefixes. Prefix does
 not grant extra rights.
 
+<a id="ws-doc-c97d5188-ebde-4665-9d09-c0811c66cf07"></a>
 ## 3. Unicast only
 
 `to` is one agent id. Want two assignees? Two `task` messages (two `msg_id`s,
@@ -70,6 +76,7 @@ do not). v1 does not have `cc`.
 
 ---
 
+<a id="ws-doc-52fa54ac-0421-4fa5-881a-28b549087717"></a>
 ## 4. Body
 
 UTF-8 text. Not HTML. Markdown is allowed as text, not rendered by spool.
@@ -80,6 +87,7 @@ Limits: `contracts/limits.md`.
 
 ---
 
+<a id="ws-doc-d4c3ea8a-ff76-4589-a2c9-55fe85e775b3"></a>
 ## 5. Human on the thread
 
 Humans view via `spool-tail` or the WUI. They are not required to have an
@@ -88,6 +96,7 @@ The WUI v1 is read-only (see `SPEC-spool-wui.md`).
 
 ---
 
+<a id="ws-doc-47e5a7b2-2eb7-4e1d-a5f5-c9837610050b"></a>
 ## 6. A spool task is not an issue
 
 Decided in [spec 135](../../specs/135-work-process/spec.md) v1.0 (owner

@@ -1,7 +1,10 @@
 # Refactor round 3, row 12: Clean up temp dirs on every exit path with a trap
 
+> Generated from qto doc `035ac792-7809-4245-b4f5-cfc141a340ab`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 12. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 
+<a id="ws-doc-a65dbafd-6b8a-4b7c-91b4-827f3d90bc22"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 12. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-74ce0103-846d-4cef-8407-e7a9d9e0535c"></a>
 ## 1. The practice
 
 Each site runs `mktemp -d` and removes it on the happy path only; an interrupt or SIGTERM leaves it behind, and in three sites it is a private `CLOUDSDK_CONFIG` holding an activated service-account credential. The house pattern: `trap "rm -rf '$d'; trap - RETURN" RETURN` (`publish-docs.func.sh:46`), or `trap 'rm -rf "$cfg"' EXIT` inside a `( ... )` subshell.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-7c8c020f-1f69-4335-8c9d-d1959a861615"></a>
 ## 2. The sites
 
+<a id="ws-doc-84c1e45e-2937-41c8-bdfd-669779684ccd"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh` lines 55-57 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: this dir is never removed (a leak on every CI run): `st=$(mktemp -d); trap 'rm -rf "$st"' EXIT`, then `SPL_STATE_DIR="$st"`.
 
+<a id="ws-doc-695392b9-20df-47cf-9d16-00ea12d75596"></a>
 ### 2.2 Site 2
 
 `csi-spl-iac/src/bash/run/measure-wui-edge-warm.func.sh` lines 86-89 on `755e86235`:
@@ -46,6 +53,7 @@ Change: this dir is never removed (a leak on every CI run): `st=$(mktemp -d); tr
 
 Change: `w=$(mktemp -d) || return 1; trap "rm -rf '${w:?}'; trap - RETURN" RETURN`, then drop the two explicit `rm` (:89, :107).
 
+<a id="ws-doc-b04e7105-5484-48c5-97bf-f72edbd521dc"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/run/spl-hub-member-list.func.sh` lines 45-57 on `755e86235`:
@@ -68,6 +76,7 @@ Change: `w=$(mktemp -d) || return 1; trap "rm -rf '${w:?}'; trap - RETURN" RETUR
 
 Change: `trap 'rm -rf "$cfg"' EXIT` as the first line of the subshell; keep the outer `rm` as a backstop.
 
+<a id="ws-doc-72f2c5e8-52ba-4263-b0eb-234babe8f0a2"></a>
 ### 2.4 Site 4
 
 `csi-spl-orc/src/bash/run/spl-db-message-show.func.sh` lines 48-59 on `755e86235`:
@@ -89,6 +98,7 @@ Change: `trap 'rm -rf "$cfg"' EXIT` as the first line of the subshell; keep the 
 
 Change: same shape, same change.
 
+<a id="ws-doc-49134504-8b09-4014-8efc-166c5964c2a1"></a>
 ### 2.5 Site 5
 
 `csi-spl-orc/src/bash/run/spl-consumer-lag.func.sh` lines 56-67 on `755e86235`:
@@ -110,6 +120,7 @@ Change: same shape, same change.
 
 Change: same shape, same change.
 
+<a id="ws-doc-d9c6fa49-81aa-4f75-aeca-33313091e68b"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh:1-41`: the header should say which temp state it creates and that it removes it.
@@ -117,6 +128,7 @@ Change: same shape, same change.
 - `spl-hub-member-list.func.sh:44-57`, `spl-db-message-show.func.sh:47-60`, `spl-consumer-lag.func.sh:55-68` are the same 12 lines: add a comment at each naming the twins (a `spl_with_isolated_sa` helper is a later lane).
 - Testability: in hub-member-list.tst.sh, consumer-lag.tst.sh and verify-hub-endpoints.tst.sh add one assertion each: run with `TMPDIR=$T/tmp`, make the stub gcloud/curl fail, assert `$T/tmp` is empty.
 
+<a id="ws-doc-3f1bbf6a-3208-459b-9dc3-716aa27004f8"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -127,6 +139,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `sudo -u <DEV_USER> bash csi-spl-orc/src/bash/tests/consumer-lag.tst.sh` (24 PASS)
 - message-show: `db-actions-none.tst.sh` / `msg-to-db.tst.sh` use docker: run where available, else say SKIP
 
+<a id="ws-doc-7a2507c7-2209-426b-b658-119133704aea"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -135,10 +148,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-12e114fa-897f-41b3-bab1-95a7015b5167"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-7f788d55-e172-4125-a7f9-0689bed158a5"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -309,6 +324,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh`, `csi-spl-iac/src/bash/run/measure-wui-edge-warm.func.sh`, `csi-spl-orc/src/bash/run/spl-hub-member-list.func.sh`, `csi-spl-orc/src/bash/run/spl-db-message-show.func.sh`, `csi-spl-orc/src/bash/run/spl-consumer-lag.func.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh,csi-spl-iac/src/bash/run/measure-wui-edge-warm.func.sh,csi-spl-orc/src/bash/run/spl-hub-member-list.func.sh,csi-spl-orc/src/bash/run/spl-db-message-show.func.sh,csi-spl-orc/src/bash/run/spl-consumer-lag.func.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-13c9064c-046a-433b-9c18-26d5c80f7979"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

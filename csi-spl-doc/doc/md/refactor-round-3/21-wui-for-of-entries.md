@@ -1,7 +1,10 @@
 # Refactor round 3, row 21: `for (const [i, x] of arr.entries())` instead of an indexed `.forEach`
 
+> Generated from qto doc `e35955fc-210c-4236-b5d9-52e6e3d092b9`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 21. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC** (browser proof). Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-35ccbfd7-5233-47c6-a195-3e70e20a1eb2"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 21. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-e86bf289-4711-4255-bdfe-f80e18d227e8"></a>
 ## 1. The practice
 
 The house style is `for...of` (`useIssueColumnGrips.ts:20-33`). An indexed `forEach` hides the index in a callback, cannot `break`, and in `side-hit-list.mjs` needs a leading `;` to survive ASI. Mechanical change.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-f3320241-d10d-4486-a5e8-7c9fa86736b9"></a>
 ## 2. The sites
 
+<a id="ws-doc-97ce88f9-75b3-4431-a928-3a1411764563"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/utils/palette.mjs` lines 76-83 on `755e86235`:
@@ -38,6 +44,7 @@ function recentRanks(recent) {
 
 Change: `for (const [i, id] of recent.entries())`.
 
+<a id="ws-doc-34ac8855-96a2-4303-87e3-556c120d90be"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/side-hit-list.mjs` lines 36-44 on `755e86235`:
@@ -56,6 +63,7 @@ export function groupRuns(items) {
 
 Change: `for (const [index, item] of (items || []).entries())`; drops the ASI `;`.
 
+<a id="ws-doc-e9c5e31a-ddf9-4813-b3c8-37ba42ef2fab"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/utils/sidebar-row-menu.mjs` lines 140-143 on `755e86235`:
@@ -69,6 +77,7 @@ export function pinRows(rows, pins, keyOf) {
 
 Change: `for (const [i, label] of order.entries())`.
 
+<a id="ws-doc-317bb917-05d3-462a-a90e-80565cee58c8"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/components/LiveFeed.vue` lines 289-300 on `755e86235`:
@@ -90,6 +99,7 @@ const feedRows = computed<FeedItem[]>(() => {
 
 Change: `for (const [i, m] of shown.value.entries())`. `tests/unit/view-prefs.test.mjs:125` pins `/shown\.value\.forEach\(\(m, i\)/`: update that regex in the SAME commit to the new loop, keeping its intent.
 
+<a id="ws-doc-c4ac56ac-06c9-48b8-8347-dd803b4e5e8f"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/composables/useIssueColumnGrips.ts` lines 34-34 on `755e86235`:
@@ -100,6 +110,7 @@ Change: `for (const [i, m] of shown.value.entries())`. `tests/unit/view-prefs.te
 
 Change: `for (const [i, el] of cells.entries()) el.style.cssText = saved[i]`; keep the `< 400)` line issues-colw.test.mjs:83-85 pins.
 
+<a id="ws-doc-a2663fd0-3608-4582-aeb6-a6a10e7611ca"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/palette.mjs:76`: `recentRanks` has no doc: "id -> its first (newest) position in `recent`; non-strings skipped".
@@ -108,6 +119,7 @@ Change: `for (const [i, el] of cells.entries()) el.style.cssText = saved[i]`; ke
 - `csi-spl-wui/src/utils/side-hit-list.mjs:36`: `groupRuns` doc: say runs keep the original index for keyboard navigation.
 - Testability: `measureFit` in useIssueColumnGrips.ts has no unit test and needs a DOM: cover it with the browser proof (issues column resize).
 
+<a id="ws-doc-7f8b7959-3fa7-46d3-9dd3-4b8b6dea8ffe"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -116,6 +128,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `pnpm run typecheck` (needs `pnpm install`)
 - e2e: `tests/e2e/command-palette.test.mjs`, `topic-pane-single.test.mjs` (LiveFeed), `issues-col-resize.test.mjs`
 
+<a id="ws-doc-71756126-85a6-4990-8c6f-29785eef7ac0"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -125,12 +138,14 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-192eeebe-b7b9-4e35-8856-75a11f9f8877"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
 Browser proof: drive the changed screen on dev and prd after the deploy (the e2e/proof specs in section 4) and name the build.json version you saw.
 
+<a id="ws-doc-7f7b2e8f-35f5-4103-85ca-5f6b1783f912"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -300,6 +315,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/utils/palette.mjs`, `csi-spl-wui/src/utils/side-hit-list.mjs`, `csi-spl-wui/src/utils/sidebar-row-menu.mjs`, `csi-spl-wui/src/components/LiveFeed.vue`, `csi-spl-wui/src/composables/useIssueColumnGrips.ts`, `csi-spl-wui/tests/unit/view-prefs.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/utils/palette.mjs,csi-spl-wui/src/utils/side-hit-list.mjs,csi-spl-wui/src/utils/sidebar-row-menu.mjs,csi-spl-wui/src/components/LiveFeed.vue,csi-spl-wui/src/composables/useIssueColumnGrips.ts,csi-spl-wui/tests/unit/view-prefs.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-21c1323c-0eb2-44b5-820c-c4ce11c601bb"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

@@ -1,9 +1,12 @@
 # Refactor round 3, row 13: `return`, not `exit`, in sourced `.func.sh` functions
 
+> Generated from qto doc `c9f88d1a-292d-4f41-b029-82b9c9b03b36`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 13. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low-med. Run on: **sat**. Agent: **claude**. Batch: 1.
 
 **Same-box serial**: rows 13, 28 share a file. Never run at the same time; c-001 runs them one after the other on sat, the lower row number first.
 
+<a id="ws-doc-4878717f-d2be-49f9-99a1-41d7cbfe5195"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -15,14 +18,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 13. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-4b21756c-9292-4868-8ea3-2676a9ee1bdb"></a>
 ## 1. The practice
 
 Every `.func.sh` is sourced into the `./run` shell: an `exit` kills the whole run, skips the function's own RETURN trap (in gcp-project-apis this leaks the private gcloud dir) and stops any caller from recovering. `gcp-000` relies on the `exit` today (its calls at :29-32 have no `||`), so it gets `|| return $?` on each call in the same commit. Refactor only: no GCP call, tests are stub-only; nothing here runs against GCP.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-62a039fc-74a6-45a4-8dc3-76d32ade950c"></a>
 ## 2. The sites
 
+<a id="ws-doc-fd04524b-2b9e-492b-824e-d9bcb6cf9a98"></a>
 ### 2.1 Site 1
 
 `csi-spl-iac/lib/bash/funcs/gcp-project-apis.func.sh` lines 24-32 on `755e86235`:
@@ -41,6 +47,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `return 1`, and move both tool checks above the `mktemp` on :22.
 
+<a id="ws-doc-1317cb50-f5d5-4ddb-8827-cb4253887f57"></a>
 ### 2.2 Site 2
 
 `csi-spl-iac/src/bash/run/gcp-bkp-state-bucket-create.func.sh` lines 25-30 on `755e86235`:
@@ -56,6 +63,7 @@ Change: `return 1`, and move both tool checks above the `mktemp` on :22.
 
 Change: `exit 1` -> `return 1` in all 6 places (also :33, :52).
 
+<a id="ws-doc-8511e3ab-fa7c-4ba7-b765-e475bd0bb390"></a>
 ### 2.3 Site 3
 
 `csi-spl-iac/lib/bash/funcs/export-json-section-vars.func.sh` lines 13-18 on `755e86235`:
@@ -71,6 +79,7 @@ Change: `exit 1` -> `return 1` in all 6 places (also :33, :52).
 
 Change: `[[ -f "$json_file" ]] || { do_log ...; return 1; }`; callers `tf-apply-local-step-bucket.func.sh:21-23` and `tf-destroy-local-step-bucket.func.sh:20` get `|| return 1`.
 
+<a id="ws-doc-b8056528-3904-4715-acd8-5aa16de3e79d"></a>
 ### 2.4 Site 4
 
 `csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh` lines 24-30 on `755e86235`:
@@ -87,6 +96,7 @@ Change: `[[ -f "$json_file" ]] || { do_log ...; return 1; }`; callers `tf-apply-
 
 Change: `return 1` (also :50, :58); lands together with the gcp-000 change.
 
+<a id="ws-doc-dccd06dc-dc8f-46e4-a6d5-17076ccc5bd8"></a>
 ### 2.5 Site 5
 
 `csi-spl-iac/src/bash/run/gcp-004-project-apis-enable.func.sh` lines 18-24 on `755e86235`:
@@ -103,6 +113,7 @@ Change: `return 1` (also :50, :58); lands together with the gcp-000 change.
 
 Change: `return 1` (also :40); same coupling to gcp-000.
 
+<a id="ws-doc-d66fcbf0-7e4b-4265-ac40-32b4bf4a3fcb"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-iac/src/bash/run/gcp-000-bootstrap-gcp-env.func.sh:29-32`: comment that each step returns non-zero on failure and 000 stops at the first one (the contract gcp-002-004-bootstrap.tst.sh:184 pins).
@@ -110,6 +121,7 @@ Change: `return 1` (also :40); same coupling to gcp-000.
 - `csi-spl-iac/lib/bash/funcs/export-json-section-vars.func.sh:38`: note the unquoted `eval` of cnf values as a hazard in the header (do not change it here).
 - Testability: NEW case in gcp-tf-shared-bodies.tst.sh: `do_gcp_project_apis enable x a.googleapis.com` with no gsutil on PATH inside `bash -c '...; echo after'`: "after" prints and no `tmp.*` dir is left; NEW `gcp-bkp-state-bucket-create.tst.sh` with gcloud stubbed: `PROJECT_ENV=bad` returns 1 and the caller survives.
 
+<a id="ws-doc-0656641d-7c95-4971-bf67-3f336e66ec70"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -119,6 +131,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `sudo -u <DEV_USER> bash csi-spl-iac/src/bash/tests/tf-init-project-key.tst.sh` (8 PASS)
 - `sudo -u <DEV_USER> bash csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh` before = after
 
+<a id="ws-doc-8c376abf-cbe1-4f14-b0e1-7889007372ab"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -127,10 +140,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-2ffb5439-18ff-479e-b73a-6a2b166816a7"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-45dd33de-59b4-474d-aa37-93b687ada6df"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -297,6 +312,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-iac/lib/bash/funcs/gcp-project-apis.func.sh`, `csi-spl-iac/src/bash/run/gcp-bkp-state-bucket-create.func.sh`, `csi-spl-iac/lib/bash/funcs/export-json-section-vars.func.sh`, `csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh`, `csi-spl-iac/src/bash/run/gcp-004-project-apis-enable.func.sh`, `csi-spl-iac/src/bash/run/gcp-000-bootstrap-gcp-env.func.sh`, `csi-spl-iac/src/bash/run/tf-apply-local-step-bucket.func.sh`, `csi-spl-iac/src/bash/run/tf-destroy-local-step-bucket.func.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-iac/lib/bash/funcs/gcp-project-apis.func.sh,csi-spl-iac/src/bash/run/gcp-bkp-state-bucket-create.func.sh,csi-spl-iac/lib/bash/funcs/export-json-section-vars.func.sh,csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh,csi-spl-iac/src/bash/run/gcp-004-project-apis-enable.func.sh,csi-spl-iac/src/bash/run/gcp-000-bootstrap-gcp-env.func.sh,csi-spl-iac/src/bash/run/tf-apply-local-step-bucket.func.sh,csi-spl-iac/src/bash/run/tf-destroy-local-step-bucket.func.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-87d22fc3-f12a-4f0a-a99e-503de26f0ea0"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

@@ -1,7 +1,10 @@
 # Refactor round 3, row 14: Make bash tests hermetic and date-proof
 
+> Generated from qto doc `36fb2752-c28a-4698-a478-ba3a099129cf`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 14. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 1.
 
+<a id="ws-doc-aac19fd4-e7d0-415c-ad94-bc27ca2c3a88"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,6 +16,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 14. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-adb15930-d58e-49a8-8176-5ba738e05ec4"></a>
 ## 1. The practice
 
 On 755e86235 these orc tests are red without any code change: five use `CLE-n` fixture ids that `spool-env.inc.sh:80` retired at 2026-10-03T20:59:59Z, and desk-owners / desk-welcome never set `SPOOL_TEST=1` or `SPOOL_BOX_ENV`, so they read the live `/var/spool-hub/box.env` and their verdict depends on the box. Measured once each on PC: desk-mirror-actions 11 FAIL, agent-mcp 2, channel-agent-add-op 16, desk-owners 7, desk-welcome 29. Run this row BEFORE rows 27 and 29, whose tests are among them. Before you start: `git fetch origin master` and re-run; if another lane already fixed a file, skip it and say so.
@@ -21,8 +25,10 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Same cause, not sites of this row (left for a follow-up lane, named in the plan's section 4): channel-agent-remove-op (9 FAIL), desk-install-service-envs (6), asks (47).
 
+<a id="ws-doc-05641964-d08b-4026-b89a-cd3a03425a8a"></a>
 ## 2. The sites
 
+<a id="ws-doc-349b9094-a9ef-45ed-a69d-e50e7f11dc38"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/src/bash/tests/desk-mirror-actions.tst.sh` lines 52-57 on `755e86235`:
@@ -38,6 +44,7 @@ SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_
 
 Change: spec-061 ids (`c-007`, `c-008`) in the fixture and the asserted strings.
 
+<a id="ws-doc-40c64998-20a5-4dff-b154-8321838624bb"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/src/bash/tests/agent-mcp.tst.sh` lines 33-52 on `755e86235`:
@@ -67,6 +74,7 @@ box --as CLE-08 dev; rc=$?
 
 Change: `c-007` / `c-008`.
 
+<a id="ws-doc-eb228cc8-7a7b-487c-a7cc-e90c004e6d21"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/tests/channel-agent-add-op.tst.sh` lines 53-88 on `755e86235`:
@@ -112,6 +120,7 @@ in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='
 
 Change: new-form ids in AGENTS and in the asserted DRY_RUN lines.
 
+<a id="ws-doc-f02a8aa0-22c7-47de-9e8e-04178af5858f"></a>
 ### 2.4 Site 4
 
 `csi-spl-orc/src/bash/tests/desk-owners.tst.sh` lines 20-29 on `755e86235`:
@@ -131,6 +140,7 @@ SEAT="$T/state/prd/desk/t1/box-desk"
 
 Change: `SPOOL_TEST=1` (or `SPOOL_DESK_BOX=box-desk`) on the `env` line; new-form ids at :30-43.
 
+<a id="ws-doc-efd0eb7a-8ab9-4ead-bff9-fe2957a72314"></a>
 ### 2.5 Site 5
 
 `csi-spl-orc/src/bash/tests/desk-welcome.tst.sh` lines 1-12 on `755e86235`:
@@ -152,12 +162,14 @@ Change: `SPOOL_TEST=1` (or `SPOOL_DESK_BOX=box-desk`) on the `env` line; new-for
 
 Change: same as desk-owners: hermetic env plus the 26 `CLE-n` ids.
 
+<a id="ws-doc-8b325eb7-6ad9-4580-a13f-3dcb2879b73f"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/src/bash/tests/test-lib.inc.sh`: `grep -c SPOOL_TEST` -> 0; export `SPOOL_TEST=1` and an empty `SPOOL_BOX_ENV` there so every test that sources it is hermetic by default (check the 17 tests that already set it still pass).
 - `desk-owners.tst.sh:1-15` and `desk-welcome.tst.sh:1-10`: say in the purpose header which box id the fixture assumes (`box-desk`) and why.
 - Testability: NEW `csi-spl-orc/src/bash/tests/tests-hermetic.tst.sh`: fail on a `*.tst.sh` using a `CLE-[0-9]+` id without asserting a refusal (allow-list the not-yet-fixed three), and on a test that sources `run/*.func.sh` and calls a desk action without `SPOOL_TEST=1` / `SPOOL_BOX_ENV`. A grep ban cannot prove absence; say so in its header.
 
+<a id="ws-doc-334bfbb3-f097-403c-a0dc-6234585e6505"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -165,6 +177,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - each site: `sudo -u <DEV_USER> bash <file>` -> 0 FAIL, run both with `/var/spool-hub/box.env` present AND with `SPOOL_DESK_BOX=zzz` exported (the before counts are FAILs; after must be all PASS with the same assertion count)
 - `sudo -u <DEV_USER> bash csi-spl-orc/src/bash/tests/run-all-tests.sh` before = after except the five files going green
 
+<a id="ws-doc-3c00b4db-8edd-42f5-b87b-d736462a6b76"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -173,10 +186,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-1b9255a4-4808-4e4d-8a09-1b057eb1700e"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-da5623ab-96c5-48f6-8502-15cfe05931ee"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -345,6 +360,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/src/bash/tests/desk-mirror-actions.tst.sh`, `csi-spl-orc/src/bash/tests/agent-mcp.tst.sh`, `csi-spl-orc/src/bash/tests/channel-agent-add-op.tst.sh`, `csi-spl-orc/src/bash/tests/desk-owners.tst.sh`, `csi-spl-orc/src/bash/tests/desk-welcome.tst.sh`, `csi-spl-orc/src/bash/tests/test-lib.inc.sh`, `csi-spl-orc/src/bash/tests/tests-hermetic.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/src/bash/tests/desk-mirror-actions.tst.sh,csi-spl-orc/src/bash/tests/agent-mcp.tst.sh,csi-spl-orc/src/bash/tests/channel-agent-add-op.tst.sh,csi-spl-orc/src/bash/tests/desk-owners.tst.sh,csi-spl-orc/src/bash/tests/desk-welcome.tst.sh,csi-spl-orc/src/bash/tests/test-lib.inc.sh,csi-spl-orc/src/bash/tests/tests-hermetic.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-f97e76f1-5d67-4522-b6a6-630d5e70e3db"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

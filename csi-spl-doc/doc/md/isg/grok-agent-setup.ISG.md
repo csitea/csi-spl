@@ -1,5 +1,7 @@
 # grok-agent-setup.ISG — install & setup guide (for grok agents)
 
+> Generated from qto doc `bbd74d93-520a-4d4f-ab3a-2a78145cfe81`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 > **Partly verified.** Run from inside `g-004` on 2026-09-25: grok 1.0.41
 > (`4220f3b224a6`), tmux 3.5a, csi-spl `db92f2a`, env `dev`, tenant `t1`, desk
 > box `box-desk`. n=1 unless a step says otherwise. Still untested: a grok
@@ -16,6 +18,7 @@ Measured on that seat:
   `2463b73` found 2 of 3 grok processes with tty `?` (plain `su -`, no
   `--pty`); those are the ones section 2.2 is about
 
+<a id="ws-doc-4f39e5b5-dd12-4b52-a0f4-80043182e8a6"></a>
 ## 0. A person joining with a grok agent on their own machine
 
 Use the installer exactly as in the Claude guide 0.1, with `--cli grok` (or
@@ -27,13 +30,16 @@ MCP (the Claude guide 6.0): `grok` is REGISTERED with the seated `spool-dev` /
 2026-09-25), but UNTESTED in a live grok session. Try `spool_recv` first; if it
 fails, use the desk actions of section 6 and record what happened (section 9).
 
+<a id="ws-doc-7110aa32-c8f8-49e1-b16a-4e4d659b9be2"></a>
 ## 1. What this installs
 
 The same as for Claude: a seat in the box's desk, a notice strip, a prompt
 poke, and the `csi-spl-orc` desk actions. See `claude-agent-setup.ISG.md` §1.
 
+<a id="ws-doc-a2468034-168f-47d4-aae5-f12ebd56f80e"></a>
 ## 2. Prerequisites
 
+<a id="ws-doc-8ce5bb59-a39c-4523-bc8c-9ebf4a9513d0"></a>
 ### 2.1 An id in the window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -43,6 +49,7 @@ The seat is keyed by the id in the window name, `^[acgmq]-[0-9]{3}$` (legacy `^[
 (`g-004`, or `<ID>@<box-tag>`, older `<box-tag>: g-004`). `/grok-spawn` names the window; a hand-started grok needs its window
 renamed to carry the id, or it is never seated.
 
+<a id="ws-doc-76d5e88f-2caf-49df-87ec-f9962c83d1e8"></a>
 ### 2.2 Launch with `su --pty`
 
 ```
@@ -59,6 +66,7 @@ reads one from the window name.
 
 Whether a grok whose tty is `?` repaints on SIGWINCH is still untested.
 
+<a id="ws-doc-7a54994e-3f7a-4813-a2a3-4fb609988c11"></a>
 ### 2.3 Sudo to the box user
 
 Identical to the Claude guide §2.3: the desk tree is `0700` and owned by the
@@ -76,15 +84,18 @@ Measured n=1: that printed `ok`. `ls` of the desk directory as the agent
 user printed `Permission denied`. The directory mode was `700`, owned by
 the tmux server's user.
 
+<a id="ws-doc-2cc712b1-b522-45e1-bb81-1589594ca562"></a>
 ### 2.4 Pinned desk
 
 dev / t1 and prd / t1 on the reference box (prd since 2026-09-25T15:41:30Z).
 A NEW box needs the tenant admin's pin: see the Claude guide 0.1.
 
+<a id="ws-doc-7ada5230-aa2f-4b67-a37b-751f90027c8d"></a>
 ## 3. Credentials
 
 None held by the agent.
 
+<a id="ws-doc-0046f6f1-95a1-4e7c-8d53-daf1e2e3a58b"></a>
 ## 4. Install steps
 
 ```
@@ -106,6 +117,7 @@ Measured n=1, 2026-09-25, `spool-agent.sh --dry-run --as g-005
 --env dev,prd grok`: both envs printed `already live`, `skip
 do_spl_desk_up`, in 0.068s. Dry run: nothing was changed.
 
+<a id="ws-doc-c5b23855-cf16-458a-aeee-fb31be3c67a0"></a>
 ## 5. Verify
 
 ```
@@ -135,6 +147,7 @@ earlier run the same day, 17:12:57 EEST, n=1, printed `verdict ok` for
 `g-004` (hub listed the agent, prompt poke on, not muted) on a sidecar
 process that has since been replaced.
 
+<a id="ws-doc-ce28d71f-e9bf-4a30-9a22-719acac244ed"></a>
 ## 6. Use
 
 Read, open files and answer exactly as in the Claude guide §6, with your
@@ -197,6 +210,7 @@ card (`is_parent` 1). Measured on prd task
 `5a3f6369-260a-4008-9ae4-fa452f303d1c` in `spool-hub-devel`: the
 opener is `is_parent` 1, the follow-up in that task is `is_parent` 0.
 
+<a id="ws-doc-5b32bdb0-6d6c-416c-8d56-548cd9e4ad2d"></a>
 ## 7. Conditions
 
 As in the Claude guide §7. Plus: where grok runs in a mode that does not
@@ -204,10 +218,12 @@ use the alternate screen (test: `tmux display -p -t <pane> '#{alternate_on}'`
 prints 0), a human's message arrives as a shell-inert `: 'SPOOL …'` line rather
 than verbatim. That is the safety rule, not a fault.
 
+<a id="ws-doc-18b368ce-32ec-4c2f-acf6-d11de31b27b9"></a>
 ## 8. Uninstall
 
 As in the Claude guide §8.
 
+<a id="ws-doc-6ccd44b4-ca38-4a78-aba3-8cde980e5e1a"></a>
 ## 9. Update this document
 
 The measurements above are from `g-004`, grok 1.0.41, csi-spl `db92f2a`,

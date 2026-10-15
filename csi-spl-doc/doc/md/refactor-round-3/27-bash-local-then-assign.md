@@ -1,7 +1,10 @@
 # Refactor round 3, row 27: Declare a local, then assign the command output (SC2155)
 
+> Generated from qto doc `0264a993-9fa4-4ece-8a54-f04d97b069f1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 27. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 
+<a id="ws-doc-ae7aff2b-4457-4133-96f5-9eba17a0c362"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,6 +16,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 27. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-8aff6e6c-054f-4539-a488-4766fe3d73a5"></a>
 ## 1. The practice
 
 `local x="$(cmd)"` and `export X="$(cmd)"` take the exit status of `local`/`export` (always 0), so a failing command is silently ignored. Only 3 production sites exist (the other 18 SC2155 findings are vendored `.specify`). Run after row 14 (desk-mirror-actions.tst.sh is red until then).
@@ -21,8 +25,10 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 3 sites: SC2155 finds 21, 18 of them in the vendored `csi-spl-doc/.specify` (spec-kit upstream, left out on purpose).
 
+<a id="ws-doc-33b4382f-1b9c-4be4-b241-ac37444d5950"></a>
 ## 2. The sites
 
+<a id="ws-doc-032a4a96-a6e8-4a5d-a528-3e9fddb37dc8"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/src/bash/features/spool-install/install.sh` lines 438-438 on `755e86235`:
@@ -33,6 +39,7 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `go_dir="$(dirname "$GO_BIN")"`, then `TPATH=...` and `PATH="$go_dir:$PATH"; export PATH`.
 
+<a id="ws-doc-9911b48d-c7ab-4cf8-9e86-a31cb882ebbe"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/src/bash/run/spl-backfill-probe.func.sh` lines 128-128 on `755e86235`:
@@ -43,6 +50,7 @@ Change: `go_dir="$(dirname "$GO_BIN")"`, then `TPATH=...` and `PATH="$go_dir:$PA
 
 Change: `local line want word=messages tword=topics; (( n == 1 )) && { word=message; tword=topic; }; want="added to #$ch: $n earlier $word in $n $tword"`.
 
+<a id="ws-doc-4154f4d3-b6e5-4655-9601-f94bd84a404a"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/run/spl-desk-session-upload.func.sh` lines 61-61 on `755e86235`:
@@ -53,12 +61,14 @@ Change: `local line want word=messages tword=topics; (( n == 1 )) && { word=mess
 
 Change: `local md counts rc=0 stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)" || return 1; md="$adir/.mirror/session-$agent-$stamp.md"`.
 
+<a id="ws-doc-2fbc03da-8d7f-41cd-bf15-b6aa3752d592"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-orc/src/bash/run/spl-backfill-probe.func.sh:120-127`: the inline pluralising hides the asserted sentence: a `_plural <n> <one> <many>` helper, unit-tested.
 - `csi-spl-orc/src/bash/run/spl-desk-session-upload.func.sh`: inject the stamp (`SESSION_STAMP` env, default `date`) so the test asserts the exact file name instead of globbing `session-*.md`.
 - `csi-spl-orc/src/bash/features/spool-install/install.sh:438-440`: a blank line plus a one-line comment saying why TPATH and PATH both get the Go dir.
 
+<a id="ws-doc-6a7608f4-e9da-4599-afcc-94ffdac92f47"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -68,6 +78,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `spool-install.tst.sh` drives an installer: run it if the box allows, else say SKIP
 - gate: `shellcheck -s bash -S warning -i SC2155 <the 3 files>` -> 0
 
+<a id="ws-doc-d4d976a6-9614-45ed-bf98-254601869266"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -76,10 +87,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-6b95f6eb-03c1-49c6-aff7-6c76e2a544d3"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-515fcc17-6f4a-4942-a5fe-f5f19072628d"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -252,6 +265,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/src/bash/features/spool-install/install.sh`, `csi-spl-orc/src/bash/run/spl-backfill-probe.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-session-upload.func.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/src/bash/features/spool-install/install.sh,csi-spl-orc/src/bash/run/spl-backfill-probe.func.sh,csi-spl-orc/src/bash/run/spl-desk-session-upload.func.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-0c0f1a32-e2aa-4b32-b7c1-8366b4b4e7f9"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

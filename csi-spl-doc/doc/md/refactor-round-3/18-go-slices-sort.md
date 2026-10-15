@@ -1,7 +1,10 @@
 # Refactor round 3, row 18: `slices.Sort` / `slices.Sorted(maps.Keys(m))` instead of `sort.Strings` / `sort.Ints`
 
+> Generated from qto doc `1639b65b-326a-420a-93e0-4a52c67f3881`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 18. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-ba5eb49e-226c-499b-b5a8-ac5914705f6b"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 18. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-1f0cd4e6-bedb-4fec-a07a-80dde1d4d390"></a>
 ## 1. The practice
 
 Since Go 1.21 the generic `slices.Sort` is the idiom (the `sort.Strings` doc says so), and `slices.Sorted(maps.Keys(m))` (1.23) replaces the append-loop-then-sort in one call. Strings and ints have no distinguishable ties, so the order is identical. Leave `sort.Slice` with non-unique keys (memory.go:324) alone. Round 2 did `sort.SliceStable`; these are new sites of the plain-sort form (88 in the tree).
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-950807a6-e6f1-4081-8714-66c2a7da141d"></a>
 ## 2. The sites
 
+<a id="ws-doc-38c3331a-6013-4394-81bc-335d9c2b4593"></a>
 ### 2.1 Site 1
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/memory.go` lines 233-234 on `755e86235`:
@@ -32,6 +38,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `slices.Sort(a)`; :212 (`sort.Slice` by unique BoxID) -> `slices.SortFunc(..., cmp.Compare)`.
 
+<a id="ws-doc-0c96a6b0-ecb0-4b82-9245-a7fba1dd4f49"></a>
 ### 2.2 Site 2
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/id_lookup.go` lines 183-190 on `755e86235`:
@@ -49,6 +56,7 @@ func sortedKeys(m map[string]bool) []string {
 
 Change: body -> `return slices.Sorted(maps.Keys(m))`; :203 -> `slices.Sort`.
 
+<a id="ws-doc-49bae828-469b-474b-85d7-98d1fe2de372"></a>
 ### 2.3 Site 3
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/channel_humans.go` lines 113-117 on `755e86235`:
@@ -63,6 +71,7 @@ Change: body -> `return slices.Sorted(maps.Keys(m))`; :203 -> `slices.Sort`.
 
 Change: `slices.Sort`; also :130, :196, :197.
 
+<a id="ws-doc-c326cbfa-10d4-41c7-872d-c8e1a043469b"></a>
 ### 2.4 Site 4
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` lines 113-117 on `755e86235`:
@@ -77,6 +86,7 @@ Change: `slices.Sort`; also :130, :196, :197.
 
 Change: `slices.Sorted(maps.Keys(p))`; :279 -> `slices.Sort`.
 
+<a id="ws-doc-0ff1ef67-e4b4-4a24-9b4b-23a08a3a82a2"></a>
 ### 2.5 Site 5
 
 `csi-spl-api/src/go/spool-hub-api/internal/store/perf_samples.go` lines 167-168 on `755e86235`:
@@ -88,6 +98,7 @@ Change: `slices.Sorted(maps.Keys(p))`; :279 -> `slices.Sort`.
 
 Change: `slices.Sort(v)`.
 
+<a id="ws-doc-07045dcc-8aac-43bb-8d5a-4d5e3ad7fee6"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-api/src/go/spool-hub-api/internal/store/id_lookup.go:183`: `sortedKeys` has no doc comment.
@@ -96,6 +107,7 @@ Change: `slices.Sort(v)`.
 - `csi-spl-api/src/go/spool-hub-api/internal/store/memory.go:324`: document that `sort.Slice` over `older` has ties (a stable sort is a separate, deliberate change).
 - Testability: NEW `TestSortedKeysDeterministic` (id_lookup) and a `CheckLifecyclePatch` table test over two unknown keys asserting the alphabetically first is reported.
 
+<a id="ws-doc-6c41d947-98e0-465f-9fd3-abecd0bf33ca"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -103,6 +115,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/store/ -run 'Sort|TestMemory|TestMemberRole|TestSeatsProbe'` (5 PASS without a DSN on 755e86235, n=1)
 - `SPOOL_TEST_PG_DSN=<local postgres> cd csi-spl-api/src/go/spool-hub-api && go test -count=1 ./internal/store/` whole package, before = after (store tests need Postgres: run WITH a DSN)
 
+<a id="ws-doc-f99baa45-dd6f-4a68-8141-46b9b55d439a"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -112,10 +125,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `gofmt -l` on every touched file prints nothing
 - a store change runs on Postgres: `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
 
+<a id="ws-doc-d3944ac1-4136-4b9d-b6fe-6b7fe2c5d50a"></a>
 ## 6. Deploy
 
 This row touches the hub: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-1ad9d9b7-a2a8-4315-945c-c882b53ea91e"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -286,6 +301,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-api/src/go/spool-hub-api/internal/store/memory.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/id_lookup.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/channel_humans.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go`, `csi-spl-api/src/go/spool-hub-api/internal/store/perf_samples.go`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-api/src/go/spool-hub-api/internal/store/memory.go,csi-spl-api/src/go/spool-hub-api/internal/store/id_lookup.go,csi-spl-api/src/go/spool-hub-api/internal/store/channel_humans.go,csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go,csi-spl-api/src/go/spool-hub-api/internal/store/perf_samples.go --agent <you>` must exit 0.
 
+<a id="ws-doc-152d99d3-f247-4ca0-9ff3-7552d2c1a718"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

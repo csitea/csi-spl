@@ -1,9 +1,12 @@
 # Refactor round 3, row 28: Port the no-fork whitespace trim to the iac copies of the `./run` helpers
 
+> Generated from qto doc `19f7beea-204a-4d30-b08a-25fc6917bc1c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 28. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 
 **Same-box serial**: rows 13, 28 share a file. Never run at the same time; c-001 runs them one after the other on sat, the lower row number first.
 
+<a id="ws-doc-bd7eafc7-fdf9-45cb-812d-1d9dfa3d86ab"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -15,14 +18,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 28. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-25179805-03a3-4935-8c4f-e4e3ddb99723"></a>
 ## 1. The practice
 
 The orc `parse-metadata.func.sh` / `validate-params.func.sh` moved from per-line `echo | sed/awk/grep` forks to parameter expansion (about 0.5 s per `./run`; `parse-metadata-nofork.tst.sh` pins it byte for byte). The iac copies still fork per line, and two more helpers use the same idiom.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-97d388f9-b164-49a1-b5a4-92869e383186"></a>
 ## 2. The sites
 
+<a id="ws-doc-f1916a76-cd3c-4a39-892f-4e9ea3622655"></a>
 ### 2.1 Site 1
 
 `csi-spl-iac/lib/bash/funcs/parse-metadata.func.sh` lines 51-52 on `755e86235`:
@@ -34,6 +40,7 @@ Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: copy orc's two expansions `${v#"${v%%[![:space:]]*}"}` / `${v%"${v##*[![:space:]]}"}` (also :61).
 
+<a id="ws-doc-e45b255f-6690-4a93-bde4-5635f1b519ac"></a>
 ### 2.2 Site 2
 
 `csi-spl-iac/lib/bash/funcs/validate-params.func.sh` lines 27-28 on `755e86235`:
@@ -45,6 +52,7 @@ Change: copy orc's two expansions `${v#"${v%%[![:space:]]*}"}` / `${v%"${v##*[![
 
 Change: copy orc's `read -r var_name _rest <<<"$param_def"` and `[[ "${param_def,,}" == *"(required)"* ]]` (also :39).
 
+<a id="ws-doc-55dc5b6d-73a3-4207-aea1-b0addd6be32c"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/lib/bash/funcs/validate-params.func.sh` lines 45-45 on `755e86235`:
@@ -55,6 +63,7 @@ Change: copy orc's `read -r var_name _rest <<<"$param_def"` and `[[ "${param_def
 
 Change: error path only: `[[ $param_def =~ \(required\)[[:space:]]*-*[[:space:]]*(.*)$ ]] && desc="${BASH_REMATCH[1]}"` (case-sensitive like the sed; same output); same line in the iac copy.
 
+<a id="ws-doc-f488967c-f922-4f3d-a410-54eee0be3dfe"></a>
 ### 2.4 Site 4
 
 `csi-spl-iac/src/bash/run/tf-destroy-local-step-bucket.func.sh` lines 16-16 on `755e86235`:
@@ -65,6 +74,7 @@ Change: error path only: `[[ $param_def =~ \(required\)[[:space:]]*-*[[:space:]]
 
 Change: `main_step="${tf_proj//-remote-bucket/}"` (SC2001).
 
+<a id="ws-doc-3da3913e-b1da-4f32-966c-51d36f0fa57e"></a>
 ### 2.5 Site 5
 
 `csi-spl-iac/lib/bash/funcs/require-var.func.sh` lines 15-16 on `755e86235`:
@@ -76,6 +86,7 @@ Change: `main_step="${tf_proj//-remote-bucket/}"` (SC2001).
 
 Change: `type_of_msg="${1%% *}"; msg="${*#"$type_of_msg"}"; msg="${msg# }"` (quotes `$*`, SC2048).
 
+<a id="ws-doc-db3776bd-435b-4de8-bae9-ac23879a9cec"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-iac/lib/bash/funcs/parse-metadata.func.sh:51`: replace the comment with orc's (:51-54), which explains the fork cost.
@@ -83,6 +94,7 @@ Change: `type_of_msg="${1%% *}"; msg="${*#"$type_of_msg"}"; msg="${msg# }"` (quo
 - `csi-spl-iac/lib/bash/funcs/require-var.func.sh:3-7`: replace the usage-example header with orc's `@description`/`@param` header.
 - Testability: parametrise `parse-metadata-nofork.tst.sh` over `{iac,orc}` so the iac copy is held to the same byte-identical reference; NEW assertion that `do_require_var X ''` prints `[ERROR]` with the expected message.
 
+<a id="ws-doc-6399680b-ed64-45ba-9cd0-8731bca3a997"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -91,6 +103,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `sudo -u <DEV_USER> bash csi-spl-iac/src/bash/tests/tf-init-project-key.tst.sh` (8 PASS)
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` and one `./run -a <any action>` before = after (the helpers run on every ./run)
 
+<a id="ws-doc-67fefa4e-bd6b-477e-9d0c-491f6751bef7"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -99,10 +112,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-842fa3ff-6898-4e70-b08a-7d7fe37a14af"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-3ed961da-5876-463f-b8fb-ed578f95fdd0"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -271,6 +286,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-iac/lib/bash/funcs/parse-metadata.func.sh`, `csi-spl-iac/lib/bash/funcs/validate-params.func.sh`, `csi-spl-orc/lib/bash/funcs/validate-params.func.sh`, `csi-spl-iac/src/bash/run/tf-destroy-local-step-bucket.func.sh`, `csi-spl-iac/lib/bash/funcs/require-var.func.sh`, `csi-spl-orc/src/bash/tests/parse-metadata-nofork.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-iac/lib/bash/funcs/parse-metadata.func.sh,csi-spl-iac/lib/bash/funcs/validate-params.func.sh,csi-spl-orc/lib/bash/funcs/validate-params.func.sh,csi-spl-iac/src/bash/run/tf-destroy-local-step-bucket.func.sh,csi-spl-iac/lib/bash/funcs/require-var.func.sh,csi-spl-orc/src/bash/tests/parse-metadata-nofork.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-42b98f07-b093-47d3-8fff-46bbf1147cc6"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

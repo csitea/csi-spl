@@ -1,7 +1,10 @@
 # Refactor round 3, row 16: A glob array, not `ls | sort | tail`, to pick the newest file (SC2012)
 
+> Generated from qto doc `a89f2812-77a4-45b0-a319-923916c7cd09`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 16. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 1.
 
+<a id="ws-doc-5c7a4aa7-1158-44d4-b0d9-d3b907838fdf"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,6 +16,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 16. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-54c55291-9229-44f9-bb84-acdff1869a99"></a>
 ## 1. The practice
 
 `ls` output parsed in a pipeline mangles names with odd bytes and hides "no match" inside an empty string; a `nullglob` array gives the same lexical order and an explicit count. Only 3 sites exist (`shellcheck -S style`, SC2012 -> 3).
@@ -21,8 +25,10 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 3 sites: `shellcheck -S style` over the production bash finds SC2012 three times.
 
+<a id="ws-doc-6399a4f5-51a1-4694-a9f6-58bf37b03d32"></a>
 ## 2. The sites
 
+<a id="ws-doc-32407865-96f4-4dba-a303-597c7e827f38"></a>
 ### 2.1 Site 1
 
 `csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh` lines 110-111 on `755e86235`:
@@ -34,6 +40,7 @@ Apply it at the 3 site(s) below and nowhere else. If a site has moved, find it b
 
 Change: `local -a ks; shopt -s nullglob; ks=("$dir/$1".*.json); shopt -u nullglob; k="${ks[-1]:-}"`, restoring the caller's nullglob as `use-go-toolchain.sh:18-25` does.
 
+<a id="ws-doc-b48b224f-a992-4fb1-9258-43ba1acd9aab"></a>
 ### 2.2 Site 2
 
 `csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh` lines 157-157 on `755e86235`:
@@ -44,6 +51,7 @@ Change: `local -a ks; shopt -s nullglob; ks=("$dir/$1".*.json); shopt -u nullglo
 
 Change: the same glob-array form.
 
+<a id="ws-doc-c41fb5c3-2a3a-4199-a096-5bfb6e8e7859"></a>
 ### 2.3 Site 3
 
 `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start-chrome.sh` lines 198-198 on `755e86235`:
@@ -54,12 +62,14 @@ Change: the same glob-array form.
 
 Change: sorted by mtime: `find "$XDG_RUNTIME_DIR" -maxdepth 1 -name '.mutter-Xwaylandauth.*' -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-`.
 
+<a id="ws-doc-b2b1add6-d8da-4656-b1ef-5b6742da0171"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `spl-desk-rebox.func.sh:105` and `spl-m3-e2e.func.sh:152-153` are the same lookup twice: extract `spl_newest_tenant_key <dir> <tenant>` into `csi-spl-orc/lib/bash/funcs/spl-newest-tenant-key.func.sh` and use it from both (that is the testable seam).
 - `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start-chrome.sh:195`: the comment should add that the newest file wins and why (mutter rotates it per session).
 - Testability: NEW `csi-spl-orc/src/bash/tests/newest-tenant-key.tst.sh`: `t1.20260101.json`, `t1.20260301.json`, `t1x.20270101.json` -> the 20260301 file; empty dir -> rc 1.
 
+<a id="ws-doc-b392debe-9db2-47eb-b9b9-2cc1a30eeea5"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -68,6 +78,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `m3-e2e-none.tst.sh` uses docker: run where available, else say SKIP
 - the new newest-tenant-key.tst.sh
 
+<a id="ws-doc-eaf20c03-dd71-40e5-86ef-bdbb4c107413"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -76,10 +87,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`: no function grows past 80 lines unless already on its LONG list
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` for iac files, `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` for orc files (run as the checkout owner: `sudo -u <DEV_USER> bash <test>`, `<DEV_USER>` = the user that owns the checkout)
 
+<a id="ws-doc-70c5544a-71cc-4385-b8e9-cdd1578dfa57"></a>
 ## 6. Deploy
 
 Watch `gh run list --commit <sha>` until your runs are green. This tree does not deploy an image; say so in your result.
 
+<a id="ws-doc-6051f4ac-b32a-4282-a9c4-75a519daf9e9"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -250,6 +263,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh`, `csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh`, `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start-chrome.sh`, `csi-spl-orc/lib/bash/funcs/spl-newest-tenant-key.func.sh`, `csi-spl-orc/src/bash/tests/newest-tenant-key.tst.sh`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh,csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh,csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start-chrome.sh,csi-spl-orc/lib/bash/funcs/spl-newest-tenant-key.func.sh,csi-spl-orc/src/bash/tests/newest-tenant-key.tst.sh --agent <you>` must exit 0.
 
+<a id="ws-doc-f851e65b-7acc-4272-8644-310788d165dc"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

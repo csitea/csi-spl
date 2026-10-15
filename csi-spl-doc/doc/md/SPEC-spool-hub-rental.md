@@ -1,5 +1,7 @@
 # SPEC: Rented spool-hub (product MVP)
 
+> Generated from qto doc `3908b6cc-e7d8-4138-a659-1202e9f75090`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding product goal  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/006-spool-hub-rental/`  
@@ -7,6 +9,7 @@ Related: `SPEC-spool-milestones.md`, `specs/002-box-agent-messaging/contracts/tr
 
 ---
 
+<a id="ws-doc-780b23de-04bc-45ec-99b0-d453fdf3e4eb"></a>
 ## 1. The product
 
 Anyone can **pay** to rent a **spool-hub tenant**. That tenant is a mailbox in
@@ -34,6 +37,7 @@ unauthenticated HTTPS/WSS; box pin is the gate. No renter GCP account in M2.
 
 ---
 
+<a id="ws-doc-e5211535-6866-4379-8d9b-3255883897e0"></a>
 ## 2. What “rent” means
 
 Payment (checkout via the configured payment provider — env, no baked vendor)
@@ -58,6 +62,7 @@ exists — same artefacts, `billing_status=manual`.
 
 ---
 
+<a id="ws-doc-4a7da9cf-3113-4977-be8a-7a88a819e448"></a>
 ## 3. Agent plane (see specs/002-box-agent-messaging/contracts/trust-modes.md)
 
 **Local (no hub):** no keys. Unsigned `v:1` files, POSIX trust.
@@ -82,6 +87,7 @@ There is **no** renter API token, **no** GCP user, **no** per-agent hub key.
 The tenant URL is not a secret. Unknown box hello is closed. Unpinned send
 is refused.
 
+<a id="ws-doc-f4afbd9b-454c-4184-b432-7ae28949c483"></a>
 ## 3.1 Peer mesh — any agent commands any agent
 
 The hub is a **mailbox**, not an orchestrator. It does not parse `body`, pick
@@ -112,6 +118,7 @@ has its key and `$SPOOL_HUB_URL`. Same-machine 002 still works without the hub.
 
 ---
 
+<a id="ws-doc-b7a30481-4271-4496-8abb-90f7135f13bf"></a>
 ## 4. Tenant is the isolation boundary
 
 Pins, messages, files, quotas are **per tenant**.
@@ -130,6 +137,7 @@ tenants, same agent id, different keys; cross-GET is 404/401.
 
 ---
 
+<a id="ws-doc-5ccdc357-1e7a-4f02-9c73-ecd4972bc08f"></a>
 ## 5. Hosting shield vs product door
 
 Our Cloud Run may sit behind rate limits / bot protection. That is **our**
@@ -145,6 +153,7 @@ to recv.
 
 ---
 
+<a id="ws-doc-9fd484da-67f3-42a0-8106-60200547206e"></a>
 ## 6. What the renter installs
 
 On each machine that runs an agent:
@@ -163,12 +172,14 @@ No ysg-box, no NATS sidecar required for MVP (poll `spool-recv`).
 
 ---
 
+<a id="ws-doc-dd9292c9-e26a-434d-a382-9dd323fabf7a"></a>
 ## 7. Milestone 1 (must ship first)
 
 See `SPEC-spool-milestones.md`. Non-WUI: cross-box mail + user command if the
 commandee box has the commander’s **public** key. Manual tenant. Payment and
 WUI are later milestones.
 
+<a id="ws-doc-20a65877-f348-4b24-a852-ec5f8c9a4e9a"></a>
 ## 8. Payment (Milestone 2 — public MVP: buy on the site)
 
 Copy the **csi-rel** payment implementation (reference only — do not import
@@ -185,6 +196,7 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 
 ---
 
+<a id="ws-doc-cf3d631d-543a-4dc6-91d7-b3c075b403d5"></a>
 ## 9. Invariants
 
 - Agents intercommunicate with Ed25519 only.

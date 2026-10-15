@@ -1,7 +1,10 @@
 # Refactor round 3, row 24: One AbortController per listener group instead of mirrored add/remove lists
 
+> Generated from qto doc `f6e733d3-1a58-4596-9514-82a0a8410adc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 24. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low-med. Run on: **PC** (browser proof). Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-fa65b4c4-b226-46e4-899d-af11121e1c3a"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 24. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-466b9236-d840-4539-a432-10c79b9139de"></a>
 ## 1. The practice
 
 Each site adds 2-3 listeners and removes the same list elsewhere by hand with the same capture flags; one mismatch (`true` vs `{ capture: true }`) and the remove silently does nothing: a leak. `addEventListener(type, fn, { signal })` + `ctl.abort()` removes the group in one call (Chrome 90+, Safari 15+, Firefox 86+). Keep `passive: false` and capture flags as they are.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-4e5a7abe-efb6-4314-b6df-16aae86e8fea"></a>
 ## 2. The sites
 
+<a id="ws-doc-33637f9b-f61f-47c7-98af-8341c063bce5"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/components/IssueDescription.vue` lines 76-86 on `755e86235`:
@@ -41,6 +47,7 @@ onBeforeUnmount(() => {
 
 Change: `const ctl = new AbortController()`; `{ capture: true, signal: ctl.signal }`; `onBeforeUnmount(() => ctl.abort())`. Leave `addEventListener('pointerup', () => setTimeout` (:92) exactly as is (markdown-unfenced.test.mjs:180).
 
+<a id="ws-doc-47645446-2dea-4f72-ac02-82e39e5bb564"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/components/OmniboxGrip.vue` lines 143-150 on `755e86235`:
@@ -58,6 +65,7 @@ function onDown(e: PointerEvent) {
 
 Change: one controller per drag (created in `onDown`, aborted in `detach`); same for the size handle at :244-259.
 
+<a id="ws-doc-8ae04bec-a312-4698-a65c-fb52b8d9024c"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/composables/useDragReorder.ts` lines 55-59 on `755e86235`:
@@ -72,6 +80,7 @@ Change: one controller per drag (created in `onDown`, aborted in `detach`); same
 
 Change: a controller per `down()`, aborted in `finish()` and `onBeforeUnmount`; keep `if (!dragged) return` + `swallowClick()` adjacent (rail-order.test.mjs:234-235).
 
+<a id="ws-doc-81b0d8c1-c6a0-4645-929f-f3d125f13717"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/place-popover.mjs` lines 141-149 on `755e86235`:
@@ -90,6 +99,7 @@ Change: a controller per `down()`, aborted in `finish()` and `onBeforeUnmount`; 
 
 Change: one controller and `{ signal }`; the stop function becomes `obs.disconnect(); ctl.abort()`.
 
+<a id="ws-doc-c9d6d367-e86e-4101-89ce-a0a30711c4f6"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/composables/useMsgShortcuts.ts` lines 152-159 on `755e86235`:
@@ -107,6 +117,7 @@ Change: one controller and `{ signal }`; the stop function becomes `obs.disconne
 
 Change: a controller per `holdPanel` call; `stop()` aborts it instead of the two removes at :116-117.
 
+<a id="ws-doc-fcd0c241-0634-4cfa-969e-fd04e1d3306d"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/utils/place-popover.mjs:109-112`: the `observePopover` doc: "removes the observer and all three listeners; safe to call twice".
@@ -114,6 +125,7 @@ Change: a controller per `holdPanel` call; `stop()` aborts it instead of the two
 - `csi-spl-wui/src/composables/useDragReorder.ts:25-29`: name the 400 ms in `swallowClick`, or comment that it is unrelated to the 400 in useIssueColumnGrips.
 - Testability: NEW `tests/unit/place-popover-stop.test.mjs`: a fake `host` (an EventTarget) and a stub `MutationObserver`; after stop, dispatching click/focusin/keydown calls nothing.
 
+<a id="ws-doc-9ec7701c-5912-4cf0-8e66-ce91caa521f7"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -123,6 +135,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - e2e: `tests/e2e/omnibox-grip.test.mjs`, `channel-order.test.mjs`, `hide-keeps-pane-focus.test.mjs`, `issues.test.mjs`
 - browser proof: a real-pointer drag ends cleanly AND a second drag works (OmniboxGrip, useDragReorder, IssueDescription)
 
+<a id="ws-doc-d0392106-5012-4cf2-a141-92036a27983d"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -132,12 +145,14 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-37d184db-785c-4706-87dd-85a7b9670d97"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
 Browser proof: drive the changed screen on dev and prd after the deploy (the e2e/proof specs in section 4) and name the build.json version you saw.
 
+<a id="ws-doc-78a7a457-178d-4201-9b3d-bb78de68b4ed"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -307,6 +322,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/components/IssueDescription.vue`, `csi-spl-wui/src/components/OmniboxGrip.vue`, `csi-spl-wui/src/composables/useDragReorder.ts`, `csi-spl-wui/src/utils/place-popover.mjs`, `csi-spl-wui/src/composables/useMsgShortcuts.ts`, `csi-spl-wui/tests/unit/place-popover-stop.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/components/IssueDescription.vue,csi-spl-wui/src/components/OmniboxGrip.vue,csi-spl-wui/src/composables/useDragReorder.ts,csi-spl-wui/src/utils/place-popover.mjs,csi-spl-wui/src/composables/useMsgShortcuts.ts,csi-spl-wui/tests/unit/place-popover-stop.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-585da04e-f69c-4144-bff8-f59158054025"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

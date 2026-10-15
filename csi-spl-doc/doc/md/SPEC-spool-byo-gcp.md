@@ -1,5 +1,7 @@
 # SPEC: They pay GCP, you provision (later enterprise SKU)
 
+> Generated from qto doc `c843c4b6-5980-4338-bb3a-ffc85f61734d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **later** — not M1, not M2 public MVP.  
 M2 stays: they pay **you** (csi-rel payment copy); you run a **multi-tenant**
 hub on **your** Cloud Run.
@@ -10,6 +12,7 @@ on *your* billing account (that is reseller-only).
 
 ---
 
+<a id="ws-doc-022338b3-3543-49c9-85ac-7b8229783e4a"></a>
 ## 0. Who this is *not* for (non-technical buyers)
 
 **Do not ask a founder / office manager to “create a GCP account and put
@@ -41,6 +44,7 @@ The only *simpler* “they pay Google” path later is **Cloud Marketplace
 Subscribe** (Google already has their billing). Still not for people with
 zero GCP. Optional; not M2.
 
+<a id="ws-doc-a45c3285-c5b3-43eb-951c-78d954ff33a6"></a>
 ### Cloud Marketplace in one page
 
 You list **Spool** as a **SaaS** product in Producer Portal (partner
@@ -60,6 +64,7 @@ still pay Run/SQL). Marketplace does **not** by itself put Cloud Run in
 Buyer still must **already have GCP billing**. Non-technical users without
 a Cloud org still use **M2 card-on-you**.
 
+<a id="ws-doc-7c05fdcb-692e-4880-ad99-0390490a432f"></a>
 ## 1. Business case (why bother)
 
 | | **M2 hosted SaaS** (they pay you) | **This SKU: BYO GCP billing** |
@@ -82,12 +87,14 @@ chargebacks and ToS pain.
 
 ---
 
+<a id="ws-doc-1c231f6e-2c1d-4bb3-8555-9fa57cb699ee"></a>
 ## 2. How GCP actually lets you do it
 
 You never see the PAN. They create a **Billing Account** (card or invoice).
 They grant **your deploy identity** rights to **spend that account** and
 **create resources**.
 
+<a id="ws-doc-dd28717a-1045-47bf-a4af-7315b021373e"></a>
 ### Recommended grant (least privilege)
 
 Customer (their Org Admin / Billing Admin):
@@ -118,6 +125,7 @@ If they will only attach billing to a project **they** created: skip
 projectCreator; they paste `project_id` + grant Editor; you apply 007
 inside it.
 
+<a id="ws-doc-82a0ad3d-e1a9-4b11-be0a-4764b468721d"></a>
 ### Project IDs (`{org}-{app}-{env}-{YYYYMMDDHH}`)
 
 Mint GCP project ids as:
@@ -156,6 +164,7 @@ This does **not** change M2 hosted (no GCP project per customer).
 
 
 
+<a id="ws-doc-29923b47-755f-44ef-b65c-89316056feb5"></a>
 ### What their IT actually clicks (no terraform on their desk)
 
 We send **one page** (or a Google “grant this SA” link), not a runbook:
@@ -172,6 +181,7 @@ We send **one page** (or a Google “grant this SA” link), not a runbook:
 If step 3 is refused, **fall back to hosted M2**. Do not debug IAM on a
 sales call with a non-technical buyer.
 
+<a id="ws-doc-70e426ac-0203-4a8a-a95e-15eae57bfc52"></a>
 ### What does not work
 
 - Putting their card on **your** Cloud Billing (unless you are a **Google
@@ -180,6 +190,7 @@ sales call with a non-technical buyer.
   per-project; mixed tenants on one bill is *your* SaaS, not BYO).
 - Asking them to type a GCP card into the M2 Stripe checkout.
 
+<a id="ws-doc-57575665-04c0-459a-9c20-d1b34b8c66fc"></a>
 ### Partner / Marketplace (optional later)
 
 - **Reseller**: you bill them, you pay Google, they still think it’s
@@ -189,6 +200,7 @@ sales call with a non-technical buyer.
 
 ---
 
+<a id="ws-doc-2c73e346-e383-4009-982c-3f67641046b9"></a>
 ## 3. Product rules
 
 - **SKU name** (cnf): `hosted` (M2) vs `dedicated` (this).
@@ -205,6 +217,7 @@ sales call with a non-technical buyer.
 
 ---
 
+<a id="ws-doc-acec7f1c-4416-4f33-82d2-b34573c8aad9"></a>
 ## 4. When
 
 After M2 is selling hosted. Do not block public MVP on folder grants.

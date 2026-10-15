@@ -1,7 +1,10 @@
 # Refactor round 3, row 20: Say why each bare `.catch(() => {})` is safe
 
+> Generated from qto doc `a1c854e7-a1ac-4233-80ec-5ce4aecd08aa`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 20. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 
+<a id="ws-doc-4a629d58-c031-421a-958b-75b44f8fef57"></a>
 ## 0. The owner's order, verbatim
 
 1. msg 5461b323: "New refactoring for clean code round"
@@ -13,14 +16,17 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 20. Owner topic `3e0809
 
 This round: up to 8 round-3 lanes per box (owner msg a4930378), so other rows run while you do; that is why section 7 matters. Every existing feature stays: behaviour-preserving only, no new dependency.
 
+<a id="ws-doc-b0e479b8-1d62-480e-98da-1c2c85ae0496"></a>
 ## 1. The practice
 
 These rejections are swallowed on purpose (best-effort re-read, warm-up import, a browser API with nothing to do on failure), but unlike `lobby-warm.mjs:37` the reason is not written down, so a deliberate swallow reads like a forgotten error path. Add a one-line reason at each. Do NOT replace them with reporting: `chunk-reload.client.ts` and `error-journal.client.ts` listen to `unhandledrejection` and would see new events.
 
 Apply it at the 5 site(s) below and nowhere else. If a site has moved, find it by the excerpt; if it is gone or already fixed on `origin/master`, say so in your result and do not substitute another site.
 
+<a id="ws-doc-f4354731-bda7-42e2-91ae-0b154b56f248"></a>
 ## 2. The sites
 
+<a id="ws-doc-111a74d2-af99-4e39-ada4-7c932e05d78d"></a>
 ### 2.1 Site 1
 
 `csi-spl-wui/src/composables/useArchiveUndo.ts` lines 27-33 on `755e86235`:
@@ -37,6 +43,7 @@ export async function rereadFeeds() {
 
 Change: a reason comment: a failed re-read leaves the card hidden until the next live frame or reconnect catch-up.
 
+<a id="ws-doc-2d72d44f-fb21-4776-9e0c-f634316e1008"></a>
 ### 2.2 Site 2
 
 `csi-spl-wui/src/utils/read-sync-boot.ts` lines 81-81 on `755e86235`:
@@ -47,6 +54,7 @@ Change: a reason comment: a failed re-read leaves the card hidden until the next
 
 Change: a reason comment; keep `k.startsWith('dm:')` / `k.startsWith('ch:')` and the order (dm-counts-parity.test.mjs:97-100).
 
+<a id="ws-doc-f44b6226-5c17-413f-8a85-885e78b35531"></a>
 ### 2.3 Site 3
 
 `csi-spl-wui/src/plugins/0.boot-early.client.ts` lines 24-27 on `755e86235`:
@@ -60,6 +68,7 @@ Change: a reason comment; keep `k.startsWith('dm:')` / `k.startsWith('ch:')` and
 
 Change: a comment: warm-up only; the real import on render retries and triggers chunk-reload, which is why a stale chunk here does not reload the tab.
 
+<a id="ws-doc-950bf009-1445-4227-8396-5be355e0a8e5"></a>
 ### 2.4 Site 4
 
 `csi-spl-wui/src/utils/flow-badge.mjs` lines 143-147 on `755e86235`:
@@ -74,6 +83,7 @@ Change: a comment: warm-up only; the real import on render retries and triggers 
 
 Change: a comment: a denied badge permission is not an app error.
 
+<a id="ws-doc-90d47643-c145-4c39-9fff-c1fad759dc56"></a>
 ### 2.5 Site 5
 
 `csi-spl-wui/src/utils/early-session.mjs` lines 35-41 on `755e86235`:
@@ -90,6 +100,7 @@ export function startEarlySession(probe) {
 
 Change: a comment: the caller awaits `early` and handles it; this only stops an unhandledrejection while nobody is awaiting yet.
 
+<a id="ws-doc-4eda87aa-9154-46f9-87b6-1da0b965783e"></a>
 ## 3. Docs, comments and testability (same files, same lane)
 
 - `csi-spl-wui/src/composables/useArchiveUndo.ts:20-26`: the `rereadFeeds` doc should say every step is best effort and sequential (one failing step does not stop the next).
@@ -97,6 +108,7 @@ Change: a comment: the caller awaits `early` and handles it; this only stops an 
 - `csi-spl-wui/src/utils/early-session.mjs:35`: extend the one-line doc with the swallow's purpose.
 - Testability: NEW `tests/unit/swallow-reasons.test.mjs`: every `.catch(() => {})` in `src/` has a comment on the same or previous line; starts with these five files plus an allow-list that only shrinks (the cleancode LONG pattern).
 
+<a id="ws-doc-eb829804-7cab-475e-846e-2e6431963fce"></a>
 ## 4. Tests: before and after
 
 Run these BEFORE you edit and record the counts, then again AFTER. The counts must match, or grow by exactly the cases you add; every new test must pass on the refactored code (and, where it pins old behaviour, on the old code too). A count that drops is a regression, not a cleanup.
@@ -105,6 +117,7 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `pnpm run typecheck` (needs `pnpm install`)
 - e2e: `tests/e2e/archive-undo.test.mjs`
 
+<a id="ws-doc-419dea66-2949-4894-9600-592a4d09e4a1"></a>
 ## 5. Gate (repo CLAUDE.md, for the trees this row touches)
 
 - `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s)
@@ -114,10 +127,12 @@ Run these BEFORE you edit and record the counts, then again AFTER. The counts mu
 - `BASE_URL=<generated bundle> pnpm run test:e2e` for the specs named in section 4 (typecheck does not drive Chrome)
 - the 160 KB initial-chunk budget: load nothing new eagerly
 
+<a id="ws-doc-905be647-c1b6-4621-bd77-53752798153e"></a>
 ## 6. Deploy
 
 This row touches the WUI: **deploy dev+prd, prove live via build.json or /version** (the version minted for your commit by `do_release_version`). Watch `gh run list --commit <sha>` until green and deployed on both (`./run -a do_check_deploy_lag`); report `SHA=<sha> ENV=<env> ./run -a do_release_note_link` for dev and prd.
 
+<a id="ws-doc-087b6cdc-ce78-4cfd-8756-d70f9e60b8c4"></a>
 ## 7. Files you must NOT touch
 
 Every other row of this round owns these; the row running on the other box at the same time is among them. Also off limits: migrations, `internal/msg/msg.go`, `internal/store/fleet_*.go`, the rotation / lease / spawn / dispatch scripts.
@@ -287,6 +302,7 @@ Every other row of this round owns these; the row running on the other box at th
 
 Your own files: `csi-spl-wui/src/composables/useArchiveUndo.ts`, `csi-spl-wui/src/utils/read-sync-boot.ts`, `csi-spl-wui/src/plugins/0.boot-early.client.ts`, `csi-spl-wui/src/utils/flow-badge.mjs`, `csi-spl-wui/src/utils/early-session.mjs`, `csi-spl-wui/tests/unit/swallow-reasons.test.mjs`. Before you start, `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check csi-spl-wui/src/composables/useArchiveUndo.ts,csi-spl-wui/src/utils/read-sync-boot.ts,csi-spl-wui/src/plugins/0.boot-early.client.ts,csi-spl-wui/src/utils/flow-badge.mjs,csi-spl-wui/src/utils/early-session.mjs,csi-spl-wui/tests/unit/swallow-reasons.test.mjs --agent <you>` must exit 0.
 
+<a id="ws-doc-4c681a01-8b7e-4c3d-9b66-329a7917d99c"></a>
 ## 8. Commit and report
 
 - Commit as the owner identity on the `Commits:` line of the repo CLAUDE.md (name + csitea.net address; the hygiene sweep bans the literal name in shipped files, so it is not spelled out here), no AI trailers (no `Co-Authored-By:`, `Generated with`, `Claude-Session:`). Explicit pathspecs on `git add`.

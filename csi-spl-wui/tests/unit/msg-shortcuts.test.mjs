@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  FLOW_LINE_ACTIONS, FLOW_SHORTCUTS, ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, flowShortcutFor, flowShortcutHint, flowShortcutItem, flowShortcutsSection, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  FLOW_LINE_ACTIONS, FLOW_SHORTCUTS, ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, flowShortcutFor, flowShortcutHint, flowShortcutItem, flowShortcutsSection, inTypingOrOverlay, listRowFor, mdCell, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -399,5 +399,27 @@ describe('Flow lines take the message keys (spec 130, owner t1 1cde1dd4 f9300a98
       assert.ok(readFileSync(join(WUI, rel), 'utf8').includes(want + '\n'), rel)
     }
     assert.notEqual(flowShortcutsSection(() => 'x'), want, 'CONTROL: other labels do not match')
+  })
+})
+
+describe('help table cells escape the backslash before the pipe (CodeQL js/incomplete-sanitization, security round 1 row 9)', () => {
+  // a label "a\|b" must stay one cell: "a\\\|b" (backslash escaped, then the pipe),
+  // never "a\\|b", which markdown reads as a literal backslash and a cell split
+  const hostile = () => 'a\\|b'
+  const cell = 'a\\\\\\|b'
+  const rowOf = (md) => md.split('\n').filter((l) => l.startsWith('| **`Shift')).pop()
+  it('mdCell escapes \\ then |', () => {
+    assert.equal(mdCell('a\\|b'), cell)
+    assert.equal(mdCell('x\\'), 'x\\\\')
+    assert.equal(mdCell(null), '')
+  })
+  it('messageShortcutsSection', () => {
+    assert.ok(rowOf(messageShortcutsSection(hostile)).endsWith(`| ${cell} |`))
+  })
+  it('issueShortcutsSection', () => {
+    assert.ok(rowOf(issueShortcutsSection(hostile)).endsWith(`| ${cell} |`))
+  })
+  it('flowShortcutsSection', () => {
+    assert.ok(rowOf(flowShortcutsSection(hostile)).endsWith(`| ${cell} |`))
   })
 })

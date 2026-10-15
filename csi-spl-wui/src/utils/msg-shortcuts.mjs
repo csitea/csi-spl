@@ -258,6 +258,18 @@ export function replyBack(paneRows, topic, memo = null) {
 }
 
 /**
+ * One markdown table cell: the backslash is escaped before the pipe, so a
+ * label ending in a backslash cannot cancel the pipe's escape and split the
+ * row (CodeQL js/incomplete-sanitization, security round 1 row 9).
+ *
+ * @param {unknown} text
+ * @returns {string}
+ */
+export function mdCell(text) {
+  return String(text ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
+}
+
+/**
  * The "Message shortcuts" section of doc/help/keyboard-shortcuts.md.
  * The rows are MSG_SHORTCUTS, so the page cannot name a key the app does
  * not have, or miss one it does. `label(labelKey)` is the English action
@@ -270,7 +282,7 @@ export function replyBack(paneRows, topic, memo = null) {
 export function messageShortcutsSection(label) {
   const name = typeof label === 'function' ? label : () => ''
   const rows = MSG_SHORTCUTS.map((s) => {
-    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    const action = mdCell(name(s.labelKey))
     return `| **\`Shift + ${s.key}\`** | Selected message, desktop | ${action} |`
   })
   return [
@@ -350,7 +362,7 @@ export function issueShortcutItem(key, offered) {
 export function issueShortcutsSection(label) {
   const name = typeof label === 'function' ? label : () => ''
   const rows = ISSUE_SHORTCUTS.map((s) => {
-    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    const action = mdCell(name(s.labelKey))
     return `| **\`Shift + ${s.key}\`** | Selected issue row, desktop | ${action} |`
   })
   return [
@@ -443,7 +455,7 @@ export function flowShortcutItem(key, offered) {
 export function flowShortcutsSection(label) {
   const name = typeof label === 'function' ? label : () => ''
   const rows = FLOW_SHORTCUTS.map((s) => {
-    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    const action = mdCell(name(s.labelKey))
     return `| **\`Shift + ${s.key}\`** | Selected Flow line, desktop | ${action} |`
   })
   return [

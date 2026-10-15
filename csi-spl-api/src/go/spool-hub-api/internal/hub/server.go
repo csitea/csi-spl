@@ -459,6 +459,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeCostRead(mux)      // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
+	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
 	s.routeEmbedPow(mux)      // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
@@ -594,6 +595,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples
 			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history
 			s.sweepBoxBeats(ctx)       // rdb 0147: 2-day box beats (spec 102 10.2)
+			s.sweepFleetTokens(ctx)    // spec 140 3.6, rdb 0199: 30-day minutes, 365-day rollups
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice

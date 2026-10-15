@@ -8593,6 +8593,66 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-tokens": {
+      "get": {
+        "operationId": "getOperatorFleetTokens",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "1h",
+              "enum": [
+                "1h",
+                "24h",
+                "today"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "claude",
+                "mistral",
+                "grok",
+                "agy",
+                "qwen"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the fleet's live token burn (spec 140 3.5): as_of, window, summary (burn rate tokens/min and fresh tokens/min over the last 5 full minutes, cost/hour, today's tokens and cost, active / unmetered / unpriced lanes), by_vendor (every kind; agy unmetered with null sums), by_agent (burn rate desc; unmetered lanes null) and history (one row per minute of the window)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the fleet's live token burn",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/humans/{human_id}/emails": {
       "get": {
         "operationId": "getOperatorHumansByHumanIdEmails",

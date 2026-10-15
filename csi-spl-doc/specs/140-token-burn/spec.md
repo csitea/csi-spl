@@ -194,7 +194,9 @@ To attribute token usage to specific lanes, the collector resolves session files
 
 **Decision**: Adopt **Option S2**. Fleet runner telemetry must not be conflated with the customer financial ledger.
 
-### 3.2 Schema specification: `fleet_token_burn_events` (rdb migration `0198`)
+### 3.2 Schema specification: `fleet_token_burn_events` (rdb migration `0199`)
+
+Built as `0199_fleet_token_burn.sql` (0198 went to `0198_human_rail_order_monitoring.sql` first); what differs from the sketch below is listed in section 3.7.
 
 ```sql
 -- 0198_fleet_token_burn.sql - near real-time fleet runner token telemetry.
@@ -377,6 +379,53 @@ To satisfy owner decision 2 = B (poll `aa31a0fe`, msg `ca189c3a`) while preventi
    DELETE FROM fleet_token_burn_daily WHERE day_bucket < now() - INTERVAL '365 days';
    ```
 
+### 3.7 As built (lane `hub-tokens`, SPL-2036)
+
+Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
+`internal/{wire,store,hub}/fleet_tokens*.go` and rdb `0199_fleet_token_burn.sql`.
+
+- **Migration 0199**, two tables: `fleet_token_burn_events` (the minutes) and
+  `fleet_token_burn_daily` (the rollups), both operator-scope RLS only.
+  Extra columns: `priced` (false when a counted kind had no price row; cost
+  is then 0), `updated_at`. CHECKs: `minute_bucket` is on the minute; an
+  unmetered row carries zero counts. `currency` defaults to `USD`, the
+  currency of every cnf `model_prices` row; costs are never converted.
+- **Framing**: the samples ride the lane frame's `lane` field, like every
+  other lane op: `{"type":"lane","msg_id":"<uuid>","lane_op":"fleet_tokens_push","lane":{"samples":[...]}}`.
+  The ack is a lane frame on the same `msg_id` whose `lane` is
+  `{"type":"ack","lane_op":"fleet_tokens_push","inserted":n,"at":"..."}`.
+  Refusals are error frames on that `msg_id`: `bad_samples` (400) for a
+  missing `agent_id` / `vendor` / `minute`, an unknown field or vendor, a
+  minute ahead of the hub's clock by more than 2 min or older than 30 days,
+  two samples of one `(agent_id, minute)`; `bad_frame` for another
+  `fleet_tokens_*` op or no `msg_id`; `not_operator` (403) for a box outside
+  the operator workspace (the rows are the instance's). The connection stays
+  open. `is_metered` absent reads true; an agy sample must say false.
+- **Pricing**: vendor to `model_prices.provider`: claude `anthropic`,
+  mistral `mistral`, grok `xai`, qwen `qwen`; a model's `[1m]`-style suffix
+  is dropped for the lookup. The price row in force at the minute wins.
+- **Read route**: both doors of the fleet load route (the operator
+  workspace's admin session, or the operator service account's Bearer id
+  token). Burn rates are the mean of the last 5 full minutes; the answer adds
+  `fresh_tokens_per_min`, `burn_rate_1m_tokens_per_min`, `priced`,
+  `unpriced_agents`, `today_cache_read` and history `fresh`.
+- **Rollups**: the hub's retention sweep (`sweepFleetTokens`) rolls whole UTC
+  days (yesterday, today, and every day it is about to prune) into
+  `fleet_token_burn_daily`, then drops minutes of days older than 30 days and
+  rollups older than 365 days. No orc action is needed.
+- **Surge measure**: fresh tokens (in + out + cache write), not the total.
+  Measured 2026-10-15 on 3 live claude transcripts (10 minutes): the total
+  with cache reads was 0.14M to 1.4M tokens/min per lane in normal work, so
+  `> 60k` total would alert on every busy lane; fresh tokens were 5k to 93k
+  per minute with no 3 consecutive minutes above 60k. The dashboard keeps the
+  total as `burn_rate_tokens_per_min` and shows the fresh rate beside it.
+- **Alert**: posted as a HUB-0 note, its own topic, in the operator
+  workspace's `#fleet-alerts`. A missing channel is logged and never
+  created. The cool-off state is per hub process; the alert's `msg_id` is
+  fixed per lane and 30-minute slot, so two hub instances never post the
+  same slot twice. The body has no "last reported task" (the hub does not
+  know it) and gives the cost in the price currency.
+
 ---
 
 ## 4. The Monitoring page tab (`/monitoring/tokens`)
@@ -455,7 +504,7 @@ In both the vendor table and the agent lane breakdown table:
 #### 4.4.2 Automated Spool Hub alert to `#fleet-alerts`
 When an LLM agent enters an infinite loop, recursive rebase cycle, or runaway tool failure, rapid alerting prevents material API cost:
 1. **Detection Window**: Upon ingestion of minute samples, the hub tracks rolling token burn per agent over a 3-minute sliding window (`minute_bucket`, `minute_bucket - 1m`, `minute_bucket - 2m`).
-2. **Trigger Invariant**: An alert fires if and only if an agent sustains **> 60,000 tokens/min across 3 consecutive minutes**.
+2. **Trigger Invariant**: An alert fires if and only if an agent sustains **> 60,000 tokens/min across 3 consecutive minutes**, counting fresh tokens (in + out + cache write; section 3.7).
 3. **Destination Channel**: The alert is posted directly into the `#fleet-alerts` channel in the operator workspace as a high-visibility spool message.
 4. **Message Format**:
    ```markdown
@@ -535,4 +584,4 @@ The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3
 
 ---
 
-<!-- version: 0.2.0 · updated: 2026-10-15 · last-edit: 2026-10-15T17:30:00Z -->
+<!-- version: 0.2.1 · updated: 2026-10-15 · last-edit: 2026-10-15T18:30:00Z -->

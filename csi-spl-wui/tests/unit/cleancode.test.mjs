@@ -31,8 +31,9 @@ const MAX_PARAMS = 6
 // `<file> <name>` -> ceiling (an anonymous function takes its variable /
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
 // its length on 2026-10-10 (r5-06): a listed function may not grow past it.
+// Empty since r12-05 split createSpoolClient: every WUI function is under
+// MAX_LINES, and a new long one fails.
 const LONG = new Map([
-  ['src/utils/spool-client.mjs createSpoolClient', 545],
 ])
 
 const NEST = new Set([

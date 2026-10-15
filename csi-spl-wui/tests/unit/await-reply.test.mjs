@@ -1,5 +1,6 @@
-// SPL-1994 (owner HUM-10, t1 72898ea2): the hourglass on a person's post the
-// hub has received, until an agent answers in that topic (src/utils/await-reply.mjs).
+// SPL-1994 (owner HUM-10, t1 72898ea2): the hourglass on a person's post, from
+// the click on Send (SPL-2026), until an agent answers in that topic
+// (src/utils/await-reply.mjs).
 // Run: node tests/unit/await-reply.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -29,14 +30,53 @@ describe('awaitState', () => {
     assert.equal(awaitState(rows, opts(T0 + MIN)), null)
   })
 
-  it('a pending post (the hub has not got it) shows nothing yet', () => {
+  /* SPL-2026 (owner msg 8285fce1): "right after i click send" */
+  it('pending -> spin: the post spins from the click, before the ack', () => {
     const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0, { pending: true })]
+    const s = awaitState(rows, opts(T0))
+    assert.equal(s?.state, 'spin')
+    assert.equal(s?.msgId, 'h1')
+  })
+
+  it('acked -> spin: the same post keeps spinning once the hub has it', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0 + 80, { pending: false, cursor: 'c9' })]
+    assert.equal(awaitState(rows, opts(T0 + 100))?.state, 'spin')
+    assert.equal(awaitState(rows, opts(T0 + 100))?.msgId, 'h1')
+  })
+
+  it('answered -> none: an agent post after the sent one ends it', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('a2', 'c-001', T0 + 2000)]
+    assert.equal(awaitState(rows, opts(T0 + 3000)), null)
+  })
+
+  it('failed -> none: a send held for the network (waiting) never spins', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0, { pending: true, waiting: true })]
     assert.equal(awaitState(rows, opts(T0)), null)
   })
 
-  it('a newer pending post hides an older received one (it says "Sending" instead)', () => {
-    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('h2', 'HUM-10', T0 + 5000, { pending: true })]
+  it('failed -> none: a send the hub refused leaves no row, so the topic shows nothing', () => {
+    /* stores/channel.ts + stores/live.ts drop the optimistic row (withoutMsg) on a hard failure */
+    assert.equal(awaitState([row('a1', 'c-001', T0 - MIN)], opts(T0)), null)
+  })
+
+  it('a newer held-for-network post hides an older received one', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('h2', 'HUM-10', T0 + 5000, { pending: true, waiting: true })]
     assert.equal(awaitState(rows, opts(T0 + 6000)), null)
+  })
+
+  it('a newer pending post carries the mark over an older received one', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('h2', 'HUM-10', T0 + 5000, { pending: true })]
+    assert.equal(awaitState(rows, opts(T0 + 6000))?.msgId, 'h2')
+  })
+
+  it('RED CONTROL: the SPL-1994 rule (pending = not received) gives no mark on a pending row', () => {
+    /* the old rule, expressed through the new one: it treated every pending
+       row like one the hub never got. The pending -> spin test above fails
+       under it, which is what that test guards. */
+    const oldRule = (rows, o) => awaitState(rows.map((m) => (m.pending ? { ...m, waiting: true } : m)), o)
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0, { pending: true })]
+    assert.equal(oldRule(rows, opts(T0)), null)
+    assert.notEqual(awaitState(rows, opts(T0)), null)
   })
 
   it('the newest of several person posts carries it', () => {

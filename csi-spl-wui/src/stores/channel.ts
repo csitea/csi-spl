@@ -329,8 +329,10 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
         limit: WINDOW,
       }))
       const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
-      /* 080 T006: a send held for the network is not on the hub yet - keep its row */
-      const held = messages.value.filter((m) => m.waiting && queue.has(m.msg_id) && !fresh.some((f) => f.msg_id === m.msg_id))
+      /* 080 T006: a send held for the network is not on the hub yet - keep its row;
+         SPL-2026: so is one still waiting for its ack (the mock's 4 s poll ran over it) */
+      const inFlight = (m: FeedMessage) => (m.waiting ? queue.has(m.msg_id) : Boolean(m.pending) && belongsTo(m, { channel: active.value, peer: peer.value }))
+      const held = messages.value.filter((m) => inFlight(m) && !fresh.some((f) => f.msg_id === m.msg_id))
       messages.value = [...fresh, ...held]
       totals.value = page.totals || {}
       olderCursor.value = page.next || null
@@ -482,6 +484,15 @@ function outboxSteps(s: ChannelState) {
   return { queueFailure, sendNote, queue, holdForNetwork, toFileRefs }
 }
 
+/** SPL-2026 e2e hook (mock only): while `spool.mock.hold-ack` is set, the mock's answer waits. */
+function mockAckHold(): Promise<void> | null {
+  const on = () => { try { return Boolean(localStorage.getItem('spool.mock.hold-ack')) } catch { return false } }
+  if (!import.meta.client || !on()) return null
+  return new Promise((resolve) => {
+    const t = setInterval(() => { if (!on()) { clearInterval(t); resolve() } }, 100)
+  })
+}
+
 /** The store's send: the mock path here, the live path in liveSendSteps. */
 function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRefs'> & Pick<Counts, 'repliesFor'> & ReturnType<typeof liveSendSteps>) {
   const { api, active, peer, messages, mentionPoke } = s
@@ -517,10 +528,22 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
       })
       return { ...own, waiting: true }
     }
+    /* SPL-2026 e2e hook: `spool.mock.hold-ack` holds the mock's answer like a
+       slow hub, so the row is drawn pending first, as on the live path */
+    const held = mockAckHold()
+    if (held && req.msg_id && showMock) {
+      const parsed = parseMention(text)
+      useLive().ensure()
+      messages.value = mergeLive(messages.value, pendingRow({
+        msg_id: req.msg_id, task_id: parentTaskId || newId(), from: useLive().identity.value, to: parsed.to || '@channel', kind: 'note', body: parsed.body,
+        files: req.files, channel: req.channel, parent_task_id: parentTaskId || null, is_parent: req.is_parent,
+      })) as FeedMessage[]
+    }
+    if (held) await held
     const body = await api.sendMessage(req)
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */
-    if (showMock) messages.value = [...messages.value, row]
+    if (showMock) messages.value = [...withoutMsg(messages.value, String(row.msg_id || '')), row]
     /* CLE-77852: the mock pokes nobody, but shows the "sent as a direct
        message" notice for a seated agent outside the channel (the e2e) */
     const pokeAt = channelId || (peer.value ? '' : active.value)

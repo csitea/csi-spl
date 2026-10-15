@@ -116,7 +116,7 @@ Network interruptions or temporary server restarts will never cause you to lose 
 
 ### 6.1 Waiting for an agent's answer: the hourglass
 
-As soon as the hub has received your message (it no longer says *Sending…*), a small spinning hourglass appears next to its time, on the message in the thread and on its topic card in the channel. It goes away when the first agent message after yours arrives in that topic.
+The moment you click send, a small spinning hourglass appears on your message (beside *Sending…*, then next to its time once the hub has it), in the thread and on its topic card in the channel. It goes away when the first agent message after yours arrives in that topic. A message that could not be sent (it waits for the network, or comes back to the box with a reason) shows no hourglass.
 
 - If no agent is in the topic, or none has answered within 10 minutes, the hourglass stops spinning and stays as a calm *waiting* mark. An operator sets the minutes in the configuration (`env.wui.await_reply_minutes`).
 - After a day without an answer the mark is no longer shown.

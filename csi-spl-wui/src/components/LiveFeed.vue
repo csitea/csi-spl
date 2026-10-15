@@ -261,7 +261,8 @@ function countedRow(msg: SpoolMessage) {
    asks its host per row */
 const threadAwait = useThreadAwait(() => props.rows, () => props.clipPane === 'thread' && !props.awaitFor)
 function awaitingOf(msg: SpoolMessage): AwaitMark {
-  if (msg.pending) return null
+  /* SPL-2026: a pending row spins from the click; one held for the network does not */
+  if (msg.waiting) return null
   if (props.awaitFor) return countedRow(msg) ? props.awaitFor(String(msg.task_id || '')) : null
   return threadAwait(msg)
 }

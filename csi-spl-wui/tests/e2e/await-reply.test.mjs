@@ -18,6 +18,11 @@
 // animations on mobile too"), with a fake clock that fast-forwards a long timer:
 //   6 HUM-1 sends a reply in topic A: once the hub has it, it spins
 //   7 the 10 cnf minutes pass (fake clock): the still "waiting" mark
+// SPL-2026 (owner msg 8285fce1: "right after i click send"), desktop, the
+// mock's answer held (`spool.mock.hold-ack`):
+//   8 HUM-1 sends `@CLE-07 ...`: the row is still pending (no ack) and the
+//     hourglass already spins on it
+//   9 the ack is released: the row is stored and keeps spinning
 //
 //   node tests/e2e/await-reply.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/await-reply.test.mjs
@@ -198,6 +203,36 @@ try {
   for (let i = 0; i < 20 && s7?.state === 'spin'; i++) { await sleep(200); s7 = await sent() }
   ok('7 phone: after the 10 minutes (fake clock) the still waiting mark', s7?.state === 'wait' && s7.anim === 'none', s7)
   await shot(ph, '7-phone-waits')
+
+  /* desktop, the mock's answer held: the hourglass before the ack */
+  const hctx = await browser.createBrowserContext()
+  const hp = await hctx.newPage()
+  hp.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  await hp.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
+  await hp.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.mock.hold-ack', '1') } catch { /* about:blank */ } })
+  await hp.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
+  await hp.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await hp.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"]`, { timeout: NAV })
+  /* the rule and the label load on demand; the seeded row A spinning says both are in */
+  await hp.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  const HTEXT = `held ${Date.now().toString(36)}`
+  await hp.focus('form.omnibox--global textarea')
+  await hp.keyboard.type(`@CLE-07 ${HTEXT}`)
+  await hp.keyboard.press('Enter')
+  const own = () => hp.evaluate((t) => {
+    const el = [...document.querySelectorAll('.feed-body article.msg[data-msg-id]')].find((e) => (e.querySelector('.msg-body')?.textContent || '').includes(t))
+    const mark = el && el.querySelector('[data-test=await-reply]')
+    return el ? { pending: el.getAttribute('data-pending') === 'true', sending: Boolean(el.querySelector('[data-test=msg-sending]')), state: mark ? mark.getAttribute('data-state') : null } : null
+  }, HTEXT)
+  let s8 = null
+  for (let i = 0; i < 30 && !(s8 && s8.state); i++) { await sleep(100); s8 = await own() }
+  ok('8 send clicked, ack held: the pending row already spins', Boolean(s8 && s8.pending && s8.sending && s8.state === 'spin'), s8)
+  await shot(hp, '8-pending-spins')
+  await hp.evaluate(() => localStorage.removeItem('spool.mock.hold-ack'))
+  let s9 = s8
+  for (let i = 0; i < 30 && (!s9 || s9.pending); i++) { await sleep(100); s9 = await own() }
+  ok('9 ack released: the stored row keeps spinning', Boolean(s9 && !s9.pending && s9.state === 'spin'), s9)
+  await hctx.close()
 
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {

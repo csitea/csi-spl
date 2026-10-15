@@ -1,8 +1,11 @@
 // SPL-1994 (owner HUM-10, t1 72898ea2 msg def4a52d): "as soon as the system
-// receives the prompt, a spinning hourglass must appear". A person's post the
-// hub has RECEIVED (no longer `pending`: the ack or the stored row) shows an
-// hourglass on the post and on its topic row until the first agent post in
-// that topic after it. No agent in the topic, or none after `spinMs` (cnf
+// receives the prompt, a spinning hourglass must appear". SPL-2026 (msg
+// 8285fce1): "it should appear right after i click send". A person's post
+// shows an hourglass on the post and on its topic row from the moment send is
+// clicked (the `pending` optimistic row) and after the ack, until the first
+// agent post in that topic after it. A send held for the network (`waiting`)
+// or one that failed (its row is removed) shows none: never spin on a post
+// the hub never got. No agent in the topic, or none after `spinMs` (cnf
 // env.wui.await_reply_minutes, default 10), and it turns into a calm
 // "waiting" mark instead of spinning forever.
 //
@@ -92,12 +95,14 @@ export function awaitState(rows, opts) {
       if (at > lastAgent) lastAgent = at
     } else if (isPersonPost(m)) {
       if (isAgentId(m.to)) agentSeen = true
-      /* a pending row is newer than anything stored: the hub has not got it yet */
-      const at = m.pending ? Infinity : receivedAt(m)
+      /* a row held for the network is newer than anything stored and the hub
+         has not got it: it hides the mark. A pending row (send just clicked)
+         carries its own client time and spins like a received one. */
+      const at = m.waiting ? Infinity : receivedAt(m)
       if (at > targetAt) { target = m; targetAt = at }
     }
   }
-  if (!target || target.pending || !(targetAt > lastAgent)) return null
+  if (!target || target.waiting || !(targetAt > lastAgent)) return null
   const age = now - targetAt
   if (!Number.isFinite(age) || age >= showMs) return null
   const spinning = agentSeen && age < spinMs

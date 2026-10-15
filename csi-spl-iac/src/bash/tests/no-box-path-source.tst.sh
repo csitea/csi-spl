@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: no `source` or `.` line under csi-spl-{iac,orc}/src/bash/run/ or
-#          csi-spl-{iac,orc}/lib/ loads a fixed box path (/opt/, /home/,
-#          /mnt/), quoted '...', "..." or bare. Comment lines are skipped. A
-#          fixed box path in a source line broke every iac action (r10-05).
+# Purpose: no `source` or `.` line under csi-spl-{iac,orc}/src/bash/run/,
+#          csi-spl-{iac,orc}/lib/ or csi-spl-{api,wui}/src/ (r12-10) loads a
+#          fixed box path (/opt/, /home/, /mnt/), quoted '...', "..." or bare.
+#          Comment lines are skipped. A fixed box path in a source line broke
+#          every iac action (r10-05).
 #          Red control: the SAME scan() runs first on a temp fixture and must
 #          hit each quote form, and must not hit the relative $(dirname ...)
-#          form (6535dd26d); then on the tree, where it must find 0 sites.
+#          form (6535dd26d); the SAME tree_scan() then runs on a temp fixture
+#          tree outside git, where an api and a wui plant must each be hit;
+#          then on the tree, where it must find 0 sites.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,18 +45,49 @@ else
   echo "ok   red control: relative \$(dirname ...) and comment lines pass"
 fi
 
-# The tree: 0 sites.
-dirs=()
-for d in csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run csi-spl-iac/lib csi-spl-orc/lib; do
-  if [[ -d "$REPO_ROOT/$d" ]]; then
-    dirs+=("$REPO_ROOT/$d")
+DIRS=(csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run csi-spl-iac/lib csi-spl-orc/lib
+  csi-spl-api/src csi-spl-wui/src)
+
+# tree_scan <root>: scan() every DIRS entry under <root>; dirs[] holds those
+# found, missing[] the rest.
+tree_scan() {
+  dirs=() missing=()
+  local d
+  for d in "${DIRS[@]}"; do
+    if [[ -d "$1/$d" ]]; then dirs+=("$1/$d"); else missing+=("$d"); fi
+  done
+  (( ${#dirs[@]} )) && scan "${dirs[@]}"
+}
+
+# Red control: a fixture tree outside git, one /opt/ plant in api and in wui,
+# a relative source beside each; tree_scan() must hit both plants, only them.
+F="$T/tree"
+mkdir -p "$F/csi-spl-api/src/bash" "$F/csi-spl-wui/src/docker"
+printf '%s\n' 'source "/opt/csi/x/lib.func.sh" || exit 1' > "$F/csi-spl-api/src/bash/plant.sh"
+printf '%s\n' '. /opt/csi/x/lib.func.sh' > "$F/csi-spl-wui/src/docker/plant.sh"
+# shellcheck disable=SC2016 # the literal line, not expanded
+printf '%s\n' 'source "$(dirname "${BASH_SOURCE[0]}")/lib.func.sh"' \
+  | tee "$F/csi-spl-api/src/bash/ok.sh" > "$F/csi-spl-wui/src/docker/ok.sh"
+out=$(tree_scan "$F")
+for m in csi-spl-api csi-spl-wui; do
+  if grep -q "^$F/$m/src/[a-z]*/plant\.sh:" <<<"$out"; then
+    echo "ok   red control: tree_scan() hits the $m plant"
   else
-    echo "FAIL missing dir: $d"; fails=$((fails + 1))
+    echo "FAIL red control: tree_scan() misses the $m plant"; fails=$((fails + 1))
   fi
 done
-if (( ${#dirs[@]} )) && out=$(scan "${dirs[@]}"); then
+if grep -q '/ok\.sh:' <<<"$out"; then
+  echo "FAIL red control: tree_scan() hits a relative source: $out"; fails=$((fails + 1))
+else
+  echo "ok   red control: tree_scan() passes the relative sources"
+fi
+
+# The tree: 0 sites.
+tree_scan "$REPO_ROOT" > "$T/tree.out"; rc=$?
+for d in "${missing[@]}"; do echo "FAIL missing dir: $d"; fails=$((fails + 1)); done
+if (( rc == 0 )); then
   echo "FAIL a source/. line loads a fixed box path (use a path relative to the script):"
-  echo "$out"; fails=$((fails + 1))
+  cat "$T/tree.out"; fails=$((fails + 1))
 else
   echo "ok   tree: no source/. line loads /opt/, /home/ or /mnt/ (${#dirs[@]} dirs)"
 fi

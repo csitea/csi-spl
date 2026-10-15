@@ -57,7 +57,7 @@ export const RAIL_TABS = Object.freeze([
      Monitoring opens /monitoring, its tabs Agents and Boxes; the Agents and
      Boxes tabs above stay (Q2 A). Reorders and collapses like the rest; a
      stored order from before it is drawn with Monitoring appended
-     (parseRailOrder). The hub admits it once its lane lands (RAIL_HUB_PENDING). */
+     (parseRailOrder). The hub admits it since SPL-1990 (rdb 0198). */
   Object.freeze({ id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' }),
 ])
 
@@ -78,9 +78,10 @@ export const RAIL_RETIRED = Object.freeze(['topics'])
  * the humans.rail_order CHECK lag the WUI by one lane). A saved order leaves
  * them out, so the hub keeps admitting it, and parseRailOrder appends them
  * when it is read back. Empty this list in the commit after the hub lands
- * the id: until then a dragged Monitoring is drawn back before Archive.
+ * the id: until then a dragged tab is drawn back before Archive.
+ * SPL-1990: the hub admits monitoring (auth.RailTabs, rdb 0198), so none.
  */
-export const RAIL_HUB_PENDING = Object.freeze(['monitoring'])
+export const RAIL_HUB_PENDING = Object.freeze([])
 
 /**
  * A drawn order as the hub stores it: the retired ids added, the ids the hub

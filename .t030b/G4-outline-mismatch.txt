@@ -1,0 +1,10 @@
+csi-spl-doc/doc/md/SPEC-spool-hub-rental.md
+csi-spl-doc/doc/md/SPEC-spool-task-lifecycle.md
+csi-spl-doc/doc/md/agent-token-focus-plan.md
+csi-spl-doc/doc/md/guides/devops-guide.md
+csi-spl-doc/doc/md/guides/installation-and-configuration-guide.md
+csi-spl-doc/doc/md/guides/operations-and-maintenance-guide.md
+csi-spl-doc/doc/md/guides/system-guide.md
+csi-spl-doc/doc/md/perf-round-5/a1.md
+csi-spl-doc/doc/md/perf-round-5/g2-review.md
+csi-spl-doc/doc/md/perf-round-5/m1.md

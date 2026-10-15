@@ -1,0 +1,17 @@
+- The satellite: `~/.gcp/.csi/` of the box owner user and of the agent user
+  (cnf `box_owner_user`, `box_agent_user`). The other box: the same paths,
+  pulled from the satellite (which cannot reach it), for both users, by
+  `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_pull`
+  (SPL-1919): it fails fast when either source is missing or empty, writes
+  each file mode 600 owned by its user, verifies the sha256 and never prints
+  the content. Dry run by default.
+- GitHub: the secret `SPL_PRIVATE_CNF_YAML` (write-only; it feeds CI and the
+  40 reconcile workflow).
+- An update is made on the satellite, then copied to the other user, the
+  other box and the secret
+  (`gh secret set SPL_PRIVATE_CNF_YAML < <file>`).
+- Lost everywhere: the names are recoverable. Git history before SPL-1874
+  still holds every slug in place (no history rewrite, CLAUDE.md 5.1): the
+  placeholder at a list position stands for the slug at the same position in
+  `git show <sha before SPL-1874>:csi-spl-cnf/csi-spl/prd.env.yaml`. A tenant
+  hidden later is in the hub's `tenants` table and 052's terraform state.

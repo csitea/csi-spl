@@ -1,0 +1,3 @@
+csi-spl-doc/doc/md/draft/SPEC-spool-architecture.md
+csi-spl-doc/doc/md/help-docs-catchup-20261004.md
+csi-spl-doc/doc/md/refactor-round-5/seat-agy.md

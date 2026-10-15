@@ -1,0 +1,7 @@
+csi-spl-doc/doc/md/SPEC-spool-hub-api-infra.md
+csi-spl-doc/doc/md/SPEC-spool-message-bus.md
+csi-spl-doc/doc/md/SPEC-spool-milestones.md
+csi-spl-doc/doc/md/SPEC-spool-wui-layout.md
+csi-spl-doc/doc/md/SPEC-spool-wui.md
+csi-spl-doc/doc/md/fleet-rules-index.md
+csi-spl-doc/doc/md/workspace-rules.md

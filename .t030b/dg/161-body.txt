@@ -1,0 +1,8 @@
+Tests do not run in production by default. CI quality gates (such as workflow `10_ci-quality.yml`) and pre-push hooks execute unit, lint, mock, and local integration tests, leaving production unexercised unless an explicit action or workflow is dispatched.
+
+Production has an opt-in way to run any or all of the tests, where the operator picks which tests to run.
+
+Owner words (HUM-10, t1 topic cd592c84-45ab-49a6-927c-0864718e53b9):
+
+- 03:20Z msg 4dfc19b5-0118-4c7e-86b2-a04b26c995a1: "And regardless of the fact that these workspaces are test workspaces, we should have the capability to run all of the tests also in production."
+- 03:21Z msg 05d5d1b6-3682-475b-88c5-cc37f37f0321: "They should not be run all of the time in production, but there should be a capability, if desired, to run all of the tests to pick what tests to run in production. Write down somewhere in some DevOps guide or somewhere else."

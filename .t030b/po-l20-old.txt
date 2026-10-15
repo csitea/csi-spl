@@ -1,0 +1,27 @@
+- The public cnf (`csi-spl-cnf/csi-spl/<env>.env.yaml`) lists a hidden
+  workspace by its **placeholder**, `ws-hidden-NN`, in place of its slug
+  (`env.dns.mapped_tenants`, `steps.052-gcs-workspace-docs.workspaces`,
+  `marketing.workspaces`). `do_tpl_gen` renders the placeholders into
+  `<env>.env.json` and the tfvars as they are, so CI's render parity needs
+  no secret.
+- The **overlay** maps each placeholder to its slug. It is one file, never in
+  git: `$HOME/.gcp/.csi/csi-spl-private.yaml` (override: `SPL_PRIVATE_CNF`),
+  mode 600, beside the project SA keys, so the tf-runner reads it through its
+  `~/.gcp` mount.
+- Only what needs the real slug resolves it, through one library,
+  `csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh`:
+  - terraform: `do_tf_init` writes the resolved tfvars into the step's run dir
+    (`tf_vars_path`, mode 600); every `do_tf_*` action reads that. A tfvars
+    with a placeholder and no overlay is a FATAL that names the file: no plan
+    or apply ever runs on placeholders.
+  - the runtime cnf: `do_spl_cloud_cnf` resolves `SPL_CNF` (a private state
+    dir). Without the overlay it WARNS and keeps the placeholders;
+    `do_spl_tenant_test_purge` then refuses.
+  - the tenant host actions (`do_spl_tenant_host_provision`, `_reconcile`,
+    `_deprovision`) write the placeholder into the cnf. A NEW tenant is
+    hidden by default: the action adds its line to the overlay. Visible
+    instead: `TENANT_VISIBLE=1` (and `e2e*` test workspaces). In GitHub
+    Actions the overlay is a copy of a secret, so a new hidden tenant is
+    refused there. Commit messages name the placeholder, never the slug.
+  - the gates: the 10 ci distribution-hygiene Sweep, and `do_oss_gate`'s
+    `{{private:workspaces}}` / `{{private:orgs}}` rules.

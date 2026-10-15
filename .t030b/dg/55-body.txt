@@ -1,0 +1,31 @@
+`find csi-spl-iac/src/terraform -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort` is the numeric order. Apply dev then prd for each step, except where the table says otherwise. Spec 007 R7: on a rebuild of an estate that already exists, do not destroy `040-cloud-sql-postgres`; import it. A from-scratch project creates it. The import make target is gap D4.
+
+| step | env | what it creates |
+|---|---|---|
+| 000-gcp-remote-bucket | dev, then prd | the terraform state bucket |
+| 001-enable-gcp-services | dev, then prd | the rest of the APIs |
+| 005-gcp-domain-verification | dev, then prd | domain verification |
+| 016-firebase-deploy-iam | dev, then prd | IAM for the Firebase deploy |
+| 017-github-wif-deploy | dev, then prd | GitHub workload identity for deploy |
+| 019-firebase-static-site | dev, then prd | the Firebase Hosting site |
+| 025-gcp-dns-zone | prd, then dev | DNS; the apex zone before the dev sub-zone |
+| 028-gcp-artifact-registry | dev, then prd | the hub image registry |
+| 030-cloud-run-hub | dev, then prd | the hub service; hold until the database bootstrap below |
+| 032-gcp-cloud-run-domain-mapping | dev, then prd | the hub custom domain, when cnf sets one; after 030 |
+| 036-spl-demo-workspace | dev, then prd | calls `do_spl_demo_workspace_create`; after the hub answers |
+| 040-cloud-sql-postgres | dev, then prd | Postgres, the database, empty DSN slots; no password in state |
+| 045-gcs-db-backups | dev, then prd | the bucket workflow 45 exports into |
+| 046-gcs-offsite-backups | dev, then prd | the bucket in the backup project; bootstrap `ENV=bkp` first |
+| 050-gcs-files | dev, then prd | the hub file bucket |
+| 051-gcs-docs | dev, then prd | the docs bucket |
+| 052-gcs-workspace-docs | dev, then prd | one docs bucket per workspace listed in cnf |
+| 054-gcs-blog-media | dev, then prd | blog media |
+| 055-gcp-kms-marketing | dev, then prd | the marketing KMS key |
+| 056-gcs-box-state | dev, then prd | nightly box-state backups; the restore is the installation guide |
+| 057-gcp-kms-vendor-keys | dev, then prd | vendor-key KMS |
+| 058-gcp-wine-box-budget | dev only | the wine-box budget, via `do_spl_wine_box_budget_tf`; prd validation refuses |
+| 059-gcp-satellite-budget | prd only | the satellite budget, in the `all` project; before 060 |
+| 060-gcp-vm-satellite | prd only | the satellite VM; the playbook detail is `SYS.md` |
+| 061-gcp-vm-wine-box | dev only | the wine-box VM |
+| 070-gcp-monitoring | dev, then prd | monitoring |
+| 120-github-general-secrets | dev, then prd | GitHub secrets from the project keys |

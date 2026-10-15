@@ -1,0 +1,6 @@
+csi-spl-doc/doc/help/agents.md
+csi-spl-doc/doc/help/boxes.md
+csi-spl-doc/doc/help/calendar.md
+csi-spl-doc/doc/help/docs.md
+csi-spl-doc/doc/help/index.md
+csi-spl-doc/doc/help/people.md

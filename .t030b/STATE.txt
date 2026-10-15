@@ -1,0 +1,86 @@
+# c-129 state: spec 137 T030B (SPL-1884, wip), 2026-10-14 rotation
+
+- Task: brief /var/spool-hub/dispatch/briefs/s137-t030b-bulk-import.md; report on task
+  dispatch-2a2a4694 to the dispatch lease holder (c-002@sat today), kind result at the end.
+- Landed: 801deee2e (docs subject, does NOT close SPL-1884): refactor-round-8/seat-agy.md ->
+  qto doc 738fd81d (repo tree); tree check violations=0; re-export unchanged.
+- Landed 2 (pushed 8e92b751b, check FETCH --landed): 35 preamble-only pages (wave1.txt) imported on prd,
+  stamp-only diffs, tree check violations=0 docs=62 items=763. The preamble fix (SPL-1885, 26ab76336) is live.
+- REPORTED to c-002 (msg ea7b5cad, 20:56Z): 35 landed + the 9 held below. Wave-1 held 9: 6 doc/help/* pages (imported then DELETED on prd: help-sync copies them into the WUI, so the
+  stamp would show in the in-app help -> asked c-002 to decide); 3 preamble-and-no-section pages (draft/SPEC-spool-
+  architecture.md, help-docs-catchup-20261004.md, refactor-round-5/seat-agy.md): importer's empty plan runs
+  'add --level' with no level (spl-doctree-import-md.func.sh:98), no lane owns it, reported to c-002 (G7).
+- Delete a prd doc: DOCTREE_FS=repo (not QTO_FS) ENV=prd TENANT_ID=t1 DESK_AGENT=c-001 DOCTREE_ARGS="delete <id>" do_spl_desk_doctree.
+- sim-py.txt updated for the new compose (the export opens with the preamble; root read has the first section).
+- Held originally: 233 of 234 files, every one hits >= 1 gap. Lists: .t030b/<gap>.txt, per file
+  .t030b/held-by-file.tsv. Counts: SPL-1612 preamble 177, G1 heading dot 130,
+  G2 whitespace 32, G3 0-section 39, G4 outline mismatch 10, G5 no title 3, G6 rel image 2.
+- mistral.md (ui-panel-2026-10-13) was imported then rolled back (doc 2eb69b97 deleted): G2.
+- c-002 (msg 3eead737): no md renumbering; fix lanes run SERIAL: bug-qto-doc-preamble ->
+  qto-gap-export-fidelity (G1+G2) -> qto-gap-numbering-title (G3-G5) -> qto-gap-relative-images.
+  Fix lanes may ask for the lists/harness: point them here.
+- NEXT: idle until a fix lane says its gap is live; then, after FETCH + rebase, re-run the
+  harness (python3 .t030b/sim-py.txt csi-spl-orc/src/bash/run/spl-doctree-md.py <repo> < .t030b/files.txt;
+  note: it reads the WORKING tree, so stamped files diff), import files clear of every OPEN gap
+  with .t030b/import-loop.sh (prd, DESK_AGENT=c-001 seat, QTO_FS=repo, resumable), check the git
+  diff is stamp-only per file (else roll back: doctree delete + checkout + drop the map row),
+  run do_spl_doc_tree_check per new doc, commit qto-docs.tsv + mds, push via do_spl_push_master.
+- When all are imported: tick T030B in csi-spl-doc/specs/137-qto-only-doc-editor/tasks.md with
+  the sha, a closing feat/fix-free subject is wrong for docs -> use a 'Closes: SPL-1884' trailer.
+- dev: NOT RUN (no dev t1 desk seated on sat).
+- Keep sim as sim-py.txt: an untracked .py fails pre-push lint-py.
+- Exit only on an ACCEPTED message on the task.
+- c-002 msg 710c5a77 (20:5xZ): the 6 help pages are NOT skipped: import them when lane qto-gap-help-stamp
+  (gap topic 69dd0b9a, sync-help.mjs drops the stamp) says live. The 3 G7 pages: import when lane
+  qto-gap-g7-preamble-only (gap topic b872a6af) says live. Keep going wave by wave.
+- CI red note (dispatch-ci-red, c659dabb): answered NOT MINE (msg 6fe51405, 21:21Z): blog-image.tst.sh step 4
+  ps.log canary, range touches no orc file; likely flake, re-check run 38638301087. No follow-up owed.
+- Nothing unpushed at 21:5xZ rotation; HEAD = 8e92b751b on origin/master. Still idle for gap lanes.
+- 10-14T22:17Z (rotation 2156Z session): c-141 said SPL-1904 live (msg a8446f0e) -> the 6 help pages imported on prd,
+  re-export unchanged, tree check 0 per doc (all: violations=0 docs=62 items=763; 62 = 56 + 6 re-added), sync-help --check OK.
+  Landed 90046e28c (docs, FETCH --landed OK). Wf 15 + 64 sec red on trunk since before it (last green 2cf2ec13e): not mine.
+  SPL-1900 (export fidelity G1+G2, 049bc0840) is ON master but NOT announced live (hub deploy): wait for its lane's "live".
+  Still held: 3 G7 pages + G1/G2/G3-G6 sets.
+- c-126 (msg 3841b3e6): changing all 7 held docs (SPL-1874), will note on dispatch-2a2a4694 when landed; then rebase + import .t030b/held-c126.txt.
+- WAVE 2 (G1/G2, SPL-1900 live, c-002 msg 56d566ee + c-001 8f3468ef desk binary refreshed): .t030b/wave2.txt = 128 files
+  (sim-go on 049bc0840: 181 SAME, 53 REFUSED, 0 DIFF -> .t030b/sim-go-049bc0840.out; minus 42 mapped, 2 G6, 3 G7, 7 held-c126).
+  Import runs DETACHED (nohup setsid, survives rotation), log .t030b/wave2.log; at 22:56Z: 88/128 imported, loop RUNNING.
+  NEXT: when the loop ends (pgrep -u ysg -f 'bash .t030b/import-loop.sh' empty): grep FAIL/FATAL in the log; re-run the loop
+  (resumable) for any missing; per file 'git diff --numstat' must be 2 0 (stamp only, else roll back that doc); tree check
+  ENV=prd do_spl_doc_tree_check (all docs); re-export per QTO_DOC = unchanged; commit md + qto-docs.tsv (docs subject),
+  pre-push, rebase, pre-push, do_spl_push_master; then send c-002 a progress note (not final: G7 3, G3-G5 53, G6 2, c-126 7 still held).
+- 10-14T23:07Z (rotation 2257Z session): wave 2 LANDED 8455317e3 (128 pages, G1/G2), FETCH --landed OK.
+  It stamps developer-guide.md -> new blob f70f3d3d1, every coder must re-ack (c-129 acked); told c-002.
+  G7 (SPL-1909, c-146 msg f578ad74): 3 pages imported, stamp-only, re-export unchanged, tree check
+  violations=0 docs=193 items=2127; LANDED 54d08f21b. Map 176 of 237 md. Held 61: 52 G3-G5 (sim REFUSED),
+  2 G6, 7 c-126. NEXT: idle until G3-G5 / G6 lanes say live or c-126 says landed; then same loop.
+- CI: quality gate 38652321901 on 0e918d4b9 (contains 8455317e3 + 54d08f21b) = success; docs publish success on both. Docs-only: no deploy.
+- 10-14T23:37Z: c-001 asked (dispatch-3209f8b8, msg 742d9cb4) to sync 266379be7 into qto doc e621cc32 (rounds-rulebook.md): REFUSED as outside T030B (msg 73c14448), c-001 opens a lane. Nothing unpushed at 23:57Z rotation; HEAD 54d08f21b landed. Idle for G3-G5 / G6 lanes and c-126.
+- 10-15T00:0xZ (rotation 2358Z session): acked; inbox empty, topic quiet since 23:08Z. Still idle for G3-G5 / G6 lanes and c-126.
+- 10-15T00:58Z rotation: nothing unpushed (no commits since 54d08f21b); inbox had only the rotation note. Still idle for G3-G5 / G6 lanes and c-126.
+- 10-15T00:58Z: c-126 said SPL-1874 landed (msg 8b35c5cc) -> the 7 held-c126 pages imported on prd, stamp-only, re-export unchanged, tree check violations=0 docs=200 items=2194; LANDED 2524b59b2. Map 183 of 237. Held 54: 52 G3-G5, 2 G6.
+- 10-15T01:0xZ: private-overlay.md (new, SPL-1874 7bec9293c; lane-map free) imported as 737a2da7, stamp-only, unchanged, tree violations=0 docs=201 items=2200; LANDED 8e136ffcb. Tracked md now 238; map 184; held 54 (52 G3-G5, 2 G6).
+- 10-15T01:01Z (rotation 0059Z session): progress note sent to c-002 (msg 2b2e7653) for 2524b59b2 + 8e136ffcb. CI on 8e136ffcb: gate 38663164565 + docs publish 38663164530 pending at 01:01Z. Idle for G3-G5 / G6 lanes.
+- 10-15T01:3xZ: CI on 8e136ffcb all green (quality gate 38663164565 success, docs publish success). Docs only, no deploy. Idle for G3-G5 / G6 lanes; inbox empty.
+- 10-15T02:00Z rotation: nothing unpushed (HEAD 8e136ffcb landed, CI green); inbox had only the rotation note. Progress note to c-002 sent (2b2e7653), not the final result. Still idle for G3-G5 (52) / G6 (2) lanes; map 184 rows of 238 md.
+- 10-15T02:0xZ (rotation 0201Z session): acked; inbox only the rotation note; topic quiet since 01:01Z; origin/master +2 commits, no md added/changed (238), no G3-G6 fix landed. Still idle for G3-G5 (52) / G6 (2) lanes.
+- 10-15T03:01Z rotation: nothing unpushed (0 commits ahead of origin/master; last landed 8e136ffcb, CI green); inbox only the rotation note (acked, no reply). Still idle for G3-G5 (52) / G6 (2) fix lanes; map 184 of 238 md. Final result not sent yet (progress note 2b2e7653 only).
+- 10-15T03:0xZ (rotation 0302Z session): acked; inbox only my ack; topic quiet since 01:01Z; origin/master +3 (wui/refactor, no md under csi-spl-doc/doc changed, 238), no G3-G6 fix landed. Still idle for G3-G5 (52) / G6 (2) lanes.
+- 10-15T03:3xZ: c-001 task 18105820: synced eb1d01ae1 (SPL-1919) into qto doc 737a2da7 node 0a9d0663 (item_rev 2), export unchanged, diff rc 0; result sent. Still idle for G3-G5 / G6.
+- 10-15T04:02Z rotation: nothing unpushed (0 ahead; the qto sync for c-001 needed no commit). Still idle for G3-G5 (52) / G6 (2) lanes; map 184 of 238 md. Final T030B result not sent yet.
+- 10-15T04:0xZ (rotation 0403Z session): acked; origin/master +7 (7342fa401). 1aae7222e (SPL-1922) edited mapped md runbook-orchestrator.md (qto 83485572) + fleet-rules-index.md (qto 9d7d5428) directly -> reported to c-001 (msg 76c1b95a), not synced unasked. New SPL-1920 round-10-retro / round-11 md held until round 11 closes. Still idle for G3-G5 (52) / G6 (2).
+- 10-15T04:1xZ: c-001 task (dispatch-2a2a4694, msg c0c59391): synced 1aae7222e into qto 9d7d5428 node e75e7140 + 83485572 node f4986b07 (item_rev 2 each), export unchanged, diff rc 0, tree violations=0; result sent. DOCTREE_IN must be ysg-readable (use .t030b/, not the scratchpad). Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes.
+- scratch bodies are .txt (an untracked .md in the tree fails pre-push lint-mdlinks); STATE.md renamed STATE.txt
+- 10-15T04:4xZ: c-001 task f3bc84b6: qto 737a2da7 node 0a9d0663 item_rev 3 (600, or 640 + ACL), LANDED 1ecda04a4; line 20 needs same (reported, not done), line 25 no. CI queued.
+- 10-15T05:0xZ: c-001 task fbd10ecf: line 20 -> qto 737a2da7 node 1281bbfe item_rev 2, LANDED fd0ffdc59; result sent. 05:03Z rotation: nothing unpushed. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes. Final T030B result not sent yet.
+- 10-15T05:0xZ (rotation 0504Z session): acked; nothing unpushed; fd0ffdc59 CI: docs publish + secrets green, its quality gate push run cancelled (superseded by scheduled run 38683504222). New md gcp-secret-perms.md (fd9d27d33 SPL-1924, edited ff4336fe3 SPL-1932) unmapped: asked c-001 (msg 74a7eabf) if SPL-1932 lane is done; import it on their yes. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes.
+- c-001 msg 8486897c: HOLD gcp-secret-perms.md until c-001 says c-538@tnk (SPL-1932) is ACCEPTED and closed.
+- 10-15T06:04Z rotation: nothing unpushed (0 ahead). HOLD gcp-secret-perms.md for c-001's word on c-538. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes. Final T030B result not sent yet.
+- 10-15T06:0xZ: c-001 go (47086fe5): gcp-secret-perms.md -> qto e6cafa53, stamp-only, unchanged, tree violations=0 docs=204 items=2215; LANDED d96da4744; result sent. Map 185. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes. sim-py.txt parser broken on the current md.py output (4-field split): fix before the next wave.
+- 10-15T06:1xZ: c-002 interim GOOD (aa816800) + c-001 relay (d4b41bed), not ACCEPTED. sim-py.txt fixed (split now 5 fields: take [:4]); stamped files show a 2-line stamp diff = expected. Re-sim of the 57 unmapped md on HEAD: 53 REFUSED (G3-G5 + 1 G6 still), how-to-post (G6), 3 round-10/11 docs SAME/DIFF but held until round 11 closes. Nothing importable; idle for G3-G5 / G6 lanes.
+- 10-15T06:0xZ (rotation 0605Z session): acked; inbox only my ack; origin/master +1 (984cd89cb test, no md under csi-spl-doc/doc changed); no G3-G6 fix landed. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes. Final T030B result not sent yet.
+- 10-15T07:05Z rotation: nothing unpushed (0 ahead). origin/master +7: mapped md fleet-rules-index / runbook-dispatcher / runbook-orchestrator edited in git (93036e492 SPL-1952, aa7664339/b02b9fa59 SPL-1947) -> reported to c-001 (msgs b771f1ce + correction), not synced unasked; sync only on c-001's task. Still idle for G3-G5 (52) / G6 (2); round 10/11 docs when round 11 closes. Final T030B result not sent yet.
+- 10-15T07:1xZ: c-001 task 5b3db7ca: synced git->qto 9d7d5428 node e75e7140 + 83485572 node f4986b07 (item_rev 3); rd 774c292b/05ebea69 + ro 353601ae already equal git (SPL-1952 lane synced them). Export unchanged x3, git diff empty, tree violations=0 docs=204 items=2215. No commit. Result sent. Still idle for G3-G5 (52) / G6 (2).
+- c-002 interim GOOD (08f7bd8a) on the 3-md qto sync; not ACCEPTED. Idle for G3-G5 / G6.
+- 10-15T07:1xZ (rotation 0706Z session): c-001 task 9c97b77d (from c-002 92eb9492): devops-guide.md synced repo->qto 78e51717 (workspace fs, not repo; 5 edits incl. code --replace for 5.7/5.8, 5 new items), wf12 row added, map row (no 3rd col), export; LANDED 73b5a7805; export unchanged; tree violations=0 docs=204 items=2220. Result to c-002 8cc09681, cc c-001 895b9a70. Restore copy .t030b/dg/dg-read-before.json.txt. Still idle for G3-G5 (52) / G6 (2). NOTE: no .json/.md scratch in .t030b (lint-syntax reads untracked files).
+- c-003 (dispatch holder now) interim GOOD d5e7e1da on 8cc09681; not ACCEPTED. Report future results to c-003.

@@ -1,0 +1,1 @@
+csi-spl-doc/doc/md/gcp-secret-perms.md

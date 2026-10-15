@@ -1,0 +1,37 @@
+The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that file, measured by reading it. Workflow 10's `runs-on` is an expression: the caller's input, else the repo variable `SPOOL_CI_RUNNER`, else `[self-hosted, spool-ci]` on this repo, else `ubuntu-latest`.
+
+| file | gates | runner |
+|---|---|---|
+| 00_deploy-lag-watch.yml | `do_check_deploy_lag` on a schedule | ubuntu-latest |
+| 10_ci-quality.yml | the quality gate on every master push; a docs-only push skips the code jobs | expression, self-hosted `spool-ci` on this repo |
+| 11_ci-public.yml | the same gate for a pull request, after a maintainer approves it | passes ubuntu-latest into 10 |
+| 12_ci-rerun-setup-flake.yml | reruns a run lost to an action download at Set up job | ubuntu-latest |
+| 15_sec-deps-secrets.yml | dependency and secret scans | ubuntu-latest |
+| 20_hub-build-deploy.yml | mint, build, migrate, roll the hub; then, non-blocking, the invite e2e (`do_spl_invite_e2e`) on dev t1 and on prd in the test workspace `e2e` only (`vars.INVITE_E2E_TENANT_PRD`; t1 and customer workspaces are refused) | ubuntu-latest |
+| 21_hub-deploy-catchup.yml | a trunk hub or WUI that never got served | ubuntu-latest |
+| 22_deploy-verify.yml | HTTPS smoke of the hub and the WUI | ubuntu-latest |
+| 30_wui-build-deploy.yml | mint and Firebase Hosting; a push (or "all") run stands down, green, when its commit is older than the one the site's `build.json` serves (`wui-deploy-guard.sh`, SPL-1829), so a late older run never rolls the site back | ubuntu-latest |
+| 31_wui-edge-warm.yml | warm the WUI edge | ubuntu-latest |
+| 32_docs-publish.yml | publish the repo docs | ubuntu-latest |
+| 40_tenant-host-reconcile.yml | tenant hosts (specs/024) | ubuntu-latest |
+| 45_db-backup.yml | dump, verify, offsite copy, a local restore drill | ubuntu-latest |
+| 46_demo-wipe.yml | the nightly demo-workspace wipe | ubuntu-latest |
+| 47_db-maint.yml | nightly `do_spl_db_maint`, dev then prd | ubuntu-latest |
+| 48_vendor-key-grant-check.yml | the vendor-key grant check | ubuntu-latest |
+| 50_oss-standalone.yml | the root compose file on a clean machine | ubuntu-latest |
+| 55_release-stable.yml | the weekly stable tag | ubuntu-latest |
+| 56_ghcr-images.yml | publish hub and web images for that tag | ubuntu-latest |
+| 60_codeql.yml | CodeQL | ubuntu-latest |
+| 61_semgrep.yml | Semgrep | ubuntu-latest |
+| 62_gosec.yml | gosec | ubuntu-latest |
+| 63_eslint-security.yml | eslint security plugin on the WUI | ubuntu-latest |
+| 64_trufflehog.yml | verified-secret scan | ubuntu-latest |
+| 65_iac-checkov.yml | Checkov on the terraform | ubuntu-latest |
+| 66_hadolint.yml | Dockerfiles | ubuntu-latest |
+| 67_shellcheck.yml | shellcheck | ubuntu-latest |
+| 68_dast.yml | headers and ZAP against dev only | ubuntu-latest |
+| 70_supply-chain.yml | Trivy IaC and OSV | ubuntu-latest |
+| 85_actionlint.yml | the workflow files | ubuntu-latest |
+| 99_runner-smoke.yml | a self-hosted job actually starts | self-hosted |
+
+A fork's pull request runs only on GitHub-hosted runners, with read-only permissions and no secrets. Deploy workflows do not run for a pull request. That rule is [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md).

@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Offline round trip: split (the import) -> hub export model -> compose; prints the diff vs the md."""
+import importlib.util, json, os, subprocess, sys, tempfile, difflib
+spec = importlib.util.spec_from_file_location("m", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+repo = sys.argv[2]
+for rel in sys.stdin.read().split():
+    d = tempfile.mkdtemp()
+    p = subprocess.run([sys.executable, sys.argv[1], "split", os.path.join(repo, rel), d], capture_output=True, text=True)
+    if p.returncode:
+        print(f"REFUSED\t{rel}\t{(p.stderr or p.stdout).strip()}"); continue
+    out, first = [], None
+    pre = open(os.path.join(d, "preamble.md")).read().strip()
+    if pre: out += [pre, ""]
+    for line in p.stdout.rstrip("\n").split("\n") if p.stdout.strip() else []:
+        lvl, num, title, body = line.split("\t")[:4]
+        lvl = int(lvl)
+        if first is None: first = {"parent": "R", "title": title, "outline": "" if num == "-" else num}
+        h = "#" * min(6, lvl) + " " + (title if num == "-" else num + " " + title)
+        out += [h, ""]
+        b = open(body).read().strip() if body else ""
+        if b: out += [b, ""]
+    exp = os.path.join(d, "export.md"); open(exp, "w").write("\n".join(out))
+    fm = os.path.join(d, "front_matter.yml")
+    root = {"items": [{"parent": "", "body": open(os.path.join(d, "preamble.md")).read(),
+                       "attrs": ({"front_matter": open(fm).read()} if os.path.exists(fm) else {})}] + ([first] if first else [])}
+    json.dump(root, open(os.path.join(d, "root.json"), "w")); json.dump({"title": open(os.path.join(d, "title")).read()}, open(os.path.join(d, "head.json"), "w"))
+    c = subprocess.run([sys.executable, sys.argv[1], "compose", d + "/head.json", d + "/root.json", exp, "DOC"], capture_output=True, text=True).stdout
+    orig = open(os.path.join(repo, rel)).read()
+    cl = c.split("\n")
+    for i, l in enumerate(cl):
+        if m.STAMP.match(l):
+            del cl[i:i + 2]; break
+    diff2 = [l for l in difflib.unified_diff(orig.split("\n"), cl, lineterm="", n=0) if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+    print(("SAME" if not diff2 else "DIFF") + f"\t{rel}\t{len(diff2)}")
+    if diff2 and os.environ.get("V"): print("\n".join(diff2[:int(os.environ.get('V'))]))

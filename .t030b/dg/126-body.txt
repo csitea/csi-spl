@@ -1,0 +1,11 @@
+`do_spl_file_erase` removes one `FILE_ID` (a file posted by mistake) everywhere we hold it, and reads each leg back. The hub leg deletes `t/<tenant>/files/<id>` from the 050 bucket as the env SA: the object `DELETE /v1/files/{id}` removes, whose route needs a box upload token no operator holds. The box leg removes every path on this box whose name carries the id, under every real home and the spool and tmp trees, `find -xdev` per root. The backup leg only reports: the off-project copy keeps an object for its retention, and a delete there needs the owner's go for that delete. `DRY_RUN=1` is the default. `grep -c '^do_spl_file_erase()' csi-spl-orc/src/bash/run/spl-file-erase.func.sh` -> 1.
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && FILE_ID=<sha256> ENV=prd TENANT=<tenant> DRY_RUN=0 ./run -a do_spl_file_erase
+```
+
+On a box with no env key, run the box leg alone.
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && FILE_ID=<sha256> HUB_LEG=0 BKP_LEG=0 DRY_RUN=0 ./run -a do_spl_file_erase
+```

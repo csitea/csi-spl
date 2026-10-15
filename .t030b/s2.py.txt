@@ -1,0 +1,25 @@
+import json,re,subprocess,sys
+jobs=[("fri","fleet-rules-index.md",["e75e7140"]),("rd","runbook-dispatcher.md",["774c292b","05ebea69"]),("ro","runbook-orchestrator.md",["353601ae","f4986b07"])]
+def sections(txt):
+    lines=txt.split("\n"); out={}; cur=None; buf=[]
+    for l in lines:
+        m=re.match(r'^#{2,6} (\S+?)\.? (.*)$',l)
+        if m:
+            if cur: out[cur]="\n".join(buf)
+            cur=m.group(1); buf=[]
+        elif cur: buf.append(l)
+    if cur: out[cur]="\n".join(buf)
+    return out
+W=".t030b/"
+for n,f,ids in jobs:
+    p="csi-spl-doc/doc/md/"+f
+    old=sections(subprocess.check_output(["git","show","d96da4744:"+p],text=True))
+    new=sections(open(p).read())
+    d=json.load(open(W+f"s2-{n}-read.json"))
+    for i in d["items"]:
+        if i["id"][:8] not in ids: continue
+        o=i["outline"]
+        ok=old[o].strip("\n")==i["body"].strip("\n")
+        nb=new[o].strip("\n")
+        print(n,i["id"],o,"old-match" if ok else "OLD-MISMATCH",len(i["body"]),"->",len(nb), "rev",i["rev"])
+        if ok: open(sys.argv[1]+f"/s2-{n}-{i['id'][:8]}.txt","w").write(nb+"\n")

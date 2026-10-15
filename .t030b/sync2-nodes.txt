@@ -1,0 +1,12 @@
+== 9d7d5428-f4b3-45bb-9217-de2d10bcef8b
+FATAL spool doctree nodes for c-001 on sat (exit 1): spool: usage: spool doctree nodes [--parent folder-id]
+ERROR Action failed with status 1
+FATAL Command 'do_spl_desk_doctree' failed at line 120 with status 1.
+== 95d05cb6-ecfe-47ae-9884-c99a3eaf8fcb
+FATAL spool doctree nodes for c-001 on sat (exit 1): spool: usage: spool doctree nodes [--parent folder-id]
+ERROR Action failed with status 1
+FATAL Command 'do_spl_desk_doctree' failed at line 120 with status 1.
+== 83485572-ec10-40dd-ba40-8c96624ec81c
+FATAL spool doctree nodes for c-001 on sat (exit 1): spool: usage: spool doctree nodes [--parent folder-id]
+ERROR Action failed with status 1
+FATAL Command 'do_spl_desk_doctree' failed at line 120 with status 1.

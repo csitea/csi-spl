@@ -1,0 +1,234 @@
+SAME	csi-spl-doc/doc/help/agent-collaboration.md	0
+SAME	csi-spl-doc/doc/help/agents.md	0
+SAME	csi-spl-doc/doc/help/archive.md	0
+SAME	csi-spl-doc/doc/help/boxes.md	0
+SAME	csi-spl-doc/doc/help/calendar.md	0
+SAME	csi-spl-doc/doc/help/channels-and-direct-messages.md	0
+SAME	csi-spl-doc/doc/help/connect-an-agent.md	0
+SAME	csi-spl-doc/doc/help/docs.md	0
+SAME	csi-spl-doc/doc/help/events.md	0
+SAME	csi-spl-doc/doc/help/getting-started.md	0
+SAME	csi-spl-doc/doc/help/global-search.md	0
+SAME	csi-spl-doc/doc/help/hours.md	0
+SAME	csi-spl-doc/doc/help/how-to-post.md	0
+SAME	csi-spl-doc/doc/help/index.md	0
+SAME	csi-spl-doc/doc/help/interface-overview.md	0
+SAME	csi-spl-doc/doc/help/issues.md	0
+SAME	csi-spl-doc/doc/help/keyboard-shortcuts.md	0
+SAME	csi-spl-doc/doc/help/message-actions-and-formatting.md	0
+SAME	csi-spl-doc/doc/help/message-levels-and-topics.md	0
+SAME	csi-spl-doc/doc/help/omnibox-and-navigation.md	0
+SAME	csi-spl-doc/doc/help/people.md	0
+SAME	csi-spl-doc/doc/help/release-notes.md	0
+SAME	csi-spl-doc/doc/help/set-mistral-key.md	0
+SAME	csi-spl-doc/doc/help/user-settings.md	0
+REFUSED	csi-spl-doc/doc/md/HOWTO-local-cloud-deploy.md	FATAL ./csi-spl-doc/doc/md/HOWTO-local-cloud-deploy.md: no '# ' title line
+SAME	csi-spl-doc/doc/md/HOWTO-satellite-work.md	0
+SAME	csi-spl-doc/doc/md/HOWTO-setup-dispatchers.md	0
+REFUSED	csi-spl-doc/doc/md/HOWTO-usage-limit-role-seats.md	FATAL ./csi-spl-doc/doc/md/HOWTO-usage-limit-role-seats.md: section '2.1.1 The dispatch rotation checks the failover first' would become 2.2 in the qto doc
+SAME	csi-spl-doc/doc/md/PRINCIPLES-role-failover.md	0
+SAME	csi-spl-doc/doc/md/SLO-spool-hub.md	0
+SAME	csi-spl-doc/doc/md/SPEC-agent-identity-map.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-avatars.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-box-api.md	0
+REFUSED	csi-spl-doc/doc/md/SPEC-spool-byo-gcp.md	FATAL ./csi-spl-doc/doc/md/SPEC-spool-byo-gcp.md: section '0 Who this is *not* for (non-technical buyers)' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/SPEC-spool-chat-reverse.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-cicd-logs.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-hub-api-infra.md	0
+REFUSED	csi-spl-doc/doc/md/SPEC-spool-hub-rental.md	FATAL ./csi-spl-doc/doc/md/SPEC-spool-hub-rental.md: section '3.1 Peer mesh — any agent commands any agent' would become 4 in the qto doc
+SAME	csi-spl-doc/doc/md/SPEC-spool-identity-routing.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-m4-seats.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-message-bus.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-milestones.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-project-refactor.md	0
+REFUSED	csi-spl-doc/doc/md/SPEC-spool-social-auth.md	FATAL ./csi-spl-doc/doc/md/SPEC-spool-social-auth.md: section '0 Preferred way to register' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/SPEC-spool-task-lifecycle.md	FATAL ./csi-spl-doc/doc/md/SPEC-spool-task-lifecycle.md: section '2.1 Peer mesh' would become 3 in the qto doc
+SAME	csi-spl-doc/doc/md/SPEC-spool-wui-layout.md	0
+SAME	csi-spl-doc/doc/md/SPEC-spool-wui.md	0
+SAME	csi-spl-doc/doc/md/SYS.md	0
+REFUSED	csi-spl-doc/doc/md/agent-token-focus-plan.md	FATAL ./csi-spl-doc/doc/md/agent-token-focus-plan.md: section '3.2.1 Time on one subject' would become 3.3 in the qto doc
+SAME	csi-spl-doc/doc/md/agy-opinion-a.md	0
+SAME	csi-spl-doc/doc/md/agy-opinion-b.md	0
+SAME	csi-spl-doc/doc/md/agy-review-064-a.md	0
+SAME	csi-spl-doc/doc/md/agy-review-064-b.md	0
+SAME	csi-spl-doc/doc/md/ap-08-insert-profile-2026-10-06.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R01.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R02.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R03.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R04.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R05.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R06.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R07.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R08.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R09.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R10.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R11.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R12.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R13.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R14.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R15.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R16.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R17.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004-briefs/R18.md	0
+SAME	csi-spl-doc/doc/md/availability-plan-20261004.md	0
+SAME	csi-spl-doc/doc/md/box-state-backup.md	0
+SAME	csi-spl-doc/doc/md/box-state-mount.md	0
+SAME	csi-spl-doc/doc/md/csi-spl.feature.md	0
+SAME	csi-spl-doc/doc/md/db-payload-audit-2026-10-02.md	0
+SAME	csi-spl-doc/doc/md/db-payload-audit-round2-2026-10-02.md	0
+SAME	csi-spl-doc/doc/md/desktop-usability-consensus-20261005.md	0
+SAME	csi-spl-doc/doc/md/desktop-usability-grok-view-20261005.md	0
+SAME	csi-spl-doc/doc/md/desktop-usability-ideas-20261004.md	0
+SAME	csi-spl-doc/doc/md/developer-guide.md	0
+SAME	csi-spl-doc/doc/md/draft/SPEC-spool-architecture.md	0
+SAME	csi-spl-doc/doc/md/fleet-hot-commands-2026-10-07.md	0
+SAME	csi-spl-doc/doc/md/fleet-rules-index.md	0
+SAME	csi-spl-doc/doc/md/gc-agent.md	0
+SAME	csi-spl-doc/doc/md/glossary.md	0
+REFUSED	csi-spl-doc/doc/md/guides/devops-guide.md	FATAL ./csi-spl-doc/doc/md/guides/devops-guide.md: section '1.1 What you hold' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/guides/installation-and-configuration-guide.md	FATAL ./csi-spl-doc/doc/md/guides/installation-and-configuration-guide.md: section '1.1 What you hold before you start' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/guides/local-hub.md	0
+REFUSED	csi-spl-doc/doc/md/guides/operations-and-maintenance-guide.md	FATAL ./csi-spl-doc/doc/md/guides/operations-and-maintenance-guide.md: section '1.1 Health checks' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/guides/system-guide.md	FATAL ./csi-spl-doc/doc/md/guides/system-guide.md: section '1.1 The whole in one table' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/help-docs-by-role-plan.md	0
+SAME	csi-spl-doc/doc/md/help-docs-catchup-20261004.md	0
+SAME	csi-spl-doc/doc/md/i18n-review/login-highlights-2026-10-13.md	0
+SAME	csi-spl-doc/doc/md/incident-2026-10-12-box-outages.md	0
+REFUSED	csi-spl-doc/doc/md/isg/antigravity-agent-setup.ISG.md	FATAL ./csi-spl-doc/doc/md/isg/antigravity-agent-setup.ISG.md: section '0 A person joining with an agy agent on their own machine' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/isg/claude-agent-setup.ISG.md	FATAL ./csi-spl-doc/doc/md/isg/claude-agent-setup.ISG.md: section '0 Which path are you on' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/isg/grok-agent-setup.ISG.md	FATAL ./csi-spl-doc/doc/md/isg/grok-agent-setup.ISG.md: section '0 A person joining with a grok agent on their own machine' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/isg/mistral-agent-setup.ISG.md	FATAL ./csi-spl-doc/doc/md/isg/mistral-agent-setup.ISG.md: section '0 A person joining with a mistral agent on their own machine' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/lane-handover-mistral.md	0
+SAME	csi-spl-doc/doc/md/lane-handover.md	0
+SAME	csi-spl-doc/doc/md/lane-integration-rules.md	0
+REFUSED	csi-spl-doc/doc/md/lane-issue-and-docs.md	FATAL ./csi-spl-doc/doc/md/lane-issue-and-docs.md: section '0 A discussion's issue, at the first answer' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/lesson-fix-lists-uncovered-cases.md	0
+SAME	csi-spl-doc/doc/md/lesson-grok-od-roles-2026-10-13.md	0
+SAME	csi-spl-doc/doc/md/lesson-speed-up-measure-first.md	0
+SAME	csi-spl-doc/doc/md/mobile-usability-consensus-20261005.md	0
+SAME	csi-spl-doc/doc/md/mobile-usability-grok-view-20261005.md	0
+SAME	csi-spl-doc/doc/md/mobile-usability-ideas-20261004.md	0
+SAME	csi-spl-doc/doc/md/perf-audit-round3-2026-10-02.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E01.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E02.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E03.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E04.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E05.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E06.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E07.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E08.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E09.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E10.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E11.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E12.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E13.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E14.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E15.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E16.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E17.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E18.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E19.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E20.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E21.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E22.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E23.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E24.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E25.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E26.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E27.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E28.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E29.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-briefs/E30.md	0
+SAME	csi-spl-doc/doc/md/perf-edition-20261004-db-index-audit.md	0
+REFUSED	csi-spl-doc/doc/md/perf-edition-20261004-plan.md	FATAL ./csi-spl-doc/doc/md/perf-edition-20261004-plan.md: section '0 Lessons from round 4: which practices paid off' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/perf-round-4-plan.md	0
+SAME	csi-spl-doc/doc/md/perf-round-5-plan.md	0
+REFUSED	csi-spl-doc/doc/md/perf-round-5/a1.md	FATAL ./csi-spl-doc/doc/md/perf-round-5/a1.md: section '1 Debounce Flow Count DB probes on WUI wakes' would become 4.1 in the qto doc
+SAME	csi-spl-doc/doc/md/perf-round-5/a2-review.md	0
+SAME	csi-spl-doc/doc/md/perf-round-5/c1.md	0
+SAME	csi-spl-doc/doc/md/perf-round-5/c2-review.md	0
+SAME	csi-spl-doc/doc/md/perf-round-5/g1.md	0
+REFUSED	csi-spl-doc/doc/md/perf-round-5/g2-review.md	FATAL ./csi-spl-doc/doc/md/perf-round-5/g2-review.md: section '4.1 Relay tick cadence and one set read per tenant: AGREE, with the saving corrected' would become 2.1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/perf-round-5/m1.md	FATAL ./csi-spl-doc/doc/md/perf-round-5/m1.md: section '1 Flow counts: Seek on stored place/time (ap-01b)' would become 2.1 in the qto doc
+SAME	csi-spl-doc/doc/md/perf-round-5/p5-10.md	0
+SAME	csi-spl-doc/doc/md/pre-push-gate.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-1-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-10-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-10/seat-claude-2.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-10/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-10/seat-mistral-review.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-2-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-3-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-3-retro.md	0
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/01-go-decode-errors.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/01-go-decode-errors.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/02-go-combined-err-cause.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/02-go-combined-err-cause.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/03-go-lock-defer.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/03-go-lock-defer.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/04-go-discarded-io-errors.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/04-go-discarded-io-errors.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/05-go-context-from-caller.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/05-go-context-from-caller.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/06-wui-fetch-timeout-pages.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/06-wui-fetch-timeout-pages.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/07-wui-fetchfn-timeout-utils.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/07-wui-fetchfn-timeout-utils.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/08-wui-latest-only-token.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/08-wui-latest-only-token.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/09-wui-busy-finally.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/09-wui-busy-finally.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/10-wui-storage-accessors.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/10-wui-storage-accessors.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/11-bash-curl-timeouts.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/11-bash-curl-timeouts.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/12-bash-tempdir-trap.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/12-bash-tempdir-trap.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/13-bash-return-not-exit.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/13-bash-return-not-exit.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/14-bash-hermetic-tests.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/14-bash-hermetic-tests.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/15-bash-docker-init-fail-fast.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/15-bash-docker-init-fail-fast.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/16-bash-glob-newest-file.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/16-bash-glob-newest-file.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/17-go-errors-new.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/17-go-errors-new.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/18-go-slices-sort.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/18-go-slices-sort.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/19-go-clock-seam.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/19-go-clock-seam.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/20-wui-catch-reasons.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/20-wui-catch-reasons.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/21-wui-for-of-entries.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/21-wui-for-of-entries.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/22-wui-util-doc-comments.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/22-wui-util-doc-comments.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/23-wui-inject-clock.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/23-wui-inject-clock.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/24-wui-listener-abortcontroller.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/24-wui-listener-abortcontroller.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/25-wui-client-plugin-guard.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/25-wui-client-plugin-guard.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/26-wui-iso-seconds.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/26-wui-iso-seconds.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/27-bash-local-then-assign.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/27-bash-local-then-assign.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/28-bash-nofork-trim-iac.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/28-bash-nofork-trim-iac.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/29-bash-outparam-sc2034.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/29-bash-outparam-sc2034.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+REFUSED	csi-spl-doc/doc/md/refactor-round-3/30-bash-stale-comments.md	FATAL ./csi-spl-doc/doc/md/refactor-round-3/30-bash-stale-comments.md: section '0 The owner's order, verbatim' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/refactor-round-4-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-5-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-5-retro.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-5/seat-agy.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-5/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-5/seat-mistral.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-6-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-6-retro.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-6/seat-agy.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-6/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-6/seat-mistral.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-7-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-7-retro.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-7/seat-agy.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-7/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-7/seat-mistral.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-8-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-8-retro.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-8/seat-agy.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-8/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-8/seat-mistral.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-9-plan.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-9-retro.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-9/seat-agy.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-9/seat-claude.md	0
+SAME	csi-spl-doc/doc/md/refactor-round-9/seat-mistral.md	0
+REFUSED	csi-spl-doc/doc/md/refactor-round-api-perf-plan-2026-10-06.md	FATAL ./csi-spl-doc/doc/md/refactor-round-api-perf-plan-2026-10-06.md: section '0 v0.2: the panel's consensus (2026-10-06)' would become 1 in the qto doc
+SAME	csi-spl-doc/doc/md/rounds-rulebook.md	0
+SAME	csi-spl-doc/doc/md/shadow-feed.md	0
+REFUSED	csi-spl-doc/doc/md/spawn-agents/SPL-760-result.md	FATAL ./csi-spl-doc/doc/md/spawn-agents/SPL-760-result.md: no '# ' title line
+REFUSED	csi-spl-doc/doc/md/system-guide.md	FATAL ./csi-spl-doc/doc/md/system-guide.md: no '# ' title line
+SAME	csi-spl-doc/doc/md/test-shared-resources-2026-10-04.md	0
+SAME	csi-spl-doc/doc/md/topics-view-retire-proposal.md	0
+SAME	csi-spl-doc/doc/md/ui-panel-2026-10-13/agy.md	0
+SAME	csi-spl-doc/doc/md/ui-panel-2026-10-13/claude.md	0
+SAME	csi-spl-doc/doc/md/ui-panel-2026-10-13/consensus.md	0
+SAME	csi-spl-doc/doc/md/ui-panel-2026-10-13/grok.md	0
+SAME	csi-spl-doc/doc/md/ui-panel-2026-10-13/mistral.md	0
+SAME	csi-spl-doc/doc/md/untrusted-input.md	0
+SAME	csi-spl-doc/doc/md/watchdog-setup.md	0
+SAME	csi-spl-doc/doc/md/workspace-rules.md	0

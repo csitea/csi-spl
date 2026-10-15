@@ -1,0 +1,3 @@
+csi-spl-doc/doc/md/HOWTO-local-cloud-deploy.md
+csi-spl-doc/doc/md/spawn-agents/SPL-760-result.md
+csi-spl-doc/doc/md/system-guide.md

@@ -10,8 +10,12 @@
 # @description      anything is written here (fail fast, naming the user)
 # @description   3. each file streams ssh stdout -> sudo on this box into
 # @description      ~<user>/.gcp/.csi/csi-spl-private.yaml, owned by that user,
-# @description      mode 600: never in a variable, argv, a log or stdout
-# @description   4. verify: mode 600, owner, sha256 equal to the source's.
+# @description      mode 600, then the SPL-1924 secret step (spl_gsp_fix): on a
+# @description      box whose key dir is shared by ACL the agent user's named
+# @description      entry keeps its read (mode 640, mask r--), never other;
+# @description      never in a variable, argv, a log or stdout
+# @description   4. verify: mode 600 (640 with a named ACL entry), closed to
+# @description      other (spl_gsp_check), owner, sha256 equal to the source's.
 # @description      Prints the path, mode, owner and "sha256_equal=yes|no";
 # @description      never the content or its sha.
 # @description A user whose ~/.gcp here is a symlink to the other's shares that
@@ -48,7 +52,7 @@ do_spl_private_overlay_pull() {
   done
   if (( dry )); then
     for u in "${users[@]}"; do
-      do_log "INFO DRY_RUN would: pull $u@$box:~/.gcp/.csi/csi-spl-private.yaml to ${home[$u]}/.gcp/.csi/csi-spl-private.yaml, owner $u, mode 600"
+      do_log "INFO DRY_RUN would: pull $u@$box:~/.gcp/.csi/csi-spl-private.yaml to ${home[$u]}/.gcp/.csi/csi-spl-private.yaml, owner $u, mode 600 + secret ACL step"
     done
     do_log "OK DRY_RUN nothing was pulled. Re-run with DRY_RUN=0 to pull."
     return 0
@@ -107,12 +111,13 @@ spl_ppo_pull_one() {
     *) do_log "FATAL pull for $u failed (exit $rc, ${result:-no result})"; return 1 ;;
   esac
   out="$(spl_ppo_local verify "$u" "$h" "" </dev/null 2>/dev/null)"
-  local path mode fowner tsha eq=no
+  local path mode closed fowner tsha eq=no
   path="$(sed -n 's/^path //p' <<<"$out")"; mode="$(sed -n 's/^mode //p' <<<"$out")"
+  closed="$(sed -n 's/^closed //p' <<<"$out")"
   fowner="$(sed -n 's/^owner //p' <<<"$out")"; tsha="$(sed -n 's/^sha //p' <<<"$out")"
   [[ -n "$tsha" && "$tsha" == "$sha" ]] && eq=yes
-  echo "verify user=$u path=${path:-MISSING} mode=${mode:-?} owner=${fowner:-?} sha256_equal=$eq"
-  [[ -n "$path" && "$mode" == 600 && "$fowner" == "$u" && "$eq" == yes ]] ||
+  echo "verify user=$u path=${path:-MISSING} mode=${mode:-?} closed=${closed:-?} owner=${fowner:-?} sha256_equal=$eq"
+  [[ -n "$path" && "$mode" =~ ^6[04]0$ && "$closed" == yes && "$fowner" == "$u" && "$eq" == yes ]] ||
     { do_log "FAIL the overlay of $u is not verified"; return 1; }
 }
 
@@ -130,12 +135,16 @@ case "$1" in sha) sha256sum <"$f" | cut -d" " -f1 ;; cat) cat "$f" ;; *) exit 2 
 
 # spl_ppo_local put|verify <user> <home> <sha>: one step as root on this box
 # (another user's home dirs may be owned by the box owner). put reads stdin.
+# The SPL-1924 secret step (spl_gsp_*) is defined in the same shell.
 spl_ppo_local() {
-  sudo -n bash -c "$(spl_ppo_script)" spl-private-overlay-pull "$@"
+  sudo -n bash -c "$(spl_gsp_funcs)
+$(spl_ppo_script)" spl-private-overlay-pull "$@"
 }
 
 # The local step script: put writes stdin to a temp file beside the target,
-# checks its sha, then chowns, chmods 600 and renames it into place. Missing
+# checks its sha, then chowns, chmods 600, runs the secret step (spl_gsp_fix:
+# a named ACL entry such as the agent user's keeps r--) and renames it into
+# place. Missing
 # dirs are made 700 and owned by the user.
 spl_ppo_script() {
   cat <<'SCRIPT'
@@ -155,12 +164,13 @@ case "$op" in
     if [ -f "$f" ]; then
       if cmp -s "$t" "$f"; then r=already-there; else r=replaced; fi
     fi
-    chown "$u:" "$t" && chmod 600 "$t" && mv -f "$t" "$f" || { rm -f "$t"; exit 1; }
+    chown "$u:" "$t" && chmod 600 "$t" && spl_gsp_fix "$t" 1 >/dev/null && mv -f "$t" "$f" || { rm -f "$t"; exit 1; }
     echo "result $r" ;;
   verify)
     [ -f "$f" ] || exit 1
     echo "path $f"
     echo "mode $(stat -c %a "$f")"
+    if spl_gsp_check "$f"; then echo "closed yes"; else echo "closed no"; fi
     echo "owner $(stat -c %U "$f")"
     echo "sha $(sha256sum <"$f" | cut -d' ' -f1)" ;;
   *) exit 2 ;;

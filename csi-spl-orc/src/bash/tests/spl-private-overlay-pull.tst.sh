@@ -10,6 +10,9 @@
 #   3. DRY_RUN=0: both users, bytes equal, mode 600, owner, verify lines
 #   4. a second run: "already-there"; a changed source: "replaced"; a
 #      shared ~/.gcp (symlink) is pulled once, owned by the owner
+#   4c. SPL-1924: a key dir shared by ACL (a default named entry) keeps the
+#      named user's read on the pulled file (r--, mask r--, mode 640), never
+#      other; a bare chmod 600 (the old step) cancels it: CONTROL
 #   5. a source missing or empty for one user fails fast: nothing written
 #   6. a box answering to another BOX_TAG is refused; an unknown local user too
 #   7. the overlay content never reaches any output or argv
@@ -96,7 +99,7 @@ for u in ownr agnt; do
   cmp -s "$f" "$T/remote/$u/.gcp/.csi/csi-spl-private.yaml" || ok=0
   [[ "$(stat -c %a "$f")" == 600 && "$(stat -c %a "$T/local/$u/.gcp/.csi")" == 700 ]] || ok=0
   [[ "$(cat "$T/owners/$(stat -c %i "$f")")" == "$u" ]] || ok=0
-  grep -q "^verify user=$u path=$f mode=600 owner=$u sha256_equal=yes$" "$T/o" || ok=0
+  grep -q "^verify user=$u path=$f mode=600 closed=yes owner=$u sha256_equal=yes$" "$T/o" || ok=0
 done
 [[ $rc -eq 0 && $ok == 1 ]] && grep -q "INFO ownr: copied" "$T/o" && pass "pulled both: bytes, 600/700, owner, verify lines" ||
   fail "pull: rc=$rc out=$(cat "$T/o")"
@@ -116,6 +119,24 @@ run_pull DRY_RUN=0; rc=$?
   grep -q "WARN agnt's overlay on sat differs" "$T/o" && [[ "$(grep -c '^verify ' "$T/o")" == 1 ]] &&
   pass "shared ~/.gcp: pulled once, owned by the owner, a differing source warned" || fail "shared: rc=$rc out=$(cat "$T/o")"
 rm -f "$T/local/agnt/.gcp"
+
+# --- 4c. SPL-1924: a key dir shared by ACL keeps the named entry's read -------------------------
+if command -v setfacl >/dev/null && setfacl -m d:u:nobody:r-x "$T/local/ownr/.gcp/.csi" 2>/dev/null; then
+  put_src ownr d
+  run_pull DRY_RUN=0; rc=$?
+  acl="$(getfacl -cpE "$(dst ownr)" 2>/dev/null | paste -sd, -)"
+  [[ $rc -eq 0 && "$(stat -c %a "$(dst ownr)")" == 640 && "$acl" == *user:nobody:r--* && "$acl" == *mask::r--* &&
+    "$acl" == *other::---* && "$acl" == *group::---* ]] && grep -q "^verify user=ownr .* mode=640 closed=yes " "$T/o" &&
+    pass "ACL-shared key dir: the named entry reads (r--, mask r--, 640), group and other nothing" ||
+    fail "ACL-shared: rc=$rc acl=$acl out=$(cat "$T/o")"
+  # CONTROL: the old bare chmod 600 on the same shape cancels the named read
+  cp "$(dst ownr)" "$T/ctl.yaml" && setfacl -m u:nobody:r-x "$T/ctl.yaml" && chmod 600 "$T/ctl.yaml"
+  [[ "$(getfacl -cp "$T/ctl.yaml" 2>/dev/null | sed -n 's/^mask:://p')" == --- ]] &&
+    pass "CONTROL: a bare chmod 600 sets mask::--- (the named read is cancelled)" || fail "CONTROL: chmod 600 kept the mask"
+  setfacl -k "$T/local/ownr/.gcp/.csi"
+else
+  echo "SKIP: 4c: setfacl missing or this temp fs has no ACL support"
+fi
 
 # --- 5. fail fast on a missing or empty source ------------------------------------------------
 rm -rf "$T/local/ownr/.gcp" "$T/local/agnt/.gcp"

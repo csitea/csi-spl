@@ -219,21 +219,26 @@ export const PROVIDERS_TIMEOUT_MS = 8000
 /** in-flight GET /providers per fetch function and auth origin (loadProviders) */
 const providersInFlight = new WeakMap()
 
-export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false, mock = false } = {}) {
-  const root = authOrigin(base)
-  // 'include': the cookie must ride a cross-origin call to the auth base; it is
-  // the same as 'same-origin' when the base is ''.
-  // X-Locale (spec 021, the donor's header): browser fetch cannot override
-  // Accept-Language, so the active UI locale rides here; the hub mails a
-  // person who has no stored preference in it. OFF unless `sendLocale`: the
-  // header is non-simple, so a cross-origin call preflights, and a hub whose
-  // CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
-  // sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
-  // Even then it rides only a write: the hub reads it in the native
-  // POST handlers that mail, never on a GET, and on GET /session it made the
-  // probe every cold load waits for preflight first (one extra round trip,
-  // ~380 ms on dev).
-  const call = (path, opts) => {
+/** the opt-in e2e mock (specs/054), one lazy chunk; live builds never load it */
+const mockModule = () => import('./act-as-mock.mjs')
+
+/**
+ * The credentialed fetch every auth call goes through.
+ * 'include': the cookie must ride a cross-origin call to the auth base; it is
+ * the same as 'same-origin' when the base is ''.
+ * X-Locale (spec 021, the donor's header): browser fetch cannot override
+ * Accept-Language, so the active UI locale rides here; the hub mails a
+ * person who has no stored preference in it. OFF unless `sendLocale`: the
+ * header is non-simple, so a cross-origin call preflights, and a hub whose
+ * CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
+ * sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
+ * Even then it rides only a write: the hub reads it in the native
+ * POST handlers that mail, never on a GET, and on GET /session it made the
+ * probe every cold load waits for preflight first (one extra round trip,
+ * ~380 ms on dev).
+ */
+function authCall(fetchFn, root, locale, sendLocale) {
+  return (path, opts) => {
     const write = String((opts && opts.method) || 'GET').toUpperCase() !== 'GET'
     const loc = sendLocale && write ? String((typeof locale === 'function' ? locale() : locale) || '') : ''
     return fetchFn(`${root}${AUTH_PREFIX}${path}`, {
@@ -242,7 +247,10 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       headers: { accept: 'application/json', ...(loc ? { 'x-locale': loc } : {}), ...(opts && opts.headers) },
     })
   }
+}
 
+/** GET /providers, shared while in flight and bounded by PROVIDERS_TIMEOUT_MS. */
+function providerLoader(fetchFn, root, call) {
   /**
    * The registry read WITH its outcome, so "auth is off in this env" (status
    * 'ok', empty list) is told apart from "the hub could not be asked" (status
@@ -297,6 +305,11 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     }
   }
 
+  return loadProviders
+}
+
+/** native-auth-v1 §2 JSON writes through `call`. */
+function authPost(call) {
   /**
    * native-auth-v1 §2: POST a JSON body. Resolves (never throws) to
    * { ok, status, data, error, detail, retryAfter }: `error` is the envelope
@@ -332,39 +345,44 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     }
   }
 
+  return post
+}
+
+/**
+ * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,
+ * bad JSON) → 'unknown' — keep state, never treat as signed out.
+ * `pending` is the same GET already in flight (the head script's, P3-03):
+ * its answer is read instead; if it failed, the probe is sent again here.
+ * `mock` (specs/054 e2e) reads the mock's answer instead.
+ */
+async function probeSession(call, mock, pending) {
+  if (mock) {
+    // specs/054 e2e: the mock's answer lives in its lazy chunk (act-as-mock).
+    // Live never takes this.
+    return (await mockModule()).mockSessionAnswer()
+  }
+  let res
+  try {
+    const ask = () => call('/session', { cache: 'no-store' })
+    res = await (pending ? Promise.resolve(pending).catch(ask) : ask())
+  } catch {
+    return { state: 'unknown', claims: null }
+  }
+  if (res.status === 401) return { state: 'out', claims: null }
+  if (res.status !== 200) return { state: 'unknown', claims: null }
+  try {
+    return { state: 'in', claims: await res.json() }
+  } catch {
+    return { state: 'unknown', claims: null }
+  }
+}
+
+/**
+ * native-auth-v1 §2 sign-in and password calls, and the person's own
+ * settings (language, debug pane, name, interests, palette).
+ */
+function accountMethods(post) {
   return {
-    loadProviders,
-    /** Enabled providers in cnf order; [] = auth off (or unreachable → also []). */
-    async providers() {
-      return (await loadProviders()).providers
-    },
-    /**
-     * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,
-     * bad JSON) → 'unknown' — keep state, never treat as signed out.
-     * `pending` is the same GET already in flight (the head script's, P3-03):
-     * its answer is read instead; if it failed, the probe is sent again here.
-     */
-    async session(pending) {
-      if (mock) {
-        // specs/054 e2e: the mock's answer lives in its lazy chunk (act-as-mock).
-        // Live never takes this.
-        return (await import('./act-as-mock.mjs')).mockSessionAnswer()
-      }
-      let res
-      try {
-        const ask = () => call('/session', { cache: 'no-store' })
-        res = await (pending ? Promise.resolve(pending).catch(ask) : ask())
-      } catch {
-        return { state: 'unknown', claims: null }
-      }
-      if (res.status === 401) return { state: 'out', claims: null }
-      if (res.status !== 200) return { state: 'unknown', claims: null }
-      try {
-        return { state: 'in', claims: await res.json() }
-      } catch {
-        return { state: 'unknown', claims: null }
-      }
-    },
     /** §2 register; also "resend": the same email + password mails a fresh link. */
     register({ email, password, name } = {}) {
       const b = { email: String(email || ''), password: String(password || '') }
@@ -435,6 +453,15 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     saveTheme(theme) {
       return post('/preferences', { preferred_theme: String(theme || '') }, 'PUT')
     },
+  }
+}
+
+/**
+ * Settings -> Behaviour (submit key, rail order, view prefs) and the
+ * per-tenant workspace layout and switches (rdb 0076 / 0078).
+ */
+function layoutPreferenceMethods(post) {
+  return {
     /**
      * SPL-976: Settings -> Behaviour "Text fields" (humans.submit_key, the
      * field do_spl_human_behaviour sets). Sends ONLY that key. 200 → ok;
@@ -498,6 +525,27 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null
       return post('/preferences', { pane_sizes: obj }, 'PUT')
     },
+  }
+}
+
+export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false, mock = false } = {}) {
+  const root = authOrigin(base)
+  const call = authCall(fetchFn, root, locale, sendLocale)
+  const loadProviders = providerLoader(fetchFn, root, call)
+  const post = authPost(call)
+
+  return {
+    loadProviders,
+    /** Enabled providers in cnf order; [] = auth off (or unreachable → also []). */
+    async providers() {
+      return (await loadProviders()).providers
+    },
+    /** §4 signed-in probe: 'in' / 'out' / 'unknown' (probeSession). */
+    session(pending) {
+      return probeSession(call, mock, pending)
+    },
+    ...accountMethods(post),
+    ...layoutPreferenceMethods(post),
     /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
@@ -516,7 +564,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       if (mock) {
         // OPT-IN e2e mock: record the act-as so me() reports it (the hub's
         // cookie swap has no analogue with no hub). Live builds never take this.
-        const { mockActAsSet } = await import('./act-as-mock.mjs')
+        const { mockActAsSet } = await mockModule()
         mockActAsSet({ target_hum: id, expires_at: '' })
         return { ok: true, status: 200, data: { clone_hum: 'HUM-clone', target: id }, error: '', detail: '', retryAfter: 0 }
       }
@@ -525,7 +573,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     /** specs/054: stop acting (sign-out of the clone). 204 → the cookie is cleared. */
     async actAsExit() {
       if (mock) {
-        const { mockActAsClear } = await import('./act-as-mock.mjs')
+        const { mockActAsClear } = await mockModule()
         mockActAsClear()
         return true
       }
@@ -535,7 +583,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     async logout() {
       if (mock) {
         // clear the opt-in mock session + any act-as so a reload is signed out
-        const { mockSessionClear, mockActAsClear } = await import('./act-as-mock.mjs')
+        const { mockSessionClear, mockActAsClear } = await mockModule()
         mockSessionClear()
         mockActAsClear()
         return true

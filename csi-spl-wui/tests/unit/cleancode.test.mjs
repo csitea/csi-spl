@@ -35,7 +35,6 @@ const LONG = new Map([
   ['src/stores/channel.ts <anon>', 576],
   ['src/stores/live.ts setup', 304],
   ['src/stores/notification.ts <anon>', 430],
-  ['src/utils/auth-client.mjs createAuthClient', 326],
   ['src/utils/live-ws.mjs createLiveClient', 499],
   ['src/utils/spool-client.mjs createSpoolClient', 545],
 ])

@@ -587,7 +587,9 @@ _pp_part_wui() {
     fi
     if [[ ! -d node_modules ]] || ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
       echo "pre-push: WUI node_modules absent or built from another lockfile -- pnpm install --frozen-lockfile"
-      "$2" install --frozen-lockfile || exit 1
+      # CI=1 + </dev/null: after a lockfile bump pnpm asks "The modules directory
+      # will be removed ... Proceed?" and the hook waited on it unseen (SPL-1935).
+      CI=1 "$2" install --frozen-lockfile </dev/null || exit 1
     fi
     "$2" run test:unit || exit 1
     "$2" run typecheck  || exit 1

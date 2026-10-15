@@ -255,7 +255,7 @@ _pp_part_wui_e2e() {
     if [[ ! -d node_modules ]] || ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
       [[ -L node_modules ]] && rm -f node_modules
       echo "wui-e2e: pnpm install --frozen-lockfile"
-      "$(_pp_pnpm)" install --frozen-lockfile || exit 1
+      CI=1 "$(_pp_pnpm)" install --frozen-lockfile </dev/null || exit 1
     fi
     key="$(_ppe_bundle_key "$tree")"
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"

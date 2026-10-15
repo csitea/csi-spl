@@ -402,7 +402,7 @@ _ppl_run_one() {  # <scanner> <tree>
       _ppl_wui_modules || return 1
       ( cd "${_PP_TOP:-$tree}/csi-spl-wui" && node "$(_ppl_scripts)/wui-syntax-check.mjs" "${wf[@]}" ) || rc=1 ;;
     lint-wui-lock)
-      ( cd "$tree/csi-spl-wui" && "$(_pp_pnpm)" install --frozen-lockfile --lockfile-only --ignore-scripts --reporter=silent ) \
+      ( cd "$tree/csi-spl-wui" && CI=1 "$(_pp_pnpm)" install --frozen-lockfile --lockfile-only --ignore-scripts --reporter=silent </dev/null ) \
         || { echo "LOCKFILE csi-spl-wui/pnpm-lock.yaml does not match package.json -- run pnpm install and commit the lock"; rc=1; } ;;
     lint-gitleaks)
       local gbase; gbase="$(git -C "$tree" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)"
@@ -455,7 +455,7 @@ _ppl_wui_modules() {
   [[ -d "$wui/node_modules/typescript" && -d "$wui/node_modules/vue" ]] && return 0
   pn="$(_pp_pnpm)" || { echo "pnpm not found"; return 127; }
   echo "pre-push: WUI node_modules absent -- pnpm install --frozen-lockfile (once per worktree)"
-  ( cd "$wui" && export PATH="$HOME/.local/bin:$PATH" && "$pn" install --frozen-lockfile --reporter=silent )
+  ( cd "$wui" && export PATH="$HOME/.local/bin:$PATH" && CI=1 "$pn" install --frozen-lockfile --reporter=silent </dev/null )
 }
 
 # Forward-only + PG16 parse. On the BASE tree there is no edit to refuse and

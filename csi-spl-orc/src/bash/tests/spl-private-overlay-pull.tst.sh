@@ -8,7 +8,8 @@
 #   1. refusals: a bad FROM_BOX, DRY_RUN=2 - before any ssh call
 #   2. DRY_RUN is the default: reads the source shas, writes nothing
 #   3. DRY_RUN=0: both users, bytes equal, mode 600, owner, verify lines
-#   4. a second run: "already-there"; a changed source: "replaced"
+#   4. a second run: "already-there"; a changed source: "replaced"; a
+#      shared ~/.gcp (symlink) is pulled once, owned by the owner
 #   5. a source missing or empty for one user fails fast: nothing written
 #   6. a box answering to another BOX_TAG is refused; an unknown local user too
 #   7. the overlay content never reaches any output or argv
@@ -107,6 +108,14 @@ run_pull DRY_RUN=0 && grep -q "INFO agnt: already-there" "$T/o" && pass "second 
 put_src agnt c
 run_pull DRY_RUN=0 && grep -q "INFO agnt: replaced" "$T/o" && cmp -s "$(dst agnt)" "$T/remote/agnt/.gcp/.csi/csi-spl-private.yaml" &&
   pass "a changed source replaces the local copy" || fail "replace: $(cat "$T/o")"
+
+# --- 4b. a shared ~/.gcp (the agent's is a symlink to the owner's): one file, the owner's -------
+rm -rf "$T/local/agnt/.gcp"; ln -s "$T/local/ownr/.gcp" "$T/local/agnt/.gcp"
+run_pull DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/owners/$(stat -c %i "$(dst ownr)")")" == ownr ]] && grep -q "INFO agnt: .* one file, owned by ownr" "$T/o" &&
+  grep -q "WARN agnt's overlay on sat differs" "$T/o" && [[ "$(grep -c '^verify ' "$T/o")" == 1 ]] &&
+  pass "shared ~/.gcp: pulled once, owned by the owner, a differing source warned" || fail "shared: rc=$rc out=$(cat "$T/o")"
+rm -f "$T/local/agnt/.gcp"
 
 # --- 5. fail fast on a missing or empty source ------------------------------------------------
 rm -rf "$T/local/ownr/.gcp" "$T/local/agnt/.gcp"

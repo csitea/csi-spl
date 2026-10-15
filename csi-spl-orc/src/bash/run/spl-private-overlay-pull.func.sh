@@ -14,6 +14,8 @@
 # @description   4. verify: mode 600, owner, sha256 equal to the source's.
 # @description      Prints the path, mode, owner and "sha256_equal=yes|no";
 # @description      never the content or its sha.
+# @description A user whose ~/.gcp here is a symlink to the other's shares that
+# @description one file: it is pulled once, owned by the first (the owner).
 # @description A local copy that differs is replaced: the satellite holds the
 # @description master copy. Dry run unless DRY_RUN=0 (it reads the source
 # @description shas over ssh, writes nothing).
@@ -52,8 +54,17 @@ do_spl_private_overlay_pull() {
     return 0
   fi
 
-  local fails=0
+  local fails=0 real
+  local -A seen
   for u in "${users[@]}"; do
+    real="$(sudo -n readlink -f "${home[$u]}/.gcp" 2>/dev/null)"; real="${real:-${home[$u]}/.gcp}"
+    if [[ -n "${seen[$real]:-}" ]]; then
+      do_log "INFO $u: ${home[$u]}/.gcp is ${seen[$real]}'s $real here (a symlink): one file, owned by ${seen[$real]}"
+      [[ "${src_sha[$u]}" == "${src_sha[${seen[$real]}]}" ]] ||
+        do_log "WARN $u's overlay on $box differs from ${seen[$real]}'s: this box keeps ${seen[$real]}'s, sync the satellite"
+      continue
+    fi
+    seen[$real]="$u"
     spl_ppo_pull_one "$dest" "$u" "${home[$u]}" "${src_sha[$u]}" || fails=1
   done
   (( fails == 0 )) || return 1

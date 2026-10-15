@@ -41,7 +41,7 @@ Migration is `0199_fleet_token_burn.sql` (0198 was taken). The box CLI verb
 | **T020** | **Implemented** | `orc` | `collector-tokens` | **Incremental transcript parser for Claude, Vibe, and Grok** (§2.3). Bash/Python parser reading Claude `.jsonl` (taking MAX token usage per `message.id`), Vibe session journals and compacted `chunks/`, and Grok session updates. Extracts `tokens_in`, `tokens_out`, `cache_read`, `cache_write`, and model name without extracting any prompt or completion text.<br>• *Gate*: Unit test `spl-token-burn-parse.tst.sh` parses sample transcripts of all 3 vendors and produces exact token counts.<br>• *Red Control*: Streaming Claude chunks parsed naively without deduplicating `message.id` doubles token count; fixture verifies MAX deduplication produces exact expected count. |
 | **T021** | **Implemented** | `orc` | `collector-tokens` | **Agy unmetered detection & agent identity mapping** (§2.3.4, §2.5). Cross-reference active tmux panes, `/var/spool-hub/registry.tsv`, and project slugs (`-wt[0-9]*-<id>`). Detect running Agravity (agy) lanes and mark them `is_metered: false` and `vendor: agy`.<br>• *Gate*: Test with mock running agy session emits telemetry sample with `is_metered: false` and `tokens_in: 0`.<br>• *Red Control*: An agy session reported as metered with 0 tokens fails assertion requiring `is_metered: false`. |
 | **T022** | **Implemented** | `orc` | `collector-tokens` | **Persistent offset tracker & named action `do_spl_token_burn_collect`** (§2.1, §2.4). Implement `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh` with persistent `/var/csi/csi-spl/token-burn/collector-state.json`. Reads incremental byte offsets, detects inode rotations, batches delta samples, and pushes via WebSocket frame `lane_op fleet_tokens_push` using box CLI (`spool fleet-tokens push`) over the live session (owner decision 1 = B).<br>• *Gate*: `spl-token-burn-collect.tst.sh` verifies appending 500 bytes to transcript on second run transmits only the 500 new bytes.<br>• *Red Control*: Truncating transcript file or changing inode resets offset to 0 instead of reading past EOF. |
-| **T023** | **Planned** | `orc` | `collector-tokens` | **Box cron registration** (§2.1). Register `do_spl_token_burn_collect` in `cnf/box-crons/box-crons.manifest` to execute every 30 seconds on runner boxes.<br>• *Gate*: `spl-box-crons.tst.sh` validates manifest entry syntax and execution schedule.<br>• *Red Control*: Removing cron entry prevents collector action from running automatically. |
+| **T023** | **Planned (held: perf gate failed, 2.1)** | `orc` | `collector-tokens` | **Box cron registration** (§2.1). Register `do_spl_token_burn_collect` in `cnf/box-crons/box-crons.manifest` to execute every 30 seconds on runner boxes.<br>• *Gate*: `spl-box-crons.tst.sh` validates manifest entry syntax and execution schedule.<br>• *Red Control*: Removing cron entry prevents collector action from running automatically. |
 
 ### 2.1 As built (`collector-tokens`, SPL-2037)
 
@@ -85,6 +85,19 @@ Where the build differs from spec section 2, and why:
 - **Cron** (T023): `src/bash/scripts/token-burn-collect-cron.sh` runs 2 ticks a
   minute, 30 s apart, sourcing the two func files directly: `./run`'s start
   alone measured ~0.8 s on sat (n=3), more than a tick's budget.
+- **Performance gate: FAILED, so the cron entry (T023) stays OFF.** Measured on
+  sat (16 cores, 12 agent windows, load 13..99), code c7b5e8b0f (same logic as
+  487a20957), push off, as the cron runs it (2 ticks a minute):
+
+  | check | limit | measured | n | verdict |
+  |---|---|---|---|---|
+  | wall time per tick | p95 < 0.5 s | p95 1.10 s, p50 0.27 s, max 1.48 s (the cold first tick, 2.3 s, left out); in the lower-load stretch (19:06-19:21Z, load ~13) p95 0.33 s | 89 ticks, 18:37-19:21Z | fail |
+  | CPU | < 1% of one core | 5.74 s over 900 s = 0.64% of one core (bash `times` of the cron loop's children) | 15 runs (30 ticks) | pass |
+  | agent turn time, on vs off | no measurable slowdown | stand-in workload `spl-cost-tokens-read.tst.sh`: median 884 ms on vs 714 ms off (+24%, 95% CI of the median difference +143..+199 ms); arm pairs off/on 673/967, 668/647, 1112/2323 ms while the box load rose 13 -> 99, so the load swing confounds it | 667 on, 866 off, 6 arms of 4 min, 19:21-19:45Z | not shown to be safe |
+
+  Wall time is the blocking miss: ticks over 0.5 s are the 5-minute full dir
+  listings and the ticks on a loaded box. The owner decides the next step
+  (c-002, dispatch-e8ae0aad); nothing was tuned after measuring.
 
 ---
 

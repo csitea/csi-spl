@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,39 @@ func TestKey(t *testing.T) {
 	}
 	if _, err := Key("t1", "../../etc/passwd"); err == nil {
 		t.Fatal("path traversal accepted as file_id")
+	}
+}
+
+// r12-08: AvatarKey takes exactly a lowercase 64-hex sha256 and keys it
+// outside every tenant prefix.
+func TestAvatarKey(t *testing.T) {
+	id := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	for _, tc := range []struct {
+		name, in, want string
+	}{
+		{"valid sha256", id, "avatars/" + id},
+		{"all zero", strings.Repeat("0", 64), "avatars/" + strings.Repeat("0", 64)},
+		{"empty", "", ""},
+		{"63 hex", id[:63], ""},
+		{"65 hex", id + "0", ""},
+		{"uppercase hex", strings.ToUpper(id), ""},
+		{"non-hex g", "g" + id[1:], ""},
+		{"path traversal", "../../etc/passwd", ""},
+		{"slash inside", id[:32] + "/" + id[33:], ""},
+		{"trailing newline", id + "\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k, err := AvatarKey(tc.in)
+			if tc.want == "" {
+				if err == nil || k != "" {
+					t.Fatalf("AvatarKey(%q) = %q, %v; want an error", tc.in, k, err)
+				}
+				return
+			}
+			if err != nil || k != tc.want {
+				t.Fatalf("AvatarKey(%q) = %q, %v; want %q", tc.in, k, err, tc.want)
+			}
+		})
 	}
 }
 

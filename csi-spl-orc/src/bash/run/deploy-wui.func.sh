@@ -30,6 +30,7 @@
 # @param DEPLOY_LOCK_WAIT_S (optional) - seconds to wait for another deploy's lock, default 0 (refuse)
 # @param DEPLOY_LOCK_DIR / DEPLOY_WORK_DIR (optional) - lock dir / parent of the checkout, default under $TMPDIR
 # @param KEEP_WORKTREE (optional) - 1 keeps the deploy checkout for a post-mortem
+# @param FIREBASE_NODE_VERSION (optional) - the node firebase-tools runs on, default 22.20.0
 # @example ENV=dev ./run -a do_deploy_wui
 # @example ENV=dev DRY_RUN=0 ./run -a do_deploy_wui
 # @example ENV=prd DRY_RUN=0 SHA=3ce48b5d5 WUI_SUITE=0 ./run -a do_deploy_wui
@@ -165,7 +166,7 @@ _deploy_wui_steps() {
   local fbcfg rc=0
   fbcfg="$(mktemp -d)" || return 1
   (cd "$w" && GOOGLE_APPLICATION_CREDENTIALS="$key" XDG_CONFIG_HOME="$fbcfg" \
-    pnpm dlx firebase-tools@13 deploy --only hosting --project "$(_deploy_wui_val "$cfg" project)" --non-interactive) || rc=$?
+    pnpm --config.use-node-version="${FIREBASE_NODE_VERSION:-22.20.0}" dlx firebase-tools@13 deploy --only hosting --project "$(_deploy_wui_val "$cfg" project)" --non-interactive) || rc=$?
   rm -rf "$fbcfg"
   ((rc == 0)) || { do_log "FATAL firebase deploy failed (rc $rc)"; return 1; }
 

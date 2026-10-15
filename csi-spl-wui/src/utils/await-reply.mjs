@@ -41,8 +41,14 @@ export const AWAIT_ANIMATIONS = Object.freeze({
   brain: Object.freeze({ kind: 'css', className: 'await-anim--brain' }),
 })
 
-/** The ids a person can pick, in the order the setting lists them. */
-export const AWAIT_ANIM_IDS = Object.freeze(Object.keys(AWAIT_ANIMATIONS))
+/**
+ * The ids a person can pick, in the order the setting lists them. A literal,
+ * not Object.keys(AWAIT_ANIMATIONS): that top-level call reads as a side
+ * effect, so Nuxt's auto-import barrel kept this whole module in the entry
+ * chunk (ci_initial_gzip_kb 154.6 -> 155.3 KB, over 155). A unit test keeps
+ * the two in step.
+ */
+export const AWAIT_ANIM_IDS = Object.freeze(['hourglass', 'robot', 'brain'])
 
 /** The entry for `id`; the default one for an unknown or empty id. */
 export function awaitAnimation(id) {

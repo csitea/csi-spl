@@ -1,5 +1,5 @@
 import { useSessionStore } from '~/stores/session'
-import { DEFAULT_AWAIT_ANIM, readAwaitAnim, writeAwaitAnim } from '~/utils/await-reply.mjs'
+import { AWAIT_ANIM_IDS, DEFAULT_AWAIT_ANIM, readAwaitAnim, writeAwaitAnim } from '~/utils/await-reply.mjs'
 
 /**
  * SPL-2027: the person's own "thinking" animation (Settings -> Appearance),
@@ -18,5 +18,5 @@ export function useAwaitAnim() {
     pick.value = import.meta.client ? writeAwaitAnim(session.claims, id) : id
   }
 
-  return { pick, setPick }
+  return { pick, ids: AWAIT_ANIM_IDS as readonly string[], setPick }
 }

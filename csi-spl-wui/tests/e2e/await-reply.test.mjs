@@ -23,6 +23,15 @@
 //   8 HUM-1 sends `@CLE-07 ...`: the row is still pending (no ack) and the
 //     hourglass already spins on it
 //   9 the ack is released: the row is stored and keeps spinning
+// SPL-2027 (owner msgs c4aae6fc, 1689b768, f7779032): more animations, a
+// per-person pick, 20% bigger:
+//   R1 Settings -> Appearance lists hourglass, robot, brain; pick robot
+//   R2 send a post in topic A: once the hub has it, the ROBOT runs on it
+//   R3 the mark's box is still 16 px, the drawing 16.8 px (20% over 14), and
+//      the post's header row is as tall as one with no mark (no shift)
+//   R4 reduced motion: the robot stands still
+//   R5 pick brain: the brain swells; a reload keeps the pick
+//   R6 phone 390 px: the brain, same box, same size
 //
 //   node tests/e2e/await-reply.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/await-reply.test.mjs
@@ -106,6 +115,26 @@ function fakeClock() {
     ? realSet(() => { offset += Number(ms); fn(...rest) }, 300)
     : realSet(fn, ms, ...rest))
 }
+
+/* the mark on post `id` in the right pane: its box, its drawing, the header row, every animation in it */
+const markLook = (p, id) => p.evaluate((id) => {
+  const el = id
+    ? document.querySelector(`.live-pane article.msg[data-msg-id="${id}"] [data-test=await-reply]`)
+    : document.querySelector('[data-test=await-reply][data-state=spin]')
+  if (!el) return null
+  const g = el.querySelector('.await-reply__glyph')
+  const box = el.getBoundingClientRect()
+  const gl = g.getBoundingClientRect()
+  /* scoped keyframes carry a hash suffix (await-robot-4504b6f2): keep the base name */
+  const names = [...new Set([g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none').map((n) => n.replace(/-[0-9a-f]{8}$/, '')))]
+  const r1 = (x) => Math.round(x * 10) / 10
+  return { anim: el.getAttribute('data-anim'), state: el.getAttribute('data-state'), boxW: r1(box.width), boxH: r1(box.height), glyphW: r1(gl.width), rowH: r1(el.parentElement.getBoundingClientRect().height), names }
+}, id)
+/* the header row height of a post with no mark, for the no-shift check */
+const plainRowH = (p) => p.evaluate(() => {
+  const t = [...document.querySelectorAll('.live-pane article.msg .msg-time')].find((e) => !e.parentElement.querySelector('[data-test=await-reply]'))
+  return t ? Math.round(t.parentElement.getBoundingClientRect().height * 10) / 10 : null
+})
 
 async function shot(p, name) {
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `await-reply-${name}.png`) })
@@ -233,6 +262,75 @@ try {
   for (let i = 0; i < 30 && (!s9 || s9.pending); i++) { await sleep(100); s9 = await own() }
   ok('9 ack released: the stored row keeps spinning', Boolean(s9 && !s9.pending && s9.state === 'spin'), s9)
   await hctx.close()
+  /* SPL-2027: the person picks the robot in Settings, then sends */
+  const r = await ctx.newPage()
+  r.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  await r.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
+  await r.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
+  await r.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
+  await r.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-robot]', { timeout: NAV })
+  const opts = await r.evaluate(() => [...document.querySelectorAll('[data-test=await-anim-setting] input[type=radio]')].map((i) => ({ v: i.value, on: i.checked })))
+  ok('R1 Settings -> Appearance lists hourglass (picked), robot, brain', JSON.stringify(opts) === JSON.stringify([{ v: 'hourglass', on: true }, { v: 'robot', on: false }, { v: 'brain', on: false }]), opts)
+  await r.click('[data-test=await-anim-robot]')
+  await sleep(200)
+  const stored = await r.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1'))
+  ok('R1 ... robot picked, kept for HUM-1 in this browser', stored === 'robot', stored)
+  await shot(r, 'R1-settings')
+  await r.keyboard.press('Escape')
+  await r.waitForFunction(() => !document.querySelector('[data-test=await-anim-setting]'), { timeout: 5000 }).catch(() => {})
+  await r.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`, { timeout: NAV })
+  await r.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
+  await r.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"]`, { timeout: NAV })
+  const SENT = `robot ${Date.now().toString(36)}`
+  await r.focus('form.omnibox--global textarea')
+  await r.keyboard.type(SENT)
+  await r.keyboard.press('Enter')
+  const sentId = async () => r.evaluate((t) => {
+    const el = [...document.querySelectorAll('.live-pane article.msg[data-msg-id]')].find((e) => (e.querySelector('.msg-body')?.textContent || '').trim() === t)
+    return el && el.querySelector('[data-test=await-reply]') ? el.getAttribute('data-msg-id') : null
+  }, SENT)
+  let rid = null
+  for (let i = 0; i < 30 && !rid; i++) { await sleep(150); rid = await sentId() }
+  const robot = rid ? await markLook(r, rid) : null
+  ok('R2 the just-sent post shows the ROBOT, running', robot?.anim === 'robot' && robot.state === 'spin' && robot.names.includes('await-robot') && robot.names.includes('await-robot-limb'), robot)
+  await shot(r, 'R2-robot')
+  const plain = await plainRowH(r)
+  ok('R3 box unchanged 16x16, drawing 16.8 px (20% over 14), header row as tall as a post with no mark', robot?.boxW === 16 && robot.boxH === 16 && robot.glyphW >= 16.5 && robot.glyphW <= 17.1 && plain !== null && Math.abs(robot.rowH - plain) < 0.5, { robot, plain })
+  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await sleep(200)
+  const robotStill = rid ? await markLook(r, rid) : null
+  ok('R4 reduced motion: the robot stands still', robotStill?.anim === 'robot' && robotStill.names.length === 0, robotStill)
+  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+
+  await r.evaluate(() => localStorage.setItem('spool-await-anim:t1:HUM-1', 'brain'))
+  await r.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
+  await r.waitForSelector('[data-test=await-anim-brain]', { timeout: NAV })
+  const brainOn = await r.evaluate(() => document.querySelector('[data-test=await-anim-brain]').checked)
+  ok('R5 a reload keeps the pick (brain checked)', brainOn === true, brainOn)
+  await r.keyboard.press('Escape')
+  await r.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  await r.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
+  await r.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  const brain = await markLook(r, A_POST)
+  ok('R5 the brain swells and pops on the waiting post', brain?.anim === 'brain' && brain.names.includes('await-brain') && brain.names.includes('await-brain-burst') && brain.boxW === 16, brain)
+  await shot(r, 'R5-brain')
+  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await sleep(200)
+  const brainStill = await markLook(r, A_POST)
+  ok('R4 reduced motion: the brain stands still', brainStill?.names.length === 0, brainStill)
+  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+
+  const rp = await ctx.newPage()
+  rp.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  await rp.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
+  await rp.setViewport({ width: 390, height: 844 })
+  await rp.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await rp.waitForSelector('.spool-shell', { timeout: NAV })
+  await applyViewport(rp, { name: '390', width: 390, height: 844 })
+  await rp.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  const phone = await markLook(rp, null)
+  ok('R6 phone 390 px: the brain, 16 px box, 16.8 px drawing', phone?.anim === 'brain' && phone.boxW === 16 && phone.glyphW >= 16.5 && phone.names.includes('await-brain'), phone)
+  await shot(rp, 'R6-phone-brain')
 
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {

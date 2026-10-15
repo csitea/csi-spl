@@ -8,7 +8,7 @@
     <span id="await-anim-label">{{ t('settings.await_anim.label') }}</span>
     <div class="await-anim-setting__opts" role="radiogroup" aria-labelledby="await-anim-label">
       <label
-        v-for="id in AWAIT_ANIM_IDS"
+        v-for="id in ids"
         :key="id"
         class="await-anim-setting__opt"
         :class="{ 'await-anim-setting__opt--on': pick === id }"
@@ -21,7 +21,7 @@
           :data-test="`await-anim-${id}`"
           @change="setPick(id)"
         />
-        <AwaitReply state="spin" :anim="id" preview />
+        <LazyAwaitReply state="spin" :anim="id" preview />
         {{ t('settings.await_anim.' + id) }}
       </label>
     </div>
@@ -29,12 +29,10 @@
 </template>
 
 <script setup lang="ts">
-import AwaitReply from '~/components/AwaitReply.vue'
 import { useAwaitAnim } from '~/composables/useAwaitAnim'
-import { AWAIT_ANIM_IDS } from '~/utils/await-reply.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
-const { pick, setPick } = useAwaitAnim()
+const { pick, ids, setPick } = useAwaitAnim()
 </script>
 
 <style scoped>

@@ -189,6 +189,10 @@ describe('SPL-2027: a running robot and a popping brain', () => {
     })
   }
 
+  it('the pick list names every entry, in order (a literal, kept off the entry chunk)', () => {
+    assert.deepEqual([...AWAIT_ANIM_IDS], Object.keys(AWAIT_ANIMATIONS))
+  })
+
   it('the hourglass stays first and the default', () => {
     assert.equal(AWAIT_ANIM_IDS[0], 'hourglass')
     assert.equal(DEFAULT_AWAIT_ANIM, 'hourglass')

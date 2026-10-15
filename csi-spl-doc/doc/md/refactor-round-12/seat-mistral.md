@@ -1,6 +1,6 @@
 # Round 12 - mistral seat
 
-Editor: a-563@PC (agy). Signed: pending.
+Editor: a-563@PC (agy). Signed: m-213@sat on 26805ed51.
 
 | #  | Command (from plan) | Output (on `e42286100`) | Verdict |
 |----|---------------------|--------------------------|---------|

@@ -123,9 +123,11 @@ run in CI.
   10 by the 10-row cap.
 - **The isolated-config scan is blind to the helper form** (found by c-139,
   22:04Z): of the 23 files that call `spl_gcp_temp_sdk_config || return 1`,
-  **10** are scanned by part 3 of `gcp-actions-isolated-config.tst.sh` (it
-  only looks at `gcp-*.func.sh` files that run `gcloud auth activate`/`login`
-  themselves); in the other 13, deleting the call keeps the test green.
+  **11** are scanned by part 3 of `gcp-actions-isolated-config.tst.sh` (it
+  only looks at `run/gcp-*.func.sh` and 2 lib helpers that run `gcloud auth
+  activate`/`login` themselves); in the other 12, deleting the call keeps the
+  test green (12 corrected from 13 by the round 11 mistral seat, `7342fa401`:
+  the first count left out the scanned lib helper `gcp-project-apis`).
   Measured with a loop over `git grep -l '^\s*spl_gcp_temp_sdk_config || return 1' -- src/bash/run lib/bash/funcs`
   in `csi-spl-iac`, counting files whose activation count is non-zero.
 - **No test refuses a box-absolute `source`:** the row 05 red was caught by
@@ -190,7 +192,7 @@ to the orchestrator with the kept list.
    that every `ran:` test file appears as a command in the `log:` file. The
    rulebook's 2.7.4 line format changes with it.
 2. **Test gap:** extend part 3 of `gcp-actions-isolated-config.tst.sh` to
-   every helper caller (13 blind of 23).
+   every helper caller (12 blind of 23).
 3. **Gate gap:** a static test refusing a box-absolute `source`/`.` line in
    `run/` and `lib/` bash (the row 05 red).
 4. **Gate gap:** the pre-push hook runs the same review-line check as

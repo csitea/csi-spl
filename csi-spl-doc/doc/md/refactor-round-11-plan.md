@@ -7,8 +7,9 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 nothing queued). Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920.
 
-**Status: v0.1, DRAFT** for the panel (section 9). The rows spawn from the
-signed v1.0 sha (rulebook 1.4: consensus, then build, no second go).
+**Status: v1.0**, folds the mistral seat (`7342fa401`, 10 of 10 agree;
+section 8), for signature (section 9). The rows spawn from the signed v1.0
+sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **c-156@sat** (claude).
 
@@ -52,7 +53,7 @@ Editor: **c-156@sat** (claude).
 | source | command | n | row |
 |---|---|---|---|
 | retro 7.5 | `git grep -l 'local _spl_sdk_saved="${CLOUDSDK_CONFIG-}"' eb1d01ae1 -- csi-spl-iac \| wc -l` | 3 files | 01 |
-| retro 7.2 | loop over `git grep -l '^\s*spl_gcp_temp_sdk_config \|\| return 1' -- src/bash/run lib/bash/funcs` (in `iac:`), counting the files part 3 of `gcp-actions-isolated-config.tst.sh` scans (a `gcp-*.func.sh` with a `gcloud auth activate`/`login` line) | 23 callers, 10 scanned, 13 blind | 02 |
+| retro 7.2 | loop over `git grep -l '^\s*spl_gcp_temp_sdk_config \|\| return 1' -- src/bash/run lib/bash/funcs` (in `iac:`), counting the files part 3 of `gcp-actions-isolated-config.tst.sh` scans (a `run/gcp-*.func.sh`, or the lib helpers `gcp-each-env-sa`/`gcp-project-apis`, with a `gcloud auth activate`/`login` line) | 23 callers, 11 scanned, 12 blind | 02 |
 | retro 7.3 | `git grep -nE '^\s*(source\|\.) +"?/opt/' eb1d01ae1 -- 'csi-spl-iac/src/bash/run/' 'csi-spl-orc/src/bash/run/' 'csi-spl-iac/lib/' 'csi-spl-orc/lib/' \| wc -l`; `git grep -l '/opt/csi' -- 'csi-spl-iac/src/bash/tests/*' \| grep -c no-box` | 0 sites, 0 tests (round 10 had 5 sites for 1 h 43 min) | 03 |
 | retro 7.1 | `grep -n 'PASS \[0-9a-f\]{7,40}' csi-spl-orc/src/bash/run/spl-push-master.func.sh` -> line 137; `grep -c '\| log:'` on the same file -> 0 | the gate takes any 7-40 hex and asks for no `log:` | 04 |
 | retro 7.4 | `git grep -n -i review eb1d01ae1 -- csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push \| wc -l` | 0 | 05 |
@@ -67,7 +68,7 @@ Editor: **c-156@sat** (claude).
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r11-01-bash-temp-sdk-config-last-three)` | DRY | the last 3 copies of the 4-line block | `iac:src/bash/run/gcp-import-to-cloudsql.func.sh:10`<br>`…/gcp-project-delete.func.sh:12`<br>`…/gcp-sync-src-s3-to-tgt-s3-silent.func.sh:8` | 3 files | the r10-04 pattern (`spl_gcp_temp_sdk_config` + caller RETURN trap; the helper sourced relative to the action behind `declare -F`, as `6535dd26d`, **never** an `/opt/...` path). Tests: `gcp-actions-isolated-config.tst.sh`, `gcp-temp-sdk-config.tst.sh`, `return-not-exit-gcp.tst.sh`, `gcp-key-path-no-eval.tst.sh`, `bash-cleancode.tst.sh` (run, **not edited**: the two LONG functions shrink by 1, a NOTE only). **Control:** the old-literal grep -> 0 on `iac:`; `wc -l` per file +1 (C3); the tests run once from a copy of the tree outside `/opt/csi/csi-spl` (CI shape, retro 6) | sat | claude (grok out) | simple_coding | 1 |
-| 02 `test(r11-02-isolated-config-scan-helper-callers)` | test gap | 13 of 23 helper callers unscanned | `iac:src/bash/tests/gcp-actions-isolated-config.tst.sh:97-112` | 13 blind | part 3 also scans every `run/` and `lib/` file that calls `spl_gcp_temp_sdk_config`: each has the call as `\|\| return 1` and the caller RETURN trap `spl_gcp_temp_sdk_config_restore`. **Red control:** a temp copy of one blind file (e.g. `spl-gh-app-key-put.func.sh`) with the call deleted fails; the real tree passes with 26 callers after 01 | sat | claude | tests | 2 (after 01: its count) |
+| 02 `test(r11-02-isolated-config-scan-helper-callers)` | test gap | 12 of 23 helper callers unscanned | `iac:src/bash/tests/gcp-actions-isolated-config.tst.sh:97-112` | 12 blind | part 3 also scans every `run/` and `lib/` file that calls `spl_gcp_temp_sdk_config`: each has the call as `\|\| return 1` and the caller RETURN trap `spl_gcp_temp_sdk_config_restore`. **Red control:** a temp copy of one blind file (e.g. `spl-gh-app-key-put.func.sh`) with the call deleted fails; the real tree passes with 26 callers after 01 | sat | claude | tests | 2 (after 01: its count) |
 | 03 `test(r11-03-no-box-path-source)` | gate, nothing ad hoc | a fixed box path in a `source` line broke every iac action (r10-05) | new `iac:src/bash/tests/no-box-path-source.tst.sh` | 0 tests | fails on any `source`/`.` line under `csi-spl-{iac,orc}/src/bash/run/` and `csi-spl-{iac,orc}/lib/` whose path starts with `/opt/`, `/home/` or `/mnt/` (comments skipped). **Red control:** a temp fixture holding `source "/opt/csi/x/lib.func.sh" \|\| exit 1` fails, the `6535dd26d` relative form passes; the real tree passes (0 sites). Runs in the iac suite (`run-all-tests.sh` picks up `*.tst.sh`) | sat | mistral (backup claude after 2 tries) | tests (R14) | 1 |
 | 04 `ci(r11-04-push-master-review-line-checkable)` | review before merge, gate | a typed sha passed; no pointer to the run | `orc:src/bash/run/spl-push-master.func.sh:130-139`<br>`orc:src/bash/tests/spl-push-master.tst.sh`<br>`csi-spl-doc/doc/md/rounds-rulebook.md` (2.7.4) | 0 checks | `_spl_push_master_unreviewed` also refuses a row whose review line's sha is not 40 hex or does not resolve (`git rev-parse --verify -q <sha>^{commit}`, after fetching `review/<round>-NN`), or has no `\| log: \S+@\S+:\S+`: `REFUSED round row <sha> review line: <reason>`. Rulebook 2.7.4 gets the format of section 1, and its qto doc `e621cc32` the same edit (the `11cd0c0c4` path: desk doctree on prd, export byte-equal). **Red control:** fixtures `refactor(r99-01-x)` with a 39-char sha, an unresolvable 40-char sha, no `log:`: refused; the full line passes; a `docs(...)` commit passes. R9: `PRE_PUSH_TIER=full` | sat | claude | simple_coding (R14) | 1 |
 | 05 `ci(r11-05-pre-push-hook-review-line)` | gate | a hand `git push` skips row 04 | `orc:src/bash/features/spawn-agents/hooks/pre-push`<br>new `orc:src/bash/features/spawn-agents/tests/test-pre-push-review-line.sh` | 0 | the hook runs row 04's check (one shared helper, sourced, not copied) on the commits it pushes to master, `SPL_PREPUSH_OVERRIDE` included. **Red control:** a scratch repo pushing a row commit with no line, then with a typed sha: refused by the hook; with the full line: pushed. R9 | sat | claude | simple_coding (R14) | 2 (after 04: the helper) |
@@ -137,11 +138,10 @@ spool before batch 1 spawns. The spawner re-runs `--check` per row (R3).
 agy is out until about 2026-10-15T09:40Z, grok has none (`402`). The plan
 has no multilingual text: no agy language review is needed.
 
-- **Signing panel:** the editor c-156@sat (claude), a **mistral seat** placed
-  now, and an **agy seat** placed when agy's quota is back (about 09:40Z).
-  If the agy seat cannot start, a second claude seat signs instead (round
-  10's way), and R7.5 still holds because rows are reviewed cross-vendor
-  (below).
+- **Signing panel:** the editor c-156@sat (claude) and the **mistral seat**
+  m-159@sat: two vendors. No agy seat signs: waiting for agy's quota (about
+  09:40Z) would hold 10 rows for some 2.5 h, and the panel is already
+  cross-vendor. agy joins as a row reviewer when it is back.
 - Seats write `refactor-round-11/seat-<vendor>.md` (verdict per row: agree,
   agree with changes, disagree, with the command behind any change), commit
   that file only (R7.6), then sign the editor's v1.0 sha. Seats stay up until
@@ -177,14 +177,20 @@ has no multilingual text: no agy language review is needed.
 
 ## 8. Changes
 
-- v0.1 (this draft): from the round 10 retro section 7, measured on
+- v0.1 (`102f8b5c2`): from the round 10 retro section 7, measured on
   `eb1d01ae1`.
+- v1.0: folds `refactor-round-11/seat-mistral.md` (m-159@sat, `7342fa401`:
+  10 agree, R1 holds). Re-checked by the editor against the seat's commands:
+  row 02's blind count is **12**, not 13 (the seat's count is right: the
+  first count left out `gcp-project-apis.func.sh`, which part 3 scans; 23
+  callers, 11 scanned). The retro's section 4 and 7.2 carry the same fix.
+  The agy seat is dropped from signing (section 5).
 
 ## 9. Consensus
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (claude) | c-156@sat | draft v0.1 | this file |
-| mistral seat | to be placed | - | `refactor-round-11/seat-mistral.md` |
-| agy seat | placed at agy's quota return (about 09:40Z) | - | `refactor-round-11/seat-agy.md` |
+| editor (claude) | c-156@sat | v1.0 (this commit) | this file |
+| mistral seat | m-159@sat | verdict `7342fa401` (10 agree, folded in v1.0); signs v1.0 | `refactor-round-11/seat-mistral.md` |
+| agy | not a signing seat (section 5); row reviewer when its quota is back | - | - |
 | grok seat | none: no quota (`402`) | - | - |

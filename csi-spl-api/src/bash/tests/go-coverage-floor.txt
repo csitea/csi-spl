@@ -11,7 +11,10 @@
 # -cover ./cmd/spool/, go1.26.9, tree f007a54d6, n=3 read 74.3 each (r9-02's
 # cli_inspect_test.go took it 63.6 -> 68.5, r9-01's cli_fs_test.go 60.7 -> 63.6).
 cmd/spool 75.6
-internal/action 70.3
+# internal/action: 71.1 with action_test.go TestJSON (r12-09), 70.8 without
+# (469/660 vs 467/660 statements); go test -count=1 -cover ./internal/action/,
+# go1.26.9, n=3 read 71.1 each.
+internal/action 71.1
 internal/agentid 97.0
 internal/auth/cmd/auth-demo 0.0
 internal/auth/fakeidp 3.5

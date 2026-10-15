@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Denkanimatie",
+      "rotate": "Afwisselend",
       "hourglass": "Zandloper",
       "robot": "Rennende robot",
       "brain": "Brein"

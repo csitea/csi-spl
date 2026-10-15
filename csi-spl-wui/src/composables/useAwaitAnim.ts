@@ -1,5 +1,5 @@
 import { useSessionStore } from '~/stores/session'
-import { AWAIT_ANIM_IDS, DEFAULT_AWAIT_ANIM, readAwaitAnim, writeAwaitAnim } from '~/utils/await-reply.mjs'
+import { AWAIT_ANIM_IDS, AWAIT_ROTATE_ORDER, DEFAULT_AWAIT_ANIM, createRotateClock, readAwaitAnim, writeAwaitAnim } from '~/utils/await-reply.mjs'
 
 /**
  * SPL-2027: the person's own "thinking" animation (Settings -> Appearance),
@@ -19,4 +19,26 @@ export function useAwaitAnim() {
   }
 
   return { pick, ids: AWAIT_ANIM_IDS as readonly string[], setPick }
+}
+
+/* SPL-2043: one clock and one drawing for every rotating mark in this tab */
+let clock: ReturnType<typeof createRotateClock> | null = null
+const rotateNow = ref<string>(AWAIT_ROTATE_ORDER[0])
+
+/**
+ * SPL-2043: the drawing `rotate` shows now, while `active` (spinning, motion
+ * welcome) holds; the first drawing, still, otherwise. Every caller shares the
+ * one clock; it stops when the last active mark goes (unmount included).
+ */
+export function useAwaitRotate(active: Ref<boolean>) {
+  let stop: (() => void) | null = null
+  const off = () => { stop?.(); stop = null }
+  const on = () => {
+    if (stop || !import.meta.client) return
+    clock ??= createRotateClock()
+    stop = clock.subscribe((id: string) => { rotateNow.value = id })
+  }
+  watch(active, (a) => (a ? on() : off()), { immediate: true })
+  onScopeDispose(off)
+  return computed(() => (active.value ? rotateNow.value : AWAIT_ROTATE_ORDER[0]))
 }

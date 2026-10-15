@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Mąstymo animacija",
+      "rotate": "Pakaitomis",
       "hourglass": "Smėlio laikrodis",
       "robot": "Bėgantis robotas",
       "brain": "Smegenys"

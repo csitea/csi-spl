@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Animacja myślenia",
+      "rotate": "Na zmianę",
       "hourglass": "Klepsydra",
       "robot": "Biegnący robot",
       "brain": "Mózg"

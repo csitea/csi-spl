@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Animație de gândire",
+      "rotate": "Pe rând",
       "hourglass": "Clepsidră",
       "robot": "Robot care aleargă",
       "brain": "Creier"

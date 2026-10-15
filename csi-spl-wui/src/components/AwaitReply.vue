@@ -16,6 +16,12 @@
      overflows its unchanged 16 px box, so the post's text and row height stay
      put. Reduced motion: every drawing stands still.
 
+     SPL-2043 (owner HUM-10, t1 72898ea2 msgs c48092cf, 19feedf8): the pick
+     `rotate`, now the default, takes the drawings in turn, ~3 s each, all the
+     time while it spins; every rotating mark shares one clock
+     (useAwaitRotate). Reduced motion or `wait`: the hourglass, still. Every
+     drawing another 20% bigger (16.8 -> 20.16 px), still in the 16 px box.
+
      Lazy (LazyAwaitReply) and on demand: its strings wait in the second
      catalogue (utils/i18n-first-screen.mjs) and it renders nothing until
      they are merged. CSP: classes only, no :style. -->
@@ -28,6 +34,7 @@
     :data-test="preview ? 'await-reply-preview' : 'await-reply'"
     :data-state="state"
     :data-anim="look.id"
+    :data-pick="chosen"
     :aria-label="preview ? undefined : label"
     :aria-hidden="preview ? 'true' : undefined"
     :title="preview ? undefined : label"
@@ -57,7 +64,7 @@
       aria-hidden="true"
     />
     <!-- a small robot running to the right: legs and arms swing, it bobs -->
-    <svg v-else-if="look.id === 'robot'" class="await-reply__glyph" viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" focusable="false">
+    <svg v-else-if="look.id === 'robot'" class="await-reply__glyph" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
         <path class="await-robot__speed" d="M.8 6.5h2M.4 9.5h2.4" stroke-width="1" />
         <path d="M8 2.6V1.2" />
@@ -72,14 +79,14 @@
       <circle cx="9.7" cy="4.6" r=".9" fill="currentColor" />
     </svg>
     <!-- a brain thinking too hard: it swells, pops in a burst, comes back -->
-    <svg v-else-if="look.id === 'brain'" class="await-reply__glyph" viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" focusable="false">
+    <svg v-else-if="look.id === 'brain'" class="await-reply__glyph" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
       <g class="await-brain__head" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M8 3.4c-.9-1-2.8-.9-3.4.4-1.4.1-2.3 1.3-1.9 2.6-1 .8-1 2.4.1 3.1-.1 1.4 1 2.5 2.4 2.3.6 1 2.1 1.2 2.8.3.7.9 2.2.7 2.8-.3 1.4.2 2.5-.9 2.4-2.3 1.1-.7 1.1-2.3.1-3.1.4-1.3-.5-2.5-1.9-2.6-.6-1.3-2.5-1.4-3.4-.4z" />
         <path d="M8 3.4v8.9M5.4 6.3c.9.1 1.5.7 1.6 1.5M10.6 6.3c-.9.1-1.5.7-1.6 1.5M5.6 9.8c.7-.5 1.6-.4 2.1.2M10.4 9.8c-.7-.5-1.6-.4-2.1.2" stroke-width="1" />
       </g>
       <path class="await-brain__burst" d="M8 .3v1.6M8 14.1v1.6M.3 8h1.6M14.1 8h1.6M2.6 2.6l1.1 1.1M12.3 12.3l1.1 1.1M13.4 2.6l-1.1 1.1M3.7 12.3l-1.1 1.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
     </svg>
-    <svg v-else class="await-reply__glyph" viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" focusable="false">
+    <svg v-else class="await-reply__glyph" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
       <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 3 4.5 3 6.5S5 11.5 5 14.5M11 1.5c0 3-3 4.5-3 6.5s3 3.5 3 6.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M6.3 13.6 8 11.4l1.7 2.2z" fill="currentColor" />
     </svg>
@@ -87,22 +94,33 @@
 </template>
 
 <script setup lang="ts">
-import { awaitAnimation } from '~/utils/await-reply.mjs'
-import { useAwaitAnim } from '~/composables/useAwaitAnim'
+import { ROTATE_AWAIT_ANIM, awaitAnimation } from '~/utils/await-reply.mjs'
+import { useAwaitAnim, useAwaitRotate } from '~/composables/useAwaitAnim'
 
 /* `anim` unset = the person's own pick; `preview` = the setting's sample */
 const props = withDefaults(defineProps<{ state: 'spin' | 'wait', anim?: string, preview?: boolean }>(), { anim: '', preview: false })
 const { pick } = useAwaitAnim()
+/* the pick this mark draws: its own `anim`, else the person's */
+const chosen = computed(() => props.anim || pick.value)
 const { t, te } = useI18n({ useScope: 'global' })
 /* the second catalogue holds the label; until it is merged nothing shows */
 const ready = computed(() => te('await_reply.spin'))
 const label = computed(() => t(props.state === 'spin' ? 'await_reply.spin' : 'await_reply.wait'))
-const look = computed(() => awaitAnimation(props.anim || pick.value) as { id: string, kind: string, className?: string, src?: string, type?: string, poster?: string })
 
 const reduced = ref(false)
+let motionQuery: MediaQueryList | null = null
+const readMotion = () => { reduced.value = Boolean(motionQuery?.matches) }
 onMounted(() => {
-  reduced.value = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
+  readMotion()
+  motionQuery?.addEventListener?.('change', readMotion)
 })
+onBeforeUnmount(() => motionQuery?.removeEventListener?.('change', readMotion))
+
+/* SPL-2043: `rotate` cycles only while spinning and motion is welcome */
+const rotating = computed(() => chosen.value === ROTATE_AWAIT_ANIM && props.state === 'spin' && !reduced.value)
+const drawing = useAwaitRotate(rotating)
+const look = computed(() => awaitAnimation(chosen.value === ROTATE_AWAIT_ANIM ? drawing.value : chosen.value) as { id: string, kind: string, className?: string, src?: string, type?: string, poster?: string })
 /* a clip plays only while spinning and motion is welcome; else the still glyph
    (or the clip's poster, a <video> that never starts) */
 const clip = computed(() => {
@@ -128,9 +146,10 @@ const clip = computed(() => {
 }
 .await-reply--wait { color: var(--color-muted, currentColor); }
 .await-reply__clip { inline-size: 16px; block-size: 16px; object-fit: contain; }
-/* SPL-2027 (owner msg f7779032): 20% bigger than the first 14 px hourglass,
-   spilling over the 16 px box instead of growing it */
-.await-reply__glyph { inline-size: 16.8px; block-size: 16.8px; flex: none; overflow: visible; }
+/* SPL-2027 (owner msg f7779032): 20% bigger than the first 14 px hourglass;
+   SPL-2043 (msg 19feedf8): another 20% (16.8 -> 20.16 px). It spills over
+   the 16 px box instead of growing it, so the row keeps its height */
+.await-reply__glyph { inline-size: 20.16px; block-size: 20.16px; flex: none; overflow: visible; }
 .await-brain__burst { opacity: 0; }
 
 /* the default animation: the hourglass turns over, rests, turns again;

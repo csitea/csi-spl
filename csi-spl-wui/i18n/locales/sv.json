@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Tänkanimation",
+      "rotate": "Växelvis",
       "hourglass": "Timglas",
       "robot": "Springande robot",
       "brain": "Hjärna"

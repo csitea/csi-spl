@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Animación de espera",
+      "rotate": "Por turnos",
       "hourglass": "Reloj de arena",
       "robot": "Robot corriendo",
       "brain": "Cerebro"

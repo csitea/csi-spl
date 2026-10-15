@@ -2,7 +2,9 @@
      Appearance -> "Thinking animation", the person's pick of the mark on a
      post that waits for an agent (components/AwaitReply.vue). Kept in this
      browser per signed-in person (useAwaitAnim); each choice shows its own
-     running sample. Wraps under the label at phone width. -->
+     running sample. Wraps under the label at phone width.
+     SPL-2043 (msgs c48092cf, 19feedf8): `rotate`, first and the default,
+     takes the drawings in turn, ~3 s each. -->
 <template>
   <div class="settings__row await-anim-setting" data-test="await-anim-setting">
     <span id="await-anim-label">{{ t('settings.await_anim.label') }}</span>

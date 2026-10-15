@@ -27,11 +27,18 @@
 // per-person pick, 20% bigger:
 //   R1 Settings -> Appearance lists hourglass, robot, brain; pick robot
 //   R2 send a post in topic A: once the hub has it, the ROBOT runs on it
-//   R3 the mark's box is still 16 px, the drawing 16.8 px (20% over 14), and
+//   R3 the mark's box is still 16 px, the drawing 20.16 px (SPL-2043), and
 //      the post's header row is as tall as one with no mark (no shift)
 //   R4 reduced motion: the robot stands still
 //   R5 pick brain: the brain swells; a reload keeps the pick
 //   R6 phone 390 px: the brain, same box, same size
+// SPL-2043 (owner msgs c48092cf, 19feedf8): the drawings take turns, ~3 s
+// each, and draw another 20% bigger (20.16 px in the 16 px box):
+//   T1 default pick = rotate: a waiting post shows the hourglass, then the
+//      robot ~3 s later, then the brain, then the hourglass again
+//   T2 every rotating mark on screen (row + post) shows the same drawing
+//   T3 reduced motion: no cycling, the still hourglass for longer than a step
+//   T4 a single pick (robot) stays fixed over more than a step
 //
 //   node tests/e2e/await-reply.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/await-reply.test.mjs
@@ -93,16 +100,38 @@ function seed(ids) {
 /* the hourglass on the channel row of topic `task`, and on post `msgId` in the right pane */
 const rowMark = (p, task) => p.evaluate((task) => {
   const el = document.querySelector(`.feed-body article.msg[data-msg-id="${task}"] [data-test=await-reply]`)
-  return el ? { state: el.getAttribute('data-state'), role: el.getAttribute('role'), label: el.getAttribute('aria-label') || '', anim: el.getAttribute('data-anim') } : null
+  return el ? { state: el.getAttribute('data-state'), role: el.getAttribute('role'), label: el.getAttribute('aria-label') || '', anim: el.getAttribute('data-anim'), pick: el.getAttribute('data-pick') } : null
 }, task)
 const paneMark = (p, msgId) => p.evaluate((id) => {
   const el = document.querySelector(`.live-pane article.msg[data-msg-id="${id}"] [data-test=await-reply]`)
   return el ? { state: el.getAttribute('data-state'), label: el.getAttribute('aria-label') || '' } : null
 }, msgId)
+/* the running animations of the first spinning drawing and its parts; [] = still */
 const spinName = (p) => p.evaluate(() => {
   const g = document.querySelector('[data-test=await-reply][data-state=spin] .await-reply__glyph')
-  return g ? getComputedStyle(g).animationName : null
+  return g ? [g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none') : null
 })
+const ROTATION = ['hourglass', 'robot', 'brain']
+/* SPL-2043: the drawing of every spinning mark, sampled every `every` ms for `ms` */
+const sampleAnims = async (p, ms, every = 200) => {
+  const out = []
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    out.push({ t: Date.now() - t0, anims: await p.evaluate(() => [...document.querySelectorAll('[data-test=await-reply][data-state=spin]')].map((e) => e.getAttribute('data-anim'))) })
+    await sleep(every)
+  }
+  return out
+}
+/* runs of one drawing: [{ anim, from, to }] off the first mark's samples */
+const runsOf = (samples) => {
+  const runs = []
+  for (const s of samples) {
+    const a = s.anims[0] || null
+    if (runs.length && runs[runs.length - 1].anim === a) runs[runs.length - 1].to = s.t
+    else runs.push({ anim: a, from: s.t, to: s.t })
+  }
+  return runs
+}
 /* runs in the page before it loads: Date.now() carries an offset, and once
    window.__ff is set a timer of a minute or more fires at once, moving the
    clock by its delay (the page's own 10-minute spin -> wait timer) */
@@ -157,7 +186,7 @@ try {
 
   const a = await rowMark(p, A)
   ok('1 row A (an agent asked, HUM-1 answered 20 s ago) spins', a?.state === 'spin', a)
-  ok('1 ... as a status with a label, the default hourglass', a?.role === 'status' && a.label.length > 0 && a.anim === 'hourglass', a)
+  ok('1 ... as a status with a label, the default pick rotate (one of its drawings)', a?.role === 'status' && a.label.length > 0 && a.pick === 'rotate' && ROTATION.includes(a.anim), a)
   const b = await rowMark(p, B)
   ok('1 row B (no agent in the topic) waits calmly, not spinning', b?.state === 'wait', b)
   const c = await rowMark(p, C)
@@ -165,7 +194,7 @@ try {
   const d = await rowMark(p, D)
   ok('1 CONTROL row D (an agent answered) shows nothing', d === null, d)
   const name = await spinName(p)
-  ok('1 the spinning glyph is animated', typeof name === 'string' && name.startsWith('await-hourglass'), name)
+  ok('1 the spinning glyph is animated', Array.isArray(name) && name.some((n) => /^await-(hourglass|robot|brain)/.test(n)), name)
   await shot(p, '1-row-spins')
 
   await p.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
@@ -180,7 +209,8 @@ try {
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
   await sleep(200)
   const still = await spinName(p)
-  ok('3 reduced motion: the hourglass stands still', still === 'none', still)
+  const stillMark = await paneMark(p, A_POST)
+  ok('3 reduced motion: the hourglass stands still', Array.isArray(still) && still.length === 0, { still, stillMark })
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
 
   const before = { row: await rowMark(p, A), post: await paneMark(p, A_POST) }
@@ -222,15 +252,16 @@ try {
     const el = [...document.querySelectorAll('.live-pane article.msg[data-msg-id]')].find((e) => (e.querySelector('.msg-body')?.textContent || '').trim() === t)
     const mark = el && el.querySelector('[data-test=await-reply]')
     const g = mark && mark.querySelector('.await-reply__glyph')
-    return el ? { width: innerWidth, pending: el.getAttribute('data-pending') === 'true', state: mark ? mark.getAttribute('data-state') : null, anim: g ? getComputedStyle(g).animationName : null } : null
+    const names = g ? [g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none') : null
+    return el ? { width: innerWidth, pending: el.getAttribute('data-pending') === 'true', state: mark ? mark.getAttribute('data-state') : null, drawing: mark ? mark.getAttribute('data-anim') : null, anim: names } : null
   }, TEXT)
   let s6 = null
   for (let i = 0; i < 20 && !(s6 && s6.state); i++) { await sleep(150); s6 = await sent() }
-  ok('6 phone 390 px: the just-sent post spins once the hub has it', s6?.width === 390 && !s6.pending && s6.state === 'spin' && String(s6.anim).startsWith('await-hourglass'), s6)
+  ok('6 phone 390 px: the just-sent post spins once the hub has it', s6?.width === 390 && !s6.pending && s6.state === 'spin' && s6.anim?.some((n) => /^await-(hourglass|robot|brain)/.test(n)), s6)
   await shot(ph, '6-phone-spins')
   let s7 = s6
   for (let i = 0; i < 20 && s7?.state === 'spin'; i++) { await sleep(200); s7 = await sent() }
-  ok('7 phone: after the 10 minutes (fake clock) the still waiting mark', s7?.state === 'wait' && s7.anim === 'none', s7)
+  ok('7 phone: after the 10 minutes (fake clock) the still waiting mark, the hourglass', s7?.state === 'wait' && s7.anim?.length === 0 && s7.drawing === 'hourglass', s7)
   await shot(ph, '7-phone-waits')
 
   /* desktop, the mock's answer held: the hourglass before the ack */
@@ -262,6 +293,35 @@ try {
   for (let i = 0; i < 30 && (!s9 || s9.pending); i++) { await sleep(100); s9 = await own() }
   ok('9 ack released: the stored row keeps spinning', Boolean(s9 && !s9.pending && s9.state === 'spin'), s9)
   await hctx.close()
+  /* SPL-2043: the default rotate takes the drawings in turn, ~3 s each */
+  const t = await ctx.newPage()
+  t.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  await t.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
+  await t.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
+  await t.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await t.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  await t.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
+  await t.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  /* start right after a step so the first run is a whole one */
+  await t.waitForFunction(() => Date.now() % 3000 < 300, { timeout: 5000, polling: 50 })
+  const samples = await sampleAnims(t, 10000)
+  const runs = runsOf(samples)
+  const order = runs.map((r) => r.anim)
+  const cyclic = order.length >= 3 && order.every((a, i) => i === 0 || ROTATION.indexOf(a) === (ROTATION.indexOf(order[i - 1]) + 1) % 3)
+  ok('T1 rotate: hourglass, then robot ~3 s later, then brain, then the hourglass again', cyclic && order.slice(0, 4).join('>') === 'hourglass>robot>brain>hourglass', runs)
+  const inner = runs.slice(1, -1)
+  ok('T1 ... each drawing shows ~3 s', inner.length > 0 && inner.every((r) => r.to - r.from >= 2400 && r.to - r.from <= 3200), inner)
+  await shot(t, 'T1-rotate')
+  const marks = samples.map((x) => x.anims)
+  ok('T2 every rotating mark on screen (row + post) shows the same drawing', marks.every((m) => m.length >= 2 && m.every((a) => a === m[0])), marks.slice(0, 3))
+  await t.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await sleep(200)
+  const reducedRuns = runsOf(await sampleAnims(t, 4000))
+  const reducedNames = await spinName(t)
+  ok('T3 reduced motion: no cycling, the still hourglass for longer than a step', reducedRuns.length === 1 && reducedRuns[0].anim === 'hourglass' && reducedNames?.length === 0, { reducedRuns, reducedNames })
+  await t.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+  await t.close()
+
   /* SPL-2027: the person picks the robot in Settings, then sends */
   const r = await ctx.newPage()
   r.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
@@ -270,7 +330,7 @@ try {
   await r.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
   await r.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-robot]', { timeout: NAV })
   const opts = await r.evaluate(() => [...document.querySelectorAll('[data-test=await-anim-setting] input[type=radio]')].map((i) => ({ v: i.value, on: i.checked })))
-  ok('R1 Settings -> Appearance lists hourglass (picked), robot, brain', JSON.stringify(opts) === JSON.stringify([{ v: 'hourglass', on: true }, { v: 'robot', on: false }, { v: 'brain', on: false }]), opts)
+  ok('R1 Settings -> Appearance lists rotate (picked, the default), hourglass, robot, brain', JSON.stringify(opts) === JSON.stringify([{ v: 'rotate', on: true }, { v: 'hourglass', on: false }, { v: 'robot', on: false }, { v: 'brain', on: false }]), opts)
   await r.click('[data-test=await-anim-robot]')
   await sleep(200)
   const stored = await r.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1'))
@@ -294,8 +354,10 @@ try {
   const robot = rid ? await markLook(r, rid) : null
   ok('R2 the just-sent post shows the ROBOT, running', robot?.anim === 'robot' && robot.state === 'spin' && robot.names.includes('await-robot') && robot.names.includes('await-robot-limb'), robot)
   await shot(r, 'R2-robot')
+  const fixed = runsOf(await sampleAnims(r, 4000))
+  ok('T4 a single pick (robot) stays fixed over more than a step', fixed.length === 1 && fixed[0].anim === 'robot', fixed)
   const plain = await plainRowH(r)
-  ok('R3 box unchanged 16x16, drawing 16.8 px (20% over 14), header row as tall as a post with no mark', robot?.boxW === 16 && robot.boxH === 16 && robot.glyphW >= 16.5 && robot.glyphW <= 17.1 && plain !== null && Math.abs(robot.rowH - plain) < 0.5, { robot, plain })
+  ok('R3 box unchanged 16x16, drawing 20.16 px (20% over 16.8), header row as tall as a post with no mark', robot?.boxW === 16 && robot.boxH === 16 && robot.glyphW >= 19.9 && robot.glyphW <= 20.4 && plain !== null && Math.abs(robot.rowH - plain) < 0.5, { robot, plain })
   await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
   await sleep(200)
   const robotStill = rid ? await markLook(r, rid) : null
@@ -329,7 +391,7 @@ try {
   await applyViewport(rp, { name: '390', width: 390, height: 844 })
   await rp.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
   const phone = await markLook(rp, null)
-  ok('R6 phone 390 px: the brain, 16 px box, 16.8 px drawing', phone?.anim === 'brain' && phone.boxW === 16 && phone.glyphW >= 16.5 && phone.names.includes('await-brain'), phone)
+  ok('R6 phone 390 px: the brain, 16 px box, 20.16 px drawing', phone?.anim === 'brain' && phone.boxW === 16 && phone.glyphW >= 19.9 && phone.names.includes('await-brain'), phone)
   await shot(rp, 'R6-phone-brain')
 
   ok('no page errors', errors.length === 0, errors)

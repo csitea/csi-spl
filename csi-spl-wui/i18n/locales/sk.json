@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Animácia premýšľania",
+      "rotate": "Striedavo",
       "hourglass": "Presýpacie hodiny",
       "robot": "Bežiaci robot",
       "brain": "Mozog"

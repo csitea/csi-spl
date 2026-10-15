@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Düşünme animasyonu",
+      "rotate": "Sırayla",
       "hourglass": "Kum saati",
       "robot": "Koşan robot",
       "brain": "Beyin"

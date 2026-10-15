@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "אנימציית חשיבה",
+      "rotate": "מתחלף",
       "hourglass": "שעון חול",
       "robot": "רובוט רץ",
       "brain": "מוח"

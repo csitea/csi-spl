@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Domāšanas animācija",
+      "rotate": "Pārmaiņus",
       "hourglass": "Smilšu pulkstenis",
       "robot": "Skrejošs robots",
       "brain": "Smadzenes"

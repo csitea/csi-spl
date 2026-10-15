@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Mõtlemise animatsioon",
+      "rotate": "Vaheldumisi",
       "hourglass": "Liivakell",
       "robot": "Jooksev robot",
       "brain": "Aju"

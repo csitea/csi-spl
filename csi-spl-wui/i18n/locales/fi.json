@@ -248,6 +248,7 @@
     },
     "await_anim": {
       "label": "Ajatteluanimaatio",
+      "rotate": "Vuorotellen",
       "hourglass": "Tiimalasi",
       "robot": "Juokseva robotti",
       "brain": "Aivot"

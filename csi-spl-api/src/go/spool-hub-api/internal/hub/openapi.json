@@ -881,6 +881,120 @@
         ],
         "type": "object"
       },
+      "RealmLimits": {
+        "properties": {
+          "day_limit_minutes": {
+            "maximum": 1440,
+            "minimum": 60,
+            "nullable": true,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "type": "string"
+          },
+          "week_limit_minutes": {
+            "maximum": 10080,
+            "minimum": 60,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RealmProfile": {
+        "properties": {
+          "comm_prefs": {
+            "description": "at most 4096 bytes",
+            "type": "object"
+          },
+          "locale": {
+            "description": "\"\" = none",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "IANA zone; \"\" = none",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RealmReceipt": {
+        "properties": {
+          "approval_state": {
+            "type": "string"
+          },
+          "approver_name": {
+            "type": "string"
+          },
+          "copied_at": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "period_end": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "workspace_name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RealmSettings": {
+        "description": "The hours limits; no warning (the WUI computes it, 118 C3).",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/RealmLimits"
+            },
+            "type": "array"
+          },
+          "limits": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RealmLimits"
+              }
+            ],
+            "nullable": true
+          },
+          "today": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "TeamHours": {
         "description": "Every member's approved entries and period states of one workspace period; never a raw minute, a rejected row or a suggestion (spec 1.7). Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §4.3, §4.4, §6.3.",
         "properties": {
@@ -5561,6 +5675,272 @@
           }
         },
         "summary": "Read my hours across all my workspaces",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/profile": {
+      "get": {
+        "description": "Time zone, locale and communication preferences; the name shown is humans.display_name. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "getMeRealmProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealmProfile"
+                }
+              }
+            },
+            "description": "OK: the profile. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read my realm profile",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "description": "Writes the whole profile. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "putMeRealmProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Unknown fields are 400 bad_request.",
+                "properties": {
+                  "comm_prefs": {
+                    "type": "object"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealmProfile"
+                }
+              }
+            },
+            "description": "OK: the profile after the change. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set my realm profile",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/receipts": {
+      "get": {
+        "description": "Read-only copies of the person's own hours in workspaces left, the newest rev per (workspace, day, label, kind). Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "getMeRealmReceipts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "receipts": {
+                      "items": {
+                        "$ref": "#/components/schemas/RealmReceipt"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the receipts. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read my receipts",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/receipts/{workspace_id}": {
+      "delete": {
+        "description": "Erases every rev of the person's own receipts of that workspace (OQ-4 A: delete, never edit). Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "deleteMeRealmReceipts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "deleted": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the rows removed, 0 when none. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Delete my receipts of a workspace",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/settings": {
+      "get": {
+        "description": "The person's own hours limits. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "getMeRealmSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealmSettings"
+                }
+              }
+            },
+            "description": "OK: the limits in force today and every row. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read my realm settings",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "description": "Adds the limits in force from valid_from (today in the person's zone when omitted; a past day is 400). Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "operationId": "putMeRealmSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Unknown fields are 400 bad_request.",
+                "properties": {
+                  "day_limit_minutes": {
+                    "maximum": 1440,
+                    "minimum": 60,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "valid_from": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "week_limit_minutes": {
+                    "maximum": 10080,
+                    "minimum": 60,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealmSettings"
+                }
+              }
+            },
+            "description": "OK: the settings after the change. Contract: csi-spl-doc/specs/119-personal-realm/spec.md §9 C2."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set my realm settings",
         "tags": [
           "me"
         ]

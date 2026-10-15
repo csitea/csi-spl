@@ -106,8 +106,9 @@ func (s *Server) handleSetChannelOrder(w http.ResponseWriter, r *http.Request) {
 
 // routeMe registers the member's own /v1/me routes: the Channels order
 // (SPL-1034), the manual status (spec 096, human_status.go), the
-// member's hours (spec 107, hours_me.go, hours_timer.go) and the person's
-// hours across workspaces (spec 118, realm_hours_read.go).
+// member's hours (spec 107, hours_me.go, hours_timer.go), the person's
+// hours across workspaces (spec 118, realm_hours_read.go) and the person's
+// realm (spec 119, realm.go).
 func (s *Server) routeMe(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/me/channel-order", s.handleSetChannelOrder)
 	mux.HandleFunc("OPTIONS /v1/me/channel-order", s.channelOrderPreflight)
@@ -115,6 +116,7 @@ func (s *Server) routeMe(mux *http.ServeMux) {
 	s.routeMyHours(mux)
 	s.routeMyHoursTimer(mux)
 	s.routeRealmHoursRead(mux) // spec 118 T003: GET /v1/me/realm/hours, realm_hours_read.go
+	s.routeRealm(mux)
 }
 
 // channelOrderPreflight: PUT with the headers every browser route allows (no

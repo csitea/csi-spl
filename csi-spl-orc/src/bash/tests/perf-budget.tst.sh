@@ -11,6 +11,8 @@
 #   2c. a route chunk budget (spec 112 9): the roadmap's marked chunks are
 #      summed against ci_roadmap_route_gzip_kb when the budgets carry it.
 #      CONTROLS: over the ceiling exits 1; no marked chunk = not measured
+#   2d. the costs route (spec 123 5, SPL-2056): ci_costs_route_gzip_kb sums
+#      its own marked chunk, beside the roadmap's. Same two CONTROLS
 #   3. the ceiling check FAILS when a number is over, when a required number
 #      was not measured, and when the initial set is empty — and PASSES when
 #      the number is equal to the ceiling. The over case is the control that
@@ -175,6 +177,25 @@ python3 "$PY" bundle --pub "$T/pub" --budgets "$T/route.json" >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 1 ]] && grep -q 'ci_roadmap_route_gzip_kb was not measured' "$T/bout" \
   && pass "CONTROL: a route budget whose chunks are missing fails, never passes unmeasured" || fail "CONTROL route missing: rc=$rc $(cat "$T/bout")"
+
+# --- 2d. the costs route budget (spec 123 5, SPL-2056), beside the roadmap one ----
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/costs.js","wb").write(b"z={\"data-test\":\"costs-page\"};"+os.urandom(4000))' "$T/route"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25,"ci_costs_route_gzip_kb":25}}' >"$T/costs.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25,"ci_costs_route_gzip_kb":3}}' >"$T/costslow.json"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/costs.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -qE '^ROUTE ci_costs_route_gzip_kb 1 chunk\(s\) gzip [34](\.[0-9])? KB' "$T/bout" && grep -q '^ROUTE ci_roadmap_route_gzip_kb 2 chunk(s) gzip 8\.[0-9] KB' "$T/bout" \
+  && grep -q '^PASS ci_costs_route_gzip_kb ' "$T/bout" \
+  && pass "the costs route chunk is measured on its own (the roadmap's stay the roadmap's) and passes 25 KB" || fail "costs route: rc=$rc $(cat "$T/bout")"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/costslow.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q '^FAIL ci_costs_route_gzip_kb ' "$T/bout" \
+  && pass "CONTROL: the costs route over its ceiling exits 1" || fail "CONTROL costs over: rc=$rc $(cat "$T/bout")"
+rm "$T/route/_nuxt/costs.js"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/costs.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'ci_costs_route_gzip_kb was not measured' "$T/bout" \
+  && pass "CONTROL: a costs budget whose chunks are missing fails, never passes unmeasured" || fail "CONTROL costs missing: rc=$rc $(cat "$T/bout")"
 
 mkdir -p "$T/empty/_nuxt"
 printf 'console.log("orphan")\n' >"$T/empty/_nuxt/orphan.js"

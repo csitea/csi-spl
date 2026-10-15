@@ -24,7 +24,8 @@ Three measurements, nothing else:
                              time_connect so a DNS stall is visible.
 
   route chunks               the lazy chunks of one route (spec 112 9: the
-                             roadmap, ci_roadmap_route_gzip_kb), found by the
+                             roadmap, ci_roadmap_route_gzip_kb; spec 123 5:
+                             Monitoring -> Costs, ci_costs_route_gzip_kb), found by the
                              data-test values its compiled templates carry,
                              gzipped the same way and summed.
 
@@ -83,6 +84,9 @@ CI_KEYS = tuple(key for key, _doc in CI_DOCS)
 # route whose markers match no chunk fails as not measured, never passes.
 ROUTE_CHUNKS = (
     ("ci_roadmap_route_gzip_kb", ('"roadmap-page"', '"roadmap-spec-table"')),
+    # spec 123 5 (SPL-2056): Monitoring -> Costs, its page, its pie and
+    # tenant-costs.mjs (the mock key is a literal only that module carries)
+    ("ci_costs_route_gzip_kb", ('"costs-page"', '"costs-pie"', '"spool.mock.costs"')),
 )
 # first_load_p95_ms is recorded and not gated: it is a new connection per
 # chunk on this box, and that tail is the resolver (T124), not the bundle.

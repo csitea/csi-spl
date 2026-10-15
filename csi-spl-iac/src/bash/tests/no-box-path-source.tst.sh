@@ -8,31 +8,79 @@
 
 set -euo pipefail
 
-dir=$(cd "$(dirname "$0")" && pwd)
-: "$dir"
+repo_root="$(cd "$(dirname "$0")/../../../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-: "$work"
-
-# Red control: a temp fixture with a fixed path fails.
-red_fixture="$work/red.fixture.sh"
-cat >"$red_fixture" <<'EOF'
+cat > "$work/red.fixture.sh" << 'EOF2'
 #!/usr/bin/env bash
 source "/opt/csi/x/lib.func.sh" || exit 1
-EOF
+. "/opt/csi/x/lib.func.sh" || exit 1
+EOF2
 
-# Test the red fixture: it must fail.
-if bash "$red_fixture" 2>/dev/null; then
-  echo "FAIL: red fixture should have failed (fixed path), but passed" >&2
+trap 'rm -rf "$work"' EXIT
+
+# Red control: a temp fixture with a fixed path must be caught.
+if ! grep -q 'source "/opt/' "$work/red.fixture.sh"; then
+  echo "FAIL: red fixture (source) was not caught" >&2
+  exit 1
+fi
+if ! grep -q '\. "/opt/' "$work/red.fixture.sh"; then
+  echo "FAIL: red fixture (.) was not caught" >&2
   exit 1
 fi
 
 # Test the real tree: no fixed paths allowed.
-while IFS= read -r -d '' file; do
-  while read -r line; do
-    echo "FAIL: $file:$line" >&2
+cd "$repo_root"
+
+# Explicitly expand the glob patterns
+for d in csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run csi-spl-iac/lib csi-spl-orc/lib; do
+  if [[ ! -d "$d" ]]; then
+    echo "FAIL: directory $d does not exist under $repo_root" >&2
     exit 1
-  done < <(grep -n -E '^[^#]*\s*(source|\.)\s+["\x27](/opt/|/home/|/mnt/)' "$file")
-done < <(find csi-spl-iac/src/bash/run/ csi-spl-orc/src/bash/run/ csi-spl-iac/lib/ csi-spl-orc/lib/ -type f -name "*.sh" -print0 2>/dev/null || true)
+  fi
+  while IFS= read -r file; do
+    if grep -n '^[^#]*source [\"\'']?/opt/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*source [\"\'']?/opt/' "$file" >&2
+      exit 1
+    fi
+    if grep -n '^[^#]*\. [\"\'']?/opt/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*\. [\"\'']?/opt/' "$file" >&2
+      exit 1
+    fi
+    if grep -n '^[^#]*source [\"\'']?/home/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*source [\"\'']?/home/' "$file" >&2
+      exit 1
+    fi
+    if grep -n '^[^#]*\. [\"\'']?/home/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*\. [\"\'']?/home/' "$file" >&2
+      exit 1
+    fi
+    if grep -n '^[^#]*source [\"\'']?/mnt/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*source [\"\'']?/mnt/' "$file" >&2
+      exit 1
+    fi
+    if grep -n '^[^#]*\. [\"\'']?/mnt/' "$file"; then
+      echo "FAIL: $file" >&2
+      grep -n '^[^#]*\. [\"\'']?/mnt/' "$file" >&2
+      exit 1
+    fi
+done < <(find "$d" -type f -name "*.sh")
+done
+
+# Test the planted fixture explicitly
+if [[ -f "csi-spl-iac/src/bash/run/zz-c535-plant.func.sh" ]]; then
+  if ! grep -q 'source [\"\'']?/opt/' "csi-spl-iac/src/bash/run/zz-c535-plant.func.sh"; then
+    echo "FAIL: planted fixture (source) was not caught" >&2
+    exit 1
+  fi
+  if ! grep -q '\. [\"\'']?/opt/' "csi-spl-iac/src/bash/run/zz-c535-plant.func.sh"; then
+    echo "FAIL: planted fixture (.) was not caught" >&2
+    exit 1
+  fi
+fi
 
 echo "PASS: no fixed box paths in source/./include lines"

@@ -268,6 +268,12 @@ export function rosterHumanIds(roster) {
  * socket (wui-live-ws §4) through an injected `sender` (live-ws `send`).
  * The view token rides in Authorization; cookies only for the `session`
  * door (credentialsFor).
+ *
+ * r12-05: the client is put together from the module steps below. They
+ * take what they read as plain arguments, so the minified entry chunk keeps
+ * its size: `conn` holds what the setters change (token, door, doorGuessed,
+ * send), `mk` the mock tenant, which doubles as the lazy half's ctx
+ * (mockHolder).
  */
 export function createSpoolClient({
   base = '',
@@ -281,15 +287,36 @@ export function createSpoolClient({
   firstScreenMs = FIRST_SCREEN_MS,
   now = Date.now,
 } = {}) {
-  /* P3-15: the mock tenant's data loads with the first mock call, not in
-     every live first load; each async method waits for it (gateMock).
-     Member access only (data.<name>): a bare mock-data export name here
-     makes Nuxt's utils/ auto-import add a STATIC import of mock-data.mjs
-     (tests/unit/initial-js-trims.test.mjs). */
-  let state = null
-  const mockReady = mock
-    ? import('./mock-data.mjs').then((data) => {
-      state = data.cloneMock()
+  const mk = mockHolder(mock)
+  const root = String(base || '').replace(/\/+$/, '')
+  /* doorGuessed: a door set from a signed-in session probe, not yet proven
+     by a read. withSessionRetry takes it back if the hub refuses credentials. */
+  const conn = { token: String(token || ''), door: String(door || ''), doorGuessed: false, send: sender }
+  const hubFetch = stampedFetch(fetchFn)
+  const live = liveReader(conn, root, configError, hubFetch, firstScreenMs, now)
+  const api = sessionMethods(tenant, mock, root, configError, conn, live)
+  Object.assign(api, topicList(mock, mk, live), topicReads(mock, mk, conn, live), feedReads(api, mock, mk),
+    shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(mock, root, configError, conn, hubFetch))
+  api.bindIssuesMock = mk.bindIssuesMock
+  mk.live = live
+  installLazy(api, mk)
+  if (mk.ready) gateMock(api, mk.ready)
+  return api
+}
+
+/*
+ * P3-15: the mock tenant's data loads with the first mock call, not in every
+ * live first load; each async method waits for it (gateMock). Member access
+ * only (data.<name>): a bare mock-data export name here makes Nuxt's utils/
+ * auto-import add a STATIC import of mock-data.mjs
+ * (tests/unit/initial-js-trims.test.mjs).
+ */
+function mockHolder(mock) {
+  /* { live, mock, state, dir, tenantMock, issuesMock }: what spool-client-lazy.mjs reads (live is set by createSpoolClient) */
+  const mk = { mock, state: null, ready: null }
+  if (mock) {
+    mk.ready = import('./mock-data.mjs').then((data) => {
+      const state = data.cloneMock()
       /* test hook (mock only): an e2e adds lines to the mock feed with
          localStorage `spool.mock.extra-messages` (rows; archived_at = an archived card) */
       const extra = storageGetJson('spool.mock.extra-messages', [])
@@ -297,112 +324,93 @@ export function createSpoolClient({
       state.memberships = Object.create(null)
       state.openInvite = Object.create(null)
       state.agentMembers = Object.create(null)
+      mk.state = state
     })
-    : null
-  const mockBlobs = new Map()
+  }
   let mockIssues = null
   let mockFactory = null
-  const issuesMock = (fallback) => {
+  mk.bindIssuesMock = (factory) => { mockFactory = factory }
+  mk.issuesMock = (fallback) => {
     if (!mockIssues) {
       if (typeof mockFactory !== 'function' && typeof fallback !== 'function') throw Object.assign(new Error('issues mock is not bound'), { status: 500, token: 'no_mock' })
-      mockIssues = (typeof mockFactory === 'function' ? mockFactory : fallback)((state && state.me && state.me.id) || 'HUM-1')
+      mockIssues = (typeof mockFactory === 'function' ? mockFactory : fallback)((mk.state && mk.state.me && mk.state.me.id) || 'HUM-1')
     }
     return mockIssues
   }
   let mockDir = null
-  const dir = async () => (mockDir ||= (await import('./tenant-users-mock.mjs')).createMockDirectory())
+  mk.dir = async () => (mockDir ||= (await import('./tenant-users-mock.mjs')).createMockDirectory())
   let mockTenant = null
-  const tenantMock = async () => (mockTenant ||= (await import('./tenant-settings-mock.mjs')).createMockTenant())
+  mk.tenantMock = async () => (mockTenant ||= (await import('./tenant-settings-mock.mjs')).createMockTenant())
   /* the mock's topic reads and send (spool-client-mock.mjs), out of the
      initial JS like act-as-mock.mjs; read as members, never bare names */
-  const mockAnswers = () => import('./spool-client-mock.mjs')
-  const root = String(base || '').replace(/\/+$/, '')
-  let viewToken = String(token || '')
-  let viewDoor = String(door || '')
-  /* a door set from a signed-in session probe, not yet proven by a
-     read. withSessionRetry takes it back if the hub refuses credentials. */
-  let doorGuessed = false
-  let send = sender
-  const rawFetch = fetchFn
-  async function hubFetch(url, init) {
+  mk.answers = () => import('./spool-client-mock.mjs')
+  return mk
+}
+
+/** The injected fetch, stamping one number per hub 2xx or 304 (P5-10). Callers do not stamp themselves. */
+function stampedFetch(rawFetch) {
+  return async function hubFetch(url, init) {
     if (typeof rawFetch !== 'function') throw new Error('no fetch')
     const res = await rawFetch(url, init)
-    // One number per hub 2xx or 304 (P5-10). Callers do not stamp themselves.
     if (res && (res.ok || res.status === 304)) noteLastData()
     return res
   }
-  /** GET reads in flight, by what makes them identical (see live). */
+}
+
+/* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
+   (routes /dm/CLE-001, /dm/CLE-100, /channel/spool-hub-devel) and not one
+   matching failure in the hub request log - every /v1/view read at those
+   seconds answered 200. The browser's TypeError names no request, so the
+   report could not be matched to anything. Now a transport failure is
+   journaled with its method and path (errorJournal redacts both), and an
+   idempotent GET gets ONE retry after a short pause: a dropped connection
+   on a read never reaches the reader. A write is never retried - it may
+   have landed. An abort is not a failure and is rethrown untouched. */
+async function fetchOnce(fn, url, init) {
+  const method = String((init && init.method) || 'GET').toUpperCase()
+  try {
+    return await fn(url, init)
+  } catch (err) {
+    if (isAbortError(err)) throw err
+    if (method === 'GET') {
+      await new Promise((r) => setTimeout(r, 400))
+      try {
+        return await fn(url, init)
+      } catch (again) {
+        if (isAbortError(again)) throw again
+        noteError({ source: 'api', method, url, error: again })
+        throw again
+      }
+    }
+    noteError({ source: 'api', method, url, error: err })
+    throw err
+  }
+}
+
+/*
+ * (perf P1, measured on dev 947635e7): one cold /lobby asked for
+ * /v1/view/roster six times and channels / me / operators / the DM list
+ * twice each, because the shell, the plugins and the page each read what
+ * they need at the same moment. A GET that is identical to one already in
+ * flight (same path, headers, door and token) now joins it instead of going
+ * out again. The first caller gets the parsed body; every joiner gets its
+ * own structured clone, so no caller can mutate another one's rows. A read
+ * with an AbortSignal, and every write, always goes out on its own.
+ *
+ * (spec 109 T004, D7/D8): prd still read the roster twice per load and the
+ * topic list twice per first screen, because the second caller started
+ * after the first read had settled, so it had nothing to join. During the
+ * first screen (firstScreenMs after the client is made) a settled roster or
+ * topic-list read is kept and handed out as a clone. Any write drops it,
+ * and after the first screen every read goes out as before.
+ */
+function liveReader(conn, root, configError, hubFetch, firstScreenMs, now) {
+  /** GET reads in flight, by what makes them identical. */
   const inflight = new Map()
-  /** First-screen reads that have settled, by the same key (see live). */
+  /** First-screen reads that have settled, by the same key. */
   const settled = new Map()
   const validated = heldValidators()
   const bornAt = now()
-
-  /* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
-     (routes /dm/CLE-001, /dm/CLE-100, /channel/spool-hub-devel) and not one
-     matching failure in the hub request log - every /v1/view read at those
-     seconds answered 200. The browser's TypeError names no request, so the
-     report could not be matched to anything. Now a transport failure is
-     journaled with its method and path (errorJournal redacts both), and an
-     idempotent GET gets ONE retry after a short pause: a dropped connection
-     on a read never reaches the reader. A write is never retried - it may
-     have landed. An abort is not a failure and is rethrown untouched. */
-  async function fetchOnce(fn, url, init) {
-    const method = String((init && init.method) || 'GET').toUpperCase()
-    try {
-      return await fn(url, init)
-    } catch (err) {
-      if (isAbortError(err)) throw err
-      if (method === 'GET') {
-        await new Promise((r) => setTimeout(r, 400))
-        try {
-          return await fn(url, init)
-        } catch (again) {
-          if (isAbortError(again)) throw again
-          noteError({ source: 'api', method, url, error: again })
-          throw again
-        }
-      }
-      noteError({ source: 'api', method, url, error: err })
-      throw err
-    }
-  }
-
-  /*
-   * (perf P1, measured on dev 947635e7): one cold /lobby asked for
-   * /v1/view/roster six times and channels / me / operators / the DM list
-   * twice each, because the shell, the plugins and the page each read what
-   * they need at the same moment. A GET that is identical to one already in
-   * flight (same path, headers, door and token) now joins it instead of going
-   * out again. The first caller gets the parsed body; every joiner gets its
-   * own structured clone, so no caller can mutate another one's rows. A read
-   * with an AbortSignal, and every write, always goes out on its own.
-   *
-   * (spec 109 T004, D7/D8): prd still read the roster twice per load and the
-   * topic list twice per first screen, because the second caller started
-   * after the first read had settled, so it had nothing to join. During the
-   * first screen (firstScreenMs after the client is made) a settled roster or
-   * topic-list read is kept and handed out as a clone. Any write drops it,
-   * and after the first screen every read goes out as before.
-   */
-  function live(path, opts) {
-    const method = String((opts && opts.method) || 'GET').toUpperCase()
-    if (method !== 'GET' || (opts && opts.signal)) {
-      settled.clear()
-      return liveOnce(path, opts)
-    }
-    const key = [viewDoor, viewToken, path, JSON.stringify((opts && opts.headers) || {})].join('\n')
-    const hit = inflight.get(key) || keptRead(key)
-    if (hit) return hit.then(cloneBody)
-    const run = liveOnce(path, opts)
-    inflight.set(key, run)
-    const done = () => { if (inflight.get(key) === run) inflight.delete(key) }
-    run.then(done, done)
-    if (FIRST_SCREEN_READ.test(path) && inFirstScreen()) {
-      run.then((body) => { if (inFirstScreen()) settled.set(key, cloneBody(body)) }, () => {})
-    }
-    return run
-  }
 
   function inFirstScreen() {
     if (now() - bornAt < firstScreenMs) return true
@@ -425,9 +433,9 @@ export function createSpoolClient({
       throw err
     }
     const headers = { accept: 'application/json', ...(opts && opts.headers) }
-    if (viewToken) headers.authorization = `Bearer ${viewToken}`
+    if (conn.token) headers.authorization = `Bearer ${conn.token}`
     const held = validated.ask(opts, path, headers)
-    const res = await fetchOnce(fn, `${root}${path}`, { credentials: credentialsFor(viewDoor), ...opts, headers })
+    const res = await fetchOnce(fn, `${root}${path}`, { credentials: credentialsFor(conn.door), ...opts, headers })
     if (held && res.status === 304) return cloneBody(held.body)
     if (!res.ok) throw await hubError(res, path)
     if (res.status === 204) return null
@@ -436,24 +444,46 @@ export function createSpoolClient({
     return res.arrayBuffer()
   }
 
-  const api = {
+  return function live(path, opts) {
+    const method = String((opts && opts.method) || 'GET').toUpperCase()
+    if (method !== 'GET' || (opts && opts.signal)) {
+      settled.clear()
+      return liveOnce(path, opts)
+    }
+    const key = [conn.door, conn.token, path, JSON.stringify((opts && opts.headers) || {})].join('\n')
+    const hit = inflight.get(key) || keptRead(key)
+    if (hit) return hit.then(cloneBody)
+    const run = liveOnce(path, opts)
+    inflight.set(key, run)
+    const done = () => { if (inflight.get(key) === run) inflight.delete(key) }
+    run.then(done, done)
+    if (FIRST_SCREEN_READ.test(path) && inFirstScreen()) {
+      run.then((body) => { if (inFirstScreen()) settled.set(key, cloneBody(body)) }, () => {})
+    }
+    return run
+  }
+}
+
+/** The client's identity half (mode, tenant, view token and door, sender) and its small reads. */
+function sessionMethods(tenant, mock, root, configError, conn, live) {
+  return {
     mock: Boolean(mock),
     tenant: String(tenant || ''),
     base: root,
     get token() {
-      return viewToken
+      return conn.token
     },
     configError: String(configError || ''),
     setToken(t) {
-      viewToken = String(t || '')
+      conn.token = String(t || '')
     },
     get door() {
-      return viewDoor
+      return conn.door
     },
     /** view door (`off` | `token` | `session`); `session` → credentials 'include'. */
     setDoor(d) {
-      viewDoor = String(d || '')
-      doorGuessed = false
+      conn.door = String(d || '')
+      conn.doorGuessed = false
     },
     /**
      * set the door BEFORE the first read, from a signed-in session
@@ -463,27 +493,53 @@ export function createSpoolClient({
      * refusing credentials) and falls back to discovering the door.
      */
     guessDoor(d) {
-      if (viewDoor) return
-      viewDoor = String(d || '')
-      doorGuessed = Boolean(viewDoor)
+      if (conn.door) return
+      conn.door = String(d || '')
+      conn.doorGuessed = Boolean(conn.door)
     },
     get doorGuessed() {
-      return doorGuessed
+      return conn.doorGuessed
     },
     get credentials() {
-      return credentialsFor(viewDoor)
+      return credentialsFor(conn.door)
     },
     /** fn(frame) → ack: the live-ws client's `send` (wui-live-ws §4). */
     setSender(fn) {
-      send = typeof fn === 'function' ? fn : null
+      conn.send = typeof fn === 'function' ? fn : null
     },
     hasToken() {
-      return Boolean(viewToken)
+      return Boolean(conn.token)
     },
     async healthz() {
       if (mock) return { ok: true, mock: true }
       return live('/v1/health')
     },
+    /**
+     * SPL-1034: the lde mock's stored channel order (the live one rides
+     * /v1/view/me `channel_order`). null = never set.
+     */
+    mockChannelOrder() {
+      if (!mock) return null
+      const raw = storageGetJson(MOCK_CHANNEL_ORDER_KEY, null)
+      return Array.isArray(raw) ? normalizeChannelOrder(raw) : null
+    },
+  }
+}
+
+/* P3-30: the stubs of the lazy half. Read as a member: a bare name from a
+   utils/ module here makes Nuxt's auto-import add a STATIC import of it. */
+function installLazy(api, ctx) {
+  let lazy = null
+  const loadLazy = () => (lazy ||= import('./spool-client-lazy.mjs').then(
+    (m) => m.lazySpoolMethods,
+    (err) => { lazy = null; throw err },
+  ))
+  for (const name of LAZY_METHODS) api[name] = async (...args) => (await loadLazy())[name](ctx, ...args)
+}
+
+/** The topic list (view-v1 §4.3). */
+function topicList(mock, mk, live) {
+  return {
     /**
      * view-v1 §4.3. `perTopic` (1..PER_TOPIC_MAX) asks the hub to inline each
      * topic's newest N messages (v0.6.1); a row then carries `inline` =
@@ -492,7 +548,7 @@ export function createSpoolClient({
      * `inline` (callers read those topics one by one, as before).
      */
     async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0, dmCounts = false, dmRead = [], since, rx = [] } = {}) {
-      if (mock) return (await mockAnswers()).mockListTopics(state, { limit, channel, dm, peer })
+      if (mock) return (await mk.answers()).mockListTopics(mk.state, { limit, channel, dm, peer })
       const q = new URLSearchParams()
       if (limit) q.set('limit', String(limit))
       if (before) q.set('before', before)
@@ -534,6 +590,12 @@ export function createSpoolClient({
         pointers: (data && Array.isArray(data.pointers) ? data.pointers : []).map((m) => normalizeViewMessage(m, '')),
       }
     },
+  }
+}
+
+/** One topic (view-v1 §4.4) and the caller's role. */
+function topicReads(mock, mk, conn, live) {
+  return {
     /**
      * view-v1 §4.4. Default: oldest first, `after=` for catch-up. With
      * `order: 'desc'`: the newest `limit` newest-first; `next` → pass as `before`
@@ -542,7 +604,7 @@ export function createSpoolClient({
     async getTopic(taskId, { limit = 200, after, order, before } = {}) {
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
-      if (mock) return (await mockAnswers()).mockGetTopic(state, id, { limit, after, order, before, viewToken })
+      if (mock) return (await mk.answers()).mockGetTopic(mk.state, id, { limit, after, order, before, viewToken: conn.token })
       const q = new URLSearchParams()
       if (order === 'desc') q.set('order', 'desc')
       if (limit) q.set('limit', String(limit))
@@ -574,7 +636,7 @@ export function createSpoolClient({
         /* the mock answer (act-as, role + permissions, archive policy) lives
            in the lazy act-as-mock.mjs: none of it rides the initial JS */
         const { mockMe } = await import('./act-as-mock.mjs')
-        return mockMe(dir)
+        return mockMe(mk.dir)
       }
       try {
         return await live('/v1/view/me')
@@ -583,27 +645,13 @@ export function createSpoolClient({
         throw e
       }
     },
-    /**
-     * SPL-1034: the lde mock's stored channel order (the live one rides
-     * /v1/view/me `channel_order`). null = never set.
-     */
-    mockChannelOrder() {
-      if (!mock) return null
-      const raw = storageGetJson(MOCK_CHANNEL_ORDER_KEY, null)
-      return Array.isArray(raw) ? normalizeChannelOrder(raw) : null
-    },
-    /**
-     * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,
-     * OQ-CH2) → repeated `read=<ch>~<cursor>`; rows keep unread / last_cursor /
-     * retention_days.
-     */
-    async listChannels({ read } = {}) {
-      if (mock) return state.channels.slice()
-      const q = new URLSearchParams()
-      for (const r of channelReadQuery(read)) q.append('read', r)
-      const qs = q.toString()
-      return channelsFromView(await live(`/v1/view/channels${qs ? `?${qs}` : ''}`))
-    },
+  }
+}
+
+/** A channel's or a DM's flat feed: listMessages, built on listTopics + getTopic. */
+/* `api` is the client itself: listMessages reads its (gated) listTopics / getTopic at call time. */
+function feedReads(api, mock, mk) {
+  return {
     /**
      * Flat messages of a channel (`?channel=`) or a DM peer (`?dm=true&peer=`),
      * oldest first, at most `limit`: one page of `topics` topics from the
@@ -614,7 +662,7 @@ export function createSpoolClient({
      * changed after that cursor; `delta` says whether the hub answered so.
      */
     async listMessages({ channel, peer, limit = 50, since, topics = 20, before, changedSince, rx } = {}) {
-      if (mock) return (await mockAnswers()).mockListMessages(state, { channel, peer, limit, since })
+      if (mock) return (await mk.answers()).mockListMessages(mk.state, { channel, peer, limit, since })
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
       /* CLE-34984 / T122: one request for the whole page where the hub
          inlines each topic's newest `limit` messages; a topic the answer
@@ -662,6 +710,24 @@ export function createSpoolClient({
       return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals,
         delta: list.delta, goneTasks: list.goneTasks, goneMsgs: list.goneMsgs, sync: list.sync }
     },
+  }
+}
+
+/** Channels, search and the roster: the shell's other first-screen reads. */
+function shellReads(mock, mk, live) {
+  return {
+    /**
+     * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,
+     * OQ-CH2) → repeated `read=<ch>~<cursor>`; rows keep unread / last_cursor /
+     * retention_days.
+     */
+    async listChannels({ read } = {}) {
+      if (mock) return mk.state.channels.slice()
+      const q = new URLSearchParams()
+      for (const r of channelReadQuery(read)) q.append('read', r)
+      const qs = q.toString()
+      return channelsFromView(await live(`/v1/view/channels${qs ? `?${qs}` : ''}`))
+    },
     /**
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub
      * parses the grammar). → normalizeSearchResponse. Mock: the lde matcher.
@@ -671,7 +737,7 @@ export function createSpoolClient({
       const { mockSearch, mockSearchFault, normalizeSearchResponse } = await import('./search-results.mjs')
       if (mock) {
         await mockSearchFault()
-        return normalizeSearchResponse(mockSearch(state.messages, q, state.channels))
+        return normalizeSearchResponse(mockSearch(mk.state.messages, q, mk.state.channels))
       }
       // 027 budget: the search grammar (search.mjs + its mention autocomplete)
       // rides the first search, not the initial chunk.
@@ -692,6 +758,7 @@ export function createSpoolClient({
       // (interests, last_seen, owner) and the per-box detail (online,
       // last_hello_at) alongside the mapped roster. rosterFromView stays the
       // pure mapper; the raw humans[]/boxes[] ride along unchanged.
+      const { state } = mk
       if (mock) return { roster: state.roster, online: state.online, me: state.me, humans: state.humans || [], boxes: state.boxes || [] }
       const body = await live('/v1/view/roster')
       return {
@@ -709,6 +776,12 @@ export function createSpoolClient({
       if (mock) return null
       return live('/v1/view/roster')
     },
+  }
+}
+
+/** Send over the WUI socket (wui-live-ws §4). */
+function sendMethods(mock, mk, conn) {
+  return {
     /**
      * Post into a channel (`channel`), a DM (`peer`, no channel) or an existing
      * topic (`task_id`); a new post starts a new task. `parent_task_id` links a
@@ -724,7 +797,8 @@ export function createSpoolClient({
       const toBox = peer ? (String(peer).includes('@') ? String(peer).split('@')[1] : undefined) : parsed.toBox
       const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
-      if (mock) return (await mockAnswers()).mockSendMessage(state, { channel, task_id, parent_task_id, is_parent, files, msg_id, to, toBox, kind, body }, uuid)
+      if (mock) return (await mk.answers()).mockSendMessage(mk.state, { channel, task_id, parent_task_id, is_parent, files, msg_id, to, toBox, kind, body }, uuid)
+      const { send } = conn
       if (typeof send !== 'function') {
         throw Object.assign(new Error('live send needs the WUI socket (setSender)'), { status: 0, token: 'no_socket' })
       }
@@ -757,6 +831,13 @@ export function createSpoolClient({
         received_at: ack.received_at,
       }
     },
+  }
+}
+
+/** Blob upload and download (003 http-v1 §3, 017 FR-SEC-002). */
+function fileMethods(mock, root, configError, conn, hubFetch) {
+  const mockBlobs = new Map()
+  return {
     /**
      * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload
      * token) → { file_id, sha256, bytes }. Mock keeps the bytes in memory.
@@ -793,26 +874,14 @@ export function createSpoolClient({
         if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
         return b.arrayBuffer()
       }
-      const res = await hubFetch(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(viewDoor) })
+      const res = await hubFetch(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(conn.door) })
       if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
       return res.arrayBuffer()
     },
     fileUrl(fileId) {
       return `${root}/v1/files/${encodeURIComponent(String(fileId || ''))}`
     },
-    bindIssuesMock(factory) { mockFactory = factory },
   }
-  /* P3-30: the stubs of the lazy half. Read as a member: a bare name from a
-     utils/ module here makes Nuxt's auto-import add a STATIC import of it. */
-  const ctx = { live, mock, get state() { return state }, dir, tenantMock, issuesMock }
-  let lazy = null
-  const loadLazy = () => (lazy ||= import('./spool-client-lazy.mjs').then(
-    (m) => m.lazySpoolMethods,
-    (err) => { lazy = null; throw err },
-  ))
-  for (const name of LAZY_METHODS) api[name] = async (...args) => (await loadLazy())[name](ctx, ...args)
-  if (mockReady) gateMock(api, mockReady)
-  return api
 }
 
 /** P3-15: every async method of a mock client first awaits the mock tenant's data. */

@@ -5309,6 +5309,263 @@
         ]
       }
     },
+    "/v1/me/realm/hours": {
+      "get": {
+        "description": "The signed-in person's own hours in every workspace they belong to (at most 20), with reported, actual (overlapping minutes counted once) and overlap per day. A personal route: it names no workspace and no member. Refused (403 person_only) under act-as, for a box token or an agent and for a time-accountant-only seat; 400 person_scope with X-Spool-Tenant, member= or workspace=. Read only; nothing is stored. Contract: csi-spl-doc/specs/118-multi-workspace-hours/spec.md §5.2, §6.4, §9 C2-C6.",
+        "operationId": "getMeRealmHours",
+        "parameters": [
+          {
+            "description": "first day, in the person's zone; with to, at most 62 days; both omitted = the current ISO week",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "last day, inclusive",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the browser's IANA zone, used only when the realm profile has none",
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "days": {
+                      "items": {
+                        "description": "One personal day in the person's zone; minutes.",
+                        "properties": {
+                          "actual": {
+                            "type": "integer"
+                          },
+                          "approx": {
+                            "description": "unplaced minutes (no times) are in actual, overlap not checked",
+                            "type": "boolean"
+                          },
+                          "data_error_minutes": {
+                            "type": "integer"
+                          },
+                          "day": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "incomplete": {
+                            "type": "boolean"
+                          },
+                          "open": {
+                            "type": "integer"
+                          },
+                          "overlap": {
+                            "type": "integer"
+                          },
+                          "overlap_intervals": {
+                            "items": {
+                              "properties": {
+                                "end": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "workspaces": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "reported": {
+                            "type": "integer"
+                          },
+                          "unavailable": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "unplaced": {
+                            "type": "integer"
+                          },
+                          "workspaces": {
+                            "additionalProperties": {
+                              "properties": {
+                                "minutes": {
+                                  "type": "integer"
+                                },
+                                "open": {
+                                  "type": "integer"
+                                },
+                                "spans": {
+                                  "items": {
+                                    "properties": {
+                                      "end": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "provisional": {
+                                        "type": "boolean"
+                                      },
+                                      "start": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "standard_day": {
+                                  "type": "integer"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "description": "per workspace id",
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "from": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "incomplete": {
+                      "type": "boolean"
+                    },
+                    "limits": {
+                      "items": {
+                        "properties": {
+                          "day_minutes": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "valid_from": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "week_minutes": {
+                            "nullable": true,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "to": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "totals": {
+                      "properties": {
+                        "actual": {
+                          "type": "integer"
+                        },
+                        "data_error_minutes": {
+                          "type": "integer"
+                        },
+                        "open": {
+                          "type": "integer"
+                        },
+                        "overlap": {
+                          "type": "integer"
+                        },
+                        "reported": {
+                          "type": "integer"
+                        },
+                        "unplaced": {
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "tz": {
+                      "type": "string"
+                    },
+                    "tz_source": {
+                      "enum": [
+                        "profile",
+                        "browser",
+                        "default"
+                      ],
+                      "type": "string"
+                    },
+                    "workspaces": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "member",
+                              "left",
+                              "unavailable"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the person's days. A workspace that could not be read is state unavailable and its days incomplete; a left workspace's receipt is state left, its minutes unplaced. limits are the person's own settings in force over the window; the warning is the WUI's. Contract: csi-spl-doc/specs/118-multi-workspace-hours/spec.md §5.2, §6.4, §9 C2-C6."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read my hours across all my workspaces",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/me/status": {
       "delete": {
         "operationId": "deleteMeStatus",

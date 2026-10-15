@@ -151,7 +151,7 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
   prints the DELETE path, so the workspace id of an erasure is logged; no
   limit, zone, prefs or receipt row is.
 
-- [ ] T004 **Lane D: the receipt copy on removal or ban** (claude, store +
+- [x] T004 **Lane D: the receipt copy on removal or ban** (SPL-1944, 888fefef6; claude, store +
   auth; waits on T002; BUILD). `spec.md` 8.1 row 1 and 8.2: step 1 in
   `inTenant(W)` through the existing 107 store reads only (no new SQL on
   `hours_*`), step 2 in `inPerson(leaver)` (`rev = 0`, `ON CONFLICT DO
@@ -171,6 +171,17 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
   under Q6 B it is simply never read). Q8 does not touch the copy: the
   name is copied either way.
   Done: green on Postgres and memory; deployed dev and prd.
+  Built: `CopyRealmReceipts` (`RealmReceiptCopier`, Memory and Postgres)
+  reads through `GetTenant`, `HoursEntries`, `HoursPeriods` and
+  `DisplayName` only, then `appendRealmReceipts` in `inPerson`; `removeOrBan`
+  copies before `RemoveMember` and `handleMemberRemove` answers 503
+  `receipt_failed` (in `openapi.json`). Rejected entries count 0 and are
+  not copied. A frozen or approved period is final; `last_open_from` is the
+  first open or returned day. A demo-stay ban and an act-as clone copy
+  nothing. Not built yet in 107, so not copied: `job:` targets have no
+  job store (label `job`) and `hours_entries` has no `kind` (every row
+  `work`); the grouping already keys on kind. T-R9's "no `receipt_due`"
+  holds because only the copy writes that table.
 
 - [ ] T005 **Lane E: the `access_until` sweep** (claude, store; waits on
   T004; BUILD). `spec.md` 8.1 row 2: a named sweep on the existing hub sweep

@@ -13,9 +13,9 @@ Review history: spool topic `dispatch-3209f8b8` (`spool tail --task dispatch-320
 
 ## 1. What landed
 
-`git log origin/master -E --grep='r12-[0-9]{2}' --format='%h %cI %s'` -> **9**
-commits on trunk; row 05 queued as the final row of Batch 3.
-`... --format=%s | grep -oE 'r12-[0-9]{2}' | sort -u | wc -l` -> 9.
+`git log origin/master -E --grep='r12-[0-9]{2}' --format='%h %cI %s'` -> **10**
+commits on trunk; all 10 rows landed on master.
+`... --format=%s | grep -oE 'r12-[0-9]{2}' | sort -u | wc -l` -> 10.
 
 | row | landed sha (lane) | landed (UTC) | pushes | red control | what it reduced, measured on `dc17f840e` |
 |---|---|---|---|---|---|
@@ -23,7 +23,7 @@ commits on trunk; row 05 queued as the final row of Batch 3.
 | 02 `ci(r12-02-review-line-check-remote-box)` | `b340c14c5` (c-219@sat) | 15:41Z | 1 | yes | `do_spl_review_line_check` supports `REVIEW_LINE_SYNTAX=1`: validates review line format, reviewer id, and registration on non-local box logs, printing the exact peer query instead of blind rc 2 failure. |
 | 03 `refactor(r12-03-wui-small-store-channel)` | `5e6217e70` (c-214@sat) | 14:48Z | 1 | yes | `useChannelStore` setup body in `src/stores/channel.ts` split from 576 lines into 10 named module step functions under 80 lines (setup is 66 lines); LONG entry deleted: **3 -> 2** in `cleancode.test.mjs`. |
 | 04 `refactor(r12-04-wui-small-create-live-client)` | `9e6dbc8b8` (c-223@sat) | 16:12Z | 1 | yes | `createLiveClient` in `src/utils/live-ws.mjs` split from 499 lines into module step functions with state on `liveContext` (max 73 lines); LONG entry deleted: **2 -> 1** in `cleancode.test.mjs`. |
-| 05 `refactor(r12-05-wui-small-create-spool-client)` | `<queued>` (c-231@sat) | queued | 1 (aim) | yes | Batch 3 row queued after row 04 landed (`9e6dbc8b8`) and queued when fleet refactor share fell to 16% (`c-001` blocker `7e976555`). Splits `createSpoolClient` (545 lines), removing the final WUI LONG entry (**1 -> 0**, empty LONG map). Reviewer: `a-218@sat` (agy). |
+| 05 `refactor(r12-05-wui-small-create-spool-client)` | `0b52be72a` (c-231@sat) | 21:26Z | 1 | yes | Splits `createSpoolClient` (545 lines) into 12 module step functions under 80 lines, removing the final WUI LONG entry (**1 -> 0**, empty LONG map in `cleancode.test.mjs`). Live on dev+prd (`v9.8.1-c2`). Reviewer: `a-218@sat` (agy). |
 | 06 `refactor(r12-06-bash-cleancode-ceilings-lowered)` | `b06903142` (c-216@sat) | 14:04Z | 1 | yes | Lowered LONG ceilings in `bash-cleancode.tst.sh` for `do_gcp_import_to_cloudsql` (175 -> 174) and `do_gcp_project_delete` (120 -> 119), eliminating 2 NOTEs. |
 | 07 `refactor(r12-07-bash-small-run-execute-step)` | `baa9eb601` (c-222@sat) | 15:23Z | 1 | yes | `execute_step` in iac and orc `run.sh` split from 99 lines (ceiling) to 54 lines + two named steps (`execute_step_hook` 8, `execute_step_parse_args` 42); kept byte-identical; both LONG entries removed from `bash-cleancode.tst.sh` (**12 -> 10**). |
 | 08 `test(r12-08-go-coverage-blob-avatar-key)` | `7f1f9a258` (c-215@sat) | 14:36Z | 1 | yes | `internal/blob/blob_test.go` added table tests for `blob.AvatarKey` (3 statements, 0.0% -> 100.0%); `internal/blob` coverage floor raised **66.2 -> 66.9**. |
@@ -32,7 +32,7 @@ commits on trunk; row 05 queued as the final row of Batch 3.
 
 All landed rows held: none reverted (`git log origin/master --grep='Revert' --format=%s | grep -c r12-` -> 0).
 Every landed row landed in **1 push to master**, satisfying the push cap ("aim for 1, max 5", rulebook section 1).
-WUI rows 03 and 04 were served on dev and prd (03 in v9.6.8-c2, 04 in v9.6.9-c2); tooling and test rows with no deploy input are done on landing (R5).
+WUI rows 03, 04, and 05 were served on dev and prd (03 in v9.6.8-c2, 04 in v9.6.9-c2, 05 in v9.8.1-c2); tooling and test rows with no deploy input are done on landing (R5).
 
 ## 2. Review line verification (`do_spl_review_line_check`)
 
@@ -70,6 +70,13 @@ SYNTAX OK the line's format and reviewer check on <box>; the run is not (the log
 - Line: `review: a-218@sat agy PASS a8a9280f6777cbd8c4722266ab4c59f48b9e05c7 ran: ... | log: a-218@sat:/mnt/data/home/<user>/.gemini/antigravity-cli/brain/16bb22b7-eb66-4755-ad92-6aca2c83f880/.system_generated/logs/transcript.jsonl`
 - Verification note: Reviewed cross-vendor by agy `a-218@sat` on claude author `c-223@sat`.
 
+### Row 05 (`0b52be72a`)
+```text
+SYNTAX OK the line's format and reviewer check on <box>; the run is not (the log is on sat): on sat: REVIEW_LINE='review: a-218@sat agy PASS 58725bb638f81c78e70cd0130158cebc0de1d3dc ran: cd /opt/csi/csi-spl-wt/a-218/csi-spl-wui && node tests/unit/cleancode.test.mjs && node --test tests/unit/spool-client.test.mjs tests/unit/channel-paging.test.mjs tests/unit/initial-js-trims.test.mjs && node src/node/test/run-unit-tests.mjs | read: cleancode: 10230 functions, 0 listed long; unit tests: pass 35, fail 0; all 379 file(s) passed; red control: old spool-client.mjs -> FAIL createSpoolClient is 545 lines (> 80), cleancode: 1 FAILED (rc 1), restored -> rc 0 | log: a-218@sat:/mnt/data/home/<user>/.gemini/antigravity-cli/brain/ab47a6df-891a-403a-ac06-f8cca5f4efb4/.system_generated/logs/transcript.jsonl' ./run -a do_spl_review_line_check
+```
+- Line: `review: a-218@sat agy PASS 58725bb638f81c78e70cd0130158cebc0de1d3dc ran: ... | log: a-218@sat:/mnt/data/home/<user>/.gemini/antigravity-cli/brain/ab47a6df-891a-403a-ac06-f8cca5f4efb4/.system_generated/logs/transcript.jsonl`
+- Verification note: Reviewed cross-vendor by agy `a-218@sat` on claude author `c-231@sat`.
+
 ### Row 06 (`b06903142`)
 ```text
 SYNTAX OK the line's format and reviewer check on <box>; the run is not (the log is on sat): on sat: REVIEW_LINE='review: m-213@sat mistral PASS 4303fdf421606d8161072f8eb6c82b6e7edc3377 ran: git fetch origin review/r12-06 && git checkout --detach 4303fdf421606d8161072f8eb6c82b6e7edc3377 && bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh | read: rc 0, no NOTE LONG; RED CONTROL: sed -i '\''s/do_gcp_import_to_cloudsql 174/do_gcp_import_to_cloudsql 173/'\'' csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh && sed -i '\''s/do_gcp_project_delete 119/do_gcp_project_delete 118/'\'' csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh && bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh | read: rc 2, two FAIL lines | log: m-213@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/07605995-8f03-6a89-781a-75c60cfa1d2d/journal/0000000000001725.jsonl' ./run -a do_spl_review_line_check
@@ -106,11 +113,11 @@ SYNTAX OK the line's format and reviewer check on <box>; the run is not (the log
 - Verification note: Reviewed cross-vendor by agy `a-218@sat` on claude author `c-217@sat`.
 
 ### Summary: C7 and Review Backing
-- **C7 holds on 100% of landed rows:** `git diff <reviewed> <landed> -- $(git show --name-only --format= <landed>) | wc -l` -> **0** for all rows 01, 02, 03, 04, 06, 07, 08, 09, 10.
-- **Review lines backed by output:** All 9 landed rows carry valid review evidence; syntax check passes (`SYNTAX OK`) on all lines; all 9 journals reside on box `sat`.
+- **C7 holds on 100% of landed rows:** `git diff <reviewed> <landed> -- $(git show --name-only --format= <landed>) | wc -l` -> **0** for all 10 rows (01-10).
+- **Review lines backed by output:** All 10 landed rows carry valid review evidence; syntax check passes (`SYNTAX OK`) on all lines; all 10 journals reside on box `sat`.
 - **Zero same-vendor reviews:** Cross-vendor reviewing restored across the fleet:
   - Mistral `m-213@sat` reviewed rows 01, 03, 06, 07, 08 (5 rows).
-  - Agy `a-218@sat` reviewed rows 02, 04, 09, 10 (4 rows), enabled by row 01 agy transcript parser.
+  - Agy `a-218@sat` reviewed rows 02, 04, 05, 09, 10 (5 rows), enabled by row 01 agy transcript parser.
 
 ## 3. CI verdict per row (R11)
 
@@ -122,14 +129,14 @@ The first workflow 10 run, completed and not cancelled, whose head contains the 
 | 02 | 38762742078 (`b340c14c5`) | success | **pass** |
 | 03 | 38756807081 (`78bba364c`) | success | **pass** |
 | 04 | 38768413628 (`d57662969`) | success | **pass** |
-| 05 | `<queued>` | pending | pending |
+| 05 | 38810972094 (`0b52be72a`) | success | **pass** |
 | 06 | 38748827138 (`053d6c8fa`) | failure: wui browser e2e 5/5 only | **pass**: iac tests passed; 38753973680 success |
 | 07 | 38760227296 (`baa9eb601`) | success | **pass** |
 | 08 | 38753973680 (`8695ee79c`) | success | **pass** |
 | 09 | 38762742078 (`b340c14c5`) | success | **pass** |
 | 10 | 38753973680 (`8695ee79c`) | success | **pass** |
 
-All landed rows satisfy R11.2: 7 rows in green completed runs, and 2 rows (01 and 06) in runs where the only red job was an unrelated WUI browser test (`wui: browser e2e 5/5`) while the jobs executing their tests passed cleanly, confirmed green on the next completed run `38753973680`.
+All 10 landed rows satisfy R11.2: 8 rows in green completed runs, and 2 rows (01 and 06) in runs where the only red job was an unrelated WUI browser test (`wui: browser e2e 5/5`) while the jobs executing their tests passed cleanly, confirmed green on the next completed run `38753973680`.
 
 ## 4. What went wrong and rule changes
 

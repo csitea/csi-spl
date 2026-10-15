@@ -2566,6 +2566,7 @@
     "toc_hide": "Skryť obsah",
     "print_doc": "Vytlačiť dokument",
     "permalink": "Odkaz na túto časť",
+    "anchor_unknown": "Časť z odkazu sa nenašla; dokument sa zobrazuje od začiatku.",
     "edit_body": "Upraviť text",
     "body_placeholder": "Text odseku",
     "default_doc_title": "Dokument bez názvu",
@@ -2600,7 +2601,8 @@
       "add_image": "Pridať obrázok",
       "replace_image": "Nahradiť obrázok",
       "numbering_off": "Vypnúť číslovanie",
-      "numbering_on": "Zapnúť číslovanie"
+      "numbering_on": "Zapnúť číslovanie",
+      "copy_link": "Kopírovať odkaz na časť"
     },
     "doc_menu": {
       "label": "Akcie dokumentu",

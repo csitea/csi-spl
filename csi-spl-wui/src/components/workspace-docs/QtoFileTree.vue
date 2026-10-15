@@ -143,6 +143,7 @@ import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
+import { docLink } from './-doc-anchor'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { DocTreeError, useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 import { useRepoDocs } from './-repo-docs'
@@ -625,7 +626,7 @@ function openMenu(key: string, x: number, y: number) {
 
 /** a document's own address, at a section when item is set: the page that opens it */
 function docHref(doc: string, item = ''): string {
-  return new URL(router.resolve({ path: '/workspace/docs', query: { doc, view: 'doc' }, hash: item ? '#ws-doc-' + item : '' }).href, location.origin).href
+  return docLink((to) => router.resolve(to), location.origin, doc, item)
 }
 
 /** a short line under the tree (the copy's answer, a refused move), gone after 3 s */

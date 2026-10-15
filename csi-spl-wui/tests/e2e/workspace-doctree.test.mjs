@@ -19,6 +19,9 @@
 // as key: value, read after the code block; on a phone meta is hidden.
 // Spec 137 T010 / T011: the paragraph toolbar's Insert table and Insert
 // quote, read back rendered, from the hub and from the Markdown export.
+// Spec 138: a section link (the stable id, or a readable anchor through its
+// id suffix) opens the document with that heading just below the sticky bar,
+// desktop and phone; Copy link to section; an unknown anchor opens the top.
 //
 //   node tests/e2e/workspace-doctree.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/workspace-doctree.test.mjs
@@ -1053,6 +1056,139 @@ try {
   await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim() === 'E2E phone doc', { timeout: STEP }).catch(() => null)
   const phoneDoc = (await hubDocs(p)).find((d) => d.title === 'E2E phone doc')
   ok('phone: the modal creates the document with its meta description', phoneDoc?.description === 'made on a phone', phoneDoc)
+
+  /* spec 138 (SPL-1966, owner HUM-10, t1 topic 7c968b85): a link opens the
+     document at one section. A document with a tall picture in section 2
+     and the target, section 10, far below the fold; the deep link is opened
+     in a fresh docs page (the router, so the picture uploaded here is still
+     the hub's and loads AFTER the first scroll, growing the layout above).
+     After the 2 s settle the heading's top is at the sticky bar's bottom
+     (<= 2 px) and the hash is the one opened; the same at 390x844; a form D
+     anchor with a stale number and title lands by its id suffix; the menu's
+     Copy link to section and a long press of the '#' copy the stable id
+     link; a bare number, a title slug and an unknown id open the top with
+     the status line. CONTROL: without landOn's re-scroll (ResizeObserver)
+     the desktop and phone checks FAIL (the picture pushes the heading down). */
+  const { deflateSync } = await import('node:zlib')
+  /** a w x h grey png, built here (no binary in the repo) */
+  const tallPng = (w, h) => {
+    const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0 })
+    const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+    const chunk = (type, data) => {
+      const t = Buffer.concat([Buffer.from(type), data])
+      const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+      const c = Buffer.alloc(4); c.writeUInt32BE(crc(t))
+      return Buffer.concat([len, t, c])
+    }
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 0
+    const raw = Buffer.alloc((w + 1) * h, 0x99)
+    for (let y = 0; y < h; y++) raw[y * (w + 1)] = 0
+    return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+  }
+  const tall = pjoin(tmpdir(), `wsdoc-e2e-${process.pid}-tall.png`)
+  writeFileSync(tall, tallPng(200, 1400))
+  const UNKNOWN = 'The linked section was not found; the document is shown from the top.'
+  const nav = (q, to) => q.evaluate((to) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to), to)
+  /** a fresh docs page at the link: away to /, then the link (the uploaded picture stays the mock hub's) */
+  const openLink = async (q, doc, hash) => {
+    await nav(q, '/')
+    await q.waitForFunction(() => !document.querySelector('[data-test=ws-doc-view]'), { timeout: STEP }).catch(() => null)
+    await nav(q, `/workspace/docs?doc=${doc}&view=doc${hash}`)
+    await q.waitForSelector('[data-test=ws-doc-row]', { visible: true, timeout: STEP }).catch(() => null)
+    await new Promise((r) => setTimeout(r, 2500))
+  }
+  /** the heading's top against the sticky bar's bottom, the hash, the picture above, the scroller, the status line */
+  const landed = (q, id) => q.evaluate((id) => {
+    const h = document.getElementById('ws-doc-' + id)
+    const bar = document.querySelector('[data-test=ws-doc-view] .wsdoc__bar')
+    const img = document.querySelector('[data-test=ws-doc-img]')
+    const toc = document.querySelector('[data-test=ws-doc-toc]')
+    return {
+      gap: h && bar ? Math.round((h.getBoundingClientRect().top - bar.getBoundingClientRect().bottom) * 10) / 10 : null,
+      hash: decodeURIComponent(location.hash),
+      img: img ? img.naturalHeight : 0,
+      scroll: document.querySelector('.wsdocs-page .feed-body')?.scrollTop ?? -1,
+      status: document.querySelector('[data-test=ws-doc-status]')?.textContent?.trim() ?? '',
+      toc: Boolean(toc && toc.getBoundingClientRect().width > 0),
+    }
+  }, id)
+  /** a document of 12 sections with text, a tall picture in section 2: its id and section 10's */
+  const linkDoc = async (q) => {
+    await q.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await q.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: NAV_TIMEOUT })
+    const made = await q.evaluate(async () => {
+      const call = window.__wsDocTreeCall
+      const d = await call('POST', '', { title: 'E2E section links' })
+      let rev = d.rev
+      const ids = []
+      for (let i = 1; i <= 12; i++) {
+        const r = await call('POST', `/${d.id}/items`, { rev, anchor: d.root, where: 'child', ord: i, title: `Section ${i}`, body: `Text of section ${i}. `.repeat(30) })
+        rev = r.rev
+        ids.push(r.item)
+      }
+      return { doc: d.id, target: ids[9] }
+    })
+    await openLink(q, made.doc, '')
+    const [fc] = await Promise.all([q.waitForFileChooser({ timeout: STEP }), menu(q, 'doc', 'Section 2', 'add_image', 'dots')])
+    await fc.accept([tall])
+    await q.waitForFunction(() => document.querySelector('[data-test=ws-doc-img]')?.naturalHeight > 0, { timeout: STEP }).catch(() => null)
+    return made
+  }
+  const ld = await browser.newPage()
+  await ld.setViewport({ width: 1280, height: 800 })
+  const L = await linkDoc(ld)
+  await openLink(ld, L.doc, '#ws-doc-' + L.target)
+  const deskA = await landed(ld, L.target)
+  await shoot(ld, 'link-desktop')
+  ok('spec 138: a deep link puts its heading just below the sticky bar after the picture above loaded; the hash is kept',
+    deskA.gap !== null && Math.abs(deskA.gap) <= 2 && deskA.hash === '#ws-doc-' + L.target && deskA.img === 1400 && deskA.scroll > 1400 && !deskA.status, deskA)
+  const dHash = `#9.9-a-stale-title~${L.target.slice(0, 8)}`
+  await openLink(ld, L.doc, dHash)
+  const deskD = await landed(ld, L.target)
+  ok('spec 138: a readable anchor with a stale number and title lands by its id suffix, the hash kept',
+    deskD.gap !== null && Math.abs(deskD.gap) <= 2 && deskD.hash === dHash && !deskD.status, deskD)
+
+  /* Copy link to section: the menu entry and a long press of the '#' write the stable id link */
+  await ld.evaluate(() => {
+    window.__copied = []
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied.push(t) } } })
+  })
+  await menu(ld, 'doc', 'Section 10', 'copy_link', 'dots')
+  await ld.waitForFunction(() => window.__copied.length === 1, { timeout: STEP }).catch(() => null)
+  const sayCopied = await ld.$eval('[data-test=ws-doc-status]', (e) => e.textContent.trim())
+  const perma = await ld.$(`[data-id="${L.target}"] [data-test=ws-doc-permalink]`)
+  const pb = await perma.boundingBox()
+  await ld.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2)
+  await ld.mouse.down()
+  await new Promise((r) => setTimeout(r, 800))
+  await ld.mouse.up()
+  await ld.waitForFunction(() => window.__copied.length === 2, { timeout: STEP }).catch(() => null)
+  const copied = await ld.evaluate(() => window.__copied)
+  const want = `${new URL(server.base).origin}/workspace/docs?doc=${L.doc}&view=doc#ws-doc-${L.target}`
+  ok('spec 138: Copy link to section and a long press of the # put the stable id link on the clipboard',
+    copied.length === 2 && copied.every((c) => c === want) && sayCopied === 'Link copied', { copied, want, sayCopied })
+
+  /* a bare number (B), a title slug (C) and an unknown id open the top with one status line */
+  const tops = {}
+  for (const h of ['#10', '#10-section-10', '#ws-doc-00000000-0000-4000-8000-000000000000']) {
+    await openLink(ld, L.doc, h)
+    tops[h] = await landed(ld, L.target)
+  }
+  await shoot(ld, 'link-unknown')
+  ok('spec 138: a bare number, a title slug or an unknown anchor opens the document at its top with the status line',
+    Object.values(tops).every((x) => x.scroll === 0 && x.status === UNKNOWN), tops)
+  await ld.close()
+
+  /* the phone: the deep link opens the doc view (no phone list), the contents drawer closed, the heading below the phone's bar */
+  const lm = await browser.newPage()
+  await lm.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  const M = await linkDoc(lm)
+  await openLink(lm, M.doc, '#ws-doc-' + M.target)
+  const phoneA = await landed(lm, M.target)
+  await shoot(lm, 'link-phone')
+  ok('spec 138: phone 390x844: the deep link opens the section below the bar, the drawer closed, the hash kept',
+    phoneA.gap !== null && Math.abs(phoneA.gap) <= 2 && phoneA.hash === '#ws-doc-' + M.target && phoneA.img === 1400 && !phoneA.toc && !(await lm.$('[data-test=ws-docs-page] [data-test=qto-file-tree]')), phoneA)
+  await lm.close()
 } finally {
   await browser.close()
   await server.stop()

@@ -2566,6 +2566,7 @@
     "toc_hide": "Peida sisukord",
     "print_doc": "Prindi dokument",
     "permalink": "Link sellele jaotisele",
+    "anchor_unknown": "Lingitud jaotist ei leitud; dokument on näidatud algusest.",
     "edit_body": "Muuda teksti",
     "body_placeholder": "Lõigu tekst",
     "default_doc_title": "Nimeta dokument",
@@ -2600,7 +2601,8 @@
       "add_image": "Lisa pilt",
       "replace_image": "Asenda pilt",
       "numbering_off": "Lülita nummerdamine välja",
-      "numbering_on": "Lülita nummerdamine sisse"
+      "numbering_on": "Lülita nummerdamine sisse",
+      "copy_link": "Kopeeri jaotise link"
     },
     "doc_menu": {
       "label": "Dokumendi toimingud",

@@ -2566,6 +2566,7 @@
     "toc_hide": "Ukryj spis treści",
     "print_doc": "Drukuj dokument",
     "permalink": "Link do tej sekcji",
+    "anchor_unknown": "Nie znaleziono sekcji z linku; dokument jest pokazany od początku.",
     "edit_body": "Edytuj tekst",
     "body_placeholder": "Tekst akapitu",
     "default_doc_title": "Dokument bez tytułu",
@@ -2600,7 +2601,8 @@
       "add_image": "Dodaj obraz",
       "replace_image": "Zastąp obraz",
       "numbering_off": "Wyłącz numerowanie",
-      "numbering_on": "Włącz numerowanie"
+      "numbering_on": "Włącz numerowanie",
+      "copy_link": "Kopiuj link do sekcji"
     },
     "doc_menu": {
       "label": "Akcje dokumentu",

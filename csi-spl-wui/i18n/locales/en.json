@@ -2566,6 +2566,7 @@
     "toc_hide": "Hide the contents",
     "print_doc": "Print document",
     "permalink": "Link to this section",
+    "anchor_unknown": "The linked section was not found; the document is shown from the top.",
     "edit_body": "Edit the text",
     "body_placeholder": "Paragraph text",
     "default_doc_title": "Untitled document",
@@ -2600,7 +2601,8 @@
       "add_image": "Add image",
       "replace_image": "Replace image",
       "numbering_off": "Turn numbering off",
-      "numbering_on": "Turn numbering on"
+      "numbering_on": "Turn numbering on",
+      "copy_link": "Copy link to section"
     },
     "doc_menu": {
       "label": "Document actions",

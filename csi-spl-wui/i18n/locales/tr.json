@@ -2566,6 +2566,7 @@
     "toc_hide": "İçindekileri gizle",
     "print_doc": "Belgeyi yazdır",
     "permalink": "Bu bölümün bağlantısı",
+    "anchor_unknown": "Bağlantıdaki bölüm bulunamadı; belge baştan gösteriliyor.",
     "edit_body": "Metni düzenle",
     "body_placeholder": "Paragraf metni",
     "default_doc_title": "Başlıksız belge",
@@ -2600,7 +2601,8 @@
       "add_image": "Görsel ekle",
       "replace_image": "Görseli değiştir",
       "numbering_off": "Numaralandırmayı kapat",
-      "numbering_on": "Numaralandırmayı aç"
+      "numbering_on": "Numaralandırmayı aç",
+      "copy_link": "Bölüm bağlantısını kopyala"
     },
     "doc_menu": {
       "label": "Belge işlemleri",

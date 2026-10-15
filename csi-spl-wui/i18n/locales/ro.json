@@ -2566,6 +2566,7 @@
     "toc_hide": "Ascunde cuprinsul",
     "print_doc": "Tipărește documentul",
     "permalink": "Link către această secțiune",
+    "anchor_unknown": "Secțiunea din link nu a fost găsită; documentul este afișat de la început.",
     "edit_body": "Editează textul",
     "body_placeholder": "Textul paragrafului",
     "default_doc_title": "Document fără titlu",
@@ -2600,7 +2601,8 @@
       "add_image": "Adaugă imagine",
       "replace_image": "Înlocuiește imaginea",
       "numbering_off": "Dezactivează numerotarea",
-      "numbering_on": "Activează numerotarea"
+      "numbering_on": "Activează numerotarea",
+      "copy_link": "Copiază linkul către secțiune"
     },
     "doc_menu": {
       "label": "Acțiuni document",

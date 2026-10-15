@@ -2566,6 +2566,7 @@
     "toc_hide": "Slėpti turinį",
     "print_doc": "Spausdinti dokumentą",
     "permalink": "Nuoroda į šį skyrių",
+    "anchor_unknown": "Nuorodos skyrius nerastas; dokumentas rodomas nuo pradžios.",
     "edit_body": "Redaguoti tekstą",
     "body_placeholder": "Pastraipos tekstas",
     "default_doc_title": "Dokumentas be pavadinimo",
@@ -2600,7 +2601,8 @@
       "add_image": "Pridėti paveikslėlį",
       "replace_image": "Pakeisti paveikslėlį",
       "numbering_off": "Išjungti numeravimą",
-      "numbering_on": "Įjungti numeravimą"
+      "numbering_on": "Įjungti numeravimą",
+      "copy_link": "Kopijuoti nuorodą į skyrių"
     },
     "doc_menu": {
       "label": "Dokumento veiksmai",

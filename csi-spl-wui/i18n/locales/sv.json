@@ -2566,6 +2566,7 @@
     "toc_hide": "Dölj innehållet",
     "print_doc": "Skriv ut dokumentet",
     "permalink": "Länk till det här avsnittet",
+    "anchor_unknown": "Avsnittet i länken hittades inte; dokumentet visas från början.",
     "edit_body": "Redigera texten",
     "body_placeholder": "Stycketext",
     "default_doc_title": "Namnlöst dokument",
@@ -2600,7 +2601,8 @@
       "add_image": "Lägg till bild",
       "replace_image": "Ersätt bild",
       "numbering_off": "Stäng av numrering",
-      "numbering_on": "Slå på numrering"
+      "numbering_on": "Slå på numrering",
+      "copy_link": "Kopiera länk till avsnittet"
     },
     "doc_menu": {
       "label": "Dokumentåtgärder",

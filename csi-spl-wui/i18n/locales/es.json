@@ -2566,6 +2566,7 @@
     "toc_hide": "Ocultar el contenido",
     "print_doc": "Imprimir documento",
     "permalink": "Enlace a esta sección",
+    "anchor_unknown": "No se encontró la sección del enlace; el documento se muestra desde el principio.",
     "edit_body": "Editar el texto",
     "body_placeholder": "Texto del párrafo",
     "default_doc_title": "Documento sin título",
@@ -2600,7 +2601,8 @@
       "add_image": "Añadir imagen",
       "replace_image": "Reemplazar imagen",
       "numbering_off": "Desactivar numeración",
-      "numbering_on": "Activar numeración"
+      "numbering_on": "Activar numeración",
+      "copy_link": "Copiar enlace a la sección"
     },
     "doc_menu": {
       "label": "Acciones del documento",

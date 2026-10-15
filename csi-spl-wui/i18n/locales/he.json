@@ -2566,6 +2566,7 @@
     "toc_hide": "הסתרת תוכן העניינים",
     "print_doc": "הדפסת המסמך",
     "permalink": "קישור לסעיף זה",
+    "anchor_unknown": "הסעיף שבקישור לא נמצא; המסמך מוצג מההתחלה.",
     "edit_body": "עריכת הטקסט",
     "body_placeholder": "טקסט של פסקה",
     "default_doc_title": "מסמך ללא כותרת",
@@ -2600,7 +2601,8 @@
       "add_image": "הוספת תמונה",
       "replace_image": "החלפת התמונה",
       "numbering_off": "כיבוי מספור",
-      "numbering_on": "הפעלת מספור"
+      "numbering_on": "הפעלת מספור",
+      "copy_link": "העתק קישור לסעיף"
     },
     "doc_menu": {
       "label": "פעולות מסמך",

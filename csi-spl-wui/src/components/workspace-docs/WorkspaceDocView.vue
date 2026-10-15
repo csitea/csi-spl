@@ -21,7 +21,12 @@
      3cf88d1c). The preamble, the text before section 1, is the hidden root's
      body (SPL-1612): shown and edited above section 1 as a paragraph with no
      heading (the whole document only, not a branch), and the bar's Export to
-     Markdown puts it first, as `spool doctree export` does. -->
+     Markdown puts it first, as `spool doctree export` does. Spec 138: a
+     link opens the document at its section (-doc-anchor.ts: the item id, or a
+     readable anchor resolved through its id suffix), the heading just below
+     the sticky bar and kept there while the layout above it still grows;
+     an unknown anchor opens the top with one status line. "Copy link to
+     section" is in the section menu and on a long-press of the '#'. -->
 <template>
   <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
     <div ref="barEl" class="wsdoc__bar">
@@ -44,6 +49,7 @@
       <button type="button" class="wsdoc__tool" data-test="ws-doc-export-doc" :disabled="!items.length" @click="exportDoc" :aria-label="t('ws_doctree.menu.export_md')" :title="t('ws_doctree.menu.export_md')">
         <UiIcon name="file-code" :size="16" />
       </button>
+      <span class="wsdoc__status" role="status" data-test="ws-doc-status">{{ status }}</span>
     </div>
 
     <div v-if="branchItem" class="wsdoc__branch" data-test="ws-doc-branch">
@@ -95,7 +101,18 @@
             >
               <UiIcon name="grip" :size="16" />
             </button>
-            <a class="wsdoc__perma" :href="'#' + anchor(it.id)" data-test="ws-doc-permalink" :aria-label="t('ws_doctree.permalink')" @click.prevent="goTo(it.id)">#</a>
+            <a
+              class="wsdoc__perma"
+              :href="'#' + anchor(it.id)"
+              data-test="ws-doc-permalink"
+              :aria-label="t('ws_doctree.permalink')"
+              @click.prevent="permaClick(it)"
+              @pointerdown="pressStart(it)"
+              @pointerup="pressEnd"
+              @pointerleave="pressEnd"
+              @pointercancel="pressEnd"
+              @contextmenu.prevent
+            >#</a>
             <span
               v-if="it.outline"
               class="wsdoc__num"
@@ -322,6 +339,8 @@ import {
 import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
 import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from './-doc-blocks'
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
+import { anchorOf, docLink, resolveAnchor } from './-doc-anchor'
+import { writeClipboard } from '~/utils/clipboard.mjs'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
@@ -330,7 +349,10 @@ const { t } = useI18n({ useScope: 'global' })
 
 /* below this width the contents are a drawer over the document, closed at first */
 const NARROW = 760
-const ANCHOR = 'ws-doc-'
+/* spec 138 G1: how long a deep link keeps its heading at the top while the layout above it grows */
+const SETTLE_MS = 2000
+/* a press on the '#' this long copies the section's link instead of following it */
+const LONG_PRESS_MS = 500
 
 const rootEl = ref<HTMLElement | null>(null)
 const barEl = ref<HTMLElement | null>(null)
@@ -366,6 +388,10 @@ const picFor = ref<{ it: DocItem, value: string, start: number, end: number } | 
 /* the last paragraph save, awaited before a picture is inserted on top of it */
 let saving: Promise<unknown> = Promise.resolve()
 const doomed = ref<DocItem | null>(null)
+/* the bar's one status line: an unknown anchor, a copied link */
+const status = ref('')
+let statusTimer: ReturnType<typeof setTimeout> | undefined
+const router = useRouter()
 
 const byId = computed(() => new Map(items.value.map((it) => [it.id, it])))
 /** parent id -> its children in order */
@@ -421,7 +447,7 @@ const shown = computed(() => (branchItem.value ? branchOf(branchItem.value) : it
 /** the sections drawn: the shown items, the preamble first when the whole document is shown */
 const docRows = computed(() => (branchItem.value || !preamble.value ? shown.value : [preamble.value, ...shown.value]))
 
-const anchor = (id: string) => ANCHOR + id
+const anchor = anchorOf
 /* Qto's lnkMayBe: the web links in a text, clickable under it (a quote's source line's are not) */
 const links = previewLinks
 const attr = (it: DocItem, k: string) => {
@@ -679,6 +705,8 @@ const menuItems = computed(() => {
     { id: 'add_image', icon: 'file-image', labelKey: attr(it, 'img_http_path') ? 'ws_doctree.menu.replace_image' : 'ws_doctree.menu.add_image' },
     /* spec 137 T019 gap: the heading's Numbered switch, attrs.numbered (T012a) */
     { id: 'numbered', icon: 'hash', labelKey: isNumbered(it) ? 'ws_doctree.menu.numbering_off' : 'ws_doctree.menu.numbering_on' },
+    /* spec 138 G2: the section's link, the stable id (owner msg 748ecf3c) */
+    { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.menu.copy_link' },
     { id: 'open_branch', icon: 'book-open', labelKey: 'ws_doctree.menu.open_branch' },
     { id: 'open_list', icon: 'file-spreadsheet', labelKey: 'ws_doctree.menu.open_list' },
     { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
@@ -687,7 +715,7 @@ const menuItems = computed(() => {
   for (const m of more) ops.set(m.id, m)
   /* the owner's order (msg dd291fb8): add paragraph, promote, demote, delete, and so on */
   const order = ['add_paragraph', 'add_code', 'add_image', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down', 'numbered',
-    'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
+    'copy_link', 'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
   const hasCode = Boolean(attr(it, 'src')) || codeOpen.has(it.id)
   return order.filter((id) => (id !== 'add_paragraph' || !paraShown(it)) && (id !== 'add_code' || !hasCode)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
 })
@@ -714,6 +742,10 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
     } finally {
       busy.value = false
     }
+    return true
+  }
+  if (id === 'copy_link') {
+    await copyLink(it)
     return true
   }
   if (id === 'add_image') {
@@ -833,10 +865,103 @@ function toggleToc() {
   editMode.setEditing(false)
 }
 
+/** one line in the bar; a transient one (a copied link) clears after 3 s */
+function say(text: string, transient = true) {
+  status.value = text
+  clearTimeout(statusTimer)
+  if (transient) statusTimer = setTimeout(() => { status.value = '' }, 3000)
+}
+
+/** the section's link on the clipboard: the stable id form, the file tree's docHref */
+async function copyLink(it: DocItem) {
+  const href = docLink((to) => router.resolve(to), location.origin, props.session.doc, it.id)
+  say(t(await writeClipboard(href) ? 'ws_doctree.doc_menu.link_copied' : 'common.copy_failed'))
+}
+
+/* the '#': a click follows it, a long press copies its link (a touch has no hover menu) */
+let pressTimer: ReturnType<typeof setTimeout> | undefined
+let pressed = false
+function pressStart(it: DocItem) {
+  pressed = false
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(() => {
+    pressed = true
+    void copyLink(it)
+  }, LONG_PRESS_MS)
+}
+function pressEnd() {
+  clearTimeout(pressTimer)
+}
+function permaClick(it: DocItem) {
+  if (pressed) {
+    pressed = false
+    return
+  }
+  goTo(it.id)
+}
+
+/** the element the document scrolls in: the nearest scrolling ancestor, else the page */
+function scroller(): HTMLElement {
+  for (let el = rootEl.value?.parentElement; el; el = el.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight) return el
+  }
+  return document.scrollingElement as HTMLElement ?? document.documentElement
+}
+
+/** the headings' scroll margin: where the sticky bar ends, measured (a phone's
+    bar too), not a fixed 4rem: the bar sticks inside the scroller's top
+    padding, so the margin is that padding plus the bar's height */
+function measureBar() {
+  const h = barEl.value?.getBoundingClientRect().height
+  if (!h) return
+  const pad = parseFloat(getComputedStyle(scroller()).paddingTop) || 0
+  rootEl.value?.style.setProperty('--wsdoc-bar-h', Math.ceil(h + pad) + 'px')
+}
+
+/* spec 138 G1: a deep link's heading at the top, scrolled again on every
+   resize of the document (pictures loading, textareas growing above it) for
+   SETTLE_MS, or until the user scrolls, types or taps; no fixed sleep */
+const USER_INPUT = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
+let settleStop: (() => void) | null = null
+function landOn(id: string) {
+  settleStop?.()
+  const el = document.getElementById(anchor(id))
+  if (!el) return
+  measureBar()
+  el.scrollIntoView({ block: 'start' })
+  const doc = rootEl.value?.querySelector('.wsdoc__doc')
+  if (typeof ResizeObserver === 'undefined' || !doc) return
+  const grows = new ResizeObserver(() => {
+    measureBar()
+    el.scrollIntoView({ block: 'start' })
+  })
+  const stop = () => {
+    grows.disconnect()
+    clearTimeout(timer)
+    for (const e of USER_INPUT) window.removeEventListener(e, stop, true)
+    settleStop = null
+  }
+  const timer = setTimeout(stop, SETTLE_MS)
+  for (const e of USER_INPUT) window.addEventListener(e, stop, { capture: true, passive: true })
+  grows.observe(doc)
+  settleStop = stop
+}
+
+/** the location's anchor on open: its section (spec 138 form A or D), else the top and one status line */
+function openAnchor() {
+  if (location.hash.length < 2) return
+  const id = resolveAnchor(location.hash, items.value.map((it) => it.id))
+  if (id) return landOn(id)
+  scroller().scrollTo({ top: 0 })
+  say(t('ws_doctree.anchor_unknown'), false)
+}
+
 /** a contents link or a permalink: scroll the heading in, the URL carries its anchor */
 function goTo(id: string) {
   const el = document.getElementById(anchor(id))
   if (!el) return
+  settleStop?.()
+  measureBar()
   el.scrollIntoView({ block: 'start' })
   history.replaceState(history.state, '', '#' + anchor(id))
   if (narrow()) tocOpen.value = false
@@ -857,11 +982,8 @@ onMounted(async () => {
   tocOpen.value = !narrow()
   state.value = (await load()) ? 'ready' : 'failed'
   /* Qto's scrollToHash: a permalink opened from elsewhere lands on its heading */
-  const h = decodeURIComponent(location.hash.slice(1))
-  if (h.startsWith(ANCHOR)) {
-    await nextTick()
-    document.getElementById(h)?.scrollIntoView({ block: 'start' })
-  }
+  await nextTick()
+  if (state.value === 'ready') openAnchor()
   if (!fieldSizing && typeof ResizeObserver !== 'undefined' && rootEl.value) {
     ro = new ResizeObserver(() => {
       const w = rootEl.value?.clientWidth ?? 0
@@ -876,6 +998,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   editMode.setEditing(false)
   ro?.disconnect()
+  settleStop?.()
+  clearTimeout(statusTimer)
+  clearTimeout(pressTimer)
 })
 </script>
 
@@ -914,6 +1039,8 @@ onBeforeUnmount(() => {
 }
 .wsdoc__tool:hover:not(:disabled) { background: var(--color-surface-hover); border-color: var(--color-border); }
 .wsdoc__tool:disabled { opacity: 0.5; cursor: default; }
+.wsdoc__status { flex: 1 1 auto; min-width: 0; margin-inline-start: 8px; color: var(--color-muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+.wsdoc__status:empty { display: none; }
 .wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;
@@ -948,7 +1075,8 @@ onBeforeUnmount(() => {
   margin: 1.25rem 0 0;
   font-size: 1rem;
   line-height: 1.5;
-  scroll-margin-top: 4rem;
+  /* spec 138: just below the sticky bar, its measured height (measureBar) */
+  scroll-margin-top: var(--wsdoc-bar-h, 4rem);
 }
 /* Qto's section control: the dots at the far left of every title, a click or a right-click opens the section menu */
 .wsdoc__dots {
@@ -975,6 +1103,9 @@ onBeforeUnmount(() => {
   text-decoration: none;
   text-align: center;
   opacity: 0;
+  /* a long press copies the link (spec 138 G2): no phone link callout over it */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 .wsdoc__h:hover .wsdoc__perma, .wsdoc__perma:focus-visible { opacity: 1; }
 .wsdoc__num {

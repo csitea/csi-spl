@@ -2566,6 +2566,7 @@
     "toc_hide": "Piilota sisällys",
     "print_doc": "Tulosta asiakirja",
     "permalink": "Linkki tähän osioon",
+    "anchor_unknown": "Linkin osiota ei löytynyt; asiakirja näytetään alusta.",
     "edit_body": "Muokkaa tekstiä",
     "body_placeholder": "Kappaleen teksti",
     "default_doc_title": "Nimetön dokumentti",
@@ -2600,7 +2601,8 @@
       "add_image": "Lisää kuva",
       "replace_image": "Vaihda kuva",
       "numbering_off": "Poista numerointi",
-      "numbering_on": "Lisää numerointi"
+      "numbering_on": "Lisää numerointi",
+      "copy_link": "Kopioi linkki osioon"
     },
     "doc_menu": {
       "label": "Asiakirjan toiminnot",

@@ -30,9 +30,11 @@ const place = new Map<string, number>()
 let placeSeq = 0
 const placeOf = (node: string) => place.get(node) ?? 0
 
+/* the first 8 hex differ per id, as the hub's random uuids do: a spec 138
+   section anchor resolves by them (an odd multiplier is a bijection mod 2^32) */
 function uuid(): string {
   seq++
-  return `00000000-0000-4000-8000-${seq.toString(16).padStart(12, '0')}`
+  return `${(Math.imul(seq, 0x9e3779b1) >>> 0).toString(16).padStart(8, '0')}-0000-4000-8000-${seq.toString(16).padStart(12, '0')}`
 }
 
 function fail(status: number, code: string, message: string): MockReply {

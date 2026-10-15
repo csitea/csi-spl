@@ -2566,6 +2566,7 @@
     "toc_hide": "Paslēpt saturu",
     "print_doc": "Drukāt dokumentu",
     "permalink": "Saite uz šo sadaļu",
+    "anchor_unknown": "Saites sadaļa netika atrasta; dokuments parādīts no sākuma.",
     "edit_body": "Rediģēt tekstu",
     "body_placeholder": "Rindkopas teksts",
     "default_doc_title": "Dokuments bez virsraksta",
@@ -2600,7 +2601,8 @@
       "add_image": "Pievienot attēlu",
       "replace_image": "Aizstāt attēlu",
       "numbering_off": "Izslēgt numurēšanu",
-      "numbering_on": "Ieslēgt numurēšanu"
+      "numbering_on": "Ieslēgt numurēšanu",
+      "copy_link": "Kopēt saiti uz sadaļu"
     },
     "doc_menu": {
       "label": "Dokumenta darbības",

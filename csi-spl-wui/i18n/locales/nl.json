@@ -2566,6 +2566,7 @@
     "toc_hide": "Inhoud verbergen",
     "print_doc": "Document afdrukken",
     "permalink": "Link naar deze sectie",
+    "anchor_unknown": "De sectie uit de link is niet gevonden; het document wordt vanaf het begin getoond.",
     "edit_body": "Tekst bewerken",
     "body_placeholder": "Alineatekst",
     "default_doc_title": "Naamloos document",
@@ -2600,7 +2601,8 @@
       "add_image": "Afbeelding toevoegen",
       "replace_image": "Afbeelding vervangen",
       "numbering_off": "Nummering uitzetten",
-      "numbering_on": "Nummering aanzetten"
+      "numbering_on": "Nummering aanzetten",
+      "copy_link": "Link naar sectie kopiëren"
     },
     "doc_menu": {
       "label": "Documentacties",

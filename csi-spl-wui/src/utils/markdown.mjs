@@ -97,7 +97,7 @@ function md(html = false) {
     maxNesting: 20,
   })
   // bare URLs and addresses only, as outside the marker: no "example.com"
-  engine.linkify.set({ fuzzyLink: false, fuzzyEmail: true, fuzzyIP: false })
+  engine.linkify.set({ fuzzyLink: true, fuzzyEmail: true, fuzzyIP: false })
   // safeHref decides; markdown-it must not drop a link silently, so an
   // unsafe one still shows its text
   engine.validateLink = () => true

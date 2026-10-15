@@ -1,0 +1,76 @@
+# ci: rerun a run's failed jobs ONCE when they all died fetching an action
+#
+# GitHub's runner downloads each pinned action archive from codeload ONCE at
+# "Set up job"; a 404 there (a valid SHA - it served 200 minutes later) loses
+# the job before its first step, and a workflow cannot wrap `uses:` in a
+# retry. Measured 2026-10-15 05:14..05:48Z: actions/setup-go@b7ad1dad (v7.0.0)
+# 3 times on GitHub-hosted runners (wf10 38685379352, wf20 38684002050 and
+# 38687357160); the wf20 red also held wf21's catch-up off dev (it never
+# re-dispatches over a FAILED deploy) until a person reran it.
+#
+# When a watched run on master completes red on its FIRST attempt, this reads
+# its failed jobs and reruns them (gh run rerun --failed) only if EVERY one
+# failed at "Set up job" with GitHub's archive-download line. One real red and
+# nothing is rerun; a rerun is never rerun. The decision is a named action
+# with its own test: csi-spl-orc/src/bash/run/ci-rerun-setup-flake.func.sh,
+# tests/ci-rerun-setup-flake.tst.sh.
+#
+# Local equivalent: RUN_ID=<id> REPO=<owner>/<repo> DRY_RUN=1 ./csi-spl-orc/run -a do_ci_rerun_setup_flake
+name: "12 ci: rerun an action-download flake"
+on:
+  workflow_run:
+    # the workflows that run on a push to master (name: lines, verbatim)
+    workflows:
+      - "10 ci: quality gate"
+      - "15 sec: deps and secrets"
+      - "20 ci-cd: spool hub build + deploy"
+      - "23 ci-cd: agent join check"
+      - "30 ci-cd: spool WUI build + deploy"
+      - "32 ci-cd: docs publish"
+      - "50 oss-standalone"
+      - "61 sec: semgrep (SAST)"
+      - "62 sec: gosec (Go SAST)"
+      - "63 sec: eslint-plugin-security (WUI JS)"
+      - "64 sec: trufflehog (verified secrets)"
+      - "65 sec: checkov (terraform IaC)"
+      - "66 sec: hadolint (Dockerfiles)"
+      - "67 sec: shellcheck (bash)"
+      - "70 sec: supply chain (trivy IaC + OSV)"
+      - "85 sec: actionlint (workflows)"
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-rerun-setup-flake-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  rerun:
+    name: Rerun a run lost to an action download
+    # Estate guard (spec 072 A34): it reruns OUR runs, so only on an estate repo.
+    if: (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl') && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write   # gh run rerun --failed
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: master
+
+      - name: do_ci_rerun_setup_flake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+          WATCHED: ${{ github.event.workflow_run.name }}
+        run: |
+          set -euo pipefail
+          out="$(./csi-spl-orc/run -a do_ci_rerun_setup_flake 2>&1)"
+          echo "$out"
+          { echo "## $WATCHED run $RUN_ID"; echo
+            echo '```'; grep -E '^(rerun|real|attempt|nothing) ' <<<"$out" || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

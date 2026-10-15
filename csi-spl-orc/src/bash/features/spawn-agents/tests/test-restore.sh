@@ -34,6 +34,8 @@ go on" "$out"
 has "1+3. agy resumes by conversation, kick after --prompt-interactive" "'agy' --dangerously-skip-permissions --conversation c-2 --prompt-interactive \"Read and follow your restore note: $SPOOL_ROOT/AGY-08/lifetime/kick.txt\"" "$(r agy AGY-08 "$D" c-2 hi)"
 has "1+3. qwen: --yolo --resume, kick after --prompt-interactive" "'qwen' --yolo --resume q-3 --prompt-interactive \"Read and follow your restore note: $SPOOL_ROOT/QWN-09/lifetime/kick.txt\"" "$(r qwen QWN-09 "$D" q-3 hi)"
 hasnt "3. no kick given, none passed" "prompt-interactive" "$(r qwen QWN-09 "$D" q-3)"
+has "1. qwen resumes with umask 077 (SPL-1999)" "--mirror --umask '077' -- 'qwen'" "$(r qwen QWN-09 "$D" q-3)"
+hasnt "1. CONTROL: grok keeps the harness umask" "--umask" "$(r grok GRK-07 "$D" s-1)"
 
 # --- 2. claude kicks ------------------------------------------------------------------
 git init -q --bare "$T_TMP/o.git"

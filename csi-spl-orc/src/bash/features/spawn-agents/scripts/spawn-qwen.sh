@@ -26,6 +26,9 @@ SPAWN_PROMPT_FLAG=--prompt-interactive
 SPAWN_RESUME_FLAG=--resume
 SPAWN_RESUME_ID=SESSION_ID
 SPAWN_CONTINUE_FLAG=--continue
+# qwen's own files (~/.qwen state) are created owner-only (SPL-1999).
+# shellcheck disable=SC2034  # read by spawn-core.inc.sh
+SPAWN_UMASK=077
 spawn_rename_how() {
   # $SLUG is embedded already escaped for a double-quoted argument, so the
   # agent copy-pastes a command that cannot run $(...) from the title.

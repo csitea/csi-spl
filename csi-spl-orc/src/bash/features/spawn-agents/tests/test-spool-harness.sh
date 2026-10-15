@@ -46,6 +46,20 @@ chmod 555 "$SPOOL_ROOT/files"; chmod 775 "$SPOOL_ROOT/pins"
 bash "$H" --as GRK-7 true 2>/dev/null
 eq "local: an owned dir with a wrong mode is repaired" 775 "$(mode "$SPOOL_ROOT/files")"
 
+# ── --umask (SPL-1999): the agent's own files, not the spool dirs ──
+# A file the agent creates is owner-only under --umask 077; the CONTROL, the
+# same launch without it, leaves the file readable by every local user.
+UM="$T_TMP/um"; mkdir -p "$UM"
+out="$(bash "$H" --as QWN-5 --umask 077 -- sh -c ': >"$1"; stat -c %a "$1"; umask' _ "$UM/on" 2>/dev/null)"
+eq "umask: a file the agent creates is 600" "600
+0077" "$out"
+eq "umask: the spool dirs it prepares stay 0775" 775 "$(mode "$SPOOL_ROOT/QWN-5/inbox")"
+out="$(bash "$H" --as QWN-5 -- sh -c ': >"$1"; stat -c %a "$1"' _ "$UM/off" 2>/dev/null)"
+eq "umask: CONTROL: without --umask the file is 664, open to other" 664 "$out"
+eq "umask: --umask=077 form" 0077 "$(bash "$H" --as QWN-5 --umask=077 -- sh -c umask 2>/dev/null)"
+bash "$H" --as QWN-5 --umask 0778 true >/dev/null 2>&1; eq "umask: a non-octal mask -> 2" 2 "$?"
+bash "$H" --as QWN-5 --umask a+r true >/dev/null 2>&1;  eq "umask: a symbolic mask -> 2" 2 "$?"
+
 # ── usage and refusals ──
 bash "$H" true >/dev/null 2>&1;              eq "no --as -> 2" 2 "$?"
 bash "$H" --as CLE-1 >/dev/null 2>&1;        eq "no command -> 2" 2 "$?"

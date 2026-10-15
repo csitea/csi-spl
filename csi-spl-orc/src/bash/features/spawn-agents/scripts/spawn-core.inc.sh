@@ -47,6 +47,8 @@
 #                        (so the harness still sees the CLI as its command), and
 #                        in the resume stub (mistral: env -u MISTRAL_API_KEY ...)
 #   SPAWN_EXTRA_FLAGS    flags after the permission flags (mistral: --max-price N)
+#   SPAWN_UMASK          the CLI's umask (spool-harness --umask, and the restore
+#                        stub), or unset for the harness's 0002 (qwen: 077)
 #   spawn_teardown_how   function: closing step (8) of the seed, in place of
 #                        "remove the worktree" (mistral: vibe runs its hooks in it)
 #   SPAWN_AGENT_ACL      the agent user's ACL on its own worktree, default rX
@@ -467,7 +469,7 @@ spawn_main() {
   # The resume stub carries the same permission flags as the launch. A grok
   # resumed without them falls back to whatever config.toml says; claude's
   # own restore in the box engine repeats its own permission mode (auto for claude).
-  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}} ${SPAWN_RESUME_FLAG} "
+  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_UMASK:+umask ${SPAWN_UMASK} ; }${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}} ${SPAWN_RESUME_FLAG} "
   _sp_plan restore "${RESTORE}<${SPAWN_RESUME_ID}>'"
 
   # The pointer travels inside a double-quoted argument of the agent's login
@@ -477,7 +479,7 @@ spawn_main() {
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
   # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
   # hooks of specs/036), not with the env prepared inline here.
-  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
+  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
 
   if ! _sp_live; then
     _sp_plan launch "$(spool_agent_cmd_text) -c \"${LAUNCH}\""
@@ -508,7 +510,7 @@ spawn_main() {
   echo " Spool dir: ${MSGDIR} (inbox/ outbox/ archive/)"
   echo " To RESUME: ${RESTORE}<${SPAWN_RESUME_ID}>'"
   echo " Or the most recent session in this dir:"
-  echo "   $(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_CONTINUE_FLAG}'"
+  echo "   $(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_UMASK:+umask ${SPAWN_UMASK} ; }${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_CONTINUE_FLAG}'"
   if [ -n "$WORKTREE_DIR" ]; then
     echo " Worktree: ${WORKTREE_DIR}  Branch: ${BRANCH} (off origin/${DEFBRANCH})"
     echo " Tear down when merged: git -C '${REPO}' worktree remove '${WORKTREE_DIR}'"

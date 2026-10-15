@@ -3,7 +3,7 @@
 # specs/012-spool-box-api). Prepares one agent's spool surface, then exec-s the
 # agent CLI in its place:
 #
-#   spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--] <agent-cli-command...>
+#   spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--umask <octal>] [--] <agent-cli-command...>
 #
 #   1. dirs      $SPOOL_ROOT/<agent_id>/{inbox,outbox,archive} and the shared
 #                $SPOOL_ROOT/{files,pins}, mode 0775; umask 0002 so the files
@@ -25,7 +25,12 @@
 #                $SPOOL_ROOT/.mirror-off exists (the box-wide kill switch). The
 #                hook posts each typed prompt and each final answer into the
 #                agent's web UI DM, from its desk seat; no seat, no post
-#   6. exec      replaces itself with the agent command
+#   6. exec      replaces itself with the agent command; --umask <octal> sets
+#                the agent's own umask first (the spool dirs above keep 0002).
+#                qwen launches with 077: its state files under ~/.qwen were
+#                0664, open to every local user (SPL-1957, SPL-1999). The
+#                shared trees (worktrees, $SPOOL_ROOT) carry default ACLs,
+#                which a umask does not narrow
 #
 # --to-box <box_id> names the box this session is attached to: it sets
 # $SPOOL_BOX_ID for the session and wins over an inherited value.
@@ -66,11 +71,11 @@ BOX_ID_RE='^[a-z0-9][a-z0-9-]{0,31}$'
 say()  { echo "spool-harness: $*" >&2; }
 die()  { local rc="$1"; shift; say "$*"; exit "$rc"; }
 usage() {
-  echo "usage: spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--] <agent-cli-command...>" >&2
+  echo "usage: spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--umask <octal>] [--] <agent-cli-command...>" >&2
   exit 2
 }
 
-agent="" to_box="" mirror=0
+agent="" to_box="" mirror=0 agent_umask=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --as)       [ $# -ge 2 ] || usage; agent="$2"; shift 2 ;;
@@ -78,6 +83,8 @@ while [ $# -gt 0 ]; do
     --to-box)   [ $# -ge 2 ] || usage; to_box="$2"; shift 2 ;;
     --to-box=*) to_box="${1#--to-box=}"; shift ;;
     --mirror)   mirror=1; shift ;;
+    --umask)    [ $# -ge 2 ] || usage; agent_umask="$2"; shift 2 ;;
+    --umask=*)  agent_umask="${1#--umask=}"; shift ;;
     -h|--help)  usage ;;
     --)         shift; break ;;
     -*)         say "unknown option '$1'"; usage ;;
@@ -86,6 +93,9 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$agent" ] || { say "--as <agent_id> is required"; usage; }
 [ $# -gt 0 ] || { say "no agent command given"; usage; }
+if [ -n "$agent_umask" ] && ! [[ "$agent_umask" =~ ^0?[0-7]{3}$ ]]; then
+  say "--umask wants an octal mask such as 077 (got '$agent_umask')"; usage
+fi
 
 spool_valid_id "$agent" || exit 78
 [ -n "$to_box" ] && SPOOL_BOX_ID="$to_box"
@@ -230,4 +240,5 @@ if [ "$mirror" = 1 ]; then
 fi
 
 # ── 6. exec ────────────────────────────────────────────────────────────────
+[ -n "$agent_umask" ] && umask "$agent_umask"
 exec "$@"

@@ -9,6 +9,7 @@ key files outside the csi key dir, ssh private keys and the qwen CLI's state
 files. Owner answer A (poll d1585759): set them owner-only now, no rotation,
 no delete, and prove each owner still works.
 
+<a id="ws-doc-a610e20e-07b7-4dab-b1b7-aab5edbe390b"></a>
 ## 1. The action
 
 ```bash
@@ -43,6 +44,7 @@ nothing is deleted or rotated. It prints one row per file it changes, by
 class, index and age in days, and a `summary <class> files= open= changed=`
 row per class. Never a name, a path or content.
 
+<a id="ws-doc-8cdc22e9-3fba-475d-8981-037e5e711fef"></a>
 ## 2. Tests
 
 `csi-spl-orc/src/bash/tests/spl-secret-perms-world.tst.sh`: two fake homes
@@ -53,10 +55,15 @@ keeps them, owner-only and non-secret files, a symlink and the dirs stay;
 a missing home is no error; the undo file; a second run is a no-op; a
 CONTROL that the step with the other read put back fails the apply.
 
+<a id="ws-doc-c696af5c-f4ac-4ac6-b746-fbc0bf81bb26"></a>
 ## 3. What it does not do
 
 A file that is open by its bit but sits in a dir other users cannot enter
 (a 700 `.ssh`) is closed too: the bit is the measurement, the dir is not
-relied on. A CLI that writes new state files with its own umask (qwen
-writes 664) opens them again; re-run the action, or set that user's umask.
+relied on. A CLI that writes new state files with its own umask opens them
+again. qwen did (664 under the launcher's umask 0002); its launchers now
+start it with `spool-harness.sh --umask 077` (`SPAWN_UMASK` /
+`RESTORE_UMASK` in `spawn-qwen.sh` / `restore-qwen.sh`, SPL-1999), so the
+files it creates are owner-only. Another CLI with the same gap: re-run the
+action, or give its launcher a `--umask`.
 Whether an exposed key must be rotated is the owner's decision.

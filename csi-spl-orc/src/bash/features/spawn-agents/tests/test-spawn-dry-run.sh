@@ -41,7 +41,7 @@ for k in claude grok agy qwen mistral; do
   launch="$(cat "$T_TMP/plan-$k/launch.cmd")"
   has "$k: launch exports SPOOL_ROOT" "SPOOL_ROOT='${SPOOL_ROOT}'" "$launch"
   has "$k: launch exports SPOOL_AGENT_ID" "SPOOL_AGENT_ID='${id}'" "$launch"
-  has "$k: the CLI starts through spool-harness --as (spec 012 T013), mirrored (specs/036)" "spool-harness.sh' --as '${id}' --mirror -- '" "$launch"
+  has "$k: the CLI starts through spool-harness --as (spec 012 T013), mirrored (specs/036)" "spool-harness.sh' --as '${id}' --mirror $([ "$k" = qwen ] && printf "%s " "--umask '077'")-- '" "$launch"
   [ "$k" = grok ] && printf '%s\n' "$out" > "$T_TMP/grok.out"
   # Normalise the kind-specific parts for the parity check below.
   printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${id}([^0-9]|$)/ID\1/g" > "$T_TMP/norm-$k"
@@ -62,6 +62,8 @@ check "parity: claude and mistral prompts match after normalisation" cmp -s "$T_
 has "agy: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-agy/launch.cmd")"
 has "qwen: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-qwen/launch.cmd")"
 has "qwen: --yolo approves tool calls" "--yolo" "$(cat "$T_TMP/plan-qwen/launch.cmd")"
+has "qwen: owner-only files, the harness sets umask 077 (SPL-1999)" "--mirror --umask '077' -- " "$(cat "$T_TMP/plan-qwen/launch.cmd")"
+hasnt "qwen: CONTROL: claude keeps the harness umask" "--umask" "$(cat "$T_TMP/plan-claude/launch.cmd")"
 has "qwen: retitles through riname --agent (in the seed file)" "riname.sh --agent QWN-77" "$(cat "$T_TMP/plan-qwen/prompt.txt")"
 has "claude: session named after the id" "--name 'CLE-77'" "$(cat "$T_TMP/plan-claude/launch.cmd")"
 has "grok: retitles through riname --agent (in the seed file)" "riname.sh --agent GRK-77 \"do the thing\"" "$(cat "$T_TMP/plan-grok/prompt.txt")"

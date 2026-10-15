@@ -29,6 +29,7 @@
 #   RESTORE_EXEC_PREFIX words before spool-harness and the CLI, as spawn's
 #                       SPAWN_EXEC_PREFIX (mistral: env -u MISTRAL_API_KEY ...)
 #   RESTORE_EXTRA_FLAGS flags after the permission flags (mistral: --max-price N)
+#   RESTORE_UMASK       the CLI's umask, passed as spool-harness --umask (qwen: 077)
 #   RESTORE_NOBRIEF_CLAUSE the brief sentence of a brief-mode kick given no
 #                       brief file (mistral: re-read the session's first message)
 #
@@ -121,8 +122,8 @@ restore_main() {
 
   args="$(spool_claude_perm_flags "$RESTORE_KIND")${RESTORE_EXTRA_FLAGS:+ ${RESTORE_EXTRA_FLAGS}} $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
-  cmd="export ${pane_env}_TMUX_PANE='${pane}' ${pane_env}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
-  stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }${bin##*/} ${args}'"
+  cmd="export ${pane_env}_TMUX_PANE='${pane}' ${pane_env}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror ${RESTORE_UMASK:+--umask '${RESTORE_UMASK}' }-- '${bin}' ${args}"
+  stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${RESTORE_UMASK:+umask ${RESTORE_UMASK} ; }${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }${bin##*/} ${args}'"
   kick_file="${SPOOL_ROOT}/${title}/lifetime/kick.txt"
   if [ -n "$kick" ]; then spool_dq_escape kick_esc "Read and follow your restore note: ${kick_file}"; fi
   if [ "${RESTORE_PRINT:-0}" = 1 ]; then

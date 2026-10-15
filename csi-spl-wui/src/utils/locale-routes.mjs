@@ -14,14 +14,20 @@
 
 const SEP = "___"
 
+/* A nested page with an index child (pages/tenant-settings.vue +
+   tenant-settings/index.vue) has an UNNAMED per-locale parent: the index child
+   takes the name. Such a parent belongs to its named children's locale
+   (SPL-1991: read by name only, all 18 copies of tenant-settings' parent and
+   its 8 children - 171 records - stayed in the initial JS). */
 function isDefaultRecord(route, defaultLocale) {
-  return typeof route.name === "string" && route.name.endsWith(SEP + defaultLocale)
+  if (typeof route.name === "string") return route.name.endsWith(SEP + defaultLocale)
+  return (route.children || []).some((c) => isDefaultRecord(c, defaultLocale))
 }
 
 /** One record (and its children) renamed from the default locale to `code`. */
 function localeCopy(route, code, defaultLocale, top) {
   const out = { ...route }
-  if (isDefaultRecord(route, defaultLocale)) {
+  if (typeof route.name === "string" && isDefaultRecord(route, defaultLocale)) {
     out.name = route.name.slice(0, -defaultLocale.length) + code
   }
   if (top) out.path = route.path === "/" ? `/${code}` : `/${code}${route.path}`
@@ -55,11 +61,8 @@ export function expandLocaleRoutes(routes, codes, defaultLocale) {
 
 /** True for a record i18n made for a locale other than the default. */
 export function isLocaleRouteCopy(route, codes, defaultLocale) {
-  if (typeof route.name !== "string") return false
-  const i = route.name.lastIndexOf(SEP)
-  if (i < 0) return false
-  const code = route.name.slice(i + SEP.length)
-  return code !== defaultLocale && codes.includes(code)
+  const code = recordLocale(route, codes)
+  return code !== "" && code !== defaultLocale
 }
 
 // ── Active locale first (perf round 3, P3-14) ─────────────────────────────

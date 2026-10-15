@@ -54,6 +54,27 @@ describe('locale route copies', () => {
     assert.equal(isLocaleRouteCopy({ path: '/x' }, CODES, 'en'), false)
   })
 
+  /* SPL-1991: a nested page with an index child - i18n names the index child,
+     not the parent, so each locale's parent is unnamed. Read by name only, the
+     18 copies of tenant-settings (171 records) stayed in the initial JS. */
+  const i18nNested = (codes) => codes.map((code) => ({
+    path: code === 'en' ? '/ts' : `/${code}/ts`, component: comp,
+    children: [{ name: `ts___${code}`, path: '', component: comp }, { name: `ts-members___${code}`, path: 'members', component: comp }],
+  }))
+  it('isLocaleRouteCopy: an unnamed parent is its named children\'s locale', () => {
+    const [bg, en] = i18nNested(['bg', 'en'])
+    assert.equal(isLocaleRouteCopy(bg, CODES, 'en'), true, 'the bg parent is a copy')
+    assert.equal(isLocaleRouteCopy(en, CODES, 'en'), false, 'the default parent is kept')
+    assert.equal(isLocaleRouteCopy({ path: '/x', children: [{ path: 'y' }] }, CODES, 'en'), false, 'no locale at all: kept')
+  })
+  it('the build guard holds for a nested page: expand(kept) is what i18n made', () => {
+    const made = [{ name: 'people___bg', path: '/bg/people', component: comp }, { name: 'people___en', path: '/people', component: comp },
+      { name: 'people___fi', path: '/fi/people', component: comp }, ...i18nNested(CODES)]
+    const kept = made.filter((r) => !isLocaleRouteCopy(r, CODES, 'en'))
+    assert.deepEqual(kept.map((r) => r.name || r.path), ['people___en', '/ts'], 'one record per page')
+    assert.deepEqual(expandLocaleRoutes(kept, CODES, 'en'), made)
+  })
+
   it('the router and the build are wired to it', () => {
     const opts = readFileSync(join(WUI, 'src/app/router.options.ts'), 'utf8')
     assert.match(opts, /expandLocaleRoutes\(/)
@@ -68,10 +89,8 @@ describe('locale route copies', () => {
     { name: 'index___en', path: '/', component: comp },
     { name: 'people-id___en', path: '/people/:id()', component: comp },
     { name: 'help-page___en', path: '/help/:page?', component: comp },
-    ...ALL.map((code) => ({
-      path: code === 'en' ? '/ts' : `/${code}/ts`, component: comp,
-      children: [{ name: `ts___${code}`, path: '', component: comp }, { name: `ts-members___${code}`, path: 'members', component: comp }],
-    })),
+    /* the build keeps the default parent only (SPL-1991) */
+    ...i18nNested(['en']),
   ]
   const names = (list) => list.map((r) => r.name || r.path)
 

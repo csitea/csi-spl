@@ -114,6 +114,21 @@ async function openPage(browser, base, phone, path) {
   return { ctx, p, posts, errors, tag }
 }
 
+/** The metrics in the batches POSTed so far (the 30 s flush runs every 0.4 s here). */
+const posted = (page) => {
+  const seen = new Set()
+  for (const b of page.posts) {
+    try { for (const s of JSON.parse(b).samples || []) seen.add(s.metric) } catch { /* the shape check is collect()'s */ }
+  }
+  return seen
+}
+/** Wait until every metric in `want` is in a POSTed batch, or `max` runs out
+    (a metric that never comes fails its check below, as before). */
+async function untilPosted(page, want, max = 8000) {
+  const end = Date.now() + max
+  while (Date.now() < end && !want.every((m) => posted(page).has(m))) await sleep(100)
+}
+
 /** pagehide (the final beacon), then every sample the page sent, and whether every body had the wire shape. */
 async function collect(page) {
   await page.p.evaluate(() => window.dispatchEvent(new Event('pagehide')))
@@ -137,7 +152,8 @@ async function run(browser, base, phone) {
   const page = await openPage(browser, base, phone, PATH)
   const { p, errors, tag } = page
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
-  await sleep(1200)
+  /* the load's batch is in, so the first 202 has given deliver_visible its clock */
+  await untilPosted(page, phone ? ['load_messages'] : ['load_messages', 'load_rail'])
 
   /* M6 + M6b: type in the composer; one keydown handler is made slow so an Event Timing entry exists */
   await p.evaluate(() => {
@@ -160,7 +176,7 @@ async function run(browser, base, phone) {
     const go = await p.$('form.composer [data-testid=send]')
     if (go) await go.click()
   }
-  await sleep(800)
+  await untilPosted(page, ['send_ack', 'type_next_paint'])
 
   /* M4: a message from someone else arrives live (after the first 202 gave the clock) */
   const delivered = await p.evaluate((other) => {
@@ -169,7 +185,7 @@ async function run(browser, base, phone) {
     ch.ingestLive({ msg_id: id, task_id: id, channel: 'alerts', from: 'HUM-9', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: other, files: [], is_parent: 1, received_at: new Date(Date.now() - 40).toISOString() })
     return Boolean(ch.lastLive)
   }, OTHER)
-  await sleep(600)
+  await untilPosted(page, ['deliver_visible'])
 
   /* M7: a scroll burst in the feed */
   await p.evaluate(async () => {
@@ -185,12 +201,12 @@ async function run(browser, base, phone) {
       await new Promise((r) => requestAnimationFrame(r))
     }
   })
-  await sleep(500)
+  await untilPosted(page, ['scroll_jank'])
 
   /* M5: switch to another page (the lobby is a channel) */
   await p.evaluate((to) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to), SWITCH_TO)
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
-  await sleep(1200)
+  await untilPosted(page, ['switch_view'])
 
   const secrets = await p.evaluate(() => {
     const st = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia.state.value
@@ -226,7 +242,7 @@ async function run(browser, base, phone) {
 async function railRun(browser, base) {
   const page = await openPage(browser, base, true, '/')
   await page.p.waitForSelector('[data-testid=sidebar-tab-flow]', { visible: true, timeout: NAV_TIMEOUT })
-  await sleep(1200)
+  await untilPosted(page, ['load_rail'])
   const { samples } = await collect(page)
   await page.ctx.close()
   const rail = samples.filter((s) => s.metric === 'load_rail')

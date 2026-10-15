@@ -13,6 +13,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param DISK_HEADROOM_BLOCK_PCT (optional) - default 85
 # @param DISK_HEADROOM_INODE_PCT (optional) - default 80
+# @param DISK_HEADROOM_CRIT_PCT (optional) - default 92 (<= 8% free): a second, CRITICAL note
 # @param DISK_HEADROOM_SKIP_TYPES (optional) - fs types not checked
 # @param DISK_HEADROOM_STATE_DIR (optional) - default $SPL_STATE_DIR/disk-headroom
 # @param DISK_HEADROOM_TO / DISK_HEADROOM_FROM (optional) - default orchestrator / c-001

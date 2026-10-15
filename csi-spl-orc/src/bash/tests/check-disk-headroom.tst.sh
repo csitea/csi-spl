@@ -8,8 +8,8 @@
 #      per crossing, a second tick sends none, a mount back under its limit
 #      is CLEAR and warns again on its next crossing; a failed send is
 #      retried next tick; df failing is a WARN and a note; blocks at the
-#      critical limit (93) is a second, CRITICAL note, once per crossing
-#      (CONTROL: 92% sends only the 85% note).
+#      critical limit (92, <= 8% free) is a second, CRITICAL note, once per
+#      crossing (CONTROL: 91% sends only the 85% note).
 #      CONTROLS: the same fixture under the limits sends nothing and exits 0;
 #      a lower env limit turns a quiet mount into a crossing; the real df
 #      measures this box's / .
@@ -73,7 +73,7 @@ rows 91% 85%
 chk DRY_RUN=0 >/dev/null
 [ "$(sends)" = 3 ] && pass "1. ...and its next crossing sends again" || fail "1. re-cross ($(cat "$SENT"))"
 
-rows 50% 20%; chk DRY_RUN=0 >/dev/null; rows 92% 20%
+rows 50% 20%; chk DRY_RUN=0 >/dev/null; rows 90% 20%
 touch "$T/send.fail"; out="$(chk DRY_RUN=0)"; rm -f "$T/send.fail"
 grep -q 'WARN could not tell orchestrator about blocks:/data: retried next tick' <<<"$out" && [ "$(sends)" = 3 ] \
   && pass "1. a failed send is loud" || fail "1. send fail ($out)"
@@ -83,12 +83,12 @@ chk DRY_RUN=0 >/dev/null
 touch "$T/df.fail"; out="$(chk DRY_RUN=0)"; rc=$?; rm -f "$T/df.fail"
 [ "$rc" = 1 ] && grep -q 'WARN df failed, nothing was measured: df: boom' <<<"$out" && grep -q 'df failed' "$SENT" \
   && pass "1. df failing is a WARN and a note, never silent" || fail "1. df fail (rc $rc: $out)"
-rm -rf "$ST" "$SENT"; rows 92% 20%
+rm -rf "$ST" "$SENT"; rows 91% 20%
 chk DRY_RUN=0 >/dev/null
-[ "$(sends)" = 1 ] && ! grep -q CRITICAL "$SENT" && pass "1. CONTROL: 92% (under the critical 93%) sends only the 85% note" || fail "1. crit control ($(cat "$SENT"))"
-rows 94% 20%; out="$(chk DRY_RUN=0)"
-[ "$(sends)" = 2 ] && grep -q 'DISK HEADROOM .*CRITICAL /data (xfs, /dev/sdb1) blocks 94% >= 93%: the disk is about to fill' "$SENT" \
-  && pass "1. the planted 94% crosses the critical limit: a second, CRITICAL note" || fail "1. crit ($out / $(cat "$SENT"))"
+[ "$(sends)" = 1 ] && ! grep -q CRITICAL "$SENT" && pass "1. CONTROL: 91% (9% free, under the critical 92%) sends only the 85% note" || fail "1. crit control ($(cat "$SENT"))"
+rows 92% 20%; out="$(chk DRY_RUN=0)"
+[ "$(sends)" = 2 ] && grep -q 'DISK HEADROOM .*CRITICAL /data (xfs, /dev/sdb1) blocks 92% >= 92%: the disk is about to fill' "$SENT" \
+  && pass "1. the planted 92% (8% free) crosses the critical limit: a second, CRITICAL note" || fail "1. crit ($out / $(cat "$SENT"))"
 rows 99% 20%; chk DRY_RUN=0 >/dev/null
 [ "$(sends)" = 2 ] && pass "1. ...once per crossing: 99% next tick sends nothing new" || fail "1. crit repeat ($(cat "$SENT"))"
 rows 90% 20%; out="$(chk DRY_RUN=0)"

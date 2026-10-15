@@ -6,9 +6,12 @@
 # file, so the next ticks stay quiet while the mount stays high, and a mount
 # that falls back below is logged CLEAR and may warn again on its next
 # crossing. A note that could not be sent is not remembered: it is retried on
-# the next tick. Blocks >= DISK_HEADROOM_CRIT_PCT (93) is a SECOND crossing
+# the next tick. Blocks >= DISK_HEADROOM_CRIT_PCT (92) is a SECOND crossing
 # with its own CRITICAL note: on 2026-10-09 /mnt/data warned once at 85% and
-# then sat silent for two days, through 99%, until it was full.
+# then sat silent for two days, through 99%, until it was full. In free
+# space: WARN at <= 15% free, CRITICAL at <= 8% free (owner, t1 37349c9b,
+# 2026-10-15: "what could be done to prevent outage based on out of disk
+# space error"), for /, /mnt/data and /tmp alike.
 #
 # Real mounts: df's list without the pseudo filesystems
 # (DISK_HEADROOM_SKIP_TYPES: tmpfs, devtmpfs, ramfs, overlay, squashfs,
@@ -27,8 +30,9 @@
 #   DRY_RUN=1 (default) | 0       1: no note sent, no state written
 #   DISK_HEADROOM_BLOCK_PCT       default 85
 #   DISK_HEADROOM_INODE_PCT       default 80
-#   DISK_HEADROOM_CRIT_PCT        default 93 (blocks; the sweep's crit level,
-#                                 BOX_SWEEP_CRIT_FREE_PCT 7, from the other side)
+#   DISK_HEADROOM_CRIT_PCT        default 92 (blocks, <= 8% free; the sweep's
+#                                 crit level, BOX_SWEEP_CRIT_FREE_PCT 7, is
+#                                 under it: the note comes before the crit sweep)
 #   DISK_HEADROOM_SKIP_TYPES      space separated fs types not checked
 #   DISK_HEADROOM_STATE_DIR       default $SPL_STATE_DIR/disk-headroom, else
 #                                 ~/.local/share/<org>-<app>/cloud/self/disk-headroom
@@ -53,7 +57,7 @@ app="$(basename "$ORC")"; app="${app%-orc}"
 dry="${DRY_RUN:-1}"
 bpct="${DISK_HEADROOM_BLOCK_PCT:-85}"
 ipct="${DISK_HEADROOM_INODE_PCT:-80}"
-cpct="${DISK_HEADROOM_CRIT_PCT:-93}"
+cpct="${DISK_HEADROOM_CRIT_PCT:-92}"
 skip_types=" ${DISK_HEADROOM_SKIP_TYPES:-tmpfs devtmpfs ramfs overlay squashfs efivarfs autofs nsfs proc sysfs cgroup cgroup2} "
 state_dir="${DISK_HEADROOM_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/share/$app/cloud/self}/disk-headroom}"
 to="${DISK_HEADROOM_TO:-orchestrator}"

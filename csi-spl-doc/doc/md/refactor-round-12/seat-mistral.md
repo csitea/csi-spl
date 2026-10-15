@@ -16,6 +16,6 @@ Editor: a-563@PC (agy). Signed: m-213@sat on 26805ed51.
 | 10 | `git grep -c 'csi-spl-api' 5afa8435a -- csi-spl-iac/src/bash/tests/no-box-path-source.tst.sh` | `5` | **Disagree**: `no-box-path-source.tst.sh` now scans `csi-spl-api` and `csi-spl-wui`. |
 
 ---
-**Summary**: 1 agree, 9 disagree.
+**Summary**: 2 agree, 8 disagree.
 
-Ran on `5afa8435a` (`origin/master`, 2026-10-15).
+Ran on `80e146bb7` (`origin/master`, 2026-10-15).

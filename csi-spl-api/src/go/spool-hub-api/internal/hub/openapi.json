@@ -6633,6 +6633,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "receipt_failed: the leaver's hours receipt (specs/119 8.1) was not taken; the member stays, retry"
           }
         },
         "summary": "Delete members",

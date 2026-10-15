@@ -8,8 +8,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -247,5 +249,133 @@ func TestRBACMembersAPI(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Origin") != wuiOrigin {
 		t.Fatalf("members preflight %d %v", resp.StatusCode, resp.Header)
+	}
+}
+
+// failingCopy is a store whose receipt copy always fails (specs/119 T-R2);
+// every other method is the real store's.
+type failingCopyMem struct{ *store.Memory }
+type failingCopyPG struct{ *store.Postgres }
+
+var errStubCopy = fmt.Errorf("%w: stubbed", store.ErrRealmCopy)
+
+func (failingCopyMem) CopyRealmReceipts(context.Context, string, string, string, time.Time) (int, error) {
+	return 0, errStubCopy
+}
+func (failingCopyPG) CopyRealmReceipts(context.Context, string, string, string, time.Time) (int, error) {
+	return 0, errStubCopy
+}
+
+// receiptHours gives hum one approved topic entry today in tid, with a note.
+func receiptHours(t *testing.T, e *env, tid, hum string) {
+	t.Helper()
+	now := time.Now().UTC()
+	if err := e.st.(store.Hours).PutHoursEntries(context.Background(), tid, hum, []store.HoursEntry{{
+		Day: now.Format(time.DateOnly), Target: "t:secret-topic", Minutes: 75, State: store.HoursApproved,
+		Note: "secret-note"}}, hum, now); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// receiptsOf is hum's receipt rows of tid.
+func receiptsOf(t *testing.T, e *env, hum, tid string) []store.RealmReceipt {
+	t.Helper()
+	rs, err := e.st.(store.Realm).RealmReceipts(context.Background(), hum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []store.RealmReceipt
+	for _, r := range rs {
+		if r.WorkspaceID == tid {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// specs/119 8.1 row 1, T-R1 (route half), T-R9, T-R10: a removal takes the
+// leaver's receipt first; disabling a membership takes none, removing it
+// afterwards does; a member removed without the copy (before 119 shipped)
+// has none. The workspace keeps the hours.
+func TestRBACRemovalTakesReceipt(t *testing.T) {
+	e := rbacEnv(t)
+	ctx := context.Background()
+	tid, _ := e.tenant()
+	admin := seat(t, e, tid, rbac.Admin)
+	leaver := seat(t, e, tid, rbac.Developer)
+	paused := seat(t, e, tid, rbac.Developer)
+	before := seat(t, e, tid, rbac.Developer)
+	for _, h := range []string{leaver, paused, before} {
+		receiptHours(t, e, tid, h)
+	}
+
+	// T-R10: removed the old way (no copy): no receipt, and nothing later adds one.
+	if err := e.st.(store.Humans).RemoveMember(ctx, tid, before); err != nil {
+		t.Fatal(err)
+	}
+	if rs := receiptsOf(t, e, before, tid); len(rs) != 0 {
+		t.Fatalf("T-R10: a member removed before the copy has receipts %+v", rs)
+	}
+
+	// T-R1: the removal copies first; the row has no content; the hours stay.
+	if code, body := call(t, e, tid, http.MethodDelete, "/v1/members/"+leaver, admin, nil); code != http.StatusNoContent {
+		t.Fatalf("remove: %d %v", code, body)
+	}
+	rs := receiptsOf(t, e, leaver, tid)
+	if len(rs) != 1 || rs[0].Label != "topic" || rs[0].Kind != "work" || rs[0].Minutes != 75 || rs[0].Rev != 0 {
+		t.Fatalf("T-R1: receipts %+v, want one topic/work row of 75 at rev 0", rs)
+	}
+	if s := fmt.Sprintf("%+v", rs); strings.Contains(s, "secret") {
+		t.Fatalf("T-R1: content in a receipt: %s", s)
+	}
+	if kept, err := e.st.(store.Hours).HoursEntries(ctx, tid, leaver, "2000-01-01", "2999-12-31"); err != nil || len(kept) != 1 {
+		t.Fatalf("T-R1: the workspace keeps the hours: %v %v", kept, err)
+	}
+
+	// T-R9: disabling copies nothing; removing the disabled membership does.
+	if code, body := call(t, e, tid, http.MethodPatch, "/v1/members/"+paused, admin, map[string]any{"disabled": true}); code != http.StatusNoContent {
+		t.Fatalf("disable: %d %v", code, body)
+	}
+	if rs := receiptsOf(t, e, paused, tid); len(rs) != 0 {
+		t.Fatalf("T-R9: disabling took a receipt %+v", rs)
+	}
+	if code, body := call(t, e, tid, http.MethodDelete, "/v1/members/"+paused, admin, nil); code != http.StatusNoContent {
+		t.Fatalf("remove the disabled member: %d %v", code, body)
+	}
+	if rs := receiptsOf(t, e, paused, tid); len(rs) != 1 {
+		t.Fatalf("T-R9: removing the disabled member took %d receipt rows, want 1", len(rs))
+	}
+}
+
+// specs/119 T-R2: a failed copy answers 503 receipt_failed and the
+// membership stays. CONTROL: the same removal on the real store passes.
+func TestRBACRemovalReceiptFailedKeepsMember(t *testing.T) {
+	e := rbacEnv(t, func(o *hub.Options) {
+		switch st := o.Store.(type) {
+		case *store.Memory:
+			o.Store = failingCopyMem{st}
+		case *store.Postgres:
+			o.Store = failingCopyPG{st}
+		}
+	})
+	ctx := context.Background()
+	tid, _ := e.tenant()
+	admin := seat(t, e, tid, rbac.Admin)
+	leaver := seat(t, e, tid, rbac.Developer)
+	receiptHours(t, e, tid, leaver)
+	code, body := call(t, e, tid, http.MethodDelete, "/v1/members/"+leaver, admin, nil)
+	if code != http.StatusServiceUnavailable || body["error"] != "receipt_failed" {
+		t.Fatalf("remove with a failing copy: %d %v, want 503 receipt_failed", code, body)
+	}
+	if role, err := e.st.(store.Humans).MemberRole(ctx, leaver, tid); err != nil || role != rbac.Developer {
+		t.Fatalf("the member did not stay: %q %v", role, err)
+	}
+
+	ok := rbacEnv(t)
+	tid2, _ := ok.tenant()
+	admin2 := seat(t, ok, tid2, rbac.Admin)
+	leaver2 := seat(t, ok, tid2, rbac.Developer)
+	if code, body := call(t, ok, tid2, http.MethodDelete, "/v1/members/"+leaver2, admin2, nil); code != http.StatusNoContent {
+		t.Fatalf("CONTROL: the real store's removal: %d %v", code, body)
 	}
 }

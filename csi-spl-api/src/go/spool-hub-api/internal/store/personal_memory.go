@@ -8,12 +8,12 @@ import (
 )
 
 // memRealm is Memory's rdb 0168 personal schema, guarded by Memory.mu, each
-// keyed by person. It has no receipt_due yet: the receipt copy (T004) brings
-// the rows that DeleteRealmReceipts closes on Postgres.
+// keyed by person. The receipt copy (T004) writes receipts and due.
 type memRealm struct {
 	profiles map[string]RealmProfile
 	limits   map[string]map[string]RealmLimits // valid_from -> row
 	receipts map[string][]RealmReceipt
+	due      map[string]map[string]RealmReceiptDue // workspace_id -> receipt_due row
 }
 
 func (r *memRealm) init() {
@@ -21,6 +21,7 @@ func (r *memRealm) init() {
 		r.profiles = map[string]RealmProfile{}
 		r.limits = map[string]map[string]RealmLimits{}
 		r.receipts = map[string][]RealmReceipt{}
+		r.due = map[string]map[string]RealmReceiptDue{}
 	}
 }
 
@@ -209,5 +210,10 @@ func (s *Memory) DeleteRealmReceipts(_ context.Context, person, workspaceID stri
 		keep = append(keep, r)
 	}
 	s.realm.receipts[person] = keep
+	if d, ok := s.realm.due[person][workspaceID]; ok && d.DoneAt == nil {
+		done := s.now().UTC()
+		d.DoneAt = &done
+		s.realm.due[person][workspaceID] = d
+	}
 	return n, nil
 }

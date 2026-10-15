@@ -30,13 +30,16 @@ var personCallers = map[string]string{
 	"RealmLimitsOn":       "personal.settings of the session's own person",
 	"RealmReceipts":       "personal.hours_receipts of the session's own person (118 C5, C6)",
 	"DeleteRealmReceipts": "personal.delete_my_receipts, the person's own erasure (8.3, OQ-4 A)",
+	"appendRealmReceipts": "personal.hours_receipts rev 0 + receipt_due of the leaver, the receipt copy's step 2 (8.1, T004)",
 }
 
 // realmTenantCallers is the realm code allowed to ALSO run a tenant scope,
 // each in its own transaction, never nested (spec 7.2, 8.1): the 118 read
 // (one inTenant per workspace, then one inPerson) and the receipt copy
 // (inTenant for the leaver's hours, then inPerson to write the receipt).
-// Neither is built yet; T004 and spec 118 add them here.
+// The receipt copy (T004, copyRealmReceipts) opens no scope itself: its
+// step 1 is 107's own store reads and its step 2 is appendRealmReceipts
+// above, so it is not listed here. Spec 118 adds its read here.
 var realmTenantCallers = map[string]string{}
 
 // realmForeignScopes set app.tenant_id or the operator scope (a wider

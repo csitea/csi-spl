@@ -359,6 +359,12 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	banned, err := s.removeOrBan(r.Context(), h, t.ID, target, cur, a.HumanID)
+	if errors.Is(err, store.ErrRealmCopy) {
+		// specs/119 8.1: never a leaver without a receipt; the member stays.
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("member", target).Msg("member.receipt_failed")
+		writeErr(w, http.StatusServiceUnavailable, "receipt_failed", "the leaver's hours receipt was not taken; the member stays, retry")
+		return
+	}
 	if err != nil {
 		writeMemberErr(w, err)
 		return
@@ -376,12 +382,35 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 // removeOrBan removes target. In the demo workspace a demo_user's removal is
 // a ban (specs/077 3.6, T016 part B): the store also lists the account and
 // address digests of its identities, which the open admission then refuses.
-// true = banned.
+// true = banned. A removal takes the leaver's receipt first (specs/119 8.1
+// row 1); a failed copy is store.ErrRealmCopy and nothing is removed. A demo
+// stay is synthetic and takes none.
 func (s *Server) removeOrBan(ctx context.Context, h store.Humans, tenant, target, role, by string) (bool, error) {
 	if b, ok := h.(store.DemoBans); ok && role == rbac.DemoUser && s.o.DemoWorkspace != "" && tenant == s.o.DemoWorkspace {
 		return true, b.BanMember(ctx, tenant, target, by, s.o.Now())
 	}
+	if err := s.copyReceipt(ctx, tenant, target); err != nil {
+		return false, err
+	}
 	return false, h.RemoveMember(ctx, tenant, target)
+}
+
+// copyReceipt takes target's receipt of tenant before it leaves (specs/119
+// 8.1, 8.2). An act-as clone (specs/054) is synthetic and takes none; so
+// does a member id that is no person. A store without the realm copies
+// nothing.
+func (s *Server) copyReceipt(ctx context.Context, tenant, target string) error {
+	c, ok := s.o.Store.(store.RealmReceiptCopier)
+	if !ok || !store.RealmPerson(target) {
+		return nil
+	}
+	if cr, ok := s.o.Store.(cloneReader); ok {
+		if _, err := cr.Clone(ctx, tenant, target); err == nil {
+			return nil
+		}
+	}
+	_, err := c.CopyRealmReceipts(ctx, tenant, target, store.RealmDueRemoved, s.o.Now())
+	return err
 }
 
 func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {

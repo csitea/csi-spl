@@ -22,8 +22,8 @@
 ### 2.1 WUI
 - **Claim**: Too much heavy E2E wall time & CI minute burden; too little real behavioral unit testing.
 - **Measurement**: 
-  - 379 unit, 255 e2e, 143 proof test files.
-  - 284 of 379 unit tests read source text via `readFileSync`.
+  - 380 unit, 256 e2e, 143 proof test files.
+  - 285 of 380 unit tests read source text via `readFileSync`.
   - 143 `*.proof.mjs` files excluded from CI.
   - 61% CI job-min share (84.6 of 139.4 job-min).
 - **Command**:
@@ -33,17 +33,17 @@
   ```
 - **Output**:
   ```
-  Unit tests: 379, E2E tests: 255, Proof tests: 143
-  284
+  Unit tests: 380, E2E tests: 256, Proof tests: 143
+  285
   ```
 - **Verdict**: **Agree with changes**. 
-  - Confirmed 284 unit tests read source text and 143 `*.proof.mjs` files are excluded from CI.
+  - Confirmed 285 unit tests read source text and 143 `*.proof.mjs` files are excluded from CI.
   - **Change**: `ci-skip.txt` does not explicitly list `*.proof.mjs`, but they are excluded by design.
 
 ### 2.2 ORC
 - **Claim**: Too much runtime in a tiny handful of long tests; too little test coverage across the long tail.
 - **Measurement**:
-  - 430 hermetic `.tst.sh`, 116 feature tests.
+  - 431 hermetic `.tst.sh`, 116 feature tests.
   - 5 tests take 2,462 s (>67% of hermetic test runtime).
   - 224 of 612 bash actions have 0 tests.
 - **Command**:
@@ -54,7 +54,7 @@
   ```
 - **Output**:
   ```
-  Hermetic tests: 430, Feature tests: 116
+  Hermetic tests: 431, Feature tests: 116
   2462
   224
   ```
@@ -122,7 +122,7 @@ grep -lE '(git grep|grep -[a-zA-Z]*r[a-zA-Z]*|grep.*(src/|\.func\.sh|\.go|\.vue|
 | Flaky tests | Agree | `tests/e2e/open-in-place.test.mjs` flaked in CI run 38729860085 on sha `62177c06`. |
 | Tests never run in CI | Agree | 148 test files never executed in CI (4 `ci-skip.txt`, 143 `*.proof.mjs`, 1 `live-terminal-proof.sh`). |
 | Tests with no red control | Agree | 25 sampled WUI unit tests assert on source text via `readFileSync`. |
-| Tests that inspect source text | Agree | 284 of 379 WUI unit tests and 133 bash test files read source text. |
+| Tests that inspect source text | Agree | 285 of 380 WUI unit tests and 133 bash test files read source text. |
 | Slowest tests | Agree | Top 5 ORC tests account for 2,462 s of execution time. |
 | Packages/scripts with no test | Agree | 224 bash actions and 1 Go package (`internal/edge`) have no tests. |
 | Coverage per module vs its floor | Agree | Several packages have substantial coverage but their ratchet floors sit at `0.0`. |
@@ -152,9 +152,9 @@ grep -lE '(git grep|grep -[a-zA-Z]*r[a-zA-Z]*|grep.*(src/|\.func\.sh|\.go|\.vue|
 
 ### 6.1 `test(r01-13-wui-unit-behavioral)`
 - **Practice**: Convert 50 WUI unit tests from source-text regex assertions to behavioral execution tests.
-- **Why**: 284 of 379 WUI unit tests assert on source text, not runtime behavior. This risks false positives if logic is corrupted while preserving strings.
+- **Why**: 285 of 380 WUI unit tests assert on source text, not runtime behavior. This risks false positives if logic is corrupted while preserving strings.
 - **Sites**: `csi-spl-wui/tests/unit/agent-at-box.test.mjs` (lines 111, 114, 116).
-- **Number now**: 284 source-text tests.
+- **Number now**: 285 source-text tests.
 - **Target**: 50 behavioral tests.
 - **Red control**: Runtime logic corruption (e.g., broken `toBox` parsing) fails the test.
 - **Replaces**: Row 03.

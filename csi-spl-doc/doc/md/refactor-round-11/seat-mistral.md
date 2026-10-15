@@ -1,6 +1,7 @@
 # Round 11 seat: mistral
 
 Measured on `eb1d01ae1` (`origin/master`, 2026-10-15 03:19Z).
+signed: m-159 on 7dc9ed7e37c26624de9fc71f6b2d119dcf65166d
 
 | row | practice | command | output | verdict |
 |---|---|---|---|---|

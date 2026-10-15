@@ -28,3 +28,24 @@ func (c *Client) MoveTopic(ctx context.Context, taskID, toChannel, as, actingFor
 	}
 	return f.Move, nil
 }
+
+// MoveMessage moves one message by its msg id (and its thread) into the
+// topic toTask, acting as agent as and, when actingFor is a HUM-* id, for
+// that human, over a one-shot role=cli session (SPL-1988). It returns the
+// hub's answer object {kind: message, msg_id, task_id, from_task, channel,
+// from_channel, moved, moved_by, moved_at, received_at, msg_ids, undo}. A
+// refusal is a *HubError.
+func (c *Client) MoveMessage(ctx context.Context, msgID, toTask, as, actingFor string) (json.RawMessage, error) {
+	sess, err := c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		return nil, err
+	}
+	defer sess.Close()
+	id := uid.New()
+	f, err := sess.request(ctx, wire.Frame{Type: wire.TMove, MsgID: id, MoveMsg: msgID, MoveToTask: toTask, As: as, TypedBy: actingFor},
+		wire.TMove, func(f wire.Frame) bool { return f.MsgID == id || (f.Type == wire.TError && f.MsgID == "") })
+	if err != nil {
+		return nil, err
+	}
+	return f.Move, nil
+}

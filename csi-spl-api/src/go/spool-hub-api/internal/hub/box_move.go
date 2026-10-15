@@ -56,8 +56,13 @@ func (s *Server) onMove(ctx context.Context, x *session, f wire.Frame) {
 	x.write(ctx, wire.Frame{Type: wire.TMove, MsgID: id, TaskID: f.TaskID, Move: raw}) //nolint:errcheck
 }
 
-// boxMove resolves and gates the topic and the target, then moves it.
+// boxMove resolves and gates the topic and the target, then moves it. A
+// frame that names a message (move_msg) moves that message instead
+// (boxMessageMove).
 func (s *Server) boxMove(ctx context.Context, x *session, f wire.Frame) (map[string]any, *issueErr) {
+	if f.MoveMsg != "" || f.MoveToTask != "" {
+		return s.boxMessageMove(ctx, x, f)
+	}
 	task := f.TaskID
 	if !uuidRe.MatchString(task) || task != strings.ToLower(task) {
 		return nil, &issueErr{http.StatusBadRequest, "bad_frame", "a move frame needs task_id, the topic's lowercase UUID"}
@@ -66,21 +71,9 @@ func (s *Server) boxMove(ctx context.Context, x *session, f wire.Frame) (map[str
 	if ch == "" {
 		return nil, &issueErr{http.StatusBadRequest, "bad_frame", "a move frame needs move_to, the target channel"}
 	}
-	if detail := senderRefusal(x, f.As); detail != "" {
-		return nil, &issueErr{http.StatusForbidden, TokenFromNotAnnounced, detail}
-	}
-	hum := f.TypedBy
-	if hum != "" {
-		if detail := s.typedByRefusal(ctx, x, f.As, hum); detail != "" {
-			return nil, &issueErr{http.StatusForbidden, "not_allowed", detail}
-		}
-	}
-	t, err := s.o.Store.GetTenant(ctx, x.tenant)
-	if err != nil {
-		return nil, &issueErr{http.StatusInternalServerError, "internal", "tenant unavailable"}
-	}
-	if !billing.AllowsWrite(t.BillingStatus) {
-		return nil, &issueErr{billing.HTTPUnpaid, billing.TokenUnpaid, "tenant billing is unpaid"}
+	hum, ie := s.boxMoverGate(ctx, x, f)
+	if ie != nil {
+		return nil, ie
 	}
 	if s.o.LobbyTaskID != "" && task == s.o.LobbyTaskID {
 		return nil, &issueErr{http.StatusConflict, "lobby", moveRefusals["lobby"]}
@@ -130,6 +123,30 @@ func (s *Server) boxMove(ctx context.Context, x *session, f wire.Frame) (map[str
 		return nil, ie
 	}
 	return s.storeTopicMove(ctx, x.tenant, m, ch, f.As, hum)
+}
+
+// boxMoverGate is the mover half every box move runs first: the acting agent
+// is one this box announced, the HUM-* it acts for (typed_by, "" = none) is a
+// member bound as an operator of this box, and the tenant may write. It
+// returns that HUM-*.
+func (s *Server) boxMoverGate(ctx context.Context, x *session, f wire.Frame) (string, *issueErr) {
+	if detail := senderRefusal(x, f.As); detail != "" {
+		return "", &issueErr{http.StatusForbidden, TokenFromNotAnnounced, detail}
+	}
+	hum := f.TypedBy
+	if hum != "" {
+		if detail := s.typedByRefusal(ctx, x, f.As, hum); detail != "" {
+			return "", &issueErr{http.StatusForbidden, "not_allowed", detail}
+		}
+	}
+	t, err := s.o.Store.GetTenant(ctx, x.tenant)
+	if err != nil {
+		return "", &issueErr{http.StatusInternalServerError, "internal", "tenant unavailable"}
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		return "", &issueErr{billing.HTTPUnpaid, billing.TokenUnpaid, "tenant billing is unpaid"}
+	}
+	return hum, nil
 }
 
 // boxMoverReads is the read door on the card: the box's tail rule, or, for an

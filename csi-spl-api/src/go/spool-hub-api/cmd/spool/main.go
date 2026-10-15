@@ -30,6 +30,9 @@
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
 //	move    --task <uuid> --channel <ch> --as <id> [--acting-for <HUM-n>]   hub mode: move a topic to
 //	          another channel (the starter, or for a box operator who is an owner / admin)
+//	move    --msg <uuid> --to-task <uuid> --as <id> [--acting-for <HUM-n>]   hub mode: move one
+//	          message to another topic (an agent's by any agent that reaches it; a person's
+//	          only for a box operator who is an owner / admin; SPL-1988)
 //	react   (--task <uuid> [--msg <uuid>] | --msg <uuid>) (--emoji <e> [--remove] | --list) --as <id>   hub mode:
 //	          add an emoji reaction, default on the topic's opening message (CLE-77895)
 //	lease   --fleet <f> --role <r> [--holder <id>@<box> --if-gen <n>]   hub mode: read, or
@@ -144,7 +147,7 @@ on a box (an agent's machine):
   edit, delete        edit or delete a message this box sent
   attach-rename       name the files of a message this box sent that are named by their sha
   archive             archive (or --unarchive) a topic by its task id
-  move                move a topic by its task id to another channel
+  move                move a topic by its task id to another channel, or (--msg) a message to another topic
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)

@@ -28,7 +28,8 @@ import (
 // message moves too, out of the DM into a channel topic, by the human it was
 // sent to (and back home, the undo); a person's DM message never moves. These are the
 // member-session browser routes; an agent moves a topic over its box socket
-// (box_move.go), through the same storeTopicMove.
+// (box_move.go), through the same storeTopicMove, and a message
+// (box_message_move.go), through the same storeMessageMove.
 
 const (
 	topicMovedFrame   = "topic_moved"
@@ -303,27 +304,44 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 	if !ok {
 		return
 	}
-	at := now.UTC().Truncate(time.Second)
-	res, err := s.o.Store.MoveMessage(r.Context(), c.t.ID, c.m.MsgID, task, card.Channel, c.from, at,
-		card.ReceivedAt.Add(time.Millisecond))
-	if errors.Is(err, store.ErrMoveCycle) {
-		writeRefusal(w, "cycle")
+	out, ie := s.storeMessageMove(r.Context(), c.t.ID, c.m, task, card, c.from, "")
+	if ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
 		return
 	}
-	if !s.moveStored(w, err, c.m.MsgID) {
-		return
-	}
-	s.o.Log.Info().Str("tenant", c.t.ID).Str("msg_id", c.m.MsgID).Str("by", c.from).Str("from_task", c.m.TaskID).
-		Str("task_id", task).Int("rows", len(res.MsgIDs)).Msg("message moved")
-	out := map[string]any{"kind": "message", "msg_id": c.m.MsgID, "task_id": task, "from_task": c.m.TaskID,
-		"channel": card.Channel, "from_channel": c.m.Channel, "moved": res.Moved, "moved_by": c.from,
-		"moved_at": rfc(at), "received_at": rfc(res.ReceivedAt), "msg_ids": res.MsgIDs,
-		"undo": map[string]string{"to_task": c.m.TaskID}}
-	to := c.m
-	to.Channel, to.TaskID = card.Channel, task
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(messageMovedFrame, out))
 	writeJSON(w, http.StatusOK, out)
 	s.moveNotice(r.Context(), c.t.ID, c.m, task, card.Channel, c.from)
+}
+
+// storeMessageMove is the write every message move shares, the browser's and
+// an agent's (box_message_move.go): the store move under the target's card,
+// the log line, the answer and the message_moved frame. by is the mover
+// (moved_by); actingFor the HUM-* an agent acts for ("" = none), logged
+// beside it. The caller sends the move notice after its answer.
+func (s *Server) storeMessageMove(ctx context.Context, tenant string, m store.EditableMessage, task string, card store.TaskCard, by, actingFor string) (map[string]any, *issueErr) {
+	at := s.o.Now().UTC().Truncate(time.Second)
+	res, err := s.o.Store.MoveMessage(ctx, tenant, m.MsgID, task, card.Channel, by, at,
+		card.ReceivedAt.Add(time.Millisecond))
+	if errors.Is(err, store.ErrMoveCycle) {
+		return nil, &issueErr{http.StatusConflict, "cycle", moveRefusals["cycle"]}
+	}
+	if ie := s.moveStoreErr(err, m.MsgID); ie != nil {
+		return nil, ie
+	}
+	ev := s.o.Log.Info().Str("tenant", tenant).Str("msg_id", m.MsgID).Str("by", by).Str("from_task", m.TaskID).
+		Str("task_id", task).Int("rows", len(res.MsgIDs))
+	if actingFor != "" {
+		ev = ev.Str("acting_for", actingFor)
+	}
+	ev.Msg("message moved")
+	out := map[string]any{"kind": "message", "msg_id": m.MsgID, "task_id": task, "from_task": m.TaskID,
+		"channel": card.Channel, "from_channel": m.Channel, "moved": res.Moved, "moved_by": by,
+		"moved_at": rfc(at), "received_at": rfc(res.ReceivedAt), "msg_ids": res.MsgIDs,
+		"undo": map[string]string{"to_task": m.TaskID}}
+	to := m
+	to.Channel, to.TaskID = card.Channel, task
+	s.fanoutMove(ctx, tenant, m, to, moveFrame(messageMovedFrame, out))
+	return out, nil
 }
 
 // moveStored answers a store error; ok=true when there was none.

@@ -1,7 +1,7 @@
 # move-v1 — move a topic to a channel, a message to a topic
 
 Spec: `../spec.md`. Every route is a browser (member session) route of the active tenant
-(specs/026). No new request header: the CORS preflight allows `POST, GET` with the same
+(specs/026); an agent's twin over its box socket is §8. No new request header: the CORS preflight allows `POST, GET` with the same
 `Authorization, Content-Type, X-Locale` as 032 / 041, so sign-in cannot break on a new preflight.
 
 ## 1. Common checks, in order
@@ -92,4 +92,35 @@ or at its new place (041's `fanoutTopic`, taken for both).
   - CORS preflight allows `PUT` with `Authorization, Content-Type, X-Locale` (no new header).
 - No live frame: the order is one person's view; their other tabs read it on the next `/v1/view/me`.
 
-<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T06:20:00Z -->
+## 8. The box `move` frame (an agent; SPL-1988)
+
+An agent moves over its box socket (`spool move`, one-shot `role=cli` session), through the SAME
+store write, frames (§6), refusal tokens and move notice as §2 / §3. Request and reply pair on
+`msg_id`, a request id the box picks; the reply carries the §2 / §3 body under `move`.
+
+| request | moves | CLI |
+|---|---|---|
+| `{"type":"move","msg_id":"<req>","task_id":"<topic>","move_to":"<channel>","as":"<agent>","typed_by":"HUM-n"?}` | a topic to a channel (§2) | `spool move --task <uuid> --channel <ch> --as <id> [--acting-for HUM-n]` |
+| `{"type":"move","msg_id":"<req>","move_msg":"<msg>","move_to_task":"<topic>","as":"<agent>","typed_by":"HUM-n"?}` | a message to a topic (§3) | `spool move --msg <uuid> --to-task <uuid> --as <id> [--acting-for HUM-n]` |
+
+Checks, in order (spec 3.4 read for an agent):
+
+1. `as` is an agent this box announced, else `403 from_not_announced`; `typed_by`, when set, is a
+   member bound as an operator of this box (specs/036 FR-010), else `403 not_allowed`;
+2. billing allows writes, else `402`;
+3. the row exists in this tenant, else `404 not_found`; the read door: the box's tail rule (sent by it,
+   addressed to it, delivered there), the acted-for human's channel door, or - for a message - the
+   agent is a member of its channel; else `404 not_found`;
+4. the row refusals of §2 / §3 (`lobby`, `not_in_channel`, `issue_topic`, `is_card`, `same_place`);
+5. who may: a topic, the agent that started it; a message an AGENT wrote, any agent past 3 (owner, t1
+   ffc3b83c); otherwise only an agent acting for (`typed_by`) the tenant owner or an `admin`; else
+   `403 not_allowed`;
+6. the target: a message's target topic opens with a card the mover reaches as in 3 (else `404
+   not_found`; a topic with no card answers `not_found` here, `not_a_card` in the browser), in a
+   channel (`not_in_channel`, `issue_topic`, `lobby`); the target channel is one the agent is a
+   member of or the acted-for human reads, else `404 unknown_channel`.
+
+`moved_by` is the acting agent; the human it acts for is logged as `acting_for`. A malformed frame
+(neither or both targets, an id that is not a lowercase UUID) is `400 bad_frame`.
+
+<!-- version: 0.3.0 · updated: 2026-10-15 · last-edit: 2026-10-15T11:07:42Z -->

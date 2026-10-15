@@ -50,3 +50,39 @@ func Move(ctx context.Context, cfg *config.Config, in MoveArgs) (json.RawMessage
 	}
 	return hc.MoveTopic(ctx, task, ch, in.As, in.ActingFor)
 }
+
+// MoveMsgArgs is one message move to another topic by a box agent: the verb
+// behind `spool move --msg` (SPL-1988).
+type MoveMsgArgs struct {
+	MsgID     string            `json:"msg_id"`
+	ToTask    string            `json:"to_task"`
+	As        string            `json:"as"`
+	ActingFor string            `json:"acting_for,omitempty"` // a HUM-* box operator, owner or admin
+	Hub       *hubclient.Client `json:"-"`                    // nil = hubclient.New(cfg)
+}
+
+// MoveMsg moves the message (and its thread) into the topic ToTask and
+// returns the hub's answer. Hub mode only.
+func MoveMsg(ctx context.Context, cfg *config.Config, in MoveMsgArgs) (json.RawMessage, error) {
+	if cfg.HubURL == "" {
+		return nil, fmt.Errorf("moving a message needs hub mode ($SPOOL_HUB_URL is not set)")
+	}
+	id, task := strings.ToLower(in.MsgID), strings.ToLower(in.ToTask)
+	if !editMsgIDRe.MatchString(id) {
+		return nil, fmt.Errorf("--msg must be the message's UUID")
+	}
+	if !editMsgIDRe.MatchString(task) {
+		return nil, fmt.Errorf("--to-task must be the target topic's task UUID")
+	}
+	if !msg.ValidID(in.As) {
+		return nil, fmt.Errorf("--as (the acting agent id) is required")
+	}
+	if in.ActingFor != "" && !moveHumanRe.MatchString(in.ActingFor) {
+		return nil, fmt.Errorf("--acting-for must be a HUM-* id")
+	}
+	hc := in.Hub
+	if hc == nil {
+		hc = hubclient.New(cfg)
+	}
+	return hc.MoveMessage(ctx, id, task, in.As, in.ActingFor)
+}

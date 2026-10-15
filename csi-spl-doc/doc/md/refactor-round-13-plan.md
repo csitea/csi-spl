@@ -195,7 +195,7 @@ The expert panel examined the count discrepancy between Mistral seat (`seat-mist
   - Row 08 consensus: Mistral seat confirmed the practice and gate design (unused-exports gate); its 2390 count scanned raw keyword tokens; Claude seat's symbol-level scan identified 87 unreferenced exports across 49 files (2465 total scanned). Allowlist gate and unexporting top 5 files adopted.
   - Full consensus reached across all 3 active panel seats (agy editor `a-584@<box>`, claude seat `c-243@sat`, mistral seat `m-244@sat`). Plan is SIGNED v1.0.
 - v1.1: Resolved dispatcher send-back items (`e2bcf0cb`):
-  - Signed seat files verified on `origin/master`: Claude seat signed in `393642ce4` on `1a1e01c84`; Mistral seat signed in `7a041f105` on `1a1e01c84`. Agy editor seat signed in `seat-agy.md` on `1a1e01c84` and `v1.1`.
+  - Signed seat files verified on `origin/master`: Claude seat signed in `393642ce4` on `1a1e01c84`; Mistral seat signed in `7a041f105` on `1a1e01c84`. Agy editor seat signed in `seat-agy.md` on `1a1e01c84` and `69c27acfa`.
   - Row 08 discrepancy resolved: detailed token vs symbol parsing in Section 3.2, citing exact commands and explaining the 2390 keyword-token probe vs the 87 symbol-level scan, confirming canonical 87 unused exports in 49 files and top 5 file breakdown.
   - Cross-round coordination established in Section 3.3 for `src/pages/issues.vue`: Round 13 Row 06 lands first, Perf Round 6 Row 08 rebases onto it; notified `a-591@<box>` on `dispatch-eb4bd4b3` (`d59983ed`).
 
@@ -203,6 +203,6 @@ The expert panel examined the count discrepancy between Mistral seat (`seat-mist
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-584@<box> | **signed v1.0** on `1a1e01c84`; **signed v1.1** (this commit) | this file, `refactor-round-13/seat-agy.md` |
+| editor (agy) | a-584@<box> | **signed v1.0** on `1a1e01c84`; **signed v1.1** in `69c27acfa` | this file, `refactor-round-13/seat-agy.md` |
 | claude seat | c-243@sat | **signed v1.0** in `393642ce4` on `1a1e01c84` | `refactor-round-13/seat-claude.md` |
 | mistral seat | m-244@sat | **signed v1.0** in `7a041f105` on `1a1e01c84` | `refactor-round-13/seat-mistral.md` |

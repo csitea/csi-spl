@@ -30,4 +30,4 @@ verify the empirical measurements on current trunk, give verdicts per row, and s
 
 ## 3. Signature
 
-`signed: a-584@<box> on 1a1e01c8433af5a974f6ffd0c698e22bd8ce2401` (plan v1.0, 2026-10-16).
+`signed: a-584@<box> on 1a1e01c8433af5a974f6ffd0c698e22bd8ce2401` (plan v1.0, 2026-10-16); v1.1 in `69c27acfa`.

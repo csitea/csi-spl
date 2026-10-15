@@ -2940,6 +2940,7 @@
     "tab": {
       "agents": "Agents",
       "boxes": "Boxes",
+      "costs": "Costs",
       "tokens": "Tokens"
     },
     "alloc": {
@@ -2957,6 +2958,33 @@
       "place": "Place in the box order",
       "place_val": "{n} of {total}",
       "place_none": "Not in the box order"
+    },
+    "costs": {
+      "title": "Costs",
+      "no_permission": "You do not have permission to view costs.",
+      "no_data": "No cost data available for this month.",
+      "no_data_source": "No cost data yet for {source}",
+      "days_complete": "days complete",
+      "fetch_error": "Failed to fetch cost data.",
+      "so_far": "(so far)",
+      "pie": {
+        "no_data": "No cost data",
+        "other": "Other"
+      },
+      "table": {
+        "source": "Source",
+        "project_vendor": "Project/Vendor",
+        "kind": "Kind",
+        "usd": "USD",
+        "eur": "EUR",
+        "pct": "% of total",
+        "list_price": "List price",
+        "hand": "Hand",
+        "coverage": "Coverage",
+        "total": "Total",
+        "hand_yes": "Yes"
+      },
+      "coverage": "{ok}/{days} days complete"
     }
   }
 }

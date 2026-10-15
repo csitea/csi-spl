@@ -14,6 +14,7 @@ import { productPath } from './signed-out-redirect.mjs'
 export const MONITORING_TABS = Object.freeze([
   Object.freeze({ id: 'agents', path: '/monitoring/agents', labelKey: 'monitoring.tab.agents', operatorsOnly: false, ready: true }),
   Object.freeze({ id: 'boxes', path: '/monitoring/boxes', labelKey: 'monitoring.tab.boxes', operatorsOnly: false, ready: true }),
+  Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true }),
   /* spec 140 (live token burn per agent type and agent): reserved, hidden until its page lands */
   Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: false }),
 ])

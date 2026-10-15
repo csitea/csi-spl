@@ -958,6 +958,76 @@ html.pane-dragging * {
   from { transform: translateX(24px); opacity: .6; }
   to { transform: none; opacity: 1; }
 }
+
+/* Tap animations for rail and bottom bar icons */
+@keyframes rail-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+@keyframes rail-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+}
+
+@keyframes rail-flip {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(15deg); }
+}
+
+@keyframes rail-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
+@keyframes rail-lift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes rail-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  50% { transform: rotate(10deg); }
+  75% { transform: rotate(-5deg); }
+}
+
+.tap-animate {
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+.tap-animate-wiggle {
+  animation-name: rail-wiggle;
+}
+
+.tap-animate-bounce {
+  animation-name: rail-bounce;
+}
+
+.tap-animate-pulse {
+  animation-name: rail-pulse;
+}
+
+.tap-animate-flip {
+  animation-name: rail-flip;
+}
+
+.tap-animate-nudge {
+  animation-name: rail-nudge;
+}
+
+.tap-animate-lift {
+  animation-name: rail-lift;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tap-animate {
+    animation: none !important;
+    opacity: 0.8;
+  }
+}
 @media (max-width: 820px) and (prefers-reduced-motion: reduce) {
   .spool-shell > .sidebar,
   .spool-shell > .spool-main,

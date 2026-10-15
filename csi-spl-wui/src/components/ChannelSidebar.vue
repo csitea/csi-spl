@@ -25,7 +25,7 @@
         :key="item.id"
         type="button"
         class="sidebar-tab"
-        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': item.movable }"
+        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': item.movable }"}]}]}]}]}]}]}
         role="tab"
         :data-testid="'sidebar-tab-' + item.id"
         :data-reorder-id="item.id"
@@ -35,7 +35,7 @@
         :aria-label="t(item.labelKey)"
         :title="t(item.labelKey)"
         :data-pinned="item.movable ? undefined : 'last'"
-        @pointerdown="item.movable && railDrag.down($event, item.id as RailId)"
+        @pointerdown="item.movable && railDrag.down($event, item.id)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
       >
@@ -117,7 +117,7 @@
             class="sidebar-tab"
             tabindex="-1"
             :data-on="railOn(item.id) ? 'true' : undefined"
-            @click="selectTab(item.id)"
+            @click="selectTab(item.id as RailId)"
           >
             <UiIcon :name="item.icon" :size="20" />
             <span class="sidebar-tab__label">{{ t(item.labelKey) }}</span>
@@ -709,6 +709,9 @@
 </template>
 
 <script setup lang="ts">
+
+
+
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMentionPicker } from '~/composables/useMentionPicker'
@@ -970,7 +973,7 @@ watch(() => [session.state, access.me?.role ?? null] as const, async ([st]) => {
   if (!access.me) await access.load()
   void operatorPane.probe(access.me?.role ?? null)
 }, { immediate: true })
-const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
+const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value).filter(item => ['channels', 'dm', 'issues', 'flow', 'calendar', 'events', 'people', 'agents', 'boxes', 'monitoring', 'archive'].includes(item.id)) as { id: RailId, icon: string, labelKey: string, movable: boolean }[])
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
@@ -2157,10 +2160,12 @@ async function onCreate() {
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 8px;
   }
   .sidebar-tab {
-    flex: 1 0 auto;
-    width: auto;
+    flex: 0 0 auto;
+    width: calc(100% / var(--rail-items-per-screen, 4));
     min-width: 60px;
     min-height: 52px;
     aspect-ratio: auto;
@@ -2172,6 +2177,7 @@ async function onCreate() {
     padding: 4px 6px;
     line-height: 1.15;
     container-type: normal;
+    scroll-snap-align: start;
   }
   .sidebar-tab :deep(svg) { width: 22px; height: 22px; }
   /* CLE-77886 (owner, msg cbab6075): "make the selected section a bit

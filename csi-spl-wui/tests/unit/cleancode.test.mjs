@@ -32,7 +32,6 @@ const MAX_PARAMS = 6
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
 // its length on 2026-10-10 (r5-06): a listed function may not grow past it.
 const LONG = new Map([
-  ['src/stores/channel.ts <anon>', 576],
   ['src/utils/live-ws.mjs createLiveClient', 499],
   ['src/utils/spool-client.mjs createSpoolClient', 545],
 ])

@@ -64,7 +64,11 @@ function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
 
-export const useChannelStore = defineStore('channel', () => {
+/* The store setup wires the named steps below together (r12-03): each step
+   owns one concern and returns the functions the store exposes. */
+
+/** The store's refs and the views computed from them. */
+function channelState() {
   const api = useSpoolApi()
   /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
   const i18n = useNuxtApp().$i18n
@@ -111,6 +115,21 @@ export const useChannelStore = defineStore('channel', () => {
   const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
+  return {
+    api, i18n, mentionPoke, channels, active, peer, messages, unread, loading, error, liveAt, dmAt, dmSeed,
+    ordered, feed, search, visible, lastLive, olderCursor, totals, loadingOlder, view, newestFirst, hasOlder,
+  }
+}
+
+type ChannelState = ReturnType<typeof channelState>
+type Follow = ReturnType<typeof followSteps>
+type Outbox = ReturnType<typeof outboxSteps>
+type Counts = ReturnType<typeof countSteps>
+type Landing = ReturnType<typeof landedSteps>
+
+/** The live socket's subscriptions and the sidebar's activity order. */
+function followSteps(s: ChannelState) {
+  const { api, feed, active, peer, liveAt, dmAt } = s
   const followed = new Set<string>()
   let followedChannel = ''
   let followedPeer = ''
@@ -151,6 +170,13 @@ export const useChannelStore = defineStore('channel', () => {
     if (next.peers !== dmAt.value) dmAt.value = next.peers
   }
 
+  return { follow, key, noteLive }
+}
+
+/** The sidebar's channel list and the DM order. */
+function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Promise<void> }) {
+  const { api, i18n, channels, dmAt, dmSeed } = s
+  const { selectChannel } = d
   /** a channel created anywhere in the tenant (hub `channel` frame). */
   /** A live `channel` or `channel_deleted` frame (applyChannelFrame). */
   function addChannel(frame: Record<string, unknown>) {
@@ -205,6 +231,23 @@ export const useChannelStore = defineStore('channel', () => {
     channels.value = await withSessionRetry(api, () => api.listChannels({ read })) as ChannelInfo[]
   }
 
+  async function createChannel(name: string, description = '') {
+    const slug = channelSlug(name)
+    if (!slug) throw new Error(i18n.t('sidebar.channel_name_required'))
+    const row = await withSessionRetry(api, () => api.createChannel({ channel_id: slug, name, description }))
+    const id = String(row.channel_id || slug)
+    await loadChannels()
+    await selectChannel(id)
+    return { ...row, channel_id: id }
+  }
+
+  return { addChannel, deleteChannel, archiveChannel, unarchiveChannel, loadDmActivity, loadChannels, createChannel }
+}
+
+/** The Msgs window: search, and Load more over the held rows and older pages. */
+function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
+  const { api, i18n, active, peer, messages, totals, error, search, visible, lastLive, olderCursor, loadingOlder, view } = s
+  const { follow } = d
   function resetView() {
     search.value = ''
     visible.value = WINDOW
@@ -253,6 +296,13 @@ export const useChannelStore = defineStore('channel', () => {
     visible.value = WINDOW
   }
 
+  return { resetView, loadOlder, setSearch }
+}
+
+/** Opening a channel or DM, its first page, and the catch-up after a reconnect. */
+function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'queue'> & { resetView: () => void }) {
+  const { api, i18n, active, peer, messages, unread, loading, error, totals, olderCursor } = s
+  const { follow, queue, resetView } = d
   async function selectChannel(name: string) {
     if (active.value !== name || peer.value) resetView()
     peer.value = null
@@ -320,6 +370,13 @@ export const useChannelStore = defineStore('channel', () => {
     }
   }
 
+  return { selectChannel, selectDm, refresh, catchUp }
+}
+
+/** Edits, reactions, deletes and live frames on the rows this feed holds. */
+function rowSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
+  const { active, peer, messages, totals, lastLive } = s
+  const { follow } = d
   /**
    * a message this store holds was edited — here, or in another
    * session via a `message_edited` frame. applyEdit replaces it at its index
@@ -353,6 +410,12 @@ export const useChannelStore = defineStore('channel', () => {
     follow()
   }
 
+  return { applyEdited, applyReactions, drop, ingestLive }
+}
+
+/** Sends held for the network, and picked files turned into wire refs. */
+function outboxSteps(s: ChannelState) {
+  const { api, messages } = s
   /**
    * 080 T006 (FR-009): sends that failed for network reasons, by msg_id. Each
    * keeps its pending row marked `waiting`; reconnect / `online` sends them
@@ -389,6 +452,40 @@ export const useChannelStore = defineStore('channel', () => {
     })
   }
 
+  /**
+   * a picked File is not a wire value. `stores/live.ts` POSTs each
+   * one to /v1/files first and puts the returned ref on the frame; this store
+   * never did, so /channel and /dm offered the attach control and then sent a
+   * frame with no files at all. Measured on the deployed dev build bb20552,
+   * signed in, WS frames captured and held back (n=1 per route): /lobby put
+   * 1 file on the frame, /dm and /channel put 0 - and the chip vanished from
+   * the composer either way, so it LOOKED sent.
+   *
+   * Anything that is already a ref passes through untouched, which is what
+   * makes the auto-resend on a dropped socket safe: the retry reuses the same
+   * frame and must not upload a second time.
+   */
+  async function toFileRefs(files?: unknown[]) {
+    const refs: FileRef[] = []
+    for (const f of files || []) {
+      if (typeof Blob !== 'undefined' && f instanceof Blob) {
+        const live = useLive()
+        const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
+        refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: (f as File).name })
+      } else if (f) {
+        refs.push(f as FileRef)
+      }
+    }
+    return refs
+  }
+
+  return { queueFailure, sendNote, queue, holdForNetwork, toFileRefs }
+}
+
+/** The store's send: the mock path here, the live path in liveSendSteps. */
+function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRefs'> & Pick<Counts, 'repliesFor'> & ReturnType<typeof liveSendSteps>) {
+  const { api, active, peer, messages, mentionPoke } = s
+  const { holdForNetwork, toFileRefs, repliesFor, sendLive } = d
   /* spec 117 FR-4: `dmPeer` is the other end of a DM topic answered from
      /t/<task_id>, where the store holds no peer; it is sent as on /dm */
   async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
@@ -433,39 +530,18 @@ export const useChannelStore = defineStore('channel', () => {
     return row
   }
 
-  /**
-   * a picked File is not a wire value. `stores/live.ts` POSTs each
-   * one to /v1/files first and puts the returned ref on the frame; this store
-   * never did, so /channel and /dm offered the attach control and then sent a
-   * frame with no files at all. Measured on the deployed dev build bb20552,
-   * signed in, WS frames captured and held back (n=1 per route): /lobby put
-   * 1 file on the frame, /dm and /channel put 0 - and the chip vanished from
-   * the composer either way, so it LOOKED sent.
-   *
-   * Anything that is already a ref passes through untouched, which is what
-   * makes the auto-resend on a dropped socket safe: the retry reuses the same
-   * frame and must not upload a second time.
-   */
-  async function toFileRefs(files?: unknown[]) {
-    const refs: FileRef[] = []
-    for (const f of files || []) {
-      if (typeof Blob !== 'undefined' && f instanceof Blob) {
-        const live = useLive()
-        const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
-        refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: (f as File).name })
-      } else if (f) {
-        refs.push(f as FileRef)
-      }
-    }
-    return refs
-  }
+  return { send }
+}
 
-  /**
-   * Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive.
-   * `channelId` is the channel an `in:` clause named. It is a channel post even
-   * when this page is a DM, and the row stays out of this feed when that
-   * channel is not the one on screen.
-   */
+/**
+ * Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive.
+ * `channelId` is the channel an `in:` clause named. It is a channel post even
+ * when this page is a DM, and the row stays out of this feed when that
+ * channel is not the one on screen.
+ */
+function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Counts, 'repliesFor'> & Landing) {
+  const { api, active, peer, messages } = s
+  const { toFileRefs, repliesFor, waitForNetwork, landed } = d
   async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
     const live = useLive()
     const client = live.ensure()
@@ -538,6 +614,13 @@ export const useChannelStore = defineStore('channel', () => {
     return landed(sent, ack)
   }
 
+  return { sendLive }
+}
+
+/** A sent frame waiting for the network, and the hub's ack of it. */
+function landedSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'holdForNetwork' | 'sendNote' | 'queue'>) {
+  const { peer, messages, mentionPoke } = s
+  const { follow, holdForNetwork, sendNote, queue } = d
   /** 080 T006: hold a sent frame for the network; its row stays, marked waiting. */
   function waitForNetwork(sent: SentFrame, client: { send: (f: SendFrame) => Promise<unknown> }) {
     const msgId = String(sent.frame.msg_id)
@@ -571,16 +654,12 @@ export const useChannelStore = defineStore('channel', () => {
     return row
   }
 
-  async function createChannel(name: string, description = '') {
-    const slug = channelSlug(name)
-    if (!slug) throw new Error(i18n.t('sidebar.channel_name_required'))
-    const row = await withSessionRetry(api, () => api.createChannel({ channel_id: slug, name, description }))
-    const id = String(row.channel_id || slug)
-    await loadChannels()
-    await selectChannel(id)
-    return { ...row, channel_id: id }
-  }
+  return { waitForNetwork, landed }
+}
 
+/** The reply count and the unread replies a topic card shows. */
+function countSteps(s: ChannelState) {
+  const { messages, totals } = s
   /* one pass over the held rows per change, read by every card (CLE-35075) */
   const replyIndex = computed(() => topicReplyIndex(messages.value))
   function repliesFor(taskId: string) {
@@ -596,47 +675,29 @@ export const useChannelStore = defineStore('channel', () => {
     return useNotificationStore().topicUnread(taskId, repliesFor(taskId))
   }
 
+  return { repliesFor, unreadFor }
+}
+
+export const useChannelStore = defineStore('channel', () => {
+  const s = channelState()
+  const { follow, ...live } = followSteps(s)
+  const { queue, holdForNetwork, toFileRefs, ...outbox } = outboxSteps(s)
+  const counts = countSteps(s)
+  const { resetView, ...view } = viewSteps(s, { follow })
+  const page = pageSteps(s, { follow, queue, resetView })
+  const landing = landedSteps(s, { follow, holdForNetwork, queue, sendNote: outbox.sendNote })
+  const sendLive = liveSendSteps(s, { toFileRefs, ...counts, ...landing })
+  /* the steps share these; the store never exposed them */
+  const { api, i18n, mentionPoke, visible, olderCursor, totals, view: rowsView, ...state } = s
   return {
-    channels,
-    queueFailure,
-    sendNote,
-    ordered,
-    liveAt,
-    dmAt,
-    dmSeed,
-    noteLive,
-    addChannel,
-    deleteChannel,
-    archiveChannel,
-    unarchiveChannel,
-    loadDmActivity,
-    active,
-    peer,
-    messages,
-    unread,
-    loading,
-    error,
-    feed,
-    newestFirst,
-    hasOlder,
-    loadingOlder,
-    search,
-    lastLive,
-    loadOlder,
-    setSearch,
-    key,
-    loadChannels,
-    selectChannel,
-    selectDm,
-    refresh,
-    ingestLive,
-    applyEdited,
-    applyReactions,
-    drop,
-    catchUp,
-    send,
-    createChannel,
-    repliesFor,
-    unreadFor,
+    ...state,
+    ...live,
+    ...outbox,
+    ...view,
+    ...page,
+    ...counts,
+    ...sidebarSteps(s, page),
+    ...rowSteps(s, { follow }),
+    ...sendSteps(s, { holdForNetwork, toFileRefs, ...counts, ...sendLive }),
   }
 })

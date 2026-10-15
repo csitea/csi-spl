@@ -5,11 +5,14 @@
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     CHANNEL=<slug with an agent member> [TENANT=t1] [REPLY_CMD=<shell>] \
-//     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/await-reply-live.proof.mjs
+//     [ANIM=hourglass|robot|brain] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     node tests/e2e/await-reply-live.proof.mjs
 //
+//   0 only with ANIM (SPL-2027): pick it in Settings -> Appearance
 //   1 sign in, open /channel/<CHANNEL>, post a new topic (a unique needle)
 //   2 its row carries [data-test=await-reply] once the hub has it, spinning
-//     (data-state=spin): screenshot await-reply-live-1-spin.png
+//     (data-state=spin) with the picked animation (hourglass when no ANIM):
+//     screenshot await-reply-live-1-<anim>.png (+ -zoom, the row at 3x)
 //   3 only with REPLY_CMD: run it with $TASK = the topic's msg_id (an agent's
 //     answer into that topic, e.g. do_spl_desk_reply), then the mark is gone:
 //     screenshot await-reply-live-2-gone.png. Without it the step is SKIP.
@@ -28,6 +31,8 @@ const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 const CHANNEL = need('CHANNEL')
 const TENANT = process.env.TENANT || 't1'
 const REPLY_CMD = process.env.REPLY_CMD || ''
+const ANIM = process.env.ANIM || ''
+const WANT = ANIM || 'hourglass'
 const BOX = 'form.composer.omnibox--global textarea'
 /* a plain token: the WUI renders an ISO time in a body as a local date */
 const NEEDLE = `await-reply proof ${Date.now().toString(36)}`
@@ -69,15 +74,31 @@ try {
   step('native sign-in', signed, { url: p.url() })
   if (signed) {
     await sleep(2500)
+    if (ANIM) {
+      await p.goto(`${BASE}/channel/${encodeURIComponent(CHANNEL)}?settings=appearance`, { waitUntil: 'networkidle2', timeout: 60000 })
+      const opt = `[data-test=await-anim-setting] [data-test=await-anim-${ANIM}]`
+      const shown = await p.waitForSelector(opt, { timeout: 30000 }).then(() => true, () => false)
+      if (shown) await p.click(opt)
+      const on = shown && await p.evaluate((s) => document.querySelector(s).checked, opt)
+      step(`pick ${ANIM} in Settings -> Appearance`, Boolean(on))
+      await p.screenshot({ path: join(OUT, `await-reply-live-0-settings-${ANIM}.png`) })
+    }
     await p.goto(`${BASE}/channel/${encodeURIComponent(CHANNEL)}`, { waitUntil: 'networkidle2', timeout: 60000 })
     await p.waitForSelector(BOX, { timeout: 30000 })
     step('CONTROL the needle has no row before the post', (await rowOf(p)) === null)
     await p.type(BOX, NEEDLE)
     await p.keyboard.press('Enter')
     const r = await waitRow(p, (x) => x && x.mark, 30000)
-    step('the received post spins an hourglass on its topic row',
-      Boolean(r && r.mark && r.mark.state === 'spin' && r.mark.role === 'status' && r.mark.anim === 'hourglass'), r || {})
-    await p.screenshot({ path: join(OUT, 'await-reply-live-1-spin.png') })
+    step(`the received post spins the ${WANT} on its topic row`,
+      Boolean(r && r.mark && r.mark.state === 'spin' && r.mark.role === 'status' && r.mark.anim === WANT), r || {})
+    await p.screenshot({ path: join(OUT, `await-reply-live-1-${WANT}.png`) })
+    const row = r && r.msgId && await p.$(`.feed-body article.msg[data-msg-id="${r.msgId}"]`)
+    if (row) {
+      await p.setViewport({ width: 1440, height: 900, deviceScaleFactor: 3 })
+      const b = await row.boundingBox()
+      if (b) await p.screenshot({ path: join(OUT, `await-reply-live-1-${WANT}-zoom.png`), clip: { x: b.x, y: b.y, width: b.width, height: Math.min(b.height, 120) } })
+      await p.setViewport({ width: 1440, height: 900 })
+    }
     res.msg_id = r && r.msgId
     if (!REPLY_CMD || !res.msg_id) {
       step('an agent answers and the hourglass goes away', null, { why: REPLY_CMD ? 'no msg_id' : 'no REPLY_CMD' })

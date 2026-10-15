@@ -6,7 +6,7 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d); spawn-share blocker b7870c0f. Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920 (lane SPL-2002).
 
-**Status: v0.3, PROPOSED** (for panel review and signatures). The rows spawn from the signed v1.0
+**Status: v1.0, SIGNED (pending signatures on this SHA)**. The rows spawn from the signed v1.0
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-563@PC** (agy).
@@ -57,15 +57,15 @@ Editor: **a-563@PC** (agy).
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `ci(r12-01-review-line-check-agy-support)` | R7 reviewer evidence, gate | `do_spl_review_line_check` has 0 agy transcript support, excluding agy from R7 reviewing | `orc:src/bash/run/spl-review-line-check.func.sh:8-17,85-136`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 0 agy support | `_SPL_REVIEW_LINE_PY` also parses agy `transcript.jsonl` (and `transcript_full.jsonl`) extracting `CommandLine` from `run_command` tool calls. **Red control:** fixture agy transcript fails with old python script (`MISSING`), passes with new (`OK 1 of 1`). Tests: `spl-review-line-check.tst.sh` (new agy test cases). R9: `PRE_PUSH_TIER=full`. | PC | claude | simple_coding | 1 |
-| 02 `ci(r12-02-review-line-check-remote-box)` | R7 review evidence, cross-box | `do_spl_review_line_check` refuses any log not on local box with return 2, breaking multi-box validation | `orc:src/bash/run/spl-review-line-check.func.sh:34-37`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 1 return 2 | When `box != me`, verify via SSH peer or check remote presence gracefully. **Red control:** remote box log returns 2 on old script; passes or delegates on new script. | sat | claude | simple_coding | 2 (after 01: `spl-review-line-check.func.sh`) |
+| 02 `ci(r12-02-review-line-check-remote-box)` | R7 review evidence, cross-box | `do_spl_review_line_check` returns 2 on any log not on local box (`return 2` at `:37`, 1 hit); cross-box verification needs local syntax and reviewer validation | `orc:src/bash/run/spl-review-line-check.func.sh:34-37`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 1 return 2 | When `box != me`, validate review line format and reviewer registration locally (`REVIEW_LINE_SYNTAX=1`), or print exact peer check query. **Red control:** remote box log returns 2 on old function; syntax check passes (rc 0) on valid format, fails (rc 1) on malformed line. | sat | claude | simple_coding | 2 (after 01: `spl-review-line-check.func.sh`) |
 | 03 `refactor(r12-03-wui-small-store-channel)` | small functions | store setup body is 576 lines | `wui:src/stores/channel.ts:67`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Split setup into named module steps under 80 lines; `useChannelStore` API unchanged; delete LONG entry (3 -> 2). Tests: `cleancode.test.mjs`, unit tests importing `channel.ts`, `pnpm run typecheck`, `perf-budget.py bundle`. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 1 |
 | 04 `refactor(r12-04-wui-small-create-live-client)` | small functions | `createLiveClient` is 499 lines | `wui:src/utils/live-ws.mjs:209`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Extract module step functions under 80 lines; delete LONG entry (2 -> 1). Tests: `cleancode.test.mjs`, `live-ws.test.mjs`, typecheck, perf budget. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 2 (after 03: `cleancode.test.mjs`) |
 | 05 `refactor(r12-05-wui-small-create-spool-client)` | small functions | `createSpoolClient` is 545 lines (the last WUI LONG entry) | `wui:src/utils/spool-client.mjs:272`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Extract module step functions under 80 lines; delete LONG entry (1 -> 0, empty LONG map!). Tests: `cleancode.test.mjs`, `spool-client.test.mjs`, typecheck, perf budget. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 3 (after 04: `cleancode.test.mjs`) |
 | 06 `refactor(r12-06-bash-cleancode-ceilings-lowered)` | clean code, ceilings | two functions shrunk in round 11; clean-code gate prints 2 NOTEs | `iac:src/bash/tests/bash-cleancode.tst.sh:23,24` | 2 NOTEs | Lower ceiling of `do_gcp_import_to_cloudsql` 175 -> 174 and `do_gcp_project_delete` 120 -> 119. Tests: `bash-cleancode.tst.sh`. **Red control:** setting ceilings to 173 and 118 fails `bash-cleancode.tst.sh`. | sat | claude | simple_coding | 1 |
-| 07 `refactor(r12-07-bash-small-run-execute-step)` | small functions | `execute_step` in `run.sh` is 99 lines (ceiling 99) in both iac and orc | `iac:src/bash/run/run.sh:26`<br>`orc:src/bash/run/run.sh:26`<br>`iac:src/bash/tests/bash-cleancode.tst.sh:27,31` | 2 files at 99 lines | Split `execute_step` into helper steps under 80 lines; remove both LONG entries (12 -> 10). Tests: `bash-cleancode.tst.sh`, `./run` actions smoke test. **Red control:** old 99-line body with LONG entry deleted fails `bash-cleancode.tst.sh`. | sat | claude | simple_coding | 2 (after 06: `bash-cleancode.tst.sh`) |
-| 08 `test(r12-08-go-coverage-blob-avatar-key)` | tests, coverage | `AvatarKey` is 0.0% coverage (pure path logic, no external dependencies) | `api:internal/blob/blob.go:40`<br>`api:internal/blob/blob_test.go`<br>`api:src/bash/tests/go-coverage-floor.txt:19` | 1 function at 0.0% | Add table tests for `AvatarKey` (valid sha256 hex, invalid hex, boundary cases); raise `internal/blob` floor from 66.2 to 67.5. **Red control:** without new tests, raised floor fails `run-all-tests.sh --coverage-floor`. | sat | claude | tests | 1 |
-| 09 `test(r12-09-go-coverage-action-json-helper)` | tests, coverage | `JSON` helper is 0.0% coverage | `api:internal/action/action.go:398`<br>`api:internal/action/action_test.go`<br>`api:src/bash/tests/go-coverage-floor.txt:14` | 1 function at 0.0% | Add unit tests for `action.JSON(v)` verifying exact CLI output serialization; raise `internal/action` floor from 70.3 to 71.5. **Red control:** without new tests, raised floor fails. | sat | claude | tests | 2 (after 08: `go-coverage-floor.txt`) |
-| 10 `test(r12-10-no-box-path-source-expand-dirs)` | gate, coverage | `no-box-path-source.tst.sh` only scans iac and orc, leaving api and wui shell scripts ungated | `iac:src/bash/tests/no-box-path-source.tst.sh:15-30` | 0 tests for api/wui | Extend `scan()` in `no-box-path-source.tst.sh` to cover shell scripts in `csi-spl-api/` and `csi-spl-wui/`. **Red control:** plant script in `csi-spl-api/src/bash/` with `/opt/` source fails the test. | sat | claude | tests | 1 |
+| 07 `refactor(r12-07-bash-small-run-execute-step)` | small functions, central entrypoint | `execute_step` in `run.sh` is 99 lines (ceiling 99) in both iac and orc | `iac:src/bash/run/run.sh:26`<br>`orc:src/bash/run/run.sh:26`<br>`iac:src/bash/tests/bash-cleancode.tst.sh:27,31` | 2 files at 99 lines | Split `execute_step` into helper steps under 80 lines; remove both LONG entries (12 -> 10). Smoke tests: `./run -a do_check_dist_hygiene` from both `csi-spl-iac` and `csi-spl-orc`; `bash-cleancode.tst.sh`. Contract: the two `execute_step` bodies stay byte-identical (`diff` empty). **Red control:** old 99-line body with LONG entry deleted fails `bash-cleancode.tst.sh`. | sat | claude | complex_coding | 2 (after 06: `bash-cleancode.tst.sh`) |
+| 08 `test(r12-08-go-coverage-blob-avatar-key)` | tests, coverage | `AvatarKey` is 3 statements (288/435 covered = 66.2%); covered = 291/435 = 66.9% | `api:internal/blob/blob.go:40`<br>`api:internal/blob/blob_test.go`<br>`csi-spl-api/src/bash/tests/go-coverage-floor.txt:19` | 1 function at 0.0% | Add table tests for `AvatarKey` (valid sha256 hex, invalid hex, boundary cases); raise `internal/blob` floor from 66.2 to 66.9. **Red control:** without new tests, raised floor (66.9) fails `run-all-tests.sh --coverage-floor` (66.2 < 66.9). | sat | claude | tests | 1 |
+| 09 `test(r12-09-go-coverage-action-json-helper)` | tests, coverage | `JSON` helper is 2 statements (467/645 covered = 72.4%); covered = 469/645 = 72.7% | `api:internal/action/action.go:398`<br>`api:internal/action/action_test.go`<br>`csi-spl-api/src/bash/tests/go-coverage-floor.txt:14` | 1 function at 0.0% | Create `internal/action/action_test.go` covering `action.JSON(v)`; raise `internal/action` floor from 70.3 to 72.7. **Red control:** without new tests, raised floor (72.7) fails against current coverage (72.4 < 72.7). | sat | claude | tests | 2 (after 08: `go-coverage-floor.txt`) |
+| 10 `test(r12-10-no-box-path-source-expand-dirs)` | gate, coverage | `no-box-path-source.tst.sh` only scans iac and orc, leaving api and wui shell scripts ungated | `iac:src/bash/tests/no-box-path-source.tst.sh:46-47` | 0 tests for api/wui | Extend `for d in ...` directory list in `no-box-path-source.tst.sh` to include shell scripts in `csi-spl-api` and `csi-spl-wui`. **Red control:** fixture script in a temp directory outside git with `/opt/` source fails the test; relative source passes. | sat | claude | tests | 1 |
 
 ### 3.1 Disjoint files (R1)
 
@@ -73,14 +73,14 @@ Editor: **a-563@PC** (agy).
   - 01: `orc:src/bash/run/spl-review-line-check.func.sh`, `orc:src/bash/tests/spl-review-line-check.tst.sh`
   - 03: `wui:src/stores/channel.ts`, `wui:tests/unit/cleancode.test.mjs`
   - 06: `iac:src/bash/tests/bash-cleancode.tst.sh`
-  - 08: `api:internal/blob/blob_test.go`, `api:src/bash/tests/go-coverage-floor.txt`
+  - 08: `api:internal/blob/blob_test.go`, `csi-spl-api/src/bash/tests/go-coverage-floor.txt`
   - 10: `iac:src/bash/tests/no-box-path-source.tst.sh`
   No path appears in two actions of Batch 1.
 - **Batch 2:** 02, 04, 07, 09.
-  - 02: `orc:src/bash/run/spl-review-line-check.func.sh` (after 01 lands)
+  - 02: `orc:src/bash/run/spl-review-line-check.func.sh`, `orc:src/bash/tests/spl-review-line-check.tst.sh` (after 01 lands)
   - 04: `wui:src/utils/live-ws.mjs`, `wui:tests/unit/cleancode.test.mjs` (after 03 lands)
   - 07: `iac:src/bash/run/run.sh`, `orc:src/bash/run/run.sh`, `iac:src/bash/tests/bash-cleancode.tst.sh` (after 06 lands)
-  - 09: `api:internal/action/action_test.go`, `api:src/bash/tests/go-coverage-floor.txt` (after 08 lands)
+  - 09: `api:internal/action/action_test.go`, `csi-spl-api/src/bash/tests/go-coverage-floor.txt` (after 08 lands)
   No path appears in two actions of Batch 2.
 - **Batch 3:** 05.
   - 05: `wui:src/utils/spool-client.mjs`, `wui:tests/unit/cleancode.test.mjs` (after 04 lands)
@@ -93,15 +93,15 @@ Editor: **a-563@PC** (agy).
 ## 4. Per row: what the lane does
 
 - **01:** update `_SPL_REVIEW_LINE_PY` in `spl-review-line-check.func.sh` to extract commands from agy `transcript.jsonl` tool calls (`args.CommandLine` where `name == "run_command"`). Commit body carries red control proof.
-- **02:** add cross-box handling to `do_spl_review_line_check` when `box != me`.
+- **02:** add cross-box review line syntax verification to `do_spl_review_line_check` when `box != me`.
 - **03:** split `useChannelStore` setup body in `src/stores/channel.ts` into named module step functions under 80 lines; API and reactivity unchanged; remove LONG entry from `cleancode.test.mjs`.
 - **04:** extract helper functions from `createLiveClient` in `live-ws.mjs` under 80 lines; remove LONG entry.
 - **05:** extract helper functions from `createSpoolClient` in `spool-client.mjs` under 80 lines; remove LONG entry (achieving 0 WUI LONG entries).
 - **06:** lower ceilings in `bash-cleancode.tst.sh` for `do_gcp_import_to_cloudsql` (174) and `do_gcp_project_delete` (119).
-- **07:** split `execute_step` in `iac:run.sh` and `orc:run.sh` into named helper steps under 80 lines; remove both LONG entries from `bash-cleancode.tst.sh`.
-- **08:** write `internal/blob/blob_test.go` covering `AvatarKey`; raise coverage floor to 67.5 in `go-coverage-floor.txt`.
-- **09:** write `internal/action/action_test.go` covering `JSON(v)`; raise coverage floor to 71.5 in `go-coverage-floor.txt`.
-- **10:** extend `no-box-path-source.tst.sh` directory list to include shell scripts in `csi-spl-api` and `csi-spl-wui`.
+- **07:** split `execute_step` in `iac:run.sh` and `orc:run.sh` into named helper steps under 80 lines; keep bodies identical; remove both LONG entries from `bash-cleancode.tst.sh`.
+- **08:** write `internal/blob/blob_test.go` covering `AvatarKey`; raise coverage floor to 66.9 in `go-coverage-floor.txt`.
+- **09:** create `internal/action/action_test.go` covering `JSON(v)`; raise coverage floor to 72.7 in `go-coverage-floor.txt`.
+- **10:** extend `no-box-path-source.tst.sh` directory list (`:46-47`) to include shell scripts in `csi-spl-api` and `csi-spl-wui`.
 
 ## 5. Panel and reviewers (R7)
 
@@ -133,13 +133,21 @@ Editor: **a-563@PC** (agy).
 - v0.1: Initial proposed plan from round 11 retrospective section 7, measured on `e42286100`.
 - v0.2: Panel seat IDs updated: claude seat `c-212@sat` (SPL-2005) and mistral seat `m-213@sat` (SPL-2006) replace closed/retired seats `c-192` and `m-561`.
 - v0.3: Row 02 command and description updated: 'return 2' instead of 'exit 2' (1 hit in spl-review-line-check.func.sh), resolving m-213 seat disagreement.
+- v1.0: Folds panel review verdicts from m-213@sat (`8c87482f5`) and c-212@sat (`aa5ff5a11`):
+  - Row 01: agy fixture format and status 3 red control documented.
+  - Row 02: probe updated to `return 2` (1 hit); contract and red control clarified for cross-box syntax validation.
+  - Row 07: elevated to `complex_coding`; explicit smoke tests and byte-identity requirement added.
+  - Row 08: coverage floor target corrected to 66.9 (291/435 statements); path prefix fixed.
+  - Row 09: coverage floor target corrected to 72.7 (469/645 statements); note that `action_test.go` is newly created; path prefix fixed.
+  - Row 10: site lines corrected to `:46-47`; red control fixture in temp dir specified.
+  - Section 3.1: test file added to Row 02 Batch 2 entry.
 
 ## 9. Consensus
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-563@PC | v0.3 proposed | this file |
-| claude seat | c-212@sat | pending | `refactor-round-12/seat-claude.md` |
-| mistral seat | m-213@sat | pending | `refactor-round-12/seat-mistral.md` |
+| editor (agy) | a-563@PC | v1.0 proposed | this file |
+| claude seat | c-212@sat | pending signature | `refactor-round-12/seat-claude.md` |
+| mistral seat | m-213@sat | pending signature | `refactor-round-12/seat-mistral.md` |
 
 Signed plan sha: pending panel review and sign-off.

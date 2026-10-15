@@ -17,7 +17,7 @@
     <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
     <div
       v-if="open"
-      ref="root"
+      :ref="setRoot"
       class="point-menu"
       :class="[block, {
         'touch-sheet': sheet,
@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import { usePointMenu } from '~/composables/usePointMenu'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -137,6 +138,11 @@ const { root, sheet, onMenuKey } = usePointMenu({
   close: () => emit('close'), escape: () => emit('escape'),
   followPoint: props.followPoint,
 })
+/* the panel is usePointMenu's root: a function ref, as vue-tsc 3 no longer
+   counts ref="root" as a read of the binding (TS6133) */
+function setRoot(el: Element | ComponentPublicInstance | null) {
+  root.value = el instanceof HTMLElement ? el : null
+}
 const hintId = useId() + '-why-'
 
 /* A sheet entry acts only on a tap that STARTED in the sheet (SheetBackdrop's

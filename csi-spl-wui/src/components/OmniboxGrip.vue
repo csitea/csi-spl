@@ -35,7 +35,7 @@
       @keydown="onMenuKey"
     >
       <button
-        v-for="p in PHONE_POSITIONS"
+        v-for="p in phonePositions"
         :key="p"
         type="button"
         role="menuitemradio"
@@ -47,7 +47,7 @@
       >{{ t(`composer.move_${p}`) }}</button>
       <div role="separator" class="omni-grip__sep" />
       <button
-        v-for="z in SIZE_PRESETS"
+        v-for="z in sizePresets"
         :key="z"
         type="button"
         role="menuitemradio"
@@ -83,6 +83,9 @@ import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 
 type PhonePosition = 'bottom' | 'top' | 'right'
 type SizePreset = 'small' | 'medium' | 'large'
+/* the .mjs lists are string[] to TS; vue-tsc 3 types each v-for item from them */
+const phonePositions = PHONE_POSITIONS as readonly PhonePosition[]
+const sizePresets = SIZE_PRESETS as readonly SizePreset[]
 
 /** The docked form that moves with the finger. */
 const props = defineProps<{ box: HTMLElement | null }>()

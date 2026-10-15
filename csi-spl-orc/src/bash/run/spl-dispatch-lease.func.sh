@@ -1156,6 +1156,9 @@ spl_fleet_outranks() {
 # can land twice when the first post was only slow. The record is
 # <dir>/fleet.bench.sent.<box> ("<UTC> 0|1"), written by the poster, or by
 # every box when there is no poster. 1 = this episode's bench line was delivered.
+# The benched line names the verdict and its why (spl_box_health_verdicts):
+# "Box <box> benched (recovering: healthy for 1260s < hold 1800s; 61 of 60 ...)"
+# explains a box that beats fine now but had a bad window inside the hold.
 
 # spl_fleet_bench_tick: record every judged box's bench state, post the
 # changes this machine owns. One jq: line 1 the new state, then one
@@ -1185,7 +1188,7 @@ spl_fleet_bench_tick() {
     ($v | keys[] as $b | select($old[$b] != null and $old[$b] != $new[$b])
       | (poster($b) // "-") as $who
       | if $new[$b] == "benched" then
-          $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched: \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end) (no new lanes, last for the roles)"
+          $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state // "benched")\(if .why == null then "" else ": \(.why)" end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end)) (no new lanes, last for the roles)"
         else "back\t\($b)\t\($who)\tBox \($b) back after \($h) healthy min" end)')" || return 0
   printf '%s\n' "$v" > "$f.v"
   { IFS= read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"

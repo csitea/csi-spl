@@ -885,7 +885,7 @@ a25() { sed -n "${1}p" "$T/alerts25" 2>/dev/null; }
 [[ "$(wc -l <"$T/alerts25" 2>/dev/null)" == 2 ]] &&
   pass "25. a bench, then a recovery: exactly 2 posts over the night ($nt ticks, 2 loops)" ||
   fail "25. posts: $(cat "$T/alerts25" 2>&1)"
-[[ "$(a25 1)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ benched:\ [0-9]+\ of\ 60\ heartbeats\ in\ 10\ min,\ last\ .*\(no\ new\ lanes,\ last\ for\ the\ roles\)$ &&
+[[ "$(a25 1)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ benched\ \(degraded:\ .*\;\ [0-9]+\ of\ 60\ heartbeats\ in\ 10\ min,\ last\ .*\)\ \(no\ new\ lanes,\ last\ for\ the\ roles\)$ &&
    "$(a25 2)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ back\ after\ 30\ healthy\ min$ ]] &&
   pass "25. both posts come from the satellite, none from the PC box: '$(a25 1 | cut -d: -f3-)'" || fail "25. lines: $(cat "$T/alerts25" 2>&1)"
 t1="$(a25 1 | cut -d' ' -f2)" t2="$(a25 2 | cut -d' ' -f2)"
@@ -911,7 +911,7 @@ for now in $(seq $((B0 + 4260)) 680 $((B0 + 6300))); do t25 hp $now LEASE_ALERT=
 cat >"$T/bin/alert26" <<'STUB'
 #!/usr/bin/env bash
 line=$(cat)
-if [[ "$line" == *' benched:'* && "${ALERT_FAIL:-0}" == 1 ]]; then
+if [[ "$line" == *' benched ('* && "${ALERT_FAIL:-0}" == 1 ]]; then
   echo "FAIL :: $line" >>"$ALERTS.tried"
   exit 1
 fi
@@ -955,9 +955,37 @@ tick26 hs 1000 "$VOK"
 tick26 hs 2000 "$VBAD"
 tick26 hs 3800 "$VBACK"
 [[ "$(wc -l <"$T/alerts26" 2>/dev/null)" == 2 && "$(sed -n 2p "$T/alerts26")" == "hs :: Box hp back after 30 healthy min" &&
-   "$(sed -n 1p "$T/alerts26")" == "hs :: Box hp benched: 3 of 60 heartbeats in 10 min, last 90 s ago (no new lanes, last for the roles)" ]] &&
+   "$(sed -n 1p "$T/alerts26")" == "hs :: Box hp benched (degraded; 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)" ]] &&
   pass "26. CONTROL: a delivered bench keeps the short back line, one post per change" ||
   fail "26. control: $(cat "$T/alerts26" 2>&1)"
+# the benched line names the verdict and its why (SPL-2021): on 2026-10-15
+# 07:56Z a box whose fleet.bench.v read {n 61, need 30, age 0, state
+# recovering, why "healthy for 1260s < hold 1800s"} was posted as "Box <box>
+# benched: 61 of 60 heartbeats in 10 min, last 0 s ago", a healthy-looking box benched.
+VREC='{"hp":{"state":"recovering","n":61,"need":30,"age":0,"why":"healthy for 1260s < hold 1800s"},"hs":{"state":"healthy","n":60,"age":5}}'
+VDEG='{"hp":{"state":"degraded","n":3,"need":30,"age":90,"why":"3 beats in 10m < 30, last beat 90s ago (max 120s)"},"hs":{"state":"healthy","n":60,"age":5}}'
+want_rec="hs :: Box hp benched (recovering: healthy for 1260s < hold 1800s; 61 of 60 heartbeats in 10 min, last 0 s ago) (no new lanes, last for the roles)"
+want_deg="hs :: Box hp benched (degraded: 3 beats in 10m < 30, last beat 90s ago (max 120s); 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)"
+# names_why LINE STATE: the line states the verdict and the why it carries
+names_why() { [[ "$1" == *"benched ($2: "*"; "*" heartbeats in "*") (no new lanes, last for the roles)" ]]; }
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 1000 "$VOK"
+tick26 hs 2000 "$VREC"
+got26="$(sed -n 1p "$T/alerts26" 2>/dev/null)"
+[[ "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 && "$got26" == "$want_rec" ]] && names_why "$got26" recovering &&
+  pass "26. a recovering box's benched line says recovering and its why" ||
+  fail "26. recovering: $(cat "$T/alerts26" 2>&1)"
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 1000 "$VOK"
+tick26 hs 2000 "$VDEG"
+got26="$(sed -n 1p "$T/alerts26" 2>/dev/null)"
+[[ "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 && "$got26" == "$want_deg" ]] && names_why "$got26" degraded &&
+  pass "26. a degraded box's benched line says degraded and its why" ||
+  fail "26. degraded: $(cat "$T/alerts26" 2>&1)"
+# CONTROL: the old line (before SPL-2021) fails the same check
+! names_why "hs :: Box hp benched: 61 of 60 heartbeats in 10 min, last 0 s ago (no new lanes, last for the roles)" recovering &&
+  pass "26. CONTROL: the old benched line (no verdict, no why) fails the check" ||
+  fail "26. control: the old line passes names_why"
 # both boxes benched: nobody is healthy, so no bench post is attempted (the outage)
 rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
 tick26 hs 5000 "$VOK"

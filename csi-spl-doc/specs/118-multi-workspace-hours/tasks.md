@@ -179,8 +179,8 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   targets: [{target, label, kind}]}`. The `OPTIONS /v1/me/realm/hours` preflight is T003's (GET,
   PUT).
 
-- [x] T005 **Lane D: WUI overlap engine, shared fixture & API client** (c-200 after m-180, SPL-1962,
-  landing sha below; grok or mistral; waits on T002, T003, T004; BUILD). Spec 6.1, 6.3, T-OV-JS:
+- [x] T005 **Lane D: WUI overlap engine, shared fixture & API client** (c-200 after m-180, SPL-1962, `e433f5480`;
+  grok or mistral; waits on T002, T003, T004; BUILD). Spec 6.1, 6.3, T-OV-JS:
   - Pure client-side overlap logic for today's running timer in `WUI/utils/hours-across.mjs`,
     verified against shared fixture `GO/hours/testdata/overlap_fixture.json` (passes in Go and JS).
   - API client `WUI/utils/realm-hours-api.mjs` for `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`,

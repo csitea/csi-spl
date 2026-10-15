@@ -72,4 +72,5 @@ Measured on `e95587ea2` (2026-10-16).
 - **Every batch has ≥ 2 rows:** PASS.
 
 ## 4. Sign-off
-Pending editor's v1.0 fold-in.
+
+Signed: m-244@sat on 1a1e01c84 (2026-10-16).

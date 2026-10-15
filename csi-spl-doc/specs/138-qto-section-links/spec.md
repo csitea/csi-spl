@@ -1,7 +1,6 @@
 # 138 Qto section links: a URL that opens a document at one section
 
-Status: draft, waits on the owner's pick of the anchor form (section 3).
-Issue: SPL-1939. Owner HUM-10, t1 msg 34ea2893 (topic 36247645): "QTO links,
+Status: decided 2026-10-15 (section 3), built in SPL-1966. Issue: SPL-1939. Owner HUM-10, t1 msg 34ea2893 (topic 36247645): "QTO links,
 which can point to the exact sections of the document so that the sections
 will be at the top of the screen with HTML anchors in the URL. Check the old
 QTO implementation". Discussion: t1 #spool-hub-devel topic 7c968b85 (kickoff
@@ -70,14 +69,21 @@ section's top is at the viewport top.
 | C | GitHub title slug | `#1-2-3-title-words` | breaks | breaks | yes |
 | D | number + slug, id behind it | `#1.2.3-title-words~3f2a91c0` | resolves by id | resolves by id | yes |
 
-**Recommendation: A stays the canonical anchor, and inbound links accept B,
-C and D too.** The id never moves, which is what made Qto's links last for
-years. The resolver on open tries, in order: the full id, an 8-hex id suffix
-(`~3f2a91c0`, D), an outline number (B), a title slug (C, which is also what
-an exported .md or a GitHub-style link carries). If the owner wants a
-readable URL in the address bar, D is the form to write, still resolved by
-its id. The labels A-D are this spec's; match them to the poll in kickoff
-msg d6d91e62 by content.
+**Decided, owner HUM-10, t1 topic 7c968b85, 2026-10-15:**
+
+- What "Copy link" writes (poll 6dfb8721, msg 748ecf3c): "B - The stable id
+  only (today's #ws-doc-..., long but never breaks)", this table's **A**.
+- The anchor in general (poll d6d91e62, msg 7f2f7bd9): "C - Both: a readable
+  anchor that still resolves through a stable id after a move", this
+  table's **D**, resolved only through its id.
+
+So A is the canonical anchor and the one the copy button writes; the
+resolver on open tries, in order: the full id (A), then the 8-hex id suffix
+of a readable anchor (`~3f2a91c0` = the id's first 8 hex digits, D), and
+nothing else. A bare outline number (B) or a title slug (C) is not resolved:
+after a move it would open another section, so it is an unknown anchor. The
+poll labels differ from this table's; matched by content above. The
+resolver: `csi-spl-wui/src/components/workspace-docs/-doc-anchor.ts`.
 
 ## 4. Behaviour
 
@@ -88,9 +94,8 @@ msg d6d91e62 by content.
   until the user scrolls), fixing G1 without Qto's blind 1500 ms wait.
 - **Unknown anchor** (deleted item, stale slug): open the document at its
   top and say so in one status line; never a blank page.
-- **Rename / renumber**: A and D links keep working (by id); B and C resolve
-  to whatever holds that number or title now. The copy button always writes
-  the canonical form (A, or D if picked).
+- **Rename / renumber / move**: A and D links keep working (by id); B and C
+  are not resolved (section 3). The copy button always writes A.
 - **Copy link**: "Copy link to section" in the heading's section menu and on
   long-press of the `#`, using the tree's `docHref(doc, item)` (G2). A `#`
   click keeps scrolling and setting the hash.
@@ -105,11 +110,15 @@ msg d6d91e62 by content.
 
 One new case in an existing e2e file (a new file reddens the shard control):
 open `/workspace/docs?doc=<d>&view=doc#ws-doc-<item>` for an item well below
-the fold, with an image above it; after 3 s assert
+the fold, with an image above it; after the 2 s settle assert
 `abs(heading.getBoundingClientRect().top - bar.bottom) <= 2` px and that the
-hash is unchanged; repeat at 390x844 (phone); repeat with a B and a D anchor;
-the copy-link item puts the canonical link on the clipboard. Control: the
-same check with the mount scroll removed fails.
+hash is unchanged; repeat at 390x844 (phone); repeat with a D anchor whose
+number and title are stale; the copy-link item and a long press of the `#`
+put the A link on the clipboard; a B, a C and an unknown anchor open the top
+with the status line. Control: the same check with the re-scroll removed
+fails. Built in `csi-spl-wui/tests/e2e/workspace-doctree.test.mjs` (the
+"spec 138" cases), the resolver in `tests/unit/doc-anchor.test.mjs`, the
+export in `csi-spl-orc/src/bash/tests/doctree-export-md.tst.sh` case 20.
 
 ## 6. Out of scope
 

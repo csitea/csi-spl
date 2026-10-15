@@ -2373,12 +2373,12 @@
     "copy_link": "Kopeeri link",
     "link_copied": "Link kopeeritud",
     "not_available": "See sündmus pole sulle saadaval.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Näita kalendris",
+    "show_in_calendar_overdue": "Näita kalendris (tähtaeg on möödas)",
+    "open_issue": "Ava ülesanne",
+    "open_issue_denied": "Sul pole sellele ülesandele juurdepääsu.",
+    "issue_closed": "See ülesanne on suletud, seega selle tähtaega pole enam kalendris.",
+    "issue_no_deadline": "Sellel ülesandel pole tähtaega."
   },
   "calendar_phone_week": {
     "strip": "Nädala päevad",

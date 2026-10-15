@@ -2373,12 +2373,12 @@
     "copy_link": "Kopioi linkki",
     "link_copied": "Linkki kopioitu",
     "not_available": "Tämä tapahtuma ei ole saatavilla sinulle.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Näytä kalenterissa",
+    "show_in_calendar_overdue": "Näytä kalenterissa (määräaika on mennyt)",
+    "open_issue": "Avaa tehtävä",
+    "open_issue_denied": "Sinulla ei ole pääsyä tähän tehtävään.",
+    "issue_closed": "Tämä tehtävä on suljettu, joten sen määräaika ei ole enää kalenterissa.",
+    "issue_no_deadline": "Tällä tehtävällä ei ole määräaikaa."
   },
   "calendar_phone_week": {
     "strip": "Viikon päivät",

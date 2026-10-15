@@ -2373,12 +2373,12 @@
     "copy_link": "Копирај везу",
     "link_copied": "Веза је копирана",
     "not_available": "Овај догађај вам није доступан.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Прикажи у календару",
+    "show_in_calendar_overdue": "Прикажи у календару (рок је истекао)",
+    "open_issue": "Отвори проблем",
+    "open_issue_denied": "Немате приступ овом проблему.",
+    "issue_closed": "Овај проблем је затворен, па његов рок више није у календару.",
+    "issue_no_deadline": "Овај проблем нема рок."
   },
   "calendar_phone_week": {
     "strip": "Дани у недељи",

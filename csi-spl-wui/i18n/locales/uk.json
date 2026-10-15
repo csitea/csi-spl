@@ -2373,12 +2373,12 @@
     "copy_link": "Копіювати посилання",
     "link_copied": "Посилання скопійовано",
     "not_available": "Ця подія вам недоступна.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Показати в календарі",
+    "show_in_calendar_overdue": "Показати в календарі (термін минув)",
+    "open_issue": "Відкрити заявку",
+    "open_issue_denied": "У вас немає доступу до цієї заявки.",
+    "issue_closed": "Ця заявка закрита, тому її термін більше не відображається в календарі.",
+    "issue_no_deadline": "Ця заявка не має терміну."
   },
   "calendar_phone_week": {
     "strip": "Дні тижня",

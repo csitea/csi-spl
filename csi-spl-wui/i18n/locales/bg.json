@@ -2373,12 +2373,12 @@
     "copy_link": "Копирай връзка",
     "link_copied": "Връзката е копирана",
     "not_available": "Това събитие не е достъпно за вас.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Покажи в календара",
+    "show_in_calendar_overdue": "Покажи в календара (крайният срок е изтекъл)",
+    "open_issue": "Отвори делото",
+    "open_issue_denied": "Нямате достъп до това дело.",
+    "issue_closed": "Това дело е затворено, така че крайният му срок вече не е в календара.",
+    "issue_no_deadline": "Това дело няма краен срок."
   },
   "calendar_phone_week": {
     "strip": "Дни от седмицата",

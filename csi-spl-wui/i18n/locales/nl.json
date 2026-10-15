@@ -2373,12 +2373,12 @@
     "copy_link": "Link kopiëren",
     "link_copied": "Link gekopieerd",
     "not_available": "Dit evenement is niet beschikbaar voor jou.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "In de kalender tonen",
+    "show_in_calendar_overdue": "In de kalender tonen (de deadline is verstreken)",
+    "open_issue": "Kwestie openen",
+    "open_issue_denied": "Je hebt geen toegang tot deze kwestie.",
+    "issue_closed": "Deze kwestie is gesloten, dus de deadline staat niet meer in de kalender.",
+    "issue_no_deadline": "Deze kwestie heeft geen deadline."
   },
   "calendar_phone_week": {
     "strip": "Dagen van de week",

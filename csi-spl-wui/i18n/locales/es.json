@@ -2373,12 +2373,12 @@
     "copy_link": "Copiar enlace",
     "link_copied": "Enlace copiado",
     "not_available": "Este evento no está disponible para ti.",
-    "show_in_calendar": "Show in calendar",
-    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
-    "open_issue": "Open issue",
-    "open_issue_denied": "You do not have access to this issue.",
-    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
-    "issue_no_deadline": "This issue has no deadline."
+    "show_in_calendar": "Mostrar en el calendario",
+    "show_in_calendar_overdue": "Mostrar en el calendario (la fecha límite ha pasado)",
+    "open_issue": "Abrir incidencia",
+    "open_issue_denied": "No tienes acceso a esta incidencia.",
+    "issue_closed": "Esta incidencia está cerrada, por lo que su fecha límite ya no está en el calendario.",
+    "issue_no_deadline": "Esta incidencia no tiene fecha límite."
   },
   "calendar_phone_week": {
     "strip": "Días de la semana",

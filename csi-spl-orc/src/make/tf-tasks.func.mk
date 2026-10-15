@@ -32,6 +32,22 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 		./run -a do_tf_plan \
 	'
 
+.PHONY: do-tf-plan-pending ## @-> 03.01b read-only: does ENV have pending changes for STEP (exit 0 clean, 2 pending, 1 error)
+do-tf-plan-pending: demand_var-ENV demand_var-STEP
+	@bash -c '\
+	  source lib/bash/funcs/resolve-oap.func.sh; \
+	  do_resolve_oap ORG; do_resolve_oap APP; \
+	  docker exec \
+		-e ORG=$$ORG \
+		-e ENV=$(ENV) \
+		-e APP=$${APP#*-} \
+		-e STEP=$(STEP) \
+		-e ACTION=provision \
+		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		con-$$ORG-$$APP-tf-runner \
+		./run -a do_tf_plan_pending \
+	'
+
 .PHONY: do-import ## @-> 03.02 import terraform resource
 do-import: demand_var-AWS_PROFILE demand_var-ENV demand_var-TF_PROJ demand_var-RESOURCE_ADDRESS demand_var-RESOURCE_IDENTIFIER demand_var-STEP
 	@bash -c '\
@@ -80,6 +96,7 @@ do-provision: demand_var-ENV demand_var-STEP
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
+		-e ENV_ORDER_OVERRIDE="$${ENV_ORDER_OVERRIDE:-}" \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_provision \
@@ -102,6 +119,7 @@ do-tf-apply-target: demand_var-ENV demand_var-STEP demand_var-TARGET
 		-e APP=$${APP#*-} \
 		-e TARGET="$(TARGET)" \
 		-e STEP=$(STEP) \
+		-e ENV_ORDER_OVERRIDE="$${ENV_ORDER_OVERRIDE:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_apply_target \
 	'

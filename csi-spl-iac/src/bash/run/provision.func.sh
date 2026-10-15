@@ -37,9 +37,15 @@ _provision_check_container_dns() {
   do_check_container_dns
 }
 
+declare -F env_order_gate >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
+
 do_provision() {
 
   _provision_check_container_dns || return $?
+  # SPL-1947: before this run exports prd's TF_VAR_*, so the dev plan of the
+  # same step starts clean; do_tf_apply then finds the step already gated.
+  env_order_gate || return $?
 
   do_tf_init
 

@@ -3,8 +3,13 @@
 #------------------------------------------------------------------------------
 # @description Tf apply.
 #------------------------------------------------------------------------------
+declare -F env_order_gate >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
+
 do_tf_apply() {
   # Terraform apply for provision using remote state.
+  # SPL-1947: a prd apply waits until dev carries the same change.
+  env_order_gate || return $?
 
   do_simple_log "INFO START ::: provisioning step ${STEP}"
   do_tf_init

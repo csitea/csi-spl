@@ -75,6 +75,10 @@ How to apply:
   `GOOGLE_APPLICATION_CREDENTIALS` to the project key
   `~/.gcp/.csi/key-csi-spl-<env>.json`. Tfvars are rendered with
   `make do-generate-config-for-step` (conf-validator, then tpl-gen).
+  - **Dev always equals or leads prd**: a prd apply is refused while dev
+    has pending changes for that step (`ENV_ORDER_OVERRIDE=<owner msg id>`
+    for an emergency). The rule and its checks:
+    [fleet-rules-index.md](csi-spl-doc/doc/md/fleet-rules-index.md) section 2.
   - **One run per env + step at a time**: `do_tf_init` wipes
     `csi-spl-iac/bin/csi/spl/<env>/<step>` first, so two concurrent runs on
     the same env and step break each other.

@@ -41,7 +41,9 @@ do_tf_init() {
   export TF_VAR_proj_path="${PROJ_PATH}"
   export TF_VAR_base_path="${BASE_PATH}"
   export TF_VAR_org_path="${ORG_PATH}"
-  export tf_run_path=${PROJ_PATH}/bin/${ORG}/${APP}/${ENV}/${tf_proj}
+  # TF_RUN_DIR_SUFFIX (SPL-1947): a read-only plan (do_tf_plan_pending) runs in
+  # its own dir, so the wipe below never hits an apply of the same env + step.
+  export tf_run_path=${PROJ_PATH}/bin/${ORG}/${APP}/${ENV}/${tf_proj}${TF_RUN_DIR_SUFFIX:-}
   export TF_LOG=ERROR # DEBUG, TRACE, INFO, WARN or ERROR
   export TF_VAR_TERRAFORM_VERSION=${TERRAFORM_VERSION}
   export TF_VAR_INFRA_VERSION=${INFRA_VERSION}

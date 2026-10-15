@@ -135,6 +135,11 @@ mount the tree that last ran `make do-setup-app-inf`.
   the `040-cloud-sql-postgres` instance. It runs
   `do_tf_state_list`, then `do_tf_import` in the tf-runner for each missing
   address. It never applies.
+- The order gate (SPL-1947): `do_provision`, `do_tf_apply` and
+  `do_tf_apply_target` call `env_order_gate` first, so a prd apply plans dev
+  for the same step (`do_tf_plan_pending`, a csi-spl action, in its own run
+  dir through `TF_RUN_DIR_SUFFIX` in `tf-init`) and is refused while dev is
+  pending. The rule: `csi-spl-doc/doc/md/fleet-rules-index.md` section 2.
 - The ported `gcp-*` actions each run under a throwaway `CLOUDSDK_CONFIG`
   (GRK-3361). csi-spl's rule "never write the shared gcloud config" beats
   csi-rel's `config set` / `activate-service-account` / `auth revoke --all`

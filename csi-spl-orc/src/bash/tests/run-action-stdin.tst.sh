@@ -27,7 +27,12 @@ probe_tree() {
   cp -r "$PROJ_ROOT/lib/bash/funcs" "$d/lib/bash/funcs"
   ln -s src/bash/run/run.sh "$d/run"
   cat >"$d/src/bash/run/stdin-probe.func.sh" <<'EOF'
-do_stdin_probe() { if [[ -t 0 ]]; then echo "PROBE tty"; else echo "PROBE in=$(cat)"; fi; }
+do_stdin_probe() {
+  local r
+  if [[ -t 0 ]]; then r="PROBE tty"; else r="PROBE in=$(cat)"; fi
+  echo "$r"
+  if [[ -n "${PROBE_OUT:-}" ]]; then echo "$r" >"$PROBE_OUT"; fi
+}
 EOF
   cat >"$d/src/bash/run/second-probe.func.sh" <<'EOF'
 do_second_probe() { echo "PROBE second"; }
@@ -42,9 +47,15 @@ for m in csi-spl-orc csi-spl-iac; do
   grep -qx 'PROBE in=hello' <<<"$out" && pass "$m: a pipe into ./run reaches the action" ||
     fail "$m: piped stdin lost: $(grep PROBE <<<"$out" || tail -2 <<<"$out")"
 
-  out="$(cd "$d" && RUN_LOG=compact script -qfec "./run -a do_stdin_probe" /dev/null </dev/null 2>&1 | tr -d '\r')"
-  grep -qx 'PROBE tty' <<<"$out" && pass "$m: ./run on a pty gives the action a tty" ||
-    fail "$m: no tty in the action: $(grep PROBE <<<"$out" || tail -2 <<<"$out")"
+  # The answer is read from PROBE_OUT, not from script's output: util-linux
+  # 2.41 script now and then drops the last output of a child that exits at
+  # once (7/1000 runs under load printed nothing, the action had run in all 7;
+  # wf10 38730533649). The file is written before script returns (-e waits).
+  rm -f "$T/probe-tty.out"
+  out="$(cd "$d" && PROBE_OUT="$T/probe-tty.out" RUN_LOG=compact script -qfec "./run -a do_stdin_probe" /dev/null </dev/null 2>&1 | tr -d '\r')"
+  got="$(cat "$T/probe-tty.out" 2>/dev/null)"
+  [[ "$got" == 'PROBE tty' ]] && pass "$m: ./run on a pty gives the action a tty" ||
+    fail "$m: no tty in the action: probe file '${got:-missing}', output: $(tail -2 <<<"$out")"
 
   out="$(cd "$d" && RUN_LOG=compact ./run -a do_stdin_probe -a do_second_probe </dev/null 2>&1)"
   [[ "$(grep -c '^PROBE' <<<"$out")" == 2 ]] && pass "$m: two actions in one ./run both run" ||

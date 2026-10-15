@@ -155,18 +155,26 @@ function holdCard(card, scroller, apply) {
 
 /** Scroll the parent card to the reader's edge, reading older pages for it,
     and keep the thread open on it - or, with no target, select the card
-    `msgId` itself and open nothing. */
-async function revealCard(topic, target, { router, hash, newestLast, msgId = '' }, { tries = 150, every = 100 } = {}) {
+    `msgId` itself and open nothing.
+    It stops once the reader is on another page: a reveal still polling for
+    the #alerts card re-opened that topic over the #lobby one a notification
+    tap had just opened, and its ?topic= was then dropped as not in #lobby
+    (links-open-channel-view 390px, open-in-place 1440 case 12). */
+async function revealCard(topic, target, { router, hash, newestLast, msgId = '', alive = () => true }, { tries = 150, every = 100 } = {}) {
   const sel = target
     ? `.spool-main article.msg[data-task-id="${CSS.escape(target.taskId)}"]`
     : `.spool-main article.msg[data-msg-id="${CSS.escape(msgId)}"]`
+  const here = routePath(router)
+  const stale = () => !alive() || routePath(router) !== here
   let pages = 0
   for (let i = 0; i < tries; i++) {
+    if (stale()) return
     const card = document.querySelector(sel)
     if (card) {
       if (target && (!topic.open || !topic.target || topic.target.taskId !== target.taskId)) {
         topic.openTarget(target, topic.rootMsg)
         await sleep(0)
+        if (stale()) return
         if (hash) await router.replace(hashOnlyLocation(router.currentRoute && router.currentRoute.value, hash))
       }
       const scroller = card.closest('.feed-body')
@@ -198,11 +206,15 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '' 
 /** Scroll the topic card named by ?topic= to the reader's edge.
     A plain link does not run the menu's openParentSection, so the channel
     and direct-message feeds call this when the address carries ?topic=. */
-export function scrollTopicCard({ router, newestLast = false, taskId = '', hash = '' } = {}) {
+export function scrollTopicCard({ router, newestLast = false, taskId = '', hash = '', alive = () => true } = {}) {
   if (typeof document === 'undefined') return Promise.resolve()
   const id = String(taskId || '')
   if (!id) return Promise.resolve()
   const topic = useTopicStore()
   const target = { taskId: id, mode: 'task', rootMsgId: '', parentTaskId: '' }
-  return revealCard(topic, target, { router, hash: String(hash || ''), newestLast: Boolean(newestLast) })
+  return revealCard(topic, target, { router, hash: String(hash || ''), newestLast: Boolean(newestLast), alive })
+}
+
+function routePath(router) {
+  return String((router && router.currentRoute && router.currentRoute.value && router.currentRoute.value.path) || '')
 }

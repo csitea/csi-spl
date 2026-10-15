@@ -994,7 +994,7 @@ declare module '~/utils/parent-section.mjs' {
 declare module '~/utils/parent-section-open.mjs' {
   export const REVEAL_PAGES: number
   export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean, showPlace?: boolean }): Promise<boolean>
-  export function scrollTopicCard(opts?: { router?: unknown, newestLast?: boolean, taskId?: string, hash?: string }): Promise<void>
+  export function scrollTopicCard(opts?: { router?: unknown, newestLast?: boolean, taskId?: string, hash?: string, alive?: () => boolean }): Promise<void>
 }
 
 declare module '~/utils/msg-edit.mjs' {

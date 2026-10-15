@@ -122,7 +122,7 @@ if (import.meta.client) {
     const m = await import('~/utils/parent-section-open.mjs')
     if (gen !== landGen) return
     if (typeof m.scrollTopicCard === 'function') {
-      await m.scrollTopicCard({ router, newestLast: newestLast.value, taskId, hash })
+      await m.scrollTopicCard({ router, newestLast: newestLast.value, taskId, hash, alive: () => gen === landGen })
     }
   }
   watch(() => {

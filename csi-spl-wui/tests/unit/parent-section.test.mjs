@@ -318,4 +318,13 @@ describe('hashOnlyLocation: a hash move keeps the query', () => {
     assert.doesNotMatch(open, /router\.replace\(\{ hash \}\)/)
     assert.match(open, /router\.replace\(hashOnlyLocation\(/)
   })
+  it('a reveal left behind on another page opens nothing (links-open-channel-view 390px tap)', () => {
+    const open = src('src/utils/parent-section-open.mjs')
+    const body = open.slice(open.indexOf('async function revealCard'), open.indexOf('export function scrollTopicCard'))
+    assert.match(body, /const here = routePath\(router\)/)
+    assert.match(body, /for \(let i = 0; i < tries; i\+\+\) \{\n\s+if \(stale\(\)\) return\n/)
+    assert.match(body, /await sleep\(0\)\n\s+if \(stale\(\)\) return\n\s+if \(hash\)/)
+    assert.match(open, /revealCard\(topic, target, \{[^}]*alive \}\)/)
+    assert.match(src('src/components/MessageFeed.vue'), /scrollTopicCard\(\{[^}]*alive: \(\) => gen === landGen \}\)/)
+  })
 })

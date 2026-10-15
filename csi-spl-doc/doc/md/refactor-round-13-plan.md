@@ -13,7 +13,7 @@ all of the members of the panel and start implementation").
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps,
 bands, R1-R16), by pointer, not copied. Issue: SPL-2045.
 
-**Status: v0.1, PROPOSED**. The rows spawn once v1.0 is signed by the expert panel.
+**Status: v0.2, PROPOSED**. The rows spawn once v1.0 is signed by the expert panel.
 
 Editor: **a-584@<box>** (agy).
 
@@ -95,12 +95,13 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
 
 ## 5. Panel of experts and reviewers (R7)
 
-- **Expert Panel:** one seat of every agent kind placed via dispatcher (`c-002@sat`):
+- **Expert Panel:** one seat of every active agent kind placed via dispatcher (`c-002@sat`):
   - Editor / agy seat: `a-584@<box>` (`seat-agy.md`)
   - Claude seat: `c-xxx@sat` (`seat-claude.md`)
-  - Grok seat: `g-xxx@sat` (`seat-grok.md`)
+  - Grok seat: `g-xxx@<box>` (`seat-grok.md`)
   - Mistral seat: `m-xxx@sat` (`seat-mistral.md`)
-  - Qwen seat: `q-xxx@sat` (`seat-qwen.md`, if available; note if disabled on hub)
+  - (No qwen seat: no qwen installed on fleet boxes, per dispatcher `c-002@sat` note `f1cdd328`).
+  Each expert panel seat re-measures the 10 rows on current trunk and proposes up to 3 empirical actions with numbers; the best proposals are folded into v1.0.
 - **Reviewers per row (R7):** Cross-vendor review enforced for every row:
   - Claude rows (01, 02, 03, 08, 09, 10) reviewed by agy, grok, or mistral seats.
   - Grok rows (04, 05, 06, 07) reviewed by claude or mistral seats.
@@ -126,13 +127,13 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
 ## 8. Changes
 
 - v0.1: Initial proposed plan for Round 13 (WUI cleaner code and better testability), measured on `dc17f840e` (retro section 7 input list).
+- v0.2: Expert panel composition updated per dispatcher `c-002@sat` (msg `f1cdd328`): claude, grok, mistral, agy (no qwen seat: no qwen on fleet boxes). Each seat re-measures the 10 rows and proposes up to 3 actions with numbers to fold into v1.0.
 
 ## 9. Consensus
 
 | seat | kind | id | signed | file |
 |---|---|---|---|---|
-| editor | agy | a-584@<box> | v0.1 proposed | this file |
+| editor | agy | a-584@<box> | v0.2 proposed | this file |
 | claude seat | claude | pending | pending | `refactor-round-13/seat-claude.md` |
 | grok seat | grok | pending | pending | `refactor-round-13/seat-grok.md` |
 | mistral seat | mistral | pending | pending | `refactor-round-13/seat-mistral.md` |
-| qwen seat | qwen | pending | pending | `refactor-round-13/seat-qwen.md` |

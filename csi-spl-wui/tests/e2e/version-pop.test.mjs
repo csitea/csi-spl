@@ -61,6 +61,31 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 200, max = 3000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+/** Is the pop-up up: aria-expanded on its button, and the card painted. */
+const popState = (p) => p.evaluate(() => {
+  const w = document.querySelector('[data-test=app-version-wrap]')
+  const c = document.querySelector('[data-test=app-version-card]')
+  return { expanded: w?.getAttribute('aria-expanded'), shown: c ? getComputedStyle(c).visibility === 'visible' : false }
+})
+/* opened / closed and still: the waits name only the change, the checks judge it */
+const opened = (p) => until(() => popState(p), (v) => v.shown)
+const closed = (p) => until(() => popState(p), (v) => !v.shown)
+
 const signIn = (p) => p.evaluate(() => {
   const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
   const session = pinia?._s.get('session')
@@ -116,9 +141,8 @@ async function run(browser, base, width, touch) {
   }
   if (!(await signIn(p))) throw new Error('no session store')
   await p.waitForSelector('[data-test=app-version-card]', { timeout: 15000 })
-  await sleep(400)
   await p.evaluate(() => document.querySelector('[data-test=app-version-wrap]').click())
-  await sleep(400)
+  await opened(p)
   const m = await measure(p)
   if (!m) { check(`${tag}: the pop-up renders`, false); await ctx.close(); return }
   check(`${tag}: the pop-up opens`, m.shown, m.card)
@@ -133,7 +157,8 @@ async function run(browser, base, width, touch) {
   check(`${tag}: the copy button is the copy icon`, m.btn.icon === 'copy' && Boolean(m.btn.label), m.btn)
   if (touch) check(`${tag}: copy >= ${TAP} px`, m.btn.w >= TAP && m.btn.h >= TAP, m.btn)
   await p.click('[data-test=app-version-copy]')
-  await sleep(250)
+  /* the button once it has left its copy icon (or 3 s on) */
+  await until(() => measure(p), (v) => v?.btn.icon !== 'copy')
   const clip = await p.evaluate(() => navigator.clipboard.readText().catch((e) => `ERR ${e.message}`))
   check(`${tag}: copy puts the full sha on the clipboard`, clip === SHA, clip)
   const after = await measure(p)
@@ -147,24 +172,21 @@ async function run(browser, base, width, touch) {
   })
   if (touch) await p.touchscreen.tap(away.x, away.y)
   else await p.mouse.click(away.x, away.y)
-  await sleep(900)
+  await closed(p)
   const outside = await measure(p)
   check(`${tag}: a ${touch ? 'tap' : 'click'} outside closes it`, outside?.shown === false, { shown: outside?.shown, at: away })
 
   /* SPL-1023: inside keeps it, outside / Esc / Back close it */
   const press = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y) }
-  const state = () => p.evaluate(() => {
-    const w = document.querySelector('[data-test=app-version-wrap]')
-    const c = document.querySelector('[data-test=app-version-card]')
-    return { expanded: w?.getAttribute('aria-expanded'), shown: c ? getComputedStyle(c).visibility === 'visible' : false }
-  })
+  const state = () => popState(p)
   const openIt = async () => {
     await p.evaluate(() => document.querySelector('[data-test=app-version-wrap]').click())
-    await sleep(300)
+    await opened(p)
   }
   await openIt()
   const sha = await p.evaluate(() => { const r = document.querySelector('[data-test=app-version-card] .vs-pop__sha').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })
   await press(sha.x, sha.y)
+  /* a hold, not a wait: it proves the pop-up STAYS open */
   await sleep(700)
   const inside = await state()
   check(`${tag}: a press on the sha keeps it open`, inside.shown && inside.expanded === 'true', inside)
@@ -198,15 +220,13 @@ async function run(browser, base, width, touch) {
   else {
     const url0 = p.url()
     await press(spot.x, spot.y)
-    await sleep(900)
-    const out = await state()
+    const out = await closed(p)
     check(`${tag}: a ${touch ? 'tap' : 'click'} outside (${spot.in}) closes it`, !out.shown && out.expanded === 'false' && p.url() === url0, { ...out, spot })
   }
   await openIt()
   const reopened = await state()
   await p.keyboard.press('Escape')
-  await sleep(900)
-  const esc = await state()
+  const esc = await closed(p)
   check(`${tag}: Esc closes it`, reopened.shown && !esc.shown && esc.expanded === 'false', { reopened, esc })
   if (width === 390) {
     const level = () => p.evaluate(() => ({ url: location.pathname + location.search, rail: Boolean(document.querySelector('[data-testid=sidebar-tab-dm]')?.getBoundingClientRect().width) }))
@@ -214,8 +234,7 @@ async function run(browser, base, width, touch) {
     await openIt()
     const opened = await state()
     await p.goBack()
-    await sleep(900)
-    const back = await state()
+    const back = await closed(p)
     const afterBack = await level()
     check(`${tag}: Back closes it, the URL and the level stay`, opened.shown && !back.shown && back.expanded === 'false' && afterBack.url === before.url && afterBack.rail === before.rail, { opened, back, before, afterBack })
   }

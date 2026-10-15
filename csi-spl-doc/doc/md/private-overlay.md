@@ -17,7 +17,7 @@ Every other workspace slug is HIDDEN: it is never written into this repo.
   no secret.
 - The **overlay** maps each placeholder to its slug. It is one file, never in
   git: `$HOME/.gcp/.csi/csi-spl-private.yaml` (override: `SPL_PRIVATE_CNF`),
-  mode 600, beside the project SA keys, so the tf-runner reads it through its
+  mode 600, or 640 with the agent user's named ACL read entry, beside the project SA keys, so the tf-runner reads it through its
   `~/.gcp` mount.
 - Only what needs the real slug resolves it, through one library,
   `csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh`:

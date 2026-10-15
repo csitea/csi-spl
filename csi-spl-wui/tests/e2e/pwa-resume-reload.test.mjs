@@ -109,6 +109,15 @@ const focusEmptyComposer = (p) => p.evaluate(() => {
 async function open(browser, base, served) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  /* the hidden period on the page's own clock: build-watch measures it with
+     Date.now() (hidden at, back at), so advancing that clock is the time
+     passing for the app, without the test waiting 11 s for it */
+  await p.evaluateOnNewDocument(() => {
+    const real = Date.now.bind(Date)
+    let off = 0
+    Date.now = () => real() + off
+    window.__advanceClock = (ms) => { off += ms }
+  })
   /* the worker would fetch the reloaded document itself, past this page's
      interception, and the "deploy" below could not rewrite it */
   await p.setBypassServiceWorker(true)
@@ -156,7 +165,7 @@ async function run(browser, base) {
   check(`${tag}: an empty composer holds the focus (the keyboard was up)`, focused)
   await mark(p)
   await setHidden(p, true)
-  await sleep(HIDDEN_MS)
+  await p.evaluate((ms) => window.__advanceClock(ms), HIDDEN_MS)
   served.commit = NEWER
   served.html = NEWER
   await setHidden(p, false)
@@ -181,7 +190,10 @@ async function run(browser, base) {
   served.commit = NEWER
   await mark(p)
   await p.evaluate(() => window.dispatchEvent(new Event('focus')))
-  await sleep(5000)
+  /* the app's answer to that focus: the bar (or, wrongly, a reload, then no
+     bar for 5 s); 1.5 s more for a late reload */
+  await p.waitForSelector('[data-test=build-update-bar]', { timeout: 5000 }).catch(() => null)
+  await sleep(1500)
   check(`${tag}: CONTROL focus back with no hidden period -> NO reload`, !(await reloaded(p)))
   const bar = await p.evaluate(() => Boolean(document.querySelector('[data-test=build-update-bar]')))
   check(`${tag}: CONTROL ... the "new version" bar instead`, bar)

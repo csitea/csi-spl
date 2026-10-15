@@ -1,14 +1,18 @@
 # Incident 2026-10-15: prd hub "no available instance", 07:31-07:36Z
 
+> Generated from qto doc `531a3c05-6dd3-4d88-8c01-e771c06e0ac5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Issue SPL-1981. Owner context: t1 topic 67754bb7 (max 2 instances, DB pool 4,
 picked 2026-10-11).
 
+<a id="ws-doc-1691bc59-0242-47f3-ba65-e065ac6a2d49"></a>
 ## 1. What happened
 
 prd answered 429 "Rate exceeded." from 07:32 to 07:36Z. All requests ran on
 revision `csi-spl-hub-prd-00714-ksm`, and no deploy or roll happened in the
 window. The watchdog fenced both boxes (07:35:45Z / 07:35:50Z).
 
+<a id="ws-doc-d94fe35f-0d93-4a4e-94e2-0de26077bdbb"></a>
 ## 2. What it was not
 
 Measured with `ENV=prd REQ_SINCE=2026-10-15T07:10:00Z REQ_MINUTES=35`, tree
@@ -24,6 +28,7 @@ Measured with `ENV=prd REQ_SINCE=2026-10-15T07:10:00Z REQ_MINUTES=35`, tree
 callers. `./run -a do_spl_hub_run_metrics` gives instances, requests in
 flight, CPU and response classes. Both are in csi-spl-orc and read-only.
 
+<a id="ws-doc-165bd102-06f7-4728-b007-152481d6f15d"></a>
 ## 3. What it was: retired instances holding both max_instances slots
 
 Cloud Run replaces hub instances by itself every ~20 min. A retired instance
@@ -44,6 +49,7 @@ Run stopped every replacement within 7..17 s, so no instance took requests
 (`instance_count` active = 2 throughout). The 07:22..07:24 blip (9 x 429) was
 the same mechanism, with one slot.
 
+<a id="ws-doc-e58cdefa-1569-4712-b2c6-940a89336b70"></a>
 ## 4. The fix: a hub-side socket max life
 
 `SPOOL_HUB_WS_MAX_LIFE` (default `5m`, `0` = off) closes every `/v1/ws` and
@@ -65,6 +71,7 @@ makes one catch-up read per ~5 min.
 Tests: `internal/hub/ws_maxlife_test.go`. The control (no cap) leaves the
 socket open, and both tests fail with the cap disarmed.
 
+<a id="ws-doc-a0a7f4d5-0420-48dd-a2bc-b4adccd5f666"></a>
 ## 5. Capacity, for the owner (no change made)
 
 The fix bounds the risk; it does not remove it. Two Cloud Run retirements

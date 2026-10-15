@@ -122,7 +122,7 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   Tests: T-R1a, T-OV, T-OV-JS (Go half), T-OV-RO.
   Done: `go test ./internal/hours/...` green; shared JSON fixture validated.
 
-- [x] T003 **Lane B: the cross-workspace read route** (c-160, SPL-1925, d5b484ba8; claude, hub + auth; waits on T002,
+- [x] T003 **Lane B: the cross-workspace read route** (c-160, SPL-1925, 321f6a2a4; claude, hub + auth; waits on T002,
   119 T002; DONE). Spec 5.2, C2, C5, C6:
   - `GET /v1/me/realm/hours?from=<date>&to=<date>` (max 62 days) in the realm route group.
   - Human session only: 403 `person_only` under act-as (054), box token, agent, time-accountant-only
@@ -140,7 +140,7 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   `GO/store/rls.go`, Lane C's files.
   Tests: T-R1c, T-R2a, T-R2b, T-R3, T-RLS1, T-RLS2, T-RLS3, T-RLS4, T-RLS5, T-RLS6, T-PERF.
   Done: green on Postgres; deployed dev and prd (`do_check_deploy_lag`).
-  Built (d5b484ba8): `GO/hub/realm_hours_read.go`, its test (9 tests, Memory and Postgres),
+  Built (321f6a2a4): `GO/hub/realm_hours_read.go`, its test (10 tests, Memory and Postgres),
   the `openapi.json` operation `getMeRealmHours`, and one registration line in
   `GO/hub/channel_order.go` `routeMe` (no realm route group exists yet; 119 T003 may move it
   into `realm.go`). Answer: `{tz, tz_source, from, to, workspaces[{id, name, state}], days,
@@ -244,7 +244,7 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
 | T000 | doc: this file | agy | nothing | spec 118 v1.1 | DONE |
 | T001 | 107 spans & member guard | claude | nothing | Q1 A, Q3 A | DONE (rdb 0176) |
 | T002 | A: pure Go overlap engine | claude / mistral | nothing | Q2 A | DONE (2de0e7185) |
-| T003 | B: cross-workspace read route | claude | T002, 119 T002 | Q2 A, Q5..Q9 | DONE (d5b484ba8) |
+| T003 | B: cross-workspace read route | claude | T002, 119 T002 | Q2 A, Q5..Q9 | DONE (321f6a2a4) |
 | T004 | C: multi-workspace save & targets | claude | 119 T002 | none | BUILD |
 | T005 | D: WUI engine & API client | grok / mistral | T002, T003, T004 | none | BUILD |
 | T006 | E: `/me/hours` view & timeline | grok / mistral | T005, 119 T009 | Q2 A, Q9 A | BUILD |

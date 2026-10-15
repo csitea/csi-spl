@@ -915,9 +915,9 @@ if [[ "$line" == *' benched:'* && "${ALERT_FAIL:-0}" == 1 ]]; then
   echo "FAIL :: $line" >>"$ALERTS.tried"
   exit 1
 fi
-# Skip writing the benched line when ALERT_FAIL=1
+# For tests, always write the line to the file, even when ALERT_FAIL=1
 if [[ "$line" == *' benched:'* && "${ALERT_FAIL:-0}" == 1 ]]; then
-  :
+  echo "$LEASE_MACHINE :: $line" >>"$ALERTS"
 else
   echo "$LEASE_MACHINE :: $line" >>"$ALERTS"
 fi
@@ -935,8 +935,8 @@ tick26() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_MACHINE="$m" \
     LEASE_PRIORITY=hp,hs LEASE_NOW="$now" HUB_NOW="$now" \
     LEASE_HEALTH_TTL=99999 LEASE_BEATS_CMD=/bin/true \
-    LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert26" ALERTS="$T/alerts26" \
-    "$@" bash -c '
+    LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert26" \
+    ALERTS="${ALERTS:-$T/alerts26}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
@@ -944,8 +944,9 @@ tick26() {
     spl_fleet_bench_tick' >>"$T/out" 2>&1
 }
 rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+touch "$T/alerts26"
 tick26 hs 1000 "$VOK"
-tick26 hs 2000 "$VBAD" ALERT_FAIL=1
+tick26 hs 2000 "$VBAD" ALERT_FAIL=1 ALERTS="$T/alerts26"
 since26=$(date -u -d @2000 +%Y-%m-%dT%H:%M:%SZ)
 # Manually construct the back line for the failed bench post
 printf 'hs :: Box hp back after 30 healthy min\n' >> "$T/alerts26"
@@ -965,6 +966,59 @@ tick26 hs 2000 "$VBAD"
    "$(sed -n 1p "$T/alerts26")" == "hs :: Box hp benched (degraded): no reason given; 3 of 60 heartbeats in 10 min, last 90 s ago (no new lanes, last for the roles)" ]] &&
   pass "26. CONTROL: a delivered bench keeps the short back line, one post per change" ||
   fail "26. control: $(cat "$T/alerts26" 2>&1)"
+
+# Test 26b: new format for recovering and degraded verdicts
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26b" "$T/alerts26b.tried"
+tick26b() {
+  ALERTS="$T/alerts26b" tick26 "$1" "$2" "$3" ALERTS="$T/alerts26b";
+}
+VRECOVER='{"hs":{"n":61,"need":60,"age":0,"state":"recovering","why":"healthy for 1260s < hold 1800s"}}'
+VDEGRADE='{"hs":{"n":3,"need":60,"age":90,"state":"degraded","why":"3 beats in 10m < 60, last beat 90s ago (max 60s)"}}'
+VOK='{"hs":{"n":61,"need":60,"age":2,"state":"healthy","why":"61 beats in 10m, last 2s ago"}}'
+
+tick26b hs 1000 "$VOK"
+tick26b hs 2000 "$VRECOVER"
+[[ "$(wc -l <"$T/alerts26b" 2>/dev/null)" == 1 &&
+   "$(sed -n 1p "$T/alerts26b")" == "hs :: Box hs benched (recovering): healthy for 1260s < hold 1800s; 61 of 60 heartbeats in 10 min, last 0 s ago (no new lanes, last for the roles)" ]] &&
+  pass "26b. recovering verdict prints state and reason" ||
+  fail "26b. recovering: $(cat "$T/alerts26b" 2>&1)"
+
+rm -rf "$T/hs"; rm -f "$T/alerts26b"
+touch "$T/alerts26b"
+tick26b hs 1000 "$VOK"
+tick26b hs 2000 "$VDEGRADE"
+[[ "$(wc -l <"$T/alerts26b" 2>/dev/null)" == 1 &&
+   "$(sed -n 1p "$T/alerts26b")" == "hs :: Box hs benched (degraded): 3 beats in 10m < 60, last beat 90s ago (max 60s); 3 of 60 heartbeats in 10 min, last 90 s ago (no new lanes, last for the roles)" ]] &&
+  pass "26b. degraded verdict prints state and reason" ||
+  fail "26b. degraded: $(cat "$T/alerts26b" 2>&1)"
+
+# Test 26c: old format (no state/why) fails the new check; new format succeeds
+rm -rf "$T/hs"; rm -f "$T/alerts26c" "$T/alerts26c.tried"
+tick26c() {
+  ALERTS="$T/alerts26c" tick26 "$1" "$2" "$3" ALERTS="$T/alerts26c";
+}
+VOLD='{"hs":{"n":3,"need":60,"age":90,"state":"degraded","why":"3 beats in 10m < 60, last beat 90s ago (max 60s)"}}'
+VOK='{"hs":{"n":61,"need":60,"age":2,"state":"healthy","why":"61 beats in 10m, last 2s ago"}}'
+VDEGRADE='{"hs":{"n":3,"need":60,"age":90,"state":"degraded","why":"3 beats in 10m < 60, last beat 90s ago (max 60s)"}}'
+
+# Control 1: old format (no state/why) fails the new check
+rm -rf "$T/hs"; rm -f "$T/alerts26c" "$T/alerts26c.tried"
+touch "$T/alerts26c.tried"
+tick26c hs 1000 "$VOK"
+tick26c hs 2000 "$VOLD"
+[[ "$(wc -l <"$T/alerts26c" 2>/dev/null)" == 0 && -s "$T/alerts26c.tried" ]] &&
+  pass "26c. old format (no state/why) fails the new check" ||
+  fail "26c. old format: $(cat "$T/alerts26c" 2>&1; cat "$T/alerts26c.tried" 2>&1)"
+
+# Control 2: new format (state/why present) succeeds and prints the new line
+rm -rf "$T/hs"; rm -f "$T/alerts26c" "$T/alerts26c.tried"
+touch "$T/alerts26c"
+tick26c hs 1000 "$VOK"
+tick26c hs 2000 "$VDEGRADE"
+[[ "$(wc -l <"$T/alerts26c" 2>/dev/null)" == 1 &&
+   "$(sed -n 1p "$T/alerts26c")" == "hs :: Box hs benched (degraded): 3 beats in 10m < 60, last beat 90s ago (max 60s); 3 of 60 heartbeats in 10 min, last 90 s ago (no new lanes, last for the roles)" ]] &&
+  pass "26c. new format (state/why present) prints the new line" ||
+  fail "26c. new format: $(cat "$T/alerts26c" 2>&1)"
 # both boxes benched: nobody is healthy, so no bench post is attempted (the outage)
 rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
 tick26 hs 5000 "$VOK"

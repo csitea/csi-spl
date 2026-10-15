@@ -1185,7 +1185,7 @@ spl_fleet_bench_tick() {
     ($v | keys[] as $b | select($old[$b] != null and $old[$b] != $new[$b])
       | (poster($b) // "-") as $who
       | if $new[$b] == "benched" then
-          $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state)): \(if .why == null then "no reason given" else .why end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end) (no new lanes, last for the roles)"
+          $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state)): \(.why); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end) (no new lanes, last for the roles)"
         else "back\t\($b)\t\($who)\tBox \($b) back after \($h) healthy min" end)')" || return 0
   printf '%s\n' "$v" > "$f.v"
   { IFS= read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"

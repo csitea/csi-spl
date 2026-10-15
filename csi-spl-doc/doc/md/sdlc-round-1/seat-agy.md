@@ -26,12 +26,12 @@ The expert panel seats (claude, grok, mistral) review empirical measurements on 
 
 ## 2. 4 Parallel Lanes (2 PC + 2 sat, owner a29ba4db)
 
-- Lane 1 (sat): Row 01 -> Row 05 -> Row 09
+- Lane 1 (sat): Row 01 -> Row 04 -> Row 09
 - Lane 2 (PC): Row 02 -> Row 06 -> Row 10
 - Lane 3 (PC): Row 03 -> Row 07 -> Row 11
-- Lane 4 (sat): Row 04 -> Row 08 -> Row 12
-- Starts with: Batch 1 (Rows 01, 02, 03, 04) running in 4 parallel lanes (2 sat + 2 PC).
+- Lane 4 (sat): Row 05 -> Row 08 -> Row 12
+- Starts with: Batch 1 (Rows 01, 02, 03, 05) running in 4 parallel lanes (2 sat + 2 PC).
 
 ## 3. Signature
 
-`signed: a-240@sat on v0.1 proposed`
+`signed: a-240@sat on v1.0 (editor consensus signed)`

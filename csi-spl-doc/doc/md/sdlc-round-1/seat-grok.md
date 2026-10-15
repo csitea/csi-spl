@@ -4,7 +4,7 @@ Measured on `d0950b1e3` (`origin/master`, 2026-10-16 01:16 local time / 2026-10-
 
 ## Status
 
-Pending review of v0.1 plan (`sdlc-round-1-plan.md`). Note: grok currently off/paused in fleet quota settings; seat stands ready upon quota reset.
+**Not seated** (no grok quota on any box, per dispatcher `c-002@sat` note).
 
 | Row | Slug | Practice | Verdict | Command | Output |
 |-----|------|-----------|-----------|---------|---------|

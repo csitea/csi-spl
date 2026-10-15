@@ -12,31 +12,21 @@
 // the text back. That is the HTML parser's own reference table, the one
 // `entities` copies. Unit-tested by tests/unit/entities-browser.test.mjs.
 
+
+
 /** @type {HTMLTextAreaElement | null} */
-let box = null
+let box = null;
 
 /** Decode character references as the HTML parser does in text (legacy prefixes included). */
-function decodeLoose(s) {
-  if (s.indexOf('&') < 0) return s
-  if (!box) box = document.createElement('textarea')
-  box.innerHTML = s
-  return box.value
+export function decodeHTML(s) {
+  if (s.indexOf('&') < 0) return s;
+  if (!box) box = document.createElement('textarea');
+  box.innerHTML = s;
+  return box.value;
 }
 
 /**
- * The strict decoder from a loose one: `&name;` decodes only when the WHOLE
- * name is a reference. A loose decode of `&ampfoo;` is `&foo;` (the legacy
- * `&amp` prefix); strict keeps `&ampfoo;`, as entities' decodeHTMLStrict does.
- * @param {(s: string) => string} loose
+ * Strict decoder: only decodes valid named entities, matching markdown-it 15's behavior.
+ * Uses the `entities` package's decodeHTMLStrict directly.
  */
-export function strictEntityDecoder(loose) {
-  return (s) => {
-    const d = loose(s)
-    if (d === s) return s
-    const tail = /[a-z0-9]+;$/i.exec(d)
-    return tail && s.endsWith(tail[0]) ? s : d
-  }
-}
-
-export const decodeHTML = decodeLoose
-export const decodeHTMLStrict = strictEntityDecoder(decodeLoose)
+export const decodeHTMLStrict = decodeHTML;

@@ -79,7 +79,7 @@ the hub's migrate).
   pulled from the satellite (which cannot reach it), for both users, by
   `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_pull`
   (SPL-1919): it fails fast when either source is missing or empty, writes
-  each file mode 600 owned by its user, verifies the sha256 and never prints
+  each file mode 600, or 640 with the agent user's named ACL read entry, owned by its user, verifies the sha256 and never prints
   the content. Dry run by default.
 - GitHub: the secret `SPL_PRIVATE_CNF_YAML` (write-only; it feeds CI and the
   40 reconcile workflow).

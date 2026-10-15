@@ -35,5 +35,5 @@ spawn_rename_how() {
 }
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh
-. "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash; }
+. "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash --norc; }
 spawn_main "$@"

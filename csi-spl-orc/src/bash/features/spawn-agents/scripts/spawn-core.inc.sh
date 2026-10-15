@@ -83,7 +83,7 @@ _sp_plan() { _sp_live || printf 'PLAN %-10s %s\n' "$1" "$2"; }
 # fails like any other command.
 _sp_fail() {
   echo "ERROR: $*" >&2
-  if _sp_live; then exec bash; fi
+  if _sp_live; then exec bash --norc; fi
   exit 1
 }
 
@@ -329,6 +329,10 @@ _sp_kind_ok() {  # ID KIND
   [ "${SPAWN_REUSE_ID:-0}" = 1 ] && spool_spawn_is_seat "$1"
 }
 
+# The pane ends in `exec bash --norc`: the box user's ~/.bashrc may run
+# `git config --global` (an identity loader); a rotation kills this pane a
+# second later and left a stale ~/.gitconfig.lock that failed every agent's
+# global git config (SPL-1898).
 spawn_main() {
   TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
   local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args=""
@@ -512,5 +516,5 @@ spawn_main() {
   echo "════════════════════════════════════════════════════════════════════"
   HIST_TARGET="${HISTFILE:-$HOME/.bash_history}"
   [ -n "$HIST_TARGET" ] && printf '%s\n' "${RESTORE}" >>"$HIST_TARGET" 2>/dev/null
-  exec bash
+  exec bash --norc
 }

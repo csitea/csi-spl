@@ -7,5 +7,5 @@ set -uo pipefail
 CHAIN_KIND=claude
 _ch_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/spawn-chain-core.inc.sh"
 # shellcheck source=spawn-chain-core.inc.sh
-. "$_ch_core" || { echo "ERROR: cannot load $_ch_core" >&2; exec bash; }
+. "$_ch_core" || { echo "ERROR: cannot load $_ch_core" >&2; exec bash --norc; }
 task_main "$@"

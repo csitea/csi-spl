@@ -77,7 +77,7 @@ spawn_teardown_how() {
 }
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh
-. "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash; }
+. "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash --norc; }
 
 # env.box.mistral_vibe.max_price of this checkout's cnf (the awk of
 # spool-install's cnf_mistral), else empty.

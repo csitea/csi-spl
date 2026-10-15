@@ -28,7 +28,7 @@ _ch_run() {  # WORKDIR NAME PROMPT
   cmd="export ${SPOOL_CLI_ENV}; cd '$1' && '$(_ch_bin)' $(_ch_flags "$2") \"${esc}\""
   if [ "${CHAIN_PRINT:-0}" = 1 ]; then printf '%s\n' "$cmd"; else spool_agent_exec "$cmd"; fi
 }
-_ch_keep_pane() { [ "${CHAIN_PRINT:-0}" = 1 ] && return 0; echo "$1"; exec bash; }
+_ch_keep_pane() { [ "${CHAIN_PRINT:-0}" = 1 ] && return 0; echo "$1"; exec bash --norc; }
 
 # claude carries its --name in argv; grok cannot, so its wait reads the tmux
 # window that carries the id: busy while the pane's command is not a shell.

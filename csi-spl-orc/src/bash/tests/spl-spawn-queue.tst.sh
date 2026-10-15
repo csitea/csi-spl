@@ -29,6 +29,9 @@
 #      supply blocker goes to the dispatch holder once per gap (CONTROL: none
 #      while a row of that class is queued); do_spl_spawn_share lists the
 #      shares, verdicts and the bypass
+#  11. SPL-2042: a queue of [handed ask, launchable ask] places the
+#      launchable one in the next tick; a stalled hand-off back at position
+#      1 waits behind a launchable ask; a launch in flight keeps one at a time
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -262,7 +265,7 @@ if [[ "$(jq -r .state <<<"$(hubrow "$A2")")" == acked ]] &&
   pass "no placement: ONE blocker to the holder with the close command; the ask is placing"
 else fail "hand: $out | $(sends)"; fi
 out="$(on pc do_spl_spawn_place 2>&1)"
-[[ "$(jq -r .state <<<"$(hubrow "$A4")")" == queued && "$(grep -c . "$T/send.log")" == 1 ]] && grep -q "one at a time" <<<"$out" &&
+[[ "$(jq -r .state <<<"$(hubrow "$A4")")" == queued && "$(grep -c . "$T/send.log")" == 1 ]] && grep -q "ask ${A2:0:8} is with the holder" <<<"$out" &&
   pass "one at a time: while one is placing the next stays queued" || fail "one at a time: $out | $(sends)"
 out="$(on pc do_spl_spawn_place HUB_SKEW=$((31 * 60)) 2>&1)"
 r2="$(hubrow "$A2")"
@@ -395,6 +398,50 @@ got="$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json ASKS_HUB_CMD="$T/bin/big
 [[ -z "$(ls -A "$T/sharetmp")" ]] && pass "the share leaves no temp dir" || fail "temp left: $(ls -A "$T/sharetmp")"
 on pc do_spl_spawn_share ASKS_HUB_CMD=false TMPDIR="$T/sharetmp" >/dev/null 2>&1 && fail "a dead hub gave a share" ||
   { [[ -z "$(ls -A "$T/sharetmp")" ]] && pass "a dead hub: no share and no temp dir left" || fail "temp left on a hub error: $(ls -A "$T/sharetmp")"; }
+
+# 11. SPL-2042: a hand-off blocks only the asks that need the holder --------------
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$R1" --by c-001@box-desk --reason "placed: c-314@box-desk" >/dev/null
+H1=e1e1e1e1-0000-4000-8000-000000000001; L1=e2e2e2e2-0000-4000-8000-000000000002
+L2=e3e3e3e3-0000-4000-8000-000000000003; K1=e4e4e4e4-0000-4000-8000-000000000004; L3=e5e5e5e5-0000-4000-8000-000000000005
+put "$H1" c-002@box-desk dispatch-88982c94-h "SPAWN REQUEST needs judgement"
+put "$L1" c-002@box-desk dispatch-88982c94-l "SPAWN REQUEST has a brief"
+on pc do_spl_spawn_enqueue ASK_ID="$H1" SPAWN_CLASS=bug >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$L1" SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split >/dev/null 2>&1
+: >"$T/send.log"; : >"$T/launch.log"
+on pc do_spl_spawn_place >/dev/null 2>&1
+[[ "$(jq -r .state <<<"$(hubrow "$H1")")" == acked && "$(jq -r .state <<<"$(hubrow "$L1")")" == queued ]] &&
+  grep -q "place ask ${H1:0:8} now" "$T/send.log" &&
+  pass "queue [no placement, launchable]: the head is handed to the holder" || fail "hand H1: $(hubrow "$H1") | $(sends)"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-401 2>&1)"
+if [[ "$(jq -r .reason <<<"$(hubrow "$L1")")" == "placed: c-401@box-desk" && "$(jq -r .state <<<"$(hubrow "$H1")")" == acked ]] &&
+   grep -q "ask ${H1:0:8} is with the holder" <<<"$out" && ! grep -q "one at a time" <<<"$out"; then
+  pass "a hand-off blocks nothing the placer launches itself: the launchable ask is placed in the next tick (SPL-2042)"
+else fail "handed blocks the line: $out | $(hubrow "$L1")"; fi
+put "$L2" c-002@box-desk dispatch-88982c94-m "SPAWN REQUEST has a brief too"
+on pc do_spl_spawn_enqueue ASK_ID="$L2" SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split >/dev/null 2>&1
+out="$(on pc do_spl_spawn_place HUB_SKEW=$((31 * 60)) LAUNCH_ID=c-402 2>&1)"
+r1="$(listrow "$H1")"
+if grep -q "${H1:0:8} was not placed within 30 min: back in line" <<<"$out" && [[ "$(jq -r .position <<<"$r1")" == 1 ]] &&
+   [[ "$(jq -r .reason <<<"$(hubrow "$L2")")" == "placed: c-402@box-desk" && "$(grep -c "place ask ${H1:0:8} now" "$T/send.log")" == 1 ]]; then
+  pass "a stalled hand-off back at position 1 waits behind the ask the placer launches (control: it is the queue's head)"
+else fail "handed back in front: $out | $r1 | $(hubrow "$L2") | $(sends)"; fi
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$H1")")" == acked && "$(grep -c "place ask ${H1:0:8} now" "$T/send.log")" == 2 ]] &&
+  pass "with no launchable ask left, the stalled hand-off is handed again" || fail "re-hand: $out | $(sends)"
+put "$K1" c-002@box-desk dispatch-88982c94-k "SPAWN REQUEST a launch in flight"
+put "$L3" c-002@box-desk dispatch-88982c94-n "SPAWN REQUEST next with a brief"
+on pc do_spl_spawn_enqueue ASK_ID="$K1" SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$L3" SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split >/dev/null 2>&1
+HUB_DIR="$T/hub" "$T/bin/hub" ask ack --fleet main --id "$K1" --by c-001@box-desk >/dev/null
+: >"$T/launch.log"
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$L3")")" == queued && ! -s "$T/launch.log" ]] && grep -q "one at a time" <<<"$out" &&
+  pass "an ask the placer launches itself still placing: one at a time holds" || fail "launch in flight: $out | $(hubrow "$L3")"
+for i in "$H1" "$K1" "$L3"; do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+on pc do_spl_spawn_place >/dev/null 2>&1
+grep -q "^${F1}$" "$T/pc/spool/asks/.place.handed" && ! grep -q "^${H1}$" "$T/pc/spool/asks/.place.handed" &&
+  pass "the hand-off record is pruned once its ask left the line (control: a handed ask still queued stays)" ||
+  fail "stale hand-off record: $(cat "$T/pc/spool/asks/.place.handed")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

@@ -9,7 +9,12 @@
 # @description      not closed within SPAWN_PLACE_LOCK_MIN goes back in line at
 # @description      its old place (enqueued_at is set once), before the asks
 # @description      tick's own lock timeout could ever re-raise it
-# @description   2. ONE AT A TIME - a request still placing: nothing else
+# @description   2. ONE AT A TIME - a request the placer launches itself still
+# @description      placing: nothing else. A request HANDED to the holder (4b)
+# @description      blocks only the asks that need the holder too: the next
+# @description      ask the placer can launch (placement + brief file) is placed
+# @description      under the same room rules (SPL-2042). A handed request that
+# @description      came back (1) waits behind every ask the placer can launch
 # @description   3. ROOM - position 1 is taken only when the agent windows on
 # @description      this box are below SPOOL_AGENT_CEILING (40), the fleet load
 # @description      target does not say hold (do_spl_box_pick) and the last
@@ -69,18 +74,55 @@ do_spl_spawn_place() {
     rows="$(spl_spawn_q_rows)" || return 0
   fi
   spl_spawn_place_supply "$holder" "$rows"
-  if jq -e 'any(.[]; .state == "acked")' >/dev/null <<<"$rows"; then
+  rows="$(spl_spawn_place_mark "$rows")"
+  if jq -e 'any(.[]; .state == "acked" and ._l and (._h | not))' >/dev/null <<<"$rows"; then
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
   fi
-  head="$(jq -c '[.[] | select(.state == "queued" and .position == 1)][0] // empty' <<<"$rows")"
-  [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty"; return 0; }
+  rows="$(spl_spawn_place_line "$rows")"
+  head="$(jq -c '.[0] // empty' <<<"$rows")"
+  [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
   if why="$(spl_spawn_place_no_room)"; then
-    do_log "INFO hold: $why; ask $(jq -r '.ask_id[0:8]' <<<"$head") stays position 1 of $(jq -r '.queue_len' <<<"$head")"
+    do_log "INFO hold: $why; ask $(jq -r '.ask_id[0:8]' <<<"$head") stays position $(jq -r '"\(.position) of \(.queue_len)"' <<<"$head")"
     return 0
   fi
   head="$(spl_spawn_place_band "$head" "$rows")"
-  spl_spawn_place_take "$holder" "$head"
+  spl_spawn_place_take "$holder" "$(jq -c 'del(._l, ._h)' <<<"$head")"
+}
+
+# 2. Marks each row: _l = the placer can launch it (a placement and its brief
+# file here), _h = it was handed to the holder (<asks dir>/.place.handed, one
+# ask_id per line, pruned to the rows still in line).
+spl_spawn_place_mark() {  # ROWS
+  local f id slug launchable=() handed=()
+  f="$(spool_asks_dir)/.place.handed"
+  while IFS=$'\t' read -r id slug; do
+    [[ -n "$(spl_spawn_place_brief "$slug")" ]] && launchable+=("$id")
+  done < <(jq -r '.[] | select((.placement // "") != "") | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  [[ -r "$f" ]] && mapfile -t handed < <(grep -xF -f <(jq -r '.[].ask_id' <<<"$1") "$f" | sort -u)
+  if { (( ${#handed[@]} == 0 )) || printf '%s\n' "${handed[@]}"; } >"$f.$$"; then mv -f "$f.$$" "$f"; else rm -f "$f.$$"; fi
+  jq -c --argjson l "$(spl_spawn_place_json_ids "${launchable[@]}")" --argjson h "$(spl_spawn_place_json_ids "${handed[@]}")" \
+    '[.[] | .ask_id as $i | . + {_l: ($l | index($i) != null), _h: ($h | index($i) != null)}]' <<<"$1"
+}
+
+# The arguments as a JSON array of strings.
+spl_spawn_place_json_ids() {  # ID...
+  (( $# > 0 )) || { printf '[]'; return 0; }
+  printf '%s\n' "$@" | jq -R -s -c 'split("\n") | map(select(. != ""))'
+}
+
+# 2b. The queued rows that may be taken this tick, in queue order. An ask
+# with the holder (handed, acked) blocks nothing the placer can launch
+# itself: only those are in line. A handed ask that came back (stalled)
+# waits behind every ask the placer can launch.
+spl_spawn_place_line() {  # MARKED ROWS
+  local held
+  held="$(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$1")"
+  [[ -z "$held" ]] || do_log "INFO ask $held is with the holder: placing only an ask the placer launches itself, $(jq '[.[] | select(.state == "queued" and ._l)] | length' <<<"$1") of $(jq '[.[] | select(.state == "queued")] | length' <<<"$1") queued" >&2
+  jq -c 'any(.[]; .state == "acked") as $held | any(.[]; .state == "queued" and ._l) as $any_l
+    | [.[] | select(.state == "queued")
+       | select(if $held then ._l elif $any_l then ._l or (._h | not) else true end)]
+    | sort_by(.position)' <<<"$1"
 }
 
 # 0. The supply blocker: refactor or bug under its band, nothing of it
@@ -265,6 +307,7 @@ spl_spawn_place_hand() {  # HOLDER ROW WHY
     + "Place it with the launcher (spawn-window.sh / spawn-remote.sh), then: `ASK_ID=\(.ask_id[0:8]) PLACED_AS=<ID>@<box> ./run -a do_spl_spawn_placed` (tells the sender). "
     + "Not placed within \($lock) min: it goes back to position 1."' <<<"$2")"; then
     do_log "OK ask $id8 handed to $1 to place ($3)"
+    jq -r '.ask_id' <<<"$2" >>"$(spool_asks_dir)/.place.handed"
   else
     spl_spawn_q_op queue "$(jq -r '.ask_id' <<<"$2")" "$1" >/dev/null
     do_log "WARN ask $id8 could not be handed to $1: back in line"

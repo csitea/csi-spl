@@ -58,7 +58,7 @@ const list = (shard) => {
   assert.ok(parsed.size >= 100, `weights file has ${parsed.size} rows`)
   assert.equal(medianWeight([...parsed.values()]), 10)
   assert.equal(weightFor('tests/e2e/not-yet-measured.test.mjs', parsed), 10)
-  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 161)
+  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 29)
   assert.equal(medianWeight([]), 1)
   assert.equal(medianWeight([4, 1, 9]), 4)
   assert.equal(medianWeight([1, 2, 3, 4]), 3)

@@ -29,6 +29,10 @@
 #                  says why. Never --force, never -D. The seed prompt's TEAR
 #                  DOWN step is the model's to remember, and agy lanes skipped
 #                  it (a-526, a-528, a-530 left clean, landed worktrees)
+#   scratch     -> the lane's Claude Code scratch on the /tmp tmpfs
+#                  (/tmp/claude-<uid>/<worktree slug>[-*]/), removed when no
+#                  process holds it (lane-scratch-reap.sh, logged): c-232
+#                  left 20 GB there and /tmp reached 93% (sat, 2026-10-15)
 #
 # Refused: a role id (001-003, CLE-001..003), and an id a tmux window still
 # carries (the agent may still be running: closing the window comes first).
@@ -44,7 +48,8 @@
 # SPOOL_DESK_BOX, RETIRE_LANE=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's),
-# RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1).
+# RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
+# RETIRE_SCRATCH=0|1 (default 1; 0 under SPOOL_TEST=1), LANE_SCRATCH_* (its).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
 # 3 a window still carries the id, 4 nothing on this machine holds the id
 # (no spool dir, registry row, record or desk seat).
@@ -259,5 +264,13 @@ wt_reap() {
 wtr="${RETIRE_WORKTREE:-}"
 [ -n "$wtr" ] || { wtr=1; [ "${SPOOL_TEST:-}" = 1 ] && wtr=0; }
 [ "$wtr" = 1 ] && wt_reap
+# ---- 8. the lane's /tmp scratch ---------------------------------------------
+scr="${RETIRE_SCRATCH:-}"
+[ -n "$scr" ] || { scr=1; [ "${SPOOL_TEST:-}" = 1 ] && scr=0; }
+if [ "$scr" = 1 ] && [ -n "$WT" ]; then
+  reap=(bash "$_here/lane-scratch-reap.sh"); [ "$APPLY" = 1 ] && reap+=(--apply)
+  "${reap[@]}" "$WT" \
+    || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not reaped (lane-scratch-reap.sh rc $?)" >&2
+fi
 
 echo "agent-id-retire: ${ID} $([ "$APPLY" = 1 ] && echo retired || echo 'would be retired') at ${RETIRED_UTC} (generation ${SPAWNED}; reusable after ${SPOOL_ID_QUARANTINE_H:-24} h)"

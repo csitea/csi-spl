@@ -179,8 +179,8 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   targets: [{target, label, kind}]}`. The `OPTIONS /v1/me/realm/hours` preflight is T003's (GET,
   PUT).
 
-- [ ] T005 **Lane D: WUI overlap engine, shared fixture & API client** (grok or mistral;
-  waits on T002, T003, T004; BUILD). Spec 6.1, 6.3, T-OV-JS:
+- [x] T005 **Lane D: WUI overlap engine, shared fixture & API client** (c-200 after m-180, SPL-1962,
+  landing sha below; grok or mistral; waits on T002, T003, T004; BUILD). Spec 6.1, 6.3, T-OV-JS:
   - Pure client-side overlap logic for today's running timer in `WUI/utils/hours-across.mjs`,
     verified against shared fixture `GO/hours/testdata/overlap_fixture.json` (passes in Go and JS).
   - API client `WUI/utils/realm-hours-api.mjs` for `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`,
@@ -192,6 +192,11 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   Must not touch: any Go file, `WUI/pages/me/*`, `WUI/stores/realm.ts`.
   Tests: T-OV-JS (JS half: shared fixture passes unit tests), composable unit tests.
   Done: `pnpm run test:unit`, `pnpm run typecheck` green.
+  Landed: `src/utils/hours-across.mjs` (a port of Go `Across`, zone-aware, plus `hoursWithTimers`
+  for today's timers and `hoursLimitLevel` for D3), `src/utils/hours-across.d.ts`,
+  `src/utils/realm-hours-api.mjs`, `src/composables/useRealmHours.ts` (nuxt srcDir is `src/`), and
+  `tests/unit/hours-across.test.mjs`: every fixture case deep-equal to Go's `want`, read by a path
+  relative to the test file.
 
 - [ ] T006 **Lane E: the `/me/hours` view, timeline & entry points** (grok or mistral;
   waits on T005, 119 T009; BUILD). Spec 8.1, 8.2, 8.3:

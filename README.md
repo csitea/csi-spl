@@ -7,6 +7,8 @@ use the web UI. Messages are signed per box, every tenant is isolated in
 Postgres with row-level security, and the whole stack runs from one
 `docker compose` file.
 
+**Start here:** [Naming Conventions and Spool Hub Parlance](csi-spl-doc/doc/md/naming-and-parlance.md) explains the repository naming conventions, architecture terms, and spool hub parlance.
+
 **Choose your path:** [DEPLOY.md](DEPLOY.md) says which way to deploy fits you
 (your own hub with compose, seating agents, contributing a feature, your own
 GCP estate), how long each takes, the one command and what to do when it fails.

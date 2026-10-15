@@ -72,64 +72,43 @@ type Msg = {
   received_at?: string
 }
 
-export const useNotificationStore = defineStore('notification', () => {
-  const permission = ref('unsupported')
-  const chime = ref(false)
-  /** 051: which sound the chime plays, per device (dd88348d) */
-  const sound = ref('')
-  /** the reader's on/off choice for browser alerts (the bell) */
-  const alertsEnabled = ref(true)
-  const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
-  /** HUM-24 (311427c6): why an alert can or cannot fire here - on / off / ask / blocked / install / unsupported */
-  const alertStatus = computed(() => alertState(permission.value, alertsEnabled.value, platform()))
-  const unread = ref<Record<string, number>>({})
-  /** CLE-77845: every message per DM key (`dm:<peer>`), for the "<new>/<total>" rail badge. */
-  const dmTotal = ref<Record<string, number>>({})
-  const totalSeen = new Set<string>()
-  /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
-  const mentions = ref<Record<string, number>>({})
-  const seen = new Set<string>()
-  /* the global i18n instance, captured while the Nuxt app is in context (stores have no component) */
-  const nuxtApp = useNuxtApp()
-  const i18n = nuxtApp.$i18n
-  const humanNames = useHumanNames()
+type NuxtApp = ReturnType<typeof useNuxtApp>
+type I18n = NuxtApp['$i18n']
+type HumanNames = ReturnType<typeof useHumanNames>
+type Counts = Ref<Record<string, number>>
 
-  /** Browser-notification title + body for one escalated message, in the active UI locale. */
-  function copyFor(m: Msg, reason: string) {
-    // a human sender by their chosen name (owner, 2026-09-26)
-    /* specs/058 (CLE-77932): an agent is <ID>@<box> - CLE-001 runs on every box */
-    const agentBox = m.from_box && !/^(HUM|GST)-/.test(String(m.from || '')) ? `@${m.from_box}` : ''
-    const who = m.from ? peopleLabels([String(m.from) + agentBox], humanNames.names.value) : m.from
-    /* HUM-24 (csitea ba4696c1): an AI agent's alert carries the robot mark, as its card carries the AI badge */
-    const c = notifyCopyKey({ ...m, from: who && isAiMessage(m) ? `\u{1F916} ${who}` : who }, reason)
-    /* SPL-1009: a member in the body reads their name, as in the feed */
-    return { title: i18n.t(c.titleKey, c.params), body: namedText(c.body, humanNames.names.value) }
-  }
+function platform() {
+  if (!import.meta.client || typeof navigator === 'undefined') return {}
+  const standalone = Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
+    || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
+  return { ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, standalone }
+}
 
-  if (import.meta.client) {
-    permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
-    chime.value = loadChime()
-    sound.value = loadChimeSound()
-    alertsEnabled.value = loadAlerts()
-    /* SPL-998: a second tab kept the switch it loaded and went on beeping */
-    window.addEventListener('storage', (e) => {
-      if (isSoundPrefKey(e.key)) hydrate()
-    })
-    /* HUM-24 (311427c6): a permission granted or revoked in the browser's
-       site settings shows when the reader comes back, without a reload */
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) readPermission()
-    })
-    void watchPermission()
-    askOnFirstGesture()
-  }
+/** The reader is not looking at this tab: hidden, or another window in front. */
+function away() {
+  if (typeof document === 'undefined') return false
+  if (document.hidden) return true
+  return typeof document.hasFocus === 'function' && !document.hasFocus()
+}
 
-  function platform() {
-    if (!import.meta.client || typeof navigator === 'undefined') return {}
-    const standalone = Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
-      || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
-    return { ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, standalone }
-  }
+/** CLE-77890: a tapped alert opens its message (sw.js on Android, onclick on a desktop). */
+function openTarget(data: { url?: string } | null | undefined) {
+  const url = String((data && data.url) || '')
+  if (!url.startsWith('/') || url.startsWith('//')) return
+  /* kept until the route is there, so a reload in between (build-watch on
+     becoming visible) opens it again on boot (plugins/notify-open) */
+  try { sessionStorage.setItem(PENDING_OPEN_KEY, JSON.stringify({ url, at: Date.now() })) } catch { /* private mode */ }
+  void Promise.resolve(navigateTo(url)).finally(() => {
+    try { sessionStorage.removeItem(PENDING_OPEN_KEY) } catch { /* private mode */ }
+  })
+}
+
+/** The browser's permission, the chime switch, its sound and the reader's bell switch. */
+type Prefs = readonly [Ref<string>, Ref<boolean>, Ref<string>, Ref<boolean>]
+
+/** The browser's permission and this device's sound prefs, read and asked for. */
+function permissionSteps(prefs: Prefs) {
+  const [permission, chime, sound, alertsEnabled] = prefs
 
   function readPermission() {
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
@@ -142,6 +121,11 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch {
       /* Safari before 16 has no notifications permission query */
     }
+  }
+
+  async function requestPush() {
+    if (typeof Notification === 'undefined') return
+    permission.value = await Notification.requestPermission()
   }
 
   /**
@@ -164,10 +148,25 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function hydrate() {
     if (!import.meta.client) return
-    permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+    readPermission()
     chime.value = loadChime()
     sound.value = loadChimeSound()
     alertsEnabled.value = loadAlerts()
+  }
+
+  if (import.meta.client) {
+    hydrate()
+    /* SPL-998: a second tab kept the switch it loaded and went on beeping */
+    window.addEventListener('storage', (e) => {
+      if (isSoundPrefKey(e.key)) hydrate()
+    })
+    /* HUM-24 (311427c6): a permission granted or revoked in the browser's
+       site settings shows when the reader comes back, without a reload */
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) readPermission()
+    })
+    void watchPermission()
+    askOnFirstGesture()
   }
 
   watch(chime, (v) => {
@@ -179,17 +178,21 @@ export const useNotificationStore = defineStore('notification', () => {
   watch(alertsEnabled, (v) => {
     if (import.meta.client) saveAlerts(Boolean(v))
   })
+  return [readPermission, requestPush, hydrate] as const
+}
+
+type Permission = ReturnType<typeof permissionSteps>
+
+/** The bell, the Settings test alert, and the ping a message raises. */
+function alertSteps(prefs: Prefs, alertsOn: ComputedRef<boolean>, nuxtApp: NuxtApp, i18n: I18n, humanNames: HumanNames, steps: Permission) {
+  const [permission, chime, sound, alertsEnabled] = prefs
+  const [readPermission, requestPush] = steps
 
   /** The bell glyph follows the reader's switch. Messages popping do not
    *  move it. Turning it on also asks the browser, once, for permission. */
   async function toggleAlerts() {
     alertsEnabled.value = !alertsEnabled.value
     if (alertsEnabled.value && permission.value !== 'granted') await requestPush()
-  }
-
-  async function requestPush() {
-    if (typeof Notification === 'undefined') return
-    permission.value = await Notification.requestPermission()
   }
 
   /**
@@ -214,18 +217,6 @@ export const useNotificationStore = defineStore('notification', () => {
   /* bug A: a burst of replies plays one chime, not one per message */
   const chimeGate = pingThrottle(2000)
 
-  /** CLE-77890: a tapped alert opens its message (sw.js on Android, onclick on a desktop). */
-  function openTarget(data: { url?: string } | null | undefined) {
-    const url = String((data && data.url) || '')
-    if (!url.startsWith('/') || url.startsWith('//')) return
-    /* kept until the route is there, so a reload in between (build-watch on
-       becoming visible) opens it again on boot (plugins/notify-open) */
-    try { sessionStorage.setItem(PENDING_OPEN_KEY, JSON.stringify({ url, at: Date.now() })) } catch { /* private mode */ }
-    void Promise.resolve(navigateTo(url)).finally(() => {
-      try { sessionStorage.removeItem(PENDING_OPEN_KEY) } catch { /* private mode */ }
-    })
-  }
-
   function ping(title: string, body: string, tag = '', m: Msg | null = null) {
     if (chime.value && import.meta.client && chimeGate()) {
       /* 051: the reader's chosen sound; its AudioContext closes when it ends (CLE-35075) */
@@ -238,43 +229,50 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  /** The reader is not looking at this tab: hidden, or another window in front. */
-  function away() {
-    if (typeof document === 'undefined') return false
-    if (document.hidden) return true
-    return typeof document.hasFocus === 'function' && !document.hasFocus()
+  /** Browser-notification title + body for one escalated message, in the active UI locale. */
+  function copyFor(m: Msg, reason: string) {
+    // a human sender by their chosen name (owner, 2026-09-26)
+    /* specs/058 (CLE-77932): an agent is <ID>@<box> - CLE-001 runs on every box */
+    const agentBox = m.from_box && !/^(HUM|GST)-/.test(String(m.from || '')) ? `@${m.from_box}` : ''
+    const who = m.from ? peopleLabels([String(m.from) + agentBox], humanNames.names.value) : m.from
+    /* HUM-24 (csitea ba4696c1): an AI agent's alert carries the robot mark, as its card carries the AI badge */
+    const c = notifyCopyKey({ ...m, from: who && isAiMessage(m) ? `\u{1F916} ${who}` : who }, reason)
+    /* SPL-1009: a member in the body reads their name, as in the feed */
+    return { title: i18n.t(c.titleKey, c.params), body: namedText(c.body, humanNames.names.value) }
   }
 
-  /**
-   * CLE-77804 (topic 1e7d56b8): the read cursor a feed had when it was opened,
-   * frozen so LiveFeed can draw the "New messages" divider while markRead
-   * advances the live cursor and clears the rail badge. A feed's page calls
-   * enterFeed(key) once as it opens — BEFORE selectChannel/markRead move the
-   * cursor — and reads boundary[key]. `enteredKey` is a plain (non-reactive,
-   * non-hydrated) marker so the freeze happens exactly once per open on the
-   * client: the many markReads a single open fires (the page watch re-runs as
-   * the session settles, plus the live plugin) never move it, and a genuine
-   * re-open of another feed re-freezes.
-   */
-  const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
-  let enteredKey = ''
-
-  /**
-   * CLE-77804 (topic 35053f95): per-topic read snapshots — taskId -> the reply
-   * total the reader had seen when they last opened that topic. The card shows
-   * unread = currentTotal - seen as "<unread>/<total> >>" (topicUnread). Held in
-   * the same localStorage as the cursors (t:<id>), hydrated here so a reload
-   * keeps the read state. No hub round-trip: the count comes from the totals the
-   * topics view already returns, and the read position is per reader, local.
-   */
-  const topicRead = ref<Record<string, number>>({})
-  if (import.meta.client) {
-    for (const [k, c] of Object.entries(loadCursors())) {
-      if (k.startsWith('t:') && c && Number.isFinite((c as { count?: number }).count)) {
-        topicRead.value[k.slice(2)] = Number((c as { count?: number }).count)
-      }
-    }
+  /** One message's alert, on its feed's key. */
+  function pingFor(m: Msg, reason: string, key: string) {
+    const copy = copyFor(m, reason)
+    ping(copy.title, copy.body, key, m)
   }
+
+  return [toggleAlerts, testAlert, ping, pingFor] as const
+}
+
+type Alerts = ReturnType<typeof alertSteps>
+
+/**
+ * CLE-77804 (topic 35053f95): per-topic read snapshots — taskId -> the reply
+ * total the reader had seen when they last opened that topic. The card shows
+ * unread = currentTotal - seen as "<unread>/<total> >>" (topicUnread). Held in
+ * the same localStorage as the cursors (t:<id>), hydrated here so a reload
+ * keeps the read state. No hub round-trip: the count comes from the totals the
+ * topics view already returns, and the read position is per reader, local.
+ */
+function topicMarks(read: Record<string, number>, cursors: Record<string, unknown>, held: Record<string, unknown> = {}) {
+  for (const [k, c] of Object.entries(cursors)) {
+    if (k.startsWith('t:') && c && !held[k] && Number.isFinite((c as { count?: number }).count)) read[k.slice(2)] = Number((c as { count?: number }).count)
+  }
+  return read
+}
+
+type Boundary = Ref<Record<string, { ts: string, id: string } | null>>
+
+/** A topic card's read mark: read, set, and moved by the reader's own replies and a channel's open. */
+function topicSteps(boundary: Boundary) {
+  const topicRead = ref<Record<string, number>>(import.meta.client ? topicMarks({}, loadCursors()) : {})
+
   /** CLE-77804: the unread part of a topic card's "<unread>/<total>" - the
    *  total minus what the reader had seen when they last read it (0 if never,
    *  so an untouched topic shows a plain total). Every card reads this one rule;
@@ -319,12 +317,25 @@ export const useNotificationStore = defineStore('notification', () => {
     const next = seedTopicCursors(before, boundary.value[key], messages, totalOf, selfId)
     if (next === before) return
     saveCursors(next)
-    const read = { ...topicRead.value }
-    for (const [k, c] of Object.entries(next)) {
-      if (k.startsWith('t:') && !before[k] && Number.isFinite((c as { count?: number }).count)) read[k.slice(2)] = Number((c as { count?: number }).count)
-    }
-    topicRead.value = read
+    topicRead.value = topicMarks({ ...topicRead.value }, next, before)
   }
+
+  return [topicRead, topicUnread, markTopicRead, ownReplyRead, seedTopics] as const
+}
+
+/**
+ * A feed's read cursor, moved as it is read. CLE-77804 (topic 1e7d56b8): the
+ * cursor a feed had when it was opened is frozen in `boundary`, so LiveFeed can
+ * draw the "New messages" divider while markRead advances the live cursor and
+ * clears the rail badge. A feed's page calls enterFeed(key) once as it opens —
+ * BEFORE selectChannel/markRead move the cursor — and reads boundary[key].
+ * `enteredKey` is a plain (non-reactive, non-hydrated) marker so the freeze
+ * happens exactly once per open on the client: the many markReads a single
+ * open fires (the page watch re-runs as the session settles, plus the live
+ * plugin) never move it, and a genuine re-open of another feed re-freezes.
+ */
+function readSteps(unread: Counts, mentions: Counts, boundary: Boundary) {
+  let enteredKey = ''
 
   function enterFeed(key: string) {
     if (!key || key === enteredKey) return
@@ -333,11 +344,16 @@ export const useNotificationStore = defineStore('notification', () => {
     boundary.value = { ...boundary.value, [key]: c ? { ts: String(c.ts || ''), id: String(c.id || '') } : null }
   }
 
+  /** A read key's rail badge and mention mark go to 0. */
+  function clear(key: string) {
+    unread.value = { ...unread.value, [key]: 0 }
+    mentions.value = { ...mentions.value, [key]: 0 }
+  }
+
   function markRead(key: string, msg?: Msg | null) {
     if (!key) return
     saveCursors(markReadAt(loadCursors(), key, msg || undefined))
-    unread.value = { ...unread.value, [key]: 0 }
-    mentions.value = { ...mentions.value, [key]: 0 }
+    clear(key)
   }
 
   /** Read a live channel up to its hub row, keeping the hub cursor for the next read=. */
@@ -345,9 +361,15 @@ export const useNotificationStore = defineStore('notification', () => {
     const c = cursorFromChannel(row)
     if (!key || !c) return markRead(key)
     saveCursors({ ...loadCursors(), [key]: c })
-    unread.value = { ...unread.value, [key]: 0 }
-    mentions.value = { ...mentions.value, [key]: 0 }
+    clear(key)
   }
+
+  return [enterFeed, markRead, markChannelRead] as const
+}
+
+/** The rail counts: hub unread on (re)load, DM totals, and the pings a reconnect's catch-up owes. */
+function countSteps(unread: Counts, dmTotal: Counts, i18n: I18n, humanNames: HumanNames, ping: Alerts[2]) {
+  const totalSeen = new Set<string>()
 
   /**
    * HUM-24 round 2 (311427c6, "notification for new messages does not work"):
@@ -415,12 +437,19 @@ export const useNotificationStore = defineStore('notification', () => {
     return unread.value[key] ? '' : dmTotalText(dmTotal.value[key] || 0) as string
   }
 
+  return [applyChannels, applyDms, countDmLive, dmBadge, dmTotalBadge] as const
+}
+
+/** Live and loaded messages: count what the reader has not seen, and ping what needs them. */
+function ingestStep(unread: Counts, mentions: Counts, pingFor: Alerts[3], ownReplyRead: (m: Msg) => void, markRead: (key: string, msg?: Msg | null) => void) {
+  const seen = new Set<string>()
+
   function bump(key: string, reason: string | null) {
     unread.value = { ...unread.value, [key]: (unread.value[key] || 0) + 1 }
     if (reason === 'mention') mentions.value = { ...mentions.value, [key]: (mentions.value[key] || 0) + 1 }
   }
 
-  function ingest(messages: unknown, ctx: Ctx = {}, opts: { hydrate?: boolean } = {}) {
+  return function ingest(messages: unknown, ctx: Ctx = {}, opts: { hydrate?: boolean } = {}) {
     const rows = (Array.isArray(messages) ? messages : [messages]) as Msg[]
     const unseen = rows.filter((m) => m && m.msg_id && !seen.has(m.msg_id))
     const hydrate = opts.hydrate === true || (unseen.length > 1 && opts.hydrate !== false)
@@ -444,22 +473,47 @@ export const useNotificationStore = defineStore('notification', () => {
         /* the open feed signals while the reader is away from the tab, or
            for a reply whose thread is not open (HUM-24, offScreenReply) */
         const unseenHere = away() || offScreenReply(m, ctx.feed || rows, ctx.openTopics || [])
-        if (import.meta.client && unseenHere && shouldPing(m, ctx, loadMutedChannels())) {
-          const copy = copyFor(m, escalateReason(m, ctx) || '')
-          ping(copy.title, copy.body, key, m)
-        }
+        if (import.meta.client && unseenHere && shouldPing(m, ctx, loadMutedChannels())) pingFor(m, escalateReason(m, ctx) || '', key)
         continue
       }
       /* our own echo in another channel must not raise a badge (HUM-24) */
       if (isOwn(m)) continue
       const reason = escalateReason(m, ctx)
       bump(key, reason)
-      if (shouldPing(m, ctx, loadMutedChannels())) {
-        const copy = copyFor(m, reason || '')
-        ping(copy.title, copy.body, key, m)
-      }
+      if (shouldPing(m, ctx, loadMutedChannels())) pingFor(m, reason || '', key)
     }
   }
+}
+
+export const useNotificationStore = defineStore('notification', () => {
+  const permission = ref('unsupported')
+  const chime = ref(false)
+  /** 051: which sound the chime plays, per device (dd88348d) */
+  const sound = ref('')
+  /** the reader's on/off choice for browser alerts (the bell) */
+  const alertsEnabled = ref(true)
+  const prefs = [permission, chime, sound, alertsEnabled] as const
+  const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
+  /** HUM-24 (311427c6): why an alert can or cannot fire here - on / off / ask / blocked / install / unsupported */
+  const alertStatus = computed(() => alertState(permission.value, alertsEnabled.value, platform()))
+  const unread = ref<Record<string, number>>({})
+  /** CLE-77845: every message per DM key (`dm:<peer>`), for the "<new>/<total>" rail badge. */
+  const dmTotal = ref<Record<string, number>>({})
+  /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
+  const mentions = ref<Record<string, number>>({})
+  /* the global i18n instance, captured while the Nuxt app is in context (stores have no component) */
+  const nuxtApp = useNuxtApp()
+  const i18n = nuxtApp.$i18n
+  const humanNames = useHumanNames()
+  const steps = permissionSteps(prefs)
+  const [, requestPush, hydrate] = steps
+  const [toggleAlerts, testAlert, ping, pingFor] = alertSteps(prefs, alertsOn, nuxtApp, i18n, humanNames, steps)
+  /** CLE-77804: each feed's read cursor as it was opened (readSteps) */
+  const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
+  const [topicRead, topicUnread, markTopicRead, ownReplyRead, seedTopics] = topicSteps(boundary)
+  const [enterFeed, markRead, markChannelRead] = readSteps(unread, mentions, boundary)
+  const [applyChannels, applyDms, countDmLive, dmBadge, dmTotalBadge] = countSteps(unread, dmTotal, i18n, humanNames, ping)
+  const ingest = ingestStep(unread, mentions, pingFor, ownReplyRead, markRead)
 
   return {
     /* HUM-24 (t1 cd9b0f47): '/' is prerendered, and its payload's server

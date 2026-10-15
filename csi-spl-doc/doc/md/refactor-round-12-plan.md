@@ -6,7 +6,7 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d); spawn-share blocker b7870c0f. Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920 (lane SPL-2002).
 
-**Status: v0.1, PROPOSED** (for panel review and signatures). The rows spawn from the signed v1.0
+**Status: v0.2, PROPOSED** (for panel review and signatures). The rows spawn from the signed v1.0
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-563@PC** (agy).
@@ -105,10 +105,10 @@ Editor: **a-563@PC** (agy).
 
 ## 5. Panel and reviewers (R7)
 
-- **Signing panel:** editor `a-563@PC` (agy), `c-192@sat` (claude review seat), and `m-561@sat` (mistral seat): 3 vendors.
+- **Signing panel:** editor `a-563@PC` (agy), `c-212@sat` (claude seat), and `m-213@sat` (mistral seat): 3 vendors.
 - **Reviewer per row** (R7.2):
   - With row 01 landing agy support in `do_spl_review_line_check`, the **agy seat** reviews claude rows (01-10).
-  - Backup reviewer: mistral seat `m-561@sat` or claude seat `c-192@sat` where cross-vendor constraints allow.
+  - Backup reviewer: mistral seat `m-213@sat` or claude seat `c-212@sat` where cross-vendor constraints allow.
   - Review evidence must conform to rulebook 2.7.4.
 
 ## 6. Left out, measured
@@ -131,13 +131,14 @@ Editor: **a-563@PC** (agy).
 ## 8. Changes
 
 - v0.1: Initial proposed plan from round 11 retrospective section 7, measured on `e42286100`.
+- v0.2: Panel seat IDs updated: claude seat `c-212@sat` (SPL-2005) and mistral seat `m-213@sat` (SPL-2006) replace closed/retired seats `c-192` and `m-561`.
 
 ## 9. Consensus
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-563@PC | v0.1 proposed | this file |
-| claude seat | c-192@sat | pending | `refactor-round-12/seat-claude.md` |
-| mistral seat | m-561@sat | pending | `refactor-round-12/seat-mistral.md` |
+| editor (agy) | a-563@PC | v0.2 proposed | this file |
+| claude seat | c-212@sat | pending | `refactor-round-12/seat-claude.md` |
+| mistral seat | m-213@sat | pending | `refactor-round-12/seat-mistral.md` |
 
 Signed plan sha: pending panel review and sign-off.

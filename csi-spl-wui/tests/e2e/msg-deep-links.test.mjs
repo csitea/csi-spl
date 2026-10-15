@@ -175,7 +175,18 @@ async function scrollToCarrier(p) {
     if (!el || !scroller) return
     scroller.scrollTop += el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 40
   }, CARRIER_SEL)
-  await sleep(300)
+  /* the scroll has landed: the carrier is on screen and the pane holds still */
+  let key = ''
+  for (let t = 0; t < 30; t++) {
+    const k = await p.evaluate((sel) => {
+      const el = document.querySelector(sel)
+      const sc = el && el.closest('.feed-body')
+      return sc ? `${Math.round(sc.scrollTop)} ${Math.round(el.getBoundingClientRect().top)}` : ''
+    }, CARRIER_SEL)
+    if (k && k === key) break
+    key = k
+    await sleep(100)
+  }
 }
 
 const where = (p) => p.evaluate((id) => {
@@ -259,8 +270,9 @@ try {
       }
       const after = await jumped(p)
       ok(`${vp.name} ${label}: the target was off screen, now in view and highlighted`, !before.inView && after.ok, { before, after })
-      /* let the highlight end before the next form */
-      await sleep(2300)
+      /* let the highlight end before the next form (JUMP_FOCUS_MS, 2 s from
+         the jump), so the next form's highlight is its own */
+      for (let t = 0; t < 40 && await p.evaluate(() => Boolean(document.querySelector('aside.live-pane article.msg.open-focus, aside.live-pane article.msg.search-focus'))); t++) await sleep(100)
     }
 
     for (const [label, id, markId, task] of [

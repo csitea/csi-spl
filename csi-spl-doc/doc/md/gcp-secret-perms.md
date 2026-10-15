@@ -23,13 +23,15 @@ goes through `sudo -n`). The dir is `GCP_KEY_DIR`, default `$HOME/.gcp/.csi`,
 the key dir of `do_gcp_account`. For every regular file directly in it:
 
 - the owner: `rw-`; other: `---`;
-- the group and each named ACL entry: `r--` if it read before, else `---`
-  (never wider than before);
-- the mask: `r--` when a named entry or the group reads, else `---`. The mode
-  then shows `640` on an ACL file, `600` or `640` on a plain one.
+- the group: `---` (SPL-1932, owner answer A, topic 8e2b0ce4: the group read
+  is removed, the group membership is kept);
+- each named ACL entry: `r--` if it read before, else `---` (never wider);
+- the mask: `r--` when a named entry reads, else `---`. The mode then shows
+  `640` on an ACL file, `600` on a plain one.
 
-The dir loses its `other` bits, in its default ACL too, so a new file is not
-born world-readable. Subdirs and symlinks are skipped and counted.
+The dir loses its group and `other` access, in its default ACL too, so a new
+file is not born group- or world-readable; a named entry keeps its `r-x`
+through the mask (nothing on the box reads the dir through the group). Subdirs and symlinks are skipped and counted.
 
 It prints one row per file: index, role (`key`, `overlay`, `file`), the mode
 and the `getfacl -c` entries before and after. Never a file name, never

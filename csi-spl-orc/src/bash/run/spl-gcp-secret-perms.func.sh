@@ -4,13 +4,15 @@
 # @description by another local user, and a shared-ACL box keeps the agent
 # @description user's read. For every regular file directly in the dir:
 # @description   - other: no access; the owner: rw-
-# @description   - the owning group and every named ACL entry: at most r--,
-# @description     never wider than they read before
-# @description   - the ACL mask: r-- when a named entry or the group reads,
-# @description     else --- (a mask::--- that cancelled a named entry's read
-# @description     is lifted, so that entry reads again, read-only)
-# @description The dir itself: no other access, in its default ACL too, so a
-# @description new file is not born world-readable. Subdirs and symlinks are
+# @description   - the owning group: --- (SPL-1932, owner answer A: a local
+# @description     user in the owner's group reads no key; membership kept)
+# @description   - every named ACL entry: at most r--, never wider than before
+# @description   - the ACL mask: r-- when a named entry reads, else --- (a
+# @description     mask::--- that cancelled a named entry's read is lifted,
+# @description     so that entry reads again, read-only)
+# @description The dir itself: no group and no other access, in its default
+# @description ACL too, so a new file is not born group- or world-readable; a
+# @description named entry keeps its traversal (the mask). Subdirs and symlinks are
 # @description skipped and counted. One before/after row per file, by index
 # @description and role (key, overlay, file): the mode and the getfacl -c
 # @description entries, never a name or content. Without getfacl the rows
@@ -79,31 +81,25 @@ spl_gsp_line() {
 }
 
 # spl_gsp_spec <file> -> the target: "acl <setfacl --set spec>" when the file
-# has named ACL entries, else "mode <octal>". The group keeps r only when it
-# read before (its entry within the mask); a named entry keeps r only when
-# its entry had r; the mask is r-- when either reads, else ---.
+# has named ACL entries, else "mode 600". The group reads nothing (SPL-1932);
+# a named entry keeps r only when its entry had r; the mask is r-- when one
+# reads, else ---.
 spl_gsp_spec() {
-  local f="$1" e k p g="" m="" reads=0 named="" mode
+  local f="$1" e k p reads=0 named=""
   if command -v getfacl >/dev/null 2>&1; then
     for e in $(getfacl -cpE "$f" 2>/dev/null); do
       k="${e%:*}" p="${e##*:}"
       case "$k" in
-        group:) g="$p" ;;
-        mask:) m="$p" ;;
         user:?* | group:?*)
           if [[ "${p:0:1}" == r ]]; then p="r--"; reads=1; else p="---"; fi
           named+=",${k}:$p" ;;
       esac
     done
   fi
-  if [[ -z "$named" ]]; then
-    mode="$(stat -c %a "$f")"
-    echo "mode 6$(( ${mode: -2:1} & 4 ))0"
-    return 0
-  fi
-  if [[ "${g:0:1}" == r && ( -z "$m" || "${m:0:1}" == r ) ]]; then g="r--"; reads=1; else g="---"; fi
-  if (( reads )); then m="r--"; else m="---"; fi
-  echo "acl u::rw-${named},g::$g,m::$m,o::---"
+  [[ -n "$named" ]] || { echo "mode 600"; return 0; }
+  local m="---"
+  (( reads )) && m="r--"
+  echo "acl u::rw-${named},g::---,m::$m,o::---"
 }
 
 # spl_gsp_fix <file> <apply 0|1>: the one permission step for a secret file.
@@ -127,34 +123,47 @@ spl_gsp_fix() {
   if [[ "$before" == "$after" ]]; then echo "$before change=no"; else echo "$before -> $after change=yes"; fi
 }
 
-# spl_gsp_fix_dir <dir> <apply 0|1>: no other access to the dir, nor in its
-# default ACL. Prints the row like spl_gsp_fix.
+# spl_gsp_fix_dir <dir> <apply 0|1>: no group and no other access to the dir,
+# nor in its default ACL; a named entry keeps its access (setfacl -m
+# recomputes the mask; a chmod g= would cancel it). Prints the row like
+# spl_gsp_fix. With apply=0 the after is the step on a scratch dir.
 spl_gsp_fix_dir() {
-  local d="$1" apply="$2" before after
+  local d="$1" apply="$2" before after t acl=0
   before="$(spl_gsp_line "$d")"
+  command -v getfacl >/dev/null 2>&1 && acl=1
   if (( apply )); then
-    chmod o= "$d" || return 1
-    if command -v getfacl >/dev/null 2>&1 && getfacl -cpd "$d" 2>/dev/null | grep '^other::' >/dev/null; then
-      setfacl -d -m o::--- "$d" || return 1
-    fi
-    after="$(spl_gsp_line "$d")"
+    t="$d"
   else
-    after="$(sed -E -e 's/^mode=([0-7]*)[0-7]( |$)/mode=\10\2/' -e 's/(^|,)other::[rwx-]+/\1other::---/' \
-      -e 's/(^|,)default:other::[rwx-]+/\1default:other::---/' <<<"$before")"
+    t="$(mktemp -d)" || return 1
+    chmod "$(stat -c %a "$d")" "$t" || { rmdir "$t"; return 1; }
+    if (( acl )); then getfacl -cp "$d" 2>/dev/null | setfacl --set-file=- "$t" || { rmdir "$t"; return 1; }; fi
   fi
+  if (( acl )) && getfacl -cp "$t" 2>/dev/null | grep '^mask::' >/dev/null; then
+    setfacl -m g::---,o::--- "$t"
+  else
+    chmod go= "$t"
+  fi || { (( apply )) || rmdir "$t"; return 1; }
+  if (( acl )) && getfacl -cpd "$t" 2>/dev/null | grep '^other::' >/dev/null; then
+    setfacl -d -m g::---,o::--- "$t" || { (( apply )) || rmdir "$t"; return 1; }
+  fi
+  after="$(spl_gsp_line "$t")"
+  (( apply )) || rmdir "$t"
   if [[ "$before" == "$after" ]]; then echo "$before change=no"; else echo "$before -> $after change=yes"; fi
 }
 
 # spl_gsp_check <file>: 0 when the owner reads and writes, other has nothing,
-# the group class writes and executes nothing, and every named entry with r
-# still reads through the mask. 1 for the shapes SPL-1924 found: 674
-# (other::r--) and a named entry's read cancelled by mask::---.
+# the owning group has nothing (SPL-1932), the group class writes and
+# executes nothing, and every named entry with r still reads through the
+# mask. 1 for the shapes SPL-1924 found: 674 (other::r--) and a named entry's
+# read cancelled by mask::---; and for group::r-- (SPL-1932).
 spl_gsp_check() {
   local f="$1" mode e p m=""
   mode="$(stat -c %a "$f")"; mode="${mode: -3}"
   [[ "${mode:0:1}" == [67] && "${mode:2:1}" == 0 ]] || return 1
   (( (${mode:1:1} & 3) == 0 )) || return 1
+  command -v getfacl >/dev/null 2>&1 || [[ "${mode:1:1}" == 0 ]] || return 1
   command -v getfacl >/dev/null 2>&1 || return 0
+  [[ "$(getfacl -cpE "$f" 2>/dev/null | sed -n 's/^group:://p')" == --- ]] || return 1
   m="$(getfacl -cpE "$f" 2>/dev/null | sed -n 's/^mask:://p')"
   for e in $(getfacl -cpE "$f" 2>/dev/null | grep -E '^(user|group):[^:]+:'); do
     p="${e##*:}"

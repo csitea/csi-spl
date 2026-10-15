@@ -11,6 +11,11 @@
 #      go test <pkg> and pnpm run <script> are names too
 #   4. a name is matched whole: `xgit-prune-...` is not `git-prune-...`
 #   5. refusals: no line, no log:, a ran: naming no test, an unreadable log
+#   6. a vibe store compacted after the line was written (journal file gone,
+#      the run only in chunks/*.json, whole-file JSON): the session dir and the
+#      gone journal file both read the store -> OK; control: chunks holding the
+#      test only in tool output -> MISSING; a gone file outside a vibe store
+#      is still refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -73,6 +78,25 @@ out="$(chk REVIEW_LINE="$(line "git diff --stat" "$J")")"; rc=$?
 [[ $rc -eq 3 && "$out" == *"names no test"* ]] && pass "5. a ran: naming no test -> exit 3" || fail "5. no test (rc $rc: $out)"
 out="$(chk REVIEW_LINE="$(line "bash $TST" "$T/none.jsonl")")"; rc=$?
 [[ $rc -eq 1 && "$out" == *"not readable"* ]] && pass "5. a missing log -> exit 1" || fail "5. missing log (rc $rc: $out)"
+
+# 6. a compacted vibe store ---------------------------------------------------
+C="$T/unified/bb00"; mkdir -p "$C/journal" "$C/chunks" "$C/generations/0926"
+echo '{"generation":"0926","store_format":"mistral.vibe.unified-session-store/v1"}' >"$C/CURRENT"
+printf '%s\n' '{"input":{"command":"spool recv --as m-183"}}' >"$C/journal/0892.jsonl"
+printf '%s' '[{"role":"user","content":[{"text":"review '"$TST"'"}]},' \
+  '{"display":{"verb":"Running"},"input":{"command":"cd /x && bash '"$TST"'"},"kind":"tool"}]' >"$C/chunks/a814.json"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$C")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "6. log: names the session dir -> the run in chunks/ counts, OK 1 of 1" || fail "6. session dir (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$C/journal/0001.jsonl")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"NOTE"*"compacted"* && "$out" == *"OK 1 of 1"* ]] \
+  && pass "6. log: names the journal file vibe deleted -> NOTE, the session dir is read, OK" || fail "6. gone journal file (rc $rc: $out)"
+printf '%s' '[{"role":"tool","content":" '"$TST"' | 40 +++"},{"input":{"command":"git diff --stat"}}]' >"$C/chunks/a814.json"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$C/journal/0001.jsonl")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING git-prune-round-branches.tst.sh"* ]] \
+  && pass "6. control: chunks holding the test only in tool output -> MISSING, exit 3" || fail "6. control (rc $rc: $out)"
+mkdir -p "$T/plain/journal"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$T/plain/journal/0001.jsonl")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"not readable"* ]] && pass "6. a gone journal file outside a vibe store -> exit 1" || fail "6. plain gone (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

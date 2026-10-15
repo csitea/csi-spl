@@ -8,9 +8,12 @@
 # @description Every test the `ran:` part names (`*.tst.sh`, `*.test.mjs`,
 # @description `*_test.go` by basename, `go test <pkg>`, `pnpm run <script>`)
 # @description needs a `"command"` value in the `log:` file that names it: a
-# @description claude `.jsonl`, a vibe journal (file or `journal/` dir) or a
-# @description grok `chat_history.jsonl`, the command found as a JSON key or
-# @description inside a JSON-encoded arguments string. Tool OUTPUT never counts:
+# @description claude `.jsonl`, a vibe journal file or session dir or a grok
+# @description `chat_history.jsonl`; a dir is read whole (every `*.json` and
+# @description `*.jsonl` under it), the command found as a JSON key or inside a
+# @description JSON-encoded arguments string. vibe compacts a session into
+# @description `chunks/*.json` and deletes the journal file a line named: such a
+# @description gone `<session>/journal/<n>.jsonl` is read as its session dir. Tool OUTPUT never counts:
 # @description a `git diff --stat` that lists a test file is not its run.
 # @description Never fetches a log from another box: run it on the reviewer's,
 # @description as a user who can read the reviewer's home.
@@ -37,6 +40,7 @@ do_spl_review_line_check() {
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
   names="$(_spl_review_line_names "$ran")"
   [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
+  path="$(_spl_review_line_vibe_session "$path")"
   [[ -r "$path" ]] || { echo "FATAL log $path is not readable on $me as $(id -un)"; return 1; }
   _spl_review_line_match "$path" <<<"$names"
 }
@@ -46,6 +50,19 @@ _spl_review_line_box() {
   local v="${REVIEW_LINE_BOX:-${SPOOL_BOX_TAG:-}}" f="${SPOOL_BOX_ENV-/var/spool-hub/box.env}"
   [[ -z "$v" && -n "$f" && -r "$f" ]] && v="$(sed -n 's/^SPOOL_BOX_TAG=["'\'']\{0,1\}\([A-Za-z0-9._-]*\).*/\1/p' "$f" | tail -n1)"
   printf '%s' "${v:-$(hostname -s)}"
+}
+
+# _spl_review_line_vibe_session <path> - the path, or for a vibe journal file
+# the store compacted away (`<session>/journal/<n>.jsonl` gone, the session
+# dir holding CURRENT or chunks/) that session dir, with a NOTE on stderr.
+_spl_review_line_vibe_session() {
+  local d="${1%/*}"
+  if [[ ! -e "$1" && "${d##*/}" == journal && ( -e "${d%/*}/CURRENT" || -d "${d%/*}/chunks" ) ]]; then
+    echo "NOTE $1 is gone (vibe compacted the session): reading the session dir ${d%/*}" >&2
+    printf '%s' "${d%/*}"
+  else
+    printf '%s' "$1"
+  fi
 }
 
 # _spl_review_line_names <ran> - one `<kind> <name>` per test the ran: part
@@ -85,10 +102,14 @@ def walk(v):
         except ValueError:
             pass
 try:
-    files = sorted(os.path.join(path, f) for f in os.listdir(path) if f.endswith(".jsonl")) if os.path.isdir(path) else [path]
+    files = sorted(os.path.join(r, f) for r, _, fs in os.walk(path) for f in fs if f.endswith((".json", ".jsonl"))) if os.path.isdir(path) else [path]
     for f in files:
         with open(f, encoding="utf-8", errors="replace") as fh:
-            for raw in fh:
+            text = fh.read()
+        try:
+            walk(json.loads(text))
+        except ValueError:
+            for raw in text.splitlines():
                 try:
                     walk(json.loads(raw))
                 except ValueError:

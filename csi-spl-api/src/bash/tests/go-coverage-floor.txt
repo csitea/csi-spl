@@ -32,12 +32,12 @@ internal/files 82.9
 internal/github 82.9
 internal/github/githubtest 0.0
 internal/hours 98.0
-# hubclient: 82.5, measured, not 83.1. Its retry and redial paths (flush.go ~562,
-# 610-614; hubclient.go ~599-603, 748, 768; submit.go 203) run or not by timing:
-# go test -count=1 -race ./internal/hubclient, go1.25.14, tree 35c99baa0, load
-# 19..25, n=20 read 82.0 (1), 82.2 (6), 82.3 (13); plain n=20 82.2..82.3; a
-# loaded sat runner read 81.8. 83.1 failed under 82.1, i.e. on that noise.
-internal/hubclient 82.5
+# hubclient: 83.0, measured, deterministic. Its retry and redial paths ran or
+# not by timing (82.5 then read 81.3..81.7 by load, c-001 task d6f1ab13);
+# timing_paths_test.go now reaches each one on its own: go test -count=1
+# -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
+# read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
+internal/hubclient 83.0
 internal/i18n 97.2
 internal/invitemail 85.3
 internal/logging 0.0

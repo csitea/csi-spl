@@ -94,7 +94,7 @@ export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-sp
 
 # run SNIPPET with every orc function loaded and the cloud / DB edges stubbed
 in_orc() {
-  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify "$@" bash -c '
+  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= "$@" bash -c '
     set -uo pipefail
     do_log() { msg="clobbered by do_log"; echo "$*"; }  # the real do_log sets a global msg
     for f in '"$PROJ_ROOT"'/lib/bash/funcs/*.func.sh '"$PROJ_ROOT"'/src/bash/run/*.func.sh; do source "$f"; done

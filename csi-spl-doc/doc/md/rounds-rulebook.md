@@ -91,8 +91,8 @@ followed by running the R5 verification commands per commit sha.
 - **2.7.2 Cross-vendor assignment:** The reviewer is assigned per row before spawn in the row brief. Review lines must be cross-vendor (e.g. agy reviews claude; mistral reviews agy/grok; claude reviews mistral). A non-author panel seat acts as primary reviewer, with another non-author seat as backup.
 - **2.7.3 Seat replacement:** If the assigned reviewer seat and its backup are absent or unresponsive for 15 minutes, the lane reports a blocker to the orchestrator, which spawns a replacement reviewer of an eligible vendor within the hour (R10). A row never pushes to master without a cross-vendor review PASS; the one exception is a trunk-red fix (2.11.3).
 - **2.7.4 Review evidence format:** Before pushing, the lane pushes a review branch `review/<round>-NN` and requests review. The reviewer verifies the diff against criteria C1–C7 and emits:
-  `review: <reviewer-id>@<box> <vendor> PASS <reviewed-sha> ran: <tests-run> | read: <output-read>`
-  If no test was executed directly, it must say `ran: none` and cite the command output read. The review branch `review/<round>-NN` remains on origin until the retro runs C7.
+  `review: <reviewer-id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <reviewer-id>@<box>:<path>`
+  The sha is pasted from `git rev-parse`, never typed; `ran:` names only commands that are in the `log:` file, the reviewer's own session journal. A line without `log:` or with a sha that does not resolve is void. If no test was executed directly, it must say `ran: none` and cite the command output read. The review branch `review/<round>-NN` remains on origin until the retro runs C7.
 - **2.7.5 Review count verification:** `git log origin/master --grep='<round>-' --format=%B | grep -c '^review: '` must reach the total row count (10), and `grep -c 'same vendor'` must remain 0.
 - **2.7.6 Review seats never commit code:** A review seat's lane-map scope is limited strictly to its seat file. Any code commit or branch push outside its seat file causes the seat to be stopped and re-placed.
 - **2.7.7 Review Criteria C1–C7:**

@@ -11,7 +11,8 @@
 # @description -> `git -c user.name -c user.email rebase origin/<branch>` -> the
 # @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
 # @description check (a round row `<type>(rNN-NN-...` needs a `review: ... PASS
-# @description <sha> ` body line; rounds-rulebook.md R7) -> `git push <remote>
+# @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
+# @description resolves after fetching `review/rNN-NN`; rounds-rulebook.md 2.7.4) -> `git push <remote>
 # @description HEAD:<branch>`; a push refused because the branch moved is retried
 # @description up to PUSH_RETRIES times. It ends by writing ONE status file:
 # @description `PUSHED <sha>` (+ `landed_rc=` of `git-fetch-fresh.sh --landed`),
@@ -127,15 +128,31 @@ _spl_push_master_moved() {
   grep -qE '\[rejected\].*\((fetch first|non-fast-forward)\)|\[remote rejected\].*(cannot lock ref|incorrect old value|failed to update ref|but expected)' "$1"
 }
 
-# _spl_push_master_unreviewed <range> - prints the short sha of each round row
-# in <range> (subject `test|refactor|ci|fix|feat|perf(rNN-NN-...`) whose body
-# has no R7 review line (`review: <id>@<box> <vendor> PASS <sha> ...`).
+# _spl_push_master_unreviewed <range> [remote] - prints `<short sha> review line:
+# <reason>`, one line per round row in <range> (subject
+# `test|refactor|ci|fix|feat|perf(rNN-NN-...`) whose R7 review line is void.
 _spl_push_master_unreviewed() {
-  local h
+  local h why
   for h in $(git rev-list --reverse "$1"); do
-    grep -qE '^(test|refactor|ci|fix|feat|perf)\(r[0-9]+-[0-9]{2}-' <<<"$(git log -1 --format=%s "$h")" || continue
-    grep -qE '^review: \S+@\S+ \S+ PASS [0-9a-f]{7,40} ' <<<"$(git log -1 --format=%b "$h")" || git rev-parse --short "$h"
+    [[ "$(git log -1 --format=%s "$h")" =~ ^(test|refactor|ci|fix|feat|perf)\((r[0-9]+-[0-9]{2})- ]] || continue
+    why="$(_spl_push_master_review_why "$(git log -1 --format=%b "$h")" "${BASH_REMATCH[2]}" "${2:-origin}")"
+    [[ -z "$why" ]] || echo "$(git rev-parse --short "$h") review line: $why"
   done
+}
+
+# _spl_push_master_review_why <body> <rNN-NN> <remote> - prints why the body's
+# review line is void, nothing when it is checkable: the plan section 1 format
+# `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log:
+# <id>@<box>:<path>`, its sha a commit here after fetching `review/<rNN-NN>`.
+_spl_push_master_review_why() {
+  local line sha
+  line="$(grep -m 1 -E '^review: \S+@\S+ \S+ PASS ' <<<"$1")" ||
+    { echo "none of the form 'review: <id>@<box> <vendor> PASS <sha> ...'"; return 0; }
+  sha="$(awk '{print $5}' <<<"$line")"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "sha '$sha' is not 40 hex"; return 0; }
+  git fetch -q "$3" "+refs/heads/review/$2:refs/remotes/$3/review/$2" >/dev/null 2>&1
+  git rev-parse --verify -q "$sha^{commit}" >/dev/null || { echo "sha $sha does not resolve (fetched review/$2)"; return 0; }
+  grep -qE '\| log: \S+@\S+:\S+' <<<"$line" || echo "no '| log: <id>@<box>:<path>'"
 }
 
 _spl_push_master_worker() {
@@ -166,10 +183,10 @@ _spl_push_master_worker() {
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED WRONG-IDENTITY-DO-NOT-PUSH (want $PUSH_EMAIL as author and committer)" "$out"; return 1
     fi
-    bad="$(_spl_push_master_unreviewed "$remote/$branch..HEAD")"
+    bad="$(_spl_push_master_unreviewed "$remote/$branch..HEAD" "$remote")"
     if [[ -n "$bad" ]]; then
       printf '%s\n' "$bad" >"$out"
-      _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad") has no R7 review line" "$out"; return 1
+      _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad")" "$out"; return 1
     fi
     sha="$(git rev-parse HEAD)"
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"

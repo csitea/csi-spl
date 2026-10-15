@@ -47,6 +47,11 @@
 #      generated-from line changed (the doc id)
 #  19. SPL-1909 (Qto gap G7): a page with a preamble and no section imports
 #      as the root body only, no heading add, and round-trips
+#  20. spec 138 G4 (SPL-1966): the export writes '<a id="ws-doc-<item id>"></a>'
+#      on the line before each heading, one per section, the ids in document
+#      order; a fenced '## ' gets none; a re-import drops them (no body text,
+#      byte-stable). The round trips above compare the page with those lines
+#      left out (noanchor)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -170,6 +175,8 @@ run() {
   rc=$?
 }
 calls() { sed 's/^doctree //' "$T/calls"; }
+# noanchor <file>: the md without compose's section anchor lines (spec 138 G4)
+noanchor() { grep -vE '^<a id="ws-doc-[^"]+"></a>$' "$1"; }
 GEN='> Generated from qto doc `d0c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.'
 
 # roundtrip <label> <page rel> <want diff> [VAR=value]... - import the page
@@ -179,7 +186,7 @@ roundtrip() {
   cp "$R/$page" "$T/rt.orig"
   run do_spl_doctree_import_md MD_PATH="$page" DRY_RUN=0 QTO_MAP="$T/map.$n" DT_STATE="$T/dt.$n.json" "$@"
   local d
-  d="$(diff "$T/rt.orig" "$R/$page" | grep '^[<>]' | sed 's/ *$//')"
+  d="$(diff "$T/rt.orig" <(noanchor "$R/$page") | grep '^[<>]' | sed 's/ *$//')"
   if [[ $rc -eq 0 && "$d" == "$want" ]]; then
     pass "$label"
   else
@@ -237,7 +244,7 @@ grep -qxF "$GEN" "$R/$PAGE" &&
   pass "T032: the export ran the compiled spool (doctree export --from)" || fail "T032: no compiled export: $(cat "$T/calls.go")"
 
 # --- 5. nothing lost -------------------------------------------------------------------------------
-d="$(diff "$T/page.orig" "$R/$PAGE" | grep '^[<>]' | sed 's/ *$//')"
+d="$(diff "$T/page.orig" <(noanchor "$R/$PAGE") | grep '^[<>]' | sed 's/ *$//')"
 want_d="> $GEN
 >"
 [[ "$d" == "$want_d" ]] && pass "the export keeps every section and its text" || fail "round trip diff: $d"
@@ -472,8 +479,8 @@ fi
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); json.dump({"title": d["title"]}, open(sys.argv[2], "w")); json.dump({"items": d["items"]}, open(sys.argv[3], "w")); open(sys.argv[4], "w").write(d["export"].rstrip("\n") + "\n")' \
   "$FX" "$T/head18.json" "$T/read18.json" "$T/export18.md"
 python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$T/head18.json" "$T/read18.json" "$T/export18.md" d1 >"$T/out18.md" 2>&1
-cmp -s "$T/out18.md" "$R/$P" && pass "SPL-1900: compose of the fixture's export is the fixture's md, byte for byte" ||
-  fail "SPL-1900 compose: $(diff "$R/$P" "$T/out18.md")"
+cmp -s <(noanchor "$T/out18.md") "$R/$P" && pass "SPL-1900: compose of the fixture's export is the fixture's md, byte for byte" ||
+  fail "SPL-1900 compose: $(diff "$R/$P" <(noanchor "$T/out18.md"))"
 roundtrip "SPL-1900: the fixture page round-trips, only the generated-from line's doc id changes" "$P" "< ${GEN/d0c/d1}
 > $GEN" 18
 grep -q "add d0c --kind heading --level 1 --dotted --title 'The job'" "$T/calls" &&
@@ -494,5 +501,32 @@ roundtrip "SPL-1909: a preamble-only page imports as the root body and round-tri
 >" 19
 grep -q -- '--field body' "$T/calls" && ! grep -q '^doctree add ' "$T/calls" &&
   pass "SPL-1909: the root body is written, no heading is added" || fail "SPL-1909 calls: $(cat "$T/calls")"
+
+# --- 20. spec 138 G4: a section anchor before each heading ----------------------------------------
+# the page of case 13 (a fenced '## ' line) exported again: each real heading
+# has its item's anchor on the line before it, in document order
+P="csi-spl-doc/doc/md/fence.md"
+if python3 - "$R/$P" "$T/dt.13.json" <<'EOF_PY'
+import json, re, sys
+lines = open(sys.argv[1]).read().split("\n")
+ids = [it["id"] for it in json.load(open(sys.argv[2]))["items"]]
+heads = [i for i, l in enumerate(lines) if re.match(r"^#{2,6} \d", l)]
+anchors = [l for l in lines if l.startswith("<a id=")]
+ok = anchors == [f'<a id="ws-doc-{i}"></a>' for i in ids] and len(heads) == len(ids) and all(
+    lines[h - 1] == f'<a id="ws-doc-{i}"></a>' for h, i in zip(heads, ids))
+sys.exit(0 if ok else f"anchors {anchors} heads {heads} ids {ids}")
+EOF_PY
+then pass "spec 138 G4: the export writes the item's anchor on the line before each heading, none in a fence"
+else fail "spec 138 G4 anchors: $(cat "$R/$P")"
+fi
+python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" split "$R/$P" "$T/split20" >"$T/plan20" 2>&1
+! grep -rq 'ws-doc-' "$T/split20" && [[ "$(wc -l <"$T/plan20")" == 2 ]] &&
+  pass "spec 138 G4: a re-import drops the anchor lines, no body text" || fail "spec 138 G4 split: $(cat "$T/plan20"; cat "$T"/split20/*)"
+cp "$R/$P" "$T/fence20.md"
+cp "$R/$P" "$R/csi-spl-doc/doc/md/fence20.md"
+run do_spl_doctree_import_md MD_PATH="csi-spl-doc/doc/md/fence20.md" DRY_RUN=0 QTO_MAP="$T/map.20" DT_STATE="$T/dt.20.json"
+[[ $rc -eq 0 ]] && cmp -s "$T/fence20.md" "$R/csi-spl-doc/doc/md/fence20.md" &&
+  pass "spec 138 G4: an exported page with anchors round-trips byte-stable" ||
+  fail "spec 138 G4 round trip (rc=$rc): $(cat "$T/o") / $(diff "$T/fence20.md" "$R/csi-spl-doc/doc/md/fence20.md")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

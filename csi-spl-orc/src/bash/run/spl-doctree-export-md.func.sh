@@ -14,7 +14,10 @@
 # @description `spool doctree export` (the WUI's export rules: it opens with
 # @description the preamble, the root's body before section 1, SPL-1612), and
 # @description composes: front matter, title, generated-from line, preamble,
-# @description the sections one heading level down. Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
+# @description the sections one heading level down, each heading after its
+# @description section anchor line `<a id="ws-doc-<item id>"></a>` (spec 138 G4:
+# @description the WUI's section link lands in the md too; the import drops
+# @description it). Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
 # @description is (not even rewritten); a changed node changes only its lines.
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).

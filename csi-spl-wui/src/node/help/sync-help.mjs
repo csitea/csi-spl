@@ -47,10 +47,14 @@ export function tokenizeHosts(md, domain) {
    title (do_spl_doctree_export_md); it is for the repo's editors, not the
    reader, so the copy drops that line and the blank line after it. */
 const QTO_STAMP = /^> Generated from qto doc `?[0-9a-fA-F-]+`?; edit it there\..*\n(?:[ \t]*\n)?/m
+/* spec 138 G4: the export's section anchor, the line before each heading
+   (`<a id="ws-doc-<item id>"></a>`), is for links into the repo md; the help
+   reader renders no raw HTML, so the copy drops it too. */
+const QTO_ANCHOR = /^<a id="ws-doc-[^"]+"><\/a>\n(?=#{1,6} )/gm
 
-/** The page without its qto export stamp line; any other page unchanged. */
+/** The page without its qto export stamp line and section anchors; any other page unchanged. */
 export function dropQtoStamp(md) {
-  return md.replace(QTO_STAMP, '')
+  return md.replace(QTO_STAMP, '').replace(QTO_ANCHOR, '')
 }
 
 /** The page title: the first "# " heading, else the slug. */

@@ -63,6 +63,10 @@ if (!existsSync(HELP_SRC)) {
     const got = helpFiles(tmp, '')
     ok('a qto-stamped page is copied without the stamp line', got.get('agents.md') === plain, JSON.stringify(got.get('agents.md')))
     ok('an unstamped page is copied byte-identical', got.get('boxes.md') === plain, JSON.stringify(got.get('boxes.md')))
+    /* spec 138 G4: the export's anchor line before each heading is dropped too, an anchor-like line elsewhere kept */
+    const anchored = '# Agents\n\n' + stamp + '\n\nThe body.\n\n<a id="ws-doc-1f2e"></a>\n## 1. Seats\n\nText.\n\n<a id="ws-doc-x"></a>\nkept\n'
+    writeFileSync(join(tmp, 'seats.md'), anchored)
+    ok('a qto-exported page is copied without its section anchors', helpFiles(tmp, '').get('seats.md') === '# Agents\n\nThe body.\n\n## 1. Seats\n\nText.\n\n<a id="ws-doc-x"></a>\nkept\n', JSON.stringify(helpFiles(tmp, '').get('seats.md')))
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

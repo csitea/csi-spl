@@ -53,6 +53,9 @@ FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 FM_END = ("---", "...")
 # compose's generated-from line; split drops it from a page that is an export
 STAMP = re.compile(r"^> Generated from qto doc `[^`]+`; edit it there\.")
+# compose's section anchor (spec 138 G4), the line before each heading: the
+# WUI's link #ws-doc-<item id> lands in the md too; split drops it
+ANCHOR = re.compile(r'^<a id="ws-doc-[^"]+"></a>$')
 
 
 class Fences:
@@ -98,6 +101,9 @@ def split(md_path, out):
             title = m.group(2).strip()
             continue
         if m and len(m.group(1)) > 1:
+            body = cur["body"] if cur else pre
+            if body and ANCHOR.match(body[-1]):
+                body.pop()
             cur = section(m)
             sections.append(cur)
             continue
@@ -184,17 +190,35 @@ def check_outline(md_path, sections):
             )
 
 
-def first_heading(items):
-    """The export's line for the doc's first section (items[1] of the root
-    read): '# ', its outline number when it has one ('1.' with
-    attrs.outline_dot), its title."""
-    if len(items) < 2:
-        return None
-    it = items[1]
+def heading_text(it):
+    """The export's heading text for one item, after the '#'s: its outline
+    number when it has one ('1.' with attrs.outline_dot), its title."""
     num = it.get("outline") or ""
     if num and (it.get("attrs") or {}).get("outline_dot") is True:
         num += "."
-    return "# " + (num + " " if num else "") + (it.get("title") or "Untitled")
+    return (num + " " if num else "") + (it.get("title") or "Untitled")
+
+
+def first_heading(items):
+    """The export's line for the doc's first section (items[1] of the root
+    read)."""
+    if len(items) < 2:
+        return None
+    return "# " + heading_text(items[1])
+
+
+def anchored(lines, items):
+    """The export's section lines with '<a id="ws-doc-<item id>"></a>' before
+    each heading (spec 138 G4): the headings outside fences are the items
+    after the root, in order; one whose text is not the next item's gets
+    none."""
+    out, fences, todo = [], Fences(), list(items[1:])
+    for line in lines:
+        m = None if fences.inside(line) else HEAD.match(line)
+        if m and todo and todo[0].get("id") and m.group(2) == heading_text(todo[0]):
+            out.append(f'<a id="ws-doc-{todo.pop(0)["id"]}"></a>')
+        out.append(line)
+    return out
 
 
 def compose(head_path, root_path, export_path, doc):
@@ -215,7 +239,7 @@ def compose(head_path, root_path, export_path, doc):
                 break
     pre = "\n".join(lines[:cut]).strip() or (root.get("body") or "").strip()
     out, fences = [], Fences()
-    for line in lines[cut:]:
+    for line in anchored(lines[cut:], items):
         down = (
             not fences.inside(line)
             and HEAD.match(line)

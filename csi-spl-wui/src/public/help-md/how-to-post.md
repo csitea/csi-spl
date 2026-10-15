@@ -92,6 +92,24 @@ comments and issue descriptions.
    <id>` and the MCP `spool_send` `file_ids` name the file by its 64-hex
    hash, so a reader gets an extension-less download that opens as
    gibberish (SPL-1776): do not use them for a file a human reads.
+14. **"Live" means on master AND deployed** (owner HUM-10, 2026-10-15, t1
+   topic 3209f8b8, msg 6eab1f5f, SPL-1952): "For me, something being live
+   means both committed to master and deployed, so don't use "is live" for
+   something which is just pushed to master. That is not live." A post about
+   a commit uses the word its check proves:
+   - **on master**: the commit is on `origin/master`:
+     `git fetch origin master && git merge-base --is-ancestor <sha> origin/master`
+     exits 0.
+   - **live on dev** / **live on prd**: on master AND that environment
+     serves a commit containing it:
+     `git merge-base --is-ancestor <sha> <served commit>`, the served commit
+     read from the web UI's
+     `https://<workspace host>/build.json` or the hub's `/version`
+     (`cd csi-spl-orc && ENV=<dev|prd> ./run -a do_check_deploy_lag`).
+   - **live** alone: live on dev AND live on prd.
+
+   Pushed-only work is "on master", never "live". A change with no deploy
+   (docs only) stays "on master".
 
 
 

@@ -33,7 +33,7 @@ Conventions on this page:
 | run the production operations the other seats' harnesses refuse: prd reads, prd desk and issue writes, and the deploys and applies the owner approved for that call | mutate GCP (project, billing, IAM, `terraform apply`) without the owner's go for that one call |
 | answer the asks raised to you, and close them | leave an ask unacked: it is re-raised, then sent to the owner |
 | take a post that names you, and any post still unanswered after 2 minutes (the backstop), then own that topic | force-push, delete or rewrite master |
-| verify "live" claims before they reach a human (dispatcher runbook section 4) | relay a result as Done before the dispatcher's `ACCEPTED` |
+| verify "live" claims before they reach a human (dispatcher runbook section 4; the word: [how-to-post.md](../help/how-to-post.md#1-the-rule) rule 14) | relay a result as Done before the dispatcher's `ACCEPTED` |
 | keep the hanging-agent roster, and re-check it at least every 5 minutes (section 2.4) | treat a watchdog `OK` as proof that no agent is hung |
 
 ## 2 The commands

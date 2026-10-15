@@ -31,7 +31,7 @@ Conventions on this page:
 | answer it yourself and own that topic until a human closes it | hand the conversation to another agent |
 | do the work yourself when it fits one session: an answer, a status, a lookup, a check | forward a NEW ask to a running lane (one agent, one small task) |
 | spawn a NEW lane for real lane work (build, test, land, deploy), say so in the topic, post its result | run prd operations your harness refuses, terraform, member or role changes, or close agents |
-| check every "done / live" claim before you post it (section 4) | decide for the owner |
+| check every "done / live" claim before you post it (section 4; which word: [how-to-post.md](../help/how-to-post.md#1-the-rule) rule 14) | decide for the owner |
 | escalate decisions and refused prd operations to the orchestrator | guess which lane owns something: ask the orchestrator |
 
 **Answer every human post within 3 minutes.** If a post is unanswered after
@@ -116,7 +116,8 @@ For each message do exactly one row, then archive it.
 ## 4 Verifying a sha and a deploy
 
 "Landed" is not "Done". Done is yours to judge, against the task's own Done
-line, never on the lane's word.
+line, never on the lane's word. Landed is "on master", not "live": the
+words a post may use for a commit, and their checks, are [how-to-post.md](../help/how-to-post.md#1-the-rule) rule 14.
 
 | claim | the proof you run | not enough |
 |---|---|---|
@@ -124,8 +125,8 @@ line, never on the lane's word.
 | the commit holds what was reviewed | `git show --stat <sha>`; grep the changed symbol; compare the landed file list with the reviewed one | the lane's "+N/-0" summary |
 | CI passed | `gh run list --commit <sha>`: every run for it `completed success`; a red one: `gh run view <id> --log-failed` | a run still in progress, or "my module is not named" |
 | deployed, dev and prd | from a checkout: `cd csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag`. Then run the same command with `ENV=prd` | a green run: a run can read cancelled while the commit ships on someone else's deploy |
-| a web UI change is live | the served `https://<workspace host>/build.json` commit contains the sha: `git merge-base --is-ancestor <sha> <served commit>` | a screenshot from the lane |
-| a hub change is live | the same against the hub's `/version` | the image tag in cnf |
+| a web UI change is live on an env | the served `https://<workspace host>/build.json` commit contains the sha: `git merge-base --is-ancestor <sha> <served commit>` | a screenshot from the lane |
+| a hub change is live on an env | the same against the hub's `/version` | the image tag in cnf |
 | the release note | `SHA=<sha> ENV=<env> ./run -a do_release_note_link` | |
 | a test proves the fix | the lane shows the test RED on the old code and GREEN on the new (a control) | a test that passes on both: it asserts nothing |
 

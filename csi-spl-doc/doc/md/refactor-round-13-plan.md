@@ -13,7 +13,7 @@ all of the members of the panel and start implementation").
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps,
 bands, R1-R16), by pointer, not copied. Issue: SPL-2045.
 
-**Status: v1.0, SIGNED**. The rows spawn from the signed v1.0
+**Status: v1.1, SIGNED**. The rows spawn from the signed v1.1
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-584@<box>** (agy).
@@ -66,9 +66,9 @@ panel proposals ([seat-claude.md](refactor-round-13/seat-claude.md) `68ceccb3f`,
 | 03 `refactor(r13-03-wui-decompose-message-composer)` | component decomposition, cleaner code | `MessageComposer.vue` `<script>` tag is 1135 lines; text entry, emoji/mention triggers, file uploads | `wui:src/components/MessageComposer.vue:328-1462` | 1135 script lines | Decompose composer input and attachment drag-drop into targeted helpers to shrink script under 500 lines. Smoke tests: typecheck, cleancode, unit runner, perf budget. 26 unit tests reading source re-pointed without assert count dropping. **Red control:** `tests/unit/sfc-script-size.test.mjs` ratchet ceiling. | sat | claude | complex_coding | 2 (Lane 1, after 01) |
 | 04 `refactor(r13-04-wui-decompose-channel-sidebar)` | component decomposition, cleaner code | `ChannelSidebar.vue` `<script>` tag is 1007 lines; channel list, section folding, search | `wui:src/components/ChannelSidebar.vue:711-1717` | 1007 script lines | Extract channel item and section management subcomponents / composables to shrink script under 500 lines. Smoke tests: typecheck, cleancode, unit runner, perf budget. 48 unit tests reading source re-pointed without assert count dropping. **Red control:** `tests/unit/sfc-script-size.test.mjs` ratchet ceiling. | sat | claude | complex_coding | 2 (Lane 2, after 02) |
 | 05 `refactor(r13-05-wui-small-composable-msg-shortcuts)` | small functions, testability | `useMsgShortcuts.ts` is 464 lines; shortcut matching in `msg-shortcuts.mjs` (458 lines), but keydown dispatch decisions (key+state->action) have 0 tests | `wui:src/composables/useMsgShortcuts.ts:1-464`<br>`wui:src/utils/msg-shortcuts-dispatch.mjs`<br>`wui:tests/unit/msg-shortcuts-dispatch.test.mjs` | 464 lines | Extract keydown dispatch decisions into new `.mjs` helper with unit tests; shrink `useMsgShortcuts.ts` to <= 250 lines without changing composable API. Smoke tests: typecheck, unit runner. **Red control:** mutation of one moved branch fails new unit test. | sat | mistral | simple_coding | 3 (Lane 1, after 03) |
-| 06 `refactor(r13-06-wui-decompose-issues-page)` | component decomposition, cleaner code | `pages/issues.vue` `<script>` tag is 2084 lines (largest in WUI; file 4108 lines); board, column, and drag concerns tightly coupled | `wui:src/pages/issues.vue:1161-3244` | 2084 script lines | Extract board, column and drag logic into composables/subcomponents; shrink script to <= 1200 lines without modifying imported composable APIs. Smoke tests: typecheck, cleancode, unit runner, perf budget. 19 unit tests reading source re-pointed. **Red control:** `tests/unit/sfc-script-size.test.mjs` ratchet ceiling. | sat | claude | complex_coding | 3 (Lane 2, after 04) |
+| 06 `refactor(r13-06-wui-decompose-issues-page)` | component decomposition, cleaner code | `pages/issues.vue` `<script>` tag is 2084 lines (largest in WUI; file 4108 lines); board, column, and drag concerns tightly coupled | `wui:src/pages/issues.vue:1161-3244`<br>*(see 3.3 for Perf 6 coordination)* | 2084 script lines | Extract board, column and drag logic into composables/subcomponents; shrink script to <= 1200 lines without modifying imported composable APIs. Smoke tests: typecheck, cleancode, unit runner, perf budget. 19 unit tests reading source re-pointed. **Red control:** `tests/unit/sfc-script-size.test.mjs` ratchet ceiling. | sat | claude | complex_coding | 3 (Lane 2, after 04) |
 | 07 `refactor(r13-07-wui-small-composable-scroll-anchor)` | small functions, testability | `useScrollAnchor.ts` is 293 lines; scroll offset math is in `scroll-anchor.mjs`, but key-list decisions in `afterPatch`, `afterPrepend`, `afterAppend` are untested | `wui:src/composables/useScrollAnchor.ts:179-225`<br>`wui:src/utils/scroll-anchor.mjs`<br>`wui:tests/unit/scroll-anchor.test.mjs` | 3 `after*` functions | Extract row-key selection decisions (row to hold, stick to bottom) into pure functions in `scroll-anchor.mjs` with unit tests covering prepend, append, patch. Smoke tests: typecheck, unit runner. **Red control:** mutation of row-selection decision fails unit test. | sat | mistral | simple_coding | 4 (Lane 1, after 05) |
-| 08 `refactor(r13-08-wui-gate-unused-exports)` | dead code elimination, testability gate | 87 exported functions/constants in 49 files have no importer outside their own file | `wui:tests/unit/unused-exports.test.mjs`<br>Top 5 files: `utils/perf-rum.mjs`, `utils/act-as-mock.mjs`, `utils/omnibox-dock.mjs`, `utils/mock-data.mjs`, `utils/calendar-swipe.mjs` | 87 unused exports | Add `unused-exports.test.mjs` with allowlist of 87 that may only shrink; unexport/delete dead exports in top 5 files (33 entries). Smoke tests: `node tests/unit/unused-exports.test.mjs`, unit runner. **Red control:** adding an unused `export const` turns test red. | sat | mistral | simple_coding | 4 (Lane 2, after 06) |
+| 08 `refactor(r13-08-wui-gate-unused-exports)` | dead code elimination, testability gate | 87 exported functions/constants in 49 files have no importer outside their own file (see 3.2 for discrepancy analysis) | `wui:tests/unit/unused-exports.test.mjs`<br>Top 5 files: `utils/perf-rum.mjs`, `utils/omnibox-dock.mjs`, `utils/act-as-mock.mjs`, `utils/mock-data.mjs`, `utils/calendar-swipe.mjs` | 87 unused exports | Add `unused-exports.test.mjs` with allowlist of 87 that may only shrink; unexport/delete dead exports in top 5 files (31 entries). Smoke tests: `node tests/unit/unused-exports.test.mjs`, unit runner. **Red control:** adding an unused `export const` turns test red. | sat | mistral | simple_coding | 4 (Lane 2, after 06) |
 | 09 `test(r13-09-wui-test-util-poll-fence)` | tests, testability | `poll-fence.mjs` (15 lines) is re-exported by `poll.mjs` with 2 basic asserts in `poll-control.test.mjs`, but fence edge cases are untested | `wui:src/utils/poll-fence.mjs:1-15`<br>`wui:tests/unit/poll-fence.test.mjs` | 0 direct test files | Add unit test `poll-fence.test.mjs` covering edge cases: 4-backtick fence, trailing tab/space, CRLF, fence at EOF, null/empty input. Smoke tests: `node tests/unit/poll-fence.test.mjs`. **Red control:** regex mutation in `poll-fence.mjs` fails test. | sat | claude | tests | 5 (Lane 1, after 07) |
 | 10 `test(r13-10-wui-test-composable-submit-key)` | tests, testability | `useSubmitKey.ts` contains `hintFor` logic (3 lines) which cannot be imported directly in node unit tests due to Nuxt/Vue imports | `wui:src/composables/useSubmitKey.ts:37-39`<br>`wui:src/utils/submit-key.mjs`<br>`wui:tests/unit/submit-key.test.mjs` | 0 direct tests of `hintFor` | Move `hintFor` into `utils/submit-key.mjs` as pure `submitHintFor(mode, base)`; keep `hintFor` wrapper in composable; add unit tests in `submit-key.test.mjs`. Smoke tests: `node tests/unit/submit-key.test.mjs`. **Red control:** mutate `submitHintFor` fails test. | sat | claude | tests | 5 (Lane 2, after 08) |
 
@@ -87,7 +87,45 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
   - Row 09 (`poll-fence.mjs`) vs Row 10 (`submit-key.mjs`): disjoint.
 - **No caller overlap:** Dropping obsolete row 04 (`useMobileStack.ts`) removed the cross-lane caller overlap with rows 01, 03, and 06. Row 05 and Row 10 strictly maintain existing composable signatures.
 
-### 3.2 Off every live lane (R3)
+### 3.2 Row 08 count discrepancy analysis: symbol scan vs keyword tokens
+
+The expert panel examined the count discrepancy between Mistral seat (`seat-mistral.md` Proposal 1: 2390) and Claude seat (`seat-claude.md` Section 3.3 / Proposal P3: 87):
+- **Mistral measuring command:**
+  ```bash
+  for file in $(git ls-files 'csi-spl-wui/src/utils/'*.mjs 'csi-spl-wui/src/composables/'*.ts); do 
+    exports=$(grep -E '^export (const|function|class|let|var|type|interface)' $file | awk '{print $2}' | sed 's/[({].*//'); 
+    for export in $exports; do 
+      if [ $(git grep -lw $export -- src tests nuxt.config.ts | grep -v $file | wc -l) -eq 0 ]; then 
+        echo $export; 
+      fi; 
+    done; 
+  done | wc -l
+  ```
+  *Analysis:* Mistral's pipeline used `awk '{print $2}'`, which extracted the syntax keywords (`const`, `function`, `class`, `let`, `var`, `type`, `interface`) instead of the exported identifier name (which sits at `$3` or after `export async function`). Furthermore, running `git grep -- src tests nuxt.config.ts` from repo root (where those folders reside under `csi-spl-wui/`) found 0 hits outside the defining file, falsely flagging all 2390 export keywords in the codebase as "unused".
+- **Canonical symbol-level command (Claude seat / adopted):**
+  Extracts the actual symbol identifier with regex `export\s+(?:async\s+)?(?:function|const|class|let|var)\s+([A-Za-z0-9_$]+)` across `src/composables/*.ts` and `src/utils/*.{mjs,ts}`, and searches for references across `csi-spl-wui/src`, `csi-spl-wui/tests`, and `csi-spl-wui/nuxt.config.ts` (excluding defining file).
+  *Result on `e95587ea2`:* Exactly **87** unreferenced exports across 49 files (out of 2455 total scanned exports).
+  Top 5 files with unreferenced exports:
+  - `src/utils/perf-rum.mjs`: 12
+  - `src/utils/omnibox-dock.mjs`: 6
+  - `src/utils/act-as-mock.mjs`: 5
+  - `src/utils/mock-data.mjs`: 4
+  - `src/utils/calendar-swipe.mjs`: 4
+  *(31 total unreferenced exports to unexport/clean up in Row 08).*
+- **Consensus:** Both seats agreed on the practice (dead code elimination and unused exports gate) and the gate design (allowlist of 87 that only shrinks, unexporting dead exports in top 5 files). The verified baseline count is 87.
+
+### 3.3 Cross-round coordination: `src/pages/issues.vue` (Round 13 Row 06 and Perf Round 6 Row 08)
+
+`csi-spl-wui/src/pages/issues.vue` is touched by two planned rows across concurrent rounds:
+- **Round 13 Row 06** (`refactor(r13-06-wui-decompose-issues-page)`): Decomposes board, column, and drag concerns inside `<script setup>` (`1161-3244`) to shrink script size from 2084 to <= 1200 lines.
+- **Perf Round 6 Row 08** (`perf(p6-08-wui-issues-windowed-rows)`, plan `90599126f`, lane `a-591@<box>`): Implements progressive windowed rendering for issue table rows (`375,520`) to cut DOM nodes on initial paint.
+
+**Execution Order:**
+1. **Round 13 Row 06 lands first on master.** It extracts column/board composables and decomposes script logic to <= 1200 lines, preserving template structures and component contracts.
+2. **Perf Round 6 Row 08 rebases onto landed Row 06.** Once Row 06 lands on `origin/master`, lane `a-591@<box>` rebases its branch onto master and implements progressive windowed row rendering against the decomposed component.
+3. **Coordination notification:** `a-584@<box>` notified `a-591@<box>` via spool message on task `dispatch-eb4bd4b3` (`d59983ed`).
+
+### 3.4 Off every live lane (R3)
 
 `lane-map.sh --check <paths> --agent a-584` verifies that no live lane owns any row path. The spawner re-runs `--check` per row before spawning (R3).
 
@@ -100,7 +138,7 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
 - **05:** extract shortcut keydown dispatch decisions (key+state->action) from `useMsgShortcuts.ts` into a new `.mjs` helper with unit tests; shrink composable to <= 250 lines while preserving public composable API.
 - **06:** decompose `pages/issues.vue` `<script>` tag (`1161-3244`, 2084 lines) by extracting board, column, and drag concerns into composables/subcomponents; shrink script to <= 1200 lines without changing imported composable APIs. Re-point 19 source-reading unit tests.
 - **07:** extract scroll key-list decisions (row to hold, stick to bottom) from `afterPatch`, `afterPrepend`, `afterAppend` in `useScrollAnchor.ts` into pure functions in `utils/scroll-anchor.mjs` with unit tests covering prepend, append, patch.
-- **08:** add `tests/unit/unused-exports.test.mjs` failing on unused exports outside defining file (allowlist of 87); unexport/delete dead exports in top 5 files (33 entries).
+- **08:** add `tests/unit/unused-exports.test.mjs` failing on unused exports outside defining file (allowlist of 87); unexport/delete dead exports in top 5 files (31 entries).
 - **09:** write `tests/unit/poll-fence.test.mjs` covering edge cases for `src/utils/poll-fence.mjs` (4-backtick fence, trailing tab/space, CRLF, fence at EOF, null/empty).
 - **10:** move `hintFor` from `src/composables/useSubmitKey.ts` into `src/utils/submit-key.mjs` as pure `submitHintFor(mode, base)`; keep `hintFor` wrapper in composable; add unit tests in `submit-key.test.mjs`.
 
@@ -156,11 +194,15 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
   - Mistral seat `m-244@sat` reviewed v0.4 (`seat-mistral.md`, commit `7919bd66e`, measured on `e95587ea2`): agreed with 9 rows (01, 02, 03, 04, 05, 06, 07, 09, 10).
   - Row 08 consensus: Mistral seat confirmed the practice and gate design (unused-exports gate); its 2390 count scanned raw keyword tokens; Claude seat's symbol-level scan identified 87 unreferenced exports across 49 files (2465 total scanned). Allowlist gate and unexporting top 5 files adopted.
   - Full consensus reached across all 3 active panel seats (agy editor `a-584@<box>`, claude seat `c-243@sat`, mistral seat `m-244@sat`). Plan is SIGNED v1.0.
+- v1.1: Resolved dispatcher send-back items (`e2bcf0cb`):
+  - Signed seat files verified on `origin/master`: Claude seat signed in `393642ce4` on `1a1e01c84`; Mistral seat signed in `7a041f105` on `1a1e01c84`. Agy editor seat signed in `seat-agy.md` on `1a1e01c84` and `v1.1`.
+  - Row 08 discrepancy resolved: detailed token vs symbol parsing in Section 3.2, citing exact commands and explaining the 2390 keyword-token probe vs the 87 symbol-level scan, confirming canonical 87 unused exports in 49 files and top 5 file breakdown.
+  - Cross-round coordination established in Section 3.3 for `src/pages/issues.vue`: Round 13 Row 06 lands first, Perf Round 6 Row 08 rebases onto it; notified `a-591@<box>` on `dispatch-eb4bd4b3` (`d59983ed`).
 
 ## 9. Consensus
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-584@<box> | **signed v1.0** (this commit) | this file |
-| claude seat | c-243@sat | agreed on rows + proposals in `68ceccb3f`; signing v1.0 | `refactor-round-13/seat-claude.md` |
-| mistral seat | m-244@sat | agreed on rows + gate design in `7919bd66e`; signing v1.0 | `refactor-round-13/seat-mistral.md` |
+| editor (agy) | a-584@<box> | **signed v1.0** on `1a1e01c84`; **signed v1.1** (this commit) | this file, `refactor-round-13/seat-agy.md` |
+| claude seat | c-243@sat | **signed v1.0** in `393642ce4` on `1a1e01c84` | `refactor-round-13/seat-claude.md` |
+| mistral seat | m-244@sat | **signed v1.0** in `7a041f105` on `1a1e01c84` | `refactor-round-13/seat-mistral.md` |

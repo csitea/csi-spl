@@ -93,7 +93,12 @@ spl_spw_scan() {
   local -A total=() open=() changed=()
   local -a files=()
   now="$(date +%s)"
-  if (( apply )) && [[ -n "$undo" ]]; then (umask 077 && : >"$undo") || return 1; fi
+  if (( apply )) && [[ -n "$undo" ]]; then
+    # a default ACL on the dir beats the umask: drop the ACL, then 600
+    (umask 077 && : >"$undo") || return 1
+    if command -v setfacl >/dev/null 2>&1; then setfacl -b "$undo" 2>/dev/null; fi
+    chmod 600 "$undo" || return 1
+  fi
   for h in "$@"; do
     for d in $dirs; do
       [[ -d "$h/$d" && ! -L "$h/$d" ]] || continue

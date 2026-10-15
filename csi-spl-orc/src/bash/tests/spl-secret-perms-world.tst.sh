@@ -66,7 +66,9 @@ grep -qx "summary gcp files=3 open=2 changed=2" "$T/o" && grep -qx "summary ssh 
 no_leak && pass "dry run: no content, no file name, no path" || fail "dry run leaks: $(cat "$T/o")"
 
 # --- 4. DRY_RUN=0 ------------------------------------------------------------------------------
-U="$T/undo"
+U="$T/undo-dir/undo"; mkdir -p "$T/undo-dir"
+# a default ACL that hands the group rw beats the umask: the file is still 600
+setfacl -d -m g::rw- "$T/undo-dir" 2>/dev/null || echo "SKIP-PART: no ACL on the temp fs, the undo dir is plain"
 run_w DRY_RUN=0 SECRET_PERMS_UNDO="$U"; rc=$?
 [[ $rc -eq 0 ]] && grep -q "^OK the secret files: 5 changed, none open to other" "$T/o" &&
   [[ "$(mode "$H1/.gcp/.org/key-open.json")" == 640 && "$(mode "$H1/.ssh/id_open")" == 640 &&

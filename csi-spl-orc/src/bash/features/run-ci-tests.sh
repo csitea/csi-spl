@@ -33,7 +33,11 @@ out="" planned=()
 # shellcheck disable=SC2317 # run by the TERM trap
 on_term() {
   local i rcf
-  trap - TERM
+  # Ignore, never reset: GNU timeout sends TERM to the child and then to its
+  # whole group, so a second TERM follows; with `trap - TERM` it killed the
+  # runner mid-listing, silent (wf 10 38708771369; 7/640 under load, 0/640
+  # ignored). Guard: csi-spl-orc/src/bash/tests/run-ci-tests-term.tst.sh.
+  trap '' TERM
   (( ${#planned[@]} )) || echo "UNFINISHED run-ci-tests.sh (stopped before any file started)"
   for i in "${!planned[@]}"; do
     rcf="$out/$i.rc"

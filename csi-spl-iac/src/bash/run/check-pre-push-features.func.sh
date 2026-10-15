@@ -102,10 +102,11 @@ _pp_part_orc_features() {
   cat "$tmp.out"
   awk '$2 ~ /^FAIL\(rc=/ { print "FAILED: " $1 }
     $1 == "UNFINISHED" { print "FAILED: " $2 " (still running at the timeout)" }' "$tmp.out"
-  # A TERM before the runner set its trap (a starved runner: wf 10 38693664604)
-  # kills it silent; name it, so a timed-out part never names nothing.
+  # A TERM before the runner set its trap (wf 10 38693664604), or one that
+  # killed it before it named a file, leaves no UNFINISHED line; name the
+  # runner, so a timed-out part never names nothing.
   [[ "$rc" -eq 124 ]] && ! grep -q '^UNFINISHED ' "$tmp.out" &&
-    echo "FAILED: run-ci-tests.sh (stopped before it set its TERM trap:${feats})"
+    echo "FAILED: run-ci-tests.sh (stopped before it named a file:${feats})"
   rm -rf "$tmp" "$tmp.out"
   return "$rc"
 }

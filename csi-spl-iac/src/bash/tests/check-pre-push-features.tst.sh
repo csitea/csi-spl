@@ -125,7 +125,7 @@ printf 'sleep 4\n' >"$ROOT/slow-start.env"
 _pp_budget() { echo 2; }
 out="$(PATH="$ROOT/bin:$PATH" BASH_ENV="$ROOT/slow-start.env" _pp_part_orc_features "$T6")"; rc=$?
 eq "a TERM before the runner's trap fails with 124" 124 "$rc"
-grep -qx 'FAILED: run-ci-tests.sh (stopped before it set its TERM trap: quick slow)' <<<"$out" \
+grep -qx 'FAILED: run-ci-tests.sh (stopped before it named a file: quick slow)' <<<"$out" \
   && pass "a TERM before the runner's trap still names the runner and its features" || fail "a TERM before the trap names nothing" "$out"
 # 7: TERM before the runner lists its files (wf 10 38537641629, a loaded
 # runner: no trap yet, "Terminated", nothing named) still names one. A stale

@@ -19,6 +19,14 @@
 #      (CONTROLS: 15 and 7, the boundaries, are not low / crit; the dry run
 #      only plans the note); the gate skips a normal tick younger than 4 h
 #      but never a low one
+#   3d. /var/tmp: the /tmp name shapes never touch a lane leftover (RED
+#      CONTROL); TMP_STALE_ANY=1 removes a planted idle 1 MB one and reports
+#      it, keeps a live lane's, a recent one and a dot entry; the vartmp and
+#      logs steps never run at the normal level (CONTROL), run at low (72 h)
+#      and crit (24 h)
+#   3e. the logs step on a stubbed logrotate: the dry run touches nothing; a
+#      planted 2 MB log over 1M is rotated once and the DONE line reports the
+#      measured delta; RED CONTROL: under the limit nothing is rotated, 0 B
 #   3c. the build cache cap, through the REAL docker step on a stubbed docker
 #      (sat buildx: --keep-storage only): a planted 25 GB cache, all under
 #      12 h old, on a 100 GB disk at the LOW level is cut to 10 GB (10%);
@@ -211,6 +219,51 @@ out="$(CW="$D/w" csw)"; rc=$?
 out="$(CW="$D/w-noguard" csw)"; rc=$?
 grep -q 'FAIL user .* cannot reach the docker daemon' <<<"$out" && ! grep -q 'PRUNE' <<<"$out" && [ ! -s "$D/calls" ] \
   && pass "3c. RED CONTROL: shadowed with no guard, the real docker reaches no daemon and prunes nothing" || fail "3c. no guard (rc $rc: $out)"
+
+# ---- 3d. /var/tmp lane leftovers, under pressure only --------------------------
+V="$T/vartmp"; mkdir -p "$V/c777-copy" "$V/c-778-base" "$V/c779-recent" "$V/.pnpm-store" "$V/notes"
+head -c 1048576 /dev/zero >"$V/c777-copy/f"; for d in c-778-base c779-recent .pnpm-store notes; do echo x >"$V/$d/f"; done
+old "$V"; touch "$V/c779-recent/f"
+vsw() { TMP_STALE_ROOT="$V" TMP_STALE_SUDO=0 TMP_STALE_AGE_H=24 TMP_STALE_LIVE_IDS="c-778@sat c-001" bash "$PROJ_ROOT/src/bash/scripts/tmp-stale-sweep.sh" 2>&1; }
+out="$(DRY_RUN=0 vsw)"
+[ -d "$V/c777-copy" ] && ! grep -q 'REMOVE' <<<"$out" && pass "3d. RED CONTROL: the /tmp name shapes alone never touch a lane leftover" || fail "3d. shapes ($out)"
+out="$(DRY_RUN=0 TMP_STALE_ANY=1 vsw)"; rc=$?
+[ "$rc" = 0 ] && [ ! -e "$V/c777-copy" ] && [ ! -e "$V/notes" ] && grep -qE "REMOVE 10[0-9]{2}KB owner=.* $V/c777-copy\$" <<<"$out" \
+  && grep -q 'DONE removed=2 (1 MB)' <<<"$out" && pass "3d. TMP_STALE_ANY=1 removes the idle leftovers and reports the 1 MB it freed" || fail "3d. any (rc $rc: $out)"
+grep -q "KEEP live-lane $V/c-778-base\$" <<<"$out" && [ -f "$V/c-778-base/f" ] && pass "3d. a live lane's leftover is kept" || fail "3d. live-lane ($out)"
+grep -q "KEEP recent $V/c779-recent\$" <<<"$out" && [ -f "$V/.pnpm-store/f" ] && ! grep -q pnpm <<<"$out" \
+  && pass "3d. a recent one and a dot entry are kept" || fail "3d. recent/dot ($out)"
+: >"$L"; out="$(FREE=50 bsw DRY_RUN=0 BOX_SWEEP_STEPS='vartmp logs')"
+grep -q 'SKIP step vartmp: level normal' <<<"$out" && grep -q 'SKIP step logs: level normal' <<<"$out" && [ ! -s "$L" ] \
+  && pass "3d. CONTROL: at the normal level vartmp and logs never run (free space drives them)" || fail "3d. normal ($out / $(cat "$L"))"
+printf '#!/bin/sh\necho "log-sweep DRY_RUN=$DRY_RUN MAX=$LOG_SWEEP_MAX" >>%q\n' "$L" >"$F/log-sweep.sh"
+printf '#!/bin/sh\necho "tmp-stale-sweep DRY_RUN=$DRY_RUN ROOT=$TMP_STALE_ROOT ANY=${TMP_STALE_ANY:-} AGE=$TMP_STALE_AGE_H" >>%q\n' "$L" >"$F/tmp-stale-sweep.sh"
+for c in "10 72" "3 24"; do
+  read -r f a <<<"$c"; : >"$L"
+  FREE=$f bsw DRY_RUN=0 BOX_SWEEP_STEPS='vartmp logs' BOX_SWEEP_VARTMP_ROOT=/x/vt >/dev/null
+  [ "$(cat "$L")" = "tmp-stale-sweep DRY_RUN=0 ROOT=/x/vt ANY=1 AGE=$a
+log-sweep DRY_RUN=0 MAX=256M" ] && pass "3d. free $f%: vartmp (idle $a h) and logs run" || fail "3d. free $f% ($(cat "$L"))"
+done
+
+# ---- 3e. the logs step: a planted oversize log, the real delta ---------------
+G2="$T/logs"; mkdir -p "$G2/apt"
+printf '%s/big.log\n%s/small.log\n{\n\trotate 4\n}\n' "$G2" "$G2" >"$G2/conf"
+# a logrotate stub: each named log -> <log>.1.gz, the live one emptied
+printf '#!/bin/sh\necho "logrotate $*" >>%q\nfor f in %q %q; do gzip -c "$f" >"$f.1.gz"; : >"$f"; done\n' "$G2/calls" "$G2/big.log" "$G2/small.log" >"$G2/lr"
+chmod +x "$G2/lr"
+lsw() { env LOG_SWEEP_CONF="$G2/conf" LOG_SWEEP_LOGROTATE="$G2/lr" LOG_SWEEP_APT=true LOG_SWEEP_APT_DIR="$G2/apt" LOG_SWEEP_MAX=1M "$@" bash "$PROJ_ROOT/src/bash/scripts/log-sweep.sh" 2>&1; }
+head -c 2097152 /dev/zero >"$G2/big.log"; echo x >"$G2/small.log"; : >"$G2/calls"
+out="$(lsw DRY_RUN=1)"
+[ ! -s "$G2/calls" ] && [ "$(stat -c %s "$G2/big.log")" = 2097152 ] && grep -q "PLAN logrotate -f $G2/conf ($G2/big.log is 2097152 bytes > 1M)" <<<"$out" \
+  && pass "3e. the dry run plans the forced rotation and touches nothing" || fail "3e. dry ($out)"
+out="$(lsw DRY_RUN=0)"; rc=$?
+after="$(du -scb "$G2"/big.log* "$G2"/small.log* | tail -1 | cut -f1)"
+[ "$rc" = 0 ] && [ "$(grep -c . "$G2/calls")" = 1 ] && grep -q "logrotate -f $G2/conf" "$G2/calls" && [ ! -s "$G2/big.log" ] \
+  && grep -q "DONE log sweep rc=0 log_bytes=2097154->$after apt_bytes=0->0 freed_bytes=$((2097154 - after))\$" <<<"$out" \
+  && pass "3e. a planted 2 MB log over 1M is rotated once and the DONE line reports the real delta ($((2097154 - after)) B)" || fail "3e. live (rc $rc: $out / $(cat "$G2/calls"))"
+rm -f "$G2"/*.gz; echo x >"$G2/big.log"; : >"$G2/calls"
+out="$(lsw DRY_RUN=0)"
+[ ! -s "$G2/calls" ] && grep -q 'freed_bytes=0$' <<<"$out" && pass "3e. RED CONTROL: logs under the limit are not rotated, 0 B freed" || fail "3e. control ($out)"
 
 # ---- 4. the cron line --------------------------------------------------------
 CT="$T/crontab"

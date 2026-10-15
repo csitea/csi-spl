@@ -17,9 +17,21 @@
 # It is removed AS its owner (sudo -n -u when that is not us). The Claude
 # scratch dirs (/tmp/claude-<uid>) are do_tmp_scratch_sweep's, never this one's.
 #
+# TMP_STALE_ANY=1 (the box sweep's `vartmp` step, root /var/tmp, only under
+# disk pressure): EVERY top-level entry is a candidate, whatever its name, but
+# a dot entry, systemd-private-* and claude-* are never, and a name that
+# carries the id of a lane this box still holds (c908-gocache, c-161-copy:
+# [acgmq]-?NNN in registry.tsv or a tmux window name) is kept as `live-lane`.
+# On sat, 2026-10-15, /var/tmp held 6.9 GB of the 30 GB root in 1288 lane
+# leftovers (copies, baselines, go caches) that no sweep looked at.
+#
 #   DRY_RUN=1 (default) | 0
 #   TMP_STALE_ROOT     default /tmp
 #   TMP_STALE_AGE_H    default 24
+#   TMP_STALE_ANY      0 (default) | 1: any name (see above)
+#   TMP_STALE_LIVE_IDS the live lane ids for TMP_STALE_ANY (tests); default
+#                      $SPOOL_ROOT/registry.tsv + the window names of the tmux
+#                      server of the registry's owner (the box user)
 #   TMP_STALE_SUDO     1 (default): read /proc and remove other users' entries
 #                      via sudo -n; 0: only this user's processes and entries
 #
@@ -32,6 +44,7 @@ dry="${DRY_RUN:-1}"
 root="${TMP_STALE_ROOT:-/tmp}"
 age_h="${TMP_STALE_AGE_H:-24}"
 use_sudo="${TMP_STALE_SUDO:-1}"
+any="${TMP_STALE_ANY:-0}"
 shape_ere='^(go-build[0-9]+|tmp\.[A-Za-z0-9]{10}|Test[A-Za-z0-9_]*[0-9]+|[A-Za-z0-9_.]+-gocache)$'
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
@@ -40,6 +53,7 @@ used() { df -P "$root" | awk 'NR==2{print $5}'; }
 as_root() { if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]]; then sudo -n -- "$@"; else "$@"; fi; }
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
+[[ "$any" == 0 || "$any" == 1 ]] || refuse "TMP_STALE_ANY must be 0 or 1, got '$any'"
 [[ "$use_sudo" == 0 || "$use_sudo" == 1 ]] || refuse "TMP_STALE_SUDO must be 0 or 1, got '$use_sudo'"
 [[ "$age_h" =~ ^[0-9]+$ ]] && (( age_h >= 1 )) || refuse "TMP_STALE_AGE_H must be a whole number >= 1, got '$age_h'"
 [[ -d "$root" && ! -L "$root" ]] || refuse "no root dir $root"
@@ -51,16 +65,38 @@ held="$(mktemp)"; trap 'rm -f "$held"' EXIT
 as_root find /proc -mindepth 2 -maxdepth 3 \( -path '/proc/[0-9]*/cwd' -o -path '/proc/[0-9]*/fd/*' \) \
   -printf '%l\n' 2>/dev/null | grep "^$root/" | sort -u >"$held"
 
-say "START root=$root dry_run=$dry age_h=$age_h held_paths=$(wc -l <"$held") used=$(used)"
+# lane_id <name>: the normalised agent id a name carries (c908-x -> c-908), or empty
+lane_id() {
+  [[ "${1,,}" =~ (^|[^a-z0-9])([acgmq])-?([0-9]{3})([^0-9]|$) ]] && printf '%s-%s' "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+}
+declare -A live=()
+if [[ "$any" == 1 ]]; then
+  if [[ -n "${TMP_STALE_LIVE_IDS+set}" ]]; then ids="$TMP_STALE_LIVE_IDS"
+  else
+    reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+    [[ -r "$reg" ]] || refuse "TMP_STALE_ANY=1 cannot read the lane registry $reg: no live-lane guard"
+    ids="$(cut -f1 "$reg") $(tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(stat -c %u "$reg")/default}" \
+      list-windows -a -F '#{window_name}' 2>/dev/null | tr -c 'A-Za-z0-9@\n-' ' ')"
+  fi
+  for w in $ids; do w="$(lane_id "${w%%@*}")"; [[ -n "$w" ]] && live["$w"]=1; done
+fi
+
+say "START root=$root dry_run=$dry any=$any live_ids=${#live[@]} age_h=$age_h held_paths=$(wc -l <"$held") used=$(used)"
 n_rm=0 kb_rm=0 n_keep=0
 while IFS= read -r -d '' p; do
   name="${p##*/}"
-  [[ "$name" =~ $shape_ere ]] || continue
+  if [[ "$any" == 1 ]]; then
+    [[ "$name" == .* || "$name" == systemd-private-* || "$name" == claude-* ]] && continue
+  else
+    [[ "$name" =~ $shape_ere ]] || continue
+  fi
+  lid="$(lane_id "$name")"
   owner="$(stat -c %U -- "$p" 2>/dev/null)" || continue
   why=""
   if [[ -L "$p" ]]; then why="symlink"
   elif [[ "$owner" == root ]]; then why="root-owned"
   elif [[ "$use_sudo" == 0 && "$owner" != "$(id -un)" ]]; then why="not-ours"
+  elif [[ "$any" == 1 && -n "$lid" && -n "${live[$lid]:-}" ]]; then why="live-lane"
   elif grep -qxF -e "$p" "$held" || grep -qF -e "$p/" "$held"; then why="in-use"
   elif [[ -n "$(as_root find "$p" -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
   fi

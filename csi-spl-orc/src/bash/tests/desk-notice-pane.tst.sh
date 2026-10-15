@@ -54,6 +54,17 @@ agent() {  # ID -> pane id
   local p
   p="$("${TM[@]}" new-window -d -t t: -n "$1" -P -F '#{pane_id}' "cat >'$T/typed.$1'")"
   "${TM[@]}" set-option -p -t "$p" @spool_strip 1
+  # The window exists before its shell has started the program: a notify in
+  # that gap sees only "bash" on the pane's tty and skips the poke as a dead
+  # agent (CI run 38673192429, OA-12 CONTROL). Return once `cat` is on the
+  # tty, read the way the notifier reads it (ps -t; tmux's current command
+  # stays "bash" here, the shell's process group).
+  local i tty
+  tty="$("${TM[@]}" display-message -p -t "$p" '#{pane_tty}')"
+  for (( i = 0; i < 100; i++ )); do
+    grep -qx cat <<<"$(ps -t "${tty#/dev/}" -o comm= 2>/dev/null)" && break
+    sleep 0.1
+  done
   printf '%s' "$p"
 }
 strip_of() {  # ID -> the notice pane marked for it

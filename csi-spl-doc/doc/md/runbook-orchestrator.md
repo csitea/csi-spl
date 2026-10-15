@@ -278,6 +278,7 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Record bypasses.** `SPAWN_BYPASS=<owner msg id>` only when the owner explicitly asked for that feature to go first; it is stored on the hub row and in the bypass log, and listed in the report. Never on your own judgement.
 - **Watch the share.** `./run -a do_spl_spawn_share` (live lanes by class, verdict per band, bypasses). The placer's "SPAWN SHARE" supply blocker goes to the dispatch holder; when it reaches you, ask the dispatcher for the next rows of that class.
 - **The idle filler.** Spare capacity becomes queued rows from open bug and feature issues within the bands: `./run -a do_spl_spawn_fill` (dry run: what it would queue now and why). The rule and its switch: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "idle filler". You install its cron (`DRY_RUN=0 ./run -a do_spl_spawn_fill_install_cron`) and turn it on; it is off until you do.
+- **The weekly security round.** Every Friday 05:30 UTC two panel seats are queued (class bug, kind secret) and the round goes on the t1 calendar: `./run -a do_spl_security_round_queue` (dry run: the seats and the event it would add). The rule and its switch: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "weekly security round". You install its cron (`DRY_RUN=0 ./run -a do_spl_security_round_install_cron`) and turn it on; it is off until you do.
 
 ## 6 Production operations
 

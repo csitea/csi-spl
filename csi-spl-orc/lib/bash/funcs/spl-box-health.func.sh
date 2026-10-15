@@ -12,6 +12,13 @@
 # are under min_beat_pct % of window / beat_s, or its last beat at or before t
 # is more than max_gap_s old. DEGRADED = bad now; RECOVERING = good now but bad
 # at some checkpoint in the last hold (one checkpoint a minute); HEALTHY else.
+# For the hold a checkpoint also covers every instant since the one before it
+# (its step, 60 s, not before now - hold): it is bad when the largest gap
+# ending in that span is over max_gap_s. The grid moves with "now" by seconds
+# each tick; judged only AT the checkpoint, a bad stretch shorter than the
+# step was hit on some ticks and missed on others, and the box flapped
+# benched/back (SPL-2029: a 169.5 s gap 07:33:44-07:36:33Z 2026-10-15, bad for
+# 49.5 s, 7 flips in 22 min).
 # A box with no beat in the whole read (hold + window) is not judged: a box
 # that does not beat (no watchdog, or a desk-only box) keeps its place.
 # "now" is the newest beat in the read, the hub's own clock: every box reading
@@ -65,16 +72,19 @@ spl_box_health_verdicts() {
       ($r | map(.t) | max) as $now
       | $r | group_by(.box) | map({key: .[0].box, value: (map(.t) | sort)}) | from_entries
       | with_entries(.value as $ts
+        | ([range(1; $ts | length) | {b: $ts[.], g: ($ts[.] - $ts[. - 1])}]) as $gaps
         | [range(0; ($hold / 60 | floor) + 1) | ($now - . * 60) as $c
             | ([$ts[] | select(. > $c - $w and . <= $c)] | length) as $n
             | ([$ts[] | select(. <= $c)] | max) as $l
+            | ($n < $need or $l == null or ($c - $l) > $gap) as $badat
+            | ([$gaps[] | select(.b > ([$c - 60, $now - $hold] | max) and .b <= $c) | .g] | max // 0) as $span
             | {c: $c, n: $n, age: (if $l == null then null else $c - $l end),
-               bad: ($n < $need or $l == null or ($c - $l) > $gap)}] as $cp
+               badat: $badat, bad: ($badat or $span > $gap)}] as $cp
         | $cp[0] as $at
         | ([$cp[] | select(.bad)] | max_by(.c)) as $lb
         | .value = {n: $at.n, need: $need, age: $at.age,
-            state: (if $at.bad then "degraded" elif $lb != null then "recovering" else "healthy" end),
-            why: (if $at.bad then "\($at.n) beats in \($w / 60)m < \($need), last beat \($at.age // "none")s ago (max \($gap)s)"
+            state: (if $at.badat then "degraded" elif $lb != null then "recovering" else "healthy" end),
+            why: (if $at.badat then "\($at.n) beats in \($w / 60)m < \($need), last beat \($at.age // "none")s ago (max \($gap)s)"
                   elif $lb != null then "healthy for \($now - $lb.c)s < hold \($hold)s"
                   else "\($at.n) beats in \($w / 60)m, last \($at.age)s ago" end)})
       end' <<<"$1"

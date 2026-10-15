@@ -28,8 +28,12 @@ cd "$ORC" || exit 2
 renice -n 10 -p $$ >/dev/null 2>&1 || true
 ionice -c 2 -n 7 -p $$ >/dev/null 2>&1 || true
 
+# Push off until `spool fleet-tokens push` is on master (spec 140 hub-tokens
+# lane): the buckets stay queued, no failing push and no hourly ./run.
+TOKEN_BURN_PUSH="${TOKEN_BURN_PUSH:-0}"
+export TOKEN_BURN_PUSH
 dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"
-if [ "${TOKEN_BURN_PUSH:-1}" = 1 ] && { [ ! -s "$dir/push.env" ] || [ $(( $(date +%s) - $(stat -c %Y "$dir/push.env") )) -ge 3600 ]; }; then
+if [ "$TOKEN_BURN_PUSH" = 1 ] && { [ ! -s "$dir/push.env" ] || [ $(( $(date +%s) - $(stat -c %Y "$dir/push.env") )) -ge 3600 ]; }; then
   out="$(timeout 120 ./run -a do_spl_token_burn_push_env 2>&1)" || say "WARN do_spl_token_burn_push_env: $(tail -1 <<<"$out")"
 fi
 

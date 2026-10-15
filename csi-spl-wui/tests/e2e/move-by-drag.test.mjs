@@ -406,7 +406,11 @@ try {
   await m.keyboard.press('Escape')
   await sleep(400)
   ok('8 closing it moves nothing', await inChannel(m, ms.one.msg_id, A) && !(await m.$('[data-testid=move-picker-channel]')))
-  const mb = await m.$eval(`${midCard(ms.one.msg_id)} .msg-body`, (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+  /* a hold on the card's TEXT selects it (HUM-10 86698d8a), so the control
+     holds the header's time: card, not text, not the handle. The centre of
+     .msg-body hit a kind icon with Noto and the text with the CI runners'
+     DejaVu (wf10 38745970215, 38748827138). */
+  const mb = await m.$eval(`${midCard(ms.one.msg_id)} .msg-time`, (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
   await m.touchscreen.touchStart(mb.x, mb.y)
   await sleep(700)
   await m.touchscreen.touchEnd()

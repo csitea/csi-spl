@@ -1,9 +1,9 @@
 # 140: Real-time token burn per agent type and per agent, on the Monitoring page
 
-Status: **Ready for review** (Initial specification; issue SPL-1986).  
+Status: **Decided / Phased for build** (Owner answers folded; issue SPL-1986).  
 Authority: this file for the architecture and technical requirements; [tasks.md](tasks.md) for the phased build tasks.  
 Status vocabulary: [README.md](../README.md) §2.3. Docs only: this spec builds nothing ([README.md](../README.md) §2.4).  
-Topic: `e8ae0aad-b8fb-4d3c-8377-072eec9cd404` (HUM-10, prd t1, msgs `ebff27ef`, `f2f947d1`, poll `63182298` msg `86ee1e4e`).
+Topic: `e8ae0aad-b8fb-4d3c-8377-072eec9cd404` (HUM-10, prd t1, msgs `ebff27ef`, `f2f947d1`, poll `63182298` msg `86ee1e4e`, poll `aa31a0fe` msg `ca189c3a`).
 
 Builds on, and does not repeat:
 - [002 box-agent messaging](../002-box-agent-messaging/spec.md) (local folder spool, CLI + MCP contracts)
@@ -33,6 +33,11 @@ Owner decisions from poll `63182298` (msg `86ee1e4e-1d33-4c31-bb68-fc4607585321`
 - **Placement: Choice A, in Monitoring version 1**: A third tab beside Agents and Boxes (`/monitoring/tokens`). The spec must fit into the v1 tab shell (`pages/monitoring.vue`, `utils/monitoring-tabs.mjs`) and plan its implementation lanes to start as soon as the shell lands.
 - **Content: Choice A**: Tokens per minute per vendor (agent type) and per agent, plus today's total and cost.
 
+Owner decisions from poll `aa31a0fe` (msg `ca189c3a-8763-486e-9fbd-3efde27322d5`):
+- **1 Ingestion Protocol: Choice B, Over the agent's existing live connection**: Telemetry pushed over WebSocket via `lane_op fleet_tokens_push` frame on the box's existing persistent live session (`TLane` frame), avoiding separate HTTP client overhead, ad-hoc Bearer token exchange, or opening secondary TCP connections from runner boxes.
+- **2 Retention Window: Choice B, Per-minute detail 30 days, daily totals 1 year**: High-resolution 1-minute bucket records are retained for 30 days; nightly aggregated daily rollups (`fleet_token_burn_daily`) are retained for 365 days (1 year) for comprehensive long-term cost auditing.
+- **3 Burn Rate Alerts: Choice B, Colour plus a message in a `#fleet-alerts` channel**: Monitoring UI displays visual badges (amber > 30k/min, red > 60k/min); additionally, when an agent sustains > 60k tokens/min across 3 consecutive minutes, the hub generates an automated alert message posted to the `#fleet-alerts` operator channel.
+
 What they bind:
 - **B1 (msg ebff27ef & f2f947d1)**: Provide live ("almost real-time") token consumption telemetry on the Monitoring page.
 - **B2 (msg f2f947d1)**: Telemetry must be aggregated along two primary dimensions:
@@ -44,6 +49,9 @@ What they bind:
   - Today's cumulative total tokens.
   - Today's cumulative cost, derived from the canonical price table (`model_prices`, spec 121 / rdb `0171`).
 - **B5 (Fleet lane gap)**: Today, `store.UsageLedger` and `usage_events` meter only customer-facing workspace channel posts (`csi-spl-api/src/go/spool-hub-api/internal/hub/usage_events.go:41-81`). Autonomous fleet git lanes are entirely unmetered in real time. This spec closes that visibility gap.
+- **B6 (Poll aa31a0fe Q1 Choice B)**: Telemetry is transmitted over the box's existing live WebSocket connection using `lane_op fleet_tokens_push` (matching the pattern in `box_stats.go` and `box_beat.go`).
+- **B7 (Poll aa31a0fe Q2 Choice B)**: Retention is 30 days for 1-minute raw buckets and 365 days (1 year) for daily rollups (`fleet_token_burn_daily`).
+- **B8 (Poll aa31a0fe Q3 Choice B)**: In addition to dashboard amber/red indicators, the hub evaluates rolling 3-minute sustained burn and posts an automated alert message to `#fleet-alerts` when an agent sustains > 60k tokens/min for 3 consecutive minutes.
 
 ---
 
@@ -67,7 +75,7 @@ The 60-second budget is partitioned across four discrete stages:
         │  (15 - 30 s: Collector cron/sidecar detects delta via byte offsets)
         ▼
 [ Box Token Burn Collector ]
-        │  (100 - 300 ms: HTTPS POST or WebSocket frame to Spool Hub API)
+        │  (50 - 200 ms: WebSocket frame lane_op fleet_tokens_push over live connection)
         ▼
 [ Spool Hub Ingestion & Store ]
         │  (10 - 30 ms: Ingested into PostgreSQL fleet_token_burn_events)
@@ -82,7 +90,7 @@ The 60-second budget is partitioned across four discrete stages:
 |---|---|---|---|
 | **1. CLI write** | 0–5 s | Agent CLI flushes JSONL stream | Claude, Vibe, Grok append usage objects upon turn completion. |
 | **2. Box collection** | 15–30 s | Periodic collector tick (`do_spl_token_burn_collect`) | Scans incremental byte offsets across active session files every 30 s. |
-| **3. Wire & DB write** | < 0.5 s | Hub ingestion route + batch DB insert | Single transaction write and price calculation in PostgreSQL. |
+| **3. Wire & DB write** | < 0.3 s | WebSocket `lane_op fleet_tokens_push` + batch DB insert | Reuses existing authenticated live connection; no TCP/TLS handshake overhead. |
 | **4. WUI polling** | 0–30 s | Active tab visibility timer | `merged.md` D6 specifies 30 s refresh for the active visible tab. |
 | **Total End-to-End** | **15–65 s** | Cumulative budget | P90 <= 45 s; P99 <= 60 s. |
 
@@ -105,6 +113,7 @@ Each box running agent lanes runs a lightweight, incremental telemetry collector
 - **Named action**: `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh`, exposing `do_spl_token_burn_collect`.
 - **Invocation**: Triggered every 30 seconds via box cron (`cnf/box-crons/box-crons.manifest`) or folded into the running desk sidecar tick.
 - **State storage**: Persistent JSON checkpoint file at `/var/csi/csi-spl/token-burn/collector-state.json`.
+- **Transmission**: Pushes delta samples via WebSocket frame `lane_op fleet_tokens_push` over the box's existing persistent live connection (`spool fleet-tokens push` or direct live connection framing), avoiding separate HTTP requests or Bearer token negotiation.
 
 ### 2.2 Dynamic user home resolution (hygiene rule)
 
@@ -180,7 +189,7 @@ To attribute token usage to specific lanes, the collector resolves session files
 | **Domain Scope** | Designed for tenant customer billing of channel visitor turns (`tenant_id`, `turn_id`, `channel_id`). | Purpose-built for fleet runner infrastructure telemetry. |
 | **Tenant Isolation** | Requires dummy synthetic tenant (e.g. `'system'` or `'operator'`), violating business ledger purity. | Explicitly bound to operator scope via RLS; completely isolated from customer billing. |
 | **Unique Constraints** | Enforces `UNIQUE (tenant_id, turn_id, kind) WHERE turn_id IS NOT NULL`. Git lanes have no turn IDs. | Natural composite key: `UNIQUE (box_tag, agent_id, minute_bucket)`. |
-| **Immutability & Retention** | `usage_events` is append-only with strict trigger preventing deletes (`rdb 0171:136-145`). High-frequency 1-minute telemetry cannot be pruned. | High-frequency telemetry requires automatic retention pruning (e.g. 7-day TTL on 1-minute data). |
+| **Immutability & Retention** | `usage_events` is append-only with strict trigger preventing deletes (`rdb 0171:136-145`). High-frequency 1-minute telemetry cannot be pruned. | High-frequency telemetry requires automatic retention pruning (30-day TTL on 1-minute data, 365-day TTL on daily rollups). |
 | **Query Performance** | Pollutes billing ledger with hundreds of thousands of runner telemetry rows. | Dedicated time-series table indexed on `(minute_bucket, vendor, agent_id)` ensures sub-50ms dashboard reads. |
 
 **Decision**: Adopt **Option S2**. Fleet runner telemetry must not be conflated with the customer financial ledger.
@@ -232,14 +241,18 @@ At ingestion time, the hub queries `model_prices` (`rdb 0171:74-84`, populated f
   $$\text{cost\_micros} = \sum (\text{tokens} \times \frac{\text{micros\_per\_million}}{10^6})$$
 - Storing calculated `cost_micros` at write time guarantees that historical burn charts remain immutable even if vendor pricing models change in the future.
 
-### 3.4 Wire protocol: HTTP REST batch ingestion
+### 3.4 Wire protocol: WebSocket lane_op fleet_tokens_push over existing live connection
 
-- **Route**: `POST /v1/operator/fleet-tokens`
-- **Auth**: Service Account Bearer ID token (`operatorAuth`, verified against `OperatorEmails`) or active operator workspace admin session (`operatorActor`).
-- **Payload**:
+Telemetry is transmitted over the authenticated live connection between runner boxes and the Spool Hub (the `TLane` WebSocket frame path, matching the architectural pattern established in `internal/hub/box_stats.go:20-25` and `internal/hub/box_beat.go:17-25`).
+
+- **Framing**: `wire.TLane` frame carrying `lane_op: "fleet_tokens_push"`.
+- **Identity & Authentication**: The writing `box_tag` is derived directly from the authenticated session context (the box session's peer identity or agent session), never trusted from an arbitrary JSON payload field.
+- **Client Invocation**: Triggered from the box collector action via `spool fleet-tokens push --json -` or internal CLI client framing.
+- **Push Payload Schema**:
   ```json
   {
-    "box": "sat",
+    "type": "lane",
+    "lane_op": "fleet_tokens_push",
     "samples": [
       {
         "agent_id": "c-001",
@@ -266,7 +279,17 @@ At ingestion time, the hub queries `model_prices` (`rdb 0171:74-84`, populated f
     ]
   }
   ```
-- **Upsert Semantic**: Database write performs `ON CONFLICT (box_tag, agent_id, minute_bucket) DO UPDATE SET tokens_in = EXCLUDED.tokens_in, ...` ensuring safe idempotent retries.
+- **Hub Ack Response Frame**:
+  ```json
+  {
+    "type": "ack",
+    "lane_op": "fleet_tokens_push",
+    "inserted": 2,
+    "at": "2026-10-15T10:40:05Z"
+  }
+  ```
+- **Upsert Semantic**: Database write performs `ON CONFLICT (box_tag, agent_id, minute_bucket) DO UPDATE SET tokens_in = EXCLUDED.tokens_in, tokens_out = EXCLUDED.tokens_out, cache_read = EXCLUDED.cache_read, cache_write = EXCLUDED.cache_write, cost_micros = EXCLUDED.cost_micros` ensuring safe idempotent retries across ticks.
+- **Error Handling**: Malformed payloads or invalid vendor strings return `wire.TError` with code `bad_frame` / `bad_samples` (status 400) without terminating the persistent WebSocket connection.
 
 ### 3.5 Hub read route for Monitoring tab
 
@@ -345,10 +368,14 @@ At ingestion time, the hub queries `model_prices` (`rdb 0171:74-84`, populated f
 
 ### 3.6 Data retention policy
 
-To prevent unbounded table growth:
-1. **1-minute raw buckets**: Retained for **7 days**.
-2. **Daily rollups**: Computed nightly by `do_spl_cost_rollup_daily` and stored in `fleet_token_burn_daily` (retained for **90 days**).
-3. **Automated purge**: Daily cleanup job executes `DELETE FROM fleet_token_burn_events WHERE minute_bucket < now() - INTERVAL '7 days'`.
+To satisfy owner decision 2 = B (poll `aa31a0fe`, msg `ca189c3a`) while preventing unbounded storage growth:
+1. **1-minute raw buckets**: Retained for **30 days**. Provides granular high-resolution telemetry for auditing and debugging across the entire previous month.
+2. **Daily rollups**: Computed nightly by `do_spl_cost_rollup_daily` and stored in `fleet_token_burn_daily` (retained for **365 days / 1 year**).
+3. **Automated purge**: Daily retention sweep job (`sweepFleetTokens`) executes:
+   ```sql
+   DELETE FROM fleet_token_burn_events WHERE minute_bucket < now() - INTERVAL '30 days';
+   DELETE FROM fleet_token_burn_daily WHERE day_bucket < now() - INTERVAL '365 days';
+   ```
 
 ---
 
@@ -415,6 +442,31 @@ Conforming strictly to `merged.md` D6 and D7:
    - `lag > 90 s` (3x timer): Red warning badge ("Data stale: hub unreachable or collector paused").
 4. **Resilience**: Full empty state (when no lanes are active) and error state with an interactive "Retry" button.
 
+### 4.4 Sustained burn rate alerts & `#fleet-alerts` channel notification
+
+Per owner decision 3 = B (poll `aa31a0fe`, msg `ca189c3a`), the platform implements dual-layer alerting: visual indicators in the Monitoring dashboard and automated proactive alerts to the `#fleet-alerts` operator channel.
+
+#### 4.4.1 Visual threshold highlights in UI
+In both the vendor table and the agent lane breakdown table:
+- **Normal burn**: `< 30,000 tokens/min` (standard theme typography).
+- **Elevated burn**: `30,000` to `60,000 tokens/min` (Amber warning badge).
+- **Surge burn**: `> 60,000 tokens/min` (Red alert badge with pulsing warning icon).
+
+#### 4.4.2 Automated Spool Hub alert to `#fleet-alerts`
+When an LLM agent enters an infinite loop, recursive rebase cycle, or runaway tool failure, rapid alerting prevents material API cost:
+1. **Detection Window**: Upon ingestion of minute samples, the hub tracks rolling token burn per agent over a 3-minute sliding window (`minute_bucket`, `minute_bucket - 1m`, `minute_bucket - 2m`).
+2. **Trigger Invariant**: An alert fires if and only if an agent sustains **> 60,000 tokens/min across 3 consecutive minutes**.
+3. **Destination Channel**: The alert is posted directly into the `#fleet-alerts` channel in the operator workspace as a high-visibility spool message.
+4. **Message Format**:
+   ```markdown
+   :warning: **Fleet Token Surge Alert**: Agent `<agent_id>` (`<vendor>` / `<model>`) on box `<box>` has sustained high token burn (>60k tokens/min) for 3 consecutive minutes:
+   - Minute 1: 64,200 tokens/min
+   - Minute 2: 71,500 tokens/min
+   - Minute 3: 68,900 tokens/min
+   Cumulative cost in window: €0.48. Last reported task: `<task_id>`. Immediate operator inspection recommended.
+   ```
+5. **Throttling & Cool-off**: Once an alert fires for an agent, further alerts for that specific agent are silenced for **30 minutes** unless burn rate drops below 30,000 tokens/min and subsequently surges again.
+
 ---
 
 ## 5. Privacy and security invariants
@@ -455,35 +507,32 @@ To ensure zero merge collisions with the ongoing Monitoring v1 shell and Agents/
 
 | Lane | Domain | File Set (Disjoint) | Dependencies |
 |---|---|---|---|
-| **Lane 1: `hub-tokens`** | `api` / `rdb` | `csi-spl-rdb/src/sql/postgres/spool-hub/0198_fleet_token_burn.sql`<br>`csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_tokens*.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/fleet_tokens*.go` | Independent. Can build and test immediately. |
-| **Lane 2: `collector-tokens`** | `orc` | `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-token-burn-collect.tst.sh`<br>`csi-spl-orc/cnf/box-crons/box-crons.manifest` | Depends on Lane 1 ingestion route schema. |
-| **Lane 3: `wui-tokens`** | `wui` | `csi-spl-wui/src/pages/monitoring/tokens.vue`<br>`csi-spl-wui/src/components/monitoring/token-burn/*`<br>`csi-spl-wui/src/utils/monitoring-tokens.mjs` | Requires Monitoring v1 tab shell to land first. |
+| **Lane 1: `hub-tokens`** | `api` / `rdb` | `csi-spl-rdb/src/sql/postgres/spool-hub/0198_fleet_token_burn.sql`<br>`csi-spl-api/src/go/spool-hub-api/internal/wire/fleet_tokens*.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_tokens*.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/fleet_tokens*.go` | Independent. Implements WebSocket `lane_op fleet_tokens_push` frame handler, 30-day raw / 365-day daily retention pruning sweep, GET route, and 3-minute sustained burn evaluator posting to `#fleet-alerts`. |
+| **Lane 2: `collector-tokens`** | `orc` | `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-token-burn-collect.tst.sh`<br>`csi-spl-orc/cnf/box-crons/box-crons.manifest` | Depends on Lane 1 WebSocket frame schema `lane_op fleet_tokens_push`. Pushes samples via box CLI live session. |
+| **Lane 3: `wui-tokens`** | `wui` | `csi-spl-wui/src/pages/monitoring/tokens.vue`<br>`csi-spl-wui/src/components/monitoring/token-burn/*`<br>`csi-spl-wui/src/utils/monitoring-tokens.mjs` | Requires Monitoring v1 tab shell to land first. Implements visual badges (amber >30k/min, red >60k/min) and vendor/agent breakdown tables. |
 | **Lane 4: `e2e-proof`** | `test` / `proof` | `csi-spl-wui/src/tests/e2e/monitoring-tokens.test.mjs`<br>`csi-spl-orc/src/bash/tests/token-burn-e2e.tst.sh` | Runs after Lanes 1, 2, and 3 land. |
 
 ---
 
-## 7. Open questions for the owner (poll format)
+## 7. Decided owner choices (poll aa31a0fe, msg ca189c3a)
 
-These questions represent operational and architectural tradeoffs for the owner's decision:
+The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3a-8763-486e-9fbd-3efde27322d5`, poll form `aa31a0fe-fc26-4099-9b16-bc90670c99db`) answered all three questions, selecting **Option B** for each:
 
 ### Question Q1. Ingestion protocol from box to hub
-- **Option A (Recommended)**: HTTP batch POST from the box collector to `POST /v1/operator/fleet-tokens` with Bearer auth.
-  - *Rationale*: Decoupled, stateless, standard retry on 5xx, matches existing operator routes.
-- **Option B**: WebSocket `lane_op fleet_tokens_push` over the persistent box CLI session.
-  - *Rationale*: Reuses open WebSocket, marginally lower handshake overhead.
+- **Decided: Option B — WebSocket `lane_op fleet_tokens_push` over existing live connection**.
+  - *Adopted In*: §1.2, §2.1, §3.4, and Tasks T002, T011, T022.
+  - *Rationale*: Reuses the authenticated persistent CLI session (`TLane` frame), eliminating ad-hoc HTTP Bearer token negotiation, secondary TLS handshakes, and runner outbound port proliferation.
 
 ### Question Q2. Storage & aggregation granularity
-- **Option A (Recommended)**: 1-minute buckets retained for 7 days, daily rollups retained for 90 days.
-  - *Rationale*: Minimal storage footprint (< 50 MB / month), rapid dashboard queries, sufficient resolution for real-time debugging.
-- **Option B**: 1-minute buckets retained for 30 days, daily rollups retained for 365 days.
-  - *Rationale*: Extended high-resolution historical auditing at the cost of higher database storage.
+- **Decided: Option B — Per-minute detail 30 days, daily totals 1 year (365 days)**.
+  - *Adopted In*: §0, §3.1, §3.6, and Tasks T001, T013.
+  - *Rationale*: Guarantees a full 30-day operational debugging window with minute-level precision across all runner boxes, with a 1-year audit trail for financial trend analysis.
 
 ### Question Q3. Token burn alert notifications
-- **Option A (Recommended)**: Visual highlighting only in the Monitoring tab (amber badge if agent > 30k tokens/min; red badge if > 60k tokens/min).
-  - *Rationale*: Unobtrusive, informs without generating notification noise.
-- **Option B**: Visual highlighting plus automated alert message posted to `#fleet-alerts` when an agent sustains > 60k tokens/min for more than 3 consecutive minutes.
-  - *Rationale*: Proactive notification if operators are not actively viewing the Monitoring dashboard.
+- **Decided: Option B — Visual colour on page plus automated message in `#fleet-alerts` channel**.
+  - *Adopted In*: §0, §4.4, §6, and Tasks T014, T031, T032, T033.
+  - *Rationale*: Protects against expensive unattended runaway loops by pushing an explicit warning to the operator channel when an agent sustains > 60,000 tokens/min across 3 consecutive minutes, complemented by amber (>30k) and red (>60k) visual styling in the UI.
 
 ---
 
-<!-- version: 0.1.0 · updated: 2026-10-15 · last-edit: 2026-10-15T10:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-15 · last-edit: 2026-10-15T17:30:00Z -->

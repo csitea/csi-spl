@@ -29,6 +29,22 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+
 async function launch() {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
@@ -55,12 +71,18 @@ const click = (p, sel) => p.evaluate((sel) => {
 }, sel)
 
 const dialogOpen = (p) => p.evaluate(() => Boolean(document.querySelector('[data-testid=channel-properties]')))
+/* closed, and still closed 300 ms later; an Escape that does nothing times out open */
+const closes = async (p) => !(await until(() => dialogOpen(p), (open) => !open, 300, 3000))
+/* the dialog has its focus inside the panel (UiDialog's focus-on-open, the lazy tab loaded) */
+const focused = (p) => until(() => p.evaluate(() => Boolean(document.activeElement?.closest('[role=dialog]')?.querySelector('[data-testid=channel-properties]'))), Boolean, 300, 3000)
+/* a control is on screen to click */
+const shown = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 5000 }).catch(() => null)
 
 async function openProperties(page, channelId) {
   await click(page, '[data-testid=sidebar-tab-channels]')
-  await sleep(400)
+  await shown(page, `[data-testid=sidebar-row-menu][data-menu-id="ch:${channelId}"]`)
   await click(page, `[data-testid=sidebar-row-menu][data-menu-id="ch:${channelId}"]`)
-  await sleep(300)
+  await shown(page, '[data-testid=sidebar-row-menu-properties]')
   await click(page, '[data-testid=sidebar-row-menu-properties]')
   return Boolean(await page.waitForSelector('[data-testid=channel-properties]', { timeout: 10000 }).catch(() => null))
 }
@@ -73,7 +95,7 @@ try {
   await page.setViewport({ width: 1440, height: 900 })
   await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
   await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
-  await sleep(600)
+  await until(() => page.evaluate(() => Boolean(document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel'))), Boolean, 0)
 
   const made = await page.evaluate(async (name) => {
     const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
@@ -86,34 +108,32 @@ try {
 
   /* ---- 1. Escape closes with focus inside the panel ----------------------- */
   ok('Properties opens (for the Escape check)', await openProperties(page, made))
-  await sleep(400)
+  await focused(page)
   await page.keyboard.press('Escape')
-  await sleep(400)
-  ok('Escape closes the Properties dialog (focus in panel)', !(await dialogOpen(page)))
+  ok('Escape closes the Properties dialog (focus in panel)', await closes(page))
 
   if (await dialogOpen(page)) await click(page, '[data-testid=ui-dialog-close]')
-  await sleep(300)
+  await closes(page)
 
   /* ---- 1b. Escape closes even with focus OUTSIDE the panel (the control) ---
      This is the owner's case: focus had left the dialog (teleport / async-load
      timing), so the panel's own keydown never fired. Fails today; the
      window-level handler (SPL-1234) closes it. */
   ok('Properties opens (for the focus-outside Escape check)', await openProperties(page, made))
-  await sleep(400)
+  /* focus-on-open first, so the blur below is not undone by it */
+  await focused(page)
   await page.evaluate(() => { document.activeElement?.blur?.(); document.body.focus?.() })
   await page.keyboard.press('Escape')
-  await sleep(400)
-  ok('Escape closes the Properties dialog when focus is outside the panel (SPL-1234)', !(await dialogOpen(page)))
+  ok('Escape closes the Properties dialog when focus is outside the panel (SPL-1234)', await closes(page))
 
   if (await dialogOpen(page)) await click(page, '[data-testid=ui-dialog-close]')
-  await sleep(300)
+  await closes(page)
 
   /* ---- 2. the X still closes (the owner says this path works) ------------- */
   ok('Properties opens (for the X check)', await openProperties(page, made))
-  await sleep(300)
+  await shown(page, '[data-testid=ui-dialog-close]')
   await click(page, '[data-testid=ui-dialog-close]')
-  await sleep(400)
-  ok('the X closes the Properties dialog', !(await dialogOpen(page)))
+  ok('the X closes the Properties dialog', await closes(page))
 
   /* ---- 3. SPL-1684: the AI agents switch ----------------------------------
      The creator sees it on (the mock workspace default), switches it off;
@@ -124,25 +144,21 @@ try {
   })
   ok('Properties opens (for the AI agents switch)', await openProperties(page, made))
   await click(page, '[data-testid=channel-properties-tab-settings]')
-  await sleep(300)
-  const before = await aiState()
+  const before = await until(aiState, Boolean)
   ok('the AI agents switch is on and the creator may change it', before?.checked === true && before?.disabled === false, before)
   await click(page, '[data-testid=channel-ai-agents]')
-  await sleep(500)
-  const after = await aiState()
-  const offHint = await page.evaluate(() => document.querySelector('[data-testid=channel-ai-agents-hint]')?.textContent || '')
+  /* the switch and its hint once they have stopped changing */
+  const { after, offHint } = await until(async () => ({ after: await aiState(), offHint: await page.evaluate(() => document.querySelector('[data-testid=channel-ai-agents-hint]')?.textContent || '') }), (v) => v.after?.checked !== before?.checked)
   ok('switched off, the hint says agents do not read the channel', after?.checked === false && /do not read/.test(offHint), { after, offHint })
   const shotDir = process.env.SHOT_DIR || ''
   if (shotDir) await page.screenshot({ path: `${shotDir}/spl-1684-ai-agents-desktop.png` })
   await click(page, '[data-testid=channel-properties-tab-agents]')
-  await sleep(300)
-  ok('the Agents tab says the AI agents are off', Boolean(await page.$('[data-testid=channel-ai-agents-off-note]')))
+  ok('the Agents tab says the AI agents are off', Boolean(await shown(page, '[data-testid=channel-ai-agents-off-note]')))
   await click(page, '[data-testid=ui-dialog-close]')
-  await sleep(300)
+  await closes(page)
   ok('Properties reopens (switch read back)', await openProperties(page, made))
   await click(page, '[data-testid=channel-properties-tab-settings]')
-  await sleep(300)
-  ok('a reopen reads the switch back off', (await aiState())?.checked === false)
+  ok('a reopen reads the switch back off', (await until(aiState, Boolean))?.checked === false)
   if (shotDir) {
     await page.setViewport({ width: 390, height: 844 })
     await sleep(600)

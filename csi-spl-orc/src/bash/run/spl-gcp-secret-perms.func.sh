@@ -15,7 +15,7 @@
 # @description named entry keeps its traversal (the mask). Subdirs and symlinks are
 # @description skipped and counted. One before/after row per file, by index
 # @description and role (key, overlay, file): the mode and the getfacl -c
-# @description entries, never a name or content. Without getfacl the rows
+# @description entries, never a name, the dir path or content. Without getfacl the rows
 # @description carry the mode only. Dry run unless DRY_RUN=0.
 # @description do_spl_private_overlay_pull runs the same step (spl_gsp_fix)
 # @description on the file it places.
@@ -36,12 +36,12 @@ do_spl_gcp_secret_perms() {
   out="$("${run[@]}" bash -c "$(spl_gsp_funcs); spl_gsp_scan \"\$@\"" spl-gcp-secret-perms "$real" "$apply" </dev/null 2>&1)"
   rc=$?
   printf '%s\n' "$out"
-  (( rc == 0 )) || { do_log "FAIL the secret permissions in $real are not all fixed (exit $rc)"; return 1; }
+  (( rc == 0 )) || { do_log "FAIL the secret permissions in the key dir are not all fixed (exit $rc)"; return 1; }
   n="$(grep -c ' change=yes$' <<<"$out")"
   if (( apply )); then
-    do_log "OK $real: $n row(s) changed, no file open to other"
+    do_log "OK the key dir: $n row(s) changed, no file open to other"
   else
-    do_log "OK DRY_RUN $real: $n row(s) would change. Re-run with DRY_RUN=0 to apply."
+    do_log "OK DRY_RUN the key dir: $n row(s) would change. Re-run with DRY_RUN=0 to apply."
   fi
 }
 

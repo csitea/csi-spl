@@ -50,7 +50,7 @@ ln -s key-a.json "$D/link.json"
 run_perms() { SNIPPET=do_spl_gcp_secret_perms in_orc GCP_KEY_DIR="$D" "$@" >"$T/o" 2>&1; }
 snap() { (cd "$D" && getfacl -RpE . 2>/dev/null; stat -c '%n %a' . ./* ./sub/*); }
 chk() { SNIPPET="spl_gsp_check \"$1\"" in_orc >/dev/null 2>&1; }
-no_leak() { ! grep -qE "$MARK|key-[abc]|csi-spl-private|inner|link\.json" "$T/o"; }
+no_leak() { ! grep -qE "$MARK|key-[abc]|csi-spl-private|inner|link\.json" "$T/o" && ! grep -qF "$D" "$T/o"; }
 
 # --- 1. refusals ---------------------------------------------------------------------------
 run_perms DRY_RUN=2 && fail "accepts DRY_RUN=2" || pass "refuses DRY_RUN=2"
@@ -74,7 +74,7 @@ grep -q "^file [0-9] key mode=674 .* -> mode=640 acl=user::rw-,user:nobody:r--,g
   grep -q "^dir mode=755 .* -> mode=750 acl=user::rwx,user:nobody:r-x,group::---,mask::r-x,other::---,default:user::rwx,default:user:nobody:r-x,default:group::---,default:mask::r-x,default:other::--- change=yes$" "$T/o" &&
   grep -q "^file [0-9] overlay mode=600 .* -> mode=640 acl=user::rw-,user:nobody:r--,group::---,mask::r--,other::--- change=yes$" "$T/o" &&
   grep -q "^skipped 2 " "$T/o" && pass "dry run rows: the targets by index and role" || fail "dry run rows: $(cat "$T/o")"
-no_leak && pass "dry run: no content, no file name" || fail "dry run leaks: $(cat "$T/o")"
+no_leak && pass "dry run: no content, no file name, no dir path" || fail "dry run leaks: $(cat "$T/o")"
 
 # --- 4. DRY_RUN=0 ------------------------------------------------------------------------------
 run_perms DRY_RUN=0; rc=$?

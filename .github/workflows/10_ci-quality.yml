@@ -1286,8 +1286,10 @@ jobs:
           # client's repo and the box it ran on left the tree; this keeps them
           # out. The box name is bounded by hand, not by \b: grep -P reads the
           # accented byte of Spanish "línea" as a boundary (30 false hits in
-          # es.json). CONTROL: csi-spl-iac/src/bash/tests/hygiene-retired-relay.tst.sh
-          sweep "retired relay estate (SPL-1910)"  '(?i)git-rel|git_rel|gitrel|nea-nfs|relay[-_]?bucket|(?<![A-Za-z0-9_\x80-\xff])nea(?![A-Za-z0-9_\x80-\xff])'
+          # es.json). No lookbehind: the hub's Go copy of this list
+          # (internal/repodocs) takes a negative lookahead only.
+          # CONTROL: csi-spl-iac/src/bash/tests/hygiene-retired-relay.tst.sh
+          sweep "retired relay estate (SPL-1910)"  '(?i)git-rel|git_rel|gitrel|nea-nfs|relay[-_]?bucket|(?:^|[^A-Za-z0-9_\x80-\xff])nea(?![A-Za-z0-9_\x80-\xff])'
           # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
           # worktree is a trusted Vibe folder whose .vibe/{config.toml,
           # hooks.toml,AGENTS.md} is read first, so one commit could change the

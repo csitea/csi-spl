@@ -20,6 +20,7 @@ var hygieneHits = map[string]string{
 	"literal OS user / box / AD id":    "run as " + osUser + " on the box",
 	"personal home directory":          "see " + homeDir + "alice/notes",
 	"owner mail address or domain":     "mail me at x@" + "gmail.com",
+	"retired relay estate (SPL-1910)":  "copied to the " + "N" + "EA box",
 }
 
 var secretHits = map[string]string{
@@ -65,7 +66,8 @@ func TestGateCleanTextPasses(t *testing.T) {
 	clean := "# Runbook\n\nRun `./run -a do_publish_docs` as `$USER` from `$HOME/`.\n" +
 		"The box user is `<DEV_USER>`; " + homeDir + "runner/work is the CI checkout.\n" +
 		osUser + "-box is a hostname placeholder, not a user.\n" +
-		"BEGIN PUBLIC KEY is fine; so is private_key_id in prose.\n"
+		"BEGIN PUBLIC KEY is fine; so is private_key_id in prose.\n" +
+		"near the linear, kneaded line, una línea nueva.\n"
 	if hits := Gate(nil, []byte(clean)); len(hits) != 0 {
 		t.Fatalf("clean text hit: %+v", hits)
 	}

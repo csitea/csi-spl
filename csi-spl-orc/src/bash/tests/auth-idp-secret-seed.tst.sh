@@ -30,7 +30,10 @@ ln -s "$APP_ROOT/csi-spl-iac/lib/bash/funcs" "$PH/csi-spl-iac/lib/bash/funcs"
 cp -r "$APP/csi-spl-cnf/csi-spl" "$PH/csi-spl-cnf/csi-spl"
 yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_LINKEDIN_CLIENT_ID = "PLACEHOLDER-linkedin-client-id"' "$PH/csi-spl-cnf/csi-spl/dev.env.yaml"
 
-SECRET="WPL_AP1.test-$RANDOM-$RANDOM.secret=="
+# Not provider-shaped on purpose: a WPL_AP-shaped literal here was GitHub
+# secret-scanning alert #1 (linkedin_client_secret, security round 1 row 8,
+# SPL-1967). The seed checks no format, so any string proves the same.
+SECRET="fixture-linkedin-$RANDOM-$RANDOM.not-a-real-secret"
 CD="$T/home/.gcp/.csi/.spl"; mkdir -p "$CD" "$T/store"
 echo '{"type":"service_account"}' >"$T/home/.gcp/.csi/key-csi-spl-dev.json"
 owner_file() {  # <idp> <client_id> <secret> [mode]

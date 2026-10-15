@@ -339,6 +339,28 @@ tick
 check "15. first prompt: ACK-COMMAND line, run it before anything else" 'grep -q "^ACK-COMMAND: .*ROTATE_ID=[0-9]*T[0-9]*Z-lane-c-951 ID=c-951 ./run -a do_spl_lane_rotate$" "$T/prompt.c-951" && head -c 400 "$T/prompt.c-951" | grep -q "run it before anything else"'
 check "15. first prompt: the same ack as the seed, which keeps it" '[ "$(grep "^ACK-COMMAND:" "$T/prompt.c-951")" = "$(grep "^ACK-COMMAND:" "$T/seed.c-951")" ] && grep -q "$D/handoff/.*-lane-c-951.seed.md" "$T/prompt.c-951"'
 check "15. acked from the first prompt alone: DONE" 'grep -q "lane-c-951 DONE OK" "$D/rotate.log"'
+
+# --- 16. standing seat with ACCEPTED is rotated -------------------------------------
+reset; lane c-961 50
+echo '{"v":1,"from":"c-002","to":"c-961","kind":"note","task_id":"t","body":"ACCEPTED: landed"}' >"$S/c-961/archive/a.json"
+touch "$S/c-961/lifetime/standing"
+tick
+check "16. standing seat with ACCEPTED: rotated" 'grep -q "lane-c-961 DONE OK" "$D/rotate.log"'
+reset; lane c-962 50
+echo '{"v":1,"from":"c-002","to":"c-962","kind":"note","task_id":"t","body":"ACCEPTED: landed"}' >"$S/c-962/archive/a.json"
+tick
+check "16. control: non-standing seat with ACCEPTED: skipped" 'grep -q "c-962 SKIP accepted" "$T/tick.out"'
+
+# --- 17. ROTATE_CMD=one with DRY_RUN=1 writes nothing ---------------------------
+reset; lane c-971 50
+DRY_RUN=1 ROTATE_CMD=one ID=c-971 "$T/bin/act" >"$T/dry.out" 2>&1
+check "17. ROTATE_CMD=one DRY_RUN=1: 0 spawns" '[ "$(n "$T/spawn.log")" = 0 ]'
+check "17. ROTATE_CMD=one DRY_RUN=1: 0 stops" '[ "$(n "$T/kill.log")" = 0 ]'
+check "17. ROTATE_CMD=one DRY_RUN=1: 0 notes" '[ "$(n "$T/send.log")" = 0 ]'
+check "17. ROTATE_CMD=one DRY_RUN=1: log says DRY_RUN" 'grep -q "DRY_RUN=1: no rotation" "$T/dry.out"'
+reset; lane c-972 50
+DRY_RUN=0 ROTATE_CMD=one ID=c-972 "$T/bin/act" >"$T/dry.out" 2>&1
+check "17. control: ROTATE_CMD=one DRY_RUN=0: rotated" 'grep -q "lane-c-972 DONE OK" "$D/rotate.log"'
 P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"; printf 'HEAD15 run it before anything else\nACK-COMMAND: x' >"$T/head15.md"
 ( unset SPOOL_BOX_ENV; SPOOL_ROOT="$T/spool15" SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$P15" SPOOL_BIN=/opt/x/spool \
   SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD_FILE="$T/head15.md" \

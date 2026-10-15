@@ -255,9 +255,12 @@ spl_lane_rotate_recent() {
   return 0
 }
 
-# 0 when ID's inbox or archive holds an ACCEPTED newer than any REJECT / SEND-BACK.
+# 0 when ID's inbox or archive holds an ACCEPTED newer than any REJECT / SEND-BACK,
+# unless ID is a standing seat (lifetime/standing exists).
 spl_lane_rotate_accepted() {
   local a r
+  # Standing seat: rotate even if ACCEPTED exists
+  [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]] && return 1
   a="$(grep -lsE '"body" *: *"ACCEPTED' "$SPOOL_ROOT/$1"/inbox/*.json "$SPOOL_ROOT/$1"/archive/*.json 2>/dev/null | xargs -r ls -t 2>/dev/null | sed -n 1p || true)"
   [[ -n "$a" ]] || return 1
   r="$(grep -lsE '"body" *: *"(REJECT|SEND-BACK|SENDBACK)' "$SPOOL_ROOT/$1"/inbox/*.json "$SPOOL_ROOT/$1"/archive/*.json 2>/dev/null | xargs -r ls -t 2>/dev/null | sed -n 1p || true)"
@@ -421,6 +424,7 @@ spl_lane_rotate_start() {
 spl_lane_rotate_one() {
   local id="${ID:-}" rid pid age pane idl=0
   spl_lane_rotate_seat "$id" || return 1
+  [[ "${DRY_RUN:-1}" == 1 ]] && { spl_rotate_log "lane-$id" GATE SKIP "DRY_RUN=1: no rotation"; return 0; }
   echo "$BASHPID" > "$ROTATE_LANE_DIR/run.$id" 2>/dev/null || true
   rid="$(date -u +%Y%m%dT%H%MZ)-lane-$id"
   spl_agent_id_lock "$id" do_spl_lane_rotate "$rid" || idl=$?

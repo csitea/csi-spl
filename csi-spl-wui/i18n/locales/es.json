@@ -2934,6 +2934,22 @@
       "agents": "Agentes",
       "boxes": "Equipos",
       "tokens": "Tokens"
+    },
+    "alloc": {
+      "title": "Asignación",
+      "hint": "La fijan los administradores en Ajustes del espacio de trabajo. Aquí es de solo lectura.",
+      "planned": "previsto",
+      "edit": "Editar en Ajustes del espacio de trabajo",
+      "fleet_band": "Banda de la flota",
+      "band_val": "{low}..{high} % de los núcleos",
+      "band_cpu_val": "{low}..{high} % de los núcleos, tope de CPU de runners {n} %",
+      "pct_val": "{n} % de los núcleos",
+      "share_val": "{n} de 100",
+      "band_own_val": "{low}..{high} % de los núcleos, propia de esta máquina",
+      "band_fleet_val": "{low}..{high} % de los núcleos, la banda de la flota",
+      "place": "Puesto en el orden de máquinas",
+      "place_val": "{n} de {total}",
+      "place_none": "Fuera del orden de máquinas"
     }
   }
 }

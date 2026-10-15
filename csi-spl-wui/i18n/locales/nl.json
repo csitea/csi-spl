@@ -2934,6 +2934,22 @@
       "agents": "Agents",
       "boxes": "Boxes",
       "tokens": "Tokens"
+    },
+    "alloc": {
+      "title": "Toewijzing",
+      "hint": "Ingesteld door de beheerders in Werkruimte-instellingen. Hier alleen-lezen.",
+      "planned": "gepland",
+      "edit": "Bewerken in Werkruimte-instellingen",
+      "fleet_band": "Vlootband",
+      "band_val": "{low}..{high} % van de cores",
+      "band_cpu_val": "{low}..{high} % van de cores, runner-CPU-limiet {n} %",
+      "pct_val": "{n} % van de cores",
+      "share_val": "{n} van 100",
+      "band_own_val": "{low}..{high} % van de cores, eigen band van deze machine",
+      "band_fleet_val": "{low}..{high} % van de cores, de vlootband",
+      "place": "Plaats in de machinevolgorde",
+      "place_val": "{n} van {total}",
+      "place_none": "Niet in de machinevolgorde"
     }
   }
 }

@@ -2934,6 +2934,22 @@
       "agents": "Aģenti",
       "boxes": "Boxes",
       "tokens": "Marķieri"
+    },
+    "alloc": {
+      "title": "Sadalījums",
+      "hint": "Iestata administratori darbvietas iestatījumos. Šeit tikai lasīšanai.",
+      "planned": "plānots",
+      "edit": "Rediģēt darbvietas iestatījumos",
+      "fleet_band": "Flotes josla",
+      "band_val": "{low}..{high} % no kodoliem",
+      "band_cpu_val": "{low}..{high} % no kodoliem, runneru CPU griesti {n} %",
+      "pct_val": "{n} % no kodoliem",
+      "share_val": "{n} no 100",
+      "band_own_val": "{low}..{high} % no kodoliem, šīs mašīnas pašas",
+      "band_fleet_val": "{low}..{high} % no kodoliem, flotes josla",
+      "place": "Vieta mašīnu secībā",
+      "place_val": "{n} no {total}",
+      "place_none": "Nav mašīnu secībā"
     }
   }
 }

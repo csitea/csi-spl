@@ -2934,6 +2934,22 @@
       "agents": "Agenți",
       "boxes": "Boxes",
       "tokens": "Tokenuri"
+    },
+    "alloc": {
+      "title": "Alocare",
+      "hint": "Setată de administratori în Setările spațiului de lucru. Aici doar pentru citire.",
+      "planned": "planificat",
+      "edit": "Editează în Setările spațiului de lucru",
+      "fleet_band": "Banda flotei",
+      "band_val": "{low}..{high} % din nuclee",
+      "band_cpu_val": "{low}..{high} % din nuclee, plafon CPU runneri {n} %",
+      "pct_val": "{n} % din nuclee",
+      "share_val": "{n} din 100",
+      "band_own_val": "{low}..{high} % din nuclee, banda proprie a acestei mașini",
+      "band_fleet_val": "{low}..{high} % din nuclee, banda flotei",
+      "place": "Locul în ordinea mașinilor",
+      "place_val": "{n} din {total}",
+      "place_none": "Nu este în ordinea mașinilor"
     }
   }
 }

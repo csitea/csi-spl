@@ -2934,6 +2934,22 @@
       "agents": "Agentai",
       "boxes": "Boxes",
       "tokens": "Žetonai"
+    },
+    "alloc": {
+      "title": "Paskirstymas",
+      "hint": "Nustato administratoriai darbo srities nustatymuose. Čia tik skaitymui.",
+      "planned": "suplanuota",
+      "edit": "Redaguoti darbo srities nustatymuose",
+      "fleet_band": "Parko juosta",
+      "band_val": "{low}..{high} % branduolių",
+      "band_cpu_val": "{low}..{high} % branduolių, runnerių CPU riba {n} %",
+      "pct_val": "{n} % branduolių",
+      "share_val": "{n} iš 100",
+      "band_own_val": "{low}..{high} % branduolių, šios mašinos nuosava",
+      "band_fleet_val": "{low}..{high} % branduolių, parko juosta",
+      "place": "Vieta mašinų eilėje",
+      "place_val": "{n} iš {total}",
+      "place_none": "Ne mašinų eilėje"
     }
   }
 }

@@ -2934,6 +2934,22 @@
       "agents": "Agenter",
       "boxes": "Boxes",
       "tokens": "Token"
+    },
+    "alloc": {
+      "title": "Tilldelning",
+      "hint": "Ställs in av administratörerna i Arbetsytans inställningar. Här bara läsbar.",
+      "planned": "planerat",
+      "edit": "Redigera i Arbetsytans inställningar",
+      "fleet_band": "Flottans band",
+      "band_val": "{low}..{high} % av kärnorna",
+      "band_cpu_val": "{low}..{high} % av kärnorna, CPU-tak för runners {n} %",
+      "pct_val": "{n} % av kärnorna",
+      "share_val": "{n} av 100",
+      "band_own_val": "{low}..{high} % av kärnorna, maskinens eget band",
+      "band_fleet_val": "{low}..{high} % av kärnorna, flottans band",
+      "place": "Plats i maskinordningen",
+      "place_val": "{n} av {total}",
+      "place_none": "Inte i maskinordningen"
     }
   }
 }

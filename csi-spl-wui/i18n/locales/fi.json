@@ -2934,6 +2934,22 @@
       "agents": "Agentit",
       "boxes": "Boxes",
       "tokens": "Tokenit"
+    },
+    "alloc": {
+      "title": "Allokointi",
+      "hint": "Ylläpitäjät asettavat tämän työtilan asetuksissa. Täällä vain luku.",
+      "planned": "suunniteltu",
+      "edit": "Muokkaa työtilan asetuksissa",
+      "fleet_band": "Laivueen alue",
+      "band_val": "{low}..{high} % ytimistä",
+      "band_cpu_val": "{low}..{high} % ytimistä, runnereiden CPU-katto {n} %",
+      "pct_val": "{n} % ytimistä",
+      "share_val": "{n} / 100",
+      "band_own_val": "{low}..{high} % ytimistä, tämän koneen oma",
+      "band_fleet_val": "{low}..{high} % ytimistä, laivueen alue",
+      "place": "Paikka konejärjestyksessä",
+      "place_val": "{n} / {total}",
+      "place_none": "Ei konejärjestyksessä"
     }
   }
 }

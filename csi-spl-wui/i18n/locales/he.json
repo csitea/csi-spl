@@ -2934,6 +2934,22 @@
       "agents": "סוכנים",
       "boxes": "Boxes",
       "tokens": "אסימונים"
+    },
+    "alloc": {
+      "title": "הקצאה",
+      "hint": "נקבע על ידי המנהלים בהגדרות סביבת העבודה. כאן לקריאה בלבד.",
+      "planned": "מתוכנן",
+      "edit": "עריכה בהגדרות סביבת העבודה",
+      "fleet_band": "טווח הצי",
+      "band_val": "{low}..{high} % מהליבות",
+      "band_cpu_val": "{low}..{high} % מהליבות, תקרת CPU ל-runners {n} %",
+      "pct_val": "{n} % מהליבות",
+      "share_val": "{n} מתוך 100",
+      "band_own_val": "{low}..{high} % מהליבות, הטווח של מכונה זו",
+      "band_fleet_val": "{low}..{high} % מהליבות, טווח הצי",
+      "place": "מקום בסדר המכונות",
+      "place_val": "{n} מתוך {total}",
+      "place_none": "לא בסדר המכונות"
     }
   }
 }

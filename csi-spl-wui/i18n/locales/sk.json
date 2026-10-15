@@ -2934,6 +2934,22 @@
       "agents": "Agenti",
       "boxes": "Boxes",
       "tokens": "Tokeny"
+    },
+    "alloc": {
+      "title": "Pridelenie",
+      "hint": "Nastavujú ho správcovia v Nastaveniach pracovného priestoru. Tu len na čítanie.",
+      "planned": "plánované",
+      "edit": "Upraviť v Nastaveniach pracovného priestoru",
+      "fleet_band": "Pásmo flotily",
+      "band_val": "{low}..{high} % jadier",
+      "band_cpu_val": "{low}..{high} % jadier, limit CPU runnerov {n} %",
+      "pct_val": "{n} % jadier",
+      "share_val": "{n} zo 100",
+      "band_own_val": "{low}..{high} % jadier, vlastné pásmo tohto stroja",
+      "band_fleet_val": "{low}..{high} % jadier, pásmo flotily",
+      "place": "Miesto v poradí strojov",
+      "place_val": "{n} z {total}",
+      "place_none": "Nie je v poradí strojov"
     }
   }
 }

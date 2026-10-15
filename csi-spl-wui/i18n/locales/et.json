@@ -2934,6 +2934,22 @@
       "agents": "Agendid",
       "boxes": "Boxes",
       "tokens": "Tokenid"
+    },
+    "alloc": {
+      "title": "Jaotus",
+      "hint": "Määravad administraatorid tööruumi seadetes. Siin ainult lugemiseks.",
+      "planned": "plaanitud",
+      "edit": "Muuda tööruumi seadetes",
+      "fleet_band": "Laevastiku vahemik",
+      "band_val": "{low}..{high} % tuumadest",
+      "band_cpu_val": "{low}..{high} % tuumadest, runnerite CPU piir {n} %",
+      "pct_val": "{n} % tuumadest",
+      "share_val": "{n} / 100",
+      "band_own_val": "{low}..{high} % tuumadest, selle masina oma",
+      "band_fleet_val": "{low}..{high} % tuumadest, laevastiku vahemik",
+      "place": "Koht masinate järjekorras",
+      "place_val": "{n} / {total}",
+      "place_none": "Pole masinate järjekorras"
     }
   }
 }

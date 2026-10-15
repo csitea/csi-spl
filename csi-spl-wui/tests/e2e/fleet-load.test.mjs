@@ -386,6 +386,60 @@ try {
   ok('30 phone: the agent types fit the width', kindsPhone <= 1, kindsPhone)
   await p.setViewport({ width: 1400, height: 900 })
 
+  // SPL-2031 (t1 dbf2f39b, d8f64bc3 / d4cdda5f / 22472356 / 6cab186b):
+  // Monitoring -> Boxes shows each box's system facts and the admins'
+  // allocation, read-only, every set value "(planned)"; desktop and phone.
+  await p.evaluate((op, key) => {
+    localStorage.setItem(op, '1')
+    localStorage.setItem(key, JSON.stringify({ low: 40, high: 80, box_order: ['box-desk', 'box-a'], boxes: { 'box-desk': { low: 20, high: 60 } }, agent_kinds_off: ['qwen'] }))
+  }, FLEET_OPERATOR_KEY, FLEET_STORE_KEY)
+  const editables = (q, sel) => q.$$eval(sel + ' input, ' + sel + ' select, ' + sel + ' textarea, ' + sel + ' button', (els) => els.length)
+  const unmarked = (q) => q.$$eval('[data-test=alloc-value]', (els) => els.filter((e) => !/^\(.+\)$/.test(e.querySelector('[data-test=alloc-planned]')?.textContent.trim() || '')).map((e) => e.getAttribute('data-key')))
+  const boxFacts = '[data-test=monitoring-box-facts][data-box=box-desk]'
+  for (const [w, h] of [[1400, 900], [390, 844]]) {
+    const tag = `${w}x${h}`
+    await p.setViewport({ width: w, height: h })
+    await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=monitoring-allocation]', { visible: true, timeout: NAV_TIMEOUT })
+    await p.waitForSelector(boxFacts + ' [data-test=mbf-allocation]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`31 ${tag}: the Boxes tab shows box-desk's OS, hardware, load and run-times`,
+      /Debian GNU\/Linux 13/.test(await text(p, boxFacts + ' [data-test=mbf-os]'))
+      && /Example CPU/.test(await text(p, boxFacts + ' [data-test=mbf-hardware]'))
+      && /0\.42/.test(await text(p, boxFacts + ' [data-test=mbf-load]'))
+      && /node/.test(await text(p, boxFacts + ' [data-test=mbf-runtimes]')))
+    const fleetBand = await text(p, '[data-test=alloc-fleet-rows] [data-test=alloc-value][data-key=fleet-band]')
+    ok(`32 ${tag}: the allocation block reads the fleet band, the order, the bands, the types, the split`,
+      /^40\.\.80 % of cores\s*\(planned\)$/.test(fleetBand)
+      && (await p.$$eval('[data-test=alloc-order-rows] [data-test=alloc-value]', (els) => els.map((e) => e.textContent.replace(/\(planned\)/, '').trim()))).join(',') === 'box-desk,box-a'
+      && /20\.\.60/.test(await text(p, '[data-test=alloc-band-rows] [data-key=band-box-desk]'))
+      && /^Off/.test(await text(p, '[data-test=alloc-kind-rows] [data-key=kind-qwen]'))
+      && (await p.$$('[data-test=alloc-split-rows] [data-test=alloc-value]')).length === 5, fleetBand)
+    const own = await text(p, boxFacts + ' [data-test=mbf-allocation-rows] [data-key=box-band]')
+    const place = await text(p, boxFacts + ' [data-test=mbf-allocation-rows] [data-key=box-place]')
+    ok(`33 ${tag}: box-desk shows its own band and its place in the order`, /20\.\.60/.test(own) && /^1 of 2/.test(place), { own, place })
+    ok(`34 ${tag}: no input, select, textarea or button in the allocation or the facts`,
+      (await editables(p, '[data-test=monitoring-allocation]')) === 0 && (await editables(p, '[data-test=monitoring-boxes]')) === 0)
+    const values = (await p.$$('[data-test=alloc-value]')).length
+    ok(`35 ${tag}: every set value carries "(planned)"`, values >= 20 && (await unmarked(p)).length === 0, { values, unmarked: await unmarked(p) })
+    ok(`36 ${tag}: the edit links go to Workspace settings`,
+      (await p.$eval('[data-test=alloc-edit-fleet]', (e) => e.getAttribute('href'))).endsWith('/tenant-settings/fleet-load')
+      && (await p.$eval('[data-test=alloc-edit-split]', (e) => e.getAttribute('href'))).endsWith('/tenant-settings/split'))
+    ok(`37 ${tag}: no sideways scroll`, await p.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) {
+      const { mkdirSync } = await import('node:fs')
+      mkdirSync(process.env.SHOT_DIR, { recursive: true })
+      await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-boxes-allocation-${w}.png`, fullPage: true })
+      const card = await p.$('[data-test=monitoring-box][data-box=box-desk]')
+      if (card) await card.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-boxes-facts-${w}.png` })
+    }
+  }
+  await p.evaluate((op) => localStorage.removeItem(op), FLEET_OPERATOR_KEY)
+  await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(boxFacts + ' [data-test=mbf-os]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('38 not the operator admin: the facts show, no allocation (owner decision A)',
+    !(await p.$('[data-test=monitoring-allocation]')) && !(await p.$('[data-test=mbf-allocation]')))
+  await p.setViewport({ width: 1400, height: 900 })
+
   ok('no page error', errors.length === 0, errors)
 } finally {
   await browser.close()

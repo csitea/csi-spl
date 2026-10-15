@@ -2934,6 +2934,22 @@
       "agents": "Agenci",
       "boxes": "Boxes",
       "tokens": "Tokeny"
+    },
+    "alloc": {
+      "title": "Przydział",
+      "hint": "Ustawiają go administratorzy w Ustawieniach obszaru roboczego. Tutaj tylko do odczytu.",
+      "planned": "planowane",
+      "edit": "Edytuj w Ustawieniach obszaru roboczego",
+      "fleet_band": "Pasmo floty",
+      "band_val": "{low}..{high} % rdzeni",
+      "band_cpu_val": "{low}..{high} % rdzeni, limit CPU runnerów {n} %",
+      "pct_val": "{n} % rdzeni",
+      "share_val": "{n} ze 100",
+      "band_own_val": "{low}..{high} % rdzeni, własne pasmo tej maszyny",
+      "band_fleet_val": "{low}..{high} % rdzeni, pasmo floty",
+      "place": "Miejsce w kolejności maszyn",
+      "place_val": "{n} z {total}",
+      "place_none": "Poza kolejnością maszyn"
     }
   }
 }

@@ -2934,6 +2934,22 @@
       "agents": "Ajanlar",
       "boxes": "Boxes",
       "tokens": "Belirteçler"
+    },
+    "alloc": {
+      "title": "Tahsis",
+      "hint": "Yöneticiler tarafından Çalışma alanı ayarlarında belirlenir. Burada salt okunur.",
+      "planned": "planlanan",
+      "edit": "Çalışma alanı ayarlarında düzenle",
+      "fleet_band": "Filo bandı",
+      "band_val": "Çekirdeklerin %{low}..{high} kadarı",
+      "band_cpu_val": "Çekirdeklerin %{low}..{high} kadarı, runner CPU sınırı %{n}",
+      "pct_val": "Çekirdeklerin %{n} kadarı",
+      "share_val": "100 üzerinden {n}",
+      "band_own_val": "Çekirdeklerin %{low}..{high} kadarı, bu makinenin kendi bandı",
+      "band_fleet_val": "Çekirdeklerin %{low}..{high} kadarı, filo bandı",
+      "place": "Makine sırasındaki yeri",
+      "place_val": "{total} içinde {n}",
+      "place_none": "Makine sırasında değil"
     }
   }
 }

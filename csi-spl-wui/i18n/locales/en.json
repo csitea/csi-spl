@@ -2934,6 +2934,22 @@
       "agents": "Agents",
       "boxes": "Boxes",
       "tokens": "Tokens"
+    },
+    "alloc": {
+      "title": "Allocation",
+      "hint": "Set by the admins in Workspace settings. Read-only here.",
+      "planned": "planned",
+      "edit": "Edit in Workspace settings",
+      "fleet_band": "Fleet band",
+      "band_val": "{low}..{high} % of cores",
+      "band_cpu_val": "{low}..{high} % of cores, runner CPU cap {n} %",
+      "pct_val": "{n} % of cores",
+      "share_val": "{n} of 100",
+      "band_own_val": "{low}..{high} % of cores, this box's own",
+      "band_fleet_val": "{low}..{high} % of cores, the fleet band",
+      "place": "Place in the box order",
+      "place_val": "{n} of {total}",
+      "place_none": "Not in the box order"
     }
   }
 }

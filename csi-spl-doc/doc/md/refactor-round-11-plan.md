@@ -7,8 +7,8 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 nothing queued). Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920.
 
-**Status: v1.0**, folds the mistral seat (`7342fa401`, 10 of 10 agree;
-section 8), for signature (section 9). The rows spawn from the signed v1.0
+**Status: v1.0, SIGNED** (`7dc9ed7e3`; section 9). It folds the mistral
+seat (`7342fa401`, 10 of 10 agree; section 8). The rows spawn from the signed v1.0
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **c-156@sat** (claude).
@@ -190,7 +190,15 @@ has no multilingual text: no agy language review is needed.
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (claude) | c-156@sat | v1.0 (this commit) | this file |
-| mistral seat | m-159@sat | verdict `7342fa401` (10 agree, folded in v1.0); signs v1.0 | `refactor-round-11/seat-mistral.md` |
+| editor (claude) | c-156@sat | v1.0 `7dc9ed7e3` | this file |
+| mistral seat | m-159@sat | verdict `7342fa401` (10 agree, folded in v1.0); **signed v1.0** `4d625434a` (`signed: m-159 on 7dc9ed7e37c26624de9fc71f6b2d119dcf65166d`) | `refactor-round-11/seat-mistral.md` |
 | agy | not a signing seat (section 5); row reviewer when its quota is back | - | - |
 | grok seat | none: no quota (`402`) | - | - |
+
+Signed plan sha: **`7dc9ed7e3`** (v1.0), signed by both seats. The rows
+spawn from it. On record (R7, retro section 2): m-159's spool reply cited
+`eb48795ec6333333333333333333333333333333` as its landed sha, which does
+not resolve (`git rev-parse --verify -q` -> rc 1). The landed sign-off is
+`4d625434a`, and the sha inside it is correct. Whoever reviews round 11 rows
+pastes the sha from `git rev-parse` (section 1); row 04 refuses a sha that
+does not resolve.

@@ -301,7 +301,7 @@ WF70="$APP_ROOT/.github/workflows/70_supply-chain.yml"
 if [[ -f "$WF70" ]]; then
   miss=0
   for needle in 'SEC_SCAN=iac' 'SEC_SCAN=osv' 'osv-scanner_linux_amd64' \
-                'osv-scanner_SHA256SUMS' 'sha256sum -c' 'osv-scanner 2.6.0'; do
+                'echo "$sha  $RUNNER_TEMP/osv-scanner" | sha256sum -c -' 'osv-scanner 2.6.0'; do
     if ! grep -qF "$needle" "$WF70"; then
       fail "70_supply-chain.yml is missing $needle"
       miss=1

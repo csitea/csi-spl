@@ -1,7 +1,8 @@
 # Supply-chain scans (spec 056). GitHub-hosted (ubuntu-latest): the repo is
 # public and these need no box state, so they keep the self-hosted runners free
-# for deploys. Tools are installed in the job and verified against a pinned
-# sha256; a missing tool fails the action -- nothing here skips.
+# for deploys. Tools are installed in the job and verified against a sha256
+# pinned in this file; a missing tool fails the action -- nothing here skips.
+# Gate: csi-spl-iac/src/bash/tests/workflow-70-pinned-checksums.tst.sh.
 #   iac   trivy config (misconfiguration) over the terraform, HIGH,CRITICAL,
 #         findings triaged in .trivyignore.yaml (each justified + reported).
 #   osv   osv-scanner over the Go + WUI lockfiles (dependency-level known vulns,
@@ -44,19 +45,24 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Cached per runner in the tool cache. A miss downloads with retries over
-      # HTTP/1.1 and checks the archive against trivy's published checksums
-      # before it is cached (same as 15_sec-deps-secrets.yml).
+      # HTTP/1.1 and checks the archive against the sha256 PINNED here before
+      # it is cached, never against a checksum file from the same release (a
+      # replaced release would bring its own matching file: security round 1
+      # row 12). A version bump pins the new sha in the same commit; take it
+      # from the release's checksums file AND the asset's GitHub digest
+      # (`gh api repos/aquasecurity/trivy/releases/tags/v<v> --jq .assets[].digest`)
+      # and pin it only when both agree.
       - name: Install trivy 0.74.0
         run: |
           set -euo pipefail
           v=0.74.0; dir="$RUNNER_TOOL_CACHE/trivy/$v"
+          sha=2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
           if [[ ! -x "$dir/trivy" ]]; then
             base="https://github.com/aquasecurity/trivy/releases/download/v$v"
             tgz="trivy_0.74.0_Linux-64bit.tar.gz"
             get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
             get "$base/$tgz" "$RUNNER_TEMP/$tgz"
-            get "$base/trivy_0.74.0_checksums.txt" "$RUNNER_TEMP/trivy-checksums.txt"
-            (cd "$RUNNER_TEMP" && grep " $tgz\$" trivy-checksums.txt | sha256sum -c -)
+            echo "$sha  $RUNNER_TEMP/$tgz" | sha256sum -c -
             mkdir -p "$dir.tmp.$$" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$dir.tmp.$$" trivy
             mkdir -p "$(dirname "$dir")" && mv -T "$dir.tmp.$$" "$dir" 2>/dev/null || rm -rf "$dir.tmp.$$"
           fi
@@ -67,18 +73,20 @@ jobs:
         working-directory: csi-spl-iac
         run: SEC_SCAN=iac ./run -a do_sec_scan
 
-      # osv-scanner: a direct binary verified against the release SHA256SUMS
-      # before it is cached (same fail-closed pattern as trivy above).
+      # osv-scanner: a direct binary verified against the sha256 PINNED here
+      # before it is cached (same fail-closed pattern and bump rule as trivy
+      # above; the release's osv-scanner_SHA256SUMS is a source for the pin,
+      # never the check).
       - name: Install osv-scanner 2.6.0
         run: |
           set -euo pipefail
           v=2.6.0; dir="$RUNNER_TOOL_CACHE/osv-scanner/$v"
+          sha=ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
           if [[ ! -x "$dir/osv-scanner" ]]; then
             base="https://github.com/google/osv-scanner/releases/download/v$v"
             get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
             get "$base/osv-scanner_linux_amd64" "$RUNNER_TEMP/osv-scanner"
-            get "$base/osv-scanner_SHA256SUMS" "$RUNNER_TEMP/osv-SHA256SUMS"
-            (cd "$RUNNER_TEMP" && grep ' osv-scanner_linux_amd64$' osv-SHA256SUMS | sed 's/osv-scanner_linux_amd64/osv-scanner/' | sha256sum -c -)
+            echo "$sha  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
             chmod +x "$RUNNER_TEMP/osv-scanner"
             mkdir -p "$dir.tmp.$$" && mv "$RUNNER_TEMP/osv-scanner" "$dir.tmp.$$/osv-scanner"
             mkdir -p "$(dirname "$dir")" && mv -T "$dir.tmp.$$" "$dir" 2>/dev/null || rm -rf "$dir.tmp.$$"

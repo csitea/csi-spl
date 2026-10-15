@@ -21,6 +21,12 @@
 #          CLI (this box: spool_vendor_clis; another: the cli= of its BOX-0
 #          row) is never picked; no box left -> pick=nokind; no cli= is
 #          unknown and stays in; no BOX_PICK_KIND -> the pick as before.
+#          16. weekly quota (SPL-2035): a box whose BOX_PICK_KIND usage (this
+#          box: its panes' banner; another: the wk= of its BOX-0 row) is at or
+#          over env.box.quota.weekly_max_pct (90) is never picked; every box
+#          over -> pick=hold "waiting: ..."; no reading or a stale row ->
+#          unknown, placed with an INFO line; RED CONTROL: the same loads with
+#          no kind (the pick before SPL-2035) take the box at 96 %.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -65,7 +71,7 @@ stats() {
 run() {
   env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=box-desk LANE_FLEET=main LANE_HUB_CMD="$T/bin/hub" \
     CALLS="$T/calls" TARGET="$T/target.json" STATS="$T/stats.json" BOX_PICK_CNF="$T/cnf.yaml" \
-    LANE_CI_CMD="echo 0" PROJ_PATH=/x/csi-spl-orc APP_PATH=/x "$@" bash -c '
+    LANE_CI_CMD="echo 0" LANE_QUOTA_CMD="echo" PROJ_PATH=/x/csi-spl-orc APP_PATH=/x "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { command -v "$1" >/dev/null; }
@@ -356,6 +362,66 @@ out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $
 clis "box-a:claude:4000"
 out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
 [[ "$(pick "$out")" == box-a ]] && pass "15. a BOX-0 row over an hour old tells nothing: box-a" || fail "15. stale: $out"
+
+# 16. weekly quota. wk BOX:WK:AGE_S ... -> the BOX-0 rows with wk= ("" = none
+# written). box-a is first in order and under its low mark: the old pick.
+wk() {
+  local s b w a rows=""
+  for s in "$@"; do
+    IFS=: read -r b w a <<<"${s//claude:/claude=}"
+    rows+="{\"agent_id\":\"BOX-0\",\"agent_box\":\"$b\",\"state\":\"live\",\"age_s\":$a,\"scope\":\"mem_kb=1 cli=$ALL${w:+ wk=${w//=/:}} live=c-001\"},"
+  done
+  printf '{"fleet":"main","lanes":[%s]}\n' "${rows%,}" >"$T/lanes.json"
+}
+target 50 75 '["box-a","box-b"]'
+stats "box-a:2:8" "box-b:4.4:8"
+wk "box-a:claude:96:60" "box-b:claude:40:60"
+q() { run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" "$@"; }
+out="$(q BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  claude weekly 96% >= 90%: not picked$' <<<"$out" &&
+  grep -q '^BOX box-b .*  claude weekly 40%  <- pick$' <<<"$out" &&
+  pass "16a. box-a at 96 %, box-b at 40 % -> box-b; box-a's line names vendor, usage and threshold" || fail "16a. $out"
+out="$(q)"
+[[ "$(pick "$out")" == box-a ]] &&
+  pass "16d. RED CONTROL the same loads with no kind (the pick before SPL-2035) -> box-a at 96 %" || fail "16d. $out"
+out="$(q BOX_PICK_KIND=grok)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: grok weekly usage unknown' <<<"$out" &&
+  pass "16. CONTROL another vendor's usage: a grok lane still takes box-a" || fail "16. grok: $out"
+wk "box-a:claude:96:60" "box-b:claude:91:60"
+out="$(q BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == hold ]] && grep -q '^pick=hold reason=waiting: claude weekly >= 90% on box-a, box-b: queue the lane' <<<"$out" &&
+  pass "16b. both over -> not placed, pick=hold with the waiting reason" || fail "16b. $out"
+wk "box-a::60" "box-b:claude:40:60"
+out="$(q BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown .*placed anyway$' <<<"$out" &&
+  grep -q '^BOX box-a .*  claude weekly unknown  <- pick$' <<<"$out" &&
+  pass "16c. no reading on box-a -> unknown, not 0: placed, with an INFO line" || fail "16c. $out"
+wk "box-a:claude:96:4000" "box-b:claude:40:60"
+out="$(q BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16c. a BOX-0 row over an hour old -> unknown: placed, logged" || fail "16c. stale: $out"
+wk "box-a::60" "box-b:claude:40:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD="echo grok:10,claude:95" BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-b ]] && pass "16. this box read live (claude:95 from its panes) -> box-b" || fail "16. here: $out"
+wk "box-a:claude:96:60" "box-b:claude:40:60"
+printf '    quota:\n      weekly_max_pct: 97\n' >>"$T/cnf.yaml"
+out="$(q BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-a ]] && pass "16. cnf env.box.quota.weekly_max_pct 97 -> box-a at 96 % is picked" || fail "16. cnf: $out"
+out="$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)"
+[[ "$(pick "$out")" == box-b ]] && pass "16. BOX_QUOTA_WEEKLY_MAX_PCT overrides the cnf" || fail "16. env: $out"
+
+# 16. the reading: the banner as a pane footer shows it (spl_box_quota_parse)
+parse() { bash -c 'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_parse "$@"' _ "$@"; }
+N=$(date -u -d 2026-10-15T19:00:00Z +%s)
+B="You've used 96% of your weekly limit · resets Oct 17, 11am (Europe/Helsinki) · /usage-credits to keep going"
+[[ "$(printf '>\n %40s%s\n' '' "$B" | parse claude "$N")" == 96 ]] && pass "16. claude banner -> 96" || fail "16. banner"
+[[ -z "$(printf '● the pane said %s\n' "$B" | parse claude "$N")" ]] && pass "16. CONTROL a quoted banner mid-line is no reading" || fail "16. quoted"
+[[ -z "$(printf '  %s\n' "${B/Oct 17/Oct 8}" | parse claude "$N")" ]] && pass "16. a reset date in the past -> no reading" || fail "16. stale reset"
+[[ "$(printf "  You've used 86%% of your weekly limit · resets 8pm (Europe/Helsinki)\n" | parse claude "$N")" == 86 ]] &&
+  pass "16. a reset time alone is the next one -> 86" || fail "16. time only"
+[[ "$(printf "  ⎿  You've hit your weekly limit · resets Oct 17, 11am (Europe/Helsinki)\n" | parse claude "$N")" == 100 ]] &&
+  pass "16. hit your weekly limit -> 100" || fail "16. hit"
+[[ "$(printf ' Weekly limit left: 4%%\n' | parse grok "$N")" == 96 ]] && pass "16. grok footer left 4% -> 96" || fail "16. grok"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

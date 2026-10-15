@@ -44,6 +44,8 @@
 #      the other) without it -> exit 13; a load target pick without it is
 #      overruled, pick=nokind is exit 13, the pick is told the kind; a failed remote spawn does not fall back to a box without
 #      it; the BOX-0 row publishes cli= and the map reads it back
+#  14. WEEKLY QUOTA (SPL-2035): the BOX-0 row publishes wk=<kind>:<pct>; a
+#      pick=hold on it is exit 10 with its waiting reason
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -317,5 +319,14 @@ has "13. the BOX-0 row publishes this box's kinds" "--scope mem_kb=4194304 cli=c
 rm -f "$T_TMP/hub.puts"
 SPOOL_VENDOR_CLIS_CMD=false FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
 has "13. CONTROL a probe that cannot measure publishes no cli=" "--scope mem_kb=4194304 live=c-100" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
+
+# 14. weekly quota (SPL-2035): the BOX-0 row publishes this box's wk=; a pick
+# that holds on it is exit 10 with the waiting reason, nothing spawned
+rm -f "$T_TMP/hub.puts"
+LANE_QUOTA_CMD="echo claude:96" SPOOL_VENDOR_CLIS_CMD="$NO_AGY" FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
+has "14. the BOX-0 row publishes this box's weekly usage" "--scope mem_kb=4194304 cli=claude,grok,qwen,mistral wk=claude:96 live=c-100" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
+spawn_k claude SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="echo pick=hold reason=waiting: claude weekly >= 90% on box-a, box-b: queue the lane, spawn nothing"
+check "14. pick=hold on the weekly quota: exit 10, the reason on stderr, no remote request" \
+  bash -c '[ "$1" = 10 ] && [[ "$2" == *"HOLD auto: waiting: claude weekly >= 90% on box-a, box-b"* ]] && [ ! -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
 
 t_done

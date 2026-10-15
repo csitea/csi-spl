@@ -32,7 +32,9 @@
 # @description         <SPAWN_PLACE_WORKDIR> <brief> <slug>`; the new id -> done
 # @description         "placed: <ID>@<box>" and the sender is told; spawn-window's
 # @description         HOLD (exit 10) or a failure -> back in line (a failure
-# @description         also tells the holder)
+# @description         also tells the holder). A HOLD's reason (e.g. "waiting:
+# @description         claude weekly >= 90% on box-a, box-b", SPL-2035) is kept
+# @description         in <asks dir>/.place.wait and do_spl_spawn_queue shows it
 # @description      b. otherwise (no placement, or no brief file here: the brief
 # @description         needs judgement) the holder gets ONE blocker "place ask X
 # @description         now" with the summary and the close command
@@ -214,7 +216,7 @@ spl_spawn_place_brief() {  # SLUG
 # 4a. The existing launcher. The new id closes the ask; HOLD or a failure
 # puts it back in line.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF
-  local holder="$1" id out err rc=0 agent
+  local holder="$1" id out err rc=0 agent why
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
@@ -229,16 +231,28 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF
   agent="$(grep -oE '^[acgmq]-[0-9]{3}(@[a-z0-9][a-z0-9-]{0,31})?( |$)' <<<"$out" | tail -1 | tr -d ' ')"
   if (( rc == 0 )) && [[ -n "$agent" ]]; then
     [[ "$agent" == *@* ]] || agent="$agent@$ASKS_BOX"
+    spl_spawn_place_wait "$id" ""
     spl_spawn_placed_close "$id" "$holder" "$agent"
     return 0
   fi
   spl_spawn_q_op queue "$id" "$holder" >/dev/null
   if (( rc == 10 )); then
-    do_log "INFO ask ${id:0:8}: the launcher says HOLD (every box is past its load mark): back in line at position 1"
+    why="$(sed -n 's/^spawn-window: HOLD [^:]*: //p' <<<"$out" | tail -1 | sed 's/: queue the lane, spawn nothing.*$//; s/\. Queue it; nothing was spawned\.$//')"
+    spl_spawn_place_wait "$id" "${why:-every box is past its load mark}"
+    do_log "INFO ask ${id:0:8}: the launcher says HOLD (${why:-every box is past its load mark}): back in line at position 1"
     return 0
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"
   spl_spawn_q_send "$holder" "$holder" blocker spawn-queue "**SPAWN QUEUE: the launch of ask ${id:0:8} ($3:$4) failed** (spawn-window exit $rc); it is back at position 1 and the placer retries it in ${SPAWN_PLACE_GAP_MIN:-10} min. Last lines: $(tail -3 <<<"$out" | tr '\n' ' ' | cut -c1-400)" || true
+}
+
+# Why ASK_ID waits, kept for the queue view: one "<ask_id>\t<epoch>\t<why>"
+# line per ask in <asks dir>/.place.wait; WHY "" drops the ask's line.
+spl_spawn_place_wait() {  # ASK_ID WHY
+  local f tmp
+  f="$(spool_asks_dir)/.place.wait"; tmp="$f.$$"
+  { grep -v "^$1"$'\t' "$f" 2>/dev/null; [[ -z "$2" ]] || printf '%s\t%s\t%s\n' "$1" "$(date +%s)" "$2"; } >"$tmp"
+  mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"
 }
 
 # 4b. The brief needs the orchestrator: one blocker to the holder.

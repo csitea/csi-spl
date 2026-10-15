@@ -137,6 +137,7 @@ cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >>"$LAUNCH_LOG"
 echo "spawn-window: c-001 asked for $2" >&2
+[ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
 echo "${LAUNCH_ID:-c-281} %42"
 STUB
@@ -278,15 +279,18 @@ on pc do_spl_spawn_placed ASK_ID="${A2:0:8}" PLACED_AS=x >/dev/null 2>&1 && fail
 
 # 7. the launcher's HOLD --------------------------------------------------------------
 HUB_DIR="$T/hub" "$T/bin/hub" ask queue --fleet main --id "$A4" --by c-001@box-desk --placement claude:hub-pg-split >/dev/null
-out="$(on pc do_spl_spawn_place LAUNCH_RC=10 2>&1)"
+out="$(on pc do_spl_spawn_place LAUNCH_RC=10 "LAUNCH_ERR=spawn-window: HOLD auto: waiting: claude weekly >= 90% on box-a, box-b: queue the lane, spawn nothing. Queue it; nothing was spawned." 2>&1)"
 r4="$(listrow "$A4")"
-[[ "$(jq -r .state <<<"$r4")" == queued && "$(jq -r .position <<<"$r4")" == 1 ]] && grep -q "launcher says HOLD" <<<"$out" &&
-  pass "spawn-window HOLD (exit 10): back in line at position 1" || fail "launcher hold: $out | $r4"
+[[ "$(jq -r .state <<<"$r4")" == queued && "$(jq -r .position <<<"$r4")" == 1 ]] &&
+  grep -q "launcher says HOLD (waiting: claude weekly >= 90% on box-a, box-b): back in line" <<<"$out" &&
+  pass "spawn-window HOLD (exit 10): back in line at position 1, its reason logged" || fail "launcher hold: $out | $r4"
 
 # 8. the queue view --------------------------------------------------------------------
 out="$(on pc do_spl_spawn_queue 2>&1)"
 grep -qE "^1/1 +bug +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST perf5" <<<"$out" &&
   pass "do_spl_spawn_queue: POS, CLASS, ask, sender, placement and summary" || fail "queue view: $out"
+grep -qE "^WAIT ${A4:0:8} waiting: claude weekly >= 90% on box-a, box-b \(held 0m ago\)$" <<<"$out" &&
+  pass "do_spl_spawn_queue: the held ask shows why it waits (SPL-2035)" || fail "queue wait: $out"
 [[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json 2>/dev/null | jq -r '.queue[0].position')" == 1 ]] &&
   pass "do_spl_spawn_queue json" || fail "queue json"
 

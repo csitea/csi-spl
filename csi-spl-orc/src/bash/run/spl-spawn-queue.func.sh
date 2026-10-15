@@ -15,7 +15,10 @@
 # @description "+bypass" when flagged), the ask, the sender, its age, how long
 # @description it has been in line, the placement and the summary; then one
 # @description line with the live share per class against the bands
-# @description (do_spl_spawn_share; the rule: fleet-rules-index.md).
+# @description (do_spl_spawn_share; the rule: fleet-rules-index.md). A queued
+# @description ask the launcher held gets one WAIT line with its reason
+# @description (do_spl_spawn_place's .place.wait, e.g. "waiting: claude weekly
+# @description >= 90% on box-a, box-b", SPL-2035).
 # @description The order is the hub's (class, then time in line); the placer
 # @description may take a lower row to keep the bands (do_spl_spawn_place).
 # @param SPAWN_QUEUE_FORMAT (optional) - table (default) or json
@@ -43,12 +46,25 @@ do_spl_spawn_queue() {
              ((.class // "" | if . == "" then "?" else . end) + (if (.flag // "") != "" then "+" + .flag else "" end)), .ask_id[0:8], .from,
              (.age_s | dur), (.wait_s | dur), (.placement // "" | if . == "" then "-" else . end),
              (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t' -c 1000
+  spl_spawn_q_waits "$rows"
   do_log "INFO $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing (fleet $LANE_FLEET)"
   if [[ "${SPAWN_QUEUE_SHARE:-1}" != 0 ]]; then
     if share="$(spl_spawn_share)"; then do_log "INFO $(spl_spawn_share_line "$share")"
     else do_log "WARN the live share could not be read (hub or lane map)"
     fi
   fi
+}
+
+# One "WAIT <ask8> <why> (held Nm ago)" line per queued ask in ROWS with a
+# reason in <asks dir>/.place.wait (spl_spawn_place_wait).
+spl_spawn_q_waits() {  # ROWS
+  local id at why now
+  now="$(date +%s)"
+  while IFS=$'\t' read -r id at why; do
+    [[ "$at" =~ ^[0-9]+$ ]] && jq -e --arg id "$id" 'any(.[]; .ask_id == $id and .state == "queued")' >/dev/null <<<"$1" || continue
+    echo "WAIT ${id:0:8} $why (held $(( (now - at) / 60 ))m ago)"
+  done <"$(spool_asks_dir)/.place.wait" 2>/dev/null
+  return 0
 }
 
 # The asks settings (spl_asks_init) and a hub: the queue has no journal-only

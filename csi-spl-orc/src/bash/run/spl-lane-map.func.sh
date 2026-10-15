@@ -219,29 +219,35 @@ spl_lane_table_recent() {
 }
 
 # The reserved id of a box's LOAD row in the lane map: one row per box,
-# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] live=<id>,...`: the agents
+# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>,...] live=<id>,...`: the agents
 # with a live tmux pane on that box and its free memory, as that box itself
 # read them. The hub stores it like any lane (no field of its own, no hub
 # change); this action writes it (spl_lane_box_report) and the map never
 # shows it as a lane. A legacy-grammar id no agent can hold.
 LANE_BOX_ROW_ID=BOX-0
 
+# LANE_TM: the tmux command on the box user's socket, hopping to that user
+# when this is someone else (the panes live there).
+spl_lane_tm() {
+  local user sock
+  user="${SPOOL_BOX_USER:-$(stat -c %U "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)}"
+  case "$user" in ''|root|UNKNOWN) user="$(id -un)" ;; esac
+  sock="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$user" 2>/dev/null || id -u)/default}"
+  LANE_TM=(tmux -u -S "$sock")
+  [[ "$(id -un)" == "$user" ]] || LANE_TM=(sudo -n -u "$user" tmux -u -S "$sock")
+}
+
 # The agent ids with a live pane on THIS box, as a JSON array, from the tmux
 # window names (the id is their first token, as the 40-window ceiling counts
 # them; spool_id_of_window); dead panes do not count. null when tmux cannot
 # be read (no server): the load then falls back to the rows.
 spl_lane_live_here() {
-  local out user sock dead name id
-  local -a tm
+  local out dead name id
   if [[ -n "${LANE_PANES_CMD:-}" ]]; then
     out="$($LANE_PANES_CMD 2>/dev/null)" || { echo null; return 0; }
   else
-    user="${SPOOL_BOX_USER:-$(stat -c %U "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)}"
-    case "$user" in ''|root|UNKNOWN) user="$(id -un)" ;; esac
-    sock="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$user" 2>/dev/null || id -u)/default}"
-    tm=(tmux -u -S "$sock")
-    [[ "$(id -un)" == "$user" ]] || tm=(sudo -n -u "$user" tmux -u -S "$sock")
-    out="$(timeout 10 "${tm[@]}" list-panes -a -F '#{pane_dead} #{window_name}' 2>/dev/null)" || { echo null; return 0; }
+    spl_lane_tm
+    out="$(timeout 10 "${LANE_TM[@]}" list-panes -a -F '#{pane_dead} #{window_name}' 2>/dev/null)" || { echo null; return 0; }
   fi
   declare -F spool_id_of_window_var >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   while read -r dead name; do
@@ -325,24 +331,30 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
 }
 
 # Publish THIS box's load as its BOX-0 row, so the other boxes read real
-# activity, free memory and its active CI runner jobs (ci=<N>,
-# lib/bash/funcs/spl-box-ci.func.sh) here. Only in a fleet, with the hub
+# activity, free memory, its active CI runner jobs (ci=<N>,
+# lib/bash/funcs/spl-box-ci.func.sh) and its vendors' weekly usage (wk=,
+# lib/bash/funcs/spl-box-quota.func.sh) here. Only in a fleet, with the hub
 # answering and the panes read; at most once per LANE_BOX_ROW_S (300 s), but at
 # once when the CI job count changed. Best effort: a refusal is one line on
 # stderr, never the map's exit code.
 spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
-  local age was ci scope out id
+  local age was ci scope out id wk
   ci="$(spl_box_ci_jobs)"
   read -r age was < <(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
     '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live")] | min_by(.age_s)
      | if . == null then "-1 -" else "\(.age_s) \((.scope // "") | [capture("(^| )ci=(?<n>[0-9]+)")][0].n // "0")" end' <<<"$1")
   [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" ]] && return 0
-  # ci=<N> only while N > 0, and cli=<kinds> ("-" none, left out when
-  # unknown), before live=: the cut below never drops them
-  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" \
+  declare -F spl_box_quota_here >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-quota.func.sh"
+  wk="$(spl_box_quota_here)"
+  # ci=<N> only while N > 0, cli=<kinds> ("-" none, left out when unknown)
+  # and wk=<kind>:<pct>,... (left out when no pane shows one), before live=:
+  # the cut below never drops them
+  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" \
     '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end)\(
-      if .clis == null then "" elif (.clis | length) == 0 then " cli=-" else " cli=\(.clis | join(","))" end) live=\($ids | join(","))"' <<<"$3")"
+      if .clis == null then "" elif (.clis | length) == 0 then " cli=-" else " cli=\(.clis | join(","))" end)\(
+      if $wk == "" then "" else " wk=\($wk)" end) live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
   # whole ids only: a cut one could name a shorter id that is not clean
   for id in $(spl_lane_clean_here "$1" "$2"); do

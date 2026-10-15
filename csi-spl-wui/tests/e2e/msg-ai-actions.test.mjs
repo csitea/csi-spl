@@ -145,7 +145,7 @@ async function closeMenu(p) {
 }
 
 async function openTopic(p) {
-  await p.goto(`${srv.base}/channel/alerts?topic=${TASK}`, { waitUntil: 'networkidle2' })
+  await p.goto(`${srv.base}/channel/alerts?topic=${TASK}`, { waitUntil: 'domcontentloaded' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   return p.waitForSelector(card(HUMAN), { visible: true, timeout: 15000 }).then(() => true, () => false)
 }
@@ -170,7 +170,7 @@ const hasGroup = (ids) => Array.isArray(ids) && JSON.stringify(ids.slice(-7)) ==
 const noAi = (ids) => Array.isArray(ids) && ids.length > 0 && !ids.some((id) => id.startsWith('ai-'))
 
 async function go(p, path, sel) {
-  await p.goto(srv.base + path, { waitUntil: 'networkidle2' })
+  await p.goto(srv.base + path, { waitUntil: 'domcontentloaded' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   return sel ? p.waitForSelector(sel, { visible: true, timeout: 15000 }).then(() => true, () => false) : true
 }
@@ -204,7 +204,7 @@ try {
     } catch { /* private mode */ }
   }, EXTRA)
   await p.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
-  await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
+  await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'domcontentloaded' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await sleep(600)
   await p.evaluate(() => { try { localStorage.removeItem('spool.mock.calendar-added') } catch { /* */ } })

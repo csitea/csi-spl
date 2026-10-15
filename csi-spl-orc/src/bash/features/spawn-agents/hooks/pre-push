@@ -67,6 +67,27 @@ while read -r _ _pp_lsha _pp_rref _pp_rsha; do
   echo "pre-push: REFUSED -- non-fast-forward push to $_pp_b (${_pp_why% }). Fetch, rebase onto origin/$_pp_b, push again; never --force. SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
   exit 1
 done <<<"$_pp_refs"
+
+# R7 review line on round rows (r11-05) -- also before every override branch:
+# a hand `git push` must not skip the check do_spl_push_master runs. The ONE
+# copy of it is _spl_push_master_unreviewed in the pushing tree's
+# spl-push-master.func.sh, sourced here; a tree without it is not asked. Only
+# the commits this push adds to master are read (remote sha..local sha).
+_pp_rl="$(git rev-parse --show-toplevel 2>/dev/null)/csi-spl-orc/src/bash/run/spl-push-master.func.sh"
+if [ -r "$_pp_rl" ]; then
+  # shellcheck source=/dev/null
+  . "$_pp_rl"
+  while read -r _ _pp_lsha _pp_rref _pp_rsha; do
+    case "${_pp_rref:-}" in refs/heads/master|refs/heads/main) ;; *) continue ;; esac
+    if _pp_zero "$_pp_lsha" || _pp_zero "$_pp_rsha"; then continue; fi
+    _pp_bad="$(_spl_push_master_unreviewed "$_pp_rsha..$_pp_lsha" "${1:-origin}")"
+    [ -n "$_pp_bad" ] || continue
+    _pp_logline "REFUSE $PWD remote=${1:-?} $_pp_rref override=$_pp_override -- round row $(head -n 1 <<<"$_pp_bad")"
+    echo "pre-push: REFUSED -- a round row commit has no valid R7 review line (rounds-rulebook.md 2.7.4); SPL_PREPUSH_OVERRIDE=1 does not skip this:" >&2
+    echo "$_pp_bad" >&2
+    exit 1
+  done <<<"$_pp_refs"
+fi
 # The git env a hook inherits (GIT_DIR, GIT_INDEX_FILE, ...) is scrubbed before
 # the gate runs: its tests create commits and set config in THROWAWAY repos,
 # and an inherited GIT_DIR made those land on the pushing branch and the shared

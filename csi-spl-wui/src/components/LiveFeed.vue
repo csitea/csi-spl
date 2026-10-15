@@ -98,6 +98,7 @@
           :move-ctx="paneMoveCtx"
           :last-msg-id="paneLatestId || undefined"
           :pane-opener="paneOpener"
+          :awaiting="awaitingOf(it.msg)"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -172,6 +173,7 @@ import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { isTopicCard, latestMessageId } from '~/utils/topic-archive.mjs'
 import { paneOpenerId } from '~/utils/move.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
+import { useThreadAwait, type AwaitMark } from '~/composables/useAwaitReply'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -242,6 +244,9 @@ const props = defineProps<{
       its current holder (view-v1 §4.1 boxes[].seated_at). The "new holder
       since" divider goes before that holder's first message. '' = none. */
   seatedAt?: string
+  /** SPL-1994: a list of topic rows (/channel, /dm) marks a row whose topic
+      waits for an agent's answer; a thread (clipPane "thread") marks the post. */
+  awaitFor?: (taskId: string) => AwaitMark
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -251,6 +256,14 @@ const people = useHumanNames()
 const { mode: clipMode } = useCardClip(props.clipPane)
 function countedRow(msg: SpoolMessage) {
   return !props.countMsgId || msg.msg_id === props.countMsgId
+}
+/* SPL-1994: the hourglass - a thread marks its waiting post, a topic list
+   asks its host per row */
+const threadAwait = useThreadAwait(() => props.rows, () => props.clipPane === 'thread' && !props.awaitFor)
+function awaitingOf(msg: SpoolMessage): AwaitMark {
+  if (msg.pending) return null
+  if (props.awaitFor) return countedRow(msg) ? props.awaitFor(String(msg.task_id || '')) : null
+  return threadAwait(msg)
 }
 function clipModeFor() {
   return props.clip ? clipMode.value : undefined

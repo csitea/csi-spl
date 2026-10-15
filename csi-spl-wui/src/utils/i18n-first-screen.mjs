@@ -43,6 +43,9 @@ export const ON_DEMAND_COMPONENTS = {
   // SPL-1839: every other screen's plain error sentence + Try again, and the
   // snackbar row; it says the core "Something went wrong" until merged
   "components/PlainErrorNotice.vue": "idle",
+  // SPL-1994: the hourglass on a post waiting for an agent; it renders once
+  // te('await_reply.spin') holds, so first paint is unchanged
+  "components/AwaitReply.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

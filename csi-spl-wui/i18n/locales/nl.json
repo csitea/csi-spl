@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Ontvangen — wacht op antwoord van een agent",
+    "wait": "Wacht op antwoord"
+  },
   "feed": {
     "unknown_author": "onbekend",
     "card_aria": "{who}, {kind}",

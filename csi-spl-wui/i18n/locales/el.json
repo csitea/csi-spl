@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Ελήφθη — αναμονή για απάντηση από πράκτορα",
+    "wait": "Αναμονή απάντησης"
+  },
   "feed": {
     "unknown_author": "άγνωστος",
     "card_aria": "{who}, {kind}",

@@ -652,6 +652,9 @@ export default defineNuxtConfig({
       repoCloneUrl: process.env.NUXT_PUBLIC_REPO_CLONE_URL || "",
       repoCommitPath: process.env.NUXT_PUBLIC_REPO_COMMIT_PATH || "",
       repoHelpPath: process.env.NUXT_PUBLIC_REPO_HELP_PATH || "",
+      // SPL-1994: cnf env.wui.await_reply_minutes via /config.json (wf 30):
+      // the hourglass spins this long, then turns into a calm "waiting" mark
+      awaitReplyMinutes: process.env.NUXT_PUBLIC_AWAIT_REPLY_MINUTES || "10",
       useMock: wuiUseMock(),
       appVersion: wuiAppVersion(),
       // SPL-1006: the commit this bundle was built from, so an open tab can

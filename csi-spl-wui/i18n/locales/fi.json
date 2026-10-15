@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Vastaanotettu — odotetaan agentin vastausta",
+    "wait": "Odottaa vastausta"
+  },
   "feed": {
     "unknown_author": "tuntematon",
     "card_aria": "{who}, {kind}",

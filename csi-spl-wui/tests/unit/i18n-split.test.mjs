@@ -88,7 +88,9 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue'])
+    /* SPL-1994: the hourglass renders only once its strings are merged */
+    assert.match(read('src/components/AwaitReply.vue'), /const ready = computed\(\(\) => te\('await_reply\.spin'\)\)/)
     /* SPL-1839: every other screen's plain error says the core "Something went wrong" until its strings are merged */
     assert.match(read('src/components/PlainErrorNotice.vue'), /te\('plain_err\.retry'\) \? t\(`plain_err\.\$\{kind\.value\}`\) : t\('error\.title_other'\)/)
     /* SPL-1833: a failed search's notice says the core "Something went wrong" until its own strings are merged */

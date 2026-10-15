@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Odebrano — czeka na odpowiedź agenta",
+    "wait": "Czeka na odpowiedź"
+  },
   "feed": {
     "unknown_author": "nieznany",
     "card_aria": "{who}, {kind}",

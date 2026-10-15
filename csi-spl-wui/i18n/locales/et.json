@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Kätte saadud — ootab agendi vastust",
+    "wait": "Ootab vastust"
+  },
   "feed": {
     "unknown_author": "tundmatu",
     "card_aria": "{who}, {kind}",

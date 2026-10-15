@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Saņemts — gaida aģenta atbildi",
+    "wait": "Gaida atbildi"
+  },
   "feed": {
     "unknown_author": "nezināms",
     "card_aria": "{who}, {kind}",

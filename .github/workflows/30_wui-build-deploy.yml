@@ -250,6 +250,8 @@ jobs:
           wui = e.get("wui", {})
           for k in ("repo_web_url", "repo_clone_url", "repo_commit_path", "repo_help_path"):
               print(k + "=" + str(wui.get(k) or "").strip())
+          # SPL-1994: the hourglass minutes ("" = the WUI default, 10)
+          print("await_reply_minutes=" + str(wui.get("await_reply_minutes") or "").strip())
           # spec 116 T7: "1" = the public pages are indexable (prd only)
           print("seo_index=" + ("1" if wui.get("seo_index") else "0"))
           PY
@@ -424,6 +426,7 @@ jobs:
           REPO_CLONE_URL: ${{ steps.cfg.outputs.repo_clone_url }}
           REPO_COMMIT_PATH: ${{ steps.cfg.outputs.repo_commit_path }}
           REPO_HELP_PATH: ${{ steps.cfg.outputs.repo_help_path }}
+          AWAIT_REPLY_MINUTES: ${{ steps.cfg.outputs.await_reply_minutes }}
         run: |
           set -euo pipefail
           python3 - > .output/public/config.json <<'PY'
@@ -436,6 +439,7 @@ jobs:
               "perfSampleRate": os.environ["PERF_SAMPLE_RATE"],
               "repoWebUrl": os.environ["REPO_WEB_URL"], "repoCloneUrl": os.environ["REPO_CLONE_URL"],
               "repoCommitPath": os.environ["REPO_COMMIT_PATH"], "repoHelpPath": os.environ["REPO_HELP_PATH"],
+              "awaitReplyMinutes": os.environ["AWAIT_REPLY_MINUTES"] or "10",
           }))
           PY
           cat .output/public/config.json

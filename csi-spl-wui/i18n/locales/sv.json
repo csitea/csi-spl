@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Mottaget — väntar på svar från en agent",
+    "wait": "Väntar på svar"
+  },
   "feed": {
     "unknown_author": "okänd",
     "card_aria": "{who}, {kind}",

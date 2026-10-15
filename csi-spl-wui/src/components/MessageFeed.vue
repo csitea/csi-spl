@@ -25,6 +25,7 @@
       :last-live="channel.lastLive"
       :count-for="channel.repliesFor"
       :unread-for="channel.unreadFor"
+      :await-for="awaitFor"
       :unread-boundary="boundary"
       :seated-at="seatedAt"
       always-topic
@@ -48,6 +49,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useViewPrefs } from '~/composables/useViewPrefs'
+import { useChannelAwait } from '~/composables/useAwaitReply'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMove } from '~/composables/useMove'
 import { isPromoteDropTarget, moveBlocked } from '~/utils/move.mjs'
@@ -61,6 +63,8 @@ import type { SpoolMessage } from '~/types/spool'
 defineProps<{ label: string, boundary?: { ts: string, id: string } | null, seatedAt?: string }>()
 const channel = useChannelStore()
 const topic = useTopicStore()
+/* SPL-1994: a topic row waits (hourglass) while its topic does */
+const awaitFor = useChannelAwait()
 
 /* 8f588edd: promote-by-drag is offered only on a real channel (not a DM,
    lobby or issues), and the background lights up only while a reply is being

@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Alındı — bir ajanın yanıtı bekleniyor",
+    "wait": "Yanıt bekleniyor"
+  },
   "feed": {
     "unknown_author": "bilinmiyor",
     "card_aria": "{who}, {kind}",

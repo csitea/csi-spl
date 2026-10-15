@@ -1,0 +1,131 @@
+// SPL-1994 (owner HUM-10, t1 72898ea2): the hourglass on a person's post the
+// hub has received, until an agent answers in that topic (src/utils/await-reply.mjs).
+// Run: node tests/unit/await-reply.test.mjs
+import { describe, it } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  AWAIT_ANIMATIONS, AWAIT_SHOW_MAX_MS, DEFAULT_AWAIT_ANIM, awaitAnimation, awaitSpinMs, awaitState,
+  isAgentPost, isPersonPost, nextAwaitChange,
+} from '../../src/utils/await-reply.mjs'
+
+const T0 = Date.parse('2026-10-15T12:00:00Z')
+const MIN = 60 * 1000
+const at = (ms) => new Date(ms).toISOString()
+const row = (id, from, ms, extra = {}) => ({ msg_id: id, task_id: 'task-1', from, ts: at(ms), received_at: at(ms), to: '@channel', ...extra })
+const opts = (now, extra = {}) => ({ now, spinMs: 10 * MIN, ...extra })
+
+describe('awaitState', () => {
+  it('a received person post after an agent line spins, on that post', () => {
+    const rows = [row('a1', 'c-001', T0 - 5 * MIN), row('h1', 'HUM-10', T0)]
+    const s = awaitState(rows, opts(T0 + 1000))
+    assert.equal(s?.state, 'spin')
+    assert.equal(s?.msgId, 'h1')
+    assert.equal(s?.taskId, 'task-1')
+    assert.equal(s?.until, T0 + 10 * MIN)
+  })
+
+  it('the first agent post after it ends the wait', () => {
+    const rows = [row('a1', 'c-001', T0 - 5 * MIN), row('h1', 'HUM-10', T0), row('a2', 'm-183', T0 + 30 * 1000)]
+    assert.equal(awaitState(rows, opts(T0 + MIN)), null)
+  })
+
+  it('a pending post (the hub has not got it) shows nothing yet', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0, { pending: true })]
+    assert.equal(awaitState(rows, opts(T0)), null)
+  })
+
+  it('a newer pending post hides an older received one (it says "Sending" instead)', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('h2', 'HUM-10', T0 + 5000, { pending: true })]
+    assert.equal(awaitState(rows, opts(T0 + 6000)), null)
+  })
+
+  it('the newest of several person posts carries it', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0), row('h2', 'HUM-24', T0 + 2000)]
+    assert.equal(awaitState(rows, opts(T0 + 3000))?.msgId, 'h2')
+  })
+
+  it('order of rows does not matter (newest-first feeds)', () => {
+    const rows = [row('h1', 'HUM-10', T0), row('a1', 'c-001', T0 - MIN)]
+    assert.equal(awaitState(rows, opts(T0))?.msgId, 'h1')
+  })
+
+  it('no agent in the topic: calm wait, never spin', () => {
+    const rows = [row('h1', 'HUM-10', T0)]
+    assert.equal(awaitState(rows, opts(T0 + 1000))?.state, 'wait')
+  })
+
+  it('a post addressed to an agent, or a channel with agents, spins', () => {
+    assert.equal(awaitState([row('h1', 'HUM-10', T0, { to: 'c-001' })], opts(T0))?.state, 'spin')
+    assert.equal(awaitState([row('h1', 'HUM-10', T0)], opts(T0, { agents: true }))?.state, 'spin')
+  })
+
+  it('after the cnf minutes the spin turns into a calm wait', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0)]
+    assert.equal(awaitState(rows, opts(T0 + 10 * MIN - 1))?.state, 'spin')
+    const s = awaitState(rows, opts(T0 + 10 * MIN))
+    assert.equal(s?.state, 'wait')
+    assert.equal(s?.until, T0 + AWAIT_SHOW_MAX_MS)
+  })
+
+  it('a day-old unanswered post is history: nothing', () => {
+    const rows = [row('a1', 'c-001', T0 - MIN), row('h1', 'HUM-10', T0)]
+    assert.equal(awaitState(rows, opts(T0 + AWAIT_SHOW_MAX_MS)), null)
+  })
+
+  it('CONTROL: a topic whose last word is an agent shows nothing', () => {
+    const rows = [row('h1', 'HUM-10', T0 - MIN), row('a1', 'c-001', T0)]
+    assert.equal(awaitState(rows, opts(T0 + 1000)), null)
+  })
+
+  it('a topic-list stand-in row is not a post', () => {
+    assert.equal(awaitState([{ ...row('t1', 'HUM-10', T0), topic_row: true }], opts(T0)), null)
+  })
+
+  it('an agent line a person typed at its terminal is the person\'s', () => {
+    const typed = row('h1', 'c-001', T0, { typed_by: 'HUM-10' })
+    assert.equal(isPersonPost(typed), true)
+    assert.equal(isAgentPost(typed), false)
+    assert.equal(awaitState([row('a1', 'c-001', T0 - MIN), typed], opts(T0))?.msgId, 'h1')
+  })
+
+  it('a browser box or guest is no agent; a legacy id is one', () => {
+    assert.equal(isAgentPost(row('x', 'BOX-1', T0)), false)
+    assert.equal(isAgentPost(row('x', 'GST-3', T0)), false)
+    assert.equal(isPersonPost(row('x', 'GST-3', T0)), true)
+    assert.equal(isAgentPost(row('x', 'CLE-77952', T0)), true)
+  })
+})
+
+describe('awaitSpinMs (cnf env.wui.await_reply_minutes)', () => {
+  it('reads minutes, falls back to 10', () => {
+    assert.equal(awaitSpinMs('3'), 3 * MIN)
+    assert.equal(awaitSpinMs('0.5'), 30 * 1000)
+    for (const bad of ['', '0', '-2', 'ten', undefined, null]) assert.equal(awaitSpinMs(bad), 10 * MIN, String(bad))
+  })
+})
+
+describe('nextAwaitChange', () => {
+  it('the soonest change, Infinity for none', () => {
+    assert.equal(nextAwaitChange([null, { until: 5 }, { until: 3 }]), 3)
+    assert.equal(nextAwaitChange([]), Infinity)
+  })
+})
+
+describe('the animation seam', () => {
+  it('the hourglass is the default, a CSS animation by class', () => {
+    assert.equal(DEFAULT_AWAIT_ANIM, 'hourglass')
+    assert.deepEqual(awaitAnimation(''), { id: 'hourglass', kind: 'css', className: 'await-anim--hourglass' })
+    assert.equal(awaitAnimation('no-such').id, 'hourglass')
+    assert.equal(awaitAnimation('hourglass').kind, 'css')
+  })
+
+  it('every entry is a css class or a clip with a src and a media type', () => {
+    for (const [id, a] of Object.entries(AWAIT_ANIMATIONS)) {
+      if (a.kind === 'css') assert.match(a.className, /^await-anim--[a-z0-9-]+$/, id)
+      else {
+        assert.equal(a.kind, 'clip', id)
+        assert.ok(a.src && /^(image\/webp|video\/)/.test(a.type), id)
+      }
+    }
+  })
+})

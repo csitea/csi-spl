@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "התקבל — ממתין לתשובה מסוכן",
+    "wait": "ממתין לתשובה"
+  },
   "feed": {
     "unknown_author": "לא ידוע",
     "card_aria": "{who}, {kind}",

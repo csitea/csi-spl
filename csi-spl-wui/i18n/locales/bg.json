@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Получено — чака се отговор от агент",
+    "wait": "Чака отговор"
+  },
   "feed": {
     "unknown_author": "неизвестен",
     "card_aria": "{who}, {kind}",

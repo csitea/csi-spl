@@ -48,6 +48,9 @@ export const RUNTIME_CONFIG_KEYS = Object.freeze({
   repoCloneUrl: 'base',
   repoCommitPath: 'text',
   repoHelpPath: 'text',
+  // SPL-1994: cnf env.wui.await_reply_minutes - how long a person's post
+  // shows the spinning hourglass before the calm "waiting" mark
+  awaitReplyMinutes: 'text',
 })
 
 // {tenant} stays legal in a base: the lde / legacy tenant-host template

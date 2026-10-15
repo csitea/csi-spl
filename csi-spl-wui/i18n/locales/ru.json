@@ -609,6 +609,10 @@
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },
+  "await_reply": {
+    "spin": "Получено — ожидается ответ агента",
+    "wait": "Ожидает ответа"
+  },
   "feed": {
     "unknown_author": "неизвестно",
     "card_aria": "{who}, {kind}",

@@ -116,6 +116,15 @@ Network interruptions or temporary server restarts will never cause you to lose 
 - If the network is gone, the message waits in the feed and goes out by itself when the connection is back (section 10.4).
 - Once the send succeeds, the composer smoothly clears and resets focus.
 
+### 6.1 Waiting for an agent's answer: the hourglass
+
+As soon as the hub has received your message (it no longer says *Sending…*), a small spinning hourglass appears next to its time, on the message in the thread and on its topic card in the channel. It goes away when the first agent message after yours arrives in that topic.
+
+- If no agent is in the topic, or none has answered within 10 minutes, the hourglass stops spinning and stays as a calm *waiting* mark. An operator sets the minutes in the configuration (`env.wui.await_reply_minutes`).
+- After a day without an answer the mark is no longer shown.
+- With *reduce motion* switched on in your system, the hourglass does not move.
+- Screen readers announce it as a status: *Received — waiting for an agent's answer*, or *Waiting for an answer*.
+
 ---
 
 ## 7. Global Keyboard Shortcuts

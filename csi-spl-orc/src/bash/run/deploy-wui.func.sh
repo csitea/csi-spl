@@ -101,6 +101,7 @@ print("lobby_task_id=" + str(e.get("hub", {}).get("env", {}).get("SPOOL_HUB_LOBB
 wui = e.get("wui", {})
 for k in ("repo_web_url", "repo_clone_url", "repo_commit_path", "repo_help_path"):
     print(k + "=" + str(wui.get(k) or "").strip())
+print("await_reply_minutes=" + str(wui.get("await_reply_minutes") or "").strip())
 print("seo_index=" + ("1" if wui.get("seo_index") else "0"))
 PY
 }
@@ -121,7 +122,7 @@ _deploy_wui_stamp() {
   local w="$1" c="$2" sha="$3" v="$4" k
   local -a kv=()
   for k in api_fqdn auth_base fqdn tenant tenant_hosts lobby_task_id perf_rum_enabled perf_sample_rate \
-           repo_web_url repo_clone_url repo_commit_path repo_help_path; do
+           repo_web_url repo_clone_url repo_commit_path repo_help_path await_reply_minutes; do
     kv+=("CFG_${k^^}=$(_deploy_wui_val "$c" "$k")")
   done
   env "${kv[@]}" ENV_NAME="$ENV" python3 - >"$w/.output/public/config.json" <<'PY' || return 1
@@ -135,6 +136,7 @@ print(json.dumps({
     "perfSampleRate": g("PERF_SAMPLE_RATE"),
     "repoWebUrl": g("REPO_WEB_URL"), "repoCloneUrl": g("REPO_CLONE_URL"),
     "repoCommitPath": g("REPO_COMMIT_PATH"), "repoHelpPath": g("REPO_HELP_PATH"),
+    "awaitReplyMinutes": g("AWAIT_REPLY_MINUTES") or "10",
 }))
 PY
   printf '{"commit":"%s","built_at":"%s","run":"%s","version":"%s"}\n' \

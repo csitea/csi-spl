@@ -171,7 +171,17 @@ cd <CHECKOUT>/csi-spl-orc && ENV=dev STEP=000-gcp-remote-bucket make do-tf-plan
 
 ## 5.3 Apply one step
 
-The owner's approval is required for this call. `make do-provision` runs `do_check_container_dns`, then for step 030 `do_check_hub_image_regress`, then `do_provision` in the tf-runner. `grep -c '^do-provision:' csi-spl-orc/src/make/tf-tasks.func.mk` -> 1. `grep -c '^do_provision()' csi-spl-iac/src/bash/run/provision.func.sh` -> 1.
+**Dev first, always. Prd only repeats what dev already did** (owner rule 2026-10-15, t1 topic 36247645). Dev is always in sync with prd, or newer. Every change to the infrastructure goes in this order, one step at a time:
+
+1. Plan the step on dev (`ENV=dev`, 5.2) and read the plan.
+2. Apply it on dev (`ENV=dev`, the command below), with the owner's approval.
+3. Prove it works on dev: a fresh dev plan shows `No changes`, and the service the step touches answers (for the hub, `/version` on dev; for the WUI, `build.json`).
+4. Plan the same step on prd, from the same commit. That plan must show the same changes as the dev plan, and nothing more. If it shows anything else, stop and find out why before you apply.
+5. Apply it on prd (`ENV=prd`), with the owner's approval.
+
+Never apply to prd a step that dev has not applied, and never change prd by hand. If prd turns out to be ahead of dev for a step (as step 030 was on 2026-10-14), bring dev level first. The tools enforce it: a prd `make do-provision` (and `do-tf-apply-target`) plans dev for the same step first and is refused while dev has pending changes (`do_check_dev_leads_prd`; an owner-approved emergency only with `ENV_ORDER_OVERRIDE=<owner msg id>`, logged), and the daily `cd csi-spl-orc && ./run -a do_check_env_order` reports every step, deploy or image tag where prd leads dev.
+
+The owner's approval is required for each apply. `make do-provision` runs `do_check_container_dns`, then for step 030 `do_check_hub_image_regress`, then `do_provision` in the tf-runner. `grep -c '^do-provision:' csi-spl-orc/src/make/tf-tasks.func.mk` -> 1. `grep -c '^do_provision()' csi-spl-iac/src/bash/run/provision.func.sh` -> 1.
 
 ```bash
 cd <CHECKOUT>/csi-spl-orc && ENV=dev STEP=000-gcp-remote-bucket make do-provision

@@ -51,10 +51,27 @@ const PAGES = [
 const path = (p) => p.evaluate(() => location.pathname)
 const closeX = (p) => p.evaluate(() => [...document.querySelectorAll('.spool-main [data-test=section-close]')]
   .filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden').length)
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+
 async function go(p, sel, want) {
   await p.evaluate((s) => document.querySelector(s)?.click(), sel)
   if (want) await p.waitForFunction((w) => location.pathname === w || location.pathname.startsWith(w + '/'), { timeout: 15000 }, want).catch(() => null)
-  await sleep(700)
+  /* the route has landed and holds, and the page under it has drawn its X (or not) */
+  await until(() => p.evaluate(() => [location.pathname, document.querySelectorAll('.spool-main [data-test=section-close]').length]))
 }
 
 const srv = await startServer()
@@ -66,7 +83,7 @@ try {
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(`${srv.base}/channel/feedback`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('[data-testid=sidebar-tab-issues]', { visible: true })
-  await sleep(1200)
+  await until(() => p.evaluate(() => location.pathname), (v) => v === '/channel/feedback')
 
   for (const s of PAGES) {
     await go(p, s.tab, s.path)
@@ -89,7 +106,8 @@ try {
   /* browser Back still leaves the page */
   await go(p, '[data-testid=sidebar-tab-issues]', '/issues')
   await p.goBack()
-  await sleep(800)
+  /* the route moved off /issues and holds (staying there times out and fails) */
+  await until(() => path(p), (v) => v !== '/issues', 300, 5000)
   ok('1440 browser Back leaves Issues', (await path(p)) !== '/issues', await path(p))
 
   /* an open issue: Esc closes it, the X on the page is still there */
@@ -99,13 +117,13 @@ try {
   await p.type('[data-test=issues-newrow-title]', 'Exit check')
   await p.keyboard.press('Enter')
   await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: 8000 }).catch(() => null)
-  await sleep(600)
+  await until(() => p.evaluate(() => document.querySelectorAll('[data-test=issues-row]').length), (n) => n > 0)
   await p.evaluate(() => document.querySelector('[data-test=issues-row] [data-test=issues-row-key], [data-test=issues-row] .issues-key')?.click())
   const opened = await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 8000 }).then(() => true).catch(() => false)
   if (opened) {
     await p.keyboard.press('Escape')
-    await sleep(800)
-    const gone = await p.evaluate(() => !document.querySelector('[data-test=issues-detail]'))
+    /* the detail is gone and stays gone (an Esc that does nothing times out) */
+    const gone = await until(() => p.evaluate(() => !document.querySelector('[data-test=issues-detail]')), Boolean, 300, 5000)
     ok('1440 Esc closes an open issue, the list stays', gone && (await path(p)) === '/issues', { gone })
   } else {
     ok('1440 an issue opens from its row', false)
@@ -119,7 +137,8 @@ try {
   await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await m.goto(`${srv.base}/issues`, { waitUntil: 'networkidle2' })
   await m.waitForSelector('[data-test=issues-page]', { visible: true })
-  await sleep(1000)
+  /* the page has drawn and holds still before counting what it lacks */
+  await until(() => m.evaluate(() => document.querySelector('[data-test=issues-page]')?.innerHTML.length || 0), (n) => n > 0)
   ok('390 no close X on a phone (the section strip is the way)', (await closeX(m)) === 0)
   await m.close()
 } finally {

@@ -6,7 +6,7 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d); spawn-share blocker b7870c0f. Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10
 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1920 (lane SPL-2002).
 
-**Status: v0.2, PROPOSED** (for panel review and signatures). The rows spawn from the signed v1.0
+**Status: v0.3, PROPOSED** (for panel review and signatures). The rows spawn from the signed v1.0
 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-563@PC** (agy).
@@ -42,7 +42,7 @@ Editor: **a-563@PC** (agy).
 | source | command | n | row |
 |---|---|---|---|
 | retro 7.1 | `git grep -i agy e42286100 -- csi-spl-orc/src/bash/run/spl-review-line-check.func.sh \| wc -l` | 0 agy support | 01 |
-| retro 7.9 | `git grep -c 'exit 2' e42286100 -- csi-spl-orc/src/bash/run/spl-review-line-check.func.sh` | 1 refusal exit | 02 |
+| retro 7.9 | `git grep -c 'return 2' e42286100 -- csi-spl-orc/src/bash/run/spl-review-line-check.func.sh` | 1 refusal return | 02 |
 | retro 7.2 | `sed -n '/channel\.ts/p' csi-spl-wui/tests/unit/cleancode.test.mjs` | `['src/stores/channel.ts <anon>', 576]` | 03 |
 | retro 7.3 | `sed -n '/createLiveClient/p' csi-spl-wui/tests/unit/cleancode.test.mjs` | `['src/utils/live-ws.mjs createLiveClient', 499]` | 04 |
 | retro 7.4 | `sed -n '/createSpoolClient/p' csi-spl-wui/tests/unit/cleancode.test.mjs` | `['src/utils/spool-client.mjs createSpoolClient', 545]` | 05 |
@@ -57,7 +57,7 @@ Editor: **a-563@PC** (agy).
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `ci(r12-01-review-line-check-agy-support)` | R7 reviewer evidence, gate | `do_spl_review_line_check` has 0 agy transcript support, excluding agy from R7 reviewing | `orc:src/bash/run/spl-review-line-check.func.sh:8-17,85-136`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 0 agy support | `_SPL_REVIEW_LINE_PY` also parses agy `transcript.jsonl` (and `transcript_full.jsonl`) extracting `CommandLine` from `run_command` tool calls. **Red control:** fixture agy transcript fails with old python script (`MISSING`), passes with new (`OK 1 of 1`). Tests: `spl-review-line-check.tst.sh` (new agy test cases). R9: `PRE_PUSH_TIER=full`. | PC | claude | simple_coding | 1 |
-| 02 `ci(r12-02-review-line-check-remote-box)` | R7 review evidence, cross-box | `do_spl_review_line_check` refuses any log not on local box with exit 2, breaking multi-box validation | `orc:src/bash/run/spl-review-line-check.func.sh:34-37`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 1 exit 2 | When `box != me`, verify via SSH peer or check remote presence gracefully. **Red control:** remote box log exits 2 on old script; passes or delegates on new script. | sat | claude | simple_coding | 2 (after 01: `spl-review-line-check.func.sh`) |
+| 02 `ci(r12-02-review-line-check-remote-box)` | R7 review evidence, cross-box | `do_spl_review_line_check` refuses any log not on local box with return 2, breaking multi-box validation | `orc:src/bash/run/spl-review-line-check.func.sh:34-37`<br>`orc:src/bash/tests/spl-review-line-check.tst.sh` | 1 return 2 | When `box != me`, verify via SSH peer or check remote presence gracefully. **Red control:** remote box log returns 2 on old script; passes or delegates on new script. | sat | claude | simple_coding | 2 (after 01: `spl-review-line-check.func.sh`) |
 | 03 `refactor(r12-03-wui-small-store-channel)` | small functions | store setup body is 576 lines | `wui:src/stores/channel.ts:67`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Split setup into named module steps under 80 lines; `useChannelStore` API unchanged; delete LONG entry (3 -> 2). Tests: `cleancode.test.mjs`, unit tests importing `channel.ts`, `pnpm run typecheck`, `perf-budget.py bundle`. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 1 |
 | 04 `refactor(r12-04-wui-small-create-live-client)` | small functions | `createLiveClient` is 499 lines | `wui:src/utils/live-ws.mjs:209`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Extract module step functions under 80 lines; delete LONG entry (2 -> 1). Tests: `cleancode.test.mjs`, `live-ws.test.mjs`, typecheck, perf budget. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 2 (after 03: `cleancode.test.mjs`) |
 | 05 `refactor(r12-05-wui-small-create-spool-client)` | small functions | `createSpoolClient` is 545 lines (the last WUI LONG entry) | `wui:src/utils/spool-client.mjs:272`<br>`wui:tests/unit/cleancode.test.mjs` | 1 LONG entry | Extract module step functions under 80 lines; delete LONG entry (1 -> 0, empty LONG map!). Tests: `cleancode.test.mjs`, `spool-client.test.mjs`, typecheck, perf budget. **Red control:** old file with LONG line deleted fails `cleancode.test.mjs`. | sat | claude | simple_coding | 3 (after 04: `cleancode.test.mjs`) |
@@ -132,12 +132,13 @@ Editor: **a-563@PC** (agy).
 
 - v0.1: Initial proposed plan from round 11 retrospective section 7, measured on `e42286100`.
 - v0.2: Panel seat IDs updated: claude seat `c-212@sat` (SPL-2005) and mistral seat `m-213@sat` (SPL-2006) replace closed/retired seats `c-192` and `m-561`.
+- v0.3: Row 02 command and description updated: 'return 2' instead of 'exit 2' (1 hit in spl-review-line-check.func.sh), resolving m-213 seat disagreement.
 
 ## 9. Consensus
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (agy) | a-563@PC | v0.2 proposed | this file |
+| editor (agy) | a-563@PC | v0.3 proposed | this file |
 | claude seat | c-212@sat | pending | `refactor-round-12/seat-claude.md` |
 | mistral seat | m-213@sat | pending | `refactor-round-12/seat-mistral.md` |
 

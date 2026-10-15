@@ -53,9 +53,42 @@ export function railLinkSection(path) {
  */
 export function loopPosition(pos, set) {
   if (!(set > 0)) return pos
-  if (pos < set * 0.5) return pos + set
-  if (pos > set * 1.5) return pos - set
+  /* SPL-2062: 1 px of slack. The snapping strip rests on control edges, and
+     with an even number of controls set / 2 is one of them: a sub-pixel
+     scroll there (a press, a drag) must not jump the row a copy over. */
+  if (pos < set * 0.5 - 1) return pos + set
+  if (pos > set * 1.5 + 1) return pos - set
   return pos
+}
+
+/** SPL-2062: the narrowest a phone strip control may be (a 44 px target plus room for its name) */
+export const STRIP_ITEM_MIN = 64
+
+/**
+ * SPL-2062 (owner HUM-10, t1 508e17a0 msg ae4f7ceb: "there will never be a
+ * half or non-whole icon on the top bar"): how many controls share the
+ * strip's width. Each control is view / fit wide, so the strip always shows
+ * exactly `fit` whole ones, and its scroll snaps one control at a time. As
+ * many as fit at STRIP_ITEM_MIN, never more than there are, at least one.
+ * @param {number} view the strip's inner width, px
+ * @param {number} count the controls in the strip
+ * @param {number} [min]
+ */
+export function stripFit(view, count, min = STRIP_ITEM_MIN) {
+  if (!(view > 0) || !(count > 0)) return 1
+  return Math.max(1, Math.min(count, Math.floor(view / min)))
+}
+
+/**
+ * SPL-2062: a scrollLeft on the strip's control grid (a multiple of one
+ * control's width), so a centring write lands where a snap would, and the
+ * browser does not move the row again a moment later.
+ * @param {number} pos
+ * @param {number} step one control's width, px (0: leave pos as it is)
+ */
+export function onStripGrid(pos, step) {
+  if (!(step > 0)) return pos
+  return Math.round(pos / step) * step
 }
 
 /**

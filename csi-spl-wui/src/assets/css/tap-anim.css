@@ -1,0 +1,84 @@
+/* SPL-2062 (owner HUM-10, t1 508e17a0 msg afe08df1, t1 8adfb7f2 msg
+   6c4ca93d): the one set of tap animations - the section rail (phone strip
+   and desktop rail) and the phone composer dock. composables/useTapAnim.ts
+   puts `tap-anim tap-anim--<kind>` on a pressed button's icon and takes it
+   off on animationend. Transform and opacity only, so no box moves; at most
+   400 ms. Change an animation here and every icon using it follows. */
+.tap-anim {
+  transform-origin: 50% 50%;
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(.3, .7, .4, 1);
+  animation-iteration-count: 1;
+}
+/* default: a small bounce */
+.tap-anim--bounce { animation-name: tap-bounce; }
+@keyframes tap-bounce {
+  0%, 100% { transform: none; }
+  40% { transform: translateY(-3px) scale(1.08); }
+  70% { transform: translateY(1px) scale(.97); }
+}
+/* channels, messages: a speech bubble pops up from its tail */
+.tap-anim--bubble { animation-name: tap-bubble; transform-origin: 20% 90%; }
+@keyframes tap-bubble {
+  0%, 100% { transform: none; }
+  35% { transform: scale(1.16) rotate(-4deg); }
+  65% { transform: scale(.95) rotate(2deg); }
+}
+/* issues: a tick pops */
+.tap-anim--pop { animation-name: tap-pop; }
+@keyframes tap-pop {
+  0%, 100% { transform: none; }
+  30% { transform: scale(.85); }
+  60% { transform: scale(1.18); }
+}
+/* calendar: a page flips over its top edge and back */
+.tap-anim--flip { animation-name: tap-flip; transform-origin: 50% 10%; }
+@keyframes tap-flip {
+  0%, 100% { transform: none; }
+  45% { transform: perspective(60px) rotateX(-40deg); }
+}
+/* monitoring: a heartbeat pulse */
+.tap-anim--pulse { animation-name: tap-pulse; }
+@keyframes tap-pulse {
+  0%, 100% { transform: none; opacity: 1; }
+  25% { transform: scale(1.14); opacity: .75; }
+  50% { transform: scale(.96); opacity: 1; }
+  75% { transform: scale(1.08); }
+}
+/* documents, archive: a page lifts off and settles */
+.tap-anim--lift { animation-name: tap-lift; }
+@keyframes tap-lift {
+  0%, 100% { transform: none; }
+  45% { transform: translateY(-4px) rotate(-3deg); }
+}
+/* send: a quick nudge forward */
+.tap-anim--nudge { animation-name: tap-nudge; }
+@keyframes tap-nudge {
+  0%, 100% { transform: none; }
+  40% { transform: translateX(4px); opacity: .8; }
+  70% { transform: translateX(-1px); }
+}
+/* attach: a small wiggle */
+.tap-anim--wiggle { animation-name: tap-wiggle; }
+@keyframes tap-wiggle {
+  0%, 100% { transform: none; }
+  20% { transform: rotate(-12deg); }
+  45% { transform: rotate(10deg); }
+  70% { transform: rotate(-5deg); }
+}
+/* back: a short hop to the left */
+.tap-anim--hop { animation-name: tap-hop; }
+@keyframes tap-hop {
+  0%, 100% { transform: none; }
+  45% { transform: translate(-4px, -2px); }
+}
+/* search: the magnifier tilts and comes back */
+.tap-anim--tilt { animation-name: tap-tilt; transform-origin: 40% 40%; }
+@keyframes tap-tilt {
+  0%, 100% { transform: none; }
+  45% { transform: rotate(-18deg) scale(1.06); }
+}
+/* reduced motion: still (the script adds no class either) */
+@media (prefers-reduced-motion: reduce) {
+  .tap-anim { animation: none !important; }
+}

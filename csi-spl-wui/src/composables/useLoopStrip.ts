@@ -1,5 +1,5 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
-import { loopPosition } from '~/utils/section-strip.mjs'
+import { loopPosition, onStripGrid, stripFit } from '~/utils/section-strip.mjs'
 
 /**
  * CLE-77886 (owner, t1 topic ac0fa400, msg 8ebbce0e): the phone's section
@@ -160,10 +160,25 @@ function showStrip(box: HTMLElement) {
   if (box.style.visibility === 'hidden') box.style.visibility = ''
 }
 
+/*
+ * SPL-2062 (owner HUM-10, t1 508e17a0): whole controls only. Every control
+ * is 1/fit of the strip's width (the CSS reads [data-fit]), and the strip
+ * snaps one control at a time, so no control is ever cut at either edge.
+ * Written before the read below, so the read sees the final widths; it
+ * changes only when the strip's width does (a turn of the phone).
+ */
+function fitStrip(box: HTMLElement, enabled: boolean) {
+  if (!enabled) { if (box.dataset.fit) delete box.dataset.fit; return }
+  const fit = String(stripFit(box.clientWidth, realItems(box).length))
+  if (box.dataset.fit !== fit) box.dataset.fit = fit
+}
+
 async function place(ctx: LoopCtx, force: boolean) {
   const box = ctx.el.value
   if (!box || ctx.quiet.v) return
-  if (!ctx.opts.enabled()) { ctx.on.value = false; showStrip(box); return }
+  const enabled = ctx.opts.enabled()
+  fitStrip(box, enabled)
+  if (!enabled) { ctx.on.value = false; showStrip(box); return }
   const snap = readSnap(box, ctx.opts.selected)
   if (snap.view <= 0) return
   ctx.centred.v = true
@@ -171,8 +186,10 @@ async function place(ctx: LoopCtx, force: boolean) {
   const overflow = stripOverflows(snap.span, snap.view)
   const turningOn = overflow && !ctx.on.value
   if (ctx.on.value !== overflow) ctx.on.value = overflow
+  /* one control's width while the strip snaps (data-fit), else 0 */
+  const step = box.dataset.fit ? snap.view / Number(box.dataset.fit) : 0
   if (turningOn) {
-    const write = loopMountScroll(snap, loopPosition)
+    const write = onStripGrid(loopMountScroll(snap, loopPosition), step)
     ctx.quiet.v = true
     try {
       await nextTick()
@@ -184,7 +201,7 @@ async function place(ctx: LoopCtx, force: boolean) {
     return
   }
   const write = loopScrollWrite({ ...snap, force }, loopPosition)
-  if (write != null) writeScroll(box, write, snap.scrollLeft, ctx.quiet)
+  if (write != null) writeScroll(box, onStripGrid(write, step), snap.scrollLeft, ctx.quiet)
   showStrip(box)
 }
 

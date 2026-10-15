@@ -583,7 +583,7 @@ export default defineNuxtConfig({
     "@": fileURLToPath(new URL("./src", import.meta.url)),
   },
 
-  css: ["@/assets/css/main.css"],
+  css: ["@/assets/css/main.css", "@/assets/css/tap-anim.css"],
 
   modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule],
 

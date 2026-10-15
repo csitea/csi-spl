@@ -128,6 +128,7 @@
           :aria-label="docked ? t('search.title') : t('search.help_button')"
           :title="docked ? t('search.title') : t('search.help_button')"
           ref="syntaxBtn"
+          v-tap-anim="docked ? 'tilt' : undefined"
           @mousedown.prevent
           @click="onSyntaxClick"
         ><UiIcon v-if="docked" name="search" :size="18" /><template v-else>?</template></button>
@@ -273,6 +274,7 @@
           class="dock-back"
           data-testid="dock-back"
           :disabled="stack.level.value <= 1"
+          v-tap-anim="'hop'"
           @mousedown.prevent
           @click.stop="stack.pop()"
           :aria-label="t('mobile.back')"
@@ -283,6 +285,7 @@
           type="button"
           tabindex="-1"
           class="attach"
+          v-tap-anim="'wiggle'"
           data-testid="attach"
           @mousedown.prevent
           @click="openFiles"
@@ -315,6 +318,7 @@
           v-else
           type="submit"
           class="composer-send composer-go"
+          v-tap-anim="'nudge'"
           data-testid="send"
           @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
@@ -327,6 +331,7 @@
 
 <script setup lang="ts">
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
+import { vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'

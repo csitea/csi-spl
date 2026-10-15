@@ -97,6 +97,14 @@ and it is the one icon you cannot drag.
 > step. Archive stays last either way. (On a phone the rail does not drag —
 > reorder it from Settings.)
 
+On a phone the rail is the row of sections across the top. It shows only
+whole icons: the icons share the screen's width, as many as fit, and a swipe
+stops on an icon's edge, so no icon is ever cut in half at either end. The
+row rolls on without an end. A tapped icon plays a short movement that fits
+it (a speech bubble bounces, the Issues tick pops, the Calendar page flips,
+Monitoring pulses); so do the message box's Send, Attach, Back and Search
+buttons. With **Reduce motion** on in your device's settings, nothing moves.
+
 ### 3.2 Help, Docs (Qto) and Workspace settings
 
 Three links sit under the icons. They are not sections of the list above.
@@ -259,6 +267,6 @@ Spool adapts gracefully to different screen sizes:
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
-<!-- version: 1.3.0 · updated: 2026-10-14 -->
+<!-- version: 1.3.0 · updated: 2026-10-16 -->
 
 <!-- public: true -->

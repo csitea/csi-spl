@@ -35,6 +35,7 @@
         :aria-label="t(item.labelKey)"
         :title="t(item.labelKey)"
         :data-pinned="item.movable ? undefined : 'last'"
+        v-tap-anim="railTapKind(item.id)"
         @pointerdown="item.movable && railDrag.down($event, item.id as RailId)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
@@ -56,6 +57,7 @@
       <NuxtLink
         class="sidebar-rail__help"
         data-testid="help-open"
+        v-tap-anim="'bounce'"
         :to="localePath('/help')"
         :title="t('help.title')"
         :aria-label="t('help.title')"
@@ -69,6 +71,7 @@
         v-if="qtoShown"
         class="sidebar-rail__qto"
         data-testid="qto-open"
+        v-tap-anim="'lift'"
         :to="localePath('/workspace/docs')"
         :title="t('ws_doctree.open')"
         :aria-label="t('ws_doctree.open')"
@@ -81,6 +84,7 @@
         v-if="tenantSettingsShown"
         class="sidebar-rail__settings"
         data-testid="tenant-settings-open"
+        v-tap-anim="'bounce'"
         :to="localePath('/tenant-settings')"
         :title="t('tenant_settings.title')"
         :aria-label="t('tenant_settings.title')"
@@ -95,6 +99,7 @@
         type="button"
         class="sidebar-rail__settings sidebar-rail__operator"
         data-testid="operator-console-open"
+        v-tap-anim="'bounce'"
         :data-on="operatorPane.open ? 'true' : undefined"
         :aria-pressed="operatorPane.open ? 'true' : 'false'"
         :title="t('operator.open')"
@@ -117,6 +122,7 @@
             class="sidebar-tab"
             tabindex="-1"
             :data-on="railOn(item.id) ? 'true' : undefined"
+            v-tap-anim="railTapKind(item.id)"
             @click="selectTab(item.id)"
           >
             <UiIcon :name="item.icon" :size="20" />
@@ -125,13 +131,13 @@
             <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :class="{ 'sidebar-tab__count--link': item.id === 'issues' }" @click="onCountClick(item.id, $event)">{{ railCount(item.id) }}</span>
             <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
-          <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
+          <NuxtLink v-tap-anim="'bounce'" class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
             <UiIcon name="help" :size="20" />
           </NuxtLink>
-          <NuxtLink v-if="qtoShown" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')">
+          <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')">
             <UiIcon name="file-text" :size="20" />
           </NuxtLink>
-          <NuxtLink v-if="tenantSettingsShown" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')">
+          <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')">
             <UiIcon name="settings" :size="20" />
           </NuxtLink>
         </div>
@@ -710,6 +716,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { railTapKind, vTapAnim } from '~/composables/useTapAnim'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
@@ -2157,11 +2164,41 @@ async function onCreate() {
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
+    /* SPL-2062 (owner HUM-10, t1 508e17a0): whole controls only. Each
+       control is 1/fit of the strip (useLoopStrip writes data-fit from the
+       width: as many as fit at 64 px, the extra width shared out), no gap
+       and no side padding, and a swipe stops on a control's edge, so no
+       control is ever cut at either end, the last one included. */
+    padding-inline: 0;
+    gap: 0;
+    scroll-snap-type: x mandatory;
+    container-type: inline-size;
+    --strip-fit: 5;
+    --strip-item: calc(100cqi / var(--strip-fit));
+  }
+  .sidebar-rail[data-fit="1"] { --strip-fit: 1; }
+  .sidebar-rail[data-fit="2"] { --strip-fit: 2; }
+  .sidebar-rail[data-fit="3"] { --strip-fit: 3; }
+  .sidebar-rail[data-fit="4"] { --strip-fit: 4; }
+  .sidebar-rail[data-fit="6"] { --strip-fit: 6; }
+  .sidebar-rail[data-fit="7"] { --strip-fit: 7; }
+  .sidebar-rail[data-fit="8"] { --strip-fit: 8; }
+  .sidebar-rail[data-fit="9"] { --strip-fit: 9; }
+  .sidebar-rail[data-fit="10"] { --strip-fit: 10; }
+  .sidebar-rail[data-fit="11"] { --strip-fit: 11; }
+  .sidebar-rail[data-fit="12"] { --strip-fit: 12; }
+  .sidebar-tab,
+  .sidebar-rail__help,
+  .sidebar-rail__qto,
+  .sidebar-rail__settings {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: var(--strip-item);
+    min-width: 0;
+    max-width: none;
+    scroll-snap-align: start;
   }
   .sidebar-tab {
-    flex: 1 0 auto;
-    width: auto;
-    min-width: 60px;
     min-height: 52px;
     aspect-ratio: auto;
     display: flex;
@@ -2169,7 +2206,7 @@ async function onCreate() {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    padding: 4px 6px;
+    padding: 4px 2px;
     line-height: 1.15;
     container-type: normal;
   }
@@ -2184,6 +2221,10 @@ async function onCreate() {
   .sidebar-rail__qto.router-link-active,
   .sidebar-rail__settings.router-link-active {
     margin: 1px;
+    /* 1px in on each side inside the same slot: the row's step stays one
+       control wide, and the snap area is the whole slot */
+    width: calc(var(--strip-item) - 2px);
+    scroll-margin-inline: 1px;
     min-height: 50px;
     background: color-mix(in srgb, var(--color-surface-hover) 78%, #000);
     color: var(--color-fg);
@@ -2194,7 +2235,7 @@ async function onCreate() {
   }
   .sidebar-tab[aria-selected="true"] :deep(svg),
   .sidebar-tab[data-on="true"] :deep(svg) { width: 20px; height: 20px; }
-  .sidebar-tab__label { display: block; font-size: 0.6875rem; white-space: nowrap; }
+  .sidebar-tab__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; white-space: nowrap; }
   .sidebar-tab[aria-selected="true"] .sidebar-tab__label,
   .sidebar-tab[data-on="true"] .sidebar-tab__label { font-weight: 700; }
   /* the endless strip's copies: [before][real][after], one row, same gap */
@@ -2211,8 +2252,7 @@ async function onCreate() {
   /* the phone strip: the gear ends the row, a 44 px target */
   .sidebar-rail__help,
   .sidebar-rail__qto,
-  .sidebar-rail__settings { margin-block-start: 0; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
-  .sidebar-rail__help { margin-inline-start: auto; }
+  .sidebar-rail__settings { margin-block-start: 0; min-height: 52px; aspect-ratio: auto; container-type: normal; }
   .sidebar-rail__help :deep(svg),
   .sidebar-rail__qto :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }

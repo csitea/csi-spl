@@ -2533,6 +2533,9 @@ declare module '~/utils/section-strip.mjs' {
   export function isSectionPage(path: string): boolean
   export function railLinkSection(path: string): '' | 'help' | 'docs' | 'settings'
   export function loopPosition(pos: number, set: number): number
+  export const STRIP_ITEM_MIN: number
+  export function stripFit(view: number, count: number, min?: number): number
+  export function onStripGrid(pos: number, step: number): number
   export function chatKind(path: string): '' | 'channel' | 'dm'
   export function sectionExitPath(last: { channel?: string, dm?: string, chat?: string }, tab?: string): string
 }

@@ -118,7 +118,7 @@ for k in sorted(mins):
     m = mins[k]
     tr = ", ".join("%s %d" % r for r in sorted(m["routes"].items(), key=lambda r: -r[1])[:top])
     print("%5s %6d %6d %5d %5d %5d %5d %6d %4d %8.0f  %s" % (k, m["n"], m["2xx"], m["429"], m["4xx"], m["5xx"], m["ws"], m["noinst"], len(m["ips"]), pct(m["ms"], .95), tr))
-print(); print("--- callers by requests (top %d)" % (top * 5))
+print("\n--- callers by requests (top %d)" % (top * 5))
 print("%6s %5s %5s  %-40s %s" % ("req", "429", "ws", "remote_ip", "agent"))
 for (ip, ua), c in sorted(callers.items(), key=lambda kv: -kv[1]["n"])[:top * 5]:
     print("%6d %5d %5d  %-40s %s" % (c["n"], c["429"], c["ws"], ip[:40], ua))

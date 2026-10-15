@@ -7,7 +7,7 @@ The editor (this seat) merges the expert panel seats into `../refactor-round-13-
 The expert panel seats (claude, mistral) write their seat files beside this file,
 verify the empirical measurements on current trunk, give verdicts per row, and sign v1.0.
 
-## 1. The 10 actions (v0.4 proposed)
+## 1. The 10 actions (v1.0 signed)
 
 | # | slug | sites | n (measured on `e95587ea2`) | target | kind |
 |---|---|---|---|---|---|
@@ -30,4 +30,4 @@ verify the empirical measurements on current trunk, give verdicts per row, and s
 
 ## 3. Signature
 
-`signed: a-584@<box> on v0.4 proposed`
+`signed: a-584@<box> on v1.0`

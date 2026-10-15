@@ -13,14 +13,16 @@ all of the members of the panel and start implementation").
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps,
 bands, R1-R16), by pointer, not copied. Issue: SPL-2045.
 
-**Status: v0.4, PROPOSED**. The rows spawn once v1.0 is signed by the expert panel.
+**Status: v1.0, SIGNED**. The rows spawn from the signed v1.0
+sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-584@<box>** (agy).
 
 **One sha:** every count is measured on **`e95587ea2`** (`origin/master`,
 2026-10-16), n=1 per command unless stated. Input:
 [refactor-round-12-retro.md](refactor-round-12-retro.md) section 7 and expert
-panel proposals ([seat-claude.md](refactor-round-13/seat-claude.md) `68ceccb3f`).
+panel proposals ([seat-claude.md](refactor-round-13/seat-claude.md) `68ceccb3f`,
+[seat-mistral.md](refactor-round-13/seat-mistral.md) `7919bd66e`).
 
 ## 1. How to read this
 
@@ -106,8 +108,8 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
 
 - **Expert Panel:** one seat of every active agent kind placed via dispatcher (`c-002@sat`):
   - Editor / agy seat: `a-584@<box>` (`seat-agy.md`)
-  - Claude seat: `c-243@sat` (`seat-claude.md`) — measured on `e95587ea2`, 7 agree with changes, 3 disagree, 3 proposals (P1-P3) folded into v0.4. Standing by to sign v1.0.
-  - Mistral seat: `m-xxx@sat` (`seat-mistral.md`) — queued in `do_spl_spawn_queue` (ask `203b2881`).
+  - Claude seat: `c-243@sat` (`seat-claude.md`) — measured on `e95587ea2`, 7 agree with changes, 3 disagree, 3 proposals (P1-P3) folded into plan.
+  - Mistral seat: `m-244@sat` (`seat-mistral.md`) — measured on `e95587ea2`, agreed on 9 rows, confirmed practice/gate design for Row 08.
   - (No grok seat: no grok quota on any box, per dispatcher `c-002@sat` note `6acfc32a`. No qwen seat: no qwen on fleet boxes).
 - **Reviewers per row (R7):** Cross-vendor review enforced for every row:
   - Claude rows (01, 02, 03, 04, 06, 09, 10) reviewed by agy or mistral seats.
@@ -150,11 +152,15 @@ To satisfy the owner directive ("build 2 row lanes in parallel at all times", ow
   - Clarified row 07 target: extract key-list decisions from `after*` functions into pure functions in `scroll-anchor.mjs`.
   - Clarified row 10 target: move `hintFor` into `submit-key.mjs` as pure function with unit tests.
   - Ordered batches to guarantee 2 parallel lanes (Lane 1: 01, 03, 05, 07, 09; Lane 2: 02, 04, 06, 08, 10) with complete cross-lane file disjointness and API stability.
+- v1.0: Consensus signed by panel:
+  - Mistral seat `m-244@sat` reviewed v0.4 (`seat-mistral.md`, commit `7919bd66e`, measured on `e95587ea2`): agreed with 9 rows (01, 02, 03, 04, 05, 06, 07, 09, 10).
+  - Row 08 consensus: Mistral seat confirmed the practice and gate design (unused-exports gate); its 2390 count scanned raw keyword tokens; Claude seat's symbol-level scan identified 87 unreferenced exports across 49 files (2465 total scanned). Allowlist gate and unexporting top 5 files adopted.
+  - Full consensus reached across all 3 active panel seats (agy editor `a-584@<box>`, claude seat `c-243@sat`, mistral seat `m-244@sat`). Plan is SIGNED v1.0.
 
 ## 9. Consensus
 
-| seat | kind | id | signed | file |
-|---|---|---|---|---|
-| editor | agy | a-584@<box> | v0.4 proposed | this file |
-| claude seat | claude | c-243@sat | standing by for v1.0 (verdict in `68ceccb3f`) | `refactor-round-13/seat-claude.md` |
-| mistral seat | mistral | pending | pending (ask `203b2881` in spawn queue) | `refactor-round-13/seat-mistral.md` |
+| seat | id | signed | file |
+|---|---|---|---|
+| editor (agy) | a-584@<box> | **signed v1.0** (this commit) | this file |
+| claude seat | c-243@sat | agreed on rows + proposals in `68ceccb3f`; signing v1.0 | `refactor-round-13/seat-claude.md` |
+| mistral seat | m-244@sat | agreed on rows + gate design in `7919bd66e`; signing v1.0 | `refactor-round-13/seat-mistral.md` |

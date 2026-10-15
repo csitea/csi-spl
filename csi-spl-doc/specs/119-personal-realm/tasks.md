@@ -127,7 +127,7 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
   Done: green on Postgres and memory; `grep -c "app.person_id"
   GO/store/rls.go` >= 1 and no other non-test store file sets it.
 
-- [ ] T003 **Lane C: the realm routes** (claude, auth; waits on T002; BUILD).
+- [x] T003 **Lane C: the realm routes** (SPL-1931, 179990ce5; claude, auth; waits on T002; BUILD).
   `spec.md` 9 C2: `GET`/`PUT /v1/me/realm/settings`, `GET`/`PUT
   /v1/me/realm/profile`, `GET /v1/me/realm/receipts`, `DELETE
   /v1/me/realm/receipts/{workspace_id}`. Human session only; the person id
@@ -143,6 +143,13 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
   (limit, zone, receipt id) is written to a log line.
   118: none (OQ-8 = Q10 A means no download route; a B adds one later).
   Done: green on Postgres; deployed dev and prd (`do_check_deploy_lag`).
+  Built: the four paths in `openapi.json` and one `s.routeRealm(mux)` line
+  in `routeMe` (`channel_order.go`, beside 118's `routeRealmHoursRead`); the
+  person_only decision table in `realm_internal_test.go`. A past
+  `valid_from` is 400 (a past week keeps its limit); the settings answer
+  carries no warning (the WUI computes it, 118 D3). The access log still
+  prints the DELETE path, so the workspace id of an erasure is logged; no
+  limit, zone, prefs or receipt row is.
 
 - [ ] T004 **Lane D: the receipt copy on removal or ban** (claude, store +
   auth; waits on T002; BUILD). `spec.md` 8.1 row 1 and 8.2: step 1 in

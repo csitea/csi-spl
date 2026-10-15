@@ -102,9 +102,13 @@ try {
       const b = await row.boundingBox()
       if (b) await p.screenshot({ path: join(OUT, `await-reply-live-1-${WANT}-zoom.png`), clip: { x: b.x, y: b.y, width: b.width, height: Math.min(b.height, 120) } })
       if (b && WANT === 'rotate') {
+        /* the drawings follow the wall clock in 3 s slots; a 3x screenshot
+           takes over a second, so sample on a fixed schedule from the middle
+           of a slot rather than 3 s after the previous shot */
+        const t0 = Date.now() + 3000 + 1500 - (Date.now() % 3000)
         const seen = []
         for (let i = 1; i <= 3; i++) {
-          if (i > 1) await sleep(3000)
+          await sleep(Math.max(0, t0 + (i - 1) * 3000 - Date.now()))
           seen.push((await rowOf(p))?.mark?.anim || null)
           await p.screenshot({ path: join(OUT, `await-reply-live-1-rotate-${i}.png`), clip: { x: b.x, y: b.y, width: b.width, height: Math.min(b.height, 120) } })
         }

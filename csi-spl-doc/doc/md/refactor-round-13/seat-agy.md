@@ -1,10 +1,10 @@
-# Round 13 - agy seat proposal (a-584)
+# Round 13 - agy seat proposal (a-584@<box>)
 
 Measured on `dc17f840e` (`origin/master`, 2026-10-15 19:54Z).
 
 A proposal for round 13: WUI cleaner code and better testability.
 The editor (this seat) merges the expert panel seats into `../refactor-round-13-plan.md`.
-The expert panel seats (claude, grok, mistral, qwen) write their seat files beside this file,
+The expert panel seats (claude, grok, mistral) write their seat files beside this file,
 verify the empirical measurements on current trunk, give verdicts per row, and sign v1.0.
 
 ## 1. The 10 actions
@@ -30,4 +30,4 @@ verify the empirical measurements on current trunk, give verdicts per row, and s
 
 ## 3. Signature
 
-`signed: a-584 on v0.1 proposed`
+`signed: a-584@<box> on v0.2 proposed`

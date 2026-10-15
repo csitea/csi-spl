@@ -5,10 +5,12 @@
 # raises its package's line by hand in the same commit.
 # Measured on eb7c8b962, go1.25.14: go test ./... (no DSN) for the plain
 # packages, hub-pg.tst.sh's docker postgres:16-alpine suites for pg ones.
-# cmd/spool: 74.3 with cli_verbs_test.go (r10-01), 69.1 without; go test -count=1
+# cmd/spool: 75.6 with hub_repo_edit_test.go (r11-10), 74.5 without; go test -count=1
+# -cover ./cmd/spool/, go1.26.9, n=3 read 75.6 each.
+# Before: 74.3 with cli_verbs_test.go (r10-01), 69.1 without; go test -count=1
 # -cover ./cmd/spool/, go1.26.9, tree f007a54d6, n=3 read 74.3 each (r9-02's
 # cli_inspect_test.go took it 63.6 -> 68.5, r9-01's cli_fs_test.go 60.7 -> 63.6).
-cmd/spool 74.3
+cmd/spool 75.6
 internal/action 70.3
 internal/agentid 97.0
 internal/auth/cmd/auth-demo 0.0

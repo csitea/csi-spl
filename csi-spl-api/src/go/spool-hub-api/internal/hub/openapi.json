@@ -10362,6 +10362,44 @@
         ]
       }
     },
+    "/v1/tenant/costs": {
+      "get": {
+        "operationId": "getTenantCosts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "calendar month YYYY-MM (UTC); default the current month so far; a month not started yet is 400",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {month, from, to, status (so_far | ended), scope (estate | workspace), days, days_ended, total: {usd_micros, eur_micros}, parts: [{estate, source, project_or_vendor, kind, origin, units, usd_micros, eur_micros, list_value_micros, days, hand, pct}], coverage: [{source, ok, partial, missing, unrecorded, days}]} (spec 123 sections 5 and 5.1, lane 4b)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the cost report of one month: the estate in the operator workspace, else the workspace's own rows (costs.read)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/tenant/embed-visitors": {
       "get": {
         "description": "The workspace's visitor channels, newest activity first: channel, embed, created, last message, lead and block marks, whether the token is live. No token, e-mail or ip_hash. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",

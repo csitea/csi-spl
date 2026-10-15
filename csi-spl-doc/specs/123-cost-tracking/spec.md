@@ -103,6 +103,31 @@ A new WUI page `/costs`, reachable from the sidebar as "Costs".
 - So the owner's "both the admin and the business owner" needs a new permission **`costs.read`** (the 0021 pattern), granted to `biz_owner` and `admin` by a migration, not `billing.manage`.
 - The estate view (GCP, fleet, boxes) needs `costs.read` **in the operator workspace** (`internal/hub/operator.go` `operatorAuth`); in any other workspace a member with `costs.read` (its `biz_owner` and `admin`) sees that workspace's rows only (Q-1 = A, owner msgs `9bb60e73` and `6fc78646`).
 
+### 5.2 The read API (build lane 4b)
+
+Owner HUM-10, t1 dbf2f39b (msgs 6cab186b, a54b9e74): the page is the **Costs
+tab of Monitoring** (`/monitoring/costs`), GCP infrastructure and tokens on
+one table. Its API, `csi-spl-api/.../internal/hub/cost_read.go` and
+`internal/store/cost_read.go`:
+
+- `GET /v1/tenant/costs?month=YYYY-MM` (default: the current UTC month so
+  far; a month not started is 400). `costs.read` (403 naming it otherwise).
+- Scope: in the operator workspace `scope=estate`, the estate rows (tenant_id
+  NULL) beside the workspace's own, read under the operator scope; in any
+  other workspace `scope=workspace`, its own rows under its tenant scope,
+  where RLS hides every estate row, and coverage only of its own sources.
+- `parts`: the month's live lines summed per (estate, source,
+  project_or_vendor, kind, origin): `units`, `usd_micros`, `eur_micros`,
+  `list_value_micros`, `days`, `hand` (origin hand or invoice), `pct` (share
+  of the USD total, null while it is 0). `total`: USD and EUR micros.
+- `coverage`: per source `ok`, `partial`, `missing`, `unrecorded` (ended days
+  with no row) of `days` = N, the days of the month that ended (today is
+  still being read).
+- `status`: `so_far` while the month runs, `ended` after it; `closed` comes
+  with the month close (4.5).
+- Tests: `TestCostMonthReadSums`, `TestCostMonthReadRLS` (store, Postgres),
+  `TestCostRead*`, `TestCostWindow`, `TestCostMonthAnswer` (hub).
+
 ## 6. The 1-Month Collection Plan
 
 - **First month**: 2026-10 (Q-5), with what is live; each source is marked missing for every day before it runs. October is the iteration month (Q-3: "we will iterate during October and start for real in Nov").

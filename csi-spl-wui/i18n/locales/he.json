@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "אנימציית חשיבה",
-      "rotate": "מתחלף",
       "hourglass": "שעון חול",
       "robot": "רובוט רץ",
       "brain": "מוח"
@@ -2374,12 +2373,12 @@
     "copy_link": "העתק קישור",
     "link_copied": "הקישור הועתק",
     "not_available": "האירוע הזה אינו זמין עבורך.",
-    "show_in_calendar": "הצג בלוח השנה",
-    "show_in_calendar_overdue": "הצג בלוח השנה (מועד היעד עבר)",
-    "open_issue": "פתח סוגיה",
-    "open_issue_denied": "אין לך גישה לסוגיה זו.",
-    "issue_closed": "סוגיה זו סגורה, ולכן מועד היעד שלה אינו מופיע עוד בלוח השנה.",
-    "issue_no_deadline": "לסוגיה זו אין מועד יעד."
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "ימי השבוע",

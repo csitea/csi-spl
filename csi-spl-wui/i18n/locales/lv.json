@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "Domāšanas animācija",
-      "rotate": "Pārmaiņus",
       "hourglass": "Smilšu pulkstenis",
       "robot": "Skrejošs robots",
       "brain": "Smadzenes"
@@ -2374,12 +2373,12 @@
     "copy_link": "Kopēt saiti",
     "link_copied": "Saite nokopēta",
     "not_available": "Šis notikums jums nav pieejams.",
-    "show_in_calendar": "Rādīt kalendārā",
-    "show_in_calendar_overdue": "Rādīt kalendārā (termiņš ir pagājis)",
-    "open_issue": "Atvērt uzdevumu",
-    "open_issue_denied": "Jums nav piekļuves šim uzdevumam.",
-    "issue_closed": "Šis uzdevums ir slēgts, tāpēc tā termiņš vairs nav kalendārā.",
-    "issue_no_deadline": "Šim uzdevumam nav termiņa."
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Nedēļas dienas",

@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "Thinking animation",
-      "rotate": "Take turns",
       "hourglass": "Hourglass",
       "robot": "Running robot",
       "brain": "Brain"

@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "Εφέ κίνησης σκέψης",
-      "rotate": "Εναλλαγή",
       "hourglass": "Κλεψύδρα",
       "robot": "Ρομπότ που τρέχει",
       "brain": "Εγκέφαλος"
@@ -2374,12 +2373,12 @@
     "copy_link": "Αντιγραφή συνδέσμου",
     "link_copied": "Ο σύνδεσμος αντιγράφηκε",
     "not_available": "Αυτό το συμβάν δεν είναι διαθέσιμο για εσάς.",
-    "show_in_calendar": "Εμφάνιση στο ημερολόγιο",
-    "show_in_calendar_overdue": "Εμφάνιση στο ημερολόγιο (η προθεσμία έχει παρέλθει)",
-    "open_issue": "Άνοιγμα θέματος",
-    "open_issue_denied": "Δεν έχετε πρόσβαση σε αυτό το θέμα.",
-    "issue_closed": "Αυτό το θέμα είναι κλειστό, επομένως η προθεσμία του δεν είναι πλέον στο ημερολόγιο.",
-    "issue_no_deadline": "Αυτό το θέμα δεν έχει προθεσμία."
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Ημέρες της εβδομάδας",

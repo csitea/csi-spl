@@ -316,9 +316,7 @@ spl_dry_run() {
 #
 # So (spl_host_spool_verdict): keep the binary when it was built from this
 # tree's HEAD with a clean module; build when the tree is newer; and REFUSE -
-# keep the binary, log why - when the tree is older than the binary. Only a
-# commit on origin/master is ever kept or built there: a build from a lane
-# branch is replaced, and a lane tree does not write the path (SPL-2041). The build
+# keep the binary, log why - when the tree is older than the binary. The build
 # goes to a private tmp and is renamed into place, so a sidecar that execs the
 # path meanwhile gets the old file or the new one, never half of one.
 # SPL_SPOOL_REBUILD=1 builds regardless (and may downgrade: the operator asked).
@@ -389,7 +387,7 @@ spl_host_spool_bin_rev() {
 
 # spl_host_spool_verdict <bin> -> "build|keep|refuse <why>"
 spl_host_spool_verdict() {
-  local bin="$1" head state rev mod stamp trunk
+  local bin="$1" head state rev mod stamp
   [[ "${SPL_SPOOL_REBUILD:-0}" == 1 ]] && { echo "build SPL_SPOOL_REBUILD=1"; return 0; }
   [[ -x "$bin" ]] || { echo "build no binary yet"; return 0; }
   # A watchdog code snapshot (spl_wd_upd_snapshot) carries no api tree and is
@@ -400,15 +398,6 @@ spl_host_spool_verdict() {
     { echo "keep $APP_PATH has no $SPL_ORG_APP-api to build from"; return 0; }
   head="$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null)"
   [[ -n "$head" ]] || { echo "build $APP_PATH is not a git tree"; return 0; }
-  # The shared binary is only ever a build of origin/master (SPL-2041). A lane
-  # tree whose HEAD has not landed never writes it: on 2026-10-15 a lane's
-  # pre-push orc part rebuilt the prd binary from its unlanded branch, twice,
-  # and every caller on master kept it. No origin/master ref: the rules below.
-  trunk="$(git -C "$APP_PATH" rev-parse -q --verify 'refs/remotes/origin/master^{commit}' 2>/dev/null)"
-  if [[ -n "$trunk" ]] && ! git -C "$APP_PATH" merge-base --is-ancestor "$head" "$trunk" 2>/dev/null; then
-    echo "refuse this tree's ${head:0:12} is not on origin/master ($APP_PATH, a lane branch): it never replaces the shared binary"
-    return 0
-  fi
   read -r rev mod < <(spl_host_spool_bin_rev "$bin") || true
   [[ -n "${rev:-}" ]] || { echo "build the binary carries no vcs.revision"; return 0; }
   if [[ "$rev" == "$head" ]]; then
@@ -425,11 +414,6 @@ spl_host_spool_verdict() {
   if ! git -C "$APP_PATH" cat-file -e "$rev^{commit}" 2>/dev/null; then
     echo "refuse it was built from ${rev:0:12}, a commit this tree does not know, so it cannot be shown to be older than ${head:0:12}"
     return 0
-  fi
-  # A tree on master never keeps a lane build: not as "NEWER", not as the
-  # newer side of a divergence.
-  if [[ -n "$trunk" ]] && ! git -C "$APP_PATH" merge-base --is-ancestor "$rev" "$trunk" 2>/dev/null; then
-    echo "build the binary was built from ${rev:0:12}, a commit not on origin/master (a lane branch)"; return 0
   fi
   if git -C "$APP_PATH" merge-base --is-ancestor "$rev" "$head" 2>/dev/null; then
     # Newer commits that touch none of the build inputs make the same binary,

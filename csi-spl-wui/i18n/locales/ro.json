@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "Animație de gândire",
-      "rotate": "Pe rând",
       "hourglass": "Clepsidră",
       "robot": "Robot care aleargă",
       "brain": "Creier"
@@ -2374,12 +2373,12 @@
     "copy_link": "Copiază linkul",
     "link_copied": "Link copiat",
     "not_available": "Acest eveniment nu îți este disponibil.",
-    "show_in_calendar": "Afișează în calendar",
-    "show_in_calendar_overdue": "Afișează în calendar (termenul a trecut)",
-    "open_issue": "Deschide problema",
-    "open_issue_denied": "Nu aveți acces la această problemă.",
-    "issue_closed": "Această problemă este închisă, astfel că termenul său nu mai apare în calendar.",
-    "issue_no_deadline": "Această problemă nu are termen."
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Zilele săptămânii",

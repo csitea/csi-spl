@@ -22,24 +22,12 @@
 // much thinking - and a per-person pick (Settings -> Appearance), kept in this
 // browser per signed-in person (no hub field). Every one draws 20% bigger
 // than the first hourglass, inside the same box.
-//
-// SPL-2043 (owner HUM-10, t1 72898ea2 msgs c48092cf, 19feedf8): "3 seconds
-// for one, then 3 seconds for the other, and then 3 seconds for the robot ...
-// They should change all of the time." A pick `rotate`, the new default:
-// the mark cycles AWAIT_ROTATE_ORDER, AWAIT_ROTATE_STEP_MS each, off the
-// wall clock, so every waiting post on screen shows the same drawing.
 
 import { isAgentId } from './agent-id.mjs'
 import { storageGet, storageSet } from './prefs.mjs'
 
-/** The pick that takes the animations in turn (not an animation itself). */
-export const ROTATE_AWAIT_ANIM = 'rotate'
-/** The pick used when nobody picked one. */
-export const DEFAULT_AWAIT_ANIM = ROTATE_AWAIT_ANIM
-/** The drawings `rotate` takes in turn; the first is also the still one (reduced motion, `wait`). */
-export const AWAIT_ROTATE_ORDER = Object.freeze(['hourglass', 'robot', 'brain'])
-/** How long `rotate` shows each drawing. */
-export const AWAIT_ROTATE_STEP_MS = 3000
+/** The animation used when nobody picked one. */
+export const DEFAULT_AWAIT_ANIM = 'hourglass'
 
 /**
  * id -> how it is drawn. `css`: the component draws its glyph with this class
@@ -54,71 +42,20 @@ export const AWAIT_ANIMATIONS = Object.freeze({
 })
 
 /**
- * The ids a person can pick, in the order the setting lists them: `rotate`,
- * then every AWAIT_ANIMATIONS entry. A literal,
+ * The ids a person can pick, in the order the setting lists them. A literal,
  * not Object.keys(AWAIT_ANIMATIONS): that top-level call reads as a side
  * effect, so Nuxt's auto-import barrel kept this whole module in the entry
  * chunk (ci_initial_gzip_kb 154.6 -> 155.3 KB, over 155). A unit test keeps
  * the two in step.
  */
-export const AWAIT_ANIM_IDS = Object.freeze(['rotate', 'hourglass', 'robot', 'brain'])
+export const AWAIT_ANIM_IDS = Object.freeze(['hourglass', 'robot', 'brain'])
 
-/** The entry for animation `id`; the hourglass for an unknown or empty id (and for `rotate`). */
+/** The entry for `id`; the default one for an unknown or empty id. */
 export function awaitAnimation(id) {
   const key = String(id || '')
   const known = Object.prototype.hasOwnProperty.call(AWAIT_ANIMATIONS, key)
-  const pick = known ? key : AWAIT_ROTATE_ORDER[0]
+  const pick = known ? key : DEFAULT_AWAIT_ANIM
   return { id: pick, ...AWAIT_ANIMATIONS[pick] }
-}
-
-/** A valid pick: one of AWAIT_ANIM_IDS, else the default. */
-export function awaitAnimPick(id) {
-  const key = String(id || '')
-  return AWAIT_ANIM_IDS.includes(key) ? key : DEFAULT_AWAIT_ANIM
-}
-
-/** The drawing `rotate` shows at wall-clock `now` (ms): one step per AWAIT_ROTATE_STEP_MS, in order. */
-export function rotateAnimAt(now) {
-  const n = Math.floor(Number(now) / AWAIT_ROTATE_STEP_MS)
-  const len = AWAIT_ROTATE_ORDER.length
-  return Number.isFinite(n) ? AWAIT_ROTATE_ORDER[((n % len) + len) % len] : AWAIT_ROTATE_ORDER[0]
-}
-
-/** ms from `now` to the next rotate step (1..AWAIT_ROTATE_STEP_MS). */
-export function msToNextRotate(now) {
-  const into = ((Number(now) % AWAIT_ROTATE_STEP_MS) + AWAIT_ROTATE_STEP_MS) % AWAIT_ROTATE_STEP_MS
-  return Number.isFinite(into) ? AWAIT_ROTATE_STEP_MS - into : AWAIT_ROTATE_STEP_MS
-}
-
-/**
- * ONE clock for every rotating mark: a single timer while anyone listens,
- * none once the last one leaves (no per-row timers that drift or leak).
- * `subscribe(fn)` calls fn(drawingId) now and on every step; it returns the
- * unsubscribe. `now`/`setTimer`/`clearTimer` are seams for a fake clock.
- */
-export function createRotateClock({ now = () => Date.now(), setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (h) => clearTimeout(h) } = {}) {
-  const fns = new Set()
-  let timer = null
-  const tick = () => {
-    const t = now()
-    const id = rotateAnimAt(t)
-    for (const fn of fns) fn(id)
-    timer = setTimer(tick, msToNextRotate(t))
-  }
-  return {
-    subscribe(fn) {
-      fns.add(fn)
-      if (timer === null) tick()
-      else fn(rotateAnimAt(now()))
-      return () => {
-        if (!fns.delete(fn) || fns.size || timer === null) return
-        clearTimer(timer)
-        timer = null
-      }
-    },
-    get listeners() { return fns.size },
-    get running() { return timer !== null },
-  }
 }
 
 /** localStorage key of a pick made signed out; the prefix of each person's own key. */
@@ -131,14 +68,14 @@ export function awaitAnimKey(claims) {
   return `${AWAIT_ANIM_KEY}:${tenant ? tenant + ':' : ''}${hum}`
 }
 
-/** The person's pick; the default when none or an unknown one is stored. */
+/** The person's picked animation id; the default when none or an unknown one is stored. */
 export function readAwaitAnim(claims, store) {
-  return awaitAnimPick(storageGet(awaitAnimKey(claims), '', store))
+  return awaitAnimation(storageGet(awaitAnimKey(claims), '', store)).id
 }
 
 /** Store the person's pick (an unknown id stores the default); returns the stored id. */
 export function writeAwaitAnim(claims, id, store) {
-  const pick = awaitAnimPick(id)
+  const pick = awaitAnimation(id).id
   storageSet(awaitAnimKey(claims), pick, store)
   return pick
 }

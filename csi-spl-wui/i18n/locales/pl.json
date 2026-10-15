@@ -248,7 +248,6 @@
     },
     "await_anim": {
       "label": "Animacja myślenia",
-      "rotate": "Na zmianę",
       "hourglass": "Klepsydra",
       "robot": "Biegnący robot",
       "brain": "Mózg"
@@ -2374,12 +2373,12 @@
     "copy_link": "Kopiuj link",
     "link_copied": "Link skopiowany",
     "not_available": "To wydarzenie nie jest dla ciebie dostępne.",
-    "show_in_calendar": "Pokaż w kalendarzu",
-    "show_in_calendar_overdue": "Pokaż w kalendarzu (termin minął)",
-    "open_issue": "Otwórz zgłoszenie",
-    "open_issue_denied": "Nie masz dostępu do tego zgłoszenia.",
-    "issue_closed": "To zgłoszenie jest zamknięte, więc jego termin nie jest już widoczny w kalendarzu.",
-    "issue_no_deadline": "To zgłoszenie nie ma terminu."
+    "show_in_calendar": "Show in calendar",
+    "show_in_calendar_overdue": "Show in calendar (the deadline has passed)",
+    "open_issue": "Open issue",
+    "open_issue_denied": "You do not have access to this issue.",
+    "issue_closed": "This issue is closed, so its deadline is no longer on the calendar.",
+    "issue_no_deadline": "This issue has no deadline."
   },
   "calendar_phone_week": {
     "strip": "Dni tygodnia",

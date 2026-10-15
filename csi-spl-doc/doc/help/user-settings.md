@@ -126,14 +126,6 @@ shows in that zone, including an ISO time that carries a zone inside a
 message. A time with no zone stays as written. The choice is kept for this
 workspace.
 
-### 4.6 Thinking animation
-The mark on your message while it waits for an agent's answer
-([waiting for an answer](omnibox-and-navigation.md)). **Take turns** (default)
-shows the hourglass, the running robot and the brain in turn, about 3 seconds
-each; or pick one of them to stay. Each choice shows its own running sample.
-With *reduce motion* on in your system the mark is a still hourglass. The pick
-is kept in this browser for you.
-
 ---
 
 ## 5. Behaviour (`/settings/behaviour`)

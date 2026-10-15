@@ -43,10 +43,12 @@ import (
 // The item kinds of add (the WUI's model: an item is a heading; its body is
 // the paragraph text; its attrs carry one code block and one image):
 //
-//	heading  --title t [--level n | --under item | --after item] [--text t] [--unnumbered] [--dotted] [--tight] [--tight-end]
+//	heading  --title t [--level n | --under item | --after item] [--text t] [--unnumbered] [--dotted] [--outline n] [--tight] [--tight-end]
 //	         a new item; --level n appends it at depth n, under the last item at n-1;
 //	         --unnumbered sets attrs.numbered false: no outline number (spec 137);
 //	         --dotted sets attrs.outline_dot true: the export writes "1. x" (SPL-1900);
+//	         --outline n sets attrs.outline_author n: the md author's number where it
+//	         is not the derived one (0, a gap, a restart), the hub's outline (SPL-2024);
 //	         --tight sets attrs.tight true: no blank line between the heading and its text;
 //	         --tight-end sets attrs.tight_end true: no blank line after its text
 //	para     --text t | --file f [--item id]     text appended to the item's body
@@ -620,6 +622,7 @@ func dtText(value, file string, oneLine bool) (string, error) {
 // dtAddOpts are the add flags.
 type dtAddOpts struct {
 	kind, title, text, file, lang, path, caption string
+	outline                                      string
 	item, under, after                           string
 	level                                        int
 	rev                                          int64
@@ -628,7 +631,7 @@ type dtAddOpts struct {
 
 func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs := newDTFlags("add", "usage: spool doctree add <doc> --kind heading|para|code|table|picture "+
-		"[--title t] [--level n | --under id | --after id] [--unnumbered] [--dotted] [--tight] [--tight-end] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
+		"[--title t] [--level n | --under id | --after id] [--unnumbered] [--dotted] [--outline n] [--tight] [--tight-end] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
 	var o dtAddOpts
 	fs.StringVar(&o.kind, "kind", "", "heading, para, code, table or picture")
 	fs.StringVar(&o.title, "title", "", "the heading's title")
@@ -645,6 +648,7 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs.BoolVar(&o.replace, "replace", false, "code: replace the item's code block")
 	fs.BoolVar(&o.unnumbered, "unnumbered", false, "heading: no outline number (attrs.numbered false)")
 	fs.BoolVar(&o.dotted, "dotted", false, `heading: the export writes its number "1." (attrs.outline_dot true)`)
+	fs.StringVar(&o.outline, "outline", "", "heading: the author's number when it is not the derived one, e.g. 0 or 3.1 (attrs.outline_author)")
 	fs.BoolVar(&o.tight, "tight", false, "heading: the export writes its text right under it, no blank line (attrs.tight true)")
 	fs.BoolVar(&o.tightEnd, "tight-end", false, "heading: the export writes no blank line after its text (attrs.tight_end true)")
 	pos, err := fs.parse(args, 1, 1)
@@ -684,6 +688,9 @@ func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient)
 	if strings.TrimSpace(o.title) == "" {
 		return nil, errors.New("heading: --title is required")
 	}
+	if o.outline != "" && (o.unnumbered || !dtOutlineRe.MatchString(o.outline)) {
+		return nil, errors.New("heading: --outline is a number such as 0, 3.1 or 4.2.0, on a numbered heading")
+	}
 	body := ""
 	if o.text != "" || o.file != "" {
 		var err error
@@ -715,6 +722,9 @@ func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient)
 		if o.dotted {
 			attrs["outline_dot"] = true
 		}
+		if o.outline != "" {
+			attrs["outline_author"] = o.outline
+		}
 		if o.tight {
 			attrs["tight"] = true
 		}
@@ -727,6 +737,9 @@ func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient)
 		return c.json(ctx, http.MethodPost, dtDoc(doc)+"/items", in, nil)
 	}, nil
 }
+
+// dtOutlineRe is an author's number (--outline), the hub's authorOutlineRe.
+var dtOutlineRe = regexp.MustCompile(`^\d+(\.\d+)*$`)
 
 // docTreeLevelParent is the parent of a new heading at depth level appended
 // at the end of the document: the last item (document order) at level-1.

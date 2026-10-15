@@ -82,3 +82,25 @@ func TestDocTreeAddFidelityFlags(t *testing.T) {
 		t.Errorf("a plain add wrote attrs %v", d.items[b].Attrs)
 	}
 }
+
+// SPL-2024 (Qto gaps G3, G4): --outline keeps the md author's number in
+// attrs.outline_author; a number the hub would not read back is refused.
+func TestDocTreeAddAuthorOutline(t *testing.T) {
+	h := newDTHub(t)
+	dtOK(t, "create", "--title", "T")
+	a := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "Zero", "--outline", "0", "--dotted")["item"].(string)
+	b := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "Gap", "--outline", "3.1")["item"].(string)
+	d := h.doc(t)
+	if v := d.items[a].Attrs["outline_author"]; v != "0" {
+		t.Errorf("add --outline 0: attrs.outline_author = %v (%v)", v, d.items[a].Attrs)
+	}
+	if v := d.items[b].Attrs["outline_author"]; v != "3.1" {
+		t.Errorf("add --outline 3.1: attrs.outline_author = %v (%v)", v, d.items[b].Attrs)
+	}
+	for _, bad := range [][]string{{"--outline", "1."}, {"--outline", "x"}, {"--outline", "2", "--unnumbered"}} {
+		args := append([]string{"add", dtDocID, "--kind", "heading", "--title", "Bad"}, bad...)
+		if rc, _, errOut := captureRun(t, append([]string{"doctree"}, args...)); rc == 0 || !strings.Contains(errOut, "--outline") {
+			t.Errorf("add %v: rc %d, stderr %q, want the --outline refusal", bad, rc, errOut)
+		}
+	}
+}

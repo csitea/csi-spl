@@ -10,8 +10,7 @@
 #          not a copy of it (spec 137 T032).
 #   1. both actions exist (red before they landed)
 #   2. import DRY_RUN=1 (the default) makes no spool call
-#   3. import refuses: a path that is not a repo-relative .md, a section
-#      number the doc would not derive; no spool call
+#   3. import refuses: a path that is not a repo-relative .md; no spool call
 #   4. import: one create, the preamble on the hidden root, one heading per
 #      section at its level; the map row; the md file now says
 #      "generated from qto doc <id>; edit it there"
@@ -52,6 +51,14 @@
 #      order; a fenced '## ' gets none; a re-import drops them (no body text,
 #      byte-stable). The round trips above compare the page with those lines
 #      left out (noanchor)
+#  21. SPL-2024 (Qto gaps G3, G4, G5): standard md imports as written. A
+#      section 0, a gap, a restart and a '## 3.1' at the top level keep the
+#      author's number (--outline n, attrs.outline_author; the fake hub reads
+#      it back as the store does) and round-trip; a page with no '# ' title
+#      line, or several, takes its file name as the doc title, the root gets
+#      attrs.no_title (attrs.h1_sections for '# ' sections) and the export
+#      writes no title line. Red on the old split: "would become", "no '# '
+#      title line"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -85,6 +92,10 @@ open(os.environ["CALLS"] + ".fs", "a").write(os.environ.get("SPOOL_DOCTREE_FS", 
 a = sys.argv[2:]
 def flag(n):
     return a[a.index(n) + 1] if n in a else ""
+def own(it, derived):
+    # the store's authorOutline (SPL-2024): attrs.outline_author on a numbered item
+    n = it["attrs"].get("outline_author")
+    return n if derived and isinstance(n, str) and n else derived
 def outline():
     # the hub's (store outlineOf): an item with attrs.numbered false, and every
     # item under one, has no outline and is not counted among its siblings
@@ -96,7 +107,7 @@ def outline():
         on = num[-1] and it["attrs"].get("numbered") is not False
         if on: c[-1] += 1
         num.append(on)
-        out.append(dict(it, parent="r00t", outline=".".join(map(str, c)) if on else ""))
+        out.append(dict(it, parent="r00t", outline=own(it, ".".join(map(str, c)) if on else "")))
     return out
 def root():
     return {"id": "r00t", "parent": "", "depth": 0, "body": db["root_body"], "attrs": db["root_attrs"]}
@@ -107,7 +118,8 @@ if v == "create":
     db = {"id": "d0c", "title": flag("--title"), "root_body": "", "root_attrs": {}, "items": []}
     print(json.dumps({"id": "d0c", "root": "r00t", "rev": 1}))
 elif v == "edit":
-    body, f = open(flag("--file")).read(), flag("--field")
+    f = flag("--field")
+    body = open(flag("--file")).read() if "--file" in a else json.loads(flag("--value")) if "--json" in a else flag("--value")
     if f.startswith("attrs."):
         (db["root_attrs"] if a[2] == "r00t" else [it for it in db["items"] if it["id"] == a[2]][0]["attrs"])[f[6:]] = body
     elif a[2] == "r00t": db["root_body"] = body
@@ -118,6 +130,7 @@ elif v == "add":
     # SPL-1900: the author's heading form and spacing, as the hub stores them
     for f, k in (("--dotted", "outline_dot"), ("--tight", "tight"), ("--tight-end", "tight_end")):
         if f in a: attrs[k] = True
+    if "--outline" in a: attrs["outline_author"] = flag("--outline")
     db["items"].append({"id": "i%d" % len(db["items"]), "depth": int(flag("--level")), "title": flag("--title"), "body": body, "attrs": attrs})
 elif v == "delete":
     db = {"items": [], "deleted": a[1]}
@@ -211,10 +224,6 @@ for bad in /etc/x.md ../x.md csi-spl-doc/../../x.md csi-spl-doc/doc/md/runbook-x
   [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'must be a repo-relative .md file' "$T/o" &&
     pass "import refuses '$bad'" || fail "path '$bad' (rc=$rc): $(cat "$T/o")"
 done
-sed 's/^### 2.2 Write/### 2.3 Write/' "$R/$PAGE" >"$R/csi-spl-doc/doc/md/skip.md"
-run do_spl_doctree_import_md MD_PATH=csi-spl-doc/doc/md/skip.md DRY_RUN=0
-[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "'2.3 Write' would become 2.2" "$T/o" &&
-  pass "import refuses a number the qto doc would renumber" || fail "renumber (rc=$rc): $(cat "$T/o")"
 
 # --- 4. import -------------------------------------------------------------------------------------
 run do_spl_doctree_import_md MD_PATH="$PAGE" DRY_RUN=0
@@ -468,8 +477,8 @@ for it in fx["items"][1:]:
     want.append((num, it["title"], it["body"], gaps))
 got = []
 for line in open(sys.argv[2]).read().splitlines():
-    lvl, num, title, body, gaps = line.split("\t")
-    got.append((num, title, open(body).read() if body else "", gaps))
+    lvl, num, title, body, gaps, own = line.split("\t")
+    got.append((num, title, open(body).read() if body else "", gaps + own))
 pre = open(sys.argv[3] + "/preamble.md").read()
 sys.exit(0 if got == want and pre == fx["items"][0]["body"] else f"split:\n got {got} {pre!r}\nwant {want}")
 EOF_PY
@@ -528,5 +537,86 @@ run do_spl_doctree_import_md MD_PATH="csi-spl-doc/doc/md/fence20.md" DRY_RUN=0 Q
 [[ $rc -eq 0 ]] && cmp -s "$T/fence20.md" "$R/csi-spl-doc/doc/md/fence20.md" &&
   pass "spec 138 G4: an exported page with anchors round-trips byte-stable" ||
   fail "spec 138 G4 round trip (rc=$rc): $(cat "$T/o") / $(diff "$T/fence20.md" "$R/csi-spl-doc/doc/md/fence20.md")"
+
+# --- 21. SPL-2024: author numbers and pages with no title line --------------------------------------
+P="csi-spl-doc/doc/md/zero.md"
+cat >"$R/$P" <<'EOF_MD'
+# Zero first
+
+## 0. The order, verbatim
+
+Quoted.
+
+## 1. The job
+
+### 1.1 Read
+
+Text.
+
+## 3.1 Peer mesh
+
+A gap, at the top level.
+
+## 4. Picks
+
+### 1. First
+
+A restart.
+
+### 2. Second
+
+Text.
+EOF_MD
+roundtrip "SPL-2024: a page with a section 0, a gap and a restart round-trips, its numbers as written" "$P" "> $GEN
+>" 21
+grep -q "add d0c --kind heading --level 1 --dotted --outline 0 --title 'The order, verbatim'" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 1 --dotted --outline 1 --title 'The job'" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 1 --outline 3.1 --title 'Peer mesh'" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 2 --dotted --outline 1 --title First" "$T/calls" &&
+  pass "SPL-2024: a number the doc would not derive is added with --outline, as written" ||
+  fail "SPL-2024 add flags: $(cat "$T/calls")"
+P="csi-spl-doc/doc/md/SPL-1-result.md"
+cat >"$R/$P" <<'EOF_MD'
+## Result: no title line
+
+**Fixed**: a page that opens on a section.
+
+### Proof
+
+Ran.
+EOF_MD
+roundtrip "SPL-2024: a page that opens on '##' (no title line) round-trips with no title line" "$P" "> $GEN
+>" 22
+grep -q "create --title SPL-1-result" "$T/calls" && grep -q -- "--field attrs.no_title --value true --json" "$T/calls" &&
+  ! grep -q "h1_sections" "$T/calls" && grep -q "add d0c --kind heading --level 1 --unnumbered --title 'Result: no title line'" "$T/calls" &&
+  pass "SPL-2024: no title line: the file name is the doc title, the root gets attrs.no_title" ||
+  fail "SPL-2024 no-title calls: $(cat "$T/calls")"
+P="csi-spl-doc/doc/md/moved.md"
+printf 'This page has moved, see [the guide](guide.md).\n' >"$R/$P"
+roundtrip "SPL-2024: a page with no heading at all imports as the root body, no title line" "$P" "> $GEN
+>" 23
+P="csi-spl-doc/doc/md/h1-sections.md"
+cat >"$R/$P" <<'EOF_MD'
+Exported once from elsewhere; a line before the first section.
+
+# 1 About this guide
+
+## 1.1 What you hold
+
+Keys.
+
+# 2 The disaster path
+
+## 2.1 What survives
+
+The repo.
+EOF_MD
+roundtrip "SPL-2024: a page of several '# ' sections round-trips, its '#' headings kept" "$P" "> $GEN
+>" 24
+grep -q "create --title h1-sections" "$T/calls" && grep -q -- "--field attrs.h1_sections --value true --json" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 1 --title 'About this guide'" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 2 --title 'What you hold'" "$T/calls" &&
+  pass "SPL-2024: '# ' sections are level 1, the root gets attrs.no_title and attrs.h1_sections" ||
+  fail "SPL-2024 h1 calls: $(cat "$T/calls")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

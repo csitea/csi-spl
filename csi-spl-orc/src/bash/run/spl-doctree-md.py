@@ -8,23 +8,32 @@ never by hand. Two verbs:
       An md page (an optional YAML front matter, one '# ' title, a preamble,
       then '## ' .. '###### ' sections) cut into what the import writes:
       <out>/title, <out>/preamble.md, <out>/front_matter.yml (only when the
-      page has one) and per section <out>/NNNN.body.md, plus one TSV line per
+      page has one), <out>/no_title (only when it has no title line, below)
+      and per section <out>/NNNN.body.md, plus one TSV line per
       section on stdout: level, outline ('-' = unnumbered; '1.' = the author
       wrote '## 1. x', the qto item gets attrs.outline_dot and the export
       writes the dot back, SPL-1900), title, body file ('' = none), gaps
       ('tight' = no blank line under the heading: attrs.tight; 'tight_end' =
-      none after its text: attrs.tight_end; comma-separated, '' = both). A
-      body is the section's lines as written, less the one blank line under
-      its heading and the one before the next: its other blank lines and its
-      first line's indent stay (the export writes them back, SPL-1900), each
-      line newline-ended. A "generated from qto doc" line in the preamble (a
-      page that is already an export) is dropped: compose writes the new one.
+      none after its text: attrs.tight_end; comma-separated, '' = both), own
+      (the author's number where it is not the one the qto doc derives, ''
+      = the same: a section 0, a gap, a restart; the item keeps it as
+      written in attrs.outline_author and is never renumbered, since other
+      docs cite it, SPL-2024). A body is the section's lines as written,
+      less the one blank line under its heading and the one before the
+      next: its other blank lines and its first line's indent stay (the
+      export writes them back, SPL-1900), each line newline-ended. A
+      "generated from qto doc" line in the preamble (a page that is already
+      an export) is dropped: compose writes the new one.
       A section is numbered ('## 1. x', '### 1.1 y') or not ('## Overview':
       the qto item gets attrs.numbered false and no outline number); a
       heading under an unnumbered one is unnumbered too, its text kept whole
-      as the title. Refused (exit 1): no title, a heading that skips a level,
-      or numbers that are not the outline the qto doc will derive (the import
-      must never renumber a section others cite).
+      as the title. A page has a title line when it opens (its first line
+      with text) on a '# ' heading, and a later '# ' line is text; else
+      (standard md, SPL-2024) the title is the file name, <out>/no_title holds the md
+      heading of a top-level section ('#' when the page has '# ' sections,
+      else '##'; the root gets attrs.no_title, and attrs.h1_sections for
+      '#') and the export writes no title line. Refused (exit 1): a heading
+      that skips a level.
 
   compose <head.json> <root read.json> <export.md> <doc id>
       The md file the export writes: the front matter (the hidden root's
@@ -32,10 +41,12 @@ never by hand. Two verbs:
       `spool doctree export` (which opens with the preamble, the root's body;
       added here when an older spool left it out) with every heading one
       level down (outside code fences), so the sections are '##' under the
-      page's '#'. It ends as the md did (SPL-1900): the last section's
-      trailing blank lines, or no final newline (attrs.tight_end), come from
-      the read, since the export reaches compose with its trailing newlines
-      cut; one newline otherwise. Byte-stable.
+      page's '#'. A root with attrs.no_title gets no title line, and with
+      attrs.h1_sections its headings stay as exported ('#'). It ends as
+      the md did (SPL-1900): the last section's trailing blank lines, or
+      no final newline (attrs.tight_end), come from the read, since the
+      export reaches compose with its trailing newlines cut; one newline
+      otherwise. Byte-stable.
 
 Code fences are tracked by their opening run (CommonMark): a fence opened by
 '````' closes only on a '````' or longer line of the same character, so a
@@ -92,24 +103,45 @@ def front_matter(lines):
     return None, lines
 
 
+def heading_levels(lines):
+    """The md levels of the page's headings outside fences, in order."""
+    fences = Fences()
+    return [
+        len(m.group(1))
+        for m in (None if fences.inside(line) else HEAD.match(line) for line in lines)
+        if m
+    ]
+
+
+def has_title(lines):
+    """True when the page opens (its first line with text) on a '# ' line."""
+    first = next((line for line in lines if line.strip()), "")
+    return bool(HEAD.match(first)) and first.startswith("# ")
+
+
 def split(md_path, out):
     fm, lines = front_matter(open(md_path, encoding="utf-8").read().split("\n"))
+    levels = heading_levels(lines)
+    # a title line: the page opens on '# '; else its sections start at its
+    # top heading ('#' when it has any, else '##')
+    titled = has_title(lines)
+    top = 2 if titled or 1 not in levels else 1
     title, sections, pre, cur, fences = None, [], [], None, Fences()
     for line in lines:
         m = None if fences.inside(line) else HEAD.match(line)
-        if m and len(m.group(1)) == 1 and title is None:
+        if m and titled and title is None and len(m.group(1)) == 1:
             title = m.group(2).strip()
             continue
-        if m and len(m.group(1)) > 1:
+        if m and len(m.group(1)) >= top:
             body = cur["body"] if cur else pre
             if body and ANCHOR.match(body[-1]):
                 body.pop()
-            cur = section(m)
+            cur = section(m, top)
             sections.append(cur)
             continue
         (cur["body"] if cur else pre).append(line)
-    if title is None:
-        sys.exit(f"FATAL {md_path}: no '# ' title line")
+    if not titled:
+        title = os.path.splitext(os.path.basename(md_path))[0]
     # a page that is already an export (a re-import into another tree, spec
     # 137 T030a) drops its old generated-from line: compose writes the new one
     pre = [line for line in pre if not STAMP.match(line)]
@@ -119,6 +151,8 @@ def split(md_path, out):
     write(os.path.join(out, "preamble.md"), "\n".join(pre).strip() + "\n")
     if fm is not None:
         write(os.path.join(out, "front_matter.yml"), fm)
+    if not titled:
+        write(os.path.join(out, "no_title"), "#" * top + "\n")
     for i, s in enumerate(sections, 1):
         lines = s["body"]
         tight = not lines or lines[0] != ""
@@ -131,7 +165,8 @@ def split(md_path, out):
         gaps = ",".join(
             g for g, on in (("tight", tight), ("tight_end", tight_end)) if on
         )
-        print("\t".join([str(s["level"]), num, s["title"], name, gaps]))
+        own = s["outline"] if s.get("own") else ""
+        print("\t".join([str(s["level"]), num, s["title"], name, gaps, own]))
 
 
 def section_body(lines, tight):
@@ -147,11 +182,11 @@ def section_body(lines, tight):
     return "".join(line + "\n" for line in lines)
 
 
-def section(m):
+def section(m, top=2):
     text = m.group(2).strip()
     n = NUM.match(text)
     return {
-        "level": len(m.group(1)) - 1,
+        "level": len(m.group(1)) - top + 1,
         "outline": n.group(1) if n else None,
         "dot": bool(n and n.group(2)),
         "title": n.group(3).strip() if n else text,
@@ -166,7 +201,8 @@ def write(path, text):
 
 
 def check_outline(md_path, sections):
-    """The numbers must be the outline the doc derives: 1, 1.1, 1.2, 2, ...
+    """Marks own the numbers that are not the outline the doc derives (1,
+    1.1, 1.2, 2, ...): the item keeps the author's (attrs.outline_author).
     An unnumbered section is not counted among its siblings, and every
     section under it is unnumbered (the qto doc gives them no number)."""
     counts, numbered = [], [True]
@@ -183,11 +219,7 @@ def check_outline(md_path, sections):
             continue
         counts[-1] += 1
         numbered.append(True)
-        want = ".".join(str(c) for c in counts)
-        if s["outline"] != want:
-            sys.exit(
-                f"FATAL {md_path}: section '{s['outline']} {s['title']}' would become {want} in the qto doc"
-            )
+        s["own"] = s["outline"] != ".".join(str(c) for c in counts)
 
 
 def heading_text(it):
@@ -239,9 +271,11 @@ def compose(head_path, root_path, export_path, doc):
                 break
     pre = "\n".join(lines[:cut]).strip() or (root.get("body") or "").strip()
     out, fences = [], Fences()
+    keep = (root.get("attrs") or {}).get("h1_sections") is True
     for line in anchored(lines[cut:], items):
         down = (
-            not fences.inside(line)
+            not keep
+            and not fences.inside(line)
             and HEAD.match(line)
             and not line.startswith("######")
         )
@@ -250,8 +284,9 @@ def compose(head_path, root_path, export_path, doc):
     fm = (root.get("attrs") or {}).get("front_matter")
     if isinstance(fm, str):
         parts.append("---\n" + fm + "\n---" if fm else "---\n---")
+    if (root.get("attrs") or {}).get("no_title") is not True:
+        parts.append("# " + (head.get("title") or "Untitled"))
     parts += [
-        "# " + (head.get("title") or "Untitled"),
         f"> Generated from qto doc `{doc}`; edit it there. This file is its export: "
         "`cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.",
     ]

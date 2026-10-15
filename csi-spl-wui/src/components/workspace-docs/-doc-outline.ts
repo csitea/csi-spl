@@ -29,6 +29,14 @@ export function outlineOf(path: number[]): string {
   return path.length && !path.includes(0) ? path.join('.') : ''
 }
 
+/** the item's outline: attrs.outline_author, the md author's number kept by the import where it is not
+    the derived one (0, a gap, a restart; SPL-2024), when the item is numbered; else the derived one
+    (the store's authorOutline) */
+export function authorOutline(derived: string, attrs?: Record<string, unknown>): string {
+  const n = attrs?.outline_author
+  return derived && typeof n === 'string' && /^\d+(\.\d+)*$/.test(n) ? n : derived
+}
+
 /** a heading's text: the outline number and the title, the title alone when it has no number;
     dot writes the number "1." (attrs.outline_dot, the md author's form, SPL-1900) */
 export function headingText(outline: string, title: string, dot = false): string {

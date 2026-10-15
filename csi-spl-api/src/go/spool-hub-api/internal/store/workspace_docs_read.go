@@ -1,7 +1,10 @@
 package store
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,6 +16,10 @@ import (
 // The outline number is derived here from the ord path, never stored (I6).
 // Spec 137 T012a: an item whose attrs.numbered is false has no outline and
 // does not count among its siblings; the items under it have no outline.
+// SPL-2024: a numbered item whose attrs.outline_author holds a number (the
+// md author's, kept by the import where it is not the derived one: a
+// section 0, a gap, a restart) has that number as its outline instead; it
+// is stored as written, never renumbered, since other docs cite it.
 
 // wsDocStartSQL resolves the start item: $2, or the doc's root when $2 is NULL.
 const wsDocStartSQL = `s AS (SELECT coalesce($2::uuid,
@@ -127,8 +134,29 @@ func scanDocItem(r pgx.Rows) (DocItem, error) {
 	var path []int32
 	err := r.Scan(&it.ID, &it.ParentID, &it.Ord, &it.Title, &it.Body, &it.Attrs, &it.Rev, &path)
 	it.Depth = len(path)
-	it.Outline = outlineOf(path)
+	it.Outline = authorOutline(outlineOf(path), it.Attrs)
 	return it, err
+}
+
+// authorOutlineRe is a number as an md author writes it: 0, 3.1, 4.2.0.
+var authorOutlineRe = regexp.MustCompile(`^\d+(\.\d+)*$`)
+
+// authorOutline is the item's outline: attrs.outline_author when the item is
+// numbered (derived is not "") and it holds a number, else derived.
+func authorOutline(derived string, attrs json.RawMessage) string {
+	if derived == "" || !bytes.Contains(attrs, []byte(`"outline_author"`)) {
+		return derived
+	}
+	var a struct {
+		Author any `json:"outline_author"`
+	}
+	if json.Unmarshal(attrs, &a) != nil {
+		return derived
+	}
+	if n, ok := a.Author.(string); ok && authorOutlineRe.MatchString(n) {
+		return n
+	}
+	return derived
 }
 
 // outlineOf is the derived number: the number path joined by dots; "" when

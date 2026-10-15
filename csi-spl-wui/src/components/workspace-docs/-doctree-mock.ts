@@ -7,7 +7,7 @@
    a reload, as on the hub); a new tab starts from the seed again.
    The `-` prefix keeps Nuxt from registering this file as a component. */
 import { readDataUrl } from '~/utils/file-preview.mjs'
-import { outlineOf, siblingNumbers } from './-doc-outline'
+import { authorOutline, outlineOf, siblingNumbers } from './-doc-outline'
 
 export type MockReply = { status: number, body: unknown }
 
@@ -59,10 +59,10 @@ function pathOf(d: Doc, it: Item, num = false): number[] {
   return path
 }
 
-/** item with its outline (1 / 1.1 / 1.1.1, '' when unnumbered) and depth, as the hub's docTreeItem */
+/** item with its outline (1 / 1.1 / 1.1.1, '' when unnumbered, the author's attrs.outline_author when set) and depth, as the hub's docTreeItem */
 function wire(d: Doc, it: Item): Wire {
   const path = pathOf(d, it, true)
-  return { id: it.id, parent: it.parent, ord: it.ord, outline: outlineOf(path), depth: path.length, title: it.title, body: it.body, attrs: it.attrs, rev: it.rev }
+  return { id: it.id, parent: it.parent, ord: it.ord, outline: authorOutline(outlineOf(path), it.attrs), depth: path.length, title: it.title, body: it.body, attrs: it.attrs, rev: it.rev }
 }
 
 /** item and everything under it, in document order */

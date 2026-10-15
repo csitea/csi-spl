@@ -66,6 +66,17 @@ describe('numbering: as the store derives the outline', () => {
     assert.deepEqual([...o.siblingNumbers(plain)], [['y', 1], ['z', 2], ['x', 3]])
   })
 
+  it('authorOutline: the md author\'s number (attrs.outline_author, SPL-2024) on a numbered item (TestAuthorOutline)', () => {
+    assert.equal(o.authorOutline('1', {}), '1')
+    assert.equal(o.authorOutline('1', { outline_author: '0' }), '0')
+    assert.equal(o.authorOutline('5', { outline_author: '3.1', outline_dot: true }), '3.1')
+    assert.equal(o.authorOutline('4.1', { outline_author: '1' }), '1')
+    assert.equal(o.authorOutline('', { outline_author: '2' }), '')
+    assert.equal(o.authorOutline('2', { outline_author: 'x' }), '2')
+    assert.equal(o.authorOutline('2', { outline_author: 3 }), '2')
+    assert.equal(o.authorOutline('2'), '2')
+  })
+
   it('the hub JSON may carry "false" as a string: still unnumbered', () => {
     assert.equal(o.isNumbered({ attrs: { numbered: 'false' } }), false)
     assert.equal(o.isNumbered({ attrs: { numbered: false } }), false)
@@ -124,9 +135,10 @@ describe('the doc view and the mock number through the helper', () => {
     assert.doesNotMatch(v, /outline\.startsWith\(/)
   })
 
-  it('the mock tenant derives the outline with outlineOf + siblingNumbers', () => {
+  it('the mock tenant derives the outline with outlineOf + siblingNumbers, the author\'s number through authorOutline', () => {
     const m = src('-doctree-mock.ts')
-    assert.match(m, /import \{ outlineOf, siblingNumbers \} from '\.\/-doc-outline'/)
+    assert.match(m, /import \{ authorOutline, outlineOf, siblingNumbers \} from '\.\/-doc-outline'/)
+    assert.match(m, /outline: authorOutline\(outlineOf\(path\), it\.attrs\)/)
     assert.doesNotMatch(m, /outline: path\.join\('\.'\)/)
   })
 })

@@ -153,7 +153,7 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   construction (the route calls only `Memberships`, the 107 reads and the 119 `inPerson`
   reads) and by 119 T002's `personal_rls_test.go`.
 
-- [ ] T004 **Lane C: multi-workspace save & targets routes** (claude, hub + auth; waits on
+- [x] T004 **Lane C: multi-workspace save & targets routes** (c-536, `b6d1e5bf3`; claude, hub + auth; waits on
   119 T002; BUILD). Spec 7.1, 7.2:
   - `GET /v1/me/realm/targets?workspace=<W>&q=` checks W in caller's memberships; reads targets
     under `inTenant(W)`.
@@ -170,6 +170,14 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   Must not touch: Lane B's files, `GO/hub/realm.go`, `GO/hub/hours_me.go`, `GO/hub/server.go`.
   Tests: T-D2, T-R4a, T-R4b, T-R4c.
   Done: green on Postgres; deployed dev and prd.
+  Built (c-536, SPL-1930): body is a bare JSON array of rows; answer `200 {rows: [{op_id,
+  workspace, status, detail?, replayed?}]}` in request order, plus `bad_row` (a day after today,
+  bad times) and `unavailable` (store error, retry). A group's refusal is the status of every
+  row of that workspace (one transaction). A seat without `self.keys` (no `time_accountant` role
+  exists yet) is `not_a_member`. Timed rows add their minutes to the row and keep a `manual`
+  span; a replay answers `replayed: true`. `GET /v1/me/realm/targets` answers `{workspace,
+  targets: [{target, label, kind}]}`. The `OPTIONS /v1/me/realm/hours` preflight is T003's (GET,
+  PUT).
 
 - [ ] T005 **Lane D: WUI overlap engine, shared fixture & API client** (grok or mistral;
   waits on T002, T003, T004; BUILD). Spec 6.1, 6.3, T-OV-JS:
@@ -245,7 +253,7 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
 | T001 | 107 spans & member guard | claude | nothing | Q1 A, Q3 A | DONE (rdb 0176) |
 | T002 | A: pure Go overlap engine | claude / mistral | nothing | Q2 A | DONE (2de0e7185) |
 | T003 | B: cross-workspace read route | claude | T002, 119 T002 | Q2 A, Q5..Q9 | DONE (321f6a2a4) |
-| T004 | C: multi-workspace save & targets | claude | 119 T002 | none | BUILD |
+| T004 | C: multi-workspace save & targets | claude | 119 T002 | none | DONE (`b6d1e5bf3`) |
 | T005 | D: WUI engine & API client | grok / mistral | T002, T003, T004 | none | BUILD |
 | T006 | E: `/me/hours` view & timeline | grok / mistral | T005, 119 T009 | Q2 A, Q9 A | BUILD |
 | T007 | F: entry sheet & "Also enter in …" | grok / mistral | T006 | Q4 A | BUILD |

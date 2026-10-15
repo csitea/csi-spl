@@ -152,4 +152,9 @@ within batch 2.
 
 ## 3. Signature
 
-Pending v1.0.
+v1.0 (`26805ed51`) folds rows 07, 08, 09 and 10 as proposed
+(`git diff aa5ff5a11 26805ed51 --stat` -> 1 file, the plan). Row 02 is now a
+local syntax check with an rc 0 / rc 1 red control that never fetches a
+log, which resolves my disagreement.
+
+signed: c-212 on 26805ed517c89f170f011b1df103f797cdd52a8d

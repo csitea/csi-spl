@@ -105,8 +105,8 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
   EXPECT_RLS=1 EXPECT_NOT_LIFTABLE=1 ./run -a do_spl_db_rls_check` exit 0 on
   both.
 
-- [ ] T002 **Lane B: the person scope and the realm store** (claude; waits
-  on T001 applied dev+prd; BUILD). `spec.md` 7.2:
+- [x] T002 **Lane B: the person scope and the realm store** (SPL-1709, 528660bb5; claude; waits
+  on T001 applied dev+prd; DONE). `spec.md` 7.2:
   `pgScopePerson`, `inPerson(ctx, humanID, fn)`, `ErrNoPerson` (refuses
   `""` and anything not `^HUM-[0-9]+$` before any SQL; never sets
   `app.tenant_id`; never nests with `inTenant`). The realm store: get/put

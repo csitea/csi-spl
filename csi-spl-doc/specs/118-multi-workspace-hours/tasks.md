@@ -102,8 +102,8 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   never exposed in `hours.read` or `/v1/me/hours`).
   Done: landed on master (`3074fed45`, `3ce86889a`), applied on dev and prd.
 
-- [ ] T002 **Lane A: pure Go overlap computation & shared fixture** (claude or mistral, pure Go;
-  waits on nothing; BUILD). Spec 6.1, 6.2, 6.3:
+- [x] T002 **Lane A: pure Go overlap computation & shared fixture** (SPL-1711, 2de0e7185; claude or mistral, pure Go;
+  waits on nothing; DONE). Spec 6.1, 6.2, 6.3:
   - Pure function `Across(days []WorkspaceDay, zone *time.Location, now time.Time) []PersonalDay`
     in `GO/hours/across.go`, no I/O, table-driven tests in `GO/hours/across_test.go`.
   - Algorithm: sweep line over span endpoints (as UTC instants); overlap intervals
@@ -122,8 +122,8 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   Tests: T-R1a, T-OV, T-OV-JS (Go half), T-OV-RO.
   Done: `go test ./internal/hours/...` green; shared JSON fixture validated.
 
-- [ ] T003 **Lane B: the cross-workspace read route** (claude, hub + auth; waits on T002,
-  119 T002; BUILD). Spec 5.2, C2, C5, C6:
+- [x] T003 **Lane B: the cross-workspace read route** (c-160, SPL-1925, d5b484ba8; claude, hub + auth; waits on T002,
+  119 T002; DONE). Spec 5.2, C2, C5, C6:
   - `GET /v1/me/realm/hours?from=<date>&to=<date>` (max 62 days) in the realm route group.
   - Human session only: 403 `person_only` under act-as (054), box token, agent, time-accountant-only
     seat; 400 on `X-Spool-Tenant` or `member=`.
@@ -140,6 +140,18 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
   `GO/store/rls.go`, Lane C's files.
   Tests: T-R1c, T-R2a, T-R2b, T-R3, T-RLS1, T-RLS2, T-RLS3, T-RLS4, T-RLS5, T-RLS6, T-PERF.
   Done: green on Postgres; deployed dev and prd (`do_check_deploy_lag`).
+  Built (d5b484ba8): `GO/hub/realm_hours_read.go`, its test (9 tests, Memory and Postgres),
+  the `openapi.json` operation `getMeRealmHours`, and one registration line in
+  `GO/hub/channel_order.go` `routeMe` (no realm route group exists yet; 119 T003 may move it
+  into `realm.go`). Answer: `{tz, tz_source, from, to, workspaces[{id, name, state}], days,
+  totals, incomplete, limits[]}`; `days` is `hours.Across`'s `PersonalDay`, one per day of the
+  window; `limits` are the person's own settings rows over the window, the warning is the WUI's.
+  Open in this row, each named: `standard_day` stays 0 (107 FR-14's resolved standard day has no
+  store yet, so T-R3 waits on it); the `time_accountant` refusal is coded but no such rbac role
+  exists yet; receipts are served by a test spy until 119 T004 writes them; T-R2b (catalogue)
+  and T-PERF on dev (20 x 31 days, n) are T008's live proof; T-RLS4/T-RLS5 hold by
+  construction (the route calls only `Memberships`, the 107 reads and the 119 `inPerson`
+  reads) and by 119 T002's `personal_rls_test.go`.
 
 - [ ] T004 **Lane C: multi-workspace save & targets routes** (claude, hub + auth; waits on
   119 T002; BUILD). Spec 7.1, 7.2:
@@ -231,8 +243,8 @@ T008 (Lane G: E2E verification & live proof) runs after T003, T004, T007 are dep
 |---|---|---|---|---|---|
 | T000 | doc: this file | agy | nothing | spec 118 v1.1 | DONE |
 | T001 | 107 spans & member guard | claude | nothing | Q1 A, Q3 A | DONE (rdb 0176) |
-| T002 | A: pure Go overlap engine | claude / mistral | nothing | Q2 A | BUILD |
-| T003 | B: cross-workspace read route | claude | T002, 119 T002 | Q2 A, Q5..Q9 | BUILD |
+| T002 | A: pure Go overlap engine | claude / mistral | nothing | Q2 A | DONE (2de0e7185) |
+| T003 | B: cross-workspace read route | claude | T002, 119 T002 | Q2 A, Q5..Q9 | DONE (d5b484ba8) |
 | T004 | C: multi-workspace save & targets | claude | 119 T002 | none | BUILD |
 | T005 | D: WUI engine & API client | grok / mistral | T002, T003, T004 | none | BUILD |
 | T006 | E: `/me/hours` view & timeline | grok / mistral | T005, 119 T009 | Q2 A, Q9 A | BUILD |

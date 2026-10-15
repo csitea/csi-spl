@@ -19,6 +19,11 @@
 #   7. agy transcripts: `args.CommandLine` of a `run_command` tool call, JSON-
 #      quoted in transcript.jsonl, plain in transcript_full.jsonl -> OK;
 #      control: the test only in tool output, or another tool -> MISSING
+#   8. a log on another box with REVIEW_LINE_SYNTAX=1 (refactor round 12 row
+#      02): the line's format and reviewer are checked here, rc 0 + the peer
+#      query; malformed (short sha, ids differ, vendor not the id's, a
+#      registry row of another vendor, ran: naming no test, no read:) -> rc 1;
+#      without the flag still exit 2, now with the query to run on that box
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -118,6 +123,34 @@ out="$(chk REVIEW_LINE="$(line "go test ./cmd/spool/" "$A/transcript_full.jsonl"
 printf '%s\n' '{"tool_calls":[{"name":"view_file","args":{"CommandLine":"\"bash '"$TST"'\""}}]}' >"$A/transcript_full.jsonl"
 out="$(chk REVIEW_LINE="$(line "bash $TST" "$A/transcript_full.jsonl")")"; rc=$?
 [[ $rc -eq 3 ]] && pass "7. a CommandLine outside a run_command call does not count" || fail "7. agy other tool (rc $rc: $out)"
+
+# 8. another box, syntax only -------------------------------------------------
+printf 'a-218\tagy\t%%1\t/x\t20261015T000000Z\n' >"$T/registry.tsv"
+printf 'c-777\tmistral\t%%2\t/x\t20261015T000000Z\t20261015T010000Z\n' >"$T/registry.retired.tsv"
+syn() { chk SPOOL_ROOT="$T" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$1"; }
+R="ran: bash $TST | read: 9 PASS"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "/r/j.jsonl" box-b)")"; rc=$?
+[[ $rc -eq 2 && "$out" == *"on box-b: REVIEW_LINE='review: m-159@box-a"*"./run -a do_spl_review_line_check"* ]] \
+  && pass "8. without REVIEW_LINE_SYNTAX a log on box-b is still exit 2, with the query to run there" || fail "8. query (rc $rc: $out)"
+out="$(syn "review: m-159@box-b mistral PASS $SHA $R | log: m-159@box-b:/r/j.jsonl")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* && "$out" == *"on box-b: REVIEW_LINE="* ]] \
+  && pass "8. REVIEW_LINE_SYNTAX=1: a well-formed line from box-b -> SYNTAX OK, rc 0, the peer query" || fail "8. syntax ok (rc $rc: $out)"
+out="$(syn "review: a-218@box-b agy PASS $SHA $R | log: a-218@box-b:/r/transcript.jsonl")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "8. a reviewer registered here with the line's vendor -> rc 0" || fail "8. registered (rc $rc: $out)"
+bad=0
+for l in "review: m-159@box-b mistral PASS ${SHA:0:9} $R | log: m-159@box-b:/r/j.jsonl" \
+         "review: m-159@box-b mistral PASS $SHA $R | log: m-160@box-b:/r/j.jsonl" \
+         "review: m-159@box-b claude PASS $SHA $R | log: m-159@box-b:/r/j.jsonl" \
+         "review: a-218@box-b grok PASS $SHA $R | log: a-218@box-b:/r/j.jsonl" \
+         "review: c-777@box-b claude PASS $SHA $R | log: c-777@box-b:/r/j.jsonl" \
+         "review: m-159@box-b mistral PASS $SHA ran: git diff --stat | read: ok | log: m-159@box-b:/r/j.jsonl" \
+         "review: m-159@box-b mistral PASS $SHA ran: bash $TST | log: m-159@box-b:/r/j.jsonl"; do
+  out="$(syn "$l")"; rc=$?
+  [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] || { bad=1; echo "  rc $rc: $out <- $l"; }
+done
+[[ $bad -eq 0 ]] && pass "8. malformed (short sha, ids differ, vendor not the id's, a retired registry row of another vendor, no test, no read:) -> SYNTAX FAIL, rc 1" || fail "8. malformed"
+out="$(syn "$(line "bash $TST" "$J")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "8. a log on this box is still read with REVIEW_LINE_SYNTAX=1" || fail "8. local (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -20,9 +20,15 @@
 # @description Never fetches a log from another box: run it on the reviewer's,
 # @description as a user who can read the reviewer's home.
 # @description Prints `MISSING <name>` per test not run (exit 3), else
-# @description `OK <n> of <n>`. Exit 2: the log is on another box (named).
+# @description `OK <n> of <n>`. Exit 2: the log is on another box (named),
+# @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
+# @description checks here what needs no log: the section 1 format, a 40-hex
+# @description sha, reviewer = log: owner, the vendor is the id's and any
+# @description registry.tsv row of it, ran: names a test (`SYNTAX OK`, exit 0;
+# @description `SYNTAX FAIL <why>`, exit 1); the run itself stays unchecked.
 # @description Exit 1: no line, no `log:`, or the log cannot be read.
 # @param REVIEW_LINE (required) - the review line, as in the landing commit
+# @param REVIEW_LINE_SYNTAX (optional) - 1: a log on another box gets the syntax check here
 # @param REVIEW_LINE_BOX (optional) - this box; default SPOOL_BOX_TAG, else box.env, else hostname -s
 # @example REVIEW_LINE='review: m-159@box-a mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159@box-a:/path/journal' ./run -a do_spl_review_line_check
 #------------------------------------------------------------------------------
@@ -35,8 +41,7 @@ do_spl_review_line_check() {
     { echo "FATAL the line has no '| log: <id>@<box>:<path>'"; return 1; }
   box="${BASH_REMATCH[2]}" path="${BASH_REMATCH[3]}"
   me="$(_spl_review_line_box)"
-  [[ "$box" == "$me" ]] ||
-    { echo "REFUSED the log is on box '$box', this is '$me': run it on $box (never fetched)"; return 2; }
+  [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "$box" "$me"; return $?; }
   ran="${line#* ran: }"
   [[ "$ran" != "$line" ]] || { echo "FATAL the line has no ' ran: '"; return 1; }
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
@@ -45,6 +50,41 @@ do_spl_review_line_check() {
   path="$(_spl_review_line_vibe_session "$path")"
   [[ -r "$path" ]] || { echo "FATAL log $path is not readable on $me as $(id -un)"; return 1; }
   _spl_review_line_match "$path" <<<"$names"
+}
+
+# _spl_review_line_remote <line> <box> <me> - a log on another box: exit 2
+# with the query to run there, or with REVIEW_LINE_SYNTAX=1 the line's syntax
+# and reviewer checked here (rc 0 OK, rc 1 FAIL), the query still printed.
+_spl_review_line_remote() {
+  local first="${1%%$'\n'*}" q
+  q="on $2: REVIEW_LINE=${first@Q} ./run -a do_spl_review_line_check"
+  if [[ "${REVIEW_LINE_SYNTAX:-0}" != 1 ]]; then
+    echo "REFUSED the log is on box '$2', this is '$3': run it on $2 (never fetched), or REVIEW_LINE_SYNTAX=1 for the syntax here"
+    echo "$q"
+    return 2
+  fi
+  _spl_review_line_syntax "$first" || return 1
+  echo "SYNTAX OK the line's format and reviewer check on $3; the run is not (the log is on $2): $q"
+}
+
+# _spl_review_line_syntax <line> - the plan section 1 format, header id@box =
+# log: id@box, the vendor is the id's (a agy, c claude, g grok, m mistral,
+# q qwen) and any registry row of the id here, ran: names a test.
+_spl_review_line_syntax() {
+  local id vendor reg want
+  local rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) PASS [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
+  [[ "$1" =~ $rx ]] ||
+    { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
+  id="${BASH_REMATCH[1]}" vendor="${BASH_REMATCH[3]}"
+  [[ "$id@${BASH_REMATCH[2]}" == "${BASH_REMATCH[4]}@${BASH_REMATCH[5]}" ]] ||
+    { echo "SYNTAX FAIL reviewer $id@${BASH_REMATCH[2]} is not the log: owner ${BASH_REMATCH[4]}@${BASH_REMATCH[5]}"; return 1; }
+  case "${id%%-*}" in a) want=agy ;; c) want=claude ;; g) want=grok ;; m) want=mistral ;; q) want=qwen ;; esac
+  [[ "$vendor" == "$want" ]] || { echo "SYNTAX FAIL vendor '$vendor' is not $id's ($want)"; return 1; }
+  reg="$(awk -F'\t' -v i="$id" '{k = $1; sub(/@.*/, "", k)} k == i {v = $2} END {print v}' \
+    "${SPOOL_ROOT:-/var/spool-hub}"/registry{,.retired}.tsv 2>/dev/null)"
+  [[ -z "$reg" || "$reg" == "$vendor" ]] || { echo "SYNTAX FAIL $id is registered here as $reg, not $vendor"; return 1; }
+  [[ -n "$(_spl_review_line_names "${1#* ran: }")" ]] ||
+    { echo "SYNTAX FAIL ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1; }
 }
 
 # _spl_review_line_box - this box's tag.

@@ -23,13 +23,15 @@ export { WINDOW }
 const MAX_ALL_ROWS = 1000
 const MAX_PAGES = 2 * Math.ceil(MAX_ALL_ROWS / WINDOW)
 
-/**
- * A live feed for one task_id (005 T022, 013 reverse prepend). History from
- * view-v1 §4.4 (paged via next — §4.4 is oldest-first, spec 013 D1), then live
- * WS frames merged in. Rendered newest-first in windows; /search filters.
- * One store per pane: useLiveFeed('main') and useLiveFeed('pane').
- */
-function setup(key: 'main' | 'pane') {
+type FeedKey = 'main' | 'pane'
+/** `all`: also page to the oldest row (a pinned root needs it); the pane always does.
+    `first`: that same newest window, already asked for (utils/lobby-warm);
+    a failed one is asked again here. */
+type OpenOpts = { all?: boolean, read?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> }
+type SendOpts = { parentTaskId?: string, channel?: string | null, isParent?: number, pokeChannel?: string }
+
+/** The feed's state: the refs the store returns, and the live listeners it holds. */
+function liveState(key: FeedKey) {
   const api = useSpoolApi()
   const live = useLive()
   /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
@@ -39,25 +41,36 @@ function setup(key: 'main' | 'pane') {
   /* replaced whole on every change (merge / applyEdit / withoutMsg ...), never
      mutated in place, so the rows need no deep proxies (CLE-35075) */
   const messages = shallowRef<SpoolMessage[]>([])
-  const error = ref<string | null>(null)
-  /** view-v1 §2: the last read hit the view door (401) — pages show the door prompt. */
-  const door = ref<{ detail: string } | null>(null)
-  const sending = ref(false)
-  const loading = ref(false)
-  const search = ref('')
-  const visible = ref(WINDOW)
-  const liveCount = ref(0)
-  /** view-v1 §4.4 desc cursor for the next older server window; null = none left. */
-  const olderCursor = ref<string | null>(null)
-  const loadingOlder = ref(false)
-  const lastLive = ref<SpoolMessage | null>(null)
-  /** t1 8fb802cd: the open topic's archive stamp ('' = live); the header marks it. */
-  const archivedAt = ref('')
-  /** The open topic is one the reader opened (the right pane, the /t page): it is read as it shows. */
-  const reading = ref(false)
-  /** The open topic's read mark (t:<id> count) from before this open read it: its first message shows what was new then. */
-  const seenAtOpen = ref<number | undefined>(undefined)
+  return {
+    key, api, live, i18n, poke, taskId, messages,
+    error: ref<string | null>(null),
+    /** view-v1 §2: the last read hit the view door (401) — pages show the door prompt. */
+    door: ref<{ detail: string } | null>(null),
+    sending: ref(false),
+    loading: ref(false),
+    search: ref(''),
+    visible: ref(WINDOW),
+    liveCount: ref(0),
+    /** view-v1 §4.4 desc cursor for the next older server window; null = none left. */
+    olderCursor: ref<string | null>(null),
+    loadingOlder: ref(false),
+    lastLive: ref<SpoolMessage | null>(null),
+    /** t1 8fb802cd: the open topic's archive stamp ('' = live); the header marks it. */
+    archivedAt: ref(''),
+    /** The open topic is one the reader opened (the right pane, the /t page): it is read as it shows. */
+    reading: ref(false),
+    /** The open topic's read mark (t:<id> count) from before this open read it: its first message shows what was new then. */
+    seenAtOpen: ref<number | undefined>(undefined),
+    off: null as (() => void) | null,
+    offReconnect: null as (() => void) | null,
+    offEdited: null as (() => void) | null,
+    offReaction: null as (() => void) | null,
+  }
+}
 
+/** What the panes render, derived from the state: newest first, in windows, /search filtered. */
+function liveViews(s: ReturnType<typeof liveState>) {
+  const { messages, search, visible, olderCursor } = s
   const filtered = computed(() => newestFirst(messages.value.filter((m) => matchesSearch(m, search.value))))
   const view = computed(() => windowed(filtered.value, visible.value))
   const newestFirstRows = computed(() => view.value.rows as SpoolMessage[])
@@ -71,269 +84,307 @@ function setup(key: 'main' | 'pane') {
   const lobbyRows = computed(() => lobbyView.value.rows as SpoolMessage[])
   const lobbyHasOlder = computed(() => lobbyView.value.hasOlder || Boolean(olderCursor.value))
   const topic = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
+  return Object.assign(s, { view, newestFirstRows, hasOlder, lobbyView, lobbyRows, lobbyHasOlder, topic })
+}
 
-  /** By msg_id: new rows are added, a confirmed row replaces our pending one (013 US7). */
-  function merge(rows: SpoolMessage[], fromLive = false) {
-    const r = mergeById(messages.value, rows)
-    const add = r.added as SpoolMessage[]
-    if (!add.length && !r.confirmed) return
-    messages.value = r.rows as SpoolMessage[]
-    if (fromLive && add.length) {
-      liveCount.value += add.length
-      lastLive.value = add[add.length - 1]
-    }
-    if (add.length) readOpen()
+type Live = ReturnType<typeof liveViews>
+
+/** By msg_id: new rows are added, a confirmed row replaces our pending one (013 US7). */
+function merge(s: Live, rows: SpoolMessage[], fromLive = false) {
+  const r = mergeById(s.messages.value, rows)
+  const add = r.added as SpoolMessage[]
+  if (!add.length && !r.confirmed) return
+  s.messages.value = r.rows as SpoolMessage[]
+  if (fromLive && add.length) {
+    s.liveCount.value += add.length
+    s.lastLive.value = add[add.length - 1]
   }
+  if (add.length) readOpen(s)
+}
 
-  /**
-   * Owner (t1 56b8cc17): a topic opened on the phone (/t, the Topics list)
-   * never left the unread counts. Its t: mark is what the hub's Flow keys
-   * drop a topic's lines by; the channel and DM feeds wrote it, this one did
-   * not, and the read sync that carries it to the hub was never started.
-   */
-  /** The open topic's reply total: the channel's count, or the replies this feed holds (it reads the whole topic). */
-  function replyTotal() {
-    const id = taskId.value
-    if (!id) return 0
-    const held = messages.value.filter((m) => m.task_id === id || m.parent_task_id === id).length
-    return Math.max(useChannelStore().repliesFor(id), held - 1)
+/**
+ * Owner (t1 56b8cc17): a topic opened on the phone (/t, the Topics list)
+ * never left the unread counts. Its t: mark is what the hub's Flow keys
+ * drop a topic's lines by; the channel and DM feeds wrote it, this one did
+ * not, and the read sync that carries it to the hub was never started.
+ */
+/** The open topic's reply total: the channel's count, or the replies this feed holds (it reads the whole topic). */
+function replyTotal(s: Live) {
+  const id = s.taskId.value
+  if (!id) return 0
+  const held = s.messages.value.filter((m) => m.task_id === id || m.parent_task_id === id).length
+  return Math.max(useChannelStore().repliesFor(id), held - 1)
+}
+
+function readOpen(s: Live) {
+  const id = s.taskId.value
+  if (!id || !s.reading.value || !import.meta.client) return
+  useNotificationStore().markTopicRead(id, replyTotal(s))
+  void import('~/utils/read-sync-boot').then((m) => m.pushReads(s.api))
+}
+
+/**
+ * an edited message replaces the row held for its msg_id, in
+ * place. It is NOT routed through merge(): mergeById drops a repeat of a
+ * row already held as confirmed (feed.mjs line 89), which is why the hub
+ * sends `message_edited` as its own frame at all. Nothing re-sorts and
+ * nothing counts as "new": FR-ED-009 leaves ts / received_at / cursor
+ * untouched, so a typo fix must not ring the new-message pill.
+ */
+function applyEditedRow(s: Live, row: unknown) {
+  s.messages.value = applyEdit(s.messages.value, row) as SpoolMessage[]
+}
+
+/** An emoji was added or removed on a row this feed holds. */
+function applyReactions(s: Live, update: unknown) {
+  s.messages.value = patchReactions(s.messages.value, update) as SpoolMessage[]
+}
+
+/** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
+function drop(s: Live, msgId: string) {
+  const id = String(msgId || '')
+  if (!id || !s.messages.value.some((m) => m.msg_id === id)) return
+  s.messages.value = withoutMsg(s.messages.value, id) as SpoolMessage[]
+}
+
+/** A read failed: the door is a prompt, anything else an error line. 404 = empty topic. */
+function fail(s: Live, e: unknown, fallback: string) {
+  const err = e as { status?: number, message?: string, detail?: string }
+  if (isDoor(err)) {
+    s.door.value = { detail: String(err.detail || '') }
+    return
   }
+  if (err.status !== 404) s.error.value = err.message || fallback
+}
 
-  function readOpen() {
-    const id = taskId.value
-    if (!id || !reading.value || !import.meta.client) return
-    useNotificationStore().markTopicRead(id, replyTotal())
-    void import('~/utils/read-sync-boot').then((m) => m.pushReads(api))
-  }
-
-  /**
-   * an edited message replaces the row held for its msg_id, in
-   * place. It is NOT routed through merge(): mergeById drops a repeat of a
-   * row already held as confirmed (feed.mjs line 89), which is why the hub
-   * sends `message_edited` as its own frame at all. Nothing re-sorts and
-   * nothing counts as "new": FR-ED-009 leaves ts / received_at / cursor
-   * untouched, so a typo fix must not ring the new-message pill.
-   */
-  function applyEdited(row: unknown) {
-    messages.value = applyEdit(messages.value, row) as SpoolMessage[]
-  }
-
-  /** An emoji was added or removed on a row this feed holds. */
-  function applyReactions(update: unknown) {
-    messages.value = patchReactions(messages.value, update) as SpoolMessage[]
-  }
-
-  /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
-  function drop(msgId: string) {
-    const id = String(msgId || '')
-    if (!id || !messages.value.some((m) => m.msg_id === id)) return
-    messages.value = withoutMsg(messages.value, id) as SpoolMessage[]
-  }
-
-  /** A read failed: the door is a prompt, anything else an error line. 404 = empty topic. */
-  function fail(e: unknown, fallback: string) {
-    const err = e as { status?: number, message?: string, detail?: string }
-    if (isDoor(err)) {
-      door.value = { detail: String(err.detail || '') }
-      return
-    }
-    if (err.status !== 404) error.value = err.message || fallback
-  }
-
-  /** wui-live-ws §7: after a reconnect, one after=<last cursor> read, deduped by msg_id. */
-  async function catchUpAfterReconnect() {
-    const id = taskId.value
-    if (!id) return
-    try {
-      const r = await catchUp(api.getTopic, id, messages.value)
-      if (taskId.value !== id) return
-      if (r) merge(r.rows)
-      else await open(id)
-    } catch (e) {
-      fail(e, i18n.t('feed.error.catch_up_failed'))
-    }
-  }
-
-  let off: (() => void) | null = null
-  let offReconnect: (() => void) | null = null
-  let offEdited: (() => void) | null = null
-  let offReaction: (() => void) | null = null
-  /** `all`: also page to the oldest row (a pinned root needs it); the pane always does.
-      `first`: that same newest window, already asked for (utils/lobby-warm);
-      a failed one is asked again here. */
-  async function open(id: string, opts: { all?: boolean, read?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
-    if (!id) return
-    reading.value = key === 'pane' || Boolean(opts.read)
-    if (id !== taskId.value) seenAtOpen.value = useNotificationStore().topicRead[id]
-    /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
-    if (key === 'pane') usePaneFocus().openedTopic()
-    const client = live.ensure()
-    if (taskId.value && taskId.value !== id && client) client.unsubscribe(taskId.value)
-    if (taskId.value !== id) {
-      messages.value = []
-      archivedAt.value = ''
-      visible.value = WINDOW
-      search.value = ''
-      olderCursor.value = null
-    }
-    taskId.value = id
-    error.value = null
-    door.value = null
-    if (!off) {
-      off = live.onMessage((m) => {
-        if (m.task_id === taskId.value) merge([m as unknown as SpoolMessage], true)
-      })
-    }
-    /* another session edited a row this pane is showing */
-    if (!offEdited) offEdited = live.onEdited((m) => applyEdited(m))
-    if (!offReaction) offReaction = live.onReaction((m) => applyReactions(m))
-    if (!offReconnect) offReconnect = live.onReconnected(() => { void catchUpAfterReconnect() })
-    // wui-live-ws: subscribe first, then catch up over view-v1
-    if (client) client.subscribe(id)
-    loading.value = true
-    try {
-      // 013: newest window first; older windows on Load more (loadOlder)
-      const read = () => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
-      const data = opts.first ? await opts.first.catch(read) : await read()
-      merge(data.messages)
-      olderCursor.value = data.next
-      archivedAt.value = archiveStamp(data)
-      if (opts.all || key === 'pane') await loadAll()
-      readOpen()
-    } catch (e) {
-      fail(e, i18n.t('feed.error.load_failed'))
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /** A message that is not part of the open task, shown in this feed anyway. */
-  function admit(rows: SpoolMessage[]) {
-    merge(rows || [])
-  }
-
-  function close() {
-    const client = live.ensure()
-    if (taskId.value && client) client.unsubscribe(taskId.value)
-    if (offEdited) offEdited()
-    offEdited = null
-    taskId.value = null
-    messages.value = []
-    archivedAt.value = ''
-  }
-
-  /**
-   * Load more was pressed: reveal the next older window. Rows
-   * already held are shown first; then the next server window (before=).
-   */
-  async function loadOlder(which?: 'lobby') {
-    const heldMore = which === 'lobby' ? lobbyView.value.hasOlder : view.value.hasOlder
-    if (heldMore) {
-      visible.value += WINDOW
-      return
-    }
-    if (!olderCursor.value || !taskId.value || loadingOlder.value) return
-    loadingOlder.value = true
-    try {
-      const data = await api.getTopic(taskId.value, { order: 'desc', limit: WINDOW, before: olderCursor.value })
-      merge(data.messages)
-      olderCursor.value = data.next
-      visible.value += WINDOW
-    } catch (e) {
-      fail(e, i18n.t('feed.error.load_older_failed'))
-      olderCursor.value = null
-    } finally {
-      loadingOlder.value = false
-    }
-  }
-
-  /** The pinned root of a long topic needs the oldest row: page to the end. */
-  async function loadAll() {
-    for (let i = 0; i < MAX_PAGES && olderCursor.value; i++) await loadOlder()
-  }
-
-  function setSearch(q: string) {
-    search.value = q
-    visible.value = WINDOW
-  }
-
-  /**
-   * `opts` is what a MESSAGE-rooted topic needs. Its task_id is the
-   * clicked message's msg_id, a task the hub has never seen, so the reply says
-   * which task it hangs off (`parentTaskId` -> parent_task_id, hub checkTags:
-   * a UUID other than task_id) and which channel it belongs to, and the topic
-   * is then reachable from the channel it was started in. Both are omitted for
-   * an ordinary reply, which changes nothing about the frame.
-   *
-   * SPL-964: a send that does not land REJECTS. The caller is the Omnibox
-   * (TopBar.onSend), which puts the text back and names the failure; this
-   * store used to catch everything, so a reply pending when the socket
-   * dropped was lost on the Topics page with the box already empty. A
-   * closed socket is resent once with the same frame, as channel.sendLive does.
-   */
-  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null, isParent?: number, pokeChannel?: string } = {}) {
-    if (!taskId.value) throw new Error(i18n.t('feed.error.send_failed'))
-    let msgId = ''
-    sending.value = true
-    error.value = null
-    try {
-      const refs: FileRef[] = []
-      for (const f of files) {
-        const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
-        refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
-      }
-      const parsed = parseMention(body)
-      const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
-      const to = parsed.to === '@channel' ? undefined : parsed.to
-      const text = parsed.body
-      if (isEmptySend(text, refs)) throw emptySendError()
-      const client = live.ensure()
-      /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
-      msgId = takeMsgId(body, crypto.randomUUID())
-      const task = taskId.value
-      const parent = opts.parentTaskId && opts.parentTaskId !== task ? opts.parentTaskId : undefined
-      const channel = opts.channel || undefined
-      const parentBit: 0 | 1 = opts.isParent === 0 ? 0 : 1
-      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null, is_parent: parentBit }) as SpoolMessage])
-      if (client) {
-        /* specs/058: `@CLE-001@sat …` keeps its box (ambiguous_to_box otherwise) */
-        const frame = { task_id: task, kind, body: text, files: refs, to, to_box: to ? parsed.toBox : undefined, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
-        const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
-        useChannelStore().sendNote = sendFallbackNote(ack)
-        /* SPL-985 (spec 042 §3): the mention poke. This send names only a
-           task, so where it lives (K4) is read from the topic's other rows. */
-        const named = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : null
-        const rows = named ? [] : messages.value.filter((m) => m.msg_id !== msgId)
-        void loadMentionPoke().then(({ topicWhere }) => {
-          const at = named || topicWhere(rows, task)
-          void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
-        }, () => {})
-        const own = messages.value.find((m) => m.msg_id === msgId)
-        if (own && own.pending && taskId.value === task) {
-          merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])
-        }
-      } else {
-        const own = messages.value.find((m) => m.msg_id === msgId)
-        if (own) merge([{ ...own, pending: false }])
-      }
-    } catch (e) {
-      /* the row goes; the text goes back into the Omnibox with the reason */
-      if (msgId) messages.value = withoutMsg(messages.value, msgId) as SpoolMessage[]
-      /* 080 T006: TopBar's Retry resends under this same msg_id */
-      if (msgId && e && typeof e === 'object') Object.assign(e, { msgId })
-      throw e
-    } finally {
-      sending.value = false
-    }
-  }
-
-  return {
-    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
-    search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited, loadingOlder, drop, applyReactions, archivedAt, replyTotal, seenAtOpen,
+/** wui-live-ws §7: after a reconnect, one after=<last cursor> read, deduped by msg_id. */
+async function catchUpAfterReconnect(s: Live) {
+  const id = s.taskId.value
+  if (!id) return
+  try {
+    const r = await catchUp(s.api.getTopic, id, s.messages.value)
+    if (s.taskId.value !== id) return
+    if (r) merge(s, r.rows)
+    else await open(s, id)
+  } catch (e) {
+    fail(s, e, s.i18n.t('feed.error.catch_up_failed'))
   }
 }
 
-export function useLiveFeed(key: 'main' | 'pane' = 'main') {
+/** Another task was opened: the old one's rows, stamp, window, search and cursor go. */
+function resetFeed(s: Live) {
+  s.messages.value = []
+  s.archivedAt.value = ''
+  s.visible.value = WINDOW
+  s.search.value = ''
+  s.olderCursor.value = null
+}
+
+/** The live listeners, each started once per store. */
+function follow(s: Live) {
+  const { live } = s
+  if (!s.off) {
+    s.off = live.onMessage((m) => {
+      if (m.task_id === s.taskId.value) merge(s, [m as unknown as SpoolMessage], true)
+    })
+  }
+  /* another session edited a row this pane is showing */
+  if (!s.offEdited) s.offEdited = live.onEdited((m) => applyEditedRow(s, m))
+  if (!s.offReaction) s.offReaction = live.onReaction((m) => applyReactions(s, m))
+  if (!s.offReconnect) s.offReconnect = live.onReconnected(() => { void catchUpAfterReconnect(s) })
+}
+
+async function open(s: Live, id: string, opts: OpenOpts = {}) {
+  if (!id) return
+  const { key, taskId } = s
+  s.reading.value = key === 'pane' || Boolean(opts.read)
+  if (id !== taskId.value) s.seenAtOpen.value = useNotificationStore().topicRead[id]
+  /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
+  if (key === 'pane') usePaneFocus().openedTopic()
+  const client = s.live.ensure()
+  if (taskId.value && taskId.value !== id && client) client.unsubscribe(taskId.value)
+  if (taskId.value !== id) resetFeed(s)
+  taskId.value = id
+  s.error.value = null
+  s.door.value = null
+  follow(s)
+  // wui-live-ws: subscribe first, then catch up over view-v1
+  if (client) client.subscribe(id)
+  await readNewest(s, id, opts)
+}
+
+/** 013: newest window first; older windows on Load more (loadOlder). */
+async function readNewest(s: Live, id: string, opts: OpenOpts) {
+  const { api } = s
+  s.loading.value = true
+  try {
+    const read = () => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
+    const data = opts.first ? await opts.first.catch(read) : await read()
+    merge(s, data.messages)
+    s.olderCursor.value = data.next
+    s.archivedAt.value = archiveStamp(data)
+    if (opts.all || s.key === 'pane') await loadAll(s)
+    readOpen(s)
+  } catch (e) {
+    fail(s, e, s.i18n.t('feed.error.load_failed'))
+  } finally {
+    s.loading.value = false
+  }
+}
+
+/** A message that is not part of the open task, shown in this feed anyway. */
+function admit(s: Live, rows: SpoolMessage[]) {
+  merge(s, rows || [])
+}
+
+function close(s: Live) {
+  const client = s.live.ensure()
+  if (s.taskId.value && client) client.unsubscribe(s.taskId.value)
+  if (s.offEdited) s.offEdited()
+  s.offEdited = null
+  s.taskId.value = null
+  s.messages.value = []
+  s.archivedAt.value = ''
+}
+
+/**
+ * Load more was pressed: reveal the next older window. Rows
+ * already held are shown first; then the next server window (before=).
+ */
+async function loadOlder(s: Live, which?: 'lobby') {
+  const { olderCursor, loadingOlder, visible } = s
+  const heldMore = which === 'lobby' ? s.lobbyView.value.hasOlder : s.view.value.hasOlder
+  if (heldMore) {
+    visible.value += WINDOW
+    return
+  }
+  if (!olderCursor.value || !s.taskId.value || loadingOlder.value) return
+  loadingOlder.value = true
+  try {
+    const data = await s.api.getTopic(s.taskId.value, { order: 'desc', limit: WINDOW, before: olderCursor.value })
+    merge(s, data.messages)
+    olderCursor.value = data.next
+    visible.value += WINDOW
+  } catch (e) {
+    fail(s, e, s.i18n.t('feed.error.load_older_failed'))
+    olderCursor.value = null
+  } finally {
+    loadingOlder.value = false
+  }
+}
+
+/** The pinned root of a long topic needs the oldest row: page to the end. */
+async function loadAll(s: Live) {
+  for (let i = 0; i < MAX_PAGES && s.olderCursor.value; i++) await loadOlder(s)
+}
+
+function setSearch(s: Live, q: string) {
+  s.search.value = q
+  s.visible.value = WINDOW
+}
+
+/**
+ * `opts` is what a MESSAGE-rooted topic needs. Its task_id is the
+ * clicked message's msg_id, a task the hub has never seen, so the reply says
+ * which task it hangs off (`parentTaskId` -> parent_task_id, hub checkTags:
+ * a UUID other than task_id) and which channel it belongs to, and the topic
+ * is then reachable from the channel it was started in. Both are omitted for
+ * an ordinary reply, which changes nothing about the frame.
+ *
+ * SPL-964: a send that does not land REJECTS. The caller is the Omnibox
+ * (TopBar.onSend), which puts the text back and names the failure; this
+ * store used to catch everything, so a reply pending when the socket
+ * dropped was lost on the Topics page with the box already empty. A
+ * closed socket is resent once with the same frame, as channel.sendLive does.
+ */
+async function send(s: Live, body: string, files: File[] = [], opts: SendOpts = {}) {
+  const { api, live, i18n, poke, taskId, messages, sending, error } = s
+  if (!taskId.value) throw new Error(i18n.t('feed.error.send_failed'))
+  let msgId = ''
+  sending.value = true
+  error.value = null
+  try {
+    const refs: FileRef[] = []
+    for (const f of files) {
+      const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
+      refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
+    }
+    const parsed = parseMention(body)
+    const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
+    const to = parsed.to === '@channel' ? undefined : parsed.to
+    const text = parsed.body
+    if (isEmptySend(text, refs)) throw emptySendError()
+    const client = live.ensure()
+    /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
+    msgId = takeMsgId(body, crypto.randomUUID())
+    const task = taskId.value
+    const parent = opts.parentTaskId && opts.parentTaskId !== task ? opts.parentTaskId : undefined
+    const channel = opts.channel || undefined
+    const parentBit: 0 | 1 = opts.isParent === 0 ? 0 : 1
+    merge(s, [pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null, is_parent: parentBit }) as SpoolMessage])
+    if (client) {
+      /* specs/058: `@CLE-001@sat …` keeps its box (ambiguous_to_box otherwise) */
+      const frame = { task_id: task, kind, body: text, files: refs, to, to_box: to ? parsed.toBox : undefined, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
+      const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
+      useChannelStore().sendNote = sendFallbackNote(ack)
+      /* SPL-985 (spec 042 §3): the mention poke. This send names only a
+         task, so where it lives (K4) is read from the topic's other rows. */
+      const named = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : null
+      const rows = named ? [] : messages.value.filter((m) => m.msg_id !== msgId)
+      void loadMentionPoke().then(({ topicWhere }) => {
+        const at = named || topicWhere(rows, task)
+        void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
+      }, () => {})
+      const own = messages.value.find((m) => m.msg_id === msgId)
+      if (own && own.pending && taskId.value === task) {
+        merge(s, [{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])
+      }
+    } else {
+      const own = messages.value.find((m) => m.msg_id === msgId)
+      if (own) merge(s, [{ ...own, pending: false }])
+    }
+  } catch (e) {
+    /* the row goes; the text goes back into the Omnibox with the reason */
+    if (msgId) messages.value = withoutMsg(messages.value, msgId) as SpoolMessage[]
+    /* 080 T006: TopBar's Retry resends under this same msg_id */
+    if (msgId && e && typeof e === 'object') Object.assign(e, { msgId })
+    throw e
+  } finally {
+    sending.value = false
+  }
+}
+
+/**
+ * A live feed for one task_id (005 T022, 013 reverse prepend). History from
+ * view-v1 §4.4 (paged via next — §4.4 is oldest-first, spec 013 D1), then live
+ * WS frames merged in. Rendered newest-first in windows; /search filters.
+ * One store per pane: useLiveFeed('main') and useLiveFeed('pane').
+ */
+function setup(key: FeedKey) {
+  const s = liveViews(liveState(key))
+  const { taskId, messages, newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading } = s
+  const { search, liveCount, lastLive, loadingOlder, archivedAt, seenAtOpen } = s
+  const applyEdited = (row: unknown) => applyEditedRow(s, row)
+  return {
+    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
+    search, liveCount, lastLive,
+    open: (id: string, opts?: OpenOpts) => open(s, id, opts),
+    close: () => close(s),
+    send: (body: string, files?: File[], opts?: SendOpts) => send(s, body, files, opts),
+    admit: (rows: SpoolMessage[]) => admit(s, rows),
+    loadOlder: (which?: 'lobby') => loadOlder(s, which),
+    loadAll: () => loadAll(s),
+    setSearch: (q: string) => setSearch(s, q),
+    catchUpAfterReconnect: () => catchUpAfterReconnect(s),
+    applyEdited, loadingOlder,
+    drop: (msgId: string) => drop(s, msgId),
+    applyReactions: (update: unknown) => applyReactions(s, update),
+    archivedAt,
+    replyTotal: () => replyTotal(s),
+    seenAtOpen,
+  }
+}
+
+export function useLiveFeed(key: FeedKey = 'main') {
   return defineStore(`live-${key}`, () => setup(key))()
 }

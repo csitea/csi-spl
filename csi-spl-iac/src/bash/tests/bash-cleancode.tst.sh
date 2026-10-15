@@ -24,11 +24,9 @@ LONG="
   csi-spl-iac/src/bash/run/gcp-project-delete.func.sh do_gcp_project_delete 119
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
   csi-spl-iac/src/bash/run/run.sh do_log 143
-  csi-spl-iac/src/bash/run/run.sh execute_step 99
 
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh spawn_main 185
   csi-spl-orc/src/bash/run/run.sh do_log 143
-  csi-spl-orc/src/bash/run/run.sh execute_step 99
 "
 
 fails=0

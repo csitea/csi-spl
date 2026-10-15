@@ -22,6 +22,62 @@ error_handler() {
   exit $exit_code
 }
 
+# execute_step_hook <hook> <label> <args...>: run a PRE or POST hook between
+# its START and STOP lines, when the action defines one.
+execute_step_hook() {
+  local hook=$1 label=$2
+  shift 2
+  type "$hook" &>/dev/null || return 0
+  do_log "INFO START ::: running $label :: $hook"
+  "$hook" "$@"
+  do_log "INFO STOP  ::: running $label :: $hook"
+}
+
+# execute_step_parse_args <func_file> <args...>: map the action's @arg
+# --flag value pairs to env vars.
+execute_step_parse_args() {
+  local func_file=$1
+  shift
+  local args=("$@")
+  local _arg_lines
+  _arg_lines=$(do_parse_metadata "$func_file" "arg" 2>/dev/null)
+  [[ -n "$_arg_lines" ]] || return 0
+  # Build associative array of flag→var mappings
+  declare -A _arg_map
+  while IFS= read -r _aline; do
+    local _adef="${_aline#arg=}"
+    local _aflag _avar _aextra
+    # awk '{print $1}' / '{print $2}' with no fork. The third name keeps
+    # the second field from swallowing the rest of the line.
+    read -r _aflag _avar _aextra <<< "$_adef" || true
+    [[ -n "$_aflag" && -n "$_avar" ]] && _arg_map["$_aflag"]="$_avar"
+  done <<< "$_arg_lines"
+  # Parse CLI args against the map. Boolean support: a known flag
+  # followed by end-of-args or another --flag is treated as a true bool.
+  local _i=0
+  while [[ $_i -lt ${#args[@]} ]]; do
+    local _flag="${args[$_i]}"
+    if [[ "$_flag" == --* && -n "${_arg_map[$_flag]:-}" ]]; then
+      local _var="${_arg_map[$_flag]}"
+      local _next=""
+      (( _i + 1 < ${#args[@]} )) && _next="${args[$_i + 1]}"
+      if [[ -n "$_next" && "$_next" != --* ]]; then
+        export "$_var"="$_next"
+        do_log "DEBUG Parsed: $_flag $_next → $_var=$_next"
+        _i=$((_i + 2))
+        continue
+      else
+        export "$_var"="true"
+        do_log "DEBUG Parsed: $_flag (boolean) → $_var=true"
+        _i=$((_i + 1))
+        continue
+      fi
+    fi
+    _i=$((_i + 1))
+  done
+  unset _arg_map
+}
+
 # Execution Wrapper
 execute_step() {
   local func_name=$1
@@ -29,11 +85,7 @@ execute_step() {
   local args=("$@")
 
   # 1. Run PRE hook if exists
-  if type "${func_name}_pre" &>/dev/null; then
-    do_log "INFO START ::: running PRE hook  :: ${func_name}_pre"
-    "${func_name}_pre" "${args[@]}"
-    do_log "INFO STOP  ::: running PRE hook  :: ${func_name}_pre"
-  fi
+  execute_step_hook "${func_name}_pre" "PRE hook " "${args[@]}"
 
   do_log "INFO START ::: running action    :: $func_name"
 
@@ -46,44 +98,7 @@ execute_step() {
   # Parse @arg metadata: map --flag value pairs to env vars
   local func_file="${_func_to_file[$func_name]:-}"
   if [[ -n "$func_file" && ${#args[@]} -gt 0 ]]; then
-    local _arg_lines
-    _arg_lines=$(do_parse_metadata "$func_file" "arg" 2>/dev/null)
-    if [[ -n "$_arg_lines" ]]; then
-      # Build associative array of flag→var mappings
-      declare -A _arg_map
-      while IFS= read -r _aline; do
-        local _adef="${_aline#arg=}"
-        local _aflag _avar _aextra
-        # awk '{print $1}' / '{print $2}' with no fork. The third name keeps
-        # the second field from swallowing the rest of the line.
-        read -r _aflag _avar _aextra <<< "$_adef" || true
-        [[ -n "$_aflag" && -n "$_avar" ]] && _arg_map["$_aflag"]="$_avar"
-      done <<< "$_arg_lines"
-      # Parse CLI args against the map. Boolean support: a known flag
-      # followed by end-of-args or another --flag is treated as a true bool.
-      local _i=0
-      while [[ $_i -lt ${#args[@]} ]]; do
-        local _flag="${args[$_i]}"
-        if [[ "$_flag" == --* && -n "${_arg_map[$_flag]:-}" ]]; then
-          local _var="${_arg_map[$_flag]}"
-          local _next=""
-          (( _i + 1 < ${#args[@]} )) && _next="${args[$_i + 1]}"
-          if [[ -n "$_next" && "$_next" != --* ]]; then
-            export "$_var"="$_next"
-            do_log "DEBUG Parsed: $_flag $_next → $_var=$_next"
-            _i=$((_i + 2))
-            continue
-          else
-            export "$_var"="true"
-            do_log "DEBUG Parsed: $_flag (boolean) → $_var=true"
-            _i=$((_i + 1))
-            continue
-          fi
-        fi
-        _i=$((_i + 1))
-      done
-      unset _arg_map
-    fi
+    execute_step_parse_args "$func_file" "${args[@]}"
   fi
 
   # Validate required @param metadata before running (if available)
@@ -109,11 +124,7 @@ execute_step() {
   fi
 
   # 2. Run POST hook if exists (guaranteed cleanup)
-  if type "${func_name}_post" &>/dev/null; then
-    do_log "INFO START ::: running POST hook :: ${func_name}_post"
-    "${func_name}_post" "${args[@]}"
-    do_log "INFO STOP  ::: running POST hook :: ${func_name}_post"
-  fi
+  execute_step_hook "${func_name}_post" "POST hook" "${args[@]}"
 
   # If the main action failed, now trigger the error handler
   if [[ $exit_status -ne 0 ]]; then

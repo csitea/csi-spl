@@ -275,3 +275,13 @@ dbc7ebea-31d6-4baf-92fb-2197905f5ef4	csi-spl-orc/src/bash/features/mcp-bot/READM
 b3555db7-08b4-4d42-be46-42cdbe4cda15	csi-spl-utl/README.md	repo
 16c4e36d-c596-4ee9-af11-ee8f870954dc	csi-spl-wui/README.md	repo
 123c2002-f946-49f3-901b-25fd117e89fe	csi-spl-wui/src/python/i18n/README.md	repo
+13b56d32-7c38-4d90-ae2a-f13f7a24e23e	csi-spl-doc/doc/help/monitoring.md	repo
+379b167a-e816-498d-8451-2e4402d5fb57	csi-spl-doc/doc/md/HOWTO-usage-limit-role-seats.md	repo
+ec297477-d5b3-431a-8131-8994aff3b7fa	csi-spl-doc/doc/md/issue-deadline-calendar-links.md	repo
+a8dee37d-cd7d-47a0-a337-b3752cdab807	csi-spl-doc/doc/md/refactor-round-10-retro.md	repo
+84b42bfb-c930-420a-89d2-886024be8ae3	csi-spl-doc/doc/md/refactor-round-11-plan.md	repo
+0507f899-d0c2-4ffa-87b8-ef46b0710eda	csi-spl-doc/doc/md/refactor-round-11-retro.md	repo
+9ee5cd92-8d07-438f-b326-7e7793e8effe	csi-spl-doc/doc/md/refactor-round-11/seat-mistral.md	repo
+6d2a79b7-fad7-4daa-aa35-f35840caff81	csi-spl-doc/doc/md/refactor-round-12-plan.md	repo
+775fea32-0cd5-4e19-9a79-04da0cb0843b	csi-spl-doc/doc/md/refactor-round-12/seat-claude.md	repo
+e6b82c3e-5c93-47f4-968b-a90ef13fc53e	csi-spl-doc/doc/md/refactor-round-12/seat-mistral.md	repo

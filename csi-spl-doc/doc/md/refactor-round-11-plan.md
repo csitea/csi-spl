@@ -1,5 +1,7 @@
 # Refactoring round 11 - plan (10 actions)
 
+> Generated from qto doc `84b42bfb-c930-420a-89d2-886024be8ae3`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, t1 topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea:
 rounds run continuously, **no owner go for the round, its panel or its
 lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
@@ -18,6 +20,7 @@ Editor: **c-156@sat** (claude).
 [refactor-round-10-retro.md](refactor-round-10-retro.md) section 7 (landed
 `b3c59ec30`).
 
+<a id="ws-doc-4ba6793a-127e-45c1-b7ce-df1793ac33cf"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, at the sites named and nowhere else,
@@ -48,6 +51,7 @@ Editor: **c-156@sat** (claude).
   it by hand; after, the gate and the action do. Trunk-red takeover: rulebook
   2.11.3.
 
+<a id="ws-doc-65d378da-714b-421a-94e4-494501f11281"></a>
 ## 2. Where the rows come from (measured on `eb1d01ae1`)
 
 | source | command | n | row |
@@ -63,6 +67,7 @@ Editor: **c-156@sat** (claude).
 | retro 7.7 | `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` | 13 LONG; `do_tf_init` 93 (ceiling 95); NOTE `do_gcp_002_delete_project_service_account` 132 (ceiling 133) | 09 |
 | retro 7.8 | `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -coverprofile=cov.out ./cmd/spool/ && go tool cover -func=cov.out \| awk '$3=="0.0%"'` | 74.5 %, 19 at 0.0 %; `repoEdit` (`hub_repo_edit.go:27`), `nonEmpty` (`:81`) | 10 |
 
+<a id="ws-doc-33d6778e-bfd2-4309-adad-a874c40769b0"></a>
 ## 3. The 10 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
@@ -78,6 +83,7 @@ Editor: **c-156@sat** (claude).
 | 09 `refactor(r11-09-bash-small-tf-init)` | small functions | 93 lines | `iac:src/bash/run/tf-init.func.sh:6`<br>`iac:src/bash/tests/bash-cleancode.tst.sh:22,29` | 1 LONG entry, 1 ceiling | named steps under 80 lines; same exports, wipe, `GOOGLE_APPLICATION_CREDENTIALS` and exits; delete the `do_tf_init` LONG line (13 -> 12) and lower `do_gcp_002_delete_project_service_account` to 132. Tests: `bash-cleancode.tst.sh` and the 9 others naming it (`git grep -lE 'tf-init\|do_tf_init' -- '*.tst.sh'` -> 10). Terraform is never run: the tests stub it | sat | claude | simple_coding (R14) | 1 |
 | 10 `test(r11-10-go-coverage-repo-edit)` | tests, coverage | 2 functions at 0.0 % with no Postgres need for their guards | new `api:cmd/spool/hub_repo_edit_test.go` (`repoEdit` `hub_repo_edit.go:27`, `nonEmpty` `:81`)<br>`csi-spl-api/src/bash/tests/go-coverage-floor.txt:11` | 2 functions | `repoEdit` returns nil when editing is off, when the store is not Postgres, and with no docs bucket (log line asserted, no key logged); `nonEmpty` table test. Read `cmd/spool` 3 times, set the floor to the lowest read. **Red control:** without the new file the raised floor fails | PC | claude | tests | 1 |
 
+<a id="ws-doc-fddcb1f2-2c88-4749-bbfb-f0b4f10764c4"></a>
 ### 3.1 Disjoint files (R1)
 
 - **Batch 1:** 01, 03, 04, 06, 07, 09, 10. No path is in two of them: 01
@@ -93,6 +99,7 @@ Editor: **c-156@sat** (claude).
 - Rows 04 and 06 parse the same line format (section 1); neither imports the
   other.
 
+<a id="ws-doc-db3a378a-be1d-487c-84dd-ab35b97580f1"></a>
 ### 3.2 Off every live lane (R3)
 
 `lane-map.sh --check <19 row paths> --agent c-156` on `eb1d01ae1` -> rc 4:
@@ -103,6 +110,7 @@ and c-530@PC (`c-530-bug-stale-global-gitconfig-lock`). Rows 03 and 05 sit
 nearest the CI area (an iac test, the pre-push hook): c-296 is asked on the
 spool before batch 1 spawns. The spawner re-runs `--check` per row (R3).
 
+<a id="ws-doc-a7ad68d6-55ac-469b-98c1-27838f3b9b63"></a>
 ## 4. Per row: what the lane does
 
 - **01:** replace the 4-line block (`local _spl_sdk_saved=...`, `mktemp -d`,
@@ -133,6 +141,7 @@ spool before batch 1 spawns. The spawner re-runs `--check` per row (R3).
 - **10:** a fake store type that is not `*store.Postgres` drives the second
   guard; no network, no Postgres.
 
+<a id="ws-doc-1d31d405-95b9-4576-b647-f28a6aa9741e"></a>
 ## 5. Panel and reviewers (R7)
 
 agy is out until about 2026-10-15T09:40Z, grok has none (`402`). The plan
@@ -156,6 +165,7 @@ has no multilingual text: no agy language review is needed.
 - If a seat closes, the spawner places a reviewer of an eligible vendor
   (R7.3).
 
+<a id="ws-doc-3a6fb5ce-4482-4087-9092-5f2253b51936"></a>
 ## 6. Left out, measured
 
 | what | why | measured by |
@@ -166,6 +176,7 @@ has no multilingual text: no agy language review is needed.
 | kept unlanded tips: `review/r5-02`, `review/r7-05*` (4), 3 r7 `wip/`, `wip/fix/r10-05-helper-path`, `wip/m-524-r10-mistral-review-seat` | not a code row; listed to the orchestrator | retro section 5 |
 | `review/r6-*` (6) and `wip/m-689-r5-panel-mistral` listed by the prune | rounds 5-6 predate the matcher; their retros never pruned; the orchestrator decides | `ROUND="5,6,7,10" DRY_RUN=1 ./run -a do_git_prune_round_branches` |
 
+<a id="ws-doc-a20bd5d6-90fd-44f0-acb2-4b8ad73bbf85"></a>
 ## 7. Counts
 
 | | n |
@@ -175,6 +186,7 @@ has no multilingual text: no agy language review is needed.
 | box (preferred) | sat 7, PC 3 |
 | batches | batch 1: 7; batch 2: 3 |
 
+<a id="ws-doc-3dd8aa85-4051-47af-a2d6-045c89f968e8"></a>
 ## 8. Changes
 
 - v0.1 (`102f8b5c2`): from the round 10 retro section 7, measured on
@@ -186,6 +198,7 @@ has no multilingual text: no agy language review is needed.
   callers, 11 scanned). The retro's section 4 and 7.2 carry the same fix.
   The agy seat is dropped from signing (section 5).
 
+<a id="ws-doc-70d2e75b-4671-422e-b819-ac08da644873"></a>
 ## 9. Consensus
 
 | seat | id | signed | file |

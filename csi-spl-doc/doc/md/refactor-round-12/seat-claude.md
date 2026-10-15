@@ -1,5 +1,7 @@
 # Round 12 Claude Seat Verdict
 
+> Generated from qto doc `775fea32-0cd5-4e19-9a79-04da0cb0843b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Seat: `c-212@sat` (claude), issue SPL-2005. Reviews plan **v0.2**
 (`89ceb79ec`). v0.2 changes only seat ids (`git diff --stat f8f703de3 89ceb79ec`
 -> 1 file, the plan), so the rows are the v0.1 rows.
@@ -8,6 +10,7 @@ Every number below comes from a command run in this session on `sat`, on
 `f8f703de3` (the code is identical at `89ceb79ec`), n=1 per command. Journal:
 `c-212@sat:/tmp/c212-r12/journal.txt`.
 
+<a id="ws-doc-65b99f32-2a73-4a82-92f4-2f8ff746a145"></a>
 ## Summary
 
 5 agree (01, 03, 04, 05, 06), 4 agree with changes (07, 08, 09, 10),
@@ -29,8 +32,10 @@ Every number below comes from a command run in this session on `sat`, on
 Go commands ran with `export PATH="/usr/local/go/bin:$PATH"` from
 `csi-spl-api/src/go/spool-hub-api`.
 
+<a id="ws-doc-43f6f272-5af5-4268-960d-e383d5b3d772"></a>
 ## 1. Per row
 
+<a id="ws-doc-07e129ff-1fd7-4e25-a2c1-11d993e54674"></a>
 ### 1.1 Row 01: agree
 
 The gap is real, and here is a red control for it. A real agy transcript
@@ -44,6 +49,7 @@ checked with `REVIEW_LINE_BOX=sat REVIEW_LINE='review: a-1@sat agy PASS <0x40> r
 -> `MISSING spl-review-line-check.tst.sh`, `FAIL 0 of 1 ... (0 commands read)`,
 status 3. Row 01 can use that fixture as its red control.
 
+<a id="ws-doc-874e729c-8420-433b-9523-fcbe3f1c907a"></a>
 ### 1.2 Row 02: disagree
 
 - **The measurement does not reproduce:** `exit 2` has 0 matches. The
@@ -66,6 +72,7 @@ mechanism that runs the check on the log's own box (for example the
 reviewer runs `do_spl_review_line_check` there and pastes the `OK n of n`
 line), plus a red control. That rewrite needs its own measurement first.
 
+<a id="ws-doc-90ba8bcc-2815-4754-9ead-9b1a6fe8913b"></a>
 ### 1.3 Rows 03, 04, 05: agree
 
 The sites match: `channel.ts:67` is `export const useChannelStore = defineStore('channel', () => {`,
@@ -75,12 +82,14 @@ map has 3 entries (`sed -n '/^const LONG/,/^\])/p'`). The unit tests the
 rows name exist: `live-ws.test.mjs`, `spool-client.test.mjs` and 10
 `channel-*.test.mjs` files.
 
+<a id="ws-doc-4e45c7b3-b6c4-4edc-b59b-4ca5f780a856"></a>
 ### 1.4 Row 06: agree
 
 The 2 NOTE lines read `is 174 lines, under its ceiling 175` and
 `is 119 lines, under its ceiling 120`. The ceilings are at
 `bash-cleancode.tst.sh:23,24` (`sed -n 20,35p`).
 
+<a id="ws-doc-ede93f52-6bc2-4f44-99fd-6a48a79a8c76"></a>
 ### 1.5 Row 07: agree with changes
 
 `execute_step` is 99 lines in both copies (`sed -n '/^execute_step/,/^}/p' <f> | wc -l`
@@ -96,6 +105,7 @@ list has 12 entries (`grep -cE` -> `12`).
   `csi-spl-orc`. Also require that the two `execute_step` bodies stay
   identical (`diff` of the two `sed` extracts is empty after the change).
 
+<a id="ws-doc-da3933bc-d0e1-489a-bf3b-e99c1c4c3b59"></a>
 ### 1.6 Row 08: agree with changes (the floor of 67.5 cannot be reached)
 
 From `blob.cov`, `AvatarKey` is 3 statements (`blob.go:40.47`, `41.35`,
@@ -111,6 +121,7 @@ row's own lane red.
   `csi-spl-api/src/bash/tests/go-coverage-floor.txt` (line 19,
   `internal/blob 66.2`). The same fix applies to row 09.
 
+<a id="ws-doc-8b9ab836-1f5a-45f5-9302-bcca64ea32da"></a>
 ### 1.7 Row 09: agree with changes (the red control cannot fail)
 
 `internal/action` already measures **72.4%**, against a floor of 70.3
@@ -124,6 +135,7 @@ package reads 469/645 = **72.7%**.
 - Note: `action_test.go` does not exist yet, so the row creates it
   (`ls internal/action/`).
 
+<a id="ws-doc-fc4b2909-9e34-44c6-9602-d8499abcb8c6"></a>
 ### 1.8 Row 10: agree with changes (the site is the dir list, not `scan()`)
 
 `scan()` (`no-box-path-source.tst.sh:19-22`) already takes any dirs. What
@@ -136,6 +148,7 @@ Today the tree has `git ls-files 'csi-spl-api/*.sh' | wc -l` -> `26` and
 Red control: plant the `/opt/` source line in a temp copy, never in the
 committed tree. The test already builds its fixtures in `mktemp -d`.
 
+<a id="ws-doc-933d1c9f-a121-45cf-b678-4fa9f6ffd748"></a>
 ## 2. R1: no path in two rows of one batch
 
 I parsed the path lists of section 3.1 into (batch, row, path) rows with
@@ -150,6 +163,7 @@ One gap: row 02's 3.1 entry leaves out the test file its table row names,
 `orc:src/bash/tests/spl-review-line-check.tst.sh`. It is still disjoint
 within batch 2.
 
+<a id="ws-doc-ae76925b-b89d-4790-99eb-f989926dd5d9"></a>
 ## 3. Signature
 
 v1.0 (`26805ed51`) folds rows 07, 08, 09 and 10 as proposed

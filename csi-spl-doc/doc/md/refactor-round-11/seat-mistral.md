@@ -1,5 +1,7 @@
 # Round 11 Mistral Seat Verdict
 
+> Generated from qto doc `9ee5cd92-8d07-438f-b326-7e7793e8effe`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured on `eb1d01ae1` (`origin/master`, 2026-10-15 03:19Z).
 
 | Row | Practice | Verdict | Command | Output |
@@ -15,6 +17,7 @@ Measured on `eb1d01ae1` (`origin/master`, 2026-10-15 03:19Z).
 | 09 | `refactor(r11-09-bash-small-tf-init)` | Agree | `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh | grep -E 'LONG|do_tf_init'` | `do_tf_init` is 93 lines |
 | 10 | `test(r11-10-go-coverage-repo-edit)` | Agree | `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -coverprofile=cov.out ./cmd/spool/ && go tool cover -func=cov.out | awk '$3=="0.0%"'` | `repoEdit` and `nonEmpty` at 0.0% |
 
+<a id="ws-doc-e1d17d13-84e0-4441-b442-05a58e7ac2c3"></a>
 ## Notes
 - **Row 02:** The plan's counts (11 scanned, 23 total callers) are outdated. The current count is 20 scanned files.
 - **Row 04:** The gate does not require `| log:` in the review line (no `| log:` in the file).

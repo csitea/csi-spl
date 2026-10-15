@@ -1,5 +1,7 @@
 # Refactoring round 12 - plan (10 actions)
 
+> Generated from qto doc `6d2a79b7-fad7-4daa-aa35-f35840caff81`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, t1 topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea:
 rounds run continuously, **no owner go for the round, its panel or its
 lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
@@ -15,6 +17,7 @@ Editor: **a-563@PC** (agy).
 2026-10-15 12:46Z), n=1 per command unless stated. Input:
 [refactor-round-11-retro.md](refactor-round-11-retro.md) section 7.
 
+<a id="ws-doc-254c5af6-1dfc-461b-838a-a67fb5e48996"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, at the sites named and nowhere else,
@@ -37,6 +40,7 @@ Editor: **a-563@PC** (agy).
   The sha is pasted from `git rev-parse`, never typed; `ran:` names only
   commands that are in the `log:` file.
 
+<a id="ws-doc-8aeeeb77-3828-42ce-bd3b-d5a8a732c54f"></a>
 ## 2. Where the rows come from (measured on `e42286100`)
 
 | source | command | n | row |
@@ -52,6 +56,7 @@ Editor: **a-563@PC** (agy).
 | retro 7.8 | `export PATH="/usr/local/go/bin:$PATH" && cd csi-spl-api/src/go/spool-hub-api && go test -coverprofile=/tmp/action.cov ./internal/action && go tool cover -func=/tmp/action.cov \| grep 'action.go:398'` | `JSON 0.0%` | 09 |
 | retro 7.10 | `git grep -c 'csi-spl-api' e42286100 -- csi-spl-iac/src/bash/tests/no-box-path-source.tst.sh` | 0 (api and wui unscanned) | 10 |
 
+<a id="ws-doc-3cb7ad6e-0621-421d-8c18-b4c6e11079c0"></a>
 ## 3. The 10 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
@@ -67,6 +72,7 @@ Editor: **a-563@PC** (agy).
 | 09 `test(r12-09-go-coverage-action-json-helper)` | tests, coverage | `JSON` helper is 2 statements (467/645 covered = 72.4%); covered = 469/645 = 72.7% | `api:internal/action/action.go:398`<br>`api:internal/action/action_test.go`<br>`csi-spl-api/src/bash/tests/go-coverage-floor.txt:14` | 1 function at 0.0% | Create `internal/action/action_test.go` covering `action.JSON(v)`; raise `internal/action` floor from 70.3 to 72.7. **Red control:** without new tests, raised floor (72.7) fails against current coverage (72.4 < 72.7). | sat | claude | tests | 2 (after 08: `go-coverage-floor.txt`) |
 | 10 `test(r12-10-no-box-path-source-expand-dirs)` | gate, coverage | `no-box-path-source.tst.sh` only scans iac and orc, leaving api and wui shell scripts ungated | `iac:src/bash/tests/no-box-path-source.tst.sh:46-47` | 0 tests for api/wui | Extend `for d in ...` directory list in `no-box-path-source.tst.sh` to include shell scripts in `csi-spl-api` and `csi-spl-wui`. **Red control:** fixture script in a temp directory outside git with `/opt/` source fails the test; relative source passes. | sat | claude | tests | 1 |
 
+<a id="ws-doc-f3897104-9867-4bc9-9838-f2f45c691704"></a>
 ### 3.1 Disjoint files (R1)
 
 - **Batch 1:** 01, 03, 06, 08, 10.
@@ -86,10 +92,12 @@ Editor: **a-563@PC** (agy).
   - 05: `wui:src/utils/spool-client.mjs`, `wui:tests/unit/cleancode.test.mjs` (after 04 lands)
 - Dependent rows are placed within 30 min of their prerequisite landing (R16).
 
+<a id="ws-doc-e03d0ff9-5166-45b9-84eb-41a022f30562"></a>
 ### 3.2 Off every live lane (R3)
 
 `lane-map.sh --check <paths> --agent a-563` on `e42286100` verifies that no live lane owns any row path. The spawner re-runs `--check` per row before spawning (R3).
 
+<a id="ws-doc-cb1dfce4-0389-409b-b5c8-9ea40d13229e"></a>
 ## 4. Per row: what the lane does
 
 - **01:** update `_SPL_REVIEW_LINE_PY` in `spl-review-line-check.func.sh` to extract commands from agy `transcript.jsonl` tool calls (`args.CommandLine` where `name == "run_command"`). Commit body carries red control proof.
@@ -103,6 +111,7 @@ Editor: **a-563@PC** (agy).
 - **09:** create `internal/action/action_test.go` covering `JSON(v)`; raise coverage floor to 72.7 in `go-coverage-floor.txt`.
 - **10:** extend `no-box-path-source.tst.sh` directory list (`:46-47`) to include shell scripts in `csi-spl-api` and `csi-spl-wui`.
 
+<a id="ws-doc-b64837fa-7818-4fc6-ab98-1387d5e311ef"></a>
 ## 5. Panel and reviewers (R7)
 
 - **Signing panel:** editor `a-563@PC` (agy), `c-212@sat` (claude seat), and `m-213@sat` (mistral seat): 3 vendors.
@@ -111,6 +120,7 @@ Editor: **a-563@PC** (agy).
   - Backup reviewer: mistral seat `m-213@sat` or claude seat `c-212@sat` where cross-vendor constraints allow.
   - Review evidence must conform to rulebook 2.7.4.
 
+<a id="ws-doc-2bebc976-2f70-42a5-86d4-439f306929fa"></a>
 ## 6. Left out, measured
 
 | what | why | measured by |
@@ -119,6 +129,7 @@ Editor: **a-563@PC** (agy).
 | `cmd/spool` remaining 17 functions at 0.0% | require Postgres, key daemon, or process entry (`main.go`) | `go tool cover -func` |
 | remote branch prune round 11 | executed under R8 step 2 by retro lane | `ROUND=11 DRY_RUN=0 ./run -a do_git_prune_round_branches` |
 
+<a id="ws-doc-5c34b3e4-80b7-49bd-8728-d16d5fa675b2"></a>
 ## 7. Counts
 
 | | n |
@@ -128,6 +139,7 @@ Editor: **a-563@PC** (agy).
 | box (preferred) | sat 8, PC 2 |
 | batches | batch 1: 5; batch 2: 4; batch 3: 1 |
 
+<a id="ws-doc-b2fe0791-55cb-45b4-8b19-5dbc9b0400b3"></a>
 ## 8. Changes
 
 - v0.1: Initial proposed plan from round 11 retrospective section 7, measured on `e42286100`.
@@ -142,6 +154,7 @@ Editor: **a-563@PC** (agy).
   - Row 10: site lines corrected to `:46-47`; red control fixture in temp dir specified.
   - Section 3.1: test file added to Row 02 Batch 2 entry.
 
+<a id="ws-doc-f853cdda-a836-4c4c-94cd-e76a56338895"></a>
 ## 9. Consensus
 
 | seat | id | signed | file |

@@ -1,5 +1,7 @@
 # Refactoring round 11 - retrospective
 
+> Generated from qto doc `0507f899-d0c2-4ffa-87b8-ef46b0710eda`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured 2026-10-15 on trunk **`e42286100`** (`origin/master`, 12:46Z) only.
 Each count names the command that produced it; n=1 per command unless
 stated. This is R8 of [rounds-rulebook.md](rounds-rulebook.md); section 7 is
@@ -11,6 +13,7 @@ Plan: [refactor-round-11-plan.md](refactor-round-11-plan.md), v1.0
 accepted by the dispatch holder 2026-10-15 04:20Z (`7ce788d47`). Review
 history: spool topic `dispatch-3209f8b8` (`spool tail --task dispatch-3209f8b8`).
 
+<a id="ws-doc-498424b2-7ad1-48af-8c83-25d273007117"></a>
 ## 1. What landed
 
 `git log origin/master -E --grep='r11-[0-9]{2}' --format='%h %cI %s'` -> **10**
@@ -34,11 +37,13 @@ All 10 rows held: none reverted (`git log origin/master --grep='Revert' --format
 Every row landed in **1 push to master**, satisfying the push cap ("aim for 1, max 5", rulebook section 1).
 WUI rows 07 and 08 were served on dev and prd (07 in v9.4.6-c2; 08 in v9.5.7-c2, `do_check_deploy_lag` verified served=01e8259a on dev and prd); rows with no deploy input are done on landing (R5).
 
+<a id="ws-doc-8f650a13-b19a-4f77-a270-b80a3f32f636"></a>
 ## 2. Review line verification (`do_spl_review_line_check`)
 
 Every row's landing commit carried an R7 review line conforming to the plan section 1 format (`review: <id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <id>@<box>:<path>`).
 Running `REVIEW_LINE='<line>' ./run -a do_spl_review_line_check` for each of the 10 rows produces:
 
+<a id="ws-doc-130b1ec2-05d5-42a4-9291-b07ebce0d289"></a>
 ### Row 01 (`5ae1b8c5c`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -46,6 +51,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: m-159@sat mistral PASS 3bfdbdda1332e4342a15f9afa1b40bf3acb37954 ran: git checkout 3bfdbdda1332e4342a15f9afa1b40bf3acb37954; bash src/bash/tests/gcp-actions-isolated-config.tst.sh; bash src/bash/tests/gcp-temp-sdk-config.tst.sh; bash src/bash/tests/return-not-exit-gcp.tst.sh; bash src/bash/tests/gcp-key-path-no-eval.tst.sh; bash src/bash/tests/bash-cleancode.tst.sh; git grep -l 'local _spl_sdk_saved="${CLOUDSDK_CONFIG-}"' -- csi-spl-iac | read: HEAD is now at 3bfdbdda1; all 5 tests PASS; grep 0 files | log: m-159@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/e1e13088-82b1-0bfb-b883-492851a73eae/journal/0000000000001778.jsonl`
 - Verification note: Defect on sat — m-159 cited a non-existent log path (`0000000000001778.jsonl` was a gone journal or wrong session index); verified on sat by dispatcher note.
 
+<a id="ws-doc-51867675-89a7-4c5e-b781-c6de4b8ce943"></a>
 ### Row 02 (`d27914196`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -53,6 +59,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: c-192@sat claude PASS 6af4a4ed08c57d184f920aac12e5bf87e782b16d ran: git fetch origin review/r11-02; git rev-parse FETCH_HEAD; git checkout --detach FETCH_HEAD; git diff --stat HEAD~1 HEAD; git diff --summary HEAD~1 HEAD; git merge-base --is-ancestor HEAD~1 origin/master; bash csi-spl-iac/src/bash/tests/gcp-actions-isolated-config.tst.sh (review tree, detached worktree); independent count grep -rlE 'spl_gcp_temp_sdk_config\b' run/ lib/bash/funcs minus the helper | wc -l; RED 1: sed deletes ... | read: ... | log: c-192@sat:/mnt/data/home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-192/c3dc6f89-7850-40f7-81fe-d92d5ef11825.jsonl`
 - Verification note: Verified on sat by dispatcher (msg e800a732). Same-vendor review (claude reviewing claude) fallback because agy logs are unreadable by the checker and grok was at quota limits.
 
+<a id="ws-doc-25e6151a-071e-49a7-87bf-6195abef9c15"></a>
 ### Row 03 (`984cd89cb`)
 ```text
 OK 1 of 1 named in ran: are commands in /home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-535/b519b8f0-9e9b-410e-b009-47b58de5cae2.jsonl (45 commands read)
@@ -60,6 +67,7 @@ OK 1 of 1 named in ran: are commands in /home/<user>/.claude/projects/-opt-csi-c
 - Line: `review: c-535@PC claude PASS c25522b3c5b3dc560e0ae0ba43cb4a3c1c1b7a7e ran: git fetch origin review/r11-03-c; git diff --stat origin/master...c25522b3c; the test from the root and from /; IAC_TEST_ONLY=no-box-path-source.tst.sh bash csi-spl-iac/src/bash/tests/run-all-tests.sh (cwd /); 11 plant lines x 4 dirs (44 runs); a chmod 000 plant; cd csi-spl-iac && ./run -a do_check_pre_push_lint | read: 1 file +62, mode 100755; PASS from root and /, red control 5/5, tree 0 sites in 4 dirs; 44/44 plant runs right; lint all PASSED | log: c-535@PC:/home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-535/b519b8f0-9e9b-410e-b009-47b58de5cae2.jsonl`
 - Verification note: Run directly on PC; **OK 1 of 1** verified. Cross-vendor review by c-535@PC.
 
+<a id="ws-doc-97f5d322-57b6-4417-951c-188d7375cd8d"></a>
 ### Row 04 (`8bb1c4a90`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -67,6 +75,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: m-159@sat mistral PASS c7985578b3bec7d6a4d5395d1ba97646eba80c48 ran: git diff --stat c7985578b~1 c7985578b; bash csi-spl-orc/src/bash/tests/spl-push-master.tst.sh; cp spl-push-master.func.sh.old csi-spl-orc/src/bash/run/spl-push-master.func.sh && bash csi-spl-orc/src/bash/tests/spl-push-master.tst.sh | grep -A 5 'FAIL: 8' | head -5 | tail -4 | sed 's/^/  /' | tr '\n' ' '; git checkout -- csi-spl-orc/src/bash/run/spl-push-master.func.sh | read: ... | log: m-159@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/249e1752-64d4-58ae-9046-efc04793a474/journal/0000000000000001.jsonl`
 - Verification note: Dispatcher corrected the `log:` field to m-159's real journal path before push (c-002 msg c7d61a1e). Verified on sat.
 
+<a id="ws-doc-af612fe4-d3a4-4e02-8053-613cf7705029"></a>
 ### Row 05 (`f1c9c6fc9`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -74,6 +83,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: m-183@sat mistral PASS a046cb97a81ab67c4f56a8cbe28fa626af2a9326 ran: git checkout a046cb97a81ab67c4f56a8cbe28fa626af2a9326 -- csi-spl-orc && bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-pre-push-review-line.sh && bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-pre-push-non-ff.sh && bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-pre-push-dev-guide.sh && bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-pre-push-hook.sh | read: ... | log: m-183@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/1fd56480-3270-da81-40b5-810f7ee3d007`
 - Verification note: Verified on sat by c-002: "R7 verdict GOOD on a046cb97a (NOTE on compacted vibe store)" (msg 12c9eba6).
 
+<a id="ws-doc-265af7ba-e2cb-46e9-b379-80a9c33c5773"></a>
 ### Row 06 (`cdc1aecd3`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -81,6 +91,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: m-183@sat mistral PASS 512b48e5d04a51dfd9fa9fd214fab253d493db23 ran: source csi-spl-orc/src/bash/run/spl-review-line-check.func.sh; bash csi-spl-orc/src/bash/tests/spl-review-line-check.tst.sh | read: 17 PASS, 0 failure(s) | log: m-183@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/bb002cc1-7d40-0c9f-4f99-98838f7c3439`
 - Verification note: Verified on sat. The action author updated the function to handle vibe compacted session stores (`chunks/*.json`) after send-back 8faddcf1.
 
+<a id="ws-doc-a43578be-c60c-468c-8700-917d57377c90"></a>
 ### Row 07 (`b8834925c`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -88,6 +99,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: m-183@sat mistral PASS 3cc9592176c5946e61e0a5b9fa6b77df617b65a4 ran: git checkout 3cc9592176c5946e61e0a5b9fa6b77df617b65a4 -- csi-spl-wui && git show 3cc9592176c5946e61e0a5b9fa6b77df617b65a4~1:csi-spl-wui/src/stores/live.ts > csi-spl-wui/src/stores/live.ts && node csi-spl-wui/tests/unit/cleancode.test.mjs && git checkout 3cc9592176c5946e61e0a5b9fa6b77df617b65a4 -- csi-spl-wui/src/stores/live.ts && node csi-spl-wui/tests/unit/cleancode.test.mjs && python3 /opt/csi/csi-spl/csi-spl-orc/src/bash/scripts/perf-budget.py bundle --pub csi-spl-wui/.output/public --budgets /opt/csi/csi-spl/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json | read: ... | log: m-183@sat:/mnt/data/home/<user>/.vibe/logs/session/unified/1fd56480-3270-da81-40b5-810f7ee3d007`
 - Verification note: Verified on sat. Reviewer defect: m-183 claimed red control output that could not have failed against the review branch because `cleancode.test.mjs` was not staged in that branch.
 
+<a id="ws-doc-a0227e21-9881-4c90-851a-a7a1630dffe5"></a>
 ### Row 08 (`01e8259a3`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -95,6 +107,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: c-192@sat claude PASS 62594b771180fde2d6ea5de4c59b5f76deaeae1c ran: git fetch origin review/r11-08; git rev-parse FETCH_HEAD; git diff --stat --summary <sha>~1 <sha>; diff of the store return block <sha>~1 vs <sha>; pnpm install --frozen-lockfile --ignore-scripts (review tree); node tests/unit/cleancode.test.mjs (new tree); RED CONTROL git show <sha>~1:csi-spl-wui/src/stores/notification.ts over the file + node tests/unit/cleancode.test.mjs; git checkout -- the file + cleancode again; node --test tests/unit/{ai-message,notify,swallow-reasons,verbosity-notify-wire}.test.mjs; pnpm run typecheck | read: ... | log: c-192@sat:/mnt/data/home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-192/6e18f050-ba1a-494c-8d3b-3b77c562025e.jsonl | same-vendor (agy unreadable log, grok limit)`
 - Verification note: Verified on sat (msg ea113fd6). Same-vendor fallback review.
 
+<a id="ws-doc-d9d98612-6a63-46a9-ac6a-3770f2342ed8"></a>
 ### Row 09 (`08348bcf7`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -102,6 +115,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: c-192@sat claude PASS 4da8e17ad3cfae14a268e9bbbf2ca9c5665930c2 ran: git fetch origin review/r11-09-v2; git rev-parse FETCH_HEAD; git diff --summary 4da8e17ad~1 4da8e17ad; git diff --stat 4da8e17ad~1 4da8e17ad; git ls-tree 4da8e17ad csi-spl-iac/src/bash/run/tf-init.func.sh; git diff --stat 8fdbf312f 4da8e17ad; git checkout --detach 4da8e17ad (detached worktree); bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh + the 9 from git grep -lE "tf-init|do_tf_init" -- "*.tst.sh"; RED CONTROL git show 4da8e17ad~1:csi-spl-iac/src/bash/run/tf-init.func.sh over the file, new test kept, then git checkout -- <file> | read: ... | log: c-192@sat:/mnt/data/home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-192/966ad4a5-d0fb-4432-8317-0b862c7bb3c2.jsonl`
 - Verification note: m-183 sent two void lines on v1 (`8fdbf312f`); replaced by c-192@sat who reviewed v2 (`4da8e17ad`). Same-vendor fallback.
 
+<a id="ws-doc-7337dd9e-fc57-43d8-9857-73ed0912c873"></a>
 ### Row 10 (`e9aa040ee`)
 ```text
 REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
@@ -109,6 +123,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
 - Line: `review: c-192@sat claude PASS 95a7d76ece0d441c3e839f04338090a56f97b2b2 ran: git fetch origin review/r11-10; git rev-parse FETCH_HEAD; git diff --summary/--stat 95a7d76ec~1 95a7d76ec; git merge-base --is-ancestor 95a7d76ec~1 origin/master; git checkout --detach 95a7d76ec (detached worktree); go test -count=1 -coverprofile ./cmd/spool/ x3; go test -count=1 -v -run "TestRepoEditGuardsKeepEditingOff|TestNonEmpty" ./cmd/spool/; go tool cover -func | grep hub_repo_edit.go; go test -count=1 -coverprofile ./... x3 with the file; RED CONTROL hub_repo_edit_test.go moved aside: ... | read: ... | log: c-192@sat:/mnt/data/home/<user>/.claude/projects/-opt-csi-csi-spl-wt-c-192/966ad4a5-d0fb-4432-8317-0b862c7bb3c2.jsonl`
 - Verification note: Verified on sat by c-002 (msg 0c0d6c71). Same-vendor fallback.
 
+<a id="ws-doc-14242758-c366-494a-81cc-23eb3a62c1ab"></a>
 ### Summary: C7 and Review Backing
 - **C7 holds on 10 of 10 rows:** `git diff <reviewed> <landed> -- $(git show --name-only --format= <landed>) | wc -l` -> **0** for all rows 01..10.
 - **Review lines backed by output:** 10 of 10 rows carry valid review evidence; 1 row directly verified by `do_spl_review_line_check` on PC (row 03: OK 1 of 1), and 9 rows verified on sat by the dispatcher where the logs reside.
@@ -117,6 +132,7 @@ REFUSED the log is on box 'sat', this is 'PC': run it on sat (never fetched)
   2. `m-183` on row 07 cited a red control that did not fail, and on row 09 sent two void review lines, leading to retirement and replacement by `c-192@sat` at 09:50Z.
   3. Same-vendor review fallback (claude reviewing claude on rows 02, 08, 09, 10) was forced because agy transcripts were unreadable by `do_spl_review_line_check` and grok hit API quota limits.
 
+<a id="ws-doc-97bb4b65-db49-40ae-8d5a-ec5de1f6cbe7"></a>
 ## 3. CI verdict per row (R11)
 
 The first workflow 10 run, completed and not cancelled, whose head contains the row sha (`gh run list --workflow 10_ci-quality.yml --branch master --status completed -L 150`, filtered for `conclusion != cancelled`, then `git merge-base --is-ancestor <row> <head>`):
@@ -136,6 +152,7 @@ The first workflow 10 run, completed and not cancelled, whose head contains the 
 
 All 10 rows satisfy R11.2: 7 rows in green completed runs, 2 rows in runs where the only failure was an unrelated orc test (`func-name-unique.tst.sh` fixed by `1afaf9a70`), and row 08 deployed live to dev and prd with all security/build workflows green.
 
+<a id="ws-doc-95a1e25c-6468-4142-9b2a-c775ddcaeabd"></a>
 ## 4. What went wrong and rule changes
 
 - **Defect 1: `do_spl_review_line_check` cannot read agy logs.**
@@ -154,6 +171,7 @@ All 10 rows satisfy R11.2: 7 rows in green completed runs, 2 rows in runs where 
   Refactor share dropped under 20% twice (03:1xZ and 11:4xZ) because Batch 2 rows were blocked waiting for Batch 1 prerequisites to land.
   *Rule change / fix:* Maximize Batch 1 size by picking strictly disjoint files across 5-7 rows, minimizing multi-batch chains.
 
+<a id="ws-doc-48f37e61-bc4d-4896-93b8-4b7cb594db66"></a>
 ## 5. Branches (R8 steps 1-2)
 
 Dry run on trunk `e42286100`:
@@ -182,6 +200,7 @@ DRY_RUN round 11: 9 branch(es) listed, 3 kept unlanded on origin, nothing delete
   - `review/r11-09`: 1 unlanded commit (`8fdbf312f`, m-183 void review, replaced by v2).
 Execution of `DRY_RUN=0` runs immediately after this retro lands.
 
+<a id="ws-doc-c8327506-d57a-489d-b613-a98161621f2b"></a>
 ## 6. What worked, what to change
 
 - **Worked:** All 10 rows landed in 1 push each, C7 held on all 10 rows, zero regressions or reverts. WUI stores `live.ts` and `notification.ts` successfully split under 80 lines without increasing bundle size. `do_spl_push_master` R7 check (row 04) and pre-push hook check (row 05) successfully enforce review line format.
@@ -189,6 +208,7 @@ Execution of `DRY_RUN=0` runs immediately after this retro lands.
 - **Change 2:** Tackle the final 3 WUI LONG functions (`channel.ts`, `createLiveClient`, `createSpoolClient`) to achieve an empty WUI LONG map.
 - **Change 3:** Lower ceilings for `gcp-import-to-cloudsql` (175 -> 174) and `gcp-project-delete` (120 -> 119) per clean-code NOTEs.
 
+<a id="ws-doc-17a12181-2728-4e26-8790-a48c1bdeae0b"></a>
 ## 7. Round 12 inputs (measured on `e42286100`)
 
 1. **R7 review line checker: agy transcript support:**
@@ -214,6 +234,7 @@ Execution of `DRY_RUN=0` runs immediately after this retro lands.
 10. **Test gap: expand `no-box-path-source.tst.sh` scope:**
     `git grep -c 'csi-spl-api' e42286100 -- csi-spl-iac/src/bash/tests/no-box-path-source.tst.sh` -> **0** (iac and orc scanned; api/wui unscanned).
 
+<a id="ws-doc-1926610a-d43d-44b0-9ec9-fbc7cbf575f4"></a>
 ## 8. Commands
 
 ```bash

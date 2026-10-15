@@ -1,10 +1,13 @@
 # Detect and prevent a role seat frozen at its AI usage limit
 
+> Generated from qto doc `379b167a-e816-498d-8451-2e4402d5fb57`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner topic t1 865b7a05: "how-to detect and prevent usage limit situations for
 the orchestrators". The lease design is in
 [SPEC-spool-fleet-roles.md](SPEC-spool-fleet-roles.md), section 4; this page
 covers only the usage-limit case.
 
+<a id="ws-doc-32bf20a0-c0bd-46b3-8970-387331d46f3f"></a>
 ## 1. What went wrong on 2026-10-03
 
 Every Claude session on the satellite showed `Usage limit reached · resets
@@ -20,6 +23,7 @@ spinner. The loop read the seat as able. The rotation gate saw the same banner
 (`GATE SKIP stalled Usage limit reached` in `rotate.log` at 06:05Z, 06:15Z and
 07:05Z), but the lease did not act on it.
 
+<a id="ws-doc-48e94575-693b-42b8-8620-0bbef577c6a5"></a>
 ## 2. Detection: what the lease checks now
 
 `spl_lease_agent_able` in `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`
@@ -58,6 +62,7 @@ returns to it on rank.
 The check fails open: if no pane is found (no tmux, or the agent runs outside
 tmux), only the process rule applies.
 
+<a id="ws-doc-2f283a9c-3f83-44dd-ab79-9cef824d90a2"></a>
 ### 2.1 Read it on a box
 
 These are read-only. The current holder of each role:
@@ -78,6 +83,7 @@ The transitions (`renew stop`, `NO-LOCAL-AGENT`, `FLEET <role>: ... takes over`)
 tail -n 50 /var/spool-hub/dispatch/lease.log
 ```
 
+<a id="ws-doc-614e87f8-fd37-4a26-a9cf-f58c7155e7e6"></a>
 ### 2.1.1 The dispatch rotation checks the failover first
 
 The hourly dispatch rotation (`do_spl_dispatch_rotate`) hands the lease to the
@@ -94,6 +100,7 @@ HOLD while `c-003` was on its weekly limit (`wd.log`: `HIT S2 kind=limit` every
 240 s, and the run ended `FAIL HOLD: the lease did not move to c-003` and paged
 the owner.
 
+<a id="ws-doc-76f495a9-9a61-40d5-b422-e12e1fe39c8a"></a>
 ### 2.2 How close a login is to its limit
 
 The pane banner shows only that a seat HAS hit the limit. To see a limit
@@ -112,6 +119,7 @@ after a restart or a token refresh, and it affects every session of that user.
 Gap: no named action wraps this read yet. Make it one
 (`do_spl_ai_usage`, per the "nothing ad hoc" rule) before anyone scripts it.
 
+<a id="ws-doc-9ffc049f-e8c8-467a-a42f-1bd271686b89"></a>
 ## 3. Prevention: do not put every role seat on one login
 
 The failover works only if the next machine's seats can still act. If every

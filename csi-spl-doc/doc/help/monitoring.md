@@ -1,8 +1,11 @@
 # Monitoring
 
+> Generated from qto doc `13b56d32-7c38-4d90-ae2a-f13f7a24e23e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Monitoring** section in the left rail (the pulse-line icon) is one place
 to watch the workspace's agents and boxes. It opens on its **Agents** tab.
 
+<a id="ws-doc-30e7f6b8-6c5a-4b0e-b70d-7a25c3da1dbe"></a>
 ## The tabs
 
 A row of tabs sits at the top of the page. Each tab has its own address, so a
@@ -19,6 +22,7 @@ Opening `/monitoring` on its own goes to the Agents tab.
 More tabs come later (capacity, open asks, CI and deploys, alerts). The fleet
 tabs among them show only to admins of the operator workspace.
 
+<a id="ws-doc-b77b523b-f4d5-4077-bf67-a2d04b70b52c"></a>
 ## Boxes: system facts and allocation
 
 Under each box the Boxes tab shows what the box reports about itself once a
@@ -42,12 +46,14 @@ All of it is read-only here. Every value an admin set carries a small
 **(planned)** mark: it is the plan, not a measurement. To change a value, use
 the **Edit in Workspace settings** links.
 
+<a id="ws-doc-54116bbb-66ed-4a98-94f6-377a70c6ce75"></a>
 ## The Agents and Boxes sections
 
 The **Agents** and **Boxes** sections of the left rail stay where they are for
 now. Monitoring shows the same agents and boxes. See [Agents](./agents.md) and
 [Boxes](./boxes.md).
 
+<a id="ws-doc-c58dd964-9d53-45d4-813c-9b838ab891cd"></a>
 ## On a phone
 
 Monitoring is one entry in the section strip at the top. Its tabs sit under the

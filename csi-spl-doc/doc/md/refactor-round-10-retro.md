@@ -1,5 +1,7 @@
 # Refactoring round 10 - retrospective
 
+> Generated from qto doc `a8dee37d-cd7d-47a0-a337-b3752cdab807`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured 2026-10-15 on trunk **`eb1d01ae1`** (`origin/master`, 03:19Z) only.
 Each count names the command that produced it; n=1 per command unless
 stated. This is R8 of [rounds-rulebook.md](rounds-rulebook.md); section 7 is
@@ -12,6 +14,7 @@ accepted by the dispatch holder 2026-10-14 18:25Z. Review history: spool
 topic `dispatch-3209f8b8` (`spool tail --task dispatch-3209f8b8`), from
 20:54Z to 03:09Z.
 
+<a id="ws-doc-7465c857-3fd8-4230-860c-dab90b263ad7"></a>
 ## 1. What landed
 
 `git log origin/master -E --grep='r10-[0-9]{2}' --format='%h %cI %s'` -> **11**
@@ -36,6 +39,7 @@ All 10 rows held: none reverted (`git log origin/master --grep='Revert' --format
 WUI rows 02 and 03 were served on dev and prd (c-002 verdicts: 02 in v9.1.7,
 03 in v9.2.3); the other rows have no deploy input (R5: landed is done).
 
+<a id="ws-doc-40c14d58-ab58-4a8d-9070-15f485a62e1d"></a>
 ## 2. Cross-vendor review (R7): was each line backed by output?
 
 `git log origin/master -E --grep='r10-[0-9]{2}' --format=%B | grep -c '^review: '`
@@ -86,6 +90,7 @@ withdrawn from 03 (claude on a claude row breaks R7.5, c-002 msg 115c37dc);
 m-155@sat (second mistral seat) took 03 and 08. The dispatcher records m-155
 as unreliable (c-002, 03:06Z).
 
+<a id="ws-doc-7e30b146-834b-4348-9ec5-13beda291f13"></a>
 ## 3. CI verdict per row (R11)
 
 The first workflow 10 run, completed and not cancelled, whose head contains
@@ -116,6 +121,7 @@ tries a claude takeover (c-145) landed `6535dd26d` at 22:51Z: **1 h 43 min**
 of trunk red, during which rows 06 and 07 landed with their iac tests never
 run in CI.
 
+<a id="ws-doc-de9b49f0-e8e2-451f-a48b-14186fe6fb1a"></a>
 ## 4. What it did not reduce, and new findings
 
 - **3 CLOUDSDK files left:** `gcp-import-to-cloudsql`, `gcp-project-delete`,
@@ -151,6 +157,7 @@ run in CI.
 - **WUI LONG left:** `channel.ts <anon>` 576, `notification.ts <anon>` 430,
   `live.ts setup` 304, `createLiveClient` 499, `createSpoolClient` 545.
 
+<a id="ws-doc-e516feea-4ddf-4088-a978-06234a551e6d"></a>
 ## 5. Branches (R8 steps 1-2)
 
 `cd csi-spl-orc && ROUND="5,6,7,10" DRY_RUN=1 ./run -a do_git_prune_round_branches`
@@ -164,6 +171,7 @@ fix attempts, superseded by `6535dd26d`) and
 prune (`ROUND=10 DRY_RUN=0`) runs after this retro lands, and its output goes
 to the orchestrator with the kept list.
 
+<a id="ws-doc-f4ce10ce-cab0-4313-bffb-e2bd13891c6e"></a>
 ## 6. What worked, what to change
 
 - **Worked:** 10 of 10 rows landed in 6 h 1 min (20:45Z to 02:46Z), none
@@ -180,6 +188,7 @@ to the orchestrator with the kept list.
   the round's weak link (4 of 9 lines unbacked or void). Keep mistral off
   bash DRY rows; give mistral reviewers the checkable format first.
 
+<a id="ws-doc-d6358d96-3306-4191-aced-7d469c5f9d81"></a>
 ## 7. Round 11 inputs
 
 1. **Proposal (R7 checkable):** the review line gains a `log:` field: the
@@ -206,6 +215,7 @@ to the orchestrator with the kept list.
 9. **Not a row:** the round 10 prune (section 5), then the kept list to the
    orchestrator.
 
+<a id="ws-doc-5f135cfc-3a5d-4cf3-9f17-86b6cbc0f3c8"></a>
 ## 8. Commands
 
 ```bash

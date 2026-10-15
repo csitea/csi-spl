@@ -474,6 +474,10 @@ Phase 1: Gap Closure ──► Phase 2: Bulk Import ──► Phase 3: Export Pa
 
 Owner HUM-10 (t1 `2a2a4694`, msg `b04f0ab5`): *"the aim is to slowly make the master storage format of our docs to be qto and the '*.md' files to be published to the github repo , once desired via a pubblish button"*. The `.md` export reaches `master` when a person presses **Publish** in the Qto doc view: the hub exports the doc, gates the bytes and commits them fast-forward under its GitHub App, the presser as author. Owner decisions (poll `72d2b3da`, msg `86c7b888`): any `docs.write` member presses; any workspace doc may be published to a picked path at once, no review (msg `af133e9c`), behind the automatic public-repo guard; a changed repo file is 3-way merged and the result written back into Qto; prd only; no rev in the stamp; Publish and the lane export both write, under one same-rev rule. Design: [publish.md](publish.md); tasks T060..T067 in [tasks.md](tasks.md) §7.
 
+### 5.4 Specs, agent instructions, and our READMEs move to Qto (addendum)
+
+Owner HUM-10 (topic `acc0c5d3-ec8f-4968-9ed9-f25e99d16e0e`, msgs `b0c3bc86`, `4454c883`, `ce0eae22`): specs (`csi-spl-doc/specs/`, 503 .md in 138 specs), agent instructions (~29 files under `csi-spl-orc/src/bash/features/`), and our 21 `README.md` files move to Qto as the master format and editing place, following the same export and publishing rules as `csi-spl-doc/doc`. Detailed design, authoring/ticking lifecycle, import plans, gap handling (G1-G7), public-repo hygiene gate, and required test gates are specified in [§10. Addendum](#10-addendum-specs-agent-instructions-and-our-readmes-move-to-qto-hum-10); phased build tasks T070..T076 are in [tasks.md](tasks.md) §8.
+
 ---
 
 ## 6. Step 2 expert panel preparation
@@ -591,7 +595,225 @@ The complete consensus rationale, weighing of Mistral's P-Q3 vote, and 5 verifie
 
 ---
 
-## 9. Version log
+## 10. Addendum: Specs, agent instructions, and our READMEs move to Qto (HUM-10)
+
+Owner order: HUM-10, t1 #refactoring topic `acc0c5d3-ec8f-4968-9ed9-f25e99d16e0e`, poll `c0398592`, answer msg `b0c3bc86` (17:1xZ 2026-10-15): of our docs not in Qto, move **1. specs** (`csi-spl-doc/specs/`, 503 .md in 138 specs) and **6. agent instructions** (~30 files: `csi-spl-orc/src/bash/features/spawn-agents/assets/{commands,skills}/**`, `spool-install/assets/claude/claude-md/*.md`, `spool-install/assets/agy/rules/*.md`, `graft/assets/**`, `gc/gc-prompt.md`, `dispatch/brief-dispatcher.tpl.md`). Then (msg `4454c883`, same topic): **4. our own README.md files** too (21: the root README.md and each part's README.md, e.g. `csi-spl-api/`, `csi-spl-orc/`, `csi-spl-wui/`, `csi-spl-orc/src/bash/features/*/README.md`). NOT third-party ones (`csi-spl-doc/.specify/extensions/git/README.md`) and NOT test fixtures (`csi-spl-orc/src/bash/tests/fixtures/**`).
+Rule (spec 137, owner msg `b04f0ab5`): Qto becomes the master format and the editing place; the repo `.md` is the export (`Publish` / the lane export), as for `csi-spl-doc/doc` (T030B, c-129).
+
+### 10.1 Specs: authoring, ticking, and the no-direct-md-edit guard
+
+#### 10.1.1 Reality check: spec lifecycle today
+- **Spec-Kit authoring**: Initial specs and plans are structured under `csi-spl-doc/.specify/` (`scripts/bash/common.sh:5`, `memory/constitution.md:20`), creating feature specifications under `csi-spl-doc/specs/<NNN>-<slug>/` with `spec.md` and `plan.md`.
+- **Task generation (`/spec-kit-tasks`)**: The agent skill (`csi-spl-orc/src/bash/features/spawn-agents/assets/skills/spec-kit-tasks/SKILL.md:47`) parses `FEATURE_DIR/spec.md` and `plan.md` to produce `FEATURE_DIR/tasks.md`.
+- **Panel seats**: Structured multi-vendor panels (`csi-spl-doc/specs/README.md:39`, `csi-spl-doc/specs/137-qto-only-doc-editor/spec.md:528-536`) convene review seats (claude, grok, mistral, agy, qwen) that write individual reviews in `panel/<seat>.md` and finalize `panel/consensus.md`.
+- **Ticking tasks with a sha**: Implementation lanes update task statuses in `tasks.md` from `Planned` to `Implemented` citing commit SHAs and test proofs (`csi-spl-doc/specs/README.md:32-38`, `csi-spl-doc/specs/137-qto-only-doc-editor/tasks.md:23,34,35`).
+- **Direct markdown editing**: All four operations currently execute by directly reading and writing `.md` files in local git worktrees.
+
+#### 10.1.2 Target state: Qto as master for specs
+1. **Primary authoring in Qto**:
+   - The Qto document under `/repo/specs/<NNN>-<slug>/` in the `system` tenant (`fs=repo`) is the master document. Direct manual editing of `.md` files in git is retired.
+   - Lanes and humans authoring or updating specs write directly into Qto using the WUI editor (`WorkspaceDocView.vue`), CLI (`spool doctree edit <doc_id> --item <item_id> --field body`), or MCP tools (`spool_doc_write`).
+   - `/spec-kit-tasks` reads the spec item tree via `spool doctree read` (or `spool_doc_read` MCP) and writes the generated task items into the `tasks` Qto doc under the spec folder.
+   - Panel review seats write their review evaluations into the spec's `panel/` Qto sub-documents (`/repo/specs/<NNN>-<slug>/panel/<seat>`).
+   - Implementation lanes ticking tasks edit the corresponding task item in the `tasks` Qto doc, updating status to `Implemented` and adding the commit SHA, proof command, and pass results.
+2. **How the export reaches master before build lanes read it**:
+   - Before an implementation lane is spawned to execute tasks, the updated spec and `tasks.md` must be exported and committed to `master`. Build lanes check out `origin/master` and read spec/task markdown files offline without requiring live PostgreSQL access.
+   - The export reaches master via one of two paths:
+     a. **Publish Button (interactive / UI)**: A human or agent with `docs.write` presses Publish in Qto (`publish.md:95-103`), executing a fast-forward commit to GitHub master via the GitHub App (`internal/github/repo.go:124`, `publish.md:124-147`).
+     b. **Lane Export (`do_spl_doctree_export_md` / T066 recorded writer)**: A lane runs `ENV=prd TENANT_ID=t1 QTO_DOC=<id> ./run -a do_spl_doctree_export_md` (`csi-spl-orc/src/bash/run/spl-doctree-export-md.func.sh:31-67`), which generates the byte-stable `.md` with the standardized header stamp (`> Generated from qto doc <id>; edit it there.`), records the `lane_export` row, stages the explicit pathspec, and pushes via `do_spl_push_master`.
+3. **No-direct-md-edit guard**:
+   - Every mapped spec `.md` file listed in `qto-docs.tsv` is protected by the pre-push gate (T040, `check-pre-push.func.sh:35`).
+   - A lane attempting to edit `csi-spl-doc/specs/**.md` directly via git without updating Qto is blocked by the pre-push hook:
+     `FATAL: direct edit to csi-spl-doc/specs/... detected. This document is managed by Qto. Edit it via Qto and run do_spl_doctree_export_md.`
+   - `spl-doctree-import-md.func.sh:41-43` similarly guards against git overwrites of mapped exports.
+
+---
+
+### 10.2 Agent instructions: loading paths, staleness, and fleet rules governance
+
+#### 10.2.1 Reality check: agent instruction loading paths today
+Agent instructions comprise ~29 critical markdown files that are loaded directly by installers, refresh actions, and spawn scripts on `origin/master`:
+- `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/*.md` (8 files: `00-title.md`, `05-agents-run-as-agent-user.md`, `07-permission-mode-bypass.md`, `10-push-and-deploy.md`, `20-spawn-an-agent.md`, `25-stay-in-your-lane.md`, `27-lane-issue-and-docs.md`, `30-cross-lane-findings.md`):
+  - Concatenated by `spool-install/steps/y4-claude-config.sh:6-9` and `y4-claude-config.py:151` (`fragments("claude-md", "md")`) into `~/.claude/CLAUDE.md`.
+  - Rendered by `y8-vibe-agents.sh:35` and `y8-vibe-agents.py:18-24` into `~/.vibe/AGENTS.md` for Mistral seats.
+  - Fragment `25-stay-in-your-lane.md` extracted by `y9-vendor-lane-rule.sh:27` into `~/.gemini/config/rules/25-stay-in-your-lane.md` and `~/.qwen/QWEN.md`.
+- `csi-spl-orc/src/bash/features/spool-install/assets/agy/rules/30-exit-after-accepted.md` (1 file): installed into `~/.gemini/config/rules/`.
+- `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/*.md` (9 files: `agy-spawn.md`, `claude-spawn.md`, `grok-spawn.md`, `mistral-spawn.md`, `qwen-spawn.md`, `riname.md`, `signed-prompt.md`, `spawn-an-agent.md`, `tmux-close-window.md`): installed into `~/.claude/commands/` and adopted by `y5-adopt-skills.sh:21`.
+- `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/*/SKILL.md` (6 files: `agent-msg`, `exit-clean`, `kill-your-self`, `paste-html-into-chrome`, `spec-kit-tasks`, `tmux-color`): installed into `~/.claude/skills/` and `~/.gemini/config/skills/` by `y5-adopt-skills.sh:21` and refreshed by `spl-skills-refresh.func.sh:105`.
+- `csi-spl-orc/src/bash/features/graft/assets/**` (`skills/graft/SKILL.md`, `agy-rules/graft.md`): installed by `spool-install/install.sh` and `graft-install.sh`.
+- `csi-spl-orc/src/bash/features/gc/gc-prompt.md` (1 file): loaded by GC agent launcher (`gc-spawn.sh`).
+- `csi-spl-orc/src/bash/features/dispatch/brief-dispatcher.tpl.md` (1 file): loaded by dispatch rotation brief generator (`spl-dispatch-rotate.func.sh`).
+
+#### 10.2.2 Currency and staleness rules
+1. **Export must be current before install or spawn**:
+   - `spool-install`, `spawn-agents`, and `spl-skills-refresh` execute purely against the local filesystem checkout. They do NOT make network calls to PostgreSQL at runtime to fetch instructions.
+   - Any modification to an agent instruction document in Qto MUST be published and landed on `master` prior to executing `spool-install` or spawning agents that depend on the rule.
+2. **What happens on a stale export**:
+   - If a rule is edited in Qto but not exported:
+     - The Qto UI displays the status chip `Changed since publish (N revs)` (`publish.md:237`).
+     - Agents spawned on boxes continue executing the last landed worktree rules (guaranteeing deterministic, crash-safe behavior).
+     - If an unexported rule creates drift between the git tree and installed copies or pinned facts, `do_check_fleet_rules_drift` (`csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh:50-55`) fails in the pre-push hygiene gate:
+       `FAIL fleet rules drift: two sources disagree (above); fix the copy that is not the home named in fleet-rules-index.md`.
+     - The pre-push drift gate prevents pushing any commit when fleet rules disagree across sources.
+3. **Who may edit**:
+   - Fleet rules are governed by the strict "One home per rule" doctrine (`csi-spl-doc/doc/md/fleet-rules-index.md:15-25, 29-52`).
+   - Only authorized roles holding `docs.write` in the `system` tenant (orchestrator seat `c-001`, system administrators, owner) may edit agent instruction documents in Qto.
+   - Edits must occur exclusively in the rule's designated single home (e.g. `20-spawn-an-agent.md` for agent ceiling, data rule, language rule; `25-stay-in-your-lane.md` for lane boundary; `27-lane-issue-and-docs.md` for lane issues).
+   - When a home document is exported and published, any pointers in other files are synchronized, verified by running `do_check_fleet_rules_drift`.
+
+---
+
+### 10.3 Import plan per group: workspaces, folders, qto-docs.tsv, and gaps
+
+#### 10.3.1 Owner rule for every import (msg ce0eae22)
+> *"A bug met while importing an .md into Qto PAUSES that file's import: file the bug, a lane fixes it so the import works, then the Qto doc is created and the import continues. Never import a degraded copy, never hand-edit the .md to dodge the bug."*
+
+This rule is binding for all three import groups. When an `.md` file is refused by `spl-doctree-md.py split`:
+1. That file's import is immediately **PAUSED**.
+2. A tracked issue is filed defining the parser/tooling gap.
+3. A build lane resolves the gap in `spl-doctree-md.py` / `spool doctree` tooling.
+4. Once the fix lands and tests pass, the file's import resumes and the Qto doc is created.
+5. Under NO circumstances is an `.md` file hand-edited to bypass an import check, nor is a degraded copy imported.
+
+#### 10.3.2 Gap catalog (G1 through G7)
+- **G1 (Heading outline dot)**: `## 1. Title` dropped the dot to become `## 1 Title`. RESOLVED by SPL-1900 (`049bc0840`, T012c) via `attrs.outline_dot`.
+- **G2 (Spacing and indentation fidelity)**: Trimmed bodies lost leading indent, tight headings, and blank lines. RESOLVED by SPL-1900 (`049bc0840`, T012c) via verbatim line storage and `attrs.tight` / `attrs.tight_end`.
+- **G3 (Section 0 refusal)**: Documents starting with `## 0 ...` (e.g. `## 0 Scope`, `## 0 Owner asks`) fail `check_outline` (`spl-doctree-md.py:187-190`) because Qto sibling numbering begins at 1 (`section '0 ...' would become 1 in the qto doc`). Blocks 78 specs, 39 doc pages, 2 agent skills (`exit-clean`, `kill-your-self`).
+- **G4 (Outline numbering mismatch / skip)**: Documents where section numbers jump (e.g. `1.5` under `1` without `1.1-1.4`, or `3.3.1` under `3.3`) fail `check_outline`. Blocks 20 specs, 10 doc pages, 1 README (`spawn-agents/README.md`), 1 command (`signed-prompt.md`).
+- **G5 (Level skip & missing `# ` title line)**: Documents jumping heading depths (e.g. `#` to `###`) or headless fragments lacking a top-level `# ` (e.g. `05-agents-run-as-agent-user.md` through `30-cross-lane-findings.md` in `claude-md/`). Blocks 29 specs, 7 claude-md fragments.
+- **G6 (Relative images)**: Documents containing `![alt](../../img/...)` or `![alt](./img/...)`. Qto stores images via `<figure>` / GCS files; relative repo file paths are not resolved in Qto editor. Blocks `system-guide.md` and image-carrying specs.
+- **G7 (Preamble-only documents)**: Documents containing a preamble but zero heading sections. RESOLVED by SPL-1909 (`1a253050d`, `54d08f21b`) by importing as root item body.
+
+#### 10.3.3 Group 1: Agent Instructions (~29 files)
+- **Workspace**: `system` tenant (`fs=repo`).
+- **Folder**: `/repo/agent-instructions/` with subfolders: `commands/`, `skills/`, `rules/`, `claude-md/`, `dispatch/`, `gc/`.
+- **`qto-docs.tsv` mapping**: `<doc_id>\t<relative-path>\trepo` (e.g. `<uuid>\tcsi-spl-orc/src/bash/features/spawn-agents/assets/commands/spawn-an-agent.md\trepo`).
+- **Gaps blocking**:
+  - 7 claude-md fragments (`05`, `07`, `10`, `20`, `25`, `27`, `30`): Blocked by Gap G5 (headless fragments lacking `# ` title line).
+  - `signed-prompt.md`: Blocked by Gap G4 (section `1.5 Where it runs` outline skip).
+  - `exit-clean/SKILL.md` and `kill-your-self/SKILL.md`: Blocked by Gap G3 (section `0 When`).
+  - **Clean slice (19 files)**: `00-title.md`, `30-exit-after-accepted.md`, 8 commands, 4 skills, `graft/**` md files, `gc-prompt.md`, `brief-dispatcher.tpl.md`.
+- **Import order**:
+  1. Import 19 clean files immediately.
+  2. PAUSE the 10 blocked files per msg `ce0eae22`.
+  3. File bug lanes for G3, G4, G5 in `spl-doctree-md.py`.
+  4. Resume and import the remaining 10 files once tooling fixes land.
+
+#### 10.3.4 Group 2: Our Own README.md Files (21 files)
+- **Workspace**: `system` tenant (`fs=repo`).
+- **Folder**: `/repo/readmes/` (with folder hierarchy mirroring repository parts: `root`, `api`, `cnf`, `dat`, `doc`, `iac`, `orc`, `rdb`, `utl`, `wui`).
+- **`qto-docs.tsv` mapping**: `<doc_id>\t<relative-path>\trepo` (e.g. `<uuid>\tREADME.md\trepo`, `<uuid>\tcsi-spl-api/README.md\trepo`).
+- **Gaps blocking**:
+  - **Clean slice (20 files)**: 20 of the 21 READMEs parse and split cleanly today without errors.
+  - **Paused slice (1 file)**: `csi-spl-orc/src/bash/features/spawn-agents/README.md` is blocked by Gap G4 (section `3.3.1` outline skip).
+- **Import order**:
+  1. Import the 20 clean READMEs.
+  2. PAUSE `spawn-agents/README.md` until Gap G4 tooling fix lands.
+  3. Resume and import `spawn-agents/README.md` with zero degraded copies.
+
+#### 10.3.5 Group 3: Specs (`csi-spl-doc/specs/`, 503 files across 138 specs)
+- **Workspace**: `system` tenant (`fs=repo`).
+- **Folder**: `/repo/specs/` with subfolders for each numbered spec (`002-box-agent-messaging/`, `003-spool-message-bus/`, ..., `141-invite-display-name/`).
+- **`qto-docs.tsv` mapping**: `<doc_id>\tcsi-spl-doc/specs/<path>\trepo`.
+- **Gaps blocking**:
+  - **Clean slice (382 files)**: 382 spec files pass `split` cleanly and are imported batch-by-batch.
+  - **Paused slice (127 files)**: 78 files blocked by G3 (section 0), 20 files by G4 (numbering skip), 18 files by G5 (depth skip), 11 files by G5 (missing `# ` title), plus relative image files (G6).
+- **Import order**:
+  1. Sequenced after Agent Instructions and READMEs.
+  2. Batch imported by spec number (`002` through `141`).
+  3. Clean files imported; any file hitting G3-G6 is paused, bugs filed, and resumed after tooling fixes land.
+
+---
+
+### 10.4 Public repository hygiene and the hidden-workspace gate
+
+#### 10.4.1 Public repository baseline
+The repository `csi-spl` is open source and public (`csi-spl-doc/specs/044-open-source/spec.md`). In contrast, customer and enterprise workspaces hosted on Spool Hub contain confidential tenant data, internal URLs, and private instructions.
+Under Spec 129 (`csi-spl-doc/specs/129-private-git-specs/spec.md:104-180`) and the private overlay system (`SPL-1874`, `csi-spl-orc/src/bash/scripts/oss-gate.py:108-133`), confidential workspace identifiers are replaced with placeholders (e.g. `ws-hidden-01`, `ws-hidden-02`) and resolved only on-demand via the private overlay (`.gcp/.csi/csi-spl-private.yaml`).
+
+#### 10.4.2 The hidden-workspace gate
+To guarantee that no private workspace content, internal tokens, or confidential identifiers ever leak into the public GitHub repository via a Qto export:
+1. **Target path restriction**: Documents exported to the repository may only write to approved public documentation directories (`csi-spl-doc/specs/`, `csi-spl-doc/doc/`, or valid module README paths). Publishing to arbitrary paths is refused (`publish.md:137-140`).
+2. **Automated hygiene scanning**:
+   - On Publish (`publish.md:126-147`): `repodocs.Gate` (`csi-spl-api/src/go/spool-hub-api/internal/repodocs/gate.go:104`) automatically executes distribution-hygiene pattern checks and secret scanning over the **WHOLE** document before committing to GitHub.
+   - On lane export (`do_spl_doctree_export_md`): checks hygiene rules before replacing the local file in the worktree.
+3. **Rejection of private content**:
+   - If the text contains private workspace slugs, unmasked tenant names from the private overlay list (`{{private:<list>}}`), customer email addresses, service account keys, internal IP addresses, or proprietary tokens:
+     - The export is refused with HTTP 422 `rejected_text` (Publish) or exit code 1 (`do_spl_doctree_export_md`).
+     - Diagnostic output reports strictly the violated rule name and line number; the confidential text itself is NEVER echoed or written to logs.
+     - The database audit log records status `rejected` with the rule name. Nothing is committed to GitHub.
+4. **Author identity cleansing**:
+   - Commits generated by Publish or lane exports use the repo's canonical commit identity (CLAUDE.md §5.1, `publish.md:150-155`). User personal emails and internal database nonces are never committed.
+
+---
+
+### 10.5 README files: preservation of folder-page navigation
+
+#### 10.5.1 The folder page requirement
+GitHub natively detects `README.md` in any repository directory and renders it as the directory's landing page (e.g. viewing `github.com/csitea/csi-spl/tree/master/csi-spl-api` automatically renders `csi-spl-api/README.md`).
+Moving README files to Qto as the authoring master must NOT break this core GitHub navigation behavior.
+
+#### 10.5.2 Path invariant
+The exported `.md` file for every README document MUST remain at its exact existing repository path:
+`<module-path>/README.md` (e.g. `csi-spl-api/README.md`, `csi-spl-orc/README.md`, root `README.md`).
+README files are NEVER aggregated or relocated to a centralized documentation subfolder.
+
+#### 10.5.3 Complete inventory of our own 21 README.md files
+Checked on `origin/master` using `git ls-files '*README.md'`:
+1. `README.md` (root project overview)
+2. `csi-spl-api/README.md` (Go API, MCP, CLI)
+3. `csi-spl-cnf/README.md` (environment configuration)
+4. `csi-spl-cnf/src/python/conf-validator/README.md` (config validation)
+5. `csi-spl-dat/README.md` (data assets)
+6. `csi-spl-doc/README.md` (documentation root)
+7. `csi-spl-doc/goals/README.md` (project goals)
+8. `csi-spl-doc/specs/README.md` (git-spec index and ground rules)
+9. `csi-spl-doc/specs/102-agent-lifetime/opinions/README.md` (agent lifetime opinions)
+10. `csi-spl-iac/README.md` (infrastructure as code actions)
+11. `csi-spl-iac/src/terraform/modules/README.md` (terraform modules)
+12. `csi-spl-orc/README.md` (orchestration, lde, infra stack)
+13. `csi-spl-orc/src/bash/features/directive/README.md` (directive feature)
+14. `csi-spl-orc/src/bash/features/graft/README.md` (graft code index)
+15. `csi-spl-orc/src/bash/features/graft/assets/wasm/README.md` (tree-sitter wasm assets)
+16. `csi-spl-orc/src/bash/features/mcp-bot/README.md` (mcp-bot feature)
+17. `csi-spl-orc/src/bash/features/spawn-agents/README.md` (agent spawning)
+18. `csi-spl-rdb/README.md` (relational database schemas)
+19. `csi-spl-utl/README.md` (utilities)
+20. `csi-spl-wui/README.md` (Nuxt 3 web UI)
+21. `csi-spl-wui/src/python/i18n/README.md` (i18n tooling)
+
+Explicitly excluded:
+- `csi-spl-doc/.specify/extensions/git/README.md` (third-party vendored spec-kit upstream).
+- `csi-spl-orc/src/bash/tests/fixtures/wd-situations/README.md` (test fixture).
+
+---
+
+### 10.6 Test requirements for implementation lanes
+
+Build lanes implementing the migration of specs, agent instructions, and READMEs to Qto must implement two mandatory automated test gates:
+
+#### 10.6.1 Gate 1: Direct Edit Refusal Test
+- **Test location**: `csi-spl-orc/src/bash/tests/doctree-export-md.tst.sh` (new sections) and `csi-spl-iac/src/bash/tests/check-pre-push.tst.sh`.
+- **Test logic**:
+  1. Register a test spec file (e.g. `csi-spl-doc/specs/002-box-agent-messaging/spec.md`) and a test agent instruction file (e.g. `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/exit-clean/SKILL.md`) in `qto-docs.tsv`.
+  2. Simulate a lane directly editing the `.md` file in git without updating Qto.
+  3. Run the pre-push gate `do_check_pre_push`.
+  4. Verify that `do_check_pre_push` fails fast with non-zero exit status, outputting the diagnostic error:
+     `FATAL: direct edit to <file> detected. This document is managed by Qto. Edit it via Qto and run do_spl_doctree_export_md.`
+  5. Negative control: Edit an unmapped file; verify `do_check_pre_push` passes without refusal.
+
+#### 10.6.2 Gate 2: Export Round-Trip Byte Parity Test
+- **Test location**: `csi-spl-orc/src/bash/tests/doctree-export-md.tst.sh` and `csi-spl-api/cmd/spool/doctree_export_test.go`.
+- **Test logic**:
+  1. For every document registered in `qto-docs.tsv` (specs, agent instructions, READMEs), execute `do_spl_doctree_export_md`.
+  2. Execute `git diff --exit-code <path>` (or `cmp -s`).
+  3. Verify byte-for-byte identity. The only permitted difference between origin/master original and exported file is the standardized header stamp on line 2:
+     `> Generated from qto doc <doc_id>; edit it there. This file is its export: do_spl_doctree_export_md rewrites it.`
+  4. Verify that code fences, headings, tables, citations, indentation, and blank line runs round-trip with zero corruption.
+
+---
+
+## 11. Version log
 
 | Version | Date | Author | Description |
 |---|---|---|---|
@@ -600,5 +822,7 @@ The complete consensus rationale, weighing of Mistral's P-Q3 vote, and 5 verifie
 | v0.2.1 | 2026-10-14 | c-526 | §5.3 Publish button addendum linked to [publish.md](publish.md) (SPL-1887, owner msg b04f0ab5); tasks T060..T067 Planned. |
 | v0.2.2 | 2026-10-14 | c-526 | §5.3: owner decisions on the Publish button folded (poll 72d2b3da, msg 86c7b888); publish.md v0.2.0. |
 | v0.2.3 | 2026-10-14 | c-526 | §5.3: no review step for Publish (owner msg af133e9c); publish.md v0.3.0. |
+| v0.3.0 | 2026-10-15 | a-577 | Addendum §10: specs (503 files in 138 specs), agent instructions (~29 files), and our 21 README.md files move to Qto as master; authoring, ticking, and export workflow; import plan with gap handling (G1-G7) and pause rule (owner msg ce0eae22); public repo hidden-workspace gate; test requirements (SPL-2030). |
 
-<!-- version: 0.2.3 · updated: 2026-10-14 · last-edit: 2026-10-14T23:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-15 · last-edit: 2026-10-15T20:30:00Z -->
+

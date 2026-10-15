@@ -37,8 +37,9 @@ import (
 func TestViewStampChannelsNoDeliveries(t *testing.T) {
 	fs := &stampFake{stamp: 7, settled: true}
 	var logs bytes.Buffer
+	logW := &syncWriter{w: &logs}
 	r := newDoorRig(t, func(o *hub.Options) {
-		o.Log = zerolog.New(&syncWriter{w: &logs})
+		o.Log = zerolog.New(logW)
 		if m, ok := o.Store.(*store.Memory); ok {
 			fs.Memory = m
 			o.Store = fs
@@ -134,7 +135,7 @@ func TestViewStampChannelsNoDeliveries(t *testing.T) {
 	fs.set(func(f *stampFake) { f.expired = false })
 
 	// Step 1: one view_stamp_cond line per channels read, none for topics.
-	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	lines := strings.Split(strings.TrimSpace(logW.String()), "\n")
 	got := map[string]int{}
 	for _, l := range lines {
 		if !strings.Contains(l, `"message":"view_stamp_cond"`) {
@@ -151,7 +152,7 @@ func TestViewStampChannelsNoDeliveries(t *testing.T) {
 	}
 	want := map[string]int{`"inm":"none","gate":"none"`: 1, `"inm":"body","gate":"minted"`: 1, `"inm":"stamp","gate":"304"`: 6, `"inm":"stamp","gate":"minted"`: 2}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("view_stamp_cond counts %v, want %v\n%s", got, want, logs.String())
+		t.Fatalf("view_stamp_cond counts %v, want %v\n%s", got, want, logW.String())
 	}
 }
 

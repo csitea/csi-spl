@@ -227,15 +227,16 @@ func TestTopicHeadsShadowServesWalk(t *testing.T) {
 	var mu sync.Mutex
 	clock := time.Now()
 	var logBuf bytes.Buffer
+	logW := &syncWriter{w: &logBuf}
 	sh := headsEnv(t, hub.TopicHeadsShadow, func(o *hub.Options) {
-		o.Log = zerolog.New(&syncWriter{w: &logBuf})
+		o.Log = zerolog.New(logW)
 		o.Now = func() time.Time { mu.Lock(); defer mu.Unlock(); return clock }
 	})
 	lines := func(msg string) []map[string]any {
 		mu.Lock()
 		defer mu.Unlock()
 		var out []map[string]any
-		for _, l := range strings.Split(logBuf.String(), "\n") {
+		for _, l := range strings.Split(logW.String(), "\n") {
 			var m map[string]any
 			if json.Unmarshal([]byte(l), &m) == nil && m["message"] == msg {
 				out = append(out, m)
@@ -262,7 +263,7 @@ func TestTopicHeadsShadowServesWalk(t *testing.T) {
 	if len(mm) != 1 || mm[0]["shape"] != "all" || mm[0]["tenant"] != r.tid || mm[0]["head_tasks"] == nil {
 		t.Fatalf("corrupted head: want one topic_head_mismatch {shape all, tenant, task ids}, got %v", mm)
 	}
-	if strings.Contains(logBuf.String(), "alpha") {
+	if strings.Contains(logW.String(), "alpha") {
 		t.Fatal("a mismatch line carries a body")
 	}
 	mu.Lock()

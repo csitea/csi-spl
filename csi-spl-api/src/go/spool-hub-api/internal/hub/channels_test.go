@@ -150,6 +150,15 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	return s.w.Write(p)
 }
 
+// String reads the buffer under the same lock as Write: the server's
+// middleware logs a request in a defer that can run after the client has
+// its response, so a bare buffer read races it (wf 10 38712800687).
+func (s *syncWriter) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.String()
+}
+
 func TestChannelMembershipRouting(t *testing.T) {
 	trace, withLog := traceOnFailure(t)
 	e := newEnv(t, withLog)

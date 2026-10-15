@@ -42,10 +42,10 @@ func (s *Postgres) appendRealmReceipts(ctx context.Context, person, workspaceID 
 	n := len(rows)
 	days, labels, kinds := make([]string, n), make([]string, n), make([]string, n)
 	starts, ends, states, approvers := make([]string, n), make([]string, n), make([]string, n), make([]string, n)
-	mins, decided := make([]int32, n), make([]*time.Time, n)
+	mins, decided := make([]int, n), make([]*time.Time, n)
 	for i, r := range rows {
 		name = r.WorkspaceName
-		days[i], mins[i], labels[i], kinds[i] = r.Day, int32(r.Minutes), r.Label, r.Kind
+		days[i], mins[i], labels[i], kinds[i] = r.Day, r.Minutes, r.Label, r.Kind
 		starts[i], ends[i], states[i], approvers[i], decided[i] = r.PeriodStart, r.PeriodEnd, r.ApprovalState, r.ApproverName, r.DecidedAt
 	}
 	var written int

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 )
 
 // appendRealmReceipts is Memory's step 2 of the receipt copy, as
@@ -44,5 +45,5 @@ func (s *Memory) appendRealmReceipts(_ context.Context, person, workspaceID stri
 
 // realmMemKey is hours_receipts' key past person_id.
 func realmMemKey(r RealmReceipt) [5]string {
-	return [5]string{r.WorkspaceID, r.Day, r.Label, r.Kind, string(rune('0' + r.Rev))}
+	return [5]string{r.WorkspaceID, r.Day, r.Label, r.Kind, strconv.Itoa(r.Rev)}
 }

@@ -14,11 +14,11 @@ Concurrency: **Batch 1 builds 4 lanes in parallel: 2 on PC + 2 on sat** (owner m
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1-R16), by pointer, not copied.
 Issue: SPL-2058.
 
-**Status: v1.1 (panel review consensus; awaiting final seat signatures)**. The rows spawn once seats sign the v1.1 sha (rulebook 1.4: consensus, then build, no second go).
+**Status: v1.2 (panel review consensus; awaiting final seat signatures)**. The rows spawn once seats sign the v1.2 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-240@sat** (agy).
 
-**One sha:** every metric is measured on **`d0950b1e3`** (`origin/master`, 2026-10-16 01:16 local time / 2026-10-15 22:16Z), n=1 per command unless stated. Inputs: expert panel reviews ([seat-claude.md](sdlc-round-1/seat-claude.md) `e0edb8964`, [seat-mistral.md](sdlc-round-1/seat-mistral.md) `2a1a39bc7`), and Claude seat send-back `69c0017a`.
+**One sha:** every metric is measured on **`d0950b1e3`** (`origin/master`, 2026-10-16 01:16 local time / 2026-10-15 22:16Z), n=1 per command unless stated. Inputs: expert panel reviews ([seat-claude.md](sdlc-round-1/seat-claude.md) `e0edb8964`, [seat-mistral.md](sdlc-round-1/seat-mistral.md)), and Claude seat send-back `69c0017a`.
 **Disjoint from tonight's other rounds:** touches **0 files** shared with Round 13 (`refactor-round-13-plan.md`, WUI clean code), Perf Round 6 (`perf-round-6-plan.md`, WUI speed), or Test Round 1 (`test-round-1-plan.md`, testing self-reflection).
 
 ---
@@ -123,7 +123,7 @@ Addressing the end-to-end delivery path from idea to closure on real data across
 | # | slug | practice | the manual step it removes | sites file:line (max 5) | number now (command) | target | red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 01 | `refactor(sdlc-01-placer-slug-normalize)` | Placer brief slug canonicalization & unserviced brief auto-reclaim | Placer blocker triage and manual placement when slug carries prefixes (`hand-sat-`, `hand-peer-`, `sathand-`, `c002-`) | `orc:src/bash/run/spl-spawn-place.func.sh:249-262`<br>`orc:src/bash/tests/spl-spawn-queue.tst.sh` | 12 hand-offs (`grep -c "no brief file for" cron.out`); 7 `hand-sat-*` rows currently unlaunchable | 0 blocked rows; parse `hand-<box>-` as box pin and launch on that box | `hand-sat-c002-costs-tab` resolves `c002-costs-tab.md` on sat with `_l=true` without touching `.place.last` | sat | agy | complex_coding | **1 (Lane 1, sat)** |
-| 03 | `refactor(sdlc-03-box-pick-quota-failover)` | Quota-exhaustion auto-failover & unknown-usage resolution | Dispatcher manually diagnosing `unknown` box pick and hand-rerouting lanes off exhausted boxes (absorbs queued hand ask `claude:hand-sat-c002-box-pick-quota-unknown-<PC>`) | `orc:src/bash/run/spl-box-pick.func.sh:80-140`<br>`orc:src/bash/tests/spl-box-pick.tst.sh` | 9 manual reroutes tonight (`c-001` log); `unknown` usage placed anyway (`spl-box-pick.func.sh:187`); queued ask waiting 15,125s | 0 manual reroutes; fail over to box with capacity; resolve `unknown` usage cleanly; retire duplicate queued ask | Simulated 95% quota on PC routes claude lane to sat; unknown usage safely holds or routes | PC | mistral | complex_coding | **1 (Lane 2, PC)** |
+| 03 | `refactor(sdlc-03-box-pick-quota-failover)` | Quota-exhaustion auto-failover | Dispatcher manually diagnosing box pick and hand-rerouting lanes off exhausted boxes (after ab32184e lands: rebase onto its fix in spl-box-pick.func.sh) | `orc:src/bash/run/spl-box-pick.func.sh:80-140`<br>`orc:src/bash/tests/spl-box-pick.tst.sh` | 9 manual reroutes tonight (`c-001` log) | 0 manual reroutes; fail over to box with capacity | Simulated 95% quota on PC routes claude lane to sat | PC | mistral | complex_coding | **1 (Lane 2, PC)** |
 | 07 | `refactor(sdlc-07-topic-status-card)` | Live topic status card on owner issue topics (P1) | Owner repeatedly posting status inquiries across active task topics | `orc:src/bash/features/spawn-agents/scripts/topic-status-card.sh (new)`<br>`orc:src/bash/features/spawn-agents/tests/test-topic-status-card.sh (new)` | 32 owner status asks across 28 topics in 7 days (`what is the status`, `status?`, `how many done`) | 0 owner status asks; hub maintains live edited-in-place card (state, lane@box, queue pos, landed sha, served dev/prd) | Card updates dynamically on state transitions; does not create spam posts | PC | claude | complex_coding | **1 (Lane 3, PC)** |
 | 09 | `refactor(sdlc-09-verify-lane-served-auto)` | Automated Landed + Served verification service | Dispatcher manually verifying git ancestor status, author email format, 0 AI trailers, and dev/prd deploy lag per lane | `orc:src/bash/run/check-lane-served.func.sh (new)`<br>`orc:src/bash/tests/check-deploy-lag.tst.sh` | Dispatcher manual check takes p90 892s (14.9m), up to 78m; 11 owner posts/week on live/served | < 30s; `do_check_lane_served` verifies ancestor, author `%ae %ce`, 0 trailers, dev deploy, prd deploy in one shot | Incomplete deploy outputs `FAIL dev=ok prd=lag`; fully served commit outputs `PASS dev=served prd=served` | sat | mistral | complex_coding | **1 (Lane 4, sat)** |
 | 04 | `refactor(sdlc-04-placer-handoff-unblock)` | Placer hand-off unblocking (P2) | Placer burning 10-minute placement slot when encountering unlaunchable row | `orc:src/bash/run/spl-spawn-place.func.sh:235-245`<br>`orc:src/bash/tests/spl-spawn-queue.tst.sh` | 12 hand-offs burned 10-min slots (`.place.last` touched before brief check at line 239); queue waits 7547..20979s | 0 wasted placement slots; hand-off moves immediately to next launchable row without touching `.place.last` | Hand-off leaves `.place.last` untouched; next launchable row placed on same tick | sat | claude | complex_coding | **2 (Lane 1, sat, after 01)** |
@@ -145,7 +145,7 @@ Addressing owner directives on robustness (msg `8772dd8f`), performance (msg `19
 - **Human interaction & Token cost (abc17db1):** Saves **25 owner minutes/week** (eliminates owner/dispatcher interventions to manually unblock stuck placement queues); saves **~12k tokens/week** in blocker and status chatter.
 
 ### Row 03: `refactor(sdlc-03-box-pick-quota-failover)`
-- **Failure prevented & Safe degradation (8772dd8f):** Prevents queue deadlock when a vendor's weekly quota reaches the threshold on one box, and resolves unknown quota usage without blind placement. Absorbs and retires duplicate queued ask `claude:hand-sat-c002-box-pick-quota-unknown-<PC>`. Safe degradation: if all fleet boxes are quota-exhausted, emits clean `hold: quota exhausted on sat and PC` with next reset timestamp; never enters infinite retry loop.
+- **Failure prevented & Safe degradation (8772dd8f):** Prevents queue deadlock when a vendor's weekly quota reaches the threshold on one box. Focuses strictly on quota-exhaustion failover (after queued bug ask ab32184e lands on master, rebase onto its fix in `spl-box-pick.func.sh`). Safe degradation: if all fleet boxes are quota-exhausted, emits clean `hold: quota exhausted on sat and PC` with next reset timestamp; never enters infinite retry loop.
 - **Performance impact & Cost (190f44f4):** Eliminates ~30 minutes of dispatcher triage latency per round; avoids provider 429 rate limit backoffs.
 - **Human interaction & Token cost (abc17db1):** Saves **30 owner minutes/week** (eliminates manual box re-routing instructions); saves **~20k tokens/week** of repeated quota probing.
 
@@ -236,7 +236,7 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 - **Expert Panel:**
   - Editor / agy seat: `a-240@sat` (`sdlc-round-1/seat-agy.md`)
   - Claude seat: `c-247@sat` (`sdlc-round-1/seat-claude.md`, verdict in `e0edb8964`, send-back `69c0017a`)
-  - Mistral seat: `m-248@sat` (`sdlc-round-1/seat-mistral.md`, verdict in `2a1a39bc7`)
+  - Takeover seat (mistral replacement): Pending placement (`sdlc-round-1/seat-mistral.md`)
   - Grok seat: Not seated (no grok quota on any box, per dispatcher `c-002@sat` note)
   - *(No qwen seat: switched off in fleet settings).*
 - **Reviewers per row (R7.2):**
@@ -265,16 +265,14 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 - v1.0: Consensus review integration from panel seats `c-247@sat` and `m-248@sat`.
 - v1.1: Addressed panel review and send-back points from Claude seat `c-247@sat` (msg `69c0017a`) and Dispatcher `c-002@sat` (msg `622a4ad7`):
   - Corrected Section 9 consensus record for Claude seat: recorded true verdict (`0 agree / 4 agree with changes / 8 disagree / 3 proposals` on v0.1 in `e0edb8964`; send-back `69c0017a` on `ba6d40c0a` resolved in v1.1).
-  - Recorded Mistral seat verdict from `2a1a39bc7`: `11 agree / 1 agree with changes / 0 disagree / 1 proposal` based on real measured numbers.
   - Dropped Row 08 (CI setup flake retry, already live in workflow 12 and `ci-rerun-setup-flake.func.sh`).
   - Dropped Row 10 (Agent ID retire, already live in `tmux-close-window.sh:66` `--defer --retire` and `agent-id-reap.sh`).
   - Dropped Row 02 (Remote brief sync, already live in `spawn-remote.sh:110-119` and `:210-218`).
   - Dropped Row 05 (Reviewer auto-assign, R7 has 0 violations, `tests/test-reviewer-pick.sh` does not exist).
-  - Row 03 absorbs and retires queued ask `claude:hand-sat-c002-box-pick-quota-unknown-<PC>`.
   - Row 06 site corrected to `orc:src/bash/run/spl-spawn-place.func.sh:198-208` and tested via `spl-spawn-queue.tst.sh`.
   - Non-existent files marked `(new)`: `topic-status-card.sh (new)`, `test-topic-status-card.sh (new)`, `check-lane-served.func.sh (new)`.
   - Batching refined to 3 batches (Batch 1: Rows 01, 03, 07, 09 [4 lanes: 2 PC + 2 sat]; Batch 2: Rows 04, 11, 12 [3 lanes: 1 PC + 2 sat]; Batch 3: Row 06 [1 PC]). Serializing `spl-spawn-place.func.sh` strictly across batches guarantees 100% file-disjointness per R1.
-  - Plan finalized at 8 verified, high-impact rows complying with [rounds-rulebook.md](rounds-rulebook.md) R1.1. Plan is v1.1 awaiting final seat signatures.
+- v1.2: Un-absorbed queued bug ask ab32184e ('unknown usage' on PC) per dispatcher c-002 instruction (msg f45e7b8b). Bug ask ab32184e remains queued and lands first; Row 03 focuses strictly on quota-exhaustion auto-failover (rebases onto ab32184e's fix in spl-box-pick.func.sh once landed). Plan updated to v1.2 awaiting final seat signatures.
 
 ---
 
@@ -282,7 +280,7 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 | Seat | ID | Status | File |
 |---|---|---|---|
-| Editor (agy) | a-240@sat | agreed & v1.1 drafted (this commit) | `sdlc-round-1/seat-agy.md` |
-| Claude seat | c-247@sat | 0 agree / 4 agree with changes / 8 disagree / 3 proposals in `e0edb8964`; send-back points folded; standing by to sign v1.1 | `sdlc-round-1/seat-claude.md` |
-| Mistral seat | m-248@sat | 11 agree / 1 agree with changes / 0 disagree / 1 proposal in `2a1a39bc7`; standing by to sign v1.1 | `sdlc-round-1/seat-mistral.md` |
+| Editor (agy) | a-240@sat | agreed & v1.2 drafted (this commit) | `sdlc-round-1/seat-agy.md` |
+| Claude seat | c-247@sat | 0 agree / 4 agree with changes / 8 disagree / 3 proposals in `e0edb8964`; standing by to sign v1.2 | `sdlc-round-1/seat-claude.md` |
+| Takeover seat (mistral replacement) | pending | queued by dispatcher; standing by to review v1.2 | `sdlc-round-1/seat-mistral.md` |
 | Grok seat | g-xxx | not seated (no grok quota on any box) | `sdlc-round-1/seat-grok.md` |

@@ -206,504 +206,557 @@ function reactionFromFrame(f) {
   return { msg_id: f.msg_id, task_id: f.task_id, reactions: Array.isArray(f.reactions) ? f.reactions : [] }
 }
 
-export function createLiveClient({
-  url,
-  token = '',
-  as = '',
-  WebSocketImpl = globalThis.WebSocket,
-  onMessage = () => {},
-  onState = () => {},
-  onWelcome = () => {},
-  onToken = () => {},
-  onPresence = () => {},
-  /** CLE-3425 §3.3 `channel` frames ({ channel, name, created_by, created_at }). */
-  onChannel = () => {},
-  /** a `message_edited` frame — a REPLACEMENT for a row already held. */
-  onEdited = () => {},
-  /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
-  onDeleted = () => {},
-  /** SPL-983 `topic_archived` / `topic_deleted`, SPL-1024 `topic_moved` / `message_moved`: the whole frame. */
-  onTopic = () => {},
-  /** `message_reaction`: replace the emoji list on a row already held. */
-  onReaction = () => {},
-  /** issues-v1 §5 `{type:"issue", op, issue}`. */
-  onIssue = () => {},
-  /** issues-v1 §5 `{type:"issue_label", label}`. */
-  onIssueLabel = () => {},
-  onFlow = () => {},
-  onReconnected = () => {},
-  /**
-   * Resolves true only when the human is signed OUT (auth-v1 §4 session 401).
-   * The hub refuses the upgrade of a tab whose session ended with a 401 the
-   * browser never sees (the socket just closes before `open`), so without this
-   * such a tab redialled every 31 s for as long as it stayed open: 265 refused
-   * upgrades in 2 h 15 min from one tab on prd, 2026-09-28. A signed-out
-   * answer parks the client in state `signed_out`; connect() resumes it.
-   */
-  isSignedOut = async () => false,
-  /**
-   * Bug B (4ecb4b0d): resolves the hub revision serving NEW requests now
-   * (GET /v1/wui/revision), '' when unknown. See checkRevision.
-   */
-  fetchRevision = async () => '',
-  random = Math.random,
-  setTimer = (fn, ms) => setTimeout(fn, ms),
-  clearTimer = (t) => clearTimeout(t),
-  ackTimeoutMs = 10000,
-  /** wake(): an open socket that answers nothing within this is re-dialled. */
-  probeTimeoutMs = 5000,
-  /** M8's clock (performance.now in the browser). */
-  now = perfNow,
-} = {}) {
-  let ws = null
-  let state = 'idle'
-  let attempt = 0
-  let refused = 0
-  let closedByUs = false
-  let retryTimer = null
-  let welcome = null
-  let dropped = false
-  /* bumped by every frame the hub sends: wake() reads it to tell a live
-     socket from a half-open one */
-  let frames = 0
-  /* M8: armed by a wake after a long away, timed by the reconnect that follows */
-  let woke = null
-  const cursors = new Map()
-  const subs = new Set()
-  const chanSubs = new Set()
-  const peerSubs = new Set()
-  /* `all` is ref-counted. The topic list holds it while `/` is open
-     and the app shell holds it for the whole tab, so the page leaving `/` must
-     not take the shell's follow down with it. */
+/** createLiveClient's options and their defaults; a caller's `undefined` keeps the default. */
+function liveOptions(opts) {
+  const o = {
+    url: undefined,
+    token: '',
+    as: '',
+    WebSocketImpl: globalThis.WebSocket,
+    onMessage: () => {},
+    onState: () => {},
+    onWelcome: () => {},
+    onToken: () => {},
+    onPresence: () => {},
+    /** CLE-3425 §3.3 `channel` frames ({ channel, name, created_by, created_at }). */
+    onChannel: () => {},
+    /** a `message_edited` frame — a REPLACEMENT for a row already held. */
+    onEdited: () => {},
+    /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
+    onDeleted: () => {},
+    /** SPL-983 `topic_archived` / `topic_deleted`, SPL-1024 `topic_moved` / `message_moved`: the whole frame. */
+    onTopic: () => {},
+    /** `message_reaction`: replace the emoji list on a row already held. */
+    onReaction: () => {},
+    /** issues-v1 §5 `{type:"issue", op, issue}`. */
+    onIssue: () => {},
+    /** issues-v1 §5 `{type:"issue_label", label}`. */
+    onIssueLabel: () => {},
+    onFlow: () => {},
+    onReconnected: () => {},
+    /**
+     * Resolves true only when the human is signed OUT (auth-v1 §4 session 401).
+     * The hub refuses the upgrade of a tab whose session ended with a 401 the
+     * browser never sees (the socket just closes before `open`), so without this
+     * such a tab redialled every 31 s for as long as it stayed open: 265 refused
+     * upgrades in 2 h 15 min from one tab on prd, 2026-09-28. A signed-out
+     * answer parks the client in state `signed_out`; connect() resumes it.
+     */
+    isSignedOut: async () => false,
+    /**
+     * Bug B (4ecb4b0d): resolves the hub revision serving NEW requests now
+     * (GET /v1/wui/revision), '' when unknown. See checkRevision.
+     */
+    fetchRevision: async () => '',
+    random: Math.random,
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: (t) => clearTimeout(t),
+    ackTimeoutMs: 10000,
+    /** wake(): an open socket that answers nothing within this is re-dialled. */
+    probeTimeoutMs: 5000,
+    /** M8's clock (performance.now in the browser). */
+    now: perfNow,
+  }
+  for (const [k, v] of Object.entries(opts || {})) if (v !== undefined) o[k] = v
+  return o
+}
+
+/** One client's mutable state; every step below takes it as `c` (its options are `c.o`). */
+function liveContext(opts) {
+  const c = {
+    o: liveOptions(opts),
+    ws: null,
+    state: 'idle',
+    attempt: 0,
+    refused: 0,
+    closedByUs: false,
+    retryTimer: null,
+    welcome: null,
+    dropped: false,
+    /* bumped by every frame the hub sends: wake() reads it to tell a live
+       socket from a half-open one */
+    frames: 0,
+    /* M8: armed by a wake after a long away, timed by the reconnect that follows */
+    woke: null,
+    cursors: new Map(),
+    subs: new Set(),
+    chanSubs: new Set(),
+    peerSubs: new Set(),
+    queue: [],
+    pending: new Map(),
+    /* Each waiter is { resolve, reject, timer }: a fresh upload token is asked
+       for over the socket (requestToken) or by redialling onto the live revision
+       (redialForToken, CLE-77795); both time out rather than hang a stuck tab. */
+    tokenWaiters: [],
+  }
+  c.all = allFollow(c)
+  return c
+}
+
+/* `all` is ref-counted. The topic list holds it while `/` is open
+   and the app shell holds it for the whole tab, so the page leaving `/` must
+   not take the shell's follow down with it. */
+function allFollow(c) {
   let allSub = 0
-  const queue = []
-  const pending = new Map()
-  /* Each waiter is { resolve, reject, timer }: a fresh upload token is asked
-     for over the socket (requestToken) or by redialling onto the live revision
-     (redialForToken, CLE-77795); both time out rather than hang a stuck tab. */
-  const tokenWaiters = []
-
-  function setState(s) {
-    state = s
-    onState(s)
-  }
-
-  /** M8 end: the socket is live again and the catch-up was handed its cursors. */
-  function timedReconnect() {
-    const w = woke
-    woke = null
-    const ms = w ? now() - w.t0 : -1
-    if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
-  }
-
-  /** A welcome or a token frame carries a fresh upload token: hand it to every waiter. */
-  function resolveTokens(f) {
-    while (tokenWaiters.length) {
-      const w = tokenWaiters.shift()
-      clearTimer(w.timer)
-      w.resolve(f)
-    }
-  }
-
-  /** The session is gone (signed out): fail the waiters so the caller can say so. */
-  function rejectTokens(err) {
-    while (tokenWaiters.length) {
-      const w = tokenWaiters.shift()
-      clearTimer(w.timer)
-      w.reject(err)
-    }
-  }
-
-  /** Queue a token waiter that `kick` prods, and that rejects after ackTimeoutMs. */
-  function awaitToken(kick) {
-    return new Promise((resolve, reject) => {
-      const w = { resolve, reject, timer: null }
-      w.timer = setTimer(() => {
-        const i = tokenWaiters.indexOf(w)
-        if (i >= 0) tokenWaiters.splice(i, 1)
-        reject(Object.assign(new Error('token refresh timed out'), { token: 'timeout' }))
-      }, ackTimeoutMs)
-      tokenWaiters.push(w)
-      kick()
-    })
-  }
-
-  function raw(obj) {
-    ws.send(JSON.stringify(obj))
-  }
-
-  function flush() {
-    while (queue.length && state === 'open') raw(queue.shift())
-  }
-
-  function connect() {
-    if (typeof WebSocketImpl !== 'function') throw new Error('no WebSocket')
-    closedByUs = false
-    if (state === 'signed_out') refused = 0
-    if (retryTimer) clearTimer(retryTimer)
-    retryTimer = null
-    setState('connecting')
-    let opened = false
-    ws = new WebSocketImpl(url)
-    ws.onopen = () => {
-      opened = true
-      refused = 0
-      const hello = { type: FRAMES.hello }
-      if (token) hello.token = token
-      const id = cleanAs(as)
-      if (id) hello.as = id
-      raw(hello)
-    }
-    ws.onmessage = (ev) => {
-      frames++
-      let f
-      try {
-        f = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data))
-      } catch {
-        return
-      }
-      handle(f)
-    }
-    ws.onclose = () => {
-      ws = null
-      rejectPending()
-      if (closedByUs) {
-        setState('closed')
-        return
-      }
-      dropped = true
-      setState('reconnecting')
-      if (!opened && ++refused >= REFUSED_PROBE_AFTER) {
-        probeThenRetry()
-        return
-      }
-      retry()
-    }
-    ws.onerror = () => {
-      /* onclose follows */
-    }
-  }
-
-  /* every send still waiting for its ack fails 'closed' (one resend follows) */
-  function rejectPending() {
-    for (const [, p] of pending) {
-      clearTimer(p.timer)
-      p.reject(Object.assign(new Error('socket closed'), { token: 'closed' }))
-    }
-    pending.clear()
-  }
-
-  /**
-   * Bug B: drop this socket NOW and dial again, without waiting for a close
-   * the browser may take minutes to report. The old socket's handlers are
-   * detached first so its late onclose cannot schedule a second dial. The
-   * welcome on the new socket fires onReconnected - the catch-up read that
-   * fetches whatever the old socket never pushed.
-   */
-  function redial() {
-    if (closedByUs || !ws) return
-    const old = ws
-    ws = null
-    old.onopen = old.onmessage = old.onclose = old.onerror = null
-    try { old.close() } catch { /* already closing */ }
-    rejectPending()
-    dropped = true
-    connect()
-  }
-
-  function retry() {
-    retryTimer = setTimer(connect, reconnectDelayMs(attempt++, random))
-  }
-
-  /* Refused dials: ask whether the session ended before dialling again. Any
-     answer other than a definite "signed out" (an error included) keeps the
-     usual backoff, so a hub outage never parks a signed-in tab. */
-  function probeThenRetry() {
-    Promise.resolve()
-      .then(() => isSignedOut())
-      .catch(() => false)
-      .then((out) => {
-        if (closedByUs || state !== 'reconnecting') return
-        if (out === true) {
-          setState('signed_out')
-          /* an upload waiting for a fresh token will never get one now */
-          rejectTokens(Object.assign(new Error('signed out'), { token: 'signed_out' }))
-          return
-        }
-        retry()
-      })
-  }
-
-  /** The hub's welcome: the socket is open, so re-subscribe, flush the queue and, after a drop, catch up. */
-  function welcomed(f) {
-    welcome = f
-    attempt = 0
-    setState('open')
-    for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
-    for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
-    for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
-    if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
-    flush()
-    onWelcome(f)
-    /* the welcome carries a fresh upload token minted on THIS (live)
-       revision — resolve any redial/token waiter with it (CLE-77795). */
-    resolveTokens(f)
-    if (dropped) {
-      dropped = false
-      /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
-      const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
-      if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
-    }
-  }
-
-  /** An ack or an error frame answers the send waiting on its msg_id: `done` settles it. */
-  function settle(msgId, done) {
-    const p = pending.get(msgId)
-    if (!p) return
-    clearTimer(p.timer)
-    pending.delete(msgId)
-    done(p)
-  }
-
-  function handle(f) {
-    // A frame the hub delivered. An error frame is a refusal, not data.
-    // typeof null === 'object', so a null frame must return before f.type.
-    if (!f || typeof f !== 'object') return
-    if (f.type !== FRAMES.error) noteLastData()
-    switch (f.type) {
-      case FRAMES.welcome:
-        welcomed(f)
-        return
-      /* spec 096 §7.4: a member's manual status, its own frame type (a tab that
-         predates it ignores it); it rides the presence listener (the roster's) */
-      case FRAMES.presence:
-      case 'status':
-        onPresence(f)
-        return
-      case FRAMES.channel:
-      case FRAMES.channelDeleted:
-        onChannel(f)
-        return
-      case FRAMES.token:
-        onToken(f)
-        resolveTokens(f)
-        return
-      case FRAMES.message: {
-        const m = messageFromFrame(f)
-        const tid = f.task_id || m.task_id
-        if (tid && m.cursor) cursors.set(String(tid), m.cursor)
-        onMessage(m, f)
-        return
-      }
-      case FRAMES.edited: {
-        /* The same payload shape as `message` plus msg_id and the three edit
-           fields. It is NOT fed to onMessage: an edit is a replacement, and
-           the merge every onMessage listener runs appends or ignores.
-           message-edit-v1 §FR-ED-009 also guarantees ts / received_at /
-           cursor are UNCHANGED by an edit, so the cursor map is deliberately
-           left alone here — a typo fix must not move the read position. */
-        onEdited(editFromFrame(f), f)
-        return
-      }
-      case FRAMES.deleted:
-        onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
-        return
-      case FRAMES.merged:
-        onEdited(editFromFrame(f), f)
-        if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
-        return
-      case FRAMES.topicArchived:
-      case FRAMES.topicDeleted:
-      case FRAMES.topicMoved:
-      case FRAMES.messageMoved:
-      case FRAMES.topicMerged:
-      case FRAMES.topicUnmerged:
-        onTopic(f)
-        return
-      case FRAMES.reaction:
-        onReaction(reactionFromFrame(f), f)
-        return
-      case FRAMES.issue:
-        onIssue(f)
-        return
-      case FRAMES.issue_label:
-        onIssueLabel(f)
-        return
-      case FRAMES.flow:
-        onFlow(f)
-        return
-      case FRAMES.ack:
-        settle(f.msg_id, (p) => p.resolve(f))
-        return
-      case FRAMES.error: {
-        const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status, agent: f.agent })
-        if (f.msg_id) settle(f.msg_id, (p) => p.reject(err))
-        return
-      }
-      default:
-    }
-  }
-
   return {
-    get state() {
-      return state
-    },
-    get welcome() {
-      return welcome
-    },
-    /** Last cursor seen per task_id (message frames): the `after=` of a catch-up. */
-    lastCursor(taskId) {
-      return cursors.get(String(taskId || '')) || ''
-    },
-    connect,
-    redial,
-    /**
-     * Bug B (t1 #spool-hub-bugs 4ecb4b0d): a hub deploy leaves this socket on
-     * the old Cloud Run revision for up to an hour, still ponging, while every
-     * post stored by the new revision is pushed only to the sockets IT holds.
-     * The reader saw those posts minutes late, at the next drop. So ask which
-     * revision serves new requests and, when it is not the one this socket's
-     * welcome named, re-dial onto it. Resolves true when it re-dialled.
-     */
-    async checkRevision() {
-      const mine = welcome && typeof welcome.revision === 'string' ? welcome.revision : ''
-      if (state !== 'open' || !mine) return false
-      let live = ''
-      try { live = String((await fetchRevision()) || '') } catch { live = '' }
-      if (!live || live === mine || state !== 'open' || welcome.revision !== mine) return false
-      redial()
-      return true
-    },
-    /**
-     * The tab came back (visible / online): a phone that slept, or a laptop
-     * that changed networks, can hold a socket that reads 'open' and is dead.
-     * A parked retry dials now; an open socket must answer a token frame
-     * within probeTimeoutMs or it is re-dialled. `awayMs` (how long the tab
-     * was hidden or offline) arms M8 when it is over RECONNECT_AWAY_MS.
-     */
-    wake(awayMs = 0) {
-      if (closedByUs) return
-      if (awayMs > RECONNECT_AWAY_MS) woke = { t0: now(), hiddenS: awayBucket(awayMs) }
-      if (state === 'reconnecting' && retryTimer) {
-        connect()
-        return
-      }
-      if (state !== 'open' || !ws) return
-      const sock = ws
-      const seen = frames
-      raw({ type: FRAMES.token })
-      setTimer(() => {
-        if (ws === sock && frames === seen && state === 'open') redial()
-        /* it answered: the socket was live all along, nothing to time */
-        else if (ws === sock) woke = null
-      }, probeTimeoutMs)
-    },
-    close() {
-      closedByUs = true
-      if (retryTimer) clearTimer(retryTimer)
-      if (ws) ws.close()
-      else setState('closed')
-    },
-    subscribe(taskId) {
-      const id = String(taskId || '')
-      if (!id || subs.has(id)) return
-      subs.add(id)
-      if (state === 'open') raw({ type: FRAMES.subscribe, task_id: id })
-    },
-    unsubscribe(taskId) {
-      const id = String(taskId || '')
-      if (!subs.delete(id)) return
-      if (state === 'open') raw({ type: FRAMES.unsubscribe, task_id: id })
-    },
-    /** wui-live-ws v0.4: every message stored in `channel`, new roots included. */
-    subscribeChannel(channel) {
-      const ch = String(channel || '').replace(/^#/, '').toLowerCase()
-      if (!ch || chanSubs.has(ch)) return
-      chanSubs.add(ch)
-      if (state === 'open') raw({ type: FRAMES.subscribe, channel: ch })
-    },
-    unsubscribeChannel(channel) {
-      const ch = String(channel || '').replace(/^#/, '').toLowerCase()
-      if (!chanSubs.delete(ch)) return
-      if (state === 'open') raw({ type: FRAMES.unsubscribe, channel: ch })
-    },
-    /** wui-live-ws v0.5: every DM with `peer` (<id> or <id>@<box>), new roots included. */
-    subscribePeer(peer) {
-      const p = String(peer || '')
-      if (!p || peerSubs.has(p)) return
-      peerSubs.add(p)
-      if (state === 'open') raw({ type: FRAMES.subscribe, peer: p })
-    },
-    unsubscribePeer(peer) {
-      const p = String(peer || '')
-      if (!peerSubs.delete(p)) return
-      if (state === 'open') raw({ type: FRAMES.unsubscribe, peer: p })
-    },
+    held: () => allSub > 0,
     /** wui-live-ws v0.5: the whole tenant, for the topic list (DMs only when party). */
-    subscribeAll() {
+    add() {
       allSub++
       if (allSub > 1) return
-      if (state === 'open') raw({ type: FRAMES.subscribe, all: true })
+      if (c.state === 'open') raw(c, { type: FRAMES.subscribe, all: true })
     },
-    unsubscribeAll() {
+    drop() {
       if (allSub === 0) return
       allSub--
       if (allSub > 0) return
-      if (state === 'open') raw({ type: FRAMES.unsubscribe, all: true })
-    },
-    /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
-    requestToken() {
-      return awaitToken(() => {
-        if (state === 'open') raw({ type: FRAMES.token })
-        else queue.push({ type: FRAMES.token })
-      })
-    },
-    /**
-     * CLE-77795: POST /v1/files answered 401 'door' — the process serving REST
-     * does not know our upload token. A hub redeploy (or a Cloud Run recycle)
-     * leaves this socket on the drained revision, which keeps ponging, so the
-     * token looks fresh to us yet the LIVE revision that now answers REST never
-     * minted it. Drop the socket so the reconnect lands on the live revision and
-     * resolve with its welcome upload token — the browser twin of the box
-     * client's session probe (redeploy_test.go). Signed out → the waiter rejects.
-     */
-    redialForToken() {
-      return awaitToken(() => {
-        queue.push({ type: FRAMES.token })
-        if (ws && (state === 'open' || state === 'connecting')) {
-          try { ws.close() } catch { /* onclose drives the reconnect */ }
-        } else if (state !== 'reconnecting') {
-          connect()
-        }
-      })
-    },
-    /**
-     * Resolves with the ack frame; rejects on error frame, timeout or close. kind is
-     * a v:1 kind (default note); to defaults to ALL-0 hub-side. `channel` /
-     * `parent_task_id` are hub-envelope fields (wui-live-ws §4), sent only when set;
-     * a caller `msg_id` makes a resend idempotent. `to_box` (specs/058) pins
-     * the box of `to`: CLE-001..003 run on every box, and a bare id announced
-     * on two boxes is refused as ambiguous_to_box.
-     */
-    send({ task_id, kind = 'note', body = '', files = [], to, to_box, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
-      const msg_id = givenId ? String(givenId) : newId()
-      const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
-      if (to) frame.to = to
-      if (to && to_box) frame.to_box = String(to_box)
-      if (channel) frame.channel = String(channel)
-      if (parent_task_id) frame.parent_task_id = String(parent_task_id)
-      if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
-      return new Promise((resolve, reject) => {
-        const timer = setTimer(() => {
-          pending.delete(msg_id)
-          reject(Object.assign(new Error('send timed out'), { token: 'timeout' }))
-        }, ackTimeoutMs)
-        pending.set(msg_id, { resolve, reject, timer })
-        if (state === 'open') raw(frame)
-        else queue.push(frame)
-      })
+      if (c.state === 'open') raw(c, { type: FRAMES.unsubscribe, all: true })
     },
   }
+}
+
+function setState(c, s) {
+  c.state = s
+  c.o.onState(s)
+}
+
+/** M8 end: the socket is live again and the catch-up was handed its cursors. */
+function timedReconnect(c) {
+  const w = c.woke
+  c.woke = null
+  const ms = w ? c.o.now() - w.t0 : -1
+  if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
+}
+
+/** A welcome or a token frame carries a fresh upload token: hand it to every waiter. */
+function resolveTokens(c, f) {
+  while (c.tokenWaiters.length) {
+    const w = c.tokenWaiters.shift()
+    c.o.clearTimer(w.timer)
+    w.resolve(f)
+  }
+}
+
+/** The session is gone (signed out): fail the waiters so the caller can say so. */
+function rejectTokens(c, err) {
+  while (c.tokenWaiters.length) {
+    const w = c.tokenWaiters.shift()
+    c.o.clearTimer(w.timer)
+    w.reject(err)
+  }
+}
+
+/** Queue a token waiter that `kick` prods, and that rejects after ackTimeoutMs. */
+function awaitToken(c, kick) {
+  return new Promise((resolve, reject) => {
+    const w = { resolve, reject, timer: null }
+    w.timer = c.o.setTimer(() => {
+      const i = c.tokenWaiters.indexOf(w)
+      if (i >= 0) c.tokenWaiters.splice(i, 1)
+      reject(Object.assign(new Error('token refresh timed out'), { token: 'timeout' }))
+    }, c.o.ackTimeoutMs)
+    c.tokenWaiters.push(w)
+    kick()
+  })
+}
+
+function raw(c, obj) {
+  c.ws.send(JSON.stringify(obj))
+}
+
+/** A frame for the hub: now when the socket is open, else after the next welcome. */
+function rawOrQueue(c, obj) {
+  if (c.state === 'open') raw(c, obj)
+  else c.queue.push(obj)
+}
+
+function flush(c) {
+  while (c.queue.length && c.state === 'open') raw(c, c.queue.shift())
+}
+
+function connect(c) {
+  if (typeof c.o.WebSocketImpl !== 'function') throw new Error('no WebSocket')
+  c.closedByUs = false
+  if (c.state === 'signed_out') c.refused = 0
+  if (c.retryTimer) c.o.clearTimer(c.retryTimer)
+  c.retryTimer = null
+  setState(c, 'connecting')
+  const sock = { opened: false }
+  c.ws = new c.o.WebSocketImpl(c.o.url)
+  c.ws.onopen = () => {
+    sock.opened = true
+    c.refused = 0
+    sayHello(c)
+  }
+  c.ws.onmessage = (ev) => received(c, ev)
+  c.ws.onclose = () => socketClosed(c, sock.opened)
+  c.ws.onerror = () => {
+    /* onclose follows */
+  }
+}
+
+function sayHello(c) {
+  const hello = { type: FRAMES.hello }
+  if (c.o.token) hello.token = c.o.token
+  const id = cleanAs(c.o.as)
+  if (id) hello.as = id
+  raw(c, hello)
+}
+
+function received(c, ev) {
+  c.frames++
+  let f
+  try {
+    f = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data))
+  } catch {
+    return
+  }
+  handle(c, f)
+}
+
+/** The socket closed: by us it stays closed, else redial (refused dials probe the session first). */
+function socketClosed(c, opened) {
+  c.ws = null
+  rejectPending(c)
+  if (c.closedByUs) {
+    setState(c, 'closed')
+    return
+  }
+  c.dropped = true
+  setState(c, 'reconnecting')
+  if (!opened && ++c.refused >= REFUSED_PROBE_AFTER) {
+    probeThenRetry(c)
+    return
+  }
+  retry(c)
+}
+
+/* every send still waiting for its ack fails 'closed' (one resend follows) */
+function rejectPending(c) {
+  for (const [, p] of c.pending) {
+    c.o.clearTimer(p.timer)
+    p.reject(Object.assign(new Error('socket closed'), { token: 'closed' }))
+  }
+  c.pending.clear()
+}
+
+/**
+ * Bug B: drop this socket NOW and dial again, without waiting for a close
+ * the browser may take minutes to report. The old socket's handlers are
+ * detached first so its late onclose cannot schedule a second dial. The
+ * welcome on the new socket fires onReconnected - the catch-up read that
+ * fetches whatever the old socket never pushed.
+ */
+function redial(c) {
+  if (c.closedByUs || !c.ws) return
+  const old = c.ws
+  c.ws = null
+  old.onopen = old.onmessage = old.onclose = old.onerror = null
+  try { old.close() } catch { /* already closing */ }
+  rejectPending(c)
+  c.dropped = true
+  connect(c)
+}
+
+function retry(c) {
+  c.retryTimer = c.o.setTimer(() => connect(c), reconnectDelayMs(c.attempt++, c.o.random))
+}
+
+/* Refused dials: ask whether the session ended before dialling again. Any
+   answer other than a definite "signed out" (an error included) keeps the
+   usual backoff, so a hub outage never parks a signed-in tab. */
+function probeThenRetry(c) {
+  Promise.resolve()
+    .then(() => c.o.isSignedOut())
+    .catch(() => false)
+    .then((out) => {
+      if (c.closedByUs || c.state !== 'reconnecting') return
+      if (out === true) {
+        setState(c, 'signed_out')
+        /* an upload waiting for a fresh token will never get one now */
+        rejectTokens(c, Object.assign(new Error('signed out'), { token: 'signed_out' }))
+        return
+      }
+      retry(c)
+    })
+}
+
+/** The hub's welcome: the socket is open, so re-subscribe, flush the queue and, after a drop, catch up. */
+function welcomed(c, f) {
+  c.welcome = f
+  c.attempt = 0
+  setState(c, 'open')
+  for (const id of c.subs) raw(c, { type: FRAMES.subscribe, task_id: id })
+  for (const ch of c.chanSubs) raw(c, { type: FRAMES.subscribe, channel: ch })
+  for (const p of c.peerSubs) raw(c, { type: FRAMES.subscribe, peer: p })
+  if (c.all.held()) raw(c, { type: FRAMES.subscribe, all: true })
+  flush(c)
+  c.o.onWelcome(f)
+  /* the welcome carries a fresh upload token minted on THIS (live)
+     revision — resolve any redial/token waiter with it (CLE-77795). */
+  resolveTokens(c, f)
+  if (c.dropped) {
+    c.dropped = false
+    /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
+    const caught = c.o.onReconnected(f, { cursors: Object.fromEntries(c.cursors) })
+    if (c.woke) Promise.resolve(caught).then(() => timedReconnect(c), () => timedReconnect(c))
+  }
+}
+
+/** An ack or an error frame answers the send waiting on its msg_id: `done` settles it. */
+function settle(c, msgId, done) {
+  const p = c.pending.get(msgId)
+  if (!p) return
+  c.o.clearTimer(p.timer)
+  c.pending.delete(msgId)
+  done(p)
+}
+
+function onMessageFrame(c, f) {
+  const m = messageFromFrame(f)
+  const tid = f.task_id || m.task_id
+  if (tid && m.cursor) c.cursors.set(String(tid), m.cursor)
+  c.o.onMessage(m, f)
+}
+
+function onErrorFrame(c, f) {
+  const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status, agent: f.agent })
+  if (f.msg_id) settle(c, f.msg_id, (p) => p.reject(err))
+}
+
+function handle(c, f) {
+  // A frame the hub delivered. An error frame is a refusal, not data.
+  // typeof null === 'object', so a null frame must return before f.type.
+  if (!f || typeof f !== 'object') return
+  if (f.type !== FRAMES.error) noteLastData()
+  const { onPresence, onChannel, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onFlow } = c.o
+  switch (f.type) {
+    case FRAMES.welcome:
+      welcomed(c, f)
+      return
+    /* spec 096 §7.4: a member's manual status, its own frame type (a tab that
+       predates it ignores it); it rides the presence listener (the roster's) */
+    case FRAMES.presence:
+    case 'status':
+      onPresence(f)
+      return
+    case FRAMES.channel:
+    case FRAMES.channelDeleted:
+      onChannel(f)
+      return
+    case FRAMES.token:
+      c.o.onToken(f)
+      resolveTokens(c, f)
+      return
+    case FRAMES.message:
+      onMessageFrame(c, f)
+      return
+    case FRAMES.edited: {
+      /* The same payload shape as `message` plus msg_id and the three edit
+         fields. It is NOT fed to onMessage: an edit is a replacement, and
+         the merge every onMessage listener runs appends or ignores.
+         message-edit-v1 §FR-ED-009 also guarantees ts / received_at /
+         cursor are UNCHANGED by an edit, so the cursor map is deliberately
+         left alone here — a typo fix must not move the read position. */
+      onEdited(editFromFrame(f), f)
+      return
+    }
+    case FRAMES.deleted:
+      onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
+      return
+    case FRAMES.merged:
+      onEdited(editFromFrame(f), f)
+      if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
+      return
+    case FRAMES.topicArchived:
+    case FRAMES.topicDeleted:
+    case FRAMES.topicMoved:
+    case FRAMES.messageMoved:
+    case FRAMES.topicMerged:
+    case FRAMES.topicUnmerged:
+      onTopic(f)
+      return
+    case FRAMES.reaction:
+      onReaction(reactionFromFrame(f), f)
+      return
+    case FRAMES.issue:
+      onIssue(f)
+      return
+    case FRAMES.issue_label:
+      onIssueLabel(f)
+      return
+    case FRAMES.flow:
+      onFlow(f)
+      return
+    case FRAMES.ack:
+      settle(c, f.msg_id, (p) => p.resolve(f))
+      return
+    case FRAMES.error:
+      onErrorFrame(c, f)
+      return
+    default:
+  }
+}
+
+/**
+ * Bug B (t1 #spool-hub-bugs 4ecb4b0d): a hub deploy leaves this socket on
+ * the old Cloud Run revision for up to an hour, still ponging, while every
+ * post stored by the new revision is pushed only to the sockets IT holds.
+ * The reader saw those posts minutes late, at the next drop. So ask which
+ * revision serves new requests and, when it is not the one this socket's
+ * welcome named, re-dial onto it. Resolves true when it re-dialled.
+ */
+async function checkRevision(c) {
+  const mine = c.welcome && typeof c.welcome.revision === 'string' ? c.welcome.revision : ''
+  if (c.state !== 'open' || !mine) return false
+  let live = ''
+  try { live = String((await c.o.fetchRevision()) || '') } catch { live = '' }
+  if (!live || live === mine || c.state !== 'open' || c.welcome.revision !== mine) return false
+  redial(c)
+  return true
+}
+
+/**
+ * The tab came back (visible / online): a phone that slept, or a laptop
+ * that changed networks, can hold a socket that reads 'open' and is dead.
+ * A parked retry dials now; an open socket must answer a token frame
+ * within probeTimeoutMs or it is re-dialled. `awayMs` (how long the tab
+ * was hidden or offline) arms M8 when it is over RECONNECT_AWAY_MS.
+ */
+function wake(c, awayMs = 0) {
+  if (c.closedByUs) return
+  if (awayMs > RECONNECT_AWAY_MS) c.woke = { t0: c.o.now(), hiddenS: awayBucket(awayMs) }
+  if (c.state === 'reconnecting' && c.retryTimer) {
+    connect(c)
+    return
+  }
+  if (c.state !== 'open' || !c.ws) return
+  const sock = c.ws
+  const seen = c.frames
+  raw(c, { type: FRAMES.token })
+  c.o.setTimer(() => {
+    if (c.ws === sock && c.frames === seen && c.state === 'open') redial(c)
+    /* it answered: the socket was live all along, nothing to time */
+    else if (c.ws === sock) c.woke = null
+  }, c.o.probeTimeoutMs)
+}
+
+function close(c) {
+  c.closedByUs = true
+  if (c.retryTimer) c.o.clearTimer(c.retryTimer)
+  if (c.ws) c.ws.close()
+  else setState(c, 'closed')
+}
+
+/**
+ * CLE-77795: POST /v1/files answered 401 'door' — the process serving REST
+ * does not know our upload token. A hub redeploy (or a Cloud Run recycle)
+ * leaves this socket on the drained revision, which keeps ponging, so the
+ * token looks fresh to us yet the LIVE revision that now answers REST never
+ * minted it. Drop the socket so the reconnect lands on the live revision and
+ * resolve with its welcome upload token — the browser twin of the box
+ * client's session probe (redeploy_test.go). Signed out → the waiter rejects.
+ */
+function redialForToken(c) {
+  return awaitToken(c, () => {
+    c.queue.push({ type: FRAMES.token })
+    if (c.ws && (c.state === 'open' || c.state === 'connecting')) {
+      try { c.ws.close() } catch { /* onclose drives the reconnect */ }
+    } else if (c.state !== 'reconnecting') {
+      connect(c)
+    }
+  })
+}
+
+/**
+ * Resolves with the ack frame; rejects on error frame, timeout or close. kind is
+ * a v:1 kind (default note); to defaults to ALL-0 hub-side. `channel` /
+ * `parent_task_id` are hub-envelope fields (wui-live-ws §4), sent only when set;
+ * a caller `msg_id` makes a resend idempotent. `to_box` (specs/058) pins
+ * the box of `to`: CLE-001..003 run on every box, and a bare id announced
+ * on two boxes is refused as ambiguous_to_box.
+ */
+function send(c, { task_id, kind = 'note', body = '', files = [], to, to_box, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
+  const msg_id = givenId ? String(givenId) : newId()
+  const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
+  if (to) frame.to = to
+  if (to && to_box) frame.to_box = String(to_box)
+  if (channel) frame.channel = String(channel)
+  if (parent_task_id) frame.parent_task_id = String(parent_task_id)
+  if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
+  return new Promise((resolve, reject) => {
+    const timer = c.o.setTimer(() => {
+      c.pending.delete(msg_id)
+      reject(Object.assign(new Error('send timed out'), { token: 'timeout' }))
+    }, c.o.ackTimeoutMs)
+    c.pending.set(msg_id, { resolve, reject, timer })
+    rawOrQueue(c, frame)
+  })
+}
+
+/** A subscription kind (task / channel / peer): `key` reads the id, `field` names it on the frame. */
+function subscriber(c, set, key, field) {
+  return {
+    add(v) {
+      const id = key(v)
+      if (!id || set.has(id)) return
+      set.add(id)
+      if (c.state === 'open') raw(c, { type: FRAMES.subscribe, [field]: id })
+    },
+    drop(v) {
+      const id = key(v)
+      if (!set.delete(id)) return
+      if (c.state === 'open') raw(c, { type: FRAMES.unsubscribe, [field]: id })
+    },
+  }
+}
+
+const plainId = (v) => String(v || '')
+const channelId = (v) => String(v || '').replace(/^#/, '').toLowerCase()
+
+/** The subscribe / unsubscribe methods of the client. */
+function subscriptionApi(c) {
+  const task = subscriber(c, c.subs, plainId, 'task_id')
+  /* wui-live-ws v0.4: every message stored in `channel`, new roots included. */
+  const chan = subscriber(c, c.chanSubs, channelId, 'channel')
+  /* wui-live-ws v0.5: every DM with `peer` (<id> or <id>@<box>), new roots included. */
+  const peer = subscriber(c, c.peerSubs, plainId, 'peer')
+  return {
+    subscribe: task.add,
+    unsubscribe: task.drop,
+    subscribeChannel: chan.add,
+    unsubscribeChannel: chan.drop,
+    subscribePeer: peer.add,
+    unsubscribePeer: peer.drop,
+    subscribeAll: c.all.add,
+    unsubscribeAll: c.all.drop,
+  }
+}
+
+export function createLiveClient(opts = {}) {
+  const c = liveContext(opts)
+  const api = {
+    get state() {
+      return c.state
+    },
+    get welcome() {
+      return c.welcome
+    },
+    /** Last cursor seen per task_id (message frames): the `after=` of a catch-up. */
+    lastCursor(taskId) {
+      return c.cursors.get(String(taskId || '')) || ''
+    },
+    connect: () => connect(c),
+    redial: () => redial(c),
+    checkRevision: () => checkRevision(c),
+    wake: (awayMs) => wake(c, awayMs),
+    close: () => close(c),
+    /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
+    requestToken: () => awaitToken(c, () => rawOrQueue(c, { type: FRAMES.token })),
+    redialForToken: () => redialForToken(c),
+    send: (args) => send(c, args),
+  }
+  return Object.assign(api, subscriptionApi(c))
 }
 
 /** How often a tab asks which hub revision is live (bug B). */

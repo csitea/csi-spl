@@ -94,14 +94,22 @@ check() { act ACTION=do_spl_dispatch_check "$@"; }
 
 # --- 1. fresh box -------------------------------------------------------------------------
 seat CLE-9 w1; rm -rf "$ST/desk/w1/box-desk/spool"; seat CLE-9 w2; rm -rf "$ST/desk/w2/box-desk/spool"
-before="$(find "$T" ! -path "$T/o" | sort | md5sum)"
+# the fixture tree as a path list, kept in memory: a red names what changed
+# (wf10 38725456882 read only "changed=yes", 1 red in 52 orc jobs, 0/24 local)
+tree() { find "$T" ! -path "$T/o" | sort; }
+changed() { diff <(printf '%s\n' "$1") <(printf '%s\n' "$2") | sed -n 's/^< /gone /p; s/^> /new /p' | tr '\n' ' '; }
+before="$(tree)"
 setup >"$T/o" 2>&1; rc=$?
-after="$(find "$T" ! -path "$T/o" | sort | md5sum)"
+after="$(tree)"
 for step in posts-dir lease-conf brief worktree settings exclude spawn desk lease-loops; do
   grep -q "^PLAN $step " "$T/o" || { fail "1. no PLAN $step: $(cat "$T/o")"; }
 done
 [[ $rc -eq 0 && "$before" == "$after" ]] && grep -q 'DRY_RUN nothing was touched' "$T/o" &&
-  pass "1. a fresh box: every step planned, nothing written" || fail "1. rc=$rc changed=$([[ "$before" != "$after" ]] && echo yes) $(cat "$T/o")"
+  pass "1. a fresh box: every step planned, nothing written" || fail "1. rc=$rc changed: $(changed "$before" "$after") $(cat "$T/o")"
+mkdir "$T/control-gone"; c1="$(tree)"; touch "$T/plant"; rmdir "$T/control-gone"; c2="$(tree)"
+[[ "$(changed "$c1" "$c2")" == *"gone $T/control-gone "* && "$(changed "$c1" "$c2")" == *"new $T/plant "* ]] &&
+  pass "1. CONTROL: a path written or removed in the window is named" || fail "1. CONTROL: changed() read '$(changed "$c1" "$c2")'"
+rm -f "$T/plant"
 [[ "$(grep -c '^PLAN desk ' "$T/o")" == 4 ]] && grep -q 'TENANT_ID=w2 DESK_AGENT=c-003' "$T/o" &&
   pass "1. a desk per dispatcher per workspace" || fail "1. desks: $(grep desk "$T/o")"
 grep -q 'spawn-window.sh claude c-002 .* dispatcher-master' "$T/o" &&

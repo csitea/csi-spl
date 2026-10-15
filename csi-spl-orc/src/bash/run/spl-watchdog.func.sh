@@ -372,6 +372,8 @@ spl_wd_boot_wait() {
 spl_wd_boot_queue() {
   local now="$1" tick="$2" bt="$3" at="$4" snap="$5" last="$6" id why st out rc
   local n=0 ref=0 q=0 fly=0 back=0 lanes stop="" seat=1 tm="" failed=""
+  local WD_BOOT_EXPECTED
+  WD_BOOT_EXPECTED="$(spl_wd_expected)"
   lanes="$(spl_wd_boot_free_lanes)"
   spl_wd_boot_slot_free 0 || seat=""
   stop="$(spl_wd_boot_hold "$bt" "$at")"
@@ -480,9 +482,16 @@ spl_wd_is_role_seat() {
 }
 
 # A seat restarts in slot 0 (do_spl_agent_restart's spl_ars_is_seat): 001..004, an expected seat.
+# The pass reads the expected seats once (WD_BOOT_EXPECTED, spl_wd_boot_queue):
+# spl_wd_expected walks every agents/*.json, ~0.9 s on a desk box (386 files),
+# and the order alone asks twice per registry id (SPL-1992: a desk box 2026-10-15,
+# ~800 ids = ~24 min a pass; the peers killed it as hung at 180 s, so no
+# pass ever ended, and the pre-flight proof tick hit 20 s for 30 min after
+# the boot: 3 correct commits quarantined, 5 rollouts halted).
 spl_wd_boot_seat() {
   [[ "$1" =~ -00[1-4]$ ]] && return 0
-  grep -qx -- "$1" <<<"$(spl_wd_expected)"
+  [[ -n "${WD_BOOT_EXPECTED+x}" ]] || { grep -qx -- "$1" <<<"$(spl_wd_expected)"; return; }
+  [[ $'\n'"$WD_BOOT_EXPECTED"$'\n' == *$'\n'"$1"$'\n'* ]]
 }
 
 # spl_wd_boot_slot_free N: peer/restart.slot.<N> is not held by a restart.
@@ -558,13 +567,15 @@ spl_wd_boot_done() {
 }
 
 # "<verdict mtime> <id>" per dispatch/wd.<id> written before the boot BT.
+# One stat for all: a stat per file cost ~10 s of a fresh pass (SPL-1992:
+# a desk box, 943 verdicts; the pre-flight's proof tick takes this snapshot anew).
 spl_wd_boot_snap() {
-  local f m
-  for f in "$LEASE_DIR"/wd.[acgqm]-[0-9][0-9][0-9]; do
-    [[ -f "$f" ]] || continue
-    m="$(stat -c %Y "$f" 2>/dev/null || true)"
-    [[ "$m" =~ ^[0-9]+$ ]] && (( m < $1 )) && echo "$m ${f##*/wd.}"
-  done
+  local -a fs=()
+  local f
+  for f in "$LEASE_DIR"/wd.[acgqm]-[0-9][0-9][0-9]; do [[ -f "$f" ]] && fs+=("$f"); done
+  (( ${#fs[@]} )) || return 0
+  stat -c '%Y %n' -- "${fs[@]}" 2>/dev/null |
+    awk -v bt="$1" '$1 ~ /^[0-9]+$/ && $1 < bt {n = $2; sub(/.*\/wd\./, "", n); print $1, n}' || true
   return 0
 }
 

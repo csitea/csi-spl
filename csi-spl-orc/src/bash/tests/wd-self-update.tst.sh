@@ -21,7 +21,9 @@
 #      passes, a tick with a script error fails (control), a tick past the
 #      hang bound WD_UPD_STEP_MAX fails, a check is timed from its own tick
 #      start (an older exec's T0 before its pre-flight is ignored), and a check that never ends is
-#      failed by a peer at WD_UPD_STEP_MAX
+#      failed by a peer at WD_UPD_STEP_MAX; a boot pass (the pre-flight
+#      proof tick after a boot) reads the expected seats and stats the
+#      verdicts once (control: the old helpers, per registry id; SPL-1992)
 #   2. bootstrap: no code/good -> instance 1 snapshots the sha it runs, good
 #      := it, nothing restarts
 #   3. a desk-cron commit that changes csi-spl-orc -> rolling restart
@@ -281,6 +283,38 @@ out="$(lib 'n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=1 since=$(( n
 [[ "$out" == *"BAD instance 1 did not finish its self-check in 45s"* ]] &&
   pass "1 a hung check tick: a peer quarantines the sha at the step bound" || fail "1 hang peer: $out"
 rm -rf "$W" "$LOG" "$T/sent"; dc reset -q --hard "$SHA_A"
+
+# SPL-1992 (a desk box 2026-10-15): the boot pass of the pre-flight's proof tick (a
+# fresh state dir, a boot younger than WD_BOOT_RECENT) took 20+ s, and the
+# live pass ~24 min: spl_wd_boot_seat re-read every agents/*.json twice per
+# registry id, spl_wd_boot_snap forked a stat per verdict. 3 correct commits
+# quarantined, 5 rollouts halted. Counted, not timed: one pass over 120 ids,
+# 60 agents and 120 verdicts reads the expected seats once and stats once;
+# the control (the old two helpers) reads them twice per id, stats per file.
+BQ="$T/bq"; mkdir -p "$BQ/spool/agents" "$BQ/spool/dispatch" "$BQ/tick" "$BQ/bin"
+for i in $(seq 100 219); do
+  printf 'c-%s\tclaude\t%%1\t-\t20261015T000000Z\n' "$i" >> "$BQ/spool/registry.tsv"
+  : > "$BQ/spool/dispatch/wd.c-$i"; touch -d '2 hours ago' "$BQ/spool/dispatch/wd.c-$i"
+  (( i < 160 )) && printf '{"session_name": "c-%s@box1"}\n' "$i" > "$BQ/spool/agents/c-$i.json"
+done
+: > "$BQ/tick/ps"; : > "$BQ/tick/agents"
+printf '#!/usr/bin/env bash\necho x >> "%s/stat.n"\nexec %s "$@"\n' "$BQ" "$(command -v stat)" > "$BQ/bin/stat"; chmod +x "$BQ/bin/stat"
+bq_snip='eval "orig_$(declare -f spl_wd_expected)"; spl_wd_expected() { echo x >> "$BQ/exp.n"; orig_spl_wd_expected; }
+  eval "$OLD"; : > "$BQ/exp.n"; : > "$BQ/stat.n"; n=$(spl_lease_now)
+  PATH="$BQ/bin:$PATH" spl_wd_boot_pass "$n" "$BQ/tick" "$(( n - 600 ))" ""
+  echo "EXP $(wc -l < "$BQ/exp.n") STAT $(wc -l < "$BQ/stat.n")"'
+bq_old='spl_wd_boot_seat() { [[ "$1" =~ -00[1-4]$ ]] && return 0; grep -qx -- "$1" <<<"$(spl_wd_expected)"; }
+  spl_wd_boot_snap() { local f m; for f in "$LEASE_DIR"/wd.[acgqm]-[0-9][0-9][0-9]; do [[ -f "$f" ]] || continue
+    m="$(stat -c %Y "$f" 2>/dev/null || true)"; [[ "$m" =~ ^[0-9]+$ ]] && (( m < $1 )) && echo "$m ${f##*/wd.}"; done; return 0; }'
+out="$(lib "$bq_snip" SPOOL_ROOT="$BQ/spool" BQ="$BQ" OLD=: DRY_RUN=1 WD_STATE_DIR="$BQ/wd")"
+[[ "$out" == *"EXP 1 STAT 1"* && "$(cat "$BQ"/wd/boot.*.seen 2>/dev/null | wc -l)" == 120 ]] &&
+  pass "1 a boot pass over 120 ids reads the expected seats once and stats the verdicts once ($out)" || fail "1 boot pass counts: $out"
+rm -rf "$BQ/wd"
+out="$(lib "$bq_snip" SPOOL_ROOT="$BQ/spool" BQ="$BQ" OLD="$bq_old" DRY_RUN=1 WD_STATE_DIR="$BQ/wd")"
+exp_n="$(sed -n 's/.*EXP \([0-9]*\) STAT \([0-9]*\).*/\1 \2/p' <<<"$out")"
+[[ -n "$exp_n" ]] && (( ${exp_n% *} >= 240 && ${exp_n#* } >= 120 )) &&
+  pass "1 control: the old helpers read the expected seats per id, stat per verdict ($out)" || fail "1 boot pass control: $out"
+rm -rf "$BQ"
 
 # ---- 2. bootstrap ------------------------------------------------------------
 starter >/dev/null

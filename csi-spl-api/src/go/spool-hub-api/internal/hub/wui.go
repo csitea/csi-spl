@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -68,6 +69,8 @@ type wuiConn struct {
 	upload tokenSlot       // one live upload token per socket
 	wmu    sync.Mutex
 	once   sync.Once
+	// rotated: the hub closed this socket at its max life (ws_maxlife.go).
+	rotated atomic.Bool
 }
 
 func (c *wuiConn) write(ctx context.Context, v any) error {
@@ -263,8 +266,13 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		delete(s.wui, c)
 		s.mu.Unlock()
+		if c.rotated.Load() { // the tab redials within the grace: its +1 lands first, no flap
+			time.AfterFunc(rotateGrace, func() { s.humanOnline(ctx, t.ID, c.from, -1) })
+			return
+		}
 		s.humanOnline(ctx, t.ID, c.from, -1)
 	}()
+	defer s.maxLife(&c.rotated, c.close)()
 	for {
 		var f wuiIn
 		if err := wsjson.Read(ctx, conn, &f); err != nil {

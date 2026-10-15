@@ -68,6 +68,9 @@ type session struct {
 	// the welcome waits here, so the box always reads welcome first.
 	welcomed    chan struct{}
 	welcomeOnce sync.Once
+	// rotated: the hub closed this socket at its max life (ws_maxlife.go);
+	// the box redials at once, so drop treats it as a roll.
+	rotated atomic.Bool
 }
 
 // accepts reports whether this box's reader takes inner version v. No
@@ -136,6 +139,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	kctx, stopPing := context.WithCancel(ctx)
 	defer stopPing()
 	s.keepalive(kctx, conn)
+	defer s.maxLife(&x.rotated, x.close)()
 	if x.role == wire.RoleBox {
 		go s.stampPresence(kctx, x)
 	}
@@ -380,17 +384,27 @@ func (s *Server) drop(x *session) {
 	gone := s.boxes[k] == x // false for a superseded socket: its box stays online
 	if gone {
 		delete(s.boxes, k)
-		if x.role == wire.RoleBox && !s.closing {
-			s.left[k] = s.o.Now() // a shutdown is a roll: the box redials elsewhere
+		if x.role == wire.RoleBox && !s.closing && !x.rotated.Load() {
+			s.left[k] = s.o.Now() // a shutdown or a max-life close is a roll: the box redials
 		}
 	}
 	delete(s.sessions, x)
 	s.mu.Unlock()
 	x.close(websocket.StatusNormalClosure, "")
 	if gone && x.role == wire.RoleBox {
-		ctx := context.Background()
-		roster, _ := s.o.Store.Roster(ctx, x.tenant)
-		s.presence(ctx, x.tenant, x.box, roster[x.box], "offline")
+		offline := func() {
+			if s.boxSession(x.tenant, x.box) != nil {
+				return // redialled here within the grace
+			}
+			ctx := context.Background()
+			roster, _ := s.o.Store.Roster(ctx, x.tenant)
+			s.presence(ctx, x.tenant, x.box, roster[x.box], "offline")
+		}
+		if x.rotated.Load() {
+			time.AfterFunc(rotateGrace, offline)
+			return
+		}
+		offline()
 	}
 }
 

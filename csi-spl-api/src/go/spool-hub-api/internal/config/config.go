@@ -506,6 +506,11 @@ type Hub struct {
 	HelloTimeout          time.Duration `env:"SPOOL_HUB_HELLO_TIMEOUT" envDefault:"10s"`
 	WSPingInterval        time.Duration `env:"SPOOL_HUB_WS_PING_INTERVAL" envDefault:"30s"`
 	WSPingTimeout         time.Duration `env:"SPOOL_HUB_WS_PING_TIMEOUT" envDefault:"15s"`
+	// WSMaxLife (SPL-1981): a socket is closed with 1012 max_life after this
+	// long and its peer redials, so a retired Cloud Run instance holds a
+	// max_instances slot for at most this long, not the 3600 s request
+	// timeout. 0 = no cap.
+	WSMaxLife time.Duration `env:"SPOOL_HUB_WS_MAX_LIFE" envDefault:"5m"`
 	// MsgVersion is the schema version the hub WRITES for the messages it
 	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
 	// contracts/migration.md §5: 1 until every reader is deployed.
@@ -653,8 +658,8 @@ func (h *Hub) checkLimits() error {
 		return errors.New("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
 	}
 	if h.TrustedProxyHops < 0 || h.EdgeWSConnsPerIP < 0 || h.EdgeWSConnsTotal < 0 ||
-		h.EdgeWSHandshakesPerIP < 0 || h.EdgeAuthPerIP < 0 || h.WSPingInterval < 0 {
-		return errors.New("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
+		h.EdgeWSHandshakesPerIP < 0 || h.EdgeAuthPerIP < 0 || h.WSPingInterval < 0 || h.WSMaxLife < 0 {
+		return errors.New("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_*, SPOOL_HUB_WS_PING_INTERVAL and SPOOL_HUB_WS_MAX_LIFE must be zero (off) or positive")
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
 		return errors.New("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")

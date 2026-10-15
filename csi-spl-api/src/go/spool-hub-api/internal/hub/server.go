@@ -152,6 +152,11 @@ type Options struct {
 	// peer that misses a pong for PingTimeout is closed. 0 interval = no pings.
 	PingInterval time.Duration
 	PingTimeout  time.Duration
+	// WSMaxLife closes a /v1/ws or /v1/wui/ws socket with 1012 max_life after
+	// this long, less up to a fifth (SPOOL_HUB_WS_MAX_LIFE, ws_maxlife.go); the
+	// peer redials. It bounds how long a retired Cloud Run instance holds a
+	// max_instances slot. 0 = no cap.
+	WSMaxLife time.Duration
 	// MsgVersion is the v of the messages the hub composes itself (WUI posts,
 	// dispatch), cnf SPOOL_HUB_MSG_VERSION (specs/020); 0 = msg.Version.
 	MsgVersion int

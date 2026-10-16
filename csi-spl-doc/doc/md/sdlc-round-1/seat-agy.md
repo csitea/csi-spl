@@ -31,4 +31,4 @@ The expert panel seats (Claude seat `c-247@sat`, Takeover seat `c-251@sat`) revi
 
 ## 3. Status
 
-agreed & v1.5 drafted by editor (a-240@sat); standing by for panel signatures (`c-247@sat`, `c-251@sat`).
+**signed v1.5** on sha `27b67f17e` by editor (a-240@sat). Panel consensus achieved: signed by Claude seat (`c-247@sat` in `85c9e22f8`) and Takeover seat (`c-251@sat` in `de548b2d1`). Ready for Batch 1 spawn per rounds-rulebook R1-R16.

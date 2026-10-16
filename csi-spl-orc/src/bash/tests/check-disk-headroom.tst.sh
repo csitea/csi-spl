@@ -48,6 +48,17 @@ out="$(chk DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && [ "$(sends)" = 0 ] && grep -q 'CHECK .* mounts=4 skipped=3 high=0 /=40%b/10%i /data=50%b/5%i /tmp=20%b/20%i /boot/efi=5%b/-%i$' <<<"$out" \
   && pass "1. CONTROL: all under the limits - no note, exit 0, one CHECK line" || fail "1. control quiet (rc $rc: $out)"
 [ "$(grep -c . <<<"$out")" = 1 ] && pass "1. ...exactly one log line per check" || fail "1. lines: $out"
+# a host df with a mount at 90% on PATH: the stubbed run never sees it; the
+# red side names that same df as DISK_HEADROOM_DF and it warns
+mkdir -p "$T/hostbin"
+printf '#!/bin/sh\nprintf "%%s\\n" "Filesystem Type Use%% IUse%% Mounted on" "/dev/sdz1 xfs 90%% 5%% /hostdata"\n' >"$T/hostbin/df"
+chmod +x "$T/hostbin/df"
+host_out="$(chk DRY_RUN=0 PATH="$T/hostbin:$T/stub:$PATH")"
+[ "$(cut -d' ' -f2- <<<"$host_out")" = "$(cut -d' ' -f2- <<<"$out")" ] && [ "$(sends)" = 0 ] \
+  && pass "1. a host mount at 90% does not reach the stubbed check" || fail "1. host mount leaked: $host_out"
+red_out="$(chk DISK_HEADROOM_DF="$T/hostbin/df" DISK_HEADROOM_STATE_DIR="$T/hoststate")"
+grep -q 'PLAN note to orchestrator: /hostdata (xfs, /dev/sdz1) blocks 90% >= 85%' <<<"$red_out" && [ "$(sends)" = 0 ] \
+  && pass "1. CONTROL: the same host df as the df source warns" || fail "1. host control ($red_out)"
 out="$(chk DRY_RUN=0 DISK_HEADROOM_BLOCK_PCT=50)"; rc=$?
 [ "$rc" = 1 ] && [ "$(sends)" = 1 ] && grep -q 'WARN /data (xfs, /dev/sdb1) blocks 50% >= 50%' <<<"$out" \
   && pass "1. CONTROL: a lower env limit turns the same mount into a crossing" || fail "1. env limit (rc $rc: $out)"

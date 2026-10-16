@@ -7,6 +7,7 @@ csitea and relishbg visible, and the rest not visible". Our own platform
 workspaces visible on poll 7b41f5e6: csi-rel, t1, system, demo, e2e, e2e-2.
 Every other workspace slug is HIDDEN: it is never written into this repo.
 
+<a id="ws-doc-1281bbfe-8ec1-4cba-acee-d3bc998494e5"></a>
 ## 1. How it works
 
 - The public cnf (`csi-spl-cnf/csi-spl/<env>.env.yaml`) lists a hidden
@@ -34,9 +35,14 @@ Every other workspace slug is HIDDEN: it is never written into this repo.
     instead: `TENANT_VISIBLE=1` (and `e2e*` test workspaces). In GitHub
     Actions the overlay is a copy of a secret, so a new hidden tenant is
     refused there. Commit messages name the placeholder, never the slug.
+    A new hidden tenant is added only on the overlay's master box
+    (`SPL_PRIVATE_MASTER_BOX`, default sat); any other box refuses before any
+    change and prints the run for sat plus the overlay pull for itself
+    (SPL-2278).
   - the gates: the 10 ci distribution-hygiene Sweep, and `do_oss_gate`'s
     `{{private:workspaces}}` / `{{private:orgs}}` rules.
 
+<a id="ws-doc-b3742089-6420-449a-b6f0-ebc177739293"></a>
 ## 2. The file
 
 ```yaml
@@ -58,6 +64,7 @@ deny:                  # other literals the hygiene gate refuses (PCRE)
   a DNS record name, a `<slug>.[dev.]<BASE_DOMAIN>` host. Any other slug is
   refused anywhere, as a word.
 
+<a id="ws-doc-5f12973d-cb05-4885-bd2e-5f30a2621597"></a>
 ## 3. The gate
 
 The 10 ci Sweep builds its patterns with `spl_private_gate_patterns` from the
@@ -72,6 +79,7 @@ Skipped, named in the Sweep: rdb migration 0051, whose sha256 is pinned in
 every env's `spool_schema_migrations` (forward-only: a changed comment fails
 the hub's migrate).
 
+<a id="ws-doc-0a9d0663-b751-4b78-a7d4-3f9f222ed543"></a>
 ## 4. Where the copies are, and the backup
 
 - The satellite: `~/.gcp/.csi/` of the box owner user and of the agent user
@@ -92,6 +100,7 @@ the hub's migrate).
   `git show <sha before SPL-1874>:csi-spl-cnf/csi-spl/prd.env.yaml`. A tenant
   hidden later is in the hub's `tenants` table and 052's terraform state.
 
+<a id="ws-doc-828edfed-f026-43d9-b948-e87aa3ee39ce"></a>
 ## 5. What it does not do
 
 - It does not rewrite history: commits before SPL-1874 still hold the names.

@@ -59,6 +59,11 @@ to_bytes() {
     printf "%.0f", n*m }'
 }
 
+# si_bytes <bytes>: 17kB / 1.5MB / 0B on every box. coreutils numfmt --to=si
+# printed the kilo prefix as "K" up to 9.4 (Ubuntu 24.04) and as "k" from 9.5
+# (Debian 13), so the same disk read "17KB" or "17kB" by box.
+si_bytes() { numfmt --to=si --suffix=B "$1" | sed 's/K\(B\)$/k\1/'; }
+
 # expand_paths <glob...> as the reader (sudo): a home this user cannot list is
 # still matched. Prints one existing path per line.
 expand_paths() {
@@ -167,7 +172,7 @@ table="$(
   printf '| row | size | files | oldest | note |\n|---|---:|---:|---|---|\n'
   for l in "${out[@]}"; do
     IFS=$'\t' read -r n b c o note <<<"$l"
-    printf '| %s | %s | %s | %s | %s |\n' "$n" "$(numfmt --to=si --suffix=B "$b")" "$c" "$o" "$note"
+    printf '| %s | %s | %s | %s | %s |\n' "$n" "$(si_bytes "$b")" "$c" "$o" "$note"
   done
 )"
 printf '%s\n' "$table"

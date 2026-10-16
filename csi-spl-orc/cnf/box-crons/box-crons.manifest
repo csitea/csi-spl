@@ -32,3 +32,4 @@ reverse-tunnel    | * * * * *       | src/bash/scripts/reverse-tunnel-cron.sh   
 token-burn        | * * * * *       | src/bash/scripts/token-burn-collect-cron.sh             | token-burn/cron.log   |
 topic-status-card | */5 * * * *    | src/bash/scripts/topic-status-card-cron.sh             | topic-status-card/cron.log |
 fx-rates-fetch    | 37 16 * * *     | src/bash/scripts/fx-rates-fetch-cron.sh                 | fx-rates-fetch/cron.log |
+push-orphan-check | * * * * *       | src/bash/scripts/push-orphan-check-cron.sh              | push-orphan-check/cron.log |

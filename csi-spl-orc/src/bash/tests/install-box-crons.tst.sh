@@ -55,11 +55,12 @@ touch "$O/src/bash/features/box-sessions/scripts/save-sessions.sh" "$O/src/bash/
   "$O/src/bash/scripts/owner-digest-cron.sh" "$O/src/bash/scripts/issue-close-landed-cron.sh" \
   "$O/src/bash/scripts/issue-key-rate-cron.sh" "$O/src/bash/scripts/gc-cron.sh" \
   "$O/src/bash/scripts/reverse-tunnel-cron.sh" "$O/src/bash/scripts/token-burn-collect-cron.sh" \
-  "$O/src/bash/scripts/topic-status-card-cron.sh" "$O/src/bash/scripts/fx-rates-fetch-cron.sh"
+  "$O/src/bash/scripts/topic-status-card-cron.sh" "$O/src/bash/scripts/fx-rates-fetch-cron.sh" \
+  "$O/src/bash/scripts/push-orphan-check-cron.sh"
 inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_STATE_DIR="$T/state" "$@" 2>&1; }
 
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z-]*$' <<<"$out")" = 19 ] \
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z-]*$' <<<"$out")" = 20 ] \
   && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
   && grep -q "^  +17 7 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
@@ -91,15 +92,17 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh" ] \
   && grep -q "^  +37 16 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh' >> '/var/csi/csi-spl/fx-rates-fetch/cron.log' 2>&1 # csi-spl:box-cron:fx-rates-fetch$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh" ] \
-  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card and the daily exchange rates fetch from this checkout" || fail "1. real manifest (rc $rc: $out)"
+  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/push-orphan-check-cron.sh' >> '/var/csi/csi-spl/push-orphan-check/cron.log' 2>&1 # csi-spl:box-cron:push-orphan-check$" <<<"$out" \
+  && [ -x "$PROJ_ROOT/src/bash/scripts/push-orphan-check-cron.sh" ] \
+  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check from this checkout" || fail "1. real manifest (rc $rc: $out)"
 
 out="$(inst)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 20 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
-  && pass "2. the dry run prints the diff: +19 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 21 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
+  && pass "2. the dry run prints the diff: +20 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "2. ...and changes nothing" || fail "2. the dry run wrote the crontab"
 
 out="$(inst DRY_RUN=0)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z-]*$' "$CT")" = 19 ] && pass "3. DRY_RUN=0 adds nineteen tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
+[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z-]*$' "$CT")" = 20 ] && pass "3. DRY_RUN=0 adds twenty tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
 [ "$(grep -v ' # csi-spl:box-cron:[a-z-]*$' "$CT" | grep -c "$E/" )" = 1 ] && grep -q 'dotfiles/scripts/wifi-up.sh' "$CT" \
   && pass "3. ...no engine job left but the unlisted one" || fail "3. engine lines left: $(grep "$E/" "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-cron:[a-z-]*$' "$CT") "$T/crontab.kept" && pass "3. ...every other line kept, in order" || fail "3. other lines changed"

@@ -1,7 +1,7 @@
 // CLE-77886 (owner, t1 topic ac0fa400): on a phone every section keeps the
 // ONE section strip (the rail's row of Channels, DMs, Issues, ...) on top,
 // the section shown as the selected control and no title text. A section
-// whose content is a page (Issues, Event log, People, Boxes, Agents, Help,
+// whose content is a page (Issues, Event log, People, Monitoring, Help,
 // Workspace settings, ...) is level 2, so the layout shows the strip above
 // that page; a drill-down (a channel, a person's card, a settings section)
 // keeps its own header and Back.
@@ -14,8 +14,6 @@ const SECTION_PAGES = new Set([
   '/archive',
   '/users',
   '/people',
-  '/agents',
-  '/boxes',
   '/calendar',
   /* SPL-1991: Monitoring and each of its tabs (a tab is a path, not a drill-down) */
   '/monitoring',

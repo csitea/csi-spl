@@ -2,18 +2,18 @@
 // the second panel the list of the resources per box - agents, hardware, OS,
 // RUN-TIMES ETC." and "on the right panel some statistics on those".
 //
-// At 1440 px, light and dark: /boxes, a click on box-a in the sidebar's Boxes
-// list opens its resources in the middle; the three panes stand left to
-// right (boxes list | resources | statistics) with no topic panel beside
-// them. Agents opens the agents statistics (one row per agent on box-a);
+// SPL-2075: the Boxes section moved into Monitoring. At 1440 px, light and
+// dark: /monitoring/boxes, a click on box-a in the list opens its card; the
+// three panes stand left to right (the card's boxes list | resources |
+// statistics) with no topic panel beside them. Agents opens the agents statistics (one row per agent on box-a);
 // Hardware opens the empty box-stats state ("no history yet" - the mock
 // serves no samples, and never invents any) plus the named GCP VM slot; OS
 // reads "not reported yet". box-desk reported its daily facts (the mock's
 // fixture): System, OS, Run-times and Network show them with their age, and
 // the Hardware snapshot shows its CPU model. No horizontal page scroll.
 //
-// At 390 px (phone): one pane at a time - the list, the resources, the
-// statistics - and Back steps down one pane, to the list.
+// At 390 px (phone): one pane at a time - the Monitoring boxes list, the
+// resources, the statistics - and Back steps down one pane, to the list.
 //
 // Screenshots for the owner post land in $SHOT_DIR when it is set.
 //
@@ -62,7 +62,7 @@ const panes = (p) => p.evaluate(() => {
   }
   const cols = []
   const add = (name, el) => { const r = shown(el); if (r) cols.push({ name, left: Math.round(r.left), right: Math.round(r.right) }) }
-  add('boxes-list', document.querySelector('[data-testid=sidebar-panel-boxes]'))
+  add('boxes-list', document.querySelector('[data-test=box-list]'))
   add('resources', document.querySelector('[data-test=box-card]'))
   add('stats', document.querySelector('[data-test=box-stats]'))
   add('topic', document.querySelector('[data-test=topic-section]'))
@@ -96,11 +96,11 @@ try {
     await p.setViewport({ width: 1440, height: 900 })
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
-    await p.goto(server.base + '/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('[data-test=top-bar]', { timeout: NAV_TIMEOUT })
 
-    /* left: the sidebar's boxes list; a click opens the box in the middle */
-    await click(p, '[data-testid=sidebar-panel-boxes] a[data-key="box-a"]')
+    /* Monitoring -> Boxes: a click opens the box's card, its list on the left */
+    await click(p, '[data-test=monitoring-boxes] a[data-key="box-a"]')
     await p.waitForSelector('[data-test=box-resources]', { visible: true, timeout: NAV_TIMEOUT })
     await sleep(300)
     const cols = await panes(p)
@@ -138,8 +138,8 @@ try {
     ok(`${theme}: box-a - facts not reported yet`, /not reported/i.test(await p.$eval('[data-test=box-facts-age]', (e) => e.textContent)))
 
     /* box-desk reported its facts: system, network, OS, run-times, hardware snapshot */
-    await click(p, '[data-testid=sidebar-panel-boxes] a[data-key="box-desk"]')
-    await p.waitForFunction(() => location.pathname.endsWith('/boxes/box-desk'), { timeout: NAV_TIMEOUT })
+    await click(p, '[data-test=box-list] a[data-key="box-desk"]')
+    await p.waitForFunction(() => location.pathname.endsWith('/monitoring/boxes/box-desk'), { timeout: NAV_TIMEOUT })
     /* NOW, apart from the daily facts: the latest 5-minute sample */
     await p.waitForSelector('[data-test=box-now-load]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: now - load against the CPUs`, /1\.25.*8/.test(await p.$eval('[data-test=box-now-load]', (e) => e.textContent)))
@@ -190,17 +190,15 @@ try {
     await setPageViewport(p, vp)
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
-    await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await applyViewport(p, vp)
-    await p.waitForSelector('[data-testid=sidebar-rail]', { visible: true, timeout: NAV_TIMEOUT })
     await sleep(600)
-    /* level 1: the Boxes section's list (the tab may sit off screen in the strip) */
-    await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-boxes]')?.click())
-    await click(p, '[data-testid=sidebar-panel-boxes] a[data-key="box-a"]')
+    /* Monitoring -> Boxes, the list */
+    await click(p, '[data-test=monitoring-boxes] a[data-key="box-a"]')
     await p.waitForSelector('[data-test=box-resources]', { visible: true, timeout: NAV_TIMEOUT })
     await sleep(300)
     ok(`${theme}: phone - the resources alone`,
-      (await visible(p, '[data-test=box-card]')) && !(await visible(p, '[data-test=box-stats]')) && !(await visible(p, '[data-testid=sidebar-panel-boxes]')))
+      (await visible(p, '[data-test=box-card]')) && !(await visible(p, '[data-test=box-stats]')) && !(await visible(p, '[data-test=box-list]')) && !(await visible(p, '[data-test=monitoring-boxes]')))
 
     await click(p, '[data-test=box-resource-hardware]')
     await p.waitForSelector('[data-test=box-stats-empty]', { visible: true, timeout: NAV_TIMEOUT })
@@ -220,7 +218,7 @@ try {
 
     /* Back: resources -> the boxes list */
     await click(p, '[data-testid=mobile-back]')
-    await p.waitForSelector('[data-testid=sidebar-panel-boxes] a[data-key="box-a"]', { visible: true, timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=monitoring-boxes] a[data-key="box-a"]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: phone - Back again returns to the boxes list`, !(await visible(p, '[data-test=box-card]')))
     await p.close()
   }

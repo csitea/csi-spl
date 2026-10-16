@@ -43,8 +43,8 @@ const PAGES = [
   { name: 'Event log', tab: '[data-testid=sidebar-tab-events]', path: '/events' },
   { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive' },
   { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people' },
-  { name: 'Agents', tab: '[data-testid=sidebar-tab-agents]', path: '/agents' },
-  { name: 'Boxes', tab: '[data-testid=sidebar-tab-boxes]', path: '/boxes' },
+  /* SPL-2075: Agents and Boxes are Monitoring's tabs now */
+  { name: 'Monitoring', tab: '[data-testid=sidebar-tab-monitoring]', path: '/monitoring' },
   { name: 'Help', tab: '[data-testid=help-open]', path: '/help' },
   { name: 'Workspace settings', tab: '[data-testid=tenant-settings-open]', path: '/tenant-settings' },
 ]

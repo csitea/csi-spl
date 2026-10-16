@@ -10,8 +10,9 @@ import {
   MONITORING_DEFAULT_PATH,
   visibleMonitoringTabs,
   monitoringTabFor,
+  legacyMonitoringPath,
 } from '../../src/utils/monitoring-tabs.mjs'
-import { RAIL_TABS, DEFAULT_RAIL_ORDER } from '../../src/utils/rail-order.mjs'
+import { RAIL_TABS, RAIL_RETIRED, DEFAULT_RAIL_ORDER } from '../../src/utils/rail-order.mjs'
 import { MONITORING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSectionPage } from '../../src/utils/section-strip.mjs'
 
@@ -84,23 +85,52 @@ describe('monitoring tabs', () => {
 })
 
 describe('the Monitoring rail entry', () => {
-  it('one rail tab, its own icon, opening /monitoring; Agents and Boxes stay (Q2 A)', () => {
+  it('one rail tab, its own icon, opening /monitoring; Agents and Boxes went into it (SPL-2075)', () => {
     const tab = RAIL_TABS.find((t) => t.id === 'monitoring')
     assert.deepEqual({ ...tab }, { id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' })
-    assert.ok(RAIL_TABS.some((t) => t.id === 'agents'))
-    assert.ok(RAIL_TABS.some((t) => t.id === 'boxes'))
+    /* owner fd5a2bf4: no Agents and no Boxes icon; the hub keeps both ids */
+    assert.ok(!RAIL_TABS.some((t) => t.id === 'agents'))
+    assert.ok(!RAIL_TABS.some((t) => t.id === 'boxes'))
+    assert.ok(RAIL_RETIRED.includes('agents') && RAIL_RETIRED.includes('boxes'))
     assert.match(read('src/utils/uiIcons.ts'), /\n {2}activity: \[/)
     assert.equal(MONITORING_TAB, 'monitoring')
     assert.equal(routeForTab('monitoring'), '/monitoring')
-    assert.equal(DEFAULT_RAIL_ORDER.at(-2), 'monitoring', 'after Boxes, before Archive')
+    assert.equal(DEFAULT_RAIL_ORDER.at(-2), 'monitoring', 'before Archive')
   })
   it('every Monitoring path selects the Monitoring rail tab and is a section page', () => {
-    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk']) {
+    for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk', '/monitoring/agents/c-001%40box-a']) {
       assert.equal(tabForPath(p), 'monitoring', p)
     }
     for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes']) assert.equal(isSectionPage(p), true, p)
-    /* the old sections keep their own tabs */
-    assert.equal(tabForPath('/agents'), 'agents')
-    assert.equal(tabForPath('/boxes/box-desk'), 'boxes')
+    /* SPL-2075: the old sections' paths are Monitoring's (they redirect) */
+    for (const p of ['/agents', '/agents/c-001%40box-a', '/boxes', '/boxes/box-desk', '/fi/boxes']) assert.equal(tabForPath(p), 'monitoring', p)
+    assert.equal(routeForTab('agents'), null)
+    assert.equal(routeForTab('boxes'), null)
+    /* a card is a drill-down: it keeps the Monitoring header and its Back */
+    assert.equal(isSectionPage('/monitoring/boxes/box-desk'), false)
+  })
+})
+
+describe('old Agents / Boxes links (SPL-2075)', () => {
+  it('each lands on the matching Monitoring route, with or without a locale', () => {
+    assert.equal(legacyMonitoringPath('/agents'), '/monitoring/agents')
+    assert.equal(legacyMonitoringPath('/agents/'), '/monitoring/agents')
+    assert.equal(legacyMonitoringPath('/agents/c-001%40box-a'), '/monitoring/agents/c-001%40box-a')
+    assert.equal(legacyMonitoringPath('/boxes'), '/monitoring/boxes')
+    assert.equal(legacyMonitoringPath('/fi/boxes/box-desk'), '/monitoring/boxes/box-desk')
+    assert.equal(legacyMonitoringPath('/boxes/box-desk?r=hardware#box-people'), '/monitoring/boxes/box-desk')
+  })
+  it('anything else is not an old link', () => {
+    for (const p of ['/', '/monitoring/boxes', '/people/HUM-1', '/boxes/a/b', '/agentsx', '/t/boxes']) assert.equal(legacyMonitoringPath(p), null, p)
+  })
+  it('the four old pages are the redirect, and the cards live under Monitoring', () => {
+    for (const f of ['agents/index', 'agents/[id]', 'boxes/index', 'boxes/[id]']) {
+      assert.match(read(`src/pages/${f}.vue`), /<LegacyMonitoringRedirect \/>/, f)
+    }
+    const redirect = read('src/components/LegacyMonitoringRedirect.vue')
+    assert.match(redirect, /onMounted\(/, 'client side: nuxt generate on static hosting runs no server redirect')
+    assert.match(redirect, /query: route\.query, hash: route\.hash/, '?r= and the seat hash are kept')
+    assert.match(read('src/pages/monitoring/agents/[id].vue'), /data-test="agent-message"/)
+    assert.match(read('src/pages/monitoring/boxes/[id].vue'), /<BoxLoadBand v-if="!box\.browser"/)
   })
 })

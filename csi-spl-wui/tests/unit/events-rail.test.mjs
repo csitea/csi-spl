@@ -18,18 +18,19 @@ describe('Event log rail tab', () => {
     assert.equal(tabForPath('/fi/events'), 'events')
   })
 
-  it('follows flow and archive; People and Agents follow it (CLE-77794)', () => {
+  it('follows flow and archive; People follows it (CLE-77794)', () => {
     /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
        owner 2026-09-27 (topic 116646c8) left events out of the named order, so
-       it sits after archive; CLE-77794 added People and Agents after it. */
+       it sits after archive; CLE-77794 added People and Agents after it;
+       SPL-2075 moved Agents into Monitoring. */
     const tabs = read('src/utils/rail-order.mjs')
     const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
     const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
     const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
     const people = tabs.indexOf("{ id: 'people', icon: 'users'")
-    const agents = tabs.indexOf("{ id: 'agents', icon: 'bot'")
     assert.ok(flow > 0 && archive > flow && events > archive, 'events entry follows archive')
-    assert.ok(people > events && agents > people, 'People then Agents follow events')
+    assert.ok(people > events, 'People follows events')
+    assert.equal(tabs.indexOf("{ id: 'agents', icon: 'bot'"), -1, 'no Agents rail tab (SPL-2075)')
     const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
   })

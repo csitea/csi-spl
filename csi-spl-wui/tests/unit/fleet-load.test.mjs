@@ -194,7 +194,7 @@ try { mockFleetWrite(fleetBoxBandPatch(afterReset, 'box-c', { low: 70, high: 40 
 ok('CONTROL: low >= high on one box is refused (bad_setting)', refused === 'bad_setting', refused)
 ok('box load %: load5 / cpus as box-pick reads it', boxLoadPct({ load5: 0.9, cpus: 8 }) === 11 && boxLoadPct({ load5: 4, cpus: 4 }) === 100)
 ok('CONTROL: box load % without a sample or cpus is null', boxLoadPct(null) === null && boxLoadPct({ load5: 1, cpus: 0 }) === null)
-const page = readFileSync(new URL('../../src/pages/boxes/[id].vue', import.meta.url), 'utf8')
+const page = readFileSync(new URL('../../src/pages/monitoring/boxes/[id].vue', import.meta.url), 'utf8')
 ok('the Boxes page loads the band block lazily', /defineAsyncComponent\(\(\) => import\('@\/components\/BoxLoadBand\.vue'\)\)/.test(page) && !/^import .*BoxLoadBand/m.test(page))
 
 // rdb 0149: agent kinds off, and the timed pauses a box reports.

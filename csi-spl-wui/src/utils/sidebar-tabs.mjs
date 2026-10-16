@@ -28,22 +28,14 @@ export const ARCHIVE_TAB = 'archive'
  *  DM feed). A reorderable rail tab (utils/rail-order.mjs). */
 export const PEOPLE_TAB = 'people'
 
-/** Agents (CLE-77794): the tenant's agents, their kind shown (Claude / AGY /
- *  GRK / QWN); the card is /agents/<id>. A reorderable rail tab. */
-export const AGENTS_TAB = 'agents'
-
-/** Boxes (CLE-77799): the tenant's boxes (machines + the browser box), their
- *  liveness and who is seated on each; the card is /boxes/<box_id>. A
- *  reorderable rail tab. */
-export const BOXES_TAB = 'boxes'
-
 /** Calendar (spec 089 T007): /calendar, a single sheet like Issues (the year
  *  strip and the main view). A page, so not one of the sidebar lists. */
 export const CALENDAR_TAB = 'calendar'
 
 /** Monitoring (SPL-1991, t1 dbf2f39b): /monitoring, its tabs Agents and
  *  Boxes as paths (/monitoring/agents, ...). A page, so not one of the
- *  sidebar lists. */
+ *  sidebar lists. SPL-2075: the Agents and Boxes rail tabs (CLE-77794,
+ *  CLE-77799) went into it; their old paths are Monitoring's. */
 export const MONITORING_TAB = 'monitoring'
 
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
@@ -62,7 +54,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -76,10 +68,10 @@ export function tabForPath(path) {
   if (p === '/events') return EVENTS_TAB
   if (p === '/archive') return ARCHIVE_TAB
   if (p === '/people' || p.startsWith('/people/')) return PEOPLE_TAB
-  if (p === '/agents' || p.startsWith('/agents/')) return AGENTS_TAB
-  if (p === '/boxes' || p.startsWith('/boxes/')) return BOXES_TAB
   if (p === '/calendar') return CALENDAR_TAB
+  /* SPL-2075: an old /agents or /boxes link redirects into Monitoring */
   if (p === '/monitoring' || p.startsWith('/monitoring/')) return MONITORING_TAB
+  if (p === '/agents' || p.startsWith('/agents/') || p === '/boxes' || p.startsWith('/boxes/')) return MONITORING_TAB
   return null
 }
 
@@ -90,8 +82,6 @@ const TAB_ROUTES = {
   [EVENTS_TAB]: '/events',
   [ARCHIVE_TAB]: '/archive',
   [PEOPLE_TAB]: '/people',
-  [AGENTS_TAB]: '/agents',
-  [BOXES_TAB]: '/boxes',
   [CALENDAR_TAB]: '/calendar',
   [MONITORING_TAB]: '/monitoring',
 }

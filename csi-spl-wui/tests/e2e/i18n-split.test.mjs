@@ -241,7 +241,7 @@ try {
   }
 
   console.log('-- nothing blocked: pages outside the first screen')
-  const LATE = ['/help', '/issues', '/search?q=deploy', '/events', '/people', '/agents', '/boxes', '/archive', '/tenant-settings', '/users', '/checkout', '/lobby?settings=profile', '/lobby?settings=notifications']
+  const LATE = ['/help', '/issues', '/search?q=deploy', '/events', '/people', '/monitoring/agents', '/monitoring/boxes', '/archive', '/tenant-settings', '/users', '/checkout', '/lobby?settings=profile', '/lobby?settings=notifications']
   for (const code of LOCALES) {
     const ctx = await browser.createBrowserContext()
     const p = watchPage(await ctx.newPage(), `late ${code}`)

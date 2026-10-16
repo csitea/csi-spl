@@ -16,6 +16,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const READ_ONLY = ['src/components/MonitoringAllocation.vue', 'src/components/MonitoringAllocRows.vue', 'src/components/MonitoringBoxFacts.vue', 'src/pages/monitoring/boxes/index.vue']
 
+/* SPL-2075: the boxes list's filter (from the old Boxes section) reads, never writes */
+const BOX_FILTER = /<input\s+v-model="filter"\s+class="boxes-filter"\s+type="search"[^>]*>/
+
 const VIEW = normalizeFleetLoad({
   low: 40, high: 70, box_order: ['box-b', 'box-a'], runner_cpu_pct: 80, ci_overflow: false, runner_cpus: 4,
   boxes: { 'box-a': { low: 20, high: 60, runner_cpu_pct: 50 } }, agent_kinds_off: ['qwen'],
@@ -77,7 +80,12 @@ describe('monitoring allocation rows', () => {
 
 describe('the read-only render', () => {
   it('no input, select, textarea, button or form, no PATCH or save call (d4cdda5f, 22472356)', () => {
-    for (const f of READ_ONLY) assert.deepEqual(editControlsIn(read(f)), [], f)
+    for (const f of READ_ONLY) assert.deepEqual(editControlsIn(read(f).replace(BOX_FILTER, '')), [], f)
+  })
+  it('the one input on Monitoring -> Boxes is the list filter (SPL-2075), a search box that saves nothing', () => {
+    const src = read('src/pages/monitoring/boxes/index.vue')
+    assert.equal((src.match(/<input/g) || []).length, 1)
+    assert.match(src, BOX_FILTER)
   })
   it('CONTROL: the check finds the edit controls of the settings card and of a planted input', () => {
     const card = editControlsIn(read('src/components/FleetLoadCard.vue'))

@@ -1,6 +1,6 @@
-<!-- SPL-1991: Monitoring -> Agents (v1). A thin list over the roster the
-     sidebar's Agents section reads, each row opening today's card at
-     /agents/<id@box>. The AgentCard extraction is the next lane's. -->
+<!-- SPL-1991: Monitoring -> Agents (v1). A thin list over the roster, each
+     row opening the agent's card at /monitoring/agents/<id@box> (SPL-2075:
+     the old Agents section's card, moved here). -->
 <template>
   <div class="monitoring-list" data-test="monitoring-agents">
     <p v-if="rows.length === 0" class="muted monitoring-empty" data-test="monitoring-agents-empty">{{ t('agents.none') }}</p>
@@ -9,7 +9,7 @@
         class="nav-item"
         :data-key="a.label"
         :data-online="a.online ? '1' : '0'"
-        :to="localePath('/agents/' + encodeURIComponent(a.label))"
+        :to="localePath('/monitoring/agents/' + encodeURIComponent(a.label))"
       >
         <UiIcon name="bot" :size="20" />
         <span class="dot" :class="{ on: a.online }" />

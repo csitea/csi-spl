@@ -41,7 +41,7 @@ describe('a section change on desktop closes the right pane', () => {
   const desk = { ...link, mobile: false }
 
   it('closes it on every section page and on /search', () => {
-    for (const toPath of ['/', '/issues', '/events', '/archive', '/users', '/people', '/agents', '/boxes', '/help', '/docs', '/tenant-settings', '/search']) {
+    for (const toPath of ['/', '/issues', '/events', '/archive', '/users', '/people', '/monitoring/agents', '/monitoring/boxes', '/help', '/docs', '/tenant-settings', '/search']) {
       assert.equal(routeLeavesTopic({ ...desk, toPath, toQuery: {} }), true, toPath)
     }
     assert.equal(routeLeavesTopic({ ...desk, toPath: '/search', toQuery: { q: 'x' } }), true)

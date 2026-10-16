@@ -4,14 +4,16 @@
 // fundamentally different" and "in our "spool UI parlae" those are just
 // called people , and the rest are called agents".
 //
-// So a box reads "N people · M agents", on the boxes rail row AND on
-// /boxes/<id>, each count its own link to its own list (people with avatars,
+// So a box reads "N people · M agents", on its Monitoring -> Boxes row AND on
+// its card, each count its own link to its own list (people with avatars,
 // agents with bot icons), and the word "users" is gone from the box UI.
+// SPL-2075: the boxes list and card moved from the Boxes section into
+// Monitoring (/monitoring/boxes, /monitoring/boxes/<id>).
 //
 // At 1440 px and 390 px (phone), light and dark, for box-a and box-desk:
-//   - the rail row shows both counts, each equal to the rows of its list
-//   - clicking a rail count opens /boxes/<id> with that list in view
-//   - on /boxes/<id> each count equals the rows of its list, and a click
+//   - the list row shows both counts, each equal to the rows of its list
+//   - clicking a list count opens /monitoring/boxes/<id> with that list in view
+//   - on /monitoring/boxes/<id> each count equals the rows of its list, and a click
 //     on it scrolls its list into view and marks it
 //   - no "user" in the rail's boxes panel or the box card
 //
@@ -75,11 +77,11 @@ async function click(p, sel) {
   await p.waitForSelector(sel, { visible: true, timeout: NAV_TIMEOUT })
   await p.click(sel)
 }
-const railCounts = (box) => `[data-testid=sidebar-panel-boxes] [data-testid=box-seat-counts][data-box="${box}"]`
+const railCounts = (box) => `[data-test=monitoring-boxes] [data-testid=box-seat-counts][data-box="${box}"]`
 
-/* /boxes/<box>: each count equals its list's rows and opens it */
+/* /monitoring/boxes/<box>: each count equals its list's rows and opens it */
 async function checkCard(p, tag, box) {
-  await p.waitForFunction((b) => location.pathname.endsWith('/boxes/' + b), { timeout: NAV_TIMEOUT }, box)
+  await p.waitForFunction((b) => location.pathname.endsWith('/monitoring/boxes/' + b), { timeout: NAV_TIMEOUT }, box)
   await p.waitForSelector('[data-test=box-people-count]', { visible: true, timeout: NAV_TIMEOUT })
   const people = await attrNum(p, '[data-test=box-people-count]')
   const agents = await attrNum(p, '[data-test=box-agents-count]')
@@ -108,7 +110,6 @@ try {
   for (const [w, h] of [[1440, 900], [390, 844]]) {
     for (const theme of ['light', 'dark']) {
       const tag = `${w} ${theme}`
-      const phone = w < 600
       console.log(`-- ${w}x${h} ${theme}`)
       const vp = { width: w, height: h }
       const p = await browser.newPage()
@@ -116,21 +117,16 @@ try {
       await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
       await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
       for (const [box, kind] of [['box-a', 'agents'], ['box-desk', 'people']]) {
-        await p.goto(server.base + (phone ? '/' : '/boxes'), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+        await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
         await applyViewport(p, vp)
-        await p.waitForSelector('[data-testid=sidebar-rail]', { timeout: NAV_TIMEOUT })
-        if (phone) {
-          await sleep(600)
-          await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-boxes]')?.click())
-        }
-        /* the rail row: two counts, never "users" */
+        /* the list row: two counts, never "users" */
         await p.waitForSelector(railCounts(box), { visible: true, timeout: NAV_TIMEOUT })
         const rail = {
           people: await attrNum(p, railCounts(box) + ' [data-testid=box-people-count]'),
           agents: await attrNum(p, railCounts(box) + ' [data-testid=box-agents-count]'),
         }
         ok(`${tag}: ${box} rail - "N people · M agents"`, /·/.test(await textOf(p, railCounts(box))), rail)
-        ok(`${tag}: rail - no "users"`, await noUsers(p, '[data-testid=sidebar-panel-boxes]'))
+        ok(`${tag}: rail - no "users"`, await noUsers(p, '[data-test=monitoring-boxes]'))
         if (box === 'box-a') await shot(p, `box-seat-counts-rail-${w}-${theme}`)
         /* a rail count opens its list on the box's card */
         await click(p, `${railCounts(box)} [data-testid=box-${kind}-count]`)

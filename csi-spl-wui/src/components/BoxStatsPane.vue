@@ -8,7 +8,7 @@
      none and shows "—". GCP VM metrics come later: one named slot, no data.
      System, OS, run-times, network and the hardware snapshot: the box's daily
      facts (c-220; owner d1d9bcd3), with their age, else "not reported yet".
-     Loaded lazily by pages/boxes/[id].vue (027 initial-chunk budget). -->
+     Loaded lazily by pages/monitoring/boxes/[id].vue (027 initial-chunk budget). -->
 <template>
   <div class="bstat" data-test="box-stats-pane" :data-resource="resource">
     <h3 class="bstat__title">{{ t(titleKey) }}</h3>
@@ -37,7 +37,7 @@
           </thead>
           <tbody>
             <tr v-for="a in agents" :key="a.label" data-test="box-stats-agent" :data-key="a.label">
-              <td><NuxtLink :to="localePath('/agents/' + encodeURIComponent(a.label))">{{ a.id }}</NuxtLink></td>
+              <td><NuxtLink :to="localePath('/monitoring/agents/' + encodeURIComponent(a.label))">{{ a.id }}</NuxtLink></td>
               <td>{{ t(agentKindLabelKey(a.id)) }}</td>
               <td><span class="status-dot" :class="{ on: a.online }" aria-hidden="true" /> {{ a.online ? t('people.online') : t('people.offline') }}</td>
               <td :title="a.seatedAt ? isoDateTime(a.seatedAt) : undefined">{{ a.seatedAt ? ageOf(a.seatedAt) : '—' }}</td>

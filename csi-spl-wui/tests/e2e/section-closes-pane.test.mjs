@@ -28,7 +28,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const TASK_A = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 /* SPL-1882: /docs alone is Docs (Qto) now; a doc page is what a link opens */
-const SECTIONS = ['/people', '/search?q=x', '/docs/README.md', '/boxes']
+const SECTIONS = ['/people', '/search?q=x', '/docs/README.md', '/monitoring/boxes']
 
 if (OUT) mkdirSync(OUT, { recursive: true })
 
@@ -137,8 +137,8 @@ try {
   await p.click('[data-testid=operator-console-open]')
   await until(p, () => Boolean(document.querySelector('[data-section=operator]')))
   ok('3 the operator console is open', (await pane(p)).operator && (await pane(p)).dom === 1, await pane(p))
-  await push(p, '/boxes')
-  ok('3 ... /boxes closes the operator console', !anyOpen(await pane(p)), await pane(p))
+  await push(p, '/monitoring/boxes')
+  ok('3 ... /monitoring/boxes closes the operator console', !anyOpen(await pane(p)), await pane(p))
 
   /* ---- 4. control: a page that is not a section keeps the pane ----------- */
   await push(p, '/channel/lobby')

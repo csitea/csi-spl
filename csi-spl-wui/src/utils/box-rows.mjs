@@ -97,7 +97,7 @@ export function boxRows(people, boxesDetail = {}) {
 
 /**
  * The single box's row (or a bare empty row when the roster has never named
- * it), for the /boxes/<id> card.
+ * it), for the /monitoring/boxes/<id> card.
  * @param {string} id box_id
  * @param {Seat[]} people peopleRows()
  * @param {Record<string, { online?: boolean, last_hello_at?: string }>} [boxesDetail]

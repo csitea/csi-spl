@@ -32,21 +32,12 @@ export const RAIL_TABS = Object.freeze([
      since 2026-09-27 (topic 116646c8 left it out of the named order). */
   Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
   /* CLE-77794 (owner 2026-09-30, topic 1fc29f99): People lists every member
-     with their interests on the right; Agents lists the tenant's agents with
-     their kind (Claude / Antigravity / Grok / Mistral / Qwen). Both reorder and collapse
-     like the rest; a stored order from before them is drawn with the two
-     appended (parseRailOrder), and the hub's IsRailOrder + rdb 0087 admit the
-     nine. */
+     with their interests on the right. Reorders and collapses like the rest;
+     a stored order from before it is drawn with it appended (parseRailOrder),
+     and the hub's IsRailOrder + rdb 0087 admit it. The Agents and Boxes tabs
+     beside it (CLE-77794, CLE-77799) went into Monitoring (SPL-2075,
+     RAIL_RETIRED). */
   Object.freeze({ id: 'people', icon: 'users', labelKey: 'sidebar.people' }),
-  Object.freeze({ id: 'agents', icon: 'bot', labelKey: 'sidebar.agents' }),
-  /* CLE-77799 (owner 2026-09-30, topic 1fc29f99: "we should have a boxes
-     section as well ... and later on we will have more boxes than the current
-     one box"): Boxes lists the tenant's boxes (machines and the browser box),
-     their liveness and who is seated on each — the people AND the agents that
-     use it, each linked to their People / Agents card. Reorders and collapses
-     like the rest; a stored order from before it is drawn with Boxes appended
-     (parseRailOrder), and the hub's IsRailOrder + rdb 0089 admit the ten. */
-  Object.freeze({ id: 'boxes', icon: 'server', labelKey: 'sidebar.boxes' }),
   /* spec 089 T007 (owner HUM-10, 2026-10-05): Calendar opens /calendar, a
      single sheet like Issues (the year strip and the main view). Reorders and
      collapses like the rest; a stored order from before it is drawn with
@@ -54,8 +45,9 @@ export const RAIL_TABS = Object.freeze([
      admit the eleven. */
   Object.freeze({ id: 'calendar', icon: 'calendar', labelKey: 'sidebar.calendar' }),
   /* SPL-1991 (owner HUM-10, t1 dbf2f39b, msg 94283d6b, A on Q1-Q4):
-     Monitoring opens /monitoring, its tabs Agents and Boxes; the Agents and
-     Boxes tabs above stay (Q2 A). Reorders and collapses like the rest; a
+     Monitoring opens /monitoring, its tabs Agents and Boxes. Since SPL-2075
+     (t1 dbf2f39b, msg fd5a2bf4) it holds the Agents and Boxes sections too:
+     their own tabs are gone (RAIL_RETIRED). Reorders and collapses like the rest; a
      stored order from before it is drawn with Monitoring appended
      (parseRailOrder). The hub admits it since SPL-1990 (rdb 0198). */
   Object.freeze({ id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' }),
@@ -70,8 +62,11 @@ export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
  * holds but the rail no longer draws. A stored order loses them when it is
  * read (parseRailOrder) and gets them back when it is saved (wireRailOrder),
  * so the hub keeps admitting it.
+ * SPL-2075 (owner HUM-10, t1 dbf2f39b, msg fd5a2bf4: "remove the Agents and
+ * the Boxes icons both from mobile and on desktop"): agents and boxes too;
+ * their pages are Monitoring -> Agents / Boxes.
  */
-export const RAIL_RETIRED = Object.freeze(['topics'])
+export const RAIL_RETIRED = Object.freeze(['topics', 'agents', 'boxes'])
 
 /**
  * SPL-1991: ids the rail draws before the hub admits them (auth.RailTabs and

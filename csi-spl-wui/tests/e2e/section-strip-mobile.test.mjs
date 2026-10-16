@@ -66,14 +66,14 @@ async function launch() {
 }
 
 /* every section the owner named; `sel` is its control in the strip. A
-   section whose content is the strip's own list (`list`: People, Agents,
-   Boxes - as Channels and DMs) shows it at level 1 under the strip; the
+   section whose content is the strip's own list (`list`: People, as
+   Channels and DMs) shows it at level 1 under the strip; the
    rest are a page at level 2 under the same strip. */
 const PAGES = [
   { name: 'Issues', path: '/issues', sel: '[data-testid=sidebar-tab-issues]' },
   { name: 'People', path: '/people', sel: '[data-testid=sidebar-tab-people]', list: 'people' },
-  { name: 'Boxes', path: '/boxes', sel: '[data-testid=sidebar-tab-boxes]', list: 'boxes' },
-  { name: 'Agents', path: '/agents', sel: '[data-testid=sidebar-tab-agents]', list: 'agents' },
+  /* SPL-2075: Boxes and Agents are Monitoring's tabs now; it lands on Agents */
+  { name: 'Monitoring', path: '/monitoring/agents', sel: '[data-testid=sidebar-tab-monitoring]' },
   { name: 'Event log', path: '/events', sel: '[data-testid=sidebar-tab-events]' },
   { name: 'Archive', path: '/archive', sel: '[data-testid=sidebar-tab-archive]' },
   { name: 'Help', path: '/help', sel: '[data-testid=help-open]' },
@@ -272,7 +272,7 @@ try {
       }
       if (st.bold !== null) ok(`${scheme} ${s.name}: the selected control is 1px in, raised and bold`, st.margin === '1px' && st.shadow && st.bold, st)
       ok(`${scheme} ${s.name}: the top bar is the same as on Channels`, (await topBar(p)) === home, { home, here: await topBar(p) })
-      if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-${s.path.slice(1)}.png`) })
+      if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-${s.path.slice(1).replace(/\//g, '-')}.png`) })
     }
 
     /* Issues: a tap on the selected control shows its epics at level 1 */

@@ -1,23 +1,4 @@
-<!-- CLE-77794: the Agents landing (middle pane) before an agent is picked. The
-     list is the sidebar's Agents section; clicking a row opens /agents/<id>. -->
+<!-- SPL-2075: /agents moved into Monitoring; the old link redirects (LegacyMonitoringRedirect). -->
 <template>
-  <div class="feed-col" data-test="agents-index">
-    <header class="feed-header">
-      <MobileBack />
-      <SectionClose side="start" />
-      <h2>{{ t('sidebar.agents') }}</h2>
-      <SectionClose side="end" />
-    </header>
-    <div class="feed-body">
-      <p class="muted agents-empty" data-test="agents-empty">{{ t('agents.empty') }}</p>
-    </div>
-  </div>
+  <LegacyMonitoringRedirect />
 </template>
-
-<script setup lang="ts">
-const { t } = useI18n({ useScope: 'global' })
-</script>
-
-<style scoped>
-.agents-empty { padding: 16px; margin: 0; }
-</style>

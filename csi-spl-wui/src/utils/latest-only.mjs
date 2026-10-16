@@ -4,7 +4,7 @@
  * still the newest: a dialog re-opened for another message or person, or a
  * page reloaded under an in-flight "Load more", then drops the older answer
  * instead of showing it. The pattern `const mine = ++seq; ...; if (mine !==
- * seq) return` (pages/boxes/[id].vue) as one shared helper.
+ * seq) return` (pages/monitoring/boxes/[id].vue) as one shared helper.
  *
  * @returns {{ next: () => number, isLatest: (token: number) => boolean }}
  */

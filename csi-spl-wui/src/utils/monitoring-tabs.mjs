@@ -6,6 +6,8 @@
 // own chunk loaded on demand and the back button walks through them (D4).
 // Agents comes first and is where /monitoring lands (Q1 A). The fleet tabs
 // that follow are for admins of the operator workspace only (Q3 A).
+// SPL-2075: each of Agents and Boxes also has its card, /monitoring/agents/<id@box>
+// and /monitoring/boxes/<id> (the old /agents and /boxes pages, moved).
 
 import { productPath } from './signed-out-redirect.mjs'
 
@@ -47,4 +49,19 @@ export function monitoringTabFor(path) {
     if (p === tab.path || p.startsWith(tab.path + '/')) return tab.id
   }
   return null
+}
+
+/**
+ * SPL-2075 (owner HUM-10, t1 dbf2f39b, msg fd5a2bf4): the Agents and Boxes
+ * sections went into Monitoring. An old link (/agents, /agents/<id@box>,
+ * /boxes, /boxes/<id>, with or without a locale prefix) answers the matching
+ * Monitoring path, no locale prefix (the caller adds it); anything else null.
+ * Query (`?r=`) and hash (`#box-people`) are the caller's to keep.
+ * @param {string} path
+ * @returns {string | null}
+ */
+export function legacyMonitoringPath(path) {
+  const m = productPath(path).match(/^\/(agents|boxes)(?:\/([^/]+))?$/)
+  if (!m) return null
+  return '/monitoring/' + m[1] + (m[2] ? '/' + m[2] : '')
 }

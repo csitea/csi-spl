@@ -1,5 +1,5 @@
 <!-- HUM-10 (t1 58857a17): a boxes rail row's "N people · M agents", each count
-     a link to its own list on the box's card (/boxes/<id>#box-people or
+     a link to its own list on the box's card (/monitoring/boxes/<id>#box-people or
      #box-agents). It sits beside the row's link, never inside it (a link
      holds no link). Its own lazy chunk: the home bundle carries none of it. -->
 <template>
@@ -24,7 +24,7 @@
 const props = defineProps<{ box: { id: string, people: unknown[], agents: unknown[] } }>()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
-const href = computed(() => localePath('/boxes/' + encodeURIComponent(props.box.id)))
+const href = computed(() => localePath('/monitoring/boxes/' + encodeURIComponent(props.box.id)))
 </script>
 
 <style scoped>

@@ -318,11 +318,9 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const ISSUES_TAB: 'issues'
   export const ARCHIVE_TAB: 'archive'
   export const PEOPLE_TAB: 'people'
-  export const AGENTS_TAB: 'agents'
-  export const BOXES_TAB: 'boxes'
   export const CALENDAR_TAB: 'calendar'
   export const MONITORING_TAB: 'monitoring'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring' | null
+  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | null
   export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'flow' | '' | null
 }
@@ -1889,7 +1887,7 @@ declare module '~/utils/palette.mjs' {
 }
 
 declare module '~/utils/rail-order.mjs' {
-  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring'
+  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'calendar' | 'monitoring'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
   export const RAIL_IDS: readonly RailId[]
   export const RAIL_RETIRED: readonly string[]
@@ -2607,7 +2605,7 @@ declare module '~/utils/unread-model.mjs' {
 
 // 081 T003: the forward of tabForPath (merges with its first declare block).
 declare module '~/utils/sidebar-tabs.mjs' {
-  export function routeForTab(id: string): '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
+  export function routeForTab(id: string): '/issues' | '/users' | '/events' | '/archive' | '/people' | '/calendar' | '/monitoring' | null
 }
 
 // 078 T004: the proportional topic default (merges with its first declare block).

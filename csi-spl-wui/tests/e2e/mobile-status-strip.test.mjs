@@ -238,7 +238,7 @@ try {
   await home()
   views.push({ view: 'level 1', ...(await noOldBar()) })
   if (OUT) await p.screenshot({ path: `${OUT}/phone-390-level1.png` })
-  for (const tab of ['dm', 'flow', 'issues', 'people', 'agents', 'boxes']) {
+  for (const tab of ['dm', 'flow', 'issues', 'people', 'monitoring']) {
     await home()
     if (!(await tapSel(p, `[data-testid=sidebar-tab-${tab}]`))) continue
     await sleep(700)

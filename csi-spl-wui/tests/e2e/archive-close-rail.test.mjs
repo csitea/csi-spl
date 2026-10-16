@@ -1,6 +1,6 @@
 // t1 58b8055d (HUM-24): open an archived topic from Archive, then close it.
 // The reader must land back on Archive with the left rail still on screen
-// — the channels / agents / messages icons — at both a desktop width and a
+// — the channels / people / messages icons (agents went into Monitoring, SPL-2075) — at both a desktop width and a
 // phone width. Closing used to stay on /t/:id, which hides that rail and
 // leaves the Topics list with no way back.
 //
@@ -103,7 +103,7 @@ const seen = (p) => p.evaluate(() => {
     rail: vis(document.querySelector('[data-testid=sidebar-rail]')),
     channels: icon('channels'),
     messages: icon('dm'),
-    agents: icon('agents'),
+    people: icon('people'),
     archive: vis(document.querySelector('[data-test=archive-page]')),
     topic: vis(document.querySelector('[data-test=topic-section]')),
     browse: vis(document.querySelector('[data-test=topic-browse]')),
@@ -189,7 +189,7 @@ try {
       return !topicOn && rail && archive && !browse && location.pathname === '/archive'
     })
     const after = await seen(p)
-    ok(`${vp.name} closing the thread returns to Archive with the rail`, how && back && after.rail && after.channels && after.messages && after.agents && after.archive && !after.topic && !after.browse && after.path === '/archive', { how, ...after })
+    ok(`${vp.name} closing the thread returns to Archive with the rail`, how && back && after.rail && after.channels && after.messages && after.people && after.archive && !after.topic && !after.browse && after.path === '/archive', { how, ...after })
 
     const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
     ok(`${vp.name} no unexpected page errors`, errors.filter((e) => !benign(e)).length === 0, errors)

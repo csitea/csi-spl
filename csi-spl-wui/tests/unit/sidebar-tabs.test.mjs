@@ -34,10 +34,8 @@ describe('tabForPath', () => {
     assert.equal(tabForPath('/fi/t/abc'), 'channels')
     /* CONTROL: no path answers the gone tab */
     for (const p of ['/', '/t', '/t/abc', '/fi', '/topics']) assert.notEqual(tabForPath(p), 'topics', p)
-    /* CLE-77799: Boxes is a list-then-card tab like People / Agents */
-    assert.equal(tabForPath('/boxes'), 'boxes')
-    assert.equal(tabForPath('/boxes/box-a'), 'boxes')
-    assert.equal(tabForPath('/fi/boxes/box-wui'), 'boxes')
+    /* SPL-2075: Boxes and Agents are Monitoring tabs; an old link is Monitoring's */
+    for (const p of ['/boxes', '/boxes/box-a', '/fi/boxes/box-wui', '/agents', '/agents/c-001@box-a']) assert.equal(tabForPath(p), 'monitoring', p)
   })
 
   it('lobby, search and settings keep the reader\'s current tab', () => {

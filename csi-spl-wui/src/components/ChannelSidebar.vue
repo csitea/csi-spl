@@ -532,96 +532,6 @@
           </div>
         </div>
       </div>
-      <!-- CLE-77794: Agents - the tenant's agents, their kind shown plainly
-           (Claude / Antigravity / Grok / Mistral / Qwen, from the id prefix). The card at
-           /agents/<id@box> shows the kind, box and liveness. -->
-      <div
-        v-if="tab === 'agents' || (tabsBuilt.agents && !phone)"
-        v-show="tab === 'agents'"
-        id="sidebar-panel-agents"
-        class="sidebar-panel"
-        role="tabpanel"
-        aria-labelledby="sidebar-tab-agents"
-        data-testid="sidebar-panel-agents"
-      >
-        <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-agents" aria-describedby="sidebar-help-agents-tip">
-          {{ t('sidebar.agents') }}
-          <span id="sidebar-help-agents-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.agents') }}</span>
-        </h2>
-        <div class="sidebar-scroll">
-          <p v-if="agentRows.length === 0" class="muted topic-empty">{{ t('agents.none') }}</p>
-          <div v-for="a in agentRows" :key="a.label" class="nav-row">
-            <NuxtLink
-              class="nav-item"
-              :class="{ active: agentOpen === a.label }"
-              :aria-current="agentOpen === a.label ? 'true' : undefined"
-              :data-key="a.label"
-              :data-online="a.online ? '1' : '0'"
-              :to="localePath('/agents/' + encodeURIComponent(a.label))"
-            >
-              <UiIcon name="bot" :size="20" />
-              <span class="dot" :class="{ on: a.online }" />
-              <HumanName class="label" :id="a.id" :box="a.box" stacked />
-              <span class="muted agent-row__kind" data-testid="agent-kind">{{ t(a.kindKey) }}</span>
-            </NuxtLink>
-          </div>
-        </div>
-      </div>
-      <!-- CLE-77799: Boxes - the tenant's boxes (machines + the browser box),
-           their liveness and who is seated on each. The list is here, filtered
-           and grouped by status so it scales past one box; the chosen box's
-           card at /boxes/<id> lists the people AND agents on it. -->
-      <div
-        v-if="tab === 'boxes' || (tabsBuilt.boxes && !phone)"
-        v-show="tab === 'boxes'"
-        id="sidebar-panel-boxes"
-        class="sidebar-panel"
-        role="tabpanel"
-        aria-labelledby="sidebar-tab-boxes"
-        data-testid="sidebar-panel-boxes"
-      >
-        <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-boxes" aria-describedby="sidebar-help-boxes-tip">
-          {{ t('sidebar.boxes') }}
-          <span id="sidebar-help-boxes-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.boxes') }}</span>
-        </h2>
-        <div class="sidebar-scroll">
-          <p v-if="boxRowsAll.length === 0" class="muted topic-empty">{{ t('boxes.none') }}</p>
-          <template v-else>
-            <input
-              v-model="boxFilter"
-              class="boxes-filter"
-              type="search"
-              data-testid="boxes-filter"
-              :placeholder="t('boxes.filter')"
-              :aria-label="t('boxes.filter')"
-            >
-            <p class="muted boxes-count" data-testid="boxes-count">{{ t('boxes.count', { count: shownBoxes.length }) }}</p>
-            <p v-if="shownBoxes.length === 0" class="muted topic-empty" data-testid="boxes-no-match">{{ t('boxes.no_match') }}</p>
-            <template v-for="g in boxGroups" :key="g.key">
-              <div v-if="g.rows.length" class="boxes-group" :data-testid="'boxes-group-' + g.key">
-                <p class="boxes-group__head muted">{{ g.label }} <span class="boxes-group__n">{{ g.rows.length }}</span></p>
-                <div v-for="b in g.rows" :key="b.id" class="nav-row">
-                  <NuxtLink
-                    class="nav-item"
-                    :class="{ active: boxesOpen === b.id }"
-                    :aria-current="boxesOpen === b.id ? 'true' : undefined"
-                    :data-key="b.id"
-                    :data-online="b.online ? '1' : '0'"
-                    :to="localePath('/boxes/' + encodeURIComponent(b.id))"
-                  >
-                    <UiIcon name="server" :size="20" />
-                    <span class="dot" :class="{ on: b.online }" />
-                    <span class="label">{{ b.tag }}</span>
-                    <span v-if="b.browser" class="muted box-row__badge">{{ t('boxes.browser') }}</span>
-                  </NuxtLink>
-                  <!-- HUM-10 (t1 58857a17): "N people · M agents", each a link -->
-                  <LazyBoxSeatCounts :box="b" />
-                </div>
-              </div>
-            </template>
-          </template>
-        </div>
-      </div>
     <div class="sidebar-foot">
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
@@ -753,11 +663,10 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
-import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
-import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
-import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
+import { isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
@@ -778,7 +687,7 @@ import { flowDmPeers } from '~/utils/flow-keys.mjs'
 import { useUnread } from '~/composables/useUnread'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes' | 'calendar' | 'monitoring'
+type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -803,7 +712,7 @@ const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: railLabelKey(item, phone.value), movable: isRailMovable(item.id) })))
 const dmLabelKey = computed(() => railLabelKey(RAIL_BY_ID.get('dm') || { labelKey: 'sidebar.direct_messages' }, phone.value))
 const tab = ref<SideTab>('dm')
-const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'agents', 'boxes'])
+const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people'])
 /* the first render builds the open rail tab only. The other tabs
    (a v-show each) were built with it and hidden: on / the flow tab alone was
    915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page.
@@ -1129,11 +1038,9 @@ async function selectTab(next: SideTab, query?: Record<string, string>) {
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB && query) await navigateTo({ path: localePath('/issues'), query })
   else if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
-  /* CLE-77794: People / Agents land on their index (the "pick someone" card in
-     the middle pane); a click on a row then opens /people/<id> or /agents/<id>. */
+  /* CLE-77794: People lands on its index (the "pick someone" card in the
+     middle pane); a click on a row then opens /people/<id>. */
   if (next === PEOPLE_TAB && !phoneList && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
-  if (next === AGENTS_TAB && !phoneList && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
-  if (next === BOXES_TAB && !phoneList && tabForPath(route.path) !== BOXES_TAB) await navigateTo(localePath('/boxes'))
   if (next === CALENDAR_TAB && tabForPath(route.path) !== CALENDAR_TAB) await navigateTo(localePath('/calendar'))
   if (next === MONITORING_TAB && tabForPath(route.path) !== MONITORING_TAB) await navigateTo(localePath('/monitoring'))
 }
@@ -1158,7 +1065,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB) sidePane.setCurrent(id)
+  if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB) sidePane.setCurrent(id)
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -1213,36 +1120,15 @@ const peers = computed(() => (acting.value ? [] : pinRows(
     .filter((p) => unreadOf('dm:' + p.label) > 0 || (!hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label]))),
   pinnedPeers.value,
 )))
-/* CLE-77794: People lists every tenant member (the reader too, marked "you");
-   Agents lists every non-human agent on the roster, its kind from the id
-   prefix. Both read the same roster the DM list does, so no extra fetch. */
+/* CLE-77794: People lists every tenant member (the reader too, marked "you"),
+   read from the same roster the DM list does, so no extra fetch. (Its Agents
+   twin went into Monitoring, SPL-2075.) */
 const memberRows = computed(() => roster.people
   .filter((p) => isHumanId(p.id))
   .map((p) => ({ ...p, owner: roster.owners.includes(p.id) || Boolean(roster.humansDetail[p.id]?.owner) })))
-const agentRows = computed(() => roster.people
-  .filter((p) => isAgentId(p.id))
-  .map((p) => ({ ...p, kindKey: agentKindLabelKey(p.id) })))
 /* the open card's key, so its row reads as selected (aria-current) */
 const peopleOpen = computed(() => {
   const m = route.path.match(/\/people\/([^/]+)$/)
-  return m ? decodeURIComponent(m[1]) : ''
-})
-const agentOpen = computed(() => {
-  const m = route.path.match(/\/agents\/([^/]+)$/)
-  return m ? decodeURIComponent(m[1]) : ''
-})
-/* CLE-77799: Boxes groups the same roster by box - the machines and the browser
-   box, each with the people AND agents seated on it. Built for many boxes: a
-   filter on id/tag and a split by liveness, so a fleet stays readable. */
-const boxFilter = ref('')
-const boxRowsAll = computed(() => boxRows(roster.people, roster.boxes))
-const shownBoxes = computed(() => filterBoxes(boxRowsAll.value, boxFilter.value))
-const boxGroups = computed(() => [
-  { key: 'online', label: t('people.online'), rows: shownBoxes.value.filter((b) => b.online) },
-  { key: 'offline', label: t('people.offline'), rows: shownBoxes.value.filter((b) => !b.online) },
-])
-const boxesOpen = computed(() => {
-  const m = route.path.match(/\/boxes\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
 })
 /** #feedback shows its locale name and description; a stored description wins. */
@@ -1837,26 +1723,9 @@ async function onCreate() {
 }
 .topic-empty { padding: 8px 16px; margin: 0; }
 .retention { font-size: 11px; flex-shrink: 0; }
-/* CLE-77794: the trailing tag on a People row ("you" / "Owner") and the kind
-   label on an Agent row (Claude / Antigravity / …); both shrink last so the
-   name keeps the width, and the 72px rail hides them like the DM tail. */
-.people-row__tag,
-.agent-row__kind { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
-/* CLE-77799: the Boxes section - a filter, a count, and rows grouped by status.
-   The browser badge trails the box's name. */
-/* a box row makes room under its name for BoxSeatCounts */
-.nav-row > .nav-item:has(+ .box-row__counts) { padding-bottom: 20px; display: flex; justify-content: flex-start; }
-.box-row__badge { font-size: 11px; flex-shrink: 0; opacity: 0.85; }
-.boxes-filter {
-  width: 100%; box-sizing: border-box; margin: 4px 0 6px;
-  padding: 5px 8px; font: inherit; font-size: 13px;
-  color: var(--color-fg); background: var(--color-surface);
-  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-}
-.boxes-count { margin: 0 0 6px; font-size: 11px; }
-.boxes-group { margin-bottom: 6px; }
-.boxes-group__head { margin: 6px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-.boxes-group__n { opacity: 0.7; }
+/* CLE-77794: the trailing tag on a People row ("you" / "Owner"); it shrinks
+   last so the name keeps the width, and the 72px rail hides it like the DM tail. */
+.people-row__tag { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" */
 .self-row { cursor: default; }

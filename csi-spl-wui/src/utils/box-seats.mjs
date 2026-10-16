@@ -1,8 +1,8 @@
 // The box card's two seat lists, apart from box-rows.mjs so the home bundle
-// (the rail imports box-rows) carries none of it; only /boxes/<id> reads it.
+// (the rail imports box-rows) carries none of it; only /monitoring/boxes/<id> reads it.
 
 /* HUM-10 (t1 58857a17): "N people · M agents" - each count a link to its own
-   list on /boxes/<id> (owner: humans and agents "are fundamentally
+   list on /monitoring/boxes/<id> (owner: humans and agents "are fundamentally
    different"). These are the two lists' element ids, the links' hashes. */
 export const SEATS_PEOPLE = 'box-people'
 export const SEATS_AGENTS = 'box-agents'

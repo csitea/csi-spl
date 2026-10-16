@@ -1,6 +1,6 @@
 // Fleet load (rdb 0118, per-box bands rdb 0134, agent types rdb 0149, CI overflow rdb 0185) in a real browser, against
 // the mock bundle. Also the same per-box band set from the Boxes view
-// (/boxes/<id>, t1 05e0fa03).
+// (/monitoring/boxes/<id>, t1 05e0fa03).
 //
 // An admin of the operator workspace sees the card, edits the low and high
 // marks, reorders boxes, saves, reloads and sees the values. A workspace
@@ -192,16 +192,16 @@ try {
   await p.waitForSelector('[data-test=tenant-fleet-bands-empty]', { timeout: NAV_TIMEOUT })
   ok('16 reset clears every per-box band', (await bands(p)).length === 0)
 
-  // t1 05e0fa03: the same per-box band, set from the Boxes view (/boxes/<id>).
+  // t1 05e0fa03: the same per-box band, set from the Boxes view (/monitoring/boxes/<id>, SPL-2075).
   // One hub row: box-desk 40..70 set there is listed on the Fleet load page, and
   // its reset removes it there. Only the operator admin sees and saves it.
   const openBox = async () => {
-    await p.goto(server.base + '/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.goto(server.base + '/monitoring/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('[data-test=box-band]', { visible: true, timeout: NAV_TIMEOUT })
   }
   await openBox()
   const fleetLine = await text(p, '[data-test=box-band-fleet]')
-  ok('17 /boxes/box-desk shows the band block on the fleet band (50..80)',
+  ok('17 /monitoring/boxes/box-desk shows the band block on the fleet band (50..80)',
     (await p.$eval('[data-test=box-band]', (e) => e.getAttribute('data-own'))) === '0' && /50\.\.80/.test(fleetLine) &&
     (await value(p, '[data-test=box-band-low]')) === '50' && (await value(p, '[data-test=box-band-high]')) === '80', fleetLine)
   ok('17b the block says who may edit it', /admin/i.test(await text(p, '[data-test=box-band-who]')))
@@ -249,7 +249,7 @@ try {
     localStorage.setItem(key, JSON.stringify(row))
   }, FLEET_STORE_KEY)
   await openBox()
-  ok('21b /boxes/box-desk shows its own runner CPU cap', /60 %/.test(await text(p, '[data-test=box-band-cpu]')), await text(p, '[data-test=box-band-cpu]'))
+  ok('21b /monitoring/boxes/box-desk shows its own runner CPU cap', /60 %/.test(await text(p, '[data-test=box-band-cpu]')), await text(p, '[data-test=box-band-cpu]'))
   await setField(p, '[data-test=box-band-low]', '45')
   await p.click('[data-test=box-band-save]')
   await p.waitForSelector('[data-test=box-band-notice]', { visible: true, timeout: NAV_TIMEOUT })
@@ -336,7 +336,7 @@ try {
   ok('22 CONTROL: a non-admin cannot save (the hub refuses, nothing stored)',
     (await p.$eval('[data-test=box-band]', (e) => e.getAttribute('data-own'))) === '0' &&
     !(await p.evaluate((k) => localStorage.getItem(k) || '', FLEET_STORE_KEY)).includes('box-desk'))
-  await p.goto(server.base + '/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.goto(server.base + '/monitoring/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=box-band-hidden]', { timeout: NAV_TIMEOUT })
   ok('23 a non-admin does not see the band block', !(await p.$('[data-test=box-band]')))
 
@@ -393,7 +393,8 @@ try {
     localStorage.setItem(op, '1')
     localStorage.setItem(key, JSON.stringify({ low: 40, high: 80, box_order: ['box-desk', 'box-a'], boxes: { 'box-desk': { low: 20, high: 60 } }, agent_kinds_off: ['qwen'] }))
   }, FLEET_OPERATOR_KEY, FLEET_STORE_KEY)
-  const editables = (q, sel) => q.$$eval(sel + ' input, ' + sel + ' select, ' + sel + ' textarea, ' + sel + ' button', (els) => els.length)
+  /* SPL-2075: the boxes list's search filter (from the old Boxes section) reads, never writes */
+  const editables = (q, sel) => q.$$eval(sel + ' input:not([data-test=boxes-filter][type=search]), ' + sel + ' select, ' + sel + ' textarea, ' + sel + ' button', (els) => els.length)
   const unmarked = (q) => q.$$eval('[data-test=alloc-value]', (els) => els.filter((e) => !/^\(.+\)$/.test(e.querySelector('[data-test=alloc-planned]')?.textContent.trim() || '')).map((e) => e.getAttribute('data-key')))
   const boxFacts = '[data-test=monitoring-box-facts][data-box=box-desk]'
   for (const [w, h] of [[1400, 900], [390, 844]]) {

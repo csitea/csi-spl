@@ -9,8 +9,12 @@
  *
  *  Three modes, per browser (prefs.mjs, try/catch):
  *    titles — the first 90 chars of the body on one line, no attachments;
- *    rows   — (default) the body clipped at 5 text rows, or at 30% of the
- *             window when the card carries a picture; a grip drags it taller;
+ *    rows   — (default) the body clipped at 5 text rows; a grip drags it
+ *             taller. SPL-2121 (owner t1 28559e83, msg 5d02bac2): a card
+ *             with pictures is the same 5 rows ("the card msgs with the
+ *             proper height for those which contain imgs"): the pictures
+ *             count inside the box and are cut like long text (it had 30%
+ *             of the window);
  *    full   — nothing clipped (the card as it was before this change).
  *  SPL-945 (owner 2026-09-26, "the same way of changing the view should be
  *  applied to the threads msgs as well, aka the is_parent=0 msgs"): the right
@@ -26,7 +30,6 @@
  *  message list.
  */
 import { storageGet, storageSet } from './prefs.mjs'
-import { isPreviewableImage } from './file-preview.mjs'
 
 export const CARD_CLIP_KEY = 'spool-card-clip'
 /** SPL-945: the thread pane's mode, kept apart from the middle pane's. */
@@ -39,8 +42,6 @@ export const CARD_CLIP_MODES = Object.freeze(['titles', 'rows', 'full'])
 export const CARD_CLIP_DEFAULT = 'rows'
 /** Text rows a level-1 card shows in the default mode. */
 export const CARD_CLIP_ROWS = 5
-/** Share of the window a card with a picture may take in the default mode. */
-export const CARD_CLIP_PICTURE_SHARE = 0.3
 /** Characters of the body that make a card's title. */
 export const CARD_TITLE_CHARS = 90
 /** One keyboard step of the grip (ArrowDown / ArrowUp), in rows. */
@@ -217,15 +218,9 @@ export function cardTitle(body, max = CARD_TITLE_CHARS) {
   return chars.slice(0, max).join('').trimEnd() + '…'
 }
 
-/** True when one of the card's files shows as an inline picture. */
-export function cardHasPicture(files) {
-  if (!Array.isArray(files)) return false
-  return files.some((f) => f && isPreviewableImage(f.name, f.bytes))
-}
-
 /**
  * The clip height of a card body in px, or null for "not clipped".
- * @param {{ mode: string, picture: boolean, lineHeightPx: number, viewportPx: number, userPx?: number | null, notesPx?: number }} s
+ * @param {{ mode: string, lineHeightPx: number, userPx?: number | null, notesPx?: number }} s
  *   `userPx` is a grip drag on this card; it replaces the automatic height
  *   (taller or shorter), and is never below one text row.
  *   `notesPx` is the height of the note lines over the body ("moved from",
@@ -241,11 +236,8 @@ export function cardClipPx(s) {
     return Math.max(Math.round(line), Math.round(s.userPx))
   }
   const notes = Math.max(0, Number(s.notesPx) || 0)
-  let px = Math.round(line * CARD_CLIP_ROWS)
-  if (s.picture) {
-    const vp = Math.max(0, Number(s.viewportPx) || 0)
-    px = Math.max(px, Math.round(vp * CARD_CLIP_PICTURE_SHARE))
-  }
+  /* SPL-2121: the same 5 rows with or without a picture */
+  const px = Math.round(line * CARD_CLIP_ROWS)
   return Math.max(Math.round(line), Math.round(px - notes))
 }
 

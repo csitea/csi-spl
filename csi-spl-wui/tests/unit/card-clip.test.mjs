@@ -1,6 +1,6 @@
 // Level-1 card height (specs/033, utils/card-clip.mjs).
-// Modes: titles (first 90 code points) | rows (default, 5 text rows, or
-// 30% of the window when a picture is on the card) | full (not clipped).
+// Modes: titles (first 90 code points) | rows (default, 5 text rows, with or
+// without a picture, SPL-2121) | full (not clipped).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -16,7 +16,6 @@ import {
   cardClipPx,
   cardClipStyle,
   cardDragPx,
-  cardHasPicture,
   cardIsClipped,
   cardTitle,
   parseCardClipMode,
@@ -33,7 +32,6 @@ import {
   CARD_CLIP_DEFAULT_THREAD_KEY,
   cardClipBuiltinDefault,
 } from '../../src/utils/card-clip.mjs'
-import { PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -88,50 +86,37 @@ describe('cardTitle', () => {
   })
 })
 
-describe('cardHasPicture', () => {
-  it('is true for a small png and false for a pdf or an oversized png', () => {
-    assert.equal(cardHasPicture([{ name: 'shot.png', bytes: 100 }]), true)
-    assert.equal(cardHasPicture([{ name: 'notes.pdf', bytes: 100 }]), false)
-    assert.equal(cardHasPicture([{ name: 'shot.png', bytes: PREVIEW_MAX_BYTES + 1 }]), false)
-    assert.equal(cardHasPicture([]), false)
-    assert.equal(cardHasPicture(null), false)
-  })
-})
-
 describe('cardClipPx', () => {
-  it('clips text at 5 rows and a picture at 30% of the window, never under 5 rows', () => {
-    assert.equal(cardClipPx({
-      mode: 'rows', picture: false, lineHeightPx: 20, viewportPx: 1000,
-    }), 20 * CARD_CLIP_ROWS)
-    assert.equal(cardClipPx({
-      mode: 'rows', picture: true, lineHeightPx: 20, viewportPx: 1000,
-    }), 300)
-    assert.equal(cardClipPx({
-      mode: 'rows', picture: true, lineHeightPx: 20, viewportPx: 100,
-    }), 100)
+  it('clips every card at 5 rows', () => {
+    assert.equal(cardClipPx({ mode: 'rows', lineHeightPx: 20 }), 20 * CARD_CLIP_ROWS)
+  })
+
+  it('SPL-2121: a card with a picture gets the same 5 rows, whatever the window', () => {
+    for (const viewportPx of [100, 844, 1000, 2000]) {
+      assert.equal(cardClipPx({ mode: 'rows', picture: true, lineHeightPx: 20, viewportPx }), 20 * CARD_CLIP_ROWS)
+    }
   })
 
   it('lets a grip replace the automatic height, floored at one row', () => {
     assert.equal(cardClipPx({
-      mode: 'rows', picture: true, lineHeightPx: 20, viewportPx: 1000, userPx: 80,
+      mode: 'rows', lineHeightPx: 20, userPx: 80,
     }), 80)
     assert.equal(cardClipPx({
-      mode: 'rows', picture: false, lineHeightPx: 20, viewportPx: 1000, userPx: 5,
+      mode: 'rows', lineHeightPx: 20, userPx: 5,
     }), 20)
   })
 
   it('SPL-2104: takes the note lines over the body out of the automatic box, floored at one row', () => {
-    const base = { mode: 'rows', lineHeightPx: 20, viewportPx: 1000 }
-    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 18 }), 20 * CARD_CLIP_ROWS - 18)
-    assert.equal(cardClipPx({ ...base, picture: true, notesPx: 18 }), 300 - 18)
-    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 500 }), 20)
-    assert.equal(cardClipPx({ ...base, picture: false, notesPx: Number.NaN }), 20 * CARD_CLIP_ROWS)
+    const base = { mode: 'rows', lineHeightPx: 20 }
+    assert.equal(cardClipPx({ ...base, notesPx: 18 }), 20 * CARD_CLIP_ROWS - 18)
+    assert.equal(cardClipPx({ ...base, notesPx: 500 }), 20)
+    assert.equal(cardClipPx({ ...base, notesPx: Number.NaN }), 20 * CARD_CLIP_ROWS)
     /* a grip drag is the reader's own height: the notes do not change it */
-    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 18, userPx: 80 }), 80)
+    assert.equal(cardClipPx({ ...base, notesPx: 18, userPx: 80 }), 80)
   })
 
   it('does not clip titles or full', () => {
-    const base = { picture: true, lineHeightPx: 20, viewportPx: 1000, userPx: 400 }
+    const base = { lineHeightPx: 20, userPx: 400 }
     assert.equal(cardClipPx({ ...base, mode: 'titles' }), null)
     assert.equal(cardClipPx({ ...base, mode: 'full' }), null)
   })
@@ -155,27 +140,32 @@ describe('cardIsClipped', () => {
 
 describe('cardClipStyle (SPL-2087: every card the same height under the row cap)', () => {
   it('pins the box both ways, so a 1-row body gets white space and a long one is cut', () => {
-    const px = cardClipPx({ mode: 'rows', picture: false, lineHeightPx: 20.3, viewportPx: 900 })
+    const px = cardClipPx({ mode: 'rows', lineHeightPx: 20.3 })
     assert.deepEqual(cardClipStyle(px), { maxHeight: `${px}px`, minHeight: `${px}px` })
   })
-  it('follows a grip drag and the picture box the same way', () => {
-    assert.deepEqual(cardClipStyle(cardClipPx({ mode: 'rows', picture: false, lineHeightPx: 20, viewportPx: 900, userPx: 55 })), { maxHeight: '55px', minHeight: '55px' })
-    assert.deepEqual(cardClipStyle(cardClipPx({ mode: 'rows', picture: true, lineHeightPx: 20, viewportPx: 1000 })), { maxHeight: '300px', minHeight: '300px' })
+  it('follows a grip drag the same way', () => {
+    assert.deepEqual(cardClipStyle(cardClipPx({ mode: 'rows', lineHeightPx: 20, userPx: 55 })), { maxHeight: '55px', minHeight: '55px' })
   })
   it('sets nothing with no cap (full, titles) or before the first measurement', () => {
-    assert.equal(cardClipStyle(cardClipPx({ mode: 'full', picture: false, lineHeightPx: 20, viewportPx: 900 })), undefined)
+    assert.equal(cardClipStyle(cardClipPx({ mode: 'full', lineHeightPx: 20 })), undefined)
     assert.equal(cardClipStyle(null), undefined)
     assert.equal(cardClipStyle(Number.NaN), undefined)
   })
   it('the stylesheet fallback sets the same min-height as max-height on the clip box', () => {
     const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
-    for (const sel of ['.card-clip {', '.card-clip--picture {']) {
+    for (const sel of ['.card-clip {']) {
       const rule = vue.slice(vue.indexOf(sel), vue.indexOf('}', vue.indexOf(sel)))
       const max = /max-height:\s*([^;]+);/.exec(rule)?.[1]
       const min = /min-height:\s*([^;]+);/.exec(rule)?.[1]
       assert.ok(max, `${sel} has a max-height`)
       assert.equal(min, max, `${sel} min-height equals its max-height`)
     }
+  })
+  it('SPL-2121: the stylesheet has no taller picture box and no separate text cap', () => {
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    assert.equal(vue.includes('card-clip--picture'), false)
+    assert.equal(vue.includes('card-clip--pic-text'), false)
+    assert.equal(/30vh/.test(vue.slice(vue.indexOf('.card-clip {'))), false)
   })
 })
 

@@ -72,7 +72,6 @@ const READ = (id) => {
     lh: Math.round(lh * 10) / 10,
     rows: lh ? Math.round((h / lh) * 10) / 10 : null,
     clip: body ? body.getAttribute('data-clip') : null,
-    picture: !!(body && body.classList.contains('card-clip--picture')),
     previews: card.querySelectorAll('[data-test=link-preview]').length,
     inside,
     grip: !!card.querySelector('[data-testid=card-grip]'),
@@ -129,7 +128,7 @@ try {
     const id = (r && r.id) || MSG_ID
     if (r && r.found && r.previews > 0) {
       step(`${label} rows: the previews sit inside the card's clip box`, r.inside, r)
-      const cap = r.picture ? Math.max(r.lh * 5, vp.height * 0.3) : r.lh * 5
+      const cap = r.lh * 5
       step(`${label} rows: text + previews fit the 5-row box`, r.h <= Math.round(cap) + 4, { ...r, cap: Math.round(cap) })
     }
     await p.screenshot({ path: `${OUT}/${label}-rows.png` })

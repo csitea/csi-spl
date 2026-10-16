@@ -284,8 +284,8 @@
       <!--
         (specs/033 FR-020..FR-026): a level-1 card in the middle pane
         takes the pane's height mode. `titles` is the first 90 characters on one
-        line; `rows` clips the body and its attachments at 5 text rows, or at
-        30% of the window when a picture is on the card, and a grip under it
+        line; `rows` clips the body and its attachments (pictures and link
+        previews too, SPL-2121) at 5 text rows, and a grip under it
         drags it taller (the omnibox's grip, re-drawn here, not shared); `full`
         and a host that passes no mode shows all of it.
       -->
@@ -306,7 +306,7 @@
         v-else
         ref="clipEl"
         class="card-body"
-        :class="{ 'card-clip': clipOn, 'card-clip--picture': clipOn && picture, 'card-clip--pic-text': clipOn && picture && userPx == null, 'card-clip--cut': clipOn && clipped }"
+        :class="{ 'card-clip': clipOn, 'card-clip--cut': clipOn && clipped }"
         :style="clipStyle"
         :data-clip="clipOn ? (clipped ? 'cut' : 'fits') : undefined"
         data-testid="card-body"
@@ -652,7 +652,7 @@ const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access
 const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
 
 const { titleOnly, linkPreviews, title } = useCardTitle(props, editing, files)
-const { picture, clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, files, clipEl, clipInner)
+const { clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, clipEl, clipInner)
 const busyState = { removing, editError }
 const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
 const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)
@@ -1139,8 +1139,8 @@ onMounted(() => {
 }
 /*
  * the middle pane's clipped card. The fallback cap is the same
- * rule as utils/card-clip.mjs (5 rows of the body's 0.875rem x 1.45, or 30%
- * of the window with a picture) so the card is already tight before the first
+ * rule as utils/card-clip.mjs (5 rows of the body's 0.875rem x 1.45, with or
+ * without a picture, SPL-2121) so the card is already tight before the first
  * measurement; once measured, the inline max-height takes over. rem, so the
  * font-size setting moves it.
  */
@@ -1149,20 +1149,10 @@ onMounted(() => {
   min-height: calc(5 * 1.45 * 0.875rem);
   overflow: hidden;
 }
-.card-clip--picture {
-  max-height: max(calc(5 * 1.45 * 0.875rem), 30vh);
-  min-height: max(calc(5 * 1.45 * 0.875rem), 30vh);
-}
 /* SPL-1871: a ```poll form in a clipped card puts its answers line first,
    so who answered what reads within the 5 rows; the options follow */
 .card-clip :deep(.poll) { display: flex; flex-direction: column; }
 .card-clip :deep(.poll-answers) { order: -1; margin: 0 0 4px; }
-/* with a picture the text keeps its own 5 rows, so the picture is in view;
-   a grip drag or Enter lifts it with the rest */
-.card-clip--pic-text :deep(.msg-body) {
-  max-height: calc(5 * 1.45 * 0.875rem);
-  overflow: hidden;
-}
 /* clipped: the last line fades out, and the grip under it says there is more */
 .card-clip--cut {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);

@@ -1,8 +1,8 @@
 // Level-1 card clip + 3 height modes — live proof, signed in, against a deployed WUI.
 //
 // Owner, 2026-09-25 (specs/033 FR-ML-020..026): a level-1 card in
-// the middle pane is clipped at 5 text rows, or at 30% of the screen when a
-// picture is on it; a grip drags it taller; a control sets titles (first 90
+// the middle pane is clipped at 5 text rows (SPL-2121: with a picture too,
+// owner t1 28559e83; it had 30% of the screen); a grip drags it taller; a control sets titles (first 90
 // chars) / 5 rows (default) / full; the thread's root card is never clipped
 // (SPL-945: its replies follow the thread pane's own control).
 //
@@ -11,8 +11,7 @@
 //      box is <= 5 rows (+2px) of its measured line height, a grip is shown
 //   2. drag the grip 120px down -> the box grows by >= 100px
 //   3. post a level-1 message with a 300x900 PNG and 14 lines -> the box is
-//      30% of the window (+-2px) and taller than 5 rows; the text keeps its own
-//      5 rows so the picture is in view (>= 64px of it inside the box)
+//      the same 5 rows (+-2px) as a text card, cut, with the grip
 //   4. titles -> one line (<= 1.7 line heights), text <= 90 chars + ellipsis
 //   5. full -> no clip, the box is its whole content (> 5 rows)
 //   6. reload -> full is still the mode; rows again, reload -> rows
@@ -271,7 +270,7 @@ async function proof(p) {
   step('2 the grip drag grows the card', !!gb && c.boxH - before >= 100, { before, after: c.boxH })
   await p.screenshot({ path: `${OUT}/2-dragged.png` })
 
-  /* 3. a picture card is capped at 30% of the window */
+  /* 3. SPL-2121: a picture card is capped at the same 5 rows */
   const PIC = `${PROBE_MARK} clip picture ${run}`
   const png = `${OUT}/clip-tall-${run}.png`
   writeFileSync(png, tallPng(300, 900))
@@ -279,12 +278,10 @@ async function proof(p) {
   for (let i = 2; i <= 14; i++) plines.push(`picture line ${i} ${run}`)
   await send(p, plines, png)
   c = await waitCard(p, PIC, (x) => !x.missing && x.picture && x.clip === 'cut' && x.lh > 0, 30000)
-  const cap = Math.round(c.vh * 0.3)
-  step('3 picture: box is 30% of the window', c.picture && c.clip === 'cut' && within(c.boxH, cap, 2),
+  const cap = Math.round(c.lh * 5)
+  step('3 picture: box is the same 5 rows as a text card', c.picture && c.clip === 'cut' && within(c.boxH, cap, 2),
     { boxH: c.boxH, cap, vh: c.vh, picture: c.picture, clip: c.clip, contentH: c.contentH })
-  step('3 picture: taller than 5 rows', c.boxH > c.lh * 5, { boxH: c.boxH, rows5: Math.round(c.lh * 5) })
-  step('3 picture: its text keeps 5 rows, the picture is in view', c.textH <= Math.ceil(c.lh * 5) + 2 && c.picVisible >= 64,
-    { textH: c.textH, rows5: Math.round(c.lh * 5), picVisible: c.picVisible })
+  step('3 picture: the grip shows the rest', c.grip, { grip: c.grip })
   res.picture = c
   await p.screenshot({ path: `${OUT}/3-picture.png` })
 

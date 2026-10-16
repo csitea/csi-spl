@@ -128,7 +128,7 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
 | id | requirement | status |
 |---|---|---|
 | FR-ML-020 | A level-1 card in the MIDDLE pane (lobby, channel, DM) is clipped by default at 5 text rows of its body; the thread pane and the new-topic cards above it are never clipped | Implemented — `utils/card-clip.mjs` `cardClipPx`, `LiveFeed` `clip` (middle hosts only) |
-| FR-ML-021 | A card carrying an inline picture is clipped at 30% of the window height instead (never below 5 rows); its text keeps its own 5-row cap inside that box, so the picture is in view | Implemented — `cardHasPicture` + `cardClipPx`, `.card-clip--pic-text` |
+| FR-ML-021 | A card carrying an inline picture or a link preview takes the same 5-row box as a text card: the picture counts inside the box, is cut like long text, and the grip shows all of it. Superseded 2026-10-16 (SPL-2121, owner t1 28559e83 msg 5d02bac2): it had 30% of the window with its text capped at 5 rows | Implemented — `cardClipPx` (no picture branch); e2e `card-height-rows.test.mjs` |
 | FR-ML-022 | A clipped card shows it (the last line fades) and carries a grip like the omnibox's: a drag sets its height, from one row to all of it; Enter / Space shows all or goes back; Arrow Up / Down step two rows. The drag is per card and not stored | Implemented — `MessageCard.vue` `.card-grip` |
 | FR-ML-023 | A 3-way control in every middle-pane header: `titles` (first 90 characters of the body on one line), `5 rows` (default), `full`; a keyboard radiogroup | Implemented — `CardClipControl.vue` |
 | FR-ML-024 | The mode is one per browser and survives a reload (localStorage `spool-card-clip`, try/catch; a bad value reads as the default) | Implemented — `useCardClip.ts` |

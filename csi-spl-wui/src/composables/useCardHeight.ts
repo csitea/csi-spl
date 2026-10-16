@@ -12,7 +12,6 @@ import {
   cardClipPx,
   cardClipStyle,
   cardDragPx,
-  cardHasPicture,
   cardIsClipped,
   cardTitle,
 } from '~/utils/card-clip.mjs'
@@ -39,7 +38,7 @@ export function useCardTitle(props: ClipProps, editing: Ref<boolean>, files: Ref
 }
 
 /** What measure() reads off the rendered card, px. */
-interface Measured { lineHeightPx: Ref<number>, viewportPx: Ref<number>, contentPx: Ref<number>, notesPx: Ref<number> }
+interface Measured { lineHeightPx: Ref<number>, contentPx: Ref<number>, notesPx: Ref<number> }
 
 /* SPL-2104: the note lines right over the clip box ("moved from", the DM's
    topic, a pointer), top of the first to top of the box, px */
@@ -59,16 +58,11 @@ function measureBox(clipInner: Ref<HTMLElement | null>, m: Measured) {
   const lh = parseFloat(style.lineHeight)
   const fs = parseFloat(style.fontSize) || 14
   m.lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
-  m.viewportPx.value = window.innerHeight
-  /* a picture card caps its text at 5 rows inside the 30% box, so the
-     picture shows under it; the text cut counts toward "clipped" too */
-  const textCut = body !== inner ? Math.max(0, body.scrollHeight - body.clientHeight) : 0
-  m.contentPx.value = Math.ceil(inner.scrollHeight + textCut)
+  m.contentPx.value = Math.ceil(inner.scrollHeight)
   m.notesPx.value = Math.round(notesOver(inner.parentElement))
 }
 
-export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Ref<FileRef[]>, clipEl: Ref<HTMLElement | null>, clipInner: Ref<HTMLElement | null>) {
-  const picture = computed(() => cardHasPicture(files.value))
+export function useCardHeight(props: ClipProps, editing: Ref<boolean>, clipEl: Ref<HTMLElement | null>, clipInner: Ref<HTMLElement | null>) {
   /* SPL-1871 (owner t1 c3396e3c): a card holding a ```poll form takes the
      reader's 5 rows like any card, "the same as with the links previews": the
      options under the cut fade out and the grip shows them all (SPL-1637 had
@@ -76,21 +70,19 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
   const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
   /** A grip drag on this card, px; null = the automatic height. Never stored. */
   const userPx = ref<number | null>(null)
-  const m: Measured = { lineHeightPx: ref(0), viewportPx: ref(0), contentPx: ref(0), notesPx: ref(0) }
-  const { lineHeightPx, viewportPx, contentPx, notesPx } = m
+  const m: Measured = { lineHeightPx: ref(0), contentPx: ref(0), notesPx: ref(0) }
+  const { lineHeightPx, contentPx, notesPx } = m
   const clipPx = computed(() => {
     if (!clipOn.value || !lineHeightPx.value) return null
     return cardClipPx({
       mode: 'rows',
-      picture: picture.value,
       lineHeightPx: lineHeightPx.value,
-      viewportPx: viewportPx.value,
       userPx: userPx.value,
       notesPx: notesPx.value,
     })
   })
   const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))
-  /* Before the first measurement the stylesheet's own rows / 30vh box holds.
+  /* Before the first measurement the stylesheet's own 5-row box holds.
      SPL-2087: min = max, so a 1-row card is as tall as a cut one. */
   const clipStyle = computed(() => cardClipStyle(clipPx.value))
   const measure = () => measureBox(clipInner, m)
@@ -120,7 +112,7 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
   /* Another mode, or another message under this card: back to the automatic height. */
   watch(() => [props.clipMode, String(props.msg?.msg_id || '')], () => { userPx.value = null })
 
-  return { picture, clipOn, userPx, clipped, clipStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
+  return { clipOn, userPx, clipped, clipStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
 }
 
 /** The grip under a clipped card: drag it, click it, or step it by keys. */

@@ -70,7 +70,7 @@ const READ = (pane) => {
     const textMax = cs ? parseFloat(cs.maxHeight) : NaN
     return {
       clip: body ? body.getAttribute('data-clip') : null,
-      picture: !!(body && body.classList.contains('card-clip--picture')),
+      picture: !!card.querySelector('[data-test=file-preview] img'),
       h: box ? Math.round(box.height) : null,
       textClient: msgBody ? msgBody.clientHeight : null,
       textMax: Number.isFinite(textMax) ? Math.round(textMax) : null,
@@ -139,16 +139,11 @@ try {
   step('1 text cards are at most 5 rows', textCards.length > 0 && overText.length === 0, {
     n: textCards.length, over: overText.slice(0, 3), sample: textCards.slice(0, 2),
   })
+  /* SPL-2121: a picture card takes the same 5 rows as a text card */
   const pics = s.rows.filter((r) => r.picture)
-  const cap30 = Math.round(s.vh * 0.3) + 4
-  const overPic = pics.filter((r) => {
-    const textCap = r.lh ? r.lh * 5 + 4 : Infinity
-    const textOk = r.textClient == null || r.textClient <= textCap
-    const capInstalled = r.textMax != null && r.textMax <= textCap
-    return r.h > cap30 || !textOk || !capInstalled
-  })
-  step('2 picture cards stay within 30% and their text within 5 rows', pics.length > 0 && overPic.length === 0, {
-    n: pics.length, vh: s.vh, cap: Math.round(s.vh * 0.3), over: overPic.slice(0, 3), sample: pics.slice(0, 2),
+  const overPic = pics.filter((r) => !fiveRows(r))
+  step('2 picture cards are at most 5 rows too', pics.length > 0 && overPic.length === 0, {
+    n: pics.length, over: overPic.slice(0, 3), sample: pics.slice(0, 2),
   })
   await p.screenshot({ path: `${OUT}/1-rows.png` })
 

@@ -70,6 +70,13 @@ comments and issue descriptions.
    the WUI adds to every form opens the reply box for the owner's own words.
    The daily needs-owner list (`do_spl_owner_digest_post`) asks its steps
    so: one form, Go / Hold / No go per step.
+   An agent's free-text go-ask to the owner ("Shall I proceed?", "Waiting
+   for your go.") is refused at send, nothing sent (SPL-2280):
+   `do_spl_desk_post` FATALs, `spool-send.sh --to HUM-<n>` exits 3. Most
+   steps need no owner go (rounds rulebook 1.4): do it and report. A post
+   that carries a `poll` form, or names a real owner gate (terraform apply,
+   IAM, prd, a key or secret, GCP, an access change, a root `/etc` write, a
+   restart, a delete), is sent. `do_spl_desk_reply` does not check it yet.
 11. An internal object is written `type:id` (owner HUM-10, 2026-10-13, t1
    topic ae38a1a6): `msg:<uuid>` for a message, `topic:<uuid>` for a topic,
    the full uuid. The WUI links it to that object on its workspace's host

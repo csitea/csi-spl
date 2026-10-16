@@ -17,6 +17,9 @@
 # @description A channel topic is read by its human members: a body that opens
 # @description with **Live** is refused (FATAL, nothing sent) without its proof
 # @description (spl_desk_live_proof; how-to-post.md rule 16, SPL-2122).
+# @description A free-text go-ask ("Shall I proceed?") is refused the same way
+# @description unless it names an owner gate; a ```poll form always passes
+# @description (spl_go_ask_check, spawn-agents/lib/go-ask-guard.inc.sh, SPL-2280).
 # @description Prints one JSON line (env, tenant, box, agent, channel, kind,
 # @description the send result). No secret is read. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
@@ -60,6 +63,10 @@ do_spl_desk_post() {
   done
   spl_desk_attach_check "${files[@]}" || return 1
   spl_desk_live_proof "$body" || return 1
+  # shellcheck source=../features/spawn-agents/lib/go-ask-guard.inc.sh
+  source "$PROJ_PATH/src/bash/features/spawn-agents/lib/go-ask-guard.inc.sh" || return 1
+  local ask
+  ask="$(spl_go_ask_check "$body")" || { do_log "FATAL $(spl_go_ask_refusal "$ask")"; return 1; }
 
   local hub d
   hub="$SPL_HUB_URL"

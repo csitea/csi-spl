@@ -109,7 +109,7 @@ state table: spec 135 sections 4 and 5):
 | dispatch holder | files one issue per taken discussion from its first answer, in `eval`, description starting `Source: /t/<uuid>` and the restart card, key posted back in the topic (Q1, Q4); an evaluation or answer is an `answer` issue; sets `todo` once agreed; marks `blocked` + `needs-owner` while an owner question holds it (Q2); spawns the lane for the key; tells the owner the key, sha and release | files an issue for a question TO the owner; sets `done` on an unchecked claim |
 | `c-001` | refuses a placement without an issue key | files issues for a discussion it does not own |
 | lane | works one issue; cites its key in the landing commit (`feat(<area>, SPL-n)` or `Closes: SPL-n`); keeps the card current and comments a checkpoint per landed sha, blocker and rotation; ships the docs in the same lane or says `Docs: none (<why>)`; ends the issue with a reason if it stops without landing | touches another issue's status; sets its own issue `done` by hand; posts in the owner's topic |
-| the closer (hourly) | `do_spl_issue_close_landed` sets `done` when the citing commit lands (Q3) | closes an epic, or re-closes what the owner reopened |
+| the closer (every 5 min) | `do_spl_issue_close_landed` sets `done` when the citing commit lands (Q3) | closes an epic, or re-closes what the owner reopened |
 
 The key is enforced at the lane's exit and its rate measured weekly (Q6);
 `qas` is only for a review a human asked for (Q7); the branch model is

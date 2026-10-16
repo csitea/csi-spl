@@ -68,7 +68,7 @@ model of 1.1-1.3 does not change (Q5); the issue rides on it:
   `feat(<area>, SPL-n): ...`, or in a `Closes: SPL-n` trailer. Only a
   `fix|feat|perf|refactor` subject or that trailer closes; `Refs:` and bare
   mentions link without closing.
-- **Done is automatic**: the hourly closer (`do_spl_issue_close_landed`)
+- **Done is automatic**: the closer (`do_spl_issue_close_landed`, every 5 min)
   sets `done` when the citing commit lands on master (Q3). A docs-only push
   gets no deploy and no tag; its issue is done on the land.
 - **The key is enforced at the lane's exit**: `/exit-clean` refuses a `wip`

@@ -109,7 +109,7 @@ do not merge:
 | holds | the discussion, briefs, results, notes | condensed data: what is done or being done, the restart card, checkpoints |
 | status | none enforced (section 2) | `eval` -> `todo` -> `wip` -> `done`, plus `blocked`, `onhold`, `qas`, `diss` (spec 135 section 5) |
 | link | the taker posts the issue key back in the topic | `Source: /t/<uuid>` at the top of the description |
-| ends | a human closes the topic | `done` when its citing commit lands (hourly closer), or `diss` with a reason |
+| ends | a human closes the topic | `done` when its citing commit lands (the closer, every 5 min), or `diss` with a reason |
 
 - One issue per discussion an agent takes, filed from the first answer (Q1).
 - A question to the owner stays a message in the thread; it files no issue,

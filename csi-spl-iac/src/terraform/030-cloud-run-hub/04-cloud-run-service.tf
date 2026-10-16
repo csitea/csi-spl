@@ -3,8 +3,11 @@
 # Postgres (040) and the files bucket (050) hold everything.
 #
 # WebSocket on Cloud Run:
-#   - a WS is one request for its lifetime, so timeout = the longest a socket
-#     lives (3600 s max); the box reconnects with backoff + re-hello (OQ-05)
+#   - a WS is one request for its lifetime; the hub closes it at its max
+#     life (SPOOL_HUB_WS_MAX_LIFE, SPL-1981) and the box reconnects with
+#     backoff + re-hello (OQ-05). The request timeout sits above that max
+#     life and bounds what the hub never answers (SPL-2252: a stuck instance
+#     held 1751 such requests for the old 3600 s)
 #   - max_instances 1 in M1: every box socket terminates on the one instance,
 #     so delivery to a live to_box needs no cross-instance fan-out (OQ-05)
 #   - CPU always allocated (cpu_idle = false): the hub pushes frames and

@@ -87,8 +87,8 @@ variable "concurrency" {
 
 variable "timeout_seconds" {
   type        = number
-  description = "Request timeout = the longest a WS lives before the box reconnects (Cloud Run max 3600)."
-  default     = 3600
+  description = "Request timeout: the longest any request, a WS included, holds its instance (Cloud Run max 3600). Keep it above the hub's SPOOL_HUB_WS_MAX_LIFE (cnf hub.cloud_run.timeout_seconds, SPL-2252)."
+  default     = 600
 
   validation {
     condition     = var.timeout_seconds >= 1 && var.timeout_seconds <= 3600

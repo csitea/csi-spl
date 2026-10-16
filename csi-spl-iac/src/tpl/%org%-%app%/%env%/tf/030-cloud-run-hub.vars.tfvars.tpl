@@ -103,7 +103,16 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- set _ = run_sec.update({k: auth_sec[k]}) %}
 {%- endfor %}
 {%- endif %}
+{#- Cloud Run radar step 6 (SPL-2251): the pinned version of each INJECTED
+    secret, cnf hub.secret_versions (secret id -> version number). An injected
+    secret with no pin is left out here and 04's precondition fails the plan. #}
+{%- set pins = hub.get("secret_versions", {}) %}
+{%- set run_ver = {} %}
+{%- for sid in run_sec.values() if sid in pins %}
+{%- set _ = run_ver.update({sid: pins[sid] | string}) %}
+{%- endfor %}
 environment_variables        = {{ run_env | tojson }}
 secret_environment_variables = {{ run_sec | tojson }}
+secret_versions              = {{ run_ver | tojson }}
 auth_secret_ids              = {{ slot_ids | tojson }}
 github_app_key_secret_id     = {{ gh_sec["SPOOL_GITHUB_APP_KEY"] | tojson }}

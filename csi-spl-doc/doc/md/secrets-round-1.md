@@ -37,7 +37,9 @@ cd csi-spl-iac && ENV=prd SECRET=csi-spl-hub-stripe-secret-key ./run -a do_spl_s
 
 Before it changes anything, it reads the hub Cloud Run service and refuses if
 the hub pins this secret to a version it would disable. The hub reads
-`latest`. It never reads a value. Each disabled version prints its undo:
+`latest` until SPL-2251 is applied, then the cnf pin
+([secret rotation](secret-rotation.md)). It never reads a value. Each disabled
+version prints its undo:
 `gcloud secrets versions enable <n> --secret=<secret> --project=<project>`.
 
 ## 3. Drop roles/editor from the default compute SA (row 6)

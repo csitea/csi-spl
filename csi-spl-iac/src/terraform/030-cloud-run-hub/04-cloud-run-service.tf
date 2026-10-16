@@ -100,7 +100,7 @@ resource "google_cloud_run_v2_service" "hub" {
           value_source {
             secret_key_ref {
               secret  = env.value
-              version = "latest"
+              version = lookup(var.secret_versions, env.value, "") # unpinned: the precondition below fails the plan
             }
           }
         }
@@ -142,6 +142,12 @@ resource "google_cloud_run_v2_service" "hub" {
   ]
 
   lifecycle {
+    # SPL-2251: every injected secret is pinned to a version number
+    precondition {
+      condition     = length(setsubtract(toset(values(var.secret_environment_variables)), toset(keys(var.secret_versions)))) == 0
+      error_message = "Each injected secret needs a version pin in cnf hub.secret_versions: missing ${join(", ", sort(setsubtract(toset(values(var.secret_environment_variables)), toset(keys(var.secret_versions)))))}."
+    }
+
     # The image is set at CREATE time (var.image = cnf hub.image.ref, the
     # floor) and then belongs to the 20 pipeline: every deploy rolls the
     # service to the release version CI mints for its commit

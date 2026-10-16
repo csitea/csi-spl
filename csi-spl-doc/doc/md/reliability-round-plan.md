@@ -71,6 +71,27 @@ The reliability round builds on top of existing components without duplicating t
 - Networking round (SPL-2109, `networking round plan`): multi-uplink auto-switching, Wi-Fi powersave, USB tethering on `PC`.
 - Security round 1 (lanes c-184, c-187, c-547, c-550): GitHub permissions, prd account lockdown, sshd/ports, secrets scanning.
 
+### 2.2 Delineation from the 8-gap refactoring run (owner order 7a98c2d1 msg 7377d13a)
+
+The owner received an outside review containing 8 reliability and test gaps (t1 topic `7a98c2d1`, msg `a0d2eafc`). Per owner order (msg `7377d13a`), these 8 items are organized into a separate, dedicated refactoring run (2 lanes in parallel per wave):
+- **Wave 1:** Gap 7 (Hub background loop supervision) + Gap 4 (`DEPLOY.md` rollback procedure).
+- **Wave 2:** Gap 6 (DB backup restore drill in CI) + Gap 3 (`spawn-agents` failure mode test harness).
+- **Wave 3:** Gap 8 (Incident response escalation runbooks) + Gap 5 (Disaster recovery guidance & RTO).
+- **Wave 4:** Gap 2 (Cloud Run load & soak test in CI) + Gap 1 (Chaos & fault-injection harness).
+
+To preserve the owner's 12-row cap (msg `f7b5e824`) and avoid collision with active refactoring lanes, **no rows are added for these 8 gaps in the reliability round**. Where planned rows overlap with gap items, this round maintains strict boundaries and keeps only what the gap lanes do not cover:
+
+| Gap # | Review finding | Measured baseline | Assigned venue | Reliability round overlap & boundary |
+|---|---|---|---|---|
+| 01 | No chaos / fault-injection testing | Confirmed: 0 chaos tests in repo | Gap run (Wave 4) | **Row 11** (`cron-heartbeat-snitch`) monitors cron heartbeats passively. No fault injection or chaos harness is introduced here. |
+| 02 | No load or soak testing in CI | Confirmed: Cloud Run specifies 1000 concurrency/1h timeout, but 0 CI load tests exist | Gap run (Wave 4) | **Row 09** (`hub-synthetic-slo-monitor`) runs periodic 60s synthetic status probes (`/version`, `/live`). No load or stress testing is added here. |
+| 03 | `spawn-agents` tests prove isolation only, not failure modes | Confirmed: harness tests isolation/placement, not mid-spawn socket failure or corrupted `registry.tsv` | Gap run (Wave 2) | **Row 05** (`tmux-server-health-guard`) provides passive socket liveness monitoring; **Row 06** (`orphan-process-reaper`) provides passive host cleanup. Neither alters `spawn-agents` unit tests. |
+| 04 | `DEPLOY.md` has no rollback procedure | Confirmed: `grep -ci rollback DEPLOY.md` returns 0 | Gap run (Wave 1) | Zero overlap. Reliability round does not modify deployment workflows or `DEPLOY.md`. |
+| 05 | No disaster recovery guidance | Confirmed: past drills exist in specs 029, 044, 047, but no consolidated operational DR runbook | Gap run (Wave 3) | Zero overlap. Reliability round delivers runtime tools in `csi-spl-utl`, leaving DR architecture documentation to the gap run. |
+| 06 | DB backups (45_db-backup) never restore-drilled in CI | Confirmed: backup verification checks live container counts against DB, but has no restore drill into Cloud SQL or RTO drill | Gap run (Wave 2) | **Row 10** (`cloud-sql-backup-verify`) is strictly a read-only daily API verification of automated GCP Cloud SQL backup completion and age (< 26h). It intentionally omits database container restore drills (`spool_restore_drill`), which are left entirely to Gap 6. |
+| 07 | Hub background goroutines run fire-and-forget with no supervision | Confirmed: `cmd/spool/hub.go:138-142` starts sweeper, relay, wake, blocker, marketing in bare goroutines; unhandled panic crashes Cloud Run | Gap run (Wave 1) | Zero overlap. Reliability round does not alter hub Go source code or background goroutine loops. |
+| 08 | No incident-response runbooks beyond `SECURITY.md` | Partially wrong / true: `operations-and-maintenance-guide.md` §8 has 4 basic runbooks, but lacks on-call escalation, severity matrices, and status page procedures | Gap run (Wave 3) | Zero overlap. Reliability round only documents its own 12 new tools in the standard guide sections, leaving fleet incident escalation runbooks to Gap 8. |
+
 ## 3. The 12 concrete action proposals
 
 Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, executable manually and via cron (`DRY_RUN=1` default), tested with red controls, and documented across guides.
@@ -146,6 +167,7 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
   - Verifies socket permissions (accessible only by the host user session).
   - Checks tmux server process state (`ps -o stat= -p <tmux_pid>` must not be `D` or `Z`).
   - If socket is unresponsive or frozen for > 5 seconds, logs a fatal alert and attempts graceful socket recovery.
+- **Boundary with Gap 3 (spawn failure modes):** Row 05 provides passive continuous host socket liveness monitoring; it does not simulate mid-spawn failures in `spawn-agents`, which is handled by Gap 3.
 - **Why:** The entire fleet relies on a single tmux server. If tmux deadlocks or the socket hangs, all agent panes, watchdogs, and dispatchers are severed simultaneously.
 - **Command:** `cd csi-spl-utl && ./run -a do_fleet_tmux_health_guard`
 - **Target:** Probe completes in < 50 ms on responsive server; flags hung socket within 5 seconds.
@@ -162,6 +184,7 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
     4. Process command line is unassociated with any active agent in `/var/spool-hub/registry.tsv`, AND
     5. Process has been idle/stale > 30 minutes without active I/O or state change.
   - Sends `SIGTERM`, followed by `SIGKILL` only if still running after 10 s.
+- **Boundary with Gap 3 (spawn failure modes):** Row 06 reaps unlinked detached PPID 1 / zombie processes at the host level using strict non-pattern safety constraints; it does not test or modify the `spawn-agents` reaper harness, which is handled by Gap 3.
 - **Why:** When agent lanes crash or commands time out, background subshells, detached node processes, or compiler workers accumulate, consuming memory and pushing load average to 21.40.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_fleet_orphan_process_reap`
 - **Target:** Frees CPU and RAM leaks; never matches by pattern alone; 0 active agent lane processes disturbed.
@@ -177,6 +200,7 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
     4. Container is NOT on the permanent infrastructure whitelist (`con-csi-csi-spl-tf-runner`, `con-csi-csi-spl-tpl-gen`, `con-csi-csi-spl-conf-validator`, `csi-spl-lde-main-pg-1`).
   - If all conditions are met, removes container: `docker rm -f <container_id>`.
   - Scans for crashlooping containers (restart count > 100 with active status `Restarting`) and alerts dispatch holder.
+- **Boundary with test harness:** Row 07 passively cleans orphaned test containers older than 2h whose originating lane is confirmed inactive in `registry.tsv`; it does not modify ephemeral container provisioning in test suites.
 - **Why:** Ephemeral test containers (`c581-pg`, `c579-pg`) were found running for 14-17 hours; `con-bnc-cpt-gateway` has been crashlooping every 26 seconds for 3 months, leaking host ports and RAM.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_test_container_prune`
 - **Target:** Removes orphaned test containers older than 2h; never removes by pattern alone; frees bound localhost ports (32769..32959).
@@ -209,6 +233,7 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
   - Runs `gcloud sql backups list --instance=csi-spl-<env>-db --format=json` for `dev` and `prd`.
   - Verifies that the most recent backup has `status: SUCCESSFUL` and `endTime` within the last 26 hours.
   - Alerts if no successful backup exists within 26 hours or if the latest backup failed.
+- **Boundary with Gap 6 (restore drill):** Row 10 is strictly a read-only daily API verification of automated GCP Cloud SQL backup completion and age (< 26h). It intentionally does NOT perform database container restore drills or measure recovery time objective (RTO), which is handled entirely by Gap 6 (`spool_restore_drill`).
 - **Why:** Cloud SQL automated backups run daily, but backup failures (due to maintenance conflicts, disk lockouts, or quota limits) are silent unless explicitly queried.
 - **Command:** `cd csi-spl-utl && ENV=prd ./run -a do_cloud_sql_backup_verify`
 - **Target:** Exits 0 with backup ID and timestamp when backup is fresh (< 26h); exits 1 with alert if backup is stale.
@@ -220,6 +245,7 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
   - For every registered cron job, checks the last-modified timestamp of its log file in `/var/csi/csi-spl/<job>/<log>`.
   - Calculates age against expected schedule + grace period (e.g. 1-min job has 5-min grace; 10-min job has 25-min grace).
   - Emits a high-priority alert if any core cron becomes silent.
+- **Boundary with Gap 1 (chaos testing):** Row 11 passively inspects cron log file timestamps against scheduled intervals to detect dead-man's snitch silence; it does not inject faults, kill cron processes, or introduce chaos testing, which is handled by Gap 1.
 - **Why:** 23 critical crons run on `PC`. If the cron daemon crashes, an agent script aborts on an unhandled error, or a `flock` locks up, the cron stops running silently. Dead-man's snitch watches the watchers.
 - **Command:** `cd csi-spl-utl && ./run -a do_cron_heartbeat_snitch`
 - **Target:** Verifies all 23 crons in < 100 ms; flags silent crons with exact log path and expected update time.

@@ -75,6 +75,7 @@ Proposals are grounded in verified Linux system standards and cloud specificatio
 3. **Shell actions runnable by hand, in `csi-spl-utl` (msg 177ce9f3):** All actions live in `csi-spl-utl/src/bash/run/`, runnable as `./run -a do_<action>` (`DRY_RUN=1` default) and callable from cron.
 4. **Documentation across guides (msgs 4dde0ae9, a24f4e86):** Documented in DevOps guide, Developer guide, Operations and maintenance guide, and System guide.
 5. **Exactly 12 concrete actions for owner poll approval (msg f7b5e824):** Formatted as 12 standalone items ready for a single checkbox poll; build begins only upon explicit owner approval, structured in 3 parallel batches of 4 lanes.
+6. **Delineation from the 8-gap refactoring run (msg 7377d13a):** Confirmed the 8 outside review gaps empirically. Following owner direction, all 8 items are assigned to a separate, dedicated 2-lane refactoring run (Wave 1: gaps 7+4; Wave 2: gaps 6+3; Wave 3: gaps 8+5; Wave 4: gaps 2+1). The reliability round plan strictly respects the 12-row cap and maintains clear non-overlapping boundaries (e.g. Row 10 is read-only Cloud SQL backup metadata verification, leaving database restore drills to Gap 6; Rows 05/06/07 provide passive host hygiene and do not alter `spawn-agents` failure mode test suites).
 
 ## 5. Signature
 

@@ -119,10 +119,13 @@ const facts = (p) => p.evaluate((CLOCK) => {
   }
 }, CLOCK)
 // right of the version and flush with its container's end; on the phone strip
-// the version also sits right next to the note (glyph to text)
+// (SPL-2093, owner t1 ec6ca844) the clock sits 8 px in from the end ("2 mm on
+// the left") and the note moved 11 px left with the version held, so the
+// note-to-version gap is ~23 px
+const STRIP_END_GAP = 8
 const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.dy !== null && f.dy <= 4 && f.onScreen
-  && f.endGap !== null && Math.abs(f.endGap) <= 1
-  && (f.where !== 'strip' || (f.noteGap !== null && f.noteGap >= 0 && f.noteGap <= 14)))
+  && f.endGap !== null && Math.abs(f.endGap - (f.where === 'strip' ? STRIP_END_GAP : 0)) <= 1
+  && (f.where !== 'strip' || (f.noteGap !== null && f.noteGap >= 0 && f.noteGap <= 26)))
 // right of the version when one is drawn, else in the top bar
 const placed = (f) => Boolean(f && (f.verShown ? besideVersion(f) && f.where !== 'top-bar' : f.where === 'top-bar' && f.shown && f.inBarBox && f.onScreen))
 const WHERE = []

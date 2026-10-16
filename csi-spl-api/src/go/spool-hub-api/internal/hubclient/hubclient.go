@@ -772,6 +772,13 @@ func (s *Session) RSPCount(ctx context.Context, taskID string) (int, error) {
 				return 0, &HubError{Token: r.Error, Status: r.Status, Detail: r.Detail}
 			}
 		case <-s.done:
+			// A caller that cancelled sees its own ctx error: cancelling a
+			// write ctx closes the socket (coder/websocket), and the hub can
+			// hold the frame before that write returns, so the cancel can
+			// end the session too and both arms are ready at once.
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
 			return 0, fmt.Errorf("%w: socket closed", ErrUnreachable)
 		case <-ctx.Done():
 			return 0, ctx.Err()

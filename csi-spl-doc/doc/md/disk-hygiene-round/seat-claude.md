@@ -285,4 +285,49 @@ live lane's dir can go; the age must stay well above a lane's lifetime.
 
 ## 4. Signature
 
-Pending v1.0.
+**Not signed on v1.0 (ac35c4bf3).** Reviewed 2026-10-16 on sat. Two rows
+are blocking; the signature follows once a v1.1 fixes them. The v1.0 plan's
+section 6 shows `signed: c-282@sat on v1.0 consensus`: this seat never gave
+that signature, so that cell is not true and must read "pending".
+
+### 4.1 Blocking
+
+- **Row 06 (`ctr -n moby images prune`): no-op, or unsafe.**
+  `ctr images prune --help` on sat: `--all  Remove all unused images, not just
+  dangling ones (if all is not specified no images will be pruned)`. So the
+  command as written removes nothing; with `--all` it removes every image
+  that containerd sees as unused. A STOPPED docker container has no
+  containerd task, so its image would be at risk, and the docker-tag pins of
+  `prune-docker-images.sh` (PIN / KEEP checks) do not exist on that path.
+  Also unverified: "Docker engine prune commands do not touch containerd's
+  underlying image layers". When docker uses the containerd image store,
+  `docker image prune` is the tool that manages those images. On sat the row
+  does nothing: `docker info` -> overlay2, `du -sh /var/lib/containerd` ->
+  548K. Fix: measure on PC which store docker uses (`docker info`
+  `DriverStatus`) first; if it is the containerd store, the row is "lower
+  `BOX_SWEEP_BUILDER_CAP_PCT` / run the existing image prune", not `ctr`; box
+  column PC only.
+- **Row 05 (`/etc/tmpfiles.d/tmp.conf` with only the `/var/tmp` line) turns
+  off the `/tmp` age clean-up.** `man tmpfiles.d`: "Files in /etc/tmpfiles.d
+  override files with the same name in /usr/lib/tmpfiles.d". The whole file is
+  replaced, and Debian's `/usr/lib/tmpfiles.d/tmp.conf` holds two lines:
+  `Q /tmp 1777 root root 10d` and `q /var/tmp 1777 root root 30d` (measured).
+  Fix: the override carries both lines (the `/tmp` one unchanged), and the
+  test's red control checks that `/tmp` still has its 10d rule
+  (`systemd-tmpfiles --cat-config | grep '^Q /tmp'`).
+
+### 4.2 Not blocking (fix in the row briefs)
+
+- Row 01: `tmp-scratch-sweep.log` sits in the agent user's home. `man
+  logrotate`, `su`: "If logrotate runs with root privileges, it is recommended
+  to use the su directive to rotate files in directories that are directly or
+  indirectly in control of non-privileged users." Its stanza needs `su <user>
+  <group>` (from env, no literal user).
+- Row 09 reads the `START` lines of `box-disk-sweep.log`, which row 01 now
+  rotates (`rotate 7`, `compress`): the tracker must read the rotated `.gz`
+  files too, or take its own `df` sample.
+- Row 07: `LEVEL=normal` is no variable of `box-disk-sweep.sh`; the planted
+  level is `BOX_SWEEP_FREE_PCT` (e.g. `BOX_SWEEP_FREE_PCT=50`). `/var/tmp`
+  holds no worktrees; the worktree checks belong to the `workdirs` step.
+- Row 04: the table names `do_docker_volume_prune` while the row's command is
+  `do_prune_docker_images`; pick one.

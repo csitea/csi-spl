@@ -302,13 +302,19 @@ try {
   await t.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
   await t.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
   await t.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
-  /* start right after a step so the first run is a whole one */
-  await t.waitForFunction(() => Date.now() % 3000 < 300, { timeout: 5000, polling: 50 })
+  /* start right after a step so the first run is a whole one; the step is
+     the page's wall clock (every mark in step, T2), so the cycle may begin on
+     any drawing: expect it from the page clock, never always the hourglass */
+  const step = await t.evaluate(() => new Promise((resolve) => {
+    const poll = () => (Date.now() % 3000 < 300 ? resolve(Math.floor(Date.now() / 3000)) : setTimeout(poll, 50))
+    poll()
+  }))
+  const first = ROTATION[step % 3]
   const samples = await sampleAnims(t, 10000)
   const runs = runsOf(samples)
   const order = runs.map((r) => r.anim)
-  const cyclic = order.length >= 3 && order.every((a, i) => i === 0 || ROTATION.indexOf(a) === (ROTATION.indexOf(order[i - 1]) + 1) % 3)
-  ok('T1 rotate: hourglass, then robot ~3 s later, then brain, then the hourglass again', cyclic && order.slice(0, 4).join('>') === 'hourglass>robot>brain>hourglass', runs)
+  const want = [0, 1, 2, 3].map((k) => ROTATION[(ROTATION.indexOf(first) + k) % 3]).join('>')
+  ok('T1 rotate: hourglass, then robot ~3 s later, then brain, then the hourglass again (from the wall-clock step)', order.slice(0, 4).join('>') === want, { want, runs })
   const inner = runs.slice(1, -1)
   ok('T1 ... each drawing shows ~3 s', inner.length > 0 && inner.every((r) => r.to - r.from >= 2400 && r.to - r.from <= 3200), inner)
   await shot(t, 'T1-rotate')

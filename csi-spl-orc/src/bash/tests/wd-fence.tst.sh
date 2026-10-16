@@ -27,6 +27,13 @@
 #      another user) goes through the owner hop
 #   8. a wip push that failed while fenced is retried once at UNFENCED, for
 #      that lane only; a lane whose push succeeded is not pushed again
+#   9. SPL-2257: a box back from a 7 min suspend (its tick saw the gap and
+#      wrote resume) is not fenced for WD_FENCE_RESUME_GRACE (180 s) while it
+#      re-beats: the hub acks within the grace -> never fenced, one "RESUME
+#      detected" line; the hub still silent after the grace -> fenced as
+#      today; a box that did not sleep is fenced as in 3 (no regression).
+#      RED control: WD_FENCE_RESUME_GRACE=0 (the code before) fences on the
+#      first tick after the wake (the PC box 2026-10-16 20:01:16Z, 11 lanes TERMed)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -211,6 +218,39 @@ ticks8 150 150 ok
 ticks8 180 180 ok
 [[ "$(n acts 'wip c-050')" == 2 ]] && ! ls "$T/wd"/fence.wipfail.* >/dev/null 2>&1 &&
   pass "8. the retry runs once: no state left, no second retry" || fail "8. after: wips=$(n acts 'wip c-050') files=$(cd "$T/wd" && echo fence.wipfail.*)"
+
+# ---- 9. a resume from a suspend: re-beat first, fence only after the grace ------
+# sleep9 GRACE: the last ack at T0, the box asleep T0+30..T0+450, its first
+# tick awake at T0+454 writes resume (as spl_wd_tick does on a tick gap)
+sleep9() {
+  reset; ticks 0 0 ok
+  echo $(( T0 + 454 )) > "$T/wd/resume"; echo 424 > "$T/wd/resume.gap"
+  export WD_FENCE_RESUME_GRACE="$1"
+}
+sleep9 180
+ticks 454 574 silent
+[[ ! -e "$T/wd/fenced" && "$(n acts .)" == 0 && "$(n sent .)" == 0 ]] &&
+  pass "9. woke 424 s after the last ack, hub silent 120 s of the 180 s grace: not fenced" ||
+  fail "9. fenced inside the resume grace: $(cat "$T/acts" "$T/sent" 2>/dev/null)"
+[[ "$(n wd.log 'RESUME detected (slept 424s), fence held for 180s')" == 1 ]] &&
+  pass "9. one 'RESUME detected (slept 424s), fence held for 180s' line" || fail "9. resume lines: $(grep RESUME "$T/wd.log")"
+ticks 604 604 ok
+ticks 634 664 ok
+[[ ! -e "$T/wd/fenced" && "$(n acts .)" == 0 ]] && pass "9. the hub acks inside the grace: never fenced, nothing TERMed" ||
+  fail "9. acked inside the grace yet fenced: $(cat "$T/acts" 2>/dev/null)"
+sleep9 180
+ticks 454 634 silent
+[[ -e "$T/wd/fenced" ]] && grep -qx "kill -TERM 150" "$T/acts" &&
+  pass "9. the hub still silent after the grace: fenced as today" || fail "9. not fenced after the grace: $(cat "$T/acts" 2>/dev/null)"
+sleep9 0
+ticks 454 454 silent
+[[ -e "$T/wd/fenced" ]] && grep -qx "kill -TERM 150" "$T/acts" &&
+  pass "9. RED control: grace 0 (the code before) fences the first tick after the wake" ||
+  fail "9. RED control: grace 0 did not fence at the wake: $(cat "$T/acts" 2>/dev/null)"
+sleep9 180; rm -f "$T/wd/resume"
+ticks 30 120 silent
+[[ -e "$T/wd/fenced" ]] && pass "9. no resume: hub silent 120 s -> fenced as in 3" || fail "9. no resume yet not fenced"
+unset WD_FENCE_RESUME_GRACE
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

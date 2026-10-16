@@ -272,6 +272,16 @@ for c-004 on dev and prd, 2026-09-25T17:07Z, n=1 each:
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev AGENT_USER=<agent user> MCP_AS=<AGENT_ID> MCP_CONTROL_AS=<another agent id> ./run -a do_spl_agent_mcp_probe'
 ```
 
+`spool-dev` is registered only for an agent seated in dev on this box
+(SPL-2106, `MCP_SEAT_ENVS`, default `dev`): a lane is seated in prd only, so a
+user-scope `spool-dev` failed at every start (`<ID> has 0 seats on <box> in
+dev`) and taught agents to read past "failed to connect". The action removes
+the user-scope `spool-dev` from every CLI and gives each LIVE claude agent with
+exactly one dev seat its own `spool-dev` at local scope (the project = its
+cwd); other CLIs have no per-agent scope, so a seated grok/agy/qwen/mistral
+agent is named in the log and gets none. Seating an agent in dev later does
+not re-run it: re-run the install action above, then restart that CLI.
+
 If your session has no spool servers, use 6.1 - 6.4.
 
 <a id="ws-doc-d68f1b37-61de-4543-a11c-a4288949fe7c"></a>

@@ -11,6 +11,8 @@
 #     spool settings (not its notify hook, not the caller's env)
 #   - the install writes both halves, backs up a replaced agent script,
 #     registers each CLI once, and refuses a binary that ignores --as
+#   - SPL-2106: an env of MCP_SEAT_ENVS is registered per seated live agent
+#     only (claude local scope at its cwd); its user-scope entry is removed
 #   - mistral vibe (specs/110 T008): one [[mcp_servers]] entry per env in a stub
 #     ~/.vibe/config.toml, idempotent; the mirror reads a fixture session file
 # CONTROL: a box half that dropped --as would serve unseated; the argv check
@@ -103,15 +105,22 @@ AH="$T/agent-home"; mkdir -p "$AH/.local/bin"
 printf '#!/bin/sh\necho old\n' >"$AH/.local/bin/spool-mcp"; chmod +x "$AH/.local/bin/spool-mcp"
 cat >"$AH/.local/bin/claude" <<'EOF'
 #!/usr/bin/env bash
-# fake claude: `mcp add -s user <name> -- <cmd> <args...>` into ~/.claude.json
-[ "$1 $2" = "mcp add" ] || exit 2
+# fake claude: `mcp add -s <user|local> <name> -- <cmd> <args...>` and
+# `mcp remove -s <user|local> <name>` on ~/.claude.json (local = projects.<cwd>)
+[ "$1 $2" = "mcp add" ] || [ "$1 $2" = "mcp remove" ] || exit 2
 echo "claude $*" >>"$FAKE_LOG"
-name="$5"; shift 6
-python3 - "$FAKE_HOME/.claude.json" "$name" "$@" <<'PY'
+op="$2" scope="$4" name="$5"; shift 5; [ "$op" = add ] && shift
+python3 - "$FAKE_HOME/.claude.json" "$op" "$scope" "$name" "$@" <<'PY'
 import json, os, sys
-p, name, cmd, *args = sys.argv[1:]
+p, op, scope, name, *rest = sys.argv[1:]
 d = json.load(open(p)) if os.path.exists(p) else {}
-d.setdefault("mcpServers", {})[name] = {"type": "stdio", "command": cmd, "args": args, "env": {}}
+s = d.setdefault("projects", {}).setdefault(os.getcwd(), {}).setdefault("mcpServers", {}) if scope == "local" else d.setdefault("mcpServers", {})
+if op == "add":
+    s[name] = {"type": "stdio", "command": rest[0], "args": rest[1:], "env": {}}
+elif name in s:
+    del s[name]
+else:
+    sys.exit(1)
 json.dump(d, open(p, "w"))
 PY
 EOF
@@ -121,14 +130,19 @@ cat >"$AH/.local/bin/grok" <<'EOF'
 case "$1 $2" in
   "mcp list") cat "$FAKE_HOME/grok.list" 2>/dev/null ;;
   "mcp add")  echo "grok $*" >>"$FAKE_LOG"; echo "  $5: $6 $8" >>"$FAKE_HOME/grok.list" ;;
+  "mcp remove") echo "grok $*" >>"$FAKE_LOG"; grep -v "^  $5:" "$FAKE_HOME/grok.list" >"$FAKE_HOME/grok.tmp"; mv "$FAKE_HOME/grok.tmp" "$FAKE_HOME/grok.list" ;;
   *) exit 2 ;;
 esac
 EOF
 cat >"$AH/.local/bin/qwen" <<'EOF'
 #!/usr/bin/env bash
 # fake qwen: `mcp add -s user --trust --description <d> <name> <cmd> <args...>` into ~/.qwen/settings.json
-[ "$1 $2" = "mcp add" ] || exit 2
+[ "$1 $2" = "mcp add" ] || [ "$1 $2" = "mcp remove" ] || exit 2
 echo "qwen $*" >>"$FAKE_LOG"
+if [ "$2" = remove ]; then
+  python3 -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); del d["mcpServers"][sys.argv[2]]; json.dump(d, open(p, "w"))' "$FAKE_HOME/.qwen/settings.json" "$5"
+  exit
+fi
 shift 7; name="$1"; shift
 mkdir -p "$FAKE_HOME/.qwen"
 python3 - "$FAKE_HOME/.qwen/settings.json" "$name" "$@" <<'PY'
@@ -150,7 +164,7 @@ EOF
 chmod +x "$T/build.sh"
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_AGENT_MCP_DIR="$T/inst/mcp" SPL_AGENT_MCP_HOME="$AH" \
-    SPL_AGENT_MCP_BUILD="$T/build.sh" FAKE_HOME="$AH" FAKE_LOG="$T/cli.log" PATH="$AH/.local/bin:$PATH" "$@" bash -c '
+    SPL_AGENT_MCP_BUILD="$T/build.sh" FAKE_HOME="$AH" FAKE_LOG="$T/cli.log" PATH="$AH/.local/bin:$PATH" MCP_SEAT_ENVS= "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -343,6 +357,45 @@ os.makedirs(os.path.join(sys.argv[2], ".vibe"), exist_ok=True)
 open(os.path.join(sys.argv[2], ".vibe", "hooks.toml"), "w").write('command = "exec python3 /x/spool-mirror.py hook --vibe"\n')
 assert amc.hooks_of("mistral", [], sys.argv[2]) == (os.path.join(sys.argv[2], ".vibe", "hooks.toml"), "/x/spool-mirror.py")
 EOF
+
+# ── 8. SPL-2106: spool-dev only for an agent seated in dev ──────────────────
+# Fakes only: a seat is an empty dir of the fixture desk tree, a live agent a
+# line of the SPL_AGENT_MCP_LIVE file. c-001 (claude) and g-001 (grok) are
+# seated in dev on box-x, c-550 (claude) is not and carries a stale local entry.
+SEAT="$T/seat/cloud"; WT="$T/wt"
+mkdir -p "$SEAT/dev/desk/t1/box-x/spool/c-001" "$SEAT/dev/desk/t1/box-x/spool/g-001" "$SEAT/dev/desk/t1/other-box/spool/c-550" \
+  "$WT/c-001" "$WT/c-550" "$WT/g-001"
+printf 'claude c-001 %s\nclaude c-550 %s\ngrok g-001 %s\n' "$WT/c-001" "$WT/c-550" "$WT/g-001" >"$T/live"
+(cd "$WT/c-550" && FAKE_HOME="$AH" FAKE_LOG="$T/cli.log" "$AH/.local/bin/claude" mcp add -s local spool-dev -- "$AH/.local/bin/spool-mcp" dev)
+seat() { in_orc AGENT_USER="$ME" MCP_CLIS="claude grok qwen mistral" MCP_SEAT_ENVS=dev SPOOL_DESK_BOX=box-x \
+  SPL_AGENT_MCP_STATE_ROOT="$SEAT" SPL_AGENT_MCP_LIVE="$T/live" "$@"; }
+cj() {  # <python expr on d = ~/.claude.json>: prints its value
+  python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); p = d.get("projects", {}); print(eval(sys.argv[2]))' "$AH/.claude.json" "$1"
+}
+loc() { cj "p.get('$WT/$1', {}).get('mcpServers', {}).get('spool-dev', {}).get('args')"; }
+[[ "$(cj "'spool-dev' in d['mcpServers']")" == True && "$(loc c-550)" == "['dev']" ]] &&
+  pass "8. CONTROL (red before): user-scope spool-dev reaches every agent, c-550 has a stale local one" || fail "8. fixture: $(cat "$AH/.claude.json")"
+cp "$AH/.claude.json" "$T/cj.before"; : >"$T/cli.log"
+seat; rc=$?
+[[ $rc -eq 0 && ! -s "$T/cli.log" ]] && cmp -s "$T/cj.before" "$AH/.claude.json" && grep -q 'DRY_RUN would: register spool-dev for c-001' "$T/out" &&
+  grep -q 'DRY_RUN would: remove spool-dev of c-550' "$T/out" && pass "8. the dry run names the plan and touches nothing" || fail "8. dry: rc $rc $(cat "$T/cli.log" "$T/out")"
+seat DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] || fail "8. seat run: rc $rc $(cat "$T/out")"
+[[ "$(cj "'spool-dev' in d['mcpServers']")" == False && "$(cj "d['mcpServers']['spool-prd']['args']")" == "['prd']" ]] &&
+  pass "8. claude: the user-scope spool-dev is removed, spool-prd kept" || fail "8. claude user scope: $(cat "$AH/.claude.json")"
+[[ "$(loc c-001)" == "['dev']" ]] && pass "8. seated c-001 gets spool-dev in its cwd" || fail "8. c-001: $(cat "$AH/.claude.json" "$T/out")"
+[[ "$(loc c-550)" == None ]] && pass "8. unseated c-550: no spool-dev (stale local entry removed)" || fail "8. c-550: $(cat "$AH/.claude.json")"
+! grep -q 'spool-dev:' "$AH/grok.list" && grep -q 'spool-prd:' "$AH/grok.list" && [[ "$(vibe_count spool-dev)" == 0 && "$(vibe_count spool-prd)" == 1 ]] &&
+  python3 -c 'import json, sys; s = json.load(open(sys.argv[1]))["mcpServers"]; assert "spool-dev" not in s and "spool-prd" in s' "$AH/.qwen/settings.json" &&
+  pass "8. grok, qwen and mistral: no user-scope spool-dev, spool-prd kept" || fail "8. other CLIs: $(cat "$AH/grok.list" "$AH/.qwen/settings.json" "$AH/.vibe/config.toml")"
+grep -q 'g-001 (grok) has a seat in dev but grok has no per-agent scope' "$T/out" && grep -q 'spool-dev: 1 live claude agent(s) of .* seated in dev on box-x, 1 not' "$T/out" &&
+  pass "8. a seated agent of a CLI without per-agent scope is named; the counts are logged" || fail "8. log: $(cat "$T/out")"
+: >"$T/cli.log"; seat DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && ! -s "$T/cli.log" ]] && pass "8. a re-run changes nothing" || fail "8. re-run: rc $rc $(cat "$T/cli.log")"
+mkdir -p "$SEAT/dev/desk/t1/box-x/spool/c-550"; seat DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(loc c-550)" == "['dev']" ]] && pass "8. seated later in dev, a re-run adds c-550's spool-dev back" || fail "8. re-seat: rc $rc $(cat "$T/out")"
+mkdir -p "$SEAT/dev/desk/t2/box-x/spool/c-001"; seat DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(loc c-001)" == None ]] && pass "8. two dev seats (spool-mcp refuses them, exit 5): no spool-dev for c-001" || fail "8. ambiguous: rc $rc $(cat "$T/out")"
 
 echo "agent-mcp: $fails failure(s)"
 exit $(( fails > 0 ))

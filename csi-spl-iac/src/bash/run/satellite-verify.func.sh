@@ -187,6 +187,8 @@ for u in "$O" "$A"; do
   echo "user $u uid $(id -u "$u")"
   case "$(getent passwd "$u" | cut -d: -f6)" in /mnt/data/home/*) echo "user $u home-data" ;; esac
   grep -qx "$u ALL=(ALL) NOPASSWD:ALL" "/etc/sudoers.d/90-$u-nopasswd" 2>/dev/null && echo "user $u sudo"
+  # the agent restricted by do_spl_agent_sudoers (SPL-2187): any user but root, no password
+  [ "$u" = "$A" ] && grep -qx "$u ALL=(ALL,!root) NOPASSWD: ALL" "/etc/sudoers.d/90-$u-nopasswd" 2>/dev/null && echo "user $u sudo"
   id -nG "$u" | tr ' ' '\n' | grep -qx docker && echo "user $u docker"
   [ -f "/var/lib/systemd/linger/$u" ] && echo "user $u linger"
 done

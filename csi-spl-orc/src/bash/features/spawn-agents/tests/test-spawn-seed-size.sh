@@ -19,14 +19,27 @@ git -C "$T_TMP/repo" push -q origin master 2>/dev/null
 # become the live install root and a mktemp-length dir.
 T_ROOT="${T_FEAT%/csi-spl-orc/src/bash/features/spawn-agents}"
 T_ROOT_REAL="$(readlink -f "$T_ROOT")"
+# A root is replaced only on a path boundary (followed by / or the end): a
+# checkout that is a prefix of the live root (/opt/csi/csi-spl) must not turn
+# /opt/csi/csi-spl-desk-cron, or its own first-pass output, into
+# ...-desk-cron-desk-cron (+50 B, SPL-2206).
+seed_root() {  # S ROOT LIVE
+  local s="${1//"$2/"/"$3/"}"
+  case "$s" in *"$2") s="${s%"$2"}$3" ;; esac
+  printf '%s' "$s"
+}
 seed_norm() {
   local s="$1" tmp_real
   tmp_real="$(readlink -f "$T_TMP")"
-  s="${s//"$tmp_real"//tmp/tmp.XXXXXXXXXX}"; s="${s//"$T_TMP"//tmp/tmp.XXXXXXXXXX}"
-  s="${s//"$T_ROOT_REAL"//opt/csi/csi-spl-desk-cron}"; s="${s//"$T_ROOT"//opt/csi/csi-spl-desk-cron}"
+  s="$(seed_root "$s" "$tmp_real" /tmp/tmp.XXXXXXXXXX)"; s="$(seed_root "$s" "$T_TMP" /tmp/tmp.XXXXXXXXXX)"
+  s="$(seed_root "$s" "$T_ROOT_REAL" /opt/csi/csi-spl-desk-cron)"; s="$(seed_root "$s" "$T_ROOT" /opt/csi/csi-spl-desk-cron)"
   printf '%s' "$s"
 }
 check "control: the size check normalises a checkout path" [ "$(seed_norm "x ${T_ROOT}/a ${T_TMP}/b")" = "x /opt/csi/csi-spl-desk-cron/a /tmp/tmp.XXXXXXXXXX/b" ]
+# A checkout root that is a prefix of the live root, as pwd and readlink see it.
+eq "control: a prefix checkout root leaves the live root alone" \
+  "x /opt/csi/csi-spl-desk-cron/a /opt/csi/csi-spl-desk-cron/b 'cd /opt/csi/csi-spl' /opt/csi/csi-spl-desk-cron" \
+  "$(T_ROOT=/opt/csi/csi-spl T_ROOT_REAL=/opt/csi/csi-spl seed_norm "x /opt/csi/csi-spl/a /opt/csi/csi-spl-desk-cron/b 'cd /opt/csi/csi-spl' /opt/csi/csi-spl")"
 
 for k in claude grok agy qwen mistral; do
   id=CLE-79; [ "$k" = grok ] && id=GRK-79; [ "$k" = agy ] && id=AGY-79

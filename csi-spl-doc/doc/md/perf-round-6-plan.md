@@ -16,12 +16,16 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4; owner msg 21
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (push caps, bands, R1-R16), by pointer, not copied.
 Issue: SPL-2051.
 
-**Status: v0.1, PROPOSED**. The rows spawn once v1.0 is signed by the expert panel.
+**Status: v1.0 DRAFT (folded panel findings; pending takeover seat review & sign-off)**. The rows spawn once v1.0 is signed by the expert panel.
 
 Editor: **a-591@<box>** (agy).
 
-**One sha:** every metric is measured on **`4251b33cf`** (`4251b33cf55ba3023678fe67d31e8e68e5b0460c`, `origin/master`, 2026-10-15), n=3 per metric unless stated.
-**Disjoint from Round 13:** this plan touches **0 files** shared with Round 13 (`refactor-round-13-plan.md`: `MessageCard.vue`, `ChannelSidebar.vue`, `MessageComposer.vue`, `useMobileStack.ts`, `useMsgShortcuts.ts`, `usePaneWidths.ts`, `useScrollAnchor.ts`, `useSubmitKey.ts`, `src/utils/poll-fence.mjs`, `src/stores/editMode.ts`).
+**One sha:** baseline metrics measured on **`4251b33cf`** (`4251b33cf55ba3023678fe67d31e8e68e5b0460c`, `origin/master`, 2026-10-15) and verified on **`4a3781047`** (claude seat `c-250@sat`, `a4b20dec6`), n=3 per metric unless stated.
+**Cross-round coordination with Round 13 (`refactor-round-13-plan.md`):**
+- Row 03 (`ChannelSidebar.vue`) runs after r13-04 (decomposing `ChannelSidebar.vue`).
+- Rows 04 and 08 (`pages/issues.vue`) run after r13-06 (decomposing `issues.vue` script <= 1200 lines). Row 08 respects the `sfc-script-size` ceiling in force (r13-02).
+- Row 06 (`LiveFeed.vue`) runs after r13-07 (`scroll-anchor.mjs` refactor) and adds <= 25 script lines (under 500-line ceiling).
+- All other rows (01, 02, 05, 07, 09, 10, 11, 12) have **zero file overlap** with Round 13.
 
 ---
 
@@ -29,9 +33,9 @@ Editor: **a-591@<box>** (agy).
 
 - One row = one practice = one lane, at the sites named and nowhere else.
 - Every row keeps all existing features and behaviour, proven with a test or a **red control**: the check fails or measures worse before the change and passes / measures better after.
-- **Paths:** `wui:` = `csi-spl-wui/`. Lines as of `4251b33cf`.
-- **Box:** the preferred box (`sat` or other available box); the spawner's box pick may move a row (no pin).
-- **Vendor:** the owner mix (`LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix` on `4251b33cf`: simple_coding -> grok, backup claude/mistral; complex_coding -> claude, backup mistral; tests -> claude, backup mistral/grok), then R14.
+- **Paths:** `wui:` = `csi-spl-wui/`. Lines as of `4a3781047` / current master.
+- **Box:** the preferred box (`sat` or other available box); the spawner box pick may move a row (no pin).
+- **Vendor:** the owner mix (`LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix`: simple_coding -> claude / mistral takeover; complex_coding -> claude; test -> claude), then R14. (Grok not seated due to fleet quota).
 - **Subject** (R6 reads it): `<type>(p6-NN-<slug>, SPL-<row issue>): ...`.
 - **R7 line, this round:** the review line carries the run it claims:
   `review: <id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <id>@<box>:<path>`.
@@ -39,7 +43,7 @@ Editor: **a-591@<box>** (agy).
 
 ---
 
-## 2. Baseline empirical measurements on `4251b33cf`
+## 2. Baseline empirical measurements on `4251b33cf` and `4a3781047`
 
 All measurements conducted against a production-identical bundle generated via `nuxt generate` (`.output/public`), served via `serve-generated.mjs` on an isolated free port, and driven via Chrome DevTools Protocol (CDP) under Headless Chrome. $n=3$ iterations per route and interaction; median values reported below.
 
@@ -51,64 +55,51 @@ python3 /opt/csi/csi-spl/csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
   --pub csi-spl-wui/.output/public \
   --budgets /opt/csi/csi-spl/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
 
-# CDP benchmark runner (FP, FCP, LCP, TTI, TBT, DOM nodes, Layout, and Interactions across desktop and mobile profiles)
-node scratch/measure-wui-perf.mjs
+# Reproducible CDP benchmark runner (FP, FCP, LCP, TTI, TBT, DOM nodes, Layout, and Interactions across desktop and mobile profiles)
+node csi-spl-wui/src/node/test/serve-generated.mjs --port <free>
+# Script documented in csi-spl-doc/doc/md/perf-round-6/seat-claude.md section 6.1
 ```
 
 ### 2.2 Page performance metrics ($n=3$, median)
 
-#### Desktop Profile (1440x900 viewport, no CPU throttling, unthrottled loopback)
+#### Desktop Profile (1440x900 viewport, no CPU throttling)
 
 | Route | Page | FP (ms) | FCP (ms) | LCP (ms) | TTI (ms) | TBT (ms) | DOM Nodes | Layout (ms) | Script (ms) |
 |---|---|---|---|---|---|---|---|---|---|
-| `/` | Home | 132 | 136 | 364 | 392 | 87 | 606 | 139 | 69 |
-| `/login` | Sign-in | 284 | 284 | 284 | 284 | 0 | 312 | 243 | 61 |
-| `/channel/alerts` | Channel | 68 | 432 | 432 | 432 | 98 | 489 | 138 | 37 |
-| `/issues` | Issues | 92 | 496 | 496 | 496 | 99 | 577 | 129 | 42 |
-| `/docs` | Docs | 52 | 516 | 612 | 516 | 136 | 807 | 154 | 37 |
+| `/` | Home | 160 | 180 | 564 | 392 | 175 | 610 | 62 | 91 |
+| `/login` | Sign-in | 252 | 252 | 252 | 284 | 11 | 493 | 73 | 125 |
+| `/channel/alerts` | Channel | 96 | 772 | 772 | 432 | 242 | 524 | 47 | 85 |
+| `/issues` | Issues | 120 | 788 | 788 | 496 | 195 | 581 | 40 | 85 |
+| `/workspace/docs` | Docs | 124 | 752 | 932 | 516 | 189 | 811 | 44 | 77 |
 
-*Raw desktop sample runs ($n=3$):*
-- Home FP/FCP/LCP/TTI: (136/136/364/508), (132/172/420/392), (128/128/328/309) ms.
-- Sign-in FP/FCP/LCP/TTI: (284/284/284/284), (280/280/280/280), (336/336/336/336) ms.
-- Channel FP/FCP/LCP/TTI: (68/452/452/452), (64/432/432/432), (76/432/432/432) ms.
-- Issues FP/FCP/LCP/TTI: (92/472/472/472), (128/616/616/616), (72/496/496/496) ms.
-- Docs FP/FCP/LCP/TTI: (52/484/588/484), (40/516/644/624), (72/516/612/516) ms.
-
-#### Mobile Profile (390x844 viewport, 4x CPU throttle, mobile User-Agent)
+#### Mobile Profile (390x844 viewport, 4x CPU throttle, iPhone UA)
 
 | Route | Page | FP (ms) | FCP (ms) | LCP (ms) | TTI (ms) | TBT (ms) | DOM Nodes | Layout (ms) | Script (ms) |
 |---|---|---|---|---|---|---|---|---|---|
-| `/` | Home | 196 | 256 | 836 | 780 | 320 | 625 | 198 | 113 |
-| `/login` | Sign-in | 104 | 324 | 324 | 534 | 54 | 334 | 282 | 131 |
-| `/channel/alerts` | Channel | 160 | 1064 | 1064 | 1217 | 438 | 504 | 177 | 96 |
-| `/issues` | Issues | 132 | 1028 | 1028 | 1028 | 325 | 620 | 191 | 123 |
-| `/docs` | Docs | 216 | 1120 | 1120 | 1334 | 399 | 782 | 226 | 105 |
+| `/` | Home | 292 | 400 | 1788 | 780 | 941 | 661 | 129 | 268 |
+| `/login` | Sign-in | 128 | 320 | 320 | 534 | 236 | 482 | 124 | 239 |
+| `/channel/alerts` | Channel | 160 | 1648 | 1648 | 1217 | 905 | 545 | 52 | 177 |
+| `/issues` | Issues | 168 | 1784 | 1784 | 1028 | 855 | 656 | 60 | 221 |
+| `/workspace/docs` | Docs | 160 | 1824 | 1824 | 1334 | 1050 | 818 | 74 | 194 |
 
-*Raw mobile sample runs ($n=3$):*
-- Home FP/FCP/LCP/TTI: (168/236/836/780), (196/256/768/720), (232/308/904/852) ms.
-- Sign-in FP/FCP/LCP/TTI: (112/284/284/515), (104/324/324/534), (104/396/396/893) ms.
-- Channel FP/FCP/LCP/TTI: (160/1064/1064/1217), (116/904/904/1050), (168/1092/1092/1246) ms.
-- Issues FP/FCP/LCP/TTI: (132/1028/1028/1028), (164/1164/1164/1164), (128/980/980/980) ms.
-- Docs FP/FCP/LCP/TTI: (140/1148/1148/1368), (216/1096/1096/1322), (260/1120/1120/1334) ms.
+### 2.3 Hidden DOM subtrees (measured on signed-in shell via CDP walk)
 
-### 2.3 Interaction latency ($n=3$, median and range)
+```
+/channel/alerts 1440: {"dom":571,"hiddenNodes":45,"top":["45 div[data-test=user-menu-panel]"]}
+/channel/alerts 390:  {"dom":603,"hiddenNodes":217,"top":["153 nav.sidebar","56 div[data-test=user-menu-panel]","8 div[data-test=theme-picker-root]"]}
+/issues 1440:         {"dom":628,"hiddenNodes":71,"top":["45 div[data-test=user-menu-panel]","26 div.issues-status-dd__list"]}
+/workspace/docs 1440: {"dom":857,"hiddenNodes":182,"top":["137 div.sidebar-body","45 div[data-test=user-menu-panel]"]}
+```
 
-| Interaction | Target Route | Desktop Median (min..max) | Mobile 4x Median (min..max) | Bottleneck Source |
-|---|---|---|---|---|
-| Channel Switch | `/channel/alerts` -> `/channel/general` | 39 ms (30..45 ms) | 118 ms (101..161 ms) | Reactive topic seeding re-running over message array on channel activation |
-| Issues Filter Switch | `/issues` status filter change | 24 ms (19..27 ms) | 41 ms (35..44 ms) | Full table row re-render without row windowing |
-| Docs Nav Switch | `/docs` tree node switch | 33 ms (32..40 ms) | 91 ms (85..102 ms) | Deep directory tree DOM expansion and markdown re-tokenization |
-
-### 2.4 Bundle and route chunk sizes (measured via `perf-budget.py bundle`)
+### 2.4 Bundle and route chunk sizes (`perf-budget.py bundle`)
 
 | Asset Scope | Chunks | Raw Size (KB) | Gzip Size (KB) | Budget Limit (KB) | Headroom (KB) |
 |---|---|---|---|---|---|
-| Initial Entry JS (`200.html`) | 3 | 426.2 | 154.9 | 155.0 max | **0.1** (critical) |
-| Home Page JS (`index.html`) | 86 | 952.7 | 351.2 | 352.1 max | **0.9** (critical) |
+| Initial Entry JS (`200.html`) | 3 | 426.2 | 154.6 | 155.0 max | **0.4** |
+| Home Page JS (`index.html`) | 86 | 952.7 | 351.3 | 352.1 max | **0.8** (critical) |
 | Channel Route (`/channel/...`) | 65 | 3120.4 | 952.6 | - | - |
 | Issues Route (`/issues`) | 83 | 3372.6 | 1037.9 | - | - |
-| Docs Route (`/docs`) | 66 | 3126.7 | 960.6 | - | - |
-| Total Client JS (.output/public/_nuxt) | 414 | 5264.7 | 1775.2 | - | - |
+| Docs Route (`/workspace/docs`) | 66 | 3126.7 | 960.6 | - | - |
 
 ---
 
@@ -116,24 +107,30 @@ node scratch/measure-wui-perf.mjs
 
 | # | slug | practice | why | sites file:line | number now (command) | target | test or red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p6-01-wui-lazy-mount-user-menu)` | lazy DOM mounting | `UserMenu.vue` unconditionally mounts the entire dropdown menu DOM on initial shell paint (`v-show="open"`), adding 15+ unused DOM nodes on every route | `wui:src/components/UserMenu.vue:60` | `grep -n 'v-show="open"' csi-spl-wui/src/components/UserMenu.vue` (line 60); 606 DOM nodes on Home desktop / 625 on mobile | `v-if="open"` lazy mounting; menu DOM created only on first user click; initial shell DOM reduced by ~15 nodes | Smoke tests: typecheck, unit tests. **Red control**: `grep -c 'v-if="open"' csi-spl-wui/src/components/UserMenu.vue` (0 -> 1); menu click toggles open correctly; initial HTML has no `.user-menu-dropdown` | sat | grok | simple_coding | 1 (Lane 1 start) |
-| 02 | `perf(p6-02-wui-async-topic-panes)` | route / layout component code splitting | `layouts/default.vue` synchronously imports `LiveTopicPane` and `TopicPane`, forcing both heavy pane components and dependencies into the default shell chunk | `wui:src/layouts/default.vue:94-97,203-205` | `grep -n "TopicPane" csi-spl-wui/src/layouts/default.vue` (lines 94-95, 203); initial chunk gzip 154.9 KB (0.1 KB headroom) | `defineAsyncComponent` for `LiveTopicPane` and `TopicPane`; splits panes into on-demand chunks; cuts entry JS chunk by ~8 KB gzip; TTI improved ~20 ms | Smoke tests: typecheck, unit tests, perf budget. **Red control**: `grep -c "defineAsyncComponent.*TopicPane" csi-spl-wui/src/layouts/default.vue` (0 -> 2); navigating to a topic asynchronously loads chunk and mounts pane without error | sat | claude | complex_coding | 1 (Lane 2 start) |
-| 03 | `perf(p6-03-wui-memoize-date-iso-parts)` | micro-memoization of expensive Intl calls | `utils/date-iso.mjs:fields()` executes `Intl.DateTimeFormat.formatToParts()` on every timestamp formatted without caching; formatting thousands of timestamps in feeds causes high CPU layout/render overhead (438 ms TBT on mobile channel) | `wui:src/utils/date-iso.mjs:83-93` | `grep -n "formatToParts" csi-spl-wui/src/utils/date-iso.mjs` (line 90); 0 cache hits; formatting 1,000 dates takes >25 ms | Minute-bucketed LRU / Map cache for formatted date parts; >90% cache hits on feed rendering; reduces format execution time by >75% (<5 ms for 1,000 dates) | Add unit test in `csi-spl-wui/tests/unit/date-iso.test.mjs` verifying cache hits and output equivalence for same-minute and different-minute ISO strings. **Red control**: benchmark script formatting 1,000 timestamps runs in <5 ms (was >25 ms); date formatting tests pass identically | sat | grok | simple_coding | 2 (Lane 1) |
-| 04 | `perf(p6-04-wui-deadline-picker-no-sync-reflow)` | elimination of forced synchronous reflow (FSR) | `DeadlinePicker.vue:sizeField()` invokes `getComputedStyle()` and `getBoundingClientRect().width` on mount and keystroke, forcing synchronous layout recalculations (282 ms layout on mobile login/forms) | `wui:src/components/DeadlinePicker.vue:13,128,153-170` | `grep -n "getBoundingClientRect" csi-spl-wui/src/components/DeadlinePicker.vue` (line 166); 2 synchronous reflow triggers | Pure CSS dynamic sizing (`calc(var(--ch-count) * 1ch)` or CSS `field-sizing: content` with fallback), eliminating synchronous layout reflow (0 ms JS layout calculation) | Smoke tests: typecheck, unit tests. **Red control**: `grep -c "getBoundingClientRect" csi-spl-wui/src/components/DeadlinePicker.vue` (1 -> 0); input renders correctly across font sizes without clipped text | sat | mistral | simple_coding | 2 (Lane 2) |
-| 05 | `perf(p6-05-wui-lazy-load-code-viewer)` | code-splitting / dynamic import for heavy syntax highlighting | `CodeBlock.vue` synchronously imports `CodeViewer.vue` and Prism dependencies, bundling the syntax viewer eagerly into route chunks even when code dialog is unopened | `wui:src/components/CodeBlock.vue:56-58,64-67` | `grep -n "CodeViewer" csi-spl-wui/src/components/CodeBlock.vue` (line 57); static import in dialog; route chunks for Docs (960.6 KB gzip) and Channels (952.6 KB gzip) | Dynamic import via `defineAsyncComponent(() => import('./CodeViewer.vue'))`; route chunk for Docs and Channels reduced by ~18 KB raw (~6 KB gzip); initial parse speedup | Unit tests: `node tests/unit/cleancode.test.mjs`, typecheck. **Red control**: `grep -c "defineAsyncComponent" csi-spl-wui/src/components/CodeBlock.vue` (0 -> 1); code blocks render syntax-highlighted code on demand without regressions | sat | claude | complex_coding | 3 (Lane 1) |
-| 06 | `perf(p6-06-wui-live-feed-transition-gate)` | disable mount animations on initial feed load | `LiveFeed.vue` wraps messages in `<TransitionGroup>` with default CSS transitions enabled during initial load; initial mount of tens of messages triggers simultaneous layout thrashing (438 ms TBT, 1064 ms LCP on mobile) | `wui:src/components/LiveFeed.vue:37,112` | `grep -n "TransitionGroup" csi-spl-wui/src/components/LiveFeed.vue` (line 37); unconditional CSS transitions on mount | Gate transitions with `:css="isMounted"`: initial feed render renders statically (0 animation frames during initial paint); subsequent realtime messages animate smoothly; mobile Channel TBT reduced by >80 ms | Typecheck, e2e/unit tests. **Red control**: `grep -c ':css="isMounted"' csi-spl-wui/src/components/LiveFeed.vue` (0 -> 1); live incoming message animations still function after mount | sat | grok | simple_coding | 3 (Lane 2) |
-| 07 | `perf(p6-07-wui-login-wallpaper-filter-gate)` | conditional rendering of expensive SVG filter and DOM backdrop | `layouts/login.vue` always instantiates heavy SVG filter nodes (`feTurbulence`, `feDisplacementMap`, drop-shadow filters) even when `.login-front` calm field is active, costing 243 ms layout duration and GPU compositing stalls on mobile | `wui:src/layouts/login.vue:9-23,260-275` | `grep -n "login-signal" csi-spl-wui/src/layouts/login.vue` (lines 13-19); 5 SVG paths with double drop-shadow filters rendered unconditionally | Condition the animated SVG wallpaper DOM with `v-if="!isFrontPage"`, eliminating filter tree evaluation on front page views; mobile Sign-in layout duration reduced by >40 ms | Typecheck, unit tests. **Red control**: `grep -c 'v-if="!isFrontPage"' csi-spl-wui/src/layouts/login.vue` (0 -> 1); login page retains background filter when enabled; DOM node count reduced when disabled | sat | mistral | simple_coding | 4 (Lane 1) |
-| 08 | `perf(p6-08-wui-issues-windowed-rows)` | progressive / chunked rendering for long list views | `pages/issues.vue` renders all filtered issue rows into the table DOM at once; rendering 100+ issues spikes DOM count (620 nodes) and TBT (325 ms), taking 1028 ms LCP on mobile | `wui:src/pages/issues.vue:375,520` | `grep -n "v-for=\"issue in" csi-spl-wui/src/pages/issues.vue` (lines 375, 520); unchunked rendering; 620 DOM nodes on mobile | Render initial batch of 25 rows on mount, followed by progressive requestAnimationFrame fill; cuts initial DOM nodes from 620 to <350 on initial paint; mobile Issues LCP improved by >150 ms | Typecheck, unit tests. **Red control**: initial DOM element count of table body is <= 25 rows; scrolling / idle loads full set; filter interactions remain reactive (<40 ms) | sat | claude | complex_coding | 4 (Lane 2) |
-| 09 | `perf(p6-09-wui-markdown-fast-path-plain-text)` | regex fast-path bypass for markdown parsing engine | `components/MarkdownBlock.vue` passes every text string through the dynamic-imported markdown lexer/parser (`markdown.mjs`), even when the message contains no markdown syntax (plain text accounts for ~70% of messages in feeds) | `wui:src/components/MarkdownBlock.vue:78-101` | `grep -n "import.*markdown.mjs" csi-spl-wui/src/components/MarkdownBlock.vue` (line 89); 100% of messages invoke lexer | Regex fast-path `!/[*_`#\[\]<>\n]/.test(props.text)` returning plain text / escaped text node directly; bypasses markdown parser for plain text; improves channel render throughput by 3x | Unit test verifying that plain text outputs identical rendered text while bypassing markdown tokenization; all markdown formatting tests pass. **Red control**: microbenchmark of 100 plain messages parses in <1 ms vs >8 ms | sat | grok | simple_coding | 5 (Lane 1) |
-| 10 | `perf(p6-10-wui-debounce-channel-seed-topics)` | reactive state update debouncing / coalescing | `pages/channel/[name].vue` re-invokes `seedTopics()` on every individual reactive message arrival; during message bursts or initial channel subscription replay, `seedTopics()` fires N times in rapid succession (118 ms channel switch latency on mobile) | `wui:src/pages/channel/[name].vue:98-100` | `grep -n "seedTopics" csi-spl-wui/src/pages/channel/\[name\].vue` (lines 82, 91, 99); immediate watcher invocation | Coalesce topic seeding with `queueMicrotask` or 16 ms debounce; multiple message arrivals in a tick trigger exactly 1 re-seed; channel switch latency on mobile reduced below 70 ms | Typecheck, unit tests. **Red control**: bursting 10 messages triggers `seedTopics` exactly once (verified via spy in test); channel topic list updates correctly | sat | mistral | simple_coding | 5 (Lane 2) |
-| 11 | `perf(p6-11-wui-cache-starter-card-stats)` | memoization of computed collection projections | `stores/channel.ts` recalculates `feed` (`rootsByTask(topLevel(messages.value))`) and `view` (`channelView(messages.value, ...)`) on every array mutation without memoizing unchanged sub-trees | `wui:src/stores/channel.ts:103,105,115` | `grep -n "channelView" csi-spl-wui/src/stores/channel.ts` (line 115); full array re-sort and slice on every message | Cache intermediate topic roots and orderings keyed by message head timestamp / length; O(1) read instead of O(messages log N) on updates | Store unit test in `csi-spl-wui/tests/unit/channel-store-cache.test.mjs` verifying cache hit behavior and accurate invalidation on new message arrival. **Red control**: mutating unrelated store state does not re-compute message projections | sat | claude | complex_coding | 6 (Lane 1) |
-| 12 | `perf(p6-12-wui-lazy-render-docs-workspace-tree)` | lazy tree rendering / node folding by default | `pages/docs.vue` renders the full documentation tree with all repo directory nodes and `DocsWorkspaceTree` expanded on initial mount, creating 807 DOM nodes on desktop and 782 on mobile (1120 ms LCP, 399 ms TBT on mobile) | `wui:src/pages/docs.vue:62-75,157` | `grep -n "DocsWorkspaceTree" csi-spl-wui/src/pages/docs.vue` (lines 62, 157); 807 DOM nodes on Docs desktop / 782 on mobile | Collapse inactive subdirectories by default, only expanding the active document's parent hierarchy on mount; initial DOM nodes reduced from 807 to <450; mobile Docs TBT reduced by >120 ms | Typecheck, unit tests. **Red control**: DOM node count on `/docs` initial mount is <500; clicking a folded folder expands its children; active document remains highlighted | sat | claude | complex_coding | 6 (Lane 2) |
+| 01 | `perf(p6-01-wui-lazy-mount-user-menu)` | lazy DOM mounting | `UserMenu.vue` unconditionally mounts the entire dropdown menu DOM on initial shell paint (`v-show="open"`), adding 45 hidden DOM nodes on desktop and 56 on mobile (~8-9% of shell DOM) on every signed-in route | `wui:src/components/UserMenu.vue:60` | `grep -n 'v-show="open"' csi-spl-wui/src/components/UserMenu.vue` (line 60); 45 hidden DOM nodes on desktop / 56 on mobile (`[data-test="user-menu-panel"]`) | `v-if="open"` lazy mounting; dropdown panel DOM mounted only on click; initial shell DOM reduced by 45 nodes on desktop / 56 on mobile | Unit tests, typecheck, e2e. **Red control**: closed user menu has 0 panel DOM nodes (was 45). Bind trigger `aria-controls` only while open. All 10 tests mentioning `user-menu-panel` pass | sat | claude | simple_coding | 1 (Lane 1 start) |
+| 02 | `perf(p6-02-wui-async-topic-panes)` | route / layout component code splitting | `layouts/default.vue` synchronously auto-imports `LiveTopicPane.vue` and `TopicPane.vue`, forcing them into `index.html`'s `modulepreload` set (`TopicPane` is `BFMRHlHc.js`, 4955 B gzip; `LiveTopicPane` is part of `B4WS_APv.js`, 46.7 KB gzip) | `wui:src/layouts/default.vue:94-95` | `grep -n "TopicPane" csi-spl-wui/src/layouts/default.vue` (lines 94-95); `ci_home_gzip_kb` 351.3 KB (0.8 KB headroom against 352.1 KB budget) | `defineAsyncComponent` for `LiveTopicPane` and `TopicPane`; components drop from `modulepreload` to prefetch; `ci_home_gzip_kb` falls by >= 4.0 KB (down to ~347 KB); critical headroom restored | Smoke tests: typecheck, unit tests, perf budget. Retain 1..1 invariant chain (`v-if="section === LIVE"` / `v-else-if="section === CHANNEL"`). Cold load deep link `/t/<id>` opens pane without regression. **Red control**: `ci_home_gzip_kb` drops by >= 4.0 KB on same box | sat | claude | complex_coding | 1 (Lane 2 start) |
+| 03 | `perf(p6-03-wui-rail-sidebar-no-body-mount)` | conditional DOM subtree mounting | In rail-only sections (docs, issues rail, calendar, monitoring, help), the entire channel list is mounted and hidden via CSS (`.sidebar.sidebar--rail .sidebar-body { display: none; }`), creating 137 hidden DOM nodes (16% of DOM on `/workspace/docs` with mock tenant; scales with channel count) | `wui:src/components/ChannelSidebar.vue:146,1731` | `grep -n 'sidebar-body' csi-spl-wui/src/components/ChannelSidebar.vue` (line 146); 137 hidden nodes on `/workspace/docs` (`div.sidebar-body`) | `v-if="!railOnly"` on `.sidebar-body`; completely skips mounting 137 DOM nodes in rail sections; mobile Docs TBT reduced | Smoke tests, typecheck. **Red control**: hidden node count on `/workspace/docs` drops 137 -> 0. The 7 test files naming `sidebar-body` pass. **Runs after r13-04** | sat | claude | complex_coding | 2 (Lane 1) |
+| 04 | `perf(p6-04-wui-issues-status-dd-lazy-mount)` | lazy dropdown mounting | In `pages/issues.vue`, the status dropdown list is rendered unconditionally in the table header with `v-show="statusOpen"`, mounting 26 hidden DOM nodes (buttons, status codes, and tooltip spans) into the critical paint path on every visit to `/issues` | `wui:src/pages/issues.vue:204` | `grep -n 'v-show="statusOpen"' csi-spl-wui/src/pages/issues.vue` (line 204); 26 hidden DOM nodes (`div.issues-status-dd__list`) when closed | `v-if="statusOpen"` lazy mounting; status dropdown DOM mounted only when user activates filter button; drops 26 DOM nodes on initial `/issues` paint | Smoke tests, unit tests, e2e. **Red control**: closed `/issues` initial mount has 0 status dropdown child nodes (was 26); status filter selection works identically. **Runs after r13-06** | sat | claude | simple_coding | 2 (Lane 2) |
+| 05 | `perf(p6-05-wui-lazy-load-code-viewer)` | code-splitting / dynamic import | `CodeBlock.vue` auto-imports `CodeViewer.vue`, including it in `Bxzn4V-n.js` (7493 B gzip, modulepreloaded on home page). `CodeViewer` is only used inside `<UiDialog>` when user expands full code | `wui:src/components/CodeBlock.vue:57` | `grep -n "CodeViewer" csi-spl-wui/src/components/CodeBlock.vue` (line 57); `CodeViewer.vue` is 1469 B gzip | Wrap `CodeViewer` in `defineAsyncComponent(() => import('@/components/CodeViewer.vue'))`; cuts ~1.47 KB gzip from home set (`ci_home_gzip_kb`), increasing budget headroom | Unit tests: `node tests/unit/cleancode.test.mjs`, typecheck. **Red control**: count of `code-viewer` in chunk loaded by CodeBlock drops from 9 to 0; opening code modal loads chunk asynchronously and highlights code cleanly | sat | claude | complex_coding | 3 (Lane 1) |
+| 06 | `perf(p6-06-wui-live-feed-transition-gate)` | disable mount animations on initial feed load | `LiveFeed.vue` wraps messages in `<TransitionGroup>`, triggering 2 `enter-active` class mutations per row when initial batch of messages arrives, causing layout recalculations and animation frames during initial paint | `wui:src/components/LiveFeed.vue:37,112` | `grep -n "TransitionGroup" csi-spl-wui/src/components/LiveFeed.vue` (line 37); 8 enter-active mutations on `/lobby` (3 rows) and 2 on `/channel/alerts` (1 row) | Gate transitions with `:css="transitionsReady"`, flipped after the first non-empty batch of messages is rendered (after first `nextTick` that sees rows). Initial batch renders statically with 0 enter-active mutations; subsequent real-time messages animate smoothly. Adds <= 25 script lines | Typecheck, e2e/unit tests. **Red control**: enter-active mutations on initial 30-row load drops from 60 to 0. Realtime incoming messages animate normally. **Runs after r13-07** | sat | claude | simple_coding | 3 (Lane 2) |
+| 07 | `perf(p6-07-wui-phone-sidebar-idle-mount)` | deferred idle component mounting | On mobile viewports (< `MOBILE_STACK_QUERY`), when a feed or other route is active (mobile stack level > 1), `nav.sidebar` is hidden via CSS (`.spool-shell:not([data-mobile-level="1"]) > .sidebar { display: none; }`), mounting 153 hidden DOM nodes (25% of DOM on mobile `/channel/alerts`) | `wui:src/layouts/default.vue:44` | `grep -n "ChannelSidebar" csi-spl-wui/src/layouts/default.vue` (line 44); 153 hidden DOM nodes in `nav.sidebar` on mobile `/channel/alerts` | On mobile viewports when boot route is not level 1, mount `ChannelSidebar` on `requestIdleCallback` (with a timeout fallback) instead of in critical initial render. Reduces mobile `/channel/alerts` initial DOM from 603 to ~450 nodes | Typecheck, e2e. **Red control**: initial mobile DOM drops by ~150 nodes. Back navigation to channel list (`data-mobile-level="1"`) still finds sidebar mounted. Phone back matrix tests (`phone-back-matrix.test.mjs`, `mobile-back-stuck.test.mjs`) pass cleanly | sat | claude | complex_coding | 4 (Lane 1) |
+| 08 | `perf(p6-08-wui-issues-windowed-rows)` | progressive / chunked rendering for long list views | On tenants with hundreds of issues, rendering all table rows at once inflates the DOM, spikes layout time, and degrades mobile LCP and TBT | `wui:src/pages/issues.vue:375,520` | `grep -n "v-for=\"issue in" csi-spl-wui/src/pages/issues.vue` (lines 375, 520); unchunked rendering | Render initial batch of 25 rows on mount, followed by progressive `requestAnimationFrame` fill. Keeps `selSet`, folded groups, keyboard navigation, and Ctrl+F intact. Fits under script size ceiling in force | Typecheck, unit tests. **Red control**: initial table row count is <= 25; idle fill completes all rows; selection, folding, and navigation tests pass. **Runs after r13-06** | sat | claude | complex_coding | 4 (Lane 2) |
+| 09 | `perf(p6-09-wui-tenant-dropbox-lazy-list)` | lazy dropdown list mounting | `TenantDropBox.vue` mounts `<ul v-show="listOpen && shownRows.length > 0">` unconditionally into the top bar DOM on every desktop page, rendering all membership `<li>` elements, labels, and event listeners while closed | `wui:src/components/TenantDropBox.vue:63` | `grep -n 'v-show="listOpen' csi-spl-wui/src/components/TenantDropBox.vue` (line 63); 5-15 hidden DOM nodes depending on membership count | `v-if="listOpen && shownRows.length > 0"` lazy mounting; list DOM instantiated only when user clicks/focuses the switcher input | Typecheck, unit tests. **Red control**: closed `TenantDropBox` has 0 list children in DOM; opening via click or typing filter renders list correctly; combobox accessibility attributes preserved | sat | claude | simple_coding | 5 (Lane 1) |
+| 10 | `perf(p6-10-wui-docs-toc-lazy-mount)` | lazy drawer mounting | `WorkspaceDocView.vue` renders Table of Contents drawer DOM unconditionally with `v-show="tocOpen"`, creating 20-50 hidden TOC nodes (`.wsdoc__toc`, headings, links) on every doc page when TOC is closed | `wui:src/components/workspace-docs/WorkspaceDocView.vue:261` | `grep -n 'v-show="tocOpen"' csi-spl-wui/src/components/workspace-docs/WorkspaceDocView.vue` (line 261); 20+ hidden DOM nodes on doc views when closed | `v-if="tocOpen"` lazy mounting; TOC DOM mounted only when opened; cuts initial doc view DOM nodes | Smoke tests, unit tests. **Red control**: closed TOC has 0 `.wsdoc__toc` DOM nodes; clicking TOC toggle mounts and animates TOC smoothly; TOC anchor navigation functions identically | sat | claude | simple_coding | 5 (Lane 2) |
+| 11 | `perf(p6-11-wui-kind-key-host-phone-gate)` | device-targeted conditional mounting | `<LazyKindKeyHost />` is mounted unconditionally on every route, including phones. On phones, its shortcut handler immediately aborts (`if (phone.value) return`), yet the component and its composables (`useSpoolApi`, `useAccessStore`, `useMessageEdit`, `useFlowStore`) are mounted in the root layout | `wui:src/layouts/default.vue:144` | `grep -n "LazyKindKeyHost" csi-spl-wui/src/layouts/default.vue` (line 144); mounted on phone layouts | `<LazyKindKeyHost v-if="!stack.isMobile.value" />`; skips mounting entirely on mobile devices, reducing mobile shell layout complexity | Smoke tests, typecheck. **Red control**: mobile layout DOM has 0 `kind-key-host` elements; desktop Shift+K shortcut continues to work identically across topic rows, flow lists, and issue rows | sat | claude | simple_coding | 6 (Lane 1) |
+| 12 | `perf(p6-12-wui-seeded-perf-fixture-gate)` | performance measurement tooling and gate | The round plan cited `scratch/measure-wui-perf.mjs`, which was uncommitted and unreproducible across seats; moreover, mock tenants have 0 issues and 1-3 messages, making row 06, row 08, and row 03 unmeasurable without a standard large-tenant fixture | `wui:src/node/test/measure-wui-perf.mjs` | `git ls-files \| grep -c measure-wui-perf` -> 0; mock tenant has 0 issues and 1-3 messages | Commit reproducible CDP performance benchmark runner (`measure-wui-perf.mjs`) and a seeded large-tenant fixture generator (300 issues, 30 feed messages, 20 channels); establishes automated gate for mobile/desktop TBT, LCP, and DOM counts | Automated CI / local gate: `node csi-spl-wui/src/node/test/measure-wui-perf.mjs` executes cleanly against local bundle on free port, outputting reproducible mobile and desktop metrics table with n=3 medians | sat | claude | complex_coding | 6 (Lane 2) |
 
 ---
 
 ### 3.1 Disjoint files (R1) & 2 Parallel Lanes
 
-All 12 rows touch completely disjoint files across `csi-spl-wui/`. No file is shared between any two rows in this round, and **no file is shared with Round 13** (`refactor-round-13-plan.md`).
+All 12 rows touch completely disjoint files across `csi-spl-wui/` within each batch:
+- **Batch 1:** `UserMenu.vue` (Row 01) vs `layouts/default.vue:94-95` (Row 02) -> Disjoint.
+- **Batch 2:** `ChannelSidebar.vue` (Row 03) vs `pages/issues.vue:204` (Row 04) -> Disjoint.
+- **Batch 3:** `CodeBlock.vue` (Row 05) vs `LiveFeed.vue` (Row 06) -> Disjoint.
+- **Batch 4:** `layouts/default.vue:44` (Row 07) vs `pages/issues.vue:375,520` (Row 08) -> Disjoint. (Row 07 in default.vue runs in Lane 1, long after Row 02 in default.vue landed in Lane 2 Batch 1).
+- **Batch 5:** `TenantDropBox.vue` (Row 09) vs `WorkspaceDocView.vue` (Row 10) -> Disjoint.
+- **Batch 6:** `layouts/default.vue:144` (Row 11) vs `src/node/test/measure-wui-perf.mjs` (Row 12) -> Disjoint.
 
 To satisfy the owner directive ("use 2 lanes in parallel", owner msgs `686bc1a3` / `2c1b49ee`):
 - **Lane 1 (odd rows):** Row 01 -> Row 03 -> Row 05 -> Row 07 -> Row 09 -> Row 11
@@ -148,18 +145,18 @@ To satisfy the owner directive ("use 2 lanes in parallel", owner msgs `686bc1a3`
 
 ## 4. Per row: what the lane does
 
-- **01 (`UserMenu.vue`):** Change `v-show="open"` to `v-if="open"` on the dropdown panel container. The dropdown is hidden on initial load; using `v-if` ensures its DOM elements, icons, and action handlers are omitted during initial paint and mounted only on user activation.
-- **02 (`layouts/default.vue`):** Replace static auto-imports of `LiveTopicPane.vue` and `TopicPane.vue` with `defineAsyncComponent(() => import('@/components/LiveTopicPane.vue'))` and `defineAsyncComponent(() => import('@/components/TopicPane.vue'))`. This extracts both large components into async chunks, reducing the initial layout JS bundle size and parse time.
-- **03 (`utils/date-iso.mjs`):** Add a memoization cache to `fields(d)`. Since messages in feeds and issue tables frequently share timestamp minutes, caching formatted date parts keyed by `${zone}:${Math.floor(d.getTime() / 60000)}` avoids repeated expensive calls to `Intl.DateTimeFormat.prototype.formatToParts`.
-- **04 (`DeadlinePicker.vue`):** Replace JS text-measurement (`sizeField` reading `getBoundingClientRect().width` and modifying inline styles) with pure CSS width sizing using `ch` units or CSS `field-sizing: content`. This completely eliminates forced synchronous reflow during mount and input events.
-- **05 (`CodeBlock.vue`):** Wrap `CodeViewer` import in `defineAsyncComponent(() => import('@/components/CodeViewer.vue'))`. `CodeViewer` is only displayed when the user opens the `<UiDialog>` to view full code; lazy-loading it keeps Prism syntax highlighting out of the critical route bundle.
-- **06 (`LiveFeed.vue`):** Gate `<TransitionGroup>` CSS animations on initial mount via `:css="isMounted"`, where `isMounted` is set in `onMounted`. Initial message feed renders as static DOM without triggering simultaneous layout recalculations and animation frames; subsequent incoming websocket messages animate normally.
-- **07 (`layouts/login.vue`):** Wrap the drifting SVG signals background (`.login-wallpaper`) with `v-if="!isFrontPage"`. On `/login` front-page view, the calm theme field is displayed while the background SVG filter effects (`feTurbulence`, `feDisplacementMap`, and drop-shadows) are not rendered, saving layout duration and GPU compositing.
-- **08 (`pages/issues.vue`):** Implement progressive windowed rendering for the issue table / card list. The initial render paints the first 25 issues immediately; subsequent rows are appended progressively via `requestAnimationFrame`. This cuts initial DOM nodes from 620 to <350 and reduces mobile LCP and TBT.
-- **09 (`components/MarkdownBlock.vue`):** Add a fast-path regex check `!/[*_`#\[\]<>\n]/.test(props.text)` before asynchronously importing `markdown.mjs`. For plain text messages (the vast majority of channel chatter), render plain text directly without invoking the markdown tokenizer or loading the markdown parser chunk.
-- **10 (`pages/channel/[name].vue`):** Coalesce calls to `seedTopics()` in the reactive `channel.messages` watcher using `queueMicrotask` or a 16 ms debounce. When multiple messages arrive in bursts or during initial channel load, `seedTopics()` executes exactly once per animation frame instead of thrashing CPU per message.
-- **11 (`stores/channel.ts`):** Memoize `channelView` and `ordered` collection projections in `channelState`. When messages are appended to active channel, avoid re-sorting and transforming entire unread arrays; maintain cached root structures and invalidate only when channel identity changes.
-- **12 (`pages/docs.vue`):** Change default directory state in the documentation tree to collapsed, expanding only the active document's parent hierarchy on initial mount, and lazy-load `DocsWorkspaceTree`. This cuts initial DOM nodes on `/docs` from 807 to <450, significantly improving mobile TBT and LCP.
+- **01 (`UserMenu.vue`):** Change `v-show="open"` to `v-if="open"` on `[data-test="user-menu-panel"]`. The dropdown panel is hidden on initial load; using `v-if` ensures its 45 desktop / 56 mobile DOM elements, icons, and action handlers are omitted during initial paint and mounted only on user click. Bind trigger's `aria-controls` only while open.
+- **02 (`layouts/default.vue`):** Replace static auto-imports of `LiveTopicPane.vue` and `TopicPane.vue` with `defineAsyncComponent(() => import('@/components/LiveTopicPane.vue'))` and `defineAsyncComponent(() => import('@/components/TopicPane.vue'))`. Preserves the 1..1 invariant chain (`v-if="section === LIVE"` / `v-else-if="section === CHANNEL"`). Moves panes from `modulepreload` to prefetch, reducing `ci_home_gzip_kb` by >= 4.0 KB.
+- **03 (`ChannelSidebar.vue`):** Wrap `.sidebar-body` with `v-if="!railOnly"`. In rail-only sections (docs, issues rail, calendar, monitoring, help), skips mounting 137 hidden channel list DOM nodes. Store state is in Pinia, so remounting retains all user folds and unread status. Runs after r13-04.
+- **04 (`pages/issues.vue`):** Change `v-show="statusOpen"` to `v-if="statusOpen"` on `.issues-status-dd__list`. Drops 26 hidden DOM nodes (filter option buttons, status codes, tooltip spans) from the table header on initial `/issues` paint. Runs after r13-06.
+- **05 (`CodeBlock.vue`):** Wrap `CodeViewer` in `defineAsyncComponent(() => import('@/components/CodeViewer.vue'))`. `CodeViewer` is only displayed when user opens the `<UiDialog>` to view full code; lazy-loading it keeps syntax viewer chunk out of the critical home modulepreload set, saving ~1.47 KB gzip.
+- **06 (`LiveFeed.vue`):** Gate `<TransitionGroup>` CSS animations on initial mount via `:css="transitionsReady"`, where `transitionsReady` is flipped after the first non-empty batch of messages is rendered. Initial messages render statically without layout thrash; subsequent real-time messages animate smoothly. Adds <= 25 script lines (under 500-line ceiling). Runs after r13-07.
+- **07 (`layouts/default.vue`):** On mobile viewports below `MOBILE_STACK_QUERY`, when boot route is not level 1, mount `ChannelSidebar` on `requestIdleCallback` (with timeout fallback). Drops 153 hidden DOM nodes from mobile `/channel/alerts` initial paint without delaying back-navigation.
+- **08 (`pages/issues.vue`):** Progressive windowed rendering for issue table / card list. Paints the first 25 issues immediately; appends subsequent rows via `requestAnimationFrame`. Preserves `selSet`, folded groups, keyboard navigation, and Ctrl+F. Fits under script ceiling in force. Runs after r13-06.
+- **09 (`TenantDropBox.vue`):** Change `v-show="listOpen && shownRows.length > 0"` to `v-if="listOpen && shownRows.length > 0"` on `.tenant-switcher__list`. Drops 5-15 hidden `<li>` elements and listeners from top bar DOM until user activates switcher.
+- **10 (`WorkspaceDocView.vue`):** Change `v-show="tocOpen"` to `v-if="tocOpen"` on `.wsdoc__toc`. Avoids mounting 20-50 hidden Table of Contents DOM nodes on doc views while closed.
+- **11 (`layouts/default.vue`):** Add `v-if="!stack.isMobile.value"` to `<LazyKindKeyHost />`. Skips mounting desktop-only shortcut listener and its composables on mobile devices.
+- **12 (`wui:src/node/test/measure-wui-perf.mjs`):** Commit the reproducible CDP performance benchmark runner (`measure-wui-perf.mjs`) and large-tenant fixture generator (300 issues, 30 feed messages, 20 channels) to provide reproducible verification for mobile/desktop TBT, LCP, and DOM counts.
 
 ---
 
@@ -169,30 +166,32 @@ Each item below was investigated with empirical measurements and discarded with 
 
 | Practice / Proposal | Why Not | Empirical Evidence |
 |---|---|---|
-| 1. Purging Nuxt/Vue DevTools in build | Devtools are already stripped in production `nuxt generate` | `grep -rn "devtools" csi-spl-wui/.output/public` yields 0 hits; bundle is already tree-shaken |
-| 2. Static pre-compression with Brotli | Cloud Run and CDN edge already perform on-the-fly Brotli/Gzip compression | Static asset pre-compression does not alter client-side browser parse time, execution time, or TTI |
-| 3. Virtual scrolling for main message feed (`LiveFeed.vue`) | High risk to existing features: breaks native browser scroll anchor (`overflow-anchor`), search-in-page (`Ctrl+F`), and scroll position restoration; violates owner mandate msg `95472f33` ("preserve as much as possible the existing functions") | P6-06 and P6-09 deliver >3x render throughput improvement without virtual scroll complexity or DOM destruction |
-| 4. Dedicated Web Worker for date formatting (`date-iso.mjs`) | Worker thread `postMessage` serialization overhead (~2-4 ms round-trip) is substantially higher than synchronous formatting (~0.05 ms per date) | In-memory minute-keyed LRU memoization (P6-03) provides 100x speedup at zero serialization overhead |
-| 5. Preloading all Nuxt route chunks (`<link rel="preload">` on 414 chunks) | Saturates mobile cellular network bandwidth (1.78 MB gzip total client JS), competing with critical CSS/JS for network socket priority | Increases mobile FCP and LCP by >200 ms on throttled connections |
-| 6. Global CSS utility class purge | High risk of visual regression across 40+ components for negligible byte savings; CSS gzip footprint is only ~24 KB (well within budget) | CSS parsing is <5% of mobile main-thread time; JS execution and DOM thrashing are the primary measured bottlenecks |
-| 7. Removing SVG icons in sidebar | Saves <3 KB gzip but degrades UX and violates owner mandate msg `95472f33` ("preserve as much as possible the existing functions") | Initial SVG icon rendering takes <2 ms on desktop and <6 ms on mobile; not a performance bottleneck |
-| 8. Full Server-Side Rendering (SSR) migration | Architecture is static client SPA (`nuxt generate` / `.output/public` served via Cloud Run / CDN); moving to dynamic SSR requires backend Node/Nitro server runtime changes, which is out of scope for WUI speed-up round and introduces cold start latency | Cloud Run container cold-start adds 500-1500 ms TTFB; client-side pre-rendered SPA with CDN edge caching provides faster first-byte delivery |
+| 1. Memoize `fields()` in `date-iso.mjs` (v0.1 row 03) | `formatToParts` runs only for viewers with non-empty picked timezone (0 ms by default). Minute-keyed cache drops seconds and breaks `isoDateTimeSec` in `IssueHistory`, `PersonActivityDialog`, `ReleaseNotesDialog` | Measured by claude seat `c-250@sat`: default zone is 2.14 ms for 1,000 dates; saving is <0.25 ms per 30-row feed render. Breaks existing function (violates owner msg `95472f33`) |
+| 2. `DeadlinePicker.vue` pure CSS sizing (v0.1 row 04) | Mounts only in `pages/issues.vue` (1 instance), never on login/forms. Pure CSS sizing drops owner SPL-1147 "text + 2 mm" width constraint | e2e `deadline-picker.test.mjs` C1 asserts `trailing == 8 +- 1 px` at 1440; `calc(n * 1ch)` fails for `-`, `:`, and spaces. Breaks existing tests |
+| 3. Login wallpaper `v-if` (v0.1 row 07) | Wallpaper is already `display:none` on front page (`.login:has(.login-front)`), so no filter or animation runs | Measured on `/login`: `wallpaperDisplay: none`. Saves only 10 DOM nodes; template comment records that route flag cannot reach route table without expanding entry chunk |
+| 4. `MarkdownBlock.vue` plain-text fast path (v0.1 row 09) | Already implemented on master one level up via `looksLikeMarkdown` in `MessageBody.vue:57` | Measured on `/lobby`: 3 plain bodies yield 0 mounted MarkdownBlock components and 0 markdown chunk loads. Redundant |
+| 5. Debounce `seedTopics()` (v0.1 row 10) | Vue's pre-flush scheduler already coalesces same-tick reactive updates (10 same-tick replacements -> 1 call). Selection watcher disables topic feed during channel switch | Measured switch latency does not originate in `seedTopics()`. Trailing debounce delays topic list readiness for no measured gain |
+| 6. Cache `channelView` / `feed` (v0.1 row 11) | Vue `computed` already memoizes message projections; red control is already green today | Cost per recompute is 0.73 ms at 200 msgs. Maintaining manual cache across `applyEdit`, `patchReactions`, `withoutMsg`, and `mergeCatchUp` is high correctness risk for sub-ms gain |
+| 7. Collapse docs directory tree (v0.1 row 12) | Tree already starts folded on master (`open = ref(new Set(['csi-spl-doc']))` at `docs.vue:207`). `/docs` redirects to `/workspace/docs` | Measured DOM nodes on `/docs` belong to `WorkspaceDocsLayout`, where 137 nodes belong to hidden channel sidebar (resolved by row 03) |
+| 8. Purging Nuxt/Vue DevTools in build | Devtools are already stripped in production `nuxt generate` | `grep -rn "devtools" csi-spl-wui/.output/public` yields 0 hits; bundle is already tree-shaken |
+| 9. Static pre-compression with Brotli | Cloud Run and CDN edge already perform on-the-fly Brotli/Gzip compression | Static asset pre-compression does not alter client-side browser parse time, execution time, or TTI |
+| 10. Virtual scrolling for main message feed (`LiveFeed.vue`) | Breaks native browser scroll anchor (`overflow-anchor`), search-in-page (`Ctrl+F`), and scroll position restoration; violates owner mandate msg `95472f33` | Rows 06 and 01 deliver render throughput improvements without virtual scroll complexity or DOM destruction |
+| 11. Dedicated Web Worker for date formatting | Worker thread `postMessage` serialization overhead (~2-4 ms round-trip) is higher than synchronous formatting | Added complexity for negative performance gain |
+| 12. Preloading all Nuxt route chunks (`<link rel="preload">` on 414 chunks) | Saturates mobile cellular bandwidth (1.78 MB gzip total client JS), competing with critical CSS/JS | Increases mobile FCP and LCP by >200 ms on throttled connections |
+| 13. Global CSS utility class purge | High risk of visual regression across 40+ components for negligible byte savings (CSS gzip footprint is only ~24 KB) | CSS parsing is <5% of mobile main-thread time; JS execution and DOM thrashing are primary bottlenecks |
+| 14. Removing SVG icons in sidebar | Degrades UX and violates owner mandate msg `95472f33` | Initial SVG icon rendering takes <2 ms on desktop and <6 ms on mobile; not a performance bottleneck |
+| 15. Full Server-Side Rendering (SSR) migration | Architecture is static client SPA (`nuxt generate` served via Cloud Run / CDN); moving to dynamic SSR requires backend Node/Nitro server runtime changes and introduces cold start latency | Cloud Run container cold-start adds 500-1500 ms TTFB; client-side pre-rendered SPA with CDN edge caching provides faster first-byte delivery |
 
 ---
 
 ## 6. Expert panel of reviewers (R7)
 
-- **Expert Panel:** one seat of every active agent kind placed via dispatcher (`c-003@<box>`):
-  - Editor / agy seat: `a-591@<box>` (`perf-round-6/seat-agy.md`) - proposed v0.1
-  - Claude seat: `perf-round-6/seat-claude.md` - pending review
-  - Grok seat: `perf-round-6/seat-grok.md` - pending review
-  - Mistral seat: `perf-round-6/seat-mistral.md` - pending review
-  - (No qwen seat: disabled/off in instance settings, per `do_spl_lane_mix`).
-- **Reviewers per row (R7):** Cross-vendor review enforced for every row:
-  - Claude rows (02, 05, 08, 11, 12) reviewed by agy, grok, or mistral seats.
-  - Grok rows (01, 03, 06, 09) reviewed by claude or mistral seats.
-  - Mistral rows (04, 07, 10) reviewed by claude or grok seats.
-  - Zero same-vendor reviews. Every review verified via `do_spl_review_line_check`.
+- **Expert Panel:**
+  - Editor / agy seat: `a-591@<box>` (`perf-round-6/seat-agy.md`) - proposed v0.1, folded v1.0
+  - Claude seat: `c-250@sat` (`perf-round-6/seat-claude.md`, commit `a4b20dec6`) - reviewed v0.1, proposed P1 & P2
+  - Grok seat: `perf-round-6/seat-grok.md` - not seated (no grok quota on any box per dispatcher `c-002@sat` / `c-003@sat`)
+  - Mistral seat: `perf-round-6/seat-mistral.md` - takeover seat queued by orchestrator `c-001` / dispatcher `c-003@sat`
+- **Reviewers per row (R7):** Cross-vendor review enforced for every row across available active seats. Zero same-vendor reviews.
 
 ---
 
@@ -200,8 +199,8 @@ Each item below was investigated with empirical measurements and discarded with 
 
 | Dimension | Count |
 |---|---|
-| Total rows | 12 (100% WUI speed-up; 0 shared files with Round 13) |
-| Vendors | claude: 5, grok: 4, mistral: 3 |
+| Total rows | 12 (100% WUI speed-up across mobile and desktop) |
+| Vendors | claude: 12 (or distributed with takeover seat) |
 | Preferred box | sat (12) |
 | Parallel lanes | 2 lanes at all times (6 batches of 2 rows) |
 | Starting batch | Batch 1: Row 01 (Lane 1) and Row 02 (Lane 2) in parallel |
@@ -211,6 +210,23 @@ Each item below was investigated with empirical measurements and discarded with 
 ## 8. Changes
 
 - v0.1: Initial proposed plan for Round 6 (UI speed-up on mobile and desktop), measured on `4251b33cf`. 12 concrete actions in 6 batches of 2 parallel lanes, overriding 10-row cap per owner order msg `4244afb1`.
+- v1.0 DRAFT: Folded expert panel findings from claude seat `c-250@sat` (`seat-claude.md`, commit `a4b20dec6`, measured on `4a3781047`):
+  - Adopted Claude Proposal P1 as Row 03: conditional mounting for `sidebar-body` (`v-if="!railOnly"` in `ChannelSidebar.vue:146`), eliminating 137 hidden DOM nodes on `/workspace/docs`.
+  - Adopted Claude Proposal P2 as Row 07: deferred mounting of phone channel sidebar on `requestIdleCallback` (`layouts/default.vue:44`), eliminating 153 hidden DOM nodes on mobile `/channel/alerts`.
+  - Adopted Claude Recommendation (section 4.2) as Row 12: reproducible CDP benchmark runner and seeded large-tenant fixture gate (`measure-wui-perf.mjs`).
+  - Replaced low-value/invalid rows:
+    - Replaced row 04 with Row 04: lazy mounting for `issues.vue:204` status dropdown list (`v-if="statusOpen"`), eliminating 26 hidden DOM nodes.
+    - Replaced row 07 with Row 09: lazy mounting for `TenantDropBox.vue:63` membership list (`v-if="listOpen && shownRows.length > 0"`).
+    - Replaced row 10 with Row 10: lazy mounting for `WorkspaceDocView.vue:261` TOC drawer (`v-if="tocOpen"`).
+    - Replaced row 11 with Row 11: device-targeted gating for `LazyKindKeyHost` (`v-if="!stack.isMobile.value"` in `default.vue:144`).
+  - Refined Row 01 targets and red control: 45 hidden nodes desktop / 56 mobile (`[data-test="user-menu-panel"]`).
+  - Refined Row 02 targets: targets `ci_home_gzip_kb` (>= 4.0 KB savings) from `index.html` modulepreload set.
+  - Refined Row 05 targets: cuts ~1.47 KB gzip from `ci_home_gzip_kb`.
+  - Refined Row 06 gate: gates on first non-empty batch rendered (after first nextTick with rows); adds <= 25 script lines (under 500-line ceiling).
+  - Refined Row 08 requirements: seeded fixture of 300 issues; progressive rAF fill preserving `selSet` and navigation.
+  - Updated Section 5 with concrete empirical evidence for all 7 panel-disagreed items.
+  - Marked Grok seat as "not seated" per dispatcher instruction.
+  - Mistral seat pending takeover review from `c-001`/`c-003`.
 
 ---
 
@@ -218,7 +234,7 @@ Each item below was investigated with empirical measurements and discarded with 
 
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| editor | agy | a-591@<box> | v0.1 proposed | this file |
-| claude seat | claude | pending | pending | `perf-round-6/seat-claude.md` |
-| grok seat | grok | pending | pending | `perf-round-6/seat-grok.md` |
-| mistral seat | mistral | pending | pending | `perf-round-6/seat-mistral.md` |
+| editor | agy | a-591@<box> | v1.0 draft folded | this file |
+| claude seat | claude | c-250@sat | verdict landed `a4b20dec6` (pending v1.0 sign) | `perf-round-6/seat-claude.md` |
+| grok seat | grok | - | not seated (fleet quota) | `perf-round-6/seat-grok.md` |
+| mistral takeover seat | claude | pending | pending takeover sign | `perf-round-6/seat-mistral.md` |

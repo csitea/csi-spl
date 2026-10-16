@@ -38,13 +38,19 @@
           <option v-for="p in ISSUE_PRIORITIES" :key="p" :value="p">{{ p }}</option>
         </select>
       </label>
-      <label class="subtask-dlg__field">
+      <!-- SPL-2213: a keyboard drop box; Enter picks while its list is open,
+           else it submits like every other field -->
+      <div class="subtask-dlg__field">
         <span>{{ t('issues.field_assignee') }}</span>
-        <select v-model="assignee" data-test="issues-subtask-assignee" :disabled="busy">
-          <option value="">{{ t('issues.no_assignee') }}</option>
-          <option v-for="p in assignees" :key="p.id" :value="p.id">{{ p.label }}</option>
-        </select>
-      </label>
+        <PersonPicker
+          v-model="assignee"
+          test="issues-subtask-assignee"
+          option-test="issues-subtask-assignee-opt"
+          :label="t('issues.field_assignee')"
+          :disabled="busy"
+          :options="[{ id: '', label: t('issues.no_assignee') }, ...assignees]"
+        />
+      </div>
       <p class="subtask-dlg__field muted" data-test="issues-subtask-level">
         <span>{{ t('issues.field_level') }}</span>
         <span>3 · {{ t('issues.level.3') }}</span>

@@ -26,7 +26,7 @@ const MAX_SCRIPT = 500
 // It may only shrink: decompose the component and lower or delete its line; a
 // NEW file over MAX_SCRIPT fails.
 const BIG = new Map([
-  ['src/pages/issues.vue', 2084],
+  ['src/pages/issues.vue', 2083],
   ['src/components/MessageComposer.vue', 1136],
   ['src/components/workspace-docs/WorkspaceDocView.vue', 677],
   ['src/components/workspace-docs/QtoFileTree.vue', 654],

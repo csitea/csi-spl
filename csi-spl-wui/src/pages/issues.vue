@@ -235,12 +235,16 @@
                 </select>
               </th>
               <th data-col="assignee">
-                <select v-model="assigneeF" class="issues-filter-assignee" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')" :title="assigneeTitle">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option value="me">{{ t('issues.filter_me') }}</option>
-                  <option value="none">{{ t('issues.filter_unassigned') }}</option>
-                  <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
-                </select>
+                <!-- SPL-2213: a keyboard drop box - type, Up / Down, Enter -->
+                <PersonPicker
+                  v-model="assigneeF"
+                  input-class="issues-filter-assignee"
+                  test="issues-filter-assignee"
+                  option-test="issues-filter-assignee-opt"
+                  :label="t('issues.filter_assignee')"
+                  :title="assigneeTitle"
+                  :options="[{ id: '', label: t('issues.filter_all') }, { id: 'me', label: t('issues.filter_me') }, { id: 'none', label: t('issues.filter_unassigned') }, ...assigneeOptions]"
+                />
               </th>
               <th data-col="label">
                 <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
@@ -654,12 +658,14 @@
         </label>
         <label class="issues-sheet__f">
           <span>{{ t('issues.filter_assignee') }}</span>
-          <select v-model="assigneeF" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')">
-            <option value="">{{ t('issues.filter_all') }}</option>
-            <option value="me">{{ t('issues.filter_me') }}</option>
-            <option value="none">{{ t('issues.filter_unassigned') }}</option>
-            <option v-for="p in assigneeOptions" :key="'ma' + p.id" :value="p.id">{{ p.label }}</option>
-          </select>
+          <PersonPicker
+            v-model="assigneeF"
+            test="issues-filter-assignee"
+            option-test="issues-filter-assignee-opt"
+            tall
+            :label="t('issues.filter_assignee')"
+            :options="[{ id: '', label: t('issues.filter_all') }, { id: 'me', label: t('issues.filter_me') }, { id: 'none', label: t('issues.filter_unassigned') }, ...assigneeOptions]"
+          />
         </label>
         <label class="issues-sheet__f">
           <span>{{ t('issues.filter_label') }}</span>
@@ -1129,12 +1135,27 @@
       v-if="menu"
       class="issues-menu"
       :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-menu--label': menu.kind === 'label', 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
-      role="listbox"
+      :role="menu.kind === 'assign' ? undefined : 'listbox'"
       data-test="issues-menu"
       :data-kind="menu.kind"
       :style="phone ? undefined : menuStyle"
       @click.stop
     >
+      <!-- SPL-2213: the person menu is a keyboard drop box; Escape or a pick
+           closes it and the focus goes back to the button that opened it -->
+      <PersonPicker
+        v-if="menu.kind === 'assign'"
+        mode="list"
+        test="issues-person-search"
+        option-test="issues-menu-option"
+        :tall="phone"
+        :autofocus="!phone"
+        :label="t('issues.field_assignee')"
+        :model-value="menu.bulk ? '' : (issues.find((i) => i.key === menu?.key)?.assignee ?? activeAssignee)"
+        :options="[{ id: '', label: t('issues.no_assignee') }, ...assigneeOptions]"
+        @pick="applyMenu"
+        @close="menu = null"
+      />
       <button
         v-for="(opt, i) in menuOptions"
         :key="opt.value"
@@ -1871,7 +1892,6 @@ const menuOptions = computed(() => {
   const hint = ''
   if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: statusLabel(s), hint: t(statusHintKey(s)) }))
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
-  if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
   if (kind === 'epic') return [{ value: '', label: t('issues.no_epic'), hint }, ...epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))]
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: `${n} ${t(levelKey(n))}`, hint }))
@@ -3358,7 +3378,9 @@ onUnmounted(() => {
 .issues-fcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .issues-fcell__name { font-size: 0.75rem; color: var(--color-muted); white-space: nowrap; }
 .issues-filters select, .issues-tools select { field-sizing: content; }
-.issues-filters .issues-filter-assignee {
+.issues-filters :deep(.person-picker) { align-items: flex-start; }
+.issues-filters :deep(.issues-filter-assignee) {
+  field-sizing: content;
   max-width: 13em;
   overflow: hidden;
   white-space: nowrap;
@@ -4098,7 +4120,8 @@ select.issues-pctl { appearance: auto; }
   .issues-sheet__h h3 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 1rem; }
   .issues-sheet__x { min-width: var(--tap, 44px); min-height: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; }
   .issues-sheet__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
-  .issues-sheet__f select {
+  .issues-sheet__f select,
+  .issues-sheet__f :deep(.person-picker__input) {
     min-height: var(--tap, 44px);
     width: 100%;
     background: var(--color-bg-2);

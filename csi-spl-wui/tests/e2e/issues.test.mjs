@@ -126,9 +126,8 @@ try {
     const w = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().width)
     const a = document.querySelector('[data-test=issues-filter-assignee]')
     const em = parseFloat(getComputedStyle(a).fontSize)
-    const opts = [...a.options].map((o) => o.text.length)
-    const out = { assignee: w('[data-test=issues-filter-assignee]'), prio: w('[data-test=issues-filter-priority]'), level: w('[data-test=issues-filter-level]'), capPx: Math.round(13 * em), title: a.title, longestOption: Math.max(...opts) }
-    /* CONTROL: the same select sized the old way (to its widest option) */
+    const out = { assignee: w('[data-test=issues-filter-assignee]'), prio: w('[data-test=issues-filter-priority]'), level: w('[data-test=issues-filter-level]'), capPx: Math.round(13 * em), title: a.title }
+    /* CONTROL: the same box sized the old way (a fixed-width field) */
     a.style.fieldSizing = 'fixed'; a.style.maxWidth = 'none'
     out.controlOldWay = w('[data-test=issues-filter-assignee]')
     a.style.fieldSizing = ''; a.style.maxWidth = ''
@@ -136,7 +135,7 @@ try {
   })
   const who = await p.evaluate(() => {
     const a = document.querySelector('[data-test=issues-filter-assignee]')
-    return { text: a.options[a.selectedIndex].text.trim(), aria: a.getAttribute('aria-label') }
+    return { text: a.value.trim(), aria: a.getAttribute('aria-label') }
   })
   ok('2e the Assignee control shows the value alone; Assignee is its name (topic e00da93b)', who.text === 'All' && who.aria === 'Assignee', who)
   ok('2d the closed Assignee control is no wider than 13em, near prio / level, the full text on hover',
@@ -273,6 +272,14 @@ try {
   const backdropClosed = await dialogGone()
   ok('4g a click on the backdrop closes the dialog', backdropClosed, { backdropClosed })
   await openSub()
+  /* SPL-2213: the dialog's assignee is the same drop box; Enter on an open list picks and does not submit */
+  await p.click('[data-test=issues-subtask-assignee]')
+  await p.keyboard.type('HUM-1')
+  const subOpts = await p.$$eval('[data-test=issues-subtask-assignee-opt]', (els) => els.filter((e) => e.offsetParent).map((e) => e.getAttribute('data-value')))
+  await p.keyboard.press('Enter')
+  const subPick = await p.evaluate(() => ({ value: document.querySelector('[data-test=issues-subtask-assignee]')?.value || '', dialogs: document.querySelectorAll('[data-testid=ui-dialog]').length }))
+  ok('4i the subtask assignee: typing shows only the matches, Enter picks one and keeps the dialog open',
+    subOpts.length > 0 && subOpts.every((v) => v.toLowerCase().includes('hum-1')) && subPick.value.toLowerCase().includes('hum-1') && subPick.dialogs === 2, { subOpts, subPick })
   await p.type('[data-test=issues-subtask-input]', 'Mock subtask')
   await p.keyboard.press('Enter')
   const enterClosed = await dialogGone()
@@ -309,6 +316,79 @@ try {
   await p.keyboard.press('Escape')
   const afterEsc = await menuUp()
   ok('5d an open row menu closes on a click outside it and on Esc', openedA && !afterOutside && openedB && !afterEsc, { openedA, afterOutside, openedB, afterEsc })
+
+  /* SPL-2213 (owner, t1 cb2b515c): picking a person is a keyboard drop box -
+     type 3 letters: only the case-insensitive matches; Enter picks the
+     highlighted one; ArrowDown + Enter picks the next; Esc closes */
+  const openPerson = async (key) => {
+    await p.click(`[data-test=issues-row][data-key="${key}"] [data-test=issues-row-assignee]`)
+    await p.waitForSelector('[data-test=issues-menu][data-kind=assign] [data-test=issues-person-search]', { visible: true, timeout: 5000 }).catch(() => null)
+  }
+  const shownPeople = (sel) => p.$$eval(sel, (els) => els.filter((e) => e.offsetParent).map((e) => ({ id: e.getAttribute('data-value'), label: e.textContent.trim(), cur: e.getAttribute('data-current') === 'true' })))
+  const rowAssignee = (key) => p.$eval(`[data-test=issues-row][data-key="${key}"] [data-test=issues-row-assignee]`, (el) => el.getAttribute('data-assignee') || '').catch(() => '?')
+  const menuSel = '[data-test=issues-menu][data-kind=assign] [data-test=issues-menu-option]'
+  await openPerson('SPL-3')
+  const pc = await p.evaluate(() => {
+    const el = document.activeElement
+    return { focused: el?.getAttribute('data-test') || '', role: el?.getAttribute('role') || '', expanded: el?.getAttribute('aria-expanded') || '', list: el?.getAttribute('aria-controls') || '' }
+  })
+  const everyone = await shownPeople(menuSel)
+  /* three letters of a person's name that not every row holds, typed in upper case */
+  const pickSlice = (list) => {
+    for (const who of list.filter((x) => x.id)) {
+      for (let i = 0; i + 3 <= who.label.length; i++) {
+        const q = who.label.slice(i, i + 3)
+        const hits = list.filter((x) => (x.label + ' ' + x.id).toLowerCase().includes(q.toLowerCase()))
+        if (/^\S{3}$/.test(q) && hits.length < list.length) return { q, hits }
+      }
+    }
+    return { q: '', hits: [] }
+  }
+  const { q, hits } = pickSlice(everyone)
+  await p.keyboard.type(q.toUpperCase())
+  const typedRows = await shownPeople(menuSel)
+  const active0 = await p.$eval('[data-test=issues-person-search]', (el) => el.getAttribute('aria-activedescendant') || '').catch(() => '')
+  ok('19a the person menu is a combobox with the focus; typing 3 letters (any case) shows only the matches',
+    pc.focused === 'issues-person-search' && pc.role === 'combobox' && pc.expanded === 'true' && Boolean(pc.list) && everyone.length > 2 &&
+      Boolean(q) && typedRows.length > 0 && typedRows.length < everyone.length && JSON.stringify(typedRows.map((x) => x.id)) === JSON.stringify(hits.map((x) => x.id)) && Boolean(active0),
+    { pc, n: everyone.length, q: q.toUpperCase(), typed: typedRows.map((x) => x.id), want: hits.map((x) => x.id), active0 })
+  await p.keyboard.press('Enter')
+  await p.waitForFunction((k, w) => document.querySelector(`[data-test=issues-row][data-key="${k}"] [data-test=issues-row-assignee]`)?.getAttribute('data-assignee') === w, { timeout: 5000 }, 'SPL-3', hits[0]?.id || '?').catch(() => null)
+  const afterEnter = { asg: await rowAssignee('SPL-3'), menu: await menuUp(), focus: await p.evaluate(() => document.activeElement?.closest('[data-test=issues-row]')?.getAttribute('data-key') || document.activeElement?.getAttribute('data-test') || '') }
+  ok('19b Enter assigns the highlighted match, the menu closes and the focus is back on the row', afterEnter.asg === hits[0]?.id && !afterEnter.menu && afterEnter.focus === 'SPL-3', { afterEnter, want: hits[0]?.id })
+  await openPerson('SPL-2')
+  const before2 = await shownPeople(menuSel)
+  const cur = before2.findIndex((x) => x.cur)
+  const wantDown = before2[cur < 0 ? 0 : (cur + 1) % before2.length]
+  await p.keyboard.press('ArrowDown')
+  await p.keyboard.press('Enter')
+  await p.waitForFunction((k, w) => document.querySelector(`[data-test=issues-row][data-key="${k}"] [data-test=issues-row-assignee]`)?.getAttribute('data-assignee') === w, { timeout: 5000 }, 'SPL-2', wantDown?.id || '?').catch(() => null)
+  const asgDown = await rowAssignee('SPL-2')
+  ok('19c ArrowDown + Enter assigns the next person', Boolean(wantDown?.id) && asgDown === wantDown.id, { cur, want: wantDown, asgDown })
+  await openPerson('SPL-2')
+  const escOpen = await menuUp()
+  await p.keyboard.type(q)
+  await p.keyboard.press('Escape')
+  const escState = { menu: await menuUp(), asg: await rowAssignee('SPL-2'), focus: await p.evaluate(() => document.activeElement?.getAttribute('data-test') || '') }
+  ok('19d Esc closes the person menu, assigns nobody new and gives the focus back to the person button',
+    escOpen && !escState.menu && escState.asg === asgDown && escState.focus === 'issues-row-assignee', escState)
+  /* the Assignee filter is the same drop box: type, Enter filters */
+  await p.click('[data-test=issues-filter-assignee]')
+  await p.keyboard.type(q.toLowerCase())
+  const fShown = await shownPeople('[data-test=issues-filter-assignee-opt]')
+  await p.keyboard.press('Enter')
+  const fWant = fShown[0]
+  await p.waitForFunction((id) => { const rows = [...document.querySelectorAll('[data-test=issues-row]')]; return rows.length > 0 && rows.every((r) => r.querySelector('[data-test=issues-row-assignee]')?.getAttribute('data-assignee') === id) }, { timeout: 8000 }, fWant?.id || '?').catch(() => null)
+  const fState = await p.evaluate(() => ({ value: document.querySelector('[data-test=issues-filter-assignee]').value, rows: [...document.querySelectorAll('[data-test=issues-row]')].map((r) => r.querySelector('[data-test=issues-row-assignee]')?.getAttribute('data-assignee')) }))
+  ok('19e the Assignee filter: 3 letters show only the matches, Enter filters the list to that person',
+    Boolean(fWant) && fShown.every((x) => (x.label + ' ' + x.id).toLowerCase().includes(q.toLowerCase())) && fState.value === fWant.label && fState.rows.length > 0 && fState.rows.every((a) => a === fWant.id),
+    { q, fShown: fShown.map((x) => x.id), fState })
+  /* the mouse still works: a press opens the list, a click on All picks it */
+  await p.click('[data-test=issues-filter-assignee]')
+  await p.waitForSelector('[data-test=issues-filter-assignee-opt][data-value=""]', { visible: true, timeout: 5000 }).catch(() => null)
+  await p.click('[data-test=issues-filter-assignee-opt][data-value=""]').catch(() => null)
+  const allBack = await p.waitForFunction(() => document.querySelector('[data-test=issues-filter-assignee]')?.value === 'All', { timeout: 5000 }).then(() => true, () => false)
+  ok('19f a mouse click on All in the open filter list clears the filter', allBack, { allBack })
 
   /* prio is a select box in the sheet */
   await p.select('[data-test=issues-row][data-key="SPL-3"] [data-test=issues-row-priority]', '1')

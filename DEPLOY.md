@@ -74,6 +74,72 @@ The README section "Backup, restore and upgrade" holds the exact commands.
 Pin a weekly `stable-<date>` tag rather than `master`, and take a backup
 before every upgrade: migrations are forward-only.
 
+### 2.5 Rollback
+
+Roll back when an upgrade misbehaves and the fix is not ready yet. The
+database is the one thing that does not go back: migrations are
+forward-only, so an older hub then runs on the newer schema.
+
+**The rule.** An older hub runs on a newer schema while every migration
+it lacks is *additive* (a new table, column, index or function). The hub
+checks this at start: a database *behind* its image is refused, a database
+*ahead* of it only logs a warning (`/version` shows the image's
+`schema_head`). A migration that drops, renames or tightens something the
+older code uses (`DROP COLUMN`, `RENAME`, `SET NOT NULL`, a column type
+change) breaks the older hub per request. Before a rollback, read the
+migrations the newer release added: the release notes list them, or run
+`git diff --name-only --diff-filter=A <older> <newer> -- csi-spl-rdb/src/sql/postgres/spool-hub`.
+
+**On a compose stack (P1)**, with `<older>` the `stable-<date>` tag you
+ran before:
+
+1. Back up the current state (2.4): the rollback keeps the database, and
+   this backup is your way back.
+2. Check out the older tag, rebuild and verify:
+
+```bash
+git fetch --tags && git checkout <older> && docker compose up --build -d && curl -s localhost:8080/version
+```
+
+3. Only if a migration the older release lacks is not additive: restore
+   the backup you took **before** the upgrade (2.4, restore into an empty
+   stack). Everything written since that backup is lost, so prefer waiting
+   for a fixed release.
+
+**On the hosted shape** (Cloud Run hub, Firebase Hosting web UI), two
+actions point an environment back at a release it already served. Nothing
+is rebuilt and no migration runs. Run them from `csi-spl-orc`; each one
+prints its plan and changes nothing until `DRY_RUN=0`:
+
+```bash
+ENV=dev TO=previous ./run -a do_wui_rollback
+```
+
+```bash
+ENV=dev TO=previous ./run -a do_hub_rollback
+```
+
+- `TO` is a release tag `v<X.Y.Z>[-c<N>]` (`git ls-remote --tags origin 'v*'`),
+  a trunk commit, `previous` (the release before the one live), or the
+  component's own id: a Cloud Run revision name, or a Firebase Hosting
+  version id. An unknown target is refused.
+- **dev first.** `ENV=prd` is refused unless dev already serves the same
+  commit. Roll dev back, check it, then prd with the same `TO`.
+- **The web UI first.** A web UI needs a hub at least as new as itself:
+  roll the web UI back before the hub (`do_hub_rollback` warns when the
+  served web UI is newer than its target).
+- **The schema.** `do_hub_rollback` lists every migration newer than the
+  target, and refuses when one of them drops, renames or tightens
+  something, until you have read it and pass `ROLLBACK_SCHEMA_OK=1`.
+- **An older web UI ships its old hosting config.** That includes its CSP
+  `connect-src`, so a workspace host added since that release cannot connect.
+- **It holds until the next deploy.** The next push that changes a hub or
+  web UI input, and the catch-up workflow `21` (every 15 minutes, once
+  trunk's version has gone unserved past its grace period), deploy trunk
+  head again. Land the fix or a revert on master. To hold the rollback
+  longer, disable `21_hub-deploy-catchup.yml` in GitHub Actions and enable
+  it again once the fix is live.
+
 ## 3. P3: seat an agent on a hub
 
 ### 3.1 What the machine needs

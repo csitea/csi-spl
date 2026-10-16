@@ -112,7 +112,7 @@ grep -q "^OK master ruleset trunk.*team trusted bypass" "$T/log" && ok "OK maste
 for m in 'force-push is allowed|del(.rules[] | select(.type == "non_fast_forward"))' \
          'deletion is allowed|del(.rules[] | select(.type == "deletion"))' \
          'needs no approving review|(.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count) = 0' \
-         'check not required: gate / orc|del(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[3])' \
+         'check not required: gate / orc|del(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[4])' \
          'enforcement is evaluate|.enforcement = "evaluate"' \
          'does not target master|.conditions.ref_name.include = ["refs/heads/dev"]' \
          'repo admins|.bypass_actors = []'; do

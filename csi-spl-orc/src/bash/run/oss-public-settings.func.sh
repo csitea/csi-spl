@@ -44,7 +44,8 @@
 # matching wf 10/11.
 oss_ruleset_checks() {
   printf '%s\n' \
-    "gate / hub: gofmt, go vet, go test, smoke, Postgres + GCS gates" \
+    "gate / hub: gofmt, go vet, go test, smoke, GCS gate" \
+    "gate / hub: Postgres gate, pg coverage floor" \
     "gate / wui: unit tests + typecheck" \
     "gate / iac: tfvars parity, step contracts, terraform validate" \
     "gate / orc: hermetic action tests (stubbed gcloud/curl/docker) 1/2" \

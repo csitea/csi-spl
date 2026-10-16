@@ -9,6 +9,8 @@
 #   4. tenant A cannot write into tenant B: the body names only TENANT_ID,
 #      and the hub's refusals (403 tenant_mismatch, 400 topic of another
 #      workspace) fail the action with no read-back
+#   5. SPL-2282: the written entry's clickable link, on a workspace host and
+#      on the apex for t1, its day from the event's start
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -23,7 +25,7 @@ run() {
     do_log() { echo "$*"; }
     do_require_bin() { :; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
-    do_spl_cloud_cnf() { SPL_CNF=/dev/null SPL_PROJECT=csi-spl-$ENV; }
+    do_spl_cloud_cnf() { SPL_CNF=/dev/null SPL_PROJECT=csi-spl-$ENV SPL_FQDN=spool.invalid; }
     spl_hub_operator_url() { SPL_HUB_URL=https://hub.invalid; }
     do_gcp_pin_account() { echo "pin" >>"$CALLS"; GCP_ACCOUNT=sa@example.iam.gserviceaccount.com; }
     do_gcp_require_live_account() { :; }
@@ -77,5 +79,17 @@ run "${SET[@]}" DRY_RUN=0 TOPIC_ID=topic-of-b STUB_CODE=400 STUB_BODY='{"error":
   && pass "4. a topic of another workspace is refused, nothing read back" || fail "4. topic: rc=$rc $(cat "$T/calls" "$T/o")"
 run "${SET[@]}" DRY_RUN=0 STUB_CODE=404 STUB_BODY='{"error":"not_found"}'; rc=$?
 [[ $rc -ne 0 ]] && grep -q "deploy a hub with it" "$T/o" && pass "4. an old hub (404) fails" || fail "4. 404: rc=$rc $(cat "$T/o")"
+
+# --- 5. the entry's clickable link (SPL-2282) ---------------------------------
+L='https://wa.spool.invalid/calendar?d=2026-10-12&event=0a1b2c3d'
+run "${SET[@]}" DRY_RUN=0 STUB_BODY="$EV"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "link=$L" "$T/o" && grep -qF '"audience":"workspace","link":"'"$L"'"}' "$T/o" \
+  && pass "5. a workspace's entry prints link=$L, also in its JSON line" || fail "5. ws link: rc=$rc $(cat "$T/o")"
+EV_T1="${EV/2026-10-12T00:00:00Z/2026-10-14T09:30:00Z}"
+run "${SET[@]}" DRY_RUN=0 TENANT_ID=t1 STUB_BODY="$EV_T1"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF 'link=https://spool.invalid/calendar?d=2026-10-14&event=0a1b2c3d' "$T/o" \
+  && pass "5. a t1 entry links on the apex, day from its start" || fail "5. t1 link: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" DRY_RUN=1; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'link=' "$T/o" && pass "5. DRY_RUN writes nothing, prints no link" || fail "5. dry link: $(cat "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-add" || { echo "FAILED: $fails"; exit 1; }

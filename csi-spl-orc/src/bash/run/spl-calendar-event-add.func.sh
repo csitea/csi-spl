@@ -8,7 +8,9 @@
 # @description event's creator is AGENT_ID (creator_type agent), never a human;
 # @description it lands only in TENANT_ID (the hub refuses a topic of another
 # @description workspace). After the write the event is read back through
-# @description GET /v1/operator/calendar/events/<id>. DRY_RUN=1 (default):
+# @description GET /v1/operator/calendar/events/<id>, and its clickable link is
+# @description printed (SPL-2282): link=https://<host>/calendar?d=<start day>&event=<id>,
+# @description host = <tenant>.<env.dns.fqdn>, the apex for t1. DRY_RUN=1 (default):
 # @description print the request it would send, call no cloud, write nothing.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the workspace slug
@@ -53,8 +55,22 @@ do_spl_calendar_event_add() {
   spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$TENANT_ID" || return 1
   [[ "$SPL_HUB_OP_STATUS" == 200 && "$(jq -r '.event.id // ""' <<<"$SPL_HUB_OP_BODY")" == "$id" ]] \
     || { do_log "FATAL event $id was written but its read-back answered http $SPL_HUB_OP_STATUS: $SPL_HUB_OP_BODY"; return 1; }
-  jq -c '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, audience}' <<<"$SPL_HUB_OP_BODY"
+  local link
+  link="$(_spl_calendar_event_link "$TENANT_ID" "$(jq -r '.event.starts_at // ""' <<<"$SPL_HUB_OP_BODY")" "$id")" || return 1
+  jq -c --arg link "$link" '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, audience, link: $link}' <<<"$SPL_HUB_OP_BODY"
+  echo "link=$link"
   do_log "OK event $id in $TENANT_ID ($ENV), read back through the hub, creator $(jq -r '.event.creator_type + " " + .event.creator_id' <<<"$SPL_HUB_OP_BODY")"
+}
+
+# _spl_calendar_event_link <tenant> <starts_at> <id> (SPL-2282): the entry's
+# clickable link, as the WUI opens it (/calendar?d=<YYYY-MM-DD>&event=<id>):
+# https://<tenant>.<SPL_FQDN>, the apex for t1; the host comes from the cnf.
+_spl_calendar_event_link() {
+  local host="${SPL_FQDN:-}" day="${2:0:10}"
+  [[ -n "$host" ]] || { do_log "FATAL env.dns.fqdn is empty: no link for event $3"; return 1; }
+  [[ "$day" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { do_log "FATAL event $3 has no start day in the read-back: '$2'"; return 1; }
+  [[ "$1" == t1 ]] || host="$1.$host"
+  printf 'https://%s/calendar?d=%s&event=%s\n' "$host" "$day" "$3"
 }
 
 # _spl_calendar_event_body: set the caller's local body to the request body

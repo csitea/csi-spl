@@ -285,7 +285,18 @@ live lane's dir can go; the age must stay well above a lane's lifetime.
 
 ## 4. Signature
 
-**Not signed on v1.0 (ac35c4bf3).** Reviewed 2026-10-16 on sat. Two rows
+signed: c-282@sat on d429c1d01
+
+**v1.1 (d429c1d01) signed** 2026-10-16 after review: row 06 is now a fixed
+builder-cache cap through `prune-docker-images.sh` (`PRUNE_BUILDER_CAP_BYTES`
+exists on master, "a fixed cap in bytes, beats the %"), row 05 keeps
+`Q /tmp 1777 root root 10d`, and section 6 shows this seat as pending. One
+note for the row 06 brief: the box sweep's cron runs the docker step with
+`PRUNE_BUILDER_CAP_PCT` only (`box-disk-sweep.sh` line 176), so
+`PRUNE_BUILDER_CAP_BYTES` must be exported in that cron line's environment
+for it to reach the step.
+
+History: **Not signed on v1.0 (ac35c4bf3).** Reviewed 2026-10-16 on sat. Two rows
 are blocking; the signature follows once a v1.1 fixes them. The v1.0 plan's
 section 6 shows `signed: c-282@sat on v1.0 consensus`: this seat never gave
 that signature, so that cell is not true and must read "pending".

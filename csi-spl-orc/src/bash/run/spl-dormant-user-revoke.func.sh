@@ -11,7 +11,8 @@
 # @description     anacrontab, systemd unit (system and every home), or a
 # @description     sudoers file other than its own grant
 # @description   - a launcher script under DORMANT_SCAN_DIRS: sudo -u, su,
-# @description     runuser -u, setpriv --reuid or User= with the user
+# @description     runuser -u, setpriv --reuid or User= with the user (a
+# @description     .json without an x bit is data, not a launcher)
 # @description It refuses root, a uid below 1000, the user running it, the
 # @description box / agent user of the spool, and a sudoers file that also
 # @description grants someone else (named, left alone). DRY_RUN=0: each grant
@@ -122,6 +123,8 @@ spl_dur_launchers() {
       -- "(sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+-u[[:space:]]*|su[[:space:]]+(-[[:space:]]+|-l[[:space:]]+|-c[[:space:]]+[^[:space:]]+[[:space:]]+)?|runuser[[:space:]]+(-u|-l)[[:space:]]+|--reuid[= ]|^User=)['\"]?$u\\b" "$d" 2>/dev/null |
       while IFS= read -r f; do
         for x in "${skip[@]}"; do [[ "$f" == "$x"/* ]] && continue 2; done
+        # a .json with no x bit is data (a spool message quoting a command), it runs nothing
+        [[ "$f" == *.json ]] && ! "${su[@]}" test -x "$f" && continue
         echo "script: $f"
       done
   done

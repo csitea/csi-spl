@@ -11,7 +11,9 @@
 #      crontab, a cron.d line, a systemd unit, a script with sudo -u, and a
 #      sudoers file shared with another user; a doc that mentions the user
 #      and a script for a user with a longer name are NOT launchers; a dir in
-#      DORMANT_SCAN_EXCLUDE is skipped and named, a .txt note is no launcher
+#      DORMANT_SCAN_EXCLUDE is skipped and named, a .txt note is no launcher;
+#      a mode-600 .json message quoting 'su - <user>' is no launcher, the same
+#      .json made executable and an executable script still refuse (CONTROL)
 #   4. DRY_RUN=0: the grant file gone (copy 600 in the undo dir), the
 #      supplementary groups gone, the primary group and the home kept, the
 #      other user's sudoers file untouched; a second run has nothing to do
@@ -120,6 +122,13 @@ grep -q "^launchers: 0 " "$T/o" && grep -qx "not scanned (DORMANT_SCAN_EXCLUDE, 
 du_ DORMANT_USER=$U
 grep -qx "launcher: script: $S/opt/archive/old.sh" "$T/o" && pass "without the exclude the same dir is a launcher" || fail "no exclude: $(cat "$T/o")"
 reset
+printf '{"body":"3 archived scripts that `su - %s -c true`"}\n' "$U" >"$S/opt/app/msg.json"; chmod 600 "$S/opt/app/msg.json"
+du_ DORMANT_USER=$U
+grep -q "^launchers: 0 " "$T/o" && pass "a mode-600 .json message quoting su - $U is not a launcher" || fail "json data: $(cat "$T/o")"
+chmod 700 "$S/opt/app/msg.json"; launcher "CONTROL: the same .json made executable" "launcher: script: $S/opt/app/msg.json"
+printf '#!/bin/sh\nsu - %s -c true\n' "$U" >"$S/opt/app/run.sh"; chmod 755 "$S/opt/app/run.sh"
+printf '{"body":"su - %s"}\n' "$U" >"$S/opt/app/msg.json"; chmod 600 "$S/opt/app/msg.json"
+launcher "CONTROL: an executable script next to a .json message" "launcher: script: $S/opt/app/run.sh"
 
 # --- 4. DRY_RUN=0 ------------------------------------------------------------------------------
 : >"$T/calls.log"

@@ -126,8 +126,9 @@ refuses, and is named:
 - a launcher script under `DORMANT_SCAN_DIRS` (default
   `/etc /usr/local /opt /home /root`): `sudo -u`, `su`, `runuser -u`,
   `setpriv --reuid` or `User=` with that user. Docs, logs, `.txt` notes,
-  agent transcripts and editor history are skipped, because they quote
-  commands but run none. The user's own home is skipped too.
+  agent transcripts, editor history and `.json` files without an execute bit
+  (spool messages) are skipped, because they quote commands but run none. An
+  executable `.json` is still scanned. The user's own home is skipped too.
 
 A dir the owner has reviewed and ruled out, for example an archived copy of
 old tooling that nothing calls, goes in `DORMANT_SCAN_EXCLUDE`. Every run

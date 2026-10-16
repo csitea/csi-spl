@@ -19,6 +19,8 @@
 # @description `REFUSED <reason>` (+ the tail of the push/hook output) or
 # @description `GAVE-UP <reason>`. It never forces, never sets SPL_PREPUSH_OVERRIDE
 # @description (it unsets it, and AGENT_ID: the hook sees a hand push's env) and never edits a file; a rebase conflict is aborted.
+# @description Its push is MARKED (SPL-2211: a one-push token while the worker holds the lock):
+# @description the pre-push hook refuses a lane's unmarked hand push to master before the gate.
 # @description The why: csi-spl-doc/doc/md/lane-integration-rules.md section 3.3.
 # @description status exit: 0 PUSHED, 1 REFUSED / GAVE-UP / DIED, 3 RUNNING, 4 none.
 # @param PUSH_CMD (optional) - start (default) or status
@@ -155,6 +157,43 @@ _spl_push_master_review_why() {
   grep -qE '\| log: \S+@\S+:\S+' <<<"$line" || echo "no '| log: <id>@<box>:<path>'"
 }
 
+# The marker of the worker's own push (SPL-2211): the pre-push hook refuses a
+# lane's hand `git push` to master within a second, before the gate, unless the
+# push carries SPL_PUSH_MASTER_TOKEN equal to <state>/push.token while the
+# worker holds <state>/lock. The marker never skips the gate itself.
+
+# _spl_push_master_lane_tree <toplevel> - prints the agent id when <toplevel>
+# is a LANE: a linked worktree named after an agent id (c-775, m-259-x,
+# CLE-3337). Nothing for the main checkout, a human's tree or a reconcile tmp.
+_spl_push_master_lane_tree() {
+  local base="${1##*/}" id gd cd
+  [[ "$base" =~ ^([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)([._-].*)?$ ]] || return 1
+  id="${BASH_REMATCH[1]}"
+  gd="$(git -C "$1" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 1
+  cd="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  [[ -n "$gd" && -n "$cd" && "$gd" != "$cd" ]] || return 1
+  echo "$id"
+}
+
+# _spl_push_master_marked - 0 when this push is the worker's own (see above).
+_spl_push_master_marked() {
+  local tok="${SPL_PUSH_MASTER_TOKEN:-}" st="${SPL_PUSH_MASTER_STATE:-}"
+  [[ -n "$tok" && -n "$st" && -r "$st/push.token" ]] || return 1
+  [[ "$(cat "$st/push.token" 2>/dev/null)" == "$tok" ]] || return 1
+  ! flock -n "$st/lock" true 2>/dev/null
+}
+
+# _spl_push_master_git_push <remote> <branch> <out> - the worker's one push,
+# marked for the hook; the token lives only as long as the push.
+_spl_push_master_git_push() {
+  local tok rc
+  tok="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  printf '%s\n' "$tok" >"$PUSH_STATE/push.token"
+  SPL_PUSH_MASTER_TOKEN="$tok" SPL_PUSH_MASTER_STATE="$PUSH_STATE" git push "$1" "HEAD:$2" >"$3" 2>&1; rc=$?
+  rm -f "$PUSH_STATE/push.token"
+  return "$rc"
+}
+
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
   local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc
@@ -190,7 +229,7 @@ _spl_push_master_worker() {
     fi
     sha="$(git rev-parse HEAD)"
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
-    if git push "$remote" "HEAD:$branch" >"$out" 2>&1; then
+    if _spl_push_master_git_push "$remote" "$branch" "$out"; then
       cat "$out"
       bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" --landed; landed_rc=$?
       _spl_push_master_end "PUSHED $sha

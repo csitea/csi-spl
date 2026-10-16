@@ -88,6 +88,21 @@ if [ -r "$_pp_rl" ]; then
     exit 1
   done <<<"$_pp_refs"
 fi
+
+# A lane's hand push to master (SPL-2211) -- after the two guards above, before
+# the gate, override included: a foreground `git push` ran the gate for 15+ min
+# and tripped the watchdog's cap (n=3, 2026-10-16). A lane lands only through
+# do_spl_push_master, whose worker marks its own push; that push still runs the
+# whole gate below. The lane test and the marker are in the pushing tree's
+# spl-push-master.func.sh (sourced above); a tree without them, the main
+# checkout, a human's tree and non-master refs are not asked.
+if declare -F _spl_push_master_lane_tree >/dev/null && grep -qE '^[^ ]+ [^ ]+ refs/heads/(master|main) ' <<<"$_pp_refs" \
+   && _pp_lane="$(_spl_push_master_lane_tree "$(git rev-parse --show-toplevel 2>/dev/null)")" \
+   && ! _spl_push_master_marked; then
+  _pp_logline "REFUSE $PWD lane=$_pp_lane override=$_pp_override secs=$(_pp_secs) -- hand push to master, not via do_spl_push_master"
+  echo "pre-push: REFUSED -- push master only via: cd csi-spl-orc && sudo -u $(id -un 2>/dev/null) env AGENT_ID=$_pp_lane ./run -a do_spl_push_master (returns at once; poll PUSH_CMD=status)" >&2
+  exit 1
+fi
 # The git env a hook inherits (GIT_DIR, GIT_INDEX_FILE, ...) is scrubbed before
 # the gate runs: its tests create commits and set config in THROWAWAY repos,
 # and an inherited GIT_DIR made those land on the pushing branch and the shared

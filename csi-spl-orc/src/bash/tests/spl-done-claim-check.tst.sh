@@ -23,6 +23,13 @@ mkrepo spl
 mkrepo other
 rg spl commit -q --allow-empty -m landed && rg spl push -q origin HEAD:master
 LANDED=$(rg spl rev-parse HEAD)
+# a review-branch commit whose patch lands on trunk under another sha (a rebase)
+rg spl checkout -q -b review HEAD~1
+echo fix >"$T/spl/f" && rg spl add f && rg spl commit -q -m "reviewed fix"
+REVIEW=$(rg spl rev-parse HEAD)
+rg spl checkout -q master && rg spl cherry-pick "$REVIEW" >/dev/null && rg spl commit -q --amend -m "reviewed fix, rebased"
+rg spl push -q origin HEAD:master
+[ "$(rg spl rev-parse HEAD)" != "$REVIEW" ] || { echo "FAIL: the fixture's rebased sha equals the review sha"; exit 1; }
 rg spl commit -q --allow-empty -m "never pushed"
 LOCAL=$(rg spl rev-parse HEAD)
 rg other commit -q --allow-empty -m "other repo" && rg other push -q origin HEAD:master
@@ -44,6 +51,7 @@ msg c-002/inbox  short c-541 c-002 30 "landed ${LANDED:0:9} fix(orc)"
 msg c-001/archive other c-542 c-002 30 "landed in the other repo: ${OTHER:0:12}"
 msg c-001/inbox  local c-543 c-002 30 "landed $LOCAL"
 msg c-543/outbox local c-543 c-002 30 "landed $LOCAL"
+msg c-002/inbox  rebased a-551 c-002 30 "review: PASS ${REVIEW:0:9}"
 msg c-002/inbox  young c-544 c-002 5 "no sha yet"
 msg c-002/inbox  role  c-002 c-001 30 "no sha from a role seat"
 msg c-545/outbox self  c-545 c-545 30 "ACK rotation x: c-545 read the handoff"
@@ -70,10 +78,10 @@ verdict() { awk -F'\t' -v k="$1" '$1 == k { print $3 }' "$T/o"; }
 
 # 1. dry run: the verdicts, nothing sent, no ledger
 run; rc=$?
-v="$(for k in m595 land short other local young role self uuid sat old note; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-want="m595=would-alert land=landed short=landed other=landed local=would-alert young= role= self= uuid=would-alert sat= old= note= "
+v="$(for k in m595 land short other local rebased young role self uuid sat old note; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+want="m595=would-alert land=landed short=landed other=landed local=would-alert rebased=landed young= role= self= uuid=would-alert sat= old= note= "
 [ "$rc" = 0 ] && [ "$v" = "$want" ] && [ ! -s "$T/calls.log" ] && [ ! -e "$ST/seen.tsv" ] &&
-  pass "1. dry run: no sha (m-595's shape) and an unpushed sha would alert; a full, a 9-hex and another repo's sha are landed; young, role seat, self-sent, other box, old and non-result skipped; nothing sent" ||
+  pass "1. dry run: no sha (m-595's shape) and an unpushed sha would alert; a full, a 9-hex, another repo's and a rebased sha whose patch is on trunk (git cherry -) are landed; young, role seat, self-sent, other box, old and non-result skipped; nothing sent" ||
   fail "1. dry run (rc $rc) got '$v' want '$want': $(cat "$T/o") // $(cat "$T/calls.log")"
 [ "$(grep -c '^local	' "$T/o")" = 1 ] && grep -q '^uuid	.*no-sha$' "$T/o" &&
   pass "2. one row per msg_id (inbox + outbox copies); a UUID and an all-digit run id are not shas" || fail "2. dedupe / uuid: $(cat "$T/o")"
@@ -83,8 +91,8 @@ run DRY_RUN=0; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: m-595 result m595 (.*): no sha not in the repository" "$T/calls.log" &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-543 result local .*: sha $LOCAL not in the repository" "$T/calls.log" &&
-  ! grep -q "c-540\|c-541\|c-542" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 6 ] &&
-  pass "3. DRY_RUN=0: one note per alerting message to the holder (lane, msg id, sha, 'not in the repository'); landed ones send none; all six go to the ledger" ||
+  ! grep -q "c-540\|c-541\|c-542\|a-551" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 7 ] &&
+  pass "3. DRY_RUN=0: one note per alerting message to the holder (lane, msg id, sha, 'not in the repository'); landed ones send none; all seven go to the ledger" ||
   fail "3. real run (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 # 4. once per message: a second run sends nothing

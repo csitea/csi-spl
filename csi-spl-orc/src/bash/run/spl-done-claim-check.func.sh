@@ -18,8 +18,10 @@
 # @description   - DONE_CLAIM_AGE_MIN (15) minutes after the message: a git
 # @description     fetch of each repo in DONE_CLAIM_REPO_DIRS, then each sha
 # @description     must resolve in one of them and be an ancestor of that
-# @description     repo's trunk (origin/master, else origin/main): a sha of
-# @description     another repo is checked in that repo
+# @description     repo's trunk (origin/master, else origin/main), or carry a
+# @description     patch already on it (`git cherry` "-": a review-branch sha
+# @description     landed under a new sha by a rebase); a sha of another repo
+# @description     is checked in that repo
 # @description   - a result with NO sha, or with a sha on no trunk -> ONE note
 # @description     to the dispatch lease holder (lane, msg id, the shas, "not
 # @description     in the repository"); every decided message goes to the
@@ -146,15 +148,18 @@ spl_done_claim_repos() {
   return $rc
 }
 
-# spl_done_claim_missing <repos file> <shas>: the shas on no repo's trunk (a
-# sha that resolves in a repo and is an ancestor of its trunk has landed).
+# spl_done_claim_missing <repos file> <shas>: the shas on no repo's trunk. A
+# sha that resolves in a repo has landed when it is an ancestor of its trunk,
+# or when `git cherry` marks it "-": the same patch (patch-id) is on the trunk
+# under another sha, as a review-branch sha after the rebase that landed it.
 spl_done_claim_missing() {
-  local s top ref ok out=()
+  local s full top ref ok out=()
   for s in $2; do
     ok=0
     while read -r top ref; do
-      git -C "$top" rev-parse -q --verify "$s^{commit}" >/dev/null 2>&1 &&
-        git -C "$top" merge-base --is-ancestor "$s" "$ref" 2>/dev/null && { ok=1; break; }
+      full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
+      if git -C "$top" merge-base --is-ancestor "$full" "$ref" 2>/dev/null ||
+        git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null; then ok=1; break; fi
     done <"$1"
     (( ok )) || out+=("$s")
   done

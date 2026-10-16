@@ -23,7 +23,11 @@ reads and fetches, sends nothing, writes no ledger). Code:
 3. 15 min after the message: `git fetch` of each repo in
    `DONE_CLAIM_REPO_DIRS` (default csi-spl), then each sha must resolve in
    one of them and be an ancestor of its `origin/master` (else
-   `origin/main`). A sha of another repo is checked in that repo.
+   `origin/main`), or carry a patch already on it: `git cherry <trunk> <sha>
+   <sha>^` prints `- <sha>` (same patch-id under another sha, as a
+   review-branch sha the rebase landed anew; c-002@sat, msg a34e2b44, n=3:
+   bbaa9fe83, 5deaf8c1e, ad064cf5e). A sha of another repo is checked
+   in that repo.
 4. No sha, or a sha on no trunk: ONE note to the dispatch lease holder on
    task `done-claim-check`: lane, msg id, the shas, "not in the repository".
    Every judged message goes to the ledger
@@ -44,6 +48,6 @@ The box cron `done-claim-check`, every 5 min (row in
 
 `csi-spl-orc/src/bash/tests/spl-done-claim-check.tst.sh`: m-595's shape (no
 sha) alerts after 15 min and not before; a landed full sha and a 9-hex short
-sha do not; a sha of a second repo is checked in that repo; an unpushed sha
+sha do not, nor a rebased sha whose patch is on the trunk; a sha of a second repo is checked in that repo; an unpushed sha
 alerts; one note per message; a failed send is retried; a missing clone
 refuses.

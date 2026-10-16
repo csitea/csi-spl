@@ -34,10 +34,13 @@ Empirically measured on `PC` and `sat` (read-only probes, 2026-10-16 ~07:2xZ, n=
   - containerd snapshotter storage: **115 GB** under `/var/lib/containerd`.
   - Total reclaimable Docker space on `PC`: **~148 GB**.
 - **Agent shell snapshots:** Hundreds of `.sh` script snapshots in `~/.claude/shell-snapshots/` created by subshell executions without retention limits.
+- **Agent retirement reaper baseline (dry run 2026-10-16T08:44:00Z by `c-001@PC`):** 372 agent IDs identified for retirement under `/var/spool-hub/.reap/reap.log`.
 
 ### 1.2 Box `sat` (satellite host)
 - **Root filesystem (`/`):** `/dev/sda1` 30 GB total, 21 GB used, 7.4 GB free (**74% used**, previously reached 88% / 3.5 GB free before SPL-2053 emergency sweep).
-- **Data mount (`/mnt/data`):** `/dev/sdb` 98 GB total, 78 GB used, 21 GB free (80% used).
+- **Data mount (`/mnt/data`):** `/dev/sdb` 98 GB total, 83 GB used, 15 GB free (**85% used**, measured 2026-10-16T08:41Z by `c-001@sat`): home 33 GB, docker 31 GB (overlay2 21 GB), gh-runner 8 GB.
+- **Agent retirement reaper & worktree audit (dry run 2026-10-16T08:30Z by `c-001@sat`, `agent-id-reap.sh`):** 137 agent IDs eligible for retirement (0 live tmux windows). 7 candidate old worktrees evaluated for 24h disk-sweep removal: `c-089`, `c-402`, `c-403`, `c-409`, `c-410` each hold 1 unlanded commit not on `origin/master` (`git cherry +`), while `c-407` and `c-411` hold 0; all 7 have 13–16 uncommitted dirty files.
+- **Critical Safety Invariant (Worktree Protection):** Turning live sweeping on worktrees without checking git state risks deleting unlanded work (the `m-261` precedent where a local branch was the sole surviving copy). **Rule:** A worktree with unlanded commits (`git cherry origin/master`) or dirty files is NEVER swept or pruned without explicit, confirmed named owner approval.
 - **Temporary storage (`/tmp` tmpfs):** 32 GB total, 9.7 GB used, 22 GB free (31% used).
 - **Persistent temporary storage (`/var/tmp`):** **5.1 GB** used.
 - **System logs (`/var/log`):** **850 MB** used, dominated by `/var/log/journal` at 488 MB and high-velocity authentication logs (`auth.log` 138 MB, plus compressed rotations `auth.log.2.gz` 92 MB and `auth.log.3.gz` 56 MB).
@@ -153,6 +156,7 @@ Every row is a named csi-rel action (`do_<verb>_<noun>`, `csi-spl-utl`), runnabl
   - Verifies that no active process holds the directory (checks `/proc/*/cwd` and open file descriptors).
   - Verifies that the agent ID is not active in `registry.tsv` or active tmux windows.
   - Requires idle age > 72 hours before routine deletion.
+  - **Worktree Safety Invariant:** Any candidate worktree or directory containing unlanded git commits (`git cherry origin/master`) or uncommitted dirty files (`git status --porcelain`) is strictly skipped and flagged in an exception report. Deletion is refused without explicit named owner approval.
 - **Why:** SPL-2053 introduced `/var/tmp` stale sweeping, but ONLY as an emergency trigger when disk headroom is < 15% (low/crit). Between emergencies, `/var/tmp` swelled to 33 GB on PC across dozens of retired agent directories. Routine daily sweeping prevents headroom crises.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_vartmp_hygiene_sweep`
 - **Target:** Frees ~20 GB on PC and ~3.5 GB on sat of obsolete lane leftovers.
@@ -178,7 +182,7 @@ Every row is a named csi-rel action (`do_<verb>_<noun>`, `csi-spl-utl`), runnabl
   - Runs daily via cron: captures timestamp, total root bytes used, inode count, Docker storage size, `/var/tmp` size, and `/var/log` size.
   - Appends record to `/var/spool-hub/dispatch/work/disk-growth/<box>.tsv`.
   - Calculates 24h differential: if net growth exceeds 1.5 GB in 24 hours, sends an early warning note to the dispatch lease holder detailing the top 3 growing directories.
-  - Integrates with the 24h workdir retention table coordination (ec060ebc).
+  - Integrates with the 24h workdir retention table coordination (ec060ebc, `c-272@sat`) while strictly enforcing the worktree safety invariant (zero deletion of unlanded commits or dirty worktrees).
 - **Why:** Owner order c4e5ec9f / ec060ebc: "If there is a subsequent slow increase in the disk space usage, it means that this is something to do with temporary files... how to TRACK growth". Today headroom alerts only when static thresholds (85% / 92%) are breached, providing zero early warning for steady rapid consumption.
 - **Command:** `cd csi-spl-utl && ./run -a do_disk_growth_track`
 - **Target:** Daily historical TSV record on each box; alert dispatched within 24h of anomalous consumption spike (> 1.5 GB/day).

@@ -47,7 +47,7 @@
         :style="tenantSelectStyle"
         @input="onTenantInput"
         @keydown="onTenantKey"
-        @focus="selectTenantText"
+        @focus="closeTenantList"
         @blur="closeTenantList"
       >
       <svg
@@ -73,7 +73,6 @@
           :key="o.id"
           role="option"
           class="tenant-switcher__option"
-          :class="{ 'is-active': i === activeIndex }"
           data-testid="tenant-switcher-option"
           :data-tenant="o.id"
           :aria-selected="o.id === tenantBox.selected ? 'true' : 'false'"
@@ -256,9 +255,7 @@ function onTenantBoxPress(ev: MouseEvent) {
   else openTenantList()
 }
 /* the name is selected on focus, so typing starts a fresh search */
-function selectTenantText(ev: FocusEvent) {
-  if (ev.target instanceof HTMLInputElement) ev.target.select()
-}
+
 async function pickTenant(id: string) {
   closeTenantList()
   await tenantSwitch.switchTo(id)
@@ -306,7 +303,7 @@ async function pickTenant(id: string) {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--color-bg);
   cursor: pointer;
 }
@@ -327,27 +324,29 @@ async function pickTenant(id: string) {
   cursor: pointer;
   padding: 0;
   background: transparent;
-  color: var(--color-fg);
+  color: var(--color-muted);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   font: inherit;
   font-weight: 600;
+  font-family: var(--font-stack);
+  letter-spacing: -0.01em;
   line-height: 1.2;
   text-align: start;
   text-overflow: ellipsis;
   appearance: none;
   -webkit-appearance: none;
 }
-.tenant-switcher__select:not([readonly]):focus { cursor: text; }
-.tenant-switcher__select::placeholder { color: var(--color-fg); opacity: 1; }
+.tenant-switcher__select:not([readonly]):focus { cursor: pointer; }
+.tenant-switcher__select::placeholder { color: var(--color-muted); opacity: 1; }
 .tenant-switcher__arrow {
   flex: 0 0 auto;
   width: 0.65em;
   height: 0.5em;
   display: block;
   pointer-events: none;
-  fill: currentColor;
-  color: var(--color-fg);
+  fill: var(--color-accent);
+  opacity: 0.8;
 }
 /* SPL-980 (owner 2026-09-27, topic 72773b61): the OPEN list keeps 2 px
    between every entry - the selected one too - and the list's border, each
@@ -357,10 +356,10 @@ async function pickTenant(id: string) {
 .tenant-switcher__list {
   position: absolute;
   top: 100%;
-  inset-inline-start: -1px;
+  inset-inline-start: 0;
   z-index: var(--z-overlay, 1000);
   box-sizing: border-box;
-  min-width: calc(100% + 2px);
+  min-width: 100%;
   max-width: 20rem;
   max-height: min(60vh, 24rem);
   overflow-y: auto;
@@ -368,7 +367,7 @@ async function pickTenant(id: string) {
   padding: 2px;
   list-style: none;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--color-bg-2);
   color: var(--color-fg);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
@@ -380,20 +379,21 @@ async function pickTenant(id: string) {
   box-sizing: border-box;
   min-block-size: 26px;
   padding-block: 2px;
-  padding-inline: 4px;
-  border-radius: var(--radius-sm);
+  padding-inline: 8px;
+  border-radius: 6px;
   background-color: var(--color-bg-2);
   color: var(--color-fg);
   font-weight: 600;
+  font-family: var(--font-stack);
+  letter-spacing: -0.01em;
   white-space: nowrap;
   cursor: pointer;
 }
-.tenant-switcher__option.is-active { background-color: var(--color-surface-hover); }
+.tenant-switcher__option:hover { background-color: var(--color-surface-hover); }
 .tenant-switcher__option[aria-selected='true'] {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
 }
-.tenant-switcher__option[aria-selected='true'].is-active { box-shadow: inset 0 0 0 2px var(--color-fg); }
 /* SPL-995: on a phone the switcher is TopBarTenant - never shown twice */
 @media (max-width: 820px) {
   .tenant-drop { display: none; }

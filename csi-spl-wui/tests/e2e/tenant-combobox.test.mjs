@@ -195,9 +195,27 @@ try {
   const s10 = await state(p)
   check('Esc closes the list and puts the current name back', s10.expanded === 'false' && s10.value === 'umbrella' && s10.tenant === 't4', s10)
 
-  /* a click on a row still switches */
+  /* SPL-2219 send-back: on open the highlighted (keyboard) row IS the
+     current row, so an open list shows one highlighted row; here the
+     current workspace (umbrella) is not the first row. Opened twice: from
+     a blurred box and from a focused one. */
+  const openRows = () => p.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-testid=tenant-switcher-option]')]
+    return { active: rows.filter((r) => r.classList.contains('is-active')).map((r) => r.dataset.tenant), current: rows.filter((r) => r.classList.contains('is-current')).map((r) => r.dataset.tenant) }
+  })
+  await p.evaluate(() => document.activeElement?.blur())
+  await p.mouse.move(1400, 880)
   await p.click(BOX)
   await sleep(150)
+  const o1 = await openRows()
+  await p.keyboard.press('Escape')
+  await sleep(100)
+  await p.click(BOX)
+  await sleep(150)
+  const o2 = await openRows()
+  check('SPL-2219: right after open the highlighted row is the current row (one highlighted row)', [o1, o2].every((o) => o.active.length === 1 && JSON.stringify(o.active) === JSON.stringify(o.current) && o.current[0] === 't4'), { blurred: o1, focused: o2 })
+
+  /* a click on a row still switches */
   await p.click('[data-testid=tenant-switcher-option][data-tenant="t2"]')
   await sleep(300)
   const s11 = await state(p)

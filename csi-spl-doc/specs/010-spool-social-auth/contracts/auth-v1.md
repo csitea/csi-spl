@@ -55,7 +55,10 @@ Unknown codes → a generic "Sign-in failed". After showing one, the page drops
 ## 3. Session
 
 Cookie `spool_session` (cnf `SPOOL_HUB_AUTH_COOKIE_NAME`; dev: `spool_session_dev`, spec OQ-A4): HttpOnly, Secure
-(dev/prd), SameSite=Lax, Path `/`, Domain = cnf `SPOOL_HUB_AUTH_COOKIE_DOMAIN`
+(cnf `SPOOL_HUB_AUTH_COOKIE_SECURE` = `true` | `false` | `auto`, default `auto`:
+Secure unless `SPOOL_HUB_AUTH_APP_URL` is http on localhost, `*.localhost` or a
+loopback IP; dev/prd cnf set `true`, lde `false`; `false` on a non-loopback app
+URL logs `auth.cookie_not_secure` at start, SPL-2152), SameSite=Lax, Path `/`, Domain = cnf `SPOOL_HUB_AUTH_COOKIE_DOMAIN`
 (empty = host-only). The WUI never reads it; it asks `GET /api/v1/auth/session`:
 
 ```json

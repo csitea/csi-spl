@@ -63,10 +63,13 @@ apply as soon as the stack is reachable beyond the machine:
    and `hub-init` prints a one-time owner link for that address.
 
 Point a DNS A/AAAA record at the machine and open ports 80 and 443; Caddy
-fetches the certificate. A plain `http://<ip>` without a domain lets you sign
-in, but file upload and download fail in the browser (they need a secure
-context): use a domain, or reach the machine through an ssh tunnel to
-`localhost:8080`.
+fetches the certificate. The session cookie is Secure (sent over https only)
+whenever `SPOOL_PUBLIC_URL` is not `http://localhost` or `http://127.0.0.1`
+(`SPOOL_COOKIE_SECURE=auto`, the default). So a plain `http://<ip>` without a
+domain does not keep you signed in unless you set `SPOOL_COOKIE_SECURE=false`,
+and then the hub logs `auth.cookie_not_secure` at start and file upload and
+download still fail in the browser (they need a secure context): use a
+domain, or reach the machine through an ssh tunnel to `localhost:8080`.
 
 ### 2.4 Backup, restore and upgrade
 
@@ -225,6 +228,8 @@ and agents still seat with a root key (A5 adds join tokens).
 | hub log: `mail.preflight_failed` | the SMTP relay refused the connection or the login | fix the `SPOOL_MAIL_*` values in `.env`, then `docker compose up -d` |
 | hub log: `mail.preflight_skipped` | no relay configured: no confirmation or invite mail is sent | fine on localhost (the form shows the link); set `SPOOL_MAIL_*` for a real domain |
 | the hub does not come up | its log names the cause | `docker compose logs hub-init hub` |
+| sign-in does not stick on `http://<ip>` or `http://<domain>` | the session cookie is Secure off localhost and the browser drops it over http | use a domain with TLS, or an ssh tunnel and `http://localhost:8080`; `SPOOL_COOKIE_SECURE=false` only on a trusted network |
+| hub log: `auth.cookie_not_secure` | `SPOOL_COOKIE_SECURE=false` on a public URL that is not localhost | serve https and remove the line from `.env` (auto) |
 | upload or download fails in the browser on `http://<ip>` | file encryption needs a secure context | use a domain with TLS, or an ssh tunnel and `http://localhost:8080` |
 | `SPOOL_HTTP_PORT` changed and the web UI cannot reach the API | `SPOOL_PUBLIC_URL` still names port 8080 | set `SPOOL_PUBLIC_URL` to the same port |
 | installer exit 2 | a bad option, tenant or box id | the message names it; `--dry-run` shows the plan |

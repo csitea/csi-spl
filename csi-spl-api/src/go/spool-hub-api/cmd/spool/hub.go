@@ -209,6 +209,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		return opts, err
 	}
 	opts.UploadTokenKey = auth.UploadTokenKey(ac) // SPL-1815: any instance checks the upload token
+	logCookiePosture(log, ac, nc)
 	logRLSPosture(ctx, log, st)
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	// The IdP picture lands in the same tenant blob store (010 T044).
@@ -386,6 +387,17 @@ func loadAuthConfig(hc *config.Hub) (*auth.Config, *auth.NativeConfig, error) {
 		return nil, nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)")
 	}
 	return ac, nc, nil
+}
+
+// logCookiePosture warns when a sign-in is on and its session cookie is not
+// Secure off localhost (SPL-2152). It only logs.
+func logCookiePosture(log zerolog.Logger, ac *auth.Config, nc *auth.NativeConfig) {
+	if len(ac.Enabled()) == 0 && !nc.Enabled {
+		return
+	}
+	if w := ac.CookieSecureWarning(); w != "" {
+		log.Warn().Str("severity", "WARNING").Str("app_url", ac.AppURL).Msg("auth.cookie_not_secure: " + w)
+	}
 }
 
 // logRLSPosture says whether tenant row level security binds this hub's

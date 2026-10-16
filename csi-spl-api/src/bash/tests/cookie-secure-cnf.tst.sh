@@ -40,4 +40,15 @@ if [[ -f "$lde" ]]; then
   fi
 fi
 
+# SPL-2152: the self-hosted compose stack defaults to auto (Secure off
+# localhost), never to a hard false.
+compose="$HERE/../../../../docker-compose.yml"
+cval=$(grep -oE "$VAR: \\$\{SPOOL_COOKIE_SECURE:-[^}]*\}" "$compose" | sed -n 1p | sed -E 's/.*:-([^}]*)\}/\1/')
+if [[ "$cval" == "auto" ]]; then
+  echo "ok   - compose: $VAR defaults to auto"
+else
+  echo "FAIL - compose: $VAR defaults to \"${cval:-<unset>}\" (must be auto: Secure unless the public URL is localhost)"
+  exit 1
+fi
+
 echo "ALL cookie-secure cnf CHECKS PASSED"

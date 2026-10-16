@@ -18,7 +18,9 @@ package auth
 
 import (
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,7 +62,11 @@ type Config struct {
 	StateTTL     time.Duration `env:"SPOOL_HUB_AUTH_STATE_TTL" envDefault:"15m"`
 	CookieName   string        `env:"SPOOL_HUB_AUTH_COOKIE_NAME" envDefault:"spool_session"`
 	CookieDomain string        `env:"SPOOL_HUB_AUTH_COOKIE_DOMAIN"`
-	CookieSecure bool          `env:"SPOOL_HUB_AUTH_COOKIE_SECURE" envDefault:"true"`
+	// CookieSecureSetting is SPOOL_HUB_AUTH_COOKIE_SECURE: true, false or
+	// auto (the default). auto = Secure unless AppURL is a loopback http
+	// origin (SPL-2152); resolveCookieSecure turns it into CookieSecure.
+	CookieSecureSetting string `env:"SPOOL_HUB_AUTH_COOKIE_SECURE" envDefault:"auto"`
+	CookieSecure        bool   `env:"-"`
 	// StateCookieName is the OAuth state cookie (spec 010 T056). It carries
 	// CookieDomain too, so /start on the API host and /callback on the WUI
 	// host both see it. Behind Firebase Hosting it must be "__session": the
@@ -130,6 +136,9 @@ func load(hubEnv string, o env.Options) (*Config, error) {
 		return nil, fmt.Errorf("parse auth config: %w", err)
 	}
 	c.Env = hubEnv
+	if err := c.resolveCookieSecure(); err != nil {
+		return nil, err
+	}
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -275,6 +284,49 @@ func hasScopes(list string, want ...string) bool {
 		}
 	}
 	return true
+}
+
+// resolveCookieSecure sets CookieSecure from CookieSecureSetting (SPL-2152):
+// an explicit true/false wins; auto (or empty) is Secure unless AppURL is
+// plain http on a loopback host, so only a local stack gets a cookie the
+// browser sends over http.
+func (c *Config) resolveCookieSecure() error {
+	v := strings.ToLower(strings.TrimSpace(c.CookieSecureSetting))
+	if v == "" || v == "auto" {
+		c.CookieSecure = !isLoopbackHTTP(c.AppURL)
+		return nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fmt.Errorf("SPOOL_HUB_AUTH_COOKIE_SECURE %q must be true, false or auto", c.CookieSecureSetting)
+	}
+	c.CookieSecure = b
+	return nil
+}
+
+// CookieSecureWarning is non-empty when the session cookie is not Secure on a
+// hub whose AppURL is not a loopback http origin: the cookie then travels in
+// clear text. The hub logs it as a WARN at start.
+func (c *Config) CookieSecureWarning() string {
+	if c.CookieSecure || strings.TrimSpace(c.AppURL) == "" || isLoopbackHTTP(c.AppURL) {
+		return ""
+	}
+	return fmt.Sprintf("SPOOL_HUB_AUTH_COOKIE_SECURE=false on %s, which is not localhost: the session cookie is not Secure; serve https and leave it unset (auto) or set it true", c.AppURL)
+}
+
+// isLoopbackHTTP: raw is an http URL whose host is localhost, *.localhost or
+// a loopback IP (127.0.0.0/8, ::1).
+func isLoopbackHTTP(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "http" {
+		return false
+	}
+	h := strings.ToLower(u.Hostname())
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 // requireHTTPS: dev and prd are TLS only; lde and tests may use plain http.

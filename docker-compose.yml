@@ -143,7 +143,10 @@ services:
       SPOOL_HUB_AUTH_NATIVE_ENABLED: "true"
       SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS: ${SPOOL_AUTH_DEBUG_LINKS:-true}
       SPOOL_HUB_AUTH_APP_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
-      SPOOL_HUB_AUTH_COOKIE_SECURE: ${SPOOL_COOKIE_SECURE:-false}
+      # auto = Secure session cookie unless SPOOL_PUBLIC_URL is http on
+      # localhost / 127.0.0.1; true / false force it (false off localhost
+      # logs auth.cookie_not_secure at start)
+      SPOOL_HUB_AUTH_COOKIE_SECURE: ${SPOOL_COOKIE_SECURE:-auto}
       # auto: on localhost the first person to sign in to the empty tenant
       # becomes its owner; anywhere else nobody does (hub-init invites
       # SPOOL_OWNER_EMAIL instead). true / false force it.

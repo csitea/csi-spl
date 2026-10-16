@@ -1,8 +1,8 @@
 # Disk Hygiene Round: Mistral Expert Panel Seat
 
 **Vendor**: Mistral
-**Plan Version**: v1.0 (ac35c4bf3)
-signed: m-283 on ac35c4bf3
+**Plan Version**: v1.1 (d429c1d01)
+signed: m-283 on d429c1d01
 **Verdict**: 10 agree, 0 agree with changes, 0 disagree, 2 proposals.
 
 ---

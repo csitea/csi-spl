@@ -101,6 +101,13 @@
 #      hook entry are not activity; a grok pid missing from active_sessions
 #      reads its cwd's newest session; the watchdog's progress reads the same
 #      tail. CONTROL: a claude pid in that cwd still reads its own transcript.
+#  28. one hung dial is not HUB-UNREACHABLE (SPL-2246, 2026-10-16: 21 lines on
+#      sat in 86 min, each "failed to send handshake request ... terminated
+#      signal received", the next dial answered): every first try failing with
+#      the CLI's own text is retried once, 2 s later; both roles held, nothing
+#      logged, each try one dial.log line. CONTROL: LEASE_HUB_TRIES=1 logs
+#      HUB-UNREACHABLE per role; an error that is no "hub unreachable" is not
+#      retried.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -1061,6 +1068,49 @@ got="$(unit spl_lease_last_turn 300 "${G27[@]}")"
 got="$(unit spl_lease_activity 302 "${G27[@]}")"
 [[ "$got" == $((N - 4105)) ]] && pass "27. CONTROL: a claude pid in that cwd still reads its claude transcript" || fail "27. claude: '$got' want $((N - 4105))"
 rm -f "$T/pane/300" "$T/pane/301" "$T/pane/302"
+
+# --- 28. one hung dial is retried, not logged HUB-UNREACHABLE (SPL-2246) ----------
+# The hubhang stub fails the odd calls (every first try) with the spool CLI's
+# own text for a /v1/ws upgrade the 30 s timeout killed, the even ones go to hub.
+cat >"$T/bin/hubhang" <<'STUB'
+#!/bin/sh
+n=$(( $(cat "$HANG_N" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$HANG_N"
+[ $((n % 2)) = 1 ] && [ "${HANG_ON:-1}" = 1 ] && { echo 'spool: hub unreachable: failed to WebSocket dial: failed to send handshake request: Get "https://hub.example/v1/ws": terminated signal received' >&2; exit 1; }
+exec "$HUB_BIN" "$@"
+STUB
+chmod +x "$T/bin/hubhang"
+# tick28 <dir> [env...]: one fleet tick on pc through hubhang; prints the pauses slept
+tick28() {
+  local d="$T/$1"; shift
+  mkdir -p "$d/hub" "$d/spool/dispatch"; agent "${d#"$T"/}" 300 CLE-001; agent "${d#"$T"/}" 301 CLE-002
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$d/spool" LEASE_PROC_ROOT="$d/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
+    SENT="$d/sent" LEASE_HUB_CMD="$T/bin/hubhang" HUB_BIN="$T/bin/hub" HANG_N="$d/calls" HUB_DIR="$d/hub" HUB_NOW=7000 LEASE_NOW=7000 \
+    LEASE_FLEET=main LEASE_MACHINE=pc LEASE_PRIORITY=pc,sat LEASE_HOLDDOWN=0 LEASE_ASKS=0 LEASE_AGENT_RUN=0 \
+    LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003 "$@" bash -c '
+    set -uo pipefail
+    do_log() { :; }
+    sleep() { echo "$1" >>"$SPOOL_ROOT/slept"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init && spl_lease_fleet_tick' >>"$T/out" 2>&1
+  tr '\n' ' ' <"$d/spool/slept" 2>/dev/null
+}
+dl28() { grep -c -- "$2" "$T/$1/spool/dispatch/dial.log" 2>/dev/null || true; }
+got="$(tick28 l28)"
+[[ "$(hubh22 l28 orch)" == CLE-001@pc && "$(hubh22 l28 dispatch)" == CLE-002@pc && "$(grep -c HUB-UNREACHABLE "$T/l28/spool/dispatch/lease.log")" == 0 &&
+   "$got" == "2 2 2 2 " ]] &&
+  pass "28. every first try hung: each call retried once 2 s later, both roles held, no HUB-UNREACHABLE" ||
+  fail "28. slept '$got' hub $(hubh22 l28 orch)/$(hubh22 l28 dispatch): $(cat "$T/l28/spool/dispatch/lease.log" 2>&1)"
+[[ "$(dl28 l28 'rc=1 try=1 .*--role orch.*terminated signal received')" == 2 && "$(dl28 l28 'rc=1 try=1 .*--role dispatch')" == 2 &&
+   "$(dl28 l28 'rc=0 try=2 .* :: ok$')" == 4 && "$(wc -l <"$T/l28/spool/dispatch/dial.log")" == 8 ]] &&
+  pass "28. dial.log: one line per try, the failed ones with the CLI's error, the retries ok" ||
+  fail "28. dial.log: $(cat "$T/l28/spool/dispatch/dial.log" 2>&1)"
+tick28 l28c LEASE_HUB_TRIES=1 >/dev/null
+[[ "$(grep -c HUB-UNREACHABLE "$T/l28c/spool/dispatch/lease.log")" == 2 && "$(dl28 l28c 'try=2')" == 0 ]] &&
+  pass "28. CONTROL: LEASE_HUB_TRIES=1 (the old single try) logs HUB-UNREACHABLE per role" ||
+  fail "28. control: $(cat "$T/l28c/spool/dispatch/lease.log" 2>&1)"
+got="$(tick28 l28d HANG_ON=0 HUB_DOWN=1)"
+[[ -z "$got" && "$(dl28 l28d 'try=2')" == 0 && "$(dl28 l28d 'rc=1 try=1 .*connection refused')" == 2 ]] &&
+  pass "28. an error that is no \"hub unreachable\" is not retried" || fail "28. refused slept '$got': $(cat "$T/l28d/spool/dispatch/dial.log" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

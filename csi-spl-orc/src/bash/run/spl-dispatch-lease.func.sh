@@ -53,6 +53,7 @@
 # @param LEASE_PERIOD (optional) - seconds between ticks, default 60
 # @param LEASE_STALE (optional) - seconds of silence before a failover, default 180
 # @param LEASE_UNREACHABLE_RETRY (optional) - fleet mode: seconds between ticks while a hub call fails, default 10 (at most LEASE_PERIOD)
+# @param LEASE_HUB_TIMEOUT (optional) - fleet mode: seconds one hub lease call may take, default 12; LEASE_HUB_TRIES (default 2) tries a "hub unreachable" or timed-out call, LEASE_HUB_RETRY_SLEEP (default 2 s) apart; every try is a line in <spool root>/dispatch/dial.log (SPL-2246)
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's box, default its desk box id (spl_desk_box_default)
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
@@ -985,15 +986,57 @@ spl_fleet_hub_init() {
     { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($d): seat a desk there first (do_spl_desk_up)"; return 1; }
 }
 
+# ---- one hung dial is not "unreachable" (SPL-2246, 2026-10-16) ----------------
+# 17:14-18:40Z sat logged HUB-UNREACHABLE 21 times, every one "failed to send
+# handshake request ... terminated signal received": the /v1/ws upgrade got no
+# answer and the 30 s timeout killed the call, while the next dial (fleet-show
+# 2.1 s, a curl upgrade 0.03 s) was answered. A fresh dial is a new request, so
+# a try now gets LEASE_HUB_TIMEOUT (12 s; a good one takes ~1 s), and a "hub
+# unreachable" or timed-out try is retried LEASE_HUB_TRIES - 1 more times after
+# LEASE_HUB_RETRY_SLEEP (2 s): 26 s worst case, under the old 30 s. A retried
+# compare-and-set is safe: had the lost try landed, the retry's --if-gen loses
+# and its answer names this holder. Every try is one line in <LEASE_DIR>/dial.log.
+
 # The call goes to LEASE_TENANT, or to LEASE_AT_TENANT (the copies below)
 # through this machine's desk pinned THERE; the stub gets it as LEASE_HUB_TENANT.
 spl_fleet_hub() {
+  local tries="${LEASE_HUB_TRIES:-2}" n=1 out rc t0
+  [[ "$tries" =~ ^[1-9]$ ]] || tries=2
+  while :; do
+    t0="$(date +%s%N)"
+    out="$(spl_fleet_hub_once "$@" 2>&1)"; rc=$?
+    spl_fleet_dial_log "$t0" "$rc" "$n" "$out" "$@"
+    if (( rc != 0 && n < tries )) && [[ $rc == 124 || "$out" == *"hub unreachable"* ]]; then
+      n=$((n + 1)); sleep "${LEASE_HUB_RETRY_SLEEP:-2}"; continue
+    fi
+    [[ -n "$out" ]] && printf '%s\n' "$out"
+    return "$rc"
+  done
+}
+
+spl_fleet_hub_once() {
   local t="${LEASE_AT_TENANT:-${LEASE_TENANT:-}}"
   if [[ -n "${LEASE_HUB_CMD:-}" ]]; then LEASE_HUB_TENANT="${LEASE_AT_TENANT:-}" "$LEASE_HUB_CMD" lease "$@"; return; fi
   local d="$SPL_STATE_DIR/desk/$t/$LEASE_DESK_BOX"
   # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
   SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
-    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" timeout "${LEASE_HUB_TIMEOUT:-30}" "$SPL_SPOOL" lease "$@"
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" timeout "${LEASE_HUB_TIMEOUT:-12}" "$SPL_SPOOL" lease "$@"
+}
+
+# spl_fleet_dial_log <start ns> <rc> <try> <output> <args...>: one line per try
+# (start, ms, rc, try, tenant, the call, the error); past 2 MB it keeps the
+# newest 5000 lines. No LEASE_DIR (a caller outside the loop), no log.
+spl_fleet_dial_log() {
+  [[ -n "${LEASE_DIR:-}" && -d "$LEASE_DIR" ]] || return 0
+  local t0="$1" rc="$2" n="$3" out="$4" f="$LEASE_DIR/dial.log" ms err=ok; shift 4
+  ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+  (( rc == 0 )) || err="$(tr '\n' ' ' <<<"$out" | cut -c1-240)"
+  printf '%s ms=%s rc=%s try=%s tenant=%s %s :: %s\n' "$(date -u -d "@$((t0 / 1000000000))" +%FT%TZ)" "$ms" "$rc" "$n" \
+    "${LEASE_AT_TENANT:-${LEASE_TENANT:-}}" "$*" "$err" >>"$f" 2>/dev/null || return 0
+  if (( $(stat -c %s "$f" 2>/dev/null || echo 0) > 2097152 )); then
+    tail -n 5000 "$f" >"$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f"
+  fi
+  return 0
 }
 
 # ---- the lease in every served tenant (spec 059 S5 gap, c-043) ----------------
@@ -1031,9 +1074,9 @@ spl_fleet_mirror_tenants() {
 spl_fleet_mirror_out() {
   local role="$1" holder="$2" t out FH FG FA FW
   for t in $(spl_fleet_mirror_tenants); do
-    if out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" &&
+    if out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" LEASE_HUB_TRIES=1 spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" &&
        spl_fleet_read "$out" &&
-       out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$holder" --if-gen "$FG" 2>&1)" &&
+       out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" LEASE_HUB_TRIES=1 spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$holder" --if-gen "$FG" 2>&1)" &&
        spl_fleet_read "$out" && [[ "$FW" == true ]]; then
       [[ -f "$LEASE_DIR/fleet.$role.copy.$t" ]] && { rm -f "$LEASE_DIR/fleet.$role.copy.$t"; spl_lease_log "COPY $role in $t: written again ($holder)"; }
       continue

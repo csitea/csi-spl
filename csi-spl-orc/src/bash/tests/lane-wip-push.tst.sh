@@ -4,7 +4,10 @@
 # section 5.4, tasks.md T007) on a bare remote and a throwaway spool root.
 #   1. a dirty tree -> one wip commit on refs/heads/wip/<branch>, canonical
 #      author, the lane's index, HEAD and files unchanged; the push went
-#      through the real pre-push hook, whose gate (a stub) would refuse
+#      through the real pre-push hook, whose gate (a stub) would refuse;
+#      tracked edits and a staged new file ride, an untracked STATE-x.md with
+#      a 40-hex string never does (SPL-2191: the ref is public, gitleaks
+#      scans every ref)
 #   2. a second run with no change -> no push
 #   3. a new change -> a new wip commit, still on HEAD (force-with-lease)
 #   4. control: any ref outside refs/heads/wip/ (master) -> refused, exit 1
@@ -39,17 +42,22 @@ run() { SNIPPET='do_spl_lane_wip_push' in_orc SPOOL_ROOT="$R" SPL_PREPUSH_LOG_DI
 wip() { git --git-dir="$B" rev-parse -q --verify refs/heads/wip/c-901-s1-t1 2>/dev/null; }
 
 head0="$(git -C "$L" rev-parse HEAD)"
-idx0="$(git -C "$L" ls-files -s | md5sum)"
 printf 'two\n' >>"$L/f.txt"; printf 'new\n' >"$L/u.txt"
+printf 'spool /var/spool-hub/x\nsha 0123456789abcdef0123456789abcdef01234567\n' >"$L/STATE-x.md"
+printf 'staged\n' >"$L/s.txt" && git -C "$L" add s.txt
+idx0="$(git -C "$L" ls-files -s | md5sum)"
 out="$(run ID=c-901)"; rc=$?
 w1="$(wip)"
 [ "$rc" -eq 0 ] && [ -n "$w1" ] && grep -q '^OK WIP c-901' <<<"$out" && pass "1. a dirty tree is pushed to wip/<branch>" || fail "1. push (rc $rc: $out)"
-[ "$(git --git-dir="$B" rev-parse "$w1^")" = "$head0" ] && [ "$(git --git-dir="$B" show "$w1:u.txt")" = new ] \
-  && [ "$(git --git-dir="$B" show "$w1:f.txt" | tail -1)" = two ] && pass "1. one commit on HEAD carrying tracked + untracked changes" || fail "1. wip commit shape"
+[ "$(git --git-dir="$B" rev-parse "$w1^")" = "$head0" ] && [ "$(git --git-dir="$B" show "$w1:s.txt")" = staged ] \
+  && [ "$(git --git-dir="$B" show "$w1:f.txt" | tail -1)" = two ] && pass "1. one commit on HEAD carrying the tracked edit and the staged new file" || fail "1. wip commit shape"
+[ "$(git --git-dir="$B" ls-tree --name-only "$w1" | tr '\n' ' ')" = 'csi-spl-iac f.txt s.txt ' ] \
+  && ! git --git-dir="$B" grep -q 0123456789abcdef0123456789abcdef01234567 "$w1" \
+  && pass "1. untracked STATE-x.md and u.txt are NOT in the wip commit (SPL-2191)" || fail "1. untracked rode along ($(git --git-dir="$B" ls-tree --name-only "$w1" | tr '\n' ' '))"
 [ "$(git --git-dir="$B" log -1 --format='%an <%ae>|%cn <%ce>|%s' "$w1" | sed 's/: [0-9TZ]* handoff/: TS handoff/')" = 'wip-test <wip-test@example.com>|wip-test <wip-test@example.com>|wip(c-901): TS handoff' ] \
   && pass "1. canonical author and committer, message wip(<id>): <ts> handoff" || fail "1. author ($(git --git-dir="$B" log -1 --format='%an %ae %cn %ce %s' "$w1"))"
 [ "$(git -C "$L" rev-parse HEAD)" = "$head0" ] && [ "$(git -C "$L" ls-files -s | md5sum)" = "$idx0" ] \
-  && [ "$(git -C "$L" status --porcelain | tr '\n' ' ')" = ' M f.txt ?? u.txt ' ] && pass "1. the lane's HEAD, index and tree are unchanged" || fail "1. lane touched ($(git -C "$L" status --porcelain | tr '\n' ' '))"
+  && [ "$(git -C "$L" status --porcelain | tr '\n' ' ')" = ' M f.txt A  s.txt ?? STATE-x.md ?? u.txt ' ] && pass "1. the lane's HEAD, index and tree are unchanged" || fail "1. lane touched ($(git -C "$L" status --porcelain | tr '\n' ' '))"
 [ ! -e "$T/gate.calls" ] && grep -q 'SKIP-WIP' "$T/pplog/pre-push.log" 2>/dev/null \
   && pass "1. the real pre-push hook skipped its gate for the wip ref" || fail "1. hook ($(cat "$T/gate.calls" "$T/pplog/pre-push.log" 2>/dev/null))"
 
@@ -71,7 +79,7 @@ for ref in refs/heads/master master refs/heads/c-901-s1-t1 refs/heads/wip/../mas
 done
 [ "$(git --git-dir="$B" rev-parse refs/heads/master)" = "$master0" ] && [ "$(wip)" = "$w2" ] \
   && [ "$(git --git-dir="$B" for-each-ref --format=x | wc -l)" -eq 2 ] && pass "4. ...and the remote is untouched" || fail "4. remote changed"
-git -C "$L" checkout -q -- f.txt && rm -f "$L/u.txt"
+git -C "$L" checkout -q -- f.txt && git -C "$L" rm -q --cached s.txt && rm -f "$L/u.txt" "$L/s.txt" "$L/STATE-x.md"
 
 # 5. mid-rebase: the branch and master both change f.txt, the rebase stops
 printf 'lane\n' >"$L/f.txt"; git -C "$L" "${G[@]}" commit -qam lane

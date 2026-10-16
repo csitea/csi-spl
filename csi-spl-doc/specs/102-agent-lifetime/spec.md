@@ -334,6 +334,13 @@ after the agent is done.
   the repo's canonical author, message `wip(<id>): <ts> handoff`, and pushes
   `--force-with-lease` to `refs/heads/wip/<lane branch>` ONLY. The push
   wrapper refuses any other refspec.
+- **Tracked files only** (SPL-2191, 2026-10-16): the temporary index is the
+  lane's own index plus `git add -u`, never `git add -A`. A lane's untracked
+  scratch (`STATE-<id>.md`, screenshots, anything never `git add`ed) is NOT
+  in the wip commit: the repo is public and CI's gitleaks scans every ref,
+  so a wip ref is published like master (a `STATE-c-550.md` on a wip ref
+  turned wf 15 red on 2026-10-16). A new source file rides once the lane has
+  staged it; a lane's state lives in the spool (`<spool root>/<id>/`).
 - **The pre-push gate**: the hook skips refs that are all
   `refs/heads/wip/*` (a scoped exemption read from the hook's stdin), not
   the global `SPL_PREPUSH_OVERRIDE` and not `--no-verify` (agy-2, claude-2).

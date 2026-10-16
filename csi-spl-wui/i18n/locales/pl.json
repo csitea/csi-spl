@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Animacja myślenia",
-      "rotate": "Na zmianę",
+      "hint": "Zaznacz te, które lubisz: wyświetlają się na zmianę, każda przez około 3 sekundy. Co najmniej jedna pozostaje zaznaczona. Zapisywane dla tego obszaru roboczego.",
       "hourglass": "Klepsydra",
       "robot": "Biegnący robot",
-      "brain": "Mózg"
+      "brain": "Mózg",
+      "dancing-robot": "Tańczący robot",
+      "dots": "Kropki pisania",
+      "spinner": "Kółko ładowania",
+      "radar": "Radar",
+      "gears": "Zębatki",
+      "bulb": "Żarówka",
+      "coffee": "Kawa",
+      "orbit": "Orbita",
+      "pendulum": "Wahadło",
+      "bars": "Słupki dźwięku",
+      "pencil": "Ołówek",
+      "rocket": "Rakieta",
+      "clock": "Zegar",
+      "wave": "Fala"
     }
   },
   "auth": {

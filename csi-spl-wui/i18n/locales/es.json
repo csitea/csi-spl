@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Animación de espera",
-      "rotate": "Por turnos",
+      "hint": "Marca las que te gusten: se turnan, unos 3 segundos cada una. Al menos una queda marcada. Se guarda para este espacio de trabajo.",
       "hourglass": "Reloj de arena",
       "robot": "Robot corriendo",
-      "brain": "Cerebro"
+      "brain": "Cerebro",
+      "dancing-robot": "Robot bailando",
+      "dots": "Puntos de escritura",
+      "spinner": "Indicador giratorio",
+      "radar": "Radar",
+      "gears": "Engranajes",
+      "bulb": "Bombilla",
+      "coffee": "Café",
+      "orbit": "Órbita",
+      "pendulum": "Péndulo",
+      "bars": "Barras de sonido",
+      "pencil": "Lápiz",
+      "rocket": "Cohete",
+      "clock": "Reloj",
+      "wave": "Onda"
     }
   },
   "auth": {

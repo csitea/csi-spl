@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Düşünme animasyonu",
-      "rotate": "Sırayla",
+      "hint": "Beğendiklerinizi işaretleyin: sırayla, her biri yaklaşık 3 saniye gösterilir. En az biri işaretli kalır. Bu çalışma alanı için saklanır.",
       "hourglass": "Kum saati",
       "robot": "Koşan robot",
-      "brain": "Beyin"
+      "brain": "Beyin",
+      "dancing-robot": "Dans eden robot",
+      "dots": "Yazma noktaları",
+      "spinner": "Dönen halka",
+      "radar": "Radar",
+      "gears": "Dişliler",
+      "bulb": "Ampul",
+      "coffee": "Kahve",
+      "orbit": "Yörünge",
+      "pendulum": "Sarkaç",
+      "bars": "Ses çubukları",
+      "pencil": "Kalem",
+      "rocket": "Roket",
+      "clock": "Saat",
+      "wave": "Dalga"
     }
   },
   "auth": {

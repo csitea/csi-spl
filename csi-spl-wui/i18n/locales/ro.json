@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Animație de gândire",
-      "rotate": "Pe rând",
+      "hint": "Bifează-le pe cele care îți plac: se succed pe rând, aproximativ 3 secunde fiecare. Cel puțin una rămâne bifată. Se păstrează pentru acest spațiu de lucru.",
       "hourglass": "Clepsidră",
       "robot": "Robot care aleargă",
-      "brain": "Creier"
+      "brain": "Creier",
+      "dancing-robot": "Robot care dansează",
+      "dots": "Puncte de tastare",
+      "spinner": "Cerc rotativ",
+      "radar": "Radar",
+      "gears": "Roți dințate",
+      "bulb": "Bec",
+      "coffee": "Cafea",
+      "orbit": "Orbită",
+      "pendulum": "Pendul",
+      "bars": "Bare de sunet",
+      "pencil": "Creion",
+      "rocket": "Rachetă",
+      "clock": "Ceas",
+      "wave": "Val"
     }
   },
   "auth": {

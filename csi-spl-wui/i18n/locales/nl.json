@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Denkanimatie",
-      "rotate": "Afwisselend",
+      "hint": "Vink aan wat je mooi vindt: ze wisselen elkaar af, elk ongeveer 3 seconden. Er blijft er altijd minstens één aangevinkt. Bewaard voor deze werkruimte.",
       "hourglass": "Zandloper",
       "robot": "Rennende robot",
-      "brain": "Brein"
+      "brain": "Brein",
+      "dancing-robot": "Dansende robot",
+      "dots": "Typpuntjes",
+      "spinner": "Draaicirkel",
+      "radar": "Radar",
+      "gears": "Tandwielen",
+      "bulb": "Gloeilamp",
+      "coffee": "Koffie",
+      "orbit": "Omloopbaan",
+      "pendulum": "Slinger",
+      "bars": "Geluidsbalken",
+      "pencil": "Potlood",
+      "rocket": "Raket",
+      "clock": "Klok",
+      "wave": "Golf"
     }
   },
   "auth": {

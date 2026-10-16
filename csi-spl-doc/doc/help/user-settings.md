@@ -130,11 +130,18 @@ workspace.
 
 ### 4.6 Thinking animation
 The mark on your message while it waits for an agent's answer
-([waiting for an answer](omnibox-and-navigation.md)). **Take turns** (default)
-shows the hourglass, the running robot and the brain in turn, about 3 seconds
-each; or pick one of them to stay. Each choice shows its own running sample.
-With *reduce motion* on in your system the mark is a still hourglass. The pick
-is kept in this browser for you.
+([waiting for an answer](omnibox-and-navigation.md)). The list has 17
+animations, one under the other, each with a checkbox and its own running
+sample: hourglass, running robot, brain, dancing robot, typing dots, spinner,
+radar, gears, light bulb, coffee, orbit, pendulum, sound bars, pencil, rocket,
+clock and wave. The ticked ones take turns, about 3 seconds each; with one
+ticked, that one stays. At least one stays ticked: the last one cannot be
+unticked. The default is the hourglass, the running robot and the brain.
+
+With *reduce motion* on in your system the mark is a still hourglass. The
+pick is kept in your account for this workspace, so another device or browser
+shows the same animations. A pick made in this browser before it moved to the
+account is carried over once.
 
 ---
 

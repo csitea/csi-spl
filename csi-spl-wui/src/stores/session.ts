@@ -59,6 +59,8 @@ export interface SessionClaims {
   keyboard_shortcuts?: boolean | null
   /** Spec 107 1.2 "Count my reading time", per workspace; null = never picked = on. */
   hours_reading?: boolean | null
+  /** SPL-2113 "Thinking animation": the ticked drawing ids, per workspace; null = never picked (the default three). */
+  await_anims?: string[] | null
 }
 
 type SessionAuth = ReturnType<typeof useAuthClient>

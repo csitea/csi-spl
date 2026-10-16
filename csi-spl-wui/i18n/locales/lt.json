@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Mąstymo animacija",
-      "rotate": "Pakaitomis",
+      "hint": "Pažymėkite patinkančias: jos keičiasi pakaitomis, maždaug po 3 sekundes. Bent viena lieka pažymėta. Saugoma šiai darbo sričiai.",
       "hourglass": "Smėlio laikrodis",
       "robot": "Bėgantis robotas",
-      "brain": "Smegenys"
+      "brain": "Smegenys",
+      "dancing-robot": "Šokantis robotas",
+      "dots": "Rašymo taškai",
+      "spinner": "Sukutis",
+      "radar": "Radaras",
+      "gears": "Krumpliaračiai",
+      "bulb": "Lemputė",
+      "coffee": "Kava",
+      "orbit": "Orbita",
+      "pendulum": "Švytuoklė",
+      "bars": "Garso stulpeliai",
+      "pencil": "Pieštukas",
+      "rocket": "Raketa",
+      "clock": "Laikrodis",
+      "wave": "Banga"
     }
   },
   "auth": {

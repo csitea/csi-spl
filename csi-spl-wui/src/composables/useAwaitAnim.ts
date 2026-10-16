@@ -1,44 +1,76 @@
 import { useSessionStore } from '~/stores/session'
-import { AWAIT_ANIM_IDS, AWAIT_ROTATE_ORDER, DEFAULT_AWAIT_ANIM, createRotateClock, readAwaitAnim, writeAwaitAnim } from '~/utils/await-reply.mjs'
+import { useAuthClient } from '~/composables/useAuthClient'
+import { AWAIT_ANIM_IDS, STILL_AWAIT_ANIM, awaitAnimSet, awaitSetAt, createRotateClock, dropLegacyAwaitAnim, planAwaitMigration } from '~/utils/await-reply.mjs'
+
+/* SPL-2113: the old browser pick moves to the account once per tab */
+let migrating = false
 
 /**
- * SPL-2027: the person's own "thinking" animation (Settings -> Appearance),
- * kept in this browser per signed-in person (utils/await-reply.mjs). Only the
- * lazy AwaitReply mark and the setting use it, so it stays off the first
- * screen. One shared state: a pick in Settings redraws every open mark.
+ * SPL-2113: mirror the ticked set into the session claim (optimistic; the
+ * caller reverts it on a failed save). Here, not a session-store setter like
+ * the others, so its bytes stay out of the entry chunk (it sits at its
+ * ceiling, ci_initial_gzip_kb 155).
+ */
+export function mirrorAwaitAnims(session: ReturnType<typeof useSessionStore>, ids: readonly string[] | null) {
+  if (session.claims) session.claims = { ...session.claims, await_anims: ids ? [...ids] : null }
+}
+
+/**
+ * SPL-2113: the person's ticked "thinking" animations (Settings ->
+ * Appearance), kept in the account: the hub's per-workspace `await_anims`
+ * session claim (utils/await-reply.mjs). Only the lazy AwaitReply mark and
+ * the setting use it, so it stays off the first screen. One shared state: a
+ * tick in Settings redraws every open mark.
+ *
+ * The first time a signed-in person with no pick in the account is seen,
+ * the SPL-2027/2043 pick this browser kept is written to the account and its
+ * old key removed (kept when the save fails, for the next visit).
  */
 export function useAwaitAnim() {
   const session = useSessionStore()
-  const pick = useState<string>('spool-await-anim', () => DEFAULT_AWAIT_ANIM)
-  const read = () => { if (import.meta.client) pick.value = readAwaitAnim(session.claims) }
-  onMounted(read)
-  watch(() => `${session.claims?.t || ''}:${session.claims?.hum || ''}`, read)
+  const auth = useAuthClient()
+  const set = computed(() => awaitAnimSet(session.claims?.await_anims))
 
-  function setPick(id: string) {
-    pick.value = import.meta.client ? writeAwaitAnim(session.claims, id) : id
+  function migrate() {
+    if (migrating || !import.meta.client || session.state !== 'in') return
+    const plan = planAwaitMigration(session.claims)
+    if (!plan) return
+    migrating = true
+    if (!plan.set) {
+      dropLegacyAwaitAnim(plan.key)
+      return
+    }
+    mirrorAwaitAnims(session, plan.set)
+    void auth.saveAwaitAnims(plan.set).then((out) => {
+      if (out.ok) dropLegacyAwaitAnim(plan.key)
+      else mirrorAwaitAnims(session, null)
+    })
   }
+  onMounted(migrate)
+  watch(() => session.state, migrate)
 
-  return { pick, ids: AWAIT_ANIM_IDS as readonly string[], setPick }
+  return { set, ids: AWAIT_ANIM_IDS as readonly string[] }
 }
 
-/* SPL-2043: one clock and one drawing for every rotating mark in this tab */
+/* SPL-2043: one clock for every rotating mark in this tab */
 let clock: ReturnType<typeof createRotateClock> | null = null
-const rotateNow = ref<string>(AWAIT_ROTATE_ORDER[0])
+const rotateStep = ref(0)
 
 /**
- * SPL-2043: the drawing `rotate` shows now, while `active` (spinning, motion
- * welcome) holds; the first drawing, still, otherwise. Every caller shares the
- * one clock; it stops when the last active mark goes (unmount included).
+ * SPL-2043/2113: the drawing a mark shows now: the ticked `set` in turn
+ * while `active` (spinning, motion welcome, two or more ticked) holds; the
+ * still hourglass otherwise. Every caller shares the one clock; it stops
+ * when the last active mark goes (unmount included).
  */
-export function useAwaitRotate(active: Ref<boolean>) {
+export function useAwaitRotate(active: Ref<boolean>, set: Ref<readonly string[]>) {
   let stop: (() => void) | null = null
   const off = () => { stop?.(); stop = null }
   const on = () => {
     if (stop || !import.meta.client) return
     clock ??= createRotateClock()
-    stop = clock.subscribe((id: string) => { rotateNow.value = id })
+    stop = clock.subscribe((step: number) => { rotateStep.value = step })
   }
   watch(active, (a) => (a ? on() : off()), { immediate: true })
   onScopeDispose(off)
-  return computed(() => (active.value ? rotateNow.value : AWAIT_ROTATE_ORDER[0]))
+  return computed(() => (active.value ? awaitSetAt(set.value, rotateStep.value) : STILL_AWAIT_ANIM))
 }

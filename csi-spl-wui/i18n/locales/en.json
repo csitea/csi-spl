@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Thinking animation",
-      "rotate": "Take turns",
+      "hint": "Tick the ones you like: they take turns, about 3 seconds each. At least one stays ticked. Kept for this workspace.",
       "hourglass": "Hourglass",
       "robot": "Running robot",
-      "brain": "Brain"
+      "brain": "Brain",
+      "dancing-robot": "Dancing robot",
+      "dots": "Typing dots",
+      "spinner": "Spinner",
+      "radar": "Radar",
+      "gears": "Gears",
+      "bulb": "Light bulb",
+      "coffee": "Coffee",
+      "orbit": "Orbit",
+      "pendulum": "Pendulum",
+      "bars": "Sound bars",
+      "pencil": "Pencil",
+      "rocket": "Rocket",
+      "clock": "Clock",
+      "wave": "Wave"
     }
   },
   "auth": {

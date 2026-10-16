@@ -4,11 +4,13 @@
 // Run: node tests/unit/await-reply.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import {
-  AWAIT_ANIMATIONS, AWAIT_ANIM_IDS, AWAIT_ANIM_KEY, AWAIT_ROTATE_ORDER, AWAIT_ROTATE_STEP_MS, AWAIT_SHOW_MAX_MS,
-  DEFAULT_AWAIT_ANIM, ROTATE_AWAIT_ANIM, awaitAnimKey, awaitAnimPick, awaitAnimation, createRotateClock, msToNextRotate, rotateAnimAt,
-  awaitSpinMs, awaitState, isAgentPost, isPersonPost, nextAwaitChange, readAwaitAnim, writeAwaitAnim,
+  AWAIT_ANIMATIONS, AWAIT_ANIM_IDS, AWAIT_ANIM_KEY, AWAIT_ROTATE_STEP_MS, AWAIT_SHOW_MAX_MS, DEFAULT_AWAIT_SET, STILL_AWAIT_ANIM,
+  awaitAnimKey, awaitAnimSet, awaitAnimation, awaitSetAt, createRotateClock, dropLegacyAwaitAnim, legacyAwaitSet, msToNextRotate,
+  planAwaitMigration, rotateAnimAt, rotateStepAt, toggleAwaitAnim,
+  awaitSpinMs, awaitState, isAgentPost, isPersonPost, nextAwaitChange,
 } from '../../src/utils/await-reply.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -158,118 +160,134 @@ describe('the animation seam', () => {
   it('the hourglass is the fallback drawing, a CSS animation by class', () => {
     assert.deepEqual(awaitAnimation(''), { id: 'hourglass', kind: 'css', className: 'await-anim--hourglass' })
     assert.equal(awaitAnimation('no-such').id, 'hourglass')
-    assert.equal(awaitAnimation('hourglass').kind, 'css')
+    assert.equal(STILL_AWAIT_ANIM, 'hourglass')
   })
 
-  it('every entry is a css class or a clip with a src and a media type', () => {
-    for (const [id, a] of Object.entries(AWAIT_ANIMATIONS)) {
-      if (a.kind === 'css') assert.match(a.className, /^await-anim--[a-z0-9-]+$/, id)
-      else {
-        assert.equal(a.kind, 'clip', id)
-        assert.ok(a.src && /^(image\/webp|video\/)/.test(a.type), id)
-      }
-    }
+  it('every entry is a css drawing with its own class', () => {
+    for (const [id, a] of Object.entries(AWAIT_ANIMATIONS)) assert.deepEqual(a, { kind: 'css', className: `await-anim--${id}` }, id)
   })
 })
 
-// SPL-2027 (owner HUM-10, t1 72898ea2 msgs c4aae6fc, 1689b768, f7779032)
+// SPL-2113 (owner HUM-10, t1 3aa9fac2 msgs d45ec26e, c33a028e, 1ea9f107)
 const VUE = readFileSync(new URL('../../src/components/AwaitReply.vue', import.meta.url), 'utf8')
+const SETTING = readFileSync(new URL('../../src/components/AwaitAnimSetting.vue', import.meta.url), 'utf8')
+const COMPOSABLE = readFileSync(new URL('../../src/composables/useAwaitAnim.ts', import.meta.url), 'utf8')
+const DRAWING_DIR = new URL('../../src/components/await-anim/', import.meta.url)
 const LOCALES = new URL('../../i18n/locales/', import.meta.url)
+const fileOf = (id) => id.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('') + '.vue'
+/* the style block with comments dropped, and what is left outside its no-preference blocks */
+const motionSplit = (src) => {
+  const css = src.slice(src.indexOf('<style')).replace(/\/\*[\s\S]*?\*\//g, '')
+  let outside = css
+  for (const block of css.match(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/g) || []) outside = outside.replace(block, '')
+  return { css, outside }
+}
 
-describe('SPL-2027: a running robot and a popping brain', () => {
-  for (const id of ['robot', 'brain']) {
-    it(`${id} is an entry, a css animation with its own class`, () => {
-      assert.deepEqual(awaitAnimation(id), { id, kind: 'css', className: `await-anim--${id}` })
-      assert.ok(AWAIT_ANIM_IDS.includes(id))
-    })
-    it(`${id} has its own drawing and keyframes in AwaitReply.vue`, () => {
-      assert.ok(VUE.includes(`look.id === '${id}'`), 'drawing')
-      assert.match(VUE, new RegExp(`@keyframes await-${id}\\b`), 'keyframes')
-      assert.match(VUE, new RegExp(`\\.await-anim--${id}\\.await-reply--spin`), 'only while spinning')
+describe('SPL-2113: 17 drawings, a dancing robot among them', () => {
+  it('at least 15, the first three kept, a dancing robot; the list is the entries in order (a literal)', () => {
+    assert.ok(AWAIT_ANIM_IDS.length >= 15, String(AWAIT_ANIM_IDS.length))
+    assert.deepEqual(AWAIT_ANIM_IDS.slice(0, 3), ['hourglass', 'robot', 'brain'])
+    assert.ok(AWAIT_ANIM_IDS.includes('dancing-robot'))
+    assert.deepEqual([...AWAIT_ANIM_IDS], Object.keys(AWAIT_ANIMATIONS))
+    assert.equal(new Set(AWAIT_ANIM_IDS).size, AWAIT_ANIM_IDS.length)
+  })
+
+  it('the hourglass is drawn in AwaitReply.vue; every other drawing is its own lazy component', () => {
+    assert.match(VUE, /<svg v-if="look === 'hourglass'"/)
+    assert.match(VUE, /@keyframes await-hourglass\b/)
+    for (const id of AWAIT_ANIM_IDS.slice(1)) {
+      assert.ok(VUE.includes(`'${id}': () => import('~/components/await-anim/${fileOf(id)}')`), `${id}: a dynamic import`)
+      assert.ok(existsSync(new URL(fileOf(id), DRAWING_DIR)), `${id}: ${fileOf(id)}`)
+    }
+    assert.doesNotMatch(VUE, /^import .*await-anim\//m, 'no static import of a drawing')
+  })
+
+  for (const id of AWAIT_ANIM_IDS.slice(1)) {
+    it(`${id}: code-drawn svg, its own keyframes, motion only while spinning and welcome, CSP-safe, <= 1.5 KB gzip`, () => {
+      const src = readFileSync(new URL(fileOf(id), DRAWING_DIR), 'utf8')
+      assert.match(src, /<svg class="await-reply__glyph" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">/)
+      assert.doesNotMatch(src, /<(img|video|image)\b|url\(|href=|:style=|style="/, 'no file, no inline style')
+      assert.match(src, new RegExp(`@keyframes await-${id}\\b`), 'its own keyframes')
+      const { css, outside } = motionSplit(src)
+      assert.ok(css.length > outside.length, 'a no-preference block exists')
+      assert.doesNotMatch(outside, /\banimation(-name)?:/, 'no animation outside the no-preference blocks')
+      for (const rule of css.match(/[^{}]+\{[^{}]*\banimation:[^{}]*\}/g) || []) assert.match(rule, /\.await-reply--spin /, `only while spinning: ${rule.trim().slice(0, 60)}`)
+      assert.ok(gzipSync(src).length <= 1536, `${gzipSync(src).length} B gzip`)
     })
   }
 
-  it('the pick list is rotate, then every entry, in order (a literal, kept off the entry chunk)', () => {
-    assert.deepEqual([...AWAIT_ANIM_IDS], [ROTATE_AWAIT_ANIM, ...Object.keys(AWAIT_ANIMATIONS)])
+  it('reduced motion: the hourglass animates only under prefers-reduced-motion: no-preference', () => {
+    const { css, outside } = motionSplit(VUE)
+    assert.ok(css.length > outside.length)
+    assert.doesNotMatch(outside, /\banimation(-name)?:/)
   })
 
-  it('reduced motion: every animation runs only under prefers-reduced-motion: no-preference', () => {
-    const css = VUE.slice(VUE.indexOf('<style')).replace(/\/\*[\s\S]*?\*\//g, '')
-    let outside = css
-    for (const block of css.match(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/g) || []) outside = outside.replace(block, '')
-    assert.ok(css.length > outside.length, 'a no-preference block exists')
-    assert.doesNotMatch(outside, /\banimation(-name)?:/, 'no animation outside the no-preference blocks')
-  })
-
-  it('SPL-2043: another 20% bigger (16.8 -> 20.16 px), inside the unchanged 16 px box; no :style (CSP)', () => {
-    assert.match(VUE, /\.await-reply__glyph \{ inline-size: 20\.16px; block-size: 20\.16px;/)
-    assert.equal((VUE.match(/width="20" height="20"/g) || []).length, 3, 'each svg drawing')
+  it('SPL-2043: 20.16 px drawings in the unchanged 16 px box, the lazy ones too; no :style (CSP)', () => {
+    assert.match(VUE, /\.await-reply__drawing :deep\(\.await-reply__glyph\) \{ inline-size: 20\.16px; block-size: 20\.16px;/)
     assert.match(VUE, /inline-size: 16px;\n  block-size: 16px;/)
     assert.doesNotMatch(VUE, /:style=/)
+    assert.doesNotMatch(SETTING, /:style=/)
   })
 
-  it('every locale names the setting and each animation', () => {
+  it('every locale names the setting, its hint and each animation', () => {
     for (const f of readdirSync(LOCALES).filter((x) => x.endsWith('.json'))) {
       const a = JSON.parse(readFileSync(new URL(f, LOCALES), 'utf8')).settings?.await_anim || {}
-      for (const k of ['label', ...AWAIT_ANIM_IDS]) assert.ok(String(a[k] || '').trim(), `${f} settings.await_anim.${k}`)
+      for (const k of ['label', 'hint', ...AWAIT_ANIM_IDS]) assert.ok(String(a[k] || '').trim(), `${f} settings.await_anim.${k}`)
+      assert.equal(a.rotate, undefined, `${f}: the old "take turns" choice is gone`)
     }
   })
 })
 
-describe('SPL-2027: the per-person pick', () => {
-  const ann = { hum: 'HUM-10', t: 't1' }
-  const bob = { hum: 'HUM-24', t: 't1' }
-
-  it('nothing stored: the default (rotate)', () => {
-    assert.equal(readAwaitAnim(ann, memoryStore()), 'rotate')
+describe('SPL-2113: the ticked set', () => {
+  it('never picked (null, absent, junk): the default three', () => {
+    assert.deepEqual([...DEFAULT_AWAIT_SET], ['hourglass', 'robot', 'brain'])
+    for (const v of [null, undefined, [], 'robot', {}, ['unicorn']]) assert.deepEqual(awaitAnimSet(v), ['hourglass', 'robot', 'brain'], JSON.stringify(v))
   })
 
-  it('a pick is read back, per person and tenant', () => {
-    const store = memoryStore()
-    assert.equal(writeAwaitAnim(ann, 'robot', store), 'robot')
-    writeAwaitAnim(bob, 'brain', store)
-    assert.equal(readAwaitAnim(ann, store), 'robot')
-    assert.equal(readAwaitAnim(bob, store), 'brain')
-    assert.equal(readAwaitAnim({ hum: 'HUM-10', t: 't2' }, store), 'rotate')
-    assert.equal(store.getItem('spool-await-anim:t1:HUM-10'), 'robot')
+  it('known ids only, once each, in catalogue order', () => {
+    assert.deepEqual(awaitAnimSet(['wave', 'unicorn', 'dots', 'wave']), ['dots', 'wave'])
+    assert.deepEqual(awaitAnimSet(['dancing-robot']), ['dancing-robot'])
   })
 
-  it('an unknown id (stored or written) falls back to the default', () => {
-    const store = memoryStore({ [awaitAnimKey(ann)]: 'unicorn' })
-    assert.equal(readAwaitAnim(ann, store), 'rotate')
-    assert.equal(writeAwaitAnim(ann, 'unicorn', store), 'rotate')
+  it('tick adds, untick removes, in catalogue order', () => {
+    assert.deepEqual(toggleAwaitAnim(['hourglass', 'robot', 'brain'], 'dots', true), ['hourglass', 'robot', 'brain', 'dots'])
+    assert.deepEqual(toggleAwaitAnim(['dots', 'wave'], 'hourglass', true), ['hourglass', 'dots', 'wave'])
+    assert.deepEqual(toggleAwaitAnim(['hourglass', 'robot', 'brain'], 'robot', false), ['hourglass', 'brain'])
   })
 
-  it('signed out: one browser-wide key', () => {
-    assert.equal(awaitAnimKey(null), AWAIT_ANIM_KEY)
-    assert.equal(awaitAnimKey({ hum: 'HUM-1' }), 'spool-await-anim:HUM-1')
-  })
-
-  it('a broken storage reads the default and never throws', () => {
-    const broken = { getItem() { throw new Error('denied') }, setItem() { throw new Error('denied') } }
-    assert.equal(readAwaitAnim(ann, broken), 'rotate')
-    assert.equal(writeAwaitAnim(ann, 'brain', broken), 'brain')
+  it('min 1: unticking the last one, an unknown id or a no-op hands back the same array', () => {
+    const one = ['rocket']
+    assert.equal(toggleAwaitAnim(one, 'rocket', false), one)
+    const set = ['hourglass', 'robot']
+    assert.equal(toggleAwaitAnim(set, 'unicorn', true), set)
+    assert.equal(toggleAwaitAnim(set, 'robot', true), set)
+    assert.equal(toggleAwaitAnim(set, 'dots', false), set)
   })
 })
 
-// SPL-2043 (owner HUM-10, t1 72898ea2 msgs c48092cf, 19feedf8): the drawings
-// take turns, ~3 s each, all the time; rotate is the default pick.
-describe('SPL-2043: rotate, the drawings in turn', () => {
-  it('rotate is a pick, the default, listed first; a single pick stays a pick', () => {
-    assert.equal(DEFAULT_AWAIT_ANIM, 'rotate')
-    assert.equal(AWAIT_ANIM_IDS[0], 'rotate')
-    for (const id of AWAIT_ANIM_IDS) assert.equal(awaitAnimPick(id), id)
-    assert.equal(awaitAnimPick(''), 'rotate')
-    assert.equal(awaitAnimPick('unicorn'), 'rotate')
-  })
-
-  it('the cycle order is hourglass -> robot -> brain -> hourglass, 3 s each', () => {
-    assert.deepEqual([...AWAIT_ROTATE_ORDER], ['hourglass', 'robot', 'brain'])
+describe('SPL-2113: the ticked ones take turns, 3 s each (SPL-2043)', () => {
+  it('the step is the wall clock / 3 s; a set is shown in turn from the step', () => {
     assert.equal(AWAIT_ROTATE_STEP_MS, 3000)
-    const t0 = 3000 * 1000 * 3 /* a cycle start */
+    assert.equal(rotateStepAt(9000), 3)
+    assert.equal(rotateStepAt(NaN), 0)
+    const t0 = 3000 * 1000 * 3 /* a cycle start of the default three */
     const seen = [0, 2999, 3000, 5999, 6000, 8999, 9000].map((d) => rotateAnimAt(t0 + d))
     assert.deepEqual(seen, ['hourglass', 'hourglass', 'robot', 'robot', 'brain', 'brain', 'hourglass'])
     assert.equal(rotateAnimAt(NaN), 'hourglass')
+  })
+
+  it('only the ticked ones take turns: two ticked alternate, nothing else ever shows', () => {
+    const set = ['dancing-robot', 'rocket']
+    const seen = Array.from({ length: 40 }, (_, n) => awaitSetAt(set, n))
+    assert.deepEqual([...new Set(seen)], ['dancing-robot', 'rocket'])
+    for (let n = 1; n < seen.length; n++) assert.notEqual(seen[n], seen[n - 1], `step ${n} alternates`)
+    assert.deepEqual(Array.from({ length: 5 }, (_, n) => awaitSetAt(['wave'], n)), ['wave', 'wave', 'wave', 'wave', 'wave'])
+    assert.equal(awaitSetAt(set, -1), 'rocket', 'a negative step stays in the set')
+  })
+
+  it('every ticked drawing gets its turn, in catalogue order, for a set of any size (no cap)', () => {
+    const set = awaitAnimSet([...AWAIT_ANIM_IDS])
+    assert.deepEqual(Array.from({ length: set.length }, (_, n) => awaitSetAt(set, n)), [...AWAIT_ANIM_IDS])
   })
 
   it('the next step is due at the next 3 s boundary', () => {
@@ -298,20 +316,21 @@ describe('SPL-2043: rotate, the drawings in turn', () => {
     return c
   }
 
-  it('one clock: every mark on it shows the same drawing, stepping each 3 s', () => {
+  it('one clock: every mark on it gets the same step, each 3 s', () => {
     const c = fakeClock(9000 * 1000 + 1000)
     const clock = createRotateClock(c)
     const a = []
     const b = []
-    const offA = clock.subscribe((id) => a.push(id))
+    const offA = clock.subscribe((n) => a.push(n))
     c.advance(1000)
-    const offB = clock.subscribe((id) => b.push(id))
+    const offB = clock.subscribe((n) => b.push(n))
     assert.equal(c.timers.size, 1, 'one timer for two marks')
-    c.advance(2000) /* -> robot */
-    c.advance(3000) /* -> brain */
-    c.advance(3000) /* -> hourglass */
-    assert.deepEqual(a, ['hourglass', 'robot', 'brain', 'hourglass'])
-    assert.deepEqual(b, ['hourglass', 'robot', 'brain', 'hourglass'])
+    c.advance(2000)
+    c.advance(3000)
+    c.advance(3000)
+    assert.deepEqual(a, [3000, 3001, 3002, 3003])
+    assert.deepEqual(b, [3000, 3001, 3002, 3003])
+    assert.deepEqual(a.map((n) => awaitSetAt(['gears', 'orbit'], n)), ['gears', 'orbit', 'gears', 'orbit'])
     offA()
     assert.equal(clock.running, true, 'still one listener')
     offB()
@@ -321,25 +340,83 @@ describe('SPL-2043: rotate, the drawings in turn', () => {
     assert.equal(a.length + b.length, 8, 'nobody is called after leaving')
   })
 
-  it('a mark joining mid-step sees the current drawing at once', () => {
+  it('a mark joining mid-step sees the current step at once', () => {
     const c = fakeClock(9000 * 1000)
     const clock = createRotateClock(c)
     const off1 = clock.subscribe(() => {})
     c.advance(4000)
     let seen = null
-    const off2 = clock.subscribe((id) => { seen = id })
-    assert.equal(seen, 'robot')
+    const off2 = clock.subscribe((n) => { seen = n })
+    assert.equal(seen, 3001)
     off1(); off2(); off2()
     assert.equal(c.timers.size, 0)
   })
 
-  it('AwaitReply: rotate cycles only while spinning and motion is welcome, else the still hourglass', () => {
-    assert.match(VUE, /rotating = computed\(\(\) => chosen\.value === ROTATE_AWAIT_ANIM && props\.state === 'spin' && !reduced\.value\)/)
-    assert.match(VUE, /useAwaitRotate\(rotating\)/)
-    assert.match(VUE, /addEventListener\?\.\('change', readMotion\)/, 'reduced motion switched on later stops the cycle')
+  it('AwaitReply: turns only while spinning, motion welcome, two or more ticked; else the still hourglass', () => {
+    assert.match(VUE, /const moving = computed\(\(\) => props\.state === 'spin' && !reduced\.value\)/)
+    assert.match(VUE, /rotating = computed\(\(\) => !props\.anim && moving\.value && set\.value\.length > 1\)/)
+    assert.match(VUE, /if \(!moving\.value\) return 'hourglass'/)
+    assert.match(VUE, /useAwaitRotate\(rotating, set\)/)
+    assert.match(VUE, /addEventListener\?\.\('change', readMotion\)/, 'reduced motion switched on later stops the turns')
     assert.match(VUE, /removeEventListener\?\.\('change', readMotion\)/)
-    const comp = readFileSync(new URL('../../src/composables/useAwaitAnim.ts', import.meta.url), 'utf8')
-    assert.match(comp, /active\.value \? rotateNow\.value : AWAIT_ROTATE_ORDER\[0\]/, 'inactive = the first drawing, still')
-    assert.match(comp, /onScopeDispose\(off\)/, 'unsubscribed on unmount')
+    assert.match(COMPOSABLE, /active\.value \? awaitSetAt\(set\.value, rotateStep\.value\) : STILL_AWAIT_ANIM/, 'inactive = the still hourglass')
+    assert.match(COMPOSABLE, /onScopeDispose\(off\)/, 'unsubscribed on unmount')
+  })
+
+  it('the setting: one checkbox per drawing, the last ticked one locked', () => {
+    assert.match(SETTING, /v-for="id in ids"/)
+    assert.match(SETTING, /type="checkbox"/)
+    assert.match(SETTING, /set\.length === 1 && set\.includes\(id\)/)
+    assert.match(SETTING, /<LazyAwaitReply state="spin" :anim="id" preview \/>/, 'each row its running sample')
+  })
+})
+
+describe('SPL-2113: the old browser pick moves to the account once', () => {
+  const ann = { hum: 'HUM-10', t: 't1' }
+
+  it('the old pick as a set: take turns = the default three, one drawing = that one', () => {
+    assert.deepEqual(legacyAwaitSet('rotate'), ['hourglass', 'robot', 'brain'])
+    for (const id of ['hourglass', 'robot', 'brain']) assert.deepEqual(legacyAwaitSet(id), [id])
+    for (const v of ['', null, 'unicorn', 'dots']) assert.equal(legacyAwaitSet(v), null, String(v))
+  })
+
+  it('an old pick and no pick in the account: migrate it, under the old per-person key', () => {
+    const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'robot' })
+    assert.deepEqual(planAwaitMigration(ann, store), { key: 'spool-await-anim:t1:HUM-10', set: ['robot'] })
+    assert.deepEqual(planAwaitMigration({ ...ann, await_anims: null }, store), { key: 'spool-await-anim:t1:HUM-10', set: ['robot'] })
+  })
+
+  it('once: the account already holds a pick, nothing stored, or signed out = nothing to do', () => {
+    const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'brain', [AWAIT_ANIM_KEY]: 'robot' })
+    assert.equal(planAwaitMigration({ ...ann, await_anims: ['dots'] }, store), null)
+    assert.equal(planAwaitMigration({ hum: 'HUM-24', t: 't1' }, store), null)
+    assert.equal(planAwaitMigration(null, store), null)
+    assert.equal(planAwaitMigration({ t: 't1' }, store), null)
+  })
+
+  it('an unusable old value: only the key is dropped', () => {
+    const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'unicorn' })
+    assert.deepEqual(planAwaitMigration(ann, store), { key: 'spool-await-anim:t1:HUM-10', set: null })
+  })
+
+  it('the old key is removed after the move, so the second visit has nothing to migrate', () => {
+    const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'rotate' })
+    const plan = planAwaitMigration(ann, store)
+    assert.equal(dropLegacyAwaitAnim(plan.key, store), true)
+    assert.equal(planAwaitMigration(ann, store), null)
+    const broken = { getItem() { throw new Error('denied') }, removeItem() { throw new Error('denied') } }
+    assert.equal(planAwaitMigration(ann, broken), null, 'a broken storage reads nothing, never throws')
+    assert.equal(dropLegacyAwaitAnim('k', broken), false)
+  })
+
+  it('the keys stay as SPL-2027 wrote them', () => {
+    assert.equal(awaitAnimKey(null), AWAIT_ANIM_KEY)
+    assert.equal(awaitAnimKey({ hum: 'HUM-1' }), 'spool-await-anim:HUM-1')
+    assert.equal(awaitAnimKey(ann), 'spool-await-anim:t1:HUM-10')
+  })
+
+  it('the composable migrates once per tab, keeps the old key when the save fails', () => {
+    assert.match(COMPOSABLE, /if \(migrating \|\| !import\.meta\.client \|\| session\.state !== 'in'\) return/)
+    assert.match(COMPOSABLE, /if \(out\.ok\) dropLegacyAwaitAnim\(plan\.key\)\n\s+else mirrorAwaitAnims\(session, null\)/)
   })
 })

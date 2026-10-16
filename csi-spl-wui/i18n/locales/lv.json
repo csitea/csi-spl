@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Domāšanas animācija",
-      "rotate": "Pārmaiņus",
+      "hint": "Atzīmējiet tās, kas patīk: tās mainās pārmaiņus, katra apmēram 3 sekundes. Vismaz viena paliek atzīmēta. Saglabāts šai darbvietai.",
       "hourglass": "Smilšu pulkstenis",
       "robot": "Skrejošs robots",
-      "brain": "Smadzenes"
+      "brain": "Smadzenes",
+      "dancing-robot": "Dejojošs robots",
+      "dots": "Rakstīšanas punkti",
+      "spinner": "Rotējošs aplis",
+      "radar": "Radars",
+      "gears": "Zobrati",
+      "bulb": "Spuldze",
+      "coffee": "Kafija",
+      "orbit": "Orbīta",
+      "pendulum": "Svārsts",
+      "bars": "Skaņas stabiņi",
+      "pencil": "Zīmulis",
+      "rocket": "Raķete",
+      "clock": "Pulkstenis",
+      "wave": "Vilnis"
     }
   },
   "auth": {

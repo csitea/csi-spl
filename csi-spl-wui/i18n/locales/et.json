@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Mõtlemise animatsioon",
-      "rotate": "Vaheldumisi",
+      "hint": "Märgi need, mis meeldivad: need vahelduvad, umbes 3 sekundit igaüks. Vähemalt üks jääb märgituks. Salvestatakse selle tööruumi jaoks.",
       "hourglass": "Liivakell",
       "robot": "Jooksev robot",
-      "brain": "Aju"
+      "brain": "Aju",
+      "dancing-robot": "Tantsiv robot",
+      "dots": "Tippimistäpid",
+      "spinner": "Keerlev ring",
+      "radar": "Radar",
+      "gears": "Hammasrattad",
+      "bulb": "Lambipirn",
+      "coffee": "Kohv",
+      "orbit": "Orbiit",
+      "pendulum": "Pendel",
+      "bars": "Helitulbad",
+      "pencil": "Pliiats",
+      "rocket": "Rakett",
+      "clock": "Kell",
+      "wave": "Laine"
     }
   },
   "auth": {

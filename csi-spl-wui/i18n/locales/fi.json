@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Ajatteluanimaatio",
-      "rotate": "Vuorotellen",
+      "hint": "Valitse mieleisesi: ne vuorottelevat, noin 3 sekuntia kukin. Vähintään yksi jää valituksi. Tallennetaan tälle työtilalle.",
       "hourglass": "Tiimalasi",
       "robot": "Juokseva robotti",
-      "brain": "Aivot"
+      "brain": "Aivot",
+      "dancing-robot": "Tanssiva robotti",
+      "dots": "Kirjoituspisteet",
+      "spinner": "Pyörivä rengas",
+      "radar": "Tutka",
+      "gears": "Hammasrattaat",
+      "bulb": "Hehkulamppu",
+      "coffee": "Kahvi",
+      "orbit": "Kiertorata",
+      "pendulum": "Heiluri",
+      "bars": "Äänipalkit",
+      "pencil": "Kynä",
+      "rocket": "Raketti",
+      "clock": "Kello",
+      "wave": "Aalto"
     }
   },
   "auth": {

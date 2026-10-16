@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Tänkanimation",
-      "rotate": "Växelvis",
+      "hint": "Bocka för dem du gillar: de turas om, cirka 3 sekunder var. Minst en förblir förbockad. Sparas för den här arbetsytan.",
       "hourglass": "Timglas",
       "robot": "Springande robot",
-      "brain": "Hjärna"
+      "brain": "Hjärna",
+      "dancing-robot": "Dansande robot",
+      "dots": "Skrivprickar",
+      "spinner": "Snurra",
+      "radar": "Radar",
+      "gears": "Kugghjul",
+      "bulb": "Glödlampa",
+      "coffee": "Kaffe",
+      "orbit": "Omloppsbana",
+      "pendulum": "Pendel",
+      "bars": "Ljudstaplar",
+      "pencil": "Penna",
+      "rocket": "Raket",
+      "clock": "Klocka",
+      "wave": "Våg"
     }
   },
   "auth": {

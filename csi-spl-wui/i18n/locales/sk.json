@@ -248,10 +248,24 @@
     },
     "await_anim": {
       "label": "Animácia premýšľania",
-      "rotate": "Striedavo",
+      "hint": "Označte tie, ktoré sa vám páčia: striedajú sa, každá asi 3 sekundy. Aspoň jedna zostane označená. Uloží sa pre tento pracovný priestor.",
       "hourglass": "Presýpacie hodiny",
       "robot": "Bežiaci robot",
-      "brain": "Mozog"
+      "brain": "Mozog",
+      "dancing-robot": "Tancujúci robot",
+      "dots": "Bodky pri písaní",
+      "spinner": "Točiaci sa kruh",
+      "radar": "Radar",
+      "gears": "Ozubené kolesá",
+      "bulb": "Žiarovka",
+      "coffee": "Káva",
+      "orbit": "Obežná dráha",
+      "pendulum": "Kyvadlo",
+      "bars": "Zvukové stĺpce",
+      "pencil": "Ceruzka",
+      "rocket": "Raketa",
+      "clock": "Hodiny",
+      "wave": "Vlna"
     }
   },
   "auth": {

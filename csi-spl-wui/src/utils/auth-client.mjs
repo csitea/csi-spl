@@ -520,6 +520,12 @@ function layoutPreferenceMethods(post) {
     saveHoursReading(on) {
       return post('/preferences', { hours_reading: typeof on === 'boolean' ? on : null }, 'PUT')
     },
+    // SPL-2113: the ticked thinking animations, per tenant (rdb 0078); null
+    // (or an empty list) clears it (back to the WUI's default set).
+    saveAwaitAnims(ids) {
+      const v = Array.isArray(ids) && ids.length ? ids.map(String) : null
+      return post('/preferences', { await_anims: v }, 'PUT')
+    },
     // SPL-1182: the two divider widths, per tenant (rdb 0078); null clears.
     savePaneSizes(sizes) {
       const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null

@@ -23,21 +23,28 @@
 //   8 HUM-1 sends `@CLE-07 ...`: the row is still pending (no ack) and the
 //     hourglass already spins on it
 //   9 the ack is released: the row is stored and keeps spinning
-// SPL-2027 (owner msgs c4aae6fc, 1689b768, f7779032): more animations, a
-// per-person pick, 20% bigger:
-//   R1 Settings -> Appearance lists hourglass, robot, brain; pick robot
-//   R2 send a post in topic A: once the hub has it, the ROBOT runs on it
-//   R3 the mark's box is still 16 px, the drawing 20.16 px (SPL-2043), and
-//      the post's header row is as tall as one with no mark (no shift)
-//   R4 reduced motion: the robot stands still
-//   R5 pick brain: the brain swells; a reload keeps the pick
-//   R6 phone 390 px: the brain, same box, same size
 // SPL-2043 (owner msgs c48092cf, 19feedf8): the drawings take turns, ~3 s
 // each, and draw another 20% bigger (20.16 px in the 16 px box):
 //   T1 default pick = rotate: a waiting post shows the hourglass, then the
 //      robot ~3 s later, then the brain, then the hourglass again
 //   T2 every rotating mark on screen (row + post) shows the same drawing
 //   T3 reduced motion: no cycling, the still hourglass for longer than a step
+// SPL-2113 (owner HUM-10, t1 3aa9fac2 msgs d45ec26e, c33a028e): 17
+// drawings in a vertical checkbox list, the ticked ones take turns, kept in
+// the account (PUT /preferences await_anims, answered here as the hub would):
+//   S1 Settings -> Appearance: 17 checkboxes, the dancing robot among them,
+//      the default three ticked; every row's sample runs
+//   S2 tick dancing-robot + rocket, untick the three: the account gets
+//      exactly those two; one left ticked cannot be unticked
+//   S3 desktop: on the waiting post and its row ONLY those two alternate,
+//      ~3 s each, and each one's drawing runs
+//   S4 the box is still 16 px, the drawing 20.16 px, no row shift
+//   S5 reduced motion: the still hourglass for longer than a step
+//   S6 a refused save puts the tick back and says so
+//   P1 a fresh phone (390 px) whose account holds the two: the list shows
+//      them ticked, only those two alternate; reduced motion = still hourglass
+//   M1 an old browser pick (robot) and no pick in the account: it is saved
+//      to the account once, the old key removed
 //   T4 a single pick (robot) stays fixed over more than a step
 //
 //   node tests/e2e/await-reply.test.mjs
@@ -92,8 +99,14 @@ function seed(ids) {
     row(ids.D + '-r', ids.D, 240000, 'CLE-07', 'yes, done', 0),
   ]
   try {
-    localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' }))
+    const claims = { hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' }
+    if (ids.anims) claims.await_anims = ids.anims
+    localStorage.setItem('spool.mock.session', JSON.stringify(claims))
     localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
+    if (ids.legacy && !sessionStorage.getItem('legacy-seeded')) {
+      localStorage.setItem('spool-await-anim:t1:HUM-1', ids.legacy)
+      sessionStorage.setItem('legacy-seeded', '1')
+    }
   } catch { /* about:blank */ }
 }
 
@@ -186,7 +199,7 @@ try {
 
   const a = await rowMark(p, A)
   ok('1 row A (an agent asked, HUM-1 answered 20 s ago) spins', a?.state === 'spin', a)
-  ok('1 ... as a status with a label, the default pick rotate (one of its drawings)', a?.role === 'status' && a.label.length > 0 && a.pick === 'rotate' && ROTATION.includes(a.anim), a)
+  ok('1 ... as a status with a label, the default three in turn (one of its drawings)', a?.role === 'status' && a.label.length > 0 && a.pick === 'hourglass robot brain' && ROTATION.includes(a.anim), a)
   const b = await rowMark(p, B)
   ok('1 row B (no agent in the topic) waits calmly, not spinning', b?.state === 'wait', b)
   const c = await rowMark(p, C)
@@ -328,77 +341,154 @@ try {
   await t.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
   await t.close()
 
-  /* SPL-2027: the person picks the robot in Settings, then sends */
-  const r = await ctx.newPage()
-  r.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
-  await r.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
-  await r.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
+  /* SPL-2113: the checkbox list, kept in the account */
+  const TWO = ['dancing-robot', 'rocket']
+  const ALL = ['hourglass', 'robot', 'brain', 'dancing-robot', 'dots', 'spinner', 'radar', 'gears', 'bulb', 'coffee', 'orbit', 'pendulum', 'bars', 'pencil', 'rocket', 'clock', 'wave']
+  /* a page whose PUT /preferences is answered as the hub would (or refused, `fail.on`); bodies kept in `saved` */
+  const openPage = async (c, vp, extra = {}) => {
+    const pg = await c.newPage()
+    const saved = []
+    const fail = { on: false }
+    pg.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+    await pg.setRequestInterception(true)
+    pg.on('request', (q) => {
+      if (q.isInterceptResolutionHandled()) return
+      if (q.method() === 'PUT' && /\/preferences$/.test(new URL(q.url()).pathname)) {
+        saved.push(q.postData() || '')
+        return fail.on
+          ? q.respond({ status: 500, contentType: 'application/json', body: '{"error":"internal","detail":"settings not stored"}' })
+          : q.respond({ status: 200, contentType: 'application/json', body: q.postData() || '{}' })
+      }
+      return q.continue()
+    })
+    await pg.evaluateOnNewDocument(seed, { A, A_POST, B, C, D, ...extra })
+    await pg.setViewport({ width: vp, height: vp < 500 ? 844 : 900, isMobile: false, hasTouch: false })
+    return { pg, saved, fail }
+  }
+  const boxes = (pg) => pg.evaluate(() => [...document.querySelectorAll('[data-test=await-anim-setting] input[type=checkbox]')].map((i) => ({ v: i.value, on: i.checked, off: i.disabled })))
+  const ticked = (list) => list.filter((x) => x.on).map((x) => x.v)
+  /* click one box once the last save is done (the boxes are disabled while saving) */
+  const tick = async (pg, id) => {
+    await pg.waitForFunction((id) => { const i = document.querySelector(`[data-test=await-anim-${id}]`); return i && !i.disabled }, { timeout: 5000 }, id).catch(() => {})
+    await pg.click(`[data-test=await-anim-${id}]`)
+    await sleep(150)
+  }
+  const lastSaved = (saved) => { try { return JSON.parse(saved[saved.length - 1] || 'null') } catch { return null } }
+  /* only `want` show, both of them, one after the other, each ~3 s */
+  const alternates = (runs, want) => {
+    const seen = new Set(runs.map((r) => r.anim))
+    const inner = runs.slice(1, -1)
+    return [...seen].every((x) => want.includes(x)) && want.every((x) => seen.has(x))
+      && runs.every((r, k) => k === 0 || r.anim !== runs[k - 1].anim)
+      && inner.length > 0 && inner.every((r) => r.to - r.from >= 2400 && r.to - r.from <= 3200)
+  }
+  const openTopicA = async (pg) => {
+    await pg.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`, { timeout: NAV })
+    await pg.evaluate((a) => document.querySelector(`.feed-body article.msg[data-msg-id="${a}"] [data-test=topic-replies]`)?.click(), A)
+    await pg.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  }
+
+  const { pg: r, saved, fail } = await openPage(ctx, 1440)
   await r.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
-  await r.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-robot]', { timeout: NAV })
-  const opts = await r.evaluate(() => [...document.querySelectorAll('[data-test=await-anim-setting] input[type=radio]')].map((i) => ({ v: i.value, on: i.checked })))
-  ok('R1 Settings -> Appearance lists rotate (picked, the default), hourglass, robot, brain', JSON.stringify(opts) === JSON.stringify([{ v: 'rotate', on: true }, { v: 'hourglass', on: false }, { v: 'robot', on: false }, { v: 'brain', on: false }]), opts)
-  await r.click('[data-test=await-anim-robot]')
-  await sleep(200)
-  const stored = await r.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1'))
-  ok('R1 ... robot picked, kept for HUM-1 in this browser', stored === 'robot', stored)
-  await shot(r, 'R1-settings')
+  await r.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-dancing-robot]', { timeout: NAV })
+  const list0 = await boxes(r)
+  ok('S1 Settings -> Appearance: 17 checkboxes, one under the other, the dancing robot among them', JSON.stringify(list0.map((x) => x.v)) === JSON.stringify(ALL), list0.map((x) => x.v))
+  ok('S1 ... the default three ticked', JSON.stringify(ticked(list0)) === JSON.stringify(['hourglass', 'robot', 'brain']), ticked(list0))
+  const vertical = await r.evaluate(() => {
+    const xs = [...document.querySelectorAll('[data-test=await-anim-setting] li')].map((li) => li.getBoundingClientRect())
+    return xs.length > 1 && xs.every((b, k) => k === 0 || (Math.abs(b.left - xs[0].left) < 1 && b.top >= xs[k - 1].bottom - 1))
+  })
+  ok('S1 ... a vertical list', vertical === true, vertical)
+  await r.waitForFunction(() => document.querySelectorAll('[data-test=await-anim-setting] [data-test=await-reply-preview] .await-reply__glyph').length === 17, { timeout: 20000 }).catch(() => {})
+  const samples0 = await r.evaluate(() => [...document.querySelectorAll('[data-test=await-anim-setting] [data-test=await-reply-preview]')].map((el) => {
+    const g = el.querySelector('.await-reply__glyph')
+    const names = g ? [g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none').map((n) => n.replace(/-[0-9a-f]{8}$/, '')) : []
+    return { anim: el.getAttribute('data-anim'), runs: names.some((n) => n.startsWith(`await-${el.getAttribute('data-anim')}`)) }
+  }))
+  ok('S1 ... every row shows its own running sample (17 drawings, each animated)', samples0.length === 17 && samples0.every((x, k) => x.anim === ALL[k] && x.runs), samples0.filter((x) => !x.runs))
+  await shot(r, 'S1-settings')
+
+  for (const id of TWO) await tick(r, id)
+  for (const id of ['hourglass', 'robot', 'brain']) await tick(r, id)
+  await sleep(300)
+  const list2 = await boxes(r)
+  ok('S2 tick dancing-robot + rocket, untick the three: those two ticked', JSON.stringify(ticked(list2)) === JSON.stringify(TWO), ticked(list2))
+  ok('S2 ... the account gets exactly those two (PUT /preferences await_anims)', JSON.stringify(lastSaved(saved)) === JSON.stringify({ await_anims: TWO }), saved.slice(-2))
+  await tick(r, 'rocket')
+  const list1 = await boxes(r)
+  const lone = list1.find((x) => x.v === 'dancing-robot')
+  ok('S2 one left ticked: its box cannot be unticked (at least one stays)', JSON.stringify(ticked(list1)) === '["dancing-robot"]' && lone?.off === true, list1.filter((x) => x.on || x.off))
+  await tick(r, 'rocket')
+  ok('S2 ... ticked again: both kept', JSON.stringify(lastSaved(saved)) === JSON.stringify({ await_anims: TWO }), lastSaved(saved))
+  await shot(r, 'S2-two-ticked')
+
+  fail.on = true
+  await tick(r, 'wave')
+  await r.waitForSelector('[data-test=await-anim-status]', { timeout: 5000 }).catch(() => {})
+  const refused = { boxes: ticked(await boxes(r)), status: await r.$eval('[data-test=await-anim-status]', (e) => e.textContent.trim()).catch(() => '') }
+  ok('S6 a refused save puts the tick back and says so', JSON.stringify(refused.boxes) === JSON.stringify(TWO) && refused.status.length > 0, refused)
+  fail.on = false
+
   await r.keyboard.press('Escape')
   await r.waitForFunction(() => !document.querySelector('[data-test=await-anim-setting]'), { timeout: 5000 }).catch(() => {})
-  await r.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`, { timeout: NAV })
-  await r.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
-  await r.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"]`, { timeout: NAV })
-  const SENT = `robot ${Date.now().toString(36)}`
-  await r.focus('form.omnibox--global textarea')
-  await r.keyboard.type(SENT)
-  await r.keyboard.press('Enter')
-  const sentId = async () => r.evaluate((t) => {
-    const el = [...document.querySelectorAll('.live-pane article.msg[data-msg-id]')].find((e) => (e.querySelector('.msg-body')?.textContent || '').trim() === t)
-    return el && el.querySelector('[data-test=await-reply]') ? el.getAttribute('data-msg-id') : null
-  }, SENT)
-  let rid = null
-  for (let i = 0; i < 30 && !rid; i++) { await sleep(150); rid = await sentId() }
-  const robot = rid ? await markLook(r, rid) : null
-  ok('R2 the just-sent post shows the ROBOT, running', robot?.anim === 'robot' && robot.state === 'spin' && robot.names.includes('await-robot') && robot.names.includes('await-robot-limb'), robot)
-  await shot(r, 'R2-robot')
-  const fixed = runsOf(await sampleAnims(r, 4000))
-  ok('T4 a single pick (robot) stays fixed over more than a step', fixed.length === 1 && fixed[0].anim === 'robot', fixed)
+  await openTopicA(r)
+  const deskRuns = runsOf(await sampleAnims(r, 7500))
+  ok('S3 desktop: only the two ticked ones alternate on the waiting post and its row, ~3 s each', alternates(deskRuns, TWO), deskRuns)
+  const deskNames = await r.evaluate(() => [...document.querySelectorAll('[data-test=await-reply][data-state=spin]')].map((el) => {
+    const g = el.querySelector('.await-reply__glyph')
+    return { anim: el.getAttribute('data-anim'), names: g ? [g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none').map((n) => n.replace(/-[0-9a-f]{8}$/, '')) : [] }
+  }))
+  ok('S3 ... the drawing on screen runs (its own keyframes)', deskNames.length >= 2 && deskNames.every((m) => TWO.includes(m.anim) && m.names.some((n) => n.startsWith(`await-${m.anim}`))), deskNames)
+  await shot(r, 'S3-two-alternate')
+  const look2 = await markLook(r, A_POST)
   const plain = await plainRowH(r)
-  ok('R3 box unchanged 16x16, drawing 20.16 px (20% over 16.8), header row as tall as a post with no mark', robot?.boxW === 16 && robot.boxH === 16 && robot.glyphW >= 19.9 && robot.glyphW <= 20.4 && plain !== null && Math.abs(robot.rowH - plain) < 0.5, { robot, plain })
+  ok('S4 box unchanged 16x16, drawing 20.16 px, header row as tall as a post with no mark', look2?.boxW === 16 && look2.boxH === 16 && look2.glyphW >= 19.9 && look2.glyphW <= 20.4 && plain !== null && Math.abs(look2.rowH - plain) < 0.5, { look2, plain })
   await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
   await sleep(200)
-  const robotStill = rid ? await markLook(r, rid) : null
-  ok('R4 reduced motion: the robot stands still', robotStill?.anim === 'robot' && robotStill.names.length === 0, robotStill)
+  const stillRuns = runsOf(await sampleAnims(r, 4000))
+  const stillNames = await spinName(r)
+  ok('S5 reduced motion: the still hourglass for longer than a step', stillRuns.length === 1 && stillRuns[0].anim === 'hourglass' && stillNames?.length === 0, { stillRuns, stillNames })
   await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+  await r.close()
 
-  await r.evaluate(() => localStorage.setItem('spool-await-anim:t1:HUM-1', 'brain'))
-  await r.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
-  await r.waitForSelector('[data-test=await-anim-brain]', { timeout: NAV })
-  const brainOn = await r.evaluate(() => document.querySelector('[data-test=await-anim-brain]').checked)
-  ok('R5 a reload keeps the pick (brain checked)', brainOn === true, brainOn)
-  await r.keyboard.press('Escape')
-  await r.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
-  await r.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
-  await r.waitForSelector(`.live-pane article.msg[data-msg-id="${A_POST}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
-  const brain = await markLook(r, A_POST)
-  ok('R5 the brain swells and pops on the waiting post', brain?.anim === 'brain' && brain.names.includes('await-brain') && brain.names.includes('await-brain-burst') && brain.boxW === 16, brain)
-  await shot(r, 'R5-brain')
-  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  /* a fresh phone: the account (the session answer) already holds the two */
+  const pctx = await browser.createBrowserContext()
+  const { pg: ph2 } = await openPage(pctx, 390, { anims: TWO })
+  await ph2.goto(`${server.base}/channel/alerts?settings=appearance`, { waitUntil: 'networkidle2', timeout: NAV })
+  await ph2.waitForSelector('.spool-shell', { timeout: NAV })
+  await applyViewport(ph2, { name: '390', width: 390, height: 844 })
+  await ph2.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-rocket]', { timeout: NAV })
+  const phoneList = await boxes(ph2)
+  const fits = await ph2.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+  ok('P1 phone 390 px, a fresh device: the list shows the account\'s two ticked, no sideways scroll', JSON.stringify(ticked(phoneList)) === JSON.stringify(TWO) && fits === true, { ticked: ticked(phoneList), fits })
+  await shot(ph2, 'P1-phone-settings')
+  await ph2.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await applyViewport(ph2, { name: '390', width: 390, height: 844 })
+  await ph2.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  const phoneRuns = runsOf(await sampleAnims(ph2, 7500))
+  const phoneLook = await markLook(ph2, null)
+  ok('P1 phone: only the two ticked ones alternate, 16 px box, 20.16 px drawing', alternates(phoneRuns, TWO) && phoneLook?.boxW === 16 && phoneLook.glyphW >= 19.9, { phoneRuns, phoneLook })
+  await shot(ph2, 'P1-phone-row')
+  await ph2.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
   await sleep(200)
-  const brainStill = await markLook(r, A_POST)
-  ok('R4 reduced motion: the brain stands still', brainStill?.names.length === 0, brainStill)
-  await r.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+  const phoneStill = runsOf(await sampleAnims(ph2, 4000))
+  ok('P1 phone, reduced motion: the still hourglass', phoneStill.length === 1 && phoneStill[0].anim === 'hourglass' && (await spinName(ph2))?.length === 0, phoneStill)
+  await pctx.close()
 
-  const rp = await ctx.newPage()
-  rp.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
-  await rp.evaluateOnNewDocument(seed, { A, A_POST, B, C, D })
-  await rp.setViewport({ width: 390, height: 844 })
-  await rp.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
-  await rp.waitForSelector('.spool-shell', { timeout: NAV })
-  await applyViewport(rp, { name: '390', width: 390, height: 844 })
-  await rp.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
-  const phone = await markLook(rp, null)
-  ok('R6 phone 390 px: the brain, 16 px box, 20.16 px drawing', phone?.anim === 'brain' && phone.boxW === 16 && phone.glyphW >= 19.9 && phone.names.includes('await-brain'), phone)
-  await shot(rp, 'R6-phone-brain')
+  /* an old browser pick (SPL-2027: robot) and nothing in the account */
+  const mctx = await browser.createBrowserContext()
+  const { pg: m, saved: mSaved } = await openPage(mctx, 1440, { legacy: 'robot' })
+  await m.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await m.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  await sleep(500)
+  const moved = { saved: mSaved.map((x) => JSON.parse(x)), key: await m.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1')) }
+  ok('M1 an old browser pick moves to the account once, the old key removed', JSON.stringify(moved.saved) === JSON.stringify([{ await_anims: ['robot'] }]) && moved.key === null, moved)
+  const fixed = runsOf(await sampleAnims(m, 4000))
+  ok('T4 a single pick (robot) stays fixed over more than a step', fixed.length === 1 && fixed[0].anim === 'robot', fixed)
+  await m.reload({ waitUntil: 'networkidle2', timeout: NAV })
+  await sleep(1500)
+  ok('M1 ... once: a reload sends nothing more', mSaved.length === 1, mSaved)
+  await mctx.close()
 
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {

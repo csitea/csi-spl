@@ -98,8 +98,9 @@ const list = (shard) => {
 
 // --- the checked-in weights, on the selection CI actually runs -------------
 // 3 shards (the split the weights were measured under), 5 (wf 10's
-// wui-e2e matrix L5, 2026-10-12) and 6 (its matrix since round 27).
-for (const n of [3, 5, 6]) {
+// wui-e2e matrix L5, 2026-10-12), 6 (round 27) and 8 (its matrix since
+// spec 133 round 30).
+for (const n of [3, 5, 6, 8]) {
   const all = list()
   const packed = Array.from({ length: n }, (_, k) => list(`${k + 1}/${n}`))
   const viaFn = packShards(all, n, weightOf)

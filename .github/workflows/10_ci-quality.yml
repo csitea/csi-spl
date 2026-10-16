@@ -547,7 +547,7 @@ jobs:
   # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
-    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/6"
+    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/8"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: [classify, wui-generate]
@@ -567,10 +567,13 @@ jobs:
     # every other job (-33..402 s); 5 shards ran ~888 s each of a 4,439 s
     # sum, 6 run ~745 s, so the run gains min(143, that lead). Runners are
     # GitHub-hosted on a public repo: one more job, no minutes billed.
+    # 6 -> 8 (spec 133 round 30, together with orc 2 -> 3): the slowest e2e
+    # shard and orc 1/2 both ran ~900 s, so cutting only one path would not
+    # move the run end. Peak was 34 concurrent jobs (r29d); this adds 3.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
@@ -654,7 +657,7 @@ jobs:
       - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
           CI: "1"
-          E2E_SHARD: "${{ matrix.shard }}/6"
+          E2E_SHARD: "${{ matrix.shard }}/8"
           E2E_SKIP: ${{ inputs.e2e_skip }}
           # On a master push only: a pull request (wf 11) keeps the full red
           # report, every red file in one round, and nothing queues behind it.
@@ -841,16 +844,19 @@ jobs:
   # timeout reads "cancelled" and gives no verdict. Time-balancing the shards
   # was measured first and dropped: 3 % apart already. More shards add CPU to
   # the same starved box. Gate: gate10-orc-timeout.tst.sh.
+  # 2 -> 3 (spec 133 round 30): runners are GitHub-hosted now (not the box),
+  # and orc 1/2 ran ~900 s, co-critical with the slowest e2e shard. The
+  # weights pack 3 shards to 5,314 / 5,293 / 5,310 s of 15,917 s.
   # ===========================================================================
   orc-suite:
-    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/2"
+    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/3"
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     timeout-minutes: 30
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
@@ -953,7 +959,7 @@ jobs:
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
           GH_TOKEN: ${{ github.token }}
-          ORC_TEST_SHARD: ${{ matrix.shard }}/2
+          ORC_TEST_SHARD: ${{ matrix.shard }}/3
         run: |
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \

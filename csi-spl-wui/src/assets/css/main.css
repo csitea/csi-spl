@@ -1125,6 +1125,9 @@ html.pane-dragging * {
   padding: 0 8px 8px;
 }
 .omnibox-field { display: contents; }
+/* SPL-2141: holds MessageFeed's lazy empty state and adds no box (global: a
+   scoped block there stamps every element and cost the initial-JS budget) */
+.feed-empty-slot { display: contents; }
 .composer.omnibox--global textarea {
   display: block;
   width: 100%;

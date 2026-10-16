@@ -151,8 +151,3 @@ if (import.meta.client) {
   }, () => { void landTopic() }, { immediate: true })
 }
 </script>
-
-<style scoped>
-/* SPL-2141: the lazy empty state's holder adds no box of its own */
-.feed-empty-slot { display: contents; }
-</style>

@@ -129,10 +129,15 @@ function cardFacts(page) {
       const b = el.getBoundingClientRect()
       return { w: Math.round(b.width), h: Math.round(b.height), shown: getComputedStyle(el).display !== 'none' }
     }
+    /* the press goes on the card's header, not its text: a thumb on the
+       text is the browser's own select (HUM-10 86698d8a), and under the
+       5-row setting every card is 5 rows tall (SPL-2087), so a point
+       half-way down a card is text */
+    const meta = row.querySelector('.msg-meta')?.getBoundingClientRect()
     return {
       id: row.getAttribute('data-msg-id'),
       x: Math.round(r.left + r.width / 2),
-      y: Math.round(r.top + Math.min(r.height / 2, 60)),
+      y: Math.round(meta ? meta.top + meta.height / 2 : r.top + Math.min(r.height / 2, 60)),
       menuBtn: size('[data-testid=msg-menu-btn]'),
       menuRight: Math.round(r.right - (row.querySelector('[data-testid=msg-menu-btn]')?.getBoundingClientRect().right ?? 0)),
       emojiBtn: size('[data-testid=msg-emoji-btn]'),

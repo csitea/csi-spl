@@ -10,6 +10,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import {
   CARD_GRIP_STEP_ROWS,
   cardClipPx,
+  cardClipStyle,
   cardDragPx,
   cardHasPicture,
   cardIsClipped,
@@ -78,8 +79,9 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
     })
   })
   const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))
-  /* Before the first measurement the stylesheet's own rows / 30vh cap holds. */
-  const clipStyle = computed(() => (clipPx.value != null ? { maxHeight: `${clipPx.value}px` } : undefined))
+  /* Before the first measurement the stylesheet's own rows / 30vh box holds.
+     SPL-2087: min = max, so a 1-row card is as tall as a cut one. */
+  const clipStyle = computed(() => cardClipStyle(clipPx.value))
   const measure = () => measureBox(clipInner, m)
 
   let clipObserver: ResizeObserver | null = null

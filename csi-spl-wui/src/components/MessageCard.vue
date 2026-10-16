@@ -362,6 +362,9 @@
         @click.stop="onGripClick"
         @keydown="onGripKey"
       />
+      <!-- SPL-2087: a card with no grip keeps the grip's room, so under the
+           row cap a 1-row card ends where a cut card's grip ends -->
+      <div v-else-if="clipOn" class="card-grip card-grip--room" aria-hidden="true" data-testid="card-grip-room" />
       <p v-if="editing" :id="editHintId" class="muted msg-edit-hint">
         {{ saving ? t('feed.edit.saving') : t('feed.edit.hint') }}
       </p>
@@ -1143,9 +1146,13 @@ onMounted(() => {
  */
 .card-clip {
   max-height: calc(5 * 1.45 * 0.875rem);
+  min-height: calc(5 * 1.45 * 0.875rem);
   overflow: hidden;
 }
-.card-clip--picture { max-height: max(calc(5 * 1.45 * 0.875rem), 30vh); }
+.card-clip--picture {
+  max-height: max(calc(5 * 1.45 * 0.875rem), 30vh);
+  min-height: max(calc(5 * 1.45 * 0.875rem), 30vh);
+}
 /* SPL-1871: a ```poll form in a clipped card puts its answers line first,
    so who answered what reads within the 5 rows; the options follow */
 .card-clip :deep(.poll) { display: flex; flex-direction: column; }
@@ -1185,6 +1192,8 @@ onMounted(() => {
   background: currentColor;
 }
 .card-grip:hover { color: var(--color-fg); }
+.card-grip--room { cursor: default; pointer-events: none; }
+.card-grip--room::after { content: none; }
 .msg-title {
   display: flex;
   align-items: center;

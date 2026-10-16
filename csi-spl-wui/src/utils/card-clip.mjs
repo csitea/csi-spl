@@ -244,6 +244,21 @@ export function cardClipPx(s) {
   return Math.round(line * CARD_CLIP_ROWS)
 }
 
+/**
+ * The clip box's inline style for a clip height (cardClipPx), or undefined.
+ * SPL-2087 (owner t1 e7aae9b6): under a row cap every card is the same
+ * height, "even if that means that there should be more white space after
+ * this one row", so the box is pinned both ways: a short body gets white
+ * space under it, a long one is cut.
+ * @param {number | null} clipPx
+ * @returns {{ maxHeight: string, minHeight: string } | undefined}
+ */
+export function cardClipStyle(clipPx) {
+  if (typeof clipPx !== 'number' || !Number.isFinite(clipPx)) return undefined
+  const px = `${Math.round(clipPx)}px`
+  return { maxHeight: px, minHeight: px }
+}
+
 /** The height a grip drag asks for: start + pointer travel, from one row to `maxPx`. */
 export function cardDragPx(startPx, dy, lineHeightPx, maxPx) {
   const min = Math.max(1, Math.round(Number(lineHeightPx) || 1))

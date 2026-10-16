@@ -106,7 +106,9 @@ per browser.
 ### 4.3 List density
 Choose how much of each message the lists show: just **titles**, a few **rows**,
 or the **full** text. This is the default for new lists; a single list can still
-be expanded or collapsed on its own.
+be expanded or collapsed on its own. With **rows**, every card in a list is the
+same height: a one-line message leaves white space under its text, and a longer
+one is cut with a grip under it to show the rest.
 
 ### 4.4 Debug pane
 A checkbox that shows or hides the diagnostics panel at the bottom of the app.

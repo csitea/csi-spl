@@ -14,6 +14,7 @@ import {
   CARD_CLIP_THREAD_KEY,
   cardClipKey,
   cardClipPx,
+  cardClipStyle,
   cardDragPx,
   cardHasPicture,
   cardIsClipped,
@@ -139,6 +140,32 @@ describe('cardIsClipped', () => {
     assert.equal(cardIsClipped(101, 100), false)
     assert.equal(cardIsClipped(102, 100), true)
     assert.equal(cardIsClipped(100, 100), false)
+  })
+})
+
+describe('cardClipStyle (SPL-2087: every card the same height under the row cap)', () => {
+  it('pins the box both ways, so a 1-row body gets white space and a long one is cut', () => {
+    const px = cardClipPx({ mode: 'rows', picture: false, lineHeightPx: 20.3, viewportPx: 900 })
+    assert.deepEqual(cardClipStyle(px), { maxHeight: `${px}px`, minHeight: `${px}px` })
+  })
+  it('follows a grip drag and the picture box the same way', () => {
+    assert.deepEqual(cardClipStyle(cardClipPx({ mode: 'rows', picture: false, lineHeightPx: 20, viewportPx: 900, userPx: 55 })), { maxHeight: '55px', minHeight: '55px' })
+    assert.deepEqual(cardClipStyle(cardClipPx({ mode: 'rows', picture: true, lineHeightPx: 20, viewportPx: 1000 })), { maxHeight: '300px', minHeight: '300px' })
+  })
+  it('sets nothing with no cap (full, titles) or before the first measurement', () => {
+    assert.equal(cardClipStyle(cardClipPx({ mode: 'full', picture: false, lineHeightPx: 20, viewportPx: 900 })), undefined)
+    assert.equal(cardClipStyle(null), undefined)
+    assert.equal(cardClipStyle(Number.NaN), undefined)
+  })
+  it('the stylesheet fallback sets the same min-height as max-height on the clip box', () => {
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    for (const sel of ['.card-clip {', '.card-clip--picture {']) {
+      const rule = vue.slice(vue.indexOf(sel), vue.indexOf('}', vue.indexOf(sel)))
+      const max = /max-height:\s*([^;]+);/.exec(rule)?.[1]
+      const min = /min-height:\s*([^;]+);/.exec(rule)?.[1]
+      assert.ok(max, `${sel} has a max-height`)
+      assert.equal(min, max, `${sel} min-height equals its max-height`)
+    }
   })
 })
 

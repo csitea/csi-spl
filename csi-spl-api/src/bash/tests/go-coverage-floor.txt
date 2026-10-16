@@ -16,7 +16,10 @@ cmd/spool 75.6
 # go1.26.9, n=3 read 71.1 each.
 internal/action 71.1
 internal/agentid 97.0
-internal/auth/cmd/auth-demo 0.0
+# r01-04 (test round 1, SPL-2052): five packages ratcheted off 0.0 to about one
+# point under what they read; go test -count=1 -cover, go1.26.9, n=3 read
+# auth-demo 71.8, githubtest 21.1, logging 100.0, testkit 78.6, fakehub 82.1.
+internal/auth/cmd/auth-demo 70.0
 internal/auth/fakeidp 3.5
 internal/billing 80.8
 # internal/blob: 66.9 with TestAvatarKey (r12-08), 66.2 without; go test -count=1
@@ -30,7 +33,7 @@ internal/config 76.8
 internal/edge 98.9
 internal/files 82.9
 internal/github 82.9
-internal/github/githubtest 0.0
+internal/github/githubtest 20.0
 internal/hours 98.0
 # hubclient: 83.0, measured, deterministic. Its retry and redial paths ran or
 # not by timing (82.5 then read 81.3..81.7 by load, c-001 task d6f1ab13);
@@ -40,7 +43,7 @@ internal/hours 98.0
 internal/hubclient 83.0
 internal/i18n 97.2
 internal/invitemail 85.3
-internal/logging 0.0
+internal/logging 99.0
 internal/mail 85.0
 internal/marketing 63.6
 internal/mcp 88.7
@@ -51,8 +54,8 @@ internal/rbac 89.3
 internal/search 95.6
 internal/sign 82.9
 internal/spool 86.4
-internal/testkit 0.0
-internal/testkit/fakehub 0.0
+internal/testkit 77.0
+internal/testkit/fakehub 81.0
 internal/trace 95.0
 internal/uid 100.0
 internal/wire 81.7

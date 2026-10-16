@@ -16,7 +16,8 @@
 #     4. not on origin/master                -> FAIL landed=no, rc 1
 #     5. another author address              -> FAIL identity=bad, rc 1
 #     6. CONTROL a Co-Authored-By: line      -> FAIL trailers=found, rc 1
-#     7. a body that only MENTIONS it        -> PASS (anchored, not a substring)
+#     7. a body that only MENTIONS it        -> PASS (anchored, not a substring),
+#        also a wrapped line starting "Claude-Session:)" (key, colon, SPACE)
 #     8. an env that cannot be read          -> FAIL dev=unknown, rc 1
 #     9. SHA = the checkout's HEAD           -> the --landed arm of the fetch
 #    10. argument validation
@@ -57,6 +58,10 @@ Co-Authored-By: Someone <someone@example.com>")
 C_MENTION=$(commit csi-spl-doc/w.md 100 "docs: says the word
 
 This commit adds no Co-Authored-By: trailer, it only names one.")
+C_WRAP=$(commit csi-spl-doc/t.md 90 "docs: a wrapped line starts with a key
+
+It adds the anchored check (a body line STARTING with Co-Authored-By: or
+Claude-Session:) and nothing else.")
 git -C "$REPO" push -q origin master
 C_LOCAL=$(commit csi-spl-doc/v.md 50 "docs: not pushed")
 C_HEAD=$(commit csi-spl-doc/u.md 40 "docs: not pushed either, the checkout's HEAD")
@@ -92,6 +97,7 @@ else pass "a SHA other than HEAD is checked with merge-base, not the HEAD-only -
 served "a commit by another address" 1 ' identity=bad ' "$C_BADID" "$C_BASE" "$C_BASE"
 served "CONTROL a Co-Authored-By: trailer line" 1 ' trailers=found ' "$C_TRAIL" "$C_BASE" "$C_BASE"
 served "a body that only mentions the trailer" 0 '^PASS dev=n/a prd=n/a ' "$C_MENTION" "$C_BASE" "$C_BASE"
+served "a wrapped prose line that starts with 'Claude-Session:)'" 0 '^PASS dev=n/a prd=n/a ' "$C_WRAP" "$C_BASE" "$C_BASE"
 served "the whole range BASE..SHA is read" 1 ' identity=bad trailers=found ' "$C_MENTION" "$C_BASE" "$C_BASE" BASE="$C_HUB"
 served "an env that cannot be read" 1 '^FAIL dev=unknown prd=served ' "$C_HUB" 0000000000000000000000000000000000000000 "$C_HUB"
 served "SHA = HEAD takes the --landed arm" 1 "landed=no .*sha=${C_HEAD:0:8}" HEAD "$C_BASE" "$C_BASE"

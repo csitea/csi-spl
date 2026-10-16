@@ -13,8 +13,8 @@
 # @description              fetches (--force) and merge-base --is-ancestor asks
 # @description   identity - the `%ae %ce` rule of do_spl_push_master: author AND
 # @description              committer of every commit in BASE..SHA are LANE_EMAIL
-# @description   trailers - anchored: no body line STARTS with Co-Authored-By: or
-# @description              Claude-Session: (a commit that only mentions them passes)
+# @description   trailers - anchored: no body line STARTS with `Co-Authored-By: ` or
+# @description              `Claude-Session: ` (key, colon, space; a mention passes)
 # @description   served   - do_check_deploy_lag per env (dev, prd)
 # @description The n/a arm: when BASE..SHA changed no hub and no wui build input,
 # @description no deploy ever comes (developer guide 1.4), so the env verdict is
@@ -100,12 +100,15 @@ _spl_served_identity() {
 }
 
 # _spl_served_trailers <wt> <base> <sha> -> none | found
-# Anchored: a line that STARTS with the trailer, not a commit that mentions it.
+# Anchored and trailer-shaped: a line that STARTS with the key, a colon and a
+# space. A commit that mentions it passes, and so does a wrapped prose line
+# that happens to start with "Claude-Session:)" (this action's own landing
+# commit 711c9eb89 read trailers=found on the plan's bare `^(...:)` form).
 _spl_served_trailers() {
   local wt="$1" base="$2" sha="$3" h body found=""
   while read -r h; do
     body="$(git -C "$wt" log -1 --format=%B "$h")"
-    grep -qiE '^(Co-Authored-By:|Claude-Session:)' <<<"$body" && found+=" ${h:0:8}"
+    grep -qiE '^(Co-Authored-By|Claude-Session):[[:space:]]' <<<"$body" && found+=" ${h:0:8}"
   done < <(git -C "$wt" rev-list "$base..$sha")
   if [[ -z "$found" ]]; then echo none; echo "trailers=none" >&2
   else echo found; echo "trailers=found in$found" >&2; fi

@@ -342,7 +342,7 @@ func (s *Postgres) SetRoster(ctx context.Context, tenant, box string, agents []s
 		b := &pgx.Batch{}
 		b.Queue(`INSERT INTO boxes (tenant_id, box_id) VALUES ($1, $2)
 			ON CONFLICT (tenant_id, box_id) DO NOTHING`, tenant, box)
-		if len(agents) > 0 && s.hasAgentSeats(ctx) {
+		if len(agents) > 0 && s.hasAgentSeats(ctx, tx) {
 			// rdb 0107 (spec 061 3.6): an id that is not in the box's
 			// current roster is a new holder's seat. Read before the clear.
 			b.Queue(`INSERT INTO agent_seats (tenant_id, box_id, agent_id, seated_at)

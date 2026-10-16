@@ -55,6 +55,9 @@ type Options struct {
 	TenantHostPattern string // "{tenant}.<fqdn>"
 	HelloSkew         time.Duration
 	HelloTimeout      time.Duration
+	// HelloStoreTimeout bounds a hello's store work, pin check to welcome
+	// (SPL-2238); 0 = helloStoreTimeoutDefault.
+	HelloStoreTimeout time.Duration
 	UploadTokenTTL    time.Duration
 	// UploadTokenKey signs the upload tokens so every instance checks them,
 	// a box's only on its own revision (SPL-1815, SPL-1826,
@@ -288,6 +291,11 @@ type uploadToken struct {
 // Options.HelloTimeout is 0.
 const helloTimeoutDefault = 10 * time.Second
 
+// helloStoreTimeoutDefault bounds a hello's store work when
+// Options.HelloStoreTimeout is 0 (SPL-2238: without it a hello on an
+// exhausted pool waited forever, holding its connection).
+const helloStoreTimeoutDefault = 10 * time.Second
+
 // New returns a Server. It fails fast on a malformed option.
 func New(o Options) (*Server, error) {
 	if o.Store == nil || o.Blob == nil {
@@ -324,6 +332,9 @@ func New(o Options) (*Server, error) {
 	}
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = helloTimeoutDefault
+	}
+	if o.HelloStoreTimeout == 0 {
+		o.HelloStoreTimeout = helloStoreTimeoutDefault
 	}
 	if o.PingInterval > 0 && o.PingTimeout <= 0 {
 		o.PingTimeout = writeTimeout

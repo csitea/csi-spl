@@ -269,6 +269,7 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 |---|---|---|
 | `1000` | — | normal close |
 | `1001` | — | hub shutdown (graceful drain) |
+| `1013` | `store_unavailable` | the hello's store work failed or passed its 10 s deadline (SPL-2238); not a refusal: the box redials |
 | `4400` | `bad_frame` | first frame not a well-formed `hello` |
 | `4401` | `unpinned_box` / `bad_sig` / `stale_hello` / `bad_nonce` | hello refused |
 | `4404` | `unknown_tenant` | Host does not resolve to a tenant (refused before the upgrade as HTTP 404) |

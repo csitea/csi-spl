@@ -203,25 +203,32 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	if !ok {
 		return nil, false
 	}
-	if code, token := s.helloRefusal(ctx, t.ID, f, nonce); token != "" {
+	// The store work up to the welcome has a deadline (SPL-2238): a stuck
+	// pool acquire ends the hello with an error instead of holding its
+	// connection, and the box redials.
+	sctx, cancel := context.WithTimeout(ctx, s.o.HelloStoreTimeout)
+	defer cancel()
+	if code, token := s.helloRefusal(sctx, t.ID, f, nonce); token != "" {
 		s.o.Log.Warn().Str("tenant", t.ID).Str("box", f.BoxID).Str("reason", token).Msg("ws hello refused")
 		conn.Close(code, token) //nolint:errcheck
 		return nil, false
 	}
-	x, ok := s.seatSession(ctx, conn, t.ID, &f)
+	x, ok := s.seatSession(sctx, conn, t.ID, &f)
 	if !ok {
+		s.o.Log.Warn().Err(sctx.Err()).Str("tenant", t.ID).Str("box", f.BoxID).Msg("ws hello not seated")
 		return nil, false
 	}
 	if f.Role == wire.RoleBox {
-		s.keepHostFacts(ctx, t.ID, f.BoxID, f.Host) // before the welcome: a roster read after it sees them
+		s.keepHostFacts(sctx, t.ID, f.BoxID, f.Host) // before the welcome: a roster read after it sees them
 	}
 	if !s.register(x) {
 		conn.Close(websocket.StatusGoingAway, "shutdown") //nolint:errcheck
 		return nil, false
 	}
-	if !s.welcome(ctx, x) {
+	if !s.welcome(sctx, x) {
 		return nil, false
 	}
+	cancel()
 	if f.Role == wire.RoleBox {
 		s.broadcastRoster(ctx, t.ID, x)
 		on, idle := splitRun(f.Agents, x.run)
@@ -288,6 +295,11 @@ func (s *Server) helloRefusal(ctx context.Context, tenant string, f wire.Frame, 
 		return wire.CloseUnauthorized, "stale_hello"
 	}
 	pub, err := s.o.Store.GetPin(ctx, tenant, f.BoxID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		// A store error (SPL-2238: the hello deadline) is not a missing pin:
+		// below 4000 the box reads it as unreachable and redials.
+		return websocket.StatusTryAgainLater, "store_unavailable"
+	}
 	if err != nil {
 		return wire.CloseUnauthorized, "unpinned_box"
 	}

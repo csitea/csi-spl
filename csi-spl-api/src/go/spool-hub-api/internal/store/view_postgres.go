@@ -28,7 +28,7 @@ func pgLimit(n int) int {
 
 func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, error) {
 	var out []ViewBox
-	r := viewBoxesRead(tenant, &out, s.hasAgentSeats(ctx), s.hasAgentRun(ctx))
+	r := viewBoxesRead(tenant, &out, s.hasAgentSeats(ctx, s.pool), s.hasAgentRun(ctx))
 	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
 	return out, err
 }

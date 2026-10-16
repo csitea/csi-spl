@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // seatsRecheck is how often a hub that found no agent_seats table looks again.
@@ -44,10 +46,20 @@ func (p *seatsProbe) present(ctx context.Context, lookup func(ctx context.Contex
 	return p.ok
 }
 
-// hasAgentSeats is the probe against this database's catalogue.
-func (s *Postgres) hasAgentSeats(ctx context.Context) bool {
+// catalogQuerier is where a probe asks: the pool, or the transaction its
+// caller already holds (*pgxpool.Pool and pgx.Tx both are).
+type catalogQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// hasAgentSeats is the probe against this database's catalogue, asked on q.
+// Inside a transaction q must be that transaction: the pool would hand the
+// probe a second connection while the first is held, and with every
+// connection in such a transaction no probe ever gets one (SPL-2238, the
+// cold-instance hello deadlock).
+func (s *Postgres) hasAgentSeats(ctx context.Context, q catalogQuerier) bool {
 	return s.seats.present(ctx, func(ctx context.Context) (ok bool, err error) {
-		err = s.pool.QueryRow(ctx, `SELECT to_regclass('agent_seats') IS NOT NULL`).Scan(&ok)
+		err = q.QueryRow(ctx, `SELECT to_regclass('agent_seats') IS NOT NULL`).Scan(&ok)
 		return ok, err
 	}, s.now())
 }

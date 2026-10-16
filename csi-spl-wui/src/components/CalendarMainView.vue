@@ -161,7 +161,7 @@
         </div>
       </div>
     </div>
-    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" :hours="hoursEntry" @saved="reload" @deleted="onDeleted" />
+    <CalendarEventDialog v-model:open="dialogOpen" :modal="true" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" :hours="hoursEntry" @saved="reload" @deleted="onDeleted" />
     <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" @open-issue="openIssue" />
     <UiPointMenu
       :open="menu !== null"

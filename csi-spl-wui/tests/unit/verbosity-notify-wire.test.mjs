@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const REPO = join(WUI, '..')
@@ -31,7 +32,7 @@ describe('verbosity + notify wiring', () => {
   })
 
   it('sidebar unread badges read the notification store', () => {
-    const src = readFileSync(join(WUI, 'src/components/ChannelSidebar.vue'), 'utf8')
+    const src = channelSidebarSrc()
     assert.equal(src.includes('useNotificationStore'), true)
     /* owner t1 77540e6f, spec 079 FR-003: a row reads the one unread model
        (the hub's per-row keys, else notes.unread) */

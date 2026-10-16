@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, rowMenuItems, saveHiddenPeers } from '../../src/utils/sidebar-row-menu.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -82,7 +83,7 @@ describe('Remove from list: a DM row leaves this browser\'s list until a newer D
   })
 
   it('both DM lists wire it, and the sidebar filters on it', () => {
-    const vue = src('src/components/ChannelSidebar.vue')
+    const vue = channelSidebarSrc()
     /* topic 635f8072: Flow lists messages now, so the DM list is the one peer list */
     assert.equal((vue.match(/@hide="hideFromList\((p|row)\)"/g) || []).length, 1)
     assert.match(vue, /peerHidden\(listHidden\.value, p\.label, channel\.dmAt\[p\.label\]\)/)
@@ -111,7 +112,7 @@ describe('the language switcher changes the row-menu names', () => {
 
   it('the channel and direct-message headings explain the rows in every language', () => {
     const dir = join(WUI, 'i18n/locales')
-    const vue = src('src/components/ChannelSidebar.vue')
+    const vue = channelSidebarSrc()
     assert.match(vue, /t\('sidebar\.help\.channels'\)/)
     assert.match(vue, /t\('sidebar\.help\.direct_messages'\)/)
     assert.match(vue, /data-testid="sidebar-help-channels"/)
@@ -154,7 +155,7 @@ describe('moveKey', () => {
 })
 
 describe('the menu sits on objects, not the tab rail', () => {
-  const vue = src('src/components/ChannelSidebar.vue')
+  const vue = channelSidebarSrc()
   const menu = src('src/components/SidebarRowMenu.vue')
   const icons = src('src/utils/uiIcons.ts')
 
@@ -208,7 +209,7 @@ describe('channel rows', () => {
   })
 
   it('right-click opens the same channel menu and a non-primary button does not drag', () => {
-    const vue = src('src/components/ChannelSidebar.vue')
+    const vue = channelSidebarSrc()
     assert.match(vue, /@contextmenu\.prevent="openChannelMenu\('ch:' \+ c\.channel_id\)"/)
     assert.match(vue, /if \(e\.button !== 0\) return/)
     /* topic 635f8072: Flow lists messages, so only the Channels list has channel rows */

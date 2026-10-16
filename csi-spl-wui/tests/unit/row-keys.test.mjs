@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deleteKeyAction, isReply, listRowKey, rowStep, stepRow } from '../../src/utils/row-keys.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const row = {}
 const key = (k, extra = {}) => ({ key: k, target: row, currentTarget: row, ...extra })
@@ -119,7 +120,7 @@ describe('listRowKey: HUM-10 (t1 7d9e1681) the arrows walk the Channels list aft
     assert.equal(listRowKey(null), '')
   })
   it('ChannelSidebar wires it on the channel rows, desktop only, and opens the stepped-to channel', () => {
-    const v = src('components/ChannelSidebar.vue')
+    const v = channelSidebarSrc()
     assert.match(v, /:to="localePath\('\/channel\/' \+ c\.channel_id\)"\s*@click="keepRowFocus"\s*@keydown="onChannelRowKey"/)
     assert.match(v, /function onChannelRowKey\(e: KeyboardEvent\) \{\s*if \(phone\.value\) return/)
     assert.match(v, /listRowKey\(e, \{ letters: session\.claims\?\.keyboard_shortcuts !== false \}\)/)

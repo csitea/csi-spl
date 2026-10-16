@@ -10,6 +10,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 import { rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -83,7 +84,7 @@ describe('client (mock)', () => {
 })
 
 describe('ChannelSidebar wiring', () => {
-  const vue = src('src/components/ChannelSidebar.vue')
+  const vue = channelSidebarSrc()
   it('the channel row menu passes archivable and handles archive-channel', () => {
     /* topic 635f8072: Flow lists messages now, so Channels is the one channel list */
     assert.equal((vue.match(/:archivable="deletableChannel\(/g) || []).length, 1)

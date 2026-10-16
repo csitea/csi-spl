@@ -109,7 +109,7 @@ const RULES = {
 // T004..T006), plus the readers kept on purpose (a `why`). An entry that no
 // longer matches fails too: delete it with the fix.
 const TODO = [
-  { file: 'src/components/ChannelSidebar.vue', rule: 'flow-keys', task: 'T004/T005' },
+  { file: 'src/composables/useSidebarPeers.ts', rule: 'flow-keys', task: 'T004/T005' }, // ChannelSidebar's DM list (r13-04)
   // FR-005 (T006): the topic card keeps the local t: cursor. Hub keys let a ch:
   // mark cover a topic's replies (062 FR-006), so the model's t: row would zero
   // the card on opening the channel and undo CLE-77930 (owner, t1 bf737f3f).

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openThreadRow, scrollRowIntoPane, scrollRowToTop } from '../../src/utils/pane-scroll.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -89,7 +90,7 @@ describe('the four views do not call scrollIntoView', () => {
   it('ChannelSidebar scrolls the pane; MessageCard focus does not scroll', () => {
     /* the Topics list (sidebar panel and `/`) that scrolled its row to the
        top is gone (t1 e4bfddb1); the sidebar still scrolls its own pane */
-    const side = read('src/components/ChannelSidebar.vue')
+    const side = channelSidebarSrc()
     assert.doesNotMatch(side, /scrollIntoView\s*\(/)
     assert.match(side, /scrollRowIntoPane\(/)
     const card = read('src/components/MessageCard.vue')

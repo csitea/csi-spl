@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BUILD_JSON_TIMEOUT_MS, buildStampText, buildStampTitle, readBuildStamp, shortCommit } from '../../src/utils/build-stamp.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -47,7 +48,7 @@ describe('build stamp', () => {
   })
 
   it('the sidebar reads it once on mount, client side', () => {
-    const s = src('src/components/ChannelSidebar.vue')
+    const s = channelSidebarSrc()
     assert.match(s, /from '~\/utils\/build-stamp\.mjs'/)
     assert.match(s, /onMounted\(async \(\) => \{ build\.value = await readBuildStamp\(\) \}\)/)
     assert.match(s, /data-test="app-version"/)

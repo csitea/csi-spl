@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { flowDmPeers, rowUnread, sectionTotal } from '../../src/utils/flow-keys.mjs'
 import { flowPlaceKey, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowKeys, railFromUnread, parseFlowCounts } from '../../src/utils/flow-badge.mjs'
 import { withDmPeers } from '../../src/utils/live-follow.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const SELF = 'HUM-10'
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
@@ -78,7 +79,7 @@ describe('mock twin of the hub keys', () => {
 })
 
 describe('the sidebar reads one map', () => {
-  const side = read('../../src/components/ChannelSidebar.vue')
+  const side = channelSidebarSrc()
   it('row badges and section numbers both go through the keys', () => {
     assert.match(side, /unreadOf\('dm:' \+ p\.label\)/)
     assert.match(side, /unreadOf\('ch:' \+ c\.channel_id\)/)
@@ -86,8 +87,9 @@ describe('the sidebar reads one map', () => {
     assert.doesNotMatch(side, /unreadOf\('t:' \+ row\.task_id\)/)
     /* spec 079 FR-007: the section number sums the model's listed rows */
     assert.match(side, /return unread\.rowOf\(key\)/)
-    assert.match(side, /listedSum\('ch:', channelRows\.value/)
-    assert.match(side, /listedSum\('dm:', peers\.value/)
+    /* r13-04: the sidebar hands useSidebarCounts its listed rows; it sums them */
+    assert.match(side, /\(\) => channelRows\.value\.map[\s\S]*listedSum\('ch:', channelIds\(\)\)/)
+    assert.match(side, /\(\) => peers\.value\.map\(\(p\) => p\.label\)[\s\S]*listedSum\('dm:', peerLabels\(\)\)/)
     assert.doesNotMatch(side, /listedSum\('t:'/)
     assert.match(side, /flowDmPeers\(flowKeys\.value\)/)
   })

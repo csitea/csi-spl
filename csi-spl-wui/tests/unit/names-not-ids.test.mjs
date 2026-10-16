@@ -69,7 +69,7 @@ describe('every @ field stores the tag', () => {
     'components/MessageComposer.vue': /mp\.encode\(/,
     'pages/issues.vue': /commentMp\.encode\(/,
     'components/IssueSubtaskDialog.vue': /mp\.encode\(/,
-    'components/ChannelSidebar.vue': /descMp\.encode\(/,
+    'composables/useSidebarChannelCreate.ts': /descMp\.encode\(/, // ChannelSidebar's New channel (r13-04)
     'composables/useCardEdit.ts': /editMp\.encode\(/,
     'components/IssueDescription.vue': /mp\.encode\(/,
   }

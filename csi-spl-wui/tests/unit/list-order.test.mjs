@@ -29,6 +29,7 @@ import {
 import { activityOf, newestActivityFirst } from '../../src/utils/feed.mjs'
 import { normalizeSearchResponse, rowAt } from '../../src/utils/search-results.mjs'
 import { messageCardSrc } from './lib/message-card-src.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')
@@ -384,7 +385,7 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
   })
 
   it('the sidebar renders the ORDERED lists and stamps both', () => {
-    const s = read('components/ChannelSidebar.vue')
+    const s = channelSidebarSrc()
     assert.match(s, /v-for="\(c, channelIndex\) in channelRows"/)
     assert.match(s, /:data-ts="channelActivity\(c, channel\.liveAt\) \|\| undefined"/)
     assert.match(s, /v-for="\(p, peerIndex\) in peers"/)

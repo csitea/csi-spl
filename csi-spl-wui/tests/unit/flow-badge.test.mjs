@@ -20,6 +20,7 @@ import {
 } from '../../src/utils/flow-badge.mjs'
 import { flowEventEntry, flowUnread, mergeMine } from '../../src/utils/flow-entries.mjs'
 import { FRAMES } from '../../src/utils/live-ws.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const SELF = 'HUM-1'
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
@@ -62,7 +63,7 @@ describe('rail numbers: Channels and Direct messages (owner, t1 f4e6c677)', () =
     assert.equal(railFromUnread(null), null)
   })
   it('Channels and DM tabs carry the red number; the Flow number is the neutral grey badge', () => {
-    const side = read('../../src/components/ChannelSidebar.vue')
+    const side = channelSidebarSrc()
     assert.match(side, /data-testid="sidebar-tab-flow-count" class="sidebar-tab__count sidebar-tab__count--neutral"|class="sidebar-tab__count sidebar-tab__count--neutral"[^>]*data-testid="sidebar-tab-flow-count"/)
     assert.match(side, /:data-testid="'sidebar-tab-' \+ item\.id \+ '-count'"/)
     const css = side.slice(side.indexOf('.sidebar-tab__count--neutral {'))
@@ -155,7 +156,7 @@ describe('wiring (FR-005/007/008, budget)', () => {
     assert.match(read('../../src/utils/live-ws.mjs'), /case FRAMES\.flow:\s*\n\s*onFlow\(f\)/)
   })
   it('the Flow store and the chips stay out of the initial JS: the sidebar loads the store lazily', () => {
-    const side = read('../../src/components/ChannelSidebar.vue')
+    const side = channelSidebarSrc()
     assert.match(side, /import\('~\/stores\/flow'\)/)
     assert.doesNotMatch(side, /from '~\/stores\/flow'/)
     assert.doesNotMatch(read('../../src/app.vue'), /stores\/flow|flow-badge\.mjs/)

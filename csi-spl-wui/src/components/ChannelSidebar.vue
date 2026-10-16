@@ -627,8 +627,6 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { railTapKind, vTapAnim } from '~/composables/useTapAnim'
-import { useCopyText } from '~/composables/useCopyText'
-import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'
@@ -637,27 +635,20 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useSearchStore } from '~/stores/search'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
-import { MUTED_CHANNELS_KEY, dmBadgeText, dmTotalText, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
 /* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 /* CLE-77884: async too - only a search needs it */
 const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useDrafts } from '~/composables/useDrafts'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
-import { withDmPeers } from '~/utils/live-follow.mjs'
 import HumanName from '~/components/HumanName.vue'
 import LastDataClock from '~/components/LastDataClock.vue'
 import PoweredBy from '~/components/PoweredBy.vue'
-import { useClockHost } from '~/composables/useClockHost'
-import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
+import { channelActivity, connectionHealth, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
-import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
-import { displayVersion } from '~/utils/display-version.mjs'
-import { isNewer } from '~/utils/build-watch.mjs'
-import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
+import { reloadForBuild } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
@@ -675,16 +666,15 @@ import { isChannelDropTarget } from '~/utils/move.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
-import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
-import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
-import { listRowKey, stepRow } from '~/utils/row-keys.mjs'
-import { focusPane } from '~/composables/useGlobalKeys'
-import { MIDDLE } from '~/utils/pane-focus.mjs'
+import { loadHiddenPeers, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
-import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
-import { flowDmPeers } from '~/utils/flow-keys.mjs'
-import { useUnread } from '~/composables/useUnread'
+import { useSidebarCounts } from '~/composables/useSidebarCounts'
+import { useSidebarPeers } from '~/composables/useSidebarPeers'
+import { useSidebarChannelAdmin } from '~/composables/useSidebarChannelAdmin'
+import { useSidebarChannelCreate } from '~/composables/useSidebarChannelCreate'
+import { useSidebarRowDrag } from '~/composables/useSidebarRowDrag'
+import { useSidebarRowKeys } from '~/composables/useSidebarRowKeys'
+import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring'
@@ -913,89 +903,9 @@ const loop = useLoopStrip(railEl, {
   selected: '.sidebar-tab[aria-selected="true"], .router-link-active:not([tabindex="-1"])',
   watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value, qtoShown.value],
 })
-function sectionUnread(prefix: string) {
-  return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
-}
-const dmUnread = computed(() => sectionUnread('dm:'))
-const channelUnread = computed(() => sectionUnread('ch:'))
-const flowUnread = computed(() => dmUnread.value || channelUnread.value)
-/* spec 062: once the hub has counted (flowBadge >= 0) the number replaces the
-   pip; a hub without the Flow route leaves -1 and the pip as it was */
-const flowBadge = useFlowBadge()
-/* the number starts once signed in (or in the mock); the Flow store is its own
-   lazy chunk, so it is loaded here and never rides the initial JS */
-const nuxtApp = useNuxtApp()
-let flowStarted = false
-/* owner (t1 de3c2cf5 msg 26c89f60): the Issues tab counts the viewer's open
-   assigned issues, an unanswered blocker's among them; its own lazy chunk */
-const myIssues = ref(0)
-watch(() => api.mock || session.state === 'in', (on) => {
-  if (!on || flowStarted || !import.meta.client) return
-  flowStarted = true
-  void import('~/stores/flow')
-    .then((m) => nuxtApp.runWithContext(() => m.useFlowStore().startBadge()))
-    .catch(() => { flowStarted = false })
-  void import('~/utils/my-issues-count.mjs').then((m) => m.startMyIssuesCount({ api, live, count: myIssues }), () => {})
-}, { immediate: true })
-function countLabel(n: number) {
-  return n > 0 ? (n > 99 ? '99+' : String(n)) : ''
-}
-const flowLabel = computed(() => countLabel(flowBadge.value))
-/* owner (t1 f4e6c677): once the hub splits its Flow unread (flowRail set),
-   Channels and Direct messages show it as a number, and no pip at 0 */
-const flowRail = useFlowRail()
-/* owner (t1 77540e6f): once the hub sends its per-row unread (flowKeys), a
-   section's number is the sum of the badges on the rows it lists - one map
-   for both, so "7 new" never sits over rows that show nothing */
-const flowKeys = useFlowKeys()
-/* spec 079 FR-003, FR-007: rows and rail read the one unread model */
-const unread = useUnread()
-function unreadOf(key: string) {
-  return unread.rowOf(key)
-}
-/* spec 080 FR-005: a pencil on a channel / DM / topic row that holds a draft */
-const drafts = useDrafts()
-function hasDraft(key: string) {
-  return drafts.has(key)
-}
-/* a section's number: the model's rows it lists, each once (owner, t1 77540e6f:
-   never more than the badges on its rows add up to) */
-function listedSum(prefix: string, ids: string[]) {
-  let n = 0
-  for (const id of new Set(ids)) n += unread.rowOf(prefix + id)
-  return n
-}
-/* spec 079 FR-003: a DM row's "<new>/<total>" takes its new part from the
-   model too (no second count from the notification store); the row template
-   shows the plain total only when the model has nothing new for it */
-function dmBadgeLabel(label: string) {
-  const key = 'dm:' + label
-  return dmBadgeText(unreadOf(key), notes.dmTotal[key] || 0)
-}
-function dmTotalLabel(label: string) {
-  return dmTotalText(notes.dmTotal['dm:' + label] || 0)
-}
-function railCount(id: SideTab) {
-  if (id === 'issues') return countLabel(myIssues.value)
-  if (flowKeys.value) {
-    if (id === 'channels') return countLabel(listedSum('ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
-    if (id === 'dm') return countLabel(listedSum('dm:', peers.value.map((p) => p.label)))
-    return ''
-  }
-  const r = flowRail.value
-  if (!r) return ''
-  if (id === 'channels') return countLabel(r.channels)
-  if (id === 'dm') return countLabel(r.dms)
-  return ''
-}
-function tabUnread(id: SideTab) {
-  if ((id === 'dm' || id === 'channels') && flowKeys.value) return false
-  if ((id === 'dm' || id === 'channels') && flowRail.value) return false
-  if (id === 'dm') return dmUnread.value
-  if (id === 'channels') return channelUnread.value
-  if (id === 'flow') return flowBadge.value < 0 && flowUnread.value
-  return false
-}
+/* the rail's numbers and a row's unread / draft / DM badge (useSidebarCounts) */
+const { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread } = useSidebarCounts(api, live,
+  () => channelRows.value.map((c) => String(c.channel_id || '')), () => peers.value.map((p) => p.label))
 /* Flow stays on this page and mixes the
    lists. Direct messages and channels only swap the sidebar. */
 /* owner HUM-10 (t1 27b3ab77 msg 3aee57ba): "no way for me to find out what
@@ -1075,51 +985,13 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
   return n ? t('sidebar.retention_days', { n }) : ''
 }
 const health = computed(() => connectionHealth(live.state.value))
-/* newest first here too - the peer we last exchanged a DM with on top */
-const hiddenPeers = ref<Record<string, true>>({})
-/* "Remove from list": this browser only, until a newer DM (sidebar-row-menu.mjs) */
-const listHidden = ref<Record<string, string>>({})
-const blockedPeers = ref<Record<string, true>>({})
-const mutedPeers = ref<Record<string, true>>({})
-const mutedChannels = ref<string[]>([])
-const propertiesOpen = ref(false)
-const propertiesChannel = ref({ channel_id: '', name: '', description: '', created_by: '' })
-function isChannelMuted(id: string) {
-  return mutedChannels.value.includes(normalizeChannel(id))
-}
-function toggleChannelMute(id: string) {
-  mutedChannels.value = saveMutedChannels(toggleMutedChannel(mutedChannels.value, id))
-}
-// A default channel has Properties too: it lists everyone, read-only.
-function showProperties(_id: string) {
-  return !isSignedOutVisitor(session.state, api.mock)
-}
-function openProperties(id: string) {
-  const row = shownChannels.value.find((c) => c.channel_id === id)
-  propertiesChannel.value = {
-    channel_id: id,
-    name: String(row?.name || id),
-    description: String(row?.description || ''),
-    created_by: String(row?.created_by || ''),
-  }
-  propertiesOpen.value = true
-}
-/* index 0 is the top. A drag replaces the whole list: that order is pinned,
-   and a person who appears later sorts after it, in the usual activity order. */
-const pinnedPeers = ref<string[]>([])
 /* SPL-1034: the Channels order is the person's, kept on the hub (per tenant) */
 const { order: channelOrder, set: setChannelOrder, step: stepChannelOrder } = useChannelOrder()
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
-const peers = computed(() => (acting.value ? [] : pinRows(
-  /* owner (t1 77540e6f): a peer with unread lines always has a row, even one
-     no roster lists any more (a retired agent), so the number can be read */
-  withDmPeers(orderPeers(withDmPeers(roster.peers, channel.dmAt, roster.self ? roster.self.id : live.identity.value), channel.dmAt),
-    flowDmPeers(flowKeys.value), roster.self ? roster.self.id : live.identity.value)
-    .filter((p) => unreadOf('dm:' + p.label) > 0 || (!hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label]))),
-  pinnedPeers.value,
-)))
+/* the Direct messages rows and their menu (useSidebarPeers) */
+const { listHidden, blockedPeers, mutedPeers, pinnedPeers, peers, togglePin, togglePeer, removePeer, hideFromList } = useSidebarPeers(api, live, acting, flowKeys, unreadOf)
 /* CLE-77794: People lists every tenant member (the reader too, marked "you"),
    read from the same roster the DM list does, so no extra fetch. (Its Agents
    twin went into Monitoring, SPL-2075.) */
@@ -1146,200 +1018,14 @@ const channelRows = computed(() => pinRows(
   (c) => String(c.channel_id || ''),
 ))
 
-function toggleOrder(order: string[], key: string) {
-  return order.includes(key) ? order.filter((l) => l !== key) : [key, ...order.filter((l) => l !== key)]
-}
-function togglePin(label: string) {
-  pinnedPeers.value = toggleOrder(pinnedPeers.value, label)
-}
-
-function togglePeer(which: 'block' | 'mute', label: string) {
-  const bag = which === 'block' ? blockedPeers : mutedPeers
-  const next = { ...bag.value }
-  if (next[label]) delete next[label]
-  else next[label] = true
-  bag.value = next
-}
-
-/* A human is a tenant member: DELETE /v1/members/{id}. A bot is not, so the
-   row leaves this pane for the session and the hub membership is untouched. */
-async function removePeer(p: { id?: string, label: string }) {
-  const id = String(p.id || '')
-  if (/^HUM-\d+$/.test(id) && !api.mock) {
-    try {
-      await api.removeMember(id)
-    } catch {
-      return
-    }
-    void roster.refresh()
-  }
-  hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
-  pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
-}
-function hideFromList(p: { label: string }) {
-  listHidden.value = saveHiddenPeers(hidePeer(listHidden.value, p.label, channel.dmAt[p.label] || ''))
-  pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
-}
-type DragList = 'peers' | 'channels'
-const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
-let suppressDragClick = false
-const dragPanel: Record<DragList, string> = {
-  peers: 'sidebar-panel-dm',
-  channels: 'sidebar-panel-channels',
-}
-function orderBag(list: DragList) {
-  if (list === 'peers') return pinnedPeers
-  return channelOrder
-}
-function dragging(list: DragList, key: string) {
-  const d = drag.value
-  return !!d && d.active && d.list === list && d.key === key
-}
-function dropping(list: DragList, key: string, index: number) {
-  const d = drag.value
-  if (!d || !d.active || d.list !== list || d.key === key) return false
-  if (d.overIndex === index) return true
-  return false
-}
-function droppingAfter(list: DragList, index: number, last: number) {
-  const d = drag.value
-  return !!d && d.active && d.list === list && d.overIndex >= last && index === last - 1
-}
-function rowPointerDown(e: PointerEvent, list: DragList, key: string) {
-  if (e.button !== 0) return
-  const target = e.target
-  if (!(target instanceof Element) || target.closest('.sidebar-row-menu, button, input, textarea')) return
-  const startY = e.clientY
-  const pointerId = e.pointerId
-  let active = false
-  let overIndex = 0
-  const panelId = dragPanel[list]
-  const keysNow = () => {
-    const panel = document.getElementById(panelId)
-    return panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')].map((el) => el.dataset.order || '') : []
-  }
-  const move = (ev: PointerEvent) => {
-    if (ev.pointerId !== pointerId) return
-    if (!active && Math.abs(ev.clientY - startY) < 6) return
-    active = true
-    const panel = document.getElementById(panelId)
-    const els = panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')] : []
-    const rects = els.map((el) => {
-      const r = el.getBoundingClientRect()
-      return { top: r.top, bottom: r.bottom }
-    })
-    overIndex = dropIndex(rects, ev.clientY)
-    drag.value = { list, key, overIndex, active: true }
-  }
-  const up = () => {
-    window.removeEventListener('pointermove', move)
-    window.removeEventListener('pointerup', up)
-    if (active) {
-      suppressDragClick = true
-      const keys = keysNow()
-      const from = keys.indexOf(key)
-      if (from >= 0) {
-        const next = moveKey(keys, from, overIndex)
-        if (list === 'channels') void setChannelOrder(next)
-        else orderBag(list).value = next
-      }
-    }
-    drag.value = null
-  }
-  window.addEventListener('pointermove', move)
-  window.addEventListener('pointerup', up)
-}
+/* a held row re-orders its list (useSidebarRowDrag) */
+const { dragging, dropping, droppingAfter, rowPointerDown, swallowDragClick } = useSidebarRowDrag(pinnedPeers, channelOrder, setChannelOrder)
 /* SPL-1034 keyboard / touch: Move up / Move down in a channel row's menu */
 function stepChannel(id: string, step: -1 | 1) {
   void stepChannelOrder(channelRows.value.map((c) => String(c.channel_id || '')), id, step)
 }
-/* HUM-10 (t1 7d9e1681): after a click on a channel the focus stays on its
-   row (layouts/default.vue keeps it: routeTakesFocus channelList), and
-   ArrowDown / ArrowUp (j / k with the keyboard shortcuts switch on) open the
-   next / previous channel at once - the focus follows, like a list box -,
-   Home / End the first / last. The ends do not wrap (the feed's rows do not).
-   Enter on a channel goes into its messages. Desktop only. j / k
-   read the switch the way utils/msg-shortcuts.mjs shortcutsOn does (never
-   picked = on), without pulling the lazy message-shortcut code in here. */
-function keepRowFocus(e: MouseEvent) {
-  /* Safari leaves the focus on <body> after a click on a link */
-  if (!phone.value) (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true })
-}
-/* the feed reads its cards after the route: the old channel's cards are
-   drawn again for a moment (new elements, old messages) and one of them
-   taking the focus loses it when they go. So wait until the cards on screen
-   have stayed the same for a little while, then focus the first; with none
-   by then, the pane (its heading). Not when the reader moved on. */
-const CARDS_WAIT_MS = 3000
-const CARDS_SETTLED_MS = 300
-const cardsNow = () => [...document.querySelectorAll<HTMLElement>('.spool-main article.msg')]
-  .filter((el) => el.getClientRects().length > 0 && !el.closest('[class*="-leave-active"]'))
-async function openIntoMessages(path: string) {
-  const from = document.activeElement
-  await navigateTo(localePath(path))
-  const t0 = Date.now()
-  let seen: HTMLElement[] = []
-  let since = Date.now()
-  while (Date.now() - t0 < CARDS_WAIT_MS) {
-    await new Promise((r) => setTimeout(r, 50))
-    if (document.activeElement !== from) return
-    const now = cardsNow()
-    if (now.length !== seen.length || now.some((el, k) => el !== seen[k])) {
-      seen = now
-      since = Date.now()
-    } else if (now.length && Date.now() - since >= CARDS_SETTLED_MS) {
-      break
-    }
-  }
-  if (document.activeElement !== from) return
-  if (seen[0]?.isConnected) seen[0].focus({ preventScroll: true })
-  else focusPane(MIDDLE)
-}
-function onChannelRowKey(e: KeyboardEvent) {
-  if (phone.value) return
-  const what = listRowKey(e, { letters: session.claims?.keyboard_shortcuts !== false })
-  if (!what) return
-  const row = e.currentTarget as HTMLElement
-  if (what === 'enter') {
-    /* spec 103 T006: Enter on another channel's row (the lobby row on /lobby)
-       opens it and goes into its messages too; with the keyboard shortcuts
-       off it is the link's own Enter */
-    if (!row.classList.contains('active')) {
-      if (session.claims?.keyboard_shortcuts === false) return
-      e.preventDefault()
-      void openIntoMessages('/channel/' + row.dataset.key)
-      return
-    }
-    e.preventDefault()
-    focusPane(MIDDLE)
-    return
-  }
-  e.preventDefault()
-  const rows = Array.from(document.querySelectorAll<HTMLElement>('#sidebar-panel-channels a.nav-item[data-key]'))
-    .filter((el) => el.getClientRects().length > 0)
-  const to = what === 'first' ? rows[0] : what === 'last' ? rows[rows.length - 1] : stepRow(rows, row, what === 'next' ? 1 : -1)
-  if (!to || to === row) return
-  to.focus({ preventScroll: true })
-  const scroller = to.closest<HTMLElement>('.sidebar-scroll')
-  if (scroller) scrollRowIntoPane(scroller, to)
-  void navigateTo(localePath('/channel/' + to.dataset.key))
-}
-/* spec 103 T006: Enter on the open DM goes into its messages, Panel 2, as
-   on the open channel (another DM's row opens it: the route then moves the
-   focus to its messages, layouts/default.vue) */
-function onDmRowKey(e: KeyboardEvent) {
-  if (phone.value || e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
-  if (session.claims?.keyboard_shortcuts === false) return
-  if (!(e.currentTarget as HTMLElement).classList.contains('active')) return
-  e.preventDefault()
-  focusPane(MIDDLE)
-}
-function swallowDragClick(e: MouseEvent) {
-  if (!suppressDragClick) return
-  suppressDragClick = false
-  e.preventDefault()
-  e.stopPropagation()
-}
+/* HUM-10 (t1 7d9e1681), spec 103 T006: the channel / DM row keys (useSidebarRowKeys) */
+const { keepRowFocus, onChannelRowKey, onDmRowKey } = useSidebarRowKeys(phone)
 
 /* SPL-1024 / SPL-1134 (specs/045 §3.1, §3.9): a topic card dragged by its
    handle drops on a channel row. The rows only say whether they may take it
@@ -1362,251 +1048,20 @@ onMounted(() => {
   /* the route middleware has usually probed already; a second probe on every
      page load was one more session read for nothing */
   if (session.state === 'loading' || session.state === 'unknown') void session.probe()
-  mutedChannels.value = loadMutedChannels()
   listHidden.value = loadHiddenPeers()
-  window.addEventListener('storage', onMutedStorage)
 })
-/* HUM-24 (311427c6): an unmute in Settings, or in another tab, shows here at once */
-function onMutedStorage(e: StorageEvent) {
-  if (e.key === MUTED_CHANNELS_KEY || e.key === null) mutedChannels.value = loadMutedChannels()
-}
-onBeforeUnmount(() => window.removeEventListener('storage', onMutedStorage))
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
-const newChannel = ref('')
-const newDescription = ref('')
+/* the New channel dialog (useSidebarChannelCreate) */
 const newDescriptionEl = ref<HTMLTextAreaElement | null>(null)
-const descMp = useMentionPicker({ text: newDescription, el: newDescriptionEl })
-const createOpen = ref(false)
-const creating = ref(false)
-const createError = ref('')
-/* what the channel will actually be called in a URL and in an @mention */
-const slug = computed(() => channelSlug(newChannel.value))
-/* `access.can` fails OPEN by design (the store only hides actions;
-   the hub re-checks every write), which is right for a member whose /view/me
-   read failed and wrong for a visitor who is not signed in at all - they were
-   offered a control that can only answer 401. A settled signed-out probe is
-   not a failed read. */
-const canCreate = computed(() => !signedOut.value && access.can('channels.manage'))
-
-function openCreate() {
-  createError.value = ''
-  createOpen.value = true
-}
-
-/* a dismissed dialog keeps nothing: the next + starts on an empty form */
-watch(createOpen, (open) => {
-  if (open) return
-  newChannel.value = ''
-  newDescription.value = ''
-  createError.value = ''
-})
-const config = useRuntimeConfig()
-const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
-/* the deployed stamp, read once, client only; null in lde and on any failure */
-const build = ref(null)
-onMounted(async () => { build.value = await readBuildStamp() })
-/* SPL-1006: the commit THIS tab runs (baked in at build time) wins over the
-   deployed stamp, which is only the fallback where none is baked (lde) */
-const buildWatch = useBuildWatch()
-const running = computed(() => buildWatch.value.running
-  ? { commit: buildWatch.value.running, built_at: String(config.public.buildAt || ''), run: String(config.public.buildRun || '') }
-  : build.value)
-const newerLive = computed(() => (isNewer(buildWatch.value.running, buildWatch.value.live) ? shortCommit(buildWatch.value.live) : ''))
-const versionText = computed(() => buildStampText(displayVersion(version.value), running.value))
-/* owner, 2026-09-26: the version smaller, the commit smaller still, a tight gap */
-const versionLabel = computed(() => displayVersion(version.value))
-const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
-/* the card also opens by a tap (touch has no hover) and closes on Esc */
-const vsOpen = ref(false)
-const releaseNotesOpen = ref(false)
-/* owner 2026-09-27 (topic 82b9c309): a click or tap anywhere outside the
-   card closes it. Closing also drops the focus, since :focus-within would
-   otherwise keep the card painted after vsOpen is false. */
+const { newChannel, newDescription, descMp, createOpen, creating, createError, slug, canCreate, openCreate, archivedSlug, unarchiveFromCreate, onCreate } = useSidebarChannelCreate(signedOut, newDescriptionEl)
+/* the footer version, its card and the clock's host (useSidebarVersion) */
 const vsWrapEl = ref<HTMLElement | null>(null)
-function closeVsPop() {
-  vsOpen.value = false
-  const wrap = vsWrapEl.value
-  const active = typeof document !== 'undefined' ? document.activeElement : null
-  if (wrap && active instanceof HTMLElement && wrap.contains(active)) active.blur()
-}
-function toggleVsPop(ev: Event) {
-  /* SPL-1023: a press inside the card (select the hash, copy) keeps it */
-  if (ev.target instanceof Element && ev.target.closest('.vs-pop')) return
-  if (vsOpen.value) return closeVsPop()
-  placeVsPop(ev)
-  vsOpen.value = true
-}
-function onVsOutside(ev: Event) {
-  const wrap = vsWrapEl.value
-  if (wrap && ev.target instanceof Node && wrap.contains(ev.target)) return
-  closeVsPop()
-}
-/* SPL-1023: Esc closes it wherever the focus is */
-function onVsEsc(ev: KeyboardEvent) {
-  if (ev.key === 'Escape') closeVsPop()
-}
-watch(vsOpen, (open) => {
-  if (typeof document === 'undefined') return
-  if (open) {
-    document.addEventListener('pointerdown', onVsOutside, true)
-    document.addEventListener('keydown', onVsEsc)
-  } else {
-    document.removeEventListener('pointerdown', onVsOutside, true)
-    document.removeEventListener('keydown', onVsEsc)
-  }
-})
-onBeforeUnmount(() => {
-  if (typeof document === 'undefined') return
-  document.removeEventListener('pointerdown', onVsOutside, true)
-  document.removeEventListener('keydown', onVsEsc)
-})
-/* SPL-1023: on a phone Back closes it first (SPL-994); a small card, so the dock stays */
-mobileStack.overlay(vsOpen, closeVsPop, { keepsDock: true })
-/* SPL-999: the sidebar clips (overflow: clip, 260 px), so the card is
-   position: fixed: placed directly above the version, from the footer
-   row's left edge, each time it opens, and pulled back so its right edge
-   stays 8 px inside the screen */
-const vsPlace = ref<Record<string, string>>({})
-function placeVsPop(ev?: Event) {
-  const wrap = (ev?.currentTarget as HTMLElement | null) || document.querySelector<HTMLElement>('[data-test=app-version-wrap]')
-  const row = wrap?.closest('.foot-row')
-  if (!wrap || !row) return
-  const r = row.getBoundingClientRect()
-  const card = wrap.querySelector<HTMLElement>('.vs-pop')
-  const w = card ? card.offsetWidth : 0
-  const left = Math.max(8, Math.min(r.left + 8, window.innerWidth - 8 - w))
-  vsPlace.value = { '--vs-left': `${Math.round(left)}px`, '--vs-bottom': `${Math.round(window.innerHeight - wrap.getBoundingClientRect().top)}px` }
-}
-/* be316fdc: the clock follows the version - here only while this row is
-   drawn: not on a phone, not rail-only, not under the topic browser. A
-   resize catches the rail / collapse, a route change the hidden sidebar. */
-const clockHost = useClockHost()
-const footRow = () => vsWrapEl.value?.closest<HTMLElement>('.foot-row') || null
-function measureFoot() {
-  const el = footRow()
-  const r = el?.getBoundingClientRect()
-  clockHost.foot.value = Boolean(!phone.value && el && r && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility === 'visible')
-}
-let footObserver: ResizeObserver | null = null
-onMounted(() => {
-  measureFoot()
-  const el = footRow()
-  if (typeof ResizeObserver !== 'undefined' && el) {
-    footObserver = new ResizeObserver(measureFoot)
-    footObserver.observe(el)
-  }
-})
-watch([() => route.fullPath, phone], () => nextTick(() => requestAnimationFrame(measureFoot)))
-onBeforeUnmount(() => {
-  footObserver?.disconnect()
-  clockHost.foot.value = false
-})
-/* SPL-999: the code blocks' copy (with its insecure-origin fallback) */
-const { copied: vsCopiedId, copy: copyText } = useCopyText()
-const vsCopied = computed(() => vsCopiedId.value === 'commit')
-function copyCommit() { void copyText(buildCommit.value, 'commit') }
-const buildMeta = computed(() => {
-  const b = running.value as { built_at?: string, run?: string } | null
-  if (!b) return ''
-  return [b.built_at || '', b.run ? `run ${b.run}` : ''].filter(Boolean).join(' · ')
-})
+const { buildWatch, newerLive, versionText, versionLabel, buildCommit, vsOpen, releaseNotesOpen, closeVsPop, toggleVsPop, placeVsPop, clockHost, vsPlace, vsCopied, copyCommit, buildMeta } = useSidebarVersion(phone, mobileStack, vsWrapEl)
 
-/* SPL-72, channels-v1 §5.4: Delete channel. Offered to its creator only; the
-   hub refuses anyone else (403, or 404 to a non-member) whatever this shows. */
-const selfId = computed(() => viewerHumanId(access.me, live.identity.value, { mock: api.mock, rosterMe: roster.me?.id || '' }))
-const deleteOpen = ref(false)
-const deleteTarget = ref({ channel_id: '', name: '' })
-function deletableChannel(id: string) {
-  const row = shownChannels.value.find((c) => c.channel_id === id)
-  return !!row && canDeleteChannel({ selfId: selfId.value, row })
-}
-/* the confirm is LazyChannelConfirmDialog: off the initial script (027 §6) */
-function askDeleteChannel(id: string) {
-  const row = shownChannels.value.find((c) => c.channel_id === id)
-  deleteTarget.value = { channel_id: id, name: String(row?.name || id) }
-  deleteOpen.value = true
-}
-/* rdb 0092: Archive channel - the creator only, same door as delete. The
-   confirm is LazyChannelConfirmDialog. */
-const archiveOpen = ref(false)
-const archiveTarget = ref({ channel_id: '', name: '' })
-function askArchiveChannel(id: string) {
-  const row = shownChannels.value.find((c) => c.channel_id === id)
-  archiveTarget.value = { channel_id: id, name: String(row?.name || id) }
-  archiveOpen.value = true
-}
-function onChannelArchived(id: string) {
-  onChannelDeleted(id) // an archived channel drops from the sidebar just like a deleted one
-}
-/* the open channel is gone: leave it for #lobby rather than show a 404 page */
-function leaveDeleted(id: string) {
-  if (channel.active === id) void navigateTo(localePath('/channel/lobby'))
-}
-function onChannelDeleted(id: string) {
-  channelOrder.value = channelOrder.value.filter((k) => k !== id)
-  leaveDeleted(id)
-}
-/* another member deleted it: every open sidebar drops the row (store), and a
-   member reading it right now is taken to #lobby */
-let offChannel: (() => void) | undefined
-onMounted(() => {
-  offChannel = live.onChannel((f) => {
-    if (f.type === 'channel_deleted') leaveDeleted(String(f.channel || ''))
-  })
-})
-onBeforeUnmount(() => { offChannel?.() })
+/* a channel row's mute, Properties, Delete and Archive (useSidebarChannelAdmin) */
+const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, showProperties, openProperties, deleteOpen, deleteTarget, deletableChannel, askDeleteChannel, archiveOpen, archiveTarget, askArchiveChannel, onChannelArchived, onChannelDeleted } = useSidebarChannelAdmin(api, live, shownChannels, channelOrder)
 
-/** channels-v1 §5.1 errors, in words (409 channel_exists, 400 bad_channel). */
-function createCopy(e: unknown) {
-  const tok = (e && typeof e === 'object' && 'token' in e) ? String((e as { token?: unknown }).token || '') : ''
-  if (tok === 'channel_exists') return t('sidebar.create_error.channel_exists')
-  if (tok === 'channel_archived') return t('sidebar.create_error.channel_archived')
-  if (tok === 'bad_channel') return t('sidebar.create_error.bad_channel')
-  if (tok === 'view_door') return t('sidebar.create_error.view_door')
-  return e instanceof Error ? e.message : t('sidebar.create_error.fallback')
-}
-
-/* rdb 0092: when the name is reserved by an ARCHIVED channel, the create error
-   offers to unarchive it (channels.manage) instead of only refusing. */
-const archivedSlug = ref('')
-async function unarchiveFromCreate() {
-  const id = archivedSlug.value
-  if (!id || creating.value) return
-  creating.value = true
-  createError.value = ''
-  try {
-    await channel.unarchiveChannel(id)
-    archivedSlug.value = ''
-    createOpen.value = false
-    await navigateTo(localePath('/channel/' + id))
-  } catch (e) {
-    createError.value = createCopy(e)
-  } finally {
-    creating.value = false
-  }
-}
-
-async function onCreate() {
-  const name = newChannel.value.trim()
-  if (!name || creating.value) return
-  creating.value = true
-  createError.value = ''
-  archivedSlug.value = ''
-  try {
-    const row = await channel.createChannel(name, descMp.encode(newDescription.value).trim())
-    /* close first: the dialog restores focus to the + it was opened from, and
-       the watcher clears the form, so a failed create keeps what was typed */
-    createOpen.value = false
-    await navigateTo(localePath('/channel/' + row.channel_id))
-  } catch (e) {
-    createError.value = createCopy(e)
-    const tok = (e && typeof e === 'object' && 'token' in e) ? String((e as { token?: unknown }).token || '') : ''
-    if (tok === 'channel_archived') archivedSlug.value = slug.value
-  } finally {
-    creating.value = false
-  }
-}
 </script>
 
 <style scoped>

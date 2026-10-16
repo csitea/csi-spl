@@ -35,6 +35,7 @@ import {
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 import { mentionDisplay, namedLine, peopleLabels, personTitle, shownPerson } from '../../src/utils/channel-feed.mjs'
 import { messageCardSrc } from './lib/message-card-src.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 
 /* the viewer's zone: Node re-reads process.env.TZ on assignment */
@@ -190,7 +191,7 @@ describe('live channel / DM wiring (gap A2)', () => {
   })
 
   it('offers channel creation in live mode and names the hub errors', () => {
-    const sb = src('src/components/ChannelSidebar.vue')
+    const sb = channelSidebarSrc()
     assert.equal(sb.includes('v-if="api.mock"'), false)
     assert.equal(sb.includes('channel_exists'), true)
     assert.equal(sb.includes('bad_channel'), true)

@@ -21,8 +21,9 @@
 #      the old text kept as a revision. An unchanged card calls the hub not
 #      at all.
 # State: <CARD_STATE_DIR>/<topic>.card = msg id, author, sha256 of the card
-# without its "as of" line (time alone never edits it); served.tsv caches
-# "<sha>\t<env>" once that env serves the sha. Only the box that posted a
+# without its "as of" line (time alone never edits it); landed.tsv caches
+# "<key>\t<sha>" once a key landed, served.tsv "<sha>\t<env>" once that env
+# serves the sha. Only the box that posted a
 # message can edit it: a lease that moves to another box starts that box's
 # own card per topic there (at most one more message per topic).
 #
@@ -92,7 +93,7 @@ card_issues() {
 
 card_lanes() {
   if [ -n "${CARD_LANES_CMD:-}" ]; then $CARD_LANES_CMD; return; fi
-  bash "$_here/lane-map.sh" list --all --json 2>/dev/null
+  bash "$_here/lane-map.sh" list --all --json 2>/dev/null </dev/null | grep '^{' | tail -1
 }
 
 card_queue() {
@@ -127,10 +128,23 @@ card_lane() {
   printf '%s' "${id:--}"
 }
 
+# card_landed KEY -> the newest trunk sha that closes KEY, or nothing. A
+# landed key stays landed: landed.tsv caches it, so a tick walks the history
+# only for the keys that have not landed yet.
+card_landed() {
+  local sha
+  sha="$(awk -F'\t' -v k="$1" '$1 == k { s = $2 } END { print s }' "$CARD_DIR/landed.tsv" 2>/dev/null)"
+  if [ -z "$sha" ]; then
+    sha="$(li_landed "$CARD_GIT" "$1" 2>/dev/null)"; sha="${sha%%$'\n'*}"
+    [ -n "$sha" ] && printf '%s\t%s\n' "$1" "$sha" >>"$CARD_DIR/landed.tsv"
+  fi
+  printf '%s' "$sha"
+}
+
 # card_row KEY STATUS TITLE -> one table row of the card.
 card_row() {
   local sha dev='-' prd='-' landed='-'
-  sha="$(li_landed "$CARD_GIT" "$1" 2>/dev/null)"; sha="${sha%%$'\n'*}"
+  sha="$(card_landed "$1")"
   if [ -n "$sha" ]; then
     landed="\`${sha:0:12}\`"; dev="$(card_served dev "$sha")"; prd="$(card_served prd "$sha")"
   fi

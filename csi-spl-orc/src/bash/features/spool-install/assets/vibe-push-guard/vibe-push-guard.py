@@ -9,7 +9,7 @@ and writes the pre_tool payload on stdin:
 Every shell-text field of tool_input (command for bash, text for the
 experimental bash_stdin, cmd / script for others) goes through the shared
 matcher force-push-guard.inc.sh, installed beside this file. A forbidden push
-form prints {"decision": "deny", "reason": ...} and exits 0: vibe denies the
+form, or a system change (packages, services, /etc: SPL-2187), prints {"decision": "deny", "reason": ...} and exits 0: vibe denies the
 call before the permission check, so --auto-approve does not skip it.
 Allowed: prints nothing, exits 0. Anything else (bad payload, no matcher, a
 matcher rc other than 0 / 2) exits 1, which strict = true turns into a deny:
@@ -49,15 +49,11 @@ def main():
                 if res.stderr.strip()
                 else "force-push-guard: refused"
             )
-            print(
-                json.dumps(
-                    {
-                        "decision": "deny",
-                        "reason": reason
-                        + " (owner order: no force push to master without the owner's explicit approval)",
-                    }
-                )
-            )
+            # A system change (SPL-2187) carries its own reason; only a push
+            # form gets the force-push owner order appended.
+            if ": system change: " not in reason:
+                reason += " (owner order: no force push to master without the owner's explicit approval)"
+            print(json.dumps({"decision": "deny", "reason": reason}))
             return 0
         if res.returncode != 0:
             print(

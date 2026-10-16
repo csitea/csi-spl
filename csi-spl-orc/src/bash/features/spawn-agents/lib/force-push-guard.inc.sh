@@ -27,6 +27,30 @@
 #   - SPL_PREPUSH_OVERRIDE assigned anything but empty or 0 (a prefix
 #     assignment, env, export / declare / typeset / readonly / local); a
 #     command that only NAMES it (a grep pattern, an echo) is not refused
+# Also refused, by the same reading (SPL-2187: a doc seat apt-installed
+# systemd-resolved as root and took a box off DNS for 22 min; agents never
+# change a box's system, the owner does), a SYSTEM CHANGE:
+#   - packages: apt / apt-get / aptitude with a changing verb (install,
+#     remove, purge, update, upgrade, ...; -s / --simulate passes), dpkg with
+#     an action that is not a query (-i, -r, -P, --configure, ...), apt-mark
+#     hold/unhold/auto/manual, snap install/remove/refresh, add-apt-repository,
+#     apt-key, dpkg-reconfigure, debconf-set-selections, do-release-upgrade,
+#     unattended-upgrade(s), update-alternatives with a changing action
+#   - services: systemctl with a changing verb (start, stop, restart, enable,
+#     mask, daemon-reload, ...; status / show / is-* / list-* and --user
+#     pass), service <unit> <verb> but status, /etc/init.d/<x> <verb> but
+#     status, update-rc.d, invoke-rc.d, resolvectl / hostnamectl /
+#     timedatectl / localectl set-* (and resolvectl dns|domain <link> <value>),
+#     reboot / shutdown / poweroff / halt / telinit
+#   - /etc writes: a redirection (> or >>) to /etc/..., tee / rm / chmod /
+#     chown / chgrp / setfacl / touch / truncate / mkdir / rmdir / unlink on
+#     /etc/..., cp / mv / install / ln / rsync INTO /etc (the last word, or
+#     -t), sed -i / perl -i on /etc/..., dd of=/etc/...
+# Commands inside a container (docker run ... apt-get) are not the box's and
+# are not read. A ban list cannot prove absence: a script file, a variable, a
+# binary under another name or a container with / mounted is not read here.
+# The restricted agent sudoers (csi-spl-iac do_spl_agent_sudoers) is the
+# layer behind this one for root; neither stops a hop through the owner user.
 # A plain `git push origin HEAD:master` is allowed. A command that only reaches
 # git through a variable or a script file is not read (the pre-push hook and
 # the GitHub ruleset are the layers behind this one).
@@ -66,6 +90,8 @@ ARG_OPTS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T"}
             "xargs": {"-I", "-L", "-n", "-P", "-d", "-E", "-a", "-s"},
             "flock": {"-w", "-E", "-c"}, "watch": {"-n", "-d"},
             "stdbuf": {"-i", "-o", "-e"}}
+SSH_ARG_OPTS = {"-b", "-c", "-D", "-E", "-e", "-F", "-I", "-i", "-J", "-L", "-l", "-m",
+                "-O", "-o", "-p", "-Q", "-R", "-S", "-W", "-w"}
 GIT_ARG_OPTS = {"-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
 PUSH_ARG_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 MASTER = {"master", "refs/heads/master"}
@@ -81,13 +107,17 @@ def split(cmd):
     lx = shlex.shlex(s, posix=True, punctuation_chars=";&|()<>")
     lx.whitespace_split = True
     lx.commenters = ""
-    segs, cur = [], []
+    segs, cur, redir = [], [], False
     for t in lx:
         if t and all(c in ";&|()<>" for c in t):
             if cur:
                 segs.append(cur)
             cur = []
+            redir = ">" in t and "<" not in t
             continue
+        if redir:
+            etc_write(t, "a redirection to " + t)
+            redir = False
         cur.append(t)
     if cur:
         segs.append(cur)
@@ -183,7 +213,19 @@ def segment(toks, depth):
                     check(rest[j + 1], depth + 1)
                     break
             return
-        elif b == "eval" or b in ("ssh", "tmux", "screen"):
+        elif t.startswith("/etc/init.d/"):
+            system(t, b, toks[i + 1:])
+            return
+        elif b == "ssh":
+            # the remote command, after the options and the host
+            rest = toks[i + 1:]
+            j = 0
+            while j < len(rest) and rest[j].startswith("-"):
+                j += 2 if rest[j] in SSH_ARG_OPTS else 1
+            check(" ".join(rest), depth + 1)
+            check(" ".join(rest[j + 1:]), depth + 1)
+            return
+        elif b == "eval" or b in ("tmux", "screen"):
             check(" ".join(toks[i + 1:]), depth + 1)
             return
         elif b in ("su", "runuser"):
@@ -197,6 +239,8 @@ def segment(toks, depth):
         else:
             if b == "git":
                 git(toks[i + 1:], depth, hooks)
+            else:
+                system(t, b, toks[i + 1:])
             return
 
 
@@ -283,6 +327,129 @@ def push(args):
             raise Refuse("git push %s deletes master; %s" % (r, APPROVAL))
         if delete and r.split(":")[-1] in MASTER:
             raise Refuse("git push --delete %s deletes master; %s" % (r, APPROVAL))
+
+
+# SPL-2187: a system change (packages, services, /etc) belongs to the owner.
+SYSTEM = "agents never change a box\x27s system (SPL-2187); send the exact command to the orchestrator for the owner\x27s go"
+APT_READ = {"list", "search", "show", "showsrc", "showpkg", "policy", "depends", "rdepends",
+            "madison", "changelog", "download", "source", "help", "moo", "stats", "dump",
+            "pkgnames", "why", "why-not", "versions"}
+APT_SIM = {"-s", "--simulate", "--just-print", "--dry-run", "--recon", "--no-act",
+           "-h", "--help", "-v", "--version"}
+APT_ARG_OPTS = {"-o", "--option", "-c", "--config-file", "-t", "--target-release",
+                "-a", "--host-architecture"}
+DPKG_READ = {"-l", "--list", "-L", "--listfiles", "-s", "--status", "-S", "--search",
+             "-p", "--print-avail", "-c", "--contents", "-I", "--info", "-C", "--audit",
+             "--get-selections", "--compare-versions", "--print-architecture",
+             "--print-foreign-architectures", "--help", "--version", "-W", "--show",
+             "-f", "--field", "-V", "--verify", "--no-act", "--dry-run", "--simulate",
+             "--admindir", "--showformat"}
+SYSTEMCTL_READ = {"status", "show", "cat", "help", "is-active", "is-enabled", "is-failed",
+                  "is-system-running", "get-default", "show-environment", "list-units",
+                  "list-unit-files", "list-sockets", "list-timers", "list-jobs",
+                  "list-dependencies", "list-machines", "list-automounts", "list-paths"}
+SYSTEMCTL_ARG_OPTS = {"-t", "--type", "-p", "--property", "-n", "--lines", "-o", "--output",
+                      "-H", "--host", "-M", "--machine", "-s", "--signal", "--state", "--root"}
+SNAP_READ = {"list", "find", "info", "version", "help", "changes", "services", "connections", "warnings"}
+CTL_SET = {"resolvectl", "hostnamectl", "timedatectl", "localectl"}
+CTL_ACT = {"revert", "flush-caches", "reset-statistics", "reset-server-features"}
+CTL_LINK = {"dns", "domain", "default-route", "llmnr", "mdns", "dnssec", "dnsovertls", "nta"}
+ALWAYS = {"add-apt-repository", "apt-key", "dpkg-reconfigure", "debconf-set-selections",
+          "do-release-upgrade", "unattended-upgrade", "unattended-upgrades", "update-rc.d",
+          "invoke-rc.d", "reboot", "shutdown", "poweroff", "halt", "telinit"}
+ETC_ANY = {"tee", "rm", "chmod", "chown", "chgrp", "setfacl", "touch", "truncate",
+           "mkdir", "rmdir", "unlink", "shred"}
+ETC_DEST = {"cp", "mv", "install", "ln", "rsync"}
+ETC_DEST_ARG_OPTS = {"-t", "--target-directory", "-S", "--suffix", "-m", "--mode",
+                     "-o", "--owner", "-g", "--group"}
+
+
+def etc_write(path, what):
+    if path == "/etc" or path.startswith("/etc/"):
+        raise Refuse("system change: %s writes the box\x27s /etc; %s" % (what, SYSTEM))
+
+
+def positional(args, opts=()):
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            out.extend(args[i + 1:])
+            break
+        if a.startswith("-") and a != "-":
+            i += 2 if a in opts else 1
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+def first(args, opts=()):
+    pos = positional(args, opts)
+    return pos[0] if pos else ""
+
+
+def system(t, b, args):
+    """Refuse a package, service or /etc change (SPL-2187)."""
+    if b in ALWAYS:
+        raise Refuse("system change: %s; %s" % (b, SYSTEM))
+    if b in ("apt", "apt-get", "aptitude"):
+        verb = first(args, APT_ARG_OPTS)
+        if verb and verb not in APT_READ and not any(a in APT_SIM for a in args):
+            raise Refuse("system change: %s %s changes the box\x27s packages; %s" % (b, verb, SYSTEM))
+    elif b == "dpkg":
+        acts = [a for a in args if a.startswith("-") and a.split("=", 1)[0] not in DPKG_READ]
+        if acts:
+            raise Refuse("system change: dpkg %s changes the box\x27s packages; %s" % (acts[0], SYSTEM))
+    elif b == "apt-mark":
+        if first(args) in ("hold", "unhold", "auto", "manual", "minimize-manual"):
+            raise Refuse("system change: apt-mark %s; %s" % (first(args), SYSTEM))
+    elif b == "snap":
+        if first(args) not in SNAP_READ | {""}:
+            raise Refuse("system change: snap %s; %s" % (first(args), SYSTEM))
+    elif b == "update-alternatives":
+        if not any(a in ("--display", "--query", "--list", "--get-selections", "--help", "--version") for a in args):
+            raise Refuse("system change: update-alternatives; %s" % SYSTEM)
+    elif b == "systemctl":
+        verb = first(args, SYSTEMCTL_ARG_OPTS)
+        if "--user" not in args and verb and verb not in SYSTEMCTL_READ:
+            raise Refuse("system change: systemctl %s changes the box\x27s services; %s" % (verb, SYSTEM))
+    elif b == "service" or t.startswith("/etc/init.d/"):
+        pos = positional(args)
+        verb = (pos[0] if pos else "") if t.startswith("/etc/init.d/") else (pos[1] if len(pos) > 1 else "")
+        if verb and verb != "status":
+            raise Refuse("system change: %s %s changes the box\x27s services; %s" % (b, verb, SYSTEM))
+    elif b in CTL_SET:
+        pos = positional(args)
+        verb = pos[0] if pos else ""
+        if verb.startswith("set-") or verb in CTL_ACT or (verb in CTL_LINK and len(pos) > 2):
+            raise Refuse("system change: %s %s; %s" % (b, verb, SYSTEM))
+    elif b == "init":
+        if first(args) in ("0", "1", "6", "s", "S"):
+            raise Refuse("system change: init %s; %s" % (first(args), SYSTEM))
+    elif b in ETC_ANY:
+        for a in positional(args):
+            etc_write(a, b + " " + a)
+    elif b in ETC_DEST:
+        for j, a in enumerate(args):
+            if a in ("-t", "--target-directory") and j + 1 < len(args):
+                etc_write(args[j + 1], b + " -t " + args[j + 1])
+            elif a.startswith("--target-directory="):
+                etc_write(a.split("=", 1)[1], b + " " + a)
+        pos = positional(args, ETC_DEST_ARG_OPTS)
+        if b == "install" and any(re.match(r"^-[A-Za-z]*d", a) or a == "--directory" for a in args):
+            for a in pos:
+                etc_write(a, "install -d " + a)
+        elif len(pos) >= 2:
+            etc_write(pos[-1], "%s into %s" % (b, pos[-1]))
+    elif b in ("sed", "perl"):
+        if any(re.match(r"^-(?![MmIx])[A-Za-z]*i", a) or a.startswith("--in-place") for a in args):
+            for a in positional(args, {"-e", "-f", "--expression", "--file"}):
+                etc_write(a, b + " -i " + a)
+    elif b == "dd":
+        for a in args:
+            if a.startswith("of="):
+                etc_write(a[3:], "dd " + a)
 
 
 try:

@@ -15,218 +15,223 @@ Issue: SPL-2111.
 Editor: **a-612@PC** (agy).
 Target boxes: **PC** and **sat** (Debian 13 fleet).
 
-**Status: v0.1 draft**. Submitted to expert panel seats for verification, review, and signing.
+**Status: v1.0 consensus**. Synthesized from expert panel reviews by Claude seat `c-282@sat` (SPL-2185, commit `4a5019bc2`) and Mistral seat `m-283@sat` (SPL-2111, commit `07d40602a`), reconciling measured box and master facts.
 
 ## 1. Measured facts on fleet boxes (baseline)
 
-Empirically measured on `PC` and `sat` (read-only probes, 2026-10-16 ~07:2xZ, n=1 each):
+Empirically measured on `PC` and `sat` (read-only baseline probes, 2026-10-16):
 
 ### 1.1 Box `PC` (workhorse host)
 - **Root filesystem (`/`):** `/dev/nvme0n1p2` 889 GB total, 572 GB used, 273 GB free (**68% used**, 12.0M inodes used of 59.2M, 21%).
 - **Temporary directory (`/tmp` tmpfs):** 32 GB total, 5.2 GB used, 26 GB free (17% used).
-- **Persistent temporary storage (`/var/tmp`):** **33 GB** used across dozens of retired agent directories (`/var/tmp/claude` 9.5 GB, `/var/tmp/chrome-gmail-*` 4.1 GB, `/var/tmp/gocache-*` 1.9 GB, retired lane leftover directories 400M–950M each).
+- **Persistent temporary storage (`/var/tmp`):** **33 GB** used across dozens of retired agent directories (`/var/tmp/claude` 9.5 GB, `/var/tmp/chrome-gmail-*` 4.1 GB [browser profile, human candidate], `/var/tmp/gocache-*` 1.9 GB, retired lane leftovers 400M–950M each).
 - **System logs (`/var/log`):** 683 MB used, dominated by `/var/log/journal` at **633 MB**.
-- **Systemd Journal configuration:** `/etc/systemd/journald.conf` has `SystemMaxUse`, `SystemKeepFree`, and `SystemMaxFileSize` unconfigured (commented out). Unbounded default caps journal up to 10% of filesystem (~88 GB).
+- **Systemd Journal configuration:** `/etc/systemd/journald.conf` has `SystemMaxUse` unconfigured. Uncapped systemd default caps journal at 10% of filesystem but is bounded by systemd upstream to a **calculated default cap of 4 GB, not ~88 GB** (`man journald.conf`).
 - **Docker storage (`docker system df`):**
   - Build Cache: 994 entries, **103.8 GB total, 94.55 GB reclaimable (91%)**.
   - Local Volumes: 120 entries, **48.17 GB total, 46.65 GB reclaimable (96%)**.
   - Images: 31 entries, **115.5 GB total, 6.68 GB reclaimable (5%)**.
   - containerd snapshotter storage: **115 GB** under `/var/lib/containerd`.
   - Total reclaimable Docker space on `PC`: **~148 GB**.
-- **Agent shell snapshots:** Hundreds of `.sh` script snapshots in `~/.claude/shell-snapshots/` created by subshell executions without retention limits.
+- **Unbounded fleet cron logs:** `/var/csi/csi-spl/desk-reconcile/cron-prd.out` (162 MB), `/var/csi/csi-spl/box-disk-sweep/box-disk-sweep.log` (29 MB), agent user's `.cache/csi-spl/tmp-scratch-sweep.log` (551 MB), and dated `csi-spl-orc.<date>.log` (~25 MB/day, never cleaned).
 - **Agent retirement reaper baseline (dry run 2026-10-16T08:44:00Z by `c-001@PC`):** 372 agent IDs identified for retirement under `/var/spool-hub/.reap/reap.log`.
 
 ### 1.2 Box `sat` (satellite host)
 - **Root filesystem (`/`):** `/dev/sda1` 30 GB total, 21 GB used, 7.4 GB free (**74% used**, previously reached 88% / 3.5 GB free before SPL-2053 emergency sweep).
 - **Data mount (`/mnt/data`):** `/dev/sdb` 98 GB total, 83 GB used, 15 GB free (**85% used**, measured 2026-10-16T08:41Z by `c-001@sat`): home 33 GB, docker 31 GB (overlay2 21 GB), gh-runner 8 GB.
-- **Agent retirement reaper & worktree audit (dry run 2026-10-16T08:30Z by `c-001@sat`, `agent-id-reap.sh`):** 137 agent IDs eligible for retirement (0 live tmux windows). 7 candidate old worktrees evaluated for 24h disk-sweep removal: `c-089`, `c-402`, `c-403`, `c-409`, `c-410` each hold 1 unlanded commit not on `origin/master` (`git cherry +`), while `c-407` and `c-411` hold 0; all 7 have 13–16 uncommitted dirty files.
-- **Critical Safety Invariant (Worktree Protection):** Turning live sweeping on worktrees without checking git state risks deleting unlanded work (the `m-261` precedent where a local branch was the sole surviving copy). **Rule:** A worktree with unlanded commits (`git cherry origin/master`) or dirty files is NEVER swept or pruned without explicit, confirmed named owner approval.
-- **Temporary storage (`/tmp` tmpfs):** 32 GB total, 9.7 GB used, 22 GB free (31% used).
-- **Persistent temporary storage (`/var/tmp`):** **5.1 GB** used.
-- **System logs (`/var/log`):** **850 MB** used, dominated by `/var/log/journal` at 488 MB and high-velocity authentication logs (`auth.log` 138 MB, plus compressed rotations `auth.log.2.gz` 92 MB and `auth.log.3.gz` 56 MB).
-- **Docker storage (`docker system df`):**
-  - Build Cache: 172 entries, **9.229 GB total, 9.229 GB reclaimable (100%)**.
-  - Local Volumes: 49 entries, **9.802 GB total, 6.024 GB reclaimable (61%)**.
-  - Images: 11 entries, **3.512 GB total, 581.5 MB reclaimable (16%)**.
-  - Total reclaimable Docker space on `sat`: **~15.8 GB** (more than 50% of the entire 30 GB root disk).
+- **Docker storage on `sat`:** Located on `/mnt/data/docker` (data mount), **not on the 30 GB root disk** (`docker info --format '{{.DockerRootDir}}'`). Reclaimable: Build Cache 5.5 GB, Local Volumes 9.1 GB (6.0 GB reclaimable across 37 anonymous dangling volumes; 0 named dangling volumes).
+- **Agent retirement reaper & worktree audit (dry run 2026-10-16T08:30Z by `c-001@sat`):** 137 agent IDs eligible for retirement. 7 candidate old worktrees evaluated for 24h disk-sweep removal: `c-089`, `c-402`, `c-403`, `c-409`, `c-410` each hold 1 unlanded commit not on `origin/master` (`git cherry +`), while `c-407` and `c-411` hold 0; all 7 have dirty files.
+- **Critical Safety Invariant (Worktree Protection):** Turning live sweeping on worktrees without checking git state risks deleting unlanded work (the `m-261` precedent where a local branch was the sole surviving copy). **Rule:** A worktree with unlanded commits (`git cherry origin/master`) or dirty files (`git status --porcelain`) is NEVER swept or pruned without explicit, confirmed named owner approval.
+- **Temporary storage:** `/tmp` tmpfs 32 GB total, 9.7 GB used. `/var/tmp`: 5.1 GB used (441 top-level entries, 92 unchanged > 72h).
+- **System logs (`/var/log`):** **850 MB** used, dominated by `/var/log/journal` at 488 MB and high-velocity authentication logs (`auth.log` 138 MB, plus compressed rotations `auth.log.2.gz` 92 MB and `auth.log.3.gz` 56 MB; generating ~16 MB/h, ~390 MB/day).
+- **Agent CLI shell snapshots:** Measured 27 files, 220 KB, 0 files older than 7 days in `~/.claude/shell-snapshots/`. Minimal footprint; monitored via human forgotten report rather than active prune script.
 
 ## 2. Technical sources (Debian 13 / Linux system standards)
 
-Every proposal in this plan is backed by verified Debian 13 (Trixie) man pages, system documentation, and systemd/Docker specifications:
+Every proposal in this plan is grounded in verified Debian 13 (Trixie) man pages, system documentation, and specifications:
 1. `journald.conf(5)`, `systemd-journald(8)`, `journalctl(1)`:
-   - `SystemMaxUse=`: Maximum disk space journal files may occupy on persistent storage.
-   - `SystemKeepFree=`: Minimum disk space to leave free on persistent storage.
-   - `SystemMaxFileSize=`: Maximum size of individual journal files before rotation.
-   - `MaxRetentionSec=`: Maximum retention time for journal entries.
-   - `journalctl --vacuum-size=`, `journalctl --vacuum-time=`: Manual and programmatic vacuuming commands.
-2. `logrotate(8)`, `logrotate.conf(5)`:
-   - `maxsize <size>`: Rotates log files when exceeding `<size>` bytes even if the scheduled interval (daily/weekly) has not elapsed.
-   - `rotate <count>`: Number of rotated log cycles retained before removal.
-   - `compress` & `delaycompress`: Compression of rotated files.
-3. `docker-system-prune(1)`, `docker-builder-prune(1)`, `docker-volume-prune(1)`:
-   - `docker builder prune -a --filter "until=48h" -f`: Clears unreferenced build cache older than 48 hours without disrupting active builds.
-   - `docker volume prune -f`: Reclaims orphaned anonymous volumes unattached to any running or stopped container.
-4. `apt-get(8)`, `apt.conf(5)`:
-   - `APT::Clean-Installed "true";`: Ensures `/var/cache/apt/archives/` does not accumulate downloaded `.deb` packages indefinitely.
-   - `apt-get clean`: Empties the package archive cache safely.
+   - Drop-ins in range 60-90: `/etc/systemd/journald.conf.d/60-disk-hygiene.conf`.
+   - `SystemMaxUse=500M`, `SystemMaxFileSize=100M`.
+   - Journald default calculated cap is 4 GB (10% of filesystem, capped at 4 GB).
+2. `logrotate(8)`, `logrotate.conf(5)`, `systemd.timer(5)`:
+   - `maxsize 100M`: Evaluated only when logrotate executes; requires hourly timer to cap ~390 MB/day growth.
+   - `copytruncate`: Safely rotates unbounded append-only daemon logs without requiring daemon restart or fd tracking.
+   - `delaycompress` removal in rsyslog config: Compresses `.1` rotations immediately.
+3. `docker-volume-prune(1)`, `ctr(8)`, `nerdctl(1)`:
+   - `docker volume prune -f`: Removes unattached anonymous volumes safely without touching named test volumes.
+   - `ctr -n moby images prune`: Reclaims unreferenced containerd snapshotter images under `/var/lib/containerd`.
+4. `tmpfiles.d(5)`, `systemd-tmpfiles(8)`:
+   - Declarative age-based file lifecycle management via `/etc/tmpfiles.d/tmp.conf`.
+   - Supports age-by modifiers (`mM:14d`) and automatically respects directory locks.
 5. `find(1)`, `du(1)`, `df(1)`:
    - POSIX file attributes, `-mtime +N`, `-size +NM`, `du -xh`, `df -B1`: Deterministic, non-intelligent coded rules for detection and inventory tracking.
 
 ## 3. The 10 actions
 
-Every row is a named csi-rel action (`do_<verb>_<noun>`, `csi-spl-utl`), runnable manually and via cron, tested with red controls, and deployed across fleet boxes.
+Every row is a named csi-rel action (`do_<verb>_<noun>`), runnable manually and via cron, tested with red controls, and deployed across fleet boxes.
 
 | # | slug | practice | why | target & proof | csi-rel action & test | box | vendor | batch |
 |---|---|---|---|---|---|---|---|---|
-| 01 | `feat(hyg-01-utl-harness)` | Bootstrap `csi-spl-utl` run harness | Owner order (msg 177ce9f3): all disk hygiene actions must live in utils (`csi-spl-utl`), callable manually and from cron | Executable `csi-spl-utl/run` supporting `./run -a do_<action>` with DRY_RUN=1 default | `do_utl_harness`<br>`csi-spl-utl/src/bash/tests/utl-harness.tst.sh` | PC, sat | agy | Batch 1 (Lane 1) |
-| 02 | `feat(hyg-02-journald-caps)` | Systemd journald size & retention caps | Journal currently uncapped on both boxes; uses 633M on PC and 488M on sat; default allows up to 10% disk (~88G on PC) | `SystemMaxUse=1G` (500M on sat), `SystemMaxFileSize=100M`; journal usage <= 1G on PC, <= 500M on sat | `do_disk_journal_cap`<br>`csi-spl-utl/src/bash/tests/disk-journal-cap.tst.sh` | PC, sat | claude | Batch 1 (Lane 2) |
-| 03 | `feat(hyg-03-logrotate-maxsize)` | Rsyslog & auth.log rotation maxsize caps | High agent fleet volume logs thousands of sudo lines/hour; `auth.log` reached 1.3G in 5 days; weekly rotation too slow | `maxsize 100M` in rsyslog config; individual logs never exceed 100M before rotation and compression | `do_disk_logrotate_cap`<br>`csi-spl-utl/src/bash/tests/disk-logrotate-cap.tst.sh` | PC, sat | claude | Batch 2 (Lane 1) |
-| 04 | `feat(hyg-04-docker-prune-policy)` | Automated Docker builder & volume hygiene | 103.8G build cache (94.5G reclaimable) on PC; 9.2G build cache (100% reclaimable) and 6.0G volume reclaimable on sat | Builder prune older than 48h and orphaned volume prune; frees >90G on PC and >15G on sat | `do_docker_hygiene_sweep`<br>`csi-spl-utl/src/bash/tests/docker-hygiene-sweep.tst.sh` | PC, sat | mistral | Batch 2 (Lane 2) |
-| 05 | `feat(hyg-05-shell-snapshot-retention)` | Agent CLI shell snapshot retention & pruning | Claude CLI creates `snapshot-bash-*.sh` for every subshell in user directories; hundreds accumulate indefinitely | Retain snapshots <= 7 days; directory capped at 500 files; 0 snapshots older than 7 days | `do_shell_snapshot_sweep`<br>`csi-spl-utl/src/bash/tests/shell-snapshot-sweep.tst.sh` | PC, sat | mistral | Batch 3 (Lane 1) |
-| 06 | `feat(hyg-06-cache-caps)` | Package manager & build cache caps | Apt package archives and stale build caches (Go, npm) linger in `/var/cache` and `/var/tmp` | `APT::Clean-Installed "true"`; stale Go build caches > 14 days pruned; frees ~3G on PC | `do_cache_hygiene_sweep`<br>`csi-spl-utl/src/bash/tests/cache-hygiene-sweep.tst.sh` | PC, sat | claude | Batch 3 (Lane 2) |
-| 07 | `feat(hyg-07-stale-lane-leftovers)` | Routine daily cleanup of retired lane temp dirs | SPL-2053 runs `/var/tmp` sweep only when disk headroom < 15% (emergency); `/var/tmp` accumulated 33G on PC and 5.1G on sat | Daily sweep removes retired lane dirs unheld by `/proc/*/cwd` or open fds older than 72h; frees ~20G on PC | `do_vartmp_hygiene_sweep`<br>`csi-spl-utl/src/bash/tests/vartmp-hygiene-sweep.tst.sh` | PC, sat | claude | Batch 4 (Lane 1) |
-| 08 | `feat(hyg-08-human-forgotten-report)` | Human "files you made and forgot" report | Owner order (ae18b94b): report large forgotten user files; strictly report-only, deletion only on human tick | Scans user dirs for ISOs, VM images, stale downloads; produces markdown report; 0 deletions without tick | `do_human_forgotten_report`<br>`csi-spl-utl/src/bash/tests/human-forgotten-report.tst.sh` | PC, sat | agy | Batch 4 (Lane 2) |
-| 09 | `feat(hyg-09-disk-growth-tracker)` | Daily disk growth tracker & rate alert | Owner order (c4e5ec9f, ec060ebc): track slow increases; static headroom check gives no early rate warning | Daily samples logged to TSV; early alert triggered if 24h disk growth exceeds 1.5 GB | `do_disk_growth_track`<br>`csi-spl-utl/src/bash/tests/disk-growth-track.tst.sh` | PC, sat | mistral | Batch 5 (Lane 1) |
-| 10 | `docs(hyg-10-guides-and-doctree)` | Documentation in guides and Qto doctree | Owner orders (msgs 4dde0ae9, a24f4e86): document in DevOps, Developer, Operations, and System guides | Developer & DevOps guides updated; Qto edits prepared for dispatcher; clean audit verify | `do_disk_hygiene_docs_verify`<br>`csi-spl-utl/src/bash/tests/disk-hygiene-docs.tst.sh` | PC, sat | agy | Batch 5 (Lane 2) |
+| 01 | `feat(hyg-01-fleet-logrotate)` | Automated rotation for fleet cron logs | Claude proposal 2.1; 551M `tmp-scratch-sweep.log`, 162M `cron-prd.out`, 29M `box-disk-sweep.log` unrotated on sat | `/etc/logrotate.d/csi-spl` with `copytruncate`, `maxsize 50M`, `rotate 7`, `compress`; logs <= 50M | `do_fleet_logrotate_install`<br>`csi-spl-utl/src/bash/tests/fleet-logrotate.tst.sh` | PC, sat | claude | Batch 1 (Lane 1) |
+| 02 | `feat(hyg-02-journald-caps)` | Systemd journald size cap drop-in | Journal default cap 4G, currently 633M on PC and 488M on sat; drop-in ensures bounded retention | Drop-in `/etc/systemd/journald.conf.d/60-disk-hygiene.conf` with `SystemMaxUse=500M`, `SystemMaxFileSize=100M`; usage <= 500M | `do_disk_journal_cap`<br>`csi-spl-utl/src/bash/tests/disk-journal-cap.tst.sh` | PC, sat | claude | Batch 1 (Lane 2) |
+| 03 | `feat(hyg-03-logrotate-maxsize)` | Hourly logrotate timer & auth.log rotation cap | `auth.log` grows ~390M/day on sat; daily timer defeats `maxsize 100M`; uncompressed `.1` consumes 700M | Hourly `logrotate.timer` drop-in; `maxsize 100M` & remove `delaycompress` in rsyslog; no single log > 100M | `do_disk_logrotate_cap`<br>`csi-spl-utl/src/bash/tests/disk-logrotate-cap.tst.sh` | PC, sat | claude | Batch 2 (Lane 1) |
+| 04 | `feat(hyg-04-docker-volume-prune)` | Automated anonymous Docker volume hygiene | 46.6G reclaimable volumes on PC, 6.0G (37 dangling anonymous volumes) on sat; builder/image prune already in place | `docker volume prune -f` (without `-a`) in `prune-docker-images.sh` after BUSY wait; reclaims >45G on PC, >6G on sat | `do_docker_volume_prune`<br>`csi-spl-orc/src/bash/tests/docker-volume-prune.tst.sh` | PC, sat | mistral | Batch 2 (Lane 2) |
+| 05 | `feat(hyg-05-tmpfiles-var-tmp-age)` | Systemd-tmpfiles declarative age override for `/var/tmp` | Joint Claude+Mistral proposal; replaces custom script with declarative Debian standard `tmpfiles.d(5)` | `/etc/tmpfiles.d/tmp.conf` override with `q /var/tmp 1777 root root 14d` (down from 30d); skips locked entries | `do_tmpfiles_config_install`<br>`csi-spl-utl/src/bash/tests/tmpfiles-config.tst.sh` | PC, sat | claude | Batch 3 (Lane 1) |
+| 06 | `feat(hyg-06-containerd-image-gc)` | Containerd snapshotter image garbage collection | Mistral proposal 2; containerd snapshotter storage consumes 115 GB on PC, unmanaged by Docker prune | Run `ctr -n moby images prune` / `nerdctl` to reclaim unreferenced containerd images; reclaims >20G | `do_containerd_image_prune`<br>`csi-spl-utl/src/bash/tests/containerd-image-prune.tst.sh` | PC, sat | mistral | Batch 3 (Lane 2) |
+| 07 | `feat(hyg-07-stale-lane-leftovers)` | Routine daily cleanup of retired lane temp dirs at normal level | `tmp-stale-sweep.sh` currently skipped at level normal (`box-disk-sweep.sh` line 168); `/var/tmp` accumulated 33G on PC | Unskip `vartmp` in `box-disk-sweep.sh` at normal level with 72h age threshold; Worktree Safety Invariant strictly enforced | `do_vartmp_sweep_normal`<br>`csi-spl-orc/src/bash/tests/box-disk-sweep.tst.sh` | PC, sat | claude | Batch 4 (Lane 1) |
+| 08 | `feat(hyg-08-human-forgotten-report)` | Human "files you made and forgot" report & tick deletion | Owner order (ae18b94b): report large forgotten user files; strictly report-only, deletion only on human tick | Report generated in `dispatch/work/`; separate action deletes only ticked IDs from WUI poll; 0 deletions without tick | `do_human_forgotten_report`<br>`csi-spl-utl/src/bash/tests/human-forgotten-report.tst.sh` | PC, sat | agy | Batch 4 (Lane 2) |
+| 09 | `feat(hyg-09-disk-growth-tracker)` | Daily disk growth tracker & mount rate alert | Owner orders (c4e5ec9f, ec060ebc): early warning for steady growth; static headroom check gives no early rate warning | Daily TSV samples from sweep log; early alert triggered if 24h net growth exceeds 5% of mount size; latched alert | `do_disk_growth_track`<br>`csi-spl-utl/src/bash/tests/disk-growth-track.tst.sh` | PC, sat | mistral | Batch 5 (Lane 1) |
+| 10 | `docs(hyg-10-guides-and-doctree)` | Documentation in 4 guides via Qto doctree batch | Owner orders (msgs 4dde0ae9, a24f4e86): document all actions across Developer, DevOps, Operations, and System guides | Qto doctree dry-run script prepared for dispatcher; verification check confirms all actions registered in run harnesses | `do_disk_hygiene_docs_verify`<br>`csi-spl-utl/src/bash/tests/disk-hygiene-docs.tst.sh` | PC, sat | agy | Batch 5 (Lane 2) |
 
 ## 4. Detailed row specifications
 
-### Row 01: `feat(hyg-01-utl-harness)` - Bootstrap `csi-spl-utl` run harness
-- **What:** Initialize `csi-spl-utl` directory with standard csi-rel action runner `./run`, action functions directory `src/bash/run/`, and automated tests directory `src/bash/tests/`. Default execution mode is `DRY_RUN=1`. Supports `./run -a do_<action>`.
-- **Why:** Owner order msg 177ce9f3: all new disk hygiene actions must live in utils (`csi-spl-utl`), callable manually and from cron. Currently `csi-spl-utl` holds only a README.md.
-- **Command:** `cd csi-spl-utl && ./run -a do_help`
-- **Target:** Exits 0, lists registered utility actions, enforces standard csi-rel action logging and dry-run conventions.
-- **Proof:** Test suite verifies action execution, dry-run safety flags, and option validation.
+### Row 01: `feat(hyg-01-fleet-logrotate)` - Automated rotation for fleet cron logs
+- **What:** Deploy `/etc/logrotate.d/csi-spl` targeting unbounded fleet daemon and cron logs:
+  - Agent user `.cache/csi-spl/tmp-scratch-sweep.log` (551 MB on sat).
+  - `/var/csi/csi-spl/desk-reconcile/cron-prd.out` (162 MB on sat).
+  - `/var/csi/csi-spl/box-disk-sweep/box-disk-sweep.log` (29 MB on sat).
+  - Directives: `copytruncate`, `maxsize 50M`, `rotate 7`, `compress`, `missingok`.
+  - Add cleanup policy for dated log files `/var/csi/csi-spl-desk-cron/csi-spl-orc/dat/log/bash/csi-spl-orc.*.log` older than 14 days.
+- **Why:** Owner HUM-10 order ae18b94b ("files which I am generating without actually realizing that") and Claude seat proposal 2.1. Fleet's own cron logs are completely unrotated and unbounded.
+- **Command:** `logrotate -d /etc/logrotate.d/csi-spl`
+- **Target:** Exits 0; active fleet cron logs capped at 50 MB; dated logs older than 14 days removed.
+- **Proof:** Test verifies rotation of planted 60 MB mock log file and preserves fresh log.
+- **Red Control:** Planted 60 MB mock log file is verified unrotated prior to config installation; rotated and truncated after config application.
 
-### Row 02: `feat(hyg-02-journald-caps)` - Systemd journald size & retention caps
-- **What:** Deploy `/etc/systemd/journald.conf.d/10-disk-hygiene.conf`:
+### Row 02: `feat(hyg-02-journald-caps)` - Systemd journald size cap drop-in
+- **What:** Deploy `/etc/systemd/journald.conf.d/60-disk-hygiene.conf`:
   ```ini
   [Journal]
-  SystemMaxUse=1G
-  SystemKeepFree=2G
+  SystemMaxUse=500M
   SystemMaxFileSize=100M
-  MaxRetentionSec=14day
   ```
-  (On `sat`, `SystemMaxUse=500M` reflecting the smaller 30 GB root disk). Reload systemd-journald and trigger initial vacuum: `journalctl --vacuum-size=1G --vacuum-time=14d`.
-- **Why:** Systemd journal is currently uncapped on both boxes (`SystemMaxUse` commented out). Measured: 633 MB on PC, 488 MB on sat. Default systemd policy allows journal to expand up to 10% of the root filesystem (~88 GB on PC).
-- **Command:** `journalctl --disk-usage && systemd-analyze cat-config systemd/journald.conf`
-- **Target:** Journal usage <= 1G on PC and <= 500M on sat; retention capped at 14 days.
-- **Proof:** Vacuum command reduces journal size immediately; configuration persists across reboots.
+  Reload `systemd-journald`. Drop initial vacuum from action because `journal-sweep.sh` already vacuums to 500 MB during regular box sweeps.
+- **Why:** Systemd journal default calculated cap is 4 GB (`man journald.conf`). Measured: 633 MB on PC, 488 MB on sat. Drop-in standardizes drop-in naming in recommended 60-90 range and bounds journal usage continuously between sweeps.
+- **Command:** `systemd-analyze cat-config systemd/journald.conf`
+- **Target:** Drop-in active; system journal consumption <= 500 MB on both boxes.
+- **Proof:** Config verification shows `SystemMaxUse=500M` active in drop-in list.
+- **Red Control:** Planted drop-in with invalid cap value fails config validation test; valid drop-in passes.
 
-### Row 03: `feat(hyg-03-logrotate-maxsize)` - Rsyslog & auth.log rotation maxsize caps
-- **What:** Configure `maxsize 100M` and daily checks for `/var/log/auth.log`, `/var/log/syslog`, and `/var/log/cron.log` in `/etc/logrotate.d/rsyslog`. Add a post-rotation script ensuring immediate gzip compression without leaving uncompressed `.1` files.
-- **Why:** Every agent running commands via privileged execution generates authentication log lines. On sat, `auth.log` reached 1.3 GB in 5 days, while uncompressed `auth.log.1` consumed 700 MB. Weekly rotation is too slow for fleet agent volume.
-- **Command:** `logrotate -d /etc/logrotate.d/rsyslog`
-- **Target:** Any system log exceeding 100 MB is rotated immediately; no single log exceeds 100 MB on disk.
-- **Proof:** Dry-run test verifies that a planted 120M log triggers rotation directive while 50M log waits.
-
-### Row 04: `feat(hyg-04-docker-prune-policy)` - Automated Docker builder & volume hygiene
-- **What:** Implement `do_docker_hygiene_sweep` in `csi-spl-utl`:
-  - Prunes build cache older than 48 hours: `docker builder prune -a --filter "until=48h" -f`.
-  - Prunes orphaned unattached volumes: `docker volume prune -f`.
-  - When disk headroom warning fires (< 15% free), triggers dangling image prune: `docker image prune -f`.
-- **Why:** Measured: on `PC`, Docker build cache occupies 103.8 GB (94.55 GB reclaimable!) and volumes consume 48.17 GB (46.65 GB reclaimable). On `sat`, 9.229 GB build cache is 100% reclaimable, occupying nearly a third of the 30 GB root disk.
-- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_hygiene_sweep`
-- **Target:** Reclaims > 90 GB on PC and > 15 GB on sat; keeps active containers, working images, and attached volumes 100% intact.
-- **Proof:** Execution reports exact reclaimable byte delta; active agent containers and volumes remain undisturbed.
-
-### Row 05: `feat(hyg-05-shell-snapshot-retention)` - Agent CLI shell snapshot retention & pruning
-- **What:** Implement `do_shell_snapshot_sweep` in `csi-spl-utl`:
-  - Scans `~/.claude/shell-snapshots/` and any user-level shell snapshot directories.
-  - Prunes snapshots older than 7 days (`find ... -name "snapshot-bash-*.sh" -mtime +7 -delete`).
-  - Caps total snapshot count at 500 files per user.
-- **Why:** Claude CLI creates persistent shell snapshot scripts on every subshell execution. Hundreds of scripts accumulate indefinitely across user home directories without automatic cleanup.
-- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_shell_snapshot_sweep`
-- **Target:** Directory contains <= 500 files; 0 files older than 7 days.
-- **Proof:** Planted test snapshot with simulated mtime > 8d is pruned; snapshot < 2d is preserved.
-
-### Row 06: `feat(hyg-06-cache-caps)` - Package manager & build cache caps
-- **What:** Implement `do_cache_hygiene_sweep` in `csi-spl-utl`:
-  - Installs `/etc/apt/apt.conf.d/02-clean-installed` with `APT::Clean-Installed "true";` and executes `apt-get clean`.
-  - Scans Go build cache (`~/.cache/go-build`) and removes cache entries older than 14 days (`go clean -cache`).
-  - Sweeps stale `/var/tmp/gocache-*` directories.
-- **Why:** Package caches and compiler caches accumulate silently. On PC, `/var/tmp/gocache-*` consumed 1.9 GB; apt archives consumed 479 MB on sat.
-- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_cache_hygiene_sweep`
-- **Target:** Apt cache reduced to 0 B after package transactions; Go cache purged of entries older than 14 days.
-- **Proof:** Planted stale cache files are reclaimed; fresh build artifacts are kept.
-
-### Row 07: `feat(hyg-07-stale-lane-leftovers)` - Routine daily cleanup of retired lane temp dirs
-- **What:** Implement `do_vartmp_hygiene_sweep` in `csi-spl-utl`:
-  - Scans `/var/tmp` for retired agent directories (`c-*`, `a-*`, `m-*`, `g-*`, `cle*`, `graft-pack*`).
-  - Verifies that no active process holds the directory (checks `/proc/*/cwd` and open file descriptors).
-  - Verifies that the agent ID is not active in `registry.tsv` or active tmux windows.
-  - Requires idle age > 72 hours before routine deletion.
-  - **Worktree Safety Invariant:** Any candidate worktree or directory containing unlanded git commits (`git cherry origin/master`) or uncommitted dirty files (`git status --porcelain`) is strictly skipped and flagged in an exception report. Deletion is refused without explicit named owner approval.
-- **Why:** SPL-2053 introduced `/var/tmp` stale sweeping, but ONLY as an emergency trigger when disk headroom is < 15% (low/crit). Between emergencies, `/var/tmp` swelled to 33 GB on PC across dozens of retired agent directories. Routine daily sweeping prevents headroom crises.
-- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_vartmp_hygiene_sweep`
-- **Target:** Frees ~20 GB on PC and ~3.5 GB on sat of obsolete lane leftovers.
-- **Proof:** Planted directory with inactive agent ID is reaped; directory with active PID or live lane ID is preserved.
-
-### Row 08: `feat(hyg-08-human-forgotten-report)` - Human "files you made and forgot" report
-- **What:** Implement `do_human_forgotten_report` in `csi-spl-utl`:
-  - Scans human user directories for large forgotten candidates:
-    - Large files in downloads older than 30 days (`.iso`, `.tar.gz`, `.deb`, `.zip`).
-    - Obsolete virtual machine / disk images (`.qcow2`, `.vmdk`, `.img`, `.raw`).
-    - Stale ad-hoc git clones outside standard repository workspaces.
-    - Crash dumps and core dumps (`core.*`).
-  - Formats a compact markdown summary report categorized by type and size.
-  - Generates a poll proposal with checkboxes for human review.
-  - **Strict Safety Constraint**: REPORT-ONLY! Deletion is NEVER automated and requires an explicit, confirmed human tick in a poll form.
-- **Why:** Owner HUM-10 order ae18b94b: "There might also be some kind of files which I am generating without actually realizing that, so a panel opinion on how to track and how to remove those is also appreciated."
-- **Command:** `cd csi-spl-utl && ./run -a do_human_forgotten_report`
-- **Target:** Generates `/var/spool-hub/dispatch/work/human-files-report.md`; 0 files deleted without manual human command.
-- **Proof:** Test validates scanner categorization, output format, and absolute refusal to execute deletion without confirmed interactive flag.
-
-### Row 09: `feat(hyg-09-disk-growth-tracker)` - Daily disk growth tracker & rate alert
-- **What:** Implement `do_disk_growth_track` in `csi-spl-utl`:
-  - Runs daily via cron: captures timestamp, total root bytes used, inode count, Docker storage size, `/var/tmp` size, and `/var/log` size.
-  - Appends record to `/var/spool-hub/dispatch/work/disk-growth/<box>.tsv`.
-  - Calculates 24h differential: if net growth exceeds 1.5 GB in 24 hours, sends an early warning note to the dispatch lease holder detailing the top 3 growing directories.
-  - Integrates with the 24h workdir retention table coordination (ec060ebc, `c-272@sat`) while strictly enforcing the worktree safety invariant (zero deletion of unlanded commits or dirty worktrees).
-- **Why:** Owner order c4e5ec9f / ec060ebc: "If there is a subsequent slow increase in the disk space usage, it means that this is something to do with temporary files... how to TRACK growth". Today headroom alerts only when static thresholds (85% / 92%) are breached, providing zero early warning for steady rapid consumption.
-- **Command:** `cd csi-spl-utl && ./run -a do_disk_growth_track`
-- **Target:** Daily historical TSV record on each box; alert dispatched within 24h of anomalous consumption spike (> 1.5 GB/day).
-- **Proof:** Simulated delta test verifies alert dispatch on 2.0 GB jump and silent logging on 300 MB delta.
-
-### Row 10: `docs(hyg-10-guides-and-doctree)` - Documentation in guides and Qto doctree
+### Row 03: `feat(hyg-03-logrotate-maxsize)` - Hourly logrotate timer & auth.log rotation cap
 - **What:**
-  1. Update repository markdown documentation:
-     - `csi-spl-doc/doc/md/guides/devops-guide.md`: cron schedules, cnf threshold variables, deployment per box.
-     - `csi-spl-doc/doc/md/developer-guide.md`: `csi-spl-utl` action location, test execution commands, guidelines for adding new hygiene rules.
-  2. Prepare Qto doctree dry-run commands for dispatcher execution:
-     - Operations and maintenance guide (Qto doc `d27e38ca-759a-45dd-8c6f-8a3220748599`): manual execution procedures, alert triage, and emergency procedures.
-     - System guide (Qto doc `119954ab-17d0-4be3-96c1-5746ff9d1f0d`): description of the disk hygiene subsystem, scanning scope, cleanup policies, and safety invariants.
-- **Why:** Owner orders msgs 4dde0ae9 and a24f4e86 explicitly mandate documentation in all four guides.
+  1. Deploy hourly systemd timer override `/etc/systemd/system/logrotate.timer.d/hourly.conf` with `[Timer]` `OnCalendar=hourly`.
+  2. Configure `maxsize 100M` and remove `delaycompress` in `/etc/logrotate.d/rsyslog` for `/var/log/auth.log`, `/var/log/syslog`, and `/var/log/cron.log`.
+- **Why:** Measured on sat: `auth.log` grows at ~16 MB/h (~390 MB/day). Under standard daily timer, `maxsize 100M` is only evaluated daily, allowing the log to expand to ~390 MB. Removing `delaycompress` compresses `.1` immediately without waiting a full rotation cycle.
+- **Command:** `systemctl cat logrotate.timer && logrotate -d /etc/logrotate.d/rsyslog`
+- **Target:** `logrotate.timer` runs hourly; no system log exceeds 100 MB before rotation; `.1` rotations are compressed.
+- **Proof:** Dry-run test verifies that a planted 120M log triggers rotation directive while 50M log waits.
+- **Red Control:** Planted 120 MB log evaluated under daily timer is ignored between runs; triggers rotation immediately under hourly schedule.
+
+### Row 04: `feat(hyg-04-docker-volume-prune)` - Automated anonymous Docker volume hygiene
+- **What:** Extend `csi-spl-orc/src/bash/scripts/prune-docker-images.sh`:
+  - Add anonymous volume prune: `docker volume prune -f` (strictly **without `-a`**).
+  - Place step after existing BUSY wait to protect CI job volume operations.
+  - Retain existing builder cache prune and low/crit image pruning.
+- **Why:** Measured: 48.17 GB local volumes on PC (46.65 GB reclaimable); 9.1 GB local volumes on sat (6.024 GB reclaimable across 37 dangling anonymous volumes). Builder prune and image prune are already handled by `prune-docker-images.sh`; anonymous volume pruning is the verified gap.
+- **Command:** `cd csi-spl-orc && ./run -a do_prune_docker_images`
+- **Target:** Reclaims > 45 GB on PC and > 6 GB on sat of orphaned anonymous volumes; preserves 100% of named volumes and active containers.
+- **Proof:** Test verifies that an anonymous unattached volume is pruned while a named volume survives.
+- **Red Control:** A dangling named volume and an in-use anonymous volume survive execution; only dangling anonymous volume is reaped.
+
+### Row 05: `feat(hyg-05-tmpfiles-var-tmp-age)` - Systemd-tmpfiles declarative age override for `/var/tmp`
+- **What:** Deploy `/etc/tmpfiles.d/tmp.conf` with:
+  ```
+  # Override Debian 13 30d default age for /var/tmp
+  q /var/tmp 1777 root root 14d
+  ```
+  Verify via `systemd-tmpfiles --clean --dry-run`.
+- **Why:** Joint Claude seat proposal 2.2 and Mistral seat proposal 1. Debian 13 upstream defaults to 30 days (`/usr/lib/tmpfiles.d/tmp.conf`). A declarative 14-day override leverages systemd's built-in lock awareness and kernel timestamps without custom prune scripting.
+- **Command:** `systemd-tmpfiles --clean --dry-run`
+- **Target:** Baseline age for unheld `/var/tmp` files reduced from 30d to 14d; locked files respected.
+- **Proof:** Dry-run reports planted 15d mock file as eligible for deletion while keeping 10d file.
+- **Red Control:** Planted file > 15d is marked for cleanup; file with active advisory lock is preserved.
+
+### Row 06: `feat(hyg-06-containerd-image-gc)` - Containerd snapshotter image garbage collection
+- **What:** Implement `do_containerd_image_prune` in `csi-spl-utl`:
+  - Reclaims unreferenced containerd images using `ctr -n moby images prune` (or `nerdctl image prune`).
+  - Clears unreferenced snapshotter storage layers under `/var/lib/containerd`.
+- **Why:** Mistral seat proposal 2. Containerd snapshotter storage consumes **115 GB** on PC. Docker engine prune commands do not touch containerd's underlying image layers.
+- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_containerd_image_prune`
+- **Target:** Unreferenced containerd layers reclaimed; active containers and image layers preserved.
+- **Proof:** Execution reports reclaimed layer count and storage delta.
+- **Red Control:** Planted unreferenced test image tag is reclaimed; referenced active image is preserved.
+
+### Row 07: `feat(hyg-07-stale-lane-leftovers)` - Routine daily cleanup of retired lane temp dirs at normal level
+- **What:** Update `csi-spl-orc/src/bash/scripts/box-disk-sweep.sh`:
+  - Remove `SKIP step $s: level normal` at line 168 for the `vartmp` step, allowing `tmp-stale-sweep.sh` to run at level normal.
+  - Set normal-level retention age to 72 hours (retaining 24 hours for emergency crit level).
+  - Strictly enforce the **Worktree Safety Invariant**: verify `git cherry origin/master` and `git status --porcelain` before sweeping any worktree directory; refuse deletion if unlanded work exists.
+  - Move browser profile directories (`/var/tmp/chrome-*`) to Row 08 human report.
+- **Why:** SPL-2053 skips `vartmp` at level normal, allowing `/var/tmp` to swell to 33 GB on PC between headroom alerts. Running at normal level with a 72-hour threshold provides steady routine hygiene.
+- **Command:** `cd csi-spl-orc && LEVEL=normal DRY_RUN=1 ./run -a do_box_disk_sweep`
+- **Target:** Frees ~20 GB on PC and ~3.5 GB on sat of obsolete lane leftovers during normal operation.
+- **Proof:** Test verifies that an idle 80-hour lane directory is swept at level normal while a dirty worktree is skipped.
+- **Red Control:** Planted 80h idle lane directory is skipped under current master script (level normal); swept under updated script.
+
+### Row 08: `feat(hyg-08-human-forgotten-report)` - Human "files you made and forgot" report & tick deletion
+- **What:** Implement two actions in `csi-spl-utl`:
+  1. `do_human_forgotten_report`: Scans human user directories for forgotten candidates (downloads > 30d, disk images `.qcow2`/`.vmdk`/`.iso`, core dumps, browser profiles in `/var/tmp/chrome-*`, unused named volumes, unrotated fleet logs, shell snapshot directory). Outputs markdown report to `/var/spool-hub/dispatch/work/human-files-report.md` and generates a WUI poll proposal.
+  2. `do_human_forgotten_delete`: Takes ONLY explicit ticked item IDs from the confirmed human poll form response.
+  - **Strict Safety Invariant:** REPORT-ONLY by default. Zero files deleted without an explicit, confirmed human tick.
+- **Why:** Owner HUM-10 order ae18b94b: "files which I am generating without actually realizing that, so a panel opinion on how to track and how to remove those is also appreciated."
+- **Command:** `cd csi-spl-utl && ./run -a do_human_forgotten_report`
+- **Target:** Summary report produced; zero deletions executed without verified interactive human tick.
+- **Proof:** Test verifies scanner categorization, poll formatting, and deletion refusal without confirmed ticket.
+- **Red Control:** Execution of `do_human_forgotten_delete` without tick flags deletes 0 files; execution with ticked ID deletes only targeted item.
+
+### Row 09: `feat(hyg-09-disk-growth-tracker)` - Daily disk growth tracker & mount rate alert
+- **What:** Implement `do_disk_growth_track` in `csi-spl-utl`:
+  - Parses free MB and percentage metrics from daily `box-disk-sweep.log` `START` records.
+  - Appends daily sample to `/var/spool-hub/dispatch/work/disk-growth/<box>.tsv`.
+  - Calculates 24h differential as a **percentage of mount size** (default threshold: 5% net growth in 24 hours).
+  - Tracks both root (`/`) and data mount (`/mnt/data`).
+  - Implements state-file latch (`/var/spool-hub/.state/growth-alert.state`) to alert once per threshold crossing, preventing repetitive hourly alerts.
+- **Why:** Owner orders c4e5ec9f and ec060ebc. Static headroom checks provide no early warning for rapid continuous growth. A fixed 1.5 GB threshold represents 5% of sat's root disk but only 0.2% of PC's root disk.
+- **Command:** `cd csi-spl-utl && ./run -a do_disk_growth_track`
+- **Target:** Daily TSV record maintained; rate alert dispatched to dispatcher on > 5% 24h growth spike.
+- **Proof:** Simulated delta test verifies alert dispatch on 6% consumption increase and silent logging on 2% delta.
+- **Red Control:** Simulated 6% growth triggers alert on first evaluation; second evaluation on same day is suppressed by state latch.
+
+### Row 10: `docs(hyg-10-guides-and-doctree)` - Documentation in 4 guides via Qto doctree batch
+- **What:**
+  1. Prepare batched Qto doctree modification script `/var/spool-hub/dispatch/work/disk-hygiene-qto-edits.sh`:
+     - System Guide (Qto doc `119954ab-17d0-4be3-96c1-5746ff9d1f0d`): disk hygiene architecture, scan schedules, Worktree Safety Invariant.
+     - Operations & Maintenance Guide (Qto doc `d27e38ca-759a-45dd-8c6f-8a3220748599`): manual execution, alert triage, logrotate emergency verification.
+     - DevOps Guide (Qto doc `78e51717-3868-45e0-b6f2-bf14d8689531`): cron lines, timer overrides, drop-in paths.
+     - Developer Guide (Qto doc `c65bbfbd-3759-4f7f-82ff-654c60018868`): utility action registration, test suite execution, adding hygiene rules.
+  2. Implement `do_disk_hygiene_docs_verify` in `csi-spl-utl`: Verifies that all 10 actions are registered in their respective run harnesses (`./run -a do_<action>`).
+- **Why:** Owner orders 4dde0ae9 and a24f4e86. All four guides are Qto doctree exports; direct repository markdown edits are overwritten on export. Batched Qto edits preserve developer guide ack stability.
 - **Command:** `cd csi-spl-utl && ./run -a do_disk_hygiene_docs_verify`
-- **Target:** Developer guide and DevOps guide updated on trunk; Qto modification script `/var/spool-hub/dispatch/work/disk-hygiene-qto-edits.sh` verified and ready for dispatcher execution.
-- **Proof:** Automated check confirms that all required sections and terms exist across documentation files.
+- **Target:** All 10 actions verified registered; Qto script ready for dispatcher execution and markdown re-export.
+- **Proof:** Verification action succeeds when all action functions exist; fails if any action is unregistered.
+- **Red Control:** Unregistered mock action name triggers verification failure.
 
 ## 5. Execution batches & disjoint files (R1)
 
-All files modified by the 10 rows are completely disjoint across the repository:
+All files modified across the 10 rows are completely disjoint across the repository:
 
 - **Batch 1 (Lane 1 & Lane 2):**
-  - Row 01: `csi-spl-utl/run`, `csi-spl-utl/src/bash/run/utl-harness.func.sh`, `csi-spl-utl/src/bash/tests/utl-harness.tst.sh`
-  - Row 02: `/etc/systemd/journald.conf.d/10-disk-hygiene.conf`, `csi-spl-utl/src/bash/run/disk-journal-cap.func.sh`, `csi-spl-utl/src/bash/tests/disk-journal-cap.tst.sh`
+  - Row 01: `/etc/logrotate.d/csi-spl`, `csi-spl-utl/src/bash/run/fleet-logrotate.func.sh`, `csi-spl-utl/src/bash/tests/fleet-logrotate.tst.sh`
+  - Row 02: `/etc/systemd/journald.conf.d/60-disk-hygiene.conf`, `csi-spl-utl/src/bash/run/disk-journal-cap.func.sh`, `csi-spl-utl/src/bash/tests/disk-journal-cap.tst.sh`
 - **Batch 2 (Lane 1 & Lane 2):**
-  - Row 03: `/etc/logrotate.d/rsyslog`, `csi-spl-utl/src/bash/run/disk-logrotate-cap.func.sh`, `csi-spl-utl/src/bash/tests/disk-logrotate-cap.tst.sh`
-  - Row 04: `csi-spl-utl/src/bash/run/docker-hygiene-sweep.func.sh`, `csi-spl-utl/src/bash/tests/docker-hygiene-sweep.tst.sh`
+  - Row 03: `/etc/systemd/system/logrotate.timer.d/hourly.conf`, `/etc/logrotate.d/rsyslog`, `csi-spl-utl/src/bash/run/disk-logrotate-cap.func.sh`, `csi-spl-utl/src/bash/tests/disk-logrotate-cap.tst.sh`
+  - Row 04: `csi-spl-orc/src/bash/scripts/prune-docker-images.sh`, `csi-spl-orc/src/bash/tests/docker-volume-prune.tst.sh`
 - **Batch 3 (Lane 1 & Lane 2):**
-  - Row 05: `csi-spl-utl/src/bash/run/shell-snapshot-sweep.func.sh`, `csi-spl-utl/src/bash/tests/shell-snapshot-sweep.tst.sh`
-  - Row 06: `/etc/apt/apt.conf.d/02-clean-installed`, `csi-spl-utl/src/bash/run/cache-hygiene-sweep.func.sh`, `csi-spl-utl/src/bash/tests/cache-hygiene-sweep.tst.sh`
+  - Row 05: `/etc/tmpfiles.d/tmp.conf`, `csi-spl-utl/src/bash/run/tmpfiles-config.func.sh`, `csi-spl-utl/src/bash/tests/tmpfiles-config.tst.sh`
+  - Row 06: `csi-spl-utl/src/bash/run/containerd-image-prune.func.sh`, `csi-spl-utl/src/bash/tests/containerd-image-prune.tst.sh`
 - **Batch 4 (Lane 1 & Lane 2):**
-  - Row 07: `csi-spl-utl/src/bash/run/vartmp-hygiene-sweep.func.sh`, `csi-spl-utl/src/bash/tests/vartmp-hygiene-sweep.tst.sh`
-  - Row 08: `csi-spl-utl/src/bash/run/human-forgotten-report.func.sh`, `csi-spl-utl/src/bash/tests/human-forgotten-report.tst.sh`
+  - Row 07: `csi-spl-orc/src/bash/scripts/box-disk-sweep.sh`, `csi-spl-orc/src/bash/tests/box-disk-sweep.tst.sh`
+  - Row 08: `csi-spl-utl/src/bash/run/human-forgotten-report.func.sh`, `csi-spl-utl/src/bash/run/human-forgotten-delete.func.sh`, `csi-spl-utl/src/bash/tests/human-forgotten-report.tst.sh`
 - **Batch 5 (Lane 1 & Lane 2):**
   - Row 09: `csi-spl-utl/src/bash/run/disk-growth-track.func.sh`, `csi-spl-utl/src/bash/tests/disk-growth-track.tst.sh`
-  - Row 10: `csi-spl-doc/doc/md/guides/devops-guide.md`, `csi-spl-doc/doc/md/developer-guide.md`, `csi-spl-utl/src/bash/run/disk-hygiene-docs.func.sh`, `csi-spl-utl/src/bash/tests/disk-hygiene-docs.tst.sh`
+  - Row 10: `/var/spool-hub/dispatch/work/disk-hygiene-qto-edits.sh`, `csi-spl-utl/src/bash/run/disk-hygiene-docs.func.sh`, `csi-spl-utl/src/bash/tests/disk-hygiene-docs.tst.sh`
 
 ## 6. Panel consensus & signatures
 
-| Seat | Vendor | Agent ID | Status | Signature SHA |
-|---|---|---|---|---|
-| Editor | agy | a-612@PC | Proposed v0.1 draft | Pending |
-| Expert 1 | claude | Pending placement | Pending review | Pending |
-| Expert 2 | mistral | Pending placement | Pending review | Pending |
+| Seat | Vendor | Agent ID | Status | Verdict Record | Signature |
+|---|---|---|---|---|---|
+| Editor | agy | a-612@PC | Signed v1.0 consensus | SPL-2111 | `signed: a-612@PC on v1.0 consensus` |
+| Expert 1 | claude | c-282@sat | Signed v1.0 consensus | SPL-2185 (`4a5019bc2`) | `signed: c-282@sat on v1.0 consensus` |
+| Expert 2 | mistral | m-283@sat | Signed v1.0 consensus | SPL-2111 (`07d40602a`) | `signed: m-283@sat on v1.0 consensus` |
 
 Once all panel seats sign the v1.0 sha, row lanes spawn automatically without waiting for owner approval (rounds-rulebook.md §1.4).

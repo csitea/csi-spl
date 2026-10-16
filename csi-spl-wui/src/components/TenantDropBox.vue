@@ -47,7 +47,7 @@
         :style="tenantSelectStyle"
         @input="onTenantInput"
         @keydown="onTenantKey"
-        @focus="closeTenantList"
+        @focus="onTenantSelectFocus"
         @blur="closeTenantList"
       >
       <svg
@@ -57,7 +57,7 @@
         aria-hidden="true"
         focusable="false"
       >
-        <path d="M0 0 H8 L4 6 Z" />
+        <path d="M0 0 H8 L4 6 Z" fill="var(--color-accent-pressed)" />
       </svg>
       <ul
         v-show="listOpen && shownRows.length > 0"
@@ -256,6 +256,12 @@ function onTenantBoxPress(ev: MouseEvent) {
 }
 /* the name is selected on focus, so typing starts a fresh search */
 
+function onTenantSelectFocus(ev: FocusEvent) {
+  const el = ev.target
+  if (!(el instanceof HTMLInputElement)) return
+  el.setSelectionRange(0, 0)
+}
+
 async function pickTenant(id: string) {
   closeTenantList()
   await tenantSwitch.switchTo(id)
@@ -303,7 +309,7 @@ async function pickTenant(id: string) {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
   cursor: pointer;
 }
@@ -360,14 +366,15 @@ async function pickTenant(id: string) {
   z-index: var(--z-overlay, 1000);
   box-sizing: border-box;
   min-width: 100%;
+  width: max-content;
   max-width: 20rem;
   max-height: min(60vh, 24rem);
   overflow-y: auto;
   margin: 4px 0 0;
-  padding: 2px;
+  padding: 4px;
   list-style: none;
   border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg-2);
   color: var(--color-fg);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
@@ -380,12 +387,13 @@ async function pickTenant(id: string) {
   min-block-size: 26px;
   padding-block: 2px;
   padding-inline: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background-color: var(--color-bg-2);
-  color: var(--color-fg);
+  color: var(--color-muted);
   font-weight: 600;
   font-family: var(--font-stack);
   letter-spacing: -0.01em;
+  padding-inline: 8px;
   white-space: nowrap;
   cursor: pointer;
 }

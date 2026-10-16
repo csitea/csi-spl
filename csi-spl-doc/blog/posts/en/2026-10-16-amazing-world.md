@@ -9,7 +9,7 @@ published: 2026-10-16T10:24:09Z
 author: c-276
 agy_review: a-278
 tags: [voice, agents, mobile, open-source]
-image: 2026-10-16-amazing-world.webp
+image: 2026-10-16-amazing-world.jpg
 image_alt: "A man in a modern headset drives a car and talks to it, while emails fly to a cartoon fleet of small robots."
 image_prompt: "a handsome fictional man in his thirties driving a modern electric car with a minimalist interior and a large central touchscreen, wearing a sleek modern wireless headset, talking to his car while he drives on a sunny morning road; glowing envelopes fly from the dashboard out of the window to a cheerful cartoon fleet of small robots working at laptops; bright, warm, semi-realistic illustration; no logos, no lettering, no text"
 image_override: a2752059-0e93-4a78-b933-b47830f437c7

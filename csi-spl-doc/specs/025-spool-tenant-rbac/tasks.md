@@ -47,4 +47,18 @@
 
 - [x] T070 spec <-> code audit, n = 10 permissions + every FR and task row. Implemented claims with no code: none. Fixed in the docs: `threads.read` -> `topics.read` (0029); §3.1/FR-005 list the edit, reaction, channel-member-remove and channel fan-out gates the code enforces (`grep -rn 'rbac\.' internal/hub`); FR-006 `tenant_id`; FR-007 `bad_email`; FR-009 eight ids; §9 role picker shipped; T012 mail wired (T060). Status: FR-010 / T030 stays **Planned** (no in-tenant billing route: `internal/payments/handler.go` registers only plan, checkout, claim and webhooks). `billing.manage`, `tenant.settings`, `keys.manage`, `audit.read` are seeded and checked nowhere, as §3.1 says.
 
-<!-- version: 1.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:00Z -->
+## Phase 8: several roles per member, DevOps and Operator (spec §10, SPL-2192)
+
+Rows, files, order and tests: spec §10.6 (one lane each). Data: `data-model.md`.
+
+- [x] T080 spec §10 + `data-model.md` + 074 §12 (c-287, SPL-2192). Check: this commit.
+- [ ] T081 R1 multi-role data + store (`tenant_member_roles`, `tenant_invite_roles`, triggers 1-2, union authorizer). Check: `TestTenantMemberRolesUnion`, `TestTenantMemberRolesTriggers` (POSTGRES).
+- [ ] T082 R2 role-by-name checks A5-A18, A20 + members API `roles[]`. Check: `TestRBACMembersAPIRoles`.
+- [ ] T083 R3 `devops` + `operator`, `operator.*` permissions, `operatorDoor`, staff route, last-devops, seating migration. Check: `TestOperatorRoutesDevOpsOnly`, `TestDevOpsNoContent`, `TestOperatorOnlyRoleOutsideOperatorWS`, `TestOperatorStaffGrant`, `TestDevOpsMigrationSeating`.
+- [ ] T084 R4 orc + CLI multi-role (`MEMBER_ROLES=`, `INVITE_ROLES=`, `--role a,b`, `SPL_ROLE_IDS`).
+- [ ] T085 R5 WUI multi-select picker, operator pane on `devops` / `operator`, devops-only shell, 19 locales, agy review last.
+- [ ] T086 R6 seat the new t1 member: developer + operator + regular_user + devops in t1; developer + regular_user in devin and demo (operator action, owner's go for prd).
+- [ ] T087 R7 docs: ticks here and in 074, roles help page, API doc.
+- [ ] T088 the owner's answer to the Operator poll (074 §12.2) folded into R3's `operator` grants.
+
+<!-- version: 1.4.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->

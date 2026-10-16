@@ -306,9 +306,9 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
   their grants; no model migration (the columns and RLS exist). Needs a
   composite FK or trigger so a membership can only name a role visible to its
   tenant.
-- **Several roles per member**: a `tenant_member_roles (tenant_id, human_id,
-  role_id)` table; the authorizer takes the union. `tenant_memberships.role`
-  becomes the primary role.
+- **Several roles per member**: specified in §10 (SPL-2192, 2026-10-16):
+  a `tenant_member_roles` table, the authorizer takes the union,
+  `tenant_memberships.role` stays as the primary role.
 - **Custom-role editor in the WUI**. The per-member role picker and the
   invite dialog's role picker already shipped (FR-012, 71ffc23,
   `UserEditPane.vue`).
@@ -316,4 +316,250 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
   `audit.read` permission reads.
 - **Agent-side permissions** (a box agent's allowed kinds / targets).
 
-<!-- version: 1.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:00Z -->
+## 10. Several roles per member; the DevOps and Operator roles (SPL-2192, 2026-10-16)
+
+Status: **Planned, not built yet**. Tables, migrations and shapes:
+[`data-model.md`](data-model.md). The operator-workspace side:
+[074 §12](../074-operator-workspace/spec.md#12-devops-and-operator-who-holds-the-operator-routes-spl-2192).
+Code facts below were read on `bba5cedb6`.
+
+### 10.1 Owner orders (HUM-10, the owner's terminal, 2026-10-16 ~08:3x-08:5xZ, relayed verbatim by c-001)
+
+The new member's address is left out on purpose (public repository).
+
+> "add also <a new person> as admin of the t1 workspace" / "and to all of the
+> channels" / "<he> should be admin as me ..." / "but it is the case that we
+> could make it so that he will not see the csitea workspace" / "even if he ia
+> sadmin" / "or do we need a new role root ;o) !?!" / "no we should invent a
+> new role - DevOps" (msg e9bd19c9)
+
+> "so he should be both Developer , Operator , Regular User and DevOps"
+> (msg beb3f52a)
+
+> "DevOps would be like admin , but cannot actually SEE what is the workspace
+> , but CAN manipulate workspaces as big objects .." (msg e5a7b7fe)
+
+> "Operator is a differnt role than DevOps - imagine it like off shore support
+> - less "wise tasks"" (msg 40333594)
+
+Interim, owner pick A (c-001 msg b7abdb91): the new member's open t1
+invite is role `developer` until this is built (row R6).
+
+Measured by c-001 on prd, n=1, and re-read in the code here:
+
+- One membership holds ONE role: `tenant_memberships.role` (rdb 0006/0021).
+- Every t1 member whose role is exactly `admin` gets every `/v1/operator/*`
+  session route: `internal/hub/operator_workspaces.go:103`
+  (`a.Role != rbac.Admin` → 403). `GET /v1/operator/workspaces` lists every
+  workspace of the instance. No per-workspace hide flag exists, so a second t1
+  admin sees csitea and every customer workspace. This is the problem.
+- No role named `operator` exists (`rbac.RoleIDs`, `internal/rbac/rbac.go:83`).
+
+### 10.2 Several roles per member
+
+1. A member holds a SET of one or more roles in a workspace. Its permissions
+   are the UNION of the set's grants; it is the tenant owner when any role in
+   the set is a `tenant_owner` role.
+2. One role of the set is the **primary**: `tenant_memberships.role`, kept as
+   a column. It is shown first and is what the exclusive-role code reads.
+3. `demo_user` and `channel_guest` are **exclusive**: a set holding one holds
+   nothing else (trigger, data-model §2.3). So every check on those two
+   (§10.4 list B) stays correct unchanged.
+4. **No escalation over sets** (§3.4 extended): an actor may give a set S only
+   when `perms(⋃S) ⊆ perms(actor)`, and may change or remove a member whose
+   current set is Q only when `perms(⋃Q) ⊆ perms(actor)`. The tenant owner
+   covers everyone, as `Access.Covers` does today. Operator-only roles are
+   outside this rule: §10.3 rule 4.
+5. The last-owner and last-admin guards (§3.4 rule 3, FR-011) count members
+   whose SET holds a tenant-owner role / grants `members.invite`.
+6. API: `PUT /v1/members/{human_id}/roles {roles[], primary?, from_roles?}`;
+   the one-role `PUT .../role` stays for old clients and scripts;
+   `GET /v1/view/me` and `GET /v1/members` add `roles[]`; an invite takes
+   `roles[]` (data-model §4).
+7. WUI: the role picker in `UserEditPane.vue` and in the invite form becomes
+   a multi-select (checkboxes) with a "primary" pick; a role the actor may not
+   grant is shown disabled, as today (`grantable`). The user menu shows every
+   role, the primary first.
+8. Operator tooling: `do_spl_tenant_member_role MEMBER_ROLES=a,b[,c]`
+   (`MEMBER_ROLE=` stays, one role), `do_spl_hub_invite INVITE_ROLES=`,
+   `spool hub-invite --role a,b`. `SPL_ROLE_IDS`
+   (`csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:684`) gains `devops`
+   and `operator`; the actions refuse those two outside the operator
+   workspace.
+
+### 10.3 The DevOps and Operator roles
+
+Two new system roles, both **operator-only** (`rbac_roles.operator_only`):
+valid ONLY in the operator workspace (`tenants.is_operator`, t1 on prd).
+Granting either elsewhere is `400 operator_only_role` (store and trigger).
+
+| role id | display | what it is |
+|---|---|---|
+| `devops` | DevOps | "like admin, but cannot actually SEE what is the workspace, but CAN manipulate workspaces as big objects": every operator operation of the table in 074 §12.2, and no workspace content |
+| `operator` | Operator | "off shore support - less wise tasks": a routine subset of the same operations (074 §12.2, the owner picks by the poll there), and no workspace content |
+
+Rules:
+
+1. **Only these roles carry the operator routes.** Every `/v1/operator/*`
+   SESSION route checks its own `operator.*` permission (074 §12.3), granted
+   to `devops` and, for the subset, to `operator`. No other role holds an
+   `operator.*` permission. The id-token / env service account routes of
+   `internal/hub/operator.go` (invites, replay, repairs) stay outside RBAC as
+   §3.4 rule 4 says.
+2. **A t1 `admin` becomes a plain workspace admin.** It keeps every §3.2
+   grant inside t1 and loses the operator routes, unless its set also holds
+   `devops` or `operator`. The 074 rule "admin of the operator workspace, not
+   biz owner" (074 §4.1, FR-012) is replaced by "devops of the operator
+   workspace"; a `biz_owner` without devops is still refused.
+3. **No workspace content.** Neither role holds any §3.1 / §3.2 permission:
+   not `topics.read`, `notes.send`, `docs.read`, `members.invite`, nothing.
+   So a member holding ONLY `devops` and/or `operator` cannot read or write a
+   channel, topic, message, doc, issue, file or the member list in t1 or in
+   any workspace it manages; in a workspace it is not a member of, the door
+   refuses before RBAC (`403 tenant_mismatch` / `not_member`). A member who
+   ALSO holds e.g. `developer` in t1 sees t1's content through that role,
+   never another workspace's. 074 D4 ("metadata and members only") narrows
+   to metadata only for these roles: 074 §12.4.
+4. **Only a devops grants or removes `devops` or `operator`**, through
+   `PUT /v1/operator/staff/{human_id} {add[], remove[]}`, permission
+   `operator.roles` (devops only). The members API (`PUT .../roles`) never
+   adds or removes an operator-only role: a t1 `admin` or `biz_owner` cannot
+   make a devops (`403 forbidden`, permission `operator.roles`), and its role
+   edits keep the operator-only roles already in the set.
+5. **Never without a devops**: removing or disabling the last enabled member
+   holding `devops` is `409 last_devops` (store, under the tenant row lock,
+   like `last_owner`).
+6. **The door.** Today every operator route enters through `humanTenant`,
+   which demands `topics.read` (`internal/hub/resolve.go:109`); `GET
+   /v1/view/me` does too (`internal/hub/rbac.go:122`). A devops-only member
+   holds no `topics.read`, so both move to an `operatorDoor`: a member
+   session whose active workspace is the operator workspace, no `topics.read`
+   asked, then the route's `operator.*` permission. `/v1/view/me` answers such
+   a member `{role, roles[], permissions[]}` and nothing else.
+7. **The migration keeps every current power** (data-model §2.5): every
+   enabled t1 `admin` and the t1 tenant owner (HUM-10 on prd) get `devops`
+   added at apply time. Nobody loses the operator routes on the day it lands;
+   HUM-10 gains them on the owner's own account.
+8. **Self-hosted first run** (074 FR-016): the first account of a fresh
+   instance gets `biz_owner` + `admin` + `devops` in the first workspace.
+
+The new member (§10.1): `developer` + `operator` + `regular_user` + `devops`
+in t1 (row R6). In the devin and demo workspaces the new member holds "the same roles ...
+as in the spool-hub" (owner, c-001 msg 9e598b09) MINUS the two
+operator-only ones, which are invalid there: `developer` + `regular_user`.
+Same rule for anyone: a role set copied to another workspace drops
+`devops` and `operator`.
+
+### 10.4 Every role-by-name check, and what it becomes
+
+Measured on `bba5cedb6`; commands:
+`grep -rnE 'rbac\.(BizOwner|ProductOwner|Admin|Developer|Tester|PureAgent|BizCustomer|RegularUser|DemoUser|ChannelGuest)\b' --include=*.go csi-spl-api | grep -v _test.go`
+→ 46 lines;
+`grep -rnE '\.Role (==|!=)' --include=*.go csi-spl-api | grep -v _test.go`
+plus the `m.role` reads of `internal/store`. Lines that compare
+`wire.RoleBox`, `store.OdRole` or a fleet ask's role are not workspace roles
+and are left out.
+
+**A. Checks that change** (a member may now hold the role as a NON-primary
+one; 22 Go sites + WUI + orc):
+
+| # | file:line | today | after | row |
+|---|---|---|---|---|
+| A1 | `internal/hub/operator_workspaces.go:103` | `a.Role != rbac.Admin` → 403 | `operatorDoor` + the route's `operator.*` permission | R3 |
+| A2 | `internal/hub/fleet_load.go:122` | session path via `operatorActor` (A1) | `operator.fleet.read` / `operator.fleet.write` | R3 |
+| A3 | `internal/hub/operator_workspaces.go:244` | `first_admin_role` ∈ `rbac.RoleIDs` | also refuse an operator-only role (a new workspace is never the operator one) | R3 |
+| A4 | `internal/hub/members_admin.go:156` | grantable = every `rbac.RoleIDs` | operator-only roles listed `grantable:false`, `operator_only:true` | R3 |
+| A5 | `internal/hub/demo_audit.go:143` | operator workspace and `a.Role == rbac.Admin` | `a.Has(rbac.Admin)` (stays the t1 admin's: the demo audit is post content, not an object op) | R2 |
+| A6 | `internal/hub/wsdoc_tree.go:206` | `a.Role == rbac.Admin` | `a.Has(rbac.Admin)` (writes t1 docs: content) | R2 |
+| A7 | `internal/hub/embed_staff.go:63` | `TenantOwner \|\| a.Role == rbac.Admin` | `TenantOwner \|\| a.Has(rbac.Admin)` | R2 |
+| A8 | `internal/hub/topic_archive.go:156` | same | same | R2 |
+| A9 | `internal/hub/topic_archive.go:173` | same | same | R2 |
+| A10 | `internal/hub/calendar_sync.go:253` | `slices.Contains(roadmapApproverRoles, a.Role)` | `a.HasAny(roadmapApproverRoles...)` | R2 |
+| A11 | `internal/hub/roadmap_switch.go:83` | same | same | R2 |
+| A12 | `internal/hub/message_kind.go:128` | `kindSetterRoles[a.Role]` | `a.HasAny(rbac.BizOwner, rbac.Admin)` | R2 |
+| A13 | `internal/hub/view.go:380` | `m.Role == rbac.BizOwner` | `slices.Contains(m.Roles, rbac.BizOwner)` | R2 |
+| A14 | `internal/hub/actas.go:195` | `targetAcc.Role == ""` | `len(targetAcc.Roles) == 0`; the act-as ceiling (`CoversAccess`) already works on permissions | R2 |
+| A15 | `internal/hub/rbac.go:133` | `/v1/view/me` `role` | + `roles[]` | R2 |
+| A16 | `internal/hub/realm.go:52`, `:129` | `realmNotPerson[m.Role]` | not a person only when EVERY role of the set is in the map | R2 |
+| A17 | `internal/hub/realm_hours_write.go:108`, `:131` | `m.Role != realmTimeAccountant` | `!slices.Contains(m.Roles, realmTimeAccountant)` | R2 |
+| A18 | `internal/hub/realm_hours_read.go:236` | same | same | R2 |
+| A19 | `internal/hub/roadmap_goal_docs.go:132` | goal `OwnerRole` ∈ `rbac.RoleIDs` | refuse an operator-only role as a goal owner | R3 |
+| A20 | `internal/invitemail/invitemail.go:193` | `rbac.Legacy(role) == rbac.BizOwner` | any role of the invite's set | R2 |
+| A21 | `internal/store/embed_staff.go:119`, `:123` | `m.role = ANY (biz_owner, admin)` | `EXISTS` on `tenant_member_roles` | R1 |
+| A22 | `internal/store/hours_sweep.go:91` | `hoursNoRow[role]` | no row only when every role of the set is in the map | R1 |
+| W1 | `csi-spl-wui/src/utils/access.mjs:15` | `ROLE_IDS` (8 ids) | + `devops`, `operator`; `me.roles` | R5 |
+| W2 | `csi-spl-wui/src/stores/operator-pane.ts:30` | probe skipped when `role !== 'admin'` | probe when `me.roles` holds `devops` or `operator`; read from the access store, so `ChannelSidebar.vue:887` needs no edit | R5 |
+| W3 | `csi-spl-wui/src/components/ActAsPicker.vue:75`, `:76` | `m.role === 'biz_owner' / 'admin'` | on `roles[]` | R5 |
+| W4 | `csi-spl-wui/src/utils/sidebar-row-menu.mjs:70` | `me.role === 'admin'` | `me.roles.includes('admin')` | R5 |
+| W5 | `csi-spl-wui/src/components/UserEditPane.vue:37-38`, `:84-86`, `:92` | one `<select>` | multi-select + primary | R5 |
+| W6 | `csi-spl-wui/src/utils/tenant-users-mock.mjs:59,79,86,107,108,115,117,135,137` | mock on `role` | mock on `roles[]` | R5 |
+| O1 | `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:684` | `SPL_ROLE_IDS` | + `devops\|operator`; multi-role actions (§10.2 rule 8) | R4 |
+
+**B. Exclusive-role reads that stay unchanged** (`demo_user`,
+`channel_guest`: alone in their set by §10.2 rule 3; the primary is the only
+role): `internal/auth/tenant.go:327`, `internal/auth/demo_pseudonym.go:20`,
+`internal/hub/demo.go:26`, `:66`, `internal/hub/demo_quota.go:43`,
+`internal/hub/sign_in_emails.go:96`, `internal/hub/rbac.go:389`,
+`internal/store/demo_stay.go:68`, `:166`, `:197`, `:202`, `:258`,
+`internal/store/demo_pseudonym_auth.go:18`,
+`internal/store/humans_memory.go:116`, `:231`, `:252`,
+`internal/store/humans_postgres.go:274`, `:353`, `:363`, `:789`,
+`internal/store/memberships.go:64`, `:148`,
+`internal/store/member_directory.go:84`, `:168`,
+`internal/store/search_postgres.go:654`, `internal/store/seats_postgres.go:60`,
+`internal/store/embed_visitors.go:108`, `internal/store/embed_signin.go:86`,
+`internal/store/embed_visitor_messages.go:127`, rdb `0172_embed_staff.sql:59`.
+30 sites. R1's test proves the premise (a second role next to either is
+refused).
+
+**C. Store reads and writes of the role that move to the set** (row R1):
+`internal/store/humans_rbac.go:49`, `:64`, `:100`, `:103`, `:106`, `:109`,
+`:128`, `:131` (memory guards: owner, admin, from-role, set);
+`internal/store/humans_rbac_postgres.go:42-43`, `:55`, `:75` (the joins on
+`m.role`); `internal/store/clones.go:65`;
+`internal/store/tenant_settings.go:225`, `:256`, `:264` and
+`internal/store/access_until.go:93` (`memLockoutGuard`: last owner / admin
+over the set); `internal/store/memberships.go:65`, `:142`,
+`internal/store/member_directory.go:87`, `:162`,
+`internal/store/humans_postgres.go:258`, `:539`,
+`internal/store/humans_memory.go:380` (add `Roles`). 23 sites.
+
+### 10.5 Tests that prove it (each with a red control)
+
+| test | row | proves | red control |
+|---|---|---|---|
+| `TestTenantMemberRolesUnion` (memory + POSTGRES) | R1 | a member with `tester` + `developer` holds `agents.command`; removing `developer` drops it on the next request (no membership cache) | the authorizer reads the primary only → red |
+| `TestTenantMemberRolesTriggers` (POSTGRES) | R1 | a legacy `UPDATE tenant_memberships SET role` keeps the extra roles; `demo_user` + another role is refused | drop the trigger in the test db → red |
+| `TestRBACMembersAPIRoles` | R2 | set escalation: an admin cannot give `{developer, biz_owner}`; last owner / last admin over sets; `409 role_changed` on `from_roles` | `Covers` on the primary only → red |
+| `TestOperatorRoutesDevOpsOnly` (POSTGRES) | R3 | t1 `admin` without devops: 403 naming the route's `operator.*` permission on every `/v1/operator/*` session route; `devops`: 200; `operator`: 200 on its subset, 403 on the rest; `biz_owner` 403 | restore `a.Role == rbac.Admin` as an alternative gate → red |
+| `TestDevOpsNoContent` (POSTGRES) | R3 | a devops-only (and an operator-only) session gets 403 `topics.read` on `GET /v1/view/channels`, the WUI socket upgrade, search, `GET /v1/members`, the docs and files routes of t1; and 403 `tenant_mismatch` / `not_member` on another workspace's content routes; `GET /v1/operator/workspaces/{id}` answers no member, channel or message field | grant `topics.read` to `devops` in the test's `Defaults` → red |
+| `TestOperatorOnlyRoleOutsideOperatorWS` (POSTGRES) | R3 | `devops` / `operator` refused (`400 operator_only_role`) in any other workspace, by the store AND by the trigger on a raw insert | remove the trigger → the raw insert passes → red |
+| `TestOperatorStaffGrant` | R3 | only `operator.roles` adds / removes devops or operator; a t1 admin or biz_owner 403; `409 last_devops` | grant `operator.roles` to `admin` → red |
+| `TestDevOpsMigrationSeating` (POSTGRES) | R3 | after the migration, every t1 admin and the t1 tenant owner hold `devops`; nobody else does | seat only admins → the owner case red |
+| WUI unit + e2e (mock bundle) | R5 | multi-select saves `roles[]`; a devops-only reader sees the operator pane and no channel list; a t1 admin without devops sees no operator pane | `operatorConsoleVisible` on `role === 'admin'` → red |
+
+### 10.6 Build rows (one lane each, disjoint files, in this order)
+
+| row | kind | files | depends | test (red control in §10.5) |
+|---|---|---|---|---|
+| **R1** multi-role data + store | complex_coding | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_member_roles.sql`; `internal/rbac/rbac.go` (`Access.Roles`, `Has`, `HasAny`, union, `FixedSet`); `internal/store/humans.go`, `humans_rbac.go`, `humans_rbac_postgres.go`, `humans_memory.go`, `humans_postgres.go`, `memberships.go`, `member_directory.go`, `clones.go`, `tenant_settings.go`, `access_until.go`, `embed_staff.go`, `hours_sweep.go` | — | `TestTenantMemberRolesUnion`, `TestTenantMemberRolesTriggers`, `TestRBACSeedMatchesDefaults`; `PRE_PUSH_TIER=full` (POSTGRES) |
+| **R2** the rbac checks + members API | complex_coding | `internal/hub/rbac.go`, `members_admin.go` (roles only, not A4), `view.go`, `actas.go`, `embed_staff.go`, `topic_archive.go`, `calendar_sync.go`, `roadmap_switch.go`, `message_kind.go`, `demo_audit.go`, `wsdoc_tree.go`, `realm.go`, `realm_hours_write.go`, `realm_hours_read.go`; `internal/invitemail/invitemail.go` | R1 | `TestRBACMembersAPIRoles`, the existing `TestRBACPerRoleEntryPoints` / `TestRBACMembersAPI` / `TestMembersAdminAPI` green |
+| **R3** devops + operator roles, the operator gate | complex_coding | `csi-spl-rdb/.../<next>_devops_operator_roles.sql` (perms, roles, `operator_only`, trigger 3, seating); `internal/rbac/rbac.go` (ids, `Defaults`, `RoleIDs`, `operator.*` perms); `internal/hub/operator_workspaces.go`, `fleet_load.go`, new `operator_staff.go`, `resolve.go` (`operatorDoor` only), `members_admin.go` A4, `roadmap_goal_docs.go` A19; store last-devops guard | R1, R2 | `TestOperatorRoutesDevOpsOnly`, `TestDevOpsNoContent`, `TestOperatorOnlyRoleOutsideOperatorWS`, `TestOperatorStaffGrant`, `TestDevOpsMigrationSeating`; POSTGRES. Reports the seating list (data-model §2.5) for dev and prd before the apply |
+| **R4** orc + CLI | simple_coding | `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh` (`SPL_ROLE_IDS`), `spl-tenant-member-role.func.sh`, `spl-hub-invite.func.sh` and their tests; `cmd/spool/hub.go` (`--role a,b`) | R1 (R3 for the two new ids) | orc tests: `MEMBER_ROLES=developer,devops` refused outside the operator workspace (red control: drop the check) |
+| **R5** WUI picker + operator pane + i18n | complex_coding, then i18n | `csi-spl-wui/src/utils/access.mjs`, `stores/operator-pane.ts`, `utils/operator-console.mjs`, `components/UserEditPane.vue`, `components/ActAsPicker.vue`, `utils/sidebar-row-menu.mjs`, `utils/tenant-users-mock.mjs`, the devops-only shell (no socket, the operator pane alone), `role.devops` / `role.operator` + picker strings in all 19 locales. NOT `ChannelSidebar.vue` (c-635) nor `pages/issues.vue` | R2, R3 on dev | unit + e2e on the mock bundle; `pnpm run typecheck`; agy review of the strings LAST (`LANE_MIX_KIND=i18n`) |
+| **R6** seat the new member | operator action, no code | none: c-001 runs `do_spl_tenant_member_role MEMBER_ROLES=developer,operator,regular_user,devops` for the new member in t1, and `MEMBER_ROLES=developer,regular_user` in devin and demo, dev then prd, with the owner's go (msg id) for prd. If the t1 invite is still open then, re-issue it with `do_spl_hub_invite INVITE_ROLES=…` instead | R3 + R4 live on dev and prd | `GET /v1/view/me` as that member lists the four roles in t1 (or `do_spl_hub_member_list`), n=1 per env |
+| **R7** docs | specs_and_docs | `025/tasks.md` and `074/tasks.md` ticks, `074/spec.md` FR status, the roles help page and the API doc (`x-role: operator` routes name their `operator.*` permission) | R1-R5 | links and greps in the commit |
+
+The operator poll (074 §12.2) changes only the `operator` grants in R3's
+migration and `rbac.Defaults`. If R3 has landed when the answer comes, the
+change is a new migration (§7: "a changed answer is a new migration").
+
+### 10.7 Open
+
+| # | decision | recommendation |
+|---|---|---|
+| OPEN-1 | Which operations may an Operator do, apart from DevOps? (074 §12.2, the poll) | list, read, rename/settings, fleet-load read; not create, billing, suspend/resume, archive, box-join, fleet-load write, staff grants |
+| OPEN-2 | The demo post audit (A5) and the t1 repo-docs writer (A6) are t1-admin powers today, not object operations: do they stay with the t1 `admin`? | yes, they stay with `admin` (content, not objects) |
+| OPEN-3 | The estate cost view (`internal/hub/cost_read.go:140`, `costs.read` in the operator workspace) is instance-wide money data: move it to devops? | no change now (it reads costs, not workspace content); ask when R3 lands |
+
+<!-- version: 1.3.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->

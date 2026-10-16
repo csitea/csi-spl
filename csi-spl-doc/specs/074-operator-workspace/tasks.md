@@ -35,4 +35,7 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 ### Phase 5: Self-Hosted & Open-Source Bootstrap
 - [ ] T010 **self-hosted first-run**: bootstrap logic in `csi-spl-api/src/docker/hub-entrypoint.sh` and `docker-compose.yml` automatically designating the first created workspace as the operator workspace and giving initial account the `admin` role. Done: AC10 clean compose boot test passes.
 
-<!-- version: 0.5.1 · updated: 2026-10-04 · last-edit: 2026-10-04T21:00:00Z -->
+### Phase 6: DevOps and Operator hold the operator routes (spec §12, SPL-2192)
+- [ ] T011 **operator gate by role permission**: built as 025 rows R3 (gate, roles, `operatorDoor`, staff route) and R5 (operator pane on `devops` / `operator`); task status lives in 025 `tasks.md` T083 / T085. Done: `TestOperatorRoutesDevOpsOnly` and `TestDevOpsNoContent` green on POSTGRES.
+
+<!-- version: 0.6.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->

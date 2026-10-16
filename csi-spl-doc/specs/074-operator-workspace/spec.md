@@ -183,6 +183,11 @@ When an operator creates a new workspace, creating the database row alone leaves
 ## 4. Security Architecture
 
 ### 4.1 Role and Permission Enforcement
+
+> **Changed by §12 (SPL-2192, 2026-10-16, Planned, not built yet)**: the
+> operator routes move from "admin of the operator workspace" to the
+> operator-only roles `devops` and `operator`, one `operator.*` permission per
+> operation. What follows is the rule as built today.
 The owner established a decisive security rule (msg `94071e2e-10a8-45e5-817d-fd51d8592424`):
 > "and only the admin of the spool-hub could perform any spool-hub instance specific changes , like add or remove tenants - he has to be admin , not biz owner"
 
@@ -292,7 +297,7 @@ To maintain complete architectural parity across public cloud, private enterpris
 | **FR-001** | **Designated Operator Workspace in Database**: One workspace per cloud instance is designated as the operator workspace via database column `tenants.is_operator boolean NOT NULL DEFAULT false` (with unique partial index); replaces the interim v8.5.6 cnf env lookup (`SPOOL_HUB_OPERATOR_TENANT`) per owner Decision 1 (HUM-10 msg `5d2e5ab5`). | Changed (re-opened for DB migration) |
 | **FR-002** | **Single DNS Entry Point**: The cloud instance serves all workspaces under one DNS entry point; workspace context is resolved via `/w/<workspace_id>/` URL paths, session cookies, and `X-Spool-Tenant` headers. | Planned |
 | **FR-003** | **Vanity Subdomain Deprecation**: Legacy per-workspace subdomains (`<workspace>.<BASE_DOMAIN>`) issue an HTTP 301 redirect to the single DNS entry point for a 30-day grace period (owner Decision 3); after 30 days workflow 40 and terraform step 032 are retired for individual workspaces. | Planned |
-| **FR-004** | **Exclusive Operator UI**: The workspace management interface (`/operator/workspaces`) is exposed exclusively in the designated operator workspace to members holding the `admin` role; it is completely omitted in all other workspaces and for non-admin roles. | Planned |
+| **FR-004** | **Exclusive Operator UI**: The workspace management interface (`/operator/workspaces`) is exposed exclusively in the designated operator workspace to members holding the `admin` role; it is completely omitted in all other workspaces and for non-admin roles. | Planned; changed by §12 (roles `devops` / `operator`) |
 | **FR-005** | **Workspace Catalogue API & UI**: An operator admin can list all workspaces on the instance (`GET /v1/operator/workspaces`) with status, display name, created_at, suspended_at, archived_at, and operator flag. | Implemented (v8.5.6) |
 | **FR-006** | **Instant Workspace Provisioning & Useful Checklist**: An operator admin can create a new workspace via `POST /v1/operator/workspaces` and complete the onboarding checklist (admin invite, display name, default channels, join token, billing) without DNS delays. | Implemented (v8.5.6) |
 | **FR-007** | **Workspace Suspension & Soft Delete**: An operator admin can suspend (`PATCH /v1/operator/workspaces/{id}` with `suspended: true`) and soft-delete (`DELETE /v1/operator/workspaces/{id}`) a workspace. Suspended doors return 403 `workspace_suspended`; queued agent messages are preserved until retention expires (owner Decision 5). | Implemented (v8.5.6) |
@@ -300,11 +305,11 @@ To maintain complete architectural parity across public cloud, private enterpris
 | **FR-009** | **Cross-Workspace Settings Management**: An operator admin can update display name, default locale, and topic archive policy of any workspace (`PATCH /v1/operator/workspaces/{id}`). Fallback responders remain managed within workspace settings (spec 046). | Implemented (v8.5.6) |
 | **FR-010** | **Cross-Workspace Billing Control**: An operator admin can update the billing status (`active`, `grace`, `unpaid`, `manual`, `internal`) via `PATCH /v1/operator/workspaces/{id}`. (Suspension is an orthogonal state controlled via `suspended: true|false`, not a billing status). | Implemented (v8.5.6) |
 | **FR-011** | **Roster & Audit Inspection (Zero-Trust Privacy)**: An operator admin can view a workspace's configuration, members, and its last 50 audit entries (`GET /v1/operator/workspaces/{id}`); message channels, topics, and DM contents remain strictly inaccessible (owner Decision 4). | Implemented (v8.5.6) |
-| **FR-012** | **Strict Role Boundary (`admin`, not `biz_owner`)**: Instance mutation routes require the `admin` role in the operator workspace; a `biz_owner` lacking the `admin` role is refused with `403` (`permission: operator.workspaces`). | Implemented (v8.5.6) |
+| **FR-012** | **Strict Role Boundary (`admin`, not `biz_owner`)**: Instance mutation routes require the `admin` role in the operator workspace; a `biz_owner` lacking the `admin` role is refused with `403` (`permission: operator.workspaces`). | Implemented (v8.5.6); changed by §12 (Planned): `devops` / `operator`, never `admin` alone |
 | **FR-013** | **Cross-Tenant Admin Rejection**: An administrator of regular workspace A attempting to access operator endpoints or another workspace's data is refused with HTTP 403 `forbidden`. | Implemented (v8.5.6) |
 | **FR-014** | **Immutable Audit Trail**: Every cross-workspace action is recorded in `operator_audit` (`id bigserial PRIMARY KEY`, `at`, `tenant_id`, `actor_tenant`, `actor_hum`, `action`, `detail`). | Implemented (v8.5.6) |
 | **FR-015** | **Store & RLS Isolation**: Cross-workspace store methods run strictly under `asOperator(ctx, fn)`; all intra-workspace operations remain strictly bound to `inTenant(workspace, fn)`. | Implemented (v8.5.6) |
-| **FR-016** | **Self-Hosted First-Run Designation**: In fresh or self-hosted environments without an explicit operator workspace configured, the first created workspace automatically becomes the operator workspace and its initial administrator is granted `admin`. | Planned |
+| **FR-016** | **Self-Hosted First-Run Designation**: In fresh or self-hosted environments without an explicit operator workspace configured, the first created workspace automatically becomes the operator workspace and its initial administrator is granted `admin`. | Planned; §12.5 adds `devops` |
 
 ---
 
@@ -357,5 +362,129 @@ The owner resolved each of the five architectural questions in prd workspace `t1
 | v0.3 | Aligned with c-210 live API contract (msg 6fd5cf85): `SPOOL_HUB_OPERATOR_TENANT`, permission `operator.workspaces`, `operator_audit` table (rdb 0115), `tenants.suspended_at`/`archived_at`, 403 `workspace_suspended`. | a-209 |
 | v0.4 | Reconciled 3 Phase 1 drifts identified by c-001/c-210 (v8.5.6): (1) `operator_audit.id` is `bigserial PRIMARY KEY` (not uuid), no FK on `tenant_id`; (2) `billing_status` valid values are `active\|grace\|unpaid\|internal\|manual` - workspace suspension is orthogonal via `PATCH {"suspended": true\|false}` setting `tenants.suspended_at`; (3) removed fallback responders from `PATCH /v1/operator/workspaces/{id}` (retained in workspace settings spec 046). Marked Phase 1 FRs as Implemented (v8.5.6). | a-209 |
 | v0.5 | Folded owner decisions (HUM-10 msg 5d2e5ab5): (D1) operator workspace stored in DB (`tenants.is_operator`), reversing v8.5.6 cnf lookup; (D2) confirmed path per workspace (`/w/<workspace>/...`); (D3) 30-day grace period for legacy DNS; (D4) confirmed zero-trust privacy (metadata/members only, no channels/topics); (D5) queued agent messages preserved during suspension until retention expiry. Marked FR-001 Changed (Phase 1b). | a-209 |
+| v0.6 | §12 (SPL-2192, c-287): the operator routes move to the operator-only roles `devops` and `operator` (025 §10), one `operator.*` permission per operation, the DevOps vs Operator table and its poll, D4 narrowed to metadata only for these roles. FR-004, FR-012, FR-016 amended by §12 (Planned). | c-287 |
 
-<!-- version: 0.5.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->
+---
+
+## 12. DevOps and Operator: who holds the operator routes (SPL-2192)
+
+Status: **Planned, not built yet**. The roles, several roles per member, the
+migration and the build rows are in
+[025 §10](../025-spool-tenant-rbac/spec.md#10-several-roles-per-member-the-devops-and-operator-roles-spl-2192-2026-10-16)
+and [025 data-model.md](../025-spool-tenant-rbac/data-model.md); this section
+is the operator-workspace side only. Code facts read on `bba5cedb6`.
+
+### 12.1 What changes
+
+Owner HUM-10, 2026-10-16 (verbatim in 025 §10.1): a second admin of the
+operator workspace must not see the workspaces; "DevOps would be like admin ,
+but cannot actually SEE what is the workspace , but CAN manipulate workspaces
+as big objects"; "Operator is a differnt role than DevOps - imagine it like
+off shore support - less "wise tasks"".
+
+- Today the gate is a role rule: an active session in the operator workspace
+  whose role is exactly `admin` (`internal/hub/operator_workspaces.go:103`;
+  §4.1 above). Every such admin lists every workspace.
+- After: the gate is a permission per operation (§12.3), held only by the
+  operator-only roles `devops` and `operator`. A t1 `admin` is a plain
+  workspace admin. This replaces §4.1's rule, FR-004 and FR-012 ("admin, not
+  biz_owner" becomes "devops or operator, never by admin or biz_owner
+  alone"); AC4 and AC5 keep their 403s, and a new AC: a t1 `admin` without
+  devops gets 403 too.
+
+### 12.2 The operations: DevOps vs Operator
+
+DevOps holds every row. The Operator column is this spec's recommendation;
+the owner decides it with the poll below (025 §10.7 OPEN-1).
+
+| # | operation | route (today) | permission | DevOps | Operator (recommended) |
+|---|---|---|---|---|---|
+| O1 | list the workspaces (id, name, status) | `GET /v1/operator/workspaces` | `operator.ws.read` | Y | Y |
+| O2 | read one workspace's metadata and its operator audit | `GET /v1/operator/workspaces/{id}` | `operator.ws.read` | Y | Y |
+| O3 | rename; default locale; topic archive policy | `PATCH …/{id}` `display_name`, `default_locale`, `topic_archive_policy` | `operator.ws.settings` | Y | Y |
+| O4 | read the fleet load | `GET /v1/operator/fleet-load` | `operator.fleet.read` | Y | Y |
+| O5 | suspend or resume a workspace | `PATCH …/{id}` `suspended` | `operator.ws.suspend` | Y | — |
+| O6 | create a workspace and invite its first admin | `POST /v1/operator/workspaces` | `operator.ws.create` | Y | — |
+| O7 | change a workspace's billing status | `PATCH …/{id}` `billing_status` | `operator.ws.billing` | Y | — |
+| O8 | archive a workspace (soft delete) | `DELETE …/{id}` | `operator.ws.archive` | Y | — |
+| O9 | switch box join on or off (spec 108) | `PATCH …/{id}` `box_join_enabled` | `operator.ws.box_join` | Y | — |
+| O10 | change the fleet load target / pause | `PATCH /v1/operator/fleet-load` | `operator.fleet.write` | Y | — |
+| O11 | grant or remove `devops` / `operator` | new `PUT /v1/operator/staff/{human_id}` | `operator.roles` | Y | never (025 §10.3 rule 4) |
+
+Why this cut: O1-O4 read or relabel and are undone by the next edit; O5-O10
+cut members off, create estate, move money, lose a workspace from view or
+change capacity for every box. O5 is the closest call: suspending stops an
+abusive or compromised workspace at night, which offshore support may need;
+it is first among the "no" rows so the owner can tick it.
+
+The poll the dispatcher posts (how-to-post.md §7; one form, checkboxes; DevOps
+keeps all of them whatever is picked):
+
+```poll
+Which of these may an Operator do? DevOps can do all of them. I recommend O1, O2, O3 and O4.
+[O1] List the workspaces (id, name, status)
+[O2] Read one workspace's details and its operator audit
+[O3] Rename a workspace; set its default language and topic archive policy
+[O4] Read the fleet load
+[O5] Suspend or resume a workspace
+[O6] Create a workspace and invite its first admin
+[O7] Change a workspace's billing status
+[O8] Archive a workspace
+[O9] Switch box join on or off for a workspace
+[O10] Change the fleet load target or pause it
+```
+
+O11 is not in the poll: only a DevOps grants these roles (owner: Operator is
+the "less wise" tier).
+
+### 12.3 The gate
+
+1. Every `/v1/operator/*` SESSION route (the five workspace routes, the two
+   fleet-load session calls through `fleetLoadCaller`,
+   `internal/hub/fleet_load.go:120`, and the new staff route) enters through
+   `operatorDoor`: a member session whose ACTIVE workspace is the operator
+   workspace (`tenants.is_operator`). It does not ask `topics.read`
+   (`humanTenant` does, `internal/hub/resolve.go:109`, which a devops-only
+   member lacks).
+2. Then the operation's permission (§12.2). A `PATCH` that names several
+   fields needs each field's permission; one missing → `403 forbidden` naming
+   it, nothing applied, nothing audited as a change.
+3. The 403 body names the missing permission (`operator.ws.suspend`, …)
+   instead of today's `operator.workspaces`. The WUI already hides on any
+   403 (`stores/operator-pane.ts`, `components/BoxLoadBand.vue`), so it needs
+   no token change; `operator.workspaces` stays reserved and is granted to
+   nobody.
+4. The id-token / env service account routes (`internal/hub/operator.go:266-271`:
+   invites, replay, repairs, member access-until) are unchanged: outside RBAC
+   (025 §3.4 rule 4).
+5. Every operation keeps writing its `operator_audit` row (FR-014); the staff
+   route writes `action = 'update'` with `detail = {add, remove, human_id}`.
+
+### 12.4 No workspace content (narrows D4)
+
+D4 said "metadata and members only" for operator admins. For `devops` and
+`operator` it is **metadata only**:
+
+- `GET /v1/operator/workspaces/{id}` answers `workspace` (the
+  `workspaceJSON` fields: id, display name, billing status, plan, created,
+  suspended, archived, operator) and `audit` (the operator audit rows), as it
+  does today (`internal/hub/operator_workspaces.go:191-211`): no member list,
+  no channel, topic, message, doc or issue. US7 ("inspect the member
+  roster") is dropped for these roles.
+- The `create` audit row keeps `first_admin_email`
+  (`operator_workspaces.go:311`): the object operation needs it to show whom
+  the first-admin invite went to. No other member data is answered.
+- In t1 itself a devops-only member gets 403 `topics.read` on every content
+  route (025 §10.3 rule 3); proven by `TestDevOpsNoContent` (025 §10.5).
+- The WUI for a member whose `/v1/view/me` lists no `topics.read` but an
+  `operator.*` permission: the operator pane alone, no channel list, no
+  socket (025 row R5). T008's rail button shows to `devops` / `operator`,
+  not to `admin`.
+
+### 12.5 Self-hosted first run
+
+FR-016 / AC10: the first account of a fresh instance gets `biz_owner` +
+`admin` + `devops` in the first workspace, so the instance is never without
+someone who manages workspaces (025 §10.3 rule 8).
+
+<!-- version: 0.6.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->

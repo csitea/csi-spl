@@ -78,6 +78,8 @@ try {
   let threw = ''
   try { parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'draf: true')) } catch (e) { threw = e.message }
   ok('CONTROL a typo key (draf: true) is refused, never ignored', /unknown key draf/.test(threw), threw)
+  ok('image_override (the owner msg id of a people picture, spec 111 5.4) is a known key',
+    parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'image_override: a2752059-0e93-4a78-b933-b47830f437c7\ndraft: false')).meta.image_override === 'a2752059-0e93-4a78-b933-b47830f437c7')
   ok('a valid copy passes validation', validateMeta(fm.meta, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   ok('CONTROL image without image_alt is refused',
     validateMeta({ ...fm.meta, image: '2026-10-05-a.webp' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes('image without image_alt'))

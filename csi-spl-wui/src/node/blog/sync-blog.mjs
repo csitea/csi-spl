@@ -73,7 +73,7 @@ export function blogLocales(dir = BLOG_LOCALES) {
 }
 
 const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'date', 'published', 'author', 'agy_review',
-  'tags', 'image', 'image_alt', 'image_prompt', 'draft', 'event_start', 'event_end'])
+  'tags', 'image', 'image_alt', 'image_prompt', 'image_override', 'draft', 'event_start', 'event_end'])
 const REQUIRED = ['id', 'lang', 'type', 'title', 'summary', 'date', 'author']
 const TYPES = new Set(['digest', 'news', 'event'])
 const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/

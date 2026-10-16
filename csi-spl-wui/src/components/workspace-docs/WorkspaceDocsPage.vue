@@ -49,6 +49,8 @@
           <span>{{ t('ws_doctree.view_' + v) }}</span>
         </button>
       </div>
+      <!-- SPL-2094: the doc view's bar (its three buttons) teleports here on a desktop -->
+      <div id="wsdocs-head-tools" class="wsdocs-head__tools" data-test="ws-docs-head-tools" />
     </header>
     <div class="feed-body wsdocs-body">
       <p v-if="state === 'loading'" class="muted wsdocs-note">{{ t('ws_doctree.loading') }}</p>
@@ -308,6 +310,8 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMove
 
 <style scoped>
 .wsdocs-head { gap: 12px; flex-wrap: wrap; }
+.wsdocs-head__tools { display: flex; margin-inline-start: auto; min-width: 0; }
+.wsdocs-head__tools:empty { display: none; }
 .wsdocs-pick select {
   font: inherit;
   padding: 4px 8px;

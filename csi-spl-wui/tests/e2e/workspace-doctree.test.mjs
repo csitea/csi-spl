@@ -1097,10 +1097,11 @@ try {
     await q.waitForSelector('[data-test=ws-doc-row]', { visible: true, timeout: STEP }).catch(() => null)
     await new Promise((r) => setTimeout(r, 2500))
   }
-  /** the heading's top against the sticky bar's bottom, the hash, the picture above, the scroller, the status line */
+  /** the heading's top against the sticky bar's bottom (on a desktop the header holding the bar, SPL-2094), the hash, the picture above, the scroller, the status line */
   const landed = (q, id) => q.evaluate((id) => {
     const h = document.getElementById('ws-doc-' + id)
-    const bar = document.querySelector('[data-test=ws-doc-view] .wsdoc__bar')
+    const tools = document.querySelector('[data-test=ws-doc-bar]')
+    const bar = tools?.closest('.feed-header') ?? tools
     const img = document.querySelector('[data-test=ws-doc-img]')
     const toc = document.querySelector('[data-test=ws-doc-toc]')
     return {

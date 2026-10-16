@@ -28,8 +28,12 @@
      an unknown anchor opens the top with one status line. "Copy link to
      section" is in the section menu and on a long-press of the '#'. -->
 <template>
-  <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
-    <div ref="barEl" class="wsdoc__bar">
+  <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen, 'wsdoc--headbar': inHead }" data-test="ws-doc-view">
+    <!-- SPL-2094 (owner t1 8f704763): on a desktop the bar is in the page's
+         header row, at its right end (WorkspaceDocsPage #wsdocs-head-tools);
+         a phone keeps it here, sticky above the document -->
+    <Teleport to="#wsdocs-head-tools" defer :disabled="!inHead">
+    <div ref="barEl" class="wsdoc__bar" :class="{ 'wsdoc__bar--head': inHead }" data-test="ws-doc-bar">
       <button type="button" class="wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
         <UiIcon name="file-text" :size="16" />
       </button>
@@ -51,6 +55,7 @@
       </button>
       <span class="wsdoc__status" role="status" data-test="ws-doc-status">{{ status }}</span>
     </div>
+    </Teleport>
 
     <div v-if="branchItem" class="wsdoc__branch" data-test="ws-doc-branch">
       <span>{{ t('ws_doctree.branch_showing', { n: branchItem.outline, title: branchItem.title || t('ws_doctree.untitled') }) }}</span>
@@ -341,6 +346,7 @@ import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from '.
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
 import { anchorOf, docLink, resolveAnchor } from './-doc-anchor'
 import { writeClipboard } from '~/utils/clipboard.mjs'
+import { useDocHeadBar } from './-doc-headbar'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
@@ -355,9 +361,7 @@ const SETTLE_MS = 2000
 const LONG_PRESS_MS = 500
 
 const rootEl = ref<HTMLElement | null>(null)
-const barEl = ref<HTMLElement | null>(null)
-/* on a narrow screen the contents drop down under the sticky bar, wherever the document is scrolled */
-const tocTop = ref(0)
+const { barEl, inHead, tocTop, markTocTop } = useDocHeadBar()
 const items = shallowRef<DocItem[]>([])
 /* the hidden root: its body is the preamble, the text before section 1 (SPL-1612) */
 const preamble = shallowRef<DocItem | null>(null)
@@ -860,7 +864,7 @@ function narrow() {
 }
 
 function toggleToc() {
-  tocTop.value = Math.max(0, Math.round(barEl.value?.getBoundingClientRect().bottom ?? 0))
+  markTocTop()
   tocOpen.value = !tocOpen.value
   editMode.setEditing(false)
 }
@@ -1041,6 +1045,15 @@ onBeforeUnmount(() => {
 .wsdoc__tool:disabled { opacity: 0.5; cursor: default; }
 .wsdoc__status { flex: 1 1 auto; min-width: 0; margin-inline-start: 8px; color: var(--color-muted); font-size: 0.875rem; overflow-wrap: anywhere; }
 .wsdoc__status:empty { display: none; }
+/* SPL-2094: in the header row, right-aligned; its status line left of the buttons */
+.wsdoc__bar--head {
+  position: static;
+  margin-inline-start: auto;
+  padding: 0;
+  border-bottom: 0;
+  background: none;
+}
+.wsdoc__bar--head .wsdoc__status { order: -1; margin-inline: 0 8px; }
 .wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;
@@ -1078,6 +1091,8 @@ onBeforeUnmount(() => {
   /* spec 138: just below the sticky bar, its measured height (measureBar) */
   scroll-margin-top: var(--wsdoc-bar-h, 4rem);
 }
+/* the bar in the header (SPL-2094): the scroller's top edge is already below it */
+.wsdoc--headbar .wsdoc__h { scroll-margin-top: 0; }
 /* Qto's section control: the dots at the far left of every title, a click or a right-click opens the section menu */
 .wsdoc__dots {
   flex: none;
@@ -1221,6 +1236,8 @@ onBeforeUnmount(() => {
   background: var(--color-bg-2);
   font-size: 0.875rem;
 }
+/* no sticky bar above it (SPL-2094): the contents stick at the scroller's top */
+.wsdoc--headbar .wsdoc__toc { top: 12px; }
 .wsdoc__toc-head {
   display: flex;
   align-items: center;

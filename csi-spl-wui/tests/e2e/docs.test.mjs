@@ -464,7 +464,10 @@ try {
      8bf89f96, 83849bda4), which has no doc view: the phone opens the first
      document by its link, as a shared link does. Control: the bare
      /workspace/docs at 390 reads null here, as on master 1f83fdd12. */
-  console.log('-- print + TOC row (t1 28155201)')
+  /* SPL-2094 (owner t1 8f704763): on a desktop the three buttons are in the
+     header row (Documents, +, the doc picker), at its right end, and the doc
+     view has no toolbar row of its own; a phone keeps the row atop the doc */
+  console.log('-- print + TOC row (t1 28155201), desktop in the header row (SPL-2094)')
   for (const [w, h, mobile] of [[1440, 900, false], [390, 844, true]]) {
     const r = await browser.newPage()
     await r.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile })
@@ -482,15 +485,28 @@ try {
       const view = document.querySelector('[data-test=ws-doc-view]')
       const pr = document.querySelector('[data-test=ws-doc-print-doc]')
       const toc = document.querySelector('[data-test=ws-doc-toc-toggle]')
-      if (!view || !pr || !toc) return null
-      return { view: box(view), pr: box(pr), toc: box(toc), prFace: face(pr), tocFace: face(toc) }
+      const ex = document.querySelector('[data-test=ws-doc-export-doc]')
+      const head = document.querySelector('[data-test=ws-docs-page] .wsdocs-head')
+      const doc = document.querySelector('[data-test=ws-doc-doctitle]')
+      if (!view || !pr || !toc || !ex || !head || !doc) return null
+      return {
+        view: box(view), pr: box(pr), toc: box(toc), ex: box(ex), head: box(head), doc: box(doc),
+        barInView: Boolean(view.querySelector('[data-test=ws-doc-bar]')),
+        prFace: face(pr), tocFace: face(toc),
+      }
     })
     const at = `${w}px`
     ok(`${at}: the print and TOC buttons are shown`, Boolean(row), row)
     if (row) {
       const gap = row.toc.x - (row.pr.x + row.pr.w)
       ok(`${at}: print and TOC sit on one line, side by side, <= 4px apart`, Math.abs(row.pr.y - row.toc.y) < 2 && gap >= 0 && gap <= 4, { gap, pr: row.pr, toc: row.toc })
-      ok(`${at}: the row is the top of the doc view`, row.pr.y - row.view.y < 12 && row.toc.y - row.view.y < 12, { view: row.view })
+      if (mobile) ok(`${at}: the row is the top of the doc view`, row.barInView && row.pr.y - row.view.y < 12 && row.toc.y - row.view.y < 12, { view: row.view })
+      else {
+        const inHead = (b) => b.y >= row.head.y && b.y + b.h <= row.head.y + row.head.h
+        const right = row.head.x + row.head.w - (row.ex.x + row.ex.w)
+        ok(`${at}: the three buttons sit in the header row, right edge <= 24px from its end`, [row.pr, row.toc, row.ex].every(inHead) && right >= 0 && right <= 24, { head: row.head, pr: row.pr, toc: row.toc, ex: row.ex, right })
+        ok(`${at}: no toolbar row above the doc body: the doc view starts with its title`, !row.barInView && row.doc.y - row.view.y < 40, { view: row.view, doc: row.doc })
+      }
       const plain = (f) => (f.border === 'none' || f.borderW === '0px' || f.borderC === 'rgba(0, 0, 0, 0)') && f.bg === 'rgba(0, 0, 0, 0)'
       ok(`${at}: neither button has browser chrome (border, grey face)`, plain(row.prFace) && plain(row.tocFace), { pr: row.prFace, toc: row.tocFace })
     }

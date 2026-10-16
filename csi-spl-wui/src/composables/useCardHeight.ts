@@ -109,8 +109,11 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, clipEl: R
   watch([clipOn, clipInner], () => { void nextTick(startObserving) })
   onMounted(() => startObserving())
   onBeforeUnmount(stopObserving)
-  /* Another mode, or another message under this card: back to the automatic height. */
-  watch(() => [props.clipMode, String(props.msg?.msg_id || '')], () => { userPx.value = null })
+  /* Another mode, or another message under this card: back to the automatic height.
+     Two sources, each compared by value: one getter returning [mode, id] is a
+     new array on every run, so a fresh list of the same rows (a live message,
+     a refetch) closed a card the reader had just opened. */
+  watch([() => props.clipMode, () => String(props.msg?.msg_id || '')], () => { userPx.value = null })
 
   return { clipOn, userPx, clipped, clipStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
 }

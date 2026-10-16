@@ -360,6 +360,18 @@ async function heightCase(browser, vp, tag) {
     rowsCard: picCases[0].rows.card,
     clip: oneOpen.clip,
   })
+  /* wf 10 run 38896395146 (SPL-2121 check): a fresh list of the same rows (a live message,
+     a refetch) closed the card the reader had just opened, about 1 run in 4 */
+  await p.evaluate(() => {
+    const channel = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+    channel.messages = [...channel.messages]
+  })
+  const oneKept = await rest(p, picSel(pics.oneId))
+  ok(`${tag}: an opened card stays open when the list is fetched again`, oneKept.clip === 'fits' && oneKept.card === oneOpen.card, {
+    open: oneOpen.card,
+    after: oneKept.card,
+    clip: oneKept.clip,
+  })
 
   await setClipMode(p, 'full')
   const shortFull = await rest(p, shortSel)

@@ -16,8 +16,13 @@
 # @description                names the file and line, never the pattern
 # @description   public-safe  an email, a phone number, an internal host, a box
 # @description                name, a /home/ path, a person in image_prompt
+# @description                (a people word is let through when the post
+# @description                carries image_override: <owner msg uuid>, set by
+# @description                do_spl_blog_image BLOG_IMAGE_PEOPLE_OK; a name
+# @description                never is)
 # @description   hex tokens   any 7+ hex token (with a digit) or uuid that is not
-# @description                a commit on BLOG_CHECK_REF (default origin/master)
+# @description                a commit on BLOG_CHECK_REF (default origin/master),
+# @description                except the uuid on an image_override line
 # @description   facts        a v<X.Y.Z> tag that is not on BLOG_CHECK_REF
 # @description   author       not an agent id (spec 061 grammar) or the site name
 # @description   digest       a second digest for a date; published outside
@@ -214,7 +219,10 @@ spl_blog_file() {
   spl_blog_author "$tree" "$rel" "$(_bf author)" "$(_bf agy_review)"
   spl_blog_published "$tree" "$rel" "$ref" "$(_bf published)"
   spl_blog_size "$tree" "$rel" "$(_bf summary)"
-  spl_blog_prompt "$tree" "$rel" "$(_bf image_prompt)"
+  v="$(_bf image_override)"
+  [[ -z "$v" || "$v" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image_override)" frontmatter "image_override '$v' is not an owner msg uuid"; v=""; }
+  spl_blog_prompt "$tree" "$rel" "$(_bf image_prompt)" "$v"
   [[ "$(_bf type)" == digest ]] && spl_blog_digest "$tree" "$rel" "$(_bf date)" "$(_bf published)"
   unset -f _bf
   return 0
@@ -263,11 +271,13 @@ spl_blog_size() {
   (( chars <= 160 )) || spl_blog_refuse "$2" "$(spl_blog_line "$1" "$2" summary)" size "the summary is $chars chars (max 160)"
 }
 
-# spl_blog_prompt <tree> <rel> <image_prompt> - no real or named person: a
-# people word, or two capitalised words in a row (a name).
+# spl_blog_prompt <tree> <rel> <image_prompt> [<override uuid>] - no real or
+# named person: a people word (unless the owner's override msg id is set), or
+# two capitalised words in a row (a name, always).
 spl_blog_prompt() {
   [[ -n "$3" ]] || return 0
   local re='(?i)\b(person|persons|people|man|men|woman|women|boy|girl|child|children|kids?|humans?|faces?|portrait|selfie|celebrity|crowd|employee|ceo|founder|politician|president|minister|king|queen|photo of)\b'
+  [[ -n "${4:-}" ]] && re='(?!)'
   if grep -qP "$re" <<<"$3" || grep -qP '\b[A-Z][a-z]+ [A-Z][a-z]+\b' <<<"$3"; then
     spl_blog_refuse "$2" "$(spl_blog_line "$1" "$2" image_prompt)" public-safe "image_prompt asks for a real or named person"
   fi
@@ -322,6 +332,8 @@ spl_blog_tokens() {
       git -C "$tree" merge-base --is-ancestor "$c" "$ref" 2>/dev/null ||
       spl_blog_refuse "$rel" "$ln" "hex tokens" "'$tok' is not a commit on $ref"
   done < <(perl -ne '
+    next if $. > 1 && !$fmend && /^image_override: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    $fmend = 1 if $. > 1 && /^---$/;
     my $u = qr/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
     while (/(?<![0-9A-Za-z-])($u)(?![0-9A-Za-z-])/g) { print "$. $1\n" }
     s/$u//g;

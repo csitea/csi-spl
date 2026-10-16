@@ -27,6 +27,11 @@
 #      aistudio+vertex", exit 0; the SA domain only, never the key, the token
 #      or the account; CONTROL a token that cannot be minted drops vertex,
 #      no key at all = "routes none", exit 1
+#   9. BLOG_IMAGE_PEOPLE_OK=<owner msg uuid> (owner msg a2752059, this post
+#      only): the rule says "a fictional person only, no real person's
+#      likeness", keeps no logos / no text, and image_override is written;
+#      CONTROL without it the rule is the no-people one and no override is
+#      written; a value that is no uuid is refused, exit 1, no vendor call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -251,6 +256,23 @@ mv "$T/token.off" "$T/token"
 rm -f "$VX_KEY"; SNIPPET=do_spl_blog_image_check bi NANO_BANANA_CRS="$T/none/crs"; rc=$?
 [[ $rc -eq 1 ]] && grep -q '^WARN routes none' "$T/o" && grep -q '^INFO vertex_sa_key no no SA key at' "$T/o" &&
   pass "8: CONTROL no key at all = routes none, exit 1" || fail "8: none (rc=$rc): $(cat "$T/o")"
+
+# --- 9. the owner's people override ------------------------------------------------------------------
+OK_ID="a2752059-0e93-4a78-b933-b47830f437c7"
+post; bi BLOG_IMAGE_PEOPLE_OK="$OK_ID"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "image_override: $OK_ID" "$f" && grep -qx "image: $ID.webp" "$f" &&
+  jq -e '.contents[0].parts[0].text | startswith("A fictional person only, no real person'"'"'s likeness, no logos, no brand marks, and no text")
+    and (test("No people") | not)' "$T/body.json" >/dev/null &&
+  pass "9: BLOG_IMAGE_PEOPLE_OK lifts no-people only (fictional, no likeness, no logos, no text) and writes image_override" ||
+  fail "9: override (rc=$rc): $(tail -n2 "$T/o") $(jq -r '.contents[0].parts[0].text' "$T/body.json")"
+bi BLOG_IMAGE_PEOPLE_OK="$OK_ID"; [[ "$(grep -c '^image_override:' "$f")" == 1 ]] &&
+  pass "9: a second run keeps one image_override line" || fail "9: image_override lines: $(grep -c '^image_override:' "$f")"
+post; bi; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q '^image_override:' "$f" && jq -e '.contents[0].parts[0].text | startswith("No people, no human figures")' "$T/body.json" >/dev/null &&
+  pass "9: CONTROL without BLOG_IMAGE_PEOPLE_OK the rule is no-people and no override is written" || fail "9: control default (rc=$rc)"
+post; : >"$T/calls.log"; bi BLOG_IMAGE_PEOPLE_OK="yes"
+[[ $? -eq 1 ]] && grep -q 'FATAL BLOG_IMAGE_PEOPLE_OK is no owner msg uuid' "$T/o" && ! grep -q '^curl' "$T/calls.log" && ! grep -q '^image_override:' "$f" &&
+  pass "9: CONTROL a BLOG_IMAGE_PEOPLE_OK that is no uuid is refused, exit 1, no vendor call" || fail "9: bad override: $(tail -n2 "$T/o")"
 
 kill "$PS_PID" 2>/dev/null; wait "$PS_PID" 2>/dev/null
 echo "---"; [[ $fails -eq 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

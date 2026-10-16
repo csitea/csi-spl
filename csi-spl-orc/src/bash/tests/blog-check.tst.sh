@@ -14,6 +14,10 @@
 #          ban list (fail closed), a post commit with a second path, plus a
 #          ban-list hit whose pattern never reaches the output, a hand-set
 #          published, id/lang/type/author/summary/phone/host/home refusals.
+#          - image_override: <owner msg uuid> lets a people word through in
+#            image_prompt and its uuid is no hex-token refusal; CONTROLS: a
+#            name is still refused with it, a non-uuid override is refused,
+#            the same uuid in the body is still a hex-token refusal
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -142,6 +146,13 @@ post en 2026-10-09-hello news 'image_prompt: "a portrait of a smiling woman at a
 post en 2026-10-09-hello news 'image_prompt: "a server rack at dusk, in the style of Ansel Adams"' | put "$N"; refused "a named person in image_prompt" public-safe "$N"
 post en 2026-10-09-hello news 'image_prompt: "an isometric server rack at dusk"' 'image: 2026-10-09-hello.webp' 'image_alt: "a rack"' | put "$N"
 out=$(run_check BLOG_FILES="$N"); [[ $? -eq 0 ]] && pass "a picture with alt and a no-people prompt passes" || fail "picture: $out"
+OVR="image_override: a2752059-0e93-4a78-b933-b47830f437c7"
+post en 2026-10-09-hello news 'image_prompt: "a handsome man driving, wearing a headset"' "$OVR" | put "$N"
+out=$(run_check BLOG_FILES="$N"); [[ $? -eq 0 ]] && pass "image_override (owner msg uuid) lets a people word through, its uuid is no hex token" || fail "override: $out"
+post en 2026-10-09-hello news 'image_prompt: "a man in the style of Ansel Adams"' "$OVR" | put "$N"; refused "a named person even with image_override" public-safe "$N"
+post en 2026-10-09-hello news 'image_prompt: "a man driving"' 'image_override: yes' | put "$N"; refused "an image_override that is no uuid" frontmatter "$N"
+post en 2026-10-09-hello news 'image_prompt: "a man driving"' 'image_override: yes' | put "$N"; refused "a people word with a bad image_override" public-safe "$N"
+{ post en 2026-10-09-hello news "$OVR"; echo "$OVR"; } | put "$N"; refused "the override uuid in the body" "hex tokens" "$N"
 post en 2026-10-09-hello news | sed 's/^published: .*/published: 2026-10-01T08:00:00Z/' | put "$N"; refused "a hand-set (back-dated) published" frontmatter "$N"
 post en 2026-10-09-hello news | put "$N"
 post "fi" 2026-10-09-hello news | sed '/^agy_review:/d' | put "$P/fi/2026-10-09-hello.md"; refused "a copy without agy_review" frontmatter "$P/fi/2026-10-09-hello.md"

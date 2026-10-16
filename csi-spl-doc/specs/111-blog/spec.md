@@ -463,6 +463,11 @@ with the owner's key**, called by the code action `do_spl_blog_image`.
   `image_prompt`. There is no person switch to send: the API reference's
   `ImageConfig` has two fields only, `aspectRatio` and `imageSize`
   (https://ai.google.dev/api/generate-content, read 2026-10-09).
+  One post may lift it on the owner's explicit order (msg a2752059, SPL-2125):
+  `BLOG_IMAGE_PEOPLE_OK=<owner msg uuid>` swaps "no people" for "a fictional
+  person only, no real person's likeness" (no logos, no text stay), writes
+  `image_override: <uuid>` to the frontmatter, and 4.4 then lets a people
+  word through in that post's `image_prompt` (a name never). Unset = no people.
 - **Re-encode** to webp (strips EXIF/XMP), 1600x900 + the 1200x630 crop.
 - **Cost and licence** (T006, each quoted from the page on 2026-10-09):
   - **Price**, https://ai.google.dev/gemini-api/docs/pricing, Gemini 2.5

@@ -9,7 +9,12 @@
 # @description argv, an exported env var, a shell variable, a log or git.
 # @description The fixed "no people, no logos, no text" instruction is put in
 # @description front of every prompt (the API's ImageConfig has aspectRatio
-# @description and imageSize only, no person switch). The answer is
+# @description and imageSize only, no person switch). One post may lift the
+# @description "no people" part on an owner's explicit order:
+# @description BLOG_IMAGE_PEOPLE_OK=<owner msg uuid> puts "a fictional person
+# @description only, no real person's likeness" in its place (logos and text
+# @description stay banned) and records the msg id as image_override in the
+# @description frontmatter, which do_spl_blog_check reads. The answer is
 # @description re-encoded by cwebp (metadata none: no EXIF/XMP) to
 # @description <id>.webp 1600x900 and the Open Graph crop <id>-og.webp
 # @description 1200x630, each centre-cropped, each under 300 KB, checked for
@@ -39,8 +44,10 @@
 # @param BLOG_IMAGE_CWEBP (optional) - the encoder, default cwebp (Debian package webp)
 # @param BLOG_IMAGE_CNF (optional) - the cnf with env.blog.image, default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
 # @param BLOG_IMAGE_VERTEX_KEY (optional) - the SA key file, default <agent-home>/.gcp/.csi/key-<vertex_project>.json
+# @param BLOG_IMAGE_PEOPLE_OK (optional) - the owner msg uuid that allows a fictional person in THIS post's picture; unset = no people
 # @example BLOG_FILE=/tmp/draft.md ./run -a do_spl_blog_image
 # @example BLOG_FILE=/tmp/draft.md BLOG_IMAGE_PROMPT='a lighthouse at dusk, flat colours' ./run -a do_spl_blog_image
+# @example BLOG_FILE=/tmp/draft.md BLOG_IMAGE_PEOPLE_OK=<owner-msg-uuid> ./run -a do_spl_blog_image
 #------------------------------------------------------------------------------
 do_spl_blog_image() {
   local xt=0; [[ $- == *x* ]] && xt=1; set +x
@@ -50,6 +57,7 @@ do_spl_blog_image() {
 }
 
 SPL_BIMG_RULE="No people, no human figures, no faces, no logos, no brand marks, and no text, letters or numbers anywhere in the picture."
+SPL_BIMG_RULE_PEOPLE_OK="A fictional person only, no real person's likeness, no logos, no brand marks, and no text, letters or numbers anywhere in the picture."
 SPL_BIMG_MAX_BYTES=307200
 
 spl_bimg_main() {
@@ -59,6 +67,7 @@ spl_bimg_main() {
   [[ "$id" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$ ]] ||
     { do_log "FATAL the post id is not <yyyy-mm-dd>-<slug>: '$id'"; return 1; }
   spl_bimg_name_ok "$id" "$id.webp" && spl_bimg_name_ok "$id" "$id-og.webp" || return 1
+  spl_bimg_people_ok || return 1
   prompt="${BLOG_IMAGE_PROMPT:-$(spl_bimg_fm "$f" image_prompt)}"
   prompt="$(tr '\r\n\t' '   ' <<<"$prompt" | tr -s ' ')"; prompt="${prompt# }"; prompt="${prompt% }"
   [[ -n "$prompt" ]] || { spl_bimg_none "no image prompt (BLOG_IMAGE_PROMPT or image_prompt)"; return 0; }
@@ -78,6 +87,8 @@ spl_bimg_main() {
   rm -rf "$work"
   (( rc == 0 )) || return 0
   spl_bimg_set_fm "$f" "$id.webp" "$alt" "$prompt" || { do_log "FATAL could not write the frontmatter of $f"; return 1; }
+  [[ -z "${BLOG_IMAGE_PEOPLE_OK:-}" ]] || spl_bimg_set_override "$f" "$BLOG_IMAGE_PEOPLE_OK" ||
+    { do_log "FATAL could not write image_override into $f"; return 1; }
   do_log "OK image $id.webp + $id-og.webp in $dir; $f has image: $id.webp"
 }
 
@@ -117,10 +128,23 @@ spl_bimg_model() {
   printf '%s' "$model"
 }
 
+# spl_bimg_people_ok: BLOG_IMAGE_PEOPLE_OK is unset or an owner msg uuid.
+spl_bimg_people_ok() {
+  local v="${BLOG_IMAGE_PEOPLE_OK:-}"
+  [[ -z "$v" || "$v" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && return 0
+  do_log "FATAL BLOG_IMAGE_PEOPLE_OK is no owner msg uuid: '$v'"; return 1
+}
+
+# spl_bimg_rule: the fixed instruction; "no people" is lifted only by
+# BLOG_IMAGE_PEOPLE_OK.
+spl_bimg_rule() {
+  if [[ -n "${BLOG_IMAGE_PEOPLE_OK:-}" ]]; then printf '%s' "$SPL_BIMG_RULE_PEOPLE_OK"; else printf '%s' "$SPL_BIMG_RULE"; fi
+}
+
 # spl_bimg_body <prompt>: the request body (role user: Vertex needs it, AI
 # Studio accepts it).
 spl_bimg_body() {
-  jq -n --arg p "$SPL_BIMG_RULE $1" \
+  jq -n --arg p "$(spl_bimg_rule) $1" \
     '{contents:[{role:"user",parts:[{text:$p}]}],generationConfig:{responseModalities:["IMAGE"],imageConfig:{aspectRatio:"16:9"}}}'
 }
 
@@ -274,6 +298,17 @@ spl_bimg_set_fm() {
     !end && /^image:/ { put("image", img); next }
     !end && /^image_alt:/ { put("image_alt", alt); next }
     !end && /^image_prompt:/ { put("image_prompt", pr); next }
+    { print }' "$f" >"$t" && chmod --reference="$f" "$t" && mv -f "$t" "$f" || { rm -f "$t"; return 1; }
+}
+
+# spl_bimg_set_override <file> <uuid>: image_override: <uuid> in the
+# frontmatter (replace, or add before its closing ---).
+spl_bimg_set_override() {
+  local f="$1" t
+  t="$(mktemp "$(dirname "$f")/.bimg-fm.XXXXXX")" || return 1
+  BIMG_O="$2" awk 'NR==1 { print; next }
+    !end && $0=="---" { if (!done) print "image_override: " ENVIRON["BIMG_O"]; end=1; print; next }
+    !end && /^image_override:/ { print "image_override: " ENVIRON["BIMG_O"]; done=1; next }
     { print }' "$f" >"$t" && chmod --reference="$f" "$t" && mv -f "$t" "$f" || { rm -f "$t"; return 1; }
 }
 

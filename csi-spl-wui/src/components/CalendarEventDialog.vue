@@ -33,7 +33,7 @@
      Copy link (t1 9dec05c3): a stored event's footer copies the link that
      opens it (useCalendarEventLink). -->
 <template>
-  <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="md" @update:open="emit('update:open', $event)">
+  <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="lg" @update:open="emit('update:open', $event)">
     <div v-if="hours" class="cal-dlg cal-dlg--hours" data-test="calendar-event-form" data-mode="hours" :data-type="HOURS_ENTRY_TYPE" :data-day="hours.day">
       <p class="cal-dlg__type cal-dlg__field--wide" data-test="calendar-event-type">{{ t('hours_cal.type') }}</p>
       <LazyCalendarHoursDay

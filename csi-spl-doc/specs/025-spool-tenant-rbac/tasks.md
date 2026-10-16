@@ -52,7 +52,7 @@
 Rows, files, order and tests: spec §10.6 (one lane each). Data: `data-model.md`.
 
 - [x] T080 spec §10 + `data-model.md` + 074 §12 (c-287, SPL-2192). Check: this commit.
-- [ ] T081 R1 multi-role data + store (`tenant_member_roles`, `tenant_invite_roles`, triggers 1-2, union authorizer). Check: `TestTenantMemberRolesUnion`, `TestTenantMemberRolesTriggers` (POSTGRES).
+- [x] T081 R1 multi-role data + store (`tenant_member_roles`, `tenant_invite_roles`, triggers 1-2, union authorizer). Check: `TestTenantMemberRolesUnion`, `TestTenantMemberRolesTriggers` (POSTGRES). Landed 165eb02ff, live dev + prd 2026-10-16.
 - [ ] T082 R2 role-by-name checks A5-A18, A20 + members API `roles[]`. Check: `TestRBACMembersAPIRoles`.
 - [ ] T083 R3 `devops` + `operator`, `operator.*` permissions, `operatorDoor`, staff route, last-devops, seating migration. Check: `TestOperatorRoutesDevOpsOnly`, `TestDevOpsNoContent`, `TestOperatorOnlyRoleOutsideOperatorWS`, `TestOperatorStaffGrant`, `TestDevOpsMigrationSeating`.
 - [ ] T084 R4 orc + CLI multi-role (`MEMBER_ROLES=`, `INVITE_ROLES=`, `--role a,b`, `SPL_ROLE_IDS`).

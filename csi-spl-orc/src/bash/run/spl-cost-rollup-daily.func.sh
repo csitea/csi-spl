@@ -107,8 +107,10 @@ spl_cost_prune_day_logs() {
 # oldest first. A day that is already ok is skipped. A failed post is retried
 # for the same day, never the next one. Needs DRY_RUN=0.
 spl_cost_backfill() {
-  local backfill_days="$(yq -r '.env.cost.backfill_days // 7' "$SPL_CNF")"
-  local box="$(spl_cost_box)" || return 1
+  local backfill_days
+  backfill_days="$(yq -r '.env.cost.backfill_days // 7' "$SPL_CNF")"
+  local box
+  box="$(spl_cost_box)" || return 1
   local -a names=()
   mapfile -t names < <(spl_cost_sources "$SPL_CNF")
   local today="${TODAY_OVERRIDE:-$(date -u +%F)}" day month cover_to source state posted=0 skipped=0 failed=0
@@ -169,7 +171,7 @@ spl_cost_post_day_with_retry() {
   tmp="$(umask 077 && mktemp -d)" || return 1
   
   while (( try <= max_tries )); do
-    spl_cost_source_run "${source%.$box}" "$day" "$tmp/$source"
+    spl_cost_source_run "${source%."$box"}" "$day" "$tmp/$source"
     if [[ -s "$tmp/$source.self" ]]; then
       do_log "INFO $source $day: $(head -n 1 "$tmp/$source.self")"
       rm -rf "$tmp"

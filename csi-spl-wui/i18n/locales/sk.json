@@ -1796,7 +1796,8 @@
       "mode_list": "Iba členovia označení nižšie",
       "none_ticked": "Nie je označený žiadny člen: tomuto agentovi nemôže nikto písať.",
       "cancel": "Zrušiť"
-    }
+    },
+    "takeover": "Prevzatie agentom"
   },
   "help": {
     "title": "Pomoc",
@@ -3007,5 +3008,24 @@
         "hand": "Faktúry"
       }
     }
+  },
+  "takeover": {
+    "title": "Prevzatie agentom",
+    "hint": "Keď agent zlyhá pri úlohe, ďalší dodávateľ v poradí ju preberie v rovnakej vetve. Každý dodávateľ môže zlyhať toľkokrát, kým ju nepreberie ďalší.",
+    "order_col": "Poradie prevzatia",
+    "failures_col": "Max. zlyhaní",
+    "add": "Pridať dodávateľa",
+    "up": "Posunúť {name} nahor",
+    "down": "Posunúť {name} nadol",
+    "remove": "Odstrániť {name}",
+    "moved": "{name} je teraz číslo {n}",
+    "reset_all": "Obnoviť predvolené",
+    "rule_empty": "Zadajte aspoň jedného dodávateľa.",
+    "rule_vendor": "Každého dodávateľa uveďte iba raz.",
+    "rule_secret": "Antigravity a Qwen nikdy nepreberajú tajnú prácu.",
+    "rule_failures": "Maximálny počet zlyhaní je celé číslo od {min} do {max}.",
+    "error_forbidden": "Iba správcovia pracovného priestoru môžu meniť poradie prevzatia.",
+    "error_bad_ladder": "Hub odmietol toto poradie prevzatia.",
+    "error_generic": "Poradie prevzatia sa nepodarilo načítať ani uložiť. Skúste to znova."
   }
 }

@@ -293,6 +293,18 @@ permission. Its sections are:
   agent's machine.
 - **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity
   and Qwen. The four numbers add up to 100. They are a guideline, not a quota.
+- **Agent takeover** (`/tenant-settings/takeover`): who takes over when an
+  agent fails a task. One row per task kind (Specs and docs, Tests, Simple
+  coding, Complex coding, Translations, Secrets and personal data). The row's
+  order says which vendor works on the task first and who takes it over, on
+  the same branch, after it failed **Max failures** times (a whole number from
+  1 to 10). Move a vendor with its up and down arrows, remove it with its cross,
+  and add one from **Add a vendor**; **Save** stores the rows you changed and
+  **Reset to defaults** puts every row back. A row nobody changed says
+  *default*. The defaults: coding and tests go Mistral, then Antigravity, then
+  Claude, 2 failures each; specs, docs and translations go Antigravity, then
+  Claude, 1 failure; secrets go Claude, then Mistral, 2 failures. Antigravity and
+  Qwen never take secret work, so the Secrets row does not offer them.
 - **Channels**: every channel of the workspace (including private ones), with
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite

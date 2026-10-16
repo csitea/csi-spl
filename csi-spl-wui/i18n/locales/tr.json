@@ -1796,7 +1796,8 @@
       "mode_list": "Yalnızca aşağıda işaretlenen üyeler",
       "none_ticked": "Hiçbir üye işaretlenmedi: bu ajana kimse mesaj gönderemez.",
       "cancel": "İptal"
-    }
+    },
+    "takeover": "Ajan devralma"
   },
   "help": {
     "title": "Yardım",
@@ -3007,5 +3008,24 @@
         "hand": "Faturalar"
       }
     }
+  },
+  "takeover": {
+    "title": "Ajan devralma",
+    "hint": "Bir ajan bir görevde başarısız olduğunda, sıradaki sağlayıcı aynı dalda görevi devralır. Sıradaki sağlayıcı devralmadan önce her sağlayıcı bu sayıda başarısız olabilir.",
+    "order_col": "Devralma sırası",
+    "failures_col": "Maksimum başarısızlık",
+    "add": "Sağlayıcı ekle",
+    "up": "{name} öğesini yukarı taşı",
+    "down": "{name} öğesini aşağı taşı",
+    "remove": "{name} öğesini kaldır",
+    "moved": "{name} artık {n}. sırada",
+    "reset_all": "Varsayılanlara sıfırla",
+    "rule_empty": "En az bir sağlayıcı belirtin.",
+    "rule_vendor": "Her sağlayıcıyı yalnızca bir kez belirtin.",
+    "rule_secret": "Antigravity ve Qwen asla gizli iş almaz.",
+    "rule_failures": "Maksimum başarısızlık sayısı {min} ile {max} arasında bir tam sayıdır.",
+    "error_forbidden": "Yalnızca çalışma alanı yöneticileri devralma sırasını değiştirebilir.",
+    "error_bad_ladder": "Hub bu devralma sırasını reddetti.",
+    "error_generic": "Devralma sırası yüklenemedi veya kaydedilemedi. Tekrar deneyin."
   }
 }

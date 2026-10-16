@@ -1796,7 +1796,8 @@
       "mode_list": "Ainult allpool märgitud liikmed",
       "none_ticked": "Ühtegi liiget pole märgitud: keegi ei saa sellele agendile kirjutada.",
       "cancel": "Tühista"
-    }
+    },
+    "takeover": "Agentide ülevõtmine"
   },
   "help": {
     "title": "Abi",
@@ -3007,5 +3008,24 @@
         "hand": "Arved"
       }
     }
+  },
+  "takeover": {
+    "title": "Agentide ülevõtmine",
+    "hint": "Kui agent ebaõnnestub ülesandega, võtab järjekorras järgmine tarnija selle samas harus üle. Iga tarnija võib ebaõnnestuda nii mitu korda, enne kui järgmine selle üle võtab.",
+    "order_col": "Ülevõtmise järjekord",
+    "failures_col": "Max ebaõnnestumisi",
+    "add": "Lisa tarnija",
+    "up": "Liiguta {name} üles",
+    "down": "Liiguta {name} alla",
+    "remove": "Eemalda {name}",
+    "moved": "{name} on nüüd number {n}",
+    "reset_all": "Lähtesta vaikeväärtustele",
+    "rule_empty": "Määra vähemalt üks tarnija.",
+    "rule_vendor": "Määra iga tarnija üks kord.",
+    "rule_secret": "Antigravity ja Qwen ei võta kunagi salajast tööd.",
+    "rule_failures": "Maksimaalne ebaõnnestumiste arv on täisarv vahemikus {min} kuni {max}.",
+    "error_forbidden": "Ainult tööruumi administraatorid saavad ülevõtmise järjekorda muuta.",
+    "error_bad_ladder": "Hub lükkas selle ülevõtmise järjekorra tagasi.",
+    "error_generic": "Ülevõtmise järjekorda ei õnnestunud laadida ega salvestada. Proovi uuesti."
   }
 }

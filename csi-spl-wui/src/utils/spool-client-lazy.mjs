@@ -468,6 +468,27 @@ async function patchAgentSplit(ctx, kinds = {}) {
   })
 }
 
+let takeoverMock = null
+const takeoverLadderMock = async () => (takeoverMock ||= (await import('./takeover-ladder.mjs')).createMockTakeover())
+
+/** GET /v1/takeover-ladder (SPL-2115, any member): the vendor order and max failures per task kind. */
+async function getTakeoverLadder(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await takeoverLadderMock()).get()
+  return live('/v1/takeover-ladder')
+}
+
+/** PUT /v1/takeover-ladder { kinds: { <kind>: { order, max_failures } | null } } (tenant.settings) → every kind again. */
+async function putTakeoverLadder(ctx, kinds = {}) {
+  const { live, mock } = ctx
+  if (mock) return (await takeoverLadderMock()).put(kinds)
+  return live('/v1/takeover-ladder', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kinds }),
+  })
+}
+
 let senderMock = null
 const senderAllowMock = async () => (senderMock ||= (await import('./sender-allow-mock.mjs')).createMockSenderAllow())
 
@@ -1696,6 +1717,8 @@ export const lazySpoolMethods = {
   patchTenantSettings,
   getAgentSplit,
   patchAgentSplit,
+  getTakeoverLadder,
+  putTakeoverLadder,
   listAgentSenders,
   putAgentSenders,
   dropAgentSenders,

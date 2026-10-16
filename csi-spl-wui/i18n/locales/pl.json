@@ -1796,7 +1796,8 @@
       "mode_list": "Tylko członkowie zaznaczeni poniżej",
       "none_ticked": "Nie zaznaczono żadnego członka: nikt nie może pisać do tego agenta.",
       "cancel": "Anuluj"
-    }
+    },
+    "takeover": "Przejęcie przez agenta"
   },
   "help": {
     "title": "Pomoc",
@@ -3007,5 +3008,24 @@
         "hand": "Faktury"
       }
     }
+  },
+  "takeover": {
+    "title": "Przejęcie przez agenta",
+    "hint": "Gdy agent nie poradzi sobie z zadaniem, kolejny dostawca przejmuje je w tej samej gałęzi. Każdy dostawca może ponieść tyle niepowodzeń, zanim kolejny przejmie zadanie.",
+    "order_col": "Kolejność przejmowania",
+    "failures_col": "Maks. niepowodzeń",
+    "add": "Dodaj dostawcę",
+    "up": "Przesuń {name} w górę",
+    "down": "Przesuń {name} w dół",
+    "remove": "Usuń {name}",
+    "moved": "{name} ma teraz numer {n}",
+    "reset_all": "Przywróć domyślne",
+    "rule_empty": "Wskaż co najmniej jednego dostawcę.",
+    "rule_vendor": "Wskaż każdego dostawcę tylko raz.",
+    "rule_secret": "Antigravity i Qwen nigdy nie przyjmują tajnych prac.",
+    "rule_failures": "Maksymalna liczba niepowodzeń to liczba całkowita od {min} do {max}.",
+    "error_forbidden": "Tylko administratorzy obszaru roboczego mogą zmieniać kolejność przejmowania.",
+    "error_bad_ladder": "Hub odrzucił tę kolejność przejmowania.",
+    "error_generic": "Nie udało się wczytać ani zapisać kolejności przejmowania. Spróbuj ponownie."
   }
 }

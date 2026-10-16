@@ -1796,7 +1796,8 @@
       "mode_list": "Alleen de hieronder aangevinkte leden",
       "none_ticked": "Geen lid aangevinkt: niemand mag deze agent berichten sturen.",
       "cancel": "Annuleren"
-    }
+    },
+    "takeover": "Agentovername"
   },
   "help": {
     "title": "Hulp",
@@ -3007,5 +3008,24 @@
         "hand": "Facturen"
       }
     }
+  },
+  "takeover": {
+    "title": "Agentovername",
+    "hint": "Wanneer een agent een taak niet voltooit, neemt de volgende leverancier in de volgorde deze over op dezelfde branch. Elke leverancier mag dit aantal keren falen voordat de volgende het overneemt.",
+    "order_col": "Overnamevolgorde",
+    "failures_col": "Max. mislukkingen",
+    "add": "Leverancier toevoegen",
+    "up": "{name} omhoog verplaatsen",
+    "down": "{name} omlaag verplaatsen",
+    "remove": "{name} verwijderen",
+    "moved": "{name} is nu nummer {n}",
+    "reset_all": "Terugzetten naar standaarden",
+    "rule_empty": "Geef ten minste één leverancier op.",
+    "rule_vendor": "Geef elke leverancier één keer op.",
+    "rule_secret": "Antigravity en Qwen nemen nooit geheim werk aan.",
+    "rule_failures": "Maximaal aantal mislukkingen is een geheel getal van {min} tot {max}.",
+    "error_forbidden": "Alleen beheerders van de werkruimte kunnen de overnamevolgorde wijzigen.",
+    "error_bad_ladder": "De hub weigerde deze overnamevolgorde.",
+    "error_generic": "De overnamevolgorde kon niet worden geladen of opgeslagen. Probeer het opnieuw."
   }
 }

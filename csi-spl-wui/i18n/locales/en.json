@@ -1796,7 +1796,8 @@
       "mode_list": "Only the members ticked below",
       "none_ticked": "No member ticked: nobody may message this agent.",
       "cancel": "Cancel"
-    }
+    },
+    "takeover": "Agent takeover"
   },
   "help": {
     "title": "Help",
@@ -3007,5 +3008,24 @@
         "hand": "Invoices"
       }
     }
+  },
+  "takeover": {
+    "title": "Agent takeover",
+    "hint": "When an agent fails a task, the next vendor in the order takes it over on the same branch. Each vendor may fail this many times before the next one takes over.",
+    "order_col": "Takeover order",
+    "failures_col": "Max failures",
+    "add": "Add a vendor",
+    "up": "Move {name} up",
+    "down": "Move {name} down",
+    "remove": "Remove {name}",
+    "moved": "{name} is now number {n}",
+    "reset_all": "Reset to defaults",
+    "rule_empty": "Name at least one vendor.",
+    "rule_vendor": "Name each vendor once.",
+    "rule_secret": "Antigravity and Qwen never take secret work.",
+    "rule_failures": "Max failures is a whole number from {min} to {max}.",
+    "error_forbidden": "Only workspace admins can change the takeover order.",
+    "error_bad_ladder": "The hub refused this takeover order.",
+    "error_generic": "The takeover order could not be loaded or saved. Try again."
   }
 }

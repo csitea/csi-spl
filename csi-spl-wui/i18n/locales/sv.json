@@ -1796,7 +1796,8 @@
       "mode_list": "Bara medlemmarna som är markerade nedan",
       "none_ticked": "Ingen medlem markerad: ingen får skriva till den här agenten.",
       "cancel": "Avbryt"
-    }
+    },
+    "takeover": "Agentövertagande"
   },
   "help": {
     "title": "Hjälp",
@@ -3007,5 +3008,24 @@
         "hand": "Fakturor"
       }
     }
+  },
+  "takeover": {
+    "title": "Agentövertagande",
+    "hint": "När en agent misslyckas med en uppgift tar nästa leverantör i ordningen över den i samma gren. Varje leverantör får misslyckas så här många gånger innan nästa tar över.",
+    "order_col": "Övertagandeordning",
+    "failures_col": "Max misslyckanden",
+    "add": "Lägg till en leverantör",
+    "up": "Flytta upp {name}",
+    "down": "Flytta ned {name}",
+    "remove": "Ta bort {name}",
+    "moved": "{name} är nu nummer {n}",
+    "reset_all": "Återställ till standardvärden",
+    "rule_empty": "Ange minst en leverantör.",
+    "rule_vendor": "Ange varje leverantör endast en gång.",
+    "rule_secret": "Antigravity och Qwen tar aldrig hemligt arbete.",
+    "rule_failures": "Maximalt antal misslyckanden är ett heltal från {min} till {max}.",
+    "error_forbidden": "Endast arbetsytans administratörer kan ändra övertagandeordningen.",
+    "error_bad_ladder": "Hubben avvisade denna övertagandeordning.",
+    "error_generic": "Övertagandeordningen kunde inte läsas in eller sparas. Försök igen."
   }
 }

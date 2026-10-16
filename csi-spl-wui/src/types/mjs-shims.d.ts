@@ -113,6 +113,9 @@ declare module '~/utils/spool-client.mjs' {
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
     getAgentSplit(): Promise<unknown>
     patchAgentSplit(kinds: Record<string, { weights: Record<string, number>, backup: string } | null>): Promise<unknown>
+    /* SPL-2115: the takeover ladder (GET any member, PUT tenant.settings) */
+    getTakeoverLadder(): Promise<unknown>
+    putTakeoverLadder(kinds: Record<string, { order: string[], max_failures: number } | null>): Promise<unknown>
     /* SPL-1018: per-agent sender allow-lists (tenant.settings) */
     listAgentSenders(): Promise<{ tenant_id?: string, lists?: { agent: string, members: string[], updated_by?: string, updated_at?: string }[] }>
     putAgentSenders(agent: string, members: string[]): Promise<{ agent: string, members: string[] }>
@@ -1677,6 +1680,21 @@ declare module '~/utils/tenant-settings.mjs' {
   export function splitMainOf(weights: Record<string, number>): string
   export function splitKindRule(kind: string, weights: Record<string, number>, backup: string): string
   export function normalizeAgentSplitKinds(body: unknown): SplitKindRow[]
+}
+
+declare module '~/utils/takeover-ladder.mjs' {
+  export type TakeoverRow = { kind: string, order: string[], maxFailures: number, set: boolean }
+  export const TAKEOVER_VENDORS: readonly string[]
+  export const TAKEOVER_KINDS: readonly string[]
+  export const TAKEOVER_MAX_FAILURES_MIN: number
+  export const TAKEOVER_MAX_FAILURES_MAX: number
+  export const DEFAULT_TAKEOVER: Readonly<Record<string, { order: readonly string[], maxFailures: number }>>
+  export function takeoverRule(kind: string, order: unknown, maxFailures: unknown): string
+  export function takeoverAddable(kind: string, order: readonly string[]): string[]
+  export function takeoverMove(order: readonly string[], i: number, delta: number): string[]
+  export function normalizeTakeoverLadder(body: unknown): TakeoverRow[]
+  export function takeoverErrorKey(err: unknown): string
+  export function createMockTakeover(storage?: Storage): { get(): unknown, put(kinds: unknown): unknown }
 }
 
 declare module '~/utils/connect-agent.mjs' {

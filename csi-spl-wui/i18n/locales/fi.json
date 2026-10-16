@@ -1796,7 +1796,8 @@
       "mode_list": "Vain alla valitut jäsenet",
       "none_ticked": "Yhtään jäsentä ei ole valittu: kukaan ei voi viestiä tälle agentille.",
       "cancel": "Peruuta"
-    }
+    },
+    "takeover": "Agentin haltuunotto"
   },
   "help": {
     "title": "Ohje",
@@ -3007,5 +3008,24 @@
         "hand": "Laskut"
       }
     }
+  },
+  "takeover": {
+    "title": "Agentin haltuunotto",
+    "hint": "Kun agentti epäonnistuu tehtävässä, järjestyksessä seuraava toimittaja ottaa sen haltuunsa samassa haarassa. Kukin toimittaja voi epäonnistua näin monta kertaa ennen kuin seuraava ottaa sen haltuun.",
+    "order_col": "Haltuunottojärjestys",
+    "failures_col": "Epäonnistumisten enimmäismäärä",
+    "add": "Lisää toimittaja",
+    "up": "Siirrä {name} ylös",
+    "down": "Siirrä {name} alas",
+    "remove": "Poista {name}",
+    "moved": "{name} on nyt numero {n}",
+    "reset_all": "Palauta oletuksiin",
+    "rule_empty": "Nimeä vähintään yksi toimittaja.",
+    "rule_vendor": "Nimeä kukin toimittaja vain kerran.",
+    "rule_secret": "Antigravity ja Qwen eivät koskaan ota salaista työtä.",
+    "rule_failures": "Epäonnistumisten enimmäismäärä on kokonaisluku väliltä {min}–{max}.",
+    "error_forbidden": "Vain työtilan ylläpitäjät voivat muuttaa haltuunottojärjestystä.",
+    "error_bad_ladder": "Hub hylkäsi tämän haltuunottojärjestyksen.",
+    "error_generic": "Haltuunottojärjestystä ei voitu ladata tai tallentaa. Yritä uudelleen."
   }
 }

@@ -24,6 +24,8 @@
 //   PROVE_RED=no-compare node tests/e2e/tenant-settings.test.mjs
 // (Vendor split per kind: agy 10 in simple coding is saved, so step 8o goes red)
 //   PROVE_RED=agy-coding node tests/e2e/tenant-settings.test.mjs
+// (Agent takeover: the new order is never saved, so step 8s goes red)
+//   PROVE_RED=takeover-no-save node tests/e2e/tenant-settings.test.mjs
 // (Join tokens: the biz_owner mock is not set, so step 17 goes red)
 //   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
 // (Embed admin: the non-owner mock is not set, so step 18g goes red)
@@ -128,7 +130,7 @@ try {
   await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
   ok('2 it opens the first section, Members', path(p).endsWith('/tenant-settings/members'), path(p))
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
-  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General, Hours, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-hours,tenant-settings-nav-performance', nav)
+  ok('3 the Settings layout lists Members, Agents, Vendor split, Agent takeover, Channels, General, Hours, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-takeover,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-hours,tenant-settings-nav-performance', nav)
 
   // 2. Members: the users list and edit pane, embedded
   await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })
@@ -299,6 +301,49 @@ try {
   const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
   ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
   if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
+
+  // 3c. SPL-2115 Agent takeover: per task kind the vendor order and the
+  // failures allowed. The defaults show; the Secrets row never offers agy or
+  // qwen; claude moved to the top of Simple coding with 3 failures saves, and
+  // a page reload (the mock keeps it like the hub) still shows it.
+  const tkOrder = (k) => attrs(p, `[data-test=takeover-${k}-order] li`, 'data-vendor').then((a) => a.join(','))
+  const tkOpen = async () => {
+    await p.waitForSelector('[data-test=takeover-simple_coding-order] li', { visible: true, timeout: 10000 })
+    await sleep(100)
+  }
+  await p.click('[data-test=tenant-settings-nav-takeover]')
+  await tkOpen()
+  const tk0 = {
+    simple: await tkOrder('simple_coding'), docs: await tkOrder('specs_and_docs'), secret: await tkOrder('secret'),
+    failures: await p.$eval('[data-test=takeover-simple_coding-failures]', (e) => e.value),
+    dflt: Boolean(await p.$('[data-test=takeover-simple_coding-default]')),
+  }
+  ok('8p Agent takeover shows the owner defaults', tk0.simple === 'mistral,agy,claude' && tk0.docs === 'agy,claude' && tk0.secret === 'claude,mistral' && tk0.failures === '2' && tk0.dflt, tk0)
+  const secretAdd = await p.$$eval('[data-test=takeover-secret-add] option', (os) => os.map((o) => o.value).filter(Boolean))
+  ok('8q CONTROL: the Secrets row never offers Antigravity or Qwen', secretAdd.join() === 'grok', secretAdd)
+  await p.click('[data-test=takeover-simple_coding-up-claude]')
+  await p.click('[data-test=takeover-simple_coding-up-claude]')
+  await setNum('[data-test=takeover-simple_coding-failures]', '3')
+  await sleep(100)
+  const tk1 = await tkOrder('simple_coding')
+  ok('8r up moves claude to the top of Simple coding', tk1 === 'claude,mistral,agy', tk1)
+  if (RED !== 'takeover-no-save') {
+    await p.click('[data-test=takeover-save]')
+    await p.waitForSelector('[data-test=takeover-notice]', { visible: true, timeout: 5000 }).catch(() => null)
+  }
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await tkOpen()
+  const tk2 = {
+    simple: await tkOrder('simple_coding'), failures: await p.$eval('[data-test=takeover-simple_coding-failures]', (e) => e.value),
+    dflt: Boolean(await p.$('[data-test=takeover-simple_coding-default]')), tests: await tkOrder('tests'),
+  }
+  ok('8s the new order and failures stay after a reload', tk2.simple === 'claude,mistral,agy' && tk2.failures === '3' && !tk2.dflt && tk2.tests === 'mistral,agy,claude', tk2)
+  if (process.env.TAKEOVER_SHOT) await p.screenshot({ path: process.env.TAKEOVER_SHOT, fullPage: true })
+  if (await p.$eval('[data-test=takeover-reset]', (e) => !e.disabled)) {
+    await p.click('[data-test=takeover-reset]')
+    await p.waitForSelector('[data-test=takeover-notice]', { visible: true, timeout: 5000 }).catch(() => null)
+  }
+  ok('8t Reset to defaults puts the order back', (await tkOrder('simple_coding')) === 'mistral,agy,claude', await tkOrder('simple_coding'))
 
   // 4. Channels: no-fallback + archive
   await p.click('[data-test=tenant-settings-nav-channels]')

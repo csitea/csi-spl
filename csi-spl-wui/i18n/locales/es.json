@@ -1796,7 +1796,8 @@
       "mode_list": "Solo los miembros marcados abajo",
       "none_ticked": "Ningún miembro marcado: nadie puede escribir a este agente.",
       "cancel": "Cancelar"
-    }
+    },
+    "takeover": "Relevo de agentes"
   },
   "help": {
     "title": "Ayuda",
@@ -3007,5 +3008,24 @@
         "hand": "Facturas"
       }
     }
+  },
+  "takeover": {
+    "title": "Relevo de agentes",
+    "hint": "Cuando un agente falla en una tarea, el siguiente proveedor en el orden se hace cargo en la misma rama. Cada proveedor puede fallar este número de veces antes de que el siguiente tome el relevo.",
+    "order_col": "Orden de relevo",
+    "failures_col": "Máx. fallos",
+    "add": "Añadir un proveedor",
+    "up": "Subir {name}",
+    "down": "Bajar {name}",
+    "remove": "Eliminar {name}",
+    "moved": "{name} es ahora el número {n}",
+    "reset_all": "Restablecer a valores predeterminados",
+    "rule_empty": "Indica al menos un proveedor.",
+    "rule_vendor": "Indica cada proveedor solo una vez.",
+    "rule_secret": "Antigravity y Qwen nunca aceptan trabajo secreto.",
+    "rule_failures": "El número máximo de fallos es un número entero de {min} a {max}.",
+    "error_forbidden": "Solo los administradores del espacio de trabajo pueden cambiar el orden de relevo.",
+    "error_bad_ladder": "El hub rechazó este orden de relevo.",
+    "error_generic": "No se pudo cargar o guardar el orden de relevo. Inténtalo de nuevo."
   }
 }

@@ -1796,7 +1796,8 @@
       "mode_list": "Tikai zemāk atzīmētie dalībnieki",
       "none_ticked": "Neviens dalībnieks nav atzīmēts: neviens nevar rakstīt šim aģentam.",
       "cancel": "Atcelt"
-    }
+    },
+    "takeover": "Aģenta pārņemšana"
   },
   "help": {
     "title": "Palīdzība",
@@ -3007,5 +3008,24 @@
         "hand": "Rēķini"
       }
     }
+  },
+  "takeover": {
+    "title": "Aģenta pārņemšana",
+    "hint": "Ja aģentam neizdodas izpildīt uzdevumu, nākamais piegādātājs secībā to pārņem tajā pašā zarā. Katram piegādātājam var būt tik daudz kļūmju, pirms nākamais pārņem uzdevumu.",
+    "order_col": "Pārņemšanas secība",
+    "failures_col": "Maks. kļūmes",
+    "add": "Pievienot piegādātāju",
+    "up": "Pārvietot {name} uz augšu",
+    "down": "Pārvietot {name} uz leju",
+    "remove": "Noņemt {name}",
+    "moved": "{name} tagad ir numurs {n}",
+    "reset_all": "Atiestatīt uz noklusējumiem",
+    "rule_empty": "Norādiet vismaz vienu piegādātāju.",
+    "rule_vendor": "Norādiet katru piegādātāju tikai vienu reizi.",
+    "rule_secret": "Antigravity un Qwen nekad neuzņemas slepenu darbu.",
+    "rule_failures": "Maksimālais kļūmju skaits ir vesels skaitlis no {min} līdz {max}.",
+    "error_forbidden": "Tikai darbvietas administratori var mainīt pārņemšanas secību.",
+    "error_bad_ladder": "Hub noraidīja šo pārņemšanas secību.",
+    "error_generic": "Pārņemšanas secību neizdevās ielādēt vai saglabāt. Mēģiniet vēlreiz."
   }
 }

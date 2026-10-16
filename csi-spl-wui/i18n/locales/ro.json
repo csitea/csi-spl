@@ -1796,7 +1796,8 @@
       "mode_list": "Doar membrii bifați mai jos",
       "none_ticked": "Niciun membru bifat: nimeni nu poate scrie acestui agent.",
       "cancel": "Anulează"
-    }
+    },
+    "takeover": "Preluare de către agent"
   },
   "help": {
     "title": "Ajutor",
@@ -3007,5 +3008,24 @@
         "hand": "Facturi"
       }
     }
+  },
+  "takeover": {
+    "title": "Preluare de către agent",
+    "hint": "Când un agent eșuează la o sarcină, următorul furnizor din ordine o preia pe aceeași ramură. Fiecare furnizor poate eșua de atâtea ori înainte ca următorul să o preia.",
+    "order_col": "Ordine de preluare",
+    "failures_col": "Eșecuri maxime",
+    "add": "Adaugă un furnizor",
+    "up": "Mută {name} mai sus",
+    "down": "Mută {name} mai jos",
+    "remove": "Elimină {name}",
+    "moved": "{name} este acum numărul {n}",
+    "reset_all": "Revenire la valorile implicite",
+    "rule_empty": "Indică cel puțin un furnizor.",
+    "rule_vendor": "Indică fiecare furnizor o singură dată.",
+    "rule_secret": "Antigravity și Qwen nu preiau niciodată sarcini secrete.",
+    "rule_failures": "Numărul maxim de eșecuri este un număr întreg de la {min} la {max}.",
+    "error_forbidden": "Doar administratorii spațiului de lucru pot schimba ordinea de preluare.",
+    "error_bad_ladder": "Hubul a refuzat această ordine de preluare.",
+    "error_generic": "Ordinea de preluare nu a putut fi încărcată sau salvată. Încearcă din nou."
   }
 }

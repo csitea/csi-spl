@@ -1796,7 +1796,8 @@
       "mode_list": "Tik žemiau pažymėti nariai",
       "none_ticked": "Nepažymėtas nė vienas narys: niekas negali rašyti šiam agentui.",
       "cancel": "Atšaukti"
-    }
+    },
+    "takeover": "Agentų perėmimas"
   },
   "help": {
     "title": "Pagalba",
@@ -3007,5 +3008,24 @@
         "hand": "Sąskaitos"
       }
     }
+  },
+  "takeover": {
+    "title": "Agentų perėmimas",
+    "hint": "Kai agentui nepavyksta atlikti užduoties, kitas tiekėjas eilėje ją perima toje pačioje šakoje. Kiekvienas tiekėjas gali patirti tiek nesėkmių, kol užduotį perims kitas.",
+    "order_col": "Perėmimo tvarka",
+    "failures_col": "Maks. nesėkmių skaičius",
+    "add": "Pridėti tiekėją",
+    "up": "Perkelti {name} aukštyn",
+    "down": "Perkelti {name} žemyn",
+    "remove": "Pašalinti {name}",
+    "moved": "{name} dabar yra numeris {n}",
+    "reset_all": "Atkurti numatytuosius",
+    "rule_empty": "Nurodykite bent vieną tiekėją.",
+    "rule_vendor": "Nurodykite kiekvieną tiekėją tik po vieną kartą.",
+    "rule_secret": "„Antigravity“ ir „Qwen“ niekada nesiima slapto darbo.",
+    "rule_failures": "Didžiausias nesėkmių skaičius yra sveikasis skaičius nuo {min} iki {max}.",
+    "error_forbidden": "Tik darbo srities administratoriai gali keisti perėmimo tvarką.",
+    "error_bad_ladder": "„Hub“ atmetė šią perėmimo tvarką.",
+    "error_generic": "Nepavyko įkelti arba išsaugoti perėmimo tvarkos. Bandykite dar kartą."
   }
 }

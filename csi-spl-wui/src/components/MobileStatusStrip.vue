@@ -197,7 +197,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  /* Base gap reduced from 4px to 0px; adjusted per icon below */
+  /* Base gap adjusted for mobile spacing requirements */
   gap: 0px;
   height: calc(22px + env(safe-area-inset-bottom, 0px));
   padding: 0 calc(8px + env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) calc(8px + env(safe-area-inset-left, 0px));
@@ -223,12 +223,12 @@ onBeforeUnmount(() => {
 
 /* Bell icon: 2mm (~8px) closer to the dot */
 .status-strip__bell {
-  margin-inline-start: -4px;
+  margin-inline-start: -8px;
 }
 
 /* Note icon: 3mm (~11px) further left */
 .status-strip__note {
-  margin-inline-start: -7px;
+  margin-inline-start: -11px;
 }
 
 /* Clock: 2mm (~8px) further left */

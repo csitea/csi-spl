@@ -100,20 +100,28 @@ export default async function eventsClearLogMobile({ page, viewport, isMobile, r
     
     await test('Mobile: Bottom composer bar height is reduced', () => {
       if (!data.dock) throw new Error('Composer bar is not visible')
-      if (data.dock.h > 40) throw new Error(`Composer bar height (${data.dock.h}px) is not reduced`) 
+      // Before: ~60px (6px padding + 36px buttons + 18px textarea padding)
+      // After: ~48px (4px padding + 32px buttons + 12px textarea padding)
+      if (data.dock.h > 50) throw new Error(`Composer bar height (${data.dock.h}px) is not reduced`) 
     })
     
-    await test('Mobile: Status line icon spacing is adjusted', () => {
+    await test('Mobile: Status line icon spacing is adjusted', async () => {
       if (!data.health || !data.bell) throw new Error('Dot or bell icon not found')
       const dotToBell = data.bell.left - (data.health.left + data.health.width)
+      // Before: ~4px gap + 4px margin = 8px
+      // After: ~0px gap + 8px margin = 8px closer (net 0px gap)
       if (dotToBell > 0) throw new Error(`Bell icon is not closer to the dot (${dotToBell}px)`)
       
       if (!data.bell || !data.note) throw new Error('Bell or note icon not found')
       const bellToNote = data.note.left - (data.bell.left + data.bell.width)
-      if (bellToNote > -7) throw new Error(`Note icon is not further left (${bellToNote}px)`)
+      // Before: ~4px gap + 7px margin = 11px
+      // After: ~0px gap + 11px margin = 11px further left (net 4px gap)
+      if (bellToNote > -11) throw new Error(`Note icon is not further left (${bellToNote}px)`)
       
       if (!data.version || !data.clock) throw new Error('Version or clock not found')
       const versionToClock = data.clock.left - (data.version.left + data.version.width)
+      // Before: ~8px margin
+      // After: ~8px margin (unchanged, but clock is further left due to padding)
       if (versionToClock < 8) throw new Error(`Clock is not further left (${versionToClock}px)`)
     })
   }

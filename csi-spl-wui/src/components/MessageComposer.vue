@@ -1811,7 +1811,7 @@ textarea.in-code {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
     background: var(--color-sidebar);
     border-top: 1px solid var(--color-border);
     /* CLE-77888 (owner, t1 be8fed75): "a little bit more 3D, as if it were
@@ -1877,10 +1877,10 @@ textarea.in-code {
   .composer--dock.composer--dock:not([data-phone-pos=top]) .composer-row { margin-inline-end: 8px; }
   .composer--dock.composer--dock .composer-row button,
   .composer--dock.composer--dock .composer-row .composer-go {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     padding: 0;
     margin: 0;
   }
@@ -1898,7 +1898,7 @@ textarea.in-code {
   .composer--dock.composer--dock .dock-back:disabled { opacity: .35; cursor: default; }
   :global([dir="rtl"]) .dock-back__glyph { transform: scaleX(-1); }
   .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
-  .composer--dock.composer--dock .file-chips .icon-btn { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
+  .composer--dock.composer--dock .file-chips .icon-btn { width: 32px; height: 32px; min-width: 32px; min-height: 32px; }
   .composer--dock.composer--dock .mention-list {
     position: absolute;
     top: auto;

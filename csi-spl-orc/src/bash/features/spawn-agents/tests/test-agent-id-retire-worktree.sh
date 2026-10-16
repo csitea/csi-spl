@@ -78,6 +78,7 @@ t_tmux
 export SPOOL_BOX_TAG=tg
 "${G[@]}" -C "$T_TMP/repo" worktree add -q -b a-107-x "$WTD/a-107" origin/master >/dev/null 2>&1
 mkdir -p "$R/a-107/inbox" "$R/agents"
+t_accepted a-107
 printf '{"id":"a-107","worktree":"%s"}\n' "$WTD/a-107" >"$R/agents/a-107.json"
 P="$(t_window 'tg: a-107 done' 'sleep 600')"
 AGY_TMUX_PANE="$P" bash "$CLOSE" --agent a-107 --defer --retire --timeout 10 >/dev/null 2>&1; eq "6. --defer --retire returns 0" 0 "$?"

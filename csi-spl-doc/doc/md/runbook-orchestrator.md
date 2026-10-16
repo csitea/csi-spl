@@ -79,7 +79,7 @@ get there: ack it the moment you start.
 | message a lane | `bash $SA/spool-send.sh --from c-001 --to <id>@<box> --kind <task\|note> --task <its task> --body-file <file>`. Read the last two lines unfiltered. Never use `--body "…"` with a backtick in it, because the shell runs it. Never use an owner topic uuid as `--task` (use `dispatch-<topic8>`) |
 | restart a lane fresh (same id, worktree, branch) | `./run -a do_spl_lane_restart` |
 | resume a seat with the current launcher flags | `IDENTITY_RESTORE_IDS=<id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore` |
-| close a finished lane | wait at least 3 minutes after its final report (its own deferred close may still run), then `bash $SA/tmux-close-window.sh --agent <id>` (`--dry-run` first if unsure; exit 3 = no provable owner, exit 4 = wrong window: it closes nothing) |
+| close a finished lane | wait at least 3 minutes after its final report (its own deferred close may still run), then `bash $SA/tmux-close-window.sh --agent <id>` (`--dry-run` first if unsure; exit 3 = no provable owner, exit 4 = wrong window: it closes nothing). A lane's own close (its pane in that window, or its own id) gets exit 5 while its push-master status reads RUNNING or before its ACCEPTED (SPL-2095; the check is `kill-your-self-report.sh --gate`). Your close of another id is never gated |
 | retire its id | check `/var/spool-hub/registry.tsv`; still listed: `AGENT_ID=<id> ./run -a do_spl_agent_id_retire` |
 
 Every seat runs as the agent user, never as the box's human login user, and

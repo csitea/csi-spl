@@ -25,6 +25,8 @@ SUT="$T_SCRIPTS/tmux-close-window.sh"
 unset MISTRAL_TMUX_PANE
 export CLOSE_LOG_DIR="$T_TMP/logs" SPOOL_BOX_TAG=tbox; mkdir -p "$CLOSE_LOG_DIR"
 t_tmux
+# Each lane closes itself after its ACCEPTED (the self-close gate, SPL-2095).
+for id in m-501 m-502 m-503 m-504; do t_accepted "$id"; done
 alive() { tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{pane_dead}' | grep -x "$1 0" >/dev/null; }
 gone() { ! tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id}' | grep -x "$1" >/dev/null; }
 now_ms() { local t="${EPOCHREALTIME//[!0-9]/}"; printf '%s' "$((10#$t / 1000))"; }

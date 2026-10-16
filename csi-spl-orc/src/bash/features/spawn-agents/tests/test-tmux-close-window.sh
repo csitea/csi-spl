@@ -70,6 +70,12 @@
 #      already red on the parent ok. The row keeps the spawn row's task, kind,
 #      vendor and start. gh is a stub, origin a local bare repo: no network.
 #      Control: the writer with the `source` field spliced out turns it red
+#  16. SPL-2095 (m-595, 2026-10-16): a lane's SELF-close (its own pane in the
+#      window, or its own id) is refused, exit 5, while its push-master status
+#      reads RUNNING, and without an ACCEPTED; after the ACCEPTED with the push
+#      ended it closes; the orchestrator's close of a lane in that state is not
+#      gated. Control: m-595's exact sequence on the script with the gate
+#      spliced out closes the window
 #
 # The sections run as parallel jobs (r01-03, SPL-2084: 166 s serial, ~94% of
 # it idle on the closer's timeouts and the controls' fixed waits). Each job
@@ -79,6 +85,7 @@
 # 150) is killed and counted as a failure; one that dies before its end too.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
+TCW_TEST_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 t_sandbox
 SUT="$T_SCRIPTS/tmux-close-window.sh"
 unset TMUX TMUX_PANE CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE QWN_TMUX_PANE MCP_BOT_AGENT_ID \
@@ -153,6 +160,10 @@ box() {  # a fresh sandbox + private tmux server; VICTIM is the active window
   t_tmux
   VICTIM="$(t_window 'tbox: CLE-09 someone else' 'sleep 600')"
   tmux -S "$SPOOL_TMUX_SOCKET" select-window -t "$VICTIM"
+  # Sections 1..15 close finished lanes: each id has its ACCEPTED (the
+  # self-close gate, section 16). Section 16's own ids (m-59x) get none.
+  local id
+  for id in $(grep -oE '\b([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)\b' "$TCW_TEST_SELF" | sort -u); do t_accepted "$id"; done
 }
 alive() { tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id}' | grep -x "$1" >/dev/null; }
 wait_gone() { for _ in $(seq 1 "$2"); do alive "$1" || return 0; sleep 0.5; done; return 1; }
@@ -618,6 +629,63 @@ EOF
   eq "15. control: ... red for the empty source alone (outcome ok)" "ok []" "$(awk -F'\t' '$4 == "c-446" { r = $6 " [" $7 "]" } END { print r }' "$J15")"
 }
 
+# --- 16. a lane cannot close itself while its push runs or before ACCEPTED (SPL-2095) ------
+# m-595 (2026-10-16 01:27:48Z): started do_spl_push_master, sent "push in
+# progress", ran its own /kill-your-self -> `--agent m-595 --defer --retire`
+# with NO ACCEPTED; closed and retired at 01:29:11Z, its push RUNNING, refused
+# at 01:34:50Z, unseen for 2.5 h. Its state here: lifetime/push-master/status
+# RUNNING, no ACCEPTED in inbox/archive.
+lane16() {  # ID PUSH-FIRST-LINE -> pane; the lane has no ACCEPTED
+  local p
+  rm -rf "${SPOOL_ROOT:?}/$1"; mkdir -p "$SPOOL_ROOT/$1/lifetime/push-master" "$SPOOL_ROOT/$1/inbox"
+  printf '%s\nsince=2026-10-16T01:27:48Z\n' "$2" >"$SPOOL_ROOT/$1/lifetime/push-master/status"
+  p="$(t_window "$1@tbox" 'sleep 600')"
+  printf '%s\tmistral\t%s\t/x\t20261016T010000Z\tc-001\n' "$1" "$p" >>"$SPOOL_ROOT/registry.tsv"
+  printf '%s\n' "$p"
+}
+s16() {
+  box
+  P16="$(lane16 m-595 RUNNING)"
+  MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16. self-close with its push RUNNING is refused (5)" 5 "$?"
+  has "16. ... the one line names the running push" "REFUSED self-close of m-595: its push is RUNNING since 2026-10-16T01:27:48Z" "$(cat "$T_TMP/o")"
+  eq "16. ... it is one line" 1 "$(wc -l <"$T_TMP/o")"
+  hasnt "16. ... and schedules no close" "scheduled defer-close" "$(cat "$T_TMP/o")"
+  check "16. ... writes no lifetime/done" test ! -e "$SPOOL_ROOT/m-595/lifetime/done"
+  printf 'PUSHED abc1234\nfinished=2026-10-16T01:40:00Z\n' >"$SPOOL_ROOT/m-595/lifetime/push-master/status"
+  MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16. self-close with no ACCEPTED is refused (5)" 5 "$?"
+  has "16. ... the line names the missing ACCEPTED" "REFUSED self-close of m-595: exit-clean refused: no ACCEPTED" "$(cat "$T_TMP/o")"
+  SPOOL_AGENT_ID=m-595 bash "$SUT" --agent m-595 >"$T_TMP/o" 2>&1
+  eq "16. an immediate self-close by the caller's own id (no pane var) is refused too (5)" 5 "$?"
+  sleep 1
+  check "16. ... the lane's window is still open" alive "$P16"
+  check "16. ... and m-595 is not retired" grep -q "^m-595	" "$SPOOL_ROOT/registry.tsv"
+  # The orchestrator closes a lane in the same state (push RUNNING, no ACCEPTED).
+  P16O="$(lane16 m-596 RUNNING)"
+  PORCH="$(t_window 'c-001@tbox' 'sleep 600')"
+  CLE_TMUX_PANE="$PORCH" SPOOL_AGENT_ID=c-001 bash "$SUT" --agent m-596 --retire >"$T_TMP/o" 2>&1
+  eq "16. the orchestrator's close of another lane is not gated (0)" 0 "$?"
+  check "16. ... that lane's window is gone" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P16O'"
+  check "16. ... the orchestrator's own window stays" alive "$PORCH"
+  # After its ACCEPTED, with the push ended, the lane closes itself.
+  t_accepted m-595
+  MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16. self-close after ACCEPTED and the push ended returns 0" 0 "$?"
+  has "16. ... and schedules the close" "scheduled defer-close" "$(cat "$T_TMP/o")"
+  check "16. ... the window closes" wait_gone "$P16" 30
+}
+s16b() {  # Red control: m-595's exact sequence on the script with the gate spliced out closes and retires.
+  box
+  spliced "$T_TMP/pre16"
+  awk '/^# --- the self-close gate/ { skip = 1 } skip && /^if \[\[ "\$DEFER" -eq 1 && -n "\$AGENT_ID"/ { skip = 0 } !skip { print }' "$SUT" >"$T_TMP/pre16/scripts/tmux-close-window.sh"
+  hasnt "16. control: the gate is spliced out" "REFUSED self-close" "$(cat "$T_TMP/pre16/scripts/tmux-close-window.sh")"
+  P16C="$(lane16 m-597 RUNNING)"
+  MISTRAL_TMUX_PANE="$P16C" bash "$T_TMP/pre16/scripts/tmux-close-window.sh" --agent m-597 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16. control: today's code accepts the self-close with push RUNNING and no ACCEPTED (0)" 0 "$?"
+  check "16. control: ... and closes the lane's window" wait_gone "$P16C" 30
+}
+
 # --- the runner ------------------------------------------------------------------------------
 # job NAME FN: FN in a subshell (its own sandbox), its ok/FAIL lines to
 # $J_DIR/NAME.out; NAME.end is written only when FN returned, so a job that
@@ -633,7 +701,7 @@ sub() {
 }
 sub_wait() { local p; for p in "${S_PIDS[@]}"; do wait "$p"; done; }
 J_PIDS=(); J_NAMES=(); S_PIDS=()
-for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15; do
+for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15 s16 s16b; do
   job "$j" "$j"
 done
 deadline=$((SECONDS + ${TCW_JOB_MAX:-150}))

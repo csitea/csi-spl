@@ -85,6 +85,12 @@ t_tmux() {  # [ENV=VAL ...] — extra env for the server (panes inherit it)
 t_window() {  # NAME CMD
   tmux -S "$SPOOL_TMUX_SOCKET" new-window -d -t t: -n "$1" -P -F '#{pane_id}' "$2"
 }
+# An ACCEPTED from the orchestrator seat in ID's spool archive: a lane's own
+# close (tmux-close-window.sh, the self-close gate, SPL-2095) needs one.
+t_accepted() {  # ID
+  mkdir -p "$SPOOL_ROOT/$1/archive"
+  printf '{"v":1,"msg_id":"acc-%s","ts":"2026-10-16T00:00:00Z","from":"c-001","to":"%s","kind":"result","task_id":"dispatch-t","body":"ACCEPTED: on master"}\n' "$1" "$1" >"$SPOOL_ROOT/$1/archive/acc-$1.json"
+}
 
 # The spool binary: the repo's build output, built once if absent.
 t_spool_bin() {

@@ -77,6 +77,8 @@
 #   2  usage error
 #   3  REFUSED: ownership could not be established — nothing was closed
 #   4  REFUSED: resolved window does not belong to the named agent
+#   5  REFUSED: a lane's SELF-close while its push runs or before its ACCEPTED
+#      (the self-close gate below, SPL-2095)
 set -uo pipefail
 TCW_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 TCW_ARGS=("$@")
@@ -608,6 +610,55 @@ tcw_journal_f3() {
     ) 9>>"$f"; } 2>/dev/null || { echo "tmux-close-window: WARN no journal row in $f" >&2; return 0; }
   echo "tmux-close-window: journal $AGENT_ID $verdict"
 }
+# --- the self-close gate (SPL-2095) ------------------------------------------
+# m-595 (2026-10-16): started do_spl_push_master, sent "push in progress", ran
+# its own /kill-your-self with no ACCEPTED; this script closed and retired it,
+# and the push it left RUNNING was refused 5 min later with nobody watching
+# for 2.5 h. The ACCEPTED check lived only in kill-your-self-report.sh, which
+# a skill TELLS the lane to run. So a SELF-close is gated here, in the script
+# every vendor's skill calls: the caller's own pane ($TMUX_PANE /
+# $CLE_TMUX_PANE ... = $_caller) sits in the window being closed, or the
+# caller's own id ($SPOOL_AGENT_ID / $MCP_BOT_AGENT_ID) is --agent. Refused,
+# one line and exit 5, while the lane's push-master status reads RUNNING, or
+# without an ACCEPTED (kill-your-self-report.sh --gate, the one check; it
+# passes role seats and a human's logged override). A close by another id
+# (orchestrator, dispatcher, watchdog, a human's window) is not gated; nor is
+# the detached closer (TCW_DETACHED) or --rebirth, which closes nothing.
+tcw_is_self_close() {
+  local own
+  own="$(norm_id "${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-}}" 2>/dev/null || true)"
+  [[ -n "$own" && "$own" == "$AGENT_ID" ]] && return 0
+  [[ -n "$_caller" ]] && pane_exists "$_caller" &&
+    [[ "$(pane_window_target "$_caller" 2>/dev/null)" == "$WINDOW_TARGET" ]]
+}
+# The push-master status files of the lane (spl-push-master.func.sh
+# _spl_push_master_state_dir): <spool root>/<id>/lifetime/push-master, else
+# <git-dir of its worktree>/spl-push-master.
+tcw_push_running() {
+  local wt gd f
+  wt="$(tcw_lane_worktree)"
+  gd="$( [[ -n "$wt" && -d "$wt" ]] && git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)"
+  for f in "${SPOOL_ROOT}/${AGENT_ID}/lifetime/push-master/status" ${gd:+"$gd/spl-push-master/status"}; do
+    if [[ -r "$f" && "$(sed -n 1p "$f")" == RUNNING ]]; then
+      printf '%s %s\n' "$f" "$(sed -n 's/^since=//p' "$f")"
+      return 0
+    fi
+  done
+  return 1
+}
+if [[ -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" && "$REBIRTH" -eq 0 ]] && tcw_is_self_close; then
+  if _run="$(tcw_push_running)"; then
+    echo "tmux-close-window: REFUSED self-close of $AGENT_ID: its push is RUNNING since ${_run##* } (${_run% *}); poll PUSH_CMD=status until it ends, land or fix it, send your result, wait for ACCEPTED; closed nothing" >&2
+    exit 5
+  fi
+  _ksr="$(cd "$(dirname "$_sp_lib")" && pwd -P)/../scripts/kill-your-self-report.sh"
+  _wt="$(tcw_lane_worktree)"
+  if ! _why="$(SPOOL_AGENT_ID="$AGENT_ID" bash "$_ksr" --gate "${_wt:-$PWD}" 2>&1 >/dev/null)"; then
+    echo "tmux-close-window: REFUSED self-close of $AGENT_ID: $(printf '%s' "$_why" | tail -n 1); closed nothing" >&2
+    exit 5
+  fi
+fi
+
 if [[ "$DEFER" -eq 1 && -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" ]]; then
   case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done"; tcw_journal_f3 ;; esac
 fi

@@ -70,6 +70,7 @@ has "with no registry row one is synthesized (quarantine holds)" "g-010	grok" "$
 # --- the /exit-clean hook: tmux-close-window.sh --agent ID --defer --retire --------
 export SPOOL_BOX_TAG=tg
 mkdir -p "$R/q-020/inbox"
+t_accepted q-020
 P2="$(t_window 'tg: q-020 done' 'sleep 600')"
 QWN_TMUX_PANE="$P2" bash "$CLOSE" --agent q-020 --defer --retire --timeout 10 >"$T_TMP/o" 2>&1; eq "--defer --retire returns 0 at once" 0 "$?"
 # Wait on the LAST side effect: agent-id-retire.sh moves the dir first and

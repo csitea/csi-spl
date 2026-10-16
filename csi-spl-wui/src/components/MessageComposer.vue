@@ -1830,7 +1830,7 @@ textarea.in-code {
      (its height stays, so nothing under it moves) */
   .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
-  .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
+  .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: 36px; }
   .composer--dock.composer--dock .composer-mode-glyph { top: 14px; }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);
@@ -1877,10 +1877,10 @@ textarea.in-code {
   .composer--dock.composer--dock:not([data-phone-pos=top]) .composer-row { margin-inline-end: 8px; }
   .composer--dock.composer--dock .composer-row button,
   .composer--dock.composer--dock .composer-row .composer-go {
-    width: var(--tap);
-    height: var(--tap);
-    min-width: var(--tap);
-    min-height: var(--tap);
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     padding: 0;
     margin: 0;
   }
@@ -1898,7 +1898,7 @@ textarea.in-code {
   .composer--dock.composer--dock .dock-back:disabled { opacity: .35; cursor: default; }
   :global([dir="rtl"]) .dock-back__glyph { transform: scaleX(-1); }
   .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
-  .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
+  .composer--dock.composer--dock .file-chips .icon-btn { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
   .composer--dock.composer--dock .mention-list {
     position: absolute;
     top: auto;

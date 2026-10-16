@@ -11,7 +11,7 @@
       <h2>{{ t('events.title') }}</h2>
       <span class="events-spacer" />
       <button
-        v-if="signedIn && rows.length"
+        v-if="signedIn && rows.length && !isMobile"
         type="button"
         class="btn"
         data-test="events-clear"
@@ -59,6 +59,16 @@
         >{{ t('events.load_more') }}</button>
       </div>
     </div>
+    <!-- Mobile-only: Clear log button at the bottom centre -->
+    <div v-if="isMobile && signedIn && rows.length" class="events-clear-mobile">
+      <button
+        type="button"
+        class="btn"
+        data-test="events-clear-mobile"
+        :disabled="busy"
+        @click="onClear"
+      >{{ t('events.clear') }}</button>
+    </div>
   </div>
 </template>
 
@@ -69,6 +79,9 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { eventRowsOf } from '~/utils/event-rows.mjs'
+import { usePhone } from '~/composables/useTouchUi'
+
+const isMobile = usePhone()
 
 type EventRow = ReturnType<typeof eventRowsOf>[number]
 
@@ -241,5 +254,23 @@ watch(() => route.hash, () => revealEvent())
   }
   .events-table-wrap { overflow-x: visible; }
   .events-table-wrap .btn { min-height: var(--tap, 44px); }
+}
+
+/* Mobile-only: Clear log button at the bottom centre */
+.events-clear-mobile {
+  position: fixed;
+  bottom: calc(var(--composer-dock-h, 0px) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-sticky, 40);
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0 1rem;
+}
+
+.events-clear-mobile .btn {
+  min-height: var(--tap, 44px);
+  padding: 0 1.5rem;
 }
 </style>

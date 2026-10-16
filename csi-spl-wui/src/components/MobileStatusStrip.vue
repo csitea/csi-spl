@@ -30,7 +30,10 @@
     >
       <span class="status-strip__dot" :class="health" aria-hidden="true" />
     </button>
-    <NotificationCenter placement="strip" />
+    <!-- Bell icon: 2mm (~8px) closer to the dot -->
+    <NotificationCenter placement="strip" class="status-strip__bell" />
+    <!-- Note icon: 3mm (~11px) further left -->
+    <NotificationCenter placement="strip" class="status-strip__note" />
     <button
       type="button"
       class="status-strip__btn status-strip__version"
@@ -194,7 +197,8 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 4px;
+  /* Base gap reduced from 4px to 0px; adjusted per icon below */
+  gap: 0px;
   height: calc(22px + env(safe-area-inset-bottom, 0px));
   padding: 0 calc(8px + env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) calc(8px + env(safe-area-inset-left, 0px));
   background: var(--color-sidebar);
@@ -215,6 +219,22 @@ onBeforeUnmount(() => {
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+/* Bell icon: 2mm (~8px) closer to the dot */
+.status-strip__bell {
+  margin-inline-start: -4px;
+}
+
+/* Note icon: 3mm (~11px) further left */
+.status-strip__note {
+  margin-inline-start: -7px;
+}
+
+/* Clock: 2mm (~8px) further left */
+.status-strip:has(> .status-strip__clock) .status-strip__version {
+  margin-inline-start: -8px;
+  padding-inline-start: 0;
 }
 .status-strip__dot {
   width: 8px;

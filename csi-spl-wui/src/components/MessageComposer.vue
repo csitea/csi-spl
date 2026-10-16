@@ -503,7 +503,7 @@ onBeforeUnmount(registerDraftSource(() => draftPending && { human: draftHuman.va
  * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone
  * it leaves the bar and pins itself to the bottom edge, `--kb-inset` above it
  * (useKeyboardInset: the visualViewport keyboard height, iOS Safari and
- * Android Chrome), full width, 44 px Back / Attach / Send. Its height goes
+ * Android Chrome), full width, 44 px wide Back / Attach / Send (40 px tall, SPL-2093). Its height goes
  * to `--composer-dock-h` on <html> (0 when not docked), so the panes pad
  * their last card clear of it (M1) and TopBar lifts its send error over it
  * (M2). SPL-1005: every level, the section chooser included.
@@ -1811,7 +1811,12 @@ textarea.in-code {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    /* SPL-2093 (owner, t1 04d9c246): "on mobile, the bottom could be a
+       little bit smaller" - the dock's controls are 40 px tall (were --tap,
+       44; their widths and places stay), still a touch target, and its
+       padding 4 px (was 6): 8 px lower */
+    --dock-tap: 40px;
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
     background: var(--color-sidebar);
     border-top: 1px solid var(--color-border);
     /* CLE-77888 (owner, t1 be8fed75): "a little bit more 3D, as if it were
@@ -1823,19 +1828,19 @@ textarea.in-code {
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
   /* the strip under it carries the home-indicator inset */
-  :global(html[data-status-strip]) .composer.composer--dock.composer--dock { padding-bottom: 6px; }
+  :global(html[data-status-strip]) .composer.composer--dock.composer--dock { padding-bottom: 4px; }
   /* SPL-1005: on every page now - a page sheet, dialog or menu is modal over
      it. The dock sits in the top bar's stacking context (z 40), above the
      pages' own sheets (z 38/39), so it steps out of sight while one is open
      (its height stays, so nothing under it moves) */
   .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
-  .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
-  .composer--dock.composer--dock .composer-mode-glyph { top: 14px; }
+  .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--dock-tap); }
+  .composer--dock.composer--dock .composer-mode-glyph { top: 12px; }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);
-    min-height: var(--tap);
-    padding: 10px 0;
+    min-height: var(--dock-tap);
+    padding: 8px 0;
     /* t1 e142d4a0: the text area ends where the Search button starts (the
        field's 8 px end padding is under the button too), so no tap on the
        text area is ever under the button */
@@ -1850,7 +1855,7 @@ textarea.in-code {
     display: inline-grid;
     place-items: center;
     width: var(--tap);
-    height: var(--tap);
+    height: var(--dock-tap);
     border: 0;
     background: var(--color-surface-hover);
   }
@@ -1878,9 +1883,9 @@ textarea.in-code {
   .composer--dock.composer--dock .composer-row button,
   .composer--dock.composer--dock .composer-row .composer-go {
     width: var(--tap);
-    height: var(--tap);
+    height: var(--dock-tap);
     min-width: var(--tap);
-    min-height: var(--tap);
+    min-height: var(--dock-tap);
     padding: 0;
     margin: 0;
   }
@@ -1888,7 +1893,8 @@ textarea.in-code {
      button's look: a round accent button with the go (play) icon */
   .composer--dock.composer--dock .composer-row .composer-go {
     border: 0;
-    border-radius: 50%;
+    /* SPL-2093: 44 x 40 now, so round ends rather than an oval */
+    border-radius: var(--radius-pill);
     background: var(--color-accent);
     color: var(--color-on-accent);
     box-shadow: 0 2px 8px rgb(0 0 0 / .3);
@@ -1898,7 +1904,7 @@ textarea.in-code {
   .composer--dock.composer--dock .dock-back:disabled { opacity: .35; cursor: default; }
   :global([dir="rtl"]) .dock-back__glyph { transform: scaleX(-1); }
   .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
-  .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
+  .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--dock-tap); min-width: var(--tap); min-height: var(--dock-tap); }
   .composer--dock.composer--dock .mention-list {
     position: absolute;
     top: auto;
@@ -1923,7 +1929,10 @@ textarea.in-code {
   .composer.composer--dock.composer--dock[data-phone-pos=top] {
     top: var(--top-bar-h);
     bottom: auto;
-    padding: 6px calc(8px + env(safe-area-inset-right, 0px)) 6px calc(8px + env(safe-area-inset-left, 0px));
+    /* SPL-2093: the same 4 px as at the bottom - the dock's ResizeObserver
+       sees its content box, so a padding change alone would leave
+       --composer-dock-top-h stale */
+    padding: 4px calc(8px + env(safe-area-inset-right, 0px)) 4px calc(8px + env(safe-area-inset-left, 0px));
     border-top: 0;
     border-bottom: 1px solid var(--color-border);
     background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%);
@@ -1958,7 +1967,7 @@ textarea.in-code {
      keyboard (it stays that size when the focus leaves); in the corner at
      least 280 px and at most the width less 48 px of the feed */
   .composer--dock.composer--dock[data-phone-size=set] textarea {
-    min-height: max(var(--tap), calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * min(var(--dock-field-share, 0), 0.5)));
+    min-height: max(var(--dock-tap), calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * min(var(--dock-field-share, 0), 0.5)));
   }
   .composer.composer--dock.composer--dock[data-phone-pos=right][data-phone-size=set] {
     width: clamp(min(280px, 100vw - 48px), calc(100vw * var(--dock-width-share, 0.84)), calc(100vw - 48px));
@@ -2010,7 +2019,7 @@ textarea.in-code {
 @media (max-width: 820px) {
   .composer--dock.composer--dock .omnibox-field.is-multiline .omnibox-prefix {
     max-width: calc(100% - var(--tap));
-    padding-top: 10px;
+    padding-top: 8px;
   }
   /* t1 e142d4a0: a multi-line draft keeps clear of the Search button too */
   .composer.composer--dock.composer--dock .omnibox-field.is-multiline textarea { width: calc(100% - var(--tap) + 8px); }

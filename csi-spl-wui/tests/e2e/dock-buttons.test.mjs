@@ -34,6 +34,9 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.SHOTS || ''
 const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const TAP = 44
+// SPL-2093 (owner, t1 04d9c246: "the bottom could be a little bit smaller"):
+// the phone dock's controls are 40 px tall, their widths stay 44
+const DOCK_H = 40
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -151,10 +154,10 @@ async function phone(browser) {
   const r1 = await until(() => rowFacts(p), (r) => Boolean(r && r.buttons.length))
   const ids = r1 ? r1.buttons.map((b) => b.id) : []
   const [back, attach, send] = r1 ? r1.buttons : []
-  ok('390px 1 no camera; Back, Attach, Send left to right; Attach 2 px left of centre; 44 px targets',
+  ok('390px 1 no camera; Back, Attach, Send left to right; Attach 2 px left of centre; 44 x 40 px targets',
     Boolean(r1 && r1.docked && !r1.camera && ids.join(',') === 'dock-back,attach,send'
       && Math.abs(attach.cx - (back.cx + send.cx) / 2 + 2) <= 1 && back.label
-      && r1.buttons.every((b) => b.w >= TAP && b.h >= TAP)), r1)
+      && r1.buttons.every((b) => b.w >= TAP && b.h >= DOCK_H)), r1)
   ok('390px 2 level 1: Back is shown and disabled', Boolean(back && back.id === 'dock-back' && back.disabled), back)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'dock-buttons-390-level1.png') })
 

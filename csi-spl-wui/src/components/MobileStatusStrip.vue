@@ -232,9 +232,17 @@ onBeforeUnmount(() => {
    container" - with the clock here the version leaves the end for the note's
    side (its 16 px glyph sits in a 44 px target, so the button tucks 6 px
    under it) and the clock takes the end, flush but for the notch inset */
-.status-strip:has(> .status-strip__clock) { padding-inline-end: env(safe-area-inset-right, 0px); }
-.status-strip:has(> .status-strip__clock) .status-strip__version { margin-inline-start: -6px; padding-inline-start: 0; }
+.status-strip:has(> .status-strip__clock) { padding-inline-end: calc(8px + env(safe-area-inset-right, 0px)); }
+.status-strip:has(> .status-strip__clock) .status-strip__version { margin-inline-start: 5px; padding-inline-start: 0; }
 .status-strip__clock { margin-inline-start: auto; }
+/* SPL-2093 (owner, t1 ec6ca844): "the distance between the connected dot
+   and the bell icon ... 2 mm smaller. The same for the note icon: it should
+   go some 3 mm on the left. The version should stay where it is, and then
+   the clock should go 2 mm on the left" (1 mm = 3.78 px): the bell 8 px
+   nearer the dot (its target tucks 4 px under the dot's), the note 11 px
+   left (3 px of it from the pair's gap), the version's start held where it
+   was (-6 px + 11), and the clock 8 px in from the end (the padding above) */
+.status-strip > .notify-box { margin-inline-start: -8px; gap: 1px; }
 .status-strip__card {
   position: absolute;
   bottom: calc(100% + 4px);

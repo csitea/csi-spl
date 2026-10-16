@@ -4,7 +4,7 @@
 // SPL-995 answer E on phones:
 //   - no round GO at the middle of the right edge, on any page or level
 //   - the docked composer's bottom-right Send is the GO: the go (play) icon,
-//     accent fill, >= 44 px, "Go / Send"
+//     accent fill, >= 44 x 40 px (SPL-2093), "Go / Send"
 //   - the dock is on EVERY phone level (the section chooser too) and on pages
 //     with no send target (/issues, /events), so `/search` is
 //     always reachable; `/search <q>` from the dock opens /search?q= from
@@ -111,7 +111,7 @@ async function open(browser, vp, path) {
   return { p, errors }
 }
 
-const goOk = (l) => Boolean(l.dock && l.goIcon === 'go' && l.goSize && l.goSize[0] >= 44 && l.goSize[1] >= 44
+const goOk = (l) => Boolean(l.dock && l.goIcon === 'go' && l.goSize && l.goSize[0] >= 44 && l.goSize[1] >= 40
   && l.goBg === l.accentRgb && l.goRight !== null && l.goRight <= 24 && l.dockBottom !== null && Math.abs(l.dockBottom) <= 1)
 
 async function phoneCase(browser, width, height) {
@@ -124,7 +124,7 @@ async function phoneCase(browser, width, height) {
     const l = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-go-dock-${width}-${path.replace(/\W+/g, '_') || 'root'}.png`) })
     ok(`${tag} ${name}: no floating GO at the middle of the right edge`, l.toggle === 0 && !/search-toggle/.test(l.midButton), { level: l.level, midButton: l.midButton })
-    ok(`${tag} ${name}: the dock is at the bottom and its bottom-right button is the accent GO (go icon, >= 44 px)`, l.level === want && goOk(l), l)
+    ok(`${tag} ${name}: the dock is at the bottom and its bottom-right button is the accent GO (go icon, >= 44 x 40 px, SPL-2093)`, l.level === want && goOk(l), l)
     ok(`${tag} ${name}: no page error`, errors.length === 0, errors)
     await p.close()
   }

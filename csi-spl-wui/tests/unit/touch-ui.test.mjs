@@ -157,9 +157,12 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
     const layout = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
     assert.match(layout, /<MobileStatusStrip v-if="stack\.isMobile\.value" \/>/)
   })
-  it('keeps iOS from zooming, and every control is a 44 px target', () => {
+  /* SPL-2093 (owner, t1 04d9c246): the dock 8 px lower - its controls keep
+     the 44 px width and are 40 px tall, still a touch target */
+  it('keeps iOS from zooming, and every control is a 44 x 40 px target', () => {
     assert.match(vue, /\.composer--dock\.composer--dock textarea \{\s*font-size: max\(16px, 1rem\);/)
-    assert.match(vue, /width: var\(--tap\);\s*height: var\(--tap\);/)
+    assert.match(vue, /--dock-tap: 40px;/)
+    assert.match(vue, /width: var\(--tap\);\s*height: var\(--dock-tap\);/)
   })
   it('honours the submit-key setting on the on-screen keyboard too', () => {
     assert.match(vue, /:enterkeyhint="docked \? \(submitMode === 'enter' \? 'send' : 'enter'\) : undefined"/)

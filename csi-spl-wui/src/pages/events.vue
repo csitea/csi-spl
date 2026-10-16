@@ -11,7 +11,7 @@
       <h2>{{ t('events.title') }}</h2>
       <span class="events-spacer" />
       <button
-        v-if="signedIn && rows.length"
+        v-if="signedIn && rows.length && !phone"
         type="button"
         class="btn"
         data-test="events-clear"
@@ -58,7 +58,19 @@
           @click="loadMore"
         >{{ t('events.load_more') }}</button>
       </div>
+      <!-- SPL-2093 (owner, t1 04d9c246): on a phone Clear log sits at the
+           bottom centre, just above the dock; this spacer lets the last card
+           scroll clear of it -->
+      <div v-if="phone && signedIn && rows.length" class="events-clear-room" aria-hidden="true" />
     </div>
+    <button
+      v-if="phone && signedIn && rows.length"
+      type="button"
+      class="btn events-clear--phone"
+      data-test="events-clear"
+      :disabled="busy"
+      @click="onClear"
+    >{{ t('events.clear') }}</button>
   </div>
 </template>
 
@@ -69,6 +81,7 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { eventRowsOf } from '~/utils/event-rows.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 type EventRow = ReturnType<typeof eventRowsOf>[number]
 
@@ -77,6 +90,7 @@ const EVENTS_PAGE = 30
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
+const phone = usePhone()
 const client = createEventsClient({ base: useAuthBase() })
 const signedIn = computed(() => session.state === 'in')
 
@@ -166,6 +180,20 @@ watch(() => route.hash, () => revealEvent())
 
 <style scoped>
 .events-spacer { flex: 1 1 auto; }
+/* SPL-2093: the phone's Clear log, centred over the dock (and the strip
+   under it, both in --composer-dock-h), above the keyboard when it is up;
+   under the page sheets (z 38/39) and the dock itself */
+.events-clear--phone {
+  position: fixed;
+  inset-inline-start: 50%;
+  bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px) + 8px);
+  z-index: 30;
+  transform: translateX(-50%);
+  min-height: var(--tap, 44px);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .3);
+}
+:global([dir="rtl"]) .events-clear--phone { transform: translateX(50%); }
+.events-clear-room { height: calc(var(--tap, 44px) + 16px); }
 .events-error {
   margin: 0;
   color: var(--color-danger);

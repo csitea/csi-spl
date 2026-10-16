@@ -6,7 +6,7 @@
 //   1 the omnibox field's right edge sits 42 px left of Attach's left edge
 //     (it was 50: 2 mm ~ 8 px wider; its left edge is unchanged)
 //   2 the Back arrow's glyph centre sits 20 px left of Attach's left edge
-//     (it was 24: 1 mm ~ 4 px to the right); Back stays a 44 px tall target
+//     (it was 24: 1 mm ~ 4 px to the right); Back stays a 44 px wide, 40 px tall target
 //   3 Attach and Send keep their place: Send's right edge 16 px (bottom) or
 //     8 px (top) from the viewport's right edge, Attach 2 px left of Send,
 //     each 44 px, and Attach is the element on top at its own centre and at
@@ -29,6 +29,9 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.SHOTS || ''
 const TAP = 44
+// SPL-2093 (owner, t1 04d9c246: "the bottom could be a little bit smaller"):
+// the phone dock's controls are 40 px tall, their widths stay 44
+const DOCK_H = 40
 const POS_KEY = 'spool.omnibox-phone-pos'
 
 const results = []
@@ -110,8 +113,8 @@ async function place(browser, width, height, pos) {
     const a = g.attach.left
     ok(`${tag} 1 field right edge 42 px left of Attach (was 50)`, near(a - g.field.right, 42),
       { gap: a - g.field.right })
-    ok(`${tag} 2 Back glyph centre 20 px left of Attach (was 24), 44 px tall`,
-      near(a - g.glyph.cx, 20) && g.back.h >= TAP, { gap: a - g.glyph.cx, h: g.back.h })
+    ok(`${tag} 2 Back glyph centre 20 px left of Attach (was 24), 40 px tall`,
+      near(a - g.glyph.cx, 20) && g.back.h >= DOCK_H, { gap: a - g.glyph.cx, h: g.back.h })
     const edge = pos === 'top' ? 8 : 16
     ok(`${tag} 3 Send and Attach in place: Send ${edge} px from the right, Attach 2 px left of it, 44 px, on top`,
       near(g.vw - g.send.right, edge) && near(g.send.left - g.attach.right, 2)
@@ -133,8 +136,8 @@ async function place(browser, width, height, pos) {
   await sleep(400)
   const d = await geometry(p)
   const same = (k) => Boolean(e && d && e[k] && d[k] && near(e[k].left, d[k].left) && near(e[k].right, d[k].right) && near(e[k].w, d[k].w))
-  ok(`${tag} 6 a channel, a draft typed: no target chip, field/Back/Attach/Send unmoved, each 44 px`,
-    Boolean(d && d.chip === false && ['field', 'back', 'attach', 'send'].every(same) && d.back.h >= TAP && d.attach.w >= TAP && d.send.w >= TAP),
+  ok(`${tag} 6 a channel, a draft typed: no target chip, field/Back/Attach/Send unmoved, each 44 px wide`,
+    Boolean(d && d.chip === false && ['field', 'back', 'attach', 'send'].every(same) && d.back.h >= DOCK_H && d.attach.w >= TAP && d.send.w >= TAP),
     d && { chip: d.chip, field: [e && e.field, d.field], attach: d.attach && d.attach.left, send: d.send && d.send.right })
   if (SHOTS && width === 390) await p.screenshot({ path: join(SHOTS, `phone-dock-geometry-${width}-${pos}-draft.png`) })
   ok(`${tag} no page error`, errors.length === 0, errors)

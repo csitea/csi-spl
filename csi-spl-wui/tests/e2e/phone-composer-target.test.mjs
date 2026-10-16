@@ -383,7 +383,7 @@ async function chipDesktop(browser) {
 
 /* ---- 085 T003 (FR-004, FR-005): the phone Search button ----
  *   phone (390x844 and 360x780, touch), /channel/alerts (level 2):
- *     AC5 the "?" slot (search-syntax-help) is the magnifier, >= 44x44,
+ *     AC5 the "?" slot (search-syntax-help) is the magnifier, 44 wide x >= 40 tall (the dock row, SPL-2093),
  *         named "Search"; tap it -> the form has omnibox--search, the field
  *         is focused, search-syntax-panel is open and its first rows are the
  *         key hints (search-phone-hints, 3 rows); type "scaffold", tap the
@@ -457,7 +457,7 @@ async function searchCase(browser, width, height) {
   const vp = { width, height, isMobile: true, hasTouch: true }
   const { p, errors } = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
   const s0 = await searchState(p)
-  ok(`${tag} AC5 the "?" slot is the magnifier, >= 44x44, named "Search"`, Boolean(s0 && s0.level === '2' && s0.btn && s0.btn.w >= 44 && s0.btn.h >= 44 && s0.btn.label === 'Search' && s0.btn.icon && s0.btn.text === '' && !s0.search && !s0.panel), s0)
+  ok(`${tag} AC5 the "?" slot is the magnifier, 44x40+, named "Search"`, Boolean(s0 && s0.level === '2' && s0.btn && s0.btn.w >= 44 && s0.btn.h >= 40 && s0.btn.label === 'Search' && s0.btn.icon && s0.btn.text === '' && !s0.search && !s0.panel), s0)
 
   await p.touchscreen.tap(s0.btn.x, s0.btn.y)
   await sleep(400)

@@ -25,6 +25,7 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const TAP = 44
+const DOCK_H = 40
 const results = []
 function check(name, pass, ev) {
   results.push({ name, ok: pass })
@@ -92,7 +93,9 @@ async function phone(p, base, width) {
   check(`${tag}: tenant name shown`, bar['[data-test=top-bar-tenant]']?.shown === true, bar['[data-test=top-bar-tenant]'])
   for (const s of ['.composer--dock [data-testid=send]', '[data-test=user-menu-trigger]']) {
     const r = bar[s]
-    check(`${tag}: ${s} shown, >= ${TAP} px`, r?.shown && r.w >= TAP && r.h >= TAP, r)
+    /* SPL-2093: the dock's row is 40 px tall (its buttons stay 44 wide) */
+    const minH = s.startsWith('.composer--dock') ? DOCK_H : TAP
+    check(`${tag}: ${s} shown, >= ${TAP}x${minH} px`, r?.shown && r.w >= TAP && r.h >= minH, r)
   }
   const av = bar['[data-test=user-menu-trigger]']
   check(`${tag}: the avatar inside the bar`, av && av.y >= 0 && av.b <= row.b, av)
@@ -104,7 +107,8 @@ async function phone(p, base, width) {
     && go && view.w - (go.x + go.w) <= 24 && floor - go.b <= 24
     && await p.evaluate(() => {
       const b = document.querySelector('.composer--dock [data-testid=send]')
-      return getComputedStyle(b).borderRadius === '50%' && b.querySelector('svg')?.getAttribute('data-icon') === 'go'
+      /* SPL-2093: 44 x 40, so a pill (round ends) rather than 50 % (an oval) */
+      return parseFloat(getComputedStyle(b).borderRadius) >= b.getBoundingClientRect().height / 2 && b.querySelector('svg')?.getAttribute('data-icon') === 'go'
     }), { go, view, floor })
   for (const s of ['[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} is out of the row`, !bar[s]?.shown, bar[s])

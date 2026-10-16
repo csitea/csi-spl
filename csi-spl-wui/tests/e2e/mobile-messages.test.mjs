@@ -4,7 +4,7 @@
 //
 //   phone (360x740, 820x1180, hasTouch):
 //     1 the composer is docked: full width, its bottom on the bottom status
-//       strip's top (CLE-77888), Back / Attach / Send >= 44 px, 16 px text (no iOS zoom)
+//       strip's top (CLE-77888), Back / Attach / Send 44 wide x >= 40 px, 16 px text (no iOS zoom)
 //     2 the card header's controls are >= 44 px; the smile / open icons left
 //       the row; the page never scrolls sideways
 //     3 a LONG PRESS on a card opens the menu as a bottom sheet (its bottom on
@@ -37,6 +37,8 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.SHOTS || ''
 const PATH = '/lobby'
 const TAP = 44
+// the phone dock's row is 40 px tall since SPL-2093 (widths stay 44)
+const DOCK_H = 40
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -228,11 +230,11 @@ async function phone(browser, width, height) {
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
 
   const docked = (c) => Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - (c.vh - c.strip)) <= 1
-    && c.send && c.send.w >= TAP && c.send.h >= TAP && c.attach && c.attach.h >= TAP
-    && c.back && c.back.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
-    && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px')
+    && c.send && c.send.w >= TAP && c.send.h >= DOCK_H && c.attach && c.attach.h >= DOCK_H
+    && c.back && c.back.h >= DOCK_H && c.syntax && c.syntax.w >= TAP && c.syntax.h >= DOCK_H
+    && c.field && c.field.h >= DOCK_H && c.font >= 16 && c.dockVar !== '0px')
   const c = await until(() => composerFacts(p), docked)
-  ok(`${tag} 1 composer docked at the bottom, full width, 44 px controls, 16 px text`, docked(c), c)
+  ok(`${tag} 1 composer docked at the bottom, full width, 44x40 px controls, 16 px text`, docked(c), c)
 
   const header = (card) => Boolean(card && card.menuBtn && card.menuBtn.w >= TAP && card.menuBtn.h >= TAP
     && card.scrollW <= card.vw && card.menuRight >= 0 && card.menuRight <= 24)

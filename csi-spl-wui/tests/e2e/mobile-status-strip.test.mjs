@@ -7,7 +7,7 @@
 //     1 the strip is at the very bottom, ~5 mm (20..26 px) tall, full width
 //     2 it holds the 4 desktop footer icons: dot, bell, note, version
 //     3 the docked composer sits ON it (dock bottom = strip top), its content
-//       unchanged (Send / Attach still 44 px), nothing overlaps
+//       unchanged (Send / Attach >= 40 px tall, SPL-2093), nothing overlaps
 //     4 --composer-dock-h = dock + strip, so the panes and the snackbars
 //       (CLE-77871, which read it) clear both
 //     4b the bottom bar is raised (owner, t1 be8fed75): a shadow cast upward
@@ -37,7 +37,9 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const PATH = '/lobby'
-const TAP = 44
+// SPL-2093 (owner, t1 04d9c246: "the bottom could be a little bit smaller"):
+// the phone dock's controls are 40 px tall, their widths stay 44
+const DOCK_H = 40
 const SHA = '0123456789abcdef0123456789abcdef01234567'
 
 if (OUT) mkdirSync(OUT, { recursive: true })
@@ -150,7 +152,7 @@ try {
       && [f.health, f.bell, f.note, f.version].every((b) => b.top >= f.strip.top && b.bottom <= f.strip.bottom + 1)
       && f.health.left < f.bell.left && f.bell.left < f.note.left && f.note.left < f.version.left), null)
   ok('390 3 the composer dock sits on the strip (no overlap), its controls unchanged',
-    Boolean(f.dock && f.strip && Math.abs(f.dock.bottom - f.strip.top) <= 1 && f.send && f.send.h >= TAP && f.attach && f.attach.h >= TAP), { dock: f.dock, strip: f.strip })
+    Boolean(f.dock && f.strip && Math.abs(f.dock.bottom - f.strip.top) <= 1 && f.send && f.send.h >= DOCK_H && f.attach && f.attach.h >= DOCK_H), { dock: f.dock, strip: f.strip })
   ok('390 4 --composer-dock-h counts the dock and the strip (snackbars and panes clear both)',
     Boolean(f.dock && f.strip && Math.abs(f.dockVar - (f.dock.h + f.strip.h)) <= 2 && f.stripVar === f.strip.h), { dockVar: f.dockVar, stripVar: f.stripVar })
 

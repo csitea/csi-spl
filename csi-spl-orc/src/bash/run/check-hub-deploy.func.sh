@@ -14,7 +14,8 @@
 # @description and cnf hub.image.tag is only the FLOOR, so any tag in the cnf
 # @description repository at or above the floor is current; commit-level lag is
 # @description do_check_deploy_lag's question, not this one.
-# @description   4 unhealthy - the image matches but the service / revision is not ready
+# @description   4 unhealthy - the image matches but the service / revision is not ready,
+# @description                 or traffic is not 100 % on the latest ready revision (SPL-2249)
 # @description   1           - cannot tell (no service, no access, bad cnf)
 # @description A green workflow run is not proof of a deploy (a skipped deploy
 # @description job is green too); this is. It only DESCRIBES: no update, no
@@ -58,11 +59,16 @@ do_hub_deploy_verify_gcp() {
   # spawns -> ~5 ms of one; in the deploy-verify retry loop that is 24 yq -> 6.
   # None of these values can contain a tab (image ref, revision names, a
   # condition status), so @tsv round-trips exactly.
-  IFS=$'\t' read -r image ready created latest < <(yq -p json -r '[
+  # serving: the revision(s) with traffic, "rev:pct,..." ("" when the
+  # describe carries no status.traffic). SPL-2249: a canary split, or a
+  # canary rolled back (the old revision pinned at 100 % while the template
+  # already names the new image), is NOT current.
+  IFS=$'\t' read -r image ready created latest serving < <(yq -p json -r '[
       .spec.template.spec.containers[0].image // "",
       ([.status.conditions[] | select(.type == "Ready") | .status][0] // ""),
       .status.latestCreatedRevisionName // "",
-      .status.latestReadyRevisionName // ""
+      .status.latestReadyRevisionName // "",
+      ([.status.traffic[]? | select((.percent // 0) > 0) | .revisionName + ":" + ((.percent // 0) | tostring)] | join(","))
     ] | @tsv' <<<"$json")
 
   local live_tag="${image##*:}" floor="${SPL_IMAGE_CNF_REF##*:}" ok=0
@@ -82,6 +88,10 @@ do_hub_deploy_verify_gcp() {
   fi
   if [[ "$ready" != True || -z "$created" || "$created" != "$latest" ]]; then
     echo "$ENV unhealthy service=$svc image=$image ready=${ready:-unknown} latest_created=$created latest_ready=$latest"
+    return 4
+  fi
+  if [[ -n "$serving" && "$serving" != "$latest:100" ]]; then
+    echo "$ENV unhealthy service=$svc image=$image traffic=$serving latest_ready=$latest (a canary split or a rolled-back canary)"
     return 4
   fi
   echo "$ENV current service=$svc image=$image revision=$latest"

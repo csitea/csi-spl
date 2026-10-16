@@ -63,11 +63,12 @@ ref=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/re
   do_spl_cloud_cnf && echo "$SPL_IMAGE_REF"')
 [[ -n "$ref" ]] || { fail "cannot resolve the dev cnf image ref"; exit 1; }
 
-fixture() { # <file> <image> <ready> <created> <latest>
+fixture() { # <file> <image> <ready> <created> <latest> [status.traffic JSON]
+  local tr=""; [[ -n "${6:-}" ]] && tr="\"traffic\":$6,"
   cat >"$1" <<EOF
 {"spec":{"template":{"spec":{"containers":[{"image":"$2"}]}}},
  "status":{"conditions":[{"type":"ConfigurationsReady","status":"True"},{"type":"Ready","status":"$3"}],
-           "latestCreatedRevisionName":"$4","latestReadyRevisionName":"$5"}}
+           $tr"latestCreatedRevisionName":"$4","latestReadyRevisionName":"$5"}}
 EOF
 }
 
@@ -89,6 +90,18 @@ check "lagging: service runs another image"               3 lagging FIXTURE="$T/
 check "unhealthy: Ready=False (read by type, not index)"  4 unhealthy FIXTURE="$T/notready.json"
 check "unhealthy: latest created revision is not ready"   4 unhealthy FIXTURE="$T/rollout.json"
 check "describe fails -> cannot tell"                     1 "" FIXTURE=
+
+# SPL-2249: traffic must be 100 % on the latest ready revision. A canary split
+# and a rolled-back canary (old revision pinned, template on the new image)
+# are unhealthy, never current.
+fixture "$T/latest100.json" "$ref" True r-2 r-2 '[{"latestRevision":true,"percent":100,"revisionName":"r-2"}]'
+fixture "$T/split.json" "$ref" True r-2 r-2 '[{"percent":90,"revisionName":"r-1"},{"percent":10,"revisionName":"r-2","tag":"canary"}]'
+fixture "$T/pinned.json" "$ref" True r-2 r-2 '[{"percent":100,"revisionName":"r-1"},{"revisionName":"r-2","tag":"canary"}]'
+check "current: 100 % on the latest ready revision"              0 current FIXTURE="$T/latest100.json"
+check "unhealthy: a canary split (r-1 90 %, r-2 10 %)"           4 unhealthy FIXTURE="$T/split.json"
+check "unhealthy: a rolled-back canary (r-1 pinned, latest r-2)" 4 unhealthy FIXTURE="$T/pinned.json"
+out=$(in_orc GCP_ACCOUNT=op@example.com FIXTURE="$T/split.json" 2>/dev/null)
+[[ "$out" == *"traffic=r-1:90,r-2:10 "* ]] && pass "the split is named in the verdict line" || fail "split verdict: $out"
 
 # The release version is minted per deploy; cnf hub.image.tag is the floor.
 floor="${ref##*:}"

@@ -159,12 +159,17 @@ resource "google_cloud_run_v2_service" "hub" {
     # stamps gcloud/console leave behind. And the service-level scaling block
     # (not template.scaling, which cnf sets): the API's own default {min 0,
     # manual 0}, declared nowhere here, so every plan would null it (spec 075
-    # T13 plan, 2026-10-07).
+    # T13 plan, 2026-10-07). And the traffic split (SPL-2249): a canary
+    # deploy (do_canary_hub_deploy) tags the new revision, sends it a share,
+    # then promotes it to latest 100 % or pins the old revision back. That
+    # split belongs to the 20 pipeline too; an apply mid-canary must never
+    # snap it to latest, nor un-pin a rolled-back service.
     ignore_changes = [
       client,
       client_version,
       scaling,
       template[0].containers[0].image,
+      traffic,
     ]
   }
 }

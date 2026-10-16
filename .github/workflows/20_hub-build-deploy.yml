@@ -395,7 +395,8 @@ jobs:
               echo "gcp_project=$SPL_PROJECT"
               echo "gcp_region=$SPL_REGION"
               echo "service_name=$(yq -r ".env.hub.service_name // \"\"" "$SPL_CNF")"
-              echo "api_fqdn=$(yq -r ".env.dns.api_fqdn // \"\"" "$SPL_CNF")"'
+              echo "api_fqdn=$(yq -r ".env.dns.api_fqdn // \"\"" "$SPL_CNF")"
+              echo "canary=$(yq -r ".env.hub.cloud_run.canary.enabled // false" "$SPL_CNF")"'
           }
           resolve "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/cfg.env" >> "$GITHUB_OUTPUT"
           grep -q '^service_name=.\+' "$RUNNER_TEMP/cfg.env" \
@@ -634,9 +635,23 @@ jobs:
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
           GCP_REGION: ${{ steps.cfg.outputs.gcp_region }}
           SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
+          CANARY: ${{ steps.cfg.outputs.canary }}
         run: |
           set -euo pipefail
           gsvc=(--project "$GCP_PROJECT" --region "$GCP_REGION")
+          # SPL-2249: with cnf hub.cloud_run.canary.enabled the roll is a
+          # canary: a tagged 0 % revision, probes, a traffic share for N min,
+          # the 5xx / WS-upgrade gate, then latest 100 % or the old revision
+          # pinned back (this step then fails, and the steps after it skip).
+          # The action decides "nothing to roll" itself: after a rolled-back
+          # canary the template already names the image while traffic does not.
+          if [[ "$CANARY" == true ]]; then
+            DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" IMAGE_REF="$IMAGE_REF" EXPECT_COMMIT="$GITHUB_SHA" \
+              ./csi-spl-orc/run -a do_canary_hub_deploy | tee "$RUNNER_TEMP/canary.log"
+            if grep -q -- '-- nothing to roll' "$RUNNER_TEMP/canary.log"; then echo "rolled=false" >> "$GITHUB_OUTPUT"
+            else echo "rolled=true" >> "$GITHUB_OUTPUT"; fi
+            exit 0
+          fi
           # The service is terraform's (030). Refuse to create one here.
           if ! live="$(gcloud run services describe "$SERVICE_NAME" "${gsvc[@]}" \
                          --format='value(spec.template.spec.containers[0].image)')"; then

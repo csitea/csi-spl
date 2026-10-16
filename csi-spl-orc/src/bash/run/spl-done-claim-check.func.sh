@@ -39,11 +39,13 @@
 # @param DONE_CLAIM_STATE_DIR (optional) - the ledger's dir, default $XDG_STATE_HOME/csi-spl/done-claim-check
 # @param DONE_CLAIM_BOX (optional) - this box's id (a lane <id>@<other box> is skipped); default the desk box
 # @param DONE_CLAIM_TO (optional) - the recipient; default the dispatch lease holder, else LEASE_ORCH
-# @param DONE_CLAIM_FROM (optional) - the sender id, default c-001
+# @param DONE_CLAIM_FROM (optional) - the sender id, default role seat 1 in its live vendor letter (spl_role_seat 1)
 # @param DONE_CLAIM_SEND (optional) - the sender script (the tests stub it), default spool-send.sh
 # @param DONE_CLAIM_NOW (optional) - an epoch for the clock (tests)
 # @example DRY_RUN=1 ./run -a do_spl_done_claim_check
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_done_claim_check() {
   local v age="${DONE_CLAIM_AGE_MIN:-15}" hours="${DONE_CLAIM_DAYS_H:-24}" now dry="${DRY_RUN:-1}"
   for v in "$age" "$hours"; do
@@ -191,7 +193,7 @@ spl_done_claim_note() {
 # spl_done_claim_send <to> <body file>: one spool note on task done-claim-check.
 spl_done_claim_send() {
   local send="${DONE_CLAIM_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${DONE_CLAIM_FROM:-c-001}" --to "$1" \
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${DONE_CLAIM_FROM:-$(spl_role_seat 1)}" --to "$1" \
     --kind note --task done-claim-check --body-file "$2" >/dev/null 2>&1 8>&- 9>&- ||
     { do_log "WARN could not send the done-claim note to $1"; return 1; }
 }

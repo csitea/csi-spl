@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs'
 import {
   createMockTakeover, DEFAULT_TAKEOVER, normalizeTakeoverLadder, TAKEOVER_KINDS, takeoverAddable,
-  takeoverErrorKey, takeoverMove, takeoverRule,
+  takeoverErrorCode, takeoverMove, takeoverRule,
 } from '../../src/utils/takeover-ladder.mjs'
 
 let failed = 0
@@ -56,7 +56,7 @@ const read = normalizeTakeoverLadder({ kinds: [
 ] })
 ok('a good kind reads as set', read[1].order.join() === 'claude,grok' && read[1].maxFailures === 3 && read[1].set)
 ok('a broken kind reads as its default', read[5].order.join() === 'claude,mistral' && !read[5].set)
-ok('error keys', takeoverErrorKey({ token: 'bad_ladder' }) === 'takeover.error_bad_ladder' && takeoverErrorKey(new Error('x')) === 'takeover.error_generic')
+ok('error codes', takeoverErrorCode({ token: 'bad_ladder' }) === 'bad_ladder' && takeoverErrorCode({ token: 'forbidden' }) === 'forbidden' && takeoverErrorCode(new Error('x')) === 'generic')
 
 // --- the mock hub keeps a set kind across a reload --------------------------
 const mem = new Map()

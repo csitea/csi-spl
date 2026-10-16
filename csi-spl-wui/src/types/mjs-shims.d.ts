@@ -1693,7 +1693,7 @@ declare module '~/utils/takeover-ladder.mjs' {
   export function takeoverAddable(kind: string, order: readonly string[]): string[]
   export function takeoverMove(order: readonly string[], i: number, delta: number): string[]
   export function normalizeTakeoverLadder(body: unknown): TakeoverRow[]
-  export function takeoverErrorKey(err: unknown): string
+  export function takeoverErrorCode(err: unknown): 'forbidden' | 'bad_ladder' | 'generic'
   export function createMockTakeover(storage?: Storage): { get(): unknown, put(kinds: unknown): unknown }
 }
 

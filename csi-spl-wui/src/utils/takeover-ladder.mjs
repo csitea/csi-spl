@@ -82,10 +82,14 @@ export function normalizeTakeoverLadder(body) {
   })
 }
 
-/** The hub's error token -> an i18n key of this section. */
-export function takeoverErrorKey(err) {
+/**
+ * The hub's error token -> forbidden | bad_ladder | generic. A code, not an
+ * i18n key: this file is reachable from the first screen (the lazy client's
+ * mock imports it), so a key literal here would ride in the core catalogue.
+ */
+export function takeoverErrorCode(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
-  return ['forbidden', 'bad_ladder'].includes(token) ? 'takeover.error_' + token : 'takeover.error_generic'
+  return ['forbidden', 'bad_ladder'].includes(token) ? token : 'generic'
 }
 
 /**

@@ -89,7 +89,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import {
   TAKEOVER_KINDS, TAKEOVER_MAX_FAILURES_MAX, TAKEOVER_MAX_FAILURES_MIN,
-  normalizeTakeoverLadder, takeoverAddable, takeoverErrorKey, takeoverMove, takeoverRule,
+  normalizeTakeoverLadder, takeoverAddable, takeoverErrorCode, takeoverMove, takeoverRule,
 } from '~/utils/takeover-ladder.mjs'
 import type { TakeoverRow } from '~/utils/takeover-ladder.mjs'
 
@@ -98,6 +98,13 @@ type EditRow = { kind: string, order: string[], maxFailures: number | string, se
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const session = useSessionStore()
+// The key literals live here, not in the util: it is reachable from the first screen.
+const ERROR_KEYS = {
+  forbidden: 'takeover.error_forbidden',
+  bad_ladder: 'takeover.error_bad_ladder',
+  generic: 'takeover.error_generic',
+} as const
+const errorText = (e: unknown) => t(ERROR_KEYS[takeoverErrorCode(e)])
 
 const rows = ref<EditRow[]>([])
 const loading = ref(true)
@@ -148,7 +155,7 @@ async function load() {
     take(normalizeTakeoverLadder(await api.getTakeoverLadder()))
     loadError.value = ''
   } catch (e) {
-    loadError.value = t(takeoverErrorKey(e))
+    loadError.value = errorText(e)
   } finally {
     loading.value = false
   }
@@ -162,7 +169,7 @@ async function send(kinds: Record<string, { order: string[], max_failures: numbe
     take(normalizeTakeoverLadder(await api.putTakeoverLadder(kinds)))
     notice.value = t('tenant_settings.saved')
   } catch (e) {
-    error.value = t(takeoverErrorKey(e))
+    error.value = errorText(e)
   } finally {
     busy.value = false
   }

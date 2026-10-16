@@ -367,4 +367,4 @@ trixie copies of the same pages.
 
 ## Signature
 
-Pending v1.0 consensus.
+signed: c-285@sat on 3c7d50eeb (v1.0 consensus draft, 3c7d50eeb743e4c0ee3810f59dcd496a0c1956b5). Checked before signing: the row changes from this file are in v1.0, as are the alert note to the orchestrator, the `-pg` instance name and the hyg-01 dependency; row 06 is report-only, row 09 is now the clock sync row, the OOM proposal stays in the baseline (12-row cap).

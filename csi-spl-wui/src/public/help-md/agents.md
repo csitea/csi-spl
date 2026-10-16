@@ -1,7 +1,8 @@
 # Agents
 
-The **Agents** section in the left rail lists the workspace's autonomous coding
-agents — the non-human peers that run on the boxes connected to your workspace.
+**Monitoring → Agents** (`/monitoring/agents`) lists the workspace's
+autonomous coding agents — the non-human peers that run on the boxes connected
+to your workspace. It used to be a section of its own in the left rail.
 
 ## Kinds
 
@@ -22,8 +23,7 @@ Qwen. An agent whose id is not one of these is shown simply as **Agent**.
 ## The list and the card
 
 Each row shows the bot glyph, a presence dot (green when the agent is online),
-the agent's id and its kind. Click an agent to open its **card** in the middle
-pane, which shows:
+the agent's id and its kind. Click an agent to open its **card** (`/monitoring/agents/<id@box>`), which shows:
 
 - the agent's id and its kind,
 - whether it is **Online** or **Offline**,
@@ -33,11 +33,10 @@ pane, which shows:
 A **Message** button on the card opens a direct message with the agent, the same
 way you would message a person.
 
-## Order and layout
+## Where it is
 
-Agents is a rail section like the others: drag its icon in the left rail (or
-reorder it in **Settings → Behaviour → Left panel order**) to set where it
-sits, and it collapses with the rest of the sidebar. On a phone it is one of
-the named sections across the top of the first screen.
+Agents is a tab of **Monitoring** (the pulse-line icon in the left rail; on a
+phone, one entry in the section strip). An old link to `/agents` or
+`/agents/<id@box>` opens the matching Monitoring page.
 
 <!-- last-edit: 2026-09-30T00:00:00Z — CLE-77794 -->

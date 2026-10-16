@@ -2,31 +2,36 @@
 
 > Generated from qto doc `14a7f2d4-f266-4a9a-b652-016de66573cb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
-The **Boxes** section in the left rail lists the boxes connected to your
-workspace: the machines that agents run on. People use boxes and agents use
+**Monitoring → Boxes** (`/monitoring/boxes`) lists the boxes connected to your
+workspace: the machines that agents run on. (It used to be a section of its
+own in the left rail.) People use boxes and agents use
 boxes, so a box shows **both**: the people seated on it and the agents seated
 on it, and also what the box itself is made of (its hardware, OS and
 run-times).
 
 Spool is built for many boxes, not one, so this section is made to scale.
 
+<a id="ws-doc-4388c292-a432-419c-952e-492c08c264e9"></a>
 ## The list
 
 Each row shows a server glyph, a presence dot (green when the box is online),
-the box's short **tag** (its id without the `box-` prefix, e.g. `desk`), and how
-many users are seated on it. Only machines are listed: the browser, where a
-member's web session lives, is not a box here.
+the box's short **tag** (its id without the `box-` prefix, e.g. `desk`), and
+how many people and agents are seated on it, and under it the box's system
+facts. Only machines are listed: the browser, where a member's web session
+lives, is not a box here.
 
 The list is grouped by status — **Online** first, then **Offline**, each with a
 count — and a **filter** box at the top narrows a long fleet by id or tag.
 
+<a id="ws-doc-8424e85f-4324-4823-90e2-f2a0ec162357"></a>
 ## Three panes: boxes, resources, statistics
 
 On a wide screen the Boxes page has three panes:
 
-1. **Left: the boxes list** (the section above).
-2. **Middle: the selected box and its resources.** Click a box to open it. The
-   top shows the box's tag, whether it is a **Machine**, whether it is
+1. **Left: the boxes list**, every box, the open one marked (on a wide
+   window; a narrower one reaches the list by Back or the Boxes tab).
+2. **Middle: the selected box and its resources.** Click a box to open its
+   card at `/monitoring/boxes/<id>`. The top shows the box's tag, whether it is a **Machine**, whether it is
    **Online** or **Offline**, the full **box id**, when it was **last seen**
    (its last hello) and how many users sit on it.
 
@@ -90,17 +95,19 @@ fills in a value the box did not send.
 The selected resource is part of the address (`?r=hardware`), so a link or a
 reload opens the same pane.
 
+<a id="ws-doc-281578bf-b9cf-420f-b904-1652c12bfd6c"></a>
 ### On a phone
 
 One pane at a time: the boxes list, then a box's resources, then the statistics
 of the resource you tap. **Back** (the chevron, a swipe right or the browser's
 Back) goes up one pane.
 
-## Order and layout
+<a id="ws-doc-a0562400-004c-4916-b33c-d41db3f95657"></a>
+## Where it is
 
-Boxes is a rail section like the others: drag its icon in the left rail (or
-reorder it in **Settings → Behaviour → Left panel order**) to set where it
-sits, and it collapses with the rest of the sidebar. On a phone it is one of
-the named sections across the top of the first screen.
+Boxes is a tab of **Monitoring** (the pulse-line icon in the left rail; on a
+phone, one entry in the section strip). An old link to `/boxes` or
+`/boxes/<id>` (with its `?r=` resource or `#box-people` / `#box-agents` list)
+opens the matching Monitoring page.
 
 <!-- last-edit: 2026-10-04T00:00:00Z — HUM-10 three panes -->

@@ -14,8 +14,8 @@ the tabs you opened:
 
 | Tab | Address | What it shows |
 |---|---|---|
-| **Agents** | `/monitoring/agents` | The workspace's agents, each with a presence dot (green when live) and its kind. Click a row to open its card. |
-| **Boxes** | `/monitoring/boxes` | The machines agents run on, each with a presence dot, its short tag and how many people and agents are seated on it, and under it the box's system facts. Admins of the operator workspace also see the allocation (below). Click a row to open its card. |
+| **Agents** | `/monitoring/agents` | The workspace's agents, each with a presence dot (green when live) and its kind. Click a row to open its card at `/monitoring/agents/<id@box>`: its kind, whether it is online, the box it runs on, when that box last checked in, and a **Message** button that opens a direct message with it. |
+| **Boxes** | `/monitoring/boxes` | The machines agents run on: a **filter** by id or tag, the count, and the boxes grouped **Online** then **Offline**. Each row has a presence dot, the short tag and how many people and agents are seated on it, and under it the box's system facts. Admins of the operator workspace also see the allocation (below). Click a row to open its card at `/monitoring/boxes/<id>`. |
 | **Costs** | `/monitoring/costs` | What the setup costs each month, with a breakdown table and a pie chart (below). Shown to workspace owners and admins. |
 
 Opening `/monitoring` on its own goes to the Agents tab.
@@ -68,11 +68,14 @@ owners and admins (members with permission to read costs).
   labelled under its name.
 
 <a id="ws-doc-54116bbb-66ed-4a98-94f6-377a70c6ce75"></a>
-## The Agents and Boxes sections
+## The Agents and Boxes sections moved here
 
-The **Agents** and **Boxes** sections of the left rail stay where they are for
-now. Monitoring shows the same agents and boxes. See [Agents](./agents.md) and
-[Boxes](./boxes.md).
+The left rail no longer has its own **Agents** and **Boxes** icons, on a
+phone or on a desktop: both are tabs of Monitoring now, with everything they
+showed. An old link still works: `/agents`, `/agents/<id@box>`, `/boxes` and
+`/boxes/<id>` open the matching Monitoring page. A saved left panel order
+that named the two keeps working; they are simply not drawn. See
+[Agents](./agents.md) and [Boxes](./boxes.md).
 
 <a id="ws-doc-c58dd964-9d53-45d4-813c-9b838ab891cd"></a>
 ## On a phone

@@ -22,6 +22,7 @@ import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
 import { dmPeerOf as dmPeerOfShim } from '../../src/utils/channel-feed.mjs'
 import { tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSelectedRow, targetFromQuery } from '../../src/utils/topic-open.mjs'
+import { MESSAGE_CARD_FILES, messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -180,7 +181,7 @@ describe('HUM-10 c15b557e: the item names its place', () => {
   })
 
   it('the card computes the same kind inline (it may not import parent-section.mjs)', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /:parent-kind="parentKind"/)
     assert.match(card, /ch === 'issues' \|\| ch === 'tasks' \? 'issue' : 'channel'/)
     assert.match(card, /dmPeerOf\(props\.msg, viewerId\.value\) \? 'dm' : ''/)
@@ -226,7 +227,7 @@ describe('HUM-10 c15b557e: the card lands at the reader\'s edge', () => {
     assert.match(nav, /cardScrollDelta\(/)
     assert.match(nav, /topicLevel: Boolean\(deps\.topicLevel\)/)
     assert.match(nav, /if \(!target\) card\.focus\(\{ preventScroll: true, focusVisible: true \}\)/)
-    assert.match(src('src/components/MessageCard.vue'), /newestLast: newestLast\.value, topicLevel: true/)
+    assert.match(messageCardSrc(), /newestLast: newestLast\.value, topicLevel: true/)
   })
 })
 
@@ -258,7 +259,7 @@ describe('the menu item', () => {
 
 describe('wiring', () => {
   it('a thread line (not a middle card) offers it and loads what it does on choice', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /:parent="showParent"/)
     assert.match(card, /@parent="onMenuParent"/)
     assert.match(card, /showParent = computed\(\(\) => !props\.clickable/)
@@ -268,7 +269,7 @@ describe('wiring', () => {
   })
 
   it('none of it is in the initial chunk: no static import of either module anywhere', () => {
-    const files = ['src/components/MessageCard.vue', 'src/components/MessageMenu.vue', 'src/components/LiveFeed.vue']
+    const files = [...MESSAGE_CARD_FILES, 'src/components/MessageMenu.vue', 'src/components/LiveFeed.vue']
     for (const rel of files) assert.doesNotMatch(src(rel), /from '~\/utils\/parent-section(-open)?\.mjs'/, rel)
     assert.doesNotMatch(src('src/components/LiveFeed.vue'), /reveal/)
   })
@@ -296,7 +297,7 @@ describe('wiring', () => {
       { from: 'HUM-4', to: 'ALL-0', task_id: TOPIC },
       {},
     ]
-    assert.match(src('src/components/MessageCard.vue'), /String\(props\.msg\.channel \|\| ''\)\.trim\(\)\.replace\(\/\^#\/, ''\) \|\| dmPeerOf\(props\.msg, viewerId\.value\)/)
+    assert.match(messageCardSrc(), /String\(props\.msg\.channel \|\| ''\)\.trim\(\)\.replace\(\/\^#\/, ''\) \|\| dmPeerOf\(props\.msg, viewerId\.value\)/)
     for (const m of cases) {
       const card = Boolean(String(m.channel || '').trim().replace(/^#/, '') || dmPeerOfShim(m, 'HUM-4'))
       assert.equal(card, Boolean(parentSection(m, { self: 'HUM-4' })), JSON.stringify(m))

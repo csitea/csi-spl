@@ -58,6 +58,7 @@ import {
   withDraft,
 } from '../../src/utils/msg-edit.mjs'
 import { closeOpenFence, enterAction } from '../../src/utils/code-blocks.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -207,7 +208,7 @@ describe('a double-click on a thread row is the same open as `e`', () => {
   })
 
   it('MessageCard wires the double-click to the same startEdit as `e`', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /@dblclick="onDblClick"/)
     assert.match(card, /wantsDblClickEdit\(ev,\s*\{[\s\S]*?startEdit\(\)/)
     assert.doesNotMatch(card, /clickable: Boolean\(props\.clickable\)/)
@@ -238,7 +239,7 @@ describe('Delete on a focused thread row removes that message', () => {
   })
 
   it('MessageCard: the Delete key follows utils/row-keys.mjs (CLE-77840: a reply at once with Undo, is_parent 1 asks)', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /deleteKeyAction\(ev, props\.msg, \{ topicDelete: showTopicDelete\.value, editable: Boolean\(props\.editable\) && canEdit\(props\.msg\) \}\)/)
     assert.match(card, /deleteUndo\.offer\(props\.msg\)/)
     assert.match(card, /removeMessage\(/) /* the menu's confirmed Delete */
@@ -504,9 +505,9 @@ describe('CLE-3446 — an edit never rides across onto another row', () => {
 
   it('MessageCard resets its edit state when the row identity changes', () => {
     /* the half that does not depend on every future host remembering the key */
-    const card = src('src/components/MessageCard.vue')
-    const m = card.match(/watch\(\(\) => String\(props\.msg\?\.msg_id \|\| ''\)[\s\S]{0,400}?\n\}\)/)
-    assert.ok(m, 'MessageCard.vue has no watcher on props.msg.msg_id')
+    const card = messageCardSrc()
+    const m = card.match(/watch\(\(\) => String\(props\.msg\?\.msg_id \|\| ''\)[\s\S]{0,400}?\n\s*\}\)/)
+    assert.ok(m, 'MessageCard (useCardEdit) has no watcher on props.msg.msg_id')
     for (const cleared of ['edit.value = null', 'saving.value = false', "editError.value = ''"]) {
       assert.ok(m[0].includes(cleared), `the msg_id watcher does not clear: ${cleared}`)
     }

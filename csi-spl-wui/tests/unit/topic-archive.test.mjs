@@ -21,6 +21,7 @@ import {
   withoutCards,
 } from '../../src/utils/topic-archive.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -119,7 +120,7 @@ describe('HUM-10: in a topic pane only the LATEST message offers Archive topic (
     assert.equal(paneArchiveOffer(newest, '', opener, 'HUM-1', everyone), false)
   })
   it('MessageCard gates the menu item and the left swipe on it; the pane passes the opener', () => {
-    const mc = src('src/components/MessageCard.vue')
+    const mc = messageCardSrc()
     assert.match(mc, /paneArchiveOffer\(props\.msg, props\.lastMsgId \|\| '', props\.paneOpener/)
     assert.match(mc, /if \(props\.topicMenu \|\| inPane\.value\) return showTopicArchive\.value/)
     assert.match(src('src/components/LiveFeed.vue'), /:pane-opener="paneOpener"/)
@@ -185,7 +186,7 @@ describe('the card menu', () => {
     // not the viewer's to delete: Archive alone
     assert.deepEqual(msgMenuItems({ editable: false, topicArchive: true, paneArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])
     // MessageCard passes paneArchive on a pane reply, to the menu AND the shortcuts
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /:pane-archive="paneArchiveReply"/)
     assert.match(card, /paneArchive: paneArchiveReply\.value/)
     assert.match(card, /const paneArchiveReply = computed\(\(\) => inPane\.value && !props\.topicMenu && showTopicArchive\.value\)/)
@@ -264,7 +265,7 @@ describe('wiring', () => {
     assert.match(src('src/components/LiveFeed.vue'), /String\(m\.msg_id\) === openerId\.value/)
     assert.match(src('src/components/TopicPane.vue'), /\btopic-card-menu\b/)
     assert.match(src('src/components/LiveTopicPane.vue'), /\btopic-card-menu\b/)
-    const cardSrc = src('src/components/MessageCard.vue')
+    const cardSrc = messageCardSrc()
     assert.match(cardSrc, /:topic-archive="showTopicArchive"/)
     assert.match(cardSrc, /:topic-delete="showTopicDelete"/)
     assert.match(cardSrc, /mayChangeTopic\(props\.msg, editorId\.value, access\.me\)/)

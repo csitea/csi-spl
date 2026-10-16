@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatMsgListTs, phoneCardTime } from '../../src/utils/channel-feed.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 // SPL-1007 (owner, 2026-09-27, topic 70c82b54): a message from today shows only its time.
 // (owner, prd t1 topic 95adf832): "today" is the viewer's LOCAL day on every phone surface.
@@ -62,7 +63,7 @@ describe('phoneCardTime', () => {
 })
 
 describe('MessageCard wires it on phones only', () => {
-  const card = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+  const card = messageCardSrc()
   it('the time is shortened only while useMobileStack().isMobile, and the hover keeps the whole value', () => {
     assert.match(card, /const mobile = useMobileStack\(\)\.isMobile/)
     assert.match(card, /mobile\.value \? phoneCardTime\(fullTime\.value, at\.value\) : fullTime\.value/)

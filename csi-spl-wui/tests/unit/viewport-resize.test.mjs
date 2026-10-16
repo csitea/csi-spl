@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createViewportResize } from '../../src/utils/viewport-resize.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 function rig() {
   const listeners = new Set()
@@ -65,7 +66,7 @@ describe('viewport-resize', () => {
   })
 
   it('MessageCard subscribes measure instead of adding its own listener', () => {
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    const vue = messageCardSrc()
     assert.match(vue, /offResize = onViewportResize\(measure\)/)
     assert.doesNotMatch(vue, /addEventListener\('resize'/)
   })

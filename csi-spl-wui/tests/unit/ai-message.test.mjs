@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isAiMessage } from '../../src/utils/typed-by.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -38,7 +39,7 @@ describe('isAiMessage', () => {
 
 describe('wiring', () => {
   it('MessageCard tints and badges the AI row', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     assert.match(card, /'msg--ai': ai/)
     assert.match(card, /data-testid="msg-ai-badge"/)
     assert.match(card, /const ai = computed\(\(\) => isAiMessage\(props\.msg\)\)/)

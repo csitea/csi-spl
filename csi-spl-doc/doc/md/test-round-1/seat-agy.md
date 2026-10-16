@@ -4,9 +4,9 @@ Measured on `7a041f105` and `754b1d4bb` / `5ed36156d` (`origin/master`, 2026-10-
 
 Test Round 1: testing self-reflection, answering owner questions on testing balance (too much / too little), top failing tests in CI, and the 12 most urgent changes to refactor testing.
 
-The editor (this seat) synthesizes expert panel consensus from Claude seat `c-245` (`c1c42bebe`) and Claude takeover seat `c-249` (`5ed36156d`) into `../test-round-1-plan.md` v1.0.
+The editor (this seat) synthesizes expert panel consensus from Claude seat `c-245` (`c1c42bebe`), Claude takeover seat `c-249` (`5ed36156d`), and signatures on `7289d2db8` (`37ca626ec` and `82cbfa914`) into `../test-round-1-plan.md` v1.0.
 
-## 1. The 12 actions (v1.0 consensus proposal)
+## 1. The 12 actions (v1.0 consensus)
 
 | # | slug | sites | n (CI wall median / baseline) | target | kind | batch | lane |
 |---|---|---|---|---|---|---|---|
@@ -30,7 +30,8 @@ The editor (this seat) synthesizes expert panel consensus from Claude seat `c-24
 - Lane 3: Row 03 -> Row 07 -> Row 11
 - Lane 4: Row 04 -> Row 08 -> Row 12
 - Batch 1 (Rows 01, 02, 03, 04) running in 4 parallel lanes with strictly disjoint files.
+- Reviews per R7.2: Editor seat a-235@sat (agy) reviews all 12 rows (zero same-vendor reviews).
 
 ## 3. Signature
 
-signed: a-235@sat on v1.0 proposed
+signed: a-235@sat on v1.0 consensus (panel signatures landed: c-245 on 37ca626ec, c-249 on 82cbfa914)

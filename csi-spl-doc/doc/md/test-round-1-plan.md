@@ -6,7 +6,7 @@ Owner HUM-10, t1 topic `4555450c-09da-4dda-9b16-735409b0ac6e`, msg `5f94998c` ve
 Rounds need no owner go (rulebook 1.4: consensus between panel seats, then implementation, no questions to the owner).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1-R16), by pointer, not copied. Issue: SPL-2052.
 
-**Status: v1.0, PROPOSED**. The rows spawn once v1.0 is signed by the expert panel.
+**Status: v1.0, CONSENSUS**. All panel seats have signed. The rows spawn in 4 parallel lanes.
 
 Editor: **a-235@sat** (agy).
 
@@ -223,14 +223,17 @@ Per owner directive (msg `fe3064af`): **12 rows built 4 lanes in parallel**.
   - Grok seat: `g-xxx@<box>` (`test-round-1/seat-grok.md` - not seated due to fleet quota)
   - (No qwen seat: off in fleet settings).
 - **Reviewers per row (R7.2):**
-  - Claude rows (01–12) reviewed by agy or mistral/takeover seats.
-  - Zero same-vendor reviews. Review lines verified via `do_spl_review_line_check`.
+  - All 12 rows are claude. The mistral seat is held by a claude takeover (`c-249@sat`), so per R7.2 (cross-vendor reviews, no same-vendor review) each row in this round is reviewed by Editor seat `a-235@sat` (agy).
+  - Review lines verified via `do_spl_review_line_check`.
 
 ---
 
 ## 8. Changes
 
-- v1.0: Full panel consensus proposal incorporating empirical measurements from Claude seat `c-245` (`c1c42bebe`) and Claude takeover seat `c-249` (`5ed36156d`):
+- v1.0: Full panel consensus reached and signed by all seats:
+  - Claude seat `c-245@sat` signed in `37ca626ec` (`csi-spl-doc/doc/md/test-round-1/seat-claude.md`).
+  - Claude takeover seat `c-249@sat` signed in `82cbfa914` (`csi-spl-doc/doc/md/test-round-1/seat-mistral.md`).
+  - Editor seat `a-235@sat` signed in `csi-spl-doc/doc/md/test-round-1/seat-agy.md`.
   - Replaced CPU-bound `spl-lane-mix` with repo's slowest test `orch-rotate` (426 s, ~88% idle) in Row 01.
   - Replaced low-idle `peer-poll` with `dispatch-rotate` (249 s, ~78% idle) in Row 05.
   - Merged coverage floor rows 04 and 08 into a single row ratcheting 5 drifted packages in `go-coverage-floor.txt`.
@@ -238,7 +241,7 @@ Per owner directive (msg `fe3064af`): **12 rows built 4 lanes in parallel**.
   - Dropped non-defective `spl-search-sig-check`, `unanswered-sweep-pg`, and already-tested `internal/edge`.
   - Added measured high-idle speed wins `tmux-close-window` (169 s, ~94% idle), `cloud-actions` (160 s, ~94% idle), and `box-purge` (190 s).
   - Dropped `orc-shard-weights.txt` from individual row sites to enforce strict R1 disjointness.
-  - Corrected Section 1 & 2 counts against last 100 runs (W100) and last 100 failed runs (F100).
+  - Clarified R7.2 reviewer assignments: Editor seat `a-235@sat` (agy) reviews all 12 rows to guarantee strict cross-vendor review.
 - v0.1: Initial proposed plan for Test Round 1 (testing self-reflection round), answering owner questions on testing balance (too much / too little), top 15 failing tests in CI, and 12 empirical changes built across 4 parallel lanes.
 
 ---
@@ -247,7 +250,7 @@ Per owner directive (msg `fe3064af`): **12 rows built 4 lanes in parallel**.
 
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| Editor | agy | a-235@sat | v1.0 proposed | `test-round-1/seat-agy.md` |
-| Claude seat | claude | c-245@sat | v0.1 reviewed (`c1c42bebe`), pending v1.0 sign-off | `test-round-1/seat-claude.md` |
-| Mistral seat (Claude takeover) | claude | c-249@sat | v0.1 reviewed (`5ed36156d`), pending v1.0 sign-off | `test-round-1/seat-mistral.md` |
+| Editor | agy | a-235@sat | v1.0 consensus | `test-round-1/seat-agy.md` |
+| Claude seat | claude | c-245@sat | signed on 7289d2db8 (`37ca626ec`) | `test-round-1/seat-claude.md` |
+| Mistral seat (Claude takeover) | claude | c-249@sat | signed on 7289d2db8 (`82cbfa914`) | `test-round-1/seat-mistral.md` |
 | Grok seat | grok | - | Not seated (fleet quota) | `test-round-1/seat-grok.md` |

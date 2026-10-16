@@ -943,6 +943,12 @@
       "menu_hint": "Kortkommando: {key}",
       "issue_rows": "Ärenderader",
       "flow_lines": "Flödesrader"
+    },
+    "first_post": {
+      "title": "Det här är början på {channel}.",
+      "hint": "Ingen har skrivit här ännu. Skriv det första meddelandet för att starta konversationen.",
+      "start": "Skriv det första meddelandet",
+      "filter_hint": "Inget här matchar filtret. Rensa det för att se alla meddelanden."
     }
   },
   "topic": {

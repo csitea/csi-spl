@@ -943,6 +943,12 @@
       "menu_hint": "Pikanäppäin: {key}",
       "issue_rows": "Tehtävärivit",
       "flow_lines": "Virran rivit"
+    },
+    "first_post": {
+      "title": "Tästä alkaa {channel}.",
+      "hint": "Kukaan ei ole vielä kirjoittanut tänne. Aloita keskustelu kirjoittamalla ensimmäinen viesti.",
+      "start": "Kirjoita ensimmäinen viesti",
+      "filter_hint": "Mikään ei vastaa suodatinta. Tyhjennä se nähdäksesi kaikki viestit."
     }
   },
   "topic": {

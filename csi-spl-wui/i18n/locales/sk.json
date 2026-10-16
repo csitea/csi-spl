@@ -943,6 +943,12 @@
       "menu_hint": "Skratka: {key}",
       "issue_rows": "Riadky úloh",
       "flow_lines": "Riadky toku"
+    },
+    "first_post": {
+      "title": "Toto je začiatok {channel}.",
+      "hint": "Zatiaľ sem nikto nič nenapísal. Napíšte prvú správu a začnite konverzáciu.",
+      "start": "Napíšte prvú správu",
+      "filter_hint": "Filtru tu nič nezodpovedá. Vymažte ho, aby ste videli všetky správy."
     }
   },
   "topic": {

@@ -943,6 +943,12 @@
       "menu_hint": "Kısayol: {key}",
       "issue_rows": "İş satırları",
       "flow_lines": "Akış satırları"
+    },
+    "first_post": {
+      "title": "Bu, {channel} kanalının başlangıcıdır.",
+      "hint": "Burada henüz kimse paylaşım yapmadı. Sohbeti başlatmak için ilk mesajı yazın.",
+      "start": "İlk mesajı yazın",
+      "filter_hint": "Burada filtreyle eşleşen hiçbir şey yok. Tüm mesajları görmek için filtreyi temizleyin."
     }
   },
   "topic": {

@@ -943,6 +943,12 @@
       "menu_hint": "Sneltoets: {key}",
       "issue_rows": "Issuerijen",
       "flow_lines": "Flowregels"
+    },
+    "first_post": {
+      "title": "Dit is het begin van {channel}.",
+      "hint": "Niemand heeft hier nog iets geplaatst. Schrijf het eerste bericht om het gesprek te starten.",
+      "start": "Schrijf het eerste bericht",
+      "filter_hint": "Niets hier komt overeen met het filter. Wis het om alle berichten te zien."
     }
   },
   "topic": {

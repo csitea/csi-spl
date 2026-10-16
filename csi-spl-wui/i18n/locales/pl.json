@@ -943,6 +943,12 @@
       "menu_hint": "Skrót: {key}",
       "issue_rows": "Wiersze zgłoszeń",
       "flow_lines": "Wiersze przepływu"
+    },
+    "first_post": {
+      "title": "To jest początek {channel}.",
+      "hint": "Nikt jeszcze nic tu nie opublikował. Napisz pierwszą wiadomość, aby rozpocząć rozmowę.",
+      "start": "Napisz pierwszą wiadomość",
+      "filter_hint": "Nic tutaj nie pasuje do filtra. Wyczyść go, aby zobaczyć wszystkie wiadomości."
     }
   },
   "topic": {

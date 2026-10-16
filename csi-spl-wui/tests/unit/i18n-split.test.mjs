@@ -88,7 +88,9 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue', 'components/FeedEmpty.vue'])
+    /* SPL-2141: an empty channel says the core "No messages yet." until its strings are merged */
+    assert.match(read('src/components/FeedEmpty.vue'), /const ready = computed\(\(\) => te\('feed\.first_post\.title'\)\)/)
     /* SPL-1994: the hourglass renders only once its strings are merged */
     assert.match(read('src/components/AwaitReply.vue'), /const ready = computed\(\(\) => te\('await_reply\.spin'\)\)/)
     /* SPL-1839: every other screen's plain error says the core "Something went wrong" until its strings are merged */

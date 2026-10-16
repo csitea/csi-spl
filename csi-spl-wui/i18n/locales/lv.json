@@ -943,6 +943,12 @@
       "menu_hint": "Īsinājumtaustiņš: {key}",
       "issue_rows": "Uzdevumu rindas",
       "flow_lines": "Plūsmas rindas"
+    },
+    "first_post": {
+      "title": "Šis ir {channel} sākums.",
+      "hint": "Šeit vēl neviens nav neko publicējis. Uzrakstiet pirmo ziņu, lai sāktu sarunu.",
+      "start": "Uzrakstiet pirmo ziņu",
+      "filter_hint": "Nekas šeit neatbilst filtram. Notīriet to, lai redzētu visas ziņas."
     }
   },
   "topic": {

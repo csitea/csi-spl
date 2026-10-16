@@ -37,7 +37,14 @@
       @clear-search="channel.setSearch('')"
       @open-topic="openRow"
       @edited="onEdited"
-    />
+    >
+      <!-- SPL-2141: a channel with no messages (or none matching its filter)
+           invites the first post; a DM keeps its own Message button. The div
+           holds the lazy component (a bare lazy v-if threw insertBefore). -->
+      <template v-if="!channel.peer" #empty="{ search }">
+        <div class="feed-empty-slot"><LazyFeedEmpty :channel="channel.active || ''" :search="search" /></div>
+      </template>
+    </LiveFeed>
     <!-- ?topic= scrolls that card to the top. A card near the end of the
          list needs a viewport of room after it or the pane cannot get there. -->
     <div v-if="tailPx" data-land-tail aria-hidden="true" :style="{ height: tailPx + 'px' }" />
@@ -132,3 +139,8 @@ if (import.meta.client) {
   }, () => { void landTopic() }, { immediate: true })
 }
 </script>
+
+<style scoped>
+/* SPL-2141: the lazy empty state's holder adds no box of its own */
+.feed-empty-slot { display: contents; }
+</style>

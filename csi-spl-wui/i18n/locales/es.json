@@ -943,6 +943,12 @@
       "menu_hint": "Atajo: {key}",
       "issue_rows": "Filas de incidencias",
       "flow_lines": "Líneas del flujo"
+    },
+    "first_post": {
+      "title": "Este es el comienzo de {channel}.",
+      "hint": "Nadie ha publicado aquí todavía. Escribe el primer mensaje para iniciar la conversación.",
+      "start": "Escribe el primer mensaje",
+      "filter_hint": "Nada aquí coincide con el filtro. Bórralo para ver todos los mensajes."
     }
   },
   "topic": {

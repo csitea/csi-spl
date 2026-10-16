@@ -943,6 +943,12 @@
       "menu_hint": "Kiirklahv: {key}",
       "issue_rows": "Ülesannete read",
       "flow_lines": "Voo read"
+    },
+    "first_post": {
+      "title": "See on {channel} algus.",
+      "hint": "Keegi pole siia veel postitanud. Vestluse alustamiseks kirjuta esimene sõnum.",
+      "start": "Kirjuta esimene sõnum",
+      "filter_hint": "Miski siin ei vasta filtrile. Kõigi sõnumite nägemiseks tühjenda see."
     }
   },
   "topic": {

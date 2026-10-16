@@ -943,6 +943,12 @@
       "menu_hint": "Spartusis klavišas: {key}",
       "issue_rows": "Užduočių eilutės",
       "flow_lines": "Srauto eilutės"
+    },
+    "first_post": {
+      "title": "Tai yra {channel} pradžia.",
+      "hint": "Čia dar niekas nieko nepaskelbė. Parašykite pirmąją žinutę, kad pradėtumėte pokalbį.",
+      "start": "Parašykite pirmąją žinutę",
+      "filter_hint": "Niekas čia neatitinka filtro. Išvalykite jį, kad matytumėte visas žinutes."
     }
   },
   "topic": {

@@ -46,6 +46,10 @@ export const ON_DEMAND_COMPONENTS = {
   // SPL-1994: the hourglass on a post waiting for an agent; it renders once
   // te('await_reply.spin') holds, so first paint is unchanged
   "components/AwaitReply.vue": "idle",
+  // SPL-2141: an empty channel's invitation to post; it says the core
+  // "No messages yet." until its own strings are merged (a key literal here
+  // would pull it into core)
+  "components/FeedEmpty.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

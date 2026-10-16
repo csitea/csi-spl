@@ -110,7 +110,10 @@
         />
       </template>
     </TransitionGroup>
-    <p v-if="!loading && !failed && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
+    <!-- SPL-2141: a parent may say more here (a channel's start, MessageFeed) -->
+    <slot v-if="!loading && !failed && !rows.length" name="empty" :search="search">
+      <p class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
+    </slot>
     <div v-if="newestLast" class="new-pill-wrap new-pill-wrap--bottom">
       <button v-if="showUnreadJump" class="btn new-pill" type="button" :aria-label="t('feed.unread_jump_label')" data-testid="unread-jump" @click="jumpToUnread">
         ↓ {{ t('feed.unread_jump', { n: newCount }) }}

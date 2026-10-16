@@ -9,6 +9,15 @@
 //   send     a line typed there and sent reaches that agent: the stored row's
 //            to / to_box are the peer, and the button is gone
 //
+// SPL-2141 (t1 1061f05f msg 4d63f24c, suggestion 2: "a brand-new channel
+// shows a blank pane"). The same start, for a channel with no messages
+// (#feedback in the mock), in the dark and the light theme:
+//
+//   empty    the feed says whose start it is, once (role=status), with a
+//            button, in view; a filter that matches nothing says how to undo it
+//   focus    the button puts the caret in the Omnibox
+//   live     the first line sent there takes the empty state away
+//
 //   BASE_URL=<generated bundle> node tests/e2e/dm-start-message.test.mjs
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'
@@ -56,6 +65,59 @@ const startButton = (p) => p.evaluate(() => {
   return { text: b.textContent.trim(), visible: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth }
 })
 
+/* SPL-2141: the empty channel's start, read where it shows */
+const channelEmpty = (p) => p.evaluate(() => {
+  const el = document.querySelector('[data-testid=feed-empty]')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  const title = el.querySelector('.feed-empty__title')
+  const btn = el.querySelector('[data-testid=feed-empty-start]')
+  const br = btn ? btn.getBoundingClientRect() : null
+  return {
+    role: el.getAttribute('role'),
+    statuses: el.querySelectorAll('[role=status]').length,
+    search: el.dataset.search === 'true',
+    title: title ? title.textContent.trim() : '',
+    hint: (el.querySelector('.feed-empty__hint')?.textContent || '').trim(),
+    fg: title ? getComputedStyle(title).color : '',
+    bg: getComputedStyle(document.body).backgroundColor,
+    visible: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth,
+    button: br ? br.width > 0 && br.top >= 0 && br.bottom <= innerHeight : false,
+  }
+})
+
+async function channelStart(p, width, theme) {
+  const tag = `${width} ${theme} #feedback`
+  await p.evaluate((theme) => document.documentElement.setAttribute('data-theme', theme), theme)
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/channel/feedback'))
+  await p.waitForFunction(() => location.pathname.endsWith('/channel/feedback'), { timeout: NAV })
+  await p.waitForFunction(() => document.querySelector('.feed-empty__title') || document.querySelector('article.msg'), { timeout: 15000 }).catch(() => {})
+  const e = await channelEmpty(p)
+  check(`${tag}: an empty channel says it is the start, in view`, Boolean(e && e.visible && e.title === 'This is the start of #feedback.' && e.hint.length > 0), e)
+  check(`${tag}: it is one status a screen reader reads once`, Boolean(e && e.role === 'status' && e.statuses === 0), e && { role: e.role, nested: e.statuses })
+  check(`${tag}: its button is in view`, Boolean(e && e.button), e && { button: e.button })
+  check(`${tag}: its title is not drawn in the page background colour`, Boolean(e && e.fg && e.fg !== e.bg), e && { fg: e.fg, bg: e.bg })
+  if (SHOT_DIR) { mkdirSync(SHOT_DIR, { recursive: true }); await p.screenshot({ path: `${SHOT_DIR}/channel-empty-${width}-${theme}.png` }) }
+  /* a filter that matches nothing: the same place says how to undo it */
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').setSearch('zzqx-no-such-word'))
+  await sleep(600)
+  const f = await channelEmpty(p)
+  check(`${tag}: a filter with no match says so and how to clear it`, Boolean(f && f.search && f.title === 'No messages match.' && /Clear/.test(f.hint)), f)
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').setSearch(''))
+  await sleep(600)
+  if (!e || !e.button) return
+  await p.click('[data-testid=feed-empty-start]')
+  await sleep(200)
+  check(`${tag}: its button puts the caret in the Omnibox`, await p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI))
+  if (theme !== 'light') return
+  /* live: the first line takes it away, no reload */
+  await p.keyboard.type(`first post in #feedback at ${width}`)
+  await p.keyboard.down('Control'); await p.keyboard.press('Enter'); await p.keyboard.up('Control')
+  await p.waitForFunction(() => !document.querySelector('[data-testid=feed-empty]'), { timeout: 5000 }).catch(() => {})
+  const after = await p.evaluate(() => ({ empty: Boolean(document.querySelector('[data-testid=feed-empty]')), rows: document.querySelectorAll('article.msg').length }))
+  check(`${tag}: the first line takes the empty state away, live`, !after.empty && after.rows > 0, after)
+}
+
 async function run(browser, base, width) {
   const p = await browser.newPage()
   await p.setViewport({ width, height: width < 600 ? 844 : 900, isMobile: width < 600, hasTouch: width < 600 })
@@ -91,6 +153,8 @@ async function run(browser, base, width) {
     check(`${width} ${id}: the line goes to ${peer}`, Boolean(row && row.to === id && (!row.to_box || row.to_box === 'box-a')), row)
     check(`${width} ${id}: the button is gone once the DM has a line`, (await startButton(p)) === null)
   }
+
+  for (const theme of ['dark', 'light']) await channelStart(p, width, theme)
 
   const errs = (await p.evaluate(() => window.__errs || [])).filter((e) => !/dynamically imported module/.test(e))
   check(`${width}: no window error`, errs.length === 0, { errs })

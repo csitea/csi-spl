@@ -943,6 +943,12 @@
       "menu_hint": "Comandă rapidă: {key}",
       "issue_rows": "Rânduri de sarcini",
       "flow_lines": "Rânduri din flux"
+    },
+    "first_post": {
+      "title": "Acesta este începutul {channel}.",
+      "hint": "Nimeni nu a postat aici încă. Scrie primul mesaj pentru a începe conversația.",
+      "start": "Scrie primul mesaj",
+      "filter_hint": "Nimic de aici nu se potrivește filtrului. Șterge-l pentru a vedea toate mesajele."
     }
   },
   "topic": {

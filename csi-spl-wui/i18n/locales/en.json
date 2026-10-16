@@ -943,6 +943,12 @@
       "menu_hint": "Shortcut: {key}",
       "issue_rows": "Issue rows",
       "flow_lines": "Flow lines"
+    },
+    "first_post": {
+      "title": "This is the start of {channel}.",
+      "hint": "No one has posted here yet. Write the first message to start the conversation.",
+      "start": "Write the first message",
+      "filter_hint": "Nothing here matches the filter. Clear it to see every message."
     }
   },
   "topic": {

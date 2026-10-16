@@ -34,5 +34,5 @@
 ---
 
 ## Next Steps
-1. **Land this review**: Push to `csi-spl-doc/doc/md/perf-round-5/m2-review.md` and notify `c-870@sat` and `c-001@tnk` via spool note on task `dispatch-eafc9b15-perf5`.
+1. **Land this review**: Push to `csi-spl-doc/doc/md/perf-round-5/m2-review.md` and notify `c-870@sat` and `c-001 (orchestrator)` via spool note on task `dispatch-eafc9b15-perf5`.
 2. **Await confirmation**: Stay idle for follow-ups until the plan is confirmed and a message starting with **ACCEPTED** is received.

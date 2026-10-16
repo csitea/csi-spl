@@ -45,8 +45,11 @@
 # @description left -> `pick=nokind reason=...` (spawn nothing, exit 13 there).
 # @description With BOX_PICK_KIND a box whose weekly usage of that vendor is at
 # @description or over cnf env.box.quota.weekly_max_pct (90) is not picked
-# @description (SPL-2035): this box by its agent panes' banner, another by the
-# @description wk= of its BOX-0 row (lib/bash/funcs/spl-box-quota.func.sh). Its
+# @description (SPL-2035): this box by its agent panes' banner or, for claude,
+# @description the CLI's limit entry in the agent user's transcripts (SPL-2196:
+# @description 100 until its reset, a pane shows the banner only on the failed
+# @description turn), another by the wk= of its BOX-0 row
+# @description (lib/bash/funcs/spl-box-quota.func.sh). Its
 # @description line says "<kind> weekly N% >= M%: not picked". Every box with
 # @description room over it -> `pick=hold reason=waiting: <kind> weekly >= M%
 # @description on <boxes>` (queued, never a silent fallback). No reading, or a

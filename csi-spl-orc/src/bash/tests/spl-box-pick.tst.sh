@@ -27,6 +27,10 @@
 #          over -> pick=hold "waiting: ..."; no reading or a stale row ->
 #          unknown, placed with an INFO line; RED CONTROL: the same loads with
 #          no kind (the pick before SPL-2035) take the box at 96 %.
+#          16e. (SPL-2196) the CLI's "<synthetic>" limit entry in the agent
+#          user's transcripts reads 100 until its reset, with no banner in a
+#          pane; a newer real answer, a passed reset, an entry older than
+#          LANE_QUOTA_LOG_MIN or a quote by a model -> no reading.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -422,6 +426,40 @@ B="You've used 96% of your weekly limit · resets Oct 17, 11am (Europe/Helsinki)
 [[ "$(printf "  ⎿  You've hit your weekly limit · resets Oct 17, 11am (Europe/Helsinki)\n" | parse claude "$N")" == 100 ]] &&
   pass "16. hit your weekly limit -> 100" || fail "16. hit"
 [[ "$(printf ' Weekly limit left: 4%%\n' | parse grok "$N")" == 96 ]] && pass "16. grok footer left 4% -> 96" || fail "16. grok"
+
+# 16e. the limit the panes no longer show (SPL-2196): a box read "claude weekly
+# unknown <- pick" at its limit (c-001 msg 5c025d6e), no claude pane showed a
+# banner. The CLI's own "<synthetic>" transcript entry reads 100 until its
+# reset, unless a real answer is newer. this box = box-a, panes faked.
+L="$T/projects/-opt-x"; mkdir -p "$L"
+RS="$(date -u -d '+2 days' '+%b %-d, %-l%P') (UTC)"
+ent() {  # MODEL TEXT AGE_S -> one transcript line
+  jq -nc --arg m "$1" --arg t "$2" --arg ts "$(date -u -d "-$3 seconds" +%Y-%m-%dT%H:%M:%S.000Z)" \
+    '{type: "assistant", timestamp: $ts, message: {model: $m, role: "assistant", content: [{type: "text", text: $t}]}}'
+}
+ent "<synthetic>" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"
+wk "box-a::60" "box-b:claude:40:60"
+lq() { run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD= LANE_PANES_CMD=true \
+  LANE_QUOTA_LOG_DIR="$T/projects" BOX_PICK_KIND=claude; }
+out="$(lq)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  claude weekly 100% >= 9[0-9]%: not picked$' <<<"$out" &&
+  pass "16e. RED CONTROL (FAILs on 8b427556c) a limit-reached transcript entry, no banner in a pane -> box-a at 100 %, skipped" ||
+  fail "16e. limit entry: $out"
+ent "claude-x" "Done. You've hit your weekly limit · resets $RS, it said." 60 >"$L/q1.jsonl"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD= LANE_PANES_CMD=true \
+  LANE_QUOTA_LOG_DIR="$T/projects" LANE_QUOTA_LOG_MIN=0 BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16e. CONTROL an entry older than LANE_QUOTA_LOG_MIN -> unknown, placed" || fail "16e. window: $out"
+out="$(lq)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16e. a real answer newer than the limit entry (lifted) -> unknown, placed with the INFO line" || fail "16e. lifted: $out"
+rm -f "$L/q1.jsonl"
+ent "<synthetic>" "You've hit your weekly limit · resets ${RS/$(date -u -d '+2 days' +%b)/$(date -u -d '-40 days' +%b)}" 3600 >"$L/s1.jsonl"
+out="$(lq)"
+[[ "$(pick "$out")" == box-a ]] && pass "16e. a limit entry whose reset has passed -> unknown, placed" || fail "16e. reset passed: $out"
+ent "claude-x" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"
+out="$(lq)"
+[[ "$(pick "$out")" == box-a ]] && pass "16e. CONTROL the text in a real model answer (an agent quoting it) is no reading" || fail "16e. quoted: $out"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

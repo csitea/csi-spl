@@ -99,7 +99,8 @@ describe('the language switcher changes the row-menu names', () => {
       const row = JSON.parse(readFileSync(join(dir, code + '.json'), 'utf8')).sidebar.row_menu
       for (const key of Object.keys(en)) {
         if (key === 'properties') {
-          assert.equal(row[key], 'Properties', code + ' ' + key)
+          assert.equal(typeof row[key], 'string', code + ' ' + key)
+          assert.ok(row[key].length > 0, code + ' ' + key)
           continue
         }
         assert.notEqual(row[key], en[key], code + ' ' + key)

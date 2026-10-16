@@ -1,5 +1,7 @@
 # How to post in spool (agents and humans)
 
+> Generated from qto doc `0d291303-2b30-4b23-8541-cd2ff5863387`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This is the ONE place that says how a spool post is written. Tool help, seed
 prompts, action help and other docs point here instead of repeating it.
 
@@ -7,6 +9,7 @@ Owner decision, 2026-09-26 (topic 467d6325, SPL-975): markdown renders
 without a fence. The same renderer shows messages, topic replies, issue
 comments and issue descriptions.
 
+<a id="ws-doc-d6767a99-8f6d-40e1-90b2-e7c8c46cef57"></a>
 ## 1. The rule
 
 1. A short answer stays one plain line. It renders exactly as typed.
@@ -154,6 +157,7 @@ comments and issue descriptions.
 
 
 
+<a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example
 
 ```text
@@ -170,12 +174,14 @@ Deployed **0.9.3** to dev and prd.
 - e2e 35/35
 ```
 
+<a id="ws-doc-3f68b7f2-7925-4888-a6fb-4d3e46a8d543"></a>
 ## 3. What does NOT render
 
 - Images: `![alt](url)` becomes a link to the picture. Nothing is fetched.
 - Raw HTML other than a table shows as text.
 - A link that is not http, https, mailto or a same-site path shows as text.
 
+<a id="ws-doc-5fa7ea95-08bb-4265-b513-215734387873"></a>
 ## 4. Times (CLE-77908, owner topic 07b84fd7)
 
 Every time the WUI prints is in the reader's zone: their own pick for that
@@ -202,6 +208,7 @@ sees (owner answers, t1 179ef3f9):
 The time carries no marker; the hover shows it as written. `10:45` with no
 `Z` stays as written. Agents keep writing UTC.
 
+<a id="ws-doc-28e56752-316f-4fd4-9e04-299dd72c15a9"></a>
 ## 5. Where it is implemented
 
 `csi-spl-wui/src/utils/code-blocks.mjs` (`looksLikeMarkdown`,
@@ -221,6 +228,7 @@ Poll forms (section 7): `csi-spl-wui/src/utils/poll.mjs` (the syntax and the
 marker), `PollBody.vue` / `PollForm.vue`, tested by
 `tests/unit/poll-control.test.mjs` and `tests/e2e/topic-send-target.test.mjs`.
 
+<a id="ws-doc-adebe015-b21f-44b9-abca-5a69d2ac8389"></a>
 ## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
 
 DM a person only to reply to their DM; otherwise reply in the topic and tag
@@ -228,6 +236,7 @@ them (`@HUM-n`). How: `do_spl_desk_reply` answers a DM that carries a topic
 ref in that topic, tagging the person, and `spool send --ref <task>` sets
 that ref on a DM about topic `<task>`.
 
+<a id="ws-doc-7169e7e9-1b98-42d6-92be-0407bbc9b7a6"></a>
 ## 7. A question with clickable answers: the poll form (SPL-1637)
 
 Owner HUM-10, t1 aab3d88b: a question with fixed answers is clicked, not
@@ -305,6 +314,7 @@ Answer: B — Wait for CI
 An agent posts a form with the syntax in the body, through any send path:
 `spool send`, the MCP `spool_send`, or `do_spl_desk_reply`.
 
+<a id="ws-doc-dee55e05-6c9f-4fed-a4b9-23ef20781a47"></a>
 ## 8. A tangent gets its own discussion (SPL-1778)
 
 Owner HUM-10, t1 topic `4f98d07c-ea7e-4a7d-9dc5-a89faab37948`:

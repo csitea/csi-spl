@@ -25,7 +25,7 @@ core-dumps         | dir      | /var/lib/systemd/coredump /var/crash
 agent-claude       | dir      | /home/*/.claude/projects /mnt/data/home/*/.claude/projects
 agent-vibe-logs    | dir      | /home/*/.vibe/logs /mnt/data/home/*/.vibe/logs
 agent-gemini       | dir      | /home/*/.gemini /mnt/data/home/*/.gemini
-ci-runner-work     | dir      | /home/*/actions-runner*/_work /home/*/runner-*/_work /mnt/data/home/*/actions-runner*/_work /mnt/data/home/*/runner-*/_work
+ci-runner-work     | dir      | /srv/gh-runner/*/_work /home/*/actions-runner*/_work /home/*/runner-*/_work /mnt/data/home/*/actions-runner*/_work /mnt/data/home/*/runner-*/_work
 user-downloads     | dir      | /home/*/Downloads
 user-screenshots   | dir      | /home/*/Pictures/Screenshots /home/*/Videos
 user-trash         | dir      | /home/*/.local/share/Trash

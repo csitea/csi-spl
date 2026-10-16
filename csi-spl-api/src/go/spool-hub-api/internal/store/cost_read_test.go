@@ -17,27 +17,70 @@ import (
 
 var costMonthsTaken sync.Map
 
+// costTestMonthSlots: the 2001..2019 months a test may take, every other
+// one. TestCostMonthReadSums writes a control row on To, the first day of
+// the NEXT month, so that month is no test's own: with every month open the
+// RLS test drew Sums' next month and its CONTROL read Sums' 9.00 row (wf 10
+// run 38857714011, 1 in 41 runs; 2 draws of 228 months meet ~1 in 227).
+const (
+	costTestMonthStep  = 2
+	costTestMonthSlots = 19 * 12 / costTestMonthStep
+)
+
 // costTestMonth is a random past month (2001..2019) no other test of this
-// run writes.
+// run writes, with its next month free as well.
 func costTestMonth(t *testing.T) (from, to string, day func(int) string) {
 	t.Helper()
-	var n *big.Int
-	for {
-		var err error
-		if n, err = rand.Int(rand.Reader, big.NewInt(19*12)); err != nil {
-			t.Fatal(err)
-		}
-		if _, taken := costMonthsTaken.LoadOrStore(n.Int64(), true); !taken {
-			break
-		}
-	}
-	y, m := 2001+int(n.Int64())/12, 1+int(n.Int64())%12
+	n := costMonthIndex(t, &costMonthsTaken, costTestMonthSlots, costTestMonthStep)
+	y, m := 2001+int(n)/12, 1+int(n)%12
 	ny, nm := y, m+1
 	if nm == 13 {
 		ny, nm = y+1, 1
 	}
 	return fmt.Sprintf("%04d-%02d-01", y, m), fmt.Sprintf("%04d-%02d-01", ny, nm),
 		func(d int) string { return fmt.Sprintf("%04d-%02d-%02d", y, m, d) }
+}
+
+// costMonthIndex takes a random free slot of <slots> in <taken> and returns
+// its month index (months since 2001-01), slot * <step>.
+func costMonthIndex(t *testing.T, taken *sync.Map, slots, step int64) int64 {
+	t.Helper()
+	for {
+		n, err := rand.Int(rand.Reader, big.NewInt(slots))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, was := taken.LoadOrStore(n.Int64(), true); !was {
+			return n.Int64() * step
+		}
+	}
+}
+
+// TestCostTestMonthLeavesNextMonthFree: every slot taken, no test month is
+// the month after another's (Sums' To row stays out of every other test).
+// CONTROL: every month open (step 1), half of them taken: some test month
+// is the month after another's (none adjacent among 114 of 228 random
+// months is below 1e-20).
+func TestCostTestMonthLeavesNextMonthFree(t *testing.T) {
+	adjacent := func(slots, step, draws int64) int {
+		var taken sync.Map
+		got, n := map[int64]bool{}, 0
+		for i := int64(0); i < draws; i++ {
+			got[costMonthIndex(t, &taken, slots, step)] = true
+		}
+		for m := range got {
+			if got[m+1] {
+				n++
+			}
+		}
+		return n
+	}
+	if n := adjacent(costTestMonthSlots, costTestMonthStep, costTestMonthSlots); n != 0 {
+		t.Errorf("%d test months are the month after another's", n)
+	}
+	if n := adjacent(19*12, 1, 19*12/2); n == 0 {
+		t.Errorf("CONTROL: every month open, no two adjacent: the check cannot see the leak")
+	}
 }
 
 // costSeed writes one cost line (tenant "" = estate) under the operator scope.

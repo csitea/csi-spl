@@ -123,7 +123,9 @@ grep -q 'PART api FAIL .*trunk=[0-9a-f]*-green' "$R.log" \
 R="$ROOT/r2"; mkrepo "$R" >/dev/null 2>&1
 git -C "$R" checkout -q trunk; echo bad >"$R/csi-spl-api/flag"; git -C "$R" commit -qam "trunk red"
 git -C "$R" checkout -q lane; git -C "$R" reset -q --hard trunk
-echo good >"$R/csi-spl-api/flag"; echo fix >"$R/csi-spl-api/fix.go"; git -C "$R" add -A; git -C "$R" commit -qm fix
+# the fix sets flag back to its blob before "trunk red", a commit of another
+# lane: the stale-tree part wants it named as a restore (SPL-2253)
+echo good >"$R/csi-spl-api/flag"; echo fix >"$R/csi-spl-api/fix.go"; git -C "$R" add -A; git -C "$R" commit -qm "fix: restore the flag"
 gate "$R"; eq "2. red trunk + a fix -> ALLOWED" 0 "$?"
 eq "2. ... logged PASS for api" PASS "$(verdict "$R" api)"
 

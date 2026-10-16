@@ -7,9 +7,11 @@
 # @description PARTS (selected by the paths the push changes vs PRE_PUSH_BASE):
 # @description   hygiene     always (~1 s)
 # @description   stale-tree  always, every tier (well under 1 s a commit): an
-# @description               outgoing commit that sets 3 or more paths back to
-# @description               an older blob is REFUSED unless its subject names
-# @description               a restore -- check-pre-push-stale-tree.func.sh
+# @description               outgoing commit that sets back or deletes 3 or
+# @description               more paths of other commits, or 1 of another
+# @description               lane's last 24 h, is REFUSED unless its subject
+# @description               names a restore or its body 'Undoes: <sha>' --
+# @description               check-pre-push-stale-tree.func.sh
 # @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/ .zap/ root scanner configs
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the

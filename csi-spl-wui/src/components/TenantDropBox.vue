@@ -14,6 +14,7 @@
      typing filters the list by a case-insensitive "contains" on the name,
      Up/Down move the highlight, Enter switches to the highlighted row (or
      the only one left), Esc closes the list and puts the current name back.
+     SPL-2268: with the list open, Home / End jump to the first / last row.
      On a phone TopBarTenant is the switcher and this one is not shown.
      HUM-10 (topic dff51150): no glyph before the box on the desktop - the
      logo is followed straight by the box; the caption and hover still name it.
@@ -232,6 +233,10 @@ function onTenantKey(ev: KeyboardEvent) {
     ev.preventDefault()
     if (!listOpen.value) openTenantList()
     else moveActive(ev.key === 'ArrowDown' ? 1 : -1)
+  } else if ((ev.key === 'Home' || ev.key === 'End') && listOpen.value && shownRows.value.length) {
+    /* SPL-2268: with the list open, Home / End jump to the first / last row */
+    ev.preventDefault()
+    activeIndex.value = ev.key === 'Home' ? 0 : shownRows.value.length - 1
   } else if (ev.key === 'Enter') {
     if (!listOpen.value) return
     ev.preventDefault()

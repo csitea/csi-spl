@@ -19,6 +19,10 @@
 #     6. the age is the OLDEST unserved input commit's, not the newest
 #     7. no endpoint / junk body / commit not in this
 #        checkout / served not an ancestor              -> unknown, rc 1
+#     8. SPL-2272: the WUI inputs are workflow 30's own `on.push.paths`, read
+#        from the workflow: a blog-post-only commit (d587d79f8's shape) is a
+#        WUI input (pending n=1), an orc-only commit is not (current n=0, the
+#        "no deploy" of spl_desk_live_proof); `*` keeps GitHub's one level
 #   Then, shallow-safe, the real action end to end (cnf resolution, both
 #   components, exit code) and its argument validation.
 #------------------------------------------------------------------------------
@@ -98,6 +102,48 @@ lag_one "a commit this checkout does not have (shallow clone)" \
 grep -q 'fetch-depth 0' "$T/last" && pass "it names the shallow-clone cause" || fail "no shallow hint: $(cat "$T/last")"
 lag_one "served is NOT on this line of history" "$(fixture "$C_SIDE" fwd)" "$C_FRESH" 45 1 unknown
 grep -q 'not an ancestor' "$T/last" && pass "it says why" || fail "no reason in: $(cat "$T/last")"
+
+# 8. SPL-2272: WUI inputs come from workflow 30 itself, not a hand-kept copy.
+#    A synthetic repo carrying THIS checkout's workflow 30; the probe asks
+#    _spl_served_needs_deploy's question: "if the parent were served, would
+#    this commit be behind?" (lagging = needs a deploy, n=0 = no deploy).
+WF30="$APP_ROOT/.github/workflows/30_wui-build-deploy.yml"
+REPO="$T/repo-wui"
+mkdir -p "$REPO/.github/workflows"
+git -C "$REPO" init -q -b master
+git -C "$REPO" config user.email t@example.com
+git -C "$REPO" config user.name "FirstName LastName"
+cp "$WF30" "$REPO/.github/workflows/"
+git -C "$REPO" add .github && git -C "$REPO" commit -qm "wf 30" --date="-700 minutes"
+W_BASE=$(commit csi-spl-orc/README.md                                "base"             600)
+W_BLOG=$(commit csi-spl-doc/blog/posts/en/2026-10-16-amazing-world.md "a blog post only" 500)
+W_ORC=$(commit  csi-spl-orc/src/bash/run/some-desk.func.sh           "orc only"         400)
+W_CNF=$(commit  csi-spl-cnf/csi-spl/deep/x.env.json                  "cnf, two levels"  300)
+W_SCR=$(commit  csi-spl-orc/src/bash/scripts/wui-deploy-guard.sh     "a wf 30 script"   200)
+wui_one() { # <label> <served> <sha> <want rc> <want word>
+  local out rc
+  out=$(env APP_PATH="$REPO" ENV=dev bash -c '
+    do_log() { echo "$*" >&2; }
+    source "$0"
+    mapfile -t p < <(_spl_wui_input_paths "$APP_PATH")
+    (( ${#p[@]} )) || { echo "no wui paths"; exit 9; }
+    _spl_lag_one wui "$1" "$2" 99999999 15 "${p[@]}"
+  ' "$PROJ_ROOT/src/bash/run/check-deploy-lag.func.sh" "$(fixture "$2" "w-${2:0:8}")" "$3" 2>"$T/err"); rc=$?
+  local n=n=1; [[ "$5" == current ]] && n=n=0
+  if [[ $rc -eq $4 && "$out" == "dev wui $5 "* && "$out" == *" $n "* ]]; then pass "$1 ($5 $n, rc $rc)"
+  else fail "$1: rc=$rc want $4 $5, out='$out' err='$(tail -1 "$T/err")'"; fi
+}
+want_paths=$(yq -r '.on.push.paths[]' "$WF30" | sed 's/^/:(glob)/')
+got_paths=$(APP_PATH="$APP_ROOT" bash -c 'do_log() { :; }; source "$0"; _spl_wui_input_paths "$APP_PATH"' \
+  "$PROJ_ROOT/src/bash/run/check-deploy-lag.func.sh")
+[[ -n "$got_paths" && "$got_paths" == "$want_paths" ]] && pass "8. the WUI inputs are workflow 30's on.push.paths, one for one" ||
+  fail "8. WUI inputs differ from workflow 30: got '$got_paths' want '$want_paths'"
+grep -qx ':(glob)csi-spl-doc/blog/posts/\*\*' <<<"$got_paths" && pass "8. csi-spl-doc/blog/posts/** is among them" ||
+  fail "8. no blog posts path in: $got_paths"
+wui_one "8. RED CONTROL: a blog-post-only commit IS a WUI input" "$W_BASE" "$W_BLOG" 0 pending
+wui_one "8. an orc-only commit is no WUI input (needs 'no deploy')" "$W_BLOG" "$W_ORC" 0 current
+wui_one "8. '*' stays one level, as on GitHub: a nested cnf file is no input" "$W_ORC" "$W_CNF" 0 current
+wui_one "8. a wf 30 orc script IS a WUI input" "$W_CNF" "$W_SCR" 0 pending
 
 # --- the real action, end to end ---------------------------------------------
 # Shallow-safe: the fixtures name THIS checkout's HEAD, so no history is walked.

@@ -145,7 +145,11 @@ a docs-only or iac-only trunk head is never red:
   defines it: the Go module, its `build.sh`, the DDL dir cnf names
   (`env.hub.image.sql_src`), the hub `Dockerfile`, `.version`. Not the api test
   scripts and not `spool-hub-roles/`: neither is copied into the image.
-- **wui** — workflow 30's push allow-list, verbatim.
+- **wui** — workflow 30's push allow-list, read from its `on.push.paths`
+  at run time (`_spl_wui_input_paths`), never a hand-kept copy: the copy
+  drifted and missed `csi-spl-doc/blog/posts/**`, so the desk's **Live**
+  guard asked for "no deploy" on a blog post that wf 30 had deployed
+  (SPL-2272).
 
 The two lists differ **on purpose**: 30 deploys on every path it triggers on,
 20 does not. `GRACE_MINUTES` (repo variable `DEPLOY_LAG_GRACE_MINUTES`, default

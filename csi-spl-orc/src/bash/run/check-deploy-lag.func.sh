@@ -24,7 +24,8 @@
 # @description          itself defines it: the Go module, the DDL dir cnf
 # @description          names (env.hub.image.sql_src) + spool-hub-roles, the
 # @description          hub Dockerfile, its entrypoint and .version.
-# @description   wui -- the allow-list workflow 30 deploys on, verbatim. The two
+# @description   wui -- the allow-list workflow 30 deploys on, read from its
+# @description          `on.push.paths` (_spl_wui_input_paths). The two
 # @description          lists differ ON PURPOSE: 30 deploys on every path it
 # @description          triggers on, 20 does not (only a tag bump ships).
 # @description
@@ -80,14 +81,12 @@ do_check_deploy_lag() {
   local -a hub_paths=()
   mapfile -t hub_paths < <(APP_PATH="$APP_PATH" HUB_SQL_SRC="$sql_src" bash "$PROJ_PATH/src/bash/scripts/hub-deploy-guard.sh" paths)
   (( ${#hub_paths[@]} )) || { do_log "FATAL hub-deploy-guard.sh paths printed no hub input"; return 1; }
-  # Workflow 30's push allow-list, verbatim: every one of these DOES roll the site.
-  local -a wui_paths=(
-    "$SPL_ORG_APP-wui"
-    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/dev.env.json"
-    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/prd.env.json"
-    "$SPL_ORG_APP-orc/src/bash/scripts/render-wui-firebase-json.sh"
-    ".github/workflows/30_wui-build-deploy.yml"
-  )
+  # Workflow 30's push allow-list, read from the workflow itself: every one of
+  # these DOES roll the site. A hand-kept copy here drifted (SPL-2272: it had no
+  # csi-spl-doc/blog/posts/**, so a blog post commit read as "no deploy").
+  local -a wui_paths=()
+  mapfile -t wui_paths < <(_spl_wui_input_paths "$APP_PATH")
+  (( ${#wui_paths[@]} )) || { do_log "FATAL workflow 30 names no push paths: $APP_PATH/.github/workflows/30_wui-build-deploy.yml"; return 1; }
 
   local worst=0 rc
   if [[ "$component" == hub || "$component" == all ]]; then
@@ -101,6 +100,18 @@ do_check_deploy_lag() {
   # 3 (lagging) is the verdict worth acting on; 1 (cannot tell) must not mask it
   (( worst == 1 )) && return 1
   return "$worst"
+}
+
+# _spl_wui_input_paths <app path> -> workflow 30's `on.push.paths`, one git
+# pathspec a line. `:(glob)` gives git GitHub's reading of `*` (one path
+# level) and `**` (any depth); a leading `!` becomes an exclude.
+_spl_wui_input_paths() {
+  local wf="$1/.github/workflows/30_wui-build-deploy.yml" p
+  [[ -f "$wf" ]] || return 1
+  while IFS= read -r p; do
+    [[ -n "$p" && "$p" != null ]] || continue
+    if [[ "$p" == '!'* ]]; then echo ":(glob,exclude)${p#!}"; else echo ":(glob)$p"; fi
+  done < <(yq -r '.on.push.paths[]' "$wf" 2>/dev/null)
 }
 
 # _spl_lag_one <component> <url> <sha> <grace min> <timeout s> <path...>

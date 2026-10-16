@@ -38,6 +38,8 @@ git init -q -b master "$REPO"
 git -C "$REPO" remote add origin "$ORIGIN"
 ln -s "$APP_ROOT/csi-spl-cnf" "$REPO/csi-spl-cnf"
 ln -s "$APP_ROOT/csi-spl-iac" "$REPO/csi-spl-iac"
+# do_check_deploy_lag reads the WUI inputs from workflow 30 itself (SPL-2272)
+ln -s "$APP_ROOT/.github" "$REPO/.github"
 # commit <rel-path> <age in minutes> <message> [author email]
 commit() {
   local rel="$1" mins="$2" msg="$3" who="${4:-$EMAIL}" when

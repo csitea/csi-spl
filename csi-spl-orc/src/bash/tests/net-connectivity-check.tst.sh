@@ -15,6 +15,10 @@
 #   6. a docker veth (nmcli type ethernet, no /sys device) is not an uplink:
 #      its strict rp_filter does not refuse; red control: a copy without the
 #      /sys filter refuses
+#   7. polkit: nmcli refuses the check to a plain user (empty stdout, the
+#      error on stderr); the action runs it under NET_SUDO -> full; red
+#      control: a copy running the check without NET_SUDO -> FATAL with the
+#      polkit error
 #   No real /etc, /proc, /sys, NetworkManager or interface: NET_ROOT,
 #   NET_PROC, NET_SYS, stubs, no sudo.
 #------------------------------------------------------------------------------
@@ -37,11 +41,19 @@ echo "nmcli $*" >>"$CALLS"
 case "$*" in
   "-t -f DEVICE,TYPE dev") printf 'enp0s31f6:ethernet\nwlp0s20f3:wifi\nveth1055990:ethernet\nlo:loopback\n' ;;
   "networking connectivity") echo unknown ;;
-  "networking connectivity check") echo "${NMCLI_CONN:-full}" ;;
+  "networking connectivity check")
+    [[ -n "${NMCLI_POLKIT:-}" && -z "${VIA_SUDO:-}" ]] &&
+      { echo "Error: Not authorized to recheck connectivity." >&2; exit 1; }
+    echo "${NMCLI_CONN:-full}" ;;
 esac
 exit 0
 EOF
-chmod +x "$T/bin/nmcli"
+cat >"$T/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+echo "sudo $*" >>"$CALLS"
+VIA_SUDO=1 exec "$@"
+EOF
+chmod +x "$T/bin/nmcli" "$T/bin/sudo"
 mkdir -p "$T/sys/class/net/enp0s31f6/device" "$T/sys/class/net/wlp0s20f3/device" "$T/sys/class/net/veth1055990"
 
 # proc <dir> <all> <default> <enp0s31f6> <wlp0s20f3> - a fake /proc; "-" = absent
@@ -129,6 +141,17 @@ out="$(run "$FUNC" "$T/r6" DRY_RUN=0 2>&1)"; rc=$?
 sed 's|\[\[ -e "$NCC_SYS/class/net/$dev/device" \]\] && ||' "$FUNC" >"$T/red6.func.sh"
 rm -rf "$T/r6"; out="$(run "$T/red6.func.sh" "$T/r6" DRY_RUN=0 2>&1)" &&
   fail "6 red control: no /sys filter still passes" || pass "6 red control: without the /sys filter the veth refuses"
+
+# 7. polkit refuses the check to a plain user
+reset "$T/r7"; out="$(run "$FUNC" "$T/r7" DRY_RUN=0 NET_SUDO="$T/bin/sudo" NMCLI_POLKIT=1 2>&1)"; rc=$?
+((rc == 0)) && grep -q 'OK connectivity full' <<<"$out" &&
+  grep -qx "sudo $T/bin/nmcli networking connectivity check" "$CALLS" &&
+  pass "7 polkit: the check runs under NET_SUDO -> full" || fail "7 polkit (rc=$rc): $out / $(cat "$CALLS")"
+sed 's|now="$($NCC_SUDO $NCC_NMCLI networking connectivity check|now="$($NCC_NMCLI networking connectivity check|' "$FUNC" >"$T/red7.func.sh"
+cmp -s "$FUNC" "$T/red7.func.sh" && fail "7 red control: the sed did not change the copy"
+reset "$T/r7"; out="$(run "$T/red7.func.sh" "$T/r7" DRY_RUN=0 NET_SUDO="$T/bin/sudo" NMCLI_POLKIT=1 2>&1)"; rc=$?
+((rc != 0)) && grep -q "FATAL .*says 'nothing', not full: Error: Not authorized to recheck connectivity." <<<"$out" &&
+  pass "7 red control: the check without NET_SUDO -> FATAL with the polkit error" || fail "7 red control (rc=$rc): $out"
 
 echo "net-connectivity-check: $fails failure(s)"
 exit $((fails > 0))

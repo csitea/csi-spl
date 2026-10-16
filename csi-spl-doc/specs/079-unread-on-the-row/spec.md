@@ -70,7 +70,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 | **FR-002** | A composable `useUnread()` is the only reader of those inputs in components and pages | Planned |
 | **FR-003** | Channel, DM and topic rows in the sidebar show the model's number for their key | Planned |
 | **FR-004** | Topic rows in the Topics middle list show it too (until 078 Phase 2 removes that list) | Planned |
-| **FR-005** | A topic card's `<new>` keeps the local `t:` cursor count (`channel.unreadFor`), not the model's `t:` row: the hub `keys` let a `ch:` mark cover a topic's replies (062 FR-006), so opening the channel would zero the card and undo CLE-77930 (owner, t1 bf737f3f) | Done (T006) |
+| **FR-005** | A topic card's `<new>` keeps the local `t:` cursor count (`channel.unreadFor`), not the model's `t:` row: the hub `keys` let a `ch:` mark cover a topic's replies (062 FR-006), so opening the channel would zero the card and undo CLE-77930 (owner, t1 bf737f3f). Since SPL-2124 a `ch:` mark no longer covers a topic with a `t:` mark, so the `ch:` row equals the cards' sum | Done (T006) |
 | **FR-006** | The tab title's `(n)` is the sum of visible row numbers, muted excluded | Planned |
 | **FR-007** | The rail section badges are the section sums from the same model | Planned |
 | **FR-008** | The Flow badge keeps 062 FR-005's number; its label says "new in Flow" in all 19 locales | Planned |

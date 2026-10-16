@@ -336,7 +336,7 @@ badge is therefore 0, not a flood.
 | FR-003 | Watching (2.2) starts on the member's first post, mention or `to` in a task, and is stored as a `flow_watches` row. |
 | FR-004 | A poke DM that matches 2.3 folds into its mention: one entry, one count. A poke with no matching mention is a `poke` event of its own. Agents still receive the poke DM unchanged. |
 | FR-005 | The badge shows the unseen + unread total from the hub. It is hidden at 0, shows `99+` above 99, and clears to 0 when the Flow pane opens (`f:seen`). |
-| FR-006 | An entry is unread until it is opened from the Flow (`f:<msg_id>`) or its place's `ch:`/`t:`/`dm:` mark covers it. |
+| FR-006 | An entry is unread until it is opened from the Flow (`f:<msg_id>`) or its place's `ch:`/`t:`/`dm:` mark covers it. A `ch:` mark covers a channel line only while its topic has no `t:` mark (SPL-2124, contract section 3). |
 | FR-007 | A mark that moves on one tab or device updates the badge on every socket of that member within 1 s (the `flow` frame), not on the 5 s sync. |
 | FR-008 | Every count comes from the hub. The WUI never counts Flow events from `message` frames. |
 | FR-009 | The read door applies: no event for a line in a channel the member cannot read. A removed member's events in that channel stop counting at the next read (the door), and their rows are deleted by the membership writer. |

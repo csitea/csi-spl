@@ -216,16 +216,21 @@ permission control).
   `TestViewChannelsOwnPostNotUnread` (hub).
 - **One unread rule, hub and WUI** (CLE-77930, owner t1 bf737f3f: unread is
   "for me and me only ... not the new messages which I have seen"). A line
-  of channel C is new for member V when it is not V's own, it is after V's
-  read position in C, V has not read it inside its thread (a `t:<task_id>`
-  mark at or past it), and the channel feed does not hide it as archived
-  (specs/041: its card, its task's card or the lobby card whose thread it
-  is in is archived). The read position is the later of the `read` cursor
-  and V's stored `ch:<C>` mark (§5.2.1). In the WUI, opening C marks every
-  thread with replies after V's position and no mark of its own AT that
-  position, so its card reads `<new>/<total>` until the thread is opened.
+  of channel C is new for member V when it is not V's own, the channel feed
+  does not hide it as archived (specs/041: its card, its task's card or the
+  lobby card whose thread it is in is archived), and it is after V's
+  `t:<task_id>` mark for its thread or, when V has no mark for that thread,
+  after V's read position in C. The read position is the later of the
+  `read` cursor and V's stored `ch:<C>` mark (§5.2.1). In the WUI, opening
+  C marks every thread with replies after V's position and no mark of its
+  own AT that position, so its card reads `<new>/<total>` until the thread
+  is opened. SPL-2124 (owner, t1 b288e5be): the thread mark decides even
+  for a line before the read position, so C's number keeps the replies its
+  cards still count after C is opened (it read 0 next to `2/21` and `1/7`);
+  the Flow keys the sidebar row reads follow the same rule (flow-v1 §3).
   Tests: `TestChannelUnreadSkipsArchivedLines`,
-  `TestChannelUnreadSkipsLinesReadInTheirThread` (store),
+  `TestChannelUnreadSkipsLinesReadInTheirThread`,
+  `TestChannelUnreadCountsTopicReplies` (store),
   `TestReadMarksFollowTheMemberAcrossDevices` (hub),
   `read-cursor.test.mjs`, `read-sync.test.mjs` (WUI unit),
   `channel-thread-unread.test.mjs` (WUI e2e).

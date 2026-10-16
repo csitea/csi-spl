@@ -364,16 +364,24 @@ func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time, lob
 	return ev, true
 }
 
-// flowCoveredLocked: a mark covers the line (contract section 3).
+// flowCoveredLocked: a mark covers the line (contract section 3). A ch:
+// mark covers a channel line only while the member has no t: mark for its
+// topic: the thread mark decides that topic's lines, as its card counts them
+// (SPL-2124, the CLE-77930 rule).
 func (s *Memory) flowCoveredLocked(tenant, member string, m *Message) bool {
 	if _, ok := s.readMarks[[3]string{tenant, member, FlowMarkKey(m.MsgID)}]; ok {
 		return true
 	}
-	keys := []string{ThreadMarkKey(m.TaskID)}
+	tm, threaded := s.readMarks[[3]string{tenant, member, ThreadMarkKey(m.TaskID)}]
+	if threaded && !newer(m.ReceivedAt, m.MsgID, tm.At, tm.MsgID) {
+		return true
+	}
+	keys := []string{"dm:" + m.FromID, "dm:" + m.FromID + "@" + m.FromBox}
 	if m.Channel != "" {
-		keys = append(keys, "ch:"+m.Channel)
-	} else {
-		keys = append(keys, "dm:"+m.FromID, "dm:"+m.FromID+"@"+m.FromBox)
+		if threaded {
+			return false
+		}
+		keys = []string{"ch:" + m.Channel}
 	}
 	for _, key := range keys {
 		if r, ok := s.readMarks[[3]string{tenant, member, key}]; ok && !newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID) {

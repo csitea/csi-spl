@@ -86,7 +86,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=3970e3539a5e8aec67b3ed87b62728f0f035edd581b0772d0c1ae330f945b386 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=97b66e5d6a4aca873bbf9fae33cc28a4c3a2a73164ca14c5ee9d543b9037ac14 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
@@ -99,7 +99,17 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 				AND fe.cov_at >= fb.at OFFSET 0) fe
 			WHERE fp.k IS NOT NULL
 			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
-			WHERE fe.tenant_id = $1 AND fe.member_id = $2 AND (fe.place_key IS NULL OR fe.cov_at IS NULL)),
+			WHERE fe.tenant_id = $1 AND fe.member_id = $2 AND (fe.place_key IS NULL OR fe.cov_at IS NULL)
+			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM read_marks tm
+			CROSS JOIN LATERAL (SELECT CASE WHEN substr(tm.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN substr(tm.mark_key, 3)::uuid END AS task OFFSET 0) k
+			JOIN LATERAL (SELECT 1 WHERE tm.tenant_id = $1 AND tm.member_id = $2 AND tm.mark_key LIKE 't:%' AND k.task IS NOT NULL
+				AND EXISTS (SELECT 1 FROM messages y WHERE y.tenant_id = $1 AND y.task_id = k.task AND y.received_at >= tm.at)
+				AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.task_id = k.task AND z.archived_at IS NOT NULL AND k.task::text <> $5::text)) live ON true
+			CROSS JOIN LATERAL (SELECT x.msg_id FROM messages x WHERE x.tenant_id = $1
+				AND x.task_id = k.task AND x.received_at >= tm.at AND x.channel IS NOT NULL OFFSET 0) x
+			JOIN flow_events fe ON fe.tenant_id = $1 AND fe.member_id = $2 AND fe.msg_id = x.msg_id
+			WHERE fe.place_key LIKE 'ch:%' AND fe.cov_at < (SELECT max(r.at) FROM read_marks r
+				WHERE r.tenant_id = $1 AND r.member_id = $2 AND r.mark_key = fe.place_key)),
 		fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
 				CASE WHEN fm.channel IS NOT NULL THEN 'ch:' || fm.channel
 					WHEN coalesce(fm.from_box, '') <> '' THEN 'dm:' || fm.from_id || '@' || fm.from_box
@@ -118,11 +128,11 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 		AND (z.msg_id = fm.msg_id OR z.msg_id = fm.task_id
 			OR (z.task_id = fm.task_id AND fm.task_id::text <> $5::text)
 			OR (z.task_id = fm.parent_task_id AND fm.parent_task_id::text <> $5::text)))) OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 'f:' || fe.msg_id::text)
-		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id
-			AND r.mark_key IN ('t:' || fm.task_id::text,
-				CASE WHEN fm.channel IS NULL THEN 'dm:' || fm.from_id ELSE 'ch:' || fm.channel END,
-				CASE WHEN fm.channel IS NULL THEN 'dm:' || fm.from_id || '@' || fm.from_box END)
-			AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id))))
+		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 't:' || fm.task_id::text AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id))
+		OR (fm.channel IS NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id
+			AND r.mark_key IN ('dm:' || fm.from_id, 'dm:' || fm.from_id || '@' || fm.from_box) AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id)))
+		OR (fm.channel IS NOT NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 'ch:' || fm.channel AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id))
+			AND NOT EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 't:' || fm.task_id::text))))
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
@@ -164,6 +174,27 @@ WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $
 		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
 			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
 			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))) c
+-- @@stmt ch_thread sha256=e500b1a2ff5313c7f456e7cf1fc25c34fde1c8464986ef9c805fb6c7debd72a0 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
+-- @@scope SELECT set_config('app.tenant_id', $1, true)
+WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
+		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
+			WHERE $6::text IS NOT NULL AND tenant_id = $1 AND member_id = $6 AND mark_key LIKE 'ch:%'),
+		mk AS (SELECT DISTINCT ON (ch) ch, at, id FROM (SELECT ch, at, id FROM pm UNION ALL SELECT ch, at, id FROM sm) x ORDER BY ch, at DESC, id DESC)
+		SELECT m.channel, count(*)::int FROM read_marks tm
+			CROSS JOIN LATERAL (SELECT CASE WHEN substr(tm.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN substr(tm.mark_key, 3)::uuid END AS task OFFSET 0) k
+			JOIN LATERAL (SELECT 1 WHERE tm.tenant_id = $1 AND tm.member_id = $6 AND tm.mark_key LIKE 't:%' AND k.task IS NOT NULL
+				AND EXISTS (SELECT 1 FROM messages y WHERE y.tenant_id = $1 AND y.task_id = k.task AND y.received_at >= tm.at)
+				AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.task_id = k.task AND z.archived_at IS NOT NULL AND k.task::text <> $7)) live ON true
+		CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.received_at, x.task_id, x.parent_task_id FROM messages x
+			WHERE x.tenant_id = $1 AND x.task_id = k.task
+			AND x.received_at >= tm.at AND (x.received_at, x.msg_id::text) > (tm.at, tm.msg_id)
+			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
+		JOIN mk ON mk.ch = m.channel AND (m.received_at, m.msg_id::text) <= (mk.at, mk.id)
+		WHERE $6::text IS NOT NULL AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
+			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
+			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))
+		GROUP BY m.channel
 -- @@stmt ch_hidden sha256=789f59de2630a1737ed1cae7f90086b4b47d1670bc15196224bc9e235c914180 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),

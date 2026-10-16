@@ -20,7 +20,7 @@
 # @description walks (walk_all, walk_dm: viewTopicsSQL as handleViewTopics calls
 # @description it) under the walk scope (jit off, bitmap scans off, sorts off,
 # @description custom plans); thread (the topic page, desc), flow_counts
-# @description (FlowRead's counts), ch_counts / ch_marked / ch_hidden
+# @description (FlowRead's counts), ch_counts / ch_marked / ch_thread / ch_hidden
 # @description (ViewChannelStats' reads, no read= cursor) under the plain tenant
 # @description scope (the server's defaults). Spec 099 T008: the head reads
 # @description (viewTopicsHeadSQL) under the head scope (jit off, sorts and

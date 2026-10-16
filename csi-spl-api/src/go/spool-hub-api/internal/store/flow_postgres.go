@@ -99,13 +99,20 @@ func flowDoorSQL(e, m, pub string) string {
 // too (owner, t1 56b8cc17: "anything that is archived should not be part of
 // the unread messages counter"), by the lists' own archive rule; lobby is a
 // bound text $n.
+//
+// A ch: mark covers a channel line only while the member has no t: mark for
+// its topic (SPL-2124, the CLE-77930 rule): opening a channel moves ch: past
+// the replies its cards still count as "<new>/<total>", so the thread mark
+// alone decides that topic's lines.
 func flowCoveredSQL(e, m, lobby string) string {
-	return `(NOT (true` + archivedHideSQL(m, e+`.tenant_id`, lobby) + `) OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = 'f:' || ` + e + `.msg_id::text)
-		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id
-			AND r.mark_key IN ('t:' || ` + m + `.task_id::text,
-				CASE WHEN ` + m + `.channel IS NULL THEN 'dm:' || ` + m + `.from_id ELSE 'ch:' || ` + m + `.channel END,
-				CASE WHEN ` + m + `.channel IS NULL THEN 'dm:' || ` + m + `.from_id || '@' || ` + m + `.from_box END)
-			AND (` + m + `.received_at, ` + m + `.msg_id::text) <= (r.at, r.msg_id)))`
+	mark := `SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = `
+	past := ` AND (` + m + `.received_at, ` + m + `.msg_id::text) <= (r.at, r.msg_id)`
+	return `(NOT (true` + archivedHideSQL(m, e+`.tenant_id`, lobby) + `) OR EXISTS (` + mark + `'f:' || ` + e + `.msg_id::text)
+		OR EXISTS (` + mark + `'t:' || ` + m + `.task_id::text` + past + `)
+		OR (` + m + `.channel IS NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id
+			AND r.mark_key IN ('dm:' || ` + m + `.from_id, 'dm:' || ` + m + `.from_id || '@' || ` + m + `.from_box)` + past + `))
+		OR (` + m + `.channel IS NOT NULL AND EXISTS (` + mark + `'ch:' || ` + m + `.channel` + past + `)
+			AND NOT EXISTS (` + mark + `'t:' || ` + m + `.task_id::text)))`
 }
 
 // flowCountsSQL selects the ten counts (badge mention/reply/dm/channels/dms,
@@ -142,7 +149,8 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 				AND fe.cov_at >= fb.at OFFSET 0) fe
 			WHERE fp.k IS NOT NULL
 			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
-			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND (fe.place_key IS NULL OR fe.cov_at IS NULL)),
+			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND (fe.place_key IS NULL OR fe.cov_at IS NULL)
+			UNION ALL ` + flowThreadTailSQL(tenant, member, lobby) + `),
 		fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
 				CASE WHEN fm.channel IS NOT NULL THEN 'ch:' || fm.channel
 					WHEN coalesce(fm.from_box, '') <> '' THEN 'dm:' || fm.from_id || '@' || fm.from_box
@@ -169,6 +177,37 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
 		FROM fc`
+}
+
+// flowThreadTailSQL is the rest of the tail (SPL-2124): the channel events
+// the ch: cut above skipped (cov_at before the place's mark) that a t: mark
+// of the member may still leave unread, since the thread mark, not ch:,
+// decides a topic's lines (flowCoveredSQL). Driven by the member's live t:
+// marks (threadMarksSQL): one range on messages_task_received per mark, past
+// the mark, then one flow_events probe per line found. The cut's complement
+// keeps every event in one branch only.
+func flowThreadTailSQL(tenant, member, lobby string) string {
+	return `SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM ` + threadMarksSQL(tenant, member, lobby) + `
+			CROSS JOIN LATERAL (SELECT x.msg_id FROM messages x WHERE x.tenant_id = ` + tenant + `
+				AND x.task_id = k.task AND x.received_at >= tm.at AND x.channel IS NOT NULL OFFSET 0) x
+			JOIN flow_events fe ON fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.msg_id = x.msg_id
+			WHERE fe.place_key LIKE 'ch:%' AND fe.cov_at < (SELECT max(r.at) FROM read_marks r
+				WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + ` AND r.mark_key = fe.place_key)`
+}
+
+// threadMarksSQL is "read_marks tm, k(task)": the member's t: marks with the
+// topic id as a uuid that have a line at or past the mark (one index-only
+// probe of messages_task_received), less the topics whose lines are all
+// hidden as archived (archivedHideSQL's task arm, one messages_archived probe
+// per mark left; on prd t1 most of a heavy reader's marks are archived
+// topics). It drops only lines the outer read or the archive rule drops
+// anyway.
+func threadMarksSQL(tenant, member, lobby string) string {
+	return `read_marks tm
+			CROSS JOIN LATERAL (SELECT CASE WHEN substr(tm.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN substr(tm.mark_key, 3)::uuid END AS task OFFSET 0) k
+			JOIN LATERAL (SELECT 1 WHERE tm.tenant_id = ` + tenant + ` AND tm.member_id = ` + member + ` AND tm.mark_key LIKE 't:%' AND k.task IS NOT NULL
+				AND EXISTS (SELECT 1 FROM messages y WHERE y.tenant_id = ` + tenant + ` AND y.task_id = k.task AND y.received_at >= tm.at)
+				AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = ` + tenant + ` AND z.task_id = k.task AND z.archived_at IS NOT NULL AND k.task::text <> ` + lobby + `)) live ON true`
 }
 
 // flowEventCols are the FlowEvent columns of event e / message m, scanned

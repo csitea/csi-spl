@@ -60,7 +60,7 @@ grep -q "default_transaction_read_only=on" "$PROJ_ROOT/src/bash/run/spl-db-hot-m
   pass "the session is default_transaction_read_only=on" || fail "no read-only session default"
 
 # --- 3. the hub's own settings per statement, and the overrides ------------------------
-stmts="walk_all walk_dm thread flow_counts ch_counts ch_marked ch_hidden walk_all_head walk_dm_head walk_dm_head_worst walk_parent_head"
+stmts="walk_all walk_dm thread flow_counts ch_counts ch_marked ch_thread ch_hidden walk_all_head walk_dm_head walk_dm_head_worst walk_parent_head"
 # settings <script> <name> <tag> -> the four SETs just before name.tag's first sample.
 # The marker goes in through ENVIRON, not -v: -v runs escape processing, and gawk
 # (the hosted runner's awk) reads the "\e" of "\echo" as "e" where mawk keeps it.
@@ -74,7 +74,7 @@ for name in walk_all walk_dm; do
   [[ "$(settings "$def" $name .hub)" == $'SET jit = off;\nSET enable_bitmapscan = off;\nSET enable_sort = off;\nSET plan_cache_mode = force_custom_plan;' ]] &&
     pass "$name runs under the walk scope (pgScopeTenantNoJIT)" || fail "$name settings: $(settings "$def" $name .hub)"
 done
-for name in thread flow_counts ch_counts ch_marked ch_hidden; do
+for name in thread flow_counts ch_counts ch_marked ch_thread ch_hidden; do
   [[ "$(settings "$def" $name .hub)" == $'SET jit = DEFAULT;\nSET enable_bitmapscan = DEFAULT;\nSET enable_sort = DEFAULT;\nSET plan_cache_mode = DEFAULT;' ]] &&
     pass "$name runs under the plain tenant scope (the server's defaults)" || fail "$name settings: $(settings "$def" $name .hub)"
 done
@@ -93,7 +93,7 @@ pass "MEASURE_JIT=both measures every statement under jit on and off"
 [[ "$(settings "$sql" flow_counts .jit_on)" == $'SET jit = on;\nSET enable_bitmapscan = DEFAULT;\nSET enable_sort = DEFAULT;\nSET plan_cache_mode = DEFAULT;' ]] &&
   pass "an override changes only its own setting" || fail "override: $(settings "$sql" flow_counts .jit_on)"
 [[ $(grep -c '^\\echo @@ walk_all.jit_on$' <<<"$sql") == 3 ]] && pass "MEASURE_N=3 gives 3 samples" || fail "sample count"
-[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 22 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
+[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 24 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
 one=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_dm 0' in_orc 2>&1)
 grep -q '@@ walk_dm.jit_off$' <<<"$one" && ! grep -qE '@@ (walk_all|thread|flow_counts|ch_[a-z]+)\.' <<<"$one" &&
   ! grep -q 'jit_on' <<<"$one" && [[ $(grep -c '^PREPARE ' <<<"$one") == 1 ]] &&

@@ -110,6 +110,21 @@ comments and issue descriptions.
 
    Pushed-only work is "on master", never "live". A change with no deploy
    (docs only) stays "on master".
+15. **A post about a change opens with its state, in bold** (owner HUM-10,
+   2026-10-16, t1 topic 04d9c246, msg bc47f954: "So how come you claim that
+   something is ready when it was not? What was the reason for that?", and
+   msg 7383f4d6: "In this post discussion, check the previous posts."). A
+   plan written in the present tense ("the log moves to the bottom") and a
+   bare "Tracked as SPL-n" read as done. So the first words are one of:
+   - **Planned, not built yet.** Nobody is building it yet; an issue filed
+     for it is in this state too.
+   - **In progress** (the lane, since when): a lane is building it.
+   - **Landed, not live yet.** On master, not yet served (rule 14).
+   - **Live** (the proof: the served build that contains it, rule 14).
+
+   Until it is live the change is written as "will ...": "the log will move
+   to the bottom", never "the log moves". The post that files an issue
+   (`do_spl_lane_issue`) opens `**Planned, not built yet.** Tracked as ...`.
 
 
 

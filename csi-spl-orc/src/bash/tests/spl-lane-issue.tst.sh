@@ -73,7 +73,7 @@ grep -qx 'Issue: SPL-42' "$S/c-123/lifetime/brief.md" && pass "... the recorded 
   pass "card: ## Source /t/<topic> then ## Restart at the top of the description" || fail "card: $(head -16 "$T/desc.md.create")"
 grep -q '^update|--ref|SPL-42|--description-file|' "$T/calls.log" && grep -qx -- '- key: SPL-42' "$T/desc.md.update" &&
   grep -q '"make it blue"' "$T/desc.md.update" && pass "... once filed, the card names SPL-42" || fail "card key: $(cat "$T/calls.log")"
-grep -qx 'post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|Tracked as \*\*SPL-42\*\*: make the widget blue (one lane) (lane c-123).|' "$T/calls.log" &&
+grep -qx 'post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|\*\*Planned, not built yet.\*\* Tracked as \*\*SPL-42\*\*: make the widget blue (one lane) (lane c-123).|' "$T/calls.log" &&
   pass "... the key is posted back in the topic" || fail "post back: $(cat "$T/calls.log")"
 run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_POST=0 DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -q '^create|' "$T/calls.log" && ! grep -q '^post|' "$T/calls.log" &&
@@ -156,7 +156,7 @@ run AGENT_ID=c-125 BRIEF="$T/brief.md" DRY_RUN=0
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-9fea-e1b87c369476 LANE_ISSUE_TITLE='Evaluate the runner' LANE_ISSUE_TEXT='"is the VM dead?"' LANE_ISSUE_ANSWER=1 DESC_COPY="$T/d2.md" DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -q '^create|--title|Evaluate the runner|.*|--status|eval|--labels|answer|--assignee|c-002|' "$T/calls.log" &&
   grep -qx 'SPL-42' "$T/o" && grep -qx -- '- Topic: https://wui.invalid/t/5ea2e615-ca23-451f-9fea-e1b87c369476' "$T/d2.md.create" && grep -q 'is the VM dead' "$T/d2.md.create" &&
-  grep -qx '## Source' "$T/d2.md.create" && grep -q '^post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|Tracked as \*\*SPL-42\*\*' "$T/calls.log" &&
+  grep -qx '## Source' "$T/d2.md.create" && grep -q '^post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|\*\*Planned, not built yet.\*\* Tracked as \*\*SPL-42\*\*' "$T/calls.log" &&
   pass "discussion: eval, answer label, the taker assigned, the card, the key printed and posted back" || fail "discussion (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-9fea-e1b87c369476 DRY_RUN=0
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'acks, chatter and announcements file no issue' "$T/o" &&

@@ -4,6 +4,8 @@
 // Measured on the whole card (article), not only its body: the grip under a
 // cut card adds 12 px (desktop) / 28 px (phone), so the body alone can match
 // while the cards do not. "full" keeps the natural heights.
+// SPL-2104: a card with a "moved from" line over its body is as tall too:
+// the note lines come out of the 5-row box.
 //
 // Run:
 //   pnpm run test:e2e card-height-rows
@@ -96,12 +98,21 @@ function seedCards(p) {
       parent_task_id: null, 
       is_parent: 1
     }
+    /* SPL-2104: a short card moved here from another channel carries a
+       "moved from" line over its body; the card stays as tall as the others */
+    const movedRow = {
+      ...shortRow,
+      msg_id: crypto.randomUUID(),
+      task_id: crypto.randomUUID(),
+      moved_at: new Date().toISOString(),
+      moved_from_channel: 'elsewhere-2104',
+    }
     try {
       const extra = JSON.parse(localStorage.getItem('spool.mock.extra-messages') || '[]')
-      localStorage.setItem('spool.mock.extra-messages', JSON.stringify([...extra, shortRow, longRow]))
+      localStorage.setItem('spool.mock.extra-messages', JSON.stringify([...extra, shortRow, longRow, movedRow]))
     } catch { /* private mode */ }
-    channel.messages = [...channel.messages, shortRow, longRow]
-    return { shortId: shortRow.msg_id, longId: longRow.msg_id }
+    channel.messages = [...channel.messages, shortRow, longRow, movedRow]
+    return { shortId: shortRow.msg_id, longId: longRow.msg_id, movedId: movedRow.msg_id }
   }, SHORT_BODY, LONG_BODY)
 }
 
@@ -149,14 +160,16 @@ async function rest(p, sel) {
 
 async function heightCase(browser, vp, tag) {
   const { p, errors } = await open(browser, vp)
-  const { shortId, longId } = await seedCards(p)
+  const { shortId, longId, movedId } = await seedCards(p)
   await setClipMode(p)
   
   const shortSel = `.spool-main article.msg[data-msg-id="${shortId}"]`
   const longSel = `.spool-main article.msg[data-msg-id="${longId}"]`
+  const movedSel = `.spool-main article.msg[data-msg-id="${movedId}"]`
   
   await p.waitForSelector(`${shortSel} [data-testid=card-body]`, { timeout: 15000 })
   await p.waitForSelector(`${longSel} [data-testid=card-body]`, { timeout: 15000 })
+  await p.waitForSelector(`${movedSel} [data-testid=msg-moved]`, { timeout: 15000 })
   
   await p.evaluate((shortSel, longSel) => {
     document.querySelector(shortSel).scrollIntoView({ block: 'center' })
@@ -165,6 +178,7 @@ async function heightCase(browser, vp, tag) {
   
   const shortCard = await rest(p, shortSel)
   const longCard = await rest(p, longSel)
+  const movedCard = await rest(p, movedSel)
   
   if (SHOTS) {
     await p.screenshot({ path: join(SHOTS, `card-height-rows-${tag}-short.png`) })
@@ -187,6 +201,13 @@ async function heightCase(browser, vp, tag) {
     diff: cardDiff
   })
   
+  const movedDiff = Math.abs(movedCard.card - shortCard.card)
+  ok(`${tag}: a card with a "moved from" line is as tall as the others (±${maxDiff}px)`, movedDiff <= maxDiff, {
+    movedCard: movedCard.card,
+    shortCard: shortCard.card,
+    diff: movedDiff
+  })
+
   ok(`${tag}: 8-row card is clipped and shows the grip`, longCard.clip === 'cut' && longCard.grip, {
     clip: longCard.clip, 
     grip: longCard.grip

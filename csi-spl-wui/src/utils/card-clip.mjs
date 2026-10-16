@@ -225,9 +225,12 @@ export function cardHasPicture(files) {
 
 /**
  * The clip height of a card body in px, or null for "not clipped".
- * @param {{ mode: string, picture: boolean, lineHeightPx: number, viewportPx: number, userPx?: number | null }} s
+ * @param {{ mode: string, picture: boolean, lineHeightPx: number, viewportPx: number, userPx?: number | null, notesPx?: number }} s
  *   `userPx` is a grip drag on this card; it replaces the automatic height
  *   (taller or shorter), and is never below one text row.
+ *   `notesPx` is the height of the note lines over the body ("moved from",
+ *   the DM's topic, a pointer): SPL-2104, they come out of the automatic
+ *   box, so a card with a note is as tall as one without (never below one row).
  * @returns {number | null}
  */
 export function cardClipPx(s) {
@@ -237,11 +240,13 @@ export function cardClipPx(s) {
   if (typeof s.userPx === 'number' && Number.isFinite(s.userPx)) {
     return Math.max(Math.round(line), Math.round(s.userPx))
   }
+  const notes = Math.max(0, Number(s.notesPx) || 0)
+  let px = Math.round(line * CARD_CLIP_ROWS)
   if (s.picture) {
     const vp = Math.max(0, Number(s.viewportPx) || 0)
-    return Math.max(Math.round(line * CARD_CLIP_ROWS), Math.round(vp * CARD_CLIP_PICTURE_SHARE))
+    px = Math.max(px, Math.round(vp * CARD_CLIP_PICTURE_SHARE))
   }
-  return Math.round(line * CARD_CLIP_ROWS)
+  return Math.max(Math.round(line), Math.round(px - notes))
 }
 
 /**

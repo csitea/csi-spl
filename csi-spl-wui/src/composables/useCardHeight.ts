@@ -39,7 +39,16 @@ export function useCardTitle(props: ClipProps, editing: Ref<boolean>, files: Ref
 }
 
 /** What measure() reads off the rendered card, px. */
-interface Measured { lineHeightPx: Ref<number>, viewportPx: Ref<number>, contentPx: Ref<number> }
+interface Measured { lineHeightPx: Ref<number>, viewportPx: Ref<number>, contentPx: Ref<number>, notesPx: Ref<number> }
+
+/* SPL-2104: the note lines right over the clip box ("moved from", the DM's
+   topic, a pointer), top of the first to top of the box, px */
+function notesOver(box: HTMLElement | null): number {
+  if (!box) return 0
+  let first: Element | null = null
+  for (let el = box.previousElementSibling; el?.classList.contains('msg-moved'); el = el.previousElementSibling) first = el
+  return first ? Math.max(0, box.getBoundingClientRect().top - first.getBoundingClientRect().top) : 0
+}
 
 function measureBox(clipInner: Ref<HTMLElement | null>, m: Measured) {
   if (typeof window === 'undefined') return
@@ -55,6 +64,7 @@ function measureBox(clipInner: Ref<HTMLElement | null>, m: Measured) {
      picture shows under it; the text cut counts toward "clipped" too */
   const textCut = body !== inner ? Math.max(0, body.scrollHeight - body.clientHeight) : 0
   m.contentPx.value = Math.ceil(inner.scrollHeight + textCut)
+  m.notesPx.value = Math.round(notesOver(inner.parentElement))
 }
 
 export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Ref<FileRef[]>, clipEl: Ref<HTMLElement | null>, clipInner: Ref<HTMLElement | null>) {
@@ -66,8 +76,8 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
   const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
   /** A grip drag on this card, px; null = the automatic height. Never stored. */
   const userPx = ref<number | null>(null)
-  const m: Measured = { lineHeightPx: ref(0), viewportPx: ref(0), contentPx: ref(0) }
-  const { lineHeightPx, viewportPx, contentPx } = m
+  const m: Measured = { lineHeightPx: ref(0), viewportPx: ref(0), contentPx: ref(0), notesPx: ref(0) }
+  const { lineHeightPx, viewportPx, contentPx, notesPx } = m
   const clipPx = computed(() => {
     if (!clipOn.value || !lineHeightPx.value) return null
     return cardClipPx({
@@ -76,6 +86,7 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
       lineHeightPx: lineHeightPx.value,
       viewportPx: viewportPx.value,
       userPx: userPx.value,
+      notesPx: notesPx.value,
     })
   })
   const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))

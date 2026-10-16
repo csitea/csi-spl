@@ -120,6 +120,16 @@ describe('cardClipPx', () => {
     }), 20)
   })
 
+  it('SPL-2104: takes the note lines over the body out of the automatic box, floored at one row', () => {
+    const base = { mode: 'rows', lineHeightPx: 20, viewportPx: 1000 }
+    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 18 }), 20 * CARD_CLIP_ROWS - 18)
+    assert.equal(cardClipPx({ ...base, picture: true, notesPx: 18 }), 300 - 18)
+    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 500 }), 20)
+    assert.equal(cardClipPx({ ...base, picture: false, notesPx: Number.NaN }), 20 * CARD_CLIP_ROWS)
+    /* a grip drag is the reader's own height: the notes do not change it */
+    assert.equal(cardClipPx({ ...base, picture: false, notesPx: 18, userPx: 80 }), 80)
+  })
+
   it('does not clip titles or full', () => {
     const base = { picture: true, lineHeightPx: 20, viewportPx: 1000, userPx: 400 }
     assert.equal(cardClipPx({ ...base, mode: 'titles' }), null)

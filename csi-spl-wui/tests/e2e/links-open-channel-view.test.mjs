@@ -13,6 +13,11 @@
 // The mock feed is lengthened through localStorage `spool.mock.extra-messages`
 // (id-links.test.mjs does the same).
 //
+// SPL-2150: a deep-linked topic near the end of a long list still sits at the
+// top of the topics pane after the window is resized (1440x900 <-> 1440x600,
+// phone portrait <-> landscape): the room left after the last card follows
+// the pane's height instead of the height it had when the link opened.
+//
 // Run: node tests/e2e/links-open-channel-view.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
 import { createRequire } from 'node:module'
@@ -93,6 +98,53 @@ function extraRows(base) {
       ts: '2026-12-31T23:59:00Z',
     }),
   ]
+}
+
+/* SPL-2150: a long #lobby whose OLDEST topic is the one linked, so it is the
+   last card and needs the room after the list to reach the top of the pane */
+const LAND_TASK = 'f6060000-0000-4000-8000-000000000000'
+const LAND_ROOT = 'f6050000-0000-4000-8000-000000000000'
+function landRows() {
+  const rows = []
+  for (let i = 0; i < 14; i++) {
+    const n = String(i).padStart(2, '0')
+    rows.push(row({
+      msg_id: `f6050000-0000-4000-8000-0000000001${n}`,
+      task_id: `f6060000-0000-4000-8000-0000000001${n}`,
+      channel: 'lobby',
+      body: `filler topic ${n}\n\nsecond line of filler ${n}`,
+      ts: `2026-12-2${Math.floor(i / 10)}T1${i % 10}:00:00Z`,
+    }))
+  }
+  rows.push(row({ msg_id: LAND_ROOT, task_id: LAND_TASK, channel: 'lobby', body: 'the oldest topic, linked', ts: '2020-01-01T00:00:00Z' }))
+  return rows
+}
+
+/* where the linked card sits against the top of its topics pane (px; 0 =
+   landed), or 'pane' on a phone in portrait, where the topic's own pane
+   covers the list */
+const landGap = (p) => p.evaluate((task, root) => {
+  const card = [...document.querySelectorAll(`.spool-main article.msg[data-task-id="${task}"]`)]
+    .find((c) => c.getBoundingClientRect().height > 0)
+  const scroller = card && card.closest('.feed-body')
+  if (scroller && scroller.clientHeight > 0) return Math.round(card.getBoundingClientRect().top - scroller.getBoundingClientRect().top)
+  const inPane = [...document.querySelectorAll(`aside.live-pane article.msg[data-msg-id="${root}"]`)]
+    .some((c) => { const r = c.getBoundingClientRect(); return r.height > 0 && r.top < window.innerHeight && r.bottom > 0 })
+  return inPane ? 'pane' : null
+}, LAND_TASK, LAND_ROOT)
+const landedAt = (g) => g === 'pane' || (typeof g === 'number' && Math.abs(g) <= 2)
+
+/* the gap once it has kept one value for 600 ms (or after 8 s) */
+async function settledGap(p) {
+  const deadline = Date.now() + 8000
+  let last = null
+  let since = Date.now()
+  while (Date.now() < deadline) {
+    const g = await landGap(p)
+    if (g !== last) { last = g; since = Date.now() } else if (g !== null && Date.now() - since >= 600) return g
+    await sleep(100)
+  }
+  return last
 }
 
 async function launch() {
@@ -243,6 +295,29 @@ const srv = await startServer()
 const browser = await launch()
 const only = process.env.LOV_ONLY || ''
 try {
+  /* SPL-2150: the deep-linked topic lands, then the window is resized */
+  for (const c of [
+    { name: '1440x900 -> 1440x600', from: { width: 1440, height: 900 }, to: { width: 1440, height: 600 } },
+    { name: '1440x600 -> 1440x900', from: { width: 1440, height: 600 }, to: { width: 1440, height: 900 } },
+    { name: '390 portrait -> landscape', from: { width: 390, height: 844, isMobile: true, hasTouch: true }, to: { width: 844, height: 390, isMobile: true, hasTouch: true, isLandscape: true } },
+    { name: '390 landscape -> portrait', from: { width: 844, height: 390, isMobile: true, hasTouch: true, isLandscape: true }, to: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+  ]) {
+    const name = `resize ${c.name}: the deep-linked topic stays at the top of the pane`
+    if (only && !name.includes(only)) continue
+    const p = await browser.newPage()
+    p.setDefaultNavigationTimeout(NAV_TIMEOUT)
+    await p.setViewport(c.from)
+    await p.evaluateOnNewDocument((rows) => {
+      try { localStorage.setItem('spool.mock.extra-messages', JSON.stringify(rows)) } catch { /* private mode */ }
+    }, landRows())
+    await goto(p, `${srv.base}/channel/lobby?topic=${LAND_TASK}`)
+    const before = await settledGap(p)
+    await p.setViewport(c.to)
+    const after = await settledGap(p)
+    ok(name, landedAt(before) && landedAt(after), { before, after })
+    await p.close()
+  }
+
   for (const vp of [
     { name: '1440px', phone: false, size: { width: 1440, height: 900 } },
     { name: '390px', phone: true, size: { width: 390, height: 844, isMobile: true, hasTouch: true } },

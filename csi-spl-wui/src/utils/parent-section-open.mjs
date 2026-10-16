@@ -153,6 +153,17 @@ function holdCard(card, scroller, apply) {
   requestAnimationFrame(tick)
 }
 
+/** Put the card at the reader's edge of its scroller and hold it there while the feed settles. */
+function landCard(card, scroller, newestLast) {
+  const apply = () => {
+    if (!card.isConnected) return
+    const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
+    scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
+  }
+  apply()
+  holdCard(card, scroller, apply)
+}
+
 /** Scroll the parent card to the reader's edge, reading older pages for it,
     and keep the thread open on it - or, with no target, select the card
     `msgId` itself and open nothing.
@@ -178,15 +189,7 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '',
         if (hash) await router.replace(hashOnlyLocation(router.currentRoute && router.currentRoute.value, hash))
       }
       const scroller = card.closest('.feed-body')
-      if (scroller) {
-        const apply = () => {
-          if (!card.isConnected) return
-          const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
-          scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
-        }
-        apply()
-        holdCard(card, scroller, apply)
-      }
+      if (scroller) landCard(card, scroller, newestLast)
       if (!target) card.focus({ preventScroll: true, focusVisible: true })
       return
     }
@@ -217,4 +220,42 @@ export function scrollTopicCard({ router, newestLast = false, taskId = '', hash 
 
 function routePath(router) {
   return String((router && router.currentRoute && router.currentRoute.value && router.currentRoute.value.path) || '')
+}
+
+/** The quiet time after the last size change before the card lands again. */
+const RESIZE_SETTLE_MS = 100
+const READER_INPUTS = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+
+/** SPL-2150: the room after the list was sized once, at landing, so a pane
+    that grew later (a taller window, a phone turned, the list shown again on
+    a phone) clamped the scroll and the ?topic= card slid down. Follow the
+    pane's height: hand each settled height to setTail (it resolves once the
+    tail is drawn) and land the card again, until the reader moves the pane
+    themselves. Returns the function that stops following.
+ */
+export function followTopicPane({ scroller, taskId = '', newestLast = () => false, setTail = async () => {} } = {}) {
+  const id = String(taskId || '')
+  if (!scroller || !id || typeof ResizeObserver !== 'function') return () => {}
+  let landed = true
+  let timer
+  const leave = () => { landed = false }
+  const settle = async () => {
+    const h = scroller.clientHeight
+    if (h <= 0) return
+    await setTail(h)
+    if (!landed) return
+    const card = scroller.querySelector(`article.msg[data-task-id="${CSS.escape(id)}"]`)
+    if (card) landCard(card, scroller, Boolean(newestLast()))
+  }
+  const ro = new ResizeObserver(() => {
+    clearTimeout(timer)
+    timer = setTimeout(() => { void settle() }, RESIZE_SETTLE_MS)
+  })
+  for (const t of READER_INPUTS) scroller.addEventListener(t, leave, { passive: true })
+  ro.observe(scroller)
+  return () => {
+    clearTimeout(timer)
+    ro.disconnect()
+    for (const t of READER_INPUTS) scroller.removeEventListener(t, leave)
+  }
 }

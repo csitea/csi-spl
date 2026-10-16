@@ -110,8 +110,13 @@ if (import.meta.client) {
   const router = useRouter()
   const { newestLast } = useViewPrefs()
   let landGen = 0
+  /* SPL-2150: the tail follows the pane's height after landing */
+  let unfollow = () => {}
+  onBeforeUnmount(() => unfollow())
   async function landTopic() {
     const gen = ++landGen
+    unfollow()
+    unfollow = () => {}
     const raw = route.query.topic
     const taskId = String(Array.isArray(raw) ? raw[0] : raw || '')
     if (!taskId) {
@@ -131,6 +136,13 @@ if (import.meta.client) {
     if (typeof m.scrollTopicCard === 'function') {
       await m.scrollTopicCard({ router, newestLast: newestLast.value, taskId, hash, alive: () => gen === landGen })
     }
+    if (gen !== landGen || typeof m.followTopicPane !== 'function') return
+    unfollow = m.followTopicPane({
+      scroller: scrollerEl.value,
+      taskId,
+      newestLast: () => newestLast.value,
+      setTail: (h) => { tailPx.value = h; return nextTick() },
+    })
   }
   watch(() => {
     const raw = route.query.topic

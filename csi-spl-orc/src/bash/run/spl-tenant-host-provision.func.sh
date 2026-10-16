@@ -64,6 +64,11 @@ do_spl_tenant_host_provision() {
     return
   fi
 
+  # SPL-2278: a new hidden workspace only on the overlay's master box,
+  # refused here before the lock, the cnf edit, the push and any apply
+  if [[ "${MARK_ONLY:-0}" != 1 ]] && spl_th_new_hidden "$tenant"; then
+    spl_th_overlay_box_ok "$tenant" || return 1
+  fi
   if (( dry )); then
     if spl_th_cnf_has "$cnf" "$tenant"; then
       do_log "INFO DRY_RUN $tenant is already in env.dns.mapped_tenants ($cnf)"
@@ -166,10 +171,38 @@ spl_th_token() {
   if [[ "${2:-}" == new && "$tok" == "$t" && "${TENANT_VISIBLE:-0}" != 1 && "$t" != e2e* ]]; then
     [[ "${GITHUB_ACTIONS:-}" != true ]] ||
       { do_log "FATAL $(spl_th_mask "$t") would be a new HIDDEN workspace: add it on the operator box (overlay $(spl_private_cnf_path)), or TENANT_VISIBLE=1" >&2; return 1; }
+    spl_th_overlay_box_ok "$t" || return 1
     tok="$(spl_private_add "$t")" || return 1
     do_log "INFO a new hidden workspace: $tok in the private overlay (TENANT_VISIBLE=1 to list the slug publicly)" >&2
   fi
   printf '%s\n' "$tok"
+}
+
+# spl_th_new_hidden <tenant> -> 0 when a run would add the tenant as a NEW
+# hidden workspace (a new line in the private overlay): the test spl_th_token
+# applies with "new".
+spl_th_new_hidden() {
+  local t="$1" tok
+  [[ "${TENANT_VISIBLE:-0}" != 1 && "$t" != e2e* ]] || return 1
+  spl_th_private_lib || return 1
+  [[ "$t" =~ ^$SPL_PRIVATE_TOKEN_RE$ ]] && return 1
+  tok="$(spl_private_token "$t" 2>/dev/null)" || return 0
+  [[ "$tok" == "$t" ]]
+}
+
+# spl_th_overlay_box_ok <tenant> (SPL-2278): the master copy of the private
+# overlay lives on ONE box (SPL_PRIVATE_MASTER_BOX, default sat: the box
+# do_spl_private_overlay_pull copies from); every other box only pulls it.
+# A new hidden line written on another box stayed there and the master never
+# got it (2026-10-16: lane-map --check FATALed on the master box until a hand
+# copy). So a new hidden workspace is refused on any other box, before any
+# overlay, cnf, push or terraform step, with the commands that do it right.
+spl_th_overlay_box_ok() {
+  local master="${SPL_PRIVATE_MASTER_BOX:-sat}" here
+  here="$(spl_desk_box_default)"
+  [[ "$here" == "$master" ]] && return 0
+  do_log "FATAL $1 would be a new HIDDEN workspace, and this box ($here) does not hold the master private overlay (box $master): nothing changed. Run it on box $master: cd csi-spl-orc && ENV=$ENV TENANT_ID=$1 DRY_RUN=0 ./run -a do_spl_tenant_host_provision ; then here: cd csi-spl-orc && DRY_RUN=0 FROM_BOX=$master ./run -a do_spl_private_overlay_pull (or TENANT_VISIBLE=1 for a public workspace)" >&2
+  return 1
 }
 
 # spl_th_mask <text> -> the text with every hidden slug as its placeholder

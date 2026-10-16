@@ -6,6 +6,8 @@
 #   2. cnf edit touches ONLY the mapped_tenants line, keeps every other byte,
 #      is idempotent, and add + del round-trip to the original file; the same
 #      for the 052 workspaces line (docs buckets)
+#   2c. SPL-2278: a new hidden tenant only on the overlay master box (two fake
+#      box roots): another box refuses before any write, naming the commands
 #   3. the plan gate: no-op / add pass; an Error, a replace, no summary and
 #      an in-place update and ANY destroy outside the allow list are refused (CONTROL: the same
 #      destroy passes once it is on the allow list)
@@ -94,7 +96,7 @@ export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-sp
 
 # run SNIPPET with every orc function loaded and the cloud / DB edges stubbed
 in_orc() {
-  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= "$@" bash -c '
+  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= SPOOL_DESK_BOX=sat "$@" bash -c '
     set -uo pipefail
     do_log() { msg="clobbered by do_log"; echo "$*"; }  # the real do_log sets a global msg
     for f in '"$PROJ_ROOT"'/lib/bash/funcs/*.func.sh '"$PROJ_ROOT"'/src/bash/run/*.func.sh; do source "$f"; done
@@ -151,6 +153,41 @@ out=$(SNIPPET='spl_th_cnf_set "$C" add newci' in_orc C="$CNF" TENANT_VISIBLE=0 G
 out=$(SNIPPET='spl_th_cnf_set "$C" add newno' in_orc C="$CNF" TENANT_VISIBLE=0 2>&1); rc=$?
 [[ $rc -ne 0 ]] && ! grep -q newno "$CNF" && grep -q 'private overlay is missing' <<<"$out" &&
   pass "2b. CONTROL: no overlay -> a new tenant is refused, never listed publicly" || fail "2b. no overlay rc=$rc: $out"
+# --- 2c. SPL-2278: a new hidden tenant only on the overlay's master box ------
+# two fake box roots: sat holds the master overlay, pc a pulled copy of it
+mkdir -p "$T/box/sat" "$T/box/pc"
+for b in sat pc; do
+  printf 'SPOOL_BOX_TAG=%s\nSPOOL_DESK_BOX=%s\n' "$b" "$b" >"$T/box/$b/box.env"
+  printf 'workspaces:\n  ws-hidden-01: zq-old\n' >"$T/box/$b/ovl.yaml"
+done
+on_box() { local b="$1"; shift; in_orc SPOOL_DESK_BOX= SPOOL_BOX_ENV="$T/box/$b/box.env" SPL_PRIVATE_CNF="$T/box/$b/ovl.yaml" TENANT_VISIBLE=0 MARK_DB=0 "$@"; }
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' on_box pc TENANT_ID=zq-newpc DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 ]] && cmp -s "$T/box/pc/ovl.yaml" "$T/box/sat/ovl.yaml" && cmp -s "$ORIG" "$CNF" &&
+  [[ ! -s "$STUB_LOG" ]] && ! grep -q PUSH "$T/mark.log" && [[ ! -e "$T/tenant-host.lock" ]] &&
+  grep -q 'does not hold the master private overlay (box sat)' <<<"$out" &&
+  grep -q 'Run it on box sat: cd csi-spl-orc && ENV=dev TENANT_ID=zq-newpc DRY_RUN=0 ./run -a do_spl_tenant_host_provision' <<<"$out" &&
+  grep -q 'FROM_BOX=sat ./run -a do_spl_private_overlay_pull' <<<"$out" &&
+  pass "2c. a new hidden tenant on a non-master box is refused before the overlay, cnf, lock, push and make, naming the commands" ||
+  fail "2c. non-master box rc=$rc ovl-diff=$(diff "$T/box/sat/ovl.yaml" "$T/box/pc/ovl.yaml" | grep -c '^[<>]') make=$(wc -l <"$STUB_LOG"): $out"
+out=$(SNIPPET='do_spl_tenant_host_provision' on_box pc TENANT_ID=zq-newpc 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'does not hold the master private overlay' <<<"$out" && cmp -s "$T/box/pc/ovl.yaml" "$T/box/sat/ovl.yaml" &&
+  pass "2c. the DRY_RUN on a non-master box says it would refuse" || fail "2c. dry run on pc rc=$rc: $out"
+out=$(SNIPPET='spl_th_cnf_set "$C" add zq-newpc' on_box pc C="$CNF" 2>&1); rc=$?
+[[ $rc -ne 0 ]] && cmp -s "$ORIG" "$CNF" && cmp -s "$T/box/pc/ovl.yaml" "$T/box/sat/ovl.yaml" &&
+  pass "2c. the cnf edit itself refuses too (reconcile reaches it without the provision entry)" || fail "2c. cnf_set on pc rc=$rc: $out"
+out=$(SNIPPET='do_spl_tenant_host_provision' on_box pc TENANT_ID=zq-newpc TENANT_VISIBLE=1 2>&1); rc=$?
+[[ $rc -eq 0 ]] && pass "2c. TENANT_VISIBLE=1 (no overlay line) passes on any box" || fail "2c. visible on pc rc=$rc: $out"
+out=$(SNIPPET='do_spl_tenant_host_provision' on_box pc TENANT_ID=zq-old 2>&1); rc=$?
+[[ $rc -eq 0 ]] && pass "2c. an already hidden tenant (in the pulled overlay) passes on any box" || fail "2c. known hidden on pc rc=$rc: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' on_box sat TENANT_ID=zq-newpc DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx '  ws-hidden-02: zq-newpc' "$T/box/sat/ovl.yaml" && ! grep -q zq-newpc "$CNF" &&
+  [[ $(yq -r '.env.dns.mapped_tenants[-1]' "$CNF") == ws-hidden-02 ]] &&
+  pass "2c. CONTROL: on the master box the same run adds the overlay line and maps the placeholder" || fail "2c. master box rc=$rc: $out"
+out=$(SNIPPET='spl_th_overlay_box_ok zq-x' on_box pc SPL_PRIVATE_MASTER_BOX=pc 2>&1) &&
+  pass "2c. SPL_PRIVATE_MASTER_BOX names another master box" || fail "2c. master override: $out"
+reset; rm -f "$T/tenant-host.lock"
 reset
 printf 'env:\n  dns:\n    mapped_tenants:\n      - t1\n' >"$T/block.yaml"
 SNIPPET='spl_th_cnf_set "$C" add x' in_orc C="$T/block.yaml" >/dev/null 2>&1 && fail "block-style list edited blindly" || pass "a non flow-style list is refused, not guessed"

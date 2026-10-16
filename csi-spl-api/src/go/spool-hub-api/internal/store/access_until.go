@@ -123,3 +123,5 @@ func (s *Postgres) SetMemberAccessUntil(ctx context.Context, tenant, humanID str
 		return err
 	})
 }
+
+// r29b probe: a one-line change for the partial-hit run (throwaway branch only).

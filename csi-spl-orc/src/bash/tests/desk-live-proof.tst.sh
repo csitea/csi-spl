@@ -33,14 +33,25 @@ TOPIC=28559e83-ac82-4123-a2ef-4994da2c46a3
 
 # A repo whose origin/master holds ON; OFF is a local commit never pushed.
 g() { git -C "$T/wt" -c user.name=t -c user.email=t@example.com "$@"; }
+# commit_sha_word <msg>: an empty commit whose 9-char prefix has a digit AND a
+# letter. The guard skips a hex word without both (a run id, a date), so an
+# all-digit prefix (~1.5% of fresh hashes) turned cases 4-6 and 9 red at random
+# (wf 10 run 38954245818).
+commit_sha_word() {
+  local i=0 h
+  g commit -q --allow-empty -m "$1"
+  while h="$(g rev-parse HEAD)"; [[ ! "${h:0:9}" =~ [0-9] || ! "${h:0:9}" =~ [a-f] ]]; do
+    i=$((i + 1)); g commit -q --amend --allow-empty -m "$1 $i"
+  done
+}
 git init -q --bare "$T/origin.git"
 git init -q -b master "$T/wt"
 g commit -q --allow-empty -m base
-g commit -q --allow-empty -m on
+commit_sha_word on
 ON="$(g rev-parse HEAD)"
 g remote add origin "$T/origin.git"
 g push -q origin master
-g commit -q --allow-empty -m off
+commit_sha_word off
 OFF="$(g rev-parse HEAD)"
 
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"

@@ -1612,22 +1612,26 @@ spl_fleet_role_tick() {
 # sees it only on its next read, up to one LEASE_PERIOD later (sat: 54 s).
 # Mirrored at once, the claimant told its seat ACTIVE while the old seat was
 # still ACTIVE. Now the claimant keeps naming the old holder locally for one
-# LEASE_PERIOD after its win (fleet.<role>.handback = "<epoch> <old holder>"),
+# LEASE_PERIOD after its win (fleet.<role>.handback = "<epoch> <old> <new>"),
 # by which time the old box has read the row and stood its seat down; then it
 # names itself and tells its seat ACTIVE. The hub row (the post routing) moves
 # at once. A take-over from a stale or absent holder waits for nobody.
+# The wait ends on a tick that cannot read the hub too (SPL-2246,
+# 2026-10-16 19:15-19:18Z: every dial after the win hung, the claimant kept
+# naming the old box while the old box read the claimant from the hub, both
+# seats STANDBY): see spl_fleet_unreachable.
 
 # spl_fleet_handback_start <role> <new> <old> <now>: start the wait, log it once.
 spl_fleet_handback_start() {
-  echo "$4 $3" > "$LEASE_DIR/fleet.$1.handback"
+  echo "$4 $3 $2" > "$LEASE_DIR/fleet.$1.handback"
   spl_lease_log "HANDBACK $1: $2 holds it on the hub; this machine names $3 until ${3##*@} has read it (one LEASE_PERIOD, ${LEASE_PERIOD}s), then tells its seat ACTIVE"
 }
 
 # spl_fleet_shown <role> <now>: the holder this machine mirrors, FH unless a
 # handback of ours is still inside its wait. A row no longer ours ends it.
 spl_fleet_shown() {
-  local f="$LEASE_DIR/fleet.$1.handback" at="" old=""
-  [[ -s "$f" ]] && read -r at old < "$f"
+  local f="$LEASE_DIR/fleet.$1.handback" at="" old="" new=""
+  [[ -s "$f" ]] && read -r at old new < "$f"
   if [[ "$at" =~ ^[0-9]+$ && -n "$old" && "${FH##*@}" == "$LEASE_MACHINE" ]] && (( $2 - at < LEASE_PERIOD )); then
     echo "$old"; return 0
   fi
@@ -1637,10 +1641,16 @@ spl_fleet_shown() {
 
 # A hub call failed. Holding on past LEASE_STALE without a renewal means the
 # other machine may already act: demote locally rather than act twice.
+# A handback of ours past its wait ends here too: inside LEASE_STALE of our
+# last won write the hub row is still ours, so this machine names itself.
 spl_fleet_unreachable() {
-  local role="$1" now="$2" last=0 mine
+  local role="$1" now="$2" last=0 mine hb="$LEASE_DIR/fleet.$1.handback" at="" old="" new=""
   spl_fleet_once "$role.unreachable" "HUB-UNREACHABLE $role: $(tr '\n' ' ' <<<"$3" | cut -c1-200)"
   [[ -f "$LEASE_DIR/fleet.$role.ok" ]] && last="$(cat "$LEASE_DIR/fleet.$role.ok")"
+  [[ -s "$hb" ]] && read -r at old new < "$hb"
+  if [[ "$at" =~ ^[0-9]+$ && "$new" == *@"$LEASE_MACHINE" ]] && (( now - at >= LEASE_PERIOD && now - last <= LEASE_STALE )); then
+    rm -f "$hb"; spl_fleet_apply "$role" "$new" "$now"
+  fi
   mine="$(cat "$LEASE_DIR/fleet.$role.holder" 2>/dev/null)"
   [[ "${mine##*@}" == "$LEASE_MACHINE" ]] && (( now - last > LEASE_STALE )) &&
     spl_fleet_apply "$role" "none@unreachable" "$now"

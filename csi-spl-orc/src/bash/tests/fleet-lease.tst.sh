@@ -108,6 +108,12 @@
 #      logged, each try one dial.log line. CONTROL: LEASE_HUB_TRIES=1 logs
 #      HUB-UNREACHABLE per role; an error that is no "hub unreachable" is not
 #      retried.
+#  29. a handback whose wait ends on an unreachable tick still names its own
+#      seat (SPL-2246, c-001 repro 2026-10-16 19:15-19:18Z: the claimant won
+#      both rows, every next dial hung, it named the old box while the old box
+#      read the claimant: both seats STANDBY). Inside LEASE_STALE of its last won write the claimant
+#      names itself and tells its seat ACTIVE once; past it, it keeps the old
+#      name. CONTROL: inside the wait an unreachable tick keeps the old name.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -1111,6 +1117,35 @@ tick28 l28c LEASE_HUB_TRIES=1 >/dev/null
 got="$(tick28 l28d HANG_ON=0 HUB_DOWN=1)"
 [[ -z "$got" && "$(dl28 l28d 'try=2')" == 0 && "$(dl28 l28d 'rc=1 try=1 .*connection refused')" == 2 ]] &&
   pass "28. an error that is no \"hub unreachable\" is not retried" || fail "28. refused slept '$got': $(cat "$T/l28d/spool/dispatch/dial.log" 2>&1)"
+
+# --- 29. a handback finishes on an unreachable tick (SPL-2246) --------------------
+# The section 24 replay: st holds dispatch, tk (ranked first) takes it back at
+# 3079, 19 s after st renewed; st stands down at 3120; then every tk dial fails.
+rm -rf "$T/tk" "$T/st"; rm -f "$T"/hub/main.*
+trio st 71
+t29() { tick "$1" "$2" LEASE_PRIORITY=tk,st LEASE_PRIORITY_DISPATCH=tk,st "${@:3}"; }
+t29 st 3000; trio tk 70; t29 st 3060; t29 tk 3079; t29 st 3120
+[[ "$(hubh dispatch)" == CLE-002@tk && "$(mirror tk)" == CLE-002@st && "$(mirror st)" == CLE-002@tk ]] &&
+  pass "29. setup: tk won the hub row and waits naming st; st stood down" || fail "29. setup: hub $(hubh dispatch) tk=$(mirror tk) st=$(mirror st)"
+t29 tk 3130 HUB_DOWN=1
+[[ "$(mirror tk)" == CLE-002@st && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 ]] &&
+  pass "29. CONTROL: inside the wait (51 s) an unreachable tick still names st" || fail "29. early: tk=$(mirror tk) $(cat "$T/tk/sent" 2>&1)"
+t29 tk 3139 HUB_DOWN=1
+[[ "$(mirror tk)" == CLE-002@tk && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && ! -e "$T/tk/spool/dispatch/fleet.dispatch.handback" ]] &&
+  pass "29. the wait over and the hub unreachable: tk names itself and tells its seat ACTIVE once (no split brain)" ||
+  fail "29. stuck: tk=$(mirror tk) st=$(mirror st) sent $(cat "$T/tk/sent" 2>&1)"
+t29 tk 3200 HUB_DOWN=1
+[[ "$(mirror tk)" == CLE-002@tk && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
+  pass "29. still inside LEASE_STALE of its last renewal: tk keeps it, nothing told twice" || fail "29. hold: tk=$(mirror tk)"
+t29 tk 3270 HUB_DOWN=1
+[[ "$(mirror tk)" == none@unreachable ]] &&
+  pass "29. past LEASE_STALE without a renewal tk demotes itself as before" || fail "29. demote: tk=$(mirror tk)"
+# a wait that ends past LEASE_STALE: the row may be st's again, tk keeps the old name
+rm -rf "$T/tk" "$T/st"; rm -f "$T"/hub/main.*
+trio st 71; t29 st 4000; trio tk 70; t29 st 4060; t29 tk 4079
+t29 tk 4300 HUB_DOWN=1
+[[ "$(mirror tk)" == CLE-002@st && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 ]] &&
+  pass "29. a wait that ends past LEASE_STALE keeps naming st" || fail "29. stale: tk=$(mirror tk)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

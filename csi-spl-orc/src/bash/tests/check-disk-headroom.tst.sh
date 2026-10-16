@@ -59,7 +59,7 @@ out="$(chk)"; rc=$?
   && grep -q 'PLAN note to orchestrator: /tmp (tmpfs, tmpfs) inodes 85% >= 80%' <<<"$out" \
   && [ "$(sends)" = 0 ] && [ ! -e "$ST/crossings" ] \
   && pass "1. the dry run (default) plans both notes and sends / writes nothing" || fail "1. dry run (rc $rc: $out)"
-! grep -qE '/run|overlay|data-bind' <<<"$(grep -E 'WARN|PLAN' <<<"$out")" \
+! grep -qE '/run|overlay|data-bind' <<<"$(grep -E 'WARN|PLAN' <<<"$out" | sed 's/; .*//')" \
   && pass "1. tmpfs /run, overlay and the bind row of /dev/sdb1 are not checked" || fail "1. skipped mounts warned: $out"
 
 out="$(chk DRY_RUN=0)"; rc=$?

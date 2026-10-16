@@ -39,7 +39,18 @@
 # @description         HOLD (exit 10) or a failure -> back in line (a failure
 # @description         also tells the holder). A HOLD's reason (e.g. "waiting:
 # @description         claude weekly >= 90% on box-a, box-b", SPL-2035) is kept
-# @description         in <asks dir>/.place.wait and do_spl_spawn_queue shows it
+# @description         in <asks dir>/.place.wait and do_spl_spawn_queue shows it.
+# @description         Only a launch starts the SPAWN_PLACE_GAP_MIN slot
+# @description         (.place.last); a hand-off (4b) or a hold burns none
+# @description      HAND-PINNED SLUG (SPL-2088), the dispatcher's convention:
+# @description         hand-<box>-<slug> or <box>hand-<slug> (box id letters and
+# @description         digits only) pins the lane to <box>. Its brief is
+# @description         <slug>.md (the full slug's file wins when it exists), the
+# @description         launch is `SPAWN_BOX=<box> spawn-window.sh ... <slug>`;
+# @description         <box> at or past its overflow mark (do_spl_box_pick's BOX
+# @description         line: load% >= high * BOX_PICK_OVERFLOW / 100), DEGRADED
+# @description         or AT CAP -> HOLD: it stays queued, the reason in
+# @description         .place.wait, nothing acked
 # @description      b. otherwise (no placement, or no brief file here: the brief
 # @description         needs judgement) the holder gets ONE blocker "place ask X
 # @description         now" with the summary and the close command
@@ -220,53 +231,92 @@ spl_spawn_place_windows() {
 
 # The fleet load target's pick: "<box> ..." or "hold ...", "" when it said nothing.
 spl_spawn_place_pick() {
-  local out
+  sed -n 's/^pick=//p' <<<"$(spl_spawn_place_pick_out)" | tail -1
+}
+
+# do_spl_box_pick's whole output: one BOX line per box, then the pick line.
+spl_spawn_place_pick_out() {
   if [[ -n "${SPAWN_PLACE_PICK_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$($SPAWN_PLACE_PICK_CMD 2>&1)"
+    $SPAWN_PLACE_PICK_CMD 2>&1
   else
-    out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$PROJ_PATH/run" -a do_spl_box_pick 2>&1)"
+    timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$PROJ_PATH/run" -a do_spl_box_pick 2>&1
   fi
-  sed -n 's/^pick=//p' <<<"$out" | tail -1
+}
+
+# A hand-pinned slug (SPL-2088): hand-<box>-<slug> or <box>hand-<slug> ->
+# two lines "<box>" "<slug>"; any other slug -> "" "<slug>".
+spl_spawn_place_slug() {  # SLUG
+  if [[ "$1" =~ ^hand-([a-z0-9]+)-(.+)$ || "$1" =~ ^([a-z0-9]+)hand-(.+)$ ]]; then
+    printf '%s\n%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf '\n%s\n' "$1"
+  fi
+}
+
+# Prints why the pinned BOX takes no lane now and returns 0: its BOX line is at
+# or past its overflow mark, DEGRADED or AT CAP. No line for it: returns 1
+# (spawn-window judges it).
+spl_spawn_place_pin_full() {  # BOX
+  local line
+  line="$(grep -E "^BOX $1 " <<<"$(spl_spawn_place_pick_out)" | tail -1)"
+  [[ -n "$line" ]] || return 1
+  awk -v b="$1" -v over="${BOX_PICK_OVERFLOW:-200}" '{
+    for (i = 1; i <= NF; i++) {
+      if (!seen && $i ~ /^[0-9]+%$/) { p = $i + 0; seen = 1 }
+      if ($i == "band") { split($(i + 1), h, "[.][.]"); hi = h[2] + 0 }
+    }
+    if (/DEGRADED/) { printf "box %s is DEGRADED", b; exit 0 }
+    if (/AT CAP/) { printf "box %s is at its CI-busy agent cap", b; exit 0 }
+    if (seen && hi > 0 && p >= hi * over / 100) { printf "box %s at %d%% is past its overflow mark (%d%%, %d%% of its high %d%%)", b, p, hi * over / 100, over, hi; exit 0 }
+    exit 1 }' <<<"$line"
 }
 
 # 4. Take the head: placing, then launch it or hand it to the holder.
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief
+  local holder="$1" id place brief why ps=()
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
-  spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
-  touch "$(spool_asks_dir)/.place.last"
+  mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
   brief="$(spl_spawn_place_brief "${place#*:}")"
+  if [[ -n "$place" && -n "$brief" && -n "${ps[0]}" ]] && why="$(spl_spawn_place_pin_full "${ps[0]}")"; then
+    spl_spawn_place_wait "$id" "pinned to ${ps[0]}: $why"
+    do_log "INFO hold: ask ${id:0:8} is pinned to ${ps[0]}: $why; it stays queued"
+    return 0
+  fi
+  spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
   if [[ -n "$place" && -n "$brief" ]]; then
-    spl_spawn_place_launch "$holder" "$2" "${place%%:*}" "${place#*:}" "$brief"
+    touch "$(spool_asks_dir)/.place.last"
+    spl_spawn_place_launch "$holder" "$2" "${place%%:*}" "${ps[1]}" "$brief" "${ps[0]}"
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
 }
 
-# The brief file of SLUG on this box, or nothing.
+# The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls
+# back to its slug without the hand prefix.
 spl_spawn_place_brief() {  # SLUG
-  local d="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" f
+  local d="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" f c
   [[ -n "$1" ]] || return 0
-  for f in "$d/$1.md" "$d/c001-$1.md"; do
+  c="$(spl_spawn_place_slug "$1" | tail -1)"
+  for f in "$d/$1.md" "$d/c001-$1.md" "$d/$c.md" "$d/c001-$c.md"; do
     [[ -s "$f" ]] && { printf '%s' "$f"; return 0; }
   done
   return 0
 }
 
 # 4a. The existing launcher. The new id closes the ask; HOLD or a failure
-# puts it back in line.
-spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF
+# puts it back in line. PIN (a hand-pinned slug's box) is its SPAWN_BOX.
+spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$($SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
+    out="$(SPAWN_BOX="${6:-}" $SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
   else
-    out="$(SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
+    out="$(SPAWN_BOX="${6:-}" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
       "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err" 6>&-)" || rc=$?
   fi
   out="$out"$'\n'"$(tail -3 "$err")"; rm -f "$err"

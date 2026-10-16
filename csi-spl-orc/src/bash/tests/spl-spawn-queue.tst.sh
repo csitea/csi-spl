@@ -32,6 +32,10 @@
 #  11. SPL-2042: a queue of [handed ask, launchable ask] places the
 #      launchable one in the next tick; a stalled hand-off back at position
 #      1 waits behind a launchable ask; a launch in flight keeps one at a time
+#  12. SPL-2088: a hand-pinned slug (hand-<box>-<slug>, <box>hand-<slug>)
+#      finds the brief of <slug> and launches with SPAWN_BOX=<box>; the
+#      pinned box past its overflow mark HOLDs it (CONTROL: under it, it
+#      launches); a hand-off touches no .place.last (CONTROL: a launch does)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -138,7 +142,7 @@ printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lane
 # the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
-echo "$*" >>"$LAUNCH_LOG"
+echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
 echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
@@ -148,7 +152,7 @@ chmod +x "$T/bin/launch"
 # shellcheck disable=SC2016 # expanded by the stub, not here
 printf '#!/usr/bin/env bash\necho "${WINDOWS:-12}"\n' >"$T/bin/windows"; chmod +x "$T/bin/windows"
 # shellcheck disable=SC2016 # expanded by the stub, not here
-printf '#!/usr/bin/env bash\necho "pick=${PICK:-box-desk reason=below its low mark}"\n' >"$T/bin/pick"; chmod +x "$T/bin/pick"
+printf '#!/usr/bin/env bash\n[ -z "${PICK_BOXES:-}" ] || echo "$PICK_BOXES"\necho "pick=${PICK:-box-desk reason=below its low mark}"\n' >"$T/bin/pick"; chmod +x "$T/bin/pick"
 echo "brief text" >"$T/briefs/hub-pg-split.md"
 
 for m in pc sat; do
@@ -442,6 +446,41 @@ on pc do_spl_spawn_place >/dev/null 2>&1
 grep -q "^${F1}$" "$T/pc/spool/asks/.place.handed" && ! grep -q "^${H1}$" "$T/pc/spool/asks/.place.handed" &&
   pass "the hand-off record is pruned once its ask left the line (control: a handed ask still queued stays)" ||
   fail "stale hand-off record: $(cat "$T/pc/spool/asks/.place.handed")"
+
+# 12. SPL-2088: a hand-pinned slug, the pinned box's load, the gap slot -----------
+qids() { HUB_DIR="$T/hub" "$T/bin/hub" ask list --fleet main --role orch | jq -r '.asks[] | select(.state == "queued" or .state == "acked") | .ask_id'; }
+for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+P1=d1d1d1d1-0000-4000-8000-000000000001; P2=d2d2d2d2-0000-4000-8000-000000000002; P3=d3d3d3d3-0000-4000-8000-000000000003
+echo "brief text" >"$T/briefs/qto-gap.md"
+put "$P1" c-002@box-desk dispatch-88982c94-p "SPAWN REQUEST hand-pinned to sat"
+on pc do_spl_spawn_enqueue ASK_ID="$P1" SPAWN_CLASS=bug SPAWN_PLACE=claude:hand-sat-qto-gap >/dev/null 2>&1
+SAT_FULL="BOX sat  load5 28.8  cpus 16  180%  full  band 50..85 (box)"
+SAT_BUSY="BOX sat  load5 17.99  cpus 16  112%  full  band 50..85 (box)"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_FULL" 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$P1")")" == queued && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
+  grep -q "pinned to sat: box sat at 180% is past its overflow mark (170%" <<<"$out" &&
+  pass "hand-sat- slug, sat past its overflow mark: HOLD, nothing launched, no gap slot burned" || fail "pin hold: $out | $(hubrow "$P1")"
+out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_BUSY" LAUNCH_ID=c-501 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$P1")")" == "placed: c-501@box-desk" && -e "$T/pc/spool/asks/.place.last" ]] &&
+  grep -q "^claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat$" "$T/launch.log" &&
+  pass "hand-sat-qto-gap: the brief of qto-gap is found and launched with SPAWN_BOX=sat (control: sat under its overflow mark)" ||
+  fail "pin launch: $out | $(hubrow "$P1") | $(cat "$T/launch.log")"
+put "$P2" c-002@box-desk dispatch-88982c94-q "SPAWN REQUEST sathand"
+on pc do_spl_spawn_enqueue ASK_ID="$P2" SPAWN_CLASS=bug SPAWN_PLACE=claude:sathand-qto-gap >/dev/null 2>&1
+: >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-502 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$P2")")" == "placed: c-502@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat$" "$T/launch.log" &&
+  pass "sathand-qto-gap: same brief, SPAWN_BOX=sat" || fail "sathand: $out | $(cat "$T/launch.log")"
+put "$P3" c-002@box-desk dispatch-88982c94-r "SPAWN REQUEST needs judgement"
+on pc do_spl_spawn_enqueue ASK_ID="$P3" SPAWN_CLASS=bug >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$P3")")" == acked && ! -e "$T/pc/spool/asks/.place.last" ]] && grep -q "place ask ${P3:0:8} now" "$T/send.log" &&
+  pass "a hand-off to the holder burns no SPAWN_PLACE_GAP_MIN slot (control: the launch above touched .place.last)" ||
+  fail "hand-off slot: $out | $(ls -la "$T/pc/spool/asks/")"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

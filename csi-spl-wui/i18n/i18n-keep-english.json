@@ -1,0 +1,27 @@
+{
+  "_doc": "Gate A allow-list (SPL-2267, tests/unit/i18n-untranslated.test.mjs): a locale value identical to en.json is NOT counted as untranslated when its English value is under 'values' or its key under 'keys'. Only product/brand names, OK, key names, units, codes, paths. Every entry carries its reason.",
+  "values": {
+    "Claude": "product name",
+    "Grok": "product name",
+    "Antigravity": "product name",
+    "Qwen": "product name",
+    "Mistral": "product name",
+    "Thunderbird": "product name",
+    "WhatsApp": "product name",
+    "Viber": "product name",
+    "Telegram": "product name",
+    "Signal": "product name",
+    "Microsoft Teams": "product name",
+    "Markdown": "format name",
+    "GCP": "provider code",
+    "#general": "channel name, a code",
+    "#alerts · {from}": "channel name, a code",
+    "runbooks/deploy.md": "file path example",
+    "{size} · sha256 {hash}": "algorithm code"
+  },
+  "keys": {
+    "auth.native.dev": "environment code 'dev:'",
+    "feed.live_state.mock": "connection state code shown as is",
+    "feed.live_state.no_base": "connection state code shown as is"
+  }
+}

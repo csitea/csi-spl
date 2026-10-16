@@ -115,7 +115,33 @@ installed pre-push hook runs it for you. Its tiers and parts:
 [pre-push gate](pre-push-gate.md). Touching the store or a migration:
 `PRE_PUSH_TIER=full`.
 
-### 2.4 Identity, no AI trailers
+### 2.4 UI text is a translation key, never a literal
+
+Owner HUM-10, t1 9f867807 (msg 1f583d2a): "no hardcoding in the UI for text
+which should be part of the translation set." To add a string to the web UI:
+
+1. Add its key to `csi-spl-wui/i18n/locales/en.json` and the same key, in
+   that language, to every other locale file there (`i18n-parity.test.mjs`
+   refuses a missing key).
+2. Render it with `t('key')` / `$t('key')`, also in a `title`,
+   `placeholder`, `aria-label`, `alt` or `label` attribute and in a
+   `confirm()` / `alert()` / `prompt()` message. Never write the words
+   into the template or the code.
+
+Two unit tests hold it, both ratchets: a count may fall, never rise
+(SPL-2267, counting code `csi-spl-wui/src/node/i18n/i18n-gates.mjs`):
+
+| gate | counts | baseline |
+|---|---|---|
+| `tests/unit/i18n-untranslated.test.mjs` | per locale, values identical to en.json that hold a 3+ letter word once `{placeholders}` and URLs are removed, minus `i18n/i18n-keep-english.json` (brand names and codes, each with its reason) | `i18n/i18n-untranslated-baseline.json` |
+| `tests/unit/i18n-no-raw-text.test.mjs` | per file under `src/`, hard-coded user-visible text: template text, the static attributes above, literal dialog messages | `i18n/i18n-raw-text-baseline.json` |
+
+Re-measure with `node src/node/i18n/i18n-gates.mjs untranslated` or `raw`
+(`raw --list` prints each file's count and examples). A change that lowers
+a count may lower its baseline in the same commit; raising one is never the
+fix.
+
+### 2.5 Identity, no AI trailers
 
 Commits carry the author's real identity, the address on the repo
 [CLAUDE.md](../../../CLAUDE.md) "Commits:" line, as author and as committer

@@ -19,7 +19,7 @@ Target box: **PC** (the Debian 13 laptop).
 Empirically verified on `PC` by panel seats `c-673` and `c-719` (Debian 13.5 Trixie, kernel `6.12.90+deb13.1-amd64`, NetworkManager `1.52.1`):
 - **Active uplinks:** Primary Wi-Fi (`wlp0s20f3`, Intel `iwlwifi`), one DHCP IPv4 default route (`metric 600`), and a live IPv6 default route (`proto ra metric 600 pref high`). Both families must be managed in parity (Proposal P2).
 - **Wired port:** Built-in Intel `e1000e` Gigabit NIC (`enp0s31f6`) present, carrier down (unplugged). The only connection profile is `Wired connection 1`, an in-memory auto-default in `/run/NetworkManager/system-connections/` with `connection.autoconnect-priority = -999` by design (`NM_SETTING_CONNECTION_AUTOCONNECT_PRIORITY_MIN`). NM 1.52.1 defaults Ethernet route metric to `100` and Wi-Fi to `600`.
-- **Secondary uplinks (USB tethering):** Modules `rndis_host`, `cdc_ncm`, `cdc_ether`, `ipheth`, and `huawei_cdc_ncm` are present. On Debian 13, `/usr/lib/systemd/network/99-default.link` sets `NamePolicy=keep kernel database onboard slot path` (no `mac`), so a USB tether receives an interface path name (`en...u<port>`), not `usb*` or `enx*`. Matching must use driver matching (`match.driver`), and route metric must be `650` (below Wi-Fi 600) with `connection.metered = yes` to prevent mobile data drain while Wi-Fi is healthy.
+- **Secondary uplinks (USB tethering):** Modules `rndis_host`, `cdc_ncm`, `cdc_ether`, `ipheth`, and `huawei_cdc_ncm` are present. On Debian 13, `/usr/lib/systemd/network/99-default.link` sets `NamePolicy=keep kernel database onboard slot path` (no `mac`), so a USB tether receives an interface path name (`en...u<port>`), not `usb*` or `enx*`. Matching must use driver matching (`match.driver`), and route metric must be `650` (higher metric / lower priority than Wi-Fi 600) with `connection.metered = yes` to prevent mobile data drain while Wi-Fi is healthy.
 - **Wi-Fi power saving:** `/usr/sbin/iw dev wlp0s20f3 get power_save` reads `Power save: on` (`iwlwifi` driver `power_scheme = 2`). Setting `wifi.powersave = 2` explicitly disables 802.11 power saving sleep.
 - **NetworkManager connectivity check:** `/etc/NetworkManager/conf.d/` is currently empty. `NetworkManager.conf(5)` CONNECTIVITY SECTION provides a native `+20000` route-metric penalty to devices lacking internet access (`CONNECTIVITY_LIMITED` / `CONNECTIVITY_NONE`). Setting `uri = http://network-test.debian.org/nm`, `interval = 10`, and `timeout = 5` enables automated failover within <= 15 s without requiring a custom watchdog script. Assert `rp_filter != 1` on all uplinks.
 - **DNS architecture & residue:** Agents run directly on the host (16 host processes as `<HARNESS_USER>`), not in containers (the 14 Docker containers host test DBs and build infra). `systemd-resolved` was installed during an incident and is currently `inactive` and `disabled`. NetworkManager manages `/etc/resolv.conf` as a symlink to `/run/NetworkManager/resolv.conf` containing public DNS (`8.8.8.8`, `1.1.1.1`). Pinning `dns=default` and `rc-manager=symlink` while masking `systemd-resolved` permanently protects against DNS hijacking (Proposal P1).
@@ -141,7 +141,7 @@ Every row is a named csi-rel action (`do_<verb>_<noun>`, `csi-spl-orc`) plus its
   method = auto
   route-metric = 650
   ```
-- **Why:** On Debian 13, interface naming does not produce `usb*` or `enx*` names; driver matching (`match.driver`) reliably binds all tethered phones. Route metric `650` (below Wi-Fi 600) and `metered = yes` ensure phone data is used strictly as a backup when Wi-Fi is unavailable or unroutable.
+- **Why:** On Debian 13, interface naming does not produce `usb*` or `enx*` names; driver matching (`match.driver`) reliably binds all tethered phones. Route metric `650` (higher metric / lower priority than Wi-Fi 600) and `metered = yes` ensure phone data is used strictly as a backup when Wi-Fi is unavailable or unroutable.
 - **Command:** `nmcli connection show usb-tether`
 - **Target:** Interface acquires DHCP lease and metric 650 within 3 seconds of USB connection.
 - **Proof:** When Wi-Fi is active and healthy, traffic routes via Wi-Fi (600); when Wi-Fi drops or receives +20000 penalty, traffic routes via USB tether (650).
@@ -264,10 +264,10 @@ All files modified by the 10 rows are completely disjoint across the repository:
 
 ## 7. Panel consensus & signatures
 
-| Seat | Vendor | Agent ID | Status | Verdict Landed SHA |
+| Seat | Vendor | Agent ID | Status | Signing SHA |
 |---|---|---|---|---|
-| Editor | agy | a-271@sat | Approved v1.0 | Current HEAD |
-| Expert 1 | claude | c-673 | Consensus (seat-claude.md) | `458659b17162e90a2a274e80e013fa5abb8558ac` |
-| Expert 2 | claude | c-719 | Consensus (seat-mistral.md) | `b4b59f91a1432a96c13c86fec4a45fc0ba9b94f3` |
+| Editor | agy | a-271@sat | Approved v1.0 | `bfb56e90d0721afb848f0d2803eabd451c43638e` |
+| Expert 1 | claude | c-673 | Signed (seat-claude.md) | `514493b6012a70a4c618d24db30d274c0ba99458` |
+| Expert 2 | claude | c-719 | Signed (seat-mistral.md) | `fa6da1859fd1879444b277dd02158187a3aa5878` |
 
 Consensus achieved across all panel seats. Row lanes spawn in batches according to Section 6 without waiting for owner approval (rounds-rulebook.md §1.4).

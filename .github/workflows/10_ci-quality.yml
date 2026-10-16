@@ -689,6 +689,21 @@ jobs:
           echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud-empty" >>"$GITHUB_ENV"
           [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
 
+      # spl-agent-sudoers-live (SPL-2187) runs do_spl_agent_sudoers against a
+      # real sudo in a throwaway container; the runner has none of the infra
+      # stack's images, so it SKIPped and failed this job (run 38893049463).
+      # A debian with sudo is enough: the test adds its own users.
+      - name: An image with sudo for spl-agent-sudoers-live
+        run: |
+          set -euo pipefail
+          docker build -q -t spl-iac-sudo:ci - <<'DOCKERFILE'
+          FROM debian:13-slim
+          RUN apt-get update -qq \
+           && apt-get install -y -qq --no-install-recommends sudo >/dev/null \
+           && rm -rf /var/lib/apt/lists/*
+          DOCKERFILE
+          echo "SPL_SUDO_TEST_IMAGE=spl-iac-sudo:ci" >>"$GITHUB_ENV"
+
       # The tests' mktemp scratch goes to the job's own disk-backed temp dir,
       # not the box's shared /tmp tmpfs: other work filled that one and cut
       # the hygiene controls' tree copies short (run 37031322430). Not a

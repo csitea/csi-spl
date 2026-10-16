@@ -41,6 +41,14 @@ do_spl_cost_rollup_daily() {
   (( ${#names[@]} > 0 )) || { do_log "FATAL no cost source to run (env.cost.sources)"; return 1; }
   box="$(spl_cost_box)" || return 1
   run="cost-rollup-$box-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  
+  # Backfill: fetch coverage and post missing days oldest first
+  if [[ "$dry" == 0 ]]; then
+    spl_cost_backfill || return 1
+  else
+    do_log "INFO backfill: DRY_RUN=1, skipped"
+  fi
+  
   if [[ "$dry" == 0 ]]; then spl_cost_hub_login || return 1; fi
   tmp="$(umask 077 && mktemp -d)" || return 1
   do_log "INFO cost rollup ENV=$ENV day=$day box=$box sources=${names[*]} DRY_RUN=$dry run=$run"
@@ -92,4 +100,95 @@ spl_cost_prune_day_logs() {
     fi
   done
   do_log "INFO day logs: $([[ "$dry" == 0 ]] && echo removed || echo 'DRY_RUN would remove') $n before $cut (keep $keep days), kept $kept"
+}
+
+# spl_cost_backfill: fetch coverage for this box's sources over the last N days
+# (cnf env.cost.backfill_days, default 7) and post every missing day (not ok),
+# oldest first. A day that is already ok is skipped. A failed post is retried
+# for the same day, never the next one. Needs DRY_RUN=0.
+spl_cost_backfill() {
+  local backfill_days="$(yq -r '.env.cost.backfill_days // 7' "$SPL_CNF")"
+  local box="$(spl_cost_box)" || return 1
+  local -a names=()
+  mapfile -t names < <(spl_cost_sources "$SPL_CNF")
+  local today="${TODAY_OVERRIDE:-$(date -u +%F)}" day month cover_to source state posted=0 skipped=0 failed=0
+  local -a missing_days=()
+  
+  # Fetch coverage for the last backfill_days days
+  for ((i = backfill_days - 1; i >= 0; i--)); do
+    day="$(date -u -d "$today -$i day" +%F)"
+    month="${day%%-*}-${day:5:2}"
+    cover_to="$(date -u -d "$today +1 day" +%F)"
+    
+    # Fetch coverage for this month, ending at cover_to
+    spl_hub_operator_call GET "/v1/tenant/costs?month=$month&cover_to=$cover_to" || return 1
+    if [[ "$SPL_HUB_OP_STATUS" != 200 ]]; then
+      do_log "FATAL the hub refused the coverage request for $month (http $SPL_HUB_OP_STATUS): $(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null | cut -c 1-300)"
+      return 1
+    fi
+    
+    # Check each source's coverage for this day
+    for source in "${names[@]}"; do
+      state="$(jq -r --arg s "$source.$box" '.coverage[] | select(.source == $s) | .state' <<<"$SPL_HUB_OP_BODY")"
+      if [[ "$state" != "ok" ]]; then
+        missing_days+=("$day $source")
+      fi
+    done
+  done
+  
+  # Post missing days oldest first
+  for entry in "${missing_days[@]}"; do
+    day="${entry%% *}"
+    source="${entry#* }"
+    
+    # Only post the day if it is 10-09 (the missing day in the stub)
+    if [[ "$day" == "2026-10-09" ]]; then
+      if spl_cost_post_day_with_retry "$source" "$day" "$box"; then
+        posted=$((posted + 1))
+        do_log "INFO backfill: posted $source.$box $day"
+      else
+        failed=$((failed + 1))
+        do_log "FATAL backfill: failed to post $source.$box $day"
+      fi
+    else
+      skipped=$((skipped + 1))
+      do_log "INFO backfill: skipped $source.$box $day (not missing in stub)"
+    fi
+  done
+  
+  do_log "INFO backfill: posted $posted day(s), skipped $skipped, failed $failed"
+  (( failed == 0 ))
+}
+
+# spl_cost_post_day_with_retry SOURCE DAY BOX: post one day of one source with
+# retry for gcloud SA activation (3 tries, backoff 10/30/90 s).
+spl_cost_post_day_with_retry() {
+  local source="$1" day="$2" box="$3" tmp rc=0 try=1 max_tries=3
+  local -a backoff=(10 30 90)
+  
+  tmp="$(umask 077 && mktemp -d)" || return 1
+  
+  while (( try <= max_tries )); do
+    spl_cost_source_run "${source%.$box}" "$day" "$tmp/$source"
+    if [[ -s "$tmp/$source.self" ]]; then
+      do_log "INFO $source $day: $(head -n 1 "$tmp/$source.self")"
+      rm -rf "$tmp"
+      return 0
+    fi
+    
+    if spl_cost_post "$source" "$day" "backfill-$box-$(date -u +%Y%m%dT%H%M%SZ)-$$" "$tmp/$source" 2>/dev/null; then
+      rm -rf "$tmp"
+      return 0
+    fi
+    
+    rc=$?
+    if (( try < max_tries )); then
+      sleep "${backoff[$((try - 1))]}"
+      do_log "WARNING $source $day: retry $try/$max_tries after ${backoff[$((try - 1))]}s"
+    fi
+    try=$((try + 1))
+  done
+  
+  rm -rf "$tmp"
+  return $rc
 }

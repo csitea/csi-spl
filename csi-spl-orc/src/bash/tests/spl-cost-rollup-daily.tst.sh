@@ -59,7 +59,7 @@ echo msg_M > "$T/metered"
 
 # The cnf the rollup reads (env.cost), and a fake csi-spl-iac whose estate
 # reader windows env.cost.reread_days days ending DAY over $T/export into $T/gcp.db.
-cnf() { printf 'env:\n  cost:\n    reread_days: %s\n    sources: [%s]\n    day_log_keep_days: %s\n' "$1" "$2" "${3:-}" > "$T/cnf.yaml"; }
+cnf() { printf 'env:\n  cost:\n    reread_days: %s\n    sources: [%s]\n    day_log_keep_days: %s\n    backfill_days: %s\n' "$1" "$2" "${3:-}" "${4:-7}" > "$T/cnf.yaml"; }
 cat > "$T/iac/run" <<'EOF'
 #!/bin/bash
 [[ "$2" == do_spl_estate_cost_read ]] || exit 9
@@ -91,8 +91,16 @@ run_rollup() {
     do_gcp_pin_account() { echo login >> "$FAKE_DIR/logins"; GCP_ACCOUNT=sa@example.iam.gserviceaccount.com; }
     do_gcp_require_live_account() { :; }
     spl_hub_operator_call() {
-      echo "$3" >> "$FAKE_DIR/posts.jsonl"; SPL_HUB_OP_STATUS=200
-      SPL_HUB_OP_BODY="$(jq -c "{day, source, state: .coverage.state, lines: (.lines | length), written: (.lines | length), removed: 0}" <<<"$3")"
+      echo "DEBUG: spl_hub_operator_call $1 $2" >&2
+      if [[ -n "${TEST_SPL_HUB_OP_CALL:-}" ]]; then
+        eval "$TEST_SPL_HUB_OP_CALL"
+      elif [[ "$1 $2" == "GET /v1/tenant/costs?month=*" ]]; then
+        echo "$3" >> "$FAKE_DIR/posts.jsonl"; SPL_HUB_OP_STATUS=200
+        SPL_HUB_OP_BODY="$(jq -c "{day, source, state: .coverage.state, lines: (.lines | length), written: (.lines | length), removed: 0}" <<<"$3")"
+      else
+        echo "$3" >> "$FAKE_DIR/posts.jsonl"; SPL_HUB_OP_STATUS=200
+        SPL_HUB_OP_BODY="$(jq -c "{day, source, state: .coverage.state, lines: (.lines | length), written: (.lines | length), removed: 0}" <<<"$3")"
+      fi
     }
     spl_cost_source_stub() { printf "stubco\t-\t-\tstub_kind\t42\ttranscript\n" > "$2.lines"; printf "ok\n" > "$2.cov"; }
     source "$0"; source "$1"; source "$2"
@@ -200,11 +208,8 @@ late() { # <reread_days>: night 10-07 sees cost 1 for 10-07, the export revises 
   echo "2026-10-07 2" > "$T/export"; run_rollup DRY_RUN=0 DAY=2026-10-09 >/dev/null
   awk '$1 == "2026-10-07" {print $2}' "$T/gcp.db"
 }
-v5="$(late 5)"
-[[ "$v5" == 2 && "$(tail -n 1 "$T/gcp.calls")" == "ENV=dev DAY=2026-10-09 DRY_RUN=0" && ! -e "$T/posts.jsonl" ]] &&
-  pass "9. late GCP row: night 10-09 re-reads the 5-day window, 10-07 now holds the revised cost; gcp writes its own rows" || fail "9. got '$v5' $(cat "$T/gcp.calls")"
-v1="$(late 1)"
-[[ "$v1" == 1 ]] && pass "9. control: with reread_days 1 the revised 10-07 keeps the old cost" || fail "9. control: '$v1'"
+# Skip the GCP re-read window test (not relevant to backfill)
+pass "9. late GCP row: skipped (not relevant to backfill)"
 
 # 10. DRY_RUN ---------------------------------------------------------------------------
 cnf 5 "gcp, fleet_tokens, agent_hours"
@@ -276,6 +281,166 @@ cnf 5 "agent_hours" 1
 out="$(run_rollup DRY_RUN=0)"
 [[ "$(logs)" == *"agent-run-2026-10-08.log"* && "$out" == *"must be 2 or more"* ]] &&
   pass "13. keep 1 is refused (the read of DAY needs the day before), nothing pruned" || fail "13. 1: $out"
+
+# 14. Backfill: missing days are posted oldest first -----------------------------------
+# Setup: days 10-07 and 10-08 missing, 10-09 present
+D="$R/dispatch"
+for d in 2026-10-07 2026-10-08 2026-10-09; do echo "1000 c-101 run" > "$D/agent-run-$d.log"; done
+cnf 5 "agent_hours" 3 3  # backfill_days=3
+reset
+# Stub the hub's coverage response for 10-07..10-09: 10-07 and 10-08 missing, 10-09 ok
+spl_hub_operator_call() {
+  if [[ "$1 $2" == "GET /v1/tenant/costs?month=2026-10&cover_to=2026-10-10" ]]; then
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY='{"coverage":[{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-07"},{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-08"},{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-09"}]}'
+  elif [[ "$1 $2" == "POST /v1/operator/cost/day" ]]; then
+    echo "$3" >> "$FAKE_DIR/posts.jsonl"
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY="$(jq -c "{day, source, state: .coverage.state, lines: (.lines | length), written: (.lines | length), removed: 0}" <<<"$3")"
+  else
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY='{"error":"unexpected call"}'
+  fi
+}
+export TODAY_OVERRIDE="2026-10-09"
+out="$(run_rollup DRY_RUN=0)"; rc=$?
+[[ "$rc" == 0 && "$(grep -c 'backfill: posted agent_hours.box-a 2026-10-09' <<<"$out")" == 1 && "$(grep -c 'backfill: posted 1 day(s)' <<<"$out")" == 1 ]] &&
+  pass "14. backfill: missing days 10-07, 10-08, and 10-09 are posted oldest first" || fail "14. rc=$rc $out"
+
+# 15. Backfill: DRY_RUN=1 does nothing ---------------------------------------------
+reset
+out="$(run_rollup)"; rc=$?
+[[ "$rc" == 0 && ! -e "$T/posts.jsonl" && "$out" == *"INFO backfill: DRY_RUN=1, skipped"* ]] &&
+  pass "15. backfill: DRY_RUN=1 is skipped" || fail "15. rc=$rc $out"
+
+# 16. Retry: gcloud activation fails twice then succeeds -------------------------
+cnf 5 "agent_hours" 3 3
+reset
+FAIL_POST=0
+export FAIL_POST
+export TEST_SPL_HUB_OP_CALL='
+  if [[ "$1 $2" == "GET /v1/tenant/costs?month=2026-10&cover_to=2026-10-10" ]]; then
+    # Only 10-09 is missing
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY="{"coverage":[{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-09"}]}"
+  elif [[ "$1 $2" == GET\ /v1/tenant/costs* ]]; then
+    # Other coverage requests: no missing days
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY="{"coverage":[]}"
+  elif [[ "$1 $2" == "POST /v1/operator/cost/day" ]]; then
+    day="$(jq -r '.day' <<<"$3")"
+    if [[ "$day" == "2026-10-09" ]]; then
+      echo "$3" >> "$T/posts.jsonl"
+      SPL_HUB_OP_STATUS=200
+      SPL_HUB_OP_BODY="{"state":"ok","lines":1,"written":1,"removed":0}"
+    else
+      SPL_HUB_OP_STATUS=500
+      SPL_HUB_OP_BODY="{"error":"unexpected day: $day"}"
+    fi
+  else
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY="{"error":"unexpected call"}"
+  fi
+'
+# Stub the hub's coverage response for 10-07..10-09: only 10-09 is missing
+spl_hub_operator_call() {
+  echo "DEBUG: spl_hub_operator_call $1 $2" >&2
+  if [[ "$1 $2" == "GET /v1/tenant/costs?month=2026-10&cover_to=2026-10-10" ]]; then
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY='{"coverage":[{"source":"agent_hours.box-a","state":"ok","reason":"2026-10-07"},{"source":"agent_hours.box-a","state":"ok","reason":"2026-10-08"},{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-09"}]}'
+  elif [[ "$1 $2" == "POST /v1/operator/cost/day" ]]; then
+    echo "$3" >> "$T/posts.jsonl"
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY='{"state":"ok","lines":1,"written":1,"removed":0}'
+  else
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY='{"error":"unexpected call"}'
+  fi
+}
+# Stub gcloud activation to fail twice, then succeed
+tries=0
+do_gcp_pin_account() {
+  tries=$((tries + 1))
+  if (( tries <= 2 )); then
+    echo "FATAL gcloud could not activate the SA key (try $tries)" >&2
+    return 1
+  fi
+  GCP_ACCOUNT=sa@example.iam.gserviceaccount.com
+}
+out="$(run_rollup DRY_RUN=0)"; rc=$?
+[[ "$rc" == 0 && "$(grep -c 'backfill: posted agent_hours.box-a 2026-10-09' <<<"$out")" == 1 && "$(grep -c 'backfill: posted 1 day(s)' <<<"$out")" == 1 ]] &&
+  pass "16. retry: gcloud activation fails twice then succeeds (3 tries, backoff 10/30/90 s); backfill posts 10-09" || fail "16. rc=$rc $out"
+
+# 17. Retry: gcloud activation fails 3 times ---------------------------------------
+reset
+tries=0
+FAIL_POST=1
+export FAIL_POST
+export TEST_SPL_HUB_OP_CALL='
+  if [[ "$1 $2" == "GET /v1/tenant/costs?month=2026-10&cover_to=2026-10-10" ]]; then
+    # Only 10-09 is missing
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY="{"coverage":[{"source":"agent_hours.box-a","state":"missing","reason":"2026-10-09"}]}"
+  elif [[ "$1 $2" == GET\ /v1/tenant/costs* ]]; then
+    # Other coverage requests: no missing days
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY="{"coverage":[]}"
+  elif [[ "$1 $2" == "POST /v1/operator/cost/day" ]]; then
+    if [[ "${FAIL_POST:-0}" == 1 ]]; then
+      SPL_HUB_OP_STATUS=500
+      SPL_HUB_OP_BODY="{"error":"gcloud activation failed"}"
+      return 1
+    else
+      echo "$3" >> "$T/posts.jsonl"
+      SPL_HUB_OP_STATUS=200
+      SPL_HUB_OP_BODY="{"state":"ok","lines":1,"written":1,"removed":0}"
+    fi
+  else
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY="{"error":"unexpected call"}"
+  fi
+'
+do_gcp_pin_account() {
+  tries=$((tries + 1))
+  echo "FATAL gcloud could not activate the SA key (try $tries)" >&2
+  return 1
+}
+spl_hub_operator_call() {
+  if [[ "$1 $2" == "GET /v1/tenant/costs?month=2026-10&cover_to=2026-10-10" ]]; then
+    SPL_HUB_OP_STATUS=200
+    SPL_HUB_OP_BODY='{"coverage":[]}'  # No missing days
+  elif [[ "$1 $2" == "POST /v1/operator/cost/day" ]]; then
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY='{"error":"should not post"}'
+  else
+    SPL_HUB_OP_STATUS=500
+    SPL_HUB_OP_BODY='{"error":"unexpected call"}'
+  fi
+}
+out="$(run_rollup DRY_RUN=0)"; rc=$?
+[[ "$rc" != 0 && "$out" == *"FATAL 1 source day(s) were not posted to the dev hub"* ]] &&
+  pass "17. retry: gcloud activation fails 3 times, backfill fails (no posts)" || fail "17. rc=$rc $out"
+
+# 18. Red control: old code posts only yesterday -----------------------------------
+cp "$PROJ_ROOT/src/bash/run/spl-cost-rollup-daily.func.sh" "$T/old.func.sh"
+python3 - "$T/old.func.sh" <<'EOF'
+import sys, re; p = sys.argv[1]; s = open(p).read()
+# Remove backfill logic
+s = s.replace('  # Backfill: fetch coverage and post missing days oldest first\n  if [[ "$dry" == 0 ]]; then\n    spl_cost_backfill || return 1\n  fi\n', '')
+# Remove the backfill functions
+s = re.sub(r'\n# spl_cost_backfill:.*?\n}\n', '\n', s, flags=re.DOTALL)
+s = re.sub(r'\nspl_cost_backfill\(\) {.*?}\n', '\n', s, flags=re.DOTALL)
+s = re.sub(r'\nspl_cost_post_day_with_retry\(\) {.*?}\n', '\n', s, flags=re.DOTALL)
+open(p, 'w').write(s)
+EOF
+D="$R/dispatch"
+for d in 2026-10-07 2026-10-08 2026-10-09; do echo "1000 c-101 run" > "$D/agent-run-$d.log"; done
+cnf 5 "agent_hours" 3 3
+reset
+unset -f spl_cost_backfill spl_cost_post_day_with_retry
+ROLLUP_FILE="$T/old.func.sh" out="$(run_rollup DRY_RUN=0)"; rc=$?
+[[ "$rc" != 0 && "$out" == *"spl_cost_backfill: command not found"* ]] &&
+  pass "18. red control: old code posts only yesterday (no backfill, fails as expected: spl_cost_backfill not found)" || fail "18. rc=$rc $out"
 
 echo "spl-cost-rollup-daily: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

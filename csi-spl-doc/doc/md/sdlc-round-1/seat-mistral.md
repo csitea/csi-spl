@@ -93,3 +93,14 @@ Two conditions for the row briefs. Neither is a send-back, and neither blocks ba
 - **Row 11 path.** The manifest is `csi-spl-orc/cnf/box-crons/box-crons.manifest`. The row's `cnf/box-crons/box-crons.manifest` does not resolve at the repo root.
 
 signed: c-251@sat on c48a12536
+
+## 7. Sign-off on v1.5
+
+Plan v1.5 (`27b67f17e`) re-read on `origin/master`. Both v1.4 conditions are folded in: row 06 now reads `<id>/heartbeat.json` `progress_ts`, and row 11's path is `csi-spl-orc/cnf/box-crons/box-crons.manifest`. Its test line `install-box-crons.tst.sh:78` pins the `+37 * * * *` schedule. Every existing path in section 4.1 resolves (`git cat-file -e`), and each batch's paths are disjoint as listed.
+
+Two notes for the row briefs. Neither is a send-back:
+
+- **Row 07, batch 1:** the row names the edit mechanism (`do_spl_desk_edit`) but still no trigger, meaning nothing says what runs `topic-status-card.sh`. If the trigger is a new cron line, it lands in `box-crons.manifest`, which row 11 edits in the same batch, and R1 breaks. The brief must name the trigger, and it must not be the manifest while row 11 is open (or row 07 waits for row 11 to land).
+- **Row 12, batch 2:** `csi-spl-orc/src/bash/tests/spl-desk-post.tst.sh` does not exist and is not marked "(new)". The tests that name `spl-desk-post` / `do_spl_desk_post` today are `desk-actions.tst.sh`, `box-workspace-isolation.tst.sh` and `dispatch-setup-check.tst.sh` (`git grep -l`). They belong in its R2 test column.
+
+signed: c-251@sat on 27b67f17e

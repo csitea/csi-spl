@@ -33,7 +33,12 @@
      Copy link (t1 9dec05c3): a stored event's footer copies the link that
      opens it (useCalendarEventLink). -->
 <template>
-  <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="lg" @update:open="emit('update:open', $event)">
+  <IssueDetailFrame
+    :modal="modal"
+    :open="open"
+    :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')"
+    @update:open="emit('update:open', $event)"
+  >
     <div v-if="hours" class="cal-dlg cal-dlg--hours" data-test="calendar-event-form" data-mode="hours" :data-type="HOURS_ENTRY_TYPE" :data-day="hours.day">
       <p class="cal-dlg__type cal-dlg__field--wide" data-test="calendar-event-type">{{ t('hours_cal.type') }}</p>
       <LazyCalendarHoursDay
@@ -225,10 +230,24 @@
         <button type="submit" :form="formId" class="btn" data-test="calendar-event-save" :disabled="busy || !form.title.trim()">{{ busy ? t('calendar_event.saving') : t('calendar_event.save') }}</button>
       </div>
     </template>
-  </UiDialog>
+  </IssueDetailFrame>
 </template>
 
 <script setup lang="ts">
+const props = defineProps<{
+  open: boolean
+  modal: boolean
+  /** the event to edit; null = a new event on `day` */
+  event: CalendarItem | null
+  day: string
+  today: string
+  /** 097 T013: the HH:MM start and end a drag on empty time picked (a new event only) */
+  span?: { start: string, end: string } | null
+  /** 097 T014 (G11): Duplicate - a new event (`event` null) filled from this one */
+  copy?: CalendarItem | null
+  /** spec 107 v1.2 T011: the entry of type Working hours for one day (not an event) */
+  hours?: CalHoursEntry | null
+}>()
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import {
   CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
@@ -247,20 +266,9 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { HOURS_ENTRY_TYPE } from '~/utils/hours-calendar.mjs'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
 import type { CalHoursEntry } from '~/composables/useCalendarHours'
+import IssueDetailFrame from '~/components/IssueDetailFrame.vue'
 
-const props = defineProps<{
-  open: boolean
-  /** the event to edit; null = a new event on `day` */
-  event: CalendarItem | null
-  day: string
-  today: string
-  /** 097 T013: the HH:MM start and end a drag on empty time picked (a new event only) */
-  span?: { start: string, end: string } | null
-  /** 097 T014 (G11): Duplicate - a new event (`event` null) filled from this one */
-  copy?: CalendarItem | null
-  /** spec 107 v1.2 T011: the entry of type Working hours for one day (not an event) */
-  hours?: CalHoursEntry | null
-}>()
+
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
 const { copied, copyLink } = useCalendarEventLink()

@@ -48,4 +48,4 @@ The owner requirement (d609d0e9) ensures that running agents automatically use t
 
 ## 5. Signature
 
-`signed: a-271@sat on v0.1 draft`
+`signed: a-271@sat on v1.0 consensus`

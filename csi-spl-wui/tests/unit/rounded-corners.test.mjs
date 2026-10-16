@@ -23,9 +23,10 @@ describe('rounded corners', () => {
   const vars = read('src/assets/css/variables.css')
   const root = vars.slice(vars.indexOf(':root {'), vars.indexOf('\n}'))
 
-  it('the scale lives once in :root — sm/md/lg/pill plus the default --radius', () => {
+  it('the scale lives once in :root — xs/sm/md/lg/pill plus the default --radius', () => {
     for (const [name, value] of [
       ['--radius', '8px'],
+      ['--radius-xs', '4px'],
       ['--radius-sm', '8px'],
       ['--radius-md', '12px'],
       ['--radius-lg', '16px'],

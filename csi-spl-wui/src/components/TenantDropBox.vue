@@ -16,7 +16,13 @@
      the only one left), Esc closes the list and puts the current name back.
      On a phone TopBarTenant is the switcher and this one is not shown.
      HUM-10 (topic dff51150): no glyph before the box on the desktop - the
-     logo is followed straight by the box; the caption and hover still name it. -->
+     logo is followed straight by the box; the caption and hover still name it.
+     SPL-2219 (owner topic 65999af9, "fix the visual layout of the workspaces
+     drop-box"): the name is plain text on focus (never selected), the focus
+     ring is the box's own, so the triangle sits inside it; only the current
+     row is filled (is-current), the hovered / keyboard row is a lighter
+     shade (is-active); smaller corners (--radius-xs); a darker theme
+     triangle; the names in the heading style with a softer colour. -->
 <template>
   <div class="tenant-drop">
     <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
@@ -47,7 +53,7 @@
         :style="tenantSelectStyle"
         @input="onTenantInput"
         @keydown="onTenantKey"
-        @focus="selectTenantText"
+        @beforeinput="onTenantBeforeInput"
         @blur="closeTenantList"
       >
       <svg
@@ -73,7 +79,7 @@
           :key="o.id"
           role="option"
           class="tenant-switcher__option"
-          :class="{ 'is-active': i === activeIndex }"
+          :class="{ 'is-active': i === activeIndex, 'is-current': o.id === tenantBox.selected }"
           data-testid="tenant-switcher-option"
           :data-tenant="o.id"
           :aria-selected="o.id === tenantBox.selected ? 'true' : 'false'"
@@ -255,9 +261,14 @@ function onTenantBoxPress(ev: MouseEvent) {
   if (target !== sel && listOpen.value) closeTenantList()
   else openTenantList()
 }
-/* the name is selected on focus, so typing starts a fresh search */
-function selectTenantText(ev: FocusEvent) {
-  if (ev.target instanceof HTMLInputElement) ev.target.select()
+/* SPL-2219: the name is not selected on focus (owner: no blue highlight),
+   yet the first key typed still starts a fresh search: it replaces the
+   shown name instead of appending to it. */
+function onTenantBeforeInput(ev: Event) {
+  const el = ev.target
+  if (query.value !== null || !(el instanceof HTMLInputElement) || el.readOnly) return
+  if (!(ev as InputEvent).inputType?.startsWith('insert')) return
+  el.value = ''
 }
 async function pickTenant(id: string) {
   closeTenantList()
@@ -289,7 +300,7 @@ async function pickTenant(id: string) {
   min-width: 0;
   box-sizing: border-box;
   padding: 0 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   color: var(--color-muted);
   /* owner 2026-09-27: the tenant text a bit bigger than the sidebar's 0.75rem */
   font-size: 0.875rem;
@@ -306,9 +317,21 @@ async function pickTenant(id: string) {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--color-bg);
   cursor: pointer;
+}
+/* SPL-2219: ONE focus ring, the box's - around the name AND the triangle -
+   as the omnibox does (main.css, .omnibox-field); the input draws none. */
+.tenant-switcher__field:has(.tenant-switcher__select:focus-visible) {
+  outline: var(--focus-ring-w) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-3d);
+}
+.tenant-switcher__select:focus-visible {
+  outline: none !important;
+  box-shadow: none;
+  background: transparent;
 }
 .tenant-switcher__error {
   position: absolute;
@@ -327,11 +350,15 @@ async function pickTenant(id: string) {
   cursor: pointer;
   padding: 0;
   background: transparent;
-  color: var(--color-fg);
+  color: var(--color-muted);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   font: inherit;
+  /* SPL-2219: the heading style (base.css h1-h3: --font-display, 600), with
+     the tighter --letter-spacing-ui, in the softer --color-muted */
+  font-family: var(--font-display);
   font-weight: 600;
+  letter-spacing: var(--letter-spacing-ui);
   line-height: 1.2;
   text-align: start;
   text-overflow: ellipsis;
@@ -339,15 +366,15 @@ async function pickTenant(id: string) {
   -webkit-appearance: none;
 }
 .tenant-switcher__select:not([readonly]):focus { cursor: text; }
-.tenant-switcher__select::placeholder { color: var(--color-fg); opacity: 1; }
+.tenant-switcher__select::placeholder { color: var(--color-muted); opacity: 1; }
 .tenant-switcher__arrow {
   flex: 0 0 auto;
   width: 0.65em;
   height: 0.5em;
   display: block;
   pointer-events: none;
-  fill: currentColor;
-  color: var(--color-fg);
+  /* SPL-2219: a darker shade of the theme colour, never black */
+  fill: var(--color-accent-pressed);
 }
 /* SPL-980 (owner 2026-09-27, topic 72773b61): the OPEN list keeps 2 px
    between every entry - the selected one too - and the list's border, each
@@ -368,10 +395,11 @@ async function pickTenant(id: string) {
   padding: 2px;
   list-style: none;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--color-bg-2);
   color: var(--color-fg);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  /* SPL-2219: the edge of the other menus (SidebarRowMenu, UserMenu) */
+  box-shadow: 0 12px 32px rgb(0 0 0 / .35);
   cursor: default;
 }
 .tenant-switcher__option {
@@ -380,20 +408,22 @@ async function pickTenant(id: string) {
   box-sizing: border-box;
   min-block-size: 26px;
   padding-block: 2px;
-  padding-inline: 4px;
-  border-radius: var(--radius-sm);
+  /* SPL-2219: even inline padding, the other menus' 12px (SidebarRowMenu) */
+  padding-inline: 12px;
+  border-radius: var(--radius-xs);
   background-color: var(--color-bg-2);
-  color: var(--color-fg);
+  color: var(--color-muted);
+  font-family: var(--font-display);
   font-weight: 600;
+  letter-spacing: var(--letter-spacing-ui);
   white-space: nowrap;
   cursor: pointer;
 }
 .tenant-switcher__option.is-active { background-color: var(--color-surface-hover); }
-.tenant-switcher__option[aria-selected='true'] {
+.tenant-switcher__option.is-current {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
 }
-.tenant-switcher__option[aria-selected='true'].is-active { box-shadow: inset 0 0 0 2px var(--color-fg); }
 /* SPL-995: on a phone the switcher is TopBarTenant - never shown twice */
 @media (max-width: 820px) {
   .tenant-drop { display: none; }

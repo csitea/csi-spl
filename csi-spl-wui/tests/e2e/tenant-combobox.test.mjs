@@ -4,7 +4,14 @@
 // workspace with the 'contains' case insensitive function". At 1440 px, with
 // four synthetic workspaces (the mock has no hub: a switch re-points the
 // local session, useTenantSwitch), proved in a real browser:
-//   - a press on the box focuses it, opens the list and selects the name
+//   - a press on the box focuses it and opens the list; the name is NOT
+//     selected (SPL-2219, owner t1 65999af9: no blue text highlight) and
+//     typing straight away still starts a fresh search
+//   - SPL-2219 layout: one focus ring (the box's, not the input's), exactly
+//     one row carries the current-state class even with the mouse on another
+//     row, the list is at least as wide as the box, the triangle sits inside
+//     the box, the corners are smaller than --radius-sm (8px), the triangle
+//     is a theme colour and never black
 //   - typing a mixed-case substring ("nItE") lists only the matching names
 //   - Enter switches to the one left: the box and the session name it
 //   - Up/Down move the highlight; Enter switches to the highlighted row
@@ -69,6 +76,33 @@ const state = (p) => p.evaluate((sel) => {
   }
 }, BOX)
 
+/* SPL-2219: what the open picker looks like (classes, widths, rings, corners) */
+const layout = (p) => p.evaluate(() => {
+  const box = document.querySelector('[data-testid=tenant-switcher-box]')
+  const input = document.querySelector('[data-testid=tenant-switcher-select]')
+  const list = document.querySelector('[data-testid=tenant-switcher-list]')
+  const arrow = document.querySelector('[data-testid=tenant-switcher-arrow]')
+  const rows = [...list.querySelectorAll('[role=option]')]
+  const b = box.getBoundingClientRect()
+  const a = arrow.getBoundingClientRect()
+  const cur = rows.filter((r) => r.classList.contains('is-current'))
+  const hovered = rows.find((r) => r.matches(':hover'))
+  return {
+    current: cur.map((r) => r.dataset.tenant),
+    currentBg: cur[0] ? getComputedStyle(cur[0]).backgroundColor : '',
+    hoverBg: hovered ? getComputedStyle(hovered).backgroundColor : '',
+    listW: list.getBoundingClientRect().width,
+    boxW: b.width,
+    inputOutline: getComputedStyle(input).outlineStyle,
+    boxOutline: getComputedStyle(box).outlineStyle,
+    arrowInside: a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom,
+    boxRadius: parseFloat(getComputedStyle(box).borderTopLeftRadius),
+    listRadius: parseFloat(getComputedStyle(list).borderTopLeftRadius),
+    arrowFill: getComputedStyle(arrow).fill,
+    fg: getComputedStyle(document.body).color,
+  }
+})
+
 /* a fresh query: select what the box holds, then type over it */
 async function typeQuery(p, text) {
   await p.click(BOX, { clickCount: 3 })
@@ -101,7 +135,26 @@ try {
   await p.click(BOX)
   await sleep(150)
   const s1 = await state(p)
-  check('a press opens every workspace, the box focused and its name selected', s1.expanded === 'true' && s1.focused && s1.selectedText && s1.rows.length === TENANTS.length && s1.active === 'northwind-trading', s1)
+  check('a press opens every workspace, the box focused, its name NOT selected', s1.expanded === 'true' && s1.focused && !s1.selectedText && s1.rows.length === TENANTS.length && s1.active === 'northwind-trading', s1)
+
+  /* SPL-2219: the open picker's layout, with the mouse resting on another row */
+  await p.hover('[data-testid=tenant-switcher-option][data-tenant="t2"]')
+  await sleep(100)
+  const lay = await layout(p)
+  check('SPL-2219 (b): exactly one row has the current-state class, the current one, while another row is hovered', lay.current.length === 1 && lay.current[0] === 't1' && lay.hoverBg !== lay.currentBg, lay)
+  check('SPL-2219 (c): the list is at least as wide as the box', lay.listW >= lay.boxW && lay.boxW > 0, { listW: lay.listW, boxW: lay.boxW })
+  check('SPL-2219: one focus ring - the input draws none, the box draws it', lay.inputOutline === 'none' && lay.boxOutline !== 'none', { inputOutline: lay.inputOutline, boxOutline: lay.boxOutline })
+  check('SPL-2219: the triangle sits inside the box', lay.arrowInside, lay.arrowInside)
+  check('SPL-2219: box and list corners are smaller than --radius-sm (8px)', lay.boxRadius > 0 && lay.boxRadius < 8 && lay.listRadius === lay.boxRadius, { box: lay.boxRadius, list: lay.listRadius })
+  check('SPL-2219: the triangle is a theme colour, never black', lay.arrowFill !== 'rgb(0, 0, 0)' && lay.arrowFill !== lay.fg, { fill: lay.arrowFill, fg: lay.fg })
+
+  /* typing straight after the press replaces the name: a fresh search */
+  await p.keyboard.type('glo')
+  await sleep(150)
+  const s1b = await state(p)
+  check('typing right after the press searches afresh: "glo" lists globex', s1b.value === 'glo' && JSON.stringify(s1b.rows) === JSON.stringify(['globex']), s1b)
+  await p.keyboard.press('Escape')
+  await sleep(100)
 
   /* the ask: type a mixed-case substring, see the filtered list, Enter */
   await typeQuery(p, 'nItE')

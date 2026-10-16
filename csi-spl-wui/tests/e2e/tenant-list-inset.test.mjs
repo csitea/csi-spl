@@ -12,7 +12,8 @@
 //   - every row, the selected one too, starts >= 2 px inside the list's
 //     inner edge on the left and ends >= 2 px inside it on the right
 //     (elementFromPoint 1 px outside a row still hits the list, not the page)
-//   - each name sits 4 px inside its row, no name is clipped
+//   - each name sits 4 px inside its row, no name is clipped (SPL-2219:
+//     the rows now carry the other menus' 12px, so >= 4 px still holds)
 //   - the selected row is highlighted, Esc closes the list
 // And the closed box is unchanged: the widest name, 2 px, the arrow 7 px on.
 //

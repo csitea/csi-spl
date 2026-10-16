@@ -1564,10 +1564,7 @@ spl_wd_fence() {
   local now="$1" tick="$2" id pid _pane
   spl_wd_beat "$now"
   if ! spl_wd_fence_due "$now"; then
-    if [[ -e "$WD_DIR/fenced" ]]; then
-      rm -f "$WD_DIR/fenced" "$WD_DIR"/fence.term.*
-      spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
-    fi
+    [[ -e "$WD_DIR/fenced" ]] && spl_wd_unfence
     return 0
   fi
   if ( set -C; echo "$now" > "$WD_DIR/fenced" ) 2>/dev/null; then
@@ -1587,38 +1584,96 @@ spl_wd_fence() {
   return 0
 }
 
+# spl_wd_unfence: the fence lifts. The lanes whose fence wip push failed
+# (fence.wipfail.<id>: origin was as unreachable as the hub, a Wi-Fi outage
+# on the PC box 2026-10-16: 8 of 8 rc=1) get it once more, now that the
+# network is back, before the fence state goes.
+spl_wd_unfence() {
+  local f id rc
+  local -a jp=()
+  for f in "$WD_DIR"/fence.wipfail.*; do
+    [[ -e "$f" ]] || continue
+    id="${f##*/fence.wipfail.}"
+    ( rc=0; spl_wd_fence_wip "$id" || rc=$?
+      spl_wd_log "UNFENCED $id: wip push retried, rc=$rc" ) &
+    jp+=("$!")
+  done
+  if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
+  rm -f "$WD_DIR/fenced" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
+  spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
+}
+
 # spl_wd_box_fenced: 0 while this box is fenced (spl_wd_takeover's gate).
 spl_wd_box_fenced() { [[ -e "$WD_DIR/fenced" ]]; }
 
-# spl_wd_fence_lane ID PID: the wip push (bounded: origin may be as far away
-# as the hub), then TERM. DRY_RUN=1 only logs.
+# spl_wd_fence_wip ID: the lane's wip push, bounded by WD_FENCE_WIP_TIMEOUT
+# (origin may be as far away as the hub); its rc.
+spl_wd_fence_wip() {
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  ID="$1" DRY_RUN=0 timeout -k 5 "${WD_FENCE_WIP_TIMEOUT:-60}" ${WD_WIP_CMD:-$ROTATE_RUN -a do_spl_lane_wip_push} \
+    >> "$WD_DIR/fence.$1.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&-
+}
+
+# spl_wd_fence_lane ID PID: the wip push (a failure is kept for the retry at
+# UNFENCED), then TERM, checked WD_FENCE_TERM_WAIT (10) s later. DRY_RUN=1
+# only logs.
 spl_wd_fence_lane() {
-  local id="$1" pid="$2" rc=0
+  local id="$1" pid="$2" rc=0 i
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
     spl_wd_log "FENCE-DRY $id: would push its wip ref, then TERM pid $pid"; return 0
   fi
-  # shellcheck disable=SC2086 # a command line, split on purpose
-  ID="$id" DRY_RUN=0 timeout -k 5 "${WD_FENCE_WIP_TIMEOUT:-60}" ${WD_WIP_CMD:-$ROTATE_RUN -a do_spl_lane_wip_push} \
-    >> "$WD_DIR/fence.$id.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- || rc=$?
+  spl_wd_fence_wip "$id" || rc=$?
+  (( rc == 0 )) || echo "$rc" > "$WD_DIR/fence.wipfail.$id"
   if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
     spl_wd_log "FENCE $id: wip push rc=$rc; no agent process to TERM"; return 0
   fi
-  ${WD_KILL_CMD:-kill} -TERM "$pid" 2>/dev/null || true
+  spl_wd_fence_kill "$pid"
   spl_wd_log "FENCE $id: wip push rc=$rc, TERM pid $pid"
+  for (( i = 0; i < ${WD_FENCE_TERM_WAIT:-10} * 5; i++ )); do
+    spl_wd_pid_alive "$pid" || return 0
+    sleep 0.2
+  done
+  spl_wd_pid_alive "$pid" && spl_wd_log "FENCE $id: pid $pid still alive after TERM"
+  return 0
 }
 
-# spl_wd_fence_pid ID PID TICK: the pid the fence may TERM, "-" for none. An
-# m- lane only through its vibe (the comm check of spl_wd_boot_why): the row's
-# node/bun fallback is a child or a stranger (one box's fences 2026-10-11: m-834's
-# TERM hit an npx node, m-874's a dev server, both agents ran on). The other
-# kinds keep the row's pid.
+# spl_wd_fence_kill PID: TERM it; refused (EPERM: the watchdog runs as the
+# box user, an agent as SPOOL_AGENT_USER) -> as the pid's owner through the
+# owner hop (proc-owner.inc.sh). Without that hop every fence TERM of
+# 2026-10-15 (sat) and 2026-10-16 (PC) was refused and logged as sent.
+spl_wd_fence_kill() {
+  ${WD_KILL_CMD:-kill} -TERM "$1" 2>/dev/null && return 0
+  [[ -z "${WD_KILL_CMD:-}" ]] && declare -F spool_proc_as_owner >/dev/null &&
+    spool_proc_as_owner "${LEASE_PROC_ROOT:-/proc}" "$1" kill -TERM "$1"
+  return 0
+}
+
+# spl_wd_pid_alive PID: 0 while it runs (a zombie has stopped). ps, not
+# kill -0: that is refused for another user's live pid.
+spl_wd_pid_alive() {
+  local s
+  s="$(ps -o stat= -p "$1" 2>/dev/null)" || return 1
+  [[ -n "$s" && "$s" != Z* ]]
+}
+
+# spl_wd_fence_pid ID PID TICK: the pid the fence may TERM, "-" for none:
+# the row's pid when its comm is the agent CLI (vibe for an m- lane, else
+# claude/grok/agy/qwen/vibe), else that CLI below it (a wrapper row), else
+# none. A node/bun fallback row is a child or a stranger: one box's fences
+# 2026-10-11, m-834's TERM hit an npx node, m-874's a dev server, both agents
+# ran on; sat 2026-10-15, c-973's row was an orphan `node serve.mjs`.
 spl_wd_fence_pid() {
-  local id="$1" pid="$2" tick="$3"
-  if [[ "$id" == m-* && "$pid" =~ ^[0-9]+$ ]] &&
-    ! awk -v p="$pid" '$1 == p && $4 == "vibe" {f = 1} END {exit !f}' "$tick/ps" 2>/dev/null; then
-    pid="-"
+  local id="$1" pid="$2" tick="$3" re='^(claude|grok|agy|qwen|vibe)$'
+  [[ "$id" == m-* ]] && re='^vibe$'
+  if [[ "$pid" =~ ^[0-9]+$ ]]; then
+    pid="$(awk -v p="$pid" -v re="$re" '
+      { pp[$1] = $2; c[$1] = $4; if ($4 ~ re) cli[++n] = $1 }
+      END { if (c[p] ~ re) { print p; exit }
+            for (i = 1; i <= n; i++) { q = pp[cli[i]]
+              for (k = 0; k < 16 && q > 1; k++) { if (q == p) { print cli[i]; exit }; q = pp[q] } } }' \
+      "$tick/ps" 2>/dev/null)"
   fi
-  echo "$pid"
+  echo "${pid:--}"
 }
 
 # A seat never moves (10.2): ids 001..004, a peer seat, an expected seat.

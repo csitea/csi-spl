@@ -18,7 +18,15 @@
 #   6. an m- lane is TERMed only through its vibe: a row that points at a
 #      node (spl_wd_agents' fallback) gets its wip push and NO kill, logged
 #      "no agent process to TERM"; a row on the vibe pid is TERMed; a c-
-#      lane on a node keeps today's TERM (fences of 2026-10-11, m-834/m-874)
+#      lane on a bare node (no agent CLI below it) is not TERMed either
+#      (fences of 2026-10-11, m-834/m-874; sat 2026-10-15, c-973)
+#   7. the TERM reaches the agent CLI: a row on a wrapper with the CLI as its
+#      child TERMs the CLI (real processes, real kill); a CLI that ignores
+#      TERM is logged "still alive after TERM" (PC box 2026-10-16: 7 of 8
+#      TERMed agents ran on); a kill refused (EPERM: the agent runs as
+#      another user) goes through the owner hop
+#   8. a wip push that failed while fenced is retried once at UNFENCED, for
+#      that lane only; a lane whose push succeeded is not pushed again
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -47,6 +55,7 @@ chmod +x "$T/bin/"*
 # one seat (c-001) and two lanes, as spl_wd_agents lists them: id pid pane
 mkdir -p "$T/tick"
 printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\n' > "$T/tick/agents"
+printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n' > "$T/tick/ps"
 
 # wd FN ARGS: one call in a fresh shell over the sandbox state (files only,
 # as three instances share it)
@@ -57,6 +66,7 @@ wd() {
     source "$RUN_DIR/spl-watchdog.func.sh"
     export SPOOL_ROOT="$T/spool" WD_DIR="$T/wd" WD_LOG="$T/wd.log" WD_SEND="$T/bin/send" WD_FROM=c-001 WD_BOX=box1
     export WD_BEAT_CMD="$T/bin/hub" WD_BEAT_TIMEOUT=1 WD_WIP_CMD="$T/bin/wip" WD_KILL_CMD="$T/bin/kill"
+    export WD_FENCE_TERM_WAIT="${WD_FENCE_TERM_WAIT:-0}"
     export WD_TAKEOVER_CMD="$T/bin/restart" RESTART_MAX_PER_HOUR=3 WD_TICK_SEQ=1
     "$@" )
 }
@@ -139,7 +149,68 @@ echo silent > "$T/hub"; DRY_RUN=0 wd spl_wd_fence $(( T0 + 120 )) "$T/tick6"
 grep -q "FENCE m-060: .*no agent process to TERM" "$T/wd.log" &&
   pass "6. m- lane with no vibe: logged 'no agent process to TERM'" || fail "6. no skip line for m-060: $(grep m-060 "$T/wd.log")"
 grep -qx "kill -TERM 161" "$T/acts" && pass "6. m- lane on its vibe pid: TERMed" || fail "6. m-061 vibe not TERMed: $(cat "$T/acts" 2>/dev/null)"
-grep -qx "kill -TERM 162" "$T/acts" && pass "6. c- lane keeps today's pid" || fail "6. c-062 not TERMed: $(cat "$T/acts" 2>/dev/null)"
+[[ "$(n acts 'kill -TERM 162')" == 0 ]] && grep -qx "wip c-062" "$T/acts" &&
+  pass "6. c- lane on a bare node pid: wip pushed, NO kill" || fail "6. c-062 node pid: $(cat "$T/acts" 2>/dev/null)"
+
+# ---- 7. the TERM reaches the agent CLI (real processes) ------------------------
+# fence7 TICKDIR: an acked tick, then a fenced one over the real ps and kill
+fence7_tick() { unset WD_KILL_CMD; spl_wd_ps > "$2/ps"; spl_wd_fence "$1" "$2"; }
+fence7() {
+  echo ok > "$T/hub"; DRY_RUN=0 wd fence7_tick "$T0" "$1"
+  echo silent > "$T/hub"; DRY_RUN=0 wd fence7_tick $(( T0 + 120 )) "$1"
+}
+reset
+mkdir -p "$T/tick7" "$T/cli"
+cp "$(command -v sleep)" "$T/cli/claude"
+bash -c '"$1" 300; :' _ "$T/cli/claude" 2>/dev/null & wrap=$!
+for _ in $(seq 50); do cli="$(ps -o pid= --ppid "$wrap" | tr -d ' ')"; [[ -n "$cli" ]] && break; sleep 0.1; done
+printf 'c-070\t%s\t%%7\n' "$wrap" > "$T/tick7/agents"
+WD_FENCE_TERM_WAIT=3 fence7 "$T/tick7"
+if ps -o pid= -p "$cli" >/dev/null; then
+  fail "7. wrapper row: the CLI $cli under wrapper $wrap still runs after the fence ($(grep 'FENCE c-070' "$T/wd.log"))"
+else pass "7. wrapper row: the CLI under it is TERMed"; fi
+grep -q "FENCE c-070: wip push rc=0, TERM pid $cli\$" "$T/wd.log" &&
+  pass "7. the log names the CLI pid" || fail "7. log: $(grep 'FENCE c-070' "$T/wd.log")"
+kill -KILL "$wrap" "$cli" 2>/dev/null; wait "$wrap" 2>/dev/null
+reset
+printf '#!/bin/bash\ntrap "" TERM\nwhile :; do sleep 0.2; done\n' > "$T/cli/agy"; chmod +x "$T/cli/agy"
+"$T/cli/agy" & ign=$!
+for _ in $(seq 50); do [[ "$(ps -o comm= -p "$ign")" == agy ]] && break; sleep 0.1; done
+printf 'a-071\t%s\t%%8\n' "$ign" > "$T/tick7/agents"
+WD_FENCE_TERM_WAIT=1 fence7 "$T/tick7"
+grep -q "FENCE a-071: pid $ign still alive after TERM" "$T/wd.log" &&
+  pass "7. a CLI that ignores TERM: logged 'still alive after TERM'" || fail "7. no still-alive line: $(grep 'a-071' "$T/wd.log")"
+kill -KILL "$ign" 2>/dev/null; wait "$ign" 2>/dev/null
+printf '#!/usr/bin/env bash\necho "hop $*" >> "$T/acts"\n' > "$T/bin/hop"; chmod +x "$T/bin/hop"
+# kill refuses as for another user's pid; the hop is a stub that logs
+fence7_eperm() {
+  unset WD_KILL_CMD; kill() { return 1; }
+  # shellcheck source=../features/spawn-agents/lib/proc-owner.inc.sh
+  source "$PROJ_ROOT/src/bash/features/spawn-agents/lib/proc-owner.inc.sh"
+  SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$T/bin/hop" spl_wd_fence_kill 4711
+}
+reset; wd fence7_eperm
+grep -qx "hop test kill -TERM 4711" "$T/acts" &&
+  pass "7. a refused kill (EPERM) goes through the owner hop" || fail "7. no owner hop: $(cat "$T/acts" 2>/dev/null)"
+
+# ---- 8. a failed wip push is retried once at UNFENCED --------------------------
+reset
+printf '#!/usr/bin/env bash\necho "wip $ID" >> "$T/acts"\n[ "$ID" != c-050 ] || [ -e "$T/net" ]\n' > "$T/bin/wipnet"
+chmod +x "$T/bin/wipnet"; rm -f "$T/net"
+fence8_tick() { WD_WIP_CMD="$T/bin/wipnet"; spl_wd_fence "$@"; }
+ticks8() { local s; echo "$3" > "$T/hub"; for (( s = $1; s <= $2; s += 30 )); do DRY_RUN=0 wd fence8_tick $(( T0 + s )) "$T/tick"; done; }
+ticks8 0 0 ok
+ticks8 30 120 silent
+[[ "$(n acts 'wip c-050')" == 1 && "$(n acts 'wip c-051')" == 1 ]] && grep -q "FENCE c-050: wip push rc=1" "$T/wd.log" &&
+  pass "8. fenced: c-050's wip push failed, c-051's passed" || fail "8. fenced pushes: $(cat "$T/acts" 2>/dev/null)"
+touch "$T/net"
+ticks8 150 150 ok
+[[ "$(n acts 'wip c-050')" == 2 ]] && grep -q "UNFENCED c-050: wip push retried, rc=0" "$T/wd.log" &&
+  pass "8. UNFENCED: c-050's failed push retried once, rc logged" || fail "8. no retry for c-050: $(cat "$T/acts" 2>/dev/null) | $(grep UNFENCED "$T/wd.log")"
+[[ "$(n acts 'wip c-051')" == 1 ]] && pass "8. UNFENCED: c-051 (pushed) is not pushed again" || fail "8. c-051 pushed $(n acts 'wip c-051') times"
+ticks8 180 180 ok
+[[ "$(n acts 'wip c-050')" == 2 ]] && ! ls "$T/wd"/fence.wipfail.* >/dev/null 2>&1 &&
+  pass "8. the retry runs once: no state left, no second retry" || fail "8. after: wips=$(n acts 'wip c-050') files=$(cd "$T/wd" && echo fence.wipfail.*)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

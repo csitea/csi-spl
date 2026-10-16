@@ -484,3 +484,25 @@ For `200.html` and `index.html`: the set of `_nuxt/*.js` named by a
   `.wsdoc__toc` subtree size, its computed `display` and the `.wsdoc` width.
 - Row 11: the response listener records which `.js` files a cold
   `/channel/alerts` load fetches.
+
+## 7. v1.0 sign-off
+
+signed: c-252 on b3a47adaf7e9db8125402a36b5895dcc95872b27
+
+I read `b3a47adaf:csi-spl-doc/doc/md/perf-round-6-plan.md` (253 lines, 0
+conflict markers). Every finding of this seat is folded in:
+
+- Row 05 is now P1 (async `KindPicker` in `KindBadge.vue`, −501 B); the
+  CodeViewer row is in section 5 as measured and not worth doing (−3 B).
+- Row 02's target is >= 40 KB, with the cold `/channel/<name>` and `/t/<id>`
+  check at n>=5 and the CHANNEL prefetch fallback.
+- Row 12 is batch 1, lane 2, in its own fixture file (not `utils/mock-data.mjs`).
+- Row 06 is capped at <= 20 lines (474 now), "after r13-07" for behaviour only.
+- Row 07 waits for row 02 to land. Rows 09 and 10 have the < 10 node drop
+  rule, and row 10's red control is at 1024 px. Row 11 gates on `usePhone()`.
+- Section 2.2 shows mobile `/workspace/docs` DOM 634.
+- R1: in section 3.1, no batch names one path twice. `default.vue` is in
+  batches 2, 4 and 6 only, `issues.vue` in 4 and 5 only.
+
+The WUI is unchanged since my measurements: `git log --oneline
+b6153d006..origin/master -- csi-spl-wui` is empty.

@@ -1,0 +1,594 @@
+#!/bin/bash
+#
+# Minimalistic run.sh framework
+# usage: ./run --help
+
+# Ensure ERR trap is inherited by functions
+set -E
+
+# Global Error Handler
+error_handler() {
+  local exit_code=$?
+  local line_no=$1
+  local cmd="$2"
+  # An explicit third argument wins. execute_step detects a failed action with an
+  # `if` test, which overwrites $? with the test's own status (0 = "yes, it
+  # failed"), so reading $? here reported success and made the whole run exit 0.
+  [[ -n "${3:-}" ]] && exit_code="$3"
+  # Suppress FATAL message if the exit code is 11 (intentional validation failure)
+  if [[ $exit_code -ne 11 ]]; then
+    do_log "FATAL Command '$cmd' failed at line $line_no with status $exit_code."
+  fi
+  exit $exit_code
+}
+
+# execute_step_hook <hook> <label> <args...>: run a PRE or POST hook between
+# its START and STOP lines, when the action defines one.
+execute_step_hook() {
+  local hook=$1 label=$2
+  shift 2
+  type "$hook" &>/dev/null || return 0
+  do_log "INFO START ::: running $label :: $hook"
+  "$hook" "$@"
+  do_log "INFO STOP  ::: running $label :: $hook"
+}
+
+# execute_step_parse_args <func_file> <args...>: map the action's @arg
+# --flag value pairs to env vars.
+execute_step_parse_args() {
+  local func_file=$1
+  shift
+  local args=("$@")
+  local _arg_lines
+  _arg_lines=$(do_parse_metadata "$func_file" "arg" 2>/dev/null)
+  [[ -n "$_arg_lines" ]] || return 0
+  # Build associative array of flag→var mappings
+  declare -A _arg_map
+  while IFS= read -r _aline; do
+    local _adef="${_aline#arg=}"
+    local _aflag _avar _aextra
+    # awk '{print $1}' / '{print $2}' with no fork. The third name keeps
+    # the second field from swallowing the rest of the line.
+    read -r _aflag _avar _aextra <<< "$_adef" || true
+    [[ -n "$_aflag" && -n "$_avar" ]] && _arg_map["$_aflag"]="$_avar"
+  done <<< "$_arg_lines"
+  # Parse CLI args against the map. Boolean support: a known flag
+  # followed by end-of-args or another --flag is treated as a true bool.
+  local _i=0
+  while [[ $_i -lt ${#args[@]} ]]; do
+    local _flag="${args[$_i]}"
+    if [[ "$_flag" == --* && -n "${_arg_map[$_flag]:-}" ]]; then
+      local _var="${_arg_map[$_flag]}"
+      local _next=""
+      (( _i + 1 < ${#args[@]} )) && _next="${args[$_i + 1]}"
+      if [[ -n "$_next" && "$_next" != --* ]]; then
+        export "$_var"="$_next"
+        do_log "DEBUG Parsed: $_flag $_next → $_var=$_next"
+        _i=$((_i + 2))
+        continue
+      else
+        export "$_var"="true"
+        do_log "DEBUG Parsed: $_flag (boolean) → $_var=true"
+        _i=$((_i + 1))
+        continue
+      fi
+    fi
+    _i=$((_i + 1))
+  done
+  unset _arg_map
+}
+
+# Execution Wrapper
+execute_step() {
+  local func_name=$1
+  shift
+  local args=("$@")
+
+  # 1. Run PRE hook if exists
+  execute_step_hook "${func_name}_pre" "PRE hook " "${args[@]}"
+
+  do_log "INFO START ::: running action    :: $func_name"
+
+  # 1. Run ARGS hook if exists (Decentralized parsing)
+  if type "${func_name}_args" &>/dev/null; then
+    do_log "DEBUG Running ARGS hook for: $func_name"
+    "${func_name}_args" "${args[@]}" || return $?
+  fi
+
+  # Parse @arg metadata: map --flag value pairs to env vars
+  local func_file="${_func_to_file[$func_name]:-}"
+  if [[ -n "$func_file" && ${#args[@]} -gt 0 ]]; then
+    execute_step_parse_args "$func_file" "${args[@]}"
+  fi
+
+  # Validate required @param metadata before running (if available)
+  if [[ -n "$func_file" ]] && type do_validate_params &>/dev/null; then
+    do_validate_params "$func_file"
+    local _vp_rc=$?
+    if [[ $_vp_rc -ne 0 ]]; then
+      return $_vp_rc
+    fi
+  fi
+
+  # Run the function
+  # We temporarily disable the global ERR trap to ensure POST hook can run even on failure
+  trap - ERR
+  "$func_name" "${args[@]}"
+  local exit_status=$?
+  trap 'error_handler ${LINENO} "$BASH_COMMAND"' ERR
+
+  if [[ $exit_status -eq 0 ]]; then
+    do_log "INFO STOP  ::: running function  :: $func_name"
+  else
+    do_log "ERROR Action failed with status $exit_status"
+  fi
+
+  # 2. Run POST hook if exists (guaranteed cleanup)
+  execute_step_hook "${func_name}_post" "POST hook" "${args[@]}"
+
+  # If the main action failed, now trigger the error handler
+  if [[ $exit_status -ne 0 ]]; then
+    error_handler "$LINENO" "$func_name" "$exit_status"
+  fi
+
+  return $exit_status
+}
+
+trap 'error_handler ${LINENO} "$BASH_COMMAND"' ERR
+
+# Machine-readable mode. When the caller asks an action for --json (or
+# --quiet), STDOUT belongs to that action alone and nothing the framework says
+# may land in it -- otherwise `./run -a <action> --json | jq` parses ANSI
+# escapes and log lines instead of the document.
+#
+# Three separate things used to write to stdout: do_flush_screen's raw escapes,
+# every do_log line, and the stderr tee below (whose own stdout was the shell's
+# stdout, folding stderr back onto stdout). All three are handled here; nothing
+# is lost, because the log files still receive every line and a terminal shows
+# both streams.
+do_detect_stdout_mode() {
+  local arg
+  RUN_STDOUT_IS_DATA=0
+  for arg in "$@"; do
+    case "$arg" in
+      --json | --quiet) RUN_STDOUT_IS_DATA=1 ;;
+    esac
+  done
+  export RUN_STDOUT_IS_DATA
+}
+
+# Quiet logs for agents (token/focus practice 05). An agent reads ./run through
+# a pipe, and there ~60% of every byte was decoration: ANSI colour, a date, the
+# module, the box, the pid and START/STOP banners. So when stdout is not a
+# terminal (or RUN_LOG=compact) a log line prints as `LEVEL msg`, DEBUG is
+# dropped (RUN_LOG=debug keeps it) and the framework banners are dropped. The
+# log FILE keeps the full line either way. RUN_LOG=full restores the old
+# format on a pipe. Decided once here, before main's tee turns stdout into a
+# pipe; an inherited value (a ./run inside a ./run) is kept.
+do_detect_log_mode() {
+  case "${RUN_LOG:-}" in
+    full) RUN_LOG_COMPACT=0 ;;
+    compact | debug) RUN_LOG_COMPACT=1 ;;
+    *)
+      if [[ -z "${RUN_LOG_COMPACT:-}" ]]; then
+        if [[ -t 1 ]]; then RUN_LOG_COMPACT=0; else RUN_LOG_COMPACT=1; fi
+      fi
+      ;;
+  esac
+  export RUN_LOG_COMPACT
+}
+
+main() {
+  do_detect_stdout_mode "$@"
+  do_detect_log_mode
+  [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" || "$RUN_LOG_COMPACT" == "1" ]] || do_flush_screen
+  do_set_vars "$@"
+  ts=$(date "+%Y%m%d_%H%M%S")
+  main_log_dir=~/var/log/${PROJ:-run.sh}/
+  mkdir -p $main_log_dir
+  main_exec "$@" \
+    > >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log) \
+    2> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  exit $?
+}
+
+main_exec() {
+  local args=("$@")
+  do_load_functions
+  do_detect_base_paths
+  do_load_config
+  do_require_bins
+  do_verify_symlinks
+  test -z "${actions:-}" && actions=' do_print_help '
+  do_run_actions "$actions" "${args[@]:2}"
+  local _run_rc=$?
+  do_finalize "$_run_rc"
+  return $_run_rc
+}
+
+# Framework core dependencies
+do_require_bins() {
+  # Core run.sh requirements
+  do_require_bin perl find sed awk hostname date tee mkdir
+}
+
+# Legacy get_function_list — kept for backward compatibility with any
+# external callers.  No longer used in the hot path; the optimised
+# do_load_functions builds the _func_to_file map from filename conventions.
+get_function_list() {
+  env -i PATH=/bin:/usr/bin:/usr/local/bin bash --noprofile --norc -c '
+      source "'"$1"'"
+      typeset -f |
+      grep '\''^[^{} ].* () $'\'' |
+      awk "{print \$1}" |
+      while read -r fnc_name; do
+         type "$fnc_name" | sed -n 1p | grep "is a function$" >/dev/null || continue
+            echo "$fnc_name"
+            done
+            '
+}
+
+do_read_cmd_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -a | --actions) shift && actions="${actions:-}${1:-} " && shift ;;
+    -h | --help) actions=' do_print_help ' && ENV='dev' && shift ;;
+    *) shift ;;  # Pass unrecognized arguments to the functions
+    esac
+  done
+}
+
+# Optimised action dispatcher: looks up pre-built _func_to_file map
+# instead of spawning find + get_function_list subprocesses per action.
+do_run_actions() {
+  actions=$1
+  local args=("${@:2}")
+  actions_found=0
+  cd ${PROJ_PATH:-}
+  # Space-separated names, empty fields dropped. Was echo | tr | sed,
+  # one fork pair on every ./run including the action-not-found path.
+  local _an_raw="${actions}" _an_piece _an_nl
+  _an_nl=$'\n'
+  actions=""
+  while [[ "${_an_raw}" == *" "* ]]; do
+    _an_piece="${_an_raw%% *}"
+    _an_raw="${_an_raw#* }"
+    if [[ -n "${_an_piece}" ]]; then
+      if [[ -n "${actions}" ]]; then
+        actions="${actions}${_an_nl}${_an_piece}"
+      else
+        actions="${_an_piece}"
+      fi
+    fi
+  done
+  if [[ -n "${_an_raw}" ]]; then
+    if [[ -n "${actions}" ]]; then
+      actions="${actions}${_an_nl}${_an_raw}"
+    else
+      actions="${_an_raw}"
+    fi
+  fi
+  run_funcs=''
+  do_log "DEBUG do_run_actions: actions=$actions, args=${args[*]}"
+  while IFS= read -r arg_action || [[ -n "${arg_action:-}" ]]; do
+    [[ -z "${arg_action:-}" ]] && continue
+    # Normalise to do_snake_case
+    local lookup="$arg_action"
+    [[ "$lookup" != do_* ]] && lookup="do_${lookup//-/_}"
+    lookup="${lookup//-/_}"
+
+    if [[ -n "${_func_to_file[$lookup]:-}" ]]; then
+      actions_found=$((actions_found + 1))
+      if [[ -n "${run_funcs}" ]]; then
+        run_funcs="${run_funcs}${_an_nl}${lookup}"
+      else
+        run_funcs="${lookup}"
+      fi
+    fi
+  done <<< "${actions}"
+
+  do_log "DEBUG actions_found=$actions_found"
+  test $actions_found -eq 0 && {
+    do_log "FATAL action(s) requested: \"$actions\" NOT found !!!"
+    do_log "FATAL 1. check the spelling of your action"
+    do_log "FATAL 2. check the available actions by: ./run --help"
+    do_log "FATAL the run failed !"
+    exit 1
+  }
+
+  # A for loop over an array, not `while read ... <<< "$run_funcs"`: the
+  # actions keep the CALLER's stdin (a pipe, the owner's tty), and an action
+  # that reads stdin cannot swallow the rest of the list (run-action-stdin.tst.sh)
+  local _final_rc=0 _run_list=()
+  mapfile -t _run_list <<< "${run_funcs}"
+  for run_func in "${_run_list[@]}"; do
+    [[ -z "${run_func:-}" ]] && continue
+    cd ${PROJ_PATH:-}
+    execute_step "$run_func" "${args[@]}"
+    local _step_rc=$?
+    (( _step_rc != 0 )) && _final_rc=$_step_rc
+  done
+  return $_final_rc
+}
+
+
+do_flush_screen() {
+  printf "\033[2J"
+  printf "\033[0;0H"
+}
+
+do_log() {
+  # In machine-readable mode the caller owns stdout, so every framework line
+  # goes to stderr instead. Re-entering with the stream already swapped is what
+  # keeps this to four lines: the guard stops the second pass from swapping
+  # again. The log FILE still gets the line either way.
+  if [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" && -z "${_DO_LOG_ON_STDERR:-}" ]]; then
+    _DO_LOG_ON_STDERR=1 do_log "$@" >&2
+    return $?
+  fi
+
+  print_ok() {
+    GREEN_COLOR="\033[0;32m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${GREEN_COLOR} ✔ ${1:-} ${DEFAULT_COLOR}"
+  }
+
+  print_warning() {
+    YELLOW_COLOR="\033[33m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${YELLOW_COLOR} ⚠ ${1:-} ${DEFAULT_COLOR}"
+  }
+
+  print_info() {
+    BLUE_COLOR="\033[0;34m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${BLUE_COLOR} ℹ ${1:-} ${DEFAULT_COLOR}"
+  }
+
+
+  print_debug() {
+    CYAN_COLOR="\033[0;36m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${CYAN_COLOR} ⚙ ${1:-} ${DEFAULT_COLOR}"
+  }
+
+  print_fail() {
+    RED_COLOR="\033[0;31m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${RED_COLOR} ❌ [NOK] ${1:-}${DEFAULT_COLOR}"
+  }
+
+  print_fatal() {
+    RED_COLOR="\033[0;31m"
+    DEFAULT_COLOR="\033[0m"
+    echo -e "${RED_COLOR} 💣 [FATAL] ${1:-}${DEFAULT_COLOR}"
+  }
+
+  # First two words and the remainder, the same bytes as
+  # `echo $* | cut -d" " -f1/-f2/-f3-`, with no fork. Unquoted $* collapses
+  # IFS whitespace; a line with no space has no delimiter, and cut prints
+  # that whole line for every -f. RUN_LOG_EPOCH (seconds) freezes both
+  # stamps for a byte-compare; unset means now. printf %()T matches date
+  # in the same TZ.
+  local _do_log_words=()
+  read -r -a _do_log_words <<< "$*" || true
+  if ((${#_do_log_words[@]} <= 1)); then
+    type_of_msg="${_do_log_words[0]:-}"
+    action="$type_of_msg"
+    rest_of_msg="$type_of_msg"
+  else
+    type_of_msg="${_do_log_words[0]}"
+    action="${_do_log_words[1]}"
+    if ((${#_do_log_words[@]} > 2)); then
+      rest_of_msg="${_do_log_words[*]:2}"
+    else
+      rest_of_msg=""
+    fi
+  fi
+
+  local display_type="${type_of_msg/WARNING/WARN}"
+  local type_padded
+  type_padded=$(printf "%-7s" "[$display_type]")
+
+  local _do_log_ts _do_log_day
+  printf -v _do_log_ts '%(%Y-%m-%d %H:%M:%S %Z)T' "${RUN_LOG_EPOCH:--1}"
+  printf -v _do_log_day '%(%Y%m%d)T' "${RUN_LOG_EPOCH:--1}"
+
+  if [[ "$action" == "START" || "$action" == "STOP" ]]; then
+    formatted_action=$(printf "%-5s" "$action")
+    msg=" $type_padded ${_do_log_ts} [${PROJ:-}][@${HOST_NAME:-}] [$$] $formatted_action $rest_of_msg"
+  else
+    msg=" $type_padded ${_do_log_ts} [${PROJ:-}][@${HOST_NAME:-}] [$$] $action $rest_of_msg"
+  fi
+
+  # One mkdir per directory, not one per line. Resolve again only when
+  # LOG_DIR changes or the directory is gone.
+  if [[ "${_do_log_dir_ready:-}" != "${LOG_DIR:-}" || -z "${LOG_DIR:-}" || ! -d "${LOG_DIR:-}" ]]; then
+    local _log_dir
+    if [[ -n "${LOG_DIR:-}" ]]; then
+      _log_dir="$LOG_DIR"
+      mkdir -p "$_log_dir" 2>/dev/null || true
+    elif [[ -n "${PROJ:-}" && -n "${ORG:-}" && -n "${APP:-}" ]]; then
+      _log_dir="${VAR_DIR:-/var}/${ORG}/${APP}/${PROJ}/dat/log/bash"
+      if ! mkdir -p "$_log_dir" 2>/dev/null; then
+        _log_dir="${PROJ_PATH:-$(pwd)}/dat/log/bash"
+        mkdir -p "$_log_dir" 2>/dev/null || true
+      fi
+    else
+      _log_dir="${PROJ_PATH:-$(pwd)}/dat/log/bash"
+      mkdir -p "$_log_dir" 2>/dev/null || true
+    fi
+    log_dir="$_log_dir"
+    export LOG_DIR="$log_dir"
+    _do_log_dir_ready="$LOG_DIR"
+  fi
+  log_dir="$LOG_DIR"
+  log_file="$log_dir/${PROJ:-run}.${_do_log_day}.log"
+
+  # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
+  # full line): the file gets the full line, stdout `LEVEL msg`.
+  if [[ "${RUN_LOG_COMPACT:-0}" == "1" ]]; then
+    case "$type_of_msg" in
+    'FATAL') print_fatal "$msg" ;;
+    'ERROR') print_fail "$msg" ;;
+    'WARNING'|'WARN') print_warning "$msg" ;;
+    'INFO') print_info "$msg" ;;
+    'OK')    print_ok    "$msg" ;;
+    'DEBUG') print_debug "$msg" ;;
+    *) echo "$msg" ;;
+    esac >>"$log_file"
+    [[ "$type_of_msg" == "DEBUG" && "${RUN_LOG:-}" != "debug" ]] && return 0
+    [[ ( "$action" == "START" || "$action" == "STOP" ) && "$rest_of_msg" == "::: running "* ]] && return 0
+    [[ "$*" == *"'s run completed" ]] && return 0
+    local _body="$*"
+    _body="${_body#"$type_of_msg"}"
+    if [[ "$_body" == "$*" ]]; then
+      echo "$*"
+    else
+      echo "$display_type ${_body# }"
+    fi
+    return 0
+  fi
+
+  case "$type_of_msg" in
+  'FATAL') print_fatal "$msg" | tee -a $log_file ;;
+  'ERROR') print_fail "$msg" | tee -a $log_file ;;
+  'WARNING'|'WARN') print_warning "$msg" | tee -a $log_file ;;
+  'INFO') print_info "$msg" | tee -a $log_file ;;
+  'OK')    print_ok    "$msg" | tee -a $log_file ;;
+  'DEBUG') print_debug "$msg" | tee -a $log_file ;;
+  *) echo "$msg" | tee -a $log_file ;;
+  esac
+}
+
+do_set_vars() {
+  set -u -o pipefail
+  do_read_cmd_args "$@"
+  unit_run_dir=$(perl -e 'use File::Basename; use Cwd "abs_path"; print dirname(abs_path(@ARGV[0]));' -- "$0")
+  # Parameter expansion, not basename/dirname: each $(basename ...) is a fork
+  # + exec, and every ./run pays them before it does anything (perf round 4 C1).
+  # unit_run_dir is already abs_path-resolved, so ${x##*/} is its basename.
+  declare -gx RUN_UNIT="${unit_run_dir##*/}.sh" && export RUN_UNIT
+  declare -gx PROJ_PATH="$(cd "${unit_run_dir:-}/../../.." && pwd)" && export PROJ_PATH
+  declare -gx APP_PATH="$(cd "${unit_run_dir:-}/../../../.." && pwd)" && export APP_PATH
+  declare -gx ORG_APP_PATH="${APP_PATH}" && export ORG_APP_PATH
+  declare -gx ORG_PATH="$(cd "${unit_run_dir:-}/../../../../.." && pwd)" && export ORG_PATH
+  declare -gx BASE_PATH="$(cd "${unit_run_dir:-}/../../../../../.." && pwd)" && export BASE_PATH
+  _above_base="${BASE_PATH%/*}" && declare -gx VAR_DIR="${VAR_DIR:-${_above_base%/}/var}" && export VAR_DIR
+  # Detect framework layer: if parent of PROJ_PATH matches *-frw, expose it as FRW_PATH
+  _frw_candidate="${PROJ_PATH%/*}"
+  if [[ "${_frw_candidate##*/}" == *-frw ]]; then
+    declare -gx FRW_PATH="${_frw_candidate}" && export FRW_PATH
+  else
+    declare -gx FRW_PATH="" && export FRW_PATH
+  fi
+  do_ensure_logical_link
+  # Path-derived building blocks. Env override wins; otherwise derived from the
+  # canonical layout: BASE_PATH/ORG/APP/APP-PROJ_KIND.
+  declare -gx ORG="${ORG:-${ORG_PATH##*/}}" && export ORG
+  declare -gx APP="${APP:-${APP_PATH##*/}}" && export APP
+  declare -gx PROJ="${PROJ_PATH##*/}" && export PROJ
+  declare -gx PROJ_KIND="${PROJ_KIND:-${PROJ#${APP}-}}" && export PROJ_KIND
+
+  declare -gx USER="${USER:-$(id -un)}" && export USER
+  declare -gx HOST_NAME="$(hostname -s)" && export HOST_NAME
+  declare -gx LOG_DIR="" && export LOG_DIR
+}
+
+do_ensure_logical_link() {
+  if [[ "${unit_run_dir:-}" != */src/bash/run ]]; then
+    export PROJ_PATH=$(cd $unit_run_dir && echo $(pwd))
+  fi
+}
+
+do_finalize() {
+  local _rc="${1:-$?}"
+  do_log "INFO OK $RUN_UNIT's run completed"
+  return "$_rc"
+}
+
+# Optimised function loader: sources all *.func.sh files once and builds
+# a global associative array (_func_to_file) mapping each do_* function
+# name to its source file.  Discovery is a single recursive `find` across
+# lib/bash/funcs/ and src/bash/run/, so any subdirectory under
+# src/bash/run/ (e.g. src/bash/run/zip/, src/bash/run/morph/,
+# src/bash/run/test/, src/bash/run/help/) is picked up automatically — no
+# need to list subdirs explicitly.  Function names are derived from the
+# filename convention (kebab-case.func.sh → do_snake_case) instead of
+# spawning a subprocess per file via get_function_list.
+# Convention: node-jira-bind.func.sh MUST define do_node_jira_bind().
+do_load_functions() {
+  declare -gA _func_to_file
+  local f fname func_name
+  local search_dirs=()
+
+  # Scan only dirs that exist (avoids `find` printing errors for missing trees).
+  [[ -d "${PROJ_PATH:-}/lib/bash/funcs" ]] && search_dirs+=("${PROJ_PATH}/lib/bash/funcs")
+  [[ -d "${PROJ_PATH:-}/src/bash/run" ]]   && search_dirs+=("${PROJ_PATH}/src/bash/run")
+  (( ${#search_dirs[@]} == 0 )) && return
+
+  while IFS= read -r -d "" f; do
+    source "$f"
+    # Derive function name: kebab-case.func.sh → do_snake_case (parameter
+    # expansion: a $(basename) here forked once per file, ~0.4 s per orc ./run)
+    fname="${f##*/}"
+    fname="${fname%.func.sh}"
+    # Skip pre/post hooks from primary action registration
+    [[ "$fname" == *".pre" || "$fname" == *".post" ]] && continue
+
+    func_name="do_${fname//-/_}"
+    # Register only if the function actually exists after sourcing
+    if declare -f "$func_name" &>/dev/null; then
+      _func_to_file["$func_name"]="$f"
+    fi
+  done < <(find "${search_dirs[@]}" -type f -name "*.func.sh" -print0 2>/dev/null | sort -z)
+}
+
+quit_on(){
+  rv=$?
+  if [ $rv -ne 0 ]; then
+    do_log "FATAL Error: Failed to $1"
+    exit $rv
+  fi
+}
+
+main "$@"
+
+#==============================================================================
+# run.sh — minimalistic bash framework
+# Version:  3.8.2
+# Upstream: a sibling project (its -utl, v3.8.2)
+#------------------------------------------------------------------------------
+# Version history (newest first):
+#   3.8.2  2026-10-16  Copied unchanged into csi-spl-utl from csi-spl-orc (SPL-2110).
+#   3.8.2  2026-09-18  Copied unchanged into csi-spl-orc from csi-spl-iac.
+#   3.8.2  2026-09-17  Copied unchanged into csi-spl-iac from sibling-prj-utl (the
+#                      newest of the sibling-prj and csi-rel copies).
+#   3.8.0  2026-04-30  Sync framework primitives from app-edw-utl: write-probe
+#                      in do_detect_base_paths (more reliable than -w on some
+#                      FUSE/NFS filesystems); path-derived LOG_DIR formula in
+#                      do_log (both lib/bash/funcs/log.func.sh and run.sh
+#                      inline copy) — removes hardcoded /var/<org>/<project>/
+#                      sibling-prj-utl literal so logs land at
+#                      \${VAR_DIR}/\${ORG}/\${APP}/\${PROJ}/dat/log/bash for
+#                      whichever project clones this framework; +docker hint
+#                      in do_require_bin install map.
+#   3.7.0  2026-04-30  Forked back to csitea/sibling-prj as a minimal bootstrap.
+#                      Slimmed: dropped Make, Docker, Confluence/Jira/GCP
+#                      actions; nested under sibling-prj-utl/. Imported from
+#                      sibling-prj-utl: auto-discovered actions, named-args + PRE/
+#                      POST hooks, do_load_config, do_detect_base_paths,
+#                      do_verify_symlinks, do_help_with, test fixtures.
+#   3.6.4  2026-04-30  Sync point with sibling-prj-utl (full feature set, downstream).
+#   2.x    2024-08     RUN_UNIT var resolution, OS-distro vars hardening
+#                      (debian/suse/fedora), do_set_vars_v204 era.
+#   1.1    2024-02     do_log split into a truly re-usable helper; DIR -> PATH
+#                      naming refactor across the framework (<REDACTED>).
+#   1.0.3  2023-01-11  First tagged release: limited support to invoke run from
+#                      non-symlink <<PRODUCT_DIR>>/run + do_zip_me + per-distro
+#                      set-vars-on-<<os>> hooks.
+#
+# When copying this file into a downstream project: bump the version above and
+# append a new entry describing the local change. Keep the banner intact.
+#==============================================================================
+# csi-spl ::: v3.8.2

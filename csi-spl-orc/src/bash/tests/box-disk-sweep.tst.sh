@@ -11,7 +11,9 @@
 #      worktree (and its merged branch); keeps a role seat, an alive record, a
 #      dirty one, one off the trunk, a recent one and one a process works in
 #   3. do_box_disk_sweep: runs the steps in order with DRY_RUN and the docker
-#      age passed on, a failing step does not stop the next (rc 1), an
+#      age passed on, the workdirs step as csi-spl-utl's ./run -a
+#      do_sweep_workdirs with the measured free % (its own test:
+#      workdir-sweep.tst.sh), a failing step does not stop the next (rc 1), an
 #      unknown step is refused, a held lock skips
 #   3b. the free-space trigger, on a planted free %: 50 runs the normal
 #      limits (72h / 1440 min), 10 the low ones (12h / 360), 3 the crit ones
@@ -96,24 +98,26 @@ done
 kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
 
 # ---- 3. the sweep runs the steps --------------------------------------------
-F="$T/fake" O="$T/fake-orc" L="$T/steps.log"
-mkdir -p "$F" "$O"
+F="$T/fake" O="$T/fake-orc" U="$T/fake-utl" L="$T/steps.log"
+mkdir -p "$F" "$O" "$U"
 for s in spl-session-prune tmp-stale-sweep wt-dead-sweep prune-docker-images journal-sweep runner-sweep; do
   printf '#!/bin/sh\necho "%s DRY_RUN=$DRY_RUN UNTIL=${PRUNE_UNTIL:-}" >>%q\n[ %s != tmp-stale-sweep ]\n' "$s" "$L" "$s" >"$F/$s.sh"
 done
 printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN AGE=${GO_CACHE_MAX_AGE_MIN:-}" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
+printf '#!/bin/sh\necho "workdirs $* DRY_RUN=$DRY_RUN FREE=$WORKDIR_SWEEP_FREE_PCT" >>%q\n' "$L" >"$U/run"; chmod +x "$U/run"
 printf '#!/bin/sh\necho "send $*" >>%q\n' "$T/sent" >"$T/send"
-bsw() { SNIPPET='do_box_disk_sweep' in_orc BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_ORC="$O" BOX_SWEEP_LOCK="$T/sweep.lock" BOX_SWEEP_MOUNTS="$T" \
+bsw() { SNIPPET='do_box_disk_sweep' in_orc BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_ORC="$O" BOX_SWEEP_UTL="$U" BOX_SWEEP_LOCK="$T/sweep.lock" BOX_SWEEP_MOUNTS="$T" \
   BOX_SWEEP_SEND="$T/send" BOX_SWEEP_FREE_PCT="${FREE:-50}" "$@" 2>&1; }
 out="$(bsw DRY_RUN=0)"; rc=$?
 want="spl-session-prune DRY_RUN=0 UNTIL=
 tmp-stale-sweep DRY_RUN=0 UNTIL=
 wt-dead-sweep DRY_RUN=0 UNTIL=
+workdirs -a do_sweep_workdirs DRY_RUN=0 FREE=50
 go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440
 prune-docker-images DRY_RUN=0 UNTIL=72h
 journal-sweep DRY_RUN=0 UNTIL=
 runner-sweep DRY_RUN=0 UNTIL="
-[ "$(cat "$L")" = "$want" ] && pass "3. the steps run in order, DRY_RUN and the docker age passed on" || fail "3. steps: $(cat "$L")"
+[ "$(cat "$L")" = "$want" ] && pass "3. the steps run in order, DRY_RUN, the docker age and (to the utl workdirs action) the free % passed on" || fail "3. steps: $(cat "$L")"
 [ "$rc" = 1 ] && grep -q 'FAIL step tmp rc=1' <<<"$out" && grep -q 'DONE rc=1' <<<"$out" && pass "3. a failing step is reported and the next still runs" || fail "3. rc $rc ($out)"
 out="$(bsw BOX_SWEEP_STEPS='tmp rm-rf')"; rc=$?
 [ "$rc" = 2 ] && grep -q "unknown step 'rm-rf'" <<<"$out" && pass "3. an unknown step is refused" || fail "3. unknown step (rc $rc: $out)"

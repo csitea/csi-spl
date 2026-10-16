@@ -71,9 +71,9 @@ spawn_rename_how() {
 # vibe runs every hook with its launch dir as cwd (vibe/core/hooks/executor.py,
 # 2.26.0), the post_agent DM mirror too: a lane that removed its worktree
 # answered the owner's DMs in its terminal only ("[spool-mirror] failed to
-# start: [Errno 2]", m-587 2026-10-08). The closer's --retire removes it.
+# start: [Errno 2]", m-587 2026-10-08). The disk sweep removes it after 24 h.
 spawn_teardown_how() {
-  printf '%s' "TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (vibe's hooks run in it); the closer's --retire removes them."
+  printf '%s' "TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (vibe's hooks run in it); --retire lists them for the disk sweep, which removes them after 24 h."
 }
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh

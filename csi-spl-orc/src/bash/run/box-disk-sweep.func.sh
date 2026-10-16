@@ -4,6 +4,8 @@
 # @description step after the other: old dead session transcripts
 # @description (do_spl_session_prune), idle /tmp build leftovers
 # @description (do_tmp_stale_sweep), dead landed worktrees (do_wt_dead_sweep),
+# @description the finished lanes' listed workdirs older than 24 h, 6 h at <= 8%
+# @description free (csi-spl-utl do_sweep_workdirs, $SPOOL_ROOT/workdirs.tsv),
 # @description the Go build cache (do_prune_go_build_cache), docker images +
 # @description build cache older than BOX_SWEEP_DOCKER_UNTIL
 # @description (do_prune_docker_images), the systemd journal down to
@@ -21,7 +23,7 @@
 # @description orchestrator. Dry run unless DRY_RUN=0. The cron line (every
 # @description 15 min, gated) is do_box_disk_sweep_install_cron.
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param BOX_SWEEP_STEPS (optional) - default "sessions tmp worktrees go docker journal runners vartmp logs"
+# @param BOX_SWEEP_STEPS (optional) - default "sessions tmp worktrees workdirs go docker journal runners vartmp logs"
 # @param BOX_SWEEP_JOURNAL_MAX (optional) - default 500M
 # @param BOX_SWEEP_RUNNER_ROOT (optional) - default /srv/gh-runner
 # @param BOX_SWEEP_RUNNER_AGE (optional) - default 2 (days)

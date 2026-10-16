@@ -115,9 +115,11 @@ and closes nothing (an id alone may name your rotation successor's window).
 `--retire` then retires the id once the window is gone (specs/061 3.6): your
 spool dir, registry row and identity record move aside, so the number can be
 handed out again after a 24 h quarantine. A role id (001-003) is never retired.
-The retire then removes your worktree and its branch (`worktree remove`,
-`branch -d`) only when the tree is clean and HEAD is on origin/<trunk>;
-otherwise both stay and the close log says why. Any harness, no step of yours.
+The retire then LISTS your worktree, branch, /tmp scratch and /var/tmp
+leftovers in the box's workdir table (`$SPOOL_ROOT/workdirs.tsv`) instead of
+removing them: a fix after the push still finds them. The disk sweep removes
+them after 24 h (6 h when the disk is critical), a worktree only when clean.
+Any harness, no step of yours.
 
 ```bash
 bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer --retire

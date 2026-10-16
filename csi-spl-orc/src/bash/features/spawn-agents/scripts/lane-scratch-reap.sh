@@ -3,9 +3,10 @@
 # shared /tmp tmpfs: /tmp/claude-<uid>/<slug>/ and /tmp/claude-<uid>/<slug>-*/
 # (sessions started in a subdir), <slug> being the lane's worktree path with
 # every character but [A-Za-z0-9] turned into '-' (Claude Code's project
-# slug: /opt/x/c-236 -> -opt-x-c-236). Run by agent-id-retire.sh (step 8)
-# once the lane's window is gone, so /exit-clean, tmux-close-window.sh
-# --retire and do_spl_agent_id_retire all reap it.
+# slug: /opt/x/c-236 -> -opt-x-c-236). agent-id-retire.sh (step 8) runs it
+# with --list once the lane's window is gone and lists each dir in the box's
+# workdir table (workdir-register.sh): the disk sweep removes it after 24 h
+# (owner, t1 37349c9b msg ec060ebc). --apply still removes at once, by hand.
 # Why: on sat, 2026-10-15, the closed c-232's scratch held 20 GB (434 test
 # harness dirs + a Postgres data dir) and /tmp reached 93%; the hourly
 # do_tmp_scratch_sweep waits 24 h of idleness, closing a lane removed nothing.
@@ -16,8 +17,9 @@
 # owner. One line per dir (PLAN|DO remove <KB> / KEEP <why>), also appended
 # to LANE_SCRATCH_LOG.
 #
-# Usage: lane-scratch-reap.sh [--apply] <worktree path>
-#   without --apply: PLAN lines only
+# Usage: lane-scratch-reap.sh [--apply|--list] <worktree path>
+#   without --apply: PLAN lines only; --list: each real dir's path, one per
+#   line, nothing else (no process check, nothing removed)
 # Env: LANE_SCRATCH_TMP (default /tmp), LANE_SCRATCH_SUDO=1|0 (0: only this
 #   user's processes are read and only its dirs removed; tests),
 #   LANE_SCRATCH_LOG (default $XDG_STATE_HOME or ~/.local/state, then
@@ -26,14 +28,16 @@
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
-APPLY=0 WT=""
+APPLY=0 LIST=0 WT=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
+    --list) LIST=1; shift ;;
     -*) echo "lane-scratch-reap: unknown argument: $1" >&2; exit 2 ;;
     *) [ -z "$WT" ] || { echo "lane-scratch-reap: one worktree path only" >&2; exit 2; }; WT="$1"; shift ;;
   esac
 done
+[ "$APPLY$LIST" != 11 ] || { echo "lane-scratch-reap: --apply or --list, not both" >&2; exit 2; }
 [[ "$WT" == /?* ]] || { echo "lane-scratch-reap: needs an absolute worktree path, got '${WT}'" >&2; exit 2; }
 WT="${WT%/}"
 slug="${WT//[^A-Za-z0-9]/-}"
@@ -57,6 +61,10 @@ for d in "$tmp"/claude-*/"$slug" "$tmp"/claude-*/"$slug"-*; do
   [ -e "$d" ] || [ -L "$d" ] || continue
   dirs+=("$d")
 done
+if [ "$LIST" = 1 ]; then
+  for d in "${dirs[@]}"; do [ -d "$d" ] && [ ! -L "$d" ] && printf '%s\n' "$d"; done
+  exit 0
+fi
 [ "${#dirs[@]}" -gt 0 ] || { say "OK no scratch of $WT under $tmp/claude-*/$slug"; exit 0; }
 
 if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]] && ! sudo -n true 2>/dev/null; then

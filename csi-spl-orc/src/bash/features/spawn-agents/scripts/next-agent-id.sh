@@ -22,7 +22,10 @@
 #   3. its identity record agents/<ID>.json exists;
 #   4. a tmux window carries it;
 #   5. it was retired (registry.retired.tsv) less than SPOOL_ID_QUARANTINE_H
-#      hours ago (default 24).
+#      hours ago (default 24);
+#   6. a row of the box's workdir table (workdirs.tsv, column 3) names it: its
+#      finished lane's worktree still waits for the disk sweep, and a new lane
+#      of that id would reuse the old worktree and its branch.
 # The claim is still `mkdir` without -p: one syscall both refuses a used id and
 # locks out a concurrent spawn racing for the same one. A full line (every
 # number skipped) is exit 1; nothing is ever reused silently.
@@ -163,7 +166,7 @@ if [ "$ID_COUNTER" = machine ]; then SCOPE=acgmq; CURSOR="${SPOOL_ROOT}/agent-id
 else SCOPE="$LETTER"; CURSOR="${SPOOL_ROOT}/agent-id.${LETTER}.cursor"; fi
 ID_TOK="[${SCOPE}]-[0-9]{3}"
 
-# ---- the held numbers: the 5 skip rules ------------------------------------
+# ---- the held numbers: the 6 skip rules ------------------------------------
 declare -A HELD=()
 _hold() {  # WHY — ids on stdin, one per line (anything else is ignored)
   local id n
@@ -204,6 +207,8 @@ QUAR_FROM="$(date -u -d "@$(( $(_now_epoch) - QUAR_H * 3600 ))" +%Y%m%dT%H%M%SZ)
 if [ -r "${SPOOL_ROOT}/registry.retired.tsv" ]; then
   _hold "5:quarantine" < <(awk -F'\t' -v from="$QUAR_FROM" '$6 >= from { print $1 }' "${SPOOL_ROOT}/registry.retired.tsv")
 fi
+_wd="${WORKDIR_TABLE:-${SPOOL_ROOT}/workdirs.tsv}"
+[ -r "$_wd" ] && _hold "6:workdir" < <(awk -F'\t' '!/^#/ && NF { print $3 }' "$_wd")
 if [ -n "$ALSO_REG" ]; then
   _hold "2:also-registry" < <(_reg_ids "${ALSO_REG}/registry.tsv")
   _hold "1:also-registry" < <(_dir_ids "$ALSO_REG")

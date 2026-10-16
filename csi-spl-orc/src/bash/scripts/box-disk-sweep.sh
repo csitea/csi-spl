@@ -7,6 +7,11 @@
 #   sessions   spl-session-prune.sh   old transcripts of dead, unrestorable sessions
 #   tmp        tmp-stale-sweep.sh     idle go-build / tmp.X / Test* / *-gocache in /tmp
 #   worktrees  wt-dead-sweep.sh       clean, landed worktrees of agents that are gone
+#   workdirs   csi-spl-utl do_sweep_workdirs  the finished lanes' worktrees, /tmp
+#                                       scratch and /var/tmp leftovers the retire
+#                                       listed in $SPOOL_ROOT/workdirs.tsv: older
+#                                       than 24 h (6 h at <= 8% free, oldest first),
+#                                       unheld, a worktree clean (SPL-2110)
 #   go         do_prune_go_build_cache  Go build-cache entries older than a day
 #   docker     prune-docker-images.sh   unused images + build cache older than BOX_SWEEP_DOCKER_UNTIL,
 #                                       then the build cache down to its cap
@@ -46,7 +51,7 @@
 # normal run is BOX_SWEEP_EVERY_MIN (240) old; a low / crit tick always runs.
 #
 #   DRY_RUN=1 (default) | 0           passed to every step
-#   BOX_SWEEP_STEPS        default "sessions tmp worktrees go docker journal runners vartmp logs"
+#   BOX_SWEEP_STEPS        default "sessions tmp worktrees workdirs go docker journal runners vartmp logs"
 #   BOX_SWEEP_JOURNAL_MAX  default 500M (journalctl --vacuum-size)
 #   BOX_SWEEP_RUNNER_ROOT  default /srv/gh-runner
 #   BOX_SWEEP_RUNNER_AGE   default 2 (days); idle runners only
@@ -69,6 +74,7 @@
 #   BOX_SWEEP_MOUNTS       default "/ /mnt/data /tmp" (those that exist)
 #   BOX_SWEEP_SCRIPTS      the step scripts' dir (tests), default this dir
 #   BOX_SWEEP_ORC          the orc dir for ./run (tests), default ../..
+#   BOX_SWEEP_UTL          the utl dir for ./run (tests), default <orc>/../csi-spl-utl
 #
 # Exit: 0 every step ran clean; 1 a step failed; 2 usage.
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
@@ -79,10 +85,11 @@ export PATH
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 dry="${DRY_RUN:-1}"
-steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees go docker journal runners vartmp logs}"
+steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees workdirs go docker journal runners vartmp logs}"
 until="${BOX_SWEEP_DOCKER_UNTIL:-72h}"
 scripts="${BOX_SWEEP_SCRIPTS:-$self_dir}"
 orc="${BOX_SWEEP_ORC:-$(cd "$self_dir/../../.." && pwd)}"
+utl="${BOX_SWEEP_UTL:-$orc/../csi-spl-utl}"
 lock="${BOX_SWEEP_LOCK:-${TMPDIR:-/tmp}/box-disk-sweep.$(id -un).lock}"
 go_age="${BOX_SWEEP_GO_AGE_MIN:-1440}"
 cap_pct="${BOX_SWEEP_BUILDER_CAP_PCT:-10}"
@@ -132,7 +139,7 @@ done
 [[ "$journal_max" =~ ^[0-9]+[KMGT]?$ ]] || { say "FAIL BOX_SWEEP_JOURNAL_MAX must be a size like 500M, got '$journal_max'"; exit 2; }
 [[ "$gate" == 0 || "$gate" == 1 ]] || { say "FAIL BOX_SWEEP_GATE must be 0 or 1, got '$gate'"; exit 2; }
 for s in $steps; do
-  case "$s" in sessions|tmp|worktrees|go|docker|journal|runners|vartmp|logs) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
+  case "$s" in sessions|tmp|worktrees|workdirs|go|docker|journal|runners|vartmp|logs) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
 done
 exec 9>>"$lock" || { say "FAIL cannot open the lock $lock"; exit 2; }
 flock -n 9 || { say "SKIP another box disk sweep holds $lock"; exit 0; }
@@ -164,6 +171,7 @@ for s in $steps; do
     sessions)  DRY_RUN="$dry" AGE_DAYS="${AGE_DAYS:-3}" PROJ_PATH="$orc" bash "$scripts/spl-session-prune.sh" ;;
     tmp)       DRY_RUN="$dry" bash "$scripts/tmp-stale-sweep.sh" ;;
     worktrees) DRY_RUN="$dry" bash "$scripts/wt-dead-sweep.sh" ;;
+    workdirs)  ( cd "$utl" && DRY_RUN="$dry" WORKDIR_SWEEP_FREE_PCT="$fpct" ./run -a do_sweep_workdirs ) ;;
     go)        ( cd "$orc" && DRY_RUN="$dry" GO_CACHE_MAX_AGE_MIN="$go_age" ./run -a do_prune_go_build_cache ) ;;
     docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" PRUNE_BUILDER_CAP_PCT="$cap_pct" bash "$scripts/prune-docker-images.sh" ;;
     journal)   DRY_RUN="$dry" BOX_SWEEP_JOURNAL_MAX="$journal_max" bash "$scripts/journal-sweep.sh" ;;
@@ -179,7 +187,7 @@ read -r apct amount <<<"$(free_pct)"
 if [[ "$level" == crit && "$apct" =~ ^[0-9]+$ ]] && (( apct < crit_pct )); then
   say "FAIL level=crit: still ${apct}% free ($amount) after the sweep, under ${crit_pct}%"
   if [[ ! -e "$noted" ]]; then
-    note "CRITICAL $amount is still at ${apct}% free after a crit sweep (docker until=$until, go cache age ${go_age} min): the disk fills soon, free it by hand" \
+    note "CRITICAL $amount is still at ${apct}% free after a crit sweep (docker until=$until, go cache age ${go_age} min, lane workdirs at the 6 h limit): the disk fills soon, free it by hand" \
       && [[ "$dry" == 0 ]] && touch "$noted" 2>/dev/null
   fi
   rc=1

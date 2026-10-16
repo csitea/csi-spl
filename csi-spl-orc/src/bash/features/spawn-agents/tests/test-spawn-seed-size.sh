@@ -52,13 +52,13 @@ for k in claude grok agy qwen mistral; do
     has "$k: rule ($r) present" "($r) " "$prompt"
   done
   has "$k: the seed links the rules doc" "lane-integration-rules.md" "$prompt"
-  # vibe runs its hooks (the DM-reply mirror) in the worktree: an m- lane keeps it
-  if [ "$k" = mistral ]; then
-    hasnt "$k: step (8) does not remove the worktree" "worktree remove" "$prompt"
-    has "$k: step (8) keeps the worktree for vibe's hooks" "(8) TEAR DOWN after (7) is green: HEAD on origin/master; KEEP " "$prompt"
-  else
-    has "$k: step (8) removes the worktree" "worktree remove" "$prompt"
-  fi
+  # Every lane keeps its worktree after the push (owner t1 37349c9b msg
+  # ec060ebc): the retire lists it, the disk sweep removes it after 24 h.
+  hasnt "$k: step (8) does not remove the worktree" "worktree remove" "$prompt"
+  has "$k: step (8) keeps the worktree" "(8) TEAR DOWN after (7) is green: HEAD on origin/master; KEEP " "$prompt"
+  has "$k: step (8) names the 24 h disk sweep" "the disk sweep, which removes them after 24 h" "$prompt"
+  # vibe runs its hooks (the DM-reply mirror) in the worktree: an m- lane says so
+  [ "$k" = mistral ] && has "$k: step (8) names vibe's hooks" "vibe's hooks run in it" "$prompt"
   hasnt "$k: no measured anecdotes in the seed" "Measured on this box" "$prompt"
   hasnt "$k: no FETCH_HEAD race numbers in the seed" "168/200" "$prompt"
 done

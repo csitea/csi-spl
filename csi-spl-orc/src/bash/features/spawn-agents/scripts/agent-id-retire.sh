@@ -23,16 +23,19 @@
 #                  aside (desk-seat-drop.sh): its sidecar stops announcing it
 #                  as a member / tag target (owner 2026-10-05, t1 dc6d5e3f)
 #   worktree    -> the lane's linked worktree (record's "worktree", else the
-#                  registry rundir) and its branch: `worktree remove` +
-#                  `branch -d`, ONLY when the tree is clean AND HEAD is an
-#                  ancestor of origin/<trunk>; else both stay and one line
-#                  says why. Never --force, never -D. The seed prompt's TEAR
-#                  DOWN step is the model's to remember, and agy lanes skipped
-#                  it (a-526, a-528, a-530 left clean, landed worktrees)
+#                  registry rundir) and its branch: LISTED in the box's
+#                  workdir table ($SPOOL_ROOT/workdirs.tsv, workdir-register.sh),
+#                  not removed (owner, t1 37349c9b msg ec060ebc: work may need
+#                  a fix after the push). The disk sweep (csi-spl-utl
+#                  do_sweep_workdirs) removes it after 24 h when clean, never
+#                  --force; the branch only by `branch -d`. A main checkout or
+#                  a dir not named for the id is never listed
 #   scratch     -> the lane's Claude Code scratch on the /tmp tmpfs
-#                  (/tmp/claude-<uid>/<worktree slug>[-*]/), removed when no
-#                  process holds it (lane-scratch-reap.sh, logged): c-232
-#                  left 20 GB there and /tmp reached 93% (sat, 2026-10-15)
+#                  (/tmp/claude-<uid>/<worktree slug>[-*]/, lane-scratch-reap.sh
+#                  --list): listed the same way (c-232 left 20 GB there, sat
+#                  2026-10-15: the sweep removes it once unheld and 24 h old)
+#   var-tmp     -> top-level /var/tmp entries whose name carries the id
+#                  (c-272-base, c272-gocache): listed the same way
 #
 # Refused: a role id (001-003, CLE-001..003), and an id a tmux window still
 # carries (the agent may still be running: closing the window comes first).
@@ -49,7 +52,9 @@
 # RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's),
 # RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
-# RETIRE_SCRATCH=0|1 (default 1; 0 under SPOOL_TEST=1), LANE_SCRATCH_* (its).
+# RETIRE_SCRATCH=0|1, RETIRE_VARTMP=0|1 (default 1; 0 under SPOOL_TEST=1),
+# RETIRE_VARTMP_ROOT (default /var/tmp), LANE_SCRATCH_* (its), WORKDIR_TABLE
+# (workdir-register.sh's).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
 # 3 a window still carries the id, 4 nothing on this machine holds the id
 # (no spool dir, registry row, record or desk seat).
@@ -228,7 +233,20 @@ if [ "$lane" = 1 ]; then
   [ "$APPLY" = 1 ] && { timeout 60 bash "$_here/lane-map.sh" "done" --agent "$ID" >/dev/null 2>&1 \
     || echo "agent-id-retire: WARN the hub lane row of ${ID} was not closed (lane-map.sh done)" >&2; }
 fi
-# ---- 7. the lane's worktree + branch ----------------------------------------
+# ---- 7..9. the lane's working directories: listed, not removed --------------
+# Owner HUM-10, t1 37349c9b msg ec060ebc (2026-10-16): a finished lane keeps its
+# work for a while ("something might happen after the push, and the work needs
+# to be fixed"). Its worktree (+ branch), /tmp scratch and /var/tmp leftovers
+# go into the box's table (workdir-register.sh, $SPOOL_ROOT/workdirs.tsv); the
+# disk guard (csi-spl-utl do_sweep_workdirs, from the box disk sweep) removes
+# them after 24 h. The allocator holds the id while a row names it.
+REGW=(bash "$_here/workdir-register.sh")
+listed() {  # KIND PATH [BRANCH]
+  step "$1" "list ${2}${3:+ (branch ${3})} in ${WORKDIR_TABLE:-${R}/workdirs.tsv} for the disk sweep (removed after 24 h)"
+  [ "$APPLY" = 1 ] || return 0
+  "${REGW[@]}" add --kind "$1" --agent "$ID" --box "$BOX" ${3:+--branch "$3"} "$2" >/dev/null \
+    || echo "agent-id-retire: WARN ${2} was not listed in the workdir table (workdir-register.sh rc $?)" >&2
+}
 # Git runs as the tree's owner (the box user), as every lane's git does.
 wt_git() {
   local d="$1" o; shift
@@ -237,40 +255,41 @@ wt_git() {
   else timeout 60 sudo -n -u "$o" env GIT_TERMINAL_PROMPT=0 git -C "$d" "$@"; fi
 }
 wt_keep() {
-  echo "agent-id-retire: worktree ${WT} kept: $*" >&2
+  echo "agent-id-retire: worktree ${WT} not listed: $*" >&2
 }
-wt_reap() {
-  local top gd cdir repo br up
+wt_list() {
+  local top gd cdir br
   [ -n "$WT" ] && [ -d "$WT" ] || return 0
   top="$(wt_git "$WT" rev-parse --show-toplevel 2>/dev/null)" || { wt_keep "not a git worktree"; return 0; }
   gd="$(wt_git "$WT" rev-parse --absolute-git-dir 2>/dev/null)"
   cdir="$(wt_git "$WT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
   [ -n "$gd" ] && [ -n "$cdir" ] && [ "$gd" != "$cdir" ] || { wt_keep "not a linked worktree (a main checkout is never removed)"; return 0; }
   [ "${top##*/}" = "$ID" ] || { wt_keep "its dir ${top##*/} is not named ${ID}"; return 0; }
-  WT="$top"; repo="${cdir%/.git}"
-  [ -z "$(wt_git "$WT" status --porcelain --untracked-files=all 2>/dev/null)" ] || { wt_keep "dirty (git status not empty)"; return 0; }
+  WT="$top"
   br="$(wt_git "$WT" symbolic-ref -q --short HEAD 2>/dev/null || true)"
-  up="$(wt_git "$WT" rev-parse -q --abbrev-ref '@{u}' 2>/dev/null || true)"
-  case "$up" in origin/?*) ;; *) up="$(wt_git "$WT" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/master)" ;; esac
-  [ "$APPLY" = 1 ] && { wt_git "$WT" fetch -q origin "${up#origin/}" >/dev/null 2>&1 \
-    || echo "agent-id-retire: WARN fetch origin ${up#origin/} failed; checking against the local ${up}" >&2; }
-  wt_git "$WT" merge-base --is-ancestor HEAD "$up" 2>/dev/null || { wt_keep "HEAD is not on ${up} (unlanded commits)"; return 0; }
-  step worktree "git -C ${repo} worktree remove ${WT}${br:+; branch -d ${br}} (clean, HEAD on ${up})"
-  [ "$APPLY" = 1 ] || return 0
-  wt_git "$repo" worktree remove "$WT" >/dev/null 2>&1 || { wt_keep "git worktree remove refused"; return 0; }
-  [ -z "$br" ] || wt_git "$repo" branch -d "$br" >/dev/null 2>&1 \
-    || echo "agent-id-retire: branch ${br} kept: git branch -d refused (not merged into its upstream)" >&2
+  listed worktree "$WT" "$br"
 }
-wtr="${RETIRE_WORKTREE:-}"
-[ -n "$wtr" ] || { wtr=1; [ "${SPOOL_TEST:-}" = 1 ] && wtr=0; }
-[ "$wtr" = 1 ] && wt_reap
+# off unless 1; default 1, 0 under SPOOL_TEST=1
+on() { local v="${1:-}"; [ -n "$v" ] || { v=1; [ "${SPOOL_TEST:-}" = 1 ] && v=0; }; [ "$v" = 1 ]; }
+# ---- 7. the lane's worktree + branch ----------------------------------------
+on "${RETIRE_WORKTREE:-}" && wt_list
 # ---- 8. the lane's /tmp scratch ---------------------------------------------
-scr="${RETIRE_SCRATCH:-}"
-[ -n "$scr" ] || { scr=1; [ "${SPOOL_TEST:-}" = 1 ] && scr=0; }
-if [ "$scr" = 1 ] && [ -n "$WT" ]; then
-  reap=(bash "$_here/lane-scratch-reap.sh"); [ "$APPLY" = 1 ] && reap+=(--apply)
-  "${reap[@]}" "$WT" \
-    || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not reaped (lane-scratch-reap.sh rc $?)" >&2
+if on "${RETIRE_SCRATCH:-}" && [ -n "$WT" ]; then
+  while IFS= read -r d; do [ -n "$d" ] && listed scratch "$d"; done \
+    < <(bash "$_here/lane-scratch-reap.sh" --list "$WT" \
+      || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not read (lane-scratch-reap.sh --list)" >&2)
+fi
+# ---- 9. the lane's /var/tmp leftovers ---------------------------------------
+# A top-level entry whose name carries the id (c-272-base, c272-gocache), not
+# a dot entry, a symlink or root's. Kept as live-lane by the vartmp step while
+# the lane ran; listed now, so the 24 h clock starts at its finish.
+if on "${RETIRE_VARTMP:-}"; then
+  vt="${RETIRE_VARTMP_ROOT:-/var/tmp}" num="${ID#*-}" ltr="${ID%%-*}"
+  for d in "$vt"/*"${ltr}"*"${num}"*; do
+    n="${d##*/}"
+    [ -e "$d" ] && [ ! -L "$d" ] && [[ "${n,,}" =~ (^|[^a-z0-9])${ltr,,}-?${num}([^0-9]|$) ]] || continue
+    [ "$(stat -c %U -- "$d" 2>/dev/null)" != root ] && listed var-tmp "$d"
+  done
 fi
 
 echo "agent-id-retire: ${ID} $([ "$APPLY" = 1 ] && echo retired || echo 'would be retired') at ${RETIRED_UTC} (generation ${SPAWNED}; reusable after ${SPOOL_ID_QUARANTINE_H:-24} h)"

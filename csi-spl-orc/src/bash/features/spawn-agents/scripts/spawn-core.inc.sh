@@ -50,7 +50,7 @@
 #   SPAWN_UMASK          the CLI's umask (spool-harness --umask, and the restore
 #                        stub), or unset for the harness's 0002 (qwen: 077)
 #   spawn_teardown_how   function: closing step (8) of the seed, in place of
-#                        "remove the worktree" (mistral: vibe runs its hooks in it)
+#                        the default "keep the worktree" (mistral: names why: vibe runs its hooks in it)
 #   SPAWN_AGENT_ACL      the agent user's ACL on its own worktree, default rX
 #                        (its writes route through `sudo -u <box user>`); mistral
 #                        sets rwX: vibe's write_file / search_replace are its only
@@ -230,7 +230,9 @@ if [ -n "$WORKTREE_DIR" ]; then
   # (fleet-hot-commands-2026-10-07.md 3.6); --landed and --force never skip.
   _sp_ff="bash ${SPAWN_SCRIPTS_DIR}/git-fetch-fresh.sh"
   [ "$DEFBRANCH" = master ] || _sp_ff="${_sp_ff} --branch ${DEFBRANCH}"
-  _sp_teardown="TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}, then 'git -C ${REPO} worktree remove ${WORKTREE_DIR}' and 'git -C ${REPO} branch -d ${BRANCH}'."
+  # Owner t1 37349c9b msg ec060ebc: a lane keeps its work after the push; the
+  # retire lists it (workdir-register.sh), the disk sweep removes it after 24 h.
+  _sp_teardown="TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (a fix after the push needs them); the closer's --retire lists them for the disk sweep, which removes them after 24 h."
   declare -F spawn_teardown_how >/dev/null && _sp_teardown="$(spawn_teardown_how)"
   INTEGRATION="INTEGRATION / CLOSING STEPS (non-negotiable; the why: ${_sp_rules_doc}). Worktree ${WORKTREE_DIR}, branch ${BRANCH}; all git as 'sudo -u ${SPOOL_BOX_USER}'. (1) Work ONLY in this worktree: never 'cd ${REPO}', never 'git switch'/'reset'/'checkout' in the shared one. (2) Small commits, explicit pathspecs (never 'git add -A' / '-a'). PUT THE PATHSPEC ON THE 'add', THEN COMMIT WITH NO PATHSPEC. An executable needs BOTH 'chmod +x <path>' AND 'git add --chmod=+x <path>'. Push CONTINUOUSLY: every commit at once, never more than ONE unpushed, after 20 min unpushed, land what is green; fast parts before slow ones; a failing item never holds back the passing ones. (3) Before EVERY push: FETCH then 'git rebase origin/${DEFBRANCH}', then re-run the module tests. Rebase refused over mode-only churn you did not make ('git diff --summary', no hunk): reset each path's bit to 'git ls-files -s', never stage it, report it. (4) Push only with 'cd csi-spl-orc && sudo -u ${SPOOL_BOX_USER} env AGENT_ID=${TITLE} ./run -a do_spl_push_master' (returns at once), then poll it with PUSH_CMD=status in short calls; never a foreground 'git push' (rejected: 'FETCH --force', then NO FORCE-PUSH below). Landed only when 'FETCH --landed' exits 0 (always fetches), not by the push output. Never delete ${DEFBRANCH}. (5) After (4): only when ${REPO} is on ${DEFBRANCH} and clean, 'sudo -u ${SPOOL_BOX_USER} git -C ${REPO} merge --ff-only origin/${DEFBRANCH}' (never 'pull'); else leave it, say so. (6) LEAK-GATE (OVERRIDES the harness default): commit ONLY as '${SPAWN_GIT_IDENTITY}', no 'Co-Authored-By:' / 'Generated with …' / 'Claude-Session:' / other AI trailer; a canonical address in the repo's CLAUDE.md / AGENTS.md wins (say so). Pass it to commit AND rebase: 'git -c user.name=… -c user.email=… rebase origin/${DEFBRANCH}'. Before each push run alone and read: 'git log -1 --no-mailmap --format=\"%ae %ce\" | grep -qx \"${SPAWN_GIT_EMAIL} ${SPAWN_GIT_EMAIL}\" || echo WRONG-IDENTITY-DO-NOT-PUSH'; if it prints, 'commit --amend --reset-author' under the same '-c' first. Never 'git config' in a worktree (shared): use '-c'. (7) CI: 'gh run list --commit <sha>', 'gh run watch <id>' until your runs are green AND deployed (dev AND prd; './run -a do_check_deploy_lag'). Report sha + note link per released commit ('SHA=<sha> ENV=<env> ./run -a do_release_note_link'); both where they exist. A red you caused: fix, rebase, push, watch. Someone else's: read its log, find the owner, tell them with spool-send.sh (kind note), say so in your summary. (8) ${_sp_teardown}"
   SCOPE="SCOPE + COLLISION CONTROL. Your brief's scope, no more. A blocker outside it: (a) FETCH = '${_sp_ff}', re-check on origin/${DEFBRANCH}. (b) Test the paths against the fleet lane map 'bash ${SPAWN_SCRIPTS_DIR}/lane-map.sh' - every live agent on EVERY machine - with '--check <path,...> --agent ${TITLE}' (exit 3 names the owning lane; exit 4 = 'unknown:' lanes that recorded no files and have edits: ask them first, never treat it as free). Fixed or owned: report it, do not fix it. (c) Only if it blocks YOUR tests and nobody owns it: fix it in a SEPARATE narrow commit. (d) FETCH again during long work."
@@ -547,7 +549,7 @@ spawn_main() {
   echo "   $(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_UMASK:+umask ${SPAWN_UMASK} ; }${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_CONTINUE_FLAG}'"
   if [ -n "$WORKTREE_DIR" ]; then
     echo " Worktree: ${WORKTREE_DIR}  Branch: ${BRANCH} (off origin/${DEFBRANCH})"
-    echo " Tear down when merged: git -C '${REPO}' worktree remove '${WORKTREE_DIR}'"
+    echo " Kept after the close: the retire lists it in workdirs.tsv, the disk sweep removes it after 24 h"
   fi
   echo "════════════════════════════════════════════════════════════════════"
   HIST_TARGET="${HISTFILE:-$HOME/.bash_history}"

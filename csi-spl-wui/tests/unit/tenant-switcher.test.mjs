@@ -252,7 +252,8 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     assert.match(list, /(^|[^-])padding:\s*2px/)
     assert.match(list, /border:\s*1px solid/)
     const row = style.slice(style.indexOf('.tenant-switcher__option {'), style.indexOf('}', style.indexOf('.tenant-switcher__option {')))
-    assert.match(row, /padding-inline:\s*4px/)
+    /* SPL-2219 (owner topic 65999af9): even padding, the other menus' 12px */
+    assert.match(row, /padding-inline:\s*12px/)
     assert.match(row, /white-space:\s*nowrap/)
     assert.match(src('src/utils/uiIcons.ts'), /building:\s*\[/)
   })
@@ -379,9 +380,10 @@ describe('the closed drop box is the widest name, then 3px, then the arrow', () 
        and the rows carry the theme's colours (the darkest theme's light text
        was drawn on the browser's white popup) */
     const opt = style.slice(style.indexOf('.tenant-switcher__option {'), style.indexOf('}', style.indexOf('.tenant-switcher__option {')))
-    assert.match(opt, /padding-inline:\s*4px/)
+    assert.match(opt, /padding-inline:\s*12px/)
     assert.match(opt, /background-color:\s*var\(--color-bg-2\)/)
-    assert.match(opt, /(^|[^-])color:\s*var\(--color-fg\)/)
+    /* SPL-2219: a softer theme colour for the names, not the body's --color-fg */
+    assert.match(opt, /(^|[^-])color:\s*var\(--color-muted\)/)
     assert.match(vue, /attributeFilter: \['data-font-size'\]/)
     assert.match(vue, /matchMedia\(MOBILE_STACK_QUERY\)/)
     assert.match(vue, /data-testid="tenant-switcher-arrow"/)

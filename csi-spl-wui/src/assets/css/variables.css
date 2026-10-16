@@ -74,6 +74,9 @@
   --color-btn-select-fg: #f4f8ff;
 
   --radius: 8px;
+  /* the small controls' corner: the workspace picker (SPL-2219, owner: "the
+     rounded corners should not be THAT rounded") */
+  --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;

@@ -40,6 +40,9 @@ type HumanSettings struct {
 	// HoursReading is "Count my reading time" (spec 107 section 1.2), nil
 	// when never picked (on). Per tenant only (rdb 0078).
 	HoursReading *bool
+	// AwaitAnims is the ticked "Thinking animation" ids (SPL-2113), nil when
+	// never picked (the WUI's default set). Per tenant only (rdb 0078).
+	AwaitAnims []string
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -82,6 +85,8 @@ type MembershipSettings struct {
 	// HoursIdleMinutes: the member's own idle cutoff N (spec 107, owner Q3 =
 	// B), nil = the workspace's hours.idle_minutes. Read by the hours store.
 	HoursIdleMinutes *int `json:"hours_idle_minutes,omitempty"`
+	// AwaitAnims: the ticked "Thinking animation" ids (SPL-2113), nil = the WUI's default.
+	AwaitAnims []string `json:"await_anims,omitempty"`
 }
 
 // Overlay returns b with every set field of the per-tenant override o applied
@@ -146,6 +151,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.HoursReading != nil {
 		b.HoursReading = o.HoursReading
+	}
+	if o.AwaitAnims != nil {
+		b.AwaitAnims = o.AwaitAnims
 	}
 	return b
 }

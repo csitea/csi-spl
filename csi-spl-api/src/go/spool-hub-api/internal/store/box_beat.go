@@ -14,7 +14,10 @@ import (
 // BoxBeatsRetention is how long a beat row is kept (the hub's sweep).
 const BoxBeatsRetention = 48 * time.Hour
 
-// BoxBeatsMax caps one read.
+// BoxBeatsMax caps one read PER BOX (SPL-2080): ~83 min at the 10 s tick,
+// twice the bench hold's 41 min read, whatever the number of boxes. A total
+// cap cut that read once a third box beat (3 x 246 rows > 500). The hub
+// flags a read where a box reached it (truncated).
 const BoxBeatsMax = 500
 
 // BoxBeat is one beat. Box is the writing box (the session's, never the
@@ -42,7 +45,7 @@ type BoxBeats interface {
 	// AppendBoxBeat appends one beat (the caller has checked it).
 	AppendBoxBeat(ctx context.Context, tenantID string, b BoxBeat) error
 	// ListBoxBeats is the tenant's beats of box ("" = every box) at or after
-	// since, newest first, at most BoxBeatsMax.
+	// since, newest first, at most BoxBeatsMax per box.
 	ListBoxBeats(ctx context.Context, tenantID, box string, since time.Time) ([]BoxBeat, error)
 	// PruneBoxBeats deletes every tenant's beats older than before and
 	// returns how many (the retention sweep).
@@ -76,10 +79,13 @@ func (s *Memory) ListBoxBeats(_ context.Context, tenant, box string, since time.
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].BeatAt.After(out[j].BeatAt) })
-	if len(out) > BoxBeatsMax {
-		out = out[:BoxBeatsMax]
+	kept, n := out[:0], map[string]int{}
+	for _, b := range out {
+		if n[b.Box]++; n[b.Box] <= BoxBeatsMax {
+			kept = append(kept, b)
+		}
 	}
-	return out, nil
+	return kept, nil
 }
 
 func (s *Memory) PruneBoxBeats(_ context.Context, before time.Time) (int, error) {

@@ -21,9 +21,10 @@ func (s *Postgres) AppendBoxBeat(ctx context.Context, tenant string, b BoxBeat) 
 func (s *Postgres) ListBoxBeats(ctx context.Context, tenant, box string, since time.Time) ([]BoxBeat, error) {
 	out := []BoxBeat{}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT box, beat_at, pid FROM box_beats
-			WHERE tenant_id = $1 AND ($2 = '' OR box = $2) AND beat_at >= $3
-			ORDER BY beat_at DESC, id DESC LIMIT $4`, tenant, box, since, BoxBeatsMax)
+		rows, err := tx.Query(ctx, `SELECT box, beat_at, pid FROM (
+				SELECT box, beat_at, pid, id, row_number() OVER (PARTITION BY box ORDER BY beat_at DESC, id DESC) AS n
+				FROM box_beats WHERE tenant_id = $1 AND ($2 = '' OR box = $2) AND beat_at >= $3) b
+			WHERE n <= $4 ORDER BY beat_at DESC, id DESC`, tenant, box, since, BoxBeatsMax)
 		if err != nil {
 			return err
 		}

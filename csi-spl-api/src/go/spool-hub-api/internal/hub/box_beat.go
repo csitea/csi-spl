@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,7 +19,11 @@ import (
 // session, never the frame, and beat_at is the hub's clock:
 //
 //	lane_op box_beat_put   {pid} -> the ACK {ok, box, beat_at, box_down_min}
-//	lane_op box_beat_list  {box?, since?} -> {box, since, rows} newest first
+//	lane_op box_beat_list  {box?, since?} -> {box, since, rows, per_box_max, truncated} newest first
+//
+// rows holds at most per_box_max beats per box (store.BoxBeatsMax); truncated
+// names the boxes that reached it, whose oldest beats in the window may be
+// cut ([] when none): a cut read is visible, never silent (SPL-2080).
 //
 // box_down_min is the lifetime setting in force (rdb 0145, spec 102 11.1):
 // the box fences itself when no ack came for that long (spl_wd_fence).
@@ -123,9 +128,27 @@ func (s *Server) boxBeatFrame(ctx context.Context, x *session, f wire.Frame) (an
 			s.o.Log.Error().Err(err).Str("tenant", x.tenant).Msg("box beats list")
 			return nil, &issueErr{http.StatusInternalServerError, "internal", "box beats unavailable"}
 		}
-		return map[string]any{"box": q.Box, "since": since.UTC().Format(time.RFC3339), "rows": rows}, nil
+		return map[string]any{"box": q.Box, "since": since.UTC().Format(time.RFC3339), "rows": rows,
+			"per_box_max": store.BoxBeatsMax, "truncated": boxBeatsAtCap(rows)}, nil
 	}
 	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be box_beat_put or box_beat_list"}
+}
+
+// boxBeatsAtCap is the boxes of rows that hold store.BoxBeatsMax beats,
+// sorted: their read may have lost its oldest beats.
+func boxBeatsAtCap(rows []store.BoxBeat) []string {
+	n := map[string]int{}
+	for _, b := range rows {
+		n[b.Box]++
+	}
+	out := []string{}
+	for box, c := range n {
+		if c >= store.BoxBeatsMax {
+			out = append(out, box)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // boxDownMin is the box_down_min in force; its default when the setting

@@ -15,7 +15,7 @@ import (
 // authenticated hello like `spool box-stats`:
 //
 //	box-beat put --pid <n>                    one beat; prints the ack (the watchdog tick)
-//	box-beat list [--box <b>] [--since 10m]   {box, since, rows} newest first
+//	box-beat list [--box <b>] [--since 10m]   {box, since, rows, per_box_max, truncated} newest first
 func cmdBoxBeat(cfg *config.Config, args []string) int {
 	if len(args) == 0 {
 		return fail(errors.New("usage: spool box-beat put --pid <n> | spool box-beat list [--box <b>] [--since 10m]"))

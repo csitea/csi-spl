@@ -53,9 +53,15 @@ func TestBoxBeat(t *testing.T) {
 			Box string `json:"box"`
 			PID int    `json:"pid"`
 		} `json:"rows"`
+		PerBoxMax int       `json:"per_box_max"`
+		Truncated *[]string `json:"truncated"`
 	}
 	if err := json.Unmarshal(raw, &a); err != nil || len(a.Rows) != 2 || a.Rows[0].Box != "box-b" {
 		t.Fatalf("list %s: %v", raw, err)
+	}
+	// SPL-2080: the read says its per-box cap and that no box reached it.
+	if a.PerBoxMax != 500 || a.Truncated == nil || len(*a.Truncated) != 0 {
+		t.Fatalf("list per_box_max/truncated: %s", raw)
 	}
 	if a.Rows[0].PID != 4243 || a.Rows[1].PID != 4242 {
 		t.Fatalf("list not newest first: %s", raw)

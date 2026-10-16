@@ -69,6 +69,7 @@ three-tier architecture designed to eliminate single points of failure:
 - The hub computes `wd_count` as the number of active instance rows updated within `box_down_min`.
 - If a box has `wd_count = 0` (no watchdog instance beating), the hub sends **one debounced admin alert** (Section 11.2).
 - The hub acts strictly as an **observer**: zero remote agent migration or CAS is performed when watchdogs are down. Agent failover remains exclusively governed by full box-down detection (absence of all box communication for `box_down_min`, Section 10.2).
+- A beat read (`spool box-beat list`, lane op `box_beat_list`) returns at most `per_box_max` (500) beats **per box**, newest first, and names in `truncated` the boxes that reached the cap. 500 beats at the 10 s tick is about 83 min of one box, twice the bench hold's 41 min read (`spl_box_health_since`). Until SPL-2080 the cap applied to the whole read: measured on prd 2026-10-16T01:56Z, the 41 min read held two boxes, 246 + 247 = 493 rows, so a third box (about 738 rows) would have cut it to the newest 500 and read every box as `recovering`.
 
 ### 1.4 The v1.2 Decision: No Separate Keeper
 In topic `637269bb-d97b-4861-b45e-87200652b169` (HUM-10), the owner decided:

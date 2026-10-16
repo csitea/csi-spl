@@ -183,7 +183,7 @@ run() {
   : >"$T/calls.go"
   : >"$T/calls.fs"
   SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
-'"$act" in_orc APP_PATH="$R" TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 \
+'"$act" in_orc APP_PATH="$R" TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 AGENT_ID=a-177 \
     CALLS="$T/calls" DT_STATE="$T/dt.json" SPOOL_GO="$SPOOL_GO" "$@" >"$T/o" 2>&1
   rc=$?
 }

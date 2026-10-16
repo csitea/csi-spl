@@ -24,7 +24,9 @@
 # @description desk (do_spl_desk_doctree's seat check), a verb off the list, a
 # @description flag in WSDOC_ARGS, a path that is not a relative .md path, and
 # @description WSDOC_IN outside the caller's worktree (APP_PATH), /tmp or
-# @description /var/spool-hub/dispatch, or inside the desk state.
+# @description /var/spool-hub/dispatch, or inside the desk state. A write with
+# @description DRY_RUN=0 is refused unless DESK_AGENT is the caller itself
+# @description (do_spl_desk_doctree's caller check, SPL-2078).
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent the verb runs for (a seat of the desk)
@@ -34,7 +36,7 @@
 # @param DESK_BOX (optional) - default this machine's desk box (spl_desk_box_default)
 # @param DRY_RUN (optional) - 1 (default) or 0; list and read ignore it
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='list ws/agents/' ./run -a do_spl_desk_wsdoc
-# @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='write ws/agents/x.bg.md' WSDOC_IN=/var/spool-hub/dispatch/x.bg.md DRY_RUN=0 ./run -a do_spl_desk_wsdoc
+# @example AGENT_ID=a-200 ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='write ws/agents/x.bg.md' WSDOC_IN=/var/spool-hub/dispatch/x.bg.md DRY_RUN=0 ./run -a do_spl_desk_wsdoc
 #------------------------------------------------------------------------------
 do_spl_desk_wsdoc() {
   do_require_bin python3 yq || return 1
@@ -67,6 +69,7 @@ do_spl_desk_wsdoc() {
       return 0
     fi
     (( drc == 1 )) || return 1
+    _spl_desk_doctree_caller_ok "$agent" || return 1
   fi
 
   SPL_SPOOL="$SPL_STATE_DIR/bin/spool"

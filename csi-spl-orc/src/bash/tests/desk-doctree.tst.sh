@@ -17,6 +17,10 @@
 #   7. DRY_RUN=1 (the default) writing verbs make no spool call; reads run
 #   8. DOCTREE_FS=repo reaches the spool as SPOOL_DOCTREE_FS (spec 137
 #      T030a); unset passes none; any other value is refused, no spool call
+#   9. the caller check (SPL-2078): a DRY_RUN=0 write runs only when
+#      DESK_AGENT is the caller (AGENT_ID, else the $TMUX_PANE window's id);
+#      a foreign or unknown caller is refused, no spool call; dry runs and
+#      reads stay open to a foreign DESK_AGENT
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,8 +34,8 @@ IN=$(mktemp -d /tmp/desk-doctree.XXXXXX) || { echo "FAIL: no input dir under /tm
 trap 'rm -rf "$T" "$IN"' EXIT
 orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 D="$T/state/dev/desk/t1/box-desk"
-mkdir -p "$D/spool/a-177" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin"
-echo '{"box-desk":["a-177"]}' >"$D/spool/.hub/roster.json"
+mkdir -p "$D/spool/a-177" "$D/spool/c-001" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin"
+echo '{"box-desk":["a-177","c-001"]}' >"$D/spool/.hub/roster.json"
 echo secret-key >"$D/keys/box.key"
 cat >"$T/state/dev/bin/spool" <<'EOF_STUB'
 #!/usr/bin/env bash
@@ -40,13 +44,15 @@ if [[ "${STUB_FAIL:-0}" == 1 ]]; then echo "open $SPOOL_KEYS_DIR/box.key: permis
 echo '{"docs":[{"id":"42","title":"Rebuild guide"}]}'
 EOF_STUB
 chmod +x "$T/state/dev/bin/spool"
+# tmux answers display-message with the window name STUB_WNAME (section 9).
+printf '#!/bin/sh\necho "tmux $*" >>"$STUB_LOG"\nprintf "%%s\\n" "$STUB_WNAME"\n' >"$T/stub/tmux"
 echo "a body" >"$IN/body.md"
 
 # run [VAR=value]... - the action; stub calls in $T/calls, output in $T/o, rc in $rc
 run() {
   : >"$T/calls"
   SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
-do_spl_desk_doctree' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
+do_spl_desk_doctree' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 AGENT_ID=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
   rc=$?
 }
 argv() { sed -n 's/^argv|//p' "$T/calls"; }
@@ -127,6 +133,27 @@ run DOCTREE_ARGS='create --title X' DOCTREE_FS=repo DRY_RUN=0
   pass "DOCTREE_FS=repo reaches the spool as SPOOL_DOCTREE_FS=repo" || fail "fs repo (rc=$rc): $(cat "$T/calls") / $(cat "$T/o")"
 run DOCTREE_ARGS='read 42' DOCTREE_FS=git
 refused "DOCTREE_FS=git is refused" "DOCTREE_FS is workspace or repo, not 'git'"
+
+# --- 9. the caller check (SPL-2078) --------------------------------------------------------
+NOBODY=(AGENT_ID= SPOOL_AGENT_ID= MCP_BOT_AGENT_ID= TMUX_PANE=)
+run DOCTREE_ARGS='add 42 --kind para --text t' DESK_AGENT=c-001 AGENT_ID=c-999 DRY_RUN=0
+refused "a DRY_RUN=0 write as DESK_AGENT=c-001 from AGENT_ID=c-999 is refused" 'DESK_AGENT=c-001 is not you (c-999): a lane without its own desk seat sends the DRY_RUN=0 command list to the orchestrator'
+run DOCTREE_ARGS='delete 42' DESK_AGENT=c-001 AGENT_ID=c-001 DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree delete 42" ]] &&
+  pass "DESK_AGENT = AGENT_ID passes the caller check" || fail "own seat (rc=$rc): $(argv) / $(cat "$T/o")"
+run DOCTREE_ARGS='delete 42' DESK_AGENT=c-001 AGENT_ID=c-999
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+  pass "DRY_RUN=1 with a foreign DESK_AGENT still prints the command" || fail "foreign dry run (rc=$rc): $(cat "$T/o")"
+run DOCTREE_ARGS='read 42' DESK_AGENT=c-001 AGENT_ID=c-999 DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree read 42" ]] &&
+  pass "a read with a foreign DESK_AGENT still runs" || fail "foreign read (rc=$rc): $(cat "$T/o")"
+run DOCTREE_ARGS='rename 42 --title Y' DESK_AGENT=c-001 "${NOBODY[@]}" DRY_RUN=0
+refused "a write with no caller id is refused" 'DESK_AGENT=c-001 is not you (no caller id'
+run DOCTREE_ARGS='rename 42 --title Y' DESK_AGENT=c-001 "${NOBODY[@]}" TMUX_PANE=%9 STUB_WNAME='bx1: c-001 orchestrator' DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree rename 42 --title Y" ]] &&
+  pass "no AGENT_ID: the id of the \$TMUX_PANE window is the caller" || fail "pane caller (rc=$rc): $(cat "$T/o")"
+run DOCTREE_ARGS='rename 42 --title Y' DESK_AGENT=c-001 "${NOBODY[@]}" TMUX_PANE=%9 STUB_WNAME='bx1: c-129 T030B' DRY_RUN=0
+refused "a \$TMUX_PANE window of another agent is refused" 'DESK_AGENT=c-001 is not you (c-129)'
 
 echo "desk-doctree: $fails failure(s)"
 ((fails == 0))

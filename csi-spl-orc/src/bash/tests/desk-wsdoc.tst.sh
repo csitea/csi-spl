@@ -17,6 +17,8 @@
 #      allowed dirs, a /tmp symlink into the desk state, WSDOC_IN on a read
 #   6. write: DRY_RUN=1 (the default) makes no spool call; DRY_RUN=0 runs
 #      `doc-write <path> --file <WSDOC_IN>`
+#   7. a DRY_RUN=0 write for a DESK_AGENT that is not the caller (AGENT_ID)
+#      is refused, no spool call (SPL-2078); its dry run still works
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -46,7 +48,7 @@ echo "a body" >"$IN/body.md"
 run() {
   : >"$T/calls"
   SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
-do_spl_desk_wsdoc' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
+do_spl_desk_wsdoc' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 AGENT_ID=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
   rc=$?
 }
 argv() { sed -n 's/^argv|//p' "$T/calls"; }
@@ -117,6 +119,13 @@ run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md"
 run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md" DRY_RUN=0
 [[ $rc -eq 0 && "$(argv)" == "doc-write ws/agents/howto.bg.md --file $IN/body.md" ]] &&
   pass "write with DRY_RUN=0 runs doc-write --file WSDOC_IN" || fail "write (rc=$rc): $(argv) / $(cat "$T/o")"
+
+# --- 7. the caller check (SPL-2078) --------------------------------------------------------
+run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md" AGENT_ID=c-999 DRY_RUN=0
+refused "a DRY_RUN=0 write for a DESK_AGENT that is not the caller is refused" 'DESK_AGENT=a-177 is not you (c-999)'
+run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md" AGENT_ID=c-999
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+  pass "the dry run of a foreign write still works" || fail "foreign dry write (rc=$rc): $(cat "$T/o")"
 
 echo "desk-wsdoc: $fails failure(s)"
 ((fails == 0))

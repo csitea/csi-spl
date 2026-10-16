@@ -85,7 +85,7 @@ then carries `?fs=repo`); the desk action takes it as `DOCTREE_FS=repo`. The
 import runs as a desk agent of the operator workspace (`t1`), so its box token
 is the writer the hub admits:
 
-`cd csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> MD_PATH=<page> QTO_FS=repo DRY_RUN=0 ./run -a do_spl_doctree_import_md`
+`cd csi-spl-orc && AGENT_ID=<seat> ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> MD_PATH=<page> QTO_FS=repo DRY_RUN=0 ./run -a do_spl_doctree_import_md`
 
 - The map row gets a third column, `repo`; `do_spl_doctree_export_md` reads
   it and exports that row from the repo tree. A two-column row stays in the
@@ -96,4 +96,29 @@ is the writer the hub admits:
 - The ids in the map are prd's. A dev import is a rehearsal: give it its own
   `QTO_MAP` and restore the md file after it.
 
-<!-- version: 0.2.0 · updated: 2026-10-14 -->
+## 6. How a lane writes Qto: its own seat, or the command list
+
+Every Qto write (`do_spl_desk_doctree` with `DRY_RUN=0`, and so
+`do_spl_doctree_import_md`, the md export's writes and `do_spl_desk_wsdoc
+write`) runs as the caller's OWN desk seat: `DESK_AGENT` must be the caller's
+id, `AGENT_ID`, else `SPOOL_AGENT_ID` / `MCP_BOT_AGENT_ID`, else the agent id
+of the tmux window `$TMUX_PANE` is in. A `sudo -u <box user>` hop strips the
+pane, so pass `AGENT_ID=<your id>`. A write for another seat, or with no
+caller id, is refused before any hub call:
+
+> DESK_AGENT=c-001 is not you (c-129): a lane without its own desk seat sends
+> the DRY_RUN=0 command list to the orchestrator, who runs it as its own seat
+
+Why (SPL-2078): two lanes ran every T030B write as `DESK_AGENT=c-001`, and Qto
+history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
+
+- **A lane with a seat** in that desk writes as itself:
+  `AGENT_ID=<you> DESK_AGENT=<you> ... DRY_RUN=0`.
+- **A lane without one** (most lanes) prepares the exact commands with
+  `DRY_RUN=1` (the default; reads and dry runs work for any seated
+  `DESK_AGENT`), writes the `DRY_RUN=0` command list to a file under
+  `/var/spool-hub/dispatch/`, and sends the orchestrator one message naming
+  it. The orchestrator runs each line as its own seat.
+- The guard: `csi-spl-orc/src/bash/tests/desk-doctree.tst.sh` section 9.
+
+<!-- version: 0.3.0 · updated: 2026-10-16 -->

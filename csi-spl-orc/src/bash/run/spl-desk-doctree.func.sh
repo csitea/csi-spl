@@ -27,6 +27,13 @@
 # @description The writing verbs (create add edit move delete rename folder move-node)
 # @description are a dry run unless DRY_RUN=0; the reads (list nodes head read
 # @description export) run as they are.
+# @description A write with DRY_RUN=0 is also refused, no spool call, unless
+# @description DESK_AGENT is the caller itself: AGENT_ID, else SPOOL_AGENT_ID /
+# @description MCP_BOT_AGENT_ID, else the agent id of the tmux window $TMUX_PANE
+# @description is in; no caller id is a refusal too (SPL-2078: lanes wrote prd
+# @description Qto under c-001's seat). A lane with no seat of its own sends
+# @description the DRY_RUN=0 command list to the orchestrator (spec 137
+# @description unified-fs.md section 6).
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent the verb runs for (a seat of the desk)
@@ -40,8 +47,10 @@
 # @param   workspace's agents and admins write repo
 # @param DESK_BOX (optional) - default this machine's desk box (spl_desk_box_default)
 # @param DRY_RUN (optional) - 1 (default) or 0; reads ignore it
+# @param AGENT_ID (optional) - the caller's own id; a DRY_RUN=0 write needs it
+# @param   to equal DESK_AGENT (else the id of the $TMUX_PANE window)
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-177 DOCTREE_ARGS=list ./run -a do_spl_desk_doctree
-# @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-177 DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN=/tmp/body.md DRY_RUN=0 ./run -a do_spl_desk_doctree
+# @example AGENT_ID=a-177 ENV=prd TENANT_ID=t1 DESK_AGENT=a-177 DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN=/tmp/body.md DRY_RUN=0 ./run -a do_spl_desk_doctree
 #------------------------------------------------------------------------------
 do_spl_desk_doctree() {
   do_require_bin python3 yq || return 1
@@ -71,6 +80,9 @@ do_spl_desk_doctree() {
     do_log "INFO DRY_RUN would: spool doctree ${args[*]} for $agent on $box in $tenant${fs:+ (fs=$fs)}"
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
     return 0
+  fi
+  if [[ " create add edit move delete rename folder move-node " == *" $verb "* ]]; then
+    _spl_desk_doctree_caller_ok "$agent" || return 1
   fi
 
   SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
@@ -183,4 +195,33 @@ _spl_desk_doctree_seated() {
   python3 -c 'import json,sys; sys.exit(0 if sys.argv[3] in (json.load(open(sys.argv[1])).get(sys.argv[2]) or []) else 1)' \
     "$roster" "$box" "$agent" 2>/dev/null ||
     { do_log "FATAL $agent is not in the hub roster of the $box desk of $tenant (ENV=$ENV)"; return 1; }
+}
+
+# _spl_desk_doctree_caller <var name>: the caller's own agent id into the named
+# var, empty when none resolves: AGENT_ID, else SPOOL_AGENT_ID /
+# MCP_BOT_AGENT_ID (the session env, as kill-your-self-report.sh reads it),
+# else the id heading the name of the tmux window $TMUX_PANE is in. Only
+# TMUX_PANE: a CLE_TMUX_PANE inherited from a parent session names THAT
+# session's pane, and a sudo hop strips both.
+_spl_desk_doctree_caller() {
+  local -n _dt_who="$1"
+  local w
+  _dt_who="${AGENT_ID:-${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-}}}"
+  [[ -n "$_dt_who" || -z "${TMUX_PANE:-}" ]] && return 0
+  w="$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null)" || return 0
+  declare -F an_strip >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/agent-state.inc.sh"
+  _dt_who="$(an_strip "$w" | grep -oE "^${SPOOL_AGENT_ID_RX}" || true)"
+}
+
+# _spl_desk_doctree_caller_ok <desk agent>: 0 when the desk agent is the
+# caller (SPL-2078), else the FATAL that says what to do instead. Run only
+# before a real write: reads and dry runs stay open to anyone, so a lane can
+# still prepare the exact command list.
+_spl_desk_doctree_caller_ok() {
+  local agent="$1" who=""
+  _spl_desk_doctree_caller who
+  [[ -n "$who" && "$who" == "$agent" ]] && return 0
+  do_log "FATAL DESK_AGENT=$agent is not you (${who:-no caller id: set AGENT_ID}): a lane without its own desk seat sends the DRY_RUN=0 command list to the orchestrator, who runs it as its own seat (csi-spl-doc/specs/137-qto-only-doc-editor/unified-fs.md section 6)"
+  return 1
 }

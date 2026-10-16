@@ -28,7 +28,7 @@ chmod +x "$T/state/dev/bin/spool"
 run() {
   : >"$T/calls"
   SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
-do_spl_desk_doctree' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
+do_spl_desk_doctree' in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 AGENT_ID=a-177 CALLS="$T/calls" "$@" >"$T/o" 2>&1
   rc=$?
 }
 argv() { sed -n 's/^argv|//p' "$T/calls"; }

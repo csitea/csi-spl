@@ -14,8 +14,8 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (f) => readFileSync(join(SRC, f), 'utf8')
 
 describe('pickers mount only while open', () => {
-  it('MessageCard mounts EmojiPicker behind v-if="pickerOpen"', () => {
-    assert.match(read('components/MessageCard.vue'), /<EmojiPicker\s+v-if="pickerOpen"/)
+  it('MessageCard mounts EmojiPicker behind v-if="pickerOpen" (lazy: its code loads on the first open, r13-01)', () => {
+    assert.match(read('components/MessageCard.vue'), /<LazyEmojiPicker\s+v-if="pickerOpen"/)
   })
   it('KindBadge mounts KindPicker only for a settable, open badge', () => {
     assert.match(read('components/KindBadge.vue'), /<KindPicker\s+v-if="settable && open"/)

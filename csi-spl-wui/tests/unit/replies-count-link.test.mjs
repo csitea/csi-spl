@@ -7,8 +7,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
-const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+const vue = messageCardSrc()
 const at = vue.indexOf('data-test="topic-replies"')
 const btn = vue.slice(vue.lastIndexOf('<button', at), vue.indexOf('</button>', at))
 

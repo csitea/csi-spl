@@ -452,7 +452,7 @@
     />
     <!-- mounted only while open (CLE-35075): a closed picker per card cost an
          overlay registration, a watcher and a Teleport on every card -->
-    <EmojiPicker
+    <LazyEmojiPicker
       v-if="pickerOpen"
       :open="pickerOpen"
       :x="pickerAt.x"
@@ -464,68 +464,37 @@
 </template>
 
 <script setup lang="ts">
-import { writeClipboard } from '~/utils/clipboard.mjs'
-import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
+/* r13-01: each part of the card is a composable (src/composables/useCard*.ts);
+   the header, the menu flags and the pointer / click / key routing between
+   the parts stay here. */
+import { formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
-import {
-  beginEdit,
-  commitEdit,
-  editFailureKey,
-  editKeyAction,
-  isEdited,
-  wantsDblClickEdit,
-  wantsEdit,
-  withDraft,
-} from '~/utils/msg-edit.mjs'
+import { isEdited, wantsDblClickEdit, wantsEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useDrafts } from '~/composables/useDrafts'
-import { useMentionPicker } from '~/composables/useMentionPicker'
-import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
-import { useDmRef } from '~/composables/useDmRef'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
-import { mayArchiveTopic, mayChangeTopic, openingCardId, paneArchiveOffer, topicErrorKey } from '~/utils/topic-archive.mjs'
-import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, mayPromoteMessage, movedNote, type MoveDrag } from '~/utils/move.mjs'
-import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
-import { useMove } from '~/composables/useMove'
-import { useArchiveUndo } from '~/composables/useArchiveUndo'
+import { mayArchiveTopic, mayChangeTopic, paneArchiveOffer } from '~/utils/topic-archive.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { deleteKeyAction, rowStep } from '~/utils/row-keys.mjs'
-import { paneOfRow } from '~/utils/reselect-row.mjs'
-import { useLive } from '~/composables/useLive'
-import { useChannelStore } from '~/stores/channel'
-import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useViewPrefs } from '~/composables/useViewPrefs'
-import { openThreadRow } from '~/utils/pane-scroll.mjs'
-import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
-import { topicMenuLocks } from '~/utils/topic-menu.mjs'
-import { reactionChips, emojiName } from '~/utils/emoji.mjs'
-import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { ownerAllows } from '~/utils/access.mjs'
 import { POLL_HOST } from '~/utils/poll-fence.mjs'
-import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
-import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
-import { useHiddenCards } from '~/composables/useHiddenCards'
-import { isTouchUi } from '~/utils/undo-timer.mjs'
-import { useLiveFeed } from '~/stores/live'
-import { useTopicStore } from '~/stores/topic'
-import {
-  CARD_GRIP_STEP_ROWS,
-  cardClipPx,
-  cardDragPx,
-  cardHasPicture,
-  cardIsClipped,
-  cardTitle,
-} from '~/utils/card-clip.mjs'
-import { onViewportResize } from '~/utils/viewport-resize.mjs'
 import type { CardClipMode } from '~/composables/useCardClip'
-import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
+import { LinkPreviewsLazy } from '~/composables/useLinkPreviewRefs'
+import { useCardReactions } from '~/composables/useCardReactions'
+import { useCardEdit } from '~/composables/useCardEdit'
+import { useCardHeight, useCardTitle } from '~/composables/useCardHeight'
+import { useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
+import { useCardMenuActions } from '~/composables/useCardMenuActions'
+import { useCardNotes } from '~/composables/useCardNotes'
+import { useCardLongPress, useCardSwipe, useCardSwipeFlags } from '~/composables/useCardSwipe'
+import { useCardMove, useCardMoveFlags } from '~/composables/useCardMove'
+import { useCardTouchLift } from '~/composables/useCardTouchLift'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -622,6 +591,89 @@ const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files :
 const count = computed(() => props.count || 0)
 /* the unread part is capped at the total (a stale snapshot never shows n/less-than-n) */
 const unreadCount = computed(() => Math.max(0, Math.min(count.value, Number(props.unread) || 0)))
+const edited = computed(() => isEdited(props.msg))
+
+/* the template refs: the row, the edit box, and the clip box with its content */
+const rowEl = ref<HTMLElement | null>(null)
+const editEl = ref<HTMLTextAreaElement | null>(null)
+const clipEl = ref<HTMLElement | null>(null)
+const clipInner = ref<HTMLElement | null>(null)
+const removing = ref(false)
+const editError = ref('')
+const localePath = useLocalePath()
+const msgEdit = useMessageEdit()
+const { canEdit, viewerId: editorId, removeAttachment } = msgEdit
+const { editing, saving, editHintId, draft, editMp, startEdit, onEditKey } = useCardEdit(props, emit, rowEl, editEl, editError, msgEdit)
+/* The same message can sit in the middle list and the topic pane at once.
+   The menu id has to be this card, not the msg_id, or both menus open. */
+const menuKey = useId()
+const menu = useMessageMenu(() => menuKey)
+const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu } = menu
+const {
+  viewerId, pickerOpen, pickerAt, busy, reactError, chips, emojiLabel, chipTitle, phoneChips, emojiBtnName, openPickerFromButton, onReact,
+} = useCardReactions(props, emit, rowEl, mobile, menu)
+function onMenuReact() {
+  closeMenu()
+  pickerAt.value = { x: 0, y: 0 }
+  pickerOpen.value = true
+}
+
+/* spec 080 FR-005: a topic card whose topic holds the member's reply draft */
+const drafts = useDrafts()
+const hasDraft = computed(() => props.msg.is_parent !== 0 && Boolean(props.msg.task_id) && drafts.has('t:' + String(props.msg.task_id)))
+/* SPL-1560: the X on each file card, for whoever may edit the message (its
+   author, the tenant owner or an admin; the hub checks the same rule). The
+   changed row goes to every store; `edited` tells a host that holds its own
+   copy (the issue comments). */
+const filesRemovable = computed(() => Boolean(props.editable) && canEdit(props.msg))
+async function removeFile(f: FileRef) {
+  const rows = await removeAttachment(String(f.file_id || f.sha256 || ''))
+  const row = rows.find((r) => r.msg_id === props.msg.msg_id)
+  if (row) emit('edited', { ...props.msg, ...row })
+}
+/* SPL-983 (specs/041 §3.3) / CLE-77819: Delete is the author, the tenant owner
+   or an admin; Archive also a member the card is addressed to. The hub
+   re-checks; this only decides what the menu offers. */
+const access = useAccessStore()
+const showTopicDelete = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
+/* HUM-10 (owner, t1 7de82b71): in a topic pane only the LATEST message offers
+   Archive topic, on the opener's permission; elsewhere the topic card does */
+const inPane = computed(() => props.paneOpener !== undefined)
+const showTopicArchive = computed(() => (inPane.value
+  ? paneArchiveOffer(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
+  : Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me)))
+/* ... on a reply (not the topic card) it keeps the message's own Delete */
+const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
+const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
+/* t1 5ea2e615 (owner db5ed497): a workspace owner makes an issue of a blocker */
+const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
+
+const { titleOnly, linkPreviews, title } = useCardTitle(props, editing, files)
+const { picture, clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, files, clipEl, clipInner)
+const busyState = { removing, editError }
+const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
+const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)
+const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuOpen, onMenuReply, onMenuKind } = useCardMenuActions(props, viewerId, rowEl, menu, openReplies)
+
+const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTip } = useCardNotes(props)
+
+const longPress = useCardLongPress(editing, pickerOpen, menu)
+const { inTopicPane, swipeOn, swipeArchive, swipeLeft, menuHide } = useCardSwipeFlags(props, editing, rowEl, inPane, showTopicArchive,
+  () => mayArchiveTopic(props.msg, editorId.value, access.me))
+const { swipe, swipeDx, swipeDir, swipeArmed, swipeSettle, onMenuHide } = useCardSwipe(props, rowEl, swipeLeft, pickerOpen, menu, {
+  stop: () => { longPress.cancel(); rowDrag.cancel() },
+  archive: onMenuArchive,
+})
+/** a swipe may start on the row or on its move handle */
+function swipeDown(ev: PointerEvent) {
+  if (swipeOn.value && !removing.value) swipe.down(ev)
+}
+const moveFlags = useCardMoveFlags(props, editing, inTopicPane, editorId, access)
+const { move, canMoveTopic, canMoveMsg, canPromoteMsg, movable, menuLocks, dropTarget, dropOver } = moveFlags
+const mv = useCardMove(props, moveFlags, title, pickerOpen, menu, { swipeDown, cancelRowDrag: () => rowDrag.cancel() })
+const { dragging, movePicker, handle, onHandleDown, onHandleUp, openMovePicker, onPromote } = mv
+const { touchLift, rowDrag } = useCardTouchLift(rowEl, editing, mv, () => { longPress.cancel(); swipe.cancel() }, pickerOpen, menu)
+const deleteUndo = useDeleteUndo()
 
 /*
  * clicking the row opens its topic. The row already carried
@@ -719,320 +771,13 @@ function onMenuEdit() {
   startEdit()
 }
 
-/* SPL-1001: the menu's Delete confirms first (Delete / Backspace on a
-   focused thread row is the keyboard shortcut and stays immediate). */
-function onMenuDelete() {
-  closeMenu()
-  msgDeleteOpen.value = true
-}
-
-/* SPL topic-archive: the hub acts only on a topic's OPENING card (spec 041 §2);
-   a later is_parent 1 line (an agent's, in a topic whose opener is gone) is
-   refused 409 not_a_card. This card menu shows on every is_parent 1 line, so
-   resolve the task's opening card first and act on THAT - clicking any card of
-   a topic then archives / deletes the topic. Falls back to this card. */
-async function topicOpenerId(): Promise<string> {
-  /* HUM-10: a topic pane knows its opener; the latest reply archives it */
-  if (props.paneOpener?.msg_id) return String(props.paneOpener.msg_id)
-  const own = String(props.msg.msg_id || '')
-  const task = String(props.msg.task_id || '')
-  if (!task) return own
-  try {
-    const page = await parentDeps.api.getTopic(task, { limit: 30 })
-    return openingCardId(page?.messages, own)
-  } catch {
-    return own
-  }
-}
-
-/** SPL-983: archive the topic. The card leaves every feed here at once; the
-    hub's topic_archived frame tells the other tabs. True when it archived. */
-async function onMenuArchive(): Promise<boolean> {
-  closeMenu()
-  if (removing.value) return false
-  removing.value = true
-  editError.value = ''
-  try {
-    const id = await topicOpenerId()
-    if (!id) return false
-    await parentDeps.api.archiveTopic(id, true)
-    dropEverywhere(id)
-    emit('deleted', props.msg)
-    /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s;
-       CLE-77871: and from which pane, so Undo selects it there again */
-    archiveUndo.offerUndo(id, paneOfRow(rowEl.value))
-    return true
-  } catch (e) {
-    editError.value = topicErrorKey(e, 'archive')
-    return false
-  } finally {
-    removing.value = false
-  }
-}
-
-async function onMenuDeleteTopic() {
-  closeMenu()
-  topicDeleteMsgId.value = await topicOpenerId()
-  topicDeleteOpen.value = true
-}
-
-function onTopicDeleted(out: { msg_ids: string[] }) {
-  for (const id of out.msg_ids) dropEverywhere(id)
-  emit('deleted', props.msg)
-}
-
-/**
- * Fold this message into the neighbor. The neighbor keeps both bodies, older
- * first, and this row is deleted. CLE-35064: that is ONE hub request and one
- * transaction (POST /v1/messages/{id}/merge). It used to be an edit and then
- * a delete, and on prd the delete never went out, so the source stayed. A
- * refusal leaves both rows as they were.
- */
-async function onMerge(which: 'previous' | 'next') {
-  const other = which === 'previous' ? props.mergePrev : props.mergeNext
-  if (!other || removing.value || editing.value) return
-  if (!canEdit(props.msg) || !canEdit(other)) return
-  const keepId = String(other.msg_id || '')
-  const dropId = String(props.msg.msg_id || '')
-  if (!keepId || !dropId || keepId === dropId) return
-  closeMenu()
-  removing.value = true
-  editError.value = ''
-  try {
-    const row = await mergeInto(dropId, keepId)
-    emit('edited', row)
-    emit('deleted', props.msg)
-  } catch (e) {
-    removing.value = false
-    editError.value = editFailureKey(e)
-  }
-}
-
-/* Open on a topic card opens its topic on the right, as the replies button
-   does. A thread line is already in the open topic: it is selected instead,
-   and the thread does not scroll. */
-function onMenuOpen() {
-  if (props.clickable) {
-    openReplies()
-    return
-  }
-  if (rowEl.value) openThreadRow(rowEl.value)
-}
-
-/* a thread line (not a middle card) can go back to where its
-   thread lives: the channel or DM with the parent card selected, or the
-   issue whose discussion it is. Shown by the same rule as utils/parent-section.mjs parentSection: a channel, or a
-   DM end that is not the viewer. What the item does is loaded when it is
-   chosen, so it is not in the initial JS (specs/027, 210 KB gzip). */
-const showParent = computed(() => !props.clickable
-  && Boolean(String(props.msg.channel || '').trim().replace(/^#/, '') || dmPeerOf(props.msg, viewerId.value)))
-/* HUM-10 (topic c15b557e): the item names its place - a DM "Open in direct
-   msg view", a channel "Open in channels view"; the issue channel (or the
-   retired #tasks) keeps "Open parent section". utils/parent-section.mjs
-   parentKindOf is the same rule. */
-const parentKind = computed(() => {
-  const ch = String(props.msg.channel || '').trim().replace(/^#/, '').toLowerCase()
-  if (ch) return ch === 'issues' || ch === 'tasks' ? 'issue' : 'channel'
-  return dmPeerOf(props.msg, viewerId.value) ? 'dm' : ''
-})
-const parentDeps = { api: useSpoolApi(), router: useRouter() }
-/* the card lands at the reader's edge: the top newest first, the bottom newest last */
-const { newestLast } = useViewPrefs()
-async function onMenuParent() {
-  closeMenu()
-  const m = await import('~/utils/parent-section-open.mjs')
-  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value, newestLast: newestLast.value, topicLevel: true, showPlace: true })
-}
-
-/* A topic card in the middle links to this page with its topic open on the
-   right. A thread line links to the same, with its own id as the hash. */
-function linkPath() {
-  if (!props.clickable) return threadLineLink(props.msg, { path: route.path, query: route.query, pathFor: localePath })
-  return topicPaneLink(props.msg, {
-    path: route.path,
-    query: route.query,
-    currentTaskId: String(props.currentTaskId || ''),
-  })
-}
-
-async function copyMessageLink() {
-  const path = linkPath()
-  if (!path || typeof window === 'undefined') return
-  await copyString(new URL(path, window.location.origin).href)
-}
-
-/* SPL-991: a phone cannot select text inside a long-pressable card */
-async function copyBody() {
-  const body = String(props.msg.body || '')
-  if (body) await copyString(body)
-}
-
-async function copyString(value: string) {
-  await writeClipboard(value)
-}
-
-/*
- * SPL-991 — a phone has no hover and no right-click: a long press opens this
- * card's menu as a bottom sheet (utils/touch-ui.mjs holds the timing rule).
- * Android also fires `contextmenu` on a long press; both open the same menu.
- */
-const longPress = createLongPress({
-  onPress: (x, y) => {
-    if (editing.value) return
-    pickerOpen.value = false
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
-    openMenuAt(x, y)
-  },
-})
-onBeforeUnmount(() => longPress.cancel())
-
-/*
- * CLE-77906 (owner, t1 topic 73c5d695) archived a topic by a swipe right;
- * HUM-10 (owner, t1 topic 2d09e9c2, 2026-10-03): "Let's change the swipe left
- * to do the archiving and let's change the swipe right to actually show the
- * right-click menu." A finger sliding a topic card (cards view) or the
- * topic's opening message (topic view) to the LEFT archives the topic through
- * the menu's own Archive (onMenuArchive: the same permission, the same
- * "Archived · Undo" snackbar with its touch window). A finger sliding any card
- * to the RIGHT opens its menu, the one a right-click opens (openMenuAt). A
- * right swipe that starts in the phone's Back zone (the left half, while there
- * is a level to go back to) is not the card's: it stays the shell's Back
- * (useMobileStack), exactly as before. The rules of the gesture are
- * utils/swipe-archive.mjs; a mouse never swipes, so the desktop card is
- * unchanged. While it slides the card moves and the strip it uncovers shows
- * the archive (or menu) icon; short of the threshold the card snaps back. A
- * swipe takes the gesture from the long press.
- */
-const stack = useMobileStack()
-const touchUi = ref(false)
-/* the topic view (the right pane, channel or DM): its level-1 row is the
-   topic's own message (the pane opened by task id has no rootMsgId to match) */
-const inTopicPane = ref(false)
-onMounted(() => {
-  touchUi.value = isTouchUi()
-  inTopicPane.value = paneOfRow(rowEl.value) === 'topic'
-})
-/** the card swipes at all (a right swipe opens its menu) */
-const swipeOn = computed(() => !editing.value && (mobile.value || touchUi.value))
-/** ... and a left swipe archives its topic */
-const swipeArchive = computed(() => {
-  if (!swipeOn.value) return false
-  if (props.topicMenu || inPane.value) return showTopicArchive.value
-  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
-})
-/* HUM-10 (owner, t1 topics 6fc56905 / 3e073a95): in the topic view a reply's
-   LEFT swipe hides it on this device (useHiddenCards; not archive, not
-   delete): LiveFeed puts a thicker line where it was and a tap on the line
-   shows it again. The topic starter (a topic card, any level-1 row, the
-   pane's opener) keeps the archive and is never hidden (swipeLeftAction). */
-const swipeStarter = computed(() => Boolean(props.topicMenu) || props.msg.is_parent !== 0
-  || (Boolean(props.moveCtx?.opener) && props.msg.msg_id === props.moveCtx?.opener))
-const swipeLeft = computed(() => {
-  /* HUM-10: the pane's latest reply archives the topic instead of hiding */
-  const starter = swipeStarter.value || (inPane.value && swipeArchive.value)
-  const a = swipeLeftAction({ swipeOn: swipeOn.value, starter, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value })
-  return a === 'hide' && (!props.msg.msg_id || props.msg.pending) ? null : a
-})
-/* HUM-10 (owner, t1 7d9faaad): the right-click menu, the … button and the
-   phone's swipe-right sheet offer Hide from flow where a left swipe would
-   hide this reply. swipeOn is forced on: a desktop card does not swipe, and
-   the allow-rule is still a topic-view reply (not the starter) with a
-   msg_id that is not pending. feed.swipe_hide stays the gesture hint. */
-const menuHide = computed(() => Boolean(props.msg.msg_id) && !props.msg.pending
-  && swipeLeftAction({ swipeOn: true, starter: swipeStarter.value, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value }) === 'hide')
-const hiddenCards = useHiddenCards()
-/** signed: < 0 slid towards the start (archive / hide), > 0 towards the end (menu) */
-const swipeDx = ref(0)
-const swipeDir = ref<'archive' | 'hide' | 'menu'>('archive')
-const swipeArmed = ref(false)
-/** the snap back / the slide out animates; a finger-driven move does not */
-const swipeSettle = ref(false)
-let settleTimer: ReturnType<typeof setTimeout> | null = null
-function swipeTo(dx: number, settle: boolean) {
-  if (settleTimer) clearTimeout(settleTimer)
-  settleTimer = null
-  swipeSettle.value = settle
-  swipeDx.value = dx
-  /* the transform must not outlive the animation: a transformed card is the
-     containing block of its fixed menus and pickers */
-  if (settle && dx === 0) settleTimer = setTimeout(() => { swipeSettle.value = false; settleTimer = null }, SWIPE_SETTLE_MS)
-}
-const swipeRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl'
-const swipe = createSwipe({
-  width: () => rowEl.value?.getBoundingClientRect().width || 0,
-  rtl: swipeRtl,
-  leftDir: () => swipeLeft.value,
-  /* the Back zone wins: a right swipe from there is the shell's Back */
-  canRight: (x) => !(stack.isMobile.value && stack.level.value > 1
-    && swipeInBackZone(x, typeof window !== 'undefined' ? window.innerWidth : 0, swipeRtl())),
-  onLock: (dir) => {
-    longPress.cancel()
-    rowDrag.cancel()
-    swipeDir.value = dir
-  },
-  onMove: (dx, armed, dir) => {
-    if (armed && !swipeArmed.value && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
-    swipeArmed.value = armed
-    swipeTo(dir === 'menu' ? dx : -dx, false)
-  },
-  onCommit: (dir, x, y) => {
-    if (dir === 'archive') return void swipeCommit()
-    if (dir === 'hide') return void swipeHideCommit()
-    swipeArmed.value = false
-    /* no slide back first: a transformed card would hold the menu */
-    swipeTo(0, false)
-    pickerOpen.value = false
-    rowEl.value?.focus({ preventScroll: true })
-    openMenuAt(x, y)
-  },
-  onCancel: () => {
-    swipeArmed.value = false
-    swipeTo(0, true)
-  },
-})
-async function swipeCommit() {
-  stack.swipe.claim()
-  const inTopicPane = paneOfRow(rowEl.value) === 'topic'
-  swipeTo(-(rowEl.value?.getBoundingClientRect().width || 0), true)
-  const ok = await onMenuArchive()
-  swipeArmed.value = false
-  if (!ok) {
-    swipeTo(0, true)
-    return
-  }
-  swipeTo(0, false)
-  /* the topic view of a topic that is archived now: back to the cards, where
-     the snackbar's Undo brings the card back (and selects it) */
-  if (inTopicPane && !props.topicMenu) {
-    useLiveFeed('pane').close()
-    useTopicStore().close()
-  }
-}
-/* the card slides out, then leaves the list: LiveFeed draws the line */
-let hideTimer: ReturnType<typeof setTimeout> | null = null
-function onMenuHide() {
-  closeMenu()
-  swipeHideCommit()
-}
-function swipeHideCommit() {
-  stack.swipe.claim()
-  swipeTo(-(rowEl.value?.getBoundingClientRect().width || 0), true)
-  if (hideTimer) clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => {
-    hideTimer = null
-    swipeArmed.value = false
-    hiddenCards.hide(String(props.msg.msg_id || ''))
-    /* a list that does not fold hidden rows keeps the card: slide it back */
-    void nextTick(() => { if (rowEl.value?.isConnected) swipeTo(0, true) })
-  }, SWIPE_SETTLE_MS)
-}
 function onRowDown(ev: PointerEvent) {
   /* HUM-10: a finger on a topic card it may move lifts it on the hold (the
      long-press menu then opens on a release in place, see rowDrag) */
   if (onTextTouch(ev)) longPress.cancel()
   else if (touchLift.value && ev.pointerType === 'touch') rowDrag.down(ev)
   else longPress.down(ev)
-  if (swipeOn.value && !removing.value) swipe.down(ev)
+  swipeDown(ev)
 }
 function onRowMove(ev: PointerEvent) {
   rowDrag.move(ev)
@@ -1049,34 +794,6 @@ function onRowCancel() {
   rowDrag.cancel()
   longPress.cancel()
   swipe.cancel()
-}
-onBeforeUnmount(() => {
-  swipe.cancel()
-  if (settleTimer) clearTimeout(settleTimer)
-  if (hideTimer) clearTimeout(hideTimer)
-})
-
-/* Reply: a topic card opens its topic (the third panel); a thread line is
-   already in it. Either way the caret goes to the docked composer. */
-function onMenuReply() {
-  closeMenu()
-  if (props.clickable) openReplies()
-  if (typeof window !== 'undefined') {
-    void nextTick(() => window.dispatchEvent(new CustomEvent(COMPOSER_FOCUS_EVENT)))
-  }
-}
-
-function onMenuReact() {
-  closeMenu()
-  pickerAt.value = { x: 0, y: 0 }
-  pickerOpen.value = true
-}
-
-/* Kind: the badge's own picker (KindBadge -> KindPicker), a sheet on a phone */
-const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
-function onMenuKind() {
-  closeMenu()
-  void nextTick(() => rowEl.value?.querySelector<HTMLElement>('[data-testid="kind-badge-btn"]')?.click())
 }
 
 /** A double-click on a row opens the same editor as `e`: a thread line on
@@ -1095,6 +812,29 @@ function onDblClick(ev: MouseEvent) {
   startEdit()
 }
 
+/* Delete / Backspace on the selected row. A topic-level message
+   (is_parent 1) asks first, with the same confirm as the menu; a reply goes
+   at once and the "Deleted · Undo" snackbar offers it back. Who may delete
+   is the menu's gate, unchanged. preventDefault stops Backspace from
+   walking the browser history. True when the key was a delete. */
+function onDeleteKey(ev: KeyboardEvent): boolean {
+  const del = editing.value || removing.value
+    ? ''
+    : deleteKeyAction(ev, props.msg, { topicDelete: showTopicDelete.value, editable: Boolean(props.editable) && canEdit(props.msg) })
+  if (!del) return false
+  ev.preventDefault()
+  /* HUM-10 c13e8023: the focus stays in this card's panel (useMsgShortcuts) */
+  holdPanel(rowEl.value)
+  if (del === 'confirm-topic') void onMenuDeleteTopic()
+  else if (del === 'confirm-message') msgDeleteOpen.value = true
+  else {
+    /* the host drops it from its own rows; Undo hands it back (onDeleteRestore) */
+    deleteUndo.offer(props.msg)
+    emit('deleted', props.msg)
+  }
+  return true
+}
+
 function onKey(ev: KeyboardEvent) {
   /* `e` on the focused row opens the editor. Checked BEFORE the
      open-topic keys so a row that is editable but not clickable still takes
@@ -1111,27 +851,7 @@ function onKey(ev: KeyboardEvent) {
     if (stepSelection(rowEl.value, step)) ev.preventDefault()
     return
   }
-  /* Delete / Backspace on the selected row. A topic-level message
-     (is_parent 1) asks first, with the same confirm as the menu; a reply goes
-     at once and the "Deleted · Undo" snackbar offers it back. Who may delete
-     is the menu's gate, unchanged. preventDefault stops Backspace from
-     walking the browser history. */
-  const del = editing.value || removing.value
-    ? ''
-    : deleteKeyAction(ev, props.msg, { topicDelete: showTopicDelete.value, editable: Boolean(props.editable) && canEdit(props.msg) })
-  if (del) {
-    ev.preventDefault()
-    /* HUM-10 c13e8023: the focus stays in this card's panel (useMsgShortcuts) */
-    holdPanel(rowEl.value)
-    if (del === 'confirm-topic') void onMenuDeleteTopic()
-    else if (del === 'confirm-message') msgDeleteOpen.value = true
-    else {
-      /* the host drops it from its own rows; Undo hands it back (onDeleteRestore) */
-      deleteUndo.offer(props.msg)
-      emit('deleted', props.msg)
-    }
-    return
-  }
+  if (onDeleteKey(ev)) return
   if (!props.clickable) return
   if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return
   /* only the row itself: Enter inside a child control is that control's */
@@ -1140,368 +860,6 @@ function onKey(ev: KeyboardEvent) {
   emit('open-topic', props.msg)
 }
 
-/*
- * CLE-3445 row E1 — editing in place.
- *
- * The state machine is utils/msg-edit.mjs and is unit-tested without a
- * browser; everything below is the textarea, the focus and the one await.
- * MessageComposer.vue is the reference for the key handling, NOT a thing to
- * reuse into a row: a row has no attach control, no `/search` mode and no
- * send button. It does share the one @ picker (SPL-985, useMentionPicker).
- *
- * The rule this is shaped by (and now message-edit-v1 §5): nothing
- * on screen is replaced before the hub confirms. So the rendered body stays
- * exactly as it was while the PATCH is in flight, and on a refusal the typed
- * text stays in the still-open box with the reason under it — the human's
- * words are never the thing that gets thrown away.
- */
-const edit = ref<ReturnType<typeof beginEdit>>(null)
-const editing = computed(() => edit.value !== null)
-const saving = ref(false)
-const editError = ref('')
-const editEl = ref<HTMLTextAreaElement | null>(null)
-const rowEl = ref<HTMLElement | null>(null)
-const editHintId = useId()
-const edited = computed(() => isEdited(props.msg))
-/* spec 080 FR-005: a topic card whose topic holds the member's reply draft */
-const drafts = useDrafts()
-const hasDraft = computed(() => props.msg.is_parent !== 0 && Boolean(props.msg.task_id) && drafts.has('t:' + String(props.msg.task_id)))
-const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere, removeAttachment } = useMessageEdit()
-/* SPL-1560: the X on each file card, for whoever may edit the message (its
-   author, the tenant owner or an admin; the hub checks the same rule). The
-   changed row goes to every store; `edited` tells a host that holds its own
-   copy (the issue comments). */
-const filesRemovable = computed(() => Boolean(props.editable) && canEdit(props.msg))
-async function removeFile(f: FileRef) {
-  const rows = await removeAttachment(String(f.file_id || f.sha256 || ''))
-  const row = rows.find((r) => r.msg_id === props.msg.msg_id)
-  if (row) emit('edited', { ...props.msg, ...row })
-}
-/* SPL-983 (specs/041 §3.3) / CLE-77819: Delete is the author, the tenant owner
-   or an admin; Archive also a member the card is addressed to. The hub
-   re-checks; this only decides what the menu offers. */
-const access = useAccessStore()
-const showTopicDelete = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
-/* HUM-10 (owner, t1 7de82b71): in a topic pane only the LATEST message offers
-   Archive topic, on the opener's permission; elsewhere the topic card does */
-const inPane = computed(() => props.paneOpener !== undefined)
-const showTopicArchive = computed(() => (inPane.value
-  ? paneArchiveOffer(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
-  : Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me)))
-/* ... on a reply (not the topic card) it keeps the message's own Delete */
-const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
-const topicDeleteOpen = ref(false)
-// The opening card the delete dialog acts on: resolved from the clicked card's
-// task (topicOpenerId) so a non-opener card still deletes the topic.
-const topicDeleteMsgId = ref('')
-const msgDeleteOpen = ref(false)
-
-/*
- * SPL-1024 / SPL-1134 (specs/045 §3.9) — move by drag. A middle card the
- * viewer may move (author / tenant owner / admin, a channel topic) drags
- * onto a left-rail channel; a thread row they may move drags onto another
- * middle card. The drag starts ONLY from the handle strip (the card's first
- * ~3 mm): a mouse after 4 px of travel, a finger after a hold. A phone has
- * no rail beside the list, so there the hold opens Move to … instead. The
- * row under the pointer is found by useMove (one row lit at a time).
- */
-const move = useMove()
-const archiveUndo = useArchiveUndo()
-const deleteUndo = useDeleteUndo()
-const lobbyTask = useLive().lobbyTaskId
-const canMoveTopic = computed(() => Boolean(props.topicMenu) && mayMoveTopic(props.msg, editorId.value, access.me, lobbyTask.value))
-const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && mayMoveMessage(props.msg, editorId.value, access.me, {
-  openerId: props.moveCtx?.opener || '',
-  lobbyTaskId: lobbyTask.value,
-  channel: props.moveCtx?.channel || '',
-}))
-/* a DM row an agent sent may move out to a channel topic, never become a topic of its own */
-const canPromoteMsg = computed(() => canMoveMsg.value && mayPromoteMessage(props.msg, editorId.value, access.me, {
-  openerId: props.moveCtx?.opener || '',
-  lobbyTaskId: lobbyTask.value,
-  channel: props.moveCtx?.channel || '',
-}))
-const movable = computed(() => {
-  if (editing.value) return false
-  /* A reply drags out of the thread. A topic drags from the middle card
-     only: the opener in the open discussion keeps Move in the menu and
-     does not grow a second handle (spec 045, the opening card has none). */
-  if (canMoveMsg.value) return true
-  if (inTopicPane.value) return false
-  return canMoveTopic.value
-})
-/* CLE-77891 (HUM-24): a topic card's menu has the same entries for everyone;
-   what this viewer may not do is shown disabled with the reason. */
-const menuLocks = computed(() => props.topicMenu && !editing.value
-  ? topicMenuLocks(props.msg, editorId.value, access.me, { editable: Boolean(props.editable), lobbyTaskId: lobbyTask.value })
-  : undefined)
-const dragging = ref(false)
-const dropTarget = computed(() => Boolean(props.topicMenu) && (isCardDropTarget(move.drag.value, props.msg, lobbyTask.value) || isMergeCardDropTarget(move.drag.value, props.msg, lobbyTask.value)))
-const dropOver = computed(() => {
-  const o = move.over.value
-  return Boolean(o && o.kind === 'card' && o.ok && o.id === String(props.msg.task_id || ''))
-})
-const movePicker = ref<'' | 'channel' | 'topic' | 'merge'>('')
-
-function moveDrag(): MoveDrag {
-  const m = props.msg
-  return canMoveTopic.value
-    ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || ''), title: title.value || String(m.body || '').slice(0, 60) }
-    : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
-}
-function onMoveKey(ev: KeyboardEvent) {
-  if (ev.key !== 'Escape') return
-  ev.preventDefault()
-  handle.cancel()
-  rowDrag.cancel()
-}
-function endDrag() {
-  dragging.value = false
-  window.removeEventListener('keydown', onMoveKey, true)
-}
-const handle = createHandleDrag({
-  onStart: (x, y) => {
-    closeMenu()
-    pickerOpen.value = false
-    dragging.value = true
-    window.addEventListener('keydown', onMoveKey, true)
-    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
-    move.track(x, y)
-  },
-  onMove: (x, y) => move.track(x, y),
-  onDrop: (x, y) => {
-    move.track(x, y)
-    endDrag()
-    move.land(true)
-  },
-  onCancel: () => {
-    endDrag()
-    move.land(false)
-  },
-  onHold: () => {
-    if (!mobile.value) return true
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
-    openMovePicker(canMoveTopic.value ? 'channel' : 'topic')
-    return false
-  },
-})
-function onHandleDown(ev: PointerEvent) {
-  /* CLE-77906: a thumb's swipe often starts on the card's edge, which is this
-     handle; the handle stops the row's pointerdown, so start it here. A finger
-     that moves before the hold is not a move-drag (move-drag.mjs slop), so the
-     two never both run. */
-  if (swipeOn.value && !removing.value) swipe.down(ev)
-  if (!movable.value || !handle.down(ev)) return
-  /* no text selection, no native drag, and the stream stays on the handle
-     wherever the pointer goes */
-  ev.preventDefault()
-  const el = ev.currentTarget as HTMLElement | null
-  try { el?.setPointerCapture(ev.pointerId) } catch { /* the pointer is gone already */ }
-}
-function onHandleUp(ev: PointerEvent) {
-  handle.up(ev)
-  handle.takeClick()
-}
-onBeforeUnmount(() => handle.cancel())
-
-/*
- * HUM-10 (owner, t1 5a410ad5): "One should be able to drag and drop topics
- * into other topics on mobile as well." On a phone a long press on a topic
- * card the viewer may move LIFTS it (a buzz, the ghost): the finger drags it
- * over another topic card, which lights, and the list scrolls while the finger
- * is near its top or bottom edge. The release is the desktop drop (move.land):
- * the same Merge confirm, the same merge call, the same Undo. A finger that
- * moves before the hold is a scroll (move-drag.mjs slop) and lifts nothing; a
- * hold released where it was opens the card menu, as the long press always
- * did (Merge into topic… there is the way that needs no drag). The 12 px
- * handle keeps opening Move to channel… (the rail is not beside the list).
- */
-const touchLift = computed(() => mobile.value && canMoveTopic.value && !editing.value)
-let liftAt = { x: 0, y: 0 }
-let liftTravel = false
-function scrollBox(): HTMLElement | null {
-  for (let e = rowEl.value?.parentElement; e; e = e.parentElement) {
-    const oy = getComputedStyle(e).overflowY
-    if ((oy === 'auto' || oy === 'scroll') && e.scrollHeight > e.clientHeight) return e
-  }
-  return (document.scrollingElement as HTMLElement | null) || null
-}
-let edgeBox: HTMLElement | null = null
-const edgeScroll = createEdgeScroll({
-  box: () => {
-    const b = edgeBox
-    if (!b) return null
-    const whole = b === document.scrollingElement
-    const r = whole ? { top: 0, bottom: window.innerHeight } : b.getBoundingClientRect()
-    return {
-      top: r.top,
-      bottom: r.bottom,
-      scrollBy: (dy: number) => {
-        const before = b.scrollTop
-        b.scrollTop = before + dy
-        return b.scrollTop !== before
-      },
-    }
-  },
-  onScroll: (x, y) => move.track(x, y),
-})
-function endTouchDrag() {
-  edgeScroll.stop()
-  edgeBox = null
-  endDrag()
-}
-const rowDrag = createHandleDrag({
-  holdMs: LONG_PRESS_MS,
-  slopPx: LONG_PRESS_SLOP_PX,
-  onStart: (x, y) => {
-    longPress.cancel()
-    swipe.cancel()
-    stack.swipe.claim()
-    closeMenu()
-    pickerOpen.value = false
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
-    liftAt = { x, y }
-    liftTravel = false
-    edgeBox = scrollBox()
-    dragging.value = true
-    window.addEventListener('keydown', onMoveKey, true)
-    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
-    move.track(x, y)
-  },
-  onMove: (x, y) => {
-    if (!liftTravel && Math.hypot(x - liftAt.x, y - liftAt.y) > LONG_PRESS_SLOP_PX) liftTravel = true
-    if (liftTravel) edgeScroll.at(x, y)
-    move.track(x, y)
-  },
-  onDrop: (x, y) => {
-    endTouchDrag()
-    if (!liftTravel) {
-      move.land(false)
-      rowEl.value?.focus({ preventScroll: true })
-      openMenuAt(liftAt.x, liftAt.y)
-      return
-    }
-    move.track(x, y)
-    move.land(true)
-  },
-  onCancel: () => {
-    endTouchDrag()
-    move.land(false)
-  },
-})
-/* the page must not scroll under a lifted card: a touchmove the browser may
-   still cancel is cancelled (not passive, so only on the rows that lift) */
-function onLiftTouchMove(ev: TouchEvent) {
-  if (rowDrag.state === 'lifted' && ev.cancelable) ev.preventDefault()
-}
-/* the click the release sends opens nothing: not the topic, and not a button
-   the finger happened to hold (the menu button would close the menu again) */
-function onLiftClick(ev: MouseEvent) {
-  if (!rowDrag.takeClick()) return
-  ev.preventDefault()
-  ev.stopPropagation()
-}
-let liftListenerOn: HTMLElement | null = null
-watch([touchLift, rowEl], ([on, el]) => {
-  if (liftListenerOn && (!on || liftListenerOn !== el)) {
-    liftListenerOn.removeEventListener('touchmove', onLiftTouchMove)
-    liftListenerOn.removeEventListener('click', onLiftClick, true)
-    liftListenerOn = null
-  }
-  if (on && el && !liftListenerOn) {
-    el.addEventListener('touchmove', onLiftTouchMove, { passive: false })
-    el.addEventListener('click', onLiftClick, true)
-    liftListenerOn = el
-  }
-}, { immediate: true, flush: 'post' })
-onBeforeUnmount(() => {
-  rowDrag.cancel()
-  liftListenerOn?.removeEventListener('touchmove', onLiftTouchMove)
-  liftListenerOn?.removeEventListener('click', onLiftClick, true)
-  liftListenerOn = null
-})
-
-function openMovePicker(mode: 'channel' | 'topic' | 'merge') {
-  closeMenu()
-  movePicker.value = mode
-}
-
-/* 8f588edd: "Make it a topic" - the keyboard / touch way to promote this reply
-   into a new topic of its own, what the drag into the topics list does. */
-function onPromote() {
-  closeMenu()
-  void move.run({ kind: 'promote', msgId: String(props.msg.msg_id || '') })
-}
-
-/* t1 5ea2e615 (owner db5ed497): "An owner question should not become an
-   issue until the owner decides that." A workspace owner makes an issue of a
-   message that carries the blocker mark; the hub re-checks both, and the new
-   (or already made) issue opens on the issues sheet. */
-const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
-async function onMakeIssue() {
-  closeMenu()
-  aiError.value = ''
-  try {
-    const out = await parentDeps.api.makeBlockerIssue(String(props.msg.msg_id || ''))
-    await parentDeps.router.push(localePath({ path: '/issues', query: { issue: out.issue.key } }))
-  } catch {
-    aiError.value = 'feed.msg_menu.make_issue_failed'
-  }
-}
-
-/* "moved from #x" on a card, "moved from <topic>" on a reply */
-const channelStore = useChannelStore()
-
-/* t1 b6c742f0 (HUM-10): MessageMenu runs a person's message's AI actions;
-   a failure is shown here, under the card */
-const aiError = ref('')
-function onAiFail(key: string) {
-  aiError.value = key
-}
-const movedInfo = computed(() => movedNote(props.msg))
-const movedFrom = computed(() => {
-  const n = movedInfo.value
-  return n ? (n.kind === 'channel' ? n.channel : n.task) : undefined
-})
-const movedText = computed(() => {
-  const n = movedInfo.value
-  if (!n) return ''
-  if (n.kind === 'channel') return t('feed.move.from_channel', { channel: n.channel })
-  const home = channelStore.messages.find((r) => String(r.task_id || '') === n.task && r.is_parent !== 0)
-  const name = home ? cardTitle(String(home.body || '')) : ''
-  return name ? t('feed.move.from_topic', { title: name.length > 48 ? `${name.slice(0, 47)}…` : name }) : t('feed.move.from_topic_unknown')
-})
-/* spec 067 rule 3: "about #channel / topic" on a DM that carries ref_task_id */
-const { refOf } = useDmRef()
-const dmRefTopic = computed(() => (props.msg.ref_task_id && !props.msg.channel ? refOf(String(props.msg.ref_task_id)).value : null))
-const dmRef = computed(() => Boolean(dmRefTopic.value))
-function dmAbout(cut: boolean) {
-  const r = dmRefTopic.value
-  if (!r) return ''
-  const name = channelStore.channels.find((c) => c.channel_id === r.channel)?.name || r.channel
-  return t('feed.dm_about', { channel: name, topic: cut && r.title.length > 48 ? `${r.title.slice(0, 47)}…` : r.title })
-}
-const dmRefText = computed(() => dmAbout(true))
-/* dc6d5e3f: the topic a DM-view pointer is in (its title from the same one-read cache) */
-const pointerTopic = computed(() => (props.msg.pointer && props.msg.channel ? refOf(String(props.msg.task_id || '')).value : null))
-function pointerIn(cut: boolean) {
-  const ch = String(props.msg.channel || '').replace(/^#/, '')
-  const name = channelStore.channels.find((c) => c.channel_id === ch)?.name || ch
-  const title = pointerTopic.value?.title || ''
-  return t('feed.dm_pointer', { channel: name, topic: cut && title.length > 48 ? `${title.slice(0, 47)}…` : title })
-}
-const pointerText = computed(() => pointerIn(true))
-const pointerTip = computed(() => pointerIn(false))
-const dmRefTip = computed(() => dmAbout(false))
-const removing = ref(false)
-const localePath = useLocalePath()
-const route = useRoute()
-/* The same message can sit in the middle list and the topic pane at once.
-   The menu id has to be this card, not the msg_id, or both menus open. */
-const menuKey = useId()
-const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu } = useMessageMenu(
-  () => menuKey,
-)
 /* HUM-10 ae2e5093: Shift + letter on the selected card runs the same handler
    as its menu item, offered by the same flags (composables/useMsgShortcuts.ts) */
 const shortcutRun: Record<string, () => unknown> = {
@@ -1534,350 +892,12 @@ useMsgShortcuts({
     promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value,
   }),
 })
-const { viewerId, setReaction, applyEverywhere } = useMessageEmoji()
-const pickerOpen = ref(false)
-const pickerAt = ref({ x: 0, y: 0 })
-const busy = ref(false)
-const reactError = ref('')
-const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
-/** A chip's tooltip: who reacted, by the name the row would show. */
-function chipWho(actors: string[]) {
-  return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
-}
-/** The short, plain name of a reaction glyph (owner da0c0e98: hover names it). */
-function emojiLabel(emoji: string) {
-  return emojiName(emoji, t)
-}
-/** A chip's title: what the emoji represents, then who reacted ("Fire · Ann"). */
-function chipTitle(chip: { emoji: string, actors: string[] }) {
-  const who = chipWho(chip.actors)
-  const name = emojiLabel(chip.emoji)
-  return who ? `${name} · ${who}` : name
-}
-/* SPL-1007: a phone draws the chips inside Add emoji; its name reads them out */
-const phoneChips = computed(() => mobile.value && chips.value.length > 0)
-const emojiBtnName = computed(() => [t('feed.emoji.add'), ...chips.value.map((c) => (c.mine
-  ? t('feed.emoji.mine', { emoji: emojiLabel(c.emoji) })
-  : t('feed.emoji.chip', { emoji: emojiLabel(c.emoji), n: c.count })))].join(', '))
-
-function openPickerFromButton(ev: MouseEvent) {
-  const btn = ev.currentTarget
-  if (!(btn instanceof HTMLElement)) return
-  closeMenu()
-  if (pickerOpen.value) {
-    pickerOpen.value = false
-    return
-  }
-  const r = btn.getBoundingClientRect()
-  rowEl.value?.focus({ preventScroll: true })
-  pickerAt.value = { x: r.left, y: r.bottom + 4 }
-  pickerOpen.value = true
-}
-
-/** Add the glyph, or remove it when this member already added it. */
-async function onReact(emoji: string) {
-  if (busy.value || !props.msg.msg_id || props.msg.pending) return
-  busy.value = true
-  reactError.value = ''
-  try {
-    const update = await setReaction(props.msg, emoji)
-    applyEverywhere(update)
-    emit('reacted', update)
-  } catch {
-    reactError.value = t('feed.emoji.failed')
-  } finally {
-    busy.value = false
-  }
-}
-
-/*
- * the card's height in the middle pane (utils/card-clip.mjs holds
- * the rule and its tests). The box is measured, not guessed: the line height
- * is read from the rendered body, so the 5 rows follow the font-size setting
- * (rem), and "clipped" is the content being taller than the box, so a short
- * card never shows a grip. Editing lifts the clip: the textarea sizes itself.
- */
-const clipEl = ref<HTMLElement | null>(null)
-const clipInner = ref<HTMLElement | null>(null)
-const picture = computed(() => cardHasPicture(files.value))
-const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
-/* topic e1f8f797: the body's internal links, as preview cards inside the clip (t1 c7ddbf83) */
-const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''), {
-  skip: () => [String(props.msg.msg_id || ''), String(props.msg.task_id || ''), String(props.msg.parent_task_id || '')],
-})
-/* SPL-1871 (owner t1 c3396e3c): a card holding a ```poll form takes the
-   reader's 5 rows like any card, "the same as with the links previews": the
-   options under the cut fade out and the grip shows them all (SPL-1637 had
-   left the form unclipped, so it drew at full height past the limit) */
-const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
-const title = computed(() => {
-  const own = cardTitle(String(props.msg.body || ''))
-  if (own) return own
-  return cardTitle(files.value.map((f) => String(f.name || '')).filter(Boolean).join(', '))
-})
-/** A grip drag on this card, px; null = the automatic height. Never stored. */
-const userPx = ref<number | null>(null)
-const lineHeightPx = ref(0)
-const viewportPx = ref(0)
-const contentPx = ref(0)
-const clipPx = computed(() => {
-  if (!clipOn.value || !lineHeightPx.value) return null
-  return cardClipPx({
-    mode: 'rows',
-    picture: picture.value,
-    lineHeightPx: lineHeightPx.value,
-    viewportPx: viewportPx.value,
-    userPx: userPx.value,
-  })
-})
-const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))
-/* Before the first measurement the stylesheet's own rows / 30vh cap holds. */
-const clipStyle = computed(() => (clipPx.value != null ? { maxHeight: `${clipPx.value}px` } : undefined))
-
-function measure() {
-  if (typeof window === 'undefined') return
-  const inner = clipInner.value
-  if (!inner) return
-  const body = inner.querySelector<HTMLElement>('.msg-body') || inner
-  const style = getComputedStyle(body)
-  const lh = parseFloat(style.lineHeight)
-  const fs = parseFloat(style.fontSize) || 14
-  lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
-  viewportPx.value = window.innerHeight
-  /* a picture card caps its text at 5 rows inside the 30% box, so the
-     picture shows under it; the text cut counts toward "clipped" too */
-  const textCut = body !== inner ? Math.max(0, body.scrollHeight - body.clientHeight) : 0
-  contentPx.value = Math.ceil(inner.scrollHeight + textCut)
-}
-
-let clipObserver: ResizeObserver | null = null
-let offResize: (() => void) | null = null
-function stopObserving() {
-  clipObserver?.disconnect()
-  clipObserver = null
-  offResize?.()
-  offResize = null
-}
-function startObserving() {
-  stopObserving()
-  if (typeof window === 'undefined' || !clipOn.value || !clipInner.value) return
-  measure()
-  if (typeof ResizeObserver !== 'undefined') {
-    clipObserver = new ResizeObserver(() => measure())
-    clipObserver.observe(clipInner.value)
-  }
-  /* one shared window listener, once per frame (CLE-35075) */
-  offResize = onViewportResize(measure)
-}
-watch([clipOn, clipInner], () => { void nextTick(startObserving) })
-onMounted(() => startObserving())
-onBeforeUnmount(stopObserving)
-/* Another mode, or another message under this card: back to the automatic height. */
-watch(() => [props.clipMode, String(props.msg?.msg_id || '')], () => { userPx.value = null })
-
-let gripDragged = false
-function startGrip(ev: PointerEvent) {
-  const box = clipEl.value
-  const handle = ev.currentTarget
-  if (!box || !(handle instanceof HTMLElement)) return
-  ev.preventDefault()
-  measure()
-  handle.setPointerCapture(ev.pointerId)
-  gripDragged = false
-  const startY = ev.clientY
-  const startH = box.getBoundingClientRect().height
-  const move = (e: PointerEvent) => {
-    const dy = e.clientY - startY
-    if (!gripDragged && Math.abs(dy) < 3) return
-    gripDragged = true
-    userPx.value = cardDragPx(startH, dy, lineHeightPx.value, contentPx.value)
-  }
-  const end = () => {
-    handle.removeEventListener('pointermove', move)
-    handle.removeEventListener('pointerup', end)
-    handle.removeEventListener('pointercancel', end)
-  }
-  handle.addEventListener('pointermove', move)
-  handle.addEventListener('pointerup', end)
-  handle.addEventListener('pointercancel', end)
-}
-
-/** A click (or Enter / Space) on the grip: all of it, or back to the automatic height. */
-function onGripClick() {
-  if (gripDragged) {
-    gripDragged = false
-    return
-  }
-  measure()
-  userPx.value = clipped.value ? contentPx.value : null
-}
-
-/** Arrow Down / Up: two rows more or less, from one row to the whole card. */
-function onGripKey(ev: KeyboardEvent) {
-  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return
-  ev.preventDefault()
-  ev.stopPropagation()
-  measure()
-  const now = clipEl.value?.getBoundingClientRect().height || clipPx.value || 0
-  const step = lineHeightPx.value * CARD_GRIP_STEP_ROWS * (ev.key === 'ArrowDown' ? 1 : -1)
-  userPx.value = cardDragPx(now, step, lineHeightPx.value, contentPx.value)
-}
-
-const draft = computed({
-  get: () => edit.value?.draft ?? '',
-  set: (v: string) => { edit.value = withDraft(edit.value, v) },
-})
-const { poke } = useMentionPoke()
-/* K4: where this message lives - an issue comment, a channel, or a DM between its two ends */
-function editWhere(): PokeWhere {
-  const m = props.msg
-  const taskId = String(m.task_id || '')
-  const channel = String(m.channel || '')
-  /* 'issues' = utils/parent-section.mjs ISSUE_CHANNEL, which must stay out of the initial chunk */
-  if (channel === 'issues') return { issue: true, taskId }
-  if (channel) return { channel, taskId }
-  const to = String(m.to || '')
-  if (!to || to === '@channel') return { channel: '', taskId }
-  return { ends: [String(m.from || ''), to], taskId }
-}
-const editMp = useMentionPicker({
-  text: draft,
-  el: editEl,
-  blocked: () => fenceStateAt(draft.value, editEl.value?.selectionStart ?? draft.value.length).inCode,
-})
-
-/*
- * the row under this card can CHANGE, and the edit state must not
- * ride across when it does.
- *
- * THE OWNER, 2026-09-22: "the editing of the msg appears whenever the bot is
- * sending". The 3rd panel's pinned root is one MessageCard that is re-rooted
- * rather than remounted (stores/live.ts open() reassigns taskId without it
- * ever passing through null, so the <aside> is never torn down). `editable`
- * is a prop and re-evaluated correctly; `edit` / `saving` / `editError` are
- * local refs and were not. So an editor opened on your own message stayed
- * open on whatever landed in the panel next -- measured in Chrome with the
- * textarea sitting on CLE-07@box-a's message still holding HUM-1's body
- * (tests/e2e/msg-edit.test.mjs step 8.1).
- *
- * The hosts now key that mount by msg_id, which is the structural fix. This
- * watcher is the one that does not depend on every future host remembering:
- * a card whose row identity changed is a card with no edit in progress.
- *
- * It is a plain reset and NOT closeEdit(): closeEdit() pulls focus back to
- * the row on the next tick, which would steal the caret from wherever the
- * human actually is when a panel re-roots underneath them.
- */
-watch(() => String(props.msg?.msg_id || ''), (now, before) => {
-  if (now === before) return
-  edit.value = null
-  saving.value = false
-  editError.value = ''
-  reactError.value = ''
-  pickerOpen.value = false
-  busy.value = false
-})
-
-async function remove() {
-  if (removing.value || editing.value) return
-  if (!canEdit(props.msg)) return
-  const id = String(props.msg.msg_id || '')
-  if (!id) return
-  removing.value = true
-  editError.value = ''
-  try {
-    await removeMessage(id)
-    emit('deleted', props.msg)
-  } catch (e) {
-    removing.value = false
-    editError.value = editFailureKey(e)
-  }
-}
 
 onMounted(() => {
   if (typeof window === 'undefined') return
   const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''))
   if (hash && hash === String(props.msg?.msg_id || '')) rowEl.value?.focus({ preventScroll: true })
 })
-
-function startEdit() {
-  if (!canEdit(props.msg)) return
-  editError.value = ''
-  const began = beginEdit(props.msg)
-  /* SPL-1009: the box shows mentioned people by name; save() stores their tags */
-  edit.value = began && withDraft(began, editMp.decode(began.draft))
-  if (!edit.value) return
-  nextTick(() => {
-    const el = editEl.value
-    if (!el) return
-    el.focus()
-    /* caret at the END of the old text: the human is amending, not retyping */
-    el.setSelectionRange(el.value.length, el.value.length)
-  })
-}
-
-/** Close the editor and hand the keyboard back to the row it came from. */
-function closeEdit() {
-  edit.value = null
-  saving.value = false
-  /* the textarea is gone by the next tick (v-if), so focus goes to the row —
-     otherwise the focus falls to <body> and the next key press does nothing */
-  nextTick(() => rowEl.value?.focus({ preventScroll: true }))
-}
-
-function onEditKey(ev: KeyboardEvent) {
-  if (saving.value) {
-    /* in flight: swallow a second Enter so one keystroke cannot send twice */
-    if (ev.key === 'Enter' && !ev.shiftKey) ev.preventDefault()
-    return
-  }
-  /* SPL-985: an open @ list owns Enter / Tab / Esc / the arrows */
-  if (editMp.onKeydown(ev)) return
-  const inCode = fenceStateAt(draft.value, editEl.value?.selectionStart ?? draft.value.length).inCode
-  const act = editKeyAction(ev, { inCode })
-  if (act === 'cancel') {
-    ev.preventDefault()
-    ev.stopPropagation()
-    editError.value = ''
-    closeEdit()
-    return
-  }
-  if (act !== 'commit') return
-  ev.preventDefault()
-  void save()
-}
-
-async function save() {
-  const state = edit.value
-  if (!state) return
-  const { action, body, error } = commitEdit(withDraft(state, editMp.encode(state.draft)))
-  if (action === 'unchanged') {
-    editError.value = ''
-    closeEdit()
-    return
-  }
-  if (action === 'empty') {
-    /* an emptied box is a delete, and nobody has asked for one: the editor
-       stays open holding what was typed */
-    editError.value = editFailureKey(error)
-    return
-  }
-  saving.value = true
-  editError.value = ''
-  try {
-    const row = await commit(state.msgId, body)
-    /* the hub has answered: only NOW may the screen change, and the host owns
-       the rows, so it is told rather than reaching into props.msg */
-    emit('edited', row)
-    /* SPL-985 K3: only a mention the edit ADDED pokes, never one already told */
-    void poke({ text: body, before: state.original, where: editWhere() })
-    closeEdit()
-  } catch (e) {
-    saving.value = false
-    editError.value = editFailureKey(e)
-    nextTick(() => editEl.value?.focus())
-  }
-}
 </script>
 
 <style scoped>

@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { joinBodies, messageLink, msgMenuItems, threadLineLink, threadNeighbor, topicPaneLink } from '../../src/utils/msg-menu.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -171,7 +172,7 @@ describe('merging two messages in one thread', () => {
 
 describe('the card opens the menu on a right-click', () => {
   it('wires contextmenu to the same panel as a channel row', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     const menu = src('src/components/UiPointMenu.vue')
     assert.match(src('src/components/MessageMenu.vue'), /<UiPointMenu[\s\S]*testid="msg-menu"/)
     assert.match(card, /@contextmenu="onContextMenu"/)
@@ -184,7 +185,7 @@ describe('the card opens the menu on a right-click', () => {
     assert.match(card, /@open="onMenuOpen"/)
     assert.match(card, /:hide="menuHide"/)
     assert.match(card, /@hide-flow="onMenuHide"/)
-    assert.match(card, /function onMenuHide\(\) \{\n  closeMenu\(\)\n  swipeHideCommit\(\)\n\}/)
+    assert.match(card, /function onMenuHide\(\) \{\n\s*closeMenu\(\)\n\s*swipeHideCommit\(\)\n\s*\}/)
     assert.match(card, /const menuHide = computed\(\(\) => Boolean\(props\.msg\.msg_id\) && !props\.msg\.pending/)
     assert.match(card, /swipeLeftAction\(\{ swipeOn: true, starter: swipeStarter\.value/)
     assert.match(src('src/components/MessageMenu.vue'), /hide: props\.hide/)

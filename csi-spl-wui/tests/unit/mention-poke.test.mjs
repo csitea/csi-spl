@@ -120,7 +120,7 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
     assert.match(src('src/pages/lobby.vue'), /pokeChannel: ''/)
   })
   it('an edit pokes only what it added', () => {
-    const s = src('src/components/MessageCard.vue')
+    const s = messageCardSrc()
     assert.match(s, /poke\(\{ text: body, before: state\.original, where: editWhere\(\) \}\)/)
     assert.ok(s.indexOf('before: state.original') > s.indexOf('await commit(state.msgId, body)'))
   })
@@ -174,6 +174,7 @@ describe('splitPokes (CLE-77852: a seated agent outside the channel)', () => {
 })
 
 import { agentTargets, pokeFrame } from '../../src/utils/mention-poke.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 describe('spec 067 Q3 + rule 3: no poke DM to a person; an agent poke carries ref_task_id', () => {
   const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'

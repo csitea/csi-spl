@@ -225,6 +225,11 @@
       "browser": "Zona horaria del navegador ({zone})",
       "hint": "Todas las horas de este espacio de trabajo se muestran en esta zona, también las horas ISO con zona dentro de los mensajes. Una hora sin zona, como 18:46, queda tal como se escribió. Se guarda para este espacio de trabajo."
     },
+    "second_currency": {
+      "label": "Segunda moneda",
+      "hint": "Monitorización → Costes muestra cada coste en dólares estadounidenses y en esta moneda, cada día al tipo de ese día (BCE o Reserva Federal de EE. UU.). Se guarda para este espacio de trabajo.",
+      "default": "{currency} (predeterminada)"
+    },
     "keyboard_shortcuts": {
       "label": "Atajos de teclado",
       "hint": "Mayús + una letra actúa sobre el mensaje seleccionado (escritorio). Mayús + ? muestra todas las teclas."
@@ -2995,6 +3000,10 @@
       "col_part": "Partida",
       "col_pct": "% del mes",
       "col_list": "Precio de lista",
+      "col_second": "{currency} (tipo del día)",
+      "second_rate": "1 USD = {rate} {currency}, tipo del {day}",
+      "second_rate_span": "Cada día a su propio tipo, del {first} al {day}. Último: 1 USD = {rate} {currency} ({day})",
+      "second_none": "No hay tipo de {currency} en o antes de un día de coste, así que no hay importe",
       "hand": "introducido a mano",
       "estimate": "estimación",
       "outside_gcp": "Máquinas fuera de GCP",

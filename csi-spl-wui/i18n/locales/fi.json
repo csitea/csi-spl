@@ -225,6 +225,11 @@
       "browser": "Selaimen aikavyöhyke ({zone})",
       "hint": "Kaikki tämän työtilan ajat näytetään tällä vyöhykkeellä, myös viesteissä olevat ISO-ajat, joissa on vyöhyke. Aika ilman vyöhykettä, kuten 18:46, näkyy sellaisenaan. Tallennetaan tälle työtilalle."
     },
+    "second_currency": {
+      "label": "Toinen valuutta",
+      "hint": "Valvonta → Kulut näyttää jokaisen kulun Yhdysvaltain dollareina ja tässä valuutassa, joka päivä sen päivän kurssilla (EKP tai Yhdysvaltain keskuspankki). Tallennetaan tälle työtilalle.",
+      "default": "{currency} (oletus)"
+    },
     "keyboard_shortcuts": {
       "label": "Pikanäppäimet",
       "hint": "Vaihto + kirjain toimii valitussa viestissä (tietokone). Vaihto + ? näyttää kaikki näppäimet."
@@ -2995,6 +3000,10 @@
       "col_part": "Osa",
       "col_pct": "% kuukaudesta",
       "col_list": "Listahinta",
+      "col_second": "{currency} (päivän kurssi)",
+      "second_rate": "1 USD = {rate} {currency}, kurssi {day}",
+      "second_rate_span": "Jokainen päivä omalla kurssillaan, {first}–{day}. Viimeisin: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Kulupäivälle tai sitä ennen ei ole {currency}-kurssia, joten summaa ei ole",
       "hand": "syötetty käsin",
       "estimate": "arvio",
       "outside_gcp": "GCP:n ulkopuoliset koneet",

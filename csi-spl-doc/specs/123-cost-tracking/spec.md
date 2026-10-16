@@ -201,6 +201,24 @@ day, else the last one published before it, and the rate's date is shown.
   to Friday; red control: the read with the conversion dropped fails the
   assertion), `TestFXRatesRoute`, `TestCostReadSecondCurrency` (hub),
   `TestParseSecondCurrency`, `TestCheckSecondCurrency` (auth).
+- **WUI** (lane B, SPL-2199): Monitoring -> Costs has one more column after
+  EUR, headed `<code> (day rate)`, each part's `second_micros` in the
+  reader's pick; the cell's title is the rate and its date
+  (`1 USD = 0.92 EUR, rate of <fx_rate_day>`, or, when the part's cost days
+  took several rates, `Each day at its own rate, <fx_rate_first_day> to
+  <fx_rate_day>. Latest: ...`). No rate is an em dash whose title says so;
+  the total row likewise. USD and EUR columns are unchanged. Settings ->
+  Appearance -> **Second currency** (`SecondCurrencySetting.vue`, under Time
+  zone) lists `GET /v1/tenant/fx/currencies`, marks the default, saves with
+  `PUT /api/v1/auth/preferences {second_currency}` (the default sends `null`)
+  and the open costs page reloads on the new pick. Code:
+  `csi-spl-wui/src/utils/tenant-costs.mjs` (`costSecondCell`, `costFxRate`,
+  `costCurrencyOptions`; loaded by the costs page and on demand by the
+  setting, never in the first-screen set), the mock (`MOCK_FX_RATES`,
+  scenario `norate` in `spool.mock.costs`). Tests:
+  `tests/unit/tenant-costs.test.mjs`, `tests/e2e/monitoring-costs.test.mjs`
+  (1400 and 390 px). Not here: the help pages (`monitoring.md`,
+  `user-settings.md`, Qto exports).
 
 ## 6. The 1-Month Collection Plan
 

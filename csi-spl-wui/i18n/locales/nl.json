@@ -225,6 +225,11 @@
       "browser": "Tijdzone van de browser ({zone})",
       "hint": "Elke tijd in deze werkruimte wordt in deze zone getoond, ook ISO-tijden met een zone in berichten. Een tijd zonder zone, zoals 18:46, blijft zoals geschreven. Bewaard voor deze werkruimte."
     },
+    "second_currency": {
+      "label": "Tweede valuta",
+      "hint": "Systeembewaking → Kosten toont elke kostenpost in Amerikaanse dollars en in deze valuta, elke dag tegen de koers van die dag (ECB of de Amerikaanse Federal Reserve). Bewaard voor deze werkruimte.",
+      "default": "{currency} (standaard)"
+    },
     "keyboard_shortcuts": {
       "label": "Sneltoetsen",
       "hint": "Shift + een letter werkt op het geselecteerde bericht (desktop). Shift + ? toont alle toetsen."
@@ -2995,6 +3000,10 @@
       "col_part": "Onderdeel",
       "col_pct": "% van de maand",
       "col_list": "Catalogusprijs",
+      "col_second": "{currency} (dagkoers)",
+      "second_rate": "1 USD = {rate} {currency}, koers van {day}",
+      "second_rate_span": "Elke dag tegen zijn eigen koers, {first} tot {day}. Laatste: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Geen {currency}-koers op of vóór een kostendag, dus geen bedrag",
       "hand": "handmatig ingevoerd",
       "estimate": "schatting",
       "outside_gcp": "Machines buiten GCP",

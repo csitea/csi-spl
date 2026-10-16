@@ -61,6 +61,8 @@ export interface SessionClaims {
   hours_reading?: boolean | null
   /** SPL-2113 "Thinking animation": the ticked drawing ids, per workspace; null = never picked (the default three). */
   await_anims?: string[] | null
+  /** SPL-2108 The costs' second currency (ISO 4217), per workspace; the hub answers EUR when never picked. */
+  second_currency?: string | null
 }
 
 type SessionAuth = ReturnType<typeof useAuthClient>

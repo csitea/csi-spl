@@ -225,6 +225,11 @@
       "browser": "Naršyklės laiko juosta ({zone})",
       "hint": "Visi šios darbo srities laikai rodomi šioje juostoje, taip pat ISO laikai su juosta žinutėse. Laikas be juostos, pvz., 18:46, lieka kaip parašytas. Saugoma šiai darbo sričiai."
     },
+    "second_currency": {
+      "label": "Antroji valiuta",
+      "hint": "Stebėsena → Išlaidos rodo kiekvienas išlaidas JAV doleriais ir šia valiuta, kiekvieną dieną tos dienos kursu (ECB arba JAV federalinis rezervų bankas). Saugoma šiai darbo sričiai.",
+      "default": "{currency} (numatytoji)"
+    },
     "keyboard_shortcuts": {
       "label": "Spartieji klavišai",
       "hint": "Shift + raidė veikia pasirinktą žinutę (kompiuteryje). Shift + ? parodo visus klavišus."
@@ -2995,6 +3000,10 @@
       "col_part": "Dalis",
       "col_pct": "% mėnesio",
       "col_list": "Kainyno kaina",
+      "col_second": "{currency} (dienos kursas)",
+      "second_rate": "1 USD = {rate} {currency}, {day} kursas",
+      "second_rate_span": "Kiekviena diena savo kursu, nuo {first} iki {day}. Naujausias: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Nėra {currency} kurso išlaidų dieną ar anksčiau, todėl sumos nėra",
       "hand": "įvesta rankiniu būdu",
       "estimate": "įvertis",
       "outside_gcp": "Mašinos už GCP ribų",

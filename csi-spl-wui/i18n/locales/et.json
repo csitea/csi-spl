@@ -225,6 +225,11 @@
       "browser": "Brauseri ajavöönd ({zone})",
       "hint": "Kõik selle tööruumi ajad näidatakse selles vööndis, ka sõnumites olevad vööndiga ISO-ajad. Vööndita aeg, nagu 18:46, jääb nii, nagu kirjutati. Salvestatakse selle tööruumi jaoks."
     },
+    "second_currency": {
+      "label": "Teine valuuta",
+      "hint": "Seire → Kulud näitab iga kulu USA dollarites ja selles valuutas, iga päev selle päeva kursiga (EKP või USA Föderaalreserv). Salvestatakse selle tööruumi jaoks.",
+      "default": "{currency} (vaikimisi)"
+    },
     "keyboard_shortcuts": {
       "label": "Kiirklahvid",
       "hint": "Shift + täht toimib valitud sõnumil (lauaarvuti). Shift + ? näitab kõiki klahve."
@@ -2995,6 +3000,10 @@
       "col_part": "Osa",
       "col_pct": "% kuust",
       "col_list": "Hinnakirja hind",
+      "col_second": "{currency} (päeva kurss)",
+      "second_rate": "1 USD = {rate} {currency}, kurss {day}",
+      "second_rate_span": "Iga päev oma kursiga, {first} kuni {day}. Viimane: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Kulupäeval ega enne seda pole {currency} kurssi, seega summat pole",
       "hand": "sisestatud käsitsi",
       "estimate": "hinnang",
       "outside_gcp": "Masinad väljaspool GCP-d",

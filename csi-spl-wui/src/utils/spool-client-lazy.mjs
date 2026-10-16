@@ -1622,13 +1622,26 @@ async function getFleetLoad(ctx) {
  * Spec 123 5.2 (SPL-2056): GET /v1/tenant/costs?month=YYYY-MM, the month's
  * cost parts, totals and coverage (costs.read; 403 names it). No month =
  * the current month so far. The mock answers from tenant-costs.mjs, which
- * loads only here and on the costs page.
+ * loads only here and on the costs page. `secondCurrency` is the reader's
+ * pick (spec 123 5.4): the hub converts by the session's own, so only the
+ * mock reads it.
  */
-async function getTenantCosts(ctx, month = '') {
+async function getTenantCosts(ctx, month = '', secondCurrency = '') {
   const { live, mock } = ctx
   const tc = await import('./tenant-costs.mjs')
-  if (mock) return tc.mockTenantCosts(month, { me: mockMeGet() })
+  if (mock) return tc.mockTenantCosts(month, { me: mockMeGet(), currency: secondCurrency })
   return live('/v1/tenant/costs' + tc.costsQuery(month))
+}
+
+/**
+ * Spec 123 5.4 (SPL-2199): GET /v1/tenant/fx/currencies, the codes the
+ * costs' second currency may be ({default, currencies}), for the Settings ->
+ * Appearance picker. Any signed-in member.
+ */
+async function getFxCurrencies(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await import('./tenant-costs.mjs')).mockFxCurrencies()
+  return live('/v1/tenant/fx/currencies')
 }
 
 /** PATCH /v1/operator/fleet-load. A JSON null resets that field to the default. */
@@ -1797,6 +1810,7 @@ export const lazySpoolMethods = {
   getFleetLoad,
   patchFleetLoad,
   getTenantCosts,
+  getFxCurrencies,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

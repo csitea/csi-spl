@@ -225,6 +225,11 @@
       "browser": "Pārlūka laika josla ({zone})",
       "hint": "Visi šīs darba vietas laiki tiek rādīti šajā joslā, arī ISO laiki ar joslu ziņās. Laiks bez joslas, piemēram, 18:46, paliek, kā uzrakstīts. Tiek saglabāts šai darba vietai."
     },
+    "second_currency": {
+      "label": "Otrā valūta",
+      "hint": "Pārraudzība → Izmaksas rāda visas izmaksas ASV dolāros un šajā valūtā, katru dienu pēc tās dienas kursa (ECB vai ASV Federālo rezervju sistēma). Saglabāts šai darbvietai.",
+      "default": "{currency} (noklusējums)"
+    },
     "keyboard_shortcuts": {
       "label": "Īsinājumtaustiņi",
       "hint": "Shift + burts darbojas ar atlasīto ziņu (datorā). Shift + ? parāda visus taustiņus."
@@ -2995,6 +3000,10 @@
       "col_part": "Daļa",
       "col_pct": "% no mēneša",
       "col_list": "Cenrāža cena",
+      "col_second": "{currency} (dienas kurss)",
+      "second_rate": "1 USD = {rate} {currency}, {day} kurss",
+      "second_rate_span": "Katra diena pēc sava kursa, no {first} līdz {day}. Jaunākais: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Izmaksu dienā vai pirms tās nav {currency} kursa, tāpēc summas nav",
       "hand": "ievadīts manuāli",
       "estimate": "aplēse",
       "outside_gcp": "Mašīnas ārpus GCP",

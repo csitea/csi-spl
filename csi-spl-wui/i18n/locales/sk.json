@@ -225,6 +225,11 @@
       "browser": "Časové pásmo prehliadača ({zone})",
       "hint": "Každý čas v tomto pracovnom priestore sa zobrazuje v tomto pásme, aj časy ISO s pásmom v správach. Čas bez pásma, napríklad 18:46, zostane tak, ako bol napísaný. Uloží sa pre tento pracovný priestor."
     },
+    "second_currency": {
+      "label": "Druhá mena",
+      "hint": "Monitorovanie → Náklady zobrazuje každý náklad v amerických dolároch a v tejto mene, každý deň kurzom toho dňa (ECB alebo Federálny rezervný systém USA). Uloží sa pre tento pracovný priestor.",
+      "default": "{currency} (predvolená)"
+    },
     "keyboard_shortcuts": {
       "label": "Klávesové skratky",
       "hint": "Shift + písmeno pôsobí na vybranú správu (počítač). Shift + ? zobrazí všetky klávesy."
@@ -2995,6 +3000,10 @@
       "col_part": "Položka",
       "col_pct": "% mesiaca",
       "col_list": "Cenníková cena",
+      "col_second": "{currency} (denný kurz)",
+      "second_rate": "1 USD = {rate} {currency}, kurz z {day}",
+      "second_rate_span": "Každý deň vlastným kurzom, od {first} do {day}. Posledný: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Žiadny kurz {currency} v deň nákladu ani skôr, preto žiadna suma",
       "hand": "zadané ručne",
       "estimate": "odhad",
       "outside_gcp": "Stroje mimo GCP",

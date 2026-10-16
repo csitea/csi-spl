@@ -8,7 +8,11 @@
      pie (MonitoringCostsPie, this route's own chunk). Honest empties: a
      source with no money yet is named, and no money at all draws no pie.
      costs.read is the hub's: its 403 shows here naming the permission.
-     Not here yet: the hand-entry form (no hub API) and the token gap view. -->
+     Not here yet: the hand-entry form (no hub API) and the token gap view.
+     Spec 123 5.4 (SPL-2199, owner msg 44fef397): one more column, each part
+     in the reader's second currency (Settings -> Appearance, EUR unless
+     picked), its title the rate and the rate's date; no rate is a dash
+     saying so, never a guess. A new pick reloads the month. -->
 <template>
   <div class="monitoring-costs" data-test="costs-page">
     <div class="costs-head">
@@ -41,6 +45,7 @@
               <th scope="col">{{ t('monitoring.costs.col_part') }}</th>
               <th scope="col" class="num">USD</th>
               <th scope="col" class="num">EUR</th>
+              <th scope="col" class="num" data-test="costs-second-head">{{ secondHead }}</th>
               <th scope="col" class="num">{{ t('monitoring.costs.col_pct') }}</th>
               <th scope="col" class="num">{{ t('monitoring.costs.col_list') }}</th>
             </tr>
@@ -54,15 +59,16 @@
               </td>
               <td class="num" data-label="USD">{{ money(p.usdMicros, 'USD') }}</td>
               <td class="num" data-label="EUR">{{ money(p.eurMicros, 'EUR') }}</td>
+              <td class="num" :data-label="secondHead" data-test="costs-second" :data-none="second(p).none ? '1' : '0'" :title="second(p).title">{{ second(p).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ p.pct === null ? '' : p.pct + ' %' }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_list')">{{ p.listValueMicros ? money(p.listValueMicros, 'USD') : '' }}</td>
             </tr>
             <tr v-if="view.scope === 'estate'" class="costs-not-tracked" data-test="costs-not-tracked">
               <td>{{ t('monitoring.costs.outside_gcp') }}</td>
-              <td colspan="4" class="muted">{{ t('monitoring.costs.not_tracked') }}</td>
+              <td colspan="5" class="muted">{{ t('monitoring.costs.not_tracked') }}</td>
             </tr>
             <tr v-if="view.parts.length === 0">
-              <td colspan="5" class="muted" data-test="costs-no-rows">{{ t('monitoring.costs.no_rows') }}</td>
+              <td colspan="6" class="muted" data-test="costs-no-rows">{{ t('monitoring.costs.no_rows') }}</td>
             </tr>
           </tbody>
           <tfoot>
@@ -70,6 +76,7 @@
               <th scope="row">{{ t('monitoring.costs.total') }}</th>
               <td class="num" data-label="USD" data-test="costs-total-usd">{{ money(view.total.usdMicros, 'USD') }}</td>
               <td class="num" data-label="EUR" data-test="costs-total-eur">{{ money(view.total.eurMicros, 'EUR') }}</td>
+              <td class="num" :data-label="secondHead" data-test="costs-total-second" :title="second(view.total).title">{{ second(view.total).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ view.total.usdMicros > 0 ? '100 %' : '' }}</td>
               <td class="num" />
             </tr>
@@ -95,12 +102,13 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { COSTS_READ, costCoverageRows, costEmptySources, costMoney, costMonthOf, costMonthOptions, costPartKey, costPieSlices, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
+import { useSessionStore } from '~/stores/session'
+import { COSTS_READ, costCoverageRows, costEmptySources, costMoney, costMonthOf, costMonthOptions, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
 
 /* the pie is this route's own chunk, never the shell's (ci_costs_route_gzip_kb) */
 const MonitoringCostsPie = defineAsyncComponent(() => import('@/components/MonitoringCostsPie.vue'))
 
-type CostsApi = { getTenantCosts: (month?: string) => Promise<unknown> }
+type CostsApi = { getTenantCosts: (month?: string, secondCurrency?: string) => Promise<unknown> }
 type CostMonth = ReturnType<typeof costMonthOf>
 type CostPart = CostMonth['parts'][number]
 
@@ -110,11 +118,22 @@ const month = ref(months[0])
 const view = ref<CostMonth | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const forbiddenPerm = ref(COSTS_READ)
+const session = useSessionStore()
+/* the reader's pick; the hub converts by the session's, the mock is handed it */
+const pick = computed(() => String(session.claims?.second_currency || ''))
 
 const money = (micros: number, cur: string) => costMoney(micros, cur, locale.value)
 const units = (p: CostPart) => costUnits(p.units, locale.value)
 const partKey = (p: CostPart) => costPartKey(p)
 const sourceLabel = (s: string) => (te('monitoring.costs.source.' + s) ? t('monitoring.costs.source.' + s) : s)
+const secondHead = computed(() => t('monitoring.costs.col_second', { currency: view.value?.secondCurrency || 'EUR' }))
+function second(p: { secondMicros: number | null, fxRate?: number | null, fxRateDay?: string, fxRateFirstDay?: string }) {
+  const c = costSecondCell(p, view.value?.secondCurrency, locale.value)
+  const title = c.key === 'none' ? t('monitoring.costs.second_none', c.params)
+    : c.key === 'rate_span' ? t('monitoring.costs.second_rate_span', c.params)
+      : c.key === 'rate' ? t('monitoring.costs.second_rate', c.params) : undefined
+  return { text: c.text, none: c.none, title }
+}
 const partLabel = (p: CostPart) => `${sourceLabel(p.source)} · ${p.projectOrVendor || '-'} · ${p.kind}`
 
 const empties = computed(() => (view.value ? costEmptySources(view.value) : []))
@@ -133,7 +152,7 @@ async function load(m: string) {
   const mine = ++seq
   state.value = 'loading'
   try {
-    const body = await (useSpoolApi() as unknown as CostsApi).getTenantCosts(m === months[0] ? '' : m)
+    const body = await (useSpoolApi() as unknown as CostsApi).getTenantCosts(m === months[0] ? '' : m, pick.value)
     if (mine !== seq) return
     view.value = costMonthOf(body)
     state.value = 'ok'
@@ -150,6 +169,7 @@ async function load(m: string) {
 
 onMounted(() => {
   watch(month, (m) => { void load(m) }, { immediate: true })
+  watch(pick, () => { void load(month.value) })
 })
 </script>
 

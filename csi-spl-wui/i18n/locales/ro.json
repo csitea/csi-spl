@@ -225,6 +225,11 @@
       "browser": "Fusul orar al browserului ({zone})",
       "hint": "Fiecare oră din acest spațiu de lucru apare în acest fus, inclusiv orele ISO cu fus din mesaje. O oră fără fus, ca 18:46, rămâne cum a fost scrisă. Se păstrează pentru acest spațiu de lucru."
     },
+    "second_currency": {
+      "label": "A doua monedă",
+      "hint": "Monitorizare → Costuri arată fiecare cost în dolari americani și în această monedă, fiecare zi la cursul acelei zile (BCE sau Rezerva Federală a SUA). Se păstrează pentru acest spațiu de lucru.",
+      "default": "{currency} (implicită)"
+    },
     "keyboard_shortcuts": {
       "label": "Comenzi rapide de la tastatură",
       "hint": "Shift + o literă acționează asupra mesajului selectat (desktop). Shift + ? arată toate tastele."
@@ -2995,6 +3000,10 @@
       "col_part": "Componentă",
       "col_pct": "% din lună",
       "col_list": "Preț de listă",
+      "col_second": "{currency} (cursul zilei)",
+      "second_rate": "1 USD = {rate} {currency}, cursul din {day}",
+      "second_rate_span": "Fiecare zi la cursul ei, de la {first} la {day}. Ultimul: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Niciun curs {currency} în ziua costului sau înainte, deci nicio sumă",
       "hand": "introdus manual",
       "estimate": "estimare",
       "outside_gcp": "Mașini din afara GCP",

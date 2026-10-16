@@ -225,6 +225,11 @@
       "browser": "Browser time zone ({zone})",
       "hint": "Every time in this workspace shows in this zone, also ISO times with a zone inside messages. A time with no zone, like 18:46, stays as written. Kept for this workspace."
     },
+    "second_currency": {
+      "label": "Second currency",
+      "hint": "Monitoring → Costs shows every cost in US dollars and in this currency, each day at that day's rate (ECB or US Federal Reserve). Kept for this workspace.",
+      "default": "{currency} (default)"
+    },
     "keyboard_shortcuts": {
       "label": "Keyboard shortcuts",
       "hint": "Shift + a letter acts on the selected message (desktop). Shift + ? lists every key."
@@ -2995,6 +3000,10 @@
       "col_part": "Part",
       "col_pct": "% of month",
       "col_list": "List price",
+      "col_second": "{currency} (day rate)",
+      "second_rate": "1 USD = {rate} {currency}, rate of {day}",
+      "second_rate_span": "Each day at its own rate, {first} to {day}. Latest: 1 USD = {rate} {currency} ({day})",
+      "second_none": "No {currency} rate on or before a cost day, so no amount",
       "hand": "entered by hand",
       "estimate": "estimate",
       "outside_gcp": "Machines outside GCP",

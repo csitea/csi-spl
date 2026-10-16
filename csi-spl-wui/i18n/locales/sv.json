@@ -225,6 +225,11 @@
       "browser": "Webbläsarens tidszon ({zone})",
       "hint": "Alla tider i den här arbetsytan visas i denna zon, även ISO-tider med zon i meddelanden. En tid utan zon, som 18:46, visas som den skrevs. Sparas för den här arbetsytan."
     },
+    "second_currency": {
+      "label": "Sekundär valuta",
+      "hint": "Övervakning → Kostnader visar varje kostnad i amerikanska dollar och i denna valuta, varje dag till den dagens kurs (ECB eller amerikanska Federal Reserve). Sparas för den här arbetsytan.",
+      "default": "{currency} (standard)"
+    },
     "keyboard_shortcuts": {
       "label": "Kortkommandon",
       "hint": "Shift + en bokstav verkar på det markerade meddelandet (dator). Shift + ? visar alla tangenter."
@@ -2995,6 +3000,10 @@
       "col_part": "Post",
       "col_pct": "% av månaden",
       "col_list": "Listpris",
+      "col_second": "{currency} (dagskurs)",
+      "second_rate": "1 USD = {rate} {currency}, kurs från {day}",
+      "second_rate_span": "Varje dag till sin egen kurs, {first} till {day}. Senaste: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Ingen {currency}-kurs på eller före en kostnadsdag, så inget belopp",
       "hand": "inmatat för hand",
       "estimate": "uppskattning",
       "outside_gcp": "Maskiner utanför GCP",

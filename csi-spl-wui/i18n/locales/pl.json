@@ -225,6 +225,11 @@
       "browser": "Strefa czasowa przeglądarki ({zone})",
       "hint": "Każda godzina w tym obszarze roboczym jest pokazywana w tej strefie, także godziny ISO ze strefą w wiadomościach. Godzina bez strefy, np. 18:46, zostaje tak, jak ją zapisano. Zapisywane dla tego obszaru roboczego."
     },
+    "second_currency": {
+      "label": "Druga waluta",
+      "hint": "Monitorowanie → Koszty pokazuje każdy koszt w dolarach amerykańskich i w tej walucie, każdy dzień po kursie z tego dnia (EBC lub Rezerwa Federalna USA). Zapisywane dla tego obszaru roboczego.",
+      "default": "{currency} (domyślna)"
+    },
     "keyboard_shortcuts": {
       "label": "Skróty klawiszowe",
       "hint": "Shift + litera działa na zaznaczonej wiadomości (komputer). Shift + ? pokazuje wszystkie klawisze."
@@ -2995,6 +3000,10 @@
       "col_part": "Pozycja",
       "col_pct": "% miesiąca",
       "col_list": "Cena katalogowa",
+      "col_second": "{currency} (kurs dnia)",
+      "second_rate": "1 USD = {rate} {currency}, kurs z {day}",
+      "second_rate_span": "Każdy dzień po własnym kursie, od {first} do {day}. Ostatni: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Brak kursu {currency} w dniu kosztu lub wcześniej, więc brak kwoty",
       "hand": "wprowadzono ręcznie",
       "estimate": "szacunek",
       "outside_gcp": "Maszyny poza GCP",

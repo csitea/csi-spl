@@ -1,4 +1,5 @@
-<!-- Settings → Appearance (the theme, the font size, the time zone (CLE-77908);
+<!-- Settings → Appearance (the theme, the font size, the time zone (CLE-77908),
+     the costs' second currency (SPL-2199);
      specs/023 §3.4; the "Debug pane" checkbox; the thinking animation,
      SPL-2027). -->
 <template>
@@ -9,6 +10,7 @@
     </div>
     <FontSizeSetting />
     <TimeZoneSetting />
+    <SecondCurrencySetting />
     <div class="settings__row" data-test="list-clip-default-msgs">
       <span id="list-clip-label-msgs">{{ t('feed.clip.pane.msgs') }}</span>
       <div class="list-clip" role="radiogroup" aria-labelledby="list-clip-label-msgs">
@@ -51,6 +53,7 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import FontSizeSetting from '~/components/FontSizeSetting.vue'
 import TimeZoneSetting from '~/components/TimeZoneSetting.vue'
+import SecondCurrencySetting from '~/components/SecondCurrencySetting.vue'
 import DebugPaneSetting from '~/components/DebugPaneSetting.vue'
 import AwaitAnimSetting from '~/components/AwaitAnimSetting.vue'
 import AppsInstallSetting from '~/components/AppsInstallSetting.vue'

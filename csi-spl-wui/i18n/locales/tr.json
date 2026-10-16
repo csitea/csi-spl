@@ -225,6 +225,11 @@
       "browser": "Tarayıcının saat dilimi ({zone})",
       "hint": "Bu çalışma alanındaki her saat bu dilimde gösterilir, mesajlardaki dilimli ISO saatleri de. 18:46 gibi dilimsiz bir saat yazıldığı gibi kalır. Bu çalışma alanı için saklanır."
     },
+    "second_currency": {
+      "label": "İkinci para birimi",
+      "hint": "İzleme → Maliyetler her maliyeti ABD doları ve bu para biriminde, her gün o günün kuruyla gösterir (ECB veya ABD Merkez Bankası). Bu çalışma alanı için saklanır.",
+      "default": "{currency} (varsayılan)"
+    },
     "keyboard_shortcuts": {
       "label": "Klavye kısayolları",
       "hint": "Shift + bir harf seçili mesaja uygulanır (masaüstü). Shift + ? tüm tuşları listeler."
@@ -2995,6 +3000,10 @@
       "col_part": "Kalem",
       "col_pct": "Ayın %'si",
       "col_list": "Liste fiyatı",
+      "col_second": "{currency} (günün kuru)",
+      "second_rate": "1 USD = {rate} {currency}, {day} kuru",
+      "second_rate_span": "Her gün kendi kuruyla, {first} ile {day} arası. Son: 1 USD = {rate} {currency} ({day})",
+      "second_none": "Bir maliyet gününde veya öncesinde {currency} kuru yok, bu yüzden tutar yok",
       "hand": "elle girildi",
       "estimate": "tahmin",
       "outside_gcp": "GCP dışındaki makineler",

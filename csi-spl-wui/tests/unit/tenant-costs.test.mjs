@@ -21,6 +21,13 @@ import {
   costSliceColor,
   costUnits,
   costsQuery,
+  COST_SECOND_DEFAULT,
+  MOCK_FX_RATES,
+  costCurrency,
+  costCurrencyOptions,
+  costFxRate,
+  costSecondCell,
+  mockFxCurrencies,
   mockTenantCosts,
   mockTenantCostsBody,
 } from '../../src/utils/tenant-costs.mjs'
@@ -169,6 +176,79 @@ function walk(dir, out = []) {
   return out
 }
 
+describe('the second currency (spec 123 5.4, SPL-2199)', () => {
+  const hubPart = (extra = {}) => part('gcp', 10, { second_micros: 9_234_000, fx_rate: 0.9234, fx_rate_day: '2026-10-15', fx_rate_first_day: '2026-10-01', ...extra })
+  it('costMonthOf reads the pick, the part amounts, the rate and its dates', () => {
+    const m = costMonthOf({ second_currency: 'sek', total: { usd_micros: 10e6, eur_micros: 9e6, second_micros: 105e6 }, parts: [hubPart()] })
+    assert.equal(m.secondCurrency, 'SEK')
+    assert.equal(m.total.secondMicros, 105e6)
+    const p = m.parts[0]
+    assert.deepEqual([p.secondMicros, p.fxRate, p.fxRateDay, p.fxRateFirstDay], [9_234_000, 0.9234, '2026-10-15', '2026-10-01'])
+  })
+  it('no rate stays null, never a 0 (a hub before lane A answers no fields: EUR, null)', () => {
+    const m = costMonthOf({ total: { usd_micros: 10e6, second_micros: null }, parts: [hubPart({ second_micros: null, fx_rate: null, fx_rate_day: null, fx_rate_first_day: null }), part('gcp', 1)] })
+    assert.equal(m.secondCurrency, COST_SECOND_DEFAULT)
+    assert.equal(m.total.secondMicros, null)
+    for (const p of m.parts) assert.deepEqual([p.secondMicros, p.fxRate, p.fxRateDay], [null, null, ''])
+  })
+  it('an amount without its rate or date reads as no rate (never shown without a rate)', () => {
+    assert.equal(costMonthOf({ parts: [hubPart({ fx_rate: null })] }).parts[0].secondMicros, null)
+    assert.equal(costMonthOf({ parts: [hubPart({ fx_rate_day: 'soon' })] }).parts[0].secondMicros, null)
+  })
+  it('costSecondCell: the amount, its title the rate and the rate date', () => {
+    const one = costSecondCell({ secondMicros: 9_234_000, fxRate: 0.9234, fxRateDay: '2026-10-15', fxRateFirstDay: '2026-10-15' }, 'EUR', 'en')
+    assert.deepEqual(one, { text: '€9.23', none: false, key: 'rate', params: { currency: 'EUR', rate: '0.9234', day: '2026-10-15', first: '2026-10-15' } })
+    const span = costSecondCell({ secondMicros: 105e6, fxRate: 10.5, fxRateDay: '2026-10-15', fxRateFirstDay: '2026-10-01' }, 'sek', 'en')
+    assert.equal(span.key, 'rate_span')
+    assert.equal(span.params.first, '2026-10-01')
+    assert.equal(span.params.currency, 'SEK')
+    assert.match(span.text, /^SEK\s?105\.00$/)
+  })
+  it('costSecondCell: no rate is an em dash with the "none" title, never a guess', () => {
+    const none = costSecondCell({ secondMicros: null }, 'GBP', 'en')
+    assert.deepEqual(none, { text: '\u2014', none: true, key: 'none', params: { currency: 'GBP' } })
+    assert.equal(costSecondCell(null).text, '\u2014')
+  })
+  it('costSecondCell: the total row (no rate of its own) has an amount and no rate title', () => {
+    assert.deepEqual(costSecondCell({ secondMicros: 338_928_000 }, 'EUR', 'en'), { text: '€338.93', none: false, key: '', params: {} })
+  })
+  it('costFxRate: up to 4 decimals in the reader locale; no rate is blank', () => {
+    assert.equal(costFxRate(0.923456, 'en'), '0.9235')
+    assert.equal(costFxRate(150, 'en'), '150')
+    assert.equal(costFxRate(10.5, 'fi'), '10,5')
+    assert.equal(costFxRate(null), '')
+    assert.equal(costFxRate(0), '')
+  })
+  it('costCurrency: ISO 4217 codes only, upper-cased', () => {
+    assert.equal(costCurrency(' sek '), 'SEK')
+    assert.equal(costCurrency('EURO'), '')
+    assert.equal(costCurrency(null), '')
+  })
+  it('costCurrencyOptions: sorted, the default and the current pick always in, junk out', () => {
+    assert.deepEqual(costCurrencyOptions({ default: 'EUR', currencies: ['SEK', 'GBP', 'x1', 'EUR'] }), { default: 'EUR', currencies: ['EUR', 'GBP', 'SEK'] })
+    assert.deepEqual(costCurrencyOptions(null, 'jpy'), { default: 'EUR', currencies: ['EUR', 'JPY'] })
+  })
+  it('the mock converts at its rate for the asked currency, and answers that currency', () => {
+    const b = mockTenantCostsBody('2026-09', '', NOW, 'SEK')
+    assert.equal(b.second_currency, 'SEK')
+    for (const p of b.parts) assert.equal(p.second_micros, Math.round(p.usd_micros * MOCK_FX_RATES.SEK))
+    assert.equal(b.total.second_micros, b.parts.reduce((s, p) => s + p.second_micros, 0))
+    assert.equal(b.parts[0].fx_rate_day, '2026-09-30')
+    assert.equal(b.parts[0].fx_rate_first_day, '2026-09-01')
+    assert.equal(mockTenantCostsBody('2026-09', '', NOW).second_currency, 'EUR', 'EUR unless picked')
+  })
+  it("the mock's norate scenario: the invoice row and the total have no rate", () => {
+    const m = costMonthOf(mockTenantCosts('2026-09', { now: NOW, scenario: 'norate', currency: 'EUR' }))
+    const inv = m.parts.find((p) => p.origin === 'invoice')
+    assert.equal(inv.secondMicros, null)
+    assert.equal(m.total.secondMicros, null)
+    assert.ok(m.parts.filter((p) => p.origin !== 'invoice').every((p) => p.secondMicros !== null))
+  })
+  it('the mock currency list', () => {
+    assert.deepEqual(mockFxCurrencies(), { default: 'EUR', currencies: Object.keys(MOCK_FX_RATES).sort() })
+  })
+})
+
 describe('the chunk rule (spec 123 8: ci_initial_gzip_kb stays <= 155)', () => {
   const files = walk(join(WUI, 'src')).map((p) => relative(WUI, p))
   it('the pie is imported by the costs page only, and lazily', () => {
@@ -183,6 +263,12 @@ describe('the chunk rule (spec 123 8: ci_initial_gzip_kb stays <= 155)', () => {
     assert.deepEqual(statics, ['src/pages/monitoring/costs/index.vue'])
     assert.match(read('src/utils/spool-client-lazy.mjs'), /await import\('\.\/tenant-costs\.mjs'\)/)
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /tenant-costs/)
+  })
+  it('the second-currency setting loads tenant-costs.mjs on demand, inside the lazy Appearance section', () => {
+    assert.match(read('src/components/SecondCurrencySetting.vue'), /await import\('~\/utils\/tenant-costs\.mjs'\)/)
+    assert.match(read('src/components/SettingsDialog.vue'), /appearance: defineAsyncComponent\(\(\) => import\('~\/components\/settings\/appearance\.vue'\)\)/)
+    const users = files.filter((f) => /SecondCurrencySetting/.test(read(f)) && !f.endsWith('SecondCurrencySetting.vue'))
+    assert.deepEqual(users, ['src/components/settings/appearance.vue'])
   })
   it('no chart library (spec 123 5)', () => {
     assert.equal((read('package.json').match(/chart|echarts|d3/gi) || []).length, 0)

@@ -11,6 +11,11 @@
 //     no pie (never a 0 pie);
 //   - no sideways scroll; the initial download of 200.html carries no costs
 //     code (the chunk rule, ci_initial_gzip_kb).
+//   - spec 123 5.4 (SPL-2199): the second-currency column, EUR unless
+//     picked, each cell's title the rate and its date; Settings ->
+//     Appearance "Second currency" saves the pick (PUT /preferences, answered
+//     here as the hub would) and the column follows it; a part with no rate
+//     shows the dash saying so (mock scenario 'norate').
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -52,10 +57,21 @@ const count = (p, sel) => p.$$eval(sel, (els) => els.length).catch(() => -1)
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
 const tabIds = (p) => p.$$eval('[data-test^=monitoring-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('monitoring-tab-'.length)))
 
-/** A fresh signed-in mock page at this size; `me` = the opt-in mock role + permissions, `scenario` = the mock month. */
-async function costsPage(browser, base, { width, height }, { me = null, scenario = '' } = {}) {
+/** A fresh signed-in mock page at this size; `me` = the opt-in mock role + permissions, `scenario` = the mock month; `prefs`: PUT /preferences answered as the hub would, bodies kept in `p.saved`. */
+async function costsPage(browser, base, { width, height }, { me = null, scenario = '', prefs = false } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  const saved = []
+  if (prefs) await p.setRequestInterception(true)
+  if (prefs) p.on('request', (r) => {
+    if (r.isInterceptResolutionHandled()) return
+    if (r.method() === 'PUT' && /\/preferences$/.test(new URL(r.url()).pathname)) {
+      saved.push(r.postData() || '')
+      return r.respond({ status: 200, contentType: 'application/json', body: r.postData() || '{}' })
+    }
+    return r.continue()
+  })
+  p.saved = saved
   await p.setViewport({ width, height })
   await p.goto(base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.evaluate((meKey, m, costsKey, sc) => {
@@ -72,6 +88,9 @@ async function open(p, base, path) {
   return res
 }
 
+const titles = (p, sel) => p.$$eval(sel, (els) => els.map((e) => ({ src: e.closest('tr')?.getAttribute('data-source') || '', text: e.textContent.trim(), title: e.getAttribute('title') || '', none: e.getAttribute('data-none') })))
+const go = (p, path) => p.evaluate((path) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(path), path)
+const DAY = '\\d{4}-\\d{2}-\\d{2}'
 const waitFor = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 20000 }).then(() => true, () => false)
 
 const server = await startServer()
@@ -131,6 +150,78 @@ try {
       await p.select('[data-test=costs-month]', months[1])
       const gone = await p.waitForFunction(() => !document.querySelector('[data-test=costs-so-far]') && document.querySelector('[data-test=costs-table]'), { timeout: 15000 }).then(() => true, () => false)
       ok('an earlier month is not "so far"', gone)
+
+      /* spec 123 5.4: the second-currency column, EUR unless picked (the ended month: rate dates fixed) */
+      const ended = months[1]
+      const last = new Date(Date.UTC(+ended.slice(0, 4), +ended.slice(5, 7), 0)).toISOString().slice(0, 10)
+      const head = await text(p, '[data-test=costs-second-head]')
+      ok('second currency: the header names EUR (never picked)', head === 'EUR (day rate)', head)
+      const cells = await titles(p, '[data-test=costs-second]')
+      ok('second currency: one cell per part', cells.length === 9, cells.length)
+      const inv = cells.find((c) => c.src === 'hand') || {}
+      ok('second currency: the invoice row converted at its day rate, the rate and its date in the title',
+        inv.text === '€184.00' && inv.title === `1 USD = 0.92 EUR, rate of ${last}`, inv)
+      const gcp = cells.find((c) => c.src === 'gcp') || {}
+      ok('second currency: a GCP row, each day at its own rate, the first and last rate dates in the title',
+        gcp.text === '€58.42' && gcp.title === `Each day at its own rate, ${ended}-01 to ${last}. Latest: 1 USD = 0.92 EUR (${last})`, gcp)
+      ok('second currency: no row is a dash (every day has a rate)', cells.every((c) => c.none === '0'), cells.map((c) => c.none))
+      const tot = await text(p, '[data-test=costs-total-second]')
+      ok('second currency: the total in EUR', tot === '€338.93', tot)
+      const wide2 = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      ok('second currency: still no sideways scroll', wide2 <= 0, wide2)
+      await ctx.close()
+    }
+
+    /* the personal setting: Settings -> Appearance -> Second currency, then the column follows it */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { prefs: true })
+      await open(p, server.base, '/monitoring/costs')
+      ok('setting: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      await go(p, '/settings/appearance')
+      ok('setting: the Second currency picker shows', await waitFor(p, '[data-test=second-currency-select]'))
+      await p.waitForFunction(() => document.querySelectorAll('[data-test=second-currency-select] option').length > 1, { timeout: 15000 }).catch(() => null)
+      const opts = await p.$$eval('[data-test=second-currency-select] option', (os) => os.map((o) => ({ v: o.value, t: o.textContent.trim() })))
+      ok('setting: filled from /v1/tenant/fx/currencies, EUR the default', opts.map((o) => o.v).join(',') === 'BGN,EUR,GBP,JPY,SEK'
+        && (opts.find((o) => o.v === 'EUR') || {}).t === 'EUR (default)', opts)
+      const picked0 = await p.$eval('[data-test=second-currency-select]', (e) => e.value).catch(() => '')
+      ok('setting: EUR is picked while never picked', picked0 === 'EUR', picked0)
+      await p.select('[data-test=second-currency-select]', 'SEK').catch(() => null)
+      for (let i = 0; i < 50 && p.saved.length === 0; i++) await new Promise((r) => setTimeout(r, 100))
+      ok('setting: the pick is saved through the hub setting (PUT /preferences second_currency)', p.saved.at(-1) === JSON.stringify({ second_currency: 'SEK' }), p.saved)
+      await go(p, '/monitoring/costs')
+      const sek = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'SEK (day rate)', { timeout: 15000 }).then(() => true, () => false)
+      ok('setting: the column now names SEK', sek, await text(p, '[data-test=costs-second-head]'))
+      const totSek = await text(p, '[data-test=costs-total-second]')
+      ok('setting: the total converted at the SEK rate', /^SEK\s?3,868\.20$/.test(totSek), totSek)
+      const sekCell = (await titles(p, '[data-test=costs-second]')).find((c) => c.src === 'hand') || {}
+      ok('setting: the rate title names SEK', new RegExp(`^1 USD = 10\\.5 SEK, rate of ${DAY}$`).test(sekCell.title), sekCell)
+      const usdNow = await text(p, '[data-test=costs-total-usd]')
+      ok('setting: the USD column unchanged', usdNow === '$368.40', usdNow)
+      /* CONTROL: back to the default sends null (the hub's EUR) and the column follows */
+      await go(p, '/settings/appearance')
+      await waitFor(p, '[data-test=second-currency-select]')
+      await p.select('[data-test=second-currency-select]', 'EUR').catch(() => null)
+      for (let i = 0; i < 50 && p.saved.length < 2; i++) await new Promise((r) => setTimeout(r, 100))
+      ok('setting: picking the default clears it (second_currency null)', p.saved.at(-1) === JSON.stringify({ second_currency: null }), p.saved)
+      await go(p, '/monitoring/costs')
+      const eurBack = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'EUR (day rate)', { timeout: 15000 }).then(() => true, () => false)
+      ok('setting: the column is back to EUR', eurBack, await text(p, '[data-test=costs-second-head]'))
+      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-second-${size.width}.png`, fullPage: true })
+      await ctx.close()
+    }
+
+    /* a part with no rate: the dash and a title saying so, never a guess; the total too */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'norate' })
+      await open(p, server.base, '/monitoring/costs')
+      ok('norate: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      const cells = await titles(p, '[data-test=costs-second]')
+      const inv = cells.find((c) => c.src === 'hand') || {}
+      ok('norate: the invoice row is a dash saying there is no rate', inv.text === '\u2014' && inv.none === '1'
+        && inv.title === 'No EUR rate on or before a cost day, so no amount', inv)
+      ok('norate: the other rows keep their amounts', cells.filter((c) => c.src !== 'hand').every((c) => c.none === '0' && c.text.startsWith('€')), cells)
+      const tot = await p.$eval('[data-test=costs-total-second]', (e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })).catch(() => ({}))
+      ok('norate: the total is a dash too', tot.text === '\u2014' && /^No EUR rate/.test(tot.title), tot)
       await ctx.close()
     }
 

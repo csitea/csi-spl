@@ -4,6 +4,9 @@
  * internal/hub/cost_read.go). The month body, its money in USD and EUR from
  * micros, the pie's slices, the "n of N days complete" per source and the
  * honest empties ("no cost data yet for <source>", never a 0 pie).
+ * Spec 123 5.4 (SPL-2108/2199): the second-currency column, each amount in
+ * the reader's own pick (EUR unless picked) with the rate and its date, and
+ * the picker's list (GET /v1/tenant/fx/currencies).
  *
  * Only the costs page, its pie and the lazy spool client import this file,
  * so none of it rides the initial JS (ci_initial_gzip_kb). Node tests import
@@ -21,9 +24,23 @@ export const COST_PIE_MIN_PCT = 1
 /** The months the picker offers, the current one first. */
 export const COST_MONTHS_BACK = 12
 
+/** The second currency when the person never picked one (the hub's store.DefaultSecondCurrency). */
+export const COST_SECOND_DEFAULT = 'EUR'
+
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+const CUR_RE = /^[A-Z]{3}$/
 const int = (v) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : 0)
 const str = (v) => (typeof v === 'string' ? v : '')
+/** null / a missing or non-numeric value stays null (no rate is never a 0). */
+const intOrNull = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.trunc(Number(v)))
+const day = (v) => (typeof v === 'string' && DAY_RE.test(v.slice(0, 10)) ? v.slice(0, 10) : '')
+
+/** An ISO 4217 code, upper-cased; anything else ''. */
+export function costCurrency(v) {
+  const c = String(v ?? '').trim().toUpperCase()
+  return CUR_RE.test(c) ? c : ''
+}
 
 /** The query of one month ('' = the hub's default, the current month so far). */
 export function costsQuery(month = '') {
@@ -73,6 +90,21 @@ function costPartOf(p) {
     days: int(r.days),
     hand: r.hand === true,
     pct: typeof r.pct === 'number' && Number.isFinite(r.pct) ? r.pct : null,
+    ...costSecondOf(r),
+  }
+}
+
+/* spec 123 5.4: the part's second-currency amount, the latest day's rate and
+   the rate dates; all null when a cost day had no rate (never a guess) */
+function costSecondOf(r) {
+  const micros = intOrNull(r.second_micros)
+  const rate = Number(r.fx_rate)
+  const ok = micros !== null && r.fx_rate !== null && r.fx_rate !== undefined && Number.isFinite(rate) && rate > 0 && day(r.fx_rate_day) !== ''
+  return {
+    secondMicros: ok ? micros : null,
+    fxRate: ok ? rate : null,
+    fxRateDay: ok ? day(r.fx_rate_day) : '',
+    fxRateFirstDay: ok ? day(r.fx_rate_first_day) || day(r.fx_rate_day) : '',
   }
 }
 
@@ -98,12 +130,52 @@ export function costMonthOf(body) {
     to: str(b.to),
     status: b.status === 'so_far' || b.status === 'closed' ? b.status : 'ended',
     scope: b.scope === 'estate' ? 'estate' : 'workspace',
+    secondCurrency: costCurrency(b.second_currency) || COST_SECOND_DEFAULT,
     days: int(b.days),
     daysEnded: int(b.days_ended),
-    total: { usdMicros: int(total.usd_micros), eurMicros: int(total.eur_micros) },
+    total: { usdMicros: int(total.usd_micros), eurMicros: int(total.eur_micros), secondMicros: intOrNull(total.second_micros) },
     parts: Array.isArray(b.parts) ? b.parts.map(costPartOf) : [],
     coverage: Array.isArray(b.coverage) ? b.coverage.map(costCoverageOf) : [],
   }
+}
+
+/** A rate, "0.9234" / "10.6" in the reader's locale (up to 4 decimals). */
+export function costFxRate(rate, locale = 'en') {
+  const n = Number(rate)
+  if (rate === null || rate === undefined || !Number.isFinite(n) || n <= 0) return ''
+  try {
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 4 }).format(n)
+  } catch {
+    return String(Math.round(n * 1e4) / 1e4)
+  }
+}
+
+/**
+ * One second-currency cell: the amount, and the i18n key + params of its
+ * title. A part with a rate: "rate" (one rate day) or "rate_span" (its cost
+ * days took rates from `first` to `day`). No rate: an em dash and "none".
+ * The total row (no rate of its own): the amount, or the dash and "none".
+ * @param {{ secondMicros: number|null, fxRate?: number|null, fxRateDay?: string, fxRateFirstDay?: string }} p
+ */
+export function costSecondCell(p, currency = COST_SECOND_DEFAULT, locale = 'en') {
+  const cur = costCurrency(currency) || COST_SECOND_DEFAULT
+  if (!p || p.secondMicros === null || p.secondMicros === undefined) {
+    return { text: '\u2014', none: true, key: 'none', params: { currency: cur } }
+  }
+  const text = costMoney(p.secondMicros, cur, locale)
+  if (!p.fxRateDay) return { text, none: false, key: '', params: {} }
+  const params = { currency: cur, rate: costFxRate(p.fxRate, locale), day: p.fxRateDay, first: p.fxRateFirstDay || p.fxRateDay }
+  return { text, none: false, key: params.first !== params.day ? 'rate_span' : 'rate', params }
+}
+
+/** The picker's list from GET /v1/tenant/fx/currencies: codes, sorted, the default and `keep` always in. */
+export function costCurrencyOptions(body, keep = '') {
+  const b = body && typeof body === 'object' ? body : {}
+  const def = costCurrency(b.default) || COST_SECOND_DEFAULT
+  const out = new Set([def])
+  for (const c of Array.isArray(b.currencies) ? b.currencies : []) if (costCurrency(c)) out.add(costCurrency(c))
+  if (costCurrency(keep)) out.add(costCurrency(keep))
+  return { default: def, currencies: [...out].sort() }
 }
 
 /** Is a source the GCP estate's (its reader names it gcp...). */
@@ -227,6 +299,8 @@ function mockWindow(month, now) {
 
 const toMicros = (n) => Math.round(n * 1e6)
 const MOCK_EUR_PER_USD = 0.92
+/** The mock's rates (units per USD), the currencies its picker lists (dev holds 28 real ones). */
+export const MOCK_FX_RATES = Object.freeze({ EUR: MOCK_EUR_PER_USD, GBP: 0.79, SEK: 10.5, BGN: 1.8, JPY: 150 })
 
 function mockPart(source, pov, kind, origin, usd, extra = {}) {
   return {
@@ -243,8 +317,31 @@ function mockPart(source, pov, kind, origin, usd, extra = {}) {
   }
 }
 
-/** The mock month: a full estate month, or ('empty') today's prd shape, counts only and no GCP. */
-export function mockTenantCostsBody(month = '', scenario = '', now = new Date()) {
+/* the mock's second currency (spec 123 5.4): each part at one rate dated the
+   month's last ended day; 'norate' leaves the invoice part (and so the
+   total) with no rate, as the hub answers a day before the first rate */
+function mockSecond(parts, cur, w, scenario) {
+  const rate = MOCK_FX_RATES[cur]
+  const last = w.ended > 0 ? new Date(Date.UTC(+w.from.slice(0, 4), +w.from.slice(5, 7) - 1, w.ended)).toISOString().slice(0, 10) : w.from
+  let total = 0
+  for (const p of parts) {
+    const none = !rate || (scenario === 'norate' && p.origin === 'invoice')
+    p.second_micros = none ? null : Math.round(p.usd_micros * rate)
+    p.fx_rate = none ? null : rate
+    p.fx_rate_day = none ? null : last
+    p.fx_rate_first_day = none ? null : (p.days > 1 ? w.from : last)
+    total = total === null || p.second_micros === null ? null : total + p.second_micros
+  }
+  return total
+}
+
+/**
+ * The mock month: a full estate month, ('empty') today's prd shape, counts
+ * only and no GCP, or ('norate') the full month with a rate-less invoice.
+ * `currency` is the reader's second currency (the hub reads it from the
+ * session; the mock is handed it).
+ */
+export function mockTenantCostsBody(month = '', scenario = '', now = new Date(), currency = COST_SECOND_DEFAULT) {
   const m = MONTH_RE.test(month) ? month : costMonthOptions(now, 1)[0]
   const w = mockWindow(m, now)
   const n = w.ended
@@ -270,6 +367,8 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date())
     p.hand = p.origin === 'hand' || p.origin === 'invoice'
     p.pct = usd > 0 ? Math.round((p.usd_micros * 1000) / usd) / 10 : null
   }
+  const cur = costCurrency(currency) || COST_SECOND_DEFAULT
+  const second = mockSecond(parts, cur, w, scenario)
   const cover = (source, ok, partial = 0, missing = 0) => ({ source, ok, partial, missing, unrecorded: Math.max(0, n - ok - partial - missing), days: n })
   const coverage = scenario === 'empty'
     ? [cover('agent_hours', n), cover('fleet_tokens', n)]
@@ -280,9 +379,10 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date())
     to: w.to,
     status: w.soFar ? 'so_far' : 'ended',
     scope: 'estate',
+    second_currency: cur,
     days: w.days,
     days_ended: n,
-    total: { usd_micros: usd, eur_micros: eur },
+    total: { usd_micros: usd, eur_micros: eur, second_micros: second },
     parts,
     coverage,
   }
@@ -300,14 +400,20 @@ function costsError(status, token, detail, permission) {
 /**
  * The mock GET with the hub's refusals: a mock member whose permission list
  * lacks costs.read gets the 403 naming it; a future month is 400. `me` is
- * the opt-in mock { permissions } (act-as-mock.mjs mockMeGet).
+ * the opt-in mock { permissions } (act-as-mock.mjs mockMeGet); `currency`
+ * the reader's second currency (the session's second_currency).
  */
-export function mockTenantCosts(month = '', { me = null, now = new Date(), scenario } = {}) {
+export function mockTenantCosts(month = '', { me = null, now = new Date(), scenario, currency = '' } = {}) {
   if (me && Array.isArray(me.permissions) && !me.permissions.includes(COSTS_READ)) {
     throw costsError(403, 'forbidden', 'your role in this tenant does not grant ' + COSTS_READ, COSTS_READ)
   }
   if (month && !MONTH_RE.test(month)) throw costsError(400, 'bad_query', 'month must be YYYY-MM')
   if (month && month > costMonthOptions(now, 1)[0]) throw costsError(400, 'bad_query', 'month ' + month + ' has not started')
   const sc = scenario === undefined ? String(storageGet(COSTS_MOCK_KEY, '') || '') : scenario
-  return mockTenantCostsBody(month, sc, now)
+  return mockTenantCostsBody(month, sc, now, currency || COST_SECOND_DEFAULT)
+}
+
+/** The mock GET /v1/tenant/fx/currencies. */
+export function mockFxCurrencies() {
+  return { default: COST_SECOND_DEFAULT, currencies: Object.keys(MOCK_FX_RATES).sort() }
 }

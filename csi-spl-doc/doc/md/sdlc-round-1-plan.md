@@ -1,8 +1,8 @@
-# Software life-cycle (SDLC) round 1 - plan (8 actions)
+# Software life-cycle (SDLC) round 1 - plan (7 actions)
 
 Owner HUM-10, t1 topic `999a50bd-2848-4964-b4c8-6bc8c041c3fc`, verbatim msgs:
-- msg `6c1ed812`: "12 actions for improved software life-cycle development process" -> originally proposed as 12 rows; following expert panel empirical verification (Claude seat `c-247@sat` and dispatcher `c-002@sat`), 4 rows were proven already built or non-failing and moved to Section 5. The remaining **8 actions** are 100% verified, file-disjoint, high-impact SDLC automations within the 10-row cap of [rounds-rulebook.md](rounds-rulebook.md) R1.1.
-- msg `a29ba4db`: "4 agents in parallel - 2 on the PC and 2 on the sat box - panel review first with consensus - how-to improve the whole process end to end so that it should be as automatic as possible ..." -> Batch 1 builds **4 lanes in parallel: 2 on PC + 2 on sat** (files disjoint within each batch; the row's box column says PC or sat).
+- msg `6c1ed812`: "12 actions for improved software life-cycle development process" -> originally proposed as 12 rows; following expert panel empirical verification (Claude seat `c-247@sat` and dispatcher `c-002@sat`), 5 rows were proven already built on master or non-failing and moved to Section 5. The remaining **7 actions** are 100% verified, file-disjoint, high-impact SDLC automations within the 10-row cap of [rounds-rulebook.md](rounds-rulebook.md) R1.1.
+- msg `a29ba4db`: "4 agents in parallel - 2 on the PC and 2 on the sat box - panel review first with consensus - how-to improve the whole process end to end so that it should be as automatic as possible ..." -> Batch 1 builds parallel lanes on PC and sat (files disjoint within each batch; the row's box column says PC or sat).
 - msg `8772dd8f`: "as robuts and stable as possible" -> robustness and stability rank equal to automation: each row also states the failure it prevents (stuck queue, flake, red trunk, lost message, half-done lane) and how it degrades safely when its own step fails (no silent fallback, no new single point of failure); a row that adds automation but makes the path more fragile is out.
 - msg `190f44f4`: "as performant and efficient as possible" -> each row also states its cost (box CPU/load, CI minutes, tokens, wall time per lane) now and after; cuts waits and waste (idle lanes, re-runs, duplicate work, polling).
 - msg `abc17db1`: "both in terms of tokens cost and human interactions time costs ... - remember human interacting is the most expensive part of the system" -> states BOTH its token cost and its owner-time cost (owner minutes per week: posts he must read, questions, polls, approvals, hand runs, screenshots), now and after, measured from the hub (HUM-10 messages and reads per topic/day, via the dispatcher). Ranked by owner minutes saved first, tokens second.
@@ -10,15 +10,14 @@ Owner HUM-10, t1 topic `999a50bd-2848-4964-b4c8-6bc8c041c3fc`, verbatim msgs:
 Rounds need no owner go (rulebook 1.4). **Never ask the owner anything** at any step.
 
 Round focus: **the end-to-end SDLC path (idea -> ask -> lane -> review -> land -> deploy -> verify -> close) as automatic, robust, and performant as possible**.
-Concurrency: **Batch 1 builds 4 lanes in parallel: 2 on PC + 2 on sat** (owner msg `a29ba4db`).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1-R16), by pointer, not copied.
 Issue: SPL-2058.
 
-**Status: v1.2 (panel review consensus; awaiting final seat signatures)**. The rows spawn once seats sign the v1.2 sha (rulebook 1.4: consensus, then build, no second go).
+**Status: v1.3 (panel review consensus; awaiting final seat signatures)**. The rows spawn once seats sign the v1.3 sha (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **a-240@sat** (agy).
 
-**One sha:** every metric is measured on **`d0950b1e3`** (`origin/master`, 2026-10-16 01:16 local time / 2026-10-15 22:16Z), n=1 per command unless stated. Inputs: expert panel reviews ([seat-claude.md](sdlc-round-1/seat-claude.md) `e0edb8964`, [seat-mistral.md](sdlc-round-1/seat-mistral.md)), and Claude seat send-back `69c0017a`.
+**One sha:** every metric is measured on **`d0950b1e3`** (`origin/master`, 2026-10-16 01:16 local time / 2026-10-15 22:16Z), n=1 per command unless stated. Inputs: expert panel reviews ([seat-claude.md](sdlc-round-1/seat-claude.md) `e0edb8964`, [seat-mistral.md](sdlc-round-1/seat-mistral.md)), Claude seat send-backs `69c0017a`, `5fcc662b`, and Dispatcher confirmations `622a4ad7`, `f45e7b8b`, `f0f32032`.
 **Disjoint from tonight's other rounds:** touches **0 files** shared with Round 13 (`refactor-round-13-plan.md`, WUI clean code), Perf Round 6 (`perf-round-6-plan.md`, WUI speed), or Test Round 1 (`test-round-1-plan.md`, testing self-reflection).
 
 ---
@@ -118,20 +117,19 @@ Addressing the end-to-end delivery path from idea to closure on real data across
 
 ---
 
-## 2. The 8 rows (Actions table)
+## 2. The 7 rows (Actions table)
 
 | # | slug | practice | the manual step it removes | sites file:line (max 5) | number now (command) | target | red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 01 | `refactor(sdlc-01-placer-slug-normalize)` | Placer brief slug canonicalization & unserviced brief auto-reclaim | Placer blocker triage and manual placement when slug carries prefixes (`hand-sat-`, `hand-peer-`, `sathand-`, `c002-`) | `orc:src/bash/run/spl-spawn-place.func.sh:249-262`<br>`orc:src/bash/tests/spl-spawn-queue.tst.sh` | 12 hand-offs (`grep -c "no brief file for" cron.out`); 7 `hand-sat-*` rows currently unlaunchable | 0 blocked rows; parse `hand-<box>-` as box pin and launch on that box | `hand-sat-c002-costs-tab` resolves `c002-costs-tab.md` on sat with `_l=true` without touching `.place.last` | sat | agy | complex_coding | **1 (Lane 1, sat)** |
-| 03 | `refactor(sdlc-03-box-pick-quota-failover)` | Quota-exhaustion auto-failover | Dispatcher manually diagnosing box pick and hand-rerouting lanes off exhausted boxes (after ab32184e lands: rebase onto its fix in spl-box-pick.func.sh) | `orc:src/bash/run/spl-box-pick.func.sh:80-140`<br>`orc:src/bash/tests/spl-box-pick.tst.sh` | 9 manual reroutes tonight (`c-001` log) | 0 manual reroutes; fail over to box with capacity | Simulated 95% quota on PC routes claude lane to sat | PC | mistral | complex_coding | **1 (Lane 2, PC)** |
-| 07 | `refactor(sdlc-07-topic-status-card)` | Live topic status card on owner issue topics (P1) | Owner repeatedly posting status inquiries across active task topics | `orc:src/bash/features/spawn-agents/scripts/topic-status-card.sh (new)`<br>`orc:src/bash/features/spawn-agents/tests/test-topic-status-card.sh (new)` | 32 owner status asks across 28 topics in 7 days (`what is the status`, `status?`, `how many done`) | 0 owner status asks; hub maintains live edited-in-place card (state, lane@box, queue pos, landed sha, served dev/prd) | Card updates dynamically on state transitions; does not create spam posts | PC | claude | complex_coding | **1 (Lane 3, PC)** |
-| 09 | `refactor(sdlc-09-verify-lane-served-auto)` | Automated Landed + Served verification service | Dispatcher manually verifying git ancestor status, author email format, 0 AI trailers, and dev/prd deploy lag per lane | `orc:src/bash/run/check-lane-served.func.sh (new)`<br>`orc:src/bash/tests/check-deploy-lag.tst.sh` | Dispatcher manual check takes p90 892s (14.9m), up to 78m; 11 owner posts/week on live/served | < 30s; `do_check_lane_served` verifies ancestor, author `%ae %ce`, 0 trailers, dev deploy, prd deploy in one shot | Incomplete deploy outputs `FAIL dev=ok prd=lag`; fully served commit outputs `PASS dev=served prd=served` | sat | mistral | complex_coding | **1 (Lane 4, sat)** |
+| 07 | `refactor(sdlc-07-topic-status-card)` | Live topic status card on owner issue topics (P1) | Owner repeatedly posting status inquiries across active task topics | `orc:src/bash/features/spawn-agents/scripts/topic-status-card.sh (new)`<br>`orc:src/bash/features/spawn-agents/tests/test-topic-status-card.sh (new)` | 32 owner status asks across 28 topics in 7 days (`what is the status`, `status?`, `how many done`) | 0 owner status asks; hub maintains live edited-in-place card (state, lane@box, queue pos, landed sha, served dev/prd) | Card updates dynamically on state transitions; does not create spam posts | PC | claude | complex_coding | **1 (Lane 2, PC)** |
+| 09 | `refactor(sdlc-09-verify-lane-served-auto)` | Automated Landed + Served verification service | Dispatcher manually verifying git ancestor status, author email format, 0 AI trailers, and dev/prd deploy lag per lane | `orc:src/bash/run/check-lane-served.func.sh (new)`<br>`orc:src/bash/tests/check-deploy-lag.tst.sh` | Dispatcher manual check takes p90 892s (14.9m), up to 78m; 11 owner posts/week on live/served | < 30s; `do_check_lane_served` verifies ancestor, author `%ae %ce`, 0 trailers, dev deploy, prd deploy in one shot | Incomplete deploy outputs `FAIL dev=ok prd=lag`; fully served commit outputs `PASS dev=served prd=served` | sat | mistral | complex_coding | **1 (Lane 3, sat)** |
 | 04 | `refactor(sdlc-04-placer-handoff-unblock)` | Placer hand-off unblocking (P2) | Placer burning 10-minute placement slot when encountering unlaunchable row | `orc:src/bash/run/spl-spawn-place.func.sh:235-245`<br>`orc:src/bash/tests/spl-spawn-queue.tst.sh` | 12 hand-offs burned 10-min slots (`.place.last` touched before brief check at line 239); queue waits 7547..20979s | 0 wasted placement slots; hand-off moves immediately to next launchable row without touching `.place.last` | Hand-off leaves `.place.last` untouched; next launchable row placed on same tick | sat | claude | complex_coding | **2 (Lane 1, sat, after 01)** |
 | 11 | `refactor(sdlc-11-issue-close-landing-hook)` | Real-time issue closure on commit landing | Landed issues waiting up to 59 minutes for hourly cron closure; causing /exit-clean wip collisions | `orc:src/bash/run/spl-issue-close-landed.func.sh:35-85`<br>`orc:src/bash/tests/spl-issue-close-landed.tst.sh` | 10 owner posts/week on issue state; up to 59 min wait for hourly closer | 0m lag; `do_spl_push_master` triggers issue closure for landed shas' keys under closer lock | Master push with closing tag immediately closes issue; push without closing tag leaves issue untouched | PC | claude | simple_coding | **2 (Lane 2, PC)** |
 | 12 | `refactor(sdlc-12-push-master-inbox-notify)` | Asynchronous push completion inbox notification | Agents looping on `PUSH_CMD=status`, consuming tool calls and risk of watchdog timeout | `orc:src/bash/run/spl-push-master.func.sh:190-260`<br>`orc:src/bash/tests/spl-push-master.tst.sh` | Average 1.4 status calls per push (max 7.0, up to 45m loop in m-986) | 0 polling calls; `do_spl_push_master` sends spool `note` doorbell to agent inbox upon push worker landing | Push worker sends completion message to agent inbox upon landing; `PUSH_CMD=status` retained as source of truth | sat | agy | complex_coding | **2 (Lane 3, sat)** |
 | 06 | `refactor(sdlc-06-spawn-place-dynamic-gap)` | Dynamic placement gap following lane heartbeat (P3) | Static 10-minute placement hold delaying queue drain regardless of box capacity | `orc:src/bash/run/spl-spawn-place.func.sh:198-208`<br>`orc:src/bash/tests/spl-spawn-queue.tst.sh` | 1,418 clock holds in cron.out vs 37 load-target holds; queue median 12,713s | Queue median under 1h; placement gap ends upon placed lane's first heartbeat (3-min floor, load target guard) | Load target hold stops placement regardless of heartbeat; healthy heartbeat allows placement after 3m | PC | mistral | complex_coding | **3 (Lane 1, PC, after 04)** |
 
-**First 4 rows:** Rows 01, 03, 07, and 09 (Batch 1: 2 sat + 2 PC).
+**First 3 rows:** Rows 01, 07, and 09 (Batch 1: 2 sat + 1 PC).
 
 ---
 
@@ -143,11 +141,6 @@ Addressing owner directives on robustness (msg `8772dd8f`), performance (msg `19
 - **Failure prevented & Safe degradation (8772dd8f):** Prevents entire spawn queue starvation caused by a single unlaunchable slug prefix. Safe degradation: if canonical brief file still cannot be found after stripping known placement prefixes (`hand-sat-`, `hand-peer-`, `sathand-`, `peerhand-`, `c002-`), cleanly hands the ask to the orchestrator with the full unresolved path; never deadlocks or drops the ask.
 - **Performance impact & Cost (190f44f4):** Reduces average ask queue wait from 150.8 minutes to < 10 minutes; saves ~500 CPU cron ticks of repeated placer retries.
 - **Human interaction & Token cost (abc17db1):** Saves **25 owner minutes/week** (eliminates owner/dispatcher interventions to manually unblock stuck placement queues); saves **~12k tokens/week** in blocker and status chatter.
-
-### Row 03: `refactor(sdlc-03-box-pick-quota-failover)`
-- **Failure prevented & Safe degradation (8772dd8f):** Prevents queue deadlock when a vendor's weekly quota reaches the threshold on one box. Focuses strictly on quota-exhaustion failover (after queued bug ask ab32184e lands on master, rebase onto its fix in `spl-box-pick.func.sh`). Safe degradation: if all fleet boxes are quota-exhausted, emits clean `hold: quota exhausted on sat and PC` with next reset timestamp; never enters infinite retry loop.
-- **Performance impact & Cost (190f44f4):** Eliminates ~30 minutes of dispatcher triage latency per round; avoids provider 429 rate limit backoffs.
-- **Human interaction & Token cost (abc17db1):** Saves **30 owner minutes/week** (eliminates manual box re-routing instructions); saves **~20k tokens/week** of repeated quota probing.
 
 ### Row 07: `refactor(sdlc-07-topic-status-card)`
 - **Failure prevented & Safe degradation (8772dd8f):** Addresses the #1 owner-time drain (32 weekly status asks across 28 topics). Safe degradation: if card rendering fails or topic is read-only, silently skips card update and logs failure; never blocks task progression or spams new messages into the topic.
@@ -183,16 +176,13 @@ Addressing owner directives on robustness (msg `8772dd8f`), performance (msg `19
 
 ## 4. Disjoint files (R1) & Parallel Lanes
 
-Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat** in Batch 1.
-
 ### 4.1 Disjoint file sets per batch (R1)
 
-- **Batch 1 (Parallel Lanes 1–4: 2 sat + 2 PC):**
+- **Batch 1 (Parallel Lanes 1–3: 2 sat + 1 PC):**
   - Row 01 (sat): `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (lines 249-262), `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`
-  - Row 03 (PC): `csi-spl-orc/src/bash/run/spl-box-pick.func.sh`, `csi-spl-orc/src/bash/tests/spl-box-pick.tst.sh`
   - Row 07 (PC): `csi-spl-orc/src/bash/features/spawn-agents/scripts/topic-status-card.sh (new)`, `csi-spl-orc/src/bash/features/spawn-agents/tests/test-topic-status-card.sh (new)`
   - Row 09 (sat): `csi-spl-orc/src/bash/run/check-lane-served.func.sh (new)`, `csi-spl-orc/src/bash/tests/check-deploy-lag.tst.sh`
-  *(All 4 file sets completely disjoint).*
+  *(All 3 file sets completely disjoint).*
 
 - **Batch 2 (Parallel Lanes 1–3: 2 sat + 1 PC, after Batch 1 lands):**
   - Row 04 (sat): `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (lines 235-245), `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`
@@ -206,9 +196,9 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 ### 4.2 Lane Progression
 - **Lane 1 (sat - Placer):** Row 01 -> Row 04
-- **Lane 2 (PC - Box Selection & Heartbeat Gap):** Row 03 -> Row 06 (Batch 3)
-- **Lane 3 (PC - Topic Cards & Issue Closer):** Row 07 -> Row 11
-- **Lane 4 (sat - Verification & Push Pipeline):** Row 09 -> Row 12
+- **Lane 2 (PC - Topic Cards & Issue Closer):** Row 07 -> Row 11
+- **Lane 3 (sat - Verification & Push Pipeline):** Row 09 -> Row 12
+- **Lane 4 (PC - Dynamic Placement Gap):** Row 06 (Batch 3)
 
 ### 4.3 Collision Control (R3)
 `lane-map.sh --check` verifies none of these paths are owned by any live lane on any machine. Round 13 (WUI clean code), Perf Round 6 (WUI speed), and Test Round 1 (testing self-reflection) touch zero shared paths.
@@ -219,6 +209,7 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 | Proposal / Practice | Why not | Measured evidence |
 |---|---|---|
+| Quota-exhaustion failover (originally row 03) | Already built on master in `8b427556c` (SPL-2035) | `spl-box-pick.tst.sh` cases 16a (96% vs 40% -> routes to box with capacity), 16b (both over -> hold), and 16d (RED CONTROL) already implement and verify this. The 9 manual reroutes were prior to SPL-2035 landing. |
 | Remote brief auto-mirror (originally row 02) | Already built on master | `spawn-remote.sh:110-119` sends the brief text inline in the request, and `:210-218` writes it on the target with an ACL. Measured n=1 incident in `920ccbfc` was output files, not input brief sync. |
 | Automated R7 reviewer pairing (originally row 05) | Not failing in practice; invalid test path cited | R7 has 0 violations in 4 days across 38 review lines; cited test file `tests/test-reviewer-pick.sh` does not exist in repo. |
 | Automated retry for CI setup flakes (originally row 08) | Already built on master | Workflow `.github/workflows/12_ci-rerun-setup-flake.yml` and `do_ci_rerun_setup_flake` (`ci-rerun-setup-flake.func.sh`) already rerun `--failed` once when all jobs die at Set up job. |
@@ -235,7 +226,7 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 - **Expert Panel:**
   - Editor / agy seat: `a-240@sat` (`sdlc-round-1/seat-agy.md`)
-  - Claude seat: `c-247@sat` (`sdlc-round-1/seat-claude.md`, verdict in `e0edb8964`, send-back `69c0017a`)
+  - Claude seat: `c-247@sat` (`sdlc-round-1/seat-claude.md`, verdict in `e0edb8964`, send-backs `69c0017a`, `5fcc662b`)
   - Takeover seat (mistral replacement): Pending placement (`sdlc-round-1/seat-mistral.md`)
   - Grok seat: Not seated (no grok quota on any box, per dispatcher `c-002@sat` note)
   - *(No qwen seat: switched off in fleet settings).*
@@ -249,13 +240,13 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 | Dimension | Count |
 |---|---|
-| Total rows | 8 (100% verified SDLC automation, robustness & performance) |
-| Box allocation | 4 on sat, 4 on PC (Batch 1: 2 sat + 2 PC; Batch 2: 2 sat + 1 PC; Batch 3: 1 PC) |
-| Parallel lanes | 4 lanes in parallel in Batch 1 |
-| Batches | 3 batches (Batch 1: 4 rows; Batch 2: 3 rows; Batch 3: 1 row; 100% disjoint within each batch) |
-| Vendor assignment | claude 3, mistral 3, agy 2 (balanced across vendors per `do_spl_lane_mix`) |
-| Owner minutes saved | **~215 minutes/week** |
-| Tokens saved | **~135k tokens/week** |
+| Total rows | 7 (100% verified SDLC automation, robustness & performance) |
+| Box allocation | 4 on sat, 3 on PC (Batch 1: 2 sat + 1 PC; Batch 2: 2 sat + 1 PC; Batch 3: 1 PC) |
+| Parallel lanes | 3 lanes in parallel in Batch 1 and Batch 2 |
+| Batches | 3 batches (Batch 1: 3 rows; Batch 2: 3 rows; Batch 3: 1 row; 100% disjoint within each batch) |
+| Vendor assignment | claude 3, mistral 2, agy 2 (balanced across vendors per `do_spl_lane_mix`) |
+| Owner minutes saved | **~185 minutes/week** |
+| Tokens saved | **~115k tokens/week** |
 
 ---
 
@@ -263,16 +254,9 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 - v0.1: Initial proposed plan for SDLC Round 1 (Software life-cycle automation round), fulfilling owner HUM-10 directives (msgs `6c1ed812`, `a29ba4db`, `8772dd8f`, `190f44f4`, `abc17db1`) with 7 baseline empirical measurements on `d0950b1e3` and 12 concrete actions structured across 3 batches of 4 rows for 4 parallel build lanes (2 on PC + 2 on sat).
 - v1.0: Consensus review integration from panel seats `c-247@sat` and `m-248@sat`.
-- v1.1: Addressed panel review and send-back points from Claude seat `c-247@sat` (msg `69c0017a`) and Dispatcher `c-002@sat` (msg `622a4ad7`):
-  - Corrected Section 9 consensus record for Claude seat: recorded true verdict (`0 agree / 4 agree with changes / 8 disagree / 3 proposals` on v0.1 in `e0edb8964`; send-back `69c0017a` on `ba6d40c0a` resolved in v1.1).
-  - Dropped Row 08 (CI setup flake retry, already live in workflow 12 and `ci-rerun-setup-flake.func.sh`).
-  - Dropped Row 10 (Agent ID retire, already live in `tmux-close-window.sh:66` `--defer --retire` and `agent-id-reap.sh`).
-  - Dropped Row 02 (Remote brief sync, already live in `spawn-remote.sh:110-119` and `:210-218`).
-  - Dropped Row 05 (Reviewer auto-assign, R7 has 0 violations, `tests/test-reviewer-pick.sh` does not exist).
-  - Row 06 site corrected to `orc:src/bash/run/spl-spawn-place.func.sh:198-208` and tested via `spl-spawn-queue.tst.sh`.
-  - Non-existent files marked `(new)`: `topic-status-card.sh (new)`, `test-topic-status-card.sh (new)`, `check-lane-served.func.sh (new)`.
-  - Batching refined to 3 batches (Batch 1: Rows 01, 03, 07, 09 [4 lanes: 2 PC + 2 sat]; Batch 2: Rows 04, 11, 12 [3 lanes: 1 PC + 2 sat]; Batch 3: Row 06 [1 PC]). Serializing `spl-spawn-place.func.sh` strictly across batches guarantees 100% file-disjointness per R1.
-- v1.2: Un-absorbed queued bug ask ab32184e ('unknown usage' on PC) per dispatcher c-002 instruction (msg f45e7b8b). Bug ask ab32184e remains queued and lands first; Row 03 focuses strictly on quota-exhaustion auto-failover (rebases onto ab32184e's fix in spl-box-pick.func.sh once landed). Plan updated to v1.2 awaiting final seat signatures.
+- v1.1: Addressed panel review and send-back points from Claude seat `c-247@sat` (msg `69c0017a`) and Dispatcher `c-002@sat` (msg `622a4ad7`).
+- v1.2: Un-absorbed queued bug ask ab32184e ('unknown usage' on PC) per dispatcher c-002 instruction (msg `f45e7b8b`).
+- v1.3: Dropped Row 03 (quota-exhaustion failover) per c-247 send-back (`5fcc662b`) and dispatcher c-002 confirmation (`f0f32032`). Row 03 was already implemented on master in `8b427556c` (SPL-2035) with test coverage in `spl-box-pick.tst.sh` (cases 16a, 16b, 16d). Moved to Section 5. Plan finalized at 7 verified, file-disjoint actions across 3 batches. Landed as v1.3 awaiting final seat signatures.
 
 ---
 
@@ -280,7 +264,7 @@ Per owner directive (msg `a29ba4db`): **4 agents in parallel: 2 on PC + 2 on sat
 
 | Seat | ID | Status | File |
 |---|---|---|---|
-| Editor (agy) | a-240@sat | agreed & v1.2 drafted (this commit) | `sdlc-round-1/seat-agy.md` |
-| Claude seat | c-247@sat | 0 agree / 4 agree with changes / 8 disagree / 3 proposals in `e0edb8964`; standing by to sign v1.2 | `sdlc-round-1/seat-claude.md` |
-| Takeover seat (mistral replacement) | pending | queued by dispatcher; standing by to review v1.2 | `sdlc-round-1/seat-mistral.md` |
+| Editor (agy) | a-240@sat | agreed & v1.3 drafted (this commit) | `sdlc-round-1/seat-agy.md` |
+| Claude seat | c-247@sat | 0 agree / 4 agree with changes / 8 disagree / 3 proposals in `e0edb8964`; standing by to sign v1.3 | `sdlc-round-1/seat-claude.md` |
+| Takeover seat (mistral replacement) | pending | queued by dispatcher; standing by to review v1.3 | `sdlc-round-1/seat-mistral.md` |
 | Grok seat | g-xxx | not seated (no grok quota on any box) | `sdlc-round-1/seat-grok.md` |

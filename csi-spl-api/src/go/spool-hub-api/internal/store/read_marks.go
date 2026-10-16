@@ -115,14 +115,16 @@ func (s *Memory) withStoredChannelMarksLocked(tenant, reader string, reads map[s
 	return out
 }
 
-// threadReadLocked: the reader read this line inside its thread (a t: mark at
-// or past it). Memory twin of threadReadSQL.
-func (s *Memory) threadReadLocked(tenant, reader string, m *Message) bool {
-	if reader == "" || m.TaskID == "" {
-		return false
+// markedNewLocked: a line of a channel the reader has mark r for is new to
+// them (SPL-2124, the CLE-77930 rule): after their t: mark for its topic, or
+// - with no t: mark - after r. Own and archived lines are the caller's.
+func (s *Memory) markedNewLocked(tenant, reader string, m *Message, r ReadMark) bool {
+	if reader != "" && m.TaskID != "" {
+		if tm, ok := s.readMarks[[3]string{tenant, reader, ThreadMarkKey(m.TaskID)}]; ok {
+			return newer(m.ReceivedAt, m.MsgID, tm.At, tm.MsgID)
+		}
 	}
-	tm, ok := s.readMarks[[3]string{tenant, reader, ThreadMarkKey(m.TaskID)}]
-	return ok && !newer(m.ReceivedAt, m.MsgID, tm.At, tm.MsgID)
+	return newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID)
 }
 
 // threadReadSQL is the unread filter on alias a: unless the reader ($reader,

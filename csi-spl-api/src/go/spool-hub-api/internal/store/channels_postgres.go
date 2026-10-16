@@ -301,7 +301,7 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	// order, so the unread counts see the counts the stats read stored, and
 	// the archived-hidden read subtracts from what the unread reads set.
 	reqs := []tenantRead{cs.channelsRead(), cs.countsRead(now, reader), cs.markedUnreadRead(reads, now, reader, lobby),
-		cs.hiddenUnreadRead(reads, now, reader, lobby), cs.membersRead()}
+		cs.threadUnreadRead(reads, now, reader, lobby), cs.hiddenUnreadRead(reads, now, reader, lobby), cs.membersRead()}
 	if err := s.queryTenantBatch(ctx, tenant, reqs...); err != nil {
 		return nil, err
 	}
@@ -448,6 +448,37 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 			}
 			if st, ok := cs.by[id]; ok && st.Count > 0 {
 				st.Unread = unread
+			}
+			return nil
+		}}
+}
+
+// threadUnreadRead adds to a marked channel's unread the lines at or before
+// its mark that are past the reader's t: mark for their topic (SPL-2124, the
+// CLE-77930 rule: a thread mark, not the channel's, decides a topic's lines).
+// Opening a channel moves its mark past every reply, while the cards still
+// show those replies as "<new>/<total>"; markedUnreadRead counts only the
+// lines after the mark, so this read is its complement and nothing counts
+// twice. Driven by the reader's t: marks: one range on
+// messages_task_received per mark, past the mark. No reader, no t: marks.
+func (cs *channelStats) threadUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
+	return tenantRead{`WITH ` + channelMarksCTE + `
+		SELECT m.channel, count(*)::int FROM ` + threadMarksSQL("$1", "$6", "$7") + `
+		CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.received_at, x.task_id, x.parent_task_id FROM messages x
+			WHERE x.tenant_id = $1 AND x.task_id = k.task
+			AND x.received_at >= tm.at AND (x.received_at, x.msg_id::text) > (tm.at, tm.msg_id)
+			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
+		JOIN mk ON mk.ch = m.channel AND (m.received_at, m.msg_id::text) <= (mk.at, mk.id)
+		WHERE $6::text IS NOT NULL` + archivedHideSQL("m", "$1", "$7") + `
+		GROUP BY m.channel`,
+		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
+			var id string
+			var unread int
+			if err := r.Scan(&id, &unread); err != nil {
+				return err
+			}
+			if st, ok := cs.by[id]; ok && st.Count > 0 {
+				st.Unread += unread
 			}
 			return nil
 		}}

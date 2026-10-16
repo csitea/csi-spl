@@ -84,7 +84,9 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 - `f:seen` `{ts}`: the member opened the Flow pane. Forward-only like every mark.
 - `f:<msg_id>` `{ts}`: the member opened that entry from the Flow.
 - An event is **covered** (unread = false) by `f:<msg_id>`, by a `t:<task_id>`
-  mark at or past it, by `ch:<channel>` at or past it (a channel line), or by
+  mark at or past it, by `ch:<channel>` at or past it (a channel line whose
+  topic has no `t:` mark of the member: SPL-2124, the thread mark alone
+  decides its topic's lines, as the card counts them), or by
   `dm:<from>` / `dm:<from>@<from_box>` at or past it (a DM).
 - `f:<msg_id>` rows are swept with their message.
 

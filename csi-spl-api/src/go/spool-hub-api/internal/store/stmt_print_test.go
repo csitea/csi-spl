@@ -93,6 +93,7 @@ func hotStmts() []hotStmt {
 	}{
 		{"ch_counts", cs.countsRead(stmtNow, hotReader)},
 		{"ch_marked", cs.markedUnreadRead(map[string]ReadMark{}, stmtNow, hotReader, hotLobby)},
+		{"ch_thread", cs.threadUnreadRead(map[string]ReadMark{}, stmtNow, hotReader, hotLobby)},
 		{"ch_hidden", cs.hiddenUnreadRead(map[string]ReadMark{}, stmtNow, hotReader, hotLobby)},
 	} {
 		out = append(out, hotStmt{r.name, pgScopeTenant, r.read.sql, r.read.args})

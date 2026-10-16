@@ -21,6 +21,9 @@
 #      row <sha> review line: <reason>, not on origin; the full line, its sha
 #      only on origin's review/r99-01 (fetched) -> PUSHED; a `chore(r99-01-x)`
 #      and a `docs(...)` commit with no line -> PUSHED
+#   9. the lane closes while its push runs (m-595, SPL-2264): the hook moves
+#      the state dir away as agent-id-retire does, then is red -> the moved dir
+#      reads REFUSED, not RUNNING; the same with a green hook -> PUSHED there
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -55,6 +58,9 @@ case "\$mode" in
     git -C "$O" add "o-\$n.txt" && git -C "$O" ${G[*]} commit -qm "other \$n" && git -C "$O" pull -q --rebase origin master 2>/dev/null
     git -C "$O" push -q origin HEAD:master || { echo "STUB: the other push failed"; exit 1; } ;;
   red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; exit 1 ;;
+  retire-red|retire-ok)
+    mv "$S" "\$(cat "$T/retire.to")"
+    [ "\$mode" = retire-red ] && { echo "deploy-gate FAILED: RETIRE-RED-MARKER"; exit 1; } ;;
   agent-red) [ -n "\${AGENT_ID:-}" ] && { echo "STUB: AGENT_ID=\$AGENT_ID reached the hook"; exit 1; } ;;
 esac
 exit 0
@@ -169,6 +175,30 @@ rcommit eight-d 'docs(doc): not a round row'
 run >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \
   && pass "8. a chore(r99-01-x) and a docs(...) commit with no line -> PUSHED" || fail "8. chore/docs (rc $vrc: $v)"
+
+# 9 the state dir moves while the hook runs
+retire9() {
+  local mode="$1" to="$T/retired-$1/lifetime/push-master"
+  mkdir -p "${to%/*}"; echo "$to" >"$T/retire.to"; echo "$mode" >"$T/hook.mode"; mkdir -p "$S"
+  commit "nine-$mode"; sha="$(git -C "$L" rev-parse HEAD)"
+  run >/dev/null; v="$(verdict_in "$to")"; vrc=$?
+}
+verdict_in() {
+  local out rc
+  for _ in $(seq 1 60); do
+    out="$(SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$1" PUSH_CMD=status 2>&1)"; rc=$?
+    [ "$rc" -ne 3 ] && [ -f "$1/status" ] && { printf '%s\n' "$out"; return "$rc"; }
+    sleep 0.5
+  done
+  printf 'TIMEOUT\n%s\n' "$out"; return 9
+}
+retire9 retire-red
+[ "$vrc" -eq 1 ] && grep -q "^REFUSED push of $sha" <<<"$v" && grep -q 'RETIRE-RED-MARKER' <<<"$v" && [ ! -e "$S" ] \
+  && grep -q 'the state dir moved' "$T/retired-retire-red/lifetime/push-master/log" \
+  && pass "9. the lane's dir moved away during a red push -> REFUSED written where it is now, not RUNNING" || fail "9. retire red (rc $vrc: $v)"
+retire9 retire-ok
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" \
+  && pass "9. ...and a green push from a moved dir -> PUSHED written there" || fail "9. retire ok (rc $vrc: $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

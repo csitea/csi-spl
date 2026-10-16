@@ -114,8 +114,27 @@ _spl_push_master_status() {
   esac
 }
 
-# _spl_push_master_end <verdict lines> [detail file] - writes the ONE status file.
+# _spl_push_master_follow - re-points PUSH_STATE (and the worker's `out`) at
+# where the state dir is NOW. A lane that closes while its push runs has its
+# whole spool dir moved to <SPOOL_ROOT>/.retired/<id>.<ts>/ (agent-id-retire):
+# the old path was gone, so the verdict was never written and the status read
+# RUNNING for good (m-595, SPL-2264). The worker holds fd 8 on the dir; its
+# /proc link names the dir's current path.
+_spl_push_master_follow() {
+  local now
+  [[ "$PUSH_STATE" -ef "/proc/$BASHPID/fd/8" ]] && return 0
+  now="$(readlink "/proc/$BASHPID/fd/8" 2>/dev/null)" && [[ -d "$now" ]] || return 0
+  echo "$(date -u +%TZ) the state dir moved: $PUSH_STATE -> $now"
+  PUSH_STATE="$now"
+  [[ -n "${out:-}" ]] && out="$now/push.out"
+  return 0
+}
+
+# _spl_push_master_end <verdict lines> [detail file] - writes the ONE status
+# file, in the state dir where it is now (_spl_push_master_follow).
 _spl_push_master_end() {
+  _spl_push_master_follow
+  [[ -z "${2:-}" || -e "$2" ]] || set -- "$1" "$PUSH_STATE/${2##*/}"
   {
     echo "$1"
     echo "finished=$(date -u +%FT%TZ)"
@@ -204,9 +223,10 @@ _spl_push_master_worker() {
   unset SPL_PREPUSH_OVERRIDE AGENT_ID
   exec 9>"$PUSH_STATE/lock"
   flock -n 9 || { echo "another worker holds the lock"; return 0; }
+  exec 8<"$PUSH_STATE"
   cd "$PUSH_WT" || { _spl_push_master_end "REFUSED cannot enter $PUSH_WT"; return 1; }
   while (( try < max )); do
-    try=$((try + 1)); force=()
+    try=$((try + 1)); force=(); _spl_push_master_follow
     (( try > 1 )) && force=(--force)
     echo "$(date -u +%TZ) try $try/$max: fetch"
     if ! bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" "${force[@]}"; then
@@ -230,12 +250,14 @@ _spl_push_master_worker() {
     sha="$(git rev-parse HEAD)"
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
     if _spl_push_master_git_push "$remote" "$branch" "$out"; then
+      _spl_push_master_follow
       cat "$out"
       bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" --landed; landed_rc=$?
       _spl_push_master_end "PUSHED $sha
 landed_rc=$landed_rc
 tries=$try"; return 0
     fi
+    _spl_push_master_follow
     cat "$out"
     _spl_push_master_moved "$out" || { _spl_push_master_end "REFUSED push of $sha (the hook or a rule said no)" "$out"; return 1; }
     echo "$(date -u +%TZ) try $try/$max: $remote/$branch moved during the push; rebase and retry"

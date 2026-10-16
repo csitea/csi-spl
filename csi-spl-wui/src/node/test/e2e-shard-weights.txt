@@ -9,11 +9,17 @@
 # packs a shard. Refresh: the same lines of the latest green runs (L5, spec
 # 133 action 6; refreshed again after the CI-refactor e2e rounds 22..47, and
 # on 2026-10-16 for 8 unweighted new files and a heavy shard 1/5).
+# A file whose test changed takes the median of the runs whose head contains
+# that change only (n >= 3): a median over a window that spans the change
+# lags it. Round 26, 2026-10-16: 6 files from 26 green runs 38831001997 ..
+# 38904179705 (await-reply 32 -> 62, links-open-channel-view 60 -> 78,
+# ai-marker 14 -> 29 after their tests grew; shard 4/5 had become the
+# slowest).
 tests/e2e/act-as.test.mjs 14
 tests/e2e/agent-at-box.test.mjs 8
 tests/e2e/agent-id-mention.test.mjs 6
 tests/e2e/agent-senders.test.mjs 5
-tests/e2e/ai-marker.test.mjs 14
+tests/e2e/ai-marker.test.mjs 29
 tests/e2e/archive-close-pane.test.mjs 11
 tests/e2e/archive-close-rail.test.mjs 7
 tests/e2e/archive-undo.test.mjs 9
@@ -22,7 +28,7 @@ tests/e2e/at-send.test.mjs 8
 tests/e2e/attach-only-send.test.mjs 10
 tests/e2e/attachment-remove.test.mjs 8
 tests/e2e/avatars-visible.test.mjs 20
-tests/e2e/await-reply.test.mjs 32
+tests/e2e/await-reply.test.mjs 62
 tests/e2e/blocker-issue-setting.test.mjs 26
 tests/e2e/blog-share.test.mjs 4
 tests/e2e/blog.test.mjs 12
@@ -46,7 +52,7 @@ tests/e2e/calendar-undo.test.mjs 12
 tests/e2e/calendar.test.mjs 20
 tests/e2e/card-edge-inset.test.mjs 59
 tests/e2e/card-heading-size.test.mjs 3
-tests/e2e/card-height-rows.test.mjs 5
+tests/e2e/card-height-rows.test.mjs 11
 tests/e2e/channel-order-setting.test.mjs 10
 tests/e2e/channel-order.test.mjs 18
 tests/e2e/channel-people.test.mjs 4
@@ -76,7 +82,7 @@ tests/e2e/dm-presence.test.mjs 8
 tests/e2e/dm-ref-via-dm.test.mjs 6
 tests/e2e/dm-remove-from-list.test.mjs 6
 tests/e2e/dm-reply-topic-to.test.mjs 11
-tests/e2e/dm-start-message.test.mjs 18
+tests/e2e/dm-start-message.test.mjs 24
 tests/e2e/doc-path-links.test.mjs 3
 tests/e2e/dock-buttons.test.mjs 20
 tests/e2e/docs-links.test.mjs 5
@@ -126,7 +132,7 @@ tests/e2e/kind-key-focus.test.mjs 4
 tests/e2e/last-data-clock.test.mjs 12
 tests/e2e/link-preview-font.test.mjs 2
 tests/e2e/link-preview.test.mjs 18
-tests/e2e/links-open-channel-view.test.mjs 60
+tests/e2e/links-open-channel-view.test.mjs 78
 tests/e2e/local-time.test.mjs 8
 tests/e2e/login-bar-tenant.test.mjs 9
 tests/e2e/login-centred.test.mjs 28
@@ -260,6 +266,7 @@ tests/e2e/unread-divider.test.mjs 9
 tests/e2e/unread-drops-on-read.test.mjs 25
 tests/e2e/unread-on-row.test.mjs 2
 tests/e2e/unread-sum.test.mjs 2
+tests/e2e/user-menu-lazy-mount.test.mjs 6
 tests/e2e/users-admin.test.mjs 10
 tests/e2e/version-pop.test.mjs 11
 tests/e2e/version-v-prefix.test.mjs 2

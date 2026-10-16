@@ -69,6 +69,10 @@
 #   6d. only with --fleet: the force-push block - a pre-tool hook on the
 #      shared matcher plus deny rules - in claude, grok, agy and qwen
 #      (steps/y13-force-push-guard.sh; both homes: do_install_force_push_guard)
+#   6e. when ~/.vibe exists: the Mistral Vibe output cap, a post_tool hook
+#      that feeds a long bash result back to the model as its head and tail
+#      plus the path of the full log (steps/y15-vibe-output-cap.sh; both users
+#      of a box: ./run -a do_spl_vibe_output_cap_install)
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -995,6 +999,7 @@ source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule |
 . "$_here/steps/y14-agy-exit-rule.sh" && spool_install_agy_exit_rule || die 6 "cannot render the agy exit rule into ~/.gemini/config/rules"
 . "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
 . "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
+. "$_here/steps/y15-vibe-output-cap.sh" && spool_install_vibe_output_cap "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe output cap: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 . "$_here/steps/y13-force-push-guard.sh" && spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET" || die 7 "force-push-guard: cannot wire the force-push block into the harness settings"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 

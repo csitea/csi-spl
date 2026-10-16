@@ -16,81 +16,72 @@ Issue: SPL-2114.
 Editor: **a-615@PC** (agy).
 Target boxes: **PC**, **sat**, and **hub** (Debian 13 fleet & GCP Cloud Run / Cloud SQL).
 
-**Status: v0.1 draft**. Submitted to expert panel seats for verification, review, and signing.
+**Status: v1.0 consensus draft**. Incorporates all panel findings and measurements from Claude (`c-285@sat`, commit `48e310dc1`) and Mistral (`m-699@PC`, commit `9d67d3d80`). Submitted to panel reviewers for final signature.
 
 ## 1. Measured baseline facts across fleet layers
 
-Empirically measured across `PC`, `sat`, and the GCP cloud hub (read-only baseline probes, 2026-10-16 ~07:4xZ, n=1 each):
+Empirically measured across `PC`, `sat`, and the GCP cloud hub (read-only baseline probes, 2026-10-16 ~07:4xZ by a-615, ~11:0xZ by c-285 on sat, ~11:1xZ by m-699 on PC):
 
 ### 1.1 Layer 1: Operating System (Debian 13 Trixie)
-- **Host `PC` (workhorse host):** Linux kernel 6.12.x, uptime 21h 30m. RAM: 62 GiB total, 28 GiB used, 40 GiB buff/cache, 34 GiB available. Swap: 49 GiB total (`/dev/nvme0n1p3`), 4.3 GiB used. Time sync: `systemd-timesyncd` active, NTP sync verified with `2.debian.pool.ntp.org`, local clock synchronized. Systemd: `systemctl --failed` returns 0 failed units currently. However, **zero background watchers monitor unit failure**: if a daemon dies, no alert is sent.
-- **Kernel / package reboot flag:** `/var/run/reboot-required` and `/var/run/reboot-required.pkgs` are unmonitored. When critical packages (`libc6`, `systemd`, `linux-image`) update via unattended upgrades, the machine continues running outdated in-memory kernels/libraries indefinitely without scheduling a reboot in the 04:00 maintenance window.
-- **Host `sat` (satellite server):** Root filesystem (`/dev/sda1`) 30 GB total, 74% used (previously reached 88% / 3.5 GB free before emergency sweep). Uncapped systemd journal (488 MB).
+- **Host `PC` & `sat` system state:** Linux kernel 6.12.x across hosts. `systemctl is-system-running` is already queried by `csi-spl-api/src/go/spool-hub-api/internal/hubclient/host.go:270` and relayed to the hub in `HostSystem.State`, but **zero alerts fire when system state is `degraded`**.
+- **Kernel / package reboot flag & library updates:** On Debian 13, `/var/run/reboot-required` and `.pkgs` are written exclusively by `/etc/kernel/postinst.d/unattended-upgrades` (kernel updates only). Outdated libraries (`libc6`, `systemd`) in running processes are detected via `needrestart -b -k -l`. Currently unmonitored; machines run outdated in-memory code indefinitely after unattended upgrades.
+- **Time synchronization & clock drift (Claude & Mistral Proposal 1):** `timedatectl show -p NTPSynchronized` reports `yes` and `timedatectl timesync-status` shows offset -17 us to `169.254.169.254` (sat) or `2.debian.pool.ntp.org` (PC). However, **zero code monitors NTP sync loss or drift**. Silent loss of sync causes hub beat skew (triggering false fences), invalidates auth tokens, and breaks TLS validity.
+- **Silent kernel OOM kills (Claude & Mistral Proposal 2):** `/proc/vmstat` tracks `oom_kill` counter, and kernel logs contain `oom-killer` events (`journalctl -k`). Currently, zero monitors detect when an agent subprocess or test container is terminated by the kernel OOM killer.
+- **Resource baseline:** PC: 62 GiB RAM, 49 GiB swap (4.3 GiB used). Sat: 30 GB root disk at 74% used, 488 MB journal.
 
 ### 1.2 Layer 2: Networking & Certificates
-- **DNS configuration:** Host `/etc/resolv.conf` lists nameservers `8.8.8.8`, `1.1.1.1`, and router DNS. `systemd-resolved` is not installed; DNS is managed directly by NetworkManager.
-- **Outbound reachability:** Probes confirm HTTP/2 200 to `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `api.github.com`.
 - **Public TLS certificates & expiry:**
-  - `api.spool-hub.ai`: Google Trust Services (WR3), expires Dec 18, 2026 14:45 GMT (**63 days remaining**).
-  - `dev.api.spool-hub.ai`: Google Trust Services (WR3), expires Dec 18, 2026 14:15 GMT (**63 days remaining**).
-  - `spool-hub.ai`: Google Trust Services (WR3), expires Dec 18, 2026 16:39 GMT (**63 days remaining**).
-  - **Zero automated certificate expiry monitoring exists**: if Google Trust Services or Cloud Run domain mapping auto-renewal fails (due to DNS, CAA, or ACME rate issues), all public endpoints drop offline with browser TLS errors without prior warning.
+  - `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai`: Google Trust Services (WR3), expires Dec 18, 2026 14:45 GMT (**63 days remaining**).
+  - Existing reader: `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh:37` already inspects certificate `-enddate` and SAN. It lacks threshold checks (`-checkend 1814400` for 21d, `-checkend 604800` for 7d) and cron automation.
+- **Outbound reachability & model APIs:**
+  - `spl-agent-login-check.func.sh` (cron 1 min) runs real model login probes (`LOGIN_PROBE_EVERY=300s`). `spl-uplink-probe` (cron 1 min) records gateway loss, DNS, and TCP 443 into a TSV.
+  - Basic HTTP HEAD probes confirm TCP/TLS reachability to `api.anthropic.com` (404 in 0.18s), `generativelanguage.googleapis.com`, and `api.github.com`, but lack automated logging into the existing uplink-probe TSV format.
 
 ### 1.3 Layer 3: Agent Fleet & Execution Harness
-- **Tmux server:** Single tmux server daemon per box (`/tmp/tmux-<uid>/default` on `PC`) hosting 24 windows.
-- **Tmux socket vulnerability:** Zero automated checks monitor tmux socket responsiveness (`timeout 3s tmux -S ... list-sessions`). If tmux deadlocks or socket permissions break, the entire fleet freezes.
-- **Process load & zombies:** 20 user sessions logged in; system load average reached 21.40 on a 16-core machine. Subprocesses from crashed lanes or orphaned compiler runs linger under the agent user account with PPID 1.
+- **Tmux server socket:** Single daemon per box (`/tmp/tmux-<uid>/default`, mode 700). Probes must run as the socket owner. Socket unresponsiveness locks all 24 sessions; recovery is non-automatic (requires human judgment or SIGUSR1 if socket unlinked).
+- **Leaked test servers & detached workers:** 7 leaked test tmux servers (`/tmp/ppf.*`, up to 3 days old) found on sat; detached node and badge loops linger under runner UID with PPID 1.
+- **Process reaper constraints:** Live daemons (`do_spl_watchdog`, tmux server) have PPID 1 and cwd outside worktrees; signals cannot remove zombies (`wait(2)`). Therefore, process detection must use **positive provenance** (targeting only processes with proven linkage to retired lanes or deleted worktrees) and run in **report-only advisory mode** (`DRY_RUN=1`).
 
 ### 1.4 Layer 4: Docker & CI Runners
-- **Ephemeral container leaks:** Measured on `PC`: three ephemeral test postgres containers (`c581-pg`, `c579-pg`, `c554-pg`, image `postgres:16-alpine`) have been running for 14 to 17 hours! Container `con-bnc-cpt-gateway` has been crashlooping (restarting every 26 seconds) continuously for 3 months.
-- **GitHub Actions runner:** Self-hosted runner managed via `gh-runner-cpu-budget-cron.sh`. Recent log: `CAP online=0 of 2 runner(s)`. Zero software checks verify whether local runner listeners have hung or become disconnected from GitHub Actions API.
+- **Test container leaks & labels:** 9 `postgres:16-alpine` test containers were running unlabelled for up to 3 days (`cNNN-pg`, `pg-cNNN`). `registry.tsv` has no status column. Container creating call sites must pass `--label csi-spl.lane=$AGENT_ID` so orphaned test databases can be identified safely by lane retirement without pattern guessing.
+- **GitHub Actions runner:** Self-hosted runner health is inspected by `do_check_gh_runner` (`check-gh-runner.func.sh`). Status `online=0` can be an intentional CPU budget cap; checks must read `CPU_BUDGET_STATE_DIR/parked` to avoid false alerts.
 
-### 1.5 Layer 5: Cloud Hub (Cloud Run & Cloud SQL)
-- **Cloud Run API:** Serves Spool Hub API in `europe-north1`. Deploy-lag is checked only upon code push (`do_check_deploy_lag`); between pushes, no synthetic probe monitors API availability, `/version` endpoint consistency, or latency SLOs (p99 < 500 ms).
-- **Cloud SQL backups:** Automated backups run in GCP, but no automated verification checks whether daily backups succeeded, whether WAL archiving is functional, or whether backup age has exceeded 26 hours.
+### 1.5 Layer 5: Cloud Estate (Cloud Run & Cloud SQL)
+- **Cloud Run synthetic monitoring:** Step 070 (`csi-spl-iac/src/terraform/070-gcp-monitoring/`) **already provisions a 60s uptime check from 3 global regions to `/v1/health`** (`google_monitoring_uptime_check_config.hub_health`) with alert policies for uptime, 429 streak, 5xx rate, error-log rate, and SQL down. A single-box synthetic probe to `/version` or `/live` (which returns 404) is redundant.
+- **Cloud SQL backups:** Daily backups run for `csi-spl-<env>-pg` (not `-db`). `csi-spl-orc/src/bash/run/spl-db-health.func.sh:115` already executes `gcloud sql backups list`. Scheduled workflow `45_db-backup.yml` exists where failure is the alert.
 
 ### 1.6 Layer 6: Meta-Monitoring (Who Watches the Watchers)
-- **Box crontab health:** 23 critical cron jobs run in the box user crontab on `PC`, writing to `/var/csi/csi-spl/<job>/<log>`. If the cron daemon hangs, a `flock` lockfile deadlocks, or an early shell error occurs, the cron silently dies without alerting.
-- **Box beat fence telemetry:** Spec 102 §10.2 watchdog writes heartbeat beats to hub table `box_beats`; fences the box after 120 seconds of silence (which occurred at 2026-10-16 03:41Z..03:44Z during a Wi-Fi drop). No warning is emitted when beat latency degrades between 60s and 119s before the catastrophic fence triggers.
+- **Box crontab:** The runner crontab contains **38 tagged active lines** (`# csi-spl:<tag>`), whereas `box-crons.manifest` has only 19. Many crons write logs only when output is generated (e.g. `gc`), making log mtime unreliable. Monitoring requires a shared heartbeat exit hook (`<state>/heartbeat/<tag>`).
+- **Box beat fence telemetry:** Watchdog (`spl-watchdog.func.sh:1555`) already maintains `$WD_DIR/beat.ack` and pushes WIP before fence. Telemetry is needed to log beat latency and count near-fences (>= 60s) upon reconnect, with zero mutation of active worktrees.
 
 ## 2. Existing inventory & disjointness
 
-The reliability round builds on top of existing components without duplicating them:
-
 | Existing detector / alert | Where it lives | Where it runs | Watched by |
 |---|---|---|---|
-| Disk headroom check (SPL-2053) | `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh` | Host cron (15 min) | None (unwatched) |
+| Disk headroom check (SPL-2053) | `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh` | Host cron (15 min) | Unwatched |
 | Agent watchdog (spec 102) | `csi-spl-orc/src/bash/run/spl-watchdog.func.sh` | Host cron / starter | Starter cron |
 | Box beats & fence | `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh` | Hub / box daemon | Watchdog |
-| Agent login check | `csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh` | Host cron (1 min) | None (unwatched) |
-| Unanswered sweep | `csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh` | Host cron (5 min) | None (unwatched) |
+| Agent login check | `csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh` | Host cron (1 min) | Unwatched |
+| Unanswered sweep | `csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh` | Host cron (5 min) | Unwatched |
 | Deploy lag check | `csi-spl-orc/src/bash/run/check-deploy-lag.func.sh` | Push hook / manual | CI gate |
+| Cloud Run 60s Uptime (Step 070) | `csi-spl-iac/src/terraform/070-gcp-monitoring/` | GCP 3 regions | Cloud Monitoring Alerting |
+| Runner health check | `csi-spl-orc/src/bash/run/check-gh-runner.func.sh` | Host manual | Manual |
+| Hub TLS inspection | `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh` | Host manual | Manual |
 
 **Disjoint from other rounds (do NOT duplicate):**
-- Disk hygiene round (SPL-2111, `disk-hygiene-round-plan.md`): temp files, journal caps, docker prune, user forgotten files.
-- Networking round (SPL-2109, `networking round plan`): multi-uplink auto-switching, Wi-Fi powersave, USB tethering on `PC`.
+- Disk hygiene round (SPL-2111, `disk-hygiene-round-plan.md`): temp files, journal caps, builder prune, user forgotten files. Note: Batch 1 depends on `csi-spl-utl` harness bootstrap from `hyg-01`.
+- Networking round (SPL-2109, `networking-round-plan.md`): multi-uplink auto-switching, Wi-Fi powersave, USB tethering, beat gap shortening (`net-08`).
 - Security round 1 (lanes c-184, c-187, c-547, c-550): GitHub permissions, prd account lockdown, sshd/ports, secrets scanning.
 
 ### 2.2 Delineation from the 8-gap refactoring run (owner order 7a98c2d1 msg 7377d13a)
 
-The owner received an outside review containing 8 reliability and test gaps (t1 topic `7a98c2d1`, msg `a0d2eafc`). Per owner order (msg `7377d13a`), these 8 items are organized into a separate, dedicated refactoring run (2 lanes in parallel per wave):
-- **Wave 1:** Gap 7 (Hub background loop supervision) + Gap 4 (`DEPLOY.md` rollback procedure).
-- **Wave 2:** Gap 6 (DB backup restore drill in CI) + Gap 3 (`spawn-agents` failure mode test harness).
-- **Wave 3:** Gap 8 (Incident response escalation runbooks) + Gap 5 (Disaster recovery guidance & RTO).
-- **Wave 4:** Gap 2 (Cloud Run load & soak test in CI) + Gap 1 (Chaos & fault-injection harness).
-
-To preserve the owner's 12-row cap (msg `f7b5e824`) and avoid collision with active refactoring lanes, **no rows are added for these 8 gaps in the reliability round**. Where planned rows overlap with gap items, this round maintains strict boundaries and keeps only what the gap lanes do not cover:
-
-| Gap # | Review finding | Measured baseline | Assigned venue | Reliability round overlap & boundary |
-|---|---|---|---|---|
-| 01 | No chaos / fault-injection testing | Confirmed: 0 chaos tests in repo | Gap run (Wave 4) | **Row 11** (`cron-heartbeat-snitch`) monitors cron heartbeats passively. No fault injection or chaos harness is introduced here. |
-| 02 | No load or soak testing in CI | Confirmed: Cloud Run specifies 1000 concurrency/1h timeout, but 0 CI load tests exist | Gap run (Wave 4) | **Row 09** (`hub-synthetic-slo-monitor`) runs periodic 60s synthetic status probes (`/version`, `/live`). No load or stress testing is added here. |
-| 03 | `spawn-agents` tests prove isolation only, not failure modes | Confirmed: harness tests isolation/placement, not mid-spawn socket failure or corrupted `registry.tsv` | Gap run (Wave 2) | **Row 05** (`tmux-server-health-guard`) provides passive socket liveness monitoring; **Row 06** (`orphan-process-reaper`) provides passive host cleanup. Neither alters `spawn-agents` unit tests. |
-| 04 | `DEPLOY.md` has no rollback procedure | Confirmed: `grep -ci rollback DEPLOY.md` returns 0 | Gap run (Wave 1) | Zero overlap. Reliability round does not modify deployment workflows or `DEPLOY.md`. |
-| 05 | No disaster recovery guidance | Confirmed: past drills exist in specs 029, 044, 047, but no consolidated operational DR runbook | Gap run (Wave 3) | Zero overlap. Reliability round delivers runtime tools in `csi-spl-utl`, leaving DR architecture documentation to the gap run. |
-| 06 | DB backups (45_db-backup) never restore-drilled in CI | Confirmed: backup verification checks live container counts against DB, but has no restore drill into Cloud SQL or RTO drill | Gap run (Wave 2) | **Row 10** (`cloud-sql-backup-verify`) is strictly a read-only daily API verification of automated GCP Cloud SQL backup completion and age (< 26h). It intentionally omits database container restore drills (`spool_restore_drill`), which are left entirely to Gap 6. |
-| 07 | Hub background goroutines run fire-and-forget with no supervision | Confirmed: `cmd/spool/hub.go:138-142` starts sweeper, relay, wake, blocker, marketing in bare goroutines; unhandled panic crashes Cloud Run | Gap run (Wave 1) | Zero overlap. Reliability round does not alter hub Go source code or background goroutine loops. |
-| 08 | No incident-response runbooks beyond `SECURITY.md` | Partially wrong / true: `operations-and-maintenance-guide.md` §8 has 4 basic runbooks, but lacks on-call escalation, severity matrices, and status page procedures | Gap run (Wave 3) | Zero overlap. Reliability round only documents its own 12 new tools in the standard guide sections, leaving fleet incident escalation runbooks to Gap 8. |
+Per owner order (msg `7377d13a`), the 8 outside review gaps form a separate 2-lane refactoring run. The reliability round maintains strict boundaries and avoids duplicate work:
+- **Gap 1 (Chaos testing) vs Row 11 (`cron-heartbeat-snitch`):** Row 11 passively inspects cron heartbeat timestamps; zero fault injection or process termination.
+- **Gap 2 (Load/soak testing) vs Step 070 / Row 09:** Step 070 handles uptime; Row 09 monitors clock synchronization. No CI load testing is added here.
+- **Gap 3 (Spawn failure modes) vs Rows 05/06:** Row 05 provides passive host socket liveness checks; Row 06 provides report-only detached process advisories. Neither modifies `spawn-agents` failure suites.
+- **Gap 4 (Rollback procedure) & Gap 5 (Disaster recovery guidance):** Zero overlap. Reliability round delivers runtime tools in `csi-spl-utl`.
+- **Gap 6 (DB restore drill) vs Row 10 (`cloud-sql-backup-verify`):** Row 10 is strictly read-only GCP Cloud SQL backup age verification (< 26h); container restore drills (`spool_restore_drill`) belong entirely to Gap 6.
+- **Gap 7 (Hub background loop supervision) & Gap 8 (Incident response runbooks):** Zero overlap. Reliability round does not modify hub Go code or fleet escalation matrices.
 
 ## 3. The 12 concrete action proposals
 
@@ -98,168 +89,153 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
 
 | # | slug | title | what breaks today (evidence) | what the change does | target & proof (measured number) | csi-rel action & test | box | vendor | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `feat(rel-01-systemd-unit-health)` | Systemd service failure & crash detector | System daemons (docker, cron, sshd) can enter `failed` state silently; no watcher alerts `#alerts` or the dispatcher | Scans `systemctl --failed`; parses unit logs; sends structured alert on failed units | Detects failed unit in <= 15 s; extracts last 5 journal lines; 0 false alerts on healthy box | `do_os_systemd_unit_check`<br>`csi-spl-utl/src/bash/tests/systemd-unit-health.tst.sh` | PC, sat | agy | Batch 1 (Lane 1) |
-| 02 | `feat(rel-02-reboot-required-check)` | Kernel reboot-required & security update advisory | Debian updates kernel/libc and sets `/var/run/reboot-required`; boxes run outdated kernel for weeks without scheduled reboot | Checks `/var/run/reboot-required`; advises dispatcher at 04:00 window to schedule clean reboot when 0 active lanes | Identifies pending reboot and exact packages in < 2 s; zero disruption to active lanes | `do_os_reboot_required_check`<br>`csi-spl-utl/src/bash/tests/reboot-required-check.tst.sh` | PC, sat | claude | Batch 1 (Lane 2) |
-| 03 | `feat(rel-03-tls-cert-expiry-check)` | Public HTTPS certificate expiry monitor | `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai` certs expire Dec 18, 2026 (63 days); zero code checks renewal | Probes TLS certs via `openssl s_client`; warns at <= 21 days, critical alert at <= 7 days | Outputs exact days remaining (63d today); triggers warning alert on test cert with <= 21d | `do_net_cert_expiry_check`<br>`csi-spl-utl/src/bash/tests/tls-cert-expiry.tst.sh` | PC, sat | mistral | Batch 1 (Lane 3) |
-| 04 | `feat(rel-04-external-api-health-check)` | Outbound model & external API health probe | Network routing or Cloudflare blocks to Anthropic, Gemini, or GitHub APIs fail silently for individual vendors | Runs synthetic HEAD/OPTIONS probes (5s timeout); flags vendor degraded if 2 consecutive probes fail | Detects external API outage within 10 s; reports latency per endpoint in ms | `do_net_external_api_check`<br>`csi-spl-utl/src/bash/tests/external-api-health.tst.sh` | PC, sat | claude | Batch 1 (Lane 4) |
-| 05 | `feat(rel-05-tmux-server-health-guard)` | Tmux server socket liveness guard | All 24 agent sessions run on single tmux server; if socket freezes or deadlocks, entire fleet stops without warning | Probes socket responsiveness (`timeout 3s tmux -S ... list-sessions`); checks socket permissions and process status | Unresponsive socket flagged in < 5 s; normal probe completes in < 50 ms | `do_fleet_tmux_health_guard`<br>`csi-spl-utl/src/bash/tests/tmux-health-guard.tst.sh` | PC, sat | mistral | Batch 2 (Lane 1) |
-| 06 | `feat(rel-06-orphan-process-reaper)` | Orphaned process & zombie task reaper | Crashed agent lanes leave detached compiler, git, or node processes with PPID 1; load reached 21.40 | Strictly non-pattern multi-factor scan: reaps PPID 1 / zombie tasks older than 30 min unlinked to any tmux pane, worktree, or active registry lane | Reaps orphaned processes older than 30 min; never matches by pattern alone; 100% preserves active lane processes | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` | PC, sat | agy | Batch 2 (Lane 2) |
-| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | Ephemeral test containers (`c581-pg`, `c579-pg`) ran for 17 hours; gateway container crashlooping for 3 months | Strictly non-pattern multi-factor scan: stops and removes test containers older than 2h whose originating lane is inactive in registry; preserves infra | Cleans up orphaned test containers > 2h; never prunes by pattern alone; whitelists permanent infra containers | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` | PC, sat | claude | Batch 2 (Lane 3) |
-| 08 | `feat(rel-08-gh-runner-health-check)` | GitHub Actions runner health & job hang detector | Self-hosted runner daemon can hang or disconnect (`CAP online=0 of 2 runners`); CI jobs queue up indefinitely | Checks GitHub API for runner `online` status; monitors runner process; flags wedged jobs exceeding 45 min | Reports runner status in < 3 s; alerts within 60 s if runner goes unexpectedly offline | `do_gh_runner_health_check`<br>`csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh` | PC, sat | mistral | Batch 2 (Lane 4) |
-| 09 | `feat(rel-09-hub-synthetic-slo-monitor)` | Cloud Run hub synthetic probe & latency SLO monitor | Cloud Run instances suffer cold-start stalls or 500 errors; no continuous probe verifies availability between deploys | Continuous 60s synthetic probe against `/version` and `/live`; checks status 200, latency < 2000ms | Records latency in ms (< 150 ms typical); alerts if 3 consecutive probes fail or latency > 2s | `do_hub_synthetic_slo_check`<br>`csi-spl-utl/src/bash/tests/hub-synthetic-slo.tst.sh` | PC, sat | claude | Batch 3 (Lane 1) |
-| 10 | `feat(rel-10-cloud-sql-backup-verify)` | Cloud SQL daily backup verification | Cloud SQL automated backups run daily, but silent backup failures or quota locks are never checked from software | Queries GCP Cloud SQL API via environment service account; verifies newest successful backup < 26 hours old | Alerts if newest backup > 26h; verified against live dev and prd instances | `do_cloud_sql_backup_verify`<br>`csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh` | hub | agy | Batch 3 (Lane 2) |
-| 11 | `feat(rel-11-cron-heartbeat-snitch)` | Cron dead-man's snitch & heartbeat age monitor | 23 critical crons write to `/var/csi/csi-spl/`; if cron daemon dies or lockfile hangs, all cron monitoring silently fails | Scans log mtime of all registered crons against expected schedule + grace period; alerts if any cron is silent | Detects frozen cron job within schedule + grace window (e.g. 5m for 1m job); runs in < 100 ms | `do_cron_heartbeat_snitch`<br>`csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh` | PC, sat | mistral | Batch 3 (Lane 3) |
-| 12 | `feat(rel-12-box-beat-telemetry)` | Box beat & watchdog fence early-warning telemetry | Box fences itself at 120s of beat silence (fenced at 03:41Z for 2m48s); zero warning when latency spikes (60–119s) | Tracks hub beat ack latency; triggers early-warning alert and commits lane wip if ack age exceeds 60s | Alerts at 60s beat delay (50% before fence threshold); 0 false alarms on normal < 15s beats | `do_box_beat_telemetry_check`<br>`csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh` | PC, sat | claude | Batch 3 (Lane 4) |
+| 01 | `feat(rel-01-systemd-unit-health)` | Systemd service failure & crash detector | System daemons (docker, cron) can enter `failed` or `degraded` state silently; host report queries `is-system-running` but zero alerts fire | Reads `systemctl is-system-running` and `systemctl --failed`; checks unit logs; uses cnf unit ignore list; sends structured alert | Detects failed unit in <= 15 s; parses crash logs; tested against stub `systemctl`; 0 false alerts | `do_os_systemd_unit_check`<br>`csi-spl-utl/src/bash/tests/systemd-unit-health.tst.sh` | PC, sat | agy | Batch 1 (Lane 1) |
+| 02 | `feat(rel-02-reboot-required-check)` | Kernel reboot & library restart advisory | Debian updates kernel (`/var/run/reboot-required`) and core libraries (`needrestart -b`); boxes run outdated code for weeks | Queries `needrestart -b -k -l` and `/run/reboot-required`; advises orchestrator at 04:00 window; strictly advisory, never auto-reboots | Identifies pending reboot and outdated services in < 2 s; zero disruptive reboots; alert only | `do_os_reboot_required_check`<br>`csi-spl-utl/src/bash/tests/reboot-required-check.tst.sh` | PC, sat | claude | Batch 1 (Lane 2) |
+| 03 | `feat(rel-03-tls-cert-expiry-check)` | Public HTTPS certificate expiry monitor | Public endpoint TLS certificates expire Dec 18, 2026 (63 days); `spl-probe-hub-host` inspects date but lacks automated thresholds | Builds on `spl-probe-hub-host.func.sh`; uses `openssl x509 -checkend`; warns at <= 21d, alarms at <= 7d; hosts from cnf `BASE_DOMAIN` | Outputs days remaining (63d today); triggers warning at <= 21d and critical at <= 7d in < 2s | `do_net_cert_expiry_check`<br>`csi-spl-utl/src/bash/tests/tls-cert-expiry.tst.sh` | PC, sat | mistral | Batch 1 (Lane 3) |
+| 04 | `feat(rel-04-external-api-health-check)` | Outbound model & external API reachability probe | DNS or TLS routing blocks to Anthropic, Gemini, or GitHub APIs fail silently between full login probes | Runs fast DNS/TCP/TLS probes (5s timeout) to endpoints in cnf; appends latency to `uplink-probe` TSV format; report-only | Detects endpoint reachability drops within 10 s; records latency in ms; report-only | `do_net_external_api_check`<br>`csi-spl-utl/src/bash/tests/external-api-health.tst.sh` | PC, sat | claude | Batch 1 (Lane 4) |
+| 05 | `feat(rel-05-tmux-server-health-guard)` | Tmux server socket liveness guard | All 24 sessions depend on single tmux server; socket freeze halts entire fleet; `/tmp/tmux-<uid>/` is mode 700 | Probes socket as socket owner (`timeout 3s tmux -S ... list-sessions`); alerts within 5s on freeze; alert only (no auto-restart) | Probe completes in < 50 ms; flags hung socket in < 5s; tested against private test socket (`tmux -L`) | `do_fleet_tmux_health_guard`<br>`csi-spl-utl/src/bash/tests/tmux-health-guard.tst.sh` | PC, sat | mistral | Batch 2 (Lane 1) |
+| 06 | `feat(rel-06-orphan-process-advisory)` | Orphaned process & detached worker advisory | Crashed lanes leave detached compiler, node, or test processes (64 PPID 1 processes on sat); load reached 21.40 | Report-only advisory (`DRY_RUN=1` permanent); scans using positive provenance (environ `AGENT_ID` in `registry.retired.tsv` or deleted cwd); never kills by pattern; explicit never-list | Detects orphaned processes from retired lanes; 100% preserves live agent processes and daemons | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` | PC, sat | agy | Batch 2 (Lane 2) |
+| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | Ephemeral test containers ran for 3 days; containers have no labels; name parsing is pattern-based | Adds `--label csi-spl.lane=$AGENT_ID` to test creating scripts; prunes only labelled containers whose lane is inactive and age > 2h; unlabelled reported only | Cleans up orphaned test containers > 2h; never prunes by name pattern alone; preserves infrastructure | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` | PC, sat | claude | Batch 2 (Lane 3) |
+| 08 | `feat(rel-08-gh-runner-health-check)` | GitHub Actions runner health & job hang detector | Self-hosted runner daemon can hang or disconnect; CPU budget parks runners; jobs can hang indefinitely | Reuses `do_check_gh_runner`; reads `CPU_BUDGET_STATE_DIR/parked`; checks GitHub API for runner status and jobs > 45 min | Reports runner status in < 3 s; alerts on offline runner or job > 45 min; zero false alerts on parked runners | `do_gh_runner_health_check`<br>`csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh` | PC, sat | mistral | Batch 2 (Lane 4) |
+| 09 | `feat(rel-09-clock-sync-loss-check)` | Clock synchronization loss & NTP drift detector | Loss of time sync causes false watchdog fence (beat skew), auth token failures, and TLS errors; zero monitors check sync today | Checks `timedatectl show -p NTPSynchronized --value` and `timedatectl show-timesync`; alerts if sync lost > 30 min or \|offset\| > 1 s | Verifies NTP sync in < 100 ms; detects simulated sync loss within 30 min; alerts orchestrator | `do_os_clock_sync_check`<br>`csi-spl-utl/src/bash/tests/clock-sync-check.tst.sh` | PC, sat | claude | Batch 3 (Lane 1) |
+| 10 | `feat(rel-10-cloud-sql-backup-verify)` | Cloud SQL daily backup verification | Cloud SQL backups run daily for `csi-spl-<env>-pg`; failures or quota locks are silent unless explicitly queried | Reuses `spl-db-health.func.sh` gcloud call under env SA; verifies newest successful backup < 26h; runs in workflow `45_db-backup.yml` | Alerts if newest backup > 26h; verified against live dev and prd instances; read-only | `do_cloud_sql_backup_verify`<br>`csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh` | hub | agy | Batch 3 (Lane 2) |
+| 11 | `feat(rel-11-cron-heartbeat-snitch)` | Cron dead-man's snitch & heartbeat age monitor | 38 tagged crons run on host; crons logging only on output fail mtime checks; cron daemon crash fails silently | Reads tagged crontab directly; shared wrapper touches `<state>/heartbeat/<tag>` on exit; alerts if heartbeat age > schedule + grace | Detects silent cron stoppage within grace window (e.g. 5m for 1m cron); runs in < 100 ms | `do_cron_heartbeat_snitch`<br>`csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh` | PC, sat | mistral | Batch 3 (Lane 3) |
+| 12 | `feat(rel-12-box-beat-telemetry)` | Box beat & watchdog fence early-warning telemetry | Box fences at 120s of beat silence (fenced at 03:41Z for 2m48s); watchdog makes WIP push; near-fences uncounted | Reads `$WD_DIR/beat.ack`; logs ack age and counts near-fences (>= 60s); sends summary note after reconnect; zero worktree commits | Records ack latency; alerts on reconnect after near-fence; disjoint from networking round net-08 | `do_box_beat_telemetry_check`<br>`csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh` | PC, sat | claude | Batch 3 (Lane 4) |
 
 ## 4. Detailed row specifications
 
 ### Row 01: `feat(rel-01-systemd-unit-health)` - Systemd service failure & crash detector
 - **What:** Implement `do_os_systemd_unit_check` in `csi-spl-utl`:
-  - Runs `systemctl --failed --plain --no-legend` across system and user units.
-  - For any failed unit, inspects `journalctl -u <unit> -n 5 --no-pager` to extract the crash reason.
-  - Filters out transient test services matching test patterns (`test-*`, `*-test`).
-  - Emits a structured alert to `/var/spool-hub/dispatch/alerts/` and `#alerts` topic.
-- **Why:** Core daemons (`docker`, `cron`, `rsyslog`, `systemd-timesyncd`) can crash or fail silently during operation or boot. Today, zero automated detectors watch `systemctl --failed`.
+  - Inspects `systemctl is-system-running` and `systemctl --failed --plain --no-legend`.
+  - For any failed unit, extracts crash logs via `journalctl -u <unit> -n 5 --no-pager`.
+  - Replaces name-pattern filters with an explicit unit ignore list in cnf (`cnf/systemd-unit-ignore.tsv`), empty by default.
+  - Emits a structured spool note to the orchestrator throttled by a state file (`<state>/systemd-unit-alert.stamp`).
+- **Why:** Core daemons (`docker`, `cron`, `systemd-timesyncd`) can enter `failed` state. The host report already captures `is-system-running`, but zero background alerts fire when degraded.
 - **Command:** `cd csi-spl-utl && ./run -a do_os_systemd_unit_check`
-- **Target:** Exits 0 with clean summary on healthy system; exits 1 and emits structured alert within 15 s when a unit fails.
-- **Proof:** Planted failed unit (`systemd-run --unit=test-fail-probe /bin/false`) is immediately detected and reported.
+- **Target:** Exits 0 on running system; exits 1 and emits structured alert within 15 s when a unit fails.
+- **Proof:** Tested against a stub `systemctl` on PATH; live box is left untouched.
 
-### Row 02: `feat(rel-02-reboot-required-check)` - Kernel reboot-required & security update advisory
+### Row 02: `feat(rel-02-reboot-required-check)` - Kernel reboot & library restart advisory
 - **What:** Implement `do_os_reboot_required_check` in `csi-spl-utl`:
-  - Checks existence of `/var/run/reboot-required` and parses package list in `/var/run/reboot-required.pkgs`.
-  - Compares running kernel (`uname -r`) against the latest installed kernel in `/boot/vmlinuz-*`.
-  - During the nightly maintenance window (04:00), if a reboot is pending and active lane count is 0, advises the dispatcher to coordinate a box reboot via `box-restart-cron.sh`.
-- **Why:** Debian 13 unattended upgrades install kernel and core library security fixes, but boxes run for weeks without rebooting into the patched kernel, leaving memory vulnerable.
+  - Checks `/run/reboot-required` and parses `/run/reboot-required.pkgs` (set by kernel postinst).
+  - Executes `needrestart -b -k -l` to detect running processes holding outdated libraries (`libc6`, `systemd`).
+  - During nightly window (04:00), if reboot or service restart is pending, advises orchestrator via spool note. Strictly advisory; never initiates automated reboot.
+- **Why:** Security updates install patched packages, but systems run outdated in-memory binaries for weeks without scheduling maintenance.
 - **Command:** `cd csi-spl-utl && ./run -a do_os_reboot_required_check`
-- **Target:** Outputs status `REBOOT_REQUIRED: no` or lists pending packages; schedules reboot only when lane count is 0.
-- **Proof:** Simulated `/var/run/reboot-required` generates correct advisory payload; non-zero lane count prevents disruptive reboot.
+- **Target:** Identifies pending reboot and outdated services in < 2 s; zero disruptive reboots.
+- **Proof:** Simulated `/run/reboot-required` and needrestart output triggers advisory note cleanly.
 
 ### Row 03: `feat(rel-03-tls-cert-expiry-check)` - Public HTTPS certificate expiry monitor
 - **What:** Implement `do_net_cert_expiry_check` in `csi-spl-utl`:
-  - Checks TLS certificates for public endpoints: `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai`.
-  - Extracts `notAfter` date using `openssl s_client -connect <host>:443 -servername <host> < /dev/null 2>/dev/null | openssl x509 -noout -enddate`.
-  - Calculates days remaining until expiration:
-    - `>= 22 days`: OK (logged to telemetry).
-    - `8..21 days`: WARNING alert (sent to `#alerts` and dispatch holder).
-    - `<= 7 days`: CRITICAL alarm (escalated to owner topic).
-- **Why:** Measured on 2026-10-16: all three domains have certs expiring on Dec 18, 2026 (63 days). Zero code monitors TLS cert validity; an auto-renewal failure drops the public API and WUI with no advance warning.
+  - Builds on `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh:37`.
+  - Reads public endpoints dynamically from cnf (`env.dns.BASE_DOMAIN` in `csi-spl-cnf/csi-spl/all.env.yaml`).
+  - Uses `openssl x509 -checkend 1814400` (21 days) for WARNING and `openssl x509 -checkend 604800` (7 days) for CRITICAL alarms.
+  - Emits a spool note to the orchestrator on threshold crossing, throttled by state stamp.
+- **Why:** All public certificates expire Dec 18, 2026 (63 days remaining). Auto-renewal failure drops the public API and WUI without advance notice.
 - **Command:** `cd csi-spl-utl && ./run -a do_net_cert_expiry_check`
-- **Target:** Reports exact expiration dates and days remaining for all 3 endpoints in < 2 seconds.
-- **Proof:** Planted test certificate with 14 days remaining triggers WARNING; test cert with 3 days triggers CRITICAL; production certs report OK (63d).
+- **Target:** Evaluates all domain endpoints in < 2 s; outputs days remaining; alerts on <= 21d.
+- **Proof:** Tested with simulated certificate expiring in 14 days (WARNING) and 3 days (CRITICAL); production certs report OK (63d).
 
-### Row 04: `feat(rel-04-external-api-health-check)` - Outbound model & external API health probe
+### Row 04: `feat(rel-04-external-api-health-check)` - Outbound model & external API reachability probe
 - **What:** Implement `do_net_external_api_check` in `csi-spl-utl`:
-  - Runs fast HTTP HEAD/OPTIONS probes (5s timeout) to external dependencies:
-    - Anthropic: `https://api.anthropic.com`
-    - Google Gemini: `https://generativelanguage.googleapis.com`
-    - GitHub API: `https://api.github.com`
-    - Spool Hub API: `https://api.spool-hub.ai`
-  - Measures HTTP response code and round-trip time (RTT).
-  - If 2 consecutive probes fail or return 403 (Cloudflare block), flags vendor status as DEGRADED in `/var/spool-hub/dispatch/vendor-health.tsv`.
-- **Why:** Outbound connectivity to an individual LLM vendor or GitHub can fail due to ISP routing, DNS glitches, or IP rate limiting, causing newly spawned agent lanes to instantly fail.
+  - Reads external API endpoints from cnf (Anthropic, Gemini, GitHub API).
+  - Runs fast DNS/TCP/TLS reachability probes (5s timeout) without sending payload.
+  - Appends round-trip latency to the existing `uplink-probe` TSV format on the same cron schedule, report-only.
+- **Why:** DNS glitches, Cloudflare blocks, or ISP routing drops to specific model endpoints cause freshly spawned lanes to fail.
 - **Command:** `cd csi-spl-utl && ./run -a do_net_external_api_check`
-- **Target:** Full scan completes in < 5 seconds; records latency per vendor; alerts on consecutive failures.
-- **Proof:** Synthetic blackhole route (`192.0.2.1`) triggers failure detection within 10 s; healthy endpoints report HTTP 200/404 and RTT < 200 ms.
+- **Target:** Scan completes in < 5 seconds; records latency per vendor; report-only.
+- **Proof:** Synthetic blackhole route detects unreachable endpoint within 10 s; valid endpoints report TCP/TLS handshake in < 200 ms.
 
 ### Row 05: `feat(rel-05-tmux-server-health-guard)` - Tmux server socket liveness guard
 - **What:** Implement `do_fleet_tmux_health_guard` in `csi-spl-utl`:
+  - Runs as socket owner (`/tmp/tmux-<uid>/default`, mode 700).
   - Tests socket responsiveness using `timeout 3s tmux -S /tmp/tmux-<uid>/default list-sessions`.
-  - Verifies socket permissions (accessible only by the host user session).
-  - Checks tmux server process state (`ps -o stat= -p <tmux_pid>` must not be `D` or `Z`).
-  - If socket is unresponsive or frozen for > 5 seconds, logs a fatal alert and attempts graceful socket recovery.
-- **Boundary with Gap 3 (spawn failure modes):** Row 05 provides passive continuous host socket liveness monitoring; it does not simulate mid-spawn failures in `spawn-agents`, which is handled by Gap 3.
-- **Why:** The entire fleet relies on a single tmux server. If tmux deadlocks or the socket hangs, all agent panes, watchdogs, and dispatchers are severed simultaneously.
+  - Alerts within 5s if socket is unresponsive; alert only (no destructive automatic killing or restart of panes).
+- **Why:** All 24 agent sessions run on a single tmux server. If tmux deadlocks, the entire fleet freezes silently.
 - **Command:** `cd csi-spl-utl && ./run -a do_fleet_tmux_health_guard`
-- **Target:** Probe completes in < 50 ms on responsive server; flags hung socket within 5 seconds.
-- **Proof:** Simulated frozen process (`kill -STOP <tmux_pid>`) triggers timeout alarm within 5 s; process resumes (`kill -CONT`) and probe recovers to OK.
+- **Target:** Probe completes in < 50 ms on responsive server; alerts on socket freeze > 5s.
+- **Proof:** Tested against an isolated private test server (`tmux -L test-probe`); live fleet server is untouched.
 
-### Row 06: `feat(rel-06-orphan-process-reaper)` - Orphaned process & zombie task reaper
+### Row 06: `feat(rel-06-orphan-process-advisory)` - Orphaned process & detached worker advisory
 - **What:** Implement `do_fleet_orphan_process_reap` in `csi-spl-utl`:
-  - Inspects all processes running under the agent runner UID.
-  - Identifies processes whose parent process ID (PPID) is 1 (orphaned init adopted child) or whose state is zombie (`Z`).
-  - **Strict Non-Pattern Safety Constraints (c-002 order)**: Never matches or terminates processes by command name pattern alone. A process is targeted ONLY when ALL five conditions are satisfied:
-    1. PPID is 1 (orphaned child) or process state is `Z` (zombie), AND
-    2. Process PID and PGID do not belong to any active tmux session, window, or pane (`tmux list-panes -F '#{pane_pid}'`), AND
-    3. Process working directory (`/proc/<pid>/cwd`) is NOT inside any active worktree directory, AND
-    4. Process command line is unassociated with any active agent in `/var/spool-hub/registry.tsv`, AND
-    5. Process has been idle/stale > 30 minutes without active I/O or state change.
-  - Sends `SIGTERM`, followed by `SIGKILL` only if still running after 10 s.
-- **Boundary with Gap 3 (spawn failure modes):** Row 06 reaps unlinked detached PPID 1 / zombie processes at the host level using strict non-pattern safety constraints; it does not test or modify the `spawn-agents` reaper harness, which is handled by Gap 3.
-- **Why:** When agent lanes crash or commands time out, background subshells, detached node processes, or compiler workers accumulate, consuming memory and pushing load average to 21.40.
-- **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_fleet_orphan_process_reap`
-- **Target:** Frees CPU and RAM leaks; never matches by pattern alone; 0 active agent lane processes disturbed.
-- **Proof:** Planted background orphan (`nohup sleep 3600 &`) detached from tmux is cleanly terminated after retention window; active agent processes remain untouched.
+  - Operates strictly in **report-only advisory mode** (`DRY_RUN=1` permanent).
+  - Identifies detached runner processes using **positive provenance**:
+    1. Process environment contains `AGENT_ID` that is present in `registry.retired.tsv`, OR
+    2. Process working directory (`/proc/<pid>/cwd`) points to a removed worktree (`(deleted)`), AND
+    3. Process is NOT on the explicit never-list (`tmux`, `systemd`, `do_spl_watchdog`, runner listeners).
+  - Reports findings to the orchestrator; leaves termination to lane lifecycle and harness exit traps.
+- **Why:** 64 PPID 1 processes found on sat; leaked test tmux servers (`/tmp/ppf.*`) and detached badge loops push load average to 21.40. Signals do not reap zombies (`wait(2)`).
+- **Command:** `cd csi-spl-utl && ./run -a do_fleet_orphan_process_reap`
+- **Target:** Accurately identifies detached processes belonging to retired lanes; 0 false targets on live daemons.
+- **Proof:** Planted orphan with retired AGENT_ID in environ is flagged; live tmux server and watchdog are ignored.
 
 ### Row 07: `feat(rel-07-docker-test-container-prune)` - Stale ephemeral test container pruner
 - **What:** Implement `do_docker_test_container_prune` in `csi-spl-utl`:
-  - Scans all Docker containers matching test prefixes (`c*-pg`, `pg*`, `test-*`).
-  - **Strict Non-Pattern Safety Constraints (c-002 order)**: Never prunes containers by name pattern alone. A container is targeted ONLY when ALL four conditions are satisfied:
-    1. The container originating lane ID (parsed from container name `c<NNN>-pg` -> `c-<NNN>`, or container labels) is cross-referenced against `/var/spool-hub/registry.tsv` and verified to be INACTIVE (status `done`, `diss`, or not registered), AND
-    2. Container creation time / uptime exceeds 2 hours (`{{.CreatedAt}}` older than 120 minutes), AND
-    3. Container is not referenced in any active worktree configuration (`.env`, `docker-compose.yml`), AND
-    4. Container is NOT on the permanent infrastructure whitelist (`con-csi-csi-spl-tf-runner`, `con-csi-csi-spl-tpl-gen`, `con-csi-csi-spl-conf-validator`, `csi-spl-lde-main-pg-1`).
-  - If all conditions are met, removes container: `docker rm -f <container_id>`.
-  - Scans for crashlooping containers (restart count > 100 with active status `Restarting`) and alerts dispatch holder.
-- **Boundary with test harness:** Row 07 passively cleans orphaned test containers older than 2h whose originating lane is confirmed inactive in `registry.tsv`; it does not modify ephemeral container provisioning in test suites.
-- **Why:** Ephemeral test containers (`c581-pg`, `c579-pg`) were found running for 14-17 hours; `con-bnc-cpt-gateway` has been crashlooping every 26 seconds for 3 months, leaking host ports and RAM.
+  - Updates all container creating call sites (`hub-pg.tst.sh`, `box-purge.tst.sh`, `spl-doc-tree-timing.func.sh`, `spl-db-backup-verify.func.sh`) to pass `--label csi-spl.lane=$AGENT_ID`.
+  - Prunes ONLY labelled containers where:
+    1. The labelled `csi-spl.lane` has no active tmux pane and is absent from `registry.tsv` (or present in `registry.retired.tsv`), AND
+    2. Container creation time exceeds 2 hours (`{{.CreatedAt}}` > 120 min), AND
+    3. Container is not on the permanent infrastructure whitelist (`con-csi-csi-spl-tf-runner`, `con-csi-csi-spl-tpl-gen`, `con-csi-csi-spl-conf-validator`).
+  - Unlabelled containers are reported to orchestrator, never removed.
+- **Why:** Ephemeral test containers ran for up to 3 days unlabelled, leaking host ports and RAM.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_test_container_prune`
-- **Target:** Removes orphaned test containers older than 2h; never removes by pattern alone; frees bound localhost ports (32769..32959).
-- **Proof:** Test container from an inactive lane is pruned; whitelisted permanent containers are strictly preserved.
+- **Target:** Prunes labelled stale containers > 2h; never prunes by name pattern alone; preserves infrastructure.
+- **Proof:** Labelled container from retired lane is pruned; unlabelled containers report warning only.
+
 ### Row 08: `feat(rel-08-gh-runner-health-check)` - GitHub Actions runner health & job hang detector
 - **What:** Implement `do_gh_runner_health_check` in `csi-spl-utl`:
-  - Queries GitHub API (`gh api repos/csitea/csi-spl/actions/runners`) using the pinned GitHub token.
-  - Verifies local runner status is `online`.
-  - Checks local runner systemd service / process listener.
-  - Inspects active GitHub Actions jobs for this repository: if any job assigned to a self-hosted runner has been running > 45 minutes, alerts the dispatch holder to prevent pipeline deadlocks.
-- **Why:** Self-hosted runners can silently become un-registered or wedged when listener sockets break (`CAP online=0 of 2 runner(s)`), stalling the entire CI pipeline.
+  - Extends `csi-spl-orc/src/bash/run/check-gh-runner.func.sh`.
+  - Reads `CPU_BUDGET_STATE_DIR/parked` so parked runners are reported as PARKED, not offline.
+  - Queries GitHub API (`gh api repos/csitea/csi-spl/actions/runners`) for runner status.
+  - Inspects active GitHub Actions jobs for jobs running > 45 minutes on self-hosted runners.
+- **Why:** Self-hosted runner listeners can hang or disconnect, stalling CI pipelines indefinitely.
 - **Command:** `cd csi-spl-utl && ./run -a do_gh_runner_health_check`
-- **Target:** Reports runner connectivity and active job runtime in < 3 s; alerts on offline runner or job wedged > 45 min.
-- **Proof:** Verified against real GitHub repository API; reports current runner count; alerts on simulated API error or offline status.
+- **Target:** Reports runner connectivity in < 3 s; alerts on offline runner or job > 45 min; zero false alerts on parked runners.
+- **Proof:** Verified against real GitHub repository API; alerts on simulated API error or offline runner.
 
-### Row 09: `feat(rel-09-hub-synthetic-slo-monitor)` - Cloud Run hub synthetic probe & latency SLO monitor
-- **What:** Implement `do_hub_synthetic_slo_check` in `csi-spl-utl`:
-  - Runs continuous synthetic HTTP probes against `https://api.spool-hub.ai/version` and `https://dev.api.spool-hub.ai/version`.
-  - Verifies HTTP 200, valid JSON response, and expected commit/version schema.
-  - Measures request round-trip latency; asserts p99 SLO < 2000 ms.
-  - If 3 consecutive probes fail or return 5xx errors, dispatches immediate high-priority alert to `#alerts`.
-- **Why:** Cloud Run instances can suffer cold-start deadlocks, memory throttling, or backend DB connection pool exhaustion. Deploy checks only run at deployment time; continuous synthetic monitoring detects mid-day degradation.
-- **Command:** `cd csi-spl-utl && ./run -a do_hub_synthetic_slo_check`
-- **Target:** Probes both dev and prd in < 500 ms; logs latency sample; triggers alert on 3 consecutive failures.
-- **Proof:** Normal probe reports HTTP 200 and latency < 150 ms; synthetic 500 or timeout triggers structured failure notification.
+### Row 09: `feat(rel-09-clock-sync-loss-check)` - Clock synchronization loss & NTP drift detector
+- **What:** Implement `do_os_clock_sync_check` in `csi-spl-utl` (Claude & Mistral Proposal 1):
+  - Reads `timedatectl show -p NTPSynchronized --value` and `timedatectl timesync-status` (or `chronyc tracking`).
+  - Detects when NTP synchronization has been lost (`NTPSynchronized=no`) for > 30 minutes, or when absolute clock offset exceeds 1 second (`|offset| > 1s`).
+  - Emits a structured spool note to the orchestrator, throttled by a state stamp.
+  - Replaces redundant Cloud Run synthetic probe (which duplicated Step 070 global uptime checks).
+- **Why:** Loss of clock synchronization silently causes hub beat latency spikes (triggering catastrophic watchdog fences), invalidates auth tokens, and breaks TLS validity checks.
+- **Command:** `cd csi-spl-utl && ./run -a do_os_clock_sync_check`
+- **Target:** Probe completes in < 100 ms; reports current NTP offset and poll interval; alerts on sync loss > 30 min.
+- **Proof:** Simulated `NTPSynchronized=no` triggers alert; synchronized system reports OK with measured offset.
 
 ### Row 10: `feat(rel-10-cloud-sql-backup-verify)` - Cloud SQL daily backup verification
 - **What:** Implement `do_cloud_sql_backup_verify` in `csi-spl-utl`:
-  - Uses the environment service account (`key-csi-spl-<env>.json`) with read-only permissions.
-  - Runs `gcloud sql backups list --instance=csi-spl-<env>-db --format=json` for `dev` and `prd`.
-  - Verifies that the most recent backup has `status: SUCCESSFUL` and `endTime` within the last 26 hours.
-  - Alerts if no successful backup exists within 26 hours or if the latest backup failed.
-- **Boundary with Gap 6 (restore drill):** Row 10 is strictly a read-only daily API verification of automated GCP Cloud SQL backup completion and age (< 26h). It intentionally does NOT perform database container restore drills or measure recovery time objective (RTO), which is handled entirely by Gap 6 (`spool_restore_drill`).
-- **Why:** Cloud SQL automated backups run daily, but backup failures (due to maintenance conflicts, disk lockouts, or quota limits) are silent unless explicitly queried.
+  - Reuses `gcloud sql backups list --instance=csi-spl-<env>-pg --account="$GCP_ACCOUNT" --limit=10` from `spl-db-health.func.sh:115`.
+  - Resolves instance name `csi-spl-<env>-pg` from cnf (not `-db`).
+  - Verifies latest backup has `status: SUCCESSFUL` and timestamp within last 26 hours.
+  - Integrated into scheduled workflow `.github/workflows/45_db-backup.yml` where failure is the alert.
+- **Why:** Automated backups run daily at 01:00, but backup failures due to disk locks or maintenance conflicts are silent unless verified.
 - **Command:** `cd csi-spl-utl && ENV=prd ./run -a do_cloud_sql_backup_verify`
-- **Target:** Exits 0 with backup ID and timestamp when backup is fresh (< 26h); exits 1 with alert if backup is stale.
-- **Proof:** Read-only API verification passes on live GCP instances without mutating any production state.
+- **Target:** Exits 0 when backup < 26h; exits 1 with alert if backup is stale; read-only.
+- **Proof:** Read-only verification passes on live GCP instances without mutating state.
 
 ### Row 11: `feat(rel-11-cron-heartbeat-snitch)` - Cron dead-man's snitch & heartbeat age monitor
 - **What:** Implement `do_cron_heartbeat_snitch` in `csi-spl-utl`:
-  - Reads `cnf/box-crons/box-crons.manifest` and active crontab.
-  - For every registered cron job, checks the last-modified timestamp of its log file in `/var/csi/csi-spl/<job>/<log>`.
-  - Calculates age against expected schedule + grace period (e.g. 1-min job has 5-min grace; 10-min job has 25-min grace).
-  - Emits a high-priority alert if any core cron becomes silent.
-- **Boundary with Gap 1 (chaos testing):** Row 11 passively inspects cron log file timestamps against scheduled intervals to detect dead-man's snitch silence; it does not inject faults, kill cron processes, or introduce chaos testing, which is handled by Gap 1.
-- **Why:** 23 critical crons run on `PC`. If the cron daemon crashes, an agent script aborts on an unhandled error, or a `flock` locks up, the cron stops running silently. Dead-man's snitch watches the watchers.
+  - Inspects the runner crontab directly, discovering all 38 tagged active cron lines (`# csi-spl:<tag>`).
+  - Provides a shared wrapper that touches `<state>/heartbeat/<tag>` when each cron completes.
+  - Compares heartbeat timestamp against expected cron interval + grace window (e.g. 5 min grace for 1 min job).
+  - Emits a spool alert to the orchestrator if any registered cron becomes silent.
+- **Why:** 38 crons run on the box. Crons that log only on output (e.g. `gc`) fail log mtime checks; cron daemon death or lockfile deadlocks cause silent monitoring failure.
 - **Command:** `cd csi-spl-utl && ./run -a do_cron_heartbeat_snitch`
-- **Target:** Verifies all 23 crons in < 100 ms; flags silent crons with exact log path and expected update time.
-- **Proof:** Planted stale test log (> grace period) is flagged immediately; healthy active logs return 0 warnings.
+- **Target:** Verifies all crons in < 100 ms; flags silent crons with schedule and last heartbeat.
+- **Proof:** Simulated stale heartbeat log (> grace period) is flagged immediately; active jobs return 0 warnings.
 
 ### Row 12: `feat(rel-12-box-beat-telemetry)` - Box beat & watchdog fence early-warning telemetry
 - **What:** Implement `do_box_beat_telemetry_check` in `csi-spl-utl`:
-  - Queries hub table `box_beats` or local beat log to inspect heartbeat ack latency and jitter.
-  - If the last acked beat is older than 60 seconds (warning threshold at 50% of the 120s fence threshold), emits an early warning to `#alerts`.
-  - Triggers pre-emptive git commit of active lane worktrees so work is not lost if connectivity drops further.
-- **Why:** On 2026-10-16 03:41Z..03:44Z, `PC` suffered a 2m48s Wi-Fi outage and fenced itself at 120s. Today, no telemetry warns when beat latency starts climbing (60..119s), resulting in abrupt termination of agent lanes.
+  - Reads last ack timestamp from watchdog state `$WD_DIR/beat.ack`.
+  - Tracks round-trip heartbeat latency; logs warning and counts near-fences (ack age >= 60s, which is 50% of the 120s fence threshold).
+  - Upon reconnection after near-fence, sends a summary note to orchestrator.
+  - Telemetry only: zero modification of other lanes' worktrees; clear boundary with networking round `net-08` (which shortens the beat gap; row 12 counts it).
+- **Why:** Box suffered a 2m48s outage and fenced at 120s on 2026-10-16 03:41Z. Zero telemetry tracks beat jitter or warns when ack latency approaches the fence threshold.
 - **Command:** `cd csi-spl-utl && ./run -a do_box_beat_telemetry_check`
-- **Target:** Alerts at 60s beat delay (50% before fence); logs round-trip beat latency; 0 false alarms on healthy network.
-- **Proof:** Simulated 75s beat delay triggers early warning and wip preservation; normal < 15s beat cycles report OK.
+- **Target:** Telemetry probe completes in < 50 ms; logs ack latency; records near-fence events cleanly.
+- **Proof:** Simulated 75s ack age logs near-fence count; normal < 15s beat cycles report OK.
 
 ## 5. Execution batches & disjoint files (R1)
 
@@ -278,14 +254,14 @@ The 12 rows are organized into **3 parallel batches of 4 lanes**. All files modi
 - **Row 08 (`rel-08`):** `csi-spl-utl/src/bash/run/gh-runner-health.func.sh`, `csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh`
 
 ### Batch 3 (4 parallel lanes): Cloud Estate & Meta-Monitoring (Watch the Watchers)
-- **Row 09 (`rel-09`):** `csi-spl-utl/src/bash/run/hub-synthetic-slo.func.sh`, `csi-spl-utl/src/bash/tests/hub-synthetic-slo.tst.sh`
+- **Row 09 (`rel-09`):** `csi-spl-utl/src/bash/run/clock-sync-check.func.sh`, `csi-spl-utl/src/bash/tests/clock-sync-check.tst.sh`
 - **Row 10 (`rel-10`):** `csi-spl-utl/src/bash/run/cloud-sql-backup-verify.func.sh`, `csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh`
 - **Row 11 (`rel-11`):** `csi-spl-utl/src/bash/run/cron-heartbeat-snitch.func.sh`, `csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh`
 - **Row 12 (`rel-12`):** `csi-spl-utl/src/bash/run/box-beat-telemetry.func.sh`, `csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh`
 
 ## 6. Owner approval poll form (msg f7b5e824)
 
-Prepared for the dispatch lease holder to post to the owner as ONE checkbox poll form after v1.0 consensus and signatures (posted by the dispatcher after v1.0, not before):
+Prepared for the dispatch lease holder to post to the owner as ONE checkbox poll form after v1.0 consensus and signatures:
 
 ```markdown
 ### Reliability Round: Permanent Software and Monitoring Solutions (12 Actions)
@@ -294,26 +270,26 @@ Owner HUM-10 order msg f7b5e824: "We need 12 concrete action proposals for what 
 
 Please tick the items you approve for implementation:
 
-- [ ] **01. Systemd Service Failure & Crash Detector** (`feat(rel-01-systemd-unit-health)`): Detects and alerts on failed system services (`docker`, `cron`, `sshd`) and extracts crash logs in < 15 s.
-- [ ] **02. Kernel Reboot-Required & Security Update Advisory** (`feat(rel-02-reboot-required-check)`): Monitors `/var/run/reboot-required` and advises dispatcher at 04:00 window to schedule clean reboot when 0 active lanes.
-- [ ] **03. Public HTTPS Certificate Expiry Monitor** (`feat(rel-03-tls-cert-expiry-check)`): Probes TLS certs for `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai`; warns at <= 21 days, alarms at <= 7 days.
-- [ ] **04. Outbound Model & External API Health Probe** (`feat(rel-04-external-api-health-check)`): Synthetic 5s probes to Anthropic, Gemini, GitHub APIs; flags degraded vendors before spawning failing lanes.
-- [ ] **05. Tmux Server Socket Liveness Guard** (`feat(rel-05-tmux-server-health-guard)`): Continuous liveness probe on `/tmp/tmux-<uid>/default`; alerts within 5s if tmux server hangs or freezes.
-- [ ] **06. Orphaned Process & Zombie Task Reaper** (`feat(rel-06-orphan-process-reaper)`): Strictly non-pattern multi-factor scan: reaps detached unlinked PPID 1 / zombie tasks older than 30 min unassociated with any active agent, worktree, or tmux pane.
-- [ ] **07. Stale Ephemeral Test Container Pruner** (`feat(rel-07-docker-test-container-prune)`): Strictly non-pattern multi-factor scan: stops and removes test containers older than 2h whose originating lane is confirmed inactive in registry; preserves permanent infrastructure whitelist.
-- [ ] **08. GitHub Actions Runner Health & Job Hang Detector** (`feat(rel-08-gh-runner-health-check)`): Monitors runner `online` status via GitHub API; alerts if runner disconnects or CI job hangs > 45 min.
-- [ ] **09. Cloud Run Hub Synthetic Probe & Latency SLO Monitor** (`feat(rel-09-hub-synthetic-slo-monitor)`): 60s synthetic probe against `/version` and `/live`; alerts on 5xx errors or latency > 2000 ms.
-- [ ] **10. Cloud SQL Daily Backup Verification** (`feat(rel-10-cloud-sql-backup-verify)`): Queries GCP Cloud SQL API via service account; alerts if newest successful backup is older than 26 hours.
-- [ ] **11. Cron Dead-Man's Snitch & Heartbeat Age Monitor** (`feat(rel-11-cron-heartbeat-snitch)`): Scans log mtime of all 23 box crons; alerts if any cron fails to run within its schedule + grace window.
-- [ ] **12. Box Beat & Watchdog Fence Early-Warning Telemetry** (`feat(rel-12-box-beat-telemetry)`): Tracks hub beat ack latency; alerts and commits lane work at 60s delay before the 120s fence kills lanes.
+- [ ] **01. Systemd Service Failure & Crash Detector** (`feat(rel-01-systemd-unit-health)`): Detects and alerts on failed system services (`docker`, `cron`, `sshd`) and extracts crash logs in < 15 s; uses cnf ignore list.
+- [ ] **02. Kernel Reboot & Library Restart Advisory** (`feat(rel-02-reboot-required-check)`): Queries `/var/run/reboot-required` and `needrestart -b`; advises orchestrator at 04:00 maintenance window; strictly advisory.
+- [ ] **03. Public HTTPS Certificate Expiry Monitor** (`feat(rel-03-tls-cert-expiry-check)`): Probes TLS certs for domains in cnf; warns at <= 21 days, alarms at <= 7 days.
+- [ ] **04. Outbound Model & External API Reachability Probe** (`feat(rel-04-external-api-health-check)`): DNS/TCP/TLS reachability probes to endpoints in cnf; records latency into uplink-probe format.
+- [ ] **05. Tmux Server Socket Liveness Guard** (`feat(rel-05-tmux-server-health-guard)`): Continuous liveness probe on `/tmp/tmux-<uid>/default` as socket owner; alerts within 5s on freeze; no destructive auto-recovery.
+- [ ] **06. Orphaned Process & Detached Worker Advisory** (`feat(rel-06-orphan-process-advisory)`): Report-only advisory (`DRY_RUN=1`); targets detached processes with positive provenance (retired AGENT_ID or deleted worktree); explicit never-list.
+- [ ] **07. Stale Ephemeral Test Container Pruner** (`feat(rel-07-docker-test-container-prune)`): Test creating scripts pass `--label csi-spl.lane=$AGENT_ID`; prunes labelled containers older than 2h whose lane is inactive in registry.
+- [ ] **08. GitHub Actions Runner Health & Job Hang Detector** (`feat(rel-08-gh-runner-health-check)`): Reuses `do_check_gh_runner`; reads CPU budget parked list; alerts if runner disconnects or CI job hangs > 45 min.
+- [ ] **09. Clock Synchronization Loss & NTP Drift Detector** (`feat(rel-09-clock-sync-loss-check)`): Queries `timedatectl`; alerts if NTP sync is lost > 30 min or clock offset > 1s, preventing false watchdog fences.
+- [ ] **10. Cloud SQL Daily Backup Verification** (`feat(rel-10-cloud-sql-backup-verify)`): Queries GCP Cloud SQL API for `csi-spl-<env>-pg`; alerts if newest successful backup is older than 26 hours.
+- [ ] **11. Cron Dead-Man's Snitch & Heartbeat Age Monitor** (`feat(rel-11-cron-heartbeat-snitch)`): Scans 38 tagged active box crons; shared heartbeat exit wrapper; alerts if any cron fails to run within schedule + grace window.
+- [ ] **12. Box Beat & Watchdog Fence Early-Warning Telemetry** (`feat(rel-12-box-beat-telemetry)`): Reads watchdog `beat.ack`; logs latency and counts near-fences (>= 60s) upon reconnect; zero worktree commits.
 ```
 
 ## 7. Panel consensus & signatures
 
 | Seat | Vendor | Agent ID | Status | Signature SHA |
 |---|---|---|---|---|
-| Editor | agy | a-615@PC | Proposed v0.1 draft | Pending |
-| Expert 1 | claude | Pending placement | Pending review | Pending |
-| Expert 2 | mistral | Pending placement | Pending review | Pending |
+| Editor | agy | a-615@PC | Signed v1.0 consensus draft | Pending |
+| Expert 1 | claude | c-285@sat | Verdict: 0 agree / 10 agree with changes / 2 disagree / 2 proposals (commit `48e310dc1`) | Pending v1.0 SHA |
+| Expert 2 | mistral | m-699@PC | Verdict: 7 agree / 3 agree with changes / 2 proposals (commit `9d67d3d80`) | Pending v1.0 SHA |
 
 Per owner order msg `f7b5e824`, once panel seats sign v1.0, the dispatcher posts the 12-item poll form above to the owner. Only rows ticked by the owner will be spawned, running in parallel batches of 4 lanes.

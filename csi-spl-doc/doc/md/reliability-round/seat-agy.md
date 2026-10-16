@@ -55,18 +55,18 @@ Proposals are grounded in verified Linux system standards and cloud specificatio
 
 | # | slug | title | sites | target | csi-rel action & test |
 |---|---|---|---|---|---|
-| 01 | `feat(rel-01-systemd-unit-health)` | Systemd service failure & crash detector | `csi-spl-utl` | Detects failed unit in <= 15 s; emits alert | `do_os_systemd_unit_check`<br>`csi-spl-utl/src/bash/tests/systemd-unit-health.tst.sh` |
-| 02 | `feat(rel-02-reboot-required-check)` | Kernel reboot-required & security update advisory | `csi-spl-utl` | Identifies pending reboot; coordinates 04:00 reboot | `do_os_reboot_required_check`<br>`csi-spl-utl/src/bash/tests/reboot-required-check.tst.sh` |
-| 03 | `feat(rel-03-tls-cert-expiry-check)` | Public HTTPS certificate expiry monitor | `csi-spl-utl` | Warns at <= 21d, alarms at <= 7d (63d today) | `do_net_cert_expiry_check`<br>`csi-spl-utl/src/bash/tests/tls-cert-expiry.tst.sh` |
-| 04 | `feat(rel-04-external-api-health-check)` | Outbound model & external API health probe | `csi-spl-utl` | Synthetic 5s probes; flags degraded vendor in < 10 s | `do_net_external_api_check`<br>`csi-spl-utl/src/bash/tests/external-api-health.tst.sh` |
-| 05 | `feat(rel-05-tmux-server-health-guard)` | Tmux server socket liveness guard | `csi-spl-utl` | Socket probe in < 50 ms; flags freeze in < 5 s | `do_fleet_tmux_health_guard`<br>`csi-spl-utl/src/bash/tests/tmux-health-guard.tst.sh` |
-| 06 | `feat(rel-06-orphan-process-reaper)` | Orphaned process & zombie task reaper | `csi-spl-utl` | Reaps PPID 1 orphans > 30 min; strictly non-pattern; 0 active lanes hurt | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` |
-| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | `csi-spl-utl` | Prunes test containers > 2h; strictly non-pattern; whitelists infra | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` |
-| 08 | `feat(rel-08-gh-runner-health-check)` | GitHub Actions runner health & job hang detector | `csi-spl-utl` | Alerts if runner offline or job > 45 min | `do_gh_runner_health_check`<br>`csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh` |
-| 09 | `feat(rel-09-hub-synthetic-slo-monitor)` | Cloud Run hub synthetic probe & latency SLO monitor | `csi-spl-utl` | 60s probe; alerts on 5xx or latency > 2000 ms | `do_hub_synthetic_slo_check`<br>`csi-spl-utl/src/bash/tests/hub-synthetic-slo.tst.sh` |
-| 10 | `feat(rel-10-cloud-sql-backup-verify)` | Cloud SQL daily backup verification | `csi-spl-utl` | Verifies backup freshness (< 26h) via service account | `do_cloud_sql_backup_verify`<br>`csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh` |
-| 11 | `feat(rel-11-cron-heartbeat-snitch)` | Cron dead-man's snitch & heartbeat age monitor | `csi-spl-utl` | Scans 23 crons; alerts on silence > grace window | `do_cron_heartbeat_snitch`<br>`csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh` |
-| 12 | `feat(rel-12-box-beat-telemetry)` | Box beat & watchdog fence early-warning telemetry | `csi-spl-utl` | Alerts at 60s delay (50% before 120s fence) | `do_box_beat_telemetry_check`<br>`csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh` |
+| 01 | `feat(rel-01-systemd-unit-health)` | Systemd service failure & crash detector | `csi-spl-utl` | Detects failed unit in <= 15 s; emits alert; uses cnf ignore list | `do_os_systemd_unit_check`<br>`csi-spl-utl/src/bash/tests/systemd-unit-health.tst.sh` |
+| 02 | `feat(rel-02-reboot-required-check)` | Kernel reboot & library restart advisory | `csi-spl-utl` | Identifies pending reboot & outdated libs via needrestart -b; advisory only | `do_os_reboot_required_check`<br>`csi-spl-utl/src/bash/tests/reboot-required-check.tst.sh` |
+| 03 | `feat(rel-03-tls-cert-expiry-check)` | Public HTTPS certificate expiry monitor | `csi-spl-utl` | Warns at <= 21d, alarms at <= 7d (63d today); cnf BASE_DOMAIN | `do_net_cert_expiry_check`<br>`csi-spl-utl/src/bash/tests/tls-cert-expiry.tst.sh` |
+| 04 | `feat(rel-04-external-api-health-check)` | Outbound model & external API reachability probe | `csi-spl-utl` | Synthetic 5s probes; records latency into uplink-probe format; report-only | `do_net_external_api_check`<br>`csi-spl-utl/src/bash/tests/external-api-health.tst.sh` |
+| 05 | `feat(rel-05-tmux-server-health-guard)` | Tmux server socket liveness guard | `csi-spl-utl` | Socket probe in < 50 ms as socket owner; flags freeze in < 5 s; alert only | `do_fleet_tmux_health_guard`<br>`csi-spl-utl/src/bash/tests/tmux-health-guard.tst.sh` |
+| 06 | `feat(rel-06-orphan-process-advisory)` | Orphaned process & detached worker advisory | `csi-spl-utl` | Report-only (DRY_RUN=1); positive provenance from retired registry; 0 active lanes hurt | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` |
+| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | `csi-spl-utl` | Prunes labelled test containers > 2h; strictly non-pattern; whitelists infra | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` |
+| 08 | `feat(rel-08-gh-runner-health-check)` | GitHub Actions runner health & job hang detector | `csi-spl-utl` | Alerts if runner offline or job > 45 min; respects parked runners | `do_gh_runner_health_check`<br>`csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh` |
+| 09 | `feat(rel-09-clock-sync-loss-check)` | Clock synchronization loss & NTP drift detector | `csi-spl-utl` | Alerts if NTP sync lost > 30 min or |offset| > 1s; prevents false fence | `do_os_clock_sync_check`<br>`csi-spl-utl/src/bash/tests/clock-sync-check.tst.sh` |
+| 10 | `feat(rel-10-cloud-sql-backup-verify)` | Cloud SQL daily backup verification | `csi-spl-utl` | Verifies backup freshness (< 26h) via service account in 45 workflow | `do_cloud_sql_backup_verify`<br>`csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh` |
+| 11 | `feat(rel-11-cron-heartbeat-snitch)` | Cron dead-man's snitch & heartbeat age monitor | `csi-spl-utl` | Scans 38 tagged crons; alerts on silence > grace window via exit heartbeat | `do_cron_heartbeat_snitch`<br>`csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh` |
+| 12 | `feat(rel-12-box-beat-telemetry)` | Box beat & watchdog fence early-warning telemetry | `csi-spl-utl` | Telemetry probe; counts near-fences (>= 60s); sends reconnect summary | `do_box_beat_telemetry_check`<br>`csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh` |
 
 ## 4. Adherence to owner rules
 
@@ -79,4 +79,4 @@ Proposals are grounded in verified Linux system standards and cloud specificatio
 
 ## 5. Signature
 
-`signed: a-615@PC on v0.1 draft`
+`signed: a-615@PC on v1.0 consensus draft`

@@ -300,8 +300,23 @@ try {
   const card1b = await p.$eval(midCard(seeded.one.msg_id), (e) => { const r = e.getBoundingClientRect(); return { x: r.left + 5, y: r.top + r.height / 2, cx: r.left + r.width / 2, bottom: r.bottom } })
   const b2 = await centre(p, railRow(B))
   /* 714c7028: the "outside" drop must miss every rail row AND every topic card
-     (a topic dropped on a card is now a merge) - the empty right pane is both. */
-  const outside = await mouseDrag(p, { x: card1b.x, y: card1b.y }, [b2, { x: 1290, y: 450 }])
+     (a topic dropped on a card is now a merge). SPL-2104: under the 5-row
+     setting every card is 5 rows tall, so a fixed point (it was 1290,450) lands
+     on a card with a taller font (CI runners); the point is found below the
+     last card of the middle pane instead, and checked to hit no card or row. */
+  const empty = await p.evaluate(() => {
+    const main = document.querySelector('.spool-main')?.getBoundingClientRect()
+    if (!main) return null
+    const bottom = Math.max(main.top, ...[...document.querySelectorAll('.spool-main article.msg')].map((a) => a.getBoundingClientRect().bottom))
+    const x = Math.round(main.left + main.width * 0.8)
+    for (let y = Math.round(bottom + 40); y < main.bottom - 40; y += 20) {
+      const el = document.elementFromPoint(x, y)
+      if (el && !el.closest('article.msg, .nav-row, [data-testid=move-toast], [data-testid=move-ghost]')) return { x, y }
+    }
+    return null
+  })
+  ok('5 the middle pane has an empty point below its cards (for the outside drop)', Boolean(empty), empty)
+  const outside = await mouseDrag(p, { x: card1b.x, y: card1b.y }, [b2, empty || { x: 1290, y: 450 }])
   await sleep(400)
   ok('5 the drag lit #b on the way (control: the drag was live)', outside[0].lit.length === 1 && outside[0].lit[0] === B, outside[0])
   ok('5 a drop outside every row moves nothing', await inChannel(p, seeded.one.msg_id, A) && Boolean(await p.$(midCard(seeded.one.msg_id))), outside[1])

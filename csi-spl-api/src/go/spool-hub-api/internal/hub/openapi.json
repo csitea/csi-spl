@@ -9687,6 +9687,57 @@
         ]
       }
     },
+    "/v1/takeover-ladder": {
+      "get": {
+        "operationId": "getTakeoverLadder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {tenant_id, vendors, max_failures_max, kinds: [{kind, order, max_failures, set}]} (SPL-2115, csi-spl-doc/doc/md/takeover-ladder.md)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the takeover ladder: per task kind, the vendor order and the failures allowed (SPL-2115); any member",
+        "tags": [
+          "tenant"
+        ]
+      },
+      "put": {
+        "operationId": "putTakeoverLadder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the ladder after the write, the GET body"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Set or reset kinds of the takeover ladder {kinds: {<kind>: {order, max_failures} | null}} (SPL-2115); tenant.settings",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/tenant/agent-lifecycle": {
       "get": {
         "operationId": "getTenantAgentLifecycle",

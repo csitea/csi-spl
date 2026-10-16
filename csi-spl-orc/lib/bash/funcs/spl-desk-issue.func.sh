@@ -82,11 +82,13 @@ EOF_PY
 # that is SET (an empty value clears on update), each flag and value
 # NUL-terminated: read it with `mapfile -d '' -t`. A newline-delimited stream
 # split a multi-line ISSUE_DESCRIPTION into several argv words and spool's flag
-# parser dropped every flag after it (SPL-1130).
+# parser dropped every flag after it (SPL-1130). `create` adds
+# ISSUE_DISCUSSIONS as --discussions: the hub links them at create only.
 spl_issue_field_args() {
-  local v flag
+  local v flag extra=""
+  [[ "${1:-}" == create ]] && extra=DISCUSSIONS:discussions
   for v in TITLE:title DESCRIPTION:description STATUS:status PRIORITY:priority LEVEL:level \
-           ASSIGNEE:assignee LABELS:labels DEADLINE:deadline PARENT:parent EPIC:epic KIND:kind DESCRIPTION_FILE:description-file; do
+           ASSIGNEE:assignee LABELS:labels DEADLINE:deadline PARENT:parent EPIC:epic KIND:kind DESCRIPTION_FILE:description-file $extra; do
     flag="${v#*:}"; v="ISSUE_${v%%:*}"
     [[ -n "${!v+x}" ]] && printf -- '--%s\0%s\0' "$flag" "${!v}"
   done
@@ -111,6 +113,26 @@ spl_issue_check_fields() {
   [[ -z "${ISSUE_DESCRIPTION_FILE:-}" || -r "$ISSUE_DESCRIPTION_FILE" ]] ||
     { do_log "FATAL ISSUE_DESCRIPTION_FILE is not a readable file: '$ISSUE_DESCRIPTION_FILE'"; return 1; }
   return 0
+}
+
+# spl_issue_check_discussions: a create links at least one discussion, or the
+# hub refuses it (discussion_required, SPL-1593). ISSUE_DISCUSSIONS names them:
+# topic uuids or /t/<id> links, comma separated. A /t/<id> link in the
+# description stands in for it, as the hub reads one when the list is absent.
+spl_issue_check_discussions() {
+  local d
+  if [[ -n "${ISSUE_DISCUSSIONS+x}" ]]; then
+    for d in ${ISSUE_DISCUSSIONS//,/ }; do
+      [[ "$d" =~ ^(.*/)?t/[0-9A-Za-z-]+$ || "$d" =~ ^[0-9A-Za-z-]{8,}$ ]] ||
+        { do_log "FATAL ISSUE_DISCUSSIONS must be topic ids or /t/<id> links, comma separated, got: '$d'"; return 1; }
+    done
+    [[ -n "${ISSUE_DISCUSSIONS//[[:space:],]/}" ]] && return 0
+  elif [[ "${ISSUE_DESCRIPTION:-}" =~ /t/[0-9A-Za-z-]+ ]] ||
+       { [[ -r "${ISSUE_DESCRIPTION_FILE:-}" ]] && grep -qE '/t/[0-9A-Za-z-]+' "$ISSUE_DESCRIPTION_FILE"; }; then
+    return 0
+  fi
+  do_log "FATAL ISSUE_DISCUSSIONS must name the discussion the issue links (topic id or /t/<id>, comma separated): the hub refuses an issue with none (discussion_required)"
+  return 1
 }
 
 # spl_issue_qas_guard <create|update>: qas holds only a review a human asked

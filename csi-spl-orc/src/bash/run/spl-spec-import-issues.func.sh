@@ -20,6 +20,7 @@
 # @param ENV - required on a live run: dev or prd
 # @param TENANT_ID - required on a live run
 # @param DESK_AGENT - required on a live run: the seated agent id
+# @param ISSUE_DISCUSSIONS - required on a live run that creates: the topic(s) every issue it creates links (do_spl_issue_create; the hub refuses an issue with none)
 # @param SPEC_DIR (optional) - specs root; default $APP_PATH/csi-spl-doc/specs
 # @param SPEC_IMPORT_SPECS (optional) - comma list of NNN to limit the run
 # @param SPEC_IMPORT_LABELS (optional) - comma list of extra labels put on every

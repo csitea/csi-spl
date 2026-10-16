@@ -9,6 +9,7 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
 # @param ISSUE_TITLE - required: the title
+# @param ISSUE_DISCUSSIONS - required: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
 # @param ISSUE_EPIC (optional) - the level-1 row (epic or feature) above it, e.g. SPL-17; without it (and without ISSUE_PARENT) the issue stands alone at level 2 (W16, spec 047)
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
@@ -22,14 +23,15 @@
 # @param ISSUE_DEADLINE (optional) - RFC 3339 with a zone, e.g. 2026-10-01T15:00:00Z
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
+# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_DISCUSSIONS=<topic id> ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
 #------------------------------------------------------------------------------
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }
   spl_issue_check_fields || return 1
+  spl_issue_check_discussions || return 1
   spl_issue_qas_guard create || return 1
   local args=()
-  mapfile -d '' -t args < <(spl_issue_field_args)
+  mapfile -d '' -t args < <(spl_issue_field_args create)
   spl_desk_issue create "${args[@]}" || return 1
   [[ "${DRY_RUN:-1}" == 0 ]] && do_log "OK ${DESK_AGENT} filed an issue in ${TENANT_ID}"
   return 0

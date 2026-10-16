@@ -632,12 +632,13 @@ cat >"$T/fakeissue" <<'FAKE'
 #!/bin/sh
 printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
 [ -n "${FAKE_REFUSE:-}" ] && { echo 'spool: hub refused: from_not_announced (CLE-00 is not an agent announced by box-desk)' >&2; exit 78; }
+case "$2|$*" in create\|*--discussions*|create\|*/t/*) ;; create\|*) echo 'spool: hub refused: discussion_required (an issue must link to at least one discussion: discussions: [<topic id>])' >&2; exit 78 ;; esac
 echo "{\"issue\":{\"key\":\"SPL-7\",\"status\":\"${FAKE_STATUS:-todo}\"}}"
 FAKE
 chmod +x "$T/fakeissue"; : >"$T/issue.log"
 ISS='spl_host_spool() { SPL_SPOOL="$FAKE"; }; '
 for a in do_spl_issue_create do_spl_issue_update do_spl_issue_comment do_spl_issue_list do_spl_issue_delete; do
-  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_EPIC=SPL-1 ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
+  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e ISSUE_EPIC=SPL-1 ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
   grep -q 'DRY_RUN' "$T/o" && pass "$a: the dry run says what it would do" || fail "$a: no DRY_RUN line: $(cat "$T/o")"
 done
 # rdb 0061 (SPL-966): 05-blocked and 06-onhold are statuses an agent may set.
@@ -648,11 +649,12 @@ done
 for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORITY=9" "do_spl_issue_create ISSUE_PRIORITY=0" "do_spl_issue_create ISSUE_LEVEL=6" "do_spl_issue_create ISSUE_LEVEL=0" \
            "do_spl_issue_create ISSUE_STATUS=doing" "do_spl_issue_update ISSUE_REF=nope" "do_spl_issue_update ISSUE_REF=SPL-7" \
            "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0" "do_spl_issue_delete ISSUE_REF=nope" "do_spl_issue_delete ISSUE_REF=" \
-           "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one"; do
+           "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one" \
+           "do_spl_issue_create ISSUE_DISCUSSIONS=" "do_spl_issue_create ISSUE_DISCUSSIONS=not/a/topic"; do
   read -r a kv <<<"$bad"
   title=ISSUE_NONE=1; epic=ISSUE_NONE2=1 # an update with no field set is a refusal too
   [[ $a == do_spl_issue_create ]] && title=ISSUE_TITLE=t && epic=ISSUE_EPIC=SPL-1
-  if SNIPPET="$ISS$a" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 "$title" "$epic" \
+  if SNIPPET="$ISS$a" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 "$title" "$epic" ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e \
        ISSUE_REF=SPL-7 ISSUE_BODY=b DRY_RUN=0 "$kv" >"$T/o" 2>&1; then
     fail "$a refuses $kv: $(cat "$T/o")"
   else
@@ -662,7 +664,7 @@ done
 [[ ! -s "$T/issue.log" ]] && pass "CONTROL no refused call reached spool" || fail "a refused call ran spool: $(cat "$T/issue.log")"
 # W16 (spec 047): an issue needs no epic; the action sends it without one.
 if SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-     ISSUE_TITLE=lone DRY_RUN=0 >"$T/o" 2>&1 && [[ -s "$T/issue.log" ]] && ! grep -q -- '--epic' "$T/issue.log"; then
+     ISSUE_TITLE=lone ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e DRY_RUN=0 >"$T/o" 2>&1 && [[ -s "$T/issue.log" ]] && ! grep -q -- '--epic' "$T/issue.log"; then
   pass "do_spl_issue_create files an issue without an epic"
 else
   fail "do_spl_issue_create without an epic: $(cat "$T/o") $(cat "$T/issue.log")"
@@ -670,7 +672,7 @@ fi
 : >"$T/issue.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-  ISSUE_TITLE='Rotate the key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=2 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
+  ISSUE_TITLE='Rotate the key' ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=2 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"key": "SPL-7"'* && "$out" == *'"op": "create"'* ]] && pass "do_spl_issue_create files through the desk's spool" ||
   fail "do_spl_issue_create (rc=$rc): $out"
 tail -1 "$T/issue.log" | grep '^issue|create|--as|CLE-00|' >/dev/null && tail -1 "$T/issue.log" | grep '|--title|Rotate the key|' >/dev/null &&
@@ -688,7 +690,7 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
 for kv in ISSUE_STATUS=qas ISSUE_STATUS=in_review; do
   : >"$T/issue.log"
   out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-    ISSUE_TITLE=t "$kv" DRY_RUN=0 2>&1); rc=$?
+    ISSUE_TITLE=t ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e "$kv" DRY_RUN=0 2>&1); rc=$?
   [[ $rc -ne 0 && "$out" == *'spec 135 Q7'* && ! -s "$T/issue.log" ]] && pass "Q7: do_spl_issue_create refuses $kv with no ISSUE_QAS_ASKED_BY" ||
     fail "Q7 create $kv (rc=$rc): $out / $(cat "$T/issue.log")"
   : >"$T/issue.log"
@@ -706,8 +708,8 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   fail "Q7 asked update (rc=$rc): $out / $(cat "$T/issue.log")"
 : >"$T/issue.log"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-  ISSUE_TITLE=t ISSUE_STATUS=qas ISSUE_QAS_ASKED_BY=HUM-10 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|create|--as|CLE-00|--title|t|--status|qas|' ]] &&
+  ISSUE_TITLE=t ISSUE_STATUS=qas ISSUE_QAS_ASKED_BY=HUM-10 ISSUE_DISCUSSIONS=/t/0f8fad5b-d9cb-469f-a165-70867728950e DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|create|--as|CLE-00|--title|t|--status|qas|--discussions|/t/0f8fad5b-d9cb-469f-a165-70867728950e|' ]] &&
   pass "Q7: do_spl_issue_create files in qas when ISSUE_QAS_ASKED_BY names who asked" ||
   fail "Q7 asked create (rc=$rc): $out / $(cat "$T/issue.log")"
 : >"$T/issue.log"
@@ -720,12 +722,45 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   ISSUE_REF=SPL-7 ISSUE_STATUS=done DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$(tail -1 "$T/issue.log")" == 'issue|update|--as|CLE-00|--ref|SPL-7|--status|done|' ]] &&
   pass "Q7 CONTROL: any other status needs no ISSUE_QAS_ASKED_BY and reads nothing" || fail "Q7 control (rc=$rc): $out / $(cat "$T/issue.log")"
+# SPL-2098: the hub refuses an issue that links no discussion (SPL-1593). The
+# action passes ISSUE_DISCUSSIONS as --discussions, and refuses locally, before
+# any call, when a create names none.
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}spl_desk_issue create --title t" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *discussion_required* ]] &&
+  pass "CONTROL a create sent without --discussions (the action before SPL-2098) is the hub's discussion_required" ||
+  fail "discussion control (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE=t DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *'FATAL ISSUE_DISCUSSIONS'* && ! -s "$T/issue.log" ]] &&
+  pass "do_spl_issue_create with no ISSUE_DISCUSSIONS refuses locally, before the hub" ||
+  fail "no discussions (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE=t ISSUE_DISCUSSIONS="0f8fad5b-d9cb-469f-a165-70867728950e,/t/83677486" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|create|--as|CLE-00|--title|t|--discussions|0f8fad5b-d9cb-469f-a165-70867728950e,/t/83677486|' ]] &&
+  pass "do_spl_issue_create passes ISSUE_DISCUSSIONS as --discussions and the stubbed hub files it" ||
+  fail "discussions create (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE=t ISSUE_DESCRIPTION=$'Source: /t/0f8fad5b-d9cb-469f-a165-70867728950e\n\ncard' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" != *--discussions* ]] &&
+  pass "a /t/<id> link in the description stands in for ISSUE_DISCUSSIONS (the hub reads it)" ||
+  fail "description link (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_STATUS=wip ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|update|--as|CLE-00|--ref|SPL-7|--status|wip|' ]] &&
+  pass "do_spl_issue_update never sends --discussions (create only; link/unlink change them)" ||
+  fail "update discussions (rc=$rc): $out / $(cat "$T/issue.log")"
 # SPL-1130: a multi-line description stays ONE argv word, and the flags after it
 # still reach spool (a newline-delimited stream dropped --priority and --epic).
 : >"$T/issue.log"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-  ISSUE_TITLE=t ISSUE_DESCRIPTION=$'line1\n\nline2' ISSUE_PRIORITY=1 ISSUE_EPIC=SPL-10 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$(cat "$T/issue.log")" == $'issue|create|--as|CLE-00|--title|t|--description|line1\n\nline2|--priority|1|--epic|SPL-10|' ]] &&
+  ISSUE_TITLE=t ISSUE_DESCRIPTION=$'line1\n\nline2' ISSUE_PRIORITY=1 ISSUE_EPIC=SPL-10 ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == $'issue|create|--as|CLE-00|--title|t|--description|line1\n\nline2|--priority|1|--epic|SPL-10|--discussions|0f8fad5b-d9cb-469f-a165-70867728950e|' ]] &&
   pass "do_spl_issue_create keeps a multi-line description whole and the flags after it" ||
   fail "multi-line create (rc=$rc): $out / $(cat "$T/issue.log")"
 : >"$T/issue.log"

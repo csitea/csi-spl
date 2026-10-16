@@ -27,7 +27,6 @@ const MAX_SCRIPT = 500
 // NEW file over MAX_SCRIPT fails.
 const BIG = new Map([
   ['src/pages/issues.vue', 2084],
-  ['src/components/MessageCard.vue', 1416],
   ['src/components/MessageComposer.vue', 1136],
   ['src/components/ChannelSidebar.vue', 984],
   ['src/components/workspace-docs/WorkspaceDocView.vue', 678],

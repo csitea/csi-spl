@@ -34,6 +34,7 @@ import {
 } from '../../src/utils/channel-feed.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 import { mentionDisplay, namedLine, peopleLabels, personTitle, shownPerson } from '../../src/utils/channel-feed.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 
 /* the viewer's zone: Node re-reads process.env.TZ on assignment */
@@ -280,7 +281,7 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
        wrong face. The defect was upstream, in what the row carried. Since
        specs/036 FR-011 that field is `author` = typedByAuthor(msg): msg.from,
        or the verified typed_by of a line typed at the agent's terminal. */
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    const vue = messageCardSrc()
     assert.match(vue, /<SpoolAvatar class="avatar" :id="author\.id" :box="author\.box"/)
     assert.match(vue, /<AgentBadge :id="author\.id"/)
     assert.match(vue, /const author = computed\(\(\) => typedByAuthor\(props\.msg\)\)/)
@@ -308,7 +309,7 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
   })
 
   it('MessageCard renders the recipient beside the sender', () => {
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    const vue = messageCardSrc()
     assert.match(vue, /v-if="recipient"/, 'no recipient half in the row')
     assert.match(vue, /class="avatar--to" :id="recipient\.id" :box="recipient\.box"/, 'the right-hand avatar is not the recipient')
     assert.doesNotMatch(vue, /class="avatar avatar--to"/, 'CONTROL: the inline mark must not take the 36px row-gutter rule')
@@ -339,7 +340,7 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
       assert.match(got, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
       assert.equal(got.includes('T') || got.includes('Z'), false)
     }
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    const vue = messageCardSrc()
     assert.match(vue, /:title="timeTitle"/)
     assert.match(vue, /const timeTitle = computed\(\(\) => \(props\.sinceMs == null \? formatIsoTs\(at\.value\)/)
     assert.match(vue, /:data-ts="at \|\| undefined"/)
@@ -477,7 +478,7 @@ describe('SPL-981 a direct message header shows only the sender', () => {
     assert.equal(headerRecipientOf({ to: 'ALL-0', channel: 'lobby' }), null)
   })
   it('MessageCard reads the header recipient from headerRecipientOf', () => {
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    const vue = messageCardSrc()
     assert.match(vue, /const recipient = computed\(\(\) => headerRecipientOf\(props\.msg\)\)/)
     assert.match(vue, /<template v-if="recipient">\s*<span class="msg-to-arrow"/)
   })

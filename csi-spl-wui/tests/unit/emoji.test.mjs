@@ -175,7 +175,7 @@ describe('emoji reactions', () => {
   it('the card shows the control with no is_parent gate', () => {
     assert.match(card, /data-testid="msg-emoji-btn"/)
     assert.match(card, /data-testid="msg-reactions"/)
-    assert.match(card, /<EmojiPicker/)
+    assert.match(card, /<LazyEmojiPicker/)
     const at = card.indexOf('data-testid="msg-emoji-btn"')
     const start = card.lastIndexOf('<button', at)
     /* the button tag itself (SPL-1007: a phone draws the chips inside it) */

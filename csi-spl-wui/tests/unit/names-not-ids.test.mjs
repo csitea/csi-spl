@@ -70,7 +70,7 @@ describe('every @ field stores the tag', () => {
     'pages/issues.vue': /commentMp\.encode\(/,
     'components/IssueSubtaskDialog.vue': /mp\.encode\(/,
     'components/ChannelSidebar.vue': /descMp\.encode\(/,
-    'components/MessageCard.vue': /editMp\.encode\(/,
+    'composables/useCardEdit.ts': /editMp\.encode\(/,
     'components/IssueDescription.vue': /mp\.encode\(/,
   }
   it('each file that calls useMentionPicker encodes before storing', () => {

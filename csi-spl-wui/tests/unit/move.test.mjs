@@ -36,6 +36,7 @@ import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -376,7 +377,7 @@ describe('menu and wiring', () => {
     assert.equal(msgMenuItems({ moveTopic: true }).find((i) => i.id === 'move-topic').icon, 'move')
   })
   it('the card drags only from its handle, gates on the role rule, and mounts the picker lazily', () => {
-    const card = src('src/components/MessageCard.vue')
+    const card = messageCardSrc()
     /* the eager card imports only the small half; the rest loads on a move */
     assert.doesNotMatch(card, /move-apply\.mjs/)
     assert.match(card, /mayMoveTopic\(props\.msg, editorId\.value, access\.me, lobbyTask\.value\)/)

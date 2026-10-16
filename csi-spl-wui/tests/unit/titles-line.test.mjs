@@ -6,8 +6,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
-const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+const vue = messageCardSrc()
 
 describe('titles view is one line (SPL-943)', () => {
   it('the title is a single ellipsized line', () => {

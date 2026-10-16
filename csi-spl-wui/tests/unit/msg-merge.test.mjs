@@ -15,6 +15,7 @@ import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 import { createLiveClient, FRAMES } from '../../src/utils/live-ws.mjs'
 import { mergeableSource } from '../../src/utils/msg-menu.mjs'
 import { editFailureKey } from '../../src/utils/msg-edit.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -113,8 +114,8 @@ describe('mergeableSource', () => {
 
 describe('the card', () => {
   it('merges through mergeInto, not commit + removeMessage', () => {
-    const card = src('src/components/MessageCard.vue')
-    const body = card.slice(card.indexOf('async function onMerge'), card.indexOf('/* Open on a topic card opens its topic'))
+    const card = messageCardSrc()
+    const body = card.slice(card.indexOf('async function onMerge'), card.indexOf('async function remove()'))
     assert.match(body, /await mergeInto\(dropId, keepId\)/)
     assert.doesNotMatch(body, /removeMessage|commit\(/)
   })

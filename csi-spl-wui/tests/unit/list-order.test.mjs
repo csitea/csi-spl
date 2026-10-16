@@ -28,6 +28,7 @@ import {
 } from '../../src/utils/channel-feed.mjs'
 import { activityOf, newestActivityFirst } from '../../src/utils/feed.mjs'
 import { normalizeSearchResponse, rowAt } from '../../src/utils/search-results.mjs'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')
@@ -368,7 +369,7 @@ describe('search rows carry the clock their group is ordered by', () => {
 
 describe('DOM contract: every list row carries the clock it is ordered by', () => {
   it('a message / topic card prints its ACTIVITY time, not the root ts', () => {
-    const s = read('components/MessageCard.vue')
+    const s = messageCardSrc()
     assert.match(s, /:data-ts="at \|\| undefined"/)
     assert.match(s, /activityOf\(props\.msg\)/)
     /* the FORMATTER changed on the owner's word (real ISO 8601, with

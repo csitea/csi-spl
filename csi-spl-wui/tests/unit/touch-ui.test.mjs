@@ -12,6 +12,7 @@ import { MOBILE_STACK_QUERY } from '../../src/utils/mobile-stack.mjs'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -178,7 +179,7 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
   })
   it('the sheet Reply focuses it', () => {
     assert.match(vue, /window\.addEventListener\(COMPOSER_FOCUS_EVENT, onFocusRequest\)/)
-    const card = readFileSync(join(WUI, 'src/components/MessageCard.vue'), 'utf8')
+    const card = messageCardSrc()
     assert.match(card, /new CustomEvent\(COMPOSER_FOCUS_EVENT\)/)
   })
 })

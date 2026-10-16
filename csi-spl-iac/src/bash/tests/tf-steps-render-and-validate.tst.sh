@@ -202,6 +202,12 @@ for env in dev prd; do
   grep -q 'csi-spl-hub-db-owner-dsn' "$v" && fail "$env 030 references the owner DSN secret (injected or granted to the hub)" \
     || pass "$env 030 never references the owner DSN secret"
 done
+# SPL-2250 (radar step 4): prd's hub DB is REGIONAL (HA, a standby in a second
+# zone); dev stays ZONAL, so dev never pays HA and prd's failover is ~60 s.
+grep -qx 'availability_type = "REGIONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/prd/tf/040-cloud-sql-postgres.vars.tfvars" \
+  && pass "prd 040 renders availability_type REGIONAL" || fail "prd 040 is not REGIONAL (SPL-2250)"
+grep -qx 'availability_type = "ZONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/040-cloud-sql-postgres.vars.tfvars" \
+  && pass "dev 040 renders availability_type ZONAL" || fail "dev 040 is not ZONAL (HA is prd-only, SPL-2250)"
 # CONTROL for the plain-DSN check: the exact-key grep catches a planted DSN
 printf '%s\n' 'environment_variables = {"SPOOL_HUB_DB_DSN_EPOCH": "1", "SPOOL_HUB_DB_DSN": "postgres://x"}' |
   grep -E '^environment_variables ' | grep '"SPOOL_HUB_DB_DSN":' >/dev/null && pass "CONTROL: a planted plain SPOOL_HUB_DB_DSN is caught" \

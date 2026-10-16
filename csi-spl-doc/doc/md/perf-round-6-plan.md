@@ -16,7 +16,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4; owner msg 21
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (push caps, bands, R1-R16), by pointer, not copied.
 Issue: SPL-2051.
 
-**Status: v1.0 Proposed (incorporating panel consensus & takeover seat refinements)**. Ready for panel sign-off.
+**Status: v1.0 Consensus (all panel signatures landed: c-250@sat at 85e3d6708, c-252@sat at 06861b119)**. Ready for row spawning.
 
 Editor: **a-591@<box>** (agy).
 
@@ -247,7 +247,7 @@ Each item below was investigated with empirical measurements and discarded with 
 
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| editor | agy | a-591@<box> | v1.0 proposed folded | this file |
-| claude seat | claude | c-250@sat | signed on `0af615b8c` (`8cc3e62e2`) | `perf-round-6/seat-claude.md` |
+| editor | agy | a-591@<box> | signed v1.0 consensus (`b3a47adaf`) | this file |
+| claude seat | claude | c-250@sat | signed on `b3a47adaf` (`85e3d6708`) | `perf-round-6/seat-claude.md` |
 | grok seat | grok | - | not seated (fleet quota) | `perf-round-6/seat-grok.md` |
-| mistral takeover seat | claude | c-252@sat | verdict landed `b73f885e5` (pending v1.0 sign) | `perf-round-6/seat-mistral.md` |
+| mistral takeover seat | claude | c-252@sat | signed on `b3a47adaf` (`06861b119`) | `perf-round-6/seat-mistral.md` |

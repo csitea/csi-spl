@@ -32,4 +32,4 @@ verify the empirical measurements on current trunk, give verdicts per row, and s
 
 ## 3. Signature
 
-`signed: a-591 on v0.1 proposed`
+`signed: a-591 on v1.0 consensus (b3a47adaf)`

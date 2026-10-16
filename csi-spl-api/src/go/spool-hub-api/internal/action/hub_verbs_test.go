@@ -99,6 +99,11 @@ func (h *verbHub) answer(f wire.Frame) wire.Frame {
 		return wire.Frame{Type: wire.TAsk, MsgID: f.MsgID, Ask: echo(map[string]any{"op": f.AskOp, "fleet": f.Fleet, "body": f.Ask})}
 	case wire.TClaim:
 		return wire.Frame{Type: wire.TClaim, MsgID: f.MsgID, Claim: echo(map[string]any{"op": f.ClaimOp, "body": f.Claim})}
+	case wire.TTail: // SPL-2112: an empty tail, or a refusal of refuseTask
+		if f.TaskID == refuseTask {
+			return wire.Frame{Type: wire.TError, Error: "forbidden", Status: http.StatusForbidden}
+		}
+		return wire.Frame{Type: wire.TTailEnd, TaskID: f.TaskID}
 	}
 	return wire.Frame{Type: wire.TError, Error: "unexpected_frame"}
 }

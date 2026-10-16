@@ -147,6 +147,27 @@
     }
   },
   {
+    "description": "Read the discussion a WUI link names (paste the browser's link): the workspace comes from the link, read through this box's desk there; refuses with the reason when no desk on this box can see it (== spool tail --url).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "json": {
+          "description": "emit raw v:1 NDJSON instead of human lines",
+          "type": "boolean"
+        },
+        "url": {
+          "description": "a WUI discussion link as the browser shows it: https://\u003cworkspace host\u003e/t/\u003ctopic uuid\u003e, /m/\u003cid\u003e, or a page with ?topic=\u003ctopic uuid\u003e",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
+    "name": "spool_read_link"
+  },
+  {
     "description": "Return the v:1 messages in an agent's inbox as a JSON array (== spool recv).",
     "inputSchema": {
       "additionalProperties": false,
@@ -163,6 +184,56 @@
       "type": "object"
     },
     "name": "spool_recv"
+  },
+  {
+    "description": "Reply in the discussion a WUI link names, as this server's seat (never as a person): seats it on the desk of the link's workspace first when it has no seat there, then posts into the topic.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "description": "the reply; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md",
+          "type": "string"
+        },
+        "kind": {
+          "description": "one of task, result, note, reject, blocker, msg (default msg)",
+          "type": "string"
+        },
+        "url": {
+          "description": "the WUI discussion link to reply in (the same forms as spool_read_link)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "body"
+      ],
+      "type": "object"
+    },
+    "name": "spool_reply",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "delivery": {
+          "type": "string"
+        },
+        "msg_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delivery",
+        "msg_id",
+        "task_id",
+        "ts"
+      ],
+      "type": "object"
+    }
   },
   {
     "description": "Send a v:1 message to another agent, on this box or (hub mode) another box; with channel, post a new topic into that channel for every member (== spool send [--channel]).",

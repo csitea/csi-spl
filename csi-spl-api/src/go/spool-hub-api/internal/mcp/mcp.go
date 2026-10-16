@@ -1,5 +1,6 @@
 // Package mcp is the spool's stdio MCP server (`spool mcp`, spec 002 US4). It
-// exposes five canonical, kind-agnostic tools (plus spool_issue, specs/039), each a thin wrapper over the same
+// exposes five canonical, kind-agnostic tools (plus spool_issue, specs/039,
+// spool_flow, spec 130, and spool_read_link / spool_reply, SPL-2112), each a thin wrapper over the same
 // internal/action verb the CLI calls, so a tool and its verb return the same
 // text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
 // carrying the same reason and exit code (78 = verify/refuse).
@@ -19,7 +20,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -81,10 +84,31 @@ type FlowIn struct {
 	Before string `json:"before,omitempty" jsonschema:"the next cursor the previous page ended with"`
 }
 
+// ReadLinkIn is the input of spool_read_link (SPL-2112).
+type ReadLinkIn struct {
+	URL  string `json:"url" jsonschema:"a WUI discussion link as the browser shows it: https://<workspace host>/t/<topic uuid>, /m/<id>, or a page with ?topic=<topic uuid>"`
+	JSON bool   `json:"json,omitempty" jsonschema:"emit raw v:1 NDJSON instead of human lines"`
+}
+
+// ReplyIn is the input of spool_reply (SPL-2112).
+type ReplyIn struct {
+	URL  string `json:"url" jsonschema:"the WUI discussion link to reply in (the same forms as spool_read_link)"`
+	Body string `json:"body" jsonschema:"the reply; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
+	Kind string `json:"kind,omitempty" jsonschema:"one of task, result, note, reject, blocker, msg (default msg)"`
+}
+
 // Options shape a server. The zero value is the unseated server of spec 002.
 type Options struct {
 	// Seat is the one agent id this server acts for ("" = any, as before).
 	Seat string
+	// Desks is this box's hub desk dir (<state>/<env>/desk), DeskBox its desk
+	// box: spool_read_link / spool_reply read a link through the desk of the
+	// link's workspace. "" = the server's own config is the one desk.
+	Desks   string
+	DeskBox string
+	// SeatCmd seats an agent on a workspace's desk: it runs with the tenant
+	// and the agent id appended (spool-mcp.sh --seat). Empty = seats nobody.
+	SeatCmd []string
 }
 
 // wuiBox is the hub-held browser signer: every human (HUM-*) lives there.
@@ -143,10 +167,20 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 		Description: "What is happening for you (hub mode): one line per topic per UTC day of the lines that name you as <id>@<box>, " +
 			"blocked and ready included, and one line per UTC day of releases; JSON with a next cursor (== spool flow --as --json).",
 	}, t.flow)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_read_link",
+		Description: "Read the discussion a WUI link names (paste the browser's link): the workspace comes from the link, " +
+			"read through this box's desk there; refuses with the reason when no desk on this box can see it (== spool tail --url).",
+	}, t.readLink)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_reply",
+		Description: "Reply in the discussion a WUI link names, as this server's seat (never as a person): " +
+			"seats it on the desk of the link's workspace first when it has no seat there, then posts into the topic.",
+	}, t.reply)
 	return s
 }
 
-// tools are the handlers of the six tools, over one config and seat.
+// tools are the handlers of the tools, over one config and seat.
 type tools struct {
 	cfg *config.Config
 	o   Options
@@ -242,6 +276,53 @@ func (t tools) flow(ctx context.Context, _ *sdk.CallToolRequest, in FlowIn) (*sd
 		return nil, nil, toolErr(err)
 	}
 	return text(string(out)), nil, nil
+}
+
+func (t tools) desks() action.Desks {
+	d := action.Desks{Dir: t.o.Desks, Box: t.o.DeskBox, Base: t.cfg}
+	if len(t.o.SeatCmd) > 0 {
+		d.Seat = t.seatAgent
+	}
+	return d
+}
+
+// seatAgent runs SeatCmd <tenant> <agent>; its output is the error's text.
+func (t tools) seatAgent(ctx context.Context, tenant, agent string) error {
+	ctx, cancel := context.WithTimeout(ctx, seatTimeout)
+	defer cancel()
+	args := append(append([]string{}, t.o.SeatCmd[1:]...), tenant, agent)
+	out, err := exec.CommandContext(ctx, t.o.SeatCmd[0], args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(lastLines(string(out), 3)))
+	}
+	return nil
+}
+
+// seatTimeout bounds one seat: do_spl_desk_up waits up to 30 s for the roster.
+const seatTimeout = 120 * time.Second
+
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, " | ")
+}
+
+func (t tools) readLink(ctx context.Context, _ *sdk.CallToolRequest, in ReadLinkIn) (*sdk.CallToolResult, any, error) {
+	out, err := action.ReadLink(ctx, t.desks(), t.o.Seat, in.URL, in.JSON)
+	if err != nil {
+		return nil, nil, toolErr(err)
+	}
+	return text(out), nil, nil
+}
+
+func (t tools) reply(ctx context.Context, _ *sdk.CallToolRequest, in ReplyIn) (*sdk.CallToolResult, action.SendResult, error) {
+	out, err := action.ReplyLink(ctx, t.desks(), action.ReplyArgs{Seat: t.o.Seat, URL: in.URL, Body: in.Body, Kind: in.Kind})
+	if err != nil {
+		return nil, out, toolErr(err)
+	}
+	return text(action.JSON(out)), out, nil
 }
 
 // Run serves the tools over stdin/stdout until the client disconnects or ctx

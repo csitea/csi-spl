@@ -304,7 +304,7 @@ func TestToolNamesAreCanonical(t *testing.T) {
 		got = append(got, tl.Name)
 	}
 	sort.Strings(got)
-	want := "spool_flow,spool_get_file,spool_issue,spool_put_file,spool_recv,spool_send,spool_tail"
+	want := "spool_flow,spool_get_file,spool_issue,spool_put_file,spool_read_link,spool_recv,spool_reply,spool_send,spool_tail"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}
@@ -460,5 +460,48 @@ func TestSeatedTailOfAnUnseenTopicSaysWhy(t *testing.T) {
 	}
 	if out, isErr := callText(t, cs, "spool_tail", map[string]any{"task_id": task}); isErr || !strings.Contains(out, "mine") {
 		t.Errorf("tail of a held topic: isErr=%v %q, want its message", isErr, out)
+	}
+}
+
+// SPL-2112: spool_read_link and spool_reply are served and say why when this
+// server has no desk to read the link through (a local-mode spool, no
+// --desks); a reply on an unseated server is refused before any read.
+func TestReadLinkAndReplyTools(t *testing.T) {
+	link := "https://csitea.example.net/t/e055195c-0bde-4ed5-940b-5ead053e95f2"
+	cs, _ := seated(t, "c-700")
+	out, isErr := callText(t, cs, "spool_read_link", map[string]any{"url": link})
+	if !isErr || !strings.Contains(out, "no live hub desk on this box") || !strings.Contains(out, "(exit 1)") {
+		t.Errorf("read_link with no desk: isErr=%v %q", isErr, out)
+	}
+	if out, isErr := callText(t, cs, "spool_read_link", map[string]any{"url": "not a link"}); !isErr || !strings.Contains(out, "not a discussion link") {
+		t.Errorf("read_link of junk: isErr=%v %q", isErr, out)
+	}
+	if out, isErr := callText(t, cs, "spool_reply", map[string]any{"url": link, "body": "x"}); !isErr || !strings.Contains(out, "no live hub desk") {
+		t.Errorf("reply with no desk: isErr=%v %q", isErr, out)
+	}
+	un, _ := seated(t, "")
+	if out, isErr := callText(t, un, "spool_reply", map[string]any{"url": link, "body": "x"}); !isErr || !strings.Contains(out, "needs a seated server") {
+		t.Errorf("unseated reply: isErr=%v %q", isErr, out)
+	}
+}
+
+// seatAgent runs SeatCmd with the tenant and the agent appended, and a
+// failing command's last lines are the error.
+func TestSeatAgentRunsSeatCmd(t *testing.T) {
+	dir := t.TempDir()
+	rec := tools{o: Options{SeatCmd: []string{"sh", "-c", `printf '%s %s' "$1" "$2" > "$0/seat"`, dir}}}
+	if err := rec.seatAgent(context.Background(), "csitea", "c-700"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dir + "/seat")
+	if err != nil || string(got) != "csitea c-700" {
+		t.Errorf("seat cmd saw %q %v, want \"csitea c-700\"", got, err)
+	}
+	bad := tools{o: Options{SeatCmd: []string{"sh", "-c", `echo one; echo two; echo "refused $0 $1" >&2; exit 5`}}}
+	if err := bad.seatAgent(context.Background(), "csitea", "c-700"); err == nil || !strings.Contains(err.Error(), "refused csitea c-700") {
+		t.Errorf("failing seat cmd: %v", err)
+	}
+	if d := (tools{}).desks(); d.Seat != nil {
+		t.Error("a server with no SeatCmd seats agents")
 	}
 }

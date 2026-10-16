@@ -22,6 +22,7 @@
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
+//	tail    --url <WUI discussion link> [--desks <dir>] [--desk-box <box>] [--json]
 //	edit    --msg-id <uuid> (--body <text> | --body-file <path>) [--as <id>]   hub mode: re-sign
 //	          a message this box sent with a new body (specs/032 §10)
 //	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
@@ -139,7 +140,7 @@ on a box (an agent's machine):
   recv                read this box's inbox
   put-file, put-dir   store a file / a directory as a blob
   get-file, get-dir   fetch a blob to a path
-  tail                follow the local spool
+  tail                follow the local spool (--url <link>: a WUI discussion, read from the hub)
   mcp                 serve the spool tools over MCP on stdio (--as <agent>)
   issue               list, get, create, update, comment, label, delete issues
   flow                what is happening for an agent: its folded Flow (hub mode)
@@ -519,9 +520,25 @@ func cmdLayout(cfg *config.Config) int {
 func cmdTail(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("tail", flag.ContinueOnError)
 	task := fs.String("task", "", "task id to tail")
+	link := fs.String("url", "", "a WUI discussion link (/t/<uuid>, /m/<id>, ?topic=<uuid>): read it from the hub through this box's desk (SPL-2112)")
+	desks := fs.String("desks", os.Getenv("SPOOL_DESKS"), "with --url: this box's hub desk dir (<state>/<env>/desk); empty = this hub-mode spool is the one desk")
+	deskBox := fs.String("desk-box", cfg.DeskBox, "with --url and --desks: the desk box (default $SPOOL_DESK_BOX)")
 	asJSON := fs.Bool("json", false, "emit raw v1 NDJSON")
 	if err := fs.Parse(args); err != nil {
 		return 1
+	}
+	if *link != "" {
+		if *task != "" {
+			return fail(fmt.Errorf("--url and --task name the topic twice: give one"))
+		}
+		ctx, stop := interruptible()
+		defer stop()
+		out, err := action.ReadLink(ctx, action.Desks{Dir: *desks, Box: *deskBox, Base: cfg}, "", *link, *asJSON)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Print(out)
+		return 0
 	}
 	out, err := action.Tail(cfg, "", *task, *asJSON)
 	if err != nil {
@@ -536,7 +553,14 @@ func cmdTail(cfg *config.Config, args []string) int {
 func cmdMCP(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	as := fs.String("as", os.Getenv("SPOOL_MCP_AS"), "the one agent id this server acts for")
+	desks := fs.String("desks", "", "this box's hub desk dir (<state>/<env>/desk): spool_read_link and spool_reply follow a link into its workspace's desk (SPL-2112)")
+	deskBox := fs.String("desk-box", cfg.DeskBox, "the desk box under --desks (default $SPOOL_DESK_BOX)")
+	seatCmd := fs.String("seat-cmd", "", "the command that seats an agent on a workspace's desk, run with <tenant> <agent> appended (spool-mcp.sh --seat); empty = spool_reply seats nobody")
 	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *desks != "" && !msg.ValidBoxID(*deskBox) {
+		fmt.Fprintf(os.Stderr, "spool: mcp --desks needs a desk box (--desk-box or $SPOOL_DESK_BOX), got %q\n", *deskBox)
 		return 1
 	}
 	if *as != "" && !msg.ValidID(*as) {
@@ -545,7 +569,7 @@ func cmdMCP(cfg *config.Config, args []string) int {
 	}
 	ctx, stop := interruptible()
 	defer stop()
-	if err := mcp.Run(ctx, cfg, version, mcp.Options{Seat: *as}); err != nil && ctx.Err() == nil {
+	if err := mcp.Run(ctx, cfg, version, mcp.Options{Seat: *as, Desks: *desks, DeskBox: *deskBox, SeatCmd: strings.Fields(*seatCmd)}); err != nil && ctx.Err() == nil {
 		return fail(err)
 	}
 	return 0

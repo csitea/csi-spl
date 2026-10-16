@@ -39,6 +39,41 @@ Verifies the hash.
 ```
 Human lines by default; `json: true` → raw `v:1` NDJSON objects.
 
+## `spool_read_link`
+```json
+{ "url": "https://<workspace host>/t/<uuid>", "json": false }
+```
+(== `spool tail --url <link> [--desks <dir> --desk-box <box>]`, SPL-2112.)
+Reads the discussion a WUI link names. Link forms: `/t/<uuid>[#<msg>]`,
+`/m/<id>` (taken as a topic id), any page with `?topic=<uuid>` (`/`,
+`/channel/<name>`, `/dm/<peer>`), each with an optional locale prefix
+(`/fi/t/<uuid>`), and a bare topic uuid. The workspace comes from the link,
+not from the seat: the server tries this box's hub desks
+(`<desks>/<tenant>/<desk box>`, each a live `spool hub-run` whose settings it
+takes) with the link host's first label first, then its own workspace, then
+the others by name, and reads the topic as that desk box (`hub-tail`): the
+hub serves a box only what it may read, so nothing new is exposed. Output: a
+header `topic <uuid> in workspace <t>, read through desk <box>: <n>
+message(s), oldest first`, then `ts  msg_id  from@box -> to@box  [kind]
+body` per message; `json: true` → NDJSON, no header. No desk holds a
+message of it → `IsError`: `topic <uuid>: no messages visible to <seat> in
+workspace <tried, ...>; if the link is from another workspace, this box
+cannot read it: a seat in <label>: ask the orchestrator (exit 1)`. Reading
+changes no seat.
+
+## `spool_reply`
+```json
+{ "url": "https://<workspace host>/t/<uuid>", "body": "<markdown>", "kind": "msg" }
+```
+Posts into the linked topic as the server's seat (a seated server only; it
+never posts as a person). It reads the topic as `spool_read_link` does, then,
+when the seat has no seat dir on that workspace's desk, seats it with the
+server's `--seat-cmd` (spool-mcp.sh `--seat`: `do_spl_desk_up`, the existing
+desk action; the call is the request). The post goes to the topic's newest
+human (`to_box` box-wui), else its first other sender, with `task_id` = the
+topic: spec 067 rule 2's shape. Result: `spool_send`'s JSON. No `--seat-cmd`
+and no seat → `IsError` naming the workspace to ask for.
+
 ## Rules
 
 - Tool names are canonical and kind-agnostic. Do NOT add `spool_send_claude` /
@@ -64,4 +99,4 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
 - **Library:** `github.com/modelcontextprotocol/go-sdk` (official, v1.7.0+),
   stdio via `mcp.StdioTransport`. See `../research.md`. Not `mark3labs/mcp-go`.
 
-<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:10:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-16 · last-edit: 2026-10-16T08:30:00Z -->

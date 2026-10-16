@@ -237,3 +237,23 @@ func TestRunMCPAndMigrateRefusals(t *testing.T) {
 		t.Errorf("pick = %q", got)
 	}
 }
+
+// SPL-2112: tail --url reads a WUI link; a local spool with no desks says
+// why, a link and a task together are refused, mcp --desks needs a box.
+func TestRunTailURLRefusals(t *testing.T) {
+	localBox(t)
+	t.Setenv("SPOOL_DESK_BOX", "")
+	link := "https://csitea.example.net/t/e055195c-0bde-4ed5-940b-5ead053e95f2"
+	if rc, _, errOut := runCap(t, "", "tail", "--url", link); rc != 1 || !strings.Contains(errOut, "no live hub desk on this box") {
+		t.Errorf("tail --url, local: rc %d %q", rc, errOut)
+	}
+	if rc, _, errOut := runCap(t, "", "tail", "--url", "junk"); rc != 1 || !strings.Contains(errOut, "not a discussion link") {
+		t.Errorf("tail --url junk: rc %d %q", rc, errOut)
+	}
+	if rc, _, errOut := runCap(t, "", "tail", "--url", link, "--task", "x"); rc != 1 || !strings.Contains(errOut, "give one") {
+		t.Errorf("tail --url --task: rc %d %q", rc, errOut)
+	}
+	if rc, _, errOut := runCap(t, "", "mcp", "--as", "c-001", "--desks", t.TempDir()); rc != 1 || !strings.Contains(errOut, "needs a desk box") {
+		t.Errorf("mcp --desks, no box: rc %d %q", rc, errOut)
+	}
+}

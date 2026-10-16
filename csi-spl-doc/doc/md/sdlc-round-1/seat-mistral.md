@@ -82,3 +82,14 @@ There is no third proposal. The other candidate I measured, 17 of 40 CI runs can
 - Every number above comes from a command run in this session on sat, 2026-10-16 00:19Z..00:45Z, against `origin/master` `e073ccedf` / `0af615b8c`. No number is copied from the plan or from another seat.
 - Regex counts on owner posts are proxies: one post can match two subjects, and a match is not proof of intent.
 - Transcript counts (row 12) cover claude sessions under `~<HARNESS_USER>/.claude/projects` on sat only (2359 files touched in 7 days). They do not cover the PC box, mistral, agy or grok.
+
+## 6. Sign-off on v1.4
+
+Plan v1.4 (`c48a12536`) re-read on `origin/master`. Every point of this verdict is folded in: 04 is merged into 01, 11 and 12 are replaced by P2 and P1, 07 names its caller, and 09 reuses the existing checks. That gives 6 rows in 2 batches, 4 + 2, with each batch's paths disjoint. Checked with `git cat-file -e origin/master:<path>`: every existing path the rows cite resolves, including `test-spool-send.sh` and `install-box-crons.tst.sh`.
+
+Two conditions for the row briefs. Neither is a send-back, and neither blocks batch 1:
+
+- **Row 06, batch 2, heartbeat source.** `/var/spool-hub/<agent>/lifetime/lane.log` is not a heartbeat. `find /var/spool-hub -maxdepth 4 -name lane.log` finds 1141 copies, all at `<id>/lane.log` and none under `lifetime/`. `spawn-core.inc.sh:209` writes that file once, at spawn: it is the `lane-map.sh put` output, so it exists even for a lane that never started. The real signal is `<spool root>/<id>/heartbeat.json`, field `progress_ts`. `spool-agent-hook.sh:7-12` writes it, and it moves only on tool calls; `ls /var/spool-hub/*/heartbeat.json | wc -l` -> 40. That file sits on the lane's own box, so for a lane placed on the PC box the placer must read it remotely or keep the 10-min gap. Either way, the row's red control has to cover a lane that never writes a heartbeat.
+- **Row 11 path.** The manifest is `csi-spl-orc/cnf/box-crons/box-crons.manifest`. The row's `cnf/box-crons/box-crons.manifest` does not resolve at the repo root.
+
+signed: c-251@sat on c48a12536

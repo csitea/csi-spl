@@ -48,6 +48,7 @@ command -v yq >/dev/null || { echo "FAIL: yq is required"; exit 1; }
 declare -A WRAPPED=(
   [wui-e2e]='wui-e2e-mock-serve.sh'
   [hub-suite]='csi-spl-api/src/bash/tests/run-all-tests.sh'
+  [hub-pg]='csi-spl-api/src/bash/tests/run-all-tests.sh'
   [orc-suite]='csi-spl-orc/src/bash/tests/run-all-tests.sh'
 )
 check_wf() {  # <wf 10 file> - prints the first violation, or nothing
@@ -82,12 +83,12 @@ esac"
 
 # wf 10 job names as the jobs API prints them (matrix shard 1)
 wf_name() { yq ".jobs.$1.name" "$W10" | sed 's/\${{ *matrix\.shard *}}/1/'; }
-for j in hub-suite orc-suite orc-features iac-suite cnf-suite; do wf_name "$j"; done >"$T/red-other"
+for j in hub-suite hub-pg orc-suite orc-features iac-suite cnf-suite; do wf_name "$j"; done >"$T/red-other"
 wf_name wui-generate >"$T/red-generate"
 wf_name wui-suite >"$T/red-unit"
 wf_name iac-suite >"$T/red-iac"
 wf_name wui-e2e >"$T/red-e2e"
-{ wf_name orc-suite; wf_name orc-suite | sed 's#1/2#2/2#'; wf_name hub-suite; } >"$T/run-suites"
+{ wf_name orc-suite; wf_name orc-suite | sed 's#1/2#2/2#'; wf_name hub-suite; wf_name hub-pg; } >"$T/run-suites"
 # gh_set <red names file|-> [<in-progress names file>] - what the stub answers
 gh_set() {
   rm -f "$T/down" "$T/down-running"
@@ -159,7 +160,7 @@ check_script() {  # <script> - prints the first violation, or nothing
 
 check_spares() {  # <script> - the orc and hub suites' rule; prints the first violation, or nothing
   local s="$1" v rc t0 secs job
-  for job in orc-suite hub-suite; do
+  for job in orc-suite hub-suite hub-pg; do
     v=$(held_then_stops "$s" "$job"); [[ -z "$v" ]] || { echo "$v"; return; }
   done
   gh_set red-iac; touch "$T/down-running"
@@ -201,7 +202,7 @@ sed "s/^\( *wui-e2e) *needs=\).*/\1'.' ;;/" "$FF" >"$T/no-filter.sh"
 cmp -s "$FF" "$T/no-filter.sh" && fail "CONTROL setup: no-filter.sh is the script unchanged"
 [[ -n "$(check_script "$T/no-filter.sh")" ]] && pass "CONTROL: e2e shards that stop on any red are caught" \
   || fail "CONTROL: e2e shards that stop on any red passed"
-sed "s/^\( *orc-suite|hub-suite) needs='.'\);.*/\1 ;;/" "$FF" >"$T/no-spare.sh"
+sed "s/^\( *orc-suite|hub-suite|hub-pg) needs='.'\);.*/\1 ;;/" "$FF" >"$T/no-spare.sh"
 cmp -s "$FF" "$T/no-spare.sh" && fail "CONTROL setup: no-spare.sh is the script unchanged"
 v=$(check_spares "$T/no-spare.sh")
 [[ "$v" == *"stopped it after"*"while an e2e shard still ran"* ]] && pass "CONTROL: orc and hub suites that stop at once on a red (the old rule) are caught" \

@@ -231,11 +231,14 @@ jobs:
 
   # ===========================================================================
   # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,
-  # go vet, go test, the no-ysg-box-ref gate, the spool smoke, the hub
-  # Postgres gate and the hub GCS (fake-gcs) gate.
+  # go vet, go test, the no-ysg-box-ref gate, the spool smoke and the hub GCS
+  # (fake-gcs) gate. The hub Postgres gate is the hub-pg job below (spec 133
+  # r28): at ~443 s of a ~914 s job it made this the run's last job, ending a
+  # median 147 s after the last e2e shard (runs 38923775917, 38926299663,
+  # 38926687360).
   # ===========================================================================
   hub-suite:
-    name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
+    name: "hub: gofmt, go vet, go test, smoke, GCS gate"
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.run_hub != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
@@ -297,6 +300,7 @@ jobs:
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
           GH_TOKEN: ${{ github.token }}
+          HUB_SUITE_PART: plain
         run: |
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
@@ -310,6 +314,61 @@ jobs:
             exit 1
           fi
           echo "ok - no hub gate skipped"
+
+  # The hub Postgres gate (hub-pg.tst.sh: migrate, the store and hub suites on
+  # Postgres, the binary e2e) and the coverage floor of its pg packages, in
+  # its own job beside hub-suite (spec 133 r28). Same runner, temp dir, Go
+  # and fail-fast as hub-suite; a skipped gate still fails the job.
+  hub-pg:
+    name: "hub: Postgres gate, pg coverage floor"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.run_hub != 'false' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    # Above hub-pg.tst.sh's go test -timeout 20m plus its migrate and e2e.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      - name: Verify module checksums (go mod verify)
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod verify
+
+      - name: run-all-tests.sh
+        env:
+          GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
+          GH_TOKEN: ${{ github.token }}
+          HUB_SUITE_PART: pg
+        run: |
+          set -euo pipefail
+          bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
+            bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
+
+      - name: The Postgres gate really ran (a skip is a failure in CI)
+        run: |
+          set -euo pipefail
+          if grep -E '^skip - no (Postgres server binaries|cached |Postgres profiles)' "$RUNNER_TEMP/hub-suite.log"; then
+            echo "::error::the hub Postgres gate skipped in CI -- it proved nothing. Fix the runner setup above."
+            exit 1
+          fi
+          grep -q '^ALL HUB POSTGRES CHECKS PASSED' "$RUNNER_TEMP/hub-suite.log" \
+            || { echo "::error::no 'ALL HUB POSTGRES CHECKS PASSED' line: the Postgres gate did not run"; exit 1; }
+          echo "ok - the hub Postgres gate ran"
 
   # ===========================================================================
   # The WUI suite: csi-spl-wui unit tests (node --test) and nuxt typecheck.
@@ -1124,7 +1183,7 @@ jobs:
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"
-    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, orc-features, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
+    needs: [hub-suite, hub-pg, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, orc-features, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
     if: failure()
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5

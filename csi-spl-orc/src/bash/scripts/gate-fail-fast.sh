@@ -25,7 +25,7 @@
 # kills for a hub or orc red, so e2e gave no verdict of its own.
 #
 # When the orc and hub suites stop (round 8 action 01): on any red job, but
-# only once no job outside them (GITHUB_JOB orc-suite, hub-suite) is still
+# only once no job outside them (GITHUB_JOB orc-suite, hub-suite, hub-pg) is still
 # running, so they hold the slot no longer than the run already holds it.
 # Over the 16 red master runs 38072152801..38120064586 fail-fast stopped 32
 # of 32 orc shards and 16 of 16 hub jobs, and in 13 of 16 another job (the
@@ -53,7 +53,7 @@ jobs_api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/${GITHUB
 spares=''
 case "${GITHUB_JOB:-}" in
   wui-e2e)             needs='^wui: (nuxt generate|unit tests)' ;;
-  orc-suite|hub-suite) needs='.'; spares='^(orc: hermetic|hub: )' ;;
+  orc-suite|hub-suite|hub-pg) needs='.'; spares='^(orc: hermetic|hub: )' ;;
   *)                   needs='.' ;;
 esac
 

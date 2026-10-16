@@ -11,10 +11,18 @@
 # Postgres gate (~384 s) and the hub GCS gate -- and names each one it leaves
 # out. CI (workflow 10 and the workflow 20
 # deploy gate) never sets it, so CI always runs the full suite.
+#
+# HUB_SUITE_PART (spec 133 r28) splits the suite over two wf 10 jobs that run
+# side by side: `pg` runs only the hub Postgres gate and its coverage floor
+# (~443 s, the longest part), `plain` runs everything else. The default `all`
+# runs both in the old order with the old output (pre-push, wf 20, local).
 set -euo pipefail
 
 tier="${SPL_API_TEST_TIER:-full}"
 case "$tier" in full|fast) ;; *) echo "SPL_API_TEST_TIER must be full or fast (got '$tier')" >&2; exit 2 ;; esac
+part="${HUB_SUITE_PART:-all}"
+case "$part" in all|plain|pg) ;; *) echo "HUB_SUITE_PART must be all, plain or pg (got '$part')" >&2; exit 2 ;; esac
+want() { [ "$part" = all ] || [ "$part" = "$1" ]; }
 slow() { echo "SKIP-TIER (fast tier; CI workflow 10/20 runs it): $1"; }
 
 # r5-10: per-package coverage ratchet. Reads a go test -coverprofile, prints
@@ -72,6 +80,10 @@ source "$HERE/../warm-go-mod-cache.sh"
 spl_warm_go_mod_cache "$MOD"
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off
 
+COVER_DIR="$(mktemp -d)"
+trap 'rm -rf "$COVER_DIR"' EXIT
+
+if want plain; then
 echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
 bash "$HERE/warm-go-mod-cache.tst.sh"
@@ -89,8 +101,6 @@ echo "ok   - go vet clean"
 
 # 016 T002 / FR-004: the gate runs under the race detector, so a data race
 # fails it instead of landing green (-race needs cgo: CGO_ENABLED=1 + gcc).
-COVER_DIR="$(mktemp -d)"
-trap 'rm -rf "$COVER_DIR"' EXIT
 if [ "$tier" = full ]; then
   echo "== go test -race =="
   ( cd "$MOD" && CGO_ENABLED=1 go test -race -coverprofile="$COVER_DIR/cover.out" ./... )
@@ -128,7 +138,9 @@ bash "$HERE/store-pg-groups.tst.sh"
 
 echo "== hub Postgres groups: every internal/hub test in exactly one process (both tiers, no Postgres) =="
 bash "$HERE/hub-pg-groups.tst.sh"
+fi
 
+if want pg; then
 echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
 if [ "$tier" = full ]; then
   SPL_COVER_DIR="$COVER_DIR" bash "$HERE/hub-pg.tst.sh"
@@ -138,8 +150,12 @@ if [ "$tier" = full ]; then
     echo "ok   - every pg package within 1.0 point of its floor"
   else echo "skip - no Postgres profiles (the hub Postgres gate skipped); pg floors not checked"; fi
 else slow hub-pg.tst.sh; fi
+fi
 
+if want plain; then
 echo "== hub GCS gate: internal/blob against fake-gcs (skips without cached emulator image) =="
 if [ "$tier" = full ]; then bash "$HERE/hub-gcs.tst.sh"; else slow hub-gcs.tst.sh; fi
+fi
 
-echo "ALL csi-spl-api TESTS PASSED (tier=$tier)"
+if [ "$part" = all ]; then echo "ALL csi-spl-api TESTS PASSED (tier=$tier)"
+else echo "ALL csi-spl-api TESTS PASSED (tier=$tier, part=$part)"; fi

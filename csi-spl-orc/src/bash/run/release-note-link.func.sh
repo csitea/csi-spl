@@ -6,10 +6,16 @@
 # @description sha, so nobody hand-builds the URL. The link is
 # @description https://<env.dns.fqdn>/releases/<full sha>, the WUI host of ENV
 # @description read from the cnf (do_spl_cloud_cnf), never a literal host.
-# @description The version is the FIRST v-tag that contains the commit, by
-# @description cycle then X.Y.Z (spl_release_key_min), shown as plain X.Y.Z (the
-# @description deploy that shipped it, as the release_note table records it);
-# @description a commit no deploy has shipped yet prints `unreleased` in that
+# @description The version is the commit's OWN v-tag when it has one (the
+# @description deploy that minted it; the lowest if it has two), else the FIRST
+# @description v-tag that contains it, by cycle then X.Y.Z (spl_release_key_min).
+# @description Either way it prints the whole tag, cycle suffix kept
+# @description (v1.4.7-c3): the plain X.Y.Z repeats every cycle, so only the tag
+# @description names one deploy. Mints follow DEPLOY order, not ancestry, so a
+# @description descendant deployed first can carry a LOWER tag than the commit
+# @description itself (SPL-2283: 79ca8cd2 v1.4.6-c3 before its ancestor 165eb02f
+# @description v1.4.7-c3); the own tag wins over it.
+# @description A commit no deploy has shipped yet prints `unreleased` in that
 # @description field, with a WARN on stderr, and still exits 0: the link
 # @description works before the deploy (7.2).
 # @description An unknown sha, or a SHA that is not 7..40 hex, is FATAL, rc 1.
@@ -37,9 +43,10 @@ do_release_note_link() {
     { do_log "FATAL not a commit in $APP_PATH: '$want' (unknown or ambiguous sha)" >&2; return 1; }
 
   local v
-  v="$("${g[@]}" tag --contains "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
+  v="$("${g[@]}" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
+  [[ -n "$v" ]] || v="$("${g[@]}" tag --contains "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
   if [[ -n "$v" ]]; then
-    v="v$(spl_release_key_display "$v")"
+    v="v$v"
   else
     v=unreleased
     do_log "WARN ${sha:0:8} is in no v-tag yet: no deploy has shipped it" >&2

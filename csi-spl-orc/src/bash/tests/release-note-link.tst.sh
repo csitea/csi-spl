@@ -3,7 +3,8 @@
 # Purpose: do_release_note_link (spec 065 L7) prints `<sha> v<X.Y.Z> <link>`,
 #          the link host read from the cnf. Against a SYNTHETIC repo that
 #          carries a copy of this repo's cnf (no network, no GCP):
-#   1. a tagged commit -> the FIRST v-tag that contains it, the dev WUI host
+#   1. a commit -> its own v-tag, else the FIRST v-tag that contains it, the
+#      dev WUI host
 #   2. ENV=prd -> the prd WUI host, not the dev one
 #   3. CONTROL: BASE_DOMAIN changed in the copied cnf -> the link follows it
 #      (the host comes from the cnf, not from the code)
@@ -12,6 +13,10 @@
 #   6. SHA not hex / missing, ENV not dev|prd -> rc 1
 #   7. no literal host in the action: the cnf's BASE_DOMAIN, read here at run
 #      time, is absent from the .func.sh, and no https:// is followed by text
+#   8. across the 9.9.9 -> 1.0.1 wrap: the cycle suffix is printed (v1.0.1-c2)
+#   9. SPL-2283, measured 2026-10-16: a descendant deployed first carries the
+#      LOWER v1.4.6-c3; the ancestor's own v1.4.7-c3 wins (the old code printed
+#      v1.4.6); an untagged commit below both prints v1.4.6-c3, suffix kept
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -57,7 +62,7 @@ act() {
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     do_release_note_link' 2>"$T/err"
 }
-LINE_RE='^[0-9a-f]{8} (v[0-9]+\.[0-9]+\.[0-9]+|unreleased) https://[^ /]+/releases/[0-9a-f]{40}$'
+LINE_RE='^[0-9a-f]{8} (v[0-9]\.[0-9]\.[0-9](-c[0-9]+)?|unreleased) https://[^ /]+/releases/[0-9a-f]{40}$'
 
 DEV_FQDN=$(cnf_fqdn dev "$T/s-dev"); PRD_FQDN=$(cnf_fqdn prd "$T/s-prd")
 if [[ -n "$DEV_FQDN" && -n "$PRD_FQDN" && "$DEV_FQDN" != "$PRD_FQDN" ]]; then pass "cnf names a dev and a prd WUI host, and they differ"
@@ -119,8 +124,21 @@ out=$(act SHA="$C5" ENV=dev); rc=$?
 [[ $rc == 0 && "$out" == "${C5:0:8} v9.9.9 https://$DEV_FQDN/releases/$C5" ]] \
   && pass "a commit in v9.9.9 AND v1.0.1-c2 -> v9.9.9 (cycle first, not the lower-reading 1.0.1)" || fail "C5: rc $rc out '$out'"
 out=$(act SHA="$C6" ENV=dev); rc=$?
-[[ $rc == 0 && "$out" == "${C6:0:8} v1.0.1 https://$DEV_FQDN/releases/$C6" ]] && grep -qE "$LINE_RE" <<<"$out" \
-  && pass "a commit first shipped in v1.0.1-c2 -> plain v1.0.1, same line shape" || fail "C6: rc $rc out '$out'"
+[[ $rc == 0 && "$out" == "${C6:0:8} v1.0.1-c2 https://$DEV_FQDN/releases/$C6" ]] && grep -qE "$LINE_RE" <<<"$out" \
+  && pass "a commit first shipped in v1.0.1-c2 -> v1.0.1-c2, suffix kept, same line shape" || fail "C6: rc $rc out '$out'"
+
+# --- 9. SPL-2283: own tag beats a lower tag of a descendant -------------------------
+C8=$(commit "fix(hub): below both"); C9=$(commit "feat(api, SPL-2203): 165eb02f"); C10=$(commit "fix(wui, SPL-2219): 79ca8cd2")
+git -C "$REPO" tag v1.4.6-c3 "$C10"; git -C "$REPO" tag v1.4.7-c3 "$C9"
+out=$(act SHA="$C9" ENV=prd); rc=$?
+[[ $rc == 0 && "$out" == "${C9:0:8} v1.4.7-c3 https://$PRD_FQDN/releases/$C9" ]] \
+  && pass "a sha tagged v1.4.7-c3, inside its descendant's v1.4.6-c3 -> its own v1.4.7-c3" || fail "C9: rc $rc out '$out'"
+out=$(act SHA="$C10" ENV=prd); rc=$?
+[[ $rc == 0 && "$out" == "${C10:0:8} v1.4.6-c3 https://$PRD_FQDN/releases/$C10" ]] \
+  && pass "the descendant -> its own v1.4.6-c3" || fail "C10: rc $rc out '$out'"
+out=$(act SHA="$C8" ENV=prd); rc=$?
+[[ $rc == 0 && "$out" == "${C8:0:8} v1.4.6-c3 https://$PRD_FQDN/releases/$C8" ]] && grep -qE "$LINE_RE" <<<"$out" \
+  && pass "an untagged sha in both -> the lowest, v1.4.6-c3, suffix kept" || fail "C8: rc $rc out '$out'"
 
 echo "release-note-link: $fails failure(s)"
 ((fails == 0))

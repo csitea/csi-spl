@@ -44,7 +44,7 @@ do_release_version() {
     fi
     latest="$(git -C "$APP_PATH" tag -l 'v*' | sed 's/^v//' | spl_release_key_max)"
     if [[ -z "$latest" ]] || spl_release_key_gt "$floor" "$latest"; then v="$floor"; else v="$(spl_release_key_step "$latest")" || return 1; fi
-    do_log "OK DRY_RUN would claim v$v for ${sha:0:8} on $remote (highest tag: ${latest:+v$latest}${latest:-none}, floor .version: $floor). Re-run with DRY_RUN=0 to claim it." >&2
+    do_log "OK DRY_RUN would claim v$v for ${sha:0:8} on $remote (highest tag: ${latest:+v}${latest:-none}, floor .version: $floor). Re-run with DRY_RUN=0 to claim it." >&2
     spl_release_key_display "$v"; return 0
   fi
 

@@ -25,6 +25,12 @@
 #      action shows plain 1.0.1 (GITHUB_OUTPUT version=1.0.1 key=1.0.1-c2); the cycle-1 floor no longer wins; a commit
 #      re-reads its cycle-2 version; CONTROL: plain-version max ignores the
 #      cycle-2 tags and would re-mint 9.9.9's successor forever
+#  15. DEPLOY ORDER, not ancestry (SPL-2283, measured 2026-10-16): the WUI
+#      deploy of 79ca8cd2 minted v1.4.6-c3 at 15:56:14Z, the hub deploy of its
+#      ANCESTOR 165eb02f minted v1.4.7-c3 at 16:09:14Z. Each mint is one step
+#      past the highest tag at mint time; the next commit goes above v1.4.7-c3,
+#      also from a job clone made before that tag existed; the dry-run log
+#      names the highest tag once (CONTROL: the old log printed it twice)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -367,6 +373,34 @@ got=$(cact RELEASE_SHA="$k5" DRY_RUN=0 GITHUB_OUTPUT="$T/gh2.out")
 got=$(lib eval 'spl_version_step "$(git -C "'"$T/c"'" tag -l "v*" | sed "s/^v//" | spl_version_max)"')
 [[ "$got" == 1.0.1 ]] && pass "CONTROL: plain-version max ignores the cycle-2 tags (would re-mint 1.0.1 forever)" \
   || fail "CONTROL plain max: '$got'"
+
+# --- 15. deploy order, not ancestry (SPL-2283) -------------------------------
+git init -q --bare "$T/ord.git"
+git init -q "$T/o" && git -C "$T/o" remote add origin "$T/ord.git"
+ocommit() { echo "$1" >"$T/o/f" && git -C "$T/o" add f && git -C "$T/o" commit -qm "$1" && git -C "$T/o" rev-parse HEAD; }
+o0=$(ocommit c3-145); git -C "$T/o" tag v1.4.5-c3 "$o0"
+oa=$(ocommit hub-165eb02f); ob=$(ocommit wui-79ca8cd2)
+git -C "$T/o" push -q origin HEAD:refs/heads/master 'refs/tags/v*:refs/tags/v*'
+git clone -q "$T/ord.git" "$T/o-stale"
+omint() { lib spl_release_mint "$T/o" "$1" 1.1.3 origin 2>>"$T/mint.err"; }
+got=$(omint "$ob"); [[ "$got" == 1.4.6-c3 ]] && pass "the descendant deployed FIRST takes v1.4.6-c3" || fail "first mint '$got'"
+got=$(omint "$oa"); [[ "$got" == 1.4.7-c3 ]] && pass "its ancestor deployed later takes v1.4.7-c3, above the highest tag" || fail "ancestor mint '$got'"
+oc=$(ocommit next); git -C "$T/o" push -q origin HEAD:refs/heads/master
+git -C "$T/o-stale" fetch -q --no-tags origin master
+got=$(lib spl_release_mint "$T/o-stale" "$oc" 1.1.3 origin 2>>"$T/mint.err")
+[[ "$got" == 1.4.8-c3 && "$(git --git-dir="$T/ord.git" rev-parse 'v1.4.8-c3^{commit}')" == "$oc" ]] \
+  && pass "the next commit, from a clone made before v1.4.6-c3/v1.4.7-c3, takes v1.4.8-c3" || fail "next mint '$got'"
+max=$(git --git-dir="$T/ord.git" tag -l 'v*' | sed 's/^v//' | lib spl_release_key_max)
+[[ "$max" == 1.4.8-c3 ]] && pass "no mint is below the highest tag: max is the last mint" || fail "max '$max'"
+od=$(ocommit dry); git -C "$T/o" push -q origin HEAD:refs/heads/master; echo 1.1.3 >"$T/o/.version"
+: >"$T/act.err"
+got=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/o" RELEASE_SHA="$od" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*" >&2; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    do_release_version' 2>>"$T/act.err")
+[[ "$got" == 1.4.9 ]] && grep -qF '(highest tag: v1.4.8-c3, floor' "$T/act.err" \
+  && pass "dry run says 1.4.9 and logs 'highest tag: v1.4.8-c3' once" || fail "dry run '$got' log: $(grep 'would claim' "$T/act.err")"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

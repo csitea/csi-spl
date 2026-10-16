@@ -32,8 +32,9 @@
 # keeps the card file and is retried next tick, never re-posted; a deploy
 # probe that cannot tell shows "?" and is asked again next tick.
 #
-# Trigger: none installed here. The cron row (*/5, --once) is one
-# box-crons.manifest line, added in a follow-up (dispatcher c-002, round 1).
+# Trigger: the box-crons.manifest row topic-status-card (*/5, --once through
+# src/bash/scripts/topic-status-card-cron.sh, SPL-2117), installed by
+# do_install_box_crons.
 #
 # Usage: topic-status-card.sh [--once | --print]
 #   --once   one tick (default)       --print  the cards to stdout, no hub write

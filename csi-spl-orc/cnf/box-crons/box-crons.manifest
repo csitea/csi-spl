@@ -30,3 +30,4 @@ issue-key-rate    | 53 6 * * 1      | src/bash/scripts/issue-key-rate-cron.sh   
 gc                | * * * * *       | src/bash/scripts/gc-cron.sh                             | gc/cron.log           |
 reverse-tunnel    | * * * * *       | src/bash/scripts/reverse-tunnel-cron.sh                 | reverse-tunnel/cron.log |
 token-burn        | * * * * *       | src/bash/scripts/token-burn-collect-cron.sh             | token-burn/cron.log   |
+topic-status-card | */5 * * * *    | src/bash/scripts/topic-status-card-cron.sh             | topic-status-card/cron.log |

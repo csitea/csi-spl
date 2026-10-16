@@ -457,7 +457,7 @@ jobs:
   # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
-    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/5"
+    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/6"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: [classify, wui-generate]
@@ -472,10 +472,15 @@ jobs:
     # to 5,381 s of medians, so 3 balanced shards are still 1,794 s (66 %);
     # 5 are 1,077 s each (e2e-shard-weights.txt). The shards are not
     # required checks (oss-public-settings.func.sh), so the count is free.
+    # 5 -> 6 (CI-refactor round 27, 2026-10-16): on 15 green runs
+    # (38886250563..38918834400) the last shard ended a median 79 s after
+    # every other job (-33..402 s); 5 shards ran ~888 s each of a 4,439 s
+    # sum, 6 run ~745 s, so the run gains min(143, that lead). Runners are
+    # GitHub-hosted on a public repo: one more job, no minutes billed.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6]
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
@@ -552,7 +557,7 @@ jobs:
       - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
           CI: "1"
-          E2E_SHARD: "${{ matrix.shard }}/5"
+          E2E_SHARD: "${{ matrix.shard }}/6"
           E2E_SKIP: ${{ inputs.e2e_skip }}
           # On a master push only: a pull request (wf 11) keeps the full red
           # report, every red file in one round, and nothing queues behind it.

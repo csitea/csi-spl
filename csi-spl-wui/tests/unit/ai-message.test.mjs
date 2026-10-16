@@ -1,6 +1,6 @@
 // HUM-24 (csitea ba4696c1): an AI agent's message reads apart from a person's
-// (an "AI" badge beside the name and, since SPL-2120, a bar on the card's
-// left edge instead of a tint). The rule is one function; MessageCard and the
+// (an "AI" badge beside the name; no tint and, since SPL-2173, no bar on the
+// card's left edge either). The rule is one function; MessageCard and the
 // browser alert both read it.
 // Run: node tests/unit/ai-message.test.mjs
 import { describe, it } from 'node:test'
@@ -45,12 +45,18 @@ describe('wiring', () => {
     assert.match(card, /data-testid="msg-ai-badge"/)
     assert.match(card, /const ai = computed\(\(\) => isAiMessage\(props\.msg\)\)/)
   })
-  it('SPL-2120: the AI row is a bar, not a tint, and the shading sits UNDER hover', () => {
+  it('SPL-2173: no agent item paints a left bar or a tint, and the shading sits UNDER hover', () => {
     const css = src('src/assets/css/main.css')
-    const rule = css.slice(css.indexOf('.msg--ai {'), css.indexOf('}', css.indexOf('.msg--ai {')))
-    assert.ok(css.indexOf('.msg--ai {') > 0, 'main.css has the .msg--ai rule')
-    assert.match(rule, /box-shadow: inset var\(--agent-bar-w\) 0 0 var\(--color-agent-bar\)/)
-    assert.doesNotMatch(rule, /background/, 'no tint: the agent row keeps the list shade')
+    /* owner HUM-10 t1 57adfdd4 msg b0ef4dc4: "uggly left side brackets ... remove it" */
+    const files = ['src/assets/css/main.css', 'src/assets/css/variables.css', 'src/components/MessageCard.vue',
+      'src/components/SideHitList.vue', 'src/pages/issues.vue']
+    for (const f of files) assert.doesNotMatch(src(f), /agent-bar/, `${f} carries no agent bar token`)
+    const aiRule = /\.(msg|side-hit|issues-row|issues-card)--ai\b[^{]*\{([^}]*)\}/g
+    for (const f of files) {
+      for (const m of src(f).matchAll(aiRule)) {
+        assert.doesNotMatch(m[2], /box-shadow|border|background|::?before/, `${f}: ${m[0].slice(0, 80)}`)
+      }
+    }
     const alt = css.indexOf('.msg:where(:nth-child(even of .msg))')
     assert.ok(alt > 0 && alt < css.indexOf('.msg:hover {'), 'the alternate shade is declared before .msg:hover, at one class')
   })

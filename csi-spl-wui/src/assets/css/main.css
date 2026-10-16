@@ -402,13 +402,13 @@ html.pane-dragging * {
 /* SPL-2120 (owner HUM-10, t1 28559e83): the cards of a list alternate a
    lighter and a darker shade, counted over the cards only, so a divider
    between them keeps the rhythm. --row-bg is what a fading new card ends on.
-   HUM-24 (csitea ba4696c1) + SPL-2120: an AI agent's card carries a thin
-   bar on its left edge (plus the "AI" badge in MessageCard) instead of a
-   tint, so its shade stays the list's. Hover, focus, pressed and selected
-   (all declared after, and more specific: the :where() keeps this rule at
-   one class) still paint over the shade. */
+   HUM-24 (csitea ba4696c1): an AI agent's card is told apart by the "AI"
+   badge in MessageCard only. SPL-2173 (owner HUM-10, t1 57adfdd4 msg
+   b0ef4dc4): no left bar or tint on it, so its shade stays the list's.
+   Hover, focus, pressed and selected (all declared after, and more
+   specific: the :where() keeps this rule at one class) still paint over
+   the shade. */
 .msg:where(:nth-child(even of .msg)) { --row-bg: var(--color-row-alt); background: var(--row-bg); }
-.msg--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .msg:hover { background: var(--color-surface-hover); }
 /* SPL-1134: what follows the pointer while a card is dragged by its handle
    (utils/move-drag.mjs; placed by useMove with a transform) */

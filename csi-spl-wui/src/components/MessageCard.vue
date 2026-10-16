@@ -918,10 +918,6 @@ onMounted(() => {
   border: 1px solid rgba(128, 128, 128, 0.45);
   box-shadow: 0 2px 6px rgba(100, 100, 100, 0.22);
 }
-/* SPL-2120: a selected agent card keeps its left bar under the lift */
-.msg.selected.msg--ai {
-  box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar), 0 2px 6px rgba(100, 100, 100, 0.22);
-}
 .mention-anchor { position: relative; min-width: 0; }
 /*
  * the recipient half of the owner's row format.

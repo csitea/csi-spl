@@ -1,5 +1,6 @@
 // HUM-24 (csitea ba4696c1) + SPL-2120 (owner HUM-10, t1 28559e83 msgs
-// 1c268bf0, 68dd229e, 948febcd), proved in a REAL browser.
+// 1c268bf0, 68dd229e, 948febcd) + SPL-2173 (owner HUM-10, t1 57adfdd4 msg
+// b0ef4dc4), proved in a REAL browser.
 //
 // HUM-24: an agent's card carries an "AI" badge (tooltip "AI agent") beside
 // the name; a line the owner TYPED at an agent's terminal (specs/036) is the
@@ -11,20 +12,23 @@
 // log, in the issues list, and in the event flow". In each of the 4 lists -
 // the message feed, the events log, the issues list (table on a desktop,
 // cards on a phone) and the Flow - item 1 and item 2 have different computed
-// backgrounds and item 1 and item 3 the same; where the author is known, an
-// agent's item has the left bar (an inset box-shadow in
-// --color-agent-bar) and a person's has none. 1440x900 and 390x844, light
-// and dark. Each list logs the contrast of its two shades, composited over
-// the fill under them.
+// backgrounds and item 1 and item 3 the same. SPL-2173: "the uggly left side
+// brackets ... appeared after the alternative colors change - remove it": no
+// item, an agent's included, has a left bar - computed border-left-width 0,
+// no inset box-shadow, no narrow ::before on its left edge - and a SELECTED
+// agent card neither (MessageCard's lift, f8c07156f). 1440x900 and 390x844,
+// light and dark. Each list logs the contrast of its two shades, composited
+// over the fill under them.
 //
 // Mock data: topic bbbb... holds HUM-1's opener (2222...) and CLE-07's
 // replies (3333...); #lobby holds HUM-1's post (1111...) and CLE-07's row
-// typed by HUM-1 (8888...). The events log reads 6 stubbed events; the issues
+// typed by HUM-1 (8888...); #alerts holds GRK-03's topic card (6666...). The events log reads 6 stubbed events; the issues
 // list seeds 3 issues HUM-1 filed and 2 an agent filed (spool.mock.issues-seed
 // / spool.mock.issues-agent); the Flow shows every entry (spool.flow-scope).
-// CONTROL: the person's items have no bar and no badge, and three rows of
-// one shade fail the "1 and 2 differ" check, so a list with no alternation or
-// a selector that marks every row reads red.
+// CONTROL: the person's items have no badge, and three rows of one shade fail
+// the "1 and 2 differ" check, so a list with no alternation reads red. The
+// bar check reads red on ee7a49523 (SPL-2120), which drew the bar as an inset
+// box-shadow.
 //
 // Run:
 //   pnpm run test:e2e ai-marker
@@ -43,6 +47,7 @@ const AGENT = '33333333-3333-4333-8333-333333333333'
 const OPENER = '22222222-2222-4222-8222-222222222222'
 const HUMAN = '11111111-1111-4111-8111-111111111111'
 const TYPED = '88888888-8888-4888-8888-888888888888'
+const ALERT = '66666666-6666-4666-8666-666666666666'
 const SIZES = [{ width: 1440, height: 900 }, { width: 390, height: 844 }]
 const THEMES = ['light', 'dark']
 const FLOW_LIST = '[data-testid=sidebar-panel-flow] [data-testid=left-list][data-mode=flow]'
@@ -126,19 +131,24 @@ function listFacts(page, sel) {
       return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
     const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return Math.round(((x + 0.05) / (y + 0.05)) * 1000) / 1000 }
-    const probe = document.createElement('i')
-    probe.style.color = getComputedStyle(document.documentElement).getPropertyValue('--color-agent-bar').trim()
-    document.body.appendChild(probe)
-    const barColour = getComputedStyle(probe).color
-    probe.remove()
     const items = [...document.querySelectorAll(s.item)].filter((e) => e.getBoundingClientRect().height > 0)
     const fillOf = (e) => (s.paint ? e.querySelector(s.paint) : e) || e
     const markOf = (e) => (s.bar ? e.querySelector(s.bar) : e) || e
     const isAi = (e) => e.getAttribute('data-ai') === 'true' || markOf(e).getAttribute('data-ai') === 'true'
+    /* a left bar, however drawn: a left border, an inset shadow, or a narrow ::before down the left edge */
     const barOf = (e) => {
       const el = markOf(e)
-      const sh = getComputedStyle(el).boxShadow
-      return sh.includes('inset') && sh.includes(barColour)
+      const cs = getComputedStyle(el)
+      const why = []
+      if (parseFloat(cs.borderLeftWidth) > 0 && cs.borderLeftStyle !== 'none') why.push(`border-left ${cs.borderLeftWidth}`)
+      if (/inset/.test(cs.boxShadow)) why.push(`box-shadow ${cs.boxShadow}`)
+      const b = getComputedStyle(el, '::before')
+      if (b.content !== 'none' && b.content !== 'normal') {
+        const w = parseFloat(b.width) || 0
+        const h = parseFloat(b.height) || 0
+        if (w > 0 && w <= 8 && h >= el.getBoundingClientRect().height / 2) why.push(`::before ${b.width}x${b.height}`)
+      }
+      return why.length ? why.join('; ') : false
     }
     const busy = (e) => e.matches('.selected, .active, .msg--new, .open-focus, .search-focus, [data-selected=true], [data-checked=true], [aria-selected=true], .events-row--focus')
       || Boolean(e.querySelector('[data-selected=true], [data-checked=true]')) || e.contains(document.activeElement)
@@ -154,20 +164,20 @@ function listFacts(page, sel) {
       at,
       bg,
       contrast: fill.length === 3 ? ratio(fill[0], fill[1]) : 0,
-      agents: items.filter(isAi).map(barOf),
-      people: items.filter((e) => !isAi(e)).map(barOf),
-      barColour,
+      /* only items in no state of their own: a selected / focused item's marker is the shared SELECTED look */
+      agents: items.filter((e) => isAi(e) && !busy(e)).map(barOf),
+      people: items.filter((e) => !isAi(e) && !busy(e)).map(barOf),
     }
   }, sel)
 }
 
-/** item 1 and 2 differ, 1 and 3 match; agents carry the bar, people not (where `authors`) */
+/** item 1 and 2 differ, 1 and 3 match; no item has a left bar, agents included (where `authors`) */
 function judge(tag, list, f, authors) {
   ok(`${tag} ${list}: items 1 and 2 have different backgrounds, 1 and 3 the same`,
     f.bg.length === 3 && f.bg[0] !== f.bg[1] && f.bg[0] === f.bg[2], { at: f.at, n: f.n, bg: f.bg, contrast: f.contrast })
   if (!authors) return
-  ok(`${tag} ${list}: every agent item has the left bar`, f.agents.length > 0 && f.agents.every(Boolean), { agents: f.agents, colour: f.barColour })
-  ok(`${tag} ${list}: CONTROL no person's item has the bar`, f.people.length > 0 && f.people.every((s) => !s), { people: f.people })
+  ok(`${tag} ${list}: SPL-2173 no agent item has a left bar`, f.agents.length > 0 && f.agents.every((s) => !s), { agents: f.agents })
+  ok(`${tag} ${list}: no person's item has a left bar`, f.people.length > 0 && f.people.every((s) => !s), { people: f.people })
 }
 
 /** One feed row: the AI flag and the badge (text, tooltip, shown). */
@@ -245,6 +255,24 @@ try {
       ok(`${tag} ${theme}: CONTROL a person's card has no marker`, human?.ai === null && human.badge === null, human)
       judge(`${tag} ${theme}`, 'topic feed', await listFacts(p, FEED), true)
       await shot(`${tag}-${theme}-topic`)
+    }
+    /* SPL-2173: a SELECTED agent card has no left bar under its lift either (ee7a49523 drew one);
+       #alerts opens on GRK-03's topic card, selected by a click as in selected-topic-card */
+    await go('/channel/alerts', `article.msg[data-msg-id="${ALERT}"]`)
+    await p.$eval(`article.msg[data-msg-id="${ALERT}"]`, (el) => el.click())
+    await p.waitForSelector(`article.msg.selected[data-msg-id="${ALERT}"]`, { timeout: NAV_TIMEOUT }).catch(() => {})
+    for (const theme of THEMES) {
+      await p.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
+      await p.mouse.move(1, 1)
+      await new Promise((r) => setTimeout(r, 150))
+      const sel = await p.evaluate((id) => {
+        const el = document.querySelector(`article.msg.selected[data-msg-id="${id}"]`)
+        if (!el) return null
+        const cs = getComputedStyle(el)
+        return { shadow: cs.boxShadow, left: cs.borderLeftWidth, right: cs.borderRightWidth, before: getComputedStyle(el, '::before').content }
+      }, ALERT)
+      ok(`${tag} ${theme}: SPL-2173 the selected agent card has no left bar`,
+        sel && !/inset/.test(sel.shadow) && sel.left === sel.right && (sel.before === 'none' || sel.before === 'normal'), sel)
     }
     await go('/lobby', `article.msg[data-msg-id="${TYPED}"]`)
     for (const theme of THEMES) {

@@ -204,10 +204,9 @@ defineExpose({ focus, rowEl: (key: string) => {
   max-width: 100%;
 }
 /* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the entries alternate a
-   lighter and a darker shade, and one an AI agent posted carries the agent
-   bar on its left edge; hover and the chosen entry paint over both */
+   lighter and a darker shade; hover and the chosen entry paint over it.
+   SPL-2173: an AI agent's entry carries no left bar */
 .side-hit:where(:nth-child(even of .side-hit)) { background: var(--color-row-alt); }
-.side-hit--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .side-hit:hover { background: var(--color-hover, var(--color-surface-2)); }
 /* the chosen entry: the shared SELECTED treatment (fill + 3px marker bar) */
 .side-hit.active { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }

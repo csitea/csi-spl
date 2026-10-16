@@ -3551,12 +3551,10 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-row { cursor: pointer; }
 /* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the rows of a group
    alternate a lighter and a darker shade (the sticky key cell layers it over
-   its opaque fill); hover, selected and checked paint over it. An issue an
-   AI agent filed carries the agent bar on its left edge; the selected
-   row's marker bar takes that edge while it is selected. */
+   its opaque fill); hover, selected and checked paint over it. SPL-2173:
+   an issue an AI agent filed carries no left bar. */
 .issues-row:where(:nth-child(even of .issues-row)) > td { background: var(--color-row-alt); }
 .issues-row:where(:nth-child(even of .issues-row)) > .issues-c-key { background: linear-gradient(var(--color-row-alt), var(--color-row-alt)), var(--color-bg); }
-.issues-row--ai > td:first-child { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .issues-row:hover td { background: var(--color-surface-hover); }
 .issues-row[data-selected="true"] td { background: var(--color-selected); }
 .issues-row[data-selected="true"] td:first-child { box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
@@ -3955,9 +3953,8 @@ select.issues-pctl { appearance: auto; }
     text-align: start;
     cursor: pointer;
   }
-  /* SPL-2120: the cards alternate like the table's rows; an agent's carries the bar */
+  /* SPL-2120: the cards alternate like the table's rows (SPL-2173: no agent bar) */
   .issues-card-li:where(:nth-child(even of .issues-card-li)) > .issues-card { background: var(--color-row-alt); }
-  .issues-card--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
   .issues-card[data-selected="true"] { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
   /* HUM-10 (t1 aedca86a): the swipe, MessageCard's look (.msg--swipe) */
   .issues-card-li { position: relative; overflow: hidden; }

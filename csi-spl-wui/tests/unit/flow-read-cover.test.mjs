@@ -23,6 +23,13 @@ describe('mockCovered', () => {
     assert.equal(mockCovered(line, { 'ch:lobby': { ts: '2026-09-18T12:00:00Z' } }), false)
     assert.equal(mockCovered(line, null), false)
   })
+  it('SPL-2124: a channel line with a t: cursor is the t: cursor\'s, not the channel\'s', () => {
+    const older = { 't:T': { ts: '2026-09-18T10:59:59Z' }, 'ch:alerts': { ts: '2026-09-18T12:00:00Z' } }
+    assert.equal(mockCovered(line, older), false)
+    assert.equal(mockCovered(line, { ...older, 't:T': { ts: '2026-09-18T11:00:00Z' } }), true)
+    /* a DM keeps both rules: its dm: cursor still covers past an older t: */
+    assert.equal(mockCovered(dm, { 't:D': { ts: '2026-09-18T10:00:00Z' }, 'dm:GRK-03': { ts: '2026-09-18T12:00:00Z' } }), true)
+  })
 })
 
 describe('the mock counts and keys honour the cursors', () => {

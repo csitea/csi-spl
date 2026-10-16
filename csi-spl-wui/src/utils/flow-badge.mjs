@@ -98,17 +98,19 @@ export function flowPlaceKey(e) {
  * MOCK ONLY: the hub's cover rule (contract section 3): a read cursor of the
  * line's topic (t:), channel (ch:) or DM peer (dm:) at or past it. `cursors`
  * are the reader's (read-cursor.mjs); the mock has no hub to sync them to.
+ * SPL-2124: a channel line whose topic has a t: cursor is that cursor's alone
+ * - opening the channel moves ch: past replies its cards still count.
  */
 export function mockCovered(e, cursors) {
   if (!cursors) return false
   const at = Date.parse(String((e && (e.at || e.received_at || e.ts)) || ''))
   if (!Number.isFinite(at)) return false
+  const past = (c) => Boolean(c && Date.parse(String(c.ts || '')) >= at)
+  const topic = cursors[`t:${e.task_id || ''}`]
+  if (past(topic)) return true
   const place = flowPlaceKey(e)
-  for (const k of [`t:${e.task_id || ''}`, place, place.replace(/@.*$/, '')]) {
-    const c = cursors[k]
-    if (c && Date.parse(String(c.ts || '')) >= at) return true
-  }
-  return false
+  if (place.startsWith('ch:')) return !topic && past(cursors[place])
+  return past(cursors[place]) || past(cursors[place.replace(/@.*$/, '')])
 }
 
 /**

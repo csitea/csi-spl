@@ -174,6 +174,7 @@ spl_wd_tick() {
   # debounces reset per agent, in its skip, under its judge lock (10.4.1).
   if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last > 3 * WD_TICK )); then
     echo "$now" > "$WD_DIR/resume$WD_SFX"
+    echo "$((now - last))" > "$WD_DIR/resume$WD_SFX.gap"
     spl_wd_log "RESUME${WD_INST:+ instance $WD_INST} tick gap $((now - last))s: debounces and graces reset"
   fi
   echo "$now" > "$WD_DIR/last.tick$WD_SFX"
@@ -1733,11 +1734,26 @@ spl_wd_down_min() {
 }
 
 # spl_wd_fence_due NOW: 0 when the beat is on and its last ack is
-# box_down_min or more old.
+# box_down_min or more old. A box back from a suspend (SPL-2257: tnk slept
+# 19:53:41-20:01:10Z 2026-10-16; its tick gap of 410 s set resume at
+# 20:01:14Z, the fence TERMed 11 lanes from 20:01:16Z and the hub acked at
+# 20:01:32Z) gets WD_FENCE_RESUME_GRACE s (180) after that resume to re-beat
+# before it is fenced: its ack is old because the box slept, not because the
+# hub is gone. A box fenced before it slept stays fenced until an ack.
 spl_wd_fence_due() {
-  local ack
+  local ack r g="${WD_FENCE_RESUME_GRACE:-180}" f="$WD_DIR/resume$WD_SFX"
   spl_wd_beat_on || return 1
   ack="$(spl_wd_beat_ack)"
   [[ -n "$ack" ]] || return 1
-  (( $1 - ack >= $(spl_wd_down_min) * 60 ))
+  (( $1 - ack >= $(spl_wd_down_min) * 60 )) || return 1
+  [[ -e "$WD_DIR/fenced" ]] && return 0
+  r="$(cat "$f" 2>/dev/null || true)"
+  if [[ "$r" =~ ^[0-9]+$ && "$g" =~ ^[0-9]+$ ]] && (( r > ack && $1 - r < g )); then
+    if [[ "$(cat "$f.held" 2>/dev/null)" != "$r" ]]; then
+      echo "$r" > "$f.held"
+      spl_wd_log "RESUME detected${WD_INST:+ instance $WD_INST} (slept $(cat "$f.gap" 2>/dev/null || echo '?')s), fence held for ${g}s: no beat ack for $(( $1 - ack ))s"
+    fi
+    return 1
+  fi
+  return 0
 }

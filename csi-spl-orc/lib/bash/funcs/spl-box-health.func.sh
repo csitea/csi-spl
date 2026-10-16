@@ -19,6 +19,16 @@
 # step was hit on some ticks and missed on others, and the box flapped
 # benched/back (SPL-2029: a 169.5 s gap 07:33:44-07:36:33Z 2026-10-15, bad for
 # 49.5 s, 7 flips in 22 min).
+# The checkpoints are "now" plus the whole minutes (epoch seconds divisible by
+# 60) of the hold, not now - k * 60 (SPL-2257): with a grid that moved by
+# seconds each read, a 10-min count that dipped under min_beat_pct for less
+# than the step was bad on some reads and good on others, so two boxes reading
+# seconds apart disagreed (prd 2026-10-16: tnk read sat recovering at
+# 19:08:15Z, sat read itself healthy at 19:08:32Z and took both roles back,
+# tnk took them again at 19:11:44Z) and one box's own bench flipped ("back after 30
+# healthy min" 2.5 min after a bench). On whole minutes a past checkpoint is
+# judged the same by every read until it leaves the hold. "healthy for" counts
+# from the last bad instant: the bad checkpoint, or the end of the long gap.
 # A box with no beat in the whole read (hold + window) is not judged: a box
 # that does not beat (no watchdog, or a desk-only box) keeps its place.
 # "now" is the newest beat in the read, the hub's own clock: every box reading
@@ -71,21 +81,24 @@ spl_box_health_verdicts() {
     | if ($r | length) == 0 then {} else
       ($r | map(.t) | max) as $now
       | $r | group_by(.box) | map({key: .[0].box, value: (map(.t) | sort)}) | from_entries
+      | ($now - $hold) as $from
+      | ([$now] + [range(0; ($hold / 60 | floor) + 1) | (($now / 60 | floor) - .) * 60
+          | select(. >= $from and . < $now)]) as $cks
       | with_entries(.value as $ts
         | ([range(1; $ts | length) | {b: $ts[.], g: ($ts[.] - $ts[. - 1])}]) as $gaps
-        | [range(0; ($hold / 60 | floor) + 1) | ($now - . * 60) as $c
+        | [$cks[] as $c
             | ([$ts[] | select(. > $c - $w and . <= $c)] | length) as $n
             | ([$ts[] | select(. <= $c)] | max) as $l
             | ($n < $need or $l == null or ($c - $l) > $gap) as $badat
-            | ([$gaps[] | select(.b > ([$c - 60, $now - $hold] | max) and .b <= $c) | .g] | max // 0) as $span
+            | ([$gaps[] | select(.b > ([$c - 60, $from] | max) and .b <= $c and .g > $gap) | .b] | max) as $sb
             | {c: $c, n: $n, age: (if $l == null then null else $c - $l end),
-               badat: $badat, bad: ($badat or $span > $gap)}] as $cp
+               badat: $badat, t: (if $badat then $c elif $sb != null then $sb else null end)}] as $cp
         | $cp[0] as $at
-        | ([$cp[] | select(.bad)] | max_by(.c)) as $lb
+        | ([$cp[] | .t | select(. != null)] | max) as $lb
         | .value = {n: $at.n, need: $need, age: $at.age,
             state: (if $at.badat then "degraded" elif $lb != null then "recovering" else "healthy" end),
             why: (if $at.badat then "\($at.n) beats in \($w / 60)m < \($need), last beat \($at.age // "none")s ago (max \($gap)s)"
-                  elif $lb != null then "healthy for \($now - $lb.c)s < hold \($hold)s"
+                  elif $lb != null then "healthy for \($now - $lb)s < hold \($hold)s"
                   else "\($at.n) beats in \($w / 60)m, last \($at.age)s ago" end)})
       end' <<<"$1"
 }

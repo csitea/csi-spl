@@ -121,4 +121,43 @@ history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
   it. The orchestrator runs each line as its own seat.
 - The guard: `csi-spl-orc/src/bash/tests/desk-doctree.tst.sh` section 9.
 
-<!-- version: 0.3.0 · updated: 2026-10-16 -->
+## 7. A doc's pictures: `<doc>.assets/NN-name.ext` (gap G6, SPL-2201)
+
+Owner HUM-10 picked layout A (msg 300d9a2c on poll c9f33bec, t1 topic
+d31406c0): "the paths must be accordingly relative to one another" (msg
+2423c8e3), and the files live in the hub's object store, the text in the
+database (msg 78f4ffd3, poll 60020e7b answer A).
+
+Status: **planned, not built yet**. The owner asked for the convention to be
+written here first; the build follows under SPL-2201, and this line changes
+when it lands.
+
+- **Layout.** A doc's pictures sit in one folder next to its md file, named
+  after it: `foo.md` -> `foo.assets/01-flow-map.png`. A picture's name is two
+  digits, a dash and a short lower-case name (`a-z`, `0-9`, single dashes),
+  then `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp`.
+- **The link is the same text in the repo and in Qto**: the path relative to
+  the md file, `![Flow map](foo.assets/01-flow-map.png)`.
+- **Import** (`do_spl_doctree_import_md`). The split lists each picture link
+  outside code fences and inline code spans whose target is a path, not a URL
+  (no scheme, no leading `/` or `#`). A link that breaks the layout, or names
+  a file that is missing, is refused before any hub call; the FATAL names the
+  link. After the sections, each picture is uploaded under its relative path
+  (`spool doctree asset-put <doc> <path> --file f`).
+- **Hub.** `PUT /v1/workspace/doctree/{doc}/assets/{path}` takes the bytes,
+  and the type sniffed from them must match the extension (no SVG). It keeps
+  them in the object store bucket at `t/<tenant>/files/<sha256>`, tenant
+  `system` for the repo tree, and maps the path to that sha256 in the doc
+  root's `attrs.assets`. `GET` on the same route serves them. A blob that any
+  doc's `attrs.assets` names is kept by the file retention sweep and by an
+  attachment's removal, which delete only what no message and no doc holds.
+- **Export** (`do_spl_doctree_export_md`). It writes each picture in
+  `attrs.assets` back to `<md dir>/<path>`, byte for byte, through
+  `spool doctree asset-get` (base64 in JSON, since the desk action prints
+  text). A file whose bytes are unchanged is not rewritten.
+- **Qto view.** A `![..](<doc>.assets/NN-name.ext)` token in a section's text
+  renders as a figure, read from the asset route.
+- **Distribution hygiene.** The import adds no picture to the repo, and the
+  export writes back only the pictures the md already linked.
+
+<!-- version: 0.4.0 · updated: 2026-10-16 -->

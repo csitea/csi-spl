@@ -30,6 +30,8 @@ REPO="$T/repo"
 mkdir -p "$REPO/csi-spl-iac/lib/bash" "$REPO/csi-spl-api/src/go"
 cp -r "$APP_ROOT/csi-spl-cnf" "$REPO/"
 cp -r "$APP_ROOT/csi-spl-iac/lib/bash/funcs" "$REPO/csi-spl-iac/lib/bash/"
+# do_check_deploy_lag reads the WUI inputs from workflow 30 itself (SPL-2272)
+mkdir -p "$REPO/.github/workflows" && cp "$APP_ROOT/.github/workflows/30_wui-build-deploy.yml" "$REPO/.github/workflows/"
 echo a >"$REPO/csi-spl-api/src/go/a.go"
 git -C "$REPO" init -q -b master
 git -C "$REPO" add -A

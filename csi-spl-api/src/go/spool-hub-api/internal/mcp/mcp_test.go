@@ -439,3 +439,26 @@ func TestSeatedFlowTool(t *testing.T) {
 		t.Fatalf("folder mode: %v %q", isErr, out)
 	}
 }
+
+// TestSeatedTailOfAnUnseenTopicSaysWhy (SPL-2105): a seat in workspace t1 handed
+// a topic of another workspace got an empty list, exit 0, which reads as "the
+// topic has no messages". It is a tool error naming the seat and its workspace;
+// a topic the seat holds messages of still lists them.
+func TestSeatedTailOfAnUnseenTopicSaysWhy(t *testing.T) {
+	cs, cfg := seated(t, "c-550")
+	cfg.Tenant = "t1"
+	testkit.Agents(t, cfg, "c-550")
+	other := "e055195c-0bde-4ed5-940b-5ead053e95f2"
+	out, isErr := callText(t, cs, "spool_tail", map[string]any{"task_id": other})
+	for _, want := range []string{"no messages visible to c-550 in workspace t1", other, "this seat cannot read it", "(exit 1)"} {
+		if !isErr || !strings.Contains(out, want) {
+			t.Errorf("tail of an unseen topic: isErr=%v %q, want an error containing %q", isErr, out, want)
+		}
+	}
+	if out, isErr := callText(t, cs, "spool_send", map[string]any{"to": "c-550", "task_id": task, "kind": "note", "body": "mine"}); isErr {
+		t.Fatalf("seated send: %s", out)
+	}
+	if out, isErr := callText(t, cs, "spool_tail", map[string]any{"task_id": task}); isErr || !strings.Contains(out, "mine") {
+		t.Errorf("tail of a held topic: isErr=%v %q, want its message", isErr, out)
+	}
+}

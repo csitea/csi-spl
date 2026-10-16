@@ -523,7 +523,7 @@ func cmdTail(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	out, err := action.Tail(cfg, *task, *asJSON)
+	out, err := action.Tail(cfg, "", *task, *asJSON)
 	if err != nil {
 		return fail(err)
 	}

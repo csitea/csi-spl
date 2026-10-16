@@ -370,13 +370,19 @@ func Get(cfg *config.Config, fileID, dest string, dir bool) (GetResult, error) {
 
 // Tail renders a topic oldest-first: one human line per message, or with
 // asJSON one raw v:1 object per line (NDJSON). Every line ends in a newline.
-func Tail(cfg *config.Config, taskID string, asJSON bool) (string, error) {
+// A topic with no message this spool can see is an error naming who asked
+// (as, "" = this box) and where (SPL-2105): an empty list read as "the topic
+// is empty" when the topic lived in a workspace this seat has no seat in.
+func Tail(cfg *config.Config, as, taskID string, asJSON bool) (string, error) {
 	if taskID == "" {
 		return "", fmt.Errorf("--task is required")
 	}
 	msgs, err := spool.New(cfg).Tail(taskID)
 	if err != nil {
 		return "", err
+	}
+	if len(msgs) == 0 {
+		return "", errTailUnseen(cfg, as, taskID)
 	}
 	var b strings.Builder
 	for _, m := range msgs {
@@ -392,6 +398,24 @@ func Tail(cfg *config.Config, taskID string, asJSON bool) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// errTailUnseen says why a tail is empty. The spool holds only what this
+// seat sent or was sent, so it cannot tell a topic of another workspace from
+// one it was never part of; it names both instead of guessing.
+func errTailUnseen(cfg *config.Config, as, taskID string) error {
+	who := as
+	if who == "" {
+		who = "this box"
+		if cfg.BoxID != "" {
+			who = "box " + cfg.BoxID
+		}
+	}
+	where := "the local spool " + cfg.SpoolRoot
+	if t := cfg.TenantID(); t != "" {
+		where = "workspace " + t
+	}
+	return fmt.Errorf("topic %s: no messages visible to %s in %s; if the link is from another workspace, this seat cannot read it: open it with a seat there", taskID, who, where)
 }
 
 // JSON renders a verb result exactly as the CLI prints it (without the newline).

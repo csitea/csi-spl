@@ -207,7 +207,7 @@ func (t tools) getFile(_ context.Context, _ *sdk.CallToolRequest, in GetFileIn) 
 }
 
 func (t tools) tail(_ context.Context, _ *sdk.CallToolRequest, in TailIn) (*sdk.CallToolResult, any, error) {
-	out, err := action.Tail(t.cfg, in.TaskID, in.JSON)
+	out, err := action.Tail(t.cfg, t.o.Seat, in.TaskID, in.JSON)
 	if err != nil {
 		return nil, nil, toolErr(err)
 	}

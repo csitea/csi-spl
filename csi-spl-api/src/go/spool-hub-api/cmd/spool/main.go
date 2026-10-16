@@ -51,6 +51,8 @@
 //	          hub mode: the instance's fleet load target, {low, high, box_order, boxes,
 //	          agent_kinds_off, agent_kinds_paused, source} (rdb 0118, 0134, 0149), or
 //	          pause an agent kind for every box until <until> (RFC 3339)
+//	fleet-tokens push --json <file|->
+//	          hub mode: push the box collector's live token burn buckets (spec 140 3.4)
 //	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]
@@ -158,6 +160,7 @@ on a box (an agent's machine):
   box-stats           append one box load + memory sample (put --json), or read the history (list)
   box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
+  fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
   doc-list            list workspace docs; an optional prefix keeps that folder
@@ -307,6 +310,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdBoxBeat(cfg, rest)
 	case "fleet-load": // rdb 0118
 		return cmdFleetLoad(cfg, rest)
+	case "fleet-tokens": // spec 140 3.4, rdb 0199
+		return cmdFleetTokens(cfg, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
 	case "memory": // spec 102 12

@@ -352,3 +352,50 @@ func TestAttachRenameVerbRefusals(t *testing.T) {
 		t.Errorf("hub refusal: rc %d err %q", rc, errOut)
 	}
 }
+
+// TestFleetTokensVerb: the collector's frame goes to the hub as {samples}
+// only (the hub refuses unknown fields), and the ack is printed.
+func TestFleetTokensVerb(t *testing.T) {
+	h := newScriptHub(t, laneAnswer(map[string]string{
+		wire.FleetBurnPushOp: `{"type":"ack","lane_op":"fleet_tokens_push","inserted":1,"at":"x"}`,
+	}), nil)
+	cfg := hubCfg(t, h.URL)
+	minute := time.Now().UTC().Truncate(time.Minute).Format(time.RFC3339)
+	frame := `{"type":"lane","lane_op":"fleet_tokens_push","samples":[{"agent_id":"g-001","vendor":"grok","model":null,` +
+		`"minute":"` + minute + `","tokens_in":5,"tokens_out":2,"cache_read":0,"cache_write":0,"is_metered":true}]}`
+	rc, out, errOut := capture(t, frame, func() int { return cmdFleetTokens(cfg, []string{"push", "--json", "-"}) })
+	if rc != 0 || !strings.Contains(out, `"inserted":1`) {
+		t.Fatalf("push: rc %d out %q err %q", rc, out, errOut)
+	}
+	fr := h.Frames()
+	if len(fr) != 1 || fr[0].LaneOp != wire.FleetBurnPushOp {
+		t.Fatalf("frames = %+v", fr)
+	}
+	if _, err := wire.DecodeFleetTokensPush(fr[0].Lane); err != nil {
+		t.Errorf("sent lane %s is not a valid push: %v", fr[0].Lane, err)
+	}
+}
+
+// TestFleetTokensVerbRefusals: usage errors and bad samples exit 1 before
+// the hub.
+func TestFleetTokensVerbRefusals(t *testing.T) {
+	h := newScriptHub(t, refuseAll, nil)
+	cfg := hubCfg(t, h.URL)
+	runVerbCases(t, func(a []string) int { return cmdFleetTokens(cfg, a) }, []verbCase{
+		{"no op", nil, 1, "usage: spool fleet-tokens"},
+		{"no --json", []string{"push", "-"}, 1, "usage: spool fleet-tokens"},
+	})
+	for name, in := range map[string]string{
+		"not json":   `nope`,
+		"no samples": `{"type":"lane"}`,
+		"bad vendor": `{"samples":[{"agent_id":"c-001","vendor":"gpt","minute":"2026-10-16T00:00:00Z"}]}`,
+	} {
+		rc, _, errOut := capture(t, in, func() int { return cmdFleetTokens(cfg, []string{"push", "--json", "-"}) })
+		if rc != 1 || !strings.Contains(errOut, "fleet-tokens push") {
+			t.Errorf("%s: rc %d err %q", name, rc, errOut)
+		}
+	}
+	if fr := h.Frames(); len(fr) != 0 {
+		t.Fatalf("bad input reached the hub: %+v", fr)
+	}
+}

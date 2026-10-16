@@ -30,7 +30,8 @@ Docs only: this task list defines the work; implementation lanes execute it ([RE
 
 Landed in e4f42c567; where the build differs from the spec: [spec.md](spec.md) section 3.7.
 Migration is `0199_fleet_token_burn.sql` (0198 was taken). The box CLI verb
-`spool fleet-tokens push --json -` that the collector calls is not part of this lane.
+`spool fleet-tokens push --json -` that the collector calls was not part of this lane;
+it landed with SPL-2214 (`cmd/spool/fleet_tokens.go`).
 
 ---
 
@@ -85,18 +86,19 @@ Where the build differs from spec section 2, and why:
 - **Buckets** hold the full totals of each agent's minute for the last 60
   minutes; a changed bucket stays queued until a push is acked, and is sent
   whole (the hub replaces on `(box_tag, agent_id, minute_bucket)`).
-- **Push**: `spool fleet-tokens push --json -` is not on master yet (hub lane
-  `hub-tokens`): until it is, every push fails and buckets stay queued for 60
-  minutes. The hub settings come from `push.env`, written hourly by
+- **Push**: `spool fleet-tokens push --json -` (SPL-2214) sends the queued
+  buckets; a failed push keeps them queued for 60 minutes. The hub settings come from `push.env`, written hourly by
   `do_spl_token_burn_push_env`.
 - **Cron** (T023): `src/bash/scripts/token-burn-collect-cron.sh` runs 2 ticks a
   minute, 30 s apart (spec 2.1; a 60 s tick would spend the whole 60 s lag
   budget of spec 1.2 on collection alone), at nice 10 and `ionice -c 2 -n 7`,
   sourcing the two func files directly: `./run`'s start alone measured
   ~0.8 s on sat (n=3), more than a tick's budget.
-- **Push off in the cron**: `token-burn-collect-cron.sh` defaults
-  `TOKEN_BURN_PUSH=0` until `spool fleet-tokens push` is on master; set it to 1
-  then (the gate below ran push off).
+- **Push on in the cron** (SPL-2214): until 2026-10-16 the cron ran
+  `TOKEN_BURN_PUSH=0` because the CLI verb was missing, so prd
+  `fleet_token_burn_events` stayed at 0 rows while sat queued ~400 buckets
+  (`pushed=0` in every tick line of `token-burn/cron.log`). The gate below ran
+  push off.
 - **Performance gate: PASSED (SPL-2055), so the cron entry (T023) is ON**
   (`token-burn` in `cnf/box-crons/box-crons.manifest`). Measured on sat
   (16 cores), code d0950b1e3, push off, as the cron runs it (2 ticks a minute,

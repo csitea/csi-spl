@@ -299,6 +299,34 @@ spawn_record_brief() {  # MSGDIR BRIEF
   return 0
 }
 
+# TOPIC TEXT (SPL-2107, owner HUM-10 topic e055195c): a brief that links an
+# owner topic (https://<host>/t/<uuid>) gets a "Topic text" section with that
+# topic's human posts, read through this box's desk (topic-text.sh), at the
+# end of the recorded brief, and the seed then points at that copy. A lane
+# seated elsewhere, or not at all, cannot open the link. Nothing to read: one
+# line says so; never fails the spawn. A respawn keeps the brief it has. Off
+# switch SPAWN_TOPIC_TEXT=0; seam TOPIC_TEXT_READ_CMD (topic-text.sh).
+# Guard: tests/test-spawn-topic-text.sh.
+spawn_topic_text() {  # MSGDIR -> 0 when the section was added
+  local f="$1/lifetime/brief.md" out
+  [ "${SPAWN_TOPIC_TEXT:-1}" != 0 ] && [ "${SPAWN_REUSE_ID:-0}" != 1 ] && [ -w "$f" ] || return 1
+  out="$(timeout "${SPAWN_TOPIC_TEXT_TIMEOUT:-60}" bash "${_SP_DIR}/topic-text.sh" --spool-root "$SPOOL_ROOT" "$f" 2>/dev/null)"
+  [ -n "$out" ] || return 1
+  printf '%s\n' "$out" >>"$f" 2>/dev/null
+}
+
+# The brief's copy (and its topic text); BRIEF_READ = the path the seed names.
+_spawn_brief_step() {
+  BRIEF_READ="$BRIEF"
+  if _sp_live; then
+    spawn_record_brief "$MSGDIR" "$BRIEF"
+    ! spawn_topic_text "$MSGDIR" || BRIEF_READ="${MSGDIR}/lifetime/brief.md"
+  fi
+  _sp_plan brief "${BRIEF} -> ${MSGDIR}/lifetime/brief.md 0664"
+  ! grep -qE 'https?://[A-Za-z0-9.-]+/t/[0-9a-f]{8}-' "$BRIEF" 2>/dev/null ||
+    _sp_plan topictext "the linked topics' human posts -> ${MSGDIR}/lifetime/brief.md (section Topic text), the seed reads that copy"
+}
+
 # The seed travels in a FILE; the CLI's argv carries only a pointer to it
 # (c-698 2026-10-09: one 'pkill -f "git push"' matched the seed on 12
 # seats' argv and killed them all; vibe, whose seed was not in argv, lived).
@@ -418,8 +446,7 @@ spawn_main() {
   fi
   _sp_plan spooldir "${MSGDIR}/{inbox,outbox,archive} 0775"
   if [ -n "$BRIEF" ]; then
-    if _sp_live; then spawn_record_brief "$MSGDIR" "$BRIEF"; fi
-    _sp_plan brief "${BRIEF} -> ${MSGDIR}/lifetime/brief.md 0664"
+    _spawn_brief_step
   fi
 
   _spawn_worktree
@@ -431,7 +458,7 @@ spawn_main() {
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

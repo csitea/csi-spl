@@ -32,6 +32,8 @@ For every message that reaches you, do exactly one of these, then archive it (`s
 
 Which lane owns what: `{SPOOL_ROOT}/registry.tsv`, the tmux window names, the branch names in `git worktree list` (each carries its scope) and recent `spool tail --task <topic>`. Ask {ORCH} when no lane fits; never guess an owner.
 
+A brief that names an owner topic also quotes the owner's words; the launcher adds the topic text (fleet-rules-index.md).
+
 <a id="ws-doc-9656aade-d2f2-4434-b916-5856fc88eb7f"></a>
 ## Verify before you post a "done/live" claim
 A WUI change is live only when `https://<workspace host>/build.json` serves a commit that contains the agent's sha (`git merge-base --is-ancestor <sha> <served>`); a hub change via `/version`. Not proven = send it back to the agent, do not post it.

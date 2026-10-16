@@ -74,7 +74,7 @@ session() {
 lane() {
   local id="$1" kind="${2:-mistral}" wt="$T/repo-wt/$1"
   git -C "$T/repo" worktree add -q -b "$id-x" "$wt" origin/master
-  echo "wip of $id" >"$wt/w.txt"
+  echo "wip of $id" >"$wt/w.txt"; git -C "$wt" add w.txt
   jq -n --arg id "$id" --arg k "$kind" --arg w "$wt" --arg u "$ME" \
     '{id:$id, kind:$k, session_id:null, worktree:$w, user:$u, alive:true}' >"$T/spool/agents/$id.json"
   printf '%s\tmistral\t%%9\t%s\t20261010T000000Z\tc-001\n' "$id" "$wt" >>"$T/spool/registry.tsv"
@@ -183,12 +183,12 @@ grep -q 'mode=B (the session scan found key material' "$T/o" && pass "3c: key ma
 cp "$T/c1.bak" "$U/$SID/chunks/c1.json"
 
 # --- 4. RED CONTROL: key material in the WIP ------------------------------------------------
-printf '%s\n' "$KEYLINE" >"$T/repo-wt/m-050/leak.txt"
+printf '%s\n' "$KEYLINE" >"$T/repo-wt/m-050/leak.txt"; git -C "$T/repo-wt/m-050" add leak.txt
 : >"$T/calls.log"
 run_ho FROM=m-050 TO_BOX=sat DRY_RUN=0; rc=$?
 [[ $rc -eq 3 ]] && grep -qx 'HIT leak.txt key' "$T/o" && pass "4a: WIP key material: exit 3, the file named" || fail "4a: rc=$rc $(cat "$T/o")"
 [[ -z "$(ref_of m-050)" && ! -s "$T/calls.log" ]] && pass "4b: nothing pushed, no ssh call, FROM not closed" || fail "4b: $(calls)"
-rm -f "$T/repo-wt/m-050/leak.txt"
+git -C "$T/repo-wt/m-050" rm -q --cached leak.txt; rm -f "$T/repo-wt/m-050/leak.txt"
 
 # --- 5. DRY_RUN=0, mode A -------------------------------------------------------------------
 : >"$T/calls.log"

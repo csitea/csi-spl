@@ -3,7 +3,9 @@
 # @description Step 1 of a lane handover (t1 ba8104f6, owner msg b072af77): the
 # @description lane's unfinished work, made safe to leave the box. Shared by the
 # @description claude, agy and mistral handovers; callable on its own.
-# @description   1. the WIP tree: tracked + untracked, not ignored, written in a
+# @description   1. the WIP tree: TRACKED files only (the lane's index plus
+# @description      `git add -u`; an untracked file such as STATE-<id>.md never
+# @description      rides, SPL-2276, as SPL-2191 for the wip push), written in a
 # @description      TEMPORARY index on the worktree's HEAD. The lane's index, HEAD
 # @description      and files are never touched (the agent need not be alive).
 # @description   2. the SCAN, before anything leaves: every file the push would
@@ -51,7 +53,9 @@ do_spl_lane_handover_wip() {
   head="$(git -C "$wt" rev-parse -q --verify HEAD)" || { do_log "FATAL HANDOVER-WIP $id: no HEAD in $wt"; return 1; }
   idx="$(mktemp)" || return 1
   cp "$(git -C "$wt" rev-parse --path-format=absolute --git-path index)" "$idx" 2>/dev/null || true
-  tree="$(cd "$wt" && GIT_INDEX_FILE="$idx" git add -A . && GIT_INDEX_FILE="$idx" git write-tree)"
+  # -u, never -A: the ref is public and gitleaks scans every ref; untracked
+  # lane scratch (STATE-*.md, screenshots) stays out, its state is the spool's
+  tree="$(cd "$wt" && GIT_INDEX_FILE="$idx" git add -u . && GIT_INDEX_FILE="$idx" git write-tree)"
   rm -f "$idx" "$idx.lock"
   [[ -n "$tree" ]] || { do_log "FATAL HANDOVER-WIP $id: cannot write the wip tree"; return 1; }
   trunk="$(git -C "$wt" symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null)"

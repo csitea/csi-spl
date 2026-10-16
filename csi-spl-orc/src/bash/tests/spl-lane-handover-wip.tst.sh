@@ -3,9 +3,12 @@
 # Purpose: do_spl_lane_handover_wip (t1 ba8104f6), offline: a bare repo plays
 #          origin, a clone plays the lane's worktree.
 #   1. DRY_RUN is the default: the plan line, nothing on origin
-#   2. DRY_RUN=0: the wip ref carries tracked + untracked changes on HEAD,
-#      parent = HEAD, the repo's author, no trailer; the lane's HEAD, index
-#      and files are untouched; an unpushed local commit rides along
+#   2. DRY_RUN=0: the wip ref carries the tracked edit and the staged new
+#      file on HEAD, parent = HEAD, the repo's author, no trailer; the lane's
+#      HEAD, index and files are untouched; an unpushed local commit rides
+#      along; an untracked STATE-x.md with a 40-hex string and another
+#      untracked file NEVER do (SPL-2276: the ref is public, gitleaks scans
+#      every ref)
 #   3. a second run with the same tree reuses the ref; another tree = exit 4
 #   4. RED CONTROL: key material in the WIP -> exit 3, the file NAMED, its
 #      bytes never printed, NOTHING pushed
@@ -55,16 +58,21 @@ run_wip l1; rc=$?
 
 # --- 2. the push ------------------------------------------------------------------------
 echo local >"$T/l1/wt/b.txt"; git -C "$T/l1/wt" add b.txt; git -C "$T/l1/wt" commit -qm "unpushed local"
-echo wip2 >"$T/l1/wt/c.txt"
+echo wip2 >"$T/l1/wt/c.txt"; git -C "$T/l1/wt" add c.txt
+printf 'spool /var/spool-hub/x\nsha 0123456789abcdef0123456789abcdef01234567\n' >"$T/l1/wt/STATE-x.md"
 head="$(git -C "$T/l1/wt" rev-parse HEAD)"; before="$(git -C "$T/l1/wt" status --porcelain)"
 run_wip l1 DRY_RUN=0; rc=$?
 sha="$(remote_ref l1)"
-[[ $rc -eq 0 && -n "$sha" ]] && grep -q "^OK HANDOVER-WIP c-050 sha=$sha ref=refs/heads/wip/handover/c-050 files=4" "$T/o" &&
-  pass "2a: pushed to refs/heads/wip/handover/c-050, 4 files past origin/master" || fail "2a: rc=$rc sha=$sha $(cat "$T/o")"
+[[ $rc -eq 0 && -n "$sha" ]] && grep -q "^OK HANDOVER-WIP c-050 sha=$sha ref=refs/heads/wip/handover/c-050 files=3" "$T/o" &&
+  pass "2a: pushed to refs/heads/wip/handover/c-050, 3 files past origin/master" || fail "2a: rc=$rc sha=$sha $(cat "$T/o")"
 O="$T/l1/origin.git"
 [[ "$(git -C "$O" rev-parse "$sha^")" == "$head" ]] && pass "2b: parent = the lane's HEAD (the unpushed commit rides along)" || fail "2b: parent"
-[[ "$(git -C "$O" show "$sha:untracked.txt")" == new && "$(git -C "$O" show "$sha:c.txt")" == wip2 && "$(git -C "$O" show "$sha:a.txt")" == $'base\nwip' ]] &&
-  pass "2c: tracked + untracked changes are in the commit" || fail "2c: tree content"
+[[ "$(git -C "$O" show "$sha:c.txt")" == wip2 && "$(git -C "$O" show "$sha:a.txt")" == $'base\nwip' ]] &&
+  pass "2c: the tracked edit and the staged new file are in the commit" || fail "2c: tree content"
+[[ "$(git -C "$O" ls-tree --name-only "$sha" | tr '\n' ' ')" == 'a.txt b.txt c.txt ' ]] &&
+  ! git -C "$O" grep -q 0123456789abcdef0123456789abcdef01234567 "$sha" &&
+  pass "2f: untracked STATE-x.md and untracked.txt are NOT in the commit (SPL-2276)" ||
+  fail "2f: untracked rode along ($(git -C "$O" ls-tree --name-only "$sha" | tr '\n' ' '))"
 [[ "$(git -C "$O" log -1 --format='%an <%ae>|%cn <%ce>' "$sha")" == "FirstName LastName <owner@example.com>|FirstName LastName <owner@example.com>" ]] &&
   ! grep -qiE '^(Co-Authored-By|Claude-Session|Generated with)' <<<"$(git -C "$O" log -1 --format=%B "$sha")" &&
   pass "2d: the repo's author and committer, no trailer" || fail "2d: $(git -C "$O" log -1 --format='%an %ae %B' "$sha")"
@@ -81,7 +89,7 @@ run_wip l1 DRY_RUN=0; rc=$?
 
 # --- 4. RED CONTROL: key material in the WIP --------------------------------------------
 new_lane l4
-printf '%s\n%s\n' "$KEYLINE" "$SECRET" >"$T/l4/wt/notes.txt"
+printf '%s\n%s\n' "$KEYLINE" "$SECRET" >"$T/l4/wt/notes.txt"; git -C "$T/l4/wt" add notes.txt
 run_wip l4 DRY_RUN=0; rc=$?
 [[ $rc -eq 3 ]] && grep -qx 'HIT notes.txt key' "$T/o" && pass "4a: key material: exit 3, the file named" || fail "4a: rc=$rc $(cat "$T/o")"
 [[ -z "$(remote_ref l4)" ]] && pass "4b: nothing pushed when the scan fails" || fail "4b: a ref was pushed"
@@ -89,13 +97,14 @@ run_wip l4 DRY_RUN=0; rc=$?
 
 # --- 5. 0600, a bank credential file, key material in an unpushed commit -----------------
 new_lane l5
-echo x >"$T/l5/wt/plain.txt"; chmod 600 "$T/l5/wt/plain.txt"
+echo x >"$T/l5/wt/plain.txt"; chmod 600 "$T/l5/wt/plain.txt"; git -C "$T/l5/wt" add plain.txt
 run_wip l5 DRY_RUN=0; rc=$?
 [[ $rc -eq 3 && -z "$(remote_ref l5)" ]] && grep -qx 'HIT plain.txt 0600' "$T/o" && pass "5a: a 0600 file is refused" || fail "5a: rc=$rc $(cat "$T/o")"
-rm -f "$T/l5/wt/plain.txt"; echo x >"$T/l5/wt/bank-credentials.json"
+git -C "$T/l5/wt" rm -q --cached plain.txt; rm -f "$T/l5/wt/plain.txt"
+echo x >"$T/l5/wt/bank-credentials.json"; git -C "$T/l5/wt" add bank-credentials.json
 run_wip l5 DRY_RUN=0; rc=$?
 [[ $rc -eq 3 && -z "$(remote_ref l5)" ]] && grep -qx 'HIT bank-credentials.json cred' "$T/o" && pass "5b: a bank credential file is refused" || fail "5b: rc=$rc $(cat "$T/o")"
-rm -f "$T/l5/wt/bank-credentials.json"
+git -C "$T/l5/wt" rm -q --cached bank-credentials.json; rm -f "$T/l5/wt/bank-credentials.json"
 printf '%s\n' "$KEYLINE" >"$T/l5/wt/k.txt"; git -C "$T/l5/wt" add k.txt; git -C "$T/l5/wt" commit -qm k
 run_wip l5 DRY_RUN=0; rc=$?
 [[ $rc -eq 3 && -z "$(remote_ref l5)" ]] && grep -qx 'HIT k.txt key' "$T/o" && pass "5c: key material in an unpushed commit is refused" || fail "5c: rc=$rc $(cat "$T/o")"

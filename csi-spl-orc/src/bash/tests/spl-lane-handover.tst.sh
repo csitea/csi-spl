@@ -47,7 +47,7 @@ git clone -q "$T/origin.git" "$T/r/repo" 2>/dev/null
 lane() {
   local id="$1" kind="${2:-claude}" wt="$T/repo-wt/$1" slug
   git -C "$T/repo" worktree add -q -b "$id-x" "$wt" origin/master
-  echo "wip of $id" >"$wt/w.txt"
+  echo "wip of $id" >"$wt/w.txt"; git -C "$wt" add w.txt
   jq -n --arg id "$id" --arg k "$kind" --arg s "$SID" --arg w "$wt" --arg u "$ME" \
     '{id:$id, kind:$k, session_id:$s, worktree:$w, user:$u, alive:true}' >"$T/spool/agents/$id.json"
   printf '%s\tclaude\t%%9\t%s\t20261010T000000Z\tc-001\n' "$id" "$wt" >>"$T/spool/registry.tsv"
@@ -134,13 +134,13 @@ grep -q 'mode=B (the transcript scan found key material' "$T/o" && pass "3b: key
 cp "$T/tj.bak" "$tj"
 
 # --- 4. RED CONTROL: key material in the WIP ------------------------------------------------
-printf '%s\n' "$KEYLINE" >"$T/repo-wt/c-050/leak.txt"
+printf '%s\n' "$KEYLINE" >"$T/repo-wt/c-050/leak.txt"; git -C "$T/repo-wt/c-050" add leak.txt
 : >"$T/calls.log"
 run_ho FROM=c-050 TO_BOX=sat DRY_RUN=0; rc=$?
 [[ $rc -eq 3 ]] && grep -qx 'HIT leak.txt key' "$T/o" && pass "4a: WIP key material: exit 3, the file named" || fail "4a: rc=$rc $(cat "$T/o")"
 [[ -z "$(ref_of c-050)" ]] && pass "4b: nothing pushed when the scan fails" || fail "4b: a ref was pushed"
 [[ ! -s "$T/calls.log" ]] && pass "4c: no ssh call, FROM not closed" || fail "4c: $(calls)"
-rm -f "$T/repo-wt/c-050/leak.txt"
+git -C "$T/repo-wt/c-050" rm -q --cached leak.txt; rm -f "$T/repo-wt/c-050/leak.txt"
 
 # --- 5. a box answering to another tag ------------------------------------------------------
 printf 'OWNER_USER=ownerx\nAGENT_USER=agentx\nBOX_TAG=pc\n' >"$T/box2.env"

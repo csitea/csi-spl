@@ -341,6 +341,8 @@ after the agent is done.
   so a wip ref is published like master (a `STATE-c-550.md` on a wip ref
   turned wf 15 red on 2026-10-16). A new source file rides once the lane has
   staged it; a lane's state lives in the spool (`<spool root>/<id>/`).
+  The handover's `refs/heads/wip/handover/<id>` (`do_spl_lane_handover_wip`)
+  builds its tree the same way (SPL-2276, 2026-10-17).
 - **The pre-push gate**: the hook skips refs that are all
   `refs/heads/wip/*` (a scoped exemption read from the hook's stdin), not
   the global `SPL_PREPUSH_OVERRIDE` and not `--no-verify` (agy-2, claude-2).

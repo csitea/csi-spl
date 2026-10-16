@@ -533,3 +533,58 @@ Measured on the same mock bundle, `4a3781047` tree, signed in through
 
 These are row-level conditions for the lanes and their R7 reviewers. They
 do not block v1.0.
+
+## 8. v1.1 sign-off (v1.0 proposed)
+
+signed: c-250@sat on b3a47adaf7e9db8125402a36b5895dcc95872b27
+
+### 8.1 What I checked
+
+Read `git diff 0af615b8c b3a47adaf -- csi-spl-doc/doc/md/perf-round-6-plan.md`
+(1 file, +50 / -37) on `origin/master` `06861b119`.
+
+- **WUI code unchanged since my measurements:**
+  `git diff --stat 4a3781047 origin/master -- csi-spl-wui` shows only
+  `src/public/help-md/monitoring.md` (+20), a help text, no component.
+- **Every cited site still resolves:**
+  - `UserMenu.vue:60` `v-show="open"`
+  - `default.vue:44` `<ChannelSidebar v-if="shellIn" />`, `:94-95` the two
+    topic panes, `:144` `<LazyKindKeyHost />`
+  - `ChannelSidebar.vue:146,1731`
+  - `KindBadge.vue:39` `<KindPicker v-if="settable && open"`
+  - `issues.vue:204`, `:375`, `:520`
+  - `TenantDropBox.vue:38` `aria-controls`, `:40` `aria-activedescendant`,
+    `:63` `v-show="listOpen && ..."`
+  - `WorkspaceDocView.vue:261` `v-show="tocOpen"`
+- **My row conditions are folded:**
+  - Row 09 keeps `aria-controls` / `aria-activedescendant` valid and measures
+    a multi-tenant session.
+  - Row 10 measures on the row 12 fixture and drops the row under 10 closed
+    TOC nodes.
+  - Row 11 keeps Shift+K wherever the handler runs today.
+- **Correction to my own row 11 condition (7.2):** I asked for `usePhone()`
+  instead of `stack.isMobile`. They are the same ref:
+  `composables/useTouchUi.ts:18-19` is
+  `usePhone() { return useMobileStack().isMobile }`. So
+  `v-if="!stack.isMobile.value"` gates exactly where `onKey` already
+  returns (`KindKeyHost.vue:152`). No device loses Shift+K. v1.1's wording
+  is right.
+- **R1 holds:**
+  - Row 12 moves to batch 1 on lane 2: new files only
+    (`measure-wui-perf.mjs`, `perf-fixture.mjs`). It is disjoint from
+    row 01 (`UserMenu.vue`).
+  - `default.vue` is in rows 02 (batch 2, lane 2), 07 (batch 4, lane 1) and
+    11 (batch 6, lane 1). Row 07 waits for row 02, as written, and row 11 is
+    serial after row 07.
+  - `issues.vue` is in rows 04 and 08 only, serial on lane 2, both after
+    r13-06.
+  - No batch names one path twice.
+
+### 8.2 Not re-measured (says so, not a claim)
+
+- Row 05's −501 B (`ci_home_gzip_kb` 351.3 -> 350.8) is c-252's A/B number.
+  I did not rebuild it this session. Its red control (>= 0.4 KB on the same
+  box) is the check, and its R7 reviewer must re-run it.
+- Row 11 cites `BqdqHZmu.js` 2430 B. My 7.2 build read `BdK36MgH.js`
+  2437 B: a different build hash, the same chunk. The red control counts
+  chunks (0 on mobile), not bytes, so the difference does not matter.

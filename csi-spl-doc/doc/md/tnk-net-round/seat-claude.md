@@ -191,4 +191,10 @@ The plan's numbers (11 losses, 2 min 48 s) come from one hand probe. Add a dispa
 
 ## Signature
 
-Pending v1.0 consensus.
+signed: c-673 on bfb56e90d0721afb848f0d2803eabd451c43638e
+
+v1.0 folds my three disagree rows: row 04 now matches by `match.driver` at metric 650, metered; row 06 is now DNS pin and mask, not a watchdog; row 07 no longer assumes `systemd-resolved` or agent containers. Row 02's timing is now <= 15 s (interval 10 + timeout 5). My proposals P1 (policy routing) and P2 (uplink event log) were not adopted; that stays within the 10-row cap and does not block my signature.
+
+Non-blocking notes for the row lanes and their R7 reviewers:
+- Row 04 / section 1: metric 650 is numerically above Wi-Fi's 600, so the tether is *less* preferred. That is the intended behaviour, but the text "650 (below Wi-Fi 600)" says the opposite. Prove it with `ip route`, which should list the tether default after Wi-Fi's.
+- Row 07: `ipv4.dns` on a DHCP profile is added to the DHCP servers unless `ipv4.ignore-auto-dns yes` is set, so prove the target with the real `resolv.conf` order. Forcing public resolvers on hotspot or travel profiles can also break a captive-portal login. The row should state which profiles it covers.

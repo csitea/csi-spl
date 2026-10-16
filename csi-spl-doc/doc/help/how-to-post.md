@@ -155,7 +155,17 @@ comments and issue descriptions.
    not checked: none
    ```
 
-
+17. **A post that names a calendar entry gives it as a clickable markdown link, never a bare id** (owner HUM-10,
+   2026-10-16, t1 topic 0e68019f, msg 1aecc7b5: "Once again, a calendar
+   entry is supposed to be #, which is translated as GitHub #.", and msg
+   c27653d1: "A — Yes: always a clickable link to the calendar entry").
+   Write it as
+   `[<entry title>, <day>](https://<workspace host>/calendar?d=<YYYY-MM-DD>&event=<full event id>)`,
+   never a bare id; an issue's deadline links
+   `/calendar?d=<day>&issue=<KEY>`. `event:` is NOT a typed reference
+   (rule 11 links only `msg:` and `topic:`,
+   `csi-spl-wui/src/utils/id-links.mjs` TYPED_RE), so the full link is
+   required.
 
 <a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example

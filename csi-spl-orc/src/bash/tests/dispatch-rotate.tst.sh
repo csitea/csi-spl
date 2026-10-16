@@ -157,7 +157,8 @@ if [ "$(cat "$T/ack.mode.$id" 2>/dev/null || echo yes)" = yes ]; then
   # a claude reads its seed; any other vendor ONLY its first prompt (the head)
   src="$4"; [ "$1" = claude ] || src="$T/head.$id"
   rid="$(grep '^ACK-COMMAND:' "$src" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
-  ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID="$pid" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
+  touch "$T/ack.pending.$id"
+  ( sleep 0.05; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID="$pid" "$T/bin/act" >>"$T/ack.out" 2>&1; rm -f "$T/ack.pending.$id" ) >/dev/null 2>&1 &
 fi
 echo "$id $pane"
 EOF
@@ -209,11 +210,36 @@ cat >"$T/bin/footer" <<'EOF'
 #!/usr/bin/env bash
 printf '❯ \n'
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action, as ./run runs it: set -E and an ERR trap that ends the run.
+# The clock seam (test round 1 row 05, as row 01 in orch-rotate.tst.sh): every
+# wait loop of the rotate libs reads $SECONDS and sleeps, so `sleep N` here
+# adds N to $SECONDS and to the ledger $T/vclock (one line of ms per sleep,
+# any subshell) and really sleeps only ROTATE_TEST_TICK s (the ack command,
+# ROTATE_CMD=ack, 0.1 s): a 6 s ack timeout still trips after 6 s of this
+# clock. While a fake session's ack is in flight ($T/ack.pending.<id>) the
+# clock stands still (0.05 s real ticks), as for a session that answers at
+# once; at most 500 such ticks per process. ROTATE_TEST_REAL=1: real
+# seconds, for a case racing a real-time peer (7, 11 confirm).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
 trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+VCLOCK_MS=0 VCLOCK_HELD=0
+sleep() {
+  local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}" p
+  [[ "${ROTATE_TEST_REAL:-0}" == 1 ]] && { command sleep "$n"; return 0; }
+  [[ "${ROTATE_CMD:-}" == ack ]] && tick=0.1
+  if [[ "${ROTATE_CMD:-}" != ack ]] && (( VCLOCK_HELD < 500 )); then
+    for p in "$T"/ack.pending.*; do
+      [[ -e "$p" ]] && { VCLOCK_HELD=$((VCLOCK_HELD + 1)); command sleep 0.05; return 0; }
+    done
+  fi
+  int="${n%%.*}" frac=000; [[ "$n" == *.* ]] && frac="${n#*.}000"
+  ms=$(( 10#${int:-0} * 1000 + 10#${frac:0:3} ))
+  echo "$ms" >>"$T/vclock"
+  VCLOCK_MS=$((VCLOCK_MS + ms)); SECONDS=$((SECONDS + VCLOCK_MS / 1000)); VCLOCK_MS=$((VCLOCK_MS % 1000))
+  command sleep "$tick"
+}
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 source "$PROJ_PATH/src/bash/run/spl-dispatch-rotate.func.sh"
@@ -229,7 +255,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
 
 # the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* "$T/head."* "$T/mix.out" \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/ack.pending."* "$T/vclock" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* "$T/head."* "$T/mix.out" \
     "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/c-90*
   echo "$CONF" >"$D/lease.conf"
   mkdir -p "$S/c-902/inbox" "$S/c-902/outbox" "$S/c-903/inbox" "$S/c-903/outbox"
@@ -352,7 +378,7 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 
 # --- 7. T-DISP-ACK-SOURCE ----------------------------------------------------------------------
 world; echo no >"$T/ack.mode.c-902"
-( act DRY_RUN=0 ROTATE_ACK_TIMEOUT=5 >"$T/o" 2>&1 ) & sleep 3
+( act DRY_RUN=0 ROTATE_ACK_TIMEOUT=5 ROTATE_TEST_REAL=1 >"$T/o" 2>&1 ) & sleep 3
 rid="$(ctx ROTATE_RID)"
 act ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=102 >"$T/a" 2>&1; rc=$?
 [[ $rc -eq 3 ]] && grep -q "caller pid '102' is not the new session 2902" "$T/a" && pass "7. an ack from the old pid: exit 3" || fail "7. pid rc=$rc $(cat "$T/a")"
@@ -537,7 +563,7 @@ heal LEASE_PANE_CMD="$T/bin/footer" >"$T/o" 2>&1
   pass "11. a live master on a usage-limit pane: untouched (no second process on its id)" || fail "11. stalled: $(cat "$T/o")"
 world; rm -rf "$T/proc/103"
 ( sleep 1; "$T/bin/proc" 103 c-903 7200 ) &
-heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1; wait
+heal ROTATE_HEAL_CONFIRM=3 ROTATE_TEST_REAL=1 >"$T/o" 2>&1; wait
 [[ "$(nsetup)" == 0 && ! -d "$T/proc/203" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
   pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/o")"
 world; rm -rf "$T/proc/103"
@@ -613,7 +639,9 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 
 # --- 14. a dialog on the fresh M fails the start at once -------------------------------------
 world; printf '  Settings Warning\n  ❯ 1. Continue\n    2. Fix with Claude\n' >"$T/tmux/screen.%2902"
-t0=$SECONDS; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=30 >"$T/o" 2>&1; rc=$?; took=$((SECONDS - t0))
+rm -f "$T/vclock"
+t0=$SECONDS; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=30 >"$T/o" 2>&1; rc=$?
+took=$(( SECONDS - t0 + $(awk '{s += $1} END {print int(s / 1000)}' "$T/vclock" 2>/dev/null || echo 0) ))
 [[ $rc -ne 0 && $took -lt 25 ]] && grep -q " FAIL FAIL SPAWN: the new session in %2902 is stopped on a 'Settings Warning' dialog" "$T/o" &&
   ! grep -q ' ACK WAIT ' "$T/o" && pass "14. Settings Warning on the fresh M: FAIL SPAWN at once (${took}s, ack window 30s), named" ||
   fail "14. rc=$rc took=${took}s $(cat "$T/o")"

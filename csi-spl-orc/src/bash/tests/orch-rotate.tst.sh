@@ -191,7 +191,8 @@ if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
   # a claude reads its seed; any other vendor ONLY its first prompt (the head)
   src="$4"; [ "$1" = claude ] || src="$T/head"
   rid="$(grep '^ACK-COMMAND:' "$src" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
-  ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=2001 "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
+  touch "$T/ack.pending"
+  ( sleep 0.2; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=2001 "$T/bin/act" >>"$T/ack.out" 2>&1; rm -f "$T/ack.pending" ) >/dev/null 2>&1 &
 fi
 echo "$2 %20"
 EOF
@@ -239,11 +240,33 @@ case "$1" in
   retire) echo "retire $2 $3" >>"$T/ai.log"; rm -f "$SPOOL_ROOT/agents/$2.json" ;;
 esac
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action, as ./run runs it: set -E and an ERR trap that ends the run.
+# The clock seam (test round 1 row 01): every wait loop of the rotate libs
+# reads $SECONDS and sleeps, so `sleep N` here adds N to $SECONDS and to the
+# ledger $T/vclock (one line of ms per sleep, any subshell) and really sleeps
+# only ROTATE_TEST_TICK s (the ack command, ROTATE_CMD=ack, 0.1 s): a 6 s ack
+# timeout still trips after 6 s of this clock. While a fake session's ack is
+# in flight ($T/ack.pending) the clock stands still, as for a session that
+# answers at once; at most 500 such ticks per process. $T/sampling: each
+# tick records lease.conf's holder (section 18.3).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
 trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+VCLOCK_MS=0 VCLOCK_HELD=0
+sleep() {
+  local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}"
+  [[ "${ROTATE_CMD:-}" == ack ]] && tick=0.1
+  [[ -e "$T/sampling" ]] && grep '^LEASE_ORCH=' "$SPOOL_ROOT/dispatch/lease.conf" >>"$T/samples"
+  if [[ "${ROTATE_CMD:-}" != ack && -e "$T/ack.pending" ]] && (( VCLOCK_HELD < 500 )); then
+    VCLOCK_HELD=$((VCLOCK_HELD + 1)); command sleep "$tick"; return 0
+  fi
+  int="${n%%.*}" frac=000; [[ "$n" == *.* ]] && frac="${n#*.}000"
+  ms=$(( 10#${int:-0} * 1000 + 10#${frac:0:3} ))
+  echo "$ms" >>"$T/vclock"
+  VCLOCK_MS=$((VCLOCK_MS + ms)); SECONDS=$((SECONDS + VCLOCK_MS / 1000)); VCLOCK_MS=$((VCLOCK_MS % 1000))
+  command sleep "$tick"
+}
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"
@@ -259,7 +282,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
 
 # the world: one old c-900 (pid 1001, 2 h old, busy) in pane %2
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode" "$T/ack.mode" "$T/ai.$OLD_ID" "$T/head" "$T/mix.out" \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/ack.pending" "$T/vclock" "$T/spawn.mode" "$T/ack.mode" "$T/ai.$OLD_ID" "$T/head" "$T/mix.out" \
     "$D"/rotate.* "$D/handoff" "$S/$OLD_ID/inbox/"* "$S/$OLD_ID/outbox/"*
   "$T/bin/proc" 1001 7200
   printf '%%2\t1001\t$0\t%s@box sometitle\n' "$OLD_ID" >"$T/tmux/panes"
@@ -692,7 +715,9 @@ printf 'LEASE_ORCH=c-001\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >
 sample() { : >"$T/samples"; ( while [ -e "$T/sampling" ]; do grep '^LEASE_ORCH=' "$D/lease.conf" >>"$T/samples"; sleep 0.2; done ) & }
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
 printf '  You hit your weekly limit.\n  ❯ Buy more credits\n    Try Again\n  ↑/↓ navigate · y copy\n' >"$T/tmux/screen.%20"; touch "$T/tmux/nobox.%20"
-t0=$SECONDS; act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_START_CHECK_WAIT=30 >"$T/o" 2>&1; rc=$?; dt=$(( SECONDS - t0 ))
+rm -f "$T/vclock"
+t0=$SECONDS; act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_START_CHECK_WAIT=30 >"$T/o" 2>&1; rc=$?
+dt=$(( SECONDS - t0 + $(awk '{s += $1} END {print int(s / 1000)}' "$T/vclock" 2>/dev/null || echo 0) ))
 [[ $rc -ne 0 ]] && grep -q "FAIL FAIL SPAWN: the new session in %20 is stopped on a 'grok weekly limit' dialog" "$T/o" && (( dt < 25 )) &&
   ! grep -q ' SPAWN OK\| SWITCH OK\| ACK WAIT' "$T/o" && grep -q 'kill -TERM 2001' "$T/kill.log" &&
   pass "18.2 grok's limit menu on the new pane: SPAWN fails at once (${dt}s), named; no SPAWN OK, no SWITCH, no ack wait" ||

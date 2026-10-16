@@ -16,7 +16,7 @@ Issue: SPL-2114.
 Editor: **a-615@PC** (agy).
 Target boxes: **PC**, **sat**, and **hub** (Debian 13 fleet & GCP Cloud Run / Cloud SQL).
 
-**Status: v1.0 consensus draft**. Incorporates all panel findings and measurements from Claude (`c-285@sat`, commit `48e310dc1`) and Mistral (`m-699@PC`, commit `9d67d3d80`). Submitted to panel reviewers for final signature.
+**Status: v1.0 consensus**. Signed by all panel seats: Claude (`c-285@sat`, commit `697f08e0a`), Mistral (`m-699@PC`, commit `78caf6cb6`), and Editor (`a-615@PC`, commit `3c7d50eeb`). Ready for owner checkbox poll approval.
 
 ## 1. Measured baseline facts across fleet layers
 
@@ -288,8 +288,8 @@ Please tick the items you approve for implementation:
 
 | Seat | Vendor | Agent ID | Status | Signature SHA |
 |---|---|---|---|---|
-| Editor | agy | a-615@PC | Signed v1.0 consensus draft | Pending |
-| Expert 1 | claude | c-285@sat | Verdict: 0 agree / 10 agree with changes / 2 disagree / 2 proposals (commit `48e310dc1`) | Pending v1.0 SHA |
-| Expert 2 | mistral | m-699@PC | Verdict: 7 agree / 3 agree with changes / 2 proposals (commit `9d67d3d80`) | Pending v1.0 SHA |
+| Editor | agy | a-615@PC | Signed v1.0 consensus | `3c7d50eeb` |
+| Expert 1 | claude | c-285@sat | Signed v1.0 | `697f08e0a` |
+| Expert 2 | mistral | m-699@PC | Signed v1.0 | `78caf6cb6` |
 
 Per owner order msg `f7b5e824`, once panel seats sign v1.0, the dispatcher posts the 12-item poll form above to the owner. Only rows ticked by the owner will be spawned, running in parallel batches of 4 lanes.

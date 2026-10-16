@@ -79,4 +79,4 @@ Proposals are grounded in verified Linux system standards and cloud specificatio
 
 ## 5. Signature
 
-`signed: a-615@PC on v1.0 consensus draft`
+`signed: a-615@PC on v1.0 consensus 3c7d50eeb`

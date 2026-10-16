@@ -16,6 +16,10 @@
 #   2. the install: the dry run prints the line and writes nothing; DRY_RUN=0
 #      adds ONE tagged line, every other line kept; a second install is a
 #      no-op; check passes; remove restores the crontab byte for byte
+#   3. the top growers (SPL-2235): a planted dir grows across two daily
+#      growth-record runs of the csi-spl-utl inventory; the 85% note then
+#      names it with its growth per day. RED CONTROL: without the record the
+#      same crossing names no grower ("no growth record").
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -36,7 +40,7 @@ rows() {  # <data blocks%> <tmp inodes%>
 printf '#!/bin/sh\n[ -e %q ] && { echo "df: boom" >&2; exit 1; }\ncat %q\n' "$T/df.fail" "$DF" >"$T/df"
 printf '#!/bin/sh\n[ -e %q ] && exit 1\necho "$*" >>%q\n' "$T/send.fail" "$SENT" >"$T/send"
 chmod +x "$T/df" "$T/send"
-chk() { SNIPPET='do_check_disk_headroom' in_orc DISK_HEADROOM_DF="$T/df" DISK_HEADROOM_SEND="$T/send" DISK_HEADROOM_STATE_DIR="$ST" "$@" 2>&1; }
+chk() { SNIPPET='do_check_disk_headroom' in_orc DISK_HEADROOM_DF="$T/df" DISK_HEADROOM_SEND="$T/send" DISK_HEADROOM_STATE_DIR="$ST" DISK_GROWERS_TSV="$T/growth.tsv" "$@" 2>&1; }
 sends() { [ -f "$SENT" ] && grep -c . "$SENT" || echo 0; }
 
 rows 50% 20%
@@ -139,6 +143,29 @@ out="$(inst DESK_CRON_SRC=/opt/x-wt/c-1)"; rc=$?
 [ "$rc" = 1 ] && pass "2. an agent worktree is refused" || fail "2. worktree (rc=$rc): $out"
 inst DRY_RUN=0 DISK_HEADROOM_CRON_ACTION=remove >/dev/null
 cmp -s "$T/crontab" "$T/crontab.orig" && pass "2. remove restores the crontab byte for byte" || fail "2. remove: $(cat "$T/crontab")"
+
+# 3. the top growers in the alert ----------------------------------------------
+UTL="$APP_ROOT/csi-spl-utl"
+G="$T/grow"; mkdir -p "$G"; printf 'planted | dir | %s\n' "$G" >"$T/inv.rows"
+inv() { env DISK_INV_ROWS="$T/inv.rows" DISK_INV_GROWTH=1 DISK_INV_GROWTH_TSV="$T/growth.tsv" DISK_INV_SUDO=0 "$@" bash "$UTL/src/bash/scripts/box-disk-inventory.sh" 2>&1; }
+today="$(date -u +%F)"
+rm -rf "$ST" "$SENT"; rows 90% 20%
+chk DRY_RUN=0 >/dev/null
+grep -q 'blocks 90% >= 85%; no growth record' "$SENT" && ! grep -q planted "$SENT" \
+  && pass "3. RED CONTROL: without the growth record the note names no grower" || fail "3. no record ($(cat "$SENT" 2>/dev/null))"
+head -c 1000000 /dev/zero >"$G/a"
+inv DISK_INV_DAY="$(date -u -d "$today - 2 days" +%F)" >/dev/null
+head -c 5000000 /dev/zero >"$G/b"
+out="$(inv DISK_INV_DAY="$today")"
+inv DISK_INV_DAY="$today" | grep '^SKIP the growth record has' >/dev/null \
+  && pass "3. the record takes one run per day per box" || fail "3. once per day: $(cat "$T/growth.tsv")"
+[ "$(grep -c . "$T/growth.tsv")" = 2 ] && grep -q '| planted | ' <<<"$out" \
+  && pass "3. two daily runs, one row each, and the table names the row" || fail "3. record: $out / $(cat "$T/growth.tsv")"
+rm -rf "$ST" "$SENT"
+chk DRY_RUN=0 >/dev/null
+grep -qE 'blocks 90% >= 85%; top growers 7d: planted \+2\.[0-9]MB/d' "$SENT" \
+  && pass "3. the 85% note names the planted grower with its growth per day" || fail "3. growers ($(cat "$SENT" 2>/dev/null) / $(cat "$T/growth.tsv"))"
+! grep -q "$G" "$SENT" && pass "3. ...by its row name, never a path or file name" || fail "3. path leaked: $(cat "$SENT")"
 
 echo "check-disk-headroom: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

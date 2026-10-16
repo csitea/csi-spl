@@ -1,0 +1,33 @@
+# disk-inventory.rows - what box-disk-inventory.sh measures OUTSIDE the repos
+# (SPL-2235). One row per line, fields separated by `|` (blanks trimmed):
+#   name  - [a-z0-9-]+, the row id in the table and in growth.tsv
+#   kind  - dir      : du size, file count, oldest mtime of every path
+#           journald : journalctl --disk-usage
+#           docker   : docker system df, one row per type (images, containers,
+#                      volumes, build cache), named <name>-<type>
+#           snapshot : btrfs subvolume snapshots, LVM snapshots, snapper,
+#                      timeshift; one row per tool found, named <name>-<tool>
+#   paths - kind dir only: space separated, shell globs allowed. A glob that
+#           matches nothing is skipped; a row with no existing path reads
+#           "absent". Home rows are sizes per DIRECTORY only, never a file name.
+#
+# name             | kind     | paths
+journald           | journald |
+var-log            | dir      | /var/log
+docker             | docker   |
+snapshots          | snapshot |
+var-tmp            | dir      | /var/tmp
+tmp                | dir      | /tmp
+lane-worktrees     | dir      | /opt/*/*-wt
+home-cache         | dir      | /home/*/.cache /mnt/data/home/*/.cache
+pkg-cache          | dir      | /var/cache/apt /home/*/.npm /home/*/.local/share/pnpm /home/*/go/pkg/mod /mnt/data/home/*/go/pkg/mod
+core-dumps         | dir      | /var/lib/systemd/coredump /var/crash
+agent-claude       | dir      | /home/*/.claude/projects /mnt/data/home/*/.claude/projects
+agent-vibe-logs    | dir      | /home/*/.vibe/logs /mnt/data/home/*/.vibe/logs
+agent-gemini       | dir      | /home/*/.gemini /mnt/data/home/*/.gemini
+ci-runner-work     | dir      | /home/*/actions-runner*/_work /home/*/runner-*/_work /mnt/data/home/*/actions-runner*/_work /mnt/data/home/*/runner-*/_work
+user-downloads     | dir      | /home/*/Downloads
+user-screenshots   | dir      | /home/*/Pictures/Screenshots /home/*/Videos
+user-trash         | dir      | /home/*/.local/share/Trash
+browser-cache      | dir      | /home/*/.cache/google-chrome /home/*/.cache/chromium /home/*/.cache/mozilla
+editor-cache       | dir      | /home/*/.config/Code/Cache /home/*/.config/Code/CachedData /home/*/.cache/JetBrains

@@ -40,6 +40,11 @@
 #   DISK_HEADROOM_TASK            the spool topic, default disk-headroom
 #   DISK_HEADROOM_DF              the df to run (tests)
 #   DISK_HEADROOM_SEND            the sender script (tests), default spool-send.sh
+#   DISK_HEADROOM_GROWERS         the top-growers script (SPL-2235), default
+#                                 <org>-<app>-utl disk-growers.sh: a blocks or
+#                                 CRITICAL note ends with its one line (the top
+#                                 3 growers of the last 7 days, from the daily
+#                                 growth record)
 #
 # Exit: 0 all under the limits; 1 a mount is over a limit or a check failed;
 # 2 usage.
@@ -65,6 +70,7 @@ from="${DISK_HEADROOM_FROM:-$(spl_role_seat 1)}"
 task="${DISK_HEADROOM_TASK:-disk-headroom}"
 df_bin="${DISK_HEADROOM_DF:-df}"
 send="${DISK_HEADROOM_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+growers_sh="${DISK_HEADROOM_GROWERS:-$ORC/../$app-utl/src/bash/scripts/disk-growers.sh}"
 # The fleet box id (<DEV_BOX>), as spool-send.sh names this machine.
 # shellcheck source=/dev/null
 SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" source "$ORC/src/bash/features/spawn-agents/lib/spool-fleet.inc.sh" 2>/dev/null &&
@@ -88,6 +94,12 @@ can_state=1
 # The key stays in now[] either way; it is dropped again when the send fails,
 # so the next tick retries it.
 rc=0
+# growers: "; <the growth record's one line>", or nothing when the script is gone
+growers() {
+  local g
+  [[ -r "$growers_sh" ]] && g="$(bash "$growers_sh" 2>/dev/null | sed -n 1p)" && [[ -n "$g" ]] && printf '; %s' "$g"
+  return 0
+}
 note() {
   local key="$1" text="$2"
   rc=1; now["$key"]=1
@@ -126,10 +138,10 @@ while read -r src typ pc ipc target; do
   pc="${pc%\%}" ipc="${ipc%\%}"
   line+=" $target=${pc}%b/${ipc}%i"
   if [[ "$pc" =~ ^[0-9]+$ ]] && (( pc >= bpct )); then
-    note "blocks:$target" "$target ($typ, $src) blocks ${pc}% >= ${bpct}%"
+    note "blocks:$target" "$target ($typ, $src) blocks ${pc}% >= ${bpct}%$(growers)"
   fi
   if [[ "$pc" =~ ^[0-9]+$ ]] && (( pc >= cpct )); then
-    note "crit:blocks:$target" "CRITICAL $target ($typ, $src) blocks ${pc}% >= ${cpct}%: the disk is about to fill"
+    note "crit:blocks:$target" "CRITICAL $target ($typ, $src) blocks ${pc}% >= ${cpct}%: the disk is about to fill$(growers)"
   fi
   if [[ "$ipc" =~ ^[0-9]+$ ]] && (( ipc >= ipct )); then
     note "inodes:$target" "$target ($typ, $src) inodes ${ipc}% >= ${ipct}%"

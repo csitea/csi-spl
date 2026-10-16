@@ -131,7 +131,8 @@ try {
     for (const pg of pages) {
       const got = await p.evaluate((name) => {
         const rows = [...document.querySelectorAll('[data-test=ws-doc-row]')]
-        const i = rows.findIndex((r) => r.querySelector('[data-test=ws-doc-text], h1, h2, h3, h4')?.textContent?.includes(name) || r.textContent.trim().startsWith(name))
+        // the heading is a <textarea>: its text is its value, not its textContent
+        const i = rows.findIndex((r) => /^\d+$/.test(r.dataset.outline || '') && r.querySelector('[data-test=ws-doc-title]')?.value === name)
         const own = []
         for (let j = i; j >= 0 && j < rows.length; j++) {
           if (j > i && /^\d+$/.test(rows[j].dataset.outline || '') ) break
@@ -156,11 +157,12 @@ try {
         got.found && got.tables === want.length && got.rows.join() === want.join() && got.pageScrollX <= 0 && got.pipeText === 0,
         { want: { tables: want.length, rows: want.join() }, got: { ...got, rows: got.rows.join() } })
     }
+    // the picture is loading="lazy": in view first, then loaded, then measured
+    await p.evaluate(() => document.querySelector('[data-test=ws-doc-asset]')?.scrollIntoView({ block: 'center' }))
     await p.waitForFunction(() => [...document.querySelectorAll('[data-test=ws-doc-asset-img]')].some((i) => i.complete && i.naturalWidth > 0), { timeout: STEP }).catch(() => null)
     const img = await p.evaluate(() => {
       const f = document.querySelector('[data-test=ws-doc-asset]')
       const i = f?.querySelector('img')
-      if (f) f.scrollIntoView({ block: 'center' })
       const r = i?.getBoundingClientRect()
       return { shown: Boolean(f), w: i?.naturalWidth ?? 0, fits: Boolean(r && r.right <= innerWidth + 1), alt: i?.alt ?? '', caption: f?.querySelector('figcaption')?.textContent?.trim() ?? '' }
     })

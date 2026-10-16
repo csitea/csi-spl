@@ -1827,8 +1827,13 @@ textarea.in-code {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%);
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
-  /* the strip under it carries the home-indicator inset */
-  :global(html[data-status-strip]) .composer.composer--dock.composer--dock { padding-bottom: 4px; }
+  /* the strip under it carries the home-indicator inset. SPL-2093: and the
+     dock keeps a 6 px gap above it (2 px on top instead, so it is still
+     51 px): at 4 px the field's bottom edge was 5 px from the strip and
+     Chrome's touch adjustment sent a tap there to the version button, whose
+     card then opened over the dock. Not :global(html[...]) .composer: Vue
+     compiles that to the bare html[...] and drops the rest (it padded <html>) */
+  html[data-status-strip] .composer.composer--dock.composer--dock:not([data-phone-pos=top]) { padding-top: 2px; padding-bottom: 6px; }
   /* SPL-1005: on every page now - a page sheet, dialog or menu is modal over
      it. The dock sits in the top bar's stacking context (z 40), above the
      pages' own sheets (z 38/39), so it steps out of sight while one is open

@@ -479,3 +479,57 @@ watcher calls.
 Recursive walk from `document.body`. A child with computed
 `display:none` and >= 8 descendants is recorded and not descended into.
 The page is signed in through `session.adopt(...)`, as the e2e tests do.
+
+## 7. v1.0 sign-off
+
+signed: c-250@sat on 0af615b8c17491b464606ef4dbd089ecd908b4ec
+
+### 7.1 What I checked
+
+Read `0af615b8c:csi-spl-doc/doc/md/perf-round-6-plan.md` (240 lines).
+
+- **My findings are folded in:**
+  - Rows 03, 04, 07, 09, 10, 11 and 12 of v0.1 are dropped or replaced.
+  - 01, 02, 05, 06 and 08 carry the changes from section 2.
+  - P1 is row 03 and P2 is row 07.
+  - The large-tenant fixture plus a committed harness is row 12.
+- **Every v1.0 site resolves on `origin/master`:**
+  - `issues.vue:204` `v-show="statusOpen"`
+  - `TenantDropBox.vue:63` `v-show="listOpen && ..."`
+  - `WorkspaceDocView.vue:261` `v-show="tocOpen"`
+  - `default.vue:144` `<LazyKindKeyHost />`
+  - `ChannelSidebar.vue:146,1731`
+- **The WUI tree is unchanged** since my measurements:
+  `git diff --stat 4a3781047 origin/master -- csi-spl-wui` is empty.
+- **R1 holds.**
+  - `default.vue` (rows 02, 07, 11): row 02 is lane 2 batch 1, so it lands
+    before lane 2 can reach row 04. Rows 07 and 11 are serial in lane 1.
+  - `issues.vue` (rows 04, 08): serial in lane 2, both after r13-06.
+  - No batch names one path twice.
+
+### 7.2 Conditions on the three new rows
+
+Measured on the same mock bundle, `4a3781047` tree, signed in through
+`session.adopt`, n=1:
+
+- **Row 09 (`TenantDropBox` list):** desktop
+  `{"tenantList":{"nodes":2,"display":"none"}}`. That is 2 nodes, not
+  "5-15"; the mock has one membership.
+  - Condition: keep `aria-controls` (`:38`) and `aria-activedescendant`
+    (`:40`) valid. Do this by binding them only while open, or by keeping
+    the `ul` mounted and putting the `v-if` on the `li` list.
+  - The lane measures a multi-tenant session before and after.
+- **Row 10 (`WorkspaceDocView` TOC):** the mock has no workspace doc to
+  open (`/workspace/docs` exposes 0 `/docs/` links), so "20-50 nodes" is
+  unmeasured.
+  - Condition: the lane measures a seeded doc with headings first (row 12's
+    fixture), and drops the row if the closed TOC is under 10 nodes.
+- **Row 11 (`LazyKindKeyHost` on phones):** it renders one
+  `<span class="sr-only">` (`kindKeyHost: 1` on both widths). The gain is
+  the component's setup and its 2437 B gzip chunk (`BdK36MgH.js`), not DOM.
+  - Condition: gate on the same `usePhone()` predicate the handler already
+    uses (`KindKeyHost.vue:38,152`), not `stack.isMobile`. A tablet with a
+    keyboard must keep Shift+K.
+
+These are row-level conditions for the lanes and their R7 reviewers. They
+do not block v1.0.

@@ -117,7 +117,7 @@ case "$(readlink -f "$T")" in /var/spool-hub|/var/spool-hub/*) echo "FAIL: refus
 mkdir -p "$T/bin" "$T/hub" "$T/pc/proc" "$T/sat/proc"
 
 cat >"$T/bin/send" <<'STUB'
-#!/usr/bin/env bash
+#!/bin/sh
 to="" body=""
 while [ $# -gt 0 ]; do case "$1" in --to) to="$2"; shift 2 ;; --body) body="$2"; shift 2 ;; *) shift ;; esac; done
 echo "$to :: $body" >>"$SENT"
@@ -129,7 +129,7 @@ STUB
 # <tenant>.<fleet>.<role>, is logged to calls, and HUB_DOWN_TENANT=<tenant>
 # fails it.
 cat >"$T/bin/hub" <<'STUB'
-#!/usr/bin/env bash
+#!/bin/sh
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ -s "${HUB_FAILS:-/nonexistent}" ] && n=$(cat "$HUB_FAILS") && [ "$n" -gt 0 ] && { echo $((n - 1)) >"$HUB_FAILS"; echo "dial: lookup hub: no such host" >&2; exit 1; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_DOWN_TENANT:-}" ] && { echo "dial: i/o timeout" >&2; exit 1; }
@@ -147,7 +147,7 @@ printf '{"fleet":"%s","role":"%s","holder":"%s","box":"b","gen":%s,"age_s":%s,"w
 STUB
 # The pane stub (LEASE_PANE_CMD): the screen of pid N is $T/pane/N; none = able.
 mkdir -p "$T/pane"
-printf '#!/usr/bin/env bash\ncat "%s/pane/$1" 2>/dev/null\n' "$T" >"$T/bin/pane"
+printf '#!/bin/sh\nf="%s/pane/$1"; [ -e "$f" ] || exit 1; exec cat "$f"\n' "$T" >"$T/bin/pane"
 chmod +x "$T/bin/send" "$T/bin/hub" "$T/bin/pane"
 
 # agent <machine> <pid> <id> / kill_agent <machine> <pid>
@@ -315,7 +315,7 @@ v2=$(ver SPOOL_DESK_BOX=box-desk); v3=$(ver SPOOL_DESK_BOX=hom)
   pass "11b. the loop version changes with lease.conf and with the desk box name (ensure then replaces it)" || fail "11b. versions $v1 / $v2 / $v3"
 
 # --- 13. a delivered note whose poke did not ring is not a WARN ----------------------
-printf '#!/usr/bin/env bash\nexit "$SEND_RC"\n' >"$T/bin/send-rc"; chmod +x "$T/bin/send-rc"
+printf '#!/bin/sh\nexit "$SEND_RC"\n' >"$T/bin/send-rc"; chmod +x "$T/bin/send-rc"
 tellrc() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/w/spool" LEASE_SEND="$T/bin/send-rc" SEND_RC="$1" LEASE_ORCH=CLE-001 bash -c '
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_lease_tell CLE-002 hi'
@@ -372,8 +372,8 @@ rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/s
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
 # the last transcript write of pid N is $T/act/N (none = unknown, fails open)
-printf '#!/usr/bin/env bash\ncat "%s/act/$1" 2>/dev/null\n' "$T" >"$T/bin/act"
-printf '#!/usr/bin/env bash\ncat >>"%s/owner-dm"\n' "$T" >"$T/bin/owner"
+printf '#!/bin/sh\nf="%s/act/$1"; [ -e "$f" ] || exit 1; exec cat "$f"\n' "$T" >"$T/bin/act"
+printf '#!/bin/sh\nexec cat >>"%s/owner-dm"\n' "$T" >"$T/bin/owner"
 chmod +x "$T/bin/act" "$T/bin/owner"
 T15=(LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER_CMD="$T/bin/owner")
 idle() { printf '✻ Brewed for 16s\n❯ x\n────\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
@@ -604,7 +604,7 @@ rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/tr"; mkdir -p "$T/hub" "$T/pc/pro
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
 # the transcript of pid N is $T/tr/N (LEASE_TRANSCRIPT_CMD; none = unknown)
-printf '#!/usr/bin/env bash\ncat "%s/tr/$1" 2>/dev/null\n' "$T" >"$T/bin/tr"; chmod +x "$T/bin/tr"
+printf '#!/bin/sh\nf="%s/tr/$1"; [ -e "$f" ] || exit 1; exec cat "$f"\n' "$T" >"$T/bin/tr"; chmod +x "$T/bin/tr"
 T20=(LEASE_TRANSCRIPT_CMD="$T/bin/tr")
 # unit <fn> "<args>" [env...]: one call of a lease function on pc's fixtures
 unit() {
@@ -759,7 +759,7 @@ got="$(loop22 l22p LEASE_PERIOD=5)"
 # The beats stub (LEASE_BEATS_CMD) answers `box-beat list --since <n>m` from
 # $BEATS: the rows of the last <n> minutes on the hub's clock HUB_NOW.
 cat >"$T/bin/beats" <<'STUB'
-#!/usr/bin/env bash
+#!/bin/sh
 [ "${BEATS_DOWN:-0}" = 1 ] && { echo "dial: i/o timeout" >&2; exit 1; }
 jq -c --argjson now "$HUB_NOW" --argjson s "$(( ${4%m} * 60 ))" \
   '{rows: [.[] | select(.e <= $now and .e > $now - $s) | {box, beat_at: (.e | todate)}]}' "$BEATS"
@@ -776,10 +776,16 @@ trio hp 50; trio hs 51
 t23() { tick "$1" "$2" LEASE_PRIORITY=hp,hs LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats23.json" LEASE_HEALTH_TTL=0 LEASE_ALERT=0 "${@:3}"; }
 hm23() { local o d; o="$(hubh orch)" d="$(hubh dispatch)"; [[ "${o##*@}" == "${d##*@}" ]] && echo "${o##*@}" || echo "split:$o/$d"; }
 rm -f "$T"/hub/main.*
-# one tick per box every 170 s (inside LEASE_STALE: nobody goes stale), 01:36..06:59Z (n = 115 steps)
+# one tick per box on the 170 s grid 01:36..06:59Z (k = 0..114): every step where the
+# roles move (k 4..12, 01:47..02:10Z, the demotion; k 86..98, 05:39..06:13Z, the
+# handback), every 6th step between (1020 s, under hold_min 30: each tick judges the
+# last 30 min of beats, so every minute of the outage is judged by some tick) - 38
+# steps, not 115 (r01-02, SPL-2082). LEASE_STALE 1200 > the widest gap: nobody goes stale.
+s23() { local k; for k in $(seq 0 114); do
+  (( (k >= 4 && k <= 12) || (k >= 86 && k <= 98) || k % 6 == 0 )) && echo $((B0 + 3960 + k * 170)); done; }
 first_hs="" back_hp="" hp_in_outage=0 split=0 n23=0 n_out=0
-for now in $(seq $((B0 + 3960)) 170 $((B0 + 23340))); do
-  t23 hp $now; t23 hs $((now + 1)); n23=$((n23 + 1))
+for now in $(s23); do
+  t23 hp $now LEASE_STALE=1200; t23 hs $((now + 1)) LEASE_STALE=1200; n23=$((n23 + 1))
   h="$(hm23)"; [[ "$h" == split:* ]] && split=$((split + 1))
   [[ "$h" == hs && -z "$first_hs" ]] && first_hs=$now
   [[ -n "$first_hs" && "$h" == hp && -z "$back_hp" ]] && back_hp=$now
@@ -857,7 +863,7 @@ t24 st 2320
 # satellite (the first healthy box of the orch order that is not the PC box);
 # the PC box posts nothing about itself. The post is the LEASE_ALERT_CMD stub.
 cat >"$T/bin/alert" <<'STUB'
-#!/usr/bin/env bash
+#!/bin/sh
 echo "$LEASE_MACHINE $HUB_NOW :: $(cat)" >>"$ALERTS"
 STUB
 chmod +x "$T/bin/alert"
@@ -879,8 +885,13 @@ for now in $(seq $((B0 + 3000)) 340 $((B0 + 3600))); do t25 hp $now; t25 hs $((n
 [[ ! -s "$T/alerts25" ]] && pass "25. healthy beats, both loops: no post (a box seen first is recorded, not posted)" ||
   fail "25. healthy: $(cat "$T/alerts25")"
 nt=0
-# 01:36..06:20Z
-for now in $(seq $((B0 + 3960)) 680 $((B0 + 21000))); do t25 hp $now; t25 hs $((now + 1)); nt=$((nt + 2)); done
+# 01:36..06:20Z on the 680 s grid (k = 0..25): every step to 02:10Z (the bench) and from
+# 05:45Z (the recovery), every 3rd between: 14 steps, not 26 (r01-02, SPL-2082); the
+# benched ticks in between are the 200 below
+for k in $(seq 0 25); do
+  (( k <= 3 || k >= 22 || k % 3 == 0 )) || continue
+  now=$((B0 + 3960 + k * 680)); t25 hp $now; t25 hs $((now + 1)); nt=$((nt + 2))
+done
 a25() { sed -n "${1}p" "$T/alerts25" 2>/dev/null; }
 [[ "$(wc -l <"$T/alerts25" 2>/dev/null)" == 2 ]] &&
   pass "25. a bench, then a recovery: exactly 2 posts over the night ($nt ticks, 2 loops)" ||

@@ -23,7 +23,9 @@ do_test_tls_cert_expiry() {
 
   # Mock spool-send.sh to avoid sending notes during tests
   export spool_messages=()
+  export mock_spool_send_calls=0
   mock_spool_send() {
+    ((mock_spool_send_calls++))
     spool_messages+=("$*")
     echo "MOCK spool-send: $*"
     return 0
@@ -76,6 +78,7 @@ fi
   (cd /opt/csi/csi-spl-wt/m-307/csi-spl-utl && \
     TEST_HOSTS="test-warning.spool-hub.ai" \
     TEST_EXPIRY_DATE="$(date -u -d "14 days" "+%b %d %H:%M:%S %Y GMT")" \
+    rm -f "$test_dir/spool/cert_expiry_last_alert" \
     ./run -a do_net_cert_expiry_check 2>&1) | tee /tmp/test_output.log
   grep -q "WARN.*14 days" /tmp/test_output.log || \
     { echo "FAIL: Test 1 did not detect WARNING threshold"; cat /tmp/test_output.log; return 1; }
@@ -87,6 +90,7 @@ fi
   (cd /opt/csi/csi-spl-wt/m-307/csi-spl-utl && \
     TEST_HOSTS="test-critical.spool-hub.ai" \
     TEST_EXPIRY_DATE="$(date -u -d "3 days" "+%b %d %H:%M:%S %Y GMT")" \
+    rm -f "$test_dir/spool/cert_expiry_last_alert" \
     ./run -a do_net_cert_expiry_check 2>&1) | tee /tmp/test_output.log
   grep -q "CRITICAL.*[23] days" /tmp/test_output.log || \
     { echo "FAIL: Test 2 did not detect CRITICAL threshold"; cat /tmp/test_output.log; return 1; }
@@ -104,6 +108,10 @@ fi
     echo "FAIL: Test 3 did not pass red control"; cat /tmp/test_output.log; return 1;
   fi
 
+  if (( mock_spool_send_calls != 2 )); then
+    echo "FAIL: Expected 2 mock spool-send calls, got $mock_spool_send_calls"
+    return 1
+  fi
   echo "PASS: All tests completed successfully"
   return 0
 }

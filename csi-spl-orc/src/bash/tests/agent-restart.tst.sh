@@ -63,6 +63,14 @@
 #      answered blocker -> CONTINUE again; a message newer than the result
 #      (m-682 2026-10-09: a reject 27 s after it) -> "4. Then ACT" naming
 #      it, no FINISH; a restart ACK newer than the result still FINISHes
+#  18. a standing seat whose last message is a result (a-591 2026-10-16,
+#      perf round 6 R7 reviewer; m-159, a-563 before it): its seed says
+#      "4. Then STAND BY", quotes the brief's seat line, no FINISH. The
+#      brief markers, one per form the briefs write: a "## Seat rule"
+#      heading, "You are a STANDING seat:", "- STANDING seat:", "stay up as
+#      ... row reviewer". Controls: the same seat blocked -> WAIT, reopened
+#      -> ACT, in flight -> CONTINUE; a row brief naming the round's
+#      standing reviewer, or a "## How (seat rule: ...)" heading -> FINISH
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -505,6 +513,45 @@ touch -d "@$(( $(date +%s) - 100 ))" "$S/c-975/inbox/ack.json"
 rc="$(go ID=c-975 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-975)"
 [[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" &&
   pass "17. control: only a restart ACK newer than the result -> still FINISH" || fail "17. ack rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
+
+# --- 18. a standing seat is told to STAND BY, not FINISH ------------------------------------
+brief18() { mkdir -p "$S/$1/lifetime"; printf '%b\n' "$2" > "$S/$1/lifetime/brief.md"; }
+step18() { grep -A3 '^4\.' <<<"$1"; }
+seat18() {  # seat18 <id> <pane> <label> <brief text> <quoted line>: a seat with a result -> STAND BY
+  local sd
+  world; lane "$1" "$2" -; reborn "$1"; brief18 "$1" "$4"; msg17 "$1" outbox result 300
+  rc="$(go ID="$1" CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 "$1")"
+  [[ "$rc" == 0 ]] && grep -q '^4\. Then STAND BY: you are a standing seat' <<<"$sd" && grep -qF "$5" <<<"$sd" &&
+    grep -q 'Your last result does not end your role' <<<"$sd" && grep -q 'unless the dispatch lease holder ends the round' <<<"$sd" &&
+    ! grep -q 'FINISH' <<<"$sd" && pass "18. $3 -> STAND BY, quotes the seat line, no FINISH" || fail "18. $3 rc=$rc: $(step18 "$sd")"
+}
+seat18 c-980 %80 'a "## Seat rule" heading (a-591)' \
+  '# Brief: perf round 6 R7 reviewer\n\n## Seat rule\n\nStay up, a verdict is never ACCEPTED.\n\n## Do\n\nReview.' 'Stay up, a verdict is never ACCEPTED.'
+seat18 c-981 %81 '"You are a STANDING seat:" (round 11 reviewers)' \
+  '# Lane brief: round 11 R7 REVIEWER SEAT\n\n- You are a STANDING seat: after a result, stay up for the next request.' 'You are a STANDING seat: after a result'
+seat18 c-982 %82 '"- STANDING seat:" (round 12 reviewer)' \
+  '# Brief: round 12 agy REVIEWER seat\n\n- STANDING seat: per-row verdicts to you read GOOD.' 'STANDING seat: per-row verdicts to you read GOOD.'
+seat18 c-983 %83 '"stay up as an R7 row reviewer" (panel seats)' \
+  '# Brief: panel seat\n\n7. STAY UP. Sign v1.0. Then stay up as an R7 row reviewer (rows of the other vendors) until ACCEPTED.' 'stay up as an R7 row reviewer (rows of the other vendors)'
+SEAT18='# Brief: R7 reviewer\n\n## Seat rule\n\nStay up, a verdict is never ACCEPTED.'
+world; lane c-984 %84 -; reborn c-984; brief18 c-984 "$SEAT18"; msg17 c-984 archive task 600; msg17 c-984 outbox blocker 300
+rc="$(go ID=c-984 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-984)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then WAIT: your brief is blocked' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
+  pass "18. control: a standing seat with an unanswered blocker -> WAIT, as before" || fail "18. seat blocked rc=$rc: $(step18 "$sd")"
+world; lane c-985 %85 -; reborn c-985; brief18 c-985 "$SEAT18"; msg17 c-985 outbox result 300; msg17 c-985 archive task 100
+rc="$(go ID=c-985 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-985)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then ACT on the newer message' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
+  pass "18. control: a standing seat with a message newer than its result -> ACT, as before" || fail "18. seat reopened rc=$rc: $(step18 "$sd")"
+world; lane c-986 %86 -; reborn c-986; brief18 c-986 "$SEAT18"
+rc="$(go ID=c-986 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-986)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
+  pass "18. control: a standing seat in flight -> CONTINUE, as before" || fail "18. seat in flight rc=$rc: $(step18 "$sd")"
+world; lane c-987 %87 -; reborn c-987; msg17 c-987 outbox result 300
+brief18 c-987 '# Lane brief: reliability row 01\n\n## How (seat rule: you have no prd t1 desk seat)\n\n- R7 review: the round'"'"'s standing reviewer c-285@sat reviews non-claude rows; the standing seat that replaced it.'
+rc="$(go ID=c-987 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-987)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
+  pass "18. control: a row brief naming another lane's standing reviewer, a '## How (seat rule: ...)' heading -> FINISH" ||
+  fail "18. plain done rc=$rc: $(step18 "$sd")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

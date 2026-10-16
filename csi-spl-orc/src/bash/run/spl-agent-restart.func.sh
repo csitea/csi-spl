@@ -640,13 +640,36 @@ spl_ars_msg_line() {
   jq -r --arg w "$2" '"\(.ts // "?") \(if $w == "to" then "->" else "<-" end) \(.[$w] // "?") [\(.task_id // "" | .[0:12])] \((.body // "") | gsub("\\s+"; " ") | .[0:160])"' "$1" 2>/dev/null
 }
 
+# spl_ars_seat_line BRIEF: the brief's own standing-seat line, else nothing
+# (rc 1). A done standing seat was told FINISH and exited its role (m-159,
+# a-563, a-591 2026-10-16). The forms the briefs write, any vendor: a
+# "## Seat rule" heading (its first line is quoted), "You are a STANDING
+# seat:", a "- STANDING seat:" item, "stay up as ... row reviewer" (the panel
+# seats' R7 step). Never a bare "standing seat": row briefs name the round's
+# standing reviewer, another lane.
+spl_ars_seat_line() {
+  local q
+  [[ -n "$1" && -r "$1" ]] || return 1
+  q="$(awk 'h && NF { print; exit } tolower($0) ~ /^#+ +seat rule([^a-z]|$)/ { h = 1 }' "$1" 2>/dev/null)"
+  [[ -n "$q" ]] || q="$(grep -m1 -oiE 'you are a standing seat:.*|^[-*] +standing seat:.*' "$1" 2>/dev/null | sed -E 's/^[-*] +//')"
+  [[ -n "$q" ]] || q="$(grep -m1 -oiE '[^.]*stay up as [^.]*row reviewer[^.]*' "$1" 2>/dev/null | sed -E 's/^ +//')"
+  [[ -n "$q" ]] || return 1
+  printf '%s\n' "${q:0:200}"
+}
+
 # The lane's step 4 of the seed: an in-flight lane goes on with its brief by
 # itself (owner rule A, t1 3192c200: after a reboot every lane that was working
-# carries on, no hand step); a blocked or done lane waits.
+# carries on, no hand step); a blocked or done lane waits; a done standing seat
+# (spl_ars_seat_line on BRIEF) stands by for its next request.
 spl_ars_seed_next() {
-  local st
+  local st seat
   st="$(spl_ars_lane_state "$1")"
+  if [[ "$st" == done* ]] && seat="$(spl_ars_seat_line "${2:-}")"; then st="seat ${st#done }"; fi
   case "$st" in
+    seat*)    echo "4. Then STAND BY: you are a standing seat (\"$seat\")."
+              echo "   Your last result does not end your role:"
+              echo "   ${st#seat }"
+              echo "   Wait for the next request in your inbox; never /exit-clean unless the dispatch lease holder ends the round." ;;
     blocked*) echo "4. Then WAIT: your brief is blocked. Your last message was a blocker with no message to you since:"
               echo "   ${st#blocked }"
               echo "   Do not push on with the brief; act when the answer reaches your inbox." ;;
@@ -688,7 +711,7 @@ spl_ars_seed_text() {
   fi
   echo "1. Section A is your brief: continue it. 2. Section B is the handoff. 3. Then drain your inbox:"
   echo "   SPOOL_ROOT=$SPOOL_ROOT spool recv --as $id"
-  if [[ -z "$ARS_SEAT" && -z "${WDT_BOXENV:-}" ]]; then spl_ars_seed_next "$id"; fi
+  if [[ -z "$ARS_SEAT" && -z "${WDT_BOXENV:-}" ]]; then spl_ars_seed_next "$id" "$brief"; fi
   echo
   if [[ -n "${WDT_BOXENV:-}" ]]; then spl_wdt_seat_section "$id"
   elif [[ -n "$brief" ]]; then echo "## A. Your brief ($brief)"; echo; head -c 6000 "$brief"; echo

@@ -22,7 +22,9 @@ do_test_tls_cert_expiry() {
   export OPENSSL_CMD=mock_openssl
 
   # Mock spool-send.sh to avoid sending notes during tests
+  export spool_messages=()
   mock_spool_send() {
+    spool_messages+=("$*")
     echo "MOCK spool-send: $*"
     return 0
   }
@@ -36,6 +38,9 @@ do_test_tls_cert_expiry() {
 mock_spool_send "$@"
 ' > "$mock_dir/spool-send.sh"
   chmod +x "$mock_dir/spool-send.sh"
+
+  # Use a temporary SPOOL_ROOT for the mock
+  export SPOOL_ROOT="$test_dir/spool"
 
   # Override openssl
   echo '#!/bin/bash
@@ -72,6 +77,7 @@ fi
   grep -q "WARN.*14 days" /tmp/test_output.log || \
     { echo "FAIL: Test 1 did not detect WARNING threshold"; cat /tmp/test_output.log; return 1; }
 
+
   # Test 2: Simulate a certificate expiring in 3 days (CRITICAL)
   echo "Test 2: Simulate a certificate expiring in 3 days (CRITICAL)"
 
@@ -82,15 +88,17 @@ fi
   grep -q "CRITICAL.*[23] days" /tmp/test_output.log || \
     { echo "FAIL: Test 2 did not detect CRITICAL threshold"; cat /tmp/test_output.log; return 1; }
 
-  # Test 3: Production certificate (63 days)
-  echo "Test 3: Check production certificate (63 days)"
+
+  # Test 3: Red control (63 days should send nothing)
+  echo "Test 3: Red control (63 days should send nothing)"
   (cd /opt/csi/csi-spl-wt/m-307/csi-spl-utl && \
+    TEST_HOSTS="test-63d.spool-hub.ai" \
+    TEST_EXPIRY_DATE="$(date -u -d "63 days" "+%b %d %H:%M:%S %Y GMT")" \
     ./run -a do_net_cert_expiry_check 2>&1) | tee /tmp/test_output.log
-  if grep -q "FATAL failed to fetch certificate" /tmp/test_output.log; then
-    echo "SKIP: Test 3 (production certificate) - could not fetch certificate"
+  if grep -q "OK: All certificates are valid for more than 21 days" /tmp/test_output.log; then
+    echo "PASS: Test 3 (red control) - 63-day cert sent nothing"
   else
-    grep -q "6[0-9] days" /tmp/test_output.log || \
-      { echo "FAIL: Test 3 did not detect production certificate expiry"; cat /tmp/test_output.log; return 1; }
+    echo "FAIL: Test 3 did not pass red control"; cat /tmp/test_output.log; return 1;
   fi
 
   echo "PASS: All tests completed successfully"

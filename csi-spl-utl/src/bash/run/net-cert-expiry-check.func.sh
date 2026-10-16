@@ -72,7 +72,9 @@ do_net_cert_expiry_check() {
       continue
     fi
 
-    days_remaining=$(( (expiry_epoch - now) / 86400 ))
+    local now_epoch
+    now_epoch="$(date -u -d "now" +%s)"
+    days_remaining=$(( (expiry_epoch - now_epoch) / 86400 ))
     do_log "$host: $days_remaining days remaining"
 
     # Check thresholds
@@ -83,6 +85,7 @@ do_net_cert_expiry_check() {
         last_alert="$(cat "$state_file")"
         if [[ "$last_alert" != "WARNING $host" ]]; then
           # Send spool note to orchestrator
+          SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" \
           bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh \
             --from m-307 --to orchestrator --kind note --task dispatch-06ebfdd6 \
             --body "WARNING: Certificate for $host expires in $days_remaining days" || \
@@ -104,6 +107,7 @@ do_net_cert_expiry_check() {
         last_alert="$(cat "$state_file")"
         if [[ "$last_alert" != "CRITICAL $host" ]]; then
           # Send spool note to orchestrator
+          SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" \
           bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh \
             --from m-307 --to orchestrator --kind note --task dispatch-06ebfdd6 \
             --body "CRITICAL: Certificate for $host expires in $days_remaining days" || \

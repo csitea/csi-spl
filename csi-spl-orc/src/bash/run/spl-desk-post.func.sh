@@ -14,6 +14,9 @@
 # @description The hub refuses a channel the agent is not a member of exactly
 # @description like one that does not exist (unknown_channel, 404): add the
 # @description agent in the WUI (channel -> Agents) first.
+# @description A channel topic is read by its human members: a body that opens
+# @description with **Live** is refused (FATAL, nothing sent) without its proof
+# @description (spl_desk_live_proof; how-to-post.md rule 16, SPL-2122).
 # @description Prints one JSON line (env, tenant, box, agent, channel, kind,
 # @description the send result). No secret is read. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
@@ -56,6 +59,7 @@ do_spl_desk_post() {
     [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
   done
   spl_desk_attach_check "${files[@]}" || return 1
+  spl_desk_live_proof "$body" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"

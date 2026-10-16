@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Purpose: SPL-2122 (how-to-post.md rule 16) - do_spl_desk_reply and
+#          do_spl_desk_post refuse a post that opens with **Live** unless it
+#          carries its proof, and send every other post as before. Owner
+#          HUM-10, t1 topic 28559e83, msgs 395a375b + 6c3fd53d: a **Live**
+#          "every card is the same height" went out with the image cards
+#          never measured.
+#   1. RED CONTROL: the post that went out (Live, no sha, no checked lines)
+#      is refused, FATAL names each missing piece + how-to-post.md, nothing
+#      reaches the spool; the same text as **Landed, not live yet** is sent
+#   2. Live with checked lines but no sha -> refused; a msg id or a topic
+#      uuid is not a sha
+#   3. Live with a sha that is not on origin/master -> refused
+#   4. Live with a hub/wui sha that dev or prd does not serve -> refused
+#   5. Live with a served sha + checked + not checked -> sent, body unchanged
+#   6. an orc/doc-only sha: refused without `no deploy`, sent with it
+#   7. Planned / In progress / Landed openings and a poll form -> sent, no proof
+#   8. a reply tagged @HUM-n before **Live** is still checked
+#   9. do_spl_desk_post: the same guard on a channel post
+# The served verdicts are stubbed at do_check_lane_served's seams
+# (_spl_served_needs_deploy / _spl_served_env, tested in lane-served.tst.sh);
+# the git side is a real repo with a local origin.
+#------------------------------------------------------------------------------
+set -uo pipefail
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
+fails=0
+
+orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
+TOPIC=28559e83-ac82-4123-a2ef-4994da2c46a3
+
+# A repo whose origin/master holds ON; OFF is a local commit never pushed.
+g() { git -C "$T/wt" -c user.name=t -c user.email=t@example.com "$@"; }
+git init -q --bare "$T/origin.git"
+git init -q -b master "$T/wt"
+g commit -q --allow-empty -m base
+g commit -q --allow-empty -m on
+ON="$(g rev-parse HEAD)"
+g remote add origin "$T/origin.git"
+g push -q origin master
+g commit -q --allow-empty -m off
+OFF="$(g rev-parse HEAD)"
+
+mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+STUBS='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
+spl_host_spool() { :; }
+spl_desk_spool() {
+  while [[ $# -gt 0 && "$1" != -- ]]; do shift; done; shift
+  local a prev=""; for a in "$@"; do [[ "$prev" == --body ]] && printf "%s" "$a" >"$SENT_BODY"; prev="$a"; done
+  echo "{\"msg_id\":\"m1\"}"
+}
+_spl_served_needs_deploy() { echo "$NEEDS"; }
+_spl_served_env() { echo "$SERVED"; }'
+
+# send <action> <body> [VAR=value]... -> rc; output in $T/o, the sent body in $T/sent
+send() {
+  local act="$1" body="$2"; shift 2
+  rm -f "$T/sent"
+  SNIPPET="$STUBS"$'\n'"$act" in_orc TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=CLE-00 DESK_TO=HUM-10 DESK_TASK="$TOPIC" \
+    DESK_CHANNEL=ops DESK_BODY="$body" DRY_RUN=0 SENT_BODY="$T/sent" LANE_WT="$T/wt" FETCH_FRESH_MAX_AGE=0 \
+    NEEDS=yes SERVED=served "$@" >"$T/o" 2>&1
+}
+refused() { # <label> <must-name>...: rc != 0, nothing sent, the FATAL names each piece and the rule
+  local label="$1" n ok=1; shift
+  (( rc != 0 )) && [[ ! -e "$T/sent" ]] && grep -q 'FATAL a \*\*Live\*\* post must carry its proof' "$T/o" &&
+    grep -q 'how-to-post.md rule 16' "$T/o" || ok=0
+  for n in "$@"; do grep -q -- "$n" "$T/o" || ok=0; done
+  (( ok )) && pass "$label" || fail "$label (rc $rc): $(cat "$T/o")"
+}
+sent() { # <label> <body>: rc 0 and the body reached the spool byte for byte
+  (( rc == 0 )) && [[ -f "$T/sent" && "$(cat "$T/sent")" == "$2" ]] && ! grep -q FATAL "$T/o" &&
+    pass "$1" || fail "$1 (rc $rc, sent '$(cat "$T/sent" 2>/dev/null)'): $(cat "$T/o")"
+}
+PROOF=$'checked: text cards, moved-from cards, image cards at 1 and 5 rows on dev and prd\nnot checked: none'
+
+# --- 1. RED CONTROL: the post that went out -----------------------------------------
+B='**Live**: with the 5-row card setting, every card is the same height now, on dev and prd.'
+send do_spl_desk_reply "$B"; rc=$?
+refused "1. the owner's case (Live, no proof) is refused, nothing sent" "commit sha on origin/master" "'checked:' line" "'not checked:' line"
+B2="**Landed, not live yet.** ${B#*: }"
+send do_spl_desk_reply "$B2"; rc=$?
+sent "1. CONTROL: the same text opening **Landed, not live yet** is sent" "$B2"
+
+# --- 2. no sha (a msg id and a topic uuid are not shas) -----------------------------
+B="**Live** per owner msg 395a375b in topic $TOPIC."$'\n'"$PROOF"
+send do_spl_desk_reply "$B"; rc=$?
+refused "2. Live with checked lines but no commit sha is refused" "commit sha on origin/master"
+grep -q "'checked:' line\|'not checked:' line" "$T/o" && fail "2. the checked lines were present but reported missing: $(cat "$T/o")" ||
+  pass "2. only the missing sha is named"
+
+# --- 3. a sha not on master ---------------------------------------------------------
+B="**Live** ${OFF:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B"; rc=$?
+refused "3. Live with a sha not on origin/master is refused" "sha ${OFF:0:9} on origin/master"
+
+# --- 4. not served ------------------------------------------------------------------
+B="**Live** ${ON:0:9} on dev and prd"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" SERVED=lag; rc=$?
+refused "4. Live with a wui/hub sha dev and prd do not serve is refused" "served on dev (do_check_deploy_lag says: lag)" "served on prd"
+
+# --- 5. the full proof ----------------------------------------------------------------
+send do_spl_desk_reply "$B"; rc=$?
+sent "5. Live with a served sha + checked + not checked is sent unchanged" "$B"
+
+# --- 6. orc / doc only --------------------------------------------------------------
+send do_spl_desk_reply "$B" NEEDS=no; rc=$?
+refused "6. an orc-only sha without 'no deploy' is refused" "'no deploy' for sha ${ON:0:9}"
+B6="**Live** ${ON:0:9} (orc only, no deploy)"$'\n'"$PROOF"
+send do_spl_desk_reply "$B6" NEEDS=no; rc=$?
+sent "6. an orc-only sha that says 'no deploy' is sent" "$B6"
+
+# --- 7. other states and a poll form ------------------------------------------------
+for B in '**Planned, not built yet.** Tracked as SPL-1.' '**In progress** (c-1, since 10:00Z): cards.' \
+  '**Landed, not live yet.** On master.' 'The cards are Live now? no: plain text is not a state.'; do
+  send do_spl_desk_reply "$B"; rc=$?
+  sent "7. '${B:0:28}' is sent without a proof" "$B"
+done
+B=$'Ship it?\n\n```poll\nDeploy to prd?\n(GO) Go\n```'
+send do_spl_desk_reply "$B"; rc=$?
+sent "7. a poll form is sent without a proof" "$B"
+
+# --- 8. tagged reply ------------------------------------------------------------------
+send do_spl_desk_reply $'\n@HUM-10 **Live:** cards fixed.'; rc=$?
+refused "8. '@HUM-10 **Live:**' is checked like **Live**" "commit sha"
+
+# --- 9. do_spl_desk_post ----------------------------------------------------------------
+send do_spl_desk_post '**Live** cards fixed.'; rc=$?
+refused "9. do_spl_desk_post refuses a Live channel post without its proof" "commit sha" "'checked:' line"
+B="**Live** ${ON:0:9} served"$'\n'"$PROOF"
+send do_spl_desk_post "$B"; rc=$?
+sent "9. do_spl_desk_post sends a Live post with its proof" "$B"
+send do_spl_desk_post '**In progress** cards.'; rc=$?
+sent "9. do_spl_desk_post sends other states as before" '**In progress** cards.'
+
+echo "desk-live-proof: $fails failure(s)"
+((fails == 0))

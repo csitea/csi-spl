@@ -125,6 +125,32 @@ comments and issue descriptions.
    Until it is live the change is written as "will ...": "the log will move
    to the bottom", never "the log moves". The post that files an issue
    (`do_spl_lane_issue`) opens `**Planned, not built yet.** Tracked as ...`.
+16. **A "Live" post carries its proof, or it is not sent** (owner HUM-10,
+   2026-10-16, t1 topic 28559e83, msg 395a375b: "how can you tell first
+   "Live: ... every card is the same height now, on dev and prd" ... and
+   than flip flop totally by "planned not done"", and msg 6c3fd53d: "we had
+   already a constitution for you agents to not lie ???!!!"; SPL-2122). A
+   post that opens with **Live** (rule 15) carries, in its body:
+   - **a commit sha** on `origin/master`, every sha it names (rule 14); for
+     a hub or web UI change, served on dev AND prd
+     (`do_check_deploy_lag`); a change with no build input (orc, docs)
+     says `no deploy` in so many words;
+   - a **`checked:`** line naming the cases that were measured, and a
+     **`not checked:`** line (it may say `none`). A case nobody measured
+     goes on the second line, never into the claim.
+
+   `do_spl_desk_reply` and `do_spl_desk_post` refuse (FATAL, nothing sent) a
+   **Live** post without it and name what is missing
+   (`spl_desk_live_proof` in
+   `csi-spl-orc/src/bash/run/spl-desk-live-proof.func.sh`, tested by
+   `csi-spl-orc/src/bash/tests/desk-live-proof.tst.sh`). Not proven yet:
+   open with **Landed, not live yet** or **In progress** instead.
+
+   ```text
+   **Live** a1b2c3d4e (cards, SPL-n) served on dev and prd.
+   checked: text, moved-from and image cards at 1 and 5 rows, dev and prd
+   not checked: none
+   ```
 
 
 

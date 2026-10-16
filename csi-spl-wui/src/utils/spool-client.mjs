@@ -20,6 +20,8 @@ import { noteLastData } from './last-data.mjs'
  */
 const LAZY_METHODS = [
   'lookupIds',
+  'uploadFile',
+  'downloadFile',
   'previewLinks',
   'setChannelOrder',
   'removeMember',
@@ -299,9 +301,10 @@ export function createSpoolClient({
   const live = liveReader(conn, root, configError, hubFetch, firstScreenMs, now)
   const api = sessionMethods(tenant, mock, root, configError, conn, live)
   Object.assign(api, topicList(mock, mk, live), topicReads(mock, mk, conn, live), feedReads(api, mock, mk),
-    shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(mock, root, configError, conn, hubFetch))
+    shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(root))
   api.bindIssuesMock = mk.bindIssuesMock
-  mk.live = live
+  /* SPL-2115: uploadFile / downloadFile (lazy half) read these */
+  Object.assign(mk, { live, root, configError, conn, hubFetch })
   installLazy(api, mk)
   if (mk.ready) gateMock(api, mk.ready)
   return api
@@ -315,7 +318,7 @@ export function createSpoolClient({
  * (tests/unit/initial-js-trims.test.mjs).
  */
 function mockHolder(mock) {
-  /* { live, mock, state, dir, tenantMock, issuesMock }: what spool-client-lazy.mjs reads (live is set by createSpoolClient) */
+  /* { live, mock, state, dir, tenantMock, issuesMock, root, configError, conn, hubFetch }: what spool-client-lazy.mjs reads (live is set by createSpoolClient) */
   const mk = { mock, state: null, ready: null }
   if (mock) {
     mk.ready = import('./mock-data.mjs').then((data) => {
@@ -837,50 +840,9 @@ function sendMethods(mock, mk, conn) {
   }
 }
 
-/** Blob upload and download (003 http-v1 §3, 017 FR-SEC-002). */
-function fileMethods(mock, root, configError, conn, hubFetch) {
-  const mockBlobs = new Map()
+/** Blob links (003 http-v1 §3); upload and download are in the lazy half. */
+function fileMethods(root) {
   return {
-    /**
-     * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload
-     * token) → { file_id, sha256, bytes }. Mock keeps the bytes in memory.
-     */
-    async uploadFile(file, uploadToken = '') {
-      const buf = await file.arrayBuffer()
-      if (mock) {
-        const hex = await sha256Hex(buf)
-        mockBlobs.set(hex, new Blob([buf]))
-        return { file_id: hex, sha256: hex, bytes: buf.byteLength }
-      }
-      if (configError) {
-        throw Object.assign(new Error(`spool config ${configError}`), { status: 0, token: configError })
-      }
-      const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
-      if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
-      const res = await hubFetch(`${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf })
-      if (!res.ok) {
-        let tok = ''
-        try { tok = (await res.json()).error || '' } catch { /* not json */ }
-        throw Object.assign(new Error(`spool ${res.status} ${tok || '/v1/files'}`), { status: res.status, token: tok })
-      }
-      return res.json()
-    },
-    /**
-     * Download bytes for a blob file_id (mock: the in-memory copy). The hub
-     * wants a caller credential (017 FR-SEC-002): the member session cookie,
-     * so the view door's credentials ('include' in the `session` door).
-     */
-    async downloadFile(fileId) {
-      const id = String(fileId || '')
-      if (mock) {
-        const b = mockBlobs.get(id)
-        if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
-        return b.arrayBuffer()
-      }
-      const res = await hubFetch(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(conn.door) })
-      if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
-      return res.arrayBuffer()
-    },
     fileUrl(fileId) {
       return `${root}/v1/files/${encodeURIComponent(String(fileId || ''))}`
     },

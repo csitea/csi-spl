@@ -39,7 +39,10 @@ describe('pwa', () => {
   })
 
   it('W9: a stale-shell notice from the worker moves the tab by build-watch rules', () => {
-    const p = src('src/plugins/pwa.client.ts')
+    /* SPL-2115: the check loads once the app is ready, not in the first download */
+    assert.match(src('src/plugins/pwa.client.ts'), /onNuxtReady\(\(\) => \{[\s\S]*void import\('~\/utils\/pwa-shell-watch'\)\.then\(\(m\) => m\.watchShellBuild\(ownBuild, watch\)\)/)
+    assert.doesNotMatch(src('src/plugins/pwa.client.ts'), /^import[^\n]*pwa-shell-watch/m)
+    const p = src('src/utils/pwa-shell-watch.ts')
     assert.match(p, /const SHELL_STALE = 'spool:shell-stale'/)
     assert.match(src('src/public/sw.js'), /const SHELL_STALE = 'spool:shell-stale'/)
     assert.match(p, /decide\(\{ running: watch\.value\.running, live, busy: pageBusy\(\), guard \}\)/)

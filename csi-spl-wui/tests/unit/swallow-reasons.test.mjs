@@ -26,7 +26,6 @@ const SWALLOW = '.catch(() => {})'
 // Measured on trunk 2026-10-06 after round 4 row 06 gave its five files a reason.
 const UNCOMMENTED = new Map([
   ['src/composables/usePaneWidths.ts', 1],
-  ['src/plugins/pwa.client.ts', 1],
   ['src/public/sw.js', 1],
 ])
 

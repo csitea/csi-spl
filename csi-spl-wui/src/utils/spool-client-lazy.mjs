@@ -4,7 +4,7 @@
  * initial JS; this half loads on the first call to one of these (its stubs
  * there await this chunk), so it no longer rides every first load. Each
  * takes the client's ctx first: { live, mock, state, dir, tenantMock,
- * issuesMock }.
+ * issuesMock, root, configError, conn, hubFetch }.
  *
  * Only `lazySpoolMethods` is exported: Nuxt auto-imports every utils/ export
  * by name, and a name like createChannel would collide with other modules'.
@@ -13,7 +13,7 @@ import { channelSlug } from './channel-feed.mjs'
 import { channelsFromView, normalizeViewMessage } from './view-api.mjs'
 import { storageGet, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
-import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
+import { credentialsFor, isPublicChannel, normalizeChannelId, rosterHumanIds, sha256Hex } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { MOCK_RELEASES, flowByNewest, foldFlowEvents, foldReleases, parseFlowLines } from './flow-fold.mjs'
 import { loadCursors } from './read-cursor.mjs'
@@ -1697,8 +1697,63 @@ async function archiveOperatorWorkspace(ctx, id) {
   return live('/v1/operator/workspaces/' + encodeURIComponent(id), { method: 'DELETE' })
 }
 
+/* the mock's uploaded bytes, per client (ctx) */
+const mockBlobs = new WeakMap()
+const blobsOf = (ctx) => {
+  let m = mockBlobs.get(ctx)
+  if (!m) mockBlobs.set(ctx, (m = new Map()))
+  return m
+}
+
+/**
+ * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload
+ * token) -> { file_id, sha256, bytes }. Mock keeps the bytes in memory.
+ * Lazy (SPL-2115): no first screen uploads.
+ */
+async function uploadFile(ctx, file, uploadToken = '') {
+  const { mock, root, configError, hubFetch } = ctx
+  const buf = await file.arrayBuffer()
+  if (mock) {
+    const hex = await sha256Hex(buf)
+    blobsOf(ctx).set(hex, new Blob([buf]))
+    return { file_id: hex, sha256: hex, bytes: buf.byteLength }
+  }
+  if (configError) {
+    throw Object.assign(new Error(`spool config ${configError}`), { status: 0, token: configError })
+  }
+  const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
+  if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
+  const res = await hubFetch(`${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf })
+  if (!res.ok) {
+    let tok = ''
+    try { tok = (await res.json()).error || '' } catch { /* not json */ }
+    throw Object.assign(new Error(`spool ${res.status} ${tok || '/v1/files'}`), { status: res.status, token: tok })
+  }
+  return res.json()
+}
+
+/**
+ * Download bytes for a blob file_id (mock: the in-memory copy). The hub
+ * wants a caller credential (017 FR-SEC-002): the member session cookie,
+ * so the view door's credentials ('include' in the `session` door).
+ */
+async function downloadFile(ctx, fileId) {
+  const { mock, root, conn, hubFetch } = ctx
+  const id = String(fileId || '')
+  if (mock) {
+    const b = blobsOf(ctx).get(id)
+    if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
+    return b.arrayBuffer()
+  }
+  const res = await hubFetch(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(conn.door) })
+  if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
+  return res.arrayBuffer()
+}
+
 export const lazySpoolMethods = {
   lookupIds,
+  uploadFile,
+  downloadFile,
   previewLinks,
   listFlow,
   markFlow,

@@ -613,7 +613,7 @@ describe('bug A: a new message signals', () => {
     const plugin = readFileSync(join(WUI, 'src/plugins/notify-open.client.ts'), 'utf8')
     assert.match(plugin, /pendingOpen\(sessionStorage\.getItem\(PENDING_OPEN_KEY\), Date\.now\(\)\)/)
     /* a long-lived phone tab looks for a new worker when it comes back */
-    const pwa = readFileSync(join(WUI, 'src/plugins/pwa.client.ts'), 'utf8')
+    const pwa = readFileSync(join(WUI, 'src/utils/pwa-shell-watch.ts'), 'utf8')
     assert.match(pwa, /visibilitychange[\s\S]{0,300}reg\.update\(\)/)
   })
 

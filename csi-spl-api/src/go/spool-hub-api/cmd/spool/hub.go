@@ -135,11 +135,12 @@ func cmdServe() int {
 	}
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	claimOperatorWorkspace(ctx, log, srv)
-	go srv.RunSweeper(ctx, SweepInterval)
-	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
-	go srv.RunWake(ctx)                 // spec 059 S1 + S3
-	go srv.RunBlockerIssues(ctx, BlockerInterval)
-	go srv.RunMarketingShare(ctx) // spec 090 T015, SPL-1634
+	// SPL-2128: each loop runs supervised; a panic restarts that loop, the hub serves on.
+	go hub.Supervise(ctx, log, "sweeper", func(ctx context.Context) { srv.RunSweeper(ctx, SweepInterval) })
+	go hub.Supervise(ctx, log, "relay", func(ctx context.Context) { srv.RunRelay(ctx, hc.QueueRelay) }) // SPL-1004
+	go hub.Supervise(ctx, log, "wake", srv.RunWake)                                                     // spec 059 S1 + S3
+	go hub.Supervise(ctx, log, "blocker-issues", func(ctx context.Context) { srv.RunBlockerIssues(ctx, BlockerInterval) })
+	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare) // spec 090 T015, SPL-1634
 	return serveUntilDone(ctx, hc, log, srv)
 }
 
@@ -267,7 +268,7 @@ func mailPreflight(ctx context.Context, hc *config.Hub, log zerolog.Logger, mc *
 	if mc.Preflight == mail.PreflightRequire {
 		return mail.Preflight(ctx, mc, hc.Env, log)
 	}
-	go func() { _ = mail.Preflight(ctx, mc, hc.Env, log) }()
+	go hub.Supervise(ctx, log, "mail-preflight", func(ctx context.Context) { _ = mail.Preflight(ctx, mc, hc.Env, log) })
 	return nil
 }
 

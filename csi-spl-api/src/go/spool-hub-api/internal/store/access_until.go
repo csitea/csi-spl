@@ -90,7 +90,7 @@ func (s *Memory) SetMemberAccessUntil(_ context.Context, tenant, humanID string,
 		return ErrNotFound
 	}
 	if until != nil {
-		if err := s.memLockoutGuard(tenant, humanID, m.role); err != nil {
+		if err := s.memLockoutGuard(tenant, humanID, m.roleSet()); err != nil {
 			return err
 		}
 		m.accessUntil = until.UTC()
@@ -107,13 +107,13 @@ func (s *Postgres) SetMemberAccessUntil(ctx context.Context, tenant, humanID str
 	}
 	defer s.hot.forget() // the door cache must not outlive a shortened access
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
+		_, owner, err := memberTx(ctx, tx, tenant, humanID)
 		if err != nil {
 			return err
 		}
 		var at any
 		if until != nil {
-			if err := lockoutGuardTx(ctx, tx, tenant, humanID, cur, owner); err != nil {
+			if err := lockoutGuardTx(ctx, tx, tenant, humanID, owner); err != nil {
 				return err
 			}
 			at = until.UTC()

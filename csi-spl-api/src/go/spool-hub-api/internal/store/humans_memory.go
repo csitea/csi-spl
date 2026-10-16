@@ -31,17 +31,25 @@ type memHuman struct {
 
 type memMember struct {
 	role, admittedBy string
-	since            time.Time                  // tenant_memberships.created_at
-	lastActive       time.Time                  // last_active_at (rdb 0044); zero = never switched into
-	channelOrder     []string                   // channel_order (rdb 0073); nil = never set
-	settings         map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
-	disabled         bool                       // disabled_at (rdb 0074): suspended in this tenant
-	accessUntil      time.Time                  // access_until (rdb 0113); zero = no end
-	status           *HumanStatus               // human_status (rdb 0141); nil = available
+	// extra is the member's other roles (tenant_member_roles, rdb 0201),
+	// sorted, never the primary role; nil = the primary alone.
+	extra        []string
+	since        time.Time                  // tenant_memberships.created_at
+	lastActive   time.Time                  // last_active_at (rdb 0044); zero = never switched into
+	channelOrder []string                   // channel_order (rdb 0073); nil = never set
+	settings     map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
+	disabled     bool                       // disabled_at (rdb 0074): suspended in this tenant
+	accessUntil  time.Time                  // access_until (rdb 0113); zero = no end
+	status       *HumanStatus               // human_status (rdb 0141); nil = available
 	// Provenance copied from the accepted invite (rdb 0084), mirroring the
 	// Postgres read that joins tenant_invites on accepted_by.
 	orderedBy, orderedVia string
 	invitedOn             time.Time
+}
+
+// roleSet is the member's whole role set: the primary first, the rest sorted.
+func (m memMember) roleSet() []string {
+	return append([]string{m.role}, m.extra...)
 }
 
 // memIdent is one human_identities row: which human the (provider, subject)
@@ -378,6 +386,19 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 		return "", ErrNotFound
 	}
 	return m.role, nil
+}
+
+// MemberRoles answers humanID's role set in tenant (Humans.MemberRoles), on
+// the same liveness rule as MemberRole.
+func (s *Memory) MemberRoles(_ context.Context, humanID, tenant string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	m, ok := s.hum.members[[2]string{tenant, humanID}]
+	if !ok || !m.live(s.hum.humans[humanID], s.now()) {
+		return nil, ErrNotFound
+	}
+	return m.roleSet(), nil
 }
 
 func (s *Memory) PutInvite(_ context.Context, in Invite, now time.Time) error {

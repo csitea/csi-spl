@@ -90,6 +90,21 @@ type hoursSweepSource interface {
 // a demo visitor (specs/077) is a stay, not a worker.
 var hoursNoRow = map[string]bool{rbac.PureAgent: true, rbac.DemoUser: true}
 
+// hoursWorker: a member is a worker unless EVERY role of its set is in
+// hoursNoRow (025 §10.4 A22): a pure_agent who is also a developer works.
+func hoursWorker(m Member) bool {
+	set := m.Roles
+	if len(set) == 0 {
+		set = []string{m.Role}
+	}
+	for _, r := range set {
+		if !hoursNoRow[r] {
+			return true
+		}
+	}
+	return false
+}
+
 func sweepHours(ctx context.Context, st hoursSweepSource, now time.Time, open HoursOpenSuggestions, tenants []string) (HoursSweepResult, error) {
 	if len(tenants) > 0 {
 		return sweepHoursIn(ctx, st, tenants, now, open)
@@ -157,7 +172,7 @@ func sweepHoursTenant(ctx context.Context, run hoursSweepRun) error {
 	listed, current := map[string]bool{}, map[string]bool{}
 	for _, m := range members {
 		listed[m.HumanID] = true
-		current[m.HumanID] = !hoursNoRow[m.Role]
+		current[m.HumanID] = hoursWorker(m)
 	}
 	active, err := st.hoursActiveMembers(ctx, tenant, from, to)
 	if err != nil {

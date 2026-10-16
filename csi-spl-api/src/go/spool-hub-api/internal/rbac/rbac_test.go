@@ -265,3 +265,73 @@ func TestLegacy(t *testing.T) {
 		t.Fatal("legacy mapping")
 	}
 }
+
+// setSrc is a fakeSrc that also answers role sets (SetSource).
+type setSrc struct {
+	fakeSrc
+	sets map[string][]string
+}
+
+func (f *setSrc) MemberRoles(_ context.Context, hum, _ string) ([]string, error) {
+	if s, ok := f.sets[hum]; ok {
+		return s, nil
+	}
+	return nil, ErrNotMember
+}
+
+// 025 §10.2: the Authorizer grants the union of the member's role set; Role
+// is the primary, TenantOwner holds when any role is a tenant owner; Has and
+// HasAny read the set. A Source that is no SetSource still answers the
+// primary alone (CONTROL: the same member through it lacks the union).
+func TestAccessUnionOfRoles(t *testing.T) {
+	ctx := context.Background()
+	src := &setSrc{fakeSrc: fakeSrc{members: map[string]string{"HUM-1": Tester}, roles: DefaultRoles()},
+		sets: map[string][]string{"HUM-1": {Tester, Developer}, "HUM-2": {Tester, BizOwner}, "HUM-3": {}}}
+	z := &Authorizer{Src: src}
+	a, err := z.Access(ctx, "HUM-1", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Role != Tester || !reflect.DeepEqual(a.Roles, []string{Tester, Developer}) || a.TenantOwner {
+		t.Fatalf("access %+v", a)
+	}
+	if !a.Can(AgentsCommand) || !a.Can(ChannelsManage) || a.Can(MembersRoles) {
+		t.Fatalf("union perms %v", a.List())
+	}
+	if !a.Has(Developer) || a.Has(Admin) || !a.HasAny(Admin, Developer) || a.HasAny(Admin, BizOwner) || a.HasAny() {
+		t.Fatal("Has / HasAny")
+	}
+	if a, _ := z.Access(ctx, "HUM-2", "t1"); !a.TenantOwner || a.Role != Tester || !a.Can(HoursApprove) {
+		t.Fatalf("owner in the set: %+v", a)
+	}
+	if _, err := z.Access(ctx, "HUM-3", "t1"); !errors.Is(err, ErrNotMember) {
+		t.Fatalf("empty set: %v", err)
+	}
+	// CONTROL: the primary-only Source.
+	if a, _ := (&Authorizer{Src: &src.fakeSrc}).Access(ctx, "HUM-1", "t1"); a.Can(AgentsCommand) ||
+		!reflect.DeepEqual(a.Roles, []string{Tester}) {
+		t.Fatalf("primary-only source: %+v", a)
+	}
+}
+
+// FixedSet is the test seam for a several-role member; Fixed is its
+// one-role case.
+func TestFixedSet(t *testing.T) {
+	ctx := context.Background()
+	a, err := FixedSet{Tester, PureAgent}.Access(ctx, "HUM-1", "t1")
+	if err != nil || a.Role != Tester || !a.Can(AgentsCommand) || !a.Has(PureAgent) {
+		t.Fatalf("FixedSet %+v %v", a, err)
+	}
+	if _, err := (FixedSet{Tester, "ghost"}).Access(ctx, "HUM-1", "t1"); !errors.Is(err, ErrNotMember) {
+		t.Fatalf("unknown role: %v", err)
+	}
+	if _, err := (FixedSet{}).Access(ctx, "HUM-1", "t1"); !errors.Is(err, ErrNotMember) {
+		t.Fatalf("empty: %v", err)
+	}
+	if a, _ := Fixed(Admin).Access(ctx, "HUM-1", "t1"); !reflect.DeepEqual(a.Roles, []string{Admin}) {
+		t.Fatalf("Fixed roles %v", a.Roles)
+	}
+	if !Exclusive(DemoUser) || !Exclusive(ChannelGuest) || Exclusive(Admin) {
+		t.Fatal("Exclusive")
+	}
+}

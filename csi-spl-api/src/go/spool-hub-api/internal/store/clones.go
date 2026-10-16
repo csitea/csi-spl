@@ -52,7 +52,7 @@ func cloneDisplayName(target, admin string) string {
 }
 
 // StartClone mints a technical clone human of the target member, copies the
-// target's tenant role and (non-DM) channel memberships as a snapshot, and
+// target's tenant role set and (non-DM) channel memberships as a snapshot, and
 // records the member_clones row — all in one tenant transaction. The clone is
 // given no human_identities, so nothing can ever sign in as it; the only
 // session for it is the one the act-as handler mints. Returns ErrNotFound when
@@ -83,6 +83,13 @@ func (s *Postgres) StartClone(ctx context.Context, in CloneStart, now time.Time)
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
 			VALUES ($1, $2, $3, $4, $5)`, in.TenantID, clone, role, now, in.CreatedBy); err != nil {
+			return err
+		}
+		// The clone holds the target's whole role set (rdb 0201): the insert's
+		// trigger seated the primary, this copies the rest.
+		if _, err := tx.Exec(ctx, `INSERT INTO tenant_member_roles (tenant_id, human_id, role_id, granted_by)
+			SELECT tenant_id, $2, role_id, 'clone' FROM tenant_member_roles
+			WHERE tenant_id = $1 AND human_id = $3 ON CONFLICT DO NOTHING`, in.TenantID, clone, in.TargetHum); err != nil {
 			return err
 		}
 		// Snapshot the target's channel memberships. Default channels (lobby,

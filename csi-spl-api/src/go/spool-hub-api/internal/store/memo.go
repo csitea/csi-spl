@@ -29,7 +29,10 @@ type memo struct {
 
 type memoRole struct {
 	role string
-	err  error // nil or ErrNotFound; any other error is never memoised
+	// roles is the member's whole role set (rdb 0201), read by the same
+	// statement as role; nil when only role was read (memberRole).
+	roles []string
+	err   error // nil or ErrNotFound; any other error is never memoised
 	// SPL-1034: the membership's channel_order, read by the same statement
 	// (ordered = it was read), so GET /v1/view/me stays one round trip.
 	order   []string
@@ -44,6 +47,7 @@ type memoRole struct {
 // memberRead is what one membership read answered for the memo.
 type memberRead struct {
 	role      string
+	roles     []string // the role set, primary first (rdb 0201)
 	order     []string
 	chans     []string
 	chansRead bool
@@ -51,6 +55,7 @@ type memberRead struct {
 
 // clone copies the slices, so a cached read is never shared with a caller.
 func (v memberRead) clone() memberRead {
+	v.roles = append([]string(nil), v.roles...)
 	v.order = append([]string(nil), v.order...)
 	v.chans = append([]string(nil), v.chans...)
 	return v
@@ -70,30 +75,30 @@ func memoFrom(ctx context.Context) *memo {
 	return m
 }
 
-// memberRoleOrder is memberRole for a driver whose one membership read also
-// answers channel_order (rdb 0073) and, with a memo, the human's channels
-// (SPL-1115): all of it goes into the memo. load's argument says whether a
-// memo will keep what it reads.
-func memberRoleOrder(ctx context.Context, humanID, tenant string, load func(memo bool) (memberRead, error)) (string, error) {
+// memberReadOrder is memberRole for a driver whose one membership read also
+// answers the role set (rdb 0201), channel_order (rdb 0073) and, with a memo,
+// the human's channels (SPL-1115): all of it goes into the memo. load's
+// argument says whether a memo will keep what it reads. A memo entry
+// memberRole wrote (role only, no set) is read again.
+func memberReadOrder(ctx context.Context, humanID, tenant string, load func(memo bool) (memberRead, error)) (memberRead, error) {
 	m := memoFrom(ctx)
 	if m == nil {
-		v, err := load(false)
-		return v.role, err
+		return load(false)
 	}
 	k := [2]string{tenant, humanID}
 	m.mu.Lock()
 	r, ok := m.roles[k]
 	m.mu.Unlock()
-	if ok {
-		return r.role, r.err
+	if ok && (r.err != nil || r.roles != nil) {
+		return memberRead{role: r.role, roles: append([]string(nil), r.roles...)}, r.err
 	}
 	v, err := load(true)
 	if err == nil || errors.Is(err, ErrNotFound) {
 		m.mu.Lock()
-		m.roles[k] = memoRole{role: v.role, err: err, order: v.order, ordered: true, chans: v.chans, chansRead: v.chansRead}
+		m.roles[k] = memoRole{role: v.role, roles: v.roles, err: err, order: v.order, ordered: true, chans: v.chans, chansRead: v.chansRead}
 		m.mu.Unlock()
 	}
-	return v.role, err
+	return v, err
 }
 
 // memoChannels is the human's channel list the request's memo already read

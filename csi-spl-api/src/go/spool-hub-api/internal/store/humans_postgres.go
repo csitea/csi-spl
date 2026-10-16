@@ -521,12 +521,29 @@ func provisionCredentialTx(ctx context.Context, tx pgx.Tx, hum, email, pwHash, n
 // MemberRole reads the human's role in tenant, once per request when ctx
 // carries a request memo (memo.go).
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
+	v, err := s.memberRead(ctx, humanID, tenant)
+	return v.role, err
+}
+
+// MemberRoles reads the human's role set in tenant (rdb 0201), primary
+// first; the same read as MemberRole, so one request reads it once.
+func (s *Postgres) MemberRoles(ctx context.Context, humanID, tenant string) ([]string, error) {
+	v, err := s.memberRead(ctx, humanID, tenant)
+	if err != nil {
+		return nil, err
+	}
+	return orderRoles(v.role, v.roles), nil
+}
+
+// memberRead is the door's one membership read: the primary role, the role
+// set, channel_order and, with a memo, the human's channels.
+func (s *Postgres) memberRead(ctx context.Context, humanID, tenant string) (memberRead, error) {
 	// SPL-1034: the same row's channel_order rides along into the request
 	// memo, so ChannelOrder in the same request costs no round trip; so do
 	// the human's channels (SPL-1115, HumanChannels), in the same batch.
 	// DB payload cut 5: with a memo, the whole read is served from the
 	// instance's door cache (hotcache.go, 5 s, cleared by every writer).
-	return memberRoleOrder(ctx, humanID, tenant, func(memo bool) (memberRead, error) {
+	return memberReadOrder(ctx, humanID, tenant, func(memo bool) (memberRead, error) {
 		if memo {
 			if v, ok := s.hot.door(tenant, humanID); ok {
 				return v, nil
@@ -536,12 +553,12 @@ func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (stri
 		var v memberRead
 		found := false
 		// A membership past its access_until is no membership (rdb 0113, spec 072 A27).
-		reads := []tenantRead{{sql: `SELECT m.role, m.channel_order FROM tenant_memberships m
+		reads := []tenantRead{{sql: `SELECT m.role, ` + memberRolesCol + `, m.channel_order FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
 			WHERE m.tenant_id = $1 AND m.human_id = $2` + liveSeat(s.hasAccessUntil(ctx)),
 			args: []any{tenant, humanID}, each: func(rows pgx.Rows) error {
 				found = true
-				return rows.Scan(&v.role, &v.order)
+				return rows.Scan(&v.role, &v.roles, &v.order)
 			}}}
 		if memo {
 			reads = append(reads, humanChannelsRead(tenant, humanID, &v.chans))

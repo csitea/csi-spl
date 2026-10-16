@@ -22,7 +22,7 @@ import (
 var stampTables = []string{
 	"box_operators", "channel_humans", "channel_subscriptions", "channels", "deliveries", "issues",
 	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
-	"rbac_roles", "read_marks", "tenant_memberships",
+	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships",
 }
 
 // stampGlobalTables have no tenant_id: a write moves every tenant's stamp.

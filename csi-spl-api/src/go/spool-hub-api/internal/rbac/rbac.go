@@ -79,6 +79,11 @@ const (
 	ChannelGuest = "channel_guest"
 )
 
+// Exclusive reports a role that holds a set alone (025 §10.2 rule 3, rdb
+// 0201 trigger): demo_user and channel_guest. Every check on those two reads
+// the primary role and stays correct with several roles per member.
+func Exclusive(role string) bool { return role == DemoUser || role == ChannelGuest }
+
 // RoleIDs is every system role id, in the spec's order.
 var RoleIDs = []string{BizOwner, ProductOwner, Admin, Developer, Tester, PureAgent, BizCustomer, RegularUser}
 
@@ -179,12 +184,56 @@ func sorted(p ...string) []string {
 	return p
 }
 
-// Access is one human's standing in one tenant.
+// Access is one human's standing in one tenant. A member holds a SET of
+// roles (025 §10.2, rdb 0201): Role is the primary one, Roles the whole set
+// (the primary first), Perms the union of their grants, and TenantOwner
+// holds when any role of the set is a tenant owner.
 type Access struct {
 	HumanID     string
 	Role        string
+	Roles       []string
 	TenantOwner bool
 	Perms       map[string]bool
+}
+
+// Has reports whether role is in the member's set.
+func (a Access) Has(role string) bool {
+	for _, r := range a.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAny reports whether any of roles is in the member's set.
+func (a Access) HasAny(roles ...string) bool {
+	for _, r := range roles {
+		if a.Has(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// accessOf is the standing the set grants: the union of its roles' grants. A
+// role the tenant cannot see grants nothing.
+func accessOf(humanID string, set []string, roles map[string]Role) Access {
+	a := Access{HumanID: humanID, Roles: append([]string(nil), set...), Perms: map[string]bool{}}
+	if len(set) > 0 {
+		a.Role = set[0]
+	}
+	for _, id := range set {
+		r, ok := roles[id]
+		if !ok {
+			continue
+		}
+		a.TenantOwner = a.TenantOwner || r.TenantOwner
+		for _, p := range r.Perms {
+			a.Perms[p] = true
+		}
+	}
+	return a
 }
 
 // Can reports one permission.
@@ -239,6 +288,15 @@ func (a Access) CoversAccess(b Access) bool {
 type Source interface {
 	MemberRole(ctx context.Context, humanID, tenant string) (string, error)
 	TenantRoles(ctx context.Context, tenant string) (map[string]Role, error)
+}
+
+// SetSource is a Source that also answers the member's whole role set (rdb
+// 0201): the primary first, the rest sorted; ErrNotMember when none. The
+// Authorizer grants the union of the set when its Source is one, and the
+// primary role alone otherwise.
+type SetSource interface {
+	Source
+	MemberRoles(ctx context.Context, humanID, tenant string) ([]string, error)
 }
 
 // DefaultTTL is how long a tenant's role table is cached (025 FR-004).
@@ -297,27 +355,33 @@ func (z *Authorizer) Invalidate(tenant string) {
 	z.mu.Unlock()
 }
 
-// Access is the human's role and permissions in tenant. ErrNotMember when
-// the human holds no role; a role the tenant cannot see grants nothing (an
-// Access with no permissions, never an error the caller could mistake for
-// "allow"). Any other error: deny.
+// Access is the human's roles and permissions in tenant: the union over the
+// member's role set (025 §10.2). ErrNotMember when the human holds no role; a
+// role the tenant cannot see grants nothing (an Access with no permissions,
+// never an error the caller could mistake for "allow"). Any other error: deny.
 func (z *Authorizer) Access(ctx context.Context, humanID, tenant string) (Access, error) {
-	role, err := z.Src.MemberRole(ctx, humanID, tenant)
-	if err != nil {
-		return Access{}, err
+	var set []string
+	if ss, ok := z.Src.(SetSource); ok {
+		s, err := ss.MemberRoles(ctx, humanID, tenant)
+		if err != nil {
+			return Access{}, err
+		}
+		set = s
+	} else {
+		role, err := z.Src.MemberRole(ctx, humanID, tenant)
+		if err != nil {
+			return Access{}, err
+		}
+		set = []string{role}
+	}
+	if len(set) == 0 {
+		return Access{}, ErrNotMember
 	}
 	roles, err := z.Roles(ctx, tenant)
 	if err != nil {
 		return Access{}, err
 	}
-	a := Access{HumanID: humanID, Role: role, Perms: map[string]bool{}}
-	if r, ok := roles[role]; ok {
-		a.TenantOwner = r.TenantOwner
-		for _, p := range r.Perms {
-			a.Perms[p] = true
-		}
-	}
-	return a, nil
+	return accessOf(humanID, set, roles), nil
 }
 
 // Can reports one permission; every error is a deny.
@@ -331,17 +395,31 @@ func (z *Authorizer) Can(ctx context.Context, humanID, tenant, perm string) bool
 type Fixed string
 
 // Access answers the fixed role's Defaults grants.
-func (f Fixed) Access(_ context.Context, humanID, _ string) (Access, error) {
-	r, ok := DefaultRoles()[string(f)]
-	if !ok {
-		return Access{}, ErrNotMember
-	}
-	a := Access{HumanID: humanID, Role: r.ID, TenantOwner: r.TenantOwner, Perms: map[string]bool{}}
-	for _, p := range r.Perms {
-		a.Perms[p] = true
-	}
-	return a, nil
+func (f Fixed) Access(ctx context.Context, humanID, tenant string) (Access, error) {
+	return FixedSet{string(f)}.Access(ctx, humanID, tenant)
 }
 
 // Roles answers Defaults.
 func (Fixed) Roles(context.Context, string) (map[string]Role, error) { return DefaultRoles(), nil }
+
+// FixedSet is Fixed for a member holding several roles (025 §10.2): every
+// caller holds the set, the first role primary, with the union of their
+// Defaults grants. A role Defaults does not name is ErrNotMember.
+type FixedSet []string
+
+// Access answers the union of the set's Defaults grants.
+func (f FixedSet) Access(_ context.Context, humanID, _ string) (Access, error) {
+	roles := DefaultRoles()
+	if len(f) == 0 {
+		return Access{}, ErrNotMember
+	}
+	for _, id := range f {
+		if _, ok := roles[id]; !ok {
+			return Access{}, ErrNotMember
+		}
+	}
+	return accessOf(humanID, f, roles), nil
+}
+
+// Roles answers Defaults.
+func (FixedSet) Roles(context.Context, string) (map[string]Role, error) { return DefaultRoles(), nil }

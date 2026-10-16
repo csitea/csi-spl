@@ -25,8 +25,11 @@ type Member struct {
 	// 0086, CLE-77794), "" when none. Shown in the People section's info card.
 	Interests string
 	Role      string
-	Since     time.Time // tenant_memberships.created_at
-	Disabled  bool      // the account (humans.disabled_at), every tenant
+	// Roles is the member's whole role set (rdb 0201, 025 §10.2), the
+	// primary (Role) first.
+	Roles    []string
+	Since    time.Time // tenant_memberships.created_at
+	Disabled bool      // the account (humans.disabled_at), every tenant
 	// Suspended: this membership only (tenant_memberships.disabled_at, rdb
 	// 0074, specs/046).
 	Suspended bool
@@ -84,7 +87,7 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 		if k[0] != tenant || m.role == rbac.ChannelGuest {
 			continue
 		}
-		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
+		row := Member{HumanID: k[1], Role: m.role, Roles: m.roleSet(), Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
 			AccessUntil: m.accessUntil, OrderedBy: m.orderedBy, OrderedVia: m.orderedVia, InvitedOn: m.invitedOn}
 		if hm, ok := s.hum.humans[k[1]]; ok {
 			row.DisplayName, row.Email, row.Disabled, row.Interests = hm.name, hm.email, hm.disabled, hm.interests
@@ -159,7 +162,7 @@ func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, er
 // listMembersRead is ListMembers' statement, shared with ViewRoster's batch;
 // withAccess reads rdb 0113 access_until (NULL before it).
 func listMembersRead(tenant string, out *[]Member, withAccess bool) tenantRead {
-	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), coalesce(h.interests, ''), m.role,
+	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), coalesce(h.interests, ''), m.role, ` + memberRolesCol + `,
 			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at,
 			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via, ti.created_at, ` + accessUntilCol(withAccess) + `
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
@@ -169,10 +172,11 @@ func listMembersRead(tenant string, out *[]Member, withAccess bool) tenantRead {
 		var m Member
 		var seen, invitedOn, until *time.Time
 		var orderedBy, orderedVia *string
-		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Interests, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen,
+		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Interests, &m.Role, &m.Roles, &m.Since, &m.Disabled, &m.Suspended, &seen,
 			&orderedBy, &m.OrderedByName, &orderedVia, &invitedOn, &until); err != nil {
 			return err
 		}
+		m.Roles = orderRoles(m.Role, m.Roles)
 		if seen != nil {
 			m.LastSeen = seen.UTC()
 		}

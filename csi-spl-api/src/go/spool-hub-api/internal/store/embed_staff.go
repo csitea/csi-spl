@@ -112,11 +112,14 @@ func (s *Postgres) BlockEmbedVisitor(ctx context.Context, tenant, channel string
 		WHERE tenant_id = $1 AND channel_id = $2`, now)
 }
 
-// pgEmbedSeatStaff seats tenant's staff (biz_owner, admin; not disabled)
-// in one channel; a row already there is kept as it is.
+// pgEmbedSeatStaff seats tenant's staff (a role set holding biz_owner or
+// admin, rdb 0201; not disabled) in one channel; a row already there is kept
+// as it is.
 const pgEmbedSeatStaff = `INSERT INTO channel_humans (tenant_id, channel_id, human_id, joined_at, added_by)
 	SELECT m.tenant_id, $2, m.human_id, $3, 'hub' FROM tenant_memberships m
-	WHERE m.tenant_id = $1 AND m.role = ANY ($4::text[]) AND m.disabled_at IS NULL
+	WHERE m.tenant_id = $1 AND m.disabled_at IS NULL
+	  AND EXISTS (SELECT 1 FROM tenant_member_roles x WHERE x.tenant_id = m.tenant_id
+	              AND x.human_id = m.human_id AND x.role_id = ANY ($4::text[]))
 	ON CONFLICT (tenant_id, channel_id, human_id) DO NOTHING`
 
 // embedStaffRoles are the roles that see visitor channels (spec 4.4).

@@ -318,7 +318,8 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
 
 ## 10. Several roles per member; the DevOps and Operator roles (SPL-2192, 2026-10-16)
 
-Status: **Planned, not built yet**. Tables, migrations and shapes:
+Status: **R1 built** (several roles per member: rdb 0201, the rbac and
+store shapes; SPL-2203); R2-R7 planned, not built yet. Tables, migrations and shapes:
 [`data-model.md`](data-model.md). The operator-workspace side:
 [074 §12](../074-operator-workspace/spec.md#12-devops-and-operator-who-holds-the-operator-routes-spl-2192).
 Code facts below were read on `bba5cedb6`.

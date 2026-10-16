@@ -88,6 +88,10 @@ var (
 	// users, so an admin-less tenant could never add one again). Nothing was
 	// written.
 	ErrLastAdmin = errors.New("the tenant's last admin cannot be removed or demoted")
+	// ErrBadRole: the role set is empty, names its primary outside the set,
+	// or puts an exclusive role (demo_user, channel_guest) next to another
+	// (025 §10.2 rule 3, rdb 0201). Nothing was written.
+	ErrBadRole = errors.New("bad role set")
 )
 
 var roleRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
@@ -106,6 +110,96 @@ func normalizeRole(role, def string) (string, error) {
 		return "", ErrUnknownRole
 	}
 	return role, nil
+}
+
+// normalizeRoleSet normalizes every role of a set (normalizeRole, no
+// default) and the primary, drops repeats and checks the set's shape:
+// non-empty, primary ("" = not named) in it, an exclusive role alone. The set
+// comes back sorted.
+func normalizeRoleSet(roles []string, primary string) ([]string, string, error) {
+	seen := map[string]bool{}
+	var set []string
+	for _, r := range roles {
+		r, err := normalizeRole(r, "")
+		if err != nil {
+			return nil, "", err
+		}
+		if !seen[r] {
+			seen[r] = true
+			set = append(set, r)
+		}
+	}
+	if len(set) == 0 {
+		return nil, "", ErrBadRole
+	}
+	if strings.TrimSpace(primary) != "" {
+		p, err := normalizeRole(primary, "")
+		if err != nil {
+			return nil, "", err
+		}
+		if !seen[p] {
+			return nil, "", ErrBadRole
+		}
+		primary = p
+	} else {
+		primary = ""
+	}
+	if len(set) > 1 {
+		for _, r := range set {
+			if rbac.Exclusive(r) {
+				return nil, "", ErrBadRole
+			}
+		}
+	}
+	slices.Sort(set)
+	return set, primary, nil
+}
+
+// pickPrimary is the primary of a new set: the named one, else the current
+// primary when the set keeps it, else the set's first role (sorted).
+func pickPrimary(set []string, named, cur string) string {
+	if named != "" {
+		return named
+	}
+	for _, r := range set {
+		if r == cur {
+			return cur
+		}
+	}
+	return set[0]
+}
+
+// orderRoles is a role set as the store answers it: the primary first, the
+// rest sorted.
+func orderRoles(primary string, set []string) []string {
+	out := make([]string, 0, len(set)+1)
+	out = append(out, primary)
+	rest := make([]string, 0, len(set))
+	for _, r := range set {
+		if r != primary {
+			rest = append(rest, r)
+		}
+	}
+	slices.Sort(rest)
+	return append(out, rest...)
+}
+
+// sameRoles reports whether two role sets hold the same roles (Legacy names
+// mapped), whatever their order: the optimistic from-roles check.
+func sameRoles(a, b []string) bool {
+	norm := func(in []string) []string {
+		m := map[string]bool{}
+		for _, r := range in {
+			m[rbac.Legacy(strings.TrimSpace(r))] = true
+		}
+		out := make([]string, 0, len(m))
+		for r := range m {
+			out = append(out, r)
+		}
+		slices.Sort(out)
+		return out
+	}
+	return slices.Equal(norm(a), norm(b))
 }
 
 // Admitted-by markers for rows no owner HUM-* admitted.
@@ -327,9 +421,13 @@ type Humans interface {
 	// BootstrapOwner and zero members → owner). A refusal is ErrNotAdmitted
 	// and writes nothing, not even the human. A disabled human is refused.
 	Admit(ctx context.Context, id Identity, tenant string, p AdmitPolicy, now time.Time) (humanID string, err error)
-	// MemberRole returns the human's role in tenant, or ErrNotFound. A
-	// disabled human has no role.
+	// MemberRole returns the human's PRIMARY role in tenant, or ErrNotFound.
+	// A disabled human has no role.
 	MemberRole(ctx context.Context, humanID, tenant string) (string, error)
+	// MemberRoles returns the human's whole role set in tenant (025 §10.2,
+	// rdb 0201): the primary first, the rest sorted; ErrNotFound exactly
+	// when MemberRole answers it.
+	MemberRoles(ctx context.Context, humanID, tenant string) ([]string, error)
 	// PutInvite creates or replaces the (tenant, email) invite. The tenant
 	// must exist (ErrNotFound).
 	PutInvite(ctx context.Context, in Invite, now time.Time) error
@@ -420,7 +518,15 @@ type Humans interface {
 	// SetMemberRole sets one member's role. from != "": only while the
 	// member holds it (else ErrRoleChanged). ErrNotFound: not a member;
 	// ErrUnknownRole; ErrLastOwner (025 §3.4 rule 3).
+	// The member's set becomes {role}: role is the primary and the only
+	// role. from is checked against the primary.
 	SetMemberRole(ctx context.Context, tenant, humanID, role, from string) error
+	// SetMemberRoles sets one member's whole role set (025 §10.2,
+	// data-model §3). primary "" keeps the current primary when the set
+	// holds it, else the set's first role (sorted). from != nil: only while
+	// the member holds exactly that set (else ErrRoleChanged). ErrNotFound;
+	// ErrUnknownRole; ErrBadRole; ErrLastOwner / ErrLastAdmin over the sets.
+	SetMemberRoles(ctx context.Context, tenant, humanID string, roles []string, primary string, from []string) error
 	// RemoveMember deletes one membership. ErrNotFound; ErrLastOwner.
 	RemoveMember(ctx context.Context, tenant, humanID string) error
 }

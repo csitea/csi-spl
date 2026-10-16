@@ -14,7 +14,7 @@ import (
 // rbac.ErrNotMember.
 type RBACSource struct{ H Humans }
 
-var _ rbac.Source = RBACSource{}
+var _ rbac.SetSource = RBACSource{}
 
 func (r RBACSource) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
 	role, err := r.H.MemberRole(ctx, humanID, tenant)
@@ -22,6 +22,16 @@ func (r RBACSource) MemberRole(ctx context.Context, humanID, tenant string) (str
 		return "", rbac.ErrNotMember
 	}
 	return role, err
+}
+
+// MemberRoles answers the member's role set (rbac.SetSource): the
+// Authorizer grants the union of its roles.
+func (r RBACSource) MemberRoles(ctx context.Context, humanID, tenant string) ([]string, error) {
+	set, err := r.H.MemberRoles(ctx, humanID, tenant)
+	if errors.Is(err, ErrNotFound) {
+		return nil, rbac.ErrNotMember
+	}
+	return set, err
 }
 
 func (r RBACSource) TenantRoles(ctx context.Context, tenant string) (map[string]rbac.Role, error) {
@@ -41,12 +51,32 @@ func (s *Memory) TenantRoles(context.Context, string) (map[string]rbac.Role, err
 	return memRoles(), nil
 }
 
-// memOwnersLeft counts the other enabled members of tenant holding a
-// tenant-owner role. Caller holds s.mu.
+// setOwner reports whether any role of set is a tenant-owner role.
+func setOwner(roles map[string]rbac.Role, set []string) bool {
+	for _, r := range set {
+		if roles[r].TenantOwner {
+			return true
+		}
+	}
+	return false
+}
+
+// setGrants reports whether any role of set grants perm.
+func setGrants(roles map[string]rbac.Role, set []string, perm string) bool {
+	for _, r := range set {
+		if grants(roles[r], perm) {
+			return true
+		}
+	}
+	return false
+}
+
+// memOwnersLeft counts the other enabled members of tenant whose role set
+// holds a tenant-owner role. Caller holds s.mu.
 func (s *Memory) memOwnersLeft(tenant, except string) int {
 	roles, n := memRoles(), 0
 	for k, m := range s.hum.members {
-		if k[0] != tenant || k[1] == except || m.disabled || !roles[m.role].TenantOwner {
+		if k[0] != tenant || k[1] == except || m.disabled || !setOwner(roles, m.roleSet()) {
 			continue
 		}
 		if hm, ok := s.hum.humans[k[1]]; ok && !hm.disabled {
@@ -56,12 +86,12 @@ func (s *Memory) memOwnersLeft(tenant, except string) int {
 	return n
 }
 
-// memAdminsLeft counts the other enabled members of tenant whose role grants
-// members.invite (the last-admin guard). Caller holds s.mu.
+// memAdminsLeft counts the other enabled members of tenant whose role set
+// grants members.invite (the last-admin guard). Caller holds s.mu.
 func (s *Memory) memAdminsLeft(tenant, except string) int {
 	roles, n := memRoles(), 0
 	for k, m := range s.hum.members {
-		if k[0] != tenant || k[1] == except || m.disabled || !grants(roles[m.role], rbac.MembersInvite) {
+		if k[0] != tenant || k[1] == except || m.disabled || !setGrants(roles, m.roleSet(), rbac.MembersInvite) {
 			continue
 		}
 		if hm, ok := s.hum.humans[k[1]]; ok && !hm.disabled {
@@ -80,14 +110,49 @@ func grants(r rbac.Role, perm string) bool {
 	return false
 }
 
+// memSetGuard is ErrLastOwner / ErrLastAdmin when moving humanID's role set
+// from cur to next (nil = removal or lock-out) would leave tenant with no
+// enabled owner / member manager. Caller holds s.mu.
+func (s *Memory) memSetGuard(tenant, humanID string, cur, next []string) error {
+	roles := memRoles()
+	if setOwner(roles, cur) && !setOwner(roles, next) && s.memOwnersLeft(tenant, humanID) == 0 {
+		return ErrLastOwner
+	}
+	if setGrants(roles, cur, rbac.MembersInvite) && !setGrants(roles, next, rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
+		return ErrLastAdmin
+	}
+	return nil
+}
+
 func (s *Memory) SetMemberRole(_ context.Context, tenant, humanID, role, from string) error {
 	role, err := normalizeRole(role, "")
 	if err != nil {
 		return err
 	}
+	return s.setMemberRoles(tenant, humanID, []string{role}, role, func(m memMember) bool {
+		return from == "" || m.role == rbac.Legacy(from)
+	})
+}
+
+// SetMemberRoles sets the member's whole role set (Humans.SetMemberRoles).
+func (s *Memory) SetMemberRoles(_ context.Context, tenant, humanID string, roles []string, primary string, from []string) error {
+	set, primary, err := normalizeRoleSet(roles, primary)
+	if err != nil {
+		return err
+	}
+	return s.setMemberRoles(tenant, humanID, set, primary, func(m memMember) bool {
+		return from == nil || sameRoles(m.roleSet(), from)
+	})
+}
+
+// setMemberRoles writes a normalized set; primary "" is pickPrimary's.
+// fromOK is the optimistic check on the member as it stands.
+func (s *Memory) setMemberRoles(tenant, humanID string, set []string, primary string, fromOK func(memMember) bool) error {
 	roles := memRoles()
-	if _, ok := roles[role]; !ok {
-		return ErrUnknownRole
+	for _, r := range set {
+		if _, ok := roles[r]; !ok {
+			return ErrUnknownRole
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -97,16 +162,17 @@ func (s *Memory) SetMemberRole(_ context.Context, tenant, humanID, role, from st
 	if !ok {
 		return ErrNotFound
 	}
-	if from != "" && m.role != rbac.Legacy(from) {
+	if !fromOK(m) {
 		return ErrRoleChanged
 	}
-	if roles[m.role].TenantOwner && !roles[role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
-		return ErrLastOwner
+	if err := s.memSetGuard(tenant, humanID, m.roleSet(), set); err != nil {
+		return err
 	}
-	if grants(roles[m.role], rbac.MembersInvite) && !grants(roles[role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
-		return ErrLastAdmin
+	m.role = pickPrimary(set, primary, m.role)
+	m.extra = orderRoles(m.role, set)[1:]
+	if len(m.extra) == 0 {
+		m.extra = nil
 	}
-	m.role = role
 	s.hum.members[k] = m
 	return nil
 }
@@ -125,11 +191,8 @@ func (s *Memory) removeMemberLocked(tenant, humanID string) error {
 	if !ok {
 		return ErrNotFound
 	}
-	if memRoles()[m.role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
-		return ErrLastOwner
-	}
-	if grants(memRoles()[m.role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
-		return ErrLastAdmin
+	if err := s.memSetGuard(tenant, humanID, m.roleSet(), nil); err != nil {
+		return err
 	}
 	delete(s.hum.members, k)
 	return nil

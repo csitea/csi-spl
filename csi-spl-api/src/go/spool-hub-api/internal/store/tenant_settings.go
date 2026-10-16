@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -222,7 +221,7 @@ func (s *Memory) SetMemberDisabled(_ context.Context, tenant, humanID string, of
 		return ErrNotFound
 	}
 	if off && !m.disabled {
-		if err := s.memLockoutGuard(tenant, humanID, m.role); err != nil {
+		if err := s.memLockoutGuard(tenant, humanID, m.roleSet()); err != nil {
 			return err
 		}
 	}
@@ -231,18 +230,12 @@ func (s *Memory) SetMemberDisabled(_ context.Context, tenant, humanID string, of
 	return nil
 }
 
-// memLockoutGuard is ErrLastOwner / ErrLastAdmin when locking humanID (role)
-// out of tenant would leave it with no enabled owner / member manager: a
-// suspension, or an end of access (access_until.go). Caller holds s.mu.
-func (s *Memory) memLockoutGuard(tenant, humanID, role string) error {
-	roles := memRoles()
-	if roles[role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
-		return ErrLastOwner
-	}
-	if grants(roles[role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
-		return ErrLastAdmin
-	}
-	return nil
+// memLockoutGuard is ErrLastOwner / ErrLastAdmin when locking humanID (its
+// role set) out of tenant would leave it with no enabled owner / member
+// manager: a suspension, or an end of access (access_until.go). Caller holds
+// s.mu.
+func (s *Memory) memLockoutGuard(tenant, humanID string, set []string) error {
+	return s.memSetGuard(tenant, humanID, set, nil)
 }
 
 func (s *Memory) MemberState(_ context.Context, tenant, humanID string) (string, bool, error) {
@@ -333,12 +326,12 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string, off bool, now time.Time) error {
 	defer s.hot.forget() // DB payload cut 5: a suspended member leaves the door cache
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
+		_, owner, err := memberTx(ctx, tx, tenant, humanID)
 		if err != nil {
 			return err
 		}
 		if off {
-			if err := lockoutGuardTx(ctx, tx, tenant, humanID, cur, owner); err != nil {
+			if err := lockoutGuardTx(ctx, tx, tenant, humanID, owner); err != nil {
 				return err
 			}
 		}
@@ -357,7 +350,7 @@ func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string
 // cur, a tenant-owner role when owner) out of tenant would leave it with no
 // enabled owner / member manager: a suspension, or an end of access
 // (access_until.go). memberTx holds the tenant lock.
-func lockoutGuardTx(ctx context.Context, tx pgx.Tx, tenant, humanID, cur string, owner bool) error {
+func lockoutGuardTx(ctx context.Context, tx pgx.Tx, tenant, humanID string, owner bool) error {
 	if owner {
 		if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
 			return err
@@ -365,5 +358,5 @@ func lockoutGuardTx(ctx context.Context, tx pgx.Tx, tenant, humanID, cur string,
 			return ErrLastOwner
 		}
 	}
-	return lastAdminTx(ctx, tx, tenant, humanID, cur, "")
+	return lastAdminTx(ctx, tx, tenant, humanID, nil)
 }

@@ -2,8 +2,9 @@
 
 **Feature**: `specs/025-spool-tenant-rbac` · **Created**: 2026-10-16 · **Lane**: c-287 · **Issue**: SPL-2192
 **Behaviour**: `spec.md` §10. This file holds the tables, the migrations and
-the Go and API shapes only. Status: **Planned, not built yet** (none of it
-exists on `bba5cedb6`).
+the Go and API shapes only. Status: **row R1 built** (rdb
+`0201_tenant_member_roles.sql`, the rbac and store shapes of §3; SPL-2203);
+R2-R7 planned, not built yet.
 
 ## 1. Today (measured on `bba5cedb6`)
 
@@ -62,8 +63,10 @@ CREATE TABLE tenant_invite_roles (
 );
 ```
 
-`granted_by` is a `HUM-*`, `operator` (the env service account path) or
-`migration`. Both tables carry `tenant_scope` + `operator_scope` policies in
+`granted_by` is a `HUM-*`, `operator` (the env service account path),
+`migration` (the backfill), `primary` (a row trigger 1 wrote), `clone` (an
+act-as clone's copy of its target's set, `StartClone`) or `''` (a store
+write, which names no actor yet). Both tables carry `tenant_scope` + `operator_scope` policies in
 the 0014 shape, `FORCE ROW LEVEL SECURITY` (SEC-RBAC-4). Backfill in the same
 migration: one row per existing membership and per existing invite,
 `role_id = role`, `granted_by = 'migration'`.
@@ -132,6 +135,15 @@ ON CONFLICT DO NOTHING;
 | `store.SetMemberRole(ctx, tenant, hum, role, from)` | add `SetMemberRoles(ctx, tenant, hum string, roles []string, primary string, from []string)`; `from` is the optimistic check (`409 role_changed`), as `from_role` is today. `SetMemberRole` stays as a one-role wrapper |
 | `store.Member{Role}`, `store.Membership{Role}` | add `Roles []string` |
 | `rbac.Fixed("admin")` (test seam) | add `rbac.FixedSet{"developer", "devops"}` |
+| `rbac.Source` | add `rbac.SetSource` (a `Source` that also answers `MemberRoles`): the `Authorizer` grants the union when its source is one (`store.RBACSource` is), the primary alone otherwise; `rbac.Exclusive(role)` names `demo_user` / `channel_guest` |
+
+Built in R1 (SPL-2203): the set rides the door's one membership read (the
+request memo and the 5 s door cache hold it), so `MemberRoles` after
+`MemberRole` costs no round trip; the last-owner / last-admin guards
+(`SetMemberRole(s)`, `RemoveMember`, suspension, `access_until`) count over
+sets; `ListMembers` and `Memberships` carry `Roles`; the embed staff seating
+and the hours sweep read the set (§10.4 A21, A22); `StartClone` copies the
+target's set. The other checks of §10.4 A (A1-A20, W1-W6, O1) are rows R2-R5.
 
 ## 4. API shapes
 

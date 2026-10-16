@@ -13,9 +13,12 @@ import (
 
 // Membership is one tenant a human belongs to (rdb 0006 tenant_memberships).
 type Membership struct {
-	TenantID    string `json:"tenant_id"`
-	Role        string `json:"role"`
-	DisplayName string `json:"display_name,omitempty"`
+	TenantID string `json:"tenant_id"`
+	Role     string `json:"role"`
+	// Roles is the member's whole role set (rdb 0201, 025 §10.2), the
+	// primary (Role) first.
+	Roles       []string `json:"roles,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
 	// LastActiveAt is when the human last switched into this tenant (rdb
 	// 0044, specs/026 §6); nil = never.
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
@@ -62,7 +65,7 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	var out []Membership
 	for k, m := range s.hum.members {
 		if k[1] == humanID && !m.disabled && m.role != rbac.ChannelGuest && !lapsed(m.accessUntil, s.now()) {
-			ms := Membership{TenantID: k[0], Role: m.role}
+			ms := Membership{TenantID: k[0], Role: m.role, Roles: m.roleSet()}
 			if t, ok := s.tenants[k[0]]; ok {
 				ms.DisplayName, ms.SortOrder = t.DisplayName, t.SortOrder
 			}
@@ -139,7 +142,7 @@ func membershipsSQL(withSettings, withAccess bool) string {
 	if withSettings {
 		settingsCol = "m.settings"
 	}
-	return `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
+	return `SELECT m.tenant_id, m.role, ` + memberRolesCol + `, COALESCE(tn.display_name, ''), m.last_active_at,
 		COALESCE(tn.sort_order, 0), ` + settingsCol + `
 		FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
@@ -155,9 +158,10 @@ func membershipRow(withSettings bool, out *[]Membership) func(pgx.Rows) error {
 	return func(rows pgx.Rows) error {
 		var m Membership
 		var settings []byte
-		if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &settings); err != nil {
+		if err := rows.Scan(&m.TenantID, &m.Role, &m.Roles, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &settings); err != nil {
 			return err
 		}
+		m.Roles = orderRoles(m.Role, m.Roles)
 		if withSettings {
 			m.Settings = settings
 		}

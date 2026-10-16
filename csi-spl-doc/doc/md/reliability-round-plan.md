@@ -82,8 +82,8 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
 | 03 | `feat(rel-03-tls-cert-expiry-check)` | Public HTTPS certificate expiry monitor | `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai` certs expire Dec 18, 2026 (63 days); zero code checks renewal | Probes TLS certs via `openssl s_client`; warns at <= 21 days, critical alert at <= 7 days | Outputs exact days remaining (63d today); triggers warning alert on test cert with <= 21d | `do_net_cert_expiry_check`<br>`csi-spl-utl/src/bash/tests/tls-cert-expiry.tst.sh` | PC, sat | mistral | Batch 1 (Lane 3) |
 | 04 | `feat(rel-04-external-api-health-check)` | Outbound model & external API health probe | Network routing or Cloudflare blocks to Anthropic, Gemini, or GitHub APIs fail silently for individual vendors | Runs synthetic HEAD/OPTIONS probes (5s timeout); flags vendor degraded if 2 consecutive probes fail | Detects external API outage within 10 s; reports latency per endpoint in ms | `do_net_external_api_check`<br>`csi-spl-utl/src/bash/tests/external-api-health.tst.sh` | PC, sat | claude | Batch 1 (Lane 4) |
 | 05 | `feat(rel-05-tmux-server-health-guard)` | Tmux server socket liveness guard | All 24 agent sessions run on single tmux server; if socket freezes or deadlocks, entire fleet stops without warning | Probes socket responsiveness (`timeout 3s tmux -S ... list-sessions`); checks socket permissions and process status | Unresponsive socket flagged in < 5 s; normal probe completes in < 50 ms | `do_fleet_tmux_health_guard`<br>`csi-spl-utl/src/bash/tests/tmux-health-guard.tst.sh` | PC, sat | mistral | Batch 2 (Lane 1) |
-| 06 | `feat(rel-06-orphan-process-reaper)` | Orphaned process & zombie task reaper | Crashed agent lanes leave detached compiler, git, or node processes with PPID 1; load reached 21.40 | Scans for orphaned agent processes unlinked to active `registry.tsv` or live tmux panes; reaps after 30 min | Reaps orphaned processes older than 30 min; 100% preserves active lane processes | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` | PC, sat | agy | Batch 2 (Lane 2) |
-| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | Ephemeral test containers (`c581-pg`, `c579-pg`) ran for 17 hours; gateway container crashlooping for 3 months | Automatically stops and removes test containers (`c*-pg`, `pg*`) older than 2h when owning lane is inactive | Cleans up orphaned test containers > 2h; whitelists permanent infra containers | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` | PC, sat | claude | Batch 2 (Lane 3) |
+| 06 | `feat(rel-06-orphan-process-reaper)` | Orphaned process & zombie task reaper | Crashed agent lanes leave detached compiler, git, or node processes with PPID 1; load reached 21.40 | Strictly non-pattern multi-factor scan: reaps PPID 1 / zombie tasks older than 30 min unlinked to any tmux pane, worktree, or active registry lane | Reaps orphaned processes older than 30 min; never matches by pattern alone; 100% preserves active lane processes | `do_fleet_orphan_process_reap`<br>`csi-spl-utl/src/bash/tests/orphan-process-reap.tst.sh` | PC, sat | agy | Batch 2 (Lane 2) |
+| 07 | `feat(rel-07-docker-test-container-prune)` | Stale ephemeral test container pruner | Ephemeral test containers (`c581-pg`, `c579-pg`) ran for 17 hours; gateway container crashlooping for 3 months | Strictly non-pattern multi-factor scan: stops and removes test containers older than 2h whose originating lane is inactive in registry; preserves infra | Cleans up orphaned test containers > 2h; never prunes by pattern alone; whitelists permanent infra containers | `do_docker_test_container_prune`<br>`csi-spl-utl/src/bash/tests/docker-test-container-prune.tst.sh` | PC, sat | claude | Batch 2 (Lane 3) |
 | 08 | `feat(rel-08-gh-runner-health-check)` | GitHub Actions runner health & job hang detector | Self-hosted runner daemon can hang or disconnect (`CAP online=0 of 2 runners`); CI jobs queue up indefinitely | Checks GitHub API for runner `online` status; monitors runner process; flags wedged jobs exceeding 45 min | Reports runner status in < 3 s; alerts within 60 s if runner goes unexpectedly offline | `do_gh_runner_health_check`<br>`csi-spl-utl/src/bash/tests/gh-runner-health.tst.sh` | PC, sat | mistral | Batch 2 (Lane 4) |
 | 09 | `feat(rel-09-hub-synthetic-slo-monitor)` | Cloud Run hub synthetic probe & latency SLO monitor | Cloud Run instances suffer cold-start stalls or 500 errors; no continuous probe verifies availability between deploys | Continuous 60s synthetic probe against `/version` and `/live`; checks status 200, latency < 2000ms | Records latency in ms (< 150 ms typical); alerts if 3 consecutive probes fail or latency > 2s | `do_hub_synthetic_slo_check`<br>`csi-spl-utl/src/bash/tests/hub-synthetic-slo.tst.sh` | PC, sat | claude | Batch 3 (Lane 1) |
 | 10 | `feat(rel-10-cloud-sql-backup-verify)` | Cloud SQL daily backup verification | Cloud SQL automated backups run daily, but silent backup failures or quota locks are never checked from software | Queries GCP Cloud SQL API via environment service account; verifies newest successful backup < 26 hours old | Alerts if newest backup > 26h; verified against live dev and prd instances | `do_cloud_sql_backup_verify`<br>`csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh` | hub | agy | Batch 3 (Lane 2) |
@@ -155,25 +155,32 @@ Every proposal is a permanent software or monitoring solution in `csi-spl-utl`, 
 - **What:** Implement `do_fleet_orphan_process_reap` in `csi-spl-utl`:
   - Inspects all processes running under the agent runner UID.
   - Identifies processes whose parent process ID (PPID) is 1 (orphaned init adopted child) or whose state is zombie (`Z`).
-  - Matches processes against active lanes in `/var/spool-hub/registry.tsv` and active tmux pane PIDs (`tmux list-panes -F '#{pane_pid}').
-  - If an orphaned process is older than 30 minutes and not held by any live lane or pane, sends `SIGTERM`, followed by `SIGKILL` if still alive after 10 s.
+  - **Strict Non-Pattern Safety Constraints (c-002 order)**: Never matches or terminates processes by command name pattern alone. A process is targeted ONLY when ALL five conditions are satisfied:
+    1. PPID is 1 (orphaned child) or process state is `Z` (zombie), AND
+    2. Process PID and PGID do not belong to any active tmux session, window, or pane (`tmux list-panes -F '#{pane_pid}'`), AND
+    3. Process working directory (`/proc/<pid>/cwd`) is NOT inside any active worktree directory, AND
+    4. Process command line is unassociated with any active agent in `/var/spool-hub/registry.tsv`, AND
+    5. Process has been idle/stale > 30 minutes without active I/O or state change.
+  - Sends `SIGTERM`, followed by `SIGKILL` only if still running after 10 s.
 - **Why:** When agent lanes crash or commands time out, background subshells, detached node processes, or compiler workers accumulate, consuming memory and pushing load average to 21.40.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_fleet_orphan_process_reap`
-- **Target:** Frees CPU and RAM leaks; 0 active agent lane processes disturbed.
+- **Target:** Frees CPU and RAM leaks; never matches by pattern alone; 0 active agent lane processes disturbed.
 - **Proof:** Planted background orphan (`nohup sleep 3600 &`) detached from tmux is cleanly terminated after retention window; active agent processes remain untouched.
 
 ### Row 07: `feat(rel-07-docker-test-container-prune)` - Stale ephemeral test container pruner
 - **What:** Implement `do_docker_test_container_prune` in `csi-spl-utl`:
-  - Scans all Docker containers matching test patterns (`c*-pg`, `pg*`, `test-*`).
-  - Checks uptime: if running or exited for > 2 hours, cross-references container name against active agent lanes in `registry.tsv`.
-  - If originating lane is done or inactive, removes container: `docker rm -f <container_id>`.
+  - Scans all Docker containers matching test prefixes (`c*-pg`, `pg*`, `test-*`).
+  - **Strict Non-Pattern Safety Constraints (c-002 order)**: Never prunes containers by name pattern alone. A container is targeted ONLY when ALL four conditions are satisfied:
+    1. The container originating lane ID (parsed from container name `c<NNN>-pg` -> `c-<NNN>`, or container labels) is cross-referenced against `/var/spool-hub/registry.tsv` and verified to be INACTIVE (status `done`, `diss`, or not registered), AND
+    2. Container creation time / uptime exceeds 2 hours (`{{.CreatedAt}}` older than 120 minutes), AND
+    3. Container is not referenced in any active worktree configuration (`.env`, `docker-compose.yml`), AND
+    4. Container is NOT on the permanent infrastructure whitelist (`con-csi-csi-spl-tf-runner`, `con-csi-csi-spl-tpl-gen`, `con-csi-csi-spl-conf-validator`, `csi-spl-lde-main-pg-1`).
+  - If all conditions are met, removes container: `docker rm -f <container_id>`.
   - Scans for crashlooping containers (restart count > 100 with active status `Restarting`) and alerts dispatch holder.
-  - Whitelists permanent containers (`con-csi-csi-spl-tf-runner`, `con-csi-csi-spl-tpl-gen`, `con-csi-csi-spl-conf-validator`, `csi-spl-lde-main-pg-1`).
 - **Why:** Ephemeral test containers (`c581-pg`, `c579-pg`) were found running for 14-17 hours; `con-bnc-cpt-gateway` has been crashlooping every 26 seconds for 3 months, leaking host ports and RAM.
 - **Command:** `cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_test_container_prune`
-- **Target:** Removes orphaned test containers older than 2h; frees bound localhost ports (32769..32959).
+- **Target:** Removes orphaned test containers older than 2h; never removes by pattern alone; frees bound localhost ports (32769..32959).
 - **Proof:** Test container from an inactive lane is pruned; whitelisted permanent containers are strictly preserved.
-
 ### Row 08: `feat(rel-08-gh-runner-health-check)` - GitHub Actions runner health & job hang detector
 - **What:** Implement `do_gh_runner_health_check` in `csi-spl-utl`:
   - Queries GitHub API (`gh api repos/csitea/csi-spl/actions/runners`) using the pinned GitHub token.
@@ -252,7 +259,7 @@ The 12 rows are organized into **3 parallel batches of 4 lanes**. All files modi
 
 ## 6. Owner approval poll form (msg f7b5e824)
 
-Prepared for the dispatch lease holder to post to the owner as ONE checkbox poll form:
+Prepared for the dispatch lease holder to post to the owner as ONE checkbox poll form after v1.0 consensus and signatures (posted by the dispatcher after v1.0, not before):
 
 ```markdown
 ### Reliability Round: Permanent Software and Monitoring Solutions (12 Actions)
@@ -266,8 +273,8 @@ Please tick the items you approve for implementation:
 - [ ] **03. Public HTTPS Certificate Expiry Monitor** (`feat(rel-03-tls-cert-expiry-check)`): Probes TLS certs for `api.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai`; warns at <= 21 days, alarms at <= 7 days.
 - [ ] **04. Outbound Model & External API Health Probe** (`feat(rel-04-external-api-health-check)`): Synthetic 5s probes to Anthropic, Gemini, GitHub APIs; flags degraded vendors before spawning failing lanes.
 - [ ] **05. Tmux Server Socket Liveness Guard** (`feat(rel-05-tmux-server-health-guard)`): Continuous liveness probe on `/tmp/tmux-<uid>/default`; alerts within 5s if tmux server hangs or freezes.
-- [ ] **06. Orphaned Process & Zombie Task Reaper** (`feat(rel-06-orphan-process-reaper)`): Scans and reaps detached compiler/node/git processes under runner UID with PPID 1 older than 30 min.
-- [ ] **07. Stale Ephemeral Test Container Pruner** (`feat(rel-07-docker-test-container-prune)`): Stops and removes test containers (`c*-pg`, `pg*`) older than 2h whose lanes are inactive; alerts on crashlooping containers.
+- [ ] **06. Orphaned Process & Zombie Task Reaper** (`feat(rel-06-orphan-process-reaper)`): Strictly non-pattern multi-factor scan: reaps detached unlinked PPID 1 / zombie tasks older than 30 min unassociated with any active agent, worktree, or tmux pane.
+- [ ] **07. Stale Ephemeral Test Container Pruner** (`feat(rel-07-docker-test-container-prune)`): Strictly non-pattern multi-factor scan: stops and removes test containers older than 2h whose originating lane is confirmed inactive in registry; preserves permanent infrastructure whitelist.
 - [ ] **08. GitHub Actions Runner Health & Job Hang Detector** (`feat(rel-08-gh-runner-health-check)`): Monitors runner `online` status via GitHub API; alerts if runner disconnects or CI job hangs > 45 min.
 - [ ] **09. Cloud Run Hub Synthetic Probe & Latency SLO Monitor** (`feat(rel-09-hub-synthetic-slo-monitor)`): 60s synthetic probe against `/version` and `/live`; alerts on 5xx errors or latency > 2000 ms.
 - [ ] **10. Cloud SQL Daily Backup Verification** (`feat(rel-10-cloud-sql-backup-verify)`): Queries GCP Cloud SQL API via service account; alerts if newest successful backup is older than 26 hours.

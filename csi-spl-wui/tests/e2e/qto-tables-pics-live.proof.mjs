@@ -17,6 +17,7 @@
 //
 //   BASE=https://<host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=e2e] [PAGES=<repo-relative md>,...] [KEEP=1] [CHROME_PATH=...] \
+//     [HUB_FROM=config]  (skip the hub calls seen; read the hub from the page's /config.json) \
 //     node tests/e2e/qto-tables-pics-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -70,13 +71,20 @@ const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); conso
 const STEP = 30000
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
 let hub = null
+let site = BASE
 try {
   res.build = await (await fetch(BASE + '/build.json')).json().catch(() => ({}))
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  /* the hub: any /v1/ call the page makes (a doctree call by preference), its
+     origin and bearer; HUB_FROM=config skips this and uses the fallback below */
+  const seen = new Set()
   p.on('request', (r) => {
-    const m = r.url().match(/^(.*)\/v1\/workspace\/doctree(?:[/?]|$)/)
-    if (m) hub = { base: m[1], auth: r.headers().authorization || '' }
+    const m = r.url().match(/^(https?:\/\/[^/]+)\/v1\/([a-z-]+)/)
+    if (!m || process.env.HUB_FROM === 'config') return
+    seen.add(m[1] + ' ' + m[2])
+    const auth = r.headers().authorization || ''
+    if (!hub || (m[2] === 'workspace' && !hub.doctree) || (auth && !hub.auth)) hub = { base: m[1], auth: auth || hub?.auth || '', doctree: m[2] === 'workspace' || Boolean(hub?.doctree), from: 'request' }
   })
   await p.setViewport({ width: 1280, height: 900 })
   await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=' + encodeURIComponent('/workspace/docs'), { waitUntil: 'networkidle2' })
@@ -86,10 +94,22 @@ try {
   await p.click('[data-test=native-auth-submit]')
   await p.waitForFunction(() => !location.pathname.startsWith('/login'), { timeout: STEP }).catch(() => null)
   step('native sign-in', !p.url().includes('/login'), { url: p.url() })
-  if (!p.url().includes('/workspace/docs')) await p.goto(BASE + '/workspace/docs', { waitUntil: 'networkidle2' })
-  await p.waitForFunction(() => true, { timeout: 1000 })
-  for (let i = 0; i < 40 && !hub; i++) await sleep(250)
-  step('the docs page called the hub (its base and auth are known)', Boolean(hub), { base: hub?.base })
+  // with tenant hosts on, a workspace that is not the apex one lands on its own host
+  site = new URL(p.url()).origin
+  if (!p.url().includes('/workspace/docs')) await p.goto(site + '/workspace/docs', { waitUntil: 'networkidle2' })
+  for (let i = 0; i < 40 && !hub?.doctree; i++) await sleep(250)
+  if (!hub) {
+    // no hub call seen: the page's own /config.json names the hub, the tab's view token (if any) is the bearer
+    hub = await p.evaluate(async () => {
+      const c = await (await fetch('/config.json', { cache: 'no-store' })).json().catch(() => ({}))
+      const t = (() => { try { return sessionStorage.getItem('spool.view_token') || '' } catch { return '' } })()
+      return c.apiBase && !String(c.apiBase).includes('{tenant}') ? { base: String(c.apiBase).replace(/\/+$/, ''), auth: t ? 'Bearer ' + t : '', from: 'config.json' } : null
+    }).catch(() => null)
+  }
+  res.site = site
+  res.hubCalls = [...seen]
+  step('the hub is known (base and auth)', Boolean(hub?.base), { site, base: hub?.base, from: hub?.from, bearer: Boolean(hub?.auth), calls: [...seen].slice(0, 8) })
+  if (!hub?.base) throw new Error('no hub base: nothing built, nothing to delete')
 
   /* the document, built over the hub with the member's session */
   const title = `(delete me) Qto tables and pictures ${Date.now()}`
@@ -124,7 +144,7 @@ try {
 
   const view = async (vp, label) => {
     await p.setViewport(vp)
-    await p.goto(`${BASE}/workspace/docs?doc=${res.doc}&view=doc`, { waitUntil: 'networkidle2' })
+    await p.goto(`${site}/workspace/docs?doc=${res.doc}&view=doc`, { waitUntil: 'networkidle2' })
     await p.waitForSelector('[data-test=ws-doc-md] table', { timeout: STEP }).catch(() => null)
     await p.waitForFunction(() => [...document.querySelectorAll('[data-test=ws-doc-md]')].every((e) => !e.classList.contains('wsdoc__run--plain')), { timeout: STEP }).catch(() => null)
     await sleep(1500)
@@ -185,6 +205,8 @@ try {
     }, hub, res.doc)
     step('the proof document is deleted again', del >= 200 && del < 300, { status: del })
   }
+} catch (e) {
+  step('the proof ran to its end', false, { error: String(e) })
 } finally {
   writeFileSync(`${OUT}/results.json`, JSON.stringify(res, null, 2))
   await browser.close()

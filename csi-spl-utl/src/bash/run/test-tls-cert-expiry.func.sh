@@ -23,7 +23,12 @@ do_test_tls_cert_expiry() {
 
   # Mock spool-send.sh to avoid sending notes during tests
   export spool_messages=()
+  export mock_spool_send_calls=0
+  export mock_spool_send_counter_file="$test_dir/mock_spool_send_calls"
+  echo 0 > "$mock_spool_send_counter_file"
   mock_spool_send() {
+    ((mock_spool_send_calls++))
+    echo "$mock_spool_send_calls" >> "$mock_spool_send_counter_file"
     spool_messages+=("$*")
     echo "MOCK spool-send: $*"
     return 0
@@ -74,8 +79,12 @@ fi
 
   # Run the check
   (cd /opt/csi/csi-spl-wt/m-307/csi-spl-utl && \
-    TEST_HOSTS="test-warning.spool-hub.ai" \
-    TEST_EXPIRY_DATE="$(date -u -d "14 days" "+%b %d %H:%M:%S %Y GMT")" \
+    export PATH="$mock_dir:$PATH"; \
+    export TEST_HOSTS="test-warning.spool-hub.ai"; \
+    export TEST_EXPIRY_DATE="$(date -u -d "14 days" "+%b %d %H:%M:%S %Y GMT")"; \
+    export mock_spool_send_calls; \
+    rm -f "/tmp/tls-cert-expiry-test/spool/cert_expiry_last_alert"; \
+    echo 0 > "$mock_spool_send_counter_file"; \
     ./run -a do_net_cert_expiry_check 2>&1) | tee /tmp/test_output.log
   grep -q "WARN.*14 days" /tmp/test_output.log || \
     { echo "FAIL: Test 1 did not detect WARNING threshold"; cat /tmp/test_output.log; return 1; }
@@ -85,8 +94,12 @@ fi
   echo "Test 2: Simulate a certificate expiring in 3 days (CRITICAL)"
 
   (cd /opt/csi/csi-spl-wt/m-307/csi-spl-utl && \
-    TEST_HOSTS="test-critical.spool-hub.ai" \
-    TEST_EXPIRY_DATE="$(date -u -d "3 days" "+%b %d %H:%M:%S %Y GMT")" \
+    export PATH="$mock_dir:$PATH"; \
+    export TEST_HOSTS="test-critical.spool-hub.ai"; \
+    export TEST_EXPIRY_DATE="$(date -u -d "3 days" "+%b %d %H:%M:%S %Y GMT")"; \
+    export mock_spool_send_calls; \
+    rm -f "/tmp/tls-cert-expiry-test/spool/cert_expiry_last_alert"; \
+    echo 0 > "$mock_spool_send_counter_file"; \
     ./run -a do_net_cert_expiry_check 2>&1) | tee /tmp/test_output.log
   grep -q "CRITICAL.*[23] days" /tmp/test_output.log || \
     { echo "FAIL: Test 2 did not detect CRITICAL threshold"; cat /tmp/test_output.log; return 1; }
@@ -104,6 +117,20 @@ fi
     echo "FAIL: Test 3 did not pass red control"; cat /tmp/test_output.log; return 1;
   fi
 
+  # Read all calls from the counter file
+  mock_spool_send_calls=$(wc -l < "$mock_spool_send_counter_file")
+  
+  if (( mock_spool_send_calls != 2 )); then
+    echo "FAIL: Expected 2 mock spool-send calls, got $mock_spool_send_calls"
+    return 1
+  fi
+  
+  # Red control: Ensure the mock was actually used (no real spool-send calls)
+  if (( mock_spool_send_calls == 0 )); then
+    echo "FAIL: No mock spool-send calls detected (real spool-send was called)"
+    return 1
+  fi
+  
   echo "PASS: All tests completed successfully"
   return 0
 }

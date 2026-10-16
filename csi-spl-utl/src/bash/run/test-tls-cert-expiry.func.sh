@@ -39,6 +39,9 @@ mock_spool_send "$@"
 ' > "$mock_dir/spool-send.sh"
   chmod +x "$mock_dir/spool-send.sh"
 
+  # Override SPOOL_SEND_PATH to use the mock
+  export SPOOL_SEND_PATH="$mock_dir/spool-send.sh"
+
   # Use a temporary SPOOL_ROOT for the mock
   export SPOOL_ROOT="$test_dir/spool"
 

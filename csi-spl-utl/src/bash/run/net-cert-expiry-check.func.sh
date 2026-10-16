@@ -86,7 +86,8 @@ do_net_cert_expiry_check() {
         if [[ "$last_alert" != "WARNING $host" ]]; then
           # Send spool note to orchestrator
           export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
-          bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh \
+          local spool_send="${SPOOL_SEND_PATH:-/opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+          bash "$spool_send" \
             --from m-307 --to orchestrator --kind note --task dispatch-06ebfdd6 \
             --body "WARNING: Certificate for $host expires in $days_remaining days" || \
             do_log "FATAL failed to send spool note for $host"
@@ -108,7 +109,8 @@ do_net_cert_expiry_check() {
         if [[ "$last_alert" != "CRITICAL $host" ]]; then
           # Send spool note to orchestrator
           export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
-          bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh \
+          local spool_send="${SPOOL_SEND_PATH:-/opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+          bash "$spool_send" \
             --from m-307 --to orchestrator --kind note --task dispatch-06ebfdd6 \
             --body "CRITICAL: Certificate for $host expires in $days_remaining days" || \
             do_log "FATAL failed to send spool note for $host"

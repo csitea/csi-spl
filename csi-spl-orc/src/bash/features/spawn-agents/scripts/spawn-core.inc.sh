@@ -112,6 +112,31 @@ _spawn_main_checkout() {
   echo "$top"
 }
 
+# DIR is a git work tree of its own, not a plain dir (nor one nested in
+# some other checkout).
+_spawn_is_worktree() {
+  local top
+  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 1
+  top="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ "$(cd "$1" && pwd -P)" = "$(cd "$top" && pwd -P)" ]
+}
+
+# DIR is a worktree to reuse (SPL-2281). A retired id's dir the 24 h sweep
+# left behind (only .claude/) spawned with no worktree and no branch: any dir
+# that is not a work tree is moved aside, never deleted (it may hold a
+# transcript), and the caller makes a fresh worktree in its place.
+_spawn_reusable() {
+  local stale
+  [ -d "$1" ] || return 1
+  _spawn_is_worktree "$1" && return 0
+  stale="${1}.stale-$(date -u +%Y%m%dT%H%M%SZ)"
+  _sp_plan worktree "stale ${1}: not a git work tree, move to ${stale}"
+  _sp_live || return 1
+  mv "$1" "$stale" || _sp_fail "mv ${1} ${stale} FAILED"
+  echo "INFO: ${1} was not a git work tree - moved to ${stale}"
+  return 1
+}
+
 # RUNDIR REPO BRANCH WORKTREE_DIR DEFBRANCH, creating the worktree when live.
 _spawn_worktree() {
   local rv n cand main_br main_dirty safe_slug
@@ -147,7 +172,7 @@ _spawn_worktree() {
   fi
 
   WORKTREE_DIR="${REPO}-wt/${TITLE}"
-  if [ -d "$WORKTREE_DIR" ]; then
+  if _spawn_reusable "$WORKTREE_DIR"; then
     BRANCH="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
     [ -n "$BRANCH" ] || BRANCH="$TITLE"
     RUNDIR="$WORKTREE_DIR"

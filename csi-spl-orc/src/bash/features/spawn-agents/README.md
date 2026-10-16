@@ -22,7 +22,10 @@ the reference does it:
 - **tmux visibility.** Windows are created with `new-window -d` in the session
   the box user's client is attached to. No spawn ever runs `select-window`.
 - **Isolation.** Each agent gets its own git worktree, `<repo>-wt/<ID>`, on a
-  branch off `origin/<trunk>`.
+  branch off `origin/<trunk>`. An existing `<repo>-wt/<ID>` is reused only
+  when it is a git work tree of its own; any other dir there (a retired id's
+  leftover `.claude/`) is moved to `<repo>-wt/<ID>.stale-<UTC>`, never
+  deleted, and a fresh worktree is made (SPL-2281).
 - **Lane map.** Each spawn writes the agent's row (`<ID>@<box>`, repo, branch,
   scope, files, topic) into the fleet-wide lane map on the hub, and the seed
   prompt's scope check reads that map, not `git worktree list` (section 3.11).

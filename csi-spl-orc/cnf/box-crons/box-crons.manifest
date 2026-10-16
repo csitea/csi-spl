@@ -31,3 +31,4 @@ gc                | * * * * *       | src/bash/scripts/gc-cron.sh               
 reverse-tunnel    | * * * * *       | src/bash/scripts/reverse-tunnel-cron.sh                 | reverse-tunnel/cron.log |
 token-burn        | * * * * *       | src/bash/scripts/token-burn-collect-cron.sh             | token-burn/cron.log   |
 topic-status-card | */5 * * * *    | src/bash/scripts/topic-status-card-cron.sh             | topic-status-card/cron.log |
+fx-rates-fetch    | 37 16 * * *     | src/bash/scripts/fx-rates-fetch-cron.sh                 | fx-rates-fetch/cron.log |

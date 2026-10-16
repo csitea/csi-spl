@@ -170,6 +170,15 @@ day, else the last one published before it, and the rate's date is shown.
 - **Feed**: `POST /v1/operator/fx/rates` (operator SA only),
   `{rows: [{day, quote, rate, source}]}`, an UPSERT per (day, quote, source):
   a re-post is a no-op. Answer `{rows, written}`.
+- **Fetch**: `ENV=<env> [DRY_RUN=0] ./run -a do_spl_fx_rates_fetch`
+  (csi-spl-orc, DRY_RUN=1 by default) reads the ECB euro reference rates
+  (the currencies in cnf `env.fx.ecb_currencies`) and the Federal Reserve H.10
+  series (every other one) from the cnf `env.fx` URLs, turns each rate into
+  units per USD and posts the last `env.fx.days` days to the feed. Daily from
+  the box crontab: row `fx-rates-fetch` (16:37 box time) of
+  `csi-spl-orc/cnf/box-crons/box-crons.manifest`, script
+  `fx-rates-fetch-cron.sh`, for dev and prd. Test:
+  `csi-spl-orc/src/bash/tests/spl-fx-rates-fetch.tst.sh`.
 - **Setting**: `second_currency`, per workspace like `time_zone` (rdb 0078
   membership settings, no humans column). `PUT /api/v1/auth/preferences`
   takes an ISO 4217 code (upper-cased) or `null` (back to EUR); a code the

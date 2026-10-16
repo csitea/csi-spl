@@ -25,6 +25,8 @@
 #                $SPOOL_ROOT/.mirror-off exists (the box-wide kill switch). The
 #                hook posts each typed prompt and each final answer into the
 #                agent's web UI DM, from its desk seat; no seat, no post
+#   5b. grok     grok only: the context cap of cnf env.box.grok_cli into
+#                ~/.grok/config.toml (lib/grok-compact.inc.sh, SPL-2215)
 #   6. exec      replaces itself with the agent command; --umask <octal> sets
 #                the agent's own umask first (the spool dirs above keep 0002).
 #                qwen launches with 077: its state files under ~/.qwen were
@@ -237,6 +239,18 @@ if [ "$mirror" = 1 ]; then
       *) say "mirror: '$kind' has no hook mechanism; not mirrored" ;;
     esac
   fi
+fi
+
+# ── 5b. grok context cap (SPL-2215) ─────────────────────────────────────────
+# Every grok launch re-asserts cnf env.box.grok_cli.auto_compact_threshold_percent
+# in the agent user's grok config; SPOOL_GROK_COMPACT_PCT overrides it (empty:
+# grok's own default). A failure warns and starts grok anyway.
+if [ "$(basename "$1")" = grok ]; then
+  # shellcheck source=../lib/grok-compact.inc.sh
+  . "$HARNESS_DIR/../lib/grok-compact.inc.sh"
+  grok_compact_apply "${GROK_HOME:-$HOME/.grok}/config.toml" \
+    "${SPOOL_GROK_COMPACT_PCT-$(grok_compact_cnf "$HARNESS_DIR/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml")}" ||
+    say "warning: grok context cap not written; grok compacts at its own default"
 fi
 
 # ── 6. exec ────────────────────────────────────────────────────────────────

@@ -60,6 +60,36 @@ eq "umask: --umask=077 form" 0077 "$(bash "$H" --as QWN-5 --umask=077 -- sh -c u
 bash "$H" --as QWN-5 --umask 0778 true >/dev/null 2>&1; eq "umask: a non-octal mask -> 2" 2 "$?"
 bash "$H" --as QWN-5 --umask a+r true >/dev/null 2>&1;  eq "umask: a symbolic mask -> 2" 2 "$?"
 
+# ── grok context cap (SPL-2215) ──
+# A grok launch writes the cnf's env.box.grok_cli.auto_compact_threshold_percent
+# under [session] in ~/.grok/config.toml, keeping the rest. CONTROL: with the
+# value removed (empty) the line goes and grok compacts at its own default (80%
+# of 256000), the growth the cap stops; claude's launch never touches the file.
+. "$T_FEAT/lib/grok-compact.inc.sh"
+CNF_PCT="$(grok_compact_cnf "$T_REPO/csi-spl-cnf/csi-spl/all.env.yaml")"
+check "grok cap: the cnf carries a 1..100 value ($CNF_PCT)" test "${CNF_PCT:-0}" -ge 1 -a "${CNF_PCT:-0}" -le 100
+GB="$T_TMP/gbin"; mkdir -p "$GB" "$HOME/.grok"; printf '#!/bin/sh\necho grok-ran\n' >"$GB/grok"; chmod +x "$GB/grok"
+printf '[ui]\nyolo = false\n' >"$HOME/.grok/config.toml"
+out="$(PATH="$GB:$PATH" bash "$H" --as g-901 -- grok 2>"$T_TMP/err")"
+eq "grok cap: the launch still exec-s grok" grok-ran "$out"
+GC="$(cat "$HOME/.grok/config.toml")"
+has "grok cap: [session] auto_compact_threshold_percent = the cnf value" "[session]
+auto_compact_threshold_percent = $CNF_PCT  " "$GC"
+has "grok cap: the user's other keys kept" "yolo = false" "$GC"
+PATH="$GB:$PATH" bash "$H" --as g-901 -- grok >/dev/null 2>&1
+eq "grok cap: a second launch writes nothing twice" 1 "$(grep -c auto_compact "$HOME/.grok/config.toml")"
+PATH="$GB:$PATH" SPOOL_GROK_COMPACT_PCT=40 bash "$H" --as g-901 -- grok >/dev/null 2>&1
+has "grok cap: SPOOL_GROK_COMPACT_PCT overrides the cnf" "auto_compact_threshold_percent = 40  " "$(cat "$HOME/.grok/config.toml")"
+PATH="$GB:$PATH" SPOOL_GROK_COMPACT_PCT='' bash "$H" --as g-901 -- grok >/dev/null 2>&1
+hasnt "grok cap: CONTROL: value removed -> no cap, grok's default applies" auto_compact "$(cat "$HOME/.grok/config.toml")"
+out="$(PATH="$GB:$PATH" SPOOL_GROK_COMPACT_PCT=200 bash "$H" --as g-901 -- grok 2>&1)"
+has "grok cap: a bad value warns and still starts grok" grok-ran "$out"
+has "grok cap: ...saying why" "must be 1..100" "$out"
+rm -f "$HOME/.grok/config.toml"
+bash "$H" --as c-901 -- true >/dev/null 2>&1
+check "grok cap: a claude launch writes no grok config" test ! -e "$HOME/.grok/config.toml"
+rm -rf "$HOME/.grok"
+
 # ── usage and refusals ──
 bash "$H" true >/dev/null 2>&1;              eq "no --as -> 2" 2 "$?"
 bash "$H" --as CLE-1 >/dev/null 2>&1;        eq "no command -> 2" 2 "$?"

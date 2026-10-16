@@ -10,6 +10,11 @@
 #      to record calls, makes NO gcloud call, NO curl call and NO push/login.
 #      CONTROL: the same stub records a call when one is made, so an empty
 #      log means "not called", not "not recorded".
+#      do_build_push_hub_image builds through a STUB docker build that records
+#      its arguments (platform, tag = the 030 image, the hub Dockerfile): a
+#      cold real build was ~100 s of ~134 s per CI run (n=5) and wf 20 builds
+#      the same image for real (DRY_RUN=1) whenever its inputs change.
+#      CLOUD_ACTIONS_REAL_BUILD=1 runs the real docker build instead.
 #   4. spl_proxy_dsn maps the /cloudsql socket DSN onto the local proxy
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -25,17 +30,31 @@ fails=0
 mkdir -p "$T/nosa_home"
 
 # Stubs: gcloud, curl and cloud-sql-proxy record and fail; docker records,
-# refuses login/push, and passes the rest (build, inspect) to the real one.
+# refuses login/push, records `build` to BUILD_LOG and answers it (and the
+# `image inspect` after it) itself unless CLOUD_ACTIONS_REAL_BUILD=1, and
+# passes the rest to the real one.
 mkdir -p "$T/stub"
 for b in gcloud curl cloud-sql-proxy; do
   printf '#!/bin/sh\necho "%s $*" >>"$STUB_LOG"\nexit 1\n' "$b" >"$T/stub/$b"
 done
 real_docker=$(command -v docker || echo /bin/false)
-printf '#!/bin/sh\ncase "$1" in login|push|run) echo "docker $*" >>"$STUB_LOG"; exit 1;; esac\nexec %s "$@"\n' "$real_docker" >"$T/stub/docker"
+real_build=0
+[[ "${CLOUD_ACTIONS_REAL_BUILD:-0}" == 1 ]] && "$real_docker" info >/dev/null 2>&1 && real_build=1
+cat >"$T/stub/docker" <<STUB
+#!/bin/sh
+case "\$1" in login|push|run) echo "docker \$*" >>"\$STUB_LOG"; exit 1;; esac
+if [ $real_build = 0 ]; then
+  case "\$1 \${2:-}" in
+    "build "*) echo "\$*" >>"\$BUILD_LOG"; exit 0;;
+    "image inspect") echo "sha256:stub"; exit 0;;
+  esac
+fi
+exec $real_docker "\$@"
+STUB
 chmod +x "$T/stub/"*
 
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" \
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" BUILD_LOG="$T/build.log" \
     PATH="$T/stub:$PATH" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -84,10 +103,17 @@ check_dry() { # <label> <snippet> [env...]
   elif [[ -s "$T/calls.log" ]]; then fail "$label dry run made cloud calls: $(tr '\n' ';' <"$T/calls.log")"
   else pass "$label dry run: exit 0, no gcloud / curl / push"; fi
 }
-if [[ -x "$real_docker" ]] && docker info >/dev/null 2>&1; then
-  check_dry "do_build_push_hub_image" 'do_build_push_hub_image'
+: >"$T/build.log"
+check_dry "do_build_push_hub_image" 'do_build_push_hub_image'
+if ((real_build)); then
+  echo "INFO CLOUD_ACTIONS_REAL_BUILD=1: the real docker build ran"
 else
-  echo "SKIP: no docker: do_build_push_hub_image"
+  ref=$(SNIPPET='do_spl_cloud_cnf && echo "$SPL_IMAGE_REF"' in_orc 2>/dev/null | tail -1)
+  b=$(cat "$T/build.log")
+  [[ $(grep -c . "$T/build.log") -eq 1 && -n "$ref" && " $b " == *" --platform linux/amd64 "* && " $b " == *" -t $ref "* \
+     && " $b " == *" -f $APP_ROOT/csi-spl-api/src/docker/hub.Dockerfile $APP_ROOT "* ]] \
+    && pass "do_build_push_hub_image builds linux/amd64 $ref from hub.Dockerfile (stub build)" \
+    || fail "do_build_push_hub_image build call: '${b:-<none>}' (want one build, --platform linux/amd64 -t $ref -f hub.Dockerfile)"
 fi
 check_dry "do_export_all_dns_settings" 'do_export_all_dns_settings' ENV=dev
 check_dry "do_flush_dns" 'do_flush_dns' TEST_DOMAIN=example.test

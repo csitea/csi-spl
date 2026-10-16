@@ -26,7 +26,9 @@
 # @description changed.
 # @description Then it reloads NM's config (`nmcli general reload conf`; no
 # @description connection goes down) and runs the plan's measuring command
-# @description `nmcli networking connectivity check`, which must say full.
+# @description `nmcli networking connectivity check`, which must say full; it
+# @description runs under NET_SUDO too, as polkit refuses a recheck to a
+# @description plain user ("Not authorized to recheck connectivity").
 # @description Nothing is installed and no sysctl is changed.
 # @description Dry run unless DRY_RUN=0: prints the state now, the file and the
 # @description commands, and writes nothing. Re-running is safe: an identical
@@ -73,7 +75,7 @@ ncc_rp_check() {
 }
 
 do_net_connectivity_check() {
-  local dry="${DRY_RUN:-1}" root="${NET_ROOT:-}" file now tmp
+  local dry="${DRY_RUN:-1}" root="${NET_ROOT:-}" file now tmp err
   NCC_PROC="${NET_PROC:-/proc}" NCC_SYS="${NET_SYS:-/sys}" NCC_NMCLI="${NET_NMCLI:-nmcli}" NCC_SUDO="${NET_SUDO-sudo}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ -z "$root" || "$root" == /* ]] || { do_log "FATAL NET_ROOT must be an absolute path, got: '$root'"; return 1; }
@@ -92,11 +94,16 @@ do_net_connectivity_check() {
   fi
   if [[ "$dry" == 1 ]]; then
     echo "PLAN ${NCC_SUDO:+$NCC_SUDO }$NCC_NMCLI general reload conf"
-    echo "PLAN $NCC_NMCLI networking connectivity check (must say full)"
+    echo "PLAN ${NCC_SUDO:+$NCC_SUDO }$NCC_NMCLI networking connectivity check (must say full)"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0
   fi
   $NCC_SUDO $NCC_NMCLI general reload conf || { do_log "FATAL nmcli general reload conf failed"; return 1; }
-  now="$($NCC_NMCLI networking connectivity check 2>/dev/null)"
-  [[ "$now" == full ]] || { do_log "FATAL nmcli networking connectivity check says '${now:-nothing}', not full"; return 1; }
+  err="$(mktemp)" || { do_log "FATAL mktemp failed"; return 1; }
+  now="$($NCC_SUDO $NCC_NMCLI networking connectivity check 2>"$err")"
+  [[ "$now" == full ]] || {
+    do_log "FATAL nmcli networking connectivity check says '${now:-nothing}', not full: $(head -c 300 "$err")"
+    rm -f "$err"; return 1
+  }
+  rm -f "$err"
   do_log "OK connectivity full; $file in place"
 }

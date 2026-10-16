@@ -30,6 +30,8 @@
 //   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
 // (Embed admin: the non-owner mock is not set, so step 18g goes red)
 //   PROVE_RED=embed-non-owner node tests/e2e/tenant-settings.test.mjs
+// (Members on a phone: the inner list is a scroller again, so 14c and 14d go red)
+//   PROVE_RED=nested-scroller node tests/e2e/tenant-settings.test.mjs
 //
 // Run:
 //   pnpm run test:e2e tenant-settings
@@ -430,6 +432,51 @@ try {
     }
   })
   ok('14b phone: Performance shows one card per group, no sideways scroll', phonePerf.rows === 6 && phonePerf.fits && !phonePerf.pageScrollX && phonePerf.headHidden, phonePerf)
+  // 6b. SPL-2244 (owner, phone, 17 members: "I cannot scroll the screen"):
+  // Members scrolls by a finger swipe and by the wheel that start on a member
+  // row, down to the last member, above the composer dock. The mock seeds 4
+  // members, so the list is padded to 20 rows with copies of the first row
+  // (the same layout as 20 real ones).
+  for (const [vw, vh] of [[412, 915], [360, 800]]) {
+    await p.setViewport({ width: vw, height: vh, isMobile: true, hasTouch: true })
+    await p.goto(server.base + '/tenant-settings/members', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })
+    if (RED === 'nested-scroller') await p.addStyleTag({ content: '.users-page--embedded .users-body { overflow-y: auto !important; overscroll-behavior: contain !important }' })
+    await p.evaluate(() => {
+      const ul = document.querySelector('[data-test=tenant-settings-members] [data-test=users-members]')
+      const li = ul.querySelector('li')
+      while (ul.children.length < 20) ul.appendChild(li.cloneNode(true))
+    })
+    const scrollTop = () => p.$eval('[data-test=tenant-settings]', (e) => Math.round(e.scrollTop))
+    const swipe = async () => {
+      const cdp = await p.target().createCDPSession()
+      const pt = (y) => [{ x: Math.round(vw / 2), y: Math.round(y) }]
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(vh * 0.7) })
+      for (let i = 1; i <= 12; i++) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(vh * 0.7 - (vh * 0.45 * i) / 12) })
+        await sleep(16)
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await cdp.detach()
+      await sleep(400)
+    }
+    for (let i = 0; i < 6; i++) await swipe()
+    const touched = await scrollTop()
+    const last = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-test=tenant-settings-members] [data-test=users-row]')]
+      const r = rows[rows.length - 1].getBoundingClientRect()
+      const dock = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--composer-dock-h')) || 0
+      const hit = document.elementFromPoint(window.innerWidth / 2, r.bottom - 4)
+      return { rows: rows.length, bottom: Math.round(r.bottom), visibleBottom: Math.round(window.innerHeight - dock), hitIsLast: !!hit && hit.closest('[data-test=users-row]') === rows[rows.length - 1] }
+    })
+    ok(`14c phone ${vw}x${vh}: a swipe on the Members rows scrolls to the last member, above the composer dock`, touched > 0 && last.rows >= 20 && last.bottom <= last.visibleBottom && last.hitIsLast, { touched, ...last })
+    await p.$eval('[data-test=tenant-settings]', (e) => { e.scrollTop = 0 })
+    await p.mouse.move(vw / 2, vh * 0.6)
+    await p.mouse.wheel({ deltaY: 400 })
+    await sleep(400)
+    const wheeled = await scrollTop()
+    ok(`14d phone ${vw}x${vh}: the wheel on the Members rows scrolls the page`, wheeled > 0, { wheeled })
+  }
   ok('15 no page errors', errors.length === 0, errors)
 
   // 7. spec 073 4.7: a biz_owner (keys.manage, no agents.join) sees the

@@ -219,6 +219,11 @@ watch(() => session.state, (st) => {
   background: var(--color-bg-2);
 }
 .users-page--embedded .users-col { flex: 1 1 auto; min-width: 0; }
+/* SPL-2244 (owner, phone: "I cannot scroll the screen"): embedded, the page's
+   own .feed-body is the scroller. This inner .feed-body never overflows, yet
+   as a scroll container with overscroll-behavior: contain it kept every swipe
+   and wheel that started on a member row from reaching the page. */
+.users-page--embedded .users-body { overflow: visible; overscroll-behavior: auto; }
 .users-toolbar { display: flex; align-items: center; gap: var(--spacing-sm); padding: 10px 16px 0; }
 .users-body { padding: var(--spacing-sm) 0; }
 .users-group__title {

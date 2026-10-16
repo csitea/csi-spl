@@ -84,6 +84,7 @@
 //	hub-pin --box <id> --pubkey <b64> --root-key <path> [--force] [--revoke]
 //	hub-sync                   one role=box session: hello, pins, drain queue, flush
 //	hub-run                    box daemon: hold the session, reconnect with backoff
+//	hub-queue                  the fallback queue: depth, oldest age, last flush (exit 3 = past the cnf WARN age)
 //	hub-tail --task <uuid> [--follow] [--json]
 //	hub-rsp --task <uuid>      {"task_id","rsp"}: RSP-* messages in the topic, any box
 //	hub-get-file --file-id <sha256>   download one file from the hub (read door proof)
@@ -172,6 +173,7 @@ a box and its hub ($SPOOL_HUB_URL):
                       tenant root key: --root-key <file | key text | - = stdin>
   hub-sync            one session: push the outbox, pull the inbox
   hub-run             the same, held open until signalled (the box sidecar)
+  hub-queue           the box's fallback queue: depth, oldest age, last flush (exit 3 = WARN)
   hub-tail            print a topic from the hub (--follow keeps printing)
   hub-rsp             how many RSP-* messages a topic holds on the hub, any box
   hub-get-file        fetch a file by id from the hub into the local blob store
@@ -269,10 +271,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdMCP(cfg, rest)
 	case "hub-pin":
 		return cmdHubPin(cfg, rest)
-	case "hub-sync":
-		return cmdHubSync(cfg)
-	case "hub-run":
-		return cmdHubRun(cfg)
+	case "hub-sync", "hub-run", "hub-queue": // hub-queue: SPL-2165
+		return cmdHubBox(cfg, cmd)
 	case "hub-tail":
 		return cmdHubTail(cfg, rest)
 	case "hub-rsp": // c-082

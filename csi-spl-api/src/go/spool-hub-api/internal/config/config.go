@@ -64,6 +64,13 @@ type Config struct {
 	// longer than this - whole minutes, or a Go duration. do_spl_desk_up sets
 	// it from cnf env.box.agent_drop_after_minutes. Unset/0 = never.
 	AgentDropAfter string `env:"SPOOL_AGENT_DROP_AFTER"`
+	// QueueWarnAfter / QueueLogEvery (SPL-2165): the hub-run sidecar logs its
+	// fallback queue (pending-flush dir) every QueueLogEvery, at WARN once the
+	// oldest entry is QueueWarnAfter old; `spool hub-queue` flags the same.
+	// Whole minutes or a Go duration. do_spl_desk_up sets them from cnf
+	// env.box.fallback_queue. Unset/0 = off.
+	QueueWarnAfter string `env:"SPOOL_QUEUE_WARN_AFTER"`
+	QueueLogEvery  string `env:"SPOOL_QUEUE_LOG_EVERY"`
 	// DirLayout is the mailbox layout of SpoolRoot (specs/058 6): unset = bare
 	// "<ID>" dirs; "qualified" = a new mailbox is "<ID>@<DeskBox>" plus the
 	// compat symlink "<ID>". Both layouts are always READ.

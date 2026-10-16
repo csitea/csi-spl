@@ -353,9 +353,16 @@ spl_desk_sidecar() {
     local drop
     drop="$(yq -r '.env.box.agent_drop_after_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || drop=""
     [[ "$drop" =~ ^[0-9]*$ ]] || { do_log "FATAL cnf env.box.agent_drop_after_minutes must be whole minutes, got '$drop'"; flock -u 9; exec 9>&-; return 1; }
+    # SPL-2165: the fallback queue's periodic line and its WARN age, from
+    # cnf env.box.fallback_queue (hubclient/queue_health.go). Empty = off.
+    local qlog qwarn
+    qlog="$(yq -r '.env.box.fallback_queue.log_every_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || qlog=""
+    qwarn="$(yq -r '.env.box.fallback_queue.warn_after_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || qwarn=""
+    [[ "$qlog$qwarn" =~ ^[0-9]*$ ]] || { do_log "FATAL cnf env.box.fallback_queue minutes must be whole minutes, got '$qlog' / '$qwarn'"; flock -u 9; exec 9>&-; return 1; }
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
     SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" SPOOL_AGENT_DROP_AFTER="$drop" \
+    SPOOL_QUEUE_LOG_EVERY="$qlog" SPOOL_QUEUE_WARN_AFTER="$qwarn" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!
     printf '%s\n' "$SPL_DESK_PID" >"$pidf"

@@ -369,8 +369,15 @@ func (c *Client) Pending() ([]string, error) {
 
 // Flush sends every pending envelope on s (contracts/flush.md §2). It stops at
 // the first refusal (moved to rejected/, returned: exit 78 for verify-class)
-// or when the hub drops (the rest stay pending).
+// or when the hub drops (the rest stay pending). Its result is recorded for
+// `spool hub-queue` (queue_health.go).
 func (s *Session) Flush(ctx context.Context) (int, error) {
+	n, err := s.flush(ctx)
+	s.c.recordFlush(n, err)
+	return n, err
+}
+
+func (s *Session) flush(ctx context.Context) (int, error) {
 	list, err := s.c.Pending()
 	if err != nil {
 		return 0, err
@@ -460,12 +467,16 @@ func (c *Client) pendingCount() int {
 // reconnecting with capped exponential backoff and equal jitter (1 s ceiling
 // doubling to a 60 s cap, each wait in [ceiling/2, ceiling], one upgrade per
 // attempt; a Retry-After on the refused upgrade is honoured, see backoff.go)
-// on any close, re-helloing, flushing, refreshing pins on an
+// on any close, re-helloing, flushing, logging the fallback queue every
+// QueueLogEvery (SPL-2165), refreshing pins on an
 // interval and re-announcing the roster when the $SPOOL_ROOT/*/ scan changes
 // (OQ-05). The backoff resets only after a session stayed up for stableAfter,
 // so a hub that accepts and drops at once is not hammered every second. It
 // returns when ctx ends, or ErrSuperseded when a newer hello took the box.
 func (c *Client) Run(ctx context.Context) error {
+	wctx, stopWatch := context.WithCancel(ctx)
+	defer stopWatch()
+	go c.watchQueue(wctx) // up or down: a down hub is when the queue grows
 	b := newBackoff(runBackoffBase, runBackoffMax, runBackoffMax)
 	b.half = true
 	for {

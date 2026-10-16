@@ -997,6 +997,24 @@ rm -f "$T/drop.got"; drop_of "$T/drop-none.yaml"
 rm -f "$T/drop.got"; drop_of "$T/drop-bad.yaml"
 [[ ! -f "$T/drop.got" ]] && grep -q 'FATAL cnf env.box.agent_drop_after_minutes' "$T/o" &&
   pass "a non-number threshold is refused before the sidecar starts" || fail "bad drop threshold: $(cat "$T/o")"
+# SPL-2165: the fallback queue's period and WARN age ride the same path, from
+# env.box.fallback_queue; no key = empty = off; a non-number is refused.
+queue_of() {
+  local cnf="$1" dd="$T/queue/$RANDOM"; mkdir -p "$dd/spool/.hub"
+  SNIPPET="spl_desk_detach() { printf '%s/%s\n' \"\${SPOOL_QUEUE_LOG_EVERY-unset}\" \"\${SPOOL_QUEUE_WARN_AFTER-unset}\" >'$T/queue.got'; sleep 0 & }
+    SPL_SPOOL=true SPL_CNF='$cnf' spl_desk_sidecar '$dd' box-desk t1 https://hub.invalid off 1" in_orc >"$T/o" 2>&1
+}
+printf 'env:\n  box:\n    fallback_queue:\n      log_every_minutes: 5\n      warn_after_minutes: 15\n' >"$T/queue-ok.yaml"
+printf 'env:\n  box:\n    fallback_queue:\n      warn_after_minutes: soon\n' >"$T/queue-bad.yaml"
+rm -f "$T/queue.got"; queue_of "$T/queue-ok.yaml"
+[[ "$(cat "$T/queue.got" 2>/dev/null)" == 5/15 ]] && pass "the sidecar gets SPOOL_QUEUE_LOG_EVERY=5 SPOOL_QUEUE_WARN_AFTER=15 from cnf" ||
+  fail "queue from cnf: got '$(cat "$T/queue.got" 2>/dev/null)': $(cat "$T/o")"
+rm -f "$T/queue.got"; queue_of "$T/drop-none.yaml"
+[[ "$(cat "$T/queue.got" 2>/dev/null)" == / ]] && pass "CONTROL a cnf without fallback_queue passes both empty (off)" ||
+  fail "queue without the key: got '$(cat "$T/queue.got" 2>/dev/null)': $(cat "$T/o")"
+rm -f "$T/queue.got"; queue_of "$T/queue-bad.yaml"
+[[ ! -f "$T/queue.got" ]] && grep -q 'FATAL cnf env.box.fallback_queue' "$T/o" &&
+  pass "a non-number queue threshold is refused before the sidecar starts" || fail "bad queue threshold: $(cat "$T/o")"
 
 
 # --- 14. a muted seat is never silent (M2, 2026-10-11) ----------------------------

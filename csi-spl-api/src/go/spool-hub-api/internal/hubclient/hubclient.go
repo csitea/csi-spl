@@ -142,8 +142,14 @@ type Client struct {
 	// has said does not run for longer than this (agent_drop.go, t1
 	// bc1a43e1 fix B). 0 = never.
 	DropAfter time.Duration
-	dropMu    sync.Mutex
-	stopSince map[string]time.Time // agent -> first report that it does not run
+	// QueueWarnAfter makes the fallback queue's periodic line a WARN once its
+	// oldest pending envelope is this old; QueueLogEvery is that line's
+	// period in hub-run (queue_health.go, SPL-2165). Both from cnf
+	// env.box.fallback_queue; 0 = no WARN / no periodic line.
+	QueueWarnAfter time.Duration
+	QueueLogEvery  time.Duration
+	dropMu         sync.Mutex
+	stopSince      map[string]time.Time // agent -> first report that it does not run
 
 	keysDirWarned sync.Once
 

@@ -48,6 +48,24 @@ Flush runs on every accepted hello: the box daemon (`spool hub-run`) after each
 exponential, 1 s doubling to a **30 s** cap with jitter; last hello wins
 (`./http-v1.md` §2.6).
 
+### 2.1 Queue depth and flush health (SPL-2165)
+
+The pending dir is the box's fallback queue: what a send leaves there while
+the hub is unreachable. It says how it is doing in three places, all box-side
+(`internal/hubclient/queue_health.go`):
+
+| where | what |
+|---|---|
+| `$SPOOL_ROOT/.hub/flush-last.json` | every flush leaves `{at, flushed, left, error}`; a flush that moved something logs `fallback queue flushed`, one that stopped logs `fallback queue flush stopped` (WARN) |
+| `spool hub-queue` | prints `{box, at, depth, oldest_at, oldest_age_s, rejected, warn_after_s, warn, last_flush}` from disk, with the sidecar up or down; exit 3 when `warn` |
+| the `spool hub-run` log | one `fallback queue` line every `$SPOOL_QUEUE_LOG_EVERY`, also while the hub is down; WARN once the oldest entry is `$SPOOL_QUEUE_WARN_AFTER` old |
+
+The age is the oldest pending file's time, i.e. when this box queued it.
+`rejected` counts `rejected/*.json`, the envelopes that will never be sent.
+Both durations come from cnf `env.box.fallback_queue`
+(`log_every_minutes`, `warn_after_minutes`), passed by `do_spl_desk_up`;
+unset or 0 turns the line or the WARN off. The code carries no default.
+
 ## 3. Recv
 
 `spool-recv` reads the local inbox only (unchanged 002 verb). The box session
@@ -65,4 +83,4 @@ exact signed bytes.
 
 Spec mapping: FR-008, FR-009, FR-010 (`../spec.md`).
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->
+<!-- version: 0.4.0 · updated: 2026-10-16 · last-edit: 2026-10-16T12:00:00Z -->

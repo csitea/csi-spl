@@ -1001,7 +1001,41 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 		return nil, fmt.Errorf("$SPOOL_AGENT_DROP_AFTER: %w", err)
 	}
 	c.DropAfter = drop
+	if err := setQueueDurations(cfg, c); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// setQueueDurations sets the fallback queue's cnf durations on c (SPL-2165).
+func setQueueDurations(cfg *config.Config, c *hubclient.Client) error {
+	var err error
+	if c.QueueWarnAfter, err = hubclient.ParseMinutes(cfg.QueueWarnAfter); err != nil {
+		return fmt.Errorf("$SPOOL_QUEUE_WARN_AFTER: %w", err)
+	}
+	if c.QueueLogEvery, err = hubclient.ParseMinutes(cfg.QueueLogEvery); err != nil {
+		return fmt.Errorf("$SPOOL_QUEUE_LOG_EVERY: %w", err)
+	}
+	return nil
+}
+
+// cmdHubQueue prints the box's fallback queue (hubclient.QueueHealth) from
+// disk, so it answers with the sidecar up or down and needs no hub. Exit 3
+// when the oldest pending envelope is past $SPOOL_QUEUE_WARN_AFTER (SPL-2165).
+func cmdHubQueue(cfg *config.Config) int {
+	c := hubclient.New(cfg)
+	if err := setQueueDurations(cfg, c); err != nil {
+		return fail(err)
+	}
+	h, err := c.QueueHealth()
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Println(action.JSON(h))
+	if h.Warn {
+		return 3
+	}
+	return 0
 }
 
 // cmdHubSync runs one role=box session and prints what it did.
@@ -1018,6 +1052,17 @@ func cmdHubSync(cfg *config.Config) int {
 		return fail(err)
 	}
 	return 0
+}
+
+// cmdHubBox runs the box's own hub verbs: sync, run, queue.
+func cmdHubBox(cfg *config.Config, cmd string) int {
+	switch cmd {
+	case "hub-run":
+		return cmdHubRun(cfg)
+	case "hub-queue":
+		return cmdHubQueue(cfg)
+	}
+	return cmdHubSync(cfg)
 }
 
 // cmdHubRun holds the box session until signalled.

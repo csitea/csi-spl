@@ -12,6 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isSignedOutVisitor } from '../../src/utils/shell-bootstrap.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -50,7 +51,7 @@ describe('product feed pages do not paint the signed-out notice', () => {
   })
 
   it('the sidebar stops offering "new channel" to someone who cannot create one', () => {
-    const s = src('src/components/ChannelSidebar.vue')
+    const s = channelSidebarSrc()
     /* access.can fails OPEN by design; a settled signed-out probe is not a
        failed read, and the control could only ever answer 401. The gate is one
        computed now (the + button), not a v-if repeated per element. */

@@ -12,6 +12,7 @@ import { peopleRows, withDmPeers } from '../../src/utils/live-follow.mjs'
 import { mentionBoxes, pokeTargets } from '../../src/utils/mention-poke.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 import { insertMention } from '../../src/utils/mention-autocomplete.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -113,11 +114,11 @@ describe('specs/058: the same id on two boxes is two agents (CLE-77932)', () => 
     assert.match(poke, /pokeFrame\(\{ to: id, body, toBox,/)
     assert.match(src('src/utils/mention-poke.mjs'), /to_box: toBox \|\| undefined/)
     assert.match(poke, /await sendDm\(id, body, boxes\[id\], refOf\(opts\.where\)\)/)
-    assert.match(src('src/components/ChannelSidebar.vue'), /orderPeers\(withDmPeers\(roster\.peers, channel\.dmAt/)
+    assert.match(channelSidebarSrc(), /orderPeers\(withDmPeers\(roster\.peers, channel\.dmAt/)
   })
 
   it('a narrow rail row clips neither the id nor the box: the box is its own line', () => {
-    const side = src('src/components/ChannelSidebar.vue')
+    const side = channelSidebarSrc()
     assert.match(side, /<HumanName class="label" :id="p\.id" :box="p\.box" stacked \/>/, 'DM rows')
     /* SPL-2075: the Agents list is Monitoring -> Agents now */
     const agents = src('src/pages/monitoring/agents/index.vue')

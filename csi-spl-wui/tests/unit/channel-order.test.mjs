@@ -10,6 +10,7 @@ import { mergeChannelOrder, sameChannelOrder, stepChannelOrder } from '../../src
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { pinRows, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -87,7 +88,7 @@ describe('Move up / Move down', () => {
   })
 
   it('only the Channels panel rows pass them (not the Flow channel rows)', () => {
-    const vue = src('src/components/ChannelSidebar.vue')
+    const vue = channelSidebarSrc()
     assert.equal(vue.split(':move-up=').length - 1, 1)
     assert.equal(vue.split(':move-down=').length - 1, 1)
     assert.match(vue, /:move-up="channelIndex > 0"/)
@@ -156,10 +157,12 @@ describe('the lde mock keeps it across a reload', () => {
 
 describe('the sidebar wiring', () => {
   it('a channel drag and the menu go through the one save path; creating a channel does not', () => {
-    const vue = src('src/components/ChannelSidebar.vue')
+    const vue = channelSidebarSrc()
     assert.match(vue, /if \(list === 'channels'\) void setChannelOrder\(next\)/)
     assert.match(vue, /stepChannelOrder\(channelRows\.value\.map/)
-    const create = vue.slice(vue.indexOf('async function onCreate'), vue.indexOf('async function onCreate') + 2000)
+    /* r13-04: onCreate closes useSidebarChannelCreate.ts, so its own file ends the window */
+    const createTs = src('src/composables/useSidebarChannelCreate.ts')
+    const create = createTs.slice(createTs.indexOf('async function onCreate'), createTs.indexOf('async function onCreate') + 2000)
     assert.doesNotMatch(create, /channelOrder|setChannelOrder/)
   })
 

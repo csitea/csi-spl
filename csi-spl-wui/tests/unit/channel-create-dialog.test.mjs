@@ -28,12 +28,13 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addChannelRow } from '../../src/utils/channel-feed.mjs'
 import { channelsFromView } from '../../src/utils/view-api.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('the + control next to the Channels heading', () => {
-  const sidebar = src('src/components/ChannelSidebar.vue')
+  const sidebar = channelSidebarSrc()
 
   it('is a real button in the heading row, not a field in the channel list', () => {
     assert.match(sidebar, /<div class="sidebar-head">\s*<h2[^>]*>\s*\{\{ t\('sidebar\.channels'\) \}\}/)
@@ -62,7 +63,7 @@ describe('the + control next to the Channels heading', () => {
 })
 
 describe('the dialog collects a title AND a description', () => {
-  const sidebar = src('src/components/ChannelSidebar.vue')
+  const sidebar = channelSidebarSrc()
 
   it('opens with focus in the Title field, not on the dialog Close button', () => {
     /* items[0] is the header Close; a form that opens focused there eats the

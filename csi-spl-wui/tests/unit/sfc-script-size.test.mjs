@@ -28,7 +28,6 @@ const MAX_SCRIPT = 500
 const BIG = new Map([
   ['src/pages/issues.vue', 2084],
   ['src/components/MessageComposer.vue', 1136],
-  ['src/components/ChannelSidebar.vue', 984],
   ['src/components/workspace-docs/WorkspaceDocView.vue', 677],
   ['src/components/workspace-docs/QtoFileTree.vue', 654],
   ['src/components/CalendarMainView.vue', 612],

@@ -111,7 +111,7 @@ describe('mention autocomplete', () => {
       'src/components/ChannelSidebar.vue',
       'src/pages/issues.vue',
     ]) {
-      const s = f === 'src/components/MessageCard.vue' ? messageCardSrc() : readFileSync(join(wui, f), 'utf8')
+      const s = f === 'src/components/MessageCard.vue' ? messageCardSrc() : f === 'src/components/ChannelSidebar.vue' ? channelSidebarSrc() : readFileSync(join(wui, f), 'utf8')
       assert.match(s, /useMentionPicker\(/, f)
       assert.match(s, /<MentionList :picker=/, f)
       assert.doesNotMatch(s, /activeMentionQuery|filterRosterMentions/, f)
@@ -177,6 +177,7 @@ import { mentionCandidates } from '../../src/utils/mention-autocomplete.mjs'
 import { LEGACY_ID_UNTIL, setAgentIdNow } from '../../src/utils/agent-id.mjs'
 import { after, before } from 'node:test'
 import { messageCardSrc } from './lib/message-card-src.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 describe('mentionCandidates (SPL-985)', () => {
   /* the fixture's CLE-7 is a legacy id: pinned before its deadline (spec 061 FR-004) */

@@ -41,6 +41,9 @@ chmod +x "$T/stub/gcloud"
 
 # a valid 1x1 lossless webp (34 bytes), padded to a size by RIFF-legal junk
 webp() { printf 'UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==' | base64 -d >"$1"; [[ -z "${2:-}" ]] || truncate -s "$2" "$1"; }
+png() { printf '\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00' >"$1"; }
+# a JPEG: the FF D8 FF E0 magic bytes and a JFIF header, enough for the magic check
+jpg() { printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00' >"$1"; }
 index() {  # index <image>... : one en entry per image, id = $ID unless "id:img"
   local e="" x id img
   for x in "$@"; do
@@ -67,6 +70,12 @@ if ((rc == 0)) && copied "$ID.webp" && copied "$ID-og.webp" && cmp -s "$B/$ID.we
 else fail "good webp: rc=$rc $(cat "$T/o")"; fi
 reset; webp "$B/$ID.webp" 307200; index "$ID.webp"; cb
 ((rc == 0)) && copied "$ID.webp" && pass "a webp of exactly 300 KB (307200 bytes) is copied" || fail "300 KB webp: rc=$rc $(cat "$T/o")"
+reset; jpg "$B/$ID.jpg"; jpg "$B/$ID-og.jpg"; index "$ID.jpg"; cb
+((rc == 0)) && copied "$ID.jpg" && copied "$ID-og.jpg" && ! copied "$ID-og.webp" &&
+  pass "a .jpg picture and its -og.jpg (the og:image a link preview reads) are copied" || fail "jpg: rc=$rc $(cat "$T/o")"
+reset; png "$B/$ID.jpg"; index "$ID.jpg"; cb
+((rc == 1)) && grep -q "refused: $ID.jpg: not a jpeg" "$T/o" && none_copied &&
+  pass "a PNG renamed .jpg is refused and named" || fail "png as jpg: rc=$rc $(cat "$T/o")"
 
 # --- 2. refused files -------------------------------------------------------
 # refused <label> <reason-regex> [action]: rc 1, the file + reason named, nothing copied
@@ -75,7 +84,6 @@ refused() {
   if ((rc == 1)) && grep -q "refused: $ID.webp: $2" "$T/o" && none_copied; then return 0; fi
   return 1
 }
-png() { printf '\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00' >"$1"; }
 case_png()   { reset; png "$B/$ID.webp"; index "$ID.webp"; }
 case_big()   { reset; webp "$B/$ID.webp" 308224; index "$ID.webp"; }
 case_empty() { reset; : >"$B/$ID.webp"; index "$ID.webp"; }

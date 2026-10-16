@@ -5,9 +5,11 @@
 # @description
 # @description Every local check runs BEFORE any gcloud call, so a bad file or
 # @description a bad name never reaches `gcloud storage cp`:
-# @description   - the file is a RIFF....WEBP file (magic bytes, not the suffix)
+# @description   - the file is a RIFF....WEBP file (magic bytes, not the suffix);
+# @description     a .jpg name (an og:image link previews can read) needs the
+# @description     FF D8 FF JPEG magic bytes instead
 # @description   - it is not empty and not over 300 KB (307200 bytes)
-# @description   - the object name is YYYY-MM-DD-<slug>.webp (an -og slug too),
+# @description   - the object name is YYYY-MM-DD-<slug>.webp or .jpg (an -og slug too),
 # @description     so a key like `../x` or `$(...)` is refused here
 # @description The bucket is cnf env.steps."054-gcs-blog-media".media_bucket_name,
 # @description never a literal. The identity is the per-env project SA
@@ -20,7 +22,7 @@
 # @description its sha256 must equal the source's: the read-back is the
 # @description verdict, not the exit code of the upload.
 # @param ENV - required: dev or prd
-# @param BLOG_IMG_SRC - required: the local .webp file
+# @param BLOG_IMG_SRC - required: the local .webp (or .jpg) file
 # @param BLOG_IMG_NAME - required: the object name, e.g. 2026-10-09-hello-world.webp
 # @param DRY_RUN (optional) - default 1: checks and reads only, writes nothing
 # @param BLOG_IMG_REPLACE (optional) - 1 overwrites an object with another sha256
@@ -66,7 +68,9 @@ spl_blog_media_put_verified() {
     do_log "INFO $ENV: DRY_RUN=1, nothing written: would put $uri${have:+ (replacing sha256 $have)}; DRY_RUN=0 puts it"
     return 0
   fi
-  gcloud storage cp "$src" "$uri" --content-type=image/webp --account="$GCP_ACCOUNT" >/dev/null 2>"$work/put.err" ||
+  local type=image/webp
+  [[ "$uri" == *.jpg ]] && type=image/jpeg
+  gcloud storage cp "$src" "$uri" --content-type="$type" --account="$GCP_ACCOUNT" >/dev/null 2>"$work/put.err" ||
     { do_log "FATAL $ENV: cannot put $uri: $(tail -n 2 "$work/put.err" | tr '\n' ' ')"; return 1; }
   have="$(spl_blog_media_remote_sha "$uri" "$work/readback")" || return 1
   [[ "$have" == "$sha" ]] ||
@@ -80,11 +84,16 @@ spl_blog_media_put_check() {
   local src="$1" name="$2" size
   [[ -n "$src" ]] || { do_log "FATAL BLOG_IMG_SRC is required (the local .webp file)"; return 1; }
   [[ -f "$src" && -r "$src" ]] || { do_log "FATAL BLOG_IMG_SRC $src is not a readable file"; return 1; }
-  [[ "$name" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*\.webp$ ]] ||
-    { do_log "FATAL BLOG_IMG_NAME '$name' must be YYYY-MM-DD-<slug>.webp or YYYY-MM-DD-<slug>-og.webp (slug: a-z, 0-9, -)"; return 1; }
+  [[ "$name" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*\.(webp|jpg)$ ]] ||
+    { do_log "FATAL BLOG_IMG_NAME '$name' must be YYYY-MM-DD-<slug>.webp or YYYY-MM-DD-<slug>-og.webp, or the same as .jpg (slug: a-z, 0-9, -)"; return 1; }
   size="$(stat -c %s "$src")"
   (( size > 0 )) || { do_log "FATAL $src is empty"; return 1; }
   (( size <= 307200 )) || { do_log "FATAL $src is $size bytes, over the 300 KB (307200 bytes) limit"; return 1; }
+  if [[ "$name" == *.jpg ]]; then
+    [[ "$(head -c 3 "$src" | od -An -tx1 | tr -d ' \n')" == ffd8ff ]] ||
+      { do_log "FATAL $src is not a jpeg: its first bytes are not FF D8 FF"; return 1; }
+    return 0
+  fi
   [[ "$(head -c 4 "$src")" == RIFF && "$(dd if="$src" bs=1 skip=8 count=4 2>/dev/null)" == WEBP ]] ||
     { do_log "FATAL $src is not a webp: its first bytes are not RIFF....WEBP"; return 1; }
 }

@@ -291,7 +291,7 @@ useHead(() => {
   /* spec 116 T7: a copy the locale lacks (the en text) canonicalises to the default one */
   const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: pageLangs.value, defaultLocale })
   const url = link[0].href
-  const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.webp$/, '-og.webp')}`) : absolute(SITE_IMAGE)
+  const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.(webp|jpg)$/, '-og.$1')}`) : absolute(SITE_IMAGE)
   const meta: Array<Record<string, string>> = [
     /* spec 111 3.1 + 116 T7: the blog is indexable on an indexable build only (the app default is noindex) */
     { name: 'robots', content: indexOn ? 'index, follow' : 'noindex, nofollow' },

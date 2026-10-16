@@ -4,18 +4,21 @@
 # @description 10): a step of the WUI deploy (workflow 30), after nuxt generate
 # @description and before firebase deploy. Reads the pictures the generated
 # @description blog index names (.output/public/blog-md/index.json, every
-# @description locale's `image`, plus its <id>-og.webp crop when the bucket
-# @description holds one) from the env's private picture bucket (iac step
+# @description locale's `image`, plus its <id>-og crop of the same type when the
+# @description bucket holds one; .webp, or .jpg for a picture a link preview
+# @description such as LinkedIn must read as og:image) from the env's private
+# @description picture bucket (iac step
 # @description 054-gcs-blog-media, object key = the file name), and copies them
 # @description into .output/public/blog/img/, so the site serves its own copy
 # @description (CSP img-src 'self' unchanged).
 # @description Checks, in this order, before any copy:
-# @description   1. the name is ^<post-id>(-og)?\.webp$ for the entry naming it
+# @description   1. the name is ^<post-id>(-og)?\.(webp|jpg)$ for the entry naming it
 # @description      (a key like ../x or $(...) never reaches gcloud)
 # @description   2. the file is not empty
 # @description   3. the file is at most 300 KB (307200 bytes, as T006's
 # @description      do_spl_blog_image)
-# @description   4. the file starts with the RIFF....WEBP magic bytes
+# @description   4. the file starts with the RIFF....WEBP magic bytes (a .jpg:
+# @description      the FF D8 FF JPEG ones)
 # @description Any failed check fails the action (rc 1), names each bad file
 # @description and copies NOTHING. A picture the bucket does not hold is a
 # @description WARN and is skipped: pictures never block a post (s111-4).
@@ -37,7 +40,7 @@ do_copy_blog_media() {
   local -a want=() bad=()
   local id img
   while IFS=$'\t' read -r id img; do
-    if spl_blog_media_name_ok "$id" "$img"; then want+=("$img"); else bad+=("$img: not $id.webp or $id-og.webp"); fi
+    if spl_blog_media_name_ok "$id" "$img"; then want+=("$img"); else bad+=("$img: not $id(-og).webp or $id(-og).jpg"); fi
   done < <(jq -r '.locales[]?[]? | select(.image != null) | [.id, .image] | @tsv' "$index" | sort -u)
   ((${#bad[@]} == 0)) || { spl_blog_media_refuse "${bad[@]}"; return 1; }
   ((${#want[@]})) || { do_log "INFO no post names a picture: nothing to copy"; return 0; }
@@ -55,12 +58,12 @@ do_copy_blog_media() {
     { do_log "WARN cannot list gs://$bucket as $GCP_ACCOUNT: the site ships without pictures"; return 0; }
   have="$(sed "s|^gs://$bucket/||" <<<"$have")"
   for n in "${want[@]}"; do
-    [[ "$n" == *-og.webp ]] || want+=("${n%.webp}-og.webp")
+    [[ "$n" == *-og.* ]] || want+=("${n%.*}-og.${n##*.}")
   done
   local -a got=()
   for n in $(printf '%s\n' "${want[@]}" | sort -u); do
     if ! grep -qxF "$n" <<<"$have"; then
-      [[ "$n" == *-og.webp ]] || do_log "WARN gs://$bucket holds no $n: that post ships without its picture"
+      [[ "$n" == *-og.* ]] || do_log "WARN gs://$bucket holds no $n: that post ships without its picture"
       continue
     fi
     gcloud storage cp "gs://$bucket/$n" "$stage/$n" --account="$GCP_ACCOUNT" --quiet >/dev/null 2>&1 ||
@@ -80,21 +83,25 @@ do_copy_blog_media() {
 }
 
 # spl_blog_media_name_ok <post-id> <image>: rc 0 when the image is
-# <post-id>.webp or <post-id>-og.webp and the id is a post id
+# <post-id>(-og).webp or <post-id>(-og).jpg and the id is a post id
 # (<yyyy-mm-dd>-<slug>, sync-blog.mjs ID_RE).
 spl_blog_media_name_ok() {
   local id="$1" img="$2"
   [[ "$id" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || return 1
-  [[ "$img" == "$id.webp" || "$img" == "$id-og.webp" ]]
+  [[ "$img" == "$id.webp" || "$img" == "$id-og.webp" || "$img" == "$id.jpg" || "$img" == "$id-og.jpg" ]]
 }
 
-# spl_blog_media_check <file>: rc 0 for a non-empty RIFF/WEBP file of at most
-# 300 KB; else prints why and returns 1.
+# spl_blog_media_check <file>: rc 0 for a non-empty RIFF/WEBP file (a *.jpg:
+# a JPEG file) of at most 300 KB; else prints why and returns 1.
 spl_blog_media_check() {
   local f="$1" size m
   size="$(stat -c %s "$f" 2>/dev/null)" || { echo "unreadable"; return 1; }
   ((size > 0)) || { echo "empty"; return 1; }
   ((size <= 307200)) || { echo "$size bytes, over the 300 KB limit (307200)"; return 1; }
+  if [[ "$f" == *.jpg ]]; then
+    [[ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" == ffd8ff ]] || { echo "not a jpeg (no FF D8 FF magic bytes)"; return 1; }
+    return 0
+  fi
   m="$(head -c 12 "$f" | tr -c 'A-Z' '.')"
   [[ "${m:0:4}" == RIFF && "${m:8:4}" == WEBP ]] || { echo "not a webp (no RIFF/WEBP magic bytes)"; return 1; }
 }

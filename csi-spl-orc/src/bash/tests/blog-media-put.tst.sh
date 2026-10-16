@@ -101,6 +101,14 @@ refused "a ../ name" "must be YYYY-MM-DD" BLOG_IMG_SRC="$T/good.webp" BLOG_IMG_N
 refused "a .png name" "must be YYYY-MM-DD" BLOG_IMG_SRC="$T/good.webp" BLOG_IMG_NAME=2026-10-09-hello.png
 o=$(run_put BLOG_IMG_SRC="$T/good.webp" BLOG_IMG_NAME=2026-10-09-hello-world-og.webp); rc=$?
 (( rc == 0 )) && pass "control: a -og name passes the name check" || fail "og name rc=$rc: $o"
+refused "a PNG named .jpg" "not a jpeg" BLOG_IMG_SRC="$T/png.webp" BLOG_IMG_NAME=2026-10-09-hello-world-og.jpg
+refused "a webp named .jpg" "not a jpeg" BLOG_IMG_SRC="$T/good.webp" BLOG_IMG_NAME=2026-10-09-hello-world-og.jpg
+reset
+printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00body' >"$T/good.jpg"
+o=$(run_put BLOG_IMG_SRC="$T/good.jpg" BLOG_IMG_NAME=2026-10-09-hello-world-og.jpg DRY_RUN=0); rc=$?
+(( rc == 0 )) && cmp -s "$T/good.jpg" "$T/gcs/csi-spl-dev-blog-media/2026-10-09-hello-world-og.jpg" &&
+  grep -q -- '--content-type=image/jpeg' "$T/calls.log" &&
+  pass "a .jpg (the og:image a link preview reads) is put as image/jpeg and verified" || fail "jpg rc=$rc: $o $(cat "$T/calls.log")"
 
 # --- 5. an existing object with another sha256 ------------------------------------
 reset

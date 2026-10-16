@@ -139,7 +139,7 @@ export function validateMeta(meta, { id, lang, locales }) {
   if (meta.draft !== undefined && typeof meta.draft !== 'boolean') bad.push('draft is not true/false')
   if (meta.tags !== undefined && !(Array.isArray(meta.tags) && meta.tags.every((t) => /^[a-z0-9-]+$/.test(t)))) bad.push('tags is not a [a, b] list of lowercase words')
   if (meta.image !== undefined) {
-    if (!new RegExp(`^${id}(-og)?\\.webp$`).test(String(meta.image))) bad.push(`image ${meta.image} is not ${id}.webp`)
+    if (!new RegExp(`^${id}(-og)?\\.(webp|jpg)$`).test(String(meta.image))) bad.push(`image ${meta.image} is not ${id}.webp or ${id}.jpg`)
     if (!meta.image_alt) bad.push('image without image_alt')
   }
   for (const k of ['published', 'event_start', 'event_end']) {

@@ -360,6 +360,13 @@ page with a `<script` in a post body, an `on*=` attribute or a
   command.
 - **Format.** webp, 1600x900 plus a 1200x630 Open Graph crop, each under
   300 KB, re-encoded by the picture action (strips EXIF/XMP).
+- **A .jpg picture** (SPL-2240, 2026-10-16): link previews such as LinkedIn
+  may not show a webp `og:image`. A post may name `image: <post-id>.jpg`
+  instead; its `og:image` is then `<post-id>-og.jpg`, and every check above
+  holds with the FF D8 FF JPEG magic bytes in place of RIFF/WEBP. Put both
+  files with `do_spl_blog_media_put` (`BLOG_IMG_NAME=<post-id>(-og).jpg`,
+  stored as `image/jpeg`). First used for `2026-10-16-amazing-world`, the
+  owner's own picture.
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 

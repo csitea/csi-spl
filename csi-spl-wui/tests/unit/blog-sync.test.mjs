@@ -83,6 +83,8 @@ try {
   ok('a valid copy passes validation', validateMeta(fm.meta, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   ok('CONTROL image without image_alt is refused',
     validateMeta({ ...fm.meta, image: '2026-10-05-a.webp' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes('image without image_alt'))
+  ok('an <id>.jpg image passes (its -og.jpg is the og:image a link preview can read)',
+    validateMeta({ ...fm.meta, image: '2026-10-05-a.jpg', image_alt: 'x' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   ok('CONTROL an image key that is not <id>.webp is refused',
     validateMeta({ ...fm.meta, image: '../x.webp', image_alt: 'x' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).some((b) => /image \.\.\/x/.test(b)))
   ok('CONTROL an id that is not the file name is refused',

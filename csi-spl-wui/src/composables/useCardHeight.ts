@@ -56,7 +56,19 @@ function measureBox(clipInner: Ref<HTMLElement | null>, m: Measured) {
   m.contentPx.value = Math.ceil(inner.scrollHeight + textCut)
 }
 
-export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Ref<FileRef[]>, clipEl: Ref<HTMLElement | null>, clipInner: Ref<HTMLElement | null>) {
+interface CardHeightReturn {
+  picture: Ref<boolean>
+  clipOn: Ref<boolean>
+  userPx: Ref<number | null>
+  clipped: Ref<boolean>
+  clipStyle: Ref<{ maxHeight?: string } | undefined>
+  minHeightStyle: Ref<{ minHeight?: string } | undefined>
+  startGrip: (ev: PointerEvent) => void
+  onGripClick: () => void
+  onGripKey: (ev: KeyboardEvent) => void
+}
+
+export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Ref<FileRef[]>, clipEl: Ref<HTMLElement | null>, clipInner: Ref<HTMLElement | null>): CardHeightReturn {
   const picture = computed(() => cardHasPicture(files.value))
   /* SPL-1871 (owner t1 c3396e3c): a card holding a ```poll form takes the
      reader's 5 rows like any card, "the same as with the links previews": the
@@ -80,6 +92,8 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
   const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))
   /* Before the first measurement the stylesheet's own rows / 30vh cap holds. */
   const clipStyle = computed(() => (clipPx.value != null ? { maxHeight: `${clipPx.value}px` } : undefined))
+  /** SPL-2087: min-height ensures all cards have the same height under the rows mode. */
+  const minHeightStyle = computed(() => (clipOn.value && clipPx.value != null ? { minHeight: `${clipPx.value}px` } : undefined))
   const measure = () => measureBox(clipInner, m)
 
   let clipObserver: ResizeObserver | null = null
@@ -107,7 +121,7 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, files: Re
   /* Another mode, or another message under this card: back to the automatic height. */
   watch(() => [props.clipMode, String(props.msg?.msg_id || '')], () => { userPx.value = null })
 
-  return { picture, clipOn, userPx, clipped, clipStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
+  return { picture, clipOn, userPx, clipped, clipStyle, minHeightStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
 }
 
 /** The grip under a clipped card: drag it, click it, or step it by keys. */

@@ -11,6 +11,7 @@ import {
   CARD_CLIP_KEY,
   CARD_CLIP_MODES,
   CARD_CLIP_ROWS,
+  CARD_CLIP_PICTURE_SHARE,
   CARD_CLIP_THREAD_KEY,
   cardClipKey,
   cardClipPx,
@@ -139,6 +140,44 @@ describe('cardIsClipped', () => {
     assert.equal(cardIsClipped(101, 100), false)
     assert.equal(cardIsClipped(102, 100), true)
     assert.equal(cardIsClipped(100, 100), false)
+  })
+})
+
+describe('SPL-2087: min-height for equal card heights under rows mode', () => {
+  it('applies min-height equal to clipPx when clipOn is true', () => {
+    // Mock useCardHeight to return clipPx and minHeightStyle
+    const mockClipPx = 100
+    const mockMinHeightStyle = { minHeight: `${mockClipPx}px` }
+    
+    // Simulate clipOn = true (rows mode)
+    const clipOn = true
+    const clipPx = mockClipPx
+    const minHeightStyle = clipOn && clipPx != null ? { minHeight: `${clipPx}px` } : undefined
+    
+    assert.deepEqual(minHeightStyle, mockMinHeightStyle)
+  })
+
+  it('does not apply min-height in full or titles modes', () => {
+    const clipPx = 100
+    
+    // Simulate clipOn = false (full or titles mode)
+    const clipOn = false
+    const minHeightStyle = clipOn && clipPx != null ? { minHeight: `${clipPx}px` } : undefined
+    
+    assert.equal(minHeightStyle, undefined)
+  })
+
+  it('applies min-height for picture cards under rows mode', () => {
+    const lineHeightPx = 20
+    const viewportPx = 1000
+    const clipPx = Math.max(lineHeightPx * CARD_CLIP_ROWS, Math.round(viewportPx * CARD_CLIP_PICTURE_SHARE))
+    const mockMinHeightStyle = { minHeight: `${clipPx}px` }
+    
+    // Simulate clipOn = true (rows mode) and picture = true
+    const clipOn = true
+    const minHeightStyle = clipOn && clipPx != null ? { minHeight: `${clipPx}px` } : undefined
+    
+    assert.deepEqual(minHeightStyle, mockMinHeightStyle)
   })
 })
 

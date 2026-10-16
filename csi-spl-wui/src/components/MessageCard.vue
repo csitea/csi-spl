@@ -307,7 +307,7 @@
         ref="clipEl"
         class="card-body"
         :class="{ 'card-clip': clipOn, 'card-clip--picture': clipOn && picture, 'card-clip--pic-text': clipOn && picture && userPx == null, 'card-clip--cut': clipOn && clipped }"
-        :style="clipStyle"
+        :style="[clipStyle, minHeightStyle]"
         :data-clip="clipOn ? (clipped ? 'cut' : 'fits') : undefined"
         data-testid="card-body"
       >
@@ -649,7 +649,7 @@ const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access
 const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
 
 const { titleOnly, linkPreviews, title } = useCardTitle(props, editing, files)
-const { picture, clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, files, clipEl, clipInner)
+const { picture, clipOn, userPx, clipped, clipStyle, minHeightStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, files, clipEl, clipInner)
 const busyState = { removing, editError }
 const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
 const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)

@@ -88,6 +88,10 @@
 #       kind.sh: a HUM-* or channel post on the hub) to a non-human --to;
 #       agents talk about it on --task dispatch-<first 8 hex>. No answer
 #       from the hub: WARN and send (fail open).
+#       Also refused: an agent's free-text go-ask to a human (--to HUM-*),
+#       e.g. "Shall I proceed?" (lib/go-ask-guard.inc.sh, SPL-2280): just do
+#       the step, or ask with a ```poll form, or name the owner gate.
+#       SPOOL_GO_ASK_OK=1 sends it anyway, with a WARN.
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
@@ -103,6 +107,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-fleet.inc.sh"
 # shellcheck source=../lib/spool-asks.inc.sh
 . "$_here/../lib/spool-asks.inc.sh"
+# shellcheck source=../lib/go-ask-guard.inc.sh
+. "$_here/../lib/go-ask-guard.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -278,6 +284,19 @@ if [ "$POKE_ONLY" -eq 0 ]; then
       exit 3
     elif [ "$_tkrc" -ne 0 ] && [ "$_tkrc" -ne 100 ]; then
       echo "topic: WARN cannot tell whether ${TASK} is an owner topic (no hub answer); sent anyway" >&2
+    fi
+  fi
+
+  # ---- no free-text go-ask to the owner (SPL-2280) ---------------------------
+  # Plan sdlc-round-1 row 12: 66 owner go/yes/ok nudges in a week, 60 right
+  # after an agent post. Replayed on 2565 agent posts in owner topics (prd,
+  # 7 days to 2026-10-17): 2 refused, both real go-asks.
+  if [[ "$TO" =~ ^HUM- ]] && [[ ! "$FROM" =~ ^HUM- ]]; then
+    if [ "${SPOOL_GO_ASK_OK:-0}" = 1 ]; then
+      echo "go-ask: WARN SPOOL_GO_ASK_OK=1: the go-ask check is skipped for ${FROM} -> ${TO}" >&2
+    elif ! _ga="$(spl_go_ask_check "$BODY")"; then
+      echo "ERROR: $(spl_go_ask_refusal "$_ga")" >&2
+      exit 3
     fi
   fi
 

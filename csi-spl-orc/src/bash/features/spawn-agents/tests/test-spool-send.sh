@@ -173,6 +173,45 @@ bash "$SS" --from CLE-96 --to CLE-95 --kind note --accept "$RES" --body x >/dev/
 bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept NOPE --body x >/dev/null 2>&1; eq "--accept not a uuid: exit 2" 2 "$?"
 bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept >/dev/null 2>&1; eq "--accept without a value: exit 2" 2 "$?"
 
+# ---- SPL-2280: no free-text go-ask to the owner ----------------------------
+# Plan sdlc-round-1 row 12, red-control column: "Shall I proceed?" to the
+# owner is refused; a ```poll form passes; a named owner gate passes.
+printf 'HUM-10\thuman\t%%0\t/x\t20260101T000000Z\n' >> "$SPOOL_ROOT/registry.tsv"
+n_hum() { find "$SPOOL_ROOT/HUM-10/inbox" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l; }
+err="$(bash "$SS" --from CLE-90 --to HUM-10 --kind note --body 'Batch 1 is built. Shall I proceed?' --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "SPL-2280: 'Shall I proceed?' to the owner: refused, exit 3" 3 "$rc"
+has "SPL-2280: …quotes the asking sentence" '"Shall I proceed?"' "$err"
+has "SPL-2280: …names the poll form" '```poll form' "$err"
+has "SPL-2280: …says nothing was sent" "Nothing was sent" "$err"
+eq "SPL-2280: …the owner's inbox is empty" 0 "$(n_hum)"
+bash "$SS" --from CLE-90 --to HUM-10 --kind note --body 'Done, landed. Waiting for your go.' --no-poke >/dev/null 2>&1
+eq "SPL-2280: a plain 'waiting for your go': exit 3" 3 "$?"
+bash "$SS" --from CLE-90 --to HUM-10 --kind note --no-poke \
+  --body "$(printf 'Restart the hub now?\n\n```poll\n(GO) Go\n```')" >/dev/null 2>&1
+eq "SPL-2280: a \`\`\`poll form (GO) passes, exit 0" 0 "$?"
+bash "$SS" --from CLE-90 --to HUM-10 --kind note --no-poke \
+  --body 'Plan is ready; needs owner go for terraform apply step 040. Your go?' >/dev/null 2>&1
+eq "SPL-2280: a named gate (terraform apply) passes, exit 0" 0 "$?"
+bash "$SS" --from CLE-90 --to HUM-10 --kind note --no-poke \
+  --body 'Done: your GO is recorded, and the lane I should start is running.' >/dev/null 2>&1
+eq "SPL-2280: a statement about a go (no ask) passes, exit 0" 0 "$?"
+bash "$SS" --from CLE-90 --to HUM-10 --kind note --no-poke \
+  --body "$(printf 'You wrote:\n> Shall I proceed?\nyes, and `go?` is in the log.')" >/dev/null 2>&1
+eq "SPL-2280: a > quote and inline code are not the agent's ask, exit 0" 0 "$?"
+eq "SPL-2280: …the four passing posts are in the owner's inbox" 4 "$(n_hum)"
+bash "$SS" --from CLE-90 --to CLE-91 --kind note --body 'Shall I proceed?' --no-poke >/dev/null 2>&1
+eq "SPL-2280: agent to agent is not checked, exit 0" 0 "$?"
+err="$(SPOOL_GO_ASK_OK=1 bash "$SS" --from CLE-90 --to HUM-10 --kind note --body 'Shall I proceed?' --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "SPL-2280: SPOOL_GO_ASK_OK=1 sends it, exit 0" 0 "$rc"
+has "SPL-2280: …with a WARN" "go-ask check is skipped" "$err"
+mkdir -p "$T_TMP/old-ga/scripts"; ln -s "$T_FEAT/lib" "$T_TMP/old-ga/lib"
+sed '/---- no free-text go-ask to the owner/,/^  fi$/d' "$SS" >"$T_TMP/old-ga/scripts/spool-send.sh"
+hasnt "SPL-2280: the control has no guard" "spl_go_ask_check" "$(cat "$T_TMP/old-ga/scripts/spool-send.sh")"
+before="$(n_hum)"
+bash "$T_TMP/old-ga/scripts/spool-send.sh" --from CLE-90 --to HUM-10 --kind note --body 'Shall I proceed?' --no-poke >/dev/null 2>&1
+eq "SPL-2280: RED control: no guard sends 'Shall I proceed?', exit 0" 0 "$?"
+eq "SPL-2280: …into the owner's inbox" $((before + 1)) "$(n_hum)"
+
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"

@@ -19,7 +19,9 @@ for t in "$utl_tests"/*.tst.sh; do
   if out=$(bash "$t" 2>&1); then
     echo "PASS: utl $(basename "$t")"
   else
-    grep '^FAIL' <<< "$out"
+    # the whole tail, not only ^FAIL lines: a multi-line FAIL message would
+    # otherwise show its first line alone in the CI log
+    tail -n 60 <<< "$out" | sed 's/^/  | /'
     echo "FAIL: utl $(basename "$t")"
     fails=$((fails + 1))
   fi

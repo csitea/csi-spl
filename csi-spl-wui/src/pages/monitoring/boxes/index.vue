@@ -111,6 +111,9 @@ onMounted(() => {
 /* BoxSeatCounts sits on a second line under the name (absolute), as in the
    sidebar, whose row rules are scoped to ChannelSidebar */
 .monitoring-box .nav-row { position: relative; }
+/* SPL-2083/SPL-2228: every row starts at the left edge, icon, dot and name at
+   one x on every row whatever the name's length; a long name wraps inside its
+   row. Without it a row is centred (e2e monitoring-boxes-align, red control). */
 .monitoring-box .nav-row > .nav-item { padding-bottom: 20px; display: flex; justify-content: flex-start; }
 /* SPL-2075: the old Boxes list's filter, count and status groups */
 .boxes-filter {
@@ -123,10 +126,4 @@ onMounted(() => {
 .boxes-group { display: flex; flex-direction: column; gap: 8px; }
 .boxes-group__head { margin: 6px 0 0; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .boxes-group__n { opacity: 0.7; }
-
-/* SPL-2083: left-align rows on phone and desktop */
-.monitoring-box .nav-row > .nav-item {
-  /* Override any centering from parent containers */
-  justify-content: flex-start;
-}
 </style>

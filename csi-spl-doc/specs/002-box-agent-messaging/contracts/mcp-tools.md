@@ -74,6 +74,35 @@ human (`to_box` box-wui), else its first other sender, with `task_id` = the
 topic: spec 067 rule 2's shape. Result: `spool_send`'s JSON. No `--seat-cmd`
 and no seat → `IsError` naming the workspace to ask for.
 
+## A session the spool did not start (SPL-2112)
+
+The owner starts a plain `claude` on a box by hand (no spawn window, no
+`AGENT_ID`, no lane worktree), pastes a WUI discussion link, and the session
+reads it and posts in it. The box's `spool-<env>` registration
+(`do_spl_agent_mcp_install`) runs `spool-mcp <env>`, which since SPL-2112:
+
+1. **Mints an id** when it finds none (`MCP_BOT_AGENT_ID`, `SPOOL_AGENT_ID`,
+   the tmux window): the box half claims the next free id of the CLI's kind
+   with the fleet's allocator (`next-agent-id.sh` of the checkout the desk
+   sidecar runs from, in its fleet root), records `<fleet root>/<id>/minted`,
+   and retires the id (`agent-id-retire.sh`, desk seats included) when the
+   server exits. It never takes a person's identity or another agent's id.
+   `SPOOL_MCP_MINT=0` refuses instead (exit 4, as before).
+2. **Takes the workspace from the link**: with no tenant named it no longer
+   refuses 0 or 2+ seats (exit 5); it serves from the fleet tenant's desk,
+   else the first seated, else the first live one, and passes the box's desk
+   dir (`--desks`), so `spool_read_link` / `spool_reply` follow a link into
+   any workspace this box has a desk in. A named tenant with no seat still
+   refuses (5).
+3. **Joins on request**: `spool_reply` into a workspace the id has no seat in
+   runs `spool-mcp --seat <env> <box> <tenant> <id>`, which is
+   `do_spl_desk_up` (`DESK_POKE=0`) of the sidecar's checkout: no operator
+   step. The post takes spec 067 rule 2's shape: in the topic, to its
+   newest human on box-wui (the way a desk answers in a channel topic).
+
+Only on a box that has a desk in that workspace; elsewhere the read and the
+reply refuse with the reason above.
+
 ## Rules
 
 - Tool names are canonical and kind-agnostic. Do NOT add `spool_send_claude` /

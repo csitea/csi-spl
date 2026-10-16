@@ -6,7 +6,11 @@
 # What must hold:
 #   - the server never starts unseated: no id / a bad id refuse (exit 4), on
 #     both halves, and the fake binary is never run
-#   - an unseated desk (5) and a dead sidecar (6) refuse
+#   - a named tenant with no seat (5) and a dead sidecar (6) refuse
+#   - SPL-2112: no id mints one through the sidecar checkout's allocator
+#     (SPOOL_MCP_MINT=0 refuses, 4); 0 or 2+ seats serve from a live desk
+#     instead of refusing (5); the server gets --desks / --desk-box /
+#     --seat-cmd; --seat runs do_spl_desk_up of the sidecar's checkout
 #   - a seated start runs `spool mcp --as <ID>` with ONLY the sidecar's
 #     spool settings (not its notify hook, not the caller's env)
 #   - the install writes both halves, backs up a replaced agent script,
@@ -41,6 +45,7 @@ cp "$SH" "$MCP/spool-mcp.sh"
 cat >"$MCP/spool" <<EOF
 #!/usr/bin/env bash
 { printf 'ARGV %s\n' "\$*"; env | grep -E '^(SPOOL_|LEAK)' | sort; } >"$T/served"
+cat >"$T/stdin"
 EOF
 chmod +x "$MCP/spool" "$MCP/spool-mcp.sh"
 box() { env LEAK=caller "$MCP/spool-mcp.sh" --serve "$@" >"$T/out" 2>&1 </dev/null; }
@@ -55,7 +60,9 @@ done
 
 # ── 2. no seat / no sidecar ─────────────────────────────────────────────────
 box --as c-008 dev; rc=$?
-[[ $rc -eq 5 ]] && grep -q 'c-008 has 0 seats' "$T/out" && pass "2. an unseated id refuses (5)" || fail "2. unseated: rc $rc $(cat "$T/out")"
+[[ $rc -eq 6 && ! -e "$T/served" ]] && grep -q 'c-008 has 0 seats' "$T/out" && pass "2. an unseated id with no live desk refuses (6)" || fail "2. unseated: rc $rc $(cat "$T/out")"
+box --as c-008 dev t1; rc=$?
+[[ $rc -eq 5 && ! -e "$T/served" ]] && pass "2. a named tenant the id has no seat in refuses (5)" || fail "2. unseated named: rc $rc $(cat "$T/out")"
 box --as c-007 dev; rc=$?
 [[ $rc -eq 6 && ! -e "$T/served" ]] && pass "2. no sidecar pid refuses (6)" || fail "2. no sidecar: rc $rc $(cat "$T/out")"
 echo 1 >"$D/spool/.hub/hub-run.pid"   # pid 1 is alive but is not a hub-run
@@ -63,15 +70,33 @@ box --as c-007 dev; rc=$?
 [[ $rc -eq 6 ]] && pass "2. a live pid that is not hub-run refuses (6)" || fail "2. foreign pid: rc $rc $(cat "$T/out")"
 
 # ── 3. seated: the sidecar's spool settings, and --as ───────────────────────
+argv() { echo "ARGV mcp --as $1 --desks $T/share/cloud/dev/desk --desk-box box-desk --seat-cmd $MCP/spool-mcp.sh --seat dev box-desk"; }
+PROJ="$T/proj" FLEET="$T/fleet"
+mkdir -p "$PROJ/src/bash/features/spawn-agents/scripts" "$FLEET"
+cat >"$PROJ/src/bash/features/spawn-agents/scripts/next-agent-id.sh" <<'EOF_A'
+#!/usr/bin/env bash
+# fake allocator: claims c-777 in $SPOOL_ROOT and records its argv
+echo "$*" >"$SPOOL_ROOT/alloc.argv"; mkdir -p "$SPOOL_ROOT/c-777/inbox"; echo c-777
+EOF_A
+cat >"$PROJ/run" <<EOF_R
+#!/usr/bin/env bash
+{ echo "RUN \$*"; env | grep -E '^(ENV|TENANT_ID|DESK_[A-Z_]+|DRY_RUN)=' | sort; } >"$T/seat.log"
+EOF_R
+chmod +x "$PROJ/run"
+cat >"$PROJ/src/bash/features/spawn-agents/scripts/agent-id-retire.sh" <<EOF_X
+#!/usr/bin/env bash
+echo "\$* root=\$SPOOL_ROOT box=\$SPOOL_DESK_BOX lane=\$RETIRE_LANE" >"$T/retired"
+EOF_X
 env -i PATH=/usr/bin:/bin SPOOL_ROOT="$D/spool" SPOOL_KEYS_DIR="$D/keys" SPOOL_BOX_ID=box-desk \
   SPOOL_HUB_URL=https://hub.example.net SPOOL_TENANT=t1 SPOOL_NOTIFY_CMD=/bin/true SPOOL_POKE=1 \
+  PROJ_PATH="$PROJ" SPOOL_FLEET_ROOT="$FLEET" \
   bash -c 'exec -a "spool hub-run" sleep 60' &
 SIDE=$!
 echo "$SIDE" >"$D/spool/.hub/hub-run.pid"
 for _ in $(seq 50); do tr '\0' ' ' <"/proc/$SIDE/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null && break; sleep 0.1; done
 box --as c-007 dev; rc=$?
 if [[ $rc -eq 0 && -s "$T/served" ]]; then
-  grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "3. runs spool mcp --as c-007" || fail "3. argv: $(head -1 "$T/served")"
+  grep -qx "$(argv c-007)" "$T/served" && pass "3. runs spool mcp --as c-007 --desks --desk-box --seat-cmd" || fail "3. argv: $(head -1 "$T/served")"
   want="SPOOL_BOX_ID=box-desk SPOOL_HUB_URL=https://hub.example.net SPOOL_KEYS_DIR=$D/keys SPOOL_LOG_LEVEL=error SPOOL_ROOT=$D/spool SPOOL_TENANT=t1"
   got="$(grep -v '^ARGV' "$T/served" | tr '\n' ' ' | sed 's/ $//')"
   [[ "$got" == "$want" ]] && pass "3. only the sidecar's spool settings (no notify hook, no caller env)" ||
@@ -89,16 +114,54 @@ rm -f "$T/served"
 agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
 [[ $rc -eq 3 && ! -e "$T/served" ]] && pass "4. no config refuses (3)" || fail "4. no config: rc $rc $(cat "$T/out")"
 printf 'SPOOL_MCP_BOX_USER=%s\nSPOOL_MCP_SERVE=%s\n' "$ME" "$MCP/spool-mcp.sh" >"$CONF"
-agent "$SH" dev; rc=$?
-[[ $rc -eq 4 && ! -e "$T/served" ]] && grep -q 'refusing to start unseated' "$T/out" && pass "4. no agent id refuses (4)" || fail "4. no id: rc $rc $(cat "$T/out")"
+agent SPOOL_MCP_MINT=0 "$SH" dev; rc=$?
+[[ $rc -eq 4 && ! -e "$T/served" ]] && grep -q 'refusing to start unseated' "$T/out" && pass "4. no agent id with SPOOL_MCP_MINT=0 refuses (4)" || fail "4. no id: rc $rc $(cat "$T/out")"
+# SPL-2112 gate 1: a session the spool did not start gets an id minted by the
+# box (the sidecar checkout's allocator, in its fleet root), never refused.
+rm -f "$T/retired"
+env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_ID -u TMUX_PANE -u CLE_TMUX_PANE SPOOL_MCP_CONF="$CONF" "$SH" dev >"$T/out" 2>&1 <<<'{"jsonrpc":"2.0"}'; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "$(argv c-777)" "$T/served" && grep -q 'minted c-777' "$T/out" &&
+  pass "4. no agent id: the box mints c-777 and serves it" || fail "4. mint: rc $rc $(cat "$T/out") $(head -1 "$T/served" 2>/dev/null)"
+grep -qx '{"jsonrpc":"2.0"}' "$T/stdin" && pass "4. the minted server still reads the session's stdin" || fail "4. stdin: '$(cat "$T/stdin")'"
+grep -qx -- "--apply c-777 root=$FLEET box=box-desk lane=0" "$T/retired" 2>/dev/null &&
+  pass "4. the minted id is retired when the server exits" || fail "4. retire: '$(cat "$T/retired" 2>&1)'"
+rm -f "$T/retired"
+agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; [[ ! -e "$T/retired" ]] && pass "4. a spawned agent's id is never retired by the server" || fail "4. retired c-007"
+grep -qx -- '--kind claude' "$FLEET/alloc.argv" 2>/dev/null && grep -q 'minted .* by spool-mcp' "$FLEET/c-777/minted" 2>/dev/null &&
+  pass "4. the allocator ran as --kind claude in the fleet root, the mint is recorded" || fail "4. mint record: $(cat "$FLEET/alloc.argv" "$FLEET/c-777/minted" 2>&1)"
+rm -f "$T/served"
+box --mint nope dev; rc=$?
+[[ $rc -eq 2 && ! -e "$T/served" ]] && pass "4. --mint of a non-kind refuses (2)" || fail "4. bad kind: rc $rc $(cat "$T/out")"
 agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "4. MCP_BOT_AGENT_ID seats the server" || fail "4. env id: rc $rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -qx "$(argv c-007)" "$T/served" && pass "4. MCP_BOT_AGENT_ID seats the server" || fail "4. env id: rc $rc $(cat "$T/out")"
 rm -f "$T/served"
 agent SPOOL_AGENT_ID=c-007 "$SH" dev; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "4. SPOOL_AGENT_ID seats the server" || fail "4. spool id: rc $rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -qx "$(argv c-007)" "$T/served" && pass "4. SPOOL_AGENT_ID seats the server" || fail "4. spool id: rc $rc $(cat "$T/out")"
+rm -f "$T/served"
 rm -f "$T/served"
 agent MCP_BOT_AGENT_ID=c-008 "$SH" dev; rc=$?
-[[ $rc -eq 5 && ! -e "$T/served" ]] && pass "4. another agent's id finds no seat of its own (5)" || fail "4. other id: rc $rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -qx "$(argv c-008)" "$T/served" && grep -q 'c-008 has 0 seats on box-desk in dev: serving from t1' "$T/out" &&
+  pass "4. an id with no seat serves from the live desk (gate 1a: links still read)" || fail "4. other id: rc $rc $(cat "$T/out")"
+rm -f "$T/served"
+agent MCP_BOT_AGENT_ID=c-008 "$SH" dev t1; rc=$?
+[[ $rc -eq 5 && ! -e "$T/served" ]] && pass "4. ... but a named tenant it has no seat in refuses (5)" || fail "4. other id named: rc $rc $(cat "$T/out")"
+# gate 2: seats in two workspaces (t2's sidecar dead) serve from the live one
+mkdir -p "$T/share/cloud/dev/desk/t2/box-desk/spool/c-007/inbox" "$T/share/cloud/dev/desk/t2/box-desk/spool/.hub"
+echo 1 >"$T/share/cloud/dev/desk/t2/box-desk/spool/.hub/hub-run.pid"
+rm -f "$T/served"
+agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "$(argv c-007)" "$T/served" && grep -q 'SPOOL_TENANT=t1' "$T/served" && grep -q 'c-007 has 2 seats' "$T/out" &&
+  pass "4. two seats (gate 2, exit 5 before) serve from the live desk" || fail "4. two seats: rc $rc $(cat "$T/out")"
+# gate 3: --seat runs the existing desk action of the sidecar's checkout
+"$MCP/spool-mcp.sh" --seat dev box-desk t1 c-777 >"$T/out" 2>&1; rc=$?
+want="RUN -a do_spl_desk_up DESK_AGENT=c-777 DESK_BOX=box-desk DESK_POKE=0 DRY_RUN=0 ENV=dev TENANT_ID=t1"
+got="$(tr '\n' ' ' <"$T/seat.log" 2>/dev/null | sed 's/ $//')"
+[[ $rc -eq 0 && "$got" == "$want" ]] && pass "4. --seat runs do_spl_desk_up (DESK_POKE=0) of the sidecar's checkout" || fail "4. --seat: rc $rc got '$got' $(cat "$T/out")"
+"$MCP/spool-mcp.sh" --seat dev box-desk t2 c-777 >"$T/out" 2>&1; rc=$?
+[[ $rc -eq 6 ]] && pass "4. --seat on a desk with no live sidecar refuses (6)" || fail "4. --seat dead: rc $rc $(cat "$T/out")"
+"$MCP/spool-mcp.sh" --seat dev box-desk t1 'not an id' >"$T/out" 2>&1; rc=$?
+[[ $rc -eq 2 ]] && pass "4. --seat of a non-id refuses (2)" || fail "4. --seat bad id: rc $rc $(cat "$T/out")"
+rm -rf "$T/share/cloud/dev/desk/t2"
 
 # ── 5. the install action ───────────────────────────────────────────────────
 AH="$T/agent-home"; mkdir -p "$AH/.local/bin"

@@ -225,9 +225,14 @@ async function railTaps(p) {
   ok('390 3 no control box and not the strip height change while it plays', moved.length === 0, moved.slice(0, 2))
 }
 
+/* t0 is the press: an act that does slow work first (Send types its line)
+   calls mark() right before its click, so typing time never counts against
+   the ANIM_MAX window (SPL-2062 c81086c16: t0 before the typing failed the
+   nudge on a loaded box, the nudge itself ~400 ms) */
 const dockAnim = async (p, testSel, kind, act) => {
-  const t0 = await p.evaluate(() => { window.__taps = []; return performance.now() })
-  const done = await act()
+  let t0 = await p.evaluate(() => { window.__taps = []; return performance.now() })
+  const mark = async () => { t0 = await p.evaluate(() => performance.now()) }
+  const done = await act(mark)
   await sleep(ANIM_MAX + 100)
   const taps = (await p.evaluate(() => window.__taps)).filter((x) => x.key === testSel)
   const on = taps.find((x) => x.on)
@@ -253,9 +258,10 @@ async function dockTaps(p, base) {
   })
   ok('390 4 Attach: a wiggle, and it still opens the picker', attach.anim && attach.done, attach)
   const line = 'SPL-2062 dock send ' + Date.now()
-  const send = await dockAnim(p, 'send', 'nudge', async () => {
+  const send = await dockAnim(p, 'send', 'nudge', async (mark) => {
     await p.focus(`${FORM} textarea`)
     await p.keyboard.type(line)
+    await mark()
     await p.click(`${FORM} [data-testid=send]`)
     const cleared = await until(() => p.$eval(`${FORM} textarea`, (t) => t.value), (v) => v === '', 4000)
     const posted = await until(() => p.evaluate((line) => [...document.querySelectorAll('article.msg')].some((a) => a.textContent.includes(line)), line), (v) => v, 4000)

@@ -85,3 +85,4 @@ Owner minutes for P1-P3: not measurable by a command. The numbers above are owne
 Verdict sent to a-240@sat on `dispatch-999a50bd`. I stay up for v1.0 signing and then as an R7 row reviewer (cross-vendor: I review non-claude rows).
 
 signed: c-247@sat on 4083c5af1 (v1.1: send-back points 1-5 folded, rows 02/05/08/10 dropped; R1 checked: no path in two rows of one batch; batches 2 and 3 run fewer than 2+2 lanes because 8 rows remain)
+signed: c-247@sat on 17d56326d (v1.3: row 03 dropped as already built in 8b427556c; 7 rows, R1 holds in all 3 batches; supersedes the v1.1 signature above)

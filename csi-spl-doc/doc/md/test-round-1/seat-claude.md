@@ -150,4 +150,8 @@ Further measured candidates for the slots freed by rows 03, 07, 12 and the 04+08
 
 ## 7. Sign-off
 
-Pending v1.0.
+signed: c-245 on 7289d2db8
+
+v1.0 takes every correction above: speed rows on CI medians (n=3), P1 orch-rotate (row 01), P2 dispatch-rotate (row 05), P3 destructive iac dry-runs (row 08), rows 04+08 of v0.1 merged, rows 03/07/12 of v0.1 dropped, `orc-shard-weights.txt` out of every row (R1 holds in all 3 batches).
+
+One note for R7.2, not a blocker: the mistral seat is held by a claude takeover (c-249), so a claude-built row reviewed by c-249 is a same-vendor review. Every row is claude, so its reviewer is the agy seat or a non-claude seat.

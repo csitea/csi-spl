@@ -25,7 +25,7 @@ run's verdict is at its tail.
 
 `cd csi-spl-orc && VIBE_LOOP_SINCE=2026-10-15T18 VIBE_LOOP_CAP=4000 ./run -a do_spl_vibe_loop_cost`
 (script `spawn-agents/scripts/vibe-loop-cost.py`), run on sat 2026-10-16
-~18:20Z over 35 vibe sessions of 10 lanes, 1211 model calls. Tokens are vibe's
+~15:10Z over 35 vibe sessions of 10 lanes, 1211 model calls. Tokens are vibe's
 own counts; "re-fed" is chars / 3.3 times the later calls a result rides in
 (3.3 chars per token: the input-token step between two calls against the
 result sizes fed between them, n = 210, median 3.0).
@@ -62,7 +62,8 @@ turns it off. Only bash: a `read_file` is a deliberate read.
 
 Install: `spool-install` step 6e, or for both users of a box
 `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_vibe_output_cap_install`.
-vibe reads `hooks.toml` when a session starts.
+vibe reads `hooks.toml` when a session starts. Installed with that action on
+sat 2026-10-16 ~15:25Z, for both users.
 
 Test: `bash csi-spl-orc/src/bash/tests/spool-install-y15-vibe-output-cap.tst.sh`.
 Through vibe's own `load_hooks_file` and `compile_foreign_hooks`, a 50 KB

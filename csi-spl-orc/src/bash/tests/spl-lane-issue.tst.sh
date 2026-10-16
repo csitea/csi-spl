@@ -6,7 +6,8 @@
 # calls are made: a brief with no key files one (wip, the lane assigned, the
 # owner's words + the topic link) and records the key; a key is linked; a
 # roster that does not know the lane gets the placing desk as assignee; an end
-# needs a reason; a dry run calls nothing and writes nothing.
+# needs a reason; an end as done (SPL-2229) needs a cnf repo whose fetched
+# origin trunk has the sha; a dry run calls nothing and writes nothing.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -137,12 +138,63 @@ run AGENT_ID=c-123 LANE_ISSUE_OP=end DRY_RUN=0
 [[ $rc -ne 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q 'LANE_ISSUE_REASON must say why' "$T/o" &&
   pass "end with no reason: refused, nothing called" || fail "end no reason (rc=$rc): $(cat "$T/o")"
 run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_ISSUE_REASON=x DRY_RUN=0
-[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "end as done is refused (landing moves it, not the lane)" || fail "end done (rc=$rc)"
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "end as done with no LANE_LANDED_REPO is refused (landing moves it, not the lane)" || fail "end done (rc=$rc)"
 run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" &&
   grep -q '^comment|--ref|SPL-42|--body|Lane c-123 ended without landing (diss): superseded by c-130|' "$T/calls.log" &&
   [[ "$(cut -f1,2 "$S/c-123/lifetime/issue-end")" == $'diss\tsuperseded by c-130' ]] &&
   pass "end: diss, the reason as a comment and in lifetime/issue-end" || fail "end (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+
+# End done (SPL-2229): the work landed in ANOTHER repo. The repo comes from the
+# cnf by name (a src_dir basename), its clone is fetched, the sha must be on
+# origin/<trunk>; anything else is refused with nothing called or written.
+# Fixture: origin.git <- clone "dvn-web" (the cnf's), and a second clone that
+# pushes the commits the first has not fetched yet.
+lg() { git -C "$1" -c user.name='FirstName LastName' -c user.email=dev@example.com "${@:2}"; }
+git init -q --bare "$T/lr/origin.git"
+git init -q -b master "$T/lr/push" && lg "$T/lr/push" commit -q --allow-empty -m init &&
+  lg "$T/lr/push" remote add origin "$T/lr/origin.git" && lg "$T/lr/push" push -q origin master 2>/dev/null
+git clone -q "$T/lr/origin.git" "$T/lr/dvn-web" 2>/dev/null
+lg "$T/lr/push" checkout -q -b wip && lg "$T/lr/push" commit -q --allow-empty -m wip-only && lg "$T/lr/push" push -q origin wip 2>/dev/null
+WIP="$(lg "$T/lr/push" rev-parse HEAD)"
+lg "$T/lr/push" checkout -q master && lg "$T/lr/push" commit -q --allow-empty -m landed && lg "$T/lr/push" push -q origin master 2>/dev/null
+LANDED="$(lg "$T/lr/push" rev-parse HEAD)"
+printf 'env:\n  steps:\n    021-firebase-hosted-sites:\n      sites:\n        ws-hidden-12: {src_dir: %s}\n' "$T/lr/dvn-web" >"$T/lr/cnf.yaml"
+done_run() { rm -f "$S/c-123/lifetime/issue-end"; run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_CNF="$T/lr/cnf.yaml" SPOOL_BOX_USER= "$@"; }
+refused() {  # LABEL WANT: refused, no hub call, no issue-end, the line says WANT
+  [[ $rc -ne 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q -- "$2" "$T/o" &&
+    pass "$1" || fail "$1 (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+}
+# An unfetched clone: the sha is on its origin only. Fetched, then done.
+! lg "$T/lr/dvn-web" cat-file -e "$LANDED^{commit}" 2>/dev/null && pass "control: the clone has not fetched the landed sha yet" || fail "control: clone already has $LANDED"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="${LANDED:0:7}" DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  grep -q "^comment|--ref|SPL-42|--body|Lane c-123 landed in dvn-web ${LANDED:0:12} on origin/master (another repo, no csi-spl commit). Landed, not live" "$T/calls.log" &&
+  [[ "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end")" == "done"$'\t'"dvn-web"$'\t'"$LANDED" ]] &&
+  pass "done: an unfetched clone is fetched, the sha is on origin/master: done, a comment, issue-end with repo + full sha" ||
+  fail "done (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+cp "$S/c-123/lifetime/issue-end" "$T/lr/issue-end" 2>/dev/null
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$WIP" DRY_RUN=0
+refused "done: a sha only on a wip branch (fetched as origin/wip) is refused" "is not on origin/master (a branch only?)"
+done_run LANE_LANDED_REPO=other-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0
+refused "done: a repo name the cnf does not know is refused, naming the known ones" "'other-web' is no repo the cnf knows (src_dir names: dvn-web)"
+for bad in "$T/lr/dvn-web" ../dvn-web https://github.com/example/dvn-web.git git@example.com:x/dvn-web.git ""; do
+  done_run LANE_LANDED_REPO="$bad" LANE_LANDED_SHA="$LANDED" DRY_RUN=0
+  refused "done: a path or URL as the repo is refused: '$bad'" "must be a repo NAME the cnf knows, not a path or URL"
+done
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA='HEAD' DRY_RUN=0
+refused "done: a ref that is not a sha is refused" "LANE_LANDED_SHA must be a commit sha"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA=0123456789abcdef DRY_RUN=0
+refused "done: a sha no repo has is refused" "is no commit of dvn-web, even after a fetch"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF= DRY_RUN=0
+refused "done: a sandbox with no LANE_LANDED_CNF reads no cnf (never the live clones)" "'dvn-web' is no repo the cnf knows (src_dir names: none)"
+SNIPPET=". \"\$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh\"; li_end_record SPL-42 '$T/lr/issue-end' c-123" in_orc >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "issue gate: SPL-42 landed in another repo: dvn-web ${LANDED:0:12} (checked on its origin trunk)" "$T/o" &&
+  pass "done: li_gate's record check passes that issue-end, naming repo + short sha" || fail "li_end_record (rc=$rc): $(cat "$T/o")"
+rm -f "$S/c-123/lifetime/issue-end"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED"
+[[ $rc -eq 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q "OK DRY_RUN SPL-42 -> done (landed in dvn-web" "$T/o" &&
+  pass "done, dry run: checked, no hub call, nothing written" || fail "done dry (rc=$rc): $(cat "$T/o")"
 
 # Kind: answer in the brief: the filed issue is labelled answer (the label made first).
 printf '# Brief: evaluate the runner\n\nKind: answer\n' >"$T/answer.md"

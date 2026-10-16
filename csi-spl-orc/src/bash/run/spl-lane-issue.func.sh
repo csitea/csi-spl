@@ -25,6 +25,20 @@
 # @description   LANE_ISSUE_OP=end (the lane, when it ends without landing):
 # @description     status LANE_ISSUE_STATUS (diss, onhold or blocked), a comment
 # @description     with LANE_ISSUE_REASON, and lifetime/issue-end.
+# @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-2229: the lane's
+# @description     work landed in ANOTHER repo, so no csi-spl commit can close
+# @description     its key): LANE_LANDED_REPO=<name> LANE_LANDED_SHA=<sha>. The
+# @description     name resolves ONLY through the cnf (the basename of a
+# @description     `src_dir` in csi-spl-cnf/csi-spl/all.env.yaml or <ENV>.env.yaml),
+# @description     never a lane-given path or URL; that clone is fetched (as its
+# @description     owner, or SPOOL_BOX_USER), then the sha must pass
+# @description     `git merge-base --is-ancestor <sha> origin/<trunk>` (origin/HEAD,
+# @description     else master, else main). Then: status done, a comment naming
+# @description     repo + sha, and lifetime/issue-end with both, which li_gate
+# @description     passes. Anything else is refused in one line, nothing changed.
+# @description     Landed is not live: the dispatcher's ACCEPTED still checks the
+# @description     served build; this only replaces the orchestrator's hand-set
+# @description     done (the SPL-1813 path, which stays).
 # @description Landing moves the issue on (the landed-fix rule: a commit on
 # @description master that cites the key). Dry run unless DRY_RUN=0.
 # @param AGENT_ID - required: the lane's spool id, e.g. c-123
@@ -36,8 +50,10 @@
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
 # @param LANE_ISSUE_TITLE (required, discussion) - what the work is
 # @param LANE_ISSUE_TEXT (optional, discussion) - the owner's words that ask for it
-# @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked
-# @param LANE_ISSUE_REASON (required, end) - why the lane ends without landing
+# @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked | done (landed in another repo)
+# @param LANE_ISSUE_REASON (required, end; optional with done) - why the lane ends without landing
+# @param LANE_LANDED_REPO (required, end done) - the repo's cnf name, e.g. dvn-web
+# @param LANE_LANDED_SHA (required, end done) - the landed commit, 7-40 hex
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - the seated desk that files it; default the first seated of LEASE_MASTER, LEASE_ORCH, LEASE_FAILOVER
 # @param DESK_BOX (optional) - default this box's desk box
@@ -46,6 +62,7 @@
 # @example AGENT_ID=c-123 BRIEF=/var/spool-hub/dispatch/x/brief.md DRY_RUN=0 ./run -a do_spl_lane_issue
 # @example AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=<uuid> LANE_ISSUE_TITLE='Evaluate the runner VM' LANE_ISSUE_ANSWER=1 DRY_RUN=0 ./run -a do_spl_lane_issue
 # @example AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0 ./run -a do_spl_lane_issue
+# @example AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA=9c74186 DRY_RUN=0 ./run -a do_spl_lane_issue
 #------------------------------------------------------------------------------
 do_spl_lane_issue() {
   # shellcheck source=../features/spawn-agents/lib/lane-issue.inc.sh
@@ -266,9 +283,10 @@ spl_lane_issue_discussion() {
 spl_lane_issue_end() {
   local root="$1" id="$2" key st="${LANE_ISSUE_STATUS:-diss}" why
   SLI_DRY="$3"
+  [[ "$st" == "done" ]] && { spl_lane_issue_landed "$root" "$id"; return; }
   why="$(printf '%s' "${LANE_ISSUE_REASON:-}" | tr '\t\n\r' '   ' | sed 's/^ *//; s/ *$//')"
   [[ -n "$why" ]] || { do_log "FATAL LANE_ISSUE_REASON must say why $id ends without landing (dropped by its gate, superseded by ...)"; return 1; }
-  [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold or blocked, got: '$st'"; return 1; }
+  [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA), got: '$st'"; return 1; }
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
   spl_lane_issue_hub update --ref "$key" --status "$st" >/dev/null || return 1
   spl_lane_issue_hub comment --ref "$key" --body "Lane $id ended without landing ($st): $why" >/dev/null || return 1
@@ -276,6 +294,73 @@ spl_lane_issue_end() {
   printf '%s\t%s\t%s\n' "$st" "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$root/$id/lifetime/issue-end" ||
     { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
   do_log "OK $key -> $st: $why"
+}
+
+# spl_lane_issue_landed ROOT ID: end done, the work landed in another repo
+# (SPL-2229). The check runs first, also in a dry run; a refusal changes nothing.
+spl_lane_issue_landed() {
+  local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why
+  key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
+  clone="$(spl_lane_issue_repo "$repo")" || return 1
+  [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || { do_log "FATAL LANE_LANDED_SHA must be a commit sha (7-40 lower-case hex), got: '$sha'"; return 1; }
+  out="$(spl_lane_issue_on_trunk "$repo" "$clone" "$sha")" || return 1
+  full="${out%%$'\t'*}"; trunk="${out#*$'\t'}"
+  why="landed in $repo ${full:0:12} on origin/$trunk"
+  [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
+  spl_lane_issue_hub update --ref "$key" --status "done" >/dev/null || return 1
+  spl_lane_issue_hub comment --ref "$key" --body "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build." >/dev/null || return 1
+  if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> done ($why); nothing written. Re-run with DRY_RUN=0."; return 0; fi
+  printf 'done\t%s\t%s\t%s\t%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$repo" "$full" >"$root/$id/lifetime/issue-end" ||
+    { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
+  do_log "OK $key -> done: $why"
+}
+
+# spl_lane_issue_repo NAME -> the local clone of a repo the cnf knows: the
+# basename of a `src_dir` in all.env.yaml, then <ENV>.env.yaml (the env wins).
+# A path, a URL or an unknown name is refused: a lane must not point the check
+# at a repo it controls. A test sandbox (SPOOL_TEST=1) reads LANE_LANDED_CNF
+# only, else no cnf: never the live box's clones.
+spl_lane_issue_repo() {
+  local name="$1" d f p hit="" known=""
+  local -a cnfs=()
+  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$name" != *..* ]] ||
+    { do_log "FATAL LANE_LANDED_REPO must be a repo NAME the cnf knows, not a path or URL, got: '$name'" >&2; return 1; }
+  d="${APP_PATH:-$PROJ_PATH/..}/csi-spl-cnf/csi-spl"
+  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}")
+  else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml"); fi
+  for f in "${cnfs[@]}"; do
+    [[ -r "$f" ]] || continue
+    while IFS= read -r p; do
+      [[ "$p" == /* ]] || continue
+      known+=" ${p##*/}"; [[ "${p##*/}" == "$name" ]] && hit="$p"
+    done < <(yq -r '.. | select(tag == "!!map" and has("src_dir")) | .src_dir' "$f" 2>/dev/null)
+  done
+  [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
+  [[ -d "$hit/.git" ]] || { do_log "FATAL the cnf's clone of $name, $hit, is not a git repo on this box: refused, nothing changed" >&2; return 1; }
+  printf '%s\n' "$hit"
+}
+
+# spl_lane_issue_on_trunk NAME CLONE SHA -> "<full sha>\t<trunk>": fetched
+# first (an unfetched clone answers "not landed"), as the clone's owner or
+# SPOOL_BOX_USER, then an ancestor of origin/<trunk>. Never gh compare: its
+# "behind" means trunk LACKS the commit (a-371, 2026-10-14).
+spl_lane_issue_on_trunk() {
+  local name="$1" c="$2" sha="$3" u t b full
+  local -a g=(git -c safe.directory='*' -C "$c")
+  u="${SPOOL_BOX_USER:-$(stat -c %U "$c")}"
+  [[ "$u" == "$(id -un)" ]] || g=(sudo -n -u "$u" "${g[@]}")
+  timeout "${LANE_LANDED_FETCH_TIMEOUT:-120}" "${g[@]}" fetch -q origin </dev/null >&2 ||
+    { do_log "FATAL cannot fetch $name ($c) as $u: not checked, refused, nothing changed" >&2; return 1; }
+  t="$("${g[@]}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; t="${t#origin/}"
+  for b in master main; do
+    [[ -n "$t" ]] || { "${g[@]}" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null && t="$b"; }
+  done
+  [[ -n "$t" ]] || { do_log "FATAL $name has no origin/master or origin/main: refused, nothing changed" >&2; return 1; }
+  full="$("${g[@]}" rev-parse -q --verify "$sha^{commit}" 2>/dev/null)" ||
+    { do_log "FATAL $sha is no commit of $name, even after a fetch: refused, nothing changed" >&2; return 1; }
+  "${g[@]}" merge-base --is-ancestor "$full" "refs/remotes/origin/$t" ||
+    { do_log "FATAL $name ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
+  printf '%s\t%s\n' "$full" "$t"
 }
 
 # spl_lane_issue_link TOPIC -> the topic's web link, from the desk cnf's WUI.

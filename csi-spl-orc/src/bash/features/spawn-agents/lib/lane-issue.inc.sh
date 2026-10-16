@@ -18,7 +18,9 @@
 #
 # Files, per lane, in <spool root>/<id>/lifetime/:
 #   issue      the key, one line (written at placement)
-#   issue-end  <status>\t<reason>\t<utc>: the lane ended without landing
+#   issue-end  <status>\t<reason>\t<utc>: the lane ended without landing;
+#              done\t<why>\t<utc>\t<repo>\t<sha>: its work landed in another
+#              repo, checked on that repo's origin trunk (SPL-2229)
 
 # An issue key: the tenant prefix and a number, e.g. SPL-123.
 LI_KEY_RE='[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*'
@@ -133,6 +135,30 @@ li_end_cmd() {
   printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue" "${SPOOL_BOX_USER:-<box user>}" "$1"
 }
 
+# li_landed_cmd ID -> the command for a lane whose work landed in another
+# repo (no csi-spl commit can close its key): do_spl_lane_issue checks the
+# sha on that repo's origin trunk, then sets the issue done (SPL-2229).
+li_landed_cmd() {
+  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha> DRY_RUN=0 ./run -a do_spl_lane_issue" "${SPOOL_BOX_USER:-<box user>}" "$1"
+}
+
+# li_end_record KEY END_FILE ID: the gate's verdict on an issue-end record. A
+# done record passes only with the repo + sha its check wrote (SPL-2229).
+li_end_record() {
+  local st repo sha
+  IFS=$'\t' read -r st _ _ repo sha <"$2"
+  if [ "$st" != "done" ]; then
+    echo "issue gate: $1 ended without landing: $(cut -f1,2 "$2" | tr '\t' ' ')" >&2
+    return 0
+  fi
+  if [ -n "$repo" ] && [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]]; then
+    echo "issue gate: $1 landed in another repo: $repo ${sha:0:12} (checked on its origin trunk)" >&2
+    return 0
+  fi
+  echo "exit-clean refused: $2 says done but names no repo + sha; set it with the check: $(li_landed_cmd "$3")" >&2
+  return 3
+}
+
 # li_gate SPOOL_ROOT ID WORKDIR: 0 = the lane may exit; 3 = refused, one line
 # on stderr naming what is missing and the command that fixes it. With no
 # landed commit and no end reason it asks the hub last: an issue the
@@ -149,15 +175,12 @@ li_gate() {
   local -a cites=()
   mapfile -t shas < <(li_landed "$w" "$key")
   if [ "${#shas[@]}" -eq 0 ]; then
-    if [ -s "$end" ]; then
-      echo "issue gate: $key ended without landing: $(cut -f1,2 "$end" | tr '\t' ' ')" >&2
-      return 0
-    fi
+    [ -s "$end" ] && { li_end_record "$key" "$end" "$id"; return; }
     if [ "$(li_hub_status "$key")" = "done" ]; then
       echo "issue gate: $key done on the hub (no landed commit)" >&2
       return 0
     fi
-    echo "exit-clean refused: issue $key is still wip: no commit on $(li_trunk "$w" || echo origin/master) closes it (a fix|feat|perf|refactor subject with $key in its scope, or a 'Closes: $key' trailer; fetch first) and no end reason; land a commit citing $key, or end it: $(li_end_cmd "$id")" >&2
+    echo "exit-clean refused: issue $key is still wip: no commit on $(li_trunk "$w" || echo origin/master) closes it (a fix|feat|perf|refactor subject with $key in its scope, or a 'Closes: $key' trailer; fetch first) and no end reason; land a commit citing $key, or end it: $(li_end_cmd "$id"); work landed in another repo: $(li_landed_cmd "$id")" >&2
     return 3
   fi
   mapfile -t cites < <(li_cites "$w" "$key")

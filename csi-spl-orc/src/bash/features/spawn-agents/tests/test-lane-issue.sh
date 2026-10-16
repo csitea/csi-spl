@@ -10,6 +10,8 @@
 #      key is wip (no landed commit citing it in its subject scope, no end
 #      reason) and when the landed commits change behaviour with neither a
 #      csi-spl-doc/ change nor a `Docs: none (<why>)` line.
+#      An issue-end `done` record (SPL-2229, work landed in another repo)
+#      passes only with the repo + sha do_spl_lane_issue checked.
 #   D. the same gate, no landed commit and no end reason: the hub's status
 #      (SPL-1813, a stub read, no network): done passes; wip, a failed read,
 #      a slow read and another key's done are refused.
@@ -130,6 +132,7 @@ gate "$T_SCRIPTS" c-071
 eq "C1 key wip, no commit cites it in its subject scope: refused, exit 3" 3 "$RC"
 has "C1 ... the line says still wip" "issue SPL-5 is still wip" "$(cat "$T_TMP/e")"
 has "C1 ... and names the end command" "LANE_ISSUE_OP=end" "$(cat "$T_TMP/e")"
+has "C1 ... and the done option for work landed in another repo (SPL-2229)" "LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha>" "$(cat "$T_TMP/e")"
 gate "$CTL/scripts" c-071
 eq "C1 control (no issue gate): the same lane exits" 0 "$RC"
 
@@ -137,6 +140,18 @@ printf 'diss\tsuperseded by c-099\t2026-10-12T10:00:00Z\n' >"$SPOOL_ROOT/c-071/l
 gate "$T_SCRIPTS" c-071
 eq "C2 ended without landing, with a reason: exits" 0 "$RC"
 has "C2 ... the reason is in the line" "ended without landing: diss superseded by c-099" "$(cat "$T_TMP/e")"
+
+# SPL-2229: the record do_spl_lane_issue writes after it checked the sha on
+# the other repo's origin trunk (c-263's case: dvn-web 9c74186, on its master).
+accepted c-078; echo SPL-13 >"$SPOOL_ROOT/c-078/lifetime/issue"
+printf 'done\tlanded in dvn-web 9c741867a396 on origin/master\t2026-10-16T10:00:00Z\tdvn-web\t9c741867a396dc4a76bbbc772545d12d06d62e34\n' >"$SPOOL_ROOT/c-078/lifetime/issue-end"
+gate "$T_SCRIPTS" c-078
+eq "C2b landed in another repo (issue-end done + repo + sha): exits" 0 "$RC"
+has "C2b ... the line names the repo and the short sha" "issue gate: SPL-13 landed in another repo: dvn-web 9c741867a396 (checked on its origin trunk)" "$(cat "$T_TMP/e")"
+printf 'done\tlanded somewhere\t2026-10-16T10:00:00Z\n' >"$SPOOL_ROOT/c-078/lifetime/issue-end"
+gate "$T_SCRIPTS" c-078
+eq "C2b a done record with no repo + sha (not the check's): refused" 3 "$RC"
+has "C2b ... naming the command that checks it" "LANE_ISSUE_STATUS=done LANE_LANDED_REPO=" "$(cat "$T_TMP/e")"
 
 accepted c-072; echo SPL-6 >"$SPOOL_ROOT/c-072/lifetime/issue"
 land "feat(orc, SPL-6): a behaviour change" csi-spl-orc/src/bash/run/thing.func.sh csi-spl-orc/src/bash/tests/thing.tst.sh

@@ -41,7 +41,10 @@ func TestReadMarksFollowTheMemberAcrossDevices(t *testing.T) {
 		t.Helper()
 		return call(t, r.e, r.tid, http.MethodPut, "/v1/me/reads", as, map[string]any{"marks": marks})
 	}
-	if code, out := put("HUM-2", map[string]any{"ch:lobby": map[string]any{"cursor": cur}}); code != http.StatusOK {
+	// device A opens the channel and its topic: a ch: mark and the topic's t:
+	// mark (SPL-2124: a line's own t: mark, once there, decides it, not ch:)
+	now := time.Now().Add(time.Minute).UTC().Format(time.RFC3339Nano) // past the fixture line (now+2s)
+	if code, out := put("HUM-2", map[string]any{"ch:lobby": map[string]any{"cursor": cur}, "t:" + r.public: map[string]any{"ts": now, "count": 2}}); code != http.StatusOK {
 		t.Fatalf("PUT /v1/me/reads: %d %v", code, out)
 	}
 	if n, _ := lobby("HUM-2")["unread"].(float64); n != 0 {
@@ -50,7 +53,7 @@ func TestReadMarksFollowTheMemberAcrossDevices(t *testing.T) {
 	if n, _ := lobby("HUM-3")["unread"].(float64); n != 1 {
 		t.Errorf("CONTROL: HUM-3 never read #lobby, unread = %v, want 1", n)
 	}
-	// a stale tab writes an older position: the mark stays
+	// a stale tab writes older positions: neither mark moves back
 	old := time.Now().Add(-48 * time.Hour).UTC().Format(time.RFC3339Nano)
 	code, out := put("HUM-2", map[string]any{"ch:lobby": map[string]any{"ts": old, "id": "x"}, "t:" + r.public: map[string]any{"ts": old, "count": 2}})
 	if code != http.StatusOK {
@@ -60,8 +63,8 @@ func TestReadMarksFollowTheMemberAcrossDevices(t *testing.T) {
 	if m, _ := marks["ch:lobby"].(map[string]any); m == nil || m["cursor"] != cur {
 		t.Errorf("a stale write rewound ch:lobby: %v (want cursor %s)", marks["ch:lobby"], cur)
 	}
-	if m, _ := marks["t:"+r.public].(map[string]any); m == nil || m["count"] != float64(2) {
-		t.Errorf("thread mark not stored: %v", marks)
+	if m, _ := marks["t:"+r.public].(map[string]any); m == nil || m["count"] != float64(2) || m["ts"] == old {
+		t.Errorf("a stale write rewound or lost the thread mark: %v", marks["t:"+r.public])
 	}
 	if n, _ := lobby("HUM-2")["unread"].(float64); n != 0 {
 		t.Errorf("after the stale write: HUM-2 #lobby unread = %v, want 0", n)

@@ -29,13 +29,16 @@
 # @description      seated in prd only, so a user-scope spool-dev failed to
 # @description      start ("<ID> has 0 seats ... in dev") in every lane. For
 # @description      such an env the user-scope entry is removed from every CLI
-# @description      and claude gets spool-<env> at LOCAL scope (its project =
-# @description      the agent's cwd) for each LIVE claude agent of AGENT_USER
-# @description      that holds exactly one seat in that env on this desk box
-# @description      (<box state>/cloud/<env>/desk/*/<box>/spool/<ID>, the
-# @description      lookup spool-mcp makes); an unseated agent's local entry
-# @description      is removed. A seated agent of another CLI is named: those
-# @description      CLIs have no per-agent scope. Seats change and nothing
+# @description      and claude gets spool-<env> at LOCAL scope under a
+# @description      project key only when every LIVE claude agent of
+# @description      AGENT_USER with that key holds exactly one seat in that
+# @description      env on this desk box (<box state>/cloud/<env>/desk/*/
+# @description      <box>/spool/<ID>, the lookup spool-mcp makes); else it is
+# @description      removed there. The key is the cwd, or the main checkout
+# @description      root for a cwd in a git repo or worktree: lane worktrees
+# @description      share it, so a seated agent in one gets no spool-<env>. A
+# @description      seated agent of another CLI is named: those CLIs have no
+# @description      per-agent scope. Seats change and nothing
 # @description      re-runs this by itself: after seating an agent in such an
 # @description      env (do_spl_desk_up), RE-RUN this action and it adds
 # @description      spool-<env> back for that agent (then restart its CLI).
@@ -156,9 +159,9 @@ spl_agent_mcp_box_side() {
 
 # spl_agent_mcp_seat_env <env> (SPL-2106): spool-<env> only for an agent that
 # holds a seat in <env>. Removes the user-scope entry from every installed CLI,
-# then per live agent of AGENT_USER: claude gets (seated) or loses (unseated)
-# spool-<env> at local scope in its cwd. Reads the caller's locals (agent,
-# ahome, bin, clis, dry, stateroot, deskbox); with dry set it only logs.
+# then claude's local scope per live agent (spl_agent_mcp_seat_claude). Reads
+# the caller's locals (agent, ahome, bin, clis, dry, stateroot, deskbox); with
+# dry set it only logs.
 spl_agent_mcp_seat_env() {
   local e="$1" name="spool-$1" c cli id cwd rc=0 nseat=0 nunseat=0
   for c in $clis; do
@@ -174,34 +177,90 @@ spl_agent_mcp_seat_env() {
       do_log "INFO $c: removed the user-scope $name (it is registered per seated agent)" ||
       { do_log "FAIL $c: could not remove the user-scope $name"; rc=1; }
   done
-  cli="$ahome/.local/bin/claude"
+  spl_agent_mcp_seat_claude "$e" "$name" || rc=1
+  return "$rc"
+}
+
+# spl_agent_mcp_seat_claude <env> <name>: claude keeps a local-scope server
+# under the PROJECT KEY of the cwd (~/.claude.json projects.<key>), and the key
+# of any cwd inside a git repo or one of its worktrees is the MAIN checkout's
+# root (measured, claude 2.1: a server added in a worktree landed under the
+# repo root). An entry there reaches every agent with that key, so <name> is
+# set at a key only when every live claude agent with that key holds exactly
+# one seat in <env> (spool-mcp refuses 0 or 2+), and removed otherwise. A lane
+# worktree shares the repo root with every other lane: no <name> there.
+spl_agent_mcp_seat_claude() {
+  local e="$1" name="$2" c id cwd key n rc=0 nseat=0 nunseat=0 nkey=0
+  local -A kok=() kids=()
   while read -r c id cwd; do
     [[ -n "$cwd" ]] || continue
-    local seats=("$stateroot/$e/desk/"*"/$deskbox/spool/$id") have
-    [[ -d "${seats[0]}" ]] || seats=()
+    n="$(spl_agent_mcp_seats "$e" "$id")"
     if [[ "$c" != claude ]]; then
-      (( ${#seats[@]} == 1 )) && do_log "INFO $id ($c) has a seat in $e but $c has no per-agent scope: no $name for it"
+      [[ "$n" == 1 ]] && do_log "INFO $id ($c) has a seat in $e but $c has no per-agent scope: no $name for it"
       continue
     fi
-    have="$(spl_agent_mcp_local "$ahome" "$cwd" "$name" "$bin" "$e")"
-    if (( ${#seats[@]} == 1 )); then
-      nseat=$((nseat + 1))
-      [[ "$have" == yes ]] && { do_log "INFO claude $id: $name already registered in $cwd"; continue; }
-      if (( dry )); then do_log "INFO DRY_RUN would: register $name for $id (seated) in $cwd"; continue; fi
-      as_agent bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "$cli" mcp add -s local "$name" -- "$bin" "$e" >/dev/null 2>&1
-      [[ "$(spl_agent_mcp_local "$ahome" "$cwd" "$name" "$bin" "$e")" == yes ]] &&
-        do_log "INFO claude $id: registered $name in $cwd (seated in $e)" || { do_log "FAIL claude $id: $name is still not registered in $cwd"; rc=1; }
-    else
-      nunseat=$((nunseat + 1))
-      [[ "$have" == no ]] && continue
-      if (( dry )); then do_log "INFO DRY_RUN would: remove $name of $id (${#seats[@]} seats in $e) in $cwd"; continue; fi
-      as_agent bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "$cli" mcp remove -s local "$name" >/dev/null 2>&1
-      [[ "$(spl_agent_mcp_local "$ahome" "$cwd" "$name" "" "")" == no ]] &&
-        do_log "INFO claude $id: removed $name in $cwd (${#seats[@]} seats in $e)" || { do_log "FAIL claude $id: $name is still in $cwd"; rc=1; }
-    fi
+    key="$(spl_agent_mcp_claude_key "$cwd")"
+    [[ -n "$key" ]] || { do_log "FAIL claude $id: cannot read the project key of $cwd"; rc=1; continue; }
+    kids[$key]+="$id "
+    if [[ "$n" == 1 ]]; then nseat=$((nseat + 1)); [[ "${kok[$key]:-}" == 0 ]] || kok[$key]=1
+    else nunseat=$((nunseat + 1)); kok[$key]=0; fi
   done < <(spl_agent_mcp_live)
-  do_log "INFO $name: $nseat live claude agent(s) of $agent seated in $e on $deskbox, $nunseat not (no $name for them)"
+  for key in "${!kids[@]}"; do
+    spl_agent_mcp_local_set "$key" "${kok[$key]}" "${kids[$key]% }" || rc=1
+    (( kok[$key] )) && nkey=$((nkey + 1))
+  done
+  do_log "INFO $name: $nseat live claude agent(s) of $agent seated in $e on $deskbox, $nunseat not; $name at $nkey project key(s)"
   return "$rc"
+}
+
+# spl_agent_mcp_local_set <key> <1|0> <ids>: claude's local-scope <name> at
+# project <key> present (1) or absent (0). Reads the locals e and name of
+# spl_agent_mcp_seat_claude and the install's (ahome, bin, dry).
+spl_agent_mcp_local_set() {
+  local key="$1" want="$2" ids="$3" cli="$ahome/.local/bin/claude"
+  if (( want )); then
+    [[ "$(spl_agent_mcp_local "$ahome" "$key" "$name" "$bin" "$e")" == yes ]] &&
+      { do_log "INFO claude: $name already registered for $key ($ids)"; return 0; }
+    (( dry )) && { do_log "INFO DRY_RUN would: register $name for $key (live there, all seated in $e: $ids)"; return 0; }
+    as_agent bash -c 'cd "$1" && shift && exec "$@"' _ "$key" "$cli" mcp add -s local "$name" -- "$bin" "$e" >/dev/null 2>&1
+    [[ "$(spl_agent_mcp_local "$ahome" "$key" "$name" "$bin" "$e")" == yes ]] &&
+      do_log "INFO claude: registered $name for $key ($ids, seated in $e)" || { do_log "FAIL claude: $name is still not registered for $key"; return 1; }
+    return 0
+  fi
+  [[ "$(spl_agent_mcp_local "$ahome" "$key" "$name" "" "")" == no ]] &&
+    { do_log "INFO claude: no $name for $key (live there, not all seated in $e: $ids)"; return 0; }
+  (( dry )) && { do_log "INFO DRY_RUN would: remove $name for $key (live there, not all seated in $e: $ids)"; return 0; }
+  as_agent bash -c 'cd "$1" && shift && exec "$@"' _ "$key" "$cli" mcp remove -s local "$name" >/dev/null 2>&1
+  [[ "$(spl_agent_mcp_local "$ahome" "$key" "$name" "" "")" == no ]] &&
+    do_log "INFO claude: removed $name for $key (live there, not all seated in $e: $ids)" || { do_log "FAIL claude: $name is still registered for $key"; return 1; }
+}
+
+# spl_agent_mcp_seats <env> <id>: how many seats <id> holds in <env> on the
+# desk box, the lookup spool-mcp makes (<state>/<env>/desk/*/<box>/spool/<id>).
+spl_agent_mcp_seats() {
+  local d n=0
+  for d in "$stateroot/$1/desk/"*"/$deskbox/spool/$2"; do [[ -d "$d" ]] && n=$((n + 1)); done
+  echo "$n"
+}
+
+# spl_agent_mcp_claude_key <cwd>: claude's project key of <cwd>: the main
+# checkout root when <cwd> is inside a git repo or a worktree of one (its .git
+# file names <root>/.git/worktrees/<wt>), else <cwd> itself.
+spl_agent_mcp_claude_key() {
+  as_agent python3 -c 'import os, sys
+d = p = os.path.realpath(sys.argv[1])
+while True:
+    g = os.path.join(p, ".git")
+    if os.path.isdir(g):
+        print(p); break
+    if os.path.isfile(g):
+        t = open(g).read().strip()
+        gd = os.path.realpath(os.path.join(p, t[7:].strip())) if t.startswith("gitdir:") else ""
+        parts = gd.split("/.git/worktrees/")
+        print(parts[0] if len(parts) == 2 else p); break
+    if p == "/":
+        print(d); break
+    p = os.path.dirname(p)' "$1" 2>/dev/null
 }
 
 # spl_agent_mcp_live: "<cli> <id> <cwd>" per live agent CLI process of the

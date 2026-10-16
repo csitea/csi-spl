@@ -276,10 +276,15 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev AGENT_US
 (SPL-2106, `MCP_SEAT_ENVS`, default `dev`): a lane is seated in prd only, so a
 user-scope `spool-dev` failed at every start (`<ID> has 0 seats on <box> in
 dev`) and taught agents to read past "failed to connect". The action removes
-the user-scope `spool-dev` from every CLI and gives each LIVE claude agent with
-exactly one dev seat its own `spool-dev` at local scope (the project = its
-cwd); other CLIs have no per-agent scope, so a seated grok/agy/qwen/mistral
-agent is named in the log and gets none. Seating an agent in dev later does
+the user-scope `spool-dev` from every CLI. claude keeps a local-scope server
+under a project key: the cwd, or the main checkout root for any cwd inside a
+git repo or one of its worktrees (measured: a server added in a worktree lands
+under the repo root). So `spool-dev` is set at a key only when every live
+claude agent with that key holds exactly one dev seat, and removed otherwise.
+Lane worktrees share the repo root, so a seated agent working in a worktree
+gets no `spool-dev` while an unseated lane shares its root. Other CLIs have no
+per-agent scope: a seated grok/agy/qwen/mistral agent is named in the log and
+gets none. Seating an agent in dev later does
 not re-run it: re-run the install action above, then restart that CLI.
 
 If your session has no spool servers, use 6.1 - 6.4.

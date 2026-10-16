@@ -11,8 +11,8 @@
 #     spool settings (not its notify hook, not the caller's env)
 #   - the install writes both halves, backs up a replaced agent script,
 #     registers each CLI once, and refuses a binary that ignores --as
-#   - SPL-2106: an env of MCP_SEAT_ENVS is registered per seated live agent
-#     only (claude local scope at its cwd); its user-scope entry is removed
+#   - SPL-2106: an env of MCP_SEAT_ENVS is registered for seated live agents
+#     only (claude local scope, by claude's project key); user scope removed
 #   - mistral vibe (specs/110 T008): one [[mcp_servers]] entry per env in a stub
 #     ~/.vibe/config.toml, idempotent; the mirror reads a fixture session file
 # CONTROL: a box half that dropped --as would serve unseated; the argv check
@@ -360,42 +360,52 @@ EOF
 
 # ── 8. SPL-2106: spool-dev only for an agent seated in dev ──────────────────
 # Fakes only: a seat is an empty dir of the fixture desk tree, a live agent a
-# line of the SPL_AGENT_MCP_LIVE file. c-001 (claude) and g-001 (grok) are
-# seated in dev on box-x, c-550 (claude) is not and carries a stale local entry.
-SEAT="$T/seat/cloud"; WT="$T/wt"
-mkdir -p "$SEAT/dev/desk/t1/box-x/spool/c-001" "$SEAT/dev/desk/t1/box-x/spool/g-001" "$SEAT/dev/desk/t1/other-box/spool/c-550" \
-  "$WT/c-001" "$WT/c-550" "$WT/g-001"
-printf 'claude c-001 %s\nclaude c-550 %s\ngrok g-001 %s\n' "$WT/c-001" "$WT/c-550" "$WT/g-001" >"$T/live"
-(cd "$WT/c-550" && FAKE_HOME="$AH" FAKE_LOG="$T/cli.log" "$AH/.local/bin/claude" mcp add -s local spool-dev -- "$AH/.local/bin/spool-mcp" dev)
+# line of the SPL_AGENT_MCP_LIVE file. claude keys local scope by the MAIN
+# checkout root for any cwd in a repo or its worktrees, so the fixture has
+# repo A (worktrees c-002 seated + c-550 unseated, a stale spool-dev at A),
+# repo B (worktree c-003, seated) and c-001 seated in a non-git cwd; g-001
+# (grok) is seated too.
+SEAT="$T/seat/cloud"; WT="$T/wt"; SD="$SEAT/dev/desk/t1/box-x/spool"
+mkdir -p "$SD/c-001" "$SD/c-002" "$SD/c-003" "$SD/g-001" "$SEAT/dev/desk/t1/other-box/spool/c-550" "$WT/c-001" "$WT/g-001/sub"
+for r in A:c-002 A:c-550 B:c-003; do
+  mkdir -p "$T/repo${r%%:*}/.git/worktrees/${r#*:}" "$WT/${r#*:}/sub"
+  echo "gitdir: $T/repo${r%%:*}/.git/worktrees/${r#*:}" >"$WT/${r#*:}/.git"
+done
+printf 'claude c-001 %s\nclaude c-002 %s\nclaude c-550 %s\nclaude c-003 %s\ngrok g-001 %s\n' \
+  "$WT/c-001" "$WT/c-002/sub" "$WT/c-550" "$WT/c-003" "$WT/g-001/sub" >"$T/live"
+(cd "$T/repoA" && FAKE_HOME="$AH" FAKE_LOG="$T/cli.log" "$AH/.local/bin/claude" mcp add -s local spool-dev -- "$AH/.local/bin/spool-mcp" dev)
 seat() { in_orc AGENT_USER="$ME" MCP_CLIS="claude grok qwen mistral" MCP_SEAT_ENVS=dev SPOOL_DESK_BOX=box-x \
   SPL_AGENT_MCP_STATE_ROOT="$SEAT" SPL_AGENT_MCP_LIVE="$T/live" "$@"; }
 cj() {  # <python expr on d = ~/.claude.json>: prints its value
   python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); p = d.get("projects", {}); print(eval(sys.argv[2]))' "$AH/.claude.json" "$1"
 }
-loc() { cj "p.get('$WT/$1', {}).get('mcpServers', {}).get('spool-dev', {}).get('args')"; }
-[[ "$(cj "'spool-dev' in d['mcpServers']")" == True && "$(loc c-550)" == "['dev']" ]] &&
-  pass "8. CONTROL (red before): user-scope spool-dev reaches every agent, c-550 has a stale local one" || fail "8. fixture: $(cat "$AH/.claude.json")"
+loc() { cj "p.get('$1', {}).get('mcpServers', {}).get('spool-dev', {}).get('args')"; }
+[[ "$(cj "'spool-dev' in d['mcpServers']")" == True && "$(loc "$T/repoA")" == "['dev']" ]] &&
+  pass "8. CONTROL (red before): user-scope spool-dev reaches every agent, repo A has a stale local one" || fail "8. fixture: $(cat "$AH/.claude.json")"
 cp "$AH/.claude.json" "$T/cj.before"; : >"$T/cli.log"
 seat; rc=$?
-[[ $rc -eq 0 && ! -s "$T/cli.log" ]] && cmp -s "$T/cj.before" "$AH/.claude.json" && grep -q 'DRY_RUN would: register spool-dev for c-001' "$T/out" &&
-  grep -q 'DRY_RUN would: remove spool-dev of c-550' "$T/out" && pass "8. the dry run names the plan and touches nothing" || fail "8. dry: rc $rc $(cat "$T/cli.log" "$T/out")"
+[[ $rc -eq 0 && ! -s "$T/cli.log" ]] && cmp -s "$T/cj.before" "$AH/.claude.json" && grep -q "DRY_RUN would: register spool-dev for $WT/c-001 " "$T/out" &&
+  grep -q "DRY_RUN would: remove spool-dev for $T/repoA " "$T/out" && pass "8. the dry run names the plan and touches nothing" || fail "8. dry: rc $rc $(cat "$T/cli.log" "$T/out")"
 seat DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] || fail "8. seat run: rc $rc $(cat "$T/out")"
 [[ "$(cj "'spool-dev' in d['mcpServers']")" == False && "$(cj "d['mcpServers']['spool-prd']['args']")" == "['prd']" ]] &&
   pass "8. claude: the user-scope spool-dev is removed, spool-prd kept" || fail "8. claude user scope: $(cat "$AH/.claude.json")"
-[[ "$(loc c-001)" == "['dev']" ]] && pass "8. seated c-001 gets spool-dev in its cwd" || fail "8. c-001: $(cat "$AH/.claude.json" "$T/out")"
-[[ "$(loc c-550)" == None ]] && pass "8. unseated c-550: no spool-dev (stale local entry removed)" || fail "8. c-550: $(cat "$AH/.claude.json")"
+[[ "$(loc "$WT/c-001")" == "['dev']" ]] && pass "8. seated c-001 (non-git cwd) gets spool-dev at its cwd" || fail "8. c-001: $(cat "$AH/.claude.json" "$T/out")"
+[[ "$(loc "$T/repoB")" == "['dev']" ]] && pass "8. seated c-003 alone in repo B: spool-dev at B's root (claude's key)" || fail "8. c-003: $(cat "$AH/.claude.json" "$T/out")"
+[[ "$(loc "$T/repoA")" == None && "$(loc "$WT/c-002")" == None && "$(loc "$WT/c-550")" == None ]] &&
+  pass "8. unseated c-550 shares repo A's key: no spool-dev there (stale removed), none for c-002 either" || fail "8. repo A: $(cat "$AH/.claude.json")"
 ! grep -q 'spool-dev:' "$AH/grok.list" && grep -q 'spool-prd:' "$AH/grok.list" && [[ "$(vibe_count spool-dev)" == 0 && "$(vibe_count spool-prd)" == 1 ]] &&
   python3 -c 'import json, sys; s = json.load(open(sys.argv[1]))["mcpServers"]; assert "spool-dev" not in s and "spool-prd" in s' "$AH/.qwen/settings.json" &&
   pass "8. grok, qwen and mistral: no user-scope spool-dev, spool-prd kept" || fail "8. other CLIs: $(cat "$AH/grok.list" "$AH/.qwen/settings.json" "$AH/.vibe/config.toml")"
-grep -q 'g-001 (grok) has a seat in dev but grok has no per-agent scope' "$T/out" && grep -q 'spool-dev: 1 live claude agent(s) of .* seated in dev on box-x, 1 not' "$T/out" &&
+grep -q 'g-001 (grok) has a seat in dev but grok has no per-agent scope' "$T/out" &&
+  grep -q 'spool-dev: 3 live claude agent(s) of .* seated in dev on box-x, 1 not; spool-dev at 2 project key(s)' "$T/out" &&
   pass "8. a seated agent of a CLI without per-agent scope is named; the counts are logged" || fail "8. log: $(cat "$T/out")"
 : >"$T/cli.log"; seat DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -s "$T/cli.log" ]] && pass "8. a re-run changes nothing" || fail "8. re-run: rc $rc $(cat "$T/cli.log")"
-mkdir -p "$SEAT/dev/desk/t1/box-x/spool/c-550"; seat DRY_RUN=0; rc=$?
-[[ $rc -eq 0 && "$(loc c-550)" == "['dev']" ]] && pass "8. seated later in dev, a re-run adds c-550's spool-dev back" || fail "8. re-seat: rc $rc $(cat "$T/out")"
+mkdir -p "$SD/c-550"; seat DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(loc "$T/repoA")" == "['dev']" ]] && pass "8. c-550 seated later in dev: a re-run adds spool-dev back for repo A" || fail "8. re-seat: rc $rc $(cat "$T/out")"
 mkdir -p "$SEAT/dev/desk/t2/box-x/spool/c-001"; seat DRY_RUN=0; rc=$?
-[[ $rc -eq 0 && "$(loc c-001)" == None ]] && pass "8. two dev seats (spool-mcp refuses them, exit 5): no spool-dev for c-001" || fail "8. ambiguous: rc $rc $(cat "$T/out")"
+[[ $rc -eq 0 && "$(loc "$WT/c-001")" == None ]] && pass "8. two dev seats (spool-mcp refuses them, exit 5): no spool-dev for c-001" || fail "8. ambiguous: rc $rc $(cat "$T/out")"
 
 echo "agent-mcp: $fails failure(s)"
 exit $(( fails > 0 ))

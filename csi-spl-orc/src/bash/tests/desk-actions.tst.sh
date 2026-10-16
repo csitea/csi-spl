@@ -86,6 +86,73 @@ wait_pid_file() {
 trap 'reap_groups' EXIT
 trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 
+# --- in_orc, the libs sourced ONCE (r01-07, SPL-2225) -------------------------------
+# test-lib's in_orc sources all ~550 orc libs into a fresh bash per call, ~0.45 s,
+# and this file makes ~250 calls: that was its whole run time (124 s wall, 125 s
+# cpu, no sleep in it; measured 2026-10-16). Here they are sourced once into this
+# shell, in the same order (do_log / do_require_bin first, so a lib's own wins),
+# and every call forks it. The fork sees what the fresh bash saw: the stubs first
+# on PATH, ENV=dev, the call's VAR=value args exported, and every variable and
+# function of THIS test that is neither exported nor an orc lib's unset. A call
+# whose args are not all VAR=value (a command, as in section 6) runs cold, in
+# test-lib's in_orc. CONTROL: sourcing the libs changed none of this test's names.
+eval "in_orc_cold() $(declare -f in_orc | tail -n +2)"
+_ORC_FRESH=" $(env -i bash -c 'compgen -v' | tr '\n' ' ') "
+declare -A _ORC_PRE=() _ORC_KEEP_VAR=()
+for _orc_n in $(compgen -A function); do _ORC_PRE[f:$_orc_n]="$(declare -f "$_orc_n")"; done
+for _orc_n in $(compgen -v); do
+  [[ "$_ORC_FRESH" == *" $_orc_n "* || "$_orc_n" =~ ^(_ORC_|_orc_|BASH_|PIPESTATUS$) ]] ||
+    _ORC_PRE[v:$_orc_n]="$(declare -p "$_orc_n")"
+done
+do_log() { echo "$*"; }
+do_require_bin() { return 0; }
+for _orc_n in "$PROJ_ROOT"/lib/bash/funcs/*.func.sh "$PROJ_ROOT"/src/bash/run/*.func.sh; do
+  # shellcheck source=/dev/null
+  source "$_orc_n"
+done
+_orc_clash=""
+for _orc_n in "${!_ORC_PRE[@]}"; do
+  case "$_orc_n" in
+    f:*) [[ "$(declare -f "${_orc_n#f:}")" == "${_ORC_PRE[$_orc_n]}" ]] || _orc_clash+=" ${_orc_n#f:}()" ;;
+    v:*) [[ "$(declare -p "${_orc_n#v:}" 2>/dev/null)" == "${_ORC_PRE[$_orc_n]}" ]] || _orc_clash+=" \$${_orc_n#v:}" ;;
+  esac
+done
+# the test's own functions: the ones above, and those defined further down,
+# which must not shadow a lib's either. The fork unsets exactly these.
+_ORC_TEST_FNS=""
+for _orc_n in "${!_ORC_PRE[@]}"; do [[ "$_orc_n" == f:* ]] && _ORC_TEST_FNS+=" ${_orc_n#f:}"; done
+for _orc_n in $(grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*\(\)' "$0" | tr -d ' ()' | sort -u); do
+  [[ "$_orc_n" == do_log || "$_orc_n" == do_require_bin || -n "${_ORC_PRE[f:$_orc_n]:-}" ]] && continue
+  declare -F "$_orc_n" >/dev/null && _orc_clash+=" $_orc_n()"
+  _ORC_TEST_FNS+=" $_orc_n"
+done
+[[ -z "$_orc_clash" ]] && pass "CONTROL the orc libs sourced once clash with none of this test's names" ||
+  { fail "the orc libs clash with this test's names:$_orc_clash"; exit 1; }
+for _orc_n in $(compgen -v); do [[ -n "${_ORC_PRE[v:$_orc_n]:-}" ]] || _ORC_KEEP_VAR[$_orc_n]=1; done
+unset _orc_n _orc_clash
+in_orc() {
+  local _orc_a
+  for _orc_a in "$@"; do
+    [[ "$_orc_a" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || { in_orc_cold "$@"; return; }
+  done
+  (
+    export PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" \
+      STUB_LOG="$T/calls.log" PATH="$T/stub:$PATH" ENV=dev
+    # shellcheck disable=SC2163  # "$@" holds the call's VAR=value words
+    (($# == 0)) || export "$@"
+    declare -A _orc_ex=()
+    while read -r _orc_a; do _orc_ex[$_orc_a]=1; done < <(compgen -e)
+    unset -f $_ORC_TEST_FNS
+    for _orc_a in $(compgen -v); do
+      [[ -n "${_ORC_KEEP_VAR[$_orc_a]:-}${_orc_ex[$_orc_a]:-}" || "$_orc_a" == _orc_* ]] ||
+        unset "$_orc_a" 2>/dev/null
+    done
+    unset _orc_a _orc_ex _ORC_FRESH _ORC_PRE _ORC_KEEP_VAR _ORC_TEST_FNS
+    set --
+    eval "$SNIPPET"
+  )
+}
+
 # --- 1. the id rules ---------------------------------------------------------------
 SNIPPET='spl_desk_validate t1 box-desk CLE-00' in_orc >/dev/null 2>&1 &&
   pass "a good tenant/box/agent triple passes" || fail "the good triple was refused"

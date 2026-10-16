@@ -146,7 +146,7 @@ describe('user menu panel is RTL-safe (spec 021 FR-004: logical properties)', ()
   })
 })
 
-describe('a rotation never shows the CLOSED menu (v-show owns display)', () => {
+describe('a rotation never shows the CLOSED menu (the panel is v-if; clearPopover keeps display)', () => {
   const src = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8').split('<style')[0]
   it('the only bare style wipe is clearPopover, and it puts display back', () => {
     assert.equal(src.split("removeAttribute('style')").length - 1, 1)
@@ -157,6 +157,23 @@ describe('a rotation never shows the CLOSED menu (v-show owns display)', () => {
   it('the narrow watch and the phone path both go through it', () => {
     assert.match(src, /watch\(narrow, \(\) => \{\s*clearPopover\(/)
     assert.match(src, /if \(phone\(\)\) \{ clearPopover\(panel\); return \}/)
+  })
+})
+
+describe('SPL-2123 (perf round 6, row 01): the closed menu mounts no panel DOM', () => {
+  const src = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8').split('<script')[0]
+  const panel = src.match(/<div\s+v-(if|show)="open"\s+:id="menuId"\s+class="user-menu__panel"/)
+  it('the panel is v-if="open", never v-show', () => {
+    assert.ok(panel, 'the panel tag is found')
+    assert.equal(panel[1], 'if')
+    assert.doesNotMatch(src, /v-show="open"/)
+  })
+  it('the trigger names the panel in aria-controls only while it is open', () => {
+    assert.match(src, /:aria-controls="open \? menuId : undefined"/)
+    assert.doesNotMatch(src, /:aria-controls="menuId"/)
+  })
+  it('the picture input stays mounted outside the panel (a pick survives a close)', () => {
+    assert.ok(src.indexOf('data-test="user-menu-picture-input"') < src.indexOf('data-test="user-menu-panel"'))
   })
 })
 

@@ -26,7 +26,7 @@
         data-test="user-menu-trigger"
         aria-haspopup="menu"
         :aria-expanded="open ? 'true' : 'false'"
-        :aria-controls="menuId"
+        :aria-controls="open ? menuId : undefined"
         :aria-label="buttonLabel"
         :title="me.primary || t('user_menu.account')"
         @click="toggle"
@@ -56,8 +56,23 @@
         aria-hidden="true"
         @click="close(true)"
       />
+      <!-- t1 ccaee528: the "Change picture" item opens this picker. Outside the
+           panel: the panel unmounts on close, and a pick still in the OS dialog
+           when the menu closes must still reach onPicturePicked -->
+      <input
+        ref="pictureInput"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        class="user-menu__picture-input"
+        data-test="user-menu-picture-input"
+        tabindex="-1"
+        aria-hidden="true"
+        @change="onPicturePicked"
+      >
+      <!-- SPL-2123 (perf round 6, row 01): mounted only while open, so the
+           closed menu adds no DOM to the first paint of a signed-in page -->
       <div
-        v-show="open"
+        v-if="open"
         :id="menuId"
         class="user-menu__panel"
         data-test="user-menu-panel"
@@ -76,10 +91,10 @@
             <span v-if="access.roleKey" class="user-menu__secondary" data-test="user-menu-role">{{ t('user_menu.role', { role: t(access.roleKey) }) }}</span>
           </span>
         </div>
-        <!-- mounted while open; the language row shows everywhere (spec 109
-             FR-008), the --phone rows only <= 820 px (CSS), so the phone
-             never depends on script to reach these controls -->
-        <div v-if="open" class="user-menu__prefs" data-test="user-menu-prefs">
+        <!-- the language row shows everywhere (spec 109 FR-008), the --phone
+             rows only <= 820 px (CSS), so the phone never depends on script
+             to reach these controls -->
+        <div class="user-menu__prefs" data-test="user-menu-prefs">
           <div class="user-menu__pref" data-test="user-menu-language">
             <span class="user-menu__pref-label">{{ t('nav.lang_label') }}</span>
             <LanguageSwitcher fill />
@@ -101,17 +116,6 @@
         <p v-if="pictureError" class="user-menu__picture-error" data-test="user-menu-picture-error" role="alert">
           {{ t('user_menu.picture_' + pictureError) }}
         </p>
-        <!-- t1 ccaee528: the "Change picture" item opens this picker -->
-        <input
-          ref="pictureInput"
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          class="user-menu__picture-input"
-          data-test="user-menu-picture-input"
-          tabindex="-1"
-          aria-hidden="true"
-          @change="onPicturePicked"
-        >
         <ul role="menu" class="user-menu__items" :aria-label="buttonLabel" @keydown="onMenuKey">
           <li role="none">
             <NuxtLink
@@ -365,10 +369,11 @@ function items(): HTMLElement[] {
   return [item0.value?.$el, itemPicture.value, itemPictureRemove.value, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
-/* drop the popover style but keep `display`: v-show hides the closed panel
-   with an inline display:none, and wiping the whole style attribute on a
-   rotation SHOWED the closed menu, which then sat over the page and took
-   its clicks (c-155: a card's open icon opened Settings) */
+/* drop the popover style but keep `display`. The panel is v-if now (SPL-2123),
+   so a closed one is not in the DOM; the guard stays because, under v-show,
+   wiping the whole style attribute on a rotation SHOWED the closed menu,
+   which then sat over the page and took its clicks (c-155: a card's open
+   icon opened Settings) */
 function clearPopover(panel: HTMLElement | null | undefined) {
   if (!panel) return
   const display = panel.style.display
@@ -379,7 +384,7 @@ function clearPopover(panel: HTMLElement | null | undefined) {
 function placePanel() {
   const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
   /* the bottom sheet is placed by CSS, not next to the button: a popover
-     style left from a desktop open (the panel is v-show) must not override it */
+     style left from a desktop open must not override it */
   if (phone()) { clearPopover(panel); return }
   const btn = trigger.value
   if (!panel || !btn) return
@@ -394,9 +399,13 @@ function placePanel() {
   }, readViewport())
 }
 
+/* i < 0 counts from the end (-1 = the last item). The panel is v-if: its
+   items exist only after the render that opens it, so the index is resolved
+   after nextTick, never from items() of a closed menu (SPL-2123) */
 async function focusItem(i: number) {
   focused.value = i
   await nextTick()
+  if (i < 0) focused.value = i = Math.max(0, items().length + i)
   placePanel()
   focusWithoutScroll(items()[i])
 }
@@ -423,7 +432,7 @@ function onTriggerKey(e: KeyboardEvent) {
     openAt(0)
   } else if (e.key === 'ArrowUp') {
     e.preventDefault()
-    openAt(items().length - 1)
+    openAt(-1)
   } else if (e.key === 'Escape' && open.value) {
     e.preventDefault()
     close(true)

@@ -51,6 +51,10 @@
 # @description         line: load% >= high * BOX_PICK_OVERFLOW / 100), DEGRADED
 # @description         or AT CAP -> HOLD: it stays queued, the reason in
 # @description         .place.wait, nothing acked
+# @description      UI RULE (owner HUM-10, t1 b61851fb): a mistral placement whose
+# @description         brief names csi-spl-wui/ launches claude instead while
+# @description         cnf env.box.agent_split.mistral_ui_allowed is not true
+# @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest)
 # @description      b. otherwise (no placement, or no brief file here: the brief
 # @description         needs judgement) the holder gets ONE blocker "place ask X
 # @description         now" with the summary and the close command
@@ -60,6 +64,7 @@
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements, default 10
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where <slug>.md (or c001-<slug>.md) is, default <spool root>/dispatch/briefs
+# @param SPAWN_PLACE_CNF (optional) - the cnf whose mistral_ui_allowed the UI rule reads, default <APP_PATH>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param SPAWN_PLACE_WORKDIR (optional) - the launcher's WORKDIR, default the checkout this action runs from
 # @param SPAWN_PLACE_TMUX_SOCKET (optional) - the box user's tmux socket, default /tmp/tmux-<uid>/default
 # @param SPAWN_PLACE_WINDOWS_CMD SPAWN_PLACE_PICK_CMD SPAWN_PLACE_LAUNCH_CMD (optional, tests) - print the window count / the box pick / run the launch
@@ -287,10 +292,23 @@ spl_spawn_place_take() {  # HOLDER HEAD
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
   if [[ -n "$place" && -n "$brief" ]]; then
     touch "$(spool_asks_dir)/.place.last"
-    spl_spawn_place_launch "$holder" "$2" "${place%%:*}" "${ps[1]}" "$brief" "${ps[0]}"
+    spl_spawn_place_launch "$holder" "$2" "$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")" "${ps[1]}" "$brief" "${ps[0]}"
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
+}
+
+# The vendor to launch: VENDOR, except mistral on UI work while the cnf
+# switch mistral_ui_allowed is not true -> claude (the UI rule,
+# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb).
+spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
+  local why
+  [[ "$1" == mistral ]] || { echo "$1"; return 0; }
+  declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  why="$(spl_lane_mix_mistral_ui_off "${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}" "$2" "")"
+  [[ -n "$why" ]] || { echo "$1"; return 0; }
+  do_log "INFO ask ${3:0:8}: placed as mistral, launched as claude: $why" >&2
+  echo claude
 }
 
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls

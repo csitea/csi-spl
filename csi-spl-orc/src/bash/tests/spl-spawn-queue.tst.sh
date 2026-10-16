@@ -36,6 +36,8 @@
 #      finds the brief of <slug> and launches with SPAWN_BOX=<box>; the
 #      pinned box past its overflow mark HOLDs it (CONTROL: under it, it
 #      launches); a hand-off touches no .place.last (CONTROL: a launch does)
+#  13. SPL-2263: a mistral placement whose brief names csi-spl-wui/ launches
+#      claude (CONTROL: a docs brief stays mistral)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -481,6 +483,27 @@ out="$(on pc do_spl_spawn_place 2>&1)"
   pass "a hand-off to the holder burns no SPAWN_PLACE_GAP_MIN slot (control: the launch above touched .place.last)" ||
   fail "hand-off slot: $out | $(ls -la "$T/pc/spool/asks/")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null
+
+# 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
+# names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
+# (APP_PATH=$T has no cnf: the default false). CONTROL: a docs brief keeps mistral.
+U1=b7b7b7b7-0000-4000-8000-000000000001; U2=b8b8b8b8-0000-4000-8000-000000000002
+echo "Fix the hover in csi-spl-wui/src/components/x.vue" >"$T/briefs/ui-hover.md"
+echo "Rewrite csi-spl-doc/doc/md/x.md" >"$T/briefs/docs-x.md"
+put "$U1" c-002@box-desk dispatch-b61851fb-u "SPAWN REQUEST ui hover"
+on pc do_spl_spawn_enqueue ASK_ID="$U1" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-hover >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-503 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$U1")")" == "placed: c-503@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/ui-hover.md ui-hover$" "$T/launch.log" &&
+  grep -q "placed as mistral, launched as claude: mistral takes no UI work until do_spl_vendor_ui_retest passes" <<<"$out" &&
+  pass "a mistral placement with a WUI brief launches claude" || fail "ui placement: $out | $(cat "$T/launch.log")"
+put "$U2" c-002@box-desk dispatch-b61851fb-v "SPAWN REQUEST docs"
+on pc do_spl_spawn_enqueue ASK_ID="$U2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:docs-x >/dev/null 2>&1
+: >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=m-504 2>&1)"
+grep -q "^mistral auto $T $T/briefs/docs-x.md docs-x$" "$T/launch.log" &&
+  pass "control: a mistral placement with a docs brief stays mistral" || fail "docs placement: $out | $(cat "$T/launch.log")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

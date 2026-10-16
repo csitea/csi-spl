@@ -30,8 +30,12 @@ Name the task kind, estimate difficulty against your own maximum capacity
 launcher:
 
 ```bash
-cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> LANE_MIX_TASK=<task_id> LANE_MIX_BRIEF=<brief file> ./run -a do_spl_lane_mix
 ```
+
+`LANE_MIX_BRIEF` (or `LANE_MIX_PATHS=<path,...>`) lets the UI rule see the lane: UI work
+(a brief or a path naming `csi-spl-wui/`) never goes to mistral, as main or backup, until
+`do_spl_vendor_ui_retest` passes (owner 2026-10-16, t1 b61851fb).
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
 launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which defines the per-kind main and backup vendors:

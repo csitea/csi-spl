@@ -76,7 +76,7 @@ mix() {
     -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH -u LANE_MIX_AUTH_FRESH \
     -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN -u MISTRAL_BIN \
     -u LANE_FLEET -u LANE_HUB_CMD -u LANE_ENV -u ENV -u LANE_TENANT -u LANE_BOX -u LANE_DESK_BOX \
-    -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT \
+    -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT -u LANE_MIX_BRIEF -u LANE_MIX_PATHS \
     MIX_SRC="$([[ "${MIX_FULL:-}" == 1 ]] && echo '*' || echo "$MIX_SRC")" \
     PROJ_PATH="${MIX_PROJ:-$PROJ_ROOT}" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T" \
     LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" "$@" bash -c '
@@ -724,6 +724,43 @@ bad="$(docs80 specs_and_docs LANE_MIX_SPLIT_KIND='claude=10 grok=0 agy=60 qwen=0
 [[ -n "$bad" && "$(eff agy)" == 60 ]] \
   && pass "14. control: the old 60 row misses the 80 band ($bad)" \
   || fail "14. control: the old 60 row held the 80 band: '$bad' eff=$(eff agy)"
+
+# --- 15. UI work never goes to mistral until the re-test passes (SPL-2263) ---
+# Owner HUM-10, t1 b61851fb: a brief or paths under csi-spl-wui/ never get
+# mistral as main or backup while cnf mistral_ui_allowed is not true
+# (do_spl_vendor_ui_retest flips it). The RED CONTROL is the same lane with no
+# UI signal: today's mix gives it to mistral.
+rm -rf "$T/dispatch"; : >"$T/registry.tsv"
+printf 'Fix the hover in csi-spl-wui/src/components/x.vue\n' >"$T/ui-brief.md"
+printf 'Rewrite csi-spl-doc/doc/md/x.md\n' >"$T/docs-brief.md"
+mix LANE_MIX_KIND=simple_coding
+[[ "$(pick)" == mistral ]] && pass "15. control: with no UI signal simple_coding goes to mistral (the mix the rule changes)" \
+  || fail "15. control: $(cat "$T/out")"
+mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/ui-brief.md"
+[[ "$(pick)" == claude ]] && grep -q '^mistral .*skip (mistral takes no UI work until do_spl_vendor_ui_retest passes (the brief names csi-spl-wui/)); share to claude' "$T/out" \
+  && pass "15. a WUI brief never routes to mistral: claude, mistral's weight to claude" || fail "15. ui brief: $(cat "$T/out")"
+mix LANE_MIX_KIND=simple_coding LANE_MIX_PATHS="csi-spl-orc/x.sh,./csi-spl-wui/src/pages/a.vue"
+[[ "$(pick)" == claude ]] && grep -q 'path ./csi-spl-wui/src/pages/a.vue is under csi-spl-wui/' "$T/out" \
+  && pass "15. a csi-spl-wui/ path is UI work too" || fail "15. ui paths: $(cat "$T/out")"
+mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/docs-brief.md" LANE_MIX_PATHS="csi-spl-wuix/a,csi-spl-doc/x.md"
+[[ "$(pick)" == mistral ]] && pass "15. a docs brief (no csi-spl-wui/) still may go to mistral" || fail "15. docs brief: $(cat "$T/out")"
+mix LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF="$T/docs-brief.md" LANE_MIX_SPLIT_KIND='claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude'
+[[ "$(pick)" == mistral ]] && pass "15. specs_and_docs with mistral main, docs brief: mistral" || fail "15. docs main: $(cat "$T/out")"
+attempt task-ui claude fail:F2; attempt task-ui claude fail:F2
+mix LANE_MIX_KIND=complex_coding LANE_MIX_TASK=task-ui
+[[ "$(pick)" == mistral ]] && pass "15. control: claude failed twice, no UI signal: the backup mistral" || fail "15. backup control: $(cat "$T/out")"
+mix LANE_MIX_KIND=complex_coding LANE_MIX_TASK=task-ui LANE_MIX_BRIEF="$T/ui-brief.md"
+[[ "$(pick)" == grok ]] && grep -q 'mistral is out (mistral takes no UI work' "$T/out" && grep -q 'grok is the last fallback' "$T/out" \
+  && pass "15. a WUI brief never gets mistral as the backup either: claude, else grok" || fail "15. ui backup: $(cat "$T/out")"
+rm -rf "$T/dispatch"
+mix LANE_MIX_KIND=secret LANE_MIX_BRIEF="$T/ui-brief.md" LANE_MIX_SPLIT_KIND='claude=0 grok=0 agy=0 qwen=0 mistral=100 backup=claude'
+[[ "$(pick)" == claude ]] && pass "15. the data rule keeps working: secret UI work with a mistral main goes to claude" || fail "15. secret: $(cat "$T/out")"
+yq -i '.env.box.agent_split.mistral_ui_allowed = true' "$CNF"
+mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/ui-brief.md"
+[[ "$(pick)" == mistral ]] && pass "15. mistral_ui_allowed: true (the re-test passed) lifts the rule" || fail "15. allowed: $(cat "$T/out")"
+yq -i '.env.box.agent_split.mistral_ui_allowed = false' "$CNF"
+[[ "$(yq -r '.env.box.agent_split.mistral_ui_allowed' "$REAL_CNF")" == false ]] \
+  && pass "15. the real cnf holds mistral_ui_allowed: false" || fail "15. real cnf switch: $(yq -r '.env.box.agent_split.mistral_ui_allowed' "$REAL_CNF")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

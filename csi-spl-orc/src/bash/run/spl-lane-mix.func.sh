@@ -47,12 +47,20 @@
 # @description i18n with LANE_MIX_SENSITIVE=1 is secret, and its pick carries
 # @description flag=needs_masked_agy_review: agy reviews the masked copy of
 # @description do_spl_i18n_mask (spl-i18n-mask.func.sh), never the original.
+# @description UI rule (owner HUM-10, t1 b61851fb, 2026-10-16): a lane whose
+# @description brief (LANE_MIX_BRIEF) or paths (LANE_MIX_PATHS) target
+# @description csi-spl-wui/ never gets mistral, as main or backup, in any kind;
+# @description its weight goes to the heir and the candidates end claude, grok.
+# @description The cnf switch env.box.agent_split.mistral_ui_allowed (default
+# @description false) lifts it; only do_spl_vendor_ui_retest's pass flips it.
 # @description Prints the kind's table, then `pick=<vendor> launcher=/<vendor>-spawn
 # @description kind=<k> reason=...`, or `pick=hold`.
 # @param LANE_MIX_KIND (optional) - a kind or an alias above; unset reads the difficulty
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own capacity
 # @param LANE_MIX_SENSITIVE (optional) - 1: the work carries secrets/personal data
 # @param LANE_MIX_TASK (optional) - the task_id: its failed tries pick the backup
+# @param LANE_MIX_BRIEF (optional) - the lane's brief file: naming csi-spl-wui/ makes it UI work
+# @param LANE_MIX_PATHS (optional) - the lane's paths, comma or space separated: one under csi-spl-wui/ makes it UI work
 # @param LANE_MIX_SPLIT_KIND (optional) - "claude=N grok=N agy=N qwen=N mistral=N
 # @param   backup=<vendor>", the kind's row (do_spl_agent_split_show --kind);
 # @param   overrides the cnf row. LANE_MIX_SPLIT is read the same way when it is
@@ -74,6 +82,7 @@
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get|pause ...`
 # @example LANE_MIX_KIND=simple_coding LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix
+# @example LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF=<brief.md> ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=i18n ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=70 ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
@@ -104,6 +113,7 @@ do_spl_lane_mix() {
 
   declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=() _LM_TRIED=() _LM_FAILS=()
   _spl_lane_mix_target "$cnf" || return 1
+  _spl_lane_mix_ui "$cnf"
   _spl_lane_mix_instance
   _spl_lane_mix_avail "$root" "$cnf" "$reg"
   _spl_lane_mix_actual "$reg"
@@ -215,7 +225,36 @@ _spl_lane_mix_avail() {
     _LM_AVAIL[$v]="$v limit (${lim#*$'\t'})"
     _spl_lane_mix_report "$v" "${lim%%$'\t'*}" "${lim#*$'\t'}"
   done
+  [[ -z "$_LM_UI_WHY" ]] || _LM_AVAIL[mistral]="$_LM_UI_WHY"
   _spl_lane_mix_share
+}
+
+# spl_lane_mix_ui_target <brief-file> <paths> -> why the lane is UI work
+# (a path under csi-spl-wui/, or a brief naming it), else nothing. The
+# placer reads it too.
+spl_lane_mix_ui_target() {
+  local p
+  for p in ${2//,/ }; do
+    [[ "${p#./}" == csi-spl-wui || "${p#./}" == csi-spl-wui/* ]] && { echo "path $p is under csi-spl-wui/"; return 0; }
+  done
+  [[ -n "$1" && -r "$1" ]] && grep -q 'csi-spl-wui/' "$1" && echo "the brief names csi-spl-wui/"
+  return 0
+}
+
+# spl_lane_mix_mistral_ui_off <cnf> <brief-file> <paths> -> why mistral may
+# not take this lane (UI work, and env.box.agent_split.mistral_ui_allowed is
+# not true), else nothing
+spl_lane_mix_mistral_ui_off() {
+  local ui
+  ui="$(spl_lane_mix_ui_target "$2" "$3")"
+  [[ -n "$ui" ]] || return 0
+  [[ "$(yq -r '.env.box.agent_split.mistral_ui_allowed' "$1" 2>/dev/null)" == true ]] && return 0
+  echo "mistral takes no UI work until do_spl_vendor_ui_retest passes ($ui)"
+}
+
+# _spl_lane_mix_ui <cnf> -> _LM_UI_WHY, set when the UI rule keeps mistral out
+_spl_lane_mix_ui() {
+  _LM_UI_WHY="$(spl_lane_mix_mistral_ui_off "$1" "${LANE_MIX_BRIEF:-}" "${LANE_MIX_PATHS:-}")"
 }
 
 # _spl_lane_mix_heir <vendor> -> where an out vendor's weight goes: the row's
@@ -251,8 +290,10 @@ _spl_lane_mix_share() {
 # that is available and has failed fewer than LANE_MIX_TRIES_MAX tries on
 # this task. <allowed> narrows every path (the data rule).
 _spl_lane_mix_choose() {
-  local main="$1" allow="${2:-}" v role seen=" " why order=()
-  for v in "$main" "$_LM_BACKUP" claude; do
+  local main="$1" allow="${2:-}" v role seen=" " why order=() cands=("$1" "$_LM_BACKUP" claude)
+  # the UI rule: with mistral out, the next vendor of the kind is claude, else grok
+  [[ -n "${_LM_UI_WHY:-}" ]] && cands+=(grok)
+  for v in "${cands[@]}"; do
     [[ "$seen" == *" $v "* ]] && continue
     seen+="$v "
     [[ -z "$allow" || " $allow " == *" $v "* ]] && order+=("$v")

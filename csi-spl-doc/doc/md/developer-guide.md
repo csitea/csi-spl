@@ -160,6 +160,29 @@ runs (`git grep -l force-push-guard origin/master` -> the matcher and its test
 only). Until they land, the ruleset and the pre-push hook are the layers that
 stop a forbidden push.
 
+### 4.1 UI work and the vendor re-test
+
+Owner HUM-10, t1 b61851fb (2026-10-16): of 5 mistral lanes on WUI and orc
+work that night, none finished cleanly (a self-close before the push landed,
+a text "screenshot", trimmed tests and a stale copy, two red gates, a
+force-push try). So a lane whose brief or paths target `csi-spl-wui/` never
+goes to mistral, as main or backup: `do_spl_lane_mix` (`LANE_MIX_BRIEF`,
+`LANE_MIX_PATHS`) and the spawn placer give it to claude, else grok. Docs and
+other work still may go to mistral.
+
+The switch is cnf `env.box.agent_split.mistral_ui_allowed` (false). Only the
+re-test flips it, never a hand edit:
+
+1. `cd csi-spl-orc && RETEST_NONCE=<nonce> ./run -a do_spl_vendor_ui_retest`
+   prints three small WUI tasks with known answers; one mistral lane each.
+2. Each lane passes only when its commit changes only its task's file and
+   holds the known answer, landed through `do_spl_push_master`, every CI run
+   is green, it is served on dev and prd, and it got an ACCEPTED from another
+   agent before it closed.
+3. `RETEST_CMD=verdict RETEST_NONCE=<nonce> RETEST_RESULTS=<file> DRY_RUN=0
+   ./run -a do_spl_vendor_ui_retest` checks all of it in code: 3/3 writes
+   `true`, anything less writes `false`. Commit the cnf like any change.
+
 ## 5. Where the rest is
 
 - Every fleet rule and its one home: [fleet rules index](fleet-rules-index.md).

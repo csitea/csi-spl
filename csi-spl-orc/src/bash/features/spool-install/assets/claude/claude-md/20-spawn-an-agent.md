@@ -20,6 +20,8 @@ kind and let the per-kind main and backup vendors decide:
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 
+UI work: never mistral until do_spl_vendor_ui_retest passes (owner 2026-10-16, t1 b61851fb).
+
 <!-- fleet-pin data-rule-vendors: claude grok mistral -->
 **Data rule, overrides kind** (owner, 2026-10-08, msg 803c3b38, spec 110
 D2; grok added 2026-10-11, msgs 26117740 and 474f32a0): work that carries

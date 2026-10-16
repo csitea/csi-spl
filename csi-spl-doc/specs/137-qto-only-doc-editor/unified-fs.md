@@ -121,6 +121,24 @@ history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
   it. The orchestrator runs each line as its own seat.
 - The guard: `csi-spl-orc/src/bash/tests/desk-doctree.tst.sh` section 9.
 
+### 6.1 Starting a desk: a lane never starts another's
+
+`do_spl_desk_up` with `DRY_RUN=0` resolves its caller the same way and
+refuses a LANE caller whose id is not `DESK_AGENT`, before anything starts:
+
+> DESK_AGENT=c-001 is not you (m-260): a lane never starts a desk; send c-001
+> the command
+
+It differs from the Qto write on purpose: a role seat (`-001`..`-004`, a peer
+seat, a watchdog-expected seat: `spl_ars_is_seat`) may start any desk, a
+caller with no agent id (the desk cron, `do_spl_desk_up_all` under it, a human
+shell) is not checked, and a lane seating ITSELF (`spool-agent.sh` at spawn,
+`spool-mcp.sh --seat`) stays open. Dry runs stay open.
+
+Why (SPL-2227): on 2026-10-16 a mistral lane whose brief had no deploy step
+ran `DESK_AGENT=c-001 ENV=prd DRY_RUN=0 do_spl_desk_up` six times. The guard:
+`csi-spl-orc/src/bash/tests/desk-up-caller.tst.sh`.
+
 ## 7. A doc's pictures: `<doc>.assets/NN-name.ext` (gap G6, SPL-2201)
 
 Owner HUM-10 picked layout A (msg 300d9a2c on poll c9f33bec, t1 topic

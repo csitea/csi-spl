@@ -91,6 +91,7 @@ do_spl_desk_up() {
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to seat $agent."
     return 0
   fi
+  spl_desk_up_caller_ok "$agent" || return 1
   do_require_bin curl setsid || return 1
   spl_host_spool || return 1
   mkdir -p "$d/spool/$agent/inbox" "$d/spool/$agent/outbox" "$d/spool/$agent/archive" "$d/spool/.hub" "$d/keys" ||
@@ -124,6 +125,24 @@ EOF_PY
     do_log "FAIL $agent is not announced on $box within ${wait}s: see $d/spool/.hub/hub-run.log"; return 1; }
   do_log "OK $agent is seated on $box in $tenant ($ENV): a human DMs it at $wui/dm/$agent@$box"
   do_log "OK the terminal leg is $notify (prompt poke for $agent: $poke, box-wide: $boxpoke); the agent answers with: $reply"
+}
+
+# spl_desk_up_caller_ok <desk agent>: 0 unless the caller is a LANE that is
+# not DESK_AGENT (SPL-2227). The caller resolves as for the desk Qto write
+# (_spl_desk_doctree_caller, SPL-2078). Unlike that write, a role seat
+# (spl_ars_is_seat) may start any desk, and a caller with no agent id (the desk
+# cron, do_spl_desk_up_all under it, a human shell) is not checked. A lane
+# seating itself (spool-agent.sh, spool-mcp.sh --seat) stays open. Run only
+# before a real start: dry runs stay open. The rule:
+# csi-spl-doc/specs/137-qto-only-doc-editor/unified-fs.md section 6.
+spl_desk_up_caller_ok() {
+  local agent="$1" who=""
+  _spl_desk_doctree_caller who
+  who="${who%@*}"
+  [[ -z "$who" || "$who" == "$agent" ]] && return 0
+  spl_ars_is_seat "$who" && return 0
+  do_log "FATAL DESK_AGENT=$agent is not you ($who): a lane never starts a desk; send c-001 the command (csi-spl-doc/specs/137-qto-only-doc-editor/unified-fs.md section 6)"
+  return 1
 }
 
 # spl_desk_show_pane <state dir> <agent> <notify cmd>: re-attach the agent's

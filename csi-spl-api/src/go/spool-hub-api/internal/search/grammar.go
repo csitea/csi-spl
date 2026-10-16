@@ -313,10 +313,11 @@ func tokenize(q string) ([]token, error) {
 			out = append(out, token{kind: tRParen, text: ")", pos: pos, raw: ")"})
 			pos++
 			i++
-		case r == '-' && startOfToken(rs, i):
-			if i+1 >= len(rs) || unicode.IsSpace(rs[i+1]) || rs[i+1] == ')' {
-				return nil, &Error{Pos: pos, Token: "-", Detail: "'-' must be followed by a term"}
-			}
+		case r == '-' && startOfToken(rs, i) && i+1 < len(rs) && !unicode.IsSpace(rs[i+1]) && rs[i+1] != ')' && rs[i+1] != '-':
+			// -word excludes. A '-' with no term stuck to it (alone, at the
+			// end, before ')' or another '-') is plain text: the default
+			// branch reads it as a word with no letter or digit, which is
+			// dropped with a warning (owner 2026-10-16, SPL-2172).
 			out = append(out, token{kind: tNeg, text: "-", pos: pos, raw: "-"})
 			pos++
 			i++

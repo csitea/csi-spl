@@ -166,7 +166,6 @@ func TestParseErrors(t *testing.T) {
 		{"OR a", 0, "OR"},
 		{"a AND", 2, "AND"},
 		{"AND a", 0, "AND"},
-		{"a -", 2, "-"},
 		{"from:", 0, "from:"},
 		{"x from:a@B!", 2, "from:a@B!"},
 		{"is:urgent", 0, "is:urgent"},

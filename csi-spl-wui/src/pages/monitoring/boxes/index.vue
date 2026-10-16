@@ -123,4 +123,10 @@ onMounted(() => {
 .boxes-group { display: flex; flex-direction: column; gap: 8px; }
 .boxes-group__head { margin: 6px 0 0; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .boxes-group__n { opacity: 0.7; }
+
+/* SPL-2083: left-align rows on phone and desktop */
+.monitoring-box .nav-row > .nav-item {
+  /* Override any centering from parent containers */
+  justify-content: flex-start;
+}
 </style>

@@ -417,7 +417,7 @@ One tagged line each in `<OWNER_USER>`'s crontab, matched by the tag at the end 
 | `agent-identity-reconcile` | the identity map, every minute | `do_spl_agent_identity_install` |
 | `agent-boot-restore` | `@reboot`: brings back the agents a reboot killed, as `<AGENT_USER>` | `do_spl_agent_boot_restore_install_cron` |
 | `weekly-full-scan` | the weekly full lint scan | `do_install_weekly_full_scan_cron` (iac) |
-| `box-cron:*` | sessions save, graft index, box-state backup, CI red note, agent login check, lane rotate, reverse tunnel (`csi-spl-orc/cnf/box-crons/box-crons.manifest`) | `do_install_box_crons` |
+| `box-cron:*` | sessions save, graft index, box-state backup, CI red note, agent login check, lane rotate, reverse tunnel, the topic status card every 5 min (acts on the dispatch lease holder's box only) (`csi-spl-orc/cnf/box-crons/box-crons.manifest`) | `do_install_box_crons` |
 | `box-update` | the box and both envs to trunk twice a day | `do_spl_box_update_install_cron` |
 
 <a id="ws-doc-784280d0-92b3-4293-897b-6a56381184d4"></a>

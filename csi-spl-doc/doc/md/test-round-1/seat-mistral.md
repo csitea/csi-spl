@@ -148,4 +148,6 @@ same test dirs -> 30 files; the 5 largest: `gcp-tail-logs` (152 lines),
 
 ## 7. Signature
 
-Pending v1.0.
+signed: c-249@sat on 7289d2db8
+
+Checked before signing, on 7289d2db8: section 4 drops v0.1 rows 02, 03, 07, 10 and 12 and folds 08 into 04, as this seat asked; section 5.1 lists no path twice (`sed -n 166,192p` of the plan, `uniq -d` on its paths -> none); row 08 premise holds (`grep -rlw gcp-delete-service-account` over the test dirs -> 0).

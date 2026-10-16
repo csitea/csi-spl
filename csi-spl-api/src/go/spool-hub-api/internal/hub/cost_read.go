@@ -1,10 +1,13 @@
 package hub
 
 import (
+	"context"
+	"errors"
 	"math"
 	"net/http"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -26,6 +29,17 @@ import (
 // total is 0 (counts only: subscription tokens and agent-seconds are units,
 // never a price, Q-4). status: so_far while the month runs, ended after
 // (the month close, 4.5, is not built: no month reads closed yet).
+//
+// The second currency (SPL-2108, owner HUM-10 t1 1b6f871f msg 44fef397):
+// second_currency is the caller's own pick in this workspace (the personal
+// setting second_currency, PUT /api/v1/auth/preferences; EUR when never
+// picked). Every part carries second_micros (its USD converted cost day by
+// cost day at the rdb 0200 rate of that day, else the last one before it),
+// fx_rate and fx_rate_day (the rate of its latest cost day and that rate's
+// date) and fx_rate_first_day (the rate date of its earliest cost day); all
+// null when a cost day has no rate on or before it, never a guess. USD and
+// EUR (what was paid) are unchanged; total.second_micros is null when any
+// part's is.
 
 // costMonthWindow is one month's days, as of now.
 type costMonthWindow struct {
@@ -66,8 +80,9 @@ func costWindow(month string, now time.Time) (costMonthWindow, string) {
 }
 
 type costMoney struct {
-	USDMicros int64 `json:"usd_micros"`
-	EURMicros int64 `json:"eur_micros"`
+	USDMicros    int64  `json:"usd_micros"`
+	EURMicros    int64  `json:"eur_micros"`
+	SecondMicros *int64 `json:"second_micros"`
 }
 
 type costPartOut struct {
@@ -88,6 +103,7 @@ type costMonthBody struct {
 	To       string            `json:"to"` // last day, inclusive
 	Status   string            `json:"status"`
 	Scope    string            `json:"scope"` // estate | workspace
+	Currency string            `json:"second_currency"`
 	Days     int               `json:"days"`
 	Ended    int               `json:"days_ended"`
 	Total    costMoney         `json:"total"`
@@ -102,7 +118,7 @@ func (s *Server) routeCostRead(mux *http.ServeMux) {
 
 // GET /v1/tenant/costs?month=YYYY-MM
 func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
-	t, _, _, _, ok := s.membersActor(w, r, rbac.CostsRead)
+	t, a, _, _, ok := s.membersActor(w, r, rbac.CostsRead)
 	if !ok {
 		return
 	}
@@ -122,21 +138,44 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	estate := op != "" && t.ID == op
+	cur, err := s.secondCurrency(r.Context(), a.HumanID, t.ID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("cost.read_currency_failed")
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "your second currency was not read")
+		return
+	}
 	cm, err := cr.CostMonthRead(r.Context(), store.CostMonthQuery{Tenant: t.ID, Estate: estate,
-		From: win.From, To: win.To, CoverTo: win.CoverTo})
+		From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: cur})
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, costMonthAnswer(win, estate, cm))
+	writeJSON(w, http.StatusOK, costMonthAnswer(win, estate, cur, cm))
+}
+
+// secondCurrency is the member's second currency in tenant (SPL-2108): their
+// own pick (rdb 0078 membership settings), else store.DefaultSecondCurrency.
+func (s *Server) secondCurrency(ctx context.Context, hum, tenant string) (string, error) {
+	mr, ok := s.o.Store.(auth.MembershipSettingsReader)
+	if !ok || hum == "" {
+		return store.DefaultSecondCurrency, nil
+	}
+	ms, err := mr.MembershipSettings(ctx, hum, tenant)
+	if err != nil && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, auth.ErrNoHuman) {
+		return "", err
+	}
+	if ms.SecondCurrency != nil && store.IsCurrencyCode(*ms.SecondCurrency) {
+		return *ms.SecondCurrency, nil
+	}
+	return store.DefaultSecondCurrency, nil
 }
 
 // costMonthAnswer shapes the store's month: totals, each part's share and
 // each source's n of N.
-func costMonthAnswer(win costMonthWindow, estate bool, cm store.CostMonth) costMonthBody {
+func costMonthAnswer(win costMonthWindow, estate bool, cur string, cm store.CostMonth) costMonthBody {
 	b := costMonthBody{Month: win.Month, From: win.From, Days: win.Days, Ended: win.Ended,
-		Status: "ended", Scope: "workspace", Parts: []costPartOut{}, Coverage: []costCoverageOut{}}
+		Status: "ended", Scope: "workspace", Currency: cur, Parts: []costPartOut{}, Coverage: []costCoverageOut{}}
 	last, _ := time.Parse(time.DateOnly, win.To)
 	b.To = last.AddDate(0, 0, -1).Format(time.DateOnly)
 	if win.SoFar {
@@ -145,9 +184,18 @@ func costMonthAnswer(win costMonthWindow, estate bool, cm store.CostMonth) costM
 	if estate {
 		b.Scope = "estate"
 	}
+	second, complete := int64(0), true
 	for _, p := range cm.Parts {
 		b.Total.USDMicros += p.USDMicros
 		b.Total.EURMicros += p.EURMicros
+		if p.SecondMicros == nil {
+			complete = false
+		} else {
+			second += *p.SecondMicros
+		}
+	}
+	if complete {
+		b.Total.SecondMicros = &second
 	}
 	for _, p := range cm.Parts {
 		o := costPartOut{CostPart: p, Hand: p.Origin == "hand" || p.Origin == "invoice"}

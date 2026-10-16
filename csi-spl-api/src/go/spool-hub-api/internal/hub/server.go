@@ -459,6 +459,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeCostRead(mux)      // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
+	s.routeFXRates(mux)       // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
 	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
 	s.routeEmbedPow(mux)      // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled

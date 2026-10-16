@@ -8653,6 +8653,35 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fx/rates": {
+      "post": {
+        "operationId": "postOperatorFXRates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {rows, written}, an UPSERT per (day, quote, source) (SPL-2108, rdb 0200)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Write daily exchange rates {rows: [{day, quote, rate (quote units per USD), source (ECB | FED)}]} (the box feed)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/humans/{human_id}/emails": {
       "get": {
         "operationId": "getOperatorHumansByHumanIdEmails",
@@ -10493,7 +10522,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {month, from, to, status (so_far | ended), scope (estate | workspace), days, days_ended, total: {usd_micros, eur_micros}, parts: [{estate, source, project_or_vendor, kind, origin, units, usd_micros, eur_micros, list_value_micros, days, hand, pct}], coverage: [{source, ok, partial, missing, unrecorded, days}]} (spec 123 sections 5 and 5.1, lane 4b)"
+            "description": "OK: {month, from, to, status (so_far | ended), scope (estate | workspace), second_currency, days, days_ended, total: {usd_micros, eur_micros, second_micros}, parts: [{estate, source, project_or_vendor, kind, origin, units, usd_micros, eur_micros, list_value_micros, days, hand, pct, second_micros, fx_rate, fx_rate_day, fx_rate_first_day}], coverage: [{source, ok, partial, missing, unrecorded, days}]} (spec 123 sections 5 and 5.1, lane 4b). second_currency is the caller's personal pick (EUR when never picked); second_micros is the USD converted cost day by cost day at that day's rate, else the last one before it; fx_rate / fx_rate_day are the rate of the part's latest cost day and that rate's date; all null when a cost day has no rate (SPL-2108)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -10806,6 +10835,31 @@
         "summary": "List the relink addresses of an embed's visitors (owner only, spec 121 T206)",
         "tags": [
           "embed"
+        ]
+      }
+    },
+    "/v1/tenant/fx/currencies": {
+      "get": {
+        "operationId": "getTenantFXCurrencies",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {default: \"EUR\", currencies: [ISO 4217 codes the hub holds a rate for]} (SPL-2108)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the currencies the costs' second currency may be (the personal setting second_currency)",
+        "tags": [
+          "tenant"
         ]
       }
     },

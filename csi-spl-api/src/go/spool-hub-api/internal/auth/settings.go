@@ -43,6 +43,9 @@ type HumanSettings struct {
 	// AwaitAnims is the ticked "Thinking animation" ids (SPL-2113), nil when
 	// never picked (the WUI's default set). Per tenant only (rdb 0078).
 	AwaitAnims []string
+	// SecondCurrency is the costs' second currency (SPL-2108), "" when never
+	// picked (EUR). Per tenant only (rdb 0078).
+	SecondCurrency string
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -82,6 +85,8 @@ type MembershipSettings struct {
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts,omitempty"`
 	// HoursReading: "Count my reading time" (spec 107 section 1.2), nil = on.
 	HoursReading *bool `json:"hours_reading,omitempty"`
+	// SecondCurrency: the costs' second currency (SPL-2108), nil = EUR.
+	SecondCurrency *string `json:"second_currency,omitempty"`
 	// HoursIdleMinutes: the member's own idle cutoff N (spec 107, owner Q3 =
 	// B), nil = the workspace's hours.idle_minutes. Read by the hours store.
 	HoursIdleMinutes *int `json:"hours_idle_minutes,omitempty"`
@@ -154,6 +159,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.AwaitAnims != nil {
 		b.AwaitAnims = o.AwaitAnims
+	}
+	if o.SecondCurrency != nil {
+		b.SecondCurrency = *o.SecondCurrency
 	}
 	return b
 }

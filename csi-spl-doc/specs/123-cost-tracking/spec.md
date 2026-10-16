@@ -155,6 +155,44 @@ one table. Its API, `csi-spl-api/.../internal/hub/cost_read.go` and
   /v1/operator/cost/day` refuses origin `hand` and `invoice`) and the token
   gap view.
 
+### 5.4 The second currency (SPL-2108)
+
+Owner HUM-10, t1 1b6f871f msg 44fef397: a second currency beside the USD the
+AI providers bill in, a personal setting whose default is EUR, converted at
+the day's rate from the ECB (a European currency) or the Federal Reserve
+(every other one). Dispatcher answer a81b348c: the rate of the cost's own
+day, else the last one published before it, and the rate's date is shown.
+
+- **Rates**: rdb `0200_fx_rates.sql`, one row per (day, quote, source): how
+  many units of `quote` one USD bought (`base` is always USD), `source` ECB or
+  FED, `fetched_at`. Hub-wide reference data: any workspace scope reads it,
+  only the operator writes it.
+- **Feed**: `POST /v1/operator/fx/rates` (operator SA only),
+  `{rows: [{day, quote, rate, source}]}`, an UPSERT per (day, quote, source):
+  a re-post is a no-op. Answer `{rows, written}`.
+- **Setting**: `second_currency`, per workspace like `time_zone` (rdb 0078
+  membership settings, no humans column). `PUT /api/v1/auth/preferences`
+  takes an ISO 4217 code (upper-cased) or `null` (back to EUR); a code the
+  hub holds no rate for is 400 `unsupported_second_currency`, EUR always
+  passes. `GET /api/v1/auth/session` and the login answer carry
+  `second_currency`, `EUR` when never picked.
+- **Picker list**: `GET /v1/tenant/fx/currencies` (any member):
+  `{default: "EUR", currencies: [...]}`, the quotes the hub holds a rate for.
+- **Cost read** (5.2): the answer adds `second_currency` (the caller's own
+  pick) and `total.second_micros`; each part adds `second_micros` (its USD
+  converted cost day by cost day, each at its day's rate, else the last one
+  before it; an ECB row wins a tie with a FED row of the same day),
+  `fx_rate` and `fx_rate_day` (the rate of the part's latest cost day and that
+  rate's date) and `fx_rate_first_day` (the rate date of its earliest cost
+  day). All four are `null` when any cost day of the part has no rate on or
+  before it, never a guess; `total.second_micros` is `null` when any part's
+  is. `usd_micros` and `eur_micros` are unchanged.
+- **Tests**: `TestCheckFXRates`, `TestPutFXRates`,
+  `TestCostMonthReadSecondCurrency` (store, Postgres; a Saturday falls back
+  to Friday; red control: the read with the conversion dropped fails the
+  assertion), `TestFXRatesRoute`, `TestCostReadSecondCurrency` (hub),
+  `TestParseSecondCurrency`, `TestCheckSecondCurrency` (auth).
+
 ## 6. The 1-Month Collection Plan
 
 - **First month**: 2026-10 (Q-5), with what is live; each source is marked missing for every day before it runs. October is the iteration month (Q-3: "we will iterate during October and start for real in Nov").

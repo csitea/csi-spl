@@ -57,7 +57,7 @@ func TestCostWindow(t *testing.T) {
 // days no coverage row records.
 func TestCostMonthAnswer(t *testing.T) {
 	w, _ := costWindow("2026-10", time.Date(2026, 10, 11, 8, 0, 0, 0, time.UTC))
-	b := costMonthAnswer(w, true, store.CostMonth{
+	b := costMonthAnswer(w, true, "EUR", store.CostMonth{
 		Parts: []store.CostPart{
 			{Estate: true, Source: "gcp", ProjectOrVendor: "csi-spl-prd", Kind: "cloud_run", Origin: "billing_export", USDMicros: 3_000_000, EURMicros: 2_700_000},
 			{Source: "hand", ProjectOrVendor: "vendor", Kind: "subscription", Origin: "invoice", USDMicros: 1_000_000, EURMicros: 900_000},
@@ -73,7 +73,7 @@ func TestCostMonthAnswer(t *testing.T) {
 	if c := b.Coverage[0]; c.Days != 10 || c.Unrecorded != 2 {
 		t.Errorf("coverage %+v, want N 10 and 2 days unrecorded", c)
 	}
-	z := costMonthAnswer(w, false, store.CostMonth{Parts: []store.CostPart{{Source: "fleet_tokens.x", Units: 107}}})
+	z := costMonthAnswer(w, false, "EUR", store.CostMonth{Parts: []store.CostPart{{Source: "fleet_tokens.x", Units: 107}}})
 	if z.Parts[0].Pct != nil || z.Scope != "workspace" || z.Coverage == nil {
 		t.Errorf("a 0 USD month: %+v", z)
 	}

@@ -21,13 +21,15 @@ import (
 // CostMonthQuery is one month of one workspace. From and To are UTC days,
 // To exclusive; CoverTo ("" = To) ends the coverage count, so a month so far
 // counts only the days that ended. Estate asks for the estate rows too: only
-// the operator workspace's caller sets it.
+// the operator workspace's caller sets it. Currency is the caller's second
+// currency (SPL-2108; "" = DefaultSecondCurrency).
 type CostMonthQuery struct {
-	Tenant  string
-	Estate  bool
-	From    string
-	To      string
-	CoverTo string
+	Tenant   string
+	Estate   bool
+	From     string
+	To       string
+	CoverTo  string
+	Currency string
 }
 
 // CostPart is one row of the month table: the live (not superseded) lines of
@@ -35,17 +37,28 @@ type CostMonthQuery struct {
 // count (tokens, agent-seconds); the money columns are what was paid in USD
 // and EUR (Q-6). ListValueMicros is nil while no line carries a list-price
 // equivalent (Q-4). Days is how many days of the month have a line.
+//
+// The second currency (SPL-2108): SecondMicros is the USD converted day by
+// day, each cost day at the fx_rates rate of that day, else of the last day
+// before it (dispatcher a81b348c). FXRate is the rate the part's latest cost
+// day used and FXRateDay that rate's day; FXRateFirstDay is the rate day of
+// its earliest cost day (= FXRateDay for a one-day part). All four are nil
+// when any cost day of the part has no rate on or before it: never a guess.
 type CostPart struct {
-	Estate          bool    `json:"estate"`
-	Source          string  `json:"source"`
-	ProjectOrVendor string  `json:"project_or_vendor"`
-	Kind            string  `json:"kind"`
-	Origin          string  `json:"origin"`
-	Units           float64 `json:"units"`
-	USDMicros       int64   `json:"usd_micros"`
-	EURMicros       int64   `json:"eur_micros"`
-	ListValueMicros *int64  `json:"list_value_micros"`
-	Days            int     `json:"days"`
+	Estate          bool     `json:"estate"`
+	Source          string   `json:"source"`
+	ProjectOrVendor string   `json:"project_or_vendor"`
+	Kind            string   `json:"kind"`
+	Origin          string   `json:"origin"`
+	Units           float64  `json:"units"`
+	USDMicros       int64    `json:"usd_micros"`
+	EURMicros       int64    `json:"eur_micros"`
+	ListValueMicros *int64   `json:"list_value_micros"`
+	Days            int      `json:"days"`
+	SecondMicros    *int64   `json:"second_micros"`
+	FXRate          *float64 `json:"fx_rate"`
+	FXRateDay       *string  `json:"fx_rate_day"`
+	FXRateFirstDay  *string  `json:"fx_rate_first_day"`
 }
 
 // CostSourceDays is one source's cost_coverage rows in the month, per state.
@@ -75,13 +88,23 @@ type CostRead interface {
 var _ CostRead = (*Postgres)(nil)
 
 // costMonthParts sums the month per part. $4 admits the estate rows; under a
-// tenant scope RLS hides them even with $4 true (TestCostMonthReadRLS).
-const costMonthParts = `SELECT tenant_id IS NULL, source, project_or_vendor, kind, origin,
-	coalesce(sum(units), 0)::float8, coalesce(sum(usd_micros), 0)::bigint, coalesce(sum(eur_micros), 0)::bigint,
-	sum(list_value_micros)::bigint, count(DISTINCT day)::int
-FROM cost_lines
-WHERE day >= $1::date AND day < $2::date AND superseded_by IS NULL
-	AND (tenant_id = $3 OR ($4 AND tenant_id IS NULL))
+// tenant scope RLS hides them even with $4 true (TestCostMonthReadRLS). $5 is
+// the second currency: every line takes the fx_rates row of its day, else the
+// last one before it (an ECB row first on a tie), and a part with any line
+// left without a rate converts to NULL. A package var so the red control can
+// drop the conversion (TestCostMonthReadSecondCurrency).
+var costMonthParts = `SELECT c.tenant_id IS NULL, c.source, c.project_or_vendor, c.kind, c.origin,
+	coalesce(sum(c.units), 0)::float8, coalesce(sum(c.usd_micros), 0)::bigint, coalesce(sum(c.eur_micros), 0)::bigint,
+	sum(c.list_value_micros)::bigint, count(DISTINCT c.day)::int,
+	CASE WHEN bool_and(fx.rate IS NOT NULL) THEN round(sum(c.usd_micros * fx.rate))::bigint END,
+	CASE WHEN bool_and(fx.rate IS NOT NULL) THEN ((array_agg(fx.rate ORDER BY c.day DESC))[1])::float8 END,
+	CASE WHEN bool_and(fx.rate IS NOT NULL) THEN to_char(max(fx.day), 'YYYY-MM-DD') END,
+	CASE WHEN bool_and(fx.rate IS NOT NULL) THEN to_char(min(fx.day), 'YYYY-MM-DD') END
+FROM cost_lines c
+LEFT JOIN LATERAL (SELECT r.day, r.rate FROM fx_rates r WHERE r.quote = $5 AND r.day <= c.day
+	ORDER BY r.day DESC, r.source = 'ECB' DESC LIMIT 1) fx ON true
+WHERE c.day >= $1::date AND c.day < $2::date AND c.superseded_by IS NULL
+	AND (c.tenant_id = $3 OR ($4 AND c.tenant_id IS NULL))
 GROUP BY 1, 2, 3, 4, 5
 ORDER BY 1 DESC, 2, 3, 4, 5`
 
@@ -111,6 +134,8 @@ func CheckCostMonthQuery(q CostMonthQuery) string {
 		return "cover_to must be a UTC day from..to"
 	case to.Sub(from) > 31*24*time.Hour:
 		return "at most one month"
+	case q.Currency != "" && !IsCurrencyCode(q.Currency):
+		return "currency must be an ISO 4217 code"
 	}
 	return ""
 }
@@ -134,13 +159,18 @@ func (s *Postgres) CostMonthRead(ctx context.Context, q CostMonthQuery) (CostMon
 // costMonthIn runs both reads in tx, under whatever scope tx holds.
 func costMonthIn(ctx context.Context, tx pgx.Tx, q CostMonthQuery) (CostMonth, error) {
 	out := CostMonth{Parts: []CostPart{}, Coverage: []CostSourceDays{}}
-	rows, err := tx.Query(ctx, costMonthParts, q.From, q.To, q.Tenant, q.Estate)
+	cur := q.Currency
+	if cur == "" {
+		cur = DefaultSecondCurrency
+	}
+	rows, err := tx.Query(ctx, costMonthParts, q.From, q.To, q.Tenant, q.Estate, cur)
 	if err != nil {
 		return out, err
 	}
 	out.Parts, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (p CostPart, err error) {
 		err = r.Scan(&p.Estate, &p.Source, &p.ProjectOrVendor, &p.Kind, &p.Origin,
-			&p.Units, &p.USDMicros, &p.EURMicros, &p.ListValueMicros, &p.Days)
+			&p.Units, &p.USDMicros, &p.EURMicros, &p.ListValueMicros, &p.Days,
+			&p.SecondMicros, &p.FXRate, &p.FXRateDay, &p.FXRateFirstDay)
 		return p, err
 	})
 	if err != nil {

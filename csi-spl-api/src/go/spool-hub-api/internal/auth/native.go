@@ -440,6 +440,8 @@ type loginResp struct {
 	HoursReading *bool `json:"hours_reading"`
 	// AwaitAnims as GET /session answers it (SPL-2113), null when unset.
 	AwaitAnims []string `json:"await_anims"`
+	// SecondCurrency as GET /session answers it (SPL-2108), EUR when unset.
+	SecondCurrency string `json:"second_currency,omitempty"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -577,7 +579,7 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		EmailClient:  n.h.viewPref(ctx, sess, PrefEmailClient), PhoneApp: n.h.viewPref(ctx, sess, PrefPhoneApp),
 		IssuesColumns: n.h.issueColumns(ctx, sess), IssuesSort: n.h.issuesSort(ctx, sess), PaneSizes: n.h.paneSizes(ctx, sess),
 		TimeZone: n.h.timeZone(ctx, sess), KeyboardShortcuts: n.h.keyboardShortcuts(ctx, sess),
-		HoursReading: n.h.hoursReading(ctx, sess), AwaitAnims: n.h.awaitAnims(ctx, sess)}
+		HoursReading: n.h.hoursReading(ctx, sess), AwaitAnims: n.h.awaitAnims(ctx, sess), SecondCurrency: n.h.secondCurrency(ctx, sess)}
 }
 
 type emailReq struct {

@@ -72,6 +72,8 @@ var operatorCallers = map[string]string{
 	// spec 123 lane 4: the box feed of cost tracking.
 	"PutCostDay":    "POST /v1/operator/cost/day (spec 123 4.3, 4.6): estate cost rows (tenant_id NULL) of one day and source; only the operator service account (operatorAuth) reaches it; answers counts, never a row",
 	"CostMonthRead": "GET /v1/tenant/costs (spec 123 5.1, Q-1 = A): the estate cost rows (tenant_id NULL) have no tenant to name; only when the caller's workspace is the operator workspace (Estate set by the hub), and it reads that workspace's own rows beside them; any other workspace reads under inTenant",
+	"PutFXRates":    "POST /v1/operator/fx/rates (SPL-2108): hub-wide exchange rates (rdb 0200, no tenant column); only the operator service account (operatorAuth) reaches it; answers a count",
+	"FXCurrencies":  "the second-currency setting's check and GET /v1/tenant/fx/currencies (SPL-2108): the quotes of the hub-wide rates (rdb 0200, no tenant column); reads no tenant's row",
 
 	// spec 121 T102: the visitor's request names no workspace until one row is read.
 	"EmbedCustomer":       "/v1/embed/<embed-id>/*, /embed/v1/chat?e= (spec 121 4.1, 5): the embed id in the URL, unique hub-wide, names its workspace; that one embed row",

@@ -12,8 +12,11 @@
 #   4. rp_filter strict (1) on an uplink, on conf/default or on conf/all, or
 #      unreadable -> FATAL, nothing written; dev=1 under all=2 is loose -> OK
 #   5. red control: a copy writing timeout = 20 is caught by the content check
-#   No real /etc, /proc, NetworkManager or interface: NET_ROOT, NET_PROC,
-#   stubs, no sudo.
+#   6. a docker veth (nmcli type ethernet, no /sys device) is not an uplink:
+#      its strict rp_filter does not refuse; red control: a copy without the
+#      /sys filter refuses
+#   No real /etc, /proc, /sys, NetworkManager or interface: NET_ROOT,
+#   NET_PROC, NET_SYS, stubs, no sudo.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -32,13 +35,14 @@ cat >"$T/bin/nmcli" <<'EOF'
 #!/usr/bin/env bash
 echo "nmcli $*" >>"$CALLS"
 case "$*" in
-  "-t -f DEVICE,TYPE dev") printf 'enp0s31f6:ethernet\nwlp0s20f3:wifi\nlo:loopback\n' ;;
+  "-t -f DEVICE,TYPE dev") printf 'enp0s31f6:ethernet\nwlp0s20f3:wifi\nveth1055990:ethernet\nlo:loopback\n' ;;
   "networking connectivity") echo unknown ;;
   "networking connectivity check") echo "${NMCLI_CONN:-full}" ;;
 esac
 exit 0
 EOF
 chmod +x "$T/bin/nmcli"
+mkdir -p "$T/sys/class/net/enp0s31f6/device" "$T/sys/class/net/wlp0s20f3/device" "$T/sys/class/net/veth1055990"
 
 # proc <dir> <all> <default> <enp0s31f6> <wlp0s20f3> - a fake /proc; "-" = absent
 proc() {
@@ -51,7 +55,7 @@ proc() {
 # run <func file> <root> [VAR=val ...] - the action in a clean subshell
 run() {
   local f="$1" root="$2"; shift 2
-  env NET_ROOT="$root" NET_PROC="$T/proc" NET_NMCLI="$T/bin/nmcli" NET_SUDO="" "$@" bash -c '
+  env NET_ROOT="$root" NET_PROC="$T/proc" NET_SYS="$T/sys" NET_NMCLI="$T/bin/nmcli" NET_SUDO="" "$@" bash -c '
     do_log() { printf "%s\n" "$*"; }
     source "$0"; do_net_connectivity_check' "$f"
 }
@@ -116,6 +120,15 @@ sed 's/timeout = 5/timeout = 20/' "$FUNC" >"$T/red.func.sh"
 reset "$T/r5"; run "$T/red.func.sh" "$T/r5" DRY_RUN=0 >/dev/null 2>&1
 [[ "$(cat "$(conf "$T/r5")" 2>/dev/null)" == "$want" ]] && fail "5 red control: timeout = 20 not caught" ||
   pass "5 red control: a wrong value is caught"
+
+# 6. a docker veth is not an uplink
+reset "$T/r6"; mkdir -p "$T/proc/sys/net/ipv4/conf/veth1055990"; echo 1 >"$T/proc/sys/net/ipv4/conf/veth1055990/rp_filter"
+out="$(run "$FUNC" "$T/r6" DRY_RUN=0 2>&1)"; rc=$?
+((rc == 0)) && grep -q 'uplinks=enp0s31f6,wlp0s20f3$' <<<"$out" && ! grep -q 'RP veth' <<<"$out" &&
+  pass "6 strict docker veth is not an uplink -> OK" || fail "6 veth (rc=$rc): $out"
+sed 's|\[\[ -e "$NCC_SYS/class/net/$dev/device" \]\] && ||' "$FUNC" >"$T/red6.func.sh"
+rm -rf "$T/r6"; out="$(run "$T/red6.func.sh" "$T/r6" DRY_RUN=0 2>&1)" &&
+  fail "6 red control: no /sys filter still passes" || pass "6 red control: without the /sys filter the veth refuses"
 
 echo "net-connectivity-check: $fails failure(s)"
 exit $((fails > 0))

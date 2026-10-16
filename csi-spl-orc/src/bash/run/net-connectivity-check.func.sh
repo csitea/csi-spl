@@ -18,8 +18,12 @@
 # @description rp_filter (1) makes the per-device check fail on every device
 # @description but the best route (same man page section), so first it asserts
 # @description the effective rp_filter, max(conf/all, conf/<dev>), is not 1 on
-# @description conf/default and on every uplink nmcli lists (ethernet, wifi,
-# @description gsm); a strict one is FATAL and nothing is written or changed.
+# @description conf/default and on every uplink: an ethernet, wifi or gsm
+# @description device nmcli lists that has a physical device behind it
+# @description (/sys/class/net/<dev>/device: a NIC, a Wi-Fi radio, a USB tether,
+# @description a modem; not a docker veth or a bridge, which nmcli also lists
+# @description as ethernet). A strict one is FATAL and nothing is written or
+# @description changed.
 # @description Then it reloads NM's config (`nmcli general reload conf`; no
 # @description connection goes down) and runs the plan's measuring command
 # @description `nmcli networking connectivity check`, which must say full.
@@ -30,6 +34,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param NET_ROOT (optional, tests) - the target root, default / (empty)
 # @param NET_PROC (optional, tests) - default /proc
+# @param NET_SYS (optional, tests) - default /sys
 # @param NET_NMCLI (optional, tests) - default nmcli
 # @param NET_SUDO (optional, tests) - default sudo; empty runs without it
 # @example ./run -a do_net_connectivity_check
@@ -41,9 +46,12 @@ ncc_conf() {
   printf '[connectivity]\nuri = http://network-test.debian.org/nm\ninterval = 10\ntimeout = 5\n'
 }
 
-# ncc_uplinks - the ethernet, wifi and gsm devices nmcli lists, one per line
+# ncc_uplinks - the ethernet, wifi and gsm devices nmcli lists that have a
+# physical device behind them (no veth, no bridge), one per line
 ncc_uplinks() {
-  $NCC_NMCLI -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 ~ /^(ethernet|wifi|gsm)$/ {print $1}'
+  local dev
+  $NCC_NMCLI -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 ~ /^(ethernet|wifi|gsm)$/ {print $1}' |
+    while read -r dev; do [[ -e "$NCC_SYS/class/net/$dev/device" ]] && echo "$dev"; done
 }
 
 # ncc_rp <name> - conf/<name>/rp_filter, empty when it cannot be read
@@ -66,7 +74,7 @@ ncc_rp_check() {
 
 do_net_connectivity_check() {
   local dry="${DRY_RUN:-1}" root="${NET_ROOT:-}" file now tmp
-  NCC_PROC="${NET_PROC:-/proc}" NCC_NMCLI="${NET_NMCLI:-nmcli}" NCC_SUDO="${NET_SUDO-sudo}"
+  NCC_PROC="${NET_PROC:-/proc}" NCC_SYS="${NET_SYS:-/sys}" NCC_NMCLI="${NET_NMCLI:-nmcli}" NCC_SUDO="${NET_SUDO-sudo}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ -z "$root" || "$root" == /* ]] || { do_log "FATAL NET_ROOT must be an absolute path, got: '$root'"; return 1; }
   root="${root%/}" file="$root/etc/NetworkManager/conf.d/30-connectivity.conf"

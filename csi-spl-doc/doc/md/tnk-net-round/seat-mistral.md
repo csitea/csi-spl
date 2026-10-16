@@ -186,4 +186,4 @@ Not verified (marked in the text): the kernel's name-assign type for `usb%d`; th
 
 ## Signature
 
-Pending v1.0 consensus.
+signed: c-719 on bfb56e90d0721afb848f0d2803eabd451c43638e

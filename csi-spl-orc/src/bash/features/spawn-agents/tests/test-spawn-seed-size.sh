@@ -41,6 +41,16 @@ eq "control: a prefix checkout root leaves the live root alone" \
   "x /opt/csi/csi-spl-desk-cron/a /opt/csi/csi-spl-desk-cron/b 'cd /opt/csi/csi-spl' /opt/csi/csi-spl-desk-cron" \
   "$(T_ROOT=/opt/csi/csi-spl T_ROOT_REAL=/opt/csi/csi-spl seed_norm "x /opt/csi/csi-spl/a /opt/csi/csi-spl-desk-cron/b 'cd /opt/csi/csi-spl' /opt/csi/csi-spl")"
 
+# Vendor parity (SPL-2214, the "Grok burns 3-4x" hypotheses of t1 bd5579e7):
+# every kind gets claude's seed, sentence for sentence, except the lines a
+# harness needs (how it retitles itself, vibe's teardown), and at most
+# SEED_PARITY_MAX bytes more. Measured 2026-10-16: grok +135 B, mistral +315 B.
+SEED_PARITY_MAX=400
+declare -A SEED_NORM SEED_BYTES
+seed_sentences() { printf '%s' "$1" | sed 's/\. /.\n/g' | grep -vE '^As your VERY FIRST action, |^\(8\) TEAR DOWN ' | sort; }
+seed_extra() {  # KIND_SEED CLAUDE_SEED: the sentences of the first that the second lacks, and back
+  comm -3 <(seed_sentences "$1") <(seed_sentences "$2")
+}
 for k in claude grok agy qwen mistral; do
   id=CLE-79; [ "$k" = grok ] && id=GRK-79; [ "$k" = agy ] && id=AGY-79
   [ "$k" = qwen ] && id=QWN-79; [ "$k" = mistral ] && id=m-079
@@ -53,6 +63,7 @@ for k in claude grok agy qwen mistral; do
   # alone added ~240 B (c-603, wf 10 run 37873606666).
   norm="$(seed_norm "$prompt")"
   n="$(printf '%s' "$norm" | wc -c)"
+  SEED_NORM[$k]="${norm//"$id"/<ID>}"; SEED_BYTES[$k]="$n"
   # 8200: +200 for STEP 0, the developer-guide ack (owner t1 4e373f5d msg 56d7073e)
   # 8400: +200 for the ACCEPTED-gated exit line (SPAWN_EXIT_RULE, owner msg 3b4d2cb9)
   # 8500: +100 for the lane-map exit 4 ('unknown:' lanes are not free, c-904 follow-up)
@@ -75,6 +86,16 @@ for k in claude grok agy qwen mistral; do
   hasnt "$k: no measured anecdotes in the seed" "Measured on this box" "$prompt"
   hasnt "$k: no FETCH_HEAD race numbers in the seed" "168/200" "$prompt"
 done
+for k in grok agy qwen mistral; do
+  eq "$k: the seed states claude's rules, no sentence more or less" "" "$(seed_extra "${SEED_NORM[$k]}" "${SEED_NORM[claude]}")"
+  check "$k: the seed is at most $SEED_PARITY_MAX bytes over claude's (got $(( SEED_BYTES[$k] - SEED_BYTES[claude] )))" \
+    [ $(( SEED_BYTES[$k] - SEED_BYTES[claude] )) -le "$SEED_PARITY_MAX" ]
+done
+# Controls: a grok-only sentence, and a rule a kind loses, both show.
+has "control: a grok-only sentence is caught" "Read every skill first." \
+  "$(seed_extra "${SEED_NORM[grok]} Read every skill first." "${SEED_NORM[claude]}")"
+has "control: a rule a kind loses is caught" "(5) After (4)" \
+  "$(seed_extra "${SEED_NORM[grok]//"(5) After (4)"/}" "${SEED_NORM[claude]}")"
 check "the linked rules doc exists" test -f "$T_SCRIPTS/../../../../../../csi-spl-doc/doc/md/lane-integration-rules.md"
 
 t_done

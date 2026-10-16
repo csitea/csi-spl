@@ -1,7 +1,7 @@
 # Disk hygiene round: agy seat proposal (a-612@PC)
 
 Seat: **a-612@PC** (agy), editor seat, task `dispatch-37349c9b`, issue SPL-2111.
-Plan: the disk hygiene round plan v1.0 consensus.
+Plan: the disk hygiene round plan v1.1 consensus.
 Target boxes: **PC** and **sat** (Debian 13 fleet).
 
 ## 1. Measured facts & context (fleet baseline)
@@ -14,10 +14,10 @@ Empirically measured on `PC` and `sat` (read-only baseline probes, 2026-10-16):
 - **Persistent temporary storage (`/var/tmp`):** **33 GB** used across dozens of retired agent directories (`/var/tmp/claude` 9.5 GB, `/var/tmp/chrome-gmail-*` 4.1 GB, `/var/tmp/gocache-*` 1.9 GB, retired lane leftovers 400M–950M each).
 - **System logs (`/var/log`):** 683 MB used, dominated by `/var/log/journal` at **633 MB**. Default journald calculated cap is 4 GB (`man journald.conf`).
 - **Docker storage (`docker system df`):**
-  - Build Cache: 994 entries, **103.8 GB total, 94.55 GB reclaimable (91%)**.
-  - Local Volumes: 120 entries, **48.17 GB total, 46.65 GB reclaimable (96%)**.
-  - Images: 31 entries, **115.5 GB total, 6.68 GB reclaimable (5%)**.
-  - containerd snapshotter storage: **115 GB** under `/var/lib/containerd`.
+  - Build Cache: 1026 entries, **108.2 GB total, 99.06 GB reclaimable**.
+  - Local Volumes: 122 entries, **50.64 GB total, 46.65 GB reclaimable (92%)**.
+  - Images: 22 entries, **117.3 GB total, 3.98 GB reclaimable (3%)**.
+  - Containers: 19 entries, 2.52 GB total, 25.24 MB reclaimable.
   - Total reclaimable Docker space on `PC`: **~148 GB**.
 - **Unbounded fleet cron logs:** `/var/csi/csi-spl/desk-reconcile/cron-prd.out` (162 MB), `/var/csi/csi-spl/box-disk-sweep/box-disk-sweep.log` (29 MB), agent user's `.cache/csi-spl/tmp-scratch-sweep.log` (551 MB), dated `csi-spl-orc.<date>.log` (~25 MB/day).
 
@@ -32,9 +32,9 @@ Empirically measured on `PC` and `sat` (read-only baseline probes, 2026-10-16):
 
 Proposals are grounded in verified Debian 13 (Trixie) man pages, system documentation, and specifications:
 - `journald.conf(5)`, `systemd-journald(8)`: `SystemMaxUse=500M`, `SystemMaxFileSize=100M`.
-- `logrotate(8)`, `logrotate.conf(5)`, `systemd.timer(5)`: `copytruncate`, `maxsize`, hourly timer.
-- `docker-volume-prune(1)`, `ctr(8)`, `nerdctl(1)`: anonymous volume prune, containerd snapshotter GC.
-- `tmpfiles.d(5)`, `systemd-tmpfiles(8)`: declarative 14d age override for `/var/tmp`.
+- `logrotate(8)`, `logrotate.conf(5)`, `systemd.timer(5)`: `copytruncate`, `maxsize`, hourly timer, `su`.
+- `docker-volume-prune(1)`, `docker-builder-prune(1)`: anonymous volume prune, builder cache fixed cap.
+- `tmpfiles.d(5)`, `systemd-tmpfiles(8)`: declarative 14d age override for `/var/tmp` preserving `/tmp` 10d rule.
 - POSIX file utilities: deterministic threshold rules with `find`, `du`, `df`.
 
 ## 3. The 10 actions consensus proposal
@@ -44,12 +44,12 @@ Proposals are grounded in verified Debian 13 (Trixie) man pages, system document
 | 01 | `feat(hyg-01-fleet-logrotate)` | Automated rotation for fleet cron logs | `/etc/logrotate.d/csi-spl` | Fleet cron logs capped at 50M; dated logs > 14d removed | `do_fleet_logrotate_install`<br>`csi-spl-utl/src/bash/tests/fleet-logrotate.tst.sh` |
 | 02 | `feat(hyg-02-journald-caps)` | Systemd journald size cap drop-in | `/etc/systemd/journald.conf.d/60-disk-hygiene.conf` | Journal <= 500M on both boxes | `do_disk_journal_cap`<br>`csi-spl-utl/src/bash/tests/disk-journal-cap.tst.sh` |
 | 03 | `feat(hyg-03-logrotate-maxsize)` | Hourly logrotate timer & auth.log rotation cap | `/etc/systemd/system/logrotate.timer.d/hourly.conf`, `/etc/logrotate.d/rsyslog` | Hourly timer active; no single log > 100M; immediate compression | `do_disk_logrotate_cap`<br>`csi-spl-utl/src/bash/tests/disk-logrotate-cap.tst.sh` |
-| 04 | `feat(hyg-04-docker-volume-prune)` | Automated anonymous Docker volume hygiene | `csi-spl-orc/src/bash/scripts/prune-docker-images.sh` | `docker volume prune -f` in sweep; reclaims >45G PC, >6G sat | `do_docker_volume_prune`<br>`csi-spl-orc/src/bash/tests/docker-volume-prune.tst.sh` |
-| 05 | `feat(hyg-05-tmpfiles-var-tmp-age)` | Systemd-tmpfiles declarative age override for `/var/tmp` | `/etc/tmpfiles.d/tmp.conf` | `q /var/tmp 1777 root root 14d` declarative override | `do_tmpfiles_config_install`<br>`csi-spl-utl/src/bash/tests/tmpfiles-config.tst.sh` |
-| 06 | `feat(hyg-06-containerd-image-gc)` | Containerd snapshotter image garbage collection | `csi-spl-utl` action | `ctr -n moby images prune` reclaims unreferenced containerd layers | `do_containerd_image_prune`<br>`csi-spl-utl/src/bash/tests/containerd-image-prune.tst.sh` |
+| 04 | `feat(hyg-04-docker-volume-prune)` | Automated anonymous Docker volume hygiene | `csi-spl-orc/src/bash/scripts/prune-docker-images.sh` | `docker volume prune -f` in sweep; reclaims >45G PC, >6G sat | `do_prune_docker_images`<br>`csi-spl-orc/src/bash/tests/docker-volume-prune.tst.sh` |
+| 05 | `feat(hyg-05-tmpfiles-var-tmp-age)` | Systemd-tmpfiles declarative age override for `/var/tmp` | `/etc/tmpfiles.d/tmp.conf` | `q /var/tmp 1777 root root 14d` and `Q /tmp 1777 root root 10d` | `do_tmpfiles_config_install`<br>`csi-spl-utl/src/bash/tests/tmpfiles-config.tst.sh` |
+| 06 | `feat(hyg-06-docker-builder-cap)` | Docker builder cache absolute size cap | `prune-docker-images.sh` cnf/cron | Fixed cap `PRUNE_BUILDER_CAP_BYTES=26843545600` on PC; reclaims >70 GB | `do_docker_builder_cap`<br>`csi-spl-orc/src/bash/tests/docker-builder-cap.tst.sh` |
 | 07 | `feat(hyg-07-stale-lane-leftovers)` | Routine daily cleanup of retired lane temp dirs at normal level | `csi-spl-orc/src/bash/scripts/box-disk-sweep.sh` | Unskip `vartmp` in normal sweep (72h age); Worktree Safety Invariant | `do_vartmp_sweep_normal`<br>`csi-spl-orc/src/bash/tests/box-disk-sweep.tst.sh` |
 | 08 | `feat(hyg-08-human-forgotten-report)` | Human "files you made and forgot" report & tick deletion | `csi-spl-utl` actions, WUI poll | Report generated; 0 deletions without explicit human poll tick | `do_human_forgotten_report`<br>`csi-spl-utl/src/bash/tests/human-forgotten-report.tst.sh` |
-| 09 | `feat(hyg-09-disk-growth-tracker)` | Daily disk growth tracker & mount rate alert | `csi-spl-utl` action, TSV | Daily samples; rate alert on > 5% 24h mount spike; state-file latch | `do_disk_growth_track`<br>`csi-spl-utl/src/bash/tests/disk-growth-track.tst.sh` |
+| 09 | `feat(hyg-09-disk-growth-tracker)` | Daily disk growth tracker & mount rate alert | `csi-spl-utl` action, TSV | Daily samples (incl. `.gz`); rate alert on > 5% 24h mount spike; latch | `do_disk_growth_track`<br>`csi-spl-utl/src/bash/tests/disk-growth-track.tst.sh` |
 | 10 | `docs(hyg-10-guides-and-doctree)` | Documentation in 4 guides via Qto doctree batch | `/var/spool-hub/dispatch/work/disk-hygiene-qto-edits.sh` | All 4 guides updated via Qto script; action verify clean | `do_disk_hygiene_docs_verify`<br>`csi-spl-utl/src/bash/tests/disk-hygiene-docs.tst.sh` |
 
 ## 4. Adherence to owner rules
@@ -62,4 +62,4 @@ Proposals are grounded in verified Debian 13 (Trixie) man pages, system document
 
 ## 5. Signature
 
-`signed: a-612@PC on v1.0 consensus`
+`signed: a-612@PC on v1.1 consensus`

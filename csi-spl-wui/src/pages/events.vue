@@ -209,7 +209,11 @@ watch(() => route.hash, () => revealEvent())
   border-collapse: collapse;
   font-size: 0.875rem;
 }
-.events-row--focus { background: var(--color-selected); }
+/* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the events alternate a
+   lighter and a darker row, on a phone each card; the focused one (#<id>)
+   keeps its selected fill over the shade */
+.events-table tr:nth-child(even) { background: var(--color-row-alt); }
+.events-table tr.events-row--focus { background: var(--color-selected); }
 .events-table th,
 .events-table td {
   text-align: start;

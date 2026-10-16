@@ -12,6 +12,7 @@
  *   badge  the where-icon: '#' channel, '@' DM, '↳' thread reply
  *   title  the full text, as a tooltip
  *   fold   a folded Flow line (spec 130): the text is clamped to 1 line, 3 on a phone
+ *   ai     an AI agent posted it (SPL-2120): the entry carries the agent bar
  */
 
 /** The next active index for a key over `n` items (wrapping), -1 for none. */

@@ -1,6 +1,7 @@
 // HUM-24 (csitea ba4696c1): an AI agent's message reads apart from a person's
-// (a tint on the card and an "AI" badge beside the name). The rule is one
-// function; MessageCard and the browser alert both read it.
+// (an "AI" badge beside the name and, since SPL-2120, a bar on the card's
+// left edge instead of a tint). The rule is one function; MessageCard and the
+// browser alert both read it.
 // Run: node tests/unit/ai-message.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -38,17 +39,20 @@ describe('isAiMessage', () => {
 })
 
 describe('wiring', () => {
-  it('MessageCard tints and badges the AI row', () => {
+  it('MessageCard marks and badges the AI row', () => {
     const card = messageCardSrc()
     assert.match(card, /'msg--ai': ai/)
     assert.match(card, /data-testid="msg-ai-badge"/)
     assert.match(card, /const ai = computed\(\(\) => isAiMessage\(props\.msg\)\)/)
   })
-  it('the tint sits UNDER hover / selected / focus (lower specificity, before them)', () => {
+  it('SPL-2120: the AI row is a bar, not a tint, and the shading sits UNDER hover', () => {
     const css = src('src/assets/css/main.css')
-    const tint = css.indexOf('.msg--ai {')
-    assert.ok(tint > 0, 'main.css has the .msg--ai tint')
-    assert.ok(tint < css.indexOf('.msg:hover {'), 'tint is declared before .msg:hover')
+    const rule = css.slice(css.indexOf('.msg--ai {'), css.indexOf('}', css.indexOf('.msg--ai {')))
+    assert.ok(css.indexOf('.msg--ai {') > 0, 'main.css has the .msg--ai rule')
+    assert.match(rule, /box-shadow: inset var\(--agent-bar-w\) 0 0 var\(--color-agent-bar\)/)
+    assert.doesNotMatch(rule, /background/, 'no tint: the agent row keeps the list shade')
+    const alt = css.indexOf('.msg:where(:nth-child(even of .msg))')
+    assert.ok(alt > 0 && alt < css.indexOf('.msg:hover {'), 'the alternate shade is declared before .msg:hover, at one class')
   })
   it('the browser alert of an AI row carries the robot mark', () => {
     const store = src('src/stores/notification.ts')

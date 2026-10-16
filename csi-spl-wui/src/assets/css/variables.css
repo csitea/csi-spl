@@ -461,3 +461,21 @@
   --bevel-shade: inset 0 -2px 0 rgba(12, 40, 80, 0.16);
   --cal-dot-ring: 0 0 0 1px var(--color-muted);
 }
+
+/* SPL-2120 (owner HUM-10, t1 28559e83 msgs 1c268bf0 + 68dd229e): every list
+   alternates a lighter and a darker row - the message feed, the events log,
+   the issues list and the Flow - and an item an AI agent posted carries a
+   thin bar on its left edge, on top of the shading. --color-row-alt is a
+   translucent veil, so one value per theme family shades whatever fill the
+   list sits on; hover, focus, selected and unread fills are opaque and paint
+   over it. The bar clears 3:1 (non-text) on --color-bg and --color-bg-2 in
+   its family. */
+:root {
+  --color-row-alt: rgba(255, 255, 255, 0.06);
+  --color-agent-bar: #c084fc;
+  --agent-bar-w: 3px;
+}
+:root[data-theme^="light"] {
+  --color-row-alt: rgba(12, 22, 38, 0.06);
+  --color-agent-bar: #9333ea;
+}

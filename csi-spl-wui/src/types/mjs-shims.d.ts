@@ -2180,6 +2180,8 @@ declare module '~/utils/issues.mjs' {
   export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
   export function unopenedCandidate(issue: Partial<Issue> | null | undefined, me: string): boolean
   export const MOCK_ISSUES_NEW_KEY: string
+  export const MOCK_ISSUES_AGENT_KEY: string
+  export function issueByAgent(issue: { created_by?: string } | null | undefined): boolean
 }
 
 declare module '~/utils/issues-view.mjs' {
@@ -2521,6 +2523,8 @@ declare module '~/utils/side-hit-list.mjs' {
     ts?: string
     /** spec 130: a folded Flow line - its text is clamped to 1 line (3 on a phone) */
     fold?: boolean
+    /** SPL-2120: an AI agent posted it - the entry carries the agent bar */
+    ai?: boolean
   }
   export function cycleIndex(i: number, n: number, key: string): number
   export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>

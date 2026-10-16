@@ -375,11 +375,13 @@
                 v-for="issue in (g.status && folded.includes(g.status) ? [] : g.issues)"
                 :key="issue.key"
                 class="issues-row"
+                :class="{ 'issues-row--ai': issueByAgent(issue) }"
                 role="button"
                 tabindex="0"
                 :draggable="viewBy === 'status' ? 'true' : undefined"
                 data-test="issues-row"
                 :data-key="issue.key"
+                :data-ai="issueByAgent(issue) ? 'true' : undefined"
                 :data-unopened="issue.unopened ? 'true' : undefined"
                 :data-priority="issue.priority"
                 :data-level="issue.level"
@@ -547,10 +549,11 @@
             <button
               type="button"
               class="issues-card"
-              :class="{ 'issues-card--swiping': swipe.key === issue.key && swipe.dx !== 0, 'issues-card--settle': swipe.key === issue.key && swipe.settle }"
+              :class="{ 'issues-card--ai': issueByAgent(issue), 'issues-card--swiping': swipe.key === issue.key && swipe.dx !== 0, 'issues-card--settle': swipe.key === issue.key && swipe.settle }"
               :style="swipe.key === issue.key && swipe.dx !== 0 ? { '--swipe-dx': `${swipe.dx}px` } : undefined"
               data-test="issues-card"
               :data-key="issue.key"
+              :data-ai="issueByAgent(issue) ? 'true' : undefined"
               :data-unopened="issue.unopened ? 'true' : undefined"
               :data-priority="issue.priority"
               :data-selected="cursorKey === issue.key ? 'true' : 'false'"
@@ -1195,7 +1198,7 @@ import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
 import type { BulkAction } from '~/components/IssuesBulkBar.vue'
-import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
+import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
 import { deadlineOverdue, issueCalendarHref } from '~/utils/issue-calendar-link.mjs'
@@ -3546,6 +3549,14 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-note p { margin: 4px 0; }
 .issues-group__cell { padding: 0; background: var(--color-bg); }
 .issues-row { cursor: pointer; }
+/* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the rows of a group
+   alternate a lighter and a darker shade (the sticky key cell layers it over
+   its opaque fill); hover, selected and checked paint over it. An issue an
+   AI agent filed carries the agent bar on its left edge; the selected
+   row's marker bar takes that edge while it is selected. */
+.issues-row:where(:nth-child(even of .issues-row)) > td { background: var(--color-row-alt); }
+.issues-row:where(:nth-child(even of .issues-row)) > .issues-c-key { background: linear-gradient(var(--color-row-alt), var(--color-row-alt)), var(--color-bg); }
+.issues-row--ai > td:first-child { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .issues-row:hover td { background: var(--color-surface-hover); }
 .issues-row[data-selected="true"] td { background: var(--color-selected); }
 .issues-row[data-selected="true"] td:first-child { box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
@@ -3944,6 +3955,9 @@ select.issues-pctl { appearance: auto; }
     text-align: start;
     cursor: pointer;
   }
+  /* SPL-2120: the cards alternate like the table's rows; an agent's carries the bar */
+  .issues-card-li:where(:nth-child(even of .issues-card-li)) > .issues-card { background: var(--color-row-alt); }
+  .issues-card--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
   .issues-card[data-selected="true"] { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
   /* HUM-10 (t1 aedca86a): the swipe, MessageCard's look (.msg--swipe) */
   .issues-card-li { position: relative; overflow: hidden; }

@@ -90,6 +90,7 @@ import type { SideHitItem } from '~/utils/side-hit-list.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { formatMsgListTs, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
+import { isAiMessage } from '~/utils/typed-by.mjs'
 import { useAiListRun } from '~/composables/useAiListRun'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 
@@ -209,6 +210,7 @@ const items = computed<SideHitItem[]>(() => flow.visible.map((r: FlowLine | Flow
     type: e.event === 'mention' ? 'mention' : reply ? 'reply' : e.kind,
     badge: e.event === 'mention' ? '@' : reply ? '↳' : e.kind === 'channel' ? '#' : '@',
     who: { id: e.from, box: e.from_box },
+    ai: isAiMessage(e),
     where,
     when: phoneCardTime(formatMsgListTs(e.at), e.at, now.value),
     text: e.text || '📎',

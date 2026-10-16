@@ -29,12 +29,13 @@
         :key="item.key"
         role="option"
         class="side-hit"
-        :class="{ active: item.key === activeKey, unread: item.unread }"
+        :class="{ active: item.key === activeKey, unread: item.unread, 'side-hit--ai': item.ai }"
         :aria-selected="item.key === activeKey ? 'true' : 'false'"
         data-testid="left-entry"
         :data-test="rowTest || undefined"
         :data-key="item.key"
         :data-type="item.type || undefined"
+        :data-ai="item.ai ? 'true' : undefined"
         :data-ts="item.ts || undefined"
         :data-msg-id="item.msgId || item.key"
         :title="item.title || undefined"
@@ -202,6 +203,11 @@ defineExpose({ focus, rowEl: (key: string) => {
   min-width: 0;
   max-width: 100%;
 }
+/* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the entries alternate a
+   lighter and a darker shade, and one an AI agent posted carries the agent
+   bar on its left edge; hover and the chosen entry paint over both */
+.side-hit:where(:nth-child(even of .side-hit)) { background: var(--color-row-alt); }
+.side-hit--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .side-hit:hover { background: var(--color-hover, var(--color-surface-2)); }
 /* the chosen entry: the shared SELECTED treatment (fill + 3px marker bar) */
 .side-hit.active { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }

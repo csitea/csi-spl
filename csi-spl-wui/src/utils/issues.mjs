@@ -7,6 +7,7 @@
  */
 
 import { ISSUE_CHANNEL } from './parent-section.mjs'
+import { isAiMessage } from './typed-by.mjs'
 import { MOCK_DEFAULT_TOPIC, MOCK_GONE_TOPIC, mockCreateDiscussions, mockFullDiscussions, mockLinkDiscussion, mockUnlinkDiscussion, normalizeDiscussions } from './issue-discussions.mjs'
 /** issues-v1 §8: the tree's kinds. Level 1 = epic | feature. */
 export const ISSUE_KINDS = ['epic', 'feature', 'issue', 'subtask']
@@ -378,6 +379,21 @@ export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
 export const MOCK_ISSUES_NEW_KEY = 'spool.mock.issues-new'
 /** the teammate the mock's new issues come from */
 const MOCK_TEAMMATE = 'HUM-2'
+/** localStorage key (SPL-2120): how many issues an AI agent filed the mock tenant starts with. */
+export const MOCK_ISSUES_AGENT_KEY = 'spool.mock.issues-agent'
+/** the agent the mock's agent-filed issues come from */
+const MOCK_AGENT = 'c-007'
+
+/**
+ * SPL-2120 (owner HUM-10, t1 28559e83): an issue an AI agent filed carries
+ * the agent bar in the list. The same rule as a message's (HUM-24), read
+ * on the issue's creator.
+ * @param {{ created_by?: string } | null | undefined} issue
+ * @returns {boolean}
+ */
+export function issueByAgent(issue) {
+  return isAiMessage({ from: issue ? issue.created_by : '' })
+}
 
 /** a localStorage count, 0..max; 0 without storage */
 function mockStoredCount(key, max) {
@@ -400,6 +416,11 @@ function mockSeedIssues(me, now) {
   const fresh = mockStoredCount(MOCK_ISSUES_NEW_KEY, 50)
   for (let k = 1; k <= fresh; k++) {
     issues.push(mockNewIssue({ title: `new for me ${k}`, assignee: me, status: 'todo', discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_TEAMMATE, now()))
+  }
+  /* SPL-2120: `spool.mock.issues-agent` = N issues an agent filed */
+  const byAgent = mockStoredCount(MOCK_ISSUES_AGENT_KEY, 50)
+  for (let k = 1; k <= byAgent; k++) {
+    issues.push(mockNewIssue({ title: `filed by an agent ${k}`, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_AGENT, now()))
   }
   return issues
 }

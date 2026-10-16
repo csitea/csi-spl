@@ -399,11 +399,16 @@ html.pane-dragging * {
   max-width: min(100%, calc(4px + 36px + 10px + 87.5ch + 4px));
   min-width: 0;
 }
-/* HUM-24 (csitea ba4696c1): an AI agent's row carries a faint accent tint
-   (plus the "AI" badge in MessageCard), on every theme. One class, so hover,
-   focus, pressed and selected (all declared after, and more specific) still
-   paint over it unchanged. */
-.msg--ai { background: color-mix(in srgb, var(--color-accent) 9%, transparent); }
+/* SPL-2120 (owner HUM-10, t1 28559e83): the cards of a list alternate a
+   lighter and a darker shade, counted over the cards only, so a divider
+   between them keeps the rhythm. --row-bg is what a fading new card ends on.
+   HUM-24 (csitea ba4696c1) + SPL-2120: an AI agent's card carries a thin
+   bar on its left edge (plus the "AI" badge in MessageCard) instead of a
+   tint, so its shade stays the list's. Hover, focus, pressed and selected
+   (all declared after, and more specific: the :where() keeps this rule at
+   one class) still paint over the shade. */
+.msg:where(:nth-child(even of .msg)) { --row-bg: var(--color-row-alt); background: var(--row-bg); }
+.msg--ai { box-shadow: inset var(--agent-bar-w) 0 0 var(--color-agent-bar); }
 .msg:hover { background: var(--color-surface-hover); }
 /* SPL-1134: what follows the pointer while a card is dragged by its handle
    (utils/move-drag.mjs; placed by useMove with a transform) */
@@ -1036,7 +1041,7 @@ html.pane-dragging * {
 .live-rows > .msg--new { animation: unread-fade 6s ease-out 2.5s forwards; }
 @keyframes unread-fade {
   from { background: var(--color-surface-hover); }
-  to { background: transparent; }
+  to { background: var(--row-bg, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
   /* no fade: keep a steady, subtle tint instead of animating it away */

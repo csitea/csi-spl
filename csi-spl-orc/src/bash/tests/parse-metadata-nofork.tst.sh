@@ -31,33 +31,63 @@ check_tree() {
   local proj="$2"
   local lib="$proj/lib/bash/funcs"
   local ref="$T/ref-$which.sh"
+  local sref="$T/sref-$which.sh"
   local n=0 bad=0 i key f a b out rc
 
   sed -e 's/^do_parse_metadata()/ref_parse_metadata()/' "$lib/parse-metadata.func.sh" >"$ref"
-  python3 - "$ref" <<'PY'
+  # $ref: one `echo | sed` fork per header line and per tag, as it was.
+  # $sref: the same, its two sed programs ($T/sed-line, $T/sed-val) fed to one
+  # long-lived `sed -u` each (fds 5/6 and 7/8) instead: same programs, same
+  # bytes, ~40 k fewer forks over the corpus.
+  python3 - "$ref" "$sref" "$T" <<'PY'
 import re, sys
-p = sys.argv[1]; s = open(p).read()
-s = re.sub(r'      current_value="\$\{current_value#.*\n.*\n', '      current_value="$(echo "$current_value" | sed \'s/^[[:space:]]*//;s/[[:space:]]*$//\')"\n', s, count=1)
-s = s.replace('    line="${line#"${line%%[![:space:]]*}"}"', '    line="$(echo "$line" | sed \'s/^[[:space:]]*//\')"', 1)
-open(p, "w").write(s)
+p, sp, t = sys.argv[1:4]; s = open(p).read()
+lprog, vprog = 's/^[[:space:]]*//', 's/^[[:space:]]*//;s/[[:space:]]*$//'
+open(t + "/sed-line", "w").write(lprog); open(t + "/sed-val", "w").write(vprog)
+vold, lold = re.compile(r'      current_value="\$\{current_value#.*\n.*\n'), '    line="${line#"${line%%[![:space:]]*}"}"'
+f = vold.sub(lambda m: '      current_value="$(echo "$current_value" | sed \'%s\')"\n' % vprog, s, count=1)
+open(p, "w").write(f.replace(lold, '    line="$(echo "$line" | sed \'%s\')"' % lprog, 1))
+st = vold.sub(lambda m: '      printf \'%s\\n\' "$current_value" >&7; IFS= read -r current_value <&8\n', s, count=1)
+st = st.replace(lold, '    printf \'%s\\n\' "$line" >&5; IFS= read -r line <&6', 1)
+open(sp, "w").write(st.replace("ref_parse_metadata()", "ref_stream_parse_metadata()", 1))
 PY
-  if grep -q "sed 's/^\[\[:space:\]\]\*//;s" "$ref" && grep -q "line=\"\$(echo \"\$line\" | sed" "$ref"; then
+  if grep -q "sed 's/^\[\[:space:\]\]\*//;s" "$ref" && grep -q "line=\"\$(echo \"\$line\" | sed" "$ref" \
+    && grep -q '"$line" >&5; IFS= read -r line <&6' "$sref" \
+    && grep -q '"$current_value" >&7; IFS= read -r current_value <&8' "$sref"; then
     pass "$which: CONTROL the reference really is the forking parser"
   else
     fail "$which: CONTROL the reference was not rebuilt"
   fi
 
   # One shell per parser, each file parsed in its own subshell. The forking
-  # reference is ~0.1 s a file, nearly all of this test's time (191 s of the
-  # orc suite, 2026-10-08), so its outputs are kept per reference FUNCTION
-  # text: the orc and iac copies differ in comments only, define the same
-  # function, and so the reference runs once, not once per tree. The parser
-  # under test still runs on every file for each tree.
+  # reference was ~0.1 s a file, nearly all of this test's time (191 s of the
+  # orc suite, 2026-10-08), so the corpus runs on $sref, and its outputs are
+  # kept per reference FUNCTION text: the orc and iac copies differ in
+  # comments only, define the same function, and so the reference runs once,
+  # not once per tree. The parser under test still runs on every file for
+  # each tree.
   key="$(bash -c 'source "$1"; declare -f ref_parse_metadata' _ "$ref" | md5sum | cut -c1-32)"
   if [[ ! -d "$T/ref-out-$key" ]]; then
-    mkdir "$T/ref-out-$key"
-    bash -c 'source "$1"; i=0; while IFS= read -r f; do i=$((i + 1)); printf %s "$(ref_parse_metadata "$f")" >"$2/$i"; done' \
-      _ "$ref" "$T/ref-out-$key" <"$T/files"
+    mkdir "$T/ref-out-$key" "$T/fork-out-$key" "$T/fifo-$key"
+    mkfifo "$T/fifo-$key/l.in" "$T/fifo-$key/l.out" "$T/fifo-$key/v.in" "$T/fifo-$key/v.out"
+    bash -c 'source "$1"; d="$3"
+      sed -u "$(cat "$4/sed-line")" <"$d/l.in" >"$d/l.out" &
+      sed -u "$(cat "$4/sed-val")" <"$d/v.in" >"$d/v.out" &
+      exec 5>"$d/l.in" 6<"$d/l.out" 7>"$d/v.in" 8<"$d/v.out"
+      i=0; while IFS= read -r f; do i=$((i + 1)); printf %s "$(ref_stream_parse_metadata "$f")" >"$2/$i"; done
+      exec 5>&- 7>&-; wait' \
+      _ "$sref" "$T/ref-out-$key" "$T/fifo-$key" "$T" <"$T/files"
+    # Every 50th file through the forking reference too: the stream one must
+    # give its bytes, or the corpus check below proves nothing.
+    bash -c 'source "$1"; while IFS= read -r i; do printf %s "$(ref_parse_metadata "$(sed -n "${i}p" "$3")")" >"$2/$i"; done' \
+      _ "$ref" "$T/fork-out-$key" "$T/files" < <(awk 'NR % 50 == 1 { print NR }' "$T/files")
+    i=0
+    for f in "$T/fork-out-$key"/*; do
+      i=$((i + 1)); cmp -s "$f" "$T/ref-out-$key/${f##*/}" || { bad=$((bad + 1)); echo "  stream ref differs: file #${f##*/}"; }
+    done
+    [[ $i -gt 10 && $bad -eq 0 ]] && pass "CONTROL the stream reference gives the forking bytes on $i sampled files" \
+      || fail "CONTROL the stream reference differs on $bad of $i sampled files"
+    bad=0
   fi
   mkdir "$T/new-out-$which"
   bash -c 'source "$1"; i=0; while IFS= read -r f; do i=$((i + 1)); printf %s "$(do_parse_metadata "$f")" >"$2/$i"; done' \

@@ -75,7 +75,7 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/qas-ci-accept-cron.sh" ] \
   && grep -q "^  +7 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/owner-digest-cron.sh' >> '/var/csi/csi-spl/owner-digest/cron.log' 2>&1 # csi-spl:box-cron:owner-digest$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/owner-digest-cron.sh" ] \
-  && grep -q "^  +37 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh' >> '/var/csi/csi-spl/issue-close-landed/cron.log' 2>&1 # csi-spl:box-cron:issue-close-landed$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh' >> '/var/csi/csi-spl/issue-close-landed/cron.log' 2>&1 # csi-spl:box-cron:issue-close-landed$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh" ] \
   && grep -q "^  +53 6 \* \* 1 /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-key-rate-cron.sh' >> '/var/csi/csi-spl/issue-key-rate/cron.log' 2>&1 # csi-spl:box-cron:issue-key-rate$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/issue-key-rate-cron.sh" ] \

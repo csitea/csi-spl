@@ -161,7 +161,7 @@ run DRY_RUN=0 ISSUE_CLOSE_EVIDENCE="$T/ev.tsv"; rc=$?
 out="$(ISSUE_CLOSE_ALLOW_WORKTREE=1 ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
 [ "$rc" = 0 ] && grep -q 'no cursor' <<<"$out" && pass "11. the cron is a no-op on a box with no cursor" || fail "11. cron (rc $rc: $out)"
 
-grep -qE '^issue-close-landed +\| [0-9]+ \* \* \* \* +\| src/bash/scripts/issue-close-landed-cron.sh ' "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" &&
-  pass "12. the box-crons manifest carries the hourly issue-close-landed row" || fail "12. no issue-close-landed row in box-crons.manifest"
+grep -qE '^issue-close-landed +\| \*/5 \* \* \* \* +\| src/bash/scripts/issue-close-landed-cron.sh ' "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" &&
+  pass "12. the box-crons manifest carries the 5-minute issue-close-landed row" || fail "12. no issue-close-landed row in box-crons.manifest"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

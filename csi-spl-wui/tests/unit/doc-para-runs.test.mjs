@@ -30,7 +30,7 @@ async function loadPics() {
   }
 }
 
-const { paraRuns } = await loadPics()
+const { paraRuns, assetPaths, assetRoute, figureNumbers } = await loadPics()
 const DOC = 'd1'
 const pic = (c) => `![${c}](/v1/workspace/doctree/${DOC}/images/${'a'.repeat(64)}.png)`
 
@@ -54,5 +54,39 @@ describe('paraRuns: read or edit', () => {
   it('another doc\'s picture token is no figure: it stays in the text run, rendered as markdown', () => {
     const body = `x ![y](/v1/workspace/doctree/other/images/${'b'.repeat(64)}.png)`
     assert.deepEqual(paraRuns(body, DOC), [{ kind: 'text', text: body }])
+  })
+})
+
+// Gap G6 (SPL-2201, spec 137 unified-fs.md section 7): a picture an md page
+// brought in keeps its link as written, ![..](<page>.assets/NN-name.ext). The
+// read view shows it (an 'asset' run, read from the doc's asset route), but
+// it is no numbered figure, so the exports write it as written (byte-stable).
+describe('paraRuns: a picture the md page brought in', () => {
+  const asset = (c, p = 'guide.assets/01-flow-map.png') => `![${c}](${p})`
+  it('an asset picture is its own run, its path as written; the breaks around it are not text', () => {
+    const body = `Before\n${asset('Flow map')}\nAfter`
+    assert.deepEqual(paraRuns(body, DOC), [
+      { kind: 'text', text: 'Before' },
+      { kind: 'asset', caption: 'Flow map', path: 'guide.assets/01-flow-map.png' },
+      { kind: 'text', text: 'After' },
+    ])
+  })
+  it('it takes no figure number: the hub picture after it is still Figure 1', () => {
+    const body = `${asset('A')}\n${pic('One')}`
+    const runs = paraRuns(body, DOC)
+    assert.deepEqual(runs.map((r) => r.kind), ['asset', 'pic'])
+    assert.equal(runs[1].n, 1)
+    assert.deepEqual(figureNumbers([{ id: 'x', body, attrs: {} }], DOC).get('x'), { first: 1, image: 0 })
+  })
+  it('assetPaths lists them as written; assetRoute is the doc\'s asset route', () => {
+    assert.deepEqual(assetPaths(`${asset('A')} and ${asset('B', 'guide.assets/02-arch.webp')}`), ['guide.assets/01-flow-map.png', 'guide.assets/02-arch.webp'])
+    assert.equal(assetRoute(DOC, 'guide.assets/02-arch.webp'), `/v1/workspace/doctree/${DOC}/assets/guide.assets/02-arch.webp`)
+  })
+  it('CONTROL a path off the layout is text: ../img, upper case, no number, a URL', () => {
+    for (const p of ['../img/a.png', 'guide.assets/01-Flow.png', 'guide.assets/flow.png', 'https://example.com/guide.assets/01-a.png']) {
+      const body = `x ${asset('y', p)}`
+      assert.deepEqual(paraRuns(body, DOC), [{ kind: 'text', text: body }], p)
+      assert.deepEqual(assetPaths(body), [], p)
+    }
   })
 })

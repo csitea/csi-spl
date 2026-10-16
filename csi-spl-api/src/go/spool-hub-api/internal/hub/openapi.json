@@ -13171,6 +13171,140 @@
         ]
       }
     },
+    "/v1/workspace/doctree/{doc}/assets/{path}": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeAssetsByPath",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the picture's md-relative path, <doc>.assets/NN-name.ext (two digits, a dash, a lower-case name; png, jpg, jpeg, gif or webp)",
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the tree: workspace (default) or repo, the repository docs (spec 137)",
+            "in": "query",
+            "name": "fs",
+            "required": false,
+            "schema": {
+              "enum": [
+                "workspace",
+                "repo"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the picture's bytes, its type from the path's extension"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a picture of a workspace document by its md-relative path (spec 137 unified-fs.md section 7)",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "put": {
+        "operationId": "putWorkspaceDoctreeAssetsByPath",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the picture's md-relative path, <doc>.assets/NN-name.ext (two digits, a dash, a lower-case name; png, jpg, jpeg, gif or webp)",
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the tree: workspace (default) or repo, the repository docs (spec 137)",
+            "in": "query",
+            "name": "fs",
+            "required": false,
+            "schema": {
+              "enum": [
+                "workspace",
+                "repo"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "stored: {path, sha256, bytes}; the doc root's attrs.assets maps the path to the sha256"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "the document changed during the upload: send it again"
+          },
+          "413": {
+            "description": "the picture is larger than 5 MiB"
+          },
+          "415": {
+            "description": "not a png, jpeg, gif or webp, or its bytes, Content-Type and path extension name different types"
+          },
+          "429": {
+            "description": "the tenant's stored file bytes would exceed its quota"
+          }
+        },
+        "summary": "Upload a picture of a workspace document under its md-relative path, kept in the object store (spec 137 unified-fs.md section 7)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/{doc}/children": {
       "get": {
         "operationId": "getWorkspaceDoctreeChildren",

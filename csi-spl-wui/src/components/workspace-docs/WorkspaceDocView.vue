@@ -154,6 +154,11 @@
           >
             <template v-for="(r, i) in paras.get(it.id)" :key="i">
               <MdRun v-if="r.kind === 'text'" :text="r.text" />
+              <!-- a picture the md page brought in, its link as written (SPL-2201): shown, no figure number -->
+              <figure v-else-if="r.kind === 'asset'" class="wsdoc__pic" data-test="ws-doc-asset">
+                <img v-if="imgUrl[assetRoute(session.doc, r.path)]" loading="lazy" data-test="ws-doc-asset-img" :src="imgUrl[assetRoute(session.doc, r.path)]" :alt="r.caption">
+                <figcaption v-if="r.caption" class="wsdoc__figcap">{{ r.caption }}</figcaption>
+              </figure>
               <figure v-else class="wsdoc__pic" data-test="ws-doc-pic">
                 <img v-if="imgUrl[r.path]" loading="lazy" data-test="ws-doc-pic-img" :src="imgUrl[r.path]" :alt="r.caption">
                 <figcaption class="wsdoc__figcap" @click.stop>
@@ -341,7 +346,7 @@ import {
   DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget, setDocNumbered,
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
-import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
+import { assetRoute, figureNumbers, imagePaths, paraRuns, picToken, setPicCaption, type ParaRun } from './-doc-pics'
 import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from './-doc-blocks'
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
 import { anchorOf, docLink, resolveAnchor } from './-doc-anchor'
@@ -462,7 +467,7 @@ const attr = (it: DocItem, k: string) => {
 /** resolve each image's src once (the hub path is read with the session's credentials) */
 function resolveImages() {
   for (const it of withPreamble.value) {
-    for (const p of [attr(it, 'img_http_path'), ...picPaths(it.body, props.session.doc)]) {
+    for (const p of [attr(it, 'img_http_path'), ...imagePaths(it.body, props.session.doc)]) {
       if (p && !(p in imgUrl)) {
         imgUrl[p] = ''
         void props.session.client.imageSrc(p).then((u) => { imgUrl[p] = u })

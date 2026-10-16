@@ -103,7 +103,7 @@ func docAttrsCheck(raw string) error {
 	if p != "" && !strings.HasPrefix(p, "https://") && !strings.HasPrefix(p, DocImagePathPrefix) {
 		return fmt.Errorf("%w: attrs.img_http_path is an https URL or a %s path", ErrDocRefused, DocImagePathPrefix)
 	}
-	return nil
+	return docAssetsCheck(m)
 }
 
 // DocRename sets the document's title (DocTitle: "" is DocUntitled) under

@@ -47,6 +47,10 @@ var docTreeVerbs = []dtVerb{
 		"usage: spool doctree rename <doc> --title t [--rev n]"},
 	{"export", dtExport, "export a document or a branch as Markdown (the WUI's export rules)",
 		"usage: spool doctree export <doc> [--item id] [--out file] [--from read.json]"},
+	{"asset-put", dtAssetPut, "upload a picture of a document under its md-relative path, <doc>.assets/NN-name.ext",
+		"usage: spool doctree asset-put <doc> <path> --file f"},
+	{"asset-get", dtAssetGet, "print a picture of a document as JSON, its bytes in base64",
+		"usage: spool doctree asset-get <doc> <path>"},
 }
 
 func dtVerbByName(name string) (dtVerb, bool) {

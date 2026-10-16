@@ -2,7 +2,7 @@
 """The Markdown side of the qto doc <-> md file round trip.
 
 Helper of do_spl_doctree_import_md and do_spl_doctree_export_md; run by them,
-never by hand. Two verbs:
+never by hand. Four verbs:
 
   split <md> <out dir>
       An md page (an optional YAML front matter, one '# ' title, a preamble,
@@ -24,6 +24,12 @@ never by hand. Two verbs:
       export writes them back, SPL-1900), each line newline-ended. A
       "generated from qto doc" line in the preamble (a page that is already
       an export) is dropped: compose writes the new one.
+      The page's pictures (gap G6, SPL-2201, spec 137 unified-fs.md section
+      7): every '![..](target)' outside code fences and inline code spans
+      whose target is a path, not a URL, must be '<doc>.assets/NN-name.ext'
+      next to the page and exist; <out>/assets lists each once, in page
+      order, as its path TAB its file. Refused (exit 1), naming every bad
+      link: a target off that layout, or a missing file.
       A section is numbered ('## 1. x', '### 1.1 y') or not ('## Overview':
       the qto item gets attrs.numbered false and no outline number); a
       heading under an unnumbered one is unnumbered too, its text kept whole
@@ -48,11 +54,23 @@ never by hand. Two verbs:
       export reaches compose with its trailing newlines cut; one newline
       otherwise. Byte-stable.
 
+  assets <root read.json>
+      The picture paths the doc's root names (attrs.assets), one per line,
+      each checked against the layout: what the export writes back.
+
+  asset-write <asset-get.json> <dest file>
+      One picture as `spool doctree asset-get` printed it (base64, sha256)
+      written to dest, byte for byte; dest is left as it is when it holds
+      those bytes. Prints "written" or "unchanged". Refused: a sha256 that
+      does not match the bytes.
+
 Code fences are tracked by their opening run (CommonMark): a fence opened by
 '````' closes only on a '````' or longer line of the same character, so a
 '```' inside it is text.
 """
 
+import base64
+import hashlib
 import json
 import os
 import re
@@ -67,6 +85,15 @@ STAMP = re.compile(r"^> Generated from qto doc `[^`]+`; edit it there\.")
 # compose's section anchor (spec 138 G4), the line before each heading: the
 # WUI's link #ws-doc-<item id> lands in the md too; split drops it
 ANCHOR = re.compile(r'^<a id="ws-doc-[^"]+"></a>$')
+# a picture link and its target (an optional <..> and "title" around it)
+PIC = re.compile(r'!\[[^\]\n]*\]\(\s*<?([^\s)<>]+)>?(?:\s+"[^"]*")?\s*\)')
+# a target that is a URL or an anchor, not a path: left to the reader
+URLISH = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*:|/|#)")
+# the layout (unified-fs.md section 7); the hub checks the same (store.DocAssetPath)
+ASSET = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._-]{0,199})\.assets/[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*\.(png|jpg|jpeg|gif|webp)$"
+)
+BACKTICKS = re.compile(r"`+")
 
 
 class Fences:
@@ -119,6 +146,62 @@ def has_title(lines):
     return bool(HEAD.match(first)) and first.startswith("# ")
 
 
+def code_spans_out(line):
+    """The line with each inline code span (CommonMark: a run of n backticks
+    up to the next run of exactly n) blanked, so a picture written as code,
+    `![alt](url)`, is text and not a link."""
+    out, at = [], 0
+    runs = list(BACKTICKS.finditer(line))
+    i = 0
+    while i < len(runs):
+        m = runs[i]
+        close = next(
+            (
+                j
+                for j in range(i + 1, len(runs))
+                if len(runs[j].group()) == len(m.group())
+            ),
+            None,
+        )
+        if close is None:
+            i += 1
+            continue
+        out.append(line[at : m.start()])
+        out.append(" " * (runs[close].end() - m.start()))
+        at = runs[close].end()
+        i = close + 1
+    out.append(line[at:])
+    return "".join(out)
+
+
+def pictures(md_path, lines):
+    """The page's picture paths, each once in page order, with their files;
+    exits with every bad link named when one is off the layout or missing."""
+    stem = os.path.splitext(os.path.basename(md_path))[0]
+    here = os.path.dirname(os.path.abspath(md_path))
+    found, bad, fences = {}, [], Fences()
+    for n, line in enumerate(lines, 1):
+        if fences.inside(line):
+            continue
+        for m in PIC.finditer(code_spans_out(line)):
+            target = m.group(1)
+            if URLISH.match(target) or target in found:
+                continue
+            a = ASSET.match(target)
+            if not a or a.group(1) != stem:
+                bad.append(f"line {n}: {target} is not {stem}.assets/NN-name.ext")
+            elif not os.path.isfile(os.path.join(here, target)):
+                bad.append(f"line {n}: {target} does not exist next to the page")
+            else:
+                found[target] = os.path.join(here, target)
+    if bad:
+        sys.exit(
+            f"FATAL {md_path}: a picture must be {stem}.assets/NN-name.ext next to the page "
+            "(spec 137 unified-fs.md section 7): " + "; ".join(bad)
+        )
+    return found
+
+
 def split(md_path, out):
     fm, lines = front_matter(open(md_path, encoding="utf-8").read().split("\n"))
     levels = heading_levels(lines)
@@ -146,7 +229,12 @@ def split(md_path, out):
     # 137 T030a) drops its old generated-from line: compose writes the new one
     pre = [line for line in pre if not STAMP.match(line)]
     check_outline(md_path, sections)
+    pics = pictures(md_path, lines)
     os.makedirs(out, exist_ok=True)
+    if pics:
+        write(
+            os.path.join(out, "assets"), "".join(f"{p}\t{f}\n" for p, f in pics.items())
+        )
     write(os.path.join(out, "title"), title)
     write(os.path.join(out, "preamble.md"), "\n".join(pre).strip() + "\n")
     if fm is not None:
@@ -317,10 +405,42 @@ def page_end(items):
     return "\n" * (len(body) + 1)
 
 
+def assets(root_path):
+    items = json.load(open(root_path, encoding="utf-8")).get("items") or []
+    root = items[0] if items and not items[0].get("parent") else {}
+    names = (root.get("attrs") or {}).get("assets") or {}
+    if not isinstance(names, dict):
+        sys.exit(f"FATAL attrs.assets of the root is not an object: {names!r}")
+    for p in names:
+        if not ASSET.match(p):
+            sys.exit(
+                f"FATAL attrs.assets names {p!r}, which is not <doc>.assets/NN-name.ext"
+            )
+        print(p)
+
+
+def asset_write(got_path, dest):
+    got = json.load(open(got_path, encoding="utf-8"))
+    data = base64.b64decode(got.get("base64") or "", validate=True)
+    if hashlib.sha256(data).hexdigest() != got.get("sha256"):
+        sys.exit(f"FATAL {got.get('path')}: the bytes do not match their sha256")
+    if os.path.isfile(dest) and open(dest, "rb").read() == data:
+        print("unchanged")
+        return
+    os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+    with open(dest, "wb") as f:
+        f.write(data)
+    print("written")
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "split":
         split(sys.argv[2], sys.argv[3])
     elif len(sys.argv) == 6 and sys.argv[1] == "compose":
         compose(*sys.argv[2:])
+    elif len(sys.argv) == 3 and sys.argv[1] == "assets":
+        assets(sys.argv[2])
+    elif len(sys.argv) == 4 and sys.argv[1] == "asset-write":
+        asset_write(sys.argv[2], sys.argv[3])
     else:
         sys.exit(__doc__)

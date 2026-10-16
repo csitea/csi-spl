@@ -38,7 +38,8 @@ type FileSweepResult struct {
 }
 
 // SweepFiles deletes every tenant blob (t/<tenant>/files/<sha256>) that no
-// message in retention carries, that is no member's avatar, and that was
+// message in retention carries, that is no member's avatar and no doc's
+// picture (attrs.assets, SPL-2201), and that was
 // uploaded more than FileOrphanGrace ago; and every tmp/ object that old
 // (an upload a crashed hub never promoted). Content-addressed: one sha256
 // can sit on several messages, so it goes only when NONE carries it. The
@@ -93,6 +94,9 @@ func (s *Server) SweepFiles(ctx context.Context, now time.Time) (FileSweepResult
 func (s *Server) orphanDelete(ctx context.Context, tenant, fileID, key string, now time.Time) (bool, error) {
 	attached, err := s.o.Store.FileAttached(ctx, tenant, fileID, now)
 	if err != nil || attached {
+		return false, err
+	}
+	if kept, err := s.fileKept(ctx, tenant, fileID); err != nil || kept {
 		return false, err
 	}
 	up, err := s.o.Blob.Uploaded(ctx, key)

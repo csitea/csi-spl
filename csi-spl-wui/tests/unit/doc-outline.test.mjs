@@ -126,6 +126,17 @@ describe('branchToMarkdown: the same text as the CLI export', () => {
   })
 })
 
+describe('branchToMarkdown: a picture the md page brought in (SPL-2201)', () => {
+  it('stays as written, no figure line, and takes no figure number', () => {
+    const hub = `![One](/v1/workspace/doctree/d1/images/${'a'.repeat(64)}.png)`
+    const body = `![Flow map](guide.assets/01-flow-map.png)\n\n${hub}`
+    const it1 = { id: 'x', parent: 'r', ord: 1, outline: '1', depth: 1, title: 'Parts', body, attrs: {}, rev: 1 }
+    const figs = new Map([['x', { first: 1, image: 0 }]])
+    const md = exp.branchToMarkdown([it1], 'Untitled', { doc: 'd1', figs, figure: (n) => `Figure ${n}:` })
+    assert.equal(md, `# 1 Parts\n\n![Flow map](guide.assets/01-flow-map.png)\n\n${hub}\n\n*Figure 1: One*\n`)
+  })
+})
+
 describe('the doc view and the mock number through the helper', () => {
   const src = (f) => readFileSync(join(WUI, DIR, f), 'utf8')
 

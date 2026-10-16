@@ -128,9 +128,9 @@ d31406c0): "the paths must be accordingly relative to one another" (msg
 2423c8e3), and the files live in the hub's object store, the text in the
 database (msg 78f4ffd3, poll 60020e7b answer A).
 
-Status: **planned, not built yet**. The owner asked for the convention to be
-written here first; the build follows under SPL-2201, and this line changes
-when it lands.
+Status: **built** under SPL-2201: the hub routes, `spool doctree asset-put`
+/ `asset-get`, the import, the export and the Qto view. A desk runs the two
+verbs once its spool is rebuilt from a tree that has them (`spl_host_spool`).
 
 - **Layout.** A doc's pictures sit in one folder next to its md file, named
   after it: `foo.md` -> `foo.assets/01-flow-map.png`. A picture's name is two
@@ -156,7 +156,9 @@ when it lands.
   `spool doctree asset-get` (base64 in JSON, since the desk action prints
   text). A file whose bytes are unchanged is not rewritten.
 - **Qto view.** A `![..](<doc>.assets/NN-name.ext)` token in a section's text
-  renders as a figure, read from the asset route.
+  renders as a picture, read from the asset route, with its alt text under
+  it. It is no numbered figure: both exports (the CLI's and the WUI's) write
+  it back as written, so the md round trip stays byte-stable.
 - **Distribution hygiene.** The import adds no picture to the repo, and the
   export writes back only the pictures the md already linked.
 

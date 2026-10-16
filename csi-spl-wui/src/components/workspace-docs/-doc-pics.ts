@@ -5,8 +5,12 @@
    other token stays text. The view renders the parsed runs as text nodes and
    <img> elements (never v-html of user text); every picture of the document,
    inline ones and the section image, is "Figure N" in one sequence in
-   document order. The `-` prefix keeps Nuxt from registering this file as a
-   component. */
+   document order. A picture an md page brought in keeps its link as the page
+   wrote it, ![..](<page>.assets/NN-name.ext) (gap G6, SPL-2201, spec 137
+   unified-fs.md section 7): the read view shows it (kind 'asset', read from
+   the doc's asset route), but it is no numbered figure, so every export
+   writes it back as written and the md round trip stays byte-stable. The
+   `-` prefix keeps Nuxt from registering this file as a component. */
 import type { DocItem } from './-doctree-api'
 
 export type PicRun = { kind: 'text', text: string } | { kind: 'pic', caption: string, path: string }
@@ -29,6 +33,40 @@ export function picRuns(body: string, doc: string): PicRun[] {
 }
 
 export type ParaRun = { kind: 'text', text: string } | { kind: 'pic', caption: string, path: string, k: number, n: number }
+  | { kind: 'asset', caption: string, path: string }
+
+/* a picture of the doc's own asset folder as the md page wrote it (the hub's store.DocAssetPath) */
+const ASSET = /!\[([^\]\n]*)\]\(([A-Za-z0-9][A-Za-z0-9._-]{0,199}\.assets\/[0-9]{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.(?:png|jpg|jpeg|gif|webp))\)/g
+
+/** a text run split around its asset pictures: the breaks around a picture are not text */
+function assetRuns(text: string): ParaRun[] {
+  const out: ParaRun[] = []
+  let at = 0
+  for (const m of text.matchAll(ASSET)) {
+    const before = text.slice(at, m.index).replace(/\n$/, '')
+    if (before) out.push({ kind: 'text', text: before })
+    out.push({ kind: 'asset', caption: m[1].trim(), path: m[2] })
+    at = m.index + m[0].length
+    if (text[at] === '\n') at += 1
+  }
+  if (at < text.length) out.push({ kind: 'text', text: text.slice(at) })
+  return out
+}
+
+/** the asset pictures of a paragraph, each path as written */
+export function assetPaths(body: string): string[] {
+  return [...body.matchAll(ASSET)].map((m) => m[2])
+}
+
+/** the hub route an asset picture is read from: the doc's /assets/<path as written> */
+export function assetRoute(doc: string, path: string): string {
+  return `/v1/workspace/doctree/${encodeURIComponent(doc)}/assets/${path}`
+}
+
+/** the hub routes of a paragraph's pictures to read: this doc's figures, then its asset pictures */
+export function imagePaths(body: string, doc: string): string[] {
+  return [...picPaths(body, doc), ...assetPaths(body).map((a) => assetRoute(doc, a))]
+}
 
 /** a section body as the read view shows it (owner HUM-10, t1 09a69b01: the
     text renders as markdown, a click edits the raw text): its text runs and
@@ -45,7 +83,7 @@ export function paraRuns(body: string, doc: string, first = 1): ParaRun[] | null
     let text = r.text
     if (i > 0) text = text.replace(/^\n/, '')
     if (i < runs.length - 1) text = text.replace(/\n$/, '')
-    return text ? [{ kind: 'text', text }] : []
+    return text ? assetRuns(text) : []
   })
 }
 

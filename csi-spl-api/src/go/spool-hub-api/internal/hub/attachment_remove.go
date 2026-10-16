@@ -207,11 +207,15 @@ func (s *Server) withoutFile(m store.EditableMessage, fileID string, pub ed25519
 }
 
 // dropBlobIfFree deletes the stored bytes once no message in retention
-// carries the file (the same test as the read door's FileAttached). true =
+// carries the file (the same test as the read door's FileAttached) and no
+// doc names it as a picture (fileKept, SPL-2201). true =
 // the blob is gone (or was already).
 func (s *Server) dropBlobIfFree(ctx context.Context, tenant, fileID string) (bool, error) {
 	still, err := s.o.Store.FileAttached(ctx, tenant, fileID, s.o.Now())
 	if err != nil || still {
+		return false, err
+	}
+	if kept, err := s.fileKept(ctx, tenant, fileID); err != nil || kept {
 		return false, err
 	}
 	key, err := blob.Key(tenant, fileID)

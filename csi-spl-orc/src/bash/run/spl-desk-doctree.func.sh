@@ -24,9 +24,9 @@
 # @description     or /var/spool-hub/dispatch, or inside the desk state
 # @description   - a file flag (--file, --path) naming any file but
 # @description     DOCTREE_IN, and --out (it would write as the box user)
-# @description The writing verbs (create add edit move delete rename folder move-node)
-# @description are a dry run unless DRY_RUN=0; the reads (list nodes head read
-# @description export) run as they are.
+# @description The writing verbs (create add edit move delete rename folder move-node
+# @description asset-put) are a dry run unless DRY_RUN=0; the reads (list nodes
+# @description head read export asset-get) run as they are.
 # @description A write with DRY_RUN=0 is also refused, no spool call, unless
 # @description DESK_AGENT is the caller itself: AGENT_ID, else SPOOL_AGENT_ID /
 # @description MCP_BOT_AGENT_ID, else the agent id of the tmux window $TMUX_PANE
@@ -62,8 +62,8 @@ do_spl_desk_doctree() {
   local verb="${args[0]}" fs="${DOCTREE_FS:-}"
   [[ "$fs" == "" || "$fs" == workspace || "$fs" == repo ]] ||
     { do_log "FATAL DOCTREE_FS is workspace or repo, not '$fs'"; return 1; }
-  [[ " list nodes folder move-node create head read add edit move delete rename export " == *" $verb "* ]] ||
-    { do_log "FATAL '$verb' is not a doctree verb (list nodes folder move-node create head read add edit move delete rename export)"; return 1; }
+  [[ " list nodes folder move-node create head read add edit move delete rename export asset-put asset-get " == *" $verb "* ]] ||
+    { do_log "FATAL '$verb' is not a doctree verb (list nodes folder move-node create head read add edit move delete rename export asset-put asset-get)"; return 1; }
   local in=""
   _spl_desk_doctree_in in || return 1
   _spl_desk_doctree_file_flags args "$in" || return 1
@@ -72,7 +72,7 @@ do_spl_desk_doctree() {
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1
 
   local dry=0
-  if [[ " create add edit move delete rename folder move-node " == *" $verb "* ]]; then
+  if [[ " create add edit move delete rename folder move-node asset-put " == *" $verb "* ]]; then
     dry=1
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi
@@ -81,7 +81,7 @@ do_spl_desk_doctree() {
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
     return 0
   fi
-  if [[ " create add edit move delete rename folder move-node " == *" $verb "* ]]; then
+  if [[ " create add edit move delete rename folder move-node asset-put " == *" $verb "* ]]; then
     _spl_desk_doctree_caller_ok "$agent" || return 1
   fi
 

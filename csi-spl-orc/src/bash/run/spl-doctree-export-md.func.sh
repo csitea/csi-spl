@@ -17,7 +17,10 @@
 # @description the sections one heading level down, each heading after its
 # @description section anchor line `<a id="ws-doc-<item id>"></a>` (spec 138 G4:
 # @description the WUI's section link lands in the md too; the import drops
-# @description it). Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
+# @description it). The doc's pictures (its root's attrs.assets, spec 137
+# @description unified-fs.md section 7, SPL-2201) are written back next to the
+# @description md, each to its relative path <page>.assets/NN-name.ext, byte
+# @description for byte (spool doctree asset-get). Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
 # @description is (not even rewritten); a changed node changes only its lines.
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).
@@ -62,8 +65,27 @@ _spl_doctree_export_one() {
   else
     cp "$tmp/out.md" "$APP_PATH/$rel" && do_log "OK $rel written from qto doc $doc" || rc=1
   fi
+  (( rc )) || _spl_doctree_export_assets "$doc" "$rel" "$tmp" || rc=1
   rm -rf "$tmp"
   return "$rc"
+}
+
+# _spl_doctree_export_assets <doc id> <md path> <tmp dir>: each picture the
+# doc's root names (tmp/root.json) to <md dir>/<its path>; a file that holds
+# the same bytes is not rewritten.
+_spl_doctree_export_assets() {
+  local doc="$1" rel="$2" tmp="$3" paths path dest how
+  paths="$(python3 "$PROJ_PATH/src/bash/run/spl-doctree-md.py" assets "$tmp/root.json")" || { do_log "$paths"; return 1; }
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    dest="$APP_PATH/$(dirname "$rel")/$path"
+    if ! _spl_doctree_call "asset-get $doc $(_spl_doctree_q "$path")" >"$tmp/asset.json" ||
+      ! how="$(python3 "$PROJ_PATH/src/bash/run/spl-doctree-md.py" asset-write "$tmp/asset.json" "$dest" 2>&1)"; then
+      do_log "FATAL picture $path of qto doc $doc was not exported: $(tail -c 300 "$tmp/asset.json") $how"
+      return 1
+    fi
+    do_log "OK $(dirname "$rel")/$path $how (qto doc $doc)"
+  done <<<"$paths"
 }
 
 # _spl_doctree_call <doctree args> [DOCTREE_IN]: one do_spl_desk_doctree verb

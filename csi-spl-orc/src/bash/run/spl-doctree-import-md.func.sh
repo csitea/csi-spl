@@ -16,9 +16,14 @@
 # @description name as the doc title; the root gets attrs.no_title (and
 # @description attrs.h1_sections when its sections are '# '), so the export
 # @description writes no title line (SPL-2024).
+# @description The page's pictures, '![..](<page>.assets/NN-name.ext)' next to
+# @description it (spec 137 unified-fs.md section 7, SPL-2201), are uploaded
+# @description after the sections under that relative path (spool doctree
+# @description asset-put); the link text stays as written.
 # @description Refused before any hub call: a path that is not a repo-relative
 # @description .md file, a page already in the map, a heading that skips a
-# @description level. All or nothing: a write that fails
+# @description level, a picture link that is not a URL and is off that layout
+# @description or names a missing file. All or nothing: a write that fails
 # @description deletes the doc it created, so no partial doc is left. After the
 # @description writes it adds the map row and runs the export, so the md file
 # @description carries its "generated from" line in the same run.
@@ -56,6 +61,7 @@ do_spl_doctree_import_md() {
   if (( drc == 0 )); then
     do_log "INFO DRY_RUN would create qto doc '$(cat "$tmp/title")' with $(wc -l <<<"$plan") sections in the ${QTO_FS:-workspace} tree:"
     cut -f2,3 <<<"$plan" | sed 's/^/  /'
+    [[ ! -f "$tmp/assets" ]] || { do_log "INFO DRY_RUN would upload $(wc -l <"$tmp/assets") picture(s):"; cut -f1 "$tmp/assets" | sed 's/^/  /'; }
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
     rm -rf "$tmp"; return 0
   fi
@@ -121,6 +127,20 @@ _spl_doctree_import_items() {
     out="$(_spl_doctree_call "add $doc --kind heading --level $lvl$flag --title $(_spl_doctree_q "$title")" "$body")" ||
       { echo "section $num $title: $out"; return 1; }
   done < <(tr '\t' '\037' <<<"$plan")
+  _spl_doctree_import_assets "$dir" "$doc"
+}
+
+# _spl_doctree_import_assets <split dir> <doc>: upload each picture the split
+# listed (path TAB file) under its relative path; stops at the first failure,
+# its reason on stdout.
+_spl_doctree_import_assets() {
+  local dir="$1" doc="$2" path file out
+  [[ -f "$dir/assets" ]] || return 0
+  while IFS=$'\t' read -r path file; do
+    [[ -n "$path" ]] || continue
+    out="$(_spl_doctree_call "asset-put $doc $(_spl_doctree_q "$path")" "$file")" ||
+      { echo "picture $path: $out"; return 1; }
+  done <"$dir/assets"
 }
 
 # _spl_doctree_import_rollback <doc>: delete the doc a failed import created.

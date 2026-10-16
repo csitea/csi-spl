@@ -12,7 +12,7 @@ satellite box is in [SYS.md](../SYS.md); the relay bucket in
 
 Paths under `csi-spl-api/src/go/spool-hub-api/` are written `GO/`.
 
-![Spool Hub architecture](../../img/system-guide-arch.webp)
+![Spool Hub architecture](system-guide.assets/01-architecture.webp)
 
 ```mermaid
 flowchart TD

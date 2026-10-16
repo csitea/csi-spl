@@ -59,6 +59,15 @@
 #      attrs.no_title (attrs.h1_sections for '# ' sections) and the export
 #      writes no title line. Red on the old split: "would become", "no '# '
 #      title line"
+#  22. SPL-2201 (Qto gap G6, spec 137 unified-fs.md section 7): a page's
+#      pictures '![..](<page>.assets/NN-name.ext)' upload once each after
+#      the sections (asset-put, the bytes as they are); a picture in a code
+#      span or a fence and a URL picture are text; the page round-trips with
+#      only its generated-from line changed, and the export writes each
+#      picture back to its path byte for byte, then leaves it untouched. A
+#      link off the layout, to another page's folder, or to a missing file is
+#      refused before any spool call, the FATAL naming it. Red on the old
+#      split/import: no asset-put call, nothing written back
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -138,6 +147,18 @@ elif v == "head":
     print(json.dumps({"id": a[1], "title": db["title"], "root": "r00t"}))
 elif v == "read":
     print(json.dumps({"items": [root()] + outline()}))
+elif v == "asset-put":
+    # SPL-2201: the hub keeps the bytes and maps the path in the root's attrs.assets
+    import base64, hashlib
+    b = open(flag("--file"), "rb").read()
+    db.setdefault("assets", {})[a[2]] = base64.b64encode(b).decode()
+    db["root_attrs"].setdefault("assets", {})[a[2]] = hashlib.sha256(b).hexdigest()
+    print(json.dumps({"path": a[2], "sha256": hashlib.sha256(b).hexdigest(), "bytes": len(b)}))
+elif v == "asset-get":
+    import base64, hashlib
+    if a[2] not in db.get("assets", {}): sys.exit("404: no such picture in this document")
+    b = base64.b64decode(db["assets"][a[2]])
+    print(json.dumps({"path": a[2], "sha256": hashlib.sha256(b).hexdigest(), "bytes": len(b), "base64": db["assets"][a[2]]}))
 elif v == "export":
     rd = st + ".read.json"
     json.dump({"items": [root()] + outline()}, open(rd, "w"))
@@ -618,5 +639,65 @@ grep -q "create --title h1-sections" "$T/calls" && grep -q -- "--field attrs.h1_
   grep -q "add d0c --kind heading --level 2 --title 'What you hold'" "$T/calls" &&
   pass "SPL-2024: '# ' sections are level 1, the root gets attrs.no_title and attrs.h1_sections" ||
   fail "SPL-2024 h1 calls: $(cat "$T/calls")"
+
+# --- 22. SPL-2201: a page's pictures, <page>.assets/NN-name.ext ---------------------------------
+P="csi-spl-doc/doc/md/pics.md"
+mkdir -p "$R/csi-spl-doc/doc/md/pics.assets"
+printf '\x89PNG\r\n\x1a\n\x00\x01\xff\xfe binary \x00' >"$R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png"
+printf 'RIFF\x10\x00\x00\x00WEBPVP8 \x00\xff' >"$R/csi-spl-doc/doc/md/pics.assets/02-arch.webp"
+cp "$R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png" "$T/pic1.orig"
+cp "$R/csi-spl-doc/doc/md/pics.assets/02-arch.webp" "$T/pic2.orig"
+cat >"$R/$P" <<'EOF_MD'
+# Pictures
+
+The flow, before the sections:
+
+![Flow map](pics.assets/01-flow-map.png)
+
+## 1. The parts
+
+![The architecture](pics.assets/02-arch.webp "the boxes")
+
+The flow again: ![Flow map](pics.assets/01-flow-map.png).
+
+## 2. Not pictures of this page
+
+- A rule about posts: `![alt](url)` becomes a link.
+- A web picture: ![logo](https://example.com/logo.png).
+
+```md
+![in a fence](../img/never.png)
+```
+EOF_MD
+roundtrip "SPL-2201: a page with pictures round-trips, its links as written" "$P" "> $GEN
+>" 25
+[[ "$(grep -c '^asset-put ' <(calls))" == 2 ]] &&
+  grep -q "^asset-put d0c pics.assets/01-flow-map.png --file $R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png\$" <(calls) &&
+  grep -q "^asset-put d0c pics.assets/02-arch.webp --file $R/csi-spl-doc/doc/md/pics.assets/02-arch.webp\$" <(calls) &&
+  awk '/^asset-put / && !a { a = NR } /^add / { l = NR } END { exit !(a > l) }' <(calls) &&
+  pass "SPL-2201: each picture uploads once, after the sections; code span, fence and URL are text" ||
+  fail "SPL-2201 import calls: $(cat "$T/calls")"
+rm -f "$R/csi-spl-doc/doc/md/pics.assets/"*
+run do_spl_doctree_export_md QTO_MAP="$T/map.25" DT_STATE="$T/dt.25.json"
+cmp -s "$T/pic1.orig" "$R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png" &&
+  cmp -s "$T/pic2.orig" "$R/csi-spl-doc/doc/md/pics.assets/02-arch.webp" &&
+  grep -q 'pics.assets/01-flow-map.png written' "$T/o" && [[ $rc -eq 0 ]] &&
+  pass "SPL-2201: the export writes each picture back to its path, byte for byte" ||
+  fail "SPL-2201 export (rc=$rc): $(cat "$T/o")"
+touch -d '2001-01-01' "$R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png"
+run do_spl_doctree_export_md QTO_MAP="$T/map.25" DT_STATE="$T/dt.25.json"
+[[ $rc -eq 0 && "$(stat -c %Y "$R/csi-spl-doc/doc/md/pics.assets/01-flow-map.png")" == "$(date -d 2001-01-01 +%s)" ]] &&
+  grep -q 'pics.assets/01-flow-map.png unchanged' "$T/o" &&
+  pass "SPL-2201: an unchanged picture is not rewritten (mtime kept)" ||
+  fail "SPL-2201 export twice (rc=$rc): $(cat "$T/o")"
+for bad in '../img/a.png|is not bad.assets/NN-name.ext' 'other.assets/01-a.png|is not bad.assets/NN-name.ext' \
+  'bad.assets/Flow.png|is not bad.assets/NN-name.ext' 'bad.assets/01-missing.png|does not exist next to the page'; do
+  P="csi-spl-doc/doc/md/bad.md"
+  printf '# Bad\n\n## 1. Pic\n\n![x](%s)\n' "${bad%%|*}" >"$R/$P"
+  run do_spl_doctree_import_md MD_PATH="$P" DRY_RUN=0 QTO_MAP="$T/map.26" DT_STATE="$T/dt.26.json"
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -qF "${bad%%|*} ${bad#*|}" "$T/o" &&
+    pass "SPL-2201: import refuses the picture '${bad%%|*}', no spool call" ||
+    fail "SPL-2201 refuse '${bad%%|*}' (rc=$rc): $(cat "$T/o") / calls: $(cat "$T/calls")"
+done
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

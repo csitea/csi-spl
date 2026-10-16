@@ -24,6 +24,8 @@ type dtHub struct {
 	n     int
 	calls []string
 	fs    []string // each request's ?fs=
+	// assets: "<doc>/<path>" -> the picture's Content-Type and bytes (SPL-2201)
+	assets map[string][2]string
 }
 
 type dtDocRec struct {
@@ -103,6 +105,10 @@ func (h *dtHub) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/v1/workspace/doctree"), "/"), "/")
+	if len(parts) > 2 && parts[1] == "assets" {
+		h.serveAsset(w, r, parts[0]+"/"+strings.Join(parts[2:], "/"), b)
+		return
+	}
 	var in map[string]any
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		_ = json.Unmarshal(b, &in)

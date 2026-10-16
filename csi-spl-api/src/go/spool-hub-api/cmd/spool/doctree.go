@@ -39,6 +39,8 @@ import (
 //	doctree rename <doc> --title t [--rev n]
 //	doctree export <doc> [--item id] [--out f] [--from read.json]
 //	                                             Markdown, the WUI's export rules
+//	doctree asset-put <doc> <path> --file f      a picture under its md-relative path (doctree_assets.go)
+//	doctree asset-get <doc> <path>               it back, as JSON with the bytes in base64
 //
 // The item kinds of add (the WUI's model: an item is a heading; its body is
 // the paragraph text; its attrs carry one code block and one image):
@@ -70,7 +72,7 @@ const (
 	docTreeAPI      = "/v1/workspace/doctree"
 	docTreeRespMax  = 64 << 20 // a whole document of up to 20,000 items
 	docTreeImageMax = 5 << 20  // hub DocTreeImageMax
-	docTreeUsage    = "usage: spool doctree list|nodes|folder|create|head|read|add|edit|move|delete|rename|export ..."
+	docTreeUsage    = "usage: spool doctree list|nodes|folder|create|head|read|add|edit|move|delete|rename|export|asset-put|asset-get ..."
 )
 
 // dtItem is one item as the hub sends it.

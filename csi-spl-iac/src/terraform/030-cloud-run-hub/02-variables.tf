@@ -126,8 +126,23 @@ variable "environment_variables" {
 
 variable "secret_environment_variables" {
   type        = map(string)
-  description = "env var -> Secret Manager secret id (cnf hub.secret_env); injected at version latest."
+  description = "env var -> Secret Manager secret id (cnf hub.secret_env); injected at its secret_versions pin."
   default     = {}
+}
+
+# Cloud Run radar step 6 (SPL-2251): never `latest`. A revision reads the
+# version named here, so a version added out of band changes nothing until the
+# pin is raised in cnf and 030 is applied (rotation:
+# csi-spl-doc/doc/md/secret-rotation.md).
+variable "secret_versions" {
+  type        = map(string)
+  description = "Secret Manager secret id -> the version number the hub injects (cnf hub.secret_versions)."
+  default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.secret_versions) : can(regex("^[1-9][0-9]*$", v))])
+    error_message = "secret_versions values must be version numbers (1, 2, ...), never latest."
+  }
 }
 
 variable "cloud_sql_instance_name" {

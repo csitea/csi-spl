@@ -403,7 +403,10 @@ rc="$(go ID=c-946 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_RETRY=1)"
   ! grep -q 'RS-REPORT FAIL' "$D/rotate.log" &&
   pass "15. relay down: the REBORN line journaled (RS-REPORT QUEUED), not lost" || fail "15. queued rc=$rc: $(grep RS-REPORT "$D/rotate.log") $(ls "$Q" 2>&1)"
 rm -f "$T/relay.down"
-for _ in $(seq 100); do [[ -z "$(ls "$Q" 2>/dev/null)" ]] && grep -q REBORN "$T/sent" 2>/dev/null && break; sleep 0.1; done
+# The flush deletes its claim, then logs RS-REPORT OK: wait for that line too,
+# or an empty queue between the two reads as a missing OK (wf 10 38944967172).
+for _ in $(seq 100); do [[ -z "$(ls "$Q" 2>/dev/null)" ]] && grep -q REBORN "$T/sent" 2>/dev/null &&
+  grep -q 'rs-c-946 RS-REPORT OK' "$D/rotate.log" 2>/dev/null && break; sleep 0.1; done
 [[ -z "$(ls -A "$Q")" && "$(grep -c -- '--to orchestrator --kind note --task restart-c-946 --no-ask --body REBORN c-946@box1 #1 cause=rebirth' "$T/sent" 2>/dev/null)" == 1 ]] &&
   grep -q 'rs-c-946 RS-REPORT OK REBORN c-946@box1 #1 cause=rebirth handoff=.* (journaled [0-9]*s)$' "$D/rotate.log" &&
   pass "15. relay back: the resend loop delivers it once (RS-REPORT OK), the queue empty" || fail "15. resend: $(cat "$T/sent" 2>&1) $(grep RS-REPORT "$D/rotate.log") $(ls -A "$Q")"

@@ -77,6 +77,17 @@ _spool_bin_fallback() {  # BUILT
 # This file's own directory: its sibling libs (agent-identity.inc.sh) load from it.
 _SPOOL_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# spool_truth_rule: the truth rule, the FIRST sentence of every agent's seed
+# (owner HUM-10, t1 04d9c246 msg 3e1eb819: "a special mention at the very
+# beginning of the instruction to the agents"). Its one home is
+# assets/seed-truth-rule.txt; spawn-core, spawn-chain-core and both rotations
+# read it here. Prints it with no trailing newline.
+spool_truth_rule() {
+  local r=""
+  r="$(cat "${_SPOOL_ENV_LIB_DIR}/../assets/seed-truth-rule.txt" 2>/dev/null)" || true
+  printf '%s' "$r"
+}
+
 # specs/061 §0: the instant the legacy agent ids (CLE-/AGY-/GRK-/QWN-) stop
 # being accepted on a write path (owner, 2026-10-02 ~06:52Z: moved one day, to
 # 2026-10-03). A copy of the Go agentid.LegacyUntil, the source;

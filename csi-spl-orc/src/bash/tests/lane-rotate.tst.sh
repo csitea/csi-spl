@@ -336,7 +336,8 @@ check "14. old session gone without a signal" 'grep -q "lane-c-941 DONE OK" "$D/
 # --- 15. the ACK-COMMAND is in the first prompt, on top -----------------------
 reset; lane c-951 50
 tick
-check "15. first prompt: ACK-COMMAND line, run it before anything else" 'grep -q "^ACK-COMMAND: .*ROTATE_ID=[0-9]*T[0-9]*Z-lane-c-951 ID=c-951 ./run -a do_spl_lane_rotate$" "$T/prompt.c-951" && head -c 400 "$T/prompt.c-951" | grep -q "run it before anything else"'
+# 700: 400 + the truth rule (284 B, SPL-2097) that now leads the head
+check "15. first prompt: ACK-COMMAND line, run it before anything else" 'grep -q "^ACK-COMMAND: .*ROTATE_ID=[0-9]*T[0-9]*Z-lane-c-951 ID=c-951 ./run -a do_spl_lane_rotate$" "$T/prompt.c-951" && head -c 700 "$T/prompt.c-951" | grep -q "run it before anything else"'
 check "15. first prompt: the same ack as the seed, which keeps it" '[ "$(grep "^ACK-COMMAND:" "$T/prompt.c-951")" = "$(grep "^ACK-COMMAND:" "$T/seed.c-951")" ] && grep -q "$D/handoff/.*-lane-c-951.seed.md" "$T/prompt.c-951"'
 check "15. acked from the first prompt alone: DONE" 'grep -q "lane-c-951 DONE OK" "$D/rotate.log"'
 
@@ -365,7 +366,8 @@ P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"; pr
 ( unset SPOOL_BOX_ENV; SPOOL_ROOT="$T/spool15" SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$P15" SPOOL_BIN=/opt/x/spool \
   SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD_FILE="$T/head15.md" \
   bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" c-952 "$T/plain15" "$T/brief15.md" rotate >"$P15/out" 2>&1 )
-check "15. spawn-core: SPAWN_PROMPT_HEAD_FILE is the first line of prompt.txt, the seed follows" '[ "$(head -n1 "$P15/prompt.txt" 2>/dev/null)" = "HEAD15 run it before anything else" ] && grep -q "^ACK-COMMAND: x$" "$P15/prompt.txt" && grep -q "read your full task brief at $T/brief15.md" "$P15/prompt.txt"'
+# the truth rule (SPL-2097) leads every seed, ahead of a head that lacks it
+check "15. spawn-core: the truth rule, then SPAWN_PROMPT_HEAD_FILE, lead prompt.txt, the seed follows" '[ "$(head -n1 "$P15/prompt.txt" 2>/dev/null)" = "$(cat "$PROJ_ROOT/src/bash/features/spawn-agents/assets/seed-truth-rule.txt")" ] && [ "$(sed -n 3p "$P15/prompt.txt" 2>/dev/null)" = "HEAD15 run it before anything else" ] && grep -q "^ACK-COMMAND: x$" "$P15/prompt.txt" && grep -q "read your full task brief at $T/brief15.md" "$P15/prompt.txt"'
 # the real spawn-window starts the launcher in the pane with an env allowlist:
 # the head file must be on it (a live rotation on 2026-10-11 22:25Z lost it there)
 check "15. spawn-window forwards SPAWN_PROMPT_HEAD_FILE into the pane" 'sed -n "/^for v in SPOOL_ROOT /,/; do\$/p" "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" | grep -qw SPAWN_PROMPT_HEAD_FILE'

@@ -50,6 +50,9 @@ declare -F spl_lease_init >/dev/null ||
 SPL_ROTATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -F spool_start_check >/dev/null ||
   source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/start-check.inc.sh"
+# the truth rule that leads both rotation heads (SPL-2097)
+declare -F spool_truth_rule >/dev/null ||
+  source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/spool-env.inc.sh"
 
 # ---- settings ----------------------------------------------------------------
 
@@ -937,8 +940,8 @@ spl_rotate_spawn() {
 # rotation does (spl_lane_rotate_prompt_head): a pointer to the seed was not
 # enough, n=4 new sessions on 2026-10-11 never opened it and never acked.
 spl_rotate_prompt_head() {
-  printf 'ROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your role brief and the handoff) and continue.' \
-    "$ROTATE_RID" "$1" "$2" "$3"
+  printf '%s\n\nROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your role brief and the handoff) and continue.' \
+    "$(spool_truth_rule)" "$ROTATE_RID" "$1" "$2" "$3"
 }
 
 # spl_rotate_spawn_head ID SEED ACK: spl_rotate_spawn with the ack line in

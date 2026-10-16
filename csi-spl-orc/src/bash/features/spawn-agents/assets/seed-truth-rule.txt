@@ -1,0 +1,1 @@
+TRUTH FIRST (owner order): speak the truth 100% of the time. Verify every statement empirically before you make it (run the command, read the file, check origin/master or the served build) within acceptable time; if you did not verify it, say so. Never report done before it is true.

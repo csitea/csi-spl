@@ -311,7 +311,14 @@ spawn_record_brief() {  # MSGDIR BRIEF
 _spawn_seed_file() {
   PROMPT_ESC=""; SEED_FILE="${MSGDIR}/lifetime/prompt.txt"
   [ -n "$PROMPT" ] || return 0
-  [ ! -s "${SPAWN_PROMPT_HEAD_FILE:-}" ] || PROMPT="$(cat "$SPAWN_PROMPT_HEAD_FILE")"$'\n\n'"${PROMPT}"
+  if [ -s "${SPAWN_PROMPT_HEAD_FILE:-}" ]; then
+    # the truth rule (SPL-2097) leads every seed, once: ahead of a head that
+    # lacks it, and not a second time from the seed after the head
+    local rule head
+    rule="$(spool_truth_rule)"; head="$(cat "$SPAWN_PROMPT_HEAD_FILE")"
+    [ -z "$rule" ] || [[ "$head" == "$rule"* ]] || head="${rule}"$'\n\n'"${head}"
+    PROMPT="${head}"$'\n\n'"${PROMPT#"$rule "}"
+  fi
   if ! _sp_live; then
     [ -n "${SPAWN_PLAN_DIR:-}" ] && SEED_FILE="${SPAWN_PLAN_DIR}/prompt.txt"
   else
@@ -424,7 +431,7 @@ spawn_main() {
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

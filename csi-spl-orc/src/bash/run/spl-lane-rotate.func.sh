@@ -666,8 +666,8 @@ spl_lane_rotate_ack_cmd() {
 # the seed was not enough: n=4 new sessions on 2026-10-11 never opened the
 # seed and never acked (msg 1764e609).
 spl_lane_rotate_prompt_head() {
-  printf 'ROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your task brief and the handoff) and continue.' \
-    "$ROTATE_RID" "$1" "$(spl_lane_rotate_ack_cmd "$1")" "$2"
+  printf '%s\n\nROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your task brief and the handoff) and continue.' \
+    "$(spool_truth_rule)" "$ROTATE_RID" "$1" "$(spl_lane_rotate_ack_cmd "$1")" "$2"
 }
 
 # spl_lane_rotate_seed ID OUT: the new session's brief: its task brief

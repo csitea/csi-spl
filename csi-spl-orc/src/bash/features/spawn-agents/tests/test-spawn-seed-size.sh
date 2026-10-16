@@ -44,7 +44,8 @@ for k in claude grok agy qwen mistral; do
   # 8400: +200 for the ACCEPTED-gated exit line (SPAWN_EXIT_RULE, owner msg 3b4d2cb9)
   # 8500: +100 for the lane-map exit 4 ('unknown:' lanes are not free, c-904 follow-up)
   # 8650: +150 for INTEGRATION (4): push with do_spl_push_master and poll (SPL-1578, mistral 8609)
-  check "$k: seed is at most 8650 bytes at the live paths (got $n)" [ "$n" -le 8650 ]
+  # 8935: +285 for the truth rule that opens every seed (assets/seed-truth-rule.txt + its space, SPL-2097, owner msg 3e1eb819)
+  check "$k: seed is at most 8935 bytes at the live paths (got $n)" [ "$n" -le 8935 ]
   has "$k: the sized seed carries STEP 0" "STEP 0, before any edit" "$prompt"
   hasnt "$k: the sized seed carries no checkout path" "$T_ROOT/" "$norm"
   for r in 1 2 3 4 5 6 7 8 a b c d e; do

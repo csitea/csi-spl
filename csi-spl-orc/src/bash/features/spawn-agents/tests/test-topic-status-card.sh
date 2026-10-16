@@ -124,6 +124,9 @@ has "edited card: an as-of line" "_as of " "$(cat "$T_TMP/last-edit.md")"
 tick >/dev/null
 eq "served cached: no deploy probe again" 0 "$(wc -l <"$T_TMP/lag.log" | tr -d ' ')"
 eq "served cached: no hub call" 0 "$(calls)"
+git -C "$G" update-ref refs/remotes/origin/master HEAD~1
+has "landed cached: no history walk once landed" "| \`${sha:0:12}\` | yes | yes |" "$(tick --print)"
+git -C "$G" update-ref refs/remotes/origin/master HEAD
 
 # 7. A source that cannot be read touches no card.
 put_issues blocked

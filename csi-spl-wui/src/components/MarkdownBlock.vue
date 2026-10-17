@@ -65,7 +65,7 @@ function pageHrefNow() {
 function labelFor(href: string, written: string) {
   const m = labelMod.value
   if (!m || !m.linkTextIsAddress(written)) return null
-  return m.appLinkLabel(href, m.appLinkLabelContext(pageHrefNow(), pub))
+  return m.appLinkLabel(href, m.appLinkLabelContext(pageHrefNow(), pub, session.claims))
 }
 
 const tree = shallowRef<MdNode[] | null>(null)

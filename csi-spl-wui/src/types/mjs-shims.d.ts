@@ -1454,8 +1454,9 @@ declare module '~/utils/app-link-label.mjs' {
   export type AppLinkLabel = { segments: AppLinkSegment[], text: string, title: string }
   export function linkTextIsAddress(text: string): boolean
   export function formatAppLinkSegments(segments: AppLinkSegment[]): string
-  export function appLinkLabelContext(pageHref: string, pub?: { tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }): { pageHref: string, siteUrl: string, apexTenant: string }
-  export function appLinkLabel(href: string, ctx: { pageHref: string, siteUrl?: string, apexTenant?: string }): AppLinkLabel | null
+  export function tenantNamesOf(claims: unknown): Record<string, string>
+  export function appLinkLabelContext(pageHref: string, pub?: { tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }, claims?: unknown): { pageHref: string, siteUrl: string, apexTenant: string, tenantNames: Record<string, string> }
+  export function appLinkLabel(href: string, ctx: { pageHref: string, siteUrl?: string, apexTenant?: string, tenantNames?: Record<string, string> }): AppLinkLabel | null
   export function labelEvent(label: AppLinkLabel | null | undefined): { id: string, day: string } | null
   export function eventChipText(label: AppLinkLabel, title?: string): string
   export function withShortTimes(runs: { text: string, iso?: string }[], at: unknown): { text: string, iso?: string, dt?: string }[]

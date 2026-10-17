@@ -123,3 +123,17 @@ export in `csi-spl-orc/src/bash/tests/doctree-export-md.tst.sh` case 20.
 ## 6. Out of scope
 
 The doc editor itself, the DevOps guide, links into the grid view.
+
+## 7. A link to another workspace names it (SPL-2421)
+
+Owner HUM-10, t1 cf09a010 (2026-10-17): "the links to other workspaces
+should use their real names from the drop down ... and NOT the t1 aka tenant
+id's". A pasted URL of another workspace of this env reads
+`workspace: <display name> · message: <8 hex>` (or `topic:`, `channel:` ...),
+the name the workspace drop-down shows: `display_name`, else `name`, of the
+viewer's own memberships (`claims.tenants`). A workspace the viewer is not a
+member of keeps its tenant id, so no name the viewer cannot see leaks. Typed
+`msg:<uuid>` / `topic:<uuid>` tokens keep their own text and print no
+workspace. Code: `csi-spl-wui/src/utils/app-link-label.mjs`
+(`tenantNamesOf`); tests: `tests/unit/app-link-label.test.mjs`
+("workspace display names"), `tests/e2e/workspace-link-names.test.mjs`.

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { appLinkLabel, appLinkLabelContext, eventChipText, formatAppLinkSegments, labelEvent, linkTextIsAddress } from '../../src/utils/app-link-label.mjs'
+import { appLinkLabel, appLinkLabelContext, eventChipText, tenantNamesOf, formatAppLinkSegments, labelEvent, linkTextIsAddress } from '../../src/utils/app-link-label.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -105,7 +105,7 @@ describe('app link labels', () => {
 
   it('the context reads the runtime site only while tenant hosts are on', () => {
     assert.deepEqual(appLinkLabelContext('https://app.example/x', { tenantHosts: '0', siteUrl: SITE, tenant: APEX }), {
-      pageHref: 'https://app.example/x', siteUrl: '', apexTenant: APEX,
+      pageHref: 'https://app.example/x', siteUrl: '', apexTenant: APEX, tenantNames: {},
     })
     assert.equal(appLinkLabelContext('https://app.example/x', { tenantHosts: '1', siteUrl: SITE, tenant: APEX }).siteUrl, SITE)
   })
@@ -128,6 +128,60 @@ describe('app link labels', () => {
     const mailDomain = ['csitea', 'net'].join('.')
     const forbid = [productHost, mailDomain].join('|').replace(/\./g, '\\.')
     assert.doesNotMatch(read('src/utils/app-link-label.mjs'), new RegExp(forbid))
+  })
+})
+
+/* owner t1 cf09a010: another workspace reads by its drop-down name, never its tenant id */
+describe('workspace display names', () => {
+  const claims = {
+    tenants: [
+      { tenant_id: 't1', display_name: 'spool-hub' },
+      { tenant_id: 'csitea', display_name: 'csitea' },
+      { tenant_id: 'csi-rel', display_name: '', name: 'relishbg' },
+    ],
+  }
+  const named = (pageHref) => appLinkLabelContext(pageHref, { tenantHosts: '1', siteUrl: SITE, tenant: APEX }, claims)
+
+  it('the names are the drop-down rows: display_name, else name', () => {
+    assert.deepEqual(tenantNamesOf(claims), { t1: 'spool-hub', csitea: 'csitea', 'csi-rel': 'relishbg' })
+    assert.deepEqual(tenantNamesOf(null), {})
+    assert.deepEqual(tenantNamesOf({ tenants: [{ tenant_id: 'x' }] }), {})
+  })
+
+  it('a message on the apex workspace reads spool-hub, not t1', () => {
+    const href = `https://app.example/channel/spool-hub-bugs?topic=${TOPIC}#${MSG}`
+    const lab = appLinkLabel(href, named('https://csi-rel.app.example/channel/rel-csi-fina'))
+    assert.equal(lab && lab.text, 'workspace: spool-hub' + DOT + 'message: ab12cd34')
+    assert.deepEqual(lab && lab.segments[0], { kind: 'workspace', value: 'spool-hub', id: 't1' })
+    assert.equal(lab && lab.title, href)
+  })
+
+  it('a workspace whose display name is empty reads its name', () => {
+    const lab = appLinkLabel(`https://csi-rel.app.example/t/${TOPIC}`, named(APEX_PAGE))
+    assert.equal(lab && lab.text, 'workspace: relishbg' + DOT + 'topic: 41261a3f')
+  })
+
+  it('a workspace the viewer is not a member of keeps its id (no hidden name)', () => {
+    const lab = appLinkLabel(`https://stranger.app.example/t/${TOPIC}`, named(APEX_PAGE))
+    assert.equal(lab && lab.text, 'workspace: stranger' + DOT + 'topic: 41261a3f')
+    assert.deepEqual(lab && lab.segments[0], { kind: 'workspace', value: 'stranger' })
+  })
+
+  it('the same workspace still has no workspace segment', () => {
+    const lab = appLinkLabel(`https://app.example/t/${TOPIC}`, named(APEX_PAGE))
+    assert.equal(lab && lab.text, 'topic: 41261a3f')
+  })
+
+  it('an event chip of another workspace carries the name too', () => {
+    const lab = appLinkLabel('https://app.example/calendar?d=2026-10-12&event=00000000-0000-4000-8000-000000000102', named(PAGE))
+    assert.ok(lab)
+    assert.equal(eventChipText(lab, 'Standup'), 'workspace: spool-hub' + DOT + 'event: Standup' + DOT + '2026-10-12')
+  })
+
+  it('both renderers pass the session claims', () => {
+    for (const rel of ['src/components/MessageRuns.vue', 'src/components/MarkdownBlock.vue']) {
+      assert.match(read(rel), /appLinkLabelContext\(\w+\(\), pub, session\.claims\)/)
+    }
   })
 })
 

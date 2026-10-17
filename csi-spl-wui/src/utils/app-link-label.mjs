@@ -4,7 +4,12 @@
  * A bare address of a known route renders as `topic: 41261a3f`,
  * `channel: spool-hub`, `message: ab12cd34`, and the same for the other
  * object routes. A different workspace of this env is a segment in front:
- * `workspace: csitea · topic: 41261a3f`. The anchor keeps the full URL as
+ * `workspace: csitea · topic: 41261a3f`. The workspace reads by its display
+ * name, as the workspace drop-down shows it (owner t1 cf09a010: "their real
+ * names from the drop down ... and NOT the t1 aka tenant id's"): the name
+ * comes from the viewer's own memberships (claims.tenants), so a workspace
+ * the viewer is not a member of keeps its id and no hidden name leaks.
+ * The anchor keeps the full URL as
  * its href and its title. An external URL, and an app URL whose path is
  * not one of those routes, stays as written (this function returns null).
  *
@@ -33,6 +38,7 @@ const ONE = {
 
 /**
  * @typedef {'instance' | 'workspace' | 'type'} AppLinkSegmentKind
+ * A workspace segment's `id` is its tenant id, set when `value` is a name.
  * @typedef {{ kind: AppLinkSegmentKind, value: string, id?: string, ref?: string }} AppLinkSegment
  * @typedef {{ segments: AppLinkSegment[], text: string, title: string }} AppLinkLabel
  */
@@ -58,18 +64,41 @@ export function formatAppLinkSegments(segments) {
 }
 
 /**
+ * Tenant id -> display name of the viewer's memberships, the rows the
+ * workspace drop-down lists (tenant-switcher.mjs tenantSwitchOptions:
+ * display_name, else name). An id with no name is left out.
+ * @param {unknown} claims
+ * @returns {Record<string, string>}
+ */
+export function tenantNamesOf(claims) {
+  const c = claims && typeof claims === 'object' ? /** @type {{ tenants?: unknown }} */ (claims) : {}
+  const str = (v) => (typeof v === 'string' ? v.trim() : '')
+  /** @type {Record<string, string>} */
+  const out = {}
+  for (const t of Array.isArray(c.tenants) ? c.tenants : []) {
+    const id = t && typeof t === 'object' ? str(t.tenant_id).toLowerCase() : ''
+    const name = id ? str(t.display_name) || str(t.name) : ''
+    if (name && !Object.prototype.hasOwnProperty.call(out, id)) out[id] = name
+  }
+  return out
+}
+
+/**
  * The runtime public config, as the label sees it. Tenant hosts off means
- * no other workspace: only this page's own origin is this app.
+ * no other workspace: only this page's own origin is this app. `claims`
+ * (the session's) names the workspaces the viewer is a member of.
  * @param {string} pageHref
  * @param {{ tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }} [pub]
+ * @param {unknown} [claims]
  */
-export function appLinkLabelContext(pageHref, pub) {
+export function appLinkLabelContext(pageHref, pub, claims) {
   const p = pub && typeof pub === 'object' ? pub : {}
   const hostsOn = String(p.tenantHosts || '0') === '1'
   return {
     pageHref: String(pageHref || ''),
     siteUrl: hostsOn ? String(p.siteUrl || '') : '',
     apexTenant: String(p.tenant || ''),
+    tenantNames: tenantNamesOf(claims),
   }
 }
 
@@ -160,7 +189,7 @@ function objectOf(u) {
   return null
 }
 
-function workspaceName(linkUrl, pageUrl, site, apex) {
+function workspaceId(linkUrl, pageUrl, site, apex) {
   if (!site || linkUrl.origin === pageUrl.origin) return ''
   if (!isTenantHostOf(linkUrl.href, site) || !isTenantHostOf(pageUrl.href, site)) return ''
   const linkT = pageTenant(linkUrl.hostname, site, apex)
@@ -172,7 +201,7 @@ function workspaceName(linkUrl, pageUrl, site, apex) {
 /**
  * The short label for an app URL, or null when the text should stay.
  * @param {string} href
- * @param {{ pageHref: string, siteUrl?: string, apexTenant?: string }} ctx
+ * @param {{ pageHref: string, siteUrl?: string, apexTenant?: string, tenantNames?: Record<string, string> }} ctx
  * @returns {AppLinkLabel | null}
  */
 export function appLinkLabel(href, ctx) {
@@ -199,8 +228,13 @@ export function appLinkLabel(href, ctx) {
   if (!obj) return null
   /** @type {AppLinkSegment[]} */
   const segments = []
-  const ws = workspaceName(u, page, site, apex)
-  if (ws) segments.push({ kind: 'workspace', value: ws })
+  const ws = workspaceId(u, page, site, apex)
+  if (ws) {
+    const names = ctx && ctx.tenantNames
+    const key = ws.toLowerCase()
+    const name = names && Object.prototype.hasOwnProperty.call(names, key) ? String(names[key] || '') : ''
+    segments.push(name && name !== ws ? { kind: 'workspace', value: name, id: ws } : { kind: 'workspace', value: ws })
+  }
   segments.push(obj.ref ? { kind: 'type', value: obj.type, id: obj.id, ref: obj.ref } : { kind: 'type', value: obj.type, id: obj.id })
   const text = formatAppLinkSegments(segments)
   if (!text) return null

@@ -117,7 +117,7 @@ function hrefOf(href?: string): string | undefined {
 function labelOf(href?: string, text?: string) {
   const m = labelMod.value
   if (!m || !href || !text || !m.linkTextIsAddress(text)) return null
-  return m.appLinkLabel(href, m.appLinkLabelContext(hrefNow(), pub))
+  return m.appLinkLabel(href, m.appLinkLabelContext(hrefNow(), pub, session.claims))
 }
 
 /* a phone drops the click on a link inside the card; pointerup still fires

@@ -119,12 +119,15 @@ spl_spawn_group_ask_id() {  # FLEET EPIC SLUG
 
 # The group with each row's state read from the hub's asks (all states), the
 # issues of its epic and the live lanes; ISSUES or LANES "null" = not read
-# (a placed row then counts as running). Adds .counts and .free.
+# (a placed row then counts as running). Adds .counts and .free. The hub's
+# lists go to jq as files, never argv: one argument holds at most 128 KiB
+# (MAX_ARG_STRLEN), and the real asks list is larger (SPL-2428).
 spl_spawn_group_state() {  # GROUP ASKS ISSUES LANES
-  jq -c --argjson asks "$2" --argjson issues "$3" --argjson lanes "$4" --argjson now "${SPAWN_GROUP_NOW:-$(date -u +%s)}" \
-    --argjson grace "$(( ${SPAWN_GROUP_GRACE_MIN:-15} * 60 ))" '
+  jq -c --slurpfile asks <(printf '%s' "$2") --slurpfile issues <(printf '%s' "$3") --slurpfile lanes <(printf '%s' "$4") \
+    --argjson now "${SPAWN_GROUP_NOW:-$(date -u +%s)}" --argjson grace "$(( ${SPAWN_GROUP_GRACE_MIN:-15} * 60 ))" '
     def secs: if . == null or . == "" then null else (sub("\\.[0-9]+"; "") | fromdateiso8601) end;
-    ($asks | map({key: .ask_id, value: .}) | from_entries) as $a
+    ($asks[0] // []) as $asks | $issues[0] as $issues | $lanes[0] as $lanes
+    | ($asks | map({key: .ask_id, value: .}) | from_entries) as $a
     | (if $issues == null then null else ($issues | map({key: .key, value: .status}) | from_entries) end) as $is
     | (if $lanes == null then null else [$lanes[] | "\(.id)@\(.box)"] end) as $live
     | .rows |= map(. as $r | ($a[$r.ask_id] // null) as $k | (if $is == null then null else $is[$r.issue] end) as $st

@@ -27,6 +27,10 @@
 #   9. the stall check: a group with waiting rows and fewer than N in
 #      flight for EPIC_STALL_IDLE_MIN gets ONE blocker (CONTROL: a group
 #      with its width in flight gets none)
+#  10. a hub with > 200 KiB of asks (SPL-2428; sat 2026-10-17, "jq: Argument
+#      list too long"): the list shows the group's rows and the placer feeds
+#      them; a state that cannot be read says "state not read: <why>", not
+#      "not a work group file"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -348,6 +352,29 @@ grep -q "work group SPL-8100: 1 of width 1 in flight, 0 waiting" <<<"$out" && ! 
 on st do_spl_epic_stall_check DRY_RUN=0 EPIC_STALL_NOW="$((NOW + 40 * 60))" >/dev/null
 [[ "$(grep -c 'blocker' "$T/st/send.log")" == 1 ]] && pass "stall check: one blocker per group per EPIC_STALL_REPEAT_H" ||
   fail "stall repeat: $(cat "$T/st/send.log")"
+
+# 10. a large hub list ---------------------------------------------------------------------------
+menv big >/dev/null
+python3 -c '
+import json, time
+t = time.time() - 86400
+print(json.dumps([{"ask_id": "d%07d-0000-4000-8000-%012d" % (n, n), "role": "orch", "kind": "task", "from": "c-002@box-desk",
+  "topic": "t", "summary": "SPAWN REQUEST old lane %d " % n + "x" * 600, "state": "done", "acked_by": "", "closed_by": "c-001@box-desk",
+  "reason": "placed: c-9%02d@box-desk" % (n % 100), "raised_n": 0, "placement": "", "writer_box": "box-desk", "c": t, "u": t}
+  for n in range(1, 401)]))' >"$T/hub-big/main.json"
+kib=$(( $(stat -c %s "$T/hub-big/main.json") / 1024 ))
+rows "bug claude:g-one SPL-2152" "bug claude:g-two SPL-2153" "bug claude:g-three SPL-2154"
+on big do_spl_spawn_group_put GROUP_EPIC=SPL-2151 GROUP_WIDTH=2 GROUP_ROWS="$T/rows.txt" >/dev/null
+out="$(on big do_spl_spawn_group_list)"
+(( kib > 200 )) && grep -q "GROUP SPL-2151 width 2: 0 done, 0 running, 0 in line, 3 waiting" <<<"$out" && ! grep -q "Argument list too long" <<<"$out" &&
+  pass "a hub with ${kib} KiB of asks: the list shows the group's 3 rows (no 'Argument list too long')" || fail "big list (${kib} KiB): $out"
+out="$(on big do_spl_spawn_place)"
+[[ "$(launched big)" == "g-one " && "$(jq -r '.groups[0] | "\(.counts.running) \(.counts.queued) \(.counts.waiting)"' <<<"$(gstate big SPL-2151)")" == "1 1 1" ]] &&
+  ! grep -qE "Argument list too long|not fed this tick" <<<"$out" &&
+  pass "a hub with ${kib} KiB of asks: the placer feeds rows 1-2 and places row 1" || fail "big feed: $(launched big) | $out"
+out="$(on big 'spl_spawn_group_state() { echo "jq: boom" >&2; return 2; }; do_spl_spawn_group_list')"
+grep -q "WARN SPL-2151.json: state not read: jq: boom" <<<"$out" && ! grep -q "not a work group file" <<<"$out" &&
+  pass "a state that cannot be read: the list says 'state not read: <why>', not 'not a work group file'" || fail "state not read: $out"
 
 if [[ $fails -gt 0 ]]; then echo "FAILED: $fails"; exit 1; fi
 echo "ALL PASS"

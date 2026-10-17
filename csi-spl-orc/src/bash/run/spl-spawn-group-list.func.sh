@@ -15,7 +15,7 @@
 # @example GROUP_EPIC=SPL-2151 GROUP_FORMAT=json ./run -a do_spl_spawn_group_list
 
 do_spl_spawn_group_list() {
-  local fmt="${GROUP_FORMAT:-table}" dir f asks st all='[]' live=1
+  local fmt="${GROUP_FORMAT:-table}" dir f g asks st err all='[]' live=1
   [[ "$fmt" =~ ^(table|json)$ ]] || { do_log "FATAL GROUP_FORMAT must be table or json"; return 1; }
   [[ -z "${GROUP_EPIC:-}" || "$GROUP_EPIC" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || { do_log "FATAL GROUP_EPIC must be an epic key, e.g. SPL-2151"; return 1; }
   [[ "${GROUP_LIVE:-1}" == 0 ]] && live=0
@@ -24,8 +24,13 @@ do_spl_spawn_group_list() {
   asks="$(spl_asks_hub_list)" || { do_log "FATAL the hub did not answer: a group's state is read from its asks"; return 1; }
   for f in "$dir"/${GROUP_EPIC:-*}.json; do
     [[ -r "$f" ]] || continue
-    st="$(spl_spawn_group_read "$(jq -c . "$f")" "$asks" "$live")" || { do_log "WARN ${f##*/}: not a work group file"; continue; }
-    all="$(jq -c --argjson s "$st" '. + [$s]' <<<"$all")"
+    g="$(jq -c 'select(.epic and .width and (.rows | type) == "array")' "$f" 2>/dev/null)"
+    [[ -n "$g" ]] || { do_log "WARN ${f##*/}: not a work group file"; continue; }
+    err="$(mktemp)"
+    st="$(spl_spawn_group_read "$g" "$asks" "$live" 2>"$err")" ||
+      { do_log "WARN ${f##*/}: state not read: $(grep . "$err" | tail -1 | cut -c1-200)"; rm -f "$err"; continue; }
+    rm -f "$err"
+    all="$(jq -c --slurpfile s <(printf '%s' "$st") '. + $s' <<<"$all")"
   done
   if [[ "$fmt" == json ]]; then
     jq -c '{groups: .}' <<<"$all"

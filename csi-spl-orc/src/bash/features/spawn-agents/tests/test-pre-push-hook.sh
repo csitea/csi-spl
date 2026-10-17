@@ -53,10 +53,19 @@ chmod +x "$REPO/csi-spl-iac/run"
 git -C "$REPO" init -q
 echo seed >"$REPO/seed"; git -C "$REPO" add -A; git -C "$REPO" commit -qm seed
 
+# git pipes the ref lines into the hook; its `cat` must never read this test's
+# own stdin (an idle terminal hangs it forever, SPL-2458). Every hook call gets
+# them explicitly: a push of a new lane branch (not trunk, not wip/*), so the
+# gate runs as usual and the non-ff guard has nothing to refuse.
+ZERO=0000000000000000000000000000000000000000
+lane_refs() {  # <repo> -> one ref line for a push of its HEAD to a new branch
+  printf 'refs/heads/lane %s refs/heads/lane %s\n' "$(git -C "$1" rev-parse HEAD 2>/dev/null)" "$ZERO"
+}
+
 # Run the hook with CWD at the repo top (as git does), an isolated log/stamp dir.
 run_hook() {  # <logdir> [env assignments...]
   local ld="$1"; shift
-  ( cd "$REPO" && env "$@" SPL_PREPUSH_LOG_DIR="$ld" bash "$HOOK" origin file://x >/dev/null 2>&1 )
+  ( cd "$REPO" && lane_refs "$REPO" | env "$@" SPL_PREPUSH_LOG_DIR="$ld" bash "$HOOK" origin file://x >/dev/null 2>&1 )
 }
 
 # 1. gate passes
@@ -91,7 +100,7 @@ run_hook "$L" STUB_FAIL=1; eq "4. CONTROL: same tree after a pass, gate now fail
 NS="$ROOT/nonspool"; git -C . init -q "$NS" >/dev/null 2>&1 || git init -q "$NS"
 git -C "$NS" -c user.email=t@t -c user.name=t commit -q --allow-empty -m x
 L="$ROOT/l5"
-( cd "$NS" && env SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
+( cd "$NS" && lane_refs "$NS" | env SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
 eq "5. not the spool tree -> exit 0 (fail-open)" 0 "$?"
 
 # --- installer: config-free common-hooks-dir install -------------------------
@@ -141,9 +150,9 @@ eq "9. it did NOT enable worktreeConfig (no bare landmine)" "" \
 
 # 11. the hook REFUSES when the common config is poisoned with core.worktree
 git -C "$REPO" config core.worktree /somewhere/else
-( cd "$REPO" && bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. poisoned common core.worktree -> hook refuses (exit 1)" 1 "$?"
+( cd "$REPO" && lane_refs "$REPO" | bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. poisoned common core.worktree -> hook refuses (exit 1)" 1 "$?"
 # ... but the override still lets a fixer through
-( cd "$REPO" && env SPL_PREPUSH_OVERRIDE=1 bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. ... override still escapes the poison" 0 "$?"
+( cd "$REPO" && lane_refs "$REPO" | env SPL_PREPUSH_OVERRIDE=1 bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. ... override still escapes the poison" 0 "$?"
 git -C "$REPO" config --unset-all core.worktree 2>/dev/null || true
 
 # 12. REGRESSION (git-env leak): git invokes the hook with GIT_DIR/GIT_INDEX_FILE
@@ -170,7 +179,7 @@ rm -rf "$tmp"
 exit 0
 EOF
 chmod +x "$GR/csi-spl-iac/run"
-( cd "$GR" && env GIT_DIR="$GR/.git" GIT_INDEX_FILE="$GR/.git/index" SPL_PREPUSH_LOG_DIR="$ROOT/l12" \
+( cd "$GR" && lane_refs "$GR" | env GIT_DIR="$GR/.git" GIT_INDEX_FILE="$GR/.git/index" SPL_PREPUSH_LOG_DIR="$ROOT/l12" \
     bash "$HOOK" origin file://x >/dev/null 2>&1 )
 eq "12. gate through the hook leaves the pushing branch HEAD untouched" "$before" "$(git -C "$GR" rev-parse HEAD)"
 [ "$(git -C "$GR" config --get core.bare 2>/dev/null)" != true ] \
@@ -189,7 +198,7 @@ STUB
 chmod +x "$R13/csi-spl-iac/run"
 git init -q "$R13"; git -C "$R13" add -A; git -C "$R13" commit -qm c13
 L="$ROOT/l13"
-( cd "$R13" && env SEEN="$ROOT/seen13" SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
+( cd "$R13" && lane_refs "$R13" | env SEEN="$ROOT/seen13" SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
 eq "13. gate passes -> exit 0" 0 "$?"
 eq "13. the gate got the log, the cache, tier=fast and mode=fast" \
   "log=$L/pre-push.log cache=$L/pre-push.parts.green tier=fast mode=fast" "$(cat "$ROOT/seen13" 2>/dev/null)"

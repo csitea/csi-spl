@@ -15,7 +15,9 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
-const MERGES_COMPILED = 'src/plugins/i18n-more.client.ts'
+// the second catalogue's two loaders: the browser's, and the server's for the
+// prerendered documents (SPL-2417)
+const MERGES_COMPILED = ['src/plugins/i18n-more.client.ts', 'src/plugins/i18n-more.server.ts']
 
 function files(dir, out = []) {
   for (const n of readdirSync(dir)) {
@@ -39,7 +41,7 @@ describe('vue-i18n runtime-only', () => {
     const bad = []
     for (const f of files(join(WUI, 'src'))) {
       const rel = f.slice(WUI.length + 1)
-      if (rel === MERGES_COMPILED) continue
+      if (MERGES_COMPILED.includes(rel)) continue
       const src = readFileSync(f, 'utf8')
       if (/\b(setLocaleMessage|mergeLocaleMessage)\s*\(/.test(src)) bad.push(rel)
     }
@@ -48,11 +50,13 @@ describe('vue-i18n runtime-only', () => {
 
   // Perf round 3, P3-06: the one merge, of the second catalogue, which the
   // build writes already compiled (src/node/i18n/split-catalogue.mjs).
-  it('the catalogue-split loader merges only the build-compiled second catalogues', () => {
-    const src = readFileSync(join(WUI, MERGES_COMPILED), 'utf8')
-    assert.match(src, /import\.meta\.glob<[^>]*>\('\.\.\/\.\.\/i18n\/\.split\/more\/\*\.mjs'\)/)
-    assert.equal([...src.matchAll(/\bmergeLocaleMessage\s*\(/g)].length, 1)
-    assert.match(src, /mergeLocaleMessage\(code, m\.default\)/)
+  it('the catalogue-split loaders merge only the build-compiled second catalogues', () => {
+    for (const f of MERGES_COMPILED) {
+      const src = readFileSync(join(WUI, f), 'utf8')
+      assert.match(src, /import\.meta\.glob<[^>]*>\('\.\.\/\.\.\/i18n\/\.split\/more\/\*\.mjs'\)/, f)
+      assert.equal([...src.matchAll(/\bmergeLocaleMessage\s*\(/g)].length, 1, f)
+      assert.match(src, /mergeLocaleMessage\(code, m\.default\)/, f)
+    }
     const split = readFileSync(join(WUI, 'src/node/i18n/split-catalogue.mjs'), 'utf8')
     assert.match(split, /generateJSON\(/)
   })

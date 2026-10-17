@@ -425,6 +425,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedVendorKeys(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// sql_query_audit (rdb 0203, spec 143 T002): one audit row. No store API
+	// yet (T03x), so a raw row under inTenant (reporting_schema_test.go).
+	if err := seedSQLAudit(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	// marketing_channels, _channel_tokens, _posts, _post_events (rdb 0187,
 	// spec 090, SPL-1634): one connected channel with one scheduled post.
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
@@ -486,9 +491,10 @@ var systemReadTables = map[string]bool{"workspace_doc": true, "workspace_doc_ite
 
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
 // (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events,
-// rdb 0174 workspace_vendor_key_audit, rdb 0187 marketing_post_events).
+// rdb 0174 workspace_vendor_key_audit, rdb 0187 marketing_post_events,
+// rdb 0203 sql_query_audit).
 var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true, "workspace_vendor_key_audit": true,
-	"marketing_post_events": true}
+	"marketing_post_events": true, "sql_query_audit": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

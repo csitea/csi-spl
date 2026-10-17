@@ -149,21 +149,24 @@
                and is reached after the emoji, so this link stays the first stop. -->
           <!-- SPL-982 (owner, topic 8296eeec): exactly "3 >>", no word; the
                name ("3 replies - Open topic") stays on aria-label and title -->
-          <!-- CLE-77804 (topic 35053f95): the reader's own unread reply count in
-               bold before the total ("2/7 >>"); a plain total when none are
-               unread ("7 >>"), never "0/7". -->
+          <!-- CLE-77804 (topic 35053f95): the reader's own unread count before
+               the total ("2/7 >>"); a plain total when none are unread ("7 >>"),
+               never "0/7". SPL-2422 (owner, t1 89010926): the total counts the
+               topic's first message too, which is 1 new for a reader who has not
+               seen it ("1/1 >>"); "<new>/<total>" wears the channel row's badge
+               (badge-unread), a step smaller and lighter. -->
           <button
-            v-if="count > 0 || alwaysTopic"
+            v-if="count > 0 || unreadCount > 0 || alwaysTopic"
             class="replies"
             type="button"
             data-test="topic-replies"
             :data-unread="unreadCount || undefined"
-            :data-zero="count === 0 ? 'true' : undefined"
+            :data-zero="count === 0 && unreadCount === 0 ? 'true' : undefined"
             :aria-label="repliesName"
             :title="repliesName"
             @click.stop="openReplies"
           >
-            <strong v-if="unreadCount > 0" class="replies__new" data-test="topic-unread">{{ unreadCount }}</strong>{{ unreadCount > 0 ? '/' : '' }}{{ count }} &gt;&gt;
+            <span v-if="unreadCount > 0" class="badge-unread replies__new" data-test="topic-new"><span data-test="topic-unread">{{ unreadCount }}</span>/{{ total }}</span><template v-else>{{ total }}</template> &gt;&gt;
           </button>
           <button
             type="button"
@@ -474,6 +477,7 @@ import { formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCa
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { activityOf } from '~/utils/feed.mjs'
+import { topicCounts } from '~/utils/read-cursor.mjs'
 import { isEdited, wantsDblClickEdit, wantsEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useDrafts } from '~/composables/useDrafts'
@@ -506,6 +510,8 @@ const props = defineProps<{
   count?: number
   /** CLE-77804 (topic 35053f95): the reader's unread reply count for this topic. */
   unread?: number
+  /** SPL-2422: the topic's first message is unseen by the reader (openerUnseen) - 1 more new. */
+  openerNew?: boolean
   alwaysTopic?: boolean
   posinset?: number
   setsize?: number
@@ -592,8 +598,11 @@ const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) 
 const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
-/* the unread part is capped at the total (a stale snapshot never shows n/less-than-n) */
-const unreadCount = computed(() => Math.max(0, Math.min(count.value, Number(props.unread) || 0)))
+/* the unread replies are capped at the replies (a stale snapshot never shows n/less-than-n);
+   SPL-2422: the first message is counted too (topicCounts) */
+const counts = computed(() => topicCounts(count.value, Number(props.unread) || 0, Boolean(props.openerNew)))
+const unreadCount = computed(() => counts.value.unseen)
+const total = computed(() => counts.value.total)
 const edited = computed(() => isEdited(props.msg))
 
 /* the template refs: the row, the edit box, and the clip box with its content */

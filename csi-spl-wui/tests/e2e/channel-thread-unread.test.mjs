@@ -6,9 +6,9 @@
 // position, so its card reads "<new>/<total>". Real browser, mock tenant.
 //
 //   seeded   2 replies after the reader's #alerts position, thread never
-//            opened -> the card reads "2/2 >>" after opening #alerts
-//   reload   the thread mark is stored: a reload still reads "2/2 >>"
-//   cleared  opening the thread clears it to a plain "2 >>"
+//            opened -> the card reads "2/3 >>" after opening #alerts
+//   reload   the thread mark is stored: a reload still reads "2/3 >>"
+//   cleared  opening the thread clears it to a plain "3 >>"
 //   control  an own reply (the reader's) never counts as new
 //
 // SPL-2124 (owner, t1 b288e5be: "I would expect to have 3 unread msgs and not
@@ -17,7 +17,9 @@
 // threads in #alerts get 2 and 1 replies from GRK-03 naming the reader, each
 // carrying its topic's task_id as the hub's do; the counts are read again
 // after the open, as the hub's flow frame does when a mark moves (062 FR-007):
-//   row      the #alerts row reads 3 next to "2/2 >>" and "1/1 >>"
+//   row      the #alerts row reads 4 next to "2/3 >>" and "2/2 >>"
+//            (SPL-2422: a card's total counts its first message; B's is
+//            after the #alerts position, unseen, and names the reader)
 //   drops    opening thread B drops the row to 2
 //
 // The reader signs in as HUM-2; the mock sends as HUM-1, so its replies are
@@ -125,8 +127,8 @@ async function run(browser, base) {
 
   await go(p, '/channel/alerts')
   await p.waitForSelector(`article.msg[data-msg-id="${ROOT_MSG}"]`, { timeout: NAV })
-  const seeded = await waitCounter(p, '2/2 >>')
-  check('opening #alerts keeps the thread\'s 2 new replies visible as "2/2 >>"', seeded.text === '2/2 >>' && seeded.unread === '2', seeded)
+  const seeded = await waitCounter(p, '2/3 >>')
+  check('opening #alerts keeps the thread\'s 2 new replies visible as "2/3 >>"', seeded.text === '2/3 >>' && seeded.unread === '2', seeded)
 
   const mark = await p.evaluate((t) => JSON.parse(localStorage.getItem('spool.read-cursors') || '{}')[`t:${t}`] || null, ROOT_TASK)
   check('the thread mark sits at the channel position, seen 0 of 2', Boolean(mark) && mark.count === 0 && mark.ts === '2026-09-18T10:06:00.000Z', mark)
@@ -134,8 +136,8 @@ async function run(browser, base) {
   /* the mock api keeps its rows per page load, so a reload re-reads the seed only;
      the stored thread mark is what must survive - checked on the cursor itself */
   await p.evaluate((msgId) => document.querySelector(`article.msg[data-msg-id="${msgId}"]`).click(), ROOT_MSG)
-  const cleared = await waitCounter(p, '2 >>')
-  check('opening the thread clears it to a plain "2 >>"', cleared.text === '2 >>' && cleared.unread === null, cleared)
+  const cleared = await waitCounter(p, '3 >>')
+  check('opening the thread clears it to a plain "3 >>"', cleared.text === '3 >>' && cleared.unread === null, cleared)
 
   const errs = await p.evaluate(() => window.__errs || [])
   check('no window error', errs.length === 0, { errs })
@@ -147,7 +149,7 @@ const B_TASK = 'b2124000-0000-4000-8000-000000000000'
 const B_MSG = 'b2124000-0000-4000-8000-0000000000b0'
 const line = (id, task, ts, body) => ({ msg_id: id, task_id: task, ts, received_at: ts, from: 'GRK-03', from_box: 'box-b', to: '@channel', kind: 'note', body, channel: 'alerts', files: [] })
 const SUM_LINES = [
-  line(B_MSG, B_TASK, '2026-09-18T10:07:00Z', 'topic B'),
+  line(B_MSG, B_TASK, '2026-09-18T10:07:00Z', 'topic B for @HUM-1'),
   line('b2124000-0000-4000-8000-0000000000a1', ROOT_TASK, '2026-09-18T10:08:00Z', 'first reply for @HUM-1'),
   line('b2124000-0000-4000-8000-0000000000a2', ROOT_TASK, '2026-09-18T10:09:00Z', 'second reply for @HUM-1'),
   line('b2124000-0000-4000-8000-0000000000b1', B_TASK, '2026-09-18T10:10:00Z', 'a reply in B for @HUM-1'),
@@ -166,13 +168,13 @@ async function runSum(browser, base) {
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
   await go(p, '/channel/alerts')
   await p.waitForSelector(`article.msg[data-msg-id="${B_MSG}"]`, { timeout: NAV })
-  const a = await waitCounter(p, '2/2 >>')
-  const b = await waitCounter(p, '1/1 >>', 8000, B_MSG)
+  const a = await waitCounter(p, '2/3 >>')
+  const b = await waitCounter(p, '2/2 >>', 8000, B_MSG)
   /* the open moved ch:alerts past every reply; read the counts again, as the hub's frame would */
   await p.waitForFunction(() => (JSON.parse(localStorage.getItem('spool.read-cursors') || '{}')['ch:alerts'] || {}).ts > '2026-09-18T10:10', { timeout: NAV })
   await pinia(p, () => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('flow').readCounts())
-  const row = await waitRow(p, 3)
-  check('the #alerts row reads 3 next to its cards\' "2/2 >>" and "1/1 >>"', row === 3 && a.text === '2/2 >>' && b.text === '1/1 >>', { row, a, b })
+  const row = await waitRow(p, 4)
+  check('the #alerts row reads 4 next to its cards\' "2/3 >>" and "2/2 >>"', row === 4 && a.text === '2/3 >>' && b.text === '2/2 >>', { row, a, b })
   await p.evaluate((msgId) => document.querySelector(`article.msg[data-msg-id="${msgId}"]`).click(), B_MSG)
   const dropped = await waitRow(p, 2)
   check('opening thread B drops the #alerts row to 2', dropped === 2, { row: dropped })

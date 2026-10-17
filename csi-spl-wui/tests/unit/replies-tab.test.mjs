@@ -22,7 +22,8 @@ function templateOf(src) {
 
 describe('replies tab stop (SPL-942)', () => {
   const tpl = templateOf(vue)
-  const actions = tpl.slice(tpl.indexOf('class="msg-actions"'), tpl.indexOf('</span>', tpl.indexOf('class="msg-actions"')))
+  /* up to the emoji button's end: the replies link holds a badge <span> (SPL-2422) */
+  const actions = tpl.slice(tpl.indexOf('class="msg-actions"'), tpl.indexOf('</button>', tpl.indexOf('data-testid="msg-emoji-btn"')))
 
   it('DOM order inside the actions is replies, then menu, then emoji', () => {
     const replies = actions.indexOf('data-test="topic-replies"')
@@ -39,8 +40,8 @@ describe('replies tab stop (SPL-942)', () => {
     assert.match(vue, /\.msg-actions \.msg-menu-btn \{ order: 5; \}/)
   })
 
-  it('omits the link unless the card has replies or is always a topic, and uses no positive tabindex', () => {
-    assert.match(actions, /v-if="count > 0 \|\| alwaysTopic"/)
+  it('omits the link unless the card has replies, an unseen first message (SPL-2422) or is always a topic, and uses no positive tabindex', () => {
+    assert.match(actions, /v-if="count > 0 \|\| unreadCount > 0 \|\| alwaysTopic"/)
     assert.match(vue, /tabindex="0"/)
     assert.doesNotMatch(vue, /tabindex="[1-9]/)
     assert.match(vue, /function onKey\(ev: KeyboardEvent\)/)

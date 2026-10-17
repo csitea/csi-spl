@@ -15,7 +15,7 @@ const btn = vue.slice(vue.lastIndexOf('<button', at), vue.indexOf('</button>', a
 
 describe('SPL-982 the replies link reads "n >>"', () => {
   it('shows the count and a literal >>, not the word', () => {
-    assert.match(btn, /\{\{ count \}\} &gt;&gt;/)
+    assert.match(btn, /\{\{ total \}\}<\/template> &gt;&gt;/)
     assert.doesNotMatch(btn, /feed\.replies'/)
     assert.doesNotMatch(btn, /»/)
   })
@@ -32,14 +32,20 @@ describe('SPL-982 the replies link reads "n >>"', () => {
   })
 })
 
-describe('CLE-77804 (topic 35053f95) the counter shows "<unread>/<total> >>", unread bold', () => {
-  it('renders a bold unread count before the total, only when there is unread', () => {
-    /* "2/7 >>": the unread number is a <strong>, then a slash only when > 0, then the total */
-    assert.match(btn, /<strong v-if="unreadCount > 0" class="replies__new" data-test="topic-unread">\{\{ unreadCount \}\}<\/strong>/)
-    assert.match(btn, /\{\{ unreadCount > 0 \? '\/' : '' \}\}\{\{ count \}\} &gt;&gt;/)
+describe('CLE-77804 / SPL-2422 the counter shows "<new>/<total> >>" in the channel badge', () => {
+  it('renders "<new>/<total>" in the channel row badge (badge-unread), only when there is something new', () => {
+    /* "3/8 >>": one round badge holding new/total, then >>; a plain total otherwise */
+    assert.match(btn, /<span v-if="unreadCount > 0" class="badge-unread replies__new" data-test="topic-new"><span data-test="topic-unread">\{\{ unreadCount \}\}<\/span>\/\{\{ total \}\}<\/span><template v-else>\{\{ total \}\}<\/template> &gt;&gt;/)
   })
-  it('never shows "0/…": the unread part is capped at the total and hidden at 0', () => {
-    assert.match(vue, /const unreadCount = computed\(\(\) => Math\.max\(0, Math\.min\(count\.value, Number\(props\.unread\) \|\| 0\)\)\)/)
+  it('never shows "0/…": the counts come from topicCounts (the first message counted, unread capped)', () => {
+    assert.match(vue, /const counts = computed\(\(\) => topicCounts\(count\.value, Number\(props\.unread\) \|\| 0, Boolean\(props\.openerNew\)\)\)/)
+  })
+  it('the badge is a step smaller and a shade lighter than the channel badge, in tokens (no inline style)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/assets/css/main.css'), 'utf8')
+    const rule = css.slice(css.indexOf('.replies__new {'), css.indexOf('}', css.indexOf('.replies__new {')))
+    assert.match(rule, /font-size: 0\.625rem;/)
+    assert.match(rule, /background: color-mix\(in srgb, var\(--color-accent\) 85%, var\(--color-surface\)\);/)
+    assert.match(css, /\.badge-unread \{[^}]*font-size: 0\.6875rem;/)
   })
 })
 

@@ -17,6 +17,8 @@ import {
   markTopicReadAt,
   topicUnread,
   topicKey,
+  openerUnseen,
+  topicCounts,
   ownReplyReadAt,
 } from '../../src/utils/read-cursor.mjs'
 import { countMarks, seedTopicCursors, unseenRepliesSince } from '../../src/utils/topic-seed.mjs'
@@ -255,5 +257,40 @@ describe('SPL-2286: a t: mark with no count reads the replies after its ts, as t
     assert.equal(countMarks(counted, rows, totalOf, 'HUM-4'), counted)
     const other = { 't:X': mark }
     assert.equal(countMarks(other, rows, totalOf, 'HUM-4'), other)
+  })
+})
+
+/* SPL-2422 (owner HUM-10, t1 89010926): "the first msg in a discussin counts as
+   1 for the persons who has not seen this first msg", "<new>/<total>" kept */
+describe('openerUnseen / topicCounts: the first message counts (SPL-2422)', () => {
+  const opener = { msg_id: 'o1', task_id: 'T', is_parent: 1, from: 'HUM-2', ts: '2026-10-17T10:00:00.000Z' }
+  const before = { ts: '2026-10-17T09:00:00.000Z', id: '' }
+  const after = { ts: '2026-10-17T11:00:00.000Z', id: '' }
+
+  it('an unseen first message is 1 new: a fresh topic with only its opening post reads 1/1', () => {
+    const fresh = openerUnseen(opener, undefined, before, 'HUM-1')
+    assert.equal(fresh, true)
+    assert.deepEqual(topicCounts(0, 0, fresh), { total: 1, unseen: 1 })
+  })
+  it('new/total counts the first message: 2 unread of 7 replies, opener unseen -> 3/8; seen -> 2/8', () => {
+    assert.deepEqual(topicCounts(7, 2, true), { total: 8, unseen: 3 })
+    assert.deepEqual(topicCounts(7, 2, false), { total: 8, unseen: 2 })
+  })
+  it('the t: mark wins over the channel boundary: opening the topic (mark after it) makes it seen', () => {
+    assert.equal(openerUnseen(opener, { ...after, count: 0 }, before, 'HUM-1'), false)
+    /* a mark seeded at the channel boundary (CLE-77930) keeps it new */
+    assert.equal(openerUnseen(opener, { ...before, count: 0 }, after, 'HUM-1'), true)
+  })
+  it('seen: before the boundary, the reader\'s own, a reply row, a pending row, or no mark and no boundary', () => {
+    assert.equal(openerUnseen(opener, undefined, after, 'HUM-1'), false)
+    assert.equal(openerUnseen(opener, undefined, before, 'HUM-2'), false)
+    assert.equal(openerUnseen({ ...opener, is_parent: 0 }, undefined, before, 'HUM-1'), false)
+    assert.equal(openerUnseen({ ...opener, pending: true }, undefined, before, 'HUM-1'), false)
+    assert.equal(openerUnseen(opener, undefined, null, 'HUM-1'), false)
+    assert.equal(openerUnseen(null, undefined, before, 'HUM-1'), false)
+  })
+  it('the unread replies are capped at the replies, never below 0', () => {
+    assert.deepEqual(topicCounts(3, 9, false), { total: 4, unseen: 3 })
+    assert.deepEqual(topicCounts(3, -2, false), { total: 4, unseen: 0 })
   })
 })

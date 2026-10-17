@@ -76,6 +76,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 | **FR-008** | The Flow badge keeps 062 FR-005's number; its label says "new in Flow" in all 19 locales | Planned |
 | **FR-009** | Reading a message lowers every surface in the same reactive tick | Planned |
 | **FR-010** | Help `channels-and-direct-messages.md` and `interface-overview.md` §3.1 describe one number per row and the title as their sum | Planned |
+| **FR-011** | A topic card's `<new>/<total>` (owner HUM-10, t1 89010926, SPL-2422): total = the first message + its replies; the first message is 1 new for a reader who has not seen it (not their own, after their `t:` mark or, with none, after the channel boundary: `openerUnseen`), so a fresh topic reads `1/1`; it wears the channel row badge (`badge-unread`), a step smaller (0.625rem) and a shade lighter | Done (SPL-2422) |
 
 ## 6. Acceptance scenarios
 

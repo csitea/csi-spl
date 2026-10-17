@@ -44,8 +44,8 @@ describe('MessageCard feed rendering (SPL-1750, SPL-1762)', () => {
     assert.match(anchor, /if \(!el\.isConnected\) \{\s*ro\.unobserve\(el\)/)
     assert.match(anchor, /if \(a\.newestLast\(\)\) \{\s*observeRows\(a\)\s*afterAppend/)
   })
-  it('the replies button marks an empty count', () => {
-    assert.match(src, /data-test="topic-replies"[\s\S]{0,120}:data-zero="count === 0 \? 'true' : undefined"/)
+  it('the replies button marks an empty count (no replies, nothing new: SPL-2422)', () => {
+    assert.match(src, /data-test="topic-replies"[\s\S]{0,120}:data-zero="count === 0 && unreadCount === 0 \? 'true' : undefined"/)
   })
   it('desktop pointer: the actions fade in on hover, focus, selection or an open menu', () => {
     const b = block('@media (hover: hover) and (min-width: 821px) {')

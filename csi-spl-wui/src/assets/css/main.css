@@ -580,10 +580,22 @@ html.pane-dragging * {
   padding: 0;
   min-height: var(--tap);
 }
-/* CLE-77804 (topic 35053f95): the unread reply count is bolded ahead of the
-   total ("2/7 >>"); a topic with unread replies gets a touch more weight. */
+/* CLE-77804 (topic 35053f95): a topic with unread messages gets a touch more
+   weight. SPL-2422 (owner, t1 89010926): its "<new>/<total>" wears the channel
+   row's badge (.badge-unread: round, accent fill, on-accent number), a step
+   smaller and lighter: a lighter weight, and a shade lighter fill where the
+   number stays legible. A light theme keeps the full accent: its number on
+   the channel badge is already 3.16:1, and 85% of it would be 2.66:1. */
 .replies[data-unread] { font-weight: 600; }
-.replies__new { font-weight: 800; }
+.replies__new {
+  margin-left: 0;
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1.6;
+  background: color-mix(in srgb, var(--color-accent) 85%, var(--color-surface));
+}
+:root[data-theme^="light"] .replies__new { background: var(--color-accent); }
 
 .composer {
   padding: 12px 16px 16px;

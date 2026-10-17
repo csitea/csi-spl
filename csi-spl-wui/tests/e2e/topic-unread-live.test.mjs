@@ -7,18 +7,21 @@
 // (The Topics view went, owner HUM-10 t1 e4bfddb1; its right-pane case now
 // opens the topic from a topic link, `/lobby?topic=<id>`.)
 //
-//   before   the topic's replies are all before the channel mark: plain "1 >>"
-//   live     a reply lands after the first paint: "1/2 >>", the 1 bold
-//   again    a second one: "2/3 >>"
+//   before   the topic's replies are all before the channel mark: plain "2 >>"
+//   live     a reply lands after the first paint: "1/3 >>", in the badge
+//   again    a second one: "2/4 >>"
 //
 // Per left tab (Channels, Flow - both keep the channel in the middle), RUNS
 // fresh browser contexts each (default 2; RUNS=10 for a stability count).
 //
+// SPL-2422 (owner, t1 89010926): the total counts the topic's first message
+// (here seen, before the channel mark), so 1 reply reads "2 >>".
+//
 // The right pane (a topic opened from a topic link, /lobby?topic=<id>): the
 // pane's first message carries the same count - new counted from the
 // topic's read mark before this open read it, on that message only.
-//   open     read at 1 of 3 replies: "2/3 >>" on the first message
-//   reopen   closed and opened again (it was read): a plain "3 >>"
+//   open     read at 1 of 3 replies: "2/4 >>" on the first message
+//   reopen   closed and opened again (it was read): a plain "4 >>"
 //   BASE_URL=http://127.0.0.1:3111 RUNS=10 node tests/e2e/topic-unread-live.test.mjs
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -67,14 +70,14 @@ async function launch() {
 
 const CARD = (scope, task = TASK) => `${scope} article.msg[data-msg-id="${task}"] [data-test=topic-replies]`
 
-/** The root card's counter: its text and the bold unread part. */
+/** The root card's counter: its text, the new part and whether it wears the channel badge (SPL-2422). */
 const counter = (p, scope, task) => p.evaluate((sel) => {
   const btn = document.querySelector(sel)
   const strong = btn && btn.querySelector('[data-test=topic-unread]')
   return {
     text: btn ? btn.textContent.replace(/\s+/g, ' ').trim() : null,
     unread: strong ? strong.textContent.trim() : null,
-    bold: Boolean(strong && Number(getComputedStyle(strong).fontWeight) >= 700),
+    badge: Boolean(btn && btn.querySelector('[data-test=topic-new].badge-unread')),
   }
 }, CARD(scope, task))
 
@@ -129,18 +132,18 @@ async function feedRun(browser, base, view, run) {
       await p.click(`[data-testid=sidebar-tab-${view}]`)
       await p.waitForSelector(`#sidebar-panel-${view}`, { visible: true, timeout: NAV })
     }
-    const before = await reads(p, '.feed-body', '1 >>')
-    ok(`${tag}: nothing new at open reads a plain "1 >>"`, before.text === '1 >>' && before.unread === null, before)
+    const before = await reads(p, '.feed-body', '2 >>')
+    ok(`${tag}: nothing new at open reads a plain "2 >>"`, before.text === '2 >>' && before.unread === null, before)
     await liveReply(p, 1)
-    const live = await reads(p, '.feed-body', '1/2 >>')
-    ok(`${tag}: a reply after the first paint reads "1/2 >>", the 1 bold`, live.text === '1/2 >>' && live.unread === '1' && live.bold, live)
+    const live = await reads(p, '.feed-body', '1/3 >>')
+    ok(`${tag}: a reply after the first paint reads "1/3 >>", in the badge`, live.text === '1/3 >>' && live.unread === '1' && live.badge, live)
     await new Promise((r) => setTimeout(r, 4500))
     const polled = await counter(p, '.feed-body')
-    ok(`${tag}: it still reads "1/2 >>" after the next feed read`, polled.text === '1/2 >>', polled)
+    ok(`${tag}: it still reads "1/3 >>" after the next feed read`, polled.text === '1/3 >>', polled)
     if (run === 1) await shot(p, view)
     await liveReply(p, 2)
-    const again = await reads(p, '.feed-body', '2/3 >>')
-    ok(`${tag}: a second one reads "2/3 >>"`, again.text === '2/3 >>' && again.unread === '2', again)
+    const again = await reads(p, '.feed-body', '2/4 >>')
+    ok(`${tag}: a second one reads "2/4 >>"`, again.text === '2/4 >>' && again.unread === '2', again)
     ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
   } finally {
     await ctx.close()
@@ -160,8 +163,8 @@ async function paneRun(browser, base, run) {
     await p.waitForSelector('[data-testid=sidebar-rail]', { timeout: NAV })
     await pushTopic(p)
     await p.waitForSelector(`${pane} article.msg[data-msg-id="${PANE_TASK}"]`, { timeout: NAV })
-    const open = await reads(p, pane, '2/3 >>', PANE_TASK)
-    ok(`${tag}: the pane's first message reads "2/3 >>", the 2 bold`, open.text === '2/3 >>' && open.unread === '2' && open.bold, open)
+    const open = await reads(p, pane, '2/4 >>', PANE_TASK)
+    ok(`${tag}: the pane's first message reads "2/4 >>", in the badge`, open.text === '2/4 >>' && open.unread === '2' && open.badge, open)
     const others = await p.$$eval(`${pane} article.msg [data-test=topic-replies]`, (b) => b.length)
     ok(`${tag}: only the first message carries the count`, others === 1, { others })
     if (run === 1) await shot(p, 'pane')
@@ -174,8 +177,8 @@ async function paneRun(browser, base, run) {
        line ran inside that gap. Push once the route is query-less. */
     await p.waitForFunction(() => !document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.currentRoute.value.query.topic, { timeout: 8000 }).catch(() => {})
     await pushTopic(p)
-    const again = await reads(p, pane, '3 >>', PANE_TASK)
-    ok(`${tag}: opened again (read), it reads a plain "3 >>"`, again.text === '3 >>' && again.unread === null, again)
+    const again = await reads(p, pane, '4 >>', PANE_TASK)
+    ok(`${tag}: opened again (read), it reads a plain "4 >>"`, again.text === '4 >>' && again.unread === null, again)
     ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
   } finally {
     await ctx.close()

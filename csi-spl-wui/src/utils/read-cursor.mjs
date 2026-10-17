@@ -137,6 +137,41 @@ export function topicUnread(total, cursor) {
 }
 
 /**
+ * SPL-2422 (owner HUM-10, t1 89010926): "the first msg in a discussin counts
+ * as 1 for the persons who has not seen this first msg". A topic's opening
+ * message is unseen when it is not the reader's own and is after their t:
+ * mark for that topic (opening the topic stamps it) or, with no mark, after
+ * the channel boundary the feed was opened with. No mark and no boundary (a
+ * feed never read) flags nothing, as the divider (firstUnreadId).
+ *
+ * @param {{ msg_id?: string, is_parent?: number, pending?: boolean } | null | undefined} msg the topic's opening row
+ * @param {{ ts?: string, id?: string } | null | undefined} mark the reader's t:<task_id> cursor
+ * @param {{ ts?: string, id?: string } | null | undefined} boundary the channel cursor frozen at open
+ * @param {string} selfId the reader
+ */
+export function openerUnseen(msg, mark, boundary, selfId = '') {
+  if (!msg || msg.is_parent === 0 || msg.pending || isViewersOwn(msg, selfId)) return false
+  const at = mark && mark.ts ? mark : boundary
+  return Boolean(at && at.ts) && isUnread(msg, at)
+}
+
+/**
+ * SPL-2422: a topic card's "<new>/<total>": total = the opening message plus
+ * its replies, new = the unread replies (capped at the replies) plus 1 when
+ * the opening message is unseen (openerUnseen).
+ *
+ * @param {number} replies the topic's reply total
+ * @param {number} unreadReplies the unread replies (topicUnread)
+ * @param {boolean} openerNew openerUnseen for its opening message
+ * @returns {{ total: number, unseen: number }}
+ */
+export function topicCounts(replies, unreadReplies, openerNew = false) {
+  const n = Math.max(0, Number(replies) || 0)
+  const unread = Math.max(0, Math.min(n, Number(unreadReplies) || 0))
+  return { total: n + 1, unseen: unread + (openerNew ? 1 : 0) }
+}
+
+/**
  * CLE-77804 (topic 1e7d56b8): the "New messages" divider. Given the read
  * cursor as it was when the feed was opened (the frozen boundary) and the
  * feed's messages, the msg_id of the chronologically-FIRST message the reader

@@ -6,11 +6,12 @@
 // ts) and the card a plain "2 >>". Real browser, mock tenant.
 //
 //   countless  a t: mark {ts} with no count, 2 replies after its ts -> the
-//              card reads "2/2 >>", as the row does
+//              card reads "2/3 >>" (SPL-2422: the total counts the first
+//              message, seen here), its 2 new as the row reads
 //   deep link  c-311 (msg 9b718269): /channel/alerts?topic=<id> loaded cold
 //              marked the thread at the reply total the store held BEFORE the
 //              feed loaded (0), so the card stayed "2/2 >>" with the pane
-//              open on it. Now it reads a plain "2 >>", the mark at 2
+//              open on it. Now it reads a plain "3 >>", the mark at 2
 //
 // The replies are GRK-03's, never the reader's.
 //   BASE_URL=http://127.0.0.1:3111 node tests/e2e/topic-card-countless-mark.test.mjs
@@ -97,8 +98,8 @@ async function runCountless(browser, base) {
     'ch:alerts': { ts: '2026-09-18T10:06:00.000Z', id: '' },
     [`t:${TASK}`]: { ts: '2026-09-18T10:07:30.000Z', id: '' },
   }, '/channel/alerts')
-  const got = await waitCounter(p, '2/2 >>')
-  check('a t: mark with no count and 2 replies after its ts: the card reads "2/2 >>"', got.text === '2/2 >>' && got.unread === '2', got)
+  const got = await waitCounter(p, '2/3 >>')
+  check('a t: mark with no count and 2 replies after its ts: the card reads "2/3 >>"', got.text === '2/3 >>' && got.unread === '2', got)
   const mark = await markOf(p)
   check('the mark keeps its ts and now counts the 0 replies seen at it', Boolean(mark) && mark.ts === '2026-09-18T10:07:30.000Z' && mark.count === 0, mark)
   await noErrors(p, 'countless')
@@ -107,11 +108,11 @@ async function runCountless(browser, base) {
 
 async function runDeepLink(browser, base) {
   const p = await openWith(browser, base, { 'ch:alerts': { ts: '2026-09-18T10:06:00.000Z', id: '' } }, `/channel/alerts?topic=${TASK}`)
-  await waitCounter(p, '2 >>')
-  /* c-311 saw "2/2 >>" stay for 30 s: hold for 3 and read again */
+  await waitCounter(p, '3 >>')
+  /* c-311 saw "2/2 >>" (now "2/3 >>") stay for 30 s: hold for 3 and read again */
   await sleep(3000)
   const got = await counterOf(p)
-  check('a cold /channel/alerts?topic=<id> leaves the card a plain "2 >>"', got.text === '2 >>' && got.unread === null, got)
+  check('a cold /channel/alerts?topic=<id> leaves the card a plain "3 >>"', got.text === '3 >>' && got.unread === null, got)
   const mark = await markOf(p)
   check('the open marked the thread at its 2 replies', Boolean(mark) && mark.count === 2, mark)
   await noErrors(p, 'deep link')

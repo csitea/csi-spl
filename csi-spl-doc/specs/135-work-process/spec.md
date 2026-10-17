@@ -216,6 +216,7 @@ respawn from the key alone, reach the same next step.
 | c-341 | KEEP as landed (8202595fe, 4160581d3): `done` is the automatic target. CHANGE: make `issue-close-landed.py:25-29` and `commit_keys` agree |
 | slice checks (g-342..) | KEEP read-only; input to the discard and the closer |
 | c-373 (SPL-2358) | BUILT: `do_spl_epic_stall_check`, on the idle filler's 10-min tick. An epic run "two lanes at a time" (title, or `EPIC_STALL_KEYS`) with an open issue, 0 live lanes and 0 queue rows naming its keys, and its last issue done > 30 min ago, gets ONE blocker to the dispatch holder (epic, topic, next rows) per 6 h; it never spawns. A round's plan rows that are not issues yet stay invisible to it |
+| c-488 (SPL-2370) | BUILT: work groups (section 11). The stall check also reads every group: waiting rows and fewer than its width N in flight for 30 min is a stalled group, ONE blocker per group per 6 h (`spl_spawn_group_stall`) |
 
 Build order: (1) c-350's blocker exclusion; (2) c-880 with the card and
 `close_check` in `/exit-clean`; (3) the parser header fix; (4)
@@ -282,5 +283,93 @@ that text with this table and the status line filled in:
 | s135-agy | SIGN (a-353, msg 072a16ee) |
 | s135-grok | SIGN (g-351, msg 2f430818) |
 | s135-mistral | SIGN (m-352, msg 4cc5d42c) |
+
+## 11. Work groups: N lanes at a time, one lane is N = 1
+
+Owner HUM-10, t1 d4c0c0a8 (2026-10-17), msg 09958ea6: "We need a mechanism
+to be able to queue more than one work ... or the running of one is a
+subcase of running one or multiple in parallel", and msg e8b2b36a: "When
+there is one, there will always be many". SPL-2370, epic SPL-2368.
+
+### 11.1 Today, measured (origin/master 32337edbb)
+
+- An ask is one row in `fleet_asks` (rdb 0097); a spawn request becomes a
+  queue row by `do_spl_spawn_enqueue`: `spl_spawn_q_resolve`
+  (`spl-spawn-enqueue.func.sh:43`) then the hub's queue op with the
+  placement `<vendor>:<slug>` and the class (`:44`, rdb 0180 + 0195); the
+  sender is told its position (`:53`).
+- The position is computed on read by the hub (`askPositions`,
+  `store/fleet_ask.go:251`: class rank `askClassRank` `:174`, then
+  `enqueued_at`); the orc reads the queued and placing rows with
+  `spool ask list --role orch` (`spl-spawn-queue.func.sh:84`, ordered
+  `:89`).
+- The placer (`do_spl_spawn_place`, every minute on the orch box) reads the
+  rows (`spl-spawn-place.func.sh:88`), places nothing while one it launched
+  is placing (`:95`, ONE AT A TIME), picks the line (`:98`) and the band
+  (`:105`) and takes the head (`:106`): the brief is `<slug>.md` in the
+  briefs dir (`spl_spawn_place_brief`, `:286`), the launch is
+  `spawn-window.sh` (`:337`) and the row closes `done "placed: <ID>@<box>"`
+  (`:345`, `spl-spawn-placed.func.sh:27`).
+- Nothing follows a row after it is placed: when its lane lands or closes,
+  no code queues the next one. An epic run "two lanes at a time" needs the
+  dispatcher to queue the next pair by hand; the stall check (SPL-2358) found
+  3 stalled epics on its first tick (SPL-2151, SPL-2130, SPL-2129, idle
+  10-27 h), and a 4-lane ask showed as 1 queue row (ask 0a4acf1c).
+
+### 11.2 The group
+
+A work group is keyed by its epic and holds ordered rows (class, placement
+`<vendor>:<slug>`, the issue key the lane closes) and a width N:
+
+`GROUP_EPIC=SPL-2151 GROUP_WIDTH=2 GROUP_ROWS=<file> ./run -a do_spl_spawn_group_put`
+
+one row a line, `<class> <vendor>:<slug> <ISSUE-KEY> [urgent|<owner msg
+uuid>]`. The file is `<spool root>/dispatch/groups/<EPIC>.json` on the orch
+box, next to the briefs the placer needs anyway; a re-put may change the
+width or add rows and keeps the rows' recorded ends.
+
+A row's state is read, never kept by hand:
+
+| state | read from |
+|---|---|
+| waiting | no ask on the hub yet |
+| open, queued, placing | its ask is open, queued or acked (in flight) |
+| running | its ask is done `placed: <ID>@<box>` and that lane is live in the lane map (or was placed under `SPAWN_GROUP_GRACE_MIN`, 15) |
+| done | its issue is done: the lane landed |
+| closed | its issue is diss, or its lane is gone with the issue not done |
+| failed | its ask was declined or dead |
+
+done, closed and failed are kept in the group file: the hub prunes closed
+asks after a week. Each row's ask id is derived from fleet, epic and slug (a
+UUID), and the hub's put is idempotent on it, so no tick, re-put or second
+machine can queue or place a row twice.
+
+### 11.3 The placer keeps N in flight
+
+Step 0b of every placer tick (`spl_spawn_group_feed`): per group, while a
+row has not ended, the lane map and the epic's issues are read at most once
+per `SPAWN_GROUP_POLL_MIN` (2); the ends are recorded; the ask of a row
+whose issue is already done or diss leaves the queue (declined); and while
+fewer than N rows are in flight the next waiting rows are put on the hub and
+queued through `spl_spawn_q_enqueue`, the same function
+`do_spl_spawn_enqueue` calls. From there a group row is a queue row like
+any other: the bands, the bypass and ONE AT A TIME apply to it unchanged. A
+single request is a group of one row at width 1: one mechanism, no second
+queue. `./run -a do_spl_spawn_group_list` shows each group (done, running,
+in line, waiting) and each row.
+
+### 11.4 The backstop
+
+`do_spl_epic_stall_check` (section 8) reads every group: waiting rows and
+fewer than N in flight continuously for `EPIC_STALL_IDLE_MIN` (30) is a
+stalled group (the placer is not feeding it: its cron, the hub or a brief),
+and the dispatch holder gets ONE blocker per group per `EPIC_STALL_REPEAT_H`
+(6), naming the next rows.
+
+Tests: `csi-spl-orc/src/bash/tests/spl-spawn-group.tst.sh` (4 rows at width 2
+run to the end with no hand step; width 1 matches a single enqueue; a
+landed, a closed and a failed lane each free a slot; bands still apply; no
+duplicate placement; the stall; a control: today's placer places none of
+the rows).
 
 <!-- version: 1.0.0 · updated: 2026-10-12 · last-edit: 2026-10-12T19:10:00Z -->

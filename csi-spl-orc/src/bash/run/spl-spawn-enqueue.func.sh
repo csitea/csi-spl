@@ -24,34 +24,45 @@
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d-7628-4ac3-be00-86e427bb3487 ./run -a do_spl_spawn_enqueue
 
 do_spl_spawn_enqueue() {
-  local place="${SPAWN_PLACE:-}" class="${SPAWN_CLASS:-}" flag="" msg="${SPAWN_BYPASS:-}" by id row pos len rc=0
-  [[ -z "$place" || "$place" =~ ^[a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63}$ ]] ||
-    { do_log "FATAL SPAWN_PLACE must be <vendor>:<slug> (lowercase), got '$place'"; return 1; }
-  [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
-    { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)"; return 1; }
-  [[ "${SPAWN_URGENT:-0}" == 1 ]] && flag=urgent
-  if [[ -n "$msg" ]]; then
-    [[ "$msg" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
-      { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$msg'"; return 1; }
-    flag=bypass
-  fi
-  [[ "$flag" != urgent || "$class" == bug ]] || { do_log "FATAL SPAWN_URGENT goes with SPAWN_CLASS=bug only"; return 1; }
-  [[ "$flag" != bypass || "$class" == feature ]] || { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only"; return 1; }
-  [[ -z "${SPAWN_BYPASS:-}" || "${SPAWN_URGENT:-0}" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other"; return 1; }
+  local by id row pos len rc=0
   spl_spawn_q_init || return 1
   by="$(spl_asks_by)" || return 1
   id="$(spl_spawn_q_resolve)" || return 1
-  row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
+  row="$(spl_spawn_q_enqueue "$id" "$by" "${SPAWN_PLACE:-}" "${SPAWN_CLASS:-}" "${SPAWN_URGENT:-0}" "${SPAWN_BYPASS:-}")" || rc=$?
   (( rc == 0 )) || return "$rc"
-  if [[ "$flag" == bypass ]]; then
-    spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$msg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
-      do_log "WARN the bypass of ask ${id:0:8} is on the hub row but not in the local bypass log"
-    do_log "INFO ask ${id:0:8} is a feature BYPASS on owner msg ${msg:0:8}: recorded, listed by do_spl_spawn_share"
-  fi
   pos="$(jq -r '.position // 0' <<<"$row")"
   len="$(jq -r '.queue_len // 0' <<<"$row")"
   if ! spl_spawn_q_reply "$row" "$by" "queued, position $pos of $len, placed when the box has room (ask ${id:0:8}; the queue: \`./run -a do_spl_spawn_queue\`)"; then
     do_log "WARN ask ${id:0:8} is queued but its sender was not told"
   fi
-  do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $pos of $len${place:+, placement $place}"
+}
+
+# One ask into the queue: the checks, the hub's queue op, the bypass record;
+# the hub's row on stdout, the log on stderr. The one path every queue row
+# takes: a single enqueue, and each row a work group feeds
+# (spl-spawn-group-put.func.sh; a single ask is a group of one row, width 1).
+spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
+  local id="$1" by="$2" place="$3" class="$4" msg="$6" flag="" row rc=0
+  [[ -z "$place" || "$place" =~ ^[a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63}$ ]] ||
+    { do_log "FATAL SPAWN_PLACE must be <vendor>:<slug> (lowercase), got '$place'" >&2; return 1; }
+  [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
+    { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)" >&2; return 1; }
+  [[ "$5" == 1 ]] && flag=urgent
+  if [[ -n "$msg" ]]; then
+    [[ "$msg" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+      { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$msg'" >&2; return 1; }
+    flag=bypass
+  fi
+  [[ "$flag" != urgent || "$class" == bug ]] || { do_log "FATAL SPAWN_URGENT goes with SPAWN_CLASS=bug only" >&2; return 1; }
+  [[ "$flag" != bypass || "$class" == feature ]] || { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" >&2; return 1; }
+  [[ -z "$msg" || "$5" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other" >&2; return 1; }
+  row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
+  (( rc == 0 )) || return "$rc"
+  if [[ "$flag" == bypass ]]; then
+    spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$msg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
+      do_log "WARN the bypass of ask ${id:0:8} is on the hub row but not in the local bypass log" >&2
+    do_log "INFO ask ${id:0:8} is a feature BYPASS on owner msg ${msg:0:8}: recorded, listed by do_spl_spawn_share" >&2
+  fi
+  do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
+  printf '%s\n' "$row"
 }

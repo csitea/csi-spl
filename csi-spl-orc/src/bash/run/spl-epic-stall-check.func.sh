@@ -26,6 +26,10 @@
 # @description <spool root>/dispatch/epic-stall.state (KEY<TAB>epoch).
 # @description A live run acts on the orch holder's machine only; the idle
 # @description filler's tick (do_spl_spawn_fill, every 10 min) calls it.
+# @description A work group (do_spl_spawn_group_put, SPL-2370) is checked too:
+# @description waiting rows and fewer than its width in flight for
+# @description EPIC_STALL_IDLE_MIN is a stalled group, one blocker per group
+# @description per EPIC_STALL_REPEAT_H (spl_spawn_group_stall).
 # @description DRY_RUN=1 (the default) prints what it would send and why.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param EPIC_STALL (optional) - off skips the check (the filler's call too)
@@ -56,6 +60,8 @@ do_spl_epic_stall_check() {
   if spl_epic_stall_inputs "$tmp"; then
     spl_epic_stall_select "$tmp" >"$tmp/stalled.json" || rc=1
     ((rc == 0)) && spl_epic_stall_report "$tmp/stalled.json" "${holder:-c-001@$ASKS_BOX}" "$to"
+    declare -F spl_spawn_group_stall >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-group-put.func.sh"
+    spl_spawn_group_stall "$tmp/lanes.json" "${holder:-c-001@$ASKS_BOX}" "$to"
   else
     do_log "WARN the epics, the lane map or the queue could not be read: no epic stall check this tick"
   fi

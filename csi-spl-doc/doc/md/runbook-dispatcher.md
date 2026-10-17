@@ -237,6 +237,7 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Classify every new spawn request** as `refactor`, `bug` or `feature` (`ci` for a CI-red fix on trunk) and state the class in the request and in the brief (a line `Class: <class>`), so the orchestrator queues it with `SPAWN_CLASS=<class>`. Owner-reported prd breakage is `bug`; mark it urgent (`SPAWN_URGENT=1`) only when it must go over the band.
 - **A feature bypass only on the owner's explicit ask**, with that message id: `SPAWN_BYPASS=<owner msg id>`. Never on your own judgement, and never for an agent's request.
 - **Keep the refactor and bug supply.** The placer's "SPAWN SHARE" blocker says a class is under its floor with nothing of it queued: request the next refactoring round or rows (or bug rows) at once.
+- **Rows that run N at a time are one work group (SPL-2370).** For an epic run "two lanes at a time", write the rows' briefs and put the group once instead of queueing each pair by hand: `GROUP_EPIC=<epic> GROUP_WIDTH=<N> GROUP_ROWS=<rows file> ./run -a do_spl_spawn_group_put` (one row a line: `<class> <vendor>:<slug> <issue key>`), on the orch box, where the briefs are. The placer keeps N in flight to the end; `./run -a do_spl_spawn_group_list` shows each group. Design: [spec 135](../../specs/135-work-process/spec.md) section 11.
 - **Post the share report** when the owner asks, or with a band breach: `./run -a do_spl_spawn_share` prints it in markdown, ready to post (`do_spl_desk_reply`).
 
 ## 7 The data rule

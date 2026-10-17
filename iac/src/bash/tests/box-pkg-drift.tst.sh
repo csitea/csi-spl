@@ -72,23 +72,22 @@ test_green_case() {
     # Override commands for the test
     find() {
         if [[ "$*" == *"/usr/local/bin"* ]]; then
-            echo "/fake/local/bin/tool1"
+            echo "BIN_DIR/tool1"
         elif [[ "$*" == *"~ai-usr/bin"* ]]; then
-            echo "/fake/home/ai-usr/bin/tool3"
+            echo "USER_BIN_DIR/tool3"
         fi
     }
     id() { echo "ai-usr"; }
+    
+    # Run the drift report
+    source "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh"
     
     # Override read_bin_dirs for the test: only tool1 and tool3 exist
     read_bin_dirs() {
         echo -e "bin\ttool1\nbin\ttool3"
     }
     
-    # Run the drift report
-    local output="$( {
-        BOX_CLASS="pc" DRIFT_STRICT=0 \
-        "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh" 2>&1
-    })"
+    local output="$(BOX_CLASS="pc" DRIFT_STRICT=0 report_drift)"
     
     # Check output
     echo "${output}" | grep -q "MISSING-FROM-BOX tool2" || { echo "FAIL: tool2 not reported as MISSING-FROM-BOX"; exit 1; }
@@ -117,23 +116,22 @@ test_red_control() {
     # Override commands for the test
     find() {
         if [[ "$*" == *"/usr/local/bin"* ]]; then
-            echo "/fake/local/bin/tool1"
+            echo "BIN_DIR/tool1"
         elif [[ "$*" == *"~ai-usr/bin"* ]]; then
-            echo "/fake/home/ai-usr/bin/tool3"
+            echo "USER_BIN_DIR/tool3"
         fi
     }
     id() { echo "ai-usr"; }
+    
+    # Run the drift report
+    source "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh"
     
     # Override read_bin_dirs for the test: only tool1 and tool3 exist
     read_bin_dirs() {
         echo -e "bin\ttool1\nbin\ttool3"
     }
     
-    # Run the drift report
-    local output="$( {
-        BOX_CLASS="pc" DRIFT_STRICT=0 \
-        "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh" 2>&1
-    })"
+    local output="$(BOX_CLASS="pc" DRIFT_STRICT=0 report_drift)"
     
     # Check output: package3 must NOT have an agent id
     echo "${output}" | grep -q "NOT-IN-MANIFEST package3 (\s*)$" || { echo "FAIL: package3 reported with agent id (red control)"; exit 1; }
@@ -159,12 +157,15 @@ test_strict_mode() {
     # Override commands for the test
     find() {
         if [[ "$*" == *"/usr/local/bin"* ]]; then
-            echo "/fake/local/bin/tool1"
+            echo "BIN_DIR/tool1"
         elif [[ "$*" == *"~ai-usr/bin"* ]]; then
-            echo "/fake/home/ai-usr/bin/tool3"
+            echo "USER_BIN_DIR/tool3"
         fi
     }
     id() { echo "ai-usr"; }
+    
+    # Run the drift report
+    source "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh"
     
     # Override read_bin_dirs for the test: only tool1 and tool3 exist
     read_bin_dirs() {
@@ -172,10 +173,7 @@ test_strict_mode() {
     }
     
     # Run the drift report in strict mode
-    if {
-        BOX_CLASS="pc" DRIFT_STRICT=1 \
-        "$(dirname "${BASH_SOURCE[0]}")/../run/box-pkg-drift.func.sh" 2>&1
-    }; then
+    if output="$(DRIFT_STRICT=1 BOX_CLASS="pc" report_drift 2>&1)"; then
         echo "FAIL: Strict mode did not exit 2"; exit 1
     else
         local rc=$?

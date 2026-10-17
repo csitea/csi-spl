@@ -34,21 +34,48 @@ apt	sysstat		do_setup_box_sysstat	do_report_box_sar		2026-10-17 SPL-2271
 apt	uidmap		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
 apt	webp		backfill	do_spl_blog_image (cwebp)		2026-10-17 backfill SPL-2271
 bin	actionlint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	agent		spool-install --cli grok	do_spl_lane_mix (grok seats: the grok installer's alias)		2026-10-17 SPL-2345
 bin	agy		do_install_agy_cli	do_spl_lane_mix (agy seats)		2026-10-17 SPL-2271
+bin	bq		backfill	unknown (backfill: google-cloud-sdk link)		2026-10-17 backfill SPL-2345
 bin	checkov		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	claude		spool-install --cli claude	do_spl_lane_mix (claude seats)		2026-10-17 SPL-2345
+bin	claude-browser		backfill	unknown (backfill: google-chrome wrapper)		2026-10-17 backfill SPL-2345
+bin	docker-compose		backfill	unknown (backfill: Compose v1)		2026-10-17 backfill SPL-2345
+bin	gcloud		backfill	do_gcp_pin_account (every gcloud call)		2026-10-17 backfill SPL-2345
 bin	gitleaks		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	gosec		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	govulncheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	graft		spool-install	graft skill (spool-install step Y6)		2026-10-17 SPL-2345
+bin	grok		spool-install --cli grok	do_spl_lane_mix (grok seats)		2026-10-17 SPL-2345
+bin	gsutil		backfill	do_gcp_project_apis (gsutil)		2026-10-17 backfill SPL-2345
 bin	hadolint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	httpx2		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
+bin	idna		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
+bin	jsonschema		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
+bin	killall		spool-install	spool-install kill guard (every agent seat)		2026-10-17 SPL-2345
+bin	mcp		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
+bin	ollama		backfill	unknown (backfill)		2026-10-17 backfill SPL-2345
 bin	osv-scanner		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	pkill		spool-install	spool-install kill guard (every agent seat)		2026-10-17 SPL-2345
+bin	qwen		spool-install --cli qwen	do_spl_lane_mix (qwen seats)		2026-10-17 SPL-2345
 bin	ruff		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	semgrep		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	shellcheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	spool		do_spl_spool_refresh	spool-send.sh (every agent)		2026-10-17 SPL-2271
+bin	spool-agent		spool-install	spool-agent shim (specs/037, every agent seat)		2026-10-17 SPL-2345
+bin	spool-mcp		do_spl_agent_mcp_install	do_spl_agent_mcp_probe (agent CLIs' spool MCP server)		2026-10-17 SPL-2345
 bin	terraform		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	tfswitch		backfill	do_tf_init (tfswitch)		2026-10-17 backfill SPL-2345
 bin	trivy		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	trufflehog		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	typer		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
 bin	typos		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	uvicorn		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
+bin	vba_extract.py		backfill	unknown (backfill: pip --user entry point)		2026-10-17 backfill SPL-2345
 bin	vibe		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2271
+bin	vibe-acp		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2345
+bin	vibe-app-server		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2345
+bin	yq		backfill	do_check_pre_push (yq v4)		2026-10-17 backfill SPL-2345
+bin	yt-dlp		backfill	unknown (backfill)		2026-10-17 backfill SPL-2345
 deb	google-chrome-stable		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
 deb	slack-desktop		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271

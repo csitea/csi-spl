@@ -112,7 +112,7 @@ func TestFleetTokenStoreUpsert(t *testing.T) {
 
 // spec 140 T010: each sample is priced against the model_prices row in force
 // at its minute (a later price never re-prices an earlier minute, a
-// "[1m]" suffix names the same model); a model with no price stores cost 0
+// "[1m]" suffix and a "-YYYYMMDD" snapshot date name the same model); a model with no price stores cost 0
 // and priced false (red control), its tokens still count. Memory and Postgres.
 func TestFleetTokenStorePricing(t *testing.T) {
 	ctx := context.Background()
@@ -134,6 +134,7 @@ func TestFleetTokenStorePricing(t *testing.T) {
 			if _, err := ft.RecordSamples(ctx, box, []wire.FleetTokenSample{
 				fleetSample("c-1", "claude", model, m0, 12450, 850, 34000, 4200),
 				fleetSample("c-1", "claude", model+"[1m]", m0.Add(5*time.Minute), 1000, 0, 0, 0),
+				fleetSample("c-4", "claude", model+"-20251001", m0, 1000, 0, 0, 0),
 				fleetSample("c-2", "claude", uid("unpriced-"), m0, 5000, 0, 0, 0),
 				fleetSample("m-1", "mistral", model, m0, 7, 0, 0, 0),
 				fleetSample("c-3", "claude", model, m0, 0, 0, 0, 0),
@@ -152,6 +153,9 @@ func TestFleetTokenStorePricing(t *testing.T) {
 			if r := at("c-1", m0.Add(5*time.Minute)); !r.Priced || r.CostMicros != 8000 || r.Model != model+"[1m]" {
 				t.Fatalf("later minute at the new price %+v, want 8000 micros", r)
 			}
+			if r := at("c-4", m0); !r.Priced || r.CostMicros != 4000 || r.Model != model+"-20251001" {
+				t.Fatalf("a dated id at its base model's price %+v, want 4000 micros", r)
+			}
 			if r := at("c-2", m0); r.Priced || r.CostMicros != 0 || r.TokensIn != 5000 {
 				t.Fatalf("RED CONTROL: unpriced model %+v, want cost 0, priced false, tokens kept", r)
 			}
@@ -162,6 +166,26 @@ func TestFleetTokenStorePricing(t *testing.T) {
 				t.Fatalf("a zero minute is priced at 0: %+v", r)
 			}
 		})
+	}
+}
+
+// The price row's model of a collector's model name: only a context suffix
+// and an 8-digit snapshot date go.
+func TestFleetTokenModel(t *testing.T) {
+	for in, want := range map[string]string{
+		"claude-haiku-4-5-20251001":      "claude-haiku-4-5",
+		"claude-opus-5-5[1m]":            "claude-opus-5-5",
+		"claude-sonnet-4-5-20250929[1m]": "claude-sonnet-4-5",
+		"claude-opus-5-5":                "claude-opus-5-5",
+		"mistral-large":                  "mistral-large",
+		"mistral-large-2512":             "mistral-large-2512",
+		"mistral-large-latest":           "mistral-large-latest",
+		"model-2025100x":                 "model-2025100x",
+		"-20251001":                      "-20251001",
+	} {
+		if got := fleetTokenModel(in); got != want {
+			t.Errorf("fleetTokenModel(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

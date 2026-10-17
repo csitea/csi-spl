@@ -403,7 +403,10 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   open. `is_metered` absent reads true; an agy sample must say false.
 - **Pricing**: vendor to `model_prices.provider`: claude `anthropic`,
   mistral `mistral`, grok `xai`, qwen `qwen`; a model's `[1m]`-style suffix
-  is dropped for the lookup. The price row in force at the minute wins.
+  and an 8-digit snapshot date (`claude-haiku-4-5-20251001` prices as
+  `claude-haiku-4-5`, SPL-2323) are dropped for the lookup. The price row in
+  force at the minute wins. mistral's model is vibe's alias
+  (`mistral-large`), priced at Mistral's list price (cnf `model_prices`).
 - **Read route**: both doors of the fleet load route (the operator
   workspace's admin session, or the operator service account's Bearer id
   token). Burn rates are the mean of the last 5 full minutes; the answer adds
@@ -584,4 +587,4 @@ The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3
 
 ---
 
-<!-- version: 0.2.1 · updated: 2026-10-15 · last-edit: 2026-10-15T18:30:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-17 · last-edit: 2026-10-17T07:10:00Z -->

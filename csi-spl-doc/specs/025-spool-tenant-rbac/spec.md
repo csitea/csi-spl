@@ -319,7 +319,12 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
 ## 10. Several roles per member; the DevOps and Operator roles (SPL-2192, 2026-10-16)
 
 Status: **R1 built** (several roles per member: rdb 0201, the rbac and
-store shapes; SPL-2203); R2-R7 planned, not built yet. Tables, migrations and shapes:
+store shapes; SPL-2203); **R2 built** (the hub checks of §10.4 A5-A18 and
+A20 read the set; the members API reads and writes it, `PUT
+/v1/members/{human_id}/roles`; SPL-2293), except an invite's `roles[]` on
+`POST /v1/members/invites`, which needs the store to keep invite sets (it
+keeps one role per invite, so `invites[].roles` is `{role}`); R3-R7 planned,
+not built yet. Tables, migrations and shapes:
 [`data-model.md`](data-model.md). The operator-workspace side:
 [074 §12](../074-operator-workspace/spec.md#12-devops-and-operator-who-holds-the-operator-routes-spl-2192).
 Code facts below were read on `bba5cedb6`.
@@ -563,4 +568,4 @@ change is a new migration (§7: "a changed answer is a new migration").
 | OPEN-2 | The demo post audit (A5) and the t1 repo-docs writer (A6) are t1-admin powers today, not object operations: do they stay with the t1 `admin`? | yes, they stay with `admin` (content, not objects) |
 | OPEN-3 | The estate cost view (`internal/hub/cost_read.go:140`, `costs.read` in the operator workspace) is instance-wide money data: move it to devops? | no change now (it reads costs, not workspace content); ask when R3 lands |
 
-<!-- version: 1.3.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->
+<!-- version: 1.3.1 · updated: 2026-10-17 · last-edit: 2026-10-17T01:22:20Z -->

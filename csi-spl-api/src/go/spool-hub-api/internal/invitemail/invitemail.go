@@ -188,10 +188,14 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 
 // mailRole maps a 025 role id onto the two classes the tenant_invite
 // templates word ("owner" | "member"): the tenant owner (biz_owner, legacy
-// owner) reads "an owner", every other role "a member".
-func mailRole(role string) string {
-	if rbac.Legacy(role) == rbac.BizOwner {
-		return "owner"
+// owner) reads "an owner", every other role "a member". An invite holding a
+// role set (rdb 0201, 025 §10.4 A20) reads "an owner" when any role of it is
+// the owner's.
+func mailRole(roles ...string) string {
+	for _, role := range roles {
+		if rbac.Legacy(role) == rbac.BizOwner {
+			return "owner"
+		}
 	}
 	return "member"
 }

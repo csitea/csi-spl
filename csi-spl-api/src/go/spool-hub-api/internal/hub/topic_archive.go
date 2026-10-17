@@ -153,7 +153,7 @@ func (s *Server) mayArchiveByPolicy(ctx context.Context, tenant, hum, stored str
 	switch store.EffectiveArchivePolicy(stored) {
 	case store.ArchivePolicyAdmins:
 		a, err := s.access(ctx, hum, tenant)
-		return err == nil && (a.TenantOwner || a.Role == rbac.Admin)
+		return err == nil && (a.TenantOwner || a.Has(rbac.Admin))
 	case store.ArchivePolicyStarter:
 		return change
 	default: // everyone
@@ -170,7 +170,7 @@ func (s *Server) mayChangeTopic(ctx context.Context, tenant, hum, from, author s
 		return true
 	}
 	a, err := s.access(ctx, hum, tenant)
-	return err == nil && (a.TenantOwner || a.Role == rbac.Admin)
+	return err == nil && (a.TenantOwner || a.Has(rbac.Admin))
 }
 
 // PUT (archive) and DELETE (unarchive) /v1/messages/{msg_id}/archive.

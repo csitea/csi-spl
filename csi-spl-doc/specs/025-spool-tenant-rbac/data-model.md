@@ -4,7 +4,9 @@
 **Behaviour**: `spec.md` §10. This file holds the tables, the migrations and
 the Go and API shapes only. Status: **row R1 built** (rdb
 `0201_tenant_member_roles.sql`, the rbac and store shapes of §3; SPL-2203);
-R2-R7 planned, not built yet.
+row R2 built (the §4 member routes and `/v1/view/me` `roles[]`; SPL-2293),
+except `POST /v1/members/invites roles[]`: the store keeps one role per
+invite, so `invites[].roles` answers `{role}`; R3-R7 planned, not built yet.
 
 ## 1. Today (measured on `bba5cedb6`)
 
@@ -156,4 +158,4 @@ target's set. The other checks of §10.4 A (A1-A20, W1-W6, O1) are rows R2-R5.
 | `POST /v1/members/invites {email, role?}` | one role | + `roles[]?` (`role`, when given, is the primary) |
 | — | — | `PUT /v1/operator/staff/{human_id} {add[], remove[]}` → 200: only `devops` / `operator`, permission `operator.roles`; 409 `last_devops` |
 
-<!-- version: 1.0.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->
+<!-- version: 1.0.1 · updated: 2026-10-17 · last-edit: 2026-10-17T01:22:20Z -->

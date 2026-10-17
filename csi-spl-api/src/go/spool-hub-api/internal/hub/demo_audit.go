@@ -140,7 +140,7 @@ func (s *Server) demoAuditReader(ctx context.Context, tenant, hum string) bool {
 		return a.TenantOwner
 	}
 	op, err := s.operatorTenant(ctx)
-	return err == nil && op != "" && tenant == op && a.Role == rbac.Admin
+	return err == nil && op != "" && tenant == op && a.Has(rbac.Admin)
 }
 
 // queryInt is the query value key as an int, def when absent or not a number.

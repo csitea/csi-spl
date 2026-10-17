@@ -6354,6 +6354,13 @@
                           },
                           "role": {
                             "type": "string"
+                          },
+                          "roles": {
+                            "description": "the invite's role set, the primary (role) first; the store keeps one role per invite, so {role}",
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           }
                         },
                         "type": "object"
@@ -6407,6 +6414,13 @@
                           },
                           "role": {
                             "type": "string"
+                          },
+                          "roles": {
+                            "description": "the member's whole role set, the primary (role) first (025 §10.2 rule 6)",
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           },
                           "sign_in": {
                             "description": "sign-in methods, sorted",
@@ -7085,6 +7099,13 @@
                     "role": {
                       "type": "string"
                     },
+                    "roles": {
+                      "description": "the member's role set after the change: {role}",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "tenant_id": {
                       "type": "string"
                     }
@@ -7114,6 +7135,117 @@
           }
         },
         "summary": "Set members role",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/v1/members/{human_id}/roles": {
+      "put": {
+        "operationId": "putMembersByHumanIdRoles",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The member's whole role set. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/spec.md §10.2 rule 6, data-model.md §4.",
+                "properties": {
+                  "from_roles": {
+                    "description": "optimistic check: 409 role_changed unless the member holds exactly this set",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "primary": {
+                    "description": "the primary role, one of roles; absent = keep the current primary when roles holds it, else the first role (sorted)",
+                    "type": "string"
+                  },
+                  "roles": {
+                    "description": "1..32 role ids; the caller must cover each and the member's current set",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "roles"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The member's role set after the change. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/spec.md §10.2 rule 6, data-model.md §4.",
+                  "properties": {
+                    "human_id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "description": "the member's role set, the primary (role) first",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "human_id",
+                    "role",
+                    "roles",
+                    "tenant_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the role set is set"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: last_owner, last_admin or role_changed"
+          }
+        },
+        "summary": "Set members role set",
         "tags": [
           "members"
         ]
@@ -11645,6 +11777,14 @@
                     "role": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "roles": {
+                      "description": "the member's whole role set, the primary (role) first (025 §10.2 rule 6); null = door-off guest",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true,
+                      "type": "array"
                     },
                     "tenant_id": {
                       "type": "string"

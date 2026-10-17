@@ -205,7 +205,7 @@ func (s *Server) repoDocsWriter(ctx context.Context, tenant, who string, agent b
 		return true
 	}
 	a, err := s.access(ctx, who, tenant)
-	return err == nil && a.Role == rbac.Admin
+	return err == nil && a.Has(rbac.Admin)
 }
 
 // docTreeWho is the caller's verified tenant and id (a box, or a member), and

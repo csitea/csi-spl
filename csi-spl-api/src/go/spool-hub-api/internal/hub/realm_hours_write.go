@@ -105,7 +105,7 @@ func (s *Server) realmWriter(w http.ResponseWriter, r *http.Request) string {
 		return hum
 	}
 	for _, m := range ms {
-		if m.Role != realmTimeAccountant && s.allowed(ctx, hum, m.TenantID, rbac.SelfKeys) {
+		if !seatAccountant(m) && s.allowed(ctx, hum, m.TenantID, rbac.SelfKeys) {
 			return hum
 		}
 	}
@@ -128,7 +128,7 @@ func (s *Server) realmWorkspace(ctx context.Context, hum, w string) (hoursMe, bo
 	}
 	in := false
 	for _, m := range ms {
-		in = in || (m.TenantID == w && m.Role != realmTimeAccountant)
+		in = in || (m.TenantID == w && !seatAccountant(m))
 	}
 	if !in || !s.allowed(ctx, hum, w, rbac.SelfKeys) {
 		return hoursMe{}, false, nil

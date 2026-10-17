@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -26,8 +27,11 @@ type memberRow struct {
 	DisplayName string `json:"display_name"`
 	Email       string `json:"email"`
 	Role        string `json:"role"`
-	Since       string `json:"since"`
-	Disabled    bool   `json:"disabled"`
+	// Roles is the member's whole role set, the primary (Role) first (025
+	// §10.2 rule 6).
+	Roles    []string `json:"roles"`
+	Since    string   `json:"since"`
+	Disabled bool     `json:"disabled"`
 	// Suspended: disabled in this tenant only (specs/046, rdb 0074).
 	Suspended bool    `json:"suspended"`
 	LastSeen  *string `json:"last_seen"` // null = never switched into the tenant
@@ -37,8 +41,8 @@ type memberRow struct {
 	AccessUntil *string `json:"access_until"`
 	AccessEnded bool    `json:"access_ended"`
 	You         bool    `json:"you"`
-	// Manageable: the caller's role covers this member's (025 §3.4 rule 2)
-	// and it is not the caller. The hub re-checks on every write.
+	// Manageable: the caller's role covers this member's whole role set (025
+	// §3.4 rule 2, §10.2 rule 4) and it is not the caller. The hub re-checks on every write.
 	Manageable bool `json:"manageable"`
 	// Provenance of the invite this member accepted (CLE-77778, rdb 0084):
 	// who ordered it, that human's display name, via which agent, and when.
@@ -53,13 +57,16 @@ type memberRow struct {
 }
 
 type inviteRow struct {
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	InvitedBy string `json:"invited_by"`
-	CreatedAt string `json:"created_at"`
-	ExpiresAt string `json:"expires_at"`
-	Expired   bool   `json:"expired"`
-	MailCount int    `json:"mail_count"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+	// Roles is the invite's role set, the primary (Role) first (025 §10.2
+	// rule 6). The store keeps one role per invite today, so it is {role}.
+	Roles     []string `json:"roles"`
+	InvitedBy string   `json:"invited_by"`
+	CreatedAt string   `json:"created_at"`
+	ExpiresAt string   `json:"expires_at"`
+	Expired   bool     `json:"expired"`
+	MailCount int      `json:"mail_count"`
 	// MailedAt is the last invitation mail (null = never mailed). It
 	// survives a re-invite, which resets mail_count (HUM-10 2026-10-03).
 	MailedAt *string `json:"mailed_at"`
@@ -120,29 +127,10 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 	now := s.o.Now().UTC()
 	out := membersBody{TenantID: t.ID, You: a.HumanID, Members: []memberRow{}, Invites: []inviteRow{}, Roles: []roleRow{}}
 	for _, m := range ms {
-		row := memberRow{HumanID: m.HumanID, DisplayName: m.DisplayName, Email: m.Email,
-			Role: m.Role, Since: rfc(m.Since), Disabled: m.Disabled, Suspended: m.Suspended, You: m.HumanID == a.HumanID,
-			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role]),
-			OrderedBy:  m.OrderedBy, OrderedByName: m.OrderedByName, OrderedVia: m.OrderedVia}
-		if signIns != nil {
-			row.SignIn = providersOf(signIns[m.HumanID])
-		}
-		if !m.LastSeen.IsZero() {
-			at := rfc(m.LastSeen)
-			row.LastSeen = &at
-		}
-		if !m.InvitedOn.IsZero() {
-			at := rfc(m.InvitedOn)
-			row.InvitedOn = &at
-		}
-		if !m.AccessUntil.IsZero() {
-			at := rfc(m.AccessUntil)
-			row.AccessUntil, row.AccessEnded = &at, !now.Before(m.AccessUntil)
-		}
-		out.Members = append(out.Members, row)
+		out.Members = append(out.Members, listedMember(m, a, roles, signIns, now))
 	}
 	for _, in := range ins {
-		row := inviteRow{Email: in.Email, Role: in.Role, InvitedBy: in.InvitedBy,
+		row := inviteRow{Email: in.Email, Role: in.Role, Roles: []string{in.Role}, InvitedBy: in.InvitedBy,
 			CreatedAt: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt), Expired: !now.Before(in.ExpiresAt), MailCount: in.MailCount,
 			OrderedBy: in.OrderedBy, OrderedByName: in.OrderedByName, OrderedVia: in.OrderedVia}
 		if in.MailedAt != nil {
@@ -170,6 +158,34 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 		out.Roles = append(out.Roles, roleRow{ID: id, Grantable: a.Covers(roles[id])})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// listedMember is m's row of GET /v1/members as the caller a sees it.
+func listedMember(m store.Member, a rbac.Access, roles map[string]rbac.Role, signIns map[string][]store.SignIn, now time.Time) memberRow {
+	set := m.Roles
+	if len(set) == 0 {
+		set = []string{m.Role}
+	}
+	row := memberRow{HumanID: m.HumanID, DisplayName: m.DisplayName, Email: m.Email,
+		Role: m.Role, Roles: set, Since: rfc(m.Since), Disabled: m.Disabled, Suspended: m.Suspended, You: m.HumanID == a.HumanID,
+		Manageable: m.HumanID != a.HumanID && coversSet(a, roles, set),
+		OrderedBy:  m.OrderedBy, OrderedByName: m.OrderedByName, OrderedVia: m.OrderedVia}
+	if signIns != nil {
+		row.SignIn = providersOf(signIns[m.HumanID])
+	}
+	if !m.LastSeen.IsZero() {
+		at := rfc(m.LastSeen)
+		row.LastSeen = &at
+	}
+	if !m.InvitedOn.IsZero() {
+		at := rfc(m.InvitedOn)
+		row.InvitedOn = &at
+	}
+	if !m.AccessUntil.IsZero() {
+		at := rfc(m.AccessUntil)
+		row.AccessUntil, row.AccessEnded = &at, !now.Before(m.AccessUntil)
+	}
+	return row
 }
 
 // DELETE /v1/members/invites?email=<address>: revoke a pending invite.

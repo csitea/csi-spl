@@ -29,7 +29,8 @@ import (
 // envelope plus the kind override: every browser already applies that frame
 // as a replacement for a row it holds, so no second frame type is needed.
 
-// kindSetterRoles may set the kind of any message they can read.
+// kindSetterRoles may set the kind of any message they can read: any one of
+// them in the member's role set (025 §10.4 A12).
 var kindSetterRoles = map[string]bool{rbac.BizOwner: true, rbac.Admin: true}
 
 type kindRequest struct {
@@ -125,7 +126,15 @@ func (s *Server) setsAnyKind(r *http.Request, tenant, hum string) bool {
 		return false
 	}
 	a, err := s.access(r.Context(), hum, tenant)
-	return err == nil && kindSetterRoles[a.Role]
+	if err != nil {
+		return false
+	}
+	for _, role := range a.Roles {
+		if kindSetterRoles[role] {
+			return true
+		}
+	}
+	return false
 }
 
 // kindPreflight answers CORS preflight for PATCH /v1/messages/{msg_id}/kind,

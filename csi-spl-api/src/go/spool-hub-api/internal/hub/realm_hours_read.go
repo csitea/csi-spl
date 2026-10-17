@@ -233,7 +233,7 @@ func (s *Server) handleGetRealmHours(w http.ResponseWriter, r *http.Request) {
 func realmSeats(ms []store.Membership) []store.Membership {
 	var out []store.Membership
 	for _, m := range ms {
-		if m.Role != realmTimeAccountant {
+		if !seatAccountant(m) {
 			out = append(out, m)
 		}
 	}

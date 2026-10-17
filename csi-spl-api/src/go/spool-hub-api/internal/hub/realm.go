@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -123,14 +124,32 @@ func (s *Server) realmRefuses(ctx context.Context, sess auth.Session) (bool, err
 }
 
 // realmSeatsNotPerson: at least one seat, and every seat an agent's or a
-// time-accountant's.
+// time-accountant's: a seat is not a person's only when EVERY role of its set
+// is in realmNotPerson (025 §10.4 A16).
 func realmSeatsNotPerson(seats []store.Membership) bool {
 	for _, m := range seats {
-		if !realmNotPerson[m.Role] {
-			return false
+		for _, r := range seatRoles(m) {
+			if !realmNotPerson[r] {
+				return false
+			}
 		}
 	}
 	return len(seats) > 0
+}
+
+// seatRoles is a seat's whole role set (rdb 0201, 025 §10.2); a store that
+// answers no set gives the primary alone.
+func seatRoles(m store.Membership) []string {
+	if len(m.Roles) > 0 {
+		return m.Roles
+	}
+	return []string{m.Role}
+}
+
+// seatAccountant reports a time-accountant seat (107 FR-21): the role is in
+// the seat's set, primary or not (025 §10.4 A17, A18).
+func seatAccountant(m store.Membership) bool {
+	return slices.Contains(seatRoles(m), realmTimeAccountant)
 }
 
 // realmFail answers a store error; the log line carries the op and the error

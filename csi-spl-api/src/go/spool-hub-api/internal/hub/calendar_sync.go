@@ -250,7 +250,7 @@ func (s *Server) approval(ctx context.Context, g calendarSyncGoal) (string, erro
 		return "the approval message was not written in a member session", nil
 	}
 	a, err := s.access(ctx, m.FromID, tenant)
-	if err != nil || !slices.Contains(roadmapApproverRoles, a.Role) {
+	if err != nil || !a.HasAny(roadmapApproverRoles...) {
 		return "the approval message's author holds neither biz_owner nor admin in the goal's workspace", nil
 	}
 	return "", nil

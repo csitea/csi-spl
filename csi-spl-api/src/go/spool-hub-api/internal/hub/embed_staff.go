@@ -60,7 +60,7 @@ func (s *Server) embedStaffActor(w http.ResponseWriter, r *http.Request) (store.
 		writeForbidden(w, permEmbedStaff, "visitor channels need a member session")
 		return nil, "", false
 	}
-	if a, err := s.access(r.Context(), hum, t.ID); err != nil || !(a.TenantOwner || a.Role == rbac.Admin) {
+	if a, err := s.access(r.Context(), hum, t.ID); err != nil || !(a.TenantOwner || a.Has(rbac.Admin)) {
 		writeForbidden(w, permEmbedStaff, "only the workspace owner or an admin manages visitor channels")
 		return nil, "", false
 	}

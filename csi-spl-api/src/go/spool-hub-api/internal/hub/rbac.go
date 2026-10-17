@@ -6,6 +6,7 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -90,9 +91,12 @@ func (s *Server) permit(w http.ResponseWriter, r *http.Request, tenant, hum, per
 // ---- GET /v1/view/me (025 FR-006) --------------------------------------------
 
 type meBody struct {
-	HumanID     *string  `json:"human_id"`
-	TenantID    string   `json:"tenant_id"`
-	Role        *string  `json:"role"`
+	HumanID  *string `json:"human_id"`
+	TenantID string  `json:"tenant_id"`
+	Role     *string `json:"role"`
+	// Roles is the member's whole role set, the primary (Role) first (025
+	// §10.2 rule 6); null = door-off guest.
+	Roles       []string `json:"roles"`
 	TenantOwner *bool    `json:"tenant_owner"`
 	Permissions []string `json:"permissions"` // null = door-off guest (no RBAC)
 	// SPL-1034 (rdb 0073): the person's own Channels order in this tenant;
@@ -131,6 +135,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()
+		out.Roles = append([]string{}, a.Roles...)
 		out.TopicArchivePolicy = s.archivePolicy(t)
 		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
 		// Only an act-as session pays the clone lookup (its Provider marks it);
@@ -201,27 +206,81 @@ func grantable(w http.ResponseWriter, a rbac.Access, roles map[string]rbac.Role,
 	return role, true
 }
 
-// targetRole answers the member's current role and applies §3.4 rule 2.
+// coversSet is 025 §10.2 rule 4: the actor covers a role set when it covers
+// every role of it, perms(⋃set) ⊆ perms(actor); the tenant owner covers
+// everyone. A role the tenant cannot see grants nothing.
+func coversSet(a rbac.Access, roles map[string]rbac.Role, set []string) bool {
+	for _, id := range set {
+		if !a.Covers(roles[id]) {
+			return false
+		}
+	}
+	return true
+}
+
+// targetRole answers the member's current primary role and applies §3.4
+// rule 2 over the member's whole role set (targetRoles).
 func (s *Server) targetRole(w http.ResponseWriter, r *http.Request, h store.Humans, t store.Tenant, a rbac.Access, roles map[string]rbac.Role) (string, string, bool) {
+	target, set, ok := s.targetRoles(w, r, h, t, a, roles)
+	if !ok {
+		return "", "", false
+	}
+	return target, set[0], true
+}
+
+// targetRoles answers the member's current role set, the primary first, and
+// applies §3.4 rule 2 over it (025 §10.2 rule 4): a role held as a
+// non-primary one counts as much as the primary.
+func (s *Server) targetRoles(w http.ResponseWriter, r *http.Request, h store.Humans, t store.Tenant, a rbac.Access, roles map[string]rbac.Role) (string, []string, bool) {
 	target := r.PathValue("human_id")
 	if !humanIDRe.MatchString(target) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such member")
-		return "", "", false
+		return "", nil, false
 	}
-	cur, err := s.memberRoleAny(r.Context(), h, t.ID, target)
+	set, err := s.memberRolesAny(r.Context(), h, t.ID, target)
 	if errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such member")
-		return "", "", false
+		return "", nil, false
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "member lookup failed")
-		return "", "", false
+		return "", nil, false
 	}
-	if !a.Covers(roles[cur]) {
-		writeForbidden(w, "", "your role cannot manage a member whose role is "+cur)
-		return "", "", false
+	if !coversSet(a, roles, set) {
+		writeForbidden(w, "", "your role cannot manage a member whose roles are "+strings.Join(set, ", "))
+		return "", nil, false
 	}
-	return target, cur, true
+	return target, set, true
+}
+
+// memberRolesAny is the member's role set, the primary first, for a
+// suspended or lapsed member too (memberRoleAny's reach): such a member holds
+// no live role, so its set comes from the member directory. ErrNotFound: not
+// a member. A store with neither set answers the primary alone.
+func (s *Server) memberRolesAny(ctx context.Context, h store.Humans, tenant, humanID string) ([]string, error) {
+	primary, err := s.memberRoleAny(ctx, h, tenant, humanID)
+	if err != nil {
+		return nil, err
+	}
+	set, err := h.MemberRoles(ctx, humanID, tenant)
+	if err == nil && len(set) > 0 {
+		return set, nil
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return nil, err
+	}
+	if d, ok := h.(store.MemberDirectory); ok {
+		ms, err := d.ListMembers(ctx, tenant)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range ms {
+			if m.HumanID == humanID && len(m.Roles) > 0 {
+				return m.Roles, nil
+			}
+		}
+	}
+	return []string{primary}, nil
 }
 
 func decodeMembers(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -254,6 +313,8 @@ func writeMemberErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusConflict, "role_changed", "the member's role changed; reload and retry")
 	case errors.Is(err, store.ErrUnknownRole):
 		writeErr(w, http.StatusBadRequest, "bad_role", "not a role of this tenant")
+	case errors.Is(err, store.ErrBadRole):
+		writeErr(w, http.StatusBadRequest, "bad_role", "the role set is empty, its primary is not in it, or it holds demo_user / channel_guest next to another role")
 	default:
 		writeErr(w, http.StatusInternalServerError, "internal", "member not changed")
 	}
@@ -345,7 +406,67 @@ func (s *Server) handleMemberRole(w http.ResponseWriter, r *http.Request) {
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Str("role", role).Msg("member.role_changed")
 	// CLE-77799: the durable per-person audit row for the Activity log.
 	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "role_changed", Detail: role})
-	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "human_id": target, "role": role})
+	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "human_id": target, "role": role, "roles": []string{role}})
+}
+
+// membersMaxRoles bounds one role set in a request body.
+const membersMaxRoles = 32
+
+// PUT /v1/members/{human_id}/roles {roles[], primary?, from_roles?} (025
+// §10.2 rule 6, data-model §4): sets the member's whole role set. The actor
+// must cover the member's current set and every role of the new one (§10.2
+// rule 4); the store keeps the last owner and the last admin over sets and
+// checks from_roles (409 role_changed). primary "" keeps the current primary
+// when the set holds it.
+func (s *Server) handleMemberRoles(w http.ResponseWriter, r *http.Request) {
+	t, a, roles, h, ok := s.membersActor(w, r, rbac.MembersRoles)
+	if !ok {
+		return
+	}
+	var body struct {
+		Roles     []string `json:"roles"`
+		Primary   string   `json:"primary"`
+		FromRoles []string `json:"from_roles"`
+	}
+	if !decodeMembers(w, r, &body) {
+		return
+	}
+	if len(body.Roles) == 0 || len(body.Roles) > membersMaxRoles {
+		writeErr(w, http.StatusBadRequest, "bad_role", "roles must name 1..32 roles")
+		return
+	}
+	target, _, ok := s.targetRoles(w, r, h, t, a, roles)
+	if !ok {
+		return
+	}
+	set := make([]string, 0, len(body.Roles))
+	for _, want := range body.Roles {
+		role, ok := grantable(w, a, roles, want, "")
+		if !ok {
+			return
+		}
+		set = append(set, role)
+	}
+	primary := rbac.Legacy(strings.TrimSpace(body.Primary))
+	if primary != "" && !slices.Contains(set, primary) {
+		writeErr(w, http.StatusBadRequest, "bad_role", "primary "+primary+" is not in roles")
+		return
+	}
+	if err := h.SetMemberRoles(r.Context(), t.ID, target, set, primary, body.FromRoles); err != nil {
+		writeMemberErr(w, err)
+		return
+	}
+	got, err := s.memberRolesAny(r.Context(), h, t.ID, target)
+	if err != nil || len(got) == 0 {
+		s.o.Log.Warn().Err(err).Str("tenant", t.ID).Str("member", target).Msg("member.roles_reread_failed")
+		writeErr(w, http.StatusInternalServerError, "internal", "roles written; reload to read them")
+		return
+	}
+	detail := strings.Join(got, ",")
+	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Str("roles", detail).Msg("member.roles_changed")
+	// CLE-77799: the durable per-person audit row for the Activity log.
+	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "role_changed", Detail: detail})
+	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "human_id": target, "role": got[0], "roles": got})
 }
 
 // DELETE /v1/members/{human_id}
@@ -431,6 +552,7 @@ func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/members/invites", s.handleMemberInvite)
 	mux.HandleFunc("DELETE /v1/members/invites", s.handleInviteRevoke)
 	mux.HandleFunc("PUT /v1/members/{human_id}/role", s.handleMemberRole)
+	mux.HandleFunc("PUT /v1/members/{human_id}/roles", s.handleMemberRoles) // 025 §10.2 rule 6
 	mux.HandleFunc("DELETE /v1/members/{human_id}", s.handleMemberRemove)
 	mux.HandleFunc("POST /v1/members/{human_id}/password-reset", s.handleMemberPasswordReset) // t1 ea0af569
 	mux.HandleFunc("GET /v1/members/{human_id}/emails", s.handleSignInEmails)                 // t1 f265541a
@@ -441,6 +563,7 @@ func (s *Server) routeMembers(mux *http.ServeMux) {
 	s.routeDemo(mux) // specs/077: the demo membership, GET /v1/demo (404 while off)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/role", s.membersPreflight)
+	mux.HandleFunc("OPTIONS /v1/members/{human_id}/roles", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/password-reset", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/emails", s.membersPreflight)
 }

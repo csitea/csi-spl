@@ -3,7 +3,6 @@ package hub
 import (
 	"errors"
 	"net/http"
-	"slices"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -80,7 +79,7 @@ func (s *Server) handlePatchRoadmapSwitch(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if a, err := s.access(r.Context(), hum, ws); err != nil || !slices.Contains(roadmapApproverRoles, a.Role) {
+	if a, err := s.access(r.Context(), hum, ws); err != nil || !a.HasAny(roadmapApproverRoles...) {
 		writeForbidden(w, "", "only a biz_owner or an admin of this workspace switches its roadmap")
 		return
 	}

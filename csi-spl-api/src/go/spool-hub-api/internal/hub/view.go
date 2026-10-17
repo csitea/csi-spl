@@ -377,7 +377,7 @@ func viewHumans(rs store.Roster, now time.Time) []viewHuman {
 	byID := make(map[string]store.Member, len(rs.Members))
 	for _, m := range rs.Members {
 		names[m.HumanID] = strings.TrimSpace(m.DisplayName)
-		if m.Role == rbac.BizOwner && !m.Disabled {
+		if (m.Role == rbac.BizOwner || slices.Contains(m.Roles, rbac.BizOwner)) && !m.Disabled { // 025 §10.4 A13: any role of the set
 			owners[m.HumanID] = true
 		}
 		byID[m.HumanID] = m

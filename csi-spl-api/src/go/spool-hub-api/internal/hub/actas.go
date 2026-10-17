@@ -192,7 +192,7 @@ func (a *actAs) StartActAs(ctx context.Context, tenant, admin, adminName, target
 		}
 		return auth.ActAsResult{}, err
 	}
-	if targetAcc.Role == "" {
+	if len(targetAcc.Roles) == 0 && targetAcc.Role == "" { // 025 §10.4 A14: no role in the set (an authorizer that answers no set names the primary alone)
 		return auth.ActAsResult{}, auth.ErrActAsNotMember
 	}
 	// The ceiling: the admin must strictly outrank the target — cover every

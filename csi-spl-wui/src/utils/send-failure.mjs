@@ -70,7 +70,11 @@ export async function sendWithResend(send) {
 
 /** i18n key for what the reader is told. Unknown shapes get the generic line. */
 export function sendFailureKey(err) {
+  /* SPL-2285: the hub answered the file upload with an error (upload-fail.mjs) */
+  if (/** @type {{ upload?: unknown } | null | undefined} */ (err)?.upload) return 'composer.send_failed_upload'
   switch (failureToken(err)) {
+    /* SPL-2285: the upload could not reach the hub (socket down, no answer) */
+    case 'hub_down': return 'composer.send_failed_hub_down'
     case 'closed': return 'composer.send_failed_closed'
     case 'timeout': return 'composer.send_failed_timeout'
     case 'empty': return 'composer.send_failed_empty'
@@ -88,10 +92,11 @@ export function sendFailureKey(err) {
   }
 }
 
-/** The params of that line: the agent a sender_not_allowed refusal names. */
+/** The params of that line: the agent a sender_not_allowed refusal names, an upload's status and token. */
 export function sendFailureParams(err) {
-  const a = /** @type {{ agent?: unknown } | null | undefined} */ (err)?.agent
-  return { agent: typeof a === 'string' ? a : '' }
+  const e = /** @type {{ agent?: unknown, status?: unknown, upload?: unknown } | null | undefined} */ (err)
+  const p = { agent: typeof e?.agent === 'string' ? e.agent : '' }
+  return e?.upload ? { ...p, status: String(e.status), error: failureToken(err) || '-' } : p
 }
 
 /**

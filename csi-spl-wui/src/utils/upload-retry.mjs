@@ -14,6 +14,9 @@
  * The fix mirrors the box client's session probe (redeploy_test.go): on a 401
  * 'door', redial onto the live revision, re-mint the token, and retry ONCE. A
  * second 'door' means the session itself is gone → a "session expired" prompt.
+ *
+ * SPL-2285: a hub the upload cannot reach (socket down for a few seconds, no
+ * connection, no answer) is 'hub_down', which the composer names with a Retry.
  */
 
 /** The hub's 401 for a bad/missing/expired upload token (rest.go tokenTenant). */
@@ -35,14 +38,20 @@ export function sessionExpiredError() {
  * @returns {Promise<T>}
  */
 export async function uploadWithFreshToken(api, live, file) {
+  /* SPL-2285: the socket wait and 'hub_down' load with the upload, not the first screen (ci_initial_gzip_kb) */
+  const { hubDownError, linkDown, linkUp } = await import('./upload-fail.mjs')
+  await linkUp(live)
   try {
-    return await api.uploadFile(file, await live.freshUploadToken())
+    const first = await live.freshUploadToken()
+    /* SPL-2285: no token and no socket is a hub that is down, not a session that is gone */
+    if (!first && linkDown(live)) throw hubDownError()
+    return await api.uploadFile(file, first)
   } catch (e) {
     if (!isUploadDoor(e)) throw e
   }
   /* force a redial onto the live revision and a freshly minted token */
   const token = await live.freshUploadToken(true)
-  if (!token) throw sessionExpiredError()
+  if (!token) throw linkDown(live) ? hubDownError() : sessionExpiredError()
   try {
     return await api.uploadFile(file, token)
   } catch (e2) {

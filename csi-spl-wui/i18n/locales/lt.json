@@ -618,6 +618,8 @@
     "send_retry": "Bandyti dar kartą",
     "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
     "send_failed_session_expired": "Neišsiųsta — jūsų sesija baigėsi. Prisijunkite iš naujo; jūsų tekstas išsaugotas.",
+    "send_failed_hub_down": "Neišsiųsta — ryšys su hub nutrūko. Jūsų failas ir tekstas išsaugoti; bandykite dar kartą.",
+    "send_failed_upload": "Neišsiųsta — hub atmetė failą ({status} {error}). Jūsų failas ir tekstas išsaugoti; bandykite dar kartą.",
     "target_thread": "Atsakymas atviroje gijoje",
     "target_new": "Nauja tema: {target}",
     "target_dm": "Nauja tema su {target}",

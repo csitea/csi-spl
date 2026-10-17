@@ -618,6 +618,8 @@
     "send_retry": "Yritä uudelleen",
     "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto.",
     "send_failed_session_expired": "Ei lähetetty — istuntosi vanheni. Kirjaudu uudelleen; tekstisi on tallessa.",
+    "send_failed_hub_down": "Ei lähetetty — yhteys hubiin on poikki. Tiedostosi ja tekstisi ovat tallessa; yritä uudelleen.",
+    "send_failed_upload": "Ei lähetetty — hub hylkäsi tiedoston ({status} {error}). Tiedostosi ja tekstisi ovat tallessa; yritä uudelleen.",
     "target_thread": "Vastaat avoimeen ketjuun",
     "target_new": "Uusi aihe: {target}",
     "target_dm": "Uusi aihe käyttäjälle {target}",

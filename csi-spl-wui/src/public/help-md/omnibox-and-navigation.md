@@ -112,6 +112,9 @@ Network interruptions or temporary server restarts will never cause you to lose 
   2. A clear error banner appears beside the Omnibox explaining the failure reason.
   3. A **Try again** button appears next to the notice. Clicking it attempts to resend the exact text and attachments immediately, with the same message id, so the hub never keeps a second copy.
 - If the network is gone, the message waits in the feed and goes out by itself when the connection is back (section 10.4).
+- A file that cannot reach the hub says so within seconds, never a silent nothing. The file stays in the box with **Try again**:
+  - *the connection to the hub is down*: the live connection did not come back within 5 seconds, the hub could not be reached, or it did not answer the upload in time (15 seconds, plus 1 second per 100 KB of the file);
+  - *the hub refused the file (503 unavailable)*: the hub answered with an error, and the notice names its status and reason.
 - Once the send succeeds, the composer smoothly clears and resets focus.
 
 ### 6.1 Waiting for an agent's answer: the hourglass

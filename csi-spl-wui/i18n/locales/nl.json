@@ -618,6 +618,8 @@
     "send_retry": "Opnieuw proberen",
     "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij.",
     "send_failed_session_expired": "Niet verzonden — je sessie is verlopen. Meld je opnieuw aan; je tekst staat er nog.",
+    "send_failed_hub_down": "Niet verzonden — de verbinding met de hub is verbroken. Je bestand en tekst staan er nog; probeer het opnieuw.",
+    "send_failed_upload": "Niet verzonden — de hub weigerde het bestand ({status} {error}). Je bestand en tekst staan er nog; probeer het opnieuw.",
     "target_thread": "Antwoord in de open thread",
     "target_new": "Nieuw onderwerp in {target}",
     "target_dm": "Nieuw onderwerp met {target}",

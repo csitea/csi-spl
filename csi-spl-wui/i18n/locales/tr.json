@@ -618,6 +618,8 @@
     "send_retry": "Tekrar dene",
     "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin.",
     "send_failed_session_expired": "Gönderilmedi — oturumun sona erdi. Yeniden giriş yap; metnin duruyor.",
+    "send_failed_hub_down": "Gönderilmedi — hub ile bağlantı kesildi. Dosyanız ve metniniz hâlâ burada; tekrar deneyin.",
+    "send_failed_upload": "Gönderilmedi — hub dosyayı reddetti ({status} {error}). Dosyanız ve metniniz hâlâ burada; tekrar deneyin.",
     "target_thread": "Açık konuya yanıt",
     "target_new": "{target} içinde yeni konu",
     "target_dm": "{target} ile yeni konu",

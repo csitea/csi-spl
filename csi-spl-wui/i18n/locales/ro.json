@@ -618,6 +618,8 @@
     "send_retry": "Încearcă din nou",
     "send_failed_empty": "Nu este nimic de trimis — o mențiune singură nu este un mesaj. Adaugă text sau atașează un fișier.",
     "send_failed_session_expired": "Netrimis — sesiunea ta a expirat. Autentifică-te din nou; textul tău este păstrat.",
+    "send_failed_hub_down": "Netrimis — conexiunea cu hubul este întreruptă. Fișierul și textul tău sunt păstrate; încearcă din nou.",
+    "send_failed_upload": "Netrimis — hubul a refuzat fișierul ({status} {error}). Fișierul și textul tău sunt păstrate; încearcă din nou.",
     "target_thread": "Răspuns în firul deschis",
     "target_new": "Subiect nou în {target}",
     "target_dm": "Subiect nou cu {target}",

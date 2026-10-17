@@ -618,6 +618,8 @@
     "send_retry": "Reintentar",
     "send_failed_empty": "No hay nada que enviar: una mención por sí sola no es un mensaje. Añade texto o adjunta un archivo.",
     "send_failed_session_expired": "No enviado: tu sesión expiró. Vuelve a iniciar sesión; tu texto sigue aquí.",
+    "send_failed_hub_down": "No enviado: la conexión con el hub está caída. Tu archivo y tu texto siguen aquí; inténtalo de nuevo.",
+    "send_failed_upload": "No enviado: el hub rechazó el archivo ({status} {error}). Tu archivo y tu texto siguen aquí; inténtalo de nuevo.",
     "target_thread": "Respondiendo en el hilo abierto",
     "target_new": "Nuevo tema en {target}",
     "target_dm": "Nuevo tema con {target}",

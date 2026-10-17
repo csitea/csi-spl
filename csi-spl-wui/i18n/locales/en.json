@@ -618,6 +618,8 @@
     "send_retry": "Try again",
     "send_failed_empty": "Nothing to send — a mention on its own is not a message. Add some text, or attach a file.",
     "send_failed_session_expired": "Not sent — your session expired. Sign in again; your text is still here.",
+    "send_failed_hub_down": "Not sent — the connection to the hub is down. Your file and text are still here; try again.",
+    "send_failed_upload": "Not sent — the hub refused the file ({status} {error}). Your file and text are still here; try again.",
     "target_thread": "Replying in the open thread",
     "target_new": "New topic in {target}",
     "target_dm": "New topic with {target}",

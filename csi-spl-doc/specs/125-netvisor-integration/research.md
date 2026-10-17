@@ -1,6 +1,6 @@
 # Research: a Netvisor API link for the csitea workspace
 
-Feature: `125-netvisor-integration` · Date: 2026-10-10 · Version v1.2 (owner rules C6..C9 folded in) · Status: research only
+Feature: `125-netvisor-integration` · Date: 2026-10-10 · Version v1.3 (owner rules C6..C9 and the owner's 9 answers of 2026-10-16 folded in) · Status: research only
 (no code, no sign-up, no vendor contact, no call that needs credentials).
 
 The owner's ask (csitea topic 67c25538): "some kind of API between the Spool
@@ -28,6 +28,8 @@ keys like `[S1]` resolve in section 9. A figure with no source is written
 | What is the API like? | XML over HTTPS, GET to read and POST to write, at `https://isvapi.netvisor.fi/<resource>.nv` [S6]. Each request is signed with an HMAC-SHA256 MAC [S2]. One call at a time per customer environment [S6]. No webhooks were found: polling only [S6]. |
 | Cash forecast (chosen route C) | Bank balance = `accountbalance.nv` on the bookkeeping account behind the one bank account [S14][S17]; + open sales invoices (`salesinvoicelist.nv`: `OpenSum`, `InvoiceDueDate`) [S9]; - open purchase invoices (`purchaseinvoicelist.nv` + `getpurchaseinvoice.nv`: `PurchaseInvoiceDueDate`, `InvoiceStatus`, `ApprovalStatus`) [S10][S11]; - payslips (`getpayrollpaycheckbatchlist.nv`) [S12]; - VAT and employer contributions from ledger balances [S14]. No API resource reads Netvisor's own cash-flow forecast screen [S16]. |
 | Card payments | Arrive as card-provider e-invoices with receipts [S27], as bank statement lines booked with posting rules [S28], or as travel expense reports; once booked they are ledger lines with account and cost centre, readable with `accountingledger.nv` [S15]. |
+| Owner's answers (2026-10-16, poll d19c1e1d, final msg 125a5387) | First build = the month-end cash forecast only (section 4); read-only; nightly fetch plus a "refresh now" button; bills are assumed paid on their due date; the company has a debit card AND a separate credit card; the keys are obtained by "both of us" (msg 11ca00a3); a short product view is wanted (section 6.2). Section 8.2 has each answer where its question sits. |
+| Still open: the BUILD lane waits for them | (a) which Netvisor package the company runs (the owner checks; the API needs Professional, Premium or Palkat [S4][S5]); (b) the bookkeeping account numbers, which the owner will type in chat; they go into the main-box file only, never into the repo (section 8.2 items 5 and 6). |
 | Recommendation | Option B (section 6): a read-only fetch action on the main box (`<DEV_BOX>`), keys in a 0600 file there only (owner msgs 072a9990, c0bcb7b1); it posts the fetched data through an operator endpoint into HUM-10-only hub tables (owner msg 42924894); a simple WUI screen for HUM-10 answers the questions by code, agents never see figures (owner msg 9a9e0802). Option D adds the balance sheet and P&L as a generated Qto document (owner msg adc2981c), which needs a per-person doc lock that does not exist yet. Effort L in total (section 6). |
 
 ## 1. Access options
@@ -66,7 +68,8 @@ does not make or subcontract integrations" [S21] (snippet only, see section 9).
 
 Consequence: the CustomerId/CustomerKey pair stops working when the Netvisor
 user who created it loses their rights. Create it under a dedicated
-integration user, not a person's account (owner question 4).
+integration user, not a person's account (section 8.2 item 4: the owner
+answered that "both of us" obtain the keys).
 
 ### 1.4 Authentication scheme [S2]
 
@@ -113,7 +116,8 @@ before hashing. The two keys never travel in a request.
 So: if the company already runs Professional or Premium, a read-only
 integration adds **no Netvisor fee** we could find. If it runs Core, the extra
 cost is the difference to Professional for its turnover band (e.g. 81 - 46 =
-35 €/mo under 0.1 M€) [S22]. Which package the company runs is owner question 5.
+35 €/mo under 0.1 M€) [S22]. Which package the company runs is still open: the owner checks it (section
+8.2 item 5).
 
 ### 2.2 Third-party connector (route 3, for comparison)
 
@@ -210,7 +214,8 @@ already imports. No bank API.
 the bookkeeping account, not the bank account: called with no `netvisorkey`
 it returns every account with its number and name [S14]. The connector needs
 one value, the **bookkeeping account number** behind the one bank account
-(from the company's chart of accounts; owner question 6). The bank account
+(from the company's chart of accounts; section 8.2 item 6: the owner will
+type it in chat, still open). The bank account
 number itself is never sent, stored or read by option C.
 
 That bookkeeping account number is company configuration and finance data
@@ -241,13 +246,15 @@ outgoing side is Netvisor's purchase invoices.
 | Bank balance | `accountbalance.nv`, bank bookkeeping account, `balancedates=<today>` | section 4.1 | [S14] |
 | + receivables due by month end | `salesinvoicelist.nv?invoicestatus=open` | sum `OpenSum` where `InvoiceDueDate <= month end`; overdue ones shown apart (they may not arrive) | [S9] |
 | - payables due by month end | `purchaseinvoicelist.nv` (unpaid) for `OpenSum`; `getpurchaseinvoice.nv` per open invoice for `PurchaseInvoiceDueDate`, `InvoiceStatus` (open / due for payment / paid) and `ApprovalStatus` | sum `OpenSum` where due date <= month end; split approved vs not yet approved | [S10][S11] |
-| scheduled payment date | not exposed: `getpurchaseinvoice.nv` has no scheduled-date field, `paymentlist.nv` lists executed payments only, `unprocessedoutgoingpayments.nv` covers API-sent transfers only | use `PurchaseInvoiceDueDate` as the expected pay date (owner question 8) | [S11][S29][S30] |
+| scheduled payment date | not exposed: `getpurchaseinvoice.nv` has no scheduled-date field, `paymentlist.nv` lists executed payments only, `unprocessedoutgoingpayments.nv` covers API-sent transfers only | use `PurchaseInvoiceDueDate` as the expected pay date: the owner confirmed bills are paid on their due date (section 8.2 item 8) | [S11][S29][S30] |
 | paid since the last statement | `paymentlist.nv` (`Date`, `HomeCurrencySum`, invoice key) | a payment dated after the bank balance's date is subtracted from the balance once, and its invoice is not counted again as open | [S29] |
 | - salaries | `getpayrollpaycheckbatchlist.nv` for payment dates in the month, status Open/Confirmed/Paid; lines via `getpayrollpaycheckbatch.nv` | net pay by line account; withholding and employer contributions fall due later, through the tax account | [S12][S13] |
-| - VAT due | no resource; `accountbalance.nv` on the VAT payable account(s) | which period's VAT falls due this month follows the company's tax schedule, which the API does not expose (not found); which accounts is owner question 6 | [S14][S18] |
+| - VAT due | no resource; `accountbalance.nv` on the VAT payable account(s) | which period's VAT falls due this month follows the company's tax schedule, which the API does not expose (not found); which accounts: section 8.2 item 6, still open | [S14][S18] |
 | - employer contributions, withholding | no resource; `accountbalance.nv` on the tax-account / liability accounts | the same | [S14] |
 | + recurring contract sales (optional) | `contractinvoicingreport.nv` | only if contract invoicing is used | [S24] |
 
+Refresh (owner, section 8.2 item 7): one nightly run plus a "refresh now"
+button on HUM-10's screen, both through the same main-box fetch action.
 Calls per refresh, sequential (one at a time [S6]): 1 balance + 1 sales list
 + 1 purchase list + one `getpurchaseinvoice.nv` per open purchase invoice +
 1 payment list + 1 payslip list + 1 balance call for the tax accounts. For a
@@ -256,9 +263,12 @@ small company that is tens of calls, well inside one nightly run.
 ## 5. Use case 2: card payments and their cost structure
 
 Owner (msg 2a339876): "integrate the payments that are paid through the bank
-card and see the cost of their structures as well". Whether the card is a
-debit card on the one account or a separate credit card is being asked by
-the dispatcher; both routes are below.
+card and see the cost of their structures as well". The company has both a
+debit card on the one account and a separate credit card (section 8.2 item
+9), so both routes below apply. Not in the first build: the owner chose the
+cash forecast only (section 8.2 item 1). The forecast still covers both
+cards: debit-card purchases are in the bank balance once booked, and the
+credit card's bill is a purchase invoice with a due date (section 4.4).
 
 ### 5.1 How card purchases reach Netvisor
 
@@ -380,6 +390,31 @@ Per-env note: the dev run talks to the Netvisor **training environment**,
 the prd run to production, each with its own key file on the main box. That
 keeps test traffic out of the real books.
 
+### 6.2 As a product (owner answer 9)
+
+Owner, 2026-10-16 (msg 125a5387): yes to a short section on this as a
+product. Not in the build scope; it only keeps the door open.
+
+- **The route exists**: the software partnership (section 1.1) is the same
+  technical path as the own-use integration, and the partner programme is
+  free [S3]. One PartnerId/PartnerKey serves every customer; each customer
+  creates its own CustomerId/CustomerKey and allows the resources [S2][S7].
+  The TransactionId must be unique across all customers of the PartnerId
+  [S2], so a new GUID per request is enough.
+- **The customer's cost**: reading costs no Netvisor fee, but the customer
+  must run Professional, Premium or Palkat [S4][S5]. A read-only product
+  needs no write rights and carries no transaction fee (section 3.3).
+- **What does not carry over from csitea**: rule C6 keeps keys in one file on
+  one main box. A product needs each customer's keys on that customer's own
+  box (a desk on their machine, as the satellite runs one) or another key
+  store the customer accepts; that is a new decision, not C6. Rule C7's
+  HUM-10 check becomes "the workspace's finance owner", the same per-person
+  lock with a per-workspace id.
+- **What to keep generic in the build now**: the workspace id, the key-file
+  path and the bookkeeping account numbers are parameters of the fetch
+  action and the hub tables, never csitea literals, so a product later is
+  configuration, not a rewrite.
+
 ## 7. Later scope: balance sheet, cost items
 
 | want | Netvisor source | source |
@@ -407,34 +442,62 @@ The spec 123 link is the same as in section 5.3.
 | C8 | "We should strive to build a simple UI which will answer my questions and not actually give too much information to the agents (because the aim is to have the available data and create the analysis after the data exists in our database ...)" (fc0119cd, msg 9a9e0802) | the fetched data is stored in the hub DB first; a simple WUI screen for HUM-10 answers the questions by code; agents never receive figures, so option C (MCP for agents) is out (section 6) |
 | C9 | "Also, I would like to enable the usage of the QTRO docs as a balance sheet statement because of its hierarchical structure capabilities." (fc0119cd, msg adc2981c; QTRO = the Qto workspace docs, specs 113/114/120) | option D: balance sheet and P&L generated by code as a hierarchical Qto document on each fetch, after a per-person, no-agent doc lock is built (section 6.1) |
 
-### 8.2 Open (before a spec)
+### 8.2 Asked before a spec, and the owner's answers
+
+Owner HUM-10, 2026-10-16, poll d19c1e1d in csitea topic fc0119cd; final
+answers in msg 125a5387 (earlier partial posts ad4774bb, 331062fd; item 4 in
+msg 11ca00a3). Items 5 and 6 are still open: **the BUILD lane waits for
+them.**
 
 1. **Which reports first?** The end-of-month cash forecast alone (section 4),
    or also the card-cost breakdown (section 5), open receivables/payables
    lists, the monthly P&L and balance sheet?
+   **Answered: "The month-end cash forecast only"** [HUM-10, 2026-10-16, msg
+   125a5387]. Sections 5 and 7 stay research for later.
 2. **Read-only, or also write?** Read-only needs no write access rights and no
    transaction fees. Writing (e.g. sending sales invoices from the workspace)
    adds fees and risk.
+   **Answered: "Read-only"** [HUM-10, 2026-10-16, msg 125a5387]. Only GET
+   resources and their access rights (section 1.2 step 5, section 3.3).
 3. *(dropped: answered by C7 and C8: HUM-10 only, agents never see
    figures; the figures live on one screen.)*
 4. **Who obtains the keys?** Partner registration and the test environment
    (section 1.2 steps 2 to 4) need a contact person; the CustomerId/CustomerKey
    need a Netvisor admin, ideally under a dedicated integration user so they do
    not expire with a person's account. Whoever obtains them puts them into the
-   the main box file directly (C6), never through a chat post.
+   main box file directly (C6), never through a chat post.
+   **Answered: "Both of us"** [HUM-10, 2026-10-16, msg 11ca00a3, marked
+   "wants to discuss"]; read by the dispatcher as HUM-10 and his accountant
+   (c-003, msg 1092341b). Obtaining a key happens outside the workspace; C6
+   and C7 still decide where it is kept and who in the workspace sees it.
 5. **Which Netvisor package does the company run?** Professional or Premium:
    no extra fee. Core or lower: the API needs an upgrade (section 2.1).
+   **Open: "Something else, I'll check"** [HUM-10, 2026-10-16, msg
+   125a5387]. The API needs Professional, Premium or Palkat [S4][S5]; the
+   BUILD lane waits for the owner's check.
 6. **Which bookkeeping accounts** hold the bank balance, VAT payable and the
-   tax-account liabilities? Your accountant knows. These go into the the main box
-   file with the keys, never into a topic (section 4.2).
+   tax-account liabilities? Your accountant knows. These go into the main box
+   file with the keys (section 4.2).
+   **Open: "I'll type the account numbers in chat"** [HUM-10, 2026-10-16,
+   msg 125a5387]. Whoever receives them moves them into the main-box file
+   (or the HUM-10-only settings row, C7); no account number is ever written
+   into this repo, a spec, a log or CI output (C2). The BUILD lane waits for
+   them.
 7. **How fresh?** Nightly is the vendor's advice; is a "refresh now" button
    enough, or do you need intraday? The balance itself only moves when a
    statement is processed (section 4.1).
+   **Answered: "Nightly + a 'refresh now' button"** [HUM-10, 2026-10-16,
+   msg 125a5387]. No intraday polling (section 4.4).
 8. **Are bills paid on their due date?** Netvisor exposes no scheduled
    payment date, so the forecast assumes the due date.
-9. **Debit card on the one account, or a separate credit card?** (being asked
-   by the dispatcher) It decides whether card costs carry a vendor record
-   (section 5.2).
+   **Answered: "Yes"** [HUM-10, 2026-10-16, msg 125a5387]. The forecast
+   uses `PurchaseInvoiceDueDate` (section 4.4).
+9. **Debit card on the one account, or a separate credit card?** It decides
+   whether card costs carry a vendor record (section 5.2).
+   **Answered: "Both"** [HUM-10, 2026-10-16, msg 125a5387]. Both routes of
+   section 5.1 apply when use case 2 is built.
+10. **A short section on this as a product?** (poll item 9)
+    **Answered: "Yes"** [HUM-10, 2026-10-16, msg 125a5387]: section 6.2.
 
 ## 9. Sources (all read 2026-10-10)
 

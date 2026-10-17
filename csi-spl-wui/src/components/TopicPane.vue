@@ -48,6 +48,7 @@
         :last-msg-id="latestId"
         :empty-text="t('topic.empty')"
         :since-ms="sinceMs"
+        :unread-boundary="unreadBoundary"
         @older="loadOlder"
         @clear-search="search = ''"
         @edited="onEdited"
@@ -67,6 +68,7 @@
 
 <script setup lang="ts">
 import { useTopicStore } from '~/stores/topic'
+import { useNotificationStore } from '~/stores/notification'
 import { WINDOW, useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
@@ -74,6 +76,7 @@ import { matchesSearch, mergeById, newestFirst, withoutMsg } from '~/utils/feed.
 import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { plainText } from '~/utils/plain-text.mjs'
+import { topicKey } from '~/utils/read-cursor.mjs'
 import { archiveStamp, latestMessageId } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
@@ -86,6 +89,10 @@ import { POLL_ROWS } from '~/utils/poll-fence.mjs'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
+/* SPL-2430 (owner, t1 89010926): the "new" divider before the first unseen
+   reply, from the topic's mark as the open found it (topic.openTarget) */
+const notes = useNotificationStore()
+const unreadBoundary = computed(() => notes.boundary[topicKey(topic.parentTaskId || '')] || null)
 const { newestLast } = useViewPrefs()
 const { onTopicPaneClick } = useTopicPaneClick()
 const sinceMs = useNowTick(() => topic.open)

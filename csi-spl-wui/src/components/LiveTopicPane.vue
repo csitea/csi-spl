@@ -52,6 +52,7 @@
         :count-for="rootCount"
         :unread-for="rootUnread"
         :count-msg-id="rootId"
+        :unread-boundary="unreadBoundary"
         @clear-search="pane.setSearch('')"
         @edited="onEdited"
         :move-ctx="moveCtx"
@@ -68,6 +69,7 @@
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { useNotificationStore } from '~/stores/notification'
+import { topicKey } from '~/utils/read-cursor.mjs'
 import { newestFirst } from '~/utils/feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { plainText } from '~/utils/plain-text.mjs'
@@ -123,6 +125,9 @@ function rootCount(id: string) {
 function rootUnread(id: string) {
   return notes.topicUnread(id, rootCount(id), pane.seenAtOpen)
 }
+/* SPL-2430 (owner, t1 89010926): the "new" divider before the first unseen
+   reply, from the topic's mark before this open (live.ts open) */
+const unreadBoundary = computed(() => notes.boundary[topicKey(pane.taskId || '')] || null)
 
 /* The open topic's own title, selected at the top of this pane. */
 const titleText = computed(() => plainText(topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null)))

@@ -1112,6 +1112,14 @@ declare module '~/utils/thread-jump.mjs' {
   }): { show: '' | 'newest' | 'oldest', dir: '' | 'up' | 'down', top: number }
 }
 
+declare module '~/utils/unread-landing.mjs' {
+  export function unreadLandingId(rows: Array<{ msg_id?: string }>, boundary: { ts?: string, id?: string } | null | undefined, selfId?: string, newestLast?: boolean): string
+  export const LANDING_HOLD_MS: number
+  export function holdLanding(scroller: HTMLElement, watch: Array<Element | null | undefined>, land: () => void, ownMove?: () => boolean, ms?: number): () => void
+  export function rowEl(root: Element | null | undefined, id: string): HTMLElement | null
+  export function landFeed(root: HTMLElement | null | undefined, target: () => Element | null, hold: () => void, newestLast: () => boolean): (() => void) | null
+}
+
 declare module '~/utils/pane-scroll.mjs' {
   export function scrollRowToTop(scroller: HTMLElement, row: Element): void
   export function scrollRowIntoPane(scroller: HTMLElement, row: Element): void

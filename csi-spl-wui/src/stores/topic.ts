@@ -91,7 +91,9 @@ function openActions(s: TopicState, channel: ReturnType<typeof useChannelStore>)
     s.paneSelected.value = false
     usePaneFocus().openedTopic()
     /* CLE-77804 (topic 35053f95): opening the thread reads it — snapshot the
-       current reply total so the card's "<unread>/<total>" clears to plain. */
+       current reply total so the card's "<unread>/<total>" clears to plain.
+       SPL-2430: the pane's "new" divider keeps the mark the open found. */
+    if (next.taskId) useNotificationStore().enterTopic(next.taskId)
     if (next.taskId) void readOpened(next.taskId, channel.repliesFor(next.taskId))
   }
 

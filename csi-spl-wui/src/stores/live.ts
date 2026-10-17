@@ -199,6 +199,8 @@ async function open(s: Live, id: string, opts: OpenOpts = {}) {
   const { key, taskId } = s
   s.reading.value = key === 'pane' || Boolean(opts.read)
   if (id !== taskId.value) s.seenAtOpen.value = useNotificationStore().topicRead[id]
+  /* SPL-2430: the right pane's "new" divider, from the mark before this open */
+  if (key === 'pane' && id !== taskId.value) useNotificationStore().enterTopic(id)
   /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
   if (key === 'pane') usePaneFocus().openedTopic()
   const client = s.live.ensure()

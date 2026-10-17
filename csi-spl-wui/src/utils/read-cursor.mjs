@@ -62,6 +62,20 @@ export function topicKey(taskId) {
 }
 
 /**
+ * A topic's read mark as it was when the topic was opened: its t:<id>
+ * cursor's time, or null when the reader never read it (no divider then).
+ * The pane freezes it before the open stamps the topic read (SPL-2430).
+ *
+ * @param {Record<string, { ts?: string } | undefined>} cursors the stored read cursors
+ * @param {string} taskId the topic
+ * @returns {{ ts: string, id: string } | null}
+ */
+export function topicBoundary(cursors, taskId) {
+  const c = cursors && taskId ? cursors[topicKey(taskId)] : null
+  return c && c.ts ? { ts: String(c.ts), id: '' } : null
+}
+
+/**
  * CLE-77804 (topic 35053f95): mark a topic read at its current reply total.
  * The cursor carries `count` — the total the reader had seen — so the card can
  * show unread = currentTotal - count as "<unread>/<total> >>", per reader, with

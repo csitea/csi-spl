@@ -171,6 +171,7 @@ import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread, loadCursors, openerUnseen } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { seatDividerId } from '~/utils/seat-divider.mjs'
+import { landFeed, rowEl, unreadLandingId } from '~/utils/unread-landing.mjs'
 import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
@@ -368,8 +369,12 @@ const showUnreadJump = computed(() => !phone.value && newCount.value > 0 && !pil
 function dividerEl(): HTMLElement | null {
   return root.value?.querySelector<HTMLElement>('[data-testid="new-divider"]') || null
 }
+/* SPL-2430: where the unseen start (unreadLandingId); on screen hides the pill */
+function landingEl(): HTMLElement | null {
+  return newestLast.value ? dividerEl() : rowEl(root.value, unreadLandingId(shown.value, props.unreadBoundary, viewerId.value, false))
+}
 function measureDivider() {
-  const el = dividerEl()
+  const el = landingEl()
   if (!el) {
     dividerVisible.value = false
     return
@@ -442,30 +447,33 @@ function jumpToUnread() {
   else scroller.scrollTo({ top: 0, behavior: 'auto' })
 }
 
-/* On open (a new boundary, once the rows are in) land at the first unread: for
-   newest-last that means scrolling the divider to the top (the feed otherwise
-   opens at its bottom); newest-first already opens at the top where the newest
-   unread are. hold() stops the newest-last bottom glue so this scroll wins, the
-   same way a #msg deep link does. Then measure whether the divider is on
-   screen for the jump button. */
+/* On open (a new boundary, once the rows are in) land where the unseen start
+   (SPL-2430, owner t1 89010926): newest-last the divider, newest-first the
+   newest unseen, held while the cards settle (landFeed). Then measure whether
+   the divider is on screen for the jump button. */
 let dividerDone = ''
+let stopLanding: (() => void) | null = null
 watch(() => props.unreadBoundary, () => { dividerDone = '' })
 watch(() => [firstNewId.value, props.rows.length] as const, async ([id]) => {
   await nextTick()
   if (id && id !== dividerDone) {
     dividerDone = id
-    const el = dividerEl()
-    const scroller = el?.closest<HTMLElement>('.feed-body')
-    if (el && scroller && newestLast.value) {
-      hold()
-      scrollRowToTop(scroller, el)
-    }
+    landUnread()
   }
   measureDivider()
 }, { immediate: true })
+function landUnread() {
+  stopLanding?.()
+  /* an async pane renders before it is in the page (null): onMounted lands it */
+  stopLanding = landFeed(root.value, landingEl, hold, () => newestLast.value)
+}
 
 onMounted(() => {
   if (typeof document !== 'undefined') document.addEventListener('scroll', onFeedScroll, { capture: true, passive: true })
+  if (firstNewId.value && !stopLanding) {
+    dividerDone = firstNewId.value
+    landUnread()
+  }
   void nextTick(() => measureJump())
 })
 watch([phone, newestLast, () => props.holdScroll, () => props.rows.length], async () => {
@@ -473,6 +481,7 @@ watch([phone, newestLast, () => props.holdScroll, () => props.rows.length], asyn
   measureJump()
 })
 onUnmounted(() => {
+  stopLanding?.()
   if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
   jumpResize?.disconnect()
 })

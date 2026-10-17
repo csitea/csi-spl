@@ -35,6 +35,7 @@ import {
   ownReplyReadAt,
   replyTopicsOf,
   saveCursors,
+  topicBoundary,
   topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
@@ -346,6 +347,13 @@ function readSteps(unread: Counts, mentions: Counts, boundary: Boundary) {
     boundary.value = { ...boundary.value, [key]: c ? { ts: String(c.ts || ''), id: String(c.id || '') } : null }
   }
 
+  /** SPL-2430: a topic's divider boundary, its t: mark as the open found it.
+   *  A pane's open calls it once, before it stamps the topic read. */
+  function enterTopic(taskId: string) {
+    if (!taskId || !import.meta.client) return
+    boundary.value = { ...boundary.value, [topicKey(taskId)]: topicBoundary(loadCursors(), taskId) }
+  }
+
   /** A read key's rail badge and mention mark go to 0. */
   function clear(key: string) {
     unread.value = { ...unread.value, [key]: 0 }
@@ -366,7 +374,7 @@ function readSteps(unread: Counts, mentions: Counts, boundary: Boundary) {
     clear(key)
   }
 
-  return [enterFeed, markRead, markChannelRead] as const
+  return [enterFeed, markRead, markChannelRead, enterTopic] as const
 }
 
 /** The rail counts: hub unread on (re)load, DM totals, and the pings a reconnect's catch-up owes. */
@@ -513,7 +521,7 @@ export const useNotificationStore = defineStore('notification', () => {
   /** CLE-77804: each feed's read cursor as it was opened (readSteps) */
   const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
   const [topicRead, topicUnread, markTopicRead, ownReplyRead, seedTopics] = topicSteps(boundary)
-  const [enterFeed, markRead, markChannelRead] = readSteps(unread, mentions, boundary)
+  const [enterFeed, markRead, markChannelRead, enterTopic] = readSteps(unread, mentions, boundary)
   const [applyChannels, applyDms, countDmLive, dmBadge, dmTotalBadge] = countSteps(unread, dmTotal, i18n, humanNames, ping)
   const ingest = ingestStep(unread, mentions, pingFor, ownReplyRead, markRead)
 
@@ -535,6 +543,7 @@ export const useNotificationStore = defineStore('notification', () => {
     mentions,
     boundary,
     enterFeed,
+    enterTopic,
     seedTopics,
     /* Owner (HUM-10, t1 7ef63cfc): '/' is prerendered, and its payload's empty
        map replaced the marks read from localStorage above - a tab opened there

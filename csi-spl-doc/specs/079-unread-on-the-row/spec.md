@@ -77,6 +77,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 | **FR-009** | Reading a message lowers every surface in the same reactive tick | Planned |
 | **FR-010** | Help `channels-and-direct-messages.md` and `interface-overview.md` §3.1 describe one number per row and the title as their sum | Planned |
 | **FR-011** | A topic card's `<new>/<total>` (owner HUM-10, t1 89010926, SPL-2422): total = the first message + its replies; the first message is 1 new for a reader who has not seen it (not their own, after their `t:` mark or, with none, after the channel boundary: `openerUnseen`), so a fresh topic reads `1/1`; it wears the channel row badge (`badge-unread`), a step smaller (0.625rem) and a shade lighter | Done (SPL-2422) |
+| **FR-012** | A feed with unseen messages opens where they start, in the reader's `message_order` (owner HUM-10, t1 89010926, SPL-2430): a channel, a DM and the topic pane draw the "new" divider (a topic's boundary is its `t:` mark as the open found it, `topicBoundary`); newest-last lands the divider at the top, newest-first the newest unseen (the top of the unseen block), held while the cards settle (`unread-landing.mjs`); the "N new" jump pill hides while that landing row is on screen. e2e `unread-open-at-first-unseen` (channel + topic, both orders, 1440 + 390 px) | Done (SPL-2430) |
 
 ## 6. Acceptance scenarios
 

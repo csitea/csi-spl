@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# gh, with a TMPDIR of the calling user's own (SPL-2336).
+#
+# gh puts its run logs under os.TempDir()/gh-cli-cache (gh 2.46: `gh run view
+# --log` / `--log-failed`). On a shared /tmp the first user to run it owns that
+# dir 0755, and every other user then gets "open /tmp/gh-cli-cache/run-log-...
+# zip: permission denied". os.TempDir() is $TMPDIR, so this shim runs the real
+# gh with TMPDIR=<base>/gh-<uid>, a 0700 dir of this user. XDG_CACHE_HOME does
+# not move that dir (checked on 2.46).
+#
+# spool-harness.sh puts this dir first on every lane's PATH. Only gh gets the
+# new TMPDIR: the agent CLI and the rest of the lane keep theirs.
+#
+# Env: GH_SHIM_TMPDIR  the dir to use instead of <TMPDIR or /tmp>/gh-<uid>
+set -u
+
+_ghs_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+
+# The first gh on PATH that is not this shim.
+_ghs_real() {
+  local d
+  local IFS=:
+  for d in $PATH; do
+    [ -n "$d" ] || continue
+    [ "$(readlink -f "$d" 2>/dev/null)" = "$_ghs_self" ] && continue
+    if [ -f "$d/gh" ] && [ -x "$d/gh" ]; then printf '%s\n' "$d/gh"; return 0; fi
+  done
+  return 1
+}
+
+# The private dir: created 0700, and used only when this user owns it (a dir of
+# that name made by another user is never trusted).
+_ghs_tmpdir() {
+  local uid base dir
+  uid="$(id -u)"
+  base="${TMPDIR:-/tmp}"
+  base="${base%/}"
+  case "$base" in */gh-"$uid") dir="$base" ;; *) dir="$base/gh-$uid" ;; esac
+  dir="${GH_SHIM_TMPDIR:-$dir}"
+  [ -d "$dir" ] || mkdir -m 700 "$dir" 2>/dev/null
+  if [ -d "$dir" ] && [ -O "$dir" ] && [ -w "$dir" ]; then printf '%s\n' "$dir"; return 0; fi
+  echo "gh-shim: $dir is not a dir of $(id -un); gh keeps TMPDIR=${TMPDIR:-<unset>}" >&2
+  return 1
+}
+
+real="$(_ghs_real)" || { echo "gh-shim: no gh on PATH besides $_ghs_self" >&2; exit 127; }
+if dir="$(_ghs_tmpdir)"; then export TMPDIR="$dir"; fi
+exec "$real" "$@"

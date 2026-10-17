@@ -15,7 +15,8 @@
 #                (started when absent, one per root under a lock), and the
 #                agent seen under this box in its roster cache
 #   4. env       exports SPOOL_ROOT, SPOOL_BOX_ID (when set), SPOOL_AGENT_ID
-#                and SPOOL_NOTIFY_CMD (the terminal leg, specs/028)
+#                and SPOOL_NOTIFY_CMD (the terminal leg, specs/028); puts
+#                ../shims first on PATH (gh with a per-user TMPDIR, SPL-2336)
 #   5. mirror    --mirror only: the terminal mirror's hooks for THIS session
 #                (specs/036, lib/spool-mirror-hooks.inc.sh): claude gets
 #                `--settings <file>` inserted after the binary, grok / agy / qwen
@@ -218,6 +219,14 @@ export SPOOL_ROOT SPOOL_AGENT_ID="$agent"
 # pane is rung whether the agent used the `spool send` verb or the spool_send
 # MCP tool (specs/012 FR-001: one API, so one terminal leg too).
 [ -n "$SPOOL_NOTIFY_CMD" ] && export SPOOL_NOTIFY_CMD
+# gh keeps its run logs in $TMPDIR/gh-cli-cache; on a shared /tmp whoever ran
+# gh first owns it and every other user's `gh run view --log` is denied
+# (SPL-2336). shims/gh runs gh alone with a TMPDIR of this user's own.
+gh_shims="$(cd "$HARNESS_DIR/../shims" 2>/dev/null && pwd)"
+case ":$PATH:" in
+  *":$gh_shims:"*) ;;
+  *) [ -x "$gh_shims/gh" ] && export PATH="$gh_shims:$PATH" ;;
+esac
 
 # ── 5. mirror ──────────────────────────────────────────────────────────────
 command -v "$1" >/dev/null 2>&1 || die 127 "agent command '$1' not found"

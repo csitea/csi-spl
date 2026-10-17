@@ -18,7 +18,10 @@
 # @description   restart   - only after a poke from an earlier pass (GC_POKE_WAIT)
 # @description               with no heartbeat progress since: do_spl_agent_restart
 # @description               CAUSE=gc, detached (its own guards: human, rotation,
-# @description               held out, limits)
+# @description               held out, limits). Progress unknown (`-`, agy
+# @description               writes none) is never "no progress": a pane that
+# @description               changed or moved, or a post, ack or session since
+# @description               the poke = moved, no restart (SPL-2443)
 # @description   close-ask - GC_WHY to the report addressee (below): close this
 # @description               finished lane; the orch lease holder gets a cc
 # @description   done      - GC_SUMMARY: one log line + one note to the report
@@ -29,6 +32,8 @@
 # @description (> LEASE_STALE s) or missing lease = the ORCH lease holder
 # @description (lease.orch, else lease.conf LEASE_ORCH), and the line says so.
 # @description   status    - the current pass and the log tail
+# @description An id with two panes is judged in the one whose process tree
+# @description carries SPOOL_AGENT_ID=<id> (a kept old pane never is).
 # @description Role seats (001..003) are scanned, never poked, restarted or
 # @description closed (rotation and the watchdog own them); a human hold
 # @description refuses every step. poke, restart and close-ask are refused
@@ -41,7 +46,7 @@
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
 # @param GC_REPORT_TO (optional) - a fixed addressee instead of the dispatch lease holder (no cc, no fallback)
-# @param GC_NOW / GC_CLOSE_DELAY / GC_RESTART_CMD / GC_SEND / ROTATE_TMUX (optional) - seams for the tests
+# @param GC_NOW / GC_CLOSE_DELAY / GC_RESTART_CMD / GC_SEND / ROTATE_TMUX / GC_PROC_ROOT (optional) - seams for the tests
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example GC_CMD=start ./run -a do_spl_gc
 # @example GC_CMD=scan ./run -a do_spl_gc
@@ -50,6 +55,8 @@
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
+declare -F spool_proc_env_get >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh"
 
 SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY"
@@ -170,19 +177,47 @@ spl_gc_start() {
 # ---- scan --------------------------------------------------------------------
 
 # "<id>\t<pane>" of every agent window of this box (the watchdog's rule: a
-# window named <id>[@<this box>], a "<tag>: " prefix allowed).
+# window named <id>[@<this box>], a "<tag>: " prefix allowed). An id with
+# two panes gets the one its live harness runs in (spl_gc_live_panes): on
+# 10-17 one box's GC read a-491's kept old pane (%212, at bash under its
+# retire banner) and called the live agy in %245 ended.
 spl_gc_agents() {
-  local re='^[acgqm]-[0-9]{3}$'
-  spl_gc_tmux list-panes -a -F $'#{pane_id}\t#{window_name}' 2>/dev/null |
-    while IFS=$'\t' read -r pane name; do
+  local re='^[acgqm]-[0-9]{3}$' rows dup
+  rows="$(spl_gc_tmux list-panes -a -F $'#{pane_id}\t#{window_name}\t#{pane_pid}' 2>/dev/null |
+    while IFS=$'\t' read -r pane name pid; do
       [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*:\  ]] && name="${name#*: }"
       name="${name%% *}"
       local id="${name%%@*}" box=""
       [[ "$name" == *@* ]] && box="${name#*@}"
       [[ "$id" =~ $re ]] || continue
       [[ -z "$box" || "$box" == "$GC_BOX" || "$box" == "$ROTATE_BOX" ]] || continue
-      printf '%s\t%s\n' "$id" "$pane"
-    done | sort -u -k1,1 || true
+      printf '%s\t%s\t%s\n' "$id" "$pane" "${pid:--}"
+    done || true)"
+  [[ -n "$rows" ]] || return 0
+  dup="$(cut -f1 <<<"$rows" | sort | uniq -d)"
+  { [[ -z "$dup" ]] || spl_gc_live_panes "$(awk -F'\t' 'NR == FNR {d[$1]; next} $1 in d' <(printf '%s\n' "$dup") - <<<"$rows")"
+    cut -f1,2 <<<"$rows"; } | awk -F'\t' '!s[$1]++' | sort -k1,1 || true
+}
+
+# "<id>\t<pane>" for each of ROWS ("<id>\t<pane>\t<pane_pid>") whose pane's
+# process tree holds a process with SPOOL_AGENT_ID=<id>: the live harness.
+# One read of <proc>/*/stat for the tree, one environ read per owner.
+spl_gc_live_panes() {
+  local root="${GC_PROC_ROOT:-/proc}" tree id pane pid p
+  local -A at=()
+  tree="$(grep -H '' "$root"/[0-9]*/stat 2>/dev/null |
+    awk '{p = $0; sub(/\/stat:.*$/, "", p); sub(/.*\//, "", p); l = $0; sub(/^.*\) /, "", l); split(l, f, " "); print p, f[2]}' || true)"
+  while IFS=$'\t' read -r id pane pid; do
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    while read -r p; do
+      at[$p]="$id"$'\t'"$pane"
+    done < <(awk -v r="$pid" '{c[$2] = c[$2] " " $1} END {q[1] = r; n = 1; i = 1
+        while (i <= n) {x = q[i++]; print x; k = split(c[x], a, " "); for (j = 1; j <= k; j++) q[++n] = a[j]}}' <<<"$tree")
+  done <<<"$1"
+  (( ${#at[@]} )) || return 0
+  spool_proc_env_get "$root" SPOOL_AGENT_ID "${!at[@]}" | while read -r p id; do
+    [[ "${at[$p]%%$'\t'*}" == "$id" ]] && printf '%s\n' "${at[$p]}"
+  done || true
 }
 
 spl_gc_pane_of() { spl_gc_agents | awk -F'\t' -v i="$1" '$1 == i {print $2; exit}'; }
@@ -226,7 +261,7 @@ spl_gc_scan_one() {
 
 spl_gc_poked_line() {
   local t p r
-  if read -r t p r 2>/dev/null < "$GC_DIR/$1.poked"; then echo "poked $(( GC_NOW - t ))s ago in $r (progress then: $p)"; else echo "not poked"; fi
+  if read -r t p r _ 2>/dev/null < "$GC_DIR/$1.poked"; then echo "poked $(( GC_NOW - t ))s ago in $r (progress then: $p)"; else echo "not poked"; fi
 }
 
 # A human hold on <id>, or nothing.
@@ -341,23 +376,43 @@ spl_gc_rid() { local r; read -r _ _ _ r 2>/dev/null < "$GC_DIR/run" || true; ech
 
 spl_gc_progress() { jq -r '.progress_ts // "-"' "$SPOOL_ROOT/$1/heartbeat.json" 2>/dev/null || echo -; }
 
+# "<pane>:<hash of its last 30 lines>" of <id>, the poke's second witness
+# when the heartbeat has no progress field.
+spl_gc_screen() {
+  local pane h
+  pane="$(spl_gc_pane_of "$1")"
+  h="$(spl_gc_tmux capture-pane -p -t "$pane" -S -30 2>/dev/null | md5sum | cut -c1-12 || true)"
+  echo "${pane:--}:${h:--}"
+}
+
+# What moved since the poke at T (SEEN: the screen then), or nothing: the
+# pane changed or is another one, or the agent posted, acked or started a
+# session (outbox, archive, lifetime/session.json newer than T).
+spl_gc_moved() {  # ID T SEEN
+  local id="$1" t="$2" seen="$3" now f d="$SPOOL_ROOT/$1"
+  now="$(spl_gc_screen "$id")"
+  if [[ -n "$seen" && "$seen" != "$now" ]]; then echo "the pane changed ($seen -> $now)"; return 0; fi
+  f="$(find "$d/outbox" "$d/archive" "$d/lifetime/session.json" -maxdepth 1 -type f -newermt "@$t" -print -quit 2>/dev/null || true)"
+  [[ -z "$f" ]] || echo "${f#"$d/"} is newer"
+}
+
 spl_gc_poke() {
   local id="$1" rid t _p r
   [[ -n "${GC_HINT:-}" ]] || { do_log "FATAL GC_HINT is required: what the agent should try (its issue, its last error)"; return 1; }
   rid="$(spl_gc_rid)"
-  if read -r t _p r 2>/dev/null < "$GC_DIR/$id.poked" && [[ "$r" == "$rid" ]]; then
+  if read -r t _p r _ 2>/dev/null < "$GC_DIR/$id.poked" && [[ "$r" == "$rid" ]]; then
     spl_gc_refuse poke "$id" "already poked in this pass"; return
   fi
   spl_gc_send "$id" "gc-$id" "GC ($GC_BOX, $rid): you look stuck. $GC_HINT -- If you are working, carry on; if not, act on this or reply on this task." ||
     { spl_gc_log "FAIL poke $id: not delivered"; echo "FAIL poke $id: not delivered"; return 1; }
-  [[ "$GC_DRY" == 0 ]] && echo "$GC_NOW $(spl_gc_progress "$id") $rid" > "$GC_DIR/$id.poked"
+  [[ "$GC_DRY" == 0 ]] && echo "$GC_NOW $(spl_gc_progress "$id") $rid $(spl_gc_screen "$id")" > "$GC_DIR/$id.poked"
   spl_gc_log "POKE $id: $(cut -c1-200 <<<"$GC_HINT")"
   echo "POKE $id"
 }
 
 spl_gc_restart() {
-  local id="$1" t p r now_p ev
-  read -r t p r 2>/dev/null < "$GC_DIR/$id.poked" || { spl_gc_refuse restart "$id" "never poked: poke first, restart on a later pass"; return; }
+  local id="$1" t p r seen now_p ev mv
+  read -r t p r seen _ 2>/dev/null < "$GC_DIR/$id.poked" || { spl_gc_refuse restart "$id" "never poked: poke first, restart on a later pass"; return; }
   (( GC_NOW - t >= GC_POKE_WAIT )) || { spl_gc_refuse restart "$id" "poked $(( GC_NOW - t ))s ago (< ${GC_POKE_WAIT}s): restart on a later pass"; return; }
   now_p="$(spl_gc_progress "$id")"
   if [[ "$now_p" != "$p" ]] && (( $(spl_gc_epoch "$now_p") > t )); then
@@ -366,6 +421,17 @@ spl_gc_restart() {
     echo "MOVED $id: progress since the poke ($now_p): no restart"; return 3
   fi
   ev="gc $(spl_gc_rid): poked in $r at $(date -u -d "@$t" +%FT%TZ), no heartbeat progress since ($now_p)"
+  # Unknown progress (agy writes none) is no evidence of none: on 10-17 the
+  # GC restarted idle agy seats a-240, a-235 and a-520 (twice) on "(-)".
+  if [[ "$p" == - || "$now_p" == - ]]; then
+    mv="$(spl_gc_moved "$id" "$t" "$seen")"
+    if [[ -n "$mv" ]]; then
+      rm -f "$GC_DIR/$id.poked"
+      spl_gc_log "MOVED $id: progress unknown (-), $mv since the poke: no restart"
+      echo "MOVED $id: progress unknown (-), $mv since the poke: no restart"; return 3
+    fi
+    ev="gc $(spl_gc_rid): poked in $r at $(date -u -d "@$t" +%FT%TZ), progress unknown (-); pane ${seen:-not seen} and spool unchanged since"
+  fi
   if [[ "$GC_DRY" == 1 ]]; then echo "PLAN restart $id CAUSE=gc: $ev"; return 0; fi
   # shellcheck disable=SC2086 # a command line, split on purpose
   ( ID="$id" CAUSE=gc WD_EVIDENCE="$ev" DRY_RUN=0 setsid ${GC_RESTART_CMD:-$GC_RUN -a do_spl_agent_restart} \

@@ -148,6 +148,7 @@ it cannot act during the overlap.
   5. the FR-008 age;
   6. not stalled (FR-009).
 - **FR-010a** Lane rotation (`do_spl_lane_rotate`; its other skips are in its header) never touches a seat under a human hold, `<id>/.human-hold` holding an epoch in the future (`do_spl_wd_hold`): `SKIP human hold for N min` in the tick and `GATE SKIP` in the worker, before any quiesce or kill; an expired or garbage hold is no hold (SPL-2431).
+- **FR-010b** The GC agent (`do_spl_gc` `restart`, `spl-gc.func.sh`) restarts a lane only after a poke on an earlier pass with no heartbeat progress since; progress unknown (`-`: agy writes none) is never "no progress": a changed or other pane, or a post, ack or session since the poke, is `MOVED`, no restart. An id with two panes is judged in the one whose process carries `SPOOL_AGENT_ID=<id>`, and `do_spl_agent_restart` keys the session, rebirth and restart counts to the id's first open registry row, so they carry across rotations and restarts (SPL-2443).
 - **FR-011** QUIESCE (owner D1: a busy session is rotated anyway):
   - wait up to `ROTATE_IDLE_GRACE` (60 s) for an idle pane;
   - still busy: send `Escape` to the old pane, which interrupts the current

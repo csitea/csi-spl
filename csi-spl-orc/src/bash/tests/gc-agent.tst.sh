@@ -23,6 +23,10 @@
 #  11. gc-session.sh: which CLIs exist is probed as the agent user (bare
 #      *_BIN names count); grok missing on the box = the cnf fallback (claude),
 #      bypass flags, the fixed prompt file
+#  13. agy (SPL-2443): heartbeat progress unknown (`-`). Moved since the poke
+#      (pane changed, a post) = no restart; truly frozen = today's restart;
+#      an id with two panes is judged in the one its live harness (env
+#      SPOOL_AGENT_ID) runs in, never the kept old pane at bash
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc, old, gp and out are read inside the check strings (eval)
 set -uo pipefail
@@ -79,7 +83,7 @@ case "$cmd" in
   new-window) n="$(cat "$T/tmux/next")"; echo $(( n + 1 )) >"$T/tmux/next"
     printf '%%%s\t%s\n' "$n" "$name" >>"$W"; echo "%$n" ;;
   kill-window) grep -v "^$tgt	" "$W" >"$W.n"; mv "$W.n" "$W" ;;
-  capture-pane) printf 'some output\n❯ \n' ;;
+  capture-pane) if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'some output\n❯ \n'; fi ;;
 esac
 EOF
 cat >"$T/bin/send" <<'EOF'
@@ -101,7 +105,7 @@ do_spl_gc || exit $?
 EOF
 chmod +x "$T/bin/"*
 
-export PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 LEASE_MACHINE=box-a \
+export GC_PROC_ROOT="$T/proc" SPOOL_OWNER_HOP=0 PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 LEASE_MACHINE=box-a \
   ROTATE_TMUX="$T/bin/tmux" GC_SEND="$T/bin/send" GC_RESTART_CMD="$T/bin/restart" GC_CLOSE_DELAY=0
 unset SPOOL_AGENT_ID SPOOL_BOX_TAG MCP_BOT_AGENT_ID TMUX TMUX_PANE GC_VENDOR GC_CONF GC_RUN_ID
 # gc <cmd> <now> [VAR=value ...]: one action run, its output in $T/out, its exit in rc
@@ -278,6 +282,48 @@ out3="$(SPOOL_VENDOR_CLIS_CMD="echo mistral" CLAUDE_BIN=claude GROK_BIN=grok GC_
 check "12. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
 check "12. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
 check "12. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
+
+# --- 13. agy: progress unknown, and the live pane ---------------------------------------
+noprog() { jq -n '{state: "idle", progress_ts: null, tool: null, api_error: null}' >"$S/$1/heartbeat.json"; }
+pane_of() { awk -F'\t' -v i="$1" 'index($2, i "@") == 1 {p = $1} END {print p}' "$T/tmux/windows"; }
+# pass2 <id>...: poke each on pass 1, a new pass 30 min later; then restart <id> at +3100
+pass2() {
+  local id
+  gc start "$H0"
+  for id in "$@"; do gc begin $(( H0 + 5 )) AGENT_ID="$id"; gc poke $(( H0 + 6 )) AGENT_ID="$id" GC_HINT="h"; done
+  grep -v "gc@box-a" "$T/tmux/windows" >"$T/w" && mv "$T/w" "$T/tmux/windows"
+  gc start $(( H0 + 1800 ))
+}
+rs() { rm -f "$T/restart.log"; gc begin $(( H0 + 3100 )) AGENT_ID="$1"; gc restart $(( H0 + 3101 )) AGENT_ID="$1"; sleep 0.3; }
+reset; lane a-921; lane a-922; lane a-923; noprog a-921; noprog a-922; noprog a-923
+pass2 a-921 a-922 a-923
+check "13. the poke recorded progress - and the pane's screen" 'grep -qE "^[0-9]+ - .* %[0-9]+:[0-9a-f]{12}$" "$D/gc/a-921.poked"'
+printf 'agy: reading the brief\n> \n' >"$T/tmux/screen.$(pane_of a-921)"
+rs a-921
+check "13. agy, progress -, the pane changed since the poke = MOVED, no restart (exit 3)" '[ "$rc" = 3 ] && grep -q "MOVED a-921: progress unknown (-), the pane changed" "$T/out" && [ ! -s "$T/restart.log" ]'
+echo '{}' >"$S/a-923/outbox/m1.json"; touch -d "@$(( H0 + 600 ))" "$S/a-923/outbox/m1.json"
+rs a-923
+check "13. agy, progress -, a post since the poke = MOVED, no restart" '[ "$rc" = 3 ] && grep -q "MOVED a-923: .*outbox/m1.json is newer" "$T/out" && [ ! -s "$T/restart.log" ]'
+rs a-922
+check "13. agy truly frozen (pane, spool unchanged) = restart CAUSE=gc, saying progress unknown" '[ "$rc" = 0 ] && grep -q "restart ID=a-922 CAUSE=gc DRY_RUN=0 EV=gc .*progress unknown (-); pane %[0-9]*:[0-9a-f]* and spool unchanged since" "$T/restart.log"'
+# the stale pane: a-925's kept old pane %801 (bash, the retire banner) listed
+# first, the live agy in %802 under a shell
+reset
+mkdir -p "$S/a-925/inbox" "$S/a-925/outbox" "$S/a-925/archive" "$S/a-925/lifetime" "$T/proc"
+rm -rf "$T/proc/"*
+for r in "7001 (bash) S 1" "7002 (bash) S 1" "7003 (node) S 7002" "7004 (bash) S 1"; do mkdir -p "$T/proc/${r%% *}"; echo "$r 0 0" >"$T/proc/${r%% *}/stat"; done
+printf 'SPOOL_AGENT_ID=a-925\0' >"$T/proc/7003/environ"; printf 'HOME=/x\0' >"$T/proc/7001/environ" ; printf 'HOME=/x\0' >"$T/proc/7002/environ"
+printf '%%801\ta-925@box-a ! -2057Z-retiring\t7001\n%%802\ta-925@box-a sdlc round review\t7002\n' >>"$T/tmux/windows"
+printf 'Kept after the close\n$ \n' >"$T/tmux/screen.%801"; printf 'agy: working on round 7\n> \n' >"$T/tmux/screen.%802"
+noprog a-925
+gc scan $(( H0 + 60 ))
+check "13. two panes for one id: scan judges the live harness pane %802, once" 'grep -q "^== a-925 pane=%802 " "$T/out" && grep -q "working on round 7" "$T/out" && ! grep -q "Kept after the close" "$T/out" && grep -q "agents=1" "$T/out"'
+gc begin $(( H0 + 61 )) AGENT_ID=a-925
+check "13. begin captures the live pane, not the kept one" 'grep -q "working on round 7" "$T/out" && ! grep -q "Kept after the close" "$T/out"'
+rm -f "$T/proc/7003/environ"
+gc scan $(( H0 + 62 ))
+check "13. no live harness proven = the first pane (today's pick)" 'grep -q "^== a-925 pane=%801 " "$T/out"'
+check "13. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"
 if [ "$fails" -eq 0 ]; then echo "gc-agent: all checks passed"; exit 0; fi

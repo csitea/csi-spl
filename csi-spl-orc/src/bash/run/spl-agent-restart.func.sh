@@ -261,7 +261,7 @@ spl_ars_limits() {
     return
   fi
   ARS_N=1 ARS_REBIRTHS=0 ARS_RESTARTS=0 ARS_BRIEF=""
-  if [[ -f "$sj" ]] && [[ "$(jq -r '.spawned // ""' "$sj" 2>/dev/null || true)" == "$(spl_ars_spawned "$id")" ]]; then
+  if [[ -f "$sj" ]] && spl_ars_same_task "$id" "$(jq -r '.spawned // ""' "$sj" 2>/dev/null || true)"; then
     ARS_N="$(jq -r '(.n // 0) + 1' "$sj" 2>/dev/null || echo 1)"
     ARS_REBIRTHS="$(jq -r '.rebirths // 0' "$sj" 2>/dev/null || echo 0)"
     ARS_RESTARTS="$(jq -r '.restarts // 0' "$sj" 2>/dev/null || echo 0)"
@@ -278,9 +278,19 @@ spl_ars_limits() {
   return 0
 }
 
-# The spawn time of the id's open registry row: it tells this task from the
-# previous one under a reused id.
-spl_ars_spawned() { awk -F'\t' -v i="$1" '$1 == i {s = $5} END {print s}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true; }
+# The spawn time of the id's FIRST open registry row: it tells this task from
+# the previous one under a reused id (retire moves the rows away). Not the
+# last row: every restart and rotation appends one under the reused id, so
+# the last row changed each session and the counts restarted at "session #1,
+# rebirths 0": the caps never saw a loop (SPL-2443, a-240 and a-235 10-17).
+spl_ars_spawned() { awk -F'\t' -v i="$1" '$1 == i {print $5; exit}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true; }
+
+# session.json is this task's when its spawned is one of the id's open rows
+# (a record written before SPL-2443 holds the last row's, not the first).
+spl_ars_same_task() {  # ID SPAWNED
+  [[ -n "$2" ]] || return 1
+  awk -F'\t' -v i="$1" -v s="$2" '$1 == i && $5 == s {f = 1} END {exit !f}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null
+}
 
 spl_ars_hold() {
   local id="$1" now="$2" why="$3"

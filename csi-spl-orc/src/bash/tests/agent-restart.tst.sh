@@ -12,7 +12,9 @@
 #      before the spawn, the rebirth marker consumed, session.json #2, RS-*
 #      phases ending DONE OK, ONE REBORN line to the orchestrator, no blocker
 #   2. control: a crash right after a rebirth is S3, not rebirth (a blocker,
-#      no REBORN); CAUSE=rebirth then finds no rebirth hit (exit 3)
+#      no REBORN); CAUSE=rebirth then finds no rebirth hit (exit 3); the
+#      session, rebirth and restart counts carry across a new registry row
+#      of the reused id (SPL-2443)
 #   3. a lane with a live process (S4): stop first, TERM before the spawn
 #   4. a seat: the new session acks before the old one retires; control: no
 #      ack -> the old session keeps the seat, the new one is gone, exit 1
@@ -250,6 +252,15 @@ rc="$(go ID=c-931 CAUSE=S3 DRY_RUN=0 LEASE_NOW=$((T0 + 600)))"
 [[ "$rc" == 0 ]] && grep -q -- '--kind blocker --task wd-c-931-' "$T/sent" && ! grep -q 'REBORN' "$T/sent" &&
   [[ "$(jq -r .cause "$S/c-931/lifetime/session.json")" == S3 ]] &&
   pass "2. a crash right after a rebirth is reported as S3 (a blocker), not rebirth" || fail "2. crash rc=$rc: $(cat "$T/sent" 2>/dev/null) $(tail -3 "$T/o")"
+# the real spawn appends a registry row under the reused id each session: the
+# counts still carry (SPL-2443: a-240 10-17 read "session #1, rebirths 0" after
+# every GC restart, the caps never saw the loop). Red on the last-row match.
+printf 'c-931\tclaude\t%%3931\t%s\t20270115T0810Z\t-\n' "$T/wt-c-931" >> "$S/registry.tsv"
+crash c-931; win c-931 %3931 -   # the S3 restart above retired the stub's reused pane id: the new session's window, crashed
+rc="$(go ID=c-931 CAUSE=S3 DRY_RUN=0 LEASE_NOW=$((T0 + 1200)))"
+[[ "$rc" == 0 && "$(jq -r '"\(.n) \(.rebirths) \(.restarts) \(.spawned)"' "$S/c-931/lifetime/session.json")" == "3 1 3 20270115T0600Z" ]] &&
+  pass "2. a new registry row per session: session #3, rebirths 1, restarts 3 carried, spawned = the first row" ||
+  fail "2. counts across rows rc=$rc: $(cat "$S/c-931/lifetime/session.json" 2>/dev/null) $(tail -3 "$T/o")"
 
 # --- 3. a live lane (S4): stop first -------------------------------------------------------
 world; lane c-932 %32 4932; hb c-932 in-tool 1000 '| .tool = "Bash" | .tool_since = .progress_ts'

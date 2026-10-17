@@ -114,7 +114,7 @@ def mailbox_raws(rcpt, seen):
     dir or IMAP (X-GM-LABELS, Gmail's IMAP extension)."""
     if MAILDIR:
         out = []
-        for n in os.listdir(MAILDIR):
+        for n in sorted(os.listdir(MAILDIR)):
             if n.endswith(".eml") and n not in seen:
                 p = os.path.join(MAILDIR, n)
                 with open(p, "rb") as f:
@@ -126,10 +126,7 @@ def mailbox_raws(rcpt, seen):
                     if to_header:
                         for addr in emaillib.utils.getaddresses([to_header]):
                             to_addrs.append(addr[1].lower())
-                    # Debug: print the To header and parsed addresses
-                    print(f"DEBUG: To header: {to_header}", file=sys.stderr)
-                    print(f"DEBUG: Parsed addresses: {to_addrs}", file=sys.stderr)
-                    print(f"DEBUG: Looking for: {rcpt.lower()}", file=sys.stderr)
+
                     if rcpt.lower() in to_addrs:
                         out.append((n, raw, stub_labels(p)))
                         seen.add(n)
@@ -167,8 +164,6 @@ def wait_invite_mail(rcpt, tenant, message_id):
                 continue
             msg, ev = hit
             msg_id = msg.get("Message-ID")
-            print(f"DEBUG: Email Message-ID: {msg_id}", file=sys.stderr)
-            print(f"DEBUG: Expected Message-ID: {message_id}", file=sys.stderr)
             if message_id and msg_id != message_id:
                 continue
             ev.update(

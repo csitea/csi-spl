@@ -62,27 +62,64 @@ alive() {
 
 say "START repo=$repo root=$wt_root trunk=$trunk dry_run=$dry age_h=$age_h"
 n_rm=0 kb_rm=0 n_keep=0
-while IFS= read -r wt; do
+
+# List worktrees and .stale-* dirs
+{
+  g -C "$repo" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2
+  find "$wt_root" -maxdepth 1 -name '*.stale-*' -type d -printf '%p\n'
+} | while IFS= read -r wt; do
   wt="$(readlink -f "$wt")"
   [[ "${wt%/*}" == "$wt_root" ]] || continue
   id="${wt##*/}"; why=""
-  br="$(g -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)"
+  # Skip .stale-* dirs that are not worktrees (no HEAD)
+  if [[ "$id" == *.stale-* ]]; then
+    br=""
+  else
+    br="$(g -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)" || br=""
+  fi
+
   if [[ "$id" =~ $keep_re ]]; then why="role-seat"
   elif alive "$id"; then why="alive"
   elif grep -qxF -e "$wt" "$cwds" || grep -qF -e "$wt/" "$cwds"; then why="in-use"
-  elif [[ -n "$(g -C "$wt" status --porcelain 2>/dev/null)" ]]; then why="dirty"
-  elif ! g -C "$repo" merge-base --is-ancestor "$(g -C "$wt" rev-parse HEAD 2>/dev/null)" "$trunk" 2>/dev/null; then why="not-on-trunk"
-  elif [[ -n "$(find "$wt" -name node_modules -prune -o -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
+  elif [[ "$id" == *.stale-* ]]; then
+    # .stale-* dirs: only check age and in-use (no git checks)
+    if grep -qxF -e "$wt" "$cwds" || grep -qF -e "$wt/" "$cwds"; then why="in-use"
+    elif [[ -z "$(find "$wt" -name node_modules -prune -o -mtime +${age_h} -print -quit 2>/dev/null)" ]]; then why="recent"
+    fi
+  else
+    # Worktrees: all checks
+    if [[ -n "$(g -C "$wt" status --porcelain 2>/dev/null)" ]]; then why="dirty"
+    elif ! g -C "$repo" merge-base --is-ancestor "$(g -C "$wt" rev-parse HEAD 2>/dev/null)" "$trunk" 2>/dev/null; then why="not-on-trunk"
+    elif [[ -n "$(find "$wt" -name node_modules -prune -o -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
+    fi
   fi
+
   if [[ -n "$why" ]]; then say "KEEP $why $wt"; n_keep=$((n_keep + 1)); continue; fi
   kb="$(du -sk -- "$wt" 2>/dev/null | cut -f1)"; kb="${kb:-0}"
   if [[ "$dry" == 1 ]]; then
     say "PLAN remove ${kb}KB $wt${br:+ branch $br}"
   else
-    g -C "$repo" worktree remove "$wt" || { say "WARN git refused to remove $wt"; continue; }
-    [[ -n "$br" ]] && { g -C "$repo" branch -d "$br" >/dev/null 2>&1 || say "WARN branch $br kept (git branch -d refused)"; }
-    say "REMOVE ${kb}KB $wt${br:+ branch $br}"
+    if [[ "$id" == *.stale-* ]]; then
+      # .stale-* dirs: remove with rm -rf (no git worktree remove)
+      rm -rf "$wt"
+      say "REMOVE ${kb}KB $wt"
+    else
+      # Worktrees: remove with git worktree remove
+      g -C "$repo" worktree remove "$wt" || { say "WARN git refused to remove $wt"; continue; }
+      if [[ -n "$br" ]]; then
+        if ! g -C "$repo" branch -d "$br" >/dev/null 2>&1; then
+          say "WARN branch $br kept (git branch -d refused)"
+        fi
+      fi
+      say "REMOVE ${kb}KB $wt${br:+ branch $br}"
+    fi
   fi
   n_rm=$((n_rm + 1)); kb_rm=$((kb_rm + kb))
-done < <(g -C "$repo" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2)
-say "DONE $([[ "$dry" == 1 ]] && echo would-remove || echo removed)=$n_rm ($((kb_rm / 1024)) MB) kept=$n_keep"
+done
+
+kb_mb=$((kb_rm / 1024))
+if [ "$dry" = 1 ]; then
+  say "DONE would-remove=$n_rm (${kb_mb} MB) kept=$n_keep"
+else
+  say "DONE removed=$n_rm (${kb_mb} MB) kept=$n_keep"
+fi

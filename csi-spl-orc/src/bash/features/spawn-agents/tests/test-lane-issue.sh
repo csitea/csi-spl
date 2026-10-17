@@ -15,6 +15,9 @@
 #   D. the same gate, no landed commit and no end reason: the hub's status
 #      (SPL-1813, a stub read, no network): done passes; wip, a failed read,
 #      a slow read and another key's done are refused.
+#   E. li_brief_epic_spec (the enqueue's check): no issue without an epic
+#      and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): a brief that
+#      files an issue names a spec folder on origin/master and its epic.
 # Control per refusal: the same case with the gate cut out of a copy of the
 # scripts passes, so each check proves the gate, not the fixture.
 set -uo pipefail
@@ -270,4 +273,46 @@ eq "D6 ... without a hub read" "" "$(cat "$T_TMP/hub-calls")"
 hub "$T_SCRIPTS" c-072 wip
 eq "D6 a landed commit: exits without a hub read" 0 "$RC"
 eq "D6 ... and no hub read" "" "$(cat "$T_TMP/hub-calls")"
+# --- E. the epic and spec of a brief that files an issue --------------------
+SR="$T_TMP/specs"
+sg() { git -C "$SR/repo" -c user.name='FirstName LastName' -c user.email=dev@example.com "$@"; }
+git init -q --bare "$SR/origin.git" && git init -q -b master "$SR/repo"
+for d in 135-work-process 040-pinned; do mkdir -p "$SR/repo/csi-spl-doc/specs/$d"; echo "# $d" >"$SR/repo/csi-spl-doc/specs/$d/spec.md"; done
+printf '# Spec 040\n\nEpic SPL-74\n' >"$SR/repo/csi-spl-doc/specs/040-pinned/spec.md"
+sg add -A && sg commit -q -m specs && sg remote add origin "$SR/origin.git" && sg push -q origin master 2>/dev/null
+mkdir -p "$SR/repo/csi-spl-doc/specs/099-local-only" && echo x >"$SR/repo/csi-spl-doc/specs/099-local-only/spec.md" && sg add -A && sg commit -q -m local
+es() {  # LIB BRIEF-LINES... -> stdout+stderr in $T_TMP/o, rc in $RC
+  local lib="$1"; shift
+  printf '# Brief: e\n\n%s\n' "$@" >"$T_TMP/es.md"
+  LI_SPEC_REPO="$SR/repo" LI_SPEC_FETCH_TIMEOUT=5 bash -c 'do_log() { echo "$*"; }; . "$1"; li_brief_epic_spec "$2"' _ "$lib" "$T_TMP/es.md" >"$T_TMP/o" 2>&1; RC=$?
+}
+LIB="$T_FEAT/lib/lane-issue.inc.sh"
+# Today's code (origin/master before this rule) has no such check: the control.
+OLD="$T_TMP/old-lane-issue.inc.sh"
+sed '/^# No issue without an epic and a git spec/,$d' "$LIB" >"$OLD"; printf 'li_brief_epic_spec() { return 0; }\n' >>"$OLD"
+RULE='no issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6)'
+es "$LIB" 'Epic: SPL-1'
+eq "E1 no spec: refused" 1 "$RC"
+has "E1 ... one FATAL line names the owner order and what to add" "FATAL refused, nothing filed: $RULE: no spec folder named. Add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line" "$(cat "$T_TMP/o")"
+es "$OLD" 'Epic: SPL-1'
+eq "E1 control (no check, today's code): passes" 0 "$RC"
+es "$LIB" 'Spec: csi-spl-doc/specs/135-work-process'
+eq "E2 no epic (none on the brief, no pin): refused" 1 "$RC"
+has "E2 ... says to add the Epic: line" "brief $T_TMP/es.md names no epic. Add an 'Epic: SPL-<n>' line (the level-1 epic of csi-spl-doc/specs/135-work-process)" "$(cat "$T_TMP/o")"
+es "$OLD" 'Spec: csi-spl-doc/specs/135-work-process'
+eq "E2 control (today's code): passes" 0 "$RC"
+es "$LIB" 'Spec: csi-spl-doc/specs/098-nowhere' 'Epic: SPL-1'
+eq "E3 a spec folder that does not exist: refused" 1 "$RC"
+has "E3 ... named" "csi-spl-doc/specs/098-nowhere is not a folder on origin/master" "$(cat "$T_TMP/o")"
+es "$LIB" 'Spec: csi-spl-doc/specs/099-local-only' 'Epic: SPL-1'
+eq "E3 a spec committed but not on origin/master: refused" 1 "$RC"
+es "$OLD" 'Spec: csi-spl-doc/specs/099-local-only' 'Epic: SPL-1'
+eq "E3 control (today's code): passes" 0 "$RC"
+es "$LIB" 'Spec: csi-spl-doc/specs/135-work-process' 'Epic: SPL-1'
+eq "E4 a spec on origin/master and an epic: accepted" 0 "$RC"
+eq "E4 ... prints spec and epic" "csi-spl-doc/specs/135-work-process	SPL-1" "$(cat "$T_TMP/o")"
+es "$LIB" 'See csi-spl-doc/specs/040-pinned/spec.md section 2.'
+eq "E5 a spec named in the text, its pin is the epic" "csi-spl-doc/specs/040-pinned	SPL-74" "$(cat "$T_TMP/o")"
+es "$LIB" 'Issue: SPL-77'
+eq "E6 an Issue: key (an existing issue, none filed): passes" 0 "$RC"
 t_done

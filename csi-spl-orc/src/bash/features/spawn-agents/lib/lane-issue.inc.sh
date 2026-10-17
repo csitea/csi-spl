@@ -40,6 +40,84 @@ li_key_of_agent() {
   [ -n "$k" ] && printf '%s\n' "$k"
 }
 
+# No issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msgs
+# ef77b762, 5863d0d6, 2026-10-17: "You shouldn't be creating issues without
+# epics, nor issues without a git spec"). A level-2 issue names a spec folder
+# that exists on origin/master and has a level-1 epic above it. Callers:
+# do_spl_lane_issue, do_spl_issue_create, do_spl_spawn_enqueue.
+LI_EPIC_SPEC_RULE='no issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6)'
+LI_SPEC_RE='csi-spl-doc/specs/[0-9]{3}-[a-z0-9]([a-z0-9-]*[a-z0-9])?'
+# The repo whose origin trunk holds the specs: this file's checkout.
+LI_SPEC_REPO_DEFAULT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." 2>/dev/null && pwd)"
+
+# li_epic_from_brief FILE -> the key on the brief's first `Epic: <KEY>` line.
+li_epic_from_brief() {
+  [ -r "${1:-}" ] || return 1
+  sed -nE "s/^[-*_ >]*Epic[*_ ]*:[*_\` ]*(${LI_KEY_RE})([^0-9].*)?\$/\1/p" "$1" | sed -n 1p | grep . || return 1
+}
+
+# li_spec_from_file FILE -> the spec folder it names: a `Spec:` line first,
+# else the first csi-spl-doc/specs/NNN-<slug> anywhere in it.
+li_spec_from_file() {
+  local s
+  [ -r "${1:-}" ] || return 1
+  s="$(grep -m1 -iE '^[-*_ >]*Spec[*_ ]*:' "$1" | grep -m1 -oE "$LI_SPEC_RE")"
+  [ -n "$s" ] || s="$(grep -m1 -oE "$LI_SPEC_RE" "$1")"
+  [ -n "$s" ] && printf '%s\n' "$s"
+}
+
+# li_spec_on_master SPEC -> 0 when the folder is a tree on the specs repo's
+# origin trunk (LI_SPEC_REPO, default this checkout); a miss fetches once.
+li_spec_on_master() {
+  local r="${LI_SPEC_REPO:-$LI_SPEC_REPO_DEFAULT}" t
+  [[ "$1" =~ ^${LI_SPEC_RE}$ ]] || return 1
+  t="$(li_trunk "$r")" || return 1
+  [ "$(li_git "$r" cat-file -t "$t:$1" 2>/dev/null)" = tree ] && return 0
+  timeout "${LI_SPEC_FETCH_TIMEOUT:-30}" git -c safe.directory='*' -C "$r" fetch -q origin "${t#origin/}" </dev/null >/dev/null 2>&1
+  [ "$(li_git "$r" cat-file -t "$t:$1" 2>/dev/null)" = tree ]
+}
+
+# li_spec_pinned_epic SPEC -> the epic the spec names in its first 40 lines
+# ("Epic SPL-74"), the pin spec-import-issues.py _pinned_epic reads.
+li_spec_pinned_epic() {
+  local r="${LI_SPEC_REPO:-$LI_SPEC_REPO_DEFAULT}" t
+  t="$(li_trunk "$r")" || return 1
+  li_git "$r" show "$t:$1/spec.md" 2>/dev/null | head -40 |
+    grep -m1 -oE "(^|[^A-Za-z])Epic:?[[:space:]]+${LI_KEY_RE}" | grep -oE "${LI_KEY_RE}\$"
+}
+
+# li_epic_spec SPEC EPIC -> "<spec>\t<epic>": SPEC must be a folder on the
+# origin trunk; EPIC is the given one, else the spec's pin, else empty (the
+# caller looks up the spec's "Spec NNN - ..." epic on the hub, or refuses).
+# One FATAL line and rc 1 when the spec is missing or not on the trunk.
+li_epic_spec() {
+  local spec="$1" epic="$2"
+  if [ -z "$spec" ]; then
+    do_log "FATAL ${LI_REFUSED:-refused, nothing filed}: $LI_EPIC_SPEC_RULE: no spec folder named. Add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line (a folder on origin/master) and an 'Epic: SPL-<n>' line" >&2
+    return 1
+  fi
+  if ! li_spec_on_master "$spec"; then
+    do_log "FATAL ${LI_REFUSED:-refused, nothing filed}: $LI_EPIC_SPEC_RULE: $spec is not a folder on origin/master. Land the spec first, or name an existing one" >&2
+    return 1
+  fi
+  [ -n "$epic" ] || epic="$(li_spec_pinned_epic "$spec")"
+  printf '%s\t%s\n' "$spec" "$epic"
+}
+
+# li_brief_epic_spec BRIEF -> "<spec>\t<epic>" for a brief that files an
+# issue; the epic must be on the brief or pinned in its spec (an enqueue does
+# not ask the hub). A brief with an `Issue:` key passes: that issue exists.
+li_brief_epic_spec() {
+  local out
+  li_key_from_brief "$1" >/dev/null && return 0
+  out="$(li_epic_spec "$(li_spec_from_file "$1")" "$(li_epic_from_brief "$1")")" || return 1
+  if [ -z "${out#*$'\t'}" ]; then
+    do_log "FATAL ${LI_REFUSED:-refused, nothing filed}: $LI_EPIC_SPEC_RULE: brief $1 names no epic. Add an 'Epic: SPL-<n>' line (the level-1 epic of ${out%%$'\t'*})" >&2
+    return 1
+  fi
+  printf '%s\n' "$out"
+}
+
 # li_git WORKDIR ARGS: read-only git as whichever user runs the gate (the
 # agent user reads the box user's worktree: safe.directory, never a write).
 li_git() { local w="$1"; shift; git -c safe.directory='*' -C "$w" "$@"; }

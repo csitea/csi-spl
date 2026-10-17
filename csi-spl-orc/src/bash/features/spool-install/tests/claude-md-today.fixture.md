@@ -183,6 +183,10 @@ is kept up to date as well, just like a regular software project."
 - A lane placed from a discussion has an issue: the spawn files it (or links
   the `Issue: <KEY>` line of the brief), status `wip`. A lane without an
   issue key does not start.
+- No issue without an epic and a git spec (HUM-10, t1 7a98c2d1 msg 5863d0d6):
+  a brief that files one carries a `Spec: csi-spl-doc/specs/<NNN-slug>` line
+  (a folder on origin/master) and an `Epic: SPL-<n>` line; without them the
+  enqueue and the issue filing refuse.
 - Every discussion carries one issue, drafted with the owner, even when the
   work is an evaluation or answers the owner's questions (HUM-10, t1 5ea2e615 msg
   fe5ae542): "Maybe spawn one issue always, and the agents should discuss with

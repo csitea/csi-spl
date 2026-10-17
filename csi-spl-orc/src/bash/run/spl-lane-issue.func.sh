@@ -13,6 +13,14 @@
 # @description     then posted back in the topic. Writes the key to
 # @description     <spool root>/<id>/lifetime/issue and an `Issue:` line into
 # @description     lifetime/brief.md.
+# @description     A filed issue needs a spec and an epic (owner HUM-10, t1
+# @description     7a98c2d1 msg 5863d0d6: no issue without an epic and a git
+# @description     spec): the brief's `Spec:` line (else its first
+# @description     csi-spl-doc/specs/NNN-<slug>), a folder on origin/master,
+# @description     and its `Epic: <KEY>` line, else the spec's pin ("Epic
+# @description     SPL-74" in spec.md), else the tenant's one epic titled
+# @description     "Spec NNN - ..." (the spec import's mapping). Missing:
+# @description     refused in one FATAL line, nothing filed.
 # @description     A brief line `Kind: answer` (or LANE_ISSUE_ANSWER=1) labels
 # @description     a filed issue `answer`: an evaluation or an answer to the owner.
 # @description   LANE_ISSUE_OP=discussion (whoever takes a discussion, at its
@@ -20,7 +28,8 @@
 # @description     discussion's issue, status eval, assignee AGENT_ID, title
 # @description     LANE_ISSUE_TITLE, description LANE_ISSUE_TEXT + the topic
 # @description     link, under the same card; `answer` label with
-# @description     LANE_ISSUE_ANSWER=1. Acks, chatter and announcements file
+# @description     LANE_ISSUE_ANSWER=1; LANE_ISSUE_SPEC and LANE_ISSUE_EPIC as
+# @description     the brief's lines above. Acks, chatter and announcements file
 # @description     none. Prints the key and posts it back in the topic.
 # @description   LANE_ISSUE_OP=end (the lane, when it ends without landing):
 # @description     status LANE_ISSUE_STATUS (diss, onhold or blocked), a comment
@@ -47,6 +56,8 @@
 # @param LANE_ISSUE_OP (optional) - place (default) | discussion | end
 # @param BRIEF (optional, place) - the brief file; default <spool root>/<id>/lifetime/brief.md
 # @param LANE_ISSUE_KEY (optional, place) - an existing key to link, e.g. SPL-123; default the brief's Issue: line
+# @param LANE_ISSUE_SPEC (place: default the brief's; required, discussion) - the spec folder, csi-spl-doc/specs/NNN-<slug>, on origin/master
+# @param LANE_ISSUE_EPIC (optional, place/discussion) - the level-1 epic key; default the brief's Epic: line, the spec's pin, the hub's "Spec NNN - ..." epic
 # @param LANE_ISSUE_TOPIC (optional, place) - the discussion's topic id or its 8-hex short id; default the first one after "topic" (or "dispatch-") in the brief. The issue links it (SPL-1593, rdb 0194); none, or one the hub cannot resolve to exactly one topic of the tenant, links the tenant's default discussion and logs one WARN line naming the brief - a placement never fails on the link
 # @param LANE_ISSUE_POST (optional, place/discussion) - 0: do not post a filed key back in its topic (default 1)
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
@@ -167,6 +178,7 @@ spl_lane_issue_place() {
     spl_lane_issue_hub comment --ref "$key" --body "Lane $id placed on $key, status wip.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
   else
     [[ -r "$brief" ]] || { do_log "FATAL no issue key and no readable brief to file one from ($brief): pass LANE_ISSUE_KEY=<KEY> or BRIEF=<file>"; return 1; }
+    spl_lane_issue_guard "${LANE_ISSUE_SPEC:-$(li_spec_from_file "$brief")}" "${LANE_ISSUE_EPIC:-$(li_epic_from_brief "$brief")}" || return 1
     title="$(grep -m1 -E '^#+ ' "$brief" | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-200)"
     [[ -n "$title" ]] || { do_log "FATAL the brief $brief has no heading to title the issue with"; return 1; }
     [[ -n "$topic" ]] || {
@@ -208,13 +220,13 @@ spl_lane_issue_file() {
     lab=(--labels answer)
   fi
   err="$(mktemp)"
-  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" 2>"$err")" || rc=$?
+  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" --epic "$SLI_EPIC" 2>"$err")" || rc=$?
   def="$(spl_lane_issue_default_topic)"
   if (( rc != 0 )) && [[ "$(cat "$err")" =~ (discussion_required|unknown_discussion|ambiguous_discussion) ]] &&
     ! grep -qx "/t/$def" "$3"; then
     do_log "WARN brief ${4:-<none>}: topic $(sed -n '2p' "$3") did not resolve in $TENANT_ID (${BASH_REMATCH[1]}): the issue links the default discussion $def (SPL-1593)" >&2
     sed -i "2s|.*|/t/$def|" "$3"
-    rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" 2>"$err")" || rc=$?
+    rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" --epic "$SLI_EPIC" 2>"$err")" || rc=$?
   fi
   cat "$err" >&2; rm -f "$err"
   (( rc == 0 )) || return 1
@@ -228,6 +240,41 @@ ds = [d.get("task_id", "") for d in r.get("discussions") or [] if isinstance(d, 
 print(r.get("key", "") + "\t" + (ds[0] if ds else ""))' 2>/dev/null)" || rc=$?
   [[ $rc -eq 0 && "${key%%$'\t'*}" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL the hub filed no key for $id: $out" >&2; return 1; }
   printf '%s\n' "$key"
+}
+
+# spl_lane_issue_guard SPEC EPIC: no issue without an epic and a git spec
+# (li_epic_spec, lane-issue.inc.sh). Sets SLI_SPEC and SLI_EPIC; with no
+# epic given or pinned, the tenant's one epic titled "Spec NNN - ..." (the
+# mapping of spec-import-issues.py), read from the hub (a dry run plans it).
+spl_lane_issue_guard() {
+  local out n keys
+  out="$(li_epic_spec "$1" "$2")" || return 1
+  SLI_SPEC="${out%%$'\t'*}"; SLI_EPIC="${out#*$'\t'}"
+  [[ -n "$SLI_EPIC" ]] && return 0
+  n="${SLI_SPEC#csi-spl-doc/specs/}"; n="${n:0:3}"
+  if (( SLI_DRY )); then
+    SLI_EPIC="<the epic titled Spec $n>"
+    do_log "INFO DRY_RUN would: look up the epic titled 'Spec $n - ...' on the hub for $SLI_SPEC" >&2
+    return 0
+  fi
+  out="$(RUN_STDOUT_IS_DATA=1 spl_desk_issue_run list --kind epic --status eval,todo,wip,diss,blocked,onhold,qas,done --limit 500 2>&1)" ||
+    { do_log "FATAL refused, nothing filed: $LI_EPIC_SPEC_RULE: the epic of $SLI_SPEC could not be read from the hub: $(printf '%s' "$out" | tail -1)" >&2; return 1; }
+  keys="$(printf '%s' "$out" | python3 -c 'import json, re, sys
+n = sys.argv[1]
+j = [l for l in sys.stdin.read().splitlines() if l.startswith("{")]
+r = (json.loads(j[-1]).get("result") or {}) if j else {}
+r = json.loads(r) if isinstance(r, str) else r
+seen = set()
+for e in (r.get("epics") or []) + (r.get("issues") or []):
+    if isinstance(e, dict) and re.match(r"Spec\s+" + n + r"\b", e.get("title") or "") and e.get("key"):
+        seen.add(e["key"])
+print(" ".join(sorted(seen)))' "$n" 2>/dev/null)"
+  if [[ -z "$keys" || "$keys" == *" "* ]]; then
+    [[ -n "$keys" ]] && keys="more than one ($keys)" || keys=no
+    do_log "FATAL refused, nothing filed: $LI_EPIC_SPEC_RULE: $SLI_SPEC has $keys epic titled 'Spec $n - ...' on the hub. Add an 'Epic: SPL-<n>' line to the brief (LANE_ISSUE_EPIC)" >&2
+    return 1
+  fi
+  SLI_EPIC="$keys"
 }
 
 # spl_lane_issue_topic BRIEF -> the topic the brief names: its first full
@@ -267,6 +314,7 @@ spl_lane_issue_discussion() {
     { do_log "FATAL LANE_ISSUE_TOPIC must be the discussion's topic uuid, got: '$topic'"; return 1; }
   title="$(printf '%s' "${LANE_ISSUE_TITLE:-}" | tr '\t\n\r' '   ' | sed 's/^ *//; s/ *$//' | cut -c1-200)"
   [[ -n "$title" ]] || { do_log "FATAL LANE_ISSUE_TITLE must name the work (an evaluation or an answer counts: LANE_ISSUE_ANSWER=1); acks, chatter and announcements file no issue"; return 1; }
+  spl_lane_issue_guard "${LANE_ISSUE_SPEC:-}" "${LANE_ISSUE_EPIC:-}" || return 1
   desc="$(mktemp)"
   { spl_lane_issue_card '<new>' "$topic" '' 'the first answer in the topic'
     [[ -n "${LANE_ISSUE_TEXT:-}" ]] && printf '%s\n\n' "$LANE_ISSUE_TEXT"
@@ -399,10 +447,11 @@ spl_lane_issue_card() {
   local spec="" avoid="" scope="the topic"
   if [[ -r "$3" ]]; then
     scope="the brief of lane $id"
-    spec="$(grep -m1 -oE 'csi-spl-doc/specs/[0-9]{3}-[a-z0-9-]+(/spec\.md)?' "$3")"
+    spec="${SLI_SPEC:-$(li_spec_from_file "$3")}"
     avoid="$(grep -m1 -iE 'not touch' "$3" | sed -E 's/^[-* ]+//' | cut -c1-200)"
   fi
   printf '## Source\n%s\n\n## Restart\n' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
+  spec="${spec:-${SLI_SPEC:-}}"
   printf -- '- key: %s\n- spec: %s\n- scope: %s\n- must not touch: %s\n' "$1" "${spec:-none}" "$scope" "${avoid:-see the brief}"
   printf -- '- test: see the brief\n- last citing sha: none\n- next: %s\n- open question: none\n- docs: none yet\n\n' "$4"
 }

@@ -12,6 +12,11 @@
 # @description queue places by class and the placer keeps the bands of the live
 # @description lanes; the rule's one home is
 # @description csi-spl-doc/doc/md/fleet-rules-index.md.
+# @description A SPAWN_PLACE brief with no `Issue:` key names a spec folder on
+# @description origin/master (`Spec:` line) and its epic (`Epic: SPL-<n>`, or
+# @description the spec's pin), or the ask is not queued (one FATAL line): the
+# @description placer would file its issue, and there is no issue without an
+# @description epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share
@@ -38,6 +43,12 @@ do_spl_spawn_enqueue() {
   [[ "$flag" != urgent || "$class" == bug ]] || { do_log "FATAL SPAWN_URGENT goes with SPAWN_CLASS=bug only"; return 1; }
   [[ "$flag" != bypass || "$class" == feature ]] || { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only"; return 1; }
   [[ -z "${SPAWN_BYPASS:-}" || "${SPAWN_URGENT:-0}" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other"; return 1; }
+  if [[ -n "$place" ]]; then  # the placer files the lane's issue from this brief: refuse it here, not at placement
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
+    declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+    local brief; brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "${place#*:}")"
+    [[ -z "$brief" ]] || LI_REFUSED="ask not queued" li_brief_epic_spec "$brief" >/dev/null || return 1
+  fi
   spl_spawn_q_init || return 1
   by="$(spl_asks_by)" || return 1
   id="$(spl_spawn_q_resolve)" || return 1

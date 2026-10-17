@@ -47,7 +47,7 @@ with the spec 135 section 7.1 card, the owner's words below it:
 
     ## Restart
     - key: SPL-n
-    - spec: <the first csi-spl-doc/specs/NNN-slug the brief names, or none>
+    - spec: <the brief's Spec: folder, else the first csi-spl-doc/specs/NNN-slug it names>
     - scope: the brief of lane <id>
     - must not touch: <the brief's first "not touch" line, or see the brief>
     - test: see the brief
@@ -86,13 +86,52 @@ never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
 the card's `Source` line carries the full id the hub linked, and the key is
 posted back only in a named topic, never in the default one.
 
+### 0.3 No issue without an epic and a git spec (SPL-2355)
+
+Owner HUM-10, t1 topic 7a98c2d1 (2026-10-17), msg ef77b762 ("you shouldn't
+create issues without an epic and without a git spec. They should go hand in
+hand") and msg 5863d0d6. Measured on prd by the dispatcher c-002 before the guard: of t1's SPL-2300..2353,
+54 of 54 had no epic and 35 named no spec. So every level-2 issue this code
+files names both, or nothing is filed:
+
+- **The spec**: a folder `csi-spl-doc/specs/<NNN-slug>` that is a tree on
+  `origin/master` (a miss fetches once). `do_spl_lane_issue` reads the
+  brief's `Spec:` line, else the first such path in the brief
+  (`LANE_ISSUE_SPEC` overrides; required for `LANE_ISSUE_OP=discussion`);
+  `do_spl_issue_create` reads it from the description
+  (`ISSUE_DESCRIPTION` or `ISSUE_DESCRIPTION_FILE`).
+- **The epic** (the level-1 parent, sent as `--epic`): the brief's
+  `Epic: SPL-<n>` line (`LANE_ISSUE_EPIC`, `ISSUE_EPIC`), else the spec's pin
+  (`Epic SPL-74` in the first 40 lines of its `spec.md`), else the tenant's
+  one epic titled `Spec NNN - ...`: the mapping of the spec import
+  (`do_spl_spec_import_issues`), read with one `spool issue list --kind epic`.
+  None or two: refused. `do_spl_issue_create` takes only `ISSUE_EPIC`.
+- An epic or feature (level 1) and a child of `ISSUE_PARENT` need neither; a
+  linked key (`Issue: <KEY>`) files nothing and is not checked.
+- **At enqueue**: `do_spl_spawn_enqueue` with `SPAWN_PLACE=<vendor>:<slug>`
+  checks the slug's brief file the same way before it queues, so the
+  dispatcher fixes the brief first: `FATAL ask not queued: ...`, the ask stays
+  open. There the epic must be on the brief or pinned in the spec (no hub
+  read). A brief placed without that check (an ask queued before the rule, a
+  hand spawn) is refused at placement: `do_spl_lane_issue` fails, so
+  `spawn-window.sh` exits 12 and releases the id (1.2); the lane never starts.
+
+The one FATAL line names the order and what to add, for example:
+
+    FATAL refused, nothing filed: no issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): no spec folder named. Add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line (a folder on origin/master) and an 'Epic: SPL-<n>' line
+
+Existing issues are not touched here (their epics are linked by a separate
+lane, owner msg 52da8fbb). Code: `li_epic_spec`, `li_brief_epic_spec` in
+`spawn-agents/lib/lane-issue.inc.sh`; `spl_lane_issue_guard`;
+`spl_issue_create_epic_spec`.
+
 <a id="ws-doc-33e2dfe3-ac34-4c97-a628-cbcb87906328"></a>
 ## 1. The life of a lane's issue
 
 | step | what happens | code |
 |---|---|---|
-| 1.1 placement | `spawn-window.sh` (the front door of every spawn, the remote serve's included), after the id claim and before the window: a git lane with a brief gets its issue from `do_spl_lane_issue`. The key in `SPAWN_ISSUE` or the brief's `Issue: <KEY>` line is linked (status `wip`, assignee the lane, a comment with the topic link); no key: one is filed, title = the brief's heading, description = the brief's text up to its first `## ` (the owner's words, at most 1500 bytes) + the lane id + the topic link, under the card (0.1), and the key is posted back in the topic; a brief line `Kind: answer` labels it `answer`. The key lands in `<spool root>/<id>/lifetime/issue`. | `spawn-agents/scripts/spawn-window.sh` `sw_issue`; `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` |
-| 1.2 refusal | No issue placed (the hub refused, no seated desk, or `SPAWN_ISSUE_CREATE=0` with no key): exit 12, the claimed id released, one line with the command that makes one. | `sw_issue`, `sw_release_claim` |
+| 1.1 placement | `spawn-window.sh` (the front door of every spawn, the remote serve's included), after the id claim and before the window: a git lane with a brief gets its issue from `do_spl_lane_issue`. The key in `SPAWN_ISSUE` or the brief's `Issue: <KEY>` line is linked (status `wip`, assignee the lane, a comment with the topic link); no key: one is filed under the brief's epic and spec (0.3), title = the brief's heading, description = the brief's text up to its first `## ` (the owner's words, at most 1500 bytes) + the lane id + the topic link, under the card (0.1), and the key is posted back in the topic; a brief line `Kind: answer` labels it `answer`. The key lands in `<spool root>/<id>/lifetime/issue`. | `spawn-agents/scripts/spawn-window.sh` `sw_issue`; `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` |
+| 1.2 refusal | No issue placed (the hub refused, no seated desk, a brief with no spec or epic (0.3), or `SPAWN_ISSUE_CREATE=0` with no key): exit 12, the claimed id released, one line with the command that makes one. | `sw_issue`, `sw_release_claim` |
 | 1.3 the seed | The seed's `YOUR ISSUE` block names the key, the commit-subject form, the docs rule and the end command; the recorded brief (`lifetime/brief.md`) gets the `Issue:` line. | `spawn-core.inc.sh` `_spawn_issue_block` |
 | 1.4 landing | Every commit cites the key in its subject scope (`feat(orc, SPL-123): ...`). Only two forms close it: a `fix`, `feat`, `perf` or `refactor` subject with the key in its scope, or a `Closes: SPL-123` trailer; `docs`/`test`/`chore`/`ci` subjects, reverts, `Fixes:`, `Refs:` and bare mentions never close. The exit gate's "landed" and the docs check both read it from the one parser. | `csi-spl-orc/src/bash/scripts/issue-close-landed.py --keys` (`commit_keys`) |
 | 1.5 ending without landing | `cd csi-spl-orc && AGENT_ID=<id> LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue`: the status (`diss`, `onhold` or `blocked`), a comment with the reason, and `lifetime/issue-end`. | `spl_lane_issue_end` |

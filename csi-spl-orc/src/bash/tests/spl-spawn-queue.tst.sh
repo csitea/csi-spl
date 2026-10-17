@@ -54,6 +54,15 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/hub" "$T/briefs"
 export SPOOL_TEST=1
+# The specs repo the enqueue's epic+spec check reads (LI_SPEC_REPO): spec 135
+# on origin/master. No issue without an epic and a git spec (owner HUM-10, t1
+# 7a98c2d1 msg 5863d0d6): a placed brief names both.
+git init -q --bare "$T/specs.git" && git init -q -b master "$T/specs"
+mkdir -p "$T/specs/csi-spl-doc/specs/135-work-process" && echo '# Spec 135' >"$T/specs/csi-spl-doc/specs/135-work-process/spec.md"
+git -C "$T/specs" add -A && git -C "$T/specs" -c user.name='FirstName LastName' -c user.email=dev@example.com commit -q -m s &&
+  git -C "$T/specs" remote add origin "$T/specs.git" && git -C "$T/specs" push -q origin master 2>/dev/null
+export LI_SPEC_REPO="$T/specs"
+ES=$'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-1'
 
 # The hub stub: rdb 0097 + 0099 + 0180 rows in one JSON file, epoch times.
 cat >"$T/bin/hub" <<'STUB'
@@ -155,7 +164,7 @@ chmod +x "$T/bin/launch"
 printf '#!/usr/bin/env bash\necho "${WINDOWS:-12}"\n' >"$T/bin/windows"; chmod +x "$T/bin/windows"
 # shellcheck disable=SC2016 # expanded by the stub, not here
 printf '#!/usr/bin/env bash\n[ -z "${PICK_BOXES:-}" ] || echo "$PICK_BOXES"\necho "pick=${PICK:-box-desk reason=below its low mark}"\n' >"$T/bin/pick"; chmod +x "$T/bin/pick"
-echo "brief text" >"$T/briefs/hub-pg-split.md"
+printf 'brief text\n%s\n' "$ES" >"$T/briefs/hub-pg-split.md"
 
 for m in pc sat; do
   mkdir -p "$T/$m/spool/c-001/inbox" "$T/$m/spool/dispatch"
@@ -205,6 +214,12 @@ if [[ "$(jq -r .state <<<"$r")" == queued && "$(jq -r .placement <<<"$r")" == cl
    grep -q "^c-001 c-002 note dispatch-c9beaa77 queued, position 1 of 1, placed when the box has room" "$T/send.log"; then
   pass "enqueue: queued with its placement; the sender is told 'position 1 of 1' on dispatch-<topic8>, never the owner topic"
 else fail "enqueue: $out | $r | $(sends)"; fi
+echo "brief text, no spec, no epic" >"$T/briefs/no-spec.md"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_CLASS=bug SPAWN_PLACE=claude:no-spec 2>&1)"
+if [[ "$(jq -r .state <<<"$(hubrow "$A2")")" == open ]] &&
+   grep -q "FATAL ask not queued: no issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): no spec folder named" <<<"$out"; then
+  pass "enqueue: a placed brief with no spec and no epic is not queued, one FATAL line says what to add (control: hub-pg-split's brief names both and queued above)"
+else fail "no-spec enqueue: $out | $(hubrow "$A2")"; fi
 on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_CLASS=bug >/dev/null 2>&1
 if grep -q "^c-001 c-002@sat note dispatch-c9beaa77-x queued, position 2 of 2," "$T/send.log"; then
   pass "enqueue: the second request is position 2 of 2, told on its own task, another box's sender as <ID>@<box>"
@@ -453,7 +468,7 @@ grep -q "^${F1}$" "$T/pc/spool/asks/.place.handed" && ! grep -q "^${H1}$" "$T/pc
 qids() { HUB_DIR="$T/hub" "$T/bin/hub" ask list --fleet main --role orch | jq -r '.asks[] | select(.state == "queued" or .state == "acked") | .ask_id'; }
 for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
 P1=d1d1d1d1-0000-4000-8000-000000000001; P2=d2d2d2d2-0000-4000-8000-000000000002; P3=d3d3d3d3-0000-4000-8000-000000000003
-echo "brief text" >"$T/briefs/qto-gap.md"
+printf 'brief text\n%s\n' "$ES" >"$T/briefs/qto-gap.md"
 put "$P1" c-002@box-desk dispatch-88982c94-p "SPAWN REQUEST hand-pinned to sat"
 on pc do_spl_spawn_enqueue ASK_ID="$P1" SPAWN_CLASS=bug SPAWN_PLACE=claude:hand-sat-qto-gap >/dev/null 2>&1
 SAT_FULL="BOX sat  load5 28.8  cpus 16  180%  full  band 50..85 (box)"
@@ -488,8 +503,8 @@ HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
 # (APP_PATH=$T has no cnf: the default false). CONTROL: a docs brief keeps mistral.
 U1=b7b7b7b7-0000-4000-8000-000000000001; U2=b8b8b8b8-0000-4000-8000-000000000002
-echo "Fix the hover in csi-spl-wui/src/components/x.vue" >"$T/briefs/ui-hover.md"
-echo "Rewrite csi-spl-doc/doc/md/x.md" >"$T/briefs/docs-x.md"
+printf 'Fix the hover in csi-spl-wui/src/components/x.vue\n%s\n' "$ES" >"$T/briefs/ui-hover.md"
+printf 'Rewrite csi-spl-doc/doc/md/x.md\n%s\n' "$ES" >"$T/briefs/docs-x.md"
 put "$U1" c-002@box-desk dispatch-b61851fb-u "SPAWN REQUEST ui hover"
 on pc do_spl_spawn_enqueue ASK_ID="$U1" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-hover >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"

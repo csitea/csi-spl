@@ -31,6 +31,15 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/hub" "$T/briefs" "$T/spool/dispatch" "$T/src"
 export SPOOL_TEST=1
+# The specs repo the enqueue's epic+spec check reads (LI_SPEC_REPO): spec 135
+# on origin/master. No issue without an epic and a git spec (owner HUM-10, t1
+# 7a98c2d1 msg 5863d0d6): a placed brief names both.
+git init -q --bare "$T/specs.git" && git init -q -b master "$T/specs"
+mkdir -p "$T/specs/csi-spl-doc/specs/135-work-process" && echo '# Spec 135' >"$T/specs/csi-spl-doc/specs/135-work-process/spec.md"
+git -C "$T/specs" add -A && git -C "$T/specs" -c user.name='FirstName LastName' -c user.email=dev@example.com commit -q -m s &&
+  git -C "$T/specs" remote add origin "$T/specs.git" && git -C "$T/specs" push -q origin master 2>/dev/null
+export LI_SPEC_REPO="$T/specs"
+ES=$'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-1'
 
 # The hub stub: `spool ask` list / put / queue / done over one JSON file.
 cat >"$T/bin/hub" <<'STUB'
@@ -89,7 +98,7 @@ echo "OK event ev$RANDOM in $TENANT_ID ($ENV), read back through the hub, creato
 STUB
 chmod +x "$T/bin/hub" "$T/bin/send" "$T/bin/mix" "$T/bin/cal"
 printf 'LEASE_ORCH=c-001\nLEASE_FLEET=main\n' >"$T/spool/dispatch/lease.conf"
-printf '# Lane brief: weekly security round, panel SEAT <N> of 2\nWrite ONLY `dispatch/work/security-round/<YYYY-MM-DD>/seat-<N>.md`.\n' >"$T/tpl.md"
+printf '# Lane brief: weekly security round, panel SEAT <N> of 2\nWrite ONLY `dispatch/work/security-round/<YYYY-MM-DD>/seat-<N>.md`.\n%s\n' "$ES" >"$T/tpl.md"
 cp "$PROJ_ROOT/src/bash/run/spl-security-round-queue.func.sh" "$T/src/queue.func.sh"
 
 round() {  # [env...]

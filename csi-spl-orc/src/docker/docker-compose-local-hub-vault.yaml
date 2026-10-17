@@ -13,6 +13,9 @@ services:
       context: ./local-hub-pg-vault
       args:
         LDE_PG_IMAGE: "${LDE_PG_IMAGE:?unset}"
+    # root on purpose (.compose-root-allow.tsv): gocryptfs mounts FUSE, then
+    # the postgres entrypoint drops to the postgres user
+    user: "0:0"
     entrypoint: ["/usr/local/bin/vault-entrypoint.sh"]
     command: ["postgres"]
     environment:

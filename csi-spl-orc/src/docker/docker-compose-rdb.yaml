@@ -9,6 +9,10 @@ services:
   pg:
     image: "${LDE_PG_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
     pull_policy: if_not_present
+    # the image's postgres user from the first process on, never root then
+    # gosu (security action 2): the image's data dir is postgres-owned, so a
+    # new pg-data volume is too, and the entrypoint already chowned an old one
+    user: postgres
     environment:
       POSTGRES_USER: "${LDE_PG_USER:?unset}"
       POSTGRES_PASSWORD: "${LDE_PG_PASSWORD:?unset}"

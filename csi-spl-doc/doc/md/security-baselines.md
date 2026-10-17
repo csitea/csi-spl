@@ -87,3 +87,38 @@ floating stable-YYYY-MM-DD tag".
   commit: `cd csi-spl-orc && PIN_TAG=stable-<date> DRY_RUN=0 ./run -a
   do_pin_compose_images`. Tests: `pin-compose-images.tst.sh` (orc),
   `compose-pulls-images.tst.sh` (iac).
+
+## 5. Compose services run as a named non-root user
+
+Owner security scan, revised list, action 2: "Add explicit non-root
+user/group to every compose service." Issue SPL-2154, epic SPL-2151.
+
+- Every service of every tracked compose file (the root `docker-compose.yml`
+  and `csi-spl-orc/src/docker/docker-compose-*.yaml`) sets `user:`, and it
+  is not root. Where the image already had a `USER`, the compose file now
+  states it: the hub `10001:10001`, the backup job `postgres`, the tf infra
+  stack `${UID}:${GID}` (the APPUSR its Dockerfiles create). Postgres runs as
+  `postgres` and SeaweedFS as `seaweed` from their first process on, with no
+  root start followed by a privilege drop. The lde GCS emulator runs as
+  `65534:65534`.
+- The standalone web image (`csi-spl-wui/src/docker/wui.Dockerfile`) runs as
+  uid 10002, which owns `/srv` (where `config.json` is written at start) and
+  Caddy's `/data` and `/config`. The caddy binary keeps
+  `cap_net_bind_service`, so the image still binds 80 and 443.
+- A volume that an older root container left root-owned gets a one-shot
+  `*-volume-owner` service. It chowns only what is not yet owned by the
+  service's uid, with `CHOWN` + `DAC_READ_SEARCH` only and no network:
+  `gcs-volume-owner` (lde `gcs-data`) and `web-volume-owner` (standalone
+  `web-data`).
+- A service that must start as root is a row of `.compose-root-allow.tsv`
+  (`<file> TAB <service> TAB <reason>`): the two volume owners, the vault
+  `pg` (gocryptfs mounts FUSE, then the postgres entrypoint drops to
+  postgres), the local hub's `wui-generate` (on the rootless dockerd,
+  container root is the stack's own host user), and the standalone `web`
+  until the pinned release image carries the new `USER`. Once
+  `do_pin_compose_images` pins such a release, `web` gets
+  `user: "10002:10002"` and its row goes.
+
+Test, with its red controls (a planted `user: "0:0"`, a service with no user
+and a `${X:-0}` each fail): `csi-spl-iac/src/bash/tests/compose-non-root.tst.sh`.
+A row naming no service, or with no reason, also fails.

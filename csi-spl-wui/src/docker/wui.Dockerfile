@@ -48,5 +48,11 @@ COPY --chmod=0755 csi-spl-wui/src/docker/wui-config.sh /usr/local/bin/wui-config
 ARG SPOOL_TENANT=main
 ARG SPOOL_LOBBY_TASK_ID=00000000-0000-4000-8000-000000000001
 ENV SPOOL_TENANT=$SPOOL_TENANT SPOOL_LOBBY_TASK_ID=$SPOOL_LOBBY_TASK_ID
+# Not root (security action 2): uid 10002 owns /srv (wui-config.sh writes
+# config.json there at start) and Caddy's /data + /config. The caddy binary
+# carries cap_net_bind_service=ep, so it still binds 80 and 443.
+RUN addgroup -S -g 10002 spoolweb && adduser -S -D -H -u 10002 -G spoolweb spoolweb \
+ && chown spoolweb:spoolweb /srv && chown -R spoolweb:spoolweb /data /config
+USER spoolweb
 ENTRYPOINT ["/usr/local/bin/wui-config.sh"]
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

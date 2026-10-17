@@ -8,6 +8,8 @@ services:
   hub:
     image: "${LDE_HUB_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
     pull_policy: never
+    # the image's own USER spool (hub.Dockerfile), stated (security action 2)
+    user: "10001:10001"
     command: ["serve"]
     env_file:
       - "${LDE_HUB_ENV_FILE:?unset}"

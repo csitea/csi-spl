@@ -32,6 +32,10 @@
 #   hub       `spool serve` as the runtime login (row level security binds it)
 #   web       Caddy: the generated WUI and a same-origin proxy to the hub; with
 #             SPOOL_SITE_ADDRESS set to a domain it also does TLS for it
+#   web-volume-owner  one shot: hands the web-data volume to web's uid
+#
+# Every service names a non-root user: (security action 2); the few that
+# start as root are in .compose-root-allow.tsv, each with its reason.
 name: spool
 
 x-db: &db
@@ -42,6 +46,9 @@ x-db: &db
 services:
   pg:
     image: postgres:16-alpine
+    # the image's postgres user from the first process on (its data dir is
+    # postgres-owned, so a new pg-data volume is too)
+    user: postgres
     environment:
       <<: *db
       POSTGRES_USER: postgres
@@ -64,6 +71,9 @@ services:
 
   s3:
     image: chrislusf/seaweedfs:4.48
+    # the image's seaweed user (uid 1000): its /data is seaweed-owned, and the
+    # entrypoint already chowned a volume an older root start made
+    user: seaweed
     command: ["mini", "-dir=/data", "-ip=s3", "-s3.port=9000"]
     environment:
       AWS_ACCESS_KEY_ID: ${SPOOL_S3_ACCESS_KEY:-spool-local-s3-access}
@@ -90,6 +100,8 @@ services:
       args:
         SPOOL_VERSION: ${SPOOL_VERSION:-}
     image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
+    # the image's own USER spool (hub.Dockerfile), stated
+    user: "10001:10001"
     command: ["init"]
     environment:
       SPOOL_OWNER_DSN: postgres://${SPOOL_DB_OWNER:-spool_hub}:${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
@@ -114,6 +126,7 @@ services:
   hub:
     build: *hub-build
     image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
+    user: "10001:10001"
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
@@ -211,7 +224,26 @@ services:
     depends_on:
       hub:
         condition: service_healthy
+      web-volume-owner:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  # one shot before web: an older web ran as root and left web-data (Caddy's
+  # certificates) root-owned; wui.Dockerfile's web runs as uid 10002, so this
+  # hands the volume to it. Root on purpose (.compose-root-allow.tsv) with
+  # CHOWN and DAC_READ_SEARCH only, no network.
+  web-volume-owner:
+    # the pg image: already pulled for this stack, and it has find + chown
+    image: postgres:16-alpine
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c", "find /data ! -user 10002 -exec chown 10002:10002 {} +"]
+    volumes:
+      - web-data:/data
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt: ["no-new-privileges:true"]
+    network_mode: none
+    restart: "no"
 
 volumes:
   pg-data: {}

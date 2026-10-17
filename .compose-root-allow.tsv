@@ -1,0 +1,7 @@
+# compose services allowed to START as root (csi-spl-iac/src/bash/tests/compose-non-root.tst.sh).
+# <file>\t<service>\t<reason>; every other service sets a non-root user:. SPL-2154
+csi-spl-orc/src/docker/docker-compose-infra.yaml	gcs-volume-owner	one shot: chowns the gcs-data volume (created root-owned: the image has no /storage) to the emulator uid 65534; CHOWN + DAC_READ_SEARCH only, no network. SPL-2154
+csi-spl-orc/src/docker/docker-compose-local-hub-vault.yaml	pg	gocryptfs mounts the FUSE view (CAP_SYS_ADMIN, /dev/fuse) as root, then the postgres entrypoint drops to the postgres user. SPL-2154
+csi-spl-orc/src/docker/docker-compose-local-hub.yaml	wui-generate	one shot on the rootless dockerd: container root IS the stack's own host user, the one uid that may write the mounted csi-spl-wui tree (local-hub/wui-generate.sh). SPL-2154
+docker-compose.yml	web-volume-owner	one shot: chowns web-data (Caddy's certificates, root-owned from an older root web) to uid 10002; CHOWN + DAC_READ_SEARCH only, no network. SPL-2154
+docker-compose.yml	web	the pinned published image (stable-2026-10-12) has no USER yet and writes /srv/config.json as root; wui.Dockerfile now runs as uid 10002, so --build runs non-root today. Once do_pin_compose_images pins a release built from it: set user: "10002:10002" and drop this row. SPL-2154

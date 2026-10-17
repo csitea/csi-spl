@@ -5,6 +5,8 @@ services:
   conf-validator:
     image: img-${ORG_APP}-conf-validator
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-conf-validator"
+    # the APPUSR the Dockerfile creates with this UID:GID (security action 2)
+    user: "${UID:?unset - run via make (the Makefile exports UID)}:${GID:?unset - run via make (the Makefile exports GID)}"
     pull_policy: never
     # spec 092 FR-003: back by itself after a power cut (a laptop box loses
     # power routinely); unless-stopped keeps a container stopped on purpose down
@@ -73,6 +75,8 @@ services:
   tpl-gen:
     image: img-${ORG_APP}-tpl-gen
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-tpl-gen"
+    # the APPUSR the Dockerfile creates with this UID:GID (security action 2)
+    user: "${UID:?unset - run via make (the Makefile exports UID)}:${GID:?unset - run via make (the Makefile exports GID)}"
     pull_policy: never
     # spec 092 FR-003: back by itself after a power cut (a laptop box loses
     # power routinely); unless-stopped keeps a container stopped on purpose down
@@ -139,6 +143,8 @@ services:
   tf-runner:
     image: img-${ORG_APP}-tf-runner
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-tf-runner"
+    # the APPUSR the Dockerfile creates with this UID:GID (security action 2)
+    user: "${UID:?unset - run via make (the Makefile exports UID)}:${GID:?unset - run via make (the Makefile exports GID)}"
     pull_policy: never
     # spec 092 FR-003: back by itself after a power cut (a laptop box loses
     # power routinely); unless-stopped keeps a container stopped on purpose down

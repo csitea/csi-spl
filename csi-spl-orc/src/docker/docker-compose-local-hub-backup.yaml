@@ -18,6 +18,8 @@ services:
       context: ./local-hub-backup
       args:
         PG_IMAGE: "${LDE_PG_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    # the image's USER postgres (local-hub-backup/Dockerfile), stated
+    user: postgres
     command: ["loop"]
     environment:
       PGHOST: pg

@@ -13,9 +13,30 @@ volumes:
   gcs-data: {}
 
 services:
+  # one shot before gcs (security action 2): the image has no /storage, so
+  # docker creates the gcs-data volume root-owned; this hands it, and any
+  # file an older root gcs wrote, to the emulator's uid. Root on purpose
+  # (.compose-root-allow.tsv) with CHOWN and DAC_READ_SEARCH only, no network.
+  gcs-volume-owner:
+    image: "${LDE_GCS_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: if_not_present
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c", "find /storage ! -user 65534 -exec chown 65534:65534 {} +"]
+    volumes:
+      - "gcs-data:/storage"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt: ["no-new-privileges:true"]
+    network_mode: none
+    restart: "no"
+
   gcs:
     image: "${LDE_GCS_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
     pull_policy: if_not_present
+    user: "65534:65534"
+    depends_on:
+      gcs-volume-owner:
+        condition: service_completed_successfully
     command:
       - "-scheme"
       - "http"

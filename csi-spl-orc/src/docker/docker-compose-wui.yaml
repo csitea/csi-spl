@@ -66,3 +66,4 @@ services:
       NUXT_TELEMETRY_DISABLED: "1"
     volumes:
       - "${LDE_WUI_SRC:?unset}:/app"
+    networks: [lde]

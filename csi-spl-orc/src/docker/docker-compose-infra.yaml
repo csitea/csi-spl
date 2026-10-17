@@ -6,8 +6,11 @@
 # The hub talks to the emulator through the standard STORAGE_EMULATOR_HOST
 # (cnf lde hub.env), i.e. gcs:4443 on the lde network. Host access, for the
 # smoke and for a developer, is 127.0.0.1:${LDE_GCS_PORT} only.
+# Every lde service (infra, rdb, api, wui, local-hub files) sits on this one
+# bridge network, never on compose's implicit default (security action 3).
 networks:
-  lde: {}
+  lde:
+    driver: bridge
 
 volumes:
   gcs-data: {}

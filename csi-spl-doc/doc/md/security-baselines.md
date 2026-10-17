@@ -122,3 +122,31 @@ user/group to every compose service." Issue SPL-2154, epic SPL-2151.
 Test, with its red controls (a planted `user: "0:0"`, a service with no user
 and a `${X:-0}` each fail): `csi-spl-iac/src/bash/tests/compose-non-root.tst.sh`.
 A row naming no service, or with no reason, also fails.
+
+## 6. Compose services sit on one named bridge network
+
+Owner security scan, revised list, action 3: "Define a custom bridge network
+and attach all services." Issue SPL-2155, epic SPL-2151.
+
+- The standalone `docker-compose.yml` declares the bridge network `spool`
+  (compose names it `spool_spool`); `pg`, `s3`, `hub-init`, `hub` and `web`
+  join it with `networks: [spool]`, and the service names keep resolving on
+  it. `web-volume-owner` stays on `network_mode: none`. Only `web` publishes
+  host ports (`${SPOOL_BIND:-127.0.0.1}`, 8080 and 8443); pg, s3 and the hub
+  are reached by name only.
+- The lde stack (`csi-spl-orc/src/docker/docker-compose-*.yaml`, loaded
+  together by `lde_compose` and the local hub's extra files) declares `lde`
+  with `driver: bridge` in `docker-compose-infra.yaml`; every service joins
+  it, now also `wui-install`. `gcs-volume-owner` stays on `network_mode:
+  none`.
+- The tf infra stack keeps the external `all_lcl_docker`, which
+  `make do-create-network` creates with `--driver bridge`.
+- No stack has a service on compose's implicit `default` network.
+
+Test, with its red controls (a service with no `networks:`, one on an
+undeclared network, one on a non-bridge network, `network_mode: host` and a
+declared `default` each fail):
+`csi-spl-iac/src/bash/tests/compose-bridge-network.tst.sh`. Each tracked
+compose file must belong to one of its stacks, and with docker present it
+also checks the model `docker compose config` renders. It was red on
+origin/master a255bb8c1 (20 FAIL).

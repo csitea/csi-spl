@@ -36,6 +36,10 @@
 #
 # Every service names a non-root user: (security action 2); the few that
 # start as root are in .compose-root-allow.tsv, each with its reason.
+#
+# Every service sits on the one bridge network `spool` (security action 3),
+# never on compose's implicit default; web-volume-owner has none at all.
+# Service names (pg, s3, hub) resolve on it; only web publishes ports.
 name: spool
 
 x-db: &db
@@ -67,6 +71,7 @@ services:
       interval: 2s
       timeout: 3s
       retries: 60
+    networks: [spool]
     restart: unless-stopped
 
   s3:
@@ -89,6 +94,7 @@ services:
       timeout: 3s
       retries: 40
       start_period: 5s
+    networks: [spool]
     restart: unless-stopped
 
   hub-init:
@@ -121,6 +127,7 @@ services:
     depends_on:
       pg:
         condition: service_healthy
+    networks: [spool]
     restart: "no"
 
   hub:
@@ -192,6 +199,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 40
+    networks: [spool]
     restart: unless-stopped
 
   web:
@@ -226,6 +234,7 @@ services:
         condition: service_healthy
       web-volume-owner:
         condition: service_completed_successfully
+    networks: [spool]
     restart: unless-stopped
 
   # one shot before web: an older web ran as root and left web-data (Caddy's
@@ -244,6 +253,10 @@ services:
     security_opt: ["no-new-privileges:true"]
     network_mode: none
     restart: "no"
+
+networks:
+  spool:
+    driver: bridge
 
 volumes:
   pg-data: {}

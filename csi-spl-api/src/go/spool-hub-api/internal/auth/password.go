@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -21,10 +23,14 @@ const (
 	argon2Parallelism uint8  = 1
 	argon2KeyLen      uint32 = 32
 	argon2SaltLen            = 16
+	// maxHashLen bounds the stored hash a verify recomputes (32 today).
+	maxHashLen = 1024
 )
 
 // ErrPasswordMismatch is VerifyPassword's answer for a wrong password.
 var ErrPasswordMismatch = errors.New("auth: password mismatch")
+
+var errHashParamRange = errors.New("auth: hash parameters out of range")
 
 // HashPassword produces an argon2id PHC string (ported from csi-rel
 // internal/auth/password.go):
@@ -55,32 +61,77 @@ func VerifyPassword(stored, candidate string) error {
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return errors.New("auth: invalid hash encoding")
 	}
-	var version int
-	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
+	version, err := phcUint(parts[2], "v", 32)
+	if err != nil {
 		return fmt.Errorf("auth: hash version parse: %w", err)
 	}
 	if version != argon2.Version {
 		return errors.New("auth: hash version mismatch")
 	}
-	var memoryKiB, iterations uint32
-	var parallelism uint8
-	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memoryKiB, &iterations, &parallelism); err != nil {
-		return errors.New("auth: hash parameter parse")
-	}
-	if memoryKiB < 8 || iterations < 1 || parallelism < 1 || memoryKiB > 4<<20 || iterations > 64 {
-		return errors.New("auth: hash parameters out of range")
+	memoryKiB, iterations, parallelism, err := phcParams(parts[3])
+	if err != nil {
+		return err
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return fmt.Errorf("auth: salt decode: %w", err)
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil || len(want) == 0 {
+	if err != nil {
 		return errors.New("auth: hash decode")
 	}
-	got := argon2.IDKey([]byte(candidate), salt, iterations, memoryKiB, parallelism, uint32(len(want)))
+	keyLen := len(want)
+	if keyLen < 1 || keyLen > maxHashLen {
+		return errors.New("auth: hash decode")
+	}
+	got := argon2.IDKey([]byte(candidate), salt, iterations, memoryKiB, parallelism, uint32(keyLen))
 	if subtle.ConstantTimeCompare(want, got) == 1 {
 		return nil
 	}
 	return ErrPasswordMismatch
+}
+
+// phcParams reads "m=<KiB>,t=<iter>,p=<lanes>" with every value range-checked
+// before it is narrowed (bounded parsing, no fmt.Sscanf: SPL-2153).
+func phcParams(s string) (memoryKiB, iterations uint32, parallelism uint8, err error) {
+	fields := strings.Split(s, ",")
+	if len(fields) != 3 {
+		return 0, 0, 0, errors.New("auth: hash parameter parse")
+	}
+	m, err := phcUint(fields[0], "m", 32)
+	if err != nil {
+		return 0, 0, 0, errors.New("auth: hash parameter parse")
+	}
+	if m < 8 || m > 4<<20 {
+		return 0, 0, 0, errHashParamRange
+	}
+	memoryKiB = uint32(m)
+	t, err := phcUint(fields[1], "t", 32)
+	if err != nil {
+		return 0, 0, 0, errors.New("auth: hash parameter parse")
+	}
+	if t < 1 || t > 64 {
+		return 0, 0, 0, errHashParamRange
+	}
+	iterations = uint32(t)
+	par, err := phcUint(fields[2], "p", 8)
+	if err != nil {
+		return 0, 0, 0, errors.New("auth: hash parameter parse")
+	}
+	if par < 1 || par > math.MaxUint8 {
+		return 0, 0, 0, errHashParamRange
+	}
+	parallelism = uint8(par)
+	return memoryKiB, iterations, parallelism, nil
+}
+
+// phcUint reads one "<key>=<decimal>" field of a PHC string as an unsigned
+// number of at most bits bits; anything else (a sign, a space, a trailing
+// byte) fails.
+func phcUint(field, key string, bits int) (uint64, error) {
+	v, ok := strings.CutPrefix(field, key+"=")
+	if !ok || v == "" || v[0] == '+' {
+		return 0, fmt.Errorf("want %s=<n>", key)
+	}
+	return strconv.ParseUint(v, 10, bits)
 }

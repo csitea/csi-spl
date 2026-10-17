@@ -50,3 +50,31 @@ func TestPasswordRejectsBadInput(t *testing.T) {
 		}
 	}
 }
+
+// Bounded parsing (SPL-2153): each PHC field is exactly key=<decimal>,
+// range-checked before it is narrowed; what fmt.Sscanf let through fails.
+func TestPasswordRejectsLoosePHCFields(t *testing.T) {
+	h, err := HashPassword("pw-strict-1", testArgon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(h, "$")
+	tail := "$" + parts[4] + "$" + parts[5]
+	for _, params := range []string{
+		"m=64,t=1,p=1x", "m=64,t=1,p=+1", "m= 64,t=1,p=1", "m=64,t=1", "m=64,t=1,p=1,x=2",
+		"m=64,t=1,p=256", "m=64,t=1,p=0", "m=64,t=0,p=1", "m=64,t=65,p=1", "m=7,t=1,p=1",
+		"m=4294967296,t=1,p=1", "t=1,m=64,p=1", "m=-64,t=1,p=1",
+	} {
+		if err := VerifyPassword("$argon2id$v=19$"+params+tail, "pw-strict-1"); err == nil || errors.Is(err, ErrPasswordMismatch) {
+			t.Fatalf("%q: want an encoding error, got %v", params, err)
+		}
+	}
+	for _, v := range []string{"v=19x", "v=+19", "v=", "19"} {
+		if err := VerifyPassword("$argon2id$"+v+"$"+parts[3]+tail, "pw-strict-1"); err == nil || errors.Is(err, ErrPasswordMismatch) {
+			t.Fatalf("%q: want an encoding error, got %v", v, err)
+		}
+	}
+	if err := VerifyPassword(h, "pw-strict-1"); err != nil {
+		t.Fatalf("the well-formed hash must still verify: %v", err)
+	}
+}

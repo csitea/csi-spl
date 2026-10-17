@@ -1,0 +1,6 @@
+Lay-What: Old usage of two models that showed no cost now gets its cost filled in, once, by a single command an operator runs.
+Lay-How: The command finds the past minutes of those two models that carry no price yet and prices them with today's price list; a trial run shows the result first.
+Lay-Why: The prices of these two models were added later, so their earlier usage looked free and the spend totals were too low.
+Tech-What: New ./run action do_spl_token_burn_reprice and the spool fleet tokens reprice subcommand, backed by store.RepriceFleetTokens.
+Tech-How: Updates fleet token minute rows with null cost for the listed models since TOKEN_REPRICE_FROM, using the price table; DRY_RUN rolls back; re-run prices 0.
+Tech-Why: The price rows for claude-haiku-4-5 (dated id) and mistral-large landed after rows were ingested, so those rows kept a null cost (spec 140 pricing).

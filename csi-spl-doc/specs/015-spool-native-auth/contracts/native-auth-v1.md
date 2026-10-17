@@ -29,7 +29,7 @@ is on, the answer carries `"native": true` next to the social list.
   password of the call that minted it and only the newest link verifies
   (spec FR-015), so the form must resend with the password the person typed.
 - `debug_token` shows up only when the hub runs with
-  `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=true` (lde/dev only, never prd). A WUI may
+  `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=true` (lde only: dev ignores it, prd refuses it; SPL-2157). A WUI may
   show it in a dev banner and must never depend on it.
 
 ## 2. Routes

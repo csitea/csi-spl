@@ -94,6 +94,10 @@ func (h *Handler) EnableNative(cfg *NativeConfig, d NativeDeps) error {
 	h.native = &native{h: h, cfg: cfg, store: d.Store, sender: sender, delivers: d.Delivers,
 		lim: newLimiter(cfg.RateWindow, h.now), dummy: dummy,
 		log: h.log.With().Str("provider", ProviderPassword).Logger()}
+	if cfg.DebugTokensDropped {
+		h.native.log.Warn().Str("event", "auth.native_debug_tokens_dropped").
+			Msg("SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS ignored: lde only (SPL-2157)")
+	}
 	return nil
 }
 

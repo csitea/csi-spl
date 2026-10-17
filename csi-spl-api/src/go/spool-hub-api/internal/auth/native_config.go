@@ -13,7 +13,8 @@ import (
 type NativeConfig struct {
 	Enabled        bool `env:"SPOOL_HUB_AUTH_NATIVE_ENABLED" envDefault:"false"`
 	VerifyRequired bool `env:"SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED" envDefault:"true"`
-	// DebugTokens returns plaintext tokens in the body (lde/dev only, FR-011).
+	// DebugTokens returns plaintext tokens in the body (FR-011). Off by
+	// default; opt-in for lde only (SPL-2157): dev drops it, prd refuses it.
 	DebugTokens      bool          `env:"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS" envDefault:"false"`
 	PasswordMinLen   int           `env:"SPOOL_HUB_AUTH_NATIVE_PASSWORD_MIN_LEN" envDefault:"12"`
 	Argon2MemoryKiB  uint32        `env:"SPOOL_HUB_AUTH_NATIVE_ARGON2_MEMORY_KIB" envDefault:"19456"`
@@ -34,6 +35,10 @@ type NativeConfig struct {
 	TrustedProxyHops int `env:"SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS" envDefault:"0"`
 
 	Env string `env:"-"`
+	// DebugTokensDropped: dev asked for debug tokens and got none (logged
+	// at EnableNative). A refusal would crash-loop the dev hub until 030
+	// renders the env without the flag, since the deploy rolls only the image.
+	DebugTokensDropped bool `env:"-"`
 }
 
 // OWASP 2023 argon2id minimum (m=19 MiB, t=2, p=1); dev/prd refuse less.
@@ -76,8 +81,11 @@ func (c *NativeConfig) validate() error {
 		return nil
 	}
 	deployed := c.Env == "dev" || c.Env == "prd"
-	if c.DebugTokens && c.Env != "lde" && c.Env != "dev" {
-		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS is refused in %q (lde/dev only)", c.Env)
+	if c.DebugTokens && c.Env == "dev" {
+		c.DebugTokens, c.DebugTokensDropped = false, true
+	}
+	if c.DebugTokens && c.Env != "lde" {
+		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS is refused in %q (lde only)", c.Env)
 	}
 	if !c.VerifyRequired && c.Env != "lde" {
 		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED=false is refused in %q (lde only)", c.Env)

@@ -32,7 +32,7 @@ existing stateless `spool_session` cookie (010 `auth-v1.md` §3), with `p="passw
 | Fiber, JWT + revocation list, `users` table with `password_hash`, roles, locales, orders | `net/http` on the hub mux, the 010 HMAC session cookie, a separate `password_credentials` table; no roles, no locale, no business columns | spl humans are `HUM-*` with tenant membership (004, HUMANS). A credential is not a human: admission happens at the Registrar on first login. |
 | `/register` answers `409 email_taken` | always `202 {"status":"verification_required"}` | enumeration-safe (FR-005). The donor leaks account existence there. |
 | `method_policy.go` (staff Google-first, per-user method list) | not ported | spl has no staff role. Which methods a deployment offers is `SPOOL_HUB_AUTH_NATIVE_ENABLED` + the 010 provider list. |
-| `debug_token` in the body in `lde` | in `lde` and `dev` only, behind `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS`; **refused in prd** at boot | dev had no mail relay when this was written (FR-011); dev and prd now mail through the relay (`SPOOL_HUB_MAIL_TRANSPORT: smtp`, OQ-N5). |
+| `debug_token` in the body in `lde` | in `lde` only, behind `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS` (default off); **ignored in dev**, **refused in prd** at boot | dev had no mail relay when this was written (FR-011); dev and prd now mail through the relay (`SPOOL_HUB_MAIL_TRANSPORT: smtp`, OQ-N5), so dev turned it off (SPL-2157, owner: "opt-in for LDE only"). |
 | Reset TTL 24 h | 1 h (cnf) | a reset link is a bearer credential; 1 h is the OWASP default. |
 | JWT revoked on password change | cookie cleared on the changing browser; other sessions live until their TTL | the session is stateless (OQ-N2). |
 | argon2 params `0` → code default | env defaults `m=19456 KiB, t=2, p=1` (OWASP 2023 minimum); dev/prd refuse anything lower | Cloud Run memory; params from config (owner brief). |
@@ -126,8 +126,10 @@ Already built: `POST /api/v1/auth/logout` (010).
   a Secret Manager slot. STARTTLS is **required** before AUTH on a non-loopback
   host (the donor's known bug). `log` records recipient-hash + template only, never the link.
 - **FR-011** `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=true` returns the plaintext
-  token in the `register` / `forgot` body. Allowed in `lde` and
-  `dev`; the hub **refuses to boot** with it in `prd`.
+  token in the `register` / `forgot` body. Default off; opt-in for `lde`
+  only (SPL-2157). In `dev` the hub drops the flag and logs
+  `auth.native_debug_tokens_dropped` (it still boots: the hub deploy rolls
+  only the image, the env is 030's); it **refuses to boot** with it in `prd`.
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.

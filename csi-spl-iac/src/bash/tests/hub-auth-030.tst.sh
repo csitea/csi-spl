@@ -63,6 +63,10 @@ PY
   got=$(grep -E '^auth_secret_ids ' "$v" | grep -oE 'csi-spl-hub-(auth|mail|wui)-[a-z-]+' | sort | tr '\n' ' ')
   [[ "$got" == "$slots" ]] && pass "$env 030 creates all 8 slots" || fail "$env auth_secret_ids: $got"
   grep -q '"SPOOL_HUB_WUI_KEY"' <<<"$envline" && fail "$env the box-wui key is a plain env var" || pass "$env the box-wui key is never a plain env var"
+  # SPL-2157: debug sign-in links are opt-in for lde only; dev/prd never set them on
+  dbg=$(yq -r '.env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS // "false"' "$CNF/$env.env.json")
+  [[ "$dbg" == false ]] && ! grep -q '"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS": "true"' <<<"$envline" \
+    && pass "$env debug sign-in links off (cnf + rendered 030)" || fail "$env SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS on (cnf: $dbg)"
 done
 
 TFD="$PROJ_ROOT/src/terraform/030-cloud-run-hub"

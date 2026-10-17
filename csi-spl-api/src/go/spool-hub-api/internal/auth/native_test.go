@@ -665,8 +665,18 @@ func TestNativeConfigFailFast(t *testing.T) {
 			t.Errorf("%s %v accepted", c.env, c.vars)
 		}
 	}
-	if _, err := auth.LoadNativeFrom("dev", on(map[string]string{"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS": "true"})); err != nil {
-		t.Errorf("dev debug tokens refused: %v", err)
+	// SPL-2157: debug sign-in links are opt-in for lde only. dev drops the
+	// flag (the hub still boots while the 030 env still carries it).
+	if nc, err := auth.LoadNativeFrom("dev", on(map[string]string{"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS": "true"})); err != nil || nc.DebugTokens || !nc.DebugTokensDropped {
+		t.Errorf("dev debug tokens kept: %+v %v", nc, err)
+	}
+	if nc, err := auth.LoadNativeFrom("lde", on(map[string]string{"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS": "true"})); err != nil || !nc.DebugTokens {
+		t.Errorf("lde debug tokens refused: %+v %v", nc, err)
+	}
+	for _, e := range []string{"lde", "dev", "prd"} {
+		if nc, err := auth.LoadNativeFrom(e, on(nil)); err != nil || nc.DebugTokens {
+			t.Errorf("%s: debug tokens on by default: %+v %v", e, nc, err)
+		}
 	}
 	if _, err := auth.LoadNativeFrom("prd", map[string]string{"SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS": "true"}); err != nil {
 		t.Errorf("disabled native validated: %v", err)

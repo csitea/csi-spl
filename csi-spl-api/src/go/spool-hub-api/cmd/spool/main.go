@@ -185,6 +185,7 @@ a box and its hub ($SPOOL_HUB_URL):
 running a hub:
   serve               run the hub (configured by SPOOL_HUB_* env vars)
   migrate             apply the schema migrations (--dry-run: check, apply nothing)
+  fleet-tokens-reprice  price, once, the fleet token minutes stored before their model had a price
   root-keygen         make a tenant root key pair (private key 0600, never printed)
   hub-tenant          create a tenant with its root public key
   hub-tenant-billing  set a tenant's billing status
@@ -227,6 +228,8 @@ func run(args []string) int {
 		return cmdKeyd(rest)
 	case "migrate":
 		return cmdMigrate(rest)
+	case "fleet-tokens-reprice": // SPL-2405
+		return cmdFleetTokensReprice(rest)
 	case "serve":
 		return cmdServe()
 	case "hub-tenant":

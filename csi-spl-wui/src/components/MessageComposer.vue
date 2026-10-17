@@ -333,41 +333,31 @@
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
-import { useLiveFeed } from '~/stores/live'
-import { useRosterStore } from '~/stores/roster'
-import { useViewerStore } from '~/stores/viewer'
 import { useOmniboxStore } from '~/stores/omnibox'
-import { useSessionStore } from '~/stores/session'
-import { draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
 import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
-import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
-import { carriesFiles, filesOf } from '~/utils/transfer-files.mjs'
-import { useFileAttach } from '~/composables/useFileAttach'
+import { fileKind } from '~/utils/file-preview.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMentionPicker } from '~/composables/useMentionPicker'
-import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
-import { useStatusStripHeight } from '~/composables/useStatusStrip'
-import { useMobileStack } from '~/composables/useMobileStack'
+import { useComposerDraft } from '~/composables/useComposerDraft'
+import { useComposerDock } from '~/composables/useComposerDock'
+import { useComposerSize } from '~/composables/useComposerSize'
+import { useComposerPickers } from '~/composables/useComposerPickers'
+import { useComposerSyntax } from '~/composables/useComposerSyntax'
+import { useComposerFiles } from '~/composables/useComposerFiles'
+import { useComposerTarget } from '~/composables/useComposerTarget'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
-import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { perfKeydown, perfSendStart } from '~/utils/perf-mark.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { chipLabel, composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
-import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
-import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
-import { applyCompletion, channelLookupOf, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
-import {
-  activeInQuery,
-  filterTopicTitles,
-  insertInClause,
-  resolveInClause,
-  topicChoices,
-} from '~/utils/topic-in.mjs'
+import { channelLookupOf, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
+import { resolveInClause } from '~/utils/topic-in.mjs'
 
+/* r13-03: the field's size, the phone dock, the pickers, the "?" button,
+   the attachments, the draft and the target chip each live in a
+   useComposer* composable; this script wires them to the template, the
+   keys and the send */
 const props = withDefaults(defineProps<{
   /**
    * SPL-991: on a phone (<= 820 px) the one composer docks at the bottom,
@@ -407,24 +397,23 @@ const emit = defineEmits<{
   /** mounted: TopBar's deferred Teleport mounts this after the bar (c6994436) */
   ready: [box: { setText: (s: string) => void }]
 }>()
-/* the paperclip's picker and a pasted file (shared with the issue boxes) */
-const fileEl = ref<HTMLInputElement | null>(null)
-const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste } = useFileAttach(fileEl)
-/* a picked picture shows a thumbnail before it is sent (a data: URL: the
-   deployed CSP admits no blob:); every other file shows its type icon */
-const thumbs = shallowRef(new Map<File, string>())
-watch(picked, async (files) => {
-  const next = new Map<File, string>()
-  for (const f of files) {
-    const had = thumbs.value.get(f)
-    if (had) next.set(f, had)
-    else if (isPreviewableImage(f.name, f.size)) next.set(f, await readDataUrl(f))
-  }
-  thumbs.value = next
-}, { deep: true })
-const roster = useRosterStore()
-const viewer = useViewerStore()
+const { t, te } = useI18n({ useScope: 'global' })
 const channelFeed = useChannelStore()
+const omniboxTargets = useOmniboxStore()
+const text = ref('')
+const inputEl = ref<HTMLTextAreaElement | null>(null)
+const formEl = ref<HTMLFormElement | null>(null)
+const fileEl = ref<HTMLInputElement | null>(null)
+const chipEl = ref<HTMLElement | null>(null)
+const opListEl = ref<HTMLUListElement | null>(null)
+const inListEl = ref<HTMLUListElement | null>(null)
+const syntaxBtn = ref<HTMLButtonElement | null>(null)
+const fieldEl = ref<HTMLElement | null>(null)
+/** Slack's ``` composer: the caret sits inside an open code block. */
+const inCode = ref(false)
+const searchMode = computed(() => Boolean(props.omnibox || props.global) && omniboxMode(text.value) === 'search')
+/* the code-marks mirror loads with the first backtick, never for a query */
+const codeMarksDue = computed(() => !searchMode.value && text.value.includes('`'))
 /* spec 096 §5.1: the DM this box sends to (a reply inside a DM too); the
    line itself (whom it names, @mentions included) loads only once a DM
    peer has a status, or the draft holds an @ while anyone has one */
@@ -436,128 +425,30 @@ const statusDmPeer = computed(() => {
    nothing unless someone named has a status (the composer keeps no status
    state, so its chunks do not depend on the status store - 027 budget) */
 const statusLineDue = computed(() => !searchMode.value && (/^HUM-/.test(statusDmPeer.value) || text.value.includes('@')))
-const liveMain = useLiveFeed('main')
-const text = ref('')
-const inputEl = ref<HTMLTextAreaElement | null>(null)
-/* the code-marks mirror loads with the first backtick, never for a query */
-const codeMarksDue = computed(() => !searchMode.value && text.value.includes('`'))
 
-/*
- * 080 FR-001..FR-003: one draft per place. The page's omnibox target names
- * its place (`ch:` / `dm:` / `t:`); a change of place keeps the text under
- * the old one and brings back the new one's, typing keeps it (300 ms), and
- * the box a send empties drops it - a failed send puts the text back (TopBar
- * restore), which keeps it again. A search line is never a draft. Only the
- * top-bar box keeps drafts.
- */
-const omniboxTargets = useOmniboxStore()
-const session = useSessionStore()
-const DRAFT_SAVE_MS = 300
-const draftPlace = computed(() => (props.global ? draftPlaceOf(omniboxTargets.target?.place?.() ?? '') : ''))
-const draftHuman = computed(() => String(session.claims?.hum || ''))
-/* what the store holds for this place: a load is not a save */
-let draftStored = ''
-let draftTimer: ReturnType<typeof setTimeout> | null = null
-let draftPending: (() => void) | null = null
-function isDraftText(s: string) {
-  return omniboxMode(s) !== 'search' && switchPaneOf(s) === null
-}
-function cancelDraftSave() {
-  if (draftTimer) clearTimeout(draftTimer)
-  draftTimer = null
-  draftPending = null
-}
-function flushDraftSave() {
-  const run = draftPending
-  cancelDraftSave()
-  run?.()
-}
-watch(text, (s) => {
-  const human = draftHuman.value
-  const place = draftPlace.value
-  /* a later key wins: `/` then `/s` (a search) must not keep `/` */
-  cancelDraftSave()
-  if (!import.meta.client || !human || !place || !isDraftText(s) || s === draftStored) return
-  draftPending = () => {
-    saveDraft(undefined, human, place, s)
-    draftStored = s
-  }
-  draftTimer = setTimeout(flushDraftSave, DRAFT_SAVE_MS)
-})
-watch([draftPlace, draftHuman], ([place, human], [, oldHuman]) => {
-  if (!import.meta.client || !props.global) return
-  const s = text.value
-  if (human === oldHuman) flushDraftSave()
-  /* signed out or another member: nothing more is written for the old one */
-  else cancelDraftSave()
-  if (!isDraftText(s)) return
-  /* the session arrived after the reader started typing: keep that text */
-  if (!oldHuman && s) return
-  draftStored = human && place ? draftText(undefined, human, place) : ''
-  if (draftStored !== s) setText(draftStored)
-}, { immediate: true })
-onBeforeUnmount(flushDraftSave)
-onBeforeUnmount(registerDraftSource(() => draftPending && { human: draftHuman.value, place: draftPlace.value, text: text.value }))
-
-/*
- * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone
- * it leaves the bar and pins itself to the bottom edge, `--kb-inset` above it
- * (useKeyboardInset: the visualViewport keyboard height, iOS Safari and
- * Android Chrome), full width, 44 px wide Back / Attach / Send (40 px tall, SPL-2093). Its height goes
- * to `--composer-dock-h` on <html> (0 when not docked), so the panes pad
- * their last card clear of it (M1) and TopBar lifts its send error over it
- * (M2). SPL-1005: every level, the section chooser included.
- */
-const formEl = ref<HTMLFormElement | null>(null)
-const phone = usePhone()
-const kbInset = useKeyboardInset()
-const stack = useMobileStack()
-/* SPL-1005 (owner, topic 9b58a27b): the floating GO is gone, so the dock is
-   the phone's only omnibox - it shows on EVERY level, the section chooser
-   and pages with no send target included (there `/search` still works and
-   plain text says it cannot be sent) */
-const docked = computed(() => Boolean(props.global) && props.dock && phone.value)
-/* owner, t1 2026-10-02: the dock's place on the phone (its grip moves it) */
-const { pos: phonePos, size: phoneSize } = useOmniboxPhonePos()
-/* owner, t1 21:53Z: its size there (the grip's size handle or the menu) */
-const phoneShare = computed(() => phoneSize.value[phonePos.value] ?? null)
+const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste, thumbs } = useComposerFiles({ fileEl, props, focusInput })
+useComposerDraft({ text, props, setText })
+const { docked, phonePos, phoneShare, kbInset, stack } = useComposerDock({ props, formEl, inputEl })
 /* phones only: a desktop never loads the grip */
 const OmniboxGrip = defineAsyncComponent(() => import('~/components/OmniboxGrip.vue'))
-/* SPL-1003: where the next post goes, shown above the docked box */
-const dockHint = computed(() => dockTargetHint(props.dockTarget, text.value))
-let dockObserver: ResizeObserver | null = null
-/* CLE-77888: the dock sits on the phone's bottom status strip, so the
-   height it reports is the two together (the strip is 0 while it is gone) */
-const stripH = useStatusStripHeight()
-let dockPx = 0
-function setDockHeight(px: number) {
-  dockPx = px
-  if (typeof document === 'undefined') return
-  /* at the top the box no longer covers the bottom: the panes pad only the
-     strip there, and start under the box (--composer-dock-top-h, main.css) */
-  const top = px > 0 && phonePos.value === 'top'
-  const total = px > 0 ? px + stripH.value : 0
-  const root = document.documentElement.style
-  root.setProperty('--composer-dock-h', `${Math.max(0, Math.round(top ? stripH.value : total))}px`)
-  root.setProperty('--composer-dock-top-h', `${top ? Math.round(px) : 0}px`)
-}
-watch(stripH, () => setDockHeight(dockPx))
-watch(phonePos, () => setDockHeight(dockPx))
-function watchDock(on: boolean) {
-  dockObserver?.disconnect()
-  dockObserver = null
-  const el = formEl.value
-  if (!on || !el) {
-    setDockHeight(0)
-    return
-  }
-  setDockHeight(el.getBoundingClientRect().height)
-  if (typeof ResizeObserver !== 'undefined') {
-    dockObserver = new ResizeObserver(() => setDockHeight(el.getBoundingClientRect().height))
-    dockObserver.observe(el)
-  }
-}
-watch(docked, (on) => { void nextTick(() => watchDock(on)) })
+/* SPL-985: @ finds a person or agent by id or by the display name they chose; the tag
+   inserted is still the id. The same picker serves every text field. */
+const mp = useMentionPicker({ text, el: inputEl, blocked: () => searchMode.value || inCode.value })
+const pickerOpen = computed(() => mp.open)
+const {
+  opIdx, caretAt, opClosed, opCandidates, opPickerOpen, pickOp, onOperatorKey, syncOp,
+  inQuery, inIdx, pickedIn, topicCatalogue, inCandidates, inPickerOpen, pickIn, onInKey, syncIn, atCaret,
+} = useComposerPickers({ text, inputEl, searchMode, props, mentionOpen: () => pickerOpen.value, opListEl, inListEl })
+const { modeText, modeGlyph, modeAttr, sendKey, chip, chipText, chipFull, chipMode, openChip } = useComposerTarget({
+  text, inputEl, docked, searchMode, topicCatalogue, t, props,
+})
+const { collapseGlobalBox, onOmniboxFocus, onOmniboxBlur, startResize, chipW, multilineLayout } = useComposerSize({
+  inputEl, text, props, docked, modeGlyph, chip, chipEl, kbInset, phoneShare,
+})
+const { syntaxOpen, syntaxId, insertOperator, onSyntaxClick } = useComposerSyntax({
+  text, inputEl, caretAt, docked, searchMode, props, setText, focusInput, syntaxBtn, fieldEl,
+})
+
 /* the sheet's Reply (MessageCard) puts the caret here. SPL-1637: a poll's
    "Chat about this" hands a start text too (the marker and the question
    quoted); it fills an empty box only, so a draft is never overwritten. */
@@ -568,166 +459,12 @@ function onFocusRequest(ev?: Event) {
 }
 onMounted(() => {
   emit('ready', { setText })
-  watchDock(docked.value)
   window.addEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest)
 })
-onBeforeUnmount(() => {
-  dockObserver?.disconnect()
-  if (props.global) setDockHeight(0)
-  window.removeEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest)
-})
-/* A drag on the grip. Null until the reader sets one, then typing does not
-   snap the box back. Kept across a collapse so the next focus can reopen it. */
-const userHeight = ref<number | null>(null)
-/* Last open height when the reader did not drag. Null when it was one line. */
-const openHeight = ref<number | null>(null)
-/* True after focus leaves, so a tall draft stays one line until the reader
-   comes back. Ctrl+Enter does not park: the caret is still in the box. */
-const parked = ref(false)
-/* Ctrl+Enter collapses while the caret stays. The next key sizes to the new
-   text; the saved height waits for the next focus. */
-const contentUntilFocus = ref(false)
-/* A fit queued by the send that clears the text must not reopen the box. */
-let fitSerial = 0
-function omniboxMax() {
-  /* docked: 40% of what the keyboard leaves, so the page stays in view */
-  if (docked.value) return Math.max(36, Math.floor((window.innerHeight - kbInset.value) * 0.4))
-  /* topic c6994436: in the bottom dock the box pushes the feed up, not over */
-  return omniboxMaxHeight({ innerHeight: window.innerHeight - kbInset.value, bottom: Boolean(props.bottom) })
-}
-function collapseGlobalBox(park: boolean) {
-  const el = inputEl.value
-  if (!el || !props.global) return
-  openHeight.value = omniboxRememberHeight({
-    userHeight: userHeight.value,
-    openHeight: openHeight.value,
-    measured: Math.round(el.getBoundingClientRect().height),
-    keep: parked.value || contentUntilFocus.value,
-  })
-  parked.value = park
-  if (!park) {
-    contentUntilFocus.value = true
-    const serial = ++fitSerial
-    void nextTick(() => {
-      if (fitSerial === serial) fitSerial++
-    })
-  }
-  el.style.height = '36px'
-}
-function onOmniboxFocus() {
-  if (!props.global) return
-  parked.value = false
-  contentUntilFocus.value = false
-  const changed = syncMultiline()
-  const px = omniboxFocusHeight(userHeight.value, openHeight.value, omniboxMax())
-  const el = inputEl.value
-  if (px != null && el && !changed) {
-    el.style.height = `${px}px`
-    return
-  }
-  void nextTick(fitGlobalBox)
-}
-function onOmniboxBlur(ev: FocusEvent) {
-  if (!props.global) return
-  const next = ev.relatedTarget
-  if (next instanceof Element && next.closest('[data-test="omnibox-resize"]')) return
-  collapseGlobalBox(true)
-}
-/* Attach and Send swallow their mousedown (@mousedown.prevent): the focus
-   stays in the box, so the blur above does not snap a tall draft to one line
-   the moment the reader reaches for Attach (measured 126px -> 36px on the
-   mock, 2026-09-25). The click itself fired either way in Chromium. */
-/* field-sizing is not enough inside the top-bar flex row: the used height
-   stays one line. Measure the text and set the height. Only the field grows.
-   The automatic size stops at 40% of the window; the grip can go to the
-   bottom of the screen. The bar itself stays 58px (SPL-977). */
-function fitGlobalBox() {
-  const el = inputEl.value
-  if (!el || !props.global || parked.value) return
-  if (!contentUntilFocus.value && userHeight.value != null) {
-    const px = omniboxFocusHeight(userHeight.value, null, omniboxMax())
-    if (px != null) {
-      el.style.height = `${px}px`
-      return
-    }
-  }
-  /* owner, t1 d3bbe2c2: "I cannot see the last part of the msg WHERE AM I
-     typing" / "something with the scroll resets it up" - the 'auto' measure
-     drops the field's scroll to the top while a phone keyboard composes
-     (measured: scrollTop 0, the caret 441 px under the box). Text that only
-     grew needs no collapse; after one, the scroll goes back, and a caret at
-     the end stays in view. */
-  const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
-  if (el.scrollHeight > el.clientHeight) {
-    el.style.height = `${Math.min(el.scrollHeight, cap)}px`
-  } else {
-    const scrolled = el.scrollTop
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, cap)}px`
-    el.scrollTop = scrolled
-  }
-  if (document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight
-}
-function startResize(ev: PointerEvent) {
-  const el = inputEl.value
-  const handle = ev.currentTarget
-  if (!el || !(handle instanceof HTMLElement)) return
-  ev.preventDefault()
-  handle.setPointerCapture(ev.pointerId)
-  const startY = ev.clientY
-  const startH = el.getBoundingClientRect().height
-  const move = (e: PointerEvent) => {
-    const next = resizeHeight({ startH, startY, y: e.clientY, bottom: Boolean(props.bottom) && !docked.value, max: omniboxMax() })
-    userHeight.value = next
-    el.style.height = `${next}px`
-  }
-  const end = () => {
-    handle.removeEventListener('pointermove', move)
-    handle.removeEventListener('pointerup', end)
-    handle.removeEventListener('pointercancel', end)
-  }
-  handle.addEventListener('pointermove', move)
-  handle.addEventListener('pointerup', end)
-  handle.addEventListener('pointercancel', end)
-}
-watch(text, () => {
-  if (!props.global) return
-  /* same flush as the new text, so the prefix row and the indent change
-     together and the caret is not rebuilt */
-  const changed = syncMultiline()
-  const serial = fitSerial
-  void nextTick(() => {
-    if (serial !== fitSerial) return
-    if (changed) syncMultiline()
-    fitGlobalBox()
-  })
-})
-onMounted(() => {
-  syncMultiline()
-  fitGlobalBox()
-})
-/* owner, t1 21:53Z: a new phone size (or a place with another size). The
-   field's own height was measured under the old floor; measure it again
-   under the new one, so a smaller size really shrinks it */
-watch(phoneShare, () => {
-  void nextTick(() => {
-    const el = inputEl.value
-    if (!el || !docked.value) return
-    if (parked.value) el.style.height = '36px'
-    else fitGlobalBox()
-  })
-})
+onBeforeUnmount(() => window.removeEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest))
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */
 const cannotSend = computed(() => Boolean(props.busy) || (Boolean(props.sendBlocked) && !docked.value) || (!text.value.trim() && !picked.value.length))
-const inQuery = ref<string | null>(null)
-const inIdx = ref(0)
-const inListEl = ref<HTMLUListElement | null>(null)
-/** The topic the reader picked, so two starters with one title stay distinct. */
-const pickedIn = ref<{ taskId: string, title: string, channel: string } | null>(null)
-const topicsAsked = ref(false)
-/** Slack's ``` composer: the caret sits inside an open code block. */
-const inCode = ref(false)
 /**
  * 013 FR-018 — the send-time size gate. A code block past 3 A4
  * (code-view.mjs SEND_LIMIT: 150 lines / 9000 chars) is a file, not a
@@ -738,73 +475,6 @@ const sizeError = ref<ReturnType<typeof sendLimitError>>(null)
 const hintId = useId()
 const slashHintId = useId()
 const opListId = useId()
-const opIdx = ref(0)
-const opListEl = ref<HTMLUListElement | null>(null)
-/** caret offset, kept in sync so the operator picker follows it */
-const caretAt = ref(0)
-const opClosed = ref(false)
-const searchMode = computed(() => Boolean(props.omnibox || props.global) && omniboxMode(text.value) === 'search')
-const opTok = computed(() => (searchMode.value ? operatorTokenAt(text.value, caretAt.value) : null))
-const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators, roster.peers).slice(0, OP_PICKER_CAP) : []))
-const opPickerOpen = computed(() => !opClosed.value && opCandidates.value.length > 0)
-
-/** Same scroll as the mention list: arrows move this dropdown, not the page. */
-function scrollActiveOp() {
-  nextTick(() => {
-    const list = opListEl.value
-    if (!list) return
-    const row = list.querySelectorAll<HTMLElement>('.mention-item')[opIdx.value]
-    if (!row) return
-    const listRect = list.getBoundingClientRect()
-    const rowRect = row.getBoundingClientRect()
-    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
-    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
-  })
-}
-
-function onOperatorKey(ev: KeyboardEvent): boolean {
-  if (!opPickerOpen.value) return false
-  const n = opCandidates.value.length
-  if (ev.key === 'ArrowDown') {
-    ev.preventDefault()
-    opIdx.value = (opIdx.value + 1) % n
-    scrollActiveOp()
-    return true
-  }
-  if (ev.key === 'ArrowUp') {
-    ev.preventDefault()
-    opIdx.value = (opIdx.value - 1 + n) % n
-    scrollActiveOp()
-    return true
-  }
-  if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
-    ev.preventDefault()
-    const c = opCandidates.value[opIdx.value]
-    if (c) pickOp(c.insert)
-    return true
-  }
-  if (ev.key === 'Escape') {
-    ev.preventDefault()
-    opClosed.value = true
-    return true
-  }
-  return false
-}
-
-function pickOp(insert: string) {
-  const tok = opTok.value
-  if (!tok) return
-  const next = applyCompletion(text.value, tok, insert)
-  text.value = next.text
-  caretAt.value = next.cursor
-  opIdx.value = 0
-  nextTick(() => {
-    const el = inputEl.value
-    if (!el) return
-    el.focus()
-    el.setSelectionRange(next.cursor, next.cursor)
-  })
-}
 
 /** 022: the top bar sets the line (deep link ?q=, mobile expand) */
 function setText(s: string) {
@@ -839,207 +509,12 @@ function leaveSearch() {
 }
 defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
-const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: Enter follows Settings -> Behaviour -> "Text fields" */
 const { keyAction, mode: submitMode, hintFor } = useSubmitKey()
-const syntaxOpen = ref(false)
-const syntaxId = useId()
-const fieldEl = ref<HTMLElement | null>(null)
 /* 085 FR-005: one row per key hint, in the Enter mode the reader set */
 const phoneHints = computed(() => t(hintFor('search.phone_hints')).split(' · ').map((h) => h.trim()).filter(Boolean))
 const syntaxRows = computed(() => operatorHelpRows(props.operators && props.operators.length ? props.operators : undefined))
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
-/* HUM-24 (CLE-77879): one mode, one look - the label, its icon, the field's
-   accent (data-mode) and the GO button's words all follow dockHint */
-const modeText = computed(() => {
-  const label = composerModeLabel(dockHint.value)
-  return label ? t(label.key, label.params) : ''
-})
-const intoTree = computed(() => Boolean(dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment')))
-/* owner, t1 3d6d945d "A": the glyph in the box marks a post into the tree.
-   A DM, /search and a page with no send target show none.
-   HUM-10: a new topic already shows the channel as #name (the phone
-   placeholder is "#{name}"; the desktop placeholder and the target chip
-   both carry that same hash). A hash glyph in front of it reads "# #name"
-   on the desktop and on the phone. Drop the glyph on both; the gap it
-   opened goes with it. The tree glyph stays for a reply. */
-const modeGlyph = computed<'thread-tree' | 'hash' | null>(() => {
-  if (!props.global || searchMode.value || !dockHint.value) return null
-  if (intoTree.value) return 'thread-tree'
-  if (dockHint.value.mode === 'new') return null
-  return null
-})
-/* a phone page with no send target (/issues list, /events, /settings): GO
-   there searches for the text, never nothing - data-mode="search", no accent */
-const modeAttr = computed(() => {
-  if (!props.global || searchMode.value) return undefined
-  if (dockHint.value) return dockHint.value.mode
-  return docked.value && props.sendBlocked ? 'search' : undefined
-})
-const sendKey = computed(() => composerSendKey(searchMode.value ? null : dockHint.value))
-
-/*
- * 080 FR-006 / FR-007: the target chip. chipLabel reads what send reads - the
- * page's dock() and place() (one replyTarget()) and the `in: <title>` the
- * line resolves to - so it cannot name one place while the send goes to
- * another. Top-bar box only, not in /search. 085 FR-001 / FR-002: no chip
- * on the phone dock (owner msg b2e7c197-ca37-489a-899d-20f4b946d120); the
- * send target there is unchanged, the open thread or channel names it.
- */
-const chipWords = (c: { key: string, params: Record<string, string>, text: string }) => (c.key ? t(c.key, c.params) : c.text)
-const chipInfo = computed(() => {
-  if (!props.global || searchMode.value || props.sendBlocked) return null
-  if (docked.value) return null
-  const place = String(omniboxTargets.target?.place?.() ?? '')
-  const resolved = /(^|\s)in:/i.test(text.value) ? resolveInClause(text.value, topicCatalogue.value) : null
-  const named = resolved && resolved.taskId ? { taskId: resolved.taskId, title: resolved.title } : null
-  const id = place.startsWith('t:') ? place.slice(2) : ''
-  const title = id ? (topicCatalogue.value.find((r) => r.taskId === id)?.title ?? '') : ''
-  const opts = { dock: props.dockTarget, place, text: text.value, named, title }
-  const c = chipLabel(opts)
-  return c ? { ...c, full: chipWords(c), short: chipWords(c) } : null
-})
-const chip = computed(() => Boolean(chipInfo.value))
-const chipText = computed(() => chipInfo.value?.short ?? '')
-const chipFull = computed(() => chipInfo.value?.full ?? '')
-const chipMode = computed(() => {
-  const c = chipInfo.value
-  if (!c) return undefined
-  if (c.key === 'composer.chip_reply') return 'thread'
-  return c.text.startsWith('@') ? 'dm' : 'new'
-})
-/* the text starts after the chip: its ONE-LINE width, live. The lifted row
-   caps the chip narrower (40% vs the dock's full width), and the wrap is
-   judged against the one-line box, so that row's width is not taken: it fed
-   back into the judgement and flipped a short draft between the layouts
-   (measured on the 390 dock, DejaVu: chip 127 px one-line, 66 px lifted). */
-const chipEl = ref<HTMLElement | null>(null)
-const chipW = ref(0)
-let chipObserver: ResizeObserver | null = null
-watch(chipEl, (el) => {
-  chipObserver?.disconnect()
-  chipObserver = null
-  if (!el) return
-  chipW.value = el.offsetWidth
-  if (typeof ResizeObserver === 'undefined') return
-  chipObserver = new ResizeObserver(() => { if (!multilineLayout.value) chipW.value = el.offsetWidth })
-  chipObserver.observe(el)
-})
-onBeforeUnmount(() => chipObserver?.disconnect())
-/* Owner, t1 26282b6e: more than one line lifts the glyph and the chip onto
-   a row above the text. The answer is the one-line content box (the indent
-   below), so it does not flip again when that indent is removed. A blur
-   parks the bar at one line; the row comes back with the caret. */
-const multiline = ref(false)
-const multilineLayout = computed(() =>
-  Boolean(props.global) && multiline.value && !parked.value && (Boolean(modeGlyph.value) || chip.value))
-let measureEl: HTMLSpanElement | null = null
-function draftWidth(el: HTMLTextAreaElement, value: string): number {
-  if (typeof document === 'undefined') return 0
-  if (!measureEl) {
-    measureEl = document.createElement('span')
-    measureEl.setAttribute('aria-hidden', 'true')
-    measureEl.style.cssText = 'position:fixed;inset-inline-start:0;top:0;visibility:hidden;white-space:pre;pointer-events:none;'
-    document.body.appendChild(measureEl)
-  }
-  const cs = getComputedStyle(el)
-  measureEl.style.fontStyle = cs.fontStyle
-  measureEl.style.fontWeight = cs.fontWeight
-  measureEl.style.fontSize = cs.fontSize
-  measureEl.style.fontFamily = cs.fontFamily
-  measureEl.style.letterSpacing = cs.letterSpacing
-  measureEl.style.wordSpacing = cs.wordSpacing
-  measureEl.textContent = value
-  return measureEl.getBoundingClientRect().width
-}
-function oneLineContentWidth(el: HTMLTextAreaElement): number {
-  const end = parseFloat(getComputedStyle(el).paddingInlineEnd) || 0
-  const pad = omniboxOneLinePad({
-    glyph: Boolean(modeGlyph.value),
-    chip: chip.value,
-    chipWidth: chipW.value,
-    phone: docked.value,
-  })
-  return Math.max(0, el.clientWidth - end - pad)
-}
-function syncMultiline(): boolean {
-  const el = inputEl.value
-  if (!el || !props.global || typeof document === 'undefined') {
-    if (multiline.value) { multiline.value = false; return true }
-    return false
-  }
-  const value = text.value
-  const start = el.selectionStart
-  const endSel = el.selectionEnd
-  const dir = el.selectionDirection
-  const focused = document.activeElement === el
-  /* SPL-1851: a text set by code (setText: a poll's "Chat about this") is
-     not in the field yet, so this caret belongs to the old text; restoring
-     it put the caret at 0, before the marker, and the reader typed there */
-  const ownCaret = el.value === value
-  const next = omniboxIsMultiline({
-    text: value,
-    textWidth: draftWidth(el, value),
-    contentWidth: oneLineContentWidth(el),
-  })
-  if (next === multiline.value) return false
-  multiline.value = next
-  void nextTick(() => {
-    const box = inputEl.value
-    if (!box) return
-    if (focused && document.activeElement !== box) box.focus({ preventScroll: true })
-    if (ownCaret && (box.selectionStart !== start || box.selectionEnd !== endSel)) {
-      try { box.setSelectionRange(start, endSel, dir || 'none') } catch { /* the box was replaced */ }
-    }
-  })
-  return true
-}
-watch(chipW, () => {
-  if (!props.global) return
-  if (syncMultiline()) void nextTick(() => fitGlobalBox())
-})
-watch([modeGlyph, chip, docked], () => {
-  if (!props.global) return
-  if (syncMultiline()) void nextTick(() => fitGlobalBox())
-})
-/* t1 26282b6e: a new viewport width re-judges the wrap on the next frame; the
-   text, focus, chip, glyph and dock watchers above cover the rest. Not a
-   ResizeObserver on the field: the top bar's tenant drop box sets its width
-   inside its own ResizeObserver callback (TenantDropBox.vue, E14), which
-   resizes this field in the same frame, and an observed field then raises
-   "ResizeObserver loop completed with undelivered notifications". */
-let widthFrame = 0
-function onViewportWidth() {
-  if (widthFrame) return
-  widthFrame = requestAnimationFrame(() => {
-    widthFrame = 0
-    if (syncMultiline()) void nextTick(() => fitGlobalBox())
-  })
-}
-onMounted(() => {
-  if (props.global) window.addEventListener('resize', onViewportWidth, { passive: true })
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', onViewportWidth)
-  if (widthFrame) cancelAnimationFrame(widthFrame)
-  measureEl?.remove()
-  measureEl = null
-})
-/* spec Q3: a chip click opens the target - the channel, the DM or the topic
-   (an open pane already shows it, so nothing moves) - and the box keeps the focus */
-const chipRoute = useRoute()
-const chipLocalePath = useLocalePath()
-function openChip() {
-  const at = chipInfo.value?.open || ''
-  const name = encodeURIComponent(at.slice(at.indexOf(':') + 1))
-  if (at.startsWith('t:')) {
-    const id = at.slice(2)
-    if (chipRoute.query.topic !== id && chipRoute.params.task_id !== id) void navigateTo(chipLocalePath('/t/' + name))
-  } else if (at === 'ch:lobby') void navigateTo(chipLocalePath('/lobby'))
-  else if (at.startsWith('ch:')) void navigateTo(chipLocalePath('/channel/' + name))
-  else if (at.startsWith('dm:')) void navigateTo(chipLocalePath('/dm/' + name))
-  inputEl.value?.focus()
-}
 
 function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length
@@ -1049,15 +524,7 @@ function caret(): number {
 watch(text, () => { sizeError.value = null; syntaxOpen.value = false })
 
 function syncMention(ev?: Event) {
-  const prevTok = opTok.value && opTok.value.token
-  caretAt.value = caret()
-  if (ev && ev.type !== 'keyup' && opTok.value?.token !== prevTok) {
-    opClosed.value = false
-    opIdx.value = 0
-    nextTick(() => {
-      if (opListEl.value) opListEl.value.scrollTop = 0
-    })
-  }
+  syncOp(ev)
   if (searchMode.value) {
     // a search line is a query: no code block, no @-picker, no topic picker
     inCode.value = false
@@ -1069,21 +536,18 @@ function syncMention(ev?: Event) {
   // no @-autocomplete inside a code block: the text there is literal (mp's `blocked`)
   mp.sync()
   /* `in:` is the topic-title picker. An @ token at the caret wins, same as a code fence. */
-  const nextIn = (inCode.value || mp.query !== null) ? null : activeInQuery(text.value, caret())
-  if (nextIn !== inQuery.value) {
-    inIdx.value = 0
-    nextTick(() => {
-      if (inListEl.value) inListEl.value.scrollTop = 0
-    })
-  }
-  inQuery.value = nextIn
+  syncIn((inCode.value || mp.query !== null) ? null : atCaret())
 }
 
-/* SPL-985: @ finds a person or agent by id or by the display name they chose; the tag
-   inserted is still the id. The same picker serves every text field. */
-const mp = useMentionPicker({ text, el: inputEl, blocked: () => searchMode.value || inCode.value })
-const pickerOpen = computed(() => mp.open)
+/* the box a send, a pane switch or an opened channel leaves behind */
+function clearBox() {
+  text.value = ''
+  picked.value = []
+  mp.close()
+  inQuery.value = null
+}
 
+const localePath = useLocalePath()
 /* t1 2b15a748 option A. The buttons are ComposerOpenAsk. This hook only
    decides: one visible channel name asks, anything else falls through. */
 const openAsk = useOpenChannelAsk({
@@ -1092,136 +556,12 @@ const openAsk = useOpenChannelAsk({
   channels: () => channelFeed.channels,
   replyOrComment: () => Boolean(props.dockTarget && (props.dockTarget.reply || props.dockTarget.comment)),
   clearAndGo: (id) => {
-    text.value = ''
-    picked.value = []
-    mp.close()
-    inQuery.value = null
-    void navigateTo(chipLocalePath('/channel/' + encodeURIComponent(id)))
+    clearBox()
+    void navigateTo(localePath('/channel/' + encodeURIComponent(id)))
   },
   send: () => onSend(),
 })
 watch(text, (s) => openAsk.note(s))
-
-const topicCatalogue = computed(() => topicChoices({
-  topics: viewer.topics,
-  messages: [...channelFeed.messages, ...liveMain.messages],
-}))
-const inCandidates = computed(() => (
-  inQuery.value === null ? [] : filterTopicTitles(topicCatalogue.value, inQuery.value)
-))
-const inPickerOpen = computed(() => inQuery.value !== null && inCandidates.value.length > 0 && !pickerOpen.value)
-
-watch(inQuery, (q) => {
-  if (q === null || topicsAsked.value || viewer.topics.length > 0) return
-  topicsAsked.value = true
-  void viewer.loadTopics()
-})
-
-function scrollActiveIn() {
-  nextTick(() => {
-    const list = inListEl.value
-    if (!list) return
-    const row = list.querySelectorAll<HTMLElement>('.mention-item')[inIdx.value]
-    if (!row) return
-    const listRect = list.getBoundingClientRect()
-    const rowRect = row.getBoundingClientRect()
-    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
-    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
-  })
-}
-
-function pickIn(row: { taskId: string, title: string, channel: string }) {
-  const next = insertInClause(text.value, caret(), row.title)
-  text.value = next.text
-  pickedIn.value = { taskId: row.taskId, title: row.title, channel: row.channel }
-  inQuery.value = null
-  nextTick(() => {
-    const el = inputEl.value
-    if (!el) return
-    el.focus()
-    el.setSelectionRange(next.cursor, next.cursor)
-  })
-}
-
-function insertOperator(op: string) {
-  syntaxOpen.value = false
-  const cur = text.value
-  const next = omniboxMode(cur) !== 'search'
-    ? `/search ${op}`
-    : (() => {
-        const at = inputEl.value?.selectionStart ?? cur.length
-        const gap = at > 0 && !/\s/.test(cur[at - 1] || '') ? ' ' : ''
-        return cur.slice(0, at) + gap + op + cur.slice(at)
-      })()
-  text.value = next
-  nextTick(() => {
-    const el = inputEl.value
-    if (!el) return
-    caretAt.value = next.length
-    el.focus()
-    el.setSelectionRange(next.length, next.length)
-  })
-}
-
-/* 085 FR-004: the phone Search button. Search mode is the state `/search `
-   sets, so a typed line that was there becomes the query; a second tap clears
-   the search line (omniboxTextLeavingSearch) and closes the list */
-function onSyntaxButton() {
-  if (!docked.value) {
-    syntaxOpen.value = !syntaxOpen.value
-    return
-  }
-  if (searchMode.value) {
-    syntaxOpen.value = false
-    setText(omniboxTextLeavingSearch(text.value))
-    return
-  }
-  setText(text.value.trim() ? `/search ${text.value.trim()}` : '/search ')
-  focusInput()
-  /* after the text watcher, which closes the list on every edit - and so
-     closes it again once the box is emptied (search mode left) */
-  void nextTick(() => { syntaxOpen.value = true })
-}
-
-/* t1 e142d4a0 (owner HUM-10): search starts only on a press that lands
-   inside the drawn button's square and is let go there, judged by the
-   pointer's own points, never by which element Chrome sends the click to.
-   Its touch adjustment moves a tap next to the button onto it (390 px: taps
-   at x 189..196 hit the button, which starts at 197) and a tap on the
-   square's edge off it; and the click the browser fires after the keyboard
-   moved the dock has no press on the button at all. So the pointer path
-   runs on pointerup, the click that follows is dropped, and any other click
-   on the button only focuses the box. A keyboard click (detail 0 on the
-   focused button) still works. */
-const syntaxBtn = ref<HTMLButtonElement | null>(null)
-let syntaxPress = 0
-let syntaxRan = 0
-function pressInSyntaxSquare(ev: PointerEvent): boolean {
-  const r = syntaxBtn.value?.getBoundingClientRect()
-  return Boolean(ev.button === 0 && r && r.width && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom)
-}
-function forgetSyntaxPress() { syntaxPress = 0 }
-function onSyntaxPointerUp(ev: PointerEvent) {
-  const pressed = syntaxPress > 0 && pressInSyntaxSquare(ev)
-  forgetSyntaxPress()
-  if (!pressed) return
-  syntaxRan = ev.timeStamp
-  onSyntaxButton()
-}
-function onSyntaxClick(ev: MouseEvent) {
-  if (ev.detail === 0 && document.activeElement === ev.currentTarget) return onSyntaxButton()
-  const ran = syntaxRan > 0 && ev.timeStamp - syntaxRan < 1500
-  syntaxRan = 0
-  if (!ran) focusInput()
-}
-
-function onSyntaxPointerDown(ev: PointerEvent) {
-  syntaxPress = pressInSyntaxSquare(ev) ? ev.timeStamp : 0
-  if (!syntaxOpen.value) return
-  const root = fieldEl.value
-  if (root && ev.target instanceof Node && root.contains(ev.target)) return
-  syntaxOpen.value = false
-}
 
 function onKeydown(ev: KeyboardEvent) {
   /* spec 066 M6: keydown -> the next paint (one in ten; a no-op with RUM off) */
@@ -1249,33 +589,7 @@ function onKeydown(ev: KeyboardEvent) {
     emit('search', '')
     return
   }
-  if (mp.onKeydown(ev)) return
-  if (inPickerOpen.value) {
-    const n = inCandidates.value.length
-    if (ev.key === 'ArrowDown') {
-      ev.preventDefault()
-      inIdx.value = (inIdx.value + 1) % n
-      scrollActiveIn()
-      return
-    }
-    if (ev.key === 'ArrowUp') {
-      ev.preventDefault()
-      inIdx.value = (inIdx.value - 1 + n) % n
-      scrollActiveIn()
-      return
-    }
-    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
-      ev.preventDefault()
-      const row = inCandidates.value[inIdx.value]
-      if (row) pickIn(row)
-      return
-    }
-    if (ev.key === 'Escape') {
-      ev.preventDefault()
-      inQuery.value = null
-      return
-    }
-  }
+  if (mp.onKeydown(ev) || onInKey(ev)) return
   if (ev.key === 'Enter') {
     const state = fenceStateAt(text.value, caret())
     inCode.value = state.inCode
@@ -1334,24 +648,19 @@ function searchInstead(): boolean {
   return true
 }
 
-function onSend() {
+/** Not a post: a pane switch, an open-channel ask, a search, a pick; true = handled. */
+function handledBeforeSend(): boolean {
   /* `/switch-pane: messages|channels|topics|flow` changes the left pane
      and is never sent. `topic` is the same pane. An unknown name stays in the box. */
-  if (props.global || props.omnibox) {
-    const pane = switchPaneOf(text.value)
-    if (pane !== null) {
-      if (pane) {
-        useSidePane().request(pane)
-        text.value = ''
-        picked.value = []
-        mp.close()
-        inQuery.value = null
-      }
-      return
+  const pane = props.global || props.omnibox ? switchPaneOf(text.value) : null
+  if (pane !== null) {
+    if (pane) {
+      useSidePane().request(pane)
+      clearBox()
     }
+    return true
   }
-  if (openAsk.beforeSend()) return
-  if (searchInstead()) return
+  if (openAsk.beforeSend() || searchInstead()) return true
   if (props.global && props.sendBlocked) {
     /* (owner: "clicking the GO button does not create a comment"):
        on a phone GO is the only button, so with no send target the text is
@@ -1361,23 +670,25 @@ function onSend() {
       emit('search', q)
       text.value = ''
     }
-    return
+    return true
   }
   /* Enter and the Send button both land here. An open title list picks;
      it does not send the half-typed `in:`. */
   if (inPickerOpen.value) {
     const row = inCandidates.value[inIdx.value]
     if (row) pickIn(row)
-    return
+    return true
   }
-  if (props.omnibox && !props.global) {
-    const parsed = parseOmnibox(text.value)
-    if ('search' in parsed) {
-      emit('search', parsed.search || '')
-      text.value = ''
-      return
-    }
-  }
+  if (!props.omnibox || props.global) return false
+  const parsed = parseOmnibox(text.value)
+  if (!('search' in parsed)) return false
+  emit('search', parsed.search || '')
+  text.value = ''
+  return true
+}
+
+/** The post's body and where it goes: an `in: <title>` names the topic. */
+function sendTarget() {
   /* SPL-1009: the field shows picked people by name; the message stores their tags */
   let body = closeOpenFence(mp.encode(text.value)).trim()
   let topicId = props.parentTaskId
@@ -1392,6 +703,12 @@ function onSend() {
       channelId = (same && chosen ? chosen.channel : resolved.channel) || undefined
     }
   }
+  return { body, topicId, channelId }
+}
+
+function onSend() {
+  if (handledBeforeSend()) return
+  const { body, topicId, channelId } = sendTarget()
   if ((!body && !picked.value.length) || props.busy) return
   const tooBig = sendLimitError(body)
   if (tooBig) {
@@ -1403,67 +720,13 @@ function onSend() {
   /* spec 066 M3 starts here; LiveFeed ends it when the row is confirmed */
   perfSendStart()
   emit('send', body, topicId, picked.value.slice(), channelId)
-  text.value = ''
-  picked.value = []
-  mp.close()
-  inQuery.value = null
+  clearBox()
   pickedIn.value = null
   inCode.value = false
 }
 
 /* e3e9ca61: the phone's top notice closes itself after this long */
 const ATTACH_NOTICE_MS = 8000
-
-/* e3e9ca61 (owner, on a phone): "whenever I click somewhere else, the snack
-   bar and the omnibar should disappear". Attach keeps the focus in the box
-   (@mousedown.prevent), so after the picker the box is still open at 40% of
-   the screen with the keyboard up. A tap outside the dock now blurs it, which
-   collapses it (onOmniboxBlur) and drops the keyboard. Desktop: unchanged. */
-let offDockOutside: (() => void) | null = null
-function onDockOutside() {
-  const el = inputEl.value
-  if (el && document.activeElement === el) el.blur()
-}
-watch(docked, (on) => {
-  offDockOutside?.()
-  offDockOutside = on && typeof document !== 'undefined' ? onOutsideTap(document, () => [formEl.value], onDockOutside) : null
-}, { immediate: true, flush: 'post' })
-onBeforeUnmount(() => { offDockOutside?.() })
-
-/* A file dropped anywhere on the page is attached to the Omnibox. Without
-   this the browser opens the dropped file and leaves the app. Only the one
-   global Omnibox listens, so a drop is attached once. */
-function onWindowDragOver(ev: DragEvent) {
-  if (!carriesFiles(ev.dataTransfer)) return
-  ev.preventDefault()
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy'
-}
-
-function onWindowDrop(ev: DragEvent) {
-  if (!carriesFiles(ev.dataTransfer)) return
-  ev.preventDefault()
-  const files = filesOf(ev.dataTransfer)
-  if (!files.length) return
-  pickLost.value = false
-  picked.value = [...picked.value, ...files]
-  focusInput()
-}
-
-onMounted(() => {
-  if (!props.global) return
-  window.addEventListener('dragover', onWindowDragOver)
-  window.addEventListener('drop', onWindowDrop)
-  window.addEventListener('pointerdown', onSyntaxPointerDown)
-  window.addEventListener('pointerup', onSyntaxPointerUp)
-  window.addEventListener('pointercancel', forgetSyntaxPress)
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('dragover', onWindowDragOver)
-  window.removeEventListener('drop', onWindowDrop)
-  window.removeEventListener('pointerdown', onSyntaxPointerDown)
-  window.removeEventListener('pointerup', onSyntaxPointerUp)
-  window.removeEventListener('pointercancel', forgetSyntaxPress)
-})
 </script>
 
 <style scoped>

@@ -9,12 +9,13 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fileKind, fileExt, isPreviewableImage, previewImageMime, PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('attach keeps the draft open', () => {
-  const box = read('src/components/MessageComposer.vue')
+  const box = messageComposerSrc()
   it('Attach and Send keep focus in the box on mousedown, so a tall draft does not collapse', () => {
     assert.match(box, /data-testid="attach"\s+@mousedown\.prevent\s+@click="openFiles"/)
     assert.match(box, /data-testid="send"\s+@mousedown\.prevent/)
@@ -54,7 +55,7 @@ describe('picture preview', () => {
   })
 
   it('the composer thumbnail is a data: URL too', () => {
-    const box = read('src/components/MessageComposer.vue')
+    const box = messageComposerSrc()
     assert.match(box, /readDataUrl\(f\)/)
     assert.doesNotMatch(box, /URL\.createObjectURL/)
   })

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } from '../../src/utils/omnibox-size.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 describe('omnibox size across a collapse', () => {
   it('a drag reopens at that height, capped by the window', () => {
@@ -73,7 +74,7 @@ describe('omnibox multi-line rule', () => {
   })
 
   it('the composer asks this rule and lifts the prefix with a 0.25rem gap', () => {
-    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageComposer.vue'), 'utf8')
+    const vue = messageComposerSrc()
     assert.match(vue, /omniboxIsMultiline\(/)
     assert.match(vue, /omniboxOneLinePad\(/)
     assert.match(vue, /'is-multiline': multilineLayout/)

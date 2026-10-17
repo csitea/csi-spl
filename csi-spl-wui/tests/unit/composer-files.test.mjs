@@ -19,6 +19,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -83,14 +84,14 @@ describe('the composer offers attach on exactly the routes that can honour it', 
   it('MessageComposer still renders the attach control outside search mode', () => {
     /* if this ever goes away the tests above are guarding a control nobody
        can reach, and should be deleted rather than left passing */
-    assert.match(src('src/components/MessageComposer.vue'), /data-testid="attach"/)
+    assert.match(messageComposerSrc(), /data-testid="attach"/)
   })
 
   it('Tab from the field reaches Send; attach is a button but not a tab stop', () => {
     /* SPL-953: attach is pointer-only (tabindex=-1), like the resize grip.
        A hidden file input is not a tab stop, and a disabled Send would
        leave the tab order. The owner hit that skip on a DM page. */
-    const s = src('src/components/MessageComposer.vue')
+    const s = messageComposerSrc()
     assert.match(s, /type="button"[\s\S]{0,120}data-testid="attach"/)
     const attachAt = s.indexOf('data-testid="attach"')
     const attach = s.slice(s.lastIndexOf('<button', attachAt), s.indexOf('>', attachAt) + 1)
@@ -110,7 +111,7 @@ describe('the composer offers attach on exactly the routes that can honour it', 
     assert.match(css, /\.composer-row button:hover\s*\{[^}]*linear-gradient\(180deg, var\(--color-btn-grey-top\), var\(--color-btn-grey-bottom\)\)/)
     assert.match(css, /\.composer-row button:focus,\s*\.composer-row button:active\s*\{[^}]*background:\s*var\(--color-btn-select\)/)
     assert.equal(css.includes('composer-tab-flash'), false)
-    const vue = src('src/components/MessageComposer.vue')
+    const vue = messageComposerSrc()
     assert.equal(/\.attach:active/.test(vue), false)
   })
 })

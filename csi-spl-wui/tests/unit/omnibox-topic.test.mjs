@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chipLabel, isParentFlag, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -175,7 +176,7 @@ describe('080 the target chip and the send read one target (AC6)', () => {
   })
 
   it('the composer renders the chip from chipLabel, and the bottom-only line is gone', () => {
-    const vue = src('src/components/MessageComposer.vue')
+    const vue = messageComposerSrc()
     assert.match(vue, /const opts = \{ dock: props\.dockTarget, place, text: text\.value, named, title \}/)
     assert.match(vue, /const c = chipLabel\(opts\)/)
     assert.match(vue, /data-test="composer-target-chip"/)
@@ -189,9 +190,9 @@ describe('080 the target chip and the send read one target (AC6)', () => {
    interface." It replaces "Chip 2" (msg 0b5cc9db) and the 9-character cut
    (msg 89704e48) on the phone; the desktop chip stays (080 FR-006). */
 describe('085 the phone dock draws no target chip (AC3)', () => {
-  const vue = src('src/components/MessageComposer.vue')
+  const vue = messageComposerSrc()
   it('chipInfo returns no chip while docked, after the desktop guards', () => {
-    assert.match(vue, /if \(!props\.global \|\| searchMode\.value \|\| props\.sendBlocked\) return null\n {2}if \(docked\.value\) return null\n/)
+    assert.match(vue, /if \(!props\.global \|\| searchMode\.value \|\| props\.sendBlocked\) return null\n\s+if \(docked\.value\) return null\n/)
     assert.match(vue, /const c = chipLabel\(opts\)/)
   })
   it('the phone-only chip code is gone: no phoneChipLabel, no phone chip CSS, no indent by the chip', () => {

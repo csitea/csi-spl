@@ -33,6 +33,7 @@ import {
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -114,7 +115,7 @@ describe('leaving /search', () => {
   })
   it('the top bar calls it when the route leaves /search', () => {
     assert.match(read('src/components/TopBar.vue'), /watch\(onSearchPage, \(now, was\) => \{ if \(was && !now\) composer\.value\?\.leaveSearch\(\) \}/)
-    assert.match(read('src/components/MessageComposer.vue'), /defineExpose\(\{[^}]*leaveSearch/)
+    assert.match(messageComposerSrc(), /defineExpose\(\{[^}]*leaveSearch/)
   })
 })
 
@@ -238,7 +239,7 @@ describe('operator autocomplete', () => {
     })
   })
   it('the composer passes the roster into from: completions', () => {
-    const src = read('src/components/MessageComposer.vue')
+    const src = messageComposerSrc()
     assert.match(src, /completeOperators\(opTok\.value\.token, props\.operators, roster\.peers\)/)
     assert.match(src, /data-test="search-syntax-help"/)
     assert.match(src, /OP_PICKER_CAP/)
@@ -547,7 +548,7 @@ describe('issue hits (grammar 1.2)', () => {
       assert.ok(help.includes('/search: type:workspace'), f)
       assert.ok(!help.includes('/search: /search:'), f)
     }
-    const composer = read('src/components/MessageComposer.vue')
+    const composer = messageComposerSrc()
     const introAt = composer.indexOf("t('search.help_intro')")
     const contentAt = composer.indexOf("t('search.help_content')")
     assert.ok(introAt > 0 && contentAt > introAt, 'popover leads with the start line')

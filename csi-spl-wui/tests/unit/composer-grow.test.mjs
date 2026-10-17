@@ -17,6 +17,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const SRC = join(WUI, 'src')
@@ -57,7 +58,7 @@ describe('composer growth', () => {
     assert.match(omni, /overflow-y:\s*auto/, 'past the bound the block scrolls inside the box')
     assert.match(css, /\.composer\.omnibox--global \.composer-row\s*\{[^}]*align-self:\s*flex-start/)
     assert.match(css, /\.composer\.omnibox--global \.composer-row\s*\{[^}]*flex:\s*0 0 auto/)
-    const box = read('src/components/MessageComposer.vue')
+    const box = messageComposerSrc()
     assert.match(box, /data-test="omnibox-resize"/)
     assert.match(box, /function startResize/)
     assert.match(box, /userHeight\.value != null/)
@@ -116,7 +117,7 @@ describe('composer growth', () => {
     // is the docked composer on every level (display:contents on the slot)
     assert.equal(vue.includes('.top-bar--open'), false)
     assert.match(vue, /\.top-bar__omnibox:has\(> \.composer--dock\) \{ display: contents; \}/)
-    const box = read('src/components/MessageComposer.vue')
+    const box = messageComposerSrc()
     assert.match(box, /function fitGlobalBox\(\)/)
     assert.match(box, /if \(!el \|\| !props\.global\) return/)
     assert.match(box, /el\.style\.height = 'auto'/)

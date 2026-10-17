@@ -15,6 +15,7 @@ import {
   resolveInClause,
   topicChoices,
 } from '../../src/utils/topic-in.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -137,7 +138,7 @@ describe('the box follows the line, not the open pane', () => {
   })
 
   it('the composer offers topic titles and resolves in: before it emits', () => {
-    const s = src('src/components/MessageComposer.vue')
+    const s = messageComposerSrc()
     assert.match(s, /data-test="topic-in-suggestions"/)
     assert.match(s, /activeInQuery/)
     assert.match(s, /filterTopicTitles/)

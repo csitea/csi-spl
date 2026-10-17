@@ -4,8 +4,9 @@
 # the identity record, the alias lock - then a plain re-run finishes it.
 # Safe outcome: no id lost (every other registry row stays, unread mail is kept
 # aside), never handed out twice (held or quarantined at every point), and the
-# re-run leaves the end state of a clean retirement. A private tmux server;
-# the live box is never touched.
+# re-run leaves the end state of a clean retirement: the first generation
+# stamp, one quarantine row, one alias row (a legacy --successor kept, SPL-2408).
+# A private tmux server; the live box is never touched.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -51,7 +52,11 @@ done_state() {  # LABEL: the end state of a clean retirement
   eq "$1: one .retired dir (no second generation)" 1 "$(compgen -G "$R/.retired/c-004.*" | wc -l)"
   eq "$1: the registry keeps c-099 only" c-099 "$(cut -f1 "$R/registry.tsv")"
   check "$1: c-004 is quarantined (registry.retired.tsv)" grep -q '^c-004	claude	' "$R/registry.retired.tsv"
-  check "$1: the record moved aside" test ! -e "$R/agents/c-004.json" -a -s "$(compgen -G "$R/agents/retired/c-004.*.json" | sed -n 1p)"
+  eq "$1: one quarantine row (registry.retired.tsv)" 1 "$(grep -c '^c-004	' "$R/registry.retired.tsv")"
+  check "$1: the record moved aside under the first generation" test ! -e "$R/agents/c-004.json" -a -s "$R/agents/retired/c-004.20261002T080000Z.json"
+  eq "$1: one record generation" 1 "$(compgen -G "$R/agents/retired/c-004.*.json" | wc -l)"
+  eq "$1: one alias row, c-004 -> retired" 1 "$(grep -c '^c-004	retired	claude	' "$R/agent-id-aliases.tsv" 2>/dev/null)"
+  check "$1: no pending retirement left" test ! -e "$R/.retired/.pending.c-004"
   eq "$1: index.json matches the records on disk" "$(python3 "$T_SCRIPTS/agent-identity.py" --dir "$R/agents" hash)" \
     "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hash"])' "$R/agents/index.json" 2>/dev/null)"
   check "$1: c-099 is untouched" test -d "$R/c-099/inbox"
@@ -73,16 +78,19 @@ for case_ in "move:mv:1" "registry:flock:1" "identity:python3:1" "alias:flock:2"
   not_handed "stop at $stop, half-done"
   eq "stop at $stop: c-099's row is never lost" 1 "$(grep -c '^c-099' "$R/registry.tsv")"
   SPOOL_NOW=2026-10-02T12:05:00Z bash "$RET" --apply c-004 >/dev/null 2>&1; rc=$?
-  if [ "$stop" = alias ]; then
-    # Everything but the alias row was done: nothing holds c-004 any more and
-    # the re-run says so (exit 4). For a new-grammar id that row says
-    # "retired" and maps nothing (spl_agent_id_resolve), so the end state is
-    # the same; a legacy --successor alias would need writing by hand.
-    eq "stop at $stop: the re-run finds nothing left to hold (4)" 4 "$rc"
-  else
-    eq "stop at $stop: the re-run completes the retirement" 0 "$rc"
-  fi
+  eq "stop at $stop: the re-run completes the retirement" 0 "$rc"
   done_state "stop at $stop, re-run"
 done
+
+# A legacy id retired with --successor, stopped at the alias lock: the plain
+# re-run still writes CLE-77 -> c-500 (before SPL-2408 it exited 4, row lost).
+rm -rf "$R" "$T_TMP/flock.n"; mkdir -p "$R/CLE-77/inbox"
+printf 'CLE-77\tclaude\t%%5\t/x\t20261002T080000Z\n' >"$R/registry.tsv"
+PATH="$T_TMP/bin:$PATH" T_FAIL_AT=flock T_FAIL_N=2 bash "$RET" --apply --successor c-500 CLE-77 >"$T_TMP/o" 2>&1
+has "legacy stop at alias: the planted fault fired" "planted: flock dies" "$(cat "$T_TMP/o")"
+bash "$RET" --apply CLE-77 >/dev/null 2>&1; eq "legacy stop at alias: the re-run completes it" 0 "$?"
+eq "...the successor alias row is written once" 1 "$(grep -c '^CLE-77	c-500	' "$R/agent-id-aliases.tsv" 2>/dev/null)"
+eq "...one quarantine row" 1 "$(grep -c '^CLE-77	' "$R/registry.retired.tsv")"
+bash "$RET" --apply CLE-77 >/dev/null 2>&1; eq "...a third run finds nothing left (4)" 4 "$?"
 
 t_done

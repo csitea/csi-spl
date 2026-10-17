@@ -15,6 +15,11 @@
 #   identity record agents/<ID>.json
 #       -> agents/retired/<ID>.<spawned-utc>.json; index.json re-hashed
 #   hub lane row -> state done (lane-map.sh done), best effort
+#   pending     -> $SPOOL_ROOT/.retired/.pending.<ID> while --apply runs: the
+#                  generation, the alias row and "registry" once the rows
+#                  moved. A run stopped half-way leaves it, and the re-run
+#                  finishes from it: the same generation stamp, no second
+#                  quarantine row, the alias row (a --successor too) written
 #   alias row   -> agent-id-aliases.tsv: <ID> -> --successor, else "retired"
 #                  (old<TAB>new<TAB>kind<TAB>box<TAB>mapped-utc; every reader
 #                  takes only a new-grammar new id, so "retired" maps nothing).
@@ -57,7 +62,7 @@
 # (workdir-register.sh's).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
 # 3 a window still carries the id, 4 nothing on this machine holds the id
-# (no spool dir, registry row, record or desk seat).
+# (no spool dir, registry row, record, desk seat or pending retirement).
 set -euo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -122,6 +127,36 @@ elif [ -d "$R/$ID" ]; then DIR="$R/$ID"; fi
 
 held=0
 
+# A retirement stopped half-way (SPL-2408) left its pending file: line 1 the
+# generation, line 2 the alias row, then "registry" once the rows moved. The
+# re-run keeps that generation (the dir and the rows that dated it are gone).
+PEND="$R/.retired/.pending.${ID}"
+P_ALIAS=""; P_REG=0
+if [ -r "$PEND" ]; then
+  held=1
+  { IFS= read -r p_gen || true; IFS= read -r P_ALIAS || true; } <"$PEND"
+  [[ "${p_gen:-}" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] && SPAWNED="$p_gen"
+  grep -qx registry "$PEND" && P_REG=1
+fi
+
+# The alias row, made now: the pending file carries it from the first change on.
+TABLE="$R/agent-id-aliases.tsv"
+alias_row=""; alias_kept=0
+if [[ "$ID" =~ $LEGACY_RX ]] && [ -r "$TABLE" ] \
+    && awk -F'\t' -v id="$ID" -v b="$BOX" '$1 == id && $4 == b { f = 1 } END { exit !f }' "$TABLE"; then
+  alias_kept=1
+elif [ -n "$P_ALIAS" ] && [ -z "$SUCC" ]; then
+  alias_row="$P_ALIAS"
+else
+  alias_row="$(printf '%s\t%s\t%s\t%s\t%s' "$ID" "${SUCC:-retired}" "$(spl_kind_of_agent_id "$ID" || true)" "$BOX" "$(date -u -d "$NOW" +%Y-%m-%dT%H:%M:%SZ)")"
+fi
+pend_open() {  # written once, before the first change
+  [ "$APPLY" = 1 ] && [ ! -e "$PEND" ] || return 0
+  mkdir -p "$R/.retired"
+  chmod 2775 "$R/.retired" 2>/dev/null || true
+  printf '%s\n%s\n' "$SPAWNED" "$alias_row" >"$PEND"
+}
+
 # ---- 1. the spool dir -------------------------------------------------------
 if [ -n "$DIR" ] && [ -d "$DIR" ]; then
   held=1
@@ -129,8 +164,7 @@ if [ -n "$DIR" ] && [ -d "$DIR" ]; then
   n=1; while [ -e "$dst" ]; do n=$((n + 1)); dst="$R/.retired/${ID}.${SPAWNED}.${n}"; done
   step move "${DIR} -> ${dst}"
   if [ "$APPLY" = 1 ]; then
-    mkdir -p "$R/.retired"
-    chmod 2775 "$R/.retired" 2>/dev/null || true
+    pend_open
     mv "$DIR" "$dst"
   fi
 fi
@@ -146,6 +180,8 @@ rows=""
 if [ -n "$rows" ]; then
   held=1
   step registry "$(printf '%s\n' "$rows" | wc -l) row(s) -> ${R}/registry.retired.tsv, retired ${RETIRED_UTC}"
+elif [ "$P_REG" = 1 ]; then
+  step registry "moved by the stopped run; no second quarantine row"
 else
   # No row: one is synthesized, so the quarantine still holds the number.
   rows="$(printf '%s\t%s\t\t\t%s' "$ID" "$(spl_kind_of_agent_id "$ID" || true)" "$SPAWNED")"
@@ -177,18 +213,16 @@ fi
 [ "$held" = 1 ] || { echo "agent-id-retire: nothing on this machine holds ${ID} (${R})" >&2; exit 4; }
 
 # ---- 5. the alias row -------------------------------------------------------
-TABLE="$R/agent-id-aliases.tsv"
-alias_row=""
-if [[ "$ID" =~ $LEGACY_RX ]] && [ -r "$TABLE" ] \
-    && awk -F'\t' -v id="$ID" -v b="$BOX" '$1 == id && $4 == b { f = 1 } END { exit !f }' "$TABLE"; then
+if [ "$alias_kept" = 1 ]; then
   step alias "${ID}@${BOX} keeps its row in ${TABLE}"
 else
-  alias_row="$(printf '%s\t%s\t%s\t%s\t%s' "$ID" "${SUCC:-retired}" "$(spl_kind_of_agent_id "$ID" || true)" "$BOX" "$(date -u -d "$NOW" +%Y-%m-%dT%H:%M:%SZ)")"
-  step alias "${ID} -> ${SUCC:-retired} (${BOX}) -> ${TABLE}"
+  step alias "${ID} -> $(cut -f2 <<<"$alias_row") (${BOX}) -> ${TABLE}"
 fi
 
 if [ "$APPLY" = 1 ]; then
-  (
+  pend_open
+  # Rows the stopped run already moved are not quarantined twice.
+  [ "$P_REG" = 1 ] && [ -z "$rows" ] || (
     flock -w 30 9 || { echo "agent-id-retire: ${REG}.lock stayed locked" >&2; exit 1; }
     # retired-utc stays column 6 (next-agent-id.sh and RetiredInQuarantine
     # read that column). A requester on the live row (its column 6) is kept
@@ -208,6 +242,7 @@ if [ "$APPLY" = 1 ]; then
       if [ -n "$keep" ]; then printf '%s\n' "$keep" >"$REG"; else : >"$REG"; fi
     fi
   ) 9>>"$REG.lock"
+  grep -qx registry "$PEND" || echo registry >>"$PEND"
   if [ -e "$R/agents/${ID}.json" ]; then
     python3 "$_here/agent-identity.py" --dir "$R/agents" retire "$ID" "$SPAWNED" >/dev/null
   fi
@@ -216,6 +251,7 @@ if [ "$APPLY" = 1 ]; then
       printf '%s\n' "$alias_row" >>"$TABLE"; chmod 0664 "$TABLE" 2>/dev/null || true
     ) 9>>"$TABLE.lock"
   fi
+  rm -f "$PEND"
 fi
 if [ "$seated" -gt 0 ]; then
   if [ "$APPLY" = 1 ]; then

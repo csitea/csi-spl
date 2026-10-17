@@ -288,7 +288,7 @@ out2="$(GH_RUNNER_HEALTH_UNIT_CHECK=1 GH_RUNNER_HEALTH_UNIT_CHECK_SH="$T/uc-ok.s
 if ((rc1 == 1 && rc2 == 0)) && grep -q 'PLAN note.*gh-unit-check FAIL box-01: Restart=no' <<<"$out" && grep -q '^gh-unit-check OK box-01' <<<"$out2"; then
   pass "18. unit check: FAIL is an alert, OK is not"
 else fail "18. unit check (rc1=$rc1 rc2=$rc2): $out | $out2"; fi
-default_sh="$(sed -n 's/.*GH_RUNNER_HEALTH_UNIT_CHECK_SH:-\${PROJ_PATH:-\.}\/\(\.\.\/[^}]*\)}.*/\1/p' "$FUNC_SH" | head -1)"
+default_sh="$(sed -n 's/.*GH_RUNNER_HEALTH_UNIT_CHECK_SH:-\${PROJ_PATH:-\.}\/\(\.\.\/[^}]*\)}.*/\1/p' "$FUNC_SH" | sed -n 1p)"
 if [[ -n "$default_sh" && -f "$UTL_ROOT/$default_sh" ]] && grep -q '^do_check_gh_runner()' "$UTL_ROOT/$default_sh"; then
   pass "18b. the default unit check path ($default_sh) is csi-spl-orc's do_check_gh_runner"
 else fail "18b. default unit check path '$default_sh' does not hold do_check_gh_runner"; fi

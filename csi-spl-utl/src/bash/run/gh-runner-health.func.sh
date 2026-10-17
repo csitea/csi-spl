@@ -203,7 +203,7 @@ ghrh_stale_parked() {
   while read -r u; do
     [[ "$u" == actions.runner.*.service ]] || continue
     name="${u%.service}"; name="${name##*.}"
-    cut -f2 "$tmp/runners.tsv" | grep -qxF -- "$name" ||
+    grep -qxF -- "$name" < <(cut -f2 "$tmp/runners.tsv") ||
       echo "gh-runner-parked INFO $u is in $3 but no runner $name is registered" >>"$tmp/out"
   done <<<"$2"
 }

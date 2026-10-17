@@ -21,8 +21,17 @@ mkrepo() {
 rg() { local r="$1"; shift; git -C "$T/$r" -c user.name=t -c user.email=t@example.com "$@"; }
 mkrepo spl
 mkrepo other
-rg spl commit -q --allow-empty -m landed && rg spl push -q origin HEAD:master
+rg spl commit -q --allow-empty -m landed
 LANDED=$(rg spl rev-parse HEAD)
+# the "short" case quotes ${LANDED:0:9}; an all-digit prefix (1 run in ~70)
+# reads as a run id and is dropped on purpose, so re-commit until it holds a letter
+for i in $(seq 1 50); do
+  [[ "${LANDED:0:9}" =~ [a-f] ]] && break
+  rg spl commit -q --amend --allow-empty -m "landed $i"
+  LANDED=$(rg spl rev-parse HEAD)
+done
+[[ "${LANDED:0:9}" =~ [a-f] ]] || { echo "FAIL: the fixture's landed sha has an all-digit 9-char prefix"; exit 1; }
+rg spl push -q origin HEAD:master
 # a review-branch commit whose patch lands on trunk under another sha (a rebase)
 rg spl checkout -q -b review HEAD~1
 echo fix >"$T/spl/f" && rg spl add f && rg spl commit -q -m "reviewed fix"

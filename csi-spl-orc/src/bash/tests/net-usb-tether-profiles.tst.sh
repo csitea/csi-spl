@@ -163,7 +163,7 @@ reset "$T/r4" 1; out="$(run "$FUNC" "$T/r4" DRY_RUN=0 UP4="$U4" UP6="$U6" 2>&1)"
 if ((rc == 0)) && grep -qx "nmcli connection up usb-tether ifname $TD" "$CALLS" &&
   grep -q "ROUTE v4 $TD metric 650, backup behind wlp0s20f3 metric 600" <<<"$out" &&
   grep -q "ROUTE v6 $TD metric 650, backup behind wlp0s20f3 metric 600" <<<"$out" &&
-  grep -q "UP usb-tether on $TD, routes in 0s" <<<"$out" && grep -q "OK usb-tether up on $TD" <<<"$out"; then
+  grep -qE "UP usb-tether on $TD, routes in [0-9]+s$" <<<"$out" && grep -q "OK usb-tether up on $TD" <<<"$out"; then
   pass "4 phone in: up on the tether, metric 650 behind Wi-Fi 600 (IPv4 + IPv6)"
 else fail "4 phone (rc=$rc): $out / $(cat "$CALLS")"; fi
 

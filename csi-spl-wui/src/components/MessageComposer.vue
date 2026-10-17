@@ -242,6 +242,9 @@
         <!-- spec 096 §5.1: the DM peer / an @mentioned member is Busy or
              Unavailable - one line, read before sending; loaded on demand -->
         <div v-if="statusLineDue" class="lazy-slot" style="display: contents"><LazyComposerStatusLine :dm-peer="statusDmPeer" :text="text" /></div>
+        <!-- SPL-2143: "Draft saved" + Clear while the box holds this place's
+             stored draft; loaded on demand, its words in the second catalogue -->
+        <div v-if="draft.saved.value && !searchMode" class="lazy-slot" style="display: contents"><LazyComposerDraftState @clear="clearDraftText" /></div>
         <ComposerOpenAsk
           v-if="openAsk.hit"
           :name="openAsk.hit.name"
@@ -427,7 +430,7 @@ const statusDmPeer = computed(() => {
 const statusLineDue = computed(() => !searchMode.value && (/^HUM-/.test(statusDmPeer.value) || text.value.includes('@')))
 
 const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste, thumbs } = useComposerFiles({ fileEl, props, focusInput })
-useComposerDraft({ text, props, setText })
+const draft = useComposerDraft({ text, props, setText })
 const { docked, phonePos, phoneShare, kbInset, stack } = useComposerDock({ props, formEl, inputEl })
 /* phones only: a desktop never loads the grip */
 const OmniboxGrip = defineAsyncComponent(() => import('~/components/OmniboxGrip.vue'))
@@ -492,6 +495,11 @@ function setText(s: string) {
 }
 function focusInput() {
   inputEl.value?.focus()
+}
+/* SPL-2143: Clear drops the stored draft and empties the box; the caret stays */
+function clearDraftText() {
+  draft.clear()
+  focusInput()
 }
 /* the box is cleared on emit, because the emit is fire-and-forget
    and there is nothing to await. That is fine as long as a caller whose send

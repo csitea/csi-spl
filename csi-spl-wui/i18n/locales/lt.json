@@ -623,6 +623,11 @@
     "go_comment": "Skelbti komentarą",
     "sending": "Siunčiama…",
     "draft_mark": "Juodraštis",
+    "draft_state": {
+      "saved": "Juodraštis išsaugotas",
+      "clear": "Išvalyti",
+      "clear_hint": "Išvalyti juodraštį: išvalo laukelį ir pašalina išsaugotą tekstą"
+    },
     "waiting_network": "Laukiama tinklo…",
     "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter arba Cmd+Enter siunčia",
     "send_failed": "Neišsiųsta — žinutė nepasiekė hub.",

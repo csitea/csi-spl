@@ -623,6 +623,11 @@
     "go_comment": "Opublikuj komentarz",
     "sending": "Wysyłanie…",
     "draft_mark": "Wersja robocza",
+    "draft_state": {
+      "saved": "Szkic zapisany",
+      "clear": "Wyczyść",
+      "clear_hint": "Wyczyść szkic: opróżnia pole i usuwa zapisany tekst"
+    },
     "waiting_network": "Czekam na sieć…",
     "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter lub Cmd+Enter wysyła",
     "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",

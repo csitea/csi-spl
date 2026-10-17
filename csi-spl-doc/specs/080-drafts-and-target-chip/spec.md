@@ -79,6 +79,7 @@ From the mobile list §3.3. A send that fails for network reasons stays as a pen
 | **FR-008** | `logout()` deletes the member's drafts | Planned |
 | **FR-009** | (Phase 3, also mobile) a network-failed send is kept as pending and resent with the same `msg_id` on reconnect; Retry reuses the `msg_id` | Planned |
 | **FR-010** | Help `omnibox-and-navigation.md` gains a "Drafts and the target chip" section | Planned |
+| **FR-011** | (SPL-2143) While the top-bar box holds its place's stored draft, one line under the text says "Draft saved", with **Clear**: it empties the box and removes the stored draft, no confirm (the app asks none for text actions). Not in search mode; its strings load on demand (second catalogue) | Built |
 
 ## 6. Acceptance scenarios
 
@@ -92,6 +93,7 @@ From the mobile list §3.3. A send that fails for network reasons stays as a pen
 | **AC6** | unit (`omnibox-topic`): the chip label function and the send target agree for every case in the existing target table | FR-007 |
 | **AC7** | e2e: draft on `#feedback`, sign out -> `localStorage['spool.drafts']` has no entry for that human | FR-008 |
 | **AC8** | e2e (Phase 3): set the page offline (CDP `Network.emulateNetworkConditions`), send `q` -> row shows "waiting for network"; go online -> exactly one message `q` arrives (same `msg_id`) | FR-009 |
+| **AC9** | e2e (SPL-2143): on `#feedback` type `keep me` -> "Draft saved" shows; reload -> the text is back and the line shows; Clear -> box empty, reload -> still empty, no line, no `ch:feedback` draft | FR-011 |
 
 ## 7. Overlaps
 
@@ -120,5 +122,6 @@ Server-side drafts (synced across devices): Q1. A "Drafts" list view. Attachment
 | Version | Change | Author |
 |---|---|---|
 | v0.1 | First spec from the consensus (L4): per-place drafts, draft marks, target chip, wipe on sign-out, offline send queue (also mobile) | c-245 |
+| v0.2 | FR-011 / AC9: the "Draft saved" line and its Clear (SPL-2143, owner t1 1061f05f msg 4d63f24c, suggestion 7) | c-638 |
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-17 -->

@@ -623,6 +623,11 @@
     "go_comment": "פרסום הערה",
     "sending": "שולח…",
     "draft_mark": "טיוטה",
+    "draft_state": {
+      "saved": "הטיוטה נשמרה",
+      "clear": "ניקוי",
+      "clear_hint": "ניקוי הטיוטה: מרוקן את התיבה ומוחק את הטקסט השמור"
+    },
     "waiting_network": "ממתין לרשת…",
     "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter או Cmd+Enter שולח",
     "send_failed": "לא נשלח — ההודעה לא הגיעה ל-hub.",

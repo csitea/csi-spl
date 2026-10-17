@@ -623,6 +623,11 @@
     "go_comment": "Post comment",
     "sending": "Sending…",
     "draft_mark": "Draft",
+    "draft_state": {
+      "saved": "Draft saved",
+      "clear": "Clear",
+      "clear_hint": "Clear the draft: empties the box and removes the saved text"
+    },
     "waiting_network": "Waiting for network…",
     "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter or Cmd+Enter sends",
     "send_failed": "Not sent — the message did not reach the hub.",

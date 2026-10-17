@@ -623,6 +623,11 @@
     "go_comment": "Publicera kommentar",
     "sending": "Skickar…",
     "draft_mark": "Utkast",
+    "draft_state": {
+      "saved": "Utkast sparat",
+      "clear": "Rensa",
+      "clear_hint": "Rensa utkastet: tömmer rutan och tar bort den sparade texten"
+    },
     "waiting_network": "Väntar på nätverk…",
     "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter eller Cmd+Enter skickar",
     "send_failed": "Inte skickat — meddelandet nådde inte hubben.",

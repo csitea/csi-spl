@@ -6,10 +6,13 @@
 // typing keeps it (300 ms), and the box a send empties drops it - a failed
 // send puts the text back (TopBar restore), which keeps it again. A search
 // line is never a draft. Only the top-bar box keeps drafts.
+//
+// SPL-2143: `saved` holds while the box's text is the stored draft (the
+// composer's "Draft saved" line); `clear()` empties the box and removes it.
 import type { Ref } from 'vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSessionStore } from '~/stores/session'
-import { draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
+import { clearDraft, draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { omniboxMode } from '~/utils/search.mjs'
 import type { ComposerProps } from '~/composables/composerProps'
@@ -55,17 +58,17 @@ export function useComposerDraft({ text, props, setText }: DraftOpts) {
   const draftPlace = computed(() => (props.global ? draftPlaceOf(omniboxTargets.target?.place?.() ?? '') : ''))
   const draftHuman = computed(() => String(session.claims?.hum || ''))
   /* what the store holds for this place: a load is not a save */
-  let draftStored = ''
+  const stored = ref('')
   const save = useDraftTimer()
   watch(text, (s) => {
     const human = draftHuman.value
     const place = draftPlace.value
     /* a later key wins: `/` then `/s` (a search) must not keep `/` */
     save.cancel()
-    if (!import.meta.client || !human || !place || !isDraftText(s) || s === draftStored) return
+    if (!import.meta.client || !human || !place || !isDraftText(s) || s === stored.value) return
     save.queue(() => {
       saveDraft(undefined, human, place, s)
-      draftStored = s
+      stored.value = s
     })
   })
   watch([draftPlace, draftHuman], ([place, human], [, oldHuman]) => {
@@ -77,9 +80,18 @@ export function useComposerDraft({ text, props, setText }: DraftOpts) {
     if (!isDraftText(s)) return
     /* the session arrived after the reader started typing: keep that text */
     if (!oldHuman && s) return
-    draftStored = human && place ? draftText(undefined, human, place) : ''
-    if (draftStored !== s) setText(draftStored)
+    stored.value = human && place ? draftText(undefined, human, place) : ''
+    if (stored.value !== s) setText(stored.value)
   }, { immediate: true })
   onBeforeUnmount(save.flush)
   onBeforeUnmount(registerDraftSource(() => save.pending() && { human: draftHuman.value, place: draftPlace.value, text: text.value }))
+  /* saveDraft keeps no blank text, so a blank `stored` is no draft */
+  const saved = computed(() => Boolean(draftPlace.value) && stored.value.trim() !== '' && stored.value === text.value)
+  function clear() {
+    save.cancel()
+    if (draftHuman.value && draftPlace.value) clearDraft(undefined, draftHuman.value, draftPlace.value)
+    stored.value = ''
+    setText('')
+  }
+  return { saved, clear }
 }

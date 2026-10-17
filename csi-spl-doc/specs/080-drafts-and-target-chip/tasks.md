@@ -20,7 +20,10 @@ Every WUI task is done only when, from `csi-spl-wui/`: `pnpm run test:unit`, `pn
 ### Phase 3: Send when back online (FR-009, also mobile; spec Q4)
 - [x] T006 **offline queue** (c-276): a network-failed send keeps its pending row with "waiting for network" and is resent with the same `msg_id` on reconnect (`src/stores/channel.ts` `sendLive` / `sendWithResend` ~:403-462, `src/stores/live.ts` reconnect hook); TopBar's Retry (`src/components/TopBar.vue:177-194`) reuses the `msg_id`. Landed: `src/utils/offline-queue.mjs` (hold / drain / Retry msg_id); `chunk-reload.client.ts` no longer reloads offline (that blanked the tab and the held send). Owns: those blocks, i18n `composer.waiting_network`. New e2e `tests/e2e/offline-send-queue.test.mjs` (AC8, CDP offline). `send-failure`, `pane-send-lost` unit tests stay green. Coordinate with the mobile lane that picks up `mobile-usability-ideas-20261004.md` §3.3: this task is that work. Done: the checks above.
 
+### Phase 3b: Draft state (FR-011, SPL-2143)
+- [x] T008 **"Draft saved" + Clear** (c-638): `useComposerDraft` returns `saved` (the box's text is the stored draft) and `clear()`; `MessageComposer.vue` mounts the lazy `src/components/ComposerDraftState.vue` behind `saved && !searchMode`; i18n `composer.draft_state.{saved,clear,clear_hint}` in all 19 locales, on demand (`ON_DEMAND_COMPONENTS`, `tests/unit/i18n-split.test.mjs`). e2e AC9 added to `tests/e2e/drafts-per-place.test.mjs`: 2/13 red on the master bundle, 13/13 green with the change; `phone-drafts` 20/20.
+
 ### Phase 4: Help
 - [x] T007 **help** (c-287): `csi-spl-doc/doc/help/omnibox-and-navigation.md` new section "Drafts and the target chip" (and the offline queue once T006 lands), then `node src/node/help/sync-help.mjs`. Done: `./run -a do_check_dist_hygiene`, `lint-mdlinks` green. Built: §10 "Drafts and the target chip" (10.1 drafts, 10.2 pencil, 10.3 chip, 10.4 offline queue) and §6 Try again reuses the msg_id; §9 untouched.
 
-<!-- version: 0.1.0 · updated: 2026-10-05 · last-edit: 2026-10-05T02:48:12Z -->
+<!-- version: 0.2.0 · updated: 2026-10-17 -->

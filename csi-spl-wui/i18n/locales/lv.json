@@ -623,6 +623,11 @@
     "go_comment": "Publicēt komentāru",
     "sending": "Sūta…",
     "draft_mark": "Melnraksts",
+    "draft_state": {
+      "saved": "Melnraksts saglabāts",
+      "clear": "Notīrīt",
+      "clear_hint": "Notīrīt melnrakstu: iztukšo lauku un dzēš saglabāto tekstu"
+    },
     "waiting_network": "Gaida tīklu…",
     "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter vai Cmd+Enter nosūta",
     "send_failed": "Nav nosūtīts — ziņa nesasniedza hub.",

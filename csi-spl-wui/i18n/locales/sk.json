@@ -623,6 +623,11 @@
     "go_comment": "Pridať komentár",
     "sending": "Odosiela sa…",
     "draft_mark": "Koncept",
+    "draft_state": {
+      "saved": "Koncept uložený",
+      "clear": "Vymazať",
+      "clear_hint": "Vymazať koncept: vyprázdni pole a odstráni uložený text"
+    },
     "waiting_network": "Čaká sa na sieť…",
     "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter alebo Cmd+Enter odošle",
     "send_failed": "Neodoslané — správa sa nedostala do hubu.",

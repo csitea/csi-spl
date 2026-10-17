@@ -623,6 +623,11 @@
     "go_comment": "Reactie plaatsen",
     "sending": "Versturen…",
     "draft_mark": "Concept",
+    "draft_state": {
+      "saved": "Concept opgeslagen",
+      "clear": "Wissen",
+      "clear_hint": "Concept wissen: maakt het vak leeg en verwijdert de opgeslagen tekst"
+    },
     "waiting_network": "Wacht op netwerk…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",
     "send_failed": "Niet verzonden — het bericht bereikte de hub niet.",

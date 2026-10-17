@@ -623,6 +623,11 @@
     "go_comment": "Yorumu gönder",
     "sending": "Gönderiliyor…",
     "draft_mark": "Taslak",
+    "draft_state": {
+      "saved": "Taslak kaydedildi",
+      "clear": "Temizle",
+      "clear_hint": "Taslağı temizle: kutuyu boşaltır ve kaydedilen metni siler"
+    },
     "waiting_network": "Ağ bekleniyor…",
     "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter veya Cmd+Enter gönderir",
     "send_failed": "Gönderilmedi — mesaj hub'a ulaşmadı.",

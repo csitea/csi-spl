@@ -623,6 +623,11 @@
     "go_comment": "Publică comentariul",
     "sending": "Se trimite…",
     "draft_mark": "Ciornă",
+    "draft_state": {
+      "saved": "Ciornă salvată",
+      "clear": "Golește",
+      "clear_hint": "Golește ciorna: golește caseta și șterge textul salvat"
+    },
     "waiting_network": "Se așteaptă rețeaua…",
     "code_hint": "Bloc de cod: Enter adaugă un rând, tastați ``` sau apăsați Esc pentru a închide, Ctrl+Enter sau Cmd+Enter trimite",
     "send_failed": "Netrimis — mesajul nu a ajuns la hub.",

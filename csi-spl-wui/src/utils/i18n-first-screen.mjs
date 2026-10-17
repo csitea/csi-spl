@@ -50,6 +50,10 @@ export const ON_DEMAND_COMPONENTS = {
   // "No messages yet." until its own strings are merged (a key literal here
   // would pull it into core)
   "components/FeedEmpty.vue": "idle",
+  // SPL-2143: the composer's "Draft saved" line and its Clear; it renders
+  // once its own strings are merged, so first paint is unchanged (a key
+  // literal here would pull it into core)
+  "components/ComposerDraftState.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

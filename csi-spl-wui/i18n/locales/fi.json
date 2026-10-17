@@ -623,6 +623,11 @@
     "go_comment": "Lähetä kommentti",
     "sending": "Lähetetään…",
     "draft_mark": "Luonnos",
+    "draft_state": {
+      "saved": "Luonnos tallennettu",
+      "clear": "Tyhjennä",
+      "clear_hint": "Tyhjennä luonnos: tyhjentää kentän ja poistaa tallennetun tekstin"
+    },
     "waiting_network": "Odottaa verkkoa…",
     "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter tai Cmd+Enter lähettää",
     "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",

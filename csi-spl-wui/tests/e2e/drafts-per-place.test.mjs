@@ -13,6 +13,9 @@
 //     AC3 (T004, FR-005) the pencil: on #alerts the #feedback row shows it and
 //         the #alerts row does not; the topic card with a reply draft shows
 //         it; after the send the #feedback row has none
+//     SPL-2143 on #feedback, type `keep me` -> "Draft saved" shows; reload ->
+//         the text is back and the line still shows; Clear -> the box is
+//         empty, reload -> still empty, no line, no `ch:feedback` draft
 //     AC7 a draft on #feedback, sign out -> `spool.drafts` has no HUM-1 entry
 //     CONTROL: before T003 the box kept `abc` on #alerts (AC1 fails) and a
 //     reload emptied it (AC2 fails).
@@ -99,6 +102,9 @@ async function unmarked(p, sel) {
   await sleep(MARK_WAIT / 2)
   return !(await p.$(sel))
 }
+/* SPL-2143: the composer's "Draft saved" line and its Clear */
+const STATE = 'form.composer.omnibox--global [data-testid=draft-state]'
+const CLEAR = `${STATE} [data-testid=draft-clear]`
 async function showChannels(p) {
   await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
   await p.waitForSelector('a.nav-item[data-key="feedback"]', { visible: true, timeout: NAV_TIMEOUT })
@@ -180,6 +186,31 @@ try {
   const sentClean = await unmarked(p, rowMark('feedback'))
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'drafts-per-place-sent.png') })
   ok('AC3 after the send the #feedback row has no pencil', sentClean)
+
+  /* SPL-2143: "Draft saved" while a draft is kept, Clear drops it */
+  const sawState = () => p.waitForSelector(STATE, { visible: true, timeout: MARK_WAIT }).then(() => true, () => false)
+  const noStateEmpty = !(await p.$(STATE))
+  await type(p, 'keep me')
+  const shown = await sawState()
+  await reload(p)
+  const keptText = await boxText(p)
+  const shownAfter = await sawState()
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, 'drafts-per-place-state.png') })
+  ok('SPL-2143 a kept draft shows "Draft saved", also after a reload with the text back',
+    noStateEmpty && shown && shownAfter && keptText === 'keep me', { noStateEmpty, shown, shownAfter, keptText })
+  const clearBtn = await p.$(CLEAR)
+  if (clearBtn) await clearBtn.click()
+  await sleep(SAVE_WAIT)
+  const clearedBox = await boxText(p)
+  const clearedGone = !(await p.$(STATE))
+  await reload(p)
+  await sleep(MARK_WAIT / 2)
+  const clearedReload = await boxText(p)
+  const clearedKept = ((await drafts(p)) || {})[HUM] || {}
+  const clearedNoState = !(await p.$(STATE))
+  ok('SPL-2143 Clear empties the box and drops the draft, also after a reload',
+    Boolean(clearBtn) && clearedBox === '' && clearedGone && clearedReload === '' && !clearedKept['ch:feedback'] && clearedNoState,
+    { clearBtn: Boolean(clearBtn), clearedBox, clearedGone, clearedReload, clearedKept, clearedNoState })
 
   /* AC7 */
   await type(p, 'zzz')

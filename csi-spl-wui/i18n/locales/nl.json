@@ -2968,7 +2968,7 @@
     "tab": {
       "agents": "Assistenten",
       "boxes": "Boxen",
-      "tokens": "Toegangssleutels",
+      "tokens": "Tokens",
       "costs": "Kosten"
     },
     "alloc": {
@@ -3039,7 +3039,7 @@
       "retry": "Opnieuw proberen",
       "kpi_rate": "Verbruikstempo van de vloot",
       "per_min": "{n}/minuut",
-      "kpi_rate_sub": "nieuw {fresh}/minuut · {cost} per uur",
+      "kpi_rate_sub": "nieuwe {fresh}/minuut · {cost} per uur",
       "kpi_today": "Tokens van vandaag",
       "kpi_today_sub": "cachetreffers {pct} %",
       "kpi_cost": "Vlootkosten vandaag",

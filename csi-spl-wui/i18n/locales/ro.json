@@ -2968,7 +2968,7 @@
     "tab": {
       "agents": "Agenți",
       "boxes": "Boxuri",
-      "tokens": "Tokenuri",
+      "tokens": "Tokeni",
       "costs": "Costuri"
     },
     "alloc": {
@@ -3053,7 +3053,7 @@
       "col_cost": "Costul de azi",
       "col_status": "Stare",
       "col_agent": "Linia agentului",
-      "col_box": "Cutie",
+      "col_box": "Box",
       "col_model": "Model folosit",
       "col_rate1m": "Ultimul minut",
       "col_last": "Ultima activitate",

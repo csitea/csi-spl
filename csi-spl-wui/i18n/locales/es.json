@@ -2968,7 +2968,7 @@
     "tab": {
       "agents": "Agentes",
       "boxes": "Equipos",
-      "tokens": "Fichas",
+      "tokens": "Tokens",
       "costs": "Costes"
     },
     "alloc": {
@@ -3053,7 +3053,7 @@
       "col_cost": "Coste de hoy",
       "col_status": "Estado",
       "col_agent": "Línea de agente",
-      "col_box": "Caja",
+      "col_box": "Equipo",
       "col_model": "Modelo usado",
       "col_rate1m": "Último minuto",
       "col_last": "Última actividad",

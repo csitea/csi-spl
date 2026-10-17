@@ -3039,7 +3039,7 @@
       "retry": "Покушај поново",
       "kpi_rate": "Темпо потрошње флоте",
       "per_min": "{n}/мин",
-      "kpi_rate_sub": "свежи {fresh}/мин · {cost} по сату",
+      "kpi_rate_sub": "нови {fresh}/мин · {cost} по сату",
       "kpi_today": "Данашњи токени",
       "kpi_today_sub": "погоци у кешу {pct} %",
       "kpi_cost": "Данашњи трошак флоте",

@@ -3063,7 +3063,7 @@
       "status_idle": "Boşta",
       "status_active": "Etkin",
       "status_not_metered": "Ölçülmüyor",
-      "not_metered_title": "Antigravity belirteç sayısı bildirmez: hatları etkin görünür, asla tüketimle değil.",
+      "not_metered_title": "Antigravity belirteç sayısı bildirmez: hatları etkin görünür, hiçbir zaman tüketim göstermez.",
       "not_priced": "fiyatsız",
       "not_priced_title": "Bu model için henüz fiyat yok: maliyet bilinmiyor, sıfır değil.",
       "burn_elevated": "yüksek",
@@ -3071,7 +3071,7 @@
       "empty": "Bu aralıkta hiçbir ajan hattı belirteç bildirmedi.",
       "costs_card_title": "Bugünkü filo belirteçleri",
       "costs_card_body": "{tokens} belirteç kullanıldı · {cost}",
-      "costs_card_link": "Belirteçleri aç"
+      "costs_card_link": "Belirteçleri Aç"
     }
   },
   "takeover": {

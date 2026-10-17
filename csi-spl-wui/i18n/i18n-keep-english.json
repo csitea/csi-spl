@@ -22,6 +22,8 @@
   "keys": {
     "auth.native.dev": "environment code 'dev:'",
     "feed.live_state.mock": "connection state code shown as is",
-    "feed.live_state.no_base": "connection state code shown as is"
+    "feed.live_state.no_base": "connection state code shown as is",
+    "monitoring.tab.tokens": "LLM term kept as English 'Tokens' in el, es, nl: agy language review SPL-2322 (a-351, msg 66006252)",
+    "monitoring.tokens.col_box": "ro keeps 'Box' to match its 'Boxuri' tab: agy language review SPL-2322 (a-351, msg 66006252)"
   }
 }

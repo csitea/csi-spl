@@ -71,7 +71,7 @@
       </span>
       <div
         class="omnibox-field"
-        :class="{ 'has-mode-glyph': modeGlyph, 'has-target-chip': chip, 'is-multiline': multilineLayout }"
+        :class="{ 'has-mode-glyph': modeGlyph, 'has-target-chip': chip, 'is-multiline': multilineLayout, 'has-draft-inline': draftInline }"
         :data-multiline="multilineLayout ? 'true' : undefined"
         :style="chip ? { '--chip-w': chipW + 'px' } : undefined"
         ref="fieldEl"
@@ -431,6 +431,10 @@ const statusLineDue = computed(() => !searchMode.value && (/^HUM-/.test(statusDm
 
 const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste, thumbs } = useComposerFiles({ fileEl, props, focusInput })
 const draft = useComposerDraft({ text, props, setText })
+/* SPL-2143: off the phone dock, "Draft saved" sits at the field's end, so the
+   bar stays one line (composer-mode-cue: <= 50 px). Its room is kept for any
+   text this place keeps, not only once saved: typing never re-wraps the text. */
+const draftInline = computed(() => draft.keeps.value && !docked.value)
 const { docked, phonePos, phoneShare, kbInset, stack } = useComposerDock({ props, formEl, inputEl })
 /* phones only: a desktop never loads the grip */
 const OmniboxGrip = defineAsyncComponent(() => import('~/components/OmniboxGrip.vue'))
@@ -1300,4 +1304,22 @@ textarea.in-code {
   /* t1 e142d4a0: a multi-line draft keeps clear of the Search button too */
   .composer.composer--dock.composer--dock .omnibox-field.is-multiline textarea { width: calc(100% - var(--tap) + 8px); }
 }
+/* SPL-2143: the "Draft saved" line inside the field, before the "?" - never
+   a second row in the bar. The text keeps clear of it. */
+.composer.omnibox--global .omnibox-field.has-draft-inline { --draft-inline-w: 12rem; }
+.composer.omnibox--global .omnibox-field.has-draft-inline textarea {
+  padding-inline-end: calc(28px + var(--draft-inline-w));
+}
+.composer.omnibox--global .omnibox-field.has-draft-inline :deep(.composer-draft-state) {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  inset-inline-end: 30px;
+  height: 22px;
+  max-width: var(--draft-inline-w);
+  margin: 0;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.omnibox--bottom.omnibox--global .omnibox-field.has-draft-inline :deep(.composer-draft-state) { top: 16px; }
 </style>

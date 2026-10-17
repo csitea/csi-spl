@@ -8,7 +8,8 @@
 // line is never a draft. Only the top-bar box keeps drafts.
 //
 // SPL-2143: `saved` holds while the box's text is the stored draft (the
-// composer's "Draft saved" line); `clear()` empties the box and removes it.
+// composer's "Draft saved" line); `keeps` while the box holds text this
+// place keeps (saved or about to be); `clear()` empties the box and removes it.
 import type { Ref } from 'vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSessionStore } from '~/stores/session'
@@ -87,11 +88,12 @@ export function useComposerDraft({ text, props, setText }: DraftOpts) {
   onBeforeUnmount(registerDraftSource(() => save.pending() && { human: draftHuman.value, place: draftPlace.value, text: text.value }))
   /* saveDraft keeps no blank text, so a blank `stored` is no draft */
   const saved = computed(() => Boolean(draftPlace.value) && stored.value.trim() !== '' && stored.value === text.value)
+  const keeps = computed(() => Boolean(draftPlace.value) && text.value.trim() !== '' && isDraftText(text.value))
   function clear() {
     save.cancel()
     if (draftHuman.value && draftPlace.value) clearDraft(undefined, draftHuman.value, draftPlace.value)
     stored.value = ''
     setText('')
   }
-  return { saved, clear }
+  return { saved, keeps, clear }
 }

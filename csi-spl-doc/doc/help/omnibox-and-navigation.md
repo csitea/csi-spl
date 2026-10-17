@@ -206,8 +206,9 @@ uses that channel's draft.
   newest.
 - **Sign out** removes your drafts from this browser. Someone else who signs
   in on the same browser never sees them.
-- While the box holds a kept draft, a line under the text says **Draft
-  saved**. **Clear** on that line empties the box and removes the draft.
+- While the box holds a kept draft, the box says **Draft saved** at its
+  end (on a phone, on a line under the text). **Clear** next to it empties
+  the box and removes the draft.
 
 ### 10.2 The pencil mark
 

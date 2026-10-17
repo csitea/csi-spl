@@ -2,7 +2,9 @@
      kept the text with no sign of it and no way to drop it. While the box's
      text is the stored draft of this place (spec 080), one quiet line says
      "Draft saved", with Clear: it empties the box and removes the stored
-     draft. No confirm: the app asks none for text actions.
+     draft. No confirm: the app asks none for text actions. Off the phone
+     dock MessageComposer places it inside the field (has-draft-inline), so
+     the top bar stays one line.
 
      Lazy (LazyComposerDraftState) and on demand: its strings wait in the
      second catalogue (utils/i18n-first-screen.mjs) and it renders once they
@@ -10,7 +12,7 @@
 <template>
   <p v-if="ready" class="composer-draft-state" data-testid="draft-state" role="status">
     <UiIcon name="check" :size="14" />
-    <span>{{ t('composer.draft_state.saved') }}</span>
+    <span class="composer-draft-state__saved" :title="t('composer.draft_state.saved')">{{ t('composer.draft_state.saved') }}</span>
     <button
       type="button"
       class="composer-draft-state__clear"
@@ -40,7 +42,13 @@ const ready = computed(() => te('composer.draft_state.saved'))
   font-size: 0.75rem;
   color: var(--color-muted);
 }
+.composer-draft-state__saved {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .composer-draft-state__clear {
+  flex: 0 0 auto;
   border: 0;
   background: none;
   padding: 0 2px;

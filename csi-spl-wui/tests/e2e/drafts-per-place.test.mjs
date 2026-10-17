@@ -15,7 +15,8 @@
 //         it; after the send the #feedback row has none
 //     SPL-2143 on #feedback, type `keep me` -> "Draft saved" shows; reload ->
 //         the text is back and the line still shows; Clear -> the box is
-//         empty, reload -> still empty, no line, no `ch:feedback` draft
+//         empty, reload -> still empty, no line, no `ch:feedback` draft;
+//         the line sits inside the one-line field (<= 50 px), never a row
 //     AC7 a draft on #feedback, sign out -> `spool.drafts` has no HUM-1 entry
 //     CONTROL: before T003 the box kept `abc` on #alerts (AC1 fails) and a
 //     reload emptied it (AC2 fails).
@@ -192,12 +193,18 @@ try {
   const noStateEmpty = !(await p.$(STATE))
   await type(p, 'keep me')
   const shown = await sawState()
+  /* the line sits inside the field: the bar stays one line (composer-mode-cue <= 50 px) */
+  const fieldH = await p.evaluate(() => {
+    const f = document.querySelector('form.composer.omnibox--global .omnibox-field')
+    return f ? Math.round(f.getBoundingClientRect().height) : 0
+  })
   await reload(p)
   const keptText = await boxText(p)
   const shownAfter = await sawState()
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'drafts-per-place-state.png') })
   ok('SPL-2143 a kept draft shows "Draft saved", also after a reload with the text back',
     noStateEmpty && shown && shownAfter && keptText === 'keep me', { noStateEmpty, shown, shownAfter, keptText })
+  ok('SPL-2143 "Draft saved" keeps the field one line in the bar (<= 50 px)', fieldH > 0 && fieldH <= 50, { fieldH })
   const clearBtn = await p.$(CLEAR)
   if (clearBtn) await clearBtn.click()
   await sleep(SAVE_WAIT)

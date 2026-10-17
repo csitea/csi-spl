@@ -5,6 +5,7 @@ Prints one FAIL / WARN line per finding, then OK; exit 1 on any FAIL."""
 
 import os
 import re
+import subprocess
 import sys
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -56,21 +57,41 @@ def read_map(mapf, fail):
     return by_path, rows
 
 
+def md_files(tree):
+    """The .md files to read: in a git checkout the TRACKED ones only, so a
+    git-ignored generated file (a terraform modules/README.md, a docs-public
+    copy) never fails a push it is not part of (SPL-2307). A tree that is
+    not a git checkout has nothing ignored: every file is walked."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", tree, "ls-files", "-z", "--", "*.md"],
+            capture_output=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        for root, dirs, files in os.walk(tree):
+            dirs[:] = [d for d in dirs if d not in SKIP]
+            for name in files:
+                if name.endswith(".md"):
+                    yield os.path.relpath(os.path.join(root, name), tree)
+        return
+    for rel in out.decode("utf-8", "surrogateescape").split("\0"):
+        if rel.endswith(".md") and not SKIP.intersection(rel.split("/")[:-1]):
+            yield rel
+
+
 def stamped_files(tree):
     out = {}
-    for root, dirs, files in os.walk(tree):
-        dirs[:] = [d for d in dirs if d not in SKIP]
-        for name in files:
-            if not name.endswith(".md"):
-                continue
-            p = os.path.join(root, name)
-            try:
-                with open(p, encoding="utf-8", errors="replace") as fh:
-                    ids = [m.group(1) for m in map(STAMP.match, fh) if m]
-            except OSError:
-                continue
-            if ids:
-                out[os.path.relpath(p, tree)] = ids
+    for rel in md_files(tree):
+        try:
+            with open(
+                os.path.join(tree, rel), encoding="utf-8", errors="replace"
+            ) as fh:
+                ids = [m.group(1) for m in map(STAMP.match, fh) if m]
+        except OSError:
+            continue
+        if ids:
+            out[rel] = ids
     return out
 
 

@@ -10,7 +10,9 @@
 #     2 no doc id and no path is mapped twice
 #     3 each mapped file exists and carries exactly one generated-from line
 #       ("> Generated from qto doc `<id>`"), naming ITS map id
-#     4 no md file carries a generated-from line without a map row
+#     4 no md file carries a generated-from line without a map row; in a
+#       git checkout only TRACKED md files are read, so a git-ignored
+#       generated one (a terraform modules/README.md) is not (SPL-2307)
 #     5 the known-drift list (QTO_DRIFT_KNOWN) names only files that still
 #       fail 1-4: a fixed one must leave the list (a ratchet)
 #   It cannot see a hand edit of the text under a correct stamp: the qto docs

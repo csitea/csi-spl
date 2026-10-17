@@ -15,6 +15,9 @@
 #      every row is still read; without QTO_CHECK the same run rewrites it
 #   6. the live check (QTO_DRIFT_LIVE=1) runs that compare over the map,
 #      QTO_DRIFT_FS=repo only the repo rows
+#   7. a git tree (SPL-2307): a GIT-IGNORED stamped md with no map row (a
+#      terraform modules/README.md) is not read, the tree passes; CONTROL:
+#      the same file tracked is red, naming it
 #   Nothing outside the throwaway trees is written.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -152,6 +155,15 @@ rc=0; out="$(run_export VIA_DRIFT=1 QTO_DRIFT_TREE="$E" QTO_DRIFT_LIVE=1 QTO_DRI
 if (( rc == 1 )) && [[ "$out" == *"FATAL QTO_DRIFT_FS is repo or workspace, not 'bogus'"* ]]; then
   pass "6c a bad QTO_DRIFT_FS is refused"
 else fail "6c QTO_DRIFT_FS=bogus: rc=$rc $out"; fi
+
+# 7. only tracked files are read in a git tree
+G="$T/g"; mk_tree "$G"; mkdir -p "$G/bin/dev"
+stamp 33333333-3333-4333-8333-333333333333 "Modules" >"$G/bin/dev/README.md"
+printf 'bin/\n' >"$G/.gitignore"
+git -C "$G" init -q && git -C "$G" add .gitignore a.md sub csi-spl-doc
+expect "7a a git-ignored stamped md with no row is skipped" 0 "OK qto doc map: 2 rows, 2 exported md files" -- QTO_DRIFT_TREE="$G"
+git -C "$G" add -f bin/dev/README.md
+expect "7b CONTROL the same file tracked is red" 1 "FAIL bin/dev/README.md: says generated from qto doc 33333333" -- QTO_DRIFT_TREE="$G"
 
 echo "check-qto-doc-drift: $passes passed, $fails failed"
 (( fails == 0 ))

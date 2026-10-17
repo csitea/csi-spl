@@ -55,7 +55,11 @@ internal/search 95.6
 internal/sign 82.9
 internal/spool 86.4
 internal/testkit 77.0
-internal/testkit/fakehub 81.0
+# fakehub: 84.5, deterministic since New's cleanup waits for its handlers
+# (SPL-2298). Before, a handler's exit ran after the profile was written on a
+# loaded box: 79.5 with GOMAXPROCS=1 (n=3), 82.1 idle. go test -count=1 -cover
+# and -race, go1.26.9, n=3 read 84.5 each, also with GOMAXPROCS=1.
+internal/testkit/fakehub 83.5
 internal/trace 95.0
 internal/uid 100.0
 internal/wire 81.7

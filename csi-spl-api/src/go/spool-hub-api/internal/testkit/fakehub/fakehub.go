@@ -24,11 +24,17 @@ import (
 type Hub struct {
 	URL string
 
-	mu    sync.Mutex
-	sends []wire.Frame
+	mu     sync.Mutex
+	sends  []wire.Frame
+	conns  []*websocket.Conn
+	closed bool
+	live   sync.WaitGroup
 }
 
-// New starts a fake hub for the test's lifetime.
+// New starts a fake hub for the test's lifetime. Its cleanup closes every
+// connection and waits for each handler to return, so no handler outlives the
+// test: one left running under load ran its exit path after the coverage
+// profile was written (fakehub read 79.5 instead of 82.1 in the -race run).
 func New(t *testing.T) *Hub {
 	t.Helper()
 	h := &Hub{}
@@ -39,6 +45,10 @@ func New(t *testing.T) *Hub {
 			return
 		}
 		defer conn.CloseNow() //nolint:errcheck
+		if !h.track(conn) {
+			return
+		}
+		defer h.live.Done()
 		ctx := context.Background()
 		if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TChallenge, Nonce: "nonce-nonce-nonce"}); err != nil {
 			return
@@ -69,9 +79,34 @@ func New(t *testing.T) *Hub {
 		}
 	})
 	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
+	t.Cleanup(func() { srv.Close(); h.stop() })
 	h.URL = srv.URL
 	return h
+}
+
+// track records a live connection; false once the hub has stopped.
+func (h *Hub) track(conn *websocket.Conn) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return false
+	}
+	h.live.Add(1)
+	h.conns = append(h.conns, conn)
+	return true
+}
+
+// stop closes every live connection and waits for its handler to return.
+// srv.Close does not: a websocket is a hijacked connection it forgets.
+func (h *Hub) stop() {
+	h.mu.Lock()
+	h.closed = true
+	conns := h.conns
+	h.mu.Unlock()
+	for _, c := range conns {
+		c.CloseNow() //nolint:errcheck
+	}
+	h.live.Wait()
 }
 
 // Wire points cfg at the hub as box: its keypair, tenant t1, no submit

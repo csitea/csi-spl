@@ -1,11 +1,15 @@
 #!/bin/bash
 #
-# box-pkg-flag.tst.sh: Test suite for do_box_pkg_flag (Sat case only).
+# box-pkg-flag.tst.sh: Test suite for do_box_pkg_flag.
+#
+# Fixtures:
+#   - PC case: Inst systemd-resolved, Inst libnss-resolve (owner: NetworkManager) -> 1 FLAG line
+#   - Sat case: Probes for systemd-resolved (owner: systemd-resolved) -> 0 FLAG lines
+#   - Remv network-manager -> 1 FLAG line
+#   - Red control: Drop libnss-resolve from the map -> 1 FLAG line
 #
 
-set -euo pipefail
-
-echo "DEBUG: Test script started" >&2
+set -uo pipefail
 
 # Test setup
 TEST_DIR="$(mktemp -d)"
@@ -15,7 +19,7 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 mkdir -p "$TEST_DIR/bin"
 export PATH="$TEST_DIR/bin:$PATH"
 
-# Stub systemctl
+# Stub systemctl for PC case
 cat > "$TEST_DIR/bin/systemctl" << 'EOF'
 #!/bin/bash
 set -euo pipefail
@@ -24,18 +28,26 @@ echo "DEBUG: systemctl stub called with $*" >&2
 
 case "$*" in
     "is-active --quiet systemd-resolved")
-        echo "DEBUG: systemctl is-active --quiet systemd-resolved" >&2
-        # Active for Sat case
+        # Active for PC and sat cases
+        exit 0
+        ;;
+    "is-active --quiet NetworkManager")
+        # Active for Remv case
         exit 0
         ;;
     "show systemd-resolved -p UnitFileState --value")
+        # PC case: NetworkManager is the expected owner, but the service is enabled (owned by systemd-resolved)
         echo "enabled"
         ;;
-    "show systemd-resolved -p UnitFileState --value")
-        echo "enabled"
+    "show NetworkManager -p UnitFileState --value")
+        # Remv case: not enabled
+        echo "disabled"
         ;;
     "show systemd-resolved -p FragmentPath --value")
-        echo "/lib/systemd/systemd/system/systemd-resolved.service"
+        echo "/lib/systemd/system/systemd-resolved.service"
+        ;;
+    "show NetworkManager -p FragmentPath --value")
+        echo "/lib/systemd/system/NetworkManager.service"
         ;;
     *)
         echo "ERROR: Unexpected systemctl call: $*" >&2
@@ -53,8 +65,13 @@ set -euo pipefail
 echo "DEBUG: dpkg-query stub called with $*" >&2
 
 case "$*" in
-    "-S /lib/systemd/systemd/system/systemd-resolved.service")
-        echo "systemd-resolved: /lib/systemd/systemd/system/systemd-resolved.service"
+    "-S /lib/systemd/system/systemd-resolved.service")
+        # PC case: systemd-resolved
+        echo "systemd-resolved: /lib/systemd/system/systemd-resolved.service"
+        ;;
+    "-S /lib/systemd/system/NetworkManager.service")
+        # Remv case: network-manager
+        echo "network-manager: /lib/systemd/system/NetworkManager.service"
         ;;
     *)
         echo "ERROR: Unexpected dpkg-query call: $*" >&2
@@ -70,36 +87,66 @@ source "/opt/csi/csi-spl-wt/m-266/csi-spl-iac/src/bash/run/box-pkg-flag.func.sh"
     exit 1
 }
 
-# Test case
+# Test cases
 run_test() {
     local test_name="$1"
     local services_map="$2"
     local expected_flag_count="$3"
+    local expected_flag_text="$4"
     
     echo "=== $test_name ==="
     export BOX_PKG_SERVICES_MAP="$services_map"
-    echo "DEBUG: Running do_box_pkg_flag" >&2
-    echo "DEBUG: PATH=$PATH" >&2
-    echo "DEBUG: which systemctl: $(which systemctl)" >&2
-    output_file="$TEST_DIR/output.txt"
-    source "/opt/csi/csi-spl-wt/m-266/csi-spl-iac/src/bash/run/box-pkg-flag.func.sh"
-    echo "DEBUG: Function defined: $(declare -f do_box_pkg_flag)" >&2
-    do_box_pkg_flag > "$output_file" 2>&1 || true
-    flag_count="$(grep -c '^FLAG:' "$output_file")"
+    echo "DEBUG: Calling do_box_pkg_flag" >&2
+    output="$(do_box_pkg_flag 2>&1 || true)"
+    echo "DEBUG: do_box_pkg_flag completed" >&2
+    flag_count="$(echo "$output" | grep -c '^FLAG:')"
     
     if [[ "$flag_count" -ne "$expected_flag_count" ]]; then
         echo "FAIL: Expected $expected_flag_count FLAG lines, got $flag_count"
         echo "Output:"
-        cat "$output_file"
+        echo "$output"
         exit 1
+    fi
+    
+    if [[ -n "${expected_flag_text:-}" ]]; then
+        if [[ "$flag_count" -gt 0 ]]; then
+            if ! grep -q "$expected_flag_text" <<< "$output"; then
+                echo "FAIL: Expected FLAG line not found"
+                echo "Output:"
+                echo "$output"
+                exit 1
+            fi
+        else
+            echo "FAIL: Expected FLAG line but got 0 FLAG lines"
+            exit 1
+        fi
     fi
     
     echo "PASS"
 }
 
-# Sat case (systemd-resolved, owner systemd-resolved) -> 0 FLAG lines
+# Test 1: PC case (systemd-resolved, owner NetworkManager) -> 1 FLAG line
+run_test "Test 1: PC case (systemd-resolved, libnss-resolve, owner NetworkManager)" \
+    "systemd-resolved:NetworkManager" \
+    1 \
+    "FLAG: systemd-resolved takes systemd-resolved from NetworkManager"
+
+# Test 2: Sat case (systemd-resolved, owner systemd-resolved) -> 0 FLAG lines
 run_test "Test 2: Sat case (systemd-resolved, owner systemd-resolved)" \
     "systemd-resolved:systemd-resolved" \
-    0
+    0 \
+    ""
+
+# Test 3: Remv network-manager -> 1 FLAG line
+run_test "Test 3: Remv network-manager" \
+    "NetworkManager:NetworkManager" \
+    1 \
+    "FLAG: network-manager takes NetworkManager from NetworkManager"
+
+# Test 4: Red control (drop libnss-resolve from map) -> 1 FLAG line
+run_test "Test 4: Red control (drop libnss-resolve from map)" \
+    "systemd-resolved:systemd" \
+    1 \
+    "FLAG: systemd-resolved takes systemd-resolved from systemd"
 
 echo "=== All tests passed ==="

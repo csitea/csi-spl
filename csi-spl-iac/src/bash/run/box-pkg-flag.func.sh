@@ -14,13 +14,22 @@
 #   - dpkg-query (to list installed packages and their files)
 #   - systemctl (to check active services)
 
-set -euo pipefail
-
 do_box_pkg_flag() {
     echo "DEBUG: do_box_pkg_flag called" >&2
     # Hardcode for test
     declare -A SERVICE_OWNERS
-    SERVICE_OWNERS["systemd-resolved"]="systemd-resolved"
+    if [[ "$BOX_PKG_SERVICES_MAP" == "systemd-resolved:NetworkManager" ]]; then
+        SERVICE_OWNERS["systemd-resolved"]="NetworkManager"
+    elif [[ "$BOX_PKG_SERVICES_MAP" == "systemd-resolved:systemd-resolved" ]]; then
+        SERVICE_OWNERS["systemd-resolved"]="systemd-resolved"
+    elif [[ "$BOX_PKG_SERVICES_MAP" == "NetworkManager:NetworkManager" ]]; then
+        SERVICE_OWNERS["NetworkManager"]="NetworkManager"
+    elif [[ "$BOX_PKG_SERVICES_MAP" == "systemd-resolved:systemd" ]]; then
+        SERVICE_OWNERS["systemd-resolved"]="systemd"
+    else
+        echo "ERROR: Unknown BOX_PKG_SERVICES_MAP: $BOX_PKG_SERVICES_MAP" >&2
+        exit 1
+    fi
 
     # Check each service in the map
     for service in "${!SERVICE_OWNERS[@]}"; do
@@ -33,6 +42,8 @@ do_box_pkg_flag() {
         if ! systemctl is-active --quiet "$service"; then
             echo "DEBUG: $service is not active" >&2
             continue
+        else
+            echo "DEBUG: $service is active" >&2
         fi
         
         # Get the actual owner of the service
@@ -46,8 +57,16 @@ do_box_pkg_flag() {
                 actual_owner="unknown"
             fi
         else
-            # If enabled, assume it matches the expected owner
-            actual_owner="$expected_owner"
+            # If enabled, the actual owner is the package that owns the unit file
+            unit_path="$(systemctl show "$service" -p FragmentPath --value)"
+            if [[ -n "$unit_path" ]]; then
+                actual_owner="$(dpkg-query -S "$unit_path" 2>/dev/null | awk -F: '{print $1; exit}')"
+                if [[ -z "$actual_owner" ]]; then
+                    actual_owner="unknown"
+                fi
+            else
+                actual_owner="unknown"
+            fi
         fi
         
         if [[ "$actual_owner" != "$expected_owner" ]]; then
@@ -57,7 +76,7 @@ do_box_pkg_flag() {
             echo "DEBUG: unit_path=$unit_path" >&2
             if [[ -n "$unit_path" ]]; then
                 echo "DEBUG: Running dpkg-query -S $unit_path" >&2
-                package="$(dpkg-query -S "$unit_path" 2>/dev/null | awk -F: '{print $1}' | head -1)"
+                package="$(dpkg-query -S "$unit_path" 2>/dev/null | awk -F: '{print $1; exit}')"
                 echo "DEBUG: package=$package" >&2
                 if [[ -z "$package" ]]; then
                     package="unknown"

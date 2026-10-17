@@ -344,7 +344,10 @@ automatically".
   DESK_AGENT=<id> ./run -a do_spl_issue_epic_backfill` (csi-spl-orc) plans
   the epic of each orphan level-2 issue (its spec's epic, else one new
   `Spec NNN - <heading>` epic, else an `Area: ...` epic) and links it with
-  `DRY_RUN=0`, in batches of `ISSUE_BACKFILL_LIMIT`; `ISSUE_BACKFILL_CMD=verify`
-  fails on an orphan left or a second epic for one spec.
+  `DRY_RUN=0`, in batches of `ISSUE_BACKFILL_LIMIT`, open issues first. A
+  link the hub answers with an archived `epic_closed` (SPL-1729: an open
+  epic left with no open issue) restores that epic before the next link; it
+  stays closed. `ISSUE_BACKFILL_CMD=verify` fails on an orphan left, a second
+  epic for one spec, or a written link (`tried.tsv`) that did not land.
 
 <!-- version: 0.9.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:00:00Z -->

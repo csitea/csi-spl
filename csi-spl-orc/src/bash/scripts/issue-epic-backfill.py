@@ -19,19 +19,22 @@ this order:
             its text names most (csi-spl-api, -wui, -orc, -iac, -cnf, -doc),
             else a round (refactoring, test, SDLC ...) or a review panel seat
             by its title, else "other". A spec is never guessed.
-  hold      linking would close AND archive an open epic that has no open
-            issue (the hub's SPL-1729 auto-close), after which the rest of
-            its issues cannot be linked and a re-run would file a second epic
-            for the same spec: held, listed, never written.
 
+A link that leaves an open epic with no open issue closes AND archives it
+(the hub's SPL-1729 auto-close): an existing open epic that gets only closed
+issues, or one whose last open issue closed after the plan. The apply then
+restores the epic from the archive (its issues come back with it, statuses
+kept) and links the rest; the epic stays closed. The plan counts these.
 A new epic whose planned issues are all closed is created closed (done when
 any is done, else diss), so a closed issue linked to it closes nothing.
 Within an epic, open issues are linked before closed ones.
 
-  plan    --list L --specs DIR --out-dir D  writes D/epics.tsv, D/links.tsv,
-          D/hold.tsv and prints the summary.
-  verify  --list L --specs DIR              exit 1 when an orphan is left or
-          two live epics share a title (a second epic for one spec).
+  plan    --list L --specs DIR --out-dir D  writes D/epics.tsv, D/links.tsv
+          and prints the summary.
+  verify  --list L --specs DIR [--landed F]...  exit 1 when an orphan is
+          left, two live epics share a title (a second epic for one spec), or
+          a link an apply wrote (F: its tried.tsv, "<issue> TAB <epic>") did
+          not land: the issue is not live under that epic.
 """
 
 from __future__ import annotations
@@ -253,7 +256,7 @@ def plan(rows: list, tree: dict, root: str) -> dict:
     out = {
         "epics": [],
         "links": [],
-        "hold": [],
+        "closes": [],
         "summary": [],
         "notes": notes,
         "orphans": sum(len(g["rows"]) for g in groups.values()),
@@ -282,18 +285,7 @@ def plan(rows: list, tree: dict, root: str) -> dict:
                 and not open_kids.get(target)
                 and all_closed
             ):
-                for r in rws:
-                    out["hold"].append(
-                        [
-                            r["key"],
-                            r.get("status") or "",
-                            target,
-                            g["label"],
-                            f"linking closes and archives open epic {target} (no open issue)",
-                        ]
-                    )
-                out["summary"].append((target, "hold", len(rws), g["title"]))
-                continue
+                out["closes"].append(target)
         else:
             rule = "spec-new" if is_spec else "area-new"
             target = f"new:{len(out['epics']) + 1}"
@@ -334,11 +326,10 @@ def cmd_plan(a) -> int:
     out = Path(a.out_dir)
     write_tsv(out / "epics.tsv", p["epics"])
     write_tsv(out / "links.tsv", p["links"])
-    write_tsv(out / "hold.tsv", p["hold"])
     t = a.tenant
     print(
         f"workspace {t}: {p['orphans']} orphan issues, {len(p['epics'])} epics to create, "
-        f"{len(p['links'])} links, {len(p['hold'])} held"
+        f"{len(p['links'])} links, {len(p['closes'])} epics close on their first link"
     )
     if p["summary"]:
         print("| workspace | epic | rule | issues | title |")
@@ -351,8 +342,11 @@ def cmd_plan(a) -> int:
             print(f"- {AREA_NAMES[area]} ({len(keys)}): {' '.join(keys)}")
     for key, note in p["notes"]:
         print(f"note {key}: {note} (grouped by area)")
-    for h in p["hold"]:
-        print(f"hold {h[0]} ({h[1]}) -> {h[2]}: {h[4]}")
+    for key in p["closes"]:
+        print(
+            f"closes {key}: an open epic with no open issue gets only closed ones; "
+            "the apply restores it from the archive and links the rest (it stays closed)"
+        )
     return 0
 
 
@@ -369,14 +363,29 @@ def cmd_verify(a) -> int:
             dups.append(f"{seen[t]}={e['key']}")
         else:
             seen[t] = e["key"]
+    live = {r["key"]: r.get("epic") or "" for r in rows}
+    tried, missed = {}, []
+    for f in a.landed or []:
+        for line in Path(f).read_text(encoding="utf-8").splitlines():
+            key, _, epic = line.partition("\t")
+            if key and epic:
+                tried[key] = epic
+    for key, epic in sorted(tried.items(), key=lambda kv: num(kv[0])):
+        if key not in live:
+            missed.append(f"{key}->{epic}(not live)")
+        elif live[key] != epic:
+            missed.append(f"{key}->{epic}(epic {live[key] or 'none'})")
     print(
-        f"workspace {a.tenant}: {len(orphans)} orphan issues, {len(dups)} duplicate epic titles"
+        f"workspace {a.tenant}: {len(orphans)} orphan issues, {len(dups)} duplicate epic titles, "
+        f"{len(tried) - len(missed)} of {len(tried)} written links landed"
     )
     if orphans:
         print("orphans: " + " ".join(orphans))
     if dups:
         print("duplicate epics: " + " ".join(dups))
-    return 1 if orphans or dups else 0
+    if missed:
+        print("links not landed: " + " ".join(missed))
+    return 1 if orphans or dups or missed else 0
 
 
 def main(argv: list) -> int:
@@ -390,6 +399,8 @@ def main(argv: list) -> int:
         s.add_argument("--tenant", default="")
         if name == "plan":
             s.add_argument("--out-dir", required=True)
+        else:
+            s.add_argument("--landed", action="append")
     a = p.parse_args(argv)
     if not a.root:
         base = Path(a.specs).resolve()

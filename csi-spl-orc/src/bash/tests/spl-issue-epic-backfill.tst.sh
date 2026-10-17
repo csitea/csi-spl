@@ -7,10 +7,12 @@
 # (b) the spec has none -> ONE new 'Spec NNN - <heading>' epic, created done
 # when all its issues are closed; (c) no spec -> an area epic by the title
 # scope or the blocker label; already linked rows and subtasks untouched; the
-# e2e workspace skipped; held: a link that would close and archive an open
-# epic. A dry run writes nothing; a real run leaves 0 orphans and a re-run
-# plans 0 writes; ISSUE_BACKFILL_LIMIT batches. Red controls: verify fails on
-# a planted orphan and on a second epic for one spec.
+# e2e workspace skipped. A link that closes and archives an existing open
+# epic with no open issue (SPL-2364 on prd, 2026-10-17) restores the epic and
+# finishes the rest; it stays closed. A dry run writes nothing; a real run
+# leaves 0 orphans and a re-run plans 0 writes; ISSUE_BACKFILL_LIMIT batches.
+# Red controls: verify fails on a planted orphan, on a second epic for one
+# spec, and on a written link that did not land (the restore refused).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -103,6 +105,15 @@ elif op == "update":
     save()
     ans["issue"] = r
     print(json.dumps(ans))
+elif op == "unarchive":
+    if os.environ.get("FAKE_UNARCHIVE_FAIL"):
+        print("forbidden", file=sys.stderr); sys.exit(1)
+    k = flags["ref"]
+    for x in rows:
+        if x["key"] == k or x["epic"] == k:
+            x.pop("archived", None)
+    save()
+    print(json.dumps({"issue": {"key": k}}))
 else:
     print("{}")
 FAKE
@@ -112,7 +123,7 @@ base=(FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_STATE="$T/state.json" TEN
 
 run() {
   : >"$T/issue.log"
-  rm -rf "$T/plan"
+  [[ -n "${KEEP_PLAN:-}" ]] || rm -rf "$T/plan"
   SNIPPET="${ISS}do_spl_issue_epic_backfill" in_orc "${base[@]}" ISSUE_PLAN_DIR="$T/plan" "$@" >"$T/o" 2>&1
   RC=$?
 }
@@ -141,12 +152,17 @@ st=$(q "print(' '.join(r['key']+':'+r['status'] for r in rows if r['key'] in ('S
   fail "real run (rc=$RC) orphans=$orph '$st': $(cat "$T/o")"
 [[ "$(stat -c %a "$T/plan/undo.sh")" == 600 && "$(grep -c 'ISSUE_EPIC= DRY_RUN=0' "$T/plan/undo.sh")" == 8 ]] &&
   pass "the undo file (0600) unlinks each issue it linked" || fail "undo: $(cat "$T/plan/undo.sh" 2>/dev/null)"
+rm -rf "$T/plan1"; cp -r "$T/plan" "$T/plan1"
 
 run
 [[ $RC -eq 0 && ! -s "$T/plan/links.tsv" && ! -s "$T/plan/epics.tsv" ]] && grep -q '0 orphan issues, 0 epics to create, 0 links' "$T/o" &&
   pass "a re-run on its own output plans 0 writes" || fail "re-run (rc=$RC): $(cat "$T/o")"
 run ISSUE_BACKFILL_CMD=verify
 [[ $RC -eq 0 ]] && grep -q '0 orphan issues, 0 duplicate epic titles' "$T/o" && pass "verify passes after the run" || fail "verify (rc=$RC): $(cat "$T/o")"
+cp -r "$T/plan1" "$T/plan" 2>/dev/null
+KEEP_PLAN=1 run ISSUE_BACKFILL_CMD=verify
+[[ $RC -eq 0 ]] && grep -q '0 orphan issues, 0 duplicate epic titles, 8 of 8 written links landed' "$T/o" &&
+  pass "verify reads the run's tried.tsv: all 8 written links landed" || fail "verify tried (rc=$RC): $(cat "$T/o")"
 
 # red controls: a planted orphan, then a second epic for spec 102
 python3 - "$T/state.json" <<'PY'
@@ -176,11 +192,39 @@ run DRY_RUN=0 ISSUE_BACKFILL_LIMIT=0
 run ISSUE_BACKFILL_CMD=verify
 [[ $RC -eq 0 ]] && pass "the next batch finishes it: 0 orphans, no second epic for spec 102" || fail "batches (rc=$RC): $(cat "$T/o")"
 
-# held: an open epic with no open issue gets only closed ones
-seed "$T/state.json" "SPL-1|epic|1|wip|||epic|Spec 104 - Delta thing|" "SPL-2|issue|2|done||||lane two|- spec: $SPEC/104-delta"
+# an existing open epic with no open issue gets only closed ones: the first
+# link closes AND archives it (SPL-1729); the apply restores it, links the rest
+closing=("SPL-1|epic|1|wip|||epic|Spec 104 - Delta thing|" "SPL-2|issue|2|done||||lane two|- spec: $SPEC/104-delta"
+  "SPL-3|issue|2|diss||||lane three|- spec: $SPEC/104-delta" "SPL-4|issue|2|done||||lane four|- spec: $SPEC/104-delta")
+seed "$T/state.json" "${closing[@]}"
+run
+grep -q '3 links, 1 epics close on their first link' "$T/o" && grep -q '^closes SPL-1: ' "$T/o" &&
+  pass "the plan counts an existing open epic its first closed link closes" || fail "closes plan (rc=$RC): $(cat "$T/o")"
 run DRY_RUN=0
-[[ $RC -eq 0 && ! -s "$T/plan/links.tsv" ]] && grep -q 'hold SPL-2 (done) -> SPL-1: linking closes and archives open epic SPL-1' "$T/o" &&
-  ! grep -q '|update|' "$T/issue.log" && pass "held: a link that would close and archive an open epic is listed, never written" || fail "hold (rc=$RC): $(cat "$T/o")"
+ep=$(q "print([r['status'] for r in rows if r['key']=='SPL-1'])")
+kids=$(q "print(' '.join(r['key']+':'+r['epic']+':'+r['status'] for r in rows if r['kind']=='issue'))")
+[[ $RC -eq 0 && "$ep" == "['done']" && "$kids" == "SPL-2:SPL-1:done SPL-3:SPL-1:diss SPL-4:SPL-1:done" ]] &&
+  [[ "$(grep -c '|unarchive|--as|CLE-00|--ref|SPL-1|' "$T/issue.log")" == 1 ]] && grep -q 'restored epic SPL-1 from the archive' "$T/o" &&
+  grep -q '^# epic SPL-1 was closed and archived by the hub on linking SPL-2, then restored' "$T/plan/undo.sh" &&
+  pass "a link that closes and archives the epic: the epic is restored once, every link lands, the epic stays closed" ||
+  fail "closing epic (rc=$RC) epic=$ep kids='$kids': $(cat "$T/o") / $(cat "$T/issue.log")"
+KEEP_PLAN=1 run ISSUE_BACKFILL_CMD=verify
+[[ $RC -eq 0 ]] && grep -q '0 orphan issues, 0 duplicate epic titles, 3 of 3 written links landed' "$T/o" &&
+  pass "verify: 3 of 3 written links landed" || fail "verify closing (rc=$RC): $(cat "$T/o")"
+
+# red control: the restore is refused -> the run stops at once and fails,
+# verify names the link that did not land (its issue is archived)
+seed "$T/state.json" "${closing[@]}"
+run DRY_RUN=0 FAKE_UNARCHIVE_FAIL=1
+[[ $RC -ne 0 && "$(grep -c '|update|' "$T/issue.log")" == 1 ]] && grep -q 'could not restore epic SPL-1' "$T/o" &&
+  pass "red control: a refused restore stops the run after that link and fails it" || fail "restore refused (rc=$RC): $(cat "$T/o")"
+KEEP_PLAN=1 run ISSUE_BACKFILL_CMD=verify
+[[ $RC -ne 0 ]] && grep -q '0 of 1 written links landed' "$T/o" && grep -q '^links not landed: SPL-2->SPL-1(not live)$' "$T/o" &&
+  pass "red control: verify fails on a written link that did not land" || fail "verify not landed (rc=$RC): $(cat "$T/o")"
+mkdir -p "$T/state/dev/epic-backfill" && rm -rf "$T/state/dev/epic-backfill/t1-run" && cp -r "$T/plan" "$T/state/dev/epic-backfill/t1-run"
+KEEP_PLAN=1 run ISSUE_BACKFILL_CMD=verify ISSUE_PLAN_DIR=
+[[ $RC -ne 0 ]] && grep -q '^links not landed: SPL-2->SPL-1(not live)$' "$T/o" &&
+  pass "verify with no ISSUE_PLAN_DIR reads every run of the workspace" || fail "verify default runs (rc=$RC): $(cat "$T/o")"
 
 # e2e and bad input
 run TENANT_ID=e2e DRY_RUN=0

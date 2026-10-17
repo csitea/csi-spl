@@ -10,6 +10,10 @@ import { tenantHostUrl } from '~/composables/useSpoolApi'
 import { switchPath } from '~/utils/tenant-host.mjs'
 import { useAuthClient } from '~/composables/useAuthClient'
 
+function mockSwitchLoads(): boolean {
+  try { return Boolean(localStorage.getItem('spool.mock.tenant-switch-loads')) } catch { return false }
+}
+
 export function useTenantSwitch() {
   const session = useSessionStore()
   const api = useSpoolApi()
@@ -32,6 +36,15 @@ export function useTenantSwitch() {
     /* HUM-10: the mock has no hub - a switch re-points the local session
        (the switcher's e2e proves the pick reaches here), no reload. */
     if (api.mock && b.canSwitch && !switching.value && want && want !== b.selected && session.claims) {
+      /* SPL-2399 e2e hook (mock only): with localStorage
+         `spool.mock.tenant-switch-loads` set, the mock leaves the page like
+         the hub does (switching stays true), so an e2e sees whether the
+         load completes. */
+      if (mockSwitchLoads()) {
+        switching.value = true
+        window.location.assign(localePath('/') + '?tenant=' + encodeURIComponent(want))
+        return true
+      }
       const next = { ...session.claims, active_tenant: want, t: want }
       session.adopt(next)
       return true

@@ -14,6 +14,13 @@
 // Run:
 //   node tests/e2e/top-bar-tenant.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/top-bar-tenant.test.mjs
+//
+// SPL-2399 (owner HUM-10 499ef7c4, "tapping it does nothing"): a TAP on the
+// other workspace's row (touch emulated) must finish the page load to it.
+// The sheet's close used to pop its history entry (useMobileStack), and that
+// history.go(-1) aborted the switch's location.assign (prd, ERR_ABORTED).
+// localStorage `spool.mock.tenant-switch-loads` makes the mock switch leave
+// the page as the hub does.
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -137,6 +144,32 @@ async function phone(p, base, width) {
   check(`${tag}: a tap on the scrim closes the sheet`, !gone['[data-testid=top-bar-tenant-sheet]'], gone)
 }
 
+/* SPL-2399: a tap on the other workspace loads the page for it */
+async function tapSwitch(p, base, width) {
+  const tag = `${width}px`
+  await p.setViewport({ width, height: 844, isMobile: true, hasTouch: true })
+  await p.goto(`${base}/`, { waitUntil: 'load' })
+  await p.evaluate(() => localStorage.setItem('spool.mock.tenant-switch-loads', '1'))
+  try {
+    await p.waitForSelector('[data-test=top-bar]')
+    if (!(await signIn(p, LONG))) throw new Error('no session store')
+    await p.waitForSelector('[data-test=user-menu-trigger]')
+    await sleep(400)
+    const before = p.url()
+    await p.tap('[data-testid=top-bar-tenant-box]')
+    await p.waitForSelector('[data-testid=top-bar-tenant-option][data-tenant=t2]')
+    await sleep(300)
+    const loaded = p.waitForNavigation({ waitUntil: 'load', timeout: 5000 }).then(() => true, () => false)
+    await p.tap('[data-testid=top-bar-tenant-option][data-tenant=t2]')
+    const nav = await loaded
+    await sleep(500)
+    const after = p.url()
+    check(`${tag}: a tap on the other workspace loads its page`, nav && new URL(after).searchParams.get('tenant') === 't2', { before, after, nav })
+  } finally {
+    await p.evaluate(() => localStorage.removeItem('spool.mock.tenant-switch-loads')).catch(() => {})
+  }
+}
+
 async function desktop(p, base) {
   const tag = '1440px'
   await open(p, base, 1440, 900, false, '/lobby')
@@ -151,6 +184,7 @@ let code = 0
 try {
   const p = await browser.newPage()
   for (const w of [360, 390, 820]) await phone(p, server.base, w)
+  for (const w of [390, 820]) await tapSwitch(p, server.base, w)
   await desktop(p, server.base)
 } catch (e) {
   console.error(e)

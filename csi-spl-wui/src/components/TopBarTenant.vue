@@ -51,8 +51,12 @@ async function pick(id: string) {
     return
   }
   /* a switch reloads the page (the mock re-points the session: the sheet
-     closes); a refusal keeps the sheet open with the error */
-  if (await ts.switchTo(id)) close(true)
+     closes); a refusal keeps the sheet open with the error.
+     SPL-2399 (owner HUM-10 499ef7c4, "tapping it does nothing"): while the
+     page is leaving for the new workspace (switching stays true) the sheet
+     stays open - closing it pops its history entry (useMobileStack), and
+     that history.go(-1) aborts the pending location.assign. */
+  if (await ts.switchTo(id) && !ts.switching.value) close(true)
 }
 watch(() => route.fullPath, () => { if (open.value) close(false) })
 /* SPL-994: the sheet is the top level while open - Back closes it first */

@@ -14,6 +14,9 @@
 #               SPOOL_OWNER_EMAIL instead of "first sign-up wins"
 #            6. print the owner sign-in link and the one line that seats an
 #               agent (W5): `docker compose logs hub-init`
+#            7. write $SPOOL_STATE_DIR/init.ready, the readiness file the
+#               compose healthcheck reads (SPL-2156); removed at the start, so
+#               a re-run that fails leaves none
 #   serve  `spool serve` as the runtime login; the session key comes from
 #          SPOOL_HUB_AUTH_SESSION_KEY when set, else from the state dir.
 #          SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto (the compose default) becomes
@@ -105,6 +108,7 @@ do_init() {
   need SPOOL_OWNER_DSN; need SPOOL_RUNTIME_ROLE; need SPOOL_RUNTIME_PASSWORD; need SPOOL_TENANT
   is_local || refuse_default_passwords
   mkdir -p "$state"
+  rm -f "$state/init.ready"
   log "migrate (as the schema owner)"
   out="$(spool migrate --db "$SPOOL_OWNER_DSN")" || die "spool migrate failed"
   log "$(printf '%s\n' "$out" | grep -c '^applied' || true) migration(s) applied, $(printf '%s\n' "$out" | grep -c '^skipped' || true) already there"
@@ -128,6 +132,7 @@ do_init() {
     seat_owner
   fi
   seat_line
+  date -u +%Y-%m-%dT%H:%M:%SZ >"$state/init.ready"
   log "tenant $SPOOL_TENANT ready; init done"
 }
 

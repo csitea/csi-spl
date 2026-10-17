@@ -9,6 +9,8 @@
 #   4. serve: SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto -> true local, false public
 #   5. specs/072 A21: on Cloud Run (K_SERVICE) and in lde (SPOOL_ENTRYPOINT_PLAIN)
 #      serve is plain `spool serve`; a bucket drops the image's files-dir default
+#   6. SPL-2156: init writes the readiness file init.ready (the compose
+#      healthcheck) only once every step passed; a failed re-run removes it
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EP="$HERE/../../docker/hub-entrypoint.sh"
@@ -19,6 +21,7 @@ T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
 cat >"$T/bin/spool" <<'STUB'
 #!/bin/sh
+[ -n "${STUB_FAIL:-}" ] && [ "$1" = "$STUB_FAIL" ] && exit 1
 echo "spool $* FILES_DIR=${SPOOL_HUB_FILES_DIR-unset} BOOTSTRAP=${SPOOL_HUB_AUTH_BOOTSTRAP_OWNER:-}" >>"$STUB_LOG"
 STUB
 cat >"$T/bin/psql" <<'STUB'
@@ -105,6 +108,16 @@ out="$(plain)"; rc=$?
   pass "5. CONTROL: compose (no K_SERVICE) still needs the state-dir session key" || fail "5. compose: rc $rc $out $(cat "$T/log")"
 plain SPOOL_HUB_AUTH_SESSION_KEY=k >/dev/null
 grep -q 'FILES_DIR=/var/lib/spool/files' "$T/log" && pass "5. compose without a bucket keeps the image's files dir" || fail "5. compose files dir: $(cat "$T/log")"
+
+# --- 6. init readiness file (SPL-2156) -------------------------------------------------------
+INIT=(SPOOL_STATE_DIR="$T/state" SPOOL_OWNER_DSN=postgres://o@pg/db SPOOL_RUNTIME_ROLE=rt SPOOL_RUNTIME_PASSWORD=rt-pw SPOOL_TENANT=main)
+out="$(ep do_init "${INIT[@]}" </dev/null)"; rc=$?
+[ $rc -eq 0 ] && [ -s "$T/state/init.ready" ] && grep -q 'init done' <<<"$out" &&
+  pass "6. a passing init writes init.ready last" || fail "6. init: rc $rc $out"
+echo stale >"$T/state/init.ready"
+out="$(ep do_init "${INIT[@]}" STUB_FAIL=migrate </dev/null)"; rc=$?
+[ $rc -ne 0 ] && grep -q 'spool migrate failed' <<<"$out" && [ ! -e "$T/state/init.ready" ] &&
+  pass "6. CONTROL: a re-run whose migrate fails leaves no init.ready (the old one is removed first)" || fail "6. failed re-run: rc $rc $out $(ls "$T/state")"
 
 [ "$fails" -eq 0 ] && { echo "ALL hub-entrypoint CHECKS PASSED"; exit 0; }
 echo "FAILED hub-entrypoint: $fails"; exit 1

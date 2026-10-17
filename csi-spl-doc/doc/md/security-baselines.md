@@ -150,3 +150,36 @@ declared `default` each fail):
 compose file must belong to one of its stacks, and with docker present it
 also checks the model `docker compose config` renders. It was red on
 origin/master a255bb8c1 (20 FAIL).
+
+## 7. Standalone services report their health
+
+Owner security scan, revised list, action 4: "Add healthchecks to hub-init
+and web." Issue SPL-2156, epic SPL-2151.
+
+- `hub-init`, the one shot, writes the readiness file `init.ready` into its
+  state dir as its last step and removes it at its start
+  (`csi-spl-api/src/docker/hub-entrypoint.sh`), so a re-run that fails
+  leaves none. Its healthcheck is `test -f /var/lib/spool/state/init.ready`.
+  `hub` still starts only once `hub-init` has exited 0
+  (`service_completed_successfully`). Once a container has exited, docker
+  reports its health as `unhealthy` even after a passing check (measured:
+  a plain alpine container with `--health-cmd true` read `healthy`, then
+  `unhealthy` after its exit 0). So for the finished one shot read
+  `docker compose ps -a`: `Exited (0)`. A hub image older than this check
+  never writes the file, which nothing waits on.
+- `web` (Caddy) is probed on its own port 80 with the busybox `wget` its
+  `caddy:2-alpine` base already carries; nothing is installed for it. The
+  plain-http default site answers `/config.json` (written by
+  `wui-config.sh` at start) with 200; a site on your own domain answers
+  plain http with its https redirect, 308. Either passes; any other status
+  (a 404) or no listener fails. Unknown paths also get 200 (the SPA
+  fallback), so the check proves Caddy serves the site, not that one file.
+- Every long-running service of the root `docker-compose.yml` (pg, s3, hub,
+  web) and `hub-init` has a healthcheck, and every `depends_on` waits for the
+  right state: `service_completed_successfully` on a one shot,
+  `service_healthy` on any other.
+
+Test, with its red controls (a web with no healthcheck, a disabled hub-init
+check and a `depends_on` on a one shot that only waits for it to start each
+fail): `csi-spl-iac/src/bash/tests/compose-healthchecks.tst.sh`. The readiness
+file: section 6 of `csi-spl-api/src/bash/tests/hub-entrypoint.tst.sh`.

@@ -35,16 +35,20 @@
     <UiIcon v-if="icon" :name="icon" :size="14" :stroke-width="2" />
     <template v-else>{{ label }}</template>
   </span>
-  <!-- mounted only while open (CLE-35075), like the card's EmojiPicker -->
-  <KindPicker
-    v-if="settable && open"
-    :open="open"
-    :x="at.x"
-    :y="at.y"
-    :current="shown"
-    @close="onClose"
-    @choose="setKind"
-  />
+  <!-- mounted only while open (CLE-35075), like the card's EmojiPicker.
+       p6-05: its own chunk, loaded on the first open, so the card chunk the
+       home page preloads does not carry it. The v-if sits on a wrapper, not
+       on the async component (a bare v-if on one threw insertBefore). -->
+  <span v-if="settable && open" style="display: contents">
+    <KindPicker
+      :open="open"
+      :x="at.x"
+      :y="at.y"
+      :current="shown"
+      @close="onClose"
+      @choose="setKind"
+    />
+  </span>
 </template>
 
 <script setup lang="ts">
@@ -55,6 +59,8 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { noteError } from '~/composables/errorJournal.mjs'
+
+const KindPicker = defineAsyncComponent(() => import('@/components/KindPicker.vue'))
 
 const props = defineProps<{ kind: string, msg?: SpoolMessage | null }>()
 const emit = defineEmits<{

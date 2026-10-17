@@ -55,12 +55,6 @@ if ! command -v docker >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/nu
   [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") guard assertions (SQL part skipped)"; exit 0; }
   echo "FAIL: $fails assertion(s)"; exit 1
 fi
-export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
-# shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
-source "$APP_ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
-spl_export_go_path || { echo "FAIL: no go toolchain"; exit 1; }
-BIN="$T/spool"
-(cd "$APP_ROOT/csi-spl-api/src/go/spool-hub-api" && go build -o "$BIN" ./cmd/spool) || { fail "spool build"; exit 1; }
 PG_CTR="spl-box-purge-pg-$$"
 docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
   -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
@@ -70,9 +64,27 @@ PGPORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
-"$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
-
 psql_owner() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" "$@"; }
+
+# The real rdb migrations, applied the way `spool migrate` (store.Migrate)
+# applies them: filename (byte) order, each file in its own transaction under
+# the operator RLS scope, recorded with its sha256 in spool_schema_migrations.
+# One psql process, not a `go build` of the whole hub just to reach `migrate`:
+# that cold build was 26 s wall / 210 s cpu on a 16-core PC and most of this
+# file's 129..156 s CI wall (SPL-2460, test round 1 row 12).
+MIG_DIR="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub"
+{
+  echo "SET client_min_messages = warning;"
+  echo "CREATE TABLE IF NOT EXISTS spool_schema_migrations (filename text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());"
+  (cd "$MIG_DIR" && LC_ALL=C sha256sum -- *.sql | LC_ALL=C sort -k2) | while read -r sum f; do
+    printf "BEGIN;\nSELECT set_config('app.rls_scope', 'operator', true);\n\\i '%s'\nINSERT INTO spool_schema_migrations (filename, sha256) VALUES ('%s', '%s');\nCOMMIT;\n" \
+      "$MIG_DIR/$f" "$f" "$sum"
+  done
+} >"$T/migrate.sql"
+psql_owner -f "$T/migrate.sql" >/dev/null || { fail "migrate"; exit 1; }
+mig_files="$(find "$MIG_DIR" -maxdepth 1 -name '*.sql' | wc -l)"
+[[ "$mig_files" -gt 0 && "$(psql_owner -c "SELECT count(*) FROM spool_schema_migrations")" == "$mig_files" ]] \
+  && pass "all $mig_files rdb migrations applied, each in its own transaction" || fail "migrate: $mig_files files, ledger $(psql_owner -c "SELECT count(*) FROM spool_schema_migrations")"
 # A NON-owner, non-superuser login: only then does FORCE ROW LEVEL SECURITY bind.
 psql_owner -c "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
 psql_owner -v runtime_role=spool_rt -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || { fail "grants"; exit 1; }

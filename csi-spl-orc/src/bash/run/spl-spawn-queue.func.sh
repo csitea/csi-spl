@@ -113,12 +113,23 @@ spl_spawn_q_send() {  # FROM TO KIND TASK BODY
   return 0
 }
 
-# Tell the sender of ROW (an ask row) TEXT, on its task, from BY.
+# Tell the sender of ROW (an ask row) TEXT, on its task, from BY. A human
+# sender (HUM-<n>[@box]) has no spool inbox (spool-send.sh exit 13, SPL-2429):
+# the note goes to the dispatch lease holder instead, naming the human, the
+# full topic and TEXT, so the holder posts In progress in that topic.
 spl_spawn_q_reply() {  # ROW BY TEXT
-  local from topic
+  local from topic to
   from="$(jq -r '.from // ""' <<<"$1")"
   topic="$(jq -r '.topic // ""' <<<"$1")"
   [[ "$from" == *@* ]] || from="$from@$ASKS_BOX"
+  if [[ "${from%@*}" =~ ^HUM-[0-9]+$ ]]; then
+    declare -F spl_spawn_place_dispatch >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+    to="$(spl_spawn_place_dispatch)"
+    [[ -n "$to" ]] || { do_log "WARN the note to human sender $from (topic ${topic:-none}) was NOT delivered: nobody holds the dispatch lease"; return 1; }
+    spl_spawn_q_send "$2" "$to" note "$(spl_spawn_q_task "$topic")" \
+      "**SPAWN QUEUE, for a human sender:** the request of $from in topic ${topic:-none} is $3. A human has no spool inbox: post it as In progress in that topic."
+    return
+  fi
   spl_spawn_q_send "$2" "$from" note "$(spl_spawn_q_task "$topic")" "$3"
 }
 

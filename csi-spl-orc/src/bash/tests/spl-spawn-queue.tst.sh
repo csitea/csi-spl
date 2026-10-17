@@ -38,6 +38,10 @@
 #      launches); a hand-off touches no .place.last (CONTROL: a launch does)
 #  13. SPL-2263: a mistral placement whose brief names csi-spl-wui/ launches
 #      claude (CONTROL: a docs brief stays mistral)
+#  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
+#      "queued" and "placed" notes go to the dispatch lease holder, naming
+#      the human, the full topic and the lane; nothing is sent to the HUM id;
+#      no lease = one WARN (CONTROL: an agent sender is still told itself)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -519,6 +523,32 @@ on pc do_spl_spawn_enqueue ASK_ID="$U2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:docs
 out="$(on pc do_spl_spawn_place LAUNCH_ID=m-504 2>&1)"
 grep -q "^mistral auto $T $T/briefs/docs-x.md docs-x$" "$T/launch.log" &&
   pass "control: a mistral placement with a docs brief stays mistral" || fail "docs placement: $out | $(cat "$T/launch.log")"
+
+# 14. SPL-2429: a human sender's notes go to the dispatch lease holder -------------
+H1=c1c1c1c1-0000-4000-8000-000000000001; H2=c2c2c2c2-0000-4000-8000-000000000002; H3=c3c3c3c3-0000-4000-8000-000000000003
+put "$H1" HUM-10@sat "$OWNER_TOPIC" "SPAWN REQUEST from the owner"
+: >"$T/send.log"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$H1" SPAWN_CLASS=bug 2>&1)"
+if grep -qE "^c-001 c-002 note dispatch-c9beaa77 \*\*SPAWN QUEUE, for a human sender:\*\* the request of HUM-10@sat in topic $OWNER_TOPIC is queued, position [0-9]+ of [0-9]+," "$T/send.log" &&
+   ! grep -q "WARN" <<<"$out"; then
+  pass "human sender: 'queued' goes to the dispatch holder on dispatch-<topic8>, naming HUM-10@sat and the full owner topic"
+else fail "human queued: $out | $(sends)"; fi
+on pc do_spl_spawn_placed ASK_ID="$H1" PLACED_AS=c-701@sat >/dev/null 2>&1
+grep -qE "^c-001 c-002 note dispatch-c9beaa77 \*\*SPAWN QUEUE, for a human sender:\*\* the request of HUM-10@sat in topic $OWNER_TOPIC is placed: c-701@sat\. .*In progress" "$T/send.log" &&
+  pass "human sender: 'placed' goes to the dispatch holder with the lane id c-701@sat" || fail "human placed: $(sends)"
+[[ -z "$(awk '$2 ~ /^HUM-/' "$T/send.log")" ]] &&
+  pass "human sender: nothing was sent to a HUM id" || fail "a note went to a HUM id: $(sends)"
+put "$H2" HUM-10 dispatch-5ea2e615-h "SPAWN REQUEST, bare human id"
+: >"$T/send.log"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$H2" SPAWN_CLASS=bug SPAWN_SHARE_DISPATCH= 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$H2")")" == queued && ! -s "$T/send.log" ]] &&
+  grep -q "WARN the note to human sender HUM-10@box-desk (topic dispatch-5ea2e615-h) was NOT delivered: nobody holds the dispatch lease" <<<"$out" &&
+  pass "human sender, no dispatch lease: queued, nothing sent, one WARN" || fail "human no lease: $out | $(sends)"
+put "$H3" c-002@sat "$OWNER_TOPIC" "SPAWN REQUEST from an agent"
+: >"$T/send.log"
+on pc do_spl_spawn_enqueue ASK_ID="$H3" SPAWN_CLASS=bug >/dev/null 2>&1
+grep -qE "^c-001 c-002@sat note dispatch-c9beaa77 queued, position [0-9]+ of [0-9]+," "$T/send.log" &&
+  pass "control: an agent sender is still told itself, unchanged" || fail "agent sender: $(sends)"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

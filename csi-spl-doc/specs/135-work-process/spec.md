@@ -298,6 +298,10 @@ there is one, there will always be many". SPL-2370, epic SPL-2368.
   (`spl-spawn-enqueue.func.sh:43`) then the hub's queue op with the
   placement `<vendor>:<slug>` and the class (`:44`, rdb 0180 + 0195); the
   sender is told its position (`:53`).
+  A human sender (`HUM-<n>`) has no spool inbox: its "queued" and "placed"
+  notes go to the dispatch lease holder instead, naming the human, the full
+  topic and the lane, for an In progress post there (`spl_spawn_q_reply`,
+  SPL-2429).
 - The position is computed on read by the hub (`askPositions`,
   `store/fleet_ask.go:251`: class rank `askClassRank` `:174`, then
   `enqueued_at`); the orc reads the queued and placing rows with

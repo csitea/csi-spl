@@ -20,7 +20,12 @@
 # @description first, every box source day of the env.cost.backfill_days
 # @description (default 7) days before yesterday that this box's post ledger
 # @description (COST_DAY_DIR/posted-<ENV>.tsv) holds no ok or partial post
-# @description of, so one failed night is no permanent hole. The hub has no
+# @description of, so one failed night is no permanent hole. A day before the
+# @description ledger's start row (the day its first run rolled up) was posted,
+# @description or not, by a night that kept no ledger: it is taken as present
+# @description and never re-posted, since a late re-read can be smaller than
+# @description what the hub holds (SPL-2230: 996 fleet_tokens lines replaced
+# @description on sat, 2026-10-17). The hub has no
 # @description per-day coverage read for the box's service account (GET
 # @description /v1/tenant/costs needs a member and answers amounts), so the
 # @description box keeps its own record. One log line per day and source:
@@ -54,7 +59,10 @@ do_spl_cost_rollup_daily() {
   (( ${#names[@]} > 0 )) || { do_log "FATAL no cost source to run (env.cost.sources)"; return 1; }
   box="$(spl_cost_box)" || return 1
   run="cost-rollup-$box-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  if [[ "$dry" == 0 ]]; then spl_cost_login_retry || return 1; fi
+  if [[ "$dry" == 0 ]]; then
+    spl_cost_ledger_open "$day" "$run"
+    spl_cost_login_retry || return 1
+  fi
   tmp="$(umask 077 && mktemp -d)" || return 1
   do_log "INFO cost rollup ENV=$ENV day=$day box=$box sources=${names[*]} DRY_RUN=$dry run=$run"
   SPL_COST_BACKFILL_FAILED=0
@@ -151,6 +159,32 @@ spl_cost_ledger_add() {
     do_log "WARNING cannot write the post ledger $f: $2 $1 will be posted again by the next backfill"
 }
 
+# spl_cost_ledger_start DAY: the first day the ledger tracks: its start row
+# (source `*`, state start), else the day before its earliest posted_at (a
+# ledger written before the start row existed), else DAY (no ledger yet, or
+# no dated row: nothing before DAY is known to this box's ledger).
+spl_cost_ledger_start() {
+  local f st=""
+  f="$(spl_cost_ledger)"
+  if [[ -s "$f" ]]; then
+    st="$(awk -F'\t' '$2 == "*" && $3 == "start" && (s == "" || $1 < s) { s = $1 } END { print s }' "$f")"
+    if [[ -z "$st" ]]; then
+      st="$(awk -F'\t' '$5 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ && (m == "" || $5 < m) { m = $5 } END { print substr(m, 1, 10) }' "$f")"
+      [[ -n "$st" ]] && st="$(date -u -d "$st -1 day" +%F)"
+    fi
+  fi
+  printf '%s\n' "${st:-$1}"
+}
+
+# spl_cost_ledger_open DAY RUN: write the ledger's start row once (the day
+# spl_cost_ledger_start reads now), so the days before it stay pre-ledger.
+spl_cost_ledger_open() {
+  local f
+  f="$(spl_cost_ledger)"
+  [[ -s "$f" ]] && awk -F'\t' '$2 == "*" && $3 == "start" { found = 1 } END { exit !found }' "$f" && return 0
+  spl_cost_ledger_add "$(spl_cost_ledger_start "$1")" '*' start "$2"
+}
+
 # spl_cost_ledger_has DAY SOURCE: print the state the ledger holds for SOURCE
 # on DAY when it counts as present (ok, partial; self on any day: a source that
 # writes its own rows re-reads its own window), else return 1. A `missing`
@@ -182,11 +216,12 @@ spl_cost_post_logged() {
 # spl_cost_backfill DAY BOX RUN DRY TMP NAME...: the box source days of the
 # env.cost.backfill_days days before DAY that the ledger holds no ok or
 # partial post of, read and posted oldest first (DRY 1: listed only). A day
-# already present is never re-posted, so a re-read that now fails (a pruned
+# before the ledger start counts as present. A day already present is never
+# re-posted, so a re-read that now fails (a pruned
 # day log) cannot turn a posted day `missing`. Counts the failed posts in
 # SPL_COST_BACKFILL_FAILED; the rollup still posts DAY.
 spl_cost_backfill() {
-  local day="$1" box="$2" run="$3" dry="$4" tmp="$5" n i d name st why have
+  local day="$1" box="$2" run="$3" dry="$4" tmp="$5" n i d name st why have start
   local n_post=0 n_have=0 n_fail=0
   shift 5
   n="$(yq -r '.env.cost.backfill_days // 7' "$SPL_CNF")"
@@ -194,9 +229,13 @@ spl_cost_backfill() {
     do_log "WARNING env.cost.backfill_days must be 0..62, got '$n': no backfill"
     return 0
   fi
+  start="$(spl_cost_ledger_start "$day")"
   for ((i = n; i >= 1; i--)); do
     d="$(date -u -d "$day -$i day" +%F)"
     for name in "$@"; do
+      if [[ "$d" < "$start" ]]; then
+        n_have=$((n_have + 1)); do_log "INFO day $d $name.$box: already present (before the ledger start $start: never re-posted)"; continue
+      fi
       if have="$(spl_cost_ledger_has "$d" "$name.$box")"; then
         n_have=$((n_have + 1)); do_log "INFO day $d $name.$box: already present (ledger state=$have)"; continue
       fi

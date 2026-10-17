@@ -48,6 +48,12 @@
 #  20. a failed backfill post: its day line says failed (reason), yesterday
 #      still posts, the run fails, and the next run posts the day
 #  21. a day posted `missing` is tried again the next night
+#  22. SPL-2230: a day before the ledger start (posted by a night that kept no
+#      ledger) is already present and never re-posted: (a) no ledger yet, the
+#      hub holds 10-08..10-14 from ledger-less nights -> posts 10-15 only and
+#      writes the start row; (b) a ledger with no start row (sat's, written by
+#      ceeff05cc) starts the day before its earliest posted_at; RED CONTROL:
+#      ceeff05cc's action re-posts the 7 present days
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -301,7 +307,10 @@ L="$T/cost/posted-dev.tsv"
 for d in 2026-10-07 2026-10-08 2026-10-09 2026-10-10 2026-10-11 2026-10-12 2026-10-13 2026-10-14 2026-10-15; do
   echo "1000 c-101 run" > "$D/agent-run-$d.log"
 done
-ledger() { rm -f "$L"; mkdir -p "$T/cost"; local d; for d; do printf '%s\tagent_hours.box-a\tok\tr0\t-\n' "$d" >> "$L"; done; }
+ledger() {
+  rm -f "$L"; mkdir -p "$T/cost"; printf '2026-10-01\t*\tstart\tr0\t-\n' > "$L"
+  local d; for d; do printf '%s\tagent_hours.box-a\tok\tr0\t-\n' "$d" >> "$L"; done
+}
 days() { jq -r '.day' "$T/posts.jsonl" 2>/dev/null | tr '\n' ' '; }
 night() { run_rollup DAY= COST_TODAY=2026-10-16 DRY_RUN=0 "$@"; }
 body() { jq -c --arg d "$1" 'select(.day == $d) | del(.run_id)' "$2" 2>/dev/null; }
@@ -323,7 +332,7 @@ out="$(night)"; rc=$?
 ledger 2026-10-08 2026-10-09 2026-10-10 2026-10-11 2026-10-12 2026-10-13
 reset
 out="$(run_rollup DAY= COST_TODAY=2026-10-16)"; rc=$?
-[[ "$rc" == 0 && ! -e "$T/posts.jsonl" && ! -e "$T/logins" && "$(wc -l < "$L")" == 6 &&
+[[ "$rc" == 0 && ! -e "$T/posts.jsonl" && ! -e "$T/logins" && "$(wc -l < "$L")" == 7 &&
    "$out" == *"INFO day 2026-10-14 agent_hours.box-a: DRY_RUN would post (not in the ledger)"* && "$out" == *"DRY_RUN would post 1"* ]] &&
   pass "15. backfill DRY_RUN=1: lists the day it would post, posts nothing, no login, the ledger unchanged" || fail "15. rc=$rc $out"
 
@@ -431,6 +440,50 @@ reset
 out="$(night)"; rc=$?
 [[ "$rc" == 0 && "$(days)" == "2026-10-14 2026-10-15 " ]] &&
   pass "21. a day posted missing is read and posted again the next night" || fail "21. rc=$rc days=$(days) $out"
+
+# 22. days before the ledger start (SPL-2230) ------------------------------------------
+# hub_days: the ledger-less nights of 10-08..10-14 (the action before the
+# backfill, as cron ran it before ceeff05cc), then no ledger left: what the
+# hub holds when a box first runs the backfill.
+hub_days() {
+  local d
+  reset
+  for d in 2026-10-08 2026-10-09 2026-10-10 2026-10-11 2026-10-12 2026-10-13 2026-10-14; do
+    ROLLUP_FILE="$T/old.func.sh" run_rollup DAY="$d" DRY_RUN=0 >/dev/null
+  done
+  rm -f "$L" "$T/logins"
+}
+hub_days; held="$(days)"
+out="$(night)"; rc=$?
+[[ "$rc" == 0 && "$held" == "2026-10-08 2026-10-09 2026-10-10 2026-10-11 2026-10-12 2026-10-13 2026-10-14 " &&
+   "$(days)" == "${held}2026-10-15 " && "$(grep -c ': already present (before the ledger start 2026-10-15: never re-posted)' <<<"$out")" == 7 &&
+   "$out" == *"posted 0, already present 7, failed 0"* && "$(grep -c "$(printf '^2026-10-15\t[*]\tstart\t')" "$L")" == 1 ]] &&
+  pass "22. (a) no ledger, the hub holds 10-08..10-14: they are already present, only 10-15 is posted, the start row is written" ||
+  fail "22. (a) rc=$rc held=$held days=$(days) $out"
+reset
+night >/dev/null
+[[ "$(days)" == "2026-10-15 " && "$(grep -c "$(printf '\t[*]\tstart\t')" "$L")" == 1 ]] &&
+  pass "22. (a) the next night: one start row, still nothing before it re-posted" || fail "22. (a) next: days=$(days) $(cat "$L")"
+rm -f "$L"; mkdir -p "$T/cost"
+printf '2026-10-14\tagent_hours.box-a\tok\tr1\t2026-10-15T02:05:11Z\n' > "$L"
+reset
+out="$(night)"; rc=$?
+[[ "$rc" == 0 && "$(days)" == "2026-10-15 " && "$out" == *"2026-10-13 agent_hours.box-a: already present (before the ledger start 2026-10-14"* &&
+   "$out" == *"2026-10-14 agent_hours.box-a: already present (ledger state=ok)"* && "$(grep -c "$(printf '^2026-10-14\t[*]\tstart\t')" "$L")" == 1 ]] &&
+  pass "22. (b) a ledger with no start row starts the day before its earliest posted_at (2026-10-15 -> 10-14)" || fail "22. (b) rc=$rc days=$(days) $out"
+git -C "$PROJ_ROOT" show ceeff05cc:csi-spl-orc/src/bash/run/spl-cost-rollup-daily.func.sh > "$T/c5.func.sh" 2>/dev/null; c5="ceeff05cc"
+if ! grep -q '^spl_cost_backfill()' "$T/c5.func.sh"; then
+  c5="the action with its ledger start cut (no git history here)"
+  python3 - "$PROJ_ROOT/src/bash/run/spl-cost-rollup-daily.func.sh" "$T/c5.func.sh" <<'PY'
+import sys; s = open(sys.argv[1]).read()
+old = '  start="$(spl_cost_ledger_start "$day")"\n'
+assert old in s; open(sys.argv[2], 'w').write(s.replace(old, '  start=""\n'))
+PY
+fi
+hub_days
+out="$(ROLLUP_FILE="$T/c5.func.sh" night)"; rc=$?
+[[ "$rc" == 0 && "$(days)" == "${held}2026-10-08 2026-10-09 2026-10-10 2026-10-11 2026-10-12 2026-10-13 2026-10-14 2026-10-15 " ]] &&
+  pass "22. red control: $c5 on (a) re-posts the 7 days the hub already holds" || fail "22. red control: rc=$rc days=$(days) $out"
 
 echo "spl-cost-rollup-daily: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

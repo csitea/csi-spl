@@ -3,7 +3,7 @@
 Status: **Decided / Phased for build** (Owner answers folded; issue SPL-2324).  
 Authority: this file for the architecture and technical requirements; [tasks.md](tasks.md) for the phased build tasks.  
 Status vocabulary: [README.md](../README.md) §2.3. Docs only: this spec builds nothing ([README.md](../README.md) §2.4).  
-Topic: `af25a1f3-7291-4675-855e-c67101680955` (HUM-10, prd t1, 2026-10-17; topic owner c-002; poll `1dd28b0e`, poll `4a6cdf4e`, poll `e804e13a`, token-burn topic `e8ae0aad` poll `2fa7180c`).
+Topic: `af25a1f3-7291-4675-855e-c67101680955` (HUM-10, prd t1, 2026-10-17; topic owner c-002; poll `1dd28b0e`, poll `4a6cdf4e`, poll `e804e13a`, token-burn topic `e8ae0aad` poll `2fa7180c`, poll form `e5dc787b` / `a8bfcdd0`).
 
 Builds on, and does not repeat:
 - [002 box-agent messaging](../002-box-agent-messaging/spec.md) (local folder spool, CLI + MCP contracts)
@@ -48,6 +48,14 @@ From the token-burn topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404` (same owner, 20
 | `52fddc9d` | "This has to be expandable in the future - aka more grained categories to be able to define .." |
 | poll `2fa7180c` | Selected: **ALL FOUR splits: KND kind of work + CLS class + ROL role + ISS issue** (msg `e3e9a456`): the activity category tree must hold all four dimensions. |
 
+From the design poll on open questions (HUM-10, t1 topic `af25a1f3`, 2026-10-17 09:42–09:45Z; poll form msg `e5dc787b-4207-48c7-9433-2930e3acdb8d`, newest form answer msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, confirmed by c-002 in msg `07a2acb7-a00d-4bad-a9f2-10409dc7581d`):
+| msg / poll | text / decision |
+|---|---|
+| poll `a8bfcdd0` Q1 + msg `9c32201b` | **Decided: C (CSV and JSON download) PLUS Copy to clipboard** (2026-10-17 09:42Z; verbatim owner msg `9c32201b`: *"SQL tab: export of the result? and add copy to clipboard button as well"*). Three export buttons: Copy (clipboard), Download .csv, Download .json. |
+| poll `a8bfcdd0` Q2 | **Decided: A (5 domains with sub-categories)** (2026-10-17 09:42Z). 5 areas with sub-categories: coding, review, specs and docs, tests, dispatch (the canonical tree in §4.2.1). |
+| poll `a8bfcdd0` Q3 | **Decided: C (Deploy step reports it, plus hub reconcile check)** (2026-10-17 09:42Z). The CI deploy step reports it, plus a hub periodic reconciliation check that catches any missed deploy. |
+| poll `a8bfcdd0` Q4 | **Decided: A (Operator admins only)** (2026-10-17 09:42Z). Token burn stays for operator admins only; standard workspace admins never see the Tokens tab. |
+
 What they bind:
 - **B1 (Placement beside Monitoring)**: The Reporting section lives at `/reporting` as a primary navigation entry in the left rail, positioned immediately adjacent to Monitoring.
 - **B2 (Tab structure & order)**: The tab bar follows the path-based tab model established in `monitoring-tabs.mjs`. Tabs are:
@@ -58,15 +66,15 @@ What they bind:
   5. **Posts** (`/reporting/posts`)
   6. **Lanes** (`/reporting/lanes`)
 - **B3 (Releases Tab v1)**: Visualises the hub table `release_notes` (6,760 rows in prd from 2026-09-17 to date, columns `sha`, `version`, `committed_at`, `kind`, `area`, `subject`, `lay_*`, `tech_*`, `state`, `reverts`, `link`, `ingested_at`, `released_at`) grouped per day: daily counts per kind/area, interactive filterable commit list, and direct links to `/releases/<ref>`.
-- **B4 (Deploy tracking gap & interim UX)**: Deploys per environment (`dev`/`prd`) are not stored in the database today. This spec defines the minimal schema and ingestion lane to record them (`estate_deploys`). Until that lane lands, the UI displays "not recorded" for deployment dates and statuses without breaking the rest of the tab.
-- **B5 (SQL Tab simplicity)**: Provides a simple "run sql, get result set" interface. Results are rendered in a plain table with alternating row colours (zebra striping). No query builders, visual schema designers, or graph visualisers.
+- **B4 (Deploy tracking gap & interim UX)**: Deploys per environment (`dev`/`prd`) are not stored in the database today. This spec defines the minimal schema and ingestion lane to record them (`estate_deploys`) via both CI deploy webhook steps and a periodic hub reconciliation check (§2.3.2). Until that lane lands, the UI displays "not recorded" for deployment dates and statuses without breaking the rest of the tab.
+- **B5 (SQL Tab simplicity)**: Provides a simple "run sql, get result set" interface. Results are rendered in a plain table with alternating row colours (zebra striping). Three export buttons: Copy (clipboard), Download .csv, and Download .json. No query builders, visual schema designers, or graph visualisers.
 - **B6 (SQL Tab hard row cap)**: Queries are capped at exactly **2,000 rows** (owner requirement, msg `581d5d66`). Results exceeding 2,000 rows are truncated at 2,000 with a visible truncation badge.
 - **B7 (SQL Tab read-only by construction)**: Queries execute strictly in a `READ ONLY` transaction on PostgreSQL. Any write (INSERT, UPDATE, DELETE, TRUNCATE) or DDL (CREATE, ALTER, DROP) is rejected by the database engine.
 - **B8 (SQL Tab security & statement isolation)**:
   - Statement timeout: hard limit of **10 seconds** (`statement_timeout = '10s'`).
   - Single statement only: multi-statement payloads separated by semicolons are refused before execution.
   - Session and privilege manipulation (SET, RESET, SET ROLE, SET SESSION AUTHORIZATION, manipulating RLS settings) are strictly barred.
-- **B9 (SQL Tab workspace scoping & RLS)**: Access is granted to workspace admins only (`admin` role in `tenant_members`). Execution runs under the caller's workspace RLS scope (`app.tenant_id = <workspace_id>`). It NEVER executes under operator scope (`app.rls_scope = 'operator'`). Workspace A admin querying `SELECT * FROM messages WHERE tenant_id = 'workspace-b'` receives exactly 0 rows.
+- **B9 (SQL Tab workspace scoping & RLS)**: Access is granted to workspace admins only (`admin` role in `tenant_members`). Execution runs under the caller's workspace RLS scope (`app.tenant_id = <workspace_id>`). It NEVER executes under operator scope (`app.rls_scope = 'operator'`). Workspace A admin querying `SELECT * FROM messages WHERE tenant_id = 'workspace-b'` receives exactly 0 rows. (In contrast, the Tokens tab is restricted to operator admins only; standard workspace admins never see it.)
 - **B10 (SQL Tab full audit logging)**: Every query attempt is logged to an audit table (`sql_query_audit`): human ID, workspace ID, timestamp, full query text, execution duration (ms), returned row count, truncation status, and error message (if failed).
 - **B11 (Activity categories data-defined tree)**: Activity categories are stored as a hierarchical tree in the hub database (`activity_categories`), editable and expandable via API without requiring any code changes or redeployments. Parents automatically aggregate/sum children.
 - **B12 (Four-dimensional category alignment & placement)**: Holds all four owner splits: Kind (`knd`), Class (`cls`), Role (`rol`), and Issue (`iss`). Each lane receives its category path at placement time, recorded in `fleet_asks`. Token minutes join to categories via agent ID and time window. Historical rows with no category are labeled `'uncategorised'` (never guessed or fabricated).
@@ -104,7 +112,7 @@ export const REPORTING_TABS = Object.freeze([
   // SQL tab (built second, visible to workspace admins only)
   Object.freeze({ id: 'sql', path: '/reporting/sql', labelKey: 'reporting.tab.sql', adminOnly: true, ready: true, perm: 'reporting.sql.run' }),
   // Future tabs reserved (ready: false hides them from the tab bar until implemented)
-  Object.freeze({ id: 'tokens', path: '/reporting/tokens', labelKey: 'reporting.tab.tokens', adminOnly: true, ready: false }),
+  Object.freeze({ id: 'tokens', path: '/reporting/tokens', labelKey: 'reporting.tab.tokens', operatorsOnly: true, ready: false }),
   Object.freeze({ id: 'issues', path: '/reporting/issues', labelKey: 'reporting.tab.issues', adminOnly: false, ready: false }),
   Object.freeze({ id: 'posts', path: '/reporting/posts', labelKey: 'reporting.tab.posts', adminOnly: false, ready: false }),
   Object.freeze({ id: 'lanes', path: '/reporting/lanes', labelKey: 'reporting.tab.lanes', adminOnly: true, ready: false }),
@@ -115,6 +123,7 @@ export const REPORTING_DEFAULT_PATH = REPORTING_TABS[0].path // /reporting/relea
 export function visibleReportingTabs(who = {}) {
   return REPORTING_TABS.filter((tab) => {
     if (!tab.ready) return false
+    if (tab.operatorsOnly && who.operator !== true) return false
     if (tab.adminOnly && who.admin !== true) return false
     if (tab.perm && (typeof who.can !== 'function' || who.can(tab.perm) !== true)) return false
     return true
@@ -236,10 +245,13 @@ CREATE POLICY estate_deploys_operator_write ON estate_deploys
 
 #### 2.3.2 Ingestion mechanism
 
-The smallest and most robust mechanism is a single webhook/curl step added to `.github/workflows/20_hub-build-deploy.yml` and `30_wui-build-deploy.yml`:
-- Trigger: Immediately following successful Cloud Run / Firebase deployment.
-- Authentication: Cloud Run deployment Service Account Google ID token (`Authorization: Bearer <id_token>`).
-- Endpoint: `POST /v1/operator/deploys`
+Deploy recording uses a two-tier ingestion model (Owner decision Poll 3 Choice C, HUM-10 msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17): the CI deploy workflow step reports the deploy immediately as the primary source, and a scheduled hub reconciliation worker periodically checks live served endpoints to catch any missed deploys.
+
+##### 1. Primary: CI deploy recording webhook step
+A webhook/curl step is added to `.github/workflows/20_hub-build-deploy.yml` and `30_wui-build-deploy.yml`:
+- **Trigger**: Immediately following successful Cloud Run (`hub`) or Firebase Hosting (`wui`) deployment.
+- **Authentication**: Cloud Run deployment Service Account Google ID token (`Authorization: Bearer <id_token>`).
+- **Endpoint**: `POST /v1/operator/deploys`
 
 Request payload:
 ```json
@@ -252,6 +264,19 @@ Request payload:
   "workflow_run_id": "185623910"
 }
 ```
+
+##### 2. Fallback: Hub periodic deploy reconciliation check
+A background ticker inside the hub periodically probes served environments to reconcile any missed deployment events (e.g. CI webhook timeout, network interruption, or manual rollouts):
+- **How often**: Runs on a background ticker every **2 minutes**.
+- **What it compares**: For each environment (`dev`, `prd`) and component (`hub`, `wui`), queries the live served endpoints:
+  - Hub: `GET /version` on Cloud Run, returning `{ "version": "v1.7.1-c3", "sha": "590297d..." }`.
+  - WUI: `GET /build.json` on Firebase Hosting, returning `{ "version": "v1.7.1-c3", "commit_sha": "590297d..." }`.
+  The worker compares the returned live `version` and `commit_sha` against the most recent row in `estate_deploys` for that `(env, component)`.
+- **How it marks a deploy it filled in**: When a mismatch is detected (the served version/sha is newer or differs from the latest recorded deploy), the reconciler inserts a new record into `estate_deploys` with:
+  - `deployed_by = 'hub-reconcile'` (clearly marking the record as filled in by the reconciler rather than the CI webhook).
+  - `workflow_run_id = 'reconcile'`.
+  - `deployed_at = now()`.
+  - `status = 'success'`.
 
 ### 2.4 Hub API endpoints
 
@@ -444,7 +469,11 @@ The UI consists of:
    - Sticky header row on vertical scroll.
    - Horizontally scrollable container with fixed column alignment.
    - Null values formatted distinctly (`NULL` in subdued italic).
-   - Export affordances: "Copy as CSV" and "Copy as JSON".
+   - **Export affordances (three buttons)**: Dedicated export toolbar immediately above the results table (Owner decision Poll 1 Choice C plus msg `9c32201b-c261-4c9f-888d-e7c636d1c893`, 2026-10-17):
+     1. **Copy** (Copy to clipboard): Copies the in-memory result set to the system clipboard formatted as tab-delimited text (TSV) with column headers. Allows immediate pasting into spreadsheets (Excel, Google Sheets). Shows a brief toast confirmation upon copy.
+     2. **Download .csv**: Triggers a client-side browser blob download of `<timestamp>-query-result.csv` containing the result set formatted as standard RFC 4180 CSV with header row and escaped quotes/commas.
+     3. **Download .json**: Triggers a client-side browser blob download of `<timestamp>-query-result.json` containing the result set formatted as a pretty-printed JSON array of objects (`[{"col1": "val1", ...}, ...]`).
+   - **Treatment of truncated 2,000-row results**: When a query hits the 2,000-row engine limit (`truncated = true`), all three export affordances operate strictly on the 2,000 returned rows already held in client memory. They never issue a secondary un-capped query to the backend. The UI displays an amber truncation badge (`Capped at 2,000 rows`) beside the row counter, and all three export functions preserve this limit, exporting exactly the 2,000 rows returned.
 
 ### 3.7 Hub API route: `POST /v1/reporting/sql`
 
@@ -507,6 +536,8 @@ To guarantee future extensibility without code deployments, activity categories 
 - A query grouping by depth level 1 aggregates across broad activity domains (e.g. `coding`, `review`, `specs_and_docs`), while level 2 or 3 provides fine-grained drill-down.
 
 #### 4.2.1 Canonical tree structure (Initial seed)
+
+The initial seed tree below is the decided canonical tree structure (Owner decision Poll 2 Choice A, HUM-10 msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17: 5 areas with sub-categories: `coding`, `review`, `specs_and_docs`, `tests`, `dispatch`). Migration `0204_activity_categories.sql` seeds exactly these 5 top-level domains and their initial child categories.
 
 ```
 activity_categories
@@ -619,6 +650,7 @@ CREATE INDEX fleet_asks_category ON fleet_asks (category_path) WHERE category_pa
 The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implementation lanes:
 
 ### 5.1 Tab 3: Tokens (`/reporting/tokens`)
+- **Access**: Operator admins only (Owner decision Poll 4 Choice A, HUM-10 msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17). Standard workspace admins and members never see this tab (`operatorsOnly: true` in tab routing; standard workspace requests return HTTP 403 Forbidden). Token burn telemetry remains strictly within operator administration.
 - **Focus**: Multi-dimensional token consumption and expenditure analytics.
 - **Visualisations**:
   - Breakdown by Activity Category (using the hierarchical tree rollup from Section 4).
@@ -666,7 +698,7 @@ The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implemen
 | `/reporting` (Shell) | All signed-in members | Member session cookie / Bearer | Redirects to `/reporting/releases` |
 | `/reporting/releases` | All signed-in members | Member session (`humanTenant`) | Estate-wide data (`release_notes`) |
 | `/reporting/sql` | Workspace Admins (`admin`) | Member session + `reporting.sql.run` | Workspace RLS (`app.tenant_id`) |
-| `/reporting/tokens` | Operator Admins / Workspace Admins | Member session / Operator Auth | Fleet operator or workspace scope |
+| `/reporting/tokens` | Operator Admins only | Operator Auth (`operatorActor`) | Fleet operator scope (operator workspace only; standard workspace admins never see it) |
 | `/reporting/issues` | All signed-in members | Member session (`humanTenant`) | Workspace scope |
 | `/reporting/posts` | All signed-in members | Member session (`humanTenant`) | Workspace scope |
 | `/reporting/lanes` | Operator Admins | Operator Auth (`operatorActor`) | Fleet estate scope |
@@ -682,9 +714,9 @@ The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implemen
 
 ---
 
-## 7. Open questions for the owner (formatted as polls)
+## 7. Owner decisions (HUM-10, t1 topic af25a1f3, 2026-10-17)
 
-The following design decisions are prepared as structured polls for owner review:
+The owner decided all four design questions in prd workspace `t1`, topic `af25a1f3-7291-4675-855e-c67101680955` on 2026-10-17 (poll form msg `e5dc787b-4207-48c7-9433-2930e3acdb8d`, newest form answer msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 09:42–09:45Z; confirmed by c-002 in msg `07a2acb7-a00d-4bad-a9f2-10409dc7581d`):
 
 ### Poll 1: SQL Tab Result Export Affordances
 Which export formats should the SQL tab result table support for workspace admins?
@@ -692,11 +724,17 @@ Which export formats should the SQL tab result table support for workspace admin
 - **Choice B (CSV Download)**: Dedicated "Download .csv" button generating browser blob download.
 - **Choice C (CSV + JSON)**: Buttons for both CSV download and raw JSON array download.
 
+**Owner Decision**: **Choice C (CSV and JSON download) PLUS Copy to clipboard** (msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17 09:42Z; plus owner msg `9c32201b-c261-4c9f-888d-e7c636d1c893`, 09:42Z verbatim: *"SQL tab: export of the result? and add copy to clipboard button as well"*).  
+Three export buttons are provided: Copy (clipboard), Download .csv, Download .json. All three operate on the returned in-memory result set (capped at 2,000 rows).
+
 ### Poll 2: Activity Category Initial Tree Seed
 How should the initial category tree be seeded in production migration `0204_activity_categories.sql`?
 - **Choice A (Standard 5 domains)**: Seed the 5 primary domains (`coding`, `review`, `specs_and_docs`, `tests`, `dispatch`) with standard subcategories.
 - **Choice B (Minimal 2 levels)**: Seed only top-level domains (`coding`, `docs`, `ops`) and let operators create finer child categories on the fly.
 - **Choice C (All 4 dimensions explicit)**: Seed explicit matrix combinations of Kind and Class (e.g. `coding/feature`, `coding/bug`, `doc/spec`).
+
+**Owner Decision**: **Choice A (5 areas with sub-categories)** (msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17 09:42Z).  
+Seed the 5 primary domains (`coding`, `review`, `specs_and_docs`, `tests`, `dispatch`) as specified in §4.2.1.
 
 ### Poll 3: Estate Deploy Ingest Source
 What should be the primary trigger for recording deployment events in `estate_deploys`?
@@ -704,7 +742,13 @@ What should be the primary trigger for recording deployment events in `estate_de
 - **Choice B (Hub Periodic Probe)**: Scheduled hub background task every 2 minutes that probes `/version` and Firebase `build.json`, recording a new deploy when the SHA changes.
 - **Choice C (Both)**: CI workflow curl as primary, with hub periodic probe as reconciliation fallback.
 
+**Owner Decision**: **Choice C (The deploy step reports it, plus a hub check that catches a missed one)** (msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17 09:42Z).  
+Both the CI deploy step AND a hub reconciliation check running every 2 minutes that compares live served endpoints against `estate_deploys` and fills in missed deploys with `deployed_by = 'hub-reconcile'`.
+
 ### Poll 4: Tokens Tab Scope for Standard Workspace Admins
 When the Tokens tab (`/reporting/tokens`) is implemented:
 - **Choice A (Operator Admins only)**: Fleet token burn is visible exclusively to operator workspace admins; standard workspace admins see an empty/hidden tab.
 - **Choice B (Workspace-scoped token burn)**: Standard workspace admins see token burn consumed exclusively by agents and AI assistants acting within their own workspace.
+
+**Owner Decision**: **Choice A (No: token burn stays for operator admins only)** (msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17 09:42Z).  
+The Tokens tab is restricted to operator workspace admins only (`operatorsOnly: true`); standard workspace admins never see it.

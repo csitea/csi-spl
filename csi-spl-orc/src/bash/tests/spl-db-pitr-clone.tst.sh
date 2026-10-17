@@ -11,6 +11,8 @@
 #   4. the clone is deleted on every error path: a failed read, a clone call
 #      that failed after the instance appeared, and a TERM mid-read
 #      (the clone runs --async and the action waits on its operation)
+#      PITR_CLONE adopts an earlier run's clone: no new clone, its pending
+#      operation waited on, read, deleted; a foreign name is refused
 #   5. a clone that cannot be deleted fails the run (rc 6) and names the command
 #   6. every gcloud call in the action carries --account
 #------------------------------------------------------------------------------
@@ -35,8 +37,12 @@ case "$*" in
     echo "$5" >"$STUB_DIR/clone"; echo "https://example.invalid/operations/op-1"; exit 0 ;;
   "sql operations wait "*)
     exit "${STUB_CLONE_RC:-0}" ;;
+  "sql instances list "*"value(state)"*)
+    [[ -s "$STUB_DIR/clone" ]] && echo RUNNABLE; exit 0 ;;
   "sql instances list "*)
     [[ -s "$STUB_DIR/clone" ]] && cat "$STUB_DIR/clone"; exit 0 ;;
+  "sql operations list "*)
+    echo op-pending; exit 0 ;;
   "sql instances delete "*)
     [[ "${STUB_DELETE_RC:-0}" == 0 ]] || exit 1
     rm -f "$STUB_DIR/clone"; exit 0 ;;
@@ -58,6 +64,7 @@ PROXY='spl_via_proxy(){ echo "proxy conn=$SPL_SQL_CONN" >>"$STUB_LOG"; SPL_PROXY
 
 in_orc() {
   rm -f "$T/clone"; : >"$T/calls.log"
+  [[ -n "${STUB_EXISTING:-}" ]] && echo "$STUB_EXISTING" >"$T/clone"
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" STUB_DIR="$T" \
     PATH="$T/stub:$PATH" PIN="$PIN" PROXY="$PROXY" ENV=dev PITR_AT="${PITR_AT_-2026-10-17T01:59:00Z}" SPL_PITR_DELETE_TRIES=2 SPL_PITR_DELETE_WAIT=0 \
     "$@" bash -c '
@@ -83,7 +90,7 @@ o=$(PITR_AT_='2026-10-17 01:59' in_orc SQL="select 1" 2>&1) && fail "bad PITR_AT
 
 # --- 2. DRY_RUN=1 is the default ----------------------------------------------------
 o=$(in_orc SQL="select count(*) from fleet_tokens" 2>&1); rc=$?
-(( rc == 0 )) && grep -qE 'clone=.*-pitr-[0-9]{14} pitr_at=2026-10-17T01:59:00Z statements=1' <<<"$o" &&
+(( rc == 0 )) && grep -qE 'clone=.*-pitr-[0-9]{14} pitr_at=2026-10-17T01:59:00Z statements=1 adopt=$' <<<"$o" &&
   pass "the default run prints the plan" || fail "dry run rc=$rc: $o"
 [[ ! -s "$T/calls.log" ]] && pass "DRY_RUN=1 calls no gcloud and no psql" || fail "DRY_RUN=1 called: $(cat "$T/calls.log")"
 
@@ -118,6 +125,21 @@ o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_CLONE_RC=1 2>&1); rc=$?
 o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_PSQL=term 2>&1); rc=$?
 (( rc == 130 )) && grep -q 'sql instances delete ' "$T/calls.log" && [[ ! -s "$T/clone" ]] &&
   pass "a TERM mid-read: rc 130 and the clone is deleted" || fail "TERM rc=$rc: $(cat "$T/calls.log")"
+
+# --- 4b. PITR_CLONE adopts an earlier run's clone -------------------------------------
+o=$(in_orc DRY_RUN=0 SQL="select 1" PITR_CLONE=other-db-pitr-20261017062331 2>&1) &&
+  fail "a PITR_CLONE that is not <src>-pitr-<stamp> was accepted" || pass "PITR_CLONE must name <src>-pitr-<14 digits>"
+grep -q "gcloud sql" "$T/calls.log" && fail "a refused PITR_CLONE still called gcloud" || :
+old=csi-spl-dev-pg-pitr-20261017062331
+o=$(STUB_EXISTING=$old in_orc DRY_RUN=0 SQL="select 1" PITR_CLONE=$old 2>&1); rc=$?
+(( rc == 0 )) && pass "CONTROL: adopting an existing clone succeeds" || fail "adopt rc=$rc: $o"
+grep -q 'sql instances clone' "$T/calls.log" && fail "adopt made a new clone" || pass "adopt makes NO new clone"
+grep -q '^gcloud sql operations wait op-pending ' "$T/calls.log" && grep -qx "proxy conn=[a-z0-9-]*:[a-z0-9-]*:$old" "$T/calls.log" &&
+  grep -q "sql instances delete $old " "$T/calls.log" && [[ ! -s "$T/clone" ]] &&
+  pass "adopt waits on its pending operation, reads it and deletes it" || fail "adopt calls: $(cat "$T/calls.log")"
+o=$(in_orc DRY_RUN=0 SQL="select 1" PITR_CLONE=$old 2>&1) && fail "adopting an absent clone succeeded" ||
+  pass "adopting a clone that is not RUNNABLE fails"
+! grep -q '^psql' "$T/calls.log" && pass "and reads nothing" || fail "read an absent clone"
 
 # --- 5. an undeletable clone fails the run --------------------------------------------
 o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_DELETE_RC=1 2>&1); rc=$?

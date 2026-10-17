@@ -16,10 +16,14 @@
 # @description rolled back, the operator row-level-security scope. The DSN is
 # @description never printed. Output: per statement a line "-- stmt <n>", then
 # @description its rows as CSV (header first), on stdout.
+# @description PITR_CLONE adopts the clone of an earlier run that stopped
+# @description waiting (one clone at a time): its operations are waited on,
+# @description then it is read and deleted like a new one.
 # @description DRY_RUN=1 (the default) validates and prints the plan: no
 # @description gcloud mutation, no proxy.
 # @param ENV - required: dev or prd
 # @param PITR_AT - required: the UTC point in time, YYYY-MM-DDTHH:MM:SSZ, inside the PITR window
+# @param PITR_CLONE (optional) - adopt this earlier run's clone (<src>-pitr-<stamp>) instead of making one: wait on it, read, delete
 # @param SQL (optional) - one SELECT statement
 # @param SQL_FILE (optional) - a file of SELECT statements, each ended by ';' (one clone serves all)
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 clone, read, delete
@@ -38,12 +42,13 @@ do_spl_db_pitr_clone() {
   local -a stmts=()
   spl_db_pitr_statements stmts || return 1
   do_spl_cloud_cnf || return 1
-  local clone
-  clone="$SPL_SQL_INSTANCE-pitr-$(date -u +%Y%m%d%H%M%S)"
+  local clone="${PITR_CLONE:-$SPL_SQL_INSTANCE-pitr-$(date -u +%Y%m%d%H%M%S)}"
+  [[ "$clone" =~ ^"$SPL_SQL_INSTANCE"-pitr-[0-9]{14}$ ]] ||
+    { do_log "FATAL PITR_CLONE must name a clone this action made ($SPL_SQL_INSTANCE-pitr-<14 digits>), got: '$clone'"; return 1; }
   do_log "INFO $ENV: plan: clone $SPL_SQL_INSTANCE at $at -> $clone, run ${#stmts[@]} SELECT(s), delete $clone"
   if (( dry )); then
     do_log "OK DRY RUN: nothing cloned. DRY_RUN=0 to clone, read and delete."
-    printf 'src=%s clone=%s pitr_at=%s statements=%s\n' "$SPL_SQL_INSTANCE" "$clone" "$at" "${#stmts[@]}"
+    printf 'src=%s clone=%s pitr_at=%s statements=%s adopt=%s\n' "$SPL_SQL_INSTANCE" "$clone" "$at" "${#stmts[@]}" "${PITR_CLONE:+1}"
     return 0
   fi
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -101,6 +106,18 @@ spl_db_pitr_select_ok() {
 # statement through ONE proxy to the clone.
 spl_db_pitr_clone_run() {
   local clone="$1" at="$2"; shift 2
+  if [[ -n "${PITR_CLONE:-}" ]]; then
+    spl_db_pitr_clone_adopt "$clone" || return 1
+  else
+    spl_db_pitr_clone_make "$clone" "$at" || return 1
+  fi
+  do_log "INFO $ENV: $clone is up; reading"
+  SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$clone" spl_via_proxy _spl_db_pitr_read "$@"
+}
+
+# spl_db_pitr_clone_make <clone> <at> -> the clone, waited for.
+spl_db_pitr_clone_make() {
+  local clone="$1" at="$2"
   do_log "INFO $ENV: cloning $SPL_SQL_INSTANCE at $at into $clone (minutes)"
   # --async + operations wait: gcloud's own wait gives up after ~10 min while
   # the clone keeps building (measured on prd 2026-10-17: it failed at 10 min)
@@ -111,8 +128,26 @@ spl_db_pitr_clone_run() {
   gcloud sql operations wait "${op##*/}" --timeout="${SPL_PITR_CLONE_TIMEOUT:-3600}" \
     --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" >>"$SPL_STATE_DIR/pitr-clone.log" 2>&1 ||
     { do_log "FATAL $ENV: clone operation ${op##*/} failed: $(tail -5 "$SPL_STATE_DIR/pitr-clone.log" | tr '\n' ' ')"; return 1; }
-  do_log "INFO $ENV: $clone is up; reading"
-  SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$clone" spl_via_proxy _spl_db_pitr_read "$@"
+}
+
+# spl_db_pitr_clone_adopt <clone> -> an earlier run's clone (PITR_CLONE): waits
+# on every operation of it not yet DONE, then requires it RUNNABLE. The caller
+# vouches that it was made at PITR_AT; the instance does not record it.
+spl_db_pitr_clone_adopt() {
+  local clone="$1" ops op state
+  ops="$(gcloud sql operations list --instance="$clone" --filter='status!=DONE' --format='value(name)' \
+    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" 2>/dev/null)" ||
+    { do_log "FATAL $ENV: cannot list the operations of $clone"; return 1; }
+  for op in $ops; do
+    do_log "INFO $ENV: waiting on $clone operation $op"
+    gcloud sql operations wait "$op" --timeout="${SPL_PITR_CLONE_TIMEOUT:-3600}" \
+      --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" >>"$SPL_STATE_DIR/pitr-clone.log" 2>&1 ||
+      { do_log "FATAL $ENV: operation $op on $clone failed: $(tail -5 "$SPL_STATE_DIR/pitr-clone.log" | tr '\n' ' ')"; return 1; }
+  done
+  state="$(gcloud sql instances list --filter="name=$clone" --format='value(state)' \
+    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" 2>/dev/null)"
+  [[ "$state" == RUNNABLE ]] || { do_log "FATAL $ENV: $clone is '${state:-absent}', not RUNNABLE"; return 1; }
+  do_log "INFO $ENV: adopted $clone"
 }
 
 # _spl_db_pitr_read <stmt>... -> per statement "-- stmt <n>" then CSV rows,

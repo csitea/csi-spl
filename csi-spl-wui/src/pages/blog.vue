@@ -7,7 +7,7 @@
      no markdown. Public: no layout (the login layout probes the session), no
      API call, and nuxt.config strips the session probe and the config.json
      script from these documents. A locale without its copy shows the en text
-     with lang="en". Chrome strings are English literals until T013.
+     with lang="en". Chrome strings are translation keys (SPL-2417).
      The language menu (HUM-10 t1 35aea5bb) is a <details> of plain <a href>
      links: it works signed out and with JS off, a crawler follows it, and it
      lists exactly the hreflang locales (localeAlternates, public-seo.mjs).
@@ -20,7 +20,7 @@
         <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
         <span class="blog-bar__name">spool-hub</span>
         <span class="blog-bar__sep" aria-hidden="true">/</span>
-        <span class="blog-bar__blog">Blog</span>
+        <span class="blog-bar__blog">{{ t('auth.login.links.blog') }}</span>
       </NuxtLink>
       <div class="blog-bar__end">
         <details ref="langMenuEl" class="blog-lang" data-test="blog-lang">
@@ -45,14 +45,14 @@
             </li>
           </ul>
         </details>
-        <NuxtLink :to="localePath('/login')" class="blog-bar__signin" data-test="blog-bar-signin">Sign in</NuxtLink>
+        <NuxtLink :to="localePath('/login')" class="blog-bar__signin" data-test="blog-bar-signin">{{ t('nav.login') }}</NuxtLink>
       </div>
     </header>
 
     <main class="blog-main">
       <article v-if="view.kind === 'post' && post" class="bpost" :lang="post.fallback ? 'en' : undefined" data-test="blog-post">
-        <nav class="bpost__crumb" aria-label="Breadcrumb">
-          <NuxtLink :to="localePath('/blog')" data-test="blog-post-crumb">Blog</NuxtLink>
+        <nav class="bpost__crumb" :aria-label="t('blog.breadcrumb')">
+          <NuxtLink :to="localePath('/blog')" data-test="blog-post-crumb">{{ t('auth.login.links.blog') }}</NuxtLink>
           <span aria-hidden="true"> / </span>
           <span>{{ post.entry.title }}</span>
         </nav>
@@ -61,10 +61,10 @@
           <BlogShareRow test-id-suffix="top" :share-title="shareTitle" :share-page-url="sharePageUrl" />
           <p class="bpost__meta" data-test="blog-post-meta">
             <time :datetime="post.entry.published || post.entry.date">{{ post.entry.date }}</time>
-            <span class="bpost__type" :data-type="post.entry.type">{{ post.entry.type }}</span>
+            <span class="bpost__type" :data-type="post.entry.type">{{ typeLabel(post.entry.type) }}</span>
             <span class="bpost__author">{{ post.entry.author }}</span>
           </p>
-          <p v-if="post.fallback" class="bpost__pending" data-test="blog-post-pending">English text; the translation is pending.</p>
+          <p v-if="post.fallback" class="bpost__pending" data-test="blog-post-pending">{{ t('blog.pending') }}</p>
         </header>
         <img
           v-if="post.entry.image"
@@ -79,19 +79,19 @@
         <!-- eslint-disable-next-line vue/no-v-html -- SAFE: SPL-1053, built by markdownToHtml, hostile copy refused at build -->
         <div class="bpost__body" data-test="blog-post-body" v-html="post.html" />
         <BlogShareRow test-id-suffix="end" :share-title="shareTitle" :share-page-url="sharePageUrl" />
-        <nav class="bpost__pager" aria-label="More posts">
+        <nav class="bpost__pager" :aria-label="t('blog.more_posts')">
           <NuxtLink v-if="post.newer" :to="localePath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>
-          <NuxtLink :to="localePath('/blog')" class="bpost__all" data-test="blog-post-back">All posts</NuxtLink>
+          <NuxtLink :to="localePath('/blog')" class="bpost__all" data-test="blog-post-back">{{ t('blog.all_posts') }}</NuxtLink>
           <NuxtLink v-if="post.older" :to="localePath(`/blog/${post.older.id}`)" rel="next" data-test="blog-post-older">{{ post.older.title }} &rarr;</NuxtLink>
         </nav>
       </article>
 
       <section v-else-if="view.kind === 'list' && list" class="blog" data-test="blog-list-page">
         <header class="blog__head">
-          <h1 class="blog__title" data-test="blog-title">Blog</h1>
-          <p class="blog__lede">News and events from the spool: what the agents and the fleet built, released and learned.</p>
+          <h1 class="blog__title" data-test="blog-title">{{ t('auth.login.links.blog') }}</h1>
+          <p class="blog__lede">{{ t('blog.lede') }}</p>
         </header>
-        <div v-if="list.total" class="blog__chips" role="group" aria-label="Post type">
+        <div v-if="list.total" class="blog__chips" role="group" :aria-label="t('blog.post_type')">
           <button
             v-for="c in TYPE_CHIPS"
             :key="c"
@@ -100,31 +100,31 @@
             :aria-pressed="typeFilter === c"
             :data-test="`blog-chip-${c}`"
             @click="typeFilter = c"
-          >{{ c }}</button>
+          >{{ typeLabel(c) }}</button>
         </div>
-        <p v-if="!list.total" class="blog__empty" data-test="blog-empty">No posts yet.</p>
+        <p v-if="!list.total" class="blog__empty" data-test="blog-empty">{{ t('blog.empty') }}</p>
         <ul v-else class="blog__list" data-test="blog-list">
           <li v-for="p in shown" :key="p.entry.id" class="blog__item" :lang="p.fallback ? 'en' : undefined" data-test="blog-item">
             <NuxtLink :to="localePath(`/blog/${p.entry.id}`)" class="blog__card" data-test="blog-item-link">
               <h2 class="blog__card-title">{{ p.entry.title }}</h2>
               <p class="blog__card-meta">
                 <time :datetime="p.entry.published || p.entry.date">{{ p.entry.date }}</time>
-                <span class="bpost__type" :data-type="p.entry.type">{{ p.entry.type }}</span>
+                <span class="bpost__type" :data-type="p.entry.type">{{ typeLabel(p.entry.type) }}</span>
               </p>
               <p class="blog__card-summary">{{ p.entry.summary }}</p>
             </NuxtLink>
           </li>
         </ul>
-        <nav v-if="list.pages > 1" class="blog__pager" aria-label="Pages" data-test="blog-pager">
-          <NuxtLink v-if="list.page > 1" :to="localePath(pagePath(list.page - 1))" rel="prev" data-test="blog-page-newer">&larr; Newer</NuxtLink>
-          <span>Page {{ list.page }} of {{ list.pages }}</span>
-          <NuxtLink v-if="list.page < list.pages" :to="localePath(pagePath(list.page + 1))" rel="next" data-test="blog-page-older">Older &rarr;</NuxtLink>
+        <nav v-if="list.pages > 1" class="blog__pager" :aria-label="t('blog.pages')" data-test="blog-pager">
+          <NuxtLink v-if="list.page > 1" :to="localePath(pagePath(list.page - 1))" rel="prev" data-test="blog-page-newer">&larr; {{ t('blog.newer') }}</NuxtLink>
+          <span>{{ t('blog.page_of', { page: list.page, pages: list.pages }) }}</span>
+          <NuxtLink v-if="list.page < list.pages" :to="localePath(pagePath(list.page + 1))" rel="next" data-test="blog-page-older">{{ t('blog.older') }} &rarr;</NuxtLink>
         </nav>
       </section>
 
       <section v-else class="blog" data-test="blog-not-found">
-        <h1 class="blog__title">Not found</h1>
-        <p>There is no such post. <NuxtLink :to="localePath('/blog')">All posts</NuxtLink></p>
+        <h1 class="blog__title">{{ t('blog.not_found') }}</h1>
+        <p>{{ t('blog.no_such_post') }} <NuxtLink :to="localePath('/blog')">{{ t('blog.all_posts') }}</NuxtLink></p>
       </section>
     </main>
   </div>
@@ -162,7 +162,7 @@ const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 const route = useRoute()
 const localePath = useLocalePath()
-const { locale, locales, t } = useI18n({ useScope: 'global' })
+const { locale, locales, t, te } = useI18n({ useScope: 'global' })
 const pub = useRuntimeConfig().public
 const siteUrl = String(pub.siteUrl || '').replace(/\/+$/, '')
 const defaultLocale = String(pub.defaultLocale || 'en')
@@ -228,6 +228,8 @@ const { data } = await useAsyncData(
 const post = computed(() => data.value?.post || null)
 const list = computed(() => data.value?.list || null)
 const typeFilter = ref<(typeof TYPE_CHIPS)[number]>('all')
+/* a post type's label; a type with no key (a new one in the data) shows as is */
+const typeLabel = (type: string) => (te(`blog.type.${type}`) ? t(`blog.type.${type}`) : type)
 const shown = computed(() => (list.value?.items || []).filter((p) => typeFilter.value === 'all' || p.entry.type === typeFilter.value))
 
 /* canonical + hreflang on the apex (NUXT_PUBLIC_SITE_URL), never the request host */
@@ -285,8 +287,8 @@ onBeforeUnmount(() => {
 useHead(() => {
   const base = seoBase.value
   const p = post.value
-  const title = p ? p.entry.title : view.value.kind === 'list' ? 'Blog' : 'Not found'
-  const description = p ? p.entry.summary : 'News and events from the spool.'
+  const title = p ? p.entry.title : view.value.kind === 'list' ? t('auth.login.links.blog') : t('blog.not_found')
+  const description = p ? p.entry.summary : t('blog.description')
   if (view.value.kind === 'none') return { title, meta: [{ name: 'robots', content: 'noindex, nofollow' }, { name: 'description', content: description }] }
   /* spec 116 T7: a copy the locale lacks (the en text) canonicalises to the default one */
   const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: pageLangs.value, defaultLocale })

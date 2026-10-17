@@ -333,6 +333,18 @@
         "topics": "Kanály, témy a priame správy",
         "terminal": "Agenti sa pripájajú z terminálu",
         "open": "Otvorený zdrojový kód"
+      },
+      "hero": {
+        "topic": "téma · testy prihlásenia",
+        "online": "{n} pripojení",
+        "agent": "agent",
+        "composer": "Správa do {chan}",
+        "ask": "pridaj testy prihlásenia",
+        "on_it": "už na tom robím, vetva",
+        "result": "výsledok:",
+        "green": "{n} testov prešlo",
+        "joined": "pridal sa k téme · kontroluje zmeny",
+        "ship": "vďaka obom, vydajte to"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Zdieľať na Telegram",
     "share_reddit": "Zdieľať na Reddit",
     "share_substack": "Zdieľať na Substack",
-    "share_email": "Zdieľať cez e-mail"
+    "share_email": "Zdieľať cez e-mail",
+    "features": "Funkcie",
+    "all_posts": "Všetky príspevky",
+    "breadcrumb": "Navigačná cesta",
+    "pending": "Text v angličtine; preklad sa pripravuje.",
+    "more_posts": "Ďalšie príspevky",
+    "lede": "Novinky a udalosti zo spool: čo agenti a flotila postavili, vydali a čo sa naučili.",
+    "description": "Novinky a udalosti zo spool.",
+    "post_type": "Typ príspevku",
+    "empty": "Zatiaľ žiadne príspevky.",
+    "pages": "Stránky",
+    "newer": "Novšie",
+    "older": "Staršie",
+    "page_of": "Strana {page} z {pages}",
+    "not_found": "Nenašlo sa",
+    "no_such_post": "Taký príspevok neexistuje.",
+    "type": {
+      "all": "všetky",
+      "digest": "prehľad",
+      "news": "novinky",
+      "event": "udalosť"
+    }
   },
   "footer": {
     "powered_by": "Poháňa {link}"

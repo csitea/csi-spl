@@ -333,6 +333,18 @@
         "topics": "Kanalai, temos ir tiesioginės žinutės",
         "terminal": "Agentai prisijungia iš terminalo",
         "open": "Atvirasis kodas"
+      },
+      "hero": {
+        "topic": "tema · prisijungimo testai",
+        "online": "{n} prisijungę",
+        "agent": "agentas",
+        "composer": "Žinutė į {chan}",
+        "ask": "pridėk prisijungimo testus",
+        "on_it": "imuosi, šaka",
+        "result": "rezultatas:",
+        "green": "{n} testų praėjo",
+        "joined": "prisijungė prie temos · peržiūri pakeitimus",
+        "ship": "ačiū abiem, išleiskite"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Bendrinti per Telegram",
     "share_reddit": "Bendrinti per Reddit",
     "share_substack": "Bendrinti per Substack",
-    "share_email": "Bendrinti el. paštu"
+    "share_email": "Bendrinti el. paštu",
+    "features": "Funkcijos",
+    "all_posts": "Visi įrašai",
+    "breadcrumb": "Naršymo kelias",
+    "pending": "Tekstas anglų kalba; vertimas dar laukia.",
+    "more_posts": "Daugiau įrašų",
+    "lede": "Naujienos ir renginiai iš spool: ką agentai ir laivynas sukūrė, išleido ir išmoko.",
+    "description": "Naujienos ir renginiai iš spool.",
+    "post_type": "Įrašo tipas",
+    "empty": "Įrašų dar nėra.",
+    "pages": "Puslapiai",
+    "newer": "Naujesni",
+    "older": "Senesni",
+    "page_of": "Puslapis {page} iš {pages}",
+    "not_found": "Nerasta",
+    "no_such_post": "Tokio įrašo nėra.",
+    "type": {
+      "all": "visi",
+      "digest": "apžvalga",
+      "news": "naujienos",
+      "event": "renginys"
+    }
   },
   "footer": {
     "powered_by": "Naudojama {link}"

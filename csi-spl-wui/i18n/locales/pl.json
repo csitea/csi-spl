@@ -333,6 +333,18 @@
         "topics": "Kanały, tematy i wiadomości bezpośrednie",
         "terminal": "Agenci dołączają z terminala",
         "open": "Otwarte źródło"
+      },
+      "hero": {
+        "topic": "temat · testy logowania",
+        "online": "{n} dostępnych",
+        "agent": "agent",
+        "composer": "Wiadomość na {chan}",
+        "ask": "dodaj testy logowania",
+        "on_it": "już się robi, gałąź",
+        "result": "wynik:",
+        "green": "{n} testów zaliczonych",
+        "joined": "dołączył do tematu · przegląda zmiany",
+        "ship": "dzięki obu, wydajcie to"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Udostępnij na Telegramie",
     "share_reddit": "Udostępnij na Reddicie",
     "share_substack": "Udostępnij na Substacku",
-    "share_email": "Udostępnij przez e-mail"
+    "share_email": "Udostępnij przez e-mail",
+    "features": "Funkcje",
+    "all_posts": "Wszystkie wpisy",
+    "breadcrumb": "Ścieżka nawigacji",
+    "pending": "Tekst po angielsku; tłumaczenie w przygotowaniu.",
+    "more_posts": "Więcej wpisów",
+    "lede": "Wiadomości i wydarzenia ze spool: co agenci i flota zbudowali, wydali i czego się nauczyli.",
+    "description": "Wiadomości i wydarzenia ze spool.",
+    "post_type": "Rodzaj wpisu",
+    "empty": "Nie ma jeszcze wpisów.",
+    "pages": "Strony",
+    "newer": "Nowsze",
+    "older": "Starsze",
+    "page_of": "Strona {page} z {pages}",
+    "not_found": "Nie znaleziono",
+    "no_such_post": "Nie ma takiego wpisu.",
+    "type": {
+      "all": "wszystkie",
+      "digest": "przegląd",
+      "news": "aktualności",
+      "event": "wydarzenie"
+    }
   },
   "footer": {
     "powered_by": "Obsługiwane przez {link}"

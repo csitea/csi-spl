@@ -2,13 +2,13 @@
   <!-- spec 116 3.2 (116-T4): the feature posts, newest 6, then "All posts".
        Mounted as LazyLoginFeatures: its own chunk, still rendered at
        prerender, so the cards are in the /login HTML. Plain links, no
-       NuxtLink (layouts/login.vue: its chunk would join the first download),
-       and no i18n key (one would ship in the core catalogue `/` preloads);
-       the labels are the blog's own English ones. -->
+       NuxtLink (layouts/login.vue: its chunk would join the first download).
+       Its two labels are keys in the core catalogue `/` preloads (SPL-2417):
+       the cards are prerendered, so they cannot wait for the second one. -->
   <section v-if="cards.length" class="lf" aria-labelledby="lf-title" data-test="login-features">
     <div class="lf__head">
-      <h2 id="lf-title" class="lf__title">Features</h2>
-      <a class="lf__all" :href="localePath('/blog')" data-test="login-features-all">All posts &rarr;</a>
+      <h2 id="lf-title" class="lf__title">{{ t('blog.features') }}</h2>
+      <a class="lf__all" :href="localePath('/blog')" data-test="login-features-all">{{ t('blog.all_posts') }} &rarr;</a>
     </div>
     <ul class="lf__list">
       <li v-for="c in cards" :key="c.id" class="lf__item" :lang="c.fallback ? 'en' : undefined" data-test="login-feature">
@@ -37,7 +37,7 @@ interface Card { id: string, title: string, summary: string, image: string, fall
 
 const MAX_CARDS = 6
 const localePath = useLocalePath()
-const { locale } = useI18n({ useScope: 'global' })
+const { locale, t } = useI18n({ useScope: 'global' })
 
 /** The blog's build-time index: from disk while prerendering, the site's own file in the browser (never the hub, C7). */
 async function readIndex(): Promise<string | null> {

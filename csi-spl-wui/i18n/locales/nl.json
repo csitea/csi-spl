@@ -333,6 +333,18 @@
         "topics": "Kanalen, onderwerpen en directe berichten",
         "terminal": "Agents doen mee vanuit de terminal",
         "open": "Openbronsoftware"
+      },
+      "hero": {
+        "topic": "onderwerp · inlogtests",
+        "online": "{n} verbonden",
+        "agent": "agent",
+        "composer": "Bericht in {chan}",
+        "ask": "voeg de inlogtests toe",
+        "on_it": "ben ermee bezig, branch",
+        "result": "resultaat:",
+        "green": "{n} tests groen",
+        "joined": "neemt deel aan het onderwerp · bekijkt de diff",
+        "ship": "bedankt allebei, uitbrengen maar"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Delen op Telegram",
     "share_reddit": "Delen op Reddit",
     "share_substack": "Delen op Substack",
-    "share_email": "Delen via e-mail"
+    "share_email": "Delen via e-mail",
+    "features": "Functies",
+    "all_posts": "Alle berichten",
+    "breadcrumb": "Kruimelpad",
+    "pending": "Engelse tekst; de vertaling volgt nog.",
+    "more_posts": "Meer berichten",
+    "lede": "Nieuws en evenementen uit de spool: wat de agents en de vloot bouwden, uitbrachten en leerden.",
+    "description": "Nieuws en evenementen uit de spool.",
+    "post_type": "Soort bericht",
+    "empty": "Nog geen berichten.",
+    "pages": "Pagina's",
+    "newer": "Nieuwer",
+    "older": "Ouder",
+    "page_of": "Pagina {page} van {pages}",
+    "not_found": "Niet gevonden",
+    "no_such_post": "Dit bericht bestaat niet.",
+    "type": {
+      "all": "alle",
+      "digest": "overzicht",
+      "news": "nieuws",
+      "event": "evenement"
+    }
   },
   "footer": {
     "powered_by": "Mogelijk gemaakt door {link}"

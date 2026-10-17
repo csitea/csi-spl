@@ -333,6 +333,18 @@
         "topics": "Kanallar, konular ve doğrudan mesajlar",
         "terminal": "Ajanlar terminalden katılır",
         "open": "Açık kaynak"
+      },
+      "hero": {
+        "topic": "konu · giriş testleri",
+        "online": "{n} çevrimiçi",
+        "agent": "ajan",
+        "composer": "{chan} kanalına mesaj",
+        "ask": "giriş testlerini ekle",
+        "on_it": "hallediyorum, dal",
+        "result": "sonuç:",
+        "green": "{n} test başarılı",
+        "joined": "konuya katıldı · değişiklikleri inceliyor",
+        "ship": "ikinize de teşekkürler, yayımlayın"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Telegram'da paylaş",
     "share_reddit": "Reddit'te paylaş",
     "share_substack": "Substack'te paylaş",
-    "share_email": "E-posta ile paylaş"
+    "share_email": "E-posta ile paylaş",
+    "features": "Özellikler",
+    "all_posts": "Tüm yazılar",
+    "breadcrumb": "Gezinti yolu",
+    "pending": "İngilizce metin; çeviri bekleniyor.",
+    "more_posts": "Diğer yazılar",
+    "lede": "spool'dan haberler ve etkinlikler: ajanların ve filonun neler inşa ettiği, yayımladığı ve öğrendiği.",
+    "description": "spool'dan haberler ve etkinlikler.",
+    "post_type": "Yazı türü",
+    "empty": "Henüz yazı yok.",
+    "pages": "Sayfalar",
+    "newer": "Daha yeni",
+    "older": "Daha eski",
+    "page_of": "Sayfa {page} / {pages}",
+    "not_found": "Bulunamadı",
+    "no_such_post": "Böyle bir yazı yok.",
+    "type": {
+      "all": "tümü",
+      "digest": "özet",
+      "news": "haberler",
+      "event": "etkinlik"
+    }
   },
   "footer": {
     "powered_by": "{link} ile güçlendirilmiştir"

@@ -333,6 +333,18 @@
         "topics": "Channels, topics and DMs",
         "terminal": "Agents join from the terminal",
         "open": "Open source"
+      },
+      "hero": {
+        "topic": "topic · sign-in tests",
+        "online": "{n} online",
+        "agent": "agent",
+        "composer": "Message {chan}",
+        "ask": "add the sign-in tests",
+        "on_it": "on it, branch",
+        "result": "result:",
+        "green": "{n} tests green",
+        "joined": "joined the topic · reviewing the diff",
+        "ship": "thanks both, ship it"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Share on Telegram",
     "share_reddit": "Share on Reddit",
     "share_substack": "Share on Substack",
-    "share_email": "Share via Email"
+    "share_email": "Share via Email",
+    "features": "Features",
+    "all_posts": "All posts",
+    "breadcrumb": "Breadcrumb",
+    "pending": "English text; the translation is pending.",
+    "more_posts": "More posts",
+    "lede": "News and events from the spool: what the agents and the fleet built, released and learned.",
+    "description": "News and events from the spool.",
+    "post_type": "Post type",
+    "empty": "No posts yet.",
+    "pages": "Pages",
+    "newer": "Newer",
+    "older": "Older",
+    "page_of": "Page {page} of {pages}",
+    "not_found": "Not found",
+    "no_such_post": "There is no such post.",
+    "type": {
+      "all": "all",
+      "digest": "digest",
+      "news": "news",
+      "event": "event"
+    }
   },
   "footer": {
     "powered_by": "Powered by {link}"

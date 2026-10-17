@@ -54,8 +54,8 @@ do_spl_invite_e2e() {
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" rid="${INVITE_E2E_RUN_ID:-}"
   spl_require_tenant_slug "$tenant" || return 1
-  [[ -n "$rid" ]] || rid="${GITHUB_RUN_ID:+gh${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}}"
-  [[ -n "$rid" ]] || rid="$(date -u +%Y%m%dt%H%M%Sz)"
+  [[ -n "$rid" ]] || rid="${GITHUB_RUN_ID:+gh${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}-${ENV}}"
+  [[ -n "$rid" ]] || rid="$(date -u +%Y%m%dt%H%M%Sz)-${ENV}"
   [[ "$rid" =~ ^[a-z0-9-]{1,40}$ ]] || { do_log "FATAL INVITE_E2E_RUN_ID must be [a-z0-9-]{1,40}, got '$rid'"; return 1; }
 
   local user

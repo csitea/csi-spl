@@ -74,7 +74,8 @@ def invite_link(raw, rcpt, tenant):
     when it is addressed to rcpt and a text part carries an
     <app>[/<locale>]/login?... link whose tenant is ours."""
     msg = emaillib.message_from_bytes(raw)
-    if rcpt.lower() not in (msg.get("To") or "").lower():
+    to_header = (msg.get("To") or "").lower()
+    if rcpt.lower() not in to_header:
         return None
     for part in msg.walk():
         if part.get_content_maintype() != "text":
@@ -88,13 +89,13 @@ def invite_link(raw, rcpt, tenant):
             q = urllib.parse.parse_qs(u.query)
             if q.get("tenant", [""])[0] != tenant:
                 continue
+            login_hint = urllib.parse.unquote(q.get("login_hint", [""])[0])
             return msg, {
                 "link": link,
                 "link_page": "%s://%s%s" % (u.scheme, u.netloc, u.path),
                 "link_tenant": q.get("tenant", [""])[0],
                 "link_redirect": q.get("redirect", [""])[0],
-                "link_login_hint_is_invitee": q.get("login_hint", [""])[0].lower()
-                == rcpt.lower(),
+                "link_login_hint_is_invitee": login_hint.lower() == rcpt.lower(),
             }
     return None
 
@@ -113,15 +114,29 @@ def mailbox_raws(rcpt, seen):
     dir or IMAP (X-GM-LABELS, Gmail's IMAP extension)."""
     if MAILDIR:
         out = []
-        for n in sorted(os.listdir(MAILDIR)):
+        for n in os.listdir(MAILDIR):
             if n.endswith(".eml") and n not in seen:
                 p = os.path.join(MAILDIR, n)
                 with open(p, "rb") as f:
-                    out.append((n, f.read(), stub_labels(p)))
+                    raw = f.read()
+                    msg = emaillib.message_from_bytes(raw)
+                    to_header = msg.get("To") or ""
+                    # Parse the To header to extract email addresses
+                    to_addrs = []
+                    if to_header:
+                        for addr in emaillib.utils.getaddresses([to_header]):
+                            to_addrs.append(addr[1].lower())
+                    # Debug: print the To header and parsed addresses
+                    print(f"DEBUG: To header: {to_header}", file=sys.stderr)
+                    print(f"DEBUG: Parsed addresses: {to_addrs}", file=sys.stderr)
+                    print(f"DEBUG: Looking for: {rcpt.lower()}", file=sys.stderr)
+                    if rcpt.lower() in to_addrs:
+                        out.append((n, raw, stub_labels(p)))
+                        seen.add(n)
         return out
     m = m3.imap_open()
     try:
-        _, data = m.uid("SEARCH", None, 'TO "%s"' % rcpt)
+        _, data = m.uid("SEARCH", None, 'TO "%s"' % rcpt.lower())
         out = []
         for uid in reversed(data[0].split()):
             if uid in seen:
@@ -151,7 +166,10 @@ def wait_invite_mail(rcpt, tenant, message_id):
             if not hit:
                 continue
             msg, ev = hit
-            if message_id and msg.get("Message-ID") != message_id:
+            msg_id = msg.get("Message-ID")
+            print(f"DEBUG: Email Message-ID: {msg_id}", file=sys.stderr)
+            print(f"DEBUG: Expected Message-ID: {message_id}", file=sys.stderr)
+            if message_id and msg_id != message_id:
                 continue
             ev.update(
                 {

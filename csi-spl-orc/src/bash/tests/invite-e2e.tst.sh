@@ -68,21 +68,21 @@ mail() {
   hint=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$3")
   [[ "${4:-$INV}" != none ]] && dt="Delivered-To: ${4:-$INV}"$'\r\n'
   printf '%sFrom: SPOOL <sys+noreply@example.com>\r\nTo: %s\r\nSubject: You are invited\r\nMessage-ID: %s\r\nContent-Type: text/plain\r\n\r\nSign in: http://127.0.0.1:%s/login?tenant=%s&redirect=%%2Flobby&login_hint=%s\r\n' \
-    "$dt" "$INV" "${5:-<m1.tenant_invite@example.com>}" "$PORT" "$2" "$hint" >"$1"
+    "$dt" "$3" "${5:-<m1.tenant_invite@example.com>}" "$PORT" "$2" "$hint" >"$1"
 }
 # invite_json <dir> [outcome] [message-id]
 invite_json() {
-  printf '{"status":201,"body":{"tenant_id":"t1","role":"developer","mail":{"outcome":"%s","message_id":"%s"}}}\n' \
-    "${2:-sent}" "${3:-<m1.tenant_invite@example.com>}" >"$1/invite.json"
+  printf '{"status":201,"body":{"tenant_id":"t1","role":"developer","mail":{"outcome":"%s","message_id":"%s"},"email":"%s"}}\n' \
+    "${2:-sent}" "${3:-<m1.tenant_invite@example.com>}" "${4:-$INV}" >"$1/invite.json"
 }
 # engine <case>: run invite-e2e.py on $T/<case> (state + maildir); sets rc, out
 engine() {
   local d="$T/$1"
   out=$(M3_HUB_URL="http://127.0.0.1:$PORT" M3_AUTH_URL="http://127.0.0.1:$PORT" M3_TENANT=t1 M3_STATE="$d" \
-    M3_HUMAN_EMAIL="$INV" M3_ROOT_KEY="" M3_SPOOL="" M3_IMAP_USER="" INVITE_E2E_MAILDIR="$d/mail" \
+    M3_HUMAN_EMAIL="${M3_HUMAN_EMAIL:-$INV}" M3_ROOT_KEY="" M3_SPOOL="" M3_IMAP_USER="" INVITE_E2E_MAILDIR="$d/mail" \
     INVITE_E2E_TIMEOUT=2 python3 -B "$PY" run 2>&1); rc=$?
 }
-setup() { mkdir -p "$T/$1/mail"; invite_json "$T/$1" "${2:-sent}"; }
+setup() { rm -rf "$T/$1/mail"; mkdir -p "$T/$1/mail"; invite_json "$T/$1" "${2:-sent}"; }
 start_hub
 
 # --- 1. the happy path -------------------------------------------------------------
@@ -191,6 +191,29 @@ run_wrap TENANT_ID=t1 INVITE_E2E_RUN_ID=r2 BIND=1 PY_RC=1; rc=$?
 [[ $rc != 0 ]] && grep -q "^member-remove t1 ${user%@*}+inv-r2@${user#*@} 0$" "$T/calls.log" && ! grep -q '^hub DELETE' "$T/calls.log" \
   && pass "4. bound + a failed step: exit != 0, the member is removed" || fail "4. bound: rc=$rc $(cat "$T/calls.log")"
 grep -q "step 6 (the agent answers) will be SKIPPED" "$T/wrap.out" && pass "4. no root key: says step 6 is skipped" || fail "4. skip note: $(cat "$T/wrap.out")"
+
+# --- 5. same run id, different envs -----------------------------------------------------
+DEV_INVITEE="sys+inv-gh123-1-dev@example.com"
+PRD_INVITEE="sys+inv-gh123-1-prd@example.com"
+
+setup envs-dev
+MSG_ID="sys+inv-gh123-1-dev@example.com"
+mail "$T/envs-dev/mail/1-dev.eml" t1 "$DEV_INVITEE" "$DEV_INVITEE" "$DEV_INVITEE" "$MSG_ID"
+invite_json "$T/envs-dev" "sent" "$MSG_ID" "$DEV_INVITEE"
+M3_HUMAN_EMAIL="$DEV_INVITEE" engine envs-dev
+grep -q "^PASS 2-invite-mail " <<<"$out" && [[ $rc == 0 ]] && pass "5. dev env: invitee gh123-1-dev" || fail "5. dev: rc=$rc $out"
+
+setup envs-prd
+MSG_ID="sys+inv-gh123-1-prd@example.com"
+mail "$T/envs-prd/mail/1-prd.eml" t1 "$PRD_INVITEE" "$PRD_INVITEE" "$PRD_INVITEE" "$MSG_ID"
+invite_json "$T/envs-prd" "sent" "$MSG_ID" "$PRD_INVITEE"
+M3_HUMAN_EMAIL="$PRD_INVITEE" engine envs-prd
+grep -q "^PASS 2-invite-mail " <<<"$out" && [[ $rc == 0 ]] && pass "5. prd env: invitee gh123-1-prd" || fail "5. prd: rc=$rc $out"
+
+# Red control: same run id, no env suffix -> same invitee, must fail
+setup envs-same; mail "$T/envs-same/mail/1.eml" t1 "${INV%@*}+inv-gh123-1@${INV#*@}"
+engine envs-same
+[[ $rc != 0 ]] && grep -q "^FAIL 2-invite-mail " <<<"$out" && pass "5. CONTROL no env suffix: FAIL (red control)" || fail "5. CONTROL: rc=$rc $out"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -156,6 +156,15 @@ try {
   ok('the focus is back in the composer', await until(p, (s) => document.activeElement?.matches?.(s), COMPOSER, 3000))
   ok('... with "abc" intact', (await p.$eval(COMPOSER, (t) => t.value)) === 'abc')
   await p.$eval(COMPOSER, (b) => { b.value = ''; b.dispatchEvent(new Event('input', { bubbles: true })); b.blur() })
+  /* "nothing focused" is this case's precondition. The palette Esc just closed
+     gives the focus back to its opener (the composer) from a 0 ms timer
+     (CommandPalette restoreFocus); a blur that lands before that timer is
+     undone, and the next palette opens from the composer (wf 10 39051249409:
+     "TEXTAREA", twice in one job). Let that timer run, then blur. */
+  await p.evaluate(() => new Promise((r) => setTimeout(r, 0)))
+  await p.evaluate(() => document.activeElement?.blur?.())
+  ok('nothing is focused before the Ctrl + K', await p.evaluate(() => document.activeElement === document.body),
+    await p.evaluate(() => document.activeElement?.tagName))
 
   /* ---- Ctrl + K again closes it ---- */
   await ctrlK(p)

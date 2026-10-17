@@ -24,11 +24,20 @@
 #   9. the lane closes while its push runs (m-595, SPL-2264): the hook moves
 #      the state dir away as agent-id-retire does, then is red -> the moved dir
 #      reads REFUSED, not RUNNING; the same with a green hook -> PUSHED there
+#  10. AGENT_ID names a lane, the tree is not its worktree (m-181, SPL-2312):
+#      the main checkout, another lane's worktree, PUSH_WORKTREE at the main
+#      checkout, and an id with no worktree at all -> exit 1, a FATAL naming
+#      both paths and `cd <worktree>/csi-spl-orc`, no status file; control:
+#      the same start from the lane's own worktree is not refused (case 7)
+#  11. the lane's own worktree, 0 commits ahead of origin -> NOTHING-TO-PUSH
+#      <sha>, status exit 5, never PUSHED / landed_rc
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
+# A lane running this suite exports its own AGENT_ID: cases 1-9 run with none.
+unset AGENT_ID
 
 B="$T/origin.git" L="$T/lane" O="$T/other" S="$T/state"
 EM=lane@example.com
@@ -136,15 +145,18 @@ run PUSH_GIT_EMAIL=$EM >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 1 ] && grep -q '^REFUSED WRONG-IDENTITY-DO-NOT-PUSH' <<<"$v" && ! on_origin "$(git -C "$L" rev-parse HEAD)" \
   && pass "6. a wrong identity -> REFUSED before any push" || fail "6. identity (rc $vrc: $v)"
 
-# 7 control first: the stub is red when AGENT_ID reaches it
+# 7 control first: the stub is red when AGENT_ID reaches it. A lane id pushes
+# from its own worktree (case 10): c-999's is a linked worktree named c-999.
 git -C "$L" -c user.name=lane -c "user.email=$EM" commit -q --amend --no-edit --reset-author
+W7="$T/lane-wt/c-999"
+git -C "$L" worktree add -q -b c-999-t7 "$W7" HEAD 2>/dev/null
 echo agent-red >"$T/hook.mode"; : >"$T/hook.calls"
 out="$(AGENT_ID=c-999 "$T/hooks/pre-push" 2>&1)"; rc=$?
 [ "$rc" -eq 1 ] && grep -q 'AGENT_ID=c-999 reached' <<<"$out" \
   && pass "7. control: the agent-red stub fails when AGENT_ID reaches it" || fail "7. control (rc $rc: $out)"
 : >"$T/hook.calls"
-run AGENT_ID=c-999 >/dev/null; v="$(verdict)"; vrc=$?
-[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" && grep -qx 'agent=unset' "$T/hook.calls" \
+run AGENT_ID=c-999 PUSH_WORKTREE="$W7" >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$W7" rev-parse HEAD)" <<<"$v" && grep -qx 'agent=unset' "$T/hook.calls" \
   && pass "7. AGENT_ID=c-999 in the caller's env never reaches the hook -> PUSHED" || fail "7. AGENT_ID ($(cat "$T/hook.calls") | $v)"
 
 # 8 red controls first: a round row whose review line is void is refused
@@ -199,6 +211,28 @@ retire9 retire-red
 retire9 retire-ok
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" \
   && pass "9. ...and a green push from a moved dir -> PUSHED written there" || fail "9. retire ok (rc $vrc: $v)"
+
+# 10 a lane id outside its own worktree is refused at start, nothing written
+W10="$T/lane-wt/c-998"
+git -C "$L" worktree add -q -b c-998-t10 "$W10" HEAD 2>/dev/null
+echo ok >"$T/hook.mode"; before="$(git --git-dir="$B" rev-parse master)"
+refuse10() {
+  local s10="$T/state10-$1" out rc
+  out="$(SNIPPET='do_spl_push_master' in_orc PUSH_STATE_DIR="$s10" FETCH_FRESH_MAX_AGE=0 AGENT_ID="$2" PUSH_WORKTREE="$3" 2>&1)"; rc=$?
+  [ "$rc" -eq 1 ] && grep -qF "FATAL PUSH: AGENT_ID=$2 pushes only from its own worktree $4, not from $3. Fix: cd $4/csi-spl-orc" <<<"$out" \
+    && [ ! -e "$s10/status" ] && [ "$(git --git-dir="$B" rev-parse master)" = "$before" ] \
+    && pass "10. $1 -> exit 1, FATAL names $4 and $3, no status file" || fail "10. $1 (rc $rc: $out)"
+}
+refuse10 'the main checkout' c-999 "$L" "$W7"
+refuse10 "another lane's worktree" c-999 "$W10" "$W7"
+refuse10 'an id with no worktree' c-997 "$L" "$L-wt/c-997"
+out="$(cd "$L" && SNIPPET='do_spl_push_master' in_orc PUSH_STATE_DIR="$T/state10-pwd" AGENT_ID=c-999 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && grep -qF "not from $L." <<<"$out" && pass "10. no PUSH_WORKTREE, cwd the main checkout -> refused" || fail "10. cwd (rc $rc: $out)"
+
+# 11 the lane's own worktree, nothing ahead of origin: never PUSHED
+run AGENT_ID=c-999 PUSH_WORKTREE="$W7" >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 5 ] && grep -qx "NOTHING-TO-PUSH $(git -C "$W7" rev-parse HEAD)" <<<"$v" && ! grep -qE '^PUSHED|landed_rc' <<<"$v" \
+  && pass "11. own worktree, 0 commits ahead -> NOTHING-TO-PUSH, exit 5, not PUSHED" || fail "11. nothing ahead (rc $vrc: $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

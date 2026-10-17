@@ -16,17 +16,22 @@
 # @description HEAD:<branch>`; a push refused because the branch moved is retried
 # @description up to PUSH_RETRIES times. It ends by writing ONE status file:
 # @description `PUSHED <sha>` (+ `landed_rc=` of `git-fetch-fresh.sh --landed`),
-# @description `REFUSED <reason>` (+ the tail of the push/hook output) or
-# @description `GAVE-UP <reason>`. It never forces, never sets SPL_PREPUSH_OVERRIDE
+# @description `REFUSED <reason>` (+ the tail of the push/hook output),
+# @description `GAVE-UP <reason>` or `NOTHING-TO-PUSH <sha>`: 0 commits ahead of
+# @description origin/<branch> after the rebase, so nothing landed (SPL-2312).
+# @description A lane's AGENT_ID must push from that lane's own worktree (spawn's
+# @description <main>-wt/<AGENT_ID>, or a linked worktree on branch <AGENT_ID>-*):
+# @description any other tree, the main checkout included, is a FATAL at start
+# @description (m-181 pushed the main checkout, origin's own head, and read LANDED). It never forces, never sets SPL_PREPUSH_OVERRIDE
 # @description (it unsets it, and AGENT_ID: the hook sees a hand push's env) and never edits a file; a rebase conflict is aborted.
 # @description Its push is MARKED (SPL-2211: a one-push token while the worker holds the lock):
 # @description the pre-push hook refuses a lane's unmarked hand push to master before the gate.
 # @description The why: csi-spl-doc/doc/md/lane-integration-rules.md section 3.3.
-# @description status exit: 0 PUSHED, 1 REFUSED / GAVE-UP / DIED, 3 RUNNING, 4 none.
+# @description status exit: 0 PUSHED, 1 REFUSED / GAVE-UP / DIED, 3 RUNNING, 4 none, 5 NOTHING-TO-PUSH.
 # @param PUSH_CMD (optional) - start (default) or status
-# @param PUSH_WORKTREE (optional) - the lane's checkout; default the current dir
+# @param PUSH_WORKTREE (optional) - the lane's checkout; default the current dir; held to the AGENT_ID worktree rule too
 # @param PUSH_STATE_DIR (optional) - default <SPOOL_ROOT>/<AGENT_ID>/lifetime/push-master when that lifetime dir exists, else <git-dir>/spl-push-master
-# @param AGENT_ID (optional) - the lane id, picks the default state dir
+# @param AGENT_ID (optional) - the lane id: picks the default state dir; a lane id must push from its own worktree
 # @param PUSH_REMOTE (optional) - default origin
 # @param PUSH_BRANCH (optional) - default master
 # @param PUSH_RETRIES (optional) - pushes refused because the branch moved, retried; default 4
@@ -66,6 +71,7 @@ _spl_push_master_state_dir() {
 # worker and returns at once.
 _spl_push_master_start() {
   local wt="$1" state="$2" self name email
+  _spl_push_master_own_tree "$wt" || return 1
   [[ "${PUSH_RETRIES:-4}" =~ ^[1-9][0-9]?$ ]] || { echo "FATAL PUSH: PUSH_RETRIES must be 1..99"; return 1; }
   if ! flock -n "$state/lock" true 2>/dev/null; then
     echo "PUSH: a push is already running for $wt"; _spl_push_master_status "$state"; return 3
@@ -91,7 +97,8 @@ _spl_push_master_start() {
 }
 
 # _spl_push_master_status <state> - prints the status file; the exit code is
-# the verdict (0 PUSHED, 1 REFUSED/GAVE-UP/DIED, 3 RUNNING, 4 none).
+# the verdict (0 PUSHED, 1 REFUSED/GAVE-UP/DIED, 3 RUNNING, 4 none,
+# 5 NOTHING-TO-PUSH: 0 commits ahead, nothing landed).
 _spl_push_master_status() {
   local state="$1" first
   [[ -f "$state/status" ]] || { echo "NONE: no push started (state $state)"; return 4; }
@@ -109,9 +116,43 @@ _spl_push_master_status() {
   cat "$state/status"
   case "$first" in
     PUSHED*) return 0 ;;
+    NOTHING-TO-PUSH*) return 5 ;;
     RUNNING) echo "log: $(tail -n 1 "$state/log" 2>/dev/null)"; return 3 ;;
     *) return 1 ;;
   esac
+}
+
+# _spl_push_master_own_tree <toplevel> - 0 unless AGENT_ID names a lane and
+# <toplevel> is not that lane's own worktree: a linked worktree named after
+# the id (spawn-core makes <main>-wt/<id>) or on a branch <id>-* (spawn's
+# branch). m-181 pushed from the main checkout, already on origin/master: the
+# push was origin's own head and read LANDED, its 3 commits on no ref (SPL-2312).
+_spl_push_master_own_tree() {
+  local wt="$1" id="${AGENT_ID:-}" want br
+  [[ "$id" =~ ^([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)$ ]] || return 0
+  [[ "$(_spl_push_master_lane_tree "$wt")" == "$id" ]] && return 0
+  br="$(git -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)"
+  [[ "$br" == "$id"-* && "$(git -C "$wt" rev-parse --absolute-git-dir)" != \
+     "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)" ]] && return 0
+  want="$(_spl_push_master_lane_wt "$wt" "$id")"
+  echo "FATAL PUSH: AGENT_ID=$id pushes only from its own worktree $want, not from $wt. Fix: cd $want/csi-spl-orc and start the push there"
+  return 1
+}
+
+# _spl_push_master_lane_wt <tree> <id> - prints the lane's worktree: the
+# `git worktree list` entry named <id>, else the one on a branch <id>-*, else
+# where spawn-core would make it, <main checkout>-wt/<id>.
+_spl_push_master_lane_wt() {
+  local line p="" hit="" cd
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) p="${line#worktree }"; [[ "${p##*/}" == "$2" ]] && { echo "$p"; return 0; } ;;
+      "branch refs/heads/$2-"*) [[ -n "$hit" ]] || hit="$p" ;;
+    esac
+  done < <(git -C "$1" worktree list --porcelain 2>/dev/null)
+  [[ -n "$hit" ]] && { echo "$hit"; return 0; }
+  cd="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  echo "$(dirname "$cd")-wt/$2"
 }
 
 # _spl_push_master_follow - re-points PUSH_STATE (and the worker's `out`) at
@@ -248,6 +289,10 @@ _spl_push_master_worker() {
       _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad")" "$out"; return 1
     fi
     sha="$(git rev-parse HEAD)"
+    if [[ "$(git rev-list --count "$remote/$branch..HEAD")" == 0 ]]; then
+      _spl_push_master_end "NOTHING-TO-PUSH $sha
+0 commits ahead of $remote/$branch after the rebase: nothing landed (SPL-2312). Are your commits on this branch, in this worktree?"; return 0
+    fi
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
     if _spl_push_master_git_push "$remote" "$branch" "$out"; then
       _spl_push_master_follow

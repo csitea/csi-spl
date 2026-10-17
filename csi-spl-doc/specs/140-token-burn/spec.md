@@ -481,6 +481,11 @@ the first metered day reads high.
 `fleetPaidDailyUSD` in `store/fleet_token_paid.go` is the one function a
 weighting rule (a cap, a discount, an unused remainder) changes.
 
+**From a box.** `ENV=<env> ./run -a do_spl_hub_fleet_paid` (csi-spl-orc)
+reads the items (`PAID_CMD=list`) or the effective price (`PAID_CMD=effective
+FROM= TO=`) through the hub as the env's project service account; `create`
+and `delete` are for test fixtures and are dry runs unless `DRY_RUN=0`.
+
 ---
 
 ## 4. The Monitoring page tab (`/monitoring/tokens`)

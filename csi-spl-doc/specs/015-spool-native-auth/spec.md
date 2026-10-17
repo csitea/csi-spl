@@ -130,6 +130,12 @@ Already built: `POST /api/v1/auth/logout` (010).
   only (SPL-2157). In `dev` the hub drops the flag and logs
   `auth.native_debug_tokens_dropped` (it still boots: the hub deploy rolls
   only the image, the env is 030's); it **refuses to boot** with it in `prd`.
+  The dev test tools that read the token use other paths since then
+  (SPL-2411): `do_spl_dev_password_reset` sets the password with
+  `spool hub-reset-password` through the Cloud SQL proxy as the env's SA;
+  `do_spl_paid_owner_probe`, `do_spl_m3_e2e` / `do_spl_invite_e2e` (prd) and
+  the WUI live proofs (`MAIL_TOKEN_CMD` = `do_spl_mail_verify_token`) read the
+  verify mail of a relay plus-address over IMAP. lde keeps `debug_token`.
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.

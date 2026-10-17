@@ -26,7 +26,8 @@ Env:   M3_HUB_URL      https://<api host>        (box + tenant API; specs/026: o
        M3_HUMAN_EMAIL  member human (seated by invite)
        M3_OUTSIDER_EMAIL  never-invited human (the door control)
        M3_IMAP_USER, M3_IMAP_PASS_FILE, M3_IMAP_HOST  (optional) a hub with no
-                       debug tokens (prd): the verify mail is read over IMAP from
+                       debug tokens (dev and prd since SPL-2157; lde keeps them):
+                       the verify mail is read over IMAP from
                        this mailbox (the relay's own, csi-rel's verify_relay_e2e
                        pattern; plus-addresses land in it). The token in its link
                        is consumed through the hub's verify API, and the link's
@@ -207,6 +208,11 @@ def native_login(email, tenant, tag):
         token, mail_ev = imap_verify_token(email, seen)
         ev.update(mail_ev)
         ev["via"] = "imap"
+    elif not token:
+        ev["error"] = (
+            "no debug_token (lde only since SPL-2157) and no M3_IMAP_USER "
+            "mailbox to read the verify mail from"
+        )
     if not token:
         write_json("verify-%s.json" % tag, ev)
         return st, {"step": "register", "body": out, "mail": ev}, ""
@@ -237,7 +243,7 @@ def read_json(name):
         return None
 
 
-# ---- the verify mail over IMAP (hubs without debug tokens: prd) -----------------------
+# ---- the verify mail over IMAP (hubs without debug tokens: dev, prd) -----------------
 
 
 def imap_open():

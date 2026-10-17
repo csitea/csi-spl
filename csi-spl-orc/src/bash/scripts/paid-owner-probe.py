@@ -5,22 +5,38 @@ other verified address is refused.
 
 For each of the two addresses: POST /api/v1/auth/register (a fresh random
 password, never printed or stored), POST /api/v1/auth/email/verify with the
-debug token the dev hub answers (SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS, dev/lde
-only), then POST /api/v1/auth/login naming the tenant. The buyer's session
-reads GET /v1/view/me.
+token, then POST /api/v1/auth/login naming the tenant. The buyer's session
+reads GET /v1/view/me. The token is the hub's debug_token when it answers one
+(lde only since SPL-2157), else the link in the verify mail, read over IMAP
+from the relay mailbox (m3-e2e.py's imap_verify_token): both addresses must
+then be plus-addresses of that mailbox.
 
 Env: PROBE_API (https://<api host>), PROBE_TENANT, PROBE_BUYER_EMAIL,
-PROBE_OTHER_EMAIL. Prints one JSON verdict (no address, password or cookie);
+PROBE_OTHER_EMAIL; M3_IMAP_USER / M3_IMAP_PASS_FILE / M3_IMAP_HOST for the
+mail path. Prints one JSON verdict (no address, password, token or cookie);
 exit 0 = buyer is biz_owner and the other is refused, 1 = not so, 2 = an
-account could not be made (register / verify refused, no debug token).
+account could not be made (register / verify refused, no token).
 """
 
+import importlib.util
 import json
 import os
 import secrets
 import sys
 import urllib.error
 import urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location(
+    "m3_e2e", os.path.join(HERE, "m3-e2e.py")
+)
+m3 = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(m3)
+NO_TOKEN = (
+    "the hub answered no debug_token (lde only since SPL-2157) and no "
+    "M3_IMAP_USER mailbox is set to read the verify mail: run "
+    "do_spl_paid_owner_probe, which sets it"
+)
 
 API = os.environ.get("PROBE_API", "").rstrip("/")
 TENANT = os.environ.get("PROBE_TENANT", "")
@@ -64,19 +80,23 @@ def err(out):
 def account(email):
     """Register + verify a fresh native account; its password, or a failure dict."""
     pw = secrets.token_urlsafe(18)
+    seen = m3.imap_uids(email) if m3.IMAP_USER else set()
     st, _, out = http(
         "POST",
         API + "/api/v1/auth/register",
         {"email": email, "password": pw, "name": "W1 probe"},
     )
     tok = out.get("debug_token", "") if isinstance(out, dict) else ""
-    if st // 100 != 2 or not tok:
-        return None, {
-            "step": "register",
-            "status": st,
-            "error": err(out),
-            "debug_token": bool(tok),
-        }
+    if st // 100 != 2:
+        return None, {"step": "register", "status": st, "error": err(out)}
+    via, why = "debug_token", ""
+    if not tok and m3.IMAP_USER:
+        tok, _ = m3.imap_verify_token(email, seen)  # its evidence names the address
+        via, why = "imap", "no verify mail within %ds" % m3.IMAP_TIMEOUT
+    elif not tok:
+        why = NO_TOKEN
+    if not tok:
+        return None, {"step": "register", "status": st, "via": via, "error": why}
     st, _, out = http(
         "POST", API + "/api/v1/auth/email/verify", {"token": tok, "password": pw}
     )

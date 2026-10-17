@@ -3,7 +3,10 @@
 # 127.0.0.1 answers register (with a debug token), verify, login and
 # GET /v1/view/me. It admits the buyer as $T/role and refuses the other address
 # unless $T/open exists. CONTROLS: a buyer seated as developer, and a hub that
-# lets the other address in, must both fail the probe.
+# lets the other address in, must both fail the probe. Since SPL-2157 the dev
+# hub answers no debug token: with $T/nodebug the stub answers none, and the
+# probe reads the verify mail over IMAP (m3's reader, faked in-process here);
+# CONTROL: no token and no mailbox fails with a clear reason (exit 2).
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="$HERE/../scripts/paid-owner-probe.py"
@@ -32,7 +35,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         b = self.body()
         with open(os.path.join(T, "calls"), "a") as f: f.write(self.path + " " + json.dumps(b) + "\n")
-        if self.path == "/api/v1/auth/register": return self.reply(201, {"status": "pending", "debug_token": "tok-" + b["email"]})
+        if self.path == "/api/v1/auth/register":
+            if os.path.exists(os.path.join(T, "nodebug")): return self.reply(202, {"status": "verification_required"})
+            return self.reply(201, {"status": "pending", "debug_token": "tok-" + b["email"]})
         if self.path == "/api/v1/auth/email/verify":
             return self.reply(200, {}) if b.get("token", "").startswith("tok-") and b.get("password") else self.reply(401, {"error": "verify_invalid"})
         if self.path == "/api/v1/auth/login":
@@ -69,10 +74,47 @@ rm -f "$T/open"
 OTHER=Buyer@Example.com probe; rc=$?
 [[ $rc -eq 2 ]] && pass "the same address twice is refused before any call" || fail "same address: rc=$rc"
 
+# no debug token (dev and prd since SPL-2157)
+touch "$T/nodebug"; probe; rc=$?
+[[ $rc -eq 2 ]] && grep -q 'no debug_token (lde only since SPL-2157)' "$T/out" && ! grep -q Traceback "$T/out" && ! grep -q 'example.com' "$T/out" \
+  && pass "CONTROL: no debug token and no mailbox -> exit 2, a clear reason, no address" || fail "no-token control: rc=$rc $(cat "$T/out")"
+out="$(PROBE_API="http://127.0.0.1:$(cat "$T/port")" PROBE_TENANT=w1t PROBE_BUYER_EMAIL=buyer@example.com PROBE_OTHER_EMAIL=other@example.com \
+  python3 -B - "$PY" <<'PYI' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("pop", sys.argv[1]); pop = importlib.util.module_from_spec(spec); spec.loader.exec_module(pop)
+pop.m3.IMAP_USER = "relay@example.com"
+asked = []
+pop.m3.imap_uids = lambda rcpt: {b"1"}
+def mail(rcpt, seen):
+    asked.append((rcpt, sorted(seen)))
+    return ("tok-" + rcpt, {"mail_from": "x"}) if rcpt.startswith("buyer") else ("", {"mail": "no verify mail to %s within 1s" % rcpt})
+pop.m3.imap_verify_token = mail
+print("BUYER", pop.account("buyer@example.com"))
+print("OTHER", pop.account("other@example.com"))
+print("ASKED", asked)
+PYI
+)"
+grep -q "^BUYER ('.*', None)" <<<"$out" && pass "no debug token: the verify mail over IMAP verifies the account" || fail "imap path: $out"
+grep -q "^OTHER (None, {.*'via': 'imap', 'error': 'no verify mail within" <<<"$out" && ! grep -q '^OTHER.*other@' <<<"$out" \
+  && pass "no mail in time: a clear failure that names no address" || fail "imap miss: $out"
+grep -qF "ASKED [('buyer@example.com', [b'1'])" <<<"$out" && pass "only a mail newer than the register counts (seen UIDs passed)" || fail "seen: $out"
+rm -f "$T/nodebug"
+
 # the action: dev only, fields checked before any cnf or network
 out="$(ENV=prd TENANT_ID=w1t BUYER_EMAIL=a@example.com OTHER_EMAIL=b@example.com bash -c "do_log() { echo \"\$*\"; }; do_require_bin() { :; }; source '$FN'; do_spl_paid_owner_probe" 2>&1)"; rc=$?
-[[ $rc -ne 0 ]] && grep -q "ENV must be dev" <<<"$out" && pass "ENV=prd refused (no debug tokens there)" || fail "prd: rc=$rc $out"
+[[ $rc -ne 0 ]] && grep -q "ENV must be dev" <<<"$out" && pass "ENV=prd refused (prd checkouts are real)" || fail "prd: rc=$rc $out"
 out="$(ENV=dev TENANT_ID=w1t BUYER_EMAIL=a@example.com OTHER_EMAIL=A@example.com bash -c "do_log() { echo \"\$*\"; }; do_require_bin() { :; }; source '$FN'; do_spl_paid_owner_probe" 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && grep -q "must differ" <<<"$out" && pass "one address for both refused" || fail "same: rc=$rc $out"
+
+# the action: both addresses must be plus-addresses of the cnf relay mailbox
+printf 'env:\n  mail:\n    env:\n      SPOOL_HUB_MAIL_SMTP_USER: Relay@example.net\n      SPOOL_HUB_MAIL_SMTP_HOST: smtp.example.net\n' >"$T/cnf.yaml"
+act() { env TENANT_ID=w1t "$@" bash -c "do_log() { echo \"\$*\"; }; do_require_bin() { :; }; do_spl_cloud_cnf() { SPL_CNF='$T/cnf.yaml'; }
+  spl_cnf_api_fqdn() { printf -v \"\$1\" %s api.example.net; }; spl_m3_imap_pass() { echo IMAP-PASS-READ; }; source '$FN'; do_spl_paid_owner_probe" 2>&1; }
+out="$(act ENV=dev BUYER_EMAIL=a@example.com OTHER_EMAIL=relay+o@example.net)"; rc=$?
+[[ $rc -ne 0 ]] && grep -q "a@example.com is no plus-address of the relay mailbox" <<<"$out" && ! grep -q IMAP-PASS-READ <<<"$out" \
+  && pass "a buyer outside the relay mailbox is refused before any secret read" || fail "relay check: rc=$rc $out"
+out="$(act ENV=dev BUYER_EMAIL=relay+b@example.net OTHER_EMAIL=Relay+O@example.net)"; rc=$?
+[[ $rc -eq 0 ]] && grep -q "DRY_RUN would register, verify (the mail over IMAP)" <<<"$out" && ! grep -q IMAP-PASS-READ <<<"$out" \
+  && pass "relay plus-addresses: the dry run plans the IMAP verify, reads no secret" || fail "dry: rc=$rc $out"
 
 (( fails == 0 )) && echo "paid-owner-probe: all passed" || { echo "paid-owner-probe: $fails failed"; exit 1; }

@@ -1435,3 +1435,30 @@ jobs:
         run: |
           python3 csi-spl-orc/src/bash/run/check-qto-doc-drift.py . \
             csi-spl-doc/doc/md/qto-docs.tsv csi-spl-doc/doc/md/qto-docs-drift-known.tsv
+
+  # ===========================================================================
+  # Security baselines grow only with a ticket (SPL-2153, owner security scan
+  # action 10): a new entry in a scanner's baseline or allow-list (gosec,
+  # semgrep, eslint-security, shellcheck, trivy, gitleaks, osv-scanner,
+  # hadolint, ZAP, checkov) names its SPL-<n>, on the row or a comment line
+  # beside it. Compared from a fixed anchor, not github.event.before: most
+  # push runs are cancelled as superseded, and a range check would let the
+  # skipped pushes through. fetch-depth 0: the anchor is in the history.
+  # CONTROL: csi-spl-iac/src/bash/tests/check-baseline-growth.tst.sh
+  # ===========================================================================
+  baseline-growth:
+    name: "sec: a security baseline grows only with a ticket id"
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Every baseline entry since the anchor names its ticket
+        working-directory: csi-spl-iac
+        run: ./run -a do_check_baseline_growth

@@ -7,7 +7,9 @@
 # @description finding). A count BELOW it fails too: a fixed finding left in the
 # @description baseline would let a regression back up to the old count, so the
 # @description commit that fixes it lowers the line.
-# @description Counts and baseline lines: <rule>|<path>|<count>; # is a comment.
+# @description Counts and baseline lines: <rule>|<path>|<count>; # is a comment,
+# @description on its own line or after a row (the row's ticket, SPL-2153:
+# @description do_check_baseline_growth wants SPL-<n> on every new row).
 #------------------------------------------------------------------------------
 
 # _sec_baseline_diff <counts> <baseline> [<scope>...]
@@ -22,8 +24,8 @@ counts, bl, scope = sys.argv[1], sys.argv[2], [s.rstrip("/") for s in sys.argv[3
 def read(path):
     c = collections.Counter()
     for line in open(path):
-        line = line.strip()
-        if line and not line.startswith("#"):
+        line = line.split("#", 1)[0].strip()
+        if line:
             rule, p, n = line.rsplit("|", 2)
             c[(rule, p)] += int(n)
     return c
@@ -71,16 +73,23 @@ _sec_baseline_gate() {
 }
 
 # _sec_baseline_write <counts> <baseline>
-# Rewrites the baseline to the counts, keeping its # lines on top.
+# Rewrites the baseline to the counts, keeping its # lines on top and each
+# row's trailing "# ..." (its ticket) while its (rule, path) stays listed.
 _sec_baseline_write() {
   python3 - "$1" "$2" <<'PY'
 import sys
 counts, bl = sys.argv[1], sys.argv[2]
 head = [l for l in open(bl) if l.startswith("#")]
+note = {}
+for l in open(bl):
+    row, sep, c = l.strip().partition("#")
+    if row.strip() and sep:
+        note[row.strip().rsplit("|", 1)[0]] = "  #" + c.rstrip()
 rows = sorted(l.strip() for l in open(counts) if l.strip())
+rows = [r + note.get(r.rsplit("|", 1)[0], "") for r in rows]
 with open(bl, "w") as f:
     f.writelines(head)
     f.writelines(r + "\n" for r in rows)
-print("wrote baseline:", sum(int(r.rsplit("|", 1)[1]) for r in rows), "findings")
+print("wrote baseline:", sum(int(r.split("#", 1)[0].rsplit("|", 1)[1]) for r in rows), "findings")
 PY
 }

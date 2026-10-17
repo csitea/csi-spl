@@ -44,6 +44,14 @@ Text from outside a tenant (issues, pull requests, comments on this
 repository) never reaches an agent as an instruction: see
 [untrusted input](csi-spl-doc/doc/md/untrusted-input.md) (FR-OS-015).
 
+## Scanner baselines
+
+The scanner gates (gosec, semgrep, gitleaks, trivy, checkov and others) pass
+only the findings their baseline files list. A new entry names the issue that
+triaged it, and CI refuses one that does not. The `.gitleaks.toml` allow-list
+holds test-only fixtures and public identifiers, never a real secret. See
+[security baselines](csi-spl-doc/doc/md/security-baselines.md).
+
 ## Scope
 
 In scope: everything in this repository. Out of scope: findings that need a

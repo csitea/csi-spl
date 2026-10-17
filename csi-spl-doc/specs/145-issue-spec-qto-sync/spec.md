@@ -1,6 +1,6 @@
 # 145: Issues, GitSpecs and Qto: Bidirectional Synchronization, First-Class Task Attributes, and Unified Relational Documentation Architecture
 
-Status: **Consensus Specification v0.3 (Final Owner Decisions Folded)**. Issue: SPL-2367.
+Status: **Consensus Specification v0.3.1 (Send-Back Corrections Folded)**. Issue: SPL-2367.
 Date: 2026-10-17 · Lane: `a-478-c002-spec-145-issue-spec-qto-sync`.
 Proposed Epic: `Spec 145 - Issue, GitSpec and Qto Sync` (to be created by dispatcher `c-002`).
 Discussion Topic: `197811a0-f15b-40ef-b6cf-19da0ddc1182` (owner HUM-10, prd t1, msgs 015b6af5, ef77b762, 5863d0d6, e0cf0be3; final poll decisions msg 3ec25b38-b3b4-4e1c-80bf-6453e4afeb09).
@@ -130,10 +130,10 @@ To satisfy Owner Directives §0.2 and §0.3, the spec path and task ID become fi
 
 ### 2.1 Database schema migration (forward-only SQL in `csi-spl-rdb`)
 
-A new migration `csi-spl-rdb/src/sql/postgres/spool-hub/0205_issue_spec_attributes.sql` adds first-class columns and validation constraints to the `issues` table:
+A new migration `csi-spl-rdb/src/sql/postgres/spool-hub/<prefix>_issue_spec_attributes.sql` (taking the next free rdb prefix on origin/master at the lane's push, re-checked on the final rebase) adds first-class columns and validation constraints to the `issues` table:
 
 ```sql
--- 0205_issue_spec_attributes.sql: First-class GitSpec task linkage on issues (SPL-2367)
+-- <prefix>_issue_spec_attributes.sql: First-class GitSpec task linkage on issues (SPL-2367)
 SET LOCAL lock_timeout = '5s';
 
 -- 1. Add spec_path: relative path to the spec or task file
@@ -368,7 +368,7 @@ Every entity across the layers maintains an immutable, persistent identifier:
 
 ### 5.2 The cross-system synchronization ledger (`spec_sync_map`)
 
-To track revisions, hashes, and parity without polluting git files with UUIDs, a lightweight ledger table is added in `0205_issue_spec_attributes.sql`:
+To track revisions, hashes, and parity without polluting git files with UUIDs, a lightweight ledger table is added in the migration (ordered with or combined in the `spec-schema` lane, taking the next free rdb prefix on origin/master at push time):
 
 ```sql
 CREATE TABLE IF NOT EXISTS spec_sync_map (
@@ -402,14 +402,14 @@ Under Owner Decision 1 (Option B), bidirectional file merge conflicts are **enti
 ### 5.4 Shared Area Specs for Quick Fixes and Operations (Owner Decision 4: Option A)
 
 To satisfy the strict validation requirement (Axiom 1 & Owner Decision 2: Option A) without introducing unnecessary friction for ad-hoc bugs or routine operations, shared **Area Specs** are established:
-- `csi-spl-doc/specs/000-quick-fixes/tasks.md` (Anchored by Epic `SPL-100: Quick Fixes & Small Patches`)
-- `csi-spl-doc/specs/000-operations/tasks.md` (Anchored by Epic `SPL-101: System Maintenance & Operations`)
-- `csi-spl-doc/specs/000-infrastructure/tasks.md` (Anchored by Epic `SPL-102: Infrastructure & CI Tuning`)
+- `csi-spl-doc/specs/000-quick-fixes/tasks.md` (Anchored by level-1 epic `Spec 000 - Quick fixes`, the title form `do_spl_issue_epic_backfill` and the `c-368` guard map by)
+- `csi-spl-doc/specs/000-operations/tasks.md` (Anchored by level-1 epic `Spec 000 - Operations`)
+- `csi-spl-doc/specs/000-infrastructure/tasks.md` (Anchored by level-1 epic `Spec 000 - Infrastructure`)
 
 When a developer or agent files an issue for a minor bug fix:
 1. An issue is filed with `spec_path = 'csi-spl-doc/specs/000-quick-fixes/tasks.md'` and a generated task ID (e.g. `QF-2384`).
 2. The task is appended to the Qto task grid under the 000-quick-fixes document.
-3. The `c-368` guard verifies the real spec file and task ID, passing cleanly.
+3. The `c-368` guard verifies the real spec file and task ID against the mapped level-1 area epic, passing cleanly.
 4. No bypass label (`no-spec`) is needed, preserving 100% architectural consistency across all repository work.
 
 ---
@@ -453,4 +453,4 @@ The four structured decision forms were resolved by Owner HUM-10 in discussion t
 
 ---
 
-<!-- version: 0.3.0 · updated: 2026-10-17 · owner-decisions-folded: 3ec25b38 -->
+<!-- version: 0.3.1 · updated: 2026-10-17 · owner-decisions-folded: 3ec25b38 · send-back-folded: 4a154c24 -->

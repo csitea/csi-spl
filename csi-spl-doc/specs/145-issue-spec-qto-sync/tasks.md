@@ -1,7 +1,7 @@
 # Tasks: Spec 145 — Issues, GitSpecs and Qto: Bidirectional Synchronization and Unified Architecture
 
 Status vocabulary: `Implemented` (artifact exists and check passes), `Partial` (some exists), `Planned` (nothing built yet), `Dropped` (retired by architectural decision).  
-Status: **Ready to build (Consensus v0.3 — Owner Decisions Folded)**. Issue: SPL-2367.  
+Status: **Ready to build (Consensus v0.3.1 — Send-Back Corrections Folded)**. Issue: SPL-2367.  
 Authority: [spec.md](spec.md) for requirements, protocols, and data models; this file for task status, dependency ordering, acceptance gates, red controls, and parallel execution work groups.  
 Docs only: this task list defines the build rows; implementation lanes execute it ([README.md](../README.md) §2.4).
 
@@ -24,8 +24,8 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 
 | ID | Status | Area | Lane | Summary, Gate & Red Control | Parallel Group |
 |---|---|---|---|---|---|
-| **T001** | **Planned** | `rdb` | `spec-schema` | **Database schema migration: `0205_issue_spec_attributes.sql`** (§2.1). Forward-only SQL adding columns `spec_path` (`text NOT NULL DEFAULT ''` with regex check for `csi-spl-doc/specs/...`) and `spec_task_id` (`text NOT NULL DEFAULT ''` with alphanumeric check) to `issues`, plus composite index `issues_spec_task_idx` on `(tenant_id, spec_path, spec_task_id)`.<br>• *Gate*: `psql` applies migration cleanly; valid insert succeeds.<br>• *Red Control*: Inserting row with `spec_path = 'bad/path.txt'` fails check constraint. | Work Group 1 |
-| **T002** | **Planned** | `rdb` | `spec-schema` | **Database schema migration: `spec_sync_map` ledger** (§5.2). Create table `spec_sync_map` (`tenant_id`, `spec_path`, `spec_task_id`, `issue_number`, `qto_doc_id`, `qto_item_id`, `last_git_sha`, `last_sync_at`, `sync_status`) with foreign keys to `issues` and `workspace_doc`, fail-closed tenant RLS, and operator scope policy.<br>• *Gate*: Migration applies cleanly; cross-tenant query returns 0 rows under tenant RLS.<br>• *Red Control*: Query without tenant setting fails RLS policy check. | Work Group 1 |
+| **T001** | **Planned** | `rdb` | `spec-schema` | **Database schema migration: issue spec attributes** (§2.1). Forward-only SQL migration taking the next free rdb prefix on origin/master at the lane's push (re-checked on final rebase, e.g. `<prefix>_issue_spec_attributes.sql`), adding columns `spec_path` (`text NOT NULL DEFAULT ''` with regex check for `csi-spl-doc/specs/...`) and `spec_task_id` (`text NOT NULL DEFAULT ''` with alphanumeric check) to `issues`, plus composite index `issues_spec_task_idx` on `(tenant_id, spec_path, spec_task_id)`. Implemented in `spec-schema` lane ordered with or combined with T002 to avoid racing for prefixes.<br>• *Gate*: `psql` applies migration cleanly; valid insert succeeds.<br>• *Red Control*: Inserting row with `spec_path = 'bad/path.txt'` fails check constraint. | Work Group 1 |
+| **T002** | **Planned** | `rdb` | `spec-schema` | **Database schema migration: `spec_sync_map` ledger** (§5.2). Forward-only SQL migration in `spec-schema` lane (ordered after T001 or combined in the same migration file, taking the next free rdb prefix on origin/master at push time, re-checked on final rebase, never two lanes racing for the same prefix). Create table `spec_sync_map` (`tenant_id`, `spec_path`, `spec_task_id`, `issue_number`, `qto_doc_id`, `qto_item_id`, `last_git_sha`, `last_sync_at`, `sync_status`) with foreign keys to `issues` and `workspace_doc`, fail-closed tenant RLS, and operator scope policy.<br>• *Gate*: Migration applies cleanly; cross-tenant query returns 0 rows under tenant RLS.<br>• *Red Control*: Query without tenant setting fails RLS policy check. | Work Group 1 |
 | **T003** | **Planned** | `go` | `spec-schema` | **Hub store & wire model update: `issueJSON`** (§2.2). Update `issueJSON` in `GO/hub/issues.go` and `store.Issue` in `GO/store/` to include `SpecPath`, `SpecTaskID`, and computed `SpecRef`. Update database scanner and insert/update statements in `GO/store/issues.go`.<br>• *Gate*: Go unit test `internal/hub/issues_test.go` verifies round-trip JSON serialization with spec attributes.<br>• *Red Control*: Omitting `spec_path` from scan parameters causes database test assertion failure. | Work Group 2 |
 | **T004** | **Planned** | `go` | `spec-schema` | **Hub API strict validation & CLI endpoints** (§2.2, Owner Decision 2: Option A). Update `POST /v1/issues` and `PATCH /v1/issues/{ref}` in `GO/hub/issues.go` to strictly validate that `spec_path` exists in repo/Qto AND `spec_task_id` exists in that spec's task grid; return 400 `bad_issue` if invalid. Update CLI `spool issue create/update` with `--spec-path` and `--spec-task`. Broadcast WebSocket `issue` frames with new fields.<br>• *Gate*: Integration test verifies `spool issue create` with valid spec+task succeeds, and invalid task ID returns HTTP 400.<br>• *Red Control*: Filing an issue with non-existent task ID `T999` returns HTTP 400 `spec_task_not_found`. | Work Group 2 |
 
@@ -36,7 +36,7 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 | ID | Status | Area | Lane | Summary, Gate & Red Control | Parallel Group |
 |---|---|---|---|---|---|
 | **T010** | **Planned** | `orc` | `spec-filing` | **Update `do_spl_lane_issue` filing action** (§2.3). Modify `RUN/spl-lane-issue.func.sh` to extract `Spec:` and task ID from `brief.md` or lane environment, pass `--spec-path` and `--spec-task` to `spool issue create/update`, and eliminate `- spec: none` from restart card generation.<br>• *Gate*: `spl-lane-issue.tst.sh` verifies generated card references first-class attributes without `- spec: none`.<br>• *Red Control*: Calling `do_spl_lane_issue` without brief spec line when required exits with error. | Work Group 3 |
-| **T011** | **Planned** | `doc` | `spec-filing` | **Shared Area Specs provisioning** (§5.4, Owner Decision 4: Option A). Create initial area specs `csi-spl-doc/specs/000-quick-fixes/tasks.md` and `csi-spl-doc/specs/000-operations/tasks.md` with standard table headers and seed tasks, anchored by parent Epics `SPL-100` and `SPL-101`.<br>• *Gate*: Area spec files exist on master with valid task tables.<br>• *Red Control*: Missing required column in area spec task table fails table linter. | Work Group 1 |
+| **T011** | **Planned** | `doc` | `spec-filing` | **Shared Area Specs provisioning** (§5.4, Owner Decision 4: Option A). Create initial area specs `csi-spl-doc/specs/000-quick-fixes/tasks.md` and `csi-spl-doc/specs/000-operations/tasks.md` with standard table headers and seed tasks. The `T011` lane files one level-1 epic per area spec (`Spec 000 - Quick fixes`, `Spec 000 - Operations`, the title form `do_spl_issue_epic_backfill` and the `c-368` guard map by) and names their keys.<br>• *Gate*: Area spec files exist on master with valid task tables and linked level-1 epics.<br>• *Red Control*: Missing required column in area spec task table fails table linter. | Work Group 1 |
 | **T012** | **Planned** | `orc` | `spec-filing` | **Historical backfill action: `do_spl_issue_spec_backfill`** (§2.4). Implement `RUN/spl-issue-spec-backfill.func.sh` and `SCR/issue-spec-backfill.py` to scan existing issues with empty `spec_path`, parse `- spec:` from description cards, match against `tasks.md` rows, and update database in rate-limited batches with undo journal.<br>• *Gate*: Verification run in dry-run mode against test snapshot correctly identifies and maps 100% of parsable cards.<br>• *Red Control*: Planted issue with corrupt card logs warning and skips without crashing. | Work Group 3 |
 | **T013** | **Planned** | `orc` | `spec-filing` | **Strict c-368 guard enforcement** (§2.6, Owner Decision 2: Option A). Update `SA/lib/lane-issue.inc.sh` and `c-368` guard script to verify that every Level-2 issue has non-null `parent_number` AND valid `spec_path` referencing existing `tasks.md` AND an existing `spec_task_id`, and every Level-1 Epic links to `spec.md`.<br>• *Gate*: Guard check verifies compliance across all live issues and rejects non-compliant issues.<br>• *Red Control*: Inserting test issue with `spec_path = ''` causes `c-368` guard to exit with status 1. | Work Group 5 |
 
@@ -90,7 +90,7 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 
 ```
 +-----------------------------------------------------------------------------------+
-| Work Group 1 (Foundation): T001 (Schema Migration), T002 (Ledger), T011 (Area Specs)|
+| Work Group 1 (Foundation): T001 (Schema), T002 (Ledger - single lane/ordered), T011 (Area Specs)  |
 +------------------------------------------+----------------------------------------+
                                            |
                                            v
@@ -127,7 +127,7 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 ### Detailed Work Group Parallelism
 
 1. **Work Group 1 — Foundation (Can run immediately in parallel)**:
-   - `T001` (RDB migration for `issues.spec_path` and `spec_task_id`), `T002` (RDB migration for `spec_sync_map`), and `T011` (Markdown templates and Epics for `000-quick-fixes` and `000-operations`) touch completely disjoint areas (`csi-spl-rdb` vs `csi-spl-doc`) and can be implemented simultaneously.
+   - `T001` (RDB migration for `issues.spec_path` and `spec_task_id`) and `T002` (RDB migration for `spec_sync_map`) are executed in the single `spec-schema` lane (ordered or combined in one migration file, taking the next free rdb prefix on origin/master at push time, re-checked on final rebase, never two lanes racing for the same prefix). `T011` (Markdown templates and filing level-1 epics `Spec 000 - Quick fixes` and `Spec 000 - Operations`) touches `csi-spl-doc` and runs in parallel.
 2. **Work Group 2 — Hub Wire & CLI API (Can run in parallel once T001 lands)**:
    - `T003` (Go structs, store scanning, database queries) and `T004` (API endpoint strict validation and CLI flags) proceed in parallel within `csi-spl-api`.
 3. **Work Group 3 — WUI & Issue Filing (Can run fully in parallel across ORC and WUI lanes)**:
@@ -148,4 +148,4 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 
 ---
 
-<!-- version: 0.3.0 · updated: 2026-10-17 · owner-decisions-folded: 3ec25b38 -->
+<!-- version: 0.3.1 · updated: 2026-10-17 · owner-decisions-folded: 3ec25b38 · send-back-folded: 4a154c24 -->

@@ -1,10 +1,10 @@
 # 145: Issues, GitSpecs and Qto: Bidirectional Synchronization, First-Class Task Attributes, and Unified Relational Documentation Architecture
 
-Status: **Consensus Draft v0.1 (Spec Only)**. Issue: SPL-2367.
+Status: **Consensus Specification v0.3 (Final Owner Decisions Folded)**. Issue: SPL-2367.
 Date: 2026-10-17 · Lane: `a-478-c002-spec-145-issue-spec-qto-sync`.
 Proposed Epic: `Spec 145 - Issue, GitSpec and Qto Sync` (to be created by dispatcher `c-002`).
-Discussion Topic: `197811a0-f15b-40ef-b6cf-19da0ddc1182` (owner HUM-10, prd t1, msgs 015b6af5, ef77b762, 5863d0d6, e0cf0be3).
-Authority: this file for architecture, schema, protocols, sync rules, and data model; `tasks.md` for the concrete, dependency-ordered implementation tasks with gates and red controls.
+Discussion Topic: `197811a0-f15b-40ef-b6cf-19da0ddc1182` (owner HUM-10, prd t1, msgs 015b6af5, ef77b762, 5863d0d6, e0cf0be3; final poll decisions msg 3ec25b38-b3b4-4e1c-80bf-6453e4afeb09).
+Authority: this file for architecture, schema, protocols, sync rules, and data model; `tasks.md` for the concrete, dependency-ordered implementation tasks with gates, red controls, and parallel work groups.
 Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
 Builds on, and does not repeat:
@@ -40,22 +40,22 @@ Owner HUM-10, topic `197811a0-f15b-40ef-b6cf-19da0ddc1182`, message `e0cf0be3`, 
 
 > "Actually, for each issue, there should be an issue attribute which links to the gitspec file, which is the gitspec which contains the task. In my understanding, an issue is already defined as a task to be done in the gitspec."
 
-### 0.3 Core architectural axioms derived from the owner's words
+### 0.3 Core architectural axioms derived from the owner's decisions
 
-1. **Axiom 1: An Issue IS a Task of a GitSpec.**  
-   An issue is not an untethered, ephemeral ticket. Every work issue in the system is the live, execution-tracked instance of a specific task item defined within a GitSpec (e.g. `csi-spl-doc/specs/145-issue-spec-qto-sync/tasks.md#T001`).
+1. **Axiom 1: An Issue IS a Task of a GitSpec (Strict Isomorphism).**  
+   An issue is not an untethered, ephemeral ticket. Every work issue in the system is the live, execution-tracked instance of a specific task item defined within a GitSpec (e.g. `csi-spl-doc/specs/145-issue-spec-qto-sync/tasks.md#T001`). Enforced strictly at filing: must point to a real spec file and an existing task ID (Owner Decision 2: Option A).
 2. **Axiom 2: An Epic IS a Feature Specification.**  
    An epic corresponds 1:1 to a GitSpec feature directory (e.g. `csi-spl-doc/specs/145-issue-spec-qto-sync/`), anchoring the overall specification (`spec.md`), child tasks (`tasks.md`), contracts, and research.
 3. **Axiom 3: First-Class Structural Integrity (No Free-Text Hacks).**  
    The linkage between an issue and its GitSpec task must never be buried in free-text Markdown descriptions (such as `- spec: ...` in restart cards). It must exist as first-class, indexed, schema-enforced attributes in the database, API wire models, and WUI.
-4. **Axiom 4: Omnidirectional Round-Trip Synchronization without Loss.**  
-   State, status, assignees, titles, descriptions, and test criteria must flow seamlessly across all four directions:
-   - Direction 1: Issue -> GitSpec
-   - Direction 2: Epic -> GitSpec
-   - Direction 3: GitSpec -> Issues
-   - Direction 4: GitSpec <-> Qto (and Issue <-> Qto)
-5. **Axiom 5: Qto as Primary Storage & Relational Index; Git as Authoritative Versioned Distribution.**  
-   Answering the owner's pivotal question: Qto serves as the high-speed, relational, interactive store and global index for rich-text authoring and real-time state tracking. Git serves as the immutable, offline, version-controlled distribution ledger and checkout mirror. Both are kept in continuous, automated, bidirectional synchronization.
+4. **Axiom 4: Unified Synchronization Pipeline without Loss.**  
+   State, status, assignees, titles, descriptions, and test criteria flow seamlessly from the primary Qto store and issues table to generated read-only Git exports.
+5. **Axiom 5: Qto as Sole Primary Storage & Primary Index; Git Files as Read-Only Exports (Owner Decision 1: Option B).**  
+   Qto is the sole primary storage and primary index for all specifications, task grids, and documentation. Markdown files in Git (`spec.md`, `tasks.md`) are strictly read-only generated export artifacts. Agents and humans author and update specs exclusively through Qto doctree actions and the WUI.
+6. **Axiom 6: Instant Export Commit Cadence with Isolated Doc Paths (Owner Decision 3: Option B).**  
+   Every Qto edit triggers an immediate automated commit and push to master. Fleet rebase churn is kept low through dedicated doc export paths (`csi-spl-doc/specs/`) that implementation lanes never touch during code builds.
+7. **Axiom 7: Shared Area Specs for Quick Fixes (Owner Decision 4: Option A).**  
+   Small bug fixes, operational tasks, and ad-hoc changes that do not warrant a bespoke multi-page feature spec are filed under shared, categorized Area Specs (e.g. `000-quick-fixes`, `000-operations`), preserving 100% adherence to strict validation without process overhead.
 
 ---
 
@@ -77,8 +77,16 @@ Every assertion in this section was verified directly against the live code on o
       spec="$(grep -m1 -oE 'csi-spl-doc/specs/[0-9]{3}-[a-z0-9-]+(/spec\.md)?' "$3")"
       avoid="$(grep -m1 -iE 'not touch' "$3" | sed -E 's/^[-* ]+//' | cut -c1-200)"
     fi
-    printf '## Source\n%s\n\n## Restart\n' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
-    printf -- '- key: %s\n- spec: %s\n- scope: %s\n- must not touch: %s\n' "$1" "${spec:-none}" "$scope" "${avoid:-see the brief}"
+    printf '## Source
+%s
+
+## Restart
+' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
+    printf -- '- key: %s
+- spec: %s
+- scope: %s
+- must not touch: %s
+' "$1" "${spec:-none}" "$scope" "${avoid:-see the brief}"
     ...
   }
   ```
@@ -146,9 +154,6 @@ ALTER TABLE issues ADD COLUMN IF NOT EXISTS spec_task_id text NOT NULL DEFAULT '
 CREATE INDEX IF NOT EXISTS issues_spec_task_idx 
     ON issues (tenant_id, spec_path, spec_task_id) 
     WHERE spec_path <> '';
-
--- 4. Constraint: Level 2 work issues must have spec_path once enforced
--- (Deferred trigger or gate-controlled constraint to allow staged backfill)
 ```
 
 #### Field semantics & schema types
@@ -159,11 +164,15 @@ CREATE INDEX IF NOT EXISTS issues_spec_task_idx
 | `spec_task_id` | `text` | `NOT NULL` | `''` | Stable task row identifier within the spec's `tasks.md` (e.g. `T001`, `B4`, `T012.s1`). Empty string for Level 1 Epics that anchor the whole spec. |
 | `spec_ref` *(Virtual / API)* | `string` | — | — | Computed URI fragment representation: `<spec_path>#<spec_task_id>` (e.g. `csi-spl-doc/specs/145-issue-spec-qto-sync/tasks.md#T001`). If `spec_task_id` is empty, equals `spec_path`. |
 
-### 2.2 Hub API & wire protocol update (`csi-spl-api`)
+### 2.2 Hub API wire protocol & strict validation (Owner Decision 2: Option A)
 
-The Go Hub API (`csi-spl-api/src/go/spool-hub-api/internal/hub/`) and wire contracts (`csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md`) are updated:
+The Go Hub API (`csi-spl-api/src/go/spool-hub-api/internal/hub/`) and wire contracts (`csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md`) enforce **Strict Validation at Issue Creation & Mutation**:
 
-1. **`issueJSON` struct (`internal/hub/issues.go`)**:
+1. **Strict Filing Validation Rules:**
+   - **File Existence**: `spec_path` must point to an actual specification file existing in repository master or Qto document tree.
+   - **Task ID Existence**: For Level-2 issues (`kind = 'issue'`), `spec_task_id` must match an existing task row identifier in that spec's task grid / `tasks.md`.
+   - **Rejection**: If either condition is not met, `POST /v1/issues` or `PATCH /v1/issues/{ref}` returns HTTP 400 Bad Request (`{"error": "bad_issue", "reason": "spec_task_not_found"}`).
+2. **`issueJSON` struct (`internal/hub/issues.go`)**:
    ```go
    type issueJSON struct {
        Key         string   `json:"key"`
@@ -194,20 +203,18 @@ The Go Hub API (`csi-spl-api/src/go/spool-hub-api/internal/hub/`) and wire contr
        Discussions []issueDiscussionJSON `json:"discussions,omitempty"`
    }
    ```
-2. **CLI endpoints (`spool issue`)**:
-   - `spool issue create --title "<title>" --spec-path "<path>" [--spec-task "<id>"]`
-   - `spool issue update --ref "<ref>" --spec-path "<path>" [--spec-task "<id>"]`
+3. **CLI endpoints (`spool issue`)**:
+   - `spool issue create --title "<title>" --spec-path "<path>" --spec-task "<id>"`
+   - `spool issue update --ref "<ref>" --spec-path "<path>" --spec-task "<id>"`
    - `spool issue list --spec-path "<path>"`: filters issues belonging to a specific spec.
-3. **Live WebSocket frames**:
-   - Any update to `spec_path` or `spec_task_id` broadcasts a standard `issue` frame across the workspace, updating all open browser views in real time.
 
 ### 2.3 Lane issue filing integration (`do_spl_lane_issue`)
 
 The lane placement script (`csi-spl-orc/src/bash/run/spl-lane-issue.func.sh`) is updated:
 1. `spl_lane_issue_place`:
    - Inspects `brief.md` for explicit metadata lines:
-     `Spec: csi-spl-doc/specs/NNN-slug/` or `Spec: csi-spl-doc/specs/NNN-slug/tasks.md#T001`.
-   - Parses the spec path and task identifier into variables `SLI_SPEC_PATH` and `SLI_SPEC_TASK_ID`.
+     `Spec: csi-spl-doc/specs/NNN-slug/tasks.md#T001` or `Spec: csi-spl-doc/specs/NNN-slug/spec.md`.
+   - Parses the spec path and task identifier into `SLI_SPEC_PATH` and `SLI_SPEC_TASK_ID`.
    - Passes `--spec-path "$SLI_SPEC_PATH"` and `--spec-task "$SLI_SPEC_TASK_ID"` directly to `spool issue create` / `update`.
 2. The legacy restart card generation (`spl_lane_issue_card`) is simplified:
    - `- spec: none` is **completely eliminated**.
@@ -218,12 +225,13 @@ The lane placement script (`csi-spl-orc/src/bash/run/spl-lane-issue.func.sh`) is
 A dedicated orchestrator action, `do_spl_issue_spec_backfill` (`csi-spl-orc/src/bash/run/spl-issue-spec-backfill.func.sh` and helper Python engine `issue-spec-backfill.py`), performs an idempotent backfill:
 1. Queries all issues where `spec_path = ''`.
 2. Scans the issue's description card for `- spec: (csi-spl-doc/specs/[^ 
-	]+)`.
+
+	]+)`.
 3. If a spec path is found:
    - Validates existence on `origin/master`.
    - Checks the issue title for task prefixes like `[NNN T001]` or `[NNN B4]` or task descriptions matching rows in `tasks.md`.
    - Updates `spec_path` and `spec_task_id` via `spool issue update`.
-4. If no spec is named in the card, links to the parent Epic's `spec_path`.
+4. If no spec is named in the card, links to the parent Epic's `spec_path`, or to the Shared Area Spec (`000-quick-fixes`).
 5. Supports `DRY_RUN=1` (reports plan without mutating database) and `DRY_RUN=0` (applies in rate-limited batches with undo journal).
 
 ### 2.5 WUI representation & user interaction (`csi-spl-wui`)
@@ -236,184 +244,118 @@ A dedicated orchestrator action, `do_spl_issue_spec_backfill` (`csi-spl-orc/src/
    - Displays the task ID and spec slug with hover tooltip showing the task title and gate.
 3. **Issue detail dialog (`IssueDetailFrame.vue` & `issues.vue`)**:
    - Displays a dedicated "GitSpec Task" field alongside Status, Priority, Assignee, and Discussions.
-   - For authorized users, provides a dropdown/typeahead picker to link or change the GitSpec file and select a task row from `tasks.md`.
+   - For authorized users, provides a dropdown/typeahead picker to link or change the GitSpec file and select a verified task row from `tasks.md`.
 
 ### 2.6 Enforcement gate (c-368 guard integration)
 
-The `c-368` guard (`c-368-c002-issue-epic-spec-required`) and the pre-push check `do_check_pre_push` are equipped with a strict database check:
+The `c-368` guard (`c-368-c002-issue-epic-spec-required`) and the pre-push check `do_check_pre_push` are equipped with strict database checks:
 - **Rule 1 (Epic requirement)**: Every level-2 issue (`kind = 'issue'`) must have `parent_number IS NOT NULL` referencing an active Epic (`kind = 'epic'`).
-- **Rule 2 (Spec requirement)**: Every level-2 issue must have a non-empty `spec_path` that resolves to a valid `tasks.md` file in the repository.
+- **Rule 2 (Spec requirement)**: Every level-2 issue must have a non-empty `spec_path` that resolves to a valid `tasks.md` file in the repository / Qto doc tree.
 - **Rule 3 (Epic spec requirement)**: Every level-1 Epic must have a non-empty `spec_path` resolving to a valid `spec.md` file.
-- **Rule 4 (Task ID validity)**: If `spec_path` points to a `tasks.md`, `spec_task_id` must match a real task ID in that file's table.
+- **Rule 4 (Task ID validity)**: If `spec_path` points to a `tasks.md`, `spec_task_id` must match a real task ID in that file's table (Owner Decision 2: Option A).
 
 ---
 
-## 3. The four directions of bidirectional synchronization
+## 3. Four-direction architecture under Qto-Primary storage
 
-The core engine provides automated, lossless synchronization across all four architectural directions.
+Under Owner Decision 1 (Option B) and Decision 3 (Option B), Qto is the sole primary source of truth. All authoring, task updates, and status transitions occur in Qto and the Hub database. Git `.md` files are strictly generated read-only export artifacts, updated immediately upon every change with zero fleet rebase churn.
 
 ```
        +-------------------------------------------------------+
-       |                     Qto Editor                        |
+       |               PRIMARY STORE & INDEX: QTO              |
        |  (workspace_doc, workspace_doc_item, workspace_doc_node)|
        +---------------------------+---------------------------+
-                                   ^
-            Direction 4 (Spec <-> Qto)| Direction 4 (Issue <-> Qto)
-                                   v
-+-----------------------------+         +-----------------------------+
-|          GitSpec            | <-----> |           Issues            |
-|   (spec.md, tasks.md)       |  Dir 1  | (issues, issue_discussions) |
-|   on origin/master          |  Dir 2  | in PostgreSQL Hub Store     |
-|                             |  Dir 3  |                             |
+               |                   |                   |
+               | (Live DB Join)    | (Instant Commit)  | (Instant Commit)
+               v                   v                   v
++-----------------------------+    |    +-----------------------------+
+|           Issues            |    +--> |     READ-ONLY GIT EXPORTS   |
+| (issues, issue_discussions) |         |     (spec.md, tasks.md)     |
+|   in PostgreSQL Hub Store   |         |      on origin/master       |
 +-----------------------------+         +-----------------------------+
 ```
 
-### 3.1 Direction 1: Issue -> GitSpec
+### 3.1 Direction 1: Qto & Issues -> Instant Commit GitSpec Export (Owner Decision 3: Option B)
 
-**Trigger**: An issue changes in the Hub (status updated, assignee changed, title/scope edited, test criteria modified, or issue closed).  
-**Tool**: `do_spl_issue_export_spec` (`csi-spl-orc/src/bash/run/spl-issue-export-spec.func.sh`).  
+**Trigger**: An issue changes in the Hub (status updated, assignee changed, title/scope edited, test criteria modified, or issue closed), or a task grid row is edited in Qto.  
+**Tool**: `do_spl_qto_instant_commit_export` (`csi-spl-orc/src/bash/run/spl-qto-instant-commit-export.func.sh`, upgrading `do_spl_doctree_export_md`).  
 **Mechanism**:
-1. Looks up the issue's `spec_path` and `spec_task_id`.
-2. Locates the target `tasks.md` file in the workspace or repository clone.
-3. Parses the Markdown task table while strictly preserving:
-   - Markdown comments, front matter, section preamble, and non-table prose.
-   - Column layout and pipe alignment.
-4. Updates the target row matching `spec_task_id`:
-   - Status mapping:
-     - `done` -> `[x]` checkbox, Status column `Implemented`.
-     - `wip` -> `[~]` or Status column `In Progress`.
-     - `todo` / `eval` -> `[ ]` checkbox, Status column `Planned`.
-     - `diss` -> `(dropped: SPL-NNN discarded)` or Status column `Discarded`.
-     - `blocked` / `onhold` -> Status column `Blocked` / `On Hold`.
-   - Updates Lane column with assignee if assigned.
-5. Commits the updated `tasks.md` cleanly to git or queues a batch export commit.
+1. Reads the authoritative Qto document (`workspace_doc`) and its task grid items (`workspace_doc_item`).
+2. Joins the live `issues` table records via `spec_sync_map` to obtain real-time status and assignee metadata.
+3. Formats the export file with the mandatory generated header:
+   `> Generated from qto doc <doc_id>; edit it there. This file is its export: cd csi-spl-orc && ./run -a do_spl_doctree_export_md rewrites it.`
+4. Serializes the task grid into a clean CommonMark GFM pipe table in `tasks.md`.
+5. Emits the export and commits immediately to `origin/master` as one atomic commit per change. Direct hand edits to `tasks.md` in git checkouts are prohibited and refused by pre-push hygiene.
 
-### 3.2 Direction 2: Epic -> GitSpec
+#### Minimizing fleet rebase churn under instant commit
+Because commits occur on every single Qto change, fleet rebase churn is controlled and eliminated through four architectural safeguards:
+1. **Dedicated Doc Paths**: All exported documentation files live strictly under `csi-spl-doc/specs/`. Lane briefs and worktree policies enforce that implementation lanes touch only code trees (`src/`, `rdb/`, `iac/`) and *never* write to `csi-spl-doc/`.
+2. **Git Tree-Level Non-Overlapping Merges**: When agent lanes run `git rebase origin/master`, git performs a trivial tree merge. Because code files and docs files reside in disjoint directory trees, rebasing across doc export commits produces exactly **zero merge conflicts**.
+3. **Dedicated Push Bot with Fast-Path**: The automated export runner (`spl-qto-export-bot`) commits directly using the repository committer identity and pushes using atomic lease-free git pushes.
+4. **Clean Worktree Fetching**: Because agents never stage local modifications in `csi-spl-doc/specs/`, `git pull --rebase` or `git fetch` in agent lanes always succeeds cleanly without dirty-tree aborts.
 
-**Trigger**: An Epic is created or updated in the Hub (via WUI or `spool issue create --kind epic`).  
-**Tool**: `do_spl_epic_export_spec` (`csi-spl-orc/src/bash/run/spl-epic-export-spec.func.sh`).  
+### 3.2 Direction 2: Epic -> Qto Spec -> GitSpec Export
+
+**Trigger**: An Epic is created in the Hub or WUI (`spool issue create --kind epic`).  
+**Tool**: `do_spl_epic_qto_create` (`csi-spl-orc/src/bash/run/spl-epic-qto-create.func.sh`).  
 **Mechanism**:
-1. Determines target spec directory:
-   - If `spec_path` is already set, uses that directory.
-   - If empty, derives next free 3-digit number `NNN` and creates `csi-spl-doc/specs/NNN-<slug>/`.
-2. Generates / updates `spec.md`:
-   - Title: `# NNN: <Epic Title>`
-   - Status: Draft / Planned (mapping Epic status).
-   - Description & Background: Populated from Epic description and linked source discussion topics (`issue_discussions`).
-3. Generates / updates `tasks.md`:
-   - Queries all child issues of the Epic (`parent_number = epic.number`).
-   - Generates the standard phased tasks table with rows `T001`, `T002`, ... mapping each child issue's title, status, assignee, and description.
-4. Sets the Epic's `spec_path` to `csi-spl-doc/specs/NNN-<slug>/spec.md` and child issues' `spec_path` to `csi-spl-doc/specs/NNN-<slug>/tasks.md`.
+1. Creates a new `workspace_doc` in Qto titled `Spec NNN - <Epic Title>`.
+2. Generates the standard outline structure in `workspace_doc_item` nodes (Overview, Requirements, Architecture).
+3. Creates a child Task Grid item linked to the Epic's child issues.
+4. Registers the mapping in `spec_sync_map` and `csi-spl-doc/doc/md/qto-docs.tsv`.
+5. Exports the generated read-only `spec.md` and `tasks.md` files under `csi-spl-doc/specs/NNN-<slug>/` and commits them.
 
-### 3.3 Direction 3: GitSpec -> Issues
+### 3.3 Direction 3: Legacy GitSpec -> Qto One-Time Migration
 
-**Trigger**: A GitSpec author creates or updates `spec.md` and `tasks.md` in git (or a spec panel signs off a new spec).  
-**Tool**: `do_spl_spec_import_issues` (`csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh` upgraded to v2).  
+**Trigger**: Migration of pre-existing Markdown specifications into the primary Qto store.  
+**Tool**: `do_spl_spec_import_qto` (`csi-spl-orc/src/bash/run/spl-spec-import-qto.func.sh`).  
 **Mechanism**:
-1. Reads `csi-spl-doc/specs/NNN-<slug>/`:
-   - Parses `spec.md` for title, status, and background.
-   - Locates or creates the parent Epic titled `Spec NNN - <Title>`:
-     - Sets `kind = 'epic'`, `level = 1`, `spec_path = 'csi-spl-doc/specs/NNN-<slug>/spec.md'`.
-2. Parses `tasks.md` task table rows:
-   - For each row (e.g. `T001`, `B1`, `T012`):
-     - Checks if an issue already exists with `(tenant_id, spec_path, spec_task_id)`.
-     - **If exists**: Updates title, description, status, and priority to match `tasks.md`.
-     - **If new**: Creates a new Level 2 issue (`kind = 'issue'`, `level = 2`):
-       - `title`: `[NNN <id>] <Task Summary>`
-       - `parent_number`: Epic number
-       - `spec_path`: `csi-spl-doc/specs/NNN-<slug>/tasks.md`
-       - `spec_task_id`: `<id>`
-       - `status`: Mapped from table checkbox/status (`[x]` -> `done`, `[~]` -> `wip`, `[ ]` -> `todo`/`eval`).
-       - `discussions`: Inherits Epic's source discussion topic or tenant default.
-3. Idempotent: running repeatedly produces zero spurious changes or duplicate issues.
+1. Scans existing `csi-spl-doc/specs/NNN-*/` directories.
+2. Imports `spec.md` sections into Qto `workspace_doc_item` hierarchy.
+3. Converts `tasks.md` tables into Qto Task Grid items with structured attributes (`attrs.spec_task_id`, `attrs.issue_key`).
+4. Creates corresponding Level 1 Epic and Level 2 Issue records in PostgreSQL if not already present.
+5. Rewrites the git files in place with the standard read-only generation stamp, transferring authority entirely to Qto.
 
-### 3.4 Direction 4: GitSpec <-> Qto (and Issue <-> Qto)
+### 3.4 Direction 4: Qto Action Tooling for Agents
 
-**Trigger**: An author edits documentation in Qto, or a GitSpec is synced to Qto.  
-**Tool**: `do_spl_qto_spec_sync` (`csi-spl-orc/src/bash/run/spl-qto-spec-sync.func.sh`).  
+**Trigger**: An agent working in a lane needs to update a task status, add a subtask, or modify a specification.  
+**Tool**: `do_spl_qto_task_update` (`csi-spl-orc/src/bash/run/spl-qto-task-update.func.sh`).  
 **Mechanism**:
-1. **Importing GitSpec into Qto**:
-   - Creates a `workspace_doc` for the specification titled `Spec NNN - <Title>`.
-   - Creates hierarchical `workspace_doc_item` nodes for sections of `spec.md` (`## 0. Overview`, `## 1. Architecture`, etc.).
-   - Converts `tasks.md` into an interactive **Qto Table / Grid Item** (utilizing Qto's dual outline/grid engine from Spec 113):
-     - Columns: `Task ID`, `Status`, `Area`, `Lane`, `Summary`, `Gate & Red Control`, `Issue Key`.
-     - Each row in the Qto grid stores attributes in `workspace_doc_item.attrs`:
-       `{"spec_task_id": "T001", "issue_key": "SPL-2367", "status": "wip"}`.
-2. **Interactive Editing in Qto**:
-   - Humans and agents edit tasks in the Qto grid (adding rows, changing statuses, editing gates).
-   - Real-time Qto change events (`workspace_doc_rev_log`) trigger background hub synchronization:
-     - Updates the linked `issues` table row in PostgreSQL immediately.
-     - Queues an export to update the git checkout `tasks.md`.
-3. **Exporting Qto to GitSpec Markdown**:
-   - `do_spl_doctree_export_md` is enhanced to serialize Qto Table/Grid items into formatted GFM pipe tables with pristine CommonMark compatibility.
+1. Because local `.md` files are read-only exports, agents do NOT edit `spec.md` or `tasks.md` via text editors or shell commands in their worktrees.
+2. Agents invoke named Qto CLI actions:
+   `QTO_DOC=<id> TASK_ID=T001 STATUS=done ./run -a do_spl_qto_task_update`
+3. The action mutates the Qto item and linked Hub issue in PostgreSQL under the agent's identity.
+4. The instant-commit export engine immediately pushes the updated `tasks.md` export.
 
 ---
 
-## 4. Primary storage and index architecture: answering the owner's question
+## 4. Primary storage and index architecture: the Qto-Only decision
 
-Owner HUM-10 asked:
-> *"Actually, isn't it the case that the whole GitSpec could also be imported to the QTO, and that the QTO could be the primary storage and primary index for the MD documentation?"*
+Owner HUM-10 resolved the architectural choice in prd workspace `t1`, topic `197811a0`, message `3ec25b38-b3b4-4e1c-80bf-6453e4afeb09` (2026-10-17): **Option B (Qto only: the Git files become read-only exports)**.
 
-This section provides the rigorous architectural analysis and the concrete solution.
+### 4.1 Architectural implications of Decision B
 
-### 4.1 Comparative evaluation: Qto vs Git
-
-| Dimension | Qto (PostgreSQL + RLS + WebSocket Hub) | Git (Filesystem + Remote Trunk) |
-|---|---|---|
-| **Storage Engine** | PostgreSQL relational tables (`workspace_doc`, `workspace_doc_item`, `workspace_doc_node`) | Git object store (`.git/objects`, blobs, trees, commits) |
-| **Indexing & Search** | Full-text indexing, Omnibox top-bar search (`/search`), relational joins with issues and discussions | Grep / ripgrep on filesystem, external indexers (`graft`), git log search |
-| **Concurrency & Editing** | Multi-seat real-time collaborative editing, field-level locking, instant save, zero merge conflicts during drafting | Branch/checkout isolation, pull-requests, merge conflicts requiring manual rebase |
-| **Access Control (RLS)** | Strict workspace isolation, RBAC permissions, private document scopes (`workspace_doc_acl`) | All-or-nothing repository clone access |
-| **Offline Execution** | Requires network connectivity to Spool Hub API | Fully offline; agents can read and write locally in worktrees |
-| **Traceability & Auditing** | `workspace_doc_rev_log` timestamped operations, `issue_events` | Cryptographic commit hashes (`commit_sha`), git blame, signed tags |
-| **CI / CD Gating** | Webhook / event-driven checks | Native GitHub Actions triggers, pre-push hooks, release deployment tags |
-
-### 4.2 The verdict: The Dual-Anchor Synchronized Model
-
-Can Qto be the primary storage and primary index? **Yes, for interactive workspace authoring, indexing, and live status tracking.**  
-However, retiring Git files entirely would break:
-1. Offline agent execution in isolated worktrees (agents reading `spec.md` without network).
-2. Atomic coupling of code changes with their specification changes in the same commit.
-3. Pre-push gates and CI deployment workflows that trigger on git pathspecs.
-
-Therefore, the architecture establishes the **Dual-Anchor Synchronized Model**:
-
-```
-[ Author / WUI / Human ]           [ Agent / Worktree / CI ]
-         |                                     |
-         v                                     v
-+------------------------+           +------------------------+
-|   PRIMARY INTERACTIVE  |           |   PRIMARY VERSIONED    |
-|     STORAGE & INDEX    |           |  DISTRIBUTION & GATE   |
-|         (Qto)          |           |         (Git)          |
-|  - Real-time editing   |           |  - Offline worktrees   |
-|  - Omnibox search      |           |  - Atomic code commits |
-|  - Relational queries  |           |  - CI/CD deploy gates  |
-|  - Grid & Outline view |           |  - Git blame & tags    |
-+-----------+------------+           +------------+-----------+
-            ^                                     ^
-            |       Continuous Bidirectional      |
-            +============ Synchronization ========+
-```
-
-1. **Qto is the Primary Authoring Store and Primary Relational Index:**
-   - All documentation search, navigation, cross-referencing, and interactive editing happen in Qto.
-   - The Omnibox and WUI query Qto database tables directly with sub-millisecond response times.
-   - Task lists are managed in Qto's dual outline/grid interface with direct relational links to issues.
-2. **Git is the Primary Versioned Distribution and Code-Coupling Ledger:**
-   - Every commit to trunk (`master`) that touches `csi-spl-doc/specs/` automatically reconciles into Qto.
-   - Every edit made in Qto automatically generates a signed git commit or export bundle.
-   - Agents working in worktrees (`/opt/csi/csi-spl-wt/<agent>`) continue to read local files (`spec.md`, `tasks.md`), guaranteed to match Qto.
+1. **Qto is the Sole Primary Store and Primary Index:**
+   - PostgreSQL (`workspace_doc`, `workspace_doc_item`, `workspace_doc_node`) is the single authoritative source of truth for all specification text, diagrams, task lists, and metadata.
+   - The Omnibox search and WUI query Qto tables directly with sub-millisecond full-text indexing.
+   - Live multi-user collaboration in the WUI operates directly on Qto without intermediate git staging.
+2. **Git Files are Strictly Read-Only Generated Exports:**
+   - All `.md` files under `csi-spl-doc/specs/` are generated export artifacts (analogous to build outputs).
+   - Each file carries the immutable generation banner:
+     `> Generated from qto doc <uuid>; edit it there. This file is its export: cd csi-spl-orc && ./run -a do_spl_doctree_export_md rewrites it.`
+   - No human or agent edits these files by hand in git worktrees. Any manual edit made to a generated `.md` file is refused by the pre-push gate `do_check_dist_hygiene` and overwritten on next export.
+3. **Agent Workflow Transition:**
+   - Agents read local `.md` files in their worktrees for read-only context (e.g. reading task requirements or testing gates).
+   - To update task statuses, gates, or specification prose, agents call named orchestrator actions (`do_spl_qto_task_update`, `do_spl_desk_doctree`) that write directly to the Qto Hub database.
+   - Automated instant-commit hooks rewrite and commit the exported `.md` files.
 
 ---
 
 ## 5. Round-trip fidelity, surviving identifiers, and conflict resolution
 
-To prevent split-brain states and data corruption across the four synchronization directions, the system adheres to strict identifier persistence and conflict resolution algorithms.
-
 ### 5.1 Immutable surviving identifiers
 
-Every entity across the three layers maintains an immutable, persistent identifier:
+Every entity across the layers maintains an immutable, persistent identifier:
 
 | Entity | Primary Key / Identifier | Scope & Stability | Cross-System Reference |
 |---|---|---|---|
@@ -446,21 +388,29 @@ CREATE TABLE IF NOT EXISTS spec_sync_map (
 );
 ```
 
-### 5.3 Conflict resolution rules
+### 5.3 Conflict elimination under Qto-Primary architecture
 
-When concurrent edits occur in both Git and Qto/Issues:
+Under Owner Decision 1 (Option B), bidirectional file merge conflicts are **entirely eliminated**:
 
-1. **Rule 1: Landing on Master Trumps Drafts (Landed Code Wins).**  
-   If a git commit lands on `origin/master` citing an issue or closing a task, the git commit sha and its task status (`done`) take absolute precedence over any uncommitted WUI edits. The issue moves to `done` and Qto is updated.
-2. **Rule 2: Three-Way Merge on Content.**  
-   When text in `spec.md` or descriptions in `tasks.md` are modified in both Git and Qto, the engine performs a standard 3-way merge using the `last_git_sha` recorded in `spec_sync_map` as the common ancestor.
-   - Non-overlapping section edits merge automatically.
-   - Overlapping edits trigger a conflict record (`sync_status = 'conflict'`) and post a warning to the dispatch topic.
-3. **Rule 3: Structural Grid Protection.**  
-   Adding or removing a task row in `tasks.md` or Qto is reconciled additively:
-   - A new row in `tasks.md` creates a new issue and Qto item.
-   - A new item in Qto appends a new row to `tasks.md` with the next sequential task ID (e.g. `T015`).
-   - Row deletion in git or Qto is converted to `status = 'diss'` (discarded) rather than hard deletion, preserving audit history.
+1. **Zero Git Merge Conflicts for Documentation:**  
+   Because git `.md` files are strictly read-only generated exports, concurrent branches and worktrees never attempt to merge conflicting Markdown edits on trunk. Trunk receives atomic, generated exports from Qto.
+2. **Qto Revision Log Authority:**  
+   All concurrent editing conflicts between multiple human users or agents are resolved within Qto using the revision ledger (`workspace_doc_rev_log`) and PostgreSQL row-level locks.
+3. **Code Landing Status Progression:**  
+   When code lands on master citing an issue key (e.g. `feat(..., SPL-2367)`), the automated closer (`do_spl_issue_close_landed`) updates the issue in PostgreSQL to `done`. The live database trigger automatically marks the corresponding Qto task grid item as `done` and triggers an instant re-export and commit.
+
+### 5.4 Shared Area Specs for Quick Fixes and Operations (Owner Decision 4: Option A)
+
+To satisfy the strict validation requirement (Axiom 1 & Owner Decision 2: Option A) without introducing unnecessary friction for ad-hoc bugs or routine operations, shared **Area Specs** are established:
+- `csi-spl-doc/specs/000-quick-fixes/tasks.md` (Anchored by Epic `SPL-100: Quick Fixes & Small Patches`)
+- `csi-spl-doc/specs/000-operations/tasks.md` (Anchored by Epic `SPL-101: System Maintenance & Operations`)
+- `csi-spl-doc/specs/000-infrastructure/tasks.md` (Anchored by Epic `SPL-102: Infrastructure & CI Tuning`)
+
+When a developer or agent files an issue for a minor bug fix:
+1. An issue is filed with `spec_path = 'csi-spl-doc/specs/000-quick-fixes/tasks.md'` and a generated task ID (e.g. `QF-2384`).
+2. The task is appended to the Qto task grid under the 000-quick-fixes document.
+3. The `c-368` guard verifies the real spec file and task ID, passing cleanly.
+4. No bypass label (`no-spec`) is needed, preserving 100% architectural consistency across all repository work.
 
 ---
 
@@ -471,92 +421,36 @@ Every capability in this specification is guarded by strict acceptance criteria 
 | ID | Capability & Acceptance Criterion | Verification Command / Gate | Red Control (Planted Defect & Expected Failure) |
 |---|---|---|---|
 | **AC-1** | **Issue Spec Schema Migration**: `issues` table accepts `spec_path` and `spec_task_id` with regex validation. | `psql -c "INSERT INTO issues (..., spec_path, spec_task_id) VALUES (..., 'csi-spl-doc/specs/145-issue-spec-qto-sync/tasks.md', 'T001')"` succeeds. | Planted insert with `spec_path = 'invalid/path/file.txt'` must fail with check constraint violation. |
-| **AC-2** | **Hub API Wire Parity**: `POST /v1/issues` and `PATCH /v1/issues/{ref}` accept and return `spec_path`, `spec_task_id`, and `spec_ref`. | Go unit test `internal/hub/issues_spec_test.go` verifies serialization, creation, and updating. | Removing `SpecPath` from `issueJSON` causes API contract tests to fail. |
+| **AC-2** | **Hub API Wire & Strict Validation**: `POST /v1/issues` accepts spec attributes and strictly rejects non-existent spec files or missing task IDs. | Go test `internal/hub/issues_spec_test.go` verifies validation and serialization. | Filing an issue with non-existent task ID `T999` returns HTTP 400 `spec_task_not_found`. |
 | **AC-3** | **Lane Issue Filing Integration**: `do_spl_lane_issue` extracts spec path and task ID from brief and sets issue attributes. | `AGENT_ID=a-478 BRIEF=... DRY_RUN=1 ./run -a do_spl_lane_issue` outputs plan with `--spec-path` and `--spec-task`. | Omitting spec attributes from `spool issue create` invocation causes filing test assertion failure. |
-| **AC-4** | **c-368 Guard Enforcement**: A level-2 issue without an Epic parent AND a valid GitSpec path is refused. | `c-368` guard script verifies compliance across all live issues. | Creating an issue with `spec_path = ''` must cause `c-368` gate to exit with status 1. |
+| **AC-4** | **c-368 Guard Strict Enforcement**: A level-2 issue without an Epic parent AND a valid GitSpec path + task ID is refused. | `c-368` guard script verifies compliance across all live issues. | Creating an issue with `spec_path = ''` or unverified task ID causes `c-368` gate to exit with status 1. |
 | **AC-5** | **Historical Backfill Accuracy**: `do_spl_issue_spec_backfill` populates empty spec attributes from description cards. | Run `do_spl_issue_spec_backfill DRY_RUN=1` against test dataset; verifies 100% of parsable cards resolve. | Planted corrupt card with missing spec path correctly logs warning and marks unresolved without crashing. |
-| **AC-6** | **Direction 1 (Issue -> Spec Export)**: Changing issue status in Hub updates `tasks.md` table without corrupting formatting. | `do_spl_issue_export_spec ISSUE=SPL-2367 STATUS=done` updates target row in `tasks.md`. | Mutating non-target rows or modifying table column count fails diff sanity check. |
-| **AC-7** | **Direction 3 (Spec -> Issue Import)**: Importing `tasks.md` creates missing issues and reconciles existing ones idempotently. | `do_spl_spec_import_issues SPEC_DIR=...` creates missing tasks; second run reports 0 changes. | Running with mismatched task IDs fails validation without creating duplicate issues. |
-| **AC-8** | **Direction 4 (GitSpec <-> Qto Round Trip)**: Importing `tasks.md` to Qto and exporting back produces byte-identical table markdown. | `do_spl_qto_spec_sync` import followed by export; `diff -u original.md exported.md` is empty. | Dropping task grid attributes during Qto serialization produces non-empty diff and fails test. |
+| **AC-6** | **Instant Commit per Qto Change with Isolated Doc Paths**: Every Qto edit produces an instant git commit to master without lane rebase churn. | `do_spl_qto_instant_commit_export` produces commit on master; lane rebasing code branch has zero conflicts. | Simulating code lane modification to `csi-spl-doc/` triggers hygiene failure. |
+| **AC-7** | **Read-Only Git Export Generation & Immutability**: `do_spl_doctree_export_md` exports Qto specs into `.md` files with generation banner; hand edits in worktrees are rejected. | `./run -a do_spl_doctree_export_md` produces clean export carrying `> Generated from qto doc...`. | Pre-push gate `do_check_dist_hygiene` flags any manual edit to generated spec export file. |
+| **AC-8** | **Shared Area Specs for Quick Fixes**: Issues filed for minor fixes successfully validate against `000-quick-fixes` area spec. | `spool issue create --spec-path csi-spl-doc/specs/000-quick-fixes/tasks.md --spec-task QF-1` passes strict gate. | Attempting to file quick-fix with arbitrary unregistered task ID fails AC-2 validation. |
 
 ---
 
-## 7. Owner decision forms (for topic 197811a0)
+## 7. Owner decision records (verbatim, topic 197811a0)
 
-The dispatcher (`c-002`) will present the following structured decision forms to Owner HUM-10 in discussion topic `197811a0-f15b-40ef-b6cf-19da0ddc1182`.
+The four structured decision forms were resolved by Owner HUM-10 in discussion topic `197811a0-f15b-40ef-b6cf-19da0ddc1182`, recorded in message `3ec25b38-b3b4-4e1c-80bf-6453e4afeb09` (2026-10-17).
 
 ### Form 1: Primary storage and index architecture
-
-```
-Question: How should the relationship between Qto and Git documentation be structured?
-
-Option A (Recommended): Dual-Anchor Synchronized Architecture
-- Qto is the primary interactive store and relational index for real-time editing, Omnibox search, and live status.
-- Git is the authoritative versioned distribution store for offline agent worktrees, commit-level PR reviews, and CI deploy gates.
-- Continuous automated bidirectional sync keeps both stores in lockstep.
-
-Option B: Pure Qto-Primary with Read-Only Git Exports
-- Documentation is edited ONLY in Qto.
-- Git files are 100% read-only generated exports (like compiled binaries).
-- Disadvantage: Agents in offline worktrees cannot edit specs alongside their code commits.
-
-Option C: Git-Primary with Read-Only Qto View
-- Git remains the sole source of truth; Qto is only a viewer and indexer.
-- Disadvantage: Gives up real-time multi-agent editing and grid-based interactive task management in the WUI.
-
-Recommendation: Option A. Gives the best of both worlds: live WUI/Qto editing with search while preserving worktree autonomy and commit atomicity.
-```
+- **Owner Selection**: **Option B — Qto only: the Git files become read-only exports (agents cannot edit specs next to their code)**.
+- **Architectural Directive**: Qto is the sole primary authoring store and search index. Markdown files in Git checkouts are generated read-only export artifacts. Agents author specs and update tasks through Qto doctree actions.
 
 ### Form 2: GitSpec attribute strictness and validation
-
-```
-Question: How strictly should the first-class spec attribute be validated at issue creation?
-
-Option A (Recommended): Strict Path & Task Validation
-- Every work issue must provide both a valid spec file path (`csi-spl-doc/specs/NNN-slug/tasks.md`) AND a verified task ID (`T001`).
-- The Hub API validates that the file exists and contains that task ID.
-- Level-1 Epics link to `spec.md`; Level-2 Issues link to `tasks.md#<task_id>`.
-
-Option B: Loose Spec-Directory Only
-- Issues only link to the spec directory (`csi-spl-doc/specs/NNN-slug/`), leaving task IDs free-form or optional.
-- Disadvantage: Loses 1:1 task-to-issue isomorphism and breaks automated grid row reconciliation.
-
-Recommendation: Option A. Aligns directly with your directive: "an issue is already defined as a task to be done in the gitspec."
-```
+- **Owner Selection**: **Option A — Strict: a real spec file and a task id that exists in it, checked when the issue is filed**.
+- **Architectural Directive**: The Hub API and lane filing tools strictly validate that the spec file exists in repository / Qto and that the task ID exists in that spec's task grid at the time of issue creation. Phantom or untethered issues are refused.
 
 ### Form 3: Automated Git commit cadence for Qto edits
-
-```
-Question: When human or agent users edit specs or tasks in Qto, when should git commits be created?
-
-Option A (Recommended): Debounced Batch Commits (Hourly or per Work Session)
-- Edits in Qto update the PostgreSQL database immediately.
-- A background worker batches edits and creates a clean git commit every 15-30 minutes, or upon explicit "Publish / Sync to Git" button click.
-- Avoids flooding git master history with micro-commits for every keystroke.
-
-Option B: Instant Commit on Every Change
-- Every single status change or paragraph edit immediately triggers an automated commit and push to master.
-- Disadvantage: May create dozens of trivial commits per hour and increase rebase churn across the fleet.
-
-Recommendation: Option A. Keeps git trunk history clean and meaningful while keeping Qto instantly responsive.
-```
+- **Owner Selection**: **Option B — At once, one commit per change**.
+- **Architectural Directive**: The export engine commits to `origin/master` immediately upon every Qto edit. Fleet rebase churn is kept low by isolating all exports to dedicated paths (`csi-spl-doc/specs/`) that implementation lanes never touch during code builds, guaranteeing conflict-free git tree rebases.
 
 ### Form 4: Handling legacy and ad-hoc issues without specs
-
-```
-Question: How should legacy issues or quick ad-hoc bugs that do not yet have a formal spec be treated under the c-368 guard?
-
-Option A (Recommended): Automated "Catch-All" Area Specs
-- Issues that do not warrant a full 10-page spec are filed under categorized "Area Specs" (e.g. `csi-spl-doc/specs/000-operations/`, `csi-spl-doc/specs/000-quick-fixes/`).
-- Ensures 100% schema compliance without requiring heavy spec panels for one-line fixes.
-
-Option B: Exemption Label (`no-spec`)
-- Allow a special bypass label `no-spec` that permits issues without a spec attribute.
-- Disadvantage: Creates a loophole where agents and humans avoid writing specs, reverting to untracked work.
-
-Recommendation: Option A. Maintains architectural purity ("no issue without an epic and a git spec") while keeping the workflow agile for small fixes.
-```
+- **Owner Selection**: **Option A — Shared area spec for quick fixes**.
+- **Architectural Directive**: Maintain absolute architectural purity ("no issue without an epic and a git spec") without exemption bypasses (`no-spec`). Quick fixes, operational patches, and infrastructure adjustments are filed against categorized Area Specs (`000-quick-fixes`, `000-operations`).
 
 ---
 
-<!-- version: 0.1.0 · updated: 2026-10-17 -->
+<!-- version: 0.3.0 · updated: 2026-10-17 · owner-decisions-folded: 3ec25b38 -->

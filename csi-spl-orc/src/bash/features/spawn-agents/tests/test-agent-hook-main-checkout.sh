@@ -16,6 +16,12 @@
 #   4. Bash with cwd in the main checkout -> allowed, the warning in claude's
 #      additionalContext at PreToolUse and in vibe's additional_context at
 #      PostToolUse (control: cwd in its worktree -> no warning)
+#   6. SPL-2329: a lane's git write aimed at the main checkout (-C <main>, a
+#      cwd or a cd inside it, through sudo / bash -c) -> deny naming its
+#      worktree; merge --ff-only, fetch with no src:dst refspec, branch -d
+#      <id>-* and reads -> allowed; the same writes in its own worktree, a
+#      role seat, an id with no worktree -> allowed (RED CONTROL: before
+#      SPL-2329 every git call was allowed)
 #   5. vibe's own HooksManager, on the launcher's heartbeat pre_tool entry,
 #      turns the deny into a HookToolDenial (SKIP with no vibe python)
 # Env: AGENT_HOOK (default: the tree's hook): point it at an older copy to run
@@ -147,6 +153,40 @@ EOF
   eq "5. vibe runner: edit into main denied" DENY "$(drive edit "$R/sub/a.txt" 2>&1)"
   eq "5. vibe runner control: write_file in its worktree allowed" ALLOW "$(drive write_file "$W/c-901/a.txt" 2>&1)"
 fi
+echo "# 6. SPL-2329: a lane's git WRITE aimed at the main checkout is denied"
+sh6() {  # ID CWD COMMAND -> deny|allow (claude PreToolUse)
+  hook "$1" claude PreToolUse "$(python3 -c 'import json,sys; print(json.dumps({"tool_name": "Bash", "cwd": sys.argv[1], "tool_input": {"command": sys.argv[2]}}))' "$2" "$3")" | decision | sed -n 1p
+}
+for c in "git -C $R rebase origin/master" "git -C $R reset --hard origin/master" "git -C $R commit -m x" \
+  "git -C $R cherry-pick abc" "git -C $R checkout -b y" "git -C $R switch y" "git -C $R stash" \
+  "git -C $R pull --ff-only" "git -C $R am x.patch" "git -C $R branch -d other-x" "git -C $R branch -D c-901-x" \
+  "sudo -u u bash -c 'cd $R && git merge tmp-x'" "cd $R && git rebase origin/master"; do
+  eq "6. lane, $c: denied (RED CONTROL: allowed before SPL-2329)" deny "$(sh6 c-901 "$W/c-901" "$c")"
+done
+for c in "git merge tmp-x" "git fetch $W/c-901/.git c-901-x:tmp-x" "git merge origin/master"; do
+  eq "6. lane, cwd in main, $c: denied" deny "$(sh6 c-901 "$R" "$c")"
+done
+out="$(hook c-901 claude PreToolUse "$(pay Bash "$W/c-901" command "git -C $R rebase origin/master")" | decision)"
+has "6. the reason names the lane's worktree" "run it in your worktree: git -C $W/c-901 rebase" "$out"
+eq "6. vibe bash pre_tool: denied in vibe's shape" deny \
+  "$(hook c-901 vibe PreToolUse "$(pay bash "$W/c-901" command "git -C $R reset --hard")" | decision | sed -n 1p)"
+for c in "sudo -u u git -C $R merge --ff-only origin/master" "git -C $R fetch origin" "git -C $R fetch git@example.com:o/r.git master" \
+  "git -C $R status" "git -C $R log --oneline -3" "git -C $R worktree list" "git -C $R branch -d c-901-x" "git -C $R stash list" \
+  "git -C $R/sub diff"; do
+  eq "6. lane, $c: allowed" allow "$(sh6 c-901 "$W/c-901" "$c")"
+done
+eq "6. lane, cwd in main, git fetch origin: allowed" allow "$(sh6 c-901 "$R" "git fetch origin")"
+for c in "git rebase origin/master" "git reset --hard HEAD" "git commit -m x" "git -C $W/c-901 merge tmp-x" "git fetch origin a:b"; do
+  eq "6. lane, $c in its own worktree: allowed" allow "$(sh6 c-901 "$W/c-901" "$c")"
+done
+eq "6. lane, a cd into its worktree first: allowed" allow "$(sh6 c-901 "$R" "cd $W/c-901 && git rebase origin/master")"
+eq "6. git -C a variable is not read: allowed" allow "$(sh6 c-901 "$W/c-901" 'git -C "$MAIN" reset --hard')"
+eq "6. a mention of git is not a call: allowed" allow "$(sh6 c-901 "$R" "grep -n 'git reset' README")"
+for id in c-001 c-777; do
+  eq "6. $id (role seat / no worktree), git -C main rebase: allowed" allow "$(sh6 "$id" "$R" "git -C $R rebase origin/master")"
+done
+out="$(env -u SPOOL_AGENT_ID SPOOL_HARNESS=claude bash "$HOOK" PreToolUse <<<"$(pay Bash "$R" command "git -C $R reset --hard")")"
+eq "6. no SPOOL_AGENT_ID: no output" "" "$out"
 for id in c-901 c-001; do
   [ -s "$SPOOL_ROOT/$id/hook.err" ] && nok "hook.err of $id: $(cat "$SPOOL_ROOT/$id/hook.err")"
 done

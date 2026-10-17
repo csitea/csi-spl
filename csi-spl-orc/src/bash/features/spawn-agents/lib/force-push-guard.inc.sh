@@ -76,6 +76,29 @@ class Refuse(Exception):
     pass
 
 
+# A library user (spool-agent-hook.sh, SPL-2329) loads this source with
+# __name__ != "__main__" and sets VISIT(word, args): every git, cd and pushd
+# call the walker reaches, in order, through the same wrappers, shells and
+# heredocs, is handed to it instead of the push check.
+VISIT = None
+
+
+def git_verb(args):
+    """(index of the subcommand in the git args, the -C dirs before it)."""
+    i, dirs = 0, []
+    while i < len(args):
+        a = args[i]
+        if a == "-C" and i + 1 < len(args):
+            dirs.append(args[i + 1])
+        if a in GIT_ARG_OPTS or a == "-c":
+            i += 2
+        elif a.startswith("-"):
+            i += 1
+        else:
+            break
+    return i, dirs
+
+
 def split(cmd):
     s = cmd.replace("`", " ; ").replace("\n", " ; ").replace("$(", " ; ( ")
     lx = shlex.shlex(s, posix=True, punctuation_chars=";&|()<>")
@@ -194,6 +217,9 @@ def segment(toks, depth):
                 elif a.startswith("--command="):
                     check(a.split("=", 1)[1], depth + 1)
             return
+        elif VISIT is not None and b in ("git", "cd", "pushd"):
+            VISIT(b, toks[i + 1:])
+            return
         else:
             if b == "git":
                 git(toks[i + 1:], depth, hooks)
@@ -285,14 +311,19 @@ def push(args):
             raise Refuse("git push --delete %s deletes master; %s" % (r, APPROVAL))
 
 
-try:
-    check(sys.argv[1])
-except Refuse as e:
-    print("force-push-guard: refused: %s" % e, file=sys.stderr)
-    sys.exit(2)
-except Exception as e:
-    print("force-push-guard: refused: guard error %s (fail closed)" % type(e).__name__, file=sys.stderr)
-    sys.exit(2)
+def main():
+    try:
+        check(sys.argv[1])
+    except Refuse as e:
+        print("force-push-guard: refused: %s" % e, file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:
+        print("force-push-guard: refused: guard error %s (fail closed)" % type(e).__name__, file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
 '
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

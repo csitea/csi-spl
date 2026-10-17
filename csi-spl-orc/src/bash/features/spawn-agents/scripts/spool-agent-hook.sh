@@ -54,6 +54,18 @@
 #               vibe at PostToolUse (vibe reads context on post_tool only).
 #               No git call: the walk up to the first .git (a dir = main
 #               checkout, a file = worktree) is what git itself does.
+#   main git    (SPL-2329, claude + vibe) PreToolUse of a LANE's shell call
+#               whose git aims at that main checkout (-C <main>, or a cwd /
+#               cd inside it, read through sudo, env, bash -c, eval, ssh and
+#               heredocs by force-push-guard.inc.sh's tokenizer, loaded only
+#               when the command names git): merge (not --ff-only), rebase,
+#               reset, commit, cherry-pick, checkout, switch, stash (not list /
+#               show), pull, am, revert, restore, add, rm, mv, apply, clean,
+#               fetch with a src:dst refspec and branch -d of a name that is
+#               not <id>-* (or -D) are denied, the reason naming the lane's
+#               worktree. merge --ff-only (seed rule 5), a plain fetch,
+#               branch -d <id>-* and every read stay allowed. A dir held in a
+#               shell variable is not read (allowed).
 #
 # Env: SPOOL_AGENT_ID, SPOOL_ROOT (default /var/spool-hub), SPOOL_BOX_ID,
 #      SPOOL_HARNESS (default: the parent process name), WD_LOOP_N,
@@ -279,6 +291,95 @@ def guard_shell(payload):
     return ("spool-agent-hook: WARNING: this shell call runs in the main checkout %s; "
             "edit, commit, merge, rebase and fetch into a branch only in your worktree %s"
             % (mc[0], mc[1]))
+
+# SPL-2329: the git verbs a lane may run in the main checkout are reads,
+# merge --ff-only (seed rule 5), fetch with no src:dst refspec and branch -d
+# of its own <id>-* branches; these write it, its index or its branches.
+GIT_WRITES = {"merge", "rebase", "reset", "commit", "cherry-pick", "checkout", "switch",
+              "stash", "pull", "am", "revert", "restore", "add", "rm", "mv", "apply", "clean"}
+FETCH_ARG_OPTS = {"--depth", "--deepen", "--shallow-since", "--shallow-exclude", "-j", "--jobs",
+                  "--upload-pack", "-o", "--server-option", "--negotiation-tip", "--refmap", "--filter"}
+
+def fetch_refspec(args):
+    """The first src:dst refspec after fetch's repository, else None."""
+    pos, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            pos.extend(args[i + 1:])
+            break
+        i += 2 if a in FETCH_ARG_OPTS else 1
+        if not a.startswith("-"):
+            pos.append(a)
+    return next((r for r in pos[1:] if ":" in r.lstrip("+")), None)
+
+def branch_write(args):
+    """Why a branch call is refused: a delete of a name that is not this
+    lane's <id>-*, or a forced one (-D); None for a list or a create."""
+    flags = [a for a in args if a.startswith("-") and a != "-"]
+    short = "".join(a[1:] for a in flags if not a.startswith("--"))
+    if "d" not in short and "D" not in short and "--delete" not in flags:
+        return None
+    if "D" in short or "f" in short or "--force" in flags:
+        return "branch -D"
+    own = aid.split("@")[0] + "-"
+    other = [a for a in args if not a.startswith("-") and not a.startswith(own)]
+    return "branch -d %s" % other[0] if other else None
+
+def git_write(verb, args):
+    """The refused form of a git call aimed at the main checkout, else None."""
+    if verb == "fetch":
+        r = fetch_refspec(args)
+        return "fetch %s" % r if r else None
+    if verb == "branch":
+        return branch_write(args)
+    if verb not in GIT_WRITES or (verb == "merge" and "--ff-only" in args):
+        return None
+    if verb == "stash" and args[:1] in (["list"], ["show"]):
+        return None
+    return verb
+
+def push_guard_lib():
+    """force-push-guard.inc.sh's tokenizer, loaded as a library: it reads
+    through sudo, env, bash -c, eval, ssh and heredocs (the ONE parser)."""
+    path = os.path.join(here, "..", "lib", "force-push-guard.inc.sh")
+    s = open(path).read()
+    i = s.index("_FORCE_PUSH_GUARD_PY=\'") + len("_FORCE_PUSH_GUARD_PY=\'")
+    ns = {"__name__": "force_push_guard"}
+    exec(compile(s[i:s.index("\n\'\n", i)], path, "exec"), ns)
+    return ns
+
+def guard_git(payload):
+    """SPL-2329: a lane's shell call whose git writes the MAIN checkout, by
+    -C <main> or a cwd (or cd) inside it -> the deny reason."""
+    ti = payload.get("tool_input")
+    cmd = ti.get("command") if isinstance(ti, dict) else None
+    cwd = payload.get("cwd")
+    if payload.get("tool_name") not in SHELL_TOOLS or not isinstance(cmd, str) or "git" not in cmd \
+            or not isinstance(cwd, str) or role_seat(aid.split("@")[0]):
+        return None
+    lib, st = push_guard_lib(), {"cwd": cwd, "deny": None}
+
+    def visit(word, args):
+        dirs = [a for a in args if not a.startswith("-")]
+        if word != "git":
+            st["cwd"] = os.path.join(st["cwd"], os.path.expanduser(dirs[0])) if dirs else st["cwd"]
+            return
+        i, dirs = lib["git_verb"](args)
+        why = git_write(args[i], args[i + 1:]) if i < len(args) and not st["deny"] else None
+        tgt = os.path.join(st["cwd"], *[os.path.expanduser(x) for x in dirs])
+        mc = main_checkout(os.path.realpath(tgt)) if why and "$" not in tgt else None
+        if mc:
+            st["deny"] = ("spool-agent-hook: refused: git %s in the main checkout %s; run it in your "
+                          "worktree: git -C %s %s ... (in the main checkout a lane runs only reads, "
+                          "merge --ff-only, fetch with no src:dst refspec and branch -d %s-*)"
+                          % (why, mc[0], mc[1], args[i], aid.split("@")[0]))
+    lib["VISIT"] = visit
+    try:
+        lib["check"](cmd)
+    except Exception:
+        pass  # a push the walker refuses is force-push-guard-hook.sh's to deny
+    return st["deny"]
 
 def harness():
     h = os.environ.get("SPOOL_HARNESS")
@@ -513,7 +614,7 @@ def main():
     elif event == "PreToolUse":
         hb.update(state="in-tool", progress_ts=iso(now), api_error=None,
                   tool=str(payload.get("tool_name") or "?"), tool_since=iso(now))
-        deny = guard_edit(payload) if claude or kind == "vibe" else None
+        deny = guard_edit(payload) or guard_git(payload) if claude or kind == "vibe" else None
         if deny and claude:
             out = {"hookSpecificOutput": {"hookEventName": event, "permissionDecision": "deny",
                                           "permissionDecisionReason": deny}}

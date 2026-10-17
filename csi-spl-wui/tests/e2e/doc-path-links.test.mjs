@@ -6,12 +6,13 @@
 //
 // 1. An issue description (MessageBody forced to markdown, MarkdownBlock):
 //    the listed path is a link, the unknown one is not; a click lands on the
-//    doc, rendered, in this tab.
+//    doc, rendered, in this tab. SPL-2425: a spec folder written as text,
+//    "Spec: csi-spl-doc/specs/<NNN-slug>", links to its spec.md.
 // 2. A plain message card (parseBody -> MessageRuns): a path in text and a
 //    path as a whole `code` span link; a fenced one stays code.
 //
 // Control: before SPL-1592 the description holds no a[href^="/docs/"], so
-// check 1 FAILS.
+// check 1 FAILS; before SPL-2425 the spec folder is text, so 1e FAILS.
 //
 // Run: node tests/e2e/doc-path-links.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -24,6 +25,8 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* a doc the mock store lists (docs-mock.mjs), and one it does not */
 const DOC = 'csi-spl-doc/specs/072-rapid-deployability/spec.md'
 const GONE = 'csi-spl-doc/specs/999-not-a-spec/tasks.md'
+/* the folder of DOC, as an issue's Spec: line names it (SPL-2425) */
+const DIR = 'csi-spl-doc/specs/072-rapid-deployability'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -93,12 +96,15 @@ try {
   await p.waitForSelector('[data-test=issues-detail-rendered]', { visible: true, timeout: 5000 })
   await p.click('[data-test=issues-detail-rendered]')
   await p.waitForSelector('[data-test=issues-detail-body]', { visible: true, timeout: 5000 })
-  await p.type('[data-test=issues-detail-body]', `Source: ${DOC} and ${GONE}`)
+  await p.type('[data-test=issues-detail-body]', `Source: ${DOC} and ${GONE}, Spec: ${DIR}`)
   await p.click('[data-test=issues-detail-title]')
   const DESC = '[data-test=issues-detail-rendered]'
   ok('1a the description renders a listed doc path as a link', await linksIn(p, DESC, 1))
+  await linksIn(p, DESC, 2)
   const desc = await docLinks(p, DESC)
-  ok('1b it opens /docs/<path> in this tab, the text as written', desc.length === 1 && desc[0].href === `/docs/${DOC}` && desc[0].text === DOC && !desc[0].target, desc)
+  ok('1b it opens /docs/<path> in this tab, the text as written', desc.length === 2 && desc[0].href === `/docs/${DOC}` && desc[0].text === DOC && !desc[0].target, desc)
+  ok('1e the Spec: folder is a link to its spec.md, the text as written', desc[1]?.href === `/docs/${DOC}` && desc[1]?.text === DIR && !desc[1]?.target, desc)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/issue-spec-link.png` })
   ok('1c CONTROL an unknown path stays text', !desc.some((a) => a.text.includes('999')) &&
     await p.$eval(DESC, (el, g) => el.textContent.includes(g), GONE), desc)
   await p.click(`${DESC} a[href="/docs/${DOC}"]`)

@@ -10,7 +10,8 @@ import { shallowRef } from 'vue'
 
 export const docPathEpoch = shallowRef(0)
 
-const MAY_HOLD = /[\w-]\/[\w./-]*\.md\b/
+/* doc-paths.mjs' pre-check: a .md path or a spec folder (SPL-2425) */
+const MAY_HOLD = /[\w-]\/[\w./-]*\.md\b|specs\/[0-9]{3}-/
 let loader = null
 let linker = null
 let asked = false

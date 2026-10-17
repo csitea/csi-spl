@@ -74,6 +74,22 @@ ok('markdown: no resolver, no doc link', !markdownToHtml(`Source: ${TASKS}`, und
 const md2 = markdownToHtml(`**${TASKS}** in a | table |\n|---|---|\n| ${SPEC} | x |`, undefined, opts)
 ok('markdown: in bold and in a table cell', md2.includes(`<strong><a href="/docs/${TASKS}"`) && md2.includes(`<td><a href="/docs/${SPEC}"`), md2)
 
+/* SPL-2425 (owner HUM-10, t1 cb8a9c73): a spec folder links to its spec.md */
+const DIR = 'csi-spl-doc/specs/072-rapid-deployability'
+ok('spec folder: the folder opens its spec.md', r(DIR) === '/docs/' + SPEC && r(DIR + '/') === '/docs/' + SPEC)
+ok('spec folder: a tail of the folder resolves too', r('specs/072-rapid-deployability') === '/docs/' + SPEC)
+const both = docPathParts(`spec: ${DIR}\nSpec: ${DIR}/spec.md`, r)
+ok('spec folder: the restart line and the Spec: line both link', links(both).join() === `/docs/${SPEC},/docs/${SPEC}` && both[1].text === DIR, JSON.stringify(both))
+ok('spec folder: a sentence stop after it stays text', links(docPathParts(`see ${DIR}.`, r)).join() === '/docs/' + SPEC)
+ok('spec folder: an unlisted spec stays text', r('csi-spl-doc/specs/999-nope') === '' && docPathParts('Spec: csi-spl-doc/specs/999-nope', r).length === 1)
+ok('spec folder: a file in it that is not .md stays text', docPathParts(`${DIR}/plan.txt`, r).length === 1)
+ok('spec folder: a non-spec folder stays text', docPathParts('csi-spl-doc/doc/md and specs/72-x', r).length === 1)
+ok('spec folder: inside a url it stays text', docPathParts(`https://git.example.org/acme/tree/master/${DIR}`, r).length === 1)
+ok('spec folder: the pre-check sees it', mayHoldDocPath(`Spec: ${DIR}`))
+ok('spec folder: a code span that is wholly the folder links, more stays code', codeDocHref(DIR, r) === '/docs/' + SPEC && codeDocHref(`ls ${DIR}`, r) === '')
+const mdDir = markdownToHtml(`Spec: ${DIR}\n\n- spec: \`${DIR}\``, undefined, opts)
+ok('spec folder: markdown links the text and the code span', mdDir.includes(`Spec: <a href="/docs/${SPEC}" title="/docs/${SPEC}">${DIR}</a>`) && mdDir.includes(`<a href="/docs/${SPEC}" title="/docs/${SPEC}"><code>${DIR}</code></a>`), mdDir)
+
 /* the hook */
 let loads = 0
 const before = docPathEpoch.value
@@ -90,6 +106,14 @@ ok('parseBody leaves a fence alone', parseBody('```\n' + TASKS + '\n```')[0].typ
 setDocPathLinker(null)
 setDocPathLoader(null)
 ok('parseBody without the list: text as written', links(parseBody(`Source: ${TASKS}`)[0].parts).length === 0)
+let dirLoads = 0
+setDocPathLoader(() => { dirLoads++; setDocPathLinker(docPathLinker(LISTED)) })
+activeDocPathLinker(`Spec: ${DIR}`)
+await new Promise((res) => setTimeout(res, 5))
+ok('hook: a spec folder alone asks the list', dirLoads === 1)
+ok('parseBody links a spec folder once the list is in', links(parseBody(`Spec: ${DIR}`)[0].parts).join() === '/docs/' + SPEC)
+setDocPathLinker(null)
+setDocPathLoader(null)
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

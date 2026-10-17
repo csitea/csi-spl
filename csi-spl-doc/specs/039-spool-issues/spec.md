@@ -137,6 +137,11 @@ Refined the same morning (binding where it differs from the first request):
   /api/v1/auth/preferences`, like the rdb 0070 layout keys. The column-header
   sort stays; the removed Sort / Group-by dropdowns (topic e65c0f60) do not
   come back. Phones keep the card list.
+- **Links in a description** (SPL-2425, owner HUM-10 t1 cb8a9c73: "the
+  links to the spec must be clickable"): an issue key (`SPL-n`) opens the
+  issue, a repo doc path the doc (SPL-1592), and a spec folder written as
+  text, `Spec: csi-spl-doc/specs/<NNN-slug>`, opens its `spec.md` on
+  `/docs` when the docs store lists it (`utils/doc-paths.mjs`); else text.
 
 ## MVP now / next
 

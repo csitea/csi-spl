@@ -10,6 +10,10 @@
  * store lists (tree.json): the exact path, else the ONE listed doc that ends
  * with it ("specs/072-x/spec.md"). An unknown path, or one that ends two
  * listed docs, stays text: never a dead link.
+ * A spec folder, "Spec: csi-spl-doc/specs/138-qto-section-links" (a
+ * trailing / allowed), links to that folder's spec.md when it is listed
+ * (SPL-2425, owner HUM-10 t1 cb8a9c73: "the links to the spec must be
+ * clickable").
  * `inline code` links only when the whole span is such a path. Fences,
  * existing links and urls are never touched (the callers hand only text).
  *
@@ -19,14 +23,19 @@
 import { docsRoute, validDocsPath } from './docs.mjs'
 
 const SEG = '[A-Za-z0-9_-][A-Za-z0-9._-]*'
-const PATH_SRC = String.raw`(?:\/|(?:\.\.?\/)+)?(?:${SEG}\/)+${SEG}\.md(?:#[\w-]+)?`
+const LEAD = String.raw`(?:\/|(?:\.\.?\/)+)?`
+const FILE_SRC = String.raw`${LEAD}(?:${SEG}\/)+${SEG}\.md(?:#[\w-]+)?`
+/* a spec folder: [<dirs>/]specs/<NNN>-<slug>, an optional trailing / */
+const SPEC_DIR_SRC = String.raw`${LEAD}(?:${SEG}\/)*specs\/[0-9]{3}-[A-Za-z0-9_-]+\/?`
+const PATH_SRC = `(?:${FILE_SRC}|${SPEC_DIR_SRC})`
 /* not inside a url, an email, a word or a longer path; not "x.md.bak" */
 const PATH_RE = new RegExp(String.raw`(?<![\w.\/:@~-])${PATH_SRC}(?![\w\/-]|\.\w)`, 'g')
 const WHOLE_RE = new RegExp(String.raw`^${PATH_SRC}$`)
+const MAY_HOLD = /[\w-]\/[\w./-]*\.md\b|specs\/[0-9]{3}-/
 
 /** Cheap pre-check: could the text hold a doc path at all? */
 export function mayHoldDocPath(text) {
-  return /[\w-]\/[\w./-]*\.md\b/.test(String(text ?? ''))
+  return MAY_HOLD.test(String(text ?? ''))
 }
 
 /**
@@ -61,7 +70,9 @@ export function docPathResolver(paths, route = docsRoute) {
     const s = String(raw ?? '').trim()
     const at = s.indexOf('#')
     const anchor = at >= 0 ? s.slice(at) : ''
-    const p = (at >= 0 ? s.slice(0, at) : s).replace(/^\/+/, '').replace(/^(?:\.\.?\/)+/, '')
+    let p = (at >= 0 ? s.slice(0, at) : s).replace(/^\/+/, '').replace(/^(?:\.\.?\/)+/, '')
+    /* a spec folder opens its spec.md */
+    if (!p.endsWith('.md')) p = p.replace(/\/+$/, '') + '/spec.md'
     if (!validDocsPath(p)) return ''
     const hit = find(p)
     return hit ? route(hit) + anchor : ''

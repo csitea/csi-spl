@@ -24,7 +24,9 @@
 # @description     none. Prints the key and posts it back in the topic.
 # @description   LANE_ISSUE_OP=end (the lane, when it ends without landing):
 # @description     status LANE_ISSUE_STATUS (diss, onhold or blocked), a comment
-# @description     with LANE_ISSUE_REASON, and lifetime/issue-end.
+# @description     with LANE_ISSUE_REASON, and lifetime/issue-end. The lane is
+# @description     the actor when its box's desk seats and announces it, else
+# @description     the desk acts and the comment names the lane (SPL-2287).
 # @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-2229: the lane's
 # @description     work landed in ANOTHER repo, so no csi-spl commit can close
 # @description     its key): LANE_LANDED_REPO=<name> LANE_LANDED_SHA=<sha>. The
@@ -288,12 +290,31 @@ spl_lane_issue_end() {
   [[ -n "$why" ]] || { do_log "FATAL LANE_ISSUE_REASON must say why $id ends without landing (dropped by its gate, superseded by ...)"; return 1; }
   [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA), got: '$st'"; return 1; }
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
+  spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_hub update --ref "$key" --status "$st" >/dev/null || return 1
-  spl_lane_issue_hub comment --ref "$key" --body "Lane $id ended without landing ($st): $why" >/dev/null || return 1
+  spl_lane_issue_hub comment --ref "$key" --body "Lane $id ended without landing ($st): $why$SLI_BY" >/dev/null || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> $st; nothing written. Re-run with DRY_RUN=0."; return 0; fi
   printf '%s\t%s\t%s\n' "$st" "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$root/$id/lifetime/issue-end" ||
     { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
   do_log "OK $key -> $st: $why"
+}
+
+# spl_lane_issue_actor FLEET_ROOT ID: an end books the LANE as the actor of
+# its status change where the hub can (SPL-2287: SPL-2236's diss was booked to
+# the dispatcher c-002). The hub books the --as agent (issues_agent.go
+# agentUpdateIssue -> applyPatch updated_by -> the issue_events trigger) and
+# takes only an agent the calling desk's box announces (ws.go senderRefusal),
+# i.e. a seat in that desk's own spool (hubclient scanAgents). A lane seated
+# there and announced acts itself (DESK_AGENT=ID); otherwise the desk acts and
+# SLI_BY, appended to the comment, names whom it booked for: issue_events has
+# no note column, so the event itself cannot carry the lane.
+spl_lane_issue_actor() {
+  SLI_BY=""
+  [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
+  if [[ -d "${SPL_STATE_DIR:-}/desk/$TENANT_ID/$SLI_BOX/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
+    DESK_AGENT="$2"; return 0
+  fi
+  SLI_BY=" (booked by desk $DESK_AGENT for lane $2: the hub books only an agent its box announces)"
 }
 
 # spl_lane_issue_landed ROOT ID: end done, the work landed in another repo
@@ -307,8 +328,9 @@ spl_lane_issue_landed() {
   full="${out%%$'\t'*}"; trunk="${out#*$'\t'}"
   why="landed in $repo ${full:0:12} on origin/$trunk"
   [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
+  spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_hub update --ref "$key" --status "done" >/dev/null || return 1
-  spl_lane_issue_hub comment --ref "$key" --body "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build." >/dev/null || return 1
+  spl_lane_issue_hub comment --ref "$key" --body "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build.$SLI_BY" >/dev/null || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> done ($why); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   printf 'done\t%s\t%s\t%s\t%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$repo" "$full" >"$root/$id/lifetime/issue-end" ||
     { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }

@@ -141,9 +141,26 @@ run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_ISSUE_REASON=x 
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "end as done with no LANE_LANDED_REPO is refused (landing moves it, not the lane)" || fail "end done (rc=$rc)"
 run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" &&
-  grep -q '^comment|--ref|SPL-42|--body|Lane c-123 ended without landing (diss): superseded by c-130|' "$T/calls.log" &&
+  grep -qx 'comment|--ref|SPL-42|--body|Lane c-123 ended without landing (diss): superseded by c-130 (booked by desk c-002 for lane c-123: the hub books only an agent its box announces)|' "$T/calls.log" &&
   [[ "$(cut -f1,2 "$S/c-123/lifetime/issue-end")" == $'diss\tsuperseded by c-130' ]] &&
-  pass "end: diss, the reason as a comment and in lifetime/issue-end" || fail "end (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+  pass "end: diss, the reason as a comment (naming the desk that booked it for the lane) and in lifetime/issue-end" || fail "end (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+
+# SPL-2287: the end books the LANE as the actor where the hub can. The hub
+# books the --as agent and takes only one the desk's box announces: a seat in
+# the desk's spool. SPL-2236's diss was booked to c-002, not its lane c-311.
+mkdir -p "$T/state/dev/desk/t1/box-a/spool/c-123"
+printf '# agent-run v1 1\nc-002\trun\nc-123\trun\n' >"$S/dispatch/agent-run.tsv"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-123 ]] && grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" &&
+  grep -qx 'comment|--ref|SPL-42|--body|Lane c-123 ended without landing (diss): superseded by c-130|' "$T/calls.log" &&
+  pass "end: the desk seats and announces c-123: the status change and the comment act as c-123" ||
+  fail "end as the lane (rc=$rc): as=$(sort -u "$T/calls.log.as" | tr '\n' ' ') / $(cat "$T/calls.log")"
+printf '# agent-run v1 1\nc-002\trun\nc-123\tstop\twd S2: HIT 10s ago\n' >"$S/dispatch/agent-run.tsv"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-002 ]] && grep -q '^comment|.*(booked by desk c-002 for lane c-123: ' "$T/calls.log" &&
+  pass "control: seated but not announced (run report stop): the desk c-002 acts, the comment names the lane" ||
+  fail "end not announced (rc=$rc): as=$(sort -u "$T/calls.log.as" | tr '\n' ' ') / $(cat "$T/calls.log")"
+rm -rf "$S/dispatch/agent-run.tsv" "$T/state/dev/desk/t1/box-a/spool/c-123"
 
 # End done (SPL-2229): the work landed in ANOTHER repo. The repo comes from the
 # cnf by name (a src_dir basename), its clone is fetched, the sha must be on
@@ -169,7 +186,7 @@ refused() {  # LABEL WANT: refused, no hub call, no issue-end, the line says WAN
 ! lg "$T/lr/dvn-web" cat-file -e "$LANDED^{commit}" 2>/dev/null && pass "control: the clone has not fetched the landed sha yet" || fail "control: clone already has $LANDED"
 done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="${LANDED:0:7}" DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
-  grep -q "^comment|--ref|SPL-42|--body|Lane c-123 landed in dvn-web ${LANDED:0:12} on origin/master (another repo, no csi-spl commit). Landed, not live" "$T/calls.log" &&
+  grep -q "^comment|--ref|SPL-42|--body|Lane c-123 landed in dvn-web ${LANDED:0:12} on origin/master (another repo, no csi-spl commit). Landed, not live.* (booked by desk c-002 for lane c-123: " "$T/calls.log" &&
   [[ "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end")" == "done"$'\t'"dvn-web"$'\t'"$LANDED" ]] &&
   pass "done: an unfetched clone is fetched, the sha is on origin/master: done, a comment, issue-end with repo + full sha" ||
   fail "done (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"

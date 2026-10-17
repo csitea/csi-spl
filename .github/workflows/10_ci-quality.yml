@@ -401,6 +401,71 @@ jobs:
             || { echo "::error::no 'ALL HUB POSTGRES CHECKS PASSED' line: the Postgres gate did not run"; exit 1; }
           echo "ok - the hub Postgres gate ran"
 
+  # The live hub tests (SPL-2167): `pnpm test:live` (tests/e2e/live-interop)
+  # against a throwaway hub in the runner -- a temp Postgres, `spool migrate`,
+  # the runtime role, one tenant, `spool serve` with the door off -- brought up
+  # and torn down by csi-spl-api/src/bash/hub-live-stack.sh. Red when a live
+  # check fails, when the stack does not come up (exit 70) and when the test
+  # skips (it exits 1 on an unset HUB_URL under CI). It needs no pnpm install:
+  # the test imports only csi-spl-wui/src and node builtins.
+  hub-live:
+    name: "hub: live tests (pnpm test:live) against a throwaway hub + Postgres"
+    needs: classify
+    if: ${{ !cancelled() && (needs.classify.outputs.run_hub != 'false' || needs.classify.outputs.run_wui != 'false') }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      # hub-live-stack.sh builds offline (GOPROXY=off), as build.sh does.
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      - name: Verify module checksums (go mod verify)
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod verify
+
+      # Local PostgreSQL server binaries first; without them the stack uses a
+      # cached postgres image and never pulls, so cache it here (see hub-suite).
+      - name: Postgres for the stack (server binaries, else the cached image)
+        run: |
+          set -euo pipefail
+          if compgen -G '/usr/lib/postgresql/*/bin/initdb' >/dev/null; then
+            echo "ok - PostgreSQL server binaries: $(compgen -G '/usr/lib/postgresql/*/bin/initdb' | sort -V | tail -1)"
+          else
+            bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh postgres:16-alpine
+          fi
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: csi-spl-wui/package.json
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: pnpm test:live against the throwaway hub
+        run: |
+          set -euo pipefail
+          bash csi-spl-api/src/bash/hub-live-stack.sh pnpm -C csi-spl-wui run test:live 2>&1 | tee "$RUNNER_TEMP/hub-live.log"
+          grep -qE '^[1-9][0-9]*/[1-9][0-9]* checks passed \(0 failed\)$' "$RUNNER_TEMP/hub-live.log" \
+            || { echo "::error::no 'N/N checks passed (0 failed)' line: the live tests did not run"; exit 1; }
+
   # ===========================================================================
   # The WUI suite: csi-spl-wui unit tests (node --test) and nuxt typecheck.
   # pnpm comes from package.json packageManager; the lockfile is frozen so a
@@ -1234,7 +1299,7 @@ jobs:
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"
-    needs: [hub-suite, hub-pg, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, orc-features, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
+    needs: [hub-suite, hub-pg, hub-live, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, orc-features, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
     if: failure()
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5

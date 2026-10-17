@@ -79,7 +79,7 @@ spl_db_backup_newest() {
 spl_db_backup_restore_counts() {
   local dump="$1" img="${SPL_RESTORE_IMAGE:-postgres:16-alpine}" con i
   con="spl-restorecheck-$ENV-$$"
-  docker run -d --rm --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
+  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
     "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the restore check"; return 1; }
   # shellcheck disable=SC2064
   trap "docker rm -fv '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN

@@ -78,7 +78,7 @@ do_spl_doc_tree_timing() {
 spl_doc_timing_pg() {
   local con="$1" img="${SPL_TIMING_IMAGE:-postgres:16-alpine}" pw i port
   pw="t$RANDOM$RANDOM$$"
-  docker run -d --rm --pull never --name "$con" -e POSTGRES_PASSWORD="$pw" -p 127.0.0.1::5432 \
+  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$con" -e POSTGRES_PASSWORD="$pw" -p 127.0.0.1::5432 \
     "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the timing run" >&2; return 1; }
   for i in {1..60}; do
     if docker exec "$con" psql -U postgres -h 127.0.0.1 -XAtc 'SELECT 1' >/dev/null 2>&1; then

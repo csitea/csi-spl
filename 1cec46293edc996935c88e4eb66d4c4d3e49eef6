@@ -1,0 +1,6 @@
+Lay-What: The self-hosted setup now reports whether its setup step and its web front door are working.
+Lay-How: Each of the two parts now answers a regular "are you ready" check, as the others already did.
+Lay-Why: Before, nobody could see whether the web front door was really serving, or whether the setup step had finished.
+Tech-What: Standalone compose: healthchecks for hub-init (readiness file) and web (wget on port 80); a test that every service has one.
+Tech-How: hub-entrypoint init writes state/init.ready last (removed at start); web probes 127.0.0.1:80 for 200 or 308 with busybox wget.
+Tech-Why: Security scan action 4: hub-init and web had no healthcheck, so compose could not report their state.

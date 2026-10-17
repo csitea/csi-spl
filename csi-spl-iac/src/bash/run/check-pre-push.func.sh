@@ -440,12 +440,19 @@ _pp_timeout="${PRE_PUSH_PART_TIMEOUT:-300}"
 # hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
 # The fleet rules drift check (csi-spl-orc, csi-spl-doc/doc/md/fleet-rules-index.md)
 # rides along: under a second, read-only, red when two rule copies disagree.
+# So does the qto doc map check (SPL-2164): read-only, ~0.1 s, red when an
+# exported md file and the qto doc map disagree.
 _pp_part_hygiene() {
   local rc=0 drift="$1/csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh"
+  local qto="$1/csi-spl-orc/src/bash/run/check-qto-doc-drift.func.sh"
   HYGIENE_TREE="$1" do_check_dist_hygiene || rc=$?
   if [[ -r "$drift" ]]; then
     # shellcheck source=/dev/null
     ( source "$drift" && FLEET_RULES_TREE="$1" do_check_fleet_rules_drift ) || rc=1
+  fi
+  if [[ -r "$qto" ]]; then
+    # shellcheck source=/dev/null
+    ( source "$qto" && QTO_DRIFT_TREE="$1" QTO_DRIFT_LIVE=0 do_check_qto_doc_drift ) || rc=1
   fi
   return "$rc"
 }

@@ -1423,3 +1423,15 @@ jobs:
             echo "ok - no tracked .vibe/ dir"
           fi
           exit "$fail"
+
+      # SPL-2164: an md file that is a qto doc's export (spec 137, the map
+      # csi-spl-doc/doc/md/qto-docs.tsv) and the map must agree: each mapped
+      # file exists with ONE generated-from line naming its own doc id, and no
+      # file claims a doc no row names. No hub here, so a hand edit of the
+      # text under a correct stamp is the box's live check
+      # (QTO_DRIFT_LIVE=1 do_check_qto_doc_drift); csi-spl-doc/doc/md/pre-push-gate.md.
+      # CONTROL: csi-spl-orc/src/bash/tests/check-qto-doc-drift.tst.sh
+      - name: Qto doc map agrees with the exported md files
+        run: |
+          python3 csi-spl-orc/src/bash/run/check-qto-doc-drift.py . \
+            csi-spl-doc/doc/md/qto-docs.tsv csi-spl-doc/doc/md/qto-docs-drift-known.tsv

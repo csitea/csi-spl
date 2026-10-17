@@ -1,0 +1,4 @@
+# Known qto doc drift (do_check_qto_doc_drift, SPL-2164): path TAB reason.
+# A file here is a WARN, not a FAIL. Remove its line once it is fixed: the
+# check fails on a line whose file no longer drifts.
+csi-spl-doc/doc/md/refactor-round-12/seat-mistral.md	mapped by a8caabbc1 (SPL-1884), which landed only its final newline, no generated-from line; fix: export qto doc e6b82c3e-5c93-47f4-968b-a90ef13fc53e (do_spl_doctree_export_md QTO_DOC=...)

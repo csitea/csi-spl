@@ -29,25 +29,39 @@
 # @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
 # @param QTO_DOC (optional) - export this doc id only; default every map row
 # @param QTO_MAP (optional) - default <repo>/csi-spl-doc/doc/md/qto-docs.tsv
+# @param QTO_CHECK (optional) - 1: compare only, write nothing: each file
+# @param   whose bytes differ from its doc's export is a FAIL naming it (a diff
+# @param   head below it), every row is still read, and the run fails at the
+# @param   end (do_check_qto_doc_drift QTO_DRIFT_LIVE=1, SPL-2164). Pictures
+# @param   are not compared.
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-914 ./run -a do_spl_doctree_export_md
 #------------------------------------------------------------------------------
 do_spl_doctree_export_md() {
   do_require_bin python3 || return 1
-  local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel fs n=0
+  local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel fs n=0 drift=0 rc
   [[ -r "$map" ]] || { do_log "FATAL no qto doc map: $map"; return 1; }
   while IFS=$'\t' read -r doc rel fs; do
     [[ -n "$doc" && "$doc" != \#* ]] || continue
     [[ -z "$want" || "$doc" == "$want" ]] || continue
     _spl_doctree_fs "$fs" || return 1
-    QTO_FS="$fs" _spl_doctree_export_one "$doc" "$rel" || return 1
+    rc=0
+    QTO_FS="$fs" _spl_doctree_export_one "$doc" "$rel" || rc=$?
+    (( rc == 0 || rc == 3 )) || return 1
+    (( rc == 3 )) && drift=$((drift + 1))
     n=$((n + 1))
   done <"$map"
   (( n > 0 )) || { do_log "FATAL no row${want:+ for qto doc $want} in $map"; return 1; }
+  if [[ "${QTO_CHECK:-0}" == 1 ]]; then
+    (( drift == 0 )) || { do_log "FAIL $drift of $n md file(s) differ from their qto doc (above)"; return 1; }
+    do_log "OK $n md file(s) equal their qto doc's export"
+    return 0
+  fi
   do_log "OK $n qto doc(s) exported"
 }
 
 # _spl_doctree_export_one <doc id> <md path>: one doc to its md file; the file
-# is replaced only when its bytes differ.
+# is replaced only when its bytes differ. QTO_CHECK=1: nothing is written, and
+# a file that differs returns 3.
 _spl_doctree_export_one() {
   local doc="$1" rel="$2" tmp root rc=0
   _spl_doctree_md_path "$rel" || return 1
@@ -62,10 +76,16 @@ _spl_doctree_export_one() {
     do_log "FATAL qto doc $doc was not exported: $(cat "$tmp"/*.json "$tmp/export.md" 2>/dev/null | tail -3)"
   elif cmp -s "$tmp/out.md" "$APP_PATH/$rel"; then
     do_log "OK $rel unchanged (qto doc $doc)"
+  elif [[ "${QTO_CHECK:-0}" == 1 ]]; then
+    do_log "FAIL $rel differs from qto doc $doc: a hand edit, or a Qto edit not exported yet"
+    diff -u --label "$rel" --label "qto doc $doc" "$APP_PATH/$rel" "$tmp/out.md" >"$tmp/drift.diff" 2>&1
+    sed -n 1,12p "$tmp/drift.diff"
+    rm -rf "$tmp"
+    return 3
   else
     cp "$tmp/out.md" "$APP_PATH/$rel" && do_log "OK $rel written from qto doc $doc" || rc=1
   fi
-  (( rc )) || _spl_doctree_export_assets "$doc" "$rel" "$tmp" || rc=1
+  (( rc )) || [[ "${QTO_CHECK:-0}" == 1 ]] || _spl_doctree_export_assets "$doc" "$rel" "$tmp" || rc=1
   rm -rf "$tmp"
   return "$rc"
 }

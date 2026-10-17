@@ -8785,6 +8785,309 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-tokens/effective": {
+      "get": {
+        "operationId": "getOperatorFleetTokensEffective",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "first UTC day (default: to minus 30 days)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the day after the last (default: today, so the last 30 whole days)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: from, to, days and vendors (SPL-2342): per vendor its tokens (input + output + cache write), cache_read, list_cost_usd and list_usd_per_mtok of the days, and when a paid item covers them paid_usd, paid_per_day_usd, effective_usd_per_mtok (paid USD / tokens * 1e6) and items; status list_only, effective, not_metered or no_fx_rate"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the effective price per token of each vendor",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/fleet-tokens/paid": {
+      "get": {
+        "operationId": "getOperatorFleetTokensPaid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {items}, every paid item (SPL-2342, rdb 0205), period_start order"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the operator's paid AI vendor items",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorFleetTokensPaid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One paid item the operator entered (SPL-2342, rdb 0205). The total paid is amount * quantity of currency, for the UTC days [period_start, period_end). On PATCH an absent field is kept. Checked by the hub (400 bad_paid_item).",
+                "properties": {
+                  "amount": {
+                    "description": "one unit's price, above 0",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "USD or a currency the hub holds an exchange rate for (rdb 0200)",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "subscription",
+                      "topup"
+                    ],
+                    "type": "string"
+                  },
+                  "note": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "period_end": {
+                    "description": "the first day NOT paid for, after period_start",
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "period_start": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "plan_label": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "default": 1,
+                    "maximum": 1000,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "vendor": {
+                    "enum": [
+                      "claude",
+                      "mistral",
+                      "grok",
+                      "agy",
+                      "qwen"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the stored item with its id, created_by and stamps"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Enter a paid AI vendor item",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/fleet-tokens/paid/{id}": {
+      "delete": {
+        "operationId": "deleteOperatorFleetTokensPaidById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Delete a paid AI vendor item",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "patch": {
+        "operationId": "patchOperatorFleetTokensPaidById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One paid item the operator entered (SPL-2342, rdb 0205). The total paid is amount * quantity of currency, for the UTC days [period_start, period_end). On PATCH an absent field is kept. Checked by the hub (400 bad_paid_item).",
+                "properties": {
+                  "amount": {
+                    "description": "one unit's price, above 0",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "USD or a currency the hub holds an exchange rate for (rdb 0200)",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "subscription",
+                      "topup"
+                    ],
+                    "type": "string"
+                  },
+                  "note": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "period_end": {
+                    "description": "the first day NOT paid for, after period_start",
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "period_start": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "plan_label": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "default": 1,
+                    "maximum": 1000,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "vendor": {
+                    "enum": [
+                      "claude",
+                      "mistral",
+                      "grok",
+                      "agy",
+                      "qwen"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the stored item"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Change a paid AI vendor item",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fx/rates": {
       "post": {
         "operationId": "postOperatorFXRates",

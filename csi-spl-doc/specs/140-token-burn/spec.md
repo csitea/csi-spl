@@ -429,6 +429,58 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   same slot twice. The body has no "last reported task" (the hub does not
   know it) and gives the cost in the price currency.
 
+### 3.8 Paid items and the effective price (SPL-2342)
+
+Owner, t1 `e8ae0aad` msg `9f549412`: "I should report the paid subscriptions
+and you would calculate the price per token". List prices (3.3) stay as they
+are; this adds what was really paid. Code: `internal/{store,hub}/fleet_token_paid*.go`,
+rdb `0205_fleet_token_paid.sql` (operator-scope RLS, like 0199).
+
+**What is entered.** One row per paid item, by the operator (the operator
+workspace's admin or the operator service account) through
+`/v1/operator/fleet-tokens/paid` (GET list, POST, PATCH `/{id}`, DELETE
+`/{id}`). Never a cnf or code literal, never seeded.
+
+| field | meaning |
+|---|---|
+| `vendor` | claude, mistral, grok, agy or qwen |
+| `kind` | `subscription` or `topup` |
+| `plan_label` | free text, e.g. "Max 20x" |
+| `quantity` | units bought (default 1; 3 for three seats) |
+| `amount` | ONE unit's price; the item paid `amount * quantity` |
+| `currency` | USD, or a currency the hub holds an `fx_rates` rate for (rdb 0200) |
+| `period_start`, `period_end` | the UTC days paid for, `[start, end)`: the end is the first day NOT paid for |
+| `note` | free text, up to 2000 characters |
+
+**How the effective price is computed.**
+`GET /v1/operator/fleet-tokens/effective?from=YYYY-MM-DD&to=YYYY-MM-DD`
+(`to` excluded; default the last 30 whole UTC days; at most 366 days). It is
+a sibling read, not a field of the 3.5 read: that one is polled every few
+seconds over minutes; this one spans whole paid periods and the exchange
+rates, so it is asked for once.
+
+1. Each item's total, converted to USD at the `fx_rates` rate of its
+   `period_start` (else the last rate before it, else the first after it),
+   is spread evenly over its days: `amount * quantity / days / rate` a day.
+2. For each vendor, the shares of every item day inside `[from, to)` are
+   summed: `paid_usd`; `paid_per_day_usd` is that sum over the range's days.
+3. The vendor's tokens of the same days (a day still in the minute table is
+   read from its minutes, an older one from its rollup) are input + output +
+   cache write; cache reads are returned as `cache_read`, never divided in.
+4. `effective_usd_per_mtok = paid_usd / tokens * 1e6`, beside
+   `list_usd_per_mtok` (the list-price cost of the same days, per million).
+
+Each vendor row has a `status`: `effective`; `list_only` (no paid item in
+the range); `not_metered` (paid, but no tokens logged, e.g. agy: only the
+daily share shows); `no_fx_rate` (an item's currency has no rate, so no sum).
+`items` lists each item's share, days and the rate it used. A day paid for
+before metering started still counts its share, so a range starting before
+the first metered day reads high.
+
+**Extension point.** The owner's "additional parameters" are deferred.
+`fleetPaidDailyUSD` in `store/fleet_token_paid.go` is the one function a
+weighting rule (a cap, a discount, an unused remainder) changes.
+
 ---
 
 ## 4. The Monitoring page tab (`/monitoring/tokens`)

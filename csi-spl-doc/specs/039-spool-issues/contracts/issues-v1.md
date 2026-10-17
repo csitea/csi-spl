@@ -340,5 +340,11 @@ automatically".
   it) and writes an undo file. `ISSUE_KEYS` narrows it; `ISSUE_EMPTY_KEYS`
   names open epics with no live issue to close as done too, which the hub
   never does by itself and only a decision names.
+- **Every issue under an epic** (SPL-2354, spec 135): `ENV=prd TENANT_ID=<ws>
+  DESK_AGENT=<id> ./run -a do_spl_issue_epic_backfill` (csi-spl-orc) plans
+  the epic of each orphan level-2 issue (its spec's epic, else one new
+  `Spec NNN - <heading>` epic, else an `Area: ...` epic) and links it with
+  `DRY_RUN=0`, in batches of `ISSUE_BACKFILL_LIMIT`; `ISSUE_BACKFILL_CMD=verify`
+  fails on an orphan left or a second epic for one spec.
 
 <!-- version: 0.9.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:00:00Z -->

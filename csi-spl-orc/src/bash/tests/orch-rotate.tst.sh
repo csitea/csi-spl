@@ -686,8 +686,10 @@ printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >
 # (sat 2026-10-14 0805Z: the hub pause had just expired, lane-mix picked grok,
 # g-001 opened on grok's limit menu, SPAWN OK, lease.conf flipped before any ack)
 wds2() {  # <id> <ctx> <age-s> [verdict]: a watchdog S2 verdict file that old
+  # WDS2_NOW pins "now" so two files of one case keep their order across a
+  # second boundary (a fresh date per call made 120/120 read 120/119, SPL-2299)
   mkdir -p "$D/wd/$2/$1"; printf '%s\n' "${4:-}" >"$D/wd/$2/$1/out.s2"
-  touch -d "@$(( $(date +%s) - $3 ))" "$D/wd/$2/$1/out.s2"
+  touch -d "@$(( ${WDS2_NOW:-$(date +%s)} - $3 ))" "$D/wd/$2/$1/out.s2"
 }
 LIM='HIT S2 kind=limit pane: You hit your weekly limit'
 world; rm -rf "$D/wd"; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
@@ -761,7 +763,7 @@ plan() { grep 'SPAWN PLAN' "$T/o"; }
 sb20; act "${SB[@]}" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" && [[ ! -e "$T/mix2.log" ]] &&
   pass "20. claude able: claude, lane-mix not asked" || fail "20. able: $(plan; cat "$T/mix2.log" 2>&1)"
-sb20; wds2 c-777 ctx.1 120 "$CLIM"; wds2 c-778 ctx.1 120 ''
+sb20; WDS2_NOW=$(date +%s); wds2 c-777 ctx.1 120 "$CLIM"; wds2 c-778 ctx.1 120 ''; unset WDS2_NOW
 act "${SB[@]}" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: ROTATE_ROLE_VENDOR=claude, claude cannot act (c-777 S2 kind=limit 2m ago: pane: You've hit your session limit · resets 8:20pm): the grok standby$" "$T/o" &&
   grep -qx 'LANE_MIX_SPLIT_KIND=claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude' "$T/mix2.log" &&

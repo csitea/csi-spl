@@ -59,6 +59,8 @@
         data-testid="help-open"
         v-tap-anim="'bounce'"
         :to="localePath('/help')"
+        :data-current="railLinkOn('help') ? 'true' : undefined"
+        :aria-current="railLinkOn('help') ? 'page' : undefined"
         :title="t('help.title')"
         :aria-label="t('help.title')"
       >
@@ -73,6 +75,8 @@
         data-testid="qto-open"
         v-tap-anim="'lift'"
         :to="localePath('/workspace/docs')"
+        :data-current="railLinkOn('docs') ? 'true' : undefined"
+        :aria-current="railLinkOn('docs') ? 'page' : undefined"
         :title="t('ws_doctree.open')"
         :aria-label="t('ws_doctree.open')"
       >
@@ -86,6 +90,8 @@
         data-testid="tenant-settings-open"
         v-tap-anim="'bounce'"
         :to="localePath('/tenant-settings')"
+        :data-current="railLinkOn('settings') ? 'true' : undefined"
+        :aria-current="railLinkOn('settings') ? 'page' : undefined"
         :title="t('tenant_settings.title')"
         :aria-label="t('tenant_settings.title')"
       >
@@ -131,13 +137,13 @@
             <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :class="{ 'sidebar-tab__count--link': item.id === 'issues' }" @click="onCountClick(item.id, $event)">{{ railCount(item.id) }}</span>
             <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
-          <NuxtLink v-tap-anim="'bounce'" class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
+          <NuxtLink v-tap-anim="'bounce'" class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')" :data-current="railLinkOn('help') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="help" :size="20" />
           </NuxtLink>
-          <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')">
+          <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')" :data-current="railLinkOn('docs') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="file-text" :size="20" />
           </NuxtLink>
-          <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')">
+          <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')" :data-current="railLinkOn('settings') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="settings" :size="20" />
           </NuxtLink>
         </div>
@@ -899,10 +905,20 @@ const onRailLink = computed(() => mobileStack.isMobile.value && mobileStack.leve
 function railOn(id: SideTab) {
   return tab.value === id && !onRailLink.value
 }
+/* SPL-2434 (owner HUM-10, t1 3cdd22b6: "a weird double selection in the top
+   row icons"): Help, Docs (Qto) and the gear read as selected only while
+   their page is the pane shown. On a phone a tap on Channels from Workspace
+   settings shows the Channels list at level 1 and leaves the route on
+   /tenant-settings, so the router's active class kept the gear raised beside
+   Channels. Above 820 px the page is always shown. */
+function railLinkOn(section: 'help' | 'docs' | 'settings') {
+  if (railLinkSection(route.path) !== section) return false
+  return !mobileStack.isMobile.value || onRailLink.value
+}
 const LOOP_SIDES = ['before', 'after'] as const
 const loop = useLoopStrip(railEl, {
   enabled: () => mobileStack.isMobile.value,
-  selected: '.sidebar-tab[aria-selected="true"], .router-link-active:not([tabindex="-1"])',
+  selected: '.sidebar-tab[aria-selected="true"], [data-current="true"]:not([tabindex="-1"])',
   watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value, qtoShown.value],
 })
 /* the rail's numbers and a row's unread / draft / DM badge (useSidebarCounts) */
@@ -1093,9 +1109,9 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 .sidebar-rail__help:hover,
 .sidebar-rail__qto:hover,
 .sidebar-rail__settings:hover { background: var(--color-surface-hover); color: var(--color-fg); }
-.sidebar-rail__help.router-link-active,
-.sidebar-rail__qto.router-link-active,
-.sidebar-rail__settings.router-link-active { color: var(--color-fg); }
+.sidebar-rail__help[data-current="true"],
+.sidebar-rail__qto[data-current="true"],
+.sidebar-rail__settings[data-current="true"] { color: var(--color-fg); }
 .sidebar-rail__help :deep(svg),
 .sidebar-rail__qto :deep(svg),
 .sidebar-rail__settings :deep(svg) {
@@ -1541,12 +1557,13 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   /* CLE-77886 (owner, msg cbab6075): "make the selected section a bit
      smaller - 1px around each side and more 3d and a bit darker and with
      bolder font". The copies of the endless strip mark theirs with data-on;
-     Help and the gear are links, router-link-active. */
+     Help, Docs and the gear are links, data-current (railLinkOn, SPL-2434:
+     not router-link-active, which outlives their page on a phone). */
   .sidebar-tab[aria-selected="true"],
   .sidebar-tab[data-on="true"],
-  .sidebar-rail__help.router-link-active,
-  .sidebar-rail__qto.router-link-active,
-  .sidebar-rail__settings.router-link-active {
+  .sidebar-rail__help[data-current="true"],
+  .sidebar-rail__qto[data-current="true"],
+  .sidebar-rail__settings[data-current="true"] {
     margin: 1px;
     /* 1px in on each side inside the same slot: the row's step stays one
        control wide, and the snap area is the whole slot */

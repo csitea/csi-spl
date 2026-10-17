@@ -76,8 +76,8 @@ const PAGES = [
   { name: 'Monitoring', path: '/monitoring/agents', sel: '[data-testid=sidebar-tab-monitoring]' },
   { name: 'Event log', path: '/events', sel: '[data-testid=sidebar-tab-events]' },
   { name: 'Archive', path: '/archive', sel: '[data-testid=sidebar-tab-archive]' },
-  { name: 'Help', path: '/help', sel: '[data-testid=help-open]' },
-  { name: 'Workspace settings', path: '/tenant-settings', sel: '[data-testid=tenant-settings-open]' },
+  { name: 'Help', path: '/help', sel: '[data-testid=help-open]', link: true },
+  { name: 'Workspace settings', path: '/tenant-settings', sel: '[data-testid=tenant-settings-open]', link: true },
 ]
 
 /** the top bar as a reader sees it: its box and the controls in it */
@@ -107,7 +107,7 @@ const state = (p, sel, title, list) => p.evaluate((sel, title, list) => {
   const bar = document.querySelector('[data-test=top-bar]').getBoundingClientRect()
   const sr = strip.getBoundingClientRect()
   const ctl = document.querySelector(sel)
-  const on = ctl && (ctl.getAttribute('aria-selected') === 'true' || ctl.classList.contains('router-link-active'))
+  const on = ctl && (ctl.getAttribute('aria-selected') === 'true' || ctl.getAttribute('aria-current') === 'page')
   const others = [...strip.querySelectorAll('[role=tab][aria-selected=true]')].filter((e) => e !== ctl).length
   const cs = ctl ? getComputedStyle(ctl) : null
   const label = ctl?.querySelector('.sidebar-tab__label')
@@ -131,6 +131,24 @@ const state = (p, sel, title, list) => p.evaluate((sel, title, list) => {
     list: list ? vis(document.getElementById('sidebar-panel-' + list)) : null,
   }
 }, sel, title, list)
+
+/** which strip controls read as selected: raised (the phone's selected look,
+    the strip's copies too) and aria-selected / aria-current="page" (the real
+    row), each named by its label or its link */
+const selected = (p) => p.evaluate(() => {
+  const strip = document.querySelector('[data-testid=sidebar-rail]')
+  const name = (e) => e.querySelector('.sidebar-tab__label')?.textContent.trim()
+    || [...e.classList].find((c) => /^sidebar-rail__(help|qto|settings)$/.test(c)) || '?'
+  const ctls = [...strip.querySelectorAll('.sidebar-tab, .sidebar-rail__help, .sidebar-rail__qto, .sidebar-rail__settings')]
+  const real = ctls.filter((e) => !e.closest('[data-loop]'))
+  return {
+    level: document.querySelector('.spool-shell').getAttribute('data-mobile-level'),
+    path: location.pathname,
+    list: Boolean(document.getElementById('sidebar-panel-channels')?.offsetParent),
+    raised: [...new Set(ctls.filter((e) => getComputedStyle(e).boxShadow !== 'none').map(name))],
+    aria: real.filter((e) => e.getAttribute('aria-selected') === 'true' || e.getAttribute('aria-current') === 'page').map(name),
+  }
+})
 
 const srv = await startServer()
 const browser = await launch()
@@ -273,6 +291,27 @@ try {
       if (st.bold !== null) ok(`${scheme} ${s.name}: the selected control is 1px in, raised and bold`, st.margin === '1px' && st.shadow && st.bold, st)
       ok(`${scheme} ${s.name}: the top bar is the same as on Channels`, (await topBar(p)) === home, { home, here: await topBar(p) })
       if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-${s.path.slice(1).replace(/\//g, '-')}.png`) })
+    }
+
+    /* SPL-2434 (owner HUM-10, t1 3cdd22b6 msg 3691cba1): "a weird double
+       selection in the top row icons". From a rail link's page (Workspace
+       settings, Help) a tap on Channels shows the Channels list at level 1
+       while the route stays that page: the gear kept its raised look (and
+       aria-current) beside the selected Channels. Exactly one control - the
+       shown pane - reads as selected, by style and by aria, the strip's
+       copies included. */
+    for (const s of PAGES.filter((x) => x.link)) {
+      await p.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })
+      await p.waitForSelector('[data-testid=sidebar-rail]', { visible: true })
+      await sleep(600)
+      await p.evaluate((sel) => document.querySelector(sel)?.click(), s.sel)
+      await p.waitForFunction((path) => location.pathname === path, { timeout: 15000 }, s.path).catch(() => null)
+      await until(() => state(p, s.sel, s.name), (st) => st.level === '2' && st.on)
+      await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
+      const picked = await until(() => selected(p), (x) => x.level === '1' && x.list)
+      ok(`${scheme} ${s.name} -> Channels: one control looks selected, Channels (copies too)`, same(picked.raised, ['Channels']), picked)
+      ok(`${scheme} ${s.name} -> Channels: one control carries the selected aria, Channels`, same(picked.aria, ['Channels']), picked)
+      if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-${s.path.slice(1).replace(/\//g, '-')}-then-channels.png`) })
     }
 
     /* Issues: a tap on the selected control shows its epics at level 1 */

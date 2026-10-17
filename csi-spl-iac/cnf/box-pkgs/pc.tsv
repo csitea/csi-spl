@@ -1,0 +1,52 @@
+# Spec 142 section 5.1: the package manifest of the pc box class. One row per
+# package or binary the fleet installs on a pc box: who installs it and who
+# needs it. do_box_pkg_drift reads it; base-pc.txt holds the image's own set.
+# Columns, TAB separated, sorted by kind then name (LC_ALL=C):
+#   kind          apt deb bin pip npm go corepack image
+#   name          apt/deb: the package; bin: the bare name, or the path when
+#                 it lives outside /usr/local/bin and the agent user's bin dir
+#   pin           empty, or the version/sha256 the installer pins
+#   installed_by  play <role> (060-gcp-vm-satellite/roles), a do_* action, or
+#                 backfill (installed by hand before the install action existed)
+#   needed_by     an action, a test or lane SPL-n; never empty
+#   service       empty, or dns network init firewall ssh
+#   added         date + issue key
+# Gate: csi-spl-iac/src/bash/tests/box-pkgs-manifest.tst.sh
+apt	docker-ce-rootless-extras		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
+apt	ed		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	faketime		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	fonts-liberation		do_gh_runner_add	do_gh_runner_add (WUI e2e fonts)		2026-10-17 SPL-2271
+apt	fonts-noto-core		do_gh_runner_add	do_gh_runner_add (WUI e2e fonts)		2026-10-17 SPL-2271
+apt	gcsfuse		do_install_gcsfuse	do_spl_box_state_mount		2026-10-17 SPL-2271
+apt	manpages		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	manpages-dev		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	manpages-posix		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	manpages-posix-dev		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	network-manager		backfill	unknown (backfill)	network	2026-10-17 backfill SPL-2271
+apt	potrace		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	python3-defusedxml		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	shunit2		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	slirp4netns		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
+apt	strace		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+apt	sysstat		do_setup_box_sysstat	do_report_box_sar		2026-10-17 SPL-2271
+apt	uidmap		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
+apt	webp		backfill	do_spl_blog_image (cwebp)		2026-10-17 backfill SPL-2271
+bin	actionlint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	agy		do_install_agy_cli	do_spl_lane_mix (agy seats)		2026-10-17 SPL-2271
+bin	checkov		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	gitleaks		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	gosec		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	govulncheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	hadolint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	osv-scanner		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	ruff		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	semgrep		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	shellcheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	spool		do_spl_spool_refresh	spool-send.sh (every agent)		2026-10-17 SPL-2271
+bin	terraform		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	trivy		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	trufflehog		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	typos		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	vibe		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2271
+deb	google-chrome-stable		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
+deb	slack-desktop		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271

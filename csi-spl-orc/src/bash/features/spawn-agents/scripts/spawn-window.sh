@@ -32,7 +32,8 @@
 # the pane ended: one WARN, exit 0. SPAWN_START_CHECK=0 skips it (the
 # rotation and the agent restart run their own after the pid is known).
 #
-# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, 5 no session,
+# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id (a failed
+# new-window releases the claim), 5 no session,
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
@@ -421,7 +422,12 @@ printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"
 # prints shares new-window -P's output.
 out="$("${SPOOL_TM[@]}" new-window -d -t "${sess}:" -n "$(spool_decorate "$TITLE")" -P -F '#{pane_id}' "$cmd")"; rc=$?
 pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
-[ -n "$pane" ] || { echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4; }
+# A failed new-window made no window (the server died, SPL-2353): its claim
+# goes, as for a refused issue. A window that printed no pane keeps its id.
+if [ -z "$pane" ]; then
+  [ "$rc" -eq 0 ] || { sw_release_claim; out="${out:-<nothing>}; the claim on ${TITLE} is released"; }
+  echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4
+fi
 
 # The notice strip is split NOW, before the CLI has painted anything, so the
 # TUI starts at the size it will keep and never takes a mid-session resize.

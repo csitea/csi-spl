@@ -1,0 +1,6 @@
+Lay-What: The menu for changing an item's kind now loads only when you open it, not with the first page.
+Lay-How: The app fetches that menu's code the moment it is first needed, and prepares it quietly in the background beforehand.
+Lay-Why: The first page had less to download, so it can show up a little sooner.
+Tech-What: WUI KindBadge loads KindPicker via defineAsyncComponent, so the picker is its own chunk out of the home preload set.
+Tech-How: v-if moves to a display:contents wrapper around the async component; KindKeyHost modulepreloads the chunk once mounted.
+Tech-Why: The static auto-import pulled KindPicker into the message-card chunk that index.html preloads (home gzip 352.0 -> 351.3 KB).

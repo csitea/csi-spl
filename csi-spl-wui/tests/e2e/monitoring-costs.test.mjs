@@ -307,8 +307,13 @@ try {
       ok('tokens: the agy lane is Not metered with dashes', by('a-301').s === 'not_metered' && by('a-301').today === '\u2014' && by('a-301').cost === '\u2014', by('a-301'))
       ok('tokens: the unpriced lane says "not priced"', by('m-201').cost === 'not priced', by('m-201'))
       ok('tokens: Active and Idle lanes', by('c-101').s === 'active' && by('c-104').s === 'idle', [by('c-101').s, by('c-104').s])
-      await p.click('[data-test=tokens-sort-rate]')
-      ok('tokens: the rate header sorts ascending as numbers, agy still last', (await agents()).join(',') === 'c-104,c-103,m-201,c-102,c-101,a-301', await agents())
+      if (size.width > 600) {
+        await p.click('[data-test=tokens-sort-rate]')
+        ok('tokens: the rate header sorts ascending as numbers, agy still last', (await agents()).join(',') === 'c-104,c-103,m-201,c-102,c-101,a-301', await agents())
+      } else {
+        /* a phone: each lane is a card, no header row (as the Costs table); the default order is the rate */
+        ok('tokens: a phone shows the lanes as cards, no header row', await p.$eval('[data-test=tokens-agents] thead', (e) => getComputedStyle(e).display).catch(() => '') === 'none')
+      }
       await p.select('[data-test=tokens-agent-filter]', 'agy')
       ok('tokens: the kind filter keeps only agy', (await agents()).join(',') === 'a-301', await agents())
       await p.select('[data-test=tokens-agent-filter]', '')

@@ -9,10 +9,13 @@
 #             hosts: line                              -> 0 FLAG lines
 #          3. `Remv network-manager`, NetworkManager active -> 1 FLAG line
 #          4. probes passed in (BOX_PKG_OWNERS) and missing inputs (rc 2)
+#          5. the real cnf env.box.pkg_services gives cases 1-3 the same
+#             verdicts and equals the spec 5.3 table (MAP)
 #
 #          CONTROLS: the PC case must go red with libnss-resolve dropped from
 #          the map (row B2), and cases 1 and 3 must go red against a no-op
-#          do_box_pkg_flag: a check that cannot fail proves nothing.
+#          do_box_pkg_flag, and case 5 must go red on the old service:owner
+#          cnf: a check that cannot fail proves nothing.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -110,6 +113,28 @@ fi
   if case_pc >/dev/null || case_remv >/dev/null; then exit 1; fi
 ) && pass "control: no-op do_box_pkg_flag turns cases 1 and 3 red" ||
   fail "control: a no-op do_box_pkg_flag passed case 1 or 3"
+
+# 5: the real cnf map (env.box.pkg_services, not a fixture) is the spec 142
+#    section 5.3 table: the same verdicts as MAP on all three boxes. Red on the
+#    old "service:owner" form, which read service "systemd-resolved" (CONTROL 3).
+cnf_map="$(yq -r '.env.box.pkg_services' "$TEST_DIR/../../../../csi-spl-cnf/csi-spl/all.env.yaml")"
+# real_cnf <map>: 0 when the PC, sat and Remv cases hold under <map>
+real_cnf() {
+  local m="$1"
+  check "PC 10-16 (cnf)" "$tmp/sim-pc" "$tmp/pc" "NetworkManager ssh" "$m" "$PC_WANT" &&
+    check "sat (cnf)" "$tmp/sim-sat" "$tmp/sat" "systemd-networkd ssh" "$m" "$SAT_WANT" &&
+    check "Remv (cnf)" "$tmp/sim-remv" "$tmp/pc" "NetworkManager ssh" "$m" "$REMV_WANT"
+}
+if real_cnf "$cnf_map"; then pass "5 real cnf map -> 2 / 0 / 1 FLAG lines"; else fail "5 real cnf map -> 2 / 0 / 1 FLAG lines"; fi
+if [[ "$cnf_map" == "$MAP" ]]; then pass "5 real cnf map = the spec 5.3 table"; else fail "5 real cnf map differs from the spec 5.3 table"; fi
+
+# CONTROL 3: the old cnf form -> case 5 is red
+if real_cnf 'systemd-resolved:NetworkManager
+NetworkManager:NetworkManager' >/dev/null; then
+  fail "control: case 5 stayed green on the old service:owner cnf"
+else
+  pass "control: case 5 red on the old service:owner cnf"
+fi
 
 if (( fails )); then echo "box-pkg-flag: $fails FAILED"; exit 1; fi
 echo "box-pkg-flag: all PASSED"

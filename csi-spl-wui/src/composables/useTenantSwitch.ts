@@ -4,6 +4,7 @@
  * session cookie; a full load then reads every feed of the new tenant (no
  * store keeps the old tenant's rows). A refusal keeps the old tenant.
  */
+import { getCurrentScope, onScopeDispose } from 'vue'
 import { tenantHint, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 import { useSessionStore } from '~/stores/session'
 import { tenantHostUrl } from '~/composables/useSpoolApi'
@@ -29,6 +30,26 @@ export function useTenantSwitch() {
   })
   const switching = ref(false)
   const failed = ref(false)
+  /* SPL-2418 (owner HUM-10 789b9e6c, "still doesn't work"): the tab is back
+     on this page without having left it - Back restored it from the
+     bfcache (pageshow persisted), or the navigation took the tab away and
+     brought it back (visible again). The switch is over: `switching` left
+     true keeps every row disabled for good (prd 30b3c3e0a, 390 px touch,
+     n=1: switch, Back -> all rows disabled, a tap did nothing). */
+  if (import.meta.client) {
+    const back = (e: Event) => {
+      if (!switching.value) return
+      if (e.type === 'pageshow' ? (e as PageTransitionEvent).persisted : document.visibilityState === 'visible') switching.value = false
+    }
+    window.addEventListener('pageshow', back)
+    document.addEventListener('visibilitychange', back)
+    if (getCurrentScope()) {
+      onScopeDispose(() => {
+        window.removeEventListener('pageshow', back)
+        document.removeEventListener('visibilitychange', back)
+      })
+    }
+  }
 
   /** false when nothing switched (the caller shows the old tenant again) */
   async function switchTo(want: string): Promise<boolean> {

@@ -59,6 +59,10 @@ async function pick(id: string) {
   if (await ts.switchTo(id) && !ts.switching.value) close(true)
 }
 watch(() => route.fullPath, () => { if (open.value) close(false) })
+/* SPL-2418: a switch that ended without leaving the page (Back restored it
+   from the bfcache) closes the sheet it kept open; a refusal keeps it open
+   with its error */
+watch(ts.switching, (now, was) => { if (was && !now && open.value && !ts.failed.value) close(false) })
 /* SPL-994: the sheet is the top level while open - Back closes it first */
 useMobileStack().overlay(open, () => close(false))
 </script>

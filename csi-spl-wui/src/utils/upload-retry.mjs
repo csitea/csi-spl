@@ -38,24 +38,6 @@ export function sessionExpiredError() {
  * @returns {Promise<T>}
  */
 export async function uploadWithFreshToken(api, live, file) {
-  /* SPL-2285: the socket wait and 'hub_down' load with the upload, not the first screen (ci_initial_gzip_kb) */
-  const { hubDownError, linkDown, linkUp } = await import('./upload-fail.mjs')
-  await linkUp(live)
-  try {
-    const first = await live.freshUploadToken()
-    /* SPL-2285: no token and no socket is a hub that is down, not a session that is gone */
-    if (!first && linkDown(live)) throw hubDownError()
-    return await api.uploadFile(file, first)
-  } catch (e) {
-    if (!isUploadDoor(e)) throw e
-  }
-  /* force a redial onto the live revision and a freshly minted token */
-  const token = await live.freshUploadToken(true)
-  if (!token) throw linkDown(live) ? hubDownError() : sessionExpiredError()
-  try {
-    return await api.uploadFile(file, token)
-  } catch (e2) {
-    if (isUploadDoor(e2)) throw sessionExpiredError()
-    throw e2
-  }
+  /* SPL-2285: the retry, the socket wait and 'hub_down' load with the upload, never with `/` (ci_home_gzip_kb) */
+  return (await import('./upload-fail.mjs')).uploadWithLink(api, live, file)
 }

@@ -12,7 +12,6 @@
 import { channelSlug } from './channel-feed.mjs'
 import { channelsFromView, normalizeViewMessage } from './view-api.mjs'
 import { storageGet, storageSetJson } from './prefs.mjs'
-import { MOCK_UPLOAD_FAIL_KEY, mockUploadFetch, postWithStall, uploadHttpError, uploadStallMs } from './upload-fail.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { credentialsFor, isPublicChannel, normalizeChannelId, rosterHumanIds, sha256Hex } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
@@ -1725,29 +1724,8 @@ const blobsOf = (ctx) => {
  * Lazy (SPL-2115): no first screen uploads.
  */
 async function uploadFile(ctx, file, uploadToken = '') {
-  const { mock, root, configError, hubFetch } = ctx
-  const buf = await file.arrayBuffer()
-  /* SPL-2285 e2e hook: the mock's POST fails as the hub's would (upload-fail.mjs) */
-  const failFetch = mock ? mockUploadFetch(storageGet(MOCK_UPLOAD_FAIL_KEY)) : null
-  if (mock && !failFetch) {
-    const hex = await sha256Hex(buf)
-    blobsOf(ctx).set(hex, new Blob([buf]))
-    return { file_id: hex, sha256: hex, bytes: buf.byteLength }
-  }
-  /* the mock bundle has no hub base: its hook stands in for the hub */
-  if (configError && !failFetch) {
-    throw Object.assign(new Error(`spool config ${configError}`), { status: 0, token: configError })
-  }
-  const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
-  if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
-  /* SPL-2285: no answer within the stall limit, or no connection at all, is 'hub_down' */
-  const res = await postWithStall(failFetch || hubFetch, `${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf }, uploadStallMs(buf.byteLength))
-  if (!res.ok) {
-    let tok = ''
-    try { tok = (await res.json()).error || '' } catch { /* not json */ }
-    throw uploadHttpError(res.status, tok)
-  }
-  return res.json()
+  /* SPL-2285: the POST, its stall limit and the e2e hook load with the upload, never with `/` (ci_home_gzip_kb) */
+  return (await import('./upload-fail.mjs')).postFile(ctx, file, uploadToken, blobsOf(ctx))
 }
 
 /**

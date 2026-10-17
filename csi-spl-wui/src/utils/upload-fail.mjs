@@ -17,8 +17,13 @@
  * The composer shows either with its Retry (send-failure.mjs, TopBar.vue).
  */
 
-/* Out of the initial JS (ci_initial_gzip_kb): the lazy client imports this
-   module, and upload-retry.mjs loads it with import() when a file uploads. */
+/* Off the first screen (ci_initial_gzip_kb) and off `/` (ci_home_gzip_kb):
+   upload-retry.mjs and the lazy client's uploadFile load it with import()
+   when a file uploads, so `/` does not preload it. */
+
+import { storageGet } from './prefs.mjs'
+import { sha256Hex } from './spool-client.mjs'
+import { isUploadDoor, sessionExpiredError } from './upload-retry.mjs'
 
 /** The rejection for a hub the upload cannot reach (socket down, no answer). */
 export function hubDownError(cause) {
@@ -106,4 +111,59 @@ export function mockUploadFetch(mode) {
     })
   }
   return null
+}
+
+/**
+ * upload-retry.mjs uploadWithFreshToken: upload one File/Blob, refreshing the
+ * token and retrying once on a 401 'door' (CLE-77795). SPL-2285: waits a few
+ * seconds at most for the socket; no token and no socket is 'hub_down'.
+ */
+export async function uploadWithLink(api, live, file) {
+  await linkUp(live)
+  try {
+    const first = await live.freshUploadToken()
+    if (!first && linkDown(live)) throw hubDownError()
+    return await api.uploadFile(file, first)
+  } catch (e) {
+    if (!isUploadDoor(e)) throw e
+  }
+  /* force a redial onto the live revision and a freshly minted token */
+  const token = await live.freshUploadToken(true)
+  if (!token) throw linkDown(live) ? hubDownError() : sessionExpiredError()
+  try {
+    return await api.uploadFile(file, token)
+  } catch (e2) {
+    if (isUploadDoor(e2)) throw sessionExpiredError()
+    throw e2
+  }
+}
+
+/**
+ * spool-client-lazy.mjs uploadFile: POST one File/Blob (003 http-v1 3: raw
+ * bytes, Bearer upload token) -> { file_id, sha256, bytes }. The mock keeps
+ * the bytes in `blobs`, unless the e2e hook makes its POST fail as the hub's
+ * would. No answer within the stall limit, or no connection, is 'hub_down'.
+ */
+export async function postFile(ctx, file, uploadToken, blobs) {
+  const { mock, root, configError, hubFetch } = ctx
+  const buf = await file.arrayBuffer()
+  const failFetch = mock ? mockUploadFetch(storageGet(MOCK_UPLOAD_FAIL_KEY)) : null
+  if (mock && !failFetch) {
+    const hex = await sha256Hex(buf)
+    blobs.set(hex, new Blob([buf]))
+    return { file_id: hex, sha256: hex, bytes: buf.byteLength }
+  }
+  /* the mock bundle has no hub base: its hook stands in for the hub */
+  if (configError && !failFetch) {
+    throw Object.assign(new Error(`spool config ${configError}`), { status: 0, token: configError })
+  }
+  const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
+  if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
+  const res = await postWithStall(failFetch || hubFetch, `${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf }, uploadStallMs(buf.byteLength))
+  if (!res.ok) {
+    let tok = ''
+    try { tok = (await res.json()).error || '' } catch { /* not json */ }
+    throw uploadHttpError(res.status, tok)
+  }
+  return res.json()
 }

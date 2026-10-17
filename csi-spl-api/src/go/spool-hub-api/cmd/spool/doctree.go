@@ -249,7 +249,20 @@ func (c *dtClient) item(ctx context.Context, doc, item string) (dtItem, error) {
 }
 
 // edit writes one field under the item rev it read.
+// edit writes one field under the item rev it read.
 func (c *dtClient) edit(ctx context.Context, doc, item, field, value string, rev int64) ([]byte, error) {
+	key, isAttr := strings.CutPrefix(field, "attrs.")
+	if isAttr {
+		if key == "src" || key == "lang" {
+			it, err := c.item(ctx, doc, item)
+			if err != nil {
+				return nil, err
+			}
+			if it.attr("src") == "" {
+				return nil, fmt.Errorf("attrs.%s is set by add --kind code, not by edit", key)
+			}
+		}
+	}
 	return c.json(ctx, http.MethodPatch, dtDoc(doc)+"/items/"+url.PathEscape(item),
 		map[string]any{"field": field, "value": value, "rev": rev}, nil)
 }
@@ -477,11 +490,12 @@ var dtAttrKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // dtAttrKeyOK refuses a malformed key and the typed keys, which add --kind
 // code / picture own (they set them together, the hub checks them together).
+// src and lang are allowed on an item that already has src (a code item).
 func dtAttrKeyOK(key string) error {
 	switch {
 	case !dtAttrKeyRe.MatchString(key):
 		return fmt.Errorf("attrs.%s: a key is lower case letters, digits and _", key)
-	case key == "kind" || key == "src" || key == "lang" || key == "img_http_path" || key == "img_name":
+	case key == "kind" || key == "img_http_path" || key == "img_name":
 		return fmt.Errorf("attrs.%s is set by add --kind code or picture, not by edit", key)
 	}
 	return nil

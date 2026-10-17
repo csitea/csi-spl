@@ -1404,7 +1404,7 @@ jobs:
           # es.json). No lookbehind: the hub's Go copy of this list
           # (internal/repodocs) takes a negative lookahead only.
           # CONTROL: csi-spl-iac/src/bash/tests/hygiene-retired-relay.tst.sh
-          sweep "retired relay estate (SPL-1910)"  '(?i)git-rel|git_rel|gitrel|nea-nfs|relay[-_]?bucket|(?:^|[^A-Za-z0-9_\x80-\xff])nea(?![A-Za-z0-9_\x80-\xff])'
+          sweep "retired relay estate (SPL-1910)"  '(?i)git-rel|git_rel|gitrel|bnc-cpt|nea-nfs|relay[-_]?bucket|(?:^|[^A-Za-z0-9_\x80-\xff])nea(?![A-Za-z0-9_\x80-\xff])'
           # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
           # worktree is a trusted Vibe folder whose .vibe/{config.toml,
           # hooks.toml,AGENTS.md} is read first, so one commit could change the

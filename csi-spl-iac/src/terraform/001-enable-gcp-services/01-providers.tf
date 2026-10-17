@@ -17,7 +17,7 @@ provider "google" {
   project = var.gcp_project
   region  = var.gcp_region
 
-  # No implicit goog-terraform-provisioned label: bnc-cpt-all-relay has no
-  # labels, and the relay bucket copies it exactly.
+  # No implicit goog-terraform-provisioned label: keep the buckets label-free
+  # so a copied bucket matches its source exactly.
   add_terraform_attribution_label = false
 }

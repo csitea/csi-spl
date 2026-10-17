@@ -8,7 +8,8 @@
 #   1. the real tree (a git-ls-files export) passes the sweep, rc 0
 #   2. CONTROL: each banned form planted in a one-file tree fails the sweep
 #      under this label: the relay's name (three spellings), its client's
-#      repo, the bucket key (two spellings) and the box name, any case
+#      repo, the bucket key (two spellings), the retired bucket prefix
+#      (SPL-2361) and the box name, any case
 #   3. CONTROL: words that only contain the box name's letters (near,
 #      linear, kneaded, the Spanish línea) do not trip it
 #   The banned words are built from parts at run time, so this file carries
@@ -44,11 +45,11 @@ grep -qxF "ok - $LABEL" <<<"$out" && pass "the real tree is clean under the $LAB
 rm -rf "$T/real"
 
 # --- 2. CONTROL: every banned form fails --------------------------------------
-r='rel' n='ne''a' b='bu''cket'
+r='rel' n='ne''a' b='bu''cket' c='bn''c-cpt'
 plant() { # <id> <text>: a one-file tree holding the text
   mkdir -p "$T/p-$1" && printf 'line one\nsee %s here\n' "$2" >"$T/p-$1/notes.md"
 }
-for form in "git-$r" "git_$r" "GIT${r^^}" "$n-nfs/x" "relay-$b" "relay_$b" "on box ${n^^} today"; do
+for form in "git-$r" "git_$r" "GIT${r^^}" "$n-nfs/x" "relay-$b" "relay_$b" "${c}-all-x" "on box ${n^^} today"; do
   id=$(tr -c 'a-zA-Z0-9' _ <<<"$form")
   plant "$id" "$form" || { fail "CONTROL SETUP: the plant '$id' did not land"; continue; }
   out=$(sweep "$T/p-$id"); rc=$?

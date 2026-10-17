@@ -628,6 +628,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	// SPL-997: after the ack, so the sender never waits on it.
 	if r.inserted {
 		s.fallback(ctx, c.tenant, rt.channel, env, m)
+		s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
 	}
 }
 

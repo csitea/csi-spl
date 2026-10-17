@@ -1,3 +1,6 @@
+// SPL-2419 (owner t1 170c444e) at the end: a person outside the channel gets
+// the hub's automatic "does not belong to this channel" line in the topic.
+//
 // CLE-77852 (owner bug t1 e6c13767): an @-mention of an agent that is seated
 // in the workspace but not a member of the channel shows "Sent to <agent> as a
 // direct message: not a member of this channel" - not the old "Not told, they
@@ -20,6 +23,9 @@ const CHANNEL = 'cle-77852-direct'
 const SEATED = 'CLE-11'
 const UNSEATED = 'CLE-99'
 const TOAST = '[data-testid=mention-direct-toast-text]'
+const ME = 'HUM-1' /* the mock viewer, the new channel's only member */
+const OUTSIDER = 'HUM-2' /* a tenant member outside the new channel */
+const NOT_IN = 'does not belong to this channel and cannot see these messages'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -54,6 +60,21 @@ const post = (p, channel, text) => p.evaluate(async (channel, text) => {
   await ch.send(text, undefined, undefined, channel)
   return true
 }, channel, text)
+
+/** Send as `post` does and answer the new topic's task id ('' = refused). */
+const topicOf = (p, channel, text) => p.evaluate(async (channel, text) => {
+  const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+  const row = await pinia?._s.get('channel')?.send(text, undefined, undefined, channel)
+  return String(row?.task_id || '')
+}, channel, text)
+
+/** Open /t/<task> in the app (a reload would drop the mock's sends). */
+const openTopic = (p, task) => p.evaluate(async (task) => {
+  const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
+  if (!router) return false
+  await router.push(`/t/${task}`)
+  return true
+}, task)
 
 const toastText = (p) => p.$eval(TOAST, (e) => e.textContent.trim()).catch(() => '')
 
@@ -93,6 +114,20 @@ try {
   await page.click('[data-testid=mention-direct-toast-close]').catch(() => {})
   await sleep(300)
   ok('the notice closes', !(await toastText(page)))
+
+  /* SPL-2419 (owner t1 170c444e): a PERSON mentioned in a channel they are
+     not in gets one automatic HUB-0 line in that topic (the mock stands in
+     for the hub, spool-client-mock.mjs mockNoteNonMembers); a member none */
+  const member = made ? await topicOf(page, made, `ping @${ME}`) : ''
+  const outsider = made ? await topicOf(page, made, `please read @${OUTSIDER}`) : ''
+  ok('both posts land in the members-only channel', Boolean(member && outsider), { member, outsider })
+  const shownLine = Boolean(outsider) && await openTopic(page, outsider) &&
+    Boolean(await page.waitForFunction((t) => document.body.innerText.includes(t), { timeout: 10000 }, NOT_IN).catch(() => null))
+  ok(`the topic shows "${NOT_IN}" for ${OUTSIDER}`, shownLine)
+  const memberTopic = Boolean(member) && await openTopic(page, member)
+  await sleep(1200)
+  const memberText = await page.evaluate(() => document.body.innerText)
+  ok('a mention of a member gets no such line', memberTopic && memberText.includes('ping') && !memberText.includes(NOT_IN))
   await page.close()
 } finally {
   await browser.close()

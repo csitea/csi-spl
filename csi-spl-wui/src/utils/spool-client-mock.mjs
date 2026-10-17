@@ -12,6 +12,8 @@ import { isAgentId } from './agent-id.mjs'
 import { topicMessages, topicsFromMessages } from './view-api.mjs'
 import { storageGetJson } from './prefs.mjs'
 import { mockReadFault } from './plain-error.mjs'
+import { isPublicChannel, normalizeChannelId } from './spool-client.mjs'
+import { mentionedIds } from './notify.mjs'
 
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
@@ -112,5 +114,31 @@ export function mockSendMessage(state, p, uuid) {
     ...(isAgentId(to) && seatBox ? { responsible: `${to}@${seatBox}` } : {}),
   }
   state.messages.push(row)
+  mockNoteNonMembers(state, row)
   return row
+}
+
+/** A person's seat id (store.IsFlowMember): only people can be outside a channel's read door. */
+const PERSON_RE = /^(HUM|GST)-[0-9]+$/
+
+/**
+ * SPL-2419, the mock twin of the hub's noteMentionNonMembers
+ * (internal/hub/mention_non_member.go): after a post in a members-only
+ * channel that @mentions people who are not members, one automatic HUB-0
+ * line in the same topic names them. The words are the hub's, verbatim.
+ */
+export function mockNoteNonMembers(state, row) {
+  const channel = normalizeChannelId(row.channel)
+  if (!channel || isPublicChannel(channel)) return null
+  const inside = new Set([state.me.id, ...((state.memberships || {})[channel] || [])])
+  const ids = [...new Set(mentionedIds(row.body))].filter((id) => PERSON_RE.test(id) && !inside.has(id))
+  if (!ids.length) return null
+  const verb = ids.length > 1 ? 'do not belong' : 'does not belong'
+  const note = {
+    v: 1, msg_id: `${row.msg_id}-non-member`, task_id: row.task_id, ts: row.ts, from: 'HUB-0', from_box: 'box-wui',
+    to: 'ALL-0', to_box: 'box-wui', kind: 'note', files: [], channel: row.channel, parent_task_id: null, is_parent: 0,
+    body: `@${ids.join(', @')} ${verb} to this channel and cannot see these messages.`,
+  }
+  state.messages.push(note)
+  return note
 }

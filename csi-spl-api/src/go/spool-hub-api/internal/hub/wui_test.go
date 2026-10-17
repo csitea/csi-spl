@@ -441,8 +441,8 @@ func TestWUIAnonymousIDDisjointFromMembers(t *testing.T) {
 }
 
 // followEnv is wuiEnv plus member sessions through the SessionID seam.
-func followEnv(t *testing.T) *env {
-	return newEnv(t, func(o *hub.Options) {
+func followEnv(t *testing.T, mut ...func(*hub.Options)) *env {
+	return newEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
@@ -453,7 +453,7 @@ func followEnv(t *testing.T) *env {
 			}
 			return "", errors.New("no session")
 		}
-	})
+	}}, mut...)...)
 }
 
 // quiet asserts that no frame other than presence arrives on c within 300 ms.

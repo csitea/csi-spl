@@ -359,13 +359,18 @@ func blockerQuote(body string) string {
 // #public notice) on an issue's discussion topic; id makes a second post of
 // the same note a no-op insert.
 func (s *Server) postIssueNote(ctx context.Context, tenant, task, id, body string) error {
+	return s.postHubNote(ctx, tenant, store.ChannelIssues, task, id, body)
+}
+
+// postHubNote is postIssueNote in any channel: one HUB-0 reply in task.
+func (s *Server) postHubNote(ctx context.Context, tenant, channel, task, id, body string) error {
 	if len(s.o.WUIKey) == 0 {
 		return nil
 	}
 	now := s.o.Now().UTC().Truncate(time.Second)
 	m := &msg.Message{V: 1, MsgID: id, TaskID: task, TS: now.Format(time.RFC3339), From: PublicNoticeFrom,
 		To: BroadcastID, Kind: "note", Body: body, Files: []msg.Attachment{}}
-	env, err := wire.NewEnvelopeIn(s.o.WUIKey, WUIBox, WUIBox, store.ChannelIssues, "", m)
+	env, err := wire.NewEnvelopeIn(s.o.WUIKey, WUIBox, WUIBox, channel, "", m)
 	if err != nil {
 		return err
 	}
@@ -378,8 +383,8 @@ func (s *Server) postIssueNote(ctx context.Context, tenant, task, id, body strin
 	row := store.Message{
 		TenantID: tenant, MsgID: id, TaskID: task, TS: now,
 		FromBox: WUIBox, FromID: m.From, ToBox: WUIBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
-		Files: files, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: store.ChannelIssues,
-		ReceivedAt: at, ExpiresAt: at.Add(s.retention(store.ChannelIssues)),
+		Files: files, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel,
+		ReceivedAt: at, ExpiresAt: at.Add(s.retention(channel)),
 	}
 	inserted, sentInOne, err := s.insertRow(ctx, row)
 	if err != nil {

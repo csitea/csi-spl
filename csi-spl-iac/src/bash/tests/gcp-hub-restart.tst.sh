@@ -12,6 +12,13 @@
 #   4. DRY_RUN=0, no new ready revision -> non-zero, health not polled
 #   5. DRY_RUN=2 -> refused before any gcloud call
 #   6. CONTROL: no key -> refused, no `gcloud run` call at all
+#   7. fresh guard (SPL-2294), on the ready revision's SPOOL_HUB_RESTART_AT:
+#      (a) younger than HUB_RESTART_MIN_AGE_S (600 s) -> refused, no update,
+#          the FATAL names revision, RESTART_AT and age; DRY_RUN=1 the same
+#      (b) an old one restarts  (c) HUB_RESTART_FORCE=1 restarts a fresh one
+#      (d) no SPOOL_HUB_RESTART_AT at all restarts
+#      (e) RED CONTROL: the action with its guard call removed restarts the
+#          fresh one, so (a) catches the 2026-10-16 double restart
 # gcloud, curl and sleep are stubs on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -38,6 +45,9 @@ case "$*" in
   "auth list"*) cat "$CLOUDSDK_CONFIG/active" 2>/dev/null ;;
   "run services describe"*)
     if [[ "$*" == *status.url* ]]; then printf '%s\t%s\n' "$(cat "$REV")" "https://hub.example.com"; else cat "$REV"; fi ;;
+  "run revisions describe"*)
+    [[ -n "${STUB_RESTART_AT:-}" ]] && printf '{"spec":{"containers":[{"env":[{"name":"OTHER","value":"x"},{"name":"SPOOL_HUB_RESTART_AT","value":"%s"}]}]}}\n' "$STUB_RESTART_AT"
+    [[ -n "${STUB_RESTART_AT:-}" ]] || echo '{"spec":{"containers":[{"env":[{"name":"OTHER","value":"x"}]}]}}' ;;
   "run services update"*) [[ "${STUB_NO_BUMP:-0}" == 1 ]] || echo svc-00002-new >"$REV" ;;
 esac
 exit 0
@@ -49,11 +59,12 @@ chmod +x "$T/stub/"*
 # act [VAR=value ...] -> rc; output in $T/out, calls in $T/calls.log
 act() {
   : >"$T/calls.log"; echo svc-00001-old >"$T/rev"
-  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN HOME="$T/home" PATH="$T/stub:$PATH" \
+  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUB_RESTART_FORCE -u HUB_RESTART_MIN_AGE_S \
+    HOME="$T/home" PATH="$T/stub:$PATH" ACTION_FILE="$ACTION" \
     STUB_LOG="$T/calls.log" REV="$T/rev" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }; quit_on() { :; }; do_require_bin() { :; }
-    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/gcp-hub-restart.func.sh; do source "$f"; done
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$ACTION_FILE"; do source "$f"; done
     do_gcp_hub_restart' >"$T/out" 2>&1
 }
 run_calls() { grep -c '|run ' "$T/calls.log"; }
@@ -100,6 +111,39 @@ mv "$T/home/.gcp/.csi/key-csi-spl-dev.json" "$T/key.json"
 act DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && "$(run_calls)" -eq 0 ]] && pass "6. CONTROL: no key -> refused, no gcloud run call" || fail "6. rc=$rc $(cat "$T/calls.log")"
 mv "$T/key.json" "$T/home/.gcp/.csi/key-csi-spl-dev.json"
+
+# --- 7. fresh guard (SPL-2294) ------------------------------------------------------
+FRESH=$(date -u -d '-120 sec' +%Y%m%dT%H%M%SZ)
+OLD=$(date -u -d '-3600 sec' +%Y%m%dT%H%M%SZ)
+updates() { grep -c '|run services update' "$T/calls.log"; }
+act DRY_RUN=0 STUB_RESTART_AT="$FRESH"; rc=$?
+[[ $rc -ne 0 && "$(updates)" -eq 0 ]] \
+  && grep -qE "FATAL revision svc-00001-old was restarted 1[0-9]{2} s ago \(SPOOL_HUB_RESTART_AT=$FRESH, younger than HUB_RESTART_MIN_AGE_S=600\).*HUB_RESTART_FORCE=1" "$T/out" \
+  && pass "7a. a 120 s old SPOOL_HUB_RESTART_AT -> refused, no update; FATAL names revision, RESTART_AT, age, FORCE" \
+  || fail "7a. fresh: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
+grep -q "|run revisions describe svc-00001-old .*--account=$DEV_SA" "$T/calls.log" && [[ "$(run_calls)" == "$(run_calls_as_sa)" ]] \
+  && pass "7a. the ready revision is read as the dev project SA" || fail "7a. identity: $(cat "$T/calls.log")"
+act STUB_RESTART_AT="$FRESH"; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'FATAL revision svc-00001-old was restarted' "$T/out" && ! grep -q 'DRY_RUN would run' "$T/out" \
+  && pass "7a. DRY_RUN=1 prints the same refusal, non-zero" || fail "7a. dry fresh: rc=$rc $(cat "$T/out")"
+act DRY_RUN=0 STUB_RESTART_AT="$OLD"; rc=$?
+[[ $rc -eq 0 && "$(updates)" -eq 1 ]] && grep -qE "SPOOL_HUB_RESTART_AT=$OLD is 3[0-9]{3} s old" "$T/out" \
+  && pass "7b. a 3600 s old SPOOL_HUB_RESTART_AT -> restarted" || fail "7b. old: rc=$rc $(cat "$T/out")"
+act DRY_RUN=0 STUB_RESTART_AT="$FRESH" HUB_RESTART_MIN_AGE_S=60; rc=$?
+[[ $rc -eq 0 && "$(updates)" -eq 1 ]] && pass "7b. HUB_RESTART_MIN_AGE_S=60 lets the 120 s old one restart" || fail "7b. min age: rc=$rc $(cat "$T/out")"
+act DRY_RUN=0 STUB_RESTART_AT="$FRESH" HUB_RESTART_FORCE=1; rc=$?
+[[ $rc -eq 0 && "$(updates)" -eq 1 ]] && grep -q 'HUB_RESTART_FORCE=1' "$T/out" \
+  && pass "7c. HUB_RESTART_FORCE=1 restarts a fresh one" || fail "7c. force: rc=$rc $(cat "$T/out")"
+act DRY_RUN=0 HUB_RESTART_FORCE=2; rc=$?
+[[ $rc -eq 2 && ! -s "$T/calls.log" ]] && pass "7c. HUB_RESTART_FORCE=2 refused before any gcloud call" || fail "7c. bad force: rc=$rc"
+act DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(updates)" -eq 1 ]] && grep -q 'has no SPOOL_HUB_RESTART_AT' "$T/out" \
+  && pass "7d. no SPOOL_HUB_RESTART_AT -> restarted" || fail "7d. none: rc=$rc $(cat "$T/out")"
+[[ "$(grep -c '_spl_hub_restart_fresh_guard "\$before"' "$ACTION")" == 1 ]] || fail "7e. the guard call line moved; update the control"
+grep -v '_spl_hub_restart_fresh_guard "\$before"' "$ACTION" >"$T/no-guard.func.sh"
+act DRY_RUN=0 STUB_RESTART_AT="$FRESH" ACTION_FILE="$T/no-guard.func.sh"; rc=$?
+[[ $rc -eq 0 && "$(updates)" -eq 1 ]] \
+  && pass "7e. RED CONTROL: without the guard the fresh one IS restarted (7a catches it)" || fail "7e. control: rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

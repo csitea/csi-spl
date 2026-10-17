@@ -14,11 +14,19 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @description gcloud config. DRY_RUN=1 (default) reads the service and prints
 # @description the update it would make; DRY_RUN=0 makes it, then prints the
 # @description new ready revision and GET <service url>/v1/health.
+# @description Fresh guard (SPL-2294): before any change it reads the ready
+# @description revision's SPOOL_HUB_RESTART_AT and REFUSES (FATAL, also under
+# @description DRY_RUN=1) while it is younger than HUB_RESTART_MIN_AGE_S: on
+# @description 2026-10-16 two seats acting on one owner go restarted prd twice,
+# @description 2 min apart. HUB_RESTART_FORCE=1 restarts anyway.
 # @description Terraform drift: SPOOL_HUB_RESTART_AT is not in the 030 tf, so
 # @description the next 030 apply (and any CI deploy) drops it again. Harmless.
 # @param ENV - required: dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param HEALTH_TRIES (optional) - /v1/health attempts, 2 s apart (default 15)
+# @param HUB_RESTART_MIN_AGE_S (optional) - refuse while the ready revision's
+# @param   SPOOL_HUB_RESTART_AT is younger than this many seconds (default 600)
+# @param HUB_RESTART_FORCE (optional) - 1 restarts a fresh revision anyway (default 0)
 # @example ENV=dev ./run -a do_gcp_hub_restart
 # @example ENV=prd DRY_RUN=0 ./run -a do_gcp_hub_restart
 #------------------------------------------------------------------------------
@@ -30,6 +38,8 @@ do_gcp_hub_restart() {
   local dry="${DRY_RUN:-1}" tries="${HEALTH_TRIES:-15}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL HEALTH_TRIES must be a positive integer, got: $tries"; return 2; }
+  [[ "${HUB_RESTART_MIN_AGE_S:-600}" =~ ^[0-9]+$ ]] || { do_log "FATAL HUB_RESTART_MIN_AGE_S must be a non-negative integer, got: $HUB_RESTART_MIN_AGE_S"; return 2; }
+  [[ "${HUB_RESTART_FORCE:-0}" =~ ^[01]$ ]] || { do_log "FATAL HUB_RESTART_FORCE must be 0 or 1, got: $HUB_RESTART_FORCE"; return 2; }
   do_require_bin yq curl || return 1
   do_gcp_spl_proj_id || return 1
   local p="$PROJ_ID" cnf="$_spl_sdk_dir/cnf.yaml"
@@ -45,6 +55,7 @@ do_gcp_hub_restart() {
     --format='value(status.latestReadyRevisionName)' 2>/dev/null)" ||
     { do_log "FATAL cannot read Cloud Run service $svc in $p/$region as $sa"; return 1; }
   do_log "INFO $p/$region $svc: ready revision ${before:-<none>}"
+  _spl_hub_restart_fresh_guard "$before" "$region" "$p" "$sa" || return 1
 
   local ts
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -81,4 +92,43 @@ do_gcp_hub_restart() {
   fi
   do_log "ERROR $url/v1/health answered $code after $tries attempts on revision $after"
   return 1
+}
+
+#------------------------------------------------------------------------------
+# @description The fresh guard of do_gcp_hub_restart (SPL-2294): reads the
+# @description SPOOL_HUB_RESTART_AT of revision $1 and fails while it is younger
+# @description than HUB_RESTART_MIN_AGE_S (default 600 s), unless
+# @description HUB_RESTART_FORCE=1. A value it cannot read or parse also fails.
+# @description No revision ($1 empty) or no SPOOL_HUB_RESTART_AT passes.
+# @param $1 revision, $2 region, $3 project, $4 account
+#------------------------------------------------------------------------------
+_spl_hub_restart_fresh_guard() {
+  local rev="$1" region="$2" p="$3" sa="$4" min_age="${HUB_RESTART_MIN_AGE_S:-600}"
+  local force_hint="pass HUB_RESTART_FORCE=1 to restart anyway"
+  if [[ "${HUB_RESTART_FORCE:-0}" == 1 ]]; then
+    do_log "WARN HUB_RESTART_FORCE=1: the fresh guard is skipped"
+    return 0
+  fi
+  [[ -n "$rev" ]] || return 0
+  local json at
+  json="$(gcloud run revisions describe "$rev" --region="$region" --project="$p" --account="$sa" --format=json 2>/dev/null)" ||
+    { do_log "FATAL cannot read revision $rev to check its SPOOL_HUB_RESTART_AT; $force_hint"; return 1; }
+  [[ -n "$json" ]] || json='{}'
+  at="$(yq -p=json -r '[.spec.containers[]?.env[]? | select(.name == "SPOOL_HUB_RESTART_AT") | .value][0] // ""' <<<"$json" 2>/dev/null)" ||
+    { do_log "FATAL cannot parse revision $rev to check its SPOOL_HUB_RESTART_AT; $force_hint"; return 1; }
+  if [[ -z "$at" ]]; then
+    do_log "INFO revision $rev has no SPOOL_HUB_RESTART_AT: no recent restart"
+    return 0
+  fi
+  [[ "$at" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z$ ]] ||
+    { do_log "FATAL revision $rev has SPOOL_HUB_RESTART_AT=$at, not <YYYYmmddTHHMMSSZ>; $force_hint"; return 1; }
+  local at_s age
+  at_s="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]} UTC" +%s 2>/dev/null)" ||
+    { do_log "FATAL revision $rev has SPOOL_HUB_RESTART_AT=$at, not a date; $force_hint"; return 1; }
+  age=$(($(date -u +%s) - at_s))
+  if ((age < min_age)); then
+    do_log "FATAL revision $rev was restarted $age s ago (SPOOL_HUB_RESTART_AT=$at, younger than HUB_RESTART_MIN_AGE_S=$min_age): refusing a second restart; $force_hint"
+    return 1
+  fi
+  do_log "INFO revision $rev SPOOL_HUB_RESTART_AT=$at is $age s old (>= $min_age s): restart allowed"
 }

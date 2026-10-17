@@ -90,10 +90,14 @@ export SPOOL_TEST=1 SPOOL_ROOT="$T/spool" PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ
 unset WD_ENSURE_WATCH_DRY SPOOL_BOX_ENV SPOOL_DESK_BOX
 
 run_act() { "$T/bin/act" "$@"; }
+# held = the lock is taken AND run.pid names a live process: the new loop
+# takes the lock before it writes run.pid, so a stale pid from the loop
+# stop_loop killed must not count (wf 10 38996027956: case 5 met case 4's loop)
 wait_held() {
-  local n=0
+  local pid n=0
   while (( n < 50 )); do
-    [[ -s "$D/run.pid" ]] && ! flock -n "$D/run.lock" true && return 0
+    pid="$(cat "$D/run.pid" 2>/dev/null || true)"
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && ! flock -n "$D/run.lock" true && return 0
     sleep 0.1
     n=$((n + 1))
   done
@@ -144,7 +148,7 @@ s="$(cat "$SENT")"
   pass "9. restart: ONE blocker to the orchestrator naming the box, the dead pid and run.out's last 5 lines; no owner DM" ||
   fail "9. restart sent=$s owner=$(cat "$OWNER")"
 
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 mkdir -p "$T/spool/peer"
 printf 'c-001 claude\nc-002 claude\ng-003 grok\n' > "$T/spool/peer/seats"
 out="$(run_act do_spl_wd_ensure)"; rc=$?
@@ -156,7 +160,7 @@ wait_held || true
   pass "9. a second restart within 30 min is debounced: still one message" ||
   fail "9. debounce sent=$(cat "$SENT") out=$out"
 
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 out="$(WD_RUN="$T/bin/missing" run_act do_spl_wd_ensure)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"missing or not executable"* && "$(wc -l < "$CALLS")" -eq 3 ]] &&
   pass "5. a missing runner is refused and starts nothing" ||
@@ -164,7 +168,7 @@ out="$(WD_RUN="$T/bin/missing" run_act do_spl_wd_ensure)"; rc=$?
 
 # --- 9. crash loop and hung -----------------------------------------------------
 now=$(date +%s)
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 # 2 restarts in the hour (one 66 min old does not count) + this one = 3: no crash loop
 printf '%s\n' $((now - 4000)) $((now - 600)) $((now - 300)) > "$D/ensure.restarts"
 rm -f "$D/ensure.alert."*; : > "$SENT"
@@ -174,7 +178,7 @@ wait_held || true
   pass "9. control: 3 restarts in the hour is no crash loop (an older one is not counted)" ||
   fail "9. crash control rc=$rc sent=$(cat "$SENT") owner=$(cat "$OWNER")"
 
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 rm -f "$D/ensure.alert."*; : > "$SENT"
 out="$(run_act do_spl_wd_ensure)"; rc=$?
 wait_held || true
@@ -210,7 +214,7 @@ out="$(run_act do_spl_wd_ensure)"; rc=$?
 [[ "$(wc -l < "$SENT")" -eq 1 && "$(grep -c HUNG "$OWNER")" -eq 1 ]] &&
   pass "9. hung a minute later: debounced, no second message" ||
   fail "9. hung debounce sent=$(cat "$SENT")"
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 
 # --- 10. retention ------------------------------------------------------------
 now=$(date +%s)
@@ -239,7 +243,7 @@ wait_held || true
 [[ "$(cat "$T/log/ensure.out.1" 2>/dev/null)" == ensure-line && -s "$D/run.out.1" ]] &&
   pass "10. the keeper rotates run.out and its own ensure.out" ||
   fail "10. keeper rotate rc=$rc out=$out"
-stop_loop || true
+stop_loop || fail "the previous loop did not release the lock"
 
 W="$T/wdlog"; mkdir -p "$W"
 printf 'x\n' > "$W/wd.log"; echo $((now - 90000)) > "$W/wd.log.since"

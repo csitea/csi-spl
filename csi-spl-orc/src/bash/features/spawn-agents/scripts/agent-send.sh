@@ -1,36 +1,22 @@
 #!/usr/bin/env bash
-# agent-send.sh — send a message to an agent through the mailbox it was
-# SPAWNED with (specs/048 switch-over §3): the spool mailbox for an agent of
-# this harness, the frozen engine's markdown inbox for one it spawned. During
-# the switch-over both kinds of agent are alive at once; an orchestrator uses
-# this one command for both and never has to know which is which.
-#
-# It takes the frozen engine's sender arguments, so it is a drop-in for it:
+# agent-send.sh — send a message to an agent through its spool mailbox.
 #
 # Usage:
 #   agent-send.sh [--from <ID>] <ID> <message text...>
 #   agent-send.sh [--from <ID>] <ID> --file <path>
 #     [--subject <slug>] [--kind task|result|note|reject|blocker|msg]
-#     [--no-poke] [--via auto|spool|legacy]
+#     [--no-poke] [--via auto|spool]
 #   Options may come before or after <ID>.
 #
 # Routing (--via auto, the default), first match wins:
 #   1. <ID> is in $SPOOL_ROOT/registry.tsv    -> spool   (spawned by this harness)
-#   2. $SPOOL_LEGACY_INBOX_ROOT/<ID>/inbox    -> legacy  (spawned by the frozen
-#      engine; it may ALSO have a spool dir, because the desk seats every pane
-#      agent, but its brief tells it to read the markdown inbox)
-#   3. $SPOOL_ROOT/<ID>/inbox                 -> spool
-#   4. none, and a fleet desk is configured   -> spool: spool-send.sh relays it
+#   2. $SPOOL_ROOT/<ID>/inbox                 -> spool
+#   3. none, and a fleet desk is configured   -> spool: spool-send.sh relays it
 #      through the hub to the machine that holds <ID> (specs/058 N1), or
 #      refuses (exit 13) when the hub knows no box for it either
-#   5. none                                   -> exit 3, nothing delivered
+#   4. none                                   -> exit 3, nothing delivered
 #   <ID> may be <ID>@<box> (the machine named: spool leg), or `orchestrator`: the holder of the fleet lease's orch role
 #   (lib/spool-fleet.inc.sh), not a fixed id on this machine.
-#
-# The legacy leg is NOT reimplemented: it runs $SPOOL_LEGACY_SEND (the frozen
-# engine's sender) with the same arguments, so an old agent is reached exactly
-# the way it is today - same file, same shell-inert poke, same exit codes.
-# SPOOL_LEGACY_INBOX_ROOT must be the root that sender writes to.
 #
 # The spool leg is scripts/spool-send.sh (kind default note; the sender id
 # defaults to $SPOOL_AGENT_ID, then $MCP_BOT_AGENT_ID).
@@ -91,33 +77,22 @@ else
 fi
 case "$VIA" in auto|spool|legacy) ;; *) echo "agent-send: --via must be auto, spool or legacy" >&2; exit 2 ;; esac
 
-LEGACY_ROOT="${SPOOL_LEGACY_INBOX_ROOT:-}"
 in_spool_registry() { [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | sed -E 's/^.*: //' | grep -x "$TO" >/dev/null; }
 route="" why=""
 case "$VIA" in
   spool)  route=spool why="--via spool" ;;
-  legacy) route=legacy why="--via legacy" ;;
   auto)
     if [ -n "$AT_BOX" ]; then route=spool why="$TO$AT_BOX names its machine's box"
     elif in_spool_registry; then route=spool why="$TO is in $SPOOL_ROOT/registry.tsv"
-    elif [ -n "$LEGACY_ROOT" ] && [ -d "$LEGACY_ROOT/$TO/inbox" ]; then route=legacy why="$TO has a markdown inbox under $LEGACY_ROOT"
     elif [ -d "$SPOOL_ROOT/$TO/inbox" ]; then route=spool why="$TO has a spool mailbox under $SPOOL_ROOT"
     elif spool_fleet_desk_configured; then route=spool why="$TO is not on this machine: relayed through the hub (specs/058)"
     fi ;;
+  *) echo "agent-send: --via must be auto or spool" >&2; exit 2 ;;
 esac
-[ -n "$route" ] || { echo "agent-send: no mailbox for $TO (not in $SPOOL_ROOT/registry.tsv, no $SPOOL_ROOT/$TO/inbox${LEGACY_ROOT:+, no $LEGACY_ROOT/$TO/inbox}, no fleet desk to relay it); nothing delivered" >&2; exit 3; }
+[ -n "$route" ] || { echo "agent-send: no mailbox for $TO (not in $SPOOL_ROOT/registry.tsv, no $SPOOL_ROOT/$TO/inbox, no fleet desk to relay it); nothing delivered" >&2; exit 3; }
 echo "via: $route ($why)"
 
-if [ "$route" = legacy ]; then
-  [ -n "${SPOOL_LEGACY_SEND:-}" ] || { echo "agent-send: $TO needs the legacy sender, but SPOOL_LEGACY_SEND is not set; nothing delivered" >&2; exit 3; }
-  args=()
-  [ -n "$FROM" ] && args+=(--from "$FROM")
-  args+=("$TO")
-  [ -n "$SUBJECT" ] && args+=(--subject "$SUBJECT")
-  [ "$POKE" = 1 ] || args+=(--no-poke)
-  if [ -n "$FILE" ]; then args+=(--file "$FILE"); else args+=("${TEXT[@]}"); fi
-  exec bash "$SPOOL_LEGACY_SEND" "${args[@]}"
-fi
+
 
 [ -n "$FROM" ] || { echo "agent-send: the spool needs a sender id: --from <ID> (or SPOOL_AGENT_ID)" >&2; exit 2; }
 args=(--from "$FROM" --to "$TO$AT_BOX" --kind "$KIND")

@@ -13,11 +13,8 @@
 # argv, else the id its run-as hop exports), never by its window title (two windows can carry one title). Orchestrators
 # (xxx-00, ORC-n, @agent-role orc) and this watcher's own agent
 # ($SPOOL_AGENT_ID / $MCP_BOT_AGENT_ID) are skipped. "Unread" is read from the
-# mailbox the agent was spawned with, the same routing as agent-send.sh:
+# spool mailbox:
 #   in $SPOOL_ROOT/registry.tsv           -> $SPOOL_ROOT/<ID>/inbox/*.json
-#   $SPOOL_LEGACY_INBOX_ROOT/<ID>/inbox   -> the markdown inbox (a lone
-#                                            *--brief.md is the agent's own
-#                                            seed brief, never nudged about)
 #   else $SPOOL_ROOT/<ID>/inbox           -> the spool
 #
 # Usage: agent-watch.sh [--once]      (loops every AGENT_WATCH_INTERVAL, 240 s)
@@ -36,12 +33,11 @@ LEGACY="${SPOOL_LEGACY_INBOX_ROOT:-}"
 
 unread() {  # ID -> "<count> <inbox dir>"
   local id="$1" dir
-  if [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | grep -x "$id" >/dev/null; then dir="$SPOOL_ROOT/$id/inbox"
-  elif [ -n "$LEGACY" ] && [ -d "$LEGACY/$id/inbox" ]; then
-    dir="$LEGACY/$id/inbox"
-    local n; n="$(find "$dir" -maxdepth 1 -type f | wc -l)"
-    if [ "$n" = 1 ] && find "$dir" -maxdepth 1 -type f -name '*--brief.md' | grep . >/dev/null; then echo "0 $dir"; return; fi
-  else dir="$SPOOL_ROOT/$id/inbox"; fi
+  if [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | grep -x "$id" >/dev/null; then
+    dir="$SPOOL_ROOT/$id/inbox"
+  else
+    dir="$SPOOL_ROOT/$id/inbox"
+  fi
   echo "$(find "$dir" -maxdepth 1 -type f 2>/dev/null | wc -l) $dir"
 }
 

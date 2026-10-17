@@ -53,9 +53,7 @@ echo '{}' >"$SPOOL_ROOT/CLE-01/inbox/20260101T000000Z--QWN-09--report-abc.json"
 eq "2. an unseen report in the orchestrator's inbox -> awaiting" awaiting "$(state_of QWN-09)"
 SPOOL_ROOT="$SPOOL_ROOT" bash "$T_SCRIPTS/agent-inbox.sh" --as CLE-01 >/dev/null 2>&1
 eq "2. ... agent-inbox.sh marks it seen -> idle again" idle "$(state_of QWN-09)"
-echo report >"$T_TMP/legacy/AGY-11/outbox/r.md"
-eq "2. without the legacy root a legacy outbox is not read" idle "$(state_of AGY-11)"
-eq "2. with it, a legacy outbox file -> awaiting" awaiting "$(SPOOL_LEGACY_INBOX_ROOT="$T_TMP/legacy" bash "$TOP" | awk '$1=="AGY-11"{print $3}')"
+
 
 # --- 3 ------------------------------------------------------------------------------
 eq "3. the status line" "agents 6  >1 ?1 !1 .2  orc=1" "$(bash "$TOP" --status-line)"

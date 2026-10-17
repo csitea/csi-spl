@@ -5,14 +5,13 @@
 #
 #   DIALOG is reported; TYPED is reported and never nudged; an idle agent with
 #   unread spool mail is nudged with one shell-inert ": 'SPOOL <ID>: ..." line;
-#   a legacy agent is read from its markdown inbox, and its own lone brief is
-#   not "unread"; busy agents, orchestrators, the watcher's own agent and
-#   non-agent panes are left alone.
+#   busy agents, orchestrators, the watcher's own agent and non-agent panes are left alone.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 unset TMUX TMUX_PANE MCP_BOT_AGENT_ID
-export SPOOL_LEGACY_INBOX_ROOT="$T_TMP/legacy" SPOOL_AGENT_ID=CLE-90
+unset SPOOL_LEGACY_INBOX_ROOT
+SPOOL_AGENT_ID=CLE-90
 W="$T_SCRIPTS/agent-watch.sh"
 fake() {  # KIND ID SCREEN
   printf "printf '%%s\\\\n' '%s'; exec -a 'spawn-%s.sh %s' sleep 600" "$3" "$1" "$2"
@@ -46,9 +45,5 @@ hasnt "a busy agent is not nudged" "GRK-10" "$out"
 hasnt "the orchestrator is skipped" "CLE-00" "$out"
 hasnt "the watcher's own agent is skipped" "CLE-90" "$out"
 hasnt "a pane with no launcher is not an agent" "CLE-12" "$out"
-hasnt "a legacy agent's lone brief is not unread" "AGY-11" "$out"
-echo 'next task' >"$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox/20260102T000000Z--ORC--task.md"
-out="$(bash "$W" --once 2>&1)"
-has "a legacy agent with a real message is nudged from its markdown inbox" "MAIL  AGY-11 ($P7) idle with 2 unread" "$out"
-has "... naming that inbox" "$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox/" "$(screen "$P7")"
+
 t_done

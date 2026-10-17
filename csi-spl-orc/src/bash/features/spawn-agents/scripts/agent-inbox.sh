@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 # agent-inbox.sh — list the reports an agent (an orchestrator) has not seen
-# yet, from both mailboxes of the switch-over (specs/048 switch-over §3):
+# yet, from the spool mailbox:
 #
 #   spool   $SPOOL_ROOT/<ID>/inbox/*.json - what agents of this harness send
-#   legacy  $SPOOL_LEGACY_INBOX_ROOT/*/outbox/*.md - what agents spawned by the
-#           frozen engine write for their orchestrator (only when that root is set)
 #
 # Nothing is moved or acknowledged: `spool recv --ack` stays the way to archive.
 # "New" is newer than a seen-mark, a file whose mtime is the last listing; each
 # listing moves it forward unless --peek. The first listing of an id with no
-# mark shows the newest --first (default 20) of each kind.
+# mark shows the newest --first (default 20).
 #
 # Usage:
 #   agent-inbox.sh --as <ID> [--peek] [--first N]
 #
 # stdout, one line per report, oldest first:
 #   spool   <ts> <from> <kind> <task_id> <file>  <first body line, cut>
-#   legacy  <mtime UTC> <agent> <file>  <subject from the file name>
-# then "new: <n spool>, <n legacy>".
+# then "new: <n spool>".
 # Env: SPOOL_AGENT_INBOX_MARK - the mark file (default <SPOOL_ROOT>/<ID>/.agent-inbox-seen)
 # Exit: 0 listed (even none), 2 usage, 3 no spool mailbox for <ID>.
 set -uo pipefail
@@ -69,16 +66,5 @@ print("spool  %s %s %s %s %s  %s" % (d.get("ts", "?"), d.get("from", "?"), d.get
 EOF_PY
 done < <(newer "$INBOX" | sort -n)
 
-n_legacy=0
-if [ -n "${SPOOL_LEGACY_INBOX_ROOT:-}" ] && [ -d "$SPOOL_LEGACY_INBOX_ROOT" ]; then
-  while read -r ts f; do
-    [ -n "$f" ] || continue
-    agent="$(basename "$(dirname "$(dirname "$f")")")"
-    subj="$(basename "$f" .md | sed -E 's/^[0-9TZ]+--[^-]+-[0-9]+--//')"
-    printf 'legacy %s %s %s  %s\n' "$(date -u -d "@${ts%.*}" +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$f" "$subj"
-    n_legacy=$((n_legacy + 1))
-  done < <(newer "$SPOOL_LEGACY_INBOX_ROOT"/*/outbox | grep -E '\.md$' | sort -n)
-fi
-
-echo "new: $n_spool spool, $n_legacy legacy"
+echo "new: $n_spool spool"
 [ "$PEEK" = 1 ] || touch -r "$NOW" "$MARK" 2>/dev/null || echo "agent-inbox: WARN cannot write the seen-mark $MARK" >&2

@@ -231,9 +231,6 @@ pending_files() {  # ID -> one path per line
     if [ -e "$mark" ]; then find "$dir" -maxdepth 1 -type f -name "*--${id}--*" -newer "$mark" 2>/dev/null
     else find "$dir" -maxdepth 1 -type f -name "*--${id}--*" 2>/dev/null; fi
   fi
-  if [ -n "${SPOOL_LEGACY_INBOX_ROOT:-}" ] && [ -d "$SPOOL_LEGACY_INBOX_ROOT/$id/outbox" ]; then
-    find "$SPOOL_LEGACY_INBOX_ROOT/$id/outbox" -maxdepth 1 -type f 2>/dev/null
-  fi
 }
 pending_count() { pending_files "$1" | wc -l | tr -d ' '; }
 

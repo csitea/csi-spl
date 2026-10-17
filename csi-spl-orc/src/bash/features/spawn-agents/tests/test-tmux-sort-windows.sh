@@ -13,6 +13,8 @@
 #      a-/q- sort with AGY/QWN; <ID>@<box> and "<tag>: " prefixes are display only
 #   9. a hook on a test's server (SPOOL_TEST=1, no SPOOL_ROOT of its own) sorts
 #      that server and never trips the live-root guard; with no socket it no-ops
+#  10. the snippet's badge loop dies with the test: none whose TMUX names this
+#      test's server is left (SPL-2331: every run before left one behind)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -70,12 +72,26 @@ eq "8. ... and a second pass has nothing to swap" "" "$(sortit --session m --dry
 tm kill-session -t m
 
 sed "s#{{HARNESS_DIR}}#$T_FEAT#g" "$T_FEAT/assets/tmux-agent-status.conf" >"$T_TMP/snippet.conf"
-AGENT_TOP_PIDFILE="$T_TMP/p.pid" tm source-file "$T_TMP/snippet.conf"
+# The pidfile goes into the SERVER's env: the snippet's --ensure-badge-loop
+# runs under run-shell there. Set on the client only, it never arrived, and
+# each run started a loop on the default /tmp pidfile nobody reaped (SPL-2331).
+tm set-environment -g AGENT_TOP_PIDFILE "$T_TMP/p.pid"
+tm source-file "$T_TMP/snippet.conf"
 w="$(tm list-windows -t t -F '#{window_id} #{window_name}' | awk '$2=="zsh"{print $1}')"
 tm rename-window -t "$w" 'AAB-2'
 for _ in $(seq 1 30); do [ "$(tm list-windows -t t -F '#{window_name}' | sed -n 2p)" = AAB-2 ] && break; sleep 0.2; done
 eq "7. the snippet's after-rename hook sorts the renamed window" "AAB-2" "$(tm list-windows -t t -F '#{window_name}' | sed -n 2p)"
+for _ in $(seq 1 25); do [ -s "$T_TMP/p.pid" ] && break; sleep 0.2; done
 kill "$(cat "$T_TMP/p.pid" 2>/dev/null)" 2>/dev/null
+loops_here() {  # badge loops started by this test's server (run-shell sets TMUX)
+  local p n=0
+  for p in $(pgrep -f 'agent-top\.sh --badge-loop'); do
+    tr '\0' '\n' <"/proc/$p/environ" 2>/dev/null | grep -F "TMUX=$SPOOL_TMUX_SOCKET," >/dev/null && n=$((n + 1))
+  done
+  echo "$n"
+}
+for _ in $(seq 1 15); do [ "$(loops_here)" = 0 ] && break; sleep 0.2; done
+eq "10. the snippet's badge loop does not outlive the test" 0 "$(loops_here)"
 
 # 9. what a box tmux.conf hook does on a scratch server a test started: the
 # server env carries SPOOL_TEST=1 but not the test's SPOOL_ROOT.

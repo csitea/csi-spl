@@ -15,7 +15,8 @@
 #   agent-top.sh --watch              # reprint every --interval seconds
 #   agent-top.sh --status-line        # one compact line for tmux status-right
 #   agent-top.sh --badges             # badge every non-orchestrator window once
-#   agent-top.sh --badge-loop         # badge every --interval seconds (default 15)
+#   agent-top.sh --badge-loop         # badge every --interval seconds (default 15); stops
+#                                     # itself when its tree, its PIDFILE entry or its tmux server goes
 #   agent-top.sh --ensure-badge-loop  # start --badge-loop unless one is running
 #   agent-top.sh --interval N
 #
@@ -93,6 +94,32 @@ registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else th
       [ -n "$p" ] && printf '%s\n' "$live" | grep -xF "$p" >/dev/null && { printf '%s\n' "$row"; return; }
     done < <(awk -F '\t' -v id="$id" '$1 == id' "$reg" | tac)
   done
+}
+
+# A pid in PIDFILE is a live badge loop, whoever owns it. kill -0 on another
+# user's loop fails with EPERM, and reading that as "dead" started one more
+# loop on every ensure: 15 leaked on one box, each from a test's or a lane's
+# tree (SPL-2331).
+loop_alive() {  # PID
+  [ -n "$1" ] || return 1
+  kill -0 "$1" 2>/dev/null || grep -qa -- '--badge-loop' "/proc/$1/cmdline" 2>/dev/null
+}
+# Atomic: never truncate-then-write (see badge-loop). A file this user may not
+# replace (another user's, in a sticky /tmp) leaves no PIDFILE.<pid> behind.
+pidfile_put() {  # PID
+  { echo "$1" > "$PIDFILE.$$" && mv -f "$PIDFILE.$$" "$PIDFILE"; } 2>/dev/null && return 0
+  rm -f "$PIDFILE.$$"; return 1
+}
+# The loop's own check, every tick (SPL-2331): a loop outlives the test or lane
+# that started it. It stops when its tree is gone (a removed worktree or
+# pre-push base), when PIDFILE no longer names it (a newer loop took over, or
+# the file was never its own), or after 4 ticks in a row with no tmux server.
+LOOP_MISSES=0
+loop_still_mine() {
+  [ -r "$HERE/agent-top.sh" ] || return 1
+  [ "$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')" = "$$" ] || return 1
+  if "${TM[@]}" list-sessions >/dev/null 2>&1; then LOOP_MISSES=0; else LOOP_MISSES=$((LOOP_MISSES + 1)); fi
+  [ "$LOOP_MISSES" -lt 4 ]
 }
 
 trunc() { local s="$1" n="$2"; if [ "${#s}" -le "$n" ]; then printf '%s' "$s"; else printf '%s' "${s:0:$((n - 1))}…"; fi; }
@@ -209,18 +236,23 @@ case "$MODE" in
     # at once (attach, new session), and each unlocked caller saw no live pid
     # and started its own loop - three ran side by side on 2026-10-01.
     exec 8>>"$PIDFILE.lock" 2>/dev/null && { flock -w 5 8 || exit 0; }
-    old="$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')"
-    [ -n "$old" ] && kill -0 "$old" 2>/dev/null && exit 0
+    loop_alive "$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')" && exit 0
     nohup bash "$HERE/agent-top.sh" --badge-loop --interval "$INTERVAL" >/dev/null 2>&1 8>&- &
-    echo $! > "$PIDFILE.$$" && mv -f "$PIDFILE.$$" "$PIDFILE"
+    pidfile_put $! || kill $! 2>/dev/null
     ;;
   badge-loop)
     # Never a bare `echo $$ > PIDFILE`: that truncates then writes, OUTSIDE the
     # ensure lock, and a locked reader in between saw an empty file and started
     # a second loop (3 loops under load ~60, CLE-77907). ensure-loop already
     # wrote this pid; a loop started by hand writes it atomically.
-    [ "$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')" = "$$" ] ||
-      { echo $$ > "$PIDFILE.$$" && mv -f "$PIDFILE.$$" "$PIDFILE"; }
-    trap '[ "$(cat "$PIDFILE" 2>/dev/null | tr -d "[:space:]")" = "$$" ] && rm -f "$PIDFILE"' EXIT
-    while true; do collect_rows | apply_badges || true; sleep "$INTERVAL"; done ;;
+    # A PIDFILE this loop cannot take is another loop's: it does not start.
+    [ "$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')" = "$$" ] || pidfile_put $$ || exit 0
+    trap 'kill "${nap:-}" 2>/dev/null; [ "$(cat "$PIDFILE" 2>/dev/null | tr -d "[:space:]")" = "$$" ] && rm -f "$PIDFILE"' EXIT
+    trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+    # The sleep runs in the background so a TERM ends the loop at once, not
+    # after the interval; the EXIT trap takes the sleep with it.
+    while loop_still_mine; do
+      collect_rows | apply_badges || true
+      sleep "$INTERVAL" & nap=$!; wait "$nap"
+    done ;;
 esac

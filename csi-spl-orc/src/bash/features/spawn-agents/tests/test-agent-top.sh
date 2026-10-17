@@ -13,7 +13,9 @@
 #   4. badges: "<tag>: <ID> <badge> <title>", the title and the tag kept, a
 #      right badge renames nothing, the orchestrator is never renamed; the
 #      tag is inferred from the windows when none is configured
-#   5. --ensure-badge-loop starts one loop, a second call starts none
+#   5. --ensure-badge-loop starts one loop, a second call starts none; a TERM
+#      ends it at once; a loop stops by itself when its PIDFILE names another
+#      pid, when its tree is removed, or when its tmux server is gone (SPL-2331)
 #   6. spec 110 T006: a mistral pane showing Vibe's 401 (fixture recorded from
 #      a real Vibe 2.26.0 pane, a deliberately invalid test key, n = 1) reads
 #      "auth", badge "?"; the kind comes from spawn-mistral.sh or the binary
@@ -89,7 +91,22 @@ bash "$TOP" --ensure-badge-loop --interval 60; p1="$(cat "$AGENT_TOP_PIDFILE" 2>
 check "5. --ensure-badge-loop starts a loop" kill -0 "${p1:-0}"
 bash "$TOP" --ensure-badge-loop --interval 60
 eq "5. a second call starts none" "$p1" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"
-sleep 0.5; kill "$p1" 2>/dev/null; sleep 0.2
+gone() { local _; for _ in $(seq 1 40); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.2; done; return 1; }
+kill "$p1" 2>/dev/null
+check "5. TERM ends the loop at once, not after its 60 s interval" gone "${p1:-0}"
+check "5. ... and it removes its own pidfile" test ! -e "$AGENT_TOP_PIDFILE"
+bash "$TOP" --badge-loop --interval 1 & lp=$!
+for _ in $(seq 1 25); do [ "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" = "$lp" ] && break; sleep 0.2; done
+echo 999999 >"$AGENT_TOP_PIDFILE"
+check "5. a loop whose PIDFILE names another pid stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
+mkdir -p "$T_TMP/tree/scripts"; cp -r "$T_FEAT/lib" "$T_TMP/tree/"; cp "$TOP" "$T_TMP/tree/scripts/"
+AGENT_TOP_PIDFILE="$T_TMP/tree.pid" bash "$T_TMP/tree/scripts/agent-top.sh" --badge-loop --interval 1 & lp=$!
+sleep 0.5; rm -rf "$T_TMP/tree"
+check "5. a loop whose tree was removed stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
+S2="$T_TMP/s2.sock"; tmux -S "$S2" -f /dev/null new-session -d 'sleep 600'
+SPOOL_TMUX_SOCKET="$S2" AGENT_TOP_PIDFILE="$T_TMP/s2.pid" bash "$TOP" --badge-loop --interval 1 & lp=$!
+sleep 0.5; tmux -S "$S2" kill-server
+check "5. a loop whose tmux server is gone stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
 
 # --- 6 ------------------------------------------------------------------------------
 # The limit fixture is Vibe 2.26.0's rate-limit text (vibe/cli/textual_ui/app.py

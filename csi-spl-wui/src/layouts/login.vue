@@ -59,7 +59,7 @@
          spec 116 T3: in flow under the scrolling body, never over it (it was
          absolute and sat on the demo buttons once the card outgrew the room). -->
     <footer class="login-foot" data-test="login-foot">
-      <a :href="localePath('/blog')" data-test="login-foot-blog">Blog</a>
+      <a :href="localePath('/blog')" data-test="login-foot-blog">{{ t('auth.login.links.blog') }}</a>
     </footer>
 
   </div>

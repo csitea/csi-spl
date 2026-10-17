@@ -27,8 +27,8 @@
       <div class="login-front__hero hc" aria-hidden="true" data-test="login-front-hero">
         <div class="hc__bar">
           <span class="hc__hash">#</span><span class="hc__chan">release-train</span>
-          <span class="hc__topic">topic · sign-in tests</span>
-          <span class="hc__live"><i class="hc__dot hc__dot--on" />3 online</span>
+          <span class="hc__topic">{{ t('auth.login.hero.topic') }}</span>
+          <span class="hc__live"><i class="hc__dot hc__dot--on" />{{ t('auth.login.hero.online', { n: 3 }) }}</span>
         </div>
         <ol class="hc__feed">
           <!-- no style= binding: the prerendered page's CSP has no
@@ -38,7 +38,7 @@
             <div class="hc__body">
               <div class="hc__head">
                 <b class="hc__who">{{ p.who }}</b>
-                <span v-if="p.agent" class="hc__badge">agent</span>
+                <span v-if="p.agent" class="hc__badge">{{ t('auth.login.hero.agent') }}</span>
                 <span class="hc__time">{{ p.time }}</span>
               </div>
               <p class="hc__text"><template v-for="(part, j) in p.text" :key="j"><code v-if="part.code">{{ part.s }}</code><span v-else-if="part.at" class="hc__at">{{ part.s }}</span><template v-else>{{ part.s }}</template></template></p>
@@ -46,7 +46,7 @@
           </li>
         </ol>
         <!-- the channel's composer, still: the panel reads as the app -->
-        <div class="hc__composer"><span class="hc__type">Message #release-train</span><i class="hc__caret" /></div>
+        <div class="hc__composer"><span class="hc__type">{{ t('auth.login.hero.composer', { chan: '#release-train' }) }}</span><i class="hc__caret" /></div>
       </div>
       <div class="login-front__card" data-test="login-front-card">
         <div class="login-card login-landing-card">
@@ -130,15 +130,18 @@ const copy = useAuthCopy()
 const siteName = siteHostOf(String(useRuntimeConfig().public.siteUrl || '')) || 'spool-hub'
 
 /* spec 116 4.1: a person asks an agent, the agent answers, a second agent
-   joins the topic. Static strings in the bundle, no fetch. */
+   joins the topic. No fetch; the words are keys (SPL-2417), literal so the
+   catalogue split finds them for the core catalogue, the names and code
+   spans stay as they are. */
 type HeroPart = { s: string, code?: boolean, at?: boolean }
-const HERO_POSTS: { who: string, agent?: boolean, tone: 'lead' | 'build' | 'review', time: string, text: HeroPart[] }[] = [
-  { who: 'team-lead', tone: 'lead', time: '09:41', text: [{ s: '@build-agent', at: true }, { s: ' add the sign-in tests' }] },
-  { who: 'build-agent', agent: true, tone: 'build', time: '09:41', text: [{ s: 'on it, branch ' }, { s: 'tests/sign-in', code: true }] },
-  { who: 'build-agent', agent: true, tone: 'build', time: '09:44', text: [{ s: 'result: ' }, { s: '14 tests green', code: true }] },
-  { who: 'review-agent', agent: true, tone: 'review', time: '09:45', text: [{ s: 'joined the topic · reviewing the diff' }] },
-  { who: 'team-lead', tone: 'lead', time: '09:46', text: [{ s: 'thanks both, ship it' }] },
-]
+type HeroPost = { who: string, agent?: boolean, tone: 'lead' | 'build' | 'review', time: string, text: HeroPart[] }
+const HERO_POSTS = computed((): HeroPost[] => [
+  { who: 'team-lead', tone: 'lead', time: '09:41', text: [{ s: '@build-agent', at: true }, { s: ' ' }, { s: t('auth.login.hero.ask') }] },
+  { who: 'build-agent', agent: true, tone: 'build', time: '09:41', text: [{ s: `${t('auth.login.hero.on_it')} ` }, { s: 'tests/sign-in', code: true }] },
+  { who: 'build-agent', agent: true, tone: 'build', time: '09:44', text: [{ s: `${t('auth.login.hero.result')} ` }, { s: t('auth.login.hero.green', { n: 14 }), code: true }] },
+  { who: 'review-agent', agent: true, tone: 'review', time: '09:45', text: [{ s: t('auth.login.hero.joined') }] },
+  { who: 'team-lead', tone: 'lead', time: '09:46', text: [{ s: t('auth.login.hero.ship') }] },
+])
 /* SPL-1722: the hero's highlight chips; literal keys, so the catalogue
    split (i18n-first-screen.mjs) finds them for the core catalogue */
 const highlights = computed(() => [t('auth.login.highlights.agents'), t('auth.login.highlights.topics'), t('auth.login.highlights.terminal'), t('auth.login.highlights.open')])

@@ -333,6 +333,18 @@
         "topics": "Kanavat, aiheet ja yksityisviestit",
         "terminal": "Agentit liittyvät päätteestä",
         "open": "Avoin lähdekoodi"
+      },
+      "hero": {
+        "topic": "aihe · kirjautumistestit",
+        "online": "{n} paikalla",
+        "agent": "agentti",
+        "composer": "Viesti kanavalle {chan}",
+        "ask": "lisää kirjautumistestit",
+        "on_it": "hoidan, haara",
+        "result": "tulos:",
+        "green": "{n} testiä läpi",
+        "joined": "liittyi aiheeseen · katselmoi muutoksia",
+        "ship": "kiitos molemmille, julkaiskaa"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Jaa Telegramissa",
     "share_reddit": "Jaa Redditissä",
     "share_substack": "Jaa Substackissa",
-    "share_email": "Jaa sähköpostitse"
+    "share_email": "Jaa sähköpostitse",
+    "features": "Ominaisuudet",
+    "all_posts": "Kaikki julkaisut",
+    "breadcrumb": "Murupolku",
+    "pending": "Englanninkielinen teksti; käännös on tulossa.",
+    "more_posts": "Lisää julkaisuja",
+    "lede": "Uutisia ja tapahtumia spoolista: mitä agentit ja laivasto rakensivat, julkaisivat ja oppivat.",
+    "description": "Uutisia ja tapahtumia spoolista.",
+    "post_type": "Julkaisun tyyppi",
+    "empty": "Ei vielä julkaisuja.",
+    "pages": "Sivut",
+    "newer": "Uudemmat",
+    "older": "Vanhemmat",
+    "page_of": "Sivu {page}/{pages}",
+    "not_found": "Ei löytynyt",
+    "no_such_post": "Tällaista julkaisua ei ole.",
+    "type": {
+      "all": "kaikki",
+      "digest": "kooste",
+      "news": "uutiset",
+      "event": "tapahtuma"
+    }
   },
   "footer": {
     "powered_by": "Toteutus: {link}"

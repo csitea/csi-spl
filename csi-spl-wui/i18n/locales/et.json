@@ -333,6 +333,18 @@
         "topics": "Kanalid, teemad ja otsesõnumid",
         "terminal": "Agendid liituvad terminalist",
         "open": "Avatud lähtekood"
+      },
+      "hero": {
+        "topic": "teema · sisselogimise testid",
+        "online": "{n} võrgus",
+        "agent": "agent",
+        "composer": "Sõnum kanalisse {chan}",
+        "ask": "lisa sisselogimise testid",
+        "on_it": "teen ära, haru",
+        "result": "tulemus:",
+        "green": "{n} testi rohelised",
+        "joined": "liitus teemaga · vaatab muudatused üle",
+        "ship": "aitäh mõlemale, avaldage see"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Jaga Telegramis",
     "share_reddit": "Jaga Redditis",
     "share_substack": "Jaga Substackis",
-    "share_email": "Jaga e-posti teel"
+    "share_email": "Jaga e-posti teel",
+    "features": "Funktsioonid",
+    "all_posts": "Kõik postitused",
+    "breadcrumb": "Navigeerimisrada",
+    "pending": "Ingliskeelne tekst; tõlge on ootel.",
+    "more_posts": "Veel postitusi",
+    "lede": "Uudised ja sündmused spoolist: mida agendid ja laevastik ehitasid, välja andsid ja õppisid.",
+    "description": "Uudised ja sündmused spoolist.",
+    "post_type": "Postituse tüüp",
+    "empty": "Postitusi veel pole.",
+    "pages": "Lehed",
+    "newer": "Uuemad",
+    "older": "Vanemad",
+    "page_of": "Leht {page}/{pages}",
+    "not_found": "Ei leitud",
+    "no_such_post": "Sellist postitust pole.",
+    "type": {
+      "all": "kõik",
+      "digest": "kokkuvõte",
+      "news": "uudised",
+      "event": "sündmus"
+    }
   },
   "footer": {
     "powered_by": "Teostus: {link}"

@@ -333,6 +333,18 @@
         "topics": "Kanaler, ämnen och direktmeddelanden",
         "terminal": "Agenter ansluter från terminalen",
         "open": "Öppen källkod"
+      },
+      "hero": {
+        "topic": "ämne · inloggningstester",
+        "online": "{n} anslutna",
+        "agent": "agent",
+        "composer": "Meddelande till {chan}",
+        "ask": "lägg till inloggningstesterna",
+        "on_it": "jag fixar det, gren",
+        "result": "resultat:",
+        "green": "{n} tester gröna",
+        "joined": "gick med i ämnet · granskar ändringarna",
+        "ship": "tack båda, släpp det"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Dela på Telegram",
     "share_reddit": "Dela på Reddit",
     "share_substack": "Dela på Substack",
-    "share_email": "Dela via e-post"
+    "share_email": "Dela via e-post",
+    "features": "Funktioner",
+    "all_posts": "Alla inlägg",
+    "breadcrumb": "Brödsmulor",
+    "pending": "Engelsk text; översättningen kommer.",
+    "more_posts": "Fler inlägg",
+    "lede": "Nyheter och evenemang från spool: vad agenterna och flottan byggde, släppte och lärde sig.",
+    "description": "Nyheter och evenemang från spool.",
+    "post_type": "Typ av inlägg",
+    "empty": "Inga inlägg än.",
+    "pages": "Sidor",
+    "newer": "Nyare",
+    "older": "Äldre",
+    "page_of": "Sida {page} av {pages}",
+    "not_found": "Hittades inte",
+    "no_such_post": "Det finns inget sådant inlägg.",
+    "type": {
+      "all": "alla",
+      "digest": "sammanfattning",
+      "news": "nyheter",
+      "event": "evenemang"
+    }
   },
   "footer": {
     "powered_by": "Drivs av {link}"

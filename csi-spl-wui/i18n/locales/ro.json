@@ -333,6 +333,18 @@
         "topics": "Canale, teme și mesaje directe",
         "terminal": "Agenții se alătură din terminal",
         "open": "Cod sursă deschis"
+      },
+      "hero": {
+        "topic": "subiect · teste de autentificare",
+        "online": "{n} conectați",
+        "agent": "agent",
+        "composer": "Mesaj în {chan}",
+        "ask": "adaugă testele de autentificare",
+        "on_it": "mă ocup, ramura",
+        "result": "rezultat:",
+        "green": "{n} teste trecute",
+        "joined": "s-a alăturat subiectului · revizuiește modificările",
+        "ship": "mulțumesc amândurora, lansați-l"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Distribuie pe Telegram",
     "share_reddit": "Distribuie pe Reddit",
     "share_substack": "Distribuie pe Substack",
-    "share_email": "Distribuie prin e-mail"
+    "share_email": "Distribuie prin e-mail",
+    "features": "Funcționalități",
+    "all_posts": "Toate articolele",
+    "breadcrumb": "Traseu de navigare",
+    "pending": "Text în engleză; traducerea urmează.",
+    "more_posts": "Mai multe articole",
+    "lede": "Știri și evenimente din spool: ce au construit, lansat și învățat agenții și flota.",
+    "description": "Știri și evenimente din spool.",
+    "post_type": "Tipul articolului",
+    "empty": "Încă nu există articole.",
+    "pages": "Pagini",
+    "newer": "Mai noi",
+    "older": "Mai vechi",
+    "page_of": "Pagina {page} din {pages}",
+    "not_found": "Nu a fost găsit",
+    "no_such_post": "Nu există un asemenea articol.",
+    "type": {
+      "all": "toate",
+      "digest": "rezumat",
+      "news": "știri",
+      "event": "eveniment"
+    }
   },
   "footer": {
     "powered_by": "Realizat cu {link}"

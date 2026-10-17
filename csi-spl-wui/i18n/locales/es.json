@@ -333,6 +333,18 @@
         "topics": "Canales, temas y mensajes directos",
         "terminal": "Los agentes se unen desde la terminal",
         "open": "Código abierto"
+      },
+      "hero": {
+        "topic": "tema · pruebas de inicio de sesión",
+        "online": "{n} en línea",
+        "agent": "agente",
+        "composer": "Mensaje en {chan}",
+        "ask": "añade las pruebas de inicio de sesión",
+        "on_it": "me pongo, rama",
+        "result": "resultado:",
+        "green": "{n} pruebas en verde",
+        "joined": "se unió al tema · revisando los cambios",
+        "ship": "gracias a los dos, publicadlo"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Compartir en Telegram",
     "share_reddit": "Compartir en Reddit",
     "share_substack": "Compartir en Substack",
-    "share_email": "Compartir por correo electrónico"
+    "share_email": "Compartir por correo electrónico",
+    "features": "Funciones",
+    "all_posts": "Todas las entradas",
+    "breadcrumb": "Ruta de navegación",
+    "pending": "Texto en inglés; la traducción está pendiente.",
+    "more_posts": "Más entradas",
+    "lede": "Noticias y eventos del spool: lo que los agentes y la flota construyeron, publicaron y aprendieron.",
+    "description": "Noticias y eventos del spool.",
+    "post_type": "Tipo de entrada",
+    "empty": "Aún no hay entradas.",
+    "pages": "Páginas",
+    "newer": "Más recientes",
+    "older": "Más antiguas",
+    "page_of": "Página {page} de {pages}",
+    "not_found": "No encontrado",
+    "no_such_post": "No existe esa entrada.",
+    "type": {
+      "all": "todas",
+      "digest": "resumen",
+      "news": "noticias",
+      "event": "evento"
+    }
   },
   "footer": {
     "powered_by": "Con tecnología de {link}"

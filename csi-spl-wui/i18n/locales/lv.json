@@ -333,6 +333,18 @@
         "topics": "Kanāli, tēmas un tiešās ziņas",
         "terminal": "Aģenti pievienojas no termināļa",
         "open": "Atvērtais kods"
+      },
+      "hero": {
+        "topic": "tēma · pieteikšanās testi",
+        "online": "{n} tiešsaistē",
+        "agent": "aģents",
+        "composer": "Ziņa kanālā {chan}",
+        "ask": "pievieno pieteikšanās testus",
+        "on_it": "ķeros klāt, zars",
+        "result": "rezultāts:",
+        "green": "{n} testi izdevās",
+        "joined": "pievienojās tēmai · pārskata izmaiņas",
+        "ship": "paldies abiem, laidiet to klajā"
       }
     },
     "native": {
@@ -2928,7 +2940,28 @@
     "share_telegram": "Kopīgot Telegram",
     "share_reddit": "Kopīgot Reddit",
     "share_substack": "Kopīgot Substack",
-    "share_email": "Kopīgot pa e-pastu"
+    "share_email": "Kopīgot pa e-pastu",
+    "features": "Funkcijas",
+    "all_posts": "Visi ieraksti",
+    "breadcrumb": "Navigācijas ceļš",
+    "pending": "Teksts angļu valodā; tulkojums vēl gaidāms.",
+    "more_posts": "Vairāk ierakstu",
+    "lede": "Jaunumi un notikumi no spool: ko aģenti un flote uzbūvēja, izlaida un uzzināja.",
+    "description": "Jaunumi un notikumi no spool.",
+    "post_type": "Ieraksta veids",
+    "empty": "Ierakstu vēl nav.",
+    "pages": "Lapas",
+    "newer": "Jaunāki",
+    "older": "Vecāki",
+    "page_of": "Lapa {page} no {pages}",
+    "not_found": "Nav atrasts",
+    "no_such_post": "Šāda ieraksta nav.",
+    "type": {
+      "all": "visi",
+      "digest": "apkopojums",
+      "news": "jaunumi",
+      "event": "notikums"
+    }
   },
   "footer": {
     "powered_by": "Darbina {link}"

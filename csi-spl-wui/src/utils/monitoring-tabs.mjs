@@ -18,8 +18,8 @@ export const MONITORING_TABS = Object.freeze([
   Object.freeze({ id: 'boxes', path: '/monitoring/boxes', labelKey: 'monitoring.tab.boxes', operatorsOnly: false, ready: true }),
   /* spec 123 5 (SPL-2056): the month's costs, for a member holding costs.read (biz_owner, admin) */
   Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true, perm: 'costs.read' }),
-  /* spec 140 (live token burn per agent type and agent): reserved, hidden until its page lands */
-  Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: false }),
+  /* spec 140 4.1 (SPL-2322): the fleet's live token burn per agent type and agent, operator admins only */
+  Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: true }),
 ])
 
 /** Where /monitoring itself goes (Q1 A: no Overview tab). */

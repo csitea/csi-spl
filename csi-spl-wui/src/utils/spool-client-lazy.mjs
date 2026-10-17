@@ -1634,6 +1634,19 @@ async function getTenantCosts(ctx, month = '', secondCurrency = '') {
 }
 
 /**
+ * Spec 140 4 (SPL-2322): GET /v1/operator/fleet-tokens?window=1h|today|24h,
+ * the fleet's live token burn per kind and per lane (403 operator.workspaces
+ * for anyone but an admin of the operator workspace). The mock answers from
+ * monitoring-tokens.mjs, which loads only here and on the Tokens page.
+ */
+async function getFleetTokens(ctx, window = '') {
+  const { live, mock } = ctx
+  const mt = await import('./monitoring-tokens.mjs')
+  if (mock) return mt.mockFleetTokens(window || mt.TOKENS_DEFAULT_WINDOW)
+  return live('/v1/operator/fleet-tokens' + mt.tokensQuery(window))
+}
+
+/**
  * Spec 123 5.4 (SPL-2199): GET /v1/tenant/fx/currencies, the codes the
  * costs' second currency may be ({default, currencies}), for the Settings ->
  * Appearance picker. Any signed-in member.
@@ -1793,6 +1806,7 @@ export const lazySpoolMethods = {
   getFleetLoad,
   patchFleetLoad,
   getTenantCosts,
+  getFleetTokens,
   getFxCurrencies,
   listOperatorWorkspaces,
   createOperatorWorkspace,

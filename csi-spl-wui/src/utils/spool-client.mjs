@@ -62,6 +62,7 @@ const LAZY_METHODS = [
   'boxStats',
   'getFleetLoad',
   'getTenantCosts',
+  'getFleetTokens',
   'getFxCurrencies',
   'patchFleetLoad',
   'listOperatorWorkspaces',

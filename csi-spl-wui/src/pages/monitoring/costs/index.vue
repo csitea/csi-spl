@@ -26,6 +26,9 @@
       <span v-if="view" class="muted" data-test="costs-scope">{{ t(view.scope === 'estate' ? 'monitoring.costs.scope_estate' : 'monitoring.costs.scope_workspace') }}</span>
     </div>
 
+    <!-- spec 140 (SPL-2322): today's fleet tokens, a link to the Tokens tab; operator admins only, its own chunk -->
+    <div v-if="operator.visible" class="costs-tokens-slot"><TokensCostsCard /></div>
+
     <p v-if="state === 'loading'" class="muted" data-test="costs-loading">{{ t('monitoring.costs.loading') }}</p>
     <p v-else-if="state === 'forbidden'" class="costs-forbidden" data-test="costs-forbidden">{{ t('monitoring.costs.forbidden', { perm: forbiddenPerm }) }}</p>
     <p v-else-if="state === 'error'" class="costs-error" data-test="costs-error">{{ t('monitoring.costs.error') }}</p>
@@ -103,10 +106,12 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
+import { useOperatorPane } from '~/stores/operator-pane'
 import { COSTS_READ, costCoverageRows, costEmptySources, costMoney, costMonthOf, costMonthOptions, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
 
 /* the pie is this route's own chunk, never the shell's (ci_costs_route_gzip_kb) */
 const MonitoringCostsPie = defineAsyncComponent(() => import('@/components/MonitoringCostsPie.vue'))
+const TokensCostsCard = defineAsyncComponent(() => import('@/components/monitoring/token-burn/TokensCostsCard.vue'))
 
 type CostsApi = { getTenantCosts: (month?: string, secondCurrency?: string) => Promise<unknown> }
 type CostMonth = ReturnType<typeof costMonthOf>
@@ -119,6 +124,7 @@ const view = ref<CostMonth | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const forbiddenPerm = ref(COSTS_READ)
 const session = useSessionStore()
+const operator = useOperatorPane()
 /* the reader's pick; the hub converts by the session's, the mock is handed it */
 const pick = computed(() => String(session.claims?.second_currency || ''))
 
@@ -177,6 +183,7 @@ onMounted(() => {
 .monitoring-costs { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .costs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .costs-month { display: flex; align-items: center; gap: 8px; }
+.costs-tokens-slot { display: contents; }
 .costs-so-far { font-weight: 600; color: var(--color-warn); }
 .costs-forbidden, .costs-error { color: var(--color-danger); }
 .costs-empties { margin: 0; padding-left: 18px; color: var(--color-muted); }

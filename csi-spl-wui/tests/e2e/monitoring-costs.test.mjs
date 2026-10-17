@@ -16,6 +16,14 @@
 //     Appearance "Second currency" saves the pick (PUT /preferences, answered
 //     here as the hub would) and the column follows it; a part with no rate
 //     shows the dash saying so (mock scenario 'norate').
+//   - spec 140 (SPL-2322): Monitoring -> Tokens. For an operator admin (mock
+//     opt-in) the Costs page carries the Tokens card (today's fleet tokens
+//     and cost) linking to the Tokens tab: the KPI strip, the kinds (agy
+//     "Not metered" with dashes, never 0; an unpriced kind "not priced"),
+//     the lanes sorted by rate as numbers, the kind filter, the burn badges,
+//     the stale marker (amber after 45 s, red after 90 s, cleared by
+//     Refresh), the empty state. For anyone else: no card, no tab, and the
+//     direct URL is the 403 sentence. No Tokens code in the initial download.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -25,6 +33,7 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { COSTS_MOCK_KEY } from '../../src/utils/tenant-costs.mjs'
+import { TOKENS_MOCK_KEY, TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -53,12 +62,13 @@ async function launch() {
 
 const MOCK_ME_KEY = 'spool.mock.me'
 const COSTS_MARKERS = /"costs-page"|"costs-pie"|"spool\.mock\.costs"/
+const TOKENS_MARKERS = /"tokens-page"|"costs-tokens-card"|"spool\.mock\.fleet_tokens"/
 const count = (p, sel) => p.$$eval(sel, (els) => els.length).catch(() => -1)
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
 const tabIds = (p) => p.$$eval('[data-test^=monitoring-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('monitoring-tab-'.length)))
 
-/** A fresh signed-in mock page at this size; `me` = the opt-in mock role + permissions, `scenario` = the mock month; `prefs`: PUT /preferences answered as the hub would, bodies kept in `p.saved`. */
-async function costsPage(browser, base, { width, height }, { me = null, scenario = '', prefs = false } = {}) {
+/** A fresh signed-in mock page at this size; `me` = the opt-in mock role + permissions, `scenario` = the mock month; `prefs`: PUT /preferences answered as the hub would, bodies kept in `p.saved`; `operator` = an operator admin, `tokens` = the mock fleet ('' busy, 'empty'). */
+async function costsPage(browser, base, { width, height }, { me = null, scenario = '', prefs = false, operator = false, tokens = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   const saved = []
@@ -79,6 +89,10 @@ async function costsPage(browser, base, { width, height }, { me = null, scenario
     if (m) localStorage.setItem(meKey, JSON.stringify(m)); else localStorage.removeItem(meKey)
     if (sc) localStorage.setItem(costsKey, sc); else localStorage.removeItem(costsKey)
   }, MOCK_ME_KEY, me, COSTS_MOCK_KEY, scenario)
+  await p.evaluate((opKey, op, tkKey, tk) => {
+    if (op) localStorage.setItem(opKey, '1'); else localStorage.removeItem(opKey)
+    if (tk) localStorage.setItem(tkKey, tk); else localStorage.removeItem(tkKey)
+  }, TOKENS_MOCK_OPERATOR_KEY, operator, TOKENS_MOCK_KEY, tokens)
   return { ctx, p }
 }
 
@@ -104,11 +118,15 @@ try {
       .map((tag) => (tag.match(/\bhref="(\/_nuxt\/[A-Za-z0-9._-]+\.js)"/) || [])[1]).filter(Boolean),
   ])]
   const withCosts = []
+  const withTokens = []
   for (const src of initial) {
-    if (COSTS_MARKERS.test(await (await fetch(server.base + src)).text())) withCosts.push(src)
+    const js = await (await fetch(server.base + src)).text()
+    if (COSTS_MARKERS.test(js)) withCosts.push(src)
+    if (TOKENS_MARKERS.test(js)) withTokens.push(src)
   }
   ok('200.html names its initial chunks', initial.length > 0, initial.length)
   ok('no costs page, pie or tenant-costs code in the initial download', withCosts.length === 0, withCosts)
+  ok('no Tokens page, card or monitoring-tokens code in the initial download', withTokens.length === 0, withTokens)
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)
@@ -249,6 +267,87 @@ try {
       const why = await text(p, '[data-test=costs-forbidden]')
       ok('the 403 state names costs.read', why.includes('costs.read'), why)
       ok('without costs.read: no table', (await count(p, '[data-test=costs-table]')) === 0)
+      await ctx.close()
+    }
+
+    /* spec 140 (SPL-2322): an operator admin, the busy mock fleet */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { operator: true })
+      await open(p, server.base, '/monitoring/costs')
+      ok('tokens: the Costs page carries the Tokens card for an operator admin', await waitFor(p, '[data-test=costs-tokens-card]'))
+      const card = await text(p, '[data-test=costs-tokens-card-body]')
+      ok('tokens: the card says today\'s fleet tokens and cost', card === '18.45M tokens used · $42.15', card)
+      ok('tokens: the card names the unmetered and unpriced lanes', (await text(p, '[data-test=costs-tokens-card-note]')).includes('1 not metered · 1 not priced'))
+      await p.click('[data-test=costs-tokens-card]')
+      ok('tokens: the card opens the Tokens tab', await waitFor(p, '[data-test=tokens-page]'), p.url())
+      ok('tokens: the URL is /monitoring/tokens', new URL(p.url()).pathname.replace(/\/$/, '') === '/monitoring/tokens', p.url())
+      const tabs = await tabIds(p)
+      ok('tokens: the Tokens tab shows beside Agents and Boxes, active', tabs.includes('tokens') && tabs.includes('agents') && tabs.includes('boxes')
+        && await p.$eval('[data-test=monitoring-tab-tokens]', (e) => e.getAttribute('aria-current')).catch(() => '') === 'page', tabs)
+      ok('tokens: the KPI strip renders', await waitFor(p, '[data-test=tokens-kpis]'))
+      const kpi = { rate: await text(p, '[data-test=tokens-kpi-rate-value]'), today: await text(p, '[data-test=tokens-kpi-today-value]'), cost: await text(p, '[data-test=tokens-kpi-cost-value]') }
+      ok('tokens: KPIs formatted (113.3K/min, 18.45M, $42.15)', kpi.rate === '113.3K/min' && kpi.today === '18.45M' && kpi.cost === '$42.15', kpi)
+      const vendors = await p.$$eval('[data-test=tokens-vendor-row]', (els) => els.map((e) => ({ v: e.getAttribute('data-vendor'), s: e.getAttribute('data-status'),
+        today: e.querySelector('[data-test=tokens-vendor-today]').textContent.trim(), cost: e.querySelector('[data-test=tokens-vendor-cost]').textContent.trim(),
+        nm: Boolean(e.querySelector('[data-test=tokens-not-metered]')), np: Boolean(e.querySelector('[data-test=tokens-not-priced]')),
+        burn: (e.querySelector('[data-test=tokens-burn-badge]') || { getAttribute: () => '' }).getAttribute('data-level') })))
+      ok('tokens: five kinds in the hub order', vendors.map((v) => v.v).join(',') === 'claude,mistral,grok,agy,qwen', vendors.map((v) => v.v))
+      const agy = vendors.find((v) => v.v === 'agy') || {}
+      ok('tokens: agy is "Not metered" with dashes, never 0 tokens or $0.00', agy.nm && agy.s === 'unmetered' && agy.today === '\u2014' && agy.cost === '\u2014', agy)
+      const mis = vendors.find((v) => v.v === 'mistral') || {}
+      ok('tokens: a kind with an unpriced lane says "not priced", never $0.00', mis.np && mis.cost === 'not priced', mis)
+      ok('tokens: claude surges (fresh 74.6K/min > 60K)', (vendors.find((v) => v.v === 'claude') || {}).burn === 'surge', vendors[0])
+      const agents = () => p.$$eval('[data-test=tokens-agent-row]', (els) => els.map((e) => e.getAttribute('data-agent')))
+      ok('tokens: lanes sorted by rate, highest first, agy last', (await agents()).join(',') === 'c-101,c-102,m-201,c-103,c-104,a-301', await agents())
+      const lane = await p.$$eval('[data-test=tokens-agent-row]', (els) => els.map((e) => ({ a: e.getAttribute('data-agent'), s: e.getAttribute('data-status'),
+        burn: (e.querySelector('[data-test=tokens-burn-badge]') || { getAttribute: () => '' }).getAttribute('data-level'),
+        today: e.querySelector('[data-test=tokens-agent-today]').textContent.trim(), cost: e.querySelector('[data-test=tokens-agent-cost]').textContent.trim() })))
+      const by = (id) => lane.find((l) => l.a === id) || {}
+      ok('tokens: c-101 surges, c-102 has no badge', by('c-101').burn === 'surge' && by('c-102').burn === '', [by('c-101'), by('c-102')])
+      ok('tokens: the agy lane is Not metered with dashes', by('a-301').s === 'not_metered' && by('a-301').today === '\u2014' && by('a-301').cost === '\u2014', by('a-301'))
+      ok('tokens: the unpriced lane says "not priced"', by('m-201').cost === 'not priced', by('m-201'))
+      ok('tokens: Active and Idle lanes', by('c-101').s === 'active' && by('c-104').s === 'idle', [by('c-101').s, by('c-104').s])
+      await p.click('[data-test=tokens-sort-rate]')
+      ok('tokens: the rate header sorts ascending as numbers, agy still last', (await agents()).join(',') === 'c-104,c-103,m-201,c-102,c-101,a-301', await agents())
+      await p.select('[data-test=tokens-agent-filter]', 'agy')
+      ok('tokens: the kind filter keeps only agy', (await agents()).join(',') === 'a-301', await agents())
+      await p.select('[data-test=tokens-agent-filter]', '')
+      const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      ok('tokens: no sideways scroll', wide <= 0, wide)
+      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-tokens-${size.width}.png`, fullPage: true })
+      /* the stale marker (4.3): the page clock jumps ahead, no poll answers in between */
+      ok('tokens: fresh data has no stale mark', (await p.$eval('[data-test=tokens-age]', (e) => e.getAttribute('data-stale')).catch(() => '')) === 'ok')
+      await p.evaluate(() => { const real = Date.now.bind(Date); window.__tkShift = 50000; Date.now = () => real() + window.__tkShift })
+      ok('tokens: past 45 s the amber dot shows', await waitFor(p, '[data-test=tokens-stale-amber]'))
+      ok('tokens: no red badge yet', (await count(p, '[data-test=tokens-stale-red]')) === 0)
+      await p.evaluate(() => { window.__tkShift = 100000 })
+      ok('tokens: past 90 s the red "Data stale" badge shows', await waitFor(p, '[data-test=tokens-stale-red]'), await text(p, '[data-test=tokens-stale-red]'))
+      ok('tokens: the rows stay while stale', (await count(p, '[data-test=tokens-agent-row]')) === 6)
+      await p.click('[data-test=tokens-refresh]')
+      const cleared = await p.waitForFunction(() => !document.querySelector('[data-test=tokens-stale-red]') && document.querySelector('[data-test=tokens-age]')?.getAttribute('data-stale') === 'ok', { timeout: 10000 }).then(() => true, () => false)
+      ok('tokens: Refresh clears the stale mark', cleared)
+      await ctx.close()
+    }
+
+    /* the empty fleet: no lane yet, an honest sentence, agy still not metered */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { operator: true, tokens: 'empty' })
+      await open(p, server.base, '/monitoring/tokens')
+      ok('tokens empty: the empty sentence', await waitFor(p, '[data-test=tokens-agents-empty]'))
+      ok('tokens empty: agy still "Not metered"', (await count(p, '[data-test=tokens-vendor-row][data-vendor=agy] [data-test=tokens-not-metered]')) === 1)
+      await ctx.close()
+    }
+
+    /* CONTROL: not an operator admin: no card, no tab, the direct URL is the 403 sentence */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size)
+      await open(p, server.base, '/monitoring/costs')
+      await waitFor(p, '[data-test=costs-table]')
+      ok('tokens control: no Tokens card on Costs', (await count(p, '[data-test=costs-tokens-card]')) === 0)
+      ok('tokens control: no Tokens tab', !(await tabIds(p)).includes('tokens'), await tabIds(p))
+      await open(p, server.base, '/monitoring/tokens')
+      ok('tokens control: the direct URL shows the 403 sentence', await waitFor(p, '[data-test=tokens-forbidden]'))
+      ok('tokens control: no table', (await count(p, '[data-test=tokens-agent-row]')) === 0 && (await count(p, '[data-test=tokens-kpis]')) === 0)
       await ctx.close()
     }
 

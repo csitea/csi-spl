@@ -1,0 +1,23 @@
+/* Spec 140 4.2 (SPL-2322): the Tokens tab's two tables, shared by
+   VendorBurnTable and AgentBurnTable (scoped in each). On a phone each row
+   is a card, its figures labelled (no sideways scroll), as the Costs table. */
+.tk-section h3 { margin: 0 0 6px; font-size: 0.9375rem; }
+.tk-table-wrap { overflow-x: auto; max-width: 100%; }
+.tk-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+.tk-table th, .tk-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
+.tk-table tbody th { font-weight: 600; }
+.tk-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tk-sort { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.tk-badge { display: inline-block; padding: 0 6px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); font-size: 0.75rem; white-space: nowrap; color: var(--color-muted); }
+.tk-badge--on { border-color: var(--color-ok); color: var(--color-fg); }
+.tk-badge--warn { border-color: var(--color-warn); color: var(--color-warn); font-weight: 600; }
+.tk-unpriced { color: var(--color-warn); font-style: italic; white-space: nowrap; }
+.tk-model { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .tk-table thead { display: none; }
+  .tk-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+  .tk-table th, .tk-table td { border-bottom: 0; padding: 0 4px; }
+  .tk-table tr > :first-child { grid-column: 1 / -1; }
+  .tk-table .num { text-align: start; }
+  .tk-table td[data-label]::before { content: attr(data-label) ": "; color: var(--color-muted); }
+}

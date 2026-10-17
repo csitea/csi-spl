@@ -150,19 +150,22 @@ func TestFleetVendorDays(t *testing.T) {
 func TestFleetPaidFXRate(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	if _, err := pg.PutFXRates(ctx, []FXRate{{Day: "2001-01-10", Quote: "QZQ", Rate: 2, Source: "FED"},
-		{Day: "2001-01-20", Quote: "QZQ", Rate: 3, Source: "ECB"}, {Day: "2001-01-20", Quote: "QZQ", Rate: 4, Source: "FED"}}); err != nil {
+	// fxTestQuote, never a literal: TestPutFXRates counts its quote's rows, and a
+	// literal from the same Q.. pool collided with it on CI (run 39039744142).
+	q, none := fxTestQuote(t), fxTestQuote(t)
+	if _, err := pg.PutFXRates(ctx, []FXRate{{Day: "2001-01-10", Quote: q, Rate: 2, Source: "FED"},
+		{Day: "2001-01-20", Quote: q, Rate: 3, Source: "ECB"}, {Day: "2001-01-20", Quote: q, Rate: 4, Source: "FED"}}); err != nil {
 		t.Fatal(err)
 	}
 	for day, want := range map[string]struct {
 		rate float64
 		at   string
 	}{"2001-01-15": {2, "2001-01-10"}, "2001-01-20": {3, "2001-01-20"}, "2001-02-01": {3, "2001-01-20"}, "2000-12-01": {2, "2001-01-10"}} {
-		if r, at, ok, err := pg.FleetPaidFXRate(ctx, "QZQ", day); err != nil || !ok || r != want.rate || at != want.at {
+		if r, at, ok, err := pg.FleetPaidFXRate(ctx, q, day); err != nil || !ok || r != want.rate || at != want.at {
 			t.Errorf("%s: %v %s %v %v, want %v %s", day, r, at, ok, err, want.rate, want.at)
 		}
 	}
-	if _, _, ok, err := pg.FleetPaidFXRate(ctx, "QZW", "2001-01-15"); ok || err != nil {
+	if _, _, ok, err := pg.FleetPaidFXRate(ctx, none, "2001-01-15"); ok || err != nil {
 		t.Fatalf("a quote with no rate: ok %v %v, want false", ok, err)
 	}
 }

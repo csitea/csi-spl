@@ -10,6 +10,7 @@
 #      READ ONLY transaction, then deletes the clone
 #   4. the clone is deleted on every error path: a failed read, a clone call
 #      that failed after the instance appeared, and a TERM mid-read
+#      (the clone runs --async and the action waits on its operation)
 #   5. a clone that cannot be deleted fails the run (rc 6) and names the command
 #   6. every gcloud call in the action carries --account
 #------------------------------------------------------------------------------
@@ -31,7 +32,9 @@ echo "gcloud $*" >>"$STUB_LOG"
 case "$*" in
   *"print-access-token"*) head -c 1024 /dev/zero | tr '\0' 'x'; echo; exit 0 ;;
   "sql instances clone "*)
-    echo "$4" >"$STUB_DIR/clone"; exit "${STUB_CLONE_RC:-0}" ;;
+    echo "$5" >"$STUB_DIR/clone"; echo "https://example.invalid/operations/op-1"; exit 0 ;;
+  "sql operations wait "*)
+    exit "${STUB_CLONE_RC:-0}" ;;
   "sql instances list "*)
     [[ -s "$STUB_DIR/clone" ]] && cat "$STUB_DIR/clone"; exit 0 ;;
   "sql instances delete "*)
@@ -92,6 +95,9 @@ o=$(in_orc DRY_RUN=0 SQL_FILE="$T/ok.sql" 2>&1); rc=$?
   fail "clone calls: $(grep clone "$T/calls.log")"
 grep -q 'sql instances clone [a-z0-9-]* [a-z0-9-]*-pitr-[0-9]\{14\} --point-in-time=2026-10-17T01:59:00Z ' "$T/calls.log" &&
   pass "the clone is taken at PITR_AT under a -pitr-<stamp> name" || fail "clone line: $(grep clone "$T/calls.log")"
+grep -q 'sql instances clone .* --async ' "$T/calls.log" && grep -q '^gcloud sql operations wait op-1 --timeout=3600 ' "$T/calls.log" &&
+  pass "it clones --async and waits on the operation (gcloud's own wait gives up at ~10 min)" ||
+  fail "no async wait: $(grep -E 'clone|wait' "$T/calls.log")"
 clone=$(awk '/sql instances clone /{print $6}' "$T/calls.log")
 grep -qx "proxy conn=[a-z0-9-]*:[a-z0-9-]*:$clone" "$T/calls.log" && pass "the proxy points at the CLONE, not the live instance" ||
   fail "proxy line: $(grep proxy "$T/calls.log")"
@@ -107,7 +113,7 @@ o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_PSQL=fail 2>&1); rc=$?
   pass "a failed read: the run fails AND the clone is deleted" || fail "failed read rc=$rc: $(cat "$T/calls.log")"
 o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_CLONE_RC=1 2>&1); rc=$?
 (( rc != 0 )) && grep -q 'sql instances delete ' "$T/calls.log" && [[ ! -s "$T/clone" ]] &&
-  pass "a clone call that failed after the instance appeared: deleted" || fail "clone error rc=$rc: $(cat "$T/calls.log")"
+  pass "a clone operation that failed after the instance appeared: deleted" || fail "clone error rc=$rc: $(cat "$T/calls.log")"
 ! grep -q '^psql' "$T/calls.log" && pass "a failed clone reads nothing" || fail "read after a failed clone"
 o=$(in_orc DRY_RUN=0 SQL="select 1" STUB_PSQL=term 2>&1); rc=$?
 (( rc == 130 )) && grep -q 'sql instances delete ' "$T/calls.log" && [[ ! -s "$T/clone" ]] &&

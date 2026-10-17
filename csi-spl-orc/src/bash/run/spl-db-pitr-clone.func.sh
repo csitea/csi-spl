@@ -23,6 +23,7 @@
 # @param SQL (optional) - one SELECT statement
 # @param SQL_FILE (optional) - a file of SELECT statements, each ended by ';' (one clone serves all)
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 clone, read, delete
+# @param SPL_PITR_CLONE_TIMEOUT (optional) - seconds to wait for the clone, default 3600
 # @param SPL_PITR_DELETE_TRIES (optional) - delete attempts, default 45 (a clone still being made refuses one)
 # @param SPL_PITR_DELETE_WAIT (optional) - seconds between attempts, default 20
 # @example ENV=prd PITR_AT=2026-10-17T01:59:00Z SQL='select count(*) from fleet_tokens' ./run -a do_spl_db_pitr_clone
@@ -101,9 +102,15 @@ spl_db_pitr_select_ok() {
 spl_db_pitr_clone_run() {
   local clone="$1" at="$2"; shift 2
   do_log "INFO $ENV: cloning $SPL_SQL_INSTANCE at $at into $clone (minutes)"
-  gcloud sql instances clone "$SPL_SQL_INSTANCE" "$clone" --point-in-time="$at" \
-    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --quiet >"$SPL_STATE_DIR/pitr-clone.log" 2>&1 ||
+  # --async + operations wait: gcloud's own wait gives up after ~10 min while
+  # the clone keeps building (measured on prd 2026-10-17: it failed at 10 min)
+  local op
+  op="$(gcloud sql instances clone "$SPL_SQL_INSTANCE" "$clone" --point-in-time="$at" --async --format='value(name)' \
+    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --quiet 2>"$SPL_STATE_DIR/pitr-clone.log")" && [[ -n "$op" ]] ||
     { do_log "FATAL $ENV: clone failed: $(tail -5 "$SPL_STATE_DIR/pitr-clone.log" | tr '\n' ' ')"; return 1; }
+  gcloud sql operations wait "${op##*/}" --timeout="${SPL_PITR_CLONE_TIMEOUT:-3600}" \
+    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" >>"$SPL_STATE_DIR/pitr-clone.log" 2>&1 ||
+    { do_log "FATAL $ENV: clone operation ${op##*/} failed: $(tail -5 "$SPL_STATE_DIR/pitr-clone.log" | tr '\n' ' ')"; return 1; }
   do_log "INFO $ENV: $clone is up; reading"
   SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$clone" spl_via_proxy _spl_db_pitr_read "$@"
 }

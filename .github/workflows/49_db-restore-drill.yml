@@ -1,0 +1,99 @@
+# 49 ops: the restore drill of the hub DB backup, once a day (spec 029 §6.9,
+# SPL-2310). An outside robustness review, gap 6: "A backup that has never
+# been restored is not a backup."
+#
+# WHAT IT ADDS TO 45. Workflow 45 already restores the dump it has just written
+# and compares it against the LIVE database (do_spl_db_backup_verify). This
+# drill asks the other question: can TODAY's hub run on the newest stored dump
+# with no live database at all? do_spl_db_restore_drill restores the newest
+# dev dump into a throwaway postgres container, checks the dump's
+# spool_schema_migrations against the repo (a changed file is refused by the
+# hub's migrate), runs the hub's own `spool migrate` on the copy, checks the
+# core tables hold rows, prints the restore time, and removes the container.
+#
+# DEV ONLY. A prd drill takes the owner's go per run; the action refuses prd.
+#
+# WHERE. ubuntu-latest, as 45: the dev key secret and docker are already
+# there, and the dump is the same data 45's own restore reads. No row of the
+# dump leaves the runner; the container and the work dir go with it.
+#
+# FAILURE IS THE ALERT, twice: a red scheduled run, and the box cron
+# restore-drill-red-note (do_report_ci_red_note on this workflow) that sends
+# ONE blocker to the dispatch lease holder per red streak, as a red wf 10 job.
+#
+# Local equivalent:
+#   ENV=dev SPL_RESTORE_DRILL_SPOOL=<spool binary> ./csi-spl-orc/run -a do_spl_db_restore_drill
+
+name: "49 ops: db restore drill"
+
+on:
+  schedule:
+    # 05:47 UTC: after 45's 03:17 backup, which the best-effort scheduler has
+    # started up to ~2 h late
+    - cron: '47 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: "db restore drill (dev)"
+    # Estate guard (spec 072 A34), as 45: a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ENV: dev
+      HAS_KEY: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+    # orc derives ORG/APP from the parent dirs: the operator's layout, as 45
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      # a drill that cannot run is red, never a skip: no key, no proof
+      - name: The dev key is there
+        working-directory: .
+        run: |
+          [[ "$HAS_KEY" == true ]] || { echo "::error::no secret GCP_KEY_CSI_SPL_DEV (iac 120): the restore drill cannot run"; exit 1; }
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: csi/csi-spl
+          ref: master
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      # the hub's own migrate, from this commit
+      - name: Build the spool binary
+        working-directory: csi/csi-spl/csi-spl-api/src/go/spool-hub-api
+        run: go build -o "$RUNNER_TEMP/spool" ./cmd/spool
+
+      - name: Dev SA key to the path the actions resolve
+        working-directory: .
+        env:
+          KEY: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-dev.json" >/dev/null
+
+      - name: Restore drill (throwaway container, no live read)
+        run: SPL_RESTORE_DRILL_SPOOL="$RUNNER_TEMP/spool" ./run -a do_spl_db_restore_drill
+
+      - name: Drop the key
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

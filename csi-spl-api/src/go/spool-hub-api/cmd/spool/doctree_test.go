@@ -168,6 +168,10 @@ func (h *dtHub) serve(w http.ResponseWriter, r *http.Request) {
 	case parts[1] == "subtree":
 		items := d.all()
 		if q := r.URL.Query().Get("item"); q != "" {
+			if d.items[q] == nil {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found", "detail": "no such document or item"})
+				return
+			}
 			var sub []dtItem
 			d.walk(q, d.items[q].Outline, d.items[q].Depth, &sub)
 			items = sub
@@ -367,7 +371,6 @@ func TestDocTreeEditMoveRename(t *testing.T) {
 }
 
 func TestDocTreeRefusals(t *testing.T) {
-	t.Skip("Disabled for focused testing")
 	h := newDTHub(t)
 	dtOK(t, "create", "--title", "T")
 	_ = h
@@ -409,13 +412,13 @@ func TestDocTreeRefusals(t *testing.T) {
 // TestDocTreeEditAttrsSrcLang tests that attrs.src and attrs.lang can be edited
 // on an item that already has attrs.src, and are refused on an item that does not.
 func TestDocTreeEditAttrsSrcLang(t *testing.T) {
-	t.Skip("Disabled for focused testing")
 	h := newDTHub(t)
 	dtOK(t, "create", "--title", "T")
 	// Add a heading (no attrs.src).
 	h1 := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "H1")["item"].(string)
-	// Add a code item (has attrs.src).
-	code := dtOK(t, "add", dtDocID, "--kind", "code", "--text", "echo hi", "--lang", "bash")["item"].(string)
+	// A second heading with a code block (add --kind code sets attrs.src on an existing item).
+	code := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "H2")["item"].(string)
+	dtOK(t, "add", dtDocID, "--kind", "code", "--item", code, "--text", "echo hi", "--lang", "bash")
 
 	// Red control: edit attrs.src on an item without attrs.src (should fail).
 	rc, _, errOut := captureRun(t, []string{"doctree", "edit", dtDocID, h1, "--field", "attrs.src", "--value", "new src"})
@@ -432,8 +435,8 @@ func TestDocTreeEditAttrsSrcLang(t *testing.T) {
 	// Green test: edit attrs.src on an item with attrs.src (should succeed).
 	dtOK(t, "edit", dtDocID, code, "--field", "attrs.src", "--value", "echo hello")
 	it, ok := h.doc(t).items[code]
-	if !ok || it.attr("src") != "echo hello" {
-		t.Errorf("edit attrs.src on an item with attrs.src: got %q, want %q", it.attr("src"), "echo hello")
+	if !ok || it.attr("src") != "echo hello" || it.attr("lang") != "bash" {
+		t.Errorf("edit attrs.src on an item with attrs.src: got src %q lang %q, want %q %q", it.attr("src"), it.attr("lang"), "echo hello", "bash")
 	}
 
 	// Green test: edit attrs.lang on an item with attrs.src (should succeed).
@@ -441,6 +444,14 @@ func TestDocTreeEditAttrsSrcLang(t *testing.T) {
 	it, ok = h.doc(t).items[code]
 	if !ok || it.attr("lang") != "sh" {
 		t.Errorf("edit attrs.lang on an item with attrs.src: got %q, want %q", it.attr("lang"), "sh")
+	}
+
+	// The other typed keys stay refused on an item with attrs.src too.
+	for _, k := range []string{"kind", "img_http_path", "img_name"} {
+		rc, _, errOut = captureRun(t, []string{"doctree", "edit", dtDocID, code, "--field", "attrs." + k, "--value", "x"})
+		if rc == 0 || !strings.Contains(errOut, "set by add --kind code or picture") {
+			t.Errorf("edit attrs.%s on an item with attrs.src: rc %d, stderr %q", k, rc, errOut)
+		}
 	}
 }
 

@@ -249,20 +249,7 @@ func (c *dtClient) item(ctx context.Context, doc, item string) (dtItem, error) {
 }
 
 // edit writes one field under the item rev it read.
-// edit writes one field under the item rev it read.
 func (c *dtClient) edit(ctx context.Context, doc, item, field, value string, rev int64) ([]byte, error) {
-	key, isAttr := strings.CutPrefix(field, "attrs.")
-	if isAttr {
-		if key == "src" || key == "lang" {
-			it, err := c.item(ctx, doc, item)
-			if err != nil {
-				return nil, err
-			}
-			if it.attr("src") == "" {
-				return nil, fmt.Errorf("attrs.%s is set by add --kind code, not by edit", key)
-			}
-		}
-	}
 	return c.json(ctx, http.MethodPatch, dtDoc(doc)+"/items/"+url.PathEscape(item),
 		map[string]any{"field": field, "value": value, "rev": rev}, nil)
 }
@@ -471,6 +458,11 @@ func dtEdit(ctx context.Context, cfg *config.Config, args []string) error {
 	}
 	return dtRun(ctx, cfg, func(c *dtClient) ([]byte, error) {
 		it, err := c.item(ctx, pos[0], pos[1])
+		if isAttr && (key == "src" || key == "lang") {
+			if err := dtSrcEditOK(key, pos[1], it, err); err != nil {
+				return nil, err
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -497,6 +489,20 @@ func dtAttrKeyOK(key string) error {
 		return fmt.Errorf("attrs.%s: a key is lower case letters, digits and _", key)
 	case key == "kind" || key == "img_http_path" || key == "img_name":
 		return fmt.Errorf("attrs.%s is set by add --kind code or picture, not by edit", key)
+	}
+	return nil
+}
+
+// dtSrcEditOK lets edit change attrs.src / attrs.lang only on an item that
+// already holds a src (a code block, or a heading's own diagram, SPL-2303):
+// a new code block is add --kind code. readErr is the item read's error; a
+// 404 is an item with no src, any other error is the caller's.
+func dtSrcEditOK(key, item string, it dtItem, readErr error) error {
+	switch {
+	case readErr != nil && strings.HasPrefix(readErr.Error(), "404"):
+		return fmt.Errorf("attrs.%s is set by add --kind code, not by edit: item %s has no src (%v)", key, item, readErr)
+	case readErr == nil && it.attr("src") == "":
+		return fmt.Errorf("attrs.%s is set by add --kind code, not by edit: item %s has no src", key, item)
 	}
 	return nil
 }

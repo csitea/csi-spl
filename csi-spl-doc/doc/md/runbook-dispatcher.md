@@ -123,7 +123,7 @@ words a post may use for a commit, and their checks, are [how-to-post.md](../hel
 |---|---|---|
 | the commit is on trunk | `git fetch origin master && git merge-base --is-ancestor <sha> origin/master` exits 0 | the push printed `HEAD -> master` (a rejected push prints it too) |
 | the commit holds what was reviewed | `git show --stat <sha>`; grep the changed symbol; compare the landed file list with the reviewed one | the lane's "+N/-0" summary |
-| CI passed | `gh run list --commit <sha>`: every run for it `completed success`; a red one: `gh run view <id> --log-failed` | a run still in progress, or "my module is not named" |
+| CI passed | `gh run list --commit <sha>`: every run for it `completed success`; a red one: `cd csi-spl-iac && RUN_ID=<id> ./run -a do_ci_failed_log` (`gh run view --log-failed` prints 0 lines for our job names, SPL-2340) | a run still in progress, or "my module is not named" |
 | deployed, dev and prd | from a checkout: `cd csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag`. Then run the same command with `ENV=prd` | a green run: a run can read cancelled while the commit ships on someone else's deploy |
 | a web UI change is live on an env | the served `https://<workspace host>/build.json` commit contains the sha: `git merge-base --is-ancestor <sha> <served commit>` | a screenshot from the lane |
 | a hub change is live on an env | the same against the hub's `/version` | the image tag in cnf |

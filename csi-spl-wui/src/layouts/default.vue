@@ -202,6 +202,11 @@ import { CHANNEL, LIVE, NONE, OPERATOR, closes, operatorCloses, routeLeavesTopic
 import { useOperatorPane } from '~/stores/operator-pane'
 /* spec 074 T008: the operator console's chunk loads on its first open only */
 const OperatorPane = defineAsyncComponent(() => import('@/components/OperatorPane.vue'))
+/* perf round 6 row 02 (SPL-2363): the two topic panes load on their first
+   open too. Auto-imported they rode index.html's modulepreload set (~43 KB
+   gzip of home JS) for a reader who never opens a topic. */
+const LiveTopicPane = defineAsyncComponent(() => import('@/components/LiveTopicPane.vue'))
+const TopicPane = defineAsyncComponent(() => import('@/components/TopicPane.vue'))
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'

@@ -19,8 +19,14 @@
 # A hex word that is no commit of this checkout (a msg id, a topic prefix) is
 # not a sha. Any other opening (**Planned, not built yet**, **In progress**,
 # **Landed, not live yet**, a poll form, plain text) is not checked.
+# SPL-2420: LIVE_REPO=<name> proves shas of a customer repo the cnf knows
+# (env.box.landed_repos, see spl_landed_repo) instead: its clone on this box
+# (else one FATAL naming this box and the cnf's), fetched, every sha an
+# ancestor of origin/<its trunk>; rule 2 is skipped (no hub or wui build of
+# csi-spl serves another repo). Never gh compare (its "behind" = trunk lacks it).
 # Reads only: one fetch, local git, the deploy-lag probes. Nothing is mutated.
-# Env: LANE_WT (default APP_PATH), LANE_FETCH_SCRIPT (default git-fetch-fresh.sh),
+# Env: LIVE_REPO (default none: this checkout),
+#      LANE_WT (default APP_PATH), LANE_FETCH_SCRIPT (default git-fetch-fresh.sh),
 #      LANE_REMOTE / LANE_BRANCH (default origin / master),
 #      LANE_ENVS (default "dev prd"), the same knobs as do_check_lane_served.
 #------------------------------------------------------------------------------
@@ -48,6 +54,11 @@ spl_desk_live_proof() {
   grep -qiE "${lead}not[[:space:]]+checked[*_]*[[:space:]]*:[*_[:space:]]*[^*_[:space:]]" <<<"$body" ||
     miss+=("a 'not checked:' line (it may say 'none')")
 
+  if [[ -n "${LIVE_REPO:-}" ]]; then
+    spl_desk_live_repo_proof "$body" "${miss[@]}"
+    return
+  fi
+
   local -a shas=()
   local tok full seen=" " fetched=1
   bash "$fetch" -C "$wt" --remote "$remote" --branch "$branch" >/dev/null 2>&1 || fetched=0
@@ -59,7 +70,7 @@ spl_desk_live_proof() {
   done < <(sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}//g' <<<"$body" | grep -oE '\b[0-9a-f]{7,40}\b')
 
   if (( ${#shas[@]} == 0 )); then
-    miss+=("a commit sha on $remote/$branch (none of the body's hex words is a commit of $wt)")
+    miss+=("a commit sha on $remote/$branch (none of the body's hex words is a commit of $wt; a customer repo's sha: LIVE_REPO=<cnf name>)")
   elif (( ! fetched )); then
     miss+=("a fetch of $remote/$branch to prove the sha(s) landed (the fetch failed)")
   else
@@ -83,10 +94,41 @@ spl_desk_live_proof() {
     done
   fi
 
-  (( ${#miss[@]} == 0 )) && return 0
+  spl_desk_live_verdict "${miss[@]}"
+}
+
+# spl_desk_live_verdict [MISSING...]: 0 with none, else the FATAL list and 1.
+spl_desk_live_verdict() {
+  (( $# == 0 )) && return 0
   do_log "FATAL a **Live** post must carry its proof; nothing was sent. Missing:"
   local m
-  for m in "${miss[@]}"; do do_log "FATAL   - $m"; done
+  for m in "$@"; do do_log "FATAL   - $m"; done
   do_log "FATAL the rule: csi-spl-doc/doc/help/how-to-post.md rule 16 (Live = on master AND served on dev and prd, rule 14). Not proven yet? Open with **Landed, not live yet** or **In progress** instead."
   return 1
+}
+
+# spl_desk_live_repo_proof BODY [MISSING...]: the LIVE_REPO proof (SPL-2420),
+# through the shared spl_landed_repo / spl_landed_repo_trunk of
+# spl-lane-issue.func.sh. A clone that is not on this box ends it at once:
+# no sha can be checked here.
+spl_desk_live_repo_proof() {
+  local body="$1" name="$LIVE_REPO" err row clone trunk tok full seen=" " n=0
+  shift
+  local -a miss=("$@")
+  err="$(mktemp)" || return 1
+  row="$(spl_landed_repo "$name" 2>"$err")" || { cat "$err" >&2; rm -f "$err"; return 1; }
+  clone="${row%%$'\t'*}"
+  trunk="$(spl_landed_repo_trunk "$name" "$clone" "${row#*$'\t'}" 2>"$err")" ||
+    { miss+=("$(sed -E -n '1s/^.*FATAL //p' "$err")"); rm -f "$err"; spl_desk_live_verdict "${miss[@]}"; return; }
+  rm -f "$err"
+  while read -r tok; do
+    [[ -n "$tok" && "$tok" =~ [0-9] && "$tok" =~ [a-f] ]] || continue
+    full="$(spl_landed_repo_git "$clone" rev-parse --verify -q "$tok^{commit}" 2>/dev/null)" || continue
+    [[ "$seen" == *" $full "* ]] && continue
+    seen+="$full "; n=$((n + 1))
+    spl_landed_repo_git "$clone" merge-base --is-ancestor "$full" "refs/remotes/origin/$trunk" 2>/dev/null ||
+      miss+=("$name sha ${full:0:9} on origin/$trunk (it is not: say **Landed, not live yet** only once it is, rule 14)")
+  done < <(sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}//g' <<<"$body" | grep -oE '\b[0-9a-f]{7,40}\b')
+  (( n )) || miss+=("a commit sha of $name on origin/$trunk (none of the body's hex words is a commit of $clone)")
+  spl_desk_live_verdict "${miss[@]}"
 }

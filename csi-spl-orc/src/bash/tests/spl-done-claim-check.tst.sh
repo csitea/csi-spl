@@ -14,6 +14,9 @@
 # else it alerts "not an object in any repository". SPL-2332: a 32-hex md5,
 # or a token after an "md5" label, is no sha. SPL-2338: a body with a sha line
 # claims only that line's shas; a sha quoted on another line raises nothing.
+# SPL-2420: a sha on the trunk of a cnf customer repo (env.box.landed_repos,
+# LANE_LANDED_CNF in the sandbox) whose clone is on this box is landed; a sha
+# in no known repo still alerts; a clone on another box is skipped.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -217,5 +220,29 @@ v="$(for k in quoted unl none nolabel; do printf '%s=%s ' "$k" "$(verdict $k)"; 
   [ "$(awk -F'\t' '$1 == "quoted" { print $4 }' "$T/o")" = "${LANDED:0:9}" ] && [ "$(awk -F'\t' '$1 == "unl" { print $4 }' "$T/o")" = "$LOCAL" ] &&
   pass "9. SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another line is landed; an unlanded sha on the sha line alerts (a landed sha elsewhere does not save it); 'sha: none' and no sha line read every sha" ||
   fail "9. sha line (rc $rc) got '$v': $(cat "$T/o")"
+
+# 10. SPL-2420 (c-578's csi-rel result bcee7e0b, synthetic): a customer repo of
+# the cnf. Its clone has not fetched the landed sha; a second clone pushed it.
+mkrepo cust
+git clone -q "$T/cust.git" "$T/cust-push" 2>/dev/null
+rg cust-push commit -q --allow-empty -m "customer fix" && lettered cust-push 12 "customer fix" && rg cust-push push -q origin HEAD:master
+CUSTSHA=$(rg cust-push rev-parse HEAD)
+rg cust-push commit -q --allow-empty -m "customer, never pushed" && lettered cust-push 12 "customer, never pushed"
+CUSTLOCAL=$(rg cust-push rev-parse HEAD)
+printf 'env:\n  box:\n    landed_repos:\n      - {name: cust-rel, src_dir: %s, trunk: master}\n      - {name: far-rel, src_dir: %s, box: box-b}\n' \
+  "$T/cust" "$T/not-here" >"$T/cust.yaml"
+msg c-002/archive cust c-584 c-002 30 "- sha: ${CUSTSHA:0:12} on csi-rel master"
+msg c-002/archive custno c-585 c-002 30 "- sha: ${CUSTLOCAL:0:12} on csi-rel master"
+! rg cust cat-file -e "$CUSTSHA^{commit}" 2>/dev/null && pass "10. control: the customer clone has not fetched the landed sha yet" ||
+  fail "10. control: the customer clone already has $CUSTSHA"
+run DONE_CLAIM_STATE_DIR="$T/st10" SPOOL_BOX_USER=; rc=$?
+v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "cust=would-alert custno=would-alert " ] &&
+  pass "10. RED CONTROL with no cnf customer repo (the 10-17 gap) a customer sha alerts" || fail "10. no cnf (rc $rc) got '$v': $(cat "$T/o")"
+run DONE_CLAIM_STATE_DIR="$T/st10" SPOOL_BOX_USER= LANE_LANDED_CNF="$T/cust.yaml"; rc=$?
+v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ "$(verdict quoted)" = landed ] && [ "$(verdict unl)" = would-alert ] &&
+  pass "10. a sha on a cnf customer repo's fetched trunk is landed; a sha in no known repo's trunk still alerts; the csi-spl verdicts stand; a clone on another box is skipped" ||
+  fail "10. cnf customer repo (rc $rc) got '$v': $(cat "$T/o")"
 
 exit "$fails"

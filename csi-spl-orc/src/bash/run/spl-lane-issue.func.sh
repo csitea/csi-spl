@@ -39,12 +39,15 @@
 # @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-2229: the lane's
 # @description     work landed in ANOTHER repo, so no csi-spl commit can close
 # @description     its key): LANE_LANDED_REPO=<name> LANE_LANDED_SHA=<sha>. The
-# @description     name resolves ONLY through the cnf (the basename of a
-# @description     `src_dir` in csi-spl-cnf/csi-spl/all.env.yaml or <ENV>.env.yaml),
-# @description     never a lane-given path or URL; that clone is fetched (as its
-# @description     owner, or SPOOL_BOX_USER), then the sha must pass
-# @description     `git merge-base --is-ancestor <sha> origin/<trunk>` (origin/HEAD,
-# @description     else master, else main). Then: status done, a comment naming
+# @description     name resolves ONLY through the cnf (spl_landed_repo: a
+# @description     `name` of env.box.landed_repos, SPL-2420, or the basename
+# @description     of a `src_dir` in csi-spl-cnf/csi-spl/all.env.yaml or
+# @description     <ENV>.env.yaml), never a lane-given path or URL; its clone
+# @description     must be on this box (else refused, naming the cnf's box);
+# @description     it is fetched (as its owner, or SPOOL_BOX_USER), then the
+# @description     sha must pass `git merge-base --is-ancestor <sha>
+# @description     origin/<trunk>` (the cnf's trunk, else origin/HEAD, else
+# @description     master, else main). Then: status done, a comment naming
 # @description     repo + sha, and lifetime/issue-end with both, which li_gate
 # @description     passes. Anything else is refused in one line, nothing changed.
 # @description     Landed is not live: the dispatcher's ACCEPTED still checks the
@@ -65,7 +68,7 @@
 # @param LANE_ISSUE_TEXT (optional, discussion) - the owner's words that ask for it
 # @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked | done (landed in another repo)
 # @param LANE_ISSUE_REASON (required, end; optional with done) - why the lane ends without landing
-# @param LANE_LANDED_REPO (required, end done) - the repo's cnf name, e.g. dvn-web
+# @param LANE_LANDED_REPO (required, end done) - the repo's cnf name, e.g. csi-rel or dvn-web
 # @param LANE_LANDED_SHA (required, end done) - the landed commit, 7-40 hex
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - the seated desk that files it; default the first seated of LEASE_MASTER, LEASE_ORCH, LEASE_FAILOVER
@@ -370,9 +373,9 @@ spl_lane_issue_actor() {
 spl_lane_issue_landed() {
   local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
-  clone="$(spl_lane_issue_repo "$repo")" || return 1
+  clone="$(spl_landed_repo "$repo")" || return 1
   [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || { do_log "FATAL LANE_LANDED_SHA must be a commit sha (7-40 lower-case hex), got: '$sha'"; return 1; }
-  out="$(spl_lane_issue_on_trunk "$repo" "$clone" "$sha")" || return 1
+  out="$(spl_lane_issue_on_trunk "$repo" "${clone%%$'\t'*}" "$sha" "${clone#*$'\t'}")" || return 1
   full="${out%%$'\t'*}"; trunk="${out#*$'\t'}"
   why="landed in $repo ${full:0:12} on origin/$trunk"
   [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
@@ -385,50 +388,100 @@ spl_lane_issue_landed() {
   do_log "OK $key -> done: $why"
 }
 
-# spl_lane_issue_repo NAME -> the local clone of a repo the cnf knows: the
-# basename of a `src_dir` in all.env.yaml, then <ENV>.env.yaml (the env wins).
-# A path, a URL or an unknown name is refused: a lane must not point the check
-# at a repo it controls. A test sandbox (SPOOL_TEST=1) reads LANE_LANDED_CNF
-# only, else no cnf: never the live box's clones.
-spl_lane_issue_repo() {
-  local name="$1" d f p hit="" known=""
+# spl_landed_repo_rows -> "name<TAB>src_dir<TAB>trunk<TAB>box" ("-" = unset:
+# read collapses an empty tab field) per repo the
+# cnf knows (SPL-2420): each env.box.landed_repos entry, and each other map
+# with an absolute `src_dir` (a hosted site, named by its basename), from
+# all.env.yaml then <ENV>.env.yaml (a later row wins). A test sandbox
+# (SPOOL_TEST=1) reads LANE_LANDED_CNF only, else no cnf: never the live clones.
+spl_landed_repo_rows() {
+  local d f
   local -a cnfs=()
-  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$name" != *..* ]] ||
-    { do_log "FATAL LANE_LANDED_REPO must be a repo NAME the cnf knows, not a path or URL, got: '$name'" >&2; return 1; }
   d="${APP_PATH:-$PROJ_PATH/..}/csi-spl-cnf/csi-spl"
   if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}")
   else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml"); fi
   for f in "${cnfs[@]}"; do
     [[ -r "$f" ]] || continue
-    while IFS= read -r p; do
-      [[ "$p" == /* ]] || continue
-      known+=" ${p##*/}"; [[ "${p##*/}" == "$name" ]] && hit="$p"
-    done < <(yq -r '.. | select(tag == "!!map" and has("src_dir")) | .src_dir' "$f" 2>/dev/null)
-  done
-  [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
-  [[ -d "$hit/.git" ]] || { do_log "FATAL the cnf's clone of $name, $hit, is not a git repo on this box: refused, nothing changed" >&2; return 1; }
-  printf '%s\n' "$hit"
+    yq -r '.. | select(tag == "!!map" and has("src_dir")) |
+      [(.name // (.src_dir | split("/") | .[-1])), .src_dir, (.trunk // ""), (.box // "")] | @tsv' "$f" 2>/dev/null
+  done | awk -F'\t' -v OFS='\t' '$2 ~ /^\// && $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ {
+    if ($3 == "") $3 = "-"; if ($4 == "") $4 = "-"; print }'
 }
 
-# spl_lane_issue_on_trunk NAME CLONE SHA -> "<full sha>\t<trunk>": fetched
-# first (an unfetched clone answers "not landed"), as the clone's owner or
-# SPOOL_BOX_USER, then an ancestor of origin/<trunk>. Never gh compare: its
-# "behind" means trunk LACKS the commit (a-371, 2026-10-14).
-spl_lane_issue_on_trunk() {
-  local name="$1" c="$2" sha="$3" u t b full
-  local -a g=(git -c safe.directory='*' -C "$c")
+# spl_landed_repo_box -> this box's tag: SPOOL_BOX_TAG, else the spool
+# root's box.env, else the short hostname.
+spl_landed_repo_box() {
+  local v="${SPOOL_BOX_TAG:-}" f="${SPOOL_ROOT:-/var/spool-hub}/box.env"
+  [[ -z "$v" && -r "$f" ]] && v="$(sed -n 's/^SPOOL_BOX_TAG=["'\'']\{0,1\}\([A-Za-z0-9._-]*\).*/\1/p' "$f" | tail -n1)"
+  printf '%s' "${v:-$(hostname -s)}"
+}
+
+# spl_landed_repo NAME -> "<clone>\t<trunk>" of a repo the cnf knows, its
+# clone on THIS box (trunk empty = found on the clone). The one resolver of
+# do_spl_lane_issue (end done), spl_desk_live_proof (LIVE_REPO) and
+# do_spl_done_claim_check. A path, a URL, an unknown name and a clone that is
+# not on this box are refused, one FATAL line on stderr: a lane must not point
+# the check at a repo it controls.
+spl_landed_repo() {
+  local name="$1" n p t b hit="" known="" where
+  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$name" != *..* ]] ||
+    { do_log "FATAL LANE_LANDED_REPO must be a repo NAME the cnf knows, not a path or URL, got: '$name'" >&2; return 1; }
+  while IFS=$'\t' read -r n p t b; do
+    known+=" $n"; [[ "$n" == "$name" ]] && hit="$p"$'\t'"$t"$'\t'"$b"
+  done < <(spl_landed_repo_rows)
+  [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
+  IFS=$'\t' read -r p t b <<<"$hit"
+  [[ "$t" == - ]] && t=""
+  if [[ ! -d "$p/.git" ]]; then
+    where="the cnf names no box for it (env.box.landed_repos[].box)"
+    [[ "$b" != - ]] && where="its clone is on box $b: run it there"
+    do_log "FATAL the cnf's clone of $name, $p, is not a git repo on this box ($(spl_landed_repo_box)); $where: refused, nothing changed" >&2
+    return 1
+  fi
+  printf '%s\t%s\n' "$p" "$t"
+}
+
+# spl_landed_repo_git CLONE ARGS...: git in CLONE as its owner, or
+# SPOOL_BOX_USER (sudo -n when that is not the caller); SLR_TIMEOUT=<s> caps it.
+spl_landed_repo_git() {
+  local c="$1" u
+  local -a pre=()
+  shift
+  [[ -n "${SLR_TIMEOUT:-}" ]] && pre=(timeout "$SLR_TIMEOUT")
   u="${SPOOL_BOX_USER:-$(stat -c %U "$c")}"
-  [[ "$u" == "$(id -un)" ]] || g=(sudo -n -u "$u" "${g[@]}")
-  timeout "${LANE_LANDED_FETCH_TIMEOUT:-120}" "${g[@]}" fetch -q origin </dev/null >&2 ||
-    { do_log "FATAL cannot fetch $name ($c) as $u: not checked, refused, nothing changed" >&2; return 1; }
-  t="$("${g[@]}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; t="${t#origin/}"
+  [[ "$u" == "$(id -un)" ]] || pre+=(sudo -n -u "$u")
+  "${pre[@]}" git -c safe.directory='*' -C "$c" "$@"
+}
+
+# spl_landed_repo_trunk NAME CLONE [TRUNK] -> the trunk branch, after a fetch
+# of the clone (an unfetched clone answers "not landed"; SLR_NO_FETCH=1 skips
+# it): TRUNK (the cnf's),
+# else origin/HEAD, master, main. A failed fetch or a missing trunk: one FATAL.
+spl_landed_repo_trunk() {
+  local name="$1" c="$2" t="${3:-}" b
+  [[ "${SLR_NO_FETCH:-}" == 1 ]] ||
+    SLR_TIMEOUT="${LANE_LANDED_FETCH_TIMEOUT:-120}" spl_landed_repo_git "$c" fetch -q origin </dev/null >&2 ||
+    { do_log "FATAL cannot fetch $name ($c) as ${SPOOL_BOX_USER:-$(stat -c %U "$c")}: not checked, refused, nothing changed" >&2; return 1; }
+  [[ -n "$t" ]] || { t="$(spl_landed_repo_git "$c" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; t="${t#origin/}"; }
+  [[ -z "$t" ]] || spl_landed_repo_git "$c" rev-parse -q --verify "refs/remotes/origin/$t" >/dev/null ||
+    { do_log "FATAL $name has no origin/$t: refused, nothing changed" >&2; return 1; }
   for b in master main; do
-    [[ -n "$t" ]] || { "${g[@]}" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null && t="$b"; }
+    [[ -n "$t" ]] || { spl_landed_repo_git "$c" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null && t="$b"; }
   done
   [[ -n "$t" ]] || { do_log "FATAL $name has no origin/master or origin/main: refused, nothing changed" >&2; return 1; }
-  full="$("${g[@]}" rev-parse -q --verify "$sha^{commit}" 2>/dev/null)" ||
+  printf '%s\n' "$t"
+}
+
+# spl_lane_issue_on_trunk NAME CLONE SHA [TRUNK] -> "<full sha>\t<trunk>":
+# fetched first (spl_landed_repo_trunk), then an ancestor of origin/<trunk>.
+# Never gh compare: its "behind" means trunk LACKS the commit (a-371,
+# 2026-10-14).
+spl_lane_issue_on_trunk() {
+  local name="$1" c="$2" sha="$3" t full
+  t="$(spl_landed_repo_trunk "$name" "$c" "${4:-}")" || return 1
+  full="$(spl_landed_repo_git "$c" rev-parse -q --verify "$sha^{commit}" 2>/dev/null)" ||
     { do_log "FATAL $sha is no commit of $name, even after a fetch: refused, nothing changed" >&2; return 1; }
-  "${g[@]}" merge-base --is-ancestor "$full" "refs/remotes/origin/$t" ||
+  spl_landed_repo_git "$c" merge-base --is-ancestor "$full" "refs/remotes/origin/$t" ||
     { do_log "FATAL $name ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
   printf '%s\t%s\n' "$full" "$t"
 }

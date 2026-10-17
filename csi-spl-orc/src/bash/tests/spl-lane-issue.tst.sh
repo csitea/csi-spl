@@ -233,6 +233,27 @@ done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED"
 [[ $rc -eq 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q "OK DRY_RUN SPL-42 -> done (landed in dvn-web" "$T/o" &&
   pass "done, dry run: checked, no hub call, nothing written" || fail "done dry (rc=$rc): $(cat "$T/o")"
 
+# SPL-2420: a customer repo of env.box.landed_repos (name, src_dir, trunk,
+# box), its clone on one box only. The entry's name counts, not the basename.
+printf 'env:\n  box:\n    landed_repos:\n      - {name: cust-rel, src_dir: %s, trunk: master}\n      - {name: far-rel, src_dir: %s, trunk: master, box: box-b}\n      - {name: lost-rel, src_dir: %s}\n' \
+  "$T/lr/dvn-web" "$T/lr/not-here" "$T/lr/not-here" >"$T/lr/cust.yaml"
+done_run LANE_LANDED_REPO=cust-rel LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/cust.yaml" DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  [[ "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end")" == "done"$'\t'"cust-rel"$'\t'"$LANDED" ]] &&
+  pass "landed_repos: a cnf customer repo by its name, sha on its trunk: done, issue-end names it" ||
+  fail "landed_repos done (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/cust.yaml" DRY_RUN=0
+refused "landed_repos: RED CONTROL an unknown name (the basename, not the entry's name) is refused" "'dvn-web' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel)"
+done_run LANE_LANDED_REPO=cust-rel LANE_LANDED_SHA="$WIP" LANE_LANDED_CNF="$T/lr/cust.yaml" DRY_RUN=0
+refused "landed_repos: a sha off the cnf trunk is refused" "is not on origin/master (a branch only?)"
+done_run LANE_LANDED_REPO=far-rel LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_BOX_TAG=box-a DRY_RUN=0
+refused "landed_repos: a clone on another box is refused in one line naming both boxes" "is not a git repo on this box (box-a); its clone is on box box-b: run it there"
+done_run LANE_LANDED_REPO=lost-rel LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_BOX_TAG=box-a DRY_RUN=0
+refused "landed_repos: no clone and no cnf box: refused, saying the cnf names no box" "on this box (box-a); the cnf names no box for it"
+printf 'env:\n  box:\n    landed_repos:\n      - {name: cust-rel, src_dir: %s, trunk: main}\n' "$T/lr/dvn-web" >"$T/lr/main.yaml"
+done_run LANE_LANDED_REPO=cust-rel LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/main.yaml" DRY_RUN=0
+refused "landed_repos: a cnf trunk the clone lacks is refused (never another branch)" "cust-rel has no origin/main"
+
 # Kind: answer in the brief: the filed issue is labelled answer (the label made first).
 printf '# Brief: evaluate the runner\n\nKind: answer\n%s\n' "$ES" >"$T/answer.md"
 run AGENT_ID=c-124 BRIEF="$T/answer.md" DRY_RUN=0

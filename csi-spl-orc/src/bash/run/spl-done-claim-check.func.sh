@@ -26,7 +26,10 @@
 # @description     repo's trunk (origin/master, else origin/main), or carry a
 # @description     patch already on it (`git cherry` "-": a review-branch sha
 # @description     landed under a new sha by a rebase); a sha of another repo
-# @description     is checked in that repo
+# @description     is checked in that repo; SPL-2420: the cnf's customer
+# @description     repos (env.box.landed_repos, resolved by spl_landed_repo of
+# @description     spl-lane-issue.func.sh) whose clone is on this box are
+# @description     repos too (a csi-rel sha on its master is landed)
 # @description   - a result with NO sha, or with a sha on no trunk -> ONE note
 # @description     to the dispatch lease holder (lane, msg id, the shas, "not
 # @description     in the repository"); every decided message goes to the
@@ -60,7 +63,7 @@
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
 # @param DONE_CLAIM_DAYS_H (optional) - hours of results read, default 24
-# @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree
+# @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree; the cnf's customer repos (env.box.landed_repos, SPL-2420) whose clone is on this box always count too
 # @param DONE_CLAIM_FETCH (optional) - 1 (default) fetches each repo before the check
 # @param DONE_CLAIM_STATE_DIR (optional) - the ledger's dir, default $XDG_STATE_HOME/csi-spl/done-claim-check
 # @param DONE_CLAIM_BOX (optional) - this box's id (a lane <id>@<other box> is skipped); default the desk box
@@ -183,9 +186,10 @@ spl_done_claim_tokens() {
 # spl_done_claim_repos: one line per repo of DONE_CLAIM_REPO_DIRS (default the
 # repo holding this tree): "<top dir> <trunk ref>", fetched first unless
 # DONE_CLAIM_FETCH=0. A repo that cannot be read is a FATAL: a missing clone
-# must not turn every sha into an alert.
+# must not turn every sha into an alert. Then the cnf's customer repos whose
+# clone is on this box (spl_done_claim_landed_repos, SPL-2420).
 spl_done_claim_repos() {
-  local d top ref rc=0
+  local d top ref rc=0 listed=""
   # shellcheck disable=SC2086 # a space-separated list, split on purpose
   for d in ${DONE_CLAIM_REPO_DIRS:-$PROJ_PATH}; do
     top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" || { do_log "FATAL $d is not a git repo" >&2; rc=1; continue; }
@@ -195,8 +199,33 @@ spl_done_claim_repos() {
     ref=""
     for ref in origin/master origin/main; do git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null && break; ref=""; done
     [[ -n "$ref" ]] || { do_log "FATAL $top has neither origin/master nor origin/main" >&2; rc=1; continue; }
-    echo "$top $ref"
+    echo "$top $ref"; listed+="$top "
   done
+  spl_done_claim_landed_repos "$listed" || rc=1
+  return $rc
+}
+
+# spl_done_claim_landed_repos "<tops already listed> ": "<clone> origin/<trunk>"
+# per customer repo the cnf knows (env.box.landed_repos, a hosted site's
+# src_dir), resolved by the one shared spl_landed_repo / spl_landed_repo_trunk
+# (spl-lane-issue.func.sh) that do_spl_lane_issue and the **Live** proof use:
+# a sha on one of their trunks has landed (c-578's csi-rel sha, 10-17). A clone
+# on another box is that box's (skipped); a failed fetch warns and keeps the
+# clone's last fetched trunk, a missing trunk is a FATAL.
+spl_done_claim_landed_repos() {
+  local n row clone trunk rc=0 skip=" ${1:-}"
+  while IFS=$'\t' read -r n _; do
+    row="$(spl_landed_repo "$n" 2>/dev/null)" || continue
+    clone="${row%%$'\t'*}"
+    [[ "$skip" == *" $clone "* ]] && continue
+    skip+="$clone "
+    if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] && trunk="$(spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}" 2>/dev/null)"; then :
+    else
+      [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] && do_log "WARN git fetch origin failed in $clone ($n): its last fetched trunk counts" >&2
+      trunk="$(SLR_NO_FETCH=1 spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}")" || { rc=1; continue; }
+    fi
+    echo "$clone origin/$trunk"
+  done < <(spl_landed_repo_rows)
   return $rc
 }
 

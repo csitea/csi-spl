@@ -18,6 +18,9 @@
 #   7. Planned / In progress / Landed openings and a poll form -> sent, no proof
 #   8. a reply tagged @HUM-n before **Live** is still checked
 #   9. do_spl_desk_post: the same guard on a channel post
+#  10. SPL-2420 LIVE_REPO=<cnf name>: a customer repo's sha on its fetched
+#      trunk is Live with no deploy rule; a sha off its trunk, an unknown
+#      name, a clone on another box and a csi-spl sha are refused
 # The served verdicts are stubbed at do_check_lane_served's seams
 # (_spl_served_needs_deploy / _spl_served_env, tested in lane-served.tst.sh);
 # the git side is a real repo with a local origin.
@@ -144,6 +147,49 @@ send do_spl_desk_post "$B"; rc=$?
 sent "9. do_spl_desk_post sends a Live post with its proof" "$B"
 send do_spl_desk_post '**In progress** cards.'; rc=$?
 sent "9. do_spl_desk_post sends other states as before" '**In progress** cards.'
+
+# --- 10. a customer repo of the cnf (SPL-2420) -------------------------------------
+cg() { git -C "$1" -c user.name=t -c user.email=t@example.com "${@:2}"; }
+git init -q --bare "$T/cust.git"
+git init -q -b master "$T/cust-push" && cg "$T/cust-push" commit -q --allow-empty -m init &&
+  cg "$T/cust-push" remote add origin "$T/cust.git" && cg "$T/cust-push" push -q origin master
+git clone -q "$T/cust.git" "$T/cust"
+cust_word() { # <msg>: a commit pushed to <branch> whose 9-char prefix has a digit and a letter
+  local i=0 h
+  cg "$T/cust-push" commit -q --allow-empty -m "$1"
+  while h="$(cg "$T/cust-push" rev-parse HEAD)"; [[ ! "${h:0:9}" =~ [0-9] || ! "${h:0:9}" =~ [a-f] ]]; do
+    i=$((i + 1)); cg "$T/cust-push" commit -q --amend --allow-empty -m "$1 $i"
+  done
+}
+cg "$T/cust-push" checkout -q -b wip && cust_word cust-off && cg "$T/cust-push" push -q origin wip
+COFF="$(cg "$T/cust-push" rev-parse HEAD)"
+cg "$T/cust-push" checkout -q master && cust_word cust-on && cg "$T/cust-push" push -q origin master
+CON="$(cg "$T/cust-push" rev-parse HEAD)"
+printf 'env:\n  box:\n    landed_repos:\n      - {name: cust-rel, src_dir: %s, trunk: master}\n      - {name: far-rel, src_dir: %s, box: box-b}\n' \
+  "$T/cust" "$T/not-here" >"$T/cust.yaml"
+CUST=(LIVE_REPO=cust-rel LANE_LANDED_CNF="$T/cust.yaml" SPOOL_BOX_USER= SPOOL_BOX_TAG=box-a NEEDS=no SERVED=lag)
+! cg "$T/cust" cat-file -e "$CON^{commit}" 2>/dev/null && pass "10. control: the clone has not fetched the landed sha yet" ||
+  fail "10. control: the clone already has $CON"
+B="**Live** csi-rel ${CON:0:9} on master"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}"; rc=$?
+sent "10. a customer repo sha on its fetched trunk is Live, no deploy rule (NEEDS=no, SERVED=lag)" "$B"
+B="**Live** csi-rel ${COFF:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}"; rc=$?
+refused "10. RED CONTROL a customer sha on a branch only is refused" "cust-rel sha ${COFF:0:9} on origin/master (it is not"
+B="**Live** ${ON:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}"; rc=$?
+refused "10. a csi-spl sha under LIVE_REPO=cust-rel is not a cust-rel sha" "a commit sha of cust-rel on origin/master"
+one_line() { # <label> <must-name>: rc != 0, nothing sent, exactly one FATAL line naming it
+  (( rc != 0 )) && [[ ! -e "$T/sent" ]] && [[ "$(grep -c FATAL "$T/o")" == 1 ]] && grep -q -- "$2" "$T/o" &&
+    pass "$1" || fail "$1 (rc $rc): $(cat "$T/o")"
+}
+B="**Live** csi-rel ${CON:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=other-rel; rc=$?
+one_line "10. RED CONTROL an unknown LIVE_REPO name is refused in one line" "'other-rel' is no repo the cnf knows (src_dir names: cust-rel far-rel)"
+send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=far-rel; rc=$?
+one_line "10. a clone on another box: one line naming this box and the cnf's" "not a git repo on this box (box-a); its clone is on box box-b: run it there"
+send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=../cust; rc=$?
+one_line "10. a path as LIVE_REPO is refused" "must be a repo NAME the cnf knows, not a path or URL"
 
 echo "desk-live-proof: $fails failure(s)"
 ((fails == 0))

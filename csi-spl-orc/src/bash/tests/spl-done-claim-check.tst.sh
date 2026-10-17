@@ -12,7 +12,8 @@
 # object in any repo is rewritten (landed, no note) when exactly one trunk
 # commit after the lane's spawn (else 48 h) carries the result's SPL key;
 # else it alerts "not an object in any repository". SPL-2332: a 32-hex md5,
-# or a token after an "md5" label, is no sha.
+# or a token after an "md5" label, is no sha. SPL-2338: a body with a sha line
+# claims only that line's shas; a sha quoted on another line raises nothing.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -195,5 +196,26 @@ run DRY_RUN=0 DONE_CLAIM_REPO_DIRS="$T/nope"; rc=$?
 grep -qE '^done-claim-check +\| \*/5 \* \* \* \* +\| src/bash/scripts/done-claim-check-cron.sh +\|' "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" &&
   [ -x "$PROJ_ROOT/src/bash/scripts/done-claim-check-cron.sh" ] && bash -n "$PROJ_ROOT/src/bash/scripts/done-claim-check-cron.sh" &&
   pass "8. the box-crons manifest runs done-claim-check-cron.sh every 5 min" || fail "8. cron row or script missing"
+
+# 9. SPL-2338 (c-355's result 88580b2e, synthetic): a body with a sha line claims
+# only that line's shas. A quoted unknown sha elsewhere raises nothing; an
+# unlanded sha on the sha line alerts, though a landed one is quoted elsewhere;
+# "sha: none" or no sha line reads every sha, as before.
+SP="$T/spool9"
+msg c-002/archive quoted c-580 c-002 30 "**Landed, not live yet**
+
+- **sha**: ${LANDED:0:9} \`fix(x, SPL-9101): a fix\`
+- dry run: another lane's sha 9c0ffee12345 of another repo is quoted here"
+msg c-002/archive unl c-581 c-002 30 "- sha: $LOCAL
+- CI: wf 10 green on ${LANDED:0:9}"
+msg c-002/archive none c-582 c-002 30 "sha: none
+landed ${LANDED:0:9}"
+msg c-002/archive nolabel c-583 c-002 30 "landed ${LANDED:0:9}, quoted 9c0ffee12345"
+run; rc=$?
+v="$(for k in quoted unl none nolabel; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "quoted=landed unl=would-alert none=landed nolabel=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "quoted" { print $4 }' "$T/o")" = "${LANDED:0:9}" ] && [ "$(awk -F'\t' '$1 == "unl" { print $4 }' "$T/o")" = "$LOCAL" ] &&
+  pass "9. SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another line is landed; an unlanded sha on the sha line alerts (a landed sha elsewhere does not save it); 'sha: none' and no sha line read every sha" ||
+  fail "9. sha line (rc $rc) got '$v': $(cat "$T/o")"
 
 exit "$fails"

@@ -15,7 +15,11 @@
 # @description   - every token of 9..12 or 40 lowercase hex with at least one
 # @description     letter a..f is a sha (a UUID is cut out first; an all-digit
 # @description     token is a run id, not a sha; a 32-hex md5 or a token
-# @description     right after an "md5" label is a file hash, SPL-2332)
+# @description     right after an "md5" label is a file hash, SPL-2332); SPL-2338:
+# @description     when a line of the body starts with the word sha / shas
+# @description     ("sha:", "- **sha**:", "SHA:") and holds a sha, only those
+# @description     lines are the claim (a sha quoted on another line is
+# @description     context, not a landing); with none, every sha of the body
 # @description   - DONE_CLAIM_AGE_MIN (15) minutes after the message: a git
 # @description     fetch of each repo in DONE_CLAIM_REPO_DIRS, then each sha
 # @description     must resolve in one of them and be an ancestor of that
@@ -126,7 +130,7 @@ do_spl_done_claim_check() {
 }
 
 # spl_done_claim_results <root> <from-epoch> <before-epoch> <box> <seen>: one
-# TSV row (msg_id, from, ts, task_id, body with tabs and newlines as spaces)
+# TSV row (msg_id, from, ts, task_id, body with tabs as spaces, newlines as \x1f)
 # per lane result to another id with from-epoch <= ts <= before-epoch and msg_id not in
 # <seen>, oldest first. A file not modified in the window is not opened.
 spl_done_claim_results() {
@@ -138,7 +142,7 @@ spl_done_claim_results() {
     xargs -0 -r grep -lZE '"kind": *"result"' 2>/dev/null |
     xargs -0 -r jq -r 'select(.kind == "result" and (.msg_id | type) == "string" and (.from | type) == "string")
       | [.msg_id, .from, (((.ts // "") | sub("\\.[0-9]+"; "") | fromdateiso8601?) // 0 | tostring),
-         (.ts // ""), (.task_id // ""), ((.body // "") | gsub("[\t\r\n]"; " ")), ((.to // "") | tostring)] | @tsv' 2>/dev/null |
+         (.ts // ""), (.task_id // ""), ((.body // "") | gsub("[\t\r]"; " ") | gsub("\n"; "\u001f")), ((.to // "") | tostring)] | @tsv' 2>/dev/null |
     awk -F'\t' -v lo="$lo" -v hi="$hi" -v box="$box" -v seen="$seen" '
       BEGIN { while ((getline l < seen) > 0) done[l] = 1 }
       {
@@ -154,12 +158,25 @@ spl_done_claim_results() {
       }' | sort -n -k1,1 | cut -f2-
 }
 
-# spl_done_claim_shas <body>: the distinct hex tokens of 9..12 or 40 chars
+# spl_done_claim_shas <body>: the shas the result CLAIMS (SPL-2338). When a
+# line of <body> (lines split on \x1f) starts with the word sha or shas, after
+# list marks and bold (`sha:`, `- **sha**:`, `- **Sha:**`, `SHA:`), and one of
+# those lines holds a sha, only those lines count: a sha quoted on another line
+# (another lane's, another repo's, a reverted one) is context. Else every sha
+# of the body, as before. One line, space-separated.
+spl_done_claim_shas() {
+  local claim
+  claim="$(tr '\037' '\n' <<<"$1" | grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' | spl_done_claim_tokens)"
+  [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens <<<"$1")"
+  echo "$claim"
+}
+
+# spl_done_claim_tokens (stdin): the distinct hex tokens of 9..12 or 40 chars
 # holding a letter a..f, UUIDs and the token after an "md5" label cut out
 # first; one line, space-separated. 13..39 hex (a 32-hex md5) is no git sha.
-spl_done_claim_shas() {
+spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
-    -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' <<<"$1" |
+    -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | grep '[a-f]' | awk '!s[$0]++' | paste -sd' ' -
 }
 

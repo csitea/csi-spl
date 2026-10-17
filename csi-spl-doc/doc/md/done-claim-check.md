@@ -23,6 +23,23 @@ reads and fetches, sends nothing, writes no ledger). Code:
    13..39 hex is no git sha: a 32-hex md5 file hash (c-350, notes d60b054e
    and 48df14ac, 10-17) was read as four missing shas. A token right after
    an `md5` / `md5sum` label is skipped too (SPL-2332).
+   **The claim is the sha line** (SPL-2338): when a line of the body starts
+   with the word `sha` or `shas`, after list marks and bold (`sha:`,
+   `- **sha**:`, `- **Sha:**`, `SHA:`, `- sha \`<sha>\``), and such a line
+   holds a sha, only those lines' shas are checked. A sha quoted on any
+   other line (another lane's, another repo's, a reverted one, one in a
+   pasted log) is context, not a landing. With no sha line, or only
+   `sha: none`, every sha of the body is checked, as before. So a lane makes
+   its claim exact by writing its landing sha on a `sha:` line.
+   Why this rule, not "alert only when no sha of the body is on a trunk":
+   that one clears a refused push whose result also quotes the trunk sha it
+   rebased onto, m-595's failure plus one line. Measured on the satellite
+   spool, 2026-10-17, DRY_RUN=1, empty ledger, one clock, repo csi-spl at
+   origin/master 4ee9dfa07, n=1 run over 205 judged results: would-alert
+   30 -> 28 (c-355 88580b2e, which quotes another repo's 9c741867a396; c-320
+   df0edc06, which quotes another lane's stale aea648fbe); no result whose
+   sha line names an unlanded sha moved to landed. The any-sha rule would
+   have cleared 5.
 3. 15 min after the message: `git fetch` of each repo in
    `DONE_CLAIM_REPO_DIRS` (default csi-spl), then each sha must resolve in
    one of them and be an ancestor of its `origin/master` (else
@@ -117,3 +134,6 @@ code slug and no slug alert; a sha on a live lane's `review/` branch is
 sha alerts. SPL-2327: a no-object sha is `rewritten` with one trunk commit
 of its key after the spawn, alerts with none, with two, with one older than
 48 h or older than the lane's spawn. SPL-2332: md5 tokens are no shas.
+SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another
+line is landed; an unlanded sha on the sha line alerts though a landed sha
+is quoted elsewhere; `sha: none` and a body with no sha line read every sha.

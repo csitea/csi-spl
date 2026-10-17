@@ -9,8 +9,6 @@
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-# Dummy use of self_dir to suppress shellcheck warning
-echo "Test dir: $self_dir" >/dev/null
 test_dir="$(mktemp -d)"; trap 'rm -rf "$test_dir"' EXIT
 repo="$test_dir/repo"; wt_root="$test_dir/wt"
 
@@ -52,11 +50,11 @@ touch -d "1 hour ago" "$wt_root/m-998.stale-20261016T000000Z"
 
 # Run the sweep (dry run)
 WT_REPO="$(readlink -f "$repo")" WT_ROOT="$(readlink -f "$wt_root")" WT_SWEEP_AGE_H=24 DRY_RUN=1 SPOOL_ROOT="$(readlink -f "$test_dir")" \
-  bash "/opt/csi/csi-spl/csi-spl-orc/src/bash/scripts/wt-dead-sweep.sh" > "$test_dir/dry-run.out" 2>&1
+  bash "$self_dir/../scripts/wt-dead-sweep.sh" > "$test_dir/dry-run.out" 2>&1
 
 # Run the sweep (real)
 WT_REPO="$(readlink -f "$repo")" WT_ROOT="$(readlink -f "$wt_root")" WT_SWEEP_AGE_H=24 DRY_RUN=0 SPOOL_ROOT="$(readlink -f "$test_dir")" \
-  bash "/opt/csi/csi-spl/csi-spl-orc/src/bash/scripts/wt-dead-sweep.sh" > "$test_dir/real-run.out" 2>&1
+  bash "$self_dir/../scripts/wt-dead-sweep.sh" > "$test_dir/real-run.out" 2>&1
 
 # Assertions
 

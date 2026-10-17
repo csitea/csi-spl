@@ -10,14 +10,17 @@
 //
 //   SITE=https://dev.<domain> API=https://dev.api.<domain> TENANT=<paid tenant, host not mapped> \
 //     EMAIL=<the checkout email> PW_FILE=<0600 file> OUT=<dir> [REGISTER=1] [CHROME_PATH=...] \
+//     [MAIL_TOKEN_CMD="cd <repo>/csi-spl-orc && ENV=dev ./run -a do_spl_mail_verify_token"] \
 //     node tests/e2e/paid-host-pending-live.proof.mjs
 //
-// REGISTER=1 (dev only: the hub answers a debug verify token there) first makes
-// the native account for EMAIL with a random password written to PW_FILE (0600).
+// REGISTER=1 first makes the native account for EMAIL with a random password
+// written to PW_FILE (0600). Its verify token: the hub's debug_token (lde only
+// since SPL-2157), else the verify mail read by MAIL_TOKEN_CMD (lib/proof.mjs
+// verifyToken; EMAIL then a fresh relay plus-address).
 // The password is never printed. Exit 0 = every step PASS.
 import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
+import { loadPuppeteer, need, sleep, verifyToken } from './lib/proof.mjs'
 
 const SITE = need('SITE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
@@ -42,9 +45,11 @@ if (process.env.REGISTER === '1') {
   if (existsSync(PW_FILE)) { console.error('FATAL PW_FILE exists: REGISTER=1 makes a NEW account'); process.exit(2) }
   const pw = randomBytes(18).toString('base64url')
   const reg = await post('/api/v1/auth/register', { email, password: pw, name: 'B5 proof' })
-  const tok = reg.body?.debug_token || ''
-  const ver = tok ? await post('/api/v1/auth/email/verify', { token: tok, password: pw }) : { status: 0 }
-  step('account registered + verified (dev debug token)', reg.status < 300 && !!tok && ver.status < 300, { register: reg.status, verify: ver.status })
+  const vt = reg.status < 300 ? verifyToken(reg.body, email) : { token: '', via: 'none', error: 'register refused' }
+  const ver = vt.token ? await post('/api/v1/auth/email/verify', { token: vt.token, password: pw }) : { status: 0 }
+  const made = reg.status < 300 && !!vt.token && ver.status < 300
+  step('account registered + verified', made, { register: reg.status, via: vt.via, verify: ver.status, ...(vt.error ? { error: vt.error } : {}) })
+  if (!made) process.exit(1)
   writeFileSync(PW_FILE, pw + '\n', { mode: 0o600 })
 }
 const pw = readFileSync(PW_FILE, 'utf8').trim()

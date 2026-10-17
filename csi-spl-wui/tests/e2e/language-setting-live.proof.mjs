@@ -1,6 +1,9 @@
 // spec 021 T032 live proof of the signed-in language preference on a DEV WUI:
-//   1. register a throwaway native account (debug tokens: dev only), verify it
-//      through the hub API — the registration locale is the WUI's X-Locale;
+//   1. register a throwaway native account, verify it through the hub API —
+//      the registration locale is the WUI's X-Locale. The token: the hub's
+//      debug_token (lde only since SPL-2157), else the verify mail read by
+//      MAIL_TOKEN_CMD (lib/proof.mjs verifyToken), sent to a fresh
+//      plus-address of MAIL_BOX (the relay mailbox);
 //   2. sign in WITH NO TENANT through the hub API from the WUI page (the WUI
 //      form always sends the build's default tenant, which a non-member is
 //      refused, and a tenant sign-in can seat a test account as a zero-member
@@ -17,12 +20,13 @@
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> OUT=<dir> \
 //     [UI=en] [WANT=fi] [DEFAULT_LOCALE=en] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [MAIL_BOX=<relay mailbox> MAIL_TOKEN_CMD="cd <repo>/csi-spl-orc && ENV=dev ./run -a do_spl_mail_verify_token"] \
 //     node tests/e2e/language-setting-live.proof.mjs
 //
 // The password is random per run and never printed. Exit 0 = every step PASS.
 import { randomBytes } from 'node:crypto'
 import { writeFileSync, mkdirSync } from 'node:fs'
-import { loadPuppeteer, need } from './lib/proof.mjs'
+import { loadPuppeteer, need, relayPlus, verifyToken } from './lib/proof.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
@@ -32,7 +36,7 @@ const UI = process.env.UI || 'en'
 const WANT = process.env.WANT || 'fi'
 const DEF = process.env.DEFAULT_LOCALE || 'en'
 const pfx = (c) => (c === DEF ? '' : '/' + c)
-const email = `wui-i18n-proof+${Date.now()}@example.com`
+const email = process.env.MAIL_BOX ? relayPlus(process.env.MAIL_BOX, `wui-i18n-proof-${Date.now()}`) : `wui-i18n-proof+${Date.now()}@example.com`
 const pw = randomBytes(18).toString('base64url')
 mkdirSync(OUT, { recursive: true })
 const res = { base: BASE, api: API, ui: UI, want: WANT, at: new Date().toISOString(), steps: [] }
@@ -48,11 +52,12 @@ try {
   try { res.build = await (await fetch(BASE + '/build.json')).json() } catch { res.build = null }
   try { res.hub = await (await fetch(API + '/version')).json() } catch { res.hub = null }
 
-  // 1. register + verify through the API (dev debug token)
+  // 1. register + verify through the API (debug token on lde, else the mail)
   const reg = await post('/register', { email, password: pw })
   const regBody = await reg.json().catch(() => ({}))
-  step('register answers a debug token (dev)', reg.ok && !!regBody.debug_token, { status: reg.status })
-  const ver = await post('/email/verify', { token: String(regBody.debug_token || ''), password: pw })
+  const vt = reg.ok ? verifyToken(regBody, email) : { token: '', via: 'none', error: 'register refused' }
+  step('register + a verify token', reg.ok && !!vt.token, { status: reg.status, via: vt.via, ...(vt.error ? { error: vt.error } : {}) })
+  const ver = await post('/email/verify', { token: vt.token, password: pw })
   step('verify', ver.ok, { status: ver.status })
 
   // 2. sign in, no tenant (see the header)

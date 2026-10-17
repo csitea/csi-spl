@@ -2,8 +2,10 @@
 // W15 SPL-1172, W16 SPL-1175) - a fresh tenant's biz_owner, from the first
 // sign-in to an agent answering in #lobby, against a deployed WUI + hub:
 //
-//   0  (dev) register + verify the buyer with the debug token only a dev hub
-//      answers; a random password kept in memory only. (prd: EMAIL + PW_FILE)
+//   0  (dev) register + verify the buyer: the hub's debug_token (lde only
+//      since SPL-2157), else the verify mail read by MAIL_TOKEN_CMD
+//      (lib/proof.mjs verifyToken; BUYER_EMAIL then a relay plus-address); a
+//      random password kept in memory only. (prd: EMAIL + PW_FILE)
 //   1  native sign-in on BASE                                        t0
 //   2  W15  / shows the first-run checklist, its 3 steps
 //   3  W14  the ? at the foot of the rail opens /help, rendered (1 click)
@@ -18,6 +20,7 @@
 //   BASE=https://<wui> API=https://<api> TENANT=<t> OUT=<dir> WORK=<dir>
 //   ROOT_KEY_FILE=<claim JSON with root_private_key, or the bare key>
 //   (dev) BUYER_EMAIL=<address with no account yet, invited as biz_owner>
+//         MAIL_TOKEN_CMD="cd <repo>/csi-spl-orc && ENV=dev ./run -a do_spl_mail_verify_token"
 //   (prd) EMAIL=<biz_owner> PW_FILE=<0600 file>
 //   [AGENT=CLE-01] [BOX=box-w12-live] [CLAUDE=claude] [CHROME_PATH] [PUPPETEER_CORE]
 //   [SKIP_CLAUDE=1]  stop after the #lobby post (the agent leg run by hand:
@@ -33,7 +36,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
+import { loadPuppeteer, need, sleep, verifyToken } from './lib/proof.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
@@ -67,13 +70,14 @@ async function post(path, body) {
   return { status: r.status, out }
 }
 
-/* dev: a fresh account for the buyer address (debug token = dev hub only) */
+/* dev: a fresh account for the buyer address (verifyToken: debug token on lde, else the mail) */
 async function devAccount(email) {
   const pw = randomBytes(18).toString('base64url')
   const reg = await post('/api/v1/auth/register', { email, password: pw, name: 'FirstName LastName' })
-  const tok = reg.out && reg.out.debug_token
-  if (reg.status >= 300 || !tok) return { ok: false, where: 'register', status: reg.status, error: reg.out && reg.out.error }
-  const ver = await post('/api/v1/auth/email/verify', { token: tok, password: pw })
+  if (reg.status >= 300) return { ok: false, where: 'register', status: reg.status, error: reg.out && reg.out.error }
+  const vt = verifyToken(reg.out, email)
+  if (!vt.token) return { ok: false, where: 'verify token', via: vt.via, error: vt.error }
+  const ver = await post('/api/v1/auth/email/verify', { token: vt.token, password: pw })
   if (ver.status >= 300) return { ok: false, where: 'verify', status: ver.status, error: ver.out && ver.out.error }
   return { ok: true, pw }
 }

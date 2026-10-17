@@ -139,6 +139,17 @@ describe('the shared hooks', () => {
     assert.match(formatLastDataClock(lastDataAt()), /^\d{2}:\d{2}:\d{2}$/)
   })
 
+  it('a refused mock call does not stamp (SPL-2441: the e2e check, without the polls)', async () => {
+    resetLastData()
+    let n = 0
+    onLastData(() => { n += 1 })
+    const c = createSpoolClient({ mock: true, base: 'https://hub.invalid' })
+    await assert.rejects(c.deleteChannel('no-such-clock-channel'), (e) => e.status === 404)
+    await wait()
+    assert.equal(n, 0)
+    assert.equal(lastDataAt(), 0)
+  })
+
   it('a live frame stamps and an error frame does not', async () => {
     resetLastData()
     let n = 0

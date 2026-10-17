@@ -186,24 +186,59 @@ try {
   })
   ok('the painted time is the local HH:mm:ss of data-at', local.ok, local)
 
-  const refused = await p.evaluate(async () => {
-    const read = () => document.querySelector('[data-test=last-data-clock]')?.getAttribute('data-at') || ''
-    const before = read()
+  // SPL-2441: the mock tenant polls channel + roster every 4 s and each
+  // answer moves the clock, rightly. A tick inside the window failed this
+  // check once in CI (n=4 of 300 at CPU x10, every one beside a 4 s tick).
+  // So count every other store action: measure only from a quiet start, and
+  // a window another action ran in measures nothing - take it again.
+  await p.evaluate(() => {
     const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
-    const channel = pinia?._s.get('channel')
-    let result = 'no-store'
-    if (channel) {
-      try {
-        await channel.deleteChannel('no-such-clock-channel')
-        result = 'ok'
-      } catch {
-        result = 'threw'
-      }
+    const w = { busy: 0, runs: 0, done: 0 }
+    window.__clockActions = w
+    for (const s of pinia?._s.values() || []) {
+      s.$onAction(({ store, name, after, onError }) => {
+        if (store.$id === 'channel' && name === 'deleteChannel') return
+        w.busy += 1
+        w.runs += 1
+        const end = () => { w.busy -= 1; w.done += 1 }
+        after(end)
+        onError(end)
+      })
     }
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-    return { before, after: read(), result }
   })
-  ok('a refused request does not move the clock', refused.result === 'threw' && refused.before !== '' && refused.before === refused.after, refused)
+  // an action already running when the counter came is not counted: wait
+  // for one counted action to finish (the next poll at the latest)
+  await p.waitForFunction(() => window.__clockActions.done > 0, { timeout: 20000 }).catch(() => {})
+  const takes = []
+  let refused = null
+  for (let i = 0; i < 5 && !refused; i++) {
+    await p.waitForFunction(() => window.__clockActions.busy === 0, { timeout: 20000 }).catch(() => {})
+    const take = await p.evaluate(async () => {
+      const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const read = () => document.querySelector('[data-test=last-data-clock]')?.getAttribute('data-at') || ''
+      const w = window.__clockActions
+      await frames()
+      const quiet = w.busy === 0
+      const runs = w.runs
+      const before = read()
+      const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+      const channel = pinia?._s.get('channel')
+      let result = 'no-store'
+      if (channel) {
+        try {
+          await channel.deleteChannel('no-such-clock-channel')
+          result = 'ok'
+        } catch {
+          result = 'threw'
+        }
+      }
+      await frames()
+      return { before, after: read(), result, clean: quiet && w.busy === 0 && w.runs === runs }
+    })
+    takes.push(take)
+    if (take.clean) refused = take
+  }
+  ok('a refused request does not move the clock', Boolean(refused && refused.result === 'threw' && refused.before !== '' && refused.before === refused.after), { refused, takes: takes.length })
 
   const samples = []
   for (let i = 0; i < 5; i++) {

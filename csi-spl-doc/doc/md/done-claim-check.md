@@ -18,8 +18,11 @@ reads and fetches, sends nothing, writes no ledger). Code:
    once per `msg_id`. Skipped: a lane of another box (`<id>@<box>`: that
    box checks it) and a result a lane sends itself (`to` = `from`, the
    lane-rotate ACK).
-2. Its shas: every token of 9..40 lowercase hex with at least one letter
-   a..f, UUIDs cut out first (an all-digit token is a CI run id).
+2. Its shas: every token of 9..12 or 40 lowercase hex with at least one
+   letter a..f, UUIDs cut out first (an all-digit token is a CI run id).
+   13..39 hex is no git sha: a 32-hex md5 file hash (c-350, notes d60b054e
+   and 48df14ac, 10-17) was read as four missing shas. A token right after
+   an `md5` / `md5sum` label is skipped too (SPL-2332).
 3. 15 min after the message: `git fetch` of each repo in
    `DONE_CLAIM_REPO_DIRS` (default csi-spl), then each sha must resolve in
    one of them and be an ancestor of its `origin/master` (else
@@ -74,8 +77,25 @@ metadata the fleet writes itself, never the message body (t1 37349c9b):
    hold a sha back. The lane map is not read: it exits 4 whenever a lane
    recorded no files.
 
-Not covered (report only): a sha whose work landed under a rewritten patch
-(`git cherry` `+`, a different patch-id), e.g. aea648fbe -> ac699baf1.
+### 1.2 A sha that is no object in any repository (SPL-2327)
+
+A lane that rebased in its own tree reports its pre-rebase sha; that object
+never reaches this box, so `git cherry` cannot match it (c-297's dry run,
+msg 6be2504d: 7 of 26 would-alerts, e.g. c-298's b9a10361 landed as
+41b89d255). When every missing sha of a result is no object in any repo
+(`git cat-file -e`), the check looks for its landing by the issue key:
+
+- **Verdict `rewritten`** (ledger, no note, counted apart in the OK line)
+  when EXACTLY one trunk commit carries an `SPL-<n>` key of the result body
+  in its subject (`SPL-9001` does not match `SPL-90011`), committed at or
+  after the lane's spawn (`registry.tsv` column 5), else within the last
+  48 h.
+- Zero or several such commits: the note as before, the sha marked "not an
+  object in any repository (a pre-rebase sha?)". A sha that IS an object
+  but on no trunk (an unpushed commit) keeps "not in the repository".
+
+Not covered (report only): a sha that exists here but whose work landed
+under a rewritten patch (`git cherry` `+`, a different patch-id).
 
 ## 2. Standing
 
@@ -94,4 +114,6 @@ refuses. SPL-2313: a reviewer slug from a live worktree and a seat and a
 plan slug from retired `workdirs.tsv` rows are `seat`, with a sha or none; a
 code slug and no slug alert; a sha on a live lane's `review/` branch is
 `pending` and alerts once the lane leaves the registry; a gone lane's `wip/`
-sha alerts.
+sha alerts. SPL-2327: a no-object sha is `rewritten` with one trunk commit
+of its key after the spawn, alerts with none, with two, with one older than
+48 h or older than the lane's spawn. SPL-2332: md5 tokens are no shas.

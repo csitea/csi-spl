@@ -12,9 +12,10 @@
 # @description     msg_id; a lane of another box (from <id>@<box>) is that
 # @description     box's check; a result a lane sends ITSELF (to = from: the
 # @description     lane-rotate ACK) claims nothing to anyone and is skipped
-# @description   - every token of 9..40 lowercase hex with at least one letter
-# @description     a..f is a sha (a UUID is cut out first; an all-digit token
-# @description     is a run id, not a sha)
+# @description   - every token of 9..12 or 40 lowercase hex with at least one
+# @description     letter a..f is a sha (a UUID is cut out first; an all-digit
+# @description     token is a run id, not a sha; a 32-hex md5 or a token
+# @description     right after an "md5" label is a file hash, SPL-2332)
 # @description   - DONE_CLAIM_AGE_MIN (15) minutes after the message: a git
 # @description     fetch of each repo in DONE_CLAIM_REPO_DIRS, then each sha
 # @description     must resolve in one of them and be an ancestor of that
@@ -43,9 +44,14 @@
 # @description     still in this box's registry.tsv is verdict pending: no
 # @description     note, no ledger, judged again next run; it alerts once
 # @description     that lane is retired
+# @description   - SPL-2327: a sha that is no object in any repo (a rebase in
+# @description     another tree) is verdict rewritten (landed, no note) when
+# @description     EXACTLY one trunk commit after the lane's spawn (registry.tsv,
+# @description     else 48 h) has an SPL-n key of the result in its subject; zero
+# @description     or several alert "not an object in any repository"
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
-# @description TSV row per decided message (msg_id, lane, landed | seat |
-# @description pending | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
+# @description TSV row per decided message (msg_id, lane, landed | rewritten |
+# @description seat | pending | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
 # @description fetches but sends nothing and writes no ledger.
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
@@ -84,7 +90,7 @@ do_spl_done_claim_check() {
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
-  local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0
+  local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_shas "$body")"
     bad=""
@@ -92,6 +98,9 @@ do_spl_done_claim_check() {
       verdict=seat; n_seat=$((n_seat + 1))
     elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
+    elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/repos" "$bad")" == "$bad" ]] &&
+      spl_done_claim_rewrite "$tmp/repos" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
+      verdict=rewritten; n_rew=$((n_rew + 1))
     elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
     elif [[ "$dry" == 1 ]]; then
@@ -108,9 +117,9 @@ do_spl_done_claim_check() {
   done <"$tmp/due"
   if [[ "$dry" == 0 ]]; then
     spl_done_claim_prune "$state/seen.tsv" "$((now - 2 * hours * 3600))"
-    echo "OK done-claim-check: $n_ok landed, $n_seat seat, $n_wait pending, $n_alert alerted to $to"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_alert alerted to $to"
   else
-    echo "OK done-claim-check: $n_ok landed, $n_seat seat, $n_wait pending, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
   fi
   rm -rf "$tmp"
   return $rc
@@ -145,11 +154,13 @@ spl_done_claim_results() {
       }' | sort -n -k1,1 | cut -f2-
 }
 
-# spl_done_claim_shas <body>: the distinct hex tokens of 9..40 chars holding a
-# letter a..f, UUIDs cut out first; one line, space-separated.
+# spl_done_claim_shas <body>: the distinct hex tokens of 9..12 or 40 chars
+# holding a letter a..f, UUIDs and the token after an "md5" label cut out
+# first; one line, space-separated. 13..39 hex (a 32-hex md5) is no git sha.
 spl_done_claim_shas() {
-  sed -E 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' <<<"$1" |
-    tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,40}' | grep '[a-f]' | awk '!s[$0]++' | paste -sd' ' -
+  sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
+    -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' <<<"$1" |
+    tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | grep '[a-f]' | awk '!s[$0]++' | paste -sd' ' -
 }
 
 # spl_done_claim_repos: one line per repo of DONE_CLAIM_REPO_DIRS (default the
@@ -188,6 +199,47 @@ spl_done_claim_missing() {
     (( ok )) || out+=("$s")
   done
   echo "${out[*]}"
+}
+
+# spl_done_claim_unknown <repos file> <shas>: the shas that are no object in
+# any repo (a pre-rebase sha of another tree), as against an unpushed one.
+spl_done_claim_unknown() {
+  local s top ref ok out=()
+  for s in $2; do
+    ok=0
+    while read -r top ref; do
+      git -C "$top" cat-file -e "$s^{object}" 2>/dev/null && { ok=1; break; }
+    done <"$1"
+    (( ok )) || out+=("$s")
+  done
+  echo "${out[*]}"
+}
+
+# spl_done_claim_since <root> <lane id> <now>: the lane's spawn epoch from
+# <root>/registry.tsv (col 5, 20261017T082257Z), else <now> - 48 h.
+spl_done_claim_since() {
+  local t e
+  t="$(awk -F'\t' -v id="$2" '$1 == id { print $5; exit }' "$1/registry.tsv" 2>/dev/null)"
+  if [[ "$t" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z$ ]] &&
+    e="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}" +%s 2>/dev/null)"; then
+    echo "$e"
+  else
+    echo "$(($3 - 48 * 3600))"
+  fi
+}
+
+# spl_done_claim_rewrite <repos file> <body> <since epoch>: true when EXACTLY
+# one trunk commit committed at or after <since> carries an issue key
+# (SPL-n) of <body> in its subject (SPL-2327): the rewritten sha's landing.
+spl_done_claim_rewrite() {
+  local keys top ref hits=""
+  keys="$(grep -oE 'SPL-[0-9]+' <<<"$2" | sort -u | sed -E 's/$/([^0-9]|$)/' | paste -sd'|' -)"
+  [[ -n "$keys" ]] || return 1
+  while read -r top ref; do
+    hits+="$(git -C "$top" log --format='%ct %H %s' "$ref" 2>/dev/null |
+      awk -v lo="$3" -v re="$keys" '$1 + 0 >= lo + 0 && $0 ~ re { print $2 }')"$'\n'
+  done <"$1"
+  [[ "$(grep -c . <<<"$(sort -u <<<"$hits")")" == 1 ]]
 }
 
 # spl_done_claim_seats <root> <repos file>: the lane ids whose every known
@@ -244,11 +296,18 @@ spl_done_claim_to() {
   else do_log "FATAL no dispatch lease holder and no LEASE_ORCH: nobody to tell"; return 1; fi
 }
 
-# spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>: the body.
+# spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>:
+# the body. A sha that is no object in any repo says so (SPL-2327).
 spl_done_claim_note() {
-  local what="sha ${5// /, }"
-  [[ -z "$5" ]] && what="no sha"
-  printf 'done-claim check: %s result %s (%s, task %s): %s not in the repository\n\n' "$1" "$2" "$3" "${4:-none}" "$what"
+  local s gone known=() what=() w
+  gone=" $(spl_done_claim_unknown "$6" "$5") "
+  for s in $5; do [[ "$gone" == *" $s "* ]] || known+=("$s"); done
+  gone="$(xargs <<<"$gone")"
+  [[ -n "$5" ]] || what+=("no sha not in the repository")
+  [[ ${#known[@]} -gt 0 ]] && w="${known[*]}" && what+=("sha ${w// /, } not in the repository")
+  [[ -n "$gone" ]] && what+=("sha ${gone// /, } not an object in any repository (a pre-rebase sha?)")
+  w="${what[*]/%/;}"
+  printf 'done-claim check: %s result %s (%s, task %s): %s\n\n' "$1" "$2" "$3" "${4:-none}" "${w%;}"
   printf -- '- checked %s min after the result, on: %s\n' "${DONE_CLAIM_AGE_MIN:-15}" \
     "$(awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }' "$6")"
   printf -- '- rule: a lane result names a sha on the trunk (SPL-2265); one note per message\n'

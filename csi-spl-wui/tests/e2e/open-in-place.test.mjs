@@ -23,6 +23,9 @@ const TOPIC_MSG = '22222222-2222-4222-8222-222222222222'
 const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
 const ALERT = '66666666-6666-4666-8666-666666666666'
+const ALERT_TOPIC = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+/* case 12: frames in a row the end state must hold (~0.5 s at 60 fps) */
+const STILL_FRAMES = 30
 const DM = '77777777-7777-4777-8777-777777777777'
 const UNKNOWN = '0badc0de-0bad-4bad-8bad-0badc0de0bad'
 const LOBBY_REPLY = '55555555-5555-4555-8555-555555555555'
@@ -131,16 +134,26 @@ try {
       const entry = (id) => `[data-testid=left-list] [data-testid=left-entry][data-msg-id="${id}"]`
       await p.waitForSelector(entry(ALERT), { visible: true, timeout: NAV_TIMEOUT })
       await p.click(entry(ALERT))
-      await p.waitForFunction(() => location.pathname.endsWith('/channel/alerts'), { timeout: 15000 }).catch(() => null)
-      await markedInView(p, ALERT)
+      /* r01-11 (CI run 38729860085): the #alerts place first, its topic in the
+         address and its message marked, so the #lobby click never lands on a
+         place still opening */
+      const alertsOpen = await p.waitForFunction((t) => location.pathname.endsWith('/channel/alerts') && new URLSearchParams(location.search).get('topic') === t,
+        { timeout: 15000, polling: 50 }, ALERT_TOPIC).then(() => true).catch(() => false)
+      const alertsMarked = (await markedInView(p, ALERT)).marked
       await p.click(entry(LOBBY_REPLY))
-      await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 15000 }).catch(() => null)
-      /* the open path is the Flow list's own; this pins that the thread opens and stays */
-      const shown = await p.waitForFunction((id) => [...document.querySelectorAll(`aside.live-pane .msg[data-msg-id="${id}"], .topic-pane .msg[data-msg-id="${id}"]`)].some((el) => el.getBoundingClientRect().height > 0),
-        { timeout: 15000, polling: 100 }, LOBBY_REPLY).then(() => true).catch(() => false)
-      await new Promise((r) => setTimeout(r, 1000))
+      /* the open path is the Flow list's own; this pins that the thread opens
+         and stays. No fixed sleep: ?topic= and the reply in its thread must
+         hold together for STILL_FRAMES frames running, so a ?topic= dropped
+         after the first paint still fails (CLE-77882 red control) */
+      const held = await p.waitForFunction((id, t, need) => {
+        const now = new URLSearchParams(location.search).get('topic') === t && location.pathname.endsWith('/channel/lobby')
+          && [...document.querySelectorAll(`aside.live-pane .msg[data-msg-id="${id}"], .topic-pane .msg[data-msg-id="${id}"]`)].some((el) => el.getBoundingClientRect().height > 0)
+        window.__oipStill = now ? (window.__oipStill || 0) + 1 : 0
+        return window.__oipStill >= need
+      }, { timeout: 15000, polling: 'raf' }, LOBBY_REPLY, TOPIC, STILL_FRAMES).then(() => true).catch(() => false)
+      const shown = await p.$$eval(`aside.live-pane .msg[data-msg-id="${LOBBY_REPLY}"], .topic-pane .msg[data-msg-id="${LOBBY_REPLY}"]`, (els) => els.some((el) => el.getBoundingClientRect().height > 0))
       url = new URL(p.url())
-      ok(`${W} 12 Flow: #alerts then a #lobby reply - ?topic= kept, the reply shown in its thread`, url.searchParams.get('topic') === TOPIC && shown, { url: url.href, shown })
+      ok(`${W} 12 Flow: #alerts then a #lobby reply - ?topic= kept, the reply shown in its thread`, alertsOpen && alertsMarked && held && url.searchParams.get('topic') === TOPIC && shown, { url: url.href, shown, held, alertsOpen, alertsMarked })
     }
     await p.close()
   }

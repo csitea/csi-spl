@@ -71,8 +71,9 @@ n_rm=0 kb_rm=0 n_keep=0
   wt="$(readlink -f "$wt")"
   [[ "${wt%/*}" == "$wt_root" ]] || continue
   id="${wt##*/}"; why=""
-  # Skip .stale-* dirs that are not worktrees (no HEAD)
+  # Extract the <ID> from .stale-* dirs (remove the .stale-<UTC> suffix)
   if [[ "$id" == *.stale-* ]]; then
+    id="${id%%.stale-*}"
     br=""
   else
     br="$(g -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)" || br=""
@@ -81,11 +82,9 @@ n_rm=0 kb_rm=0 n_keep=0
   if [[ "$id" =~ $keep_re ]]; then why="role-seat"
   elif alive "$id"; then why="alive"
   elif grep -qxF -e "$wt" "$cwds" || grep -qF -e "$wt/" "$cwds"; then why="in-use"
-  elif [[ "$id" == *.stale-* ]]; then
-    # .stale-* dirs: only check age and in-use (no git checks)
-    if grep -qxF -e "$wt" "$cwds" || grep -qF -e "$wt/" "$cwds"; then why="in-use"
-    elif [[ -z "$(find "$wt" -name node_modules -prune -o -mtime +${age_h} -print -quit 2>/dev/null)" ]]; then why="recent"
-    fi
+  elif [[ "${wt##*/}" == *.stale-* ]]; then
+    # .stale-* dirs: only check age (no git checks)
+    if [[ -z "$(find "$wt" -name node_modules -prune -o -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"; fi
   else
     # Worktrees: all checks
     if [[ -n "$(g -C "$wt" status --porcelain 2>/dev/null)" ]]; then why="dirty"
@@ -99,7 +98,7 @@ n_rm=0 kb_rm=0 n_keep=0
   if [[ "$dry" == 1 ]]; then
     say "PLAN remove ${kb}KB $wt${br:+ branch $br}"
   else
-    if [[ "$id" == *.stale-* ]]; then
+    if [[ "${wt##*/}" == *.stale-* ]]; then
       # .stale-* dirs: remove with rm -rf (no git worktree remove)
       rm -rf "$wt"
       say "REMOVE ${kb}KB $wt"

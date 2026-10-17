@@ -34,6 +34,7 @@ var operatorCallers = map[string]string{
 	"ListBuckets":                "GET /v1/operator/fleet-tokens (spec 140 3.5) for the operator admin / service account, and the push's surge check: the instance's estate rows, no tenant_id",
 	"ListDays":                   "fleet token daily rollups (spec 140 3.6, rdb 0199): the instance's estate rows, no tenant_id; no route",
 	"PruneOldBuckets":            "fleet token rollup + 30/365-day retention (hub sweeper goroutine, spec 140 3.6), global by design; no route",
+	"RepriceUnpriced":            "spool fleet-tokens-reprice (SPL-2405, spec 140 T010): prices the instance's unpriced estate minutes (rdb 0199, no tenant_id) of named models once; operator action do_spl_token_burn_reprice only, no route",
 	"ListPaidItems":              "GET /v1/operator/fleet-tokens/paid and the effective-price read (SPL-2342, rdb 0205): the operator's paid items, the instance's estate rows (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
 	"CreatePaidItem":             "POST /v1/operator/fleet-tokens/paid (SPL-2342, rdb 0205): one estate row (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
 	"UpdatePaidItem":             "PATCH /v1/operator/fleet-tokens/paid/{id} (SPL-2342, rdb 0205): one estate row by id (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",

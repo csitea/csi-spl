@@ -53,20 +53,8 @@ func (s *Postgres) RecordSamples(ctx context.Context, box string, samples []wire
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		var pricer fleetTokenPricer
 		if len(providers) > 0 {
-			rows, err := tx.Query(ctx, fleetTokenPricesSQL, providers, models)
-			if err != nil {
-				return err
-			}
-			for rows.Next() {
-				var p fleetTokenPrice
-				if err := rows.Scan(&p.provider, &p.model, &p.kind, &p.micros, &p.currency, &p.from); err != nil {
-					rows.Close()
-					return err
-				}
-				pricer = append(pricer, p)
-			}
-			rows.Close()
-			if err := rows.Err(); err != nil {
+			var err error
+			if pricer, err = loadFleetTokenPricer(ctx, tx, providers, models); err != nil {
 				return err
 			}
 		}

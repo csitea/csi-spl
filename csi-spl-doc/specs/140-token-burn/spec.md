@@ -407,6 +407,15 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   `claude-haiku-4-5`, SPL-2323) are dropped for the lookup. The price row in
   force at the minute wins. mistral's model is vibe's alias
   (`mistral-large`), priced at Mistral's list price (cnf `model_prices`).
+- **Reprice** (SPL-2405): a minute stored while its model had no price row
+  stays `priced=false`, cost 0, until it is repriced once:
+  `ENV=<env> TOKEN_REPRICE_MODELS=<m1,m2> TOKEN_REPRICE_FROM=<YYYY-MM-DD> ./run -a do_spl_token_burn_reprice`
+  (csi-spl-orc; `DRY_RUN=1` by default, rolled back). It runs
+  `spool fleet-tokens-reprice`, the same pricer as the push, on the hub DB
+  as the env's service account: only metered unpriced rows of the named
+  stored models at or after the from are priced, in one transaction that
+  re-rolls the daily rows from that day; a priced row is never touched, and
+  a re-run prices 0 rows.
 - **Read route**: both doors of the fleet load route (the operator
   workspace's admin session, or the operator service account's Bearer id
   token). Burn rates are the mean of the last 5 full minutes; the answer adds
@@ -644,4 +653,4 @@ The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3
 
 ---
 
-<!-- version: 0.2.2 · updated: 2026-10-17 · last-edit: 2026-10-17T07:10:00Z -->
+<!-- version: 0.2.3 · updated: 2026-10-17 · last-edit: 2026-10-17T14:40:00Z -->

@@ -662,6 +662,17 @@ spl_rotate_idle() {
   [[ "$a" == "$b" ]]
 }
 
+# spl_rotate_human_hold ID [NOW]: "human hold for N min" while
+# <spool root>/<ID>/.human-hold (do_spl_wd_hold) holds an epoch after NOW
+# (default: now), nothing otherwise; an expired or garbage hold is no hold.
+# The GC and lane rotation read it here (SPL-2431).
+spl_rotate_human_hold() {
+  local h now="${2:-$(date +%s)}"
+  h="$(cat "$SPOOL_ROOT/$1/.human-hold" 2>/dev/null || true)"
+  if [[ "$h" =~ ^[0-9]+$ ]] && (( h > now )); then echo "human hold for $(( (h - now + 59) / 60 )) min"; fi
+  return 0
+}
+
 # spl_rotate_stalled PANE: the CLE-77935 footer text when the pane is stalled
 # (usage limit, login, trust screen ...), nothing otherwise (FR-009).
 spl_rotate_stalled() {

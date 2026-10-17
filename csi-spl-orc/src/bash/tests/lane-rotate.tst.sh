@@ -29,6 +29,8 @@
 #  12. the manifest row and its executable cron script
 #  14. a lane whose /exit opens the background-work picker: Enter on "Exit and
 #      stop tasks", gone without SIGTERM
+#  18. a human hold (.human-hold, future epoch) = no rotation, nothing
+#      stopped (tick and worker); an expired or garbage hold = rotated
 #  15. the new session's FIRST prompt carries the ACK-COMMAND (n=4 rotations
 #      on 2026-10-11 never opened the seed it pointed to): the fake agent acks
 #      from its first prompt only; spawn-core renders SPAWN_PROMPT_HEAD_FILE on
@@ -362,6 +364,24 @@ check "17. ROTATE_CMD=one DRY_RUN=1: log says DRY_RUN" 'grep -q "DRY_RUN=1: no r
 reset; lane c-972 50
 DRY_RUN=0 ROTATE_CMD=one ID=c-972 "$T/bin/act" >"$T/dry.out" 2>&1
 check "17. control: ROTATE_CMD=one DRY_RUN=0: rotated" 'grep -q "lane-c-972 DONE OK" "$D/rotate.log"'
+# --- 18. a human hold (.human-hold, a future epoch): hands off (SPL-2431) -------
+# a-424 was rotated mid-turn under a 1-year hold on 2026-10-17 19:20Z
+reset; lane c-981 58; echo $(( $(date +%s) + 3600 )) >"$S/c-981/.human-hold"
+tick
+check "18. future hold, past its deadline: 0 spawns, 0 stops, 0 keys" '[ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
+check "18. future hold: one SKIP line naming the hold" 'grep -q "c-981 SKIP human hold for 60 min" "$T/tick.out"'
+DRY_RUN=0 ROTATE_CMD=one ID=c-981 "$T/bin/act" >"$T/one.out" 2>&1
+check "18. future hold: the worker (ROTATE_CMD=one) stops nothing either" '[ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/spawn.log")" = 0 ] && grep -q "GATE SKIP human hold" "$D/rotate.log"'
+check "18. the hold file is left as it was" '[ -s "$S/c-981/.human-hold" ]'
+reset; lane c-982 50; echo $(( $(date +%s) - 60 )) >"$S/c-982/.human-hold"
+tick
+check "18. expired hold: rotated as today" 'grep -q "lane-c-982 DONE OK" "$D/rotate.log"'
+reset; lane c-983 50; echo "soon" >"$S/c-983/.human-hold"
+tick
+check "18. garbage hold: rotated as today" 'grep -q "lane-c-983 DONE OK" "$D/rotate.log"'
+reset; lane c-984 50
+tick
+check "18. control: no hold, rotated" 'grep -q "lane-c-984 DONE OK" "$D/rotate.log" && ! grep -q "c-984 SKIP human" "$T/tick.out"'
 P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"; printf 'HEAD15 run it before anything else\nACK-COMMAND: x' >"$T/head15.md"
 ( unset SPOOL_BOX_ENV; SPOOL_ROOT="$T/spool15" SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$P15" SPOOL_BIN=/opt/x/spool \
   SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD_FILE="$T/head15.md" \

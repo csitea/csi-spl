@@ -30,7 +30,9 @@
 # @description     each in its own worker, each seat stopped and restored on
 # @description     its own; a seat rotated < 1 h ago (or failed < RETRY ago)
 # @description     is never stopped again; a lane whose work was ACCEPTED is
-# @description     left to the orchestrator to close;
+# @description     left to the orchestrator to close; a seat under a human
+# @description     hold (<spool root>/<id>/.human-hold, do_spl_wd_hold, an
+# @description     epoch in the future) is never touched (SPL-2431);
 # @description   a claude seat starts only while the claude login probe (the
 # @description     one do_spl_agent_login_check runs) says ok; else no rotation
 # @description     and ONE note to the dispatch lease holder;
@@ -137,6 +139,9 @@ spl_lane_rotate_tick() {
 spl_lane_rotate_consider() {
   local id="$1" kind="$2" pid="$3" age="$4" pane="$5" n="$6" why forced=0 at
   [[ "$LR_ROLES" == *" $id "* || "$LR_INFLIGHT" == *" $id "* ]] && return 0
+  # a human hold (do_spl_wd_hold): hands off, before any quiesce or kill (SPL-2431)
+  why="$(spl_rotate_human_hold "$id")"
+  [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "SKIP $why"; return 0; }
   if spl_lane_rotate_ctx_open "$id"; then
     (( LR_SLOTS > 0 )) || { spl_lane_rotate_say "$id" "DEFER resume: cap $ROTATE_LANE_CAP"; return 0; }
     spl_lane_rotate_start "$id" "$kind" "$pid" 0 "resume a rotation left mid-way"; return 0
@@ -429,6 +434,7 @@ spl_lane_rotate_one() {
   rid="$(date -u +%Y%m%dT%H%MZ)-lane-$id"
   spl_agent_id_lock "$id" do_spl_lane_rotate "$rid" || idl=$?
   (( idl == 0 )) || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return 0; }
+  [[ -z "$(spl_rotate_human_hold "$id")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_rotate_human_hold "$id")"; return 0; }
   if spl_rotate_ctx_load lane && [[ -n "$ROTATE_PHASE" && ! "$ROTATE_PHASE" =~ ^(DONE|FAIL|ABORT)$ ]]; then
     spl_lane_rotate_resume "$id"; return 0
   fi

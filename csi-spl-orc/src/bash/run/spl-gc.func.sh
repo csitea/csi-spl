@@ -230,12 +230,7 @@ spl_gc_poked_line() {
 }
 
 # A human hold on <id>, or nothing.
-spl_gc_human() {
-  local h
-  h="$(cat "$SPOOL_ROOT/$1/.human-hold" 2>/dev/null || true)"
-  if [[ "$h" =~ ^[0-9]+$ ]] && (( h > GC_NOW )); then echo "human hold for $(( (h - GC_NOW + 59) / 60 )) min"; fi
-  return 0
-}
+spl_gc_human() { spl_rotate_human_hold "$1" "$GC_NOW"; }
 
 # ---- one agent ---------------------------------------------------------------
 

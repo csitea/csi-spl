@@ -147,6 +147,7 @@ it cannot act during the overlap.
      flight or a stray is running, so the orchestrator gets a note;
   5. the FR-008 age;
   6. not stalled (FR-009).
+- **FR-010a** Lane rotation (`do_spl_lane_rotate`; its other skips are in its header) never touches a seat under a human hold, `<id>/.human-hold` holding an epoch in the future (`do_spl_wd_hold`): `SKIP human hold for N min` in the tick and `GATE SKIP` in the worker, before any quiesce or kill; an expired or garbage hold is no hold (SPL-2431).
 - **FR-011** QUIESCE (owner D1: a busy session is rotated anyway):
   - wait up to `ROTATE_IDLE_GRACE` (60 s) for an idle pane;
   - still busy: send `Escape` to the old pane, which interrupts the current

@@ -88,9 +88,12 @@ func (r *blockerRig) sweep(d time.Duration) hub.BlockerSweepResult {
 	return r.e.srv.SweepBlockerIssues(context.Background(), time.Hour)
 }
 
-// blockerIssues is the tenant's issues labelled blocker.
+// blockerIssues is the tenant's issues labelled blocker, archived ones too:
+// a blocker epic closes and archives itself with its issues when its last
+// open one closes (SPL-1729), so the hub's epics are unarchived first.
 func (r *blockerRig) blockerIssues(t *testing.T, tid string) []store.Issue {
 	t.Helper()
+	r.unarchiveBlockerEpics(t, tid)
 	all, err := r.e.st.(store.Issues).ListIssues(context.Background(), tid)
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +107,40 @@ func (r *blockerRig) blockerIssues(t *testing.T, tid string) []store.Issue {
 		}
 	}
 	return out
+}
+
+// unarchiveBlockerEpics restores every blocker epic the hub made in tid,
+// with its issues; their statuses stay.
+func (r *blockerRig) unarchiveBlockerEpics(t *testing.T, tid string) {
+	t.Helper()
+	ctx := context.Background()
+	for prev := 0; ; {
+		ref, err := r.e.st.(store.BlockerIssues).IssueByTask(ctx, tid, hub.BlockerEpicTask(tid, prev))
+		if err != nil {
+			return
+		}
+		if ref.Status == "" {
+			r.e.st.(store.Issues).UnarchiveIssue(ctx, tid, ref.Number, "test", time.Now(), true) //nolint:errcheck
+		}
+		prev = ref.Number
+	}
+}
+
+// resolvedBy is who set issue number done, from its history: the row's
+// updated_by is the unarchive's once blockerIssues restored it.
+func (r *blockerRig) resolvedBy(t *testing.T, number int) string {
+	t.Helper()
+	evs, err := r.e.st.(store.IssueHistories).IssueHistory(context.Background(), r.tid, number)
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := ""
+	for _, e := range evs {
+		if e.Event == store.IssueEventChanged && e.Field == "status" && e.New != nil && *e.New == store.IssueDone {
+			by = e.Actor
+		}
+	}
+	return by
 }
 
 func (r *blockerRig) kindOf(t *testing.T, msgID string) string {
@@ -222,7 +259,7 @@ func TestBlockerLateAnswerResolvesIssueAndClearsMark(t *testing.T) {
 		t.Fatalf("late answer: resolved %d, want 1", got.Resolved)
 	}
 	is := r.blockerIssues(t, r.tid)
-	if len(is) != 1 || is[0].Status != store.IssueDone || is[0].UpdatedBy != r.target {
+	if len(is) != 1 || is[0].Status != store.IssueDone || r.resolvedBy(t, is[0].Number) != r.target {
 		t.Fatalf("issue after the late answer: %+v", is)
 	}
 	// The answer is the resolving comment, on the issue's topic.

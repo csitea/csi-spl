@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,8 @@ import (
 //     label blocker, reporter = the blocker's author, its body linking back to
 //     the message. Its topic id is BlockerIssueTask, so issues' UNIQUE
 //     (tenant_id, task_id) refuses a second one.
+//   - Every such issue goes under the workspace's blocker epic (SPL-2409,
+//     blocker_issue_epic.go): owner rule "no issue without an epic".
 //   - The assignee answers after that: the issue resolves (done) and the
 //     answer is quoted as its resolving comment.
 //   - Resolving the issue clears the blocker mark on the message (kind back to
@@ -210,8 +213,14 @@ func (s *Server) blockerIssueOn(ctx context.Context, tenant, actor string, p sto
 	status, labels := store.IssueTodo, []string{store.BlockerIssueLabel}
 	// SPL-1593: the issue links the topic the blocker was posted in
 	ds := []string{p.TaskID}
+	// SPL-2409: and goes under the workspace's blocker epic
+	n, ie := s.blockerEpic(ctx, tenant, actor, p.TaskID)
+	if ie != nil {
+		return store.Issue{}, ie
+	}
+	epic := strconv.Itoa(n)
 	return s.createIssueOn(ctx, tenant, actor, task, issueRequest{Title: &title, Description: &desc,
-		Status: &status, Assignee: &a, Labels: &labels, Discussions: &ds, trusted: true})
+		Status: &status, Assignee: &a, Labels: &labels, Epic: &epic, Discussions: &ds, trusted: true})
 }
 
 // workspaceOwner: a is a member HUM-n whose role is the workspace owner's.

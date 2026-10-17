@@ -201,9 +201,14 @@ describe('spec 067 Q3 + rule 3: no poke DM to a person; an agent poke carries re
 
 // SPL-2419: the mock twin of the hub's automatic line for a mentioned person
 // outside a members-only channel (internal/hub/mention_non_member.go).
+// SPL-2426: it names each person by name, never by id.
 describe('mockNoteNonMembers (SPL-2419)', async () => {
   const { mockNoteNonMembers } = await import('../../src/utils/spool-client-mock.mjs')
-  const state = () => ({ me: { id: 'HUM-1' }, memberships: { 'ops': ['HUM-1', 'HUM-3'] }, messages: [] })
+  const humans = [
+    { human_id: 'HUM-2', display_name: 'FirstName LastName' }, // a name on file
+    { human_id: 'HUM-5', email: 'nameless@example.com' }, // only the sign-in address
+  ]
+  const state = () => ({ me: { id: 'HUM-1' }, memberships: { 'ops': ['HUM-1', 'HUM-3'] }, humans, messages: [] })
   const row = (channel, body) => ({ msg_id: 'm1', task_id: 't1', ts: 'x', channel, body })
 
   it('names each person outside the channel once, in one HUB-0 line in the topic', () => {
@@ -212,11 +217,15 @@ describe('mockNoteNonMembers (SPL-2419)', async () => {
     assert.equal(note.from, 'HUB-0')
     assert.equal(note.task_id, 't1')
     assert.equal(note.is_parent, 0)
-    assert.equal(note.body, '@HUM-2, @GST-4 do not belong to this channel and cannot see these messages.')
+    assert.equal(note.body, 'FirstName LastName and a person with no name on file do not belong to this channel and cannot see these messages.')
     assert.deepEqual(s.messages, [note])
   })
   it('one person reads singular', () => {
-    assert.equal(mockNoteNonMembers(state(), row('ops', 'hi @HUM-2')).body, '@HUM-2 does not belong to this channel and cannot see these messages.')
+    assert.equal(mockNoteNonMembers(state(), row('ops', 'hi @HUM-2')).body, 'FirstName LastName does not belong to this channel and cannot see these messages.')
+  })
+  it('no name on file: the name they sign in with; three read "A, B and C"', () => {
+    assert.equal(mockNoteNonMembers(state(), row('ops', '@HUM-5 @HUM-2 @HUM-9')).body,
+      'nameless, FirstName LastName and a person with no name on file do not belong to this channel and cannot see these messages.')
   })
   it('no line for members, agents, a default channel or a DM', () => {
     for (const [ch, body] of [['ops', '@HUM-3 @HUM-1 @CLE-7'], ['lobby', '@HUM-2'], [null, '@HUM-2']]) {

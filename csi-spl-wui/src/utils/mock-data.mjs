@@ -26,11 +26,12 @@ export const MOCK_ROSTER = {
 export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'CLE-11@box-desk', 'HUM-1@box-wui']
 
 /* CLE-77794: the People section's per-member detail (view-v1 §4.1 humans[]):
-   owner flag, free-text interests and last_seen. No display_name here (the card
-   draws the id via HumanName) and no personal names (dist hygiene). */
+   owner flag, free-text interests and last_seen. No personal names (dist
+   hygiene): HUM-2's display_name is the placeholder, which the hub-note twin
+   (mockNoteNonMembers, SPL-2426) shows instead of the id. */
 export const MOCK_HUMANS = [
   { human_id: 'HUM-1', owner: true, interests: 'Go, Postgres, mountain biking', last_seen: T0 },
-  { human_id: 'HUM-2', interests: 'Type systems, tea gardens' },
+  { human_id: 'HUM-2', display_name: 'FirstName LastName', interests: 'Type systems, tea gardens' },
   { human_id: 'HUM-12' },
   { human_id: 'HUM-3', interests: 'Distributed systems, trail running' },
 ]

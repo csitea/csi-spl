@@ -25,6 +25,7 @@ const UNSEATED = 'CLE-99'
 const TOAST = '[data-testid=mention-direct-toast-text]'
 const ME = 'HUM-1' /* the mock viewer, the new channel's only member */
 const OUTSIDER = 'HUM-2' /* a tenant member outside the new channel */
+const OUTSIDER_NAME = 'FirstName LastName' /* HUM-2's display_name (mock-data.mjs MOCK_HUMANS) */
 const NOT_IN = 'does not belong to this channel and cannot see these messages'
 
 const results = []
@@ -124,6 +125,10 @@ try {
   const shownLine = Boolean(outsider) && await openTopic(page, outsider) &&
     Boolean(await page.waitForFunction((t) => document.body.innerText.includes(t), { timeout: 10000 }, NOT_IN).catch(() => null))
   ok(`the topic shows "${NOT_IN}" for ${OUTSIDER}`, shownLine)
+  /* SPL-2426 (owner msg a3fe13e3): the line names the person, not the id */
+  const lineText = shownLine ? await page.evaluate((t) => [...document.querySelectorAll('body *')]
+    .filter((e) => e.children.length === 0 && (e.textContent || '').includes(t)).map((e) => e.textContent || '').join(' | '), NOT_IN) : ''
+  ok(`the line names ${OUTSIDER} as "${OUTSIDER_NAME}", never by id`, lineText.includes(OUTSIDER_NAME) && !lineText.includes(OUTSIDER), { lineText })
   const memberTopic = Boolean(member) && await openTopic(page, member)
   await sleep(1200)
   const memberText = await page.evaluate(() => document.body.innerText)

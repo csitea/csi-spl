@@ -45,7 +45,8 @@ func waitNotes(t *testing.T, r privacyRig, task string, want int) [][]byte {
 
 // SPL-2419 (owner t1 170c444e): an @mention of a person who is not in the
 // channel gets one automatic hub note in the same topic; a member, a default
-// channel and a resend get none.
+// channel and a resend get none. SPL-2426 (msg a3fe13e3): the note names each
+// person by the name on file, else the name they sign in with, never the id.
 func TestMentionNonMemberNote(t *testing.T) {
 	_, key, _ := ed25519.GenerateKey(nil) // the hub signs its notes as box-wui
 	e := followEnv(t, func(o *hub.Options) { o.WUIKey = key })
@@ -58,6 +59,25 @@ func TestMentionNonMemberNote(t *testing.T) {
 	}
 	if err := e.st.AddChannelHumans(ctx, tid, "live-proof", []string{"HUM-1"}, "HUM-1", now); err != nil {
 		t.Fatal(err)
+	}
+	admit := func(sub, email, name string) string {
+		t.Helper()
+		h := e.st.(store.Humans)
+		if err := h.PutInvite(ctx, store.Invite{TenantID: tid, Email: email, Role: store.RoleDefault,
+			InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+			t.Fatal(err)
+		}
+		id, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: sub, Email: email, Name: name}, tid, store.AdmitPolicy{}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	admit("author-sub", "author@example.com", "")                          // a fresh store's HUM-1, the sender
+	named := admit("named-sub", "named@example.com", "FirstName LastName") // a name on file
+	nameless := admit("nameless-sub", "nameless@example.com", "")          // only a sign-in address
+	if named == "HUM-1" || nameless == "HUM-1" {
+		t.Fatalf("an outsider is the sender HUM-1: %s %s", named, nameless)
 	}
 	r := privacyRig{e: e, tid: tid, priv: uuidV4()}
 	putRow(t, e, tid, r.priv, "live-proof", "HUM-1", "CLE-07", "the private channel post", now)
@@ -78,11 +98,11 @@ func TestMentionNonMemberNote(t *testing.T) {
 	// next frame is read, so once the LAST send's note is stored every
 	// earlier send has had its chance: the "none" cases cannot pass by racing.
 	id := uuidV4()
-	two := "@HUM-2 and @HUM-3, see this; @HUM-1 too; again @HUM-2"
+	two := "@" + named + " and @" + nameless + ", see this; @HUM-1 too; again @" + named
 	send(r.priv, "live-proof", uuidV4(), "note to self @HUM-1") // CONTROL: a member: none
 	send(r.priv, "live-proof", id, two)                         // two outsiders: one note
 	send(r.priv, "live-proof", id, two)                         // a resend: none
-	send(lobby, "", uuidV4(), "@HUM-2 in the lobby")            // a default channel: none
+	send(lobby, "", uuidV4(), "@"+named+" in the lobby")        // a default channel: none
 	send(r.priv, "live-proof", uuidV4(), "and @GST-4")          // the last: one note
 	notes := waitNotes(t, r, r.priv, 2)
 	if len(notes) != 2 {
@@ -90,11 +110,16 @@ func TestMentionNonMemberNote(t *testing.T) {
 	}
 	all := bytes.Join(notes, []byte("\n"))
 	for _, want := range []string{ // any order: the notes share one second
-		`"body":"@HUM-2, @HUM-3 do not belong to this channel and cannot see these messages."`,
-		`"body":"@GST-4 does not belong to this channel and cannot see these messages."`,
+		`"body":"FirstName LastName and nameless do not belong to this channel and cannot see these messages."`,
+		`"body":"a person with no name on file does not belong to this channel and cannot see these messages."`,
 	} {
 		if !bytes.Contains(all, []byte(want)) {
 			t.Errorf("no note with %s in %s", want, all)
+		}
+	}
+	for _, id := range []string{named, nameless, "GST-4"} { // never the bare id
+		if bytes.Contains(all, []byte(id)) {
+			t.Errorf("a note names %s by id: %s", id, all)
 		}
 	}
 	if n := hubNotes(t, r, lobby); len(n) != 0 {

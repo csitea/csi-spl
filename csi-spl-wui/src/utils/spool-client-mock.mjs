@@ -121,11 +121,31 @@ export function mockSendMessage(state, p, uuid) {
 /** A person's seat id (store.IsFlowMember): only people can be outside a channel's read door. */
 const PERSON_RE = /^(HUM|GST)-[0-9]+$/
 
+/** The hub's unnamedPerson: a person with no name and no sign-in address on file. */
+const UNNAMED_PERSON = 'a person with no name on file'
+
+/**
+ * SPL-2426, the hub's mentionNames over the mock's humans: the display name,
+ * else the part before @ of the sign-in address, else UNNAMED_PERSON; never
+ * the bare id.
+ */
+export function mockPersonName(state, id) {
+  const h = (state.humans || []).find((x) => x.human_id === id) || {}
+  const name = String(h.display_name || '').trim() || String(h.email || '').trim().split('@')[0]
+  return name || UNNAMED_PERSON
+}
+
+/** The hub's mentionNonMemberBody: "A", "A and B", "A, B and C". */
+function namesList(names) {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('')
+}
+
 /**
  * SPL-2419, the mock twin of the hub's noteMentionNonMembers
  * (internal/hub/mention_non_member.go): after a post in a members-only
  * channel that @mentions people who are not members, one automatic HUB-0
- * line in the same topic names them. The words are the hub's, verbatim.
+ * line in the same topic names them, by name (SPL-2426). The words are the
+ * hub's, verbatim.
  */
 export function mockNoteNonMembers(state, row) {
   const channel = normalizeChannelId(row.channel)
@@ -137,7 +157,7 @@ export function mockNoteNonMembers(state, row) {
   const note = {
     v: 1, msg_id: `${row.msg_id}-non-member`, task_id: row.task_id, ts: row.ts, from: 'HUB-0', from_box: 'box-wui',
     to: 'ALL-0', to_box: 'box-wui', kind: 'note', files: [], channel: row.channel, parent_task_id: null, is_parent: 0,
-    body: `@${ids.join(', @')} ${verb} to this channel and cannot see these messages.`,
+    body: `${namesList(ids.map((id) => mockPersonName(state, id)))} ${verb} to this channel and cannot see these messages.`,
   }
   state.messages.push(note)
   return note

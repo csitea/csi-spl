@@ -78,8 +78,10 @@ prd t1 `#spool-hub-devel`, topic `3aba968b-b791-4cf3-a398-80d15bcc4962`, 2026-09
   pokes a person, so nothing told the author. The **hub** now posts one automatic line
   right after the stored post, in the same topic: from `HUB-0`, kind note, no agent and
   no AI, naming every such person once:
-  `@HUM-2, @GST-4 do not belong to this channel and cannot see these messages.`
-  (`does not belong` for one). Its msg_id is seeded by the post's, so a resend adds none.
+  `FirstName LastName and nameless do not belong to this channel and cannot see these messages.`
+  (`does not belong` for one; three read `A, B and C`). Each person is named by name,
+  never by id (SPL-2426, msg a3fe13e3): the display name on file, else the part before
+  `@` of the sign-in address, else `a person with no name on file`. Its msg_id is seeded by the post's, so a resend adds none.
   No line for members, the author, agents, a default channel or a DM. Browser sends
   only (`wuiSend`); an edit adds none. Code `internal/hub/mention_non_member.go`, tests
   `mention_non_member_test.go`; the mock twin is `mockNoteNonMembers`

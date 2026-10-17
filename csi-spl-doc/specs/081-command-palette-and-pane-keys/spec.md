@@ -53,7 +53,7 @@ Owner go: ea6330ff (starters #3 command palette and #4 keyboard-first navigation
 | Docs | the docs tree (075's source, not a second index) |
 | Settings | the 7 settings pages |
 
-`Enter` goes there; `↑/↓` move; `Esc` closes and restores focus. Ranking: exact prefix, then word prefix, then substring, then recency of use (browser, `spool.palette-recent`, last 20). Empty input shows the recent items.
+`Enter` goes there; `↑/↓` move; `Esc` closes and restores focus. Every close but a go-to (`Esc`, `Ctrl+K`, a backdrop click, an action) gives the focus back to the element that had it on open; when that element has left the page, or nothing had the focus, it goes to the middle pane (SPL-2142, an outside UI review, owner t1 1061f05f). Ranking: exact prefix, then word prefix, then substring, then recency of use (browser, `spool.palette-recent`, last 20). Empty input shows the recent items.
 
 A leading `>` switches to **actions**: the actions of the message menu that the current selection allows (same list and gating as `msgMenuItems`), plus *New topic here*, *Mark all read here*, *Change theme*. Each action row shows its shortcut, so the palette teaches the keys. The palette never sends a message: `/` stays the place to compose and search (g-248's condition).
 
@@ -104,6 +104,7 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 |---|---|---|
 | **AC1** | e2e, mock, 1440: on `/lobby`, `Ctrl+K`, type `fee`, `Enter` -> URL `/channel/feedback`, palette closed, focus in the middle pane | FR-001, FR-002 |
 | **AC2** | e2e: focus the composer, type `abc`, `Ctrl+K` -> palette opens; `Esc` -> focus back in the composer with `abc` intact | FR-001, FR-005 |
+| **AC2b** | e2e (SPL-2142): composer focused, `Ctrl+K`, a backdrop click -> focus back in the composer; an opener removed while open, `Esc` -> focus in `.spool-main`; opened with nothing focused, `Ctrl+K` again -> focus in `.spool-main` | FR-001 |
 | **AC3** | unit (`palette`): for items `feedback`, `fee-review`, `coffee` and query `fee` -> order `feedback`, `fee-review`, `coffee`; a recent item outranks an equal match | FR-003 |
 | **AC4** | e2e: select a topic card, `Ctrl+K`, type `>arch` -> an *Archive* row with `⇧A`; `Enter` archives it (undo toast shows) | FR-004 |
 | **AC5** | e2e: from load, `Tab` -> the skip link; `Enter` -> focus in the middle pane; total key presses to the first card ≤ 3 | FR-007 |

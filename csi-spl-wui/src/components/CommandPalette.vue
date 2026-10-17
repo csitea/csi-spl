@@ -10,7 +10,12 @@
      a message (FR-005).
      081 T005 (FR-004): a leading '>' lists the actions instead
      (usePaletteActions): the selected card's menu items, each with its Shift
-     key, then the page's own; Enter runs the item's own handler. -->
+     key, then the page's own; Enter runs the item's own handler.
+     SPL-2142: closed without a go-to (Esc, Ctrl + K, a backdrop click, an
+     action), the focus goes back to the element that had it on open; gone
+     from the page, or none, it goes to the middle pane. UiDialog gives it
+     back on Esc; this also covers the backdrop click, whose mousedown moves
+     the focus to the body after the dialog closed. -->
 <template>
   <UiDialog v-model:open="open" :title="t('palette.title')" size="md">
     <div class="palette" data-testid="command-palette">
@@ -86,6 +91,10 @@ const optionId = (i: number) => `${listId}-opt-${i}`
 
 /* the card the actions act on, read before the dialog takes the focus */
 const card = paletteCard()
+/* SPL-2142: where the focus was on open, read before the dialog takes it */
+const opener = document.activeElement as HTMLElement | null
+/* a go-to places its own focus: the page it opened, Settings, a left-pane list */
+let placedByGo = false
 const paletteActions = usePaletteActions()
 const actions = computed(() => paletteActions.actions(card))
 
@@ -137,6 +146,7 @@ function focusMiddle() {
 
 async function run(row: PaletteRow) {
   if (isAction(row)) return runAction(row)
+  placedByGo = true
   /* go() starts the navigation before closing unmounts this dialog */
   const going = palette.go(row)
   open.value = false
@@ -146,6 +156,20 @@ async function run(row: PaletteRow) {
   await nextTick()
   focusMiddle()
 }
+
+/** Closed and the focus fell to the body: back to the opener, else the middle pane. */
+function restoreFocus() {
+  const now = document.activeElement
+  if (now && now !== document.body) return
+  if (opener && opener !== document.body && opener.isConnected) {
+    opener.focus({ preventScroll: true })
+    if (document.activeElement === opener) return
+  }
+  focusMiddle()
+}
+
+/* after the closing event's own default action (a backdrop mousedown blurs) */
+onUnmounted(() => { if (!placedByGo) window.setTimeout(restoreFocus, 0) })
 
 /** An action runs once the dialog is gone and the focus is back where it was. */
 async function runAction(row: PaletteActionItem) {

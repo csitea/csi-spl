@@ -8,6 +8,9 @@
 //        Esc -> the focus is back in the composer, "abc" intact
 //   -    Ctrl + K is the page's key (defaultPrevented), and with the palette
 //        open it closes it
+//   -    SPL-2142: closed by a backdrop click, the focus is back in the
+//        composer; opened from an element that has left the page, or from
+//        nothing, Esc / Ctrl + K leave it in the middle pane
 //   -    on a phone (390 px) Ctrl + K opens nothing
 //   -    over Settings (a routed dialog, /settings) Ctrl + K opens the
 //        palette and is the page's key; Esc leaves Settings open and the page
@@ -159,6 +162,30 @@ try {
   await until(p, shown, PALETTE, 4000)
   await ctrlK(p)
   ok('Ctrl + K with the palette open closes it', await until(p, gone, PALETTE, 4000))
+  ok('... and, opened with nothing focused, it leaves the focus in the middle pane', await until(p, () => Boolean(document.activeElement?.closest?.('.spool-main')), null, 3000),
+    await p.evaluate(() => document.activeElement?.tagName))
+
+  /* ---- SPL-2142: the focus goes back to where it was, however the palette closes ---- */
+  await p.focus(COMPOSER)
+  await ctrlK(p)
+  await until(p, shown, PALETTE, 4000)
+  ok('the backdrop is what a click at the page corner hits', await p.evaluate(() => Boolean(document.elementFromPoint(10, 10)?.matches?.('[data-testid=ui-dialog-backdrop]'))))
+  await p.mouse.click(10, 10)
+  ok('a backdrop click closes the palette', await until(p, gone, PALETTE, 4000))
+  ok('... and gives the focus back to the composer', await until(p, (s) => document.activeElement?.matches?.(s), COMPOSER, 3000),
+    await p.evaluate(() => document.activeElement?.tagName))
+  await p.evaluate(() => {
+    const b = document.createElement('button')
+    b.id = 'spl-2142-opener'
+    document.querySelector('.spool-main')?.appendChild(b)
+    b.focus()
+  })
+  await ctrlK(p)
+  await until(p, shown, PALETTE, 4000)
+  await p.evaluate(() => document.getElementById('spl-2142-opener')?.remove())
+  await p.keyboard.press('Escape')
+  ok('an opener gone from the page: Esc puts the focus in the middle pane', await until(p, () => Boolean(document.activeElement?.closest?.('.spool-main')), null, 3000),
+    await p.evaluate(() => document.activeElement?.tagName))
 
   /* ---- over Settings: a routed dialog is a page, the palette opens over it ---- */
   const SETTINGS = '.ui-dialog.routed'

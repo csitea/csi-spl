@@ -82,7 +82,8 @@ EOF
 chmod +x "$TEST_DIR/bin/dpkg-query"
 
 # Source the function
-source "/opt/csi/csi-spl-wt/m-266/csi-spl-iac/src/bash/run/box-pkg-flag.func.sh" || {
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/run/box-pkg-flag.func.sh" || {
     echo "ERROR: Failed to source box-pkg-flag.func.sh"
     exit 1
 }

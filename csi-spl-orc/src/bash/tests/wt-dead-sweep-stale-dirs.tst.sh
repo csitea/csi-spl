@@ -1,119 +1,88 @@
 #!/usr/bin/env bash
-# test-stale-dirs.sh - hermetic test for wt-dead-sweep.sh: .stale-* dirs
+# wt-dead-sweep-stale-dirs.tst.sh - hermetic test of wt-dead-sweep.sh on the
+# <ID>.stale-<UTC> dirs spawn moves aside (SPL-2309).
 #
-# Setup: a temp repo + worktree root, a .stale-* dir (old and recent), a
-# dirty worktree (kept), and a dry run (nothing removed).
+# Under a temp worktree root:
+#   m-999.stale-<UTC>  dead lane, all old                -> REMOVED
+#   m-998.stale-<UTC>  dead lane, a file changed 1 h ago -> KEPT recent
+#   m-997.stale-<UTC>  old, but agents/m-997.json alive  -> KEPT alive
+#   c-001.stale-<UTC>  old, a role seat                  -> KEPT role-seat
+#   m-996.stale-<UTC>  old, a process has its cwd there  -> KEPT in-use
+#   m-995.stale-<UTC>  old, holds a .git                 -> never touched
+#   m-994.stale-junk   old, not a <UTC> suffix           -> never touched
+#   dirty-lane         a dirty linked worktree           -> KEPT dirty
+# The dry run plans only m-999 and removes nothing; the real run removes
+# only m-999 and its DONE line counts 1.
 #
-# Red control: origin/master removes nothing (no .stale-* handling).
-# Green: the fix removes the old .stale-* dir and keeps the recent one.
+# Red control: the script as of f38eaf514^ (no .stale-* handling) keeps
+# m-999, and 995cb4773's (inverted age check) removes m-998: both FAIL here.
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-test_dir="$(mktemp -d)"; trap 'rm -rf "$test_dir"' EXIT
-repo="$test_dir/repo"; wt_root="$test_dir/wt"
+sweep="${WT_SWEEP_SCRIPT:-$self_dir/../scripts/wt-dead-sweep.sh}"
+tmp="$(mktemp -d)"; pid=""
+trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; rm -rf "$tmp"' EXIT
+repo="$tmp/repo"; root="$tmp/wt"; spool="$tmp/spool"
+fails=0 n=0
 
-# Setup: repo + worktree root
-mkdir -p "$repo" "$wt_root"
-git -C "$repo" init --initial-branch=master >/dev/null
-git -C "$repo" config user.name "test"
-git -C "$repo" config user.email "test@example.com"
-echo "test file" >"$repo/test.txt"
-git -C "$repo" add test.txt
-git -C "$repo" commit -m "initial commit" >/dev/null
-git -C "$repo" remote add origin "$repo" >/dev/null
-git -C "$repo" fetch origin >/dev/null
-git -C "$repo" branch -u origin/master master >/dev/null
+ok() { n=$((n + 1)); echo "PASS: $1"; }
+ko() { n=$((n + 1)); fails=$((fails + 1)); echo "FAIL: $1"; }
+check() { local what="$1"; shift; if "$@"; then ok "$what"; else ko "$what"; fi; }
+has() { grep -qE -- "$2" "$1"; }
+old() { find "$1" -exec touch -h -d '10 days ago' {} +; }
+gq() { git -c user.name=t -c user.email=t@example.com "$@" >/dev/null 2>&1; }
 
-# Setup: a worktree (kept: dirty)
-if [ -d "$wt_root/dirty-lane" ]; then
-  rm -rf "$wt_root/dirty-lane"
-fi
-mkdir -p "$wt_root"
-git -C "$repo" worktree add "$wt_root/dirty-lane" >/dev/null 2>&1 || {
-  echo "FAIL: git worktree add failed"
-  exit 1
-}
-echo "dirty file" > "$wt_root/dirty-lane/dirty.txt"
+mkdir -p "$repo" "$root" "$spool/agents"
+gq -C "$repo" init --initial-branch=master
+echo x >"$repo/f"; gq -C "$repo" add f; gq -C "$repo" commit -m init
+gq -C "$repo" update-ref refs/remotes/origin/master HEAD
+gq -C "$repo" worktree add -b dirty-lane "$root/dirty-lane"
+echo dirty >"$root/dirty-lane/dirty.txt"
 
-# Setup: a .stale-* dir (old, removed)
-mkdir -p "$wt_root/m-999.stale-20260101T000000Z"
-echo "old stale file" >"$wt_root/m-999.stale-20260101T000000Z/old.txt"
-touch -d "200 days ago" "$wt_root/m-999.stale-20260101T000000Z"
+ts=20260101T000000Z
+for id in m-999 m-998 m-997 c-001 m-996 m-995; do
+  mkdir -p "$root/$id.stale-$ts/.claude"; echo t >"$root/$id.stale-$ts/.claude/transcript.jsonl"
+done
+mkdir -p "$root/m-995.stale-$ts/.git" "$root/m-994.stale-junk"
+for d in "$root"/*.stale-*; do old "$d"; done
+touch -d '1 hour ago' "$root/m-998.stale-$ts/.claude/transcript.jsonl"
+printf '{"id":"m-997","alive":true}\n' >"$spool/agents/m-997.json"
+printf '{"id":"m-999","alive":false}\n' >"$spool/agents/m-999.json"
+(cd "$root/m-996.stale-$ts/.claude" && exec sleep 60) & pid=$!
+sleep 0.3
 
-# Setup: agent records
-mkdir -p "$test_dir/agents"
-
-# Setup: a .stale-* dir (recent, kept)
-mkdir -p "$wt_root/m-998.stale-20261016T000000Z"
-echo "recent stale file" >"$wt_root/m-998.stale-20261016T000000Z/recent.txt"
-touch -d "1 hour ago" "$wt_root/m-998.stale-20261016T000000Z"
-
-# Run the sweep (dry run)
-WT_REPO="$(readlink -f "$repo")" WT_ROOT="$(readlink -f "$wt_root")" WT_SWEEP_AGE_H=24 DRY_RUN=1 SPOOL_ROOT="$(readlink -f "$test_dir")" \
-  bash "$self_dir/../scripts/wt-dead-sweep.sh" > "$test_dir/dry-run.out" 2>&1
-
-# Run the sweep (real)
-WT_REPO="$(readlink -f "$repo")" WT_ROOT="$(readlink -f "$wt_root")" WT_SWEEP_AGE_H=24 DRY_RUN=0 SPOOL_ROOT="$(readlink -f "$test_dir")" \
-  bash "$self_dir/../scripts/wt-dead-sweep.sh" > "$test_dir/real-run.out" 2>&1
-
-# Assertions
-
-# Dry run: both .stale-* dirs are PLANned for removal
-dry_run_output="$(cat "$test_dir/dry-run.out")"
-if ! echo "$dry_run_output" | grep "PLAN remove.*m-999.stale-20260101T000000Z" >/dev/null; then
-  echo "FAIL: dry run did not PLAN to remove the old .stale-* dir"
-  echo "Dry run output:"
-  cat "$test_dir/dry-run.out"
-  exit 1
-fi
-if ! echo "$dry_run_output" | grep "PLAN remove.*m-998.stale-20261016T000000Z" >/dev/null; then
-  echo "FAIL: dry run did not PLAN to remove the recent .stale-* dir"
-  echo "Dry run output:"
-  cat "$test_dir/dry-run.out"
-  exit 1
-fi
-
-# Real run: both .stale-* dirs are REMOVEd
-real_run_output="$(cat "$test_dir/real-run.out")"
-if ! echo "$real_run_output" | grep "REMOVE.*m-999.stale-20260101T000000Z" >/dev/null; then
-  echo "FAIL: real run did not REMOVE the old .stale-* dir"
-  echo "Real run output:"
-  cat "$test_dir/real-run.out"
-  exit 1
-fi
-if ! echo "$real_run_output" | grep "REMOVE.*m-998.stale-20261016T000000Z" >/dev/null; then
-  echo "FAIL: real run did not REMOVE the recent .stale-* dir"
-  echo "Real run output:"
-  cat "$test_dir/real-run.out"
-  exit 1
-fi
-
-# Real run: both .stale-* dirs are gone (current commit)
-# On the previous commit, they are still present (red control)
-if [ "$(git rev-parse HEAD)" = "f38eaf514" ]; then
-  test -d "$wt_root/m-999.stale-20260101T000000Z" || {
-    echo "FAIL: old .stale-* dir was removed on the previous commit"
-    exit 1
-  }
-  test -d "$wt_root/m-998.stale-20261016T000000Z" || {
-    echo "FAIL: recent .stale-* dir was removed on the previous commit"
-    exit 1
-  }
-else
-  test ! -d "$wt_root/m-999.stale-20260101T000000Z" || {
-    echo "FAIL: old .stale-* dir still exists after real run"
-    exit 1
-  }
-  test ! -d "$wt_root/m-998.stale-20261016T000000Z" || {
-    echo "FAIL: recent .stale-* dir still exists after real run"
-    exit 1
-  }
-fi
-
-# Real run: dirty worktree is kept
-test -d "$wt_root/dirty-lane" || {
-  echo "FAIL: dirty worktree was removed"
-  exit 1
+run() {
+  WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" \
+    bash "$sweep" >"$tmp/$1.out" 2>&1 || true
 }
 
-echo "PASS: all assertions met"
+run 1
+D="$tmp/1.out"
+check "dry run plans the old dead m-999" has "$D" "PLAN remove .*/m-999\.stale-$ts$"
+check "dry run plans nothing else" [ "$(grep -c 'PLAN remove' "$D")" = 1 ]
+check "dry run removes nothing" [ -d "$root/m-999.stale-$ts" ]
+check "dry run DONE would-remove=1" has "$D" 'DONE would-remove=1 '
+
+run 0
+R="$tmp/0.out"
+check "real run removes the old dead m-999" [ ! -e "$root/m-999.stale-$ts" ]
+check "real run logs REMOVE m-999" has "$R" "REMOVE .*/m-999\.stale-$ts$"
+check "a recently changed .stale dir is KEPT recent" has "$R" "KEEP recent .*/m-998\.stale-$ts$"
+check "a live lane's .stale dir is KEPT alive" has "$R" "KEEP alive .*/m-997\.stale-$ts$"
+check "a role seat's .stale dir is KEPT role-seat" has "$R" "KEEP role-seat .*/c-001\.stale-$ts$"
+check "a .stale dir in use is KEPT in-use" has "$R" "KEEP in-use .*/m-996\.stale-$ts$"
+for id in m-998 m-997 c-001 m-996 m-995; do
+  check "$id.stale-$ts still exists" [ -f "$root/$id.stale-$ts/.claude/transcript.jsonl" ]
+done
+check "a .stale dir holding .git is never touched" [ -d "$root/m-995.stale-$ts/.git" ]
+check "a .stale dir without a <UTC> suffix is never touched" [ -d "$root/m-994.stale-junk" ]
+check "the dirty worktree is KEPT dirty" has "$R" "KEEP dirty .*/dirty-lane$"
+check "the dirty worktree still exists" [ -f "$root/dirty-lane/dirty.txt" ]
+check "real run removes nothing else" [ "$(grep -c ' REMOVE ' "$R")" = 1 ]
+check "real run DONE removed=1" has "$R" 'DONE removed=1 '
+
+if (( fails )); then
+  echo "--- dry run"; cat "$D"; echo "--- real run"; cat "$R"
+  echo "FAILED: $fails of $n"; exit 1
+fi
+echo "OK: $n of $n"

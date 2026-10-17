@@ -277,8 +277,9 @@ eq "D6 ... and no hub read" "" "$(cat "$T_TMP/hub-calls")"
 SR="$T_TMP/specs"
 sg() { git -C "$SR/repo" -c user.name='FirstName LastName' -c user.email=dev@example.com "$@"; }
 git init -q --bare "$SR/origin.git" && git init -q -b master "$SR/repo"
-for d in 135-work-process 040-pinned; do mkdir -p "$SR/repo/csi-spl-doc/specs/$d"; echo "# $d" >"$SR/repo/csi-spl-doc/specs/$d/spec.md"; done
+for d in 135-work-process 040-pinned 041-two-pins; do mkdir -p "$SR/repo/csi-spl-doc/specs/$d"; echo "# $d" >"$SR/repo/csi-spl-doc/specs/$d/spec.md"; done
 printf '# Spec 040\n\nEpic SPL-74\n' >"$SR/repo/csi-spl-doc/specs/040-pinned/spec.md"
+printf '# Spec 041\n\nEpic SPL-75, was Epic SPL-74\n' >"$SR/repo/csi-spl-doc/specs/041-two-pins/spec.md"
 sg add -A && sg commit -q -m specs && sg remote add origin "$SR/origin.git" && sg push -q origin master 2>/dev/null
 mkdir -p "$SR/repo/csi-spl-doc/specs/099-local-only" && echo x >"$SR/repo/csi-spl-doc/specs/099-local-only/spec.md" && sg add -A && sg commit -q -m local
 es() {  # LIB BRIEF-LINES... -> stdout+stderr in $T_TMP/o, rc in $RC
@@ -314,5 +315,29 @@ eq "E4 ... prints spec and epic" "csi-spl-doc/specs/135-work-process	SPL-1" "$(c
 es "$LIB" 'See csi-spl-doc/specs/040-pinned/spec.md section 2.'
 eq "E5 a spec named in the text, its pin is the epic" "csi-spl-doc/specs/040-pinned	SPL-74" "$(cat "$T_TMP/o")"
 es "$LIB" 'Issue: SPL-77'
+eq "E6 an Issue: key (an existing issue, none filed): passes" 0 "$RC"
+# E7: one match only. grep -m1 stops after a LINE but -o prints every match on
+# it: a line naming the spec twice gave two lines and was refused (c-001 msg
+# 97039c74, the reprice brief e20fb61e). Control: the -m1 -o code (27af8c2b1).
+M1="$T_TMP/m1-lane-issue.inc.sh"
+sed '/LI_SPEC_RE\|Epic:?\[\[:space:\]\]/ { s/ | sed -n 1p//; s/grep -oE/grep -m1 -oE/; }' "$LIB" >"$M1"
+TWICE='Spec: csi-spl-doc/specs/135-work-process (see csi-spl-doc/specs/135-work-process/plan.md)'
+es "$LIB" "$TWICE" 'Epic: SPL-1'
+eq "E7 a Spec: line naming the same folder twice: accepted" 0 "$RC"
+eq "E7 ... one spec, one epic" "csi-spl-doc/specs/135-work-process	SPL-1" "$(cat "$T_TMP/o")"
+es "$M1" "$TWICE" 'Epic: SPL-1'
+eq "E7 control (-m1 -o): refused" 1 "$RC"
+es "$LIB" 'Spec: csi-spl-doc/specs/135-work-process, csi-spl-doc/specs/040-pinned' 'Epic: SPL-1'
+eq "E8 two folders on the Spec: line: the first" "csi-spl-doc/specs/135-work-process	SPL-1" "$(cat "$T_TMP/o")"
+es "$M1" 'Spec: csi-spl-doc/specs/135-work-process, csi-spl-doc/specs/040-pinned' 'Epic: SPL-1'
+eq "E8 control (-m1 -o): refused" 1 "$RC"
+es "$LIB" 'See csi-spl-doc/specs/040-pinned and csi-spl-doc/specs/135-work-process.'
+eq "E9 two folders in the text: the first, its pin" "csi-spl-doc/specs/040-pinned	SPL-74" "$(cat "$T_TMP/o")"
+es "$M1" 'See csi-spl-doc/specs/040-pinned and csi-spl-doc/specs/135-work-process.'
+eq "E9 control (-m1 -o): refused" 1 "$RC"
+es "$LIB" 'Spec: csi-spl-doc/specs/041-two-pins'
+eq "E10 a spec line naming two epics: the first pin" "csi-spl-doc/specs/041-two-pins	SPL-75" "$(cat "$T_TMP/o")"
+es "$M1" 'Spec: csi-spl-doc/specs/041-two-pins'
+eq "E10 control (-m1 -o): not the one first pin" 1 "$([ "$(cat "$T_TMP/o")" = "csi-spl-doc/specs/041-two-pins	SPL-75" ]; echo $?)"
 eq "E6 an Issue: key (an existing issue, none filed): passes" 0 "$RC"
 t_done

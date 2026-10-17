@@ -57,12 +57,13 @@ li_epic_from_brief() {
 }
 
 # li_spec_from_file FILE -> the spec folder it names: a `Spec:` line first,
-# else the first csi-spl-doc/specs/NNN-<slug> anywhere in it.
+# else the first csi-spl-doc/specs/NNN-<slug> anywhere in it. One match only:
+# grep -m1 stops after a LINE, -o prints every match on it (sed -n 1p).
 li_spec_from_file() {
   local s
   [ -r "${1:-}" ] || return 1
-  s="$(grep -m1 -iE '^[-*_ >]*Spec[*_ ]*:' "$1" | grep -m1 -oE "$LI_SPEC_RE")"
-  [ -n "$s" ] || s="$(grep -m1 -oE "$LI_SPEC_RE" "$1")"
+  s="$(grep -m1 -iE '^[-*_ >]*Spec[*_ ]*:' "$1" | grep -oE "$LI_SPEC_RE" | sed -n 1p)"
+  [ -n "$s" ] || s="$(grep -oE "$LI_SPEC_RE" "$1" | sed -n 1p)"
   [ -n "$s" ] && printf '%s\n' "$s"
 }
 
@@ -83,7 +84,7 @@ li_spec_pinned_epic() {
   local r="${LI_SPEC_REPO:-$LI_SPEC_REPO_DEFAULT}" t
   t="$(li_trunk "$r")" || return 1
   li_git "$r" show "$t:$1/spec.md" 2>/dev/null | head -40 |
-    grep -m1 -oE "(^|[^A-Za-z])Epic:?[[:space:]]+${LI_KEY_RE}" | grep -oE "${LI_KEY_RE}\$"
+    grep -oE "(^|[^A-Za-z])Epic:?[[:space:]]+${LI_KEY_RE}" | sed -n 1p | grep -oE "${LI_KEY_RE}\$"
 }
 
 # li_epic_spec SPEC EPIC -> "<spec>\t<epic>": SPEC must be a folder on the

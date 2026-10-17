@@ -29,6 +29,9 @@ type memChannels struct {
 	// ai is the rdb 0189 switch per (tenant, channel); absent = follow the
 	// workspace default (channel_ai_agents.go).
 	ai map[[2]string]bool
+	// humansOnly is the rdb 0206 mark per (tenant, channel)
+	// (channel_humans_only.go).
+	humansOnly map[[2]string]bool
 }
 
 // archivedCh reports an archived channel of tenant. Caller holds Memory.mu.
@@ -58,6 +61,9 @@ func (c *memChannels) init() {
 	}
 	if c.ai == nil {
 		c.ai = map[[2]string]bool{}
+	}
+	if c.humansOnly == nil {
+		c.humansOnly = map[[2]string]bool{}
 	}
 }
 

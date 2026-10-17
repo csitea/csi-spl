@@ -237,6 +237,9 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	if !isAgent(m.To) && !s.channelAgentsOn(ctx, tenant, channel) { // SPL-1684: an @agent dispatch still falls back
 		return
 	}
+	if s.channelHumansOnly(ctx, tenant, channel) { // SPL-2423: nobody answers a humans-only channel
+		return
+	}
 	roster, err := s.o.Store.Roster(ctx, tenant)
 	if err != nil {
 		log.Error().Err(err).Msg("fallback roster")

@@ -196,7 +196,11 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 	if !s.channelAgentsOn(r.Context(), t.ID, ch) { // SPL-1684: absent = on, the wire as before
 		out["ai_agents_off"] = true
 	}
-	if fb := s.fallbackInfo(r.Context(), t.ID, ch, list); fb != nil { // SPL-997, FR-035
+	humansOnly := s.channelHumansOnly(r.Context(), t.ID, ch)
+	if humansOnly { // SPL-2423: no agent reads it, so no fallback responder either
+		out["humans_only"] = true
+	}
+	if fb := s.fallbackInfo(r.Context(), t.ID, ch, list); fb != nil && !humansOnly { // SPL-997, FR-035
 		out["fallback"] = fb
 		// CLE-77804: a tenant responder hears this channel via the fallback /
 		// escalation path (unless the channel opted out, FR-039), so it may be
@@ -398,6 +402,7 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", body.ID).
 		Str("box", body.Box).Str("by", hum).Msg("channel agent invited")
+	s.clearHumansOnly(r.Context(), t.ID, ch, hum, s.o.Now()) // SPL-2423: a person brought an agent back
 	// SPL-987: the channel's earlier posts, once, on the box's live session.
 	// Off the request: the answer does not wait for up to BackfillMax frames.
 	go s.backfillBox(context.WithoutCancel(r.Context()), t.ID, body.Box)
@@ -438,6 +443,7 @@ func (s *Server) handleRemoveChannelAgent(w http.ResponseWriter, r *http.Request
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", id).
 		Str("box", box).Str("by", hum).Msg("channel agent removed")
+	s.markHumansOnlyIfEmpty(r.Context(), t.ID, ch, hum, s.o.Now()) // SPL-2423: the last agent out
 	w.WriteHeader(http.StatusNoContent)
 }
 

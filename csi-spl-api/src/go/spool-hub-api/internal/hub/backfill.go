@@ -95,7 +95,7 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 	defer s.backfilling.Delete(key)
 	log := s.o.Log.With().Str("tenant", x.tenant).Str("channel", seat.Channel).
 		Str("box", seat.Box).Str("agent", seat.Agent).Logger()
-	if !s.channelAgentsOn(ctx, x.tenant, seat.Channel) { // SPL-1684: pending until the switch is on
+	if !s.channelAgentsHear(ctx, x.tenant, seat.Channel) { // SPL-1684 / SPL-2423: pending until the switch is on
 		return
 	}
 	now := s.o.Now()

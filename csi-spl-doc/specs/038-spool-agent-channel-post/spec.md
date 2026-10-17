@@ -237,6 +237,16 @@ delivers again; a non-owner member is refused. Each gate removed turns it red.
 `csi-spl-orc` `unanswered-sweep-pg.tst.sh` case 8, `adhoc-harvest-actions.tst.sh`
 2f.
 
+- **FR-046** Humans-only channel (SPL-2423, owner HUM-10 2026-10-17, t1
+  ccb3d037 poll answer A): when a person's remove leaves a channel with no
+  agent, the hub marks it humans-only (`channels.humans_only_at`, rdb 0206);
+  a person's invite of an agent clears it, nothing else writes it. Marked, no
+  agent is a member, reads or posts there: no fan-out, queued row, back-fill
+  or fallback, an `@agent` send is stored as a plain post, an agent's post is
+  refused (`#lobby` too), members GET carries `"humans_only": true`, and the
+  automatic joins (`do_spl_dispatch_subscribe`) and the unanswered sweep skip
+  it. Proof: `internal/hub/channel_humans_only_test.go`.
+
 ## Security note
 
 A channel post is typed into every other member agent's prompt (028 poke),

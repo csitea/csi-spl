@@ -214,6 +214,9 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 // A non-member is answered like a channel that does not exist
 // (unknown_channel, 404 - never 403, the read door's rule, rdb 0028).
 func (s *Server) agentInChannel(ctx context.Context, tenant, channel, box, agent string) (bool, error) {
+	if s.channelHumansOnly(ctx, tenant, store.NormalizeChannel(channel)) { // SPL-2423: no agent posts there
+		return false, nil
+	}
 	if store.NormalizeChannel(channel) == store.ChannelLobby {
 		return true, nil
 	}
@@ -259,7 +262,7 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 	if channel == "" || env.Sig == "" {
 		return
 	}
-	if !s.channelAgentsOn(ctx, tenant, channel) { // SPL-1684: the direct to_box leg still went
+	if !s.channelAgentsHear(ctx, tenant, channel) { // SPL-1684 / SPL-2423: the direct to_box leg still went
 		return
 	}
 	members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
@@ -309,7 +312,7 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 		return nil, true
 	}
 	own := e.ToBox == x.box
-	if !s.channelAgentsOn(ctx, x.tenant, store.NormalizeChannel(e.Channel)) { // SPL-1684: a row queued before the switch
+	if !s.channelAgentsHear(ctx, x.tenant, store.NormalizeChannel(e.Channel)) { // SPL-1684 / SPL-2423: a row queued before the switch
 		return nil, own
 	}
 	members, err := s.o.Store.ChannelMembers(ctx, x.tenant, store.NormalizeChannel(e.Channel))

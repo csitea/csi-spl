@@ -629,6 +629,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if r.inserted {
 		s.fallback(ctx, c.tenant, rt.channel, env, m)
 		s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
+		s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
 	}
 }
 
@@ -718,6 +719,9 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 		return rt, rf
 	}
 	rt.channel = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
+	if agent != "" && s.channelHumansOnly(ctx, c.tenant, rt.channel) { // SPL-2423: an @agent there is a plain post
+		agent, m.To = "", BroadcastID
+	}
 	if rf := frameRefusalOf(s.wuiMayPost(ctx, c, rt.channel, f.Channel, agent)); rf != nil {
 		return rt, rf
 	}

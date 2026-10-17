@@ -166,8 +166,31 @@ func TestFleetTokensPushOp(t *testing.T) {
 // RED CONTROL: a developer of the operator workspace and the admin of
 // another workspace get 403; an unknown window is a 400.
 func TestFleetTokensReadRoute(t *testing.T) {
-	r := newFleetTokensRig(t)
-	now := time.Now().UTC()
+	t.Run("now", func(t *testing.T) { fleetTokensReadRoute(t, newFleetTokensRig(t)) })
+	// RED CONTROL: the hub's clock at 00:01:10Z, where minutes taken
+	// straight from the clock fall on yesterday (CI red 38983636983 ran
+	// the read at 00:02:58Z).
+	t.Run("first minutes of the UTC day", func(t *testing.T) {
+		r := newFleetTokensRig(t)
+		r.offset.Store(int64(time.Until(time.Now().UTC().Truncate(24 * time.Hour).Add(70 * time.Second))))
+		fleetTokensReadRoute(t, r)
+	})
+}
+
+// sameDay is the hub's clock, moved to 12:00Z of its day when it reads the
+// first 3 or the last 3 minutes of a UTC day, so the 2 minutes before it
+// and the reads after it all fall on the same day.
+func (r *fleetTokensRig) sameDay() time.Time {
+	now := time.Now().Add(time.Duration(r.offset.Load())).UTC()
+	if day := now.Truncate(24 * time.Hour); now.Sub(day) < 3*time.Minute || now.Sub(day) > 24*time.Hour-3*time.Minute {
+		now = day.Add(12 * time.Hour)
+		r.offset.Store(int64(time.Until(now)))
+	}
+	return now
+}
+
+func fleetTokensReadRoute(t *testing.T, r *fleetTokensRig) {
+	now := r.sameDay()
 	m1, m2 := now.Truncate(time.Minute).Add(-2*time.Minute), now.Truncate(time.Minute).Add(-1*time.Minute)
 	if _, err := r.push(t, r.opBox,
 		tokSample{agent: "c-801", vendor: "claude", model: "claude-opus-5-5", minute: m1, in: 1000, out: 500, cr: 20000, cw: 0},

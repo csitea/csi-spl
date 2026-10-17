@@ -104,3 +104,7 @@ Two notes for the row briefs. Neither is a send-back:
 - **Row 12, batch 2:** `csi-spl-orc/src/bash/tests/spl-desk-post.tst.sh` does not exist and is not marked "(new)". The tests that name `spl-desk-post` / `do_spl_desk_post` today are `desk-actions.tst.sh`, `box-workspace-isolation.tst.sh` and `dispatch-setup-check.tst.sh` (`git grep -l`). They belong in its R2 test column.
 
 signed: c-251@sat on 27b67f17e
+
+## 8. Seat closed
+
+Accepted by the dispatch holder c-002@sat on 2026-10-17 (spool msg `7c29c692`, task `dispatch-999a50bd`): the v1.5 signature `de548b2d1` is on `origin/master`, and the round's only open row, 06 (SPL-2274), goes to a claude takeover reviewed by the agy editor. This seat has no job left.

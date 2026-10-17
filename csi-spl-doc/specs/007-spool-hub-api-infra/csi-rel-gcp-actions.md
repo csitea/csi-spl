@@ -71,11 +71,11 @@ code.
 | 7 | gcp-add-iap-iam-policy-binding | not ported | n/a | csi-spl has no IAP |
 | 8 | gcp-build-and-push-api-image | not ported | n/a | rel api image + step 030-gcp-cloud-run; csi-spl builds/deploys the hub with `csi-spl-orc do_build_push_hub_image` / `20_hub-build-deploy.yml` and step `030-cloud-run-hub` |
 | 9 | gcp-check-iap-brand-org-internal | not ported | n/a | csi-spl has no IAP |
-| 10 | gcp-compute-lb-cleanup | **ported** | **no** (isolated) | generic LB cleanup. diff → **5**. Destructive, never run without the owner's per-call go |
+| 10 | gcp-compute-lb-cleanup | **ported** | **no** (isolated) | generic LB cleanup. diff → **5**. Destructive, never run without the owner's per-call go. A dry run unless `DRY_RUN=0` (SPL-2296): prints the deletes, makes no gcloud call |
 | 11 | gcp-compute-lb-list | **ported** | **no** (isolated) | generic LB list. diff → **5** |
 | 12 | gcp-create-org-admin-user | not ported | n/a | org/project-level identity mutation superseded by gcp-000..004 |
 | 13 | gcp-delete-cloud-run | not ported | n/a | same as #8: hub is `030-cloud-run-hub`, not the rel api Cloud Run action |
-| 14 | gcp-delete-service-account | **ported** | **no** (isolated) | generic SA delete by email. diff → **5**. Destructive, never run without the owner's per-call go |
+| 14 | gcp-delete-service-account | **ported** | **no** (isolated) | generic SA delete by email. diff → **5**. Destructive, never run without the owner's per-call go. A dry run unless `DRY_RUN=0`; a missing `ORG`, `APP`, `ENV` or `SA_HEAD` is refused before any gcloud call (SPL-2296) |
 | 15 | gcp-deploy-api-full | not ported | n/a | same as #8 |
 | 16 | gcp-deploy-cloud-function | not ported | n/a | no cloud functions in csi-spl |
 | 17 | gcp-deploy-cloud-run | not ported | n/a | same as #8 |

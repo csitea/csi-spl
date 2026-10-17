@@ -28,6 +28,6 @@ describe('KindBadge / KindPicker no longer reference each other (no TDZ)', () =>
     assert.doesNotMatch(s, /<KindBadge\b/)
   })
   it('KindBadge still owns the popup: it renders KindPicker while open', () => {
-    assert.match(read('components/KindBadge.vue'), /<KindPicker\s+v-if="settable && open"/)
+    assert.match(read('components/KindBadge.vue'), /v-if="settable && open"[^>]*>\s*<KindPicker\b/)
   })
 })

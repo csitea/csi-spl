@@ -18,7 +18,16 @@ describe('pickers mount only while open', () => {
     assert.match(read('components/MessageCard.vue'), /<LazyEmojiPicker\s+v-if="pickerOpen"/)
   })
   it('KindBadge mounts KindPicker only for a settable, open badge', () => {
-    assert.match(read('components/KindBadge.vue'), /<KindPicker\s+v-if="settable && open"/)
+    assert.match(read('components/KindBadge.vue'), /<span v-if="settable && open" style="display: contents">\s*<KindPicker\b/)
+  })
+  /* p6-05: KindPicker is its own chunk, loaded on the first open, so the
+     card chunk index.html preloads does not carry it (ci_home_gzip_kb
+     352.0 -> 351.3 KB). The v-if stays on a wrapper: a bare v-if on an
+     async component threw Vue's insertBefore (08ca5b58d, 7d3ef2cb5). */
+  it('KindBadge loads KindPicker on demand, behind a wrapper v-if', () => {
+    const src = read('components/KindBadge.vue')
+    assert.match(src, /const KindPicker = defineAsyncComponent\(\(\) => import\('@\/components\/KindPicker\.vue'\)\)/)
+    assert.doesNotMatch(src, /<KindPicker\s+v-if=/)
   })
   for (const f of ['components/EmojiPicker.vue', 'components/KindPicker.vue']) {
     it(`${f} runs its open work when mounted open, and on a later change`, () => {

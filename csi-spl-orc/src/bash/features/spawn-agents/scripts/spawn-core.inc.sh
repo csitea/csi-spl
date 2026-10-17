@@ -246,6 +246,11 @@ SCOPE=""; INTEGRATION=""; DEPLOY_GATE=""; DEV_GUIDE=""
 # approval of that one push, often done by hand). Guard:
 # tests/test-seed-no-force-push.sh.
 NO_FORCE="NO FORCE-PUSH. No agent force-pushes master (\`--force\`, \`--force-with-lease\`, \`+ref\`) without the owner's explicit approval of that one push; even then the owner decides who does it, often by hand. Ask and wait; an approval is never permission to go ahead alone. A refused push means someone landed first: fetch, rebase onto origin/${DEFBRANCH:-master}, re-test, push again; never SPL_PREPUSH_OVERRIDE it through. Owner: \"Everyone respects the work of the others. We are team and not a bunch of selfish cawboys\" (2026-10-10)."
+# SEED_BOX_PKG: the ONE home of the package-install line (fleet-rules-index.md
+# section 2; spec 142 row B8, owner t1 06871e35: agents keep the right to
+# install, through one named action). Every kind, worktree or not.
+# Guard: tests/test-seed-box-pkg.sh.
+SEED_BOX_PKG="PACKAGES: install one with 'cd ${SPAWN_SCRIPTS_DIR%/csi-spl-orc/src/bash/features/spawn-agents/scripts}/csi-spl-iac && BOX_PKG=<pkg> BOX_PKG_REASON=\"<why>\" AGENT_ID=${TITLE} ./run -a do_box_pkg_install'; you keep sudo, the action records it."
 if [ -n "$WORKTREE_DIR" ]; then
   # The rules only; why each one exists, with its measurements, is the doc
   # below (owner token plan, practice 02: a seed states rules, not history).
@@ -485,7 +490,7 @@ spawn_main() {
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

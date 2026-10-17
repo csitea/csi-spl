@@ -59,6 +59,11 @@ try {
   await p.click('[data-testid=search-row-menu-here]')
   const line = `aside.live-pane [data-msg-id="${REPLY}"]`
   await p.waitForSelector(line, { visible: true, timeout: 10000 })
+  /* Show here focuses the line on a 100 ms poll (SearchSidePanel focusMessage):
+     a right-click before that tick loses the menu's focus to the line, and the
+     Escape below then reaches the line, not the menu (4 of 20 runs, wf 10
+     39039744142) */
+  await p.waitForFunction((sel) => document.activeElement?.matches?.(sel), { timeout: 5000 }, line)
   ok('1 a thread hit opens its thread on the right', true)
 
   /* the pointer path shows the item, right after Open */

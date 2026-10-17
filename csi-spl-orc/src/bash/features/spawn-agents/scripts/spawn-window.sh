@@ -430,7 +430,8 @@ if [ -z "$pane" ]; then
 fi
 # A pane gone right after new-window (the server died, SPL-2408) never ran its
 # launcher to the seed: a failed spawn, its claim released like the above.
-if [ "$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_id}' 2>/dev/null)" != "$pane" ]; then
+# tmux's exit code says it (no server, no such pane), not its output.
+if ! "${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; then
   sw_release_claim
   echo "spawn-window: the pane ${pane} of ${TITLE} is gone before its seed (tmux server died?); the claim on ${TITLE} is released" >&2; exit 4
 fi

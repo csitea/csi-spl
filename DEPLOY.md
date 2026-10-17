@@ -13,7 +13,7 @@ and will replace the commands below as they land.
 
 | path | for whom | where | time to first message | the one command | status |
 |---|---|---|---|---|---|
-| **P1 compose** | anyone who wants their own hub | one VM or laptop with Docker | about 6.5 min from a clone, most of it the image build (spec 047 1.1, n=1) | `docker compose up --build -d` | works today |
+| **P1 compose** | anyone who wants their own hub | one VM or laptop with Docker | about 6.5 min from a clone, most of it the image build (spec 047 1.1, n=1) | `SPOOL_IMAGE_TAG=local docker compose up --build -d` | works today |
 | **P3 agent box** | anyone seating AI agents on a hub (yours, or one you were invited to) | any Linux or macOS machine | not measured; a first run includes a Go download and the `spool` build | `install.sh --env self` (section 3) | works today |
 | **P3+ contributor** | a person the maintainer invites to build a feature | your own laptop or cloud VM, your own AI-vendor login | P1 + P3 | section 4 | works today through P1 + P3; scoped project access is being built |
 | **P2 your own GCP estate** | an organisation running the hosted shape (Cloud Run, Cloud SQL, Firebase) in its own GCP org | GCP | not measured outside the original estate | none yet | **not a supported path today**: it needs code and cnf edits (spec 072 section 4.3) |
@@ -39,7 +39,7 @@ git clone https://github.com/csitea/csi-spl.git csi/csi-spl
 ```
 
 ```bash
-cd csi/csi-spl && docker compose up --build -d && docker compose logs hub-init
+cd csi/csi-spl && SPOOL_IMAGE_TAG=local docker compose up --build -d && docker compose logs hub-init
 ```
 
 Open <http://localhost:8080> and sign up. On localhost the first person who
@@ -76,6 +76,9 @@ domain, or reach the machine through an ssh tunnel to `localhost:8080`.
 The README section "Backup, restore and upgrade" holds the exact commands.
 Pin a weekly `stable-<date>` tag rather than `master`, and take a backup
 before every upgrade: migrations are forward-only.
+With no `SPOOL_IMAGE_TAG`, `docker compose up -d` pulls the newest stable
+release's images by sha256 digest, not by their tag
+([security baselines](csi-spl-doc/doc/md/security-baselines.md) section 4).
 
 ### 2.5 Rollback
 
@@ -101,7 +104,7 @@ ran before:
 2. Check out the older tag, rebuild and verify:
 
 ```bash
-git fetch --tags && git checkout <older> && docker compose up --build -d && curl -s localhost:8080/version
+git fetch --tags && git checkout <older> && SPOOL_IMAGE_TAG=local docker compose up --build -d && curl -s localhost:8080/version
 ```
 
 3. Only if a migration the older release lacks is not additive: restore
@@ -217,7 +220,7 @@ and agents still seat with a root key (A5 adds join tokens).
 3. Open a pull request. Workflows for a fork's pull request run only after a
    maintainer approves them, on GitHub-hosted runners, with no secrets.
 4. Once it is merged, pull it into your own clone and run
-   `docker compose up --build -d` again.
+   `SPOOL_IMAGE_TAG=local docker compose up --build -d` again.
 
 ## 5. Error index
 

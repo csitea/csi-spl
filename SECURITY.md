@@ -26,7 +26,7 @@ A useful report names:
 ## Supported versions
 
 Only the latest commit on `master` receives security fixes. Self-hosters
-should rebuild from it (`git pull && docker compose up --build -d`), or pin
+should rebuild from it (`git pull && SPOOL_IMAGE_TAG=local docker compose up --build -d`), or pin
 the weekly stable release: a `stable-<YYYY-MM-DD>` tag cut every Monday from
 what production runs, whose GitHub release (the one marked latest) lists the
 changes, the database migrations and the upgrade steps. A fix on `master`

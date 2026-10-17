@@ -41,6 +41,9 @@ jobs:
     env:
       SPOOL_HTTP_PORT: "8080"
       SPOOL_PUBLIC_URL: http://localhost:8080
+      # the build switch: the default image names carry a digest (pinned,
+      # SPL-2153) and a build cannot tag one, so the stack builds as :local
+      SPOOL_IMAGE_TAG: local
     steps:
       # full history + tags: the images stamp `git describe` (spec 047 W6)
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -54,7 +57,7 @@ jobs:
       - name: Pre-pull the compose images through mirror.gcr.io
         run: bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh postgres:16-alpine chrislusf/seaweedfs:4.48
 
-      - name: docker compose up --build (no .env, the documented defaults)
+      - name: docker compose up --build (no .env, the documented build)
         run: docker compose up --build --detach
 
       # not `up --wait`: hub-init is a one-shot that EXITS, which some compose

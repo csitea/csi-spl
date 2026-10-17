@@ -25,6 +25,12 @@
 #     other ref it pushes the image tag given (default test-<sha>), never a
 #     v*, stable-* or latest tag (the proof run, 072 T015).
 #
+# The digests (SPL-2153): the push step writes spool-images.txt, one
+# <repo>/spool-{hub,web}:<tag>@sha256:<digest> line per image, into the step
+# summary and, for a stable-* tag, onto that release (contents: write).
+# `./run -a do_pin_compose_images` (csi-spl-orc) reads it and pins the root
+# docker-compose.yml to those digests.
+#
 # No secret: GITHUB_TOKEN with packages: write logs in through stdin; the
 # login lives in a throwaway DOCKER_CONFIG. Not an estate job: a fork
 # publishes to its own owner's registry (exempt in ci-estate-guard.tst.sh).
@@ -50,7 +56,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write   # attach spool-images.txt to the stable release (SPL-2153)
   packages: write   # push to ghcr.io/<owner>
 
 jobs:
@@ -130,10 +136,19 @@ jobs:
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin >/dev/null
           { echo "## GHCR images ($TAG)"; echo; echo '| image | digest |'; echo '|---|---|'; } >>"$GITHUB_STEP_SUMMARY"
+          pins="$RUNNER_TEMP/spool-images.txt"; : >"$pins"
           for img in spool-hub spool-web; do
             docker push -q "$REG/$img:$TAG" >/dev/null
-            echo "| \`$REG/$img:$TAG\` | \`$(docker image inspect -f '{{index .RepoDigests 0}}' "$REG/$img:$TAG")\` |" >>"$GITHUB_STEP_SUMMARY"
+            d="$(docker image inspect -f '{{index .RepoDigests 0}}' "$REG/$img:$TAG")"
+            [[ "$d" == *@sha256:* ]] || { echo "::error::no registry digest for $REG/$img:$TAG after the push"; exit 1; }
+            echo "| \`$REG/$img:$TAG\` | \`$d\` |" >>"$GITHUB_STEP_SUMMARY"
+            echo "$REG/$img:$TAG@${d#*@}" >>"$pins"
           done
+          { echo; echo 'Pin docker-compose.yml to them: `PIN_TAG='"$TAG"' DRY_RUN=0 ./run -a do_pin_compose_images` (csi-spl-orc).'; } >>"$GITHUB_STEP_SUMMARY"
+          if [[ "$TAG" == stable-* ]]; then
+            gh release upload "$TAG" "$pins" --clobber --repo "$GITHUB_REPOSITORY"
+            echo "OK spool-images.txt attached to release $TAG"
+          fi
 
       # the acceptance check (072 A1): an anonymous pull works, no docker login
       - name: Anonymous pull

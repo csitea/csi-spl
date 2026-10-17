@@ -1,4 +1,4 @@
-# Security baselines: what may be listed, and how a list grows
+# Security baselines and pinned images
 
 Owner security scan, revised list, action 10 (t1 topic 62eaacb9, msg
 4a5b93de): "add a CI gate that fails if any security baseline file grows
@@ -62,3 +62,28 @@ it is:
 
 A real credential still fails: the gate's control plants an AKIA key in a
 throwaway repo and requires gitleaks to exit 1.
+
+## 4. Released images are pinned by digest
+
+Same action 10: "Pin production images to sha256 digests instead of the
+floating stable-YYYY-MM-DD tag".
+
+- Production here is Cloud Run, which deploys the hub by an immutable minted
+  tag (`v<X.Y.Z>`, `do_deploy_hub`), never by a `stable-*` tag. The
+  `stable-*` tags name the images self-hosters pull: the root
+  `docker-compose.yml`.
+- Its defaults name the newest stable release with each image's digest:
+  `spool-hub:${SPOOL_IMAGE_TAG:-stable-<date>@sha256:<hub>}`, and
+  `spool-web` with its own. A tag pushed again cannot change what runs.
+  Setting `SPOOL_IMAGE_TAG` replaces tag and digest together, so a chosen tag
+  never pulls a stale digest.
+- A build cannot tag a name that holds a digest, so a build names a local
+  tag: `SPOOL_IMAGE_TAG=local docker compose up --build -d` (wf 50 runs it
+  so).
+- The release writes the digests: wf 56 pushes the two images, then writes
+  `spool-images.txt` (one `<repo>/spool-{hub,web}:<tag>@sha256:<digest>`
+  line each) to its run summary and onto the stable release.
+- Moving the pin to a new release is a named action, then an ordinary
+  commit: `cd csi-spl-orc && PIN_TAG=stable-<date> DRY_RUN=0 ./run -a
+  do_pin_compose_images`. Tests: `pin-compose-images.tst.sh` (orc),
+  `compose-pulls-images.tst.sh` (iac).

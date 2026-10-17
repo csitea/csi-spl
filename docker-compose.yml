@@ -5,14 +5,17 @@
 #
 # Images (spec 072 A1b): `up` pulls the published hub and web images,
 # ${SPOOL_IMAGE_REPO}/spool-{hub,web}:${SPOOL_IMAGE_TAG} (default: GHCR, the
-# newest stable-* release, wf 56). The one switch to build them from this
-# checkout instead is `--build`:
+# newest stable-* release, wf 56), PINNED BY DIGEST (SPL-2153): the default
+# tag carries its sha256, so a re-pushed tag cannot change what runs.
+# `./run -a do_pin_compose_images` (csi-spl-orc) moves the pin to a new
+# release. Setting SPOOL_IMAGE_TAG replaces tag and digest together. To build
+# both from this checkout instead, name a local tag (a build cannot carry a
+# digest):
 #
-#   docker compose up --build -d     the same images, built from source
+#   SPOOL_IMAGE_TAG=local docker compose up --build -d
 #
-# A pull that fails (no network, a tag not published yet) falls back to the
-# build. A `--build` image carries the pulled name: `docker compose pull`
-# goes back to the published one.
+# A `--build` image carries that name; unset SPOOL_IMAGE_TAG and
+# `docker compose pull` to go back to the published one.
 #
 # Sign up on the login page: on localhost the first person to sign in becomes
 # the owner of the tenant this stack seeds (SPOOL_TENANT); on a public host
@@ -86,7 +89,7 @@ services:
       dockerfile: csi-spl-api/src/docker/hub.Dockerfile
       args:
         SPOOL_VERSION: ${SPOOL_VERSION:-}
-    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
     command: ["init"]
     environment:
       SPOOL_OWNER_DSN: postgres://${SPOOL_DB_OWNER:-spool_hub}:${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
@@ -110,7 +113,7 @@ services:
 
   hub:
     build: *hub-build
-    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
@@ -187,7 +190,7 @@ services:
         # the one build-time value (it decides which routes carry a locale
         # prefix): a pulled image is en, another locale needs `--build`
         SPOOL_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}
-    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-web:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-web:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:8e4f3016c34f2fd0883bb6b7cbac54fb99ae0b55666753a41d7a5f9442ab9259}
     environment:
       SPOOL_SITE_ADDRESS: ${SPOOL_SITE_ADDRESS:-:80}
       # read at container start (wui-config.sh, 072 A3), so a pulled image

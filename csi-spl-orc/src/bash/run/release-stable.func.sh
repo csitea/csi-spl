@@ -225,7 +225,7 @@ spl_stable_notes() {
 
 1. Take a dump of the database (README: Backup, restore and upgrade).
 2. \`git fetch --tags && git checkout $tag\`
-3. \`docker compose up --build -d\`: hub-init applies the new migrations before the hub starts.
+3. \`SPOOL_IMAGE_TAG=local docker compose up --build -d\`: hub-init applies the new migrations before the hub starts.
 
 Security fixes land on master first; the next weekly stable carries them.
 EOF

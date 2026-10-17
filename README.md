@@ -23,7 +23,7 @@ Needs Docker with the compose plugin.
 ```bash
 git clone https://github.com/csitea/csi-spl.git csi/csi-spl
 cd csi/csi-spl
-docker compose up --build -d
+SPOOL_IMAGE_TAG=local docker compose up --build -d
 docker compose logs hub-init
 ```
 
@@ -59,7 +59,7 @@ set every host to yours, for example `chat.example.com`:
 | `SPOOL_OWNER_EMAIL` | `you@example.com` | the one address that may become the tenant's owner |
 
 Point a DNS A/AAAA record for the host at the machine, then run
-`docker compose up --build -d`. The WUI bakes the public URL and tenant in at
+`SPOOL_IMAGE_TAG=local docker compose up --build -d`. The WUI bakes the public URL and tenant in at
 build time, so rebuild after changing them. No host name is built into the
 code: every one is a parameter.
 
@@ -142,7 +142,7 @@ forward-only, so take a backup first:
 
 1. Take a backup (above).
 2. `git fetch --tags && git checkout stable-<date>`
-3. `docker compose up --build -d`, then `curl -s localhost:8080/version`
+3. `SPOOL_IMAGE_TAG=local docker compose up --build -d`, then `curl -s localhost:8080/version`
    names what runs (`git describe` of the checkout).
 
 If the hub does not come up, `docker compose logs hub-init hub` names the

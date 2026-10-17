@@ -5,7 +5,10 @@
 # is ONE note to the dispatch lease holder; a landed sha is not. A short (9
 # hex) sha resolves; a sha of another repo is checked in that repo. Two
 # throwaway repos with bare origins play the trunks; the spool is a temp dir;
-# the sender is a stub that logs.
+# the sender is a stub that logs. SPL-2313: a seat / reviewer / plan lane, known
+# by its slug (its worktree branch, or the retired row in workdirs.tsv), is
+# verdict seat with no note; a sha on a remote branch of a lane still in the
+# registry is pending until that lane is gone.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -48,6 +51,17 @@ rg spl commit -q --allow-empty -m "never pushed"
 LOCAL=$(rg spl rev-parse HEAD)
 rg other commit -q --allow-empty -m "other repo" && lettered other 12 "other repo" && rg other push -q origin HEAD:master
 OTHER=$(rg other rev-parse HEAD)
+# SPL-2313 slugs: a live reviewer worktree and a code-lane worktree of the spl repo
+rg spl worktree add -q -b a-560-c002-x-i18n-review-agy "$T/wt/a-560" origin/master 2>/dev/null
+rg spl worktree add -q -b c-563-c002-fix-thing "$T/wt/c-563" origin/master 2>/dev/null
+# a plan lane's commit on a review branch of origin, never on master
+rg spl checkout -q -b c-565-plan origin/master && rg spl commit -q --allow-empty -m "plan only" && lettered spl 9 "plan only"
+PLANSHA=$(rg spl rev-parse HEAD)
+rg spl push -q origin HEAD:refs/heads/review/c-565-c002-radar-step4
+rg spl checkout -q -b c-566-wip origin/master && rg spl commit -q --allow-empty -m "wip of a gone lane" && lettered spl 9 "wip of a gone lane"
+WIPSHA=$(rg spl rev-parse HEAD)
+rg spl push -q origin HEAD:refs/heads/wip/c-566-c002-gone
+rg spl checkout -q master
 
 NOW=$(date +%s)
 iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
@@ -72,6 +86,20 @@ msg c-545/outbox self  c-545 c-545 30 "ACK rotation x: c-545 read the handoff"
 msg c-002/inbox  uuid  c-546 c-002 30 "task 6b7e8a54-a896-4f24-9c83-80e9722daaa0, run 123456789012"
 msg c-002/inbox  sat   c-547@sat c-002 30 "no sha, another box"
 msg c-002/inbox  old   c-548 c-002 2000 "no sha, older than the window"
+msg c-002/inbox  rev   a-560 c-002 30 "review: FAIL, nothing to land"
+msg c-002/inbox  revsha a-560 c-002 25 "review of $LOCAL: PASS"
+msg c-002/inbox  seat  c-561 c-002 30 "seat verdict: go"
+msg c-002/inbox  plan  m-562 c-002 30 "plan ready on $LOCAL"
+msg c-002/inbox  code  c-563 c-002 30 "done, all green"
+msg c-002/inbox  noslug c-564 c-002 30 "done, all green"
+msg c-002/inbox  pend  c-565 c-002 30 "plan on ${PLANSHA:0:9}, waiting for a go"
+msg c-002/inbox  gone  c-566 c-002 30 "wip on ${WIPSHA:0:9}"
+msg c-002/inbox  topic m-567 c-002 30 "done, all green"
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n%s\n' \
+  "$T/wt/c-561	worktree	c-561	box-a	c-561-c002-rel-seat2-claude	$(iso "$NOW")" \
+  "$T/wt/m-562	worktree	m-562	box-a	m-562-c002-test-reflection-round-plan	$(iso "$NOW")" \
+  "$T/wt/m-567	worktree	m-567	box-a	m-567-c002-done-claim-skip-seat-lanes	$(iso "$NOW")" >"$SP/workdirs.tsv"
+printf 'c-565\tclaude\t%%1\t%s\t20261017T000000Z\n' "$T/wt/c-565" >"$SP/registry.tsv"
 jq -n '{v:1, msg_id:"note", from:"c-549", to:"c-002", kind:"note", ts:"x", body:"no sha, a note"}' >"$SP/c-002/inbox/note.json"
 
 cat >"$T/send.sh" <<'EOF'
@@ -92,27 +120,34 @@ verdict() { awk -F'\t' -v k="$1" '$1 == k { print $3 }' "$T/o"; }
 
 # 1. dry run: the verdicts, nothing sent, no ledger
 run; rc=$?
-v="$(for k in m595 land short other local rebased young role self uuid sat old note; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-want="m595=would-alert land=landed short=landed other=landed local=would-alert rebased=landed young= role= self= uuid=would-alert sat= old= note= "
+v="$(for k in m595 land short other local rebased young role self uuid sat old note rev revsha seat plan code noslug pend gone topic; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+want="m595=would-alert land=landed short=landed other=landed local=would-alert rebased=landed young= role= self= uuid=would-alert sat= old= note= rev=seat revsha=seat seat=seat plan=seat code=would-alert noslug=would-alert pend=pending gone=would-alert topic=would-alert "
 [ "$rc" = 0 ] && [ "$v" = "$want" ] && [ ! -s "$T/calls.log" ] && [ ! -e "$ST/seen.tsv" ] &&
-  pass "1. dry run: no sha (m-595's shape) and an unpushed sha would alert; a full, a 9-hex, another repo's and a rebased sha whose patch is on trunk (git cherry -) are landed; young, role seat, self-sent, other box, old and non-result skipped; nothing sent" ||
+  pass "1. dry run: no sha (m-595's shape) and an unpushed sha would alert; a full, a 9-hex, another repo's and a rebased sha whose patch is on trunk (git cherry -) are landed; young, role seat, self-sent, other box, old and non-result skipped; a reviewer / seat / plan slug (live worktree or retired row, sha or not) is seat, a code slug or none alerts (also one whose topic only mentions seats); a sha on a live lane's review branch is pending, a gone lane's wip branch alerts; nothing sent" ||
   fail "1. dry run (rc $rc) got '$v' want '$want': $(cat "$T/o") // $(cat "$T/calls.log")"
 [ "$(grep -c '^local	' "$T/o")" = 1 ] && grep -q '^uuid	.*no-sha$' "$T/o" &&
   pass "2. one row per msg_id (inbox + outbox copies); a UUID and an all-digit run id are not shas" || fail "2. dedupe / uuid: $(cat "$T/o")"
 
 # 3. real run: one note per alert, to the lease holder as the lease names it
 run DRY_RUN=0; rc=$?
-[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] &&
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 7 ] &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: m-595 result m595 (.*): no sha not in the repository" "$T/calls.log" &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-543 result local .*: sha $LOCAL not in the repository" "$T/calls.log" &&
-  ! grep -q "c-540\|c-541\|c-542\|a-551" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 7 ] &&
-  pass "3. DRY_RUN=0: one note per alerting message to the holder (lane, msg id, sha, 'not in the repository'); landed ones send none; all seven go to the ledger" ||
+  ! grep -q "c-540\|c-541\|c-542\|a-551\|a-560\|c-561\|m-562\|c-565" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 15 ] &&
+  [ "$(grep -c '	seat	' "$ST/seen.tsv")" = 4 ] && ! grep -q '^pend	' "$ST/seen.tsv" &&
+  pass "3. DRY_RUN=0: one note per alerting message to the holder (lane, msg id, sha, 'not in the repository'); landed, seat and pending ones send none; all but the pending one go to the ledger" ||
   fail "3. real run (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
-# 4. once per message: a second run sends nothing
+# 4. once per message: a second run sends nothing; only the pending one is judged again
 run DRY_RUN=0; rc=$?
-[ "$rc" = 0 ] && [ ! -s "$T/calls.log" ] && grep -q 'no lane result older than 15 min left to judge' "$T/o" &&
-  pass "4. a judged message is never judged again (no second note)" || fail "4. once (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+[ "$rc" = 0 ] && [ ! -s "$T/calls.log" ] && [ "$(grep -c '	' "$T/o")" = 1 ] && [ "$(verdict pend)" = pending ] &&
+  pass "4. a judged message is never judged again (no second note); a pending one is" || fail "4. once (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 4b. once the plan lane is gone from the registry, its pending sha alerts
+: >"$SP/registry.tsv"
+run DRY_RUN=0; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 1 ] && grep -q "c-565 result pend .*: sha ${PLANSHA:0:9} not in the repository" "$T/calls.log" &&
+  pass "4b. the lane gone, the pending sha alerts once" || fail "4b. gone (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 # 5. 15 min later the young one is due; a failed send is retried next run, not lost
 NOW=$((NOW + 15 * 60))

@@ -27,9 +27,25 @@
 # @description     in the repository"); every decided message goes to the
 # @description     ledger (seen.tsv: msg_id, verdict, epoch) and is never
 # @description     judged again
+# @description   - SPL-2313, read from metadata we write, never the body: a lane
+# @description     whose slug marks a seat, reviewer or plan lane (its LAST
+# @description     word, once a trailing vendor, takeover or spl key is cut,
+# @description     is seat / seatN / review / reviewer / plan / planner: not
+# @description     "skip-seat-lanes") is verdict seat, sha or not (a reviewer cites the
+# @description     reviewed sha, by design not on trunk): ledger, no note. The
+# @description     slug is the lane's worktree branch (git worktree list of
+# @description     each repo, branch <id>-<slug>) or its retired row in
+# @description     $SPOOL_ROOT/workdirs.tsv (agent, branch); every slug found
+# @description     for the id must mark it, and a lane with none is judged
+# @description     as before
+# @description   - a sha on no trunk but on a remote branch origin/<id>-...,
+# @description     origin/review/<id>-... or origin/wip/<id>-... of a lane
+# @description     still in this box's registry.tsv is verdict pending: no
+# @description     note, no ledger, judged again next run; it alerts once
+# @description     that lane is retired
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
-# @description TSV row per decided message (msg_id, lane, landed | alert |
-# @description would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
+# @description TSV row per decided message (msg_id, lane, landed | seat |
+# @description pending | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
 # @description fetches but sends nothing and writes no ledger.
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
@@ -66,12 +82,18 @@ do_spl_done_claim_check() {
   spl_done_claim_repos >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
   local to=""
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
-  local id from ts task body shas bad verdict n_alert=0 n_ok=0
+  spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
+  awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
+  local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_shas "$body")"
-    bad="$(spl_done_claim_missing "$tmp/repos" "$shas")"
-    if [[ -n "$shas" && -z "$bad" ]]; then
+    bad=""
+    if grep -qxF -- "${from%@*}" "$tmp/seats"; then
+      verdict=seat; n_seat=$((n_seat + 1))
+    elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
+    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad")" ]]; then
+      verdict=pending; n_wait=$((n_wait + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
@@ -80,15 +102,15 @@ do_spl_done_claim_check() {
       verdict=alert; n_alert=$((n_alert + 1))
     fi
     printf '%s\t%s\t%s\t%s\n' "$id" "$from" "$verdict" "${shas:-no-sha}"
-    if [[ "$dry" == 0 ]]; then
+    if [[ "$dry" == 0 && "$verdict" != pending ]]; then
       { mkdir -p "$state" && printf '%s\t%s\t%s\n' "$id" "$verdict" "$now" >>"$state/seen.tsv"; } || rc=1
     fi
   done <"$tmp/due"
   if [[ "$dry" == 0 ]]; then
     spl_done_claim_prune "$state/seen.tsv" "$((now - 2 * hours * 3600))"
-    echo "OK done-claim-check: $n_ok landed, $n_alert alerted to $to"
+    echo "OK done-claim-check: $n_ok landed, $n_seat seat, $n_wait pending, $n_alert alerted to $to"
   else
-    echo "OK done-claim-check: $n_ok landed, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
+    echo "OK done-claim-check: $n_ok landed, $n_seat seat, $n_wait pending, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
   fi
   rm -rf "$tmp"
   return $rc
@@ -162,6 +184,48 @@ spl_done_claim_missing() {
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
       if git -C "$top" merge-base --is-ancestor "$full" "$ref" 2>/dev/null ||
         git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null; then ok=1; break; fi
+    done <"$1"
+    (( ok )) || out+=("$s")
+  done
+  echo "${out[*]}"
+}
+
+# spl_done_claim_seats <root> <repos file>: the lane ids whose every known
+# slug marks a seat, reviewer or plan lane (SPL-2313): its last word, once a
+# trailing vendor, "takeover" or spl key is cut, is seat[N], review[er] or
+# plan[ner] (a-321-c002-radar-r7-reviewer-agy yes, m-341-c002-done-claim-skip-
+# seat-lanes no; measured on 241 slugs of both boxes, 10-17). The slugs: each repo's
+# worktree branches <id>-<slug>, and the worktree rows of <root>/workdirs.tsv
+# (agent, branch) the retire writes. An id with one code slug is not listed.
+spl_done_claim_seats() {
+  local top ref
+  {
+    while read -r top ref; do
+      git -C "$top" worktree list --porcelain 2>/dev/null | sed -nE 's#^branch refs/heads/(([cmagq]-[0-9]+)-.+)$#\2\t\1#p'
+    done <"$2"
+    [[ -f "$1/workdirs.tsv" ]] &&
+      awk -F'\t' '!/^#/ && $2 == "worktree" && $3 ~ /^[cmagq]-[0-9]+$/ && $5 != "" { print $3 "\t" $5 }' "$1/workdirs.tsv"
+  } | awk -F'\t' '
+    {
+      seen[$1] = 1; s = $2
+      while (sub(/-(claude|agy|mistral|grok|qwen|takeover|spl-?[0-9]+)$/, "", s)) ;
+      if (s !~ /-(seat[0-9]*|review|reviewer|plan|planner)$/) code[$1] = 1
+    }
+    END { for (id in seen) if (!(id in code)) print id }' | sort
+}
+
+# spl_done_claim_unparked <repos file> <live ids file> <shas>: the shas NOT on
+# a remote branch origin/[review/|wip/]<id>-... of a lane in <live ids>: a
+# plan lane's sha waiting there for a go is pending, not missing (SPL-2313).
+spl_done_claim_unparked() {
+  local s full top ref ids ok out=()
+  for s in $3; do
+    ok=0
+    while read -r top ref; do
+      full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
+      ids="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null |
+        sed -nE 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p')"
+      [[ -n "$ids" ]] && grep -qxFf "$2" <<<"$ids" && { ok=1; break; }
     done <"$1"
     (( ok )) || out+=("$s")
   done

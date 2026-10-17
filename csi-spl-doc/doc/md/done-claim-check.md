@@ -37,6 +37,46 @@ reads and fetches, sends nothing, writes no ledger). Code:
 A repo dir that is not a clone, or a failed fetch, refuses the run: a missing
 clone must not turn every sha into an alert.
 
+### 1.1 Seat, reviewer and plan lanes, and parked shas (SPL-2313)
+
+Those lanes never push code, so a note for them is noise (c-928's 24 h dry
+run on the main box: a-586, a-592, a-738 among the 12 alerts). Both rules read only
+metadata the fleet writes itself, never the message body (t1 37349c9b):
+
+1. **Verdict `seat`** (ledger, no note) when the lane's slug marks it: its
+   LAST word, once a trailing vendor (`claude`, `agy`, `mistral`, `grok`,
+   `qwen`), `takeover` or issue key (`spl-2219`, `spl2285`) is cut, is
+   `seat`, `seatN`, `review`, `reviewer`, `plan` or `planner`
+   (`a-212-c002-rel03-r7-reviewer-agy`, `c-285-c002-rel-seat-claude`,
+   `a-812-c001-review-spl-2219`, `a-591-c002-perf6-wui-speed-plan`). The
+   first brief's "contains `-seat-` / `-reviewer-`" was measured wrong both
+   ways on 241 slugs of both boxes (10-17): it matches the code lane
+   `m-341-c002-done-claim-skip-seat-lanes` and misses the review lanes
+   `...-i18n-review-agy` (a-738, a-168). The last-word rule marks 33 of the
+   241, and none of the code lanes whose topic only mentions seats (m-341,
+   m-284 `lane-map-role-seats`). Both the no-sha and the sha case are
+   skipped: a reviewer cites the reviewed sha, which is by design not on
+   trunk. The slug, both sources surviving the retire until the disk sweep
+   removes the worktree 24 h later (the window the check reads):
+   - the lane's worktree branch, `<id>-<slug>`, from `git worktree list` of
+     each repo in `DONE_CLAIM_REPO_DIRS`;
+   - its retired row in `$SPOOL_ROOT/workdirs.tsv` (agent, branch), written
+     by `agent-id-retire.sh`.
+   Every slug found for the id must mark it (one code slug, as from an old
+   lane of a recycled id, and it is judged as before); a lane with no slug
+   is judged as before. No list of ids is kept anywhere.
+2. **Verdict `pending`** (no note, no ledger, judged again on the next run)
+   when every missing sha is on a remote branch `origin/<id>-...`,
+   `origin/review/<id>-...` or `origin/wip/<id>-...` (`git branch -r
+   --contains`) of a lane still in this box's `registry.tsv`: a plan lane
+   waiting for a go. Once that lane is retired the sha alerts as before. A
+   lane of another box is not in this box's registry, so its branch does not
+   hold a sha back. The lane map is not read: it exits 4 whenever a lane
+   recorded no files.
+
+Not covered (report only): a sha whose work landed under a rewritten patch
+(`git cherry` `+`, a different patch-id), e.g. aea648fbe -> ac699baf1.
+
 ## 2. Standing
 
 The box cron `done-claim-check`, every 5 min (row in
@@ -50,4 +90,8 @@ The box cron `done-claim-check`, every 5 min (row in
 sha) alerts after 15 min and not before; a landed full sha and a 9-hex short
 sha do not, nor a rebased sha whose patch is on the trunk; a sha of a second repo is checked in that repo; an unpushed sha
 alerts; one note per message; a failed send is retried; a missing clone
-refuses.
+refuses. SPL-2313: a reviewer slug from a live worktree and a seat and a
+plan slug from retired `workdirs.tsv` rows are `seat`, with a sha or none; a
+code slug and no slug alert; a sha on a live lane's `review/` branch is
+`pending` and alerts once the lane leaves the registry; a gone lane's `wip/`
+sha alerts.

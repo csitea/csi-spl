@@ -42,6 +42,11 @@
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
 #      no lease = one WARN (CONTROL: an agent sender is still told itself)
+#  15. owner HUM-10 msg 91bf8278 (mistral does docs and reviews only): a
+#      mistral placement of a coding kind (SPAWN_KIND, else the brief's
+#      "Kind:", none counting as coding) is refused at enqueue, and a row
+#      queued anyway launches claude (CONTROL: mistral_coding_allowed true
+#      queues it and launches mistral)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -507,8 +512,8 @@ HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
 # (APP_PATH=$T has no cnf: the default false). CONTROL: a docs brief keeps mistral.
 U1=b7b7b7b7-0000-4000-8000-000000000001; U2=b8b8b8b8-0000-4000-8000-000000000002
-printf 'Fix the hover in csi-spl-wui/src/components/x.vue\n%s\n' "$ES" >"$T/briefs/ui-hover.md"
-printf 'Rewrite csi-spl-doc/doc/md/x.md\n%s\n' "$ES" >"$T/briefs/docs-x.md"
+printf 'Kind: i18n. Translate the hover in csi-spl-wui/src/components/x.vue\n%s\n' "$ES" >"$T/briefs/ui-hover.md"
+printf 'Class: bug. Kind: specs_and_docs. Rewrite csi-spl-doc/doc/md/x.md\n%s\n' "$ES" >"$T/briefs/docs-x.md"
 put "$U1" c-002@box-desk dispatch-b61851fb-u "SPAWN REQUEST ui hover"
 on pc do_spl_spawn_enqueue ASK_ID="$U1" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-hover >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
@@ -549,6 +554,39 @@ put "$H3" c-002@sat "$OWNER_TOPIC" "SPAWN REQUEST from an agent"
 on pc do_spl_spawn_enqueue ASK_ID="$H3" SPAWN_CLASS=bug >/dev/null 2>&1
 grep -qE "^c-001 c-002@sat note dispatch-c9beaa77 queued, position [0-9]+ of [0-9]+," "$T/send.log" &&
   pass "control: an agent sender is still told itself, unchanged" || fail "agent sender: $(sends)"
+# 15. the coding rule (owner HUM-10, t1 b61851fb, msg 91bf8278) ----------------
+C1=e5e5e5e5-0000-4000-8000-000000000001; C2=e6e6e6e6-0000-4000-8000-000000000002
+# the rows section 14 left queued would win the band pick: close them first
+jq '(.[] | select(.state == "queued")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+printf 'Class: refactor. Kind: complex_coding (claude). Split the store.\n%s\n' "$ES" >"$T/briefs/code-x.md"
+printf 'Fix the store.\n%s\n' "$ES" >"$T/briefs/nokind-x.md"
+printf 'env:\n  box:\n    agent_split:\n      mistral_coding_allowed: true\n' >"$T/coding-on.yaml"
+put "$C1" c-002@box-desk dispatch-b61851fb-c "SPAWN REQUEST code"
+order='mistral writes no code, kind complex_coding (owner HUM-10 t1 b61851fb msg 91bf8278: mistral does docs and reviews only, no coding)'
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=refactor SPAWN_PLACE=mistral:code-x 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$C1")")" == open ]] && grep -qF "FATAL SPAWN_PLACE=mistral:code-x refused: $order; place it as claude:code-x" <<<"$out" &&
+  pass "15. enqueue refuses mistral for a brief of Kind: complex_coding, naming the owner order" || fail "15. enqueue code: rc=$rc $out | $(hubrow "$C1")"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=refactor SPAWN_PLACE=mistral:docs-x SPAWN_KIND=tests 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && grep -q "refused: mistral writes no code, kind tests " <<<"$out" &&
+  pass "15. SPAWN_KIND=tests beats a docs brief: refused" || fail "15. SPAWN_KIND: rc=$rc $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=refactor SPAWN_PLACE=mistral:nokind-x 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && grep -q "refused: mistral writes no code, kind unset " <<<"$out" &&
+  pass "15. a brief with no Kind: line is coding: refused" || fail "15. no kind: rc=$rc $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=refactor SPAWN_PLACE=mistral:code-x SPAWN_PLACE_CNF="$T/coding-on.yaml" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$C1")")" == queued ]] &&
+  pass "15. control: mistral_coding_allowed true queues the same placement" || fail "15. control enqueue: rc=$rc $out"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-505 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$C1")")" == "placed: c-505@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/code-x.md code-x$" "$T/launch.log" &&
+  grep -qF "placed as mistral, launched as claude: $order" <<<"$out" &&
+  pass "15. a mistral coding row already queued launches claude" || fail "15. placement: $out | $(cat "$T/launch.log")"
+put "$C2" c-002@box-desk dispatch-b61851fb-d "SPAWN REQUEST code 2"
+on pc do_spl_spawn_enqueue ASK_ID="$C2" SPAWN_CLASS=refactor SPAWN_PLACE=mistral:code-x SPAWN_PLACE_CNF="$T/coding-on.yaml" >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=m-506 SPAWN_PLACE_CNF="$T/coding-on.yaml" 2>&1)"
+grep -q "^mistral auto $T $T/briefs/code-x.md code-x$" "$T/launch.log" &&
+  pass "15. control: with mistral_coding_allowed true the placer launches mistral" || fail "15. control placement: $out | $(cat "$T/launch.log")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

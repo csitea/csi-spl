@@ -20,12 +20,12 @@ const fresh = normalizeAgentSplitKinds({})
 ok('an empty body reads the seven kinds in order', fresh.map((r) => r.kind).join(',') === SPLIT_TASK_KINDS.join(','))
 ok('an empty body is the spec 115 section 2 table, unset',
   fresh.map((r) => `${r.kind}:${r.main}/${r.backup}:${r.set}`).join(' ') ===
-  'specs_and_docs:agy/claude:false tests:claude/mistral:false simple_coding:grok/claude:false complex_coding:claude/mistral:false i18n:agy/claude:false secret:claude/mistral:false orchestration:claude/grok:false')
+  'specs_and_docs:agy/claude:false tests:claude/grok:false simple_coding:claude/grok:false complex_coding:claude/grok:false i18n:agy/claude:false secret:claude/grok:false orchestration:claude/grok:false')
 const body = { kinds: [{ kind: 'simple_coding', weights: { mistral: 60, claude: 30, grok: 10 }, backup: 'claude', main: 'mistral', set: true, updated_by: 'HUM-1' }] }
 const read = normalizeAgentSplitKinds(body).find((r) => r.kind === 'simple_coding')
 ok('a set kind reads its weights, backup and writer', read.set && read.weights.mistral === 60 && read.weights.grok === 10 && read.weights.agy === 0 && read.backup === 'claude' && read.updatedBy === 'HUM-1')
 ok('CONTROL: a broken row in the body reads as the default',
-  normalizeAgentSplitKinds({ kinds: [{ kind: 'tests', weights: { claude: 50, agy: 50 }, backup: 'mistral', set: true }] }).find((r) => r.kind === 'tests').weights.claude === 70)
+  normalizeAgentSplitKinds({ kinds: [{ kind: 'tests', weights: { claude: 50, agy: 50 }, backup: 'mistral', set: true }] }).find((r) => r.kind === 'tests').weights.claude === 85)
 
 // --- the rules --------------------------------------------------------------
 for (const k of SPLIT_TASK_KINDS) {

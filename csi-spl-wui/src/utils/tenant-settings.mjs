@@ -125,14 +125,15 @@ const SPLIT_CODING_KINDS = Object.freeze(['tests', 'simple_coding', 'complex_cod
 const SPLIT_SECRET_KINDS = Object.freeze(['secret', 'orchestration'])
 const SPLIT_SECRET_VENDORS = Object.freeze(['claude', 'grok', 'mistral'])
 
-/** spec 115 section 2: the row of a kind the workspace has not set. */
+/** spec 115 section 2: the row of a kind the workspace has not set (cnf
+ * env.box.agent_split_by_kind; mistral writes no code, owner msg 91bf8278). */
 export const DEFAULT_SPLIT_KINDS = Object.freeze({
   specs_and_docs: { weights: { claude: 10, grok: 0, agy: 60, qwen: 0, mistral: 30 }, backup: 'claude' },
-  tests: { weights: { claude: 70, grok: 15, agy: 0, qwen: 0, mistral: 15 }, backup: 'mistral' },
-  simple_coding: { weights: { claude: 20, grok: 41, agy: 0, qwen: 0, mistral: 39 }, backup: 'claude' },
-  complex_coding: { weights: { claude: 80, grok: 10, agy: 0, qwen: 0, mistral: 10 }, backup: 'mistral' },
+  tests: { weights: { claude: 85, grok: 15, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
+  simple_coding: { weights: { claude: 59, grok: 41, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
+  complex_coding: { weights: { claude: 90, grok: 10, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
   i18n: { weights: { claude: 0, grok: 0, agy: 100, qwen: 0, mistral: 0 }, backup: 'claude' },
-  secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'mistral' },
+  secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
   orchestration: { weights: { claude: 65, grok: 35, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
 })
 

@@ -80,15 +80,17 @@ cat >"$T/bin/send" <<'STUB'
 printf '%s\n' "$*" >>"$SEND_LOG"
 STUB
 # The lane mix stub: the real table shape; GROK_STATUS / MISTRAL_STATUS set a vendor's status.
+# Its defaults are today's picker on the real cnf: backup grok, mistral out
+# by the coding rule (owner HUM-10 msg 91bf8278: docs and reviews only).
 cat >"$T/bin/mix" <<'STUB'
 #!/usr/bin/env bash
 echo "$LANE_MIX_KIND $LANE_MIX_TASK" >>"$MIX_LOG"
-echo "kind=secret (LANE_MIX_KIND=secret) main=claude backup=${MIX_BACKUP:-mistral} row=cnf env.box.agent_split_by_kind.secret"
+echo "kind=secret (LANE_MIX_KIND=secret) main=claude backup=${MIX_BACKUP:-grok} row=cnf env.box.agent_split_by_kind.secret"
 echo "vendor  target effective actual count cli  status"
 echo "claude    100%      100%     0%     0 yes  under"
 echo "grok        0%        0%     0%     0 yes  ${GROK_STATUS:-ok}"
 echo "agy         0%        0%     0%     0 yes  ok"
-echo "mistral     0%        0%     0%     0 yes  ${MISTRAL_STATUS:-ok}"
+echo "mistral     0%        0%     0%     0 yes  ${MISTRAL_STATUS:-skip (mistral writes no code, kind secret (owner HUM-10 t1 b61851fb msg 91bf8278: mistral does docs and reviews only, no coding)); share to grok}"
 echo "pick=${MIX_PICK:-claude launcher=/claude-spawn kind=secret reason=main}"
 STUB
 cat >"$T/bin/cal" <<'STUB'
@@ -137,8 +139,8 @@ grep -q 'held on sat' <<<"$out" && [[ "$(asks)" == 0 ]] &&
 out="$(round SECURITY_ROUND=on DRY_RUN=0)"
 rows="$(jq -c '[.[] | select(.topic == "security-round-2026-10-16")]' "$T/hub/main.json")"
 if [[ "$(asks)" == 2 ]] && jq -e 'all(.state == "queued" and .class == "bug" and .from == "c-002@box-desk")' >/dev/null <<<"$rows" &&
-   [[ "$(jq -r '[.[].placement] | sort | join(" ")' <<<"$rows")" == "claude:security-round-2026-10-16-seat-1 mistral:security-round-2026-10-16-seat-2" ]]; then
-  pass "live: 2 asks, queued, class bug, task security-round-2026-10-16, from the dispatch holder; seat 1 claude, seat 2 mistral (the backup)"
+   [[ "$(jq -r '[.[].placement] | sort | join(" ")' <<<"$rows")" == "claude:security-round-2026-10-16-seat-1 grok:security-round-2026-10-16-seat-2" ]]; then
+  pass "live: 2 asks, queued, class bug, task security-round-2026-10-16, from the dispatch holder; seat 1 claude, seat 2 grok (the backup; mistral writes no code)"
 else fail "live: $out | $rows"; fi
 grep -qx '# Lane brief: weekly security round, panel SEAT 2 of 2' "$T/briefs/security-round-2026-10-16-seat-2.md" &&
   grep -q 'security-round/2026-10-16/seat-1.md' "$T/briefs/security-round-2026-10-16-seat-1.md" &&
@@ -175,7 +177,7 @@ else
 fi
 
 # 5. vendors, hold, knobs ------------------------------------------------------------
-out="$(round SECURITY_ROUND_DATE=2026-11-06 MISTRAL_STATUS='skip (no auth); share to claude')"
+out="$(round SECURITY_ROUND_DATE=2026-11-06 MIX_BACKUP=mistral MISTRAL_STATUS='skip (no auth); share to claude')"
 grep -q 'PLAN would queue seat 2 of round 2026-11-06 as grok:' <<<"$out" &&
   pass "vendors: the backup out of quota -> seat 2 on the next free one (grok)" || fail "grok: $out"
 out="$(round SECURITY_ROUND_DATE=2026-11-06 MISTRAL_STATUS='skip (limit)' GROK_STATUS='skip (paused)')"

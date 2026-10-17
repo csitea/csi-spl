@@ -301,7 +301,7 @@ try {
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   await sleep(100)
   const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
-  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
+  ok('8o new per-kind weights save and read back', kinds1.simple === `claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=${simpleDef.backup}` && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
   if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
 
   // 3c. SPL-2115 Agent takeover: per task kind the vendor order and the

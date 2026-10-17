@@ -20,6 +20,10 @@ CODING_KINDS = ("tests", "simple_coding", "complex_coding")
 # kinds (orchestration: owner msgs a1e5c678, ff1baf01) take only these
 SECRET_KINDS = ("secret", "orchestration")
 SECRET_VENDORS = ("claude", "grok", "mistral")
+# owner HUM-10, t1 b61851fb, msg 91bf8278 (2026-10-17): "Docs and reviews
+# only, no coding": mistral is 0 and never the backup in these kinds while
+# env.box.agent_split.mistral_coding_allowed is not true
+MISTRAL_NO_CODE_KINDS = CODING_KINDS + SECRET_KINDS
 
 Weight = conint(ge=0, le=100)
 
@@ -56,6 +60,23 @@ class Box(BaseModel, extra=Extra.allow):
     """env.box: only agent_split_by_kind is modelled; the other keys pass through."""
 
     agent_split_by_kind: Optional[Dict[str, KindRow]]
+
+    @root_validator(skip_on_failure=True)
+    def mistral_writes_no_code(cls, values):
+        rows = values.get("agent_split_by_kind")
+        split = values.get("agent_split") or {}
+        if rows is None or (
+            isinstance(split, dict) and split.get("mistral_coding_allowed") is True
+        ):
+            return values
+        for kind in MISTRAL_NO_CODE_KINDS:
+            row = rows[kind]
+            if row.mistral != 0 or row.backup == "mistral":
+                raise ValueError(
+                    f"{kind}: mistral writes no code, docs and reviews only"
+                    " (weight 0, never the backup; owner msg 91bf8278)"
+                )
+        return values
 
     @validator("agent_split_by_kind")
     def kind_rules(cls, rows):

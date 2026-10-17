@@ -182,7 +182,7 @@ _frd_per_kind_main() {  # <tree> <home>
   local t="$1" want f ln kind main exp seen bad=0 n=0
   want="specs_and_docs agy
 tests claude
-simple_coding grok
+simple_coding claude
 complex_coding claude
 i18n agy
 secret claude

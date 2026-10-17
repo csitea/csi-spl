@@ -11,16 +11,17 @@ kind and let the per-kind main and backup vendors decide:
 | task kind               | main    | backup  |
 |-------------------------|---------|---------|
 | specs, docs, plans, spec reviews and code reviews (`specs_and_docs`) | agy     | claude  |
-| writing tests (`tests`) | claude  | mistral |
-| simple and routine coding (`simple_coding`) | grok    | claude  |
-| hard coding, architecture, hi-fi work (`complex_coding`) | claude  | mistral |
+| writing tests (`tests`) | claude  | grok    |
+| simple and routine coding (`simple_coding`) | claude  | grok    |
+| hard coding, architecture, hi-fi work (`complex_coding`) | claude  | grok    |
 | translations, language reviews (`i18n`) | agy     | claude  |
-| secrets, personal data (`secret`) | claude  | mistral |
+| secrets, personal data (`secret`) | claude  | grok    |
 | dispatching and orchestrating (`orchestration`) | claude  | grok    |
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 
 UI work: never mistral until do_spl_vendor_ui_retest passes (owner 2026-10-16, t1 b61851fb).
+Coding: never mistral, as main or backup, in tests, simple_coding, complex_coding, secret or orchestration (owner 2026-10-17, t1 b61851fb, msg 91bf8278: "Docs and reviews only, no coding"); a `SPAWN_PLACE=mistral:` placement of those kinds, or of a brief with no `Kind:` line, is refused.
 
 <!-- fleet-pin data-rule-vendors: claude grok mistral -->
 **Data rule, overrides kind** (owner, 2026-10-08, msg 803c3b38, spec 110

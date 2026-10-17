@@ -56,7 +56,7 @@ func TestSplitKinds(t *testing.T) {
 			for _, d := range DefaultSplitKinds() {
 				want(got[d.Kind], d.Main(), d.Backup, false, d.Weights)
 			}
-			want(got["simple_coding"], "grok", "claude", false, map[string]int{"grok": 41, "mistral": 39, "claude": 20})
+			want(got["simple_coding"], "claude", "grok", false, map[string]int{"claude": 59, "grok": 41})
 			want(got["specs_and_docs"], "agy", "claude", false, map[string]int{"agy": 80, "mistral": 15, "claude": 5})
 			want(got["orchestration"], "claude", "grok", false, map[string]int{"claude": 65, "grok": 35})
 
@@ -83,7 +83,7 @@ func TestSplitKinds(t *testing.T) {
 			if got["simple_coding"].UpdatedBy != "HUM-1" || !got["simple_coding"].UpdatedAt.Equal(now) {
 				t.Fatalf("writer: %q %v", got["simple_coding"].UpdatedBy, got["simple_coding"].UpdatedAt)
 			}
-			want(got["tests"], "claude", "mistral", false, map[string]int{"claude": 70, "grok": 15, "mistral": 15})
+			want(got["tests"], "claude", "grok", false, map[string]int{"claude": 85, "grok": 15})
 
 			for label, p := range map[string]SplitKindPatch{
 				"agy in simple_coding (CONTROL)": {Set: []SplitKind{
@@ -119,7 +119,7 @@ func TestSplitKinds(t *testing.T) {
 				t.Fatalf("reset: %v", err)
 			}
 			got = read(tid)
-			want(got["simple_coding"], "grok", "claude", false, map[string]int{"grok": 41, "mistral": 39, "claude": 20})
+			want(got["simple_coding"], "claude", "grok", false, map[string]int{"claude": 59, "grok": 41})
 			want(got["secret"], "claude", "mistral", true, map[string]int{"claude": 70, "mistral": 30})
 		})
 	}

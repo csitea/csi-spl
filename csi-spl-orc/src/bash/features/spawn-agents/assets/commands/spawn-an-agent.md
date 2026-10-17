@@ -37,17 +37,19 @@ cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_cod
 (a brief or a path naming `csi-spl-wui/`) never goes to mistral, as main or backup, until
 `do_spl_vendor_ui_retest` passes (owner 2026-10-16, t1 b61851fb).
 
+Coding never goes to mistral, as main or backup (owner 2026-10-17, t1 b61851fb, msg 91bf8278: "Docs and reviews only, no coding"): every kind but `specs_and_docs` and `i18n`, whatever the row. `do_spl_spawn_enqueue` refuses a `SPAWN_PLACE=mistral:<slug>` of such a kind (`SPAWN_KIND`, else the brief's `Kind:`; a brief with none counts as coding), and the placer launches claude for one queued before. Grok is the backup of those rows only because a backup may not be the main; with grok off, claude takes the lane.
+
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
 launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which defines the per-kind main and backup vendors:
 
 | the task | main    | backup  |
 |----------|---------|---------|
 | specs, docs, plans, spec reviews and code reviews: `LANE_MIX_KIND=specs_and_docs` | agy     | claude  |
-| writing tests: `LANE_MIX_KIND=tests` | claude  | mistral |
-| simple and routine coding: `LANE_MIX_KIND=simple_coding` | grok    | claude  |
-| hard coding, architecture, hi-fi work: `LANE_MIX_KIND=complex_coding` | claude  | mistral |
+| writing tests: `LANE_MIX_KIND=tests` | claude  | grok    |
+| simple and routine coding: `LANE_MIX_KIND=simple_coding` | claude  | grok    |
+| hard coding, architecture, hi-fi work: `LANE_MIX_KIND=complex_coding` | claude  | grok    |
 | translation, or the language review of user-facing text in several languages: `LANE_MIX_KIND=i18n` | agy     | claude  |
-| personal data or secrets: `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude  | mistral |
+| personal data or secrets: `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude  | grok    |
 | dispatching and orchestrating: `LANE_MIX_KIND=orchestration` | claude  | grok    |
 
 The backup vendor takes over after 2 failed tries of the main on the same task.

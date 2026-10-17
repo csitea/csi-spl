@@ -61,6 +61,13 @@
 # @description         brief names csi-spl-wui/ launches claude instead while
 # @description         cnf env.box.agent_split.mistral_ui_allowed is not true
 # @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest)
+# @description      CODING RULE (owner HUM-10, t1 b61851fb, msg 91bf8278): a
+# @description         mistral placement whose brief's "Kind:" is not
+# @description         specs_and_docs or i18n (none counts as coding) launches
+# @description         claude instead while cnf
+# @description         env.box.agent_split.mistral_coding_allowed is not true
+# @description         (spl_lane_mix_mistral_code_off); do_spl_spawn_enqueue
+# @description         refuses such a placement up front
 # @description      b. otherwise (no placement, or no brief file here: the brief
 # @description         needs judgement) the holder gets ONE blocker "place ask X
 # @description         now" with the summary and the close command
@@ -70,7 +77,7 @@
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements, default 10
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where <slug>.md (or c001-<slug>.md) is, default <spool root>/dispatch/briefs
-# @param SPAWN_PLACE_CNF (optional) - the cnf whose mistral_ui_allowed the UI rule reads, default <APP_PATH>/csi-spl-cnf/csi-spl/all.env.yaml
+# @param SPAWN_PLACE_CNF (optional) - the cnf whose mistral_ui_allowed and mistral_coding_allowed the UI and coding rules read, default <APP_PATH>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param SPAWN_PLACE_WORKDIR (optional) - the launcher's WORKDIR, default the checkout this action runs from
 # @param SPAWN_PLACE_TMUX_SOCKET (optional) - the box user's tmux socket, default /tmp/tmux-<uid>/default
 # @param SPAWN_PLACE_WINDOWS_CMD SPAWN_PLACE_PICK_CMD SPAWN_PLACE_LAUNCH_CMD (optional, tests) - print the window count / the box pick / run the launch
@@ -310,13 +317,16 @@ spl_spawn_place_take() {  # HOLDER HEAD
 }
 
 # The vendor to launch: VENDOR, except mistral on UI work while the cnf
-# switch mistral_ui_allowed is not true -> claude (the UI rule,
-# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb).
+# switch mistral_ui_allowed is not true, or on a coding kind while
+# mistral_coding_allowed is not true -> claude (the UI and coding rules,
+# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). A row queued before the
+# enqueue refused it is launched, not dropped.
 spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
-  local why
+  local why cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { echo "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
-  why="$(spl_lane_mix_mistral_ui_off "${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}" "$2" "")"
+  why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
+  [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$(spl_lane_mix_brief_kind "$2")")"
   [[ -n "$why" ]] || { echo "$1"; return 0; }
   do_log "INFO ask ${3:0:8}: placed as mistral, launched as claude: $why" >&2
   echo claude

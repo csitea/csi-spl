@@ -16,7 +16,9 @@
 #          any other pick carries flag=needs_agy_review.
 #          A fake agent home, registry and journal; the cnf is a copy of the
 #          real all.env.yaml with the section 2 table pinned, so a cnf change
-#          does not move these cases.
+#          does not move these cases; it also pins mistral_coding_allowed
+#          true, and section 16 checks the coding rule (owner HUM-10 msg
+#          91bf8278: mistral does docs and reviews only) with it false.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -31,6 +33,7 @@ command -v yq >/dev/null || { echo "FAIL: no yq"; exit 1; }
 REAL_CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
 CNF="$T/all.env.yaml"
 yq '.env.box.agent_split.tolerance = 5 | .env.box.agent_split.window = 20
+  | .env.box.agent_split.mistral_coding_allowed = true
   | .env.box.agent_split_by_kind = {
       "specs_and_docs": {"agy": 70, "mistral": 20, "claude": 10, "backup": "claude"},
       "tests": {"claude": 70, "mistral": 30, "backup": "mistral"},
@@ -490,8 +493,8 @@ mix; rc=$?
   && pass "9. no registry yet: n=0, the main" || fail "9. no registry: rc=$rc $(cat "$T/out")"
 
 # --- 11. T1: 1,000 simulated picks per coding kind, never agy -----------------
-# T1 runs on the REAL cnf rows (simple_coding grok 41 / mistral 39 / claude
-# 20 since c743cc022), not the pinned ones: the band must hold for the rows
+# T1 runs on the REAL cnf rows (simple_coding claude 59 / grok 41, mistral 0
+# in every coding kind since owner msg 91bf8278), not the pinned ones: the band must hold for the rows
 # the fleet spawns by.
 # simulate <n>: do_spl_lane_mix once (row, instance setting, availability),
 # then <n> picks of the one rule in the same process, each appended to a
@@ -569,11 +572,12 @@ MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='c
   || fail "11. control: agy 10 did not reach a pick: $(cat "$T/out")"
 rm -rf "$T/ctl"
 # CONTROL: the nudge gated on the band again (a deficit past the tolerance
-# only, as before c-851) on the real simple_coding row must break the band
+# only, as before c-851) on the three-vendor simple_coding row of 2026-10-11
+# (the real row has two since owner msg 91bf8278) must break the band
 mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^\( *\)d=\$(( _LM_EFF\[\$v\] \* (_LM_N + 1) - _LM_CNT\[\$v\] \* sum ))$/\1d=$(( _LM_EFF[$v] * _LM_N - _LM_CNT[$v] * sum )); (( d * 100 > _LM_TOL * _LM_N * sum )) || d=0/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
-MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_CNF="$REAL_CNF"
+MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='claude=20 grok=41 agy=0 qwen=0 mistral=39 backup=claude'
 r="$(t1_check '[]')"
 grep -qF '_LM_TOL * _LM_N' "$CTL/src/bash/run/spl-lane-mix.func.sh" && [[ -n "$r" ]] \
   && pass "11. control: the nudge gated on the band drifts out of it on simple_coding:$r (T1 would be red)" \
@@ -761,6 +765,49 @@ mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/ui-brief.md"
 yq -i '.env.box.agent_split.mistral_ui_allowed = false' "$CNF"
 [[ "$(yq -r '.env.box.agent_split.mistral_ui_allowed' "$REAL_CNF")" == false ]] \
   && pass "15. the real cnf holds mistral_ui_allowed: false" || fail "15. real cnf switch: $(yq -r '.env.box.agent_split.mistral_ui_allowed' "$REAL_CNF")"
+
+# --- 16. coding never goes to mistral (owner HUM-10, t1 b61851fb, msg 91bf8278) ---
+# "Docs and reviews only, no coding": every kind but specs_and_docs and i18n
+# never picks mistral, as main or backup, while cnf mistral_coding_allowed is
+# not true, even from a hub row (LANE_MIX_SPLIT_KIND) that still names it.
+# RED CONTROL: the same picks with the switch true (today's behaviour before
+# the order) give mistral.
+rm -rf "$T/dispatch"; : >"$T/registry.tsv"; hub '[]'
+yq -i '.env.box.agent_split.mistral_coding_allowed = false' "$CNF"
+bad="" ctl=""
+for k in tests simple_coding complex_coding secret orchestration; do
+  row="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+  mix LANE_MIX_KIND=$k LANE_MIX_SPLIT_KIND="$row"
+  [[ "$(pick)" != mistral ]] && grep -q "^mistral .*skip (mistral writes no code, kind $k (owner HUM-10 t1 b61851fb msg 91bf8278" "$T/out"     || bad+=" $k:main=$(pick)"
+  attempt "task-nc-$k" claude fail:F2; attempt "task-nc-$k" claude fail:F2
+  mix LANE_MIX_KIND=$k LANE_MIX_TASK="task-nc-$k" LANE_MIX_SPLIT_KIND="claude=90 grok=0 agy=0 qwen=0 mistral=10 backup=mistral"
+  [[ "$(pick)" != mistral ]] && grep -q 'mistral is out (mistral writes no code' "$T/out" || bad+=" $k:backup=$(pick)"
+  yq -i '.env.box.agent_split.mistral_coding_allowed = true' "$CNF"
+  mix LANE_MIX_KIND=$k LANE_MIX_SPLIT_KIND="$row"
+  [[ "$(pick)" == mistral ]] || ctl+=" $k:main=$(pick)"
+  mix LANE_MIX_KIND=$k LANE_MIX_TASK="task-nc-$k" LANE_MIX_SPLIT_KIND="claude=90 grok=0 agy=0 qwen=0 mistral=10 backup=mistral"
+  [[ "$(pick)" == mistral ]] || ctl+=" $k:backup=$(pick)"
+  yq -i '.env.box.agent_split.mistral_coding_allowed = false' "$CNF"
+done
+[[ -z "$bad" ]] && pass "16. no coding kind picks mistral, as main or backup, even from a hub row naming it" || fail "16. coding:$bad $(cat "$T/out")"
+[[ -z "$ctl" ]] && pass "16. control: mistral_coding_allowed true gives the same picks to mistral" || fail "16. control:$ctl"
+rm -rf "$T/dispatch"
+mix LANE_MIX_KIND=hard LANE_MIX_SPLIT_KIND="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+[[ "$(pick)" == claude ]] && pass "16. an alias (hard = complex_coding) is coding too: claude" || fail "16. hard: $(cat "$T/out")"
+mix LANE_MIX_SENSITIVE=1 LANE_MIX_KIND=specs_and_docs LANE_MIX_SPLIT_KIND="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+[[ "$(pick)" == claude ]] && pass "16. sensitive docs are secret, so coding-class: claude" || fail "16. sensitive: $(cat "$T/out")"
+for k in specs_and_docs review; do
+  mix LANE_MIX_KIND=$k LANE_MIX_SPLIT_KIND="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+  [[ "$(pick)" == mistral ]] && pass "16. $k still goes to mistral" || fail "16. $k: $(cat "$T/out")"
+done
+mix LANE_MIX_KIND=complex_coding LANE_MIX_CNF="$REAL_CNF"
+[[ "$(pick)" == claude ]] && grep -q 'mistral writes no code' "$T/out"   && pass "16. the real cnf: complex_coding goes to claude, mistral out by the coding rule" || fail "16. real cnf: $(cat "$T/out")"
+[[ "$(yq -r '.env.box.agent_split.mistral_coding_allowed' "$REAL_CNF")" == false ]]   && pass "16. the real cnf holds mistral_coding_allowed: false" || fail "16. real cnf switch: $(yq -r '.env.box.agent_split.mistral_coding_allowed' "$REAL_CNF")"
+bad=""
+for k in tests simple_coding complex_coding secret orchestration; do
+  [[ "$(yq -r ".env.box.agent_split_by_kind.$k.mistral // 0" "$REAL_CNF")" == 0 && "$(yq -r ".env.box.agent_split_by_kind.$k.backup" "$REAL_CNF")" != mistral ]] || bad+=" $k"
+done
+[[ -z "$bad" && "$(yq -r '.env.box.agent_split_by_kind.specs_and_docs.mistral' "$REAL_CNF")" -gt 0 ]]   && pass "16. the real cnf rows: mistral 0 and never the backup in every coding kind, still in specs_and_docs" || fail "16. real rows:$bad"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

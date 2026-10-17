@@ -22,6 +22,7 @@
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
+# @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
 # @param ASK_BY (optional) - the acting agent, <ID>@<box>; default this machine's orchestrator
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue
@@ -50,6 +51,7 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   local id="$1" by="$2" place="$3" class="$4" msg="$6" flag="" row rc=0
   [[ -z "$place" || "$place" =~ ^[a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63}$ ]] ||
     { do_log "FATAL SPAWN_PLACE must be <vendor>:<slug> (lowercase), got '$place'" >&2; return 1; }
+  spl_spawn_enqueue_mistral_ok "$place" >&2 || return 1
   [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
     { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)" >&2; return 1; }
   [[ "$5" == 1 ]] && flag=urgent
@@ -76,4 +78,19 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"
+}
+
+# spl_spawn_enqueue_mistral_ok <placement> -> refuses (one FATAL line) a
+# mistral placement whose kind (SPAWN_KIND, else the brief's "Kind:", none
+# counting as coding) is coding: the coding rule of spl-lane-mix.func.sh
+spl_spawn_enqueue_mistral_ok() {
+  local why kind="${SPAWN_KIND:-}"
+  [[ "$1" == mistral:* ]] || return 0
+  declare -F spl_lane_mix_mistral_code_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+  [[ -n "$kind" ]] || kind="$(spl_lane_mix_brief_kind "$(spl_spawn_place_brief "${1#mistral:}")")"
+  why="$(spl_lane_mix_mistral_code_off "${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}" "$kind")"
+  [[ -z "$why" ]] && return 0
+  do_log "FATAL SPAWN_PLACE=$1 refused: $why; place it as claude:${1#mistral:}"
+  return 1
 }

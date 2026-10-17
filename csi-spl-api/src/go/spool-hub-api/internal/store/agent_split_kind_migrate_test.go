@@ -16,7 +16,7 @@ import (
 // Each case writes one kind's rows in its own transaction, under the
 // workspace's tenant scope, and reads the CHECK it broke at the statement or
 // at commit (the per-kind rules are a deferred constraint trigger).
-//   - stored (n=7 kinds, 18 rows, + 2): the spec section 2 table; grok in
+//   - stored (n=7 kinds, 15 rows, + 2): the spec section 2 table; grok in
 //     secret (0178); a kind's rows deleted again (not set).
 //   - refused (n=14): agy > 0 or agy the backup in each coding kind (the
 //     CONTROL: drop tenant_agent_split_kind_no_agy_coding and this goes red),
@@ -32,14 +32,15 @@ type splitRow struct {
 	backup  string
 }
 
-// spec115Rows is the spec 115 section 2 table.
+// spec115Rows is the spec 115 section 2 table (mistral out of the coding
+// kinds since owner msg 91bf8278).
 var spec115Rows = []splitRow{
 	{"specs_and_docs", map[string]int{"agy": 80, "mistral": 15, "claude": 5}, "claude"},
-	{"tests", map[string]int{"claude": 70, "grok": 15, "mistral": 15}, "mistral"},
-	{"simple_coding", map[string]int{"grok": 41, "mistral": 39, "claude": 20}, "claude"},
-	{"complex_coding", map[string]int{"claude": 80, "grok": 10, "mistral": 10}, "mistral"},
+	{"tests", map[string]int{"claude": 85, "grok": 15}, "grok"},
+	{"simple_coding", map[string]int{"claude": 59, "grok": 41}, "grok"},
+	{"complex_coding", map[string]int{"claude": 90, "grok": 10}, "grok"},
 	{"i18n", map[string]int{"agy": 100}, "claude"},
-	{"secret", map[string]int{"claude": 100}, "mistral"},
+	{"secret", map[string]int{"claude": 100}, "grok"},
 	{"orchestration", map[string]int{"claude": 65, "grok": 35}, "grok"},
 }
 
@@ -115,8 +116,8 @@ func TestTenantAgentSplitKind0163(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if n != 18 {
-		t.Errorf("spec 115 table: %d rows stored, want 18", n)
+	if n != 15 {
+		t.Errorf("spec 115 table: %d rows stored, want 15", n)
 	}
 	// 0178: grok takes secret work, as a weight and as the backup.
 	tg := newTenant(t, pg)

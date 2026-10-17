@@ -133,7 +133,7 @@ in_orc 'do_spl_agent_split_show --kind simple_coding' TENANT_ID=t1 STUB_PSQL_OUT
   && pass "4. --kind prints the workspace's row and its backup, kind as -v" \
   || fail "4. kind: rc=$rc $(cat "$T/out") --- $(cat "$T/calls.log")"
 in_orc 'do_spl_agent_split_show --kind hard' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'claude=80 grok=10 agy=0 qwen=0 mistral=10 backup=mistral' "$T/out" \
+[[ $rc -eq 0 ]] && grep -qx 'claude=90 grok=10 agy=0 qwen=0 mistral=0 backup=grok' "$T/out" \
   && grep -q '\[kind=complex_coding\]' "$T/calls.log" && grep -q 'source=cnf' "$T/out" \
   && pass "4. an unset kind (alias hard) prints the cnf row" || fail "4. cnf: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind i18n' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?

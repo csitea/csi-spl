@@ -53,6 +53,12 @@
 # @description its weight goes to the heir and the candidates end claude, grok.
 # @description The cnf switch env.box.agent_split.mistral_ui_allowed (default
 # @description false) lifts it; only do_spl_vendor_ui_retest's pass flips it.
+# @description Coding rule (owner HUM-10, t1 b61851fb, msg 91bf8278,
+# @description 2026-10-17: "Docs and reviews only, no coding"): every kind but
+# @description specs_and_docs and i18n never gets mistral, as main or backup,
+# @description whatever the row (a hub row that still names it included); its
+# @description weight goes to the heir. cnf env.box.agent_split.mistral_coding_allowed
+# @description (default false) lifts it, on a new owner order only.
 # @description Prints the kind's table, then `pick=<vendor> launcher=/<vendor>-spawn
 # @description kind=<k> reason=...`, or `pick=hold`.
 # @param LANE_MIX_KIND (optional) - a kind or an alias above; unset reads the difficulty
@@ -88,6 +94,10 @@
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
 #------------------------------------------------------------------------------
 LANE_MIX_VENDORS=(claude grok agy qwen mistral)
+# owner HUM-10, t1 b61851fb, msg 91bf8278 (2026-10-17): mistral does docs and
+# reviews only; every kind but these is coding (spl_lane_mix_mistral_code_off)
+LANE_MIX_MISTRAL_KINDS=(specs_and_docs i18n)
+LANE_MIX_NO_CODE_ORDER="owner HUM-10 t1 b61851fb msg 91bf8278: mistral does docs and reviews only, no coding"
 # spec 115 section 5 (owner t1 b1ab562b msg fb9e228c): the backup takes over
 # after two failed tries of the main on the same task
 LANE_MIX_TRIES_MAX=2
@@ -225,6 +235,7 @@ _spl_lane_mix_avail() {
     _LM_AVAIL[$v]="$v limit (${lim#*$'\t'})"
     _spl_lane_mix_report "$v" "${lim%%$'\t'*}" "${lim#*$'\t'}"
   done
+  [[ -z "$_LM_CODE_WHY" ]] || _LM_AVAIL[mistral]="$_LM_CODE_WHY"
   [[ -z "$_LM_UI_WHY" ]] || _LM_AVAIL[mistral]="$_LM_UI_WHY"
   _spl_lane_mix_share
 }
@@ -252,9 +263,31 @@ spl_lane_mix_mistral_ui_off() {
   echo "mistral takes no UI work until do_spl_vendor_ui_retest passes ($ui)"
 }
 
-# _spl_lane_mix_ui <cnf> -> _LM_UI_WHY, set when the UI rule keeps mistral out
+# _spl_lane_mix_ui <cnf> -> _LM_UI_WHY, set when the UI rule keeps mistral
+# out, and _LM_CODE_WHY, set when the coding rule does
 _spl_lane_mix_ui() {
   _LM_UI_WHY="$(spl_lane_mix_mistral_ui_off "$1" "${LANE_MIX_BRIEF:-}" "${LANE_MIX_PATHS:-}")"
+  _LM_CODE_WHY="$(spl_lane_mix_mistral_code_off "$1" "$_LM_KIND")"
+}
+
+# spl_lane_mix_brief_kind <brief-file> -> the kind word of the brief's first
+# "Kind:" (e.g. "Class: refactor. Kind: complex_coding (claude)."), else
+# nothing. The placer and the enqueue read it too.
+spl_lane_mix_brief_kind() {
+  [[ -n "$1" && -r "$1" ]] || return 0
+  grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$1" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]'
+  return 0
+}
+
+# spl_lane_mix_mistral_code_off <cnf> <kind> -> why mistral may not take a
+# lane of this kind (any kind but specs_and_docs and i18n, aliases read as
+# the picker does, an empty or unknown one included), else nothing
+spl_lane_mix_mistral_code_off() {
+  local k="$2"
+  case "$k" in spec|review|code_review) k=specs_and_docs ;; esac
+  [[ " ${LANE_MIX_MISTRAL_KINDS[*]} " == *" $k "* ]] && return 0
+  [[ "$(yq -r '.env.box.agent_split.mistral_coding_allowed' "$1" 2>/dev/null)" == true ]] && return 0
+  echo "mistral writes no code, kind ${k:-unset} ($LANE_MIX_NO_CODE_ORDER)"
 }
 
 # _spl_lane_mix_heir <vendor> -> where an out vendor's weight goes: the row's

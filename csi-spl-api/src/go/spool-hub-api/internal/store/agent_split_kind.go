@@ -71,19 +71,21 @@ func (k SplitKind) Main() string {
 	return main
 }
 
-// DefaultSplitKinds is the spec 115 section 2 table, in SplitTaskKinds
-// order, each Set false.
+// DefaultSplitKinds is the spec 115 section 2 table (cnf
+// env.box.agent_split_by_kind), in SplitTaskKinds order, each Set false.
+// Mistral writes no code (owner HUM-10 msg 91bf8278, 2026-10-17): 0 and
+// never the backup outside specs_and_docs.
 func DefaultSplitKinds() []SplitKind {
 	row := func(kind, backup string, w map[string]int) SplitKind {
 		return SplitKind{Kind: kind, Weights: fullWeights(w), Backup: backup}
 	}
 	return []SplitKind{
 		row("specs_and_docs", "claude", map[string]int{"agy": 80, "mistral": 15, "claude": 5}),
-		row("tests", "mistral", map[string]int{"claude": 70, "grok": 15, "mistral": 15}),
-		row("simple_coding", "claude", map[string]int{"grok": 41, "mistral": 39, "claude": 20}),
-		row("complex_coding", "mistral", map[string]int{"claude": 80, "grok": 10, "mistral": 10}),
+		row("tests", "grok", map[string]int{"claude": 85, "grok": 15}),
+		row("simple_coding", "grok", map[string]int{"claude": 59, "grok": 41}),
+		row("complex_coding", "grok", map[string]int{"claude": 90, "grok": 10}),
 		row("i18n", "claude", map[string]int{"agy": 100}),
-		row("secret", "mistral", map[string]int{"claude": 100}),
+		row("secret", "grok", map[string]int{"claude": 100}),
 		row("orchestration", "grok", map[string]int{"claude": 65, "grok": 35}),
 	}
 }

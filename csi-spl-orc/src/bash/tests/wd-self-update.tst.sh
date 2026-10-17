@@ -52,7 +52,15 @@ for b in jq setsid git flock; do command -v "$b" >/dev/null || { echo "FAIL: $b 
 S="$T/spool"; D="$S/dispatch"; W="$D/wd"; LOG="$D/wd.log"
 mkdir -p "$T/bin" "$T/cbin" "$T/tmux" "$D" "$S/peer" "$T/proc"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\nSPOOL_BOX_TAG=box1\nSPOOL_DESK_BOX=box1\n' "$(id -un)" "$(id -un)" > "$S/box.env"
-TICK="${WD_UPD_TEST_TICK:-10}"   # 30 = the live tick (the dev drill); 10 keeps CI short
+# 30 = the live tick (the dev drill); 5 keeps CI short. The loops wait out
+# whole ticks (a commit is seen at instance 1's next tick start), so the tick
+# is most of the file's idle time (round 1 row 10, PC, n=3: 130..141 s at
+# 10, 54..62 s at 5 with WD_UPD_SLICE=1 and the seat memo of the boot pass).
+# At 5 the judge window (WD_TICK - 5) is 0: every instance judges c-901.
+# WT, the tick the wait caps below are sized for, stays 10 at a shorter
+# tick: a cap only bounds a wait, it costs nothing on green.
+TICK="${WD_UPD_TEST_TICK:-5}" WT="${WD_UPD_TEST_TICK:-5}"
+(( WT < 10 )) && WT=10
 WAIT_S=60 WAIT_N=600
 
 # ---- stubs -------------------------------------------------------------------
@@ -113,7 +121,7 @@ wd_env=(SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" PAT
   WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD=true
   LEASE_TRANSCRIPT_CMD=true WD_RUN="$O/run" ROTATE_TERM_WAIT=1 ROTATE_BOX=box1
   DESK_CRON_SRC="$DC" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl WD_INST_START_WAIT="$WAIT_S"
-  WD_SELF_UPDATE=1 WD_TICK="$TICK" CHILD_PEERS=1)
+  WD_SELF_UPDATE=1 WD_TICK="$TICK" WD_UPD_SLICE=1 CHILD_PEERS=1)
 starter() {
   env "${wd_env[@]}" PROJ_PATH="$O" bash -c '
     do_log() { echo "$*"; }
@@ -291,6 +299,9 @@ rm -rf "$W" "$LOG" "$T/sent"; dc reset -q --hard "$SHA_A"
 # quarantined, 5 rollouts halted. Counted, not timed: one pass over 120 ids,
 # 60 agents and 120 verdicts reads the expected seats once and stats once;
 # the control (the old two helpers) reads them twice per id, stats per file.
+# The count wrapper computes the seats once per pass and replays them: the
+# calls are what is counted, and the control's 365 walks of 60 agents/*.json
+# took 41..49 s of the file's 130..141 s (round 1 row 10, n=3).
 BQ="$T/bq"; mkdir -p "$BQ/spool/agents" "$BQ/spool/dispatch" "$BQ/tick" "$BQ/bin"
 for i in $(seq 100 219); do
   printf 'c-%s\tclaude\t%%1\t-\t20261015T000000Z\n' "$i" >> "$BQ/spool/registry.tsv"
@@ -299,8 +310,9 @@ for i in $(seq 100 219); do
 done
 : > "$BQ/tick/ps"; : > "$BQ/tick/agents"
 printf '#!/usr/bin/env bash\necho x >> "%s/stat.n"\nexec %s "$@"\n' "$BQ" "$(command -v stat)" > "$BQ/bin/stat"; chmod +x "$BQ/bin/stat"
-bq_snip='eval "orig_$(declare -f spl_wd_expected)"; spl_wd_expected() { echo x >> "$BQ/exp.n"; orig_spl_wd_expected; }
-  eval "$OLD"; : > "$BQ/exp.n"; : > "$BQ/stat.n"; n=$(spl_lease_now)
+bq_snip='eval "orig_$(declare -f spl_wd_expected)"
+  spl_wd_expected() { echo x >> "$BQ/exp.n"; [[ -f "$BQ/exp.memo" ]] || orig_spl_wd_expected > "$BQ/exp.memo"; cat "$BQ/exp.memo"; }
+  eval "$OLD"; : > "$BQ/exp.n"; : > "$BQ/stat.n"; rm -f "$BQ/exp.memo"; n=$(spl_lease_now)
   PATH="$BQ/bin:$PATH" spl_wd_boot_pass "$n" "$BQ/tick" "$(( n - 600 ))" ""
   echo "EXP $(wc -l < "$BQ/exp.n") STAT $(wc -l < "$BQ/stat.n")"'
 bq_old='spl_wd_boot_seat() { [[ "$1" =~ -00[1-4]$ ]] && return 0; grep -qx -- "$1" <<<"$(spl_wd_expected)"; }
@@ -320,9 +332,9 @@ rm -rf "$BQ"
 starter >/dev/null
 for i in 1 2 3; do for _ in $(seq 1 "$WAIT_N"); do held "$W/run.$i.lock" && break; sleep 0.1; done; done
 [[ "$(live)" == 3 ]] && pass "2 the starter runs 3 loops from the checkout (no code/good yet)" || fail "2 start: live $(live)"
-wait_for "good := ${SHA_A:0:9} \(first snapshot\)" $(( 2 * TICK + 10 )) && [[ "$(link good)" == "$SHA_A" && -x "$W/code/$SHA_A/csi-spl-orc/run" ]] &&
+wait_for "good := ${SHA_A:0:9} \(first snapshot\)" $(( 2 * WT + 10 )) && [[ "$(link good)" == "$SHA_A" && -x "$W/code/$SHA_A/csi-spl-orc/run" ]] &&
   pass "2 bootstrap: good := ${SHA_A:0:9}, the sha instance 1 runs" || fail "2 bootstrap: $(tail -n 5 "$LOG" 2>/dev/null)"
-all_on "$SHA_A" $(( 2 * TICK + 10 )) && pass "2 all 3 heartbeats on ${SHA_A:0:9}" || fail "2 hb: $(hb_sha 1) $(hb_sha 2) $(hb_sha 3)"
+all_on "$SHA_A" $(( 2 * WT + 10 )) && pass "2 all 3 heartbeats on ${SHA_A:0:9}" || fail "2 hb: $(hb_sha 1) $(hb_sha 2) $(hb_sha 3)"
 P0="$(pids)"
 
 # ---- 3. the rolling restart ----------------------------------------------------
@@ -354,13 +366,13 @@ all_on "$SHA_C" 10 && pass "3 all 3 heartbeats on ${SHA_C:0:9}" || fail "3 hb: $
 
 # ---- 4. control: nothing under csi-spl-orc changed --------------------------------
 echo more >> "$DC/README.md"; SHA_D="$(commit D)"
-wait_for "good := ${SHA_D:0:9} \(csi-spl-orc unchanged" $(( TICK + 10 )) && [[ "$(cnt "EXEC.*${SHA_D:0:9}" "$LOG")" == 0 && "$(pids)" == "$P0" ]] &&
+wait_for "good := ${SHA_D:0:9} \(csi-spl-orc unchanged" $(( WT + 10 )) && [[ "$(cnt "EXEC.*${SHA_D:0:9}" "$LOG")" == 0 && "$(pids)" == "$P0" ]] &&
   pass "4 control: a commit outside csi-spl-orc -> good moves, nothing execs" || fail "4 unchanged: $(tail -n 4 "$LOG")"
 
 # ---- 5. a commit whose ./run exits non-zero ------------------------------------------
 : > "$T/sent"
 sed -i '2i exit 3' "$O/run"; SHA_E="$(commit E)"
-wait_for "FAILED ${SHA_E:0:9}: pre-flight" $(( TICK + 15 )) && [[ -f "$W/code/$SHA_E.bad" && "$(link good)" == "$SHA_D" ]] &&
+wait_for "FAILED ${SHA_E:0:9}: pre-flight" $(( WT + 15 )) && [[ -f "$W/code/$SHA_E.bad" && "$(link good)" == "$SHA_D" ]] &&
   pass "5 bad commit: pre-flight fails, ${SHA_E:0:9} quarantined, good stays ${SHA_D:0:9}" || fail "5 preflight: $(tail -n 4 "$LOG")"
 sent_once "commit ${SHA_E:0:9} failed" && pass "5 ONE admin alert names the commit" || fail "5 alert: $(cat "$T/sent")"
 sleep $(( TICK + 2 ))
@@ -372,7 +384,7 @@ sleep $(( TICK + 2 ))
 sed -i '2d' "$O/run"
 # a watchdog bug that shows only in a loop instance (the pre-flight tick has no WD_INST)
 sed -i '/^source /a if [ -n "${WD_INST:-}" ]; then spl_wd_run_scripts() { nosuchcmd_v6; }; fi' "$O/run"; SHA_F="$(commit F)"
-wait_for "FAILED ${SHA_F:0:9}: instance 1 failed its self-check tick" $(( TICK + 40 )) &&
+wait_for "FAILED ${SHA_F:0:9}: instance 1 failed its self-check tick" $(( WT + 40 )) &&
   pass "6 instance 1 execs, its self-check tick fails (script errors)" || fail "6 check: $(tail -n 6 "$LOG")"
 wait_for "instance 1: back on ${SHA_D:0:9} \(rollback\)" 30 && on_good 10 &&
   pass "6 instance 1 execs back into good ${SHA_D:0:9}; all 3 on good code" || fail "6 rollback: $(tail -n 4 "$LOG"); $(hb_sha 1) $(hb_sha 2) $(hb_sha 3)"
@@ -383,9 +395,9 @@ wait_for "instance 1: back on ${SHA_D:0:9} \(rollback\)" 30 && on_good 10 &&
 : > "$T/sent"
 sed -i '/nosuchcmd_v6/d' "$O/run"
 sed -i '2i [ -n "${WD_UPD_EXEC:-}" ] && [ "${WD_UPD_ROLE:-}" = forward ] && exit 4' "$O/run"; SHA_G="$(commit G)"
-wait_for "FAILED ${SHA_G:0:9}: instance 1 died during its self-check" $(( 3 * TICK + 40 )) &&
+wait_for "FAILED ${SHA_G:0:9}: instance 1 died during its self-check" $(( 3 * WT + 40 )) &&
   pass "7 instance 1 crashed in its check: a peer restarted it on good, the rollout ends" || fail "7 crash: $(tail -n 8 "$LOG")"
-on_good $(( 2 * TICK + 10 )) && alive 3 10 && [[ -f "$W/code/$SHA_G.bad" ]] && sent_once "commit ${SHA_G:0:9} failed" &&
+on_good $(( 2 * WT + 10 )) && alive 3 10 && [[ -f "$W/code/$SHA_G.bad" ]] && sent_once "commit ${SHA_G:0:9} failed" &&
   pass "7 all 3 alive on good code, ${SHA_G:0:9} quarantined, ONE alert" || fail "7 after: $(hb_sha 1) $(hb_sha 2) $(hb_sha 3) pids $(pids); $(cat "$T/sent")"
 [[ "$(cnt "instance [23]: EXEC forward into ${SHA_G:0:9}" "$LOG")" == 0 ]] && pass "7 instances 2 and 3 never ran it" || fail "7 others ran it"
 

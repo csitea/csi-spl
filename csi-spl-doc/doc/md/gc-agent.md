@@ -16,8 +16,10 @@ Owner HUM-10, t1 91a36ace (issue SPL-1733), in order:
 - 9c595541: "each box should have its own GC, for now on round hours the
   Claude and on the 30th minute the grok agents could be running".
 
+<a id="ws-doc-34bfd118-b132-42b8-941e-98b5a9ffcb0c"></a>
 ## 1. What runs, and when
 
+<a id="ws-doc-6275b073-933f-486b-966f-db50767d13d6"></a>
 ### 1.1 One GC per box, two slots an hour
 
 Every box runs its own GC. The box cron row `gc`
@@ -37,6 +39,7 @@ The slots and their vendor live in ONE place, `csi-spl-orc/cnf/gc/gc.conf`:
 | `GC_MAX_AGE=1500` | a GC older than this is ended by the next start |
 | `GC_POKE_WAIT=1200` | a restart needs a poke from an earlier pass, at least this old |
 
+<a id="ws-doc-e879545c-7434-478d-82b2-0300d465ff28"></a>
 ### 1.2 No overlap
 
 `start` keeps `<spool root>/dispatch/gc/run` (`<epoch> <pane> <vendor>
@@ -46,6 +49,7 @@ Counting test: `csi-spl-orc/src/bash/tests/gc-agent.tst.sh` case 2 (two
 starts = one window; its control: the window gone, the next start opens a
 second).
 
+<a id="ws-doc-102a63bb-4406-4087-a496-a2e2fd3b0c81"></a>
 ### 1.3 The session
 
 The window runs `csi-spl-orc/src/bash/features/gc/gc-session.sh`: the CLI
@@ -55,8 +59,10 @@ shell after the CLI: when the pass ends, the window is gone. The GC carries
 no agent id: it is not counted against the 40-window ceiling and the
 watchdog does not judge it.
 
+<a id="ws-doc-4c8572a8-021b-4ee6-a7e6-54b8a8f5d1ab"></a>
 ## 2. One pass
 
+<a id="ws-doc-b951c120-be00-4600-bb37-feb819c0d8e5"></a>
 ### 2.1 The agent judges, the action acts
 
 Every step is `do_spl_gc` (`csi-spl-orc/src/bash/run/spl-gc.func.sh`); the
@@ -67,11 +73,14 @@ GC session only decides which one to call:
 | `scan` | one block per agent of this box: issue, brief, heartbeat silence, last commit, last post, unread inbox, an earlier GC poke, pane tail, a hint (`working`, `silent`, `accepted`) |
 | `begin` | starts the agent's 3-minute clock, prints its issue and last errors |
 | `poke` | `GC_HINT` as a spool note on task `gc-<id>` (the send rings the pane) |
-| `restart` | only after a poke from an earlier pass and no heartbeat progress since: `do_spl_agent_restart CAUSE=gc`, detached, with its own guards |
+| `restart` | only after a poke from an earlier pass and no heartbeat progress since; progress unknown (`-`, an agy seat) is never "no progress" (the poke records the pane and a hash of its last 30 lines; the restart reads `MOVED`, exit 3, no restart, when the pane changed, the agent is in another pane, or an outbox, archive or `lifetime/session.json` file is newer than the poke): otherwise `do_spl_agent_restart CAUSE=gc`, detached, with its own guards, its evidence saying "progress unknown (-)" when that is the case |
 | `close-ask` | `GC_WHY` to the report addressee (2.3): close this finished lane (once a day per id); the orch lease holder gets a cc |
 | `done` | `GC_SUMMARY`: one log line, one note to the report addressee (2.3) on task `gc-<box>`, then the GC window closes |
 | `status` | the last pass and the log tail |
 
+An id with 2+ panes is judged in the pane whose process carries `SPOOL_AGENT_ID=<id>`.
+
+<a id="ws-doc-f09f01f7-4c9c-46ba-a201-7b5dc25b7e82"></a>
 ### 2.2 Guards
 
 - **3 minutes per agent**: `poke`, `restart` and `close-ask` refuse (exit 4,
@@ -83,6 +92,7 @@ GC session only decides which one to call:
   applies the watchdog's human-activity gate.
 - **Never kill by pattern**: the restart is the fleet's one restart path.
 
+<a id="ws-doc-560b258f-ba09-42fe-92fa-652c9b3a7a9f"></a>
 ### 2.3 Who reads the report
 
 Owner HUM-10, form 84d604dd (msg 1c446016, 2026-10-14): the GC report goes
@@ -101,6 +111,7 @@ nobody acted on the findings (SPL-1768, SPL-1803).
   `REPORT-TO` line.
 - `GC_REPORT_TO` pins one addressee instead (no cc, no fallback).
 
+<a id="ws-doc-300ce962-2954-4924-93b3-f6d7703f6c77"></a>
 ### 2.4 The work share in the summary
 
 Owner HUM-10, t1 3209f8b8, msg ad816f96: the GC "must know something" about
@@ -112,8 +123,10 @@ and bands"). Before `done` the GC runs the read-only
 with no class (placed outside the queue: an unrecorded placement or bypass).
 It never re-classes or places anything itself.
 
+<a id="ws-doc-a34c27ea-d28a-4687-a1c5-3cc0e2dac185"></a>
 ## 3. Operations
 
+<a id="ws-doc-720c7566-1d5a-4e5b-9e71-5622bac678e1"></a>
 ### 3.1 Install the cron row on a box
 
 From the box's main checkout, as the box user:
@@ -122,12 +135,14 @@ From the box's main checkout, as the box user:
 cd csi-spl-orc && BOX_CRONS_ONLY=gc DRY_RUN=0 ./run -a do_install_box_crons
 ```
 
+<a id="ws-doc-5bfb03c9-a247-4af8-8a1a-d08f23edb71f"></a>
 ### 3.2 See the last pass
 
 ```bash
 cd csi-spl-orc && GC_CMD=status ./run -a do_spl_gc
 ```
 
+<a id="ws-doc-5fb7c227-21e7-493c-8852-ecffe83b8247"></a>
 ### 3.3 Change a slot's vendor
 
 Edit `csi-spl-orc/cnf/gc/gc.conf` and land it; the next slot reads it.

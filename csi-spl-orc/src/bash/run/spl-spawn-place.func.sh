@@ -20,6 +20,12 @@
 # @description      target does not say hold (do_spl_box_pick) and the last
 # @description      placement started SPAWN_PLACE_GAP_MIN ago. No room: it stays
 # @description      queued, one INFO line says why
+# @description   0b. WORK GROUPS (SPL-2370) - each group (do_spl_spawn_group_put)
+# @description      with fewer than its width N of rows in flight (queued,
+# @description      placing or running) gets its next waiting rows into this
+# @description      queue, through the path every enqueue takes; from there
+# @description      they are rows like any other (bands, bypass, one at a
+# @description      time). A row whose lane landed or closed frees its slot
 # @description   0. SUPPLY (SPL-1817) - at most once an hour per class: when the
 # @description      live share of refactor or bug is under its band and no row of
 # @description      that class is queued, the dispatch lease holder gets ONE
@@ -72,8 +78,12 @@
 # @param SPAWN_SHARE_DISPATCH (optional) - the dispatch lease holder <ID>@<box>; default the lease file <spool root>/dispatch/lease
 # @param SPAWN_SHARE_LANES_CMD (optional, tests) - as do_spl_spawn_share
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_asks_tick
+# @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
 # @example ./run -a do_spl_spawn_place
 # @example SPAWN_PLACE_GAP_MIN=0 ./run -a do_spl_spawn_place
+
+declare -F spl_spawn_group_feed >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-group-put.func.sh"
 
 do_spl_spawn_place() {
   spl_asks_init || return 1
@@ -85,6 +95,7 @@ do_spl_spawn_place() {
   [[ "${holder##*@}" == "$ASKS_BOX" ]] || { do_log "INFO the orch role is held on ${holder##*@} ($holder): its machine places"; return 0; }
   exec 6>>"$(spool_asks_dir)/.place.lock"
   flock -n 6 || { do_log "INFO another placer tick is running: skipped"; return 0; }
+  spl_spawn_group_feed "$holder"
   rows="$(spl_spawn_q_rows)" || { do_log "WARN the hub did not answer: nothing placed this tick"; return 0; }
   if spl_spawn_place_stalled "$holder" "$rows"; then
     rows="$(spl_spawn_q_rows)" || return 0

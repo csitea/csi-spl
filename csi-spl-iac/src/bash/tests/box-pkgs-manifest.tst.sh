@@ -9,12 +9,16 @@
 #             sorted by kind then name, no duplicate row, and every
 #             installed_by resolves: `play <role>` to a role dir of
 #             060-gcp-vm-satellite, `do_*` to a function in a .func.sh of the
-#             repo, `backfill` only on a row whose added says backfill
+#             repo, `spool-install [--cli <name>]` to the agent-tool installer
+#             and a <name> its --cli takes (SPL-2339: the agent CLIs and the
+#             kill guard it writes), `backfill` only on a row whose added
+#             says backfill
 #          2. every satellite-replica.tsv tool has a satellite.tsv row
 #          3. the base lists hold packages, none also named by the manifest
 #          4. fixtures: a bad kind, 6 columns, `play no_such_role`, a
-#             `backfill` installer on a non-backfill row, an unsorted file and
-#             a replica tool without a row each FAIL
+#             `backfill` installer on a non-backfill row, `spool-install --cli`
+#             of a CLI it does not take, an unsorted file and a replica tool
+#             without a row each FAIL
 #
 #          CONTROLS (row B1): a row with an empty needed_by and a row naming
 #          do_no_such_action must each turn case 1 red.
@@ -25,6 +29,7 @@ REPO=$(cd "$TEST_DIR/../../../.." && pwd)
 DIR="$REPO/csi-spl-iac/cnf/box-pkgs"
 ROLES="$REPO/csi-spl-iac/src/terraform/060-gcp-vm-satellite/roles"
 REPLICA="$REPO/csi-spl-iac/cnf/satellite-replica.tsv"
+SPOOL_INSTALL="$REPO/csi-spl-orc/src/bash/features/spool-install/install.sh"
 fails=0
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -45,6 +50,10 @@ grep -rhoE '^do_[a-z0-9_]+\(\)' --include='*.func.sh' \
   "$REPO/csi-spl-iac" "$REPO/csi-spl-orc" "$REPO/csi-spl-utl" 2>/dev/null |
   sed 's/()$//' | LC_ALL=C sort -u >"$DO_FUNCS"
 
+# the CLIs `spool-install --cli` takes: its `case "$c" in a|b|...)` line
+SPOOL_CLIS="$(grep -oE 'case "\$c" in [a-z|]+\)' "$SPOOL_INSTALL" 2>/dev/null |
+  sed -nE '1s/.* in ([a-z|]+)\)/\1/p')"
+
 # _bpm_installed_by <installed_by> <added>: rc 0 when the installer resolves
 _bpm_installed_by() {
   local by="$1" added="$2"
@@ -52,6 +61,8 @@ _bpm_installed_by() {
     "play "*) [[ -n "${by#play }" && -d "$ROLES/${by#play }" ]] ;;
     backfill) [[ "$added" == *backfill* ]] ;;
     do_*) grep -qxF -- "$by" "$DO_FUNCS" ;;
+    spool-install) [[ -f "$SPOOL_INSTALL" ]] ;;
+    "spool-install --cli "*) [[ -f "$SPOOL_INSTALL" && "|$SPOOL_CLIS|" == *"|${by#spool-install --cli }|"* ]] ;;
     *) return 1 ;;
   esac
 }
@@ -76,7 +87,7 @@ _bpm_row() {
   [[ "$added" =~ ^20[0-9]{2}-[01][0-9]-[0-3][0-9]\ .*SPL-[0-9]+ ]] ||
     echo "$f:$n: $name: added '$added' is not '<date> ... SPL-<n>'"
   _bpm_installed_by "$by" "$added" ||
-    echo "$f:$n: $name: installed_by '$by' resolves to no role dir and no do_* function"
+    echo "$f:$n: $name: installed_by '$by' resolves to no role dir and no do_* function (nor spool-install --cli <name>)"
   : "$pin"
 }
 
@@ -177,6 +188,8 @@ fixture no-such-role "resolves to no role dir" "$ok_row" \
   "apt${T}zz${T}${T}play no_such_role${T}lane SPL-1${T}${T}2026-10-17 SPL-2271"
 fixture backfill-not-backfill "installed_by 'backfill'" "$ok_row" \
   "apt${T}zz${T}${T}backfill${T}lane SPL-1${T}${T}2026-10-17 SPL-2271"
+fixture no-such-cli "installed_by 'spool-install --cli nosuchcli'" "$ok_row" \
+  "bin${T}zz${T}${T}spool-install --cli nosuchcli${T}lane SPL-1${T}${T}2026-10-17 SPL-2339"
 fixture bad-kind "kind 'snap'" "$ok_row" \
   "snap${T}zz${T}${T}play 02_os_binaries${T}lane SPL-1${T}${T}2026-10-17 SPL-2271"
 fixture six-columns "6 columns" "$ok_row" \
@@ -184,6 +197,14 @@ fixture six-columns "6 columns" "$ok_row" \
 fixture unsorted "not sorted" \
   "bin${T}zz${T}${T}play 02_os_binaries${T}lane SPL-1${T}${T}2026-10-17 SPL-2271" "$ok_row"
 fixture duplicate "duplicate row" "$ok_row" "$ok_row"
+# spool-install rows that must resolve (SPL-2339), checked alone
+printf '%s\n' "bin${T}grok${T}${T}spool-install --cli grok${T}lane SPL-1${T}${T}2026-10-17 SPL-2339" \
+  "bin${T}pkill${T}${T}spool-install${T}lane SPL-1${T}${T}2026-10-17 SPL-2339" >"$tmp/spool-install-ok.tsv"
+if [[ -n "$SPOOL_CLIS" ]] && out=$(_bpm_check "$tmp/spool-install-ok.tsv"); then
+  pass "4 spool-install rows resolve (--cli takes $SPOOL_CLIS)"
+else
+  fail "4 spool-install rows: '${out:-no --cli list read from $SPOOL_INSTALL}'"
+fi
 printf 'jq\tjq --version\tx\nnot-a-tool\tnot-a-tool -v\tx\n' >"$tmp/replica.tsv"
 if out=$(_bpm_replica "$tmp/replica.tsv" "$DIR/satellite.tsv"); then
   fail "4 replica fixture: passed, want a FAIL"

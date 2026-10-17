@@ -6,8 +6,10 @@
 #   name          apt/deb: the package; bin: the bare name, or the path when
 #                 it lives outside /usr/local/bin and the agent user's bin dir
 #   pin           empty, or the version/sha256 the installer pins
-#   installed_by  play <role> (060-gcp-vm-satellite/roles), a do_* action, or
-#                 backfill (installed by hand before the install action existed)
+#   installed_by  play <role> (060-gcp-vm-satellite/roles), a do_* action,
+#                 spool-install [--cli <name>] (orc spool-install/install.sh:
+#                 the agent CLIs and the kill guard), or backfill (installed
+#                 by hand before the install action existed)
 #   needed_by     an action, a test or lane SPL-n; never empty
 #   service       empty, or dns network init firewall ssh
 #   added         date + issue key
@@ -49,14 +51,20 @@ apt	zip		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-
 apt	zstd		play 02_os_binaries	do_require_bin zstd (handover, box state backup)		2026-10-17 SPL-2271
 bin	/usr/local/go/bin/go		play 02_os_binaries	do_satellite_verify (replica: go)		2026-10-17 SPL-2271
 bin	actionlint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	agy		do_install_agy_cli	do_spl_lane_mix (agy seats)		2026-10-17 SPL-2339
 bin	checkov		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	claude		play 08_spool_harness	do_satellite_verify (replica: claude)		2026-10-17 SPL-2271
 bin	cloud-sql-proxy		play 09_agent_tools	do_satellite_verify (replica: cloud-sql-proxy)		2026-10-17 SPL-2271
 bin	gitleaks		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	gosec		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	govulncheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	grok		spool-install --cli grok	do_spl_lane_mix (grok seats)		2026-10-17 SPL-2339
 bin	hadolint		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	killall		play 08_spool_harness	spool-install kill guard (every agent seat)		2026-10-17 SPL-2339
 bin	osv-scanner		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	pkill		play 08_spool_harness	spool-install kill guard (every agent seat)		2026-10-17 SPL-2339
+bin	pnpm		play 09_agent_tools	csi-spl-wui (packageManager pnpm)		2026-10-17 SPL-2339
+bin	pnpx		play 09_agent_tools	csi-spl-wui (packageManager pnpm)		2026-10-17 SPL-2339
 bin	ruff		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	semgrep		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	shellcheck		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
@@ -66,6 +74,11 @@ bin	terraform		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	trivy		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	trufflehog		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
 bin	typos		do_install_lint_tools	do_check_pre_push_lint		2026-10-17 SPL-2271
+bin	uv		backfill	do_install_mistral_vibe (uv tool install)		2026-10-17 backfill SPL-2339
+bin	uvx		backfill	do_install_mistral_vibe (uv tool install)		2026-10-17 backfill SPL-2339
+bin	vibe		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2339
+bin	vibe-acp		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2339
+bin	vibe-app-server		do_install_mistral_vibe	do_spl_lane_mix (mistral seats)		2026-10-17 SPL-2339
 bin	yq		play 02_os_binaries	do_satellite_verify (replica: yq)		2026-10-17 SPL-2271
 corepack	pnpm		play 09_agent_tools	do_satellite_verify (replica: pnpm)		2026-10-17 SPL-2271
 deb	google-chrome-stable		play 02_os_binaries	do_satellite_verify (replica: google-chrome)		2026-10-17 SPL-2271

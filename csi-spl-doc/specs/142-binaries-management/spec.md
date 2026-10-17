@@ -171,7 +171,7 @@ TAB separated, `#` comments, sorted by kind then name:
 | kind | `apt`, `deb`, `bin`, `pip`, `npm`, `go`, `corepack`, `image` | fixed set |
 | name | `postgresql-client` | apt/deb: the package; bin: the path |
 | pin | empty, or a version / sha256 | as the installer pins it |
-| installed_by | `play 02_os_binaries`, `do_setup_box_sysstat`, `do_box_pkg_install` | an existing role or action (the test resolves it) |
+| installed_by | `play 02_os_binaries`, `do_setup_box_sysstat`, `spool-install --cli grok` | an existing role or action, or `spool-install [--cli <name>]` for what orc `spool-install/install.sh` writes (the agent CLIs, the kill guard) with a name its `--cli` takes; the test resolves each |
 | needed_by | `do_require_bin psql (43 actions)` | an action, a test, or `lane SPL-n`; never empty |
 | service | empty, or `dns` / `network` / `init` / `firewall` / `ssh` | set when it owns a system service |
 | added | `2026-10-17 SPL-2271` | date + issue key; `backfill` for the 2.2/2.3 rows |
@@ -268,6 +268,14 @@ with `<class>.tsv`. Prints `MISSING-FROM-BOX` and `NOT-IN-MANIFEST` (with
 the journal's agent id and reason when known) and exits 0; `DRIFT_STRICT=1`
 exits 2 on any `NOT-IN-MANIFEST`. A daily cron run per box posts a
 non-empty report as one `note` to the orchestrator.
+
+Present is not the same as manual (SPL-2339): a row is `MISSING-FROM-BOX`
+only when `dpkg-query -W` does not say `ii` for it, so a package installed as
+a dependency (marked auto) still counts, and a `bin` row that names a path
+outside the bin dirs counts when that path is executable. `NOT-IN-MANIFEST`
+stays `showmanual` minus the base list: an auto-marked package is a
+dependency, not drift. Run it as the agent user: a bin that links into that
+user's home (e.g. `grok`) is not executable for another user.
 
 ### 5.6 Pointing agents at it
 

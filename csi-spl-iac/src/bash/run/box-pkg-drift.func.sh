@@ -11,7 +11,10 @@
 # @description step 4) when a journal line names the package. A manifest
 # @description `apt`/`deb` row matches a package name, a `bin` row a path or a
 # @description bare name; other kinds (pip, npm, go, ...) have no box probe
-# @description here and are never reported missing. Exit 0 with or without
+# @description here and are never reported missing. A row is present, never
+# @description MISSING-FROM-BOX, when dpkg-query says `ii` (installed, manual
+# @description OR auto) or, for a `bin` path row, the path is executable; an
+# @description auto-marked package is never NOT-IN-MANIFEST (not drift). Exit 0 with or without
 # @description drift; DRIFT_STRICT=1 exits 2 on any NOT-IN-MANIFEST; a missing
 # @description input exits 1.
 # @param BOX_CLASS (optional) - pc or satellite; default BOX_CLASS in
@@ -54,6 +57,21 @@ _box_pkg_drift_box() {
   return 0
 }
 
+# _box_pkg_drift_present <manifest>: `<kind>\t<name>` for every manifest row
+# present on the box although no NOT-IN-MANIFEST probe lists it: an installed
+# package in either apt-mark state (dpkg-query `ii`), a `bin` path row whose
+# path is executable outside the bin dirs
+_box_pkg_drift_present() {
+  local pkgs kind name _
+  # shellcheck disable=SC2016  # dpkg-query fields, not shell variables
+  pkgs="$(dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\n')" || return 1
+  awk -F '\t' '$1 ~ /^ii/ { print "apt\t" $2 }' <<<"$pkgs"
+  while IFS=$'\t' read -r kind name _; do
+    [[ "$kind" == bin && "$name" == /* && -f "$name" && -x "$name" ]] && printf 'bin\t%s\n' "$name"
+  done <"$1"
+  return 0
+}
+
 # _box_pkg_drift_journal <journal>: `<name>\t<agent>\t<issue>\t<reason>` for
 # every package a journal line requested or installed; the newest line wins
 _box_pkg_drift_journal() {
@@ -67,8 +85,8 @@ _box_pkg_drift_journal() {
     END { for (k in who) print k "\t" who[k] }' "$1"
 }
 
-# _box_pkg_drift_report <manifest> <box lines> <journal lines>: the report,
-# unsorted; rc 3 when it printed a NOT-IN-MANIFEST line
+# _box_pkg_drift_report <manifest> <box lines> <journal lines> <present lines>:
+# the report, unsorted; rc 3 when it printed a NOT-IN-MANIFEST line
 _box_pkg_drift_report() {
   awk -F '\t' '
     FILENAME == ARGV[1] {
@@ -81,6 +99,7 @@ _box_pkg_drift_report() {
       if (NF >= 2) who[$1] = "agent=" $2 " issue=" $3 " reason=" $4
       next
     }
+    FILENAME == ARGV[3] { if (NF >= 2) seen[$0] = 1; next }
     NF >= 2 {
       n = $2; sub(/.*\//, "", n)
       seen[$0] = 1; seen[$1 "\t" n] = 1
@@ -96,11 +115,11 @@ _box_pkg_drift_report() {
           print "MISSING-FROM-BOX " want[k] " " kn[2]
       }
       exit drift ? 3 : 0
-    }' "$1" <(printf '%s\n' "$3") <(printf '%s\n' "$2")
+    }' "$1" <(printf '%s\n' "$3") <(printf '%s\n' "$4") <(printf '%s\n' "$2")
 }
 
 do_box_pkg_drift() {
-  local class dir manifest base box journal out rc=0
+  local class dir manifest base box present journal out rc=0
   class="$(_box_pkg_drift_class)"
   [[ -n "$class" ]] || { echo "ERROR: BOX_CLASS must be set (env or ${SPOOL_BOX_ENV:-/var/spool-hub/box.env})" >&2; return 1; }
   dir="${BOX_PKG_MANIFEST_DIR:-${PROJ_PATH:-.}/cnf/box-pkgs}"
@@ -109,8 +128,9 @@ do_box_pkg_drift() {
   [[ -r "$base" ]] || { echo "ERROR: no base list $base" >&2; return 1; }
   box="$(_box_pkg_drift_box "$base" "${BOX_PKG_BIN_DIRS:-/usr/local/bin $HOME/.local/bin}")" ||
     { echo "ERROR: apt-mark showmanual failed" >&2; return 1; }
+  present="$(_box_pkg_drift_present "$manifest")" || { echo "ERROR: dpkg-query -W failed" >&2; return 1; }
   journal="$(_box_pkg_drift_journal "${BOX_PKG_JOURNAL:-/var/lib/csi-spl/box-pkg/journal.tsv}")"
-  out="$(_box_pkg_drift_report "$manifest" "$box" "$journal")" || rc=$?
+  out="$(_box_pkg_drift_report "$manifest" "$box" "$journal" "$present")" || rc=$?
   [[ "$rc" == 0 || "$rc" == 3 ]] || { echo "ERROR: drift report failed (rc $rc)" >&2; return 1; }
   [[ -z "$out" ]] || sort <<<"$out"
   [[ "${DRIFT_STRICT:-0}" == 1 && "$rc" == 3 ]] && return 2

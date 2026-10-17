@@ -6,8 +6,10 @@
 #   name          apt/deb: the package; bin: the bare name, or the path when
 #                 it lives outside /usr/local/bin and the agent user's bin dir
 #   pin           empty, or the version/sha256 the installer pins
-#   installed_by  play <role> (060-gcp-vm-satellite/roles), a do_* action, or
-#                 backfill (installed by hand before the install action existed)
+#   installed_by  play <role> (060-gcp-vm-satellite/roles), a do_* action,
+#                 spool-install [--cli <name>] (orc spool-install/install.sh:
+#                 the agent CLIs and the kill guard), or backfill (installed
+#                 by hand before the install action existed)
 #   needed_by     an action, a test or lane SPL-n; never empty
 #   service       empty, or dns network init firewall ssh
 #   added         date + issue key

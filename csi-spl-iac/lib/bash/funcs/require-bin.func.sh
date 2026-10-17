@@ -11,29 +11,9 @@
 do_require_bin() {
   # Map of known tools to their install commands
   _install_hint() {
-    case "$1" in
-      jq)      echo "sudo apt-get install -y jq" ;;
-      curl)    echo "sudo apt-get install -y curl" ;;
-      pandoc)  echo "sudo apt-get install -y pandoc" ;;
-      lynx)    echo "sudo apt-get install -y lynx" ;;
-      w3m)     echo "sudo apt-get install -y w3m" ;;
-      git)     echo "sudo apt-get install -y git" ;;
-      python3) echo "sudo apt-get install -y python3" ;;
-      pip)     echo "sudo apt-get install -y python3-pip" ;;
-      pip3)    echo "sudo apt-get install -y python3-pip" ;;
-      node)    echo "sudo apt-get install -y nodejs" ;;
-      npm)     echo "sudo apt-get install -y npm" ;;
-      docker)  echo "sudo apt-get install -y docker.io" ;;
-      zip)     echo "sudo apt-get install -y zip" ;;
-      unzip)   echo "sudo apt-get install -y unzip" ;;
-      sed)     echo "sudo apt-get install -y sed" ;;
-      awk)     echo "sudo apt-get install -y gawk" ;;
-      perl)    echo "sudo apt-get install -y perl" ;;
-      make)    echo "sudo apt-get install -y make" ;;
-      rsync)   echo "sudo apt-get install -y rsync" ;;
-      xmllint) echo "sudo apt-get install -y libxml2-utils" ;;
-      *)       echo "sudo apt-get install -y $1" ;;
-    esac
+    local agent_id="${AGENT_ID:-unknown}"
+    local reason="Required by do_require_bin for tool validation"
+    echo "./run -a do_box_pkg_install BOX_PKG=$1 BOX_PKG_REASON='$reason' AGENT_ID=$agent_id"
   }
 
   if [[ $# -eq 0 ]]; then

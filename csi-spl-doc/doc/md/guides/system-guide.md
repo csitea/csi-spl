@@ -1,5 +1,6 @@
-Exported from the Qto doc [System guide](https://spool-hub.ai/workspace/docs?doc=119954ab-17d0-4be3-96c1-5746ff9d1f0d&view=doc) (`119954ab-17d0-4be3-96c1-5746ff9d1f0d`) on 2026-10-11T20:26:00Z; edit in Qto, not here.
+> Generated from qto doc `119954ab-17d0-4be3-96c1-5746ff9d1f0d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
+<a id="ws-doc-d47225f7-0014-4fa9-b7b8-670de0605c78"></a>
 # 1 Spool Hub system guide
 
 Every major part of the Spool Hub, where it lives in this repo, the spec that
@@ -48,6 +49,7 @@ flowchart TD
     CI -- "GitHub OIDC deploys" --> WUI
 ```
 
+<a id="ws-doc-104e6632-8f92-4a4a-afa9-ea2af873fb15"></a>
 ## 1.1 The whole in one table
 
 | # | part | runs on | repo path | spec |
@@ -77,8 +79,10 @@ How they connect:
 | CI | Cloud Run, Firebase | GitHub OIDC (WIF, step 017) | build and deploy dev and prd |
 | csitea.net | hub | iframe on `/embed/v1/chat` | the visitor channel (10, planned) |
 
+<a id="ws-doc-94500c66-65d9-4688-9067-545d847f5ea6"></a>
 ## 1.2 The hub API
 
+<a id="ws-doc-68ad8daf-39bf-400e-9903-1cefcfc8152d"></a>
 ### 1.2.1 One binary, two jobs
 
 `GO/cmd/spool/main.go` is the only Go program. `spool serve` is the hub;
@@ -97,6 +101,7 @@ The same image is the Cloud Run service (step
   [104](../../../specs/104-api-docs-openapi/)), source
   `GO/internal/hub/openapi.json`.
 
+<a id="ws-doc-aa50403a-62ed-488f-9787-bd7c0e119416"></a>
 ### 1.2.2 Route families
 
 Counted from the `Handle`/`HandleFunc` registrations in `GO/internal/hub`
@@ -113,6 +118,7 @@ and `GO/internal/auth`:
 | `/v1/pins` | pinning a box key to a tenant (the desk's first run) |
 | `/v1/public`, `/v1/release-notes`, `/v1/marketing` | public pages, release notes, marketing (116, 065, 090) |
 
+<a id="ws-doc-cb4e9677-2942-42c3-8260-5d27dac868be"></a>
 ### 1.2.3 Sign-in and payments
 
 - Sign-in: native e-mail and password (spec
@@ -123,6 +129,7 @@ and `GO/internal/auth`:
 - Buying a workspace: `GO/internal/payments` (specs 006, 009), copied from
   another Csitea service and never importing it (`GO/internal/payments/config.go`).
 
+<a id="ws-doc-a9d3d76e-7456-443d-85f0-92062f861a17"></a>
 ## 1.3 The database
 
 - Cloud SQL `POSTGRES_16`, tier `db-f1-micro`
@@ -142,6 +149,7 @@ and `GO/internal/auth`:
   [100](../../../specs/100-search-index/)), `GO/internal/search`.
 - Topic lists: stored heads (`topic_heads`) avoid walking messages. Backfill and shadow reporting are driven by the new topic head mechanisms (spec [099](../../../specs/099-topic-head/spec.md), `csi-spl-doc/specs/099-topic-head/spec.md`), merged in Go with due heads.
 
+<a id="ws-doc-40a61bb1-361d-4c03-a4c1-63cd92e48fa7"></a>
 ## 1.4 The web UI
 
 - Nuxt 3 + TypeScript in `csi-spl-wui/`, built with `nuxt generate` into a
@@ -155,8 +163,10 @@ and `GO/internal/auth`:
   embed (9) is served by the hub, not by the WUI.
 - Locales: `csi-spl-wui/i18n/` (spec 021).
 
+<a id="ws-doc-e0ebee86-99f1-426f-83be-466b5225154c"></a>
 ## 1.5 Boxes, desks, sidecars, the spool CLI
 
+<a id="ws-doc-cd6556f9-94be-4cbe-b700-21e8dfb30b22"></a>
 ### 1.5.1 The local spool
 
 A **box** is a machine agents run on. Each agent has
@@ -165,6 +175,7 @@ A **box** is a machine agents run on. Each agent has
 `spool send` / `spool recv` / `spool tail` read and write those dirs; on one
 box no network is involved.
 
+<a id="ws-doc-e49f312a-8af0-4e5b-a243-2610e8c44258"></a>
 ### 1.5.2 Desk and sidecar: the box joins the hub
 
 `do_spl_desk_up` (`csi-spl-orc/src/bash/run/spl-desk-up.func.sh`) seats an
@@ -180,11 +191,13 @@ agent that already runs in a terminal pane at a workspace:
 A box's messages are signed with its key (`GO/internal/sign`); an unpinned
 box is refused (`unpinned_box` in `GO/internal/hub/rest.go`).
 
+<a id="ws-doc-5e08496f-6d5a-4041-ad49-1eec09f4264b"></a>
 ### 1.5.3 MCP
 
 `spool mcp` (`GO/internal/mcp`) exposes the same verbs to an agent CLI as MCP
 tools.
 
+<a id="ws-doc-d1c3c9ad-a680-44dc-86e4-fd103c51434c"></a>
 ### 1.5.4 Installing a box
 
 `csi-spl-orc/src/bash/features/spool-install/install.sh` installs the spool
@@ -193,6 +206,7 @@ hooks and skills, and seats it. Self-hosted: [README.md](../../../README.md),
 "Connect an agent". The always-on GCP box (the satellite) is
 `csi-spl-iac/src/terraform/060-gcp-vm-satellite`, described in [SYS.md](../SYS.md).
 
+<a id="ws-doc-9713f915-3294-4ac2-bed7-971167909cfa"></a>
 ## 1.6 Agents and the fleet roles
 
 | role | what it does | where |
@@ -209,8 +223,10 @@ hooks and skills, and seats it. Self-hosted: [README.md](../../../README.md),
 Fleet rules and their one home: [fleet-rules-index.md](../fleet-rules-index.md).
 How a lane's change reaches master: [developer-guide.md](../developer-guide.md).
 
+<a id="ws-doc-bb07adad-96e3-4ef5-8b73-793949ae3e11"></a>
 ## 1.7 Infrastructure, configuration, CI/CD
 
+<a id="ws-doc-f438ce0d-093c-4bac-90b4-cfc4fe7a3d82"></a>
 ### 1.7.1 Configuration
 
 `csi-spl-cnf/csi-spl/<env>.env.yaml` (envs `dev`, `prd`, plus `all` and
@@ -220,6 +236,7 @@ How a lane's change reaches master: [developer-guide.md](../developer-guide.md).
 `env.dns.BASE_DOMAIN` in `all.env.yaml`: prd serves the apex, dev serves
 `dev.<BASE_DOMAIN>` (`prd.env.yaml`).
 
+<a id="ws-doc-749289dd-403a-4be1-aed5-e62525295238"></a>
 ### 1.7.2 Terraform steps
 
 Each GCP part is a numbered step in `csi-spl-iac/src/terraform/`, run only in
@@ -242,6 +259,7 @@ do-tf-plan`), with the env's own service account key, never the owner account
 | 070 | monitoring |
 | 120 | GitHub secrets |
 
+<a id="ws-doc-c60237bd-0692-42bc-bfb5-2697722f954b"></a>
 ### 1.7.3 CI/CD and versions
 
 | workflow | does |
@@ -259,6 +277,7 @@ Every hub and WUI deploy mints a `v<X.Y.Z>` tag
 and the WUI footer show it. Before a push, the pre-push gate:
 [pre-push-gate.md](../pre-push-gate.md).
 
+<a id="ws-doc-354e3a8e-28a6-4a64-8afb-ebc53f29fa50"></a>
 ### 1.7.4 Backups
 
 - Database: `do_spl_db_backup` (`spl-db-backup.func.sh`) daily from
@@ -268,6 +287,7 @@ and the WUI footer show it. Before a push, the pre-push gate:
 - Box state: `spl-box-state-backup.func.sh` into the step-056 bucket,
   [box-state-backup.md](../box-state-backup.md).
 
+<a id="ws-doc-d4e0cb08-670e-4617-b127-12788fe15616"></a>
 ## 1.8 Tenants (workspaces)
 
 - A workspace is a tenant: every tenant row carries `tenant_id` and RLS keeps
@@ -280,8 +300,10 @@ and the WUI footer show it. Before a push, the pre-push gate:
   across tenants only through `asOperator` (spec 074).
 - A box can be enrolled into one workspace (spec 108).
 
+<a id="ws-doc-64ffc450-ed2e-4694-805f-88302c5f9f28"></a>
 ## 1.9 The csitea.net integration (spec 121)
 
+<a id="ws-doc-c85c4223-0d26-4961-9bff-4678552c174d"></a>
 ### 1.9.1 What it is
 
 csitea.net is the Csitea website, a separate repo (`csi-web`). Spec 121 makes
@@ -291,6 +313,7 @@ see; later a business that bought a workspace embeds the same chat in its own
 site. csitea.net is customer #1 of the embed, paid by Csitea's own workspace
 (spec 121 sections 1.3, 3).
 
+<a id="ws-doc-e7faddb7-8a93-494e-ad42-a06bc7d08112"></a>
 ### 1.9.2 How it plugs in
 
 | piece | who owns it | detail (spec 121) |
@@ -307,6 +330,7 @@ site. csitea.net is customer #1 of the embed, paid by Csitea's own workspace
 The loader takes the hub host from `BASE_DOMAIN`, never a literal (spec 121
 section 5).
 
+<a id="ws-doc-e90b8495-b459-425b-94ef-e6037227012d"></a>
 ### 1.9.3 Auth and isolation
 
 - The visitor has no account. The hub mints a random 256-bit token, stores
@@ -325,6 +349,7 @@ section 5).
   CORS header for csitea.net; parent and iframe exchange UI events only
   (open, close, unread count) by `postMessage` with an exact origin.
 
+<a id="ws-doc-42a4441b-7849-46b8-9416-f5c32b62f0f9"></a>
 ### 1.9.4 Status as of 2026-10-10
 
 | done | open |
@@ -335,7 +360,23 @@ section 5).
 
 Until T208 lands nothing on csitea.net calls the hub.
 
-## 1.10 How the four guides fit
+<a id="ws-doc-9522a56b-b493-43a6-9c90-629a85c22443"></a>
+## 1.10 Disk hygiene
+
+Every box that runs agents has one disk-hygiene component: the box disk sweep (`csi-spl-orc/src/bash/scripts/box-disk-sweep.sh`). It removes data that is safe to remove, so a full disk never stops the fleet.
+
+**How often.** One cron line runs it every 15 minutes. With 15% or more free space it acts once every 4 hours; under 15% it acts on every tick, with shorter age limits.
+
+**What it scans.** Old transcripts of dead sessions, idle build and test leftovers in `/tmp`, dead worktrees, the Go build cache, docker images and build cache, the systemd journal and idle GitHub runner scratch. Under disk pressure only, it also scans `/var/tmp` lane leftovers and oversize logs.
+
+**Finished lanes.** A lane does not delete its own work when it ends: a fix after the push may still need it. When the lane's window closes, the retire lists the lane's worktree, its `/tmp` scratch and its `/var/tmp` leftovers in one table per box, `$SPOOL_ROOT/workdirs.tsv`, with the time the lane finished. The sweep's `workdirs` step (`cd csi-spl-utl && ./run -a do_sweep_workdirs`) removes a listed directory once it is 24 hours old. When 8% or less of a disk is free, the limit is 6 hours and the oldest go first.
+
+**What it never removes.** A directory that a running process uses. A worktree with uncommitted or untracked files. A main checkout. A branch with commits that are not merged. Anything root owns. Anything that no step lists.
+
+**Where its alert goes.** Every step writes its lines to the sweep's log, `box-disk-sweep.log` in the sweep's log dir. A critical sweep (under 7% free) that cannot free enough space sends one note to the orchestrator, on task `disk-sweep-<box>`.
+
+<a id="ws-doc-093f7ed8-88c4-490e-99db-31b8e16aa378"></a>
+## 1.11 How the four guides fit
 
 This System guide is one of four guides designed to rebuild the fleet from scratch:
 1. **Installation and configuration guide** (G1): Provisions the boxes and dependencies from an empty Debian 13 box.

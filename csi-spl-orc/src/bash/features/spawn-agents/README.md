@@ -25,7 +25,12 @@ the reference does it:
   branch off `origin/<trunk>`. An existing `<repo>-wt/<ID>` is reused only
   when it is a git work tree of its own; any other dir there (a retired id's
   leftover `.claude/`) is moved to `<repo>-wt/<ID>.stale-<UTC>`, never
-  deleted, and a fresh worktree is made (SPL-2281).
+  deleted, and a fresh worktree is made (SPL-2281). A reused worktree moves
+  to the new lane's branch `<ID>-<slug>` off `origin/<trunk>`, so the seed
+  and the lane map name the branch the lane works on, not the previous
+  life's; the old branch keeps its commits. Kept as is: a HEAD already on
+  that branch (a lane handover, slug `handover`), and a tree with tracked
+  changes (WARN) (SPL-2446).
 - **Lane map.** Each spawn writes the agent's row (`<ID>@<box>`, repo, branch,
   scope, files, topic) into the fleet-wide lane map on the hub, and the seed
   prompt's scope check reads that map, not `git worktree list` (section 3.11).

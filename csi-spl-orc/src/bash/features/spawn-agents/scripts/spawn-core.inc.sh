@@ -137,6 +137,42 @@ _spawn_reusable() {
   return 1
 }
 
+# The reused worktree (SPL-2281) moves to the NEW lane's branch, BRANCH as
+# _spawn_worktree named it, made off origin/<trunk>: its HEAD was the previous
+# life's branch, and the lane map row and the seed carried that (c-770,
+# c-001 msg e97c945e, 2026-10-17). The old branch and its commits stay. Kept:
+# a HEAD already on this lane's branch (BRANCH or BRANCH-<n>), and a tree with
+# tracked changes, which are never carried into a new lane (WARN; BRANCH is
+# then the branch the tree is really on). Untracked files ride along.
+_spawn_reuse_branch() {
+  local cur cand n
+  cur="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+  if [ -n "$cur" ] && { [ "$cur" = "$BRANCH" ] || [[ "$cur" =~ ^${BRANCH}-[0-9]+$ ]]; }; then
+    BRANCH="$cur"
+    _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH})"
+    return 0
+  fi
+  if [ -n "$(git -C "$WORKTREE_DIR" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "WARN: ${WORKTREE_DIR} has tracked changes on ${cur:-?}: kept on it, not moved to ${BRANCH}" >&2
+    BRANCH="${cur:-$TITLE}"
+    _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH}, tracked changes kept)"
+    return 0
+  fi
+  cand="$BRANCH"; n=1
+  while git -C "$REPO" show-ref --verify --quiet "refs/heads/${cand}"; do
+    n=$((n + 1)); cand="${BRANCH}-${n}"
+  done
+  BRANCH="$cand"
+  _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${cur:-?} -> ${BRANCH} off origin/${DEFBRANCH})"
+  _sp_live || return 0
+  if git -C "$WORKTREE_DIR" switch -q -c "$BRANCH" "origin/${DEFBRANCH}" 2>/dev/null; then
+    echo "INFO: ${WORKTREE_DIR} moved from ${cur:-?} to ${BRANCH} off origin/${DEFBRANCH}"
+  else
+    echo "WARN: ${WORKTREE_DIR} would not switch to ${BRANCH}: kept on ${cur:-?}" >&2
+    BRANCH="${cur:-$TITLE}"
+  fi
+}
+
 # RUNDIR REPO BRANCH WORKTREE_DIR DEFBRANCH, creating the worktree when live.
 _spawn_worktree() {
   local rv n cand main_br main_dirty safe_slug
@@ -172,23 +208,21 @@ _spawn_worktree() {
   fi
 
   WORKTREE_DIR="${REPO}-wt/${TITLE}"
+  safe_slug="$(printf '%s' "$SLUG" | tr '[:upper:]' '[:lower:]' | tr ' _/' '---' | tr -cd 'a-z0-9-')"
+  safe_slug="$(printf '%s' "$safe_slug" | sed -E 's/-+/-/g; s/^-//; s/-$//')"
+  if [ -n "$safe_slug" ]; then BRANCH="${TITLE}-${safe_slug}"; else BRANCH="$TITLE"; fi
   if _spawn_reusable "$WORKTREE_DIR"; then
-    BRANCH="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
-    [ -n "$BRANCH" ] || BRANCH="$TITLE"
+    _spawn_reuse_branch
     RUNDIR="$WORKTREE_DIR"
     if _sp_live; then
       echo "INFO: reusing existing worktree ${WORKTREE_DIR}"
       bash "${_SP_DIR}/install-pre-push-hook.sh" "$WORKTREE_DIR" >/dev/null 2>&1 || true
     fi
-    _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH})"
     # A respawn into a worktree made before SPAWN_AGENT_ACL gets it now.
     [ -z "${SPAWN_AGENT_ACL:-}" ] || _sp_agent_acl "$WORKTREE_DIR"
     return 0
   fi
 
-  safe_slug="$(printf '%s' "$SLUG" | tr '[:upper:]' '[:lower:]' | tr ' _/' '---' | tr -cd 'a-z0-9-')"
-  safe_slug="$(printf '%s' "$safe_slug" | sed -E 's/-+/-/g; s/^-//; s/-$//')"
-  if [ -n "$safe_slug" ]; then BRANCH="${TITLE}-${safe_slug}"; else BRANCH="$TITLE"; fi
   cand="$BRANCH"; n=1
   while git -C "$REPO" show-ref --verify --quiet "refs/heads/${cand}"; do
     n=$((n + 1)); cand="${BRANCH}-${n}"

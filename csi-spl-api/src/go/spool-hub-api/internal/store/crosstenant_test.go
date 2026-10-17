@@ -392,6 +392,18 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// spec_sync_map (rdb 0208, spec 145 T002): one row linked to the seeded
+	// issue and doc. No store API yet (T031, T041), so a raw row under
+	// inTenant (spec_sync_schema_test.go).
+	var seedDoc string
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT id::text FROM workspace_doc WHERE tenant_id = $1 AND title = 'seed'`, s.tenant).Scan(&seedDoc)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedSpecSync(ctx, pg, s.tenant, iss.Number, seedDoc); err != nil {
+		t.Fatal(err)
+	}
 	// tenant_agent_split_kind (rdb 0163, spec 115 RDB-1): the secret kind,
 	// claude 100 with mistral the backup. No store API yet (HUB-1), so raw
 	// rows under inTenant.

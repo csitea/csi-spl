@@ -62,7 +62,7 @@ spl_export_go_path || { echo "FAIL: no go toolchain"; exit 1; }
 BIN="$T/spool"
 (cd "$APP_ROOT/csi-spl-api/src/go/spool-hub-api" && go build -o "$BIN" ./cmd/spool) || { fail "spool build"; exit 1; }
 PG_CTR="spl-box-purge-pg-$$"
-docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
+docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
   -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
 # shellcheck source=pg-throwaway.inc.sh
 source "$HERE/pg-throwaway.inc.sh"

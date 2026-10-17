@@ -43,7 +43,7 @@ if [ -n "$PG_BIN" ] && [ -x "$PG_BIN/initdb" ]; then
   echo "ok   - temp Postgres up (local $("$PG_BIN/initdb" --version))"
 elif command -v docker >/dev/null && docker image inspect "$PG_IMAGE" >/dev/null 2>&1; then
   PG_CTR="spool-hub-pg-test-$$"
-  docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool \
+  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$PG_CTR" -e POSTGRES_USER=spool \
     -e POSTGRES_PASSWORD=spool -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
   PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
   for _ in $(seq 1 60); do

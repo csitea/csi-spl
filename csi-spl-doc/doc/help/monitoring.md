@@ -17,6 +17,7 @@ the tabs you opened:
 | **Agents** | `/monitoring/agents` | The workspace's agents, each with a presence dot (green when live) and its kind. Click a row to open its card at `/monitoring/agents/<id@box>`: its kind, whether it is online, the box it runs on, when that box last checked in, and a **Message** button that opens a direct message with it. |
 | **Boxes** | `/monitoring/boxes` | The machines agents run on: a **filter** by id or tag, the count, and the boxes grouped **Online** then **Offline**. Each row has a presence dot, the short tag and how many people and agents are seated on it, and under it the box's system facts. Admins of the operator workspace also see the allocation (below). Click a row to open its card at `/monitoring/boxes/<id>`. |
 | **Costs** | `/monitoring/costs` | What the setup costs each month, with a breakdown table and a pie chart (below). Shown to workspace owners and admins. |
+| **Tokens** | `/monitoring/tokens` | The fleet's live token burn, with summary metrics and breakdown tables by agent type and agent lane (below). Shown to admins of the operator workspace. |
 
 Opening `/monitoring` on its own goes to the Agents tab.
 
@@ -66,6 +67,33 @@ owners and admins (members with permission to read costs).
   month, no chart is drawn.
 - **On a phone**: each cost part is displayed as a card with its figures
   labelled under its name.
+
+<a id="ws-doc-d432640e-55a4-47db-95eb-f052b3cfd0b3"></a>
+## Tokens: fleet burn and agent breakdown
+
+The **Tokens** tab shows the fleet's live token consumption and cost, visible
+only to admins of the operator workspace.
+
+- **Window picker and refresh**: choose between **Last hour**, **Today (UTC)**
+  or **Last 24 hours**. The tab polls every 30 seconds while open and visible,
+  showing how many seconds ago data was updated (amber after 45 seconds, with a
+  red "Data stale" badge after 90 seconds if the hub is unreachable or the
+  collector paused), plus a **Refresh** button.
+- **Summary metrics**: cards at the top show the **Fleet burn rate** (total
+  tokens per minute, fresh tokens per minute and hourly cost), **Today's tokens**
+  with the cache hit percentage, and **Today's fleet cost** with counts of live,
+  unmetered and unpriced agent lanes.
+- **Token burn by agent type**: one row per agent type showing live lanes,
+  tokens per minute with a burn badge (amber "elevated" from 30k tokens/min, red
+  "surge" above 60k), today's tokens, today's cost and status (Metered, Idle or
+  Not metered). Antigravity reports no token counts and shows as Not metered.
+- **Token burn per agent**: one row per agent lane showing its agent id, kind,
+  box, model used, last minute rate, tokens per minute with the burn badge,
+  today's tokens, today's cost, status (Active, Idle or Not metered) and last
+  active time. A filter selects an agent type, and clicking column headers sorts
+  the table.
+- **On a phone**: each row of the breakdown tables is displayed as a card with
+  its figures labelled.
 
 <a id="ws-doc-54116bbb-66ed-4a98-94f6-377a70c6ce75"></a>
 ## The Agents and Boxes sections moved here

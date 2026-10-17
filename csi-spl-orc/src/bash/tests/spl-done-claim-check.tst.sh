@@ -21,27 +21,32 @@ mkrepo() {
 rg() { local r="$1"; shift; git -C "$T/$r" -c user.name=t -c user.email=t@example.com "$@"; }
 mkrepo spl
 mkrepo other
+# lettered <repo> <n> <msg>: commit (or amend) HEAD until its first <n> chars hold a
+# letter. A body quotes a 9- or 12-char prefix; an all-digit one (1 run in ~70 for 9)
+# reads as a run id and is dropped on purpose, so the fixture never quotes one.
+lettered() {
+  local i
+  for i in $(seq 1 50); do
+    [[ "$(rg "$1" rev-parse HEAD | cut -c1-"$2")" =~ [a-f] ]] && return 0
+    rg "$1" commit -q --amend --allow-empty -m "$3 $i"
+  done
+  echo "FAIL: the fixture's $3 sha has an all-digit $2-char prefix"; exit 1
+}
 rg spl commit -q --allow-empty -m landed
+lettered spl 9 landed
 LANDED=$(rg spl rev-parse HEAD)
-# the "short" case quotes ${LANDED:0:9}; an all-digit prefix (1 run in ~70)
-# reads as a run id and is dropped on purpose, so re-commit until it holds a letter
-for i in $(seq 1 50); do
-  [[ "${LANDED:0:9}" =~ [a-f] ]] && break
-  rg spl commit -q --amend --allow-empty -m "landed $i"
-  LANDED=$(rg spl rev-parse HEAD)
-done
-[[ "${LANDED:0:9}" =~ [a-f] ]] || { echo "FAIL: the fixture's landed sha has an all-digit 9-char prefix"; exit 1; }
 rg spl push -q origin HEAD:master
 # a review-branch commit whose patch lands on trunk under another sha (a rebase)
 rg spl checkout -q -b review HEAD~1
 echo fix >"$T/spl/f" && rg spl add f && rg spl commit -q -m "reviewed fix"
+lettered spl 9 "reviewed fix"
 REVIEW=$(rg spl rev-parse HEAD)
 rg spl checkout -q master && rg spl cherry-pick "$REVIEW" >/dev/null && rg spl commit -q --amend -m "reviewed fix, rebased"
 rg spl push -q origin HEAD:master
 [ "$(rg spl rev-parse HEAD)" != "$REVIEW" ] || { echo "FAIL: the fixture's rebased sha equals the review sha"; exit 1; }
 rg spl commit -q --allow-empty -m "never pushed"
 LOCAL=$(rg spl rev-parse HEAD)
-rg other commit -q --allow-empty -m "other repo" && rg other push -q origin HEAD:master
+rg other commit -q --allow-empty -m "other repo" && lettered other 12 "other repo" && rg other push -q origin HEAD:master
 OTHER=$(rg other rev-parse HEAD)
 
 NOW=$(date +%s)

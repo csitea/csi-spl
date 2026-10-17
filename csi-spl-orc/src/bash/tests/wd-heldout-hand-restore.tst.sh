@@ -21,6 +21,13 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
+# The fixture box is box1 (box.env below). A host value wins over box.env
+# (_spool_box_env_load fills only unset keys), so a box exporting
+# SPOOL_BOX_TAG=sat named the restore c-201@sat (SPL-2457): clear every
+# box.env key and the other identity variables the restore path reads.
+unset SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN \
+  SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT \
+  SPOOL_BOX_TAG SPOOL_LOGIN_PEERS BOX_TAG SPOOL_BOX SPOOL_AGENT_ID
 fails=0
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 BT=1800000000

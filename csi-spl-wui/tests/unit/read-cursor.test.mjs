@@ -19,7 +19,7 @@ import {
   topicKey,
   ownReplyReadAt,
 } from '../../src/utils/read-cursor.mjs'
-import { seedTopicCursors, unseenRepliesSince } from '../../src/utils/topic-seed.mjs'
+import { countMarks, seedTopicCursors, unseenRepliesSince } from '../../src/utils/topic-seed.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
 describe('local read cursors', () => {
@@ -215,5 +215,45 @@ describe('CLE-77930: thread replies counted by the channel badge stay visible as
   it('returns the same object when nothing is new', () => {
     const c = {}
     assert.equal(seedTopicCursors(c, { ts: '2026-10-03T00:00:00Z', id: '' }, rows, totalOf, 'HUM-10'), c)
+  })
+})
+
+describe('SPL-2286: a t: mark with no count reads the replies after its ts, as the hub row does', () => {
+  /* dev t1 #live-proof a0dbc16b: the mark {ts 10-02, id}, no count; 2 agent replies 10-08 */
+  const rows = [
+    { msg_id: 'root', task_id: 'T', from: 'CLE-1', received_at: '2026-10-02T19:00:00Z' },
+    { msg_id: 'a1', task_id: 'T', from: 'CLE-1', received_at: '2026-10-08T10:00:00Z' },
+    { msg_id: 'a2', task_id: 'T', from: 'CLE-2', received_at: '2026-10-08T11:00:00Z' },
+  ]
+  const mark = { ts: '2026-10-02T19:50:04Z', id: 'm0' }
+  const totalOf = () => 2
+
+  it('the card reads 2/2: the mark counts the 0 replies seen at its ts', () => {
+    const next = countMarks({ 't:T': mark }, rows, totalOf, 'HUM-4')
+    assert.deepEqual(next['t:T'], { ...mark, count: 0 })
+    assert.equal(topicUnread(totalOf('T'), next['t:T']), 2)
+  })
+
+  it('the channel open fills it too, though a mark of its own keeps the boundary seed off', () => {
+    const next = seedTopicCursors({ 't:T': mark }, { ts: '2026-10-01T00:00:00Z', id: '' }, rows, totalOf, 'HUM-4')
+    assert.equal(topicUnread(2, next['t:T']), 2)
+    assert.equal(next['t:T'].ts, mark.ts)
+    assert.equal(topicUnread(2, seedTopicCursors({ 't:T': mark }, null, rows, totalOf, 'HUM-4')['t:T']), 2)
+  })
+
+  it('replies at or before the ts are seen; the reader\'s own after it are seen and remembered', () => {
+    const at = { ts: '2026-10-08T10:30:00Z', id: '' }
+    assert.equal(topicUnread(2, countMarks({ 't:T': at }, rows, totalOf, 'HUM-4')['t:T']), 1)
+    const own = [...rows, { msg_id: 'h1', task_id: 'T', from: 'HUM-4', received_at: '2026-10-08T12:00:00Z' }]
+    const c = countMarks({ 't:T': at }, own, () => 3, 'HUM-4')['t:T']
+    assert.equal(topicUnread(3, c), 1)
+    assert.deepEqual(c.own, ['h1'])
+  })
+
+  it('leaves a counted mark, and a mark of a thread this feed does not hold, as they are', () => {
+    const counted = { 't:T': { ...mark, count: 1 } }
+    assert.equal(countMarks(counted, rows, totalOf, 'HUM-4'), counted)
+    const other = { 't:X': mark }
+    assert.equal(countMarks(other, rows, totalOf, 'HUM-4'), other)
   })
 })

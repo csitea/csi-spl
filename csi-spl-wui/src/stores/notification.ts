@@ -262,7 +262,9 @@ type Alerts = ReturnType<typeof alertSteps>
  */
 function topicMarks(read: Record<string, number>, cursors: Record<string, unknown>, held: Record<string, unknown> = {}) {
   for (const [k, c] of Object.entries(cursors)) {
-    if (k.startsWith('t:') && c && !held[k] && Number.isFinite((c as { count?: number }).count)) read[k.slice(2)] = Number((c as { count?: number }).count)
+    /* a held mark is kept unless it had no count (SPL-2286: countMarks gave it one) */
+    const was = held[k] as { count?: number } | undefined
+    if (k.startsWith('t:') && c && !(was && Number.isFinite(was.count)) && Number.isFinite((c as { count?: number }).count)) read[k.slice(2)] = Number((c as { count?: number }).count)
   }
   return read
 }

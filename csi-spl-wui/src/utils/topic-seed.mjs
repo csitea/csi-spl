@@ -34,18 +34,57 @@ import { OWN_KEEP, isUnread, replyTopicsOf, topicKey, when } from './read-cursor
  * @returns {Record<string, any>} the same object when nothing was seeded
  */
 export function seedTopicCursors(cursors, boundary, messages, totalOf, selfId = '') {
-  if (!boundary || !boundary.ts) return cursors
+  const counted = countMarks(cursors, messages, totalOf, selfId)
+  if (!boundary || !boundary.ts) return counted
   const fresh = unseenRepliesSince(messages, boundary, selfId)
-  let next = cursors
+  let next = counted
   for (const [taskId, { unseen, own }] of fresh) {
     const key = topicKey(taskId)
-    if (!key || !unseen || (cursors && cursors[key])) continue
-    const total = Math.max(0, Number(totalOf(taskId)) || 0)
-    const c = { ts: String(boundary.ts), id: String(boundary.id || ''), count: Math.max(0, total - unseen) }
-    if (next === cursors) next = { ...(cursors || {}) }
-    next[key] = own.length ? { ...c, own: own.slice(-OWN_KEEP) } : c
+    if (!key || !unseen || (counted && counted[key])) continue
+    next = withCount(next, counted, key, { at: { ts: String(boundary.ts), id: String(boundary.id || '') }, total: Number(totalOf(taskId)), unseen, own })
   }
   return next
+}
+
+/**
+ * SPL-2286 (c-635, dev t1 #live-proof): a t:<id> mark with a ts and no
+ * `count`. A topic marked at 0 replies goes to the hub as {ts, id} (the wire
+ * leaves count 0 out), so another browser pulls a mark the card cannot read
+ * (topicUnread -> 0): the channel row counted the 2 replies after its ts, the
+ * card read a plain "2". Such a mark of a thread this feed holds gets the
+ * hub's reading, as a count: total - the others' replies after its ts.
+ *
+ * @param {Record<string, any>} cursors loadCursors()
+ * @param {any[]} messages the channel feed's held rows
+ * @param {(taskId: string) => number} totalOf the thread's current reply total (repliesFor)
+ * @param {string} selfId the reader
+ * @returns {Record<string, any>} the same object when no mark needed a count
+ */
+export function countMarks(cursors, messages, totalOf, selfId = '') {
+  const held = new Set()
+  for (const m of messages || []) for (const id of [m && m.task_id, m && m.parent_task_id]) if (id) held.add(String(id))
+  let next = cursors
+  for (const [key, c] of Object.entries(cursors || {})) {
+    if (!key.startsWith('t:') || !c || !c.ts || Number.isFinite(c.count) || !held.has(key.slice(2))) continue
+    const e = unseenRepliesSince(messages, c, selfId).get(key.slice(2)) || { unseen: 0, own: [] }
+    next = withCount(next, cursors, key, { at: c, total: Number(totalOf(key.slice(2))), unseen: e.unseen, own: e.own })
+  }
+  return next
+}
+
+/** `next` (copied off `base` once) with `key` marked at `at`, seen = total - unseen, the own replies after it kept. */
+function withCount(next, base, key, { at, total, unseen, own }) {
+  const out = next === base ? { ...(base || {}) } : next
+  const c = { ...at, count: Math.max(0, (Math.max(0, total) || 0) - unseen) }
+  const ids = withOwnIds(Array.isArray(at.own) ? at.own : [], own)
+  out[key] = ids.length ? { ...c, own: ids } : c
+  return out
+}
+
+function withOwnIds(had, own) {
+  const out = had.map(String)
+  for (const id of own) if (!out.includes(id)) out.push(id)
+  return out.slice(-OWN_KEEP)
 }
 
 /**

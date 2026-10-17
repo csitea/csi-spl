@@ -169,6 +169,18 @@ export const useTopicStore = defineStore('topic', () => {
   const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
 
   const { selectPane, openTarget, openTopic, setTarget, close } = openActions(s, channel)
+
+  /* SPL-2286 (c-311, msg 9b718269): a cold /channel/<ch>?topic=<id> opens the
+     pane before the channel feed loads, so the open marked the thread at the
+     total held then (0): the hub row dropped and the card kept "2/2 >>". While
+     the pane is open, a reply total above the thread's mark is read too. */
+  watch(() => (open.value && parentTaskId.value ? channel.repliesFor(parentTaskId.value) : -1), (n) => {
+    const id = parentTaskId.value
+    if (!id || n <= 0) return
+    const seen = useNotificationStore().topicRead[id]
+    if (Number.isFinite(seen) && n <= Number(seen)) return
+    void readOpened(id, n)
+  })
   const { applyEditedRoot, applyReactionsUpdate, dropRoot } = rootActions(s, dismissBorn)
 
   return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, applyReactionsUpdate, dropRoot, close }

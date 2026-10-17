@@ -62,6 +62,10 @@ Then, inside tmux: `spool-agent claude`. `--dry-run` prints the plan;
   entry is replaced, never added to (two copies post each prompt twice). The
   hook does nothing in a session with no agent id, so a plain `claude` is
   unaffected. `spool-agent` then adds no per-session copy (it already checks).
+- **Git never pages for an agent** (`--fleet`, SPL-2432): `core.pager=cat` in
+  the global git config of the agent user and the box user
+  (`steps/y16-git-pager-off.sh`; both: `./run -a do_spl_git_pager_off_install`),
+  since agy's shell has a tty and `git log` waited in less for 38 min.
 - **The seat: no new auth flow.** The hub pins a box ONLY through
   `POST /v1/pins` signed by the tenant root key (`internal/hub/rest.go`
   `handlePin`); a 023 human key does not pin a box and no invite does. So

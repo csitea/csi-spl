@@ -5,6 +5,8 @@
 #   1. a HOME with ~/.gemini gets ~/.gemini/config/rules/30-exit-after-accepted.md:
 #      the source text plus its sha256 marker, carrying the ACCEPTED-only rule
 #      and the exit-clean closing step (--defer --retire)
+#   1b. the same run renders 40-git-no-pager.md (SPL-2432): git output is
+#      never paged, `git --no-pager` if a pager appears
 #   2. a re-run says current and changes nothing
 #   3. a hand-edited file is kept; FORCE_SKILLS=1 replaces it
 #   4. an untouched file from an older source is rewritten
@@ -45,6 +47,13 @@ grep -q 'body starts with `ACCEPTED`' "$dst" 2>/dev/null && grep -q 'NOT the end
   fail "1: the ACCEPTED-only rule is missing"
 grep -q 'tmux-close-window.sh --agent <YOUR-ID> --defer --retire' "$dst" 2>/dev/null &&
   pass "1: the file carries the exit-clean closing step" || fail "1: the closing step is missing"
+
+# 1b. the git rule (SPL-2432) beside it: rendered with its marker, says --no-pager
+d1b="$H/.gemini/config/rules/40-git-no-pager.md"
+w1b=$(sum "$FEAT/assets/agy/rules/40-git-no-pager.md")
+[ -f "$d1b" ] && [ "$(tail -1 "$d1b")" = "<!-- spool-install: sha256=$w1b -->" ] && grep -q 'git --no-pager <command>' "$d1b" &&
+  grep -q 'never paged' "$d1b" && pass "1b: rendered $d1b: git is never paged, --no-pager if it is" ||
+  fail "1b: no rendered agy git-no-pager rule"
 
 # ── 2. re-run is a no-op ──────────────────────────────────────────────────────
 before=$(sum "$dst"); y14 "$H" 2>"$T/err2"

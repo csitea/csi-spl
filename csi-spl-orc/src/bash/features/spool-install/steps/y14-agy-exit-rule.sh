@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# y14-agy-exit-rule.sh — install.sh step: the agy lane's exit rule (owner
-# 2026-10-10, t1 3b755aef: exit clean "in the loop") into the rules dir agy
-# loads every file of: ~/.gemini/config/rules/30-exit-after-accepted.md.
-# A lane exits only after an ACCEPTED verdict, never on its own "done"
-# (a-884 retired itself before its work was accepted).
+# y14-agy-exit-rule.sh — install.sh step: the agy lane's rules into the rules
+# dir agy loads every file of, ~/.gemini/config/rules/<part>.md:
+#   30-exit-after-accepted  the exit rule (owner 2026-10-10, t1 3b755aef: exit
+#                           clean "in the loop"): a lane exits only after an
+#                           ACCEPTED verdict, never on its own "done" (a-884
+#                           retired itself before its work was accepted)
+#   40-git-no-pager         git output is never paged; --no-pager if a pager
+#                           appears (SPL-2432: agy's shell has a tty)
 #
-# The source is spool-install/assets/agy/rules/<part>.md. The rendered file is
+# The source is spool-install/assets/agy/rules/<part>.md. Each rendered file is
 # that text plus one marker line "<!-- spool-install: sha256=<hex> -->" (the
 # sha of the text above it): a re-run rewrites the file only while it is
 # untouched (its text still hashes to its marker); a hand-edited file, or a
@@ -15,7 +18,7 @@
 #      --fleet); SPOOL_INSTALL_AGY_ASSETS overrides the assets dir (tests).
 # Reads install.sh's DRY and FORCE_SKILLS when set.
 
-Y14_PART=30-exit-after-accepted
+Y14_PARTS="30-exit-after-accepted 40-git-no-pager"
 
 _y14_say() { echo "spool-install: agy-exit-rule: $*" >&2; }
 
@@ -28,10 +31,16 @@ _y14_body_sha() { grep -v '^<!-- spool-install: sha256=' "$1" | sha256sum | cut 
 spool_install_agy_exit_rule() {
   [ "${SPOOL_INSTALL_VENDOR_RULES:-1}" = 0 ] && return 0
   [ -d "$HOME/.gemini" ] || return 0
+  local part
+  for part in $Y14_PARTS; do _y14_render "$part" || return 1; done
+}
+
+# Render one part; a current file is left as it is, a hand-edited one is kept.
+_y14_render() {
   local here src dst want have body
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  src="${SPOOL_INSTALL_AGY_ASSETS:-$here/../assets/agy}/rules/$Y14_PART.md"
-  dst="$HOME/.gemini/config/rules/$Y14_PART.md"
+  src="${SPOOL_INSTALL_AGY_ASSETS:-$here/../assets/agy}/rules/$1.md"
+  dst="$HOME/.gemini/config/rules/$1.md"
   [ -f "$src" ] || { _y14_say "missing source $src"; return 1; }
   want="$(sha256sum <"$src" | cut -d' ' -f1)"
   if [ -f "$dst" ]; then

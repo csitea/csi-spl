@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Atjaunot #{slug} no arhīva",
     "your_status_online": "Jūsu statuss: tiešsaistē",
     "your_status_offline": "Jūsu statuss: bezsaistē",
-    "monitoring": "Pārraudzība"
+    "monitoring": "Pārraudzība",
+    "reporting": "Pārskati"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Tikai darbvietas administratori var mainīt pārņemšanas secību.",
     "error_bad_ladder": "Hub noraidīja šo pārņemšanas secību.",
     "error_generic": "Pārņemšanas secību neizdevās ielādēt vai saglabāt. Mēģiniet vēlreiz."
+  },
+  "reporting": {
+    "title": "Pārskati",
+    "tabs_label": "Pārskatu cilnes",
+    "tab": {
+      "releases": "Laidieni",
+      "sql": "SQL",
+      "tokens": "Tokeni",
+      "issues": "Problēmas",
+      "posts": "Ieraksti",
+      "lanes": "Joslas"
+    },
+    "releases": {
+      "soon": "Laidienu pārskats drīzumā."
+    }
   }
 }

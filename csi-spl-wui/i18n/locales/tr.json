@@ -580,7 +580,8 @@
     "create_channel_unarchive": "#{slug} arşivden çıkar",
     "your_status_online": "Durumunuz: çevrimiçi",
     "your_status_offline": "Durumunuz: çevrimdışı",
-    "monitoring": "İzleme"
+    "monitoring": "İzleme",
+    "reporting": "Raporlama"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Yalnızca çalışma alanı yöneticileri devralma sırasını değiştirebilir.",
     "error_bad_ladder": "Hub bu devralma sırasını reddetti.",
     "error_generic": "Devralma sırası yüklenemedi veya kaydedilemedi. Tekrar deneyin."
+  },
+  "reporting": {
+    "title": "Raporlama",
+    "tabs_label": "Raporlama sekmeleri",
+    "tab": {
+      "releases": "Sürümler",
+      "sql": "SQL",
+      "tokens": "Belirteçler",
+      "issues": "Konular",
+      "posts": "Gönderiler",
+      "lanes": "Hatlar"
+    },
+    "releases": {
+      "soon": "Sürüm raporu yakında geliyor."
+    }
   }
 }

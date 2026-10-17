@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Unarchive #{slug}",
     "your_status_online": "Your status: online",
     "your_status_offline": "Your status: offline",
-    "monitoring": "Monitoring"
+    "monitoring": "Monitoring",
+    "reporting": "Reporting"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Only workspace admins can change the takeover order.",
     "error_bad_ladder": "The hub refused this takeover order.",
     "error_generic": "The takeover order could not be loaded or saved. Try again."
+  },
+  "reporting": {
+    "title": "Reporting",
+    "tabs_label": "Reporting tabs",
+    "tab": {
+      "releases": "Releases",
+      "sql": "SQL",
+      "tokens": "Tokens",
+      "issues": "Issues",
+      "posts": "Posts",
+      "lanes": "Lanes"
+    },
+    "releases": {
+      "soon": "The Releases report is coming soon."
+    }
   }
 }

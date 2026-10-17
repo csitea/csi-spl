@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Врати из архиве #{slug}",
     "your_status_online": "Ваш status: на мрежи",
     "your_status_offline": "Ваш status: ван мреже",
-    "monitoring": "Мониторинг"
+    "monitoring": "Мониторинг",
+    "reporting": "Извештаји"
   },
   "composer": {
     "biz_owner": "власник пословања",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Само администратори радног простора могу променити редослед преузимања.",
     "error_bad_ladder": "Хаб је одбио овај редослед преузимања.",
     "error_generic": "Редослед преузимања није могао да се учита или сачува. Покушајте поново."
+  },
+  "reporting": {
+    "title": "Извештаји",
+    "tabs_label": "Картице извештаја",
+    "tab": {
+      "releases": "Издања",
+      "sql": "SQL",
+      "tokens": "Токени",
+      "issues": "Проблеми",
+      "posts": "Објаве",
+      "lanes": "Траке"
+    },
+    "releases": {
+      "soon": "Извештај о издањима ускоро."
+    }
   }
 }

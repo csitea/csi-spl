@@ -580,7 +580,8 @@
     "create_channel_unarchive": "#{slug} dearchiveren",
     "your_status_online": "Jouw status: online",
     "your_status_offline": "Jouw status: offline",
-    "monitoring": "Systeembewaking"
+    "monitoring": "Systeembewaking",
+    "reporting": "Rapportage"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Alleen beheerders van de werkruimte kunnen de overnamevolgorde wijzigen.",
     "error_bad_ladder": "De hub weigerde deze overnamevolgorde.",
     "error_generic": "De overnamevolgorde kon niet worden geladen of opgeslagen. Probeer het opnieuw."
+  },
+  "reporting": {
+    "title": "Rapportage",
+    "tabs_label": "Rapportagetabbladen",
+    "tab": {
+      "releases": "Uitgaven",
+      "sql": "SQL",
+      "tokens": "Tokens",
+      "issues": "Kwesties",
+      "posts": "Berichten",
+      "lanes": "Banen"
+    },
+    "releases": {
+      "soon": "Het uitgaverapport komt binnenkort."
+    }
   }
 }

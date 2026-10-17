@@ -38,6 +38,10 @@ export const CALENDAR_TAB = 'calendar'
  *  CLE-77799) went into it; their old paths are Monitoring's. */
 export const MONITORING_TAB = 'monitoring'
 
+/** Reporting (spec 143 1.1, SPL-2351): /reporting, its tabs as paths
+ *  (/reporting/releases, ...). A page, so not one of the sidebar lists. */
+export const REPORTING_TAB = 'reporting'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` still parse (the Topics pane is gone, t1 e4bfddb1)
  *  and open Channels. */
@@ -54,7 +58,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -72,6 +76,7 @@ export function tabForPath(path) {
   /* SPL-2075: an old /agents or /boxes link redirects into Monitoring */
   if (p === '/monitoring' || p.startsWith('/monitoring/')) return MONITORING_TAB
   if (p === '/agents' || p.startsWith('/agents/') || p === '/boxes' || p.startsWith('/boxes/')) return MONITORING_TAB
+  if (p === '/reporting' || p.startsWith('/reporting/')) return REPORTING_TAB
   return null
 }
 
@@ -84,6 +89,7 @@ const TAB_ROUTES = {
   [PEOPLE_TAB]: '/people',
   [CALENDAR_TAB]: '/calendar',
   [MONITORING_TAB]: '/monitoring',
+  [REPORTING_TAB]: '/reporting',
 }
 
 /**

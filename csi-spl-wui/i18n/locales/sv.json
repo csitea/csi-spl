@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Återställ #{slug} från arkiv",
     "your_status_online": "Din status: online",
     "your_status_offline": "Din status: offline",
-    "monitoring": "Övervakning"
+    "monitoring": "Övervakning",
+    "reporting": "Rapporter"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Endast arbetsytans administratörer kan ändra övertagandeordningen.",
     "error_bad_ladder": "Hubben avvisade denna övertagandeordning.",
     "error_generic": "Övertagandeordningen kunde inte läsas in eller sparas. Försök igen."
+  },
+  "reporting": {
+    "title": "Rapporter",
+    "tabs_label": "Rapportflikar",
+    "tab": {
+      "releases": "Versioner",
+      "sql": "SQL",
+      "tokens": "Token",
+      "issues": "Ärenden",
+      "posts": "Inlägg",
+      "lanes": "Banor"
+    },
+    "releases": {
+      "soon": "Versionsrapporten kommer snart."
+    }
   }
 }

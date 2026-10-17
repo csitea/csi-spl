@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Desarchivar #{slug}",
     "your_status_online": "Tu estado: en línea",
     "your_status_offline": "Tu estado: sin conexión",
-    "monitoring": "Monitorización"
+    "monitoring": "Monitorización",
+    "reporting": "Informes"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Solo los administradores del espacio de trabajo pueden cambiar el orden de relevo.",
     "error_bad_ladder": "El hub rechazó este orden de relevo.",
     "error_generic": "No se pudo cargar o guardar el orden de relevo. Inténtalo de nuevo."
+  },
+  "reporting": {
+    "title": "Informes",
+    "tabs_label": "Pestañas de informes",
+    "tab": {
+      "releases": "Versiones",
+      "sql": "SQL",
+      "tokens": "Tokens",
+      "issues": "Incidencias",
+      "posts": "Publicaciones",
+      "lanes": "Carriles"
+    },
+    "releases": {
+      "soon": "El informe de versiones llegará pronto."
+    }
   }
 }

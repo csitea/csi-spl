@@ -97,7 +97,7 @@ describe('the Monitoring rail entry', () => {
     assert.match(read('src/utils/uiIcons.ts'), /\n {2}activity: \[/)
     assert.equal(MONITORING_TAB, 'monitoring')
     assert.equal(routeForTab('monitoring'), '/monitoring')
-    assert.equal(DEFAULT_RAIL_ORDER.at(-2), 'monitoring', 'before Archive')
+    assert.equal(DEFAULT_RAIL_ORDER.at(-3), 'monitoring', 'before Reporting (spec 143 1.1) and Archive')
   })
   it('every Monitoring path selects the Monitoring rail tab and is a section page', () => {
     for (const p of ['/monitoring', '/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/sv/monitoring/boxes', '/monitoring/boxes/box-desk', '/monitoring/agents/c-001%40box-a']) {

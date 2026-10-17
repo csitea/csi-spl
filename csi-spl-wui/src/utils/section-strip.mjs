@@ -19,6 +19,9 @@ const SECTION_PAGES = new Set([
   '/monitoring',
   '/monitoring/agents',
   '/monitoring/boxes',
+  /* spec 143 1.1 (SPL-2351): Reporting and its tab */
+  '/reporting',
+  '/reporting/releases',
   '/help',
   '/docs',
   '/tenant-settings',

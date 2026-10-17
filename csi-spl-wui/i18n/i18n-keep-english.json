@@ -14,6 +14,7 @@
     "Microsoft Teams": "product name",
     "Markdown": "format name",
     "GCP": "provider code",
+    "SQL": "query language name",
     "#general": "channel name, a code",
     "#alerts · {from}": "channel name, a code",
     "runbooks/deploy.md": "file path example",
@@ -24,6 +25,7 @@
     "feed.live_state.mock": "connection state code shown as is",
     "feed.live_state.no_base": "connection state code shown as is",
     "monitoring.tab.tokens": "LLM term kept as English 'Tokens' in el, es, nl: agy language review SPL-2322 (a-351, msg 66006252)",
+    "reporting.tab.tokens": "the same word as monitoring.tab.tokens in every locale (SPL-2351)",
     "monitoring.tokens.col_box": "ro keeps 'Box' to match its 'Boxuri' tab: agy language review SPL-2322 (a-351, msg 66006252)"
   }
 }

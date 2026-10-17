@@ -580,7 +580,8 @@
     "create_channel_unarchive": "ביטול ארכוב של #{slug}",
     "your_status_online": "הסטטוס שלך: מקוון",
     "your_status_offline": "הסטטוס שלך: לא מקוון",
-    "monitoring": "ניטור"
+    "monitoring": "ניטור",
+    "reporting": "דוחות"
   },
   "composer": {
     "biz_owner": "בעל העסק",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "רק מנהלי סביבת העבודה יכולים לשנות את סדר ההעברה.",
     "error_bad_ladder": "ה-hub דחה את סדר ההעברה הזה.",
     "error_generic": "לא ניתן היה לטעון או לשמור את סדר ההעברה. נסו שוב."
+  },
+  "reporting": {
+    "title": "דוחות",
+    "tabs_label": "כרטיסיות דוחות",
+    "tab": {
+      "releases": "גרסאות",
+      "sql": "SQL",
+      "tokens": "אסימונים",
+      "issues": "סוגיות",
+      "posts": "פוסטים",
+      "lanes": "מסלולים"
+    },
+    "releases": {
+      "soon": "דוח הגרסאות יגיע בקרוב."
+    }
   }
 }

@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Palauta arkistosta #{slug}",
     "your_status_online": "Tilasi: paikalla",
     "your_status_offline": "Tilasi: offline",
-    "monitoring": "Valvonta"
+    "monitoring": "Valvonta",
+    "reporting": "Raportit"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Vain työtilan ylläpitäjät voivat muuttaa haltuunottojärjestystä.",
     "error_bad_ladder": "Hub hylkäsi tämän haltuunottojärjestyksen.",
     "error_generic": "Haltuunottojärjestystä ei voitu ladata tai tallentaa. Yritä uudelleen."
+  },
+  "reporting": {
+    "title": "Raportit",
+    "tabs_label": "Raporttien välilehdet",
+    "tab": {
+      "releases": "Julkaisut",
+      "sql": "SQL",
+      "tokens": "Tokenit",
+      "issues": "Asiat",
+      "posts": "Viestit",
+      "lanes": "Kaistat"
+    },
+    "releases": {
+      "soon": "Julkaisuraportti on tulossa pian."
+    }
   }
 }

@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Taasta arhiivist #{slug}",
     "your_status_online": "Sinu olek: võrgus",
     "your_status_offline": "Sinu olek: võrguühenduseta",
-    "monitoring": "Seire"
+    "monitoring": "Seire",
+    "reporting": "Aruanded"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Ainult tööruumi administraatorid saavad ülevõtmise järjekorda muuta.",
     "error_bad_ladder": "Hub lükkas selle ülevõtmise järjekorra tagasi.",
     "error_generic": "Ülevõtmise järjekorda ei õnnestunud laadida ega salvestada. Proovi uuesti."
+  },
+  "reporting": {
+    "title": "Aruanded",
+    "tabs_label": "Aruannete vahelehed",
+    "tab": {
+      "releases": "Väljalasked",
+      "sql": "SQL",
+      "tokens": "Tokenid",
+      "issues": "Probleemid",
+      "posts": "Postitused",
+      "lanes": "Rajad"
+    },
+    "releases": {
+      "soon": "Väljalasete aruanne tuleb peagi."
+    }
   }
 }

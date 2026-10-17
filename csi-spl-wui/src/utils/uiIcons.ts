@@ -386,6 +386,9 @@ export const UI_ICON_PATHS = {
   // Monitoring (SPL-1991, t1 dbf2f39b): a pulse line (lucide activity), the
   // rail's one monitoring glyph; no gauge or dashboard glyph existed before.
   activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
+  // Reporting (spec 143 1.1, SPL-2351): an axis with three bars (lucide
+  // chart-column), the rail's one reporting glyph.
+  "chart-column": ["M3 3v16a2 2 0 0 0 2 2h16", "M18 17V9", "M13 17V5", "M8 17v-3"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

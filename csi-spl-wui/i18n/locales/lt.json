@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Išarchyvuoti #{slug}",
     "your_status_online": "Jūsų būsena: prisijungęs",
     "your_status_offline": "Jūsų būsena: neprisijungęs",
-    "monitoring": "Stebėsena"
+    "monitoring": "Stebėsena",
+    "reporting": "Ataskaitos"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Tik darbo srities administratoriai gali keisti perėmimo tvarką.",
     "error_bad_ladder": "„Hub“ atmetė šią perėmimo tvarką.",
     "error_generic": "Nepavyko įkelti arba išsaugoti perėmimo tvarkos. Bandykite dar kartą."
+  },
+  "reporting": {
+    "title": "Ataskaitos",
+    "tabs_label": "Ataskaitų skirtukai",
+    "tab": {
+      "releases": "Leidimai",
+      "sql": "SQL",
+      "tokens": "Žetonai",
+      "issues": "Problemos",
+      "posts": "Įrašai",
+      "lanes": "Juostos"
+    },
+    "releases": {
+      "soon": "Leidimų ataskaita netrukus."
+    }
   }
 }

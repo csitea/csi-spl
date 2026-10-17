@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Przywróć z archiwum #{slug}",
     "your_status_online": "Twój status: online",
     "your_status_offline": "Twój status: offline",
-    "monitoring": "Monitorowanie"
+    "monitoring": "Monitorowanie",
+    "reporting": "Raporty"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Tylko administratorzy obszaru roboczego mogą zmieniać kolejność przejmowania.",
     "error_bad_ladder": "Hub odrzucił tę kolejność przejmowania.",
     "error_generic": "Nie udało się wczytać ani zapisać kolejności przejmowania. Spróbuj ponownie."
+  },
+  "reporting": {
+    "title": "Raporty",
+    "tabs_label": "Karty raportów",
+    "tab": {
+      "releases": "Wydania",
+      "sql": "SQL",
+      "tokens": "Tokeny",
+      "issues": "Zgłoszenia",
+      "posts": "Posty",
+      "lanes": "Ścieżki"
+    },
+    "releases": {
+      "soon": "Raport wydań już wkrótce."
+    }
   }
 }

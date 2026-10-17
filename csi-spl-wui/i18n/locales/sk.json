@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Obnoviť z archívu #{slug}",
     "your_status_online": "Váš stav: online",
     "your_status_offline": "Váš stav: offline",
-    "monitoring": "Monitorovanie"
+    "monitoring": "Monitorovanie",
+    "reporting": "Prehľady"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Iba správcovia pracovného priestoru môžu meniť poradie prevzatia.",
     "error_bad_ladder": "Hub odmietol toto poradie prevzatia.",
     "error_generic": "Poradie prevzatia sa nepodarilo načítať ani uložiť. Skúste to znova."
+  },
+  "reporting": {
+    "title": "Prehľady",
+    "tabs_label": "Karty prehľadov",
+    "tab": {
+      "releases": "Vydania",
+      "sql": "SQL",
+      "tokens": "Tokeny",
+      "issues": "Úlohy",
+      "posts": "Príspevky",
+      "lanes": "Dráhy"
+    },
+    "releases": {
+      "soon": "Prehľad vydaní už čoskoro."
+    }
   }
 }

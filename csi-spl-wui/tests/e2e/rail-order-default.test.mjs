@@ -250,7 +250,7 @@ async function noTopicsView(browser, base) {
    strip is unchanged: no divider, its names always shown, the same boxes
    whether the setting is on or off. CONTROL: with the feature reverted the
    divider and labels-on asserts fail. */
-const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'monitoring', 'archive'])
+const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'monitoring', 'reporting', 'archive'])
 /* the divider is a ::before line on the tab below the boundary (main.css):
    a drawn one has content and a top border */
 const railSeq = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.flatMap((e) => {
@@ -349,7 +349,7 @@ async function monitoringSection(browser, base) {
     await sleep(400)
     const rail = await railOf(p)
     /* SPL-2075 (owner fd5a2bf4): Agents and Boxes went into Monitoring, their icons gone */
-    check(`${tag}: the rail has Monitoring before Archive, and no Agents or Boxes icon`, !rail.includes('agents') && !rail.includes('boxes') && rail.indexOf('monitoring') === rail.length - 2 && !(await p.$('[data-testid=sidebar-tab-agents], [data-testid=sidebar-tab-boxes]')), { rail })
+    check(`${tag}: the rail has Monitoring before Reporting and Archive, and no Agents or Boxes icon`, !rail.includes('agents') && !rail.includes('boxes') && rail.indexOf('monitoring') === rail.length - 3 && !(await p.$('[data-testid=sidebar-tab-agents], [data-testid=sidebar-tab-boxes]')), { rail })
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-monitoring]')?.click())
     check(`${tag}: the rail tab lands on /monitoring/agents`, await at(p, '/monitoring/agents'), path(p))
     await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)
@@ -372,6 +372,43 @@ async function monitoringSection(browser, base) {
   }
 }
 
+/* spec 143 1 (SPL-2351, T010-T012): the Reporting rail tab, right after
+   Monitoring, opens /reporting, which replaces itself with
+   /reporting/releases; the bar draws Releases only (every other tab is
+   reserved), the sidebar keeps the icon rail only, a deep link to /reporting
+   lands on Releases too. CONTROL: before SPL-2351 there is no
+   sidebar-tab-reporting and every check here FAILs. */
+async function reportingSection(browser, base) {
+  const path = (p) => new URL(p.url()).pathname
+  const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { timeout: 15000 }, want).then(() => true, () => false)
+  const bar = (p) => p.$$eval('[data-test=reporting-tabs] a', (els) => els.map((e) => [e.getAttribute('data-test'), e.getAttribute('aria-current') || '']))
+  for (const [width, touch] of [[1440, false], [360, true]]) {
+    const tag = `${width}px reporting`
+    const p = await browser.newPage()
+    await p.setViewport({ width, height: 900, isMobile: touch, hasTouch: touch })
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+    if (!(await signIn(p, undefined))) throw new Error('no session store')
+    await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+    await sleep(400)
+    const rail = await railOf(p)
+    check(`${tag}: the rail has Reporting right after Monitoring, before Archive`, rail.indexOf('reporting') === rail.indexOf('monitoring') + 1 && rail.at(-1) === 'archive', { rail })
+    await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-reporting]')?.click())
+    check(`${tag}: the rail tab lands on /reporting/releases`, await at(p, '/reporting/releases'), path(p))
+    check(`${tag}: the Releases tab renders`, Boolean(await p.waitForSelector('[data-test=reporting-releases]', { visible: true, timeout: NAV }).catch(() => null)))
+    await sleep(400)
+    check(`${tag}: the bar draws Releases (current) only`, same(await bar(p), [['reporting-tab-releases', 'page']]), await bar(p))
+    check(`${tag}: the heading is there`, Boolean(await p.$('[data-test=reporting-heading]')))
+    check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-reporting]', (e) => e.getAttribute('aria-selected'))) === 'true')
+    if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))
+    await p.goto(`${base}/reporting`, { waitUntil: 'networkidle2', timeout: NAV })
+    check(`${tag}: a deep link to /reporting is replaced by /reporting/releases`, await at(p, '/reporting/releases'), path(p))
+    check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-${width}.png` })
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -381,6 +418,7 @@ try {
   await noTopicsView(browser, server.base)
   await railDividerLabels(browser, server.base)
   await monitoringSection(browser, server.base)
+  await reportingSection(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

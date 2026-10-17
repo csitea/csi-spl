@@ -580,7 +580,8 @@
     "create_channel_unarchive": "Dezarhivează #{slug}",
     "your_status_online": "Starea ta: online",
     "your_status_offline": "Starea ta: offline",
-    "monitoring": "Monitorizare"
+    "monitoring": "Monitorizare",
+    "reporting": "Rapoarte"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -3092,5 +3093,20 @@
     "error_forbidden": "Doar administratorii spațiului de lucru pot schimba ordinea de preluare.",
     "error_bad_ladder": "Hubul a refuzat această ordine de preluare.",
     "error_generic": "Ordinea de preluare nu a putut fi încărcată sau salvată. Încearcă din nou."
+  },
+  "reporting": {
+    "title": "Rapoarte",
+    "tabs_label": "File de rapoarte",
+    "tab": {
+      "releases": "Versiuni",
+      "sql": "SQL",
+      "tokens": "Tokeni",
+      "issues": "Probleme",
+      "posts": "Postări",
+      "lanes": "Culoare"
+    },
+    "releases": {
+      "soon": "Raportul versiunilor vine în curând."
+    }
   }
 }

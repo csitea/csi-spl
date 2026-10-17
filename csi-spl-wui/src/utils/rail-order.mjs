@@ -11,7 +11,7 @@
 // CLE-77916 (owner, t1 topic 5463df22): Archive is ALWAYS the last section and
 // the one that cannot be dragged (RAIL_PINNED_LAST, pinRailOrder).
 
-/** The six tabs in the default order, with their icon and catalogue key. */
+/** The tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS = Object.freeze([
   /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,
      Direct messages, Issues, Topics, Flow, Archive; the Event log, which the
@@ -51,6 +51,10 @@ export const RAIL_TABS = Object.freeze([
      stored order from before it is drawn with Monitoring appended
      (parseRailOrder). The hub admits it since SPL-1990 (rdb 0198). */
   Object.freeze({ id: 'monitoring', icon: 'activity', labelKey: 'sidebar.monitoring' }),
+  /* spec 143 1.1 (SPL-2324, SPL-2351): Reporting opens /reporting, beside
+     Monitoring. Reorders and collapses like the rest; the hub does not admit
+     it yet (RAIL_HUB_PENDING). */
+  Object.freeze({ id: 'reporting', icon: 'chart-column', labelKey: 'sidebar.reporting' }),
 ])
 
 /** Every drawn rail id - a set, not the drawn order. */
@@ -75,8 +79,9 @@ export const RAIL_RETIRED = Object.freeze(['topics', 'agents', 'boxes'])
  * when it is read back. Empty this list in the commit after the hub lands
  * the id: until then a dragged tab is drawn back before Archive.
  * SPL-1990: the hub admits monitoring (auth.RailTabs, rdb 0198), so none.
+ * SPL-2351 (spec 143 1.1): reporting, until the hub lane admits it.
  */
-export const RAIL_HUB_PENDING = Object.freeze([])
+export const RAIL_HUB_PENDING = Object.freeze(['reporting'])
 
 /**
  * A drawn order as the hub stores it: the retired ids added, the ids the hub

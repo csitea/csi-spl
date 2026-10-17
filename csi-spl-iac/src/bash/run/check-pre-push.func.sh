@@ -706,7 +706,7 @@ _pp_baseline_reap() {  # <tree>
       pid="${wt##*/csi-spl-pre-push-base.}"; pid="${pid%%.*}"
       kill -0 "$pid" 2>/dev/null && continue
       git -C "$1" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
-    done
+    done || true  # no leftover: grep exits 1, which errexit + pipefail made fatal (SPL-2315)
   git -C "$1" worktree prune 2>/dev/null || true
 }
 _pp_baseline_cleanup() {  # <tree>
@@ -907,10 +907,14 @@ _pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-s
   return 0
 }
 
+# ./run sources every *.func.sh into one shell: a top-level `set -e` in any of
+# them (a lane's file, 2026-10-17) killed this gate at its first false command,
+# with no PART line and no summary. The gate runs with errexit off and puts it
+# back on return; func-sh-no-top-level-errexit.tst.sh refuses such a file.
 do_check_pre_push() {
+  [[ $- == *e* ]] && { set +e; trap 'set -e; trap - RETURN' RETURN; do_log "WARN pre-push: errexit (set -e) leaked in from a sourced file -- off for this gate, back on when it returns"; }
   local tree="${PRE_PUSH_TREE:-$APP_PATH}"
-  local mode="${PRE_PUSH_MODE:-fast}"
-  local base="${PRE_PUSH_BASE:-origin/master}"
+  local mode="${PRE_PUSH_MODE:-fast}" base="${PRE_PUSH_BASE:-origin/master}"
   local _PP_TIER="${PRE_PUSH_TIER:-fast}"
   case "$mode" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_MODE must be fast or full (got '$mode')"; return 2 ;; esac
   case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac

@@ -32,8 +32,8 @@
 # the pane ended: one WARN, exit 0. SPAWN_START_CHECK=0 skips it (the
 # rotation and the agent restart run their own after the pid is known).
 #
-# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id (a failed
-# new-window releases the claim), 5 no session,
+# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, or the new pane
+# is gone before its seed (both release the claim), 5 no session,
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
@@ -427,6 +427,12 @@ pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 if [ -z "$pane" ]; then
   [ "$rc" -eq 0 ] || { sw_release_claim; out="${out:-<nothing>}; the claim on ${TITLE} is released"; }
   echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4
+fi
+# A pane gone right after new-window (the server died, SPL-2408) never ran its
+# launcher to the seed: a failed spawn, its claim released like the above.
+if [ "$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_id}' 2>/dev/null)" != "$pane" ]; then
+  sw_release_claim
+  echo "spawn-window: the pane ${pane} of ${TITLE} is gone before its seed (tmux server died?); the claim on ${TITLE} is released" >&2; exit 4
 fi
 
 # The notice strip is split NOW, before the CLI has painted anything, so the

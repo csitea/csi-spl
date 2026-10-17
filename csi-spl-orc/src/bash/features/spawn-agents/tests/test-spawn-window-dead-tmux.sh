@@ -2,8 +2,9 @@
 # spawn-window.sh when the tmux server dies MID-SPAWN (robustness review gap 3,
 # SPL-2353): at `new-window` (after the id is claimed), and right after the
 # window is created, before the launcher has seeded the agent. Safe outcome:
-# no orphan window, no lost id (a failed spawn releases its claim; a started
-# one stays held until the reaper retires it), no double-assigned id.
+# no orphan window, no lost id, no double-assigned id: both are failed spawns,
+# exit 4 with the claim released (the second since SPL-2408; before it the
+# spawn said 0 and the id stayed held until the reaper retired it 6 h later).
 # A PATH shim in front of tmux kills the private server; the live box is never
 # touched. (No socket at all, before the claim: test-spawn-window-riname.sh.)
 set -uo pipefail
@@ -49,20 +50,17 @@ hasnt "no window was left behind by the failed spawns" "c-004" "$(wins)"
 
 # --- the server dies after the window, before the seed ------------------------------
 out="$(T_KILL=after sw claude auto "$WD")"; rc=$?
-read -r ID PANE <<<"$(printf '%s\n' "$out" | grep -E '^c-[0-9]{3} %' | tail -1)"
-eq "the spawn reports the window it made" 0 "$rc"
-check "...an id and a pane" test -n "${ID:-}" -a -n "${PANE:-}"
+ID="$(printf '%s\n' "$out" | grep -oE 'the claim on c-[0-9]{3} is released' | grep -oE 'c-[0-9]{3}')"
+eq "a pane gone before its seed is exit 4" 4 "$rc"
+has "...and says why" "is gone before its seed" "$out"
+hasnt "...no '<ID> <PANE>' line for a spawn that never started" "%" "$(printf '%s\n' "$out" | grep -E '^c-[0-9]{3} ')"
 eq "no orphan window: the server and its windows are gone" "" "$(wins)"
-check "the id stays held by its spool dir (not lost, not free)" test -d "$R/${ID:-none}/inbox"
-t_tmux
+check "...the claim on ${ID:-none} is released (no orphan spool dir)" test -n "${ID:-}" -a ! -e "$R/${ID:-none}"
+eq "...journalled fail:F1" 3 "$(grep -c 'fail:F1' "$R/dispatch/attempts.tsv")"
+t_tmux SPAWN_DRY_RUN=1
+out="$(sw claude "${ID:-c-004}" "$WD")"; eq "CONTROL: the released id spawns on the next try" 0 "$?"
+has "...as ${ID:-none}" "${ID:-none} %" "$out"
 nxt="$(bash "$NAI" --kind claude --no-reserve)"
-if [ -n "$nxt" ] && [ "$nxt" != "${ID:-}" ]; then ok "the allocator never hands ${ID:-} out again ($nxt)"; else nok "the allocator handed out '${ID:-}' twice ($nxt)"; fi
-# The reaper takes the dead claim: no window, dead past SPOOL_ID_REAP_H (its
-# own clock: hourly ticks; a longer gap starts the clock again).
-out=""; for h in 12 13 14 15 16 17 18; do out+="$(SPOOL_NOW="2026-10-02T${h}:00:00Z" bash "$T_SCRIPTS/agent-id-reap.sh" --apply 2>&1)"; done
-has "the reaper retires the dead claim 6 h later" "REAP ${ID:-none}: dead 6 h" "$out"
-check "...into .retired/, quarantined" test ! -e "$R/${ID:-none}" -a -n "$(awk -F'\t' -v i="${ID:-none}" '$1 == i' "$R/registry.retired.tsv" 2>/dev/null)"
-nxt="$(SPOOL_NOW=2026-10-02T18:00:00Z bash "$NAI" --kind claude --no-reserve)"
-if [ -n "$nxt" ] && [ "$nxt" != "${ID:-}" ]; then ok "inside the quarantine ${ID:-} is still not handed out ($nxt)"; else nok "'${ID:-}' handed out inside its quarantine ($nxt)"; fi
+if [ -n "$nxt" ] && [ "$nxt" != "${ID:-}" ]; then ok "...and is then never handed out twice ($nxt)"; else nok "'${ID:-}' handed out twice ($nxt)"; fi
 
 t_done

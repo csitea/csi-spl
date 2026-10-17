@@ -671,6 +671,59 @@ export when its bucket is public, lacks uniform access, or has a policy it
 cannot read (`spl_db_backup_bucket_private`). The one export meant for the
 internet is spec 091's, of the spool workspace only.
 
+## 6.9 The scheduled restore drill (2026-10-17, SPL-2310)
+
+An outside robustness review (owner topic 7a98c2d1, msg a0d2eafc), gap 6: "DB
+BACKUP WORKFLOW (45_db-backup) exists but restore drills are not automated or
+verified in CI. A backup that has never been restored is not a backup."
+
+Measured first: the first half is not true today. Workflow 45 already
+restores every dump it writes into a throwaway container, daily
+(`grep -c 'do_spl_db_backup_verify\|do_spl_db_restore' .github/workflows/45_db-backup.yml`
+-> 4 lines with `run:` or comments). But each of those restores compares the
+copy against the LIVE database; none asks whether today's hub can run on a
+stored dump with no live database, which is the disaster case.
+
+`do_spl_db_restore_drill` (csi-spl-orc) is that drill, dev only (prd refused:
+an owner go per run):
+
+| step | fails as |
+|---|---|
+| newest dev dump in the 045 bucket downloads, is gzip, is not empty | exit 1 / 4 / 5 |
+| restore into a throwaway `postgres:16-alpine` container lands tables | exit 1 |
+| every `spool_schema_migrations` row that names a repo file has that file's sha256 (the hub's migrate refuses a changed file) | exit 8 |
+| the hub's own `spool migrate` runs on the copy; afterwards no repo file is pending | exit 9 / 8 |
+| `tenants` and `messages` (`SPL_RESTORE_DRILL_NONEMPTY`) are present with rows | exit 5 |
+
+A ledger row naming no repo file is a WARN, not a failure: a rename leaves
+the old name behind, and the migrate reads repo files only. Measured on dev:
+`0040_tenants_display_name.sql` and `0046_default_channels_feedback.sql`,
+both renamed by `b4ef06302` (2026-09-25), are still in the ledger beside
+their new names.
+
+Schedule: workflow `49_db-restore-drill.yml`, 05:47 UTC daily (after 45's
+03:17 backup), on ubuntu-latest like 45 (the dev key secret and docker are
+there; the dump is the same data 45's own restore reads). The spool binary
+is built from the commit. A missing key is red, not a skip.
+
+Alert: a red run, and the box cron `restore-drill-red-note`
+(`do_report_ci_red_note` with `CI_GATE_WORKFLOW=49_db-restore-drill.yml`,
+its own streak file, no lane notes): ONE blocker to the dispatch lease
+holder per red streak, one green line when it passes again, as a red wf 10
+job (spec 131 C2).
+
+First run, 2026-10-17, on this box (n = 1, tree = this lane's branch on
+`136152fb8`, dump `gs://csi-spl-dev-db-backups/dev/spool-20261017T032956Z.sql.gz`,
+age 4 615 s): 86 923 814 B of SQL; schema head `0201_tenant_member_roles.sql`
+= repo head, 203 ledger rows, 0 pending, 2 WARN (the renames above);
+`spool migrate` 0 applied, 201 already there; 112 tables, 72 371 rows
+(`tenants` 28, `messages` 14 696). Timing: download 2 s, restore 29 s,
+migrate 0 s, total 32 s. Green.
+
+Not checked: prd; the off-project `bkp` copy (the drill reads the 045
+bucket); a migrate that APPLIES files (the dev dump was at head, so the
+migrate step applied 0; the hermetic test covers the apply path with a stub).
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the

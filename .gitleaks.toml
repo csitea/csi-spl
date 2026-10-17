@@ -24,13 +24,33 @@ useDefault = true
 [allowlist]
 description = "Triaged false positives. regexTarget secret, unanchored."
 regexTarget = "secret"
+# Each entry below says what it is and where it lives (SPL-2153). The five
+# test fixtures are NOT a pattern to copy: their plaintext is a made-up word,
+# and each is allowed as that one exact value. A real key, token or password
+# never goes in a test, a doc or this list: put it in Secret Manager, and a new
+# entry here names its ticket (do_check_baseline_growth, 10 ci).
 regexes = [
+    # NOT a fixture: Stripe PUBLISHABLE keys in csi-spl-cnf, public by Stripe's
+    # design (sent to every browser). A secret sk_ / whsec_ key still fails.
     '''pk_(?:test|live)_[0-9A-Za-z]+''',
+    # NOT a fixture: the LinkedIn app's OAuth Client ID in csi-spl-cnf dev/prd,
+    # public by OAuth design; its secret lives only in Secret Manager.
     '''^77sza3iug33kc2$''',
+    # TEST-ONLY: base64 of "foobarbazquxquuxfoo", a token-shaped value in the hub mail
+    # unit tests (internal/mail/federated_test.go, invite_test.go).
     '''Zm9vYmFyYmF6cXV4cXV1eGZvbw''',
+    # TEST-ONLY: a made-up checkout token in csi-spl-wui/tests/unit/checkout-client.test.mjs.
     '''ct_7f3a9b2c5d8e1f4a6b9c2d5e8f1a4b7c''',
+    # TEST-ONLY: base64 of "Key-not-real-but-64-bytes-long-for-the-test-only!",
+    # the same WUI unit test.
     '''S2V5LW5vdC1yZWFsLWJ1dC02NC1ieXRlcy1sb25nLWZvci10aGUtdGVzdC1vbmx5IQ==''',
+    # TEST-ONLY: base64 of "secret-key-bytes-not-a-real-key", the orc test
+    # csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh.
     '''c2VjcmV0LWtleS1ieXRlcy1ub3QtYS1yZWFsLWtleQ==''',
+    # TEST-ONLY: base64 of "not-a-key", the hub config and wiring unit tests
+    # (internal/config/config_test.go, cmd/spool/hub_wiring_test.go).
     '''bm90LWEta2V5''',
+    # NOT a secret: an env-var name and a lane-kind word in a doc table
+    # (commit 8302c899c), anchored to that exact text.
     '''^LANE_MIX_KIND=secret$''',
 ]

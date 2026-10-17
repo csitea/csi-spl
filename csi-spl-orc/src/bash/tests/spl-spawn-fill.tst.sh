@@ -119,7 +119,7 @@ fill() {  # [env...]
     SPOOL_FLEET_RELAY=0 ASKS_HOLDER=c-001@box-desk SPAWN_QUEUE_SEND="$T/bin/send" SEND_LOG="$T/send.log" SPOOL_AGENT_ID= \
     SPAWN_SHARE_LANES_CMD="$T/bin/lanes" SPAWN_SHARE_DISPATCH=c-002@box-desk SPAWN_FILL_PICK_CMD="$T/bin/pick" \
     SPAWN_FILL_ISSUES_CMD="$T/bin/issues" SPAWN_FILL_MIX_CMD="$T/bin/mix" MIX_LOG="$T/mix.log" SPAWN_PLACE_BRIEF_DIR="$T/briefs" \
-    SPAWN_FILL_CNF="$T/none.yaml" LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
+    SPAWN_FILL_CNF="$T/none.yaml" EPIC_STALL=off LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place spl-spawn-fill; do

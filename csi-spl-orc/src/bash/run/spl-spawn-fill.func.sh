@@ -52,6 +52,7 @@
 do_spl_spawn_fill() {
   local dry="${DRY_RUN:-1}" on holder rows pick n share classes issues chosen
   spl_spawn_fill_check || return 1
+  spl_spawn_fill_epic_stall
   on="$(spl_spawn_fill_switch)"
   if [[ "$dry" == 0 && "$on" != on ]]; then
     do_log "INFO the idle filler is off (SPAWN_FILL / cnf env.box.spawn_fill.enabled): nothing queued"
@@ -92,6 +93,17 @@ spl_spawn_fill_check() {
 }
 
 spl_spawn_fill_max() { printf '%s' "${SPAWN_FILL_MAX:-1}"; }
+
+# A live tick also runs the stalled-epic check (SPL-2358), whatever the
+# filler's switch: an epic whose next pair nobody queued is reported, never
+# filled. Its failure never stops the fill.
+spl_spawn_fill_epic_stall() {
+  [[ "${DRY_RUN:-1}" == 0 ]] || return 0
+  declare -F do_spl_epic_stall_check >/dev/null ||
+    { [[ -r "$PROJ_PATH/src/bash/run/spl-epic-stall-check.func.sh" ]] && . "$PROJ_PATH/src/bash/run/spl-epic-stall-check.func.sh"; }
+  declare -F do_spl_epic_stall_check >/dev/null || return 0
+  ( do_spl_epic_stall_check ) || do_log "WARN the epic stall check failed: the fill goes on"
+}
 
 # on | off: SPAWN_FILL, else cnf env.box.spawn_fill.enabled (true = on), else off.
 spl_spawn_fill_switch() {

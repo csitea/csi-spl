@@ -215,6 +215,7 @@ respawn from the key alone, reach the same next step.
 | c-339 | KEEP as landed (ada13012e): `needs-owner` + daily digest |
 | c-341 | KEEP as landed (8202595fe, 4160581d3): `done` is the automatic target. CHANGE: make `issue-close-landed.py:25-29` and `commit_keys` agree |
 | slice checks (g-342..) | KEEP read-only; input to the discard and the closer |
+| c-373 (SPL-2358) | BUILT: `do_spl_epic_stall_check`, on the idle filler's 10-min tick. An epic run "two lanes at a time" (title, or `EPIC_STALL_KEYS`) with an open issue, 0 live lanes and 0 queue rows naming its keys, and its last issue done > 30 min ago, gets ONE blocker to the dispatch holder (epic, topic, next rows) per 6 h; it never spawns. A round's plan rows that are not issues yet stay invisible to it |
 
 Build order: (1) c-350's blocker exclusion; (2) c-880 with the card and
 `close_check` in `/exit-clean`; (3) the parser header fix; (4)

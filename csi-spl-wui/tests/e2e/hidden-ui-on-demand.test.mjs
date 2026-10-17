@@ -70,8 +70,16 @@ const signIn = (p) => p.evaluate(() => {
   return true
 })
 
-const langCssLoaded = (page) => page.evaluate(() =>
-  performance.getEntriesByType('resource').some((e) => /\/LanguageSwitcher\.[^/]*\.css$/.test(e.name)))
+/* The chunk's stylesheet is in the page: a <link rel=stylesheet>, or its
+   resource entry. The link is the proof that holds: Chrome keeps 250 resource
+   entries, and a shell whose lazy panes add prefetch hints (SPL-2363: 69) fills
+   that buffer before the dropdown opens, so the entry of a CSS file that DID
+   load is dropped. */
+const langCssLoaded = (page) => page.evaluate(() => {
+  const re = /\/LanguageSwitcher\.[^/]*\.css$/
+  return [...document.querySelectorAll('link[rel=stylesheet]')].some((l) => re.test(l.href)) ||
+    performance.getEntriesByType('resource').some((e) => re.test(e.name))
+})
 
 /** Open the picker in `scope` with ArrowDown, then pick the other theme with the keyboard. */
 async function exercisePicker(p, tag, scope) {

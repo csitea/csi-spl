@@ -414,7 +414,8 @@ SQL
 # card is a probe per moved row, not the full read's hashed set of every
 # archived line. Not seen until the next full read (SWEEP_FULL_EVERY): a
 # channel un-archived, a workspace renamed, a workspace's AI agents default
-# changed (a channel's own switch is read: ai_agents_at).
+# changed (a channel's own switch is read: ai_agents_at), a humans-only mark
+# cleared (one set is read: humans_only_at, SPL-2423).
 _spl_sweep_delta_sql() {
   cat <<'SQL'
 WITH mv AS MATERIALIZED (
@@ -425,7 +426,7 @@ WITH mv AS MATERIALIZED (
   SELECT p.tenant_id, p.task_id FROM channels c
     JOIN topic_head_parts p ON p.tenant_id = c.tenant_id AND p.channel = c.channel_id
    WHERE c.archived_at > to_timestamp(:since) OR c.deleted_at > to_timestamp(:since)
-      OR c.ai_agents_at > to_timestamp(:since)
+      OR c.ai_agents_at > to_timestamp(:since) OR c.humans_only_at > to_timestamp(:since)
   UNION
   SELECT e.tenant_id, e.task_id FROM message_revisions r
     JOIN messages e ON e.tenant_id = r.tenant_id AND e.msg_id = r.msg_id
@@ -466,6 +467,7 @@ SQL
   cat <<SQL
        CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
+            WHEN l.channel IS NOT NULL AND c.humans_only_at IS NOT NULL THEN 'ai_off'
             WHEN l.channel IS NOT NULL AND coalesce(l.to_id, 'ALL-0') = 'ALL-0'
                  AND NOT coalesce(c.ai_agents, (t.settings->>'channel_ai_agents')::boolean, true) THEN 'ai_off'
             WHEN l.channel IS NOT NULL THEN 'live'

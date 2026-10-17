@@ -15,7 +15,9 @@
 # @description workspace). Which seat answers is the
 # @description leases' business (spec 2.1, 3), not the subscription's.
 # @description Per seated workspace and per live channel (default ones
-# @description included; #issues and the retired #tasks excluded):
+# @description included; #issues and the retired #tasks excluded; a
+# @description humans-only channel - its people removed every agent, rdb 0206,
+# @description SPL-2423 - is skipped and reported HUMANS-ONLY, never added to):
 # @description   add    - each OD seat <id>@<box> not subscribed, where the
 # @description            workspace's roster has it (do_spl_channel_agent_add_op's
 # @description            runner, ALLOW_DEFAULT_CHANNEL=1)
@@ -77,6 +79,8 @@ do_spl_dispatch_subscribe() {
 # subscriptions and call <fn> <tenant> <data>. <data> lines:
 #   chan|<channel>            one per live channel (defaults included)
 #   sub|<channel>|<box>|<agent>|<origin>   one per live subscription
+#   hon|<channel>             one per humans-only channel (rdb 0206): its
+#                             people removed every agent; no OD seat is added
 #   ros|<box>|<agent>         one per roster row of an OD seat (any box), and
 #                             of a role seat 001..003 under any vendor letter:
 #                             another box's OD seat (SPL-1756)
@@ -128,6 +132,10 @@ SELECT 'chan|' || c.channel_id FROM channels c
 UNION
 SELECT 'chan|' || d FROM unnest(ARRAY['lobby', 'alerts', 'feedback']) AS d
 ORDER BY 1;
+SELECT 'hon|' || c.channel_id FROM channels c
+ WHERE c.tenant_id = :'tenant' AND c.deleted_at IS NULL AND c.archived_at IS NULL
+   AND c.humans_only_at IS NOT NULL
+ ORDER BY 1;
 SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || s.origin
   FROM channel_subscriptions s
   JOIN channels c ON c.tenant_id = s.tenant_id AND c.channel_id = s.channel_id
@@ -161,8 +169,11 @@ SQL
 spl_dispatch_subscribe_tenant() {
   local t="$1" data="$2" ch missing a old fb n_ok=0 n_add=0 n_leg=0 n_dead=0 box="$DISPATCH_DESK_BOX" dead unseated=""
   local -a chans=()
-  mapfile -t chans < <(sed -n 's/^chan|//p' <<<"$data")
-  (( ${#chans[@]} )) || { do_log "FATAL $t: no channel at all - is that the right workspace?"; return 1; }
+  grep -q '^chan|' <<<"$data" || { do_log "FATAL $t: no channel at all - is that the right workspace?"; return 1; }
+  mapfile -t chans < <(spl_dispatch_chans "$data")
+  local hon
+  hon="$(sed -n 's/^hon|/#/p' <<<"$data" | tr '\n' ' ')"
+  [[ -n "$hon" ]] && echo "HUMANS-ONLY $t ${hon% } (its people removed every agent: no OD seat is added; report only)"
   local boxes absent
   boxes="$(spl_dispatch_served_boxes "$data")"
   absent="$(spl_dispatch_fleet_boxes | grep -vxF -f <(printf '%s\n' $boxes) | tr '\n' ' ')"
@@ -182,7 +193,7 @@ spl_dispatch_subscribe_tenant() {
       [[ -n "$missing" ]] || continue
       right=0 n_add=$((n_add + 1))
       echo "PLAN add $t #$ch $missing ($fb)"
-      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_add_op_run "$t" "$ch" "$fb" "$missing" 1 ||
+      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_add_op_run "$t" "$ch" "$fb" "$missing" 1 1 ||
         SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
     done
     for fb in $boxes; do
@@ -207,6 +218,15 @@ spl_dispatch_subscribe_tenant() {
   [[ -n "$unseated" ]] && echo "UNSEATED $t $unseated (no roster row in $t: seat it with do_spl_desk_up; report only)"
   spl_dispatch_inbound "$t" "$data"
   echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add OD seat add(s), $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions, $(wc -w <<<"$unseated") OD seat(s) unseated"
+}
+
+# spl_dispatch_chans <data>: the channels an OD seat belongs in, one per line:
+# every chan| line but a humans-only one (hon|, SPL-2423: owner HUM-10
+# 2026-10-17, "once the users have removed all of the agents from the
+# properties of a channel, no new agents should be added by the system").
+spl_dispatch_chans() {
+  local d="$1"
+  sed -n 's/^chan|//p' <<<"$d" | grep -vxF -f <(sed -n 's/^hon|//p' <<<"$d"; echo '|') || true
 }
 
 # The role seat RX (SPL_ROLE_SEAT_RX): the ONE list, spool-env.inc.sh's.

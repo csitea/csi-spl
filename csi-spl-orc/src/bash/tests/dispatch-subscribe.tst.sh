@@ -16,6 +16,8 @@
 #   8. fleet mode: every box of the lease rankings gets its rostered OD seats;
 #      an unrostered one is UNSEATED (report only), never added; a box with no
 #      OD seat in the workspace at all is ABSENT (report only)
+#   9. SPL-2423: a humans-only channel (hon|, its people removed every agent)
+#      gets no OD seat add, is reported HUMANS-ONLY, and is no GAP for the check
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -96,9 +98,9 @@ grep -qx 'DEAD w1 #devel CLE-9 (no live process on this box; report only)' "$T/o
 : >"$T/calls"
 run DISPATCH_TENANTS=w1 DRY_RUN=0; rc=$?
 sort "$T/calls" >"$T/got"
-printf '%s\n' 'add w1 alerts box-desk c-001 c-002 c-003 1' 'add w1 devel box-desk c-002 c-003 1' 'add w1 lobby box-desk c-001 c-003 1' | sort >"$T/want"
+printf '%s\n' 'add w1 alerts box-desk c-001 c-002 c-003 1 1' 'add w1 devel box-desk c-002 c-003 1 1' 'add w1 lobby box-desk c-001 c-003 1 1' | sort >"$T/want"
 [[ $rc -eq 0 ]] && cmp -s "$T/got" "$T/want" &&
-  pass "3. DRY_RUN=0 calls exactly the planned runners, the add with ALLOW_DEFAULT_CHANNEL=1" || fail "3. calls: $(diff "$T/want" "$T/got") rc=$rc"
+  pass "3. DRY_RUN=0 calls exactly the planned runners, the add with ALLOW_DEFAULT_CHANNEL=1 as the system (skips a humans-only channel)" || fail "3. calls: $(diff "$T/want" "$T/got") rc=$rc"
 grep -q 'CLE-9' "$T/calls" && fail "2. a dead subscription was acted on" || pass "2. a dead subscription is never removed"
 
 # --- 4. failures -------------------------------------------------------------------------------
@@ -167,10 +169,28 @@ grep -qx 'UNSEATED w8 c-003@box-sat (no roster row in w8: seat it with do_spl_de
 grep -qx 'ABSENT w8 box-old (no OD seat of that box in w8: not judged here; report only)' "$T/o" && ! grep -q 'box-old' <(grep -v '^ABSENT' "$T/o") &&
   pass "8. a ranking box with no OD seat in the workspace (a retired box id) is ABSENT, never UNSEATED or planned" || fail "8. absent: $(cat "$T/o")"
 run DISPATCH_TENANTS=w8 DRY_RUN=0
-[[ "$(cat "$T/calls")" == 'add w8 lobby box-sat c-001 1' ]] && pass "8. DRY_RUN=0 adds exactly that seat" || fail "8. calls: $(cat "$T/calls")"
+[[ "$(cat "$T/calls")" == 'add w8 lobby box-sat c-001 1 1' ]] && pass "8. DRY_RUN=0 adds exactly that seat" || fail "8. calls: $(cat "$T/calls")"
 run DISPATCH_TENANTS=w8 DISPATCH_FLEET_BOXES=box-desk
 ! grep -q 'box-sat' "$T/o" && pass "8. DISPATCH_FLEET_BOXES overrides the rankings" || fail "8. override: $(cat "$T/o")"
 rm -f "$T/spool/dispatch/lease.conf"
+
+# --- 9. humans-only channels (SPL-2423) ------------------------------------------------------
+# owner HUM-10 2026-10-17: "once the users have removed all of the agents from
+# the properties of a channel, no new agents should be added by the system".
+printf "chan|lobby\nchan|quiet\nchan|lounge\nhon|quiet\nhon|lounge\n${ODS}sub|lobby|box-desk|c-001|invite\n" >"$SUBS/w9.txt"
+: >"$T/calls"
+run DISPATCH_TENANTS=w9 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w9 lobby box-desk c-002 c-003 1 1' ]] && ! grep -qE 'PLAN add w9 #(quiet|lounge)' "$T/o" &&
+  pass "9. a humans-only channel gets no OD seat add; an ordinary one still does" || fail "9. calls: rc=$rc $(cat "$T/calls") $(cat "$T/o")"
+grep -qx 'HUMANS-ONLY w9 #quiet #lounge (its people removed every agent: no OD seat is added; report only)' "$T/o" &&
+  grep -q 'SUM  w9: 1 channel(s)' "$T/o" &&
+  pass "9. ... it is reported HUMANS-ONLY and not counted as a channel to seat" || fail "9. report: $(cat "$T/o")"
+chk="$(env PROJ_PATH="$PROJ_ROOT" DISPATCH_SUBS_DIR="$SUBS" SPOOL_ROOT="$T/spool" bash -c '
+  set -uo pipefail
+  for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done
+  DISPATCH_ORCH=c-001 DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 DISPATCH_DESK_BOX=box-desk
+  spl_dispatch_chans "$(cat "$DISPATCH_SUBS_DIR/w9.txt")"' 2>&1)"
+[[ "$chk" == lobby ]] && pass "9. spl_dispatch_chans (the check's channel list too) leaves the humans-only channels out" || fail "9. chans: $chk"
 
 echo "dispatch-subscribe: $fails failure(s)"
 [[ $fails -eq 0 ]]

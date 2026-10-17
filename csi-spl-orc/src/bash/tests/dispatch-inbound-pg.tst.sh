@@ -12,6 +12,9 @@
 #      typed_by line and one outside the window do not
 #   4. the roster rows: the OD seats and the role seats 001..003 under any
 #      vendor letter (SPL-1756), no other agent
+#   6. SPL-2423: a humans-only channel (rdb 0206) is one hon| line; the desk
+#      reconcile's add (system=1) skips it and writes nothing, an add by hand
+#      seats the agent and clears the mark
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -119,6 +122,33 @@ rm -f "$T/sr/dispatch/fleet.dispatch.holder"
 # seat 001..003 under another vendor letter is another box's OD seat (SPL-1756)
 [[ "$(grep '^ros|' <<<"$out" | tr '\n' ' ')" == 'ros|box-desk|c-001 ros|box-desk|c-002 ros|box-sat|c-003 ros|box-sat|g-002 ' ]] &&
   pass "4. the OD and role seats' roster rows, every box, no other agent, no other workspace" || fail "4. ros: $(grep '^ros|' <<<"$out")"
+
+# SPL-2423 (owner HUM-10 2026-10-17): "once the users have removed all of the
+# agents from the properties of a channel, no new agents should be added by
+# the system".
+psql_owner <<'PSQL' >/dev/null || fail "seed humans-only"
+INSERT INTO channels (tenant_id, channel_id, name, created_by, humans_only_at) VALUES ('wp', 'quiet', 'quiet', 'HUM-1', now());
+INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, origin) VALUES ('wp', 'quiet', 'c-002', 'box-desk', 'removed');
+PSQL
+out="$(read_hum wp)"
+[[ "$(grep '^hon|' <<<"$out" | tr '\n' ' ')" == 'hon|quiet ' ]] &&
+  pass "6. a humans-only channel is one hon| line, an ordinary one none" || fail "6. hon: $(grep -E '^(hon|chan)\|' <<<"$out")"
+add_op() {
+  env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" GCP_ACCOUNT=test bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-channel-agent-add-op.func.sh"
+    _spl_channel_agent_add_op_run wp quiet box-desk c-002 1 "$1"' _ "$1" 2>&1
+}
+seat() { psql_owner -c "SELECT origin FROM channel_subscriptions WHERE tenant_id = 'wp' AND channel_id = 'quiet' AND agent_id = 'c-002'"; }
+mark() { psql_owner -c "SELECT humans_only_at IS NOT NULL FROM channels WHERE tenant_id = 'wp' AND channel_id = 'quiet'"; }
+o="$(add_op 1)"; rc=$?
+[[ $rc -eq 0 && "$o" == *"humans-only"* && "$(seat)" == removed && "$(mark)" == t ]] &&
+  pass "6. the desk reconcile's add skips a humans-only channel: the seat stays removed" || fail "6. system add: rc=$rc $o seat=$(seat) mark=$(mark)"
+o="$(add_op 0)"; rc=$?
+[[ $rc -eq 0 && "$(seat)" == invite && "$(mark)" == f ]] &&
+  pass "6. an add by hand seats the agent and clears the mark" || fail "6. hand add: rc=$rc $o seat=$(seat) mark=$(mark)"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

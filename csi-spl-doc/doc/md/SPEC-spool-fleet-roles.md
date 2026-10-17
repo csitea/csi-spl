@@ -161,6 +161,7 @@ take in whatever comes and decide what to do."* This reverses the
 | where | on every box of the fleet: this machine's desk box plus, in fleet mode, every box of `LEASE_PRIORITY` / `_ORCH` / `_DISPATCH` (`DISPATCH_FLEET_BOXES` overrides) |
 | which channels | every live channel of every non-test workspace, the default ones included; `#issues` and the retired `#tasks` excluded |
 | done by | `do_spl_dispatch_subscribe` (setup step 10, and every desk reconcile tick through `do_spl_dispatch_tick`) |
+| a humans-only channel | its people removed every agent (SPL-2423, owner HUM-10 2026-10-17, t1 `ccb3d037`: "no new agents should be added by the system"; hub mark `channels.humans_only_at`, rdb 0206): no OD seat is added, reported `HUMANS-ONLY`, no GAP; a person inviting an agent lifts it |
 | a seat the workspace does not roster | the hub refuses its subscription (`not_a_member`): reported `UNSEATED`, a GAP in `do_spl_dispatch_check`, fixed by seating it (`do_spl_desk_up`), never by the subscribe |
 | verified by | `do_spl_dispatch_check`: per channel `OD seats n/m`, any missing seat a GAP; per workspace the unseated seats. On another box a role seat of the same number under any vendor letter is that OD seat (a box seating `c-002` holds the `g-002` master of another, SPL-1756); no seat of that number there stays a GAP |
 

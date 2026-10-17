@@ -18,6 +18,9 @@
 # @description of agents asked for, or the transaction rolls back. Values
 # @description travel as psql variables (:'var'), never spliced into the SQL.
 # @description The statement sets app.tenant_id for the transaction (rdb 0014).
+# @description A humans-only channel (rdb 0206, SPL-2423: its people removed
+# @description every agent) takes the add by hand and loses the mark; the
+# @description desk reconcile's add (do_spl_dispatch_subscribe) is skipped there.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
@@ -81,12 +84,15 @@ do_spl_channel_agent_add_op() {
   spl_via_proxy _spl_channel_agent_add_op_run "$tenant" "$ch" "$box" "$agents" "$allowdef"
 }
 
+# _spl_channel_agent_add_op_run <tenant> <channel> <box> <agents> [allowdef]
+# [system]: system=1 is the desk reconcile's add, which a humans-only channel
+# skips (OK, nothing written); 0 (by hand) adds and clears the mark.
 _spl_channel_agent_add_op_run() {
   local out rc=0 n_added n_already n_want=0 a mark
   for a in $4; do n_want=$((n_want + 1)); done
   out="$({ _spl_channel_agent_add_op_sql_guards; _spl_channel_agent_add_op_sql_apply; } |
     spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" -v allowdef="${5:-0}")" || rc=$?
+      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" -v allowdef="${5:-0}" -v system="${6:-0}")" || rc=$?
   # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
   # refusal is recognised from the line the script printed, not from rc.
   if mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
@@ -95,6 +101,9 @@ _spl_channel_agent_add_op_run() {
   elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
     do_log "FATAL no channel $mark in $1"
     return 1
+  elif mark="$(spl_psql_mark "$out" skip-humans-only)"; then
+    do_log "OK #$mark in $1 is humans-only (its people removed every agent): $4 not added"
+    return 0
   elif mark="$(spl_psql_mark "$out" refuse-public)"; then
     do_log "FATAL #$mark is a default channel: an agent seat is not stored"
     return 1
@@ -142,6 +151,15 @@ SELECT EXISTS (
 \else
 ROLLBACK;
 SELECT format('refuse-channel | %s', :'channel');
+\quit 1
+\endif
+SELECT (:'system' = '1' AND EXISTS (
+         SELECT 1 FROM channels
+          WHERE tenant_id = :'tenant' AND channel_id = :'channel' AND humans_only_at IS NOT NULL
+       ))::int AS hon \gset
+\if :hon
+ROLLBACK;
+SELECT format('skip-humans-only | %s', :'channel');
 \quit 1
 \endif
 SELECT coalesce(string_agg(s.a, ' ' ORDER BY s.a), '') AS missing
@@ -211,6 +229,8 @@ ON CONFLICT (tenant_id, channel_id, agent_id, box_id) DO NOTHING;
 SELECT :ROW_COUNT AS nadded \gset
 SELECT (:nadded::int + :nalready::int + :nrevived::int = :nwant::int)::int AS ok \gset
 \if :ok
+UPDATE channels SET humans_only_at = NULL
+ WHERE tenant_id = :'tenant' AND channel_id = :'channel' AND humans_only_at IS NOT NULL;
 SELECT format('added | %s', btrim(x))
   FROM unnest(string_to_array(:'agents', ' ')) AS t(x)
  WHERE btrim(x) <> ''

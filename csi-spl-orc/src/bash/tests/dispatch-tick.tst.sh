@@ -69,7 +69,7 @@ tick; rc=$?
 # --- 2. a new channel ------------------------------------------------------------------------
 printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
 tick; rc=$?
-[[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w1 newc box-desk c-001 c-002 c-003 1' ]] &&
+[[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w1 newc box-desk c-001 c-002 c-003 1 1' ]] &&
   grep -qx 'DISPATCH subscribe add w1 #newc c-001 c-002 c-003 (box-desk)' "$T/o" &&
   pass "2. a new channel: the next tick subscribes every OD seat, the orchestrator too, and says so" || fail "2. rc=$rc calls=$(cat "$T/calls") $(cat "$T/o")"
 

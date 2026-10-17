@@ -293,7 +293,10 @@ spl_dispatch_check_tenant() {
       spl_dispatch_seat_on "$data" "$fb" "$a" >/dev/null || unseated+=" $a@$fb"
     done
   done
-  for ch in $(sed -n 's/^chan|//p' <<<"$data"); do
+  for ch in $(sed -n 's/^hon|//p' <<<"$data"); do
+    row "$t #$ch" "humans-only (SPL-2423): no OD seat by design" ok
+  done
+  for ch in $(spl_dispatch_chans "$data"); do
     want=0 have=0 miss=""
     for fb in $boxes; do
       for a in $(spl_dispatch_od_ids); do

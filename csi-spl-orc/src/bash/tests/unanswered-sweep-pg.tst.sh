@@ -14,7 +14,8 @@
 #   4b. a null channel after an agent post is thread; one with no agent stays dm
 #   2b. a terminal-typed line (typed_by) is 'terminal', not a human post
 #   5. CONTROL: the classifier lists exactly the open topic of each workspace
-#   8. SPL-1684 (rdb 0189): a channel whose AI agents switch is off (the
+#   8. (and SPL-2423, rdb 0206: a humans-only channel is ai_off too)
+#      SPL-1684 (rdb 0189): a channel whose AI agents switch is off (the
 #      workspace default, or its own) is cstate ai_off and not listed; an
 #      @agent dispatch in it and a channel switched on stay open
 #   9. SPL-1718: a take line (do_spl_take) last is 'take' with the human post
@@ -156,6 +157,7 @@ grep -q '^| t1 | 00000000-0000-4000-8000-000000000009 | 10000000-0000-4000-8000-
 psql_owner <<'PSQL' >/dev/null || fail "8. seed the off workspace"
 INSERT INTO tenants (tenant_id, root_pubkey, settings) VALUES ('mtx', decode(repeat('ad', 32), 'hex'), '{"channel_ai_agents": false}');
 INSERT INTO channels (tenant_id, channel_id, name, created_by, ai_agents) VALUES ('mtx', 'rides', 'rides', 'HUM-5', NULL), ('mtx', 'ops', 'ops', 'HUM-5', true);
+INSERT INTO channels (tenant_id, channel_id, name, created_by, ai_agents, humans_only_at) VALUES ('mtx', 'quiet', 'quiet', 'HUM-5', true, now());
 PSQL
 # m8 <task n> <msg n> <channel> <to>: a human post in mtx, 100 minutes old
 m8() {
@@ -166,6 +168,8 @@ m8() {
 m8 1 1 rides ALL-0   # the workspace default: off
 m8 2 2 ops ALL-0     # the channel's own switch: on
 m8 3 3 rides c-007   # an @agent dispatch in the off channel
+m8 4 4 quiet ALL-0   # SPL-2423: a humans-only channel, its switch on
+m8 5 5 quiet c-007   # ... an @agent there is no dispatch either
 env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows8" bash -c '
   set -uo pipefail
   do_log() { echo "$*"; }
@@ -176,6 +180,8 @@ c8() { awk -F'\t' -v t="20000000-0000-4000-8000-00000000000$1" '$4 == t { print 
 [[ "$(c8 1) $(c8 2) $(c8 3) $(col 1 11)" == "ai_off live live live" ]] &&
   pass "8. off by the workspace default -> ai_off; own switch on, an @agent dispatch, another workspace -> live" ||
   fail "8. cstate: $(c8 1) $(c8 2) $(c8 3) t1 $(col 1 11)"
+[[ "$(c8 4) $(c8 5)" == "ai_off ai_off" ]] &&
+  pass "8. SPL-2423: a humans-only channel is ai_off, its @agent line too, whatever its switch" || fail "8. humans-only cstate: $(c8 4) $(c8 5)"
 env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows8" SWEEP_TO=CLE-002 HOME="$T/home" bash -c '
   set -uo pipefail
   do_log() { echo "$*"; }
@@ -185,6 +191,7 @@ env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/row
 ! grep -q '^| open | mtx | #rides | 20000000-0000-4000-8000-000000000001 |' "$T/o9" &&
   grep -q '^| open | mtx | #ops | 20000000-0000-4000-8000-000000000002 |' "$T/o9" &&
   grep -q '^| open | mtx | #rides | 20000000-0000-4000-8000-000000000003 |' "$T/o9" &&
+  ! grep -q '^| open | mtx | #quiet |' "$T/o9" &&
   pass "8. the off channel's post is not listed; CONTROL: the on channel and the dispatch are" || fail "8. classify: $(cat "$T/o9")"
 
 # --- 9. SPL-1718: a take is not the answer ------------------------------------

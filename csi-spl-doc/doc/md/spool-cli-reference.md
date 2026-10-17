@@ -738,9 +738,24 @@ Apply schema migrations to the hub PostgreSQL database.
 |---|---|---|
 | `--db <dsn>` | `$SPOOL_HUB_DB_DSN` | PostgreSQL database connection string |
 | `--sql-dir <path>` | `$SPOOL_HUB_MIGRATIONS_DIR` | Directory containing SQL schema migration files |
+| `--dry-run` | `false` | Check before an upgrade, apply nothing (below) |
 
 ```bash
 spool migrate --db "postgres://user:pass@127.0.0.1:5432/spool" --sql-dir ./migrations
+```
+
+`--dry-run` (SPL-2166) takes and releases the migrate advisory lock and
+verifies the sha256 pin of every applied file. It then runs the pending
+files, in filename order, in one transaction that is always rolled back. It
+prints `ok` for each applied file and `pending <file> sha256 <hex>` for each
+new one, and ends `dry run: <n> pending, ...; nothing applied`. A pin
+mismatch, an empty file, or a file that does not parse or apply on this
+schema exits non-zero and names the file. It never creates or writes
+`spool_schema_migrations`. Until the rollback, the pending DDL holds the
+same table locks a real run would.
+
+```bash
+spool migrate --dry-run --db "postgres://user:pass@127.0.0.1:5432/spool" --sql-dir ./migrations
 ```
 
 ### 8.3 spool root-keygen

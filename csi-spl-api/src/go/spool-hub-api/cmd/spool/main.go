@@ -70,8 +70,9 @@
 // Hub (spec 003; operator / box-daemon verbs, never called by agents):
 //
 //	serve                      run the hub (env: SPOOL_HUB_*; see config.Hub)
-//	migrate [--db <dsn>] [--sql-dir <dir>]   apply the hub DDL (defaults
-//	          $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR)
+//	migrate [--db <dsn>] [--sql-dir <dir>] [--dry-run]   apply the hub DDL
+//	          (defaults $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR); --dry-run
+//	          checks the pins and the pending files and applies nothing
 //	hub-tenant --tenant <id> --root-pubkey <b64>   seed a tenant row (via $SPOOL_HUB_DB_DSN)
 //	hub-tenant-billing --tenant <id> --event paid|unpaid|failed|refund|cancel   set billing_status (via $SPOOL_HUB_DB_DSN)
 //	hub-invite --tenant <id> --email <addr> [--role <role-id>] [--ttl 168h] [--no-mail]   operator invite
@@ -183,7 +184,7 @@ a box and its hub ($SPOOL_HUB_URL):
 
 running a hub:
   serve               run the hub (configured by SPOOL_HUB_* env vars)
-  migrate             apply the schema migrations
+  migrate             apply the schema migrations (--dry-run: check, apply nothing)
   root-keygen         make a tenant root key pair (private key 0600, never printed)
   hub-tenant          create a tenant with its root public key
   hub-tenant-billing  set a tenant's billing status
@@ -595,10 +596,12 @@ func fail(err error) int {
 
 // cmdMigrate applies the hub DDL (csi-spl-rdb/src/sql/postgres/spool-hub) to
 // the database in filename order; a re-run is a no-op (spec 003 T001b).
+// --dry-run (SPL-2166) checks the pins and the pending files, applies nothing.
 func cmdMigrate(args []string) int {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
 	dir := fs.String("sql-dir", os.Getenv("SPOOL_HUB_MIGRATIONS_DIR"), "DDL dir (default $SPOOL_HUB_MIGRATIONS_DIR)")
+	dryRun := fs.Bool("dry-run", false, "verify pins, run pending files in a rolled-back transaction, apply nothing")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -612,6 +615,9 @@ func cmdMigrate(args []string) int {
 		return fail(err)
 	}
 	defer pg.Close()
+	if *dryRun {
+		return migrateDryRun(ctx, pg, *dir)
+	}
 	res, err := store.Migrate(ctx, pg.Pool(), *dir)
 	for _, a := range res {
 		if a.Skipped {
@@ -623,6 +629,25 @@ func cmdMigrate(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
+	return 0
+}
+
+// migrateDryRun prints one line per file and a verdict; nothing is applied.
+func migrateDryRun(ctx context.Context, pg *store.Postgres, dir string) int {
+	res, err := store.Migrate(ctx, pg.Pool(), dir, store.DryRun)
+	n := 0
+	for _, a := range res {
+		if a.Skipped {
+			fmt.Println("ok      " + a.File + " (applied, sha256 pin matches)")
+		} else {
+			n++
+			fmt.Println("pending " + a.File + " sha256 " + a.SHA256)
+		}
+	}
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Printf("dry run: %d pending, all applied cleanly in a rolled-back transaction; nothing applied\n", n)
 	return 0
 }
 

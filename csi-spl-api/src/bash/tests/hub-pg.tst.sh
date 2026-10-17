@@ -84,11 +84,27 @@ echo "ok   - databases owned by non-superuser role $APP_ROLE (RLS binds it)"
 BIN="$WORK/spool"
 ( cd "$MOD" && go build -o "$BIN" ./cmd/spool )
 
+# SPL-2166: --dry-run on the empty database lists every file as pending and
+# creates nothing, not even the ledger table.
+app_q() { # <db> <sql>: one value
+  if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -X -tA -U spool -d "$1" -c "$2"
+  else "$PG_BIN/psql" -X -tA -h "$WORK" -p "$PGPORT" -U spool -d "$1" -c "$2"; fi
+}
+nsql="$(ls "$SQL_DIR"/*.sql | wc -l | tr -d ' ')"
+dry0="$("$BIN" migrate --dry-run --db "$DSN" --sql-dir "$SQL_DIR")" || { echo "FAIL - dry run on empty db: $dry0"; exit 1; }
+[ "$(echo "$dry0" | grep -c '^pending ')" = "$nsql" ] || { echo "FAIL - dry run did not list $nsql pending: $dry0"; exit 1; }
+[ "$(app_q spool_hub_app "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'")" = 0 ] \
+  || { echo "FAIL - dry run created objects in the empty db"; exit 1; }
+echo "ok   - spool migrate --dry-run lists $nsql pending file(s) on an empty db and creates nothing"
+
 out1="$("$BIN" migrate --db "$DSN" --sql-dir "$SQL_DIR")"
 out2="$(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MIGRATIONS_DIR="$SQL_DIR" "$BIN" migrate)"
 echo "$out1" | grep 'applied 0001_hub_core.sql' >/dev/null || { echo "FAIL - first migrate: $out1"; exit 1; }
 if echo "$out2" | grep '^applied' >/dev/null; then echo "FAIL - second migrate re-applied: $out2"; exit 1; fi
 echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s); re-run is a no-op"
+dry1="$("$BIN" migrate --dry-run --db "$DSN" --sql-dir "$SQL_DIR")" || { echo "FAIL - dry run after migrate: $dry1"; exit 1; }
+echo "$dry1" | grep '^dry run: 0 pending' >/dev/null || { echo "FAIL - dry run after migrate: $dry1"; exit 1; }
+echo "ok   - spool migrate --dry-run after the migrate: 0 pending"
 
 # One database per package: `go test` runs packages in parallel, and the
 # store suite's retention test calls Sweep(now+31d), which is global by

@@ -92,6 +92,14 @@ check "5. --ensure-badge-loop starts a loop" kill -0 "${p1:-0}"
 bash "$TOP" --ensure-badge-loop --interval 60
 eq "5. a second call starts none" "$p1" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"
 gone() { local _; for _ in $(seq 1 40); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.2; done; return 1; }
+# A TERM that lands while the loop's bash is still starting, before its traps,
+# kills it with no EXIT trap and leaves the pidfile (40/40 with an immediate
+# kill; CI run 39018706098 under load). So wait until it catches TERM (SigCgt
+# bit 15); the EXIT trap is set the line before.
+armed() { local _ m; for _ in $(seq 1 40); do
+  m="$(awk '/^SigCgt:/{print $2}' "/proc/$1/status" 2>/dev/null)"
+  [ -n "$m" ] && (( 0x$m & 0x4000 )) && return 0; sleep 0.2; done; return 1; }
+check "5. the loop has its TERM trap set before the TERM" armed "${p1:-0}"
 kill "$p1" 2>/dev/null
 check "5. TERM ends the loop at once, not after its 60 s interval" gone "${p1:-0}"
 check "5. ... and it removes its own pidfile" test ! -e "$AGENT_TOP_PIDFILE"

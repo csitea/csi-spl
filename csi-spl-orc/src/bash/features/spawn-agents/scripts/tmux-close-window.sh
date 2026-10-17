@@ -127,7 +127,9 @@ Options:
                      the resolved pane to exit (typing /exit once it is idle
                      at an empty prompt) or --timeout, then kill-window.
                      Parent exits 0 immediately so the agent can /exit.
-  --retire           After the window is closed, retire the --agent id
+  --retire           After the window is closed, close every other window
+                     carrying the --agent id (a --defer leaves one whose pane
+                     still runs an agent CLI), then retire the id
                      (scripts/agent-id-retire.sh, specs/061 3.6): its spool dir,
                      registry rows and identity record move aside, so the
                      allocator may reuse the number after the quarantine.
@@ -746,13 +748,44 @@ do_kill_window() {
   return 1
 }
 
-# --retire: the id goes aside only once its window is gone (specs/061 3.6).
+# --retire closes EVERY window of the id, not only the one it resolved
+# (SPL-2459): a-520 (2026-10-17) had an old shell window still named
+# a-520 beside main:4; run 1 killed main:4, the retire refused on the other
+# window and a second run was needed. Leading-token match (name_is_agent), so
+# a window of another id is never closed; by window id (@N), which a closed
+# neighbour never renumbers. A --defer (a self-teardown) leaves a window whose
+# pane still runs an agent CLI: after a rotation that is the id's new seat,
+# and the retire then refuses on it.
+close_id_windows() {
+  local wid wname p live
+  while IFS='|' read -r wid wname; do
+    name_is_agent "$wname" "$AGENT_ID" || continue
+    if [[ "$DEFER" -eq 1 ]]; then
+      live=""
+      while read -r p; do
+        [[ -n "$p" ]] && live+="$(collect_agent_pids_for_pane "$p")"
+      done < <("${TM[@]}" list-panes -t "$wid" -F '#{pane_id}' 2>/dev/null)
+      if [[ -n "$live" ]]; then
+        echo "tmux-close-window: window $wid ('${wname}') of ${AGENT_ID} still runs an agent CLI; left open"
+        continue
+      fi
+    fi
+    if "${TM[@]}" kill-window -t "$wid" 2>/dev/null; then
+      echo "tmux-close-window: killed window $wid ('${wname}'), another window of ${AGENT_ID}"
+    else
+      echo "tmux-close-window: failed to kill window $wid ('${wname}') of ${AGENT_ID}" >&2
+    fi
+  done < <("${TM[@]}" list-windows -a -F '#{window_id}|#{window_name}' 2>/dev/null)
+}
+
+# --retire: the id goes aside only once its windows are gone (specs/061 3.6).
 retire_agent() {
   [[ "$RETIRE" -eq 1 ]] || return 0
   if [[ -z "${AGENT_ID:-}" ]]; then
     echo "tmux-close-window: --retire needs --agent; nothing retired" >&2
     return 0
   fi
+  close_id_windows
   bash "$(dirname "$_sp_lib")/../scripts/agent-id-retire.sh" --apply "$AGENT_ID" \
     || echo "tmux-close-window: retire of ${AGENT_ID} failed (rc $?); its number stays held" >&2
 }

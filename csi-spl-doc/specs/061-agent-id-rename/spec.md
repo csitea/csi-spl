@@ -148,11 +148,11 @@ the reaper for an agent dead for more than `SPOOL_ID_REAP_H` (default 6):
 | record | goes to |
 |---|---|
 | spool dir `$SPOOL_ROOT/<id>/{inbox,outbox,archive}` | `$SPOOL_ROOT/.retired/<id>.<spawned-utc>/`, moved whole. Unread inbox mail is kept there and never handed to the next holder |
-| `registry.tsv` row | appended to `registry.retired.tsv` with `retired-utc`, then removed from `registry.tsv` |
+| `registry.tsv` rows (one per spawn or restart) | every row of the id appended to `registry.retired.tsv` with `retired-utc`, then removed from `registry.tsv` |
 | identity record `agents/<id>.json` | `agents/retired/<id>.<spawned-utc>.json`; `index.json` re-hashed |
 | hub lane row (0096) | closed by `do_spl_lane_put` state `done` |
 | hub DM and channel history | stays. Rows keep `from = c-004`. The generation is the spawned-utc. The hub's agent seat row records `seated_at`, and the WUI shows a divider "new holder since <ts>" in a DM with a reused id (lane L10, after today) |
-| tmux window | already closed by `/exit-clean`. A window still open blocks reuse (3.5 rule 4) |
+| tmux window | already closed by `/exit-clean`. A window still open blocks reuse (3.5 rule 4), so `tmux-close-window.sh --agent <id> --retire` closes every window whose name leads with the id before it retires (SPL-2459: a-520 had an old shell window too, and needed two runs); a `--defer` leaves one whose pane still runs an agent CLI, and the retire then refuses |
 
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.

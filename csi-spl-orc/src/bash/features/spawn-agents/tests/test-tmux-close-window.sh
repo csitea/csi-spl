@@ -76,6 +76,12 @@
 #      ended it closes; the orchestrator's close of a lane in that state is not
 #      gated. Control: m-595's exact sequence on the script with the gate
 #      spliced out closes the window
+#  17. SPL-2459 (a-520, 2026-10-17): one `--agent <ID> --retire` run closes
+#      EVERY window that carries the id (an old shell window too) and retires
+#      it once, with all its registry rows (12 after a day of restarts); a
+#      window of another id stays. A --defer self-teardown also closes an old
+#      shell window of its id, but never one whose pane still runs an agent
+#      CLI (a rotation's new seat): that stays and the id is not retired
 #
 # The sections run as parallel jobs (r01-03, SPL-2084: 166 s serial, ~94% of
 # it idle on the closer's timeouts and the controls' fixed waits). Each job
@@ -686,6 +692,51 @@ s16b() {  # Red control: m-595's exact sequence on the script with the gate spli
   check "16. control: ... and closes the lane's window" wait_gone "$P16C" 30
 }
 
+# --- 17. --retire closes every window of the id, then retires it once (SPL-2459) -------
+# a-520 2026-10-17: two windows named a-520 (an old shell and main:4); run 1
+# killed main:4 and the retire refused (the other window still named the id).
+win_count() { tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}' | grep -cE "(^|[^A-Za-z0-9])$1([^0-9]|\$)"; }
+s17() {
+  box
+  local i
+  P17A="$(t_window 'a-520@tbox' 'sleep 600')"
+  P17B="$(t_window 'tbox: a-520' 'sleep 600')"
+  P17N="$(t_window 'a-521@tbox' 'sleep 600')"
+  for i in $(seq 10 21); do printf 'a-520\tagy\t%s\t/x\t20261017T%s0000Z\tc-001\n' "$P17A" "$i" >>"$SPOOL_ROOT/registry.tsv"; done
+  printf 'a-521\tagy\t%s\t/x\t20261017T100000Z\tc-001\n' "$P17N" >>"$SPOOL_ROOT/registry.tsv"
+  eq "17. two windows carry a-520 before the close" 2 "$(win_count a-520)"
+  bash "$SUT" --agent a-520 --retire >"$T_TMP/o" 2>&1; eq "17. one --agent a-520 --retire run returns 0" 0 "$?"
+  eq "17. ... no window carries a-520 after that ONE run" 0 "$(win_count a-520)"
+  check "17. ... and a-520 is retired" retired a-520
+  eq "17. ... all 12 registry rows of a-520 are quarantined" 12 "$(grep -c '^a-520	' "$SPOOL_ROOT/registry.retired.tsv" 2>/dev/null)"
+  hasnt "17. ... the retire did not refuse" "still carries a-520" "$(cat "$T_TMP/o")"
+  check "17. ... the old shell window of a-520 is gone too" wait_gone "$P17B" 2
+  check "17. the window of another id (a-521) stays" alive "$P17N"
+  check "17. ... and its registry row too" grep -q "^a-521	" "$SPOOL_ROOT/registry.tsv"
+  check "17. the active bystander window stays" alive "$VICTIM"
+}
+s17b() {  # --defer: the lane's own window + an old shell window of its id: both go, retired once.
+  box
+  P17C="$(lane14 c-433)"
+  P17S="$(t_window 'tbox: c-433 old shell' 'sleep 600')"
+  CLE_TMUX_PANE="$P17C" bash "$SUT" --agent c-433 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1; eq "17. --defer --retire returns 0 at once" 0 "$?"
+  check "17. --defer: the lane's window closes and c-433 is retired" gone_and_retired "$P17C" c-433 40
+  check "17. --defer: ... its old shell window is closed too" wait_gone "$P17S" 10
+  eq "17. --defer: ... no window carries c-433" 0 "$(win_count c-433)"
+}
+s17c() {  # --defer never closes another window of its id that still runs an agent CLI.
+  box
+  P17D="$(lane14 c-434)"
+  P17L="$(t_window 'tbox: c-434' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-434b busy")"
+  drawn "$P17L" 'esc to interrupt' >/dev/null
+  CLE_TMUX_PANE="$P17D" bash "$SUT" --agent c-434 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
+  check "17. --defer: the lane's own window closes" wait_gone "$P17D" 60
+  sleep 2
+  check "17. --defer: ... a window of c-434 that runs an agent CLI stays" alive "$P17L"
+  check "17. --defer: ... and c-434 is not retired" grep -q "^c-434	" "$SPOOL_ROOT/registry.tsv"
+  has "17. --defer: ... the log names the window it left open" "still runs an agent CLI; left open" "$(log14)"
+}
+
 # --- the runner ------------------------------------------------------------------------------
 # job NAME FN: FN in a subshell (its own sandbox), its ok/FAIL lines to
 # $J_DIR/NAME.out; NAME.end is written only when FN returned, so a job that
@@ -701,7 +752,7 @@ sub() {
 }
 sub_wait() { local p; for p in "${S_PIDS[@]}"; do wait "$p"; done; }
 J_PIDS=(); J_NAMES=(); S_PIDS=()
-for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15 s16 s16b; do
+for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15 s16 s16b s17 s17b s17c; do
   job "$j" "$j"
 done
 deadline=$((SECONDS + ${TCW_JOB_MAX:-150}))

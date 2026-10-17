@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { messageCardSrc } from './lib/message-card-src.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -135,7 +136,7 @@ describe('createLongPress', () => {
 })
 
 describe('the phone composer dock (MessageComposer.vue)', () => {
-  const vue = readFileSync(join(WUI, 'src/components/MessageComposer.vue'), 'utf8')
+  const vue = messageComposerSrc()
   it('docks only the global composer, on a phone, on EVERY level and page (SPL-1005), unless dock=false', () => {
     assert.match(vue, /const docked = computed\(\(\) => Boolean\(props\.global\) && props\.dock && phone\.value\)/)
   })

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { carriesFiles, filesOf, pasteAttaches } from '../../src/utils/transfer-files.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -48,11 +49,11 @@ describe('pasteAttaches', () => {
 
 describe('the composer wires paste and drop', () => {
   it('attaches pasted and dropped files to picked', () => {
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     assert.match(c, /@paste="onPaste"/)
     assert.match(c, /window\.addEventListener\('drop', onWindowDrop\)/)
     assert.match(c, /window\.addEventListener\('dragover', onWindowDragOver\)/)
     assert.match(c, /window\.removeEventListener\('drop', onWindowDrop\)/)
-    assert.match(c, /if \(!props\.global\) return\n  window\.addEventListener/)
+    assert.match(c, /if \(!props\.global\) return\n\s+window\.addEventListener/)
   })
 })

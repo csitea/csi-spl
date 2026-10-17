@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_POSITION, DOCK_ID, omniboxAtBottom, omniboxMaxHeight, parsePosition, resizeHeight } from '../../src/utils/omnibox-dock.mjs'
 import { paneOfTarget } from '../../src/utils/pane-focus.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')
@@ -67,7 +68,7 @@ describe('B6: typing in the dock does not choose the middle pane', () => {
 describe('wiring', () => {
   const topBar = read('components/TopBar.vue')
   const layout = read('layouts/default.vue')
-  const composer = read('components/MessageComposer.vue')
+  const composer = messageComposerSrc()
   const css = read('assets/css/main.css')
   it('ONE composer: TopBar moves it with a Teleport (draft and files survive), never mounts a second', () => {
     assert.equal((topBar.match(/<MessageComposer\b/g) || []).length, 1)
@@ -143,7 +144,7 @@ describe('the phone dock grip', async () => {
     assert.equal((grip.match(/touch-action:/g) || []).length, 2)
     assert.match(grip, /:aria-label="t\('composer\.move_handle'\)"/)
     assert.match(grip, /role="menuitemradio"/)
-    const composer = read('components/MessageComposer.vue')
+    const composer = messageComposerSrc()
     /* the v-if is on an element of its own, never bare on the async grip (names-not-ids flake) */
     assert.match(composer, /<div v-if="docked" class="lazy-slot" style="display: contents"><OmniboxGrip /)
     assert.match(composer, /data-phone-pos=top\][^{]*\{[^}]*top: var\(--top-bar-h\)/)
@@ -184,7 +185,7 @@ describe('the phone dock size', async () => {
     assert.equal(m.resizePhoneSize({ pos: 'right', start: 327, dx: 500, dy: 0, room: 390 }), Math.round((280 / 390) * 1000) / 1000)
   })
   it('the composer repeats the bounds in CSS and a tap on the size handle opens the menu', () => {
-    const composer = read('components/MessageComposer.vue')
+    const composer = messageComposerSrc()
     assert.match(composer, /min\(var\(--dock-field-share, 0\), 0\.5\)/)
     assert.match(composer, /clamp\(min\(280px, 100vw - 48px\), calc\(100vw \* var\(--dock-width-share, 0\.84\)\), calc\(100vw - 48px\)\)/)
     const grip = read('components/OmniboxGrip.vue')

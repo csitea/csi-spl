@@ -10,6 +10,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { composerModeLabel, composerSendKey, dockTargetHint } from '../../src/utils/omnibox-topic.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -43,7 +44,7 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.match(s, /const dockComment = computed\(\(\) => Boolean\(phone\.value && detail\.value && detail\.value\.task_id && !creating\.value\)\)/)
     assert.match(s, /dock: \(\) => \(\{ reply: true, target: detail\.value\?\.key \|\| '', comment: true \}\)/)
     assert.match(s, /onBeforeUnmount\(\(\) => omniboxStore\.unregister\(commentOwner\)\)/)
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     assert.match(c, /if \(docked\.value && q\) \{\n\s+emit\('search', q\)/)
     assert.match(c, /return docked\.value && props\.sendBlocked \? 'search' : undefined/)
   })
@@ -64,7 +65,7 @@ describe('the phone dock names its target (SPL-1003)', () => {
   /* 080 FR-006 replaced the bottom dock's line (topic c6994436) with the
      target chip inside the box, top and bottom alike */
   it('the target chip shows in the box in both desktop positions, never on the phone dock (085 FR-001, owner msg b2e7c197) and never a line above it (owner, t1 dd98f8d7: "remove also all of the texts on mobile above the omnibox"), never in /search', () => {
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     assert.match(c, /if \(!props\.global \|\| searchMode\.value \|\| props\.sendBlocked\) return null/)
     assert.equal((c.match(/class="composer-target-chip"/g) || []).length, 1)
     assert.doesNotMatch(c, /class="composer-target"/)
@@ -128,7 +129,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
   })
 
   it('no chip in the top bar (owner, t1 7d777e79 14:24Z: "some kind of reply button there in the wrong place"); the form carries the mode, DM pages say dm, the placeholder is the old one', () => {
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     assert.doesNotMatch(c, /class="composer-mode"|data-test="composer-mode"/)
     /* owner, t1 3d6d945d 19:42Z: "remove this arrow" - no reply mark left of the box */
     assert.doesNotMatch(c, /composer-reply-mark/)
@@ -149,7 +150,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
   })
 
   it('owner, t1 3d6d945d option "A": the tree glyph into a thread or issue, none for a new topic or a DM; named by the mode words', () => {
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     assert.match(c, /class="composer-mode-glyph"\n\s+data-test="composer-mode-glyph"/)
     assert.match(c, /role="img"\n\s+:aria-label="modeText"/)
     /* CONTROL: today's master returns 'hash' for an undocked new topic.
@@ -164,7 +165,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
   })
 
   it('HUM-10: a new topic is "#name" once, on the desktop and the phone', () => {
-    const c = src('src/components/MessageComposer.vue')
+    const c = messageComposerSrc()
     const glyphFn = c.slice(c.indexOf('const modeGlyph'), c.indexOf('const modeAttr'))
     /* CONTROL: today's master drops the glyph only while docked, then returns
        'hash' for the desktop. That glyph plus "#name" draws "# #name". */

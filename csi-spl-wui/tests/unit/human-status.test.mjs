@@ -17,6 +17,7 @@ import {
   getMyStatus, statusBody, untilFromChoice, untilProblem,
 } from '../../src/utils/human-status.mjs'
 import { isoDateTime, setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
@@ -226,7 +227,7 @@ describe('the composer line (spec 5.1)', () => {
   it('the composer mounts the line lazily, Busy softer than Unavailable', () => {
     /* the v-if is on an element of its own, never bare on the lazy line (names-not-ids flake) */
     assert.match(read('src/components/MessageComposer.vue'), /<div v-if="statusLineDue" class="lazy-slot" style="display: contents"><LazyComposerStatusLine /)
-    assert.doesNotMatch(read('src/components/MessageComposer.vue'), /human-status\.mjs'/, 'the composer itself never imports the status helpers')
+    assert.doesNotMatch(messageComposerSrc(), /human-status\.mjs'/, 'the composer itself never imports the status helpers')
     assert.match(read('src/components/ComposerStatusLine.vue'), /\[data-state=busy\][^}]*color: var\(--color-muted\)/)
   })
 })
@@ -243,13 +244,14 @@ describe('where it shows (spec 5)', () => {
   })
   it('the first screen pays nothing until a status exists (027 initial-chunk budget)', () => {
     for (const f of ['src/stores/roster.ts', 'src/stores/human-status.ts', 'src/components/StatusDot.vue', 'src/components/MessageComposer.vue']) {
-      assert.doesNotMatch(read(f), /from '~\/utils\/human-status\.mjs'/, `${f} imports the status helpers statically`)
+      const text = f === 'src/components/MessageComposer.vue' ? messageComposerSrc() : read(f)
+      assert.doesNotMatch(text, /from '~\/utils\/human-status\.mjs'/, `${f} imports the status helpers statically`)
     }
     assert.match(read('src/stores/human-status.ts'), /import\('~\/utils\/human-status\.mjs'\)/)
     /* the entry chunk's roster store only keeps the raw status per member */
     assert.doesNotMatch(read('src/stores/roster.ts'), /human-status|status:/, 'the entry chunk roster store knows nothing of statuses')
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /MyStatus/, 'nor does the spool client (the write is in the lazy module)')
-    assert.doesNotMatch(read('src/components/MessageComposer.vue'), /useHumanStatusStore/, 'the composer gate keeps no status state')
+    assert.doesNotMatch(messageComposerSrc(), /useHumanStatusStore/, 'the composer gate keeps no status state')
     /* the picker and the line are on-demand components: their words wait in the second catalogue */
     for (const f of ['StatusPicker', 'ComposerStatusLine']) {
       assert.match(read('src/utils/i18n-first-screen.mjs'), new RegExp(`"components/${f}\\.vue": "idle"`))

@@ -1,7 +1,8 @@
 # Markdown Tables Panel — Mistral Reviewer Seat (v0.1)
 
 **Plan SHA**: `75f5a42c7b0ecae9b6af649b1f3dd81b850536ab`  
-**Status**: **GO** (with minor suggestions)  
+**Status**: **SIGNED (v1.0)**  
+**Plan SHA**: `81404325dc455e37f568453cd547ec80747681d9`  
 **Date**: 2026-10-18  
 
 ---
@@ -57,7 +58,7 @@ The plan addresses the owner's requirements as follows:
 
 ## 5. Final Verdict
 
-**GO**: The plan is **ready for implementation**. No blocking issues identified. I approve the plan as written and will sign off on v1.0 after the editor incorporates feedback.
+**SIGNED (v1.0)**: The plan is **ready for implementation**. All review points (scroll shadows, auto-numeric detection, threshold documentation) are folded. No blocking issues identified. I approve the plan as written.
 
 ---
 

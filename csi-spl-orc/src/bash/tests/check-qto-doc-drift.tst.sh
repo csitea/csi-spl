@@ -113,6 +113,7 @@ run_export() {
       echo "${DOCTREE_FS:-} $verb $doc" >>"$CALLS"
       case "$verb" in head) cat "$HUB/$doc.head" ;; read) cat "$HUB/$doc.read" ;; export) cat "$HUB/$doc.export" ;; *) return 1 ;; esac
     }
+    source "$PROJ_PATH/lib/bash/funcs/spl-desk-cron-tree-guard.func.sh"
     source "$PROJ_PATH/src/bash/run/spl-doctree-export-md.func.sh"
     source "$PROJ_PATH/src/bash/run/check-qto-doc-drift.func.sh"
     if [[ -n "${VIA_DRIFT:-}" ]]; then do_check_qto_doc_drift; else do_spl_doctree_export_md; fi' 2>&1

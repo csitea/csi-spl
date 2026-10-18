@@ -95,6 +95,16 @@ is the writer the hub admits:
   new doc's. Remove its old map row first: the import refuses a mapped page.
 - The ids in the map are prd's. A dev import is a rehearsal: give it its own
   `QTO_MAP` and restore the md file after it.
+- Never from a `*-desk-cron` checkout (bug round 1 row 04, SPL-2491). The
+  desk crons run from that self-updating worktree, and a file written there
+  blocks the next tick's `git checkout --detach`. The export (unless
+  `QTO_CHECK=1`, which writes nothing), the import with `DRY_RUN=0`,
+  `do_spl_i18n_mask` and `do_spl_i18n_unmask` call one guard,
+  `spl_refuse_desk_cron_tree` (`csi-spl-orc/lib/bash/funcs/`), before their
+  first write. When `PROJ_PATH`, `APP_PATH` or the destination is in such a
+  checkout, the action exits non-zero with a FATAL naming the path and writes
+  nothing. Run it from your own worktree. Test:
+  `csi-spl-orc/src/bash/tests/desk-cron-write-guard.tst.sh`.
 
 ## 6. How a lane writes Qto: its own seat, or the command list
 
@@ -180,4 +190,4 @@ verbs once its spool is rebuilt from a tree that has them (`spl_host_spool`).
 - **Distribution hygiene.** The import adds no picture to the repo, and the
   export writes back only the pictures the md already linked.
 
-<!-- version: 0.4.0 · updated: 2026-10-16 -->
+<!-- version: 0.4.1 · updated: 2026-10-18 -->

@@ -19,6 +19,7 @@ do_spl_i18n_unmask() {
   [[ -n "$dst" ]] || { do_log "FATAL I18N_UNMASK_DST must name where the unmasked text goes"; return 1; }
   dst="$(realpath -m "$dst")" out="$(realpath -m "$out")"
   _spl_i18n_mask_apart "$out/agy" "$dst" || return 1
+  spl_refuse_desk_cron_tree do_spl_i18n_unmask "$dst" || return 1
   (cd "$out/agy" && find . -type f -printf '%P\n' | sort) | while IFS= read -r rel; do
     mkdir -p "$(dirname "$dst/$rel")"
     printf '%s\0%s\0' "$out/agy/$rel" "$dst/$rel"

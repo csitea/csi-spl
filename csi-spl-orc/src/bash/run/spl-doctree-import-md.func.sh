@@ -66,6 +66,7 @@ do_spl_doctree_import_md() {
     rm -rf "$tmp"; return 0
   fi
   (( drc == 1 )) || { rm -rf "$tmp"; return 1; }
+  spl_refuse_desk_cron_tree do_spl_doctree_import_md "$map" || { rm -rf "$tmp"; return 1; }
   _spl_doctree_import_write "$tmp" "$plan" "$map" "$rel" || rc=1
   rm -rf "$tmp"
   return "$rc"

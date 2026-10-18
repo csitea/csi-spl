@@ -41,6 +41,7 @@ do_spl_i18n_mask() {
     do_log "FATAL I18N_MASK_TERMS must name the term list (<name|workspace|other> <term> per line; empty is allowed), got '$terms'"; return 1; }
   src="$(realpath -m "$src")" terms="$(realpath -m "$terms")" out="$(realpath -m "$out")"
   _spl_i18n_mask_apart "$src" "$out" || return 1
+  spl_refuse_desk_cron_tree do_spl_i18n_mask "$out" || return 1
   mkdir -p "$out" && chmod 0700 "$out" || return 1
   rm -rf "$out/agy" "$out/agy.tmp" "$out/map.tsv"
   mkdir -p "$out/agy.tmp"

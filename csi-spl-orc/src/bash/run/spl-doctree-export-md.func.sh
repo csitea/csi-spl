@@ -40,6 +40,7 @@ do_spl_doctree_export_md() {
   do_require_bin python3 || return 1
   local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel fs n=0 drift=0 rc
   [[ -r "$map" ]] || { do_log "FATAL no qto doc map: $map"; return 1; }
+  [[ "${QTO_CHECK:-0}" == 1 ]] || spl_refuse_desk_cron_tree do_spl_doctree_export_md || return 1
   while IFS=$'\t' read -r doc rel fs; do
     [[ -n "$doc" && "$doc" != \#* ]] || continue
     [[ -z "$want" || "$doc" == "$want" ]] || continue

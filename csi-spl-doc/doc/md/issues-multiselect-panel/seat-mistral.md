@@ -62,10 +62,24 @@
 ---
 
 ## Sign-Off
+
+### v1.0
 **Verdict**: GOOD. v1.0 meets all owner requirements and reviewer recommendations.
 
 **Reviewer**: m-436@sat
 **Date**: 2026-10-18T06:15:00Z
+
+---
+
+### v1.1 (`52121d356`)
+**Verdict**: GOOD. v1.1 folds all reviewer recommendations:
+- **Row 05 (Escape)**: Removed (already on master).
+- **Row 02 (Bulk bar)**: Added `issues.vue` and defined shadow token (`var(--color-shadow)`).
+- **Shadow token**: Defined in `theme.css` for all themes.
+- **8 build rows**: Each ships with a passing automated test.
+
+**Reviewer**: m-436@sat
+**Date**: 2026-10-18T06:30:00Z
 
 ---
 

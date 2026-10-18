@@ -10,6 +10,8 @@ Please do **not** open a public issue, pull request or discussion for a
 vulnerability, and do not test against a hosted instance you do not run
 yourself.
 
+Operational incidents and outages follow the [incident runbook](csi-spl-doc/doc/md/guides/incident-runbook.md).
+
 A useful report names:
 
 - the component (hub API, `spool` CLI / MCP server, web UI, migrations, compose stack)

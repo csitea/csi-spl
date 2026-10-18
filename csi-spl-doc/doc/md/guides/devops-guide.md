@@ -14,6 +14,7 @@ It is one of four guides. The others are linked, not copied.
 | Installation and configuration guide | a box, from an empty Debian 13 |
 | DevOps guide (this one) | the GCP estate and the pipelines |
 | Operations and maintenance guide | the daily and weekly routine |
+| [Incident runbook](incident-runbook.md) | on-call roles, escalation, and first-response commands |
 
 ### 1.1 What you hold
 
@@ -42,7 +43,7 @@ A block that shows only `ENV=dev` is repeated for prd with `ENV=prd`, unless the
 
 ### 1.3 Where the rules live
 
-Do not copy these. The fleet rules index, the developer guide and the repo `CLAUDE.md` are the homes. The provisioning rules this guide follows are spec 007, requirement R7 (numeric steps, dev then prd, DNS the other way) and R8 (the project service account after the key exists): [infra-provisioning-requirements.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/007-spool-hub-api-infra/infra-provisioning-requirements.md). The module contract the bootstrap test pins is [csi-spl-iac/README.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-iac/README.md). It stays; this guide does not replace it.
+Do not copy these. The fleet rules index, the developer guide and the repo `CLAUDE.md` are the homes. The provisioning rules this guide follows are spec 007, requirement R7 (numeric steps, dev then prd, DNS the other way) and R8 (the project service account after the key exists): [infra-provisioning-requirements.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/007-spool-hub-api-infra/infra-provisioning-requirements.md). Operational incident triage, on-call roles, and escalation follow the [incident runbook](incident-runbook.md). The module contract the bootstrap test pins is [csi-spl-iac/README.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-iac/README.md). It stays; this guide does not replace it.
 
 ## 2 Identity
 

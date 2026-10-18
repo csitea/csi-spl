@@ -128,5 +128,43 @@ ones: rows 06 and 07 must not both take `MobileStatusStrip.vue` or
 
 ## 3. Signature
 
-v0.1: **not signed**, changes requested (P1 and P3 block; P2, P4-P6 are
-edits). I sign v1.0 by a commit to this file once P1 and P3 are folded in.
+v0.1 (49e4ee86c): not signed, changes requested (P1 and P3 block).
+
+**v1.0 (43585e436): SIGNED by this commit**, with the 4 amendments below.
+Checked on origin/master 43585e436:
+
+- P3 folded: section 4 drops `micro-anim.css` / `v-micro-anim`; row 01
+  extends `tap-anim.css` + `useTapAnim.ts` with `playTapAnim`; v0.1 row 02
+  is merged into it and the Send row is dropped.
+- P1 folded at the file level: every row site exists
+  (`git ls-tree -r --name-only origin/master -- csi-spl-wui/src/components/<file>`).
+  Line numbers are loose (`UndoSnackbar.vue:140-165` past its 161 lines,
+  `AwaitAnimSetting.vue:1-110` past its 93, `FeedEmpty.vue:24` is
+  `<script setup>`); each lane re-finds its line with `grep -n`.
+- P2 and P5 folded (sections 3.1-3.2); P4 and P6 in part (A2, A4).
+
+Amendments the build lanes apply (the editor may fold them into the plan
+text; my signature covers v1.0 + A1-A4):
+
+- **A1, row 05, the desktop dot is missing.** The dot a desktop user sees
+  is `ChannelSidebar.vue:546` (`data-testid=connection-health`), not
+  `ConnectionStatus.vue:8` (inside the user menu). Row 05 takes
+  `ChannelSidebar.vue:546` and `MobileStatusStrip.vue:31`, so it moves
+  out of batch 3 (row 04 holds `ChannelSidebar.vue`) to batch 5 beside row
+  08 (`AwaitAnimSetting.vue`): disjoint. Section 6.2's "MobileStatusStrip
+  untouched in this batch" then holds as well.
+- **A2, row 09: name what is red on master.** M3 = 0 and M4 = 0 already
+  pass on master (my section 1.2), so they guard against regressions and do
+  not prove anything new. The red part is per row: after the trigger, the
+  class is on, and it is off within 600 ms. That assert fails on master and
+  passes once the row lands.
+- **A3, row 08: transform/opacity only.** "theme accent glow ring" animates
+  `box-shadow`, against section 7. Use the existing `pop` on tick only, no
+  hover motion.
+- **A4, measurement commands.** Rows 02-08 give a test description, not a
+  command, and row 06's `node -e "assert(...)"` does not run. Each lane puts
+  its exact command (`node --test tests/unit/<file>.test.mjs`) in its
+  commit body (R12).
+
+Note on section 9: the plan marked this seat "Signed v1.0" in 43585e436,
+before this seat signed. The signature is this commit, not that table row.

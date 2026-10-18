@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue'
 import { useNotificationStore } from '~/stores/notification'
 import { loadCursors, openerUnseen } from '~/utils/read-cursor.mjs'
+import { topicCounts } from '~/utils/topic-counts.mjs'
 import { useFlowKeys } from '~/composables/useFlowBadge'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -16,6 +17,8 @@ type Cursor = { ts?: string, id?: string }
  *    are re-read as one moves (topicRead), so opening the topic clears it.
  *  - hubUnread(m): SPL-2506 (owner, t1 d8fa6f9c): the hub's t: key for the
  *    topic, the part of its channel badge it holds (flowTopicUnread).
+ *  - unseen(m): SPL-2506 (owner, t1 43a1030f): the card's "<new>" number
+ *    (topicCounts), what the unread-first order reads (useUnreadOrder).
  *  - opened(m): opening the card zeroes its topic's hub t: key at once,
  *    until the hub's next counts (here, not in the eager store).
  */
@@ -30,7 +33,9 @@ export function flowTopicUnread(taskId: string) {
   return (taskId && Number(useFlowKeys().value?.[`t:${taskId}`])) || 0
 }
 
-export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewerId: Ref<string>) {
+type Counts = { countFor?: (taskId: string) => number, unreadFor?: (taskId: string) => number }
+
+export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewerId: Ref<string>, feed: Counts = {}) {
   const notes = useNotificationStore()
   const topicMarks = computed<Record<string, Cursor>>(() => {
     void notes.topicRead
@@ -43,10 +48,16 @@ export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewe
   function hubUnread(m: SpoolMessage) {
     return flowTopicUnread(String(m.task_id || ''))
   }
+  function unseen(m: SpoolMessage) {
+    const { countFor, unreadFor } = feed
+    const tid = String(m.task_id || '')
+    if (!countFor || !unreadFor) return 0
+    return topicCounts(countFor(tid), unreadFor(tid), openerNew(m), hubUnread(m)).unseen
+  }
   function opened(m: SpoolMessage) {
     const keys = useFlowKeys()
     const k = `t:${m.task_id || ''}`
     if (keys.value?.[k]) keys.value = { ...keys.value, [k]: 0 }
   }
-  return { openerNew, hubUnread, opened }
+  return { openerNew, hubUnread, unseen, opened }
 }

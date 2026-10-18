@@ -676,6 +676,7 @@ import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { loadHiddenPeers, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
+import { useUnreadOrder } from '~/composables/useUnreadOrder'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import { useSidebarCounts } from '~/composables/useSidebarCounts'
 import { useSidebarPeers } from '~/composables/useSidebarPeers'
@@ -1036,11 +1037,13 @@ const shownChannels = computed(() => channel.ordered.map((c) => {
   if (!copy) return c
   return { ...c, name: copy.name, description: copy.description }
 }))
-const channelRows = computed(() => pinRows(
+/* SPL-2506: channels with unread at the edge new posts go to (Message order), the most at the very edge */
+const unreadOrder = useUnreadOrder()
+const channelRows = computed(() => unreadOrder.order(pinRows(
   shownChannels.value,
   channelOrder.value,
   (c) => String(c.channel_id || ''),
-))
+), (c) => unreadOf('ch:' + c.channel_id)))
 
 /* a held row re-orders its list (useSidebarRowDrag) */
 const { dragging, dropping, droppingAfter, rowPointerDown, swallowDragClick } = useSidebarRowDrag(pinnedPeers, channelOrder, setChannelOrder)

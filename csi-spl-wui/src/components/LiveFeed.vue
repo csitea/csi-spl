@@ -171,6 +171,7 @@ import { JUMP_FOCUS_MS, onMessageJump } from '~/utils/msg-jump.mjs'
 import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { useTopicCardNew } from '~/composables/useTopicCardNew'
+import { useUnreadOrder } from '~/composables/useUnreadOrder'
 import { seatDividerId } from '~/utils/seat-divider.mjs'
 import { landFeed, rowEl, unreadLandingId } from '~/utils/unread-landing.mjs'
 import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
@@ -278,10 +279,15 @@ function clipModeFor() {
 }
 const root = ref<HTMLElement | null>(null)
 const { newestLast } = useViewPrefs()
+const { viewerId } = useMessageEdit()
+/* SPL-2422 / SPL-2506: a counted topic card's unseen opener and hub unread (the template and `shown` ask; before `shown`, which setup reads at once) */
+const cardNew = useTopicCardNew(() => props.unreadBoundary, viewerId, props)
+/* SPL-2506: cards and replies with unread go to the edge new posts go to, the most at the very edge */
+const unreadOrder = useUnreadOrder()
 /* the rows in DOM (= reading) order */
 /* CLE-77840: a reply deleted with the Delete key stays hidden while its Undo
    window is open, even if a re-read brings the hub's (not yet deleted) row back */
-const shown = computed(() => displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[])
+const shown = computed(() => unreadOrder.order(displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[], (m) => (countedRow(m) ? cardNew.unseen(m) : Number(isNew(m))), (m) => String(m.ts || '')))
 /* Newest last: a thread follows new replies too while its reader sits at the
    bottom (A6); a reader scrolled up in it is never moved. */
 const { pill, jump, hold } = useScrollAnchor(
@@ -298,7 +304,6 @@ const { pill, jump, hold } = useScrollAnchor(
    isNew() drives the fading highlight; newCount the jump button. The reader's
    OWN messages are never new (HUM-24, topic 311427c6): sending one must not
    push it under the divider or bump the "N new" count. */
-const { viewerId } = useMessageEdit()
 function isOwn(m: SpoolMessage) {
   return isViewersOwn(m, viewerId.value)
 }
@@ -307,8 +312,6 @@ const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value,
 function isNew(m: SpoolMessage) {
   return Boolean(props.unreadBoundary) && !isOwn(m) && isUnread(m, props.unreadBoundary)
 }
-/* SPL-2422 / SPL-2506: a counted topic card's unseen opener and hub unread (the template asks only then) */
-const cardNew = useTopicCardNew(() => props.unreadBoundary, viewerId)
 
 /* Spec 061 3.6 (lane L10): the first message of a reused id's current holder. */
 const seatId = computed(() => (props.seatedAt ? seatDividerId(shown.value, props.seatedAt) : ''))

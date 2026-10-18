@@ -78,6 +78,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 | **FR-010** | Help `channels-and-direct-messages.md` and `interface-overview.md` §3.1 describe one number per row and the title as their sum | Planned |
 | **FR-011** | A topic card's `<new>/<total>` (owner HUM-10, t1 89010926, SPL-2422): total = the first message + its replies; the first message is 1 new for a reader who has not seen it (not their own, after their `t:` mark or, with none, after the channel boundary: `openerUnseen`), so a fresh topic reads `1/1`; it wears the channel row badge (`badge-unread`), a step smaller (0.625rem) and a shade lighter | Done (SPL-2422) |
 | **FR-012** | A feed with unseen messages opens where they start, in the reader's `message_order` (owner HUM-10, t1 89010926, SPL-2430): a channel, a DM and the topic pane draw the "new" divider (a topic's boundary is its `t:` mark as the open found it, `topicBoundary`); newest-last lands the divider at the top, newest-first the newest unseen (the top of the unseen block), held while the cards settle (`unread-landing.mjs`); the "N new" jump pill hides while that landing row is on screen. e2e `unread-open-at-first-unseen` (channel + topic, both orders, 1440 + 390 px) | Done (SPL-2430) |
+| **FR-013** | Every listing puts its items with unread at the edge new posts go to (owner HUM-10, t1 43a1030f, SPL-2506: "in any listing whenever there are new msgs, they should be at the top or at the bottom", "the more unread msgs the upper or lower ... the msg card / object should get"): the top for `message_order` newest first, the bottom for newest last. The item with the most unread sits at the very edge, then the next most; a tie goes to the newest unread; items with 0 unread keep today's order (`unreadFirst`, `useUnreadOrder`). Listings: sidebar channels (`ch:`), DMs (`dm:`), a channel's topic cards (the card's `<new>`), a thread's replies (1 each while new), Issues (1 while never opened, or the topic's hub `t:` key). Unit `unread-first`, e2e `unread-first-order` (topic cards newest last, Issues newest first) | Done (SPL-2506) |
 
 ## 6. Acceptance scenarios
 
@@ -119,5 +120,6 @@ New hub counters or endpoints. Changing what Flow counts (062). Mobile-only pres
 |---|---|---|
 | v0.1 | First spec from the consensus (L3): one model, row numbers, title = row sum, Flow labelled | c-245 |
 | v0.1.2 | FR-005: a card's `<new>` is at least its topic's hub `t:` key (SPL-2506) | c-455 |
+| v0.1.3 | FR-013: items with unread at the edge new posts go to, most unread at the very edge (SPL-2506) | c-455 |
 
-<!-- version: 0.1.2 · updated: 2026-10-18 · last-edit: 2026-10-18T08:40:00Z -->
+<!-- version: 0.1.3 · updated: 2026-10-18 · last-edit: 2026-10-18T11:40:00Z -->

@@ -1201,6 +1201,7 @@ import { useCardClip } from '~/composables/useCardClip'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useViewPrefs } from '~/composables/useViewPrefs'
+import { useIssueUnreadOrder } from '~/composables/useIssueUnreadOrder'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
 import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
@@ -1221,9 +1222,7 @@ import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs
 import { deadlineOverdue, issueCalendarHref } from '~/utils/issue-calendar-link.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import {
-  ISSUE_LEVELS,
-  ISSUE_PRIORITIES,
-  LEVEL_SHORT,
+  ISSUE_LEVELS, ISSUE_PRIORITIES, LEVEL_SHORT,
   applyIssueFrame,
   applyLabelFrame,
   deadlineToLocalInput,
@@ -1495,6 +1494,7 @@ const assigneeOptions = computed(() => {
    signed out (the mock tenant) a click still switches this page. Phones keep
    the card list (SPL-992). */
 const viewPrefs = useViewPrefs()
+const unreadIssues = useIssueUnreadOrder() /* SPL-2506: unread issues at the edge new posts go to */
 const viewLocal = ref<IssuesView | ''>('')
 const viewBy = computed<IssuesView>(() => {
   if (phone.value) return 'list'
@@ -1507,7 +1507,7 @@ async function pickView(v: IssuesView) {
 const groups = computed(() => {
   const base = unreadF.value ? issues.value.filter(isNewIssue) : issues.value
   const kept = groupIssues(base, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
-  const rows = sortSheet(kept, sheetSort.value, { name: person, labelName: labelText })
+  const rows = unreadIssues(sortSheet(kept, sheetSort.value, { name: person, labelName: labelText }))
   if (viewBy.value !== 'status') return [{ status: '', count: rows.length, issues: rows }]
   /* Linear's "group by status": every status in the workflow order, its
      count, the sheet's sort inside each group; an empty group stays as a drop target */

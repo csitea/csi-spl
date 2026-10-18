@@ -152,7 +152,7 @@ spl_ars_slot() {
 # ARS_PANE, ARS_CAUSE, ARS_CODE, ARS_EV, ARS_WT and the WDT_* names the
 # takeover's helpers read. Non-zero is the exit code.
 spl_ars_gate() {
-  local id="$1" cause="$2" now="$3" tick ctx row why hits="" hid lt age start
+  local id="$1" cause="$2" now="$3" tick ctx row why hits="" hid lt age start left
   local -a pids
   tick="$WD_DIR/restart.$id.tick" ctx="$WD_DIR/restart.$id.ctx"
   lt="$SPOOL_ROOT/$id/lifetime"
@@ -184,8 +184,15 @@ spl_ars_gate() {
     read -r hid _ < "$LEASE_DIR/rotate.hold" || true
     [[ "$hid" == "$id" ]] || { spl_ars_refuse "$id" 4 "rotate.hold names ${hid:-?}: a rotation runs on this box"; return; }
   fi
+  # S3 left behind (s3.sh): the pids that carry the id are jobs of the ended
+  # session, not a second one; none is the harness, none is killed
+  left=""
+  if [[ "$cause" =~ ^(S3|rebirth)$ && -n "$ARS_PID" && -n "$ARS_PANE" ]]; then
+    why="$(WD_CTX="$ctx" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s3.sh" "$id" "$ARS_PID" "$ARS_PANE" 2>/dev/null 6>&- 7>&- 9>&- || true)"
+    grep -qE '^HIT S3 (rebirth: .*; )?left behind: ' <<<"$why" && left=1
+  fi
   mapfile -t pids < <(spl_peer_pids "$id")
-  (( ${#pids[@]} <= 1 )) || { spl_ars_refuse "$id" 4 "duplicate: ${#pids[@]} live processes carry $id (pids ${pids[*]})"; return; }
+  (( ${#pids[@]} <= 1 )) || [[ -n "$left" ]] || { spl_ars_refuse "$id" 4 "duplicate: ${#pids[@]} live processes carry $id (pids ${pids[*]})"; return; }
   ARS_CAUSE="$cause" ARS_CODE="" ARS_EV="${WD_EVIDENCE:-}"
   case "$cause" in
     rebirth|S1|S3|S4|S5|S7|S9)
@@ -201,6 +208,7 @@ spl_ars_gate() {
       ARS_CODE=hard-end ARS_EV="session ${age}s old" ;;
     *) ARS_CODE="$cause" ARS_EV="${ARS_EV:-requested ($cause), no situation re-run}" ;;
   esac
+  [[ -z "$left" ]] || ARS_PID=""
   ARS_WT="$(spl_rotate_workdir "$id")"
   # shellcheck disable=SC2034 # read by the takeover helpers (spl_wdt_section, spl_wdt_spawn)
   WDT_CODE="$ARS_CODE" WDT_EV="$ARS_EV" WDT_CTX="$ctx" WDT_PID="$ARS_PID" WDT_PANE="$ARS_PANE" WDT_SEAT=""

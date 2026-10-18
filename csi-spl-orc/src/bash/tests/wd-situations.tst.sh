@@ -12,6 +12,8 @@
 #      situation of 6.1 (the scripts read only their context dir)
 #      S3 of spec 102 4.3 (T005): a done marker, a stale one, a rebirth
 #      marker, a gone pane with an open registry row, each with its control
+#      S3 left behind (SPL-2511): the wrapper's ended screen while a job of
+#      the ended session carries the id; red control: no ended screen
 #      S1 holds while a tool call runs (heartbeat tool + tool_since) under
 #      WD_S1_TOOL_CAP while its pid is the live harness (heartbeat ts 216 s
 #      old: c-545 2026-10-08); controls: past the cap, no live harness, the
@@ -275,6 +277,36 @@ printf 'bash\nVibe\n' > "$C/tree"
 hit "S3 control: a bare 'Vibe' (the old \$4 cut) is no harness" s3 m-900 -
 ctx s3f; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; echo /opt/x/c-900 > "$C/rundir_gone"
 nohit "S3 control: a lane that tore down its workdir and exited (finished)" s3 c-900 -
+# S3 left behind (SPL-2511): the session ended (the wrapper's own screen),
+# a `pnpm dev &` it started still carries the id (m-419 sat 2026-10-18, n=1)
+s3end() {  # s3end <name> <kind> <id>: the restore wrapper's end screen + a bare bash
+  ctx "$1"; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
+  printf '%s\n' '════' " Restored $2 session '$3' ended. Pane kept open so the" \
+    ' window stays visible. Up-arrow recalls: sudo su - x' '════' 'bash-5.2$' >> "$C/pane"
+}
+s3end s3l agy a-900
+grep -q '^HIT S3 left behind: pane %9 shows a-900.s session ended and runs only .bash.; pid 4242 carrying a-900 is no harness$' <<<"$(run_s s3 a-900 4242)" &&
+  pass "S3 left behind: the ended screen, bash in front, a pid outside the pane carries the id" || fail "S3 left behind: $(run_s s3 a-900 4242)"
+s3end s3lm mistral m-900
+hit "S3 left behind: mistral's ended screen too" s3 m-900 4242
+ctx s3ls; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
+printf '%s\n' " claude session 'c-900' ended. Pane kept open so the window stays" ' visible. Press Ctrl-b & to close this window, or scroll back to read.' \
+  "$(seq -f ' line %g of the spawn block, wrapped' 1 20)" 'bash-5.2$' >> "$C/pane"
+hit "S3 left behind: spawn-core's ended block, 22 lines above the prompt" s3 c-900 4242
+s3end s3lr agy a-900; sed -i '/ended\. Pane kept open/d' "$C/pane"
+nohit "S3 left behind red control: no ended screen, a pid carries the id (the old rule)" s3 a-900 4242
+s3end s3lo agy a-901
+nohit "S3 left behind control: the ended screen names another id" s3 a-900 4242
+s3end s3lh agy a-900; printf 'bash\nnode\n' > "$C/tree"
+nohit "S3 left behind control: a node runs under the pane (a harness)" s3 a-900 4242
+s3end s3lf agy a-900; echo vim > "$C/fg"
+nohit "S3 left behind control: no shell in front" s3 a-900 4242
+s3end s3lp agy a-900; { cat "$C/pane"; seq -f 'later %g' 1 41; } > "$C/pane.n"; mv "$C/pane.n" "$C/pane"
+nohit "S3 left behind control: the ended line scrolled 41 lines up (WD_ENDED_TAIL 40)" s3 a-900 4242
+s3end s3lg agy a-900
+nohit "S3 left behind control: a pid and no pane" s3 a-900 4242 -
+s3end s3ld agy a-900; echo $((T0 - 60)) > "$C/done"
+nohit "S3 left behind control: a done marker (finished)" s3 a-900 4242
 # S3 (spec 102 4.3, T005): done and rebirth markers, a gone pane
 s3ctx() { ctx "$1"; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"; echo "%9" > "$C/registry_open"; }
 s3ctx s3d; echo $((T0 - 60)) > "$C/done"; echo $((T0 - 600)) > "$C/session_start"

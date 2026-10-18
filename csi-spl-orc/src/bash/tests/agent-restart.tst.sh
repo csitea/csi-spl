@@ -73,6 +73,12 @@
 #      ... row reviewer". Controls: the same seat blocked -> WAIT, reopened
 #      -> ACT, in flight -> CONTINUE; a row brief naming the round's
 #      standing reviewer, or a "## How (seat rule: ...)" heading -> FINISH
+#  19. S3 left behind (SPL-2511; m-419 sat 2026-10-18, n=1): the session
+#      ended (the wrapper's screen, bash in front) and two `pnpm dev` node
+#      pids it started, outside the pane, still carry the id: restarted,
+#      not refused as a duplicate, the jobs neither killed nor taken for the
+#      old session. Red control: the same pids without the ended screen ->
+#      exit 4 duplicate (the old rule for every case)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -563,6 +569,32 @@ rc="$(go ID=c-987 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-987)"
 [[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
   pass "18. control: a row brief naming another lane's standing reviewer, a '## How (seat rule: ...)' heading -> FINISH" ||
   fail "18. plain done rc=$rc: $(step18 "$sd")"
+
+# --- 19. S3 left behind: the ended session's jobs still carry the id ------------------------
+left19() {  # left19 <id> <pane> [ended]: a bash pane, two node jobs (ppid 1) carrying the id
+  local id="$1" pane="$2" n="${1##*-}" pid
+  world; lane "$id" "$pane" -
+  for pid in "79$n" "89$n"; do
+    echo "$pid 1 20000 node" >> "$T/ps"; mkdir -p "$T/proc/$pid"; echo node > "$T/proc/$pid/comm"
+    printf 'SPOOL_AGENT_ID=%s\0' "$id" > "$T/proc/$pid/environ"; printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" > "$T/proc/$pid/status"
+  done
+  if [[ -n "${3:-}" ]]; then
+    printf '%s\n' '════' " Restored claude session '$id' ended. Pane kept open so the" ' window stays visible.' '════' 'bash-5.2$' > "$T/tmux/screen.$pane"
+  else printf 'bash-5.2$\n' > "$T/tmux/screen.$pane"; fi
+}
+left19 c-960 %60 ended
+rc="$(go ID=c-960 CAUSE=S3 DRY_RUN=0)"
+bad=""
+[[ "$rc" == 0 ]] || bad+=" rc=$rc"
+grep -q '^spawn claude c-960 ' "$T/spawn.log" 2>/dev/null || bad+=" no-spawn"
+alive 79960 && alive 89960 || bad+=" a-job-was-killed"
+[[ ! -s "$T/kill.log" ]] || bad+=" kill:$(cat "$T/kill.log")"
+grep -q 'duplicate' "$T/o" "$D/rotate.log" 2>/dev/null && bad+=" duplicate"
+[[ -z "$bad" ]] && pass "19. S3 left behind: restarted, its two node jobs kept, no duplicate refusal" || fail "19. left behind:$bad $(tail -3 "$T/o")"
+left19 c-961 %61
+rc="$(go ID=c-961 CAUSE=S3 DRY_RUN=0)"
+[[ "$rc" == 4 ]] && grep -q 'duplicate: 2 live processes carry c-961' "$T/o" "$D/rotate.log" 2>/dev/null && [[ ! -s "$T/spawn.log" ]] &&
+  pass "19. red control: the same jobs with no ended screen -> exit 4 duplicate, nothing spawned" || fail "19. red control rc=$rc: $(tail -3 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

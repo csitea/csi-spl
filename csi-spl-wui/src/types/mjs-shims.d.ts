@@ -1850,6 +1850,7 @@ declare module '~/utils/submit-key.mjs' {
     opts?: { mode?: unknown, inCode?: boolean },
   ): 'submit' | 'newline' | ''
   export function submitHintKey(mode: unknown, byMode: Record<string, string>): string
+  export function submitHintFor(mode: unknown, base: string): string
   export function applySubmitKeySetting(
     want: unknown,
     io: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },

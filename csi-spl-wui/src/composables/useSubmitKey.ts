@@ -9,7 +9,7 @@
 // A field with its own keys (pickers, fences) asks keyAction() instead and
 // acts on 'submit' itself.
 import { useSessionStore } from '~/stores/session'
-import { parseSubmitKey, submitHintKey, submitKeyAction, type SubmitKey } from '~/utils/submit-key.mjs'
+import { parseSubmitKey, submitHintFor, submitHintKey, submitKeyAction, type SubmitKey } from '~/utils/submit-key.mjs'
 
 export function useSubmitKey() {
   const session = useSessionStore()
@@ -30,12 +30,9 @@ export function useSubmitKey() {
     return submitHintKey(mode.value, byMode)
   }
 
-  /**
-   * A placeholder that names the keys: `base` is the Ctrl+Enter wording, and
-   * `<base>_enter` the Enter-sends one, in every locale.
-   */
+  /** A placeholder key that names the keys (submitHintFor). */
   function hintFor(base: string) {
-    return mode.value === 'enter' ? `${base}_enter` : base
+    return submitHintFor(mode.value, base)
   }
 
   return { mode, keyAction, onKeydown, hintKey, hintFor }

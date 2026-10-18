@@ -11,6 +11,7 @@ import {
   parseSubmitKey,
   submitKeyAction,
   submitHintKey,
+  submitHintFor,
   applySubmitKeySetting,
 } from '../../src/utils/submit-key.mjs'
 
@@ -84,6 +85,25 @@ describe('submitHintKey', () => {
     assert.equal(submitHintKey('enter', by), 'a')
     assert.equal(submitHintKey('ctrl-enter', by), 'b')
     assert.equal(submitHintKey(null, by), by[DEFAULT_SUBMIT_KEY])
+  })
+})
+
+describe('submitHintFor', () => {
+  it('mode enter names the Enter-sends key, <base>_enter', () => {
+    assert.equal(submitHintFor('enter', 'search.placeholder'), 'search.placeholder_enter')
+  })
+  it('mode ctrl-enter keeps the base key', () => {
+    assert.equal(submitHintFor('ctrl-enter', 'search.placeholder'), 'search.placeholder')
+  })
+  it('an unknown or missing mode reads as the default mode', () => {
+    for (const bad of [null, undefined, '', 'Enter', 7]) {
+      assert.equal(submitHintFor(bad, 'x'), submitHintFor(DEFAULT_SUBMIT_KEY, 'x'))
+    }
+  })
+  it('the composable hintFor wraps it and keeps no rule of its own', () => {
+    const src = read('src/composables/useSubmitKey.ts')
+    assert.match(src, /return submitHintFor\(mode\.value, base\)/)
+    assert.doesNotMatch(src, /_enter`/)
   })
 })
 

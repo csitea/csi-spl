@@ -56,6 +56,16 @@ export function submitHintKey(mode, byMode) {
 }
 
 /**
+ * A placeholder key that names the keys: `base` is the Ctrl+Enter wording,
+ * and `<base>_enter` the Enter-sends one, in every locale.
+ * @param {unknown} mode
+ * @param {string} base
+ */
+export function submitHintFor(mode, base) {
+  return parseSubmitKey(mode) === 'enter' ? `${base}_enter` : base
+}
+
+/**
  * The radio's save, optimistic like the Debug pane: mirror the claim at once
  * so every field follows, save it, and put the old value back on a refusal.
  * @param {unknown} want

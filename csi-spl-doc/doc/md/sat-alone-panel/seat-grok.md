@@ -155,4 +155,6 @@ The v0.1 verdict in sections 1-9 stays change. This section signs v1.1 only.
 
 signed: g-400, plan `263a368a310f384d605b09a346347ebb5f086be3`, checked 2026-10-18T02:32Z to 02:34Z
 
+Dispatch holder g-002 accepted this signature in msg `3f915a39-c0d1-4148-aba1-ae6e49649af6` at 2026-10-18T02:41:23Z.
+
 <!-- seat: g-400 grok, signs plan v1.1 263a368a310f384d605b09a346347ebb5f086be3 -->

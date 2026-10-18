@@ -12,6 +12,9 @@
 # @description     done or diss is a no-op; an epic or a feature is skipped;
 # @description     an issue in qas is a no-op too: it holds a review a human
 # @description     asked for, which closes it (spec 135 Q7, owner msg 910b14c9)
+# @description   - a move that closes the issue's epic with it (SPL-1729) while
+# @description     a queued spawn ask's brief on this box names that epic
+# @description     reopens the epic: that lane files its issue under it (SPL-2508)
 # @description   - every (issue, sha) pair acted on goes to a ledger (closed.tsv:
 # @description     key, sha, moved | noop) and never
 # @description     acts again: an issue the owner reopens is not closed again by
@@ -139,7 +142,7 @@ spl_icl_apply() {
 
 # spl_icl_move KEY SHAS SUBJECT WUI: the audit comment, then status done.
 spl_icl_move() {
-  local key="$1" shas="$2" subject="$3" wui="$4" body s lines=""
+  local key="$1" shas="$2" subject="$3" wui="$4" body s lines="" ans
   for s in ${shas//,/ }; do lines+="- ${s:0:12}: $wui/releases/$s"$'\n'; done
   body="Landed on master, so done (owner rule, t1 dee4081d msg ea519baa), by do_spl_issue_close_landed.
 
@@ -148,5 +151,51 @@ The newest: $subject
 
 Reopen it if it is not done: the same commit never closes it again."
   spl_desk_issue_run comment --ref "$key" --body "$body" >/dev/null || return 1
-  spl_desk_issue_run update --ref "$key" --status "done" >/dev/null || return 1
+  ans="$(spl_desk_issue_run update --ref "$key" --status "done")" || return 1
+  spl_icl_keep_epic "$key" "$ans"
+}
+
+# spl_icl_keep_epic KEY ANSWER: the move closed KEY's epic with it (SPL-1729:
+# its last open issue closed, so the epic closed and was archived) while a
+# queued spawn ask's brief on this box still names that epic: reopen it, or
+# that lane's issue is refused at launch (unknown_parent; SPL-2508, epic
+# SPL-2372 on 2026-10-18). A brief on another box is not seen here: its
+# placer hands the ask to the orchestrator with the reason (do_spl_spawn_place).
+spl_icl_keep_epic() {
+  local key="$1" epic asks
+  epic="$(tail -n 1 <<<"$2" | jq -r '(.result.epic_closed // .epic_closed // {}).key // empty' 2>/dev/null)"
+  [[ -n "$epic" ]] || return 0
+  asks="$(spl_icl_queued_for "$epic")"
+  if [[ -z "$asks" ]]; then
+    do_log "INFO $key closed its epic $epic (SPL-1729); no queued spawn brief here names it"
+    return 0
+  fi
+  if spl_desk_issue_run unarchive --ref "$epic" >/dev/null && spl_desk_issue_run update --ref "$epic" --status wip >/dev/null &&
+    spl_desk_issue_run comment --ref "$epic" --body "Reopened by do_spl_issue_close_landed: $key closed it as its last open issue, but queued spawn asks still name it on their Epic: line ($asks), and their lanes file their issues under it (SPL-2508)." >/dev/null; then
+    do_log "OK $epic reopened: queued spawn asks $asks name it"
+  else
+    do_log "WARN $key closed its epic $epic, which queued spawn asks $asks name, and reopening it failed: reopen it by hand"
+  fi
+  return 0
+}
+
+# spl_icl_queued_for EPIC -> the queued spawn asks (8 hex each, space
+# separated) whose brief on this box names EPIC. ISSUE_CLOSE_QUEUE_CMD (tests)
+# prints the queue JSON; else do_spl_spawn_queue's. No queue: nothing.
+spl_icl_queued_for() {
+  local rows id slug brief e out=""
+  if [[ -n "${ISSUE_CLOSE_QUEUE_CMD:-}" ]]; then
+    rows="$($ISSUE_CLOSE_QUEUE_CMD 2>/dev/null)"
+  else
+    rows="$(SPAWN_QUEUE_FORMAT=json SPAWN_QUEUE_SHARE=0 do_spl_spawn_queue 2>/dev/null)"
+  fi
+  declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+  declare -F li_brief_epic_spec >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
+  while IFS=$'\t' read -r id slug; do
+    brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "$slug")"
+    [[ -n "$brief" ]] || continue
+    e="$(li_brief_epic_spec "$brief" 2>/dev/null)"
+    [[ -n "$e" && "${e#*$'\t'}" == "$1" ]] && out+="${out:+ }${id:0:8}"
+  done < <(jq -r '.queue[]? | select((.placement // "") != "") | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$rows" 2>/dev/null)
+  printf '%s' "$out"
 }

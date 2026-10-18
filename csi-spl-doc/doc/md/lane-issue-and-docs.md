@@ -115,13 +115,35 @@ files names both, or nothing is filed:
   read). A brief placed without that check (an ask queued before the rule, a
   hand spawn) is refused at placement: `do_spl_lane_issue` fails, so
   `spawn-window.sh` exits 12 and releases the id (1.2); the lane never starts.
+- **The epic must be open** (SPL-2508). The hub refuses an issue under an
+  epic that is archived or deleted (`unknown_parent`), and an epic closes and
+  is archived by itself when its last open issue closes (SPL-1729). On
+  2026-10-18 at 00:25Z the landed-fix closer moved SPL-2461 to done, which
+  closed and archived its epic SPL-2372 while queued briefs still named it;
+  each of them then failed at launch with exit 12, retried every 10 min, and
+  the queue stalled behind them. Three checks now:
+  - `do_spl_spawn_enqueue` reads the brief's epic on the hub
+    (`do_spl_issue_status`): done, diss or not a live issue refuses the ask,
+    `FATAL ask not queued: brief <file> names epic SPL-<n>, but ...: point its
+    'Epic:' line at an open epic, or reopen SPL-<n>`.
+  - `do_spl_spawn_place` checks the head row's brief the same way before it
+    launches: a closed epic hands the ask to the orchestrator in ONE blocker with
+    that line (the hand-off of a brief that needs judgement), nothing is
+    launched, and the queue moves on.
+  - `do_spl_issue_close_landed`: a move whose answer says it closed the
+    issue's epic (`epic_closed`) while a queued spawn ask's brief ON THIS BOX
+    names that epic reopens it (unarchive, `wip`, a comment naming the asks).
+    The closer runs on one box; a brief on another box is caught by that
+    box's placer (above).
+  A hub that does not answer refuses nothing; the launch still reports it.
 
 The one FATAL line names the order and what to add, for example:
 
     FATAL refused, nothing filed: no issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): no spec folder named. Add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line (a folder on origin/master) and an 'Epic: SPL-<n>' line
 
 Existing issues are not touched here (their epics are linked by a separate
-lane, owner msg 52da8fbb). Code: `li_epic_spec`, `li_brief_epic_spec` in
+lane, owner msg 52da8fbb). Code: `li_epic_spec`, `li_brief_epic_spec`,
+`li_epic_closed`, `li_brief_epic_closed` in
 `spawn-agents/lib/lane-issue.inc.sh`; `spl_lane_issue_guard`;
 `spl_issue_create_epic_spec`.
 

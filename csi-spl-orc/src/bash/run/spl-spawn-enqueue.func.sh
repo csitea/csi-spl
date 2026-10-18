@@ -17,6 +17,9 @@
 # @description the spec's pin), or the ask is not queued (one FATAL line): the
 # @description placer would file its issue, and there is no issue without an
 # @description epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6).
+# @description An epic that is done, diss or archived on the hub refuses the
+# @description ask the same way (SPL-2508): the hub would refuse the lane's
+# @description issue under it ("unknown_parent") at launch.
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share
@@ -68,6 +71,8 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
     local brief; brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "${place#*:}")"
     [[ -z "$brief" ]] || LI_REFUSED="ask not queued" li_brief_epic_spec "$brief" >/dev/null || return 1
+    local closed; closed="$([[ -z "$brief" ]] || li_brief_epic_closed "$brief")"
+    [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
   fi
   row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
   (( rc == 0 )) || return "$rc"

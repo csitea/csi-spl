@@ -71,9 +71,10 @@
 # @description         env.box.agent_split.mistral_coding_allowed is not true
 # @description         (spl_lane_mix_mistral_code_off); do_spl_spawn_enqueue
 # @description         refuses such a placement up front
-# @description      b. otherwise (no placement, or no brief file here: the brief
-# @description         needs judgement) the holder gets ONE blocker "place ask X
-# @description         now" with the summary and the close command
+# @description      b. otherwise (no placement, no brief file here, or a brief
+# @description         whose epic is done, diss or archived on the hub, SPL-2508:
+# @description         the brief needs judgement) the holder gets ONE blocker
+# @description         "place ask X now" with the summary and the close command
 # @description         (do_spl_spawn_placed); 1 brings it back if it is not placed
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
@@ -329,7 +330,7 @@ spl_spawn_place_pin_full() {  # BOX
 
 # 4. Take the head: placing, then launch it or hand it to the holder.
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief why ps=()
+  local holder="$1" id place brief why closed="" ps=()
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
   mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
@@ -339,13 +340,24 @@ spl_spawn_place_take() {  # HOLDER HEAD
     do_log "INFO hold: ask ${id:0:8} is pinned to ${ps[0]}: $why; it stays queued"
     return 0
   fi
+  [[ -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_epic_closed "$brief")"
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
-  if [[ -n "$place" && -n "$brief" ]]; then
+  if [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
     touch "$(spool_asks_dir)/.place.last"
     spl_spawn_place_launch "$holder" "$2" "$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")" "${ps[1]}" "$brief" "${ps[0]}"
   else
-    spl_spawn_place_hand "$holder" "$2" "$(if [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
+    spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
+}
+
+# The brief's epic is closed on the hub (li_brief_epic_closed, SPL-2508): the
+# lane's issue would be refused at launch (unknown_parent, spawn-window exit
+# 12) and the row retried every SPAWN_PLACE_GAP_MIN. It goes to the holder
+# once instead, the reason in the blocker; nothing is launched.
+spl_spawn_place_epic_closed() {  # BRIEF
+  declare -F li_brief_epic_closed >/dev/null ||
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 0
+  li_brief_epic_closed "$1"
 }
 
 # The vendor to launch: VENDOR, except mistral on UI work while the cnf

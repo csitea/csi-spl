@@ -64,6 +64,7 @@ STUBS='spl_issue_list_fetch() { echo "list $*" >>"$STUB_LOG"; cat "$LIST"; }
 spl_desk_issue_run() {
   echo "hub $1 $3 ${5:-}" >>"$STUB_LOG"
   [[ "$1 $3" == "update ${HUB_FAIL:-none}" ]] && return 1
+  [[ "$1 $3" == "update SPL-30" ]] && echo "{\"result\":{\"issue\":{\"key\":\"SPL-30\"},\"epic_closed\":{\"key\":\"SPL-31\",\"status\":\"done\",\"archived\":true}}}"
   if [[ "$1" == get ]]; then
     case "$3" in
       SPL-10) echo "{\"result\":{\"issue\":{\"status\":\"done\"}}}" ;;
@@ -163,5 +164,32 @@ out="$(ISSUE_CLOSE_ALLOW_WORKTREE=1 ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$PROJ
 
 grep -qE '^issue-close-landed +\| \*/5 \* \* \* \* +\| src/bash/scripts/issue-close-landed-cron.sh ' "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" &&
   pass "12. the box-crons manifest carries the 5-minute issue-close-landed row" || fail "12. no issue-close-landed row in box-crons.manifest"
+
+# 13. SPL-2508: the move closes the issue's epic with it (SPL-1729: its last
+# open issue), and a queued spawn ask's brief here names that epic: the epic
+# is reopened (unarchive, wip, a comment naming the ask). CONTROL: the same
+# move with the queued brief naming another epic leaves it closed.
+git init -q --bare "$T/specs.git" && git init -q -b master "$T/specs"
+mkdir -p "$T/specs/csi-spl-doc/specs/135-work-process" && echo '# Spec 135' >"$T/specs/csi-spl-doc/specs/135-work-process/spec.md"
+git -C "$T/specs" add -A && git -C "$T/specs" -c user.name=t -c user.email=t@example.com commit -q -m s &&
+  git -C "$T/specs" remote add origin "$T/specs.git" && git -C "$T/specs" push -q origin master 2>/dev/null
+mkdir -p "$T/briefs"
+printf 'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-31\n' >"$T/briefs/tokens-tab.md"
+printf 'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-99\n' >"$T/briefs/other-epic.md"
+printf '#!/usr/bin/env bash\necho "{\\"queue\\":[{\\"ask_id\\":\\"43b0dd6b-0000-4000-8000-000000000001\\",\\"state\\":\\"queued\\",\\"placement\\":\\"agy:$QSLUG\\"}]}"\n' >"$T/queue"
+chmod +x "$T/queue"
+printf '{"env":"dev","result":{"next_cursor":"","issues":[%s]}}\n' "$(issue SPL-30 wip issue)" >"$T/list30.json"
+S30=$(commit "fix(orc, SPL-30): the last open issue of epic SPL-31")
+run DRY_RUN=0 LIST="$T/list30.json" ISSUE_CLOSE_QUEUE_CMD="$T/queue" QSLUG=tokens-tab SPAWN_PLACE_BRIEF_DIR="$T/briefs" LI_SPEC_REPO="$T/specs"; rc=$?
+[ "$rc" = 0 ] && [ "$(row SPL-30)" = moved ] && grep -q '^hub unarchive SPL-31 ' "$T/calls.log" && grep -q '^hub update SPL-31 wip' "$T/calls.log" &&
+  grep -q '^hub comment SPL-31 Reopened by do_spl_issue_close_landed: SPL-30 closed it' "$T/calls.log" && grep -q 'OK SPL-31 reopened: queued spawn asks 43b0dd6b' "$T/o" &&
+  pass "13. a move that auto-closes an epic a queued brief names reopens the epic (unarchive, wip, comment naming ask 43b0dd6b)" ||
+  fail "13. keep epic (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+S30B=$(commit "fix(orc, SPL-30): again, the brief names another epic")
+run DRY_RUN=0 LIST="$T/list30.json" ISSUE_CLOSE_QUEUE_CMD="$T/queue" QSLUG=other-epic SPAWN_PLACE_BRIEF_DIR="$T/briefs" LI_SPEC_REPO="$T/specs"; rc=$?
+[ "$rc" = 0 ] && grep -q "^hub update SPL-30 done" "$T/calls.log" && ! grep -q 'SPL-31' "$T/calls.log" &&
+  grep -q 'INFO SPL-30 closed its epic SPL-31 (SPL-1729); no queued spawn brief here names it' "$T/o" &&
+  pass "13. control: the same auto-close with no queued brief naming SPL-31 leaves it closed (no unarchive, no reopen)" ||
+  fail "13. control (rc $rc, ${S30:0:7} ${S30B:0:7}): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

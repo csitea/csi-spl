@@ -193,20 +193,65 @@ li_docs_verdict() {
 # A test sandbox (SPOOL_TEST=1) with no stub reads nothing.
 LI_ORC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 li_hub_status() {
-  local key="$1" out home
+  li_hub_read "$1" | li_status_of "$1"
+}
+
+# li_status_of KEY < ANSWER -> the status on its `issue-status` line, or nothing.
+li_status_of() {
+  awk -F'\t' -v k="$1" '$1 == "issue-status" && $2 == k && $3 ~ /^[a-z_]+$/ { s = $3 } END { if (s != "") print s }'
+}
+
+# li_hub_read KEY -> do_spl_issue_status's whole answer, its refusal line
+# too (the hub's "not_found" for an archived or deleted issue); nothing when
+# there is no hub to ask. The one hub read of li_hub_status and li_epic_closed.
+li_hub_read() {
+  local key="$1" home
   local -a cmd=()
   if [ -n "${LI_HUB_STATUS_CMD:-}" ]; then
-    out="$(timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>/dev/null </dev/null)"
-  else
-    [ "${SPOOL_TEST:-}" != 1 ] && [ -x "$LI_ORC/run" ] || return 0
-    if [ -n "${SPOOL_BOX_USER:-}" ] && [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
-      home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
-      cmd=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$home")
-    fi
-    out="$(cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env ISSUE_REF="$key" \
-      SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" ./run -a do_spl_issue_status 2>/dev/null </dev/null)"
+    timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>&1 </dev/null
+    return 0
   fi
-  awk -F'\t' -v k="$key" '$1 == "issue-status" && $2 == k && $3 ~ /^[a-z_]+$/ { s = $3 } END { if (s != "") print s }' <<<"$out"
+  [ "${SPOOL_TEST:-}" != 1 ] && [ -x "$LI_ORC/run" ] || return 0
+  if [ -n "${SPOOL_BOX_USER:-}" ] && [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
+    home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
+    cmd=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$home")
+  fi
+  (cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env ISSUE_REF="$key" \
+    SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" ./run -a do_spl_issue_status 2>&1 </dev/null)
+  return 0
+}
+
+# An issue goes under an open epic only: the hub answers "unknown_parent"
+# for an epic that is archived or deleted, and the epic close of SPL-1729
+# archives it (SPL-2508: SPL-2372 auto-closed at 00:25Z on 2026-10-18, and
+# every queued brief naming it failed at launch, spawn-window exit 12, each
+# 10 min). li_epic_closed EPIC -> one reason on stdout when the hub says
+# EPIC is done, diss or not a live issue; nothing when it is open or the hub
+# did not answer (an outage refuses nothing; the launch still reports it).
+li_epic_closed() {
+  local out st
+  out="$(li_hub_read "$1")"
+  st="$(li_status_of "$1" <<<"$out")"
+  case "$st" in
+    done|diss) printf '%s is %s on the hub\n' "$1" "$st" ;;
+    "") grep -q 'not_found' <<<"$out" && printf '%s is not a live issue on the hub (archived, deleted or never filed)\n' "$1" ;;
+  esac
+  return 0
+}
+
+# li_brief_epic_closed BRIEF -> one line naming the brief, its epic and the
+# fix when the epic the lane would be filed under is closed (li_epic_closed);
+# nothing for an open epic, a brief with an `Issue:` key or no epic. Callers:
+# do_spl_spawn_enqueue (refuses the ask) and do_spl_spawn_place (hands it to
+# the orchestrator instead of launching it).
+li_brief_epic_closed() {
+  local out epic why
+  out="$(li_brief_epic_spec "$1" 2>/dev/null)" || return 0
+  epic="${out#*$'\t'}"
+  [ -n "$out" ] && [ -n "$epic" ] || return 0
+  why="$(li_epic_closed "$epic")"
+  [ -z "$why" ] || printf "brief %s names epic %s, but %s: point its 'Epic:' line at an open epic, or reopen %s (SPL-2508)\n" "$1" "$epic" "$why" "$epic"
+  return 0
 }
 
 # li_end_cmd ID -> the command that ends a lane's issue without landing.

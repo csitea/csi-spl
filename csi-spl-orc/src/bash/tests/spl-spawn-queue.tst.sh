@@ -50,6 +50,12 @@
 #      "Kind:", none counting as coding) is refused at enqueue, and a row
 #      queued anyway launches claude (CONTROL: mistral_coding_allowed true
 #      queues it and launches mistral)
+#  16. SPL-2508: a brief whose epic is done, diss or archived on the hub (the
+#      hub answers not_found for an archived one) is not queued, one FATAL
+#      line names the brief, the epic and the fix (CONTROL: an open epic and a
+#      hub that does not answer queue it); a row queued while its epic was
+#      open whose epic closed since is handed to the holder with the reason,
+#      not launched (CONTROL: an open epic launches)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -629,6 +635,60 @@ rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=m-506 SPAWN_PLACE_CNF="$T/coding-on.yaml" 2>&1)"
 grep -q "^mistral auto $T $T/briefs/code-x.md code-x$" "$T/launch.log" &&
   pass "15. control: with mistral_coding_allowed true the placer launches mistral" || fail "15. control placement: $out | $(cat "$T/launch.log")"
+
+# 16. SPL-2508: the brief's epic must be open on the hub ------------------------------
+E1=25080001-0000-4000-8000-000000000001; E2=25080002-0000-4000-8000-000000000002; E3=25080003-0000-4000-8000-000000000003
+jq '(.[] | select(.state == "queued")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+# the do_spl_issue_status stub: <key>\t<status> rows; gone = the hub's not_found; no row = no answer
+cat >"$T/bin/istatus" <<'STUB'
+#!/usr/bin/env bash
+st="$(awk -F'\t' -v k="$1" '$1 == k { print $2 }' "$EPICS")"
+case "$st" in
+  "") exit 1 ;;
+  gone) echo "FATAL spool issue get as c-002: spool: hub refused: not_found (no such issue)"; exit 1 ;;
+  *) printf 'issue-status\t%s\t%s\n' "$1" "$st" ;;
+esac
+STUB
+chmod +x "$T/bin/istatus"
+printf 'SPL-7\tgone\nSPL-8\twip\nSPL-9\tdone\n' >"$T/epics.tsv"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-7\n' >"$T/briefs/tokens-tab.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-9\n' >"$T/briefs/done-epic.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/open-epic.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-6\n' >"$T/briefs/no-answer.md"
+EH=(LI_HUB_STATUS_CMD="$T/bin/istatus" EPICS="$T/epics.tsv")
+put "$E1" c-002@box-desk dispatch-c002sat-e "SPAWN REQUEST tokens tab"
+out="$(on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E1" SPAWN_CLASS=feature SPAWN_PLACE=claude:tokens-tab 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$E1")")" == open ]] &&
+  grep -qF "FATAL ask not queued: brief $T/briefs/tokens-tab.md names epic SPL-7, but SPL-7 is not a live issue on the hub (archived, deleted or never filed): point its 'Epic:' line at an open epic, or reopen SPL-7 (SPL-2508)" <<<"$out" &&
+  pass "16. enqueue: a brief whose epic is archived on the hub is not queued, one FATAL line names the brief, the epic and the fix" ||
+  fail "16. archived epic enqueue: rc=$rc $out | $(hubrow "$E1")"
+out="$(on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E1" SPAWN_CLASS=feature SPAWN_PLACE=claude:done-epic 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && grep -qF "names epic SPL-9, but SPL-9 is done on the hub" <<<"$out" &&
+  pass "16. enqueue: a done epic is refused the same way" || fail "16. done epic: rc=$rc $out"
+out="$(on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E1" SPAWN_CLASS=feature SPAWN_PLACE=claude:open-epic 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$E1")")" == queued ]] &&
+  pass "16. control: the same ask with an open epic (wip) queues" || fail "16. open epic: rc=$rc $out"
+put "$E2" c-002@box-desk dispatch-c002sat-f "SPAWN REQUEST hub down"
+out="$(on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E2" SPAWN_CLASS=feature SPAWN_PLACE=claude:no-answer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$E2")")" == queued ]] &&
+  pass "16. control: a hub that does not answer refuses nothing" || fail "16. no answer: rc=$rc $out"
+jq --arg a "$E2" '(.[] | select(.ask_id == $a)) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+# queued while SPL-8 was open; SPL-8 is archived since (the 2026-10-18 case)
+printf 'SPL-7\tgone\nSPL-8\tgone\nSPL-9\tdone\n' >"$T/epics.tsv"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-507 2>&1)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$E1")")" == acked ]] &&
+  grep -qF "c-001 c-001 blocker spawn-queue **SPAWN QUEUE: place ask ${E1:0:8} now** - it is next and the box has room" "$T/send.log" &&
+  grep -qF "It needs you: brief $T/briefs/open-epic.md names epic SPL-8, but SPL-8 is not a live issue on the hub" "$T/send.log" &&
+  pass "16. placer: a queued row whose epic was archived since is handed to the holder with the reason, nothing launched" ||
+  fail "16. placer closed epic: $out | $(cat "$T/launch.log") | $(sends) | $(hubrow "$E1")"
+put "$E3" c-002@box-desk dispatch-c002sat-g "SPAWN REQUEST open epic"
+printf 'SPL-8\twip\n' >"$T/epics.tsv"
+on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E3" SPAWN_CLASS=feature SPAWN_PLACE=claude:open-epic >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-508 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$E3")")" == "placed: c-508@box-desk" ]] && grep -q "^claude auto $T $T/briefs/open-epic.md open-epic$" "$T/launch.log" &&
+  pass "16. control: the same brief with its epic open (wip) is launched" || fail "16. placer open epic: $out | $(cat "$T/launch.log") | $(hubrow "$E3")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

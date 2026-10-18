@@ -1,4 +1,4 @@
-# Small UI animations panel — consensus plan (v1.0)
+# Small UI animations panel — consensus plan (v1.1)
 
 Epic: SPL-2403  
 Spec: [csi-spl-doc/specs/043-spool-wui-mobile](../../specs/043-spool-wui-mobile)  
@@ -7,12 +7,12 @@ Owner Topic: `a4ae2150-97bd-47e7-99bf-4a40b6526f8a`
 Task: `dispatch-a4ae2150`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: v1.0, CONSENSUS PLAN SUBMITTED FOR PANEL SIGNING**  
+**Status: v1.1, CONSENSUS PLAN SIGNED BY CLAUDE SEAT, ROW LIST FINALIZED**  
 Editor: **a-420@sat** (agy)  
-Claude Reviewer Seat: **c-421@sat** (verdict: agree with changes incorporated in v1.0; seat review landed at commit `c0c5da17d`)  
+Claude Reviewer Seat: **c-421@sat** (Signed v1.0 consensus, commit `e1ae8953d`; amendments A1–A4 incorporated)  
 Mistral Reviewer Seat: **c002-ui-animations-panel-seat-mistral** (pending orchestrator placement)  
 
-**Pinned Baseline:** Baseline measurements, DOM observations, and view screenshots are pinned to origin/master at commit `c0c5da17defeefd346da53580487586e86b4394f`. Measurements and captures were taken on the live `dev` estate (`https://dev.spool-hub.ai`) across mobile (**412×915**) and desktop (**1280×800**) viewports in both **dark** and **light** themes.
+**Pinned Baseline:** Baseline measurements, DOM observations, and view screenshots are pinned to origin/master at commit `e1ae8953dc3d63b2cf7fa7d206f477028479e000`. Measurements and captures were taken on the live `dev` estate (`https://dev.spool-hub.ai`) across mobile (**412×915**) and desktop (**1280×800**) viewports in both **dark** and **light** themes.
 
 ---
 
@@ -89,12 +89,12 @@ Building upon SPL-2062's `SECTION_KIND` architecture, each small animation corre
 |---|---|---|---|---|
 | `nudge` | Send message | Forward horizontal kick | 360ms cubic-bezier | `MessageComposer.vue:324` (Live in SPL-2062) |
 | `draw` | Copy to clipboard | SVG checkmark path draw | 240ms ease-out | `IssueDetailActions.vue:18`, `MobileStatusStrip.vue:62` |
-| `pop` | Reaction emoji / affirmation | Spring scale bounce (0.85 -> 1.18 -> 1) | 360ms cubic-bezier | `MessageCard.vue:199,234`, `IssueDetailActions.vue:18` |
+| `pop` | Reaction emoji / affirmation | Spring scale bounce (0.85 -> 1.18 -> 1) | 360ms cubic-bezier | `MessageCard.vue:199,234`, `AwaitAnimSetting.vue:35` |
 | `swell` | Unread count badge arrival | Single gentle radial swell | 280ms ease-out | `ChannelSidebar.vue:53,229` (Pill badges) |
-| `ripple` | Network reconnect | Expanding radar perimeter ring | 600ms ease-out (2×) | `MobileStatusStrip.vue:31`, `ConnectionStatus.vue:8` |
+| `ripple` | Network reconnect | Expanding radar perimeter ring | 600ms ease-out (2×) | `ChannelSidebar.vue:546`, `MobileStatusStrip.vue:31` |
 | `greeting` | Empty channel feed | Single calm mascot welcome wave | 800ms ease-in-out (1×) | `FeedEmpty.vue:24` (One-shot, non-looping) |
 | `settle` | Notification / undo prompt | Elastic slide-up and settle | 260ms cubic-bezier | `UndoSnackbar.vue:145` |
-| `tilt` | Search / preview hover | Angular rotation nudge | 200ms ease-out | `AwaitAnimSetting.vue:35` |
+| `tilt` | Search / preview hover | Angular rotation nudge | 200ms ease-out | `useTapAnim.ts:76` |
 
 ### 3.2 Moments Where Small Animations HELP (Delight, Orientation, Feedback)
 
@@ -108,9 +108,9 @@ Empirical evaluation across the views identified the following moments where mic
 3. **Empty Feed State (`FeedEmpty.vue`):**  
    *Current state:* Sterile blank screen or static plain text.  
    *Improvement (P2/P6 corrected):* A calm robot mascot SVG that performs a **single one-shot greeting wave** on mount (800ms) and then stands still. Zero infinite ambient looping, preserving the quiet reading environment.
-4. **WebSocket Live Connection Recovery (`MobileStatusStrip.vue:31`, `ConnectionStatus.vue:8`):**  
+4. **WebSocket Live Connection Recovery (`ChannelSidebar.vue:546`, `MobileStatusStrip.vue:31`):**  
    *Current state:* Small dot snaps instantaneously between offline and online colors.  
-   *Improvement:* On transition from disconnected to connected, a 2-cycle radar ripple ring (`scale(1) -> scale(2.4)`, `opacity: 0.8 -> 0`, 600ms) draws subtle attention to network recovery.
+   *Improvement (A1 corrected):* On transition from disconnected to connected, a 2-cycle radar ripple ring (`scale(1) -> scale(2.4)`, `opacity: 0.8 -> 0`, 600ms) draws subtle attention to network recovery on desktop footer dot (`data-testid=connection-health`) and mobile top bar dot.
 5. **Reaction Chip Tap Bounce (`MessageCard.vue:199,234`):**  
    *Current state:* Chip increment snaps instantly.  
    *Improvement:* Tapping an emoji reaction triggers `tap-anim--pop` (`scale(0.85) -> scale(1.18) -> scale(1.0)`, 200ms cubic-bezier), giving satisfying physical feedback.
@@ -124,7 +124,7 @@ Empirical evaluation across the views identified the following moments where mic
    *Improvement:* Smooth cubic-bezier slide-up and fade-in following `ErrorSnackbar.vue:167` `error-snackbar-in` pattern.
 9. **Settings Appearance Suite Preview (`AwaitAnimSetting.vue:35`):**  
    *Current state:* Static list item borders.  
-   *Improvement:* Ticking an animation card triggers a momentary focus pop and theme accent glow ring.
+   *Improvement (A3 corrected):* Ticking an animation card triggers a momentary `pop` scale bounce on tick only (transform/opacity only, no hover motion or box-shadow glow).
 
 ### 3.3 Moments Where Animations ANNOY (Strict Anti-Patterns)
 
@@ -158,7 +158,7 @@ In draft v0.1, the plan proposed a parallel `micro-anim.css` and `v-micro-anim` 
 2. `useTapAnim.ts` and `tap-anim.css` already possess the exact lifecycle management needed (class removal on `animationend`/`animationcancel`, reduced motion bypass, transform/opacity constraint).
 3. The only functional requirement missing from `useTapAnim.ts` is a programmatic trigger function (`playTapAnim(el, kind)`) for state/value changes that do not originate from user click events.
 
-**Panel Consensus:** v1.0 incorporates Claude's recommendation in full. Row 01 extends `tap-anim.css` and `useTapAnim.ts`. Row 02 from v0.1 is merged into Row 01, and Row 04 (Send launch) is dropped as it is already implemented in production.
+**Panel Consensus:** v1.1 incorporates Claude's recommendation in full. Row 01 extends `tap-anim.css` and `useTapAnim.ts`. Row 02 from v0.1 is merged into Row 01, and Row 04 (Send launch) is dropped as it is already implemented in production.
 
 ---
 
@@ -237,14 +237,14 @@ In strict accordance with the rounds rulebook (§1.1 max 10 rows, §1.2 1–3 pu
 | # | Action Slug & Scope | Rationale | Sites (`file:line`, max 5) | Test / Red Control | Measurement Command | Target Box | Vendor | Kind | Batch |
 |---|---|---|---|---|---|---|---|---|---|
 | **01** | `feat(wui, SPL-2479): extend tap-anim tokens and export programmatic trigger` | Add `draw`, `swell`, `ripple`, `greeting`, `settle` to `tap-anim.css`; export `playTapAnim` from `useTapAnim.ts`. | `csi-spl-wui/src/assets/css/tap-anim.css:1-120`<br>`csi-spl-wui/src/composables/useTapAnim.ts:1-95` | **Red control:** Unit test feeds element to `playTapAnim('draw')`, asserts class added, removed on `animationend`; asserts 0 classes under reduced-motion. | `gzip -9c csi-spl-wui/src/assets/css/tap-anim.css \| wc -c` (today 1098 B; target $\le 1600\text{ B}$) | sat | claude | simple_coding | 1 |
-| **02** | `feat(wui, SPL-2479): copy button checkmark draw micro-animation` | Trigger `tap-anim--draw` on copy button click in issue actions and mobile status strip. | `csi-spl-wui/src/components/IssueDetailActions.vue:15-25`<br>`csi-spl-wui/src/components/MobileStatusStrip.vue:59-65` | **Red control:** Clicking copy button attaches `tap-anim--draw` to SVG checkmark; icon reverts cleanly after timeout. | Unit test asserting checkmark element carries `tap-anim--draw` on copy event. | sat | claude | simple_coding | 2 |
-| **03** | `feat(wui, SPL-2479): reaction chip tap bounce and emoji pop` | Attach `tap-anim--pop` on reaction chips in message cards for mobile and desktop feeds. | `csi-spl-wui/src/components/MessageCard.vue:199-235` | **Red control:** Tapping reaction chip triggers `tap-pop` transform; 0 horizontal or vertical layout shifts in message list. | Unit test asserting reaction click fires `playTapAnim('pop')` on target badge. | sat | claude | simple_coding | 2 |
-| **04** | `feat(wui, SPL-2479): unread badge activity pulse on count increment` | Trigger `playTapAnim(badge, 'swell')` on unread pips and DM badges when unread count increments. | `csi-spl-wui/src/components/ChannelSidebar.vue:50-235` | **Red control:** Unit test triggers store unread count update: asserts `tap-anim--swell` added once; no animation on identical re-render. | Unit test verifying DOM class application on reactive count increment. | sat | claude | simple_coding | 3 |
-| **05** | `feat(wui, SPL-2479): connection indicator radar ripple on socket reconnect` | Apply `tap-anim--ripple` to status dot when connection state transitions from offline to online. | `csi-spl-wui/src/components/MobileStatusStrip.vue:30-40`<br>`csi-spl-wui/src/components/ConnectionStatus.vue:5-15` | **Red control:** Unit test mocks WebSocket state reconnect: asserts ripple class active for 1.2s then removed; static dot on steady connection. | Unit test simulating connection recovery hook. | sat | claude | simple_coding | 3 |
-| **06** | `feat(wui, SPL-2479): empty feed calm mascot one-shot greeting animation` | Add resting robot SVG mascot to `FeedEmpty.vue` playing a single one-shot greeting wave on mount. | `csi-spl-wui/src/components/FeedEmpty.vue:1-50` | **Red control:** Mounting empty feed plays `tap-anim--greeting` once; no continuous loop animation detected in DOM after 1s. | `node -e "assert(0 running animations after mount timeout)"` | sat | claude | simple_coding | 4 |
-| **07** | `feat(wui, SPL-2479): undo snackbar and toast slide-up transition` | Apply `tap-anim--settle` smooth slide-up and fade transition on mounting `UndoSnackbar.vue`. | `csi-spl-wui/src/components/UndoSnackbar.vue:140-165` | **Red control:** Snackbar mounts with translateY settle transition; does not pop abruptly into viewport. | Unit test verifying transition class binding on active toast. | sat | claude | simple_coding | 4 |
-| **08** | `feat(wui, SPL-2479): settings appearance thinking animations suite preview styling` | Add theme-aware active border pop and hover tilt to the 17 waiting animation preview cards. | `csi-spl-wui/src/components/AwaitAnimSetting.vue:1-110` | **Red control:** Ticking an animation card triggers micro-pop border highlight; unticking does not trigger animation. | Unit test validating active card class toggling in settings. | sat | claude | simple_coding | 5 |
-| **09** | `test(wui, SPL-2479): e2e browser test suite for ui micro-animations` | Automated Playwright/Puppeteer e2e test validating M3 (0 animations on reduced-motion), M4 (0 idle animations), 0px overflow, and clean class removal. | `csi-spl-wui/tests/e2e/ui-micro-animations.test.mjs:1-120` | **Red control:** E2E test fails on master due to absent micro-animations; passes with Option B implementation on mock bundle. | `node tests/e2e/ui-micro-animations.test.mjs` (exit 0; asserts M3=0, M4=0, scrollWidth=viewport). | sat | claude | tests | 6 |
+| **02** | `feat(wui, SPL-2479): copy button checkmark draw micro-animation` | Trigger `tap-anim--draw` on copy button click in issue actions and mobile status strip. | `csi-spl-wui/src/components/IssueDetailActions.vue:15-25`<br>`csi-spl-wui/src/components/MobileStatusStrip.vue:59-65` | **Red control:** Clicking copy button attaches `tap-anim--draw` to SVG checkmark; icon reverts cleanly after timeout. | `node --test csi-spl-wui/tests/unit/copy-feedback.test.mjs` | sat | claude | simple_coding | 2 |
+| **03** | `feat(wui, SPL-2479): reaction chip tap bounce and emoji pop` | Attach `tap-anim--pop` on reaction chips in message cards for mobile and desktop feeds. | `csi-spl-wui/src/components/MessageCard.vue:199-235` | **Red control:** Tapping reaction chip triggers `tap-pop` transform; 0 horizontal or vertical layout shifts in message list. | `node --test csi-spl-wui/tests/unit/reaction-anim.test.mjs` | sat | claude | simple_coding | 2 |
+| **04** | `feat(wui, SPL-2479): unread badge activity pulse on count increment` | Trigger `playTapAnim(badge, 'swell')` on unread pips and DM badges when unread count increments. | `csi-spl-wui/src/components/ChannelSidebar.vue:50-235` | **Red control:** Unit test triggers store unread count update: asserts `tap-anim--swell` added once; no animation on identical re-render. | `node --test csi-spl-wui/tests/unit/unread-badge-pulse.test.mjs` | sat | claude | simple_coding | 3 |
+| **05** | `feat(wui, SPL-2479): connection indicator radar ripple on socket reconnect` | Apply `tap-anim--ripple` to desktop dot (`data-testid=connection-health`) and phone status dot when connection transitions from offline to online. | `csi-spl-wui/src/components/ChannelSidebar.vue:540-555`<br>`csi-spl-wui/src/components/MobileStatusStrip.vue:30-40` | **Red control:** Unit test mocks WebSocket state reconnect: asserts ripple class active for 1.2s then removed; static dot on steady connection. (Moved to Batch 5 to maintain R1 disjointness from Row 04). | `node --test csi-spl-wui/tests/unit/connection-ripple.test.mjs` | sat | claude | simple_coding | 5 |
+| **06** | `feat(wui, SPL-2479): empty feed calm mascot one-shot greeting animation` | Add resting robot SVG mascot to `FeedEmpty.vue` playing a single one-shot greeting wave on mount. | `csi-spl-wui/src/components/FeedEmpty.vue:1-50` | **Red control:** Mounting empty feed plays `tap-anim--greeting` once; no continuous loop animation detected in DOM after 1s. | `node --test csi-spl-wui/tests/unit/feed-empty-mascot.test.mjs` | sat | claude | simple_coding | 4 |
+| **07** | `feat(wui, SPL-2479): undo snackbar and toast slide-up transition` | Apply `tap-anim--settle` smooth slide-up and fade transition on mounting `UndoSnackbar.vue`. | `csi-spl-wui/src/components/UndoSnackbar.vue:140-165` | **Red control:** Snackbar mounts with translateY settle transition; does not pop abruptly into viewport. | `node --test csi-spl-wui/tests/unit/undo-snackbar-anim.test.mjs` | sat | claude | simple_coding | 4 |
+| **08** | `feat(wui, SPL-2479): settings appearance thinking animations suite preview styling` | Add theme-aware active border `pop` on tick only (transform/opacity only) to the 17 waiting animation preview cards. | `csi-spl-wui/src/components/AwaitAnimSetting.vue:1-110` | **Red control:** Ticking an animation card triggers micro-pop border highlight; unticking does not trigger animation. | `node --test csi-spl-wui/tests/unit/await-anim-preview.test.mjs` | sat | claude | simple_coding | 5 |
+| **09** | `test(wui, SPL-2479): e2e browser test suite for ui micro-animations` | Automated Playwright/Puppeteer e2e test validating M3 (0 animations on reduced-motion), M4 (0 idle animations), 0px overflow, and clean class removal. | `csi-spl-wui/tests/e2e/ui-micro-animations.test.mjs:1-120` | **Red control (A2):** Per row, after trigger, class is on, and removed within 600ms; fails on master before rows land; passes after rows land. | `node tests/e2e/ui-micro-animations.test.mjs` (exit 0; asserts M3=0, M4=0, scrollWidth=viewport). | sat | claude | tests | 6 |
 
 ### 6.2 Disjoint Files Batching Verification (R1)
 
@@ -256,16 +256,16 @@ In strict accordance with the rounds rulebook (§1.1 max 10 rows, §1.2 1–3 pu
   - Row 03: `csi-spl-wui/src/components/MessageCard.vue`
   *Verification:* Completely disjoint files.
 - **Batch 3:**
-  - Row 04: `csi-spl-wui/src/components/ChannelSidebar.vue`
-  - Row 05: `csi-spl-wui/src/components/ConnectionStatus.vue` (MobileStatusStrip untouched in this batch)
-  *Verification:* Completely disjoint files.
+  - Row 04: `csi-spl-wui/src/components/ChannelSidebar.vue:50-235` (sidebar navigation badges only)
+  *Verification:* Single row in Batch 3 modifying sidebar badges.
 - **Batch 4:**
   - Row 06: `csi-spl-wui/src/components/FeedEmpty.vue`
   - Row 07: `csi-spl-wui/src/components/UndoSnackbar.vue`
   *Verification:* Completely disjoint component files.
-- **Batch 5:**
+- **Batch 5 (Amended per A1):**
+  - Row 05: `csi-spl-wui/src/components/ChannelSidebar.vue:540-555` (desktop connection dot), `csi-spl-wui/src/components/MobileStatusStrip.vue:30-40`
   - Row 08: `csi-spl-wui/src/components/AwaitAnimSetting.vue`
-  *Verification:* Dedicated settings component file.
+  *Verification:* Completely disjoint files. Row 05 executes in Batch 5 strictly after Row 04 landed in Batch 3, preventing file collisions on `ChannelSidebar.vue`.
 - **Batch 6:**
   - Row 09: `csi-spl-wui/tests/e2e/ui-micro-animations.test.mjs`
   *Verification:* Dedicated e2e test suite.
@@ -297,6 +297,6 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 
 | Seat | Vendor | Agent ID | Status | Verdict & Signature |
 |---|---|---|---|---|
-| **Editor** | Antigravity (Google) | `a-420@sat` | **Signed** | Plan v1.0 consensus established; incorporated all Claude reviewer corrections (P1–P6, Rows 01–09, system unification into `tap-anim.css`). |
-| **Reviewer 1** | Claude (Anthropic) | `c-421@sat` | **Consensus Agreed** | Signed v1.0 consensus: agreed with Option B unification and folded changes (P1–P6, real sites, row merge). Seat review landed at commit `c0c5da17d`. |
-| **Reviewer 2** | Mistral | `c002-ui-animations-panel-seat-mistral` | Pending | Pending orchestrator placement; review will evaluate v1.0 consensus plan. |
+| **Editor** | Antigravity (Google) | `a-420@sat` | **Signed** | Plan v1.1 finalized; folded in Claude signed review (e1ae8953d) and amendments A1–A4; Option B consensus established. |
+| **Reviewer 1** | Claude (Anthropic) | `c-421@sat` | **Signed** | Signed v1.0 consensus at commit `e1ae8953d` (amendments A1–A4 incorporated into v1.1). |
+| **Reviewer 2** | Mistral | `c002-ui-animations-panel-seat-mistral` | Pending | Pending orchestrator placement; review will evaluate v1.1 consensus plan. |

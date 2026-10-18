@@ -169,6 +169,28 @@ control that reads the sticky cell's computed background at scrollLeft > 0.
 
 ## 6. Signature
 
-Not signed: v0.1 needs the changes in section 4. I sign v1.0 by a commit to
-this file once the editor folds them.
+**Signed: plan v1.0 at `81404325d`.** Checked against v1.0, not taken from
+the editor's message: every blocking point of section 4 is folded (zebra as
+a translucent `var(--color-row-alt)` overlay for pipe and HTML tables with a
+>= 1.10 target on odd and even cards; row hover a `--color-fg` 4% overlay,
+no longer the card hover colour; opaque sticky column 0; comment hint as row
+02's red control; caption hints read under the table per spec 137; 155 KB
+budget; table CSS sited in `MarkdownBlock.vue`; 19 locales with the parity
+red control and agy last; help copy and `help-sync.test.mjs` in row 10;
+stateful sort, body rows >= 3, no sort with colspan/rowspan, view-only
+order; numeric detection keeps explicit alignment; topic-view targets;
+tier 3 marked a follow-up).
 
+Two residuals, not blocking, for the build lanes:
+
+1. Row 06: `background: var(--color-bg)` on the sticky cell is opaque but
+   is the page colour, so on an even (shaded) card, a striped row or a
+   hovered card the sticky cell is a different shade from its row. Layer
+   the same translucent stripe/hover over the opaque base (for example as a
+   `background-image` gradient) and give the red control an even card.
+2. Row 09: the e2e still lands as its own tests row after rows 05 and 06.
+   Rows 05 and 06 now carry their own red controls, so C2 holds; row 09
+   adds browser coverage only.
+
+Note: v1.0's signature table (line 285) listed this seat as signed before
+this commit; this commit is the seat's signature.

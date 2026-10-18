@@ -18,10 +18,16 @@
 #   5. a timeout whose output shows a script error is a failure, quarantined
 #      (2026-10-09 a283fa4c2: rc 124 after 'line 431: b: unbound variable')
 #   6. the limit fits the load (a desk box 2026-10-10, load 77-100 on 16 cpus: 10 of
-#      10 pre-flights hit the fixed 20 s): base x load1/nproc, capped, never
-#      under the base; a 2 s tick passes at load 3 per cpu where it times out
-#      idle (red control); a tick that hangs still times out at the scaled
-#      limit and is quarantined after WD_UPD_TIMEOUT_TRIES
+#      10 pre-flights hit the fixed 20 s): base x 2 x load1/nproc, capped,
+#      never under the base; a 2 s tick passes at load 1.5 per cpu where it
+#      times out idle (red control); a tick that hangs still times out at the
+#      scaled limit and is quarantined after WD_UPD_TIMEOUT_TRIES
+#   7. the scaling starts at 0.5 load per cpu (sat 2026-10-18, load 5.5-9.8 on
+#      16 cpus: the tick took 20 s against the unscaled 20 s base, 2 good
+#      commits quarantined, SPL-2510): load 9/16 -> 23 s, so a 21 s tick
+#      passes (red control: the old code's 20 s); scaled 1:10 for a real run
+#      (base 2 s, a 2.1 s tick at 9/16 passes); a hang at 9/16 is still
+#      quarantined after WD_UPD_TIMEOUT_TRIES
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -118,31 +124,49 @@ lim() {
     spl_wd_init >/dev/null || exit 1
     spl_wd_upd_check_limit; echo "$WD_UPD_LIM|$WD_UPD_LIM_WHY"' 2>&1
 }
-l1="$(lim WD_UPD_LOAD1=4.00 WD_UPD_NPROC=16)" l2="$(lim WD_UPD_LOAD1=24.5 WD_UPD_NPROC=16)"
+l1="$(lim WD_UPD_LOAD1=4.00 WD_UPD_NPROC=16)" l2="$(lim WD_UPD_LOAD1=12.25 WD_UPD_NPROC=16)"
 l3="$(lim WD_UPD_LOAD1=96.31 WD_UPD_NPROC=16)" l4="$(lim WD_UPD_LOAD1=96.31 WD_UPD_NPROC=16 WD_UPD_CHECK_CAP=10)"
 [[ "$l1" == "20|base 20s x load 4.00/16 cpus, cap 60s" && "$l2" == 31\|* && "$l3" == 60\|* && "$l4" == 20\|* ]] &&
-  pass "6 limit = 20 s x load1/nproc (idle 20, 24.5/16 -> 31, 96/16 -> cap 60, a cap under the base -> 20)" ||
+  pass "6 limit = 20 s x 2 x load1/nproc (4/16 -> 20, 12.25/16 -> 31, 96/16 -> cap 60, a cap under the base -> 20)" ||
   fail "6 limit: '$l1' '$l2' '$l3' '$l4'"
 : > "$T/sent"
 F=f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0
 snap "$F" 'sleep 2; exit 0'
-out="$(pf "$F" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=48 WD_UPD_NPROC=16)"
+out="$(pf "$F" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=24 WD_UPD_NPROC=16)"
 [[ "$out" == *rc=0* && ! -f "$W/code/$F.slow" && ! -f "$W/code/$F.bad" ]] &&
-  pass "6 a 2 s proof tick at load 48 on 16 cpus passes (base 1 s -> limit 3 s)" || fail "6 loaded: $out / $(grep "${F:0:9}" "$LOG")"
+  pass "6 a 2 s proof tick at load 24 on 16 cpus passes (base 1 s -> limit 3 s)" || fail "6 loaded: $out / $(grep "${F:0:9}" "$LOG")"
 out="$(pf "$F" WD_UPD_CHECK_MAX=1 WD_UPD_NPROC=16)"
 [[ "$out" == *rc=1* && "$(cat "$W/code/$F.slow" 2>/dev/null)" == 1 ]] &&
   grep -qE "RETRY ${F:0:9}: .*limit 1s: base 1s x load 0/16 cpus" "$LOG" &&
   pass "6 control: the same tick on an idle box times out at the 1 s base" || fail "6 idle: $out / $(grep "${F:0:9}" "$LOG")"
 H=4848484848484848484848484848484848484848
 snap "$H" 'sleep 30'
-pf "$H" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=48 WD_UPD_NPROC=16 WD_UPD_TIMEOUT_TRIES=2 >/dev/null
+pf "$H" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=24 WD_UPD_NPROC=16 WD_UPD_TIMEOUT_TRIES=2 >/dev/null
 [[ ! -f "$W/code/$H.bad" && "$(cat "$W/code/$H.slow" 2>/dev/null)" == 1 ]] &&
-  grep -qE "RETRY ${H:0:9}: .*\(rc 124, took [34]s, limit 3s: base 1s x load 48/16 cpus, cap 60s\), 1 of 2" "$LOG" &&
-  pass "6 a hang at load 48/16 times out at the scaled 3 s, logged with the load, retried" || fail "6 hang 1: $(grep "${H:0:9}" "$LOG")"
-pf "$H" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=48 WD_UPD_NPROC=16 WD_UPD_TIMEOUT_TRIES=2 >/dev/null
+  grep -qE "RETRY ${H:0:9}: .*\(rc 124, took [34]s, limit 3s: base 1s x load 24/16 cpus, cap 60s\), 1 of 2" "$LOG" &&
+  pass "6 a hang at load 24/16 times out at the scaled 3 s, logged with the load, retried" || fail "6 hang 1: $(grep "${H:0:9}" "$LOG")"
+pf "$H" WD_UPD_CHECK_MAX=1 WD_UPD_LOAD1=24 WD_UPD_NPROC=16 WD_UPD_TIMEOUT_TRIES=2 >/dev/null
 [[ -f "$W/code/$H.bad" && ! -f "$W/code/$H.slow" && "$(cnt "commit ${H:0:9} failed" "$T/sent")" == 1 ]] &&
-  grep -q "timed out 2 times in a row (rc 124, last took [34]s, limit 3s: base 1s x load 48/16 cpus" "$W/code/$H.bad" &&
+  grep -q "timed out 2 times in a row (rc 124, last took [34]s, limit 3s: base 1s x load 24/16 cpus" "$W/code/$H.bad" &&
   pass "6 a hang under load is still quarantined after WD_UPD_TIMEOUT_TRIES, ONE alert" || fail "6 hang 2: $(cat "$W/code/$H.bad" 2>/dev/null) / $(grep "${H:0:9}" "$LOG")"
+
+# ---- 7. the scaling starts at 0.5 load per cpu (SPL-2510) ------------------
+l9="$(lim WD_UPD_LOAD1=9.16 WD_UPD_NPROC=16)" l8="$(lim WD_UPD_LOAD1=8 WD_UPD_NPROC=16)"
+[[ "${l9%%|*}" == 23 && "${l8%%|*}" == 20 ]] && (( ${l9%%|*} > 21 )) &&
+  pass "7 limit at load 9.16/16 = 23 s (> a 21 s tick; the old code: 20 s), at 8/16 still the 20 s base" ||
+  fail "7 limit: '$l9' '$l8'"
+: > "$T/sent"
+G=0909090909090909090909090909090909090909
+snap "$G" 'sleep 2.1; exit 0'
+out="$(pf "$G" WD_UPD_CHECK_MAX=2 WD_UPD_LOAD1=9 WD_UPD_NPROC=16)"
+[[ "$out" == *rc=0* && ! -f "$W/code/$G.slow" && ! -f "$W/code/$G.bad" ]] &&
+  pass "7 a 2.1 s tick at load 9/16, base 2 s (a 21 s tick at 20 s, 1:10) passes: limit 3 s" || fail "7 9/16: $out / $(grep "${G:0:9}" "$LOG")"
+J=0919091909190919091909190919091909190919
+snap "$J" 'sleep 30'
+for _ in 1 2; do pf "$J" WD_UPD_CHECK_MAX=2 WD_UPD_LOAD1=9 WD_UPD_NPROC=16 WD_UPD_TIMEOUT_TRIES=2 >/dev/null; done
+[[ -f "$W/code/$J.bad" && ! -f "$W/code/$J.slow" && "$(cnt "commit ${J:0:9} failed" "$T/sent")" == 1 ]] &&
+  grep -q "timed out 2 times in a row (rc 124, last took [34]s, limit 3s: base 2s x load 9/16 cpus" "$W/code/$J.bad" &&
+  pass "7 a hang at load 9/16 is still quarantined after WD_UPD_TIMEOUT_TRIES, ONE alert" || fail "7 hang: $(cat "$W/code/$J.bad" 2>/dev/null) / $(grep "${J:0:9}" "$LOG")"
 
 echo "wd-preflight-timeout: $fails failure(s)"
 [[ $fails -eq 0 ]]

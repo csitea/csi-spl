@@ -29,9 +29,9 @@
 # @description failure: RETRY, the sha stays un-quarantined and is pre-flighted
 # @description again on a later tick, quarantined only after
 # @description WD_UPD_TIMEOUT_TRIES timeouts in a row. The proof tick's limit
-# @description fits the box: WD_UPD_CHECK_MAX x the load per cpu (loadavg 1 min
-# @description / nproc, when over 1), at most WD_UPD_CHECK_CAP s, never under
-# @description WD_UPD_CHECK_MAX (spl_wd_upd_check_limit). Every step is an UPDATE
+# @description fits the box: WD_UPD_CHECK_MAX x 2 x the load per cpu (loadavg
+# @description 1 min / nproc, when over 0.5), at most WD_UPD_CHECK_CAP s, never
+# @description under WD_UPD_CHECK_MAX (spl_wd_upd_check_limit). Every step is an UPDATE
 # @description line in wd.log. The action prints the state, read-only.
 # @param WD_SELF_UPDATE (optional) - 1 rolls out new desk-cron code; default 1, and 0 under SPOOL_TEST=1
 # @param WD_UPD_SRC (optional) - the desk-cron checkout; default DESK_CRON_SRC, then <wd dir>/starter.src
@@ -346,8 +346,11 @@ spl_wd_upd_preflight() {
 # now, and WD_UPD_LIM_WHY, how it was reached. A fixed 20 s never fits a
 # loaded box (a desk box 2026-10-10, load 77-100 on 16 cpus: 10 of 10 pre-flights
 # hit 20 s, two correct commits quarantined, the watchdogs left on old code).
-# WD_UPD_CHECK_MAX x (load1 / nproc when over 1), rounded up, at most
-# WD_UPD_CHECK_CAP s, never under WD_UPD_CHECK_MAX. A commit that hangs still
+# WD_UPD_CHECK_MAX x (2 x load1 / nproc when over 1), rounded up, at most
+# WD_UPD_CHECK_CAP s, never under WD_UPD_CHECK_MAX. The scaling starts at 0.5
+# load per cpu, not 1: sat 2026-10-18, load 5.5-9.8 on 16 cpus, the tick took
+# 20 s against the unscaled 20 s, 2 good commits quarantined (SPL-2510; the
+# tick itself was slow, spl_wdo_tasks, now 4-6 s). A commit that hangs still
 # times out at that limit, every try, and is quarantined after
 # WD_UPD_TIMEOUT_TRIES of them.
 spl_wd_upd_check_limit() {
@@ -357,7 +360,7 @@ spl_wd_upd_check_limit() {
   [[ "$l1" =~ ^[0-9]+(\.[0-9]+)?$ ]] || l1=0
   [[ "$np" =~ ^[1-9][0-9]*$ ]] || np=1
   WD_UPD_LIM="$(awk -v b="$base" -v c="$cap" -v l="$l1" -v n="$np" 'BEGIN {
-    f = l / n; if (f < 1) f = 1
+    f = 2 * l / n; if (f < 1) f = 1
     x = b * f; if (x > int(x)) x = int(x) + 1
     if (x > c) x = c; if (x < b) x = b
     print x }')"

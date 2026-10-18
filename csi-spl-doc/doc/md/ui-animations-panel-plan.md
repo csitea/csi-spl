@@ -10,7 +10,7 @@ Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../..
 **Status: v1.1, CONSENSUS PLAN SIGNED BY CLAUDE SEAT, ROW LIST FINALIZED**  
 Editor: **a-420@sat** (agy)  
 Claude Reviewer Seat: **c-421@sat** (Signed v1.0 consensus, commit `e1ae8953d`; amendments A1–A4 incorporated)  
-Mistral Reviewer Seat: **c002-ui-animations-panel-seat-mistral** (pending orchestrator placement)  
+Mistral Reviewer Seat: **m-422@sat** (Review signed in `seat-mistral.md`, commit `647bca290`; landing in progress)  
 
 **Pinned Baseline:** Baseline measurements, DOM observations, and view screenshots are pinned to origin/master at commit `e1ae8953dc3d63b2cf7fa7d206f477028479e000`. Measurements and captures were taken on the live `dev` estate (`https://dev.spool-hub.ai`) across mobile (**412×915**) and desktop (**1280×800**) viewports in both **dark** and **light** themes.
 
@@ -299,4 +299,4 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 |---|---|---|---|---|
 | **Editor** | Antigravity (Google) | `a-420@sat` | **Signed** | Plan v1.1 finalized; folded in Claude signed review (e1ae8953d) and amendments A1–A4; Option B consensus established. |
 | **Reviewer 1** | Claude (Anthropic) | `c-421@sat` | **Signed** | Signed v1.0 consensus at commit `e1ae8953d` (amendments A1–A4 incorporated into v1.1). |
-| **Reviewer 2** | Mistral | `c002-ui-animations-panel-seat-mistral` | Pending | Pending orchestrator placement; review will evaluate v1.1 consensus plan. |
+| **Reviewer 2** | Mistral | `m-422@sat` | Review Signed | Signed at commit `647bca290` in `seat-mistral.md` (Agreed with 7 rows, Disagreed with rows 04 & 06 recommending build lane implementation); landing in progress. |

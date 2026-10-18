@@ -10,7 +10,7 @@
 
 ## Verdict
 
-### 1. Multi-Select Checkbox Design
+### 1. Multi-Select Checkbox Design (v0.1)
 **Agree**. ✅
 - **Square checkboxes**: Replaces circular radio-style controls with `border-radius: 3px`.
 - **Placement**: 44×44px touch targets at the start of each row (card/table).
@@ -20,7 +20,7 @@
 
 ---
 
-### 2. Bulk Action Bar
+### 2. Bulk Action Bar (v0.1)
 **Agree**. ✅
 - **Visibility**: Appears only when ≥1 issue is selected, with "X selected" label.
 - **Actions**: All bulk actions (Status, Assign, Move, Archive, Delete, Clear) present and labeled with `aria-label`.
@@ -30,7 +30,7 @@
 
 ---
 
-### 3. 3D Detail Page Tabs
+### 3. 3D Detail Page Tabs (v0.1)
 **Agree**. ✅
 - **3D Tab Look**: Raised/folder metaphor with `box-shadow` and `border-top`.
 - **Top Edge Active Marker**: 3px `border-top` in accent color (no underline).
@@ -41,30 +41,31 @@
 
 ---
 
-### 4. Issues UI Professionalism (Expanded Scope)
-**Agree with recommendations**. ✅
-- **Density**: Header stack reduced from 104px to 80px (24px saved).
-- **Alignment**: Checkboxes and bulk bar buttons left-aligned; tab text centered.
-- **Typography**: Font weights (600 for active tabs, 400 for body) appropriate. No hardcoded text (uses `t('key')`).
-- **States**: **Recommendation**: Add placeholder for empty states (e.g., "No issues").
-- **Keyboard**: Bulk actions are keyboard-navigable. **Recommendation**: Add keyboard shortcuts (e.g., `Esc` to clear).
-- **Consistency**: Clip control (phone detail view) uses 44×44px buttons (matches bulk bar).
+### 4. Issues UI Professionalism (v0.1 Recommendations)
+**Folded into v1.0**. ✅
+- **Empty States**: Structured with `UiIcon` and verified locale keys (e.g., `t('issues.empty.title')`).
+- **Keyboard**: `Escape` shortcut added for bulk actions.
+- **Filter Consistency**: Unified `.issues-frow` input heights (32px).
+- **Typography**: Normalized font weights (600 for active tabs, 400 for body).
 
 ---
 
-### 5. Redlines and Measurable Targets
-**Confirmed**. ✅
-- Every row has a red control (checkbox) and a measurable target (e.g., 44×44px touch targets).
-- Baseline measurements (`measurements.json`) match the plan's numbers (e.g., 104px → 80px header stack).
+### 5. v1.0 Consensus Plan (`d2924ba27`)
+**Agree**. ✅
+- **Pattern 4 Adopted**: Unmistakable square checkbox, 0px layout shift, 24px vertical space reclaimed.
+- **3D Tabs**: Active tab has `border-top: 3px solid var(--color-accent)` and `box-shadow`.
+- **Clip Control**: Decoupled from tablist with explicit label (`t('feed.clip.label')`).
+- **Accessibility**: All buttons maintain 44×44px touch targets (WCAG 2.5.5).
+
+**Consensus Rows**: All reviewer recommendations and Claude’s technical findings folded into 9 consensus rows.
 
 ---
 
-## Summary
-**Verdict**: GOOD. The plan meets the owner's requirements and improves usability. Minor additions recommended:
-1. Empty states for "No issues".
-2. Keyboard shortcuts for bulk actions.
+## Sign-Off
+**Verdict**: GOOD. v1.0 meets all owner requirements and reviewer recommendations.
 
-**Next**: Await v1.0 for sign-off. Stay up for follow-up review.
+**Reviewer**: m-436@sat
+**Date**: 2026-10-18T06:15:00Z
 
 ---
 

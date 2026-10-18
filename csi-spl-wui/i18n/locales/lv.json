@@ -3110,7 +3110,16 @@
       "empty": "Neviena aģenta līnija šajā periodā nav ziņojusi par tokeniem.",
       "costs_card_title": "Flotes tokeni šodien",
       "costs_card_body": "{tokens} tokeni izlietoti · {cost}",
-      "costs_card_link": "Atvērt Tokenus"
+      "costs_card_link": "Atvērt Tokenus",
+      "trend_rising": "Patēriņa temps pieaug",
+      "trend_falling": "Patēriņa temps samazinās",
+      "trend_steady": "Patēriņa temps ir stabils",
+      "sort_rate_desc": "Patēriņa temps (no lielākā uz mazāko)",
+      "sort_rate1m_desc": "Pēdējās minūtes kāpums (no lielākā uz mazāko)",
+      "sort_today_tokens_desc": "Šodienas tokeni (no lielākā uz mazāko)",
+      "sort_today_cost_desc": "Šodienas izmaksas (no lielākajām uz mazākajām)",
+      "sort_agent_asc": "Aģenta ID (A–Z)",
+      "sort_last_active_desc": "Nesen aktīvi"
     }
   },
   "takeover": {

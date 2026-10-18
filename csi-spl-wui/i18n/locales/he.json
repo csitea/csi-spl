@@ -3110,7 +3110,16 @@
       "empty": "אף נתיב סוכן לא דיווח על אסימונים בטווח הזה.",
       "costs_card_title": "אסימוני הצי היום",
       "costs_card_body": "{tokens} אסימונים נוצלו · {cost}",
-      "costs_card_link": "פתח אסימונים"
+      "costs_card_link": "פתח אסימונים",
+      "trend_rising": "קצב הצריכה עולה",
+      "trend_falling": "קצב הצריכה יורד",
+      "trend_steady": "קצב הצריכה יציב",
+      "sort_rate_desc": "קצב הצריכה (מהגבוה לנמוך)",
+      "sort_rate1m_desc": "שיא בדקה האחרונה (מהגבוה לנמוך)",
+      "sort_today_tokens_desc": "האסימונים של היום (מהגבוה לנמוך)",
+      "sort_today_cost_desc": "העלות של היום (מהגבוה לנמוך)",
+      "sort_agent_asc": "מזהה סוכן (A עד Z)",
+      "sort_last_active_desc": "פעילים לאחרונה"
     }
   },
   "takeover": {

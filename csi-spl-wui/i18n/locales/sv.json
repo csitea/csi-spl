@@ -3110,7 +3110,16 @@
       "empty": "Ingen agentbana har rapporterat tokens under den här perioden.",
       "costs_card_title": "Flottans tokens i dag",
       "costs_card_body": "{tokens} tokens förbrukade · {cost}",
-      "costs_card_link": "Öppna Tokens"
+      "costs_card_link": "Öppna Tokens",
+      "trend_rising": "Förbrukningstakten stiger",
+      "trend_falling": "Förbrukningstakten sjunker",
+      "trend_steady": "Förbrukningstakten är stabil",
+      "sort_rate_desc": "Förbrukningstakt (högst först)",
+      "sort_rate1m_desc": "Topp senaste minuten (högst först)",
+      "sort_today_tokens_desc": "Dagens tokens (flest först)",
+      "sort_today_cost_desc": "Dagens kostnad (högst först)",
+      "sort_agent_asc": "Agent-ID (A till Z)",
+      "sort_last_active_desc": "Senast aktiva"
     }
   },
   "takeover": {

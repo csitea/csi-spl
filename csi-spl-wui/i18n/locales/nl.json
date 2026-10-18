@@ -3110,7 +3110,16 @@
       "empty": "Geen enkele agentlane heeft in deze periode tokens gemeld.",
       "costs_card_title": "Vloottokens vandaag",
       "costs_card_body": "{tokens} tokens verbruikt · {cost}",
-      "costs_card_link": "Tokens openen"
+      "costs_card_link": "Tokens openen",
+      "trend_rising": "Verbruikstempo stijgt",
+      "trend_falling": "Verbruikstempo daalt",
+      "trend_steady": "Verbruikstempo stabiel",
+      "sort_rate_desc": "Verbruikstempo (hoog naar laag)",
+      "sort_rate1m_desc": "Piek in de laatste minuut (hoog naar laag)",
+      "sort_today_tokens_desc": "Tokens van vandaag (hoog naar laag)",
+      "sort_today_cost_desc": "Kosten van vandaag (hoog naar laag)",
+      "sort_agent_asc": "Agent-ID (A tot Z)",
+      "sort_last_active_desc": "Recent actief"
     }
   },
   "takeover": {

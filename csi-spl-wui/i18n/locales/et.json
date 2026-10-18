@@ -3110,7 +3110,16 @@
       "empty": "Ükski agendi rada pole sellel perioodil tokeneid teatanud.",
       "costs_card_title": "Laevastiku tokenid täna",
       "costs_card_body": "{tokens} tokenit kulutatud · {cost}",
-      "costs_card_link": "Ava Tokenid"
+      "costs_card_link": "Ava Tokenid",
+      "trend_rising": "Kulutempo kasvab",
+      "trend_falling": "Kulutempo langeb",
+      "trend_steady": "Kulutempo on stabiilne",
+      "sort_rate_desc": "Kulutempo (suurimast väikseimani)",
+      "sort_rate1m_desc": "Viimase minuti tipp (suurimast väikseimani)",
+      "sort_today_tokens_desc": "Tänased tokenid (suurimast väikseimani)",
+      "sort_today_cost_desc": "Tänane kulu (suurimast väikseimani)",
+      "sort_agent_asc": "Agendi ID (A–Z)",
+      "sort_last_active_desc": "Hiljuti aktiivsed"
     }
   },
   "takeover": {

@@ -3110,7 +3110,16 @@
       "empty": "Bu aralıkta hiçbir ajan hattı belirteç bildirmedi.",
       "costs_card_title": "Bugünkü filo belirteçleri",
       "costs_card_body": "{tokens} belirteç kullanıldı · {cost}",
-      "costs_card_link": "Belirteçleri Aç"
+      "costs_card_link": "Belirteçleri Aç",
+      "trend_rising": "Tüketim hızı artıyor",
+      "trend_falling": "Tüketim hızı azalıyor",
+      "trend_steady": "Tüketim hızı sabit",
+      "sort_rate_desc": "Tüketim hızı (yüksekten düşüğe)",
+      "sort_rate1m_desc": "Son dakika artışı (yüksekten düşüğe)",
+      "sort_today_tokens_desc": "Bugünkü belirteçler (çoktan aza)",
+      "sort_today_cost_desc": "Bugünkü maliyet (yüksekten düşüğe)",
+      "sort_agent_asc": "Ajan kimliği (A'dan Z'ye)",
+      "sort_last_active_desc": "Son etkin olanlar"
     }
   },
   "takeover": {

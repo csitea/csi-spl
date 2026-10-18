@@ -3110,7 +3110,16 @@
       "empty": "No agent lane has reported tokens in this window.",
       "costs_card_title": "Fleet tokens today",
       "costs_card_body": "{tokens} tokens used · {cost}",
-      "costs_card_link": "Open Tokens"
+      "costs_card_link": "Open Tokens",
+      "trend_rising": "Burn rate rising",
+      "trend_falling": "Burn rate falling",
+      "trend_steady": "Burn rate steady",
+      "sort_rate_desc": "Burn rate (high to low)",
+      "sort_rate1m_desc": "Last minute spike (high to low)",
+      "sort_today_tokens_desc": "Today's tokens (high to low)",
+      "sort_today_cost_desc": "Today's cost (high to low)",
+      "sort_agent_asc": "Agent ID (A to Z)",
+      "sort_last_active_desc": "Recently active"
     }
   },
   "takeover": {

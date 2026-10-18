@@ -3110,7 +3110,16 @@
       "empty": "Žiadna linka agenta v tomto období nenahlásila tokeny.",
       "costs_card_title": "Tokeny flotily dnes",
       "costs_card_body": "{tokens} spotrebovaných tokenov · {cost}",
-      "costs_card_link": "Otvoriť Tokeny"
+      "costs_card_link": "Otvoriť Tokeny",
+      "trend_rising": "Tempo spotreby rastie",
+      "trend_falling": "Tempo spotreby klesá",
+      "trend_steady": "Tempo spotreby je stabilné",
+      "sort_rate_desc": "Tempo spotreby (zostupne)",
+      "sort_rate1m_desc": "Špička za poslednú minútu (zostupne)",
+      "sort_today_tokens_desc": "Dnešné tokeny (zostupne)",
+      "sort_today_cost_desc": "Dnešné náklady (zostupne)",
+      "sort_agent_asc": "ID agenta (od A po Z)",
+      "sort_last_active_desc": "Nedávno aktívne"
     }
   },
   "takeover": {

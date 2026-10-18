@@ -3110,7 +3110,16 @@
       "empty": "Καμία γραμμή πράκτορα δεν ανέφερε tokens σε αυτό το διάστημα.",
       "costs_card_title": "Tokens στόλου σήμερα",
       "costs_card_body": "{tokens} tokens καταναλώθηκαν · {cost}",
-      "costs_card_link": "Άνοιγμα Tokens"
+      "costs_card_link": "Άνοιγμα Tokens",
+      "trend_rising": "Ο ρυθμός κατανάλωσης αυξάνεται",
+      "trend_falling": "Ο ρυθμός κατανάλωσης μειώνεται",
+      "trend_steady": "Ο ρυθμός κατανάλωσης είναι σταθερός",
+      "sort_rate_desc": "Ρυθμός κατανάλωσης (από υψηλό σε χαμηλό)",
+      "sort_rate1m_desc": "Αιχμή τελευταίου λεπτού (από υψηλό σε χαμηλό)",
+      "sort_today_tokens_desc": "Tokens σήμερα (από υψηλό σε χαμηλό)",
+      "sort_today_cost_desc": "Κόστος σήμερα (από υψηλό σε χαμηλό)",
+      "sort_agent_asc": "Αναγνωριστικό πράκτορα (A έως Z)",
+      "sort_last_active_desc": "Πρόσφατα ενεργοί"
     }
   },
   "takeover": {

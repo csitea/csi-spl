@@ -3110,7 +3110,16 @@
       "empty": "Жодна лінія агента не повідомила про токени за цей період.",
       "costs_card_title": "Токени флоту сьогодні",
       "costs_card_body": "{tokens} токенів витрачено · {cost}",
-      "costs_card_link": "Відкрити Токени"
+      "costs_card_link": "Відкрити Токени",
+      "trend_rising": "Темп витрати зростає",
+      "trend_falling": "Темп витрати знижується",
+      "trend_steady": "Темп витрати стабільний",
+      "sort_rate_desc": "Темп витрати (за спаданням)",
+      "sort_rate1m_desc": "Сплеск за останню хвилину (за спаданням)",
+      "sort_today_tokens_desc": "Токени за сьогодні (за спаданням)",
+      "sort_today_cost_desc": "Вартість за сьогодні (за спаданням)",
+      "sort_agent_asc": "ID агента (від A до Z)",
+      "sort_last_active_desc": "Нещодавно активні"
     }
   },
   "takeover": {

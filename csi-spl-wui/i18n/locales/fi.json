@@ -3110,7 +3110,16 @@
       "empty": "Mikään agenttikaista ei ole ilmoittanut tokeneita tällä aikavälillä.",
       "costs_card_title": "Laivaston tokenit tänään",
       "costs_card_body": "{tokens} tokenia käytetty · {cost}",
-      "costs_card_link": "Avaa Tokenit"
+      "costs_card_link": "Avaa Tokenit",
+      "trend_rising": "Kulutusvauhti kasvaa",
+      "trend_falling": "Kulutusvauhti laskee",
+      "trend_steady": "Kulutusvauhti on vakaa",
+      "sort_rate_desc": "Kulutusvauhti (suurimmasta pienimpään)",
+      "sort_rate1m_desc": "Viimeisimmän minuutin piikki (suurimmasta pienimpään)",
+      "sort_today_tokens_desc": "Tämän päivän tokenit (suurimmasta pienimpään)",
+      "sort_today_cost_desc": "Tämän päivän kustannus (suurimmasta pienimpään)",
+      "sort_agent_asc": "Agentin tunnus (A–Z)",
+      "sort_last_active_desc": "Viimeksi aktiiviset"
     }
   },
   "takeover": {

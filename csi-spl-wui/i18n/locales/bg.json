@@ -3110,7 +3110,16 @@
       "empty": "Нито една линия не е отчела токени в този период.",
       "costs_card_title": "Токени на флота днес",
       "costs_card_body": "{tokens} използвани токена · {cost}",
-      "costs_card_link": "Отвори Токени"
+      "costs_card_link": "Отвори Токени",
+      "trend_rising": "Темпът на разход расте",
+      "trend_falling": "Темпът на разход спада",
+      "trend_steady": "Темпът на разход е стабилен",
+      "sort_rate_desc": "Темп на разход (в низходящ ред)",
+      "sort_rate1m_desc": "Пик в последната минута (в низходящ ред)",
+      "sort_today_tokens_desc": "Токени днес (в низходящ ред)",
+      "sort_today_cost_desc": "Разходи днес (в низходящ ред)",
+      "sort_agent_asc": "ID на агент (от A до Z)",
+      "sort_last_active_desc": "Наскоро активни"
     }
   },
   "takeover": {

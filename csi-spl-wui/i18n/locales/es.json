@@ -3110,7 +3110,16 @@
       "empty": "Ninguna línea de agente ha informado de tokens en este periodo.",
       "costs_card_title": "Tokens de la flota hoy",
       "costs_card_body": "{tokens} tokens consumidos · {cost}",
-      "costs_card_link": "Abrir Tokens"
+      "costs_card_link": "Abrir Tokens",
+      "trend_rising": "Ritmo de consumo en aumento",
+      "trend_falling": "Ritmo de consumo en descenso",
+      "trend_steady": "Ritmo de consumo estable",
+      "sort_rate_desc": "Ritmo de consumo (de mayor a menor)",
+      "sort_rate1m_desc": "Pico del último minuto (de mayor a menor)",
+      "sort_today_tokens_desc": "Tokens de hoy (de mayor a menor)",
+      "sort_today_cost_desc": "Coste de hoy (de mayor a menor)",
+      "sort_agent_asc": "ID de agente (de la A a la Z)",
+      "sort_last_active_desc": "Activos recientemente"
     }
   },
   "takeover": {

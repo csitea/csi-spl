@@ -3110,7 +3110,16 @@
       "empty": "Nicio linie de agent nu a raportat tokeni în acest interval.",
       "costs_card_title": "Tokenii flotei azi",
       "costs_card_body": "{tokens} tokeni consumați · {cost}",
-      "costs_card_link": "Deschide Tokeni"
+      "costs_card_link": "Deschide Tokeni",
+      "trend_rising": "Ritmul de consum crește",
+      "trend_falling": "Ritmul de consum scade",
+      "trend_steady": "Ritmul de consum este stabil",
+      "sort_rate_desc": "Ritmul de consum (descrescător)",
+      "sort_rate1m_desc": "Vârful din ultimul minut (descrescător)",
+      "sort_today_tokens_desc": "Tokenii de azi (descrescător)",
+      "sort_today_cost_desc": "Costul de azi (descrescător)",
+      "sort_agent_asc": "ID agent (de la A la Z)",
+      "sort_last_active_desc": "Activi recent"
     }
   },
   "takeover": {

@@ -3110,7 +3110,16 @@
       "empty": "Nė viena agento linija per šį laikotarpį nepranešė apie žetonus.",
       "costs_card_title": "Laivyno žetonai šiandien",
       "costs_card_body": "{tokens} žetonų sunaudota · {cost}",
-      "costs_card_link": "Atidaryti Žetonus"
+      "costs_card_link": "Atidaryti Žetonus",
+      "trend_rising": "Naudojimo tempas didėja",
+      "trend_falling": "Naudojimo tempas mažėja",
+      "trend_steady": "Naudojimo tempas stabilus",
+      "sort_rate_desc": "Naudojimo tempas (nuo didžiausio iki mažiausio)",
+      "sort_rate1m_desc": "Paskutinės minutės šuolis (nuo didžiausio iki mažiausio)",
+      "sort_today_tokens_desc": "Šiandienos žetonai (nuo didžiausio iki mažiausio)",
+      "sort_today_cost_desc": "Šiandienos išlaidos (nuo didžiausių iki mažiausių)",
+      "sort_agent_asc": "Agento ID (A–Z)",
+      "sort_last_active_desc": "Neseniai aktyvūs"
     }
   },
   "takeover": {

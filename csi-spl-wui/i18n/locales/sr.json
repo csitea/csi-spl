@@ -3110,7 +3110,16 @@
       "empty": "Ниједна линија агента није пријавила токене у овом периоду.",
       "costs_card_title": "Токени флоте данас",
       "costs_card_body": "{tokens} потрошених токена · {cost}",
-      "costs_card_link": "Отвори Токене"
+      "costs_card_link": "Отвори Токене",
+      "trend_rising": "Темпо потрошње расте",
+      "trend_falling": "Темпо потрошње опада",
+      "trend_steady": "Темпо потрошње је стабилан",
+      "sort_rate_desc": "Темпо потрошње (опадајуће)",
+      "sort_rate1m_desc": "Скок у последњем минуту (опадајуће)",
+      "sort_today_tokens_desc": "Данашњи токени (опадајуће)",
+      "sort_today_cost_desc": "Данашњи трошак (опадајуће)",
+      "sort_agent_asc": "ID агента (од A до Z)",
+      "sort_last_active_desc": "Недавно активни"
     }
   },
   "takeover": {

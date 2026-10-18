@@ -18,7 +18,7 @@
 #      WT_SALVAGE_RESIDUE_MAX_KB, or a nested repo, keeps the tree;
 #   4. appends "utc id worktree bundle sha head state archive" to
 #      WT_SALVAGE_LOG; the tree is KEPT on this pass.
-# WT_SALVAGE_DIR is mode 700, every file in it 600.
+# WT_SALVAGE_DIR is mode 700 with no default ACL, every file in it 600.
 # A later pass sets sv_sha (the caller may then remove the tree) only when the
 # newest row for the tree passes: git bundle verify, the bundle's tip is the
 # logged sha, HEAD is the logged head, the archive lists, and the tree's
@@ -127,10 +127,13 @@ salvage_write() {
   base="$(g -C "$repo" merge-base "$head" "$trunk" 2>/dev/null)" || base=""
   [[ -n "$base" ]] || { sv_why="dirty-retired-kept-no-trunk-base"; return; }
   sg "$wt" "$od" update-ref "refs/heads/salvage/$id" "$sha" || { sv_why="dirty-retired-kept-ref-failed"; return; }
+  # 700 / 600 by chmod, and no default ACL: the spool root's default ACL
+  # beats the umask (sat, 2026-10-18: the first live pass wrote 660 files)
   (umask 077 && mkdir -p "$salvage_dir") && chmod 700 "$salvage_dir" || { sv_why="dirty-retired-kept-no-salvage-dir"; return; }
+  if command -v setfacl >/dev/null; then setfacl -k "$salvage_dir" 2>/dev/null || true; fi
   bundle="$salvage_dir/$id.$ts.bundle"
   { (umask 077 && sg "$wt" "$od" bundle create -q "$bundle" "refs/heads/salvage/$id" "^$base" >/dev/null 2>&1) &&
-    salvage_bundle_ok "$wt" "$bundle" "$sha"; } || { rm -f "$bundle"; sv_why="dirty-retired-kept-bundle-failed"; return; }
+    chmod 600 "$bundle" && salvage_bundle_ok "$wt" "$bundle" "$sha"; } || { rm -f "$bundle"; sv_why="dirty-retired-kept-bundle-failed"; return; }
 
   local -a res=(); local p
   while IFS= read -r -d '' p; do res+=("$p"); done < <(salvage_residue "$wt" "$od" "$wtree" "$state"; echo $? >"$od/rc")
@@ -141,7 +144,7 @@ salvage_write() {
     (( ${kb:-0} <= residue_max_kb )) || { rm -f "$bundle"; sv_why="dirty-retired-kept-residue-${kb}KB-over-cap"; return; }
     arch="$salvage_dir/$id.$ts.tgz"
     { printf '%s\0' "${res[@]}" | (umask 077 && tar -czf "$arch" -C "$wt" --null --no-recursion -T -) &&
-      [[ "$(tar -tzf "$arch" | wc -l)" == "${#res[@]}" ]]; } ||
+      chmod 600 "$arch" && [[ "$(tar -tzf "$arch" | wc -l)" == "${#res[@]}" ]]; } ||
       { rm -f "$arch" "$bundle"; sv_why="dirty-retired-kept-archive-failed"; return; }
   fi
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts" "$id" "$wt" "$bundle" "$sha" "$head" "$state" "${arch:--}" >>"$salvage_log" ||

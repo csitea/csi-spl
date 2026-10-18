@@ -56,6 +56,9 @@ echo notes >"$root/c-901/STATE.md"
 mkdir -p "$root/c-901/node_modules"; echo junk >"$root/c-901/node_modules/x.js"
 printf 'c-902\tclaude\t%%2\t%s\t20261010T000000Z\n' "$root/c-902" >"$spool/registry.tsv"
 old "$root"
+# The live spool root carries a default ACL (group rwx) that beats the umask:
+# plant one, so the 600 / 700 checks below see what sat sees.
+acl=0; if command -v setfacl >/dev/null && setfacl -d -m g::rwx -m o::- "$spool" 2>/dev/null; then acl=1; fi
 
 run() {
   WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" WT_SALVAGE="${SALV:-1}" \
@@ -95,6 +98,8 @@ check "pass 1: node_modules (ignored) neither bundled nor archived" no_junk
 check "pass 1: the salvage dir is mode 700" [ "$(stat -c %a "$spool/wt-salvage")" = 700 ]
 check "pass 1: the bundle is mode 600" [ "$(stat -c %a "$b901")" = 600 ]
 check "pass 1: the archive is mode 600" [ "$(stat -c %a "$arch")" = 600 ]
+no_default_acl() { (( ! acl )) || [ -z "$(getfacl -p -d "$spool/wt-salvage" 2>/dev/null | grep -v '^#' | grep .)" ]; }
+check "pass 1: the salvage dir has no default ACL" no_default_acl
 check "pass 1: the lane's own index is untouched" [ -z "$(git -C "$root/c-901" diff --cached --name-only)" ]
 check "pass 1: the repo has no salvage ref" [ -z "$(git -C "$repo" for-each-ref refs/heads/salvage)" ]
 check "pass 1: c-902 KEEP dirty" has "$P1" "KEEP dirty .*/c-902$"

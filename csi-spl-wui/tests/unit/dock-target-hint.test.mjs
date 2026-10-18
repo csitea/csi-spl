@@ -40,9 +40,11 @@ describe('the phone dock names its target (SPL-1003)', () => {
   })
 
   it('/issues registers the comment target only while an issue is open on a phone, and GO without a target searches', () => {
-    const s = src('src/pages/issues.vue')
-    assert.match(s, /const dockComment = computed\(\(\) => Boolean\(phone\.value && detail\.value && detail\.value\.task_id && !creating\.value\)\)/)
-    assert.match(s, /dock: \(\) => \(\{ reply: true, target: detail\.value\?\.key \|\| '', comment: true \}\)/)
+    /* r13-06: the page's dock comment is composables/useIssueComments.ts */
+    assert.match(src('src/pages/issues.vue'), /\} = useIssueComments\(\{ api, live, t, detail, creating, phone,/)
+    const s = src('src/composables/useIssueComments.ts')
+    assert.match(s, /const dockComment = computed\(\(\) => Boolean\(o\.phone\.value && o\.detail\.value && o\.detail\.value\.task_id && !o\.creating\.value\)\)/)
+    assert.match(s, /dock: \(\) => \(\{ reply: true, target: o\.detail\.value\?\.key \|\| '', comment: true \}\)/)
     assert.match(s, /onBeforeUnmount\(\(\) => omniboxStore\.unregister\(commentOwner\)\)/)
     const c = messageComposerSrc()
     assert.match(c, /if \(docked\.value && q\) \{\n\s+emit\('search', q\)/)

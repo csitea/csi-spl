@@ -14,6 +14,8 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const page = src('src/pages/issues.vue')
 const comp = src('src/components/IssueDetailActions.vue')
+/* r13-06: the page's menu actions live in composables/useIssueCtxMenu.ts */
+const ctxMenu = src('src/composables/useIssueCtxMenu.ts')
 const tmpl = page.slice(0, page.indexOf('<script'))
 
 describe('IssueDetailActions: Copy link, Archive, Delete, in that order', () => {
@@ -48,9 +50,10 @@ describe('issues.vue: the open issue has buttons, not a ☰ menu', () => {
     assert.doesNotMatch(page, /openDetailMenu|ctxOverModal|issues-detail__menu/)
   })
   it('the actions are the menu\'s: copy the link, the archive confirm, the single-issue delete', () => {
-    assert.match(page, /function detailCopy\(\) \{\n\s+if \(detail\.value\) void copyText\(issueLinkFor\(issueTarget\(detail\.value\)\), detail\.value\.key\)/)
-    assert.match(page, /function detailArchive\(\) \{\n\s+if \(detail\.value\) askAction\('archive', issueTarget\(detail\.value\)\)/)
-    assert.match(page, /function detailDelete\(\) \{\n\s+if \(detail\.value\) askDelete\(detail\.value\)/)
+    assert.match(ctxMenu, /function detailCopy\(\) \{\n\s+if \(o\.detail\.value\) void o\.copyText\(issueLinkFor\(issueTarget\(o\.detail\.value\)\), o\.detail\.value\.key\)/)
+    assert.match(ctxMenu, /function detailArchive\(\) \{\n\s+if \(o\.detail\.value\) o\.askAction\('archive', issueTarget\(o\.detail\.value\)\)/)
+    assert.match(ctxMenu, /function detailDelete\(\) \{\n\s+if \(o\.detail\.value\) o\.askDelete\(o\.detail\.value\)/)
+    assert.match(page, /detailCopy, detailArchive, detailDelete \} = useIssueCtxMenu\(/)
   })
 })
 

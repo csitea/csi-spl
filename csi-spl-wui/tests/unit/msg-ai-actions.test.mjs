@@ -266,7 +266,9 @@ describe('every card with a right-click menu, one adapter per kind (HUM-10 643c3
     const row = src('src/components/SidebarRowMenu.vue')
     assert.doesNotMatch(row, /SidebarRowAi|msg-ai-actions|useAiMenuGroup/)
     assert.equal(existsSync(join(WUI, 'src/components/SidebarRowAi.vue')), false)
-    const issues = src('src/pages/issues.vue')
+    /* r13-06: the page's context menu is composables/useIssueCtxMenu.ts */
+    assert.match(src('src/pages/issues.vue'), /useIssueCtxMenu\(\{/)
+    const issues = src('src/composables/useIssueCtxMenu.ts')
     assert.match(issues, /useAiMenuGroup\(/)
     assert.match(issues, /aiSubject\('issue'/)
     assert.match(src('src/composables/useAiListRun.ts'), /async function runTopic\(/)

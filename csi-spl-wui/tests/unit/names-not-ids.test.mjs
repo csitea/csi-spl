@@ -67,7 +67,7 @@ describe('every @ field stores the tag', () => {
   /* a field that uses the picker and sends its text raw would store "@Ann Example" */
   const sites = {
     'components/MessageComposer.vue': /mp\.encode\(/,
-    'pages/issues.vue': /commentMp\.encode\(/,
+    'composables/useIssueComments.ts': /commentMp\.encode\(/, // the issue comment box (r13-06)
     'components/IssueSubtaskDialog.vue': /mp\.encode\(/,
     'composables/useSidebarChannelCreate.ts': /descMp\.encode\(/, // ChannelSidebar's New channel (r13-04)
     'composables/useCardEdit.ts': /editMp\.encode\(/,

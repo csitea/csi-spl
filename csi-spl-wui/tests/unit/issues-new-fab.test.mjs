@@ -38,6 +38,8 @@ describe('SPL-978 the New issue button is a round +', () => {
     assert.match(src, /\.issues-fab:active::after \{/)
   })
   it('the C shortcut still starts a new issue', () => {
-    assert.match(src, /if \(k === 'c'\) \{ startCreate\(\)/)
+    /* r13-06: the page's keys are composables/useIssueKeys.ts */
+    assert.match(readFileSync(join(WUI, 'src/composables/useIssueKeys.ts'), 'utf8'), /if \(k === 'c'\) \{ o\.startCreate\(\)/)
+    assert.match(src, /closeDetail, startCreate, cancelCreate,/)
   })
 })

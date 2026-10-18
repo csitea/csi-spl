@@ -111,7 +111,9 @@ describe('mention autocomplete', () => {
       'src/components/ChannelSidebar.vue',
       'src/pages/issues.vue',
     ]) {
-      const s = f === 'src/components/MessageCard.vue' ? messageCardSrc() : f === 'src/components/ChannelSidebar.vue' ? channelSidebarSrc() : f === 'src/components/MessageComposer.vue' ? messageComposerSrc() : readFileSync(join(wui, f), 'utf8')
+      /* r13-06: the issue comment box's picker is composables/useIssueComments.ts */
+      const issuesSrc = () => readFileSync(join(wui, f), 'utf8') + readFileSync(join(wui, 'src/composables/useIssueComments.ts'), 'utf8')
+      const s = f === 'src/components/MessageCard.vue' ? messageCardSrc() : f === 'src/components/ChannelSidebar.vue' ? channelSidebarSrc() : f === 'src/components/MessageComposer.vue' ? messageComposerSrc() : f === 'src/pages/issues.vue' ? issuesSrc() : readFileSync(join(wui, f), 'utf8')
       assert.match(s, /useMentionPicker\(/, f)
       assert.match(s, /<MentionList :picker=/, f)
       assert.doesNotMatch(s, /activeMentionQuery|filterRosterMentions/, f)

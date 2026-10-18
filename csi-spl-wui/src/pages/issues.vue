@@ -1184,12 +1184,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import { useMentionPicker } from '~/composables/useMentionPicker'
-import { useMentionPoke } from '~/composables/useMentionPoke'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { useFileAttach } from '~/composables/useFileAttach'
-import { descFileLink, uploadRefs, type IssueFileRef } from '~/utils/issue-files.mjs'
-import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -1199,40 +1194,32 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { applyEdit } from '~/utils/msg-edit.mjs'
-import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
-import { withoutMsg } from '~/utils/feed.mjs'
-import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
-import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
-import { tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
 import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
+import { useIssueOpen } from '~/composables/useIssueOpen'
+import { useIssuePicker } from '~/composables/useIssuePicker'
+import { useIssueCells } from '~/composables/useIssueCells'
+import { useIssueActConfirm } from '~/composables/useIssueActConfirm'
+import { useIssueCtxMenu } from '~/composables/useIssueCtxMenu'
+import { useIssueSwipe } from '~/composables/useIssueSwipe'
+import { useIssueBulk } from '~/composables/useIssueBulk'
+import { useIssueComments } from '~/composables/useIssueComments'
+import { useIssueKeys } from '~/composables/useIssueKeys'
+import type { IssueMenuTarget } from '~/composables/useIssueMenu'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
-import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
-import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
 import { deadlineOverdue, issueCalendarHref } from '~/utils/issue-calendar-link.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
-import { createLongPress } from '~/utils/touch-ui.mjs'
-import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
-import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
-import { useMsgShortcutsHelp, useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
-import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
-import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
-import { aiSubject } from '~/utils/msg-ai-actions.mjs'
-import { onDeleteRestore } from '~/composables/useDeleteUndo'
-import type { IssueMenuItem } from '~/components/IssueRowMenu.vue'
 import {
   ISSUE_LEVELS,
   ISSUE_PRIORITIES,
@@ -1254,10 +1241,6 @@ import {
   statusLabel,
   stepKey,
 } from '~/utils/issues-view.mjs'
-
-/* an issue comment is the whole message row (MessageCard reads kind, to,
-   reactions, edited_at ...), with the fields the page reads made safe */
-type Note = SpoolMessage
 
 const STATUS_ICON: Record<string, string> = {
   eval: 'status-backlog',
@@ -1297,6 +1280,8 @@ const loading = ref(false)
    more; nextCursor is the hub's next_cursor ('' = no more). loadSeq drops a
    page that a newer load (a filter or sort change) superseded. */
 const nextCursor = ref('')
+/* the hub's count of every row the filter matches (the bulk bar's "Select all N") */
+const matchTotal = ref(0)
 const loadingMore = ref(false)
 let loadSeq = 0
 const busy = ref(false)
@@ -1329,26 +1314,16 @@ const cursorKey = ref('')
 const openKey = ref('')
 const creating = ref(false)
 const detail = ref<Issue | null>(null)
-const comments = ref<Note[]>([])
+/* the comment box and its file input (useIssueComments), the bulk bar's page box (useIssueBulk) */
+const commentEl = ref<HTMLTextAreaElement | null>(null)
+const commentFileEl = ref<HTMLInputElement | null>(null)
+const pageBoxEl = ref<HTMLInputElement | null>(null)
 /* rdb 0181: the discussion section's two tabs; a newly opened issue starts on Discussion */
 const TALK_TABS = ['discussion', 'history'] as const
 const talkTab = ref<(typeof TALK_TABS)[number]>('discussion')
 watch(openKey, () => { talkTab.value = 'discussion' })
 /* the History tab reads again when the issue or its discussion moved */
 const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}`)
-const commentText = ref('')
-const commentEl = ref<HTMLTextAreaElement | null>(null)
-const commentMp = useMentionPicker({ text: commentText, el: commentEl })
-const commentFileEl = ref<HTMLInputElement | null>(null)
-const commentFiles = useFileAttach(commentFileEl)
-const { picked: commentPicked, pickLost: commentPickLost } = commentFiles
-/* SPL-985 (spec 042 §3): whoever a stored description, comment or new issue
-   newly mentions gets a DM asking them to act; issues are tenant-wide (K4) */
-const { poke } = useMentionPoke()
-const menu = ref<{ kind: string, key: string, bulk?: boolean } | null>(null)
-const menuIndex = ref(0)
-const menuPos = ref({ top: 80, left: 80 })
-const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 /* the open issue's title as typed, until it is saved. Vue writes `value` on
    every re-render, so with form.title alone a re-render while typing (the
@@ -1361,29 +1336,10 @@ const descEl = ref<{ edit: () => Promise<void> } | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
 const theadEl = ref<HTMLElement | null>(null)
 const pageEl = ref<HTMLElement | null>(null)
-/* SPL-1027: the sheet's cell cursor (the row is cursorKey), the title being
-   edited in place, the row whose deadline picker is open, the delete asked */
-const SHEET_COLS = ['key', 'title', 'status', 'priority', 'level', 'assignee', 'label', 'deadline', 'updated', 'actions'] as const
-const cursorCol = ref('')
-const titleEdit = reactive({ key: '', text: '' })
-const deadlineEditKey = ref('')
-const delTarget = ref<Issue | null>(null)
-const delBusy = ref(false)
-const delError = ref('')
 /* HUM-10 (t1 40c135cb): the hub's own reason for a refused write, shown when
    the page has no words of its own for it (issues.save_failed_reason) */
 const saveReason = ref('')
-/* SPL-1226: the right-click / long-press context menu (shared with the epics
-   sidebar) and its cascade archive/delete confirm */
-const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu, editRequest } = useIssueMenu()
-/* owner b82f3853: the same menu opened from the title-row button, not a
-   right-click. Then it omits "Open" (the epic is already the view) and it
-   right-aligns under the button. */
-const ctxFromButton = ref(false)
 const { copy: copyText, copied: copiedKey } = useCopyText()
-const actConfirm = ref<{ target: IssueMenuTarget, action: 'archive' | 'delete', count: number } | null>(null)
-const actBusy = ref(false)
-const actError = ref('')
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
   assignee: '', labels: [] as string[], deadlineLocal: '',
@@ -1456,17 +1412,6 @@ function onSubtaskCreated(sub: Issue) {
 }
 async function openParent() {
   await openIssueKey(detail.value?.parent || '')
-}
-async function openIssueKey(key: string) {
-  if (!key) return
-  const held = issues.value.find((i) => i.key === key)
-  if (held) { choose(held); return }
-  try {
-    const data = await withSessionRetry(api, () => api.getIssue(key))
-    choose(normalizeIssue(data.issue), false, true)
-  } catch (e) {
-    saveError.value = failKey(e)
-  }
 }
 
 function boxOf(id: string) {
@@ -1644,9 +1589,18 @@ const stack = useMobileStack()
 const phone = computed(() => stack.isMobile.value)
 const filtersOpen = ref(false)
 const sortOpen = ref(false)
+/* the one picker (status, priority, assignee, label, epic, level): composables/useIssuePicker */
+const { menu, menuIndex, menuPos, labelName, menuOptions, menuStyle, openMenu, clampMenuIntoView, onRowLevel, applyMenu, labelSet, onLabelNameBackspace, addLabel } = useIssuePicker({
+  api, t, phone, issues, labels, epics, detail, creating, draft, cursorKey, busy, saveError, failKey, save,
+  runBulkPatch: (kind, value) => runBulkPatch(kind, value),
+})
 /* SPL-1027: above 820 px an opened issue is the modal; its pickers ride above it */
 const modalOpen = computed(() => !phone.value && Boolean(detail.value) && !creating.value)
 const menuOverModal = computed(() => import.meta.client && modalOpen.value && Boolean(menu.value))
+/* opening an issue and its ?issue= history entry: composables/useIssueOpen */
+const { choose, closeDetail, writeIssueQuery, cancelOpen, openIssueKey, openLinkedIssue } = useIssueOpen({
+  api, route, router, phone, modalOpen, issues, detail, creating, openKey, cursorKey, menu, saveError, failKey, hold,
+})
 stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
 /* SPL-994: each sheet is the top level while open - Back closes it first */
 stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value = false })
@@ -1749,103 +1703,8 @@ function clearFilters() {
   labelF.value = ''
   dueF.value = ''
 }
-function issueLinkKey(): string {
-  if (import.meta.client) {
-    try { return new URL(window.location.href).searchParams.get('issue')?.trim() || '' } catch { /* use the route */ }
-  }
-  const q = route.query.issue
-  const raw = Array.isArray(q) ? q[0] : q
-  return typeof raw === 'string' ? raw.trim() : ''
-}
-function writeIssueQuery(key: string) {
-  if (!import.meta.client) return
-  const url = new URL(window.location.href)
-  if ((url.searchParams.get('issue') || '') === key) return
-  /* SPL-1027: > 820 px Back and Forward walk these entries, so the router's
-     own record of each must match its URL - a bare replaceState kept the
-     router's old path and a later Back brought a closed ?issue= back */
-  if (!phone.value) {
-    const query = currentQuery()
-    if (key) query.issue = key
-    else delete query.issue
-    void router.replace({ query })
-    return
-  }
-  if (key) url.searchParams.set('issue', key)
-  else url.searchParams.delete('issue')
-  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
-}
-/* SPL-1027: above 820 px opening an issue is a history entry (?issue=SPL-n),
-   so Back closes the modal and a deep link opens it. A phone keeps
-   replaceState: useMobileStack owns its levels and history (SPL-992). */
-let pushedIssue = false
-/* the router writes ?issue= a tick (or, on a loaded machine, much longer)
-   after the modal shows: a close inside that window waits for the push to
-   land, then steps Back over it, and the late route change must not reopen
-   what was just closed */
-let pendingPush: Promise<unknown> | null = null
-let suppressKey = ''
-function currentQuery(): Record<string, string> {
-  const query: Record<string, string> = {}
-  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
-  return query
-}
-function pushIssueQuery(key: string) {
-  if (!import.meta.client) return
-  if (phone.value || modalOpen.value || issueLinkKey() === key) { writeIssueQuery(key); return }
-  pushedIssue = true
-  const push = router.push({ query: { ...currentQuery(), issue: key } })
-  pendingPush = push
-  void push.finally(() => { if (pendingPush === push) pendingPush = null })
-}
-/* P5-06: a sheet row carries no description (the hub's list projects only
-   what the sheet paints), so opening one reads the issue by number first and
-   the modal paints the whole issue, never a blank description. `loaded` = the
-   caller already holds that read. The last open wins a race. */
-let chooseSeq = 0
-function choose(issue: Issue, fromLink = false, loaded = false) {
-  const seq = ++chooseSeq
-  if (loaded) { show(issue, fromLink); return }
-  cursorKey.value = issue.key
-  void withSessionRetry(api, () => api.getIssue(issue.key)).then(
-    (data) => { if (seq === chooseSeq) show(normalizeIssue(data.issue), fromLink) },
-    (e) => { if (seq === chooseSeq) saveError.value = failKey(e) },
-  )
-}
-function show(issue: Issue, fromLink: boolean) {
-  const wasOpen = modalOpen.value
-  cursorKey.value = issue.key
-  creating.value = false
-  openKey.value = issue.key
-  menu.value = null
-  if (fromLink || wasOpen) writeIssueQuery(issue.key)
-  else pushIssueQuery(issue.key)
-  detail.value = issue
-}
-function closeDetail() {
-  chooseSeq++ /* an open still loading stays closed */
-  const wasModal = modalOpen.value
-  const closedKey = detail.value?.key || ''
-  creating.value = false
-  openKey.value = ''
-  detail.value = null
-  menu.value = null
-  if (wasModal && pushedIssue && pendingPush) {
-    pushedIssue = false
-    suppressKey = closedKey
-    void pendingPush.then(() => { if (issueLinkKey()) router.back() }, () => { suppressKey = '' })
-    return
-  }
-  if (wasModal && pushedIssue && issueLinkKey()) {
-    pushedIssue = false
-    router.back()
-    return
-  }
-  pushedIssue = false
-  writeIssueQuery('')
-}
 function startCreate(status = '') {
-  chooseSeq++
+  cancelOpen()
   creating.value = true
   openKey.value = ''
   detail.value = null
@@ -1887,48 +1746,6 @@ function detailOrDraft(): Issue {
   })
 }
 
-const menuOptions = computed(() => {
-  const kind = menu.value?.kind || ''
-  const hint = ''
-  if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: statusLabel(s), hint: t(statusHintKey(s)) }))
-  if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
-  if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
-  if (kind === 'epic') return [{ value: '', label: t('issues.no_epic'), hint }, ...epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))]
-  if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: `${n} ${t(levelKey(n))}`, hint }))
-  /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
-  if (kind === 'move-epic') return epics.value.filter((e) => e.key !== menu.value?.key).map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
-  if (kind === 'move-parent') return levelTwoParents(menu.value?.key || '').map((i) => ({ value: i.key, label: `${i.key} ${i.title}`, hint }))
-  return []
-})
-const menuStyle = computed(() => ({ top: `${menuPos.value.top}px`, left: `${menuPos.value.left}px` }))
-
-function openMenu(kind: string, issue: Issue, ev?: Event) {
-  if (issue?.key && issue.key !== 'draft') cursorKey.value = issue.key
-  const el = ev && (ev.currentTarget as HTMLElement)
-  const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null
-  /* open aligned under the trigger; the real right-edge clamp runs once the
-     menu has a measured width (CLE-77806: the property panel sits near the
-     viewport's right edge, so a fixed guess over-shifted the picker there). */
-  menuPos.value = {
-    top: r ? r.bottom + 4 : 120,
-    left: Math.max(8, r ? r.left : 80),
-  }
-  menu.value = { kind, key: issue?.key || '' }
-  menuIndex.value = 0
-  labelName.value = ''
-  void nextTick(clampMenuIntoView)
-}
-/* keep the open picker inside the viewport by its actual width, shifting left
-   only when it would truly overflow the right edge (a phone sheet is full-width
-   via CSS, so its inline left is ignored - nothing to clamp). */
-function clampMenuIntoView() {
-  if (phone.value) return
-  const el = document.querySelector('[data-test=issues-menu]') as HTMLElement | null
-  if (!el) return
-  const w = el.getBoundingClientRect().width
-  const maxLeft = window.innerWidth - 8 - w
-  if (menuPos.value.left > maxLeft) menuPos.value.left = Math.max(8, maxLeft)
-}
 function scrollSelected() {
   const scroller = scrollerEl.value
   const key = cursorKey.value
@@ -2043,79 +1860,6 @@ function onDetailPriority(ev: Event) {
   if (creating.value) { draft.priority = n; return }
   if (detail.value && n && n !== detail.value.priority) void save(detail.value.key, { priority: n })
 }
-/* level-2 issues an issue can go under (SPL-972): same epic first, never itself */
-function levelTwoParents(key: string) {
-  const me = issues.value.find((i) => i.key === key)
-  const twos = issues.value.filter((i) => i.level === 2 && i.key !== key)
-  const same = me?.epic ? twos.filter((i) => i.epic === me.epic) : []
-  return same.length ? same : twos
-}
-/*
- * owner, topic e0f6f074: "add the dropboxes for the level column as well".
- * The level is the tree's (SPL-949), so a new level MOVES the issue:
- *   -> 1  it becomes a feature at the top (kind feature, no parent)
- *   -> 2  from 3: straight under its epic; from 1: pick the epic / feature
- *   -> 3  pick the level-2 issue it goes under
- * The hub still judges the tree (an epic with issues cannot drop a level) and
- * its refusal is shown; the box snaps back to the real level either way.
- */
-function onRowLevel(issue: Issue, ev: Event) {
-  const sel = ev.target as HTMLSelectElement
-  const want = Number(sel.value)
-  sel.value = String(issue.level)
-  moveLevel(issue, want, ev)
-}
-function moveLevel(issue: Issue, want: number, ev?: Event) {
-  if (!want || want === issue.level) return
-  if (want === 1) { void save(issue.key, { kind: 'feature' }); return }
-  if (want === 2 && issue.level === 3 && issue.epic) { void save(issue.key, { parent: issue.epic }); return }
-  openMenu(want === 2 ? 'move-epic' : 'move-parent', issue, ev)
-}
-async function applyMenu(value: string) {
-  const kind = menu.value?.kind || ''
-  if (!kind) return
-  if (menu.value?.bulk) { menu.value = null; await runBulkPatch(kind, value); return }
-  if (creating.value) {
-    if (kind === 'status') draft.status = value
-    else if (kind === 'priority') draft.priority = Number(value)
-    else if (kind === 'assign') draft.assignee = value
-    else if (kind === 'epic') draft.epic = value
-    else if (kind === 'label') {
-      draft.labels = draft.labels.includes(value) ? draft.labels.filter((x) => x !== value) : [...draft.labels, value]
-    }
-    if (kind !== 'label') menu.value = null
-    return
-  }
-  /* the row the menu was opened on, not whichever issue the detail shows */
-  const issue = issues.value.find((i) => i.key === menu.value?.key) || detail.value
-  if (!issue || !issue.key) return
-  /* SPL-992: the phone's level sheet moves like the sheet's level box; a move
-     that needs a parent opens the next sheet */
-  if (kind === 'level') { menu.value = null; moveLevel(issue, Number(value)); return }
-  const body: Record<string, unknown> = {}
-  if (kind === 'status') body.status = value
-  else if (kind === 'priority') body.priority = Number(value)
-  else if (kind === 'assign') body.assignee = value
-  else if (kind === 'epic') body.parent = value /* issues-v1: parent is the epic; an older hub knows only parent */
-  else if (kind === 'move-epic') { body.kind = 'issue'; body.parent = value }
-  else if (kind === 'move-parent') { if (issue.level === 1) body.kind = 'issue'; body.parent = value }
-  else if (kind === 'label') {
-    body.labels = issue.labels.includes(value) ? issue.labels.filter((x) => x !== value) : [...issue.labels, value]
-  }
-  await save(issue.key, body)
-  if (kind !== 'label') menu.value = null
-}
-/* SPL-1633: the labels the open picker's issue holds - the picker marks them,
-   and a pick on a marked one takes it off (applyMenu toggles) */
-function menuLabels(): string[] {
-  if (creating.value) return draft.labels
-  const key = menu.value?.key
-  const issue = (key && issues.value.find((i) => i.key === key)) || detail.value
-  return issue?.labels || []
-}
-function labelSet(id: string) {
-  return menuLabels().includes(id)
-}
 /* SPL-1633: the x on a chip of the issue modal's Labels field */
 async function removeLabel(id: string) {
   if (creating.value) { draft.labels = draft.labels.filter((x) => x !== id); return }
@@ -2126,30 +1870,6 @@ async function removeLabel(id: string) {
 function removeLastLabel() {
   const last = activeLabels.value[activeLabels.value.length - 1]
   if (last) void removeLabel(last)
-}
-/* Backspace in the empty Label name box takes the last label off the issue */
-function onLabelNameBackspace(ev: KeyboardEvent) {
-  if (labelName.value) return
-  ev.preventDefault()
-  const set = menuLabels()
-  const last = set[set.length - 1]
-  if (last) void applyMenu(last)
-}
-async function addLabel() {
-  const name = labelName.value.trim()
-  if (!name) return
-  busy.value = true
-  saveError.value = ''
-  try {
-    const data = await withSessionRetry(api, () => api.createIssueLabel({ name }))
-    labels.value = applyLabelFrame(labels.value, { type: 'issue_label', label: data.label })
-    labelName.value = ''
-    await applyMenu(data.label.id)
-  } catch (e) {
-    saveError.value = failKey(e)
-  } finally {
-    busy.value = false
-  }
 }
 async function createIssue() {
   const title = draft.title.trim()
@@ -2201,562 +1921,44 @@ async function createIssue() {
   }
 }
 
-/* ---- SPL-1027: the sheet's cells, in place ------------------------------------ */
-function cellAttrs(issue: Issue, col: string) {
-  return {
-    'data-col': col,
-    'data-cell-on': cursorKey.value === issue.key && cursorCol.value === col ? 'true' : undefined,
-    tabindex: -1,
-  }
-}
-function cellEl(key: string, col: string): HTMLElement | null {
-  return pageEl.value?.querySelector(`[data-test=issues-row][data-key="${CSS.escape(key)}"] [data-col="${col}"]`) || null
-}
-function focusCell() {
-  void nextTick(() => {
-    if (!cursorKey.value || !cursorCol.value) return
-    cellEl(cursorKey.value, cursorCol.value)?.focus()
-  })
-}
-function stepCol(delta: number) {
-  if (!cursorKey.value) cursorKey.value = flat.value[0]?.key || ''
-  if (!cursorKey.value) return
-  const at = SHEET_COLS.indexOf(cursorCol.value as typeof SHEET_COLS[number])
-  const from = at < 0 ? (delta > 0 ? 0 : 1) : at
-  cursorCol.value = SHEET_COLS[Math.max(0, Math.min(SHEET_COLS.length - 1, from + (at < 0 ? 0 : delta)))]
-  focusCell()
-}
-/* Enter on a cell: the key and Updated open the issue, every other cell edits */
-function editCell(issue: Issue, col: string) {
-  const td = cellEl(issue.key, col)
-  const at = td ? { currentTarget: td } as unknown as Event : undefined
-  if (col === 'title') { startTitleEdit(issue); return }
-  if (col === 'status') { openMenu('status', issue, at); return }
-  if (col === 'assignee') { openMenu('assign', issue, at); return }
-  if (col === 'label') { openMenu('label', issue, at); return }
-  if (col === 'deadline') { startDeadlineEdit(issue); return }
-  if (col === 'actions') { askDelete(issue); return }
-  if (col === 'priority' || col === 'level') {
-    const sel = td?.querySelector('select') as (HTMLSelectElement & { showPicker?: () => void }) | null
-    sel?.focus()
-    try { sel?.showPicker?.() } catch { /* focus is enough: the arrows pick */ }
-    return
-  }
-  choose(issue)
-}
-function startTitleEdit(issue: Issue) {
-  cursorKey.value = issue.key
-  cursorCol.value = 'title'
-  menu.value = null
-  titleEdit.key = issue.key
-  titleEdit.text = issue.title
-  void nextTick(() => {
-    const el = pageEl.value?.querySelector<HTMLInputElement>('[data-test=issues-row-title-input]')
-    el?.focus()
-    el?.select()
-  })
-}
-function commitRowTitle(issue: Issue) {
-  if (titleEdit.key !== issue.key) return
-  const value = titleEdit.text.trim()
-  titleEdit.key = ''
-  if (value && value !== issue.title) void save(issue.key, { title: value })
-}
-function onRowTitleKey(ev: KeyboardEvent, issue: Issue) {
-  if (ev.key === 'Enter') { ev.preventDefault(); commitRowTitle(issue); focusCell(); return }
-  if (ev.key === 'Escape') { ev.preventDefault(); titleEdit.key = ''; focusCell() }
-}
-function startDeadlineEdit(issue: Issue) {
-  cursorKey.value = issue.key
-  cursorCol.value = 'deadline'
-  menu.value = null
-  deadlineEditKey.value = issue.key
-  void nextTick(() => pageEl.value?.querySelector<HTMLInputElement>('[data-test=issues-row-deadline-input]')?.focus())
-}
-function onRowDeadline(issue: Issue, local: string) {
-  deadlineEditKey.value = ''
-  const deadline = localInputToDeadline(local)
-  if (deadline === null || deadline === (issue.deadline || '')) { focusCell(); return }
-  void save(issue.key, { deadline })
-  focusCell()
-}
-function askDelete(issue: Issue) {
-  menu.value = null
-  /* HUM-10: an issue with live sub-issues asks the cascade confirm instead */
-  if (!isTopKind(issue.kind) && loadedSubCount(issue.key) > 0) { askAction('delete', issueTarget(issue)); return }
-  delError.value = ''
-  delTarget.value = issue
-}
-function onDeleteOpen(open: boolean) {
-  if (!open && !delBusy.value) delTarget.value = null
-}
-function deleteErrKey(err: { status?: number, token?: string }) {
-  if (err?.token === 'issue_has_children') return 'issues_crud.err_has_children'
-  if (Number(err?.status) === 403) return 'issues_crud.err_delete_forbidden'
-  return errorKey(err, 'one')
-}
-async function confirmDelete() {
-  const issue = delTarget.value
-  if (!issue || delBusy.value) return
-  delBusy.value = true
-  delError.value = ''
-  try {
-    await withSessionRetry(api, () => api.deleteIssue(issue.key))
-    const at = flat.value.findIndex((i) => i.key === issue.key)
-    issues.value = issues.value.filter((i) => i.key !== issue.key)
-    subtasks.value = subtasks.value.filter((i) => i.key !== issue.key)
-    refreshEpics()
-    if (detail.value?.key === issue.key) closeDetail()
-    if (cursorKey.value === issue.key) cursorKey.value = flat.value[Math.min(at, flat.value.length - 1)]?.key || ''
-    delTarget.value = null
-  } catch (e) {
-    /* HUM-10: refused for live sub-issues the list did not know of: offer the cascade */
-    if ((e as { token?: string })?.token === 'issue_has_children') {
-      const n = await probeSubCount(issue.key)
-      if (n > 0) {
-        delTarget.value = null
-        actError.value = ''
-        actConfirm.value = { target: issueTarget(issue), action: 'delete', count: n }
-        return
-      }
-    }
-    delError.value = refusedText(deleteErrKey(e as { status?: number, token?: string }), e)
-  } finally {
-    delBusy.value = false
-  }
-}
-
-/* ---- SPL-1226: the right-click / long-press context menu ------------------ */
-function issueTarget(i: Issue): IssueMenuTarget {
-  return { key: i.key, kind: i.kind, level: i.level, title: i.title, top: isTopKind(i.kind), parent: i.parent || '' }
-}
-/* one long-press machine for every row; the row it fired on is remembered on
-   pointerdown (createLongPress only reports the point) */
-let pressTarget: IssueMenuTarget | null = null
-const rowPress = createLongPress({ onPress: (x, y) => { if (pressTarget) openCtxMenu(pressTarget, x, y) } })
-function onRowContext(issue: Issue, ev: MouseEvent) {
-  ev.preventDefault()
-  ev.stopPropagation()
-  openCtxMenu(issueTarget(issue), ev.clientX, ev.clientY)
-}
-function onRowPointerDown(issue: Issue, ev: PointerEvent) { pressTarget = issueTarget(issue); rowPress.down(ev) }
-/* the click the finger sends when a long-press lifts must not also open the row */
-function onRowActivate(issue: Issue) {
-  const swiped = cardSwipe.takeClick()
-  if (rowPress.takeClick() || swiped) return
-  choose(issue)
-}
-
-/* HUM-10 (owner, t1 aedca86a, f83f73b9): "the same swipes which work for the
-   other listings of message cards should work". The phone's issue card takes
-   MessageCard's swipe machine (utils/swipe-archive.mjs): LEFT is the menu's
-   Archive (its confirm: an issue has no undo), RIGHT opens the card's menu at
-   the finger. A right swipe from the Back zone stays the shell's Back. One
-   machine for the list; the card it runs on is remembered on pointerdown. */
-const swipe = reactive({ key: '', dx: 0, dir: 'archive' as 'archive' | 'hide' | 'menu', armed: false, settle: false })
-let swipeEl: HTMLElement | null = null
-let swipeIssue: Issue | null = null
-let swipeTimer: ReturnType<typeof setTimeout> | null = null
-function swipeTo(dx: number, settle: boolean) {
-  if (swipeTimer) clearTimeout(swipeTimer)
-  swipeTimer = null
-  swipe.settle = settle
-  swipe.dx = dx
-  if (settle && dx === 0) swipeTimer = setTimeout(() => { swipe.settle = false; swipe.key = ''; swipeTimer = null }, SWIPE_SETTLE_MS)
-}
-const swipeRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl'
-const cardSwipe = createSwipe({
-  width: () => swipeEl?.getBoundingClientRect().width || 0,
-  rtl: swipeRtl,
-  canLeft: () => Boolean(swipeIssue),
-  canRight: (x) => !(stack.level.value > 1 && swipeInBackZone(x, typeof window !== 'undefined' ? window.innerWidth : 0, swipeRtl())),
-  onLock: (dir) => {
-    rowPress.cancel()
-    swipe.key = swipeIssue?.key || ''
-    swipe.dir = dir
-  },
-  onMove: (dx, armed, dir) => {
-    if (armed && !swipe.armed && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
-    swipe.armed = armed
-    swipeTo(dir === 'menu' ? dx : -dx, false)
-  },
-  onCommit: (dir, x, y) => {
-    const issue = swipeIssue
-    swipe.armed = false
-    swipeTo(0, true)
-    if (!issue) return
-    stack.swipe.claim()
-    cursorKey.value = issue.key
-    if (dir === 'menu') openCtxMenu(issueTarget(issue), x, y)
-    else askAction('archive', issueTarget(issue))
-  },
-  onCancel: () => {
-    swipe.armed = false
-    swipeTo(0, true)
-  },
+/* the delete and archive confirms: composables/useIssueActConfirm */
+const { actConfirm, actBusy, actError, askAction, onActConfirmOpen, runAction, actConfirmLabel, actConfirmTitleKey, delTarget, delBusy, delError, askDelete, onDeleteOpen, confirmDelete } = useIssueActConfirm({
+  api, t, issues, subtasks, epics, detail, cursorKey, flat, menu, closeDetail, refreshEpics, errorKey, refusedText,
 })
-function onCardPointerDown(issue: Issue, ev: PointerEvent) {
-  swipeIssue = issue
-  swipeEl = ev.currentTarget as HTMLElement
-  cardSwipe.down(ev)
-  onRowPointerDown(issue, ev)
-}
-function onCardPointerMove(ev: PointerEvent) {
-  cardSwipe.move(ev)
-  if (!cardSwipe.swiping) rowPress.move(ev)
-}
-function onCardPointerUp() { cardSwipe.up(); rowPress.up() }
-function onCardPointerCancel() { cardSwipe.cancel(); rowPress.cancel() }
-
-/* the shortcut switch (Settings -> Behaviour), desktop only - the messages' one */
-const keysOn = useMsgShortcutsOn()
-const ctxItems = computed<IssueMenuItem[]>(() => {
-  const tg = ctxTarget.value
-  if (!tg) return []
-  const items = menuItemsFor(tg, ctxFromButton.value)
-  const hinted = keysOn.value ? items.map((it) => ({ ...it, keyHint: issueShortcutHint(it.id) || undefined })) : items
-  return aiGroup.items(hinted) as IssueMenuItem[]
+/* the open issue's discussion: composables/useIssueComments */
+const {
+  comments, poke, onCommentEdited, onCommentDeleted, onCommentReacted, loadComments, sendToDiscussion, attachToDescription,
+  commentText, commentMp, commentFiles, commentPicked, commentPickLost, sendComment, onCommentBlur,
+} = useIssueComments({ api, live, t, detail, creating, phone, busy, saveError, failKey, commentEl, commentFileEl })
+/* the right-click / long-press menu: composables/useIssueCtxMenu */
+const { ctxTarget, ctxPoint, ctxItems, keysOn, openCtxMenu, openEpicMenu, onCtxClose, onCtxChoose, runIssueShortcut, detailCopy, detailArchive, detailDelete } = useIssueCtxMenu({
+  api, route, router, issues, subtasks, detail, cursorKey, flat, saveError, selectedEpic, menuPos, copyText,
+  choose, openIssueKey, openMenu, askAction, askDelete, loadComments, sendToDiscussion,
 })
-/* HUM-10 (owner, t1 aedca86a, bbc53649): "the same right-click menu as all
-   of the others ... Archive, Delete, and Copy Link", plus what the others
-   offer that fits an issue: Move (the message menu's) and Open parent.
-   Priority and labels stay on the row's cells and the plain P / L keys. */
-function menuItemsFor(tg: IssueMenuTarget, fromButton: boolean): IssueMenuItem[] {
-  const items: IssueMenuItem[] = []
-  /* CLE-77816 (owner, topic 4365c545): Edit is the first item everywhere the
-     menu opens - it opens the same issue dialog (epic / feature included). */
-  items.push({ id: 'edit', icon: 'edit', labelKey: 'issues_menu.edit' })
-  /* from the title-row button the epic is already the open view - no "Open" */
-  if (!fromButton) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
-  if (!tg.top && tg.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'issues_menu.open_parent' })
-  items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
-  if (!tg.top) {
-    items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
-    items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
-    items.push({ id: 'move', icon: 'move', labelKey: 'issues_menu.move' })
-  }
-  items.push({ id: 'archive', icon: 'archive', labelKey: 'issues_menu.archive' })
-  items.push({ id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true })
-  return items
-}
-/* t1 b6c742f0 (HUM-10 643c30a8: "add them to every card which has right click
-   menu"): the issue / epic menu - rows and the epics sidebar - ends with the
-   AI actions group, the card's title and description as the subject
-   (utils/msg-ai-actions.mjs aiSubject 'issue'; no "Turn into an issue"). A
-   post lands in the issue's discussion. */
-function heldIssue(key: string): Issue | null {
-  return issues.value.find((i) => i.key === key) || subtasks.value.find((i) => i.key === key) || (detail.value?.key === key ? detail.value : null)
-}
-const aiGroup = useAiMenuGroup(() => {
-  const tg = ctxTarget.value
-  return tg ? aiSubject('issue', heldIssue(tg.key) || { key: tg.key, kind: tg.kind, title: tg.title }) : null
+/* a card's swipes and a row's long-press: composables/useIssueSwipe */
+const { swipe, rowPress, onRowContext, onRowPointerDown, onRowActivate, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel } = useIssueSwipe({
+  stack, cursorKey, choose, openCtxMenu, askAction,
 })
-const aiLocalePath = useLocalePath()
-async function runIssueAi(id: string, tg: IssueMenuTarget) {
-  saveError.value = ''
-  try {
-    /* P5-06: a held sheet row has no description; the subject needs it */
-    const open = detail.value?.key === tg.key ? detail.value : null
-    const issue = open || normalizeIssue((await withSessionRetry(api, () => api.getIssue(tg.key))).issue)
-    if (!issue.task_id) throw new Error('no discussion topic')
-    const { runAiAction } = await import('~/utils/msg-ai-run')
-    const send = (text: string) => sendToDiscussion(issue, text)
-    const key = await runAiAction(id, aiSubject('issue', issue), { api, router, localePath: aiLocalePath, send })
-    if (key) saveError.value = key
-    else if (detail.value?.key === issue.key) await loadComments(issue)
-  } catch {
-    saveError.value = 'feed.msg_menu.ai.failed'
-  }
-}
-/* owner b82f3853: the title-row actions button opens the same menu, targeting
-   the epic/feature the view is filtered to, right-aligned under the button. */
-function openEpicMenu(ev: MouseEvent) {
-  const tg = selectedEpic.value
-  if (!tg) return
-  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-  ctxFromButton.value = true
-  openCtxMenu(tg, Math.max(8, r.right - 176), r.bottom + 4)
-}
-/* CLE-77854 (owner, topic 643330e5): the open issue's header buttons - the
-   actions its ☰ menu held (CLE-77806), aimed at the open issue. Copy link
-   copies and confirms; Archive keeps the shared confirm; Delete is the
-   single-issue confirm, which refuses while it still has live subtasks. */
-function detailCopy() {
-  if (detail.value) void copyText(issueLinkFor(issueTarget(detail.value)), detail.value.key)
-}
-function detailArchive() {
-  if (detail.value) askAction('archive', issueTarget(detail.value))
-}
-function detailDelete() {
-  if (detail.value) askDelete(detail.value)
-}
-function onCtxClose() {
-  /* the phone's "AI actions" entry keeps the sheet open, showing the actions */
-  if (aiGroup.keep()) return
-  closeCtxMenu()
-  ctxFromButton.value = false
-}
-/* CLE-77816 (owner, topic 4365c545): Edit opens the same issue dialog for the
-   target - an epic / feature edits like an issue. A held row opens straight
-   away; an epic (often not in the kind=issue list) is fetched first, the same
-   path openParent uses. */
-async function editTarget(tg: IssueMenuTarget) {
-  onCtxClose()
-  const held = issues.value.find((i) => i.key === tg.key)
-  if (held) { choose(held); return }
-  try {
-    const data = await withSessionRetry(api, () => api.getIssue(tg.key))
-    choose(normalizeIssue(data.issue), false, true)
-  } catch (e) {
-    saveError.value = failKey(e)
-  }
-}
-/* the shareable link for a menu target: an epic/feature opens its filtered
-   view (?epic=), a plain issue deep-links itself (?issue=) */
-function issueLinkFor(tg: IssueMenuTarget): string {
-  const q = tg.top ? `?epic=${encodeURIComponent(tg.key)}` : `?issue=${encodeURIComponent(tg.key)}`
-  const rel = `/issues${q}`
-  if (import.meta.client) { try { return new URL(rel, window.location.origin).href } catch { /* fall through */ } }
-  return rel
-}
-function onCtxChoose(id: string) {
-  const tg = ctxTarget.value
-  if (!tg) return
-  const pt = { ...ctxPoint.value }
-  if (aiGroup.more(id)) return
-  if (id.startsWith('ai-')) { void runIssueAi(id, tg); return }
-  runIssueItem(id, tg, pt)
-}
-function runIssueItem(id: string, tg: IssueMenuTarget, pt: { x: number, y: number }) {
-  if (id === 'edit') { void editTarget(tg); return }
-  if (id === 'parent') { closeCtxMenu(); void openIssueKey(tg.parent || ''); return }
-  if (id === 'copy') { void copyText(issueLinkFor(tg), tg.key); return }
-  if (id === 'open') {
-    if (tg.top) { void router.push({ query: { ...route.query, epic: tg.key } }); return }
-    const issue = issues.value.find((i) => i.key === tg.key)
-    if (issue) choose(issue)
-    return
-  }
-  if (id === 'status' || id === 'assign' || id === 'move') {
-    const issue = issues.value.find((i) => i.key === tg.key)
-    if (!issue) return
-    /* Move: an issue picks its epic, a subtask its parent (the level cell's pickers) */
-    const kind = id === 'move' ? (issue.level === 3 ? 'move-parent' : 'move-epic') : id
-    closeCtxMenu()
-    openMenu(kind, issue)
-    menuPos.value = { top: pt.y, left: Math.max(8, Math.min(pt.x, window.innerWidth - 240)) }
-    return
-  }
-  if (id === 'archive' || id === 'delete') askAction(id, tg)
-}
-/* the count the confirm states: for an epic / feature the issues under it, else
-   the subtasks held under it. Counted from the loaded list (immediate, in step
-   with what is shown); the epics summary is a fallback for when the list is
-   filtered to another epic (the summary read is debounced, so it can lag). */
-function descendantCount(tg: IssueMenuTarget): number {
-  if (tg.top) {
-    const inList = issues.value.filter((i) => i.epic === tg.key).length
-    return Math.max(inList, epics.value.find((e) => e.key === tg.key)?.total || 0)
-  }
-  return loadedSubCount(tg.key)
-}
-/* HUM-10 (t1 40c135cb): an issue's live sub-issues - the open issue's are
-   loaded (subtasks), a list row's children may be; else the hub is asked */
-function loadedSubCount(key: string): number {
-  const open = detail.value?.key === key ? subtasks.value.length : 0
-  return Math.max(open, issues.value.filter((i) => i.parent === key).length)
-}
-async function probeSubCount(key: string): Promise<number> {
-  try {
-    const data = await withSessionRetry(api, () => api.listIssues({ filter: { parent: [key] } }))
-    return Math.max(Number((data as { total?: number }).total) || 0, (data.issues || []).length)
-  } catch {
-    return 0
-  }
-}
-function askAction(action: 'archive' | 'delete', tg: IssueMenuTarget) {
-  closeCtxMenu()
-  actError.value = ''
-  const count = descendantCount(tg)
-  actConfirm.value = { target: tg, action, count }
-  if (tg.top || count > 0) return
-  /* not loaded here: ask the hub, so the confirm states them before the call
-     (still this ask: the ref holds a proxy, so compare by key, not identity) */
-  void probeSubCount(tg.key).then((n) => {
-    const c = actConfirm.value
-    if (n > 0 && c && c.target.key === tg.key && c.action === action && c.count === 0 && !actBusy.value) actConfirm.value = { ...c, count: n }
-  })
-}
-function onActConfirmOpen(open: boolean) {
-  if (!open && !actBusy.value) actConfirm.value = null
-}
-/* the confirm's error text. A cascade archive/delete hits endpoints a hub
-   older than SPL-1226 does not have: POST .../archive is 404/405, and
-   DELETE ?cascade=1 is ignored so a parent comes back 409 issue_has_children.
-   Both must read as "the server is not updated yet", never a silent no-op or
-   the misleading "move its issues first" (CLE-001, owner b82f3853). */
-function actErrorKey(err: { status?: number, token?: string }, cascade: boolean) {
-  const s = Number(err?.status)
-  if (s === 404 || s === 405 || s === 501) return 'issues_menu.err_unavailable'
-  if (cascade && err?.token === 'issue_has_children') return 'issues_menu.err_unavailable'
-  if (s === 403) return 'issues_crud.err_delete_forbidden'
-  return errorKey(err, 'one')
-}
-async function runAction() {
-  const c = actConfirm.value
-  if (!c || actBusy.value) return
-  actBusy.value = true
-  actError.value = ''
-  /* a level-1 row (or one with children) takes its subtree with it */
-  const cascade = c.target.top || c.count > 0
-  try {
-    const res = c.action === 'archive'
-      ? await withSessionRetry(api, () => api.archiveIssue(c.target.key, { cascade }))
-      : await withSessionRetry(api, () => api.deleteIssue(c.target.key, { cascade }))
-    const gone = new Set<string>([c.target.key, ...((res.descendants as string[] | undefined) || [])])
-    issues.value = issues.value.filter((i) => !gone.has(i.key))
-    subtasks.value = subtasks.value.filter((i) => !gone.has(i.key))
-    refreshEpics()
-    if (detail.value && gone.has(detail.value.key)) closeDetail()
-    if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
-    actConfirm.value = null
-  } catch (e) {
-    /* HUM-10: refused for sub-issues it did not know of: the confirm turns
-       into the cascade offer, the count in its button */
-    if (!cascade && (e as { token?: string })?.token === 'issue_has_children') {
-      const n = await probeSubCount(c.target.key)
-      if (n > 0 && actConfirm.value === c) { actConfirm.value = { ...c, count: n }; return }
-    }
-    /* keep the confirm open with a clear message - never a silent no-op */
-    actError.value = refusedText(actErrorKey(e as { status?: number, token?: string }, cascade), e)
-  } finally {
-    actBusy.value = false
-  }
-}
-const actConfirmLabel = computed(() => {
-  const c = actConfirm.value
-  const verb = c && c.action === 'archive' ? 'archive' : 'delete'
-  /* HUM-10: one confirm, the sub-issue count in its button */
-  if (c && c.count > 0 && !c.target.top) return t(`issues_menu.${verb}_with_subs`, { count: c.count }, c.count)
-  return t(verb === 'archive' ? 'issues_menu.archive' : 'issues_crud.delete')
+/* SPL-1027: the sheet's cells, in place: composables/useIssueCells */
+const { cursorCol, cellAttrs, cellEl, focusCell, stepCol, editCell, titleEdit, deadlineEditKey, startTitleEdit, commitRowTitle, onRowTitleKey, startDeadlineEdit, onRowDeadline } = useIssueCells({
+  pageEl, cursorKey, flat, menu, save, openMenu, askDelete, choose,
 })
-const actConfirmTitleKey = computed(() => {
-  const c = actConfirm.value
-  if (!c) return ''
-  if (c.count > 0 && c.target.top) return c.action === 'archive' ? 'issues_menu.archive_cascade_title' : 'issues_menu.delete_cascade_title'
-  return c.action === 'archive' ? 'issues_menu.archive_title' : 'issues_menu.delete_title'
+/* Gmail-style checkboxes and the bulk bar: composables/useIssueBulk */
+const {
+  selected, selSet, bulkOn, flatKeys, bulkPage, allMatching, selectingAll, canMatchAll, bulkBusy, bulkProgress, bulkResult, bulkConfirm,
+  clearSelection, onCheck, togglePage, toggleFocused, selectAllMatching, onBulkAct, onBulkConfirmOpen, runBulkConfirm, runBulkPatch,
+} = useIssueBulk({
+  api, issues, flat, nextCursor, matchTotal, loadError, cursorKey, menu, menuPos, menuIndex, pageBoxEl,
+  filters: [unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF],
+  loadMore, clampMenuIntoView, dropKeys, keepOrDrop, refreshEpics,
+})
+/* the page's keyboard and the click outside a pop-up: composables/useIssueKeys */
+useIssueKeys({
+  route, pageEl, phone, modalOpen, creating, detail, form, flat, cursorKey, cursorCol, deadlineEditKey, filtersOpen, sortOpen, statusOpen,
+  selected, keysOn, menu, menuIndex, menuOptions, descEl, applyMenu, openMenu, cellEl, focusCell, stepCol, editCell, move, choose,
+  closeDetail, startCreate, cancelCreate, clearSelection, toggleFocused, runIssueShortcut, detailOrDraft,
 })
 
-/* ---- owner HUM-10 (t1 53ab04e7, msg 14b0e604): Gmail-style checkboxes ----
-   "the issues listing should have checkboxes to perform multiple actions the
-   same way as in gmail". A box per row and a page box; shift-click checks a
-   run, x the focused row, Esc clears. With one row checked the bulk bar
-   (components/IssuesBulkBar.vue, lazy) replaces the header. The hub has no
-   bulk route; per-issue calls, BULK_PARALLEL at a time, were measured fast
-   enough on dev (2026-10-12, n=6 status PATCHes, ~0.3..0.6 s each). */
-const selected = ref<string[]>([])
-const selSet = computed(() => new Set(selected.value))
-const bulkOn = computed(() => selected.value.length > 0)
-const flatKeys = computed(() => flat.value.map((i) => i.key))
-const bulkPage = computed(() => pageState(selected.value, flatKeys.value))
-const matchTotal = ref(0)
-const allMatching = ref(false)
-const selectingAll = ref(false)
-const canMatchAll = computed(() => bulkPage.value === 'all' && (Boolean(nextCursor.value) || matchTotal.value > flatKeys.value.length))
-const bulkBusy = ref(false)
-const bulkProgress = ref<{ done: number, total: number } | null>(null)
-const bulkResult = ref<{ done: number, total: number, failed: string[] } | null>(null)
-const bulkConfirm = ref<'archive' | 'delete' | ''>('')
-const pageBoxEl = ref<HTMLInputElement | null>(null)
-let checkAnchor = ''
-
-function setSelected(next: string[]) {
-  if (next === selected.value) return
-  selected.value = next
-  allMatching.value = false
-  bulkResult.value = null
-}
-function clearSelection() {
-  setSelected([])
-  checkAnchor = ''
-}
-function onCheck(issue: Issue, ev: MouseEvent) {
-  const on = !selSet.value.has(issue.key)
-  setSelected(ev.shiftKey && checkAnchor
-    ? rangeSelect(selected.value, flatKeys.value, checkAnchor, issue.key, on)
-    : toggleKey(selected.value, issue.key, on))
-  checkAnchor = issue.key
-  cursorKey.value = issue.key
-  /* the box takes no focus: the row keeps it, so j / k / x go on */
-  const row = (ev.target as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row]')
-  row?.focus({ preventScroll: true })
-}
-function togglePage() {
-  setSelected(toggleAll(selected.value, flatKeys.value))
-}
-function toggleFocused() {
-  const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row], [data-test=issues-card]')
-  const key = focused?.getAttribute('data-key') || cursorKey.value
-  if (!key || !flatKeys.value.includes(key)) return
-  setSelected(toggleKey(selected.value, key))
-  checkAnchor = key
-  cursorKey.value = key
-}
-/* Gmail's "Select all N matching": read the pages not loaded yet, then check them all */
-async function selectAllMatching() {
-  if (selectingAll.value) return
-  selectingAll.value = true
-  try {
-    for (let i = 0; i < 100 && nextCursor.value && !loadError.value; i++) await loadMore()
-    setSelected(toggleAll([], flatKeys.value))
-    allMatching.value = !nextCursor.value
-  } finally {
-    selectingAll.value = false
-  }
-}
-/* the page box's dash: some rows shown are checked */
-watchEffect(() => { if (pageBoxEl.value) pageBoxEl.value.indeterminate = bulkPage.value === 'some' })
-/* another filter is another list: nothing stays checked (Gmail) */
-watch([unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF], () => clearSelection())
-/* a row that left the list (deleted, archived, live) leaves the selection */
-watch(issues, (rows) => {
-  const next = keepShown(selected.value, rows.map((i) => i.key))
-  if (next !== selected.value) selected.value = next
-})
-
-function onBulkAct(id: BulkAction, ev: MouseEvent) {
-  if (bulkBusy.value || !selected.value.length) return
-  if (id === 'archive' || id === 'delete') { bulkConfirm.value = id; return }
-  /* the row menu's pickers (applyMenu), aimed at every checked row */
-  const kind = id === 'move' ? 'move-epic' : id
-  const el = ev.currentTarget as HTMLElement | null
-  const r = el?.getBoundingClientRect?.()
-  menuPos.value = { top: r ? r.bottom + 4 : 120, left: Math.max(8, r ? r.left : 80) }
-  menu.value = { kind, key: '', bulk: true }
-  menuIndex.value = 0
-  void nextTick(clampMenuIntoView)
-}
-function onBulkConfirmOpen(open: boolean) {
-  if (!open && !bulkBusy.value) bulkConfirm.value = ''
-}
-async function runBulkConfirm() {
-  const action = bulkConfirm.value
-  if (!action) return
-  /* the archive path of c-241 (5913daef1): a row takes its sub-issues along */
-  await runBulkCalls(async (key) => {
-    try {
-      const res = action === 'archive'
-        ? await withSessionRetry(api, () => api.archiveIssue(key, { cascade: true }))
-        : await withSessionRetry(api, () => api.deleteIssue(key, { cascade: true }))
-      dropKeys([key, ...((res.descendants as string[] | undefined) || [])])
-    } catch (e) {
-      /* gone with a parent checked in the same run */
-      if (Number((e as { status?: number })?.status) !== 404) throw e
-      dropKeys([key])
-    }
-  })
-  bulkConfirm.value = ''
-}
 function dropKeys(keys: string[]) {
   const gone = new Set(keys)
   issues.value = issues.value.filter((i) => !gone.has(i.key))
@@ -2764,340 +1966,6 @@ function dropKeys(keys: string[]) {
   if (detail.value && gone.has(detail.value.key)) closeDetail()
   if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
 }
-/* Status / Assignee / Move to on every checked row. An epic or feature does
-   not move under an epic: it is named as not changed, never demoted. */
-async function runBulkPatch(kind: string, value: string) {
-  let body: Record<string, unknown> | null = null
-  if (kind === 'status') body = { status: value }
-  else if (kind === 'assign') body = { assignee: value }
-  else if (kind === 'move-epic') body = { kind: 'issue', parent: value }
-  if (!body) return
-  const patch = body
-  await runBulkCalls(async (key) => {
-    const row = issues.value.find((i) => i.key === key)
-    if (kind === 'move-epic' && (!row || isTopKind(row.kind) || key === value)) throw new Error('not movable')
-    const data = await withSessionRetry(api, () => api.updateIssue(key, patch))
-    keepOrDrop(key, data)
-  })
-}
-/* one progress line while it runs, one summary naming the rows that failed;
-   those stay checked, the rows done leave the selection */
-async function runBulkCalls(fn: (key: string) => Promise<void>) {
-  const keys = [...selected.value]
-  bulkBusy.value = true
-  bulkResult.value = null
-  bulkProgress.value = { done: 0, total: keys.length }
-  try {
-    const out = await runBulk(keys, fn, { onProgress: (done, total) => { bulkProgress.value = { done, total } } })
-    const failed = out.failed.map((f) => f.key)
-    /* a changed row stays checked (Gmail), an archived / deleted one is gone */
-    selected.value = keepShown(keys, issues.value.map((i) => i.key))
-    allMatching.value = false
-    bulkResult.value = { done: out.done.length, total: keys.length, failed }
-    refreshEpics()
-  } finally {
-    bulkProgress.value = null
-    bulkBusy.value = false
-  }
-}
-
-/* the page's own copy of the comments; the card already told the stores */
-function onCommentEdited(row: SpoolMessage) {
-  comments.value = applyEdit(comments.value, row) as Note[]
-}
-/* CLE-77840: a comment deleted with the Delete key comes back on Undo
-   (useDeleteUndo); it goes back where it was. */
-const commentDeletedAt = new Map<string, number>()
-function onCommentDeleted(row: { msg_id?: string }) {
-  const id = String(row?.msg_id || '')
-  const at = comments.value.findIndex((c) => c.msg_id === id)
-  if (at >= 0) commentDeletedAt.set(id, at)
-  comments.value = withoutMsg(comments.value, id) as Note[]
-}
-const offCommentRestore = onDeleteRestore((row) => {
-  const id = String(row.msg_id || '')
-  const at = commentDeletedAt.get(id)
-  if (at === undefined) return
-  commentDeletedAt.delete(id)
-  if (comments.value.some((c) => c.msg_id === id)) return
-  const next = comments.value.slice()
-  next.splice(Math.min(at, next.length), 0, row as Note)
-  comments.value = next
-})
-onUnmounted(() => offCommentRestore())
-function onCommentReacted(update: ReactionUpdate) {
-  comments.value = patchReactions(comments.value, update) as Note[]
-}
-function asNotes(rows: unknown): Note[] {
-  if (!Array.isArray(rows)) return []
-  const out: Note[] = []
-  for (const raw of rows) {
-    if (!raw || typeof raw !== 'object') continue
-    const m = raw as Record<string, unknown>
-    const id = String(m.msg_id || '')
-    if (!id) continue
-    out.push({
-      ...(m as unknown as SpoolMessage),
-      msg_id: id,
-      from: String(m.from || ''),
-      from_box: String(m.from_box || ''),
-      body: String(m.body || ''),
-      ts: String(m.ts || m.received_at || ''),
-    })
-  }
-  return out
-}
-let followed = ''
-async function loadComments(issue: Issue | null) {
-  comments.value = []
-  const sock = live.ensure()
-  if (followed && sock) sock.unsubscribe(followed)
-  followed = ''
-  if (!issue || !issue.task_id) return
-  followed = issue.task_id
-  if (sock) sock.subscribe(issue.task_id)
-  try {
-    const data = await withSessionRetry(api, () => api.getTopic(issue.task_id, { limit: 50 }))
-    comments.value = asNotes(data && data.messages)
-  } catch {
-    comments.value = []
-  }
-}
-/* one comment into the issue's discussion (is_parent 0 on its task) - the
-   discussion box and, on a phone, the bottom dock's GO */
-async function postComment(issue: Issue, text: string, files: IssueFileRef[] = []) {
-  await sendToDiscussion(issue, text, files)
-  await loadComments(issue)
-}
-/* the post itself - a comment, or an AI action picked on the issue's menu */
-async function sendToDiscussion(issue: Issue, text: string, files: IssueFileRef[] = []) {
-  const sock = live.ensure()
-  if (sock) {
-    await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
-  } else {
-    await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0, files })
-  }
-  if (text) void poke({ text, where: { issue: true, issueKey: issue.key } })
-}
-/* each picked file up to the hub (POST /v1/files), as the composer's send does */
-const uploadFiles = (files: File[]) => uploadRefs(files, (f) => uploadWithFreshToken(api, live, f))
-/* HUM-10 (t1 43ebdf0b): a description's file. The hub serves a file only to a
-   reader of a message that carries it (rdb 0028), so the file rides on a note
-   in the issue's discussion and the description names it with a link to it
-   (utils/issue-files.mjs). */
-async function attachToDescription(files: File[]): Promise<string[]> {
-  const issue = detail.value
-  if (!issue || !issue.task_id) throw new Error('issue has no discussion')
-  const refs = await uploadFiles(files)
-  await sendToDiscussion(issue, '', refs)
-  void loadComments(issue)
-  return refs.map((r) => descFileLink(r, api.fileUrl(r.file_id)))
-}
-
-async function sendComment() {
-  const issue = detail.value
-  const text = commentMp.encode(commentText.value).trim()
-  const picked = commentPicked.value.slice()
-  if (!issue || !issue.task_id || (!text && !picked.length)) return
-  busy.value = true
-  saveError.value = ''
-  try {
-    await postComment(issue, text, await uploadFiles(picked))
-    commentText.value = ''
-    commentPicked.value = []
-  } catch (e) {
-    saveError.value = failKey(e)
-  } finally {
-    busy.value = false
-  }
-}
-
-/* owner, prd t1 topic 110d842c: a comment saves when the box loses focus (a
-   click elsewhere), like the issue description autosaves - not only on Enter.
-   MentionList swallows its own mousedown, so picking a name keeps the focus
-   and never blur-posts a half-typed @token. */
-function onCommentBlur() {
-  if (busy.value) return
-  /* the attach dialog's focus loss is not a click elsewhere */
-  if (commentFiles.picking()) return
-  if (!commentMp.encode(commentText.value).trim() && !commentPicked.value.length) return
-  void sendComment()
-}
-
-/* (owner, prd t1 topic 110d842c: "In issues on mobile, clicking on
-   the omnibox, typing and clicking the GO button does not create a
-   comment"). /issues registered no omnibox send target, so the phone dock's
-   GO had nowhere to send and did nothing. With an issue open on a phone
-   (level 3) the dock now comments on it; the list stays search-only.
-   Desktop keeps its Omnibox as search - the discussion box is on screen. */
-const omniboxStore = useOmniboxStore()
-const commentOwner = Symbol('issue-comment')
-async function sendDockComment(text: string, files: File[]) {
-  const issue = detail.value
-  if (!issue || !issue.task_id) return
-  /* a comment carries no attachment (the discussion box has none): refuse
-     rather than post the text and drop the file on the floor */
-  if (files.length) throw Object.assign(new Error('issue comments take no files'), { token: 'files' })
-  const body = text.trim()
-  if (!body) return
-  busy.value = true
-  try {
-    await postComment(issue, body)
-  } finally {
-    busy.value = false
-  }
-  /* the discussion is below the fold on a phone: without this the only sign
-     of the post was an empty dock - the owner's "does not create a comment"
-     again. Comments are oldest first, so the new one is the last card. */
-  await nextTick()
-  const cards = document.querySelectorAll('[data-test=issues-comment]')
-  cards[cards.length - 1]?.scrollIntoView({ block: 'center' })
-}
-const dockComment = computed(() => Boolean(phone.value && detail.value && detail.value.task_id && !creating.value))
-watch(dockComment, (on) => {
-  if (!on) { omniboxStore.unregister(commentOwner); return }
-  omniboxStore.register({
-    owner: commentOwner,
-    placeholder: () => t('composer.target_comment', { target: detail.value?.key || '' }),
-    dock: () => ({ reply: true, target: detail.value?.key || '', comment: true }),
-    send: sendDockComment,
-    busy: () => busy.value,
-  })
-}, { immediate: import.meta.client })
-onBeforeUnmount(() => omniboxStore.unregister(commentOwner))
-
-/* SPL-1027: a picker opened by S / P / A / L sits under its control - the
-   modal's field, or the row's cell - never at a fixed corner of the page */
-const KEY_ANCHOR: Record<string, [string, string]> = {
-  status: ['issues-status', 'status'],
-  priority: ['issues-priority', 'priority'],
-  assign: ['issues-assignee', 'assignee'],
-  label: ['issues-labels', 'label'],
-}
-function keyAnchor(kind: string, issue: Issue): Event | undefined {
-  const [field, col] = KEY_ANCHOR[kind] || ['', '']
-  const el = modalOpen.value
-    ? document.querySelector(`[data-test=issues-detail] [data-test=${field}]`)
-    : (!phone.value && issue.key && issue.key !== 'draft' ? cellEl(issue.key, col) : null)
-  return el ? { currentTarget: el } as unknown as Event : undefined
-}
-function typingTarget(el: EventTarget | null) {
-  if (!(el instanceof HTMLElement)) return false
-  const tag = el.tagName
-  /* a row's box keeps the list keys (j / k / x) working, Gmail's way */
-  if (tag === 'INPUT' && (el as HTMLInputElement).type === 'checkbox') return false
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
-}
-/* SPL-1027: the issue modal is the ONE open dialog and holds the issue */
-function issueModal(): HTMLElement | null {
-  const open = document.querySelectorAll<HTMLElement>('[aria-modal="true"]')
-  return open.length === 1 && open[0].querySelector('[data-test=issues-detail]') ? open[0] : null
-}
-/* Esc inside the issue modal: a picker closes first, then a text area is
-   left (the description saves on blur, a comment draft stays), and only then
-   UiDialog closes the modal. Capture phase: UiDialog's own keydown stops Esc
-   before the page sees it. */
-function onDocKeyCapture(ev: KeyboardEvent) {
-  if (ev.key !== 'Escape' || phone.value || !modalOpen.value) return
-  const modal = issueModal()
-  if (!modal) return
-  if (menu.value) { ev.preventDefault(); ev.stopPropagation(); menu.value = null; return }
-  const el = ev.target
-  if (el instanceof HTMLTextAreaElement && modal.contains(el)) {
-    ev.preventDefault()
-    ev.stopPropagation()
-    el.blur()
-    modal.focus() /* focus stays in the dialog, so the next Esc closes it */
-  }
-}
-function onDocKey(ev: KeyboardEvent) {
-  if (tabForPath(route.path) !== 'issues') return
-  /* the kind menu is teleported to <body>; Enter and Esc are its own */
-  if (document.querySelector('.kind-picker')) return
-  const inModal = Boolean(document.querySelector('[aria-modal="true"]'))
-  if (inModal && !issueModal()) return
-  const key = ev.key
-  const typing = typingTarget(ev.target)
-  const menuOpen = Boolean(menu.value)
-  if (ev.metaKey || ev.ctrlKey || ev.altKey) return
-  /* focus outside the panel (a click on its padding): UiDialog never saw it */
-  if (inModal && key === 'Escape') { ev.preventDefault(); if (menuOpen) menu.value = null; else closeDetail(); return }
-  if (key === 'Escape' && deadlineEditKey.value) { ev.preventDefault(); deadlineEditKey.value = ''; focusCell(); return }
-  if (key === 'Escape' && (filtersOpen.value || sortOpen.value)) { ev.preventDefault(); filtersOpen.value = false; sortOpen.value = false; return }
-  if (key === 'Escape' && (menuOpen || statusOpen.value)) { ev.preventDefault(); menu.value = null; statusOpen.value = false; return }
-  if (key === 'Escape' && typing) { (ev.target as HTMLElement).blur(); ev.preventDefault(); return }
-  if (key === 'Escape') {
-    ev.preventDefault()
-    if (statusOpen.value) { statusOpen.value = false; return }
-    if (menuOpen) menu.value = null
-    else if (selected.value.length) clearSelection()
-    else if (creating.value && !phone.value) cancelCreate()
-    else if (cursorCol.value) { cursorCol.value = ''; (ev.target as HTMLElement)?.blur?.() }
-    else closeDetail()
-    return
-  }
-  if (typing) return
-  if (menuOpen) {
-    if (key === 'ArrowDown' || key === 'j' || key === 'J') { menuIndex.value = Math.min(menuOptions.value.length - 1, menuIndex.value + 1); ev.preventDefault(); return }
-    if (key === 'ArrowUp' || key === 'k' || key === 'K') { menuIndex.value = Math.max(0, menuIndex.value - 1); ev.preventDefault(); return }
-    if (key === 'Enter') {
-      const opt = menuOptions.value[menuIndex.value]
-      if (opt) void applyMenu(opt.value)
-      ev.preventDefault()
-    }
-    return
-  }
-  const k = key.toLowerCase()
-  /* in the issue modal only its own keys: E and the S / P / A / L pickers */
-  if (inModal && !['e', 's', 'p', 'a', 'l'].includes(k)) return
-  if (document.querySelector('.kind-picker, .point-menu')) return
-  /* HUM-10 (owner, t1 aedca86a, d8f61702): on the list, Shift + a letter is
-     the message key for the same action on the selected row (Shift + A
-     archives); the plain letters stay the sheet's own pickers */
-  if (!inModal && !creating.value) {
-    const sc = issueShortcutFor(ev, { enabled: keysOn.value, phone: phone.value })
-    if (sc?.type === 'help') { useMsgShortcutsHelp().value = true; ev.preventDefault(); return }
-    if (sc?.type === 'action') { runIssueShortcut(sc.key); ev.preventDefault(); return }
-  }
-  /* HUM-10 (Gmail): x checks / unchecks the focused row, else the selected one */
-  if (k === 'x' && !ev.shiftKey && !inModal && !creating.value) { toggleFocused(); ev.preventDefault(); return }
-  if (k === 'j' || key === 'ArrowDown') { void move(1).then(focusCell); ev.preventDefault(); return }
-  /* Shift + K is the message kind menu (HUM-10 t1 ffc3b83c), not move-up. */
-  if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { void move(-1).then(focusCell); ev.preventDefault(); return }
-  /* SPL-1027: Left / Right move the cell cursor, Enter edits the cell */
-  if (!phone.value && (key === 'ArrowRight' || key === 'ArrowLeft')) { stepCol(key === 'ArrowRight' ? 1 : -1); ev.preventDefault(); return }
-  if (key === 'Enter') {
-    const issue = flat.value.find((i) => i.key === cursorKey.value) || flat.value[0]
-    if (issue && cursorCol.value && !phone.value) editCell(issue, cursorCol.value)
-    else if (issue) choose(issue)
-    ev.preventDefault()
-    return
-  }
-  if (k === 'c') { startCreate(); ev.preventDefault(); return }
-  if (k === 'e' && form.value) { void descEl.value?.edit(); ev.preventDefault(); return }
-  const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
-  const issue = creating.value ? detailOrDraft() : (detail.value || flat.value.find((i) => i.key === cursorKey.value) || flat.value[0])
-  if (kind && issue) { openMenu(kind, issue, keyAnchor(kind, issue)); ev.preventDefault() }
-}
-
-/* Shift + `letter` on the row holding the focus, else the selected one (the
-   messages' rule): the row's menu item for that key, only when its menu
-   offers it (Shift + R opens the menu on the row) */
-function runIssueShortcut(letter: string) {
-  const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row], [data-test=issues-card]')
-  const key = focused?.getAttribute('data-key') || cursorKey.value
-  const issue = flat.value.find((i) => i.key === key)
-  if (!issue) return
-  cursorKey.value = issue.key
-  const tg = issueTarget(issue)
-  const row = document.querySelector<HTMLElement>(`[data-test=issues-row][data-key="${CSS.escape(issue.key)}"]`)
-  const r = row?.getBoundingClientRect()
-  const pt = { x: r ? r.left + 40 : 80, y: r ? r.bottom : 120 }
-  if (letter === 'R') { ctxFromButton.value = false; openCtxMenu(tg, pt.x, pt.y); return }
-  const id = issueShortcutItem(letter, menuItemsFor(tg, false).map((it) => it.id))
-  if (id) runIssueItem(id, tg, pt)
-}
-
 watch([unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, serverOrderKey, epicF], () => { void load() })
 /* ?unread=1 follows the filter, and the badge's link sets the filter */
 watch(() => route.query.unread, () => { unreadF.value = unreadOn() })
@@ -3110,21 +1978,6 @@ watch(unreadF, (on) => {
   void router.replace({ query })
 })
 watch(() => session.state, () => { void load() }, { immediate: true })
-async function openLinkedIssue() {
-  const key = issueLinkKey()
-  if (!key) return
-  if (detail.value && detail.value.key.toLowerCase() === key.toLowerCase()) return
-  const held = issues.value.find((i) => i.key.toLowerCase() === key.toLowerCase())
-  if (held) { choose(held, true); return }
-  try {
-    const data = await withSessionRetry(api, () => api.getIssue(key))
-    const issue = normalizeIssue(data.issue)
-    hold(issue)
-    choose(issue, true, true)
-  } catch {
-    /* an unknown key opens nothing */
-  }
-}
 watch(detail, (issue) => {
   if (creating.value) return
   void loadComments(issue)
@@ -3163,28 +2016,6 @@ async function checkUnopened(before: Issue[], frame: unknown) {
     else setUnopened(key, true)
   } catch { /* the next list read brings the mark */ }
 }
-/* CLE-77816: the Epics sidebar double-click asks the page to open the dialog on
-   an epic / feature (the sidebar owns no dialog). seq re-fires the same key. */
-watch(editRequest, (req) => { if (req) void editTarget(req.target) })
-watch(() => {
-  const q = route.query.issue
-  const raw = Array.isArray(q) ? q[0] : q
-  return typeof raw === 'string' ? raw.trim() : ''
-}, (key) => {
-  /* the push of an issue closed before it landed: not a request to open it */
-  if (key && suppressKey && key.toLowerCase() === suppressKey.toLowerCase()) { suppressKey = ''; return }
-  if (!key) suppressKey = ''
-  /* SPL-1027: Back past the entry the modal pushed closes it */
-  if (!key && modalOpen.value) {
-    pushedIssue = false
-    openKey.value = ''
-    detail.value = null
-    menu.value = null
-    return
-  }
-  void openLinkedIssue()
-})
-watch(creating, (on) => { if (on) comments.value = [] })
 
 /* SPL-18: a frame can move an issue between epics or change its status, so
    the left-most panel's counts are re-read (one light read, debounced). */
@@ -3201,24 +2032,7 @@ function refreshEpics() {
 }
 let offIssue = () => {}
 let offLabel = () => {}
-let offMsg = () => {}
 let offBack = () => {}
-let offCommentEdit = () => {}
-let offCommentDelete = () => {}
-let offCommentReact = () => {}
-/* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it */
-function onDocPointer(ev: Event) {
-  const t = ev.target
-  const inside = (sel: string) => {
-    const el = pageEl.value?.querySelector(sel)
-    return Boolean(el && t instanceof Node && el.contains(t))
-  }
-  /* the menu may ride over the issue modal, teleported out of the page */
-  const menuEl = document.querySelector('[data-test=issues-menu]')
-  if (statusOpen.value && !inside('[data-test=issues-filter-status]')) statusOpen.value = false
-  if (menu.value && !(menuEl && t instanceof Node && menuEl.contains(t))) menu.value = null
-  if (deadlineEditKey.value && !inside('[data-deadline-edit="true"]')) deadlineEditKey.value = ''
-}
 onMounted(() => {
   colWidths.value = { ...issueCols.widths.value }
   try {
@@ -3227,9 +2041,6 @@ onMounted(() => {
   } catch { /* none folded */ }
   useTopicStore().close()
   useLiveFeed('pane').close()
-  document.addEventListener('keydown', onDocKey)
-  document.addEventListener('keydown', onDocKeyCapture, true)
-  document.addEventListener('pointerdown', onDocPointer)
   offIssue = live.onIssue((f) => {
     const before = issues.value
     issues.value = applyIssueFrame(issues.value, f)
@@ -3239,30 +2050,12 @@ onMounted(() => {
     if (detail.value && fi && fi.parent === detail.value.key) void loadSubtasks(detail.value)
   })
   offLabel = live.onIssueLabel((f) => { labels.value = applyLabelFrame(labels.value, f) })
-  offMsg = live.onMessage((m) => {
-    const issue = detail.value
-    if (!issue || String(m.task_id || '') !== issue.task_id) return
-    const note = asNotes([m])[0]
-    if (note && !comments.value.some((c) => c.msg_id === note.msg_id)) comments.value = [...comments.value, note]
-  })
   offBack = live.onReconnected(() => { void load() })
-  offCommentEdit = live.onEdited((m) => onCommentEdited(m as unknown as SpoolMessage))
-  offCommentDelete = live.onDeleted((m) => onCommentDeleted(m as { msg_id?: string }))
-  offCommentReact = live.onReaction((m) => onCommentReacted(m as unknown as ReactionUpdate))
 })
 onUnmounted(() => {
-  document.removeEventListener('keydown', onDocKey)
-  document.removeEventListener('keydown', onDocKeyCapture, true)
-  document.removeEventListener('pointerdown', onDocPointer)
   offIssue()
   offLabel()
-  offMsg()
   offBack()
-  offCommentEdit()
-  offCommentDelete()
-  offCommentReact()
-  const sock = live.ensure()
-  if (followed && sock) sock.unsubscribe(followed)
 })
 </script>
 

@@ -395,7 +395,8 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
     const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
     const client = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
     assert.match(page, /<UiConfirm[\s\S]*?testid="issues-delete"/)
-    assert.match(page, /api\.deleteIssue\(issue\.key\)/)
+    /* r13-06: the delete confirm is composables/useIssueActConfirm.ts */
+    assert.match(readFileSync(new URL('../../src/composables/useIssueActConfirm.ts', import.meta.url), 'utf8'), /o\.api\.deleteIssue\(issue\.key\)/)
     assert.match(client, /async function deleteIssue\(ctx, ref[^)]*\) \{[\s\S]*?method: 'DELETE'/)
   })
   it('SPL-1226: cascade archive/delete client + mock', () => {

@@ -180,7 +180,8 @@ describe('the components', () => {
     assert.match(desc, /if \(ok\) close\(\)/)
     // the view returns after the pointer is up, so the click that blurred the editor lands
     assert.match(desc, /addEventListener\('pointerup', \(\) => setTimeout/)
-    assert.match(issues, /if \(k === 'e' && form\.value\) \{ void descEl\.value\?\.edit\(\)/)
+    /* r13-06: the page's keys are composables/useIssueKeys.ts */
+    assert.match(read('src/composables/useIssueKeys.ts'), /if \(k === 'e' && o\.form\.value\) \{ void o\.descEl\.value\?\.edit\(\)/)
     assert.match(issues, /return !saveError\.value/)
   })
 })

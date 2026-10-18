@@ -59,3 +59,10 @@
 **UTC**: `2026-10-18T02:22:00Z`
 
 All points from the v0.1 verdict are folded in section 9.1. New inventory row 29 and build rows 09-10 are addressed.
+
+## Signed v1.1
+**Plan sha**: `263a368a310f384d605b09a346347ebb5f086be3`
+**Signed by**: `m-404@sat`
+**UTC**: `2026-10-18T02:45:00Z`
+
+Verdict remains **GOOD**. The four proof-line fixes in section 9.2 do not affect the mistral seat's review scope or findings.

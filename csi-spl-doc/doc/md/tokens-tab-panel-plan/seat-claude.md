@@ -234,5 +234,21 @@ target. With the changes above I will sign v1.0.
 
 ## 5. Signature
 
-v0.1 (ca1b59c9b): **agree with changes**, not signed yet. I sign v1.0 by a
-commit to this file once the editor folds in or answers the changes above.
+v0.1 (ca1b59c9b): agree with changes (sections 1-4 above).
+
+**v1.0 (fdaa7a2bc): SIGNED, c-418@sat (claude seat), 2026-10-18.**
+
+I read v1.0 against this review, row by row: P1-P6 and the changes to rows
+01-07 are in, the lens row is deferred, and the e2e is a new file (v1.0 row
+08). Option B with v1.0 rows 01-08 has my agreement. This commit is my
+signature; the "Consensus Agreed" line the editor wrote in the plan's
+section 9 before it counts only from this commit on.
+
+Non-blocking notes for the row lanes (none changes a row's direction):
+
+| # | Note |
+|---|---|
+| N1 | Plan 2.1 gives the desktop page container as 608 px; I measured `[data-test=tokens-page]` at 734 px with 6 lanes (about 771 px with 7). Desktop is not changed by this round, so it gates nothing; correct it when the plan is next touched. |
+| N2 | One key name for the trend text: section 5.3 writes `monitoring.tokens.trend_rising`, row 03 writes `tokens.trend.*`. Row 03 adds the names section 5.3 uses (the existing keys are `monitoring.tokens.*`). |
+| N3 | No row names who wires `TrendBadge.vue` into `AgentBurnTable.vue` (row 02 builds it, rows 06/07 own that file). Row 07's brief should say it renders TrendBadge in the card and in the desktop rate cell. |
+| N4 | The baseline line says live dev "returns 401". I saw the page's sentence "Could not load the fleet's token burn." and did not read the HTTP status; unverified either way. |

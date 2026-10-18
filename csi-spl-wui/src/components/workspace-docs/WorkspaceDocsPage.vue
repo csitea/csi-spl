@@ -15,7 +15,9 @@
      (utils/docs-drill-up.mjs) until the top. -->
 <template>
   <div class="feed-col wsdocs-page" data-test="ws-docs-page">
-    <header class="feed-header wsdocs-head">
+    <!-- qto reading panel row 01 (owner t1 a1b42c34, msg 02749694: one small
+         bar at the top): a phone with a document open draws one row -->
+    <header class="feed-header wsdocs-head" :class="{ 'wsdocs-head--doc': docId && !phoneList }">
       <MobileBack />
       <h2 data-test="ws-docs-heading">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
       <!-- a drilled level opens as a document too: the menu's Edit (a folder level is no document) -->
@@ -43,10 +45,11 @@
           class="wsdocs-views__opt"
           :data-test="'ws-docs-view-' + v"
           :aria-checked="view === v ? 'true' : 'false'"
+          :title="t('ws_doctree.view_' + v)"
           @click="setView(v)"
         >
           <UiIcon :name="v === 'doc' ? 'list' : 'file-spreadsheet'" :size="16" />
-          <span>{{ t('ws_doctree.view_' + v) }}</span>
+          <span class="wsdocs-views__label">{{ t('ws_doctree.view_' + v) }}</span>
         </button>
       </div>
       <!-- SPL-2094: the doc view's bar (its three buttons) teleports here on a desktop -->
@@ -373,6 +376,33 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMove
     width: 56px;
     height: 56px;
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
+  }
+  /* a document open: one strip (<= 46 px), no wrap. The heading stays for
+     screen readers only, the view pills show their icons, the picker takes
+     the room left and the + sits in the row instead of floating */
+  .wsdocs-head--doc { flex-wrap: nowrap; min-height: 45px; padding-block: 0; }
+  .wsdocs-head--doc > h2,
+  .wsdocs-head--doc .wsdocs-views__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .wsdocs-head--doc .wsdocs-pick { flex: 1 1 auto; min-width: 0; }
+  .wsdocs-head--doc .wsdocs-pick select { width: 100%; max-width: none; text-overflow: ellipsis; }
+  .wsdocs-head--doc .wsdocs-views { flex: 0 0 auto; }
+  .wsdocs-head--doc .wsdocs-views__opt { min-height: 36px; padding: 4px 8px; }
+  .wsdocs-head--doc .wsdocs-fab {
+    position: static;
+    order: 1;
+    width: 40px;
+    height: 40px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   }
 }
 .wsdocs-note { padding: 12px 16px; }

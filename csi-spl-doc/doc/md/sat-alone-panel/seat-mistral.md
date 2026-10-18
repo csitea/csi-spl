@@ -52,3 +52,10 @@
 
 ## Verdict
 **GOOD**. The plan is complete and actionable. No omissions found.
+
+## Signed v1.0
+**Plan sha**: `18bd10bba7ac5f5096cab19d40a4258e43bf1d7b`
+**Signed by**: `m-404@sat`
+**UTC**: `2026-10-18T02:22:00Z`
+
+All points from the v0.1 verdict are folded in section 9.1. New inventory row 29 and build rows 09-10 are addressed.

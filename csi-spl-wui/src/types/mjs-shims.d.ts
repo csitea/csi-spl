@@ -2619,6 +2619,31 @@ declare module '~/utils/msg-shortcuts.mjs' {
   export function flowShortcutsSection(label: (labelKey: string) => string): string
 }
 
+declare module '~/utils/msg-shortcuts-dispatch.mjs' {
+  export function cardEnterAction(
+    ev: { key: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, isComposing?: boolean, repeat?: boolean, defaultPrevented?: boolean },
+    s: { on: boolean, overlayOpen: boolean, isCard: boolean, inTopicPane: boolean, inMain: boolean, busy: boolean },
+  ): 'composer' | 'into-pane' | null
+  export function wantsPanelCard(hit: { type: string, key?: string } | null, hasCard: boolean): boolean
+  export type KeyAction = { do: 'help' } | { do: 'step', step: number } | { do: 'undo' } | { do: 'menu' }
+    | { do: 'row-menu' } | { do: 'row-back' } | { do: 'jump', key: 'U' | 'B' } | { do: 'run', id: string }
+  export function shortcutAction(
+    hit: { type: 'help' } | { type: 'step', step: number } | { type: 'action', key: string } | null,
+    s: { hasCard: boolean, hasEntry: boolean, busy: boolean, undoUp: boolean, onTopicRow: boolean, offered: () => Set<string> | string[] },
+  ): KeyAction | null
+}
+
+declare module '~/utils/msg-shortcuts-dom.mjs' {
+  export const OVERLAY_OPEN: string
+  export const PANEL: string
+  export const TOPIC_PANE: string
+  export function stepFeedSelection(row: HTMLElement | null, step: number): boolean
+  export function backToPane(row: HTMLElement): boolean
+  export function jumpInTopic(card: HTMLElement, key: 'B' | 'U', openerFallback: (task: string) => string): boolean
+  export function holdPanelFocus(origin: HTMLElement | null): void
+  export function intoPane(from: HTMLElement): void
+}
+
 declare module '~/utils/unread-model.mjs' {
   export interface UnreadModel {
     rows: Map<string, number>

@@ -1,4 +1,4 @@
-# sat alone: readiness panel plan (v1.0)
+# sat alone: readiness panel plan (v1.1)
 
 Epic: SPL-2364
 Spec: [146 reliability round](../../specs/146-reliability-round/spec.md)
@@ -7,8 +7,8 @@ Owner topic: t1 `721ad6e4` (msgs `ceca67c2`, `97b1b11d`); task `dispatch-721ad6e
 Rules: [rounds rulebook](rounds-rulebook.md) (R1-R16), [repo CLAUDE.md](../../../CLAUDE.md)
 Prior design: [spec 064, the fleet without the PC](../../specs/064-fleet-without-the-pc/spec.md)
 
-**Status: v1.0, both reviews folded (section 9); signatures in each seat's
-own file.** v0.1 was `327fd8559`.
+**Status: v1.1, both reviews folded (section 9); signatures in each seat's
+own file.** v0.1 was `327fd8559`, v1.0 `18bd10bba`.
 Editor: `c-399@sat` (claude). Reviewer seats: grok `g-400@sat`
 (`sat-alone-panel/seat-grok.md`, verdict change, 28 agree / 20 change / 0
 reject), mistral `m-404@sat` (`sat-alone-panel/seat-mistral.md`, verdict
@@ -71,7 +71,7 @@ its return), **cannot** (must not or cannot move to sat).
 | 2 | legacy line `LEASE_PRIORITY=<pc box>,box-desk,sat` in sat's `lease.conf` | `grep -i priority /var/spool-hub/dispatch/lease.conf` -> 3 lines; the bare one ranks `<pc box>` first | covered (the per-role lines win); it misleads a reader. Noted, no row |
 | 3 | role seats on `<pc box>` standing by (`c-001`..`c-003`, `g-001`..`g-003`) | `lane-map.sh \| grep '@<pc box>'` -> 6 role rows | covered: sat has its own `c-001`..`c-003`, `g-001` (`lane-map.sh \| grep '@sat'`) |
 | 4 | lanes running on `<pc box>` | lane map 01:20Z: 16 rows `@<pc box>` (02:07Z, grok seat: 13 `@<pc box>`, 21 `@sat`) (6 role seats, 4 restarted peer seats, 6 task lanes incl. the dedicated channel seat, a test-round row and a costs-tab lane) vs 18 `@sat` | **can**: `do_spl_box_leave` on `<pc box>` drains them (section 3); without it they freeze mid-task |
-| 5 | placement keeps choosing `<pc box>` until it is silent 120 s | `./run -a do_spl_box_pick` on sat, 01:2xZ -> `pick=<pc box> reason=every box is at or above its high mark; <pc box> is the least past its band`; at 01:58Z, 02:08Z and 02:19Z -> `pick=sat`, `<pc box>` DEGRADED (02:19Z: "last beat 151s ago (max 120s)"). So the pick follows the beats, either way, minute by minute; the drain marker `box.leave` is read only on the leaving box (`grep -rln box.leave csi-spl-orc/src` -> box-leave, box-join, `spawn-window.sh:151`, the leave test) | **can**, row 01: no cordon action exists (`grep -rniE 'cordon\|offline.window' csi-spl-orc/src` -> 1 line, a comment in `spl-box-presence-watch.func.sh:8`; no `do_spl_box_cordon`) |
+| 5 | placement keeps choosing `<pc box>` until it is silent 120 s | `./run -a do_spl_box_pick` on sat, 01:2xZ -> `pick=<pc box> reason=every box is at or above its high mark; <pc box> is the least past its band`; at 01:58Z -> `pick=sat`, `<pc box>` DEGRADED (last beat 329 s; grok seat); at 02:08Z -> `pick=sat` with one BOX line and no DEGRADED line (grok seat, n=1); at 02:19Z -> `pick=sat`, `<pc box>` DEGRADED ("last beat 151s ago (max 120s)"). So the pick follows the beats, either way, minute by minute; the drain marker `box.leave` is read only on the leaving box (`grep -rln box.leave csi-spl-orc/src` -> box-leave, box-join, `spawn-window.sh:151`, the leave test) | **can**, row 01: no cordon action exists (`grep -rniE 'cordon\|offline.window' csi-spl-orc/src` -> 1 line, a comment in `spl-box-presence-watch.func.sh:8`; no `do_spl_box_cordon`) |
 | 6 | DEGRADED rule | cnf `env.box.health` (`csi-spl-cnf/csi-spl/all.env.yaml:1119-1124`): `max_gap_s 120`, `hold_min 30`, `window_min 10`, `min_beat_pct 50`; used at `spl-box-pick.func.sh:107,172` and the pinned-row HOLD `spl-spawn-place.func.sh:276-300` | covered after the cut (~2 min); a returning box can stay degraded up to 30 min (`hold_min`) |
 | 7 | queue rows pinned to `<pc box>` (finance lanes) | `spl-spawn-place.func.sh:298-300` -> "hold: ask ... is pinned to ...; it stays queued" | **waits** (by design) |
 | 8 | the dedicated channel seat `c-423@<pc box>` | lane map row `c-423@<pc box>` "Dedicated seat: the ... spool channel"; owner order: only that seat talks there | **cannot** without an owner word: that channel is silent while `<pc box>` is away |
@@ -107,7 +107,7 @@ are not:
 
 | # | item | proof | verdict |
 |---|---|---|---|
-| 21 | CI runners | repo variable `SPOOL_CI_RUNNER` = `"ubuntu-latest"` (`gh variable list`); `gh api repos/csitea/csi-spl/actions/runners --jq .total_count` -> 0 (org: 0); last green wf 10 run `39085580284`: every job on a `GitHub Actions <n>` runner, label `ubuntu-latest` | **covered while the variable holds**: no box runs CI. If `SPOOL_CI_RUNNER` is cleared, the gate falls back to `[self-hosted, spool-ci]` (`10_ci-quality.yml` runs-on expression) and sat has no runner; cnf `ci_overflow.enabled` true can point the variable at local runners on a long hosted queue |
+| 21 | CI runners | repo variable `SPOOL_CI_RUNNER` = `"ubuntu-latest"` (`gh variable list`); `gh api repos/csitea/csi-spl/actions/runners --jq .total_count` -> 0 (org: 0); last green wf 10 run `39085580284`: 18 jobs, 13 on a `GitHub Actions <n>` runner and 5 skipped with no runner (`runner_name` null), all labelled `ubuntu-latest` (`gh api repos/csitea/csi-spl/actions/runs/39085580284/jobs`) | **covered while the variable holds**: no box runs CI. If `SPOOL_CI_RUNNER` is cleared, the gate falls back to `[self-hosted, spool-ci]` (`10_ci-quality.yml` runs-on expression) and sat has no runner; cnf `ci_overflow.enabled` true can point the variable at local runners on a long hosted queue |
 | 22 | infra stack (tf-runner, tpl-gen, conf-validator) | `docker ps` on sat -> `con-csi-csi-spl-{tf-runner,conf-validator,tpl-gen}` | covered (applies stay owner-gated) |
 | 23 | headless Chrome for e2e and browser lanes | `command -v google-chrome` on sat -> present | covered for headless; a lane that needs a browser on the owner's screen cannot move |
 
@@ -120,7 +120,7 @@ are not:
 | 26 | finance integration keys (NetVisor, bank) | owner order: on `<pc box>` only, not in Secret Manager (fleet record of owner msgs `072a9990`, `c0bcb7b1`) | **cannot**, by owner order |
 | 27 | the owner's directive signing key | `csi-spl-orc/src/bash/features/directive/README.md:48-54`: each box the owner types at has its own key; a box without one verifies and cannot issue | waits for a directive typed at `<pc box>`. Whether sat holds a signer is **unverified** (the key check stops the agent holding the keyring, so no seat ran it) |
 | 28 | the agent login on sat | all claude seats on sat share one login. `BOX_PICK_KIND=claude ./run -a do_spl_box_pick` at 02:19Z -> `claude weekly unknown` ("no banner read, or its BOX-0 row is an hour old: placed anyway"); cnf `env.box.quota.weekly_max_pct` 90: at or over it the pick does not place that vendor (`spl-box-quota.func.sh:18`). The fleet record says 96% on 10-17 20:33Z, not shown in any log here | **risk, number unknown**: every claude lane is on sat while `<pc box>` is away. Step 3.0 reads it before the window |
-| 29 | **sat's own weekly reboot** | `box-restart-cron.sh --at '0 04:30 Europe/Helsinki'` in sat's crontab; sat rebooted 01:35:41Z. Boot restore (`agent-boot-restore/cron.out`): `REFUSE g-002: its session is unknown; not guessing one` (and g-003), rule at `agent-identity.py:925`. `lease.log`: 01:35:46Z `NO-LOCAL-AGENT dispatch` (`spl-dispatch-lease.func.sh:1572`), 01:38:14Z orch `c-001@sat -> c-001@<pc box>`, 01:39:18Z dispatch `g-002@sat -> c-002@<pc box>`, back at 01:44:37Z and 01:48:03Z | **can**, build rows 09 and 10. With `<pc box>` off the roles have nowhere to fall: no orch for ~3 min and no dispatch until a grok seat is restarted by hand |
+| 29 | **sat's own weekly reboot** | `box-restart-cron.sh --at '0 04:30 Europe/Helsinki'` in sat's crontab; the old boot ended 01:36:02Z and sat was up again at 01:36:56Z (`uptime -s` 04:36:56 +0300; `journalctl --list-boots`). Boot restore (`agent-boot-restore/cron.out`, run 01:37:11Z-01:37:45Z): `REFUSE g-002: its session is unknown; not guessing one` (one line each for g-002 and g-003), rule at `agent-identity.py:925`. `lease.log`: 01:35:46Z `NO-LOCAL-AGENT dispatch` (`spl-dispatch-lease.func.sh:1572`), 01:38:14Z orch `c-001@sat -> c-001@<pc box>`, 01:39:18Z dispatch `g-002@sat -> c-002@<pc box>`, back at 01:44:37Z and 01:48:03Z | **can**, build rows 09 and 10. With `<pc box>` off the roles have nowhere to fall: no orch for ~3 min and no dispatch until a grok seat is restarted by hand |
 
 ## 3. The 10-minute handover runbook
 
@@ -219,9 +219,11 @@ the dev environment" without a list. In the repo:
 
 No pen test, chaos or game-day drill is defined for dev:
 `grep -rliE 'pen.?test|chaos|game.?day' csi-spl-doc/specs csi-spl-doc/doc/md`
--> 4 files with this plan (3 before it); `reliability-round-plan.md:79` and
-`perf-round-5/m1.md:201` name chaos testing as not done; the other two were
-not line-checked by the grok seat.
+-> 5 files on `18bd10bba` (n=5): `reliability-round-plan.md:79` and
+`perf-round-5/m1.md:201` name chaos testing as not done; this plan and
+`sat-alone-panel/seat-grok.md` match because they name the word;
+`refactor-round-1-plan.md:41` matches only because `pen.?test` hits
+`open.test` in a test file name. So two files, neither a dev drill.
 
 ## 7. What cannot be done on sat alone
 
@@ -286,14 +288,14 @@ is confirmed by its `--check` before its first edit); 2 = rows 02, 05, 06,
 
 ## 9. Panel
 
-| seat | vendor | id | file | v0.1 verdict | signed v1.0 |
+| seat | vendor | id | file | v0.1 verdict | signed v1.1 |
 |---|---|---|---|---|---|
 | editor | claude | `c-399@sat` | this file | author | this commit |
 | reviewer | grok | `g-400@sat` | `sat-alone-panel/seat-grok.md` (`46a91dd08`) | change, 28 / 20 / 0; every change folded above | its own signing commit |
 | reviewer | mistral | `m-404@sat` | `sat-alone-panel/seat-mistral.md` (`b42383587`) | GOOD; its one risk note (a quota check before the window) is step 3.0 | its own signing commit |
 
 A seat counts as signed only by its own commit to its own file on this
-plan's v1.0 sha; this table does not sign for anyone.
+plan's v1.1 sha; this table does not sign for anyone.
 
 ### 9.1 What changed from v0.1
 
@@ -305,10 +307,20 @@ plan's v1.0 sha; this table does not sign for anyone.
 - Steps 3.1 and 3.7 are posts; 3.2 and 4.2 cannot run today; 3.6's proofs
   split (grok). Step 3.0 adds the quota read (mistral).
 - The drill's pass line is split by form; "read-only" corrected (grok).
-- The chaos count is 4 with this plan (grok).
+- The chaos count is 5 files, two of them real "not done" notes (grok, v1.1).
 - Section 7.1 says when prd answers continue and when not (grok).
 - Batch 1 no longer has two rows on `box-crons.manifest`; row 06 moved to
   batch 2; row 04 names its file (grok).
 - The mistral seat's first two verdict commits pasted evidence that had not
   been run (a missing file, a stale holder id); its third, `b42383587`,
   matches re-runs.
+
+### 9.2 What changed from v1.0 (the grok seat's v1.0 refusal)
+
+- Row 5: DEGRADED belongs to the 01:58Z and 02:19Z reads, not 02:08Z.
+- Row 21: 13 of the 18 jobs ran on a hosted runner; 5 were skipped.
+- Row 29: the reboot clock is 01:36:02Z down, 01:36:56Z up; `01:35:41Z`
+  was in no log.
+- Section 6: the grep gives 5 files, and why each matches.
+- The mistral seat's v1.0 signature (`3bde031c3`) names `18bd10bba`; v1.1
+  needs a new one.

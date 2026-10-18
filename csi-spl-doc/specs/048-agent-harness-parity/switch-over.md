@@ -28,6 +28,14 @@ talks through the SPOOL mailbox (`<SPOOL_ROOT>/<ID>/inbox/*.json`,
 
 ## 3. Decision A: the orchestrator first, through a bridge
 
+> **2026-10-18, SPL-2179: the bridge's legacy half is removed.** No box set
+> the markdown root any more (sat: crontabs of both users, `/etc`, the
+> settings files and every process environment, n = 0; no `inbox/*.md` under
+> `/var/spool-hub`). `agent-send.sh`, `agent-inbox.sh`, `agent-watch.sh`,
+> `agent-top.sh` and `lib/agent-state.inc.sh` now read and write the spool
+> only; `--via legacy` is refused (exit 2). The tables below are the
+> history of the switch-over, not today's routing.
+
 3.1 **Send** - `scripts/agent-send.sh`, a drop-in for the frozen engine's
 sender (same arguments: `--from`, `<ID>`, text or `--file`, `--subject`,
 `--no-poke`). It picks the mailbox the target was SPAWNED with:

@@ -59,8 +59,8 @@ the reference does it:
 | `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
-| `scripts/agent-send.sh` | one send command for every live agent: the spool for this harness's agents, the older markdown inbox (through its own sender, `SPOOL_LEGACY_SEND`) for agents spawned before a switch-over (specs/048) |
-| `scripts/agent-inbox.sh` | the reports an orchestrator has not seen yet, from its spool inbox and (with `SPOOL_LEGACY_INBOX_ROOT`) the older agents' outboxes |
+| `scripts/agent-send.sh` | one send command for every live agent, through its spool mailbox here or relayed through the hub (specs/048, specs/058); the older markdown inbox route is gone (SPL-2179) |
+| `scripts/agent-inbox.sh` | the reports an orchestrator has not seen yet, from its spool inbox |
 | `scripts/pane-scan.sh` | census of every agent prompt: RESIDUE (a poke stuck unsent; must be 0), TYPED (unsent text; never poked), clear |
 | `scripts/agent-watch.sh` | one line per agent pane that needs someone (DIALOG, TYPED), and a shell-inert nudge for an idle agent with unread mail; `--once` |
 | `scripts/restore-{claude,claude-plain,grok,agy,qwen}.sh`, `scripts/restore-core.inc.sh` | resume a session after a restart, in the dir it ran in, through spool-harness, with a re-orientation kick |
@@ -69,7 +69,7 @@ the reference does it:
 | `scripts/tmux-sort-windows.sh` | keeps the window bar in natural order, agents first, never moving the window you look at; the tmux snippet's hooks run it |
 | `scripts/tmux-close-window.sh` | closes an agent's window by id, now or after it exits (`--defer`); never guesses the active window |
 | `assets/commands/*.md`, `assets/skills/*/SKILL.md` | the slash commands and skills; `spool-install/install.sh` renders them into `~/.claude` (and `~/.qwen/skills`) |
-| `scripts/agent-top.sh`, `lib/agent-state.inc.sh` | the fleet view (`agent-top.sh`), the tmux status line (`--status-line`: `agents N  >busy ?waiting !ended .idle`) and the window badges (`--badge-loop`); reads both the spool and, with `SPOOL_LEGACY_INBOX_ROOT`, the older markdown mailbox |
+| `scripts/agent-top.sh`, `lib/agent-state.inc.sh` | the fleet view (`agent-top.sh`), the tmux status line (`--status-line`: `agents N  >busy ?waiting !ended .idle`) and the window badges (`--badge-loop`); reads the spool |
 | `assets/tmux-agent-status.conf` | the status line, the badge loop and the window-access keys for a fleet; the installer fills in this checkout's path and prints its `source-file` line |
 | `harness-parity.tsv` | where every file of the frozen box engine's feature went (specs/048) |
 | `tests/run-all-tests.sh` | every test. Each one uses a throwaway root and a private tmux server |
@@ -96,7 +96,6 @@ environment always wins over it.
 | `SPOOL_ORCHESTRATOR_ID` | `c-001`. Spawned agents report to this id |
 | `SPOOL_AGENT_ID_RANGE` | empty (the whole line). `<lo>-<hi>`: this machine allocates ids only inside that band, so two machines of one fleet never hand out the same id (`csi-spl-doc/specs/058-multi-machine-fleet`). Set it in the box config |
 | `SPOOL_DESK_BOX` | `box-desk`. This machine's desk box id: every `DESK_BOX` / `AGENT_BOX` default of the desk actions and scripts reads it (`csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh`), so two machines of one fleet never seat the same box (the hub keeps one socket per box id; the last hello evicts the other). Set it in the box config |
-| `SPOOL_LEGACY_INBOX_ROOT` `SPOOL_LEGACY_SEND` | unset. During a switch-over: the older markdown message root and its sender; `agent-send.sh` / `agent-inbox.sh` use them for agents spawned before it |
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
 | `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |
 | `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` | `600` / `1200` — the bounds on the pane line (`specs/028/contracts/poke-line.md`) |

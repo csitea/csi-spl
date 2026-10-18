@@ -217,12 +217,10 @@ kind_from_launch() {
   esac
 }
 
-# Reports from ID the orchestrator has not looked at yet:
-#   spool  - messages from ID in <SPOOL_ROOT>/<ORC>/inbox newer than the
-#            orchestrator's agent-inbox.sh seen-mark (a spool outbox is a
-#            sent-copy log and never drains, so it cannot be the signal)
-#   legacy - files in <SPOOL_LEGACY_INBOX_ROOT>/<ID>/outbox (that protocol's
-#            orchestrator moves them away when read)
+# Reports from ID the orchestrator has not looked at yet: messages from ID in
+# <SPOOL_ROOT>/<ORC>/inbox newer than the orchestrator's agent-inbox.sh
+# seen-mark (a spool outbox is a sent-copy log and never drains, so it cannot
+# be the signal)
 pending_files() {  # ID -> one path per line
   local id="$1" orc="${SPOOL_ORCHESTRATOR_ID:-$(spl_role_seat 1)}" dir mark
   dir="${SPOOL_ROOT:-/var/spool-hub}/$orc/inbox"
@@ -230,9 +228,6 @@ pending_files() {  # ID -> one path per line
   if [ -d "$dir" ]; then
     if [ -e "$mark" ]; then find "$dir" -maxdepth 1 -type f -name "*--${id}--*" -newer "$mark" 2>/dev/null
     else find "$dir" -maxdepth 1 -type f -name "*--${id}--*" 2>/dev/null; fi
-  fi
-  if [ -n "${SPOOL_LEGACY_INBOX_ROOT:-}" ] && [ -d "$SPOOL_LEGACY_INBOX_ROOT/$id/outbox" ]; then
-    find "$SPOOL_LEGACY_INBOX_ROOT/$id/outbox" -maxdepth 1 -type f 2>/dev/null
   fi
 }
 pending_count() { pending_files "$1" | wc -l | tr -d ' '; }

@@ -4,15 +4,15 @@
 # "spawn-<kind>.sh <ID>" and prints the screen a state is read from.
 #
 #   DIALOG is reported; TYPED is reported and never nudged; an idle agent with
-#   unread spool mail is nudged with one shell-inert ": 'SPOOL <ID>: ..." line;
-#   a legacy agent is read from its markdown inbox, and its own lone brief is
-#   not "unread"; busy agents, orchestrators, the watcher's own agent and
-#   non-agent panes are left alone.
+#   unread spool mail is nudged with one shell-inert ": 'SPOOL <ID>: ..." line,
+#   in the registry or not; an agent with no spool inbox is not "unread";
+#   busy agents, orchestrators, the watcher's own agent and non-agent panes
+#   are left alone.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 unset TMUX TMUX_PANE MCP_BOT_AGENT_ID
-export SPOOL_LEGACY_INBOX_ROOT="$T_TMP/legacy" SPOOL_AGENT_ID=CLE-90
+export SPOOL_AGENT_ID=CLE-90
 W="$T_SCRIPTS/agent-watch.sh"
 fake() {  # KIND ID SCREEN
   printf "printf '%%s\\\\n' '%s'; exec -a 'spawn-%s.sh %s' sleep 600" "$3" "$1" "$2"
@@ -31,8 +31,6 @@ printf 'CLE-09\tclaude\t%%1\t/x\t20260101T000000Z\n' >"$SPOOL_ROOT/registry.tsv"
 for id in CLE-07 CLE-08 CLE-09 GRK-10 CLE-00 CLE-90 CLE-12; do
   mkdir -p "$SPOOL_ROOT/$id/inbox"; echo '{}' >"$SPOOL_ROOT/$id/inbox/a.json"; echo '{}' >"$SPOOL_ROOT/$id/inbox/b.json"
 done
-mkdir -p "$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox"
-echo brief >"$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox/20260101T000000Z--ORC--brief.md"
 sleep 0.5
 screen() { tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$1"; }
 
@@ -46,9 +44,9 @@ hasnt "a busy agent is not nudged" "GRK-10" "$out"
 hasnt "the orchestrator is skipped" "CLE-00" "$out"
 hasnt "the watcher's own agent is skipped" "CLE-90" "$out"
 hasnt "a pane with no launcher is not an agent" "CLE-12" "$out"
-hasnt "a legacy agent's lone brief is not unread" "AGY-11" "$out"
-echo 'next task' >"$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox/20260102T000000Z--ORC--task.md"
+hasnt "an agent with no spool inbox is not unread" "AGY-11" "$out"
+mkdir -p "$SPOOL_ROOT/AGY-11/inbox"; echo '{}' >"$SPOOL_ROOT/AGY-11/inbox/a.json"; echo '{}' >"$SPOOL_ROOT/AGY-11/inbox/b.json"
 out="$(bash "$W" --once 2>&1)"
-has "a legacy agent with a real message is nudged from its markdown inbox" "MAIL  AGY-11 ($P7) idle with 2 unread" "$out"
-has "... naming that inbox" "$SPOOL_LEGACY_INBOX_ROOT/AGY-11/inbox/" "$(screen "$P7")"
+has "an agent not in the registry is nudged from its spool inbox" "MAIL  AGY-11 ($P7) idle with 2 unread" "$out"
+has "... naming that inbox" "$SPOOL_ROOT/AGY-11/inbox/" "$(screen "$P7")"
 t_done

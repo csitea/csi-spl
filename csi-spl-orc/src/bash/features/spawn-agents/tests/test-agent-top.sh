@@ -8,7 +8,8 @@
 #      with no launcher is "ended"; an xxx-00 window is "orc"
 #   2. states from the screen: busy, dialog, idle; "awaiting" = idle + a
 #      report the orchestrator has not seen (spool inbox newer than its
-#      agent-inbox mark, or a legacy outbox file); agent-inbox.sh clears it
+#      agent-inbox mark; a markdown outbox file is never read);
+#      agent-inbox.sh clears it
 #   3. the status line counts
 #   4. badges: "<tag>: <ID> <badge> <title>", the title and the tag kept, a
 #      right badge renames nothing, the orchestrator is never renamed; the
@@ -24,7 +25,7 @@
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG SPOOL_LEGACY_INBOX_ROOT
+unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG
 export XDG_CONFIG_HOME="$T_TMP/cfg" SPOOL_ORCHESTRATOR_ID=CLE-01 AGENT_TOP_PIDFILE="$T_TMP/loop.pid"
 TOP="$T_SCRIPTS/agent-top.sh"
 fake() {  # KIND ID SCREEN-TEXT -> a command whose argv the launcher check sees
@@ -56,8 +57,7 @@ eq "2. an unseen report in the orchestrator's inbox -> awaiting" awaiting "$(sta
 SPOOL_ROOT="$SPOOL_ROOT" bash "$T_SCRIPTS/agent-inbox.sh" --as CLE-01 >/dev/null 2>&1
 eq "2. ... agent-inbox.sh marks it seen -> idle again" idle "$(state_of QWN-09)"
 echo report >"$T_TMP/legacy/AGY-11/outbox/r.md"
-eq "2. without the legacy root a legacy outbox is not read" idle "$(state_of AGY-11)"
-eq "2. with it, a legacy outbox file -> awaiting" awaiting "$(SPOOL_LEGACY_INBOX_ROOT="$T_TMP/legacy" bash "$TOP" | awk '$1=="AGY-11"{print $3}')"
+eq "2. a markdown outbox file is not a report (SPL-2179)" idle "$(state_of AGY-11)"
 
 # --- 3 ------------------------------------------------------------------------------
 eq "3. the status line" "agents 6  >1 ?1 !1 .2  orc=1" "$(bash "$TOP" --status-line)"

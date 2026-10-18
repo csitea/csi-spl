@@ -23,7 +23,7 @@
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG SPOOL_LEGACY_INBOX_ROOT
+unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG
 export XDG_CONFIG_HOME="$T_TMP/cfg" SPOOL_ORCHESTRATOR_ID=CLE-01 AGENT_TOP_PIDFILE="$T_TMP/loop.pid"
 export TMUX_WINDOWS_LOCK_DIR="$T_TMP"
 TOP="$T_SCRIPTS/agent-top.sh"

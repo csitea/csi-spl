@@ -25,8 +25,6 @@
 #   SPOOL_TMUX_SOCKET        the server (default: $TMUX, else /tmp/tmux-<uid>/default)
 #   SPOOL_ROOT               spool root (default /var/spool-hub)
 #   SPOOL_ORCHESTRATOR_ID    whose inbox holds the agents' reports (default c-001)
-#   SPOOL_LEGACY_INBOX_ROOT  during a switch-over: the older markdown message
-#                            root (its registry and <ID>/outbox are read too)
 #   SPOOL_BOX_TAG            the box tag; unset = the tag most agent windows carry
 #   AGENT_TOP_PIDFILE        the badge loop's pidfile (default /tmp/agent-top-badge-loop.pid,
 #                            the same file the frozen engine's copy uses, so at
@@ -37,7 +35,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/spool-agent/env"
-for v in SPOOL_TMUX_SOCKET SPOOL_ROOT SPOOL_ORCHESTRATOR_ID SPOOL_LEGACY_INBOX_ROOT SPOOL_BOX_TAG; do
+for v in SPOOL_TMUX_SOCKET SPOOL_ROOT SPOOL_ORCHESTRATOR_ID SPOOL_BOX_TAG; do
   [ -n "${!v:-}" ] || [ ! -r "$CFG" ] && continue
   val="$( . "$CFG" >/dev/null 2>&1; printf '%s' "${!v:-}" )"
   [ -n "$val" ] && export "$v=$val"
@@ -81,19 +79,14 @@ if [ -z "$(an_tag)" ]; then
 fi
 
 registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else the newest live one of ID
-  local id="$1" pane="$2" live="$3" reg row p
-  for reg in "$SPOOL_ROOT/registry.tsv" ${SPOOL_LEGACY_INBOX_ROOT:+"$SPOOL_LEGACY_INBOX_ROOT/registry.tsv"}; do
-    [ -r "$reg" ] || continue
-    row="$(awk -F '\t' -v pane="$pane" '$3 == pane { rec = $0 } END { if (rec != "") print rec }' "$reg")"
-    [ -n "$row" ] && { printf '%s\n' "$row"; return; }
-  done
-  for reg in "$SPOOL_ROOT/registry.tsv" ${SPOOL_LEGACY_INBOX_ROOT:+"$SPOOL_LEGACY_INBOX_ROOT/registry.tsv"}; do
-    [ -r "$reg" ] || continue
-    while IFS= read -r row; do
-      p="$(printf '%s' "$row" | cut -f3)"
-      [ -n "$p" ] && printf '%s\n' "$live" | grep -xF "$p" >/dev/null && { printf '%s\n' "$row"; return; }
-    done < <(awk -F '\t' -v id="$id" '$1 == id' "$reg" | tac)
-  done
+  local id="$1" pane="$2" live="$3" reg="$SPOOL_ROOT/registry.tsv" row p
+  [ -r "$reg" ] || return 0
+  row="$(awk -F '\t' -v pane="$pane" '$3 == pane { rec = $0 } END { if (rec != "") print rec }' "$reg")"
+  [ -n "$row" ] && { printf '%s\n' "$row"; return; }
+  while IFS= read -r row; do
+    p="$(printf '%s' "$row" | cut -f3)"
+    [ -n "$p" ] && printf '%s\n' "$live" | grep -xF "$p" >/dev/null && { printf '%s\n' "$row"; return; }
+  done < <(awk -F '\t' -v id="$id" '$1 == id' "$reg" | tac)
 }
 
 # A pid in PIDFILE is a live badge loop, whoever owns it. kill -0 on another

@@ -58,7 +58,7 @@ READERS=(
 )
 
 ENC_RX='(encrypted/|/encrypted([^A-Za-z0-9_-]|$)|["'"'"']encrypted["'"'"'])'
-SPOOL_RX='(\$\{?(SPOOL_ROOT|SPOOL_FLEET_ROOT|SPL_WS_SPOOL_ROOT|FLEET_ROOT|SPOOL_LEGACY_INBOX_ROOT|spool_root|sroot|spool|SPOOL)\b|/var/spool-hub|/spool/)'
+SPOOL_RX='(\$\{?(SPOOL_ROOT|SPOOL_FLEET_ROOT|SPL_WS_SPOOL_ROOT|FLEET_ROOT|spool_root|sroot|spool|SPOOL)\b|/var/spool-hub|/spool/)'
 LEAF_RX='/(inbox|outbox|archive|\.pokes|\.mirror|\.hub|lifetime|files|briefs|claims)[/"'"'"' ]'
 PY_SPOOL_RX='(SPOOL_ROOT|spool-hub|["'"'"']spool["'"'"']|/spool/|inbox|outbox)'
 

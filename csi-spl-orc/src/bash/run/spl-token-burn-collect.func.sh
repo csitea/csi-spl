@@ -275,11 +275,14 @@ EOF_PY
 
 # spl_token_burn_events NOW <reader rows: one normalized row per usage:
 #   C <path> <message id> <ts> <model> <in> <out> <cache_read> <cache_write>
-#   S <vendor> <session> <ts> <model> <in> <out> <cache_read> <cache_write> <created> <path>
+#   S <vendor> <session> <ts> <model> <in> <out> <cache_read> <cache_write> <created> <path> [<base x4>]
 # (S = a session's cumulative counters). F, L, M, V rows pass through. Input
-# counts exclude cache reads, as claude's input_tokens do.
+# counts exclude cache reads, as claude's input_tokens do. A grok row adds
+# its baseline: the counters of the turns that ended before the window (each
+# turn carries its own, and they sum to the session's), empty when a turn
+# lacks them.
 spl_token_burn_events() {
-  jq -R -r --argjson now "$1" "$(spl_cost_tokens_jq_def)"'
+  jq -R -r --argjson now "$1" --argjson win "$TOKEN_BURN_WINDOW_S" "$(spl_cost_tokens_jq_def)"'
     def epoch: if type == "number" then (if . > 1e11 then ./1000 else . end | floor)
       elif type == "string" then (sub("\\.[0-9]+"; "") | sub("(\\+00:00|Z)$"; "Z") | try fromdateiso8601 catch $now)
       else $now end;
@@ -299,7 +302,12 @@ spl_token_burn_events() {
         $r | .session as $s | select($s | type == "object") |
         ["S", "grok", .sessionId, (.updatedAt | epoch), ($s.primaryModelId // ($s.modelUsage // {} | keys | first) // "unknown"),
          (($s.inputTokens | nz) - ($s.cachedReadTokens | nz) | nz), ($s.outputTokens | nz), ($s.cachedReadTokens | nz),
-         ($s.cacheCreationTokens | nz), (.turns[0].endedAt // .updatedAt | epoch), $f[2]] | @tsv
+         ($s.cacheCreationTokens | nz), (.turns[0].endedAt // .updatedAt | epoch), $f[2]] +
+        ((.turns // []) as $t | if ($t | all(type == "object" and has("inputTokens"))) then
+          ($t | map(select((.endedAt | epoch) < $now - $win))) as $o |
+          [($o | map((.inputTokens | nz) - (.cachedReadTokens | nz) | nz) | add // 0), ($o | map(.outputTokens | nz) | add // 0),
+           ($o | map(.cachedReadTokens | nz) | add // 0), ($o | map(.cacheCreationTokens | nz) | add // 0)]
+        else ["", "", "", ""] end) | @tsv
       end
     end'
 }
@@ -339,18 +347,40 @@ spl_token_burn_live() {
   printf '%s\n' "$ids"
 }
 
+# TOKEN_BURN_GROK_AWK: the awk function naming a grok usage.json's bucket
+# (the live sum and the backfill share it). The agent is the lane id of the
+# session's cwd (the url-encoded dir under .grok/sessions): a <x>-wt/<id>
+# worktree, or a claude scratch dir naming <x>-wt-<id>. A grok id (g-NNN,
+# legacy GRK-NNN) is the agent; another vendor's lane running grok is
+# "<id> (grok)", and a cwd with no lane id is "unattributed (cwd <dir>)",
+# every /tmp dir as /tmp. The buckets key on (agent, minute), here and on
+# the hub, and the daily rollup on (day, agent): a grok bucket named like a
+# claude one was summed into it, its vendor lost (SPL-2461).
+TOKEN_BURN_GROK_AWK='
+    function grok_agent(p,   c, i, id) {
+      c = p; i = index(c, "/.grok/sessions/"); if (i) c = substr(c, i + 16); sub(/\/.*/, "", c)
+      gsub(/%2[Ff]/, "/", c); gsub(/%20/, " ", c); gsub(/%25/, "%", c)
+      if (match(c "/", /-wt[0-9]*[-\/][A-Za-z]+-[0-9]+\//)) {
+        id = substr(c "/", RSTART, RLENGTH - 1); sub(/^-wt[0-9]*[-\/]/, "", id)
+        return id ~ /^(g|GRK)-[0-9]+$/ ? id : id " (grok)"
+      }
+      if (c ~ /^\/tmp(\/|$)/) c = "/tmp"
+      return "unattributed (cwd " substr(c, 1, 81) ")"
+    }'
+
 # spl_token_burn_sum DIR NOW MODE ROWS LIVE: the per-id MAX (claude) and the
 # session counter deltas (mistral, grok) added to the agent's minute bucket.
 # A row older than the window is counted late and dropped: its bucket is
 # gone, and the hub replaces a bucket with what it is sent. A session seen
 # for the first time counts from 0 when it began inside the window, else its
-# counters are the baseline. LIVE: the live lane ids, one per line; an agy
+# counters are the baseline; a grok session's baseline is the turns that
+# ended before the window (its new turns count, however old the session). LIVE: the live lane ids, one per line; an agy
 # or qwen lane is an unmetered sample. Writes the next state files into
 # DIR/next and moves them in with one mv, then tick.stats.
 spl_token_burn_sum() {
   local dir="$1" n="$1/next" s
   for s in files ids sessions buckets; do : >"$n/$s.tsv" || return 1; done
-  awk -F'\t' -v OFS='\t' -v now="$2" -v mode="$3" -v win="$TOKEN_BURN_WINDOW_S" -v ttl="$TOKEN_BURN_ID_TTL_S" -v d="$dir" -v nx="$n" -v live="$5" '
+  awk -F'\t' -v OFS='\t' -v now="$2" -v mode="$3" -v win="$TOKEN_BURN_WINDOW_S" -v ttl="$TOKEN_BURN_ID_TTL_S" -v d="$dir" -v nx="$n" -v live="$5" "$TOKEN_BURN_GROK_AWK"'
     function minute(t) { if (t > now) t = now; if (t < now - win) t = now; return t - t % 60 }
     function agent_of(p,   i) {
       gsub(/%2[Ff]/, "/", p)
@@ -390,10 +420,10 @@ spl_token_burn_sum() {
         }
         if (f[1] != "S") continue
         k = f[2] SUBSEP f[3]
-        if (!(k in sseen)) for (j = 1; j <= 4; j++) sc[k, j] = (f[10] >= now - win ? 0 : f[j + 5])
+        if (!(k in sseen)) for (j = 1; j <= 4; j++) sc[k, j] = (f[2] == "grok" && f[12] != "" ? f[11 + j] : f[10] >= now - win ? 0 : f[j + 5])
         sseen[k] = now
         for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - sc[k, j]; if (x[j] < 0) x[j] = f[j + 5]; sc[k, j] = f[j + 5] }
-        a = agent_of(f[2] == "mistral" ? origin[f[11]] : f[11])
+        a = (f[2] == "mistral" ? agent_of(origin[f[11]]) : grok_agent(f[11]))
         add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); sessions++
       }
       for (id in iseen) print id, iseen[id], im[id, 1] + 0, im[id, 2] + 0, im[id, 3] + 0, im[id, 4] + 0 > (nx "/ids.tsv")

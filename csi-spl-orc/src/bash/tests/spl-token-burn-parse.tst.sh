@@ -19,6 +19,13 @@
 #      is_metered false, a claude lane none. Control: the assertion refuses an
 #      agy sample reported metered with 0 tokens
 #   6. no prompt or completion text reaches the state dir or the frame
+#   7. grok, named apart (SPL-2461): a claude lane's grok session is
+#      "c-101 (grok)", a cwd with no lane id "unattributed (cwd <dir>)" (every
+#      /tmp dir as /tmp), never summed into the claude bucket of the same
+#      minute; a g- session first seen with a turn that ended before the
+#      window counts its new turn only. Controls: named by the claude rule
+#      the grok tokens vanish into c-101's claude bucket; with the session
+#      counters as the baseline the g- lane's new turn is missing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -78,6 +85,24 @@ cat >"$H/.grok/sessions/%2Fopt%2Fx-wt%2Fg-301/s1/usage.json" <<EOF
  "session":{"inputTokens":900,"outputTokens":30,"cachedReadTokens":400,"cacheCreationTokens":0,"primaryModelId":"grok-x"},
  "turns":[{"turnNumber":1,"endedAt":"$(date -u -d "@$((NOW - 300))" +%Y-%m-%dT%H:%M:%S).1+00:00","note":"$TXT"}]}
 EOF
+# gusage <encoded cwd> <sid> <turn spec...>: a usage.json whose turns are
+# "<ended epoch>:<in>:<cache_read>:<out>", the session the sum of its turns
+gusage() {
+  local d="$H/.grok/sessions/$1/$2" t turns="" i=0 r=0 o=0 last=0 e a b c
+  mkdir -p "$d"; shift 2
+  for t in "$@"; do
+    IFS=: read -r e a b c <<<"$t"
+    turns+="${turns:+,}{\"turnNumber\":1,\"endedAt\":\"$(date -u -d "@$e" +%Y-%m-%dT%H:%M:%S).5+00:00\",\"inputTokens\":$a,\"cachedReadTokens\":$b,\"outputTokens\":$c,\"cacheCreationTokens\":0,\"primaryModelId\":\"grok-x\"}"
+    i=$((i + a)) r=$((r + b)) o=$((o + c)) last="$e"
+  done
+  printf '{"sessionId":"%s","updatedAt":"%s.5+00:00","session":{"inputTokens":%s,"outputTokens":%s,"cachedReadTokens":%s,"cacheCreationTokens":0,"primaryModelId":"grok-x"},"turns":[%s]}\n' \
+    "${d##*/}" "$(date -u -d "@$last" +%Y-%m-%dT%H:%M:%S)" "$i" "$o" "$r" "$turns" >"$d/usage.json"
+}
+gusage "%2Fopt%2Fx-wt%2Fc-101" g7a "$((M0 + 8)):70:20:5"
+gusage "%2Fopt" g7b "$((M0 + 9)):11:0:1"
+gusage "%2Ftmp%2Ftmp.Ab12" g7c "$((M0 + 9)):3:0:1"
+gusage "%2Fopt%2Fx-wt%2Fg-302" g7d "$((NOW - 7200)):5000:4000:300" "$((M0 + 10)):900:600:40"
+cp -a "$S" "$T/s7" # the state before this tick, for the controls of 7
 out="$(tick)"
 
 [[ "$(bucket c-101)" == "claude m-x 7 107 1011 63 1" ]] &&
@@ -115,6 +140,23 @@ agy="$(jq -c '[.samples[] | select(.is_metered == false) | [.agent_id, .vendor]]
   pass "5. live agy and qwen lanes: one unmetered sample each, model null, never a metered 0" || fail "5. unmetered: $agy | $frame"
 bad="$(jq -c '.samples |= map(if .vendor == "agy" then .is_metered = true else . end)' <<<"$frame")"
 agy_ok "$bad" && fail "5. control: an agy sample reported metered passed" || pass "5. control: an agy sample reported metered with 0 tokens is refused"
+
+[[ "$(bucket 'c-101 (grok)')" == "grok grok-x 50 5 20 0 1" && "$(bucket 'unattributed (cwd /opt)')" == "grok grok-x 11 1 0 0 1" &&
+   "$(bucket 'unattributed (cwd /tmp)')" == "grok grok-x 3 1 0 0 1" ]] &&
+  pass "7. grok in a claude lane's cwd or none: its own bucket, never the claude one" || fail "7. named: $(cut -f1,2 "$S/buckets.tsv" | sort -u | tr '\n' ' ')"
+[[ "$(bucket g-302)" == "grok grok-x 300 40 600 0 1" ]] &&
+  pass "7. a g- session first seen: the turn before the window is the baseline, the new one burn" || fail "7. g-302: $(bucket g-302)"
+python3 - "$PROJ_ROOT/src/bash/run/spl-token-burn-collect.func.sh" "$T/ctl7.func.sh" <<'EOF_PY'
+import sys; s = open(sys.argv[1]).read()
+for old, new in (('agent_of(origin[f[11]]) : grok_agent(f[11])', 'agent_of(origin[f[11]]) : agent_of(f[11])'),
+                 ('f[2] == "grok" && f[12] != "" ?', '0 ?')):
+    assert old in s; s = s.replace(old, new)
+open(sys.argv[2], 'w').write(s)
+EOF_PY
+tick TOKEN_BURN_STATE_DIR="$T/s7" COLLECT_FUNC="$T/ctl7.func.sh" >/dev/null
+b7() { awk -F'\t' -v a="$1" '$1 == a { print $2; o += $6 } END { print o + 0 }' "$T/s7/buckets.tsv" | sort -u | tr '\n' ' '; }
+[[ "$(b7 c-101)" == "112 claude " ]] && [[ "$(b7 g-302)" == "0 " ]] &&
+  pass "7. control: by the claude rule the grok tokens merge into c-101 ($(b7 c-101)), and g-302 has no bucket" || fail "7. control: c-101=$(b7 c-101) g-302=$(b7 g-302)"
 
 leak="$(grep -rlF "$TXT" "$S" "$T/pushed" 2>/dev/null)"
 [[ -z "$leak" && -s "$S/buckets.tsv" ]] && pass "6. no transcript text in the state dir or the pushed frames" || fail "6. text leaked into: $leak"

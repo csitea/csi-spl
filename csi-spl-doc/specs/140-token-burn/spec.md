@@ -495,6 +495,66 @@ reads the items (`PAID_CMD=list`) or the effective price (`PAID_CMD=effective
 FROM= TO=`) through the hub as the env's project service account; `create`
 and `delete` are for test fixtures and are dry runs unless `DRY_RUN=0`.
 
+### 3.9 Grok burn: named apart, per turn, backfilled (SPL-2461)
+
+Owner HUM-10, t1 efd618b2 (msgs 2439f1b6 "Collect the agent token statistics
+for the Grok vendor", 5e9c69c4 "integrate those into the monitoring page
+costs tab", c1cf9b0b "establish the process for collecting them on a regular
+basis").
+
+**Why grok went missing.** The minute buckets key on `(agent, minute)` in
+the collector and `(box_tag, agent_id, minute_bucket)` on the hub, and the
+daily rollup on `(day_bucket, box_tag, agent_id)`; the vendor is a column,
+not part of the key. A grok session whose cwd named no grok lane (the GC
+agent's main checkout, `/opt`, a claude lane's worktree or scratch dir) was
+named `unattributed` or `c-NNN`, like claude's rows, so its tokens were
+summed into the claude bucket of the same minute and the day's row took
+the vendor of the latest minute: on 2026-10-17 prd held 7 grok minute rows
+(5 `unattributed`) and no grok daily row. Second, a grok session first seen
+with turns that ended before the window took its whole counters as the
+baseline, so a lane's new turn after a long idle was never counted.
+
+**Naming** (`TOKEN_BURN_GROK_AWK` in `spl-token-burn-collect.func.sh`, one
+awk function for the live tick, the backfill and the daily cost source),
+from the url-encoded cwd under `~/.grok/sessions/`:
+
+| cwd | agent_id |
+|---|---|
+| a `<x>-wt/<id>` worktree (or a claude scratch dir naming `<x>-wt-<id>`), `<id>` a grok id `g-NNN` or legacy `GRK-NNN` | `<id>` |
+| the same, `<id>` another vendor's lane (`c-296`) | `c-296 (grok)` |
+| no lane id (`/opt`, the main checkout, a home) | `unattributed (cwd <dir>)`, every `/tmp` dir as `/tmp` |
+
+**Per turn.** Each `usage.json` turn carries its own counters, and they sum
+to the session's (717 of 717 sessions on one box, 2026-10-18). A session first
+seen takes as its baseline the turns that ended before the window; its
+newer turns count.
+
+**Backfill, once per box.** `./run -a do_spl_token_burn_grok_backfill`
+(csi-spl-orc, `DRY_RUN=1` by default: frames under
+`<TOKEN_BURN_STATE_DIR>/backfill`, nothing pushed) reads every
+`usage.json` of the agent user's and the box user's homes, one bucket per
+agent and UTC minute from the turns' counters, and pushes them with
+`DRY_RUN=0` as `fleet_tokens_push` frames of at most 2000 samples. The hub
+replaces a bucket on its natural key, so a re-run writes the same rows. The
+hub refuses a minute older than 30 days: turns older than
+`TOKEN_BURN_BACKFILL_DAYS` (29) are counted and skipped, and the history
+before them is not in the hub. A session that moved inside the live window
+is the live collector's and is skipped. The next retention sweep rolls the
+pushed minutes into `fleet_token_burn_daily`.
+
+**Regular basis.** The every-minute collector cron
+(`# csi-spl:box-cron:token-burn`, `token-burn-collect-cron.sh`) is the
+collection; no new job. The daily cost source `fleet_tokens`
+(`do_spl_cost_tokens_read`, spec 123 4.3) adds each grok lane's turns of the
+day from the same homes (`spl_cost_tokens_grok`), so Monitoring -> Costs
+lists grok's tokens beside claude's; a grok lane with rows there is no
+longer "unmetered".
+
+**No price.** `model_prices` holds no `xai` row: grok minutes are stored
+`priced=false`, cost 0, and the Tokens tab and the Costs card say "not
+priced", never a cost of 0. A price row added later is applied with
+`do_spl_token_burn_reprice` (3.7).
+
 ---
 
 ## 4. The Monitoring page tab (`/monitoring/tokens`)

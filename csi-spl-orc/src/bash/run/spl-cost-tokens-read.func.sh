@@ -8,6 +8,8 @@
 # @description per-row sum about doubles it). <synthetic> zero-usage rows are
 # @description skipped; ids listed in COST_METERED_IDS (the hub's metered
 # @description turns, spec 121 usage_events, not built yet) are skipped.
+# @description grok lanes: the turns of DAY from each home's ~/.grok usage.json
+# @description counters (SPL-2461), named as the live collector names them.
 # @description Other vendors' agents seen that day get one "unmetered" row,
 # @description never 0. Writes <COST_DAY_DIR>/tokens-<DAY>.tsv; with ENV and
 # @description DRY_RUN=0 it posts the day as cost source fleet_tokens.<box> to
@@ -19,7 +21,8 @@
 # @param   read, default SPOOL_AGENT_USER, else the box's agent user
 # @param   ($SPOOL_ROOT/box.env, what the nightly cron runs with), else the
 # @param   current user; COST_TRANSCRIPT_DIRS (space-separated dirs) replaces
-# @param   them, read as the current user
+# @param   them, read as the current user; with it, grok is read only from
+# @param   COST_GROK_HOMES (space-separated homes, the current user's)
 # @param COST_DAY_DIR (optional) - default $SPOOL_ROOT/cost
 # @param COST_METERED_IDS (optional) - file, one metered message id per line
 # @param ENV (optional) - dev or prd: the hub posted to (with DRY_RUN=0)
@@ -28,17 +31,20 @@
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_tokens_read
 #------------------------------------------------------------------------------
 do_spl_cost_tokens_read() {
-  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows um
+  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows um grok
   spl_cost_day_ok "$day" || return 2
   dir="${COST_DAY_DIR:-$root/cost}"
   mkdir -p "$dir" || { echo "FATAL cannot create $dir" >&2; return 1; }
   out="$dir/tokens-$day.tsv"
   rows="$(spl_cost_tokens_rows "$day" "$root")" || { echo "FATAL fleet_tokens: reading the $day transcripts failed" >&2; return 1; }
-  um="$(spl_cost_tokens_unmetered "$day" "$root")" || { echo "FATAL fleet_tokens: listing the unmetered agents of $day failed" >&2; return 1; }
+  grok="$(spl_cost_tokens_grok "$day")" || { echo "FATAL fleet_tokens: reading the $day grok sessions failed" >&2; return 1; }
+  um="$(spl_cost_tokens_unmetered "$day" "$root" | awk -F'\t' 'NR == FNR { m[$2] = 1; next } !($2 in m)' <(printf '%s\n' "$grok") -)" ||
+    { echo "FATAL fleet_tokens: listing the unmetered agents of $day failed" >&2; return 1; }
   if ! {
     printf '%s\n' "$rows" | grep '^#'
     printf 'day\tagent_id\tvendor\tmodel\tservice_tier\tkind\tunits\torigin\n'
     printf '%s\n' "$rows" | grep -v '^#' | grep . || true
+    [[ -z "$grok" ]] || printf '%s\n' "$grok"
     [[ -z "$um" ]] || printf '%s\n' "$um"
   } > "$out.$$" || ! mv -f "$out.$$" "$out"; then
     rm -f "$out.$$"; echo "FATAL fleet_tokens: cannot write $out" >&2; return 1
@@ -179,6 +185,29 @@ spl_cost_tokens_extract() {
   spl_cost_as "$2" grep -hF "\"timestamp\":\"$1" "$3" 2>/dev/null | grep -F '"assistant"' |
     jq -r --arg d "$1" --arg a "$4" "$(spl_cost_tokens_jq_def)"'
       select(.timestamp // "" | startswith($d)) | [$a] + claude_usage_row | @tsv' 2>/dev/null || true
+}
+
+# spl_cost_tokens_grok DAY: the grok turns that ended on DAY, summed per
+# agent (grok_agent, TOKEN_BURN_GROK_AWK) and model into the day file's rows,
+# kinds as claude's (input less cache reads, output, cache_read,
+# cache_creation); grok names no service tier. A grok lane with rows here
+# gets no "unmetered" row.
+spl_cost_tokens_grok() {
+  local from
+  declare -F spl_token_burn_grok_turns >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-token-burn-grok-backfill.func.sh"
+  if [[ -n "${COST_TRANSCRIPT_DIRS:-}" ]]; then
+    [[ -n "${COST_GROK_HOMES:-}" ]] || return 0
+    # shellcheck disable=SC2034 # read by spl_token_burn_grok_homes (dynamic scope)
+    local TOKEN_BURN_HOMES="$COST_GROK_HOMES"
+  fi
+  from="$(date -u -d "$1 00:00:00 UTC" +%s)" || return 1
+  spl_token_burn_grok_turns $((from + 86400)) "$from" $((from + 86400)) 0 | awk -F'\t' -v OFS='\t' -v day="$1" "$TOKEN_BURN_GROK_AWK"'
+    $1 != "T" { next }
+    { a = grok_agent($2); k = a SUBSEP $4; for (j = 5; j <= 8; j++) s[k, j] += $j }
+    END { split("input output cache_read cache_creation", kind, " ")
+      for (x in s) { split(x, p, SUBSEP); if (p[3] == 5) seen[p[1] SUBSEP p[2]] = 1 }
+      for (k in seen) { split(k, p, SUBSEP)
+        for (j = 5; j <= 8; j++) if (s[k, j] > 0) print day, p[1], "grok", p[2], "-", kind[j - 4], s[k, j], "transcript" | "sort" } }'
 }
 
 # One row per agent of another vendor (agy, grok, mistral, qwen) seen on

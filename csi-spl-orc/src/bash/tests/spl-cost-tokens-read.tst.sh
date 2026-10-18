@@ -23,6 +23,11 @@
 #      FATAL line naming the step and leaves no stray tokens-<day>.tsv.<pid>
 #   9. the default transcript user is SPOOL_AGENT_USER, else the box's agent
 #      user from box.env (the cron sets neither), else the current user
+#  10. grok (SPL-2461): the turns of DAY in COST_GROK_HOMES' usage.json,
+#      summed per agent and model (input less cache reads), named as the
+#      live collector names them; a turn of another day is not counted and
+#      the lane gets no "unmetered" row. Control: without COST_GROK_HOMES
+#      g-201 is unmetered
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -132,6 +137,21 @@ printf 'SPOOL_BOX_TAG=x\nSPOOL_AGENT_USER=agentx\n' > "$E/box.env"
   pass "9. the box's agent user from box.env is read; SPOOL_AGENT_USER wins over it" || fail "9. $(users9) / $(users9 SPOOL_AGENT_USER=other)"
 rm -f "$E/box.env"
 [[ "$(users9)" == "$(id -un)" ]] && pass "9. control: no box.env, no env: the current user" || fail "9. control: $(users9)"
+
+G="$T/ghome/.grok/sessions"
+mkdir -p "$G/%2Fopt%2Fx-wt%2Fg-201/s1" "$G/%2Fopt/s2"
+gt() { printf '{"endedAt":"%s.123456789+00:00","inputTokens":%s,"cachedReadTokens":%s,"outputTokens":%s,"cacheCreationTokens":0,"primaryModelId":"grok-x"}' "$1" "$2" "$3" "$4"; }
+printf '{"sessionId":"s1","updatedAt":"%s","session":{"primaryModelId":"grok-x"},"turns":[%s,%s,%s]}\n' "2026-10-10T00:30:00Z" \
+  "$(gt 2026-10-08T23:00:00 999 0 9)" "$(gt "${DAY}T10:00:00" 500 300 20)" "$(gt "${DAY}T22:00:00" 70 10 5)" >"$G/%2Fopt%2Fx-wt%2Fg-201/s1/usage.json"
+printf '{"sessionId":"s2","updatedAt":"%sT08:00:00Z","session":{"primaryModelId":"grok-x"},"turns":[%s]}\n' "$DAY" "$(gt "${DAY}T08:00:00" 4 0 1)" >"$G/%2Fopt/s2/usage.json"
+out="$(run_read "$F" COST_GROK_HOMES="$T/ghome")"; rc=$?
+g="$(awk -F'\t' '$3 == "grok" { print $2 "|" $4 "|" $6 "=" $7 }' "$OUT" | sort | paste -sd' ')"
+[[ "$rc" == 0 && "$g" == "g-201|grok-x|cache_read=310 g-201|grok-x|input=260 g-201|grok-x|output=25 unattributed (cwd /opt)|grok-x|input=4 unattributed (cwd /opt)|grok-x|output=1" ]] &&
+  pass "10. grok: the turns of DAY per agent and model, input less cache reads, named apart" || fail "10. grok rows: $g | $out"
+[[ -z "$(awk -F'\t' '$2 == "g-201" && $7 == "unmetered"' "$OUT")" ]] && pass "10. a grok lane with rows gets no unmetered row" || fail "10. g-201 still unmetered"
+run_read "$F" >/dev/null
+[[ -n "$(awk -F'\t' '$2 == "g-201" && $7 == "unmetered"' "$OUT")" && -z "$(awk -F'\t' '$3 == "grok" && $7 != "unmetered"' "$OUT")" ]] &&
+  pass "10. control: without COST_GROK_HOMES g-201 is unmetered, no grok row" || fail "10. control: $(grep grok "$OUT")"
 
 echo "spl-cost-tokens-read: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

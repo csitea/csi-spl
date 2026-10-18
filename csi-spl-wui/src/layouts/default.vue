@@ -41,8 +41,8 @@
         @touchstart.passive="stack.swipe.onTouchStart"
         @touchend.passive="stack.swipe.onTouchEnd"
       >
-        <ChannelSidebar v-if="shellIn" />
-        <div v-else class="shell-late" aria-hidden="true" :style="{ flex: `0 0 var(${collapse.collapsed.channels ? '--pane-strip-w' : '--sidebar-w'})` }" />
+        <ChannelSidebar v-if="sidebarIn" />
+        <div v-else-if="!shellIn" class="shell-late" aria-hidden="true" :style="{ flex: `0 0 var(${collapse.collapsed.channels ? '--pane-strip-w' : '--sidebar-w'})` }" />
         <!-- 050: a collapsed panel is a strip, so resizing it makes no sense -
              hide the divider that would grow it (also while the middle is a
              strip, which overrides the widths). CLE-35099 owns show*Divider. -->
@@ -424,6 +424,19 @@ function focusAfterRoute() {
 const offPageFinish = useNuxtApp().hook('page:finish', () => { void nextTick(focusAfterRoute) })
 onUnmounted(() => offPageFinish())
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
+/* perf round 6 row 07 (SPL-2436): a phone that boots at level 2 or 3 hides
+   the sidebar with CSS (main.css; its strip shows on a section page only),
+   ~150-230 nodes the reader never sees. Mount it in an idle slot instead
+   (perf-idle: requestIdleCallback with a timeout, setTimeout without one);
+   the moment it is shown (Back to level 1, a section page) it mounts at
+   once, and once mounted it stays. Desktop and a level-1 boot never wait. */
+const sidebarHidden = computed(() => stack.isMobile.value && stack.level.value !== 1 && !sectionStrip.value)
+const sidebarDue = ref(!import.meta.client || !sidebarHidden.value)
+const sidebarIn = computed(() => shellIn.value && (sidebarDue.value || !sidebarHidden.value))
+if (!sidebarDue.value) {
+  const offShown = watch(sidebarHidden, (hidden) => { if (!hidden) { sidebarDue.value = true; offShown() } })
+  onMounted(() => perfWhenIdle(() => { sidebarDue.value = true }))
+}
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so
    the section the reader opened LAST is the one they see. Without this a stale

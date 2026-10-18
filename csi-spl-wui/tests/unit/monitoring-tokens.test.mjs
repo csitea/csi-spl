@@ -24,6 +24,7 @@ import {
   tokensQuery,
   tokensCardVendors,
   tokensShouldPoll,
+  tokenVelocity,
 } from '../../src/utils/monitoring-tokens.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -160,6 +161,34 @@ describe('monitoring tokens: the agent table', () => {
   it('filters by kind', () => {
     assert.deepEqual(sortAgents(rows, { vendor: 'claude' }).map((a) => a.agentId), ['c-2', 'c-1'])
     assert.deepEqual(sortAgents(rows, { vendor: 'agy' }).map((a) => a.agentId), ['a-3'])
+  })
+})
+
+describe('monitoring tokens: the velocity trend (SPL-2483, plan 5.3)', () => {
+  it('red control: the mock lanes read rising, steady, falling, and null for an unmetered lane', () => {
+    assert.equal(tokenVelocity(100000, 80000), 'rising')
+    assert.equal(tokenVelocity(88000, 81200), 'steady')
+    assert.equal(tokenVelocity(0, 8200), 'falling')
+    assert.equal(tokenVelocity(null, null), null)
+  })
+  it('the threshold is 15% of the 5m rate, never of less than 1000/min', () => {
+    assert.equal(tokenVelocity(11500, 10000), 'rising')
+    assert.equal(tokenVelocity(11499, 10000), 'steady')
+    assert.equal(tokenVelocity(8500, 10000), 'falling')
+    assert.equal(tokenVelocity(100, 0), 'steady', 'a few tokens on an idle lane are no surge')
+    assert.equal(tokenVelocity(150, 0), 'rising')
+    assert.equal(tokenVelocity(0, 0), 'steady')
+  })
+  it('a missing rate is null, never a trend', () => {
+    assert.equal(tokenVelocity(5000, null), null)
+    assert.equal(tokenVelocity(undefined, 5000), null)
+    assert.equal(tokenVelocity('x', 5000), null)
+  })
+  it('the badge marks each trend with its translated aria-label and no :style or v-html', () => {
+    const vue = read('src/components/monitoring/token-burn/TrendBadge.vue')
+    for (const k of ['trend_rising', 'trend_falling', 'trend_steady']) assert.match(vue, new RegExp(`'monitoring\\.tokens\\.${k}'`), k)
+    for (const m of ['▲', '▼', '—']) assert.ok(vue.includes(m), m)
+    assert.doesNotMatch(vue, /:style=|v-bind:style|v-html/)
   })
 })
 

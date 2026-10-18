@@ -156,6 +156,24 @@ export function burnLevel(fresh) {
   return 'normal'
 }
 
+/** A change of the 1m rate against the 5m rate of at least this share is a trend (plan 5.3). */
+export const TOKENS_TREND_SHARE = 0.15
+/** The 5m rate the share is taken of is never below this, so a near-idle lane shows no trend on a few tokens. */
+export const TOKENS_TREND_FLOOR_PER_MIN = 1000
+
+/**
+ * A lane's burn velocity (SPL-2483, plan 5.3): 'rising' or 'falling' when the
+ * 1m rate is at least 15% of max(5m rate, 1000) above or below the 5m rate,
+ * else 'steady'; null when either rate is missing (agy, an unmetered lane).
+ */
+export function tokenVelocity(rate1m, rate5m) {
+  const r1 = count(rate1m)
+  const r5 = count(rate5m)
+  if (r1 === null || r5 === null) return null
+  if (Math.abs(r1 - r5) / Math.max(r5, TOKENS_TREND_FLOOR_PER_MIN) < TOKENS_TREND_SHARE) return 'steady'
+  return r1 > r5 ? 'rising' : 'falling'
+}
+
 /** The stale marker for a lag in seconds (4.3): 'ok' up to 45 s, 'amber' up to 90 s, then 'red'. */
 export function staleLevel(lagS) {
   if (!Number.isFinite(Number(lagS))) return 'red'

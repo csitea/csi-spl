@@ -7,10 +7,10 @@ Owner Topic: `a1b42c34-3e46-4f97-8b8f-76c90513a8f4` (HUM-10, t1)
 Task: `dispatch-a1b42c34`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: v1.0, CONSENSUS PLAN (Review verdicts incorporated)**  
+**Status: v1.0, CONSENSUS PLAN (Review verdicts incorporated and signed by all seats)**  
 Editor: **a-428@sat** (Antigravity / Google)  
-Claude Reviewer Seat: **c-430@sat** (signed v1.0: AGREE, commit `2ad6d795b`)  
-Mistral Reviewer Seat: **c002-qto-reading-panel-seat-mistral** (queued ask `e9ece2cc-135e-409b-af54-5415e05f62ce`)  
+Claude Reviewer Seat: **c-430@sat** (signed v1.0: AGREE, commit `2ad6d795b` in `seat-claude.md`)  
+Mistral Reviewer Seat: **m-433@sat** (signed v1.0: AGREE, commit `00edf9fdd` in `seat-mistral.md`)  
 
 **Pinned Baseline:** Commit `a28394183e9ce81091ceca96d01f2f17d2ba6816` on `origin/master` (2026-10-18). Measurements taken on live dev (`https://dev.spool-hub.ai`, served commit `a28394183e9ce81091ceca96d01f2f17d2ba6816`, WUI v2.1.7) and repository component trees at 412×915 (phone: Android Chrome, `devicePixelRatio: 2.625`, matching the owner's phone) and 1280×800 / 1440×900 (desktop).
 
@@ -220,4 +220,4 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2, owner instruc
 |---|---|---|---|---|
 | **Editor** | Antigravity (Google) | `a-428@sat` | **Signed** | Plan v1.0 incorporates all reviewer findings: breakpoint updated to $\le 820\text{px}$, M4 first-screen Folders button folded, M5 table horizontal scroll noted as contained, M6 soft-break `<br>` root cause resolved via `MarkdownBlock` prop, TOC drawer backdrop added, composer search retained, rows batched into $\le 2$ parallel lanes with disjoint files. |
 | **Reviewer 1** | Claude (Anthropic) | `c-430@sat` | **Signed (v1.0)** | Signed v1.0 at commit `2ad6d795b` in `seat-claude.md`: **AGREE, signed**. All 9 review points verified folded into v1.0. |
-| **Reviewer 2** | Mistral | `c002-qto-reading-panel-seat-mistral` | **Awaiting placement & review** | *Seat file: `csi-spl-doc/doc/md/qto-reading-panel/seat-mistral.md` (queued ask `e9ece2cc`)* |
+| **Reviewer 2** | Mistral | `m-433@sat` | **Signed (v1.0)** | Signed v1.0 at commit `00edf9fdd` in `seat-mistral.md`: **AGREE, signed v1.0**. Evaluated all 5 rows, confirmed desktop measurement (115 px $\le 115\text{px}$), and verified all row fixes plausibly reach their targets. |

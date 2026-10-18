@@ -5,8 +5,10 @@
 #
 #   spool_install_vibe_push_guard <vibe-home> <dry 0|1>
 #
-# Copies assets/vibe-push-guard/vibe-push-guard.py and the shared matcher
-# spawn-agents/lib/force-push-guard.inc.sh into <vibe-home>/spool-push-guard/,
+# Copies assets/vibe-push-guard/vibe-push-guard.py, the shared matcher
+# spawn-agents/lib/force-push-guard.inc.sh and the heredoc-collision matcher
+# spawn-agents/lib/heredoc-collision-guard.inc.sh (SPL-2474) into
+# <vibe-home>/spool-push-guard/,
 # and merges ONE [[hooks]] entry into <vibe-home>/hooks.toml:
 #     name = "spool-push-guard", type = "pre_tool", match = "*", strict = true
 # Why a hook and not [tools.bash] denylist: every m- seat runs vibe
@@ -24,7 +26,7 @@
 # SPOOL_INSTALL_VIBE_PUSH_GUARD=0 skips the step.
 #------------------------------------------------------------------------------
 spool_install_vibe_push_guard() {
-  local home="$1" dry="${2:-0}" here src_py src_m dir f n changed=0 toml_rc
+  local home="$1" dry="${2:-0}" here src_py src_m src_h dir f n changed=0 toml_rc
   if [ "${SPOOL_INSTALL_VIBE_PUSH_GUARD:-1}" = 0 ]; then
     echo "spool-install: vibe push guard: skipped (SPOOL_INSTALL_VIBE_PUSH_GUARD=0)" >&2
     return 0
@@ -36,12 +38,13 @@ spool_install_vibe_push_guard() {
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   src_py="$here/../assets/vibe-push-guard/vibe-push-guard.py"
   src_m="$here/../../spawn-agents/lib/force-push-guard.inc.sh"
-  if [ ! -r "$src_py" ] || [ ! -r "$src_m" ]; then
+  src_h="$here/../../spawn-agents/lib/heredoc-collision-guard.inc.sh"
+  if [ ! -r "$src_py" ] || [ ! -r "$src_m" ] || [ ! -r "$src_h" ]; then
     echo "spool-install: vibe push guard: sources missing" >&2
     return 7
   fi
   dir="$home/spool-push-guard"
-  for f in "$src_py" "$src_m"; do
+  for f in "$src_py" "$src_m" "$src_h"; do
     n="$dir/$(basename "$f")"
     if [ -f "$n" ] && cmp -s "$f" "$n"; then continue; fi
     changed=1

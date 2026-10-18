@@ -11,6 +11,9 @@ experimental bash_stdin, cmd / script for others) goes through the shared
 matcher force-push-guard.inc.sh, installed beside this file. A forbidden push
 form prints {"decision": "deny", "reason": ...} and exits 0: vibe denies the
 call before the permission check, so --auto-approve does not skip it.
+The same field then goes through the heredoc-collision matcher
+heredoc-collision-guard.inc.sh (SPL-2474), when it holds "<<": a heredoc
+nested in one with the same delimiter is denied the same way.
 Allowed: prints nothing, exits 0. Anything else (bad payload, no matcher, a
 matcher rc other than 0 / 2) exits 1, which strict = true turns into a deny:
 the guard fails CLOSED.
@@ -26,6 +29,28 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MATCHER = os.environ.get(
     "SPOOL_PUSH_GUARD_MATCHER", os.path.join(HERE, "force-push-guard.inc.sh")
 )
+HEREDOC = os.environ.get(
+    "SPOOL_HEREDOC_GUARD_MATCHER",
+    os.path.join(HERE, "heredoc-collision-guard.inc.sh"),
+)
+
+
+def heredoc_deny(cmd):
+    """The deny reason for a heredoc collision, None to allow; raises on a
+    matcher failure (strict = true makes that a deny)."""
+    if "<<" not in cmd:
+        return None
+    res = subprocess.run(
+        ["bash", HEREDOC, "--check", cmd], capture_output=True, text=True, timeout=20
+    )
+    if res.returncode == 0:
+        return None
+    if res.returncode == 2:
+        lines = res.stderr.strip().splitlines()
+        return lines[-1] if lines else "heredoc-collision: refused"
+    raise RuntimeError(
+        "heredoc matcher rc %d: %s" % (res.returncode, res.stderr.strip())
+    )
 
 
 def main():
@@ -65,6 +90,14 @@ def main():
                 file=sys.stderr,
             )
             return 1
+        try:
+            reason = heredoc_deny(cmd)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as e:
+            print("push guard: %s" % e, file=sys.stderr)
+            return 1
+        if reason:
+            print(json.dumps({"decision": "deny", "reason": reason}))
+            return 0
     return 0
 
 

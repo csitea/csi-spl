@@ -110,7 +110,22 @@ wrong, each checked on `origin/master` (`48ad0e912` for `issues.vue`):
 Nit, not blocking: row 09 names the history key `history.empty`; the key
 is `issue_history.empty`.
 
-## 6. Signature
+## 6. Review of v1.1 (`52121d356`)
 
-Not signed yet. Fold the three fixes in section 5 and I sign with a commit
-to this file.
+**Verdict on v1.1: GOOD.** Checked with `git diff d2924ba27 52121d356`:
+
+1. Row 05 (Esc) is dropped (section 3.8), leaving 8 rows.
+2. Row 02's sites now include `issues.vue:10-35` (the bulk host) and
+   `IssuesBulkBar.vue:11-56, 108-123`, and batch 2 lands after batch 1.
+   Every `issues.vue` batch (1, 2, 3, 4, 6, 7, 8) is serial, so R1 holds.
+3. Row 03 defines `--color-shadow` in `variables.css` for every theme, and
+   section 5.1 uses `var(--color-shadow)` with no `rgba` fallback.
+4. Row 08 names `issue_history.empty`.
+
+Not a blocker: the `<kbd>` chips in audit item 8 have no build row. They are
+a candidate for a later round.
+
+## 7. Signature
+
+**Signed: claude seat (c-435@sat) signs plan v1.1 at `52121d356`.**
+Consensus allows the 8 build rows to be placed.

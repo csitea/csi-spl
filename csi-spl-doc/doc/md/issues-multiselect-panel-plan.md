@@ -7,10 +7,10 @@ Owner Topics: `405e08ba-62c2-4c89-8608-cf69b40e85df` (Multi-select checkboxes), 
 Task: `dispatch-405e08ba`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: v1.1 CONSENSUS PLAN (ALL REVIEWER FIXES FOLDED)**  
-Editor: **a-434@sat** (agy)  
-Claude Reviewer Seat: **c-435@sat** (claude, seat file [seat-claude.md](issues-multiselect-panel/seat-claude.md) reviews `0fcc49340` & `e36a04b26` folded)  
-Mistral Reviewer Seat: **m-436@sat** (mistral, seat file [seat-mistral.md](issues-multiselect-panel/seat-mistral.md) signed on master at `f5a6a884d`)  
+**Status: FULL CONSENSUS (SIGNED BY ALL THREE EXPERT SEATS)**  
+Editor: **a-434@sat** (agy, signed v1.1)  
+Claude Reviewer Seat: **c-435@sat** (claude, signed v1.1 at `261e53f9e` in [seat-claude.md](issues-multiselect-panel/seat-claude.md))  
+Mistral Reviewer Seat: **m-436@sat** (mistral, signed v1.1 at `37253f739` in [seat-mistral.md](issues-multiselect-panel/seat-mistral.md))  
 
 **Pinned Baseline:** Baseline measurements, DOM observations, and view screenshots are pinned to origin/master at commit `51009ada42bc8920ab609c0bf6ddd5b0ad33baca` (v2.1.8). Measurements and captures were taken on the live `dev` estate (`https://dev.spool-hub.ai`) across mobile (**412×915**) and desktop (**1280×800**) viewports in both **dark** and **light** themes. Editor baseline artifacts are stored in `/var/spool-hub/dispatch/405e08ba/work/`; Claude reviewer independent re-measurements and screenshots are stored in `/var/spool-hub/dispatch/405e08ba/work/seat-claude/`.
 
@@ -261,5 +261,5 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 | Seat | Vendor | Agent ID | Status | Verdict & Signature |
 |---|---|---|---|---|
 | **Editor** | Antigravity (Google) | `a-434@sat` | **Signed v1.1** | Plan v1.1 integrates all reviewer findings, empirical baseline re-measurements, 0px-shift bulk overlay, theme shadow token, and R1-compliant 8 build rows. |
-| **Reviewer 1** | Claude (Anthropic) | `c-435@sat` | **Reviewed v0.1 (`0fcc49340`) & v1.0 (`e36a04b26`), Awaiting v1.1 Signature** | Reviewed in [seat-claude.md](issues-multiselect-panel/seat-claude.md). All 3 points from section 5 folded into v1.1. Awaiting final signature commit. |
-| **Reviewer 2** | Mistral | `m-436@sat` | **Signed v1.0 (`f5a6a884d`)** | Reviewed in [seat-mistral.md](issues-multiselect-panel/seat-mistral.md). Signed off on consensus rows: "v1.0 meets all owner requirements and reviewer recommendations." |
+| **Reviewer 1** | Claude (Anthropic) | `c-435@sat` | **Signed v1.1 (`261e53f9e`)** | Verdict: GOOD. Signed off in [seat-claude.md](issues-multiselect-panel/seat-claude.md): "Signed: claude seat (c-435@sat) signs plan v1.1 at 52121d356. Consensus allows the 8 build rows to be placed." |
+| **Reviewer 2** | Mistral | `m-436@sat` | **Signed v1.1 (`37253f739`)** | Verdict: GOOD. Signed off in [seat-mistral.md](issues-multiselect-panel/seat-mistral.md): "Verdict: GOOD. v1.1 folds all reviewer recommendations... 8 build rows: Each ships with a passing automated test." |

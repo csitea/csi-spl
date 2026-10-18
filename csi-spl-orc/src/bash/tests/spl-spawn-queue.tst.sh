@@ -14,7 +14,10 @@
 #      nothing
 #   4. the ceiling frees -> the head is launched (placement + brief), closed
 #      "placed: <ID>@<box>", its sender told; the next one moves to 1 of 1
-#   5. the gap: a second placement waits SPAWN_PLACE_GAP_MIN
+#   5. the gap: a second placement waits the 3 min floor; past it, it waits
+#      until the placed lane's heartbeat progress_ts moved past the launch,
+#      at most SPAWN_PLACE_GAP_MIN (10); no, an old or unreadable heartbeat
+#      or a failed launch holds to it; the load target holds regardless
 #   6. no placement -> ONE blocker to the holder, the ask is placing; the
 #      next tick places nothing else (one at a time); past
 #      SPAWN_PLACE_LOCK_MIN it goes back to position 1; do_spl_spawn_placed
@@ -281,8 +284,47 @@ r2="$(listrow "$A2")"
 
 # 5. the gap ---------------------------------------------------------------------
 out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 2>&1)"
-[[ "$(jq -r .state <<<"$(hubrow "$A2")")" == queued ]] && grep -q "last placement started under 10 min ago" <<<"$out" &&
-  pass "SPAWN_PLACE_GAP_MIN: the next placement waits" || fail "gap: $out"
+[[ "$(jq -r .state <<<"$(hubrow "$A2")")" == queued ]] && grep -q "last placement started under 3 min ago (the floor)" <<<"$out" &&
+  [[ "$(cat "$T/pc/spool/asks/.place.agent")" == c-281@box-desk ]] &&
+  pass "the gap: under the 3 min floor the next placement waits; the launch named its lane in .place.agent" || fail "gap: $out"
+# SDLC row 06: the gap ends at the floor once the placed lane's heartbeat
+# progress_ts moved past the launch; else it holds to SPAWN_PLACE_GAP_MIN
+GQ="$T/pc/spool/asks"; HB="$T/pc/spool/c-281"; mkdir -p "$HB"
+gap() {  # MIN_AGO_LAUNCH [env...]: the room verdict, launch MIN_AGO_LAUNCH ago
+  local ago="$1"; shift
+  touch -d "@$(( $(date +%s) - ago * 60 ))" "$GQ/.place.last"
+  # shellcheck disable=SC2016 # expanded in the child shell
+  on pc 'spl_asks_init >/dev/null 2>&1; if why="$(spl_spawn_place_no_room)"; then echo "hold: $why"; else echo room; fi' SPAWN_PLACE_GAP_MIN=10 "$@" 2>&1
+}
+iso() { date -u -d "@$(( $(date +%s) - $1 * 60 ))" +%Y-%m-%dT%H:%M:%SZ; }
+rm -f "$HB/heartbeat.json"
+out="$(gap 4)"
+[[ "$out" == "hold: the last placement started under 10 min ago and c-281@box-desk has no heartbeat progress since" ]] &&
+  pass "4 min after the launch, no heartbeat.json: holds to the ceiling" || fail "no heartbeat: $out"
+printf '{"progress_ts": "%s"}\n' "$(iso 1)" >"$HB/heartbeat.json"
+out="$(gap 4)"
+[[ "$out" == room ]] && pass "4 min after the launch, progress_ts 1 min ago: the gap ends past the 3 min floor" || fail "heartbeat moved: $out"
+out="$(gap 2)"
+[[ "$out" == "hold: the last placement started under 3 min ago (the floor)" ]] &&
+  pass "2 min after the launch, progress_ts moved: the floor still holds" || fail "floor: $out"
+out="$(gap 4 PICK='hold reason=every box past its overflow mark')"
+[[ "$out" == "hold: the fleet load target says hold reason=every box past its overflow mark" ]] &&
+  pass "progress_ts moved but the load target says hold: it holds" || fail "load guard: $out"
+printf '{"progress_ts": "%s"}\n' "$(iso 6)" >"$HB/heartbeat.json"
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat progress since" ]] && pass "progress_ts older than the launch: holds to the ceiling" || fail "old heartbeat: $out"
+echo 'not json' >"$HB/heartbeat.json"
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat progress since" ]] && pass "an unreadable heartbeat.json: holds to the ceiling" || fail "unreadable: $out"
+printf '{"progress_ts": "%s"}\n' "$(iso 1)" >"$HB/heartbeat.json"
+touch -d "@$(( $(date +%s) - 300 ))" "$GQ/.place.agent"
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat progress since" ]] &&
+  pass "a .place.agent older than the launch (the launch failed): holds to the ceiling" || fail "stale agent: $out"
+rm -f "$HB/heartbeat.json"
+out="$(gap 11)"
+[[ "$out" == room ]] && pass "11 min after the launch, no heartbeat: the ceiling ends the gap" || fail "ceiling: $out"
+rm -rf "$HB"
 
 # 6. no placement: handed to the holder, one at a time, the lock, placed by hand ------
 : >"$T/send.log"

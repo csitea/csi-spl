@@ -1,0 +1,6 @@
+Lay-What: the watchdog gives its trial run of new code more time when the machine is moderately busy
+Lay-How: the time limit starts growing at half the machine's capacity instead of at full capacity, with the same upper bound
+Lay-Why: on a half-busy machine the trial run hit its limit and correct updates were refused
+Tech-What: spl_wd_upd_check_limit scales WD_UPD_CHECK_MAX by 2 x load1/nproc when over 1, still capped at WD_UPD_CHECK_CAP 60 s
+Tech-How: load 9.16/16 now gives 23 s instead of 20 s; at 8/16 and below the 20 s base holds; a hang is still quarantined after WD_UPD_TIMEOUT_TRIES
+Tech-Why: two good commits were quarantined at load 8.6-9.2 on 16 cpus, the tick taking 20 s against the unscaled 20 s limit

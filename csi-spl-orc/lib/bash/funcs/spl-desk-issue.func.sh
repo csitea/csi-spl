@@ -43,19 +43,23 @@ spl_desk_issue_once() {
 
 # spl_desk_issue_run <op> <args>: the hub call, ignoring DRY_RUN. A list is a
 # read, so do_spl_issue_archive uses this to count keys while DRY_RUN=1.
+# Stdout is the one JSON line and nothing else: callers redirect it to a file
+# and parse it, so every log line here goes to stderr. A lane tree's
+# "WARN keeping <spool>" from spl_host_spool used to lead the document and
+# do_spl_issue_needs_owner died in json.load (SPL-2502).
 spl_desk_issue_run() {
   local op="$1"; shift
-  spl_desk_issue_once || return 1
+  spl_desk_issue_once >&2 || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
-  spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  spl_desk_validate "$tenant" "$box" "$agent" >&2 || return 1
   local hub d
   hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
-  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
+  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)" >&2; return 1; }
   local out rc=0
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- issue "$op" --as "$agent" "$@" 2>&1)" || rc=$?
   if (( rc != 0 )); then
-    do_log "FATAL spool issue $op as $agent: $out"
+    do_log "FATAL spool issue $op as $agent: $out" >&2
     return 1
   fi
   # The list of every issue is one JSON document. Passing it as an argv

@@ -83,12 +83,21 @@ spl_needs_owner_label() {
 
 # spl_needs_owner_plan <work> <clear> <step> <status override> <now>: from
 # <work>/get.json writes <work>/plan (labels csv, status), <work>/desc (the
-# new description) and, when nothing would change, <work>/same.
+# new description) and, when nothing would change, <work>/same. An empty or
+# non-JSON get is a FATAL that says what came back, never a traceback.
+# The document is the last line: spl_desk_issue_run prints one.
 spl_needs_owner_plan() {
   python3 - "$@" "$SPL_NEEDS_OWNER_LABEL" <<'PY'
-import json, re, sys
+import json, os, re, sys
 work, clear, step, override, now, label = sys.argv[1:7]
-doc = json.load(open(f"{work}/get.json", encoding="utf-8"))
+ref = os.environ.get("ISSUE_REF", "the issue")
+raw = open(f"{work}/get.json", encoding="utf-8").read().strip()
+if not raw:
+    sys.exit(f"FATAL {ref}: the hub's get came back empty (is the desk seated? see the log above)")
+try:
+    doc = json.loads(raw.splitlines()[-1])
+except ValueError:
+    sys.exit(f"FATAL {ref}: the hub's get is not JSON: {raw[:300]}")
 res = doc.get("result", doc) if isinstance(doc, dict) else {}
 issue = res.get("issue", res) if isinstance(res, dict) else {}
 if not isinstance(issue, dict) or not issue.get("key"):

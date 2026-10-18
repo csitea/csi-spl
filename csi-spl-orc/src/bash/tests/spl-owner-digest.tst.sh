@@ -14,6 +14,12 @@
 #     7. DRY_RUN=1 reads and plans, writes nothing
 #     8. DRY_RUN=0 ensures the label, then one update with labels/status/description
 #     9. OWNER_STEP missing or multi-line is refused
+#    22. an empty hub get -> a clear FATAL, no traceback, no write (SPL-2502)
+#    23. a non-JSON hub get -> a clear FATAL naming what came back
+#    24. a stubbed issue: PLAN line in a dry run, DO line with DRY_RUN=0
+#    25. the real spl_desk_issue_run: a log line from the desk setup (the
+#        spool binary WARN a lane tree prints) stays off stdout, so the get
+#        is one JSON line, and a FATAL there reaches stderr (SPL-2502)
 #   digest
 #    10. render: oldest first, waited, link, step; no line -> says so; done left out
 #    11. render: nothing labelled -> empty (no post)
@@ -126,6 +132,47 @@ out="$(mark DRY_RUN=0 OWNER_STEP='')"; rc=$?
 [ "$rc" -ne 0 ] && [ ! -s "$CALLS" ] && pass "9. empty OWNER_STEP refused before any read" || fail "9. empty step" "$out"
 out="$(mark DRY_RUN=0 OWNER_STEP=$'a\nb')"; rc=$?
 [ "$rc" -ne 0 ] && [ ! -s "$CALLS" ] && pass "9. multi-line OWNER_STEP refused" || fail "9. multi-line" "$out"
+
+# 22. SPL-2502: c-002's get came back as a log line, json.load raised a traceback
+printf '' >"$T/issue.json"
+out="$(mark DRY_RUN=1 OWNER_STEP='x')"; rc=$?
+[ "$rc" -ne 0 ] && ! grep -q Traceback <<<"$out" && grep -q "FATAL SPL-7: the hub's get came back empty" <<<"$out" && [ ! -f "$T/update" ] \
+  && pass "22. empty get -> clear FATAL, no traceback" || fail "22. empty get" "rc $rc: $out"
+
+# 23
+printf ' WARN keeping /x/bin/spool: a lane branch\n' >"$T/issue.json"
+out="$(mark DRY_RUN=0 OWNER_STEP='x')"; rc=$?
+[ "$rc" -ne 0 ] && ! grep -q Traceback <<<"$out" && grep -q "FATAL SPL-7: the hub's get is not JSON: WARN keeping" <<<"$out" && [ ! -f "$T/update" ] \
+  && pass "23. non-JSON get -> clear FATAL, no traceback" || fail "23. non-JSON get" "rc $rc: $out"
+
+# 24
+issue wip '["bug"]' 'Body.'
+out="$(mark DRY_RUN=1 OWNER_STEP='x')"
+grep -q '^PLAN SPL-7: labels \[bug,needs-owner\], status blocked' <<<"$out" && pass "24. stubbed issue, DRY_RUN=1 -> PLAN line" || fail "24. PLAN" "$out"
+out="$(mark DRY_RUN=0 OWNER_STEP='x')"
+grep -q '^DO SPL-7: labels \[bug,needs-owner\], status blocked' <<<"$out" && [ -f "$T/update" ] && pass "24. stubbed issue, DRY_RUN=0 -> DO line" || fail "24. DO" "$out"
+
+# 25. the shared helper itself, with only the desk setup and the spool call stubbed
+real_get() {
+  ( unset -f spl_desk_issue_run spl_desk_issue_once
+    . "$PROJ_ROOT/lib/bash/funcs/spl-desk-issue.func.sh"
+    do_require_bin() { :; }
+    # shellcheck disable=SC2034 # read by the sourced spl_desk_issue_run
+    do_spl_desk_cnf() { SPL_HUB_URL=https://hub.example.com; SPL_STATE_DIR="$T/state"; }
+    spl_desk_box_default() { echo box-a; }
+    spl_desk_validate() { :; }
+    spl_host_spool() { do_log "WARN keeping $T/state/bin/spool: this tree is not on origin/master"; }
+    spl_desk_spool() { [ -n "${GET_FAIL:-}" ] && { echo "hub said no"; return 1; }; echo '{"issue":{"key":"SPL-7"}}'; }
+    mkdir -p "$T/state/desk/t1/box-a/spool/c-002"
+    export ENV=dev TENANT_ID=t1 DESK_AGENT=c-002
+    spl_desk_issue_run get --ref SPL-7 )
+}
+out="$(real_get 2>"$T/err")"
+eq "25. stdout is the one JSON line" "SPL-7" "$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["result"]["issue"]["key"])' <<<"$out" 2>&1 | tail -1)"
+has "25. the WARN went to stderr" "WARN keeping" "$(cat "$T/err")"
+out="$(GET_FAIL=1 real_get 2>"$T/err")"; rc=$?
+[ "$rc" -ne 0 ] && [ -z "$out" ] && grep -q "FATAL spool issue get as c-002: hub said no" "$T/err" \
+  && pass "25. a failed get: FATAL on stderr, stdout empty" || fail "25. failed get" "rc $rc out '$out' err $(cat "$T/err")"
 
 # --- digest ---
 NOW=$(date -u -d 2026-10-12T06:30:00Z +%s)   # 09:30 in Europe/Helsinki (EEST)

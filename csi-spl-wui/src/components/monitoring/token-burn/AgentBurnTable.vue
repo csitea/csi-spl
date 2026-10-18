@@ -8,13 +8,21 @@
   <section class="tk-section" data-test="tokens-agents">
     <div class="tk-agents-head">
       <h3>{{ t('monitoring.tokens.agents_title') }}</h3>
-      <label class="tk-filter">
-        <span>{{ t('monitoring.tokens.filter') }}</span>
-        <select v-model="vendor" data-test="tokens-agent-filter">
-          <option value="">{{ t('monitoring.tokens.filter_all') }}</option>
-          <option v-for="v in kinds" :key="v" :value="v">{{ kindLabel(v) }}</option>
-        </select>
-      </label>
+      <div class="tk-agents-tools">
+        <label class="tk-filter">
+          <span>{{ t('monitoring.tokens.filter') }}</span>
+          <select v-model="vendor" data-test="tokens-agent-filter">
+            <option value="">{{ t('monitoring.tokens.filter_all') }}</option>
+            <option v-for="v in kinds" :key="v" :value="v">{{ kindLabel(v) }}</option>
+          </select>
+        </label>
+        <label class="tk-filter tk-sort-pick">
+          <span>{{ t('issues.sort') }}</span>
+          <select v-model="sortPick" class="tk-sort-select" data-test="tokens-agent-sort">
+            <option v-for="o in sortOptions" :key="o.value" :value="o.value">{{ t(o.label) }}</option>
+          </select>
+        </label>
+      </div>
     </div>
     <p v-if="rows.length === 0" class="muted" data-test="tokens-agents-empty">{{ t('monitoring.tokens.empty') }}</p>
     <div v-else class="tk-table-wrap">
@@ -63,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { agentStatus, burnLevel, fmtMoney, fmtTokens, sortAgents, TOKENS_VENDORS } from '~/utils/monitoring-tokens.mjs'
+import { agentStatus, burnLevel, fmtMoney, fmtTokens, sortAgents, TOKENS_SORT_KEYS, TOKENS_VENDORS } from '~/utils/monitoring-tokens.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import BurnBadge from './BurnBadge.vue'
 
@@ -80,13 +88,30 @@ const dir = ref<'asc' | 'desc'>('desc')
 const kinds = computed(() => [...new Set([...TOKENS_VENDORS, ...props.agents.map((a) => a.vendor)])])
 const rows = computed(() => sortAgents(props.agents, { vendor: vendor.value, key: key.value, dir: dir.value }) as Agent[])
 
+/* a column's first direction: the agent id A to Z, every figure highest first */
+const firstDir = (k: string) => (k === 'agentId' ? 'asc' : 'desc')
 function sortBy(k: string) {
   if (key.value === k) dir.value = dir.value === 'desc' ? 'asc' : 'desc'
   else {
     key.value = k
-    dir.value = k === 'agentId' ? 'asc' : 'desc'
+    dir.value = firstDir(k)
   }
 }
+/* the phone's sort select (no header row there): one option per sort key in
+   its first direction, bound to the same key and direction as the headers */
+const SORT_LABELS: Record<string, string> = {
+  agentId: 'sort_agent_asc', rate1m: 'sort_rate1m_desc', rate: 'sort_rate_desc',
+  todayTokens: 'sort_today_tokens_desc', todayCost: 'sort_today_cost_desc', lastActive: 'sort_last_active_desc',
+}
+const sortOptions = TOKENS_SORT_KEYS.map((k) => ({ value: k + ':' + firstDir(k), label: 'monitoring.tokens.' + SORT_LABELS[k] }))
+const sortPick = computed({
+  get: () => key.value + ':' + dir.value,
+  set: (v: string) => {
+    const [k, d] = v.split(':')
+    key.value = k
+    dir.value = d === 'asc' ? 'asc' : 'desc'
+  },
+})
 const arrow = (k: string) => (key.value === k ? (dir.value === 'desc' ? ' ↓' : ' ↑') : '')
 const ariaSort = (k: string) => (key.value === k ? (dir.value === 'desc' ? 'descending' : 'ascending') : undefined)
 const status = (a: Agent) => agentStatus(a, props.asOf)
@@ -109,4 +134,9 @@ function clock(iso: string) {
 .tk-agents-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 6px; }
 .tk-agents-head h3 { margin: 0; }
 .tk-filter { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+.tk-agents-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.tk-sort-pick { display: none; }
+@media (max-width: 600px) {
+  .tk-sort-pick { display: flex; }
+}
 </style>

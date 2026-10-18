@@ -141,3 +141,18 @@ Batches as written (01, 03, 04, 06 in batch 1) fail R1 on the manifest (03 vs 06
 signed: g-400, plan `327fd855901927a9d8eb090673a0dc670e1ca322`, measured 2026-10-18T02:03Z to 02:10Z
 
 <!-- seat: g-400 grok, reviewer of plan v0.1 327fd855901927a9d8eb090673a0dc670e1ca322 -->
+
+## 10. Sign of plan v1.1
+
+Plan v1.0 `18bd10bba7ac5f5096cab19d40a4258e43bf1d7b` is not signed. Four proof lines were wrong. Plan v1.1 `263a368a310f384d605b09a346347ebb5f086be3` corrects them. Checked 2026-10-18T02:32Z to 02:34Z.
+
+1. Row 5 keeps DEGRADED on the 01:58Z read and the 02:19Z read, and says the 02:08Z read was `pick=sat` with one BOX line and no DEGRADED line. That is this seat's 02:08Z read (n=1).
+2. Section 6 says the chaos grep on `18bd10bba` returns 5. `git grep -rliE 'pen.?test|chaos|game.?day' 18bd10bba7ac5f5096cab19d40a4258e43bf1d7b -- csi-spl-doc/specs csi-spl-doc/doc/md` returns 5 paths. The same command on `263a368a310f384d605b09a346347ebb5f086be3` returns the same 5. `refactor-round-1-plan.md:41` is the `open.test` hit. `reliability-round-plan.md:79` and `perf-round-5/m1.md:201` are the two notes that chaos is not done.
+3. Row 21 on run `39085580284`: `gh api repos/csitea/csi-spl/actions/runs/39085580284/jobs` gives n=18. Conclusion success with a runner name is 13. Conclusion skipped with `runner_name` null is 5. Label `ubuntu-latest` is on all 18.
+4. Row 29: `uptime -s` prints `2026-10-18 04:36:56` (+0300, so 2026-10-18T01:36:56Z). `journalctl --list-boots` previous boot last entry is `2026-10-18 04:36:02 EEST` (2026-10-18T01:36:02Z). Boot-restore log contains `2026-10-18T01:37:11Z` (n=2) and its last timestamp is `2026-10-18T01:37:45Z`.
+
+The v0.1 verdict in sections 1-9 stays change. This section signs v1.1 only.
+
+signed: g-400, plan `263a368a310f384d605b09a346347ebb5f086be3`, checked 2026-10-18T02:32Z to 02:34Z
+
+<!-- seat: g-400 grok, signs plan v1.1 263a368a310f384d605b09a346347ebb5f086be3 -->

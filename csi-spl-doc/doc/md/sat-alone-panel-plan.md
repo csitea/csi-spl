@@ -8,7 +8,10 @@ Rules: [rounds rulebook](rounds-rulebook.md) (R1-R16), [repo CLAUDE.md](../../..
 Prior design: [spec 064, the fleet without the PC](../../specs/064-fleet-without-the-pc/spec.md)
 
 **Status: v1.1, both reviews folded (section 9); signatures in each seat's
-own file.** v0.1 was `327fd8559`, v1.0 `18bd10bba`.
+own file; ACCEPTED by the dispatcher on 2026-10-18 (msg `06abc1a6`, task
+`dispatch-721ad6e4`).** v0.1 was `327fd8559`, v1.0 `18bd10bba`, v1.1
+`263a368a3`. Batch 1 build rows (01, 03, 04, 09, 10) are queued; batch 2
+(02, 05, 06, 07) and row 08 follow.
 Editor: `c-399@sat` (claude). Reviewer seats: grok `g-400@sat`
 (`sat-alone-panel/seat-grok.md`, verdict change, 28 agree / 20 change / 0
 reject), mistral `m-404@sat` (`sat-alone-panel/seat-mistral.md`, verdict

@@ -1,4 +1,4 @@
-# Monitoring Tokens tab presentation panel — consensus plan (v1.0)
+# Monitoring Tokens tab presentation panel — consensus plan (v1.1)
 
 Epic: SPL-2403  
 Spec: [csi-spl-doc/specs/140-token-burn](../../specs/140-token-burn/spec.md)  
@@ -7,12 +7,12 @@ Owner Topic: `3f370837-7a62-4c8c-8de7-4e826ca697cd`
 Task: `dispatch-3f370837`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: v1.0, CONSENSUS PLAN SUBMITTED FOR PANEL SIGNING**  
+**Status: v1.1, CONSENSUS REACHED AND FULLY SIGNED**  
 Editor: **a-417@sat** (agy)  
-Claude Reviewer Seat: **c-418@sat** (verdict: agree with changes incorporated in v1.0; seat review landed at commit `66eb8455e`)  
-Mistral Reviewer Seat: **c002-tokens-tab-panel-seat-mistral** (ask `6610cf0d` at `c-001@sat`, pending orchestrator placement)  
+Claude Reviewer Seat: **c-418@sat** (SIGNED v1.0 in commit `df45138da`; seat review in `tokens-tab-panel-plan/seat-claude.md`)  
+Mistral Reviewer Seat: **m-419@sat** (SIGNED v1.0 in commit `f4e4282a8`; review landed in `a3af5769b`; seat review in `tokens-tab-panel-plan/seat-mistral.md`)  
 
-**Pinned Baseline:** Baseline measurements, DOM dimensions, and file line targets are pinned to the **mock fleet (`NUXT_PUBLIC_USE_MOCK=1`) at commit `e3655cac97ab330efa586d6e576919181485219b` (7 lanes)**, matching CI e2e test execution. Live dev (`dev.spool-hub.ai`) returns 401 without an authenticated session, and its local mock opt-in redirects to `/login`.
+**Pinned Baseline:** Baseline measurements, DOM dimensions, and file line targets are pinned to the **mock fleet (`NUXT_PUBLIC_USE_MOCK=1`) at commit `e3655cac97ab330efa586d6e576919181485219b` (7 lanes)**, matching CI e2e test execution. Live dev (`dev.spool-hub.ai`) displays "Could not load the fleet's token burn." without an authenticated operator-admin session.
 
 ---
 
@@ -49,10 +49,10 @@ Artifacts and full-page screenshots are saved in `/var/spool-hub/dispatch/3f3708
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Phone (412×915)** | Dark | 412px | 915px | 2,370px | 76px | 351px | 570px | 1,353px | **1,270px** | **49px (Vendor)** | **NO (`display: none`)** |
 | | Light | 412px | 915px | 2,370px | 76px | 351px | 570px | 1,353px | **1,270px** | **49px (Vendor)** | **NO (`display: none`)** |
-| **Desktop (1280×800)** | Dark | 1280px | 800px | 608px | 44px | 109px | 222px | 333px | **259px** | **0px** | **YES (Clickable headers)** |
-| | Light | 1280px | 800px | 608px | 44px | 109px | 222px | 333px | **259px** | **0px** | **YES (Clickable headers)** |
+| **Desktop (1280×800)** | Dark | 1280px | 800px | 771px | 44px | 109px | 222px | 333px | **259px** | **0px** | **YES (Clickable headers)** |
+| | Light | 1280px | 800px | 771px | 44px | 109px | 222px | 333px | **259px** | **0px** | **YES (Clickable headers)** |
 
-*Note on Scroll Height:* The inner page container `[data-test=tokens-page]` height measures 2,370px on mobile with 7 mock lanes (2,182px with 6 lanes); window `scrollHeight` reads 915px / 800px as scrolling occurs in an inner pane. In a live fleet with 25 active agent windows on sat alone, mobile scroll reaches **4,100px to 4,700px** today, making Row 07 the highest-impact change.
+*Note on Scroll Height:* The inner page container `[data-test=tokens-page]` height measures 2,370px on mobile with 7 mock lanes (2,182px with 6 lanes); on desktop, `[data-test=tokens-page]` measures 771px with 7 mock lanes (734px with 6 lanes). Window `scrollHeight` reads 915px / 800px as scrolling occurs in an inner pane. In a live fleet with 25 active agent windows on sat alone, mobile scroll reaches **4,100px to 4,700px** today, making Row 07 the highest-impact change.
 
 ### 2.2 Component Dimensions & DOM Structure
 
@@ -177,7 +177,7 @@ On screens $\le 600\text{px}$, replace the 2-column grid of 9 labeled rows with 
   - Falling: `<span class="tk-trend tk-trend--falling" :aria-label="t('monitoring.tokens.trend_falling')">▼</span>`
   - Steady: `<span class="tk-trend tk-trend--steady" :aria-label="t('monitoring.tokens.trend_steady')">—</span>`
   - Marks use `▲`/`▼`/`—` to prevent clashing with column sort arrows `↑`/`↓`.
-  - `aria-label` bound strictly to i18n translation keys from Row 03 per developer guide §2.4.
+  - `aria-label` bound strictly to i18n translation keys (`monitoring.tokens.trend_*`) from Row 03 per developer guide §2.4.
 - Scope: Agent rows only (vendor rows and KPI summary do not have 1-minute rates; fleet-wide velocity is out of scope).
 
 ### 5.4 Compact 3-Tile Mobile KPI Strip (`MonitoringTokensSummary.vue`)
@@ -212,11 +212,11 @@ In strict adherence to the rounds rulebook (§1.1 max 10 rows, §1.2 1–3 pushe
 |---|---|---|---|---|---|---|---|---|
 | **01** | `fix(wui, SPL-2476): resolve mobile horizontal overflow in token tables` | Fix `white-space: nowrap` inheritance on `.tk-table .num` in mobile media query; eliminate 49px overflow. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/token-burn.css:9,21` | **Red control:** On master at 412px, `.tk-table-wrap.scrollWidth - clientWidth === 49px`; with fix, evaluates strictly to `0px`. | sat | claude | simple_coding | 1 |
 | **02** | `feat(wui, SPL-2476): calculate burn velocity and trend indicators` | Add `tokenVelocity(rate1m, rate)` helper in `monitoring-tokens.mjs` returning rising, falling, steady, or null; render `TrendBadge.vue` with `▲`/`▼`/`—`. Unit tests included. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/utils/monitoring-tokens.mjs:150`<br>`csi-spl-wui/src/components/monitoring/token-burn/TrendBadge.vue:1-30`<br>`csi-spl-wui/tests/unit/monitoring-tokens.test.mjs:150-200` | **Red control:** Unit test feeds `(100000, 80000)` and asserts `'rising'`; feeds `(88000, 81200)` and asserts `'steady'`; feeds `(0, 8200)` and asserts `'falling'`; feeds `(null, null)` and asserts `null`. | sat | claude | simple_coding | 1 |
-| **03** | `feat(wui, SPL-2476): i18n locale keys for tokens tab presentation` | Add translation keys for mobile sort labels, trend descriptions (`tokens.trend.*`), and compact card text across all 19 locales. Claude drafts; agy reviews and has final approval on 18 non-English locales per language rule. | `csi-spl-wui/i18n/locales/*.json:145` | **Red control:** `pnpm run test:unit tests/unit/i18n-parity.test.mjs` fails when keys added to `en.json` only; passes when mirrored across all 19 locales, with `i18n-gates.mjs untranslated` within baseline. | sat | claude | i18n | 1 |
+| **03** | `feat(wui, SPL-2476): i18n locale keys for tokens tab presentation` | Add translation keys for mobile sort labels, trend descriptions (`monitoring.tokens.trend_*`), and compact card text across all 19 locales. Claude drafts; agy reviews and has final approval on 18 non-English locales per language rule. | `csi-spl-wui/i18n/locales/*.json:145` | **Red control:** `pnpm run test:unit tests/unit/i18n-parity.test.mjs` fails when keys added to `en.json` only; passes when mirrored across all 19 locales, with `i18n-gates.mjs untranslated` within baseline. | sat | claude | i18n | 1 |
 | **04** | `feat(wui, SPL-2476): compact responsive 3-tile mobile kpi summary strip` | Convert vertical stacked KPI cards to a dense 3-tile grid on mobile viewports ($\le 600\text{px}$) with condensed subtitles. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/MonitoringTokensSummary.vue:8-23,42-47` | **Red control:** Computed height of `.tk-kpis` on 412×915 is `351px` on master; with fix, measures $\le 115\text{px}$, saving $>230\text{px}$ vertical space. | sat | claude | simple_coding | 2 |
 | **05** | `feat(wui, SPL-2476): compact mobile cards and idle folding in vendor burn table` | Streamline vendor rows on mobile into structured cards ($\le 65\text{px}$); fold idle zero-burn kinds and unmetered kinds into single muted lines. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/VendorBurnTable.vue:20-42` | **Red control:** Vendor table row height on 412px drops from `114px` to $\le 65\text{px}$; idle kind (qwen) and unmetered (agy) render as single lines; unpriced status displays distinct footnote. | sat | claude | simple_coding | 2 |
 | **06** | `feat(wui, SPL-2476): mobile sort selector toolbar in agent burn table` | Introduce accessible mobile `<select>` for sorting bound to `TOKENS_SORT_KEYS`, synced with desktop column sort state. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/AgentBurnTable.vue:9-18,24-34` | **Red control:** On 412px, table is un-sortable on master; with fix, `<select>` is visible and changing value re-orders agent rows reactively in DOM. | sat | claude | complex_coding | 3 |
-| **07** | `feat(wui, SPL-2476): mobile dense metric card layout in agent burn table` | Replace 2-column 9-label grid with high-hierarchy 3-line metric card layout on mobile viewports ($\le 80\text{px}$/card). Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/AgentBurnTable.vue:36-60`<br>`csi-spl-wui/src/components/monitoring/token-burn/token-burn.css:16-24` | **Red control:** Height of 7 agent cards on 412px is `1,270px` on master; with fix, total height is $\le 580\text{px}$; verified 0px horizontal overflow with longest mock model name (`claude-sonnet-5-5`). | sat | claude | complex_coding | 4 |
+| **07** | `feat(wui, SPL-2476): mobile dense metric card layout in agent burn table` | Replace 2-column 9-label grid with high-hierarchy 3-line metric card layout on mobile viewports ($\le 80\text{px}$/card). Render and wire `TrendBadge.vue` into the mobile card and desktop rate cell. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/src/components/monitoring/token-burn/AgentBurnTable.vue:36-60`<br>`csi-spl-wui/src/components/monitoring/token-burn/token-burn.css:16-24` | **Red control:** Height of 7 agent cards on 412px is `1,270px` on master; with fix, total height is $\le 580\text{px}$; verified 0px horizontal overflow with longest mock model name (`claude-sonnet-5-5`). | sat | claude | complex_coding | 4 |
 | **08** | `test(wui, SPL-2476): browser e2e test for tokens tab mobile ergonomics` | Dedicated Playwright/Puppeteer e2e test validating 0px overflow, mobile card heights, sort interactivity, and desktop stability. Enqueue pins claude (`SPAWN_PLACE=claude:<slug>`). | `csi-spl-wui/tests/e2e/monitoring-tokens.test.mjs:1-120` | **Red control:** Browser test fails on master due to `overflowPixels > 0` and hidden sort controls on mobile; passes with Option B implementation across English and non-English locales. | sat | claude | tests | 5 |
 
 ### 6.2 Disjoint Files Batching Verification (R1)
@@ -267,6 +267,6 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 
 | Seat | Vendor | Agent ID | Status | Verdict & Signature |
 |---|---|---|---|---|
-| **Editor** | Antigravity (Google) | `a-417@sat` | **Signed** | Plan v1.0 consensus established; incorporates all Claude seat corrections; Option B finalized. |
-| **Reviewer 1** | Claude (Anthropic) | `c-418@sat` | **Consensus Agreed** | Signed v1.0 consensus: agreed with Option B and folded changes (P1–P6, Rows 01–08, Row 08 lens deferral). Seat review landed at commit `66eb8455e`. |
-| **Reviewer 2** | Mistral | `c002-tokens-tab-panel-seat-mistral` | Pending | Ask `6610cf0d` at `c-001@sat` (pending orchestrator placement); review will evaluate v1.0 consensus plan. |
+| **Editor** | Antigravity (Google) | `a-417@sat` | **Signed** | Plan v1.1 consensus established; incorporates all Claude seat corrections (P1–P6, N1–N4) and Mistral seat review findings (`a3af5769b`, `f4e4282a8`); Option B finalized. |
+| **Reviewer 1** | Claude (Anthropic) | `c-418@sat` | **Signed** | Signed v1.0 consensus in commit `df45138da` (2026-10-18); verified P1–P6 and rows 01–08; Option B agreed. |
+| **Reviewer 2** | Mistral | `m-419@sat` | **Signed** | Signed v1.0 consensus in commit `f4e4282a8` (2026-10-18); seat review in `tokens-tab-panel-plan/seat-mistral.md`, confirming: "The plan is well-specified, addresses the owner's concerns about mobile usability, and is ready for implementation lanes to be spawned." |

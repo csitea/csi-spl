@@ -89,14 +89,20 @@ function useFootClock(phone: Ref<boolean>, vsWrapEl: Ref<HTMLElement | null>) {
     clockHost.foot.value = Boolean(!phone.value && el && r && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility === 'visible')
   }
   let footObserver: ResizeObserver | null = null
-  onMounted(() => {
+  function observeFoot() {
+    footObserver?.disconnect()
+    footObserver = null
     measureFoot()
     const el = footRow()
     if (typeof ResizeObserver !== 'undefined' && el) {
       footObserver = new ResizeObserver(measureFoot)
       footObserver.observe(el)
     }
-  })
+  }
+  onMounted(observeFoot)
+  /* SPL-2435: a rail-only page does not mount the footer; observe the row
+     that mounts when the reader leaves it, not only the first one */
+  watch(vsWrapEl, observeFoot, { flush: 'post' })
   watch([() => route.fullPath, phone], () => nextTick(() => requestAnimationFrame(measureFoot)))
   onBeforeUnmount(() => {
     footObserver?.disconnect()

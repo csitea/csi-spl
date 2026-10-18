@@ -149,7 +149,10 @@
         </div>
       </template>
     </div>
-    <div class="sidebar-body">
+    <!-- perf round 6 row 03 (SPL-2435): a rail-only page mounts no list -
+         it was hidden by CSS, 137 nodes on /workspace/docs; the stores keep
+         folds and unread, so the list comes back whole on leaving -->
+    <div v-if="!railOnly" class="sidebar-body">
       <div
         v-if="tab === 'dm' || (tabsBuilt.dm && !phone)"
         v-show="tab === 'dm'"
@@ -870,6 +873,8 @@ const helpRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSecti
    docs page is the two panes, the explorer left and the document right.
    A phone keeps its one-pane stack. */
 const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'docs')
+/* any of the above: the sidebar is the icon rail alone (.sidebar--rail) */
+const railOnly = computed(() => issuesRailOnly.value || calendarRailOnly.value || monitoringRailOnly.value || reportingRailOnly.value || helpRailOnly.value || docsRailOnly.value)
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
@@ -1088,7 +1093,6 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   width: max-content;
   max-width: var(--sidebar-w);
 }
-.sidebar.sidebar--rail .sidebar-body { display: none; }
 /* the tablist is only a semantic wrapper: the tabs stay flex items of the strip */
 .sidebar-rail__tabs { display: contents; }
 /* Help and the settings gear: the foot of the strip (bottom-left of the

@@ -42,27 +42,28 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="a in rows" :key="a.agentId + '@' + a.box" data-test="tokens-agent-row" :data-agent="a.agentId" :data-vendor="a.vendor" :data-status="status(a)">
-            <th scope="row">{{ a.agentId }}</th>
-            <td :data-label="t('monitoring.tokens.col_vendor')">{{ kindLabel(a.vendor) }}</td>
-            <td :data-label="t('monitoring.tokens.col_box')">{{ a.box || '—' }}</td>
-            <td class="tk-model" :data-label="t('monitoring.tokens.col_model')">{{ a.model || '—' }}</td>
-            <td class="num" :data-label="t('monitoring.tokens.col_rate1m')">{{ a.metered ? tokens(a.rate1m) : '—' }}</td>
-            <td class="num" :data-label="t('monitoring.tokens.col_rate')" data-test="tokens-agent-rate">
+          <tr v-for="a in rows" :key="a.agentId + '@' + a.box" class="tk-agent" data-test="tokens-agent-row" :data-agent="a.agentId" :data-vendor="a.vendor" :data-status="status(a)">
+            <th scope="row" class="tk-a-id">{{ a.agentId }}</th>
+            <td class="tk-a-kind">{{ kindLabel(a.vendor) }}</td>
+            <td class="tk-a-box">{{ a.box || '—' }}</td>
+            <td class="tk-model">{{ a.model || '—' }}</td>
+            <td class="num tk-a-rate1m" :data-label="t('monitoring.tokens.col_rate1m')">{{ a.metered ? tokens(a.rate1m) : '—' }}</td>
+            <td class="num tk-a-rate" data-test="tokens-agent-rate">
               {{ a.metered ? t('monitoring.tokens.per_min', { n: tokens(a.rate) }) : '—' }}
               <BurnBadge :level="burnLevel(a.fresh)" />
+              <TrendBadge :trend="a.metered ? tokenVelocity(a.rate1m, a.rate) : null" />
             </td>
-            <td class="num" :data-label="t('monitoring.tokens.col_today')" data-test="tokens-agent-today">{{ a.metered ? tokens(a.todayTokens) : '—' }}</td>
-            <td class="num" :data-label="t('monitoring.tokens.col_cost')" data-test="tokens-agent-cost">
+            <td class="num tk-a-today" :data-label="t('monitoring.tokens.col_today')" data-test="tokens-agent-today">{{ a.metered ? tokens(a.todayTokens) : '—' }}</td>
+            <td class="num tk-a-cost" data-test="tokens-agent-cost">
               <span v-if="!a.metered">—</span>
               <span v-else-if="!a.priced && (a.todayTokens || 0) > 0" class="tk-unpriced" :title="t('monitoring.tokens.not_priced_title')" data-test="tokens-not-priced">{{ t('monitoring.tokens.not_priced') }}</span>
               <template v-else>{{ money(a.todayCost) }}</template>
             </td>
-            <td :data-label="t('monitoring.tokens.col_status')">
+            <td class="tk-a-status">
               <span v-if="status(a) === 'not_metered'" class="tk-badge tk-badge--warn" :title="t('monitoring.tokens.not_metered_title')" data-test="tokens-not-metered">{{ t('monitoring.tokens.status_not_metered') }}</span>
               <span v-else class="tk-badge" :class="{ 'tk-badge--on': status(a) === 'active' }">{{ t(status(a) === 'active' ? 'monitoring.tokens.status_active' : 'monitoring.tokens.status_idle') }}</span>
             </td>
-            <td :data-label="t('monitoring.tokens.col_last')"><time :datetime="a.lastActive">{{ clock(a.lastActive) }}</time></td>
+            <td class="tk-a-last" :data-label="t('monitoring.tokens.col_last')"><time :datetime="a.lastActive">{{ clock(a.lastActive) }}</time></td>
           </tr>
         </tbody>
       </table>
@@ -71,9 +72,10 @@
 </template>
 
 <script setup lang="ts">
-import { agentStatus, burnLevel, fmtMoney, fmtTokens, sortAgents, TOKENS_SORT_KEYS, TOKENS_VENDORS } from '~/utils/monitoring-tokens.mjs'
+import { agentStatus, burnLevel, fmtMoney, fmtTokens, sortAgents, tokenVelocity, TOKENS_SORT_KEYS, TOKENS_VENDORS } from '~/utils/monitoring-tokens.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import BurnBadge from './BurnBadge.vue'
+import TrendBadge from './TrendBadge.vue'
 
 type Agent = {
   agentId: string, vendor: string, model: string, box: string, rate1m: number | null, rate: number | null, fresh: number | null,

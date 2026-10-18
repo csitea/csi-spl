@@ -37,7 +37,8 @@
 # work to refs/heads/wip/<branch>, archives the rest and logs the sha, and
 # keeps the tree; a LATER pass removes it once that sha is verified on origin
 # and the tree is unchanged. The include's header has the rules.
-#   WT_SALVAGE                 1 (default) | 0 off
+#   WT_SALVAGE                 0 (default, off until the dispatcher accepts the
+#                              live run, SPL-2514) | 1 on
 #   WT_SALVAGE_LOG             default $SPOOL_ROOT/wt-salvage.tsv
 #   WT_SALVAGE_DIR             default $SPOOL_ROOT/wt-salvage (the archives)
 #   WT_SALVAGE_RESIDUE_MAX_KB  default 10240
@@ -80,7 +81,7 @@ alive() {
   python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("alive") is True else 1)' "$spool/agents/$1.json" 2>/dev/null
 }
 
-salvage_on="${WT_SALVAGE:-1}"
+salvage_on="${WT_SALVAGE:-0}"
 # salvage_log, salvage_dir: read by wt-dirty-salvage.inc.sh
 # shellcheck disable=SC2034
 salvage_log="${WT_SALVAGE_LOG:-$spool/wt-salvage.tsv}"

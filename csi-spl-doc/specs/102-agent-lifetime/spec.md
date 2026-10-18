@@ -379,7 +379,8 @@ after the agent is done.
   object dir) is the logged one. A push failure, a residue over
   `WT_SALVAGE_RESIDUE_MAX_KB` (10 MB), a nested repo, a mid-rebase or a
   detached tree keeps it. Ignored files (node_modules, .nuxt, bin) are build
-  output. `WT_SALVAGE=0` turns it off. Test: `wt-dirty-salvage.tst.sh`.
+  output. Off by default (`WT_SALVAGE=1` turns it on) until the dispatcher
+  accepts the first live run. Test: `wt-dirty-salvage.tst.sh`.
 
 ## 6. Limits (W3, R4, R12)
 

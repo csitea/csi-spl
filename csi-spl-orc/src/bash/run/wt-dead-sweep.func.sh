@@ -12,7 +12,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param WT_SWEEP_AGE_H (optional) - idle hours before removal, default 72
 # @param WT_SWEEP_KEEP_RE (optional) - ids never removed, default the role seats
-# @param WT_SALVAGE (optional) - 1 (default) salvages retired dirty trees, 0 keeps them
+# @param WT_SALVAGE (optional) - 1 salvages retired dirty trees, 0 (default) keeps them
 # @example ./run -a do_wt_dead_sweep
 # @example DRY_RUN=0 ./run -a do_wt_dead_sweep
 #------------------------------------------------------------------------------

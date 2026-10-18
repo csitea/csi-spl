@@ -13,6 +13,8 @@
 #          row, tree kept both passes
 #   c-904  retired, salvaged on pass 1, edited again before pass 2
 #          -> pass 2 salvages again, the tree stays
+# A first real run with WT_SALVAGE=0 (the default) keeps c-901 dirty and
+# pushes nothing; the other runs pass WT_SALVAGE=1.
 # The dry run plans, pushes nothing and writes no log.
 #
 # Red control: the script before SPL-2514 (no salvage) keeps c-901 dirty on
@@ -60,11 +62,15 @@ chmod +x "$origin/hooks/pre-receive"
 old "$root"
 
 run() {
-  WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" \
+  WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" WT_SALVAGE="${SALV:-1}" \
     bash "$sweep" >"$tmp/$2.out" 2>&1 || true
 }
 log="$spool/wt-salvage.tsv"
 
+SALV=0 run 0 off
+check "WT_SALVAGE=0: c-901 KEEP dirty, nothing pushed" has "$tmp/off.out" "KEEP dirty .*/c-901$"
+untouched_off() { [ -z "$(wip_sha c-901)" ] && [ ! -e "$spool/wt-salvage.tsv" ]; }
+check "WT_SALVAGE=0: no wip ref, no log" untouched_off
 run 1 dry
 D="$tmp/dry.out"
 check "dry: c-901 salvage planned" has "$D" "KEEP dirty-retired-salvage-planned .*/c-901$"

@@ -270,26 +270,39 @@ From `csi-spl-orc`:
 
 Environment:
 
-- `NUXT_PUBLIC_API_BASE` — hub origin. dev / prd: the single api host
-  (`https://api.<fqdn>`). Since spec 026 the hub takes the tenant from the
-  caller's identity, not the Host (`internal/hub/resolve.go`: `humanTenant` =
-  the session's active tenant, `boxTenant` = the `X-Spool-Tenant` header,
-  `tokenTenant` = the upload token's tenant). A template holding `{tenant}`
-  (lde default `http://{tenant}.localhost:58080`) still reads from the legacy
-  tenant host `<tenant>.<fqdn>`; a legacy Host must equal the credential's
-  tenant (`403 tenant_mismatch`). The WUI refuses a template that substitutes
-  a reserved label (`api_host`, `src/utils/tenant.mjs`). `404 unknown_tenant`
-  now means only that the resolved tenant does not exist.
-- `NUXT_PUBLIC_TENANT` — default tenant (lde `t1`). `?tenant=<id>` overrides it
-  and is remembered for the tab.
-- `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory
-  tenant. `0` reads the hub's read-only viewer API only
-  (`csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md`:
-  `/v1/view/threads`, `/v1/view/threads/{task_id}`, `/v1/view/roster`,
-  `/v1/view/channels`, plus `GET /v1/files/{file_id}` and `/v1/health`). The
-  browser never opens `/v1/ws`. Live send, channel creation and channel feeds
-  refuse: the M3 viewer is read-only (spec 005 §0).
-- `NUXT_PUBLIC_POLL_MS` — thread poll interval (default 4000, floor 2000).
+| Variable | Purpose | Where set | Default | Dev-only |
+|---|---|---|---|---|
+| `NUXT_CLIENT_SOURCEMAP` | Enable client-side sourcemaps in `vite.$client.build` (`true`) | Local build / diagnostics | unset (`false`) | yes |
+| `NUXT_DEV_AUTH_PROXY` | Proxy `/api/v1/auth/**` and `/api/v1/checkout/**` in Nitro dev server to hub so auth cookies land same-origin | Local development (`pnpm dev`) | unset (no proxy) | yes |
+| `NUXT_I18N_SPLIT` | Split locale catalogues into core and lazy parts (`0` disables splitting) | Build environment / CI | `1` (prod), `0` (dev) | no |
+| `NUXT_PUBLIC_API_BASE` | Spool hub API origin; in production runtime, overridden by `/config.json` (`apiBase`) | CI wf 30 (cnf `env.dns.api_fqdn`), Docker `wui-config.sh` (`SPOOL_PUBLIC_URL`) | `""` (prod), `http://{tenant}.localhost:58080` (dev) | no |
+| `NUXT_PUBLIC_APP_VERSION` | Release version string shown in UI footer and build metadata | CI wf 30 via `do_release_version` | `csi-spl-wui/.version` | no |
+| `NUXT_PUBLIC_AUTH_BASE` | Hub origin for `/api/v1/auth/**` cross-origin endpoints | CI wf 30 at generate & `/config.json` (cnf `steps.019-firebase-static-site.wui_auth_base`) | `""` (same-origin) | no |
+| `NUXT_PUBLIC_AWAIT_REPLY_MINUTES` | Minutes composer hourglass spins before calm waiting indicator (SPL-1994) | CI wf 30 `/config.json` (cnf `env.wui.await_reply_minutes`) | `10` | no |
+| `NUXT_PUBLIC_BUILD_COMMIT` | Commit SHA baked into build for `build-watch` update check against `/build.json` | CI wf 30 via `GITHUB_SHA` | `""` (watch off) | no |
+| `NUXT_PUBLIC_BUILD_RUN` | CI workflow run ID baked into build metadata | CI wf 30 via `GITHUB_RUN_ID` | `""` | no |
+| `NUXT_PUBLIC_DEFAULT_LOCALE` | Default un-prefixed locale for i18n routing (`en`, `bg`, etc.) | CI wf 30 at generate (cnf `env.i18n.default_locale`) | `en` | no |
+| `NUXT_PUBLIC_ENV_NAME` | Deployment environment name (`dev`, `prd`) shown in UI | CI wf 30 `/config.json` (`envName`) | `""` (lde) | no |
+| `NUXT_PUBLIC_LOBBY_TASK_ID` | Fallback task ID for `#lobby` topic before hub WebSocket welcome frame | CI wf 30 `/config.json` (cnf `env.hub.env.SPOOL_HUB_LOBBY_TASK_ID`), Docker `wui-config.sh` | `""` | no |
+| `NUXT_PUBLIC_PERF_RUM` | Flag (`1`/`0`) enabling Real User Monitoring performance collector (spec 066) | CI wf 30 `/config.json` (cnf `env.perf.rum_enabled`) | `0` | no |
+| `NUXT_PUBLIC_PERF_SAMPLE_RATE` | Fraction (0..1) of sessions that collect RUM metrics | CI wf 30 `/config.json` (cnf `env.perf.sample_rate`) | `1` | no |
+| `NUXT_PUBLIC_REPO_CLONE_URL` | Git clone URL displayed in Connect Agent guide | CI wf 30 `/config.json` (cnf `env.wui.repo_clone_url`), Docker `wui-config.sh` | `""` (hidden) | no |
+| `NUXT_PUBLIC_REPO_COMMIT_PATH` | Path format for commit links (e.g. `commit/`) | CI wf 30 `/config.json` (cnf `env.wui.repo_commit_path`), Docker `wui-config.sh` | `""` | no |
+| `NUXT_PUBLIC_REPO_HELP_PATH` | Path format for help links | CI wf 30 `/config.json` (cnf `env.wui.repo_help_path`), Docker `wui-config.sh` | `""` | no |
+| `NUXT_PUBLIC_REPO_WEB_URL` | Web URL of source repository; enables commit and help links in UI | CI wf 30 `/config.json` (cnf `env.wui.repo_web_url`), Docker `wui-config.sh` | `""` (hidden) | no |
+| `NUXT_PUBLIC_SEO_INDEX` | Flag (`1`/`0`) enabling search indexation on public pages and sitemap.xml | CI wf 30 at generate (cnf `env.wui.seo_index`, prd only) | `0` | no |
+| `NUXT_PUBLIC_SITE_URL` | Canonical apex URL (`https://<BASE_DOMAIN>`) for hreflang alternates, canonicals, sitemap | CI wf 30 at generate & `/config.json` (cnf `env.dns.fqdn`) | `""` | no |
+| `NUXT_PUBLIC_TENANT` | Default tenant identifier bound at sign-in (e.g. `t1`) | CI wf 30 `/config.json` (cnf `steps.019-firebase-static-site.wui_default_tenant`), Docker `wui-config.sh` | `t1` (dev), `""` (prod) | no |
+| `NUXT_PUBLIC_TENANT_HOSTS` | Flag (`1`/`0`) enabling tenant subdomain host routing (`<tenant>.<BASE_DOMAIN>`) | CI wf 30 `/config.json` (cnf `steps.019-firebase-static-site.wui_tenant_hosts`) | `0` | no |
+| `NUXT_PUBLIC_USE_MOCK` | `"1"` uses in-memory mock tenant; `"0"` connects to real Spool hub | CI wf 30 at generate (`0`) | `1` (dev), `0` (prod) | no |
+| `NUXT_TELEMETRY_DISABLED` | Disables Nuxt anonymous telemetry collection and prompt | Dockerfiles and compose manifests (`wui.Dockerfile`) | unset (`1` in containers) | no |
+| `NUXT_VITE_POLL` | Enables file polling in Vite server for Docker volume mounts | Docker compose in lde (`docker-compose-wui.yaml`) | unset (native inotify) | yes |
+
+Notes on tenant resolution and viewer API:
+- `NUXT_PUBLIC_API_BASE` and tenant resolution: since spec 026 the hub takes the tenant from the caller's identity, not the Host (`internal/hub/resolve.go`: `humanTenant` = the session's active tenant, `boxTenant` = the `X-Spool-Tenant` header, `tokenTenant` = the upload token's tenant). A template holding `{tenant}` (lde default `http://{tenant}.localhost:58080`) still reads from the legacy tenant host `<tenant>.<BASE_DOMAIN>`; a legacy Host must equal the credential's tenant (`403 tenant_mismatch`). The WUI refuses a template that substitutes a reserved label (`api_host`, `src/utils/tenant.mjs`). `404 unknown_tenant` now means only that the resolved tenant does not exist.
+- `NUXT_PUBLIC_USE_MOCK`: `1` (default in `pnpm dev`) uses the in-memory tenant. `0` reads the hub's viewer API (`csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md`: `/v1/view/topics`, `/v1/view/topics/{task_id}`, `/v1/view/roster`, `/v1/view/channels`, plus `GET /v1/files/{file_id}` and `/v1/health`; `/v1/view/threads` was renamed to `/v1/view/topics` in spec 003). Live messages, presence and sends go over the WUI socket `/v1/wui/ws` (`src/utils/live-ws.mjs`, contract `specs/003-spool-message-bus/contracts/wui-live-ws.md`); the browser never opens the box socket `/v1/ws`.
+- `NUXT_PUBLIC_POLL_MS` is obsolete (removed in favor of live WebSocket subscriptions).
+- In deployed environments (Firebase Hosting), runtime values (`apiBase`, `authBase`, `siteUrl`, `tenant`, etc.) are delivered via `/config.json` written by workflow 30, while build-time values (`defaultLocale`, `seoIndex`, `appVersion`, `useMock: "0"`) are baked at `nuxt generate` time.
 
 View token: on a `401` the viewer asks for one and keeps it in
 `sessionStorage` (`spool.view_token`), never `localStorage` or a URL.

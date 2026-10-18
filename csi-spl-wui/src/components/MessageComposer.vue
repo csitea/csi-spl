@@ -9,6 +9,7 @@
     :data-mode="modeAttr"
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     :data-phone-pos="docked ? phonePos : undefined"
+    :data-docs-hidden="docsHidden ? 'true' : undefined"
     :data-phone-size="docked && phoneShare != null ? 'set' : undefined"
     :style="docked && phoneShare != null ? { [phonePos === 'right' ? '--dock-width-share' : '--dock-field-share']: String(phoneShare) } : undefined"
     @submit.prevent="onSend"
@@ -336,7 +337,7 @@
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
-import { useOmniboxStore } from '~/stores/omnibox'
+import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
 import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { sendLimitError } from '~/utils/code-view.mjs'
@@ -455,6 +456,20 @@ const { collapseGlobalBox, onOmniboxFocus, onOmniboxBlur, startResize, chipW, mu
 const { syntaxOpen, syntaxId, insertOperator, onSyntaxClick } = useComposerSyntax({
   text, inputEl, caretAt, docked, searchMode, props, setText, focusInput, syntaxBtn, fieldEl,
 })
+
+/* SPL-2516 (qto reading panel row 02): on a phone's /docs and /workspace/docs
+   the dock and the strip under it collapse (height 0: the reading gets the
+   73-95 px back). The layout's search button calls openSearch(): the dock
+   comes back in search mode, and collapses again once the search line is
+   left or the page changes */
+const route = useRoute()
+const docsHidden = computed(() => docked.value && isDocsReadingPath(route.path) && !omniboxTargets.searchOpen)
+watch(() => omniboxTargets.searchAsk, () => {
+  if (!searchMode.value) setText(text.value.trim() ? `/search ${text.value.trim()}` : '/search ')
+  void nextTick(focusInput)
+})
+watch(searchMode, (on) => { if (!on) omniboxTargets.closeSearch() })
+watch(() => route.path, () => omniboxTargets.closeSearch())
 
 /* the sheet's Reply (MessageCard) puts the caret here. SPL-1637: a poll's
    "Chat about this" hands a start text too (the marker and the question
@@ -1114,6 +1129,9 @@ textarea.in-code {
      pages' own sheets (z 38/39), so it steps out of sight while one is open
      (its height stays, so nothing under it moves) */
   .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
+  /* SPL-2516: collapsed on the docs routes (docsHidden); the ResizeObserver
+     then reports 0, so --composer-dock-h is 0 and the panes pad nothing */
+  .composer.composer--dock.composer--dock[data-docs-hidden=true] { display: none; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--dock-tap); }
   .composer--dock.composer--dock .composer-mode-glyph { top: 12px; }

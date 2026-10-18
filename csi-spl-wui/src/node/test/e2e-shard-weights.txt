@@ -15,6 +15,9 @@
 # 38904179705 (await-reply 32 -> 62, links-open-channel-view 60 -> 78,
 # ai-marker 14 -> 29 after their tests grew; shard 4/5 had become the
 # slowest).
+# docs-dock-collapse (SPL-2516, new 2026-10-19): no CI sample yet; 28 = the
+# lowest of 3 local sat runs (28/47/69 s, load 20..30), so the file does not
+# take the median; refresh it from CI with the next weights round.
 tests/e2e/act-as.test.mjs 14
 tests/e2e/agent-at-box.test.mjs 8
 tests/e2e/agent-id-mention.test.mjs 6
@@ -85,6 +88,7 @@ tests/e2e/dm-reply-topic-to.test.mjs 11
 tests/e2e/dm-start-message.test.mjs 24
 tests/e2e/doc-path-links.test.mjs 3
 tests/e2e/dock-buttons.test.mjs 20
+tests/e2e/docs-dock-collapse.test.mjs 28
 tests/e2e/docs-links.test.mjs 5
 tests/e2e/docs-ws-edit.test.mjs 12
 tests/e2e/docs.test.mjs 39

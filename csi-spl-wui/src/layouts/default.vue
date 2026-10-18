@@ -99,7 +99,20 @@
       <!-- CLE-77888 (owner, t1 topic 1701ae89): on a phone, the desktop
            footer's dot, bell, note and version as a ~5 mm strip at the very
            bottom, under the docked composer -->
-      <MobileStatusStrip v-if="stack.isMobile.value" />
+      <MobileStatusStrip v-if="stack.isMobile.value && !docsReading" />
+      <!-- SPL-2516 (qto reading panel row 02): on a phone's docs routes the
+           dock and the strip are collapsed; this keeps search one tap away
+           (the omnibox store's openSearch brings the dock back in search
+           mode) until the docs pages carry their own search icon -->
+      <button
+        v-if="docsReading"
+        type="button"
+        class="docs-search-open"
+        data-test="docs-search-open"
+        :aria-label="$t('search.title')"
+        :title="$t('search.title')"
+        @click="omnibox.openSearch()"
+      ><UiIcon name="search" :size="20" /></button>
       </div>
       <template #fallback>
         <!-- 047 W2: the prerendered shell is the document a stranger's first
@@ -217,6 +230,7 @@ import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
+import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { closeArchivedPane, useArchiveUndo } from '~/composables/useArchiveUndo'
@@ -331,6 +345,9 @@ stack.install({
   topicOpen: topicPaneOpen,
   closeTopic: () => { livePane.close(); topic.close(); operatorPane.close() },
 })
+/* SPL-2516: a phone reading /docs or /workspace/docs, with search not open */
+const omnibox = useOmniboxStore()
+const docsReading = computed(() => stack.isMobile.value && isDocsReadingPath(route.path) && !omnibox.searchOpen)
 /* E08 (perf 20261004): phone level 1 CSS-hides this pane (main.css,
    data-mobile-level="1") and the reader never sees its ~120 nodes. Unmount
    it. Levels 2 and 3, and every width above 820 px, keep it: level 3 hides
@@ -512,6 +529,26 @@ const {
   .shell-late--side {
     display: none;
   }
+}
+/* SPL-2516: the compact search button on a phone's docs routes, the bottom
+   start corner (the page's own + sits at the end corner), a 48 px target */
+.docs-search-open {
+  position: fixed;
+  inset-inline-start: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-sidebar);
+  color: var(--color-fg);
+  cursor: pointer;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14);
 }
 .layout {
   max-width: 100%;

@@ -156,7 +156,7 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
     assert.match(strip, /<NotificationCenter placement="strip" \/>/)
     assert.match(strip, /const shown = computed\(\(\) => kbInset\.value === 0\)/)
     const layout = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
-    assert.match(layout, /<MobileStatusStrip v-if="stack\.isMobile\.value" \/>/)
+    assert.match(layout, /<MobileStatusStrip v-if="stack\.isMobile\.value && !docsReading" \/>/)
   })
   /* SPL-2093 (owner, t1 04d9c246): the dock 8 px lower - its controls keep
      the 44 px width and are 40 px tall, still a touch target */

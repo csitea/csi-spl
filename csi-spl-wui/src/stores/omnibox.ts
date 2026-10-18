@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { productPath } from '~/utils/signed-out-redirect.mjs'
 
 /**
  * 022 FR-010: the top-bar Omnibox sends to whatever page is on screen. A page
@@ -33,14 +34,38 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   /** bumped to ask the search results list to take the focus (ArrowDown in the Omnibox) */
   const focusResults = ref(0)
 
+  /**
+   * SPL-2516 (qto reading panel row 02): on a phone's docs routes the dock is
+   * collapsed; openSearch() brings it back in search mode (the composer
+   * watches `searchAsk`) and `searchOpen` holds it there until the search
+   * line is left or the page changes (closeSearch).
+   */
+  const searchOpen = ref(false)
+  const searchAsk = ref(0)
+  function openSearch() {
+    searchOpen.value = true
+    searchAsk.value++
+  }
+  function closeSearch() {
+    searchOpen.value = false
+  }
+
   function register(t: OmniboxTarget) {
     target.value = t
   }
   function unregister(owner: symbol) {
     if (target.value && target.value.owner === owner) target.value = null
   }
-  return { target, focusResults, register, unregister }
+  return { target, focusResults, searchOpen, searchAsk, openSearch, closeSearch, register, unregister }
 })
+
+/**
+ * SPL-2516: the reading routes whose phone dock and status strip collapse,
+ * `/docs` and `/workspace/docs` and below, in any locale.
+ */
+export function isDocsReadingPath(path: string): boolean {
+  return /^\/(?:workspace\/)?docs(?:\/|$)/.test(productPath(path))
+}
 
 /** Page helper: register a send target for this page's lifetime. */
 export function useOmniboxTarget(t: Omit<OmniboxTarget, 'owner'>) {

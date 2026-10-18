@@ -1,0 +1,6 @@
+Lay-What: the watchdog's trial run of new code is about five times faster on a busy machine
+Lay-How: a health check now reads each message folder once and opens only the messages that can matter
+Lay-Why: the trial run took longer than its time limit, so good updates were refused and the watchdogs stayed on old code
+Tech-What: spl_wdo_tasks dedupes the [acgmq]-001 outboxes by readlink -f and runs jq only on files grep finds "task" in
+Tech-How: the pre-flight proof tick dropped from 17-26 s to 4.4-5.8 s at load 20-35 on 16 cpus; round_tasks no longer counts each task 5 times
+Tech-Why: a-/g-/m-/q-001 are symlinks to c-001, so one jq per file ran 830 times per check, 21 s of a traced 33 s tick

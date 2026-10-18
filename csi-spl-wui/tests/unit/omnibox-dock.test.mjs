@@ -51,9 +51,10 @@ describe('B1: the box in the dock pushes the feed up, it never eats the pane', (
   it('the top bar box may reach the window bottom (unchanged)', () => {
     assert.equal(omniboxMaxHeight({ innerHeight: 900 }), 900 - 58 - 8)
   })
-  it('the dock stops at 60% of the space under the bar', () => {
-    assert.equal(omniboxMaxHeight({ innerHeight: 900, bottom: true }), Math.floor((900 - 58) * 0.6))
-    assert.ok(omniboxMaxHeight({ innerHeight: 900, bottom: true }) < 900 - 58 - 100)
+  it('owner t1 8de4c254: the dock stops under the pane header row, less its own rows', () => {
+    /* header row ends at 110, the box has 20 px around its field */
+    assert.equal(omniboxMaxHeight({ innerHeight: 900, topBarH: 110, bottom: true, chrome: 20 }), 900 - 110 - 20)
+    assert.equal(omniboxMaxHeight({ innerHeight: 900, topBarH: 890, bottom: true, chrome: 20 }), 36)
   })
 })
 
@@ -160,7 +161,7 @@ describe('the phone dock size', async () => {
   it('stored per place; junk is the default, bounds hold', () => {
     assert.equal(m.PHONE_SIZE_KEY, 'spool.omnibox-phone-size')
     for (const v of [undefined, null, '', '{', '[]', '"x"', '{"bottom":"big"}']) assert.deepEqual(m.parsePhoneSize(v), {})
-    assert.deepEqual(m.parsePhoneSize('{"bottom":0.3,"top":2,"right":0.7,"left":1}'), { bottom: 0.3, top: 0.5, right: 0.7 })
+    assert.deepEqual(m.parsePhoneSize('{"bottom":0.3,"top":2,"right":0.7,"left":1}'), { bottom: 0.3, top: 1, right: 0.7 })
     assert.deepEqual(m.parsePhoneSize('{"bottom":-1,"right":0}'), { bottom: 0 })
   })
   it('presets: one line / a quarter / half for a height, 72% / 84% / all-but-48px for the corner width', () => {
@@ -180,13 +181,23 @@ describe('the phone dock size', async () => {
     /* never past half; back near one line is one line */
     assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 44, dx: 0, dy: -900, room }), 0.5)
     assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 200, dx: 0, dy: 150, room }), 0)
+    /* owner t1 8de4c254: with the room up to the top button section measured,
+       a drag goes that far (never past the whole room) */
+    assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 44, dx: 0, dy: -900, room, max: 0.9 }), 0.9)
+    assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 44, dx: 0, dy: -2000, room, max: 3 }), 1)
     /* the corner: left is wider, 280 px at least, 48 px of the feed kept */
     assert.equal(m.resizePhoneSize({ pos: 'right', start: 327, dx: -500, dy: 0, room: 390 }), Math.round((342 / 390) * 1000) / 1000)
     assert.equal(m.resizePhoneSize({ pos: 'right', start: 327, dx: 500, dy: 0, room: 390 }), Math.round((280 / 390) * 1000) / 1000)
   })
+  it('owner t1 8de4c254: the field may grow until the grip meets the top button section', () => {
+    /* box bottom 823, 42 tall around a 40 px field, header row ends at 113:
+       823 - 113 - 16 (grip reach) - 2 */
+    assert.equal(m.dockFieldMax({ boxBottom: 823, boxH: 42, fieldH: 40, limitTop: 113 }), 692)
+    assert.equal(m.dockFieldMax({ boxBottom: 100, boxH: 42, fieldH: 40, limitTop: 113 }), 0)
+  })
   it('the composer repeats the bounds in CSS and a tap on the size handle opens the menu', () => {
     const composer = messageComposerSrc()
-    assert.match(composer, /min\(var\(--dock-field-share, 0\), 0\.5\)/)
+    assert.match(composer, /min\(var\(--dock-field-share, 0\), 1\)\), var\(--dock-field-max, calc\(\(100dvh - var\(--kb-inset, 0px\) - var\(--top-bar-h\)\) \* 0\.5\)\)/)
     assert.match(composer, /clamp\(min\(280px, 100vw - 48px\), calc\(100vw \* var\(--dock-width-share, 0\.84\)\), calc\(100vw - 48px\)\)/)
     const grip = read('components/OmniboxGrip.vue')
     assert.match(grip, /data-testid="omnibox-size"[^>]*tabindex="-1"/s)

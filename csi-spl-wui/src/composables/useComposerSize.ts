@@ -7,7 +7,7 @@
 // bottom of the screen. The bar itself stays 58px (SPL-977).
 import type { Ref } from 'vue'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
-import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
+import { omniboxMaxHeight, resizeHeight, topButtonsBottom } from '~/utils/omnibox-dock.mjs'
 import { useComposerWrap, type WrapOpts } from '~/composables/useComposerWrap'
 
 interface SizeOpts extends Omit<WrapOpts, 'parked' | 'fit'> {
@@ -39,8 +39,16 @@ function useFit(o: SizeOpts, st: BoxState) {
   function omniboxMax() {
     /* docked: 40% of what the keyboard leaves, so the page stays in view */
     if (o.docked.value) return Math.max(36, Math.floor((window.innerHeight - o.kbInset.value) * 0.4))
-    /* topic c6994436: in the bottom dock the box pushes the feed up, not over */
-    return omniboxMaxHeight({ innerHeight: window.innerHeight - o.kbInset.value, bottom: Boolean(o.props.bottom) })
+    /* topic c6994436: in the bottom dock the box pushes the feed up, not over;
+       owner, t1 8de4c254: up to the middle pane's header row, the box's own
+       rows around the field and the window under it taken off */
+    const innerHeight = window.innerHeight - o.kbInset.value
+    const el = o.inputEl.value
+    const box = el?.closest('form')
+    if (!o.props.bottom || !el || !box) return omniboxMaxHeight({ innerHeight, bottom: Boolean(o.props.bottom) })
+    const r = box.getBoundingClientRect()
+    const chrome = r.height - el.getBoundingClientRect().height + Math.max(0, innerHeight - r.bottom)
+    return omniboxMaxHeight({ innerHeight, topBarH: topButtonsBottom(document, box), bottom: true, chrome })
   }
   function fitGlobalBox() {
     const el = o.inputEl.value

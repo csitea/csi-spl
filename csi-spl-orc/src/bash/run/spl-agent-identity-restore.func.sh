@@ -30,10 +30,15 @@
 # @description <spool root>/<id>/lifetime/restart.lock) until the run ends:
 # @description an id another actor holds is REFUSED; a start and its outcome
 # @description are logged to rotate.log (run id <ts>-restore-<id>).
+# @description A grok seat (its session read from grok's own store at record
+# @description time, SPL-2507) comes back on grok only when grok can start: no
+# @description grok cli, no sign-in or its weekly limit is ONE "FALLBACK <id>"
+# @description line naming why; the seat is not started and its role falls to
+# @description claude (lease failover, the rotation's successor rule).
 # @description IDENTITY_RESTORE_IDS is a restore by hand, the admin's act that
 # @description clears a 6.1 hold (<id>/lifetime/heldout, restore-core.inc.sh);
 # @description without it the adapters run with RESTORE_KEEP_HOLD=1.
-# @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP).
+# @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP / FALLBACK).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied
 # @param IDENTITY_RESTORE_SINCE (optional) - UTC (2026-10-01T03:33:00Z); default the boot time
@@ -45,6 +50,7 @@
 # @param IDENTITY_RESTORE_USER (optional) - the user to start agents as, default the box's SPOOL_AGENT_USER
 # @param IDENTITY_COPY_OWNER (optional) - the owner a copied transcript gets, default that user (tests only)
 # @param IDENTITY_COPY_SUDO (optional) - the prefix that runs the copy, default "sudo -n" unless root (tests only)
+# @param GROK_BIN (optional) - the grok cli a grok seat restarts with, default grok on the agent user's login PATH
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_identity_restore
 # @example DRY_RUN=0 ./run -a do_spl_agent_identity_restore
@@ -89,8 +95,7 @@ do_spl_agent_identity_restore() {
       REFUSE$'\t'*) echo "REFUSE  ${line#REFUSE$'\t'}" | sed 's/\t/: /'; refused=$((refused + 1)) ;;
       RESTORE$'\t'*)
         IFS=$'\t' read -r _ id kind user sid wt sess title from <<< "$line"
-        [[ "$user" == - ]] && user=""; [[ "$sess" == - ]] && sess=""; [[ "$title" == - ]] && title=""
-        [[ "$from" == - ]] && from=""
+        [[ "$user" == - ]] && user=""; [[ "$sess" == - ]] && sess=""; [[ "$title" == - ]] && title=""; [[ "$from" == - ]] && from=""
         sess="${sess:-${IDENTITY_RESTORE_SESSION:-main}}"
         adapter="${IDENTITY_RESTORE_ADAPTER_DIR:-$feat/scripts}/restore-$kind.sh"
         brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""
@@ -98,6 +103,7 @@ do_spl_agent_identity_restore() {
         if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
           echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
         fi
+        if [[ "$kind" == grok ]] && _ai_grok_fallback "$id" "${user:-$agent_user}" "$dry" "$rid"; then refused=$((refused + 1)); continue; fi
         if [[ "$dry" == 1 ]]; then
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
           echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' in '$sess'"
@@ -132,6 +138,54 @@ do_spl_agent_identity_restore() {
     failed=$((failed + 1))
   fi
   (( failed == 0 ))
+}
+
+# A grok seat comes back on grok only when grok can start; else ONE line
+# names why and the seat is not started (0 = it fell back). Its role goes to
+# claude: the fleet lease fails over and the rotation's successor rule
+# (spl_rotate_role_vendor) picks claude for the same reason. The id is never
+# restarted on another CLI.
+_ai_grok_fallback() {  # ID USER DRY RID
+  local why
+  why="$(_ai_grok_why "$2")"
+  [[ -n "$why" ]] || return 1
+  echo "FALLBACK $1: grok cannot start ($why): not restored on grok, its role falls to claude"
+  [[ "$3" == 1 ]] || _ai_rlog "$4" RESTORE FALLBACK "grok cannot start ($why): its role falls to claude"
+  return 0
+}
+
+# Why grok cannot start a restored seat as USER, nothing when it can: no grok
+# CLI on the user's login PATH (GROK_BIN, default grok), no sign-in
+# (~/.grok/auth.json empty or missing), or its weekly limit: the NEWEST
+# watchdog verdict of any grok seat of this box (ctx*/<id>/out.s2, registry
+# kind grok, else a g- id) is S2 kind=limit within ROTATE_GROK_LIMIT_FRESH s
+# (604800). Newest of all, not per seat: a seat that hit the limit and never
+# ran again keeps it in its last verdict (sat 10-18: g-178's of 10-15, while
+# g-002 and g-003 wrote clean ones that day). File reads only.
+_ai_grok_why() {  # USER
+  local u="$1" bin="${GROK_BIN:-grok}" home su=()
+  [[ "$(id -un)" == "$u" ]] || su=(sudo -n -u "$u")
+  if [[ "$bin" == /* ]]; then
+    [[ -x "$bin" ]] || "${su[@]}" test -x "$bin" 2>/dev/null || { echo "no grok cli at $bin"; return 0; }
+  else
+    "${su[@]}" bash -lc 'command -v "$0"' "$bin" >/dev/null 2>&1 || { echo "no grok cli '$bin' on $u's PATH"; return 0; }
+  fi
+  home="$(_ai_home "$u")"
+  [[ -n "$home" ]] && { [[ -s "$home/.grok/auth.json" ]] || "${su[@]}" test -s "$home/.grok/auth.json" 2>/dev/null; } ||
+    { echo "no grok sign-in for $u (${home:-?}/.grok/auth.json)"; return 0; }
+  local wd="${LANE_MIX_WD_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/wd}" f id k t best=-1 bestf=""
+  for f in "$wd"/ctx*/*/out.s2; do
+    [[ -f "$f" ]] || continue
+    id="$(basename "$(dirname "$f")")"
+    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" 2>/dev/null || true)"
+    [[ "$k" == grok || ( -z "$k" && "$id" == g-* ) ]] || continue
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    if (( t > best )); then best="$t" bestf="$f"; fi
+  done
+  (( best >= 0 && $(date +%s) - best <= ${ROTATE_GROK_LIMIT_FRESH:-604800} )) || return 0
+  f="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "$bestf" 2>/dev/null || true)"
+  [[ -z "$f" ]] || echo "its limit: $(basename "$(dirname "$bestf")") S2 kind=limit $(( ($(date +%s) - best) / 60 ))m ago: ${f#HIT S2 kind=limit }"
+  return 0
 }
 
 # One rotate.log line under the restore's run id (<ts>-restore-<id>), so

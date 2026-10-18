@@ -50,6 +50,7 @@ stay, so a restore can start that session again under its own id.
 """
 
 import argparse
+import calendar
 import hashlib
 import subprocess
 import json
@@ -59,6 +60,7 @@ import re
 import sys
 import tempfile
 import time
+import urllib.parse
 
 KINDS = ("claude", "grok", "agy", "qwen", "mistral")
 # A CLI whose binary is not named after its kind (specs/110: mistral runs vibe).
@@ -239,6 +241,54 @@ class Proc:
         except OSError:
             return []
 
+    def boot_time(self):
+        """The boot time (btime of <root>/stat, epoch seconds), or None."""
+        try:
+            with open(os.path.join(self.root, "stat")) as fh:
+                for line in fh:
+                    if line.startswith("btime "):
+                        return int(line.split()[1])
+        except (OSError, ValueError, IndexError):
+            pass
+        return None
+
+    def started(self, start):
+        """The epoch second a process with stat start START (clock ticks since
+        boot) started, or None."""
+        bt = self.boot_time()
+        try:
+            return (
+                bt + int(start) / os.sysconf("SC_CLK_TCK") if bt is not None else None
+            )
+        except (ValueError, OSError):
+            return None
+
+    def summaries(self, pid, d):
+        """Every <d>/<sid>/summary.json, as the process owner when D is closed to us."""
+        try:
+            return [
+                os.path.join(d, n, "summary.json")
+                for n in sorted(os.listdir(d))
+                if os.path.isfile(os.path.join(d, n, "summary.json"))
+            ]
+        except PermissionError:
+            out = self.as_owner(
+                pid,
+                [
+                    "find",
+                    d,
+                    "-mindepth",
+                    "2",
+                    "-maxdepth",
+                    "2",
+                    "-name",
+                    "summary.json",
+                ],
+            )
+            return sorted(x for x in out.decode("utf-8", "replace").splitlines() if x)
+        except OSError:
+            return []
+
 
 def kind_of(argv):
     if not argv:
@@ -309,6 +359,60 @@ def claude_session(proc, pid, env, start):
                 str(d.get("name", "") or ""),
             )
     return "", "", ""
+
+
+def iso_epoch(v):
+    """'2026-10-18T03:20:51.645327664Z' -> epoch seconds, or None."""
+    try:
+        return calendar.timegm(time.strptime(str(v)[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError):
+        return None
+
+
+def grok_session(proc, pid, env, start, cwd, argv):
+    """The session a grok process runs, from grok's own store,
+    <GROK_HOME or ~/.grok>/sessions/<cwd, url-encoded>/<sid>/summary.json:
+    a fresh `grok` carries no session flag, so its argv names none (sat
+    2026-10-18: every g- record had session_id null and the boot restore
+    refused g-002 and g-003). Of the sessions of ITS cwd, the newest one
+    created since the process started; with --continue / -c (it resumed the
+    directory's latest) the newest of all. Nothing else is a guess: ''."""
+    if not cwd or cwd.endswith(" (deleted)"):
+        return ""
+    t0 = proc.started(start)
+    cont = "--continue" in argv or "-c" in argv
+    if t0 is None and not cont:
+        return ""
+    enc = urllib.parse.quote(cwd, safe="")
+    bases = [env["GROK_HOME"]] if env.get("GROK_HOME") else []
+    bases += [os.path.join(h, ".grok") for h in homes(proc, pid, env)]
+    for base in bases:
+        best = None
+        for path in proc.summaries(pid, os.path.join(base, "sessions", enc)):
+            try:
+                d = json.loads(proc.read_file(pid, path) or "null")
+            except ValueError:
+                continue
+            if not isinstance(d, dict):
+                continue
+            info = d.get("info") or {}
+            sid = str(info.get("id") or "")
+            if not sid or sid != os.path.basename(os.path.dirname(path)):
+                continue
+            if info.get("cwd") and os.path.normpath(
+                str(info["cwd"])
+            ) != os.path.normpath(cwd):
+                continue
+            made = iso_epoch(d.get("created_at"))
+            # 5 s: grok's clock and the stat tick are rounded differently.
+            if not cont and (made is None or made < t0 - 5):
+                continue
+            key = (str(d.get("updated_at") or d.get("created_at") or ""), sid)
+            if best is None or key > best:
+                best = key
+        if best:
+            return best[1]
+    return ""
 
 
 # "<ID>@<box>" at the head of a name: the box is display (specs/058).
@@ -413,6 +517,8 @@ def facts(proc, panes):
                 or flag(argv, "--conversation")
             )
         cwd = cwd or proc.cwd(pid)
+        if not sid and kind == "grok":
+            sid = grok_session(proc, pid, env, start, cwd, argv)
         pane, p, seen = None, pid, set()
         while p and p not in seen and p != "0":
             seen.add(p)
@@ -569,6 +675,16 @@ def merge(recs, live):
                     )
                 }
             )
+            # A pass that could not read the session store this time (the
+            # owner hop timed out) keeps what an earlier pass read from the
+            # SAME process: the session of a live process does not change.
+            if (
+                not r.get("session_id")
+                and (old or {}).get("session_id")
+                and old.get("pid") == f["pid"]
+                and old.get("proc_start") == f["proc_start"]
+            ):
+                r["session_id"] = old["session_id"]
             r["title"] = title
             r["alive"] = True
         else:
@@ -952,6 +1068,21 @@ def cmd_restore_plan(args, proc):
                 own = transcript_owner(os.path.join(user_home(at), rel), read_as(at))
                 if own and own != i:
                     why = "session %s belongs to %s, not to %s" % (sid, own, i)
+        elif kind == "grok":
+            rel = os.path.join(
+                ".grok",
+                "sessions",
+                urllib.parse.quote(wt, safe=""),
+                sid,
+                "summary.json",
+            )
+            home = user_home(user)
+            if not home or not exists_as(user, os.path.join(home, rel)):
+                why = "the grok session %s of %s is not under %s's ~/.grok/sessions" % (
+                    sid,
+                    wt,
+                    user,
+                )
         if why:
             print("REFUSE\t%s\t%s" % (i, why))
         else:

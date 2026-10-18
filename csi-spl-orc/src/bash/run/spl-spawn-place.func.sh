@@ -17,9 +17,12 @@
 # @description      came back (1) waits behind every ask the placer can launch
 # @description   3. ROOM - position 1 is taken only when the agent windows on
 # @description      this box are below SPOOL_AGENT_CEILING (40), the fleet load
-# @description      target does not say hold (do_spl_box_pick) and the last
-# @description      placement started SPAWN_PLACE_GAP_MIN ago. No room: it stays
-# @description      queued, one INFO line says why
+# @description      target does not say hold (do_spl_box_pick) and the gap
+# @description      after the last launch ended: SPAWN_PLACE_GAP_FLOOR_MIN (3)
+# @description      after it once the placed lane's heartbeat progress_ts moved
+# @description      past the launch, else SPAWN_PLACE_GAP_MIN (10) after it (no
+# @description      heartbeat = the ceiling). No room: it stays queued, one
+# @description      INFO line says why
 # @description   0b. WORK GROUPS (SPL-2370) - each group (do_spl_spawn_group_put)
 # @description      with fewer than its width N of rows in flight (queued,
 # @description      placing or running) gets its next waiting rows into this
@@ -74,7 +77,8 @@
 # @description         (do_spl_spawn_placed); 1 brings it back if it is not placed
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
-# @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements, default 10
+# @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
+# @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane's heartbeat moved, default 3
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where <slug>.md (or c001-<slug>.md) is, default <spool root>/dispatch/briefs
 # @param SPAWN_PLACE_CNF (optional) - the cnf whose mistral_ui_allowed and mistral_coding_allowed the UI and coding rules read, default <APP_PATH>/csi-spl-cnf/csi-spl/all.env.yaml
@@ -229,16 +233,44 @@ spl_spawn_place_stalled() {  # HOLDER ROWS
 
 # 3. Prints why there is no room and returns 0; returns 1 when there is room.
 spl_spawn_place_no_room() {
-  local n ceil="${SPOOL_AGENT_CEILING:-40}" pick last gap=$(( ${SPAWN_PLACE_GAP_MIN:-10} * 60 ))
+  local n ceil="${SPOOL_AGENT_CEILING:-40}" pick
   n="$(spl_spawn_place_windows)"
   [[ "$n" =~ ^[0-9]+$ ]] || { printf 'the agent windows could not be counted'; return 0; }
   (( n < ceil )) || { printf 'agent windows %s >= the ceiling %s' "$n" "$ceil"; return 0; }
-  last="$(stat -c %Y "$(spool_asks_dir)/.place.last" 2>/dev/null || echo 0)"
-  (( $(date +%s) - last >= gap )) || { printf 'the last placement started under %s min ago' "${SPAWN_PLACE_GAP_MIN:-10}"; return 0; }
+  spl_spawn_place_gap_hold && return 0
   pick="$(spl_spawn_place_pick)"
   [[ "$pick" == hold* ]] && { printf 'the fleet load target says %s' "$pick"; return 0; }
   SPAWN_PLACE_ROOM="windows $n/$ceil, load pick ${pick:-unknown}"
   return 1
+}
+
+# The gap after a launch (SDLC row 06): prints why and returns 0 while it
+# holds. It ends SPAWN_PLACE_GAP_FLOOR_MIN (3) after the launch once the
+# placed lane (<asks dir>/.place.agent, written by its launch) moved its
+# heartbeat's progress_ts past the launch, else at SPAWN_PLACE_GAP_MIN (10).
+# A missing or unreadable heartbeat, a lane on another box or a failed launch
+# (no .place.agent newer than .place.last) holds to the ceiling.
+spl_spawn_place_gap_hold() {
+  local d last now agent="" hb ts="" ceil=$(( ${SPAWN_PLACE_GAP_MIN:-10} * 60 )) floor=$(( ${SPAWN_PLACE_GAP_FLOOR_MIN:-3} * 60 ))
+  d="$(spool_asks_dir)"; now="$(date +%s)"
+  last="$(stat -c %Y "$d/.place.last" 2>/dev/null || echo 0)"
+  (( now - last >= ceil )) && return 1
+  (( floor > ceil )) && floor=$ceil
+  (( now - last < floor )) && { printf 'the last placement started under %s min ago (the floor)' "${SPAWN_PLACE_GAP_FLOOR_MIN:-3}"; return 0; }
+  if (( $(stat -c %Y "$d/.place.agent" 2>/dev/null || echo 0) >= last )); then
+    agent="$(head -1 "$d/.place.agent" 2>/dev/null)"
+    [[ "$agent" =~ ^[acgmq]-[0-9]{3}(@[a-z0-9-]+)?$ ]] || agent=""
+    for hb in "$SPOOL_ROOT/$agent/heartbeat.json" "$SPOOL_ROOT/${agent%@"$ASKS_BOX"}/heartbeat.json"; do
+      [[ -n "$agent" && -r "$hb" ]] || continue
+      ts="$(jq -r '.progress_ts // empty' "$hb" 2>/dev/null)"
+      [[ -n "$ts" ]] && break
+    done
+  fi
+  if [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]; then ts="$(date -u -d "$ts" +%s 2>/dev/null || echo 0)"
+  elif [[ ! "$ts" =~ ^[0-9]+$ ]]; then ts=0; fi
+  (( ts > 0 && ts >= last )) && return 1
+  printf 'the last placement started under %s min ago and %s has no heartbeat progress since' "${SPAWN_PLACE_GAP_MIN:-10}" "${agent:-its lane}"
+  return 0
 }
 
 # The agent windows on this box (the fleet's ceiling count).
@@ -362,6 +394,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   agent="$(grep -oE '^[acgmq]-[0-9]{3}(@[a-z0-9][a-z0-9-]{0,31})?( |$)' <<<"$out" | tail -1 | tr -d ' ')"
   if (( rc == 0 )) && [[ -n "$agent" ]]; then
     [[ "$agent" == *@* ]] || agent="$agent@$ASKS_BOX"
+    printf '%s\n' "$agent" >"$(spool_asks_dir)/.place.agent"
     spl_spawn_place_wait "$id" ""
     spl_spawn_placed_close "$id" "$holder" "$agent"
     return 0

@@ -1125,12 +1125,24 @@ textarea.in-code {
        field's 8 px end padding is under the button too), so no tap on the
        text area is ever under the button */
     width: calc(100% - var(--tap) + 8px);
+    /* owner, t1 7ff1521d (msg a980ea90): "there is this strange vertical
+       line" - the field's own scrollbar, drawn down the text's end edge
+       beside the Search button once a resized or long draft scrolls. A
+       finger scrolls the field; the bar is not drawn */
+    scrollbar-width: none;
   }
+  .composer--dock.composer--dock textarea::-webkit-scrollbar { display: none; }
   /* 085 FR-004: the Search button (magnifier), a 44 px target in the
      field's end corner; lit while the box is in search mode. t1 e142d4a0:
-     its square is drawn, so the target is exactly what the eye sees */
+     its square is drawn, so the target is exactly what the eye sees.
+     Owner, t1 7ff1521d (msg c9bc359f): "The position of the search button
+     seems a bit off and funny when the omnibox is resized" - it was pinned
+     to the field's top while Back, Attach and Send sit on the bottom line
+     (.composer-box align-items: flex-end); it sits on that line too now.
+     One line high, the two places are the same */
   .composer--dock.composer--dock .search-syntax-btn {
-    top: 0;
+    top: auto;
+    bottom: 0;
     inset-inline-end: 0;
     display: inline-grid;
     place-items: center;
@@ -1243,11 +1255,13 @@ textarea.in-code {
   /* owner, t1 21:53Z: "it should be possible to resize it" - the size the
      grip's size handle or its menu chose (utils/omnibox-dock.mjs). The same
      bounds as there, again here, so a size kept on a bigger screen still
-     fits: the field at most half the room under the top bar above the
-     keyboard (it stays that size when the focus leaves); in the corner at
-     least 280 px and at most the width less 48 px of the feed */
+     fits: the field at most --dock-field-max, the room up to the top button
+     section (owner, t1 8de4c254; useComposerDock measures it at the bottom),
+     else half the room under the top bar above the keyboard (it stays that
+     size when the focus leaves); in the corner at least 280 px and at most
+     the width less 48 px of the feed */
   .composer--dock.composer--dock[data-phone-size=set] textarea {
-    min-height: max(var(--dock-tap), calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * min(var(--dock-field-share, 0), 0.5)));
+    min-height: max(var(--dock-tap), min(calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * min(var(--dock-field-share, 0), 1)), var(--dock-field-max, calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * 0.5))));
   }
   .composer.composer--dock.composer--dock[data-phone-pos=right][data-phone-size=set] {
     width: clamp(min(280px, 100vw - 48px), calc(100vw * var(--dock-width-share, 0.84)), calc(100vw - 48px));

@@ -13,6 +13,7 @@ import { useStatusStripHeight } from '~/composables/useStatusStrip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
+import { dockFieldMax, topButtonsBottom } from '~/utils/omnibox-dock.mjs'
 import type { ComposerProps } from '~/composables/composerProps'
 
 interface DockOpts {
@@ -60,6 +61,42 @@ function useDockOutsideBlur(docked: Ref<boolean>, { formEl, inputEl }: DockOpts)
   onBeforeUnmount(() => { offDockOutside?.() })
 }
 
+/* owner, t1 8de4c254 (msg a80f71d8): "it should be possible to resize the
+   Omnibox up to the top button section". At the bottom a resized field may
+   grow until the box's grip meets the header row under the top bar; that px
+   cap goes to `--dock-field-max` on <html> (MessageComposer's
+   [data-phone-size=set] rule, OmniboxGrip's drag). Measured again when the
+   keyboard, the place, the level or the page changes. Elsewhere it is unset
+   and the CSS keeps half the room. */
+function useDockFieldMax(docked: Ref<boolean>, phonePos: Readonly<Ref<string>>, kbInset: Ref<number>, { formEl, inputEl }: DockOpts) {
+  const stack = useMobileStack()
+  const route = useRoute()
+  function update() {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement.style
+    const box = formEl.value
+    const field = inputEl.value
+    if (!docked.value || phonePos.value !== 'bottom' || !box || !field) {
+      root.removeProperty('--dock-field-max')
+      return
+    }
+    const r = box.getBoundingClientRect()
+    const px = dockFieldMax({ boxBottom: r.bottom, boxH: r.height, fieldH: field.getBoundingClientRect().height, limitTop: topButtonsBottom(document, box) })
+    root.setProperty('--dock-field-max', `${px}px`)
+  }
+  const later = () => { void nextTick(update) }
+  watch([docked, phonePos, kbInset, () => stack.level.value, () => route.fullPath], later, { flush: 'post' })
+  onMounted(() => {
+    later()
+    window.addEventListener('resize', later, { passive: true })
+  })
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', later)
+    if (typeof document !== 'undefined') document.documentElement.style.removeProperty('--dock-field-max')
+  })
+  return update
+}
+
 export function useComposerDock(opts: DockOpts) {
   const { props } = opts
   const phone = usePhone()
@@ -75,6 +112,7 @@ export function useComposerDock(opts: DockOpts) {
   /* owner, t1 21:53Z: its size there (the grip's size handle or the menu) */
   const phoneShare = computed(() => phoneSize.value[phonePos.value] ?? null)
   const setDockHeight = useDockHeight(phonePos)
+  const updateFieldMax = useDockFieldMax(docked, phonePos, kbInset, opts)
   let dockObserver: ResizeObserver | null = null
   function watchDock(on: boolean) {
     dockObserver?.disconnect()
@@ -86,7 +124,11 @@ export function useComposerDock(opts: DockOpts) {
     }
     setDockHeight(el.getBoundingClientRect().height)
     if (typeof ResizeObserver !== 'undefined') {
-      dockObserver = new ResizeObserver(() => setDockHeight(el.getBoundingClientRect().height))
+      dockObserver = new ResizeObserver(() => {
+        setDockHeight(el.getBoundingClientRect().height)
+        /* a file chip or the prefix row changes the box around the field */
+        updateFieldMax()
+      })
       dockObserver.observe(el)
     }
   }

@@ -94,6 +94,7 @@ On level 1 (the section chooser and its list) the box is a search box: placehold
 | **FR-007** | The dock row stays Back, Attach, Send; no control is added to it, to the top bar, or above the box | Planned |
 | **FR-008** | Above 820 px nothing changes: placeholders, `?`, the chip of 080 and the top bar are as before | Planned |
 | **FR-009** | Help `omnibox-and-navigation.md` §9 drops "The search icon in the top bar opens search as a full-screen sheet" (stale since SPL-1005) and describes the Search button on a phone (no chip there, §3.1) | Planned |
+| **FR-010** | A resized box (SPL-2503, owner t1 7ff1521d and 8de4c254): the Search button sits on the dock's bottom line with Back, Attach and Send, not in the field's top corner; the field draws no scrollbar down its text edge (the "vertical line"; a finger scrolls it); at the bottom the size handle may drag the field up until the grip meets the pane's header row (back, title, the view buttons), never over it (was half the room); desktop bottom dock the same. e2e `omnibox-resize-align` | Built (SPL-2503) |
 
 ## 6. Acceptance scenarios
 

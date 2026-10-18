@@ -46,13 +46,50 @@ export function resizeHeight({ startH, startY, y, bottom = false, min = 36, max 
 /**
  * The tallest the box may get. In the top bar it may reach the bottom of the
  * window (it grows over the page). In the dock it pushes the middle pane up
- * instead, so it stops at 60% of what is under the top bar and the feed
- * keeps its header and a few rows.
- * @param {{ innerHeight: number, topBarH?: number, bottom?: boolean }} o
+ * instead; owner, t1 8de4c254 (msg a80f71d8): "it should be possible to
+ * resize the Omnibox up to the top button section", so there it stops just
+ * under the pane's header row (`topBarH`, see topButtonsBottom), less the
+ * dock's own `chrome` (its padding and the rows around the field).
+ * @param {{ innerHeight: number, topBarH?: number, bottom?: boolean, chrome?: number }} o
  */
-export function omniboxMaxHeight({ innerHeight, topBarH = 58, bottom = false }) {
-  if (bottom) return Math.max(36, Math.floor((innerHeight - topBarH) * 0.6))
+export function omniboxMaxHeight({ innerHeight, topBarH = 58, bottom = false, chrome = 0 }) {
+  if (bottom) return Math.max(36, Math.floor(innerHeight - topBarH - chrome))
   return Math.max(36, Math.floor(innerHeight - topBarH - 8))
+}
+
+/**
+ * Where the "top button section" ends (owner, t1 8de4c254): the bottom of
+ * the header row right under the top bar in the pane above the box (the
+ * topic header: back, title, the three view buttons; the section tabs on
+ * the list), else the top bar's bottom. A resized box grows up to it, never
+ * over it.
+ * @param {Document} doc
+ * @param {Element} box  the composer; skipped when it covers that row
+ * @returns {number} px from the top of the window
+ */
+export function topButtonsBottom(doc, box) {
+  const bar = doc.querySelector('[data-test=top-bar]')
+  const barBottom = bar ? bar.getBoundingClientRect().bottom : 0
+  const r = box.getBoundingClientRect()
+  const y = barBottom + 1
+  const hit = doc.elementsFromPoint(r.left + r.width / 2, y).find((e) => !box.contains(e))
+  const row = hit && hit.closest('header, .feed-header, .sidebar-rail')
+  const rr = row && row.getBoundingClientRect()
+  return rr && rr.top <= y && rr.bottom > y ? rr.bottom : barBottom
+}
+
+/* the grip and the size handle stand 16 px over the box's free edge
+   (OmniboxGrip.vue); at the limit they end on the header row, not over it */
+export const GRIP_REACH_PX = 16
+
+/**
+ * The tallest a resized phone-dock field may be at the bottom: from the
+ * box's bottom edge up to the top button section, less the box's own
+ * chrome (box height minus field height) and the grip's reach.
+ * @param {{ boxBottom: number, boxH: number, fieldH: number, limitTop: number }} o
+ */
+export function dockFieldMax({ boxBottom, boxH, fieldH, limitTop }) {
+  return Math.max(0, Math.floor(boxBottom - limitTop - GRIP_REACH_PX - (boxH - fieldH)))
 }
 
 /*
@@ -110,8 +147,10 @@ export function isPhoneDrag({ dx, dy, slop = DRAG_SLOP }) {
  * per place, as a SHARE so it follows a rotation and the keyboard:
  *   bottom / top - the field's height, a share of the room under the top bar
  *                  (above the keyboard): 0 = one line that grows with the text
- *                  (the default), at most HEIGHT_MAX so half the screen stays
- *                  readable and reachable behind the box
+ *                  (the default); "large" is HEIGHT_MAX (half). At the
+ *                  bottom a drag may go up to the top button section
+ *                  (owner, t1 8de4c254: dockFieldMax); at the top it stops
+ *                  at HEIGHT_MAX so half the screen stays readable
  *   right        - the corner box's width, a share of the screen width: at
  *                  least WIDTH_MIN_PX (field, Attach and Send still fit), at
  *                  most the width less WIDTH_GAP_PX (a strip of the feed
@@ -121,6 +160,9 @@ export function isPhoneDrag({ dx, dy, slop = DRAG_SLOP }) {
  */
 export const PHONE_SIZE_KEY = 'spool.omnibox-phone-size'
 export const HEIGHT_MAX = 0.5
+/* a dragged height may go up to the whole room; the px cap under the top
+   button section (dockFieldMax, --dock-field-max) is what really stops it */
+export const HEIGHT_LIMIT = 1
 export const WIDTH_MIN_PX = 280
 export const WIDTH_GAP_PX = 48
 /** Less than this many px over one line and a dragged field is one line again. */
@@ -146,7 +188,7 @@ export function parsePhoneSize(raw) {
   if (!o || typeof o !== 'object') return out
   for (const p of /** @type {const} */ (['bottom', 'top'])) {
     const v = o[p]
-    if (typeof v === 'number' && Number.isFinite(v)) out[p] = round3(Math.min(HEIGHT_MAX, Math.max(0, v)))
+    if (typeof v === 'number' && Number.isFinite(v)) out[p] = round3(Math.min(HEIGHT_LIMIT, Math.max(0, v)))
   }
   const w = o.right
   if (typeof w === 'number' && Number.isFinite(w) && w > 0) out.right = round3(Math.min(1, w))
@@ -181,13 +223,15 @@ export function sizePreset(pos, v) {
  * A drag on the size handle, on the box's free edge: away from the screen
  * edge the box hangs on is bigger - UP at the bottom, DOWN at the top, LEFT
  * in the corner (its width).
- * @param {{ pos: 'bottom' | 'top' | 'right', start: number, dx: number, dy: number, room: number, oneLine?: number }} o
+ * @param {{ pos: 'bottom' | 'top' | 'right', start: number, dx: number, dy: number, room: number, oneLine?: number, max?: number }} o
  *   start - the field's height (the box's width in the corner) in px when the
  *   finger went down; room - what a share is of (the px under the top bar
- *   above the keyboard, or the screen width); oneLine - the one-line field
+ *   above the keyboard, or the screen width); oneLine - the one-line field;
+ *   max - the largest height share (HEIGHT_MAX unless the caller measured
+ *   the room up to the top button section)
  * @returns {number} the new share
  */
-export function resizePhoneSize({ pos, start, dx, dy, room, oneLine = 44 }) {
+export function resizePhoneSize({ pos, start, dx, dy, room, oneLine = 44, max = HEIGHT_MAX }) {
   if (!(room > 0)) return 0
   if (pos === 'right') {
     const hi = (room - WIDTH_GAP_PX) / room
@@ -196,5 +240,5 @@ export function resizePhoneSize({ pos, start, dx, dy, room, oneLine = 44 }) {
   }
   const px = start + (pos === 'top' ? dy : -dy)
   if (px < oneLine + HEIGHT_SNAP_PX) return 0
-  return round3(Math.min(HEIGHT_MAX, px / room))
+  return round3(Math.min(Math.min(HEIGHT_LIMIT, max), px / room))
 }

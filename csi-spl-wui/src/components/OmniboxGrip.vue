@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
+import { HEIGHT_MAX, PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 
@@ -212,7 +212,7 @@ function pickSize(z: SizePreset) {
 }
 
 /* the size handle: the field's height (bottom, top) or the box's width (right) */
-let sizing: { x: number, y: number, id: number, start: number, room: number, moved: boolean } | null = null
+let sizing: { x: number, y: number, id: number, start: number, room: number, max: number, moved: boolean } | null = null
 let swallowSizeClick = false
 
 /** What a share is of: the px under the top bar above the keyboard, or the screen width. */
@@ -223,6 +223,13 @@ function sizeRoom(): number {
   return window.innerHeight - kb - bar
 }
 
+/** The largest height share: up to the top button section where the dock
+    measured it (owner, t1 8de4c254: --dock-field-max), else half. */
+function sizeMax(room: number): number {
+  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-field-max'))
+  return pos.value === 'bottom' && px > 0 && room > 0 ? px / room : HEIGHT_MAX
+}
+
 function onSizeMove(e: PointerEvent) {
   if (!sizing || e.pointerId !== sizing.id) return
   const dx = e.clientX - sizing.x
@@ -230,7 +237,7 @@ function onSizeMove(e: PointerEvent) {
   if (!sizing.moved && !isPhoneDrag({ dx, dy })) return
   sizing.moved = true
   menuOpen.value = false
-  setSize(resizePhoneSize({ pos: pos.value, start: sizing.start, dx, dy, room: sizing.room }), false)
+  setSize(resizePhoneSize({ pos: pos.value, start: sizing.start, dx, dy, room: sizing.room, max: sizing.max }), false)
 }
 
 function onSizeUp(e: PointerEvent) {
@@ -257,7 +264,8 @@ function onSizeDown(e: PointerEvent) {
   if (e.button !== 0 || !sizeEl.value || !box) return
   const field = box.querySelector('textarea')
   const start = pos.value === 'right' ? box.getBoundingClientRect().width : (field?.getBoundingClientRect().height ?? 44)
-  sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room: sizeRoom(), moved: false }
+  const room = sizeRoom()
+  sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room, max: sizeMax(room), moved: false }
   swallowSizeClick = false
   try { sizeEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
   sizeListeners?.abort()

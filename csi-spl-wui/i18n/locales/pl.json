@@ -3116,7 +3116,7 @@
       "trend_steady": "Tempo zużycia stabilne",
       "sort_rate_desc": "Tempo zużycia (od najwyższego)",
       "sort_rate1m_desc": "Skok w ostatniej minucie (od najwyższego)",
-      "sort_today_tokens_desc": "Dzisiejsze tokeny (od najwyższej liczby)",
+      "sort_today_tokens_desc": "Dzisiejsze tokeny (od największej liczby)",
       "sort_today_cost_desc": "Dzisiejszy koszt (od najwyższego)",
       "sort_agent_asc": "ID agenta (od A do Z)",
       "sort_last_active_desc": "Ostatnio aktywne"

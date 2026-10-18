@@ -105,7 +105,7 @@
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
           :data-unread="isNew(it.msg) ? 'true' : undefined"
-          @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
+          @open-topic="(row: SpoolMessage) => { cardNew.opened(row); $emit('open-topic', row) }"
           @edited="(row: SpoolMessage) => $emit('edited', row)"
           @deleted="(row: SpoolMessage) => $emit('deleted', row)"
           @reacted="(update: ReactionUpdate) => $emit('reacted', update)"

@@ -32,13 +32,3 @@ const keys = ref<Record<string, number> | null>(null)
 export function useFlowKeys() {
   return keys
 }
-
-/**
- * SPL-2506 (owner, t1 d8fa6f9c): the hub's unread for one topic, its
- * t:<task_id> key, the part of the channel badge (ch:) that topic holds. A
- * topic card shows at least this (topicCounts), so a counted line is always
- * marked on its card. 0 when unknown.
- */
-export function flowTopicUnread(taskId: string) {
-  return (taskId && Number(keys.value?.[`t:${taskId}`])) || 0
-}

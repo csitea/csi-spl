@@ -477,7 +477,7 @@ import { formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCa
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { activityOf } from '~/utils/feed.mjs'
-import { topicCounts } from '~/utils/read-cursor.mjs'
+import { topicCounts } from '~/utils/topic-counts.mjs'
 import { isEdited, wantsDblClickEdit, wantsEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useDrafts } from '~/composables/useDrafts'

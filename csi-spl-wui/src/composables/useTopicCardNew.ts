@@ -1,7 +1,7 @@
 import { computed, type Ref } from 'vue'
 import { useNotificationStore } from '~/stores/notification'
 import { loadCursors, openerUnseen } from '~/utils/read-cursor.mjs'
-import { flowTopicUnread } from '~/composables/useFlowBadge'
+import { useFlowKeys } from '~/composables/useFlowBadge'
 import type { SpoolMessage } from '~/types/spool'
 
 type Cursor = { ts?: string, id?: string }
@@ -16,7 +16,20 @@ type Cursor = { ts?: string, id?: string }
  *    are re-read as one moves (topicRead), so opening the topic clears it.
  *  - hubUnread(m): SPL-2506 (owner, t1 d8fa6f9c): the hub's t: key for the
  *    topic, the part of its channel badge it holds (flowTopicUnread).
+ *  - opened(m): opening the card zeroes its topic's hub t: key at once,
+ *    until the hub's next counts (here, not in the eager store).
  */
+/**
+ * SPL-2506 (owner, t1 d8fa6f9c): the hub's unread for one topic, its
+ * t:<task_id> key, the part of the channel badge (ch:) that topic holds. A
+ * topic card shows at least this (topicCounts), so a counted line is always
+ * marked on its card. 0 when unknown. Here, not in useFlowBadge, so it stays
+ * off the initial script.
+ */
+export function flowTopicUnread(taskId: string) {
+  return (taskId && Number(useFlowKeys().value?.[`t:${taskId}`])) || 0
+}
+
 export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewerId: Ref<string>) {
   const notes = useNotificationStore()
   const topicMarks = computed<Record<string, Cursor>>(() => {
@@ -30,5 +43,10 @@ export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewe
   function hubUnread(m: SpoolMessage) {
     return flowTopicUnread(String(m.task_id || ''))
   }
-  return { openerNew, hubUnread }
+  function opened(m: SpoolMessage) {
+    const keys = useFlowKeys()
+    const k = `t:${m.task_id || ''}`
+    if (keys.value?.[k]) keys.value = { ...keys.value, [k]: 0 }
+  }
+  return { openerNew, hubUnread, opened }
 }

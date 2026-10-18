@@ -41,7 +41,6 @@ import {
 } from '~/utils/read-cursor.mjs'
 import { dmPeerOf, dmTotalsFromDms, namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { useFlowKeys } from '~/composables/useFlowBadge'
 
 type Ctx = {
   selfId?: string
@@ -291,9 +290,6 @@ function topicSteps(boundary: Boundary) {
     const c = Math.max(0, Number(count) || 0)
     topicRead.value = { ...topicRead.value, [taskId]: c }
     if (import.meta.client) saveCursors(markTopicReadAt(loadCursors(), taskId, c, ownMsgId))
-    /* SPL-2506: the card shows the hub's t: key too; read now, until the hub's next counts say so */
-    const keys = useFlowKeys()
-    if (keys.value && keys.value[`t:${taskId}`]) keys.value = { ...keys.value, [`t:${taskId}`]: 0 }
   }
 
   /** CLE-77889: the reader's own reply (another tab or device, a terminal line) is seen, never "1/N" new. */

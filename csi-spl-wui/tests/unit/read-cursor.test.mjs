@@ -18,9 +18,9 @@ import {
   topicUnread,
   topicKey,
   openerUnseen,
-  topicCounts,
   ownReplyReadAt,
 } from '../../src/utils/read-cursor.mjs'
+import { topicCounts } from '../../src/utils/topic-counts.mjs'
 import { countMarks, seedTopicCursors, unseenRepliesSince } from '../../src/utils/topic-seed.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 

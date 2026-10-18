@@ -33,14 +33,14 @@
 # nothing resolved one, so on sat, 2026-10-18, 66 dirty trees sat for good,
 # 55 of them RETIRED lanes. For a retired lane's dirty tree only (a
 # registry.retired.tsv row with this rundir, no registry.tsv row for the id;
-# never a role seat, an alive record or a tree in use) a real run pushes its
-# work to refs/heads/wip/<branch>, archives the rest and logs the sha, and
-# keeps the tree; a LATER pass removes it once that sha is verified on origin
-# and the tree is unchanged. The include's header has the rules.
+# never a role seat, an alive record or a tree in use) a real run writes its
+# work to a LOCAL git bundle (never pushed: the repo is public), archives the
+# rest and logs the sha, and keeps the tree; a LATER pass removes it once the
+# bundle verifies and the tree is unchanged. The include's header has the rules.
 #   WT_SALVAGE                 0 (default, off until the dispatcher accepts the
 #                              live run, SPL-2514) | 1 on
 #   WT_SALVAGE_LOG             default $SPOOL_ROOT/wt-salvage.tsv
-#   WT_SALVAGE_DIR             default $SPOOL_ROOT/wt-salvage (the archives)
+#   WT_SALVAGE_DIR             default $SPOOL_ROOT/wt-salvage (bundles + archives, mode 700)
 #   WT_SALVAGE_RESIDUE_MAX_KB  default 10240
 #
 # One PLAN|REMOVE / KEEP / SALVAGE line per worktree, a DONE line.

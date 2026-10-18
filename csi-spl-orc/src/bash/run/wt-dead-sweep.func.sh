@@ -7,8 +7,8 @@
 # @description (no --force) and `git branch -d`. One PLAN|REMOVE / KEEP line per
 # @description worktree. Dry run unless DRY_RUN=0. Runs every 4 h inside
 # @description do_box_disk_sweep. A RETIRED lane's dirty tree is salvaged
-# @description instead (SPL-2514): pushed to its wip ref, the rest archived,
-# @description logged, then removed on a later pass once verified on origin.
+# @description instead (SPL-2514): a local git bundle (never pushed) plus an
+# @description archive, logged, then removed on a later pass once verified.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param WT_SWEEP_AGE_H (optional) - idle hours before removal, default 72
 # @param WT_SWEEP_KEEP_RE (optional) - ids never removed, default the role seats

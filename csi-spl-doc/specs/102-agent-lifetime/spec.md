@@ -360,27 +360,32 @@ after the agent is done.
   branch and applies the wip ref when it is newer; no wip ref = the lane
   branch alone (agy-2). A lane that finishes deletes its wip ref in
   `/exit-clean`.
-- **A retired lane's dirty tree is salvaged** (SPL-2514, 2026-10-18): the
-  worktree sweep never removed a dirty tree, and nothing resolved one, so on
-  sat 66 dirty trees stayed for good, 55 of them retired lanes (most held
-  only a lane-state scratch file). `wt-dead-sweep.sh`
+- **A retired lane's dirty tree is salvaged, locally** (SPL-2514, 2026-10-18):
+  the worktree sweep never removed a dirty tree, and nothing resolved one,
+  so on sat 66 dirty trees stayed for good, 55 of them retired lanes (most
+  held only a lane-state scratch file). `wt-dead-sweep.sh`
   (`wt-dirty-salvage.inc.sh`), for a RETIRED lane only (a
   `registry.retired.tsv` row with this rundir and no `registry.tsv` row for
   the id; never a role seat, an alive record or a tree in use), on a real
-  run: pushes the tree with `do_spl_lane_wip_push` to
-  `refs/heads/wip/<branch>` and verifies it (`git ls-remote` shows that sha,
-  `git cat-file -e` finds it, it contains HEAD); archives every other
-  non-ignored file (scratch, a stray top-level file, kept off the public
-  ref) to `<spool root>/wt-salvage/<id>.<UTC>.tgz`, checked with `tar -t`;
-  logs `utc id worktree ref sha state archive` to
-  `<spool root>/wt-salvage.tsv`; and keeps the tree. A LATER pass removes it
-  (`git worktree remove --force`, `git branch -D`) only when the sha is still
-  the remote ref and the tree's non-ignored content (a throwaway index and
-  object dir) is the logged one. A push failure, a residue over
-  `WT_SALVAGE_RESIDUE_MAX_KB` (10 MB), a nested repo, a mid-rebase or a
-  detached tree keeps it. Ignored files (node_modules, .nuxt, bin) are build
-  output. Off by default (`WT_SALVAGE=1` turns it on) until the dispatcher
-  accepts the first live run. Test: `wt-dirty-salvage.tst.sh`.
+  run: builds one wip commit on HEAD (tracked edits plus the new `csi-spl-*/`
+  files, the rule above) in a throwaway bare repo and index, so the lane's
+  index and the repo's objects and refs are not written; writes it as a git
+  bundle (`wip ^<merge-base with origin/master>`) to
+  `<spool root>/wt-salvage/<id>.<UTC>.bundle`, checked with `git bundle
+  verify`; archives every other non-ignored file (scratch, a stray top-level
+  file) to `<id>.<UTC>.tgz` there (dir 700, files 600); logs `utc id
+  worktree bundle sha head state archive` to `<spool root>/wt-salvage.tsv`;
+  and keeps the tree. **Nothing is pushed** (c-001 551df3d5: the repo is
+  public, and a scan is a ban list, so it cannot prove 53 unread trees hold
+  no private data). A LATER pass removes the tree (`git worktree remove
+  --force`, `git branch -D`) only when the bundle verifies, its tip is the
+  logged sha, HEAD is the logged head and the tree's non-ignored content (a
+  throwaway index) is the logged one. A residue over
+  `WT_SALVAGE_RESIDUE_MAX_KB` (10 MB), a nested repo, an unreadable file, a
+  mid-rebase or a detached tree keeps it. Ignored files (node_modules, .nuxt,
+  bin) are build output. Off by default (`WT_SALVAGE=1` turns it on) until
+  the live run is accepted. Test: `wt-dirty-salvage.tst.sh` (origin's ref
+  count unchanged; a corrupt bundle refuses the removal).
 
 ## 6. Limits (W3, R4, R12)
 

@@ -1,7 +1,7 @@
-# Mistral Seat Review: Small UI Animations Panel (v1.0 Consensus Plan)
+# Mistral Seat Review: Small UI Animations Panel (v1.1 Consensus Plan)
 
 **Agent ID:** `m-422@sat` (Mistral)
-**Plan Version:** v1.0 (commit `5b442c01f`)
+**Plan Version:** v1.1 (commit `5b442c01f`)
 **Review Date:** 2026-10-18
 **Status:** Signed (verdicts below)
 

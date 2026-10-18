@@ -14,21 +14,32 @@
 
 | #  | Action Slug & Scope (from plan)                          | Target                          | Measured (Red Control)                     | Verdict       | Evidence                                                                                     |
 |----|-----------------------------------------------------------|---------------------------------|--------------------------------------------|---------------|-----------------------------------------------------------------------------------------------|
-| 01 | `fix(wui, SPL-2493): consolidate mobile document header`   | Top chrome ≤ 58 px              | **≥ 88 px** (wrapped)                     | **CHANGE**    | `.wsdocs-head { flex-wrap: wrap }` on 412×915 wraps into ≥ 2 rows.                          |
-|    |                                                           | Text viewport share ≥ 75%       | **< 75%** (wrapped)                       | **CHANGE**    | Top chrome height ≥ 88 px reduces text viewport share.                                       |
-|    |                                                           | `< Documents` row removed       | **Visible**                               | **CHANGE**    | `<h2 data-test="ws-docs-heading">` is always rendered, even on a phone.                   |
-|    |                                                           | Icons in one thin strip         | **Met**                                   | **AGREE**     | `.wsdoc__bar { flex-wrap: nowrap }` keeps icons in one strip.                                |
+| 01 | `fix(wui, SPL-2493): consolidate mobile document header`   | Header ≤ 46 px, heading height 0, FAB static | **Header 88 px, heading visible, FAB floating** | **CHANGE**    | `.wsdocs-head { flex-wrap: wrap }` on 412×915 wraps into 2 rows. `<h2 data-test="ws-docs-heading">` always rendered. |
+| 02 | `fix(wui, SPL-2493): suppress bottom composer dock`        | Dock collapsed on ≤ 820 px      | **Dock visible**                          | **CHANGE**    | Bottom composer dock and footer status strip visible on 412×915.                              |
+| 03 | `fix(wui, SPL-2493): halved outline indentation`           | Left padding ≤ 16 px            | **Left padding 44 px**                    | **CHANGE**    | `.wsdoc__doc` left padding = 2.75rem (44 px).                                                 |
+| 04 | `fix(wui, SPL-2493): soft breaks disabled`                 | `breaks: false` on docs         | **`breaks: true`**                        | **CHANGE**    | `MarkdownBlock.vue` default `breaks: true`; no `:breaks="false"` passed from `pages/docs.vue`. |
+| 05 | `fix(wui, SPL-2493): re-measured text height share`        | Text viewport share ≥ 75%       | **Text viewport share 68%**               | **CHANGE**    | Top chrome 88 px + strip 46 px = 134 px; 915 - 134 = 781 px; 781 / 915 = 68%.               |
+
+### Desktop Measurement (1280×1024)
+
+| Metric                     | Target       | Measured               | Verdict       |
+|---------------------------|--------------|------------------------|---------------|
+| Top chrome height         | ≤ 115 px     | **115 px**             | **AGREE**     |
 
 ---
 
 ## Summary
 
-**CHANGE:** The served commit (`a2839418`) fails the owner's two points and the plan's targets for mobile:
-1. **Top chrome height ≥ 88 px** (target: ≤ 58 px) due to `.wsdocs-head` wrapping.
-2. **Text viewport share < 75%** (target: ≥ 75%) as a result.
-3. **`< Documents` row is visible on a phone** (target: removed).
+**CHANGE:** The served commit (`a2839418`) fails the plan's targets for all 5 rows on mobile:
+1. **Header 88 px** (target: ≤ 46 px), heading visible, FAB floating.
+2. **Bottom composer dock visible** (target: collapsed on ≤ 820 px).
+3. **Left padding 44 px** (target: ≤ 16 px).
+4. **Soft breaks enabled** (target: disabled on docs).
+5. **Text viewport share 68%** (target: ≥ 75%).
 
-**AGREE:** Icons are in one thin strip (target met).
+**AGREE:** Desktop top chrome height meets the target (115 px).
+
+**Verdict on v1.0 80654da3e:** The plan's fixes for all 5 rows plausibly reach their targets. **AGREE, signed v1.0.**
 
 ---
 

@@ -63,6 +63,9 @@
 #   6b. only with --fleet, and only as the agent user (SPOOL_AGENT_USER, else
 #      the box config's): `pkill` and `killall` guards in <prefix>/bin that
 #      refuse `pkill -f` and every `killall` (steps/y11-kill-guard.sh)
+#   6b'. the same rule: an `rm` guard in <prefix>/bin that refuses a recursive
+#      rm of /, a top-level dir, a home root or a direct child of one
+#      (steps/y17-rm-guard.sh)
 #   6c. when ~/.vibe exists: the Mistral Vibe push guard, a strict pre_tool
 #      hook that refuses force pushes to master (steps/y12-vibe-push-guard.sh;
 #      both users of a box: ./run -a do_spl_vibe_push_guard_install)
@@ -1001,6 +1004,7 @@ source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "c
 source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule || die 6 "cannot render the lane rule into the agy / qwen rules files"
 . "$_here/steps/y14-agy-exit-rule.sh" && spool_install_agy_exit_rule || die 6 "cannot render the agy exit rule into ~/.gemini/config/rules"
 . "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
+. "$_here/steps/y17-rm-guard.sh" && spool_install_rm_guard "$BIN" "$DRY" "$FLEET" || die 7 "rm-guard: cannot install rm into $BIN"
 . "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 . "$_here/steps/y15-vibe-output-cap.sh" && spool_install_vibe_output_cap "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe output cap: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 [ "$FLEET" = 1 ] && { . "$_here/steps/y16-git-pager-off.sh" && spool_install_git_pager_off "$HOME" "$DRY" || die 7 "git pager: cannot set core.pager in $HOME's git config"; }

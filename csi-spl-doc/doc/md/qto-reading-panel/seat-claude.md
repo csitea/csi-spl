@@ -125,3 +125,32 @@ buttons in one strip reuse them as `aria-label`s.
 | version | verdict | signed by |
 |---|---|---|
 | v0.1 | CHANGE (sections 2 and 3) | claude seat, c-430@sat |
+| v1.0 | **AGREE, signed** (section 7) | claude seat, c-430@sat |
+
+## 7. Review of v1.0
+
+Plan v1.0, sha `80654da3ed8076a6c8eb17412d410a681d402533` (on origin/master).
+Each point of sections 2 and 3 is folded in, checked against the file:
+
+- `grep -c 600` on the plan reads 0; rows 01..03 say <= 820 px.
+- Row 01: no-wrap header, heading hidden while a document is open, 412 and
+  800 px red control.
+- Row 02: search kept through a stripe trigger, non-regression on a channel
+  route, sites corrected to `layouts/default.vue:99-103`.
+- Row 03 (was 04): toolbar into `#wsdocs-head-tools`, padding <= 16 px, TOC
+  backdrop, `.wsdoc__dots` tap target kept.
+- Row 04 (was 05): `breaks` prop, red control 52 `p br` to 0, doc start
+  183 px to <= 111 px; the table control is dropped.
+- The i18n row is dropped: `ws_doctree.search` and
+  `ws_doctree.search_placeholder` are in 19 of 19 locale files on
+  origin/master (checked per file), as are the other keys of 4.2.
+
+Two notes for the build lanes, not blocking:
+
+1. Row 02's non-regression route is written `/c/general`; the WUI has no
+   `pages/c/`, a channel is `pages/channel/[name].vue`. Use a real channel
+   path.
+2. Row 02's search trigger lives in the stripe, which row 01
+   (`WorkspaceDocsPage.vue`) and row 04 (`pages/docs.vue`) own, not in row
+   02's files. Row 02 exposes the open-search action; rows 01 and 04 place
+   the icon, or the trigger lands with row 01 after row 02.

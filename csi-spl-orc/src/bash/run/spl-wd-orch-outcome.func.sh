@@ -105,13 +105,20 @@ spl_wdo_briefs() {
 
 # Round briefs (and any other task) the role sent since SINCE: kind=task
 # messages in a role seat's outbox; only files newer than SINCE are read.
+# Each real outbox once: a-/g-/m-/q-001 are often symlinks to c-001. One grep
+# picks the files that can be a task, jq confirms each: one jq per file read
+# 830 files (166 x 5 links), 17-23 s of a 20 s pre-flight tick (SPL-2510).
 spl_wdo_tasks() {
-  local d f n=0
+  local d r f n=0 seen=" "
   for d in "$SPOOL_ROOT"/[acgmq]-001/outbox; do
     [[ -d "$d" ]] || continue
-    while IFS= read -r f; do
+    r="$(readlink -f "$d")"
+    [[ "$seen" == *" $r "* ]] && continue
+    seen+="$r "
+    while IFS= read -r -d '' f; do
       [[ "$(jq -r '.kind // empty' "$f" 2>/dev/null)" == task ]] && n=$((n + 1))
-    done < <(find "$d" -maxdepth 1 -type f -name '*.json' -newermt "@$1" 2>/dev/null)
+    done < <(find "$d" -maxdepth 1 -type f -name '*.json' -newermt "@$1" -print0 2>/dev/null |
+      xargs -0 -r grep -lZF '"task"' 2>/dev/null)
   done
   echo "$n"
 }

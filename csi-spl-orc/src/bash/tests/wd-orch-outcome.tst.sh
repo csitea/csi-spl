@@ -22,6 +22,11 @@
 #      checks nothing and prints nothing
 #   8. DRY_RUN=1 -> the DRY line, nothing sent, not marked alerted
 #   9. spl_wd_tick calls it once per tick
+#  10. a-/g-/m-/q-001 symlinked to c-001 (sat 2026-10-18): each real outbox
+#      is read once, round_tasks counts 2 tasks as 2 (old code: 10), and jq
+#      runs only on the 3 files of 43 that can be a task, plus one for the
+#      ask book (old code: 216 jq runs; on sat 17-23 s of the 20 s pre-flight
+#      tick, SPL-2510); a truncated file that mentions "task" counts nothing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -141,6 +146,25 @@ reset; ask "$A1" 10800; wd "$NOW" DRY_RUN=1
 # ---- 9. wired into the tick --------------------------------------------------
 c="$( ( set +u; do_log() { :; }; source "$RUN_DIR/spl-watchdog.func.sh"; declare -f spl_wd_tick ) | grep -c 'spl_wd_orch_outcome "\$now"')"
 [[ "$c" == 1 ]] && pass "9. spl_wd_tick calls spl_wd_orch_outcome once" || fail "9. calls in spl_wd_tick: $c"
+
+# ---- 10. symlinked seats: each outbox once, jq only on candidates ----------
+reset; ask "$A1" 10800
+rm -rf "$T/spool/g-001"
+for s in a g m q; do ln -s c-001 "$T/spool/$s-001"; done
+for i in $(seq 1 40); do file "$T/spool/c-001/outbox/n$i.json" 600 '{"kind":"note","from":"c-001","body":"ok"}'; done
+file "$T/spool/c-001/outbox/t1.json" 600 '{"kind":"task","from":"c-001"}'
+file "$T/spool/c-001/outbox/t2.json" 600 '{"body":"x","kind":"task","from":"c-001"}'
+file "$T/spool/c-001/outbox/cut.json" 600 '{"kind":"task","fr'
+mkdir -p "$T/jqbin"
+printf '#!/usr/bin/env bash\necho x >> "$T/jq.calls"\nexec %q "$@"\n' "$(command -v jq)" > "$T/jqbin/jq"
+chmod +x "$T/jqbin/jq"; : > "$T/jq.calls"
+wd "$NOW" PATH="$T/jqbin:$PATH"
+calls="$(grep -c . "$T/jq.calls")"
+[[ "$(n sent .)" == 0 && "$(n wd.log 'round_tasks=2 ')" == 1 ]] &&
+  pass "10. 5 seat links to one outbox: round_tasks=2, the truncated file counts nothing" ||
+  fail "10. count: $(tail -n 1 "$T/wd.log")"
+(( calls <= 4 )) && pass "10. jq runs on the 3 task candidates + the ask book only ($calls calls; one per file x 5 links was 216)" ||
+  fail "10. jq calls: $calls"
 
 if (( fails )); then echo "wd-orch-outcome: $fails FAILED"; exit 1; fi
 echo "wd-orch-outcome: all passed"

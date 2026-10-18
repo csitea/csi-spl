@@ -85,7 +85,8 @@
           :topic-link="openable(it.msg)"
           :count="countFor && countedRow(it.msg) ? countFor(String(it.msg.task_id || '')) : 0"
           :unread="unreadFor && countedRow(it.msg) ? unreadFor(String(it.msg.task_id || '')) : 0"
-          :opener-new="unreadFor ? openerNew(it.msg) : false"
+          :opener-new="unreadFor && countedRow(it.msg) ? cardNew.openerNew(it.msg) : false"
+          :hub-unread="unreadFor && countedRow(it.msg) ? cardNew.hubUnread(it.msg) : 0"
           :always-topic="alwaysTopic"
           :clickable="clickable"
           :selected="isSelected(it.msg)"
@@ -168,8 +169,8 @@ import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { JUMP_FOCUS_MS, onMessageJump } from '~/utils/msg-jump.mjs'
 import { threadJumpState } from '~/utils/thread-jump.mjs'
-import { countUnread, firstUnreadId, isUnread, loadCursors, openerUnseen } from '~/utils/read-cursor.mjs'
-import { useNotificationStore } from '~/stores/notification'
+import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
+import { useTopicCardNew } from '~/composables/useTopicCardNew'
 import { seatDividerId } from '~/utils/seat-divider.mjs'
 import { landFeed, rowEl, unreadLandingId } from '~/utils/unread-landing.mjs'
 import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
@@ -306,20 +307,8 @@ const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value,
 function isNew(m: SpoolMessage) {
   return Boolean(props.unreadBoundary) && !isOwn(m) && isUnread(m, props.unreadBoundary)
 }
-/* SPL-2422 (owner, t1 89010926): a topic's first message counts as 1 new for
-   a reader who has not seen it (openerUnseen: after their t: mark, or with no
-   mark after this feed's boundary), in a feed that counts unread (the
-   template asks only then). The marks are re-read as one moves (topicRead),
-   so opening the topic clears it. */
-const notes = useNotificationStore()
-const topicMarks = computed<Record<string, { ts?: string, id?: string }>>(() => {
-  void notes.topicRead
-  return import.meta.client ? loadCursors() : {}
-})
-function openerNew(m: SpoolMessage) {
-  if (!countedRow(m) || !m.task_id) return false
-  return openerUnseen(m, topicMarks.value[`t:${m.task_id}`], props.unreadBoundary, viewerId.value)
-}
+/* SPL-2422 / SPL-2506: a counted topic card's unseen opener and hub unread (the template asks only then) */
+const cardNew = useTopicCardNew(() => props.unreadBoundary, viewerId)
 
 /* Spec 061 3.6 (lane L10): the first message of a reused id's current holder. */
 const seatId = computed(() => (props.seatedAt ? seatDividerId(shown.value, props.seatedAt) : ''))

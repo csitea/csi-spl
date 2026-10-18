@@ -37,8 +37,8 @@ describe('CLE-77804 / SPL-2422 the counter shows "<new>/<total> >>" in the chann
     /* "3/8 >>": one round badge holding new/total, then >>; a plain total otherwise */
     assert.match(btn, /<span v-if="unreadCount > 0" class="badge-unread replies__new" data-test="topic-new"><span data-test="topic-unread">\{\{ unreadCount \}\}<\/span>\/\{\{ total \}\}<\/span><template v-else>\{\{ total \}\}<\/template> &gt;&gt;/)
   })
-  it('never shows "0/…": the counts come from topicCounts (the first message counted, unread capped)', () => {
-    assert.match(vue, /const counts = computed\(\(\) => topicCounts\(count\.value, Number\(props\.unread\) \|\| 0, Boolean\(props\.openerNew\)\)\)/)
+  it('never shows "0/…": the counts come from topicCounts (the first message counted, unread capped, SPL-2506 the hub t: key)', () => {
+    assert.match(vue, /const counts = computed\(\(\) => topicCounts\(count\.value, Number\(props\.unread\) \|\| 0, Boolean\(props\.openerNew\), Number\(props\.hubUnread\) \|\| 0\)\)/)
   })
   it('the badge is a step smaller and a shade lighter than the channel badge, in tokens (no inline style)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/assets/css/main.css'), 'utf8')

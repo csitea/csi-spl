@@ -512,6 +512,8 @@ const props = defineProps<{
   unread?: number
   /** SPL-2422: the topic's first message is unseen by the reader (openerUnseen) - 1 more new. */
   openerNew?: boolean
+  /** SPL-2506: the hub's unread for this topic (Flow key t:<task_id>); the card never shows fewer. */
+  hubUnread?: number
   alwaysTopic?: boolean
   posinset?: number
   setsize?: number
@@ -599,8 +601,8 @@ const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 /* the unread replies are capped at the replies (a stale snapshot never shows n/less-than-n);
-   SPL-2422: the first message is counted too (topicCounts) */
-const counts = computed(() => topicCounts(count.value, Number(props.unread) || 0, Boolean(props.openerNew)))
+   SPL-2422: the first message is counted too; SPL-2506: never below the hub's t: key (topicCounts) */
+const counts = computed(() => topicCounts(count.value, Number(props.unread) || 0, Boolean(props.openerNew), Number(props.hubUnread) || 0))
 const unreadCount = computed(() => counts.value.unseen)
 const total = computed(() => counts.value.total)
 const edited = computed(() => isEdited(props.msg))

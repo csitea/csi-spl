@@ -262,6 +262,25 @@ describe('SPL-2286: a t: mark with no count reads the replies after its ts, as t
 
 /* SPL-2422 (owner HUM-10, t1 89010926): "the first msg in a discussin counts as
    1 for the persons who has not seen this first msg", "<new>/<total>" kept */
+describe('topicCounts: the hub t: key marks the card the channel badge counts (SPL-2506)', () => {
+  /* owner t1 d8fa6f9c: #spool-hub-ui showed badge 1, no topic card marked new.
+     The badge is the hub ch: key, the sum of its topics' t: keys; a card read
+     only the local cursor (0 for a topic never opened on this device). */
+  it('a topic with no local mark but 1 unread on the hub reads 1/8, not a plain 8', () => {
+    assert.deepEqual(topicCounts(7, 0, false, 1), { total: 8, unseen: 1 })
+  })
+  it('the larger of the two wins: the local count is never lowered by a hub key a ch: mark zeroed', () => {
+    assert.deepEqual(topicCounts(7, 3, false, 1), { total: 8, unseen: 3 })
+    assert.deepEqual(topicCounts(7, 2, true, 0), { total: 8, unseen: 3 })
+    assert.deepEqual(topicCounts(7, 1, false, 4), { total: 8, unseen: 4 })
+  })
+  it('the hub count is capped at the card total, and junk reads 0', () => {
+    assert.deepEqual(topicCounts(2, 0, false, 9), { total: 3, unseen: 3 })
+    assert.deepEqual(topicCounts(2, 0, false, Number.NaN), { total: 3, unseen: 0 })
+    assert.deepEqual(topicCounts(2, 0, false, -1), { total: 3, unseen: 0 })
+  })
+})
+
 describe('openerUnseen / topicCounts: the first message counts (SPL-2422)', () => {
   const opener = { msg_id: 'o1', task_id: 'T', is_parent: 1, from: 'HUM-2', ts: '2026-10-17T10:00:00.000Z' }
   const before = { ts: '2026-10-17T09:00:00.000Z', id: '' }

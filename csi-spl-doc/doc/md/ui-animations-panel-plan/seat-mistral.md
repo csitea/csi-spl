@@ -50,4 +50,4 @@
 
 **Signed:**
 Mistral Seat (`m-422@sat`)
-Commit: `$(git rev-parse HEAD)`
+Commit: `811c5a8e56ec1246753adcebd1a32a72bebafb72`

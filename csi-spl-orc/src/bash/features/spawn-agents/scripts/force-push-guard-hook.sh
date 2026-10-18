@@ -19,6 +19,10 @@
 #           which approves every call already, so "allow" adds nothing there.
 # On a refusal stdout carries the deny JSON as well (grok, qwen and agy read
 # it; claude ignores stdout on exit 2).
+# The same hook runs the heredoc-collision matcher, ../lib/
+# heredoc-collision-guard.inc.sh (SPL-2474): a heredoc nested in one with the
+# same delimiter, whose first close lets the rest run as shell (the
+# 2026-10-17 `rm -rf /*`). Only a command holding "<<" reaches it.
 # Fails CLOSED: no matcher next to this file, no python3, or a payload that
 # cannot be read is a refusal, never a pass. Installed as a copy, next to its
 # matcher, by spool-install step y13 (do_install_force_push_guard).
@@ -31,16 +35,22 @@ if [ -z "$lib" ]; then
     [ -r "$f" ] && { lib="$f"; break; }
   done
 fi
+hlib="${HEREDOC_COLLISION_GUARD_LIB:-}"
+if [ -z "$hlib" ]; then
+  for f in "$here/heredoc-collision-guard.inc.sh" "$here/../lib/heredoc-collision-guard.inc.sh"; do
+    [ -r "$f" ] && { hlib="$f"; break; }
+  done
+fi
 
-refuse() {  # REASON
-  local r="force-push-guard: refused: $1"
+refuse() {  # REASON [GUARD]
+  local r="${2:-force-push-guard}: refused: $1"
   printf '%s\n' "$r" >&2
   # agy unmarshals strictly (an unknown field is a hook error): decision and
   # reason only. grok and qwen read either form.
   python3 -c 'import json,sys; r=sys.argv[1]; d={"decision":"deny","reason":r}
 if sys.argv[2] != "agy": d["hookSpecificOutput"]={"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":r}
 print(json.dumps(d))' "$r" "$harness" 2>/dev/null ||
-    printf '{"decision":"deny","reason":"force-push-guard: refused"}\n'
+    printf '{"decision":"deny","reason":"%s: refused"}\n' "${2:-force-push-guard}"
   # agy reads the decision from the JSON (a non-zero exit is a hook failure,
   # which blocks too: measured 1.3.3); every other harness blocks on exit 2.
   [ "$harness" = agy ] && exit 0
@@ -91,6 +101,16 @@ cmd="${cmd#CMD:}"
 # shellcheck source=../lib/force-push-guard.inc.sh
 . "$lib" || refuse "cannot load $lib (fail closed)"
 why="$(force_push_guard_check "$cmd" 2>&1)"; rc=$?
+if [ "$rc" != 0 ]; then
+  why="${why#force-push-guard: refused: }"
+  refuse "${why:-the guard returned $rc (fail closed)}"
+fi
+case "$cmd" in *"<<"*) ;; *) allow ;; esac
+[ -n "$hlib" ] && [ -r "$hlib" ] ||
+  refuse "the matcher heredoc-collision-guard.inc.sh is missing next to $0 (fail closed)" heredoc-collision
+# shellcheck source=../lib/heredoc-collision-guard.inc.sh
+. "$hlib" || refuse "cannot load $hlib (fail closed)" heredoc-collision
+why="$(heredoc_collision_check "$cmd" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && allow
-why="${why#force-push-guard: refused: }"
-refuse "${why:-the guard returned $rc (fail closed)}"
+why="${why#heredoc-collision: refused: }"
+refuse "${why:-the guard returned $rc (fail closed)}" heredoc-collision

@@ -6,8 +6,10 @@
 #
 #   spool_install_force_push_guard <home> <data-dir> <dry 0|1> <fleet 0|1>
 #
-# Copies spawn-agents/scripts/force-push-guard-hook.sh and the ONE shared
-# matcher spawn-agents/lib/force-push-guard.inc.sh into
+# Copies spawn-agents/scripts/force-push-guard-hook.sh, the ONE shared
+# matcher spawn-agents/lib/force-push-guard.inc.sh and the heredoc-collision
+# matcher spawn-agents/lib/heredoc-collision-guard.inc.sh (SPL-2474: the same
+# hook refuses a heredoc nested in one with the same delimiter) into
 # <data-dir>/force-push-guard/ (a copy: a moved checkout never unhooks it),
 # then wires every harness that has a config dir in <home>
 # (y13-force-push-guard.py):
@@ -36,5 +38,6 @@ spool_install_force_push_guard() {
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   sa="$here/../../spawn-agents"
   python3 "$here/y13-force-push-guard.py" "$home" "$data/force-push-guard" "$dry" \
-    "$sa/scripts/force-push-guard-hook.sh" "$sa/lib/force-push-guard.inc.sh"
+    "$sa/scripts/force-push-guard-hook.sh" "$sa/lib/force-push-guard.inc.sh" \
+    "$sa/lib/heredoc-collision-guard.inc.sh"
 }

@@ -92,7 +92,25 @@ Batching: rows 01, 02, 03, 08 and 09 all edit `pages/issues.vue` (4142
 lines), so five serial lanes queue on one file. Rows 01 and 02 touch the
 same CSS block and can be one row.
 
-## 5. Signature
+## 5. Review of v1.0 (`d2924ba27`)
 
-Not signed: v0.1 needs the changes above. I sign v1.0 with a commit to this
-file once they are folded.
+**Verdict on v1.0: CHANGE, three small fixes, then I sign.** Most of my
+points are folded: the square with a 2px `--color-border-strong` border, the
+44 px gutter with the space saved vertically, the zero-shift target, the
+`--color-accent` marker, the tablist red control, the 36 px filter height,
+`UiIcon` empty states, and tests inside their rows. Three things are still
+wrong, each checked on `origin/master` (`48ad0e912` for `issues.vue`):
+
+| # | v1.0 says | measured | fix |
+|---|---|---|---|
+| 1 | Row 05: Esc clears the selection; red control "Escape with a selection resets it to 0" | already on master: `onDocKey` in `issues.vue` runs `else if (selected.value.length) clearSelection()` on Escape, with no phone gate, and the block comment above `const selected` says "Esc clears". The red control passes today. | drop row 05, or re-scope it to something that fails on master |
+| 2 | Row 02 edits only `IssuesBulkBar.vue` (sites 11-56, 108-140) | the bar's place in the page is `issues.vue` (the `issues-bulk-host` `v-if="bulkOn"` block at lines 10-30), and that block is what pushes the list down. `IssuesBulkBar.vue` has 123 lines, so 108-140 runs past its end. | add `issues.vue` to row 02's sites, and run batch 2 after batch 1 (both edit `issues.vue`, which R1 forbids in parallel) |
+| 3 | 5.1 box-shadow `var(--color-shadow, rgba(0, 0, 0, 0.12))`, "no raw `rgba()`" (3.5) | `variables.css` defines no shadow token at all (`grep -oE -- '--[a-z-]*shadow[a-z-]*:'` -> nothing), so the `rgba` fallback is what renders | define the token in `variables.css` for every theme in row 03, or drop the shadow |
+
+Nit, not blocking: row 09 names the history key `history.empty`; the key
+is `issue_history.empty`.
+
+## 6. Signature
+
+Not signed yet. Fold the three fixes in section 5 and I sign with a commit
+to this file.

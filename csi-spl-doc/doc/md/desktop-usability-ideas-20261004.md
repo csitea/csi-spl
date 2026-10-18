@@ -14,6 +14,7 @@ through the app measured; section 4 says what happened to each starter. The
 mobile list is a sibling doc (`mobile-usability-ideas-20261004.md`, lane
 c-246). An idea marked **also mobile** belongs in both.
 
+<a id="ws-doc-741a4ed3-1533-4098-a95e-b2e3f9ea12bc"></a>
 ## 1. How it was measured
 
 | field | value |
@@ -29,6 +30,7 @@ c-246). An idea marked **also mobile** belongs in both.
 | code claims | each cites the command and its count, run in `csi-spl-wui/` |
 | owner posts | the 32 desktop-UI posts c-002 relayed from the dispatcher transcripts (msg 7f75f5e5; keyword match, about 09-27..10-04). Cited by msg id |
 
+<a id="ws-doc-6982270a-20cd-4cbe-b958-6177916a2c27"></a>
 ### 1.1 Ten common tasks, measured at 1440x900
 
 | # | task | what it takes today | keyboard-only path |
@@ -44,6 +46,7 @@ c-246). An idea marked **also mobile** belongs in both.
 | T9 | back / forward | works: Back from `#feedback` reopened `/lobby?topic=…` with the right pane open | browser keys work |
 | T10 | keep a half-written message | a draft typed in `#feedback` **is still in the box after switching to `#alerts`**. A full reload empties it (`""`) | n/a |
 
+<a id="ws-doc-6acfe8db-48b7-4f4b-87dc-3fe207e0f2ab"></a>
 ## 2. The ranked list
 
 Rank = measured pain × how often it hits ÷ effort. "Owner pick" is ea6330ff's
@@ -71,8 +74,10 @@ pick from c-002's numbering.
 Top 5 for the owner post: 1 palette, 2 focus model, 3 drafts, 4 wide-screen
 layout, 5 next unread.
 
+<a id="ws-doc-3e1db197-d021-44ae-9ba0-bbf565c1aff3"></a>
 ## 3. The ideas
 
+<a id="ws-doc-0e5719f3-3763-4f1b-a5dc-b37a11a3e4c2"></a>
 ### 3.1 Command palette (Ctrl+K / Cmd+K)
 
 | field | content |
@@ -83,6 +88,7 @@ layout, 5 next unread.
 | effort | **M**. A new `CommandPalette.vue`, a pure `utils/palette.mjs` ranker (unit-testable), a hook in `layouts/default.vue`, and reuse of `stores/channel.ts`, `stores/roster.ts`, `utils/msg-menu.mjs` (the action list and its gating) and `utils/settings-nav.mjs` |
 | risk / overlap | `SPEC-spool-wui-layout.md` §2.2 *Quick Switcher* specs it, unbuilt; no `specs/*` dir owns it. 075 (docs, c-240) adds docs to Omnisearch: the palette should take docs from that same source, not a second index. 022 (top-bar search) stays the full-text search; the palette only navigates and acts. Not mobile (no keyboard) |
 
+<a id="ws-doc-1236bec3-4d62-42a0-a01d-2170d913b38c"></a>
 ### 3.2 Keyboard focus model + a complete shortcut overlay
 
 | field | content |
@@ -93,6 +99,7 @@ layout, 5 next unread.
 | effort | **M**. `stores/pane-focus.ts` (already owns the active pane), `composables/useMsgShortcuts.ts`, `utils/msg-shortcuts.mjs` (add `NAV_SHORTCUTS` groups), `components/MsgShortcutsHelp.vue`, `layouts/default.vue`, `utils/row-keys.mjs` |
 | risk / overlap | Builds on the Shift+letter set (help `keyboard-shortcuts.md` §7). 050 §3.7 decided "no shortcut" for collapse (owner Q7), so F6 must not toggle collapse. **Also mobile** for (d) only |
 
+<a id="ws-doc-9ea23b8c-4ef9-4836-ab92-6a748a0898bf"></a>
 ### 3.3 Drafts per place
 
 | field | content |
@@ -103,6 +110,7 @@ layout, 5 next unread.
 | effort | **S**. `components/MessageComposer.vue`, a pure `utils/drafts.mjs` (key, save, restore, prune), a mark in `ChannelSidebar.vue` / `MessageCard.vue`. The omnibox Teleport already keeps the text while the box moves (`useOmniboxDock.ts`) |
 | risk / overlap | None specced. Follow the per-tenant prefs work (046 / SPL-1182) for the key shape. **Also mobile**: the mobile list (`mobile-usability-ideas-20261004.md` §3.3) adds an offline send queue on top (a message written without signal goes out when the connection is back). One spec should cover both, and sign-out must wipe stored drafts |
 
+<a id="ws-doc-7fccad7c-f7ae-4011-94e5-84f8a90c5e24"></a>
 ### 3.4 Wide-screen layout: readable lines and proportional panes
 
 | field | content |
@@ -113,6 +121,7 @@ layout, 5 next unread.
 | effort | **S**. `assets/css/main.css`, `components/MessageCard.vue` / `MessageBody.vue`, `composables/usePaneWidths.ts`, `utils/pane-widths.mjs` (store `{view: sizes}`), `stores/session.ts` |
 | risk / overlap | 050 (collapse) is unchanged. `SPEC-spool-wui-layout.md` §1.2 still describes the old `spool.pane-widths` key; this spec should replace that section. Perf plan E28 touches the `usePaneWidths` resize listener, so coordinate with that lane. Owner b444a115 / efc6f54f (selected-card border) touch the same files. Not mobile |
 
+<a id="ws-doc-088ca48e-d3ef-4650-a5d6-4bde6cad8139"></a>
 ### 3.5 Next unread
 
 | field | content |
@@ -123,6 +132,7 @@ layout, 5 next unread.
 | effort | **S**. A pure `utils/next-unread.mjs` over the counts `utils/flow-badge.mjs` / `stores/flow.ts` already hold, the key in `useMsgShortcuts.ts`, a button in `FeedHeader.vue` |
 | risk / overlap | Starter #2 asked to land on the first unread with a new-since line: the line is built, so this is the rest of #2. Depends on 3.6 for counts that agree. **Also mobile** (the button) |
 
+<a id="ws-doc-b932c4ea-c8aa-469b-b803-b8ddd8f5691e"></a>
 ### 3.6 One unread model
 
 | field | content |
@@ -133,6 +143,7 @@ layout, 5 next unread.
 | effort | **M**. `stores/flow.ts`, `utils/read-cursor.mjs`, `utils/read-sync.mjs`, `utils/tab-title.mjs`, `utils/flow-badge.mjs`, and a hub read if the counts are server-side (062) |
 | risk / overlap | **Running lane c-253** (topic new/total) is fixing the symptom, and spec 062 owns the server counts. Make this a follow-up of c-253, not a parallel lane. **Also mobile** |
 
+<a id="ws-doc-15473d1b-76c8-43df-8ceb-cf6558c355c5"></a>
 ### 3.7 Window identity for two screens
 
 | field | content |
@@ -143,6 +154,7 @@ layout, 5 next unread.
 | effort | **S**. `utils/tab-title.mjs`, `utils/msg-menu.mjs` (one item), a small `utils/tab-sync.mjs` used by `read-cursor.mjs` and the drafts util from 3.3 |
 | risk / overlap | Split view (starter #6) is **not now** (owner ea6330ff). A pop-out window is the cheap way to put two topics side by side on two screens, so the owner should confirm it does not count as split view. Not mobile |
 
+<a id="ws-doc-64d85ba1-df4b-4ead-b78f-3366b88ac864"></a>
 ### 3.8 Search ergonomics
 
 | field | content |
@@ -153,6 +165,7 @@ layout, 5 next unread.
 | effort | **S**. `components/TopBar.vue`, `utils/search.mjs`, `stores/search.ts`, `components/SearchSidePanel.vue` |
 | risk / overlap | 022 owns the search box (27 of 31 tasks done); 075 adds docs results. Take `Ctrl+F` only while focus is in the feed, never in a text field. **Also mobile** (recent searches) |
 
+<a id="ws-doc-3600632b-5dcb-4c30-8810-4e068567341e"></a>
 ### 3.9 Density: compact / comfortable
 
 | field | content |
@@ -163,6 +176,7 @@ layout, 5 next unread.
 | effort | **S**. CSS variables in `assets/css/main.css`, a setting next to `CardClipControl.vue` / `ViewPrefsSetting.vue`, stored with the view prefs (`utils/view-prefs.mjs`) |
 | risk / overlap | Name it so it is not confused with *List density* (the clip), which help `user-settings.md` §4.3 already uses. Not mobile (phones stay comfortable) |
 
+<a id="ws-doc-ca43c3b5-eaee-41ca-94c2-0af77f10d317"></a>
 ### 3.10 Bulk actions
 
 | field | content |
@@ -173,6 +187,7 @@ layout, 5 next unread.
 | effort | **M**. `components/TopicListEdit.vue`, `MessageFeed.vue`, `FlowList.vue`, `useArchiveUndo.ts` / `useMove.ts` (batch), and a hub batch call or N calls |
 | risk / overlap | The archive / move / delete rules (041, 045) stay per item: the bar offers an action only when every selected item allows it. **Also mobile** (long-press select) |
 
+<a id="ws-doc-c3fe11f9-b0c2-4707-9b62-920a1c65e5b1"></a>
 ### 3.11 Accessibility baseline
 
 | field | content |
@@ -183,6 +198,7 @@ layout, 5 next unread.
 | effort | **S**. `assets/css/main.css`, `layouts/default.vue`, `components/FeedHeader.vue`, one e2e test |
 | risk / overlap | 023 §3.5 has the contrast table (text 4.5:1, ring 3:1); extend it to placeholders. **Also mobile** |
 
+<a id="ws-doc-68c9fb2f-ba56-4076-9b85-d94e96854944"></a>
 ### 3.12 Hover previews (a follow-up to link previews)
 
 | field | content |
@@ -193,6 +209,7 @@ layout, 5 next unread.
 | effort | **S**. Reuse `utils/link-preview-lookup.mjs` and `components/LinkPreviews.vue`; a small `HoverCard.vue` hooked into `utils/id-links.mjs` |
 | risk / overlap | **Running lane c-226** (link previews): start after it lands, as its follow-up. Desktop only (hover) |
 
+<a id="ws-doc-e6ebe8b1-fc96-4c89-b7c3-9f04f47eba6a"></a>
 ### 3.13 Clean list titles (also mobile)
 
 From the mobile list (`mobile-usability-ideas-20261004.md` §3.13), checked here at 1440.
@@ -205,6 +222,7 @@ From the mobile list (`mobile-usability-ideas-20261004.md` §3.13), checked here
 | effort | **S**. `pages/index.vue`, a strip-markdown helper in `utils/`, the i18n key in every locale |
 | risk / overlap | c-253 (topic new/total) works on the same rows, so rebase on it. `topics-view-retire-proposal.md` may remove this list; the strip helper is still needed for Flow and search rows. **Also mobile** |
 
+<a id="ws-doc-1f5e5f46-f5ac-433a-ad52-b5701f3d9093"></a>
 ### 3.14 Web Push to a closed browser (also mobile)
 
 From the mobile list (§3.2). It applies on desktop too: the owner closes the tab or the browser.
@@ -217,6 +235,7 @@ From the mobile list (§3.2). It applies on desktop too: the owner closes the ta
 | effort | **L**. Hub: a VAPID key pair (secret manager, never in git), a `push_subscriptions` table and migration, a sender on the events that make a Flow entry (062). WUI: `public/sw.js` (`push`, `notificationclick`), `stores/notification.ts`, the Notifications settings page |
 | risk / overlap | A store migration (`PRE_PUSH_TIER=full`) and a new secret; touches 062 and 053 (live delivery). One spec for both lists. **Also mobile** |
 
+<a id="ws-doc-1d90ff45-49dd-4de7-9d43-44e1d7a0bfd1"></a>
 ### 3.15 Offline reading and an instant first screen (also mobile)
 
 From the mobile list (§3.11). On desktop the gain is the cold open, not offline use.
@@ -229,6 +248,7 @@ From the mobile list (§3.11). On desktop the gain is the cold open, not offline
 | effort | **L**. `public/sw.js` or an IndexedDB layer in `stores/channel.ts` / `stores/live.ts`, a size cap, a wipe on sign-out and on workspace switch |
 | risk / overlap | Workspace data on the device. Overlaps 066 (perceived performance) and 070 on first-screen timing: measure with their metrics. One spec for both lists. **Also mobile** |
 
+<a id="ws-doc-bd6f3f7c-c8c4-4507-8651-ed195b4af4c1"></a>
 ### 3.16 Themes with no new idea, and why
 
 | theme from the brief | why |
@@ -237,6 +257,7 @@ From the mobile list (§3.11). On desktop the gain is the cold open, not offline
 | loading states, perceived speed | `spa-loading-template.html` paints the shell with placeholders, and a sidebar channel switch painted its first card in 147..171 ms (mock, n=2). Spec 066 (answered 2026-10-03) and its build lanes own the metrics |
 | operator console, docs editor, last-updated clock, topic new/total, link previews | running lanes c-250, c-240, g-254, c-253, c-226. 3.6 and 3.12 are follow-ups, not repeats |
 
+<a id="ws-doc-86f8ffcc-8d9c-4d49-b0e5-5f7d34e36801"></a>
 ## 4. c-002's starter list (0b05a8f2): what this doc did with each
 
 | starter | decision | why (evidence) |

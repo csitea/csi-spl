@@ -6,6 +6,7 @@ A proposal, not the plan. The editor (this seat) merges the three seats into `..
 
 Every count was measured on ONE trunk sha, **`e05383148`** (`origin/master`, 2026-10-14T08:09:42Z), n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 8 is closed and held: `refactor-round-8-retro.md` section 1 (10 of 10 actions).
 
+<a id="ws-doc-3a738a29-428f-4b32-962e-01bed4f9f510"></a>
 ## 1. The 10 actions
 
 | # | slug | source | sites | n | kind | box | batch |
@@ -21,6 +22,7 @@ Every count was measured on ONE trunk sha, **`e05383148`** (`origin/master`, 202
 | 09 | `test(r9-09-spool-harness-settle)` | r8 retro 3.2 flake watch | `test-spool-harness.sh` bounded poll for sidecar announcement (2 CI red sightings) | 2 sightings | tests | sat | 1 |
 | 10 | `refactor(r9-10-bash-temp-sdk-config-helper)` | r8 retro 6.1 DRY | extract `spl_gcp_temp_sdk_config` helper and convert 3 caller files | 26 files repeat 4-line trap block | simple_coding | sat | 1 |
 
+<a id="ws-doc-47492570-1aac-4051-8abb-2edda308fd91"></a>
 ## 2. Rules carried and updated (from r8 retro section 6)
 
 - **R1-R6, R9, R12, R13, R15 carried.**
@@ -30,10 +32,12 @@ Every count was measured on ONE trunk sha, **`e05383148`** (`origin/master`, 202
 - **R14 (vendor mix):** `simple_coding` refactor rows stay on Claude until Mistral proves reliable on refactor rows (retro 4.2). Mistral retains panel review seat.
 - **R16 (new, batch placement):** Batch 2 and Batch 3 rows placed within 30 minutes of prerequisite row landing on trunk, avoiding Round 8's 11-12 hour idle queue delay.
 
+<a id="ws-doc-76f4e8b7-eb59-4e41-906f-1f9e167f6be3"></a>
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it.
 
+<a id="ws-doc-0050d4c6-5fb3-40ae-983d-7e856abf6e50"></a>
 ## 4. Signature
 
 `signed: a-497 on 9296e7b99`

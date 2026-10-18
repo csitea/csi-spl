@@ -13,6 +13,7 @@ Related: `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/contracts/tr
 
 ---
 
+<a id="ws-doc-e6345931-ca4b-45dd-81a9-29786ecd8988"></a>
 ## Milestone 1 — technical MVP (proto)
 
 **Proof:** (1) two agents on **one box** exchange `v:1` with no hub. (2) two
@@ -24,6 +25,7 @@ No browser. No payment. Tenant is created by hand (`do_spl_tenant_create`).
 The hub **is** production-shaped: Cloud Run on **spool-hub.ai** (not a
 private alias). There is **no buy button** yet.
 
+<a id="ws-doc-eddd1341-9704-4596-8eb8-a41526e05588"></a>
 ### In
 
 | Piece | Done when |
@@ -38,6 +40,7 @@ private alias). There is **no buy button** yet.
 | Files | REST PUT with box key; GET by sha256 in tenant |
 | CLI + MCP | Same verbs; official `go-sdk` stdio |
 
+<a id="ws-doc-819e9961-3a13-4d64-aa3b-9209638e15ac"></a>
 ### Hub (M1 hosting)
 
 Infra/DNS/docker/lde: **copy csi-rel + sibling-prj**, not the shop —
@@ -52,6 +55,7 @@ bucket. Cloud Run min instances **1** by default (cnf-overridable). Hub is
 Pins: hello + periodic `GET /v1/pins`.
 
 
+<a id="ws-doc-671b3631-dc41-4e34-8bd0-355be38df641"></a>
 ### M1 constraints (owner 2026-09-18)
 
 | Topic | M1 |
@@ -67,11 +71,13 @@ Pins: hello + periodic `GET /v1/pins`.
 
 M2 **removes** the IAP/IP allowlist so paying strangers can connect with box keys only.
 
+<a id="ws-doc-13effe67-dbf8-4218-ab23-92243ff7d526"></a>
 ### Out of M1
 
 Buy-from-the-site (M2). Slack web UI (M3). NATS, ysg-box adapter,
 Kafka, per-agent hub keys.
 
+<a id="ws-doc-8a80c7fc-83cf-49d0-8f88-eeff51637406"></a>
 ### Demo (M1 acceptance) — then M2 may start
 
 1. **Local:** GRK-03 → CLE-07 on one `$SPOOL_ROOT`, no `$SPOOL_HUB_URL`.
@@ -86,6 +92,7 @@ Kafka, per-agent hub keys.
 
 ---
 
+<a id="ws-doc-de3ccb15-2cfd-4ffe-a46a-c36f8ec9b7b6"></a>
 ## Milestone 2 — public MVP
 
 **Same mesh as M1**, plus a stranger can **buy the service on the site**.
@@ -105,6 +112,7 @@ Kafka, per-agent hub keys.
 
 ---
 
+<a id="ws-doc-46fe0799-03bf-46b2-8490-b29bf5ef5e69"></a>
 ## Milestone 3 — rollout (Slack-like web)
 
 Humans and agents chat on the **spool-hub.ai web interface**, Slack-like:
@@ -150,6 +158,7 @@ and T018–T021 are Implemented.
 ---
 
 
+<a id="ws-doc-0e7d5cf3-90de-40d7-ab83-a5b36f7b172e"></a>
 ## Milestone 4 — seats + buy-time project id
 
 **Does not change M2.** Binding: `SPEC-spool-m4-seats.md` /
@@ -166,6 +175,7 @@ Dedicated **billing grant** (their GCP card) remains the later BYO SKU
 (`SPEC-spool-byo-gcp.md`); M4 only defines seats + the id stamp.
 
 
+<a id="ws-doc-18a1e295-ec68-4271-92bd-a7ba8ef7b298"></a>
 ## Later — CI/CD logs in chat (after M3)
 
 `gh` on the Cloud Run image, token in Secret Manager, fetch GitHub Actions
@@ -175,6 +185,7 @@ run logs and **post them into the same chats**. Binding:
 Also later: **dedicated GCP SKU** — they pay Google with their card; you
 provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 
+<a id="ws-doc-9337bf19-2575-493c-bd8a-cbb037339339"></a>
 ## Order
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
@@ -182,6 +193,7 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 **M3 rollout** (Slack WUI, reverse-prepend default) → **M4** (seats + buy-minute project id) →
 **later** CI logs, BYO GCP billing.
 
+<a id="ws-doc-61524617-8bb2-4547-8464-71e35654e63d"></a>
 ## Changelog
 
 - **0.4.0** (2026-09-19): C1 — reverse-prepend is the M3 default (013 shipped);

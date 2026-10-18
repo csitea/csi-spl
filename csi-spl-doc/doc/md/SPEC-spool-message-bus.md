@@ -10,6 +10,7 @@ Related: `SPEC-spool-hub-rental.md` (paid tenant MVP), `SPEC-spool-box-api.md`, 
 
 ---
 
+<a id="ws-doc-46b3b65c-ae24-47e4-a8fb-c0eb6bd593d3"></a>
 ## 1. Split the names
 
 `ysg-box` is the **machine**. The product this spec is for is the **bus**.
@@ -27,6 +28,7 @@ Candidate public DNS (check WHOIS before committing; never bake a host into code
 
 ---
 
+<a id="ws-doc-6800c0e2-8f10-465b-bbb7-394d3544d35c"></a>
 ## 2. Two jobs, two codebases — clean cut
 
 Do not grow ysg-box into the hub. Do not migrate Slack-trigger, directive, or `$MSGS_ROOT` into spool piece by piece. That produces two half-buses.
@@ -48,6 +50,7 @@ Agent mail is this spec.
 
 ---
 
+<a id="ws-doc-d53f5183-de81-4ef2-bef1-4c1de89ad120"></a>
 ## 3. Intent
 
 Agents (Claude Code, Grok, Antigravity) never speak NATS, Postgres, or object storage. They call **spool** (CLI or MCP). Spool moves **signed JSON messages** and **content-addressed files**.
@@ -62,6 +65,7 @@ mail of that tenant; local same-machine mail must not need it.
 
 ---
 
+<a id="ws-doc-f460ad0b-0339-4580-a72a-49915b5c9472"></a>
 ## 4. Architecture
 
 ```
@@ -93,6 +97,7 @@ mail of that tenant; local same-machine mail must not need it.
    CLE / GRK / AGY   (no NATS lib, no PG, no bucket keys, no hub key)
 ```
 
+<a id="ws-doc-0a0ccc77-70ce-4ffb-bbb8-326778460e98"></a>
 ### Planes
 
 | Plane | Job | Not |
@@ -109,12 +114,15 @@ mail of that tenant; local same-machine mail must not need it.
 
 ---
 
+<a id="ws-doc-ad8c258a-bc17-4d0c-ba58-7846c1c51c04"></a>
 ## 5. Two different streams (do not mix)
 
+<a id="ws-doc-a29a3b0e-1a5b-42d8-a9a7-152966f6670c"></a>
 ### Model tokens (the agent thinking / typing)
 
 Short-lived, one viewer. The coding adapter (MCP, CLI, a page) opens **SSE or a websocket** to that one run and paints words. When the run ends, the stream dies. Do **not** put every token on NATS/Kafka. Nobody wants last week’s “um”.
 
+<a id="ws-doc-7242e9c8-f622-4992-b5f4-f334aaed144c"></a>
 ### Spool live tail & inter-instance dispatch (Postgres LISTEN/NOTIFY)
 
 Stateless Cloud Run instances coordinate live socket pushes and live tails using **Postgres `LISTEN/NOTIFY`**:
@@ -125,6 +133,7 @@ Stateless Cloud Run instances coordinate live socket pushes and live tails using
 
 ---
 
+<a id="ws-doc-027c89dd-61ed-4d94-9e68-8f9e35ebbdc4"></a>
 ## 6. Box shape
 
 On every machine that may run an agent, install as part of the box image:
@@ -144,6 +153,7 @@ Canonical tool names: `spool_put_file`, `spool_send`, `spool_recv`, `spool_get_f
 
 ---
 
+<a id="ws-doc-0a7d6835-e8b7-49a8-aef5-6248b2f57daa"></a>
 ## 7. Files
 
 Short msgs: WebSocket frames (notify) + Postgres (record). NATS is deferred past M1 (OQ-04, OQ-12).
@@ -168,6 +178,7 @@ Box CLI hides these. Agents never call them directly. Local CLI does the same ag
 
 ---
 
+<a id="ws-doc-a957da75-1ea1-493e-931a-23617683b0dc"></a>
 ## 8. Flow: Grok on box-a sends a message with a file to Claude on box-b
 
 Same flow for every kind (MCP vs bash is only how they invoke).
@@ -185,6 +196,7 @@ Grok never talks to NATS, Postgres, or the bucket.
 
 ---
 
+<a id="ws-doc-2dfe21c6-86d2-4253-b599-6f59e5833894"></a>
 ## 9. Trust — box key first, IAM optional
 
 **(superseded in part)** The first draft said "sign on day one" with one keypair **per agent**. `specs/002-box-agent-messaging/contracts/trust-modes.md` replaced that:
@@ -206,6 +218,7 @@ Box and tenant-root private keys never enter spool, Postgres, GCS, or a log. An 
 
 ---
 
+<a id="ws-doc-e1dbd361-5483-43ee-878c-6365d901a538"></a>
 ## 10. Build order
  
 Matches `SPEC-spool-milestones.md`:
@@ -228,6 +241,7 @@ Replicas later: two Cloud Run services + Postgres + GCS. Do not put the only cop
 
 ---
 
+<a id="ws-doc-20e50194-0557-4acf-9045-9aa1fc458b4f"></a>
 ## 11. Failure
 
 | Failure | Behaviour |
@@ -242,6 +256,7 @@ Verify/refuse: exit `78` (same as ysg-box `directive-verify`).
 
 ---
 
+<a id="ws-doc-d9100d3e-8f4c-4a93-8c2d-7f2fc94ba5ad"></a>
 ## 12. What ysg-box keeps
 
 - tmux, sessions, ACLs, vendor CLIs
@@ -253,12 +268,14 @@ What ysg-box does **not** grow: a second message schema, Mattermost as the bus, 
 
 ---
 
+<a id="ws-doc-281e0ad9-31a7-4b5a-bac2-361d86cbca4a"></a>
 ## 13. Out of this spec
 
 Kafka, Pinbox, per-kind endpoints, per-agent cloud keys, MCP server per tmux window, token SSE on spool, Slack as transcript, slow feature-by-feature absorption of `$MSGS_ROOT`, IAM-before-pin.
 
 ---
 
+<a id="ws-doc-1197093e-5ea4-424a-a390-f451eb301e44"></a>
 ## 14. Invariants
 
 - Same tool names on every box image.

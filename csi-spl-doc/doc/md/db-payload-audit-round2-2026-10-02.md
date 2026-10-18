@@ -14,6 +14,7 @@ also landed since; 4 is in flight), HUM-10 asked:
 This lane measures and proposes. It changes no code. Each cut the owner
 accepts becomes its own lane.
 
+<a id="ws-doc-cab9c485-3cee-443e-8e3a-fae33c4be16a"></a>
 ## 1. Answer
 
 1. **On the DB/payload axis we are at the plateau.** Since round 1, the first
@@ -32,6 +33,7 @@ accepts becomes its own lane.
    not the median, and it needs the prd numbers in §6 first. **The seconds are
    in the WUI's JS** (TBT ~2 s, the CLE-77934 lane), not in the protocol.
 
+<a id="ws-doc-5be2ec5e-686b-47dd-ba3c-73ac8474725a"></a>
 ## 2. How it was measured
 
 - **Rig:** round 1's harness (`db-payload-audit-2026-10-02.harness.go.txt`)
@@ -66,6 +68,7 @@ accepts becomes its own lane.
   measurements by commit, and add a static measurement of the current bundle:
   `nuxt generate` on `e6f862c3`, gzip -9 per file.
 
+<a id="ws-doc-d8f95ba8-ecd8-4999-8392-3456f04cf8d3"></a>
 ## 3. Before / now, per route
 
 | route | DB rt before -> now | DB down B before -> now | JSON B before -> now | gzip B before -> now | DB wait ms before -> now (3 runs) |
@@ -92,8 +95,10 @@ per send (same in all 3 runs).
 **Bytes fell 3..4x. DB time fell only 17 %.** The reason is §4.1: what is left
 is the topic walk's time, not rows.
 
+<a id="ws-doc-ad5b4c18-bf30-452b-b3a5-5ceb08327575"></a>
 ## 4. Where a first screen and a round trip spend time and bytes NOW
 
+<a id="ws-doc-a86ecd81-47de-414d-9f44-ba0dadcfdca4"></a>
 ### 4.1 DB: the recursive topic walk is ~60 % of the first screen's DB time
 
 From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
@@ -120,6 +125,7 @@ From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
   topics. Lingering handles: `pool acquired after` was 0 for every request of
   every run (8 routes x 5 x 3).
 
+<a id="ws-doc-9c755142-50fb-47c3-b4ee-aa8830c64714"></a>
 ### 4.2 Hub CPU, network, WS
 
 - **Hub CPU (wall - DB wait):** ~1..3 ms per route, including the loopback
@@ -153,6 +159,7 @@ From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
   `private, no-cache` + ETag. One gap: the ETag is a hash of the finished
   body, so a 304 saves the network but **not the DB work** (R2-5).
 
+<a id="ws-doc-f04ce4c0-f630-45a2-89ca-2bcdbe608b56"></a>
 ### 4.3 WUI JS: where the seconds are
 
 | measure | value | source |
@@ -166,6 +173,7 @@ From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
 | JS after the Flow list paints | ~1.9 s of microtask JS in the next 2.5 s | `f717580f` (CLE-77934) |
 | rail -> Flow main-thread JS | 4.6 -> 0.5 s desktop after lazy rail tabs | `0d43d7a8` (CLE-77934, n=10) |
 
+<a id="ws-doc-1fc15a3f-1a5c-4502-821a-c865339e70e4"></a>
 ### 4.4 The shares
 
 | resource | hub + DB (first screen) | WUI (first screen) | hub + DB share |
@@ -174,6 +182,7 @@ From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
 | time | ~47 ms DB + ~10 ms hub CPU, sequential, local | ~5 000 ms to the Flow list (dev p50) | **~1 %** (p50); up to ~10 % if both walks hit the prd p95 of 250 ms |
 | message round trip | 2 DB round trips, ~1 ms of INSERT; 707 B per tab | render of 1 row | negligible |
 
+<a id="ws-doc-13b8dd91-5be0-4ea5-b3d7-e88c51a25349"></a>
 ## 5. The next cuts, ranked by win / risk
 
 | # | cut | before -> after | files | risk |
@@ -188,6 +197,7 @@ From Postgres' own log (extra run, `log_min_duration_statement=0`, now tree,
 **Not found: N+1** (§4.1), **excess polling** (§4.2) and **cache-header
 gaps** (§4.2). They need no cuts.
 
+<a id="ws-doc-17ba3aa5-c5b7-451f-a31c-eb564ee16e8d"></a>
 ## 6. Protocol changes: what they would reach
 
 Reused, not redone: spec 059 (CLE-77931, `specs/059-messaging-backbone/spec.md`)
@@ -209,6 +219,7 @@ one structural candidate, and only on prd tail evidence. The next real seconds
 are in the WUI's JS: TBT ~2.1 s and ~1.9 s of JS after the Flow list paints
 (the CLE-77934 lane).
 
+<a id="ws-doc-666fd57e-0fb1-492e-8b6e-086ee973c494"></a>
 ## 7. Prd numbers still to take (the owner's go; sent to CLE-001)
 
 Read-only, as the prd service account, through the named actions:

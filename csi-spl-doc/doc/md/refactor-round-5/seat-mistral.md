@@ -14,8 +14,10 @@
 
 ---
 
+<a id="ws-doc-3c655013-e5d7-4245-9693-48fcdb257895"></a>
 ## Findings
 
+<a id="ws-doc-13064024-3986-4e0a-8f69-c151e85ba558"></a>
 ### 1. `hubclient/hubclient.go:590-592` (`Session.Lost`)
 - **No such function exists** in the file. The lines at 590-592 are:
   ```go
@@ -26,6 +28,7 @@
 
 ---
 
+<a id="ws-doc-5d741b71-fb81-4d23-b5e5-28784cf51829"></a>
 ### 2. `cicdlogs/cicdlogs.go:529-533` (`DumpJSON`)
 - **`DumpJSON` is a test helper** defined in `cicdlogs_helpers_test.go` (line 8):
   ```go
@@ -40,6 +43,7 @@
 
 ---
 
+<a id="ws-doc-c2999409-016d-4046-8338-25b8bb4f556f"></a>
 ### 3. `action/action.go:116-121` (`Send`)
 - **`Send` is a deprecated test helper** defined in `action_helpers_test.go` (line 16):
   ```go
@@ -53,6 +57,7 @@
 
 ---
 
+<a id="ws-doc-723d8d25-9628-4ec9-91a3-921c6d7ed394"></a>
 ### 4. `notify/notify.go:66-68` (lying comment)
 - **Comment at line 70**:
   ```go
@@ -64,6 +69,7 @@
 
 ---
 
+<a id="ws-doc-cdda5c7f-7fb4-468c-b87d-76580e9fc470"></a>
 ## Summary
 - **No dead code** was found in the proposed sites.
 - **`Session.Lost`** does not exist (false positive).

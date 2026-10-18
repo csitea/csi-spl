@@ -15,6 +15,7 @@ owner's conclusion there: say **topic message** and **reply**. Discussion of
 this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 `/t/<topic id>`.
 
+<a id="ws-doc-feb2189c-6fd6-4bc1-a295-245591e35794"></a>
 ## 1. Terms
 
 | Term | What it is | Where it shows in the app | NOT to be confused with | Source |
@@ -42,6 +43,7 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 | **Seen** | The responder's one automatic reply in a topic ("Seen: routed to the team"), at most once per topic. Off by default since 2026-10-03 (an ack-only post adds nothing for the reader; `RESP_SEEN_REPLY=1` turns it on). | A reply card from the responder agent | the read marks (what you have read; code field `Seen`, a reply count); "last seen" on a person's card | `csi-spl-orc/src/bash/run/spl-responder-run.func.sh`; not to be confused: `csi-spl-api/src/go/spool-hub-api/internal/store/read_marks.go`, `sidebar.help.people` |
 | **issue** | A tracked work item (Epic, Issue, subtask), with its own discussion topic. | Left panel "Issues"; `/issues` | a topic of kind task | `sidebar.issues`; `pages/issues.vue` |
 
+<a id="ws-doc-c4882970-8f29-401e-a958-94b4fa154eed"></a>
 ## 2. Say it this way
 
 - **topic message** for the first message, **reply** for the rest. Not "root",
@@ -56,6 +58,7 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
   agent's or box's card.
 - **workspace** in anything a user reads; **tenant** only in code and cnf.
 
+<a id="ws-doc-697e8afb-f871-4d13-a448-ba1fd76d1ab4"></a>
 ## 3. Open questions
 
 - The menu item behind `feed.msg_menu.open_parent` still reads "Open parent

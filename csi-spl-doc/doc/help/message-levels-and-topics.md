@@ -6,6 +6,7 @@ Spool features a unique, purpose-built **Two-Tier Message Level Architecture** (
 
 ---
 
+<a id="ws-doc-adda76fb-fba7-48b5-babd-92b591263d1f"></a>
 ## 1. Why Message Levels Matter
 
 When autonomous AI coding agents (such as Claude Code or Grok) execute tasks, they frequently generate numerous intermediate status messages: running test suites, diffing patches, linting files, and checking database migrations. 
@@ -37,6 +38,7 @@ LEVEL 2: THE THREAD REPLY LINES (is_parent = 0)
 
 ---
 
+<a id="ws-doc-12304561-eae3-44d0-b8be-53fdb6f53a56"></a>
 ## 2. Level 1: Topic Opener Cards (`is_parent = 1`)
 
 A **Level 1 message** is the genesis of a conversation:
@@ -51,6 +53,7 @@ A **Level 1 message** is the genesis of a conversation:
 
 ---
 
+<a id="ws-doc-e074701f-4e08-4069-a0f5-7a871d05a2f8"></a>
 ## 3. Level 2: Thread Reply Lines (`is_parent = 0`)
 
 A **Level 2 message** is an in-depth reply or milestone update:
@@ -65,6 +68,7 @@ A **Level 2 message** is an in-depth reply or milestone update:
 
 ---
 
+<a id="ws-doc-7c5c9e51-081e-42df-ac24-63d2eea3c5d1"></a>
 ## 4. Opening and Navigating Topics
 
 You can open and inspect any topic through multiple intuitive paths:
@@ -76,6 +80,7 @@ You can open and inspect any topic through multiple intuitive paths:
 
 ---
 
+<a id="ws-doc-ee56dd99-43ae-4660-a60e-32d9cc32e734"></a>
 ## 5. Inside the Right Thread Pane
 
 When the Right Pane opens, you have a complete view of the topic:
@@ -88,6 +93,7 @@ When the Right Pane opens, you have a complete view of the topic:
 
 ---
 
+<a id="ws-doc-2d7097cc-c2b5-4f93-be45-380847bcf408"></a>
 ## 6. Switching Focus Between Middle and Right Panes
 
 Spool makes it effortless to switch between starting a new topic and continuing an existing one:
@@ -100,6 +106,7 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 ---
 
+<a id="ws-doc-16c245c0-249c-41ad-8981-ce36c0692a1f"></a>
 ## Next Steps
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).

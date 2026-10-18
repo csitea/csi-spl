@@ -12,8 +12,10 @@ This page is the one home of each rule below
 `csi-spl` is public: no company, customer or person names here, only the
 workspace id. The owner's words are paraphrased and cited by message id.
 
+<a id="ws-doc-e583e19c-48c4-4e74-8f8d-638efc5c3845"></a>
 ## 1. ws-b
 
+<a id="ws-doc-0f7a5a44-821f-4732-8fd7-6f4fd007ef7f"></a>
 ### 1.1 Every doc is bilingual: English and Bulgarian
 
 Owner, HUM-10 in the ws-b workspace (topic eb7f4883, msg c3ae5158),

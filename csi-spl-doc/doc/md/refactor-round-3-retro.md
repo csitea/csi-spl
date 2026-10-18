@@ -6,6 +6,7 @@ Measured 2026-10-06T09:31:12Z. Doc only. Each count names the command that produ
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, baseline trunk `755e86235`. 30 practices and 19 behaviour bugs (plan section 4). The plan already marked six bugs (B7, B10, B11, B12, B13, B15) as fixed by an earlier row.
 
+<a id="ws-doc-169c8e9e-31e1-4d96-8fa5-bc5f2c557849"></a>
 ## 1. What landed
 
 `git log origin/master --grep=r3- --oneline | wc -l` at 2026-10-06T09:31:12Z returned **45**. The same command returned 45 at the brief (09:2xZ), and again at 2026-10-06T09:35:17Z after `git fetch origin master` (trunk `6e8b5957d`). No r3 commit landed between the three counts.
@@ -26,6 +27,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, baseline trunk `755e86235`.
 
 `git show --name-only` on those 45 commits: 15 paths appear under two row ids. Fourteen of those are the planned order (a bug after the row that owns the file, or rows 13 and 28 sharing `tf-destroy-local-step-bucket.func.sh`). The fifteenth is `.shellcheck-warning-baseline.txt`, in rows 27, 28, 29 and B18. Section 4.
 
+<a id="ws-doc-9d0af622-4112-4ac8-ae99-c4463eb6b831"></a>
 ## 2. Lanes
 
 Lane id and kind come from `registry.tsv` / `registry.retired.tsv` on the box that spawned the lane, joined to the row by the spawn-request slug, the lane's result mail, or the session transcript. Kind is the registry column. No agy lane: 0 rows in either registry with kind `agy` for these ids.
@@ -78,6 +80,7 @@ How the id was tied to the row:
 
 Live, for a hub or WUI commit, is the `updatedAt` of the first successful run of workflow `20_hub-build-deploy.yml` (any path under `csi-spl-api/`) or `30_wui-build-deploy.yml` (any path under `csi-spl-wui/`) whose head contains the commit (`git merge-base --is-ancestor`). Lists: `gh run list --workflow <file> --created 2026-10-05 --limit 80`, plus the first three hub runs and the first eight WUI runs on 2026-10-06. Two local deploys are not in that list. c-360's result at 2026-10-06T04:31:31Z proved hub `32edac5d1` and then WUI `60d8049de` on dev and prd, n=3 each. Those two shas are included as deploys at that timestamp. A bash commit has no image, so live is land. Workflow 20 pushes dev, then prd, in one run (the workflow file). Historical runs were not re-probed on the hosts. At 2026-10-06T09:31:12Z the running images match across hosts: hub `0200d7c8` built 2026-10-06T09:01:18Z, version 1.6.5, dev and prd `/version` (n=1 each); WUI `67c98d58` version 1.6.7, dev `build.json` built 2026-10-06T09:18:53Z and prd built 2026-10-06T09:18:58Z (n=1 each). Every one of the 45 commits is an ancestor of both of those shas.
 
+<a id="ws-doc-84c0f006-d070-4a05-b18e-10f99c858af1"></a>
 ### Bugs
 
 | bug | lane | kind | spawn | land | live |
@@ -98,6 +101,7 @@ Live, for a hub or WUI commit, is the `updatedAt` of the first successful run of
 
 g-355 read trunk `c11eb9a9a` and ran one test per bug (n=1). All six passed. No follow-up lane. The fixes it names: B7 and B12 in `65ca14703` (row 08), B10 in `33962b3cc` (row 23), B11 in `eb6e4a1f0` (row 07), B13 in `39135e921` (row 13), B15 in `77c42ef95` (row 12).
 
+<a id="ws-doc-4408efb5-6be0-47f4-902c-0b5fe60e291d"></a>
 ## 3. CI
 
 `cd csi-spl-iac && CI_GATE_RUNS=200 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` (workflow `10_ci-quality.yml`), finished exit 0. Window: last 200 runs, 2026-10-05T05:00:32Z .. 2026-10-06T09:19:23Z.
@@ -134,8 +138,10 @@ The gate file has 0 lines containing `curl-time-bounded`. The red an r3 commit d
 
 147 of 200 runs cancelled: a later push superseded the run. That is what 45 commits in one day do to a gate that cancels the previous head. It is not 147 defects.
 
+<a id="ws-doc-ee6328a0-d973-486c-9aa1-884ccfd997aa"></a>
 ## 4. The five lessons
 
+<a id="ws-doc-3ad139c6-2fb0-43d0-8110-52cedc99ee6e"></a>
 ### 4.1 Parallel work on disjoint files
 
 Confirmed for batch 1, with one later miss.
@@ -146,12 +152,14 @@ The shared paths in section 1 are later. Rows 13 and 28 share one file and were 
 
 The same row was spawned on both boxes. Slug `r3-28` was requested on the primary at 2026-10-05T06:45:35Z in the same second as `r3-17`. c-296 took `r3-17` (transcript). c-297 spawned one second later (06:46:06Z) and is the other of that pair. On the satellite, g-313 spawned 06:47:49Z with title `r3-28-bash-nofork-trim-iac` and landed `947aacbfd`. c-297's outbox has 0 files, its worktree is gone, its pane is gone, and its registry row is still live. One landed commit, one empty lane.
 
+<a id="ws-doc-fc422804-2cd5-49d3-b855-40fc9017889d"></a>
 ### 4.2 A comment-only change broke a test
 
 Confirmed. `1aba02377` (c-352, B16, landed 2026-10-06T02:49:28Z) moved the bearer token off curl's argv and reworded the comment in `spl-db-health.func.sh`. c-352's result ran `gandi-livedns.tst.sh` and `spl-db-health.tst.sh`, 21 to 25 PASS each, n=1, and did not name `curl-time-bounded.tst.sh`.
 
 The queue and c-360's result both say that comment broke `curl-time-bounded.tst.sh`, and c-360 routed it to g-361. g-361 landed `faf1031eb` at 2026-10-06T04:09:09Z (spawn 04:06:03Z, 3 minutes). After that commit the suite exits 0, n=1: 24 PASS, including `metrics comment no longer says the token is never in argv` and `metrics comment records the -K move as a behaviour change`. The gate extract in section 3 does not print that test (0 matches), because the failing run's head was not `1aba02377`.
 
+<a id="ws-doc-623295b8-acf4-424e-8e0e-c495d4f26462"></a>
 ### 4.3 Landed fixes waited on "deploy pending"
 
 Confirmed for the pause, not for the morning.
@@ -164,14 +172,17 @@ Morning rows were not in this wait. Rows 01-10 went live 3 to 14 minutes after l
 
 The lanes also stayed seated after land. At 2026-10-06T09:31:12Z, tmux still has windows for c-345, c-346 and c-347, and all three are still in `registry.tsv` (spawn 02:43Z). Their last outbox notes are 03:48Z to 03:49Z and say deploy pending. B03 has been in the running hub since 04:31:31Z. B01 and B02 have been in it since 09:11:11Z. g-348's window was still up at 09:26:44Z and was gone by 09:31:12Z, so that lane sat about 6 hours 12 minutes after it landed at 03:14:43Z.
 
+<a id="ws-doc-59cae3e5-4fff-4785-999b-853cca2c9ca0"></a>
 ### 4.4 A hand-kept status table went stale
 
 Confirmed. `stat` on `/var/spool-hub/dispatch/r3b3-queue.md`: mtime 2026-10-06T04:08:52Z. Read again at 09:31:12Z, same mtime. The file still says row 24 is running and B18 is running. Row 24 landed `60d8049de` at 04:11:11Z. B18 landed `a44659e58` at 04:19:11Z. The table is 5 hours 22 minutes behind those two commits, and it still says rows 25 and 26 are deploy pending after both were in the WUI image at 04:31:31Z.
 
+<a id="ws-doc-e9f76680-b078-41eb-88d7-c1cda60cec33"></a>
 ### 4.5 Six bugs were already fixed by earlier rows
 
 Confirmed. The plan said so before any bug lane spawned. g-355 verified all six (section 2), n=1 test each, and opened no fix lane. It was spawned at 02:44:44Z, 69 seconds after the first bug lane (c-345 at 02:43:35Z), so the verify ran beside the wave rather than before it. The queue had already marked those six "verify only", which is why no fix lane was wasted.
 
+<a id="ws-doc-b0314a89-24b8-4623-941b-a8dc993aaa01"></a>
 ## 5. Rework, stalls, re-seats
 
 Rework that took a second commit:
@@ -188,6 +199,7 @@ Stalls and re-seats:
 - c-297, section 4.1. Registry row still live at 09:31:12Z, 26 hours 45 minutes after spawn, with no worktree and no pane.
 - c-345, c-346, c-347 still seated at 09:31:12Z. Section 4.3.
 
+<a id="ws-doc-af67f2fd-a843-41be-b136-887a2b94b04b"></a>
 ## 6. Round 4
 
 Each one is a rule, a gate or an action. The owner is who changes the process.
@@ -199,6 +211,7 @@ Each one is a rule, a gate or an action. The owner is who changes the process.
 5. **Gate.** A row slug cannot be spawned on a second box while the first spawn is live. Owner: the spawn path. The miss is c-297 beside g-313, both on `r3-28` (section 4.1).
 6. **Rule.** The disjoint check includes generated files, not only the sites in the plan. `.shellcheck-warning-baseline.txt` was in four rows (section 1). Owner: whoever writes the next plan. Serialise those rows, or give the baseline to one follow-up lane.
 
+<a id="ws-doc-7bd13498-ae91-4096-b38a-80f6bff6bbed"></a>
 ## 7. Commands
 
 Re-run from a checkout of `origin/master`. Registry and mail paths are on the box that spawned the lane.

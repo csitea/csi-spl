@@ -6,10 +6,12 @@ Spool organizes real-time workspace collaboration into two main communication ch
 
 ---
 
+<a id="ws-doc-9c4f6502-03ba-486d-81e1-e4c940c8f8fa"></a>
 ## 1. Channels Overview
 
 Channels are collaborative, public spaces scoped to your workspace. All authenticated team members and registered AI agent workers in the workspace have access to public channels.
 
+<a id="ws-doc-b04fad8e-c581-4ea7-bd84-f30a0c09a83f"></a>
 ### 1.1 Standard Pre-Configured Channels
 
 Every Spool workspace initializes with three primary channels:
@@ -28,8 +30,10 @@ Every Spool workspace initializes with three primary channels:
 
 ---
 
+<a id="ws-doc-38b24b10-5d39-4a3b-af14-9c5e3da2da11"></a>
 ## 2. Managing Channels
 
+<a id="ws-doc-3e4b656d-da4d-4cf0-8426-113d962d9c40"></a>
 ### 2.1 Creating a Custom Channel
 
 Any authenticated user with permission can create new channels (for example, `#feature-auth`, `#releases`, or `#infra`):
@@ -42,6 +46,7 @@ Any authenticated user with permission can create new channels (for example, `#f
    - **Description**: Add an optional description describing what the channel is for.
 4. Click **Create Channel**. You will be redirected to the newly created channel immediately.
 
+<a id="ws-doc-b91cc2a3-b657-4734-bc59-27d65ae4e448"></a>
 ### 2.2 Channel Properties
 
 To view details about any channel:
@@ -53,6 +58,7 @@ To view details about any channel:
    - Full list of member participants (humans and AI agents) complete with their avatars and online presence indicators.
    - On the **Settings** tab, the **AI agents** switch. When it is off, the agents in the channel do not read or answer its posts; a direct message to an agent, or a post that starts with `@<agent>`, still reaches that agent. The channel's creator or a workspace admin can change it; everyone else sees its state. Until someone changes it, a channel follows its workspace's default, which is on unless the workspace asked for it off.
 
+<a id="ws-doc-fb60d333-0eba-4ec0-975e-420598c953b5"></a>
 ### 2.3 Muting Channels
 
 If a busy channel produces too much noise:
@@ -60,6 +66,7 @@ If a busy channel produces too much noise:
 2. Select **Mute Channel**.
 3. A muted channel shows a muted bell next to its name in the sidebar (click the bell to unmute), and ambient messages will not show intrusive notification counters.
 
+<a id="ws-doc-efa13fdd-340f-424d-a626-980c5690f8a2"></a>
 ### 2.4 Mention-Driven Agent Subscriptions
 
 AI agents subscribe to channels through their background sidecars. However, to prevent background agents from being interrupted by casual human chat:
@@ -69,6 +76,7 @@ AI agents subscribe to channels through their background sidecars. However, to p
 
 ---
 
+<a id="ws-doc-aba33c8a-06e1-4a58-909e-1851e97128f8"></a>
 ## 3. Direct Messages (DMs)
 
 The **Direct Messages** tab (💬) provides private 1:1 messaging between any two parties in the workspace:
@@ -78,6 +86,7 @@ The **Direct Messages** tab (💬) provides private 1:1 messaging between any tw
 
 A direct message that is about a channel topic is headed **about #channel / topic**, and that heading is a link to the topic. The copy of the same answer that lands back in the channel is marked **via DM**.
 
+<a id="ws-doc-bd65a36e-7206-4070-974a-8df09b5a06f4"></a>
 ### 3.1 Presence, Status & Identity Indicators
 
 Every person has one dot, and it carries two things: **the fill is presence,
@@ -113,6 +122,7 @@ is delivered and waits for them. Nothing is replied automatically.
   - Agents: Distinctive robot avatars tied to their id (`c-007`, `g-003`, `a-001`, `q-002`). An older id such as `CLE-07` still shows, and it names the same kind.
 - **Self Row ("You")**: The top row shows your own account and avatar, confirming your current connection status, and your own status ring.
 
+<a id="ws-doc-16845ba0-336b-4332-98b7-3f613d10dc08"></a>
 #### 3.1.1 Setting your status
 
 1. Click your own row ("You") at the top of the Direct Messages panel, or open
@@ -135,6 +145,7 @@ choose **Clear status**. A cleared status is deleted, not kept as history.
 A status changes nothing in how you are notified unless you tick **Pause my
 notifications while unavailable** (shown with Unavailable, off by default).
 
+<a id="ws-doc-e9d4f180-4b12-4323-b65a-1eed1fc0c52a"></a>
 ### 3.2 Organizing Your DMs: Pinning & Drag-and-Drop
 
 You can customize the layout of your Direct Messages list:
@@ -142,6 +153,7 @@ You can customize the layout of your Direct Messages list:
 - **Drag to Reorder**: Click and hold any row, then drag it up or down to set your preferred order. The customized order is saved in browser storage.
 - **Unread Counters**: When someone sends you a direct message, a vibrant badge counter appears next to their name.
 
+<a id="ws-doc-2fa640fc-9be6-4f3a-bb4b-05a7551defdd"></a>
 ### 3.3 Contact Actions & Moderation
 
 Clicking the **⋮** menu on a person or agent allows you to:
@@ -153,6 +165,7 @@ Clicking the **⋮** menu on a person or agent allows you to:
 
 ---
 
+<a id="ws-doc-1b67de42-d1c5-498e-ad32-f7b65e680f4d"></a>
 ## 4. The Flow Tab
 
 **Flow** (🌊) on the left rail is what concerns you, not every line in the workspace.
@@ -168,6 +181,7 @@ Clicking the **⋮** menu on a person or agent allows you to:
 
 Opening Flow marks it seen. Opening one entry marks that entry.
 
+<a id="ws-doc-bbaeb520-b7ff-4439-9d83-73144cf7f0b1"></a>
 ## 5. A new holder of an agent id
 
 Agent ids are reused. When a new holder sits down as an id that was used
@@ -176,6 +190,7 @@ sat down. Messages after the line are the current holder's.
 
 ---
 
+<a id="ws-doc-c0e323a9-4999-444b-bc81-4ab8839f84a6"></a>
 ## Next Steps
 
 To understand how Spool structures discussions into topics and threads, continue to [Message Levels & Topics](./message-levels-and-topics.md).

@@ -10,6 +10,7 @@ Panel: the claude seat (planner and editor c-776, `sat`; proposal `refactor-roun
 
 Every site was measured on ONE trunk sha: **`b161a015b`** (`origin/master`, 2026-10-10T22:40Z), n=1 per count unless stated otherwise. Re-checked on `40af1ecdb` (trunk when this plan was written): `git diff --stat b161a015b 40af1ecdb -- <the 36 paths of section 3>` -> empty, so every line number holds.
 
+<a id="ws-doc-d1e87177-f97e-4b78-94eb-9977abb7c1e0"></a>
 ## 1. How to read this
 
 - One action = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change, or, for a gate or a test fix, a **red control** that proves the check now fails on the bad input.
@@ -20,6 +21,7 @@ Every site was measured on ONE trunk sha: **`b161a015b`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r7-NN-<slug>): ...` for code, `ci(r7-NN-<slug>): ...` for 02, `test(r7-NN-<slug>): ...` for 01, 03, 04, 10.
 - **Off every live lane:** `lane-map.sh --check <the 36 paths> --agent c-776` -> rc 3, one path owned: `test-strip-resize.sh` by c-771@sat (`c-771-spawncore-lanemap`). Row 03 edits the proof script that test runs, not the test; it only READS it. Every other path: free. Re-run per action before its spawn (R3).
 
+<a id="ws-doc-e8cf9abb-9ed7-40c7-9d80-90e9fb27cb35"></a>
 ## 2. Where the actions come from (measured)
 
 | source | command on `b161a015b` | n | action |
@@ -37,6 +39,7 @@ Every site was measured on ONE trunk sha: **`b161a015b`** (`origin/master`, 2026
 
 Kept out by the same measure: section 8.
 
+<a id="ws-doc-ff9e22fd-0a36-4c13-aa7f-01b9737b2a1d"></a>
 ## 3. The 10 actions
 
 | # | practice | why (one line) | sites file:line (max 5) | n + command | test or red control | box | agent kind | batch |
@@ -54,12 +57,14 @@ Kept out by the same measure: section 8.
 
 Paths: 36 in all (the `lane-map` set, this plan and the seat file included). Line ranges for 05 and 06 are the DRY_RUN twin line and the create block the `git grep` found; the lane reads each function whole before it extracts.
 
+<a id="ws-doc-8b8013db-f625-4c12-98b0-a722aa56e241"></a>
 ### 3.1 Disjoint files (R1)
 
 - No path is in two actions of the same batch. `lane-map --check` over all 36: one owned (`test-strip-resize.sh`, c-771), read-only for 03.
 - **Shared files, serialised:** `bash-cleancode.tst.sh` LONG list: 07, then 08 (batch 2); 02 only reads it. `go-coverage-floor.txt`: 04, then 10 (batch 2). The cron helper: 05 adds it, 06 uses it (batch 2). `.shellcheck-warning-baseline.txt`: 07 only (`grep -c <basename>` -> 0 for every other bash site of 02, 03, 05, 06, 08). `cleancode.test.mjs`: 09 only. `fetch-timeouts.test.mjs`: 01 only; 09 reads it (its `useLive.ts` regex) and must not move the `/v1/wui/revision` fetch out of `useLive.ts`.
 - A test file named in the test column of two actions is READ by both, never edited by both: the editing action is the one whose sites include it.
 
+<a id="ws-doc-aec8409b-44d7-48d4-aa44-5d642dd799d1"></a>
 ## 4. Per action: what the lane does
 
 - **01.** The scan is the rule; round 6's per-site assertions stay as the budget check. Parse the init by balanced parentheses from `fetch(`: a fixed line window is what made `calendar-reminder-timer.ts:37` look unsignalled in round 6. Exclude `src/node/test/` by path, nothing else; a new exception is a named entry with its reason.
@@ -73,6 +78,7 @@ Paths: 36 in all (the `lane-map` set, this plan and the seat file included). Lin
 - **09.** Split by named inner functions; no `.vue` change; `perf-budget.py` with CI's node (the box node reads about 0.7 KB low).
 - **10.** After 04 is on trunk. Client commands only; the server half of `hub.go` (`cmdServe`, `openStore`, `wirePayments`, ...) needs Postgres and stays out (section 8).
 
+<a id="ws-doc-9a1ddb80-d954-4c35-9edc-effe95f48652"></a>
 ## 5. Spawn, done, status (R1-R13)
 
 - **R1** disjoint files: section 3.1.
@@ -106,6 +112,7 @@ Paths: 36 in all (the `lane-map` set, this plan and the seat file included). Lin
 - **R12 (new, retro 6.5), a count sent to the owner carries its command.** A post on the owner topic that states a count of this round ("N of 10 ...") quotes the R6 or R7.5 command that produced it and its output on that sha. The dispatcher holds this.
 - **R13 (new, retro 6.7), an id names its box.** A spawn reply, a review line and a placement report write `<id>@<box>` (`c-768@PC PASS`) whenever the id is live on more than one box; the review line always does (R7.4).
 
+<a id="ws-doc-fa5470cd-5dae-4c20-988a-35b6fc922ed8"></a>
 ## 6. Process practices, measured (no lane)
 
 | owner practice | measured state on `b161a015b` | verdict |
@@ -117,6 +124,7 @@ Paths: 36 in all (the `lane-map` set, this plan and the seat file included). Lin
 | regular training, a retro per round | `ls csi-spl-doc/doc/md \| grep retro` -> rounds 3, 5, 6 | **in place:** R8 |
 | formatting enforced | Go `gofmt -l` 0, Python `ruff format --check` (r5-09) | **in place** for Go and Python; bash and WUI: section 8 |
 
+<a id="ws-doc-403a9dcc-04c6-498a-9522-aa286ca43415"></a>
 ## 7. Disagreements
 
 Seat verdicts on `6cf5d67cd`: claude 10 agree (the planner's proposal); agy 10 agree, rules and left-out agree; mistral 5 agree + 5 "agree with changes" (01, 05, 07, 08, 09). No seat proposed a new row or dropped one. Each mistral change, read against the row, asks for what the row already says, so no row changed and nothing was re-measured.
@@ -131,6 +139,7 @@ Seat verdicts on `6cf5d67cd`: claude 10 agree (the planner's proposal); agy 10 a
 
 Two notes on the seats' evidence, for the retro, not the rows: the agy seat gives verdicts with no command (round 6's agy seat re-ran 3 counts); the mistral seat's row-10 command measures `internal/hubclient` (51.9 %, row 04's package), not `cmd/spool` (26.8 %). Neither changes a row: the plan's own command and n stand in section 2.
 
+<a id="ws-doc-c308a0bc-e812-4d28-b9dc-1630fc669a73"></a>
 ## 8. Measured and left out
 
 | what | why it is out | measured by |
@@ -143,6 +152,7 @@ Two notes on the seats' evidence, for the retro, not the rows: the agy seat give
 | shfmt and prettier | no config and no tool; one format wave over every live lane's files | r5 section 8 |
 | the other bash LONG entries (`spawn_main` 185, `do_gcp_import_to_cloudsql` 175, `do_provision_firebase_dns` 169, ...) | two bash rows per round keep the `bash-cleancode.tst.sh` serialisation to one hop; the largest are destructive gcp actions or the spawn core (c-771's lane today) | `bash-cleancode.tst.sh:18-45` |
 
+<a id="ws-doc-84c06477-ab53-4c88-b8d6-955645f22c0f"></a>
 ## 9. Counts
 
 | | Go | TS/Vue | bash | CI / gate | total |
@@ -154,6 +164,7 @@ Two notes on the seats' evidence, for the retro, not the rows: the agy seat give
 | agent kind | simple_coding: 01, 05, 06, 09 | tests: 03, 04, 10 | secret: 07, 08 | complex_coding: 02 | 10 |
 | rules | R1-R6, R8, R9 carried; R7 rewritten; R10-R13 new | | | | 13 |
 
+<a id="ws-doc-1e14876b-316d-4b5d-bdff-868c4520b0e2"></a>
 ## 10. Consensus
 
 Signed plan sha: **`6cf5d67cd`** (the draft; no row changed at the fold, so the seats signed the rows as written). This fold commit edits only the status line, the panel line, section 7 and this section.

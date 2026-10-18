@@ -6,6 +6,7 @@ Measured 2026-10-10 between 22:15Z and 22:40Z on trunk **`49ce4503d`**. Doc only
 
 Plan: `csi-spl-doc/doc/md/refactor-round-6-plan.md`, baseline trunk `da36dad94`, signed `eb8cbfc1c` (3 seats, section 10 at `cf031192c`), 10 actions.
 
+<a id="ws-doc-cd043d2f-5b2a-45d8-8529-ea3ee8acb69e"></a>
 ## 1. What landed
 
 `git log origin/master --grep='r6-' --format='%h %cI %s'` -> **18** commits: 1 plan draft (`ed453dd77`), 2 seat proposals (`111646392`, `6910f8313`), 2 plan folds (`eb8cbfc1c`, `cf031192c`), 13 action commits.
@@ -27,6 +28,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-6-plan.md`, baseline trunk `da36dad94`,
 
 **R5, served.** `SHA=83d9be675 ENV=<env> ./run -a do_check_deploy_lag` (orc), the last WUI row, on dev and prd -> `the env serves this commit or a later one` for hub (served `a3eaf9b3`) and WUI (served `469c5652`), n=2; 01 and 09 are its ancestors. 06 is test-only: nothing to serve. Bash and CI rows: `git -C /opt/csi/csi-spl merge-base --is-ancestor 012432510 HEAD` on `sat` -> rc 0 (HEAD `aaab9179c`). The `PC` checkout was not re-measured here.
 
+<a id="ws-doc-6e03d35e-6150-4bcd-8e37-0d05f173d043"></a>
 ## 2. Lanes
 
 Lane and box from the spool mail (each lane's result, review line or spawn-reply) and `registry.retired.tsv` on `sat`. Spawn: the `sat` registry stamp, or the `PC` spawn-reply time. Land: committer time of the row's first action commit.
@@ -54,6 +56,7 @@ Plan signed 06:47Z; 8 rows landed by 07:42Z (55 minutes). **Rows 02 and 05 got n
 
 One id named two lanes again (round 5 section 4.6): **c-768** was r6-01 on `PC` (06:50Z) and r6-05 on `sat` (20:50Z); **c-769** was r6-06 on `PC` and a cost-rollup lane on `sat` (20:52Z). The r6-06 review line `c-768 PASS` means the `PC` one; nothing in the line says which box.
 
+<a id="ws-doc-6255cc2a-ff17-4845-9045-9ebd99505125"></a>
 ## 3. CI
 
 `gh run list --workflow 10_ci-quality.yml --branch master -L 500 --created '>=2026-10-10T06:45:00Z'` -> **266** runs: 245 cancelled, 19 failure, **0 success**, 2 not finished (`a3eaf9b32` in progress, `2c5f2fa3b` pending). The last green wf 10 on master is run 38024914899 on `63c82bbb4`, 04:41Z, before the round started (`--status success --created '>=2026-10-10T00:00:00Z'` -> 3 runs, the newest 04:41Z). So **no r6 commit has a green trunk gate behind it**, and trunk had no green gate for the whole round.
@@ -74,8 +77,10 @@ The 19 failure heads, by the first red the gate's fail-fast step names (`red in 
 
 **The vibe-close case 4.** The brief says CI red n=2. Measured over the 5 failed `orc: feature tests` jobs of the period (`gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -c 'FAIL - 4. control'`): **n=1**, job 114315587597 of run 38086810661 (`926c265b0`). c-001's note to c-768 (22:05:01Z) counts "38086810661 on 926c265b0, and job 114315587597": that job belongs to that run, so the two are one red. `test-strip-resize.sh` is the more frequent feature-test red: it fails in 3 of the 5 jobs (`07d141ee4`, `4f2ff434c`, `7b77a1d44`).
 
+<a id="ws-doc-0f0331a1-a874-43ec-8aed-66b683f95a48"></a>
 ## 4. What the round taught
 
+<a id="ws-doc-4c4f4557-b7d4-4165-ad17-e823b5e5d9c5"></a>
 ### 4.1 R7 cross-vendor review held for 0 of 10 rows before the push
 
 `git log origin/master --grep='r6-' --format=%B | grep -c '^review: '` -> **10** lines. They cover **9** of 10 actions: 04 carries one in each of its 2 commits, and **02 carries none** (`git show -s --format=%B 83d9be675 | grep -c '^review: '` -> 0). Of the 10 lines:
@@ -87,34 +92,41 @@ So 0 of 10 rows had a cross-vendor review before its push, the plan's tightened 
 
 **A count sent to the owner that the history does not support.** c-002's round-6-done post (t1 4f46ce09 msg 134edbfe, 22:11:54Z) says: "all 10 rows of round 6 now carry a cross-vendor review line on master (10 of 10)". The command above gives 1 cross-vendor line, late, and one row with no line. That post needs a correction.
 
+<a id="ws-doc-79fe80b0-d6e3-489c-80fb-1b5f609409f8"></a>
 ### 4.2 Two rows went unplaced for 14 hours, and nothing noticed
 
 Section 2. 8 of 10 rows landed within 55 minutes of the signature; the other 2 had no lane until the owner asked at 20:29:59Z. R6 ("no hand-kept status", plan section 5) gives the state in one command, but nothing ran it between the last batch-1 result (09:30Z) and 20:30Z: no one owned "are all 10 placed?", and the promised per-row posts were not made.
 
+<a id="ws-doc-0c60fc68-20c3-476a-88a0-a477534d8324"></a>
 ### 4.3 The trunk gate gave no verdict for the whole round
 
 Section 3: 266 runs, 0 green, 245 cancelled. Round 5 had 33 of 39 cancelled and 2 green; round 6 had none. Every r6 lane relied on its own local runs, and CI could not have caught an r6 regression. The `stale-tree` part (05) now covers the round-5 failure locally, and its replay over the round's 334 commits finds no stale-tree push. c-002 flagged the cancel churn at 07:24:05Z ("the trunk gate has not completed for ~50 min"); it lasted the rest of the day.
 
+<a id="ws-doc-2c9fc21d-8704-4297-9a31-8297a9bb99cd"></a>
 ### 4.4 A green hook still lost the push race 9 times
 
 r6-04 (c-724 blocker 08:33:51Z): "push to master loses the ref-lock race, 9 of 9 tries (07:25-08:33Z)". The pre-push hook passed every time, but its WUI part re-ran on each new base (~312 s) and trunk moved inside that window. It landed on try 15 at 09:01:46Z, with no override (c-002 09:30:08Z). Spawn to land: 133 minutes, of which about 96 were the race.
 
+<a id="ws-doc-2b65799b-67ab-4062-b6a8-b6105c4a156a"></a>
 ### 4.5 The fetch-timeout rows fixed a list, not the rule
 
 01 and 02 added one source-scan assertion per named call. A call added after the round has no signal: `csi-spl-wui/src/utils/sign-in-emails.mjs:133` (`git log -S 'await fetch(' -- <file>` -> `54128e731`, 14:34Z, after 01 had landed). The plan's own scan (`grep -rnE "await fetch\(" csi-spl-wui/src/utils/`, then `sed -n "$l,$((l+8))p" | grep -c signal` per hit) -> 20 hits, **1** with no signal; `grep -c sign-in-emails csi-spl-wui/tests/unit/fetch-timeouts.test.mjs` -> 0. Nothing failed.
 
+<a id="ws-doc-311900c3-61c1-4432-a567-30e43c0d5ea7"></a>
 ### 4.6 What went right
 
 - Every row held (section 1), every lane recorded its red control, and no row needed a repair by another lane (round 5: 02 needed 2).
 - The stale-tree part replays the round-5 clobber as REFUSED and passes every commit since the baseline (section 1, row 05).
 - The R7 reviews, same-vendor included, caught 2 real items: the s3 auth step's ignored failure in 10 (`1a6d18cd4`) and the missing proof in 05's body (a-937).
 
+<a id="ws-doc-a299668f-f9db-4b55-8749-37344a6b7823"></a>
 ## 5. Rework, stalls, re-seats
 
 - Re-seats: none. All 10 rows ran on claude.
 - Rework that took another commit: 05 (review record), 10 (review FIX C2). n=2 of 10. 04's second commit is the plan's own split.
 - Stalls: 02 and 05 unplaced for about 14 h (section 4.2); 04 in the push race for about 96 min (4.4); 05 waited for a reviewer after its push (4.1); c-920 (02) stopped on a lane-map `unknown` (exit 4, 14 live rows with no files; c-920 20:36:27Z) before it could push.
 
+<a id="ws-doc-650f298a-9f31-46e2-905b-6d2bccab2315"></a>
 ## 6. Round 7
 
 Each one is a rule, a gate or an action. The owner names who changes it.
@@ -128,6 +140,7 @@ Each one is a rule, a gate or an action. The owner names who changes it.
 7. **Rule.** A spawn reply and a review line name the box when an id is live on two boxes (`c-768@PC PASS`), or ids stay unique across boxes. Owner: the spawn lane. Measure: c-768 and c-769 each named two lanes in this round (section 2), n=2; round 5 section 4.6, n=1.
 8. **Carry-over actions** (r6 plan section 8): `cmd/spool` coverage (26.8 %, 73 functions at 0 %), the 13-copy `CLOUDSDK_CONFIG` preamble, the 9-copy install-cron `SPL_DESK_CRON_CREATE` block, the `gcp-backup-env` and `check-weekly-full-scan` LONG entries (each needs its baseline line), the big Pinia setup stores, shfmt and prettier.
 
+<a id="ws-doc-b54443d8-28bc-48cc-b2ba-d99079999621"></a>
 ## 7. Commands
 
 Re-run from a checkout of `origin/master`.

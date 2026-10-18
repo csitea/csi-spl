@@ -12,6 +12,7 @@ p90 4.65 ms. The whole statement runs p50 3.3 / 5.1 / 8.9 ms (short / mid /
 long body), far below prd's 46..86 ms, so most of prd's time is outside the
 statement's own pieces. This lab cannot see that part (section 4).
 
+<a id="ws-doc-d20ba48e-c993-434a-ad5f-34da28cfdee8"></a>
 ## 1. Setup
 
 | item | value |
@@ -32,6 +33,7 @@ timed insert. Without that warm-up, the DDL throws away the cached foreign-key
 and trigger plans, and the first pass of this lab read 7 ms of planning and a
 1.3 ms FK check that were not real.
 
+<a id="ws-doc-04c13cfd-13c5-4b8b-aa0f-e77252bc25bf"></a>
 ## 2. Pieces, read straight from the plan (ms, n=20 each)
 
 The trigger rows and the `flowInsertCTE` row are EXPLAIN's own timings. They
@@ -52,6 +54,7 @@ are not differences between two runs.
 | `to_tsvector('spool_search', body)` alone (= the `search_tsv` parse) | 0.09 / 0.12 | 0.24 / 0.34 | 1.36 / 2.43 |
 | that parse plus `spool_search_sig` alone (= the trigger's work) | 0.19 / 0.24 | 0.39 / 0.51 | 1.65 / 2.45 |
 
+<a id="ws-doc-f74fefbe-fd1c-4e5f-a525-a2479cd888b4"></a>
 ## 3. Pieces toggled off one at a time (statement execution p50, ms, n=20)
 
 Index maintenance has no timing of its own in EXPLAIN, so it is read here as
@@ -73,6 +76,7 @@ costs ~1.4..1.7 ms and the second (the trigger) ~1.95 ms, together ~3.3 ms
 p50. That is real, but it is a third of the 10 ms gate. Removing the second
 parse saves at most ~2 ms, and only on the 17 % of inserts that are long.
 
+<a id="ws-doc-f2d82dbb-3277-4827-845f-d8600c1f0a09"></a>
 ## 4. What this lab cannot see
 
 The lab statement takes 3..9 ms. prd's 46..86 ms is measured around the
@@ -88,6 +92,7 @@ the server-side share on prd, the cheap read is `pg_stat_statements`
 `mean_exec_time` for this INSERT. It is a read-only query for the
 orchestrator, not a change, and it is not proposed here.
 
+<a id="ws-doc-d0dd7ac3-01b5-4143-b819-1003d903c4b1"></a>
 ## 5. Not touched
 
 - No code, migration or test changed. The only file is this report.

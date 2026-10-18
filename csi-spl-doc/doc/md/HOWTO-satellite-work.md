@@ -14,6 +14,7 @@ an execution agent on the satellite. Measured 2026-10-02 (CLE-77954).
 `S=/opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts` on
 both machines.
 
+<a id="ws-doc-aecdff24-96a4-451d-8d3b-20fbba2cf8ae"></a>
 ## 1. Passing messages PC <-> satellite
 
 | leg | path | works | measured |
@@ -23,6 +24,7 @@ both machines.
 | sat -> PC | hub relay (`spool-send.sh --to <ID>@box-desk` on the satellite) | yes, for any agent in the satellite's `registry.tsv` (since 90a78b17) | file in the PC inbox 6 s after the send (n=1); after: see 1.4 |
 | sat -> PC | `ssh` back to the PC | no: the satellite has no route to the PC | - |
 
+<a id="ws-doc-74f111f7-af0e-4a5c-a690-66b44660fc0d"></a>
 ### 1.1 PC -> satellite by hand (superseded by 1.4, kept for a box whose sidecar is down)
 
 Give yourself a mailbox on the satellite once (a lane agent of the PC has none
@@ -40,6 +42,7 @@ read the answer:
 
     ssh satellite 'sudo -iu <BOX_USER> bash -lc "SPOOL_ROOT=/var/spool-hub ~/.local/bin/spool recv --as <YOUR-ID> --ack"'
 
+<a id="ws-doc-38e63a80-992a-4041-b080-aedd588ba235"></a>
 ### 1.2 PC -> satellite, from a seated agent (the trio)
 
     SPOOL_ROOT=/var/spool-hub bash $S/spool-send.sh --from CLE-001 --to CLE-001@sat --kind note --body "<text>"
@@ -47,6 +50,7 @@ read the answer:
 The PC's desk sidecar hands it to the hub, the satellite's sidecar writes it
 into the inbox there and rings the pane (`delivery: sent`, `poke: remote`).
 
+<a id="ws-doc-2280db51-d2c3-47e8-b455-61a502d28e12"></a>
 ### 1.3 Satellite -> PC
 
 On the satellite, from a seated agent (the trio):
@@ -57,6 +61,7 @@ Since 90a78b17 the file that lands on the PC reads `"from":"CLE-001@sat"`
 (before, it read `"from":"CLE-001"` and CLE-001@box-desk saw a message from
 itself).
 
+<a id="ws-doc-5d2a5d6c-cbce-47ea-9170-67b9876d5ac5"></a>
 ### 1.4 Any lane agent, either way (since 90a78b17)
 
 The box is the trust unit, not the seat. `spool-send.sh --to <ID>@<box>`
@@ -87,6 +92,7 @@ Measured 2026-10-02, n=1 each way:
 | PC lane CLE-77963 -> CLE-100000@sat | `87020a44` | `CLE-77963@box-desk` |
 | sat lane CLE-100000 (registry row, not seated on the sat desk, sent under the proxy CLE-001) -> CLE-77963@box-desk | `8b3eaa99`, rang the PC pane | `CLE-100000@sat` |
 
+<a id="ws-doc-f0cabf9d-cfca-4258-a669-57504d47b71c"></a>
 ## 2. Starting an execution agent on the satellite
 
 The satellite's `/var/spool-hub/box.env` sets `SPOOL_AGENT_USER=<AGENT_USER>` and the
@@ -106,6 +112,7 @@ worktree `/opt/csi/csi-spl-wt/<ID>`. The satellite's desk crons live in the
 box user's crontab (`crontab -l` as the box user; the login user, root and
 `<AGENT_USER>` have none).
 
+<a id="ws-doc-fa8ca6f7-2692-452c-bdf1-cbfb2c887c97"></a>
 ### 2.1 First real work, measured (CLE-100000@sat, 2026-10-02)
 
 One execution agent on the satellite ran the four csi-spl suites on trunk
@@ -122,6 +129,7 @@ Load during the api suite: `load average: 5.65` on `nproc 4` (idle before:
 0.23). The PC at the same time: `load average: 54.15` on `nproc 16`, 33 agent
 processes (n=1 sample each).
 
+<a id="ws-doc-3f15d539-a576-406f-bb69-c31f72589fd0"></a>
 ### 2.2 Spawning on another machine through the spool (no ssh)
 
 The satellite cannot ssh to the PC (behind NAT: `ssh: Could not resolve
@@ -173,6 +181,7 @@ installed with `DRY_RUN=0`), request to its own box with a no-op brief:
 Not yet proven: the satellite -> PC leg through the hub relay (same code path
 as the tested relay of 1.4; needs the orchestrator lease on the satellite).
 
+<a id="ws-doc-b6869d8d-eddf-469b-9cf3-289987f6b334"></a>
 ### 2.3 A Go dependency bump on the box that did not build it (SPL-1866)
 
 `csi-spl-api/src/bash/build.sh` builds offline (`GOPROXY=off`). Before
@@ -198,6 +207,7 @@ Test: `csi-spl-api/src/bash/tests/build-warm-mod-cache.tst.sh` (full tier of
 `run-all-tests.sh`): a throwaway `GOMODCACHE` plays the second box, this
 box's own cache served as `file://` plays the network.
 
+<a id="ws-doc-f0a4c514-1808-4f81-b6ca-00a138ca72ce"></a>
 ## 3. Split proposal: what stays on the PC, what moves to the satellite
 
 Classified from the live lane map at 06:21Z: n=36 scoped lane agents on the
@@ -219,6 +229,7 @@ the hub / api lanes. Capacity: the satellite has 4 cores; one suite run took it
 to load 5.65, so 2..3 heavy lanes at once is the ceiling until the machine type
 grows.
 
+<a id="ws-doc-a03f7891-f43a-46a8-b346-c719a5b17564"></a>
 ## 4. Harness gaps for multi-box
 
 Every manual step taken in sections 1..2. Input for the next lanes.
@@ -242,6 +253,7 @@ Every manual step taken in sections 1..2. Input for the next lanes.
 | 15 | both machines share one GitHub login: the 5000/h API quota is shared, hit 403 at 06:21Z and 06:23Z | waited | a per-box token (GitHub App installation token per machine) | M |
 | 16 | 4 cores on the satellite: 2..3 heavy lanes at once | none | a larger machine type (terraform, 057) once the move is proven | M |
 
+<a id="ws-doc-1deea4c7-939a-4102-99e4-992c987677ff"></a>
 ### 4.1 Gaps 10, 12, 13, 14 closed (CLE-100003, 2026-10-02)
 
 Every one is box-playbook code now, so a recreate gets it back with the rest:
@@ -263,6 +275,7 @@ is no puppeteer cache to seed (`grep -rn "cache/puppeteer" csi-spl-wui/tests` ->
 `google-chrome box=153.0.8010 satellite=154.0.8037`, `img-postgres` and
 `img-fake-gcs` present on both machines.
 
+<a id="ws-doc-fe21be1e-d04e-45d1-bdea-65ef00a6975b"></a>
 ### 4.2 First headless browser e2e on the satellite (spec 064 L5, 2026-10-03)
 
 One WUI e2e file on the generated mock bundle, the way workflow 11 runs it,

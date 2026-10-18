@@ -14,6 +14,7 @@ Owner question (HUM-10, t1 `7d7e86a9`, msg `2e38197b`): *"are there any indexes 
 
 The owner approved both index changes (go `36424cc9`: "both"). They shipped as **rdb 0122** (`0122_dbx_index_audit.sql`, `b965c687e`, v9.1.6) and were applied on prd at 21:01:19Z and on dev at 21:01:21Z. Section 7 has the before/after.
 
+<a id="ws-doc-608941ad-8bd2-41e6-a711-888d81c8976b"></a>
 ## 1. Method and window
 
 | item | value |
@@ -27,8 +28,10 @@ The owner approved both index changes (go `36424cc9`: "both"). They shipped as *
 
 **One caveat.** The operator scope's literal-value EXPLAIN gives the *custom* plan. The hub runs prepared statements (pgx, `plan_cache_mode auto`), so after 5 executions per connection it may use the *generic* plan. Where the two differ, §2.2 shows both (`EXPLAIN (GENERIC_PLAN)`).
 
+<a id="ws-doc-46e30480-e9fe-45da-a115-e2cf6a249707"></a>
 ## 2. Missing indexes (1.1)
 
+<a id="ws-doc-ffa05d7c-0862-4270-95ff-e854b29c3d95"></a>
 ### 2.1 Table scans, prd
 
 `pg_stat_user_tables`, the tables with the most `seq_tup_read`:
@@ -44,6 +47,7 @@ The owner approved both index changes (go `36424cc9`: "both"). They shipped as *
 
 dev looks the same, with one oddity for its owner. `issues` is 50 rows with 20 523 049 seq scans and 690 M tuples read. On prd, `issues_tenant_id_task_id_key` has 37.7 M index scans for 1 997 rows. Some statement probes `issues` once per row of another scan (a correlated per-topic issue lookup). That is a statement shape, not a missing index; it is cheap per probe on both envs and not in the 24 h top 15.
 
+<a id="ws-doc-3b9f456a-e6d9-476d-a31d-7bed8f2a277a"></a>
 ### 2.2 The top 15 statements by total time (prd Insights, 24 h)
 
 24 h = 2026-10-03T20:02Z..10-04T20:02Z: 56 statements, 2 830 909 calls, 1 601.5 s DB time.
@@ -72,6 +76,7 @@ The cause is the RLS policy's `tenant_id = NULLIF(current_setting(...)) OR curre
 
 So the hub's steady state, after 5 executions per connection, is already the good plan. That matches the 35.8 ms Insights mean and the low `messages` seq_scan count. The fence only helps each connection's first custom executions. I handed it to the flow file's owner (E01); it is **not** an index.
 
+<a id="ws-doc-6036afb9-8644-4e96-889c-a95317d5a920"></a>
 ### 2.3 The one index that changes a plan: `deliveries_sent_acked`
 
 `store/retention.go` `pruneCommitted` runs on every hub sweep:
@@ -93,6 +98,7 @@ No index leads on `acked_at`.
 
 **Gain:** ~10 s/day of prd DB time (0.6 %), plus one seq scan of the table per sweep. The gain is small but real. The table grows until the 720 h window first bites (oldest ack 2026-09-25), then it holds steady.
 
+<a id="ws-doc-2b1768ea-d865-4136-9e80-fcb16a51a882"></a>
 ## 3. Unused and redundant indexes (1.2)
 
 `pg_stat_user_indexes` on prd, `idx_scan` since 2026-09-18:
@@ -121,16 +127,20 @@ So /v1/view/search is slow *because* it cannot use the GIN. Dropping the GIN los
 
 The same reasoning dropped the files GIN in rdb 0081. Spec 029's review (P7) left this one to spec 022 §9. Of D-S1..D-S4, only **D-S1** (a SECURITY DEFINER search function that bypasses RLS) would use this GIN. If the owner picks D-S1, the drop line comes out of 0121.
 
+<a id="ws-doc-c83c2043-e12e-44ed-9ac4-8a98f2d0d1fb"></a>
 ## 4. Other cheap tactics (1.3)
 
+<a id="ws-doc-c56448cc-5049-492a-8c34-8ea27565948c"></a>
 ### 4.1 Autovacuum and bloat
 
 prd: every busy table was autovacuumed or autoanalyzed within the last ~2 days (messages 10-03 06:59Z / 10-04 13:15Z; deliveries 10-03 / 10-04; read_marks 10-04). `n_dead_tup` is below the 20 % trigger everywhere it matters (deliveries 3 966 / 22 522 = 17.6 %, messages 899 / 19 917 = 4.5 %). The tables never vacuumed are <= 38 rows. **No change** (as 029 P5).
 
+<a id="ws-doc-3fa095d6-f2a7-4674-9ae4-10626e4bfafe"></a>
 ### 4.2 Statistics and row estimates
 
 The >10x misestimates in §2.2 (flow counts 85 vs 16 873; flow list 10 vs 2 284) come from the RLS policy's OR over `current_setting`, not from stale statistics. `ANALYZE` and `CREATE STATISTICS` cannot fix an expression over a GUC. The fixes are statement shapes (a fence, or computing the member's events first), or the generic plans the hub already ends up on. **No ANALYZE or extended-statistics change.**
 
+<a id="ws-doc-fe45d68c-07c1-4d1c-ba4a-f0aeab4941cb"></a>
 ### 4.3 `work_mem` and temp files
 
 - `log_temp_files` reads **`0`** on prd and dev (`pg_settings`, source "configuration file"). This is the Cloud SQL default: `gcloud sql instances describe` shows no `databaseFlags`. Every spill is already logged, so **no terraform** was planned or applied for it (owner go `d17db1ea` needs no action).
@@ -147,18 +157,22 @@ The >10x misestimates in §2.2 (flow counts 85 vs 16 873; flow list 10 vs 2 284)
     `database_flags { name = "work_mem" value = "<kB>" }`, with a `work_mem_kb` variable in `02-variables.tf` and `env.gcp.cloud_sql.work_mem_kb` in cnf, rendered by `do_tpl_gen`.
   - `work_mem` is a dynamic flag (no restart), but a `database_flags` block that is new to the instance must be read in the plan first.
 
+<a id="ws-doc-009eb77c-6c8e-4aa0-b524-a30921b1fd33"></a>
 ### 4.4 Pool size against backends
 
 `max_connections` 25 (3 reserved, 2 cloudsqladmin). The hub pool is 8 per instance (cnf `SPOOL_HUB_DB_MAX_CONNS`); backends p95 12 / max 21 (plan §2.4). The max-21 spikes line up with the two boxes running the unanswered sweep (183 runs/day against 144 expected, E17). **No pool change** (plan §5).
 
+<a id="ws-doc-7c8ed5ad-54b2-4ec1-b6f4-691db23837f6"></a>
 ### 4.5 Prepared statements
 
 pgx caches prepared statements, and `plan_cache_mode` is `auto`. For flow counts the generic plan (cost 1 861) beats the custom one (cost 9 558, 96 ms measured), so the cache helps. Forcing `plan_cache_mode = force_generic_plan` for the hub role is a possible cheap tactic, but **not proposed**. I did not measure it across the other statements, and a generic plan can be worse for a skewed tenant (t1 holds 85 % of messages).
 
+<a id="ws-doc-7d32827d-f858-41d9-9458-62838ace5bf2"></a>
 ### 4.6 Not proposed, unmeasured
 
 `random_page_cost` 4 with a 100 % cache hit (1.1 is the usual SSD/cached value). It would change plans globally, and I have no before/after for it, so it is not proposed.
 
+<a id="ws-doc-1afe2d56-b760-4417-9a8b-fb8a22d8e8ba"></a>
 ## 5. What needs the owner's go
 
 | change | kind | evidence | expected gain | go |
@@ -169,12 +183,14 @@ pgx caches prepared statements, and `plan_cache_mode` is `auto`. For flow counts
 | `log_temp_files` | Cloud SQL flag | already 0 (Cloud SQL default) | none | not needed |
 | `work_mem` | Cloud SQL flag | §4.3: the spill is one statement, above the safe bound | none from a flag | **no change**; E17's query fix |
 
+<a id="ws-doc-22c44437-2ecd-4180-b442-98d33a724715"></a>
 ## 6. Handed to other rows (not changed here)
 
 - **E17** (unanswered sweep): the only source of temp spills, plus a 406.8 ms mean. Narrow the DISTINCT ON sort, or `SET LOCAL work_mem` in its own transaction. Put prd `temp_files` / `temp_bytes` per hour in its before/after.
 - **E01** (flow_postgres.go): flow counts' custom plan 96 -> 53 ms with the member's events fenced first (n=3, same output). Flow list: a 10-vs-2 284 estimate skips `flow_events_member_at`.
 - **Search lane** (022 §9): /v1/view/search seq-scans every tenant message, 66..70 ms on prd t1, with one 4.36 s outlier (n=3). D-S1 is the only option that would use a GIN.
 
+<a id="ws-doc-14cc69a9-aff5-4be5-9a08-a9723b25580e"></a>
 ## 7. After the roll (rdb 0122, `b965c687e`, v9.1.6 on dev and prd)
 
 Ledger, both envs: `spool_schema_migrations` holds `0122_dbx_index_audit.sql` (prd 2026-10-04 21:01:19Z, dev 21:01:21Z). In `pg_indexes`, `deliveries_sent_acked` is present, `messages_search` is gone and `messages_channel` is present.

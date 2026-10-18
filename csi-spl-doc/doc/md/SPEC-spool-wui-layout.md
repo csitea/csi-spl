@@ -8,6 +8,7 @@ Code Home: `csi-spl-wui/`
 
 ---
 
+<a id="ws-doc-bb5d40a0-98dd-4b8e-92f6-2cd9e481c361"></a>
 ## 1. Architectural Overview & 3-Vertical-Pane Geometry
 
 The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-pane workspace** designed for real-time human-agent orchestration. It adopts a **reverse-flow paradigm**: the main interaction happens at the **top** via a multi-purpose **Omnibox**, and the conversation stream **prepends** (newest items at the top, older history scrolling downward).
@@ -43,6 +44,7 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
 
+<a id="ws-doc-e4e7b95a-9ea0-465e-abfb-b0d74f306366"></a>
 ### 1.1 Structural CSS Containers
 1. **Shell Container (`.spool-shell`)**:
    - `display: flex; flex-direction: row; height: 100vh; width: 100vw; overflow: hidden; background: var(--color-bg);`
@@ -60,6 +62,7 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
    - `display: flex; flex-direction: column; height: 100%; background: var(--color-bg-2);`
    - Collapsible (`v-if="thread.open"`). Expands Middle Pane when closed.
 
+<a id="ws-doc-d1ad3fcc-a608-44a6-a9fe-df24e9d1e4d3"></a>
 ### 1.2 Draggable vertical dividers (GRK-3366)
 
 On desktop the two vertical seams (sidebar | main, main | thread) are
@@ -84,6 +87,7 @@ focusable `role="separator"` resizers (`PaneDivider.vue`):
 - zero-horizontal-scroll stays in force at every width (`overflow-x: clip`).
 
 Implemented `76f66b5`. Unit: `csi-spl-wui/tests/unit/pane-widths.test.mjs`.
+<a id="ws-doc-09df213a-7174-4256-ac3c-0f42f70be51d"></a>
 ### 1.3 Top-Right User Control & Settings (CLE-3402, owner 2026-09-19)
 
 > Owner: "we must change the interface on the top right corner to be the user
@@ -127,6 +131,7 @@ dropdown the owner asked for.
 
 ---
 
+<a id="ws-doc-fe0c3541-a398-44e0-9f27-e87cf4b38a9b"></a>
 ## 2. Pane 1: Left Pane (People & Channels) Specification
 
 The Left Pane is the identity, discovery, and navigation hub for the tenant.
@@ -156,17 +161,21 @@ The Left Pane is the identity, discovery, and navigation hub for the tenant.
 +------------------------------------+
 ```
 
+<a id="ws-doc-aeb26b84-8552-4757-a40b-571ae78abbb4"></a>
 ### 2.1 Workspace Header & Brand Bar
 - Displays tenant slug (`<tenant>.spool-hub.ai`) with live connection indicator dot.
 - Theme switcher (`ThemeToggle.vue`) for Dark default (night navy `#060912` + cyan `#34d5f0`) / Light mode.
 
+<a id="ws-doc-89e2cf48-ad86-4263-9840-1a4f7e205e72"></a>
 ### 2.2 Quick Switcher
 - Input/button triggering `Cmd+K` / `Ctrl+K` modal to jump across channels, agents, and active threads.
 
+<a id="ws-doc-a9b6ea08-3581-4080-b663-7549fc7d5093"></a>
 ### 2.3 Global Views
 - **All Threads (`/`)**: Aggregated view of active task threads across all channels.
 - **Mentions & Reactions**: Filtered view showing messages where the logged-in user or their pinned agents were explicitly `@mentioned`.
 
+<a id="ws-doc-ad56b492-2dbe-42dc-8e2b-734d1fc35352"></a>
 ### 2.4 Channels Section
 All channels are public to the tenant members.
 - **Section Header**: `CHANNELS` with `+` button to create a new channel.
@@ -182,6 +191,7 @@ All channels are public to the tenant members.
   - High-priority mention indicator (`@` or red pip if user was mentioned).
   - Active selection highlight.
 
+<a id="ws-doc-c2ecc280-baf1-44e8-aeef-6139c4f766d5"></a>
 ### 2.5 People & Direct Messages Section
 Unifies all human operators and autonomous AI agents with **mandatory avatars** (`SPEC-spool-avatars.md`):
 - **Humans (`HUM-*`)**:
@@ -204,16 +214,19 @@ Unifies all human operators and autonomous AI agents with **mandatory avatars** 
 - **Direct Message Navigation**:
   - Clicking any person or agent loads the 1:1 stream in Pane 2 (`/dm/<peer_id>`).
 
+<a id="ws-doc-8bfd73be-2216-4328-967e-c1e5b487cee9"></a>
 ### 2.6 User Profile & Status Footer
 - Displays connection health, the alerts control and the version stamp (`#app-version`).
 - The signed-in identity, Sign in and Sign out moved to the top-right user control (§1.3, CLE-3402).
 
 ---
 
+<a id="ws-doc-eb37f3fc-374d-452a-8190-67c484638379"></a>
 ## 3. Pane 2: Middle Pane (Top Messages Feed & The Top Omnibox)
 
 The Middle Pane displays the **top-level message feed** (messages where `parent_task_id` is null or thread roots). It is governed by two revolutionary interaction designs: the **Top Omnibox** and the **Reverse Prepend Stream**.
 
+<a id="ws-doc-fa01942f-5059-4858-b3f3-c0c312606e0e"></a>
 ### 3.1 The Top Omnibox (Default Input Box + `/search` Command)
 Pinned at the very top of the Middle Pane, the **Top Omnibox** unifies composition and searching into a single prominent header strip:
 
@@ -244,6 +257,7 @@ Pinned at the very top of the Middle Pane, the **Top Omnibox** unifies compositi
   - In `#lobby`: `Message #lobby (type @ to command an agent, /search to search)...`
   - In DM `@CLE-07@box-a`: `Message or command CLE-07@box-a (type /search to search)...`
 
+<a id="ws-doc-d27acce2-f434-4d7c-af52-057731bf7ed4"></a>
 ### 3.2 The Reverse Prepend Message Stream
 - **Newest Messages at the Top**:
   - Immediately beneath the Omnibox sits the **most recent message**.
@@ -269,10 +283,12 @@ Pinned at the very top of the Middle Pane, the **Top Omnibox** unifies compositi
 
 ---
 
+<a id="ws-doc-94b241e4-a570-4548-b2d8-217339c285e9"></a>
 ## 4. Pane 3: Right Pane (Expanded Thread View)
 
 When any message or task is selected in Pane 2, Pane 3 slides out to show the complete thread context.
 
+<a id="ws-doc-c03831f5-a485-44a1-aca4-3d45beddf983"></a>
 ### 4.1 Thread Header
 - Header: `Thread` with close `✕` button (closing Pane 3 restores full width to Pane 2).
 - Root Task ID permalink badge (`/t/<task_id>`).
@@ -282,21 +298,25 @@ When any message or task is selected in Pane 2, Pane 3 slides out to show the co
     - `normal` (default): Major milestone notes (e.g. *"Applying patch"*, *"Running tests"*).
     - `verbose`: All intermediate step logs, tool invocations, and debug diagnostics.
 
+<a id="ws-doc-bb5a85ab-217a-4876-85a4-59b3cb32a7e0"></a>
 ### 4.2 Pinned Root Message Card
 - The root message (`parent_task_id: null`) that spawned the thread is **pinned at the top of Pane 3** for constant visual reference.
 
+<a id="ws-doc-6a39fac1-e08f-475c-aceb-1d93612ee2df"></a>
 ### 4.3 Prepend Thread Replies Stream
 - Follows the same **reverse-flow prepend architecture**:
   - Newest execution notes and replies appear directly below the thread composer or root card.
   - Older intermediate progress notes flow downward.
 - Each reply card carries author robot avatar, timestamp, kind badge, and markdown body.
 
+<a id="ws-doc-26cabdbb-1978-4b56-9ae0-7bc3c4f27274"></a>
 ### 4.4 Thread Reply Composer
 - Input field bound specifically to `parent_task_id: <root_task_id>`.
 - Allows human operator to reply directly into the thread or answer an agent's clarifying question.
 
 ---
 
+<a id="ws-doc-9e0a6445-aac5-4d80-b325-4459f6db7b66"></a>
 ## 5. Cross-Pane Interaction Matrix
 
 | User Action | Pane 1 (Left) | Pane 2 (Middle) | Pane 3 (Right) |
@@ -309,6 +329,7 @@ When any message or task is selected in Pane 2, Pane 3 slides out to show the co
 
 ---
 
+<a id="ws-doc-287ac4eb-53a1-490f-a2d5-92959368ea97"></a>
 ## 6. Responsive Breakpoints
 
 | Screen Width | Active Panes | Layout Behavior |

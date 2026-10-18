@@ -16,6 +16,7 @@ SPL-1865. A seat commits this file and nothing else (R7.6).
 files: `cmd/spool/doctree.go` +32/-3 and `doctree_test.go` +28 (`e6338d7ab`),
 and `spl-cloud-cnf.func.sh` +9/-1 (`b8a8afa5e`). Rows 01 and 08 below.
 
+<a id="ws-doc-1ba54992-c7f6-43c9-94eb-44a5b75bbb73"></a>
 ## 1. Re-measured counts
 
 | row | command (on `050b06e65`) | plan says | measured |
@@ -37,6 +38,7 @@ and `spl-cloud-cnf.func.sh` +9/-1 (`b8a8afa5e`). Rows 01 and 08 below.
 | 10 | `git grep -nE "\^review: " 050b06e65 -- 'csi-spl-orc/src/**' 'csi-spl-iac/src/**' '.github/**' \| wc -l` | 0 | 0 |
 | R3 | `lane-map.sh --check <every row path, 34 paths> --agent c-522` | rc 4, c-296 records no files | rc 4: no live lane lists a row path; 3 lanes record no files: `c-119@sat` (the editor), `c-125@sat` (`c-125-qto-tree-drag-reorder`), `c-126@sat` (`c-126-public-repo-customer-name`). c-296 and c-519 are no longer listed |
 
+<a id="ws-doc-bbe8edbd-1f47-47cf-a70d-f85193c2ee79"></a>
 ## 2. Verdict per row
 
 | row | verdict | why, with the command behind any change |
@@ -52,6 +54,7 @@ and `spl-cloud-cnf.func.sh` +9/-1 (`b8a8afa5e`). Rows 01 and 08 below.
 | 09 | **agree** | 36 matched, 33 listed, 7 KEEP, matcher lines: hold (v0.2 already folds the 7). Line nit only: the matcher is at 29-34 on `050b06e65`, the plan says 27-33. |
 | 10 | **agree** | Worker 128-170, identity check 151, 0 gates: hold. |
 
+<a id="ws-doc-bd71ce89-5a78-4ef5-99b3-0fa72fd800f7"></a>
 ## 3. Left out, or to change outside the rows
 
 - **Section 5, reviewers (must change).** v0.2 sends the 9 claude rows (01,
@@ -70,6 +73,7 @@ and `spl-cloud-cnf.func.sh` +9/-1 (`b8a8afa5e`). Rows 01 and 08 below.
 - **Section 9:** the mistral seat row reads "pending (queued, ask 34f3c665)";
   it is this seat, c-522@PC (claude), with this file.
 
+<a id="ws-doc-efbca35f-c4a9-45cf-884a-e428b6a8c9da"></a>
 ## 4. Signature
 
 signed v1.0 40057b1a5

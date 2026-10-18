@@ -9,6 +9,7 @@ changed.
 The walk was done before this review was written. The nine ideas are answered
 in part B only.
 
+<a id="ws-doc-9c54ebeb-8a55-4d34-acae-c00fca71358a"></a>
 ## How it was measured
 
 | field | value |
@@ -30,8 +31,10 @@ Limits of this session, so they are not findings:
 
 Dev-server noise (`/build.json` 404, one stale dependency response) is not treated as a product fault.
 
+<a id="ws-doc-ffa28b72-e3e3-4349-a64d-36705d980634"></a>
 ## Part A. What I would change
 
+<a id="ws-doc-3e2aa3ca-e509-4163-b0c3-3a1ab0483ff5"></a>
 ### A1. Show the topic list once, and give the thread the wide pane
 
 **Problem.** On Topics the same five rows are drawn twice. The thread, which is why the row was opened, sits in the narrow column.
@@ -42,6 +45,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** M.
 
+<a id="ws-doc-3315b8dc-d47a-4010-8957-dca9e4569052"></a>
 ### A2. A section change clears the topic that was open
 
 **Problem.** The thread you opened stays on the right after you leave the conversation. Search, People, Agents and Boxes then show three unrelated things.
@@ -52,6 +56,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** S for closing the pane. M if Search and People move their results into the wide pane in the same change.
 
+<a id="ws-doc-e881b971-8e21-4f0f-a280-00e096eed437"></a>
 ### A3. The composer says where the message will go, after you start typing
 
 **Problem.** The only name of the destination is the placeholder of a one-line field in the top bar. Typing replaces it. A topic can be open on the right that the field is not answering.
@@ -62,6 +67,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** S.
 
+<a id="ws-doc-633cdb34-b6b7-4336-a3cc-68880fb24c48"></a>
 ### A4. A half-written reply survives the reload, per topic
 
 **Problem.** The text exists only in the live field. Leave the document and it is gone. Nothing on the topic row says a draft exists.
@@ -72,6 +78,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** M.
 
+<a id="ws-doc-a2d132f3-8e84-4a1c-838b-16da830959d0"></a>
 ### A5. Topic rows should not show markdown source, and a clock is not a date
 
 **Problem.** The index and the thread disagree about the same message. The index shows the raw marks and a time of day. The thread shows rendered text and a calendar date.
@@ -82,6 +89,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** S.
 
+<a id="ws-doc-4e7474b3-6035-41b9-8718-58fce5cca9ed"></a>
 ### A6. The unread "1" has to be on the row that opens it
 
 **Problem.** Three places agree there is one unread item, and the list you scan does not mark which row it is.
@@ -92,6 +100,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** M.
 
+<a id="ws-doc-bb6c6b84-c7e5-4ada-a4d6-c449f0272743"></a>
 ### A7. "3 >>" should say replies
 
 **Problem.** The way into a thread is a glyph that does not say what it is.
@@ -102,6 +111,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** S.
 
+<a id="ws-doc-83274946-4fd2-403d-90ef-fb6cf45807cd"></a>
 ### A8. A go-to key for the ten sections
 
 **Problem.** The rail is ten icons and no labels. The keys that exist act on a message. Nothing opens a section.
@@ -112,6 +122,7 @@ Dev-server noise (`/build.json` 404, one stale dependency response) is not treat
 
 **Effort.** M.
 
+<a id="ws-doc-4107a9d6-c10d-48af-9954-0f2621065c62"></a>
 ## Part B. The nine picked ideas
 
 Summary of the walk against the list. Split view was not in the nine and is not reviewed.
@@ -146,6 +157,7 @@ Summary of the walk against the list. Split view was not in the nine and is not 
 
 **10. Hover previews. Drop.** The row already shows the opening line and the message count. One click opened a four-message thread. Search already prints a snippet in the side list. A hover of the same sentence stacks a card on top of a pane that is already there. A preview of a link whose target is not on screen is a different, smaller idea. This mock did not contain one (n=1), so it is not a reason to build the general hover.
 
+<a id="ws-doc-8576f328-d2c1-4089-a029-2924e83019fd"></a>
 ## Part C. Build these three first
 
 1. **One index, the thread in the wide pane, and that pane closes when the section changes** (A1 and A2). Every later idea sits on this layout. A palette, a density step, a bulk action and a hover all get easier when the list exists once and the wide pane is the work.

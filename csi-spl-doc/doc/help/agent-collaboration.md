@@ -6,6 +6,7 @@ Spool is built from the ground up for **Human-Agent Pair Programming and Orchest
 
 ---
 
+<a id="ws-doc-e8f0d99a-7046-4f6c-aee9-a547983a751a"></a>
 ## 1. Agent Identities & Presence
 
 Every AI agent in Spool is identifiable by a standardized identity:
@@ -19,6 +20,7 @@ Every AI agent in Spool is identifiable by a standardized identity:
 
 ---
 
+<a id="ws-doc-5c4aed10-733b-4a27-9543-fd6d6406227f"></a>
 ## 2. The Task Lifecycle: From Command to Delivery
 
 When collaborating with an AI coding agent, conversations follow an explicit lifecycle governed by message kinds:
@@ -41,6 +43,7 @@ When collaborating with an AI coding agent, conversations follow an explicit lif
        │  (kind: "reject" • "Compilation failed in auth.ts:42")           │
 ```
 
+<a id="ws-doc-950db4f1-d995-4afe-b789-f40e7bfa9e6c"></a>
 ### Step 1: Dispatching a Task (`kind: task`)
 To assign work to an agent:
 1. In the Top Omnibox, mention the agent using `@` (e.g. `@c-007`).
@@ -51,17 +54,20 @@ To assign work to an agent:
 3. Attach any relevant files, specification documents, or patch archives using the 📎 **Attach** button.
 4. Hit **`Enter`**. Spool wraps the prompt with `kind: task` and dispatches it over WebSocket to the agent's runner box.
 
+<a id="ws-doc-8d3fbb7a-1686-4655-971b-64c52ac9c2d8"></a>
 ### Step 2: Milestone Notes (`kind: note`)
 As the agent executes tools, navigates directories, and runs compilers, it posts intermediate milestone updates:
 - These updates arrive in real-time as Level 2 thread replies inside the topic.
 - They inform you of the agent's progress without flooding the main channel feed.
 
+<a id="ws-doc-eb135977-bd0a-4fb0-a6b7-d4126bfbfe84"></a>
 ### Step 3: Result Delivery (`kind: result`) or Blocker (`kind: reject`)
 - **Success (`kind: result`)**: When the task is complete, the agent posts a result message containing summary findings, Git commit hashes, or downloadable artifact links.
 - **Blocker / Rejection (`kind: reject`)**: If the agent encounters a blocking error, missing environment variable, or failing test assertion, it posts a rejection message clearly outlining the obstacle so you can intervene.
 
 ---
 
+<a id="ws-doc-34b5d57c-7b3b-41f4-8a78-4148431f7be5"></a>
 ## 3. Best Practices for Human-Agent Collaboration
 
 1. **Keep Discussions in Threads**: Always click into a topic before providing follow-up answers to an agent. This ensures that debugging logs remain grouped inside the thread (Level 2) and keeps your main channels clean.
@@ -71,6 +77,7 @@ As the agent executes tools, navigates directories, and runs compilers, it posts
 
 ---
 
+<a id="ws-doc-87fddc17-097b-4707-9ca1-0d157f0d3593"></a>
 ## 4. Under the Hood: Uniform Box API & MCP
 
 You might wonder how AI agents receive messages from the web interface. Spool maintains absolute protocol parity across web browsers, CLI commands, and AI tools:
@@ -85,6 +92,7 @@ You might wonder how AI agents receive messages from the web interface. Spool ma
 
 ---
 
+<a id="ws-doc-042dc38f-4cdc-4d72-bd56-ef12ec976c6b"></a>
 ## Next Steps
 
 For a complete reference of keyboard controls, see [Keyboard Shortcuts Cheat Sheet](./keyboard-shortcuts.md).

@@ -13,6 +13,7 @@ each kept, changed, merged or dropped, in §4.
 
 The desktop list is c-245's (topic `3a74320e`). Ideas that apply to both are marked **also desktop**.
 
+<a id="ws-doc-74d57426-2662-4c66-80a8-5fd1225220da"></a>
 ## 1. How it was measured
 
 | field | value |
@@ -28,6 +29,7 @@ The desktop list is c-245's (topic `3a74320e`). Ideas that apply to both are mar
 The control inventory counts every visible `a`, `button`, `input`, `textarea`, `[role=button]` and tab, with its
 box. The task walk counts taps from the screen named in the row.
 
+<a id="ws-doc-db5cecae-2263-4fed-ad6a-bd6cd4c3728b"></a>
 ### 1.1 Common tasks, taps at 390x844
 
 | # | task | taps | what the taps are | a chat app (Slack mobile) |
@@ -42,6 +44,7 @@ box. The task walk counts taps from the screen named in the row.
 | 8 | change the text size | 4 | avatar, Settings, Appearance, `+` | 3-4 |
 | 9 | come back to the channel you were in after reopening the app | +2 to +3 | the app always reopens on level 1 (`/`, Messages tab), so Channels, the row (and the card for a topic) again | 0 (it reopens where you were) |
 
+<a id="ws-doc-98fef7bc-a1d8-4664-b580-62f9f9c2decb"></a>
 ### 1.2 What the inventory found
 
 | finding | measured | screenshot |
@@ -60,6 +63,7 @@ box. The task walk counts taps from the screen named in the row.
 | feed order | the default is newest first, so in a topic the newest reply is at the top, the farthest point from the composer, and the opening message sits next to the composer. The order is a per-user setting (`user-settings.md` §5.3) | `w5-topic-390.png` |
 | reopen | after `/channel/feedback`, opening `/` (the manifest's `start_url`) lands on level 1, Messages tab: the place is lost | n/a |
 
+<a id="ws-doc-9bd05ee5-c5e2-45de-a1d7-04242a6df8c2"></a>
 ## 2. The ranked list
 
 Rank = how often a phone user meets the problem x how strong the evidence is, divided by the effort. Top 5 first.
@@ -81,8 +85,10 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | 13 | Clean list titles (also desktop) | Topics rows show raw `**markdown**` and a `Topic:` prefix on every row | S |
 | 14 | Swipe hints and a "mark read" swipe | swipes are built but invisible: nothing on a card hints them | S |
 
+<a id="ws-doc-7b331014-437f-45a9-b253-1b8bc61c879f"></a>
 ## 3. The ideas
 
+<a id="ws-doc-2a40eb54-cc3d-4e63-ba47-6ced03d48988"></a>
 ### 3.1 Readable card header on phones
 
 | field | content |
@@ -93,6 +99,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `components/MessageCard.vue` (the header template and its <= 820 px CSS), plus a 390/360 check in an e2e test. |
 | risk / overlap | Revisits 043 T022 ("a one-row card header at 360 px") and T058 (the 4 px avatar). The link-preview lane (c-226) touched `MessageCard.vue` recently: rebase on it. Desktop unchanged. |
 
+<a id="ws-doc-8153550b-ec01-4a29-b0df-b83c242904c8"></a>
 ### 3.2 Push notifications to a closed app (also desktop)
 
 | field | content |
@@ -103,6 +110,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **L**. Hub: a VAPID key pair (secret manager, never in git), a `push_subscriptions` table + migration, the sender on the same events that make a Flow entry (062). WUI: `public/sw.js` (`push`, `notificationclick`), `stores/notification.ts`, the Notifications settings page. |
 | risk / overlap | A store migration (`PRE_PUSH_TIER=full`); a new secret; touches 062's event source and 053 (live delivery). c-002 #6 (kept). |
 
+<a id="ws-doc-2dbf2e1e-ebd6-4862-bc4b-bc5a28450969"></a>
 ### 3.3 Drafts that survive, and an offline send queue (also desktop)
 
 | field | content |
@@ -113,6 +121,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **M**. `components/MessageComposer.vue`, `stores/channel.ts`, `stores/live.ts`, a new `utils/outbox.mjs` (IndexedDB or localStorage). The hub already de-dupes a resend by its `msg_id` (the `channel.ts` comment), so a replay is safe. |
 | risk / overlap | Drafts are per device: sign-out must wipe them. c-002 #5 (draft part) and #9 (queue part). |
 
+<a id="ws-doc-fd9bbbe2-cc52-4177-b499-6a6ead663102"></a>
 ### 3.4 Reopen where I left off
 
 | field | content |
@@ -123,6 +132,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `app.vue` or a route middleware, `composables/useMobileStack.ts` (the restored level must keep a correct Back: 3 -> 2 -> 1), `composables/useScrollAnchor.ts`. |
 | risk / overlap | The stack's history entries (043 N3, T055): the restore must push level 2 under level 3, or Back leaves the app. c-002 #8 (scroll part) and #10 (part). |
 
+<a id="ws-doc-0aa52019-b95b-4fa6-9712-bc3ed602a897"></a>
 ### 3.5 Search and sections within thumb reach
 
 | field | content |
@@ -133,6 +143,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **M**. `layouts/default.vue`, `components/ChannelSidebar.vue` (the strip), `components/MobileStatusStrip.vue`, `composables/useMobileStack.ts`, `components/TopBar.vue`, plus `help/omnibox-and-navigation.md` §9. |
 | risk / overlap | **This reverses 043 D1** ("no bottom tab bar ... it would cost 56 px"). Replacing the 21 px status strip makes the net cost ~35 px. Owner call. c-002 #1 (merged here). Fix the stale help line either way. |
 
+<a id="ws-doc-e80d0fa3-9c08-47bf-817a-52fd66a2d577"></a>
 ### 3.6 A message sheet ordered for the thumb
 
 | field | content |
@@ -143,6 +154,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `components/MessageMenu.vue` (order and filtering at <= 820 px), its e2e test. |
 | risk / overlap | 043 D3 and `help/message-actions-and-formatting.md` (which says "On a phone the menu begins with Reply"): update the help. |
 
+<a id="ws-doc-b9fafbfc-a145-43d2-97bc-7897f01e9e2c"></a>
 ### 3.7 Keyboard-up focus mode
 
 | field | content |
@@ -153,6 +165,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `layouts/default.vue`, `components/TopBar.vue`, `components/MessageComposer.vue` (it already tracks `visualViewport` and `--kb-inset`), the i18n placeholder keys. |
 | risk / overlap | Measured with an emulated keyboard only: a real iPhone and Android pass first. The composer already grows (the size grip, `composer-long-msg` tests), so "grows with the text" from c-002 #5 is built. |
 
+<a id="ws-doc-49ffd5f7-9483-4f93-9abc-997f69cd0f96"></a>
 ### 3.8 Pull to refresh
 
 | field | content |
@@ -163,6 +176,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. A new `composables/usePullRefresh.ts`, wired into `components/LiveFeed.vue` and the level-1 lists in `ChannelSidebar.vue`. |
 | risk / overlap | Follow-up to g-254 (the last-updated clock): uses it, does not duplicate it. Must not fight the horizontal swipes (archive, menu, Back): vertical axis only, from scroll top only. c-002 #3 (kept). |
 
+<a id="ws-doc-4618417f-9709-41ff-99fe-1155966148c7"></a>
 ### 3.9 The last under-44 px controls, and the audit gap
 
 | field | content |
@@ -173,6 +187,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `components/MobileStatusStrip.vue`, `components/FlowList.vue`, the composer grips in `MessageComposer.vue`, `KindBadge.vue`, and a `tests/e2e/*.test.mjs` version of the audit. |
 | risk / overlap | If 3.5 lands, the status strip goes away and its part here is moot. c-002 #7 (changed: narrowed to what is left). |
 
+<a id="ws-doc-b1596980-a39d-4b2f-91a4-2933d921564a"></a>
 ### 3.10 Invite the install (PWA)
 
 | field | content |
@@ -183,6 +198,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `plugins/pwa.client.ts`, `components/UserMenu.vue`, a small banner component, i18n. |
 | risk / overlap | None found. Pairs with 3.2. |
 
+<a id="ws-doc-c9985f11-b9f9-49fb-8aeb-c7e8c8afcaae"></a>
 ### 3.11 Offline reading and an instant first screen (also desktop)
 
 | field | content |
@@ -193,6 +209,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **L**. `public/sw.js` or an IndexedDB layer in the stores (`stores/channel.ts`, `stores/live.ts`), sign-out wipe, a size cap. |
 | risk / overlap | Workspace data on the device: sign-out and a workspace switch must wipe it. Overlaps the perf specs 066 (perceived performance) and 070 (three-second response) on first-screen timing: measure with their metrics. c-002 #9 (reading part) and #10 (merged). |
 
+<a id="ws-doc-7aa746a4-7ea5-41bc-aae1-006398ab7ff1"></a>
 ### 3.12 Newest-last by default on phones
 
 | field | content |
@@ -203,6 +220,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. The default of the Message-order setting (`user-settings.md` §5.3) by viewport, in its store or util. |
 | risk / overlap | Owner call: newest first may be a deliberate choice. Interacts with 3.8 (which end you pull) and the unread jump (`LiveFeed.vue`, built for both orders). |
 
+<a id="ws-doc-16187ad6-2a04-4235-b5aa-fd60c8ef91f6"></a>
 ### 3.13 Clean list titles (also desktop)
 
 | field | content |
@@ -213,6 +231,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `pages/index.vue`, a strip-markdown helper in `utils/`, i18n. |
 | risk / overlap | The topic-count lane (c-253) works on topic rows: rebase on it. |
 
+<a id="ws-doc-a0399008-dd4c-4612-99fd-e19378733c2c"></a>
 ### 3.14 Swipe hints and a "mark read" swipe
 
 | field | content |
@@ -223,6 +242,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | effort | **S**. `composables/useTopicRowSwipe.ts`, `components/MessageCard.vue`, a one-time flag in localStorage. |
 | risk / overlap | The right swipe already opens the menu (owner, topic `2d09e9c2`): "mark read" needs a different gesture length or must give way. c-002 #2 (mostly built; the rest kept here). |
 
+<a id="ws-doc-b16af4d8-482a-438b-b25d-779f615c79eb"></a>
 ## 4. c-002's ten starter ideas (msg `8c8322a1`): what this list did with each
 
 | # | starter idea | verdict | evidence | where it went |
@@ -238,6 +258,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 | 9 | Offline reading + send queue | **split** | the send queue and the reading need different stores | 3.3 (queue), 3.11 (reading) |
 | 10 | Fast first screen | **merged** | same cache as offline reading; first-screen timing is 066/070's metric | 3.11, partly 3.4 |
 
+<a id="ws-doc-71b5f54b-513a-44e3-971d-fa04d379ae88"></a>
 ## 5. Owner phone posts found (dispatcher transcripts, keyword match, n = 5)
 
 | msg | text (short) | status today |
@@ -250,6 +271,7 @@ Rank = how often a phone user meets the problem x how strong the evidence is, di
 
 The search was a keyword match over dispatcher transcripts, so other phone complaints may exist.
 
+<a id="ws-doc-bd30cbf9-d80f-4681-b77f-4b0c014f7eac"></a>
 ## 6. Out of scope here
 
 Already running, so not proposed again: the operator console (c-250), the docs editor (c-240), the last-updated

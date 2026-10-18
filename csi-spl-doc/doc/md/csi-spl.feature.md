@@ -4,6 +4,7 @@
 
 Status as of 2026-09-17. Code: `github.com/csitea/csi-spl`, trunk `master`.
 
+<a id="ws-doc-f2cdc0f5-2069-4466-86aa-43d7f5ccae5c"></a>
 ## 1. What the spool is
 
 The spool is the agent-messaging hub of the fleet: the hub API on Cloud Run
@@ -13,8 +14,10 @@ steps around them (section 2.1).
 It starts clean. Nothing was forked from csi-rel or a sibling project; the files that
 were copied are listed one by one in section 2.2.
 
+<a id="ws-doc-a5566762-f194-4f55-845c-ae7882b9c641"></a>
 ## 2. Layout
 
+<a id="ws-doc-3030755c-e688-4d86-aacb-ce471cc9dcf5"></a>
 ### 2.1 Directories
 
 | dir | holds |
@@ -28,6 +31,7 @@ were copied are listed one by one in section 2.2.
 | `csi-spl-dat`, `csi-spl-utl` | a README each, saying what would go there |
 | `tpl-gen/` | git-ignored sibling clone of `github.com/csitea/tpl-gen` |
 
+<a id="ws-doc-d945042e-5d36-4590-b78d-9c41b5087b65"></a>
 ### 2.2 Copied files and their sources
 
 Everything not listed here was written for the spool.
@@ -52,6 +56,7 @@ Read but deliberately NOT copied: `<sibling>-orc/src/bash/run/gcp-create-project
 (the spool has no project-removal need yet), the tf-runner container and the
 make/docker plumbing (terraform runs from a tfswitch-installed binary).
 
+<a id="ws-doc-17a76283-9c80-436f-ac3d-7a6c96c0200e"></a>
 ### 2.3 tpl-gen: a pinned sibling clone
 
 `tpl-gen/` is a plain clone, ignored by the repo's `.gitignore`, and its
@@ -82,8 +87,10 @@ python3 -m venv tpl-gen/src/python/tpl-gen/.venv
 tpl-gen/src/python/tpl-gen/.venv/bin/pip install jinja2 pyyaml jq colorama rich pprintjson requests
 ```
 
+<a id="ws-doc-3b7899b6-9dc7-48c1-ba38-97082a330c27"></a>
 ## 3. Environments, projects and the domain
 
+<a id="ws-doc-7b3d39a4-9278-44c7-b803-86e7742cc8a3"></a>
 ### 3.1 Projects
 
 | env | GCP project | region | tf state bucket |
@@ -93,6 +100,7 @@ tpl-gen/src/python/tpl-gen/.venv/bin/pip install jinja2 pyyaml jq colorama rich 
 
 prd is the live env; dev is for proving changes first.
 
+<a id="ws-doc-726884b3-fe2a-4aaf-9d44-1f98ed28932f"></a>
 ### 3.2 What is NOT in config
 
 The billing account is an environment variable that fails fast, never
@@ -115,6 +123,7 @@ gcp-000..004 (`do_gcp_pin_bootstrap_account`) while no key exists yet; the
 active gcloud account never. CI sets `GCP_ACCOUNT` to its deploy SA, which
 wins.
 
+<a id="ws-doc-845d8446-389d-4e00-a677-5bdc53995fa7"></a>
 ### 3.3 The domain: change it in ONE place
 
 The spool's domain is `spool-hub.ai`. It is stored once:
@@ -137,12 +146,14 @@ owner's go. As read on 2026-09-17 the domain is registered at Gandi
 `http://spool-hub.ai/` is Gandi parking (apex A on Gandi webredir). Keep
 that apex on Gandi until the owner attaches the hub or WUI.
 
+<a id="ws-doc-a12b7246-0f5e-4ca5-b151-002b4947f33f"></a>
 ## 4. How to operate it
 
 All commands run from `csi-spl-iac` as the box user. Every gcloud call carries
 `--account` or runs under a throwaway `CLOUDSDK_CONFIG`; nothing is ever
 written to the shared `~/.config/gcloud`.
 
+<a id="ws-doc-ba80c393-9772-4c15-b90d-98f2b4a7828b"></a>
 ### 4.1 Create a project
 
 `do_gcp_001_create_project` proves `GCP_ACCOUNT` can mint a token, then reads
@@ -151,12 +162,14 @@ only on "reported absent" creates it; then links billing. **It is a dry run
 unless `DRY_RUN=0`**: the dry run prints the create and link commands it would
 run.
 
+<a id="ws-doc-9af6b688-6afa-4929-98f4-8c5c7b1cd8d3"></a>
 #### 4.1.1 Dry run
 
 ```bash
 ENV=dev GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" ./run -a do_gcp_001_create_project
 ```
 
+<a id="ws-doc-11062cda-0ed6-4828-98d1-c4362bccbff9"></a>
 #### 4.1.2 Create and link (needs the owner's go)
 
 ```bash
@@ -166,6 +179,7 @@ ENV=dev GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" DRY_RUN=0 ./run -a do_g
 The account and org come from `env.gcp`; set `GCP_ACCOUNT` / `GCP_ORG_ID` to
 override them, or `GCP_FOLDER_ID` for a folder parent.
 
+<a id="ws-doc-92fbde76-3202-432e-a044-ad4de1d9088b"></a>
 #### 4.1.3 Identity notes (measured 2026-09-17)
 
 - The human credentials cached on the box were refused by the org's reauth
@@ -176,14 +190,17 @@ override them, or `GCP_FOLDER_ID` for a folder parent.
   that owns it; `gcloud billing accounts list --account "$GCP_ACCOUNT"` shows
   which accounts an identity can link.
 
+<a id="ws-doc-5c4b5c48-f29b-4c2f-a8e5-eeafecadc795"></a>
 ### 4.2 Render, plan, apply
 
+<a id="ws-doc-ba6d2312-e25e-44b2-8ba9-f1d027e83278"></a>
 #### 4.2.1 Render the tfvars (after any yaml change)
 
 ```bash
 ENV=dev ./run -a do_tpl_gen
 ```
 
+<a id="ws-doc-3e08e304-7401-4408-a1d5-654d0d68f60c"></a>
 #### 4.2.2 Plan one step
 
 `TF_BACKEND=local TF_OFFLINE_PLAN=1` plans with no state bucket and no
@@ -199,6 +216,7 @@ The plan is saved to `bin/csi/spl/<env>/<step>/csi-spl-<env>.tfplan`
 while the dir holds a `terraform.tfstate*` or a lock file: a local state there
 may be the only copy. Plans take the state lock (no `-lock=false`).
 
+<a id="ws-doc-72a4eda1-7cdb-4d29-94a1-f23e488a7816"></a>
 #### 4.2.3 Apply a reviewed plan (needs the owner's go)
 
 There is deliberately no apply action: apply is a manual step, and it applies
@@ -209,6 +227,7 @@ the operator's credentials:
 "$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/001-enable-gcp-services apply csi-spl-dev.tfplan
 ```
 
+<a id="ws-doc-00db1edd-9dc4-4d35-b726-44d9cacb310d"></a>
 #### 4.2.4 Bootstrap 000, then migrate its state into its own bucket
 
 The state bucket cannot hold its own state before it exists. The first plan

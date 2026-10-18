@@ -8,6 +8,7 @@ Inputs: the row format of `refactor-round-3-plan.md`, the lessons of `refactor-r
 
 Every site was measured on ONE trunk sha: **`352866e1d`** (`origin/master`, 2026-10-06T11:29:56Z). The survey started on `a50d2f627`. `git diff --stat a50d2f627 352866e1d -- <every site file, cleancode.test.mjs, .shellcheck-warning-baseline.txt, internal/cleancode/>` printed nothing, so every line number holds on `352866e1d`.
 
+<a id="ws-doc-9f17fe77-ec8a-421c-9fd8-d9f9e2061f3a"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change.
@@ -18,6 +19,7 @@ Every site was measured on ONE trunk sha: **`352866e1d`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r4-NN-<slug>): ...` for a row, `fix(r4-BN): ...` for a bug, `chore(r4-FN): ...` for a follow-up.
 - **Off every live lane:** `lane-map.sh --check <all 63 candidate site paths> --agent c-390` at 2026-10-06T11:2xZ: 61 free, 2 owned, `wui:src/components/ReleaseNotesDialog.vue` by g-391 and `api:internal/store/search.go` by c-389. Both are out of the plan (section 6). Re-run the check per row before its spawn (section 5).
 
+<a id="ws-doc-1ae755b9-cbfe-4bcf-a32e-69a12b49ba2b"></a>
 ## 2. Where the practices come from (measured)
 
 Sources in the prompt's order. Each count names its command, run on `352866e1d`, n=1.
@@ -42,6 +44,7 @@ Sources in the prompt's order. Each count names its command, run on `352866e1d`,
 
 Tree sizes on `352866e1d`: 349 Go non-test files, 499 WUI source files (`.ts/.mjs/.js/.vue` under `src`), 565 production bash files.
 
+<a id="ws-doc-fd06dbc1-f73c-4db6-94f9-a7450434195f"></a>
 ## 3. The rows
 
 | row | practice | why (one line) | sites file:line-line (max 5) | language | risk | tests that cover every site | box | agent kind | batch |
@@ -67,6 +70,7 @@ Row 05 has 3 sites in one file. Rows 04, 11 and 13 have 3 sites and row 12 has 2
 
 How the test column was built (R2): for each site, every test file under `*_test.go`, `csi-spl-wui/tests/`, `*.tst.sh` and `features/*/tests/` that names the file's basename, a `do_*` / `spl_*` function the file defines, or (WUI) its import path; plus every test that contains a 30-character string from a comment within the site's lines (+/- 3). Go tests rarely name a file, so a Go row lists the package's test files that call the function. Bold = a test that reads the source text or a comment, which a comment-only change can break.
 
+<a id="ws-doc-d7b30c6f-e41c-4966-8bf5-b5f371e2640a"></a>
 ### 3.1 Follow-ups: the shared generated files (R1)
 
 | row | what | after | box | agent kind |
@@ -76,6 +80,7 @@ How the test column was built (R2): for each site, every test file under `*_test
 
 The scanner baselines (`.gosec-`, `.semgrep-`, `.eslint-security-`, `.tmp-path-baseline.txt`, and the shellcheck one) are keyed by count per file, not by line: a shifted line is never a NEW finding there, and a lower count only prints INFO (`sec-shellcheck.func.sh:173-174`). No row needs to touch them.
 
+<a id="ws-doc-b88aa70e-51c2-46fc-8a2b-9191a41fa9f5"></a>
 ## 4. Per row: what the lane does
 
 Each row lane also writes or extends the test named in its row, keeps each site's meaning, and touches no other file.
@@ -95,6 +100,7 @@ Each row lane also writes or extends the test named in its row, keeps each site'
 - **15.** The helper goes into both `gcp-account-pin.func.sh` copies (iac and orc are identical: `diff` printed nothing), and `do_gcp_activate_sa_key:131` calls it too. Keep each site's failure message, and the two strings `wui-hosting-019-031.tst.sh` greps in `provision-firebase-dns-env.func.sh`.
 - **16.** `sqlState(err) string` in the `interface{ SQLState() string }` form (it also matches wrapped pgx errors). The three named helpers become one-liners over it; `operator_flag.go:115` calls `isUniqueViolation`; `postgres.go` `mapFK` calls a code check instead of its own `errors.As`. The same answer for every code.
 
+<a id="ws-doc-ce35d449-970b-4f9f-9659-e9e8d66d0d27"></a>
 ## 5. Spawn, done, status (R3-R6)
 
 - **R3, before the wave.** The orchestrator runs the verify-only lines of section 7 itself, and re-runs `lane-map.sh --check <row paths> --agent <its id>` for each row. An owned path: wait for that lane, never spawn on top of it.
@@ -103,6 +109,7 @@ Each row lane also writes or extends the test named in its row, keeps each site'
 - **R5, done = served.** A row is done only when dev and prd serve a build that contains its sha. Hub and WUI rows (01-07, 16, F2): `cd csi-spl-orc && SHA=<sha> ENV=dev ./run -a do_check_deploy_lag`, then `ENV=prd`. It reads `/version` and `build.json`, uses `merge-base --is-ancestor`, and counts only a component the commit changed. Bash rows have no image: done = on `origin/master` (`git merge-base --is-ancestor <sha> origin/master`) and in the checkout that runs it on each box (`git -C <box checkout> merge-base --is-ancestor <sha> HEAD` on `PC` and `sat`). A row lane exits clean once its commit is on trunk; one deploy lane proves served (retro rule 3).
 - **R6, no hand-kept status.** The status table is generated at post time and never edited: `git fetch origin master && git log origin/master --grep='r4-' --format='%h %cI %s'`, then the R5 commands per sha. A row with no commit in that log is not done, whatever any file says.
 
+<a id="ws-doc-a3a2cc43-836c-4468-857b-28ca1b6591ce"></a>
 ## 6. Measured and left out
 
 | what | why it is out | measured by |
@@ -119,6 +126,7 @@ Each row lane also writes or extends the test named in its row, keeps each site'
 | bash test hermeticity | `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` as the checkout owner read 106/107 files passed (n=1, 5 m 10 s); the one red was `tf-steps-render-and-validate.tst.sh` TIMED OUT at 120 s under box load, not an assertion | that run |
 | rotation / lease / spawn / dispatch-role scripts (`spool-agent.sh:119` SC2206 and others) | kept off, as in round 3 | |
 
+<a id="ws-doc-1791e0c1-9481-4531-9275-5e076d39a5bf"></a>
 ## 7. Bugs and verify-only
 
 Re-checked on `352866e1d` (R3). n=1 each.
@@ -133,6 +141,7 @@ Re-checked on `352866e1d` (R3). n=1 each.
 
 Round 3's bugs: every fix commit the retro names is an ancestor of `352866e1d` (`git merge-base --is-ancestor <sha> origin/master` exits 0 for `fae084628`, `be5e2d5e1`, `ea1b2ab8e`, `8164c269c`, `1aba02377`, `faf1031eb`, `a44659e58`, `65ca14703`, `33962b3cc`, `eb6e4a1f0`, `39135e921`, `77c42ef95`). Nothing to re-open.
 
+<a id="ws-doc-d6e27d32-fbbf-44d3-a5ab-756f6cc7274e"></a>
 ## 8. Counts
 
 | | Go | TS/Vue | bash | total |
@@ -145,6 +154,7 @@ Round 3's bugs: every fix commit the retro names is an ancestor of `352866e1d` (
 
 Sites: 67 (row 01: 5, 02: 4, 03: 5, 04: 3, 05: 3, 06: 5, 07: 4, 08: 5, 09: 5, 10: 5, 11: 3, 12: 2, 13: 3, 14: 5, 15: 5, 16: 5).
 
+<a id="ws-doc-6a5e4b70-6b26-41ce-b517-2b105751dd98"></a>
 ## 9. For the owner
 
 - 16 rows (3 Go, 5 TS/Vue, 8 bash) and 2 follow-ups for the shared generated files: batch 1 = 13 rows (7 on PC, 6 on the satellite) plus bug B2, batch 2 = 3 rows.

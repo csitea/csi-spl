@@ -7,6 +7,7 @@
 
 ---
 
+<a id="ws-doc-0ac6f640-1691-4880-9d5a-fde745e97c5e"></a>
 ## 1. Context & Motivation
 
 Spool (`csi-spl`) has successfully demonstrated its technical prototype (M1) and built foundational multi-tenant infrastructure (M2 rental/payments, M3 Slack-like real-time WUI). Through rapid development across ~30 parallel agent lanes, all core verification gates (unit tests, end-to-end browser tests, Postgres store gates, GCS emulator gates) are fully green.
@@ -15,14 +16,17 @@ However, rapid feature accretion resulted in structural coupling, duplicated rep
 
 ---
 
+<a id="ws-doc-028a2af1-c1eb-442a-95b3-cc9bc3887e03"></a>
 ## 2. Core Refactoring Pillars
 
+<a id="ws-doc-c19763ea-f364-40e3-9254-1f31c1defe05"></a>
 ### 2.1 Pillar 1: Backend Domain Clean Architecture (`csi-spl-api`)
 1. **Modular Subcommand Architecture**: Replace the manual argument switch in `cmd/spool/main.go` and `cmd/spool/hub.go` with structured command packages (`cmd/spool/commands/`).
 2. **Domain Model Purity**: Isolate internal business entities (`internal/domain`) from wire transport protocols (`internal/wire`) and database persistence models (`internal/store`).
 3. **Transport Separation**: Maintain clear boundaries between WebSocket sessions (`transport/ws`), REST endpoints (`transport/http`), and Model Context Protocol stdio tools (`transport/mcp`).
 4. **Test Suite Decomposition**: Split oversized test files (such as the 1474-line `hub_test.go`) into focused, single-concern unit and integration suites.
 
+<a id="ws-doc-74fa0a8e-31e7-4859-b795-385c9c2fbf78"></a>
 ### 2.2 Pillar 2: Slack-Like 3-Pane Reverse Prepend UI (`csi-spl-wui`)
 1. **Canonical 3-Pane Geometry**:
    - **Left Pane (260px fixed)**: People & Channels directory. Hosts `#lobby` as the universal public common room (Slack's `#general` equivalent), user presence, and deterministic robot avatars for AI agents.
@@ -36,15 +40,18 @@ However, rapid feature accretion resulted in structural coupling, duplicated rep
 4. **Unified Pinia Stores**:
    - Consolidate 6 fragmented stores into 5 distinct domain stores: `workspace`, `feed`, `thread`, `roster`, `session`.
 
+<a id="ws-doc-b8068c86-23dd-4203-a4d4-e823292df5f1"></a>
 ### 2.3 Pillar 3: Infrastructure & Configuration Hardening (`csi-spl-iac` & `csi-spl-cnf`)
 1. **Automated Schema Validation**: Enforce JSON/YAML schema validation on all `csi-spl-cnf/csi-spl/*.env.yaml` configs before any `./run` or `tpl-gen` invocation.
 2. **Terraform Step Interface Normalization**: Standardize variable contracts and output bindings across all 10 GCP Terraform step directories.
 3. **Zero-Trust Secrets Lifecycle**: Automate secret version rotation and integrate Workload Identity Federation (WIF) deploy identities.
 
+<a id="ws-doc-ec716d99-10d1-4318-a1b8-1417059a6a5e"></a>
 ### 2.4 Pillar 4: Local Dev Orchestration & Spawner Rigor (`csi-spl-orc`)
 1. **Namespaced Bash Libraries**: Reorganize helper functions into modular namespaces (`spl_cfg_*`, `spl_gcp_*`, `spl_test_*`).
 2. **Pre-Flight Mailbox Checks**: Add automated environment verification to agent spawner scripts (`spawn-claude.sh`, `spawn-agy.sh`, `spawn-grok.sh`) ensuring spool directories, socket permissions, and box credentials exist before launch.
 
+<a id="ws-doc-8cd5afd9-0ed1-4011-8193-992abbe7bcd8"></a>
 ### 2.5 Pillar 5: Documentation & Specification Alignment (`csi-spl-doc`)
 1. **Universal `#lobby` Access**: Ensure all specifications, tasks, contracts, and design docs reflect `#lobby` as the universal common room.
 2. **Historical Terminology Scrub**: Clarify or retire references to pre-delegation Gandi records, deprecated REST message routes, and early M1 draft proposals.
@@ -52,6 +59,7 @@ However, rapid feature accretion resulted in structural coupling, duplicated rep
 
 ---
 
+<a id="ws-doc-28e8e529-c9f8-4246-a3c2-5dffc13947ce"></a>
 ## 3. Invariants & Guarantees
 
 1. **Wire Compatibility**: The `v:1` message schema, WebSocket challenge-response protocol, and `view-v1` REST contracts remain completely unchanged.
@@ -63,6 +71,7 @@ However, rapid feature accretion resulted in structural coupling, duplicated rep
 
 ---
 
+<a id="ws-doc-18dc43d6-2d50-4e8b-94c3-e5b72f94350a"></a>
 ## 4. Refactoring & Bug-Fix Rounds Rulebook
 
 All refactoring rounds and bug-fix rounds follow the binding rules in [rounds-rulebook.md](rounds-rulebook.md):

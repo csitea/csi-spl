@@ -20,6 +20,7 @@ late), the CI table (the draft gave every row a green verdict; 5 rows met a
 red first run, section 3), the branch count (36 round branches, not 33:
 3 lane-prefixed ones escape the prune matcher, section 5).
 
+<a id="ws-doc-b208174b-0d7c-4c8c-88c5-43149c6e28a2"></a>
 ## 1. What landed
 
 `git log 43688a782 -E --grep='r9-[0-9]{2}' --format='%h %cI %s'` -> **16**
@@ -51,6 +52,7 @@ Held on `43688a782`, re-measured:
   (`git merge-base --is-ancestor <sha> 43688a782`, n=10, rc 0 each). None
   reverted.
 
+<a id="ws-doc-b10c7ec8-3528-4b95-9e26-368f89739827"></a>
 ## 2. Lanes and time
 
 Lane ids: the commit branch names on origin (`c-996-r9-05-...`,
@@ -79,6 +81,7 @@ c-110, c-996, c-998); c-504, c-513 and c-517 ran on PC.
 - Spawn times are not given: the brief files' mtimes are their last write,
   not the spawn (row 07's brief is 2 min older than its commit).
 
+<a id="ws-doc-afcf9701-916b-4a1f-8604-02d6cc1c6cc1"></a>
 ## 3. CI (R11)
 
 For each row: the first completed, non-cancelled master run of
@@ -107,8 +110,10 @@ the red, and trunk carried it from 10:48Z until `8a05cde84` (12:01Z), about
 name `perf-budget.py` in its test column, and `cleancode` + typecheck cannot
 see the bundle size.
 
+<a id="ws-doc-4f626931-421b-4a96-85e0-9f6f20444e4d"></a>
 ## 4. What the round taught
 
+<a id="ws-doc-2fea7d1e-cbdd-4407-bbc9-dfb107608d9b"></a>
 ### 4.1 R7: every recorded review crossed vendors, 3 rows have none
 
 - `git log 43688a782 -E --grep='r9-[0-9]{2}' --format=%B | grep -c '^review: '` -> **7**.
@@ -125,6 +130,7 @@ Nothing refuses a round row without a review line:
 `git grep -nE "\^review: " -- 'csi-spl-orc/src/**' 'csi-spl-iac/src/**' '.github/**'` -> 0 hits.
 R7.4 is a rule with no gate; round 10 gets the gate (input 9).
 
+<a id="ws-doc-4d425b0c-9558-432b-9b9c-0fd8fb43f202"></a>
 ### 4.2 C7: the reviewed sha is the landed sha
 
 - 8 review branches point at the landed sha itself
@@ -133,6 +139,7 @@ R7.4 is a rule with no gate; round 10 gets the gate (input 9).
 - Row 02 reviewed `015115ca1` (`review/c-104-r9-02-...`), landed `b4190feee`:
   `git diff 015115ca1 b4190feee -- $(git show --name-only --format= b4190feee) | grep -c '^[-+][^-+]'` -> **0**.
 
+<a id="ws-doc-b24e9124-6b28-43ca-899e-3ecd1e3d3bf6"></a>
 ### 4.3 The WUI rows need the bundle budget in their test column
 
 Row 04 split a store and grew the initial JS by 0.1 KB gzip over the 155 KB
@@ -140,6 +147,7 @@ budget. The round 10 WUI rows run
 `python3 csi-spl-orc/src/bash/scripts/perf-budget.py bundle` on the generated
 bundle before the push (the CI job's command), with the CI node version.
 
+<a id="ws-doc-cb4fcc5c-4f4d-4813-b437-e714f97e57a8"></a>
 ## 5. Branches left on origin
 
 - `cd csi-spl-orc && ROUND="7,8,9" DRY_RUN=1 ./run -a do_git_prune_round_branches`
@@ -161,6 +169,7 @@ bundle before the push (the CI job's command), with the CI node version.
   matcher misses 3 r9 branches. Both go to round 10 (input 8); the prune runs
   from that row.
 
+<a id="ws-doc-c501b4fe-a224-4409-8851-e4d8765c534d"></a>
 ## 6. Round 10 inputs
 
 1. **Tests:** `cmd/spool` has 26 functions at 0.0 %
@@ -183,6 +192,7 @@ bundle before the push (the CI job's command), with the CI node version.
 9. **Gate gap (R7):** nothing refuses a round row pushed without a review
    line (4.1).
 
+<a id="ws-doc-bbcbb7a7-cce6-4c4d-a3d0-4d65c8728bbc"></a>
 ## 7. Commands
 
 ```bash

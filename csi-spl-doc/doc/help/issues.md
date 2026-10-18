@@ -10,6 +10,7 @@ issue's own thread.
 
 ---
 
+<a id="ws-doc-d15b2128-ee6f-4be4-9556-bb541040a507"></a>
 ## 1. Opening the Issues list
 
 Click **Issues** in the left rail, or open `/issues` directly. The list fills the
@@ -18,6 +19,7 @@ the navigation.
 
 ---
 
+<a id="ws-doc-0c843816-8060-4068-9fa6-41eaf3b3b11d"></a>
 ## 2. What an issue holds
 
 | Field | Meaning |
@@ -35,6 +37,7 @@ Each issue also has a key (e.g. `SPL-123`); the key prefix is set per workspace 
 
 ---
 
+<a id="ws-doc-74e78205-65ec-4e3b-8303-794b1cacc1d1"></a>
 ## 3. Views
 
 Two views toggle from the buttons on the header row:
@@ -45,6 +48,7 @@ Two views toggle from the buttons on the header row:
 
 ---
 
+<a id="ws-doc-f861777c-0c9d-4352-ab67-c69b124bc403"></a>
 ## 4. Sorting
 
 Sort by **priority** (the default), **level**, **deadline**, **updated** or
@@ -60,6 +64,7 @@ ticked, and **Reverse** to flip the direction.
 
 ---
 
+<a id="ws-doc-5d68898c-f171-443b-964c-6979d98c3cc1"></a>
 ## 5. Filtering
 
 - **Filters** narrow the list by status, priority, level, assignee or label. On a
@@ -73,6 +78,7 @@ ticked, and **Reverse** to flip the direction.
 
 ---
 
+<a id="ws-doc-4ed4ddc1-1d7f-4610-97a7-fe4e05607d73"></a>
 ## 6. Creating and editing (CRUD in place)
 
 - **New**: click the round **+** button. A fresh row appears at the top of the
@@ -89,6 +95,7 @@ ticked, and **Reverse** to flip the direction.
 
 ---
 
+<a id="ws-doc-a0e9e129-b5c8-4feb-a7e9-5f4afaa2eb90"></a>
 ## Next Steps
 
 To see how conversations and threads work, read

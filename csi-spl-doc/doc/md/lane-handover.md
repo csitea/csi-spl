@@ -7,6 +7,7 @@ previous agent and also to move some work which is not done". Built for
 claude lanes (msg b072af77); agy and mistral have their own actions on the
 same shared WIP step.
 
+<a id="ws-doc-efef51d3-8d11-43b1-91eb-bfe3a15b5bb5"></a>
 ## 1. Use
 
 Dry run first (the default): it scans the WIP, picks the mode and prints the
@@ -21,6 +22,7 @@ Then, with the orchestrator's go:
 `TO_ID` defaults to `FROM`: the new agent keeps the id on the other box
 (`c-050@sat`), so its worktree path and its session slug stay the same.
 
+<a id="ws-doc-e4ab4c13-148b-464f-b89d-3829c55cade9"></a>
 ## 2. What it does, in order
 
 | step | what | where |
@@ -37,6 +39,7 @@ The handover brief (`<spool root>/handover/<TO_ID>-from-<FROM>.md` on the
 target) carries FROM's brief, its spool task id, its last outbox message
 and, in B, its `handoff.md`.
 
+<a id="ws-doc-55ab538c-b39c-4f11-a2bc-45ec3422f980"></a>
 ## 3. A or B
 
 A (session resume) is used unless one of these holds, then B:
@@ -50,6 +53,7 @@ A (session resume) is used unless one of these holds, then B:
 `HANDOVER_MODE=B` is also the answer when TO_BOX's agent login has no quota
 left: a resumed session would start on the same limit.
 
+<a id="ws-doc-37b68e16-3d2c-490f-978d-86402c44a884"></a>
 ## 4. After the start
 
 - The new agent's first commit may be `wip(<FROM>): ... handover`: its brief
@@ -59,6 +63,7 @@ left: a resumed session would start on the same limit.
 - FROM's worktree on the old box stays until then (it is the fallback copy);
   `git worktree remove` it on that box afterwards.
 
+<a id="ws-doc-f8d591e7-af80-492a-86e0-d6038efbe115"></a>
 ## 5. Data rule
 
 A transcript can hold secrets. It travels box to box over ssh stdin only:
@@ -66,6 +71,7 @@ never the hub, git, a log or argv, and a transcript the scan flags stays on
 the box (mode B). The finance key rule (spec 125, C6) is the scan's
 NetVisor / bank credential pattern.
 
+<a id="ws-doc-a361e403-5a91-41d9-a875-3b2b033bad6c"></a>
 ## 6. Tests
 
 - `bash csi-spl-orc/src/bash/tests/spl-lane-handover-wip.tst.sh`

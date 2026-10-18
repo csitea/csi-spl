@@ -12,14 +12,18 @@ rules for both human and agent coders" (msg d1753612), and it "explains the
 branching and deployment strategy of ours, WHICH HAS WORKED for the last 4500
 commits" (msg b7a94362).
 
+<a id="ws-doc-55d1e5dd-1e05-43c4-8576-4ce394469e26"></a>
 ## 1. The strategy, as it is
 
+<a id="ws-doc-2cc9f10c-63ad-4369-9e35-f23397bd2aa9"></a>
 ### 1.1 Trunk: everyone pushes to master
 
 There is one long-lived branch, `master`. A change is a small commit, rebased
 onto the current `origin/master` and pushed straight to it:
 `git push origin HEAD:master`. The fleet opens no pull requests; a lane's
-local branch and worktree are scratch space, removed once the change landed.
+local branch and worktree are scratch space. They stay for 24 hours after the
+lane closes, so a fix after the push still finds them, and then the disk guard
+removes them (section 7).
 Outside contributors use a fork and a pull request instead
 ([CONTRIBUTING.md](../../../CONTRIBUTING.md)).
 
@@ -29,6 +33,7 @@ It has carried the project so far, measured 2026-10-10:
 - `git log --merges --oneline origin/master | wc -l` -> 1 merge commit: the
   history is linear, every change rebased.
 
+<a id="ws-doc-bf972106-c2b1-4609-ba02-188f5b5a6728"></a>
 ### 1.2 CI deploys dev and prd on the push
 
 A push to master runs the gate (`.github/workflows/10_ci-quality.yml`) and,
@@ -39,6 +44,7 @@ Nobody deploys by hand on the normal path. A change is done when it is
 deployed in both environments:
 `cd csi-spl-orc && ENV=<dev|prd> ./run -a do_check_deploy_lag`.
 
+<a id="ws-doc-a726a3d7-1ae3-4ac5-8327-a6f0b49b4f4d"></a>
 ### 1.3 The version is minted, never edited
 
 Every hub and web UI deploy mints its commit's version with
@@ -47,6 +53,7 @@ Every hub and web UI deploy mints its commit's version with
 roll the version by hand; the repo [CLAUDE.md](../../../CLAUDE.md) says when
 the floor (`.version`) is raised.
 
+<a id="ws-doc-5b498980-0673-45f3-8a2f-366c1f258249"></a>
 ### 1.4 Every change rides an issue
 
 Agreed in [spec 135](../../specs/135-work-process/spec.md) v1.0 (owner
@@ -81,8 +88,10 @@ model of 1.1-1.3 does not change (Q5); the issue rides on it:
 The rule for lanes, with its commands: [lane issue and docs](lane-issue-and-docs.md).
 Who does which step: [fleet roles](SPEC-spool-fleet-roles.md) section 1.3.
 
+<a id="ws-doc-20330bb9-8141-4b8b-a183-49bb1fa89485"></a>
 ## 2. The rules for a change
 
+<a id="ws-doc-51a57ac2-8a91-4bd2-a936-43181f4e0221"></a>
 ### 2.1 Small commits, explicit pathspecs
 
 - One topic per commit; the message says why.
@@ -93,6 +102,7 @@ Who does which step: [fleet roles](SPEC-spool-fleet-roles.md) section 1.3.
 - Push each commit soon: a change held back while trunk moves becomes a
   rebase nobody can resolve (same page, section 1.3).
 
+<a id="ws-doc-fe2e4a35-68b4-448f-8645-c1d6c567c6ea"></a>
 ### 2.2 Rebase onto the others' work, re-test, then push
 
 Before EVERY push:
@@ -108,6 +118,7 @@ landed when `git merge-base --is-ancestor HEAD origin/master` holds after a
 fresh fetch, not when the push printed `HEAD -> master`
 ([lane integration rules](lane-integration-rules.md) section 3.1).
 
+<a id="ws-doc-0661156a-470d-4ca9-9b3e-32382192c22c"></a>
 ### 2.3 The pre-push gate
 
 `cd csi-spl-iac && ./run -a do_check_pre_push` runs before every push; the
@@ -115,6 +126,7 @@ installed pre-push hook runs it for you. Its tiers and parts:
 [pre-push gate](pre-push-gate.md). Touching the store or a migration:
 `PRE_PUSH_TIER=full`.
 
+<a id="ws-doc-e52c5c39-28e6-4013-bcec-45a2d85de037"></a>
 ### 2.4 UI text is a translation key, never a literal
 
 Owner HUM-10, t1 9f867807 (msg 1f583d2a): "no hardcoding in the UI for text
@@ -141,6 +153,7 @@ Re-measure with `node src/node/i18n/i18n-gates.mjs untranslated` or `raw`
 a count may lower its baseline in the same commit; raising one is never the
 fix.
 
+<a id="ws-doc-ad549934-e5e4-4674-9d4e-f60f6872858f"></a>
 ### 2.5 Identity, no AI trailers
 
 Commits carry the author's real identity, the address on the repo
@@ -149,6 +162,7 @@ Commits carry the author's real identity, the address on the repo
 `Co-Authored-By:`, `Generated with …` or session-link trailer. The why:
 [lane integration rules](lane-integration-rules.md) section 5.
 
+<a id="ws-doc-f0217fb8-6313-42f2-835c-881b59531456"></a>
 ## 3. Never force-push or delete master
 
 A force-push (`--force`, `--force-with-lease`, `+ref`) replaces the commits
@@ -169,6 +183,7 @@ the [lane integration rules](lane-integration-rules.md).
 The why, the owner (msg 097f9de3): "Everyone respects the work of the others.
 We are team and not a bunch of selfish cawboys".
 
+<a id="ws-doc-92d9d053-6961-40d4-9560-9e13a706185b"></a>
 ## 4. What enforces it
 
 Live on master on 2026-10-10, each checked by the command shown:
@@ -186,6 +201,7 @@ runs (`git grep -l force-push-guard origin/master` -> the matcher and its test
 only). Until they land, the ruleset and the pre-push hook are the layers that
 stop a forbidden push.
 
+<a id="ws-doc-87e80942-e405-4f54-9dc6-d7d229c7010b"></a>
 ### 4.1 UI work and the vendor re-test
 
 Owner HUM-10, t1 b61851fb (2026-10-16): of 5 mistral lanes on WUI and orc
@@ -209,6 +225,7 @@ re-test flips it, never a hand edit:
    ./run -a do_spl_vendor_ui_retest` checks all of it in code: 3/3 writes
    `true`, anything less writes `false`. Commit the cnf like any change.
 
+<a id="ws-doc-382bde59-778b-4ad4-9688-4dbe962170c2"></a>
 ## 5. Where the rest is
 
 - Every fleet rule and its one home: [fleet rules index](fleet-rules-index.md).
@@ -217,6 +234,7 @@ re-test flips it, never a hand edit:
   [CLAUDE.md](../../../CLAUDE.md).
 - Outside contributors: [CONTRIBUTING.md](../../../CONTRIBUTING.md).
 
+<a id="ws-doc-f8bc29a6-cc41-4f84-90a2-4c3a816a102f"></a>
 ## 6. Confirm you have read this guide
 
 Owner, 2026-10-10 (msg 56d7073e): every new coding person or agent "must
@@ -239,3 +257,14 @@ blob sha, in your ack store under `$XDG_STATE_HOME` (default
 - Work trees created before 2026-10-11T00:00Z pass without an ack until
   the guide first changes after that time, so the rollout stopped no one
   already working.
+
+<a id="ws-doc-c01f7fd2-30bb-4e7b-b4f5-d7dfa1d6d2b9"></a>
+## 7 The disk guard
+
+A lane's worktree is not removed when the lane ends (owner, t1 37349c9b msg ec060ebc): a fix after the push still finds it. The code:
+
+- `csi-spl-orc/src/bash/features/spawn-agents/scripts/workdir-register.sh` writes the table, `$SPOOL_ROOT/workdirs.tsv`, one row per directory: path, kind (`worktree`, `scratch` or `var-tmp`), agent, box, branch, finished_at. `agent-id-retire.sh` (steps 7 to 9) calls it when a lane's window closes, in place of removing anything. `next-agent-id.sh` (rule 6) never hands out an id that a row names.
+- `csi-spl-utl/src/bash/scripts/workdir-sweep.sh`, run as `cd csi-spl-utl && ./run -a do_sweep_workdirs`, removes a listed directory after 24 hours (6 at 8% free or less). The box disk sweep (`csi-spl-orc/src/bash/scripts/box-disk-sweep.sh`) runs it as its `workdirs` step.
+- Tests: `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` (the table and the sweep), `spawn-agents/tests/test-agent-id-retire-worktree.sh` and `test-lane-scratch-reap.sh` (the retire lists, the sweep removes 25 hours later).
+
+Every new disk action lives in `csi-spl-utl` (owner, msg 177ce9f3: "a shell action which could also be run manually"), runs by hand as `cd csi-spl-utl && ./run -a do_<verb>_<noun>`, is a dry run unless `DRY_RUN=0`, and runs from cron through the same command. To add a rule: a check in `workdir-sweep.sh` that sets the KEEP reason, a case in `workdir-sweep.tst.sh` with a red control (the same row without the condition is removed), and a line in the operations and maintenance guide's sweep section.

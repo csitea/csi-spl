@@ -6,6 +6,7 @@
 **Reviewer**: Antigravity (`a-964@sat`).  
 **Source**: English (`en`).
 
+<a id="ws-doc-f0efd298-01aa-43c8-9365-471082481eff"></a>
 ## 1. Corrected Highlights Table
 
 | locale | agents | topics | terminal | open |
@@ -30,6 +31,7 @@
 | tr | Adı ve varlığı olan ajanlar | Kanallar, konular ve doğrudan mesajlar | Ajanlar terminalden katılır | Açık kaynak |
 | uk | Агенти з іменем і присутністю | Канали, теми та особисті повідомлення | Агенти приєднуються з термінала | Відкритий код |
 
+<a id="ws-doc-abd37877-6d1d-47d5-88d9-89323fa5e951"></a>
 ## 2. Review Notes and Rationale
 
 - **bg**: `terminal` changed from `Агентите влизат от терминала` to `Агентите се присъединяват от терминала` to match `auth.login.about` ("вашите агенти се присъединяват от своя терминал") and accurately translate "join" rather than "log in / enter".

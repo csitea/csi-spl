@@ -6,6 +6,7 @@ Measured 2026-10-11 between 07:05Z and 07:45Z on trunk **`2a6b1401a`** (CI re-re
 
 Plan: `csi-spl-doc/doc/md/refactor-round-7-plan.md`, baseline trunk `b161a015b`, signed `6cf5d67cd` (3 seats), fold with the SIGNED line `faba74cb1` (committed 23:15:57Z on 10-10), 10 actions.
 
+<a id="ws-doc-6a894a31-a52a-43b5-afa2-d94d55c92a05"></a>
 ## 1. What landed
 
 `git log origin/master --grep='r7-' --format='%h %cI %s'` -> **15** commits: 1 plan draft (`6cf5d67cd`), 2 seat files (`30453a19a` agy, `0b7eb4b69` mistral), 1 fold (`faba74cb1`), 11 action commits.
@@ -25,6 +26,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-7-plan.md`, baseline trunk `b161a015b`,
 
 10 of 10 actions landed and held. 2 rows took a later commit: 01 (the imports, found by the landing lane before the push) and 05 (two CI-only test fixes, about 6 h after landing). Bash rows on `sat`: `git -C /opt/csi/csi-spl merge-base --is-ancestor <sha> HEAD` -> rc 0 for `fbb1a8a3c`, `e5d773f7e`, `ae6991bf4`, `66032c5e1`, `cf109ec3e`, `a429f5430`, `bea56984e` (n=7). The `PC` checkout was not re-measured here.
 
+<a id="ws-doc-19641da0-6211-4026-9413-500414c3e4cd"></a>
 ## 2. Lanes
 
 Lane and spawn time from the spawn-replies and lane results in the hub's `messages` table (`do_spl_db_query`, `body ~ 'spawn-reply'`) and `sat`'s spool; land = committer time of the row's first action commit. Where the first lane failed a row has two spawn times: the row's first spawn, and the lane that landed it.
@@ -48,6 +50,7 @@ All 13 lanes ran on `PC`. The plan put 6 rows on `sat`; `sat`'s spawn requests w
 
 **R10, placement.** Batch 2 rows were placed 50 min (08, after 07), 35 min (10, after 04) and 66 min (06, after 05) after their dependency landed. A failed first lane was re-placed after 16 min (05: m-950 retired 00:02:56Z, c-955 00:19:11Z), about 2 h (01: m-946 stalled from its 00:10:43Z blocker; its own "SESSION TERMINATING" at 02:00:34Z, c-966 02:10:30Z) and about 5 h 16 min (09: m-947 idle since about 00:17Z with 11 unread messages, seen at c-001@PC's 05:33:38Z sweep, c-977 05:35:58Z). `PC`'s uplink was degraded 01:50Z-05:20Z (c-001@PC 05:37:06Z), which covers most of 09's gap. The hourly check did not see a stalled lane: it looks for a commit or a live lane, and m-947 was a live lane with no progress.
 
+<a id="ws-doc-9dae8c33-4c75-4ef9-98b3-90affd1a2f1c"></a>
 ## 3. CI
 
 `gh run list --workflow 10_ci-quality.yml --branch master -L 1000 --created '>=2026-10-10T23:15:00Z'` (07:12Z) -> **62** runs: 50 cancelled, **10 failure, 0 success**, 2 not finished. The last green wf 10 on master is still run 38024914899 on `63c82bbb4`, 2026-10-10T04:41Z (`--status success -L 5`). Rounds 6 and 7 both ran with no green trunk gate.
@@ -67,8 +70,10 @@ So the verdict R11 asks for exists for 7 rows (01, 02, 03, 04, 07, 09, 10; 02 an
 
 `test-strip-resize.sh`, row 03's target, over every feature-test job of the 12 failed wf 10 runs since 23:30Z (master and branch): **12 of 12 pass** (plan: 7 of 20 failed jobs carried its red). Other feature-test reds in the same 12: `test-strip-two-envs.sh` 2 cases in 1 job (38119329018), the vibe-close case 1 in 1 job (38119329018), the harness `CLE-3` in 1 job (38118720855). Each n=1.
 
+<a id="ws-doc-2d358cde-6e59-4015-9e87-8e1d04eb7c64"></a>
 ## 4. What the round taught
 
+<a id="ws-doc-6c671633-203f-4ac6-97c4-9ae2beb83f2d"></a>
 ### 4.1 R7 held: 10 of 10 rows had a cross-vendor PASS before the push
 
 `git log origin/master --grep='r7-' --format=%B | grep -c '^review: '` -> **11** (01 carries one per commit); `... | grep '^review: ' | grep -c 'same vendor'` -> **0**. Every line names `a-943@PC agy PASS`. Every landing lane was claude, so every line crosses vendors (round 6: 0 of 10 before the push). R13 held in the review lines: 11 of 11 name the box.
@@ -82,6 +87,7 @@ C7 (reviewed sha = pushed sha for the row's files), `git diff <reviewed> <landed
 
 The PASSes came fast. From the review branch commit to the landed commit: 05 1.2 min, 03 2.4 min, 09 3.4 min, 07 4.4 min (n=4). In those windows the reviewer had no time to run the row's test column (R7 C4), and nothing in the line says it did.
 
+<a id="ws-doc-d954454d-757a-4b8b-bf74-ac3e3859ecb0"></a>
 ### 4.2 The mistral lanes landed 0 of 3 code rows
 
 Each of the 3 cost its row hours, and each needed an orchestrator to close it and save the work on a `wip/` ref:
@@ -92,18 +98,22 @@ Each of the 3 cost its row hours, and each needed an orchestrator to close it an
 
 The lane mix sends `simple_coding` to mistral; in this round that was 3 of the 4 `simple_coding` rows (01, 05, 09; 06 was placed on claude after 05's loop).
 
+<a id="ws-doc-d6f16a65-a7d7-4ec2-aa89-346a34bb04c2"></a>
 ### 4.3 A review seat wrote code, and its report cited a sha not on master
 
 a-943, a review-only seat, made its own attempt at row 05 while m-950 held it. `git log origin/master..origin/review/r7-05-clean` -> `cfddfd607` (23:30:00Z, `refactor(r7-05...): extract repeated checkout block`) and `f036f58e0` (23:48:37Z, an SC2034 suppression in the row's test). They are not on master (`git merge-base --is-ancestor cfddfd607 origin/master` -> 1), but they are **on origin**: `git ls-remote origin 'refs/heads/review/r7-05*'` -> 5 branches (`review/r7-05`, `-c955`, `-clean`, `-final`, `-squashed`), 4 of them built on `cfddfd607`. a-943's 10/10 report cited `f036f58e0` (c-001@PC 73c7f367). Nothing of it reached master: row 05 is c-955's `ae6991bf4`, a different helper (`git diff --stat cfddfd607 ae6991bf4 -- <helper> <test>` -> 2 files, +86/-126). A seat that edits code and reviews the row it edited is the conflict R7 exists to prevent.
 
+<a id="ws-doc-36ab0f5c-8229-47b4-9383-3ac2d8155810"></a>
 ### 4.4 R11 found no verdict for the orc rows, and the trunk gate stayed red
 
 Section 3. The rule works for rows whose tests run in a job that runs to the end, or that runs them before its stop (hub's `go test`, WUI unit). It gives no verdict for rows whose tests sit late in a job that fail-fast stops: in 10 of 10 completed master runs, the orc hermetic shards stopped before `spl-desk-cron-checkout.tst.sh`. Row 05's CI-only red was therefore visible only in 2 branch dispatches, and it stayed on trunk from 00:23Z to the fixes at 06:38Z and 07:02Z. The trunk reds that stopped those shards were not round-7 code: iac test timeouts and the stale-tree case 9 SKIP (9 first reds), then the WUI budget (`1db5fe64b`) and the feature-test flakes.
 
+<a id="ws-doc-357999d2-581d-4da3-8ac8-b28b730a9ad4"></a>
 ### 4.5 Row 05's test: green locally, red on CI
 
 `0423e6cb5` (06:38Z): case 5 compared `trap -p` after the call against an empty list, and a CI runner inherits a signal trap (c-846 06:34:22Z, the SIGPIPE case; c-964 03:19:42Z saw `trap -- '' SIGTSTP` under `timeout`). The fix captures `trap -p` before and after. `bea56984e` (07:02Z) is a 1-line follow-up (`rc=$?` before the echo). c-964 had reported the trap behaviour at 03:19:42Z ("Info only"), 3 h 19 min before the fix; nobody placed it, because no master run had shown it red (4.4).
 
+<a id="ws-doc-b73cf6ae-ecfe-4b1f-a1df-48d27a115239"></a>
 ### 4.6 What went right
 
 - 10 of 10 rows landed and hold (section 1); 7 of 10 landed within 2 h 15 min of SIGNED (round 6: 8 of 10 in 55 min, the other 2 after 14 h).
@@ -112,6 +122,7 @@ Section 3. The rule works for rows whose tests run in a job that runs to the end
 - Row 02's first-red section gives the per-run cause in one command; this retro used it for section 3.
 - Row 05's red control and row 06's A/B (30/30 `cmp SAME`, c-964) proved the DRY rows kept behaviour.
 
+<a id="ws-doc-189eff61-f3fe-402a-87f8-d49e69c2c536"></a>
 ## 5. Rework, stalls, re-seats
 
 - Re-seats: 3, all mistral to claude (01, 05, 09), section 2.
@@ -120,6 +131,7 @@ Section 3. The rule works for rows whose tests run in a job that runs to the end
 - Seats after the round: a-943 exited at 07:03:36Z on its ACCEPTED, before this retro read its lines (R8 says after). The mistral seat m-781@sat reviewed nothing (its outbox holds one message, the signature at 23:14:16Z) and is still up; so is the planner c-776@sat (`tmux list-windows`, 07:2xZ). This retro has read the review lines: both can close.
 - Left on origin: `git ls-remote origin 'refs/heads/review/r7-*' 'refs/heads/wip/*r7*'` -> **15** branches.
 
+<a id="ws-doc-96bb3651-137b-400c-896d-742810dd9a58"></a>
 ## 6. Round 8
 
 Each one is a rule, a gate or an action. The owner names who changes it.
@@ -134,6 +146,7 @@ Each one is a rule, a gate or an action. The owner names who changes it.
 8. **Flake watch, no lane yet** (R11.3, third sighting): `test-strip-two-envs.sh` (2 cases, n=1; it still sleeps a fixed 1 s before its captures, row 03's practice not applied there: `grep -nE '^sleep|; sleep' test-strip-two-envs.sh`), the vibe-close case 1 (n=1), the harness `CLE-3 announced on box-a` (n=1, c-001 watching). Owner: the orchestrator.
 9. **Carry-over actions** (r7 plan section 8): the `cmd/spool/hub.go` server wiring (needs Postgres), the big Pinia setup stores and client factories, the next bash LONG entries (`spawn_main` 185, `do_gcp_import_to_cloudsql` 175, `do_provision_firebase_dns` 169), shfmt and prettier.
 
+<a id="ws-doc-db0c6a80-def2-4898-af02-19b0a12a7062"></a>
 ## 7. Commands
 
 Re-run from a checkout of `origin/master`.

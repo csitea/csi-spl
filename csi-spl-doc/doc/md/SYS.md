@@ -12,6 +12,7 @@ Sections:
 
 ---
 
+<a id="ws-doc-73b6eff5-3040-4ac6-b164-0296036b7153"></a>
 ## 1. The satellite: the GCP agent box
 
 The satellite is ONE always-on Debian VM in GCP. It runs AI CLI agents for
@@ -20,6 +21,7 @@ reach it only over ssh, through Google's IAP tunnel, as an extension of a fleet
 box's terminal. Spec: [057-satellite](../../specs/057-satellite/spec.md).
 Section 7 of the spec records how it was actually built.
 
+<a id="ws-doc-efd523f8-6837-4a70-8a52-484bc69d3504"></a>
 ### 1.1 What runs, as of 2026-10-01
 
 | item | value |
@@ -39,6 +41,7 @@ Section 7 of the spec records how it was actually built.
 | budget | `csi-spl-all-satellite`: 170 per month in the billing account's currency, alerts at 50/90/100%, filtered to resources labelled `box=satellite` |
 | cost | about $163 per month list price: VM ~$145, disks ~$14, NAT/IP ~$4 |
 
+<a id="ws-doc-37a91e95-fe17-4b80-89a0-825c4e8f33fa"></a>
 #### 1.1.1 What lives on which disk
 
 | disk | holds | survives |
@@ -49,6 +52,7 @@ Section 7 of the spec records how it was actually built.
 No snapshots and no backups (owner: git is the backup): anything not pushed is
 lost with its disk.
 
+<a id="ws-doc-b9c3448e-c33d-4c09-8b06-ba29d00fd7db"></a>
 ### 1.2 What is installed
 
 Everything in the VM is installed by ONE Ansible playbook, the eli-vta
@@ -75,6 +79,7 @@ installs it; `do_satellite_verify` compares each with the box PC.
 Not on the satellite: the AI CLI logins (each user's own interactive step,
 1.5.9), grok / agy / qwen, chrome (for e2e), a seated spool desk.
 
+<a id="ws-doc-1d051f2d-cd7d-4f5c-afcf-86dad529497d"></a>
 ### 1.3 Where it is defined
 
 | what | where |
@@ -103,6 +108,7 @@ Both steps take their cnf from **prd** (`ENV=prd`), but they run as the
 `gs://csi-spl-all-tfstate`. This is the same pattern as step 046 and
 csi-spl-bkp. The dev renders of both steps are header-only (`# prd-only-step`).
 
+<a id="ws-doc-5ffe3deb-70d0-4e88-a5f1-45fec3ef05d0"></a>
 ### 1.4 Identity rules
 
 - After the one-time project bootstrap, everything runs as the **csi-spl-all
@@ -122,6 +128,7 @@ csi-spl-bkp. The dev renders of both steps are header-only (`# prd-only-step`).
 - The owner's AI accounts are never copied: each CLI logs in on the satellite
   with its own paste-the-code login (1.5.9).
 
+<a id="ws-doc-0fdbd106-e3ac-44c3-907d-48d932bd3a2e"></a>
 #### 1.4.1 Who is who
 
 | identity | holds | used for |
@@ -132,10 +139,12 @@ csi-spl-bkp. The dev renders of both steps are header-only (`# prd-only-step`).
 | dev + prd SA keys in `~/.gcp/.csi/` of `<owner>` and `<agent>` | per env, as on the home box | `ENV=dev\|prd ./run -a ...` on the satellite |
 | GitHub token `~/.github/token` of both users | repo access | the clones, pulls and pushes on the satellite |
 
+<a id="ws-doc-8bf24a88-c633-4d47-a660-44bead2fc8dd"></a>
 ### 1.5 Operating it
 
 All commands run as the box user, from the main checkout.
 
+<a id="ws-doc-e4b339d3-7266-4ef8-a22b-dc107ce0a72e"></a>
 #### 1.5.1 Connect
 
 One-time on a fleet box: write the `Host satellite` block and pin the VM's host key.
@@ -150,6 +159,7 @@ Then:
 ssh satellite
 ```
 
+<a id="ws-doc-018c652f-a8a5-4b1b-931f-1ec621399f01"></a>
 #### 1.5.2 Verify everything (read-only, csi-spl-all SA only)
 
 ```bash
@@ -173,12 +183,14 @@ It prints one `PASS`/`FAIL` line per check:
 It ends with `SATELLITE-VERIFY fails=N`. It was 15/15 PASS on 2026-10-01
 after the destroy+recreate drill.
 
+<a id="ws-doc-c8f1d9dd-0d13-482d-8958-66ffec125d84"></a>
 #### 1.5.3 Plan a change (the step reads its key and state itself)
 
 ```bash
 cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd STEP=060-gcp-vm-satellite make do-tf-plan
 ```
 
+<a id="ws-doc-a9ea3181-edd7-473d-9bf3-32953f28c56b"></a>
 #### 1.5.4 Apply a change (owner go per apply)
 
 ```bash
@@ -191,6 +203,7 @@ The budget step also needs the billing id in the environment:
 cd /opt/csi/csi-spl/csi-spl-orc && GCP_BILLING_ACCOUNT_ID=<BILLING_ACCOUNT_ID> ENV=prd STEP=059-gcp-satellite-budget make do-provision
 ```
 
+<a id="ws-doc-cc14dd5a-dea6-49e7-b265-cb08e54456bc"></a>
 #### 1.5.5 Re-run the box setup (idempotent)
 
 The playbook, inside the tf-runner container (the eli-vta ad-hoc path as a
@@ -213,6 +226,7 @@ The same, straight in the container:
 docker exec -it con-csi-csi-spl-tf-runner bash /opt/csi/csi-spl/csi-spl-iac/src/bash/scripts/run-ansible-csi-spl-prd-060-gcp-vm-satellite.sh
 ```
 
+<a id="ws-doc-b658cc5f-42b6-4157-b3b3-564e021b66a9"></a>
 #### 1.5.6 Destroy and recreate (owner go for every destroy)
 
 Show what would be removed: 10 resources for 060, 1 for 059.
@@ -259,6 +273,7 @@ the end WITHOUT errors"):
 | 3 | 12 / 12 | 1 failed (09) | no Go for `govulncheck`; role 02 installs the go.mod Go into `/usr/local/go` |
 | 4 | 12 / 12 | **73 ok, 0 failed** | verify then read 19 FAIL, 18 of them its own bugs (sudo dropped the user names, the agent started in an unreadable cwd); fixed: **71 PASS / 1 FAIL**, the one being the agent's claude login (1.5.9) |
 
+<a id="ws-doc-b00e642a-a2ef-48bc-b765-23791a6eea86"></a>
 #### 1.5.7 Raise the pinned image
 
 ```bash
@@ -269,6 +284,7 @@ Copy the printed image into `boot_disk_image` in cnf, run
 `ENV=prd ./run -a do_tpl_gen`, then plan and apply. The image change
 recreates the VM; the data disk survives.
 
+<a id="ws-doc-acfff567-7c76-4655-9d24-cf3529738f86"></a>
 #### 1.5.8 Build from nothing, in order (owner go for every GCP change)
 
 1. Project bootstrap, once, with the owner login (dry run unless `DRY_RUN=0`):
@@ -302,6 +318,7 @@ cd /opt/csi/csi-spl/csi-spl-iac && ENV=prd ./run -a do_tpl_gen
 6. Step 060: `make do-tf-plan`, then `make do-provision` (1.5.3, 1.5.4).
 7. Then the steps after a recreate (1.5.6): the 060 apply already ran the playbook.
 
+<a id="ws-doc-50154dd6-0d18-4ad2-b80b-10b42200a3bc"></a>
 #### 1.5.9 The claude login, per user
 
 Agents run as `<agent>`, so the claude login is `<agent>`'s, in
@@ -317,6 +334,7 @@ ssh -t satellite sudo -iu <agent> claude auth login
 `do_satellite_verify` then reads `<agent>: claude is logged in` as PASS. The
 `<owner>` user needs no claude login (it runs tmux, not agents).
 
+<a id="ws-doc-d5528e0a-a035-4d3b-ae2d-59f856cdf2b2"></a>
 #### 1.5.10 Keep agents alive after ssh disconnects
 
 Linger is on for `<owner>` and `<agent>`; run agents inside the owner's tmux,
@@ -326,6 +344,7 @@ never in the bare ssh session:
 ssh -t satellite sudo -iu <owner> tmux new -A -s main
 ```
 
+<a id="ws-doc-26116b72-8490-452d-b8f2-9d18538c037e"></a>
 ### 1.6 Owner decisions (topics f35d82fc, b23639e2)
 
 | date (UTC) | decision |
@@ -337,6 +356,7 @@ ssh -t satellite sudo -iu <owner> tmux new -A -s main
 | ~14:15 | "destroy and recreate it ... verify everything once again": done, 15/15 PASS |
 | ~14:47 | keep it on; document it here; next, an agent replicates the home box's AI-user setup onto it |
 
+<a id="ws-doc-82637860-07a3-4b09-89ff-d80e767d02f5"></a>
 ### 1.7 The satellite trio and the fleet lease
 
 Owner decision "a" (t1 5fe56859, 2026-10-01): exactly one orchestrator and one
@@ -364,6 +384,7 @@ and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers
 - Phasing out the PC is one config change: `LEASE_PRIORITY=sat,<pc box>` on both
   machines (HOWTO 6.4).
 
+<a id="ws-doc-9ee825e7-6171-4476-a1d9-aa0524d96d69"></a>
 ### 1.8 Known gaps and next steps
 
 - The agent's claude login (1.5.9), the owner's one interactive step; verify

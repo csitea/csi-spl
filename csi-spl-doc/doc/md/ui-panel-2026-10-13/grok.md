@@ -10,6 +10,7 @@ Eight items, ranked. Speed, the paint the timer actually shows, then
 cleanliness. Each one names the files, the gain, the effort, and the command
 that proves it.
 
+<a id="ws-doc-4dfc1f95-c19e-40cd-bd42-5abc82a74296"></a>
 ## Measurements
 
 Box `sat`, 16 cores. Two passes.
@@ -41,6 +42,7 @@ Two results the numbers already settled, so they are not items:
   spec 109 T003: the bytes fell and the same chunks arrived as a waterfall.
   Item 3 shrinks the closure instead.
 
+<a id="ws-doc-5f10f164-ff11-46ea-aabf-472b6ef93722"></a>
 ## 1. Aesthetic — the 88 ms paint does not match the shell
 
 What. `.spl-boot__side` is hardcoded at `240px`. The shell token
@@ -73,6 +75,7 @@ print("brand", "spl-boot__brand" in boot)
 Today: `sidebar 260 boot 240` and `brand True`. Done when the widths match
 and `brand` is `False`. The paint text at FCP is no longer `spool-hub`.
 
+<a id="ws-doc-3b904fc2-a1a8-4132-ba0b-3454039761f8"></a>
 ## 2. Speed — prerendered pages have no skeleton
 
 What. `layouts/default.vue` wraps the whole frame, including the page slot,
@@ -94,6 +97,7 @@ Measured by: after `nuxt generate`, `index.html` contains the fallback, and
 `node src/node/test/bundle-size.mjs .output/public --json` still reports
 `initial.gzipKB` at or under 155. The fallback is HTML, not another chunk.
 
+<a id="ws-doc-0a5c7f02-9a45-4259-b47b-5cb8debf3832"></a>
 ## 3. Speed — `/` modulepreloads the composer the lobby does not
 
 What. `layouts/default.vue` static-imports `TopBar.vue` (line 178).
@@ -125,6 +129,7 @@ cd csi-spl-wui && node src/node/test/bundle-size.mjs .output/public --json
 155. A grep of the home document's modulepreload targets no longer finds
 `composer-target-chip`.
 
+<a id="ws-doc-44d95f8a-db20-42ab-bb04-e1b9fd92c66f"></a>
 ## 4. Speed — 23 stylesheets before the shell
 
 What. `/lobby` names 23 CSS files, 24.9 KB gzip. The bytes are modest. The
@@ -144,6 +149,7 @@ Measured by the same link count: stylesheet plus `rel=preload as=style` on
 the lobby HTML. Today 23 files, 24.9 KB gzip. `initial.gzipKB` does not move,
 because CSS is outside that sum.
 
+<a id="ws-doc-0327cdb1-40d9-49a1-b481-ab1eada570af"></a>
 ## 5. Aesthetic — the type token names a face that never loads
 
 What. `--font-stack` is `"IBM Plex Sans"` and `--font-mono` is `"IBM Plex
@@ -166,6 +172,7 @@ Measured by: `grep -R -c "@font-face" csi-spl-wui/src` prints nothing today. Aft
 headless check of `document.fonts.check('16px "IBM Plex Sans")'` is true
 once the file has loaded, and the lobby FCP median stays in the same band.
 
+<a id="ws-doc-966885f1-ac97-4432-8b79-52fb26d682f5"></a>
 ## 6. Clean — `issues.vue` is 4031 lines
 
 What. One SFC holds the page. Template starts at line 9, script at 1136
@@ -194,6 +201,7 @@ cd csi-spl-wui && node src/node/test/run-unit-tests.mjs
 Done when the page is under 1500 lines and the unit run is green. Today
 `wc -l` is 4031.
 
+<a id="ws-doc-002fae3e-116e-45f4-beec-40b0ffb458e3"></a>
 ## 7. Clean — the sidebar footer is a second component inside the first
 
 What. `ChannelSidebar.vue` (2224 lines) paints the version, the commit
@@ -215,6 +223,7 @@ Measured by: `wc -l csi-spl-wui/src/components/ChannelSidebar.vue` below
 today's 2224, and `node src/node/test/run-unit-tests.mjs` green. A search
 for `app-version-copy` finds it in the new file only.
 
+<a id="ws-doc-0a6b3aad-ac0b-48d3-a1aa-d78d67393b61"></a>
 ## 8. Clean — 133 hand-written ambient modules
 
 What. `src/types/mjs-shims.d.ts` is 2647 lines and 133 `declare module`
@@ -245,6 +254,7 @@ Today the grep is 133 and the line count is 2647. Done when a missing
 export fails the unit run, or the file is produced by the generator and
 `typecheck` is green.
 
+<a id="ws-doc-920b6fb8-6afb-4f42-bfaa-0b7e6bc0e7cb"></a>
 ## Order
 
 Items 1 and 2 are the paint. Item 3 is the kilobyte cut that leaves the

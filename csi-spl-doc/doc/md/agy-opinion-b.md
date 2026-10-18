@@ -4,9 +4,11 @@
 
 Review of `specs/063-agent-context-lifecycle` from the perspective of an Antigravity (Gemini) CLI agent.
 
+<a id="ws-doc-08e4d927-7f04-4d55-818b-27389d844ed9"></a>
 ## Gemini vs Claude Differences
 Gemini features a 1M+ token window with strong long-context needle retrieval, meaning instructions are rarely lost to context saturation. However, in CLI agent loops, large contexts heavily penalize turn latency (TTFT) and token cost, while accumulated bash/test outputs dilute focus. Where Claude degrades through attention drift around 200k, Gemini suffers through latency and noise accumulation. Clean restarts beat in-session summarization for both.
 
+<a id="ws-doc-43113bf8-ac4d-4222-a731-198615d829e5"></a>
 ## Top 5 Recommendations
 
 1. **Clean restart over in-session `/compact` every time**
@@ -24,6 +26,7 @@ Gemini features a 1M+ token window with strong long-context needle retrieval, me
 5. **Kill and respawn on failed rotation; never inject `/compact` into wedged panes (disagree with R-R2)**
    *Reason:* Typing `/compact` via tmux into a failing or wedged process risks partial execution or hung processes. If rotation fails twice, kill the pane and spawn fresh from the hold state.
 
+<a id="ws-doc-d458e3b3-e42f-450d-a429-bbb356376d7f"></a>
 ## Disagreements with Spec 063
 - **R-L1 (400k lane restart):** Too permissive. 400k allows runaway sessions to burn tokens. Cap at 200k / 30 min.
 - **R-R2 & 7.3 (`/compact` fallback):** In-place compaction is unreliable in automated fleet harnesses. Rely strictly on external restart.

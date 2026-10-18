@@ -6,6 +6,7 @@ Measured 2026-10-10 between 05:50Z and 06:30Z on trunk **`da36dad94`**. Doc only
 
 Plan: `csi-spl-doc/doc/md/refactor-round-5-plan.md`, baseline trunk `d5d136053`, consensus `49e21c570` (3 seats signed), 10 actions.
 
+<a id="ws-doc-49bac083-d2e1-483d-b90f-73512401e0c0"></a>
 ## 1. What landed
 
 `git log origin/master --grep='r5-' --format='%h %cI %s'` -> **17** commits: 1 seat proposal (`fb933b786`), 14 action commits, 2 trunk repairs whose message names r5.
@@ -27,6 +28,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-5-plan.md`, baseline trunk `d5d136053`,
 
 **R5, served.** `SHA=<sha> ENV=<env> ./run -a do_check_deploy_lag` (orc): `70e1eb26b` (01) and `e071eeb96` (02, its last hub commit) on dev and prd -> `the env serves this commit or a later one` for hub (served `c52eed56`) and WUI (served `63c82bbb`), n=4. Bash and CI actions: the `sat` checkout `/opt/csi/csi-spl` HEAD `63c82bbb4` contains `1065b5878` (the last of them). The `PC` checkout was proved by c-002 for 04 (msg to c-699, 00:49Z); not re-measured here.
 
+<a id="ws-doc-d3b6d3da-db0b-48a9-9853-74d35fba52d9"></a>
 ## 2. Lanes
 
 Lane and box from the spool mail (each lane's result or review request names its row) and `registry.retired.tsv` on `sat`. Spawn is the registry stamp (`sat` lanes only; the `PC` registry is not readable from `sat`). Land is the committer time of the row's last r5 commit, in UTC.
@@ -48,6 +50,7 @@ The plan placed 4 rows on grok (01, 03, 06, 09) and 1 on mistral (02). Landed: *
 
 Spawn to land, n=8 with a known spawn: min 24, median 55, max 121 (05, which waited for 03 by design and then for an ORC-2 trunk red, c-705 blocker 02:36:57Z).
 
+<a id="ws-doc-49cd62cc-282b-4b3b-ac0b-6e238d132882"></a>
 ## 3. CI
 
 `gh run list --workflow 10_ci-quality.yml --branch master -L 100 --created '>=2026-10-09T23:40:00Z'`, runs created before 05:00Z: **39** = 33 cancelled, 3 failure, 2 success, 1 running.
@@ -62,40 +65,49 @@ Spawn to land, n=8 with a known spawn: min 24, median 55, max 121 (05, which wai
 
 The red r5 DID cause never reached a wf 10 verdict on its own head: `8bb97690e`'s run (38011894493) was cancelled by the next push. It was caught by a lane (c-698 blocker 01:10:56Z) and by the orchestrator's diff against the reviewed sha, not by CI. Section 4.1.
 
+<a id="ws-doc-59155575-1f7e-457d-ba7a-fd4d795cade5"></a>
 ## 4. What the round taught
 
+<a id="ws-doc-c9948af2-eb5a-46a6-87dc-f45326f80d2f"></a>
 ### 4.1 A stale-tree push reverted 26 landed paths
 
 `8bb97690e` (r5-02, m-702) changed **33** files; its row names 4 sites plus `_test.go` files. The other 26 were set back to blobs they held before recent commits by other lanes. Measured with a detector that, per touched path, walks the last 40 commits that touched it and asks whether the new blob equals the blob before one of them (and not the parent's): on `8bb97690e` -> **26 of 33** paths. c-001 STOPPED m-702 (01:10:00Z) and landed `d4fa39b61` (01:13Z), which restores those 26 paths and keeps the 7 the row owns. Reviewed sha `81e7d849f` vs pushed `8bb97690e`: different trees; the R7 reviewer had checked the former.
 
 The same detector over the last **300** non-merge commits on `origin/master` (2m 59s): 10 commits restore at least one path; **2** restore 3 or more: `8bb97690e` (26) and its repair `d4fa39b61` (26). Every other hit is 1 path and names its restore in the subject (`back to <sha>^`, `Revert "..."`). So a threshold of 3 paths separates the clobber from deliberate restores in n=300.
 
+<a id="ws-doc-ec97b83a-d374-422d-a7d4-06bcf9d93c9a"></a>
 ### 4.2 Moving an export to `_test.go` broke another package's test
 
 r5-02 moved `action.Send` into `internal/action/action_helpers_test.go`. A `_test.go` file is visible only to its own package's tests, and `internal/hub/fleet_send_test.go` called `action.Send`. The hub test went red; `e071eeb96` (c-744@PC) switched it to `action.SendCtx`. The plan's test column (R2) listed `fleet_send_test.go` but the lane did not run the `internal/hub` package. R2 maps tests by the site's name, not by cross-package callers of what moves.
 
+<a id="ws-doc-becdb766-5b78-4e74-840d-5f84079f6763"></a>
 ### 4.3 R7 peer review ran, but not across vendors
 
 `git log origin/master --grep='r5-' --format=%B | grep -c '^review: '` -> **12** lines over 10 actions: 9 of 10 actions carry one (all but 02). **0** of the 12 is a cross-vendor review: every reviewer is a claude lane, and every line says why (`grok out of quota`, `m-702 gave no answer in 15 min`, `m-702 busy`). The one action with no review line is the one by the only non-claude lane, and it is the one that clobbered trunk. The non-claude reviewer pool was one lane that was also a row author and was stuck in one command for 50+ minutes (c-001 to c-699, 00:43Z).
 
+<a id="ws-doc-13fc1772-4409-413c-a305-f87b1fa513d6"></a>
 ### 4.4 Gate tests leaked the caller's environment
 
 Rows 07 and 09 needed follow-up commits for their own tests, not for the product: `a9498ac7d` (07: the iac part needed its own full-tier budget, 600 s), `a4767dd65` (09: `check-pre-push-lint.tst.sh` went red under an inherited `PRE_PUSH_TIER=full`), `8e3a55bdd` (09: a 300 s test timeout). 3 of 14 action commits are a gate lane fixing its own test after the first push.
 
+<a id="ws-doc-5929988e-683a-41c6-8e34-807a49627028"></a>
 ### 4.5 Briefs carried a machine-parsed site list that was short
 
 c-001 at 23:56:41Z to all r5 lanes: the brief's file list "was machine-parsed from the plan row and may be SHORT. It drops globs such as tf-*". c-703 asked (23:56:24Z) about 8 files its brief omitted; they were row 03's own sites.
 
+<a id="ws-doc-37329e6e-7b8d-4ca9-8ace-27f3046d56b8"></a>
 ### 4.6 One id named two lanes
 
 c-703 was both the r5-03 lane on `sat` and a spec 109 lane on `PC` until 23:58:20Z (c-001@PC, 23:59:14Z). Messages for one could reach the other for about 3 minutes.
 
+<a id="ws-doc-a87ed144-bd66-4b14-a8e9-69792058500a"></a>
 ## 5. Rework, stalls, re-seats
 
 - Re-seats: 4 grok lanes, all on the quota (section 2); rows 01 and 06 re-placed on claude in about 3 minutes, 03 and 09 on `sat` in about 5.
 - Rework that took another commit: 02 (2 repair commits by other lanes), 07 (1), 09 (2). n=3 of 10 actions.
 - Stalls: 05 waited by design for 03 (batch 2), then on the ORC-2 trunk red (c-705 blocker 02:36:57Z, c-751 placed 02:38:19Z). R7 waits: c-740 waited 40 minutes for m-702 before the orchestrator assigned a claude reviewer (00:41Z, 00:43Z).
 
+<a id="ws-doc-18610ab2-1077-4019-b6f4-b211ec042809"></a>
 ## 6. Round 6
 
 Each one is a rule, a gate or an action. The owner names who changes it.
@@ -108,6 +120,7 @@ Each one is a rule, a gate or an action. The owner names who changes it.
 6. **Rule.** Before a wave, the spawner checks each vendor's live state (`do_spl_lane_mix` with its kind; it already skips a vendor with a fresh S2 limit verdict) and reads the new pane 2 minutes after spawn. Owner: the spawner. Cost: section 2, 4 of 4 grok lanes dead on arrival before any verdict existed.
 7. **Carry-over actions** (r5 plan section 7 D3, D4, section 8): the WUI `fetch` calls with no `signal`, the function-level `exit 1` in two sourced iac actions, the shellcheck scope gap on `csi-spl-api` and `csi-spl-wui` `.sh`, the next Go coverage packages (`internal/action`, `internal/files`, `internal/edge` under 40%), and the DRY groups left out (cron "drop tagged line", probe scaffold).
 
+<a id="ws-doc-d13ba000-b8e5-4f29-b405-f60caa60d037"></a>
 ## 7. Commands
 
 Re-run from a checkout of `origin/master`.

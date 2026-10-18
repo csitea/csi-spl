@@ -13,6 +13,7 @@ Read on `origin/master` `4ac30d59b` (csi-spl-wui). The redesigned sign-in
 `LoginLinks.vue`; c-451, SPL-1722) is out of scope, and no item below touches
 it. No code was changed for this review.
 
+<a id="ws-doc-4dcdf71a-f833-4d97-b2fa-4438180a0d0d"></a>
 ## 1. Two measurements
 
 Box `sat` (16 cores). The load average is given per run because other lanes
@@ -50,6 +51,7 @@ estimates below scale them by 0.7):
   `ChannelSidebar.vue` 13.3, `MessageCard.vue` 11.7, `MessageComposer.vue`
   9.3, `LiveFeed.vue` 4.6, `UserMenu.vue` 4.0.
 
+<a id="ws-doc-52bf4d5a-77fb-43e2-a56c-37435eab206b"></a>
 ### 1.1 Commands
 
 Bundle sizes (the CI gate's own counter, on a mock generate):
@@ -70,8 +72,10 @@ Signed-in first load (the standard probe, needs the e2e login):
 The FCP above came from a short CDP script, given in section 5.1 so the
 number can be re-run.
 
+<a id="ws-doc-b03d3a98-6af4-4c96-a8cb-7e6b94903ddc"></a>
 ## 2. Speed
 
+<a id="ws-doc-878ffacc-b0c3-413f-8df3-2f3f490cc337"></a>
 ### S1. Load the shell's interaction-only components lazily
 
 - **What**: seven components the default layout and every message card
@@ -90,6 +94,7 @@ number can be re-run.
 - **Measure**: 1.1 bundle command, `ci_home_gzip_kb` before / after; the
   toast and picker e2e files stay green.
 
+<a id="ws-doc-c11321d7-1cae-4223-be3c-a454294c1098"></a>
 ### S2. Win back headroom in the entry chunk (0.7 KB left)
 
 - **What**: move code that is not needed for first paint out of `entry`, each
@@ -108,6 +113,7 @@ number can be re-run.
 - **Measure**: 1.1 bundle command, `ci_initial_gzip_kb`; never raise the
   ceiling to make room.
 
+<a id="ws-doc-23eec85a-bc68-4fa0-9652-fbc64ebadb77"></a>
 ### S3. `content-visibility: auto` on message rows
 
 - **What**: `grep -rn content-visibility csi-spl-wui/src` returns 0 hits.
@@ -125,6 +131,7 @@ number can be re-run.
   `RecalcStyleDuration`) after opening a 300-message mock topic, n=10 before
   and after; the jump-to-message e2e stays green.
 
+<a id="ws-doc-e191f932-2f04-4f28-a229-fde13442f971"></a>
 ### S4. Split the off-screen sidebar tabs out of `ChannelSidebar.vue`
 
 - **What**: `ChannelSidebar.vue` is the largest app module in the home
@@ -141,11 +148,13 @@ number can be re-run.
   `lane-map.sh --check` before editing.
 - **Measure**: 1.1 bundle command; `wc -l src/components/ChannelSidebar.vue`.
 
+<a id="ws-doc-cad50c6e-0a73-4799-8ab1-4f2fb8d6e6c6"></a>
 ## 3. Aesthetics
 
 Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 390x844 (touch), `/`, `/channel/lobby`, `/issues`.
 
+<a id="ws-doc-85552b48-80c7-45fd-9311-99f16e27cc12"></a>
 ### A1. Phone: the sender's name is cut to "HU…"
 
 - **What**: at 390 px every message header reads `HU…`, `H… → C…`,
@@ -162,6 +171,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Measure**: an e2e step at 390x844 on mock `/channel/lobby` checks that
   every `.msg-author` has `scrollWidth <= clientWidth` (fails today).
 
+<a id="ws-doc-916493f2-f486-4419-9af9-12d681094a68"></a>
 ### A2. Desktop: row actions only on hover or focus
 
 - **What**: every message row shows the open-topic button, `0 >>` and the
@@ -177,6 +187,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Measure**: before / after screenshot at 1440; an e2e step that the menu
   button is visible on `focus-within` and the existing menu e2e stays green.
 
+<a id="ws-doc-e710a189-7c42-4ebe-bd74-b65fd200d974"></a>
 ### A3. The same lobby looks two ways
 
 - **What**: `/` (which shows the lobby) does not highlight the `lobby` row
@@ -191,6 +202,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Measure**: an e2e step on mock `/`: the lobby row carries
   `aria-current="page"` (fails today).
 
+<a id="ws-doc-d3a39727-93bd-40f9-86ed-009a71d2e6d3"></a>
 ### A4. A type scale: 53 font sizes down to a handful
 
 - **What**: `grep -rhoE "font-size:\s*[^;]+" src --include=*.vue
@@ -210,8 +222,10 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Effort**: M (mechanical, but every view needs a screenshot check).
 - **Measure**: the grep above, 53 -> 10 or fewer; the new gate green.
 
+<a id="ws-doc-7d8d01bf-0d3a-4b3f-9bf3-442d4d4a8495"></a>
 ## 4. Clean code
 
+<a id="ws-doc-6579128e-2e8a-45eb-916f-8909a1b36e72"></a>
 ### C1. `--color-text` is used 13 times and defined nowhere
 
 - **What**: `grep -rn -- "--color-text\s*:" src` returns 0, but 13
@@ -231,6 +245,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Measure**: `grep -rho "var(--color-text)" src | wc -l` 13 -> 0; the new
   test green, with a CONTROL that fails on the old tree.
 
+<a id="ws-doc-ad28ff4e-5462-4d7a-af42-49d38578ee57"></a>
 ### C2. One click-outside composable instead of six copies
 
 - **What**: `function onDocPointer` is written out six times outside
@@ -249,6 +264,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
   in `usePointMenu.ts`); the
   picker and menu e2e stay green.
 
+<a id="ws-doc-ca56466c-749b-4719-81d8-9d43cd80dc86"></a>
 ### C3. Generate the `.mjs` type shims instead of hand-writing them
 
 - **What**: `src/types/mjs-shims.d.ts` is 2,647 hand-written lines
@@ -264,6 +280,7 @@ Screenshots: mock generate of `4ac30d59b`, headless Chrome 1440x900 and
 - **Effort**: M for the first slice.
 - **Measure**: `wc -l src/types/mjs-shims.d.ts`; `pnpm run typecheck` green.
 
+<a id="ws-doc-38dd2ad0-c21d-46fe-b962-682c208f6909"></a>
 ## 5. Ranked list (11 items)
 
 Ranked by gain for the effort, cheapest certain wins first.
@@ -282,6 +299,7 @@ Ranked by gain for the effort, cheapest certain wins first.
 | 10 | S4 sidebar panels split | speed + clean | M | ~-4 KB home, -700 lines |
 | 11 | C3 generated shims, slice 1 | clean | M | no type drift |
 
+<a id="ws-doc-8f3949f1-82c8-4660-a4cf-d6b0aaa79af1"></a>
 ### 5.1 The FCP script
 
 Run with `node --experimental-websocket fcp.mjs https://<env.dns.fqdn>/ 10`

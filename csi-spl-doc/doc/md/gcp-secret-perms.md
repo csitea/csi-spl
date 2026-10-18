@@ -14,6 +14,7 @@ there on 2026-10-15:
 The rule: a secret is owner `rw-`, `other` has nothing, and a named entry
 keeps at most `r--`, effective.
 
+<a id="ws-doc-8d3f2cde-40d3-4e80-96cc-f4675de2fa35"></a>
 ## 1. The action
 
 ```bash
@@ -39,6 +40,7 @@ It prints one row per file: index, role (`key`, `overlay`, `file`), the mode
 and the `getfacl -c` entries before and after. Never a file name, never
 content. A box without ACLs (separate homes, every file 600) shows no change.
 
+<a id="ws-doc-0915ef57-86b3-401d-bc05-65df3dae46ca"></a>
 ## 2. The overlay pull uses the same step
 
 `do_spl_private_overlay_pull` placed the overlay with a bare `chmod 600`,
@@ -46,6 +48,7 @@ which cancels a named entry on a shared-ACL box. It now runs the same step
 (`spl_gsp_fix`) after the `chmod 600`, and its verify accepts 600, or 640 with
 a named entry, and checks the file is closed to other (`spl_gsp_check`).
 
+<a id="ws-doc-7fd56a8b-6982-4cd9-a690-41c9d788766f"></a>
 ## 3. Tests
 
 - `csi-spl-orc/src/bash/tests/spl-gcp-secret-perms.tst.sh`: the shapes on a
@@ -56,6 +59,7 @@ a named entry, and checks the file is closed to other (`spl_gsp_check`).
   a key dir shared by ACL keeps the named read on the pulled file; a CONTROL
   that the old bare `chmod 600` cancels it.
 
+<a id="ws-doc-67ddceb7-6904-46ff-95ad-a11b69742b17"></a>
 ## 4. What it does not do
 
 It changes permissions only: it never reads a key, rotates one or touches

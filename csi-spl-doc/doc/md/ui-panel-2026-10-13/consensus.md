@@ -16,8 +16,10 @@
 
 ---
 
+<a id="ws-doc-b63b1c63-5c75-4a1c-8dd0-903dafa7e4f9"></a>
 ## 1. Baseline Measurements & Constraints
 
+<a id="ws-doc-5734e972-135f-483d-abf7-1bafc3f98e83"></a>
 ### 1.1 Empirical Baselines (`sat`, commit `4ac30d59b` / `06a9ecb8`)
 
 Across seats, empirical measurements on host `sat` (node 20, Chrome 1440x900 headless, `csi-spl-wui` 8.1.3) establish:
@@ -30,6 +32,7 @@ Across seats, empirical measurements on host `sat` (node 20, Chrome 1440x900 hea
 
 *(Note: Mistral seat bundle numbers disagree with the other three seats; the measured 154.3 KB gzip / 155.0 KB ceiling on origin/master is the authoritative ground truth).*
 
+<a id="ws-doc-f7b4d1e2-eeab-4872-8aa6-60edbcb1e87e"></a>
 ### 1.2 Non-Negotiable Constraints
 
 1. **Bundle Ceiling (`ci_initial_gzip_kb 155.0`):**
@@ -41,6 +44,7 @@ Across seats, empirical measurements on host `sat` (node 20, Chrome 1440x900 hea
 
 ---
 
+<a id="ws-doc-041574ac-d81e-44d8-b4a6-2e391e11f9ce"></a>
 ## 2. Ranked List of the 10 Consensus Subtasks
 
 Ranked by impact-to-effort ratio, lowest-hanging certainty first:
@@ -60,8 +64,10 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-dc9628da-af96-460e-997c-01f62874f9ab"></a>
 ## 3. Subtask Details & Measurement Verification
 
+<a id="ws-doc-5fd0887b-e4cc-4ef1-8b8a-65a2f7643808"></a>
 ### Item 1: Lazy-Load Shell Interaction Dialogs and Off-Screen Layout Panes (Speed)
 - **Proposed By:** Claude (S1: lazy toasts & confirm dialogs), AGY (Item 1: async `TopicPane` & `LiveTopicPane`), Grok (Item 3: async import `TopBar` / defer composer graph).
 - **Files:**
@@ -76,6 +82,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-c80627ff-8e2f-44cc-9353-0d554ddda018"></a>
 ### Item 2: Win Back Entry Chunk Headroom (0.7 KB Left) via Deferred Startup Modules & Plugin Merge (Speed)
 - **Proposed By:** Claude (S2: defer non-critical startup modules), AGY (Item 3: consolidate duplicate theme plugins; Item 4: partition icon dictionary), Mistral (Item 3: locale lazy loading; Item 8: theme flicker).
 - **Files:**
@@ -95,6 +102,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-73c5b9b4-381e-4d37-9aa9-0978b0003132"></a>
 ### Item 3: Skeleton Width Alignment & `<ClientOnly>` Shell Fallback (Speed / Aesthetic)
 - **Proposed By:** Grok (Item 1: align `.spl-boot__side` width and strip `spool-hub` text; Item 2: `<ClientOnly>` fallback in default layout), Mistral (Item 6: reduce CLS / layout shift), AGY (Item 7: skeleton placeholders).
 - **Files:**
@@ -118,6 +126,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-0d886cd9-424a-4f3d-aebc-7eb182561ada"></a>
 ### Item 4: High-Performance Message Feed via `content-visibility: auto` (Speed)
 - **Proposed By:** Claude (S3: `content-visibility` on cards), AGY (Item 2: skip offscreen card rendering).
 - **Files:**
@@ -131,6 +140,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-d38b81e8-6e99-4ca9-81e8-1573a87981ba"></a>
 ### Item 5: Desktop Hover-Reveal Row Actions & Phone Header Readability (Aesthetic)
 - **Proposed By:** Claude (A1: phone author name truncation; A2: desktop hover/focus reveal for action buttons), AGY (Item 6: standardized interactive states).
 - **Files:**
@@ -143,6 +153,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-048f2c4d-f3cd-4533-b72f-5a2d343211d5"></a>
 ### Item 6: Standard `@font-face` Loading & Font-Size Token Scale (Aesthetic)
 - **Proposed By:** Grok (Item 5: `@font-face` definition & latin subset for IBM Plex Sans), Mistral (Item 7: eliminate FOUT), Claude (A4: type scale from 53 scattered sizes to `--fs-*` tokens).
 - **Files:**
@@ -158,6 +169,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-bdb185ca-6723-4053-8ec8-022804d992f5"></a>
 ### Item 7: Fix Undefined `--color-text` & Add CSS Token Gate (Clean Code)
 - **Proposed By:** Claude (C1: replace 13 occurrences of undefined `--color-text` with `--color-fg`), Mistral (Item 9: remove dead/broken CSS declarations).
 - **Files:**
@@ -184,6 +196,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-a525a82c-e1cc-4525-9246-16f45871bc7d"></a>
 ### Item 8: Extract Unified `useDismiss` Click-Outside Composable (Clean Code)
 - **Proposed By:** Claude (C2: replace 6 duplicate `onDocPointer` implementations), AGY (Item 11: utility consolidation), Mistral (Item 10: consolidate duplicate utils).
 - **Files:**
@@ -202,6 +215,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-98ec6db3-ddd7-4d3d-ae40-5c0e5ba24c70"></a>
 ### Item 9: Decompose Monolithic `ChannelSidebar.vue` (Tabs & Footer) (Clean / Speed)
 - **Proposed By:** Claude (S4: split off-screen sidebar panels: People, Agents, Boxes, Events), Grok (Item 7: extract version/reload footer to `SidebarVersion.vue`), AGY (Item 10: modularize sidebar).
 - **Files:**
@@ -219,6 +233,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-95c27ae8-46d9-463c-b21a-b8261c4d084c"></a>
 ### Item 10: Automate `.mjs` Type Declaration Shims (`mjs-shims.d.ts`) (Clean Code)
 - **Proposed By:** Claude (C3: generate type shims from JSDoc/tsc), Grok (Item 8: automated generator / drift test for 133 ambient modules), AGY (Item 12: utility type safety), Mistral (Item 11: TypeScript strictness).
 - **Files:**
@@ -235,6 +250,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 
 ---
 
+<a id="ws-doc-beaa2149-d063-4b0c-9d08-0020cde69fd4"></a>
 ## 4. Disjoint Build Lanes & Concurrency Matrix
 
 To satisfy the mandate *"run at least 2 tasks in parallel"*, the 10 subtasks are organized into build lanes whose **file sets are strictly disjoint**. Overlapping subtasks queue within the same lane, enabling parallel execution across up to 6 concurrent lanes:
@@ -250,6 +266,7 @@ To satisfy the mandate *"run at least 2 tasks in parallel"*, the 10 subtasks are
 
 ---
 
+<a id="ws-doc-af8837d8-8e39-4d9c-847d-677ead325689"></a>
 ## 5. Summary of Recommended Execution Order
 
 1. **Immediate Concurrent Kickoff:**

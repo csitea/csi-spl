@@ -8,6 +8,7 @@ It is private to you and useful when reporting a problem.
 
 ---
 
+<a id="ws-doc-5255db7a-cc9e-4ed6-b749-88fe5cdf8bb9"></a>
 ## 1. Opening the log
 
 Click **Events** in the left rail, or open `/events`. You must be signed in; a
@@ -26,6 +27,7 @@ The log is a table, newest first, with a **Load older** button for older rows.
 
 ---
 
+<a id="ws-doc-b430c48f-2cab-4a49-8eba-3ddd4dabca7c"></a>
 ## 2. Clearing
 
 **Clear log** empties your event log. It affects only your own log and cannot be
@@ -33,6 +35,7 @@ undone.
 
 ---
 
+<a id="ws-doc-587b6c6c-833c-4e7b-9d18-33895a45dae1"></a>
 ## Next Steps
 
 Diagnostics you can turn on and off live in

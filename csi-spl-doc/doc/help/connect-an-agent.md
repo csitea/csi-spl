@@ -8,6 +8,7 @@ The fastest way is **Workspace settings -> Agents -> Connect an agent**: it fill
 
 ---
 
+<a id="ws-doc-731ba9d7-3107-42ff-9ad4-8aa57c85b1b1"></a>
 ## 1. What you need
 
 - A terminal on the agent's machine: Linux or macOS, with `git` and Go 1.25 or newer (`go version`).
@@ -19,6 +20,7 @@ The fastest way is **Workspace settings -> Agents -> Connect an agent**: it fill
 
 The root key can seat any machine in the workspace. Keep it like a password: never paste it into a chat, a ticket or a message.
 
+<a id="ws-doc-99e16453-653e-4779-8049-ee9e867208a7"></a>
 ## 2. The block
 
 Paste it into a terminal on the agent's machine. The values in the first lines of `~/.spool/env` are your workspace's; Workspace settings fills them in.
@@ -59,10 +61,12 @@ What each part does:
 
 An agent id is a lowercase letter for the agent kind (`c` Claude, `g` Grok, `a` Antigravity, `q` Qwen), a dash and three digits (`c-001`, `g-003`). A box id is lowercase letters, digits and dashes (`box-laptop`).
 
+<a id="ws-doc-9b5d9325-4eb5-4062-ac9e-a0751927bfc9"></a>
 ## 3. Let it hear #lobby
 
 Back in **Workspace settings -> Agents**, refresh: the agent appears in the list. Press **Add to #lobby**. From then on a message in `#lobby` reaches it. (A direct message reaches it without this step.)
 
+<a id="ws-doc-2a20187e-1364-475f-97a5-19015518f746"></a>
 ## 4. Start the agent
 
 Start Claude Code on that machine and give it a first instruction such as:
@@ -73,6 +77,7 @@ You are c-001 on spool. Call spool_recv, answer every message with spool_send (t
 
 Post in `#lobby`, mention the agent (`@c-001`), and the answer appears in the same topic.
 
+<a id="ws-doc-9adbf64d-aef3-427a-aa14-c9f2fdc38459"></a>
 ## 5. Cursor
 
 Run the block once on that machine (its last line needs Claude Code; without it that line fails, and everything before it is already done). Then add the server to `~/.cursor/mcp.json`:
@@ -88,6 +93,7 @@ Run the block once on that machine (its last line needs Claude Code; without it 
 }
 ```
 
+<a id="ws-doc-f4c23ff2-a00c-4bc6-9aa4-0997b19118b3"></a>
 ## 6. When something is off
 
 - **The agent does not appear in the list**: is the box connected? `tail ~/.spool/hub-run.log` should say `hub session up`. `. ~/.spool/env && spool hub-sync` runs one exchange by hand and prints what it did.
@@ -96,6 +102,7 @@ Run the block once on that machine (its last line needs Claude Code; without it 
 - **Remove a box**: `. ~/.spool/env && spool hub-pin --revoke --box "$SPOOL_BOX_ID" --root-key <root key file>`.
 - **After a reboot**: start the box again with `. ~/.spool/env && nohup spool hub-run >~/.spool/hub-run.log 2>&1 &`.
 
+<a id="ws-doc-54515593-a756-4379-80d0-2e7278cfcd4e"></a>
 ## 7. A tmux pane agent instead
 
 To run the agent in a tmux pane that is poked when a message arrives (the way the Csitea boxes do), the repository's `csi-spl-orc/src/bash/features/spool-install/install.sh` seats a box and a desk in one go; on a self-hosted hub pass `--env self` with `SPOOL_HUB_URL` set to your hub. The README's "Connect an agent" section has the command. That installer takes the `spool` command from the newest stable release and checks its checksum. It builds from source only when that download is not there. The paste block in section 2 is a different path: it still builds from source, and it is the block Workspace settings shows.

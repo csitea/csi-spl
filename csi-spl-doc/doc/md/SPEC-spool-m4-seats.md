@@ -13,6 +13,7 @@ Related: `specs/009-spool-m4/spec.md`, `contracts/payment.md` (rails only),
 
 ---
 
+<a id="ws-doc-60e844a8-f670-44aa-97b9-fd7aaa6f0dcd"></a>
 ## 1. Seats
 
 | Seat | Counts as | Typical event |
@@ -25,6 +26,7 @@ Not a seat: `box_id`, messages, files (beyond byte quota), WUI tabs.
 
 ---
 
+<a id="ws-doc-54be913f-bf41-48b5-a86e-6bdd99d02c78"></a>
 ## 2. Charge
 
 Recurring monthly on the **same csi-rel payment copy** as M2 (new line items
@@ -43,6 +45,7 @@ M4 seats.
 
 ---
 
+<a id="ws-doc-d75b90e7-c525-488d-8a7b-9c724559f4f7"></a>
 ## 3. GCP project id at buy (dedicated)
 
 Git-spec: `specs/009-spool-m4/spec.md`.
@@ -73,6 +76,7 @@ It is **not** `csi-spl-dev-202609171743` and **not** `{org}-{app}`.
 
 M2 hosted still does **not** create a GCP project per customer.
 
+<a id="ws-doc-905966a2-4444-443b-b746-6b03c8129fa8"></a>
 ## 4. Out of M4
 
 Changing M2 to “seats only” (forbidden). Per-message billing. Shop SKUs.

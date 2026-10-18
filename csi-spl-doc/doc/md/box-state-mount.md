@@ -12,6 +12,7 @@ The bucket is step 056's `csi-spl-<env>-box-state` (the nightly box backups,
 `do_spl_box_state_backup`). Cloud Storage FUSE (`gcsfuse`) maps it to two
 folders. The actions live in `csi-spl-orc`.
 
+<a id="ws-doc-0b266ab2-8de9-46f3-b91a-a5a531e4ac85"></a>
 ## 1. The two names
 
 The code never writes a path. It calls `spl_box_state_mounts`
@@ -29,6 +30,7 @@ so the default is `~/mnt/box-state/dev/ro` and `~/mnt/box-state/dev/rw`.
 
 Scripts read from `SPL_BOX_STATE_RO` and write to `SPL_BOX_STATE_RW`.
 
+<a id="ws-doc-fd340fdb-febf-41ec-b2f6-11dcccf5a41f"></a>
 ## 2. The backups stay immutable
 
 The nightly backups live under `<box>/<date>/`. They are never under the RW
@@ -41,6 +43,7 @@ file actions below work without it.
 Objects under `shared/` follow the bucket's lifecycle rule: they are deleted
 after 30 days, like the backups.
 
+<a id="ws-doc-63aff905-c4ee-42ee-9c42-92947d1bd580"></a>
 ## 3. Mount and unmount
 
 1. Install gcsfuse once per box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_install_gcsfuse`
@@ -56,6 +59,7 @@ this in t1 151d85fc (msg c1748651). A failed mount logs a `FAIL` line and
 changes nothing else. The gcsfuse log (warnings only) is
 `<state dir>/gcsfuse-<env>-<ro|rw>.log`.
 
+<a id="ws-doc-55793d87-9be7-40f8-806f-caa08a967271"></a>
 ## 4. Without the mount
 
 These four call `gcloud storage` directly, which is faster than going through
@@ -77,6 +81,7 @@ material: owner rule csitea fc0119cd, msg 072a9990, "keys and secrets stay on
 the box". The list is c-846's `box-state-pack.sh`, the same one the nightly
 backup uses. The refusal prints counts only, never the names of the files.
 
+<a id="ws-doc-9b26524a-dc3a-4618-a859-bc663ac8c140"></a>
 ## 5. What it is not
 
 gcsfuse is not a POSIX file system:

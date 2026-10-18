@@ -7,6 +7,7 @@ Re-measured on origin/master:
 - r5 D4: `grep -rnE "^\\s+exit [0-9]" --include=*.func.sh csi-spl-{iac,orc}/{src,lib}` -> 11
 - r5 section 8: `git ls-files "csi-spl-api/*.sh" "csi-spl-wui/*.sh" | wc -l` -> 22, and shellcheck -> 6 findings
 
+<a id="ws-doc-451c5c63-9e05-4c06-a3e1-7762fa4821e0"></a>
 ## The 10 actions
 
 - **01 agree**: adding abort signals prevents hung calls on fetch failures.

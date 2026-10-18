@@ -6,6 +6,7 @@ The claude seat's review of `../refactor-round-9-plan.md` at plan sha **`afbd48a
 
 **Trees measured:** the plan's trunk `e05383148` and today's `origin/master` = `afbd48aaa`. Between them no row site changed: `git diff --stat e05383148 afbd48aaa -- csi-spl-api csi-spl-wui/src csi-spl-wui/tests/unit csi-spl-orc/src/bash/run csi-spl-orc/src/bash/features/spawn-agents/tests csi-spl-iac/lib csi-spl-iac/src/bash/run csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` -> 1 file, `check-pre-push-e2e.func.sh`, which is in no row. So every count below holds for both shas. n=1 per count unless stated otherwise.
 
+<a id="ws-doc-42184902-f862-4446-86aa-6e132d9486ff"></a>
 ## 1. Re-measured rows
 
 | row | command (on `afbd48aaa`) | n | plan says | measured |
@@ -19,6 +20,7 @@ The claude seat's review of `../refactor-round-9-plan.md` at plan sha **`afbd48a
 | 09 | `gh api repos/<repo>/actions/jobs/<job>/logs` of runs 38080037175 and 38118720855, job `orc: feature tests` | 2 | 2 red sightings | 2 of 2 show `FAIL - hub: agent announced (missing 'CLE-3 announced on box-a')`; those runs also had 5 and 7 other jobs red |
 | 10 | `git grep -n 'local _spl_sdk_saved="\${CLOUDSDK_CONFIG' csi-spl-iac/ \| wc -l` | 1 | 26 files | 26 lines in 26 files (`git grep -l ... \| wc -l` -> 26) |
 
+<a id="ws-doc-8716c3d0-d577-4111-a53f-9791291a7d40"></a>
 ## 2. Per-row checks
 
 | row | one practice | disjoint in its batch | test or red control | box + vendor | lane map |
@@ -36,6 +38,7 @@ The claude seat's review of `../refactor-round-9-plan.md` at plan sha **`afbd48a
 
 Lane map: `lane-map.sh --check <row paths> --agent c-500`, one call per row -> rc 4 for all 10, **no rc 3** (no row path is owned). The 4 `unknown:` lanes (no files recorded) are c-908, c-915, c-982, c-995, all `@sat`; c-982 (`ui-item4-offscreen-cards`) and c-995 (`attach-rename-old`) are WUI lanes, so rows 03 and 04 ask them before the spawn (R3).
 
+<a id="ws-doc-35f1154b-0c45-4b08-912a-e800c49bb93e"></a>
 ## 3. Objections
 
 1. **Row 01: target 64.0 % is out of reach, and the subcommands are not "pure filesystem".** Command + n: the coverage profile above, n=1: the four files hold 71 uncovered statements of 2580 = +2.75 points, so 100 % of them reaches 63.95 %. And `grep -n hubclient csi-spl-api/src/go/spool-hub-api/internal/action/archive.go` -> `hc = hubclient.New(cfg)`: `cmdArchive`, `cmdMove`, `cmdReact`, `cmdEdit`, `cmdDelete`, `cmdTopics`, `cmdFlow`, `cmdLane`, `cmdBoxBeat` all call the hub over HTTP through `internal/action`; a temp spool root alone does not drive them. Also the floor path `api:csi-spl-api/src/bash/tests/go-coverage-floor.txt` expands wrongly under the `api:` prefix.
@@ -76,10 +79,12 @@ Lane map: `lane-map.sh --check <row paths> --agent c-500`, one call per row -> r
 
 Not objected: rows 03, 04 (LONG lines 39-41 and 44, the 542 ceiling, all measured as written); batch order and the 3 shared-file serialisations (section 3.1) hold.
 
+<a id="ws-doc-de780b21-6594-40f3-9a6a-48a61a4d019c"></a>
 ## 4. Signature
 
 not signed: c-500 on `afbd48aaa`. Objections 1, 3 and 5 change what a lane does (an unreachable floor, a fix that cannot pass its own control, a helper that breaks config isolation) and 2 and 4 change its scope; I sign the version that folds 1-5, re-checking only what changed. 6 and 7 are text.
 
+<a id="ws-doc-80e05dce-6899-4352-a971-d0206495992c"></a>
 ## 5. Re-check of v1.0 (`9296e7b99`)
 
 Only what changed against objections 1-5, read with `git diff afbd48aaa 9296e7b99 -- csi-spl-doc/doc/md/refactor-round-9-plan.md`; the row sites did not move (`git diff --quiet afbd48aaa origin/master -- <test-spool-harness.sh> <bash-cleancode.tst.sh>` -> rc 0).

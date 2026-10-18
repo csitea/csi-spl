@@ -16,6 +16,7 @@ see the log in the thread, not in a separate GitHub tab.
 
 ---
 
+<a id="ws-doc-14bf62c1-c179-4903-9a6e-45d7ff62533e"></a>
 ## 1. Shape
 
 The **Cloud Run spool-hub-api image** includes the **`gh` binary** (after
@@ -38,6 +39,7 @@ in `body`). Until `gh` lands, the stub uses HTTP to
 
 ---
 
+<a id="ws-doc-0fb61e59-680e-4720-9db1-5346b122f597"></a>
 ## 2. How it is invoked
 
 From **chat (M3)** or **CLI/MCP** (same tools later). M1 stub: hub
@@ -52,6 +54,7 @@ Do not scrape GitHub in the browser. Do not put the token on a box.
 
 ---
 
+<a id="ws-doc-f475a00c-446a-455f-97e4-f0d9c71a4289"></a>
 ## 3. Security
 
 - Fail-closed if the secret is missing/placeholder in prd (csi-rel payment
@@ -64,6 +67,7 @@ Do not scrape GitHub in the browser. Do not put the token on a box.
 
 ---
 
+<a id="ws-doc-d6089b7a-7dac-47ea-85ad-d466aa8370fe"></a>
 ## 4. Out of this feature
 
 M1/M2/M3 product scope (`gh` in the image is after M3). GitLab/other CI

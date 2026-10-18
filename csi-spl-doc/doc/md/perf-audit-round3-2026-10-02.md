@@ -12,6 +12,7 @@ This lane measures and proposes. It changes no product code. Each accepted
 item becomes its own lane. §5 groups them so CLE-001 can run disjoint lanes
 in parallel.
 
+<a id="ws-doc-b464b0ab-e1c4-4fb7-9c1d-6ec1ce4b9b64"></a>
 ## 1. Answer
 
 1. **We are not finished.** The biggest remaining cost is **latency, not
@@ -37,6 +38,7 @@ in parallel.
    are the edge cache MISS on the first fetch after a deploy, and one API
    call that goes through the hosting rewrite at 5x the direct latency.
 
+<a id="ws-doc-f3241df0-fd5e-4fdc-a7b6-ad2634e1e250"></a>
 ## 2. How it was measured
 
 - **Where:** the satellite (16 vCPU, load average 0.2..1.4 during every
@@ -74,8 +76,10 @@ in parallel.
 - **curl** for headers, compression and per-endpoint TTFB (n=10 each), and
   one pass over every `/_nuxt` asset the document names (n=99).
 
+<a id="ws-doc-55969bb7-30c1-4015-a7a7-bf2c5c8df2d0"></a>
 ## 3. What a first load costs today
 
+<a id="ws-doc-9f009d68-f0d8-4323-8bce-fd4142316e7b"></a>
 ### 3.1 Dev, signed out (`/` -> `/login`), p50 / p90
 
 | profile, cache | n | hop `/` -> `/login` ms | login visible ms | TBT ms | requests on the wire | KB on the wire | of which prefetch |
@@ -98,6 +102,7 @@ in parallel.
 - The warm network work: 2 documents answered 304 (~269 B each), 2 session
   401s, and `GET /api/v1/checkout/plan` (1.7 KB, `max-age=0`).
 
+<a id="ws-doc-9bd38a92-51e8-46da-bede-f5edcd025a0a"></a>
 ### 3.2 Mock (no hub), the signed-in first screen, p50 / p90
 
 | profile | network | n | rail ms | Flow entry ms | TBT ms | long tasks | DOM nodes | requests / KB |
@@ -129,6 +134,7 @@ desktop rail at 0.42 s. Signed-in dev on an idle box (§6) is the number that
 tells how much of the remaining gap is hub round trips and how much was box
 load.
 
+<a id="ws-doc-3e98233f-dd7b-46fa-905c-a9b0787e11f3"></a>
 ### 3.3 Where the phone's main thread goes (mock, m390 CPU 4x, n=3, self ms)
 
 | where | self ms | source (via sourcemap) |
@@ -139,6 +145,7 @@ load.
 | i18n chunk `BDhL0fxz` | 108 | `@intlify/shared` `key` 29 + `deepCopy` 15, `translate` 9 |
 | default layout `CllyqArx` | 105 | `topic-in.mjs:144` 36 (attributed), `useLoopStrip.ts:28 measure` 15 |
 
+<a id="ws-doc-09d8783b-aec9-4026-bda7-79979ffbc125"></a>
 ### 3.4 Bundle (live config, `7155116a`)
 
 - **Initial JS:** 3 chunks, 443 KB raw / ~151 KB gzip (budget 155). By
@@ -161,6 +168,7 @@ load.
   (`src/public/sw.js`: notification click only, and it deletes every cache on
   activate).
 
+<a id="ws-doc-1272fe2c-44cf-468d-a021-275a71add559"></a>
 ### 3.5 Network edge (curl, n=10 per row unless noted)
 
 | request | TTFB p50 / p90 ms | headers |
@@ -180,6 +188,7 @@ in one burst timed out at 10 s (and one curl hung 134 s). That is this VM's
 path to the edge, not a product defect; the browser reuses one h2 connection.
 It explains the long p90 tails in §3.1.
 
+<a id="ws-doc-f5d443a9-c99b-422b-8c2e-3b78125a4183"></a>
 ## 4. The 30 improvements, ranked
 
 Not re-proposed (already landed): the prefetch removal and revert (CLE-77933
@@ -223,6 +232,7 @@ belong in one lane, or must run one after another.
 | P3-29 | Move the notification / error-journal machinery out of the initial JS into `onNuxtReady` dynamic imports (`stores/notification.ts`, `utils/notify.mjs`, `composables/errorJournal.mjs` and their plugins) | in the initial chunk (attributed ~5..6 KB raw each, n=1 build) | ~-4..6 KB gzip initial | `src/plugins/notify.client.ts`, `src/plugins/error-journal.client.ts`, `src/stores/notification.ts` | medium: an error in the first 0.5 s must still be journaled (buffer it) | — |
 | P3-30 | Finish the `spool-client.mjs` split CLE-77925 started: it is still the largest app module in the initial JS. Keep the first-screen reads, and move the writers/admin paths behind dynamic imports | largest app source in the initial chunk (attributed 34 KB raw, n=1 build) | ~-5..8 KB gzip initial | `src/utils/spool-client.mjs` + its importers | medium: every caller of a moved helper must await it | P3-15 |
 
+<a id="ws-doc-16d495b7-ff52-416a-bbf9-99a6207c1dab"></a>
 ## 5. Parallel lanes (files that do not overlap)
 
 | lane | items, in order | shared file |
@@ -241,6 +251,7 @@ P3-02, P3-03 and P3-04 each prove their gain with an A/B:
 `do_spl_wui_perf_first_load` `LOCAL_MAP` / `LOCAL_MAP_B`, or this
 round's `mk.mjs` / `fl.mjs`.
 
+<a id="ws-doc-85d69ec5-d1b9-4a96-8efa-7b002a16262d"></a>
 ## 6. Not measured, and what it needs
 
 - **Signed-in timings on dev on an idle box.** The satellite has no dev

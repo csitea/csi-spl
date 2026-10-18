@@ -14,6 +14,7 @@ M1/M2 humans use `spool-send` / `spool-tail` / `HUM-*`. M3 is the
 
 ---
 
+<a id="ws-doc-95c9d5c7-acc9-45d6-92e5-ea2355fe4f12"></a>
 ## 1. Final product job
 
 A Slack-like multi-channel interface on `spool-hub.ai`. After the human **authenticates**,
@@ -35,8 +36,10 @@ Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`)
 
 ---
 
+<a id="ws-doc-8421670f-4be3-4f49-819a-b5e737fdaafa"></a>
 ## 2. Channels and Threading Model
 
+<a id="ws-doc-5e65e703-7ae0-4061-9021-b8a6e4c755a0"></a>
 ### 2.1 Multiple Channels per Tenant (Public Scope)
 
 Every tenant initializes with standard channels:
@@ -53,6 +56,7 @@ Every tenant initializes with standard channels:
 - Box sidecars declare which channels their local agents subscribe to (e.g. `box-a` subscribes `CLE-07` to `#backend` and `#lobby`).
 - **Mention-Driven Routing**: Subscribed agents only receive inbox message dispatches when explicitly `@mentioned` (e.g. `@CLE-07` or `to: "CLE-07"`) or broadcast via `@channel`. Ambient discussion in the channel feed does not interrupt background agent workers.
 
+<a id="ws-doc-7ed49422-2be8-490f-825c-14054fc9033e"></a>
 ### 2.2 Wire Schema & Addressing for Channels
 
 1. Message carries an optional `channel` field (e.g. `"channel": "dev"`).
@@ -60,6 +64,7 @@ Every tenant initializes with standard channels:
 3. For directed commands within a channel: `to: "CLE-07"` with `"channel": "dev"`.
 4. In the UI, typing `@CLE-07 do X` routes a `kind=task` to `CLE-07` tagged with `channel: "dev"`.
 
+<a id="ws-doc-188e42ac-f02a-49b5-b7ee-369554f63514"></a>
 ### 2.3 Threading via `parent_task_id` & Configurable Verbosity
 
 - **Every message has its own `task_id` (UUIDv4)** as its universal identifier.
@@ -71,6 +76,7 @@ Every tenant initializes with standard channels:
   - `normal` (default): High-level milestone progress notes (e.g. *"Applying patch"*, *"Running test suite"*).
   - `verbose`: Granular step-by-step tool invocations and diagnostic logs for in-depth inspection.
 
+<a id="ws-doc-41b2c9f9-d813-4949-8c55-a762e04622c8"></a>
 ### 2.4 Windowed Catch-up & Tiered Retention
 
 - **Windowed Catch-up**: When a user or agent joins/switches to a channel, the client fetches the last 50 messages (or messages since the user's last-acknowledged timestamp) through the hub's read-only viewer API (`specs/003-spool-message-bus/contracts/view-v1.md`; REST `/v1/messages` was dropped by OQ-02). Infinite scroll triggers subsequent older chunks.
@@ -81,6 +87,7 @@ Every tenant initializes with standard channels:
 
 ---
 
+<a id="ws-doc-ea2897f6-59da-465d-bc8b-03c11cda6dff"></a>
 ## 3. Direct Messages (DMs)
 
 The WUI sidebar features a **Direct Messages** section:
@@ -90,6 +97,7 @@ The WUI sidebar features a **Direct Messages** section:
 
 ---
 
+<a id="ws-doc-4f1dc5da-3907-4457-9dcc-2097d430f3ef"></a>
 ## 4. Human Authentication & Virtual WUI Box Key
 
 Human authentication is **forked from sibling-prj and csi-rel** (Google +
@@ -105,6 +113,7 @@ creates `HUM-*`. Password sign-up is not the default path.
 
 ---
 
+<a id="ws-doc-50b14710-6303-4206-86b5-7db8538cf0bd"></a>
 ## 5. File Attachments (Download Links Only)
 
 When messages reference files via `v:1` (`files: [{ path, sha256, size }]`):
@@ -114,6 +123,7 @@ When messages reference files via `v:1` (`files: [{ path, sha256, size }]`):
 
 ---
 
+<a id="ws-doc-34f9f844-5801-44aa-a63a-d79dfa1e480e"></a>
 ## 6. Escalation & In-Browser Notifications
 
 When an agent encounters a blocker, posts `kind: "reject"`, mentions `@HUM-*`, receives a DM, or emits an alert to `#alerts`:
@@ -123,6 +133,7 @@ When an agent encounters a blocker, posts `kind: "reject"`, mentions `@HUM-*`, r
 
 ---
 
+<a id="ws-doc-15e83c55-9c40-4675-a2fc-4b57358e1618"></a>
 ## 7. Addressing
 
 Threads show `CLE-07@box-a` when names collide across boxes. Send from the
@@ -130,12 +141,14 @@ WUI sets `to_box` via a server-synced roster picker UI.
 
 ---
 
+<a id="ws-doc-20dbdb5f-4c0a-4140-9a00-639af20066e8"></a>
 ## 8. Out of M1 and M2
 
 No `csi-spl-wui` in the technical proto (M1) or the public buy-MVP (M2). M3 only.
 
 ---
 
+<a id="ws-doc-ac40fcc6-eba8-4e18-868a-89a7d9971312"></a>
 ## 9. Local without hub
 
 `spool-tail --task` is the human UI on a single box.

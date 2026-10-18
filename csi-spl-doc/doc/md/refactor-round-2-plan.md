@@ -4,6 +4,7 @@
 
 Owner order (HUM-10, prd t1, topic `51f17481-a60b-4e52-a721-ee2a11cba5e2`, "Refactoring iteration"): "List 15 best practices and for each one of them find three implementations for good refactoring and clean code and perform those." Sites measured on trunk `541696d5`.
 
+<a id="ws-doc-7960f9ce-f77e-4951-8c80-b93873bdd4bb"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, which applies it at exactly the 3 sites named.
@@ -17,6 +18,7 @@ Owner order (HUM-10, prd t1, topic `51f17481-a60b-4e52-a721-ee2a11cba5e2`, "Refa
 - Run on: `any` = no browser needed; `browser` = WUI live proof on dev and prd.
 - Baselines measured on `541696d5` (n=1 each): Go `go test -count=1 -v` PASS lines: auth 185, search 12, mail 32, agentid 9, payments 23, store 259 (52 skip, no Postgres DSN), hub 403 (8 skip). WUI unit: 250/250 files, 2861 `# pass`; `pnpm run typecheck` rc 0. Bash: per-file counts are in each brief. Run the bash tests as the user that owns the checkout (`<DEV_USER>`): run as another user, `check-weekly-full-scan.tst.sh` fails 4 of 13 because git rejects the checkout's owner. That is the box, not the code.
 
+<a id="ws-doc-75f7e0af-d425-4759-bd2f-32e16f760e10"></a>
 ## 2. The 15 practices
 
 | # | practice | why | site 1 | site 2 | site 3 | language | risk | tests | run on |
@@ -37,6 +39,7 @@ Owner order (HUM-10, prd t1, topic `51f17481-a60b-4e52-a721-ee2a11cba5e2`, "Refa
 | 14 | No eval to expand `~` | `$(eval echo ~/.gcp/.${ORG}/...)` runs any `$(...)` or `;` inside ORG / APP / ENV as code; `"$HOME/.gcp/.$ORG/..."` is the same path with no eval. | `csi-spl-iac/src/bash/run/gcp-project-delete.func.sh:25` | `csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh:35` | `csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3-silent.func.sh:32-33` | bash | low-med | gcp-actions-isolated-config.tst.sh 11/11; add a test per action with stubbed `do_gcp_account` / `gcloud` (no GCP call) asserting the key path, plus a CONTROL: ORG='x$(touch pwned)' runs nothing | any |
 | 15 | async / await instead of `.then` chains | A `.then().catch()` chain splits one flow into callbacks; `try { await } catch` reads top to bottom, with the same rejection path. | `wui:src/composables/useDmRef.ts:18-27` | `wui:src/plugins/i18n-more.client.ts:50-61` | `wui:src/utils/highlighter.mjs:54-69` | TS/Vue | low-med | unit i18n-runtime-only (keeps `mergeLocaleMessage(code, m.default)` text), i18n-split, code-view; e2e dm-ref-via-dm, i18n-split, code-viewer-live.proof.mjs; whole unit; typecheck | browser |
 
+<a id="ws-doc-87cb0430-f144-4eb4-b2d8-f1902fa81ac4"></a>
 ## 3. Suggested run order (low risk first)
 
 1. Go, no runtime change: 1 (test files only), 2, 3, 4, 5.
@@ -45,11 +48,13 @@ Owner order (HUM-10, prd t1, topic `51f17481-a60b-4e52-a721-ee2a11cba5e2`, "Refa
 4. WUI with a browser proof: 11, 12.
 5. Low-med: 13 (lint-gate actions), 14 (credential-path actions, claude lanes only: the brief names key paths), 15 (async, browser).
 
+<a id="ws-doc-937eed81-5b54-417f-839d-3f0751fbcd58"></a>
 ## 4. Found while surveying, not in this round
 
 - **Behaviour bug.** `csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh:100`: `sudo -u <DEV_USER> mkdir -p "${BUCKET_TARGET}"`. The hygiene placeholder sits in executable code. Bash parses `<DEV_USER>` as two redirections: stdin from a file `DEV_USER`, then stdout to a file `mkdir`. So the line always fails with `DEV_USER: No such file or directory`, and the action stops at the first bucket. Check: `bash -c 'echo -u <DEV_USER> mkdir -p /x'` gives rc 1 with that message. It belongs to its own lane: the target user must come from an env var.
 - **Hazard, not a bug today.** Three modules export a function named `isAgentId`, with different meanings: `wui:src/utils/agent-id.mjs:77` (an agent id, new or legacy form), `wui:src/utils/mention-autocomplete.mjs:11` (an agent kind OR a human id) and `wui:src/utils/agent-kind.mjs`. `pnpm install` warns `Duplicated imports "isAgentId" … mention-autocomplete.mjs is used`. Every current caller imports it explicitly (`grep -rlw isAgentId src`: `ChannelSidebar.vue:744` imports from agent-kind). A future caller that relies on Nuxt auto-import would get the mention version, which also accepts humans. A rename is a lane of its own.
 
+<a id="ws-doc-79e15f78-76ac-4bd7-ac04-740642dba558"></a>
 ## 5. Briefs
 
 `/var/tmp/c-001-briefs/refactor-r2/NN-<slug>.md`, NN = 01..15, one per row above.

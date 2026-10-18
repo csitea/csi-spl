@@ -10,6 +10,7 @@ the real wait first, trace ONE call to count what it costs, and only then pick
 a fix. This page measures and recommends. It changes no code; each fix
 becomes its own lane.
 
+<a id="ws-doc-ee0db0d4-ddc0-4d32-a489-3bf42ab0ad4e"></a>
 ## 1. How it was measured
 
 ```bash
@@ -37,6 +38,7 @@ cd csi-spl-orc && SINCE=2026-10-06T20:00:00Z UNTIL=2026-10-07T20:00:00Z CMD_TIME
     mean the command is slow. It means the box stalled under load, or the
     command blocked on a pipe.
 
+<a id="ws-doc-c56e2e22-1f26-4d24-be4c-0d321ebf5766"></a>
 ## 2. The table, both boxes
 
 Rows ranked by total wait across both boxes (s = seconds). The full per-box
@@ -68,6 +70,7 @@ window, by c-509 in 65066935. Re-measured after the fix:
 - `do_spl_orch_inbox`: 2.0 s, 229 processes.
 - `do_spl_ask_ack` on box A since 19:25Z: median 6.5 s, n=5 (before: 64 s).
 
+<a id="ws-doc-3378dd91-d4e8-4116-8937-6f764696fab7"></a>
 ## 3. The top 10: cause and fix class
 
 Fix classes:
@@ -81,6 +84,7 @@ Each trace was run once on box A (load 8 to 12 on 16 cores), with n=1. To
 count the processes a call starts, the call ran in its own pid namespace
 (`unshare --pid`, then read `ns_last_pid`), because the box has no strace.
 
+<a id="ws-doc-41f676eb-b8fa-4758-bf44-852fa284dcc9"></a>
 ### 3.1 `poll-loop grep`: 90,632 s
 
 - **Measured:** 282 calls, median 175 / 336 s, p90 at the 600 s cap.
@@ -97,6 +101,7 @@ count the processes a call starts, the call ran in its own pid namespace
   background-completion notice instead of a sleep loop. Estimated saving:
   the overshoot, about 5 %, so about 4,500 s a day.
 
+<a id="ws-doc-7c029082-a88a-4ceb-9c29-101b7caa77df"></a>
 ### 3.2 `do_check_pre_push`: 36,797 s
 
 - **Measured:** 285 calls, median 25 / 60 s, p90 398 / 470 s.
@@ -117,12 +122,14 @@ count the processes a call starts, the call ran in its own pid namespace
   (`HEAD^{tree}` plus its base) already passed. Estimated saving: the second
   run, at least 40 %, so about 15,000 s a day.
 
+<a id="ws-doc-0ede235e-46c7-42fd-be14-8e1c91ddbb42"></a>
 ### 3.3 `poll-loop cat`: 21,842 s
 
 - **Measured:** 58 calls, median 263 / 566 s.
 - **Cause:** same as 3.1. The loop reads a job's output file.
 - **Fix:** class **(d)**, covered by 3.1.
 
+<a id="ws-doc-3f2b94eb-fa67-4481-8424-eca9133367c1"></a>
 ### 3.4 `gh run watch`: 16,638 s
 
 - **Measured:** 54 calls, median 285 / 227 s.
@@ -136,6 +143,7 @@ count the processes a call starts, the call ran in its own pid namespace
   The agent's turn can be freed by watching in the background (as in 3.1).
   Making CI itself faster is a separate measurement.
 
+<a id="ws-doc-66fdf9af-27ad-4993-84fa-c96c34eaa28b"></a>
 ### 3.5 `python3` (inline scripts): 15,839 s
 
 - **Measured:** 829 calls, median 0.4 / 0.8 s.
@@ -143,6 +151,7 @@ count the processes a call starts, the call ran in its own pid namespace
   comes from a long tail of a few long runs.
 - **Fix:** class **(d)**.
 
+<a id="ws-doc-d22368f0-3b34-4065-a4b2-78cf7d9c88be"></a>
 ### 3.6 `git fetch`: 14,987 s
 
 - **Measured:** 846 calls, median 1.6 / 3.6 s, p90 21 / 24 s.
@@ -155,6 +164,7 @@ count the processes a call starts, the call ran in its own pid namespace
   the last 60 s (FETCH_HEAD mtime). Estimated saving: half the calls, about
   7,000 s a day.
 
+<a id="ws-doc-56fb8ef6-1064-4652-baa0-b96e6a6e75d8"></a>
 ### 3.7 `pnpm run`: 14,361 s
 
 - **Measured:** 77 calls, median 140 / 155 s. These are `nuxt generate` and
@@ -164,12 +174,14 @@ count the processes a call starts, the call ran in its own pid namespace
 - **Fix:** class **(c)**. Cache the generated bundle, keyed on the WUI tree
   hash. Estimated saving: 30 to 50 % of generate time, about 5,000 s a day.
 
+<a id="ws-doc-9c091cd6-cd66-4ee6-9d9f-7cc563718ec6"></a>
 ### 3.8 `poll-loop tail`: about 12,500 s
 
 - **Measured:** median 581 s on box B, so nearly every call hit the cap.
 - **Cause:** same as 3.1.
 - **Fix:** class **(d)**, covered by 3.1.
 
+<a id="ws-doc-8b564986-b9f4-4e19-af20-76d0f6f64c53"></a>
 ### 3.9 `run-all-tests.sh` (orc suite): 8,515 s
 
 - **Measured:** 18 calls, median 600 / 574 s, so nearly every call hit the
@@ -183,6 +195,7 @@ count the processes a call starts, the call ran in its own pid namespace
   `require-cloud-env.tst.sh`, in the background. Estimated saving: about
   6,000 s a day.
 
+<a id="ws-doc-364a81a1-c01c-4140-a971-6384ad27a853"></a>
 ### 3.10 `cat`: 8,355 s
 
 - **Measured:** 1,985 calls, median 0.2 / 0.4 s, max 600 s.
@@ -190,6 +203,7 @@ count the processes a call starts, the call ran in its own pid namespace
   the box stalled.
 - **Fix:** class **(d)**. Watch it as a signal of box load instead.
 
+<a id="ws-doc-31239d98-f0dd-4d74-aa09-25bfa3492712"></a>
 ## 4. Smaller, one-call traces worth a lane later
 
 **`do_spl_db_query`**
@@ -206,6 +220,7 @@ count the processes a call starts, the call ran in its own pid namespace
 - **Cause:** the tail is box load, not the action itself.
 - **Fix:** class **(d)**.
 
+<a id="ws-doc-78f314dc-a982-4dfc-a599-4d93e5099214"></a>
 ## 5. The three to fix first
 
 1. **The pre-push hook skips a tree that already passed** (class c,

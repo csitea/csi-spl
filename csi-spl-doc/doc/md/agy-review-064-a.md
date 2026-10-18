@@ -4,12 +4,14 @@
 
 Review of `csi-spl-doc/specs/064-fleet-without-the-pc/spec.md` (c-048, sha `5a63e8d8`).
 
+<a id="ws-doc-ee3395ab-45de-4e46-9ec6-dc88433ca104"></a>
 ## 1. Failover, Correctness & Gaps
 - **Split-brain & Flapping**: Ranking sat first (`sat,<the PC>`) stops priority flapping. Hub CAS enforces single-holder lease semantics, and local self-demotion after 180s hub unreachability bounds dual-actor risk during netsplits.
 - **Mid-Push & Dark Box**: Hard laptop shutdown traps unpushed local commits and freezes active turns. The 20-min push rule bounds data loss, and the 60-min ask lock release frees uncommitted asks, but local git worktree state cannot be recovered remotely.
 - **SPOF Risks**: Cloud Run Hub and Cloud SQL are single points of failure for fleet lease CAS, ask tracking, and cross-machine messaging. Concentrating all fleet roles on sat creates a single-VM failure domain.
 - **Inventory Misses**: sat root disk is only 30 GB (23 GB free); CI runners, docker layers, and concurrent worktrees will exhaust it rapidly. sat disk must be resized to ≥100 GB. OOM risk also rises if runners and Chrome share 16 vCPUs with 20+ lanes.
 
+<a id="ws-doc-5e523805-2540-47b1-a51b-97f3dc0f7cf4"></a>
 ## 2. Lanes Evaluation (L1–L9)
 - **L1 (Lease ranking action)**: Agree. Essential prerequisite to anchor rank 0 on sat and eliminate flapping.
 - **L2 (Holder-gated responder)**: Agree. Guarantees immediate "Seen" acks without duplicate replies.
@@ -21,6 +23,7 @@ Review of `csi-spl-doc/specs/064-fleet-without-the-pc/spec.md` (c-048, sha `5a63
 - **L8 (15-min failover drill)**: Agree. Empirical verification of D1–D6 is required before trusting laptop shutdown.
 - **L9 (do_spl_box_leave drain)**: Disagree. Laptops close abruptly; relying on manual drains fails. Hard failover resilience is what matters.
 
+<a id="ws-doc-0ae1039c-2e5c-49b4-a6e8-27af4dc5a5e1"></a>
 ## 3. Owner Questions (Q1–Q10)
 - **Q1 (sat rank 0 for all roles)**: Yes — Eliminates lease flapping and keeps orchestration continuous.
 - **Q2 (box-rsp on sat, holder-gated)**: Yes — Delivers immediate "Seen" feedback without duplicate responses.

@@ -4,6 +4,7 @@
 
 **Plan sha:** `9296e7b99` (2026-10-14T08:37:00Z)
 
+<a id="ws-doc-419188a7-ce7f-454d-81a5-698cf182c368"></a>
 ## Objections
 
 1. **Row 03 (`refactor(r9-03-wui-small-stores-topic-viewer)`): Incorrect line counts in plan.**
@@ -17,6 +18,7 @@
      | 03 `refactor(r9-03-wui-small-stores-topic-viewer)` | small functions | Two store anonymous setup bodies exceed MAX_LINES | `wui:src/stores/topic.ts:25`<br>`wui:src/stores/viewer.ts:28`<br>`wui:tests/unit/cleancode.test.mjs:40,41` | 2 entries (153 and 183 lines) | Decompose inner actions into named module-level step functions under 80 lines; preserve store interface and reactivity. Delete both lines from `cleancode.test.mjs` LONG map (10 -> 8 listed). **Red control:** dummy 81-line function in `topic.ts` fails `cleancode.test.mjs`. `topic-kind.test.mjs`, typecheck | PC | simple_coding | 1 |
      ```
 
+<a id="ws-doc-2cde32b0-20b6-4227-a735-a519d1b05465"></a>
 ## Withdrawn objections
 
 2. **Row 05 (`test(r9-05-bash-stripe-measure-fix)`): Withdrawn.**
@@ -27,6 +29,7 @@
 3. **Row 01 (`test(r9-01-go-coverage-spool-cli-fs)`): Tooling unavailable for verification.**
    - **Withdrawn:** Plan v1.0 clarifies that tests use an `httptest.Server` stub hub, so tooling is not required for verification.
 
+<a id="ws-doc-e6649294-24c8-4dab-b994-13ea158f7f57"></a>
 ## Signature
 
 **No further objections.**

@@ -12,6 +12,7 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 
 ---
 
+<a id="ws-doc-897e69f9-2f2f-45d0-bf2f-0a570745ed78"></a>
 ## 1. Top Omnibox & Prepend Architecture
 
 | Aspect | Specification |
@@ -25,6 +26,7 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 
 ---
 
+<a id="ws-doc-97c6c5d9-ca19-41ed-b147-652e5b07bcf0"></a>
 ## 2. Behaviour in Reverse Prepend Mode
 
 - The **Top Omnibox** is permanently docked at the top of the middle feed.
@@ -35,6 +37,7 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 
 ---
 
+<a id="ws-doc-22001631-50e1-49f6-a9e9-91466f07c2f6"></a>
 ## 3. Scope & Protocol Invariants
 
 - Hub message storage remains unchanged (`ts`, `msg_id`, `task_id` in Postgres).
@@ -45,6 +48,7 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 
 ---
 
+<a id="ws-doc-6a3fc60e-0c8a-46e8-92fd-52cd2e9c60ca"></a>
 ## 4. Per-person layout: newest last (owner, topic c6994436, 2026-09-27)
 
 Newest first stays the **default**. A person can pick the mirror image in

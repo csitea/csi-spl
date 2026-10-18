@@ -9,6 +9,7 @@ serves it. Phase 2 applies it to `csi-spl-doc/doc/help/` once the content
 catch-up lane has landed. Every claim below was checked against origin/master
 (`f7e190b3`); the code wins over any doc.
 
+<a id="ws-doc-0b8d628a-bf11-44c6-ad0e-75594942a205"></a>
 ## 1. The roles (from the code)
 
 The roles are rows seeded from `rbac.Defaults` in
@@ -49,6 +50,7 @@ One more position is not a role: the **instance operator**, the `admin` of the
 one operator workspace (`hub/operator_workspaces.go`, spec 074: the admin there,
 not its `biz_owner`). Its few readers get a section on the admins' start page.
 
+<a id="ws-doc-f07e2718-5e85-4b98-bd2e-06575f0a89b4"></a>
 ## 2. The audiences
 
 Three audiences read different pages. A role reads every audience it qualifies for.
@@ -70,6 +72,7 @@ Start page per role:
 | `developer`, `biz_customer`, `regular_user`, `product_owner` | `start-running-agents` | `start-everyone` |
 | `admin`, `biz_owner` | `start-workspace-admins` | `start-running-agents`, `start-everyone` |
 
+<a id="ws-doc-efb5c5b9-76f9-4a5b-82ea-0e18dbefe2b6"></a>
 ## 3. The target help tree
 
 The tree stays **flat**: `sync-help.mjs` copies only `^[a-z0-9-]+\.md$` from
@@ -77,6 +80,7 @@ the top of `doc/help/` (`helpFiles`, `readdirSync` with no recursion) and
 `validHelpSlug` refuses a `/`. A sub-folder would vanish from the app with no
 error. Audience shows in the index and the start pages, not in paths.
 
+<a id="ws-doc-afda0165-4bc4-416f-ac73-c5c8b46df7d8"></a>
 ### 3.1 New pages (6)
 
 | slug | audience | holds |
@@ -88,6 +92,7 @@ error. Audience shows in the index and the start pages, not in paths.
 | `workspace-settings` | C | split out of `user-settings` section 9: every `TENANT_SETTINGS_SECTIONS` section |
 | `members-and-roles` | C | invite, edit, remove members, change a role, act as a member (Members section, `members.*` permissions) |
 
+<a id="ws-doc-56bb5ab4-4c56-4bd4-9558-01b573f8857d"></a>
 ### 3.2 The index
 
 `index.md` keeps its slug (it is `/help`). It becomes short: one paragraph on
@@ -96,6 +101,7 @@ the shared pages grouped under A, B and C. The big ASCII layout diagram moves
 to `interface-overview`. `sync-help.mjs` orders the left list by the index's
 link order, so the start pages come first with no code change.
 
+<a id="ws-doc-61924214-c62b-4004-b3ce-1aa150ddfa74"></a>
 ## 4. The page map (every current page)
 
 All 20 current slugs stay. No page is deleted or renamed, so no redirect is needed.
@@ -128,6 +134,7 @@ says `product_owner` has "full system governance, billing" and lists no
 `biz_customer` or `regular_user`; in `rbac.Defaults` `biz_owner` holds every
 permission and `product_owner` holds five. `roles` is written from the code.
 
+<a id="ws-doc-ba7ab16f-1bab-4cb5-91f9-3c056a901d90"></a>
 ## 5. How the app serves it
 
 | part | file | change |
@@ -139,6 +146,7 @@ permission and `product_owner` holds five. `roles` is written from the code.
 | coverage guard | `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs` | reads `user-settings.md` for `TENANT_SETTINGS_SECTIONS`: point that half at `workspace-settings.md` |
 | optional (2.3) | `[[page]].vue` index view | a "your start page" line from `/v1/view/me` permissions (`normalizeMe`, `utils/access.mjs`), only if small |
 
+<a id="ws-doc-04ef470c-9ad4-4239-b3ef-d428eeef038f"></a>
 ### 5.1 Links and anchors that must keep working
 
 - Every slug stays, so every `/help/<slug>` and every repo path
@@ -157,6 +165,7 @@ permission and `product_owner` holds five. `roles` is written from the code.
   (`connect-an-agent`, `getting-started`). The index must keep linking
   `./getting-started.md`.
 
+<a id="ws-doc-579c9027-8a39-4a9a-a1aa-66a48a7b8e48"></a>
 ## 6. Phase 2 steps
 
 1. Wait for the content lane (`help-docs-catchup-20261004.md` done, no

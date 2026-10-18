@@ -10,6 +10,7 @@ Panel: the claude seat (proposal `refactor-round-6/seat-claude.md` by the planne
 
 Every site was measured on ONE trunk sha: **`da36dad94`** (`origin/master`, 2026-10-10T05:48Z), n=1 per count unless stated otherwise. Re-checked on `ab17d6547` (the trunk when this plan was written): `git diff --stat da36dad94 ab17d6547 -- <every site path of section 3>` -> empty, so every line number holds. Re-checked again at the fold on `5c3f1fe42`: the same `git diff --stat da36dad94 5c3f1fe42 -- <every site path>` -> empty.
 
+<a id="ws-doc-c4a194e6-66cb-4710-be9f-6d3ae51da150"></a>
 ## 1. How to read this
 
 - One action = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change, or, for a gate, a **red control** that proves the gate now fails on the bad input.
@@ -20,6 +21,7 @@ Every site was measured on ONE trunk sha: **`da36dad94`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r6-NN-<slug>): ...` for a code action, `ci(r6-NN-<slug>): ...` for a gate action, `test(r6-NN-<slug>): ...` for 06.
 - **Off every live lane:** `lane-map.sh --check <all 51 paths: the sites, the new files, the edited tests and this plan> --agent c-709` -> `free`, rc 0 (2026-10-10, twice). Live and kept off: c-707@sat (`spawn-agents/spawn-window.sh`), a-753@PC and m-754@PC (`csi-spl-doc/blog`, `spl-blog-check.func.sh`). Re-run the check per action before its spawn (R3).
 
+<a id="ws-doc-f45ef3a3-5ba3-4ced-ac70-653404d8ba7d"></a>
 ## 2. Where the actions come from (measured)
 
 | source | command on `da36dad94` | n | action |
@@ -36,6 +38,7 @@ Every site was measured on ONE trunk sha: **`da36dad94`** (`origin/master`, 2026
 
 Kept out by the same measure: section 8.
 
+<a id="ws-doc-1f7cda29-4537-44d8-8156-8681b7490d18"></a>
 ## 3. The 10 actions
 
 | # | practice | why (one line) | sites file:line (max 5) | n + command | test or red control | box | agent kind | batch |
@@ -53,6 +56,7 @@ Kept out by the same measure: section 8.
 
 Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3). Line ranges for 07 and 08 are the duplicated windows the hash found; the lane reads each copy whole before it extracts.
 
+<a id="ws-doc-ef3e2aa7-cab3-4749-b9d5-279c186f078b"></a>
 ### 3.1 Disjoint files (R1)
 
 - No path is in two actions of the same batch. `lane-map --check` over every path: free.
@@ -60,6 +64,7 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 - 07 and 08 each add a NEW file under `csi-spl-orc/lib/bash/funcs/`; no shared loader list (`run.sh:511` sources the dir).
 - A test file named in the test column of two actions is READ by both, never edited by both: the editing action is the one whose sites include it.
 
+<a id="ws-doc-895665a1-77b8-4a89-b702-3472e4d9cd2d"></a>
 ## 4. Per action: what the lane does
 
 - **01.** Each call gets `signal: AbortSignal.timeout(<budget>)` from `fetch-timeouts.mjs` (reads: the read budget; the hours timer start/stop and status PUT: the write budget). A timeout surfaces as the call's existing failure path, never a new UI state.
@@ -73,6 +78,7 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 - **09.** Split by named inner functions; keep each export's signature. No `.vue` change. `perf-budget.py` with CI's node (round 5 memory: box node reads ~0.7 KB low).
 - **10.** Named steps inside the same file; no change to the `--account` pin or the key-path resolution (`gcloud-account-pinned.tst.sh`).
 
+<a id="ws-doc-6ecaa4c1-64b3-496e-8539-9e2117c3ed3d"></a>
 ## 5. Spawn, done, status (R1-R8)
 
 - **R1** disjoint files: section 3.1.
@@ -93,6 +99,7 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 - **R8, retro.** After the 10 actions are served, one lane writes `refactor-round-6-retro.md` in the shape of `refactor-round-5-retro.md`; its section 6 feeds round 7. Then, per `SPEC-spool-fleet-roles.md` section 1.2, the dispatcher requests round 7's planner at once.
 - **R9 (new, retro 6.4), gate lanes.** 04 and 05 run their own test once under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` variable unset, before the first push.
 
+<a id="ws-doc-183f502b-bc9e-492f-b5d0-cae61365387d"></a>
 ## 6. Process practices, measured (no lane)
 
 | owner practice | measured state on `da36dad94` | verdict |
@@ -104,6 +111,7 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 | CI that blocks broken builds | round 5 made the e2e verdict real (r5-08) and added an orc pre-push part (r5-07); the r5 clobber was invisible to CI (retro 3) | action 05 |
 | formatting enforced | Go `gofmt -l` 0, Python `ruff format --check` 54 of 54 (r5-09) | **in place** for Go and Python; bash and WUI: section 8 |
 
+<a id="ws-doc-e3f4e5d8-2e10-4821-a57d-28b52b25a495"></a>
 ## 7. Disagreements
 
 Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 agree, mistral 9 agree + 08 "agree with changes". No seat proposed a new row or dropped one, so no row's sites changed and nothing was re-measured beyond the fold check in the header.
@@ -112,6 +120,7 @@ Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 a
 |---|---|---|---|
 | D1 | mistral (m-710) | 08: "Move the `RETURN` trap to the helper", to avoid repeating it in every caller | **Refuted by a command, not folded.** (a) There is no trap to move: `grep -c trap csi-spl-orc/src/bash/run/spl-{backfill,fallback,reply-count,reply,topic-reply}-probe.func.sh` -> 0, 0, 0, 0, 0 on `5c3f1fe42`; the preamble validates paths, it creates no temp file to clean. (b) A `RETURN` trap set inside a helper fires when the HELPER returns, not the caller: `bash -c 'h(){ trap "echo TRAP; trap - RETURN" RETURN; echo helper-end; }; c(){ h; echo caller-next; }; c'` prints `helper-end`, `TRAP`, `caller-next`, so a cleanup moved into the helper would run before the caller uses what it cleans (the round 4 section 6 reason the rule exists). Row 08 stays as written; section 4 bullet 08 now says why. Put to m-710 once on `dispatch-4f46ce09`; its answer is recorded in section 10. |
 
+<a id="ws-doc-7c01b6e3-25a5-4310-a0da-93635269f0f2"></a>
 ## 8. Measured and left out
 
 | what | why it is out | measured by |
@@ -124,6 +133,7 @@ Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 a
 | shfmt and prettier | no config and no tool; one format wave over every live lane's files (r5 section 8) | `git ls-files` counts |
 | `require-var.func.sh` `exit 1` (iac and orc) | its job is to stop the run when a variable is missing | read by hand |
 
+<a id="ws-doc-bf5a1c50-c897-41ad-bd09-39247a888a7a"></a>
 ## 9. Counts
 
 | | Go | TS/Vue | bash | CI / gate | total |
@@ -134,6 +144,7 @@ Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 a
 | per box | `sat`: 03, 04, 05, 07, 08, 10 | | | `PC`: 01, 02, 06, 09 | 10 |
 | agent kind | simple_coding: 01, 02, 07, 09 | secret: 03, 08, 10 | complex_coding: 04, 05 | tests: 06 | 10 |
 
+<a id="ws-doc-36e14cd1-0029-4080-a007-c0c8c519d2ce"></a>
 ## 10. Consensus
 
 Signed plan sha: **`eb8cbfc1c`** (the fold of the three seats; this section and the status line are the only edits after it).

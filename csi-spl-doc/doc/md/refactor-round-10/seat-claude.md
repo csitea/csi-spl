@@ -16,6 +16,7 @@ actions, `csi-spl-orc/src/bash/tests`) -> empty. One change does touch the
 WUI rows: `3cd461397` itself moves typescript 5.9.3 -> 6.0.3 (rows 02, 03
 below).
 
+<a id="ws-doc-53492381-ea19-4623-a414-74fba64afd13"></a>
 ## 1. Re-measured counts
 
 | row | command (on `3cd461397`) | plan says | measured |
@@ -39,6 +40,7 @@ below).
 | 10 | `git grep -nE "\^review: " -- 'csi-spl-orc/src/**' 'csi-spl-iac/src/**' '.github/**' \| wc -l` | 0 | 0 |
 | R3 | `lane-map.sh --check csi-spl-doc/doc/md/refactor-round-10/seat-claude.md --agent c-120` | c-296@PC records no files | rc 4: `c-296@<box2> c-296-cga-editor` and `c-519@<box2> c-519-go-mod-cache-auto-warm` record no files |
 
+<a id="ws-doc-6d8d8188-853f-411d-89e8-100647dd10a5"></a>
 ## 2. Verdict per row
 
 | row | verdict | why, with the command behind any change |
@@ -54,6 +56,7 @@ below).
 | 09 | **agree with changes** | The KEEP rule (`git cherry` `+` lines) is right, but it keeps **7** tips, not 3 (section 1, all 36 tips checked). The 4 `review/r7-05*` tips are drafts of row r7-05, which landed squashed as `ae6991bf4` (`git log origin/master -E --grep='r7-05' --oneline` -> `ae6991bf4 refactor(r7-05-bash-cron-checkout-helper): ...`). A squash changes the patch id, so `git cherry` reports their commits as unlanded. Changes: (a) the after-landing expectation reads "`ROUND="7,8,9" DRY_RUN=1` matches 36, prints 7 `KEEP`, lists 29" instead of "lists 33 (36 - 3 kept)"; (b) the red-control fixtures add a squash-landed tip (2 commits that landed as 1) and assert it is KEPT, so nobody later turns the rule into deleting it; (c) the 7 `KEEP` lines go to the orchestrator as the plan says, with the `ae6991bf4` note on the 4 r7-05 tips, so it can decide `PRUNE_UNLANDED=1` for those. |
 | 10 | **agree** | Worker 43 lines, identity check at 151, 0 gates today: hold. The row's own landing commit matches its regex, so it lands with its review line like every other row. |
 
+<a id="ws-doc-48471c44-7410-4081-94bf-306ca76f83fa"></a>
 ## 3. Left out that should be named
 
 - **Row 10 covers `do_spl_push_master` only.** A lane that pushes by hand
@@ -65,6 +68,7 @@ below).
   c-519@<box2> (go mod cache warm-up) as a second lane with no files recorded
   (section 1, R3 line). The spawner's per-row `--check` (R3) still asks both.
 
+<a id="ws-doc-35962eec-c320-406b-9e1a-0e0c3124f6a1"></a>
 ## 4. Signature
 
 signed v1.0 40057b1a5

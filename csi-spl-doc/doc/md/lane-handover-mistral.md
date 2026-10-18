@@ -8,6 +8,7 @@ ba8104f6 msg b072af77; topic 9d603c3d). Same steps, same shared WIP step
 Code: `csi-spl-orc/src/bash/run/spl-lane-handover-mistral.func.sh`, test
 `csi-spl-orc/src/bash/tests/spl-lane-handover-mistral.tst.sh`.
 
+<a id="ws-doc-57a80dae-106f-471b-a501-eae3c8824265"></a>
 ## 1. Use
 
 Dry run first (the default): the WIP scan, the mode and the plan; no ssh call,
@@ -19,6 +20,7 @@ Then, with the orchestrator's go:
 
 `cd csi-spl-orc && FROM=m-050 TO_BOX=sat DRY_RUN=0 ./run -a do_spl_lane_handover_mistral`
 
+<a id="ws-doc-cec62588-a88f-4d00-a67e-a77f762d937f"></a>
 ## 2. Where a mistral agent keeps its session
 
 Measured on vibe 2.26.0 (`vibe --version`), 2026-10-10.
@@ -31,6 +33,7 @@ Measured on vibe 2.26.0 (`vibe --version`), 2026-10-10.
 | the session id | NOT in the identity record: `jq .session_id /var/spool-hub/agents/m-*.json` -> null for every m- lane | so the action picks the newest root session whose `working_directory` is FROM's worktree, which is what `vibe --continue` resumes there |
 | sizes | the largest session dir on this box is 20 MB | `du -sm ~/.vibe/logs/session/unified/*/ \| sort -n \| tail -1` |
 
+<a id="ws-doc-f3aa626e-069a-477a-90c7-41c351d50814"></a>
 ## 3. Resume on another box
 
 `vibe --resume <sid>` needs only `unified/<sid>/CURRENT` under the session
@@ -62,12 +65,14 @@ command resumes nothing (the control).
 A needs `TO_ID` = `FROM`: the session's memory names its worktree path, and
 only the same id gives the same path on the other box.
 
+<a id="ws-doc-3e0afd4e-e0cc-4a8d-9741-e87b29eaaf47"></a>
 ## 4. How the fleet starts a mistral agent
 
 `/mistral-spawn` runs `spawn-window.sh mistral <ID> <workdir> <brief>`, whose
 window runs `spawn-mistral.sh` (the mistral adapter of `spawn-core.inc.sh`).
 Mode B uses that: `spawn-window.sh mistral <TO_ID> <repo> <handover brief>`.
 
+<a id="ws-doc-cbf37593-4e28-4d47-a0d0-af1f32f56e0b"></a>
 ## 5. Mode B, and the data rule
 
 B (a fresh agent with the written handover brief: FROM's brief, task id, last

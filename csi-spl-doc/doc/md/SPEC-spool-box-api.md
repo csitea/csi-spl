@@ -7,6 +7,7 @@ Related: `SPEC-spool-message-bus.md`, `SPEC-spool-identity-routing.md`, `SPEC-sp
 
 ---
 
+<a id="ws-doc-9061e8ca-2adf-4b5a-b6b0-c3aa5392fca6"></a>
 ## 1. Rule
 
 Every AI agent on a box talks to spool through **the same API**.
@@ -24,6 +25,7 @@ No per-kind HTTP dialect. No per-kind JSON.
 
 ---
 
+<a id="ws-doc-6975cb28-d978-4e01-9b15-880485fc708a"></a>
 ## 2. Box surface
 
 On each box that may run an agent:
@@ -32,6 +34,7 @@ On each box that may run an agent:
 - MCP: one **binary** on the box; Claude/agy spawn `spool mcp` as a **stdio child per agent session** (not a daemon per tmux window, not a second schema)
 - Same binary/code behind both
 
+<a id="ws-doc-ff78d2d4-0c91-4df9-b3ea-0fa6406195fa"></a>
 ### 2.1 Standard Box Launcher (`spool-harness`)
 
 To prevent manual environment configuration and ensure clean lifecycle bootstrapping, the box image provides `spool-harness`:
@@ -49,8 +52,10 @@ spool-harness --as <agent_id> [--to-box <box_id>] [--] <agent-cli-command...>
 
 ---
 
+<a id="ws-doc-60cb561d-5c7e-4153-86e4-72bf674faecf"></a>
 ## 3. MCP tools (canonical names)
 
+<a id="ws-doc-07f61a90-0f2b-4246-9967-e29228a42d15"></a>
 ### `spool_put_file`
 
 ```json
@@ -63,6 +68,7 @@ Returns:
 { "file_id": "<sha256 hex>", "sha256": "<same>", "bytes": 12044, "name": "patch.zip" }
 ```
 
+<a id="ws-doc-cfc7e0b8-7121-47d1-ba95-57bc31821804"></a>
 ### `spool_send`
 
 ```json
@@ -81,6 +87,7 @@ In local mode, unsigned (POSIX trust). In hub mode, wraps in envelope signed wit
 
 Returns: `{ "msg_id", "task_id", "ts" }`
 
+<a id="ws-doc-84cf0b9e-0f28-4b9f-9fd9-a4e5187f4f74"></a>
 ### `spool_recv`
 
 ```json
@@ -89,6 +96,7 @@ Returns: `{ "msg_id", "task_id", "ts" }`
 
 Returns a list of message objects (schema v1). Optional `ack: true` moves them aside.
 
+<a id="ws-doc-ee9fc9bf-229b-42ca-be09-7024111cdef8"></a>
 ### `spool_get_file`
 
 ```json
@@ -97,6 +105,7 @@ Returns a list of message objects (schema v1). Optional `ack: true` moves them a
 
 Returns `{ "path", "bytes", "sha256" }`. Verifies hash.
 
+<a id="ws-doc-38b42869-cd44-475f-b1de-5b76ae993929"></a>
 ### `spool_tail`
 
 ```json
@@ -109,6 +118,7 @@ Do not add `spool_send_claude` / `spool_send_grok`. One send.
 
 ---
 
+<a id="ws-doc-3545a890-2095-4aae-95a4-5163087ccb88"></a>
 ## 4. CLI mapping (must stay 1:1)
 
 ```
@@ -125,6 +135,7 @@ Verify/refuse: exit `78` (same as ysg-box `directive-verify`).
 
 ---
 
+<a id="ws-doc-a0f172d9-adef-491b-b5cc-ce324e13cadb"></a>
 ## 5. Message object (shared)
 
 Inner `v:1` message payload (local disk and inside hub wire envelope):
@@ -161,6 +172,7 @@ Canonical sign payload: `jq -cS '{from_box,msg,to_box}'`. Ed25519 box key. Box p
 
 ---
 
+<a id="ws-doc-be475543-b370-413a-bdca-40208600ba85"></a>
 ## 6. File + notify flow (Grok example, same for all kinds)
 
 1. `spool_put_file` / `spool-put-file ./patch.zip`
@@ -173,6 +185,7 @@ Canonical sign payload: `jq -cS '{from_box,msg,to_box}'`. Ed25519 box key. Box p
 
 ---
 
+<a id="ws-doc-f89b166a-974e-41f3-b0ee-95bbf0c60a11"></a>
 ## 7. HTTP and WebSocket the CLI may call (hub)
 
 ```
@@ -191,6 +204,7 @@ Box CLI and sidecars hide these. Agents never call them directly.
 
 ---
 
+<a id="ws-doc-146d7db8-aba4-429a-88c2-7c77bd09901b"></a>
 ## 8. Invariants
 
 - Same tool names on every box image
@@ -200,6 +214,7 @@ Box CLI and sidecars hide these. Agents never call them directly.
 
 ---
 
+<a id="ws-doc-1efde484-bcd9-4ee6-bada-9ab85faf2103"></a>
 ## 9. Out of this spec
 
 Kafka, per-kind endpoints, per-agent cloud keys, a long-lived MCP **daemon**

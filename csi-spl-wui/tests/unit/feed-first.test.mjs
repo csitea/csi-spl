@@ -52,7 +52,9 @@ describe('feed first: wired into the layout and the lobby', () => {
 
   it('the layout holds the top bar and ChannelSidebar on a desktop /lobby only, with a cap', () => {
     assert.match(layout, /<TopBar v-if="shellIn" \/>/)
-    assert.match(layout, /<ChannelSidebar v-if="shellIn" \/>/)
+    /* perf round 6 row 07 (SPL-2436): sidebarIn is shellIn AND (on a phone booting at level 2/3) idle */
+    assert.match(layout, /<ChannelSidebar v-if="sidebarIn" \/>/)
+    assert.match(layout, /const sidebarIn = computed\(\(\) => shellIn\.value && /)
     const hold = layout.slice(layout.indexOf("useState('shell-in'"))
     assert.match(hold.slice(0, 400), /isLobbyPath\(window\.location\.pathname\)/)
     assert.match(hold.slice(0, 400), /matchMedia\(MOBILE_STACK_QUERY\)/, 'a phone never holds: level 1 is the sidebar')

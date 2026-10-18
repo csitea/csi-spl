@@ -210,14 +210,59 @@ check_tools || exit $?
 # it is stale when the NEXT tick still finds that same HEAD behind, because a
 # working checkout would have moved it. A dirty tree, or a HEAD that is not an
 # ancestor of trunk, is stale at once.
+#
+# A DIRTY TREE IS RECOVERED, NEVER CLEANED (bug round 1 row 03, SPL-2490). From
+# 2026-10-02 the desk-reconcile topic carried 16 "not on trunk" blockers, 11 of
+# them `dirty:`: a tree writer left tracked edits and the crontab checkout
+# refused to move. Those edits may be someone's work, so recover_dirty first
+# snapshots the staged AND unstaged tracked changes (`git stash create`) into
+# refs/rescue/desk-cron/<YYYYMMDDTHHMMSSZ>, checks the snapshot still matches
+# the tree, and only then resets the tracked files to HEAD and checks out
+# trunk. It never runs `git clean` and never touches an untracked file (a
+# checkout that would overwrite one is refused by git and stays stale). It runs
+# only while it holds $mark_dir/recover.lock (the dev and prd ticks share this
+# checkout), never while a git index.lock exists, only for a HEAD that is an
+# ancestor of trunk. DESK_DIRTY_RECOVER=0 turns it off. The blocker cites the
+# ref; `git -C <checkout> stash apply <ref>` gives the work back.
+rescue=""
+recover_dirty() {
+  local lock="$mark_dir/recover.lock" snap ts n=1
+  git -C "$ROOT" merge-base --is-ancestor HEAD "$trunk_sha" 2>/dev/null ||
+    { say "WARN dirty recovery skipped: HEAD ${head_sha:0:8} is not an ancestor of trunk"; return 1; }
+  [ ! -e "$(git -C "$ROOT" rev-parse --git-path index.lock)" ] ||
+    { say "WARN dirty recovery skipped: a git index.lock exists in $ROOT"; return 1; }
+  mkdir -p "$mark_dir" && exec 9>"$lock" || return 1
+  flock -n 9 || { say "INFO dirty recovery skipped: another tick holds $lock"; exec 9>&-; return 1; }
+  snap="$(git -C "$ROOT" -c user.name=desk-cron -c user.email=desk-cron@example.invalid \
+    stash create "desk-cron rescue of $ROOT at HEAD ${head_sha:0:12}" 2>/dev/null)"
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"; rescue="refs/rescue/desk-cron/$ts"
+  while git -C "$ROOT" rev-parse -q --verify "$rescue" >/dev/null; do n=$((n + 1)); rescue="refs/rescue/desk-cron/$ts-$n"; done
+  [ -n "$snap" ] && git -C "$ROOT" diff --quiet "$snap" -- &&
+    git -C "$ROOT" update-ref "$rescue" "$snap" "" 2>/dev/null ||
+    { say "WARN dirty recovery skipped: no safe snapshot of the tracked changes in $ROOT"; rescue=""; exec 9>&-; return 1; }
+  say "INFO saved the dirty tracked files of $ROOT to $rescue (${snap:0:8})"
+  git -C "$ROOT" reset -q --hard HEAD && git -C "$ROOT" checkout -q --detach "$trunk_sha" ||
+    { say "WARN recovery could not check out trunk ${trunk_sha:0:8}; the work stays in $rescue"; exec 9>&-; return 1; }
+  exec 9>&-
+}
 stale=0
 if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${DESK_TRUNK_REF:-origin/master}" >/dev/null 2>&1; then
   head_sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   trunk_sha="$(git -C "$ROOT" rev-parse "${DESK_TRUNK_REF:-origin/master}")"
   mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
+  lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
+  to_alert="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | sed -n 1p)}"
   seen="$mark_dir/behind-head.${head_sha:0:12}"
   if [ "$head_sha" != "$trunk_sha" ]; then
     dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | sed -n 1,5p | tr '\n' ' ')"
+    if [ "${DESK_DIRTY_RECOVER:-1}" != 0 ] && [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ] &&
+       recover_dirty; then
+      say "INFO recovered $ROOT: HEAD ${head_sha:0:8} -> trunk ${trunk_sha:0:8}, dirty was: $dirty (untracked files left as they were)"
+      recovered_from="${head_sha:0:8}" recovered_dirty="$dirty"
+      head_sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+    fi
+  fi
+  if [ "$head_sha" != "$trunk_sha" ]; then
     if [ -z "$dirty" ] && [ ! -e "$seen" ] &&
        git -C "$ROOT" merge-base --is-ancestor HEAD "$trunk_sha" 2>/dev/null; then
       rm -f "$mark_dir"/behind-head.* 2>/dev/null
@@ -229,18 +274,23 @@ if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${
   else
     rm -f "$mark_dir"/behind-head.* 2>/dev/null
   fi
+  if [ -n "${recovered_from:-}" ] && [ -n "$to_alert" ]; then
+    SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh" \
+      --from "$to_alert" --to "$to_alert" --kind blocker --task desk-reconcile \
+      --body "DESK CRON: checkout $ROOT was stuck at HEAD $recovered_from on dirty tracked files ($recovered_dirty). Saved them to $rescue (restore: git -C $ROOT stash apply $rescue), reset the tracked files and moved to trunk ${trunk_sha:0:8}; untracked files untouched. Find the tool that wrote into the cron checkout." \
+      >/dev/null 2>&1 && say "INFO told $to_alert about $rescue" || say "WARN could not tell $to_alert about $rescue"
+  fi
   if [ "$stale" = 1 ]; then
     behind="$(git -C "$ROOT" rev-list --count "HEAD..$trunk_sha" 2>/dev/null || echo '?')"
     say "FATAL checkout $ROOT is NOT on trunk: HEAD ${head_sha:0:8}, ${DESK_TRUNK_REF:-origin/master} ${trunk_sha:0:8}, $behind commit(s) behind${dirty:+; dirty: $dirty}"
     say "FATAL this tick runs stale code - fix the checkout (the crontab's 'git checkout --detach' cannot move it)"
     mark="$mark_dir/stale-checkout.${head_sha:0:12}.${trunk_sha:0:12}"
-    lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
-    to="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | sed -n 1p)}"
+    to="$to_alert"
     if [ ! -e "$mark" ] && [ -n "$to" ]; then
       mkdir -p "$mark_dir" && touch "$mark"
       SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh" \
         --from "$to" --to "$to" --kind blocker --task desk-reconcile \
-        --body "DESK CRON: checkout $ROOT is not on trunk (HEAD ${head_sha:0:8}, trunk ${trunk_sha:0:8}, $behind behind${dirty:+, dirty: $dirty}). Every tick runs stale code until it is fixed." \
+        --body "DESK CRON: checkout $ROOT is not on trunk (HEAD ${head_sha:0:8}, trunk ${trunk_sha:0:8}, $behind behind${dirty:+, dirty: $dirty}${rescue:+, tracked changes saved to $rescue}). Every tick runs stale code until it is fixed." \
         >/dev/null 2>&1 && say "INFO told $to" || say "WARN could not tell $to"
     fi
   fi

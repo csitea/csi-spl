@@ -149,6 +149,32 @@ marker is ignored with a WARN, the same rule as the desk pause.
 removes it. Gates: `desk-cron-trunk.tst.sh` check 10 and
 `spl-pool-ctl.tst.sh` checks 3, 8 and 9.
 
+### 4.5 A dirty desk checkout is recovered, never cleaned (SPL-2490)
+
+The crontab line moves the desk checkout with `git checkout --detach
+origin/master`. Tracked edits left in that checkout make the checkout fail,
+and every tick then runs stale code. From 2026-10-02 the `desk-reconcile`
+topic carried 16 such blockers, 11 of them `dirty:` (bug round 1 plan, row
+03). When `desk-reconcile-cron.sh` finds HEAD behind trunk and tracked files
+dirty, it now:
+
+1. takes `<state dir>/recover.lock` with `flock -n`. When another tick holds
+   it, or a git `index.lock` exists, it does nothing and the tick stays
+   stale;
+2. snapshots the staged and unstaged tracked changes with `git stash create`,
+   checks that the snapshot still matches the tree, and stores it as
+   `refs/rescue/desk-cron/<YYYYMMDDTHHMMSSZ>` (`-2`, `-3` ... when that
+   second is taken);
+3. resets the tracked files to HEAD and checks out trunk. It never runs
+   `git clean` and never touches an untracked file. When trunk would
+   overwrite an untracked file, git refuses the checkout and the tick stays
+   stale. The work stays in the ref;
+4. tells the orchestrator in a `desk-reconcile` blocker that names the ref.
+   `git -C <checkout> stash apply <ref>` restores the work.
+
+It recovers only a HEAD that is an ancestor of trunk. `DESK_DIRTY_RECOVER=0`
+turns it off. Gate: `desk-cron-trunk.tst.sh` check 11.
+
 A `stop` still holds for at most `DESK_PAUSE_MAX_SECS`, by design: a box
 that was forgotten in the stopped state comes back by itself. A longer stop
 removes the crons (`BOX_DEPLOY_CMD=remove`, section 5).

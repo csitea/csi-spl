@@ -20,6 +20,13 @@
 #  10. a fresh <spool root>/dispatch/lease.pause (do_spl_pool_ctl stop, spec
 #      071 4.4) stops the dev AND prd tick re-taking the lease; a stale one is
 #      ignored with a WARN. CONTROL: no marker, the lease is ensured
+#  11. a dirty checkout behind trunk (SPL-2490, bug round 1 row 03): staged,
+#      unstaged and untracked files. While another tick holds recover.lock
+#      nothing moves; then the tick saves the staged + unstaged changes to
+#      refs/rescue/desk-cron/<ts>, moves to trunk, leaves the untracked file on
+#      disk and cites the ref in the blocker. A trunk file an untracked file
+#      would overwrite: git refuses, the work stays in the ref, still stale.
+#      Sections 2-3 run with DESK_DIRTY_RECOVER=0 (the off switch).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -58,7 +65,7 @@ git -C "$CO" update-ref refs/remotes/origin/master HEAD
 git -C "$CO" checkout -q --detach "$old"
 echo dirt >>"$O/run"
 : >"$T/calls"
-tick; rc=$?
+tick DESK_DIRTY_RECOVER=0; rc=$?
 [[ $rc -eq 1 ]] && grep -q "FATAL checkout $CO is NOT on trunk: HEAD ${old:0:8}, origin/master .* 1 commit(s) behind; dirty: .*run" "$T/o" &&
   pass "2. a checkout behind trunk: FATAL with shas, count and the dirty file; exit 1" || fail "2. rc=$rc $(cat "$T/o")"
 [[ "$(grep -c -- '--to O-1 --kind blocker' "$T/sent" 2>/dev/null)" == 1 ]] &&
@@ -67,7 +74,7 @@ grep -q 'do_spl_dispatch_lease' "$T/calls" && grep -q 'do_spl_desk_up_all' "$T/c
   pass "2. the lease ensure and the reconcile still ran" || fail "2. calls: $(cat "$T/calls")"
 
 # --- 3. told once -----------------------------------------------------------------------
-tick; rc=$?
+tick DESK_DIRTY_RECOVER=0; rc=$?
 [[ $rc -eq 1 && "$(grep -c -- '--to O-1' "$T/sent")" == 1 ]] && grep -q 'NOT on trunk' "$T/o" &&
   pass "3. the next tick logs it again but tells only once" || fail "3. rc=$rc sent: $(cat "$T/sent")"
 
@@ -137,6 +144,45 @@ git -C "$CO" checkout -q --detach origin/master
 tick; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'NOT on trunk' "$T/o" && ! compgen -G "$T/state/behind-head.*" >/dev/null &&
   pass "9. back on trunk: no alarm, the remembered HEAD is forgotten" || fail "9b. rc=$rc $(ls "$T/state") $(cat "$T/o")"
+
+# --- 11. a dirty checkout is recovered into a rescue ref, never cleaned --------------------
+g() { git -C "$CO" -c user.name=t -c user.email=t@example.com "$@"; }
+rescues() { git -C "$CO" for-each-ref --format='%(refname)' refs/rescue/desk-cron/; }
+printf 'a1\n' >"$CO/fa"; printf 'b1\n' >"$CO/fb"; g add fa fb; g commit -q -m files
+commit trunk-next; g update-ref refs/remotes/origin/master HEAD; next="$(g rev-parse HEAD)"
+g checkout -q --detach HEAD~1; old="$(g rev-parse HEAD)"
+printf 'a2 staged\n' >"$CO/fa"; printf 'n staged\n' >"$CO/fn"; g add fa fn
+printf 'b2 unstaged\n' >"$CO/fb"; printf 'mine\n' >"$CO/untracked.txt"
+sent_before="$(wc -l <"$T/sent")"
+mkdir -p "$T/state"; exec 8>"$T/state/recover.lock"; flock -n 8
+tick; rc=$?
+exec 8>&-
+[[ $rc -eq 1 && "$(g rev-parse HEAD)" == "$old" && -z "$(rescues)" ]] && grep -q 'another tick holds' "$T/o" &&
+  [[ "$(cat "$CO/fb")" == "b2 unstaged" ]] && g diff --cached --quiet -- fa; [[ $? -eq 1 ]] &&
+  pass "11. another tick holds recover.lock: nothing moved, no ref, still stale" || fail "11. lock: rc=$rc $(rescues) $(cat "$T/o")"
+sent_before="$(wc -l <"$T/sent")"
+tick; rc=$?
+ref="$(rescues)"
+[[ $rc -eq 0 && "$(g rev-parse HEAD)" == "$next" && -n "$ref" && -z "$(g status --porcelain --untracked-files=no)" ]] &&
+  pass "11. a dirty checkout behind trunk is moved to trunk, exit 0" || fail "11. rc=$rc head=$(g rev-parse HEAD) ref=$ref $(cat "$T/o")"
+[[ "$(g show "$ref:fa")" == "a2 staged" && "$(g show "$ref:fb")" == "b2 unstaged" && "$(g show "$ref^2:fa")" == "a2 staged" &&
+   "$(g show "$ref^2:fn")" == "n staged" && "$(g show "$ref^2:fb")" == "b1" && "$(g rev-parse "$ref^1")" == "$old" ]] &&
+  pass "11. the rescue ref holds the staged (index) and unstaged (tree) changes on the old HEAD" || fail "11. ref $ref: $(g show --stat "$ref" 2>&1)"
+[[ "$(cat "$CO/untracked.txt" 2>/dev/null)" == "mine" ]] && ! g cat-file -e "$ref:untracked.txt" 2>/dev/null &&
+  pass "11. the untracked file is untouched on disk (and not in the ref)" || fail "11. untracked: $(ls -la "$CO")"
+[[ "$(wc -l <"$T/sent")" == $((sent_before + 1)) ]] && tail -1 "$T/sent" | grep -- "--kind blocker .*$ref" >/dev/null &&
+  ! grep -q 'NOT on trunk' "$T/o" && pass "11. the blocker cites the rescue ref" || fail "11. sent: $(tail -1 "$T/sent")"
+rm -f "$CO/untracked.txt"
+g checkout -q --detach "$next"; commit adds-x; g update-ref refs/remotes/origin/master HEAD
+g checkout -q --detach HEAD~1; head2="$(g rev-parse HEAD)"
+printf 'local x\n' >"$CO/adds-x"; printf 'a3\n' >"$CO/fa"
+tick; rc=$?
+ref2="$(rescues | grep -vx "$ref")"
+[[ $rc -eq 1 && "$(g rev-parse HEAD)" == "$head2" && "$(cat "$CO/adds-x")" == "local x" && -n "$ref2" &&
+   "$(g show "$ref2:fa")" == "a3" ]] && grep -q 'NOT on trunk' "$T/o" && tail -1 "$T/sent" | grep -- "saved to $ref2" >/dev/null &&
+  pass "11. an untracked file trunk would overwrite: git refuses, file kept, work in the ref, still stale and told" ||
+  fail "11. conflict: rc=$rc ref2=$ref2 $(cat "$T/o") sent: $(tail -1 "$T/sent")"
+rm -f "$CO/adds-x"; g checkout -q --detach origin/master
 
 echo "desk-cron-trunk: $fails failure(s)"
 [[ $fails -eq 0 ]]

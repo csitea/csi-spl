@@ -276,8 +276,11 @@ try {
       await open(p, server.base, '/monitoring/costs')
       ok('tokens: the Costs page carries the Tokens card for an operator admin', await waitFor(p, '[data-test=costs-tokens-card]'))
       const card = await text(p, '[data-test=costs-tokens-card-body]')
-      ok('tokens: the card says today\'s fleet tokens and cost', card === '18.45M tokens used · $42.15', card)
-      ok('tokens: the card names the unmetered and unpriced lanes', (await text(p, '[data-test=costs-tokens-card-note]')).includes('1 not metered · 1 not priced'))
+      ok('tokens: the card says today\'s fleet tokens and cost', card === '19.35M tokens used · $42.15', card)
+      ok('tokens: the card names the unmetered and unpriced lanes', (await text(p, '[data-test=costs-tokens-card-note]')).includes('1 not metered · 2 not priced'))
+      const kinds = await p.$$eval('[data-test=costs-tokens-card-vendor]', (els) => els.map((e) => [e.getAttribute('data-vendor'), e.querySelector('[data-test=costs-tokens-card-vendor-body]').textContent.trim()]))
+      ok('tokens: the card has a line per kind; grok has its tokens and "not priced", never $0.00 (SPL-2461)',
+        kinds.map((k) => k[0]).join(',') === 'claude,mistral,grok' && (kinds.find((k) => k[0] === 'grok') || [])[1] === '900K tokens used · not priced', kinds)
       await p.click('[data-test=costs-tokens-card]')
       ok('tokens: the card opens the Tokens tab', await waitFor(p, '[data-test=tokens-page]'), p.url())
       ok('tokens: the URL is /monitoring/tokens', new URL(p.url()).pathname.replace(/\/$/, '') === '/monitoring/tokens', p.url())
@@ -286,7 +289,7 @@ try {
         && await p.$eval('[data-test=monitoring-tab-tokens]', (e) => e.getAttribute('aria-current')).catch(() => '') === 'page', tabs)
       ok('tokens: the KPI strip renders', await waitFor(p, '[data-test=tokens-kpis]'))
       const kpi = { rate: await text(p, '[data-test=tokens-kpi-rate-value]'), today: await text(p, '[data-test=tokens-kpi-today-value]'), cost: await text(p, '[data-test=tokens-kpi-cost-value]') }
-      ok('tokens: KPIs formatted (113.3K/min, 18.45M, $42.15)', kpi.rate === '113.3K/min' && kpi.today === '18.45M' && kpi.cost === '$42.15', kpi)
+      ok('tokens: KPIs formatted (113.3K/min, 19.35M, $42.15)', kpi.rate === '113.3K/min' && kpi.today === '19.35M' && kpi.cost === '$42.15', kpi)
       const vendors = await p.$$eval('[data-test=tokens-vendor-row]', (els) => els.map((e) => ({ v: e.getAttribute('data-vendor'), s: e.getAttribute('data-status'),
         today: e.querySelector('[data-test=tokens-vendor-today]').textContent.trim(), cost: e.querySelector('[data-test=tokens-vendor-cost]').textContent.trim(),
         nm: Boolean(e.querySelector('[data-test=tokens-not-metered]')), np: Boolean(e.querySelector('[data-test=tokens-not-priced]')),
@@ -296,9 +299,11 @@ try {
       ok('tokens: agy is "Not metered" with dashes, never 0 tokens or $0.00', agy.nm && agy.s === 'unmetered' && agy.today === '\u2014' && agy.cost === '\u2014', agy)
       const mis = vendors.find((v) => v.v === 'mistral') || {}
       ok('tokens: a kind with an unpriced lane says "not priced", never $0.00', mis.np && mis.cost === 'not priced', mis)
+      const grk = vendors.find((v) => v.v === 'grok') || {}
+      ok('tokens: grok is metered with its tokens and "not priced" (SPL-2461)', grk.s === 'metered' && grk.today === '900K' && grk.np && grk.cost === 'not priced', grk)
       ok('tokens: claude surges (fresh 74.6K/min > 60K)', (vendors.find((v) => v.v === 'claude') || {}).burn === 'surge', vendors[0])
       const agents = () => p.$$eval('[data-test=tokens-agent-row]', (els) => els.map((e) => e.getAttribute('data-agent')))
-      ok('tokens: lanes sorted by rate, highest first, agy last', (await agents()).join(',') === 'c-101,c-102,m-201,c-103,c-104,a-301', await agents())
+      ok('tokens: lanes sorted by rate, highest first, agy last', (await agents()).join(',') === 'c-101,c-102,m-201,c-103,g-401,c-104,a-301', await agents())
       const lane = await p.$$eval('[data-test=tokens-agent-row]', (els) => els.map((e) => ({ a: e.getAttribute('data-agent'), s: e.getAttribute('data-status'),
         burn: (e.querySelector('[data-test=tokens-burn-badge]') || { getAttribute: () => '' }).getAttribute('data-level'),
         today: e.querySelector('[data-test=tokens-agent-today]').textContent.trim(), cost: e.querySelector('[data-test=tokens-agent-cost]').textContent.trim() })))
@@ -306,10 +311,11 @@ try {
       ok('tokens: c-101 surges, c-102 has no badge', by('c-101').burn === 'surge' && by('c-102').burn === '', [by('c-101'), by('c-102')])
       ok('tokens: the agy lane is Not metered with dashes', by('a-301').s === 'not_metered' && by('a-301').today === '\u2014' && by('a-301').cost === '\u2014', by('a-301'))
       ok('tokens: the unpriced lane says "not priced"', by('m-201').cost === 'not priced', by('m-201'))
+      ok('tokens: the grok lane g-401 shows its tokens, "not priced"', by('g-401').today === '900K' && by('g-401').cost === 'not priced', by('g-401'))
       ok('tokens: Active and Idle lanes', by('c-101').s === 'active' && by('c-104').s === 'idle', [by('c-101').s, by('c-104').s])
       if (size.width > 600) {
         await p.click('[data-test=tokens-sort-rate]')
-        ok('tokens: the rate header sorts ascending as numbers, agy still last', (await agents()).join(',') === 'c-104,c-103,m-201,c-102,c-101,a-301', await agents())
+        ok('tokens: the rate header sorts ascending as numbers, agy still last', (await agents()).join(',') === 'c-104,g-401,c-103,m-201,c-102,c-101,a-301', await agents())
       } else {
         /* a phone: each lane is a card, no header row (as the Costs table); the default order is the rate */
         ok('tokens: a phone shows the lanes as cards, no header row', await p.$eval('[data-test=tokens-agents] thead', (e) => getComputedStyle(e).display).catch(() => '') === 'none')
@@ -327,7 +333,7 @@ try {
       ok('tokens: no red badge yet', (await count(p, '[data-test=tokens-stale-red]')) === 0)
       await p.evaluate(() => { window.__tkShift = 100000 })
       ok('tokens: past 90 s the red "Data stale" badge shows', await waitFor(p, '[data-test=tokens-stale-red]'), await text(p, '[data-test=tokens-stale-red]'))
-      ok('tokens: the rows stay while stale', (await count(p, '[data-test=tokens-agent-row]')) === 6)
+      ok('tokens: the rows stay while stale', (await count(p, '[data-test=tokens-agent-row]')) === 7)
       await p.click('[data-test=tokens-refresh]')
       const cleared = await p.waitForFunction(() => !document.querySelector('[data-test=tokens-stale-red]') && document.querySelector('[data-test=tokens-age]')?.getAttribute('data-stale') === 'ok', { timeout: 10000 }).then(() => true, () => false)
       ok('tokens: Refresh clears the stale mark', cleared)

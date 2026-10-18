@@ -22,6 +22,7 @@ import {
   sortAgents,
   staleLevel,
   tokensQuery,
+  tokensCardVendors,
   tokensShouldPoll,
 } from '../../src/utils/monitoring-tokens.mjs'
 
@@ -35,10 +36,10 @@ describe('monitoring tokens: the hub body as a view', () => {
   it('reads the summary, the kinds in the hub order and the lanes', () => {
     const v = mock()
     assert.equal(v.currency, 'USD')
-    assert.equal(v.summary.todayTokens, 18450000)
+    assert.equal(v.summary.todayTokens, 19350000)
     assert.equal(v.summary.unmetered, 1)
     assert.deepEqual(v.vendors.map((x) => x.vendor), ['claude', 'mistral', 'grok', 'agy', 'qwen'])
-    assert.equal(v.agents.length, 6)
+    assert.equal(v.agents.length, 7)
   })
   it('agy is never metered: its figures stay null, its status is unmetered (T032 red control)', () => {
     const v = mock()
@@ -60,6 +61,23 @@ describe('monitoring tokens: the hub body as a view', () => {
     assert.equal(v.vendors.find((x) => x.vendor === 'mistral').priced, false)
     assert.equal(v.vendors.find((x) => x.vendor === 'claude').priced, true)
     assert.equal(v.agents.find((a) => a.agentId === 'm-201').priced, false)
+  })
+  it('grok is a metered kind with its lane; no xai price: "not priced", never a cost of 0 (SPL-2461)', () => {
+    const v = mock()
+    const grok = v.vendors.find((x) => x.vendor === 'grok')
+    assert.equal(grok.metered, true)
+    assert.equal(grok.todayTokens, 900000)
+    assert.equal(grok.priced, false)
+    const lane = v.agents.find((a) => a.agentId === 'g-401')
+    assert.equal(lane.vendor, 'grok')
+    assert.equal(lane.priced, false)
+  })
+  it('the Costs card has one line per kind that used tokens today, agy and idle kinds none (SPL-2461)', () => {
+    const lines = tokensCardVendors(mock())
+    assert.deepEqual(lines.map((l) => [l.vendor, l.tokens, l.priced]), [['claude', 15800000, true], ['mistral', 2650000, false], ['grok', 900000, false]])
+    /* CONTROL: an empty fleet draws no line */
+    assert.deepEqual(tokensCardVendors(mock({ 'spool.mock.operator_admin': '1', 'spool.mock.fleet_tokens': 'empty' })), [])
+    assert.deepEqual(tokensCardVendors(null), [])
   })
   it('a missing, negative or junk figure is null, never NaN (T031 red control)', () => {
     const v = fleetTokensOf({ summary: { burn_rate_tokens_per_min: -5, today_total_tokens: 'x', today_total_cost: null, currency: 'eur' } })

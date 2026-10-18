@@ -108,6 +108,17 @@ export function fleetTokensOf(body) {
   }
 }
 
+/**
+ * The Costs card's line per kind (SPL-2461): every metered kind that used
+ * tokens today, its tokens and its cost, or priced false when one of its
+ * lanes has no price (the card says "not priced", never a cost of 0).
+ * @param {ReturnType<typeof fleetTokensOf>} view
+ */
+export function tokensCardVendors(view) {
+  return (view?.vendors || []).filter((v) => v.metered && (v.todayTokens || 0) > 0)
+    .map((v) => ({ vendor: v.vendor, tokens: v.todayTokens, cost: v.todayCost, priced: v.priced }))
+}
+
 /** A compact token count ("45.2K", "18.45M"); '—' for none (never NaN, never a false 0). */
 export function fmtTokens(n, locale = 'en') {
   if (n === null || n === undefined || !Number.isFinite(Number(n)) || Number(n) < 0) return '—'
@@ -252,12 +263,12 @@ export function mockFleetTokens(window = TOKENS_DEFAULT_WINDOW, store = mockStor
   return {
     as_of: asOf.toISOString(),
     window: w,
-    summary: { burn_rate_tokens_per_min: 113300, fresh_tokens_per_min: 81500, burn_rate_cost_per_hour: 6.12, today_total_tokens: 18450000,
-      today_cache_read: 8856000, today_total_cost: 42.15, currency: 'USD', active_agents: 5, unmetered_agents: 1, unpriced_agents: 1 },
+    summary: { burn_rate_tokens_per_min: 113300, fresh_tokens_per_min: 81500, burn_rate_cost_per_hour: 6.12, today_total_tokens: 19350000,
+      today_cache_read: 8856000, today_total_cost: 42.15, currency: 'USD', active_agents: 6, unmetered_agents: 1, unpriced_agents: 2 },
     by_vendor: [
       ['claude', 3, 104200, 74600, 15800000, 39.4, 'metered'],
       ['mistral', 1, 9100, 6900, 2650000, 2.75, 'metered'],
-      ['grok', 0, 0, 0, 0, 0, 'idle'],
+      ['grok', 1, 2800, 1200, 900000, 0, 'metered'],
       ['agy', 1],
       ['qwen', 0, 0, 0, 0, 0, 'idle'],
     ].map(vendorRow),
@@ -266,6 +277,8 @@ export function mockFleetTokens(window = TOKENS_DEFAULT_WINDOW, store = mockStor
       ['c-102', 'claude', 'box-a', 'claude-sonnet-5-5', 15000, 14800, 8100, 4100000, 11.2, true, 1],
       ['m-201', 'mistral', 'box-b', 'devstral-2', 9500, 9100, 6900, 2650000, 0, false, 2],
       ['c-103', 'claude', 'box-b', 'claude-haiku-4-5', 0, 8200, 2200, 2500000, 4.1, true, 4],
+      /* grok (SPL-2461): metered, no xai price row: "not priced", never $0.00 */
+      ['g-401', 'grok', 'box-b', 'grok-4.7-build', 3000, 2800, 1200, 900000, 0, false, 3],
       ['a-301', 'agy', 'box-b', null, null, null, null, null, null, false, 1],
       ['c-104', 'claude', 'box-a', 'claude-sonnet-5-5', 0, 0, 0, 0, 0, true, 40],
     ].map(agentRow),

@@ -32,6 +32,13 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# The fixture box is box-a (box.env below). A host value wins over box.env
+# (_spool_box_env_load fills only unset keys), so a box exporting
+# SPOOL_BOX_TAG=sat read the holder c-002@box-a as on another box (SPL-2492):
+# clear every box.env key and the other identity variables.
+unset SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN \
+  SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT \
+  SPOOL_BOX_TAG SPOOL_LOGIN_PEERS BOX_TAG SPOOL_BOX SPOOL_AGENT_ID
 
 fails=0
 pass() { echo "PASS: $1"; }

@@ -4,6 +4,7 @@
 
 This is the review from seat `a2` (agy). I review `c1`, `g1`, and `m1`.
 
+<a id="ws-doc-6d076acb-cb34-476b-9b50-d5a0c62a0a22"></a>
 ## Review of g1 (Grok)
 
 The proposal in `g1.md` is well-measured and targets the right bottlenecks (cache misses on `db-f1-micro`, lock waits, unpushed limits, and TOAST fetches).
@@ -21,6 +22,7 @@ The proposal in `g1.md` is well-measured and targets the right bottlenecks (cach
 
 *(Reviews for c1 and m1 will be appended when their files land on master.)*
 
+<a id="ws-doc-d0a0b9b2-38be-4ecc-89f6-ec0efad871f8"></a>
 ## Review of m1 (Mistral)
 
 The proposal in `m1.md` correctly maps empirical evidence (Insights, route logs, and network dev logs) to architectural and design patterns.
@@ -36,6 +38,7 @@ The proposal in `m1.md` correctly maps empirical evidence (Insights, route logs,
 9. **9. Flow counts: Scope to tenant (JIT/generic plan):** **AGREE**. Query Plan Caching is aided by scoping to the tenant, preventing suboptimal generic plans or JIT overhead.
 10. **10. Topic walk: Split archived OR into two probes:** **AGREE**. Splitting the `OR` condition into two `NOT EXISTS` probes resolves the planner's inability to use indexes on the `OR`, effectively avoiding the N+1 issue.
 
+<a id="ws-doc-f406d1e8-2c93-4378-be17-e2895c336700"></a>
 ## Review of c1 (Claude)
 
 The proposal in `c1.md` is highly data-driven, carefully tying practices to measured costs from `pg_stat_statements` under production bounds.

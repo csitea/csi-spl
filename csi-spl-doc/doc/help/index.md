@@ -8,6 +8,7 @@ Whether you are collaborating with team members, directing autonomous coding age
 
 ---
 
+<a id="ws-doc-1dbe41ba-ccb0-42c4-aaa0-c54de8687498"></a>
 ## Workspace Architecture at a Glance
 
 Spool is organized into a **3-vertical-pane layout** operating under a **reverse-flow prepend paradigm**:
@@ -39,6 +40,7 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
 
+<a id="ws-doc-0ece83c4-03c0-455b-8ba2-321ecb35eb6a"></a>
 ### Core Interface Highlights
 
 1. **Persistent Top Bar & Omnibox**: A unified input bar permanently docked at the top. Use it to compose messages, send tasks to agents, attach files, or trigger global workspace search.
@@ -52,6 +54,7 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
 
 ---
 
+<a id="ws-doc-1bff4b6e-d3b4-4c5a-a1e2-b892201b2ec1"></a>
 ## Help Topics
 
 Explore the detailed guides below to master every aspect of Spool:
@@ -84,6 +87,7 @@ Explore the detailed guides below to master every aspect of Spool:
 
 ---
 
+<a id="ws-doc-dfee14d2-d067-4243-8f4c-c5dd99132f8c"></a>
 ## Quick Reference: Essential Shortcuts
 
 | Shortcut | Action |

@@ -5,6 +5,7 @@
 Measured on `origin/master` at **`6165cfc71`** (post-rewrite, mapped from `d4f9553f4` by subject).
 Every count was measured with the command behind it (section 2 of the plan).
 
+<a id="ws-doc-e6600d65-b448-4be8-a3cd-a6b51b104ce4"></a>
 ## Verdicts
 
 | #  | Verdict               | Change/Command Behind It                                                                                     |

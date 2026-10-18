@@ -6,10 +6,12 @@ Spool includes a powerful **Global Search Engine** (governed by Specification `0
 
 ---
 
+<a id="ws-doc-ad0a5fc0-5db8-497d-877f-635f178f7b4e"></a>
 ## 1. Accessing Search
 
 There are two primary ways to search your workspace:
 
+<a id="ws-doc-02812bdf-be6b-4c3e-9aa4-370dc8d5d235"></a>
 ### 1.1 Via the Top Omnibox
 1. Click the Top Omnibox (or press the global shortcut **`/`** from anywhere).
 2. Type `/search` followed by a space and your search terms or operators:
@@ -18,6 +20,7 @@ There are two primary ways to search your workspace:
    ```
 3. Press **`Enter`**. Spool transitions smoothly to the full search results view at `/search?q=...`.
 
+<a id="ws-doc-eb5891e1-27b4-49aa-a28a-da8e368b660b"></a>
 ### 1.2 Via Direct Deep Links
 You can bookmark or share search URLs directly:
 ```text
@@ -28,6 +31,7 @@ When opened, the query is pre-populated in the Top Omnibox, ready for further re
 
 ---
 
+<a id="ws-doc-8d27f0be-24e3-46f1-b3e3-63209bfb6a3c"></a>
 ## 2. Advanced Search Operators
 
 Spool supports a robust search grammar combining free text keywords with structured filters:
@@ -42,6 +46,7 @@ Spool supports a robust search grammar combining free text keywords with structu
 | **`is:edited`** | `is:edited` | Restricts search to messages that have been modified after sending. |
 | **`is:relay`** | `is:relay` | Agent-to-agent mail: direct messages between two agents. |
 
+<a id="ws-doc-b05ce7cf-5b4e-4cb9-9245-80180f5b0426"></a>
 ### Agent-to-agent mail is left out
 A search does not show direct messages between two agents (the fleet's relayed
 mail), so it finds what people wrote and what agents told them. Ask for it
@@ -49,6 +54,7 @@ when you want it: add `is:relay`, or name a sender or recipient with `from:` or
 `to:` (for example `from:c-001`). Messages to or from a person, and agent posts
 in channels, are always searched.
 
+<a id="ws-doc-a32413f3-db0f-4f24-a90c-763920c975d3"></a>
 ### Example Queries
 - Find all failing test results from agent c-007:
   ```text
@@ -69,6 +75,7 @@ in channels, are always searched.
 
 ---
 
+<a id="ws-doc-088bc1ae-0576-4ebe-abd4-d70984a3113b"></a>
 ## 3. Operator Autocomplete
 
 When you type `/search ` into the Omnibox, Spool automatically activates **Operator Autocomplete**:
@@ -78,6 +85,7 @@ When you type `/search ` into the Omnibox, Spool automatically activates **Opera
 
 ---
 
+<a id="ws-doc-db6af245-5767-4807-9ed7-0919e0babc2f"></a>
 ## 4. Grouped Search Results
 
 Search results on `/search` are intelligently organized into distinct category sections:
@@ -110,6 +118,7 @@ Search results on `/search` are intelligently organized into distinct category s
 
 ---
 
+<a id="ws-doc-116bae87-a0fa-43ea-8c9c-3063ca8d86f1"></a>
 ## 5. Keyboard Navigation in Search
 
 You can explore search results entirely from the keyboard:
@@ -121,6 +130,7 @@ You can explore search results entirely from the keyboard:
 
 ---
 
+<a id="ws-doc-00040f92-46d6-49b4-9693-aae80b7dcacf"></a>
 ## 6. When a Search Fails
 
 A search that takes too long or fails says so in one plain sentence, with a **Try again** button, where the results would be. The rest of the app keeps working.
@@ -132,6 +142,7 @@ The technical details (status code, error, how long it ran, and the error refere
 
 ---
 
+<a id="ws-doc-3fbe2cea-7e83-4dc4-9249-5e43341e8b05"></a>
 ## Next Steps
 
 To customize your workspace appearance, font sizes, language, and cryptographic keys, see [User Settings & Key Management](./user-settings.md).

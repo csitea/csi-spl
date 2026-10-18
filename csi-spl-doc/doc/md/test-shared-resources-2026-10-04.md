@@ -21,6 +21,7 @@ one localhost and one `/dev/shm`. The concurrency group is
 (`10_ci-quality.yml:57-59`), so one master gate runs at a time and its
 jobs run together. A gate on another ref can overlap that one.
 
+<a id="ws-doc-2d14009b-b2ad-4b35-972c-913be7a2aef8"></a>
 ## Findings
 
 Sorted by what two overlapping runs can break.
@@ -34,6 +35,7 @@ Sorted by what two overlapping runs can break.
 | 5 | Pre-push green-cache file | `csi-spl-iac/src/bash/run/check-pre-push.func.sh:41`, directory at `:429`, default file at `:431` (`$HOME/.cache/csi-spl/pre-push.parts.green`), trim at `:199-200` | 1 default path | every push on the shared home appends to one file. The key is a hash of that part's git tree ids (`:167-189`), so a different tree does not reuse a green line. The trim writes a tail to a temp file and `mv`s it over the cache, which can drop another run's line. The next push runs that part again | take a lock around the trim, or use one cache file per worktree |
 | 6 | Fleet tmux socket and fixed window names, hand run only | `csi-spl-orc/src/bash/features/spawn-agents/tests/live-terminal-proof.sh:32` (output dir `/var/tmp/${ORG_APP}-terminal-proof`), `:33` (socket `/tmp/tmux-$(id -u)/default`), `:41-42` (windows `TRM-1` and `TRM-2`), `:34` (reads `$HOME/.local/share/$ORG_APP/cloud/dev/m3-e2e/t1`) | 1 script. The suite glob is `test-*.sh` (`run-all-tests.sh:10`); this name does not match. A search for the filename finds only the file itself | two hand runs delete each other's `TRM-1` / `TRM-2` windows on the fleet tmux server and share the output directory. CI does not start this script | put the pid in the window names and in the output directory. The real socket is the point of the script; the names and the output dir are what collide |
 
+<a id="ws-doc-75b82848-913f-468c-831a-ebeeea7686af"></a>
 ## Checked, and isolated
 
 These are the categories the question names. Each one was counted. A zero
@@ -59,6 +61,7 @@ here is the count the command printed, on this tree.
 | Terraform plugin cache used by the validate test | per pid | `tf-steps-render-and-validate.tst.sh:180` sets `TF_PLUGIN_CACHE_DIR` to `$HOME/.terraform.d/plugin-cache/csi/spl/test-$$`. The comment at `:177-179` records that the shared operator cache failed once in 3 validates during another apply (2026-09-17). The test does not use that shared directory. A sweep deletes `test-*` dirs whose `/proc/<pid>` is gone (`:186-189`) |
 | Same-worktree `bin/spool` | one binary per checkout | `t_spool_bin` (`lib.inc.sh:85-90`) builds `csi-spl-api/src/go/spool-hub-api/bin/spool` when it is missing. Two tests in one worktree can build it at once. CI checks out one tree per job |
 
+<a id="ws-doc-9ee8c5c2-475c-4293-a658-f4590958f6ce"></a>
 ### Live spool root: how the 0 was read
 
 56 functions whose name is at least 8 characters have `/var/spool-hub` in
@@ -88,6 +91,7 @@ spawn-agents harness is to export a private `SPOOL_ROOT` under `$T`
 and `SPOOL_TEST=1` from `in_orc` itself. `SPOOL_TEST=1` alone does not
 help a function that never calls the guard.
 
+<a id="ws-doc-b544e50d-16e8-4571-ba57-003db40bec21"></a>
 ## Checks
 
 Run from the repo root. `n` above is what these printed on

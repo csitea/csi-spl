@@ -12,6 +12,7 @@ Hub crypto is **per box**, not per agent — `specs/002-box-agent-messaging/cont
 
 ---
 
+<a id="ws-doc-97d90e42-04a7-4645-890b-cbc7cffb3f91"></a>
 ## 1. Three identities (never mixed)
 
 | Identity | Answers | Example |
@@ -30,6 +31,7 @@ Display names, tmux titles, and OS users are **not** identities.
 
 ---
 
+<a id="ws-doc-1c9273dc-9eda-461f-a1c5-d734a422365f"></a>
 ## 2. Agent ids
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -87,6 +89,7 @@ burdened with key generation or initial pin setup.
 
 ---
 
+<a id="ws-doc-504886e7-1cb6-45dc-ab4d-fc883d4d17a3"></a>
 ## 3. Keys and pins
 
 | Object | Where | Mode |
@@ -124,6 +127,7 @@ change must carry a signed `ts` later than the last one, else 409
 
 ---
 
+<a id="ws-doc-9858bf0b-3235-4d8f-a789-56c1f933a3ff"></a>
 ## 4. Box id (optional) vs tenant door
 
 `$SPOOL_BOX_ID` is optional metadata (`^[a-z0-9][a-z0-9-]{0,31}$`). It is not
@@ -139,10 +143,12 @@ On-box traffic (same `$SPOOL_ROOT`) does not use IAM or the hub.
 
 ---
 
+<a id="ws-doc-ffdde9ab-39cb-40d1-9560-984b88a44496"></a>
 ## 5. Where a message goes (routing)
 
 `to` is **unicast**: exactly one agent id. No `cc`, no box-wide fanout in v1.
 
+<a id="ws-doc-f555a81f-8962-4290-92a2-87e519eeb730"></a>
 ### Same box
 
 `spool-send` **always** writes:
@@ -152,6 +158,7 @@ On-box traffic (same `$SPOOL_ROOT`) does not use IAM or the hub.
 
 This is 002. It stays true when the hub is configured.
 
+<a id="ws-doc-c491e0a1-269d-4ff7-9c08-eec879353f13"></a>
 ### Hub configured (`$SPOOL_HUB_URL` set)
 
 After the local write, the CLI also:
@@ -167,6 +174,7 @@ destination box's live session socket (`role=box`). The destination box sidecar 
 message into its local `$SPOOL_ROOT/<to>/inbox/`. Live task activity streams over WebSocket via
 `tail` frames.
 
+<a id="ws-doc-03c0891c-7828-46ef-ab08-7782c3872f60"></a>
 ### Who hosts `to`?
 
 Hub routes by **`to_box`**. Box hello/announce frames map `(box_id, agent_id)` → active WebSocket.
@@ -178,6 +186,7 @@ frames are delivered automatically followed by a `queue_end` frame.
 
 ---
 
+<a id="ws-doc-71e7bd6b-3e98-4a01-8b10-b6b6d7348b20"></a>
 ## 6. Dual-write and “which is source of truth”
 
 | Situation | Source of truth |
@@ -196,6 +205,7 @@ Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md
 
 ---
 
+<a id="ws-doc-f8cd4c8e-a90c-4b3c-88af-2a68131fec4a"></a>
 ## 7. What this spec does not do
 
 - Replace ysg-box `next-agent-id.sh` (box still allocates ids).

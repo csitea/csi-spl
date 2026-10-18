@@ -24,6 +24,7 @@ Sources used, all read-only:
 | `/var/spool-hub/asks/*.json` | the ask book |
 | `git log origin/master` | the fixes |
 
+<a id="ws-doc-c39c214e-c0cc-4cc7-b0a4-da8fd03044f5"></a>
 ## 1. Lessons
 
 1. **A vendor switch is a code path; test it with the real launcher.** Five
@@ -67,8 +68,10 @@ Sources used, all read-only:
    recognition already knew Grok (`ff9b0feb5` body). The message now names
    the rotation's vendor and why the pane failed (`ff9b0feb5`).
 
+<a id="ws-doc-8d76c5f3-6c99-4ec3-b496-f3e6efe25c62"></a>
 ## 2. Timeline
 
+<a id="ws-doc-7723e6a3-7f13-4765-9177-d2b50a936c45"></a>
 ### 2.1 Before the day
 
 | when | what | source |
@@ -78,6 +81,7 @@ Sources used, all read-only:
 | 10-12 05:18Z | orchestrator vendor split behind `ROTATE_ORCH_SPLIT=1`: cnf `agent_split_by_kind.orchestration` = claude 65 / grok 35; dispatch seats stay Claude | `abff60ec7`, `csi-spl-cnf/csi-spl/all.env.yaml:989` |
 | 10-12 20:59Z | spec 134 P0: the fleet lease counts a Grok or Vibe holder (before, `spl_lease_agent_pid` counted only `comm == claude`) | `744186fdc` |
 
+<a id="ws-doc-e649e217-3049-4960-bdb6-413bbadbf7b1"></a>
 ### 2.2 The switch and the five failed rotations
 
 The brief counted 3 failed rotations, the orchestrator ones. `rotate.log`
@@ -103,6 +107,7 @@ Each failure opened an ask and sent the owner a DM: `8ef5ce28`, `3b83645e`,
 `4ec856ef`, `ee6aeb92`, `ffaddc6a` (`rotate.log` ALERT lines; ask files).
 In every case the old Claude seat kept the role.
 
+<a id="ws-doc-4906597e-c895-4461-b2a5-4a49c168a2fe"></a>
 ### 2.3 The window
 
 | UTC | event | source |
@@ -128,8 +133,10 @@ quota or limit event happened: `grep -iE 'usage.limit|quota|limit reached'`
 over the role seats' messages of 12:06Z .. 17:58Z -> 0 lines about a Grok
 seat.
 
+<a id="ws-doc-3d6f6e9d-7060-4f37-a6a4-f2b3a9409371"></a>
 ## 3. How Grok did in the roles
 
+<a id="ws-doc-e2c046fc-51c0-49fd-9e2f-4251f51a7db9"></a>
 ### 3.1 What went well
 
 | what | measured | source |
@@ -142,6 +149,7 @@ seat.
 | self-correction | named its own owner-topic posts as a mistake at 14:48Z and handed the topic back | hold note 1405 |
 | quotas | no limit event in 5.6 h | section 2.3 |
 
+<a id="ws-doc-f14a5e6a-9835-4b85-99d5-7da3bbd1d183"></a>
 ### 3.2 Message volume
 
 Same length of time, the three role seats' outgoing messages
@@ -159,6 +167,7 @@ none from Claude. The hold notes show the pattern: g-001 sent the dispatcher
 a hang list every 5 minutes and g-002 answered each with "will not kill ...
 no push" (hold note 1605, 16:44Z .. 17:03Z, 7 such replies).
 
+<a id="ws-doc-c734634a-e444-4d93-b338-76a085b13e3c"></a>
 ### 3.3 What went badly
 
 | what | measured | source |
@@ -173,6 +182,7 @@ no push" (hold note 1605, 16:44Z .. 17:03Z, 7 such replies).
 | no refactor round | lane c-296 (refactor rounds) got no round-18 brief after round 17 reported at 11:07Z: 6 h 35 min, until the switch back | c-296 transcript 17:42:17Z |
 | sat seat attempt | g-001 tried to place a lane through `g-001@sat`, which has no spool dir there (16:18Z, exit 5, nothing spawned), then retried through `c-001@sat` | hold note 1605, "Activity clock lane" |
 
+<a id="ws-doc-c2e7257d-166f-4e6d-b398-cc7fa3871b79"></a>
 ### 3.4 What the owner saw, and what was not Grok's fault
 
 - The owner's verdict came after about 4 h with no release and no round.
@@ -184,8 +194,10 @@ no push" (hold note 1605, 16:44Z .. 17:03Z, 7 such replies).
   held the orchestrator for 59 min (11:07Z .. 12:06Z) and Grok for 5 h 36 min.
   Lesson 3 is why that audit went wrong.
 
+<a id="ws-doc-2872c7a8-9082-45f4-8217-d23bffaa7395"></a>
 ## 4. Root causes
 
+<a id="ws-doc-adfed1db-2834-45b7-96fc-de0c6839ebc9"></a>
 ### 4.1 Claude-only assumptions in the code
 
 | assumption | effect | state |
@@ -199,6 +211,7 @@ no push" (hold note 1605, 16:44Z .. 17:03Z, 7 such replies).
 | `do_spl_dispatch_check` wants `--dangerously-skip-permissions` with no `--permission-mode`, and a Claude `.claude/settings.local.json` | a false permission GAP for every Grok seat, re-checked by hand in at least 5 hold-note entries (hold notes 1305, 1405, 1505) | **open**: `csi-spl-orc/src/bash/run/spl-dispatch-check.func.sh:58-77` unchanged |
 | a role alias (`g-001`) exists only on the box that switched | a send to `g-001@sat` found no spool dir (16:18Z) | **fixed** SPL-1716: the receiving box's sidecar writes mail for an alias it has no dir for into the seat's one live letter, desk and fleet inbox both, and mints no orphan (`liveRoleSeat`, `csi-spl-api/src/go/spool-hub-api/internal/spool/spool.go`; test `role_alias_test.go`) |
 
+<a id="ws-doc-ef210733-3a25-441e-ac7d-0fdb673c7223"></a>
 ### 4.2 Two settings that could each pick the vendor
 
 `spl_rotate_role_vendor` (`csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh:108-128`)
@@ -209,6 +222,7 @@ rotation then falls back to the `ROTATE_ORCH_SPLIT=1` split, cnf claude
 `ROTATE_ROLE_VENDOR=claude`: emptying the second line would start the 35 %
 Grok picks again. **Open.**
 
+<a id="ws-doc-b0c67570-825c-4cc7-a7af-7e654d95ce4b"></a>
 ### 4.3 Tests that stubbed the real spawn
 
 The rotation suites (`orch-rotate.tst.sh`, `dispatch-rotate.tst.sh`) stubbed
@@ -218,6 +232,7 @@ script, but in-process, and still missed the hop. Only the second drove a
 real tmux pane in a sandbox socket. **Fixed** for the role seat spawn
 (`test-spawn-window-role-seat-vendor.sh`, 22 pass / 0 fail per `ff9b0feb5`).
 
+<a id="ws-doc-5c95743b-6fa6-4348-82be-b7cdaa44a496"></a>
 ### 4.4 Other causes found
 
 - **No outcome check on the role.** Nothing measured whether the
@@ -230,6 +245,7 @@ real tmux pane in a sandbox socket. **Fixed** for the role seat spawn
   counts as an agent reply, so the unanswered sweep stops although no
   answer was posted (14:42Z .. 14:46Z, hold note 1405).
 
+<a id="ws-doc-0dfdc8b6-b2a4-4942-8095-fddb09c25410"></a>
 ### 4.5 2026-10-14: the orch role handed to a Grok seat on its weekly limit
 
 Rotation `20261014T0805Z-orch` on sat (`rotate.log`, n=1): the successor
@@ -247,6 +263,7 @@ causes, all **fixed** by SPL-1820:
 The dispatch rotation still flips at SPAWN OK (`spl_disp_flip`); its
 Grok successor now meets the same two guards before it gets there.
 
+<a id="ws-doc-0c1c5c66-5eb9-47b9-8aba-b2c7a9dff491"></a>
 ## 5. Follow-ups
 
 | # | follow-up | state |

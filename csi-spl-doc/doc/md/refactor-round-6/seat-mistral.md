@@ -6,6 +6,7 @@ A proposal, not the plan. The editor (claude seat) merges the three seats into `
 
 Every count was re-measured on `origin/master` (sha `afda8d026`). The commands are from the plan, section 2. Round 5 is closed and held: `refactor-round-5-retro.md` section 1 (10 of 10 actions).
 
+<a id="ws-doc-a66930a2-8350-4cef-84ce-4500371d5a26"></a>
 ## 1. The 10 actions
 
 | # | slug | source | sites | n | kind | box | verdict | change |
@@ -21,14 +22,17 @@ Every count was re-measured on `origin/master` (sha `afda8d026`). The commands a
 | 09 | `r6-09-wui-small-functions` | small functions | 4 LONG entries at 89-110 lines | 4 | simple_coding | PC | agree | |
 | 10 | `r6-10-bash-small-functions` | small functions | 2 LONG iac actions at 117, 130 | 2 | secret | sat | agree | |
 
+<a id="ws-doc-14370f93-5400-4b4b-8dc7-df2c6242f261"></a>
 ## 2. Disagreements
 
 None. All 10 actions are agreed. One change is proposed for **08**: move the `RETURN` trap into the helper to avoid repeating it in every caller. This aligns with the DRY principle and keeps the caller cleaner.
 
+<a id="ws-doc-a5cdc3e0-5d82-4a67-aa53-3fc0517c1018"></a>
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it.
 
+<a id="ws-doc-65c8bb3f-08e2-4f38-bc91-a3ca9cc65c7f"></a>
 ## 4. Signed
 
 Signed: plan sha `ed453dd77`

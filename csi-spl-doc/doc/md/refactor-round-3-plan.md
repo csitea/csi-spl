@@ -13,6 +13,7 @@ Owner HUM-10, prd t1, topic `3e0809fe-16f6-46e3-a225-616ac6cd555b`, verbatim, in
 
 Every site was measured on ONE trunk sha, the first checkout: **`755e86235`** (`origin/master`, 2026-10-05).
 
+<a id="ws-doc-d7a795eb-8eeb-4f95-b55b-48d1fd2bca52"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, which applies it at the sites named and nowhere else. Each row also does the docs, comment and testability items its brief names, in the same files.
@@ -30,6 +31,7 @@ Every site was measured on ONE trunk sha, the first checkout: **`755e86235`** (`
 - **Baselines:** pass counts in the briefs are n=1 on `755e86235`. The WUI worktree had no `node_modules`: suites that import vue / markdown-it / typescript and `pnpm run typecheck` need `pnpm install` first. Run the bash tests as the checkout owner (`<DEV_USER>`). Store tests skip without `SPOOL_TEST_PG_DSN`: the store rows run WITH one.
 - **Gates (repo CLAUDE.md):** every row: `do_check_dist_hygiene`, `do_check_pre_push` before every push and after the rebase. Go: `run-all-tests.sh`, the clean-code gate (80 lines / depth 4 / 8 params). WUI: typecheck, unit, the named e2e specs, the 160 KB initial chunk. bash: `do_check_pre_push_lint`, `bash-cleancode.tst.sh`. Hub and WUI rows deploy dev+prd and prove live via `/version` or `build.json`.
 
+<a id="ws-doc-3e3912f5-3ec3-4538-bedd-af6db52e7a5c"></a>
 ## 2. The 30 practices
 
 | # | practice | why | sites | language | risk | tests | run on | agent | batch |
@@ -67,6 +69,7 @@ Every site was measured on ONE trunk sha, the first checkout: **`755e86235`** (`
 
 Rows 12 and 13 sites marked "same at :N" in the briefs are the same practice at the same function; the brief counts them inside the site. Rows 15 and 16 have 3 sites (only 3 exist: 3 docker-init scripts; SC2012 -> 3), row 27 has 3 (SC2155 finds 21, 18 of them in the vendored `csi-spl-doc/.specify`), row 26 has 5 sites in 3 files (the other 4 copies are in files earlier rounds own).
 
+<a id="ws-doc-d3cde1ec-4cb3-464f-917b-5954a3eb87ed"></a>
 ## 3. Docs, comments and testability per row
 
 Each brief names the concrete items for its row (file:line). In summary:
@@ -75,6 +78,7 @@ Each brief names the concrete items for its row (file:line). In summary:
 - **Stale or wrong comments:** `operator_workspaces.go:307` says "answered" (row 4); `notify.go:55-60` timeout (row 5); `hidden-cards.mjs:11-12` names a test file that does not exist (row 10); `spl-db-health.func.sh:129` says the token never goes on argv (row 11); `topic-archive.test.mjs:185-186` passes on a comment (row 8); `parse-metadata` `@example` names a missing action (rows 28, 30); five dangling file references (row 30).
 - **Testability:** clock seams (rows 4, 19, 23), injectable timeouts (rows 2, 7), pure helpers split out and unit-tested (`exchangeToken` row 2, `parseTenantTokens` row 17, `createLatest` row 8, `spl_newest_tenant_key` row 16, `_plural` row 27, `isoSeconds` row 26), stub-based bash tests for untested actions (rows 11, 13, 15), and ratchet guards that stop the pattern coming back (rows 8, 9, 14, 20, 22, 25, 26, 30).
 
+<a id="ws-doc-12c9cd10-43e6-4523-bf95-a54807c26745"></a>
 ## 4. Found while surveying, not in this round
 
 These change behaviour, so they are bugs for their own lanes, not refactors. Each is n=1 on `755e86235`.
@@ -101,6 +105,7 @@ These change behaviour, so they are bugs for their own lanes, not refactors. Eac
 | B18 | `csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh:33-38` | dead action: writes into `.../backend_api/djangorest/.env`, a dir that does not exist; activates a key name no current naming uses | `ls csi-spl-api/backend_api` -> no such dir |
 | B19 | `csi-spl-orc/src/bash/scripts/docker-init-tf-runner.sh:5-32` | dead setup block for a `gsheet-secrets-to-gcp` module that is not in the tree (a silent no-op) | `ls csi-spl-iac/src/python` -> no such dir; row 15 only comments it |
 
+<a id="ws-doc-aa967729-bcc7-4a35-8e6c-97d55432369e"></a>
 ## 5. Briefs
 
 `csi-spl-doc/doc/md/refactor-round-3/NN-<slug>.md`, NN = 01..30, one per row above (in git, so the orchestrator on either box can read them). Each brief carries the owner's lines, a verbatim excerpt per site, the doc / comment / testability items, the before/after tests, the files it must not touch, the gate, and the commit identity.

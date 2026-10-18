@@ -16,6 +16,7 @@ and then:
 This lane measures and proposes. It changes no code. Each cut the owner
 accepts becomes its own lane.
 
+<a id="ws-doc-d529d9cf-ca6d-47bd-9155-75edf7658d20"></a>
 ## 1. Answer
 
 1. **Yes, and one read carries most of it.** The DM seed
@@ -36,6 +37,7 @@ accepts becomes its own lane.
    batches: the tenant scope rides the query in one round trip).
 3. **Lingering DB handles: none found.** The details are in §4.
 
+<a id="ws-doc-d9a052b4-1fa9-49bb-ad49-fb29c824c155"></a>
 ## 2. How it was measured
 
 - Tree `91385c6c` (origin/master at measurement). The hub runs over the real
@@ -63,6 +65,7 @@ accepts becomes its own lane.
   needs the owner's go. The local seed has short bodies, so it understates
   the env and body share on prd, where agent reports run to KBs.
 
+<a id="ws-doc-ddc0bceb-6080-40a9-a6e3-251e605745d9"></a>
 ## 3. Per route (first screen + live socket)
 
 "DB down" is the bytes Postgres sent the hub; "DB up" is what the hub sent
@@ -92,6 +95,7 @@ The DM seed's DB bytes break down as follows (one run, all three identical):
 | deliveries | 120 | 7 920 | `msg_id::text` 4 320 |
 | door + clones + reactions | 4 | ~150 | |
 
+<a id="ws-doc-80fcb65e-0760-47e0-a05d-9e525de03689"></a>
 ## 4. Database operations: repeats, combinable fetches, lingering handles
 
 | check | finding | evidence (n) |
@@ -108,6 +112,7 @@ The DM seed's DB bytes break down as follows (one run, all three identical):
 | pool ping | pgxpool's default `ShouldPing` sends a `-- ping` round trip before handing out any connection idle for more than 1 s (pgx v5.9.2 `pgxpool/pool.go`: `IdleDuration > time.Second`). On a quiet prd hub, the first request of most bursts pays it | seen in the run; `HealthCheckPeriod` already checks in the background |
 | tenant row on send | cached: `GetTenant` x3 back to back = 0 DB statements (hot cache, 5 s TTL). It is re-read only after the TTL | n=3 |
 
+<a id="ws-doc-eab8ce1c-ff77-44e2-bf89-a1efd8a3282b"></a>
 ## 5. Proposed cuts (not implemented)
 
 Before/after numbers are n = 3 runs. JSON "after" figures are exact: the
@@ -134,6 +139,7 @@ CLE-77930 and CLE-77949.
 
 **Top 3 by bytes saved per page load: cut 1 (or 1b), cut 2, cut 3.**
 
+<a id="ws-doc-32dd7faf-6a3d-41ab-aed0-32a58ff15359"></a>
 ## 6. Prd numbers still to take (needs the owner's go)
 
 Read-only, as the prd service account, through the named action. One statement

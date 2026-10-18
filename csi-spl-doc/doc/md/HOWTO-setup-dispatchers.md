@@ -8,6 +8,7 @@ from top to bottom. The design is in
 steps. Every step is a named action under `csi-spl-orc`, and every action is
 idempotent, so re-running a step that is already done changes nothing.
 
+<a id="ws-doc-e613cb04-4575-4e7f-a2fe-56026a6c759a"></a>
 ## 1. What you end up with
 
 | piece | what it is |
@@ -19,8 +20,10 @@ idempotent, so re-running a step that is already done changes nothing.
 | post-drop dir | where a dispatcher leaves a post its harness refused, for the orchestrator to post |
 | heartbeat lease | the renew + watch loops of `do_spl_dispatch_lease`, kept running by the desk reconcile cron |
 
+<a id="ws-doc-0e17d216-62c0-41d9-9490-4add236e0495"></a>
 ## 2. Before you start
 
+<a id="ws-doc-113f9cec-58ad-4624-80ff-7e4f03a36355"></a>
 ### 2.1 Requirements
 
 - A checkout of this repository on trunk, up to date, that is NOT an agent
@@ -32,6 +35,7 @@ idempotent, so re-running a step that is already done changes nothing.
 - Each workspace's desk box is pinned, or you hold the workspace root keys as
   `<workspace>.json` files in one directory.
 
+<a id="ws-doc-3d3080dd-a328-47e0-ad4b-e5fb18eeef66"></a>
 ### 2.2 Set the variables for this shell
 
 Every placeholder below is one of these. Pick your own values.
@@ -54,8 +58,10 @@ box that is not pinned yet.
 export DISPATCH_ROOT_KEY_DIR=/path/to/tenant/keys
 ```
 
+<a id="ws-doc-a85261ab-092a-413d-a770-8de71134485b"></a>
 ## 3. Set up
 
+<a id="ws-doc-1d4b8eda-a867-4eb1-b3c9-8552fcb50cdf"></a>
 ### 3.1 Read the plan
 
 The dry run prints one `PLAN <step> <what>` line per missing piece and one
@@ -65,6 +71,7 @@ The dry run prints one `PLAN <step> <what>` line per missing piece and one
 cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_setup
 ```
 
+<a id="ws-doc-595b1d9f-d9ec-4f9b-8ba5-985fea48f031"></a>
 ### 3.2 Apply it
 
 ```bash
@@ -87,6 +94,7 @@ The steps, in the order the action runs them:
 | channel subscriptions | `do_spl_dispatch_subscribe`: every OD seat (orchestrator, master, failover) of every fleet box in every channel of every workspace (default channels included; owner 2026-10-03, SPEC-spool-fleet-roles.md 2.1). The hub delivers a web UI post to a channel's SUBSCRIBED agents and uses the fallback list only when none is online. An OD seat the workspace does not seat is reported `UNSEATED` (seat it with `do_spl_desk_up`). It reads the hub DB even in the dry run; `DISPATCH_SUBSCRIBE=0` skips it. Dead subscriptions (no live process) are reported as `DEAD`, never removed |
 | unanswered sweep | `do_spl_unanswered_sweep_install_cron`: one crontab line (`# csi-spl:unanswered-sweep`) running the unanswered-post sweep every 10 min, which sends the lease holder the topics in every workspace whose last message is a human's ([SPEC section 3.2](SPEC-spool-fleet-roles.md)). The dry run prints the crontab diff; `DISPATCH_SWEEP=0` skips it |
 
+<a id="ws-doc-ea361a55-e5a6-4f60-86ed-516f0005f2ca"></a>
 ### 3.3 Relaunch a session that started before its settings
 
 A running session does not load a settings file created after it started. When
@@ -94,6 +102,7 @@ the setup prints `RELAUNCH <id> ...`, have the orchestrator relaunch that
 session (resume it, so it keeps its conversation). The setup never kills or
 restarts a session itself.
 
+<a id="ws-doc-d4896a5d-9ecc-4386-b38f-b289fa06f812"></a>
 ### 3.4 Fix the channel subscriptions only
 
 The same step 10 on its own: the dry run prints `PLAN add`, `PLAN remove`,
@@ -113,6 +122,7 @@ You rarely need it by hand: the desk reconcile cron runs it with `DRY_RUN=0`
 on every tick (`do_spl_dispatch_tick`, while `lease.conf` exists) and logs
 only the `DISPATCH` lines of a tick that changed something.
 
+<a id="ws-doc-52af151a-cabc-421f-a573-7309a8f7fc90"></a>
 ### 3.5 Install the unanswered sweep only
 
 The same step 11 on its own. The dry run prints the crontab diff.
@@ -133,8 +143,10 @@ See the current list without sending anything.
 cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_unanswered_sweep
 ```
 
+<a id="ws-doc-4c84ef5b-3d18-4c6f-b925-3f873a1988b9"></a>
 ## 4. Verify
 
+<a id="ws-doc-dae54fa9-99ed-4d8e-8814-6a8bcc36110b"></a>
 ### 4.1 Run the check
 
 It prints one table and exits non-zero on any gap.
@@ -155,6 +167,7 @@ cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_check
 | `lease renew loop` / `lease watch loop` (fleet mode: `lease fleet loop`) | that loop is not running: `LEASE_CMD=ensure` (4.3) |
 | `<workspace> #<channel>` | a dispatcher is not subscribed there, or the orchestrator is: run 3.4 (`DISPATCH_CHECK_SUBS=0` skips these rows) |
 
+<a id="ws-doc-92d570b0-797e-4320-a666-cd271fa611ee"></a>
 ### 4.2 Show the lease
 
 Prints `<holder> <age-seconds>`.
@@ -163,6 +176,7 @@ Prints `<holder> <age-seconds>`.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=show ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-0114b33f-c8dc-48e0-8abe-1298c0d60097"></a>
 ### 4.3 Start the lease loops by hand
 
 The cron does this every tick; run it yourself to avoid waiting.
@@ -171,6 +185,7 @@ The cron does this every tick; run it yourself to avoid waiting.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-a15f180c-bc53-4074-970c-74fdc3e70679"></a>
 ### 4.4 Read the transitions
 
 Every start, bind, failover and handback is one line.
@@ -179,23 +194,27 @@ Every start, bind, failover and handback is one line.
 tail -20 "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.log"
 ```
 
+<a id="ws-doc-96b47efb-9ce4-4424-9ddb-9e9377e68c94"></a>
 ## 5. Prove the failover once
 
 Run this with the orchestrator watching, on a quiet moment: stop only the renew
 loop, wait for the promotion, then let the cron (or 4.3) bring it back.
 
+<a id="ws-doc-38bf154b-3123-46e7-887e-bf2f14844f0c"></a>
 ### 5.1 Stop the lease loops
 
 ```bash
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-252bcc83-c417-4f68-8718-80eb8ff5ea8a"></a>
 ### 5.2 Start only the watch loop
 
 ```bash
 cd "$CHECKOUT/csi-spl-orc" && setsid nohup env LEASE_CMD=watch ./run -a do_spl_dispatch_lease >/dev/null 2>&1 < /dev/null &
 ```
 
+<a id="ws-doc-ea23868b-58db-4d32-992c-f2ef2c7b218e"></a>
 ### 5.3 Wait for the promotion
 
 After 180 to 240 s the log shows `FAILOVER: ... -> <failover> active` and the
@@ -206,6 +225,7 @@ loop back; the next watch tick logs `handback` and sends `STANDBY`.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-708418cc-8456-4ce1-a0dc-fcec741dc9a6"></a>
 ## 6. Two machines: one fleet lease
 
 Do this when a second machine (the satellite) runs its own trio and only ONE
@@ -214,6 +234,7 @@ orchestrator and ONE master dispatcher may act across both. The design is
 machine, with that machine's own ids and name; the fleet name, the priority
 list and the workspace are the same on both.
 
+<a id="ws-doc-6aeb0e3f-33de-4406-8b21-8246480aa367"></a>
 ### 6.1 Requirements
 
 - Every step of sections 2 to 4 is done on this machine.
@@ -222,6 +243,7 @@ list and the workspace are the same on both.
   machines need different desk box ids in that workspace.
 - `jq` is installed.
 
+<a id="ws-doc-e42dbf31-90e2-4dc3-b21e-356f9520367e"></a>
 ### 6.2 Write the fleet lines into lease.conf
 
 A machine's name is its desk box id, the `<box>` of `<ID>@<box>` (box.env
@@ -238,6 +260,7 @@ From the next cron tick, `ensure` runs the fleet loop instead of renew +
 watch. A later re-run of `do_spl_dispatch_setup` without `DISPATCH_FLEET`
 keeps the fleet lines, so this machine never leaves fleet mode silently.
 
+<a id="ws-doc-a116c789-e670-45ed-b33f-47c881a151ee"></a>
 ### 6.3 Show the fleet lease
 
 Prints one `<role> <holder> <age-seconds> <gen>` line per role, read from the
@@ -247,12 +270,14 @@ hub.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-a5cb4198-8735-4368-b34d-d6bc54ba2e65"></a>
 ### 6.4 Flip the priority
 
 To make the satellite lead, set `LEASE_PRIORITY=sat,pc` in BOTH machines'
 `<spool root>/dispatch/lease.conf`, or re-run 6.2 on both with
 `DISPATCH_PRIORITY=sat,pc`. The satellite takes both roles on its next tick.
 
+<a id="ws-doc-1af947f7-2d20-469f-a516-2d1e359c7671"></a>
 ### 6.5 The drill: takeover and handback
 
 On the box PC, stop its fleet loop. Within 180 to 240 s the satellite's log
@@ -272,8 +297,10 @@ PC.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 ```
 
+<a id="ws-doc-2f749d55-4829-49b2-b222-d6be884b51f3"></a>
 ## 7. Undo
 
+<a id="ws-doc-3850c3c7-edbb-46cb-a20f-8f373bbe8792"></a>
 ### 7.1 Stop the lease on this box
 
 Stops both loops by their pid files; removing `lease.conf` keeps the cron from
@@ -284,6 +311,7 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
+<a id="ws-doc-3d35918d-9e54-486b-b778-98a006808bc2"></a>
 ### 7.2 lease.conf has one writer; never edit it from a test shell
 
 Every action that changes `lease.conf` (setup, the orch and dispatch

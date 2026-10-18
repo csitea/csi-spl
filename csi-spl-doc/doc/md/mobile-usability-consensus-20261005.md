@@ -18,6 +18,7 @@ Neither walk used a real phone or a drawn keyboard. A real-phone pass is the fir
 
 **The owner picks; the specs come after.** §4 holds the two questions only the owner can answer.
 
+<a id="ws-doc-c68fc336-d03c-4c3b-9125-b87ab0272ae7"></a>
 ## 1. Agreed: both walks found it
 
 | # | idea | claude | grok | the evidence both saw | effort |
@@ -29,6 +30,7 @@ Neither walk used a real phone or a drawn keyboard. A real-phone pass is the fir
 | A5 | **Pull to refresh** on the lists and feeds, running the feed's catch-up | 3.8 | starter 3 | `base.css` sets `overscroll-behavior: none`, which also removes the browser's own pull; there is no in-app one | S |
 | A6 | **A cached first screen instead of "Loading Spool…"**: paint the last list (or its skeleton) at once, refresh behind it; prove the time on the generated bundle with the 066 metrics | 3.11 (first-screen part) | starter 10 | grok saw the full-screen "Loading Spool…" (with Buy a workspace under it) on a signed-in open; `sw.js` caches the shell only, never `/api` | M |
 
+<a id="ws-doc-1484e9f8-e66b-4a51-8d7a-965002312747"></a>
 ## 2. Disputed: both views
 
 | # | idea | claude says | grok says | resolution proposed here |
@@ -41,6 +43,7 @@ Neither walk used a real phone or a drawn keyboard. A real-phone pass is the fir
 | D6 | **Keyboard-up chrome** | with the keyboard emulated, ~40 % of 508 px is chrome; hide the workspace bar and the strip while typing | the bar stays on screen at 18 px with 44 px send; "rebuilding the bar is the wrong work" | no rebuild either way. A4 removes the strip; hiding the workspace bar while typing waits for a **real keyboard** measurement (both walks only shrank the viewport) |
 | D7 | **Back by the edge swipe** (starter 8) | counted as built by 043 (N3, T055) | **keep, it is broken**: an edge swipe from x = 8 skipped a level at 360 (thread to section list) and, with login still in history, opened the login screen while signed in (n = 1 each) | **grok's view**: c-246 did not measure the edge swipe, and 043 T005 notes "the swipe is not measured by the lead". Spec it: the edge swipe pops exactly one level and never walks history from before the session (M) |
 
+<a id="ws-doc-36cb4a1b-696d-4b3f-aa08-bdcc3e0f2540"></a>
 ## 3. One view only, not contested
 
 | # | idea | from | evidence | effort |
@@ -54,6 +57,7 @@ Neither walk used a real phone or a drawn keyboard. A real-phone pass is the fir
 | U7 | The login screen on a phone: language as an icon, 44 px links, and no "Sign-in is unavailable" for a signed-in session | grok A7 | Buy a workspace 124x17, Help 33x17; both lines shown together at 360 | S |
 | U8 | Newest-last by default on phones | claude 3.12 | the newest reply sits farthest from the composer | S (owner question **Q2**) |
 
+<a id="ws-doc-21e4f63f-0a86-4e51-839d-fd22192a6b14"></a>
 ## 4. Owner questions
 
 | # | question | trade-off | recommendation |
@@ -61,6 +65,7 @@ Neither walk used a real phone or a drawn keyboard. A real-phone pass is the fir
 | **Q1** | Should the new section bar (A1) sit at the **bottom** of the phone screen? | **Bottom**: in thumb reach, Slack/GitHub/Linear style. It reverses 043 D1 ("no bottom tab bar") and costs ~35 px net once the status strip goes (A4). **Top** (where the strip is today): no change of habit, 0 px extra, but it stays in the hardest reach. | **Bottom**, replacing the status strip, so A1 and A4 land as one change. Grok's caveat stands: the spec measures reach on the built bar, and the top position is the fallback. |
 | **Q2** | On phones, should feeds and topics default to **newest last** (at the bottom, next to the composer)? | **Yes**: the order of every phone chat app; the reply you answer sits next to the box you type in. **No**: one default on every device, and newest first is what people know today. Either way a user who picked an order keeps it. | **Yes, on phones only**. The setting stays (`user-settings.md` §5.3). |
 
+<a id="ws-doc-ea1861e8-d82c-420e-b8d7-6503e400b5a2"></a>
 ## 5. Build order
 
 Each line is one spec and one lane, smallest dependency first.

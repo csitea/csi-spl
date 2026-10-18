@@ -6,6 +6,7 @@ The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vert
 
 ---
 
+<a id="ws-doc-a824c4a8-d668-4200-bf26-638213eff840"></a>
 ## 1. The 3-Vertical-Pane Geometry
 
 ```text
@@ -53,6 +54,7 @@ How the three panes share a wide screen:
 
 ---
 
+<a id="ws-doc-37e6a9f5-a0d2-4e80-ac4c-c088196a3efb"></a>
 ## 2. The Persistent Top Bar
 
 Pinned at the very top of the screen across the entire viewport, the **Top Bar** provides global system access:
@@ -69,10 +71,12 @@ Pinned at the very top of the screen across the entire viewport, the **Top Bar**
 
 ---
 
+<a id="ws-doc-038469ab-cf28-47ea-8cdb-1e41093ec802"></a>
 ## 3. Pane 1: Left Navigation & Discovery
 
 The Left Pane manages all workspace navigation. It is divided into an icon rail on the far left, a scrollable navigation panel, and a system footer.
 
+<a id="ws-doc-354f3e39-d9b4-4d85-a1b0-2cc1401cbce0"></a>
 ### 3.1 The Navigation Rail (Tab Bar)
 
 A vertical strip of icons switches between the navigation views. A new
@@ -105,6 +109,7 @@ it (a speech bubble bounces, the Issues tick pops, the Calendar page flips,
 Monitoring pulses); so do the message box's Send, Attach, Back and Search
 buttons. With **Reduce motion** on in your device's settings, nothing moves.
 
+<a id="ws-doc-2df7a66e-06f5-44c6-be69-1308943f37ee"></a>
 ### 3.2 Help, Docs (Qto) and Workspace settings
 
 Three links sit under the icons. They are not sections of the list above.
@@ -121,6 +126,7 @@ Three links sit under the icons. They are not sections of the list above.
 - **Workspace settings** (the gear) is there for an admin. See
   [User Settings](./user-settings.md).
 
+<a id="ws-doc-69f8389f-610b-4dc2-8034-5809b794232e"></a>
 ### 3.3 System Footer
 
 At the bottom of the Left Pane:
@@ -133,6 +139,7 @@ At the bottom of the Left Pane:
 
 ---
 
+<a id="ws-doc-e410553d-e453-47dd-b2b0-1cd379a20925"></a>
 ## 4. Pane 2: Middle Message Feed
 
 The Middle Pane is where active conversations take place:
@@ -144,6 +151,7 @@ The Middle Pane is where active conversations take place:
 
 ---
 
+<a id="ws-doc-1c0f5ce9-bea6-46e0-9753-e8b1bdc0ae8e"></a>
 ## 5. Pane 3: Right Thread Context
 
 When you click on a message or its **Replies** button in the Middle Pane, the Right Pane opens:
@@ -162,10 +170,12 @@ When you click on a message or its **Replies** button in the Middle Pane, the Ri
 
 ---
 
+<a id="ws-doc-89856d87-557d-4fb0-906e-d1f13743e7e2"></a>
 ## 6. Draggable Pane Dividers
 
 The vertical borders separating Pane 1, Pane 2, and Pane 3 are interactive, accessible splitters (`PaneDivider`):
 
+<a id="ws-doc-bb67c8db-be73-453c-b4ab-18ea805d2cda"></a>
 ### 6.1 Mouse & Touch Controls
 - **Hover**: Hovering over the seam reveals a subtle highlight bar and a horizontal resize cursor (`col-resize`).
 - **Drag**: Click and drag to expand or narrow the sidebar or thread pane.
@@ -174,11 +184,13 @@ The vertical borders separating Pane 1, Pane 2, and Pane 3 are interactive, acce
   - Thread pane default: **40 %** of the space right of the sidebar (from `280px`, up to about two-thirds of that space): about `470px` at 1440 px wide, `660px` at 1920 px. Because it is a share, it follows the window and the sidebar.
   - Middle feed safety: The middle feed will never shrink below `360px`, guaranteeing that message text and Omnibox inputs remain readable.
 
+<a id="ws-doc-6bbe5acc-1e6c-4a4a-8a4a-bcebcc9fcaae"></a>
 ### 6.2 Keyboard Controls
 - Focus the divider using `Tab`.
 - Press `ArrowLeft` or `ArrowRight` to step the width by `16px`.
 - Press `Home` to snap to minimum width, or `End` to snap to maximum width.
 
+<a id="ws-doc-2b48c584-bbd0-4785-b837-595a952a362d"></a>
 ### 6.3 Widths Are Kept Per View
 
 The widths you drag are remembered **per view**, so a wide thread pane in your
@@ -202,6 +214,7 @@ uses the defaults above.
 > **Everything else** set. Double-click a divider to put that pane of the
 > current view back to its default.
 
+<a id="ws-doc-e2edfdb5-6f2f-4c55-ac32-17dd89432b03"></a>
 ### 6.4 The Docs (Qto) Explorer
 
 On **Docs (Qto)** (`/workspace/docs`) the bar between the file tree and the
@@ -225,6 +238,7 @@ A document's sections drag the same way within that document: between two sectio
 
 ---
 
+<a id="ws-doc-4100481d-7515-41b3-9940-47c3a30e3fc5"></a>
 ## 7. Collapsing a Panel
 
 Each of the three panels carries a small **triangle** in its bottom corner. Click
@@ -253,6 +267,7 @@ same in every workspace.
 
 ---
 
+<a id="ws-doc-3c786e45-31c5-46a2-84bf-9e40e4cce408"></a>
 ## 8. Responsive Mobile & Tablet Adaptations
 
 Spool adapts gracefully to different screen sizes:
@@ -263,6 +278,7 @@ Spool adapts gracefully to different screen sizes:
 
 ---
 
+<a id="ws-doc-df53c5ad-b15a-41d2-9c5b-e33c39a99481"></a>
 ## Next Steps
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).

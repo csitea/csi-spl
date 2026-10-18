@@ -6,6 +6,7 @@ The **Calendar** section in the left rail opens one sheet: the left rail stays,
 and the channel, topic and thread panes close, as in Issues. The sheet has two
 columns.
 
+<a id="ws-doc-810e2c95-70c9-4e45-b1ff-67090a39d824"></a>
 ## The year strip
 
 The left column holds 36 small months: the previous year, this year and the
@@ -21,6 +22,7 @@ scrolling stops at the ends of the three years.
 
 Dates are written `YYYY-MM-DD` in every language.
 
+<a id="ws-doc-cc396815-3d86-43f4-a343-4513bd98050e"></a>
 ## The main view
 
 The right column shows the week of the day you picked, Monday first, with

@@ -17,6 +17,7 @@ landed or dropped already, (2) its site still exists on this tree, and
 measurement says no (owner addendum 2: no measured or historical gain = not
 worth doing).
 
+<a id="ws-doc-7712466f-ab2a-4a8f-af64-137e8135d6a2"></a>
 ## 1. Summary
 
 | seat | AGREE | DISAGREE | note |
@@ -25,6 +26,7 @@ worth doing).
 | m1 | 0 | 10 | every row is the 2026-10-06 plan (`ap-01b..ap-08`) or round 2 (`R2-1`, `R2-2`): landed, dropped or live |
 | a1 | 1 | 9 | four rows are dropped `ap-03/06/08/09` items; four have no measurement; one is CI, out of scope |
 
+<a id="ws-doc-b3940936-2127-4686-8523-4658ef744e05"></a>
 ## 2. Review of g1
 
 1. **5.1 Incremental unanswered sweep: AGREE.** The site is real:
@@ -93,6 +95,7 @@ worth doing).
     dropped this class, and the scans still run. Two saved round trips on a
     background tick are not a measured gain.
 
+<a id="ws-doc-88c9e6d7-0298-475d-8964-2bc129363da1"></a>
 ## 3. Review of m1
 
 m1's measurement table is the 2026-10-06 baseline, not today's: flow counts
@@ -129,6 +132,7 @@ m1's measurement table is the 2026-10-06 baseline, not today's: flow counts
     topic heads replaced the walk; g1 measures the topic-list reads at 92 ×
     44.96 ms and 150 × 23.48 ms, outside the top of total time.
 
+<a id="ws-doc-e4a7f518-49d9-41be-afb4-521396184e30"></a>
 ## 4. Review of a1
 
 a1's section 3 correctly lists ap-01a/b, ap-02, ap-04, ap-00 and ap-07 as
@@ -171,6 +175,7 @@ measurement of the site they change.
 10. **Cache CI tool installs: DISAGREE for this panel.** CI, not API or DB.
     Route it to the standing CI seat if wanted.
 
+<a id="ws-doc-bc8e9776-dc7d-4cef-a9a0-8ac85488af22"></a>
 ## 5. What c1 should take from this seat
 
 - Agreed by c2: g1 5.1, 5.2, 5.3 (after 5.2), 5.4, 5.5, 5.6, 5.8, 5.9;

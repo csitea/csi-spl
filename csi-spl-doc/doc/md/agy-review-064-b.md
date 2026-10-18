@@ -4,6 +4,7 @@
 
 Operational and cost review of [spec 064](../../specs/064-fleet-without-the-pc/spec.md) by an Antigravity agent.
 
+<a id="ws-doc-7a572ce0-541e-4d8d-b64c-983726dc6d5c"></a>
 ## 1. Operations & Cost Evaluation
 - **CI runners on sat:** Cold caches for Go/pnpm will initially slow CI; cap runners at 2 (not 4) to avoid CPU/memory starvation while running 30+ agent lanes.
 - **Keys & isolation:** Storing release and backup keys on a cloud VM hosting self-hosted runners creates exposure; ensure runner systemd units run under a dedicated OS user denied read access to `~/.gcp/.csi/`.
@@ -11,6 +12,7 @@ Operational and cost review of [spec 064](../../specs/064-fleet-without-the-pc/s
 - **sat sizing:** Current `e2-standard-16` (shared core scheduler) will throttle under peak agent turns + CI race builds; keep 16 vCPU for initial migration, but prepare scaling to 32 vCPU.
 - **The drill (15-min cut):** A 15-minute cut tests lease takeover, but does NOT prove uninterrupted development. It misses hourly role rotations (:05/:15), token quota window resets, daily cron runs, and long-term cache stability. A 4-hour soak test is required.
 
+<a id="ws-doc-31552feb-792b-42e3-94eb-7569bb9dfaea"></a>
 ## 2. Lane Evaluation (L1–L9)
 - **L1 (Lease ranking action): Agree.** Establishes sat as rank 0 across roles and ends failover flapping.
 - **L2 (Holder-gated responder): Agree.** Prevents duplicate "Seen" replies while guaranteeing responsiveness.
@@ -22,10 +24,12 @@ Operational and cost review of [spec 064](../../specs/064-fleet-without-the-pc/s
 - **L8 (Drill execution): Agree.** Run 15-min smoke drill, but schedule extended soak before production cutover.
 - **L9 (do_spl_box_leave drain): Disagree.** Unnecessary complexity; the mandatory 20-min push cadence already protects work.
 
+<a id="ws-doc-ce2f22e2-4088-46e5-866b-914eb63e9793"></a>
 ## 3. What is Missing
 - **Disk headroom & cleanup:** sat has 23 GB free on root; CI caches and docker images will rapidly fill disk without an automated prune cron.
 - **External watchdog:** If sat halts while the PC is off, monitoring must notify externally rather than depending on sat.
 
+<a id="ws-doc-86957c5a-2b1e-4717-9961-e715d78a208a"></a>
 ## 4. Answers to Owner Questions (Q1–Q10)
 - **Q1:** Yes — sat at rank 0 for all roles ends lease ping-pong and keeps coordination active.
 - **Q2:** Yes — holder-gating prevents duplicate acknowledgments.

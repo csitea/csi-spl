@@ -10,6 +10,7 @@ Panel: the agy seat (planner and editor a-497, `PC`; proposal `refactor-round-9/
 
 Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026-10-14T08:09:42Z), n=1 per count unless stated otherwise. CI was read over the 30 newest master runs of workflow 10 (`do_report_ci_gate`).
 
+<a id="ws-doc-48f02459-601e-401f-92bc-0647746ed150"></a>
 ## 1. How to read this
 
 - One action = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change, or, for a gate or a test fix, a **red control** that proves the check now fails on the bad input.
@@ -21,6 +22,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r9-NN-<slug>, SPL-1818): ...` for 03, 04, 05, 06, 07, 10; `ci(r9-NN-<slug>, SPL-1818): ...` for 08; `test(r9-NN-<slug>, SPL-1818): ...` for 01, 02, 09.
 - **Off every live lane:** `lane-map.sh --check <the 24 paths> --agent a-497` -> rc 4: no path owned. Re-run per action before its spawn (R3).
 
+<a id="ws-doc-80c3e939-6050-4255-8098-d186f39f05f5"></a>
 ## 2. Where the actions come from (measured)
 
 | source | command on `e05383148` | n | action |
@@ -35,6 +37,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 | retro 3.2: flake watch (spool-harness settle) | `grep -n "CLE-3 announced on box-a" csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-harness.sh:136` | **2 red sightings** on master (runs 38080037175, 38118720855); harness polls roster up to `SPOOL_HARNESS_WAIT_SECS`, test's 5 s cap ran out under heavy load | 09 |
 | retro 6.1: bash DRY (CLOUDSDK_CONFIG preamble) | `git grep -n 'local _spl_sdk_saved="\${CLOUDSDK_CONFIG' csi-spl-iac/ \| wc -l` | **26 files** repeat the identical 4-line throwaway CLOUDSDK_CONFIG trap block | 10 |
 
+<a id="ws-doc-484e424c-9dda-415e-a0de-8fc9c5983b87"></a>
 ## 3. The 10 actions
 
 | # | practice | why (one line) | sites file:line (max 5) | n + command | test or red control | box | vendor | agent kind | batch |
@@ -50,6 +53,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 | 09 `test(r9-09-spool-harness-settle)` | a test waits for a state, never for a time | Fixed wait before roster announcement caused 2 red sightings under CI load | `orc:features/spawn-agents/tests/test-spool-harness.sh:124` | 2 CI red sightings (runs 38080037175, 38118720855) | In `test-spool-harness.sh`, raise `SPOOL_HARNESS_WAIT_SECS` from 5 to 30: harness polls roster and returns on announcement, so green runs wait no longer. **Red control:** fake sidecar writes `roster.json` after `sleep 6` -> old cap 5 fails `hub: agent announced`, new cap 30 passes; fake sidecar that never writes roster -> prints `not yet announced` and fails (`SPOOL_HARNESS_STRICT=1`, exit 69). Run 20/20 locally | sat | claude | tests | 1 |
 | 10 `refactor(r9-10-bash-temp-sdk-config-helper)` | don't repeat yourself (DRY) | 26 files repeat identical 4-line throwaway CLOUDSDK_CONFIG trap block | `iac:lib/bash/funcs/gcp-temp-sdk-config.func.sh` (new)<br>`iac:src/bash/tests/gcp-temp-sdk-config.tst.sh` (new)<br>`iac:lib/bash/funcs/gcp-each-env-sa.func.sh:22-26`<br>`iac:lib/bash/funcs/gcp-project-apis.func.sh:25-29`<br>`iac:src/bash/run/spl-kms-check.func.sh:18-22` | 26 copies across IAC | Create `gcp-temp-sdk-config.func.sh` with `spl_gcp_temp_sdk_config` (saves `CLOUDSDK_CONFIG`, creates `_spl_sdk_dir`, exports) and `spl_gcp_temp_sdk_config_restore` (removes dir, restores/unsets). Caller holds one-line trap: `local _spl_sdk_saved _spl_sdk_dir; spl_gcp_temp_sdk_config \|\| return 1; trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN`. Convert 3 caller files. **Red control:** private dir exists inside caller, is removed after return, caller value comes back; trap inside helper fails. `gcp-actions-isolated-config.tst.sh`, `gcp-temp-sdk-config.tst.sh` | sat | claude (R14) | simple_coding | 1 |
 
+<a id="ws-doc-693e8c89-5fa6-4cc2-8682-902e3707931b"></a>
 ### 3.1 Disjoint files (R1)
 
 - No path is in two actions of the same batch.
@@ -58,6 +62,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
   - `cleancode.test.mjs`: 03 (Batch 1), then 04 (Batch 2).
   - `bash-cleancode.tst.sh`: 05 (Batch 1), then 06 (Batch 2), then 07 (Batch 3).
 
+<a id="ws-doc-d37bfc03-dff1-4488-bce0-6c475556eef5"></a>
 ## 4. Per action: what the lane does
 
 - **01 `test(r9-01-go-coverage-spool-cli-fs)`:** Write `api:cmd/spool/cli_fs_test.go` driving pure CLI subcommands `archive`, `move`, `react`, `edit`, `delete` against an `httptest.Server` stub hub (the pattern of `doc_test.go` `newDocsHub`), no Postgres, no real network. Measure `cmd/spool` coverage with `go test -cover ./cmd/spool/` (current 61.1 %); raise `cmd/spool` line in `csi-spl-api/src/bash/tests/go-coverage-floor.txt` to the measured value (target >= 63.0 %; the four files hold +2.75 points at most). **Red control:** deleting `cli_fs_test.go` causes `run-all-tests.sh` to fail the coverage floor.
@@ -71,6 +76,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 - **09 `test(r9-09-spool-harness-settle)`:** In `csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-harness.sh:124`, raise the test's `SPOOL_HARNESS_WAIT_SECS` from 5 to 30: the harness polls the roster and returns at the first announcement, so a green run waits no longer. **Red control:** the fake sidecar writes `roster.json` after `sleep 6` -> old cap 5 fails `hub: agent announced`, new cap 30 passes; fake sidecar that never writes roster -> harness prints `not yet announced` and assertion fails (`SPOOL_HARNESS_STRICT=1`, exit 69). Run 20/20 locally.
 - **10 `refactor(r9-10-bash-temp-sdk-config-helper)`:** Create `iac:lib/bash/funcs/gcp-temp-sdk-config.func.sh` with `spl_gcp_temp_sdk_config` (saves `CLOUDSDK_CONFIG` into caller's `_spl_sdk_saved`, makes `_spl_sdk_dir`, exports it) and `spl_gcp_temp_sdk_config_restore` (removes the dir, restores or unsets). The RETURN trap stays in caller: `local _spl_sdk_saved _spl_sdk_dir; spl_gcp_temp_sdk_config || return 1; trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN`. Convert 3 caller files (`gcp-each-env-sa.func.sh`, `gcp-project-apis.func.sh`, `spl-kms-check.func.sh`). **Red control:** `gcp-temp-sdk-config.tst.sh` proves private dir exists inside caller, is removed after return, and caller's value comes back (set and unset); trap inside helper fails. Run `gcp-actions-isolated-config.tst.sh` and `gcp-temp-sdk-config.tst.sh`.
 
+<a id="ws-doc-dcfa5ee0-f908-4ff4-9a01-62ec5a5ccc9e"></a>
 ## 5. Spawn, done, status (R1-R16)
 
 - **R1, Disjoint files per batch.** As in round 8: no path is in two actions of the same batch. Shared files are strictly serialised across batches.
@@ -89,6 +95,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 - **R14, Vendor mix.** `simple_coding` refactor rows stay on Claude until Mistral proves reliable on refactor rows. Mistral retains panel review seat.
 - **R16 (new, batch placement SLA):** Dependent Batch 2 and Batch 3 rows must be spawned within 30 minutes of the prerequisite row landing on trunk.
 
+<a id="ws-doc-324a3465-f749-4627-9926-6794d59a2017"></a>
 ## 6. Process practices, measured (no lane)
 
 | owner practice | measured state | verdict |
@@ -100,6 +107,7 @@ Every site was measured on ONE trunk sha: **`e05383148`** (`origin/master`, 2026
 | tests wait for state, never time | fixed test timeout in test-spool-harness caused 2 CI red sightings (section 2 row 8) | **new:** action 09 |
 | nothing ad hoc | 25 stale review/wip branches left on origin (section 2 row 7) | **new:** action 08 |
 
+<a id="ws-doc-05667bbe-4ee2-46b1-a7e1-eaf3faf125b4"></a>
 ## 7. Disagreements
 
 Seat reviews on `afbd48aaa`:
@@ -115,6 +123,7 @@ Seat reviews on `afbd48aaa`:
   - D7 (claude, row 10): Helper must not set RETURN trap inside itself; caller holds one-line trap using pair of helpers `spl_gcp_temp_sdk_config` / `spl_gcp_temp_sdk_config_restore`. **Settled: folded.**
   - D8 (claude, row 06/07 line numbers & vendor column): Line numbers updated and vendor column added (all 10 rows claude; agy reviews all 10 under R7). **Settled: folded.**
 
+<a id="ws-doc-0fbefa98-c581-4add-8d5a-0d4c9bcfc95c"></a>
 ## 8. Measured and left out
 
 | what | why it is out | measured by |
@@ -127,6 +136,7 @@ Seat reviews on `afbd48aaa`:
 | Flakes under 3 sightings (`test-agent-hook.sh` 1, `test-tmux-close-window-vibe.sh` 1) | below 3rd-sighting threshold (R11.3) | `do_report_ci_gate` |
 | shfmt and prettier | no repo-wide config or tooling configured | round 8 plan section 8 |
 
+<a id="ws-doc-88f314e2-f107-47f3-b3d9-2cb7cf13ea22"></a>
 ## 9. Counts
 
 | | Go | TS/Vue | bash | CI / gate | total |
@@ -140,6 +150,7 @@ Seat reviews on `afbd48aaa`:
 | batches | Batch 1: 01, 03, 05, 08, 09, 10 | Batch 2: 02, 04, 06 | Batch 3: 07 | | 10 |
 | rules | R1-R15 carried and updated; R16 new | | | | 16 |
 
+<a id="ws-doc-b34f253b-d028-452f-a08c-69a62d19614e"></a>
 ## 10. Consensus
 
 Signed plan sha: **`9296e7b99`** (v1.0; all 3 vendor seats re-checked and signed).

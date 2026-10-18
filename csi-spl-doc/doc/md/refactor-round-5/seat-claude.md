@@ -8,6 +8,7 @@ Every count below was measured on ONE trunk sha, **`d5d136053`** (`origin/master
 
 Round 4 is closed: all 16 rows, both follow-ups and both bugs are on trunk (`git log origin/master --grep='r4-'` lists 22 commits).
 
+<a id="ws-doc-2bd54444-f23f-42bd-b8fb-9de1b1f90ae5"></a>
 ## 1. The 10 actions
 
 | # | slug | owner practice | sites / gate | n + command | test or red control | box | agent kind |
@@ -27,6 +28,7 @@ Disjoint files (R1): the ten rows share no path. Row 5 is the only row that edit
 
 Box split: `sat` 6 (2, 3, 4, 5, 7, 9), `PC` 4 (1, 6, 8, 10).
 
+<a id="ws-doc-2a8dd7e0-b4da-4ad6-9db1-6770782a49be"></a>
 ## 2. Process practices, measured
 
 | practice | measured state on `d5d136053` | verdict |
@@ -38,6 +40,7 @@ Box split: `sat` 6 (2, 3, 4, 5, 7, 9), `PC` 4 (1, 6, 8, 10).
 | regular refactoring, dedicated capacity | rounds 1-4 landed 2026-10-03, 10-04, 10-05, 10-06 (git add dates of the plans); 88 of 1971 commit subjects since 10-03 start `refactor` | already in place: the owner calls a round |
 | CI that blocks broken builds | master has no protection (`gh api repos/csitea/csi-spl/branches/master/protection` -> 404); wf 20 succeeded 12 times and wf 30 succeeded 34 times while wf 10 was red (since 15:02Z) | rows 7 and 8; deploy gating on wf 10 is left for the owner (it would stop every deploy while trunk is red, and trunk was red 6 h 49 m today) |
 
+<a id="ws-doc-e1030a29-ccb7-43a8-9bab-994eb8f1ce9b"></a>
 ## 3. Measured and left out
 
 - shellcheck skips the 22 `.sh` under api and wui (`sec-shellcheck.func.sh:75-77`); `shellcheck -S error` finds 1 error there (`csi-spl-api/src/bash/tests/spool-smoke.tst.sh:57` SC2144). It is a good row for round 6.

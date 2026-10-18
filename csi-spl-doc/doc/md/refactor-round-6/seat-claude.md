@@ -6,6 +6,7 @@ A proposal, not the plan. The editor (this seat) merges the three seats into `..
 
 Every count was measured on ONE trunk sha, **`da36dad94`**, n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 5 is closed and held: `refactor-round-5-retro.md` section 1 (10 of 10 actions).
 
+<a id="ws-doc-8ba39c76-e1ec-47f7-b789-fecfbe9e1a8d"></a>
 ## 1. The 10 actions
 
 | # | slug | source | sites | n | kind | box |
@@ -21,6 +22,7 @@ Every count was measured on ONE trunk sha, **`da36dad94`**, n=1 per count unless
 | 09 | `r6-09-wui-small-functions` | small functions | 4 LONG entries at 89-110 lines | 4 | simple_coding | PC |
 | 10 | `r6-10-bash-small-functions` | small functions | 2 LONG iac actions at 117, 130 | 2 | secret | sat |
 
+<a id="ws-doc-60652af5-81d7-4c4b-9a72-17ad08db17a7"></a>
 ## 2. Rules proposed (from the r5 retro, section 6)
 
 - R2 gains cross-package callers of a moved or deleted export (retro 4.2).
@@ -28,6 +30,7 @@ Every count was measured on ONE trunk sha, **`da36dad94`**, n=1 per count unless
 - R9: a gate lane runs its own test under `PRE_PUSH_TIER=full` and with no inherited `PRE_PUSH_*` (retro 4.4).
 - A row brief carries the plan row verbatim (retro 4.5); the spawner reads the new pane 2 minutes after spawn (retro section 2).
 
+<a id="ws-doc-2ef8a46e-62b2-4c60-a346-3ec70b6b62cf"></a>
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it.

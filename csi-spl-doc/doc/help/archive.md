@@ -9,6 +9,7 @@ of your current workspace that you are allowed to read, newest first.
 
 ---
 
+<a id="ws-doc-809e5d03-f38f-4ba3-b32a-f9a9942c96b8"></a>
 ## 1. Opening the Archive
 
 Click **Archive** in the left rail, or open `/archive`. The list fills the middle
@@ -19,6 +20,7 @@ and when it was archived. Wherever an archived topic still shows — its row, or
 
 ---
 
+<a id="ws-doc-e2a34e28-8552-43b5-be6c-ace84ad2140a"></a>
 ## 2. What you can do with a row
 
 - **Open** — click a row to open that topic and read its full thread, exactly as
@@ -34,6 +36,7 @@ and when it was archived. Wherever an archived topic still shows — its row, or
 
 ---
 
+<a id="ws-doc-07eb2d0e-7815-4832-a70a-3c4ac449d4b2"></a>
 ## 3. On a phone
 
 Swipe a topic card to the left and release to archive it. That is the same
@@ -47,6 +50,7 @@ topic. A swipe left on a reply hides that reply on this device only — see
 
 ---
 
+<a id="ws-doc-65c5ae78-dd8d-4ecf-8bd6-077c89cb303c"></a>
 ## Next Steps
 
 To learn how topics and threads are structured, read

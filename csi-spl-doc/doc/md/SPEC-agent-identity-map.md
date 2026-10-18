@@ -6,6 +6,7 @@ Status: steps (a) to (d) are built. The box engine calling (d) at boot is the la
 Owner order, 2026-10-01: "some kind of hash to keep up-to-date the runtime tmux
 window names and the session names in sync with this hash on the disk".
 
+<a id="ws-doc-c5ab6a22-c3cb-40f7-a621-9ae818062837"></a>
 ## 1. Why
 
 1.1 On 2026-10-01 a reboot restore resumed seven agents in their neighbours'
@@ -19,6 +20,7 @@ badge loop looked panes up by window index while the sorter moved them
 1.3 Window names and registry rows were the identity, and both drift. The map
 replaces them as the source of truth. Names become derived output.
 
+<a id="ws-doc-de06d683-d508-4291-bfbd-c68c9868bb44"></a>
 ## 2. The record
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -50,6 +52,7 @@ changes.
 recorded. A process whose environment carries no id is skipped, with the
 reason.
 
+<a id="ws-doc-688cc564-366c-4729-85df-778b73fa90db"></a>
 ## 3. Liveness
 
 3.1 One rule holds for every reader (`ai_alive <ID>`, which prints the pid):
@@ -59,6 +62,7 @@ process is that agent's CLI, and it carries `SPOOL_AGENT_ID=<ID>`.
 3.2 The dispatch lease keeps its own `/proc` walk as a fallback. A relaunched
 master is recorded only on the next pass.
 
+<a id="ws-doc-3fe7243b-4dc4-4f6f-bdce-8e5805bf4b55"></a>
 ## 4. Steps
 
 4.1 (a) Lib `features/spawn-agents/lib/agent-identity.inc.sh`, engine

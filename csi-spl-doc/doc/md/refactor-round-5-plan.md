@@ -10,6 +10,7 @@ Panel: the claude seat c-687 (editor, `sat`), the agy seat a-732 (`PC`), the mis
 
 Every site was measured on ONE trunk sha: **`d5d136053`** (`origin/master`, 2026-10-09T21:42Z), n=1 per count unless stated otherwise. Re-checked on `fb933b786` (the trunk when this plan was written): `git diff --stat d5d136053 fb933b786 -- <every site file of section 3, every baseline, both cleancode gates>` names one file, `.shellcheck-warning-baseline.txt` (+2 lines). Only action 05 owns that file and it re-measures at its own start, so every line number below holds.
 
+<a id="ws-doc-febabdf6-0ee1-4ffd-8009-9b7aa35332b5"></a>
 ## 1. How to read this
 
 - One action = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change, or, for a gate, a **red control** that proves the gate now fails on the bad input.
@@ -20,6 +21,7 @@ Every site was measured on ONE trunk sha: **`d5d136053`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r5-NN-<slug>): ...` for a code action, `ci(r5-NN-<slug>): ...` for a gate action.
 - **Off every live lane:** `lane-map.sh --check <all 48 site paths> --agent c-687` -> `free`, rc 0 (two runs on 2026-10-09, after the seats landed). Live and kept off: c-683 (store timing tests), c-686 (workspace-docs hub), c-712 (doc view), c-680 / m-673 (spec 115), c-682, c-688, c-730, c-668 (`sync-roadmap.mjs`). Re-run the check per action before its spawn (section 5).
 
+<a id="ws-doc-82ede8b3-f650-459f-b74a-fd7de3734b7d"></a>
 ## 2. Where the actions come from (measured)
 
 | owner practice | command on `d5d136053` | n | action |
@@ -46,6 +48,7 @@ Every site was measured on ONE trunk sha: **`d5d136053`** (`origin/master`, 2026
 
 The process practices (review, pairing, training, standards, capacity) are in section 6: rules, not lanes.
 
+<a id="ws-doc-56891229-2c15-4024-97fe-a21aa8c5c2de"></a>
 ## 3. The 10 actions
 
 | # | practice | why (one line) | sites file:line-line (max 5) | n + command | test or red control | box | agent kind | batch |
@@ -63,6 +66,7 @@ The process practices (review, pairing, training, standards, capacity) are in se
 
 Sites: 41 (01: 5, 02: 4, 03: 5 groups / 14 files, 04: 5, 05: 6, 06: 2, 07: 1, 08: 2, 09: 2 groups / 55 files, 10: 2). Action 03 lists five site groups; each group is one finding of the same kind.
 
+<a id="ws-doc-647e8f1e-0dd8-4186-bfcb-e85a88f53c6c"></a>
 ### 3.1 Disjoint files (R1)
 
 - No path is in two actions. `lane-map --check` over every path: free.
@@ -70,6 +74,7 @@ Sites: 41 (01: 5, 02: 4, 03: 5 groups / 14 files, 04: 5, 05: 6, 06: 2, 07: 1, 08
 - 09 touches all 54 `.py`: `git ls-files '*.py' \| grep -f <every other action's paths>` -> 0. No `.py` is a site of another action.
 - A test file named in the test column of two actions is READ by both, never edited by both: the editing action is the one whose sites include it.
 
+<a id="ws-doc-71ba730f-1580-488e-9b00-2e4531e70113"></a>
 ## 4. Per action: what the lane does
 
 - **01.** Delete `verbosity.mjs` and its own test. If `channel-feed.test.mjs`, `msg-kind.test.mjs` or `util-docs.test.mjs` import it, drop that import only and keep every other assertion. `useLiveStore` and `perfCollector` go with their comment lines. The two comments name the real files. No `.vue` change; the initial JS chunk can only shrink.
@@ -83,6 +88,7 @@ Sites: 41 (01: 5, 02: 4, 03: 5 groups / 14 files, 04: 5, 05: 6, 06: 2, 07: 1, 08
 - **09.** Commit 1: `ruff format` only (no other change). Commit 2: the `lint-py` check + its fixture test. Two commits, pushed together.
 - **10.** Use a `-coverprofile` in a temp dir, then `go tool cover -func`. The floor file is keyed by package, one line each, `%.1f`. The gate never raises a floor by itself; a lane raises it by hand when it adds tests.
 
+<a id="ws-doc-42f946bb-e251-446b-a3be-677b1516ecc9"></a>
 ## 5. Spawn, done, status (R1-R8)
 
 - **R1** disjoint files: section 3.1.
@@ -101,6 +107,7 @@ Sites: 41 (01: 5, 02: 4, 03: 5 groups / 14 files, 04: 5, 05: 6, 06: 2, 07: 1, 08
   - C6 hygiene and pre-push passed with no override.
 - **R8 (new, retro).** After the 10 actions are served, one lane writes `refactor-round-5-retro.md` in round 3's retro shape; its section 6 feeds round 6. Round 4 had no retro.
 
+<a id="ws-doc-93808271-d283-46f9-9b9a-b4493361f727"></a>
 ## 6. Process practices, measured (no lane)
 
 | owner practice | measured state on `d5d136053` | verdict |
@@ -113,6 +120,7 @@ Sites: 41 (01: 5, 02: 4, 03: 5 groups / 14 files, 04: 5, 05: 6, 06: 2, 07: 1, 08
 | dedicated capacity for technical debt | the rounds above; this round runs 10 lanes beside the feature lanes | **already in place** |
 | CI that blocks broken builds | master has no protection (`gh api repos/csitea/csi-spl/branches/master/protection` -> 404, rulesets `[]`); the fleet pushes to trunk by standing order, so the block is the pre-push hook. wf 20 deployed 12 times and wf 30 deployed 34 times while wf 10 was red (since 15:02Z) | actions 07 and 08. Making deploys wait for wf 10 is **left to the owner** (section 7, D4) |
 
+<a id="ws-doc-90e39806-4942-45de-a803-6b55a3715866"></a>
 ## 7. Disagreements
 
 Each seat item that is not one of the 10, and why. "Folded" means it is inside an action.
@@ -138,6 +146,7 @@ Each seat item that is not one of the 10, and why. "Folded" means it is inside a
 | D17 | mistral's sha | its proposal names `352866e1d` (round 4's sha); every count here is on `d5d136053` |
 | D18 | claude seat: deploys wait for wf 10 | **left to the owner:** it would have stopped every deploy for the 6 h 49 m trunk was red today; 08 first makes the wf 10 verdict trustworthy |
 
+<a id="ws-doc-3bc02b24-ee09-4e84-a3ef-b90d7ee704ee"></a>
 ## 8. Measured and left out
 
 | what | why it is out | measured by |
@@ -151,6 +160,7 @@ Each seat item that is not one of the 10, and why. "Folded" means it is inside a
 | the WUI fetch timeouts and the `exit` in sourced functions | D3, D4: round 6 | section 7 |
 | 15 production `.func.sh` with no test naming them (largest `spl-agent-identity-restore.func.sh`, 191 lines) | identity / rotation scripts stay off | the R2 map over `*.tst.sh` |
 
+<a id="ws-doc-63d2b913-c3cd-46ae-8cfb-a8acd66f3271"></a>
 ## 9. Counts
 
 | | Go | TS/Vue | bash | CI / gate | total |
@@ -162,6 +172,7 @@ Each seat item that is not one of the 10, and why. "Folded" means it is inside a
 
 Seat items: agy 10 (4 folded, 6 kept out), mistral 10 (1 folded, 3 already in place, 4 refuted, 2 kept out), claude 10 (all 10 in, one owner question D18).
 
+<a id="ws-doc-192d7a82-59bc-42c6-958f-6ffba54c21ac"></a>
 ## 10. Consensus
 
 All three seats signed ONE sha, **`49e21c570`**, with no objection. Sections 1-9 above are that sha's text, unchanged; this commit adds only this section.

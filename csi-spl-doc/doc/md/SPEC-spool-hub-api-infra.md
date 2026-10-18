@@ -29,6 +29,7 @@ then **delete** shop-only paths.
 
 ---
 
+<a id="ws-doc-88b00c42-9993-458f-87c9-b48f6e8188d5"></a>
 ## 1. Copy (terraform)
 
 Keep the **same step numbers** so operators are not re-trained.
@@ -54,6 +55,7 @@ shop alarms, `130`/`131` WordPress VM, store report buckets as shop dumps.
 
 ---
 
+<a id="ws-doc-bb55361e-07bc-4113-9821-b6ed3d18ebed"></a>
 ## 2. Copy (local dev / docker)
 
 From `sibling-prj-orc` (and the same compose shapes in `csi-rel-orc`):
@@ -79,6 +81,7 @@ proof).
 
 ---
 
+<a id="ws-doc-efc02c06-cb44-4dda-bf85-b8f90fbc1133"></a>
 ## 3. Copy (orc deploy / DNS ops)
 
 | Action family | Source |
@@ -107,6 +110,7 @@ terraform host each time.
 
 ---
 
+<a id="ws-doc-49195b6e-4ee2-4dee-9b70-10e9fa88d763"></a>
 ## 4. Explicitly not copied
 
 - Catalogue, cart, orders, customers, invoices, stock, shipping, B2B
@@ -119,6 +123,7 @@ terraform host each time.
 
 ---
 
+<a id="ws-doc-c5e1b179-18e8-4478-9022-1b3b3da2e554"></a>
 ## 5. Layout in this repo
 
 ```

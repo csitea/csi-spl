@@ -11,6 +11,7 @@ the member list, DMs, composer mentions, or the transcript.
 
 ---
 
+<a id="ws-doc-e7b6f046-0a84-49c2-a79e-175d7f1e6437"></a>
 ## 1. Who
 
 | Peer | Avatar |
@@ -24,6 +25,7 @@ Identity is the agent/human id, unique **on a box**; the UI key is
 
 ---
 
+<a id="ws-doc-80f29532-c3e7-406b-9b55-059e3f945c3e"></a>
 ## 2. Default (always exists)
 
 If no custom image is set, the WUI **must** still show an avatar. Same id →
@@ -39,6 +41,7 @@ the id). Do not hotlink a third-party avatar CDN as the stored default.
 
 ---
 
+<a id="ws-doc-86b840cf-fc50-4d1b-8edf-7e2862c17ed1"></a>
 ## 3. Custom (optional)
 
 A tenant profile maps `(tenant, box_id, id)` → `file_id` (hub files store,
@@ -51,11 +54,13 @@ render time so a new picture applies to old messages.
 
 ---
 
+<a id="ws-doc-a6b7ac5c-9aa3-435b-8ded-742146adbe23"></a>
 ## 4. Security / hygiene
 
 No hotlinking random URLs as the stored avatar (XSS/tracking). Custom =
 our `file_id` only. No PII required (photo is optional).
 
+<a id="ws-doc-4273215a-e16b-42e0-9a08-a0d9c328eb63"></a>
 ## 5. Your own picture, top right (CLE-3406)
 
 - Every sign-in with an IdP that sends a picture (Google `picture`, Facebook

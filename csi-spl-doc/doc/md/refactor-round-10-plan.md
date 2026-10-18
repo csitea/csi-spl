@@ -23,6 +23,7 @@ re-measured every count on `050b06e65` (18:11Z), and the 3 row paths that
 moved are folded (rows 01, 08, 09; section 7.2). Input:
 [refactor-round-9-retro.md](refactor-round-9-retro.md) section 6.
 
+<a id="ws-doc-e203270e-6b5b-45c4-93ed-da1dac3c73a3"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, at the sites named and nowhere else,
@@ -44,6 +45,7 @@ moved are folded (rows 01, 08, 09; section 7.2). Input:
   `chore(...)` (round 9: 6 of 10 rows did that, retro 4.1); trunk-red
   takeover: see rulebook 2.11.3.
 
+<a id="ws-doc-ebb35f91-140c-4640-a846-2842b31c5e13"></a>
 ## 2. Where the rows come from (measured on `43688a782`)
 
 | source | command | n | row |
@@ -56,6 +58,7 @@ moved are folded (rows 01, 08, 09; section 7.2). Input:
 | retro 6.8 | `ROUND="7,8,9" DRY_RUN=1 ./run -a do_git_prune_round_branches` vs `git ls-remote origin` | 33 listed of 36 round branches; 7 r7 tips with `git cherry` `+` lines (3 `wip/`, 4 `review/r7-05*`) | 09 |
 | retro 6.9 | `git grep -nE "\^review: " -- 'csi-spl-orc/src/**' 'csi-spl-iac/src/**' '.github/**'` | 0 gates; round 9: 3 rows with no review line | 10 |
 
+<a id="ws-doc-10f647bb-e5da-4e99-88e5-677e776957f5"></a>
 ## 3. The 10 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
@@ -71,6 +74,7 @@ moved are folded (rows 01, 08, 09; section 7.2). Input:
 | 09 `ci(r10-09-round-branch-prune-lane-prefixed)` | nothing ad hoc, branch hygiene | 3 of 36 round branches escape the matcher; unlanded commits deleted silently | `orc:src/bash/run/git-prune-round-branches.func.sh:29-34`<br>`orc:src/bash/run/git-prune-round-branches.func.sh:58`<br>`orc:src/bash/tests/git-prune-round-branches.tst.sh` | 3 missed, 7 unlanded tips | `prune_round_match` also takes `<id>-r<N>-*` and `review/<id>-r<N>-*` (`<id>` = `[acgmq]-[0-9]{3}`); a tip with `git cherry origin/master <tip>` `+` lines prints `KEEP <branch> <n> unlanded` and stays unless `PRUNE_UNLANDED=1`. **Red control:** fixtures for a lane-prefixed branch (missed before) and an unlanded tip (deleted before) fail on the old code; a squash-landed fixture (its commits not cherry-equal to trunk) stays KEPT. After landing: `ROUND="7,8,9" DRY_RUN=1` matches 36, prints 7 KEEP and lists 29, then `DRY_RUN=0` (rulebook R8 step 2) | sat | claude | simple_coding (R14) | 1 |
 | 10 `ci(r10-10-push-master-review-line)` | review before merge, gate | round rows land without a review line, no gate | `orc:src/bash/run/spl-push-master.func.sh:128`<br>`orc:src/bash/tests/spl-push-master.tst.sh` | 0 gates; 3 of 10 r9 rows with no line | the push worker refuses, beside the identity check (line 151), a commit in `<remote>/<branch>..HEAD` whose subject matches `^(test\|refactor\|ci\|fix\|feat\|perf)\(r[0-9]+-[0-9]{2}-` and whose body has no `^review: \S+@\S+ \S+ PASS [0-9a-f]{7,40} `: `REFUSED round row <sha> has no R7 review line`. **Red control:** a fixture `refactor(r99-01-x)` commit with no line is refused, with the line it pushes; a `chore(r99-01-x)` and a `docs(...)` commit pass. R9: `PRE_PUSH_TIER=full` | sat | claude | simple_coding (R14) | 1 |
 
+<a id="ws-doc-d9523446-7797-47b8-9207-db3036a41460"></a>
 ### 3.1 Disjoint files (R1)
 
 - **Batch 1:** 01, 02, 04, 05, 06, 07, 08, 09, 10. No path is in two of
@@ -83,6 +87,7 @@ moved are folded (rows 01, 08, 09; section 7.2). Input:
 - Rows 04-07 only call the helper; none edits `gcp-temp-sdk-config.func.sh`
   or `gcp-actions-isolated-config.tst.sh`.
 
+<a id="ws-doc-55d2a7ff-e722-4d36-8de3-9ab63a842526"></a>
 ### 3.2 Off every live lane (R3)
 
 `lane-map.sh --check <every row path> --agent c-119` on `43688a782` -> rc 4:
@@ -100,6 +105,7 @@ with no files recorded are c-119@sat (the editor), c-125@sat
 (`c-126-public-repo-customer-name`); c-296 and c-519 are gone. The
 spawner's per-row `--check` asks them.
 
+<a id="ws-doc-597699f1-0d59-459a-893a-b6dc91638bc3"></a>
 ## 4. Per row: what the lane does
 
 - **01:** write `api:cmd/spool/cli_verbs_test.go` that drives `issue`
@@ -135,6 +141,7 @@ spawner's per-row `--check` asks them.
   `_spl_push_master_worker` stays under 80 lines. The rows of this round land
   with the line already, so the gate refuses none of them.
 
+<a id="ws-doc-5e47a3be-9bf9-4583-af80-ea2d72ee9571"></a>
 ## 5. Panel and reviewers (R7)
 
 agy has no quota until about 2026-10-15T09:50Z and grok has none at all
@@ -164,6 +171,7 @@ needed.
   (R7.3). Where round 9 named agy, a non-claude seat of the other vendor
   takes it.
 
+<a id="ws-doc-a61cea54-5aaf-4586-9930-bc3bdacce987"></a>
 ## 6. Left out, measured
 
 | what | why | measured by |
@@ -175,6 +183,7 @@ needed.
 | a-115's draft row "prune rounds 7-9 now" | it would delete 7 unlanded r7 tips and miss 3 r9 branches; row 09 fixes the matcher first | retro section 5 |
 | a review-line check in the pre-push hook | row 10 gates `do_spl_push_master` only; a hand push skips it; round 11 | `git grep -n review -- csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push \| wc -l` -> 0 (claude seat) |
 
+<a id="ws-doc-99788f08-e1fc-4b1e-bc91-8af0edb7bf19"></a>
 ## 7. What changed from the a-115 draft
 
 - Re-measured on `43688a782` (the draft used `1c6d8a580`); the counts that
@@ -193,6 +202,7 @@ needed.
 - a-115's `seat-agy.md` is not landed: its seat is closed and its numbers
   were not re-measured.
 
+<a id="ws-doc-99f6c78a-da13-48ee-90d3-ee0e5098912b"></a>
 ### 7.1 v0.2: the claude seat folded
 
 From `refactor-round-10/seat-claude.md` (c-120@sat, `f36864bfc`, 8 agree,
@@ -208,6 +218,7 @@ From `refactor-round-10/seat-claude.md` (c-120@sat, `f36864bfc`, 8 agree,
 - The seat's note on rows 02 and 03 (trunk on typescript 6.0.3 at
   `3cd461397`, cleancode and typecheck pass) needs no change.
 
+<a id="ws-doc-64ecb281-39fa-4221-90cf-49dbf9055741"></a>
 ### 7.2 v1.0: the second claude seat folded
 
 From `refactor-round-10/seat-claude-2.md` (c-522@PC, `475edcd5d`, on
@@ -227,6 +238,7 @@ against that file's commands:
 - Section 3.2: lanes with no files are now c-119, c-125, c-126.
 - Section 9: the mistral seat row is c-522@PC (claude).
 
+<a id="ws-doc-79b5e4ce-54f3-4906-bbf6-c639a413c5e9"></a>
 ## 8. Counts
 
 | | n |
@@ -236,6 +248,7 @@ against that file's commands:
 | box (preferred) | sat 7, PC 3 |
 | batches | batch 1: 9; batch 2: 1 |
 
+<a id="ws-doc-438d3f2a-0f18-4813-b62f-5cc28dc95b88"></a>
 ## 9. Consensus
 
 Signed plan sha: **`40057b1a5`** (v1.0), signed by both seats below. The rows spawn from it.

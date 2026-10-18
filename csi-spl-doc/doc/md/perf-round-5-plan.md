@@ -10,6 +10,7 @@ Owner, t1 #refactoring eafc9b15:
 
 This plan is the merge. It changes no product code. Each row below is one future lane, and no two rows share a file.
 
+<a id="ws-doc-78eda414-65ed-4b5d-956d-0b87d2d1fb54"></a>
 ## 1. The panel and how the rows were chosen
 
 | vendor | proposer file | reviewer file | reviewer covered |
@@ -53,6 +54,7 @@ one row. That leaves **ten rows**.
 - The DB is 1.2 % busy on average (1 041.6 s of DB time per day). A row gains
   when it frees cache pages, pool slots or statement starts, not CPU alone.
 
+<a id="ws-doc-468f902a-d520-4998-bfe6-b4870491085b"></a>
 ## 2. Rules for every lane
 
 - Measure before and after, with the same method and the same n. A row whose gate says no is dropped and reported, never shipped.
@@ -62,6 +64,7 @@ one row. That leaves **ten rows**.
 - Done means: on master, deployed to dev AND prd with the served version checked, and the before/after numbers posted with their n.
 - Do not run a write function (e.g. `topic_head_apply_marks`) on prd to measure it. Use a rolled-back lab on a private postgres:16-alpine.
 
+<a id="ws-doc-24db6a43-e573-48d2-8874-d0e055bcfb2f"></a>
 ## 3. The ten actions, in run order
 
 `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`, `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`.
@@ -79,6 +82,7 @@ one row. That leaves **ten rows**.
 | 9 | P5-09 | **Typed structs for the WUI message and channel frames** instead of `map[string]any`, encoded once. Practice: typed structs on hot frames (round 4 G12). | `api/hub/wui.go` (:989 message frame, :1243 channel frame); the merge frame (`hub/merge.go:273`) only if it is the same struct and bench | `grep -c 'map\[string\]any' api/hub/wui.go` -> 7 (g2); no fresh bench yet | historical: G12 took presence from 62.2 µs / 420 allocs to 3.4 µs / 10 allocs, n=6 (`perf-round-4-plan.md` row 23); on `GOMAXPROCS=1` the fan-out shares the one P | the same practice measured a 42x alloc cut in round 4 | high test churn on the JSON shape; a1's merge frame has no call count | allocs fall by less than half in a new `go test -bench` at 1 / 10 / 50 sockets, n >= 6 | bench n >= 6 before and after; JSON byte-identical golden test | agy, claude, grok |
 | 10 | P5-10 | **Channel GET: make the existing R2-5 304 gate reachable first; the maintained counter only if it is not.** Step 1: log `If-None-Match` and 304 on `GET /v1/view/channels` for 24 h. Step 2: the WUI sends the ETag it holds, and the channels view gets a stamp without `deliveries`. Step 3, only if the 304 share is under 20 %: g1 5.3's counter row with a drift oracle. Practices: a conditional read before the data reads; narrow invalidation; a maintained counter with an oracle. | `api/hub/view_stamp.go`, `api/store/change_stamp.go`, a NEW migration beside `rdb/0103_tenant_change_stamps.sql` (:123 `deliveries` trigger), `csi-spl-wui/src/utils/spool-client.mjs` (:551); step 3 only: `api/store/channels_postgres.go` (`countsRead` :363) + a NEW migration | 4 statements x 6 840 GETs = 18.44 ms per GET, ~126 s/day (c1). `changeStampSQL` is absent from all 59 statements in the window: no conditional read reached the gate in 24 h. `grep -c -E 'If-None-Match\|ETag\|etag' spool-client.mjs` -> 0 (g2). Stamp bumps 41 844/day vs 6 840 GETs | **unknown; 126 s/day is a ceiling, not a hit rate** (g2) | the gate is built and tested, and it never runs on prd; `countsRead` reads no `deliveries` (`sed -n 355,420p api/store/channels_postgres.go \| grep -c deliveries` -> 0) | the stamp may move between most GETs from real changes; `e908f41b` chose the index-only scan to avoid a drifting counter; a counter trigger rides a write path already at ~27 + ~39 ms | step 1's 304 share is under 20 %: go to step 3; step 3's trigger adds over 2 ms to the insert or the oracle disagrees: keep the index-only scan | 24 h log count; Insights calls of `countsRead` vs the GET count, before and after; for step 3, a rolled-back insert-cost lab like ap-08 | claude, agy, grok (304 path); grok, claude (c2), agy (counter) |
 
+<a id="ws-doc-61813fbd-3d47-4078-8352-d6cd39e39b84"></a>
 ## 4. Disputed items, both sides in one line each
 
 - **P5-03 gain:** c1 printed ~97 s and ~1.0 M statements; g2 recomputed ~61 s and ~0.75 M (2.5 box reads per sweep unit). The plan uses g2's figure, and c1 accepts it.
@@ -89,6 +93,7 @@ one row. That leaves **ten rows**.
 - **m1 #1..#10:** a2 agrees; c2 and g2 say each is landed, live, dropped or self-refuted (see section 5). Two vendors (mistral, agy): not in the plan.
 - **a1 #1..#4 and #6..#10:** agy only; c2 and g2 disagree (section 5).
 
+<a id="ws-doc-48faac9d-cd91-4ab0-b910-14c4aea77233"></a>
 ## 5. Not worth doing, and why
 
 Each line is a measurement or a past round's result.
@@ -113,6 +118,7 @@ Each line is a measurement or a past round's result.
 | Enable `pg_stat_statements` | restarts the instance: an owner call; Insights is the stand-in | 2026-10-06 plan |
 | Read replica, prepared plans everywhere | the DB is 1.2 % busy; planning is 9 ms of the warm 57 ms sweep | c1 section 1; g1 warm plan |
 
+<a id="ws-doc-99130e3f-c123-4f60-86c5-c10abf8171c9"></a>
 ## 6. Build lanes
 
 Owner: consensus, then build, with no further go. Run order is section 3's

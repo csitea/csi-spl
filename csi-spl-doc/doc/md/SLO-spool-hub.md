@@ -10,6 +10,7 @@ R04 (section 2.6.2). Topic `2c74edd5-d87d-4ceb-a5f7-a700085ba461`.
 
 Two indicators, one target, one rule for when prd rollouts batch.
 
+<a id="ws-doc-b8313c49-7efe-4b69-8174-63a87bd31ad6"></a>
 ## 1. How the 16 days were scored
 
 | field | value |
@@ -30,8 +31,10 @@ lists 3 files on this tree: the plan, the R04 brief, and spec 053. The
 plan's own reading, on an earlier tree, was 1 (spec 053). None of them is
 an SLO.
 
+<a id="ws-doc-ee32f7aa-5ccb-4482-90af-f6962ae63830"></a>
 ## 2. The two indicators
 
+<a id="ws-doc-4ca6d9c8-23d3-46cb-98b4-e2f811f51452"></a>
 ### 2.1 Request success
 
 The share of hub responses whose HTTP status is anything other than 429 or
@@ -45,6 +48,7 @@ The share of hub responses whose HTTP status is anything other than 429 or
 A minute with no requests is idle. It stays out of this indicator. A silent
 hub is what the uptime indicator is for.
 
+<a id="ws-doc-276a4061-ff07-4313-a2df-330d278bc18c"></a>
 ### 2.2 Uptime-check success
 
 The share of uptime checks that pass, over the same rolling 30 days, once
@@ -55,6 +59,7 @@ returned 0 configs on prd and 0 on dev (n=2). Until R03 lands, the request
 indicator is the one with a number, and it is the one that can spend the
 budget.
 
+<a id="ws-doc-aca5c793-5709-4d1a-9dca-b34432548707"></a>
 ## 3. Proposed target
 
 **99.5 % of each indicator, over a rolling 30 days.**
@@ -68,6 +73,7 @@ is 0.5 % × 30 × 24 × 60 = **216 minutes** of a fully failed hub per 30
 days. Over this 23 045-minute window the pro-rated allowance is
 216 × 23 045 / 43 200 = **115.2 minutes**.
 
+<a id="ws-doc-4f7db3d1-156b-4b3e-825d-247c5fed44de"></a>
 ## 4. The policy, and who decides
 
 When the rolling window is under 99.5 % on either live indicator, the
@@ -89,8 +95,10 @@ budget is spent:
 This page states the rule. The deploy workflow stays as it is. Turning the
 batch into a workflow step belongs to the lane that owns that workflow.
 
+<a id="ws-doc-bce70b7f-6c8b-496b-8fdb-76bd8ef2e588"></a>
 ## 5. The 16-day history against the target
 
+<a id="ws-doc-ef4da791-74ae-45c6-898d-b7eff01cf889"></a>
 ### 5.1 Request share
 
 | env | responses | good | 429 | 5xx | request indicator | 5xx share | share of the 0.5 % budget used |
@@ -119,6 +127,7 @@ the per-minute buckets are the same number on each env (prd 612 094, dev
 136 361). The 429 and 5xx counts equal the log read (prd 1 380 and 118,
 dev 110 and 30).
 
+<a id="ws-doc-f8eec428-fc60-49eb-a121-04a701081463"></a>
 ### 5.2 Minutes of full outage
 
 A **full-outage minute** is a clock minute in which the hub returned at
@@ -193,6 +202,7 @@ rule gives 8 minutes on prd and 0 on dev. Both readings sit inside the
 On dev the 110 × 429 fall in 42 minutes, and each of those minutes also
 returned a successful response. Dev's full-outage count is 0.
 
+<a id="ws-doc-f8735cd6-2fa3-4963-ac7c-c460c88f4229"></a>
 ### 5.3 The 500 runs
 
 Section 3's 5xx counts match this read. Every 5xx sat in a minute that
@@ -212,6 +222,7 @@ prd 70 + 47 + 1 = 118. Dev 29 + 1 = 30. The 5xx share of all responses is
 spans are the spread of an intermittent 500. The request indicator scores
 the failed responses: 148 of them across both envs.
 
+<a id="ws-doc-5f7d25aa-c093-4ac9-af26-dcbb1a9ff397"></a>
 ### 5.4 Where the target stands
 
 On this window the proposal holds. The budget is unspent on both envs, on
@@ -224,6 +235,7 @@ responses) stays inside 99.5 % on this volume. Two spend it.
 
 The uptime indicator has no samples until R03's check exists.
 
+<a id="ws-doc-04b901a0-0e8e-47f6-b95f-8b00e18892f6"></a>
 ## 6. The counts behind section 5
 
 Per day, from the 60-second buckets. 2026-09-18 starts at 18:55Z.
@@ -276,6 +288,7 @@ counts as good (prd 33 566, dev 23 731).
 | 500 | 118 | 29 |
 | 503 | 0 | 1 |
 
+<a id="ws-doc-8e7951c3-79e7-4d2f-b3b0-57a9350823d5"></a>
 ## 7. Repeating the score
 
 Use the env's project service account, a throwaway `CLOUDSDK_CONFIG`, and

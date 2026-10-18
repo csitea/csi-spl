@@ -14,6 +14,7 @@ search result links there). It renders the document in the same theme as the
 rest of the app. If this server has not published the docs yet, the page says
 so.
 
+<a id="ws-doc-c03b6eae-9098-4578-8e0d-cf17f57f28a4"></a>
 ## Two panes
 
 On a wide screen Docs is two panes, and each one scrolls on its own:
@@ -29,6 +30,7 @@ A document's address stays stable, so a link to it keeps working. A link inside
 a document that points at another markdown file opens that file here. A link
 that points at some other file opens it in the public repository.
 
+<a id="ws-doc-a2465fab-41e7-4a25-a2bd-d67a1086aa2a"></a>
 ## On a phone
 
 One column. **Folders** shows or hides the explorer above the document.

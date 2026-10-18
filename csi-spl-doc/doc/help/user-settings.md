@@ -16,6 +16,7 @@ route, so `/settings/appearance` and `/settings/keys` deep-link. Opening
 
 ---
 
+<a id="ws-doc-1ee4def0-d20c-4a04-96b1-6000d31c7e97"></a>
 ## 1. Opening Settings
 
 1. Click your **avatar** in the top-right corner of the app (a member shows
@@ -30,6 +31,7 @@ without leaving the current screen.
 
 ---
 
+<a id="ws-doc-7fa85868-e707-4cfe-ba47-f48ea1b90e6c"></a>
 ## 2. Profile (`/settings/profile`)
 
 The **Profile** section shows who you are in the workspace:
@@ -59,6 +61,7 @@ avatar menu: see [Setting your status](./channels-and-direct-messages.md#311-set
 
 ---
 
+<a id="ws-doc-d9a42ce7-88b1-47f7-8508-2dfee5f5bcda"></a>
 ## 3. Language (`/settings/language`)
 
 Spool ships its interface in **19 languages**. Pick yours from the searchable
@@ -84,8 +87,10 @@ confirmation. Hebrew renders right-to-left.
 
 ---
 
+<a id="ws-doc-164ce7ba-d48c-4839-b778-1dcff2743ca5"></a>
 ## 4. Appearance (`/settings/appearance`)
 
+<a id="ws-doc-b5f2261d-abb2-49d7-80a9-690ed72983c6"></a>
 ### 4.1 Theme
 A palette-icon picker opens a list of the **seven themes**; each option shows its
 own background and accent swatch:
@@ -97,12 +102,14 @@ own background and accent swatch:
 
 Your choice is kept in this browser and, when you are signed in, on your account.
 
+<a id="ws-doc-273b8ebd-8de1-4c55-8dcc-1f03005d03f9"></a>
 ### 4.2 Font size
 A five-step size control — five **A** samples as radio buttons, flanked by **−**
 and **+** — scales every text size in the app (arrow keys move between the
 levels). The **Comfortable** middle level is the default. The size is remembered
 per browser.
 
+<a id="ws-doc-01cf0117-c117-4f95-a83a-223a01dd235f"></a>
 ### 4.3 List density
 Choose how much of each message the lists show: just **titles**, a few **rows**,
 or the **full** text. This is the default for new lists; a single list can still
@@ -110,6 +117,7 @@ be expanded or collapsed on its own. With **rows**, every card in a list is the
 same height: a one-line message leaves white space under its text, and a longer
 one is cut with a grip under it to show the rest.
 
+<a id="ws-doc-434d4e55-c262-4929-9757-b47f3beeb157"></a>
 ### 4.4 Debug pane
 A checkbox that shows or hides the diagnostics panel at the bottom of the app.
 The switch is kept on the hub for your account, so it follows you between
@@ -122,12 +130,14 @@ top says what went wrong in plain words. With it on, the technical
 details show under that sentence: the status code, the error text and the
 error reference to quote when you report it.
 
+<a id="ws-doc-399d6739-37eb-4543-bce2-3ec10b59cd64"></a>
 ### 4.5 Time zone
 Pick a zone, or leave **Browser time zone**. Every time in this workspace
 shows in that zone, including an ISO time that carries a zone inside a
 message. A time with no zone stays as written. The choice is kept for this
 workspace.
 
+<a id="ws-doc-f67fdff2-ccbc-4e52-8014-ebb9773e4b1b"></a>
 ### 4.6 Thinking animation
 The mark on your message while it waits for an agent's answer
 ([waiting for an answer](omnibox-and-navigation.md)). The list has 17
@@ -145,33 +155,40 @@ account is carried over once.
 
 ---
 
+<a id="ws-doc-1328d045-7fea-4f7a-a224-2fc3a561de9e"></a>
 ## 5. Behaviour (`/settings/behaviour`)
 
+<a id="ws-doc-a6f977e2-8afe-4771-944b-8934467687cd"></a>
 ### 5.1 Text fields (Enter behaviour)
 Choose what **Enter** does in every multi-line field:
 
 - **Enter sends** the message.
 - **Enter adds a line** and **Ctrl/Cmd + Enter** sends.
 
+<a id="ws-doc-90209038-0738-4966-a4ab-866570ddd362"></a>
 ### 5.2 Left panel order
 The left-rail icons in your own order. Reorder them by dragging a row's grip
 (mouse or touch) or with the up / down buttons; **Reset** returns to the
 default. This is the same order as dragging the icons in the rail itself, so a
 change in either place shows up in the other at once.
 
+<a id="ws-doc-de67bf78-b2a7-410a-a83e-fb0290362c72"></a>
 ### 5.3 Message order
 **Newest first** (top) or **newest last** (bottom) in every message feed and
 thread.
 
+<a id="ws-doc-f7bca684-27fd-44b2-acd5-8a9b9bad27e3"></a>
 ### 5.4 Omnibox position
 The omnibox in the **top** bar, or docked at the **bottom** (on tablets and
 computers).
 
+<a id="ws-doc-70b145d5-3cea-47f6-a9f6-567300838998"></a>
 ### 5.5 Close buttons
 Where a pane's close button sits: **Mac style** (top left, the default) or
 **Windows style** (top right). The X that removes an attachment from a file
 card follows the same choice: left with Mac style, right with Windows style.
 
+<a id="ws-doc-2f45a483-ca83-4c20-8419-9f101e16a6ca"></a>
 ### 5.6 Issues: default sort
 The column and direction the **Issues** list opens in — column
 (**priority**, **level**, **deadline**, **updated** or **created**) and
@@ -180,6 +197,7 @@ direction (**ascending** or **descending**). With nothing chosen the default is
 re-sorts the current view; this only sets what Issues opens with. This one is
 kept per workspace.
 
+<a id="ws-doc-04e92ce8-f8d4-4ddc-97c2-fd22a02a9341"></a>
 ### 5.7 Keyboard shortcuts
 A switch, on unless you turn it off. While it is on, **Shift + a letter**
 acts on the selected message on a desktop (the list is in
@@ -187,6 +205,7 @@ acts on the selected message on a desktop (the list is in
 list. While it is off, those keys do nothing. The switch is kept for this
 workspace.
 
+<a id="ws-doc-b72cf373-4fff-4751-8637-b360caf33770"></a>
 ### 5.8 Link previews
 A link in a message to a topic or a message of this workspace shows a small
 card under the message: whether it is a topic or a message, its title (the
@@ -195,6 +214,7 @@ when. Click the card to open it. Only what you may read gets a card; a link to
 something you cannot open stays a plain link. **On** by default. Untick it to
 turn the cards off; this changes only your own view, never anyone else's.
 
+<a id="ws-doc-0f9b4ad6-bc67-4543-a043-39871fcafa68"></a>
 ### 5.9 Email links open in
 Which app opens when you click an email address in a message, whether it is a
 bare address, a markdown link or a `mailto:` link:
@@ -208,6 +228,7 @@ bare address, a markdown link or a `mailto:` link:
 A subject or body that a `mailto:` link carries is kept. Kept on your account;
 it changes only your own view.
 
+<a id="ws-doc-db47ba3f-b44c-4c68-90c4-f8be709f879e"></a>
 ### 5.10 Phone numbers open in
 Which app opens when you click a phone number written with **+** and the
 country code: **WhatsApp** (the default), **Regular phone call** (`tel:`),
@@ -216,6 +237,7 @@ account; it changes only your own view.
 
 ---
 
+<a id="ws-doc-66df809c-31e3-4c44-9d14-abe5ade6adbf"></a>
 ## 6. Notifications (`/settings/notifications`)
 
 The same controls as the bell at the foot of the left pane, so the two always
@@ -237,6 +259,7 @@ iPhone, add Spool to the Home Screen first, as Safari tabs get no alerts.
 
 ---
 
+<a id="ws-doc-ca315d46-95f5-49e7-8717-7a91c4249195"></a>
 ## 7. Sign-in & security (`/settings/security`)
 
 - **Signed in with**: the method your session used (email & password, or an
@@ -251,6 +274,7 @@ iPhone, add Spool to the Home Screen first, as Safari tabs get no alerts.
 
 ---
 
+<a id="ws-doc-72dc64a1-7b2b-4130-9c27-9901c9b610d5"></a>
 ## 8. Keys (`/settings/keys`)
 
 The web app signs your messages for you with a server key, but command-line
@@ -268,6 +292,7 @@ tools (`spool-send`, `spool-tail`) and automated scripts need their own
 
 ---
 
+<a id="ws-doc-22ff381c-86cf-4308-af14-e6bbaa7cfcee"></a>
 ## 9. Workspace settings (for admins)
 
 Workspace administrators and business owners have a second, workspace-wide
@@ -332,6 +357,7 @@ permission. Its sections are:
 
 ---
 
+<a id="ws-doc-5756c5d7-a606-4289-9a00-06004e996e42"></a>
 ## Next Steps
 
 To learn how human developers orchestrate and command AI coding agents, continue

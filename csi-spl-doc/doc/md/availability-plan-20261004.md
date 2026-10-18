@@ -12,6 +12,7 @@ according to best practices to resolve and implemnt"*.
 This doc plans. It changes no product code, cnf, terraform or workflow, and
 it wrote nothing to GCP.
 
+<a id="ws-doc-43cfe73c-0d7a-483d-b6ba-5fcb511cbc3d"></a>
 ## 1. How it was measured
 
 | field | value |
@@ -22,12 +23,14 @@ it wrote nothing to GCP.
 | n | given per row: "n=2 envs" = one reading per env; log counts are every matching entry in the window, capped at 5000 |
 | reused, not redone | c-221's prd 429 analysis (aa35699c msg 0dc0bec0, `3f31d22d`); g-225's restore drill (spec 029 section 6.7, `3ff2d7fe`) |
 
+<a id="ws-doc-5d073ba0-9f85-427e-ba86-3bc8ccd2f7e4"></a>
 ## 2. Inventory: every single point of failure
 
 Status: **SPOF** = one failure stops the service or loses data; **gap** =
 redundancy exists but is unproven or unwatched; **ok** = matches best
 practice today (listed so the next reader does not re-measure it).
 
+<a id="ws-doc-d2c313e5-118d-405d-b0ea-b9c6b66a06f3"></a>
 ### 2.1 Hub (Cloud Run)
 
 | # | item | status | evidence |
@@ -43,6 +46,7 @@ practice today (listed so the next reader does not re-measure it).
 | 2.1.9 | the container is stateless | ok | `04-cloud-run-service.tf:1-3`: Postgres and the files bucket hold everything |
 | 2.1.10 | ingress is a Cloud Run domain mapping, no load balancer | **gap** (owner decision) | cnf `032-gcp-cloud-run-domain-mapping` comment (`all.env.yaml:150-156`, owner 2026-09-19 "exactly csi-rel: no load balancer"). Google documents domain mappings as preview and not recommended for production; a global external LB is the standard front |
 
+<a id="ws-doc-8907078f-78b1-4b30-a1f5-90f058938d43"></a>
 ### 2.2 Database (Cloud SQL)
 
 | # | item | status | evidence |
@@ -55,6 +59,7 @@ practice today (listed so the next reader does not re-measure it).
 | 2.2.6 | a restore fails verification whenever the dump predates a migration | **gap** | g-225, n=2 DB restores: exit 5, `box_stats` (0117) and `operator_audit` (0115) missing; dump at migration 114, live at 119. The compare is restored vs LIVE (`csi-spl-orc/src/bash/run/spl-db-restore.func.sh:124-146`), so any dump older than the newest migration reads red |
 | 2.2.7 | deletion protection | ok | prd `deletion_protection: true` (`prd.env.yaml:106`), dev false |
 
+<a id="ws-doc-e5110604-372f-40f2-a933-2491dd1c2c4e"></a>
 ### 2.3 Buckets and the off-project copy
 
 | # | item | status | evidence |
@@ -64,6 +69,7 @@ practice today (listed so the next reader does not re-measure it).
 | 2.3.3 | off-project copy: byte restore never run | **gap** | g-225: listed as the env SA, 17 dumps per env; `BACKUP_SOURCE=bkp DRY_RUN=1` exit 1 `no key for csi-spl-bkp` on the satellite. Spec 044 T077 unmeasured |
 | 2.3.4 | off-project copy exists and runs daily | ok | cnf `046 copy_enabled: true` (`prd.env.yaml:136`, `dev.env.yaml:132`); 30-day retention policy, unlocked (`03-offsite-bucket.tf:31-33`) |
 
+<a id="ws-doc-ea8ca579-a56e-4aab-a086-710657cf0738"></a>
 ### 2.4 Front end, DNS, secrets, CI
 
 | # | item | status | evidence |
@@ -73,6 +79,7 @@ practice today (listed so the next reader does not re-measure it).
 | 2.4.3 | hub DSN and auth secrets: Secret Manager, one replica in europe-north1 | ok for now | `040-cloud-sql-postgres/03-cloud-sql.tf:102-126`, `030-cloud-run-hub/06-auth-secret-slots.tf:15-16` (user_managed). Same region as every reader, so no new failure domain |
 | 2.4.4 | deploys and the daily dump are scheduled by GitHub Actions only | **gap** | workflows 20, 30, 45; GitHub's cron is best effort (`45_db-backup.yml:60-62`). A GitHub outage stops deploys and the dump; it does not stop the hub |
 
+<a id="ws-doc-9df6a7b7-0e78-4cbc-8f57-fb4dc3689bd9"></a>
 ### 2.5 Boxes, desks, lease
 
 | # | item | status | evidence |
@@ -84,6 +91,7 @@ practice today (listed so the next reader does not re-measure it).
 | 2.5.5 | the satellite VM: one zone, no snapshot schedule | **gap** | `grep -rc 'resource_policies\|snapshot' csi-spl-iac/src/terraform/060-gcp-vm-satellite/` -> 0 in every file; 100 GB data disk (`prd.env.yaml:188`). It is the failover machine: losing it removes the failover, not the service |
 | 2.5.6 | role failover beyond the lease (fence, health pinger, drill) | proposal | `PRINCIPLES-role-failover.md`: status PROPOSAL, no code. Its own topic (27f01e16); not re-planned here |
 
+<a id="ws-doc-466dd903-3e97-4d91-b9a9-42840ed61be4"></a>
 ### 2.6 Watching it
 
 | # | item | status | evidence |
@@ -96,11 +104,13 @@ practice today (listed so the next reader does not re-measure it).
 | 2.6.6 | boxes are watched only by themselves | **gap** | `box_stats` (rdb 0117, `efde07f6`): each desk reports load/memory every 5 min, but nothing alerts when a box goes silent. A lane that wanted GCP VM metrics plus an IAM grant on the satellite's project (c-203, 8c4fcc46) was stopped before the grant |
 
 
+<a id="ws-doc-689a513d-1472-4c71-806a-9fa296162d98"></a>
 ## 3. Incident history
 
 Owner addendum (HUM-10 msg e0074d9a): *"investigate all of the incidents from
 the past - they are recorded now in the db and we do have history"*.
 
+<a id="ws-doc-6805c4fb-8be6-44ed-b1aa-0c86c765a277"></a>
 ### 3.1 Where incidents are recorded
 
 There is no incident table (`git grep -il incident -- csi-spl-rdb | wc -l` -> 0). The
@@ -116,6 +126,7 @@ history is spread over four places, each read read-only as the env SA:
 A "burst" below is one revision's 429 run (hours with >= 1 x 429 on one
 revision). Durations come from the first and last log entry of the burst.
 
+<a id="ws-doc-e90742f9-0cb9-491e-b19a-38e39a06e8be"></a>
 ### 3.2 Hub incidents (the service was down or erroring)
 
 | id | when (UTC) | how long | what failed | root cause | what fixed it | can it recur today? | plan row |
@@ -129,6 +140,7 @@ revision). Durations come from the first and last log entry of the burst.
 | I-07 | 10-04 12:xx .. 18:xx | ~6 h, on and off | `PUT /v1/me/reads` 500, prd 47; app log `read marks write: deadlock detected (SQLSTATE 40P01)` x 47 | probable, from the code: the upsert's key arrays are built in Go map order (`internal/store/read_marks.go:155`), so two concurrent writes for one member lock the same rows in different orders | **not fixed** (`git log` since 10-04 08:00 on api, n=0 matching commits; no spool message names it) | yes, still open | R02 |
 | I-08 | 09-29 | 1 request | prd `/api/v1/auth/preferences` 500 | unknown | - | unknown, n=1 | R05 |
 
+<a id="ws-doc-5482b7ec-b71e-48b1-84d4-e51ac64e00c8"></a>
 ### 3.3 Delivery and fleet incidents (the hub was up; the system was not)
 
 | id | when (UTC) | how long | what failed | root cause | what fixed it | can it recur today? | plan row |
@@ -142,6 +154,7 @@ revision). Durations come from the first and last log entry of the burst.
 | F-07 | 10-03 ~12:40 | - | four lanes the orchestrator started never ran: the launcher printed an id and a pane, the agents died at once (t1 484d66e6 12:42Z) | the brief file write failed, the launcher did not check | not verified here whether the launcher now checks the brief | unknown | none (spawn tooling) |
 | F-08 | 09-30 | ~18 h | the desk cron's checkout sat 27 commits behind trunk, so every desk cron ran old code; the failed `git checkout` was silent | four dirty files in the shared desk checkout (header of `csi-spl-orc/src/bash/tests/desk-cron-trunk.tst.sh`) | `desk-reconcile-cron.sh` now fails loudly and tells the orchestrator once | detection yes, prevention no: every cron still checks out trunk in one shared tree (2.5.2) | R07 |
 
+<a id="ws-doc-4e27e429-465d-4934-9791-04e7bb3c10d8"></a>
 ### 3.4 What the history says
 
 - **Measured over 2026-09-18 .. 10-04 (16 days):** 21 hub incidents of the
@@ -159,8 +172,10 @@ revision). Durations come from the first and last log entry of the burst.
   broken yet, and each says so.
 
 
+<a id="ws-doc-c4a28f96-dd22-4fc9-9f0f-69485f7a3b47"></a>
 ## 4. Best practice per weakness, and the ranked rows
 
+<a id="ws-doc-288a2a2c-5a8b-46d1-8184-05c431aa057b"></a>
 ### 4.1 How the rows are scored
 
 `score = impact / (effort + cost / 50)`: impact 1..5 on availability, effort in
@@ -178,6 +193,7 @@ for the go.
 resource). Those rows are planned here and never applied by a lane without
 the owner's go for that call.
 
+<a id="ws-doc-9abe36b5-3134-406c-ac69-8be9e6eb7cf2"></a>
 ### 4.2 Rows with incidents behind them
 
 | id | weakness (section) | incidents | fix (the standard practice) | cost EUR/mo | effort (days) | score | needs go | proof of done | files | box |
@@ -191,6 +207,7 @@ the owner's go for that call.
 | R07 | desk crons run whatever trunk is, in one shared tree (2.5.2) | F-08 (~18 h stale), F-02 (the sweep that fixes it runs there) | desks run a pinned, known-good ref (the newest `v*` release tag whose CI is green) and each cron takes a lock (`flock`) on the shared checkout | 0 | 1.5 | 2.0 | no | a red trunk commit on a throwaway ref is not picked up by any desk; two crons in the same minute serialize (test) | `csi-spl-orc/src/bash/scripts/desk-reconcile-cron.sh`, the `*-install-cron.func.sh` that write the prefix, `csi-spl-orc/src/bash/tests/desk-cron-trunk.tst.sh` | sat |
 | R08 | boxes are watched only by themselves (2.6.6) | F-04, F-06 (a silent box was found by the lease, not by a watch) | alert when a box's newest `box_stats` row is older than 15 min (a hub log line or metric R03's policies read); GCP-side VM metrics for the satellite need the Ops Agent and an IAM grant | ~0..1 | 1 | 2.0 | **yes** for the VM-metrics half (IAM grant, c-203's ask) | stop a box's stats cron on dev: the alert fires within 20 min | `csi-spl-api/src/go/spool-hub-api/internal/hub/box_stats.go` (+ test); the alert itself joins `070` after R03 | sat |
 
+<a id="ws-doc-0aa03c33-6dae-4f27-9632-1a1d986a3022"></a>
 ### 4.3 Rows with no incident behind them yet
 
 Each is a real single point of failure or an unproven recovery path from
@@ -211,6 +228,7 @@ section 2; none has caused an outage in 2026-09-18..10-04.
 
 R10, 2026-10-05, owner (3f2d8a13): "no need for so tight backups - once per day is enough". Workflow 45 is back to once a day (cron `17 3 * * *`, 03:17 UTC); the R10 row keeps the 6 h history. RPO is <= ~24 h plus scheduler drift (112 min measured).
 
+<a id="ws-doc-0483b5f3-c78a-4596-ba7d-698973f255a5"></a>
 ### 4.4 Already owned elsewhere (named so nobody plans them twice)
 
 | incident | owner |
@@ -219,6 +237,7 @@ R10, 2026-10-05, owner (3f2d8a13): "no need for so tight backups - once per day 
 | F-03, F-04 an orchestrator or the fleet stopped by a usage limit | spec 068 peer seats (written, not built) |
 | role failover beyond the lease | `PRINCIPLES-role-failover.md` (proposal, topic 27f01e16) |
 
+<a id="ws-doc-de84a9d2-4c21-4c9b-82fc-530caa1fdb49"></a>
 ## 5. Waves
 
 At most 6 rows per wave; the rows of a wave touch disjoint files, so they run

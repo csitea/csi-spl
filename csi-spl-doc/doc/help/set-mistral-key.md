@@ -9,6 +9,7 @@ mode `600` in a `700` dir. One action writes it:
 checkout. The key never goes on a command line, into a log or into a tmux
 window.
 
+<a id="ws-doc-5df51b62-84e8-4259-a43f-2c2764a313c1"></a>
 ## 1. The key is already in a file (the usual case)
 
 If the key is already on the main box in a file of yours (e.g. the
@@ -30,6 +31,7 @@ is typed or pasted. From `csi-spl-orc` in the main box's checkout:
 
 An agent may run these for you: neither shows the key.
 
+<a id="ws-doc-2bd11ca3-00fc-4dbf-8d86-a4d719da0b43"></a>
 ## 2. Typing the key
 
 When the key exists only in the Mistral console, type it at a prompt, in a
@@ -50,6 +52,7 @@ refuses, because agents read those windows' scrollback.
 
 Repeat on each box. `TO_BOX=sat` also works from the main box.
 
+<a id="ws-doc-ebe47041-fd3b-44eb-b927-1bd9d8076bb0"></a>
 ## 3. What success looks like
 
 The action prints only the key's length and its last 4 characters, never
@@ -66,6 +69,7 @@ Compare the last 4 characters with the key in the Mistral console. Any
 other lines already in `.vibe/.env` are kept. Running it again replaces the
 key.
 
+<a id="ws-doc-0c616b12-464a-40e4-b070-8c18ff9adf53"></a>
 ## 4. Optional: ask the vendor whether the key works
 
 Set `MISTRAL_KEY_CHECK_URL` to the vendor's read-only model-list endpoint

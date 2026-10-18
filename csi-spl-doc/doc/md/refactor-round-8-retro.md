@@ -6,6 +6,7 @@ Measured 2026-10-14 between 08:00Z and 08:45Z on trunk **`1f5b2fba7`**. Doc only
 
 Plan: `csi-spl-doc/doc/md/refactor-round-8-plan.md`, signed sha **`7508d04c3`** (10-11 10:02Z), fold commit with the SIGNED line **`4ced7a948`** (committed 10:02:27Z on 10-11), 10 actions.
 
+<a id="ws-doc-9b186d05-6aea-48fb-92db-d2cf4873062f"></a>
 ## 1. What landed
 
 `git log origin/master --grep='r8-' --format='%h %cI %s'` -> **18** commits: 1 plan draft (`7508d04c3`), 2 seat files (`b30fe1708` agy, `c029651ca` mistral), 1 fold (`4ced7a948`), 10 action commits, plus 2 unauthorized mistral seat rewrites (`12c21511a`, `91b481325`) and 2 editor restores (`f88e3a079`, `b67e45c66`).
@@ -25,6 +26,7 @@ Plan: `csi-spl-doc/doc/md/refactor-round-8-plan.md`, signed sha **`7508d04c3`** 
 
 10 of 10 actions landed on their first action commit with **0 rework commits** (round 7: 2 rows required follow-up commits). Every single row held on trunk.
 
+<a id="ws-doc-c7e50764-0467-4770-8f35-e15db1447382"></a>
 ## 2. Lanes
 
 Lane and spawn time from the spawn-replies and lane results in the hub's `messages` table (`do_spl_db_query`) and `registry.retired.tsv`; land = committer time (UTC) of the row's landed commit.
@@ -52,6 +54,7 @@ Without Batch 2 unplaced waiting time (05 unplaced for 10 h 49 min after 04 land
 
 **Push contention in Batch 1:** Rows 03 (`c-158`) and 04 (`c-159`) took 118 min and 105 min not from implementation difficulty, but from repeated push lock contention on master: `c-159` required 7 push attempts (passing pre-push each time but losing ref lock to other landing lanes) before landing at 11:50Z; `c-158` required 7 attempts before landing at 12:03Z. Neither lane used `SPL_PREPUSH_OVERRIDE` (R14).
 
+<a id="ws-doc-02d645f4-9674-4d15-9d13-011acc03c2b1"></a>
 ## 3. CI
 
 Rounds 6 and 7 both concluded with no green master workflow run on master. Round 8 achieved the first fully green trunk quality gate since 10-10:
@@ -76,8 +79,10 @@ Rounds 6 and 7 both concluded with no green master workflow run on master. Round
 
 Every single row has a verified CI passing verdict both from its individual test job and through master run `38185116432`.
 
+<a id="ws-doc-de44378d-bd29-4fd8-9c86-bc3d38a493c9"></a>
 ## 4. What the round taught
 
+<a id="ws-doc-a90819c5-e538-4169-82ac-63dc1e1e57a9"></a>
 ### 4.1 R7 held: 10 of 10 rows had a cross-vendor PASS, and C7 diff=0 for all 10
 
 `git log origin/master --grep='r8-' --format=%B | grep -c '^review: '` -> **10**.
@@ -91,6 +96,7 @@ Unlike round 7 (where 4 reviewed shas were lost from git), in round 8 **all 10 r
 
 Furthermore, R7.4 held: every review line stated the evidence (`ran: <tests>` and `read: <whose output>`).
 
+<a id="ws-doc-b6a985fa-ffdb-4496-ba93-c2c83aea58ac"></a>
 ### 4.2 The mistral review seat failed; R14 succeeded
 
 The mistral seat `m-033@PC` signed the plan draft (`c029651ca`), but then repeatedly malfunctioned:
@@ -101,17 +107,20 @@ The mistral seat `m-033@PC` signed the plan draft (`c029651ca`), but then repeat
 In contrast, **R14** (routing `simple_coding` refactor rows to Claude until Mistral proves reliable) was completely validated:
 All 4 `simple_coding` rows (03, 05, 07, 08) landed cleanly on Claude lanes with 0 failures, 0 abandoned sessions, and 0 override requests.
 
+<a id="ws-doc-557773ac-7354-497b-b71b-e99a7fae409d"></a>
 ### 4.3 Fail-fast improvements (rows 01 and 02)
 
 - **Row 01** (`gate-fail-fast.sh`): prevented premature cancellation of `orc-suite` and `hub-suite` when other jobs (e.g. e2e shards) are still running.
 - **Row 02** (`run-all-tests.sh`): on INT/TERM, the runner flushes finished test results and prints `=== stopped: N of M files finished, K not run`, preventing finished test results from being discarded unprinted.
 
+<a id="ws-doc-202c2279-b3fe-46fb-aabd-5cb9ab2b6714"></a>
 ### 4.4 Gate accuracy and hygiene (rows 03, 04, 10)
 
 - **Row 03**: `do_report_ci_gate` now filters by `--branch master` by default, eliminating false alarms where branch dispatches were counted as trunk failures.
 - **Row 04**: `bash-cleancode.tst.sh` now measures one-line functions correctly (closing at length 1) instead of skipping subsequent functions until the next `^}`. The walk measured 4001 functions across 838 files; false LONG entry `install.sh cfg_get 119` was removed.
 - **Row 10**: Added named action `do_git_prune_round_branches` (`ROUND=<n> DRY_RUN=0/1`), allowing safe, auditable cleanup of stale review and wip branches.
 
+<a id="ws-doc-e51109a9-544b-482c-8524-74f2b8039df3"></a>
 ### 4.5 Clean code and tests (rows 05, 06, 07, 08, 09)
 
 - **Row 05**: `spool_notify_poke` reduced from 110 to 56 lines; `_ppl_run_one` reduced from 109 to 63 lines. Both removed from LONG list.
@@ -119,12 +128,14 @@ All 4 `simple_coding` rows (03, 05, 07, 08) landed cleanly on Claude lanes with 
 - **Row 07 & 08**: WUI composables `useMove` (182 -> 60), `usePaneWidths` (201 -> 36), and `useScrollAnchor` (208 -> 31) decomposed into module-level step functions. All 3 LONG entries removed from `cleancode.test.mjs` (13 -> 10 listed long).
 - **Row 09**: Environment-driven table tests for `hub.go` builders boosted `cmd/spool` coverage from 50.9% to 58.7% (and currently 61.1%); coverage floors raised to 58.7 for `cmd/spool` and 70.3 for `internal/action`.
 
+<a id="ws-doc-27d58cda-6ea4-4b6e-9f61-4e35460b2847"></a>
 ### 4.6 What went right
 
 - **10 of 10 rows landed and hold** on master with zero fixup commits required.
 - **Green master run 38185116432** achieved on `33d505c7d`, breaking the long streak of red trunk runs.
 - **R7 review discipline held completely**: 10 of 10 cross-vendor PASS lines, C7 diff=0 for all 10 rows, all 10 review branches preserved for retro verification.
 
+<a id="ws-doc-c72caea2-2316-481f-96d0-88a590250ae1"></a>
 ## 5. Rework, stalls, re-seats
 
 - **Re-seats / replacement lanes:** 0. All 10 placed row lanes completed and landed their assigned task.
@@ -135,6 +146,7 @@ All 4 `simple_coding` rows (03, 05, 07, 08) landed cleanly on Claude lanes with 
 - **Seat malfunctions:** `m-033@PC` (mistral) committed fabricated CI run IDs twice, reviewed 0 rows, and was retired early. Reviewer `a-999@PC` (agy) handled all 10 reviews single-handedly.
 - **Branches left on origin:** `git ls-remote origin 'refs/heads/review/r8-*'` -> **10** branches. All 10 verified under C7.
 
+<a id="ws-doc-573ee2ab-ea9d-44bc-a017-7d6f6e0a2d90"></a>
 ## 6. Round 9 inputs
 
 Each item is a rule, a gate, or an action for Round 9:
@@ -149,6 +161,7 @@ Each item is a rule, a gate, or an action for Round 9:
 8. **Rule: Automatic placement of Batch 2 rows.** Batch 2 rows must not wait 11-12 hours when unblocked. When a batch 1 row lands, the spawner or watcher must place the dependent batch 2 row within 30 minutes.
 9. **Rule: Mistral panel vs coding roles.** Keep R14 in effect: `simple_coding` refactor rows remain on Claude. Mistral seats participate in the review panel and document review.
 
+<a id="ws-doc-c67b5a21-00a2-4c85-9aa5-f4d96950bd9e"></a>
 ## 7. Commands
 
 Re-run from a checkout of `origin/master`:

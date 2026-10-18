@@ -6,6 +6,7 @@ Owner, t1 #spool-hub-ops: "Performance round" / "30 best practices for performac
 
 This lane plans and measures. It changes no product code. Each row is one lane with its own brief; the run order below is the biggest measured gain first. Sources: round 3 (`perf-audit-round3-2026-10-02.md`) and the DB payload rounds; open round-3 items are reused where they fit a practice (P3-05, P3-07, P3-08, P3-09, P3-10, P3-11, P3-12, P3-18, P3-28, P3-29). P3-26 is dropped: its 25..40 ms is a sourcemap mis-mapping onto the composer dock, which another lane owns.
 
+<a id="ws-doc-9a74e019-7913-4fae-948b-652f22dc83b4"></a>
 ## 1. Rules for every lane
 
 - Measured on trunk `2ea249ff`. Every site carries its measured cost now and its n. A change that shows no gain is dropped and reported, never shipped.
@@ -13,12 +14,14 @@ This lane plans and measures. It changes no product code. Each row is one lane w
 - Done means: on master through the pre-push gate; hub or WUI runtime changes deployed to dev AND prd with the served version checked; before/after numbers with n.
 - Box: `satellite` = runs on the satellite box; `main` = needs the main box (self-hosted runner timings, deployed-host proofs); `either`.
 
+<a id="ws-doc-d48f41eb-d595-4db6-8265-2a3a74e771c4"></a>
 ## 2. How it was measured
 
 - **Hub:** `go test -bench -benchmem -count=6` (median; B/op and allocs/op exact), DB round trips through the counting pgProxy of `onsend_bench_test.go` against a private postgres:16-alpine plus the PG statement log (n=5, identical every run). The moveEnv rig has the door cache off, so quote deltas, not absolutes.
 - **WUI:** a mock `nuxt generate` with sourcemaps, served with Hosting's headers over h2, driven by puppeteer-core: sourcemapped CPU profiles at m390 CPU 4x (n=3..5), DOM / listener / layout-read counts, node micro-benches (n=10..15), bundle bytes via attr.cjs (n=1 build). Box load average 12..25, so ms are noisy; the ratios hold.
 - **Bash/CI:** `gh api` job and step durations of the last 10..12 successful runs (median), per-test-file times from job logs (n=3), `time` (n=5) and `strace -f -c` locally.
 
+<a id="ws-doc-42d8255b-1a7e-4311-8734-7cdc89e58b59"></a>
 ## 3. The 30 practices, in run order
 
 | # | id | practice | site 1 | now (n) | site 2 | now (n) | expected gain | proof | box |
@@ -56,6 +59,7 @@ This lane plans and measures. It changes no product code. Each row is one lane w
 
 `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`, `wui/` = `csi-spl-wui/`.
 
+<a id="ws-doc-e4c6d1f7-9a5f-4937-a6f2-b694d69197b8"></a>
 ## 4. Risks and notes per lane
 
 - **C4** wf11 uses 3x hosted minutes; error-vs-ratchet exit codes must stay distinct
@@ -89,6 +93,7 @@ This lane plans and measures. It changes no product code. Each row is one lane w
 - **W8** spool-client.mjs imports `noteError` statically and the notification store is imported by channel/topic stores: if the bytes do not leave the initial chunk, drop the site; do not edit spool-client.mjs
 - **W11** callers become async; a destructured utils/ import becomes a static auto-import (the P3-15 trap: read it as a member)
 
+<a id="ws-doc-b425d76b-80c4-472e-a598-1f6026855e56"></a>
 ## 5. Measured and not proposed
 
 - P3-26 (`topic-in.mjs`): the profile position maps to the composer dock's rect read + ResizeObserver, owned by another lane.

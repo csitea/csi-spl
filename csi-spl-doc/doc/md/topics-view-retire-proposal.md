@@ -6,6 +6,7 @@ Owner, t1 topic 635f8072 (2026-10-01): "in this way we might eliminate the
 whole topics interface". This is the case for and against, and the plan if
 the answer is yes. **Nothing is removed until the owner says so.**
 
+<a id="ws-doc-2e48baf3-2829-4f99-a6e7-fcb90cd0d7ce"></a>
 ## 1. What "the Topics view" is today
 
 | # | piece | where |
@@ -15,6 +16,7 @@ the answer is yes. **Nothing is removed until the owner says so.**
 | 1.3 | `/t/<task_id>` — one topic on its own page, outside any channel | `src/pages/t/[task_id].vue` |
 | 1.4 | the Flow tab's topic rows (lane B replaces these anyway) | `ChannelSidebar.vue` `sidebar-panel-flow` |
 
+<a id="ws-doc-d2b473b6-5d8c-409a-967c-cc2b90ce67c3"></a>
 ## 2. What it does that Flow + Search + channels/DMs would NOT cover
 
 | # | job done by Topics today | covered after A/B/C? | what has to move first |
@@ -31,6 +33,7 @@ the answer is yes. **Nothing is removed until the owner says so.**
 | 2.10 | promote-by-drag drop target is named `topics` (`move-drag.mjs`) | yes — it is a channel feed target, only the name | none |
 | 2.11 | `/switch-pane:topics`, rail-order id `topics` | n/a | keep accepting the word, map it to Flow |
 
+<a id="ws-doc-3344d3b2-af03-4363-95cf-9d3d00f8052a"></a>
 ## 3. Usage evidence
 
 - There is **no per-view usage counter**: the WUI is a static bundle, Firebase
@@ -43,6 +46,7 @@ the answer is yes. **Nothing is removed until the owner says so.**
 - Cheap way to get evidence before deciding: one event-log line per rail-tab
   open and per `/t/` landing (no hub change), read after a week.
 
+<a id="ws-doc-8949e86b-b8ce-485b-9c82-e2c9b0fd52b0"></a>
 ## 4. Recommendation
 
 **Yes, in two steps, and keep `/t/` as a redirect forever.**
@@ -58,6 +62,7 @@ the answer is yes. **Nothing is removed until the owner says so.**
    `/m/<task>` (or to the topic's channel). The `nav.topics` and
    `pages.index.*` keys go from all 19 locales in the same commit.
 
+<a id="ws-doc-c0b9e4c8-8b4d-4cb8-99e5-01895d483590"></a>
 ## 5. What is removed in step 2
 
 | remove | keep |

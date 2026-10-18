@@ -6,6 +6,7 @@ Owner ask (topic `ed59d520`, msg [46ba8b00](https://spool-hub.ai/m/46ba8b00-0f38
 "take the gist of this discussion as a lesson learnt on how to successfully
 speed up the system". Rules first, the case that taught them after.
 
+<a id="ws-doc-8279c8f8-3025-4ef2-9571-2e2b0a3302de"></a>
 ## 1. Checklist
 
 1. **Measure the real waiting before choosing a fix.** Time what the slow
@@ -25,8 +26,10 @@ speed up the system". Rules first, the case that taught them after.
 6. **Prove before / after on real data, with n stated, on every machine.**
 7. **Report in plain words: cause, change, proof.**
 
+<a id="ws-doc-6e403219-4e2c-402c-b59d-a213e2f1af8b"></a>
 ## 2. Worked example: the ask book, ~60 s -> ~1.3 s per call
 
+<a id="ws-doc-db93a3fd-0c31-41d8-85ca-de218dedcc89"></a>
 ### 2.1 The symptom
 
 The orchestrator was restarted twice in 7 minutes by its watchdog: a message
@@ -36,6 +39,7 @@ That command closed 5 asks in a loop: 10 ask-book calls at ~60 s each,
 19 s user and 40 s sys per call, n=2 plus 6 more that day
 ([55380ad0](https://spool-hub.ai/m/55380ad0-9a2f-4c28-b607-da7fe7957b7c)).
 
+<a id="ws-doc-68aab8e8-509a-4f79-a1f4-c99e713fad72"></a>
 ### 2.2 Rule 1 — two fixes dropped once measured
 
 | proposed fix | measurement | verdict |
@@ -44,6 +48,7 @@ That command closed 5 asks in a loop: 10 ask-book calls at ~60 s each,
 | cross-box sends in the background | median 1.0 s over n=158 sends; the two slow ones had an ask-book loop inside | dropped ([19a66fe9](https://spool-hub.ai/m/19a66fe9-3fa5-46b1-a416-dfda1c86f517)) |
 | ask-book call under 3 s | **59 %** of the orchestrator's command waiting that day was the ask book (lane c-512) | the one lever |
 
+<a id="ws-doc-626fc002-b37a-4fca-8d61-1dc94263ed57"></a>
 ### 2.3 Rule 2 — the trace and the count
 
 An xtrace of one `do_spl_asks_open` on the live book (841 hub rows, 840
@@ -58,6 +63,7 @@ journal files) counted the process starts (commit `65066935`):
 About 10 ms per start on a busy machine x 5,900 = about a minute, and 2/3 of
 it system time ([bbad99a2](https://spool-hub.ai/m/bbad99a2-d5db-4ab6-b74c-1de824a69d97)).
 
+<a id="ws-doc-12da4487-8ac8-4229-bd35-808754ad5820"></a>
 ### 2.4 Rules 3 and 4 — the change
 
 `65066935`, two code files plus the test:
@@ -69,6 +75,7 @@ it system time ([bbad99a2](https://spool-hub.ai/m/bbad99a2-d5db-4ab6-b74c-1de824
 - same journal-first order, same hub calls, same output: 11-15 process starts
   per call.
 
+<a id="ws-doc-ec125df1-21a6-41f0-a495-db9f4c840497"></a>
 ### 2.5 Rule 5 — the test that counts
 
 `csi-spl-orc/src/bash/tests/asks.tst.sh` section 15 puts a counting `jq` on
@@ -77,6 +84,7 @@ inbox each must run at most **40** `jq` (11-15 measured). CONTROL: the
 per-file fallback runs 302 on the same book; the old code reaches ~1,810
 (bbad99a2). A second check proves one changed hub row mirrors exactly that row.
 
+<a id="ws-doc-aeb1bb18-59ac-4792-aa34-07540f62eeca"></a>
 ### 2.6 Rule 6 — before / after on real data
 
 | call (first machine, n=3 each) | before | after |
@@ -89,6 +97,7 @@ per-file fallback runs 302 on the same book; the old code reaches ~1,810
 Second machine: 7.5 s on the first call (catching up on changes), then 1.9 s
 ([f4c97f1f](https://spool-hub.ai/m/f4c97f1f-13ea-4321-af9e-7a81867e8d36)).
 
+<a id="ws-doc-54ed32e6-3e11-40e6-944a-9f73c4bb757e"></a>
 ### 2.7 Rule 7 — the plain-words report
 
 Cause: every call started ~5,900 tiny programs. Change: read the whole book in

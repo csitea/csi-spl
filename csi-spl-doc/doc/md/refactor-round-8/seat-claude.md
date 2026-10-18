@@ -6,6 +6,7 @@ A proposal, not the plan. The editor (this seat) merges the three seats into `..
 
 Every count was measured on ONE trunk sha, **`d4f9553f4`** (pre-rewrite, R15), n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 7 is closed and held: `refactor-round-7-retro.md` section 1 (10 of 10 actions).
 
+<a id="ws-doc-fb36b615-9c18-48bd-828b-f6a316313195"></a>
 ## 1. The 10 actions
 
 | # | slug | source | sites | n | kind | box | batch |
@@ -21,6 +22,7 @@ Every count was measured on ONE trunk sha, **`d4f9553f4`** (pre-rewrite, R15), n
 | 09 | `test(r8-09-go-coverage-hub-wiring)` | r7 retro 6.9 | `cmd/spool` `hub.go` builders; `internal/action` floor | 50.9 %; floor 59.2 vs 70.3 | tests | PC | 1 |
 | 10 | `ci(r8-10-round-branch-prune)` | r7 retro 6.3 | named action listing and pruning `review/` and `wip/` per round | 81 branches | tests | sat | 1 |
 
+<a id="ws-doc-cb8b2984-ec96-4547-963d-c790c45eda8c"></a>
 ## 2. Rules proposed (from the r7 retro, section 6)
 
 - **R7.4** (6.3): the review line names the reviewed sha and what the reviewer ran; review branches stay until the retro's C7, then action 10 prunes them.
@@ -32,6 +34,7 @@ Every count was measured on ONE trunk sha, **`d4f9553f4`** (pre-rewrite, R15), n
 - **R14** (6.1): `simple_coding` rows go to claude when the mix picks mistral, until a mistral lane lands a refactor row; re-place at the first override request.
 - **R15** (new): the master history rewrite; read shas by subject, rebase with the lift note's `--onto` line.
 
+<a id="ws-doc-5a228507-63d4-4869-900a-0702b82219a9"></a>
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it. Dropped from the retro list: 6.6 (fixed by `3c9f1d3b0`, R11.3 watches it) and 6.7 (c-001's).

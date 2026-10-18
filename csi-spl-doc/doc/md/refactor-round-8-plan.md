@@ -12,6 +12,7 @@ Every site was measured on ONE trunk sha: **`d4f9553f4`** (`origin/master`, 2026
 
 **History rewrite.** c-001@sat announced a push freeze at 08:15Z (msg 07d53fd3) to rewrite master and remove spec 128: every sha of master after that spec's first commit changes. The shas in this plan are the pre-rewrite ones; FREEZE LIFTED at master `1b0bb48ae` (c-001@sat msg 130192e7). Mapped by subject (`git log origin/master --fixed-strings --grep=<subject> -1`): `d4f9553f4` -> **`6165cfc71`**, `bd46c5956` -> `1b0bb48ae`, `896385ff1` -> `a33336d33`, `3c9f1d3b0` -> `cd2a75623`; `5f685b97f` and the 3 shas of section 8's last row are unchanged (`git merge-base --is-ancestor <sha> origin/master` -> 0). R15 says how to read any other; nothing in a row depends on a sha, only on paths and function names.
 
+<a id="ws-doc-d631803a-d5a9-46b0-b7ac-07e78f2ede61"></a>
 ## 1. How to read this
 
 - One action = one practice = one lane. The lane applies the practice at the sites named and nowhere else, with a test that proves behaviour did not change, or, for a gate or a test fix, a **red control** that proves the check now fails on the bad input.
@@ -22,6 +23,7 @@ Every site was measured on ONE trunk sha: **`d4f9553f4`** (`origin/master`, 2026
 - **Commit subject** (R6 reads it): `refactor(r8-NN-<slug>): ...` for 05, 07, 08; `ci(r8-NN-<slug>): ...` for 01, 03, 10; `test(r8-NN-<slug>): ...` for 02, 04, 06, 09.
 - **Off every live lane:** `lane-map.sh --check <the 23 paths> --agent c-996` -> rc 4: no path owned; one lane records no files (`m-793@sat`, `m-793-red-desk-cron-trap`, round 7 row 05's test fix: `spl-desk-cron-checkout.tst.sh`, no path of this plan). Re-run per action before its spawn (R3).
 
+<a id="ws-doc-ec1622dd-d9ae-4da9-b5ef-a5b7ee64de1d"></a>
 ## 2. Where the actions come from (measured)
 
 | source | command on `d4f9553f4` | n | action |
@@ -39,6 +41,7 @@ Every site was measured on ONE trunk sha: **`d4f9553f4`** (`origin/master`, 2026
 
 Dropped from the retro list: **6.6** (WUI initial-JS budget): c-790's `3c9f1d3b0` (07:36Z, "initial JS 155.1 -> under 155") is on trunk; no completed master run has read it yet (every run after it is cancelled or pending at 08:02Z), so R11.3 watches it, not a row. **6.7** (closing m-781 and c-776): c-001's, by the brief; its rule part is R8 below.
 
+<a id="ws-doc-c4e3c3be-8552-4a56-9145-490381c670a5"></a>
 ## 3. The 10 actions
 
 | # | practice | why (one line) | sites file:line (max 5) | n + command | test or red control | box | agent kind | batch |
@@ -56,6 +59,7 @@ Dropped from the retro list: **6.6** (WUI initial-JS budget): c-790's `3c9f1d3b0
 
 Paths: 23 in the `lane-map` set (this plan and the seat file included) + the 2 new files of row 10. Line ranges are where each lane starts reading; the lane reads each function whole before it splits.
 
+<a id="ws-doc-041a4235-38e1-48d4-a116-193b90ae08f8"></a>
 ### 3.1 Disjoint files (R1)
 
 - No path is in two actions of the same batch. `lane-map --check` over all 23: rc 4, no path owned (section 1).
@@ -63,6 +67,7 @@ Paths: 23 in the `lane-map` set (this plan and the seat file included) + the 2 n
 - 01 and 02 both act on the orc hermetic job but share no file: 01 decides WHEN the job is stopped, 02 what a stopped job prints.
 - A test file named in the test column of two actions is READ by both, never edited by both: the editing action is the one whose sites include it. `test-strip-two-envs.sh` and `test-strip-two-way.sh` are 06's; 05 only runs them.
 
+<a id="ws-doc-c6e28741-35a8-40d8-acd2-a864cc321d9e"></a>
 ## 4. Per action: what the lane does
 
 - **01.** Measure first: re-read 5 newer red runs with the commands of section 2 rows 1-2 and put the slack numbers in the commit body; if the slack is gone (e2e no longer the long pole), stop and report, do not ship. No change to wf 10's concurrency (R11.4).
@@ -76,6 +81,7 @@ Paths: 23 in the `lane-map` set (this plan and the seat file included) + the 2 n
 - **09.** Table tests over environment variables; `t.Setenv`; floor `%.1f` of the new values, by hand, same commit. Nothing that opens a socket or a database.
 - **10.** The action prints and never deletes by default. It is run with `DRY_RUN=0` only by the round's retro lane, after the retro has run C7 (R7.4).
 
+<a id="ws-doc-1c09701b-0454-45f2-b779-3bafc3aef239"></a>
 ## 5. Spawn, done, status (R1-R15)
 
 R1-R6, R9, R12, R13 are carried from `refactor-round-7-plan.md` section 5 with `r7` read as `r8`; R7, R8, R10 and R11 change; R14 and R15 are new. Each change names the retro item it folds.
@@ -102,6 +108,7 @@ R1-R6, R9, R12, R13 are carried from `refactor-round-7-plan.md` section 5 with `
 - **R14 (new, retro 6.1), the lane's vendor for a code row.** Round 7: 0 of 3 mistral lanes landed a code row; first spawn to land 191, 60 and 388 min against a landing-lane median of 16 (retro 2, 4.2). So in this round a `simple_coding` row (03, 05, 07, 08) is placed on claude when the lane mix picks mistral, until a mistral lane has landed a refactor row (the round's retro says so). Any lane is re-placed on claude at its **first** `SPL_PREPUSH_OVERRIDE` request or its first repeated blocker, not at the hourly check. Mistral keeps its panel seat (owner vendor mix) and reviews agy and grok rows (R7.2).
 - **R15 (new), the history rewrite.** After c-001@sat's FREEZE LIFTED, every sha of this plan from spec 128's first commit on is replaced. A lane rebases with the `git rebase --onto` line of the lift note, never a plain `git rebase origin/master`. A sha in this plan is read through its subject: `git log origin/master --format='%h %s' --grep='<its subject words>'`. No row's sites depend on a sha.
 
+<a id="ws-doc-443df25b-d61f-44ea-a5b5-ba3643e7177c"></a>
 ## 6. Process practices, measured (no lane)
 
 | owner practice | measured state | verdict |
@@ -113,6 +120,7 @@ R1-R6, R9, R12, R13 are carried from `refactor-round-7-plan.md` section 5 with `
 | nothing ad hoc | 81 review/wip branches on origin, no action (section 2) | **new:** action 10, run by the retro lane (R8) |
 | regular training, a retro per round | rounds 3, 5, 6, 7 have a retro (`ls csi-spl-doc/doc/md \| grep retro`) | **in place:** R8 |
 
+<a id="ws-doc-778f7087-5cbe-4fd2-8bc4-b6535d79e779"></a>
 ## 7. Disagreements
 
 Seat verdicts on `7508d04c3`: claude 10 agree (the planner's proposal); agy 10 agree; mistral 9 agree + 1 "agree with changes" (01). No seat proposed a new row or dropped one, and no row changed at the fold.
@@ -129,6 +137,7 @@ Notes on the seats' evidence, for the retro, not the rows:
 - After signing, m-033 pushed `12c21511a` (2026-10-12 00:23Z), which rewrote `seat-mistral.md`. It cited runs 38090045623, 38100056789 and 38110067890 (`gh api repos/csitea/csi-spl/actions/runs/<id>` -> HTTP 404 for all 3) and wrote "Tests pass" for 05 and 08 with no run named. With c-001's go (msg e6982d65) the editor restored the signed text from `c029651ca`. The signing in section 10 is unchanged; the retro records this for the mix.
 - m-033 rewrote the file a 2nd time in `91b481325` (2026-10-12 10:54Z), after two notes that said not to commit. That version's row 01 reads "0 of 32 shards stopped", but section 2 measured 32 of 32. The editor restored the signed text again (c-001 go, msg 5f948d34) and m-033 was closed before the retro, with 0 review lines in round 8.
 
+<a id="ws-doc-56833e64-4cb6-4b97-b37b-5fd487406fa2"></a>
 ## 8. Measured and left out
 
 | what | why it is out | measured by |
@@ -142,6 +151,7 @@ Notes on the seats' evidence, for the retro, not the rows:
 | shfmt and prettier | no config and no tool; one format wave over every live lane's files | r5 section 8 |
 | `check-pre-push-stale-tree.tst.sh` case 9 pins 3 trunk shas (`8bb97690e`, `d4fa39b61`, `70e1eb26b`) | they predate spec 128 and the rewrite kept them (`git merge-base --is-ancestor <each> origin/master` -> 0 on `1b0bb48ae`, n=3); a case-9 SKIP after the lift is a R11.3 sighting with an owner that hour | `git grep -nE "cat-file -e '[0-9a-f]{9}" -- '*.tst.sh'` -> 1 file, 3 shas |
 
+<a id="ws-doc-a3d8929f-1b00-4cbb-bf7f-3ca1834edd2b"></a>
 ## 9. Counts
 
 | | Go | TS/Vue | bash | CI / gate | total |
@@ -153,6 +163,7 @@ Notes on the seats' evidence, for the retro, not the rows:
 | agent kind | complex_coding: 01, 04 | tests: 02, 06, 09, 10 | simple_coding: 03, 05, 07, 08 | | 10 |
 | rules | R1-R6, R9, R12, R13 carried; R7, R8, R10, R11 changed; R14, R15 new | | | | 15 |
 
+<a id="ws-doc-0d54f792-6d0c-44f6-b34d-fe02d8395497"></a>
 ## 10. Consensus
 
 Signed plan sha: **`7508d04c3`** (the draft; no row changed at the fold, so the seats signed the rows as written). This fold commit edits only the status line, the panel line, section 7 and this section.

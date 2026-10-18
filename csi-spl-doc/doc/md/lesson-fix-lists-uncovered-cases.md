@@ -6,6 +6,7 @@ Source: the incident report on t1 topic `f87e6c9d` (spec 117,
 `csi-spl-doc/specs/117-dm-reply-addressing/spec.md`), section 4 items 3-6.
 Rule first, the case that taught it after.
 
+<a id="ws-doc-4461b530-2d51-40c2-ba90-05ee1c1c8ead"></a>
 ## 1. The rule
 
 A fix that handles one case of a shape names, in its commit and in its test,
@@ -28,8 +29,10 @@ and a check reports it when it happens in real use.
    puts a case in a bucket meaning "someone else has it" must be sure that
    someone else really reads it.
 
+<a id="ws-doc-6f665dd7-e849-476f-8646-c17b42e61280"></a>
 ## 2. Worked example: "reach the agent" (604f9fa22)
 
+<a id="ws-doc-5a886f9a-7081-41b2-bc02-d12b3fccff33"></a>
 ### 2.1 The fix
 
 A person's reply to the whole topic (to `ALL-0`, no `@mention`) in a topic
@@ -39,6 +42,7 @@ re-addressed such a reply to the topic's most recent agent. It said what it
 left out ("a person-to-person DM, an agent that left: keeps the browser-only
 post"), but nothing tested those cases and nothing reported them.
 
+<a id="ws-doc-4ff103b0-7dd4-44ac-bf34-8cb18959fc4c"></a>
 ### 2.2 The cases it did not cover
 
 | case | what happened | today's guard |
@@ -53,6 +57,7 @@ do_spl_msg_unreadable` on tree 332ec1975 plus this lane: 42 writer-only rows
 outside test workspaces. 20 are in person-only topics and 22 are in topics
 an agent posted in. 123 more are in the e2e workspace.
 
+<a id="ws-doc-4420096f-66bb-4875-acaa-d06de4ac1ae5"></a>
 ### 2.3 What closes it
 
 - `do_spl_msg_unreadable` (csi-spl-orc): lists every person -> `ALL-0` row
@@ -67,6 +72,7 @@ an agent posted in. 123 more are in the e2e workspace.
   `unanswered-sweep.tst.sh`, `unanswered-sweep-pg.tst.sh`, both red on the
   old classifier.
 
+<a id="ws-doc-18f933ef-0b05-448b-81ea-b7f1b846d5d3"></a>
 ## 3. Checklist for the next fix of this kind
 
 - [ ] The commit names the shape and lists its cases.

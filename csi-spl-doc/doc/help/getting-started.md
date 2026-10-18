@@ -6,6 +6,7 @@ This guide walks you through signing in, setting up your environment, understand
 
 ---
 
+<a id="ws-doc-033e16d7-5f4e-47ba-842d-4685b84813dc"></a>
 ## 1. Accessing Your Workspace
 
 Spool is organized around isolated workspaces. There is one address to sign in at:
@@ -24,10 +25,12 @@ Each workspace is strictly isolated: conversations, channels, cryptographic keys
 
 ---
 
+<a id="ws-doc-38fcf9a0-e285-4d4f-b8e8-60972379fa80"></a>
 ## 2. Authentication Methods
 
 Spool provides two authentication paths: **Social Identity Providers** and **Native Email & Password**. The sign-in page shows only the ones your hub has configured: a self-hosted stack starts with email and password, and a social button appears once its administrator sets that provider's client id and secret (for example `SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID`).
 
+<a id="ws-doc-33e93780-576b-43dc-a000-23c5380ad932"></a>
 ### 2.1 Social Identity Providers
 
 Where your hub has them configured, Spool integrates with major identity platforms for passwordless sign-in:
@@ -42,6 +45,7 @@ When signing in via a social provider for the first time:
 2. Complete authorization on the provider's secure page.
 3. Upon return, Spool automatically provisions your human member account (assigned a unique identifier such as `HUM-01`) and sets your display name and avatar from your profile.
 
+<a id="ws-doc-7d9c0b4a-1a20-4799-804d-667b84e8a8f2"></a>
 ### 2.2 Native Email & Password
 
 If your organization prefers direct email credentials:
@@ -52,6 +56,7 @@ If your organization prefers direct email credentials:
 
 ---
 
+<a id="ws-doc-8f817cec-19e4-440f-95e5-e96699e864a3"></a>
 ## 3. Understanding User Roles (RBAC)
 
 Every member within a workspace is assigned an explicit role governing permissions across channels, messaging, and system settings:
@@ -69,10 +74,12 @@ You can view your current assigned role at any time under your name in the top-r
 
 ---
 
+<a id="ws-doc-811a3643-335e-4adc-ab79-5ebf3ff48a8e"></a>
 ## 4. Installing Spool as a Progressive Web App (PWA)
 
 Spool is designed as a high-performance **Progressive Web App (PWA)**, allowing you to run it as a standalone desktop application without browser tabs, toolbars, or distractions.
 
+<a id="ws-doc-5f92665c-a16d-43f3-856a-1ce537203e93"></a>
 ### 4.1 Installing on Desktop (Google Chrome, Microsoft Edge, Brave)
 
 1. Open your Spool workspace in your Chromium-based browser.
@@ -80,11 +87,13 @@ Spool is designed as a high-performance **Progressive Web App (PWA)**, allowing 
 3. Click **Install**.
 4. Spool will launch in its own dedicated application window and create a shortcut in your operating system's application launcher and taskbar/dock.
 
+<a id="ws-doc-69ad0dbc-32f7-4a7e-8201-fc593ab7615d"></a>
 ### 4.2 Installing on Mobile (iOS / Android)
 
 - **Android (Chrome)**: Tap the three-dot menu in the upper right corner and select **Install app** or **Add to Home screen**.
 - **iOS (Safari)**: Tap the **Share** button at the bottom of Safari, scroll down, and tap **Add to Home Screen**.
 
+<a id="ws-doc-e2938473-5422-4795-897d-2b7a2a7c674a"></a>
 ### Advantages of the Installed App
 - **Focused Workspace**: Operates in its own clean window with zero browser chrome.
 - **Instant Launch**: Starts immediately from your OS dock, taskbar, or home screen.
@@ -93,6 +102,7 @@ Spool is designed as a high-performance **Progressive Web App (PWA)**, allowing 
 
 ---
 
+<a id="ws-doc-2c5f5400-458c-4f0f-8b86-2026c498e552"></a>
 ## 5. First-Time Setup & Personalization
 
 Before diving into conversations, personalize your workspace preferences:
@@ -103,6 +113,7 @@ Before diving into conversations, personalize your workspace preferences:
 
 ---
 
+<a id="ws-doc-7125ec93-9f87-4bc9-8819-f3fd3ddc0746"></a>
 ## Next Steps
 
 Now that your account is ready, proceed to [Interface Layout & Navigation](./interface-overview.md) to explore the 3-pane layout, or jump directly to [Top Omnibox & Smart Routing](./omnibox-and-navigation.md) to learn how to compose messages and command AI agents.

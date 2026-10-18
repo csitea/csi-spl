@@ -6,6 +6,7 @@ A proposal, not the plan. The editor (this seat) merges the three seats into `..
 
 Every count was measured on ONE trunk sha, **`b161a015b`**, n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 6 is closed and held: `refactor-round-6-retro.md` section 1 (10 of 10 actions).
 
+<a id="ws-doc-559e38a8-2548-4f4a-8aec-55eb5e6fb484"></a>
 ## 1. The 10 actions
 
 | # | slug | source | sites | n | kind | box | batch |
@@ -21,6 +22,7 @@ Every count was measured on ONE trunk sha, **`b161a015b`**, n=1 per count unless
 | 09 | `refactor(r7-09-wui-small-functions)` | small functions | `useLive` 113, `live-ws handle` 117, `useMentionPicker` 130 | 3 | simple_coding | PC | 1 |
 | 10 | `test(r7-10-go-coverage-spool-cli)` | r6 retro 6.8 | `cmd/spool` client commands, 26.8 % | 73 at 0 % | tests | PC | 2 (after 04) |
 
+<a id="ws-doc-102684de-e68c-4cb6-8e56-d178074fefc2"></a>
 ## 2. Rules proposed (from the r6 retro, section 6)
 
 - **R7 rewritten** (retro 6.1): the agy and mistral seats stay up until every row is on trunk; each row brief names its cross-vendor reviewer; a gone seat is re-placed within the hour and the row waits; the same-vendor fallback is withdrawn. Review lines name `<id>@<box> <vendor>`.
@@ -29,6 +31,7 @@ Every count was measured on ONE trunk sha, **`b161a015b`**, n=1 per count unless
 - **R12** (retro 6.5): a count sent to the owner quotes its command.
 - **R13** (retro 6.7): an id live on two boxes is written `<id>@<box>`.
 
+<a id="ws-doc-113bc04a-c1fb-406e-8cef-c658847d9eca"></a>
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it.

@@ -10,6 +10,7 @@ picture of where the time goes, not a record of every minute.
 Everything lives in the [Calendar](./calendar.md): there is no separate hours
 page.
 
+<a id="ws-doc-1dbc3146-5890-4907-8c51-92fad73dadca"></a>
 ## 1. What counts as time worked
 
 Spool looks at the minutes in which you did something in this workspace:
@@ -42,6 +43,7 @@ minutes and is dropped.
 Time Spool cannot see, such as a call or work in an editor, you add yourself
 (section 3).
 
+<a id="ws-doc-54f3ef04-bc67-42d9-9744-b1fb26aa57c9"></a>
 ## 2. Your Working hours line
 
 Every working day (Monday to Friday) shows a **Working hours** line in the
@@ -62,6 +64,7 @@ The calendar's right side has an **Hours** panel with a **Mine** tab: the open
 period's days, their totals and states. On a phone, open it from the calendar
 menu, **Hours**.
 
+<a id="ws-doc-4fff9697-742a-4787-ba91-598218053a9d"></a>
 ## 3. Approving your days
 
 Suggestions are only a starting point: approve them, or fix them first.
@@ -93,6 +96,7 @@ You can also change a line before you approve it, or after:
 
 A day holds at most 24 hours.
 
+<a id="ws-doc-73e2f322-8305-44fe-83a8-6e02b1690ad6"></a>
 ## 4. The weekly freeze
 
 Hours are grouped in **periods**: a week (Monday to Sunday) by default. A
@@ -108,6 +112,7 @@ workspace can switch to two weeks or a month (section 7.2).
 The hours freeze has nothing to do with a deploy freeze event in the
 calendar.
 
+<a id="ws-doc-70a65a52-7c00-4055-a15c-208dd81147e4"></a>
 ## 5. The biz owner's approval and the download
 
 After the freeze a biz owner approves each member's period a second time, in
@@ -130,6 +135,7 @@ the date, the member, what the time was for, minutes, decimal hours, the
 note and the period's state. Hours are number cells, so a spreadsheet can
 sum them. Rejected lines and unapproved suggestions are never in it.
 
+<a id="ws-doc-bb9bce73-8155-41ce-9fb5-7c9224319f46"></a>
 ## 6. Who sees what
 
 | who | sees | can |
@@ -148,8 +154,10 @@ sum them. Rejected lines and unapproved suggestions are never in it.
   from outside the organisation, who reads the approved hours and downloads
   them, but approves nothing and sees no messages. It is not in the app yet.
 
+<a id="ws-doc-145b73e8-e6ff-4b95-8913-afe269b3a569"></a>
 ## 7. Settings
 
+<a id="ws-doc-a0f5d7bc-c51f-4ab3-9ac0-21676471fac4"></a>
 ### 7.1 Count my reading time (your setting)
 
 **Settings → Behaviour → Count my reading time**, on by default.
@@ -162,6 +170,7 @@ sum them. Rejected lines and unapproved suggestions are never in it.
 
 Only you see these minutes. The setting is kept per workspace.
 
+<a id="ws-doc-9b1f8a92-86f8-4eb7-a569-395bb68425f5"></a>
 ### 7.2 Workspace settings (biz owner or admin)
 
 **Workspace settings → Hours**, for every member of the workspace:

@@ -29,6 +29,7 @@ machines, the box PC and the satellite. The mechanism it builds on is
 4.3 and 4.4. It extends the HDFS analysis posted in that topic at 18:41Z
 and keeps its seven lessons. This doc proposes; it does not edit the spec.
 
+<a id="ws-doc-d96229fc-7c8a-4c81-99b0-3135fbd79018"></a>
 ## 1. Principle zero: software does the mechanics, agents judge
 
 Every failover step that follows a fixed rule is software: the health check,
@@ -40,6 +41,7 @@ ask is done, what to tell the owner.
 Every feature below is marked **[software]** or **[agent]** per step. Almost
 all of it is software.
 
+<a id="ws-doc-22bc0a0e-b22c-4143-9ab1-f4c279b0b2aa"></a>
 ## 2. Implementation shape: small Go processes on both machines
 
 The software side is Go, in the module we already ship,
@@ -60,6 +62,7 @@ pieces start in Go and are called by the bash loop. The loop itself moves to
 (`fleet-lease.tst.sh` replayed against it). Until then both machines run the
 bash loop as today.
 
+<a id="ws-doc-789185a7-7d8f-4587-a9dd-7e5cb38c2d5f"></a>
 ## 3. The minimum set
 
 The smallest build that closes the 2026-10-02 failures:
@@ -75,6 +78,7 @@ The smallest build that closes the 2026-10-02 failures:
 
 Everything else is a follow-up.
 
+<a id="ws-doc-7c29460d-b38a-40b1-b658-d44be46ce431"></a>
 ## 4. The features, one by one
 
 Each section: the HDFS feature, our parallel today with evidence, the gap,
@@ -83,6 +87,7 @@ phase (section 7).
 Log lines are from `<spool root>/dispatch/lease.log` and `rotate.log` on the
 box PC, 2026-10-02.
 
+<a id="ws-doc-12405dcf-6132-4d8b-90aa-31ddf52f55a6"></a>
 ### 4.1 Active / standby pair
 
 **HDFS.** Exactly one NameNode serves. A hot standby has the same state and
@@ -101,6 +106,7 @@ same table of decisions as the bash loop.
 
 **Phase.** None.
 
+<a id="ws-doc-c573a6c8-ca5c-4356-89fd-d7af8df426e8"></a>
 ### 4.2 Leader lock (the ZooKeeper lock)
 
 **HDFS.** The active holds an ephemeral lock in ZooKeeper. If its session
@@ -118,6 +124,7 @@ fleet, role), written only by compare-and-set on `gen`
 
 **Phase.** 5.
 
+<a id="ws-doc-2bd0d3b1-f334-4944-88ea-79aa1a6a76d2"></a>
 ### 4.3 Health monitor (ZKFC HealthMonitor)
 
 **HDFS.** The ZKFC calls the NameNode's health-check RPC on a timer. A
@@ -166,6 +173,7 @@ It cannot see a poke that never arrived.
 **Phase.** 2: first pokes by pane (the stopped c-040's branch), so the ping
 lands where the agent is; then the rule (the stopped c-039's branch).
 
+<a id="ws-doc-e7f0db4f-ef32-4a6b-a69d-aea120dd06e2"></a>
 ### 4.4 Shared edit log (Quorum Journal Manager)
 
 **HDFS.** Every metadata change is written to a majority of JournalNodes.
@@ -186,6 +194,7 @@ real request stays in the old holder's inbox, on the old machine.
 
 **Phase.** 5 (one line in the dispatcher's role prompt).
 
+<a id="ws-doc-463b14ac-72df-4efa-853c-a9c6a372e1bb"></a>
 ### 4.5 Fencing
 
 **HDFS.** Before the standby goes active, it runs the fencing methods
@@ -218,6 +227,7 @@ spawn and send paths never read the lease:
 
 **Phase.** 1, with 4.6 and 4.11.
 
+<a id="ws-doc-118b4ca0-2f82-4817-96f8-e94b24f9478a"></a>
 ### 4.6 Epoch numbers
 
 **HDFS.** Each new active gets a higher epoch. A JournalNode that promised
@@ -244,6 +254,7 @@ one.
 
 **Phase.** 1.
 
+<a id="ws-doc-fa1cae6a-0596-4a53-9739-076dbe3c1877"></a>
 ### 4.7 Quorum: a third witness
 
 **HDFS.** Two NameNodes never decide between themselves. The lock lives in a
@@ -269,6 +280,7 @@ go to `none`, which is safe.
 
 **Phase.** 4, with 4.13.
 
+<a id="ws-doc-89f5050c-c8b1-416d-82df-2b0636cace48"></a>
 ### 4.8 No automatic failback
 
 **HDFS.** The ZKFC never fails back. A recovered NameNode joins as standby.
@@ -297,6 +309,7 @@ on), but take back only when proven, and only gracefully:
 
 **Phase.** 3 (the stopped c-039's branch is the start).
 
+<a id="ws-doc-4ce1b935-ef54-4f71-967c-50dce06844b5"></a>
 ### 4.9 Graceful vs forced failover
 
 **HDFS.** `hdfs haadmin -failover` asks the active to go standby first, then
@@ -325,6 +338,7 @@ and the forced one can fire on a healthy agent.
 
 **Phase.** 0: c-036 (one id + L6), running now.
 
+<a id="ws-doc-e341b18a-6f1a-43f6-8e85-ced226155b28"></a>
 ### 4.10 Data side: heartbeats and re-replication
 
 **HDFS.** Each DataNode heartbeats every 3 s. Silent for about 10 min = dead,
@@ -344,6 +358,7 @@ and raised again (spec 4.3). A lane that dies mid-task has no such rule.
 
 **Phase.** 5.
 
+<a id="ws-doc-3c5fdcc7-5f51-4fea-9c81-853112b6b3b6"></a>
 ### 4.11 Data side: safe mode at start-up
 
 **HDFS.** A NameNode starts read-only until enough block reports have
@@ -362,6 +377,7 @@ handover blocker in its inbox (spec 4.3).
 
 **Phase.** 1 (one more rule in `act-ok`).
 
+<a id="ws-doc-d781edec-8e9f-4c16-aff0-7f418f9ba036"></a>
 ### 4.12 Data side: checksums
 
 **HDFS.** Every block has a checksum, checked on read and by a background
@@ -371,6 +387,7 @@ scanner.
 reads as no holder. `spl_fleet_apply` already writes a temp file and renames
 it, which is the right guard. **No change.**
 
+<a id="ws-doc-412a8c59-9a2a-4673-ab7c-033b069819d5"></a>
 ### 4.13 Failure is normal: drill it
 
 **HDFS.** The design assumes nodes fail all the time, and the HA docs ask
@@ -390,6 +407,7 @@ unplanned.
 
 **Phase.** 4, with 4.7.
 
+<a id="ws-doc-e251288b-859c-4022-87a5-5b1554ff6c48"></a>
 ## 5. Summary
 
 | feature | ours today | poor man's change | who |
@@ -408,6 +426,7 @@ unplanned.
 | 4.12 checksums | atomic mirror writes | none | software |
 | 4.13 drill | simulated only | weekly `spool fleet drill` | software |
 
+<a id="ws-doc-c8337e93-03c1-49cf-a991-b8dacdd66d5f"></a>
 ## 6. Which process runs each feature
 
 | feature | process | where |
@@ -419,6 +438,7 @@ unplanned.
 | 4.4 requests as asks | `spool-send.sh --ask` (exists) | the dispatcher's forward |
 | 4.1, 4.12 | no new process | - |
 
+<a id="ws-doc-232dd97f-4af3-4589-974d-cd6d0f081ea4"></a>
 ## 7. Build order, once approved
 
 Each phase lands and is proven live before the next starts. c-036 (one id +
@@ -436,6 +456,7 @@ of phases 2 and 3.
 | 4 | `spool fleet drill` + the both-unreachable test | 4.7, 4.13 | proves phases 1-3 live, then weekly |
 | 5 | `spool fleet run` replaces the bash loop; dead-lane asks; `--ask` forwards | 4.2, 4.10, 4.4 | a port, once the rules are settled and tested |
 
+<a id="ws-doc-994fb793-45a2-484e-9090-db8bede483bd"></a>
 ## 8. Questions for the owner
 
 Each needs a yes, a no or a number before its phase starts.

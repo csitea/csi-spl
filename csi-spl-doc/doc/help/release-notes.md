@@ -10,6 +10,7 @@ commit explains itself twice, first in plain words for a reader who never
 saw the code, then in technical terms. The note rides in the commit message
 as trailers; the hub reads them into the release notes table the WUI shows.
 
+<a id="ws-doc-b39cd2f2-a665-4456-8fc0-5505d3fd1e28"></a>
 ## Reading them in the app
 
 Click the version at the bottom of the left pane. On a phone it is on the
@@ -56,6 +57,7 @@ each row links there. **Copy the link to this note** copies that address.
 
 The rest of this page is how a commit carries the note the dialog shows.
 
+<a id="ws-doc-a835da78-2fa9-47e4-8d41-3848e07c7086"></a>
 ## 1. The rule
 
 1. The note is the LAST paragraph of the commit message: six trailers, one
@@ -71,6 +73,7 @@ The rest of this page is how a commit carries the note the dialog shows.
    the row is shown in the WUI, so the shipped-tree bans apply to it.
 7. The subject line and the optional technical body stay as they are today.
 
+<a id="ws-doc-16a6fa34-e1d0-454f-b6a5-b4bba2e411bc"></a>
 ## 2. Example
 
 ```text
@@ -86,6 +89,7 @@ Tech-How: ChannelView calls POST /v1/channels/{id}/read on mount; the store rese
 Tech-Why: The read call was only sent on scroll-to-bottom, so short channels never sent it.
 ```
 
+<a id="ws-doc-15c9c3a2-8593-40cc-8b46-6ce4161dcaf5"></a>
 ## 3. Special commits
 
 | case | what the note needs | shown as |
@@ -104,6 +108,7 @@ Release-Note: skip
 Lay-Why: Adds a test only; nothing a user sees changes.
 ```
 
+<a id="ws-doc-bf253d8c-10b8-4674-a204-13932caf84cd"></a>
 ## 4. A note that is wrong or missing after the push
 
 A pushed message cannot be edited and history is never rewritten. Attach a
@@ -115,6 +120,7 @@ git notes --ref=release-notes add -m "Lay-What: ..." <sha>
 git push origin refs/notes/release-notes
 ```
 
+<a id="ws-doc-390ed6f6-9ad1-4386-81e7-6866ef8025a2"></a>
 ## 5. Where it is enforced
 
 | place | effect |
@@ -123,6 +129,7 @@ git push origin refs/notes/release-notes
 | CI, workflow 10 | the backstop for a push that bypassed the hook |
 | deploy (20 / 30) | never blocked: a commit without a note is shown with `state=missing` |
 
+<a id="ws-doc-393e4721-7d9b-4ca8-a830-106faae76bd0"></a>
 ## 6. Where it is implemented
 
 The spec is `csi-spl-doc/specs/065-release-notes-table/spec.md`

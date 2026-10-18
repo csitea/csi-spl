@@ -4,6 +4,7 @@
 
 Owner order: "Refactoring round" / "30 best practices for refactorin. For each one perform 2 changes on the src. 4 agents per box at atime". Sites measured on trunk `2ea249ff`; topic task `d3dece9f-9c08-41aa-b99b-c5f43cf2c585`.
 
+<a id="ws-doc-5f279cfe-9008-40cf-ad0f-3906097a5c7d"></a>
 ## 1. How to read this
 
 - One row = one practice = one lane, which applies it at exactly the 2 sites named.
@@ -14,6 +15,7 @@ Owner order: "Refactoring round" / "30 best practices for refactorin. For each o
 - Split: 12 Go, 9 TS/Vue, 9 bash, by the size of each tree (587 Go, 240 Vue/TS, 648 bash files) and the gates each has.
 - Run on: `any` = no browser needed; `browser` = WUI live proof on dev and prd.
 
+<a id="ws-doc-46e3f840-34c2-45f7-a574-13627ec01242"></a>
 ## 2. The 30 practices
 
 | # | practice | why | site 1 | site 2 | language | risk | tests | run on |
@@ -49,6 +51,7 @@ Owner order: "Refactoring round" / "30 best practices for refactorin. For each o
 | 29 | Extract a repeated block into a function | A block copy-pasted four times (or a restore line on nine exit paths) is where the next fix lands in three copies out of four. | `csi-spl-iac/src/bash/run/tf-new-step.func.sh:27-28` | `csi-spl-orc/src/bash/run/export-all-dns-settings.func.sh:48` | bash | low-med | none: add a temp-dir fixture test that runs do_tf_new_step and diffs the output; dns-ops.tst.sh (68, 86 incl. DRY_RUN=0 with stubbed gcloud), cloud-actions.tst.sh:92 | any |
 | 30 | Fail fast on a required env var | `STEP=""` today runs `rm -rv src/terraform/*` and deletes every step; `: "${STEP:?}"` stops it with a message. | `csi-spl-iac/src/bash/run/tf-remove-step.func.sh:7-12` | `csi-spl-iac/src/bash/run/divest.func.sh:9` | bash | low | none: add a temp-dir test, `STEP=` -> non-zero exit and src/terraform untouched; none: add a test, `STEP=` -> non-zero exit with the message, no terraform called | any |
 
+<a id="ws-doc-83ba5841-9da1-4f1b-9306-0aee831a1147"></a>
 ## 3. Suggested run order (low risk first, 4 per box)
 
 1. Type-only and dead-code rows: 1, 2, 3, 13, 16, 23, 24.
@@ -56,6 +59,7 @@ Owner order: "Refactoring round" / "30 best practices for refactorin. For each o
 3. Structural rewrites with tests to add: 6, 7, 8, 9, 10, 11, 12, 29, 30.
 4. Browser-proof WUI rows: 19, 20, 21.
 
+<a id="ws-doc-e73eec73-d319-4cee-b150-802d519d7009"></a>
 ## 4. Found while surveying, not in this round
 
 These change behaviour, so they are bugs for their own lanes, not refactors:
@@ -64,6 +68,7 @@ These change behaviour, so they are bugs for their own lanes, not refactors:
 - `csi-spl-iac/src/bash/run/tf-new-step.func.sh:11-20`: `step_exists` is never set to 1, so the 'already exists' FATAL checks never stop the function.
 - `csi-spl-iac/src/bash/run/sec-shellcheck.func.sh:43`: `[ -f *.log ]` globs inside a test (a lint action, so it is gate machinery and left out here).
 
+<a id="ws-doc-da100286-a05e-4f69-b13b-989c03db1870"></a>
 ## 5. Briefs
 
 `/var/tmp/claude/briefs/refactor-r1/NN-<slug>.md`, NN = 01..30, one per row above.

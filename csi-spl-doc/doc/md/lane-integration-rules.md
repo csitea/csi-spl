@@ -12,8 +12,10 @@ history.
 Measured shrink (dry-run spawn, `wc -c` of `prompt.txt`, n=1 per kind, tree
 `83183be1`): claude 21,269 -> 7,789 B, qwen 21,475 -> 7,995 B.
 
+<a id="ws-doc-c1d65c86-1596-47af-a8d5-73017010192b"></a>
 ## 1. Commit (rule 2)
 
+<a id="ws-doc-789d5adb-981d-4a37-a664-79957d97f76e"></a>
 ### 1.1 Pathspec on the `add`, never on the `commit`
 
 `git commit -- <path>` is a PARTIAL COMMIT: it re-reads those paths from the
@@ -21,6 +23,7 @@ WORKTREE and commits that, discarding an index mode set by
 `git add --chmod=+x`. Measured on the main box 2026-09-12: index `100755` after
 the add, COMMITTED `100644`, with and without `core.fileMode=false`.
 
+<a id="ws-doc-4da31fe5-99bd-43d2-8897-6a407b09968f"></a>
 ### 1.2 An executable file needs both bits
 
 - `chmod +x <path>` alone, with no pending edit to that file, is mode-only
@@ -36,6 +39,7 @@ the add, COMMITTED `100644`, with and without `core.fileMode=false`.
 
 With the bit in both places the two agree and nothing reports anything.
 
+<a id="ws-doc-5ec45881-ec75-4949-8c0d-b42702106692"></a>
 ### 1.3 Commit and push continuously
 
 The scenario this prevents: several related changes, some fast (manifest,
@@ -47,8 +51,10 @@ rebase becomes unresolvable. The fast changes stand on their own, cannot break
 what they do not touch, and are usually the part the owner is waiting to read.
 The same holds for verification: if item 3 of N fails, push the other N-1.
 
+<a id="ws-doc-e2815910-92d9-4e44-9a5a-69cd13ec06e4"></a>
 ## 2. Rebase (rule 3)
 
+<a id="ws-doc-f5d76ef1-437f-47c3-81f3-13d13194f468"></a>
 ### 2.1 Mode-only churn
 
 Something outside a lane moves the OWNER EXECUTE BIT on tracked files, the one
@@ -60,6 +66,7 @@ with NO content hunk in `git diff`. Set the worktree bit back to what
 `chmod -x`). Staging such a path lands a spurious `100644 => 100755` next to
 the change and nothing warns. Do not hunt the writer.
 
+<a id="ws-doc-33db2381-1bf5-4037-9130-3cef94edac03"></a>
 ### 2.2 FETCH: one fetch per clone per minute
 
 FETCH in the seed is `git-fetch-fresh.sh` (spawn-agents scripts): `git fetch
@@ -73,8 +80,10 @@ fetches per push. A push rejected as stale uses `FETCH --force`.
 remote. Rule (5) no longer fetches: the worktrees share `origin/master`, so the
 `--landed` fetch of rule (4) already refreshed it for the main checkout.
 
+<a id="ws-doc-2b5cd4f5-f2ba-4086-a7d1-3ee9df688bb3"></a>
 ## 3. Push (rule 4)
 
+<a id="ws-doc-8efbb803-41b5-4d0e-89fb-52323b8a66e5"></a>
 ### 3.1 Judge the landing by the repository, not the output
 
 A REJECTED push also prints `HEAD -> master`; the full line is
@@ -84,6 +93,7 @@ main box 2026-09-12: two shas were reported PUSHED and published as on trunk,
 and were not there. `git merge-base --is-ancestor HEAD origin/master` reads the
 repository; its exit code is the same check rule (8) needs before teardown.
 
+<a id="ws-doc-5ed681b2-a262-440e-a739-ecc7f4190dc5"></a>
 ### 3.2 Never force-push (NO FORCE-PUSH)
 
 Trunk stays: a plain push to master is how a lane lands. A force-push
@@ -105,6 +115,7 @@ renders it (`tests/test-seed-no-force-push.sh`).
 What enforces it (ruleset, pre-push hook, matcher, seed), for humans too:
 [developer guide](developer-guide.md) section 4.
 
+<a id="ws-doc-f7d23f23-0b6f-498a-85e5-47daa44e2f88"></a>
 ### 3.3 Push in the background, poll the verdict (SPL-1578)
 
 Rule (4) pushes with `do_spl_push_master` (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`),
@@ -142,8 +153,10 @@ retry pays the hook again, so a busy master turns a 6-min hook into a call
 past 15 min. The verdict cache (`pre-push-gate.md` 1.1) is content-keyed and
 does not help: the rebase makes a new tree.
 
+<a id="ws-doc-642ef755-72a7-427e-a9b1-bff8249747bb"></a>
 ## 4. Refresh the main source (rule 5)
 
+<a id="ws-doc-7fa084aa-9b22-4a3b-9e25-44fcc44ea649"></a>
 ### 4.1 `merge --ff-only`, never `pull --ff-only`
 
 `pull` merges FETCH_HEAD, FETCH_HEAD is per-worktree, and every lane runs the
@@ -156,8 +169,10 @@ finding. `merge --ff-only origin/master` reads a REF, needs no network, and
 cannot make a merge commit; a push landing in between only means the next
 lane's refresh carries the newer tip. It is the one exception to rule (1).
 
+<a id="ws-doc-fb3ab233-854e-444e-81c8-75f32a95e62e"></a>
 ## 5. Leak-gate (rule 6)
 
+<a id="ws-doc-dea37298-c64b-4767-b940-b55e00633b7a"></a>
 ### 5.1 The quoted address is a default
 
 It is read from the shared checkout's `.git/config` at spawn time, and that file
@@ -165,6 +180,7 @@ is contested mutable state every lane writes: it has been measured holding three
 different values within one day. A canonical address in the repo's own
 CLAUDE.md / AGENTS.md wins.
 
+<a id="ws-doc-19fb042b-e00b-4592-b737-9a3d0d891619"></a>
 ### 5.2 Two identity fields, one survives the protocol
 
 `git rebase` re-stamps the COMMITTER from the ambient config, and rule (3)
@@ -175,11 +191,13 @@ the author and leaves the committer. Hence the identity on the rebase too, and
 the gate reads both `%ae` and `%ce`: `%ae` alone reports green on a field it
 never read.
 
+<a id="ws-doc-08981b80-8906-4b5c-91d7-20b583f528ee"></a>
 ### 5.3 `--no-mailmap` is the control
 
 A root `.mailmap` maps the old addresses onto the canonical one, so plain
 `git log` renders a wrong commit as correct.
 
+<a id="ws-doc-02a8c083-76d5-4785-a56b-a9cacd396c1e"></a>
 ### 5.4 Never `git config` from a worktree
 
 With `extensions.worktreeConfig` unset every worktree shares one common
@@ -190,6 +208,7 @@ shared checkout and every other lane. Pass `-c` per command. On the `commit`,
 WORKTREE and the flag makes git ignore the very bit it would read (measured
 2026-09-12: index `100755` after `git add --chmod=+x`, COMMITTED `100644`).
 
+<a id="ws-doc-3e366a65-2319-4489-9b7c-befa29b3913c"></a>
 ## 6. CI and every environment (rule 7)
 
 A run can read cancelled while the commit ships later riding somebody else's
@@ -200,11 +219,13 @@ a file you never opened. "My module is not named" is a judgement about a log
 not yet read. Reporting a red to its named owner is the discharge; noticing it
 and moving on is not.
 
+<a id="ws-doc-54edd559-9626-4ef5-b8e5-0ee86359b81f"></a>
 ## 7. Teardown (rule 8)
 
 A merged worktree left in `<repo>-wt/` clutters `git worktree list`, which other
 lanes read to see who owns what.
 
+<a id="ws-doc-732577bc-3be3-4a94-92e9-4a99cebe3945"></a>
 ## 8. Scope (SCOPE a-d)
 
 Trunk moves constantly and very often already carries someone else's fix.
@@ -214,6 +235,7 @@ work is wasted tokens plus a rebase conflict for someone: "I fixed it too" is a
 mess-up, not a bonus. A fix for a blocker outside the scope goes in its own
 narrow commit so it drops cleanly if it turns out redundant.
 
+<a id="ws-doc-1aeb4883-1f1c-41e2-a86f-6792685ffe38"></a>
 ## 9. Deploy-gate (DEPLOY-GATE a-e)
 
 The tiers, the scanner list and the workflow numbers are the repo CLAUDE.md's

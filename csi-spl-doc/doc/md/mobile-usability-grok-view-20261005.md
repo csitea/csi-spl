@@ -10,8 +10,10 @@ Effort: **S** is one screen, mostly copy and CSS. **M** changes navigation and w
 
 These already work, and I would leave them: one panel at a time, the 44px header Back and the 44px dock Back, list rows at 48px, body and the composer at 18px (a tap in the field will not make iOS zoom), a card tap opening the thread (level 3, both widths), a send that landed and cleared the field (the channel went from 1 message to 2, both widths), the settings list, the avatar sheet (rows 44–48px), and no document horizontal overflow on the screens measured.
 
+<a id="ws-doc-361d3fe1-2d90-48d1-a2d8-918f46dffff6"></a>
 ## Part A. What I would change
 
+<a id="ws-doc-87a9dd9d-2090-447b-90df-18aefe1dfef2"></a>
 ### A1. Put every section on the screen
 
 **Problem.** The section strip is a sideways scroller. At rest a phone shows four sections and a sliver of a fifth. Help, Docs, and the later sections are off to the right, and a duplicate of the strip peeks in from the left, so the cut-off icon does not read as "there is more".
@@ -22,6 +24,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** M.
 
+<a id="ws-doc-5322d445-0530-4e82-8990-14da52262217"></a>
 ### A2. Say where the message goes, and show Search
 
 **Problem.** The composer is on every screen, including the message list, and its placeholder is clipped to about one word. On the message list that word is "Topics", which is a different section from the one on screen. Search is typed as `/search` in that same box, and there is no search control anywhere else on the phone.
@@ -32,6 +35,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-71d001f0-9fc5-426d-8cac-deb49bdd8d3e"></a>
 ### A3. Give the name and the thread title their own line
 
 **Problem.** On a channel card the author id is squeezed to a few characters by the type mark, the time, the emoji, and the menu, which all share its row. The thread title is clipped the same way. Two people with the same short prefix cannot be told apart.
@@ -42,6 +46,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-e20790cb-d95b-4149-bbf1-60a4e3a022ac"></a>
 ### A4. Retire the 21px status strip
 
 **Problem.** Connection, alerts, chime, and the version sit in a strip about 5mm tall, under the composer, on every screen. The same four facts are already in the avatar sheet, at 44px. Two drag grips just above the composer are 24px tall.
@@ -52,6 +57,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-13cdb96e-d60a-454f-90a6-bc6628f390ae"></a>
 ### A5. A deep link should open the list, and the empty pane needs a Back
 
 **Problem.** Opening People lands on an empty middle pane that says to select a person. The people are on the other panel. There is no header Back. The only Back is the dock button, which on a list screen reads as part of the composer.
@@ -62,6 +68,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-7d71758d-9aaf-4031-a365-88cc95ac337c"></a>
 ### A6. Issues: a short sort label, and an empty state that matches an empty list
 
 **Problem.** The sort chip truncates mid-word. The empty line says nothing matches, which reads as a filter that hid every row, while the filter chip says All.
@@ -72,6 +79,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-eaf470f1-8494-48a8-94ca-3f021dbd8ceb"></a>
 ### A7. The login bar is a language search, and the links are 17px
 
 **Problem.** The signed-out bar is a logo, an environment tag, and a language combobox that takes the rest of the width. The two links on the card, Buy a workspace and Help, are one line of text. A signed-in person who lands on this screen still sees "Sign-in is unavailable right now" above the signed-in line.
@@ -82,6 +90,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** S.
 
+<a id="ws-doc-9fbe348e-c6c7-42a4-9d52-469deb2d4ed4"></a>
 ### A8. One Back, one level
 
 **Problem.** Header Back and the dock Back pop one level, and that is the control that worked. A right-swipe from the screen edge follows history instead, so it can skip a level or leave the app for the login document.
@@ -92,6 +101,7 @@ These already work, and I would leave them: one panel at a time, the 44px header
 
 **Effort.** M.
 
+<a id="ws-doc-12433caf-d43c-4ca3-bd39-a849165eb985"></a>
 ## Part B. The ten starter ideas
 
 Part A was written before this list was opened. The list is c-002's starter post 8c8322a1. It says the ten ideas come from the specs and from reports, and not yet from a walk on a phone. The walk is what the verdicts use.
@@ -129,6 +139,7 @@ Part A was written before this list was opened. The list is c-002's starter post
 
 **10. Fast first screen — change.** The goal is right and the acceptance is wrong if it is argued from the dev server. I am not using those timings as the product's speed. What I did see is the first paint: a full screen that says "Loading Spool…" with Buy a workspace under it, before the shell mounts, including for a signed-in session. Replace that fallback with the last list, or with a skeleton of it, and prove the time on the generated bundle.
 
+<a id="ws-doc-55d81ef4-9a0f-4d0a-8943-e262b7fff501"></a>
 ## Part C. Build these three first
 
 | order | build | why first |

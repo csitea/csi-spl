@@ -18,6 +18,7 @@ before the author read the other's:
 It changes no code and is not a spec. The spec lanes start after the owner
 answers.
 
+<a id="ws-doc-6693371b-fd38-4d59-9b77-9741bd76f6e3"></a>
 ## 1. How the verdicts were reached
 
 - **agreed**: both docs back the idea and the change, with evidence.
@@ -30,6 +31,7 @@ answers.
   g-248's A2, A3 and A7 are in this group: c-245 accepts them on g-248's
   evidence and the owner posts cited.
 
+<a id="ws-doc-9d1789de-1fc4-4211-b164-ebf2280426b2"></a>
 ## 2. The list
 
 | # | idea | status | what both walks found |
@@ -54,6 +56,7 @@ answers.
 
 Count: 16 ideas. **9 agreed**, **2 disputed**, **5 one view**.
 
+<a id="ws-doc-92cbc022-fcc7-4e98-a115-91a24a659fa6"></a>
 ## 3. Proposed build order
 
 The two docs put different ideas first. c-245 ranked the palette first; g-248
@@ -76,6 +79,7 @@ dependency argument. The layout also carries the most owner posts (bb2473ac,
 | 10 | L10, L11 | disputed: owner call on form and timing | M, S |
 | 11 | L15, L16 | L effort, shared with the mobile list, one spec each for both | L |
 
+<a id="ws-doc-f0db824e-481e-452f-9562-1fafb51d65a5"></a>
 ## 4. For the owner
 
 1. **L10 bulk actions** and **L11 hover previews**: keep (c-245, late or

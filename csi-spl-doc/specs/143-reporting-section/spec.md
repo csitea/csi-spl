@@ -1,6 +1,6 @@
 # 143: Reporting section of the WUI, beside Monitoring
 
-Status: **Decided / Phased for build** (Owner answers folded; issue SPL-2324).  
+Status: **Decided / Phased for build v0.2.1** (Owner answers and schema 0202-0204 folded; issue SPL-2324).  
 Authority: this file for the architecture and technical requirements; [tasks.md](tasks.md) for the phased build tasks.  
 Status vocabulary: [README.md](../README.md) §2.3. Docs only: this spec builds nothing ([README.md](../README.md) §2.4).  
 Topic: `af25a1f3-7291-4675-855e-c67101680955` (HUM-10, prd t1, 2026-10-17; topic owner c-002; poll `1dd28b0e`, poll `4a6cdf4e`, poll `e804e13a`, token-burn topic `e8ae0aad` poll `2fa7180c`, poll form `e5dc787b` / `a8bfcdd0`).
@@ -212,6 +212,8 @@ The Releases tab features three integrated UI sections:
 
 #### 2.3.1 Database schema migration: `0202_estate_deploys.sql`
 
+Column `source` (`ci` vs `reconcile`) records whether the row was written by the CI deploy workflow or the hub's periodic reconcile check per owner poll 3 (`0202_estate_deploys.sql`).
+
 ```sql
 -- 0202_estate_deploys.sql - deploy events per environment (spec 143 B4)
 -- Records hub and WUI deployments to dev and prd. Forward-only.
@@ -224,11 +226,13 @@ CREATE TABLE estate_deploys (
     commit_sha      text        NOT NULL CHECK (commit_sha ~ '^[0-9a-f]{40}$'),
     deployed_at     timestamptz NOT NULL DEFAULT now(),
     status          text        NOT NULL CHECK (status IN ('success', 'failed')),
+    source          text        NOT NULL DEFAULT 'ci' CHECK (source IN ('ci', 'reconcile')),
     workflow_run_id text        NOT NULL DEFAULT '' CHECK (length(workflow_run_id) <= 64),
     deployed_by     text        NOT NULL DEFAULT '' CHECK (length(deployed_by) <= 128)
 );
 
-CREATE INDEX estate_deploys_env_day ON estate_deploys (env, (deployed_at AT TIME ZONE 'UTC')::date, deployed_at DESC);
+CREATE INDEX estate_deploys_env_day ON estate_deploys (env, ((deployed_at AT TIME ZONE 'UTC')::date), deployed_at DESC);
+CREATE INDEX estate_deploys_env_component ON estate_deploys (env, component, deployed_at DESC);
 CREATE INDEX estate_deploys_sha ON estate_deploys (commit_sha);
 
 -- Estate-wide table, like release_notes: no tenant_id, read by all authenticated members
@@ -238,8 +242,8 @@ ALTER TABLE estate_deploys FORCE ROW LEVEL SECURITY;
 CREATE POLICY estate_deploys_read ON estate_deploys
     FOR SELECT TO PUBLIC USING (true);
 
-CREATE POLICY estate_deploys_operator_write ON estate_deploys
-    FOR ALL USING (current_setting('app.rls_scope', true) = 'operator')
+CREATE POLICY operator_scope ON estate_deploys
+    USING (current_setting('app.rls_scope', true) = 'operator')
     WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 ```
 
@@ -425,21 +429,21 @@ If 2,000 rows are reached and additional rows exist, `truncated` is marked `true
 
 ### 3.5 Query audit logging: `sql_query_audit`
 
-Every execution attempt (successful or rejected) is audited to a durable table:
+Every execution attempt (successful or rejected) is audited to a durable table. Policy `tenant_scope` is `FOR ALL` with the 0174 append-only trigger so workspaces can insert their own audit rows while satisfying `TestRLSPoliciesFailClosed` (`0203_sql_query_audit.sql`).
 
 ```sql
 -- 0203_sql_query_audit.sql - audit log for reporting SQL queries (spec 143 B10)
 CREATE TABLE sql_query_audit (
     audit_id      text        PRIMARY KEY CHECK (audit_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
     tenant_id     text        NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
-    human_id      text        NOT NULL,
-    query_text    text        NOT NULL,
+    human_id      text        NOT NULL CHECK (length(human_id) BETWEEN 1 AND 200),
+    query_text    text        NOT NULL CHECK (length(query_text) <= 100000),
     executed_at   timestamptz NOT NULL DEFAULT now(),
-    duration_ms   integer     NOT NULL,
-    row_count     integer     NOT NULL DEFAULT 0,
+    duration_ms   integer     NOT NULL CHECK (duration_ms >= 0),
+    row_count     integer     NOT NULL DEFAULT 0 CHECK (row_count >= 0),
     truncated     boolean     NOT NULL DEFAULT false,
-    error_message text        NOT NULL DEFAULT '',
-    client_ip     text        NOT NULL DEFAULT ''
+    error_message text        NOT NULL DEFAULT '' CHECK (length(error_message) <= 2000),
+    client_ip     text        NOT NULL DEFAULT '' CHECK (length(client_ip) <= 64)
 );
 
 CREATE INDEX sql_query_audit_tenant_time ON sql_query_audit (tenant_id, executed_at DESC);
@@ -447,12 +451,25 @@ CREATE INDEX sql_query_audit_tenant_time ON sql_query_audit (tenant_id, executed
 ALTER TABLE sql_query_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sql_query_audit FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY sql_query_audit_tenant_read ON sql_query_audit
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY tenant_scope ON sql_query_audit
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''));
 
-CREATE POLICY sql_query_audit_operator ON sql_query_audit
-    FOR ALL USING (current_setting('app.rls_scope', true) = 'operator')
+CREATE POLICY operator_scope ON sql_query_audit
+    USING (current_setting('app.rls_scope', true) = 'operator')
     WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
+
+-- Append-only audit: no UPDATE ever; a DELETE only as a tenant delete's cascade.
+CREATE FUNCTION sql_query_audit_append_only() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+        RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'sql_query_audit is append-only: % refused (only a tenant delete removes rows)', TG_OP;
+END $$;
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON sql_query_audit
+    FOR EACH ROW EXECUTE FUNCTION sql_query_audit_append_only();
 ```
 
 ### 3.6 User interface: `pages/reporting/sql.vue`
@@ -561,6 +578,8 @@ activity_categories
 
 ### 4.3 Database schema migration: `0204_activity_categories.sql`
 
+`fleet_asks.category_path` is `NULL` (meaning uncategorised) instead of `NOT NULL DEFAULT ''` because `''` is not a category node and would violate the foreign key on existing asks (`0204_activity_categories.sql`).
+
 ```sql
 -- 0204_activity_categories.sql - hierarchical activity categories (spec 143 Section 4b)
 -- Data-defined, expandable tree of activities holding four dimensions. Forward-only.
@@ -570,10 +589,12 @@ CREATE TABLE activity_categories (
     parent_path   text        NULL REFERENCES activity_categories (category_path) ON DELETE CASCADE,
     title         text        NOT NULL CHECK (length(title) BETWEEN 1 AND 100),
     description   text        NOT NULL DEFAULT '' CHECK (length(description) <= 500),
-    dimensions    jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    dimensions    jsonb       NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(dimensions) = 'object'),
     is_active     boolean     NOT NULL DEFAULT true,
     created_at    timestamptz NOT NULL DEFAULT now(),
-    updated_at    timestamptz NOT NULL DEFAULT now()
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT activity_categories_parent_check CHECK (
+        parent_path IS NOT DISTINCT FROM NULLIF(regexp_replace(category_path, '/[^/]+$', ''), category_path))
 );
 
 CREATE INDEX activity_categories_parent ON activity_categories (parent_path);
@@ -585,18 +606,18 @@ ALTER TABLE activity_categories FORCE ROW LEVEL SECURITY;
 CREATE POLICY activity_categories_read ON activity_categories
     FOR SELECT TO PUBLIC USING (true);
 
-CREATE POLICY activity_categories_operator_write ON activity_categories
-    FOR ALL USING (current_setting('app.rls_scope', true) = 'operator')
+CREATE POLICY operator_scope ON activity_categories
+    USING (current_setting('app.rls_scope', true) = 'operator')
     WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 
 -- Extend fleet_asks to store work kind and assigned category path
 ALTER TABLE fleet_asks ADD COLUMN work_kind text NOT NULL DEFAULT ''
     CHECK (work_kind IN ('', 'specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret', 'review', 'dispatch'));
 
-ALTER TABLE fleet_asks ADD COLUMN category_path text NOT NULL DEFAULT ''
+ALTER TABLE fleet_asks ADD COLUMN category_path text NULL
     REFERENCES activity_categories (category_path);
 
-CREATE INDEX fleet_asks_category ON fleet_asks (category_path) WHERE category_path <> '';
+CREATE INDEX fleet_asks_category ON fleet_asks (category_path) WHERE category_path IS NOT NULL;
 ```
 
 ### 4.4 Lane placement & category assignment
@@ -752,3 +773,7 @@ When the Tokens tab (`/reporting/tokens`) is implemented:
 
 **Owner Decision**: **Choice A (No: token burn stays for operator admins only)** (msg `a8bfcdd0-62d1-46ba-8708-e303cf93f1f7`, 2026-10-17 09:42Z).  
 The Tokens tab is restricted to operator workspace admins only (`operatorsOnly: true`); standard workspace admins never see it.
+
+---
+
+<!-- version: 0.2.1 · updated: 2026-10-18 · last-edit: 2026-10-18T07:35:00Z -->

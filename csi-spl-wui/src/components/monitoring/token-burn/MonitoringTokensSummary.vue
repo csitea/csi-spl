@@ -7,7 +7,7 @@
   <div class="tk-kpis" data-test="tokens-kpis">
     <section class="tk-kpi" data-test="tokens-kpi-rate">
       <h3>{{ t('monitoring.tokens.kpi_rate') }}</h3>
-      <p class="tk-kpi-value" data-test="tokens-kpi-rate-value">{{ t('monitoring.tokens.per_min', { n: tokens(summary.rate) }) }}</p>
+      <i18n-t keypath="monitoring.tokens.per_min" tag="p" scope="global" class="tk-kpi-value tk-kpi-value--unit" data-test="tokens-kpi-rate-value"><template #n><span class="tk-kpi-num">{{ tokens(summary.rate) }}</span></template></i18n-t>
       <p class="tk-kpi-sub muted">{{ t('monitoring.tokens.kpi_rate_sub', { fresh: tokens(summary.fresh), cost: money(summary.costPerHour) }) }}</p>
     </section>
     <section class="tk-kpi" data-test="tokens-kpi-today">
@@ -44,4 +44,17 @@ const hit = computed(() => cacheHitPct(props.summary.todayCacheRead, props.summa
 .tk-kpi h3 { margin: 0 0 4px; font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); }
 .tk-kpi-value { margin: 0; font-size: 1.375rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .tk-kpi-sub { margin: 2px 0 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
+/* Row 04 of tokens-tab-panel-plan.md: on a phone the three cards sit side
+   by side (351px stacked -> under 115px), each subtitle one line. The rate's
+   unit shrinks to subtitle size and, being after an inline-block number, may
+   wrap below it ("/minuutti" never fits a ~111px tile at 1.125rem). */
+@media (max-width: 600px) {
+  .tk-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .tk-kpi { padding: 6px 8px; }
+  .tk-kpi h3 { margin-bottom: 2px; line-height: 1.25; }
+  .tk-kpi-value { font-size: 1.125rem; line-height: 1.25; }
+  .tk-kpi-value--unit { font-size: 0.8125rem; }
+  .tk-kpi-num { display: inline-block; font-size: 1.125rem; }
+  .tk-kpi-sub { line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 </style>

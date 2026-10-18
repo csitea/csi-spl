@@ -334,13 +334,21 @@ after the agent is done.
   the repo's canonical author, message `wip(<id>): <ts> handoff`, and pushes
   `--force-with-lease` to `refs/heads/wip/<lane branch>` ONLY. The push
   wrapper refuses any other refspec.
-- **Tracked files only** (SPL-2191, 2026-10-16): the temporary index is the
+- **Never scratch** (SPL-2191, 2026-10-16): the temporary index is the
   lane's own index plus `git add -u`, never `git add -A`. A lane's untracked
-  scratch (`STATE-<id>.md`, screenshots, anything never `git add`ed) is NOT
+  scratch (`STATE-<id>.md`, screenshots, anything outside a `csi-spl-*/` tree) is NOT
   in the wip commit: the repo is public and CI's gitleaks scans every ref,
   so a wip ref is published like master (a `STATE-c-550.md` on a wip ref
-  turned wf 15 red on 2026-10-16). A new source file rides once the lane has
-  staged it; a lane's state lives in the spool (`<spool root>/<id>/`).
+  turned wf 15 red on 2026-10-16). A lane's state lives in the spool
+  (`<spool root>/<id>/`).
+- **New source files ride** (SPL-2513, 2026-10-18): tracked-only dropped every
+  file a lane had written and not yet staged; c-999's WIP carried its 6 edits
+  but not its 6 new files, so `install.sh` on it called a missing step. The
+  temporary index also takes untracked, not ignored files
+  (`git ls-files --others --exclude-standard`) under a top-level `csi-spl-*/`
+  tree, except the lane's scratch (`STATE-*.md`, `.lane-state-*.md`,
+  screenshots) and a file over `WIP_UNTRACKED_MAX_BYTES` (1 MB, skipped and
+  logged). Test: `lane-wip-push.tst.sh` case 8.
   The handover's `refs/heads/wip/handover/<id>` (`do_spl_lane_handover_wip`)
   builds its tree the same way (SPL-2276, 2026-10-17).
 - **The pre-push gate**: the hook skips refs that are all

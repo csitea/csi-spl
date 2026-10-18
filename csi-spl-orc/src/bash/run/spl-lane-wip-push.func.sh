@@ -2,8 +2,10 @@
 #------------------------------------------------------------------------------
 # @description Push a lane's unfinished work to its wip ref (spec 102 section 5.4):
 # @description refs/heads/wip/<lane branch>, never any other ref. The dirty tree
-# @description (TRACKED files only: the lane's index plus `git add -u`; an
-# @description untracked file such as STATE-<id>.md never rides, SPL-2191) is
+# @description (the lane's index plus `git add -u`, plus its NEW source files:
+# @description untracked, not ignored, under a csi-spl-*/ tree, SPL-2513; never
+# @description its scratch: STATE-*.md, .lane-state-*.md, screenshots, SPL-2191;
+# @description a new file over WIP_UNTRACKED_MAX_BYTES is skipped and logged) is
 # @description committed on top of HEAD in a TEMPORARY index, so the lane's own
 # @description index, HEAD and working tree are
 # @description never touched (no git stash), under the repo's canonical author,
@@ -21,6 +23,7 @@
 # @param WIP_REF (optional) - default refs/heads/wip/<lane branch>; anything outside refs/heads/wip/ is refused
 # @param WIP_REMOTE (optional) - default origin
 # @param WIP_GIT_NAME, WIP_GIT_EMAIL (optional) - default the repo's user.name / user.email, else the last commit's author
+# @param WIP_UNTRACKED_MAX_BYTES (optional) - a new untracked file larger than this stays out, logged; default 1048576 (1 MB)
 # @param DRY_RUN (optional) - 1 prints the plan and writes nothing; default 0 (the watchdog's job)
 # @example ID=c-050 ./run -a do_spl_lane_wip_push
 # @example ID=c-050 DRY_RUN=1 ./run -a do_spl_lane_wip_push
@@ -66,8 +69,10 @@ do_spl_lane_wip_push() {
     idx="$(mktemp)" || return 1
     cp "$(git -C "$wt" rev-parse --path-format=absolute --git-path index)" "$idx" 2>/dev/null || true
     # -u, never -A: the ref is public and gitleaks scans every ref; untracked
-    # lane scratch (STATE-*.md, screenshots) stays out, its state is the spool's
-    tree="$(cd "$wt" && GIT_INDEX_FILE="$idx" git add -u . && GIT_INDEX_FILE="$idx" git write-tree)"
+    # lane scratch (STATE-*.md, screenshots) stays out, its state is the spool's;
+    # new source files ride (SPL-2513), picked by spl_lane_wip_add_untracked
+    tree="$(cd "$wt" && GIT_INDEX_FILE="$idx" git add -u . && GIT_INDEX_FILE="$idx" spl_lane_wip_add_untracked "$id" >&2 &&
+      GIT_INDEX_FILE="$idx" git write-tree)"
     rm -f "$idx" "$idx.lock"
     [[ -n "$tree" ]] || { do_log "FATAL WIP $id: cannot write the wip tree"; return 1; }
     key="tree $head $tree"
@@ -101,6 +106,32 @@ do_spl_lane_wip_push() {
     { do_log "FATAL WIP $id: push to $remote $ref failed (lease '${lease:-absent}')"; return 1; }
   printf '%s\n' "$key" >"$life/wip.last"
   do_log "OK WIP $id: pushed ${src:0:12} -> $remote $ref${patch:+ patch=$patch}"
+}
+
+# spl_lane_wip_add_untracked ID: in the cwd's repo, stage into $GIT_INDEX_FILE
+# the lane's NEW source files (SPL-2513: c-999's WIP of 2026-10-18 carried its
+# 6 edits but not its 6 new files, so install.sh on it called a missing step):
+# untracked and not ignored, under a top-level csi-spl-*/ tree, except the
+# lane's scratch (SPL-2191: STATE-*.md, .lane-state-*.md, screenshots) and a
+# file over WIP_UNTRACKED_MAX_BYTES (logged, on stdout: the caller sends it to
+# stderr, its stdout is the tree sha). Paths are repo-root relative.
+spl_lane_wip_add_untracked() {
+  local id="$1" cap="${WIP_UNTRACKED_MAX_BYTES:-1048576}" top p base size
+  [[ "$cap" =~ ^[0-9]+$ ]] || { do_log "FATAL WIP $id: WIP_UNTRACKED_MAX_BYTES must be a byte count, got '$cap'"; return 1; }
+  top="$(git rev-parse --show-toplevel)" || return 1
+  local -a add=()
+  while IFS= read -r -d '' p; do
+    base="${p##*/}"
+    [[ "$p" == csi-spl-*/* ]] || continue
+    [[ "$base" == STATE-*.md || "$base" == .lane-state-*.md ]] && continue
+    [[ "${base,,}" =~ \.(png|jpe?g|gif|webp|bmp)$ ]] && continue
+    size="$(stat -c %s -- "$top/$p" 2>/dev/null)" || continue
+    if ((size > cap)); then
+      do_log "SKIP WIP $id: new file $p is $size bytes, over the $cap cap; not in the wip commit"; continue
+    fi
+    add+=("$p")
+  done < <(git -C "$top" ls-files -z --others --exclude-standard)
+  ((${#add[@]} == 0)) || printf '%s\0' "${add[@]}" | git --literal-pathspecs -C "$top" add --pathspec-from-file=- --pathspec-file-nul
 }
 
 # spl_lane_wip_ref_ok REF: the push wrapper's assertion: refs/heads/wip/<name>

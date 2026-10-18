@@ -15,6 +15,11 @@
 #   6. refusals: detached HEAD, the live spool root under SPOOL_TEST
 #   7. the hook: wip-only stdin skips the gate; control: a mixed push (wip +
 #      a branch) and a branch-only push still run it
+#   8. SPL-2513: a new untracked source file under csi-spl-*/ rides; the
+#      lane's STATE-*.md / .lane-state-*.md, a screenshot, an ignored file, a
+#      top-level file and a file over WIP_UNTRACKED_MAX_BYTES (logged) do not;
+#      red control: on the tracked-only code the new file is missing
+#      (runs before 5, which needs a clean tree)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -80,6 +85,36 @@ done
 [ "$(git --git-dir="$B" rev-parse refs/heads/master)" = "$master0" ] && [ "$(wip)" = "$w2" ] \
   && [ "$(git --git-dir="$B" for-each-ref --format=x | wc -l)" -eq 2 ] && pass "4. ...and the remote is untouched" || fail "4. remote changed"
 git -C "$L" checkout -q -- f.txt && git -C "$L" rm -q --cached s.txt && rm -f "$L/u.txt" "$L/s.txt" "$L/STATE-x.md"
+
+# 8. SPL-2513: a lane's NEW source files ride (c-999's WIP of 2026-10-18 lost
+# its 6 new files); its scratch, screenshots, ignored files, files outside a
+# csi-spl-*/ tree and files over the size cap do not
+I="$L/csi-spl-iac"
+printf 'edit\n' >>"$I/run"
+mkdir -p "$I/sub dir"
+printf 'new step\n' >"$I/sub dir/y17 step.sh"
+printf 'sha 0123456789abcdef0123456789abcdef01234567\n' >"$I/STATE-c-901.md"
+printf 'note\n' >"$I/.lane-state-c-901.md"
+printf 'png\n' >"$I/shot.PNG"
+printf 'ignored\n' >"$I/build.log" && printf '*.log\n' >>"$L/.git/info/exclude"
+printf 'top\n' >"$L/top-scratch.txt"
+head -c 200 /dev/zero >"$I/big.bin"
+st0="$(git -C "$L" status --porcelain | md5sum)"; idx0="$(git -C "$L" ls-files -s | md5sum)"
+out="$(run ID=c-901 WIP_UNTRACKED_MAX_BYTES=100)"; rc=$?
+w8="$(wip)"; files="$(git --git-dir="$B" ls-tree -r --name-only "$w8" 2>/dev/null | tr '\n' '|')"
+[ "$rc" -eq 0 ] && [ "$w8" != "$w2" ] && [ "$(git --git-dir="$B" show "$w8:csi-spl-iac/sub dir/y17 step.sh")" = 'new step' ] \
+  && [ "$(git --git-dir="$B" show "$w8:csi-spl-iac/run" | tail -1)" = edit ] \
+  && pass "8. the tracked edit and the new source file (csi-spl-*/, a space in its path) are in the wip commit" || fail "8. new file missing (rc $rc: $out; files $files)"
+[ "$files" = 'csi-spl-iac/run|csi-spl-iac/sub dir/y17 step.sh|f.txt|' ] && ! git --git-dir="$B" grep -q 0123456789abcdef0123456789abcdef01234567 "$w8" \
+  && pass "8. STATE-*.md, .lane-state-*.md, a screenshot, an ignored file, a top-level file and a file over the cap are NOT" || fail "8. scratch rode along ($files)"
+grep -q 'SKIP WIP c-901: new file csi-spl-iac/big.bin is 200 bytes, over the 100 cap' <<<"$out" \
+  && pass "8. the file over the cap is logged" || fail "8. cap not logged ($out)"
+[ "$(git -C "$L" status --porcelain | md5sum)" = "$st0" ] && [ "$(git -C "$L" ls-files -s | md5sum)" = "$idx0" ] \
+  && pass "8. the lane's index and tree are unchanged" || fail "8. lane touched ($(git -C "$L" status --porcelain | tr '\n' ' '))"
+out="$(run ID=c-901 WIP_UNTRACKED_MAX_BYTES=1x)"; rc=$?
+[ "$rc" -eq 1 ] && grep -q 'must be a byte count' <<<"$out" && pass "8. control: a malformed cap is refused" || fail "8. bad cap (rc $rc: $out)"
+git -C "$L" checkout -q -- csi-spl-iac/run
+rm -rf "$I/sub dir" "$I/STATE-c-901.md" "$I/.lane-state-c-901.md" "$I/shot.PNG" "$I/build.log" "$I/big.bin" "$L/top-scratch.txt"
 
 # 5. mid-rebase: the branch and master both change f.txt, the rebase stops
 printf 'lane\n' >"$L/f.txt"; git -C "$L" "${G[@]}" commit -qam lane

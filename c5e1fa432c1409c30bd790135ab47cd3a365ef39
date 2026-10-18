@@ -1,0 +1,6 @@
+Lay-What: Nothing you can see changes; the message keyboard shortcuts work as before.
+Lay-How: The code that decides what each shortcut key does was moved into its own small piece with its own checks.
+Lay-Why: A mistake in a shortcut is now caught by a test before it reaches you.
+Tech-What: useMsgShortcuts.ts 464 -> 217 lines; keydown decisions in utils/msg-shortcuts-dispatch.mjs (cardEnterAction, shortcutAction, wantsPanelCard), DOM side in utils/msg-shortcuts-dom.mjs.
+Tech-How: The window listener reads the page into plain flags and runs the action the pure helper returns; composable exports unchanged, shims declared.
+Tech-Why: The key+state->action branches had 0 unit tests; now 21, with a red control (Shift + R busy guard).

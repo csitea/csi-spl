@@ -13,6 +13,8 @@
 #          -> pass 2 refuses the removal, the tree stays
 #   c-904  retired, salvaged on pass 1, edited again before pass 2
 #          -> pass 2 salvages again, the tree stays
+#   c-905  retired, salvaged on pass 1, then a tracked dir made read-only
+#          (as another user's dir is) -> pass 2 keeps it whole, nothing deleted
 # Origin's refs are counted before and after every run: none is added.
 # A first real run with WT_SALVAGE=0 (the default) keeps c-901 dirty and
 # writes nothing; the other runs pass WT_SALVAGE=1.
@@ -24,7 +26,7 @@ set -euo pipefail
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 sweep="${WT_SWEEP_SCRIPT:-$self_dir/../scripts/wt-dead-sweep.sh}"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 origin="$tmp/origin.git"; repo="$tmp/repo"; root="$tmp/repo-wt"; spool="$tmp/spool"
 fails=0 n=0
 
@@ -46,7 +48,7 @@ mkdir -p "$repo/csi-spl-orc"
 echo base >"$repo/csi-spl-orc/a.sh"; printf 'node_modules/\n' >"$repo/.gitignore"
 gq -C "$repo" add .; gq -C "$repo" commit -m init; gq -C "$repo" push origin master; gq -C "$repo" fetch origin
 
-for id in c-901 c-902 c-903 c-904; do
+for id in c-901 c-902 c-903 c-904 c-905; do
   gq -C "$repo" worktree add -b "$id-lane" "$root/$id" origin/master
   echo "edit $id" >>"$root/$id/csi-spl-orc/a.sh"
   printf '%s\tclaude\t%%1\t%s\t20261001T000000Z\t20261002T000000Z\n' "$id" "$root/$id" >>"$spool/registry.retired.tsv"
@@ -76,7 +78,7 @@ D="$tmp/dry.out"
 check "dry: c-901 salvage planned" has "$D" "KEEP dirty-retired-salvage-planned .*/c-901$"
 check "dry: writes no salvage log" [ ! -e "$log" ]
 check "dry: c-902 (live id) KEEP dirty" has "$D" "KEEP dirty .*/c-902$"
-check "dry: DONE would-salvage=3" has "$D" 'would-salvage=3 '
+check "dry: DONE would-salvage=4" has "$D" 'would-salvage=4 '
 
 run 0 p1
 P1="$tmp/p1.out"
@@ -108,6 +110,8 @@ check "pass 1: removes nothing" hasnt "$P1" ' REMOVE '
 s904="$(row c-904 5)"; b903="$(row c-903 4)"
 { printf 'not a bundle\n' >"$b903"; } 2>/dev/null || true
 echo "edit again" >>"$root/c-904/csi-spl-orc/a.sh"; old "$root/c-904"
+chmod 555 "$root/c-905/csi-spl-orc"
+n905="$(find "$root/c-905" -path '*/node_modules' -prune -o -type f -print | wc -l)"
 run 0 p2
 P2="$tmp/p2.out"
 check "pass 2: c-901 REMOVED, salvaged sha logged" has "$P2" "REMOVE .*/c-901 branch c-901-lane salvaged $s901$"
@@ -121,6 +125,10 @@ check "pass 2: c-904 changed after salvage: salvaged again" has "$P2" "SALVAGE c
 resalvaged() { [ -n "$s904" ] && [ "$(row c-904 5)" != "$s904" ]; }
 check "pass 2: c-904 new salvage sha" resalvaged
 check "pass 2: c-904 tree kept" [ "$(tail -1 "$root/c-904/csi-spl-orc/a.sh")" = "edit again" ]
+check "pass 2: c-905 unremovable dir: KEEP, no removal" has "$P2" "KEEP dirty-retired-salvaged-kept-unremovable .*/c-905$"
+check "pass 2: c-905 kept whole (every file still there)" [ "$(find "$root/c-905" -path '*/node_modules' -prune -o -type f -print | wc -l)" = "$n905" ]
+reg905() { grep -qx "worktree $root/c-905" <<<"$(git -C "$repo" worktree list --porcelain)"; }
+check "pass 2: c-905 worktree record kept" reg905
 check "pass 2: removes only c-901" [ "$(grep -c ' REMOVE ' "$P2")" = 1 ]
 check "pass 2: NO ref reaches origin" [ "$(refs_n)" = "$refs0" ]
 

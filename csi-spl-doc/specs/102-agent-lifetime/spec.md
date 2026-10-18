@@ -382,7 +382,9 @@ after the agent is done.
   logged sha, HEAD is the logged head and the tree's non-ignored content (a
   throwaway index) is the logged one. A residue over
   `WT_SALVAGE_RESIDUE_MAX_KB` (10 MB), a nested repo, an unreadable file, a
-  mid-rebase or a detached tree keeps it. Ignored files (node_modules, .nuxt,
+  mid-rebase or a detached tree keeps it, and so does a tree with a dir the
+  sweep user cannot write (another user's dir would stop the removal half
+  way). Ignored files (node_modules, .nuxt,
   bin) are build output. Off by default (`WT_SALVAGE=1` turns it on) until
   the live run is accepted. Test: `wt-dirty-salvage.tst.sh` (origin's ref
   count unchanged; a corrupt bundle refuses the removal).

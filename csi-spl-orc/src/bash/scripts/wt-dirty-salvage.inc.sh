@@ -23,6 +23,7 @@
 # newest row for the tree passes: git bundle verify, the bundle's tip is the
 # logged sha, HEAD is the logged head, the archive lists, and the tree's
 # non-ignored content (a throwaway index and object dir) is the logged state.
+# A tree with a dir the sweep user cannot write is kept whole (no half removal).
 # Mid-rebase/merge and detached trees are kept.
 # Out: sv_why (a KEEP reason, empty when sv_sha is set) and sv_sha.
 # The sweep's globals (self_dir repo trunk spool dry salvage_log salvage_dir
@@ -104,7 +105,14 @@ salvage() {
     IFS=$'\t' read -r _ _ _ bundle sha rhead rstate arch <<<"$row"
     if [[ "$rstate" == "$state" && "$rhead" == "$head" ]] && salvage_bundle_ok "$wt" "$bundle" "$sha" &&
       { [[ -z "$arch" || "$arch" == - ]] || tar -tzf "$arch" >/dev/null 2>&1; }; then
-      rm -rf "$od"; sv_sha="$sha"; return
+      rm -rf "$od"
+      # every dir must be writable by us, or `worktree remove --force` stops
+      # half way (a-115, 2026-10-18: another user's dir left 58 MB and
+      # no worktree record). Kept whole instead.
+      if [[ -n "$(find "$wt" -type d ! -writable -print -quit 2>/dev/null)" ]]; then
+        sv_why="dirty-retired-salvaged-kept-unremovable (a dir not writable by $(id -un))"; return
+      fi
+      sv_sha="$sha"; return
     fi
     arch=""
   fi

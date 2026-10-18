@@ -2,24 +2,24 @@
 
 **Plan sha**: `327fd855901927a9d8eb090673a0dc670e1ca322`
 
-## Evidence (re-checked on `sat`)
+## Evidence (re-checked on `sat` at 2026-10-18T01:57:40Z–01:57:42Z)
 - **Row 1** (Roles and dispatch leases):
   ```bash
   LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease
   ```
   Output:
   ```
-  orch c-001@sat
-  dispatch c-003@sat
+  orch c-001@sat 35 19084
+  dispatch g-002@sat 31 19244
   ```
 
 - **Row 18** (Dev desks on `sat`):
   ```bash
-  grep -c "FATAL Command 'do_spl_desk_up_tenants'" /opt/csi/csi-spl/desk-reconcile/cron.out
+  grep -c "FATAL Command 'do_spl_desk_up_tenants'" /var/csi/csi-spl/desk-reconcile/cron.out
   ```
   Output:
   ```
-  913
+  925
   ```
 
 - **Row 20** (Live hub and WUI):
@@ -28,7 +28,8 @@
   ```
   Output:
   ```
-  hub served 9c4397b6, wui served 7b5ce46a, current in both envs
+  dev hub current served=9c4397b6 sha=327fd855 n=0 (no hub build input changed since the served commit)
+  dev wui current served=e3655cac sha=327fd855 (the env serves this commit or a later one)
   ```
 
 ## Inventory

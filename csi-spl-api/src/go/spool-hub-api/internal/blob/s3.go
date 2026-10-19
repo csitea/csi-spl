@@ -19,6 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/secretfile"
 )
 
 // Env names for the S3 driver (spec 076 T004). T003 wires them.
@@ -53,7 +55,9 @@ const (
 //
 // Credentials are not an option. EnvS3AccessKey and EnvS3SecretKey, when both
 // are set, win, with EnvS3SessionToken if that is set too. Otherwise the AWS
-// SDK default chain is used. No key, host or bucket is compiled in.
+// SDK default chain is used. No key, host or bucket is compiled in. The
+// secret may come as a file instead: EnvS3SecretKey+"_FILE" (a compose Docker
+// secret, SPL-2158) wins over EnvS3SecretKey.
 type S3Options struct {
 	Bucket   string
 	Region   string
@@ -118,16 +122,25 @@ func resolveEndpoint(raw string) (string, error) {
 
 // staticCreds is the compose secret pair. A partial pair is not used: one
 // side empty would sign with a blank secret instead of the default chain.
-func staticCreds(getenv func(string) string) (aws.CredentialsProvider, bool) {
-	id, secret := getenv(EnvS3AccessKey), getenv(EnvS3SecretKey)
-	if id == "" || secret == "" {
-		return nil, false
+// The secret is read through secretfile, so its _FILE variant wins.
+func staticCreds(getenv func(string) string) (aws.CredentialsProvider, bool, error) {
+	secret, err := secretfile.Lookup(EnvS3SecretKey, getenv)
+	if err != nil {
+		return nil, false, fmt.Errorf("open s3: %w", err)
 	}
-	return credentials.NewStaticCredentialsProvider(id, secret, getenv(EnvS3SessionToken)), true
+	id := getenv(EnvS3AccessKey)
+	if id == "" || secret == "" {
+		return nil, false, nil
+	}
+	return credentials.NewStaticCredentialsProvider(id, secret, getenv(EnvS3SessionToken)), true, nil
 }
 
 func newS3Client(ctx context.Context, region, endpoint string, getenv func(string) string) (*s3.Client, error) {
-	if creds, ok := staticCreds(getenv); ok {
+	creds, ok, err := staticCreds(getenv)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		return s3.New(clientOptions(region, endpoint, creds)), nil
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))

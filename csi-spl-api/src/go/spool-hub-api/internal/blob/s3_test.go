@@ -138,7 +138,7 @@ func TestS3RegionAndCreds(t *testing.T) {
 	if _, err := resolveRegion("", func(string) string { return "" }); err == nil {
 		t.Fatal("no region accepted")
 	}
-	p, ok := staticCreds(func(k string) string {
+	p, ok, _ := staticCreds(func(k string) string {
 		switch k {
 		case EnvS3AccessKey:
 			return "AK"
@@ -156,7 +156,7 @@ func TestS3RegionAndCreds(t *testing.T) {
 	if err != nil || c.AccessKeyID != "AK" || c.SecretAccessKey != "SK" || c.SessionToken != "TK" {
 		t.Fatalf("static creds: %+v %v", c, err)
 	}
-	if _, ok := staticCreds(func(k string) string {
+	if _, ok, _ := staticCreds(func(k string) string {
 		if k == EnvS3AccessKey {
 			return "AK"
 		}

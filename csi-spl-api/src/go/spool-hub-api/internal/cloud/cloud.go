@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/secretfile"
 )
 
 // Provider names one cloud.
@@ -199,10 +200,15 @@ func (noneBlob) Docs(_ context.Context, bucket, dir string) (blob.Store, error) 
 }
 
 // s3Options reads the Compose S3 env and fails fast, naming every missing key.
-// The credentials stay in the env: blob.OpenS3 reads the pair itself.
+// The credentials stay in the env: blob.OpenS3 reads the pair itself. The
+// secret also counts as set when its file is named (EnvS3SecretKey+"_FILE",
+// the compose Docker secret, SPL-2158).
 func s3Options(env Env) (blob.S3Options, error) {
 	var missing []string
 	for _, k := range []string{blob.EnvS3Endpoint, EnvS3Bucket, blob.EnvS3AccessKey, blob.EnvS3SecretKey} {
+		if k == blob.EnvS3SecretKey && strings.TrimSpace(env.Getenv(k+secretfile.Suffix)) != "" {
+			continue
+		}
 		if strings.TrimSpace(env.Getenv(k)) == "" {
 			missing = append(missing, k)
 		}

@@ -2,11 +2,14 @@ package mail
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v10"
 	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/secretfile"
 )
 
 // Transports (SPOOL_HUB_MAIL_TRANSPORT).
@@ -18,7 +21,9 @@ const (
 
 // Config is the relay configuration. No host, port or sender has a default:
 // a relay pinned in code leaks one environment into every other (FR-010).
-// SMTPPassword is a secret (Secret Manager slot csi-spl-hub-mail-smtp-password).
+// SMTPPassword is a secret (Secret Manager slot csi-spl-hub-mail-smtp-password);
+// the compose stack hands it over as a Docker secret file instead, named by
+// SPOOL_HUB_MAIL_SMTP_PASSWORD_FILE, which wins over the env var (SPL-2158).
 type Config struct {
 	Transport    string        `env:"SPOOL_HUB_MAIL_TRANSPORT" envDefault:"none"`
 	SMTPHost     string        `env:"SPOOL_HUB_MAIL_SMTP_HOST"`
@@ -34,6 +39,10 @@ type Config struct {
 	Preflight string `env:"SPOOL_HUB_MAIL_PREFLIGHT" envDefault:"warn"`
 }
 
+// envSMTPPassword is the env name of Config.SMTPPassword; its _FILE variant
+// is read by load, after the struct tags.
+const envSMTPPassword = "SPOOL_HUB_MAIL_SMTP_PASSWORD"
+
 // Load reads the process environment.
 func Load() (*Config, error) { return load(env.Options{}) }
 
@@ -47,6 +56,15 @@ func load(o env.Options) (*Config, error) {
 	if err := env.ParseWithOptions(&c, o); err != nil {
 		return nil, fmt.Errorf("parse mail config: %w", err)
 	}
+	getenv := os.Getenv
+	if o.Environment != nil {
+		getenv = func(k string) string { return o.Environment[k] }
+	}
+	pw, err := secretfile.Lookup(envSMTPPassword, getenv)
+	if err != nil {
+		return nil, fmt.Errorf("parse mail config: %w", err)
+	}
+	c.SMTPPassword = pw
 	c.Transport = strings.ToLower(strings.TrimSpace(c.Transport))
 	c.Preflight = strings.ToLower(strings.TrimSpace(c.Preflight))
 	if err := c.validate(); err != nil {

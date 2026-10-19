@@ -28,7 +28,9 @@
 #   *      any other argument runs `spool <args>` (e.g. `version`)
 #
 # Nothing here reads a cloud credential. Every value is an env var the compose
-# file documents; the two generated values never leave the state volume.
+# file documents; the two generated values never leave the state volume. A
+# secret may come as a Docker secret file instead (SPL-2158): <NAME>_FILE,
+# when set, wins over <NAME> (file_env); the plain env var stays for lde.
 set -eu
 
 state="${SPOOL_STATE_DIR:-/var/lib/spool/state}"
@@ -37,6 +39,18 @@ roles_sql="${SPOOL_ROLES_SQL_DIR:-/opt/spool/sql/postgres/spool-hub-roles}"
 log() { printf '%s hub-entrypoint: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
 die() { log "FATAL $*"; exit 1; }
 need() { eval "v=\${$1:-}"; [ -n "$v" ] || die "$1 must be set (see .env.example)"; }
+
+# file_env <NAME>: when <NAME>_FILE is set, export NAME from that file (the
+# compose Docker secret under /run/secrets); it wins over NAME. An unreadable
+# file is FATAL, naming the variable only. $(cat) drops trailing line breaks.
+file_env() {
+  eval "f=\${$1_FILE:-}"
+  [ -n "$f" ] || return 0
+  [ -r "$f" ] || die "$1_FILE names a file this container cannot read (.env.example: secret files)"
+  v="$(cat "$f")" || die "$1_FILE: cannot read its file"
+  eval "$1=\$v"
+  export "${1?}"
+}
 
 # owner_psql <file> [psql -v args]: run a roles file as the schema owner
 owner_psql() {
@@ -105,6 +119,7 @@ seat_line() {
 }
 
 do_init() {
+  file_env SPOOL_SUPERUSER_PASSWORD
   need SPOOL_OWNER_DSN; need SPOOL_RUNTIME_ROLE; need SPOOL_RUNTIME_PASSWORD; need SPOOL_TENANT
   is_local || refuse_default_passwords
   mkdir -p "$state"

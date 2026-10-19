@@ -11,6 +11,9 @@
 #      serve is plain `spool serve`; a bucket drops the image's files-dir default
 #   6. SPL-2156: init writes the readiness file init.ready (the compose
 #      healthcheck) only once every step passed; a failed re-run removes it
+#   7. SPL-2158: the superuser password comes from its Docker secret file
+#      (SPOOL_SUPERUSER_PASSWORD_FILE), which wins over the env var; neither
+#      set behaves as before; an unreadable file is FATAL
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EP="$HERE/../../docker/hub-entrypoint.sh"
@@ -118,6 +121,25 @@ echo stale >"$T/state/init.ready"
 out="$(ep do_init "${INIT[@]}" STUB_FAIL=migrate </dev/null)"; rc=$?
 [ $rc -ne 0 ] && grep -q 'spool migrate failed' <<<"$out" && [ ! -e "$T/state/init.ready" ] &&
   pass "6. CONTROL: a re-run whose migrate fails leaves no init.ready (the old one is removed first)" || fail "6. failed re-run: rc $rc $out $(ls "$T/state")"
+
+# --- 7. secret files (SPL-2158) ----------------------------------------------------------
+printf 'spool-local-superuser\n' >"$T/su-default"; printf 'su-file-4714\n' >"$T/su-own"
+OWN2=(SPOOL_OWNER_PASSWORD=own-pw-4711 SPOOL_RUNTIME_PASSWORD=rt-pw-4712)
+init_pub() { ep do_init "${INIT[@]}" "${PUB[@]}" "${OWN2[@]}" SPOOL_OWNER_EMAIL=owner@example.org "$@" </dev/null; }
+out="$(init_pub SPOOL_SUPERUSER_PASSWORD=su-pw-4713 SPOOL_SUPERUSER_PASSWORD_FILE="$T/su-default")"; rc=$?
+[ $rc -ne 0 ] && grep -q 'public defaults.*SPOOL_DB_SUPERUSER_PASSWORD' <<<"$out" &&
+  pass "7. public: the default in the secret file is refused although the env var is own (the file wins)" || fail "7. file default: rc $rc $out"
+out="$(init_pub SPOOL_SUPERUSER_PASSWORD=spool-local-superuser SPOOL_SUPERUSER_PASSWORD_FILE="$T/su-own")"; rc=$?
+[ $rc -eq 0 ] && grep -q 'init done' <<<"$out" &&
+  pass "7. public: an own password in the secret file passes over a default env var" || fail "7. file own: rc $rc $out"
+grep -q 'su-file-4714' <<<"$out" && fail "7. init echoes the secret file's value" || pass "7. init never echoes the secret file's value"
+out="$(init_pub SPOOL_SUPERUSER_PASSWORD=su-pw-4713)"; rc=$?
+[ $rc -eq 0 ] && pass "7. no _FILE: the env var still decides (lde)" || fail "7. env fallback: rc $rc $out"
+out="$(init_pub)"; rc=$?
+[ $rc -eq 0 ] && pass "7. CONTROL: neither set behaves as before (only the public default is refused)" || fail "7. neither: rc $rc $out"
+out="$(init_pub SPOOL_SUPERUSER_PASSWORD=su-pw-4713 SPOOL_SUPERUSER_PASSWORD_FILE="$T/absent")"; rc=$?
+[ $rc -ne 0 ] && grep -q 'FATAL SPOOL_SUPERUSER_PASSWORD_FILE' <<<"$out" && ! grep -q "$T/absent" <<<"$out" &&
+  pass "7. an unreadable secret file is FATAL, naming the variable, not the path" || fail "7. unreadable: rc $rc $out"
 
 [ "$fails" -eq 0 ] && { echo "ALL hub-entrypoint CHECKS PASSED"; exit 0; }
 echo "FAILED hub-entrypoint: $fails"; exit 1

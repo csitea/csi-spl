@@ -48,14 +48,17 @@ const hit = computed(() => cacheHitPct(props.summary.todayCacheRead, props.summa
    by side (351px stacked -> under 115px), each subtitle one line. The rate's
    unit shrinks to subtitle size. SPL-2485: a value never wraps or spills
    (fi "113,3 t./minuutti", "19,35 milj." at 360px), so the rate tile is the
-   widest, the cost tile the narrowest, and a heading wraps at 0.75rem. */
+   widest, the cost tile the narrowest, and a heading wraps at 0.75rem.
+   SPL-2589: the columns follow what each tile needs in fi at 360px under a
+   wider fallback font too (DejaVu Sans: the rate figure 130px, the word
+   "kustannus" 78px), so no tile is cut to its last 3px. */
 @media (max-width: 600px) {
-  .tk-kpis { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr) minmax(0, 0.8fr); gap: 6px; }
-  .tk-kpi { padding: 6px 5px; }
+  .tk-kpis { grid-template-columns: minmax(0, 1.38fr) minmax(0, 1.03fr) minmax(0, 0.89fr); gap: 4px; }
+  .tk-kpi { padding: 6px 3px; }
   .tk-kpi h3 { margin-bottom: 2px; font-size: 0.75rem; line-height: 1.2; }
-  .tk-kpi-value { font-size: 0.9375rem; line-height: 1.25; white-space: nowrap; }
+  .tk-kpi-value { font-size: 0.8125rem; line-height: 1.25; white-space: nowrap; }
   .tk-kpi-value--unit { font-size: 0.6875rem; }
-  .tk-kpi-num { font-size: 0.9375rem; }
+  .tk-kpi-num { font-size: 0.8125rem; }
   .tk-kpi-sub { line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 </style>

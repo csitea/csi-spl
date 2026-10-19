@@ -49,7 +49,8 @@
             <td class="tk-model">{{ a.model || '—' }}</td>
             <td class="num tk-a-rate1m" :data-label="t('monitoring.tokens.col_rate1m')">{{ a.metered ? tokens(a.rate1m) : '—' }}</td>
             <td class="num tk-a-rate" data-test="tokens-agent-rate">
-              {{ a.metered ? t('monitoring.tokens.per_min', { n: tokens(a.rate) }) : '—' }}
+              <i18n-t v-if="a.metered" keypath="monitoring.tokens.per_min" tag="span" scope="global" class="tk-rate"><template #n><span class="tk-rate-num">{{ tokens(a.rate) }}</span></template></i18n-t>
+              <template v-else>—</template>
               <BurnBadge :level="burnLevel(a.fresh)" />
               <TrendBadge :trend="a.metered ? tokenVelocity(a.rate1m, a.rate) : null" />
             </td>

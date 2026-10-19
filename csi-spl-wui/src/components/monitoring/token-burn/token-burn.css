@@ -32,6 +32,10 @@
   .tk-agent .tk-model { order: 3; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-muted); font-size: 0.75rem; }
   .tk-agent .tk-a-status { order: 4; }
   .tk-agent .tk-a-rate { order: 6; font-weight: 600; font-size: 0.9375rem; }
+  /* the rate's unit shrinks as the KPI's does, so the rate and the cost share
+     one line in fi at 360 px under a wider fallback font too (DejaVu Sans) */
+  .tk-agent .tk-rate { font-size: 0.75rem; font-weight: 400; }
+  .tk-agent .tk-rate-num { font-size: 0.9375rem; font-weight: 600; }
   .tk-agent .tk-a-rate1m { order: 7; color: var(--color-muted); font-size: 0.75rem; }
   .tk-agent .tk-a-cost { order: 8; margin-inline-start: auto; font-weight: 600; font-size: 0.9375rem; }
   .tk-agent .tk-a-box, .tk-agent .tk-a-today, .tk-agent .tk-a-last { color: var(--color-muted); font-size: 0.75rem; }

@@ -34,7 +34,7 @@
               <th scope="row">{{ kindLabel(v.vendor) }}</th>
               <td class="num tk-vlive" :data-label="t('monitoring.tokens.col_active')">{{ v.active }}</td>
               <td class="num tk-vfig" :data-label="t('monitoring.tokens.col_rate')" data-test="tokens-vendor-rate">
-                {{ t('monitoring.tokens.per_min', { n: tokens(v.rate) }) }}
+                <i18n-t keypath="monitoring.tokens.per_min" tag="span" scope="global" class="tk-rate"><template #n><span class="tk-rate-num">{{ tokens(v.rate) }}</span></template></i18n-t>
                 <BurnBadge :level="burnLevel(v.fresh)" />
               </td>
               <td class="num tk-vfig" :data-label="t('monitoring.tokens.col_today')" :title="t('monitoring.tokens.col_today')" data-test="tokens-vendor-today">{{ tokens(v.todayTokens) }}</td>
@@ -83,7 +83,9 @@ const folded = (v: Vendor) => !v.metered || (!v.active && !v.rate && !v.todayTok
   .tk-table tr.tk-vrow > .tk-vstatus { order: 2; }
   .tk-table tr.tk-vrow::after { content: ''; flex-basis: 100%; height: 0; order: 3; }
   /* the three figures stay one line in fi at 360px (SPL-2486: the cost fell to a third line, 90px) */
-  .tk-table tr.tk-vrow > .tk-vfig { order: 4; padding: 0 2px; font-size: 0.8125rem; white-space: nowrap; }
+  .tk-table tr.tk-vrow > .tk-vfig { order: 4; padding: 0 1px; font-size: 0.8125rem; white-space: nowrap; }
+  .tk-table tr.tk-vrow .tk-rate { font-size: 0.6875rem; }
+  .tk-table tr.tk-vrow .tk-rate-num { font-size: 0.8125rem; }
   .tk-table tr.tk-vrow > .tk-vfig::before { content: none; }
   .tk-table tr.tk-vrow > .tk-vfig + .tk-vfig::before { content: '· '; color: var(--color-muted); }
   .tk-table tr.tk-vrow > .tk-vstatus::before { content: none; }

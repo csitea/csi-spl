@@ -96,7 +96,7 @@ Verified: No file appears in two rows. The files are disjoint within each batch.
 
 ### Go Tests (Rows 01–05)
 ```bash
-cd /opt/csi/csi-spl-wt/m-639/csi-spl-api/src/go/spool-hub-api && sudo -u ysg env PATH=$PATH:/usr/local/go/bin go test -count=1 -v ./internal/store ./internal/hub 2>&1 | grep -E "(PASS|SKIP)" | tail -5
+cd /opt/csi/csi-spl-wt/m-639/csi-spl-api/src/go/spool-hub-api && sudo -u <user> env PATH=$PATH:/usr/local/go/bin go test -count=1 -v ./internal/store ./internal/hub 2>&1 | grep -E "(PASS|SKIP)" | tail -5
 ```
 **Output**:
 ```
@@ -109,13 +109,13 @@ PASS: TestStore_BoxTokenRetired (0.00s)
 
 ### Bash Tests (Rows 06–08, 13–14)
 ```bash
-cd /opt/csi/csi-spl-wt/m-639 && sudo -u ysg bash csi-spl-iac/src/bash/tests/setup-tpl-gen.tst.sh 2>&1 | grep -c "PASS"
+cd /opt/csi/csi-spl-wt/m-639 && sudo -u <user> bash csi-spl-iac/src/bash/tests/setup-tpl-gen.tst.sh 2>&1 | grep -c "PASS"
 ```
 **Output**: `11`
 
 ### Typecheck (Rows 09–12, 15)
 ```bash
-cd /opt/csi/csi-spl-wt/m-639/csi-spl-wui && sudo -u ysg env PATH=$PATH:/home/ai-usr/bin pnpm run typecheck 2>&1 | grep -c "error"
+cd /opt/csi/csi-spl-wt/m-639/csi-spl-wui && sudo -u <user> env PATH=$PATH:/home/<user>/bin pnpm run typecheck 2>&1 | grep -c "error"
 ```
 **Output**: `0`
 

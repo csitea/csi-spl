@@ -13,9 +13,13 @@
 # @description check (a round row `<type>(rNN-NN-...` needs a `review: ... PASS
 # @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
 # @description resolves after fetching `review/rNN-NN`; rounds-rulebook.md 2.7.4) -> `git push <remote>
-# @description HEAD:<branch>`; a push refused because the branch moved is retried
+# @description <sha>:<branch>`, the sha it logged, never HEAD (a lane rotation switched
+# @description c-462's tree mid-push: HEAD was origin's head, read PUSHED; SPL-2574);
+# @description a push refused because the branch moved is retried
 # @description up to PUSH_RETRIES times. It ends by writing ONE status file:
-# @description `PUSHED <sha>` (+ `landed_rc=` of `git-fetch-fresh.sh --landed`),
+# @description `PUSHED <sha>` only when <sha> is on <remote>/<branch> after a fresh
+# @description fetch (+ `landed_rc=` of `git-fetch-fresh.sh --landed`), else GAVE-UP;
+# @description a HEAD that moved during the push is logged whatever the verdict;
 # @description `REFUSED <reason>` (+ the tail of the push/hook output),
 # @description `GAVE-UP <reason>` or `NOTHING-TO-PUSH <sha>`: 0 commits ahead of
 # @description origin/<branch> after the rebase, so nothing landed (SPL-2312).
@@ -243,20 +247,31 @@ _spl_push_master_marked() {
   ! flock -n "$st/lock" true 2>/dev/null
 }
 
-# _spl_push_master_git_push <remote> <branch> <out> - the worker's one push,
-# marked for the hook; the token lives only as long as the push.
+# _spl_push_master_git_push <remote> <branch> <out> [<sha>] - the worker's one
+# push of <sha>, never HEAD (a branch switch after the sha was logged pushed
+# origin's own head, SPL-2574), marked for the hook; the token lives only as
+# long as the push. <sha> defaults to HEAD only for callers that test the hook.
 _spl_push_master_git_push() {
   local tok rc
   tok="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   printf '%s\n' "$tok" >"$PUSH_STATE/push.token"
-  SPL_PUSH_MASTER_TOKEN="$tok" SPL_PUSH_MASTER_STATE="$PUSH_STATE" git push "$1" "HEAD:$2" >"$3" 2>&1; rc=$?
+  SPL_PUSH_MASTER_TOKEN="$tok" SPL_PUSH_MASTER_STATE="$PUSH_STATE" git push "$1" "${4:-HEAD}:$2" >"$3" 2>&1; rc=$?
   rm -f "$PUSH_STATE/push.token"
   return "$rc"
 }
 
+# _spl_push_master_head_moved <sha> - 0 (and logs it) when HEAD is no longer
+# <sha>: the tree was switched while the push ran (c-462, SPL-2574).
+_spl_push_master_head_moved() {
+  local head
+  head="$(git rev-parse HEAD 2>/dev/null)"
+  [[ "$head" == "$1" ]] && return 1
+  echo "$(date -u +%TZ) HEAD moved during the push: $1 -> ${head:-unknown}"
+}
+
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
-  local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc
+  local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc moved
   local -a G=(-c "user.name=$PUSH_NAME" -c "user.email=$PUSH_EMAIL") force
   # The hook must see the env of a hand push: no override, and no AGENT_ID
   # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
@@ -294,16 +309,22 @@ _spl_push_master_worker() {
 0 commits ahead of $remote/$branch after the rebase: nothing landed (SPL-2312). Are your commits on this branch, in this worktree?"; return 0
     fi
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
-    if _spl_push_master_git_push "$remote" "$branch" "$out"; then
+    if _spl_push_master_git_push "$remote" "$branch" "$out" "$sha"; then
       _spl_push_master_follow
       cat "$out"
+      moved=""; _spl_push_master_head_moved "$sha" && moved=" (HEAD moved during the push)"
       bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" --landed; landed_rc=$?
+      if ! git merge-base --is-ancestor "$sha" "$remote/$branch" 2>/dev/null; then
+        _spl_push_master_end "GAVE-UP the push exited 0 but $sha is not on $remote/$branch after a fresh fetch$moved
+landed_rc=$landed_rc" "$out"; return 1
+      fi
       _spl_push_master_end "PUSHED $sha
 landed_rc=$landed_rc
 tries=$try"; return 0
     fi
     _spl_push_master_follow
     cat "$out"
+    _spl_push_master_head_moved "$sha"
     _spl_push_master_moved "$out" || { _spl_push_master_end "REFUSED push of $sha (the hook or a rule said no)" "$out"; return 1; }
     echo "$(date -u +%TZ) try $try/$max: $remote/$branch moved during the push; rebase and retry"
   done

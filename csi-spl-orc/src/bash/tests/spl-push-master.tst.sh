@@ -31,6 +31,11 @@
 #      the same start from the lane's own worktree is not refused (case 7)
 #  11. the lane's own worktree, 0 commits ahead of origin -> NOTHING-TO-PUSH
 #      <sha>, status exit 5, never PUSHED / landed_rc
+#  12. HEAD moves after the sha is logged (c-462, SPL-2574): a `git` wrapper
+#      switches the tree to origin's head right before the push -> the logged
+#      sha itself is pushed: PUSHED <sha>, on origin, the log says `HEAD moved
+#      during the push`; a push that exits 0 but lands nothing -> GAVE-UP
+#      naming the sha, never PUSHED
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -233,6 +238,33 @@ out="$(cd "$L" && SNIPPET='do_spl_push_master' in_orc PUSH_STATE_DIR="$T/state10
 run AGENT_ID=c-999 PUSH_WORKTREE="$W7" >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 5 ] && grep -qx "NOTHING-TO-PUSH $(git -C "$W7" rev-parse HEAD)" <<<"$v" && ! grep -qE '^PUSHED|landed_rc' <<<"$v" \
   && pass "11. own worktree, 0 commits ahead -> NOTHING-TO-PUSH, exit 5, not PUSHED" || fail "11. nothing ahead (rc $vrc: $v)"
+
+# 12 HEAD moves between the logged sha and the push: a git wrapper on PATH
+# runs before the real git's push (switch: the tree goes to origin's head, as
+# a lane rotation did; noop: the push prints up-to-date and pushes nothing).
+REAL_GIT="$(command -v git)"; mkdir -p "$T/gitwrap"
+cat >"$T/gitwrap/git" <<EOF
+#!/bin/bash
+if [ "\$1" = push ]; then
+  case "\$(cat "$T/git.mode" 2>/dev/null)" in
+    switch) "$REAL_GIT" checkout -q -B "moved-\$\$" origin/master ;;
+    noop) echo "Everything up-to-date"; exit 0 ;;
+  esac
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$T/gitwrap/git"
+echo ok >"$T/hook.mode"; echo switch >"$T/git.mode"
+commit twelve; sha="$(git -C "$L" rev-parse HEAD)"
+run PATH="$T/gitwrap:$PATH" >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" && grep -q "HEAD moved during the push: $sha -> " "$S/log" \
+  && pass "12. HEAD switched to origin's head before the push -> the logged sha is pushed and on origin, the log says HEAD moved" \
+  || fail "12. switch (rc $vrc: $v | on origin: $(on_origin "$sha" && echo yes || echo no) | log: $(tail -n 6 "$S/log"))"
+git -C "$L" switch -q lane-branch; echo noop >"$T/git.mode"
+commit twelve-b; sha="$(git -C "$L" rev-parse HEAD)"
+run PATH="$T/gitwrap:$PATH" >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 1 ] && grep -q "^GAVE-UP .*$sha is not on origin/master" <<<"$v" && ! on_origin "$sha" \
+  && pass "12. a push that exits 0 but lands nothing -> GAVE-UP naming the sha, not PUSHED" || fail "12. noop (rc $vrc: $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

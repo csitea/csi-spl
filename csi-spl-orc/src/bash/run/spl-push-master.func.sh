@@ -10,7 +10,7 @@
 # @description The worker loops: FETCH (git-fetch-fresh.sh, --force on a retry)
 # @description -> `git -c user.name -c user.email rebase origin/<branch>` -> the
 # @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
-# @description check (a round row `<type>(rNN-NN-...` needs a `review: ... PASS
+# @description check (a round row `<type>(rNN-NN-...`, or bNN-NN / pNN-NN for a bug / perf round, needs a `review: ... PASS
 # @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
 # @description resolves after fetching `review/rNN-NN`; rounds-rulebook.md 2.7.4) -> `git push <remote>
 # @description <sha>:<branch>`, the sha it logged, never HEAD (a lane rotation switched
@@ -196,17 +196,18 @@ _spl_push_master_moved() {
 
 # _spl_push_master_unreviewed <range> [remote] - prints `<short sha> review line:
 # <reason>`, one line per round row in <range> (subject
-# `test|refactor|ci|fix|feat|perf(rNN-NN-...`) whose R7 review line is void.
+# `test|refactor|ci|fix|feat|perf(<r|b|p>NN-NN-...`: a refactor, bug or perf
+# round) whose R7 review line is void.
 _spl_push_master_unreviewed() {
   local h why
   for h in $(git rev-list --reverse "$1"); do
-    [[ "$(git log -1 --format=%s "$h")" =~ ^(test|refactor|ci|fix|feat|perf)\((r[0-9]+-[0-9]{2})- ]] || continue
+    [[ "$(git log -1 --format=%s "$h")" =~ ^(test|refactor|ci|fix|feat|perf)\(([rbp][0-9]+-[0-9]{2})- ]] || continue
     why="$(_spl_push_master_review_why "$(git log -1 --format=%b "$h")" "${BASH_REMATCH[2]}" "${2:-origin}")"
     [[ -z "$why" ]] || echo "$(git rev-parse --short "$h") review line: $why"
   done
 }
 
-# _spl_push_master_review_why <body> <rNN-NN> <remote> - prints why the body's
+# _spl_push_master_review_why <body> <round row, e.g. rNN-NN> <remote> - prints why the body's
 # review line is void, nothing when it is checkable: the plan section 1 format
 # `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log:
 # <id>@<box>:<path>`, its sha a commit here after fetching `review/<rNN-NN>`.

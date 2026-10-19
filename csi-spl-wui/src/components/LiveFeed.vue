@@ -34,7 +34,7 @@
         {{ loadingOlder ? t('feed.loading_older') : t('feed.load_more') }}
       </button>
     </div>
-    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
+    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" :css="transitionsReady" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
       <!-- CLE-77804 (topic 1e7d56b8): feedItems interleaves the "New messages"
            divider with the rows so each iteration renders exactly ONE keyed
            element (the key lives on the <template>, as Vue requires). The
@@ -303,6 +303,11 @@ const { pill, jump, hold } = useScrollAnchor(
   () => props.holdScroll !== true || newestLast.value,
   () => newestLast.value,
 )
+/* perf r6 row 06 (SPL-2580): the cold load paints with no enter transition per row (#lobby
+   lands in two batches: room task, then its topics); the CSS turns on 400 ms after rows settle. */
+const transitionsReady = ref(false)
+let gateTimer: ReturnType<typeof setTimeout> | undefined
+const stopGate = watch(() => [props.rows.length, props.loading] as const, ([n, busy]) => { clearTimeout(gateTimer); if (n && !busy) gateTimer = setTimeout(() => { transitionsReady.value = true; stopGate() }, 400) }, { immediate: true })
 
 /* CLE-77804: the New-messages divider. `firstNewId` is the earliest message the
    reader had not seen when the feed opened (the boundary is frozen by the page,
@@ -480,6 +485,7 @@ watch([phone, newestLast, () => props.holdScroll, () => props.rows.length], asyn
 })
 onUnmounted(() => {
   stopLanding?.()
+  clearTimeout(gateTimer)
   if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
   jumpResize?.disconnect()
 })

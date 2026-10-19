@@ -84,6 +84,7 @@ func docTreeHelp() string {
 	b.WriteString("  spool doctree add <doc> --kind para --text \"What changed and why.\"\n")
 	b.WriteString("  spool doctree export <doc> --out release-notes.md\n")
 	b.WriteString("\nOne verb's flags: spool doctree <verb> -h\n")
+	b.WriteString("Check a command without running it: spool doctree --check <verb> [args]\n")
 	return b.String()
 }
 

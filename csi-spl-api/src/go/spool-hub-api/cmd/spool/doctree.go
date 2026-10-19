@@ -38,6 +38,7 @@ import (
 //	doctree delete <doc> [<item>] [--rev n]      an item's subtree, or the whole document
 //	doctree rename <doc> --title t [--rev n]
 //	doctree export <doc> [--item id] [--out f] [--from read.json]
+//	doctree --check <verb> [args]                parse the verb's arguments, stop before the hub
 //	                                             Markdown, the WUI's export rules
 //	doctree asset-put <doc> <path> --file f      a picture under its md-relative path (doctree_assets.go)
 //	doctree asset-get <doc> <path>               it back, as JSON with the bytes in base64
@@ -123,6 +124,9 @@ func dtDial(ctx context.Context, cfg *config.Config) (*dtClient, func(), error) 
 	fs, err := dtFS()
 	if err != nil {
 		return nil, nil, err
+	}
+	if dtChecking(ctx) {
+		return nil, nil, errDTChecked
 	}
 	c := hubclient.New(cfg)
 	sess, err := c.Dial(ctx, wire.RoleCLI)
@@ -291,6 +295,22 @@ func (f *dtFlags) parse(args []string, lo, hi int) ([]string, error) {
 	return pos, nil
 }
 
+// errDTChecked ends a --check run where the hub would be dialled: the
+// arguments parsed and passed the verb's own checks (exit 0).
+var errDTChecked = errors.New("doctree --check: the arguments parse")
+
+type dtCheckKey struct{}
+
+// dtChecking is true under `spool doctree --check <verb> ...` (SPL-2545): the
+// verb parses its flags and arguments, runs its checks that need no hub, and
+// stops before dtDial. The desk action's DRY_RUN=1 calls it, so a dry run
+// passes only a command that can run. A spool older than --check refuses it
+// as an unknown verb: a check never turns into a write.
+func dtChecking(ctx context.Context) bool {
+	v, _ := ctx.Value(dtCheckKey{}).(bool)
+	return v
+}
+
 func cmdDocTree(cfg *config.Config, args []string) int {
 	if len(args) == 0 {
 		return dtHelp(false)
@@ -299,15 +319,27 @@ func cmdDocTree(cfg *config.Config, args []string) int {
 	case "--help", "-h", "-help", "help":
 		return dtHelp(true)
 	}
+	check := args[0] == "--check"
+	if check {
+		if args = args[1:]; len(args) == 0 {
+			return fail(errors.New("usage: spool doctree --check <verb> [args]"))
+		}
+	}
 	v, ok := dtVerbByName(args[0])
 	if !ok {
 		return fail(fmt.Errorf("unknown doctree verb %q; %s (spool doctree --help)", args[0], docTreeUsage))
 	}
 	ctx, stop := interruptible()
 	defer stop()
+	if check {
+		ctx = context.WithValue(ctx, dtCheckKey{}, true)
+	}
 	if err := v.run(ctx, cfg, args[1:]); err != nil {
 		if errors.Is(err, errDocFlags) {
 			return 1
+		}
+		if errors.Is(err, errDTChecked) {
+			return 0
 		}
 		return fail(err)
 	}
@@ -594,6 +626,9 @@ func dtExport(ctx context.Context, cfg *config.Config, args []string) error {
 // subtree), or from a saved read answer (--from: offline, no hub; a `read
 // <doc> --item <root>` answer carries the root, a plain `read <doc>` none).
 func dtExportItems(ctx context.Context, cfg *config.Config, doc, from string) ([]dtItem, error) {
+	if dtChecking(ctx) {
+		return nil, errDTChecked
+	}
 	if from == "" {
 		c, done, err := dtDial(ctx, cfg)
 		if err != nil {

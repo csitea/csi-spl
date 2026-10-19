@@ -26,7 +26,10 @@
 # @description     DOCTREE_IN, and --out (it would write as the box user)
 # @description The writing verbs (create add edit move delete rename folder move-node
 # @description asset-put) are a dry run unless DRY_RUN=0; the reads (list nodes
-# @description head read export asset-get) run as they are.
+# @description head read export asset-get) run as they are. A dry run still
+# @description has the installed spool parse the verb's flags and arguments
+# @description (`spool doctree --check`, no hub call) and fails on what it
+# @description refuses, so a dry run passes only a command that can run (SPL-2545).
 # @description A write with DRY_RUN=0 is also refused, no spool call, unless
 # @description DESK_AGENT is the caller itself: AGENT_ID, else SPOOL_AGENT_ID /
 # @description MCP_BOT_AGENT_ID, else the agent id of the tmux window $TMUX_PANE
@@ -76,7 +79,9 @@ do_spl_desk_doctree() {
     dry=1
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi
+  SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
   if (( dry )); then
+    _spl_desk_doctree_check "$d" "$box" "$tenant" "$fs" args || return 1
     do_log "INFO DRY_RUN would: spool doctree ${args[*]} for $agent on $box in $tenant${fs:+ (fs=$fs)}"
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
     return 0
@@ -85,7 +90,6 @@ do_spl_desk_doctree() {
     _spl_desk_doctree_caller_ok "$agent" || return 1
   fi
 
-  SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
   [[ -x "$SPL_SPOOL" ]] || { do_log "FATAL no installed spool binary for ENV=$ENV on this box: run do_spl_desk_up first"; return 1; }
   local out rc=0
   out="$(SPOOL_DOCTREE_FS="$fs" spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- doctree "${args[@]}" 2>&1)" || rc=$?
@@ -98,6 +102,29 @@ do_spl_desk_doctree() {
     return 1
   fi
   printf '%s\n' "$out"
+}
+
+# _spl_desk_doctree_check <state dir> <box> <tenant> <fs> <array name>: the
+# dry run's parse-only call, `spool doctree --check <verb> ...` (SPL-2545): the
+# installed spool parses the verb's flags and arguments as the real run would,
+# then stops before the hub. 1 with the FATAL (desk state masked) when it
+# refuses them. 0 with a WARN when it cannot check: no installed binary, or
+# one older than --check, which refuses --check as a verb and so writes nothing.
+_spl_desk_doctree_check() {
+  local d="$1" box="$2" tenant="$3" fs="$4" out rc=0
+  local -n _dt_c="$5"
+  [[ -x "$SPL_SPOOL" ]] ||
+    { do_log "WARN no installed spool binary for ENV=$ENV on this box: the flags were not checked"; return 0; }
+  out="$(SPOOL_DOCTREE_FS="$fs" spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- doctree --check "${_dt_c[@]}" 2>&1 </dev/null)" || rc=$?
+  out="${out//"$d"/<desk>}"
+  out="${out//"$SPL_STATE_DIR"/<state>}"
+  (( rc == 0 )) && return 0
+  if [[ "$out" == *'unknown doctree verb "--check"'* ]]; then
+    do_log "WARN the installed spool predates --check: the flags were not checked (do_spl_desk_up installs a newer one)"
+    return 0
+  fi
+  do_log "FATAL DRY_RUN: spool doctree ${_dt_c[0]} refuses these arguments, so DRY_RUN=0 would fail too (exit $rc): $out"
+  return 1
 }
 
 # _spl_desk_doctree_split <array name>: DOCTREE_ARGS split shell-style (quotes

@@ -129,6 +129,14 @@ history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
   `DESK_AGENT`), writes the `DRY_RUN=0` command list to a file under
   `/var/spool-hub/dispatch/`, and sends the orchestrator one message naming
   it. The orchestrator runs each line as its own seat.
+- **A dry run checks the command** (SPL-2545): `DRY_RUN=1` has the desk's
+  installed spool parse the verb's flags and arguments with
+  `spool doctree --check <verb> ...`, which stops before any hub call, and
+  fails on what the real run would refuse (`edit <doc> --item <id>` passed a
+  dry run, then failed with `flag provided but not defined: -item`). A spool
+  older than `--check` refuses it as an unknown verb and writes nothing; the
+  dry run then keeps its OK with a WARN that the flags were not checked.
+  Tests: `desk-doctree.tst.sh` section 7, `doctree_check_test.go`.
 - The guard: `csi-spl-orc/src/bash/tests/desk-doctree.tst.sh` section 9.
 
 ### 6.1 Starting a desk: a lane never starts another's

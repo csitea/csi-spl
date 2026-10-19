@@ -14,7 +14,10 @@
 #      symlink into the desk state, a --file naming another file, --out
 #   6. DOCTREE_IN is passed as --file, as --path for a picture, and replaces
 #      an explicit --file naming it
-#   7. DRY_RUN=1 (the default) writing verbs make no spool call; reads run
+#   7. DRY_RUN=1 (the default) writing verbs make no write call, only the
+#      parse-only `doctree --check <verb> ...`; reads run. A verb or flag the
+#      spool refuses fails the dry run (SPL-2545: an unknown --item passed);
+#      an installed spool that predates --check keeps the old OK with a WARN
 #   8. DOCTREE_FS=repo reaches the spool as SPOOL_DOCTREE_FS (spec 137
 #      T030a); unset passes none; any other value is refused, no spool call
 #   9. the caller check (SPL-2078): a DRY_RUN=0 write runs only when
@@ -41,6 +44,15 @@ cat >"$T/state/dev/bin/spool" <<'EOF_STUB'
 #!/usr/bin/env bash
 { printf 'argv|%s\n' "$*"; printf 'env|%s|%s|%s|%s|%s\n' "$SPOOL_ROOT" "$SPOOL_HUB_URL" "$SPOOL_TENANT" "$SPOOL_KEYS_DIR" "$SPOOL_BOX_ID"; printf 'fs|%s\n' "${SPOOL_DOCTREE_FS:-}"; } >>"$CALLS"
 if [[ "${STUB_FAIL:-0}" == 1 ]]; then echo "open $SPOOL_KEYS_DIR/box.key: permission denied" >&2; exit 1; fi
+# --check (the dry run's parse-only call): STUB_CHECK=bad answers as a flag
+# error does, STUB_CHECK=old as a binary that predates --check; else silent OK.
+if [[ "$1 $2" == "doctree --check" ]]; then
+  case "${STUB_CHECK:-}" in
+    bad) echo "flag provided but not defined: -item" >&2; echo "usage: spool doctree edit <doc> <item>" >&2; exit 1 ;;
+    old) echo 'spool: unknown doctree verb "--check"; usage: spool doctree <verb>' >&2; exit 1 ;;
+  esac
+  exit 0
+fi
 echo '{"docs":[{"id":"42","title":"Rebuild guide"}]}'
 EOF_STUB
 chmod +x "$T/state/dev/bin/spool"
@@ -117,9 +129,18 @@ dry_ok=1
 for a in 'create --title X' 'add 42 --kind para --text t' 'edit 42 7 --field title --value v' \
   'move 42 7 --ord 1' 'delete 42' 'rename 42 --title Y' 'folder --name f'; do
   run DOCTREE_ARGS="$a"
-  [[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" || { dry_ok=0; fail "dry run '$a' (rc=$rc): $(cat "$T/o")"; }
+  [[ $rc -eq 0 && "$(argv)" == "doctree --check $a" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" || { dry_ok=0; fail "dry run '$a' (rc=$rc): $(argv) / $(cat "$T/o")"; }
 done
-(( dry_ok )) && pass "DRY_RUN=1 (default): the 7 writing verbs make no spool call"
+(( dry_ok )) && pass "DRY_RUN=1 (default): the 7 writing verbs make only the parse-only --check call"
+run DOCTREE_ARGS="edit 42 --item 7 --file $IN/body.md" DOCTREE_IN="$IN/body.md" STUB_CHECK=bad
+if [[ $rc -ne 0 ]] && grep -q 'flag provided but not defined: -item' "$T/o" && ! grep -q 'OK DRY_RUN' "$T/o" && no_leak; then
+  pass "DRY_RUN=1 with a flag the verb does not define fails (SPL-2545)"
+else
+  fail "a dry run with an undefined flag passed (rc=$rc): $(cat "$T/o")"
+fi
+run DOCTREE_ARGS='delete 42' STUB_CHECK=old
+[[ $rc -eq 0 && "$(argv)" == "doctree --check delete 42" ]] && grep -q 'WARN.*predates --check' "$T/o" && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+  pass "an installed spool without --check: the dry run keeps its OK, with a WARN" || fail "old spool (rc=$rc): $(cat "$T/o")"
 run DOCTREE_ARGS='read 42'
 [[ $rc -eq 0 && "$(argv)" == "doctree read 42" ]] &&
   pass "a read runs under the default DRY_RUN" || fail "read (rc=$rc): $(cat "$T/o")"
@@ -142,7 +163,7 @@ run DOCTREE_ARGS='delete 42' DESK_AGENT=c-001 AGENT_ID=c-001 DRY_RUN=0
 [[ $rc -eq 0 && "$(argv)" == "doctree delete 42" ]] &&
   pass "DESK_AGENT = AGENT_ID passes the caller check" || fail "own seat (rc=$rc): $(argv) / $(cat "$T/o")"
 run DOCTREE_ARGS='delete 42' DESK_AGENT=c-001 AGENT_ID=c-999
-[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+[[ $rc -eq 0 && "$(argv)" == "doctree --check delete 42" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
   pass "DRY_RUN=1 with a foreign DESK_AGENT still prints the command" || fail "foreign dry run (rc=$rc): $(cat "$T/o")"
 run DOCTREE_ARGS='read 42' DESK_AGENT=c-001 AGENT_ID=c-999 DRY_RUN=0
 [[ $rc -eq 0 && "$(argv)" == "doctree read 42" ]] &&

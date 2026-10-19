@@ -3,7 +3,8 @@
 # Purpose: do_spl_desk_doctree passes `move-node` (spec 120 section 7: a
 #          document or a folder moved under another folder) to the desk's
 #          spool, as a writing verb. The binary is a stub recording its argv.
-#   1. DRY_RUN=1 (the default): move-node makes no spool call
+#   1. DRY_RUN=1 (the default): move-node makes only the parse-only
+#      `doctree --check` call (SPL-2545), no write
 #   2. DRY_RUN=0: the stub runs as `doctree move-node <node> --parent <folder>`
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -35,8 +36,8 @@ argv() { sed -n 's/^argv|//p' "$T/calls"; }
 
 # --- 1. dry run ---------------------------------------------------------------------------
 run DOCTREE_ARGS='move-node n1 --parent f1'
-[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
-  pass "DRY_RUN=1: move-node is a writing verb, no spool call" || fail "move-node dry run (rc=$rc): $(cat "$T/o")"
+[[ $rc -eq 0 && "$(argv)" == "doctree --check move-node n1 --parent f1" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+  pass "DRY_RUN=1: move-node is a writing verb, only the --check call" || fail "move-node dry run (rc=$rc): $(cat "$T/o")"
 
 # --- 2. live ------------------------------------------------------------------------------
 run DOCTREE_ARGS='move-node n1 --parent f1' DRY_RUN=0

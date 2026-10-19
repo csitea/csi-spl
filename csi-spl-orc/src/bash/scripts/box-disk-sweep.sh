@@ -12,7 +12,9 @@
 #                                       listed in $SPOOL_ROOT/workdirs.tsv: older
 #                                       than 24 h (6 h at <= 8% free, oldest first),
 #                                       unheld, a worktree clean (SPL-2110)
-#   go         do_prune_go_build_cache  Go build-cache entries older than a day
+#   go         do_prune_go_build_cache  Go build-cache entries older than a day, each
+#                                       cache cut to the level's cap, and the idle
+#                                       go-build-<lane> caches of lanes not live
 #   docker     prune-docker-images.sh   unused images + build cache older than BOX_SWEEP_DOCKER_UNTIL,
 #                                       then the build cache down to its cap
 #   journal    journal-sweep.sh         systemd journal down to BOX_SWEEP_JOURNAL_MAX (default 500M)
@@ -33,10 +35,13 @@
 # PRESSURE: the lowest free % of BOX_SWEEP_MOUNTS picks the level, and the
 # level the limits (2026-10-09: /mnt/data filled at 1.5..4 GB/h while the
 # fixed 72h / 1440 min limits found ~0 to remove, and the disk hit 100%):
-#   level   free %                 docker until   go cache age   gate
-#   normal  >= LOW (15)            72h            1440 min       every 4 h
-#   low     <  LOW                 12h            360 min        every tick
-#   crit    <  CRIT (7)            2h             60 min         every tick
+#   level   free %                 docker until   go cache age   go cap   gate
+#   normal  >= LOW (15)            72h            1440 min       8 GB     every 4 h
+#   low     <  LOW                 12h            360 min        3 GB     every tick
+#   crit    <  CRIT (7)            2h             60 min         1 GB     every tick
+# The go cap is per user cache, oldest files first (2026-10-19: sat's two
+# agent users' caches held 8.2 + 3.8 GB, every byte under 6 h old, so the
+# age limit freed 0 MB at 93% and the 8 GB cap was never reached).
 # The busy-CI wait and the in-use image pins of the docker step still apply.
 # At EVERY level the build cache is then cut to BOX_SWEEP_BUILDER_CAP_PCT
 # (10) % of the docker disk's size, whatever its age (2026-10-11: sat's
@@ -63,6 +68,8 @@
 #   BOX_SWEEP_LOW_FREE_PCT / _CRIT_FREE_PCT              default 15 / 7
 #   BOX_SWEEP_LOW_DOCKER_UNTIL / _CRIT_DOCKER_UNTIL      default 12h / 2h
 #   BOX_SWEEP_LOW_GO_AGE_MIN / _CRIT_GO_AGE_MIN          default 360 / 60
+#   BOX_SWEEP_GO_CAP_GB    default 8 (the go step's GO_CACHE_CAP_GB; 0 = no cap)
+#   BOX_SWEEP_LOW_GO_CAP_GB / _CRIT_GO_CAP_GB            default 3 / 1
 #   BOX_SWEEP_BUILDER_CAP_PCT default 10 (0 = no cap), the docker step's
 #                          PRUNE_BUILDER_CAP_PCT
 #   BOX_SWEEP_GATE         1: skip a normal-level tick younger than
@@ -91,7 +98,7 @@ scripts="${BOX_SWEEP_SCRIPTS:-$self_dir}"
 orc="${BOX_SWEEP_ORC:-$(cd "$self_dir/../../.." && pwd)}"
 utl="${BOX_SWEEP_UTL:-$orc/../csi-spl-utl}"
 lock="${BOX_SWEEP_LOCK:-${TMPDIR:-/tmp}/box-disk-sweep.$(id -un).lock}"
-go_age="${BOX_SWEEP_GO_AGE_MIN:-1440}"
+go_age="${BOX_SWEEP_GO_AGE_MIN:-1440}" go_cap="${BOX_SWEEP_GO_CAP_GB:-8}"
 cap_pct="${BOX_SWEEP_BUILDER_CAP_PCT:-10}"
 low_pct="${BOX_SWEEP_LOW_FREE_PCT:-15}" crit_pct="${BOX_SWEEP_CRIT_FREE_PCT:-7}"
 gate="${BOX_SWEEP_GATE:-0}" every="${BOX_SWEEP_EVERY_MIN:-240}"
@@ -133,6 +140,7 @@ note() {
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
 for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" "$runner_age" \
+    "$go_cap" "${BOX_SWEEP_LOW_GO_CAP_GB:-3}" "${BOX_SWEEP_CRIT_GO_CAP_GB:-1}" \
     "${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}" "${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}"; do
   [[ "$v" =~ ^[0-9]+$ ]] || { say "FAIL the free %, age and interval limits must be whole numbers, got '$v'"; exit 2; }
 done
@@ -152,8 +160,10 @@ fi
 level=normal
 if (( fpct < crit_pct )); then
   level=crit until="${BOX_SWEEP_CRIT_DOCKER_UNTIL:-2h}" go_age="${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" vartmp_age="${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}"
+  go_cap="${BOX_SWEEP_CRIT_GO_CAP_GB:-1}"
 elif (( fpct < low_pct )); then
   level=low until="${BOX_SWEEP_LOW_DOCKER_UNTIL:-12h}" go_age="${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" vartmp_age="${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}"
+  go_cap="${BOX_SWEEP_LOW_GO_CAP_GB:-3}"
 fi
 stamp="$lock.last-normal" noted="$lock.crit-noted"
 if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$stamp" -mmin -"$every" 2>/dev/null)" ]]; then
@@ -161,7 +171,7 @@ if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$st
 fi
 (( fpct >= crit_pct )) && rm -f "$noted" 2>/dev/null
 
-say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age vartmp_age_h=${vartmp_age:-off} steps='$steps' $(df_line)"
+say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age go_cap_gb=$go_cap vartmp_age_h=${vartmp_age:-off} steps='$steps' $(df_line)"
 rc=0
 for s in $steps; do
   # the root-disk steps are driven by free space, never by age alone
@@ -172,7 +182,7 @@ for s in $steps; do
     tmp)       DRY_RUN="$dry" bash "$scripts/tmp-stale-sweep.sh" ;;
     worktrees) DRY_RUN="$dry" bash "$scripts/wt-dead-sweep.sh" ;;
     workdirs)  ( cd "$utl" && DRY_RUN="$dry" WORKDIR_SWEEP_FREE_PCT="$fpct" ./run -a do_sweep_workdirs ) ;;
-    go)        ( cd "$orc" && DRY_RUN="$dry" GO_CACHE_MAX_AGE_MIN="$go_age" ./run -a do_prune_go_build_cache ) ;;
+    go)        ( cd "$orc" && DRY_RUN="$dry" GO_CACHE_MAX_AGE_MIN="$go_age" GO_CACHE_CAP_GB="$go_cap" ./run -a do_prune_go_build_cache ) ;;
     docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" PRUNE_BUILDER_CAP_PCT="$cap_pct" bash "$scripts/prune-docker-images.sh" ;;
     journal)   DRY_RUN="$dry" BOX_SWEEP_JOURNAL_MAX="$journal_max" bash "$scripts/journal-sweep.sh" ;;
     runners)   DRY_RUN="$dry" BOX_SWEEP_RUNNER_ROOT="$runner_root" BOX_SWEEP_RUNNER_AGE="$runner_age" bash "$scripts/runner-sweep.sh" ;;
@@ -187,7 +197,7 @@ read -r apct amount <<<"$(free_pct)"
 if [[ "$level" == crit && "$apct" =~ ^[0-9]+$ ]] && (( apct < crit_pct )); then
   say "FAIL level=crit: still ${apct}% free ($amount) after the sweep, under ${crit_pct}%"
   if [[ ! -e "$noted" ]]; then
-    note "CRITICAL $amount is still at ${apct}% free after a crit sweep (docker until=$until, go cache age ${go_age} min, lane workdirs at the 6 h limit): the disk fills soon, free it by hand" \
+    note "CRITICAL $amount is still at ${apct}% free after a crit sweep (docker until=$until, go cache age ${go_age} min, go cap ${go_cap} GB, lane workdirs at the 6 h limit): the disk fills soon, free it by hand" \
       && [[ "$dry" == 0 ]] && touch "$noted" 2>/dev/null
   fi
   rc=1

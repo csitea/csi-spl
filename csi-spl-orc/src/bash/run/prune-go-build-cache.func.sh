@@ -27,6 +27,15 @@
 # @description names the user, path, filesystem, use % and the action.
 # @description A user whose cache cannot be resolved is a WARN line, and the
 # @description other caches are still pruned.
+# @description Per-lane caches: a lane that builds with its own GOCACHE leaves
+# @description <parent>/go-build-<lane id> next to the user's cache (sat
+# @description 2026-10-19: go-build-c498, 565M, 3 days idle, never listed).
+# @description Each such Go build cache whose lane is not live (the spool
+# @description registry.tsv and the tmux windows) and that has no file newer
+# @description than GO_CACHE_MAX_AGE_MIN is removed whole, as its owner. A
+# @description live lane's cache is a KEEP line and never touched; a dir with
+# @description no lane id in its name is left alone. Without a readable
+# @description registry no lane cache is removed (a WARN).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param GO_CACHE_MAX_AGE_MIN (optional) - age in minutes, default 1440
 # @param GO_CACHE_CAP_GB (optional) - whole gigabytes (1024^3), default 8;
@@ -42,6 +51,12 @@
 # @param GO_CACHE_GATE (optional) - 1 applies the hourly / percent gate
 # @param GO_CACHE_PRUNE_AT_PCT (optional) - 0..100, default 85
 # @param GO_CACHE_NOW_MIN / GO_CACHE_USED_PCT (optional) - test seams
+# @param GO_CACHE_LANE_PARENTS (optional) - space-separated dirs scanned for
+# @param   go-build-<lane> caches, removed as the current user (tests);
+# @param   default the parent dir of each discovered user cache, none when
+# @param   GO_CACHE_DIRS is set
+# @param GO_CACHE_LIVE_IDS (optional) - the live lane ids (tests); default
+# @param   $SPOOL_ROOT/registry.tsv column 1 and the tmux window names
 # @param GO_CACHE_LOCK (optional) - 1 (default) or 0; the lock file is
 # @param   GO_CACHE_LOCK_FILE, else the go-cache-prune state dir
 # @example ./run -a do_prune_go_build_cache
@@ -338,6 +353,100 @@ go_cache_prune_one() {
   removed_bytes=$((removed_bytes + bytes))
 }
 
+# go_cache_lane_id <name>: the normalised lane id a go-build-<lane> dir name
+# carries (go-build-c498 -> c-498, go-build-m-117 -> m-117), or empty (1).
+go_cache_lane_id() {
+  [[ "${1,,}" =~ ^go-build-([acgmq])-?([0-9]{3})([^0-9]|$) ]] && printf '%s-%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+}
+
+# go_cache_live_ids: the live lane ids, one per line (normalised). 1 when
+# they cannot be read: then no lane cache may be removed.
+go_cache_live_ids() {
+  local ids reg w id
+  if [[ -n "${GO_CACHE_LIVE_IDS+set}" ]]; then
+    ids="$GO_CACHE_LIVE_IDS"
+  else
+    reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+    [[ -r "$reg" ]] || return 1
+    ids="$(cut -f1 "$reg") $(tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(stat -c %u "$reg")/default}" \
+      list-windows -a -F '#{window_name}' 2>/dev/null | tr -c 'A-Za-z0-9@\n-' ' ')"
+  fi
+  set -f
+  # shellcheck disable=SC2086 # space-separated ids
+  for w in $ids; do
+    id="$(go_cache_lane_id "go-build-${w%%@*}")" && printf '%s\n' "$id"
+  done
+  set +f
+  return 0
+}
+
+# go_cache_lane_parents <targets>: one "<user>\t<parent dir>" line per dir to
+# scan for go-build-<lane> caches.
+go_cache_lane_parents() {
+  local u d
+  if [[ -n "${GO_CACHE_LANE_PARENTS:-}" ]]; then
+    u="$(id -un)"
+    set -f
+    # shellcheck disable=SC2086 # directories in this list have no spaces
+    for d in ${GO_CACHE_LANE_PARENTS}; do printf '%s\t%s\n' "$u" "$d"; done
+    set +f
+    return 0
+  fi
+  [[ -z "${GO_CACHE_DIRS:-}" ]] || return 0
+  while IFS=$'\t' read -r u d; do
+    [[ -n "$u" && -n "$d" ]] && printf '%s\t%s\n' "$u" "$(dirname "$d")"
+  done <<<"$1" | awk 'NF && !seen[$0]++'
+}
+
+# go_cache_prune_lane_one <user> <parent> <dir> <age> <dry> <live ids>: one
+# KEEP or PLAN lane-cache line; removes the dir whole when its lane is not
+# live and no file is newer than the age (dry 0). Adds to removed_files /
+# removed_bytes. 1 when the removal failed.
+go_cache_prune_lane_one() {
+  local u="$1" p="$2" d="$3" age="$4" dry="$5" live="$6" name id real n b
+  name="${d##*/}"
+  id="$(go_cache_lane_id "$name")" || return 0
+  real="$(go_cache_as "$u" readlink -f -- "$d" 2>/dev/null || true)"
+  if [[ "$real" != "$(go_cache_as "$u" readlink -f -- "$p" 2>/dev/null)/$name" ]] || ! go_cache_is_cache "$u" "$real"; then
+    do_log "KEEP not-a-go-cache $d"
+    return 0
+  fi
+  if grep -qx -- "$id" <<<"$live"; then
+    do_log "KEEP live-lane $id $d"
+    return 0
+  fi
+  if [[ -n "$(go_cache_as "$u" find "$real" -xdev -type f -mmin "-${age}" -print -quit 2>/dev/null)" ]]; then
+    do_log "KEEP recent $d"
+    return 0
+  fi
+  read -r n b <<<"$(go_cache_as "$u" find "$real" -xdev -type f -printf '%s\n' | awk '{ n++; s += $1 } END { printf "%d %d\n", n + 0, s + 0 }')"
+  printf 'PLAN lane-cache user=%s lane=%s files=%s bytes=%s path=%s dry_run=%s\n' "$u" "$id" "$n" "$b" "$real" "$dry"
+  removed_files=$((removed_files + n))
+  removed_bytes=$((removed_bytes + b))
+  [[ "$dry" == 0 ]] || return 0
+  go_cache_as "$u" rm -rf -- "$real" || { do_log "FATAL removing the lane cache $real failed"; return 1; }
+}
+
+# go_cache_prune_lanes <targets> <age> <dry>: the go-build-<lane> caches next
+# to each user cache, through go_cache_prune_lane_one. 1 when a removal failed.
+go_cache_prune_lanes() {
+  local targets="$1" age="$2" dry="$3" parents live u p d rc=0
+  parents="$(go_cache_lane_parents "$targets")"
+  [[ -n "$parents" ]] || return 0
+  if ! live="$(go_cache_live_ids)"; then
+    do_log "WARN lane caches NOT pruned: cannot read the lane registry ${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+    return 0
+  fi
+  while IFS=$'\t' read -r -u 4 u p; do
+    [[ -n "$u" && -n "$p" ]] || continue
+    while IFS= read -r d; do
+      [[ -n "$d" ]] || continue
+      go_cache_prune_lane_one "$u" "$p" "$d" "$age" "$dry" "$live" || rc=1
+    done < <(go_cache_as "$u" find "$p" -mindepth 1 -maxdepth 1 -type d -name 'go-build-*' 2>/dev/null | sort)
+  done 4<<<"$parents"
+  return "$rc"
+}
+
 do_prune_go_build_cache() {
   local dry="${DRY_RUN:-1}" age="${GO_CACHE_MAX_AGE_MIN:-1440}" gate="${GO_CACHE_GATE:-0}"
   local capgb="${GO_CACHE_CAP_GB:-8}"
@@ -378,6 +487,9 @@ do_prune_go_build_cache() {
     pruned=$((pruned + 1))
     go_cache_prune_one "$u" "$d" "$age" "$dry" || rc=1
   done 3<<<"$targets"
+  if [[ "$gate" == 0 ]] || (( pruned > 0 )); then
+    go_cache_prune_lanes "$targets" "$age" "$dry" || rc=1
+  fi
 
   if (( rc == 0 && pruned == 0 )); then
     do_log "OK skip: no cache filesystem is at or over ${thr}% and minute ${minute} is not the hourly tick"

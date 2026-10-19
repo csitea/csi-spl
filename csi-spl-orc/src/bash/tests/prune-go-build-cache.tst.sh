@@ -11,6 +11,10 @@
 #   5. size cap: all files fresh and over the cap -> oldest gone, size <= cap;
 #      under the cap -> nothing; a busy go test -> no `go clean -cache`;
 #      DRY_RUN deletes nothing. Cap 0 is the control that (5a) can fail.
+#   6. per-lane caches (go-build-<lane> next to a user cache): a dead lane's
+#      idle cache is removed whole; a live lane's, a recent one, a dir that
+#      is not a Go cache, a name with no lane id and a symlink are kept; the
+#      dry run removes nothing; RED CONTROL: no registry -> nothing removed
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -364,6 +368,51 @@ out="$(run_prune "$SB" 0 "GO_CACHE_CAP_GB=no")"; rc=$?
 [[ $rc -ne 0 && -f "$SB/ff/new" && "$out" == *'GO_CACHE_CAP_GB'* && "$out" == FATAL* ]] &&
   pass "a bad GO_CACHE_CAP_GB is refused" ||
   fail "bad cap (rc=$rc): $out"
+
+# 6. per-lane caches ---------------------------------------------------------
+LP="$T/lanes" LM="$T/lanes/go-build"
+mk_lanes() {
+  rm -rf "$LP" "$T/lane-outside"
+  mk_cache "$LM"
+  local l
+  for l in go-build-c901 go-build-c902 go-build-m-903 go-build-other; do
+    mk_cache "$LP/$l"
+    truncate -s 1000 "$LP/$l/00/aa/old"
+    find "$LP/$l" -exec touch -h -d '3 days ago' {} +
+  done
+  touch "$LP/go-build-m-903/ff/bb/new"
+  mkdir -p "$LP/go-build-c904/00"; printf 'x\n' >"$LP/go-build-c904/00/f"
+  find "$LP/go-build-c904" -exec touch -h -d '3 days ago' {} +
+  mk_cache "$T/lane-outside"; touch -d '3 days ago' "$T/lane-outside/00/aa/old" "$T/lane-outside/ff/bb/new"
+  ln -s "$T/lane-outside" "$LP/go-build-c905"
+}
+mk_lanes
+out="$(run_prune "$LM" 1 "GO_CACHE_LANE_PARENTS=$LP GO_CACHE_LIVE_IDS=c-902@sat")"; rc=$?
+[[ $rc -eq 0 && -d "$LP/go-build-c901" && "$out" == *"PLAN lane-cache user=$(id -un) lane=c-901 files=4 "*"path=$LP/go-build-c901 dry_run=1"* ]] &&
+  pass "6. the dry run plans the dead lane's idle cache and removes nothing" ||
+  fail "6. lane dry run (rc=$rc): $out"
+out="$(run_prune "$LM" 0 "GO_CACHE_LANE_PARENTS=$LP GO_CACHE_LIVE_IDS=c-902@sat")"; rc=$?
+[[ $rc -eq 0 && ! -e "$LP/go-build-c901" && -f "$LM/README" ]] &&
+  pass "6. DRY_RUN=0 removes the dead lane's idle cache whole, the user cache stays" ||
+  fail "6. lane remove (rc=$rc): $out"
+[[ -f "$LP/go-build-c902/00/aa/old" && "$out" == *"KEEP live-lane c-902 $LP/go-build-c902"* ]] &&
+  pass "6. a live lane's cache is kept untouched" || fail "6. live lane: $out"
+[[ -f "$LP/go-build-m-903/00/aa/old" && "$out" == *"KEEP recent $LP/go-build-m-903"* ]] &&
+  pass "6. a dead lane's cache with a fresh file is kept" || fail "6. recent: $out"
+[[ -f "$LP/go-build-c904/00/f" && "$out" == *"KEEP not-a-go-cache $LP/go-build-c904"* ]] &&
+  pass "6. a go-build-<lane> dir that is not a Go cache is kept" || fail "6. not a cache: $out"
+[[ -f "$LP/go-build-other/00/aa/old" && -L "$LP/go-build-c905" && -f "$T/lane-outside/00/aa/old" ]] &&
+  pass "6. a name with no lane id and a symlink (and its target) are untouched" || fail "6. other / symlink: $out"
+mk_lanes
+out="$(run_prune "$LM" 0 "GO_CACHE_LANE_PARENTS=$LP SPOOL_ROOT=$T/no-spool")"; rc=$?
+[[ $rc -eq 0 && -f "$LP/go-build-c901/00/aa/old" && "$out" == *'WARN lane caches NOT pruned: cannot read the lane registry'* ]] &&
+  pass "6. RED CONTROL: no readable registry -> no lane cache is removed" ||
+  fail "6. no registry (rc=$rc): $out"
+mkdir -p "$T/spool6"; printf 'c-901\tclaude\t%%1\t/x\t20261019T000000Z\n' >"$T/spool6/registry.tsv"
+out="$(run_prune "$LM" 0 "GO_CACHE_LANE_PARENTS=$LP SPOOL_ROOT=$T/spool6 SPOOL_TMUX_SOCKET=$T/no-tmux")"; rc=$?
+[[ $rc -eq 0 && -f "$LP/go-build-c901/00/aa/old" && ! -e "$LP/go-build-c902" && "$out" == *"KEEP live-lane c-901"* ]] &&
+  pass "6. a lane in registry.tsv is live (kept); one not in it is removed" ||
+  fail "6. registry (rc=$rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

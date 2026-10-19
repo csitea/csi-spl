@@ -16,8 +16,8 @@
 #      workdir-sweep.tst.sh), a failing step does not stop the next (rc 1), an
 #      unknown step is refused, a held lock skips
 #   3b. the free-space trigger, on a planted free %: 50 runs the normal
-#      limits (72h / 1440 min), 10 the low ones (12h / 360), 3 the crit ones
-#      (2h / 60) and, still under 7% after, ONE note to the orchestrator
+#      limits (72h / 1440 min / go cap 8 GB), 10 the low ones (12h / 360 /
+#      3 GB), 3 the crit ones (2h / 60 / 1 GB) and, still under 7% after, ONE note to the orchestrator
 #      (CONTROLS: 15 and 7, the boundaries, are not low / crit; the dry run
 #      only plans the note); the gate skips a normal tick younger than 4 h
 #      but never a low one
@@ -103,7 +103,7 @@ mkdir -p "$F" "$O" "$U"
 for s in spl-session-prune tmp-stale-sweep wt-dead-sweep prune-docker-images journal-sweep runner-sweep; do
   printf '#!/bin/sh\necho "%s DRY_RUN=$DRY_RUN UNTIL=${PRUNE_UNTIL:-}" >>%q\n[ %s != tmp-stale-sweep ]\n' "$s" "$L" "$s" >"$F/$s.sh"
 done
-printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN AGE=${GO_CACHE_MAX_AGE_MIN:-}" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
+printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN AGE=${GO_CACHE_MAX_AGE_MIN:-} CAP=${GO_CACHE_CAP_GB:-}" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
 printf '#!/bin/sh\necho "workdirs $* DRY_RUN=$DRY_RUN FREE=$WORKDIR_SWEEP_FREE_PCT" >>%q\n' "$L" >"$U/run"; chmod +x "$U/run"
 printf '#!/bin/sh\necho "send $*" >>%q\n' "$T/sent" >"$T/send"
 bsw() { SNIPPET='do_box_disk_sweep' in_orc BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_ORC="$O" BOX_SWEEP_UTL="$U" BOX_SWEEP_LOCK="$T/sweep.lock" BOX_SWEEP_MOUNTS="$T" \
@@ -113,7 +113,7 @@ want="spl-session-prune DRY_RUN=0 UNTIL=
 tmp-stale-sweep DRY_RUN=0 UNTIL=
 wt-dead-sweep DRY_RUN=0 UNTIL=
 workdirs -a do_sweep_workdirs DRY_RUN=0 FREE=50
-go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440
+go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440 CAP=8
 prune-docker-images DRY_RUN=0 UNTIL=72h
 journal-sweep DRY_RUN=0 UNTIL=
 runner-sweep DRY_RUN=0 UNTIL="
@@ -130,12 +130,12 @@ kill "$lock_pid" 2>/dev/null; wait "$lock_pid" 2>/dev/null
 [ "$rc" = 0 ] && grep -q 'SKIP another box disk sweep' <<<"$out" && [ ! -s "$L" ] && pass "3. a held lock skips the sweep" || fail "3. lock (rc $rc: $out)"
 
 # ---- 3b. the free-space trigger ------------------------------------------------
-lim() { grep -oE '^(go .* AGE=[0-9]*|prune-docker-images .* UNTIL=[0-9]+h)$' "$L" | sed -E 's/.*(AGE|UNTIL)=/\1=/' | tr '\n' ' '; }
-for c in "50 normal AGE=1440 UNTIL=72h" "15 normal AGE=1440 UNTIL=72h" "10 low AGE=360 UNTIL=12h" "7 low AGE=360 UNTIL=12h" "3 crit AGE=60 UNTIL=2h"; do
-  read -r f lv a u <<<"$c"; : >"$L"; : >"$T/sent"
+lim() { grep -oE '^(go .* AGE=[0-9]* CAP=[0-9]*|prune-docker-images .* UNTIL=[0-9]+h)$' "$L" | sed -E 's/.*(AGE|UNTIL)=/\1=/' | tr '\n' ' '; }
+for c in "50 normal AGE=1440 CAP=8 UNTIL=72h" "15 normal AGE=1440 CAP=8 UNTIL=72h" "10 low AGE=360 CAP=3 UNTIL=12h" "7 low AGE=360 CAP=3 UNTIL=12h" "3 crit AGE=60 CAP=1 UNTIL=2h"; do
+  read -r f lv a g u <<<"$c"; : >"$L"; : >"$T/sent"
   out="$(FREE=$f bsw DRY_RUN=0)"
-  [ "$(lim)" = "$a $u " ] && grep -q "START .* level=$lv free=$f% (planted) docker_until=${u#UNTIL=} builder_cap_pct=10 " <<<"$out" \
-    && pass "3b. free $f% -> level $lv, go $a, docker $u" || fail "3b. free $f% ($(lim) / $out)"
+  [ "$(lim)" = "$a $g $u " ] && grep -q "START .* level=$lv free=$f% (planted) docker_until=${u#UNTIL=} builder_cap_pct=10 go_age_min=${a#AGE=} go_cap_gb=${g#CAP=} " <<<"$out" \
+    && pass "3b. free $f% -> level $lv, go $a $g, docker $u" || fail "3b. free $f% ($(lim) / $out)"
 done
 grep -q "FAIL level=crit: still 3% free" <<<"$out" && [ "$(grep -c . "$T/sent")" = 1 ] \
   && grep -q -- '--to orchestrator --kind note --task disk-sweep-.* CRITICAL planted is still at 3% free after a crit sweep' "$T/sent" \
@@ -157,6 +157,12 @@ grep -q 'level=low' <<<"$out" && [ -s "$L" ] && pass "3b. ...but never a low-spa
 touch -d '5 hours ago' "$T/sweep.lock.last-normal"; : >"$L"
 out="$(FREE=50 bsw DRY_RUN=0 BOX_SWEEP_GATE=1)"
 grep -q 'level=normal' <<<"$out" && [ -s "$L" ] && pass "3b. CONTROL: a 5 h old normal sweep lets the gate run" || fail "3b. gate old ($out)"
+
+: >"$L"; FREE=10 bsw DRY_RUN=0 BOX_SWEEP_LOW_GO_CAP_GB=8 >/dev/null
+[ "$(lim)" = "AGE=360 CAP=8 UNTIL=12h " ] && pass "3b. RED CONTROL: the old low-level go cap (8 GB) reaches the step as 8, so the CAP=3 check can fail" \
+  || fail "3b. go cap control ($(lim))"
+out="$(FREE=10 bsw BOX_SWEEP_LOW_GO_CAP_GB=x)"; rc=$?
+[ "$rc" = 2 ] && grep -q "whole numbers, got 'x'" <<<"$out" && pass "3b. a bad go cap is refused" || fail "3b. bad go cap (rc $rc: $out)"
 
 out="$(bsw BOX_SWEEP_FREE_PCT=)"
 grep -qE "START .* level=[a-z]+ free=[0-9]+% \($T\)" <<<"$out" && pass "3b. CONTROL: unplanted, the real df measures the mount" || fail "3b. real df ($out)"

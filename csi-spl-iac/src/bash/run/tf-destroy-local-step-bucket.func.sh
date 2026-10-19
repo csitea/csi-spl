@@ -2,10 +2,20 @@
 
 #------------------------------------------------------------------------------
 # @description Terraform destroy for provision using local state.
+# @description A dry run unless DRY_RUN=0: by default `plan -destroy` shows
+# @description what would go and the saved local state is left as it was;
+# @description DRY_RUN=0 runs `destroy` and saves the state it leaves.
+# @param ENV STEP - required
+# @param DRY_RUN 1 (default) plans only, 0 destroys
+# @example ENV=dev STEP=<step>-remote-bucket DRY_RUN=0 ./run -a do_tf_destroy_local_step_bucket
 #------------------------------------------------------------------------------
 do_tf_destroy_local_step_bucket() {
 
-  do_log "INFO START ::: tf_destroy for step ${STEP}"
+  local dry_run="${DRY_RUN:-1}" verb="destroy -auto-approve"
+  : "${ENV:?ENV must be set}" "${STEP:?STEP must be set}"
+  [[ "${dry_run}" != 0 ]] && verb="plan -destroy"
+
+  do_log "INFO START ::: tf_destroy for step ${STEP} DRY_RUN=${dry_run}"
 
   do_tf_init
 
@@ -41,16 +51,22 @@ do_tf_destroy_local_step_bucket() {
   echo "running: "
   #set -x
 
+  # shellcheck disable=SC2086  # verb is two words on purpose
   {
     terraform -chdir=$tf_run_path init -upgrade 2>&1 &&
-    terraform -chdir=$tf_run_path destroy -var-file=$vars_path -auto-approve 2>&1
+    terraform -chdir=$tf_run_path ${verb} -var-file=$vars_path 2>&1
   } | tee -a $tf_destroy_log_fle
 
   set +x
   set +e
 
+  if [[ "${dry_run}" != 0 ]]; then
+    do_log "INFO DRY_RUN: nothing destroyed, local state not saved; DRY_RUN=0 destroys"
+    return 0
+  fi
 
   # save the applied local state
+  mkdir -p "${state_path_bak%/*}"
   test -f "$state_path_to_load" && cp "$state_path_to_load" "$state_path_bak"
   test -f "$state_path" && cp "$state_path" "$state_path_to_load"
 

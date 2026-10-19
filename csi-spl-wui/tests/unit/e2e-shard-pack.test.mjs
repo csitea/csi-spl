@@ -1,7 +1,7 @@
 // Pins E2E_SHARD longest-first packing (E10).
 //
-// The gain is deterministic: on the checked-in weights, round-robin's heavy
-// shard is heavier than the packed one by more than a minute. The old
+// The gain is deterministic: on a fixed, checked-in file set per CI shard
+// count, round-robin's heavy shard is heavier than the packed one. The old
 // round-robin split is computed here beside the pack; a packer that returns
 // that split fails the budget. Equal weights still match round-robin, which
 // is what tests/unit/e2e-runner-coverage.test.mjs pins on a weights-free copy.
@@ -96,33 +96,52 @@ const list = (shard) => {
   assert.ok(oldMax > 60, 'control: round-robin misses the budget the pack meets')
 }
 
-// --- the checked-in weights, on the selection CI actually runs -------------
+// --- the pack beats round-robin on a fixed file set, per CI shard count ---
 // 3 shards (the split the weights were measured under), 5 (wf 10's
 // wui-e2e matrix L5, 2026-10-12), 6 (round 27) and 8 (its matrix since
 // spec 133 round 30).
-for (const n of [3, 5, 6, 8]) {
+//
+// The control lives here, on checked-in names and weights, not on the live
+// e2e list: round-robin's balance there depends on the alphabetical order
+// of the file names, so adding one e2e file could make round-robin balanced
+// by accident and turn this test red for a lane that only added a test
+// (SPL-2551: 28 of 277 one-file additions did, on 3 shards). Per n: 10n
+// files, the n heavy ones (300) on the indexes k*n, which round-robin all
+// puts on shard 0; the light ones weigh 5..13 in a fixed cycle. A packer
+// that returns round-robin fails all three asserts.
+const SHARD_COUNTS = [3, 5, 6, 8]
+for (const n of SHARD_COUNTS) {
+  const files = Array.from({ length: 10 * n }, (_, i) => `tests/e2e/f${String(i).padStart(3, '0')}.test.mjs`)
+  const w = (file) => {
+    const i = Number(file.slice('tests/e2e/f'.length, -'.test.mjs'.length))
+    return i % n === 0 && i < n * n ? 300 : 5 + (i * 7) % 9
+  }
+  const packed = packShards(files, n, w)
+  const flat = packed.flat()
+  assert.deepEqual([...flat].sort(), [...files].sort())
+  assert.equal(new Set(flat).size, files.length)
+  const packedSums = sums(packed, w)
+  const oldSums = sums(roundRobin(files, n), w)
+  assert.ok(Math.max(...packedSums) < Math.max(...oldSums), `n=${n} packed ${packedSums} old ${oldSums}`)
+  assert.ok(spread(packedSums) <= 0.05, `n=${n} packed spread ${spread(packedSums)}`)
+  assert.ok(spread(oldSums) > 0.5, `n=${n} old spread ${spread(oldSums)} (control: round-robin must miss the bound by far)`)
+}
+
+// --- the checked-in weights, on the selection CI actually runs -------------
+// Only properties that hold whatever the e2e file names are: the CLI split
+// is packShards, every file is on exactly one shard, and the pack is within
+// 0.05 of even. Measured 2026-10-05 on these weights: round-robin max
+// 1302 s, packed max 1036 s; how much the pack wins on the live list moves
+// with every file added, so it is not asserted here (the fixed set above is).
+for (const n of SHARD_COUNTS) {
   const all = list()
   const packed = Array.from({ length: n }, (_, k) => list(`${k + 1}/${n}`))
-  const viaFn = packShards(all, n, weightOf)
-  assert.deepEqual(packed, viaFn)
+  assert.deepEqual(packed, packShards(all, n, weightOf))
   const flat = packed.flat()
   assert.deepEqual([...flat].sort(), [...all].sort())
   assert.equal(new Set(flat).size, all.length)
   const packedSums = sums(packed, weightOf)
-  const oldSums = sums(roundRobin(all, n), weightOf)
-  const packedMax = Math.max(...packedSums)
-  const oldMax = Math.max(...oldSums)
-  // Measured 2026-10-05 on these weights: round-robin max 1302 s, packed
-  // max 1036 s. The gap moves with every e2e file added (one more file,
-  // dc6d5e3f: 1120 vs 1096), so the budget is "the pack's heavy shard is
-  // lighter than round-robin's", not a fixed minute; a packer that returns
-  // round-robin ties here and fails, and fails the spread bound below too.
-  assert.ok(packedMax < oldMax, `packed ${packedMax} old ${oldMax} sums ${packedSums} vs ${oldSums}`)
-  assert.ok(spread(packedSums) <= 0.05, `packed spread ${spread(packedSums)}`)
-  // The control is "round-robin misses the pack's own 0.05", not a fixed
-  // 0.15: round-robin's spread moves with every e2e file added (one new
-  // file took it from >= 0.15 to 0.136), the pack's bound does not.
-  assert.ok(spread(oldSums) > 0.05, `old spread ${spread(oldSums)} (control would be green if round-robin were already balanced)`)
+  assert.ok(spread(packedSums) <= 0.05, `n=${n} packed spread ${spread(packedSums)} sums ${packedSums}`)
 }
 
 console.log('e2e-shard-pack: all passed')

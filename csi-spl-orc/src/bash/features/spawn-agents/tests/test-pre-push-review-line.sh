@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-pre-push-review-line.sh — the pre-push hook REFUSES a round row commit
-# (`<type>(rNN-NN-...`) pushed to master without a valid R7 review line, the
+# (`<type>(rNN-NN-...`, a bug `bNN-NN` or perf `pNN-NN` round too) pushed to master without a valid R7 review line, the
 # check do_spl_push_master runs (row r11-04), so a hand `git push` cannot skip
 # it (row r11-05). Real `git push` into a bare temp remote with the hook as
 # core.hooksPath; the scratch repo carries the real spl-push-master.func.sh at
@@ -15,6 +15,9 @@
 #   7. a row commit to a non-master branch           -> pushed
 #   8. the hook carries no second copy of the regex
 #   9. CONTROL: the hook without the block lets the no-line row commit through
+#  10. a bug round row (b11-99) / perf round row (p11-99), no line -> REFUSED
+#  11. CONTROL: the rNN-only regex (before SPL-2616) lets the b11-99 row through
+#  12. a subject with another round letter (x11-99), no line -> pushed
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,6 +107,25 @@ grep -q 'spl-push-master.func.sh' "$HOOK" && pass "8. ... it sources spl-push-ma
 before="$(rtip master)"
 push "$OLD" -- master; eq "9. CONTROL: old hook lets the no-line row commit through" 0 "$?"
 [ "$(rtip master)" != "$before" ] && pass "9. CONTROL: ... and the remote moved" || fail "9. CONTROL: ... and the remote moved"
+
+# 10. bug and perf round rows are checked the same way as refactor rows
+git -C "$A" fetch -q origin
+for r in b11-99 p11-99; do
+  redo; before="$(rtip master)"
+  c "fix($r-scratch, SPL-1): a $r row commit"; push "$NEW" -- master; eq "10. $r row commit, no review line -> refused" 1 "$(( $? != 0 ))"
+  grep -q "review line: none of the form" "$ROOT/err" && pass "10. ... $r names the reason" || fail "10. ... $r names the reason" "$(cat "$ROOT/err")"
+  eq "10. ... $r remote unchanged" "$before" "$(rtip master)"
+done
+
+# 11. CONTROL: the same hook over the rNN-only regex lets the b11-99 row through
+redo; RL="$A/csi-spl-orc/src/bash/run/spl-push-master.func.sh"
+sed 's/(\[rbp\]\[0-9\]/(r[0-9]/' "$HELPER" >"$RL"
+grep -q '\[rbp\]' "$RL" && fail "11. control helper still has [rbp]" || pass "11. control helper is rNN-only"
+c "fix(b11-99-scratch, SPL-1): a b11-99 row commit"; push "$NEW" -- master; eq "11. CONTROL: rNN-only regex lets the b11-99 row through" 0 "$?"
+cp "$HELPER" "$RL"; git -C "$A" fetch -q origin
+
+# 12. another letter is not a round row
+redo; c "fix(x11-99-scratch, SPL-1): not a row"; push "$NEW" -- master; eq "12. x11-99 commit, no line -> exit 0" 0 "$?"
 
 echo "-- test-pre-push-review-line.sh: $fails failed"
 [ "$fails" -eq 0 ]

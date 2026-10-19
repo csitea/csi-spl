@@ -114,6 +114,12 @@
 #      read the claimant: both seats STANDBY). Inside LEASE_STALE of its last won write the claimant
 #      names itself and tells its seat ACTIVE once; past it, it keeps the old
 #      name. CONTROL: inside the wait an unreachable tick keeps the old name.
+#  30. NO-LOCAL-AGENT with nowhere to fall (sat-alone plan row 10; sat's
+#      reboot 2026-10-18 01:35:46Z left dispatch with no seat): the holder box
+#      sx has no dispatch seat and the only other box ox is DEGRADED by its
+#      beats: ONE #alerts post and ONE spool note to the orch holder per
+#      episode, again after a seat came back and died. CONTROLS: ox healthy
+#      = the log line only; LEASE_HEALTH=0 (no verdicts) = the log line only.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -1146,6 +1152,43 @@ trio st 71; t29 st 4000; trio tk 70; t29 st 4060; t29 tk 4079
 t29 tk 4300 HUB_DOWN=1
 [[ "$(mirror tk)" == CLE-002@st && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 ]] &&
   pass "29. a wait that ends past LEASE_STALE keeps naming st" || fail "29. stale: tk=$(mirror tk)"
+
+# --- 30. NO-LOCAL-AGENT with no other fresh box alerts (sat-alone row 10) ---------
+B30=1791800000
+cat >"$T/bin/alert30" <<'STUB'
+#!/bin/sh
+echo "$LEASE_MACHINE $HUB_NOW :: $(cat)" >>"$ALERTS"
+STUB
+chmod +x "$T/bin/alert30"
+# t30 <box> <now> [env...]: one tick of the run tag30
+t30() { tick "$1" "$2" LEASE_PRIORITY=sx,ox LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats30.$tag30.json" LEASE_HEALTH_TTL=0 \
+  LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert30" ALERTS="$T/alerts30.$tag30" "${@:3}"; }
+# r30 <ox counts per 10 min> <tag> [env...]: sx holds both roles, its dispatch seats die, two ticks
+r30() {
+  local ox="$1"; tag30="$2"; shift 2
+  rm -rf "$T/sx" "$T/ox"; rm -f "$T"/hub/main.* "$T/alerts30.$tag30"
+  jq -s add <(beats sx $B30 "60,60,60,60,60,60") <(beats ox $B30 "$ox") >"$T/beats30.$tag30.json"
+  trio sx 60; trio ox 61
+  t30 sx $((B30 + 3000)) "$@"; t30 ox $((B30 + 3001)) "$@"
+  kill_agent sx 601; kill_agent sx 602
+  t30 sx $((B30 + 3060)) "$@"; t30 sx $((B30 + 3120)) "$@"
+}
+a30() { cat "$T/alerts30.$1" 2>/dev/null | grep -c 'NO-LOCAL-AGENT dispatch on sx' || true; }
+r30 "60,60,60,5,2,1" deg
+[[ "$(hubh dispatch)" == CLE-002@sx && "$(logc sx 'NO-LOCAL-AGENT dispatch: this machine holds it')" == 1 && "$(a30 deg)" == 1 &&
+   "$(logc sx 'NO-LOCAL-ALERT dispatch: no other fresh box (ox: degraded)')" == 1 &&
+   "$(sentc sx 'CLE-001 :: FLEET LEASE ALERT: NO-LOCAL-AGENT dispatch on sx: .*no other box can take it (ox: degraded)')" == 1 ]] &&
+  pass "30. the only other box degraded: ONE #alerts post and ONE note to the orch holder, over two ticks" ||
+  fail "30. degraded: alerts $(cat "$T/alerts30.deg" 2>&1) sent $(cat "$T/sx/sent" 2>&1) log $(cat "$T/sx/spool/dispatch/lease.log" 2>&1)"
+agent sx 601 CLE-002; t30 sx $((B30 + 3180)); kill_agent sx 601; t30 sx $((B30 + 3240))
+[[ "$(a30 deg)" == 2 && "$(sentc sx 'CLE-001 :: FLEET LEASE ALERT')" == 2 ]] &&
+  pass "30. a seat back, then dead again: a new episode alerts once more" || fail "30. episode: alerts $(cat "$T/alerts30.deg" 2>&1)"
+r30 "60,60,60,60,60,60" ok
+[[ "$(logc sx 'NO-LOCAL-AGENT dispatch: this machine holds it')" == 1 && "$(a30 ok)" == 0 && "$(sentc sx 'FLEET LEASE ALERT')" == 0 ]] &&
+  pass "30. CONTROL: the other box healthy (it can take dispatch at stale): the log line only" || fail "30. healthy: alerts $(cat "$T/alerts30.ok" 2>&1)"
+r30 "60,60,60,5,2,1" off LEASE_HEALTH=0
+[[ "$(logc sx 'NO-LOCAL-AGENT dispatch: this machine holds it')" == 1 && "$(a30 off)" == 0 && "$(sentc sx 'FLEET LEASE ALERT')" == 0 ]] &&
+  pass "30. CONTROL: LEASE_HEALTH=0 (no verdicts): the log line only, as before" || fail "30. no verdicts: alerts $(cat "$T/alerts30.off" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -1790,7 +1790,7 @@ spl_fleet_role_tick() {
   [[ -n "$FH" ]] && ht="$(spl_fleet_tier "$FH")"
   wait=$(( LEASE_STALE + ct * ${LEASE_FALLBACK_WAIT:-60} ))
   if [[ -z "$cand" ]]; then
-    [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
+    [[ "$hm" == "$me" ]] && spl_fleet_nolocal "$role"
     spl_fleet_switch_tick "$role"
   elif (( FG == 0 )) || { [[ "$hm" == "$me" ]] && (( ct <= ht )); }; then
     want="$cand@$me"
@@ -1815,6 +1815,7 @@ spl_fleet_role_tick() {
   fi
   [[ -n "$want" || -z "$cand" ]] && rm -f "$LEASE_DIR/fleet.$role.hold" "$LEASE_DIR/fleet.$role.hold-int" "$LEASE_DIR/fleet.$role.fallback-wait"
   [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
+  [[ "$hm" == "$me" && -z "$cand" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal-alert"
   local won=false
   if [[ -n "$want" ]]; then
     local before="$FH" age="$FA"
@@ -1895,6 +1896,60 @@ spl_fleet_unreachable() {
 spl_fleet_once() {
   [[ -f "$LEASE_DIR/fleet.$1" ]] && return 0
   touch "$LEASE_DIR/fleet.$1"; spl_lease_log "$2"
+}
+
+# ---- NO-LOCAL-AGENT with nowhere to fall (sat-alone plan row 10) -------------
+# This machine holds <role> and no local seat can act. The lease log line
+# alone was the whole signal: on 2026-10-18 01:35:46Z sat's weekly reboot left
+# dispatch with no seat, and the role fell to the PC box. With the PC box off
+# (the owner's absence windows) a stale lease has no other box to go to, so
+# nobody dispatches until a seat is restarted by hand. Now, when no OTHER box
+# of the role's ranking is healthy by the hub's beats (spl_fleet_health_get;
+# degraded, recovering, or with no beat at all), ONE alert per episode: a post
+# in #alerts (spl_fleet_alert_post) and a spool note to the orch holder
+# (<dir>/fleet.orch.age, else LEASE_ORCH). The marker fleet.<role>.nolocal-alert
+# clears when a local candidate is back or the role leaves this machine. No
+# verdicts at all (LEASE_HEALTH=0, an unread beats list) = no judgement: the
+# log line only, as before.
+
+# spl_fleet_fresh_other <role>: prints the first OTHER box of the role's
+# ranking whose beat verdict is healthy; rc 1 when there is none, rc 2 when
+# the beats judged nobody (no verdicts: unknown).
+spl_fleet_fresh_other() {
+  local role="$1" v k="LEASE_PRIORITY_${1^^}" m
+  v="$(spl_fleet_health_get)"
+  [[ -n "$v" && "$v" != '{}' ]] || return 2
+  [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  IFS=, read -ra _ranked <<<"${!k}"
+  for m in "${_ranked[@]}"; do
+    [[ -n "$m" && "$m" != "$LEASE_MACHINE" ]] || continue
+    [[ "$(jq -r --arg b "$m" '.[$b].state // "none"' <<<"$v" 2>/dev/null)" == healthy ]] && { echo "$m"; return 0; }
+  done
+  return 1
+}
+
+# spl_fleet_nolocal <role>: the NO-LOCAL-AGENT line (once), and the alert when
+# no other box can take the role.
+spl_fleet_nolocal() {
+  local role="$1" me="$LEASE_MACHINE" rc=0 to v others text k="LEASE_PRIORITY_${1^^}"
+  [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
+  [[ -f "$LEASE_DIR/fleet.$role.nolocal-alert" ]] && return 0
+  spl_fleet_fresh_other "$role" >/dev/null || rc=$?
+  (( rc == 1 )) || return 0
+  v="$(spl_fleet_health_get)"
+  others="$(jq -r --arg me "$me" --arg p "${!k:-}" '. as $v | [$p | split(",")[] | select(. != "" and . != $me)]
+    | map("\(.): \($v[.].state // "no beats")") | join(", ")' <<<"$v" 2>/dev/null)"
+  [[ -n "$others" ]] || others="no other box ranked"
+  touch "$LEASE_DIR/fleet.$role.nolocal-alert"
+  text="NO-LOCAL-AGENT $role on $me: it holds $role ($FH) with no seat able to act ($(spl_fleet_why "$role")), and no other box can take it ($others). Nobody acts as $role until a $role seat on $me is restarted."
+  spl_lease_log "NO-LOCAL-ALERT $role: no other fresh box ($others)"
+  spl_fleet_alert_post "$text" || true
+  to=""; [[ -r "$LEASE_DIR/fleet.orch.age" ]] && read -r to _ < "$LEASE_DIR/fleet.orch.age"
+  [[ "$to" == *@* && "$to" != none* ]] || to="$LEASE_ORCH"
+  [[ "${to##*@}" == "$me" ]] && to="${to%@*}"
+  spl_lease_tell "$to" "FLEET LEASE ALERT: $text"
+  return 0
 }
 
 # Mirror the holder locally and tell the agents a change moves.

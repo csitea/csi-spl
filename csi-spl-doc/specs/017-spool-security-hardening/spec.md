@@ -362,5 +362,6 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   membership lookup MUST reject the request with appropriate error envelopes (`401` / `403` / `CloseUnauthorized`).
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
+- **NFR-SEC-004 (Fix-Time SLAs & Post-Disclosure Monitoring):** Vulnerability remediation fix-time SLAs by severity (critical 72 h, high 14 d) and post-disclosure monitoring are governed by [SECURITY.md](../../../SECURITY.md).
 
 <!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T21:27:59Z -->

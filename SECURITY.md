@@ -25,6 +25,40 @@ A useful report names:
 - The fix lands on `master`; the advisory is published with credit to you,
   unless you ask not to be named.
 
+## Fix-time SLAs and post-disclosure monitoring
+
+### Fix-time SLAs by severity
+
+Once a vulnerability is confirmed and assigned a severity rating, remediation adheres to the following target fix-time SLAs:
+
+| Severity | Definition / Scope | Target Fix-Time SLA | Status |
+|---|---|---|---|
+| **Critical** | Remote code execution, unauthenticated cross-tenant data access, host escape, or credential compromise with active exploitation | **72 hours** (72 h) | Enforced |
+| **High** | Authenticated privilege escalation, cross-tenant leaks requiring prerequisites, or authentication bypass without active exploitation | **14 days** (14 d) | Enforced |
+| **Medium** | Denial of service, authenticated informational leak, or cross-site request forgery without session compromise | **30 days** (30 d) | *(proposed)* |
+| **Low** | Defense-in-depth gaps, non-sensitive configuration exposure, or local denial of service | **90 days** (90 d) | *(proposed)* |
+
+### How the clock starts
+
+- **Acknowledgement**: We acknowledge receipt of vulnerability reports within 24 hours of submission.
+- **Clock start**: The SLA clock begins the moment maintainers reproduce and triage the vulnerability (confirming its validity and severity classification) in the GitHub private security advisory thread.
+- **Clock stop**: The SLA clock stops when the validated patch lands on `master` and passes all continuous integration deployment gates (`10_ci-quality`, `20_hub-build-deploy`, `30_wui-build-deploy`) or is cut into an emergency release.
+
+### Post-disclosure monitoring
+
+Following patch deployment and advisory publication:
+
+- **What is watched**:
+  - Runtime logs and telemetry: error spikes, authentication failures, abnormal Cloud Run request rates, and WebSocket connection drops across `dev` and `prd`.
+  - Automated security gates and regression tests: continuous execution of regression suites and exploit reproduction controls in CI.
+  - Inbound reports: monitoring the private security advisory queue and issue tracker for bypass attempts, variant attack vectors, or patch regressions.
+- **For how long**:
+  - Heightened active monitoring lasts for **14 days** following deployment on `master` and publication of the advisory.
+- **Who is told**:
+  - The reporting researcher is notified immediately in the private advisory thread upon deployment to verify the remediation before public disclosure.
+  - Operators and self-hosters are informed through the GitHub Security Advisory (GHSA), changelog entries, and release notes accompanying the weekly stable release or emergency hotfix tag.
+  - Affected tenant administrators are notified directly in accordance with the [incident runbook](csi-spl-doc/doc/md/guides/incident-runbook.md) if tenant data was exposed prior to the fix.
+
 ## Supported versions
 
 Only the latest commit on `master` receives security fixes. Self-hosters

@@ -80,17 +80,18 @@ describe('rail ids', () => {
   it('wireRailOrder: a drawn order goes to the hub with the retired ids back in, Archive last', () => {
     const drawn = ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'archive']
     const wire = wireRailOrder(drawn)
-    /* SPL-1990: the hub admits Monitoring (rdb 0198); SPL-2351: Reporting
-       waits for the hub lane, so the saved order leaves it out */
-    assert.deepEqual([...RAIL_HUB_PENDING], ['reporting'])
-    assert.deepEqual(wire, ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'topics', 'agents', 'boxes', 'archive'])
-    assert.equal(wire.length, 12, 'the hub CHECK (rdb 0198) admits twelve ids')
+    /* SPL-1990: the hub admits Monitoring (rdb 0198); SPL-2587: and Reporting
+       (rdb 0209), so the saved order keeps it */
+    assert.deepEqual([...RAIL_HUB_PENDING], [])
+    assert.deepEqual(wire, ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'topics', 'agents', 'boxes', 'archive'])
+    assert.equal(wire.length, 13, 'the hub CHECK (rdb 0209) admits thirteen ids')
     assert.deepEqual(wireRailOrder(wire), wire, 'idempotent: each retired id once, never twice')
     assert.deepEqual(parseRailOrder(wire), drawn, 'read back, it draws the same order (Reporting appended before Archive)')
     assert.ok(isRailOrder(parseRailOrder(wire)))
     /* CONTROL: without the retired ids the hub would refuse the order */
-    assert.notEqual(drawn.length, 12)
+    assert.notEqual(drawn.length, 13)
     assert.equal(wire.includes('monitoring'), true)
+    assert.equal(wire.includes('reporting'), true)
   })
 })
 
@@ -208,7 +209,7 @@ describe('applyRailOrder', () => {
   }
   /* a drawn order (no topics) and the same order as the hub stores it */
   const rev = ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'archive']
-  const revWire = ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'topics', 'agents', 'boxes', 'archive']
+  const revWire = ['calendar', 'people', 'events', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'topics', 'agents', 'boxes', 'archive']
   it('mirrors at once, then saves, with the retired ids the hub still wants', async () => {
     const r = rig(true)
     assert.deepEqual(await applyRailOrder(rev, r.io(null)), { ok: true, value: revWire })

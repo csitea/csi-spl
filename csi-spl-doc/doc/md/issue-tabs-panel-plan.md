@@ -7,9 +7,9 @@ Owner Topic: `67d850ce-38c9-4eec-90a7-f5b6e295e2bc` (3D Detail tabs)
 Task: `dispatch-67d850ce`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: CONSENSUS CANDIDATE v1.0 (INCORPORATING CLAUDE REVIEW c1660b375)**  
+**Status: CONSENSUS CANDIDATE v1.0 (SIGNED BY CLAUDE SEAT 53b09c861, AWAITING MISTRAL REPLACEMENT SEAT)**  
 Editor: **a-226** (agy)  
-Claude Reviewer Seat: **c-227** (claude, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md), verdict: Agree with changes, commit `c1660b375`)  
+Claude Reviewer Seat: **c-227** (claude, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md), verdict: **SIGNED, agree**, commit `53b09c861`)  
 Mistral Reviewer Seat: replacement queued by orchestrator (ask `2b08ba9a` / `d1dad53c`, slug `c002-issue-tabs-panel-seat-mistral-2`, replacing stalled `m-239` per rounds-rulebook §2.7.3)  
 Dispatch Lease Holder: **c-002** (sat)  
 
@@ -126,7 +126,7 @@ Active tab is elevated as a physical 3D folder tab sitting directly on the conte
 - **Top marker:** `box-shadow: inset 0 var(--select-bar-w) 0 var(--focus-ring)`. When focused via keyboard, outline and marker share `--focus-ring` (single color $\le 3\text{px}$).
 - **Surface & Elevation:** Active tab uses `background: var(--color-surface)`, lateral borders `1px solid var(--color-border)`, and light reflection `box-shadow: inset 0 var(--select-bar-w) 0 var(--focus-ring), var(--bevel-shine)`.
 - **Physical tab geometry:** `border-radius: 6px 6px 0 0`, `border-bottom: 0`, `padding: 0.5rem 1rem`, `min-block-size: 2.75rem` ($\ge 44\text{px}$).
-- **Seamless panel connection:** `.issues-talk__h { display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--color-border); }`. The active tab has `margin-bottom: -1px; border-bottom: 1px solid var(--color-surface); position: relative; z-index: 1;` which bridges seamlessly over the baseline divider.
+- **Seamless panel connection:** `.issues-talk__h { display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--color-border); }`. The active tab has `margin-bottom: -1px; border-bottom: 0; position: relative; z-index: 1;` sitting flush upon the baseline divider without introducing an extra bottom border. (On desktop dialogs the tab fill is `--color-surface`; on mobile where `.issues-detail` panel fill is `--color-bg`, the tab takes the panel background or renders `--color-surface` with distinct physical elevation).
 - **Recessed Inactive tab:** `background: var(--color-bg-2)`, `box-shadow: var(--bevel-shade)`, `color: var(--color-muted)`, `font-weight: 500`. On hover: `color: var(--color-fg)`.
 - **Keyboard navigation:** Full support for `ArrowLeft`, `ArrowRight`, `Home`, and `End` keys across tabs.
 
@@ -134,7 +134,7 @@ Active tab is elevated as a physical 3D folder tab sitting directly on the conte
 
 | # | Target | Baseline Today | Option 1 Target |
 |---|---|---|---|
-| **T1** | Selected tab marker | Bottom `2px`, `currentColor` | Top inset marker colour == `--focus-ring`, width == `--select-bar-w`; `border-bottom-width: 0px` |
+| **T1** | Selected tab marker | Bottom `2px`, `currentColor` | Top inset marker colour == `--focus-ring`, width == `--select-bar-w`; no visible bottom marker (`border-bottom-width: 0px` or matching tab background) |
 | **T2** | Selected and focused | N/A (no top marker) | Outline colour == marker colour (single colour $\le 3\text{px}$) |
 | **T3** | Tab height & top alignment | Equal height, flat | Both tabs have identical height and top coordinate ($\pm 0.5\text{px}$) |
 | **T4** | Panel joint | Floating detached | Selected tab bottom coordinate == tablist bottom coordinate ($\pm 0.5\text{px}$) |
@@ -166,7 +166,7 @@ Active tab is elevated as a physical 3D folder tab sitting directly on the conte
 
 ### 3.5 Consensus Recommendation: Option 1
 
-The panel recommends **Option 1 (Sleek 3D Folder Tab with Top Accent & Seamless Panel Joint)** as the unanimous solution:
+The panel recommends **Option 1 (Sleek 3D Folder Tab with Top Accent & Seamless Panel Joint)** as the consensus design candidate:
 1. Directly fulfills every phrase of the owner mandate: top marker, 3D elevation, obvious two tabs, physical connection joined to the panel below.
 2. Solves the two-color focus defect by aligning the marker to `--focus-ring` at `--select-bar-w`.
 3. Relies 100% on existing theme design tokens (`--color-surface`, `--color-bg-2`, `--color-border`, `--color-muted`, `--focus-ring`, `--bevel-shine`, `--bevel-shade`).
@@ -234,8 +234,8 @@ Following [rounds-rulebook.md](rounds-rulebook.md) principles (at most 10 items,
 
 | Row | Slug & Subject | Description & Rationale | File Sites ($\le 5$) | Target Metric / Acceptance Criteria | Red Control Command | Box | Vendor | Agent Kind | Batch |
 |---|---|---|---|---|---|---|---|---|---|
-| **01** | `feat(issues-tabs-01-styling): 3D folder tab styling, top accent marker, and visual tests in issues.vue` | Implements Option 1 CSS in `issues.vue`: 3px top marker (`--focus-ring`), 0px bottom border, surface fill, bevel shine/shade, panel baseline joint, and `min-block-size: 2.75rem`. Adds unit style test and extends E2E test. | `csi-spl-wui/src/pages/issues.vue:3849-3865`<br>`csi-spl-wui/tests/unit/issue-tabs-style.test.mjs:1-75`<br>`csi-spl-wui/tests/e2e/issues-crud-modal.test.mjs:355-375` | Targets T1–T6 pass: selected tab top marker `--focus-ring` $\le 3\text{px}$, 0px bottom border, touch $\ge 44\text{px}$, distinct background fills. | `pnpm --filter csi-spl-wui test:unit tests/unit/issue-tabs-style.test.mjs` | sat | claude | simple_coding | 1 |
-| **02** | `feat(issues-tabs-02-aria-keyboard): decouple clip control outside tablist and add keyboard navigation` | Decouples `<LazyCardClipControl>` outside `[role="tablist"]` into `.issues-talk__actions`; adds `@keydown` handler for ArrowLeft/ArrowRight/Home/End; updates `list-clip-modes.test.mjs` in the same commit to keep trunk green. | `csi-spl-wui/src/pages/issues.vue:952-970`<br>`csi-spl-wui/tests/unit/list-clip-modes.test.mjs:90-105`<br>`csi-spl-wui/tests/unit/issue-tabs-keys.test.mjs:1-60` | `[role="tablist"]` contains only `[role="tab"]`; `list-clip-modes` test passes; ArrowLeft/Right cycles tabs. | `pnpm --filter csi-spl-wui test:unit tests/unit/list-clip-modes.test.mjs` | sat | claude | simple_coding | 2 |
+| **01** | `feat(issues-tabs-01-styling): 3D folder tab styling, top accent marker, and visual tests in issues.vue` | Implements Option 1 CSS in `issues.vue`: 3px top marker (`--focus-ring`), 0px bottom border, surface fill, bevel shine/shade, panel baseline joint, and `min-block-size: 2.75rem`. Adds unit style test and extends E2E test. | `csi-spl-wui/src/pages/issues.vue:3849-3865`<br>`csi-spl-wui/tests/unit/issue-tabs-style.test.mjs:1-75`<br>`csi-spl-wui/tests/e2e/issues-crud-modal.test.mjs:355-375` | Targets T1–T6 pass: selected tab top marker `--focus-ring` $\le 3\text{px}$, 0px bottom border, touch $\ge 44\text{px}$, distinct background fills. | `cd csi-spl-wui && pnpm test:unit issue-tabs-style`<br>(or `node tests/unit/issue-tabs-style.test.mjs`) | sat | claude | simple_coding | 1 |
+| **02** | `feat(issues-tabs-02-aria-keyboard): decouple clip control outside tablist and add keyboard navigation` | Decouples `<LazyCardClipControl>` outside `[role="tablist"]` into `.issues-talk__actions`; adds `@keydown` handler for ArrowLeft/ArrowRight/Home/End; updates `list-clip-modes.test.mjs` in the same commit to keep trunk green. | `csi-spl-wui/src/pages/issues.vue:952-970`<br>`csi-spl-wui/tests/unit/list-clip-modes.test.mjs:90-105`<br>`csi-spl-wui/tests/unit/issue-tabs-keys.test.mjs:1-60` | `[role="tablist"]` contains only `[role="tab"]`; `list-clip-modes` test passes; ArrowLeft/Right cycles tabs. | `cd csi-spl-wui && pnpm test:unit list-clip-modes`<br>(or `node tests/unit/list-clip-modes.test.mjs`) | sat | claude | simple_coding | 2 |
 
 ### 5.2 Disjoint Files Batching Schedule (R1 & R2 Verification)
 
@@ -277,7 +277,7 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 
 | Seat | Vendor | Agent ID | Status | Verdict & Signature |
 |---|---|---|---|---|
-| **Editor** | Antigravity (Google) | `a-226` | **Signed v1.0 candidate** | Authored v1.0 consensus candidate incorporating Claude reviewer findings (P1–P8, T1–T6), consolidating to 2 green batches, correcting tokens, and defining single-color focus/selection geometry. |
-| **Reviewer 1** | Claude (Anthropic) | `c-227` | **Agree with changes (v0.1)** | Landed commit `c1660b375`, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md). Agreed with Option 1 direction; proposed T1–T6 targets, 2-batch consolidation, and token corrections. Pending v1.0 sha signature. |
-| **Reviewer 2** | Mistral | `c002-issue-tabs-panel-seat-mistral-2` | *Seat replacement queued* | Initial seat `m-239` stalled; replacement queued by orchestrator (ask `2b08ba9a` / `d1dad53c`) per rounds-rulebook §2.7.3. |
+| **Editor** | Antigravity (Google) | `a-226` | **Signed v1.0 candidate** | Authored v1.0 consensus candidate incorporating Claude reviewer findings (P1–P8, T1–T6, N1–N3), consolidating to 2 green batches, correcting tokens, and defining single-color focus/selection geometry. |
+| **Reviewer 1** | Claude (Anthropic) | `c-227` | **SIGNED, agree (v1.0)** | Landed commit `53b09c861`, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md). Signed v1.0 consensus candidate. Provided notes N1–N3 for row briefs. |
+| **Reviewer 2** | Mistral | `c002-issue-tabs-panel-seat-mistral-2` | *Seat replacement queued* | Initial seat `m-239` stalled; replacement queued by orchestrator at head of queue (ask `2b08ba9a` / `d1dad53c`, brief points to `c922f1a9f`) per rounds-rulebook §2.7.3. Awaiting spawn and review. |
 

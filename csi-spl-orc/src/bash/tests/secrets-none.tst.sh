@@ -9,9 +9,13 @@
 #            a mode other than 600 / an empty session key -> exit 1; all set
 #            -> exit 0; no state dir on this host is no failure.
 #          - seed-all: the default dry run writes nothing; DRY_RUN=0 writes the
-#            three Postgres passwords into .env (mode 600) and session.key
-#            (mode 600), keeps every value and line already there, and a second
-#            run changes nothing; an outside value (SMTP) is a NEED.
+#            owner and runtime passwords into .env (mode 600), the superuser
+#            password into its Docker secret file (SPL-2158: ./secrets 700,
+#            the file 644, SPOOL_SECRETS_DIR in .env) and session.key (mode
+#            600), keeps every value and line already there, and a second run
+#            changes nothing; an outside value (SMTP) is a NEED.
+#          - a secret-file key left in .env (compose no longer reads it) and a
+#            secrets dir other than 700 fail the check.
 #          - no generated or fixture value in any output; a gcloud stub on PATH
 #            records every call and the test fails on any (0 expected).
 #          The gcp side stays secrets-check-seed-all.tst.sh, unchanged.
@@ -38,6 +42,8 @@ run_act() {  # <action> [VAR=value ...]
   return "${PIPESTATUS[0]}"
 }
 val() { grep -E "^$1=" "$ENVF" | tail -n 1 | sed -E "s/^[^=]+=//; s/^'(.*)'\$/\\1/"; }
+SECF="$T/sh/secrets/db_superuser_password"
+sval() { [[ "$1" == SPOOL_DB_SUPERUSER_PASSWORD ]] && { cat "$SECF" 2>/dev/null; return; }; val "$1"; }
 mode() { stat -c '%a' "$1"; }
 PW=(SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD)
 
@@ -52,20 +58,32 @@ out=$(run_act do_spl_secrets_seed_all); rc=$?
   pass "seed-all: the default is a dry run, nothing written" || fail "seed-all dry: rc=$rc $out"
 
 out=$(run_act do_spl_secrets_seed_all DRY_RUN=0); rc=$?
-ok=1; for k in "${PW[@]}"; do [[ "$(val "$k")" =~ ^[0-9a-f]{48}$ ]] || ok=0; done
+ok=1; for k in "${PW[@]}"; do [[ "$(sval "$k")" =~ ^[0-9a-f]{48}$ ]] || ok=0; done
 [[ $rc -eq 0 && $ok -eq 1 ]] && grep -q '^OK every required self-host secret is set' <<<"$out" &&
-  pass "seed-all: DRY_RUN=0 writes the 3 Postgres passwords into .env and the check then passes" || fail "seed-all real: rc=$rc $out"
+  pass "seed-all: DRY_RUN=0 writes the 3 Postgres passwords and the check then passes" || fail "seed-all real: rc=$rc $out"
 [[ "$(mode "$ENVF")" == 600 ]] && pass "seed-all: .env is mode 600" || fail ".env mode $(mode "$ENVF")"
+[[ -z "$(val SPOOL_DB_SUPERUSER_PASSWORD)" && "$(val SPOOL_SECRETS_DIR)" == ./secrets ]] &&
+  [[ "$(mode "$T/sh/secrets")" == 700 && "$(mode "$SECF")" == 644 ]] &&
+  pass "seed-all: the superuser password is a secret file (SPL-2158): ./secrets 700, file 644, SPOOL_SECRETS_DIR in .env, not in .env" ||
+  fail "seed-all secret file: $(cut -d= -f1 "$ENVF" | tr '\n' ' ') dir $(mode "$T/sh/secrets") file $(mode "$SECF")"
 [[ "$(cat "$KEYF")" =~ ^[0-9a-f]{64}$ && "$(mode "$KEYF")" == 600 ]] &&
   pass "seed-all: session.key is 32 random bytes, hex, mode 600" || fail "session.key shape/mode $(mode "$KEYF")"
 
-sum="$(md5sum "$ENVF" "$KEYF")"
+sum="$(md5sum "$ENVF" "$KEYF" "$SECF")"
+SU_GEN="$(cat "$SECF")"
 out=$(run_act do_spl_secrets_seed_all DRY_RUN=0); rc=$?
-[[ $rc -eq 0 && "$(md5sum "$ENVF" "$KEYF")" == "$sum" ]] && [[ $(grep -c '^KEEP' <<<"$out") -eq 4 ]] &&
+[[ $rc -eq 0 && "$(md5sum "$ENVF" "$KEYF" "$SECF")" == "$sum" ]] && [[ $(grep -c '^KEEP' <<<"$out") -eq 4 ]] &&
   pass "seed-all: a second run keeps every value (4 KEEP, files unchanged)" || fail "seed-all re-run: rc=$rc $out"
 
+# a secret-file key left in .env and a loose secrets dir fail the check
+printf "SPOOL_DB_SUPERUSER_PASSWORD='legacy-su-fixture'\n" >>"$ENVF"; chmod 755 "$T/sh/secrets"
+out=$(run_act do_spl_secrets_check); rc=$?
+[[ $rc -eq 1 ]] && grep -q "^MOVED   SPOOL_DB_SUPERUSER_PASSWORD is in $ENVF, which compose no longer reads" <<<"$out" &&
+  grep -q "^MODE    $T/sh/secrets is 755, not 700" <<<"$out" && grep -q '^OK      SPOOL_DB_SUPERUSER_PASSWORD' <<<"$out" &&
+  pass "check: a secret-file key left in .env is MOVED and a 755 secrets dir is MODE (exit 1); the file still counts" || fail "check moved: rc=$rc $out"
+
 # an existing .env: other lines and a value kept, a loose mode fixed, SMTP asked
-rm -f "$ENVF" "$KEYF"
+rm -rf "$ENVF" "$KEYF" "$T/sh/secrets"
 printf "SPOOL_DOMAIN='chat.example.com'\nSPOOL_DB_OWNER_PASSWORD='kept-owner-fixture'\nSPOOL_MAIL_TRANSPORT=smtp\n" >"$ENVF"
 chmod 644 "$ENVF"
 out=$(run_act do_spl_secrets_check); rc=$?
@@ -92,7 +110,7 @@ out=$(run_act do_spl_secrets_check SPOOL_STATE_DIR="$T/absent"); rc=$?
 
 # --------------------------------------------------------------- no leaks ----
 leak=0
-for v in kept-owner-fixture "$(cat "$KEYF")" "$(val SPOOL_DB_RUNTIME_PASSWORD)" "$(val SPOOL_DB_SUPERUSER_PASSWORD)"; do
+for v in kept-owner-fixture legacy-su-fixture "$SU_GEN" "$(cat "$KEYF")" "$(val SPOOL_DB_RUNTIME_PASSWORD)" "$(sval SPOOL_DB_SUPERUSER_PASSWORD)"; do
   [[ -n "$v" ]] && grep -qF -- "$v" "$ALL" && leak=$((leak + 1))
 done
 [[ $leak -eq 0 ]] && pass "no secret value in any output ($(wc -l <"$ALL") lines read)" || fail "$leak secret value(s) printed"

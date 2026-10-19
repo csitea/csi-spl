@@ -160,11 +160,74 @@ spl_secret_step() {
 }
 
 # ------------------------------------------------------------ provider none ---
-# A self-hosted compose box keeps its secrets in two places (spec 076 4.2 and
-# 5.2 item 4), never in a cloud: the .env next to docker-compose.yml (mode
-# 600, written by do_spl_self_host_up) and the hub state dir, which holds
-# session.key (minted by hub-init, hub-entrypoint.sh). No gcloud; only key
-# names, states and file modes are ever printed, never a value.
+# A self-hosted compose box keeps its secrets in three places (spec 076 4.2
+# and 5.2 item 4), never in a cloud: the .env next to docker-compose.yml (mode
+# 600, written by do_spl_self_host_up), the Docker secret files of its
+# SPOOL_SECRETS_DIR (SPL-2158: the superuser, S3 and SMTP passwords, 0644 in
+# a 0700 dir) and the hub state dir, which holds session.key (minted by
+# hub-init, hub-entrypoint.sh). No gcloud; only key names, states and file
+# modes are ever printed, never a value.
+
+# spl_secret_file_name <KEY> -> the file under SPOOL_SECRETS_DIR that compose
+# mounts as a Docker secret for KEY (docker-compose.yml `secrets:`); rc 1 for
+# a key that stays in .env
+spl_secret_file_name() {
+  case "$1" in
+    SPOOL_DB_SUPERUSER_PASSWORD) echo db_superuser_password ;;
+    SPOOL_S3_SECRET_KEY) echo s3_secret_key ;;
+    SPOOL_MAIL_SMTP_PASSWORD) echo mail_smtp_password ;;
+    *) return 1 ;;
+  esac
+}
+
+# spl_secrets_none_dir <envf> -> the SPOOL_SECRETS_DIR that .env names, made
+# absolute against the .env's dir; empty when unset (compose then reads the
+# public local defaults, which never count as this box's secrets)
+spl_secrets_none_dir() {
+  local d
+  d="$(spl_secrets_none_get "$1" SPOOL_SECRETS_DIR)"
+  [[ -n "$d" ]] || return 0
+  [[ "$d" == /* ]] || d="$(dirname "$1")/${d#./}"
+  printf '%s' "${d%/}"
+}
+
+# spl_secrets_none_value <envf> <KEY> - a secret-file key from its file in the
+# .env's SPOOL_SECRETS_DIR (empty with no dir or no file; trailing line breaks
+# dropped, as the containers read it); any other key from .env
+spl_secrets_none_value() {
+  local name dir v
+  if name="$(spl_secret_file_name "$2")"; then
+    dir="$(spl_secrets_none_dir "$1")"
+    [[ -n "$dir" && -f "$dir/$name" ]] || return 0
+    v="$(cat "$dir/$name")" || return 0
+    printf '%s' "$v"
+    return 0
+  fi
+  spl_secrets_none_get "$1" "$2"
+}
+
+# spl_secrets_none_put_file <dir> <KEY> <value> - write KEY's secret file:
+# the dir 0700, the file 0644 (compose bind-mounts it as it is, outside swarm,
+# and the container users read it by its own mode), atomically. The value
+# goes through printf (a builtin), never argv of a program.
+spl_secrets_none_put_file() {
+  local name tmp
+  name="$(spl_secret_file_name "$2")" || return 1
+  mkdir -p "$1" && chmod 700 "$1" || return 1
+  tmp="$1/.$name.tmp.$$"
+  if (umask 022; printf '%s\n' "$3" >"$tmp") && chmod 644 "$tmp" && mv -f "$tmp" "$1/$name"; then return 0; fi
+  rm -f "$tmp"; return 1
+}
+
+# spl_secrets_none_legacy <envf> - each secret-file key still in .env, where
+# compose no longer reads it (one per line)
+spl_secrets_none_legacy() {
+  local k
+  for k in SPOOL_DB_SUPERUSER_PASSWORD SPOOL_S3_SECRET_KEY SPOOL_MAIL_SMTP_PASSWORD; do
+    [[ -n "$(spl_secrets_none_get "$1" "$k")" ]] && echo "$k"
+  done
+  return 0
+}
 
 # spl_secrets_none_paths - sets envf (the .env) and statef (session.key)
 spl_secrets_none_paths() {
@@ -174,7 +237,7 @@ spl_secrets_none_paths() {
   statef="${SPOOL_STATE_DIR:-/var/lib/spool/state}/session.key"
 }
 
-# spl_secrets_none_rows <envf> -> one TSV row per .env secret, in seed order:
+# spl_secrets_none_rows <envf> -> one TSV row per self-host secret, in seed order:
 #   <KEY> <required|optional> <gen|ask>
 # gen: seed-all mints it (the three Postgres passwords of do_spl_self_host_up);
 # ask: an outside value. The SMTP password is required only when the .env
@@ -212,6 +275,22 @@ spl_secrets_none_state() {
 # spl_secrets_none_mode <file> -> its octal mode, e.g. 600
 spl_secrets_none_mode() { stat -c '%a' "$1" 2>/dev/null; }
 
+# spl_secrets_none_check_files - the secret-file part of do_secrets_check_none
+# (reads its envf, counts into its bad): a key left in .env is no longer read
+# by compose; a SPOOL_SECRETS_DIR other than mode 700 is open to the box.
+spl_secrets_none_check_files() {
+  local k dir mode
+  while read -r k; do
+    [[ -n "$k" ]] || continue
+    do_log "MOVED   $k is in $envf, which compose no longer reads: move it into its secret file (DEPLOY.md 2.3.1), or re-run ./run -a do_spl_self_host_up"
+    bad=$((bad + 1))
+  done < <(spl_secrets_none_legacy "$envf")
+  dir="$(spl_secrets_none_dir "$envf")"
+  [[ -n "$dir" && -d "$dir" ]] || return 0
+  mode="$(spl_secrets_none_mode "$dir")"
+  [[ "$mode" == 700 ]] || { do_log "MODE    $dir is $mode, not 700: chmod 700 $dir"; bad=$((bad + 1)); }
+}
+
 do_secrets_check_none() {
   local envf statef
   spl_secrets_none_paths || return 1
@@ -225,15 +304,16 @@ do_secrets_check_none() {
     [[ "$mode" == 600 ]] || { do_log "MODE    $envf is $mode, not 600: chmod 600 $envf (or $seed)"; bad=$((bad + 1)); }
     while IFS=$'\t' read -r key req kind; do
       n=$((n + 1))
-      state="$(spl_secrets_none_state "$(spl_secrets_none_get "$envf" "$key")")"
+      state="$(spl_secrets_none_state "$(spl_secrets_none_value "$envf" "$key")")"
       case "$state:$req:$kind" in
         set:*)              do_log "OK      $key ($req, $kind)" ;;
         empty:required:gen) do_log "EMPTY   $key (required): seed it: $seed"; bad=$((bad + 1)) ;;
-        empty:required:ask) do_log "EMPTY   $key (required, SPOOL_MAIL_TRANSPORT=smtp): set it in $envf, or re-run ./run -a do_spl_self_host_up"; bad=$((bad + 1)) ;;
+        empty:required:ask) do_log "EMPTY   $key (required, SPOOL_MAIL_TRANSPORT=smtp): write its secret file (DEPLOY.md 2.3.1), or re-run ./run -a do_spl_self_host_up"; bad=$((bad + 1)) ;;
         default:required:*) do_log "DEFAULT $key (required) is the public compose default: rotate it in Postgres, then in $envf"; bad=$((bad + 1)) ;;
         *)                  do_log "INFO    $key (optional): not set" ;;
       esac
     done < <(spl_secrets_none_rows "$envf")
+    spl_secrets_none_check_files
   fi
 
   n=$((n + 1))

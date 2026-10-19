@@ -199,7 +199,8 @@ spl_m3_prd_humans() {
 # mail.secret_env.SPOOL_HUB_MAIL_SMTP_PASSWORD) into a 0600 file, read as the
 # env's project SA in a throwaway CLOUDSDK_CONFIG. Never argv, stdout or a log.
 # Under provider none (spec 076) it is SPOOL_MAIL_SMTP_PASSWORD of the
-# self-host .env instead, with no gcloud call.
+# self-host stack instead (its Docker secret file, SPL-2158), with no gcloud
+# call.
 spl_m3_imap_pass() {
   local f="$1" slot
   if [[ "$(do_spl_cloud_provider)" == none ]]; then
@@ -218,17 +219,18 @@ spl_m3_imap_pass() {
   )
 }
 
-# spl_m3_imap_pass_none <file>: SPOOL_MAIL_SMTP_PASSWORD of the self-host .env
-# (spl_secrets_none_get, the T009 store) into a 0600 file. Never logged.
+# spl_m3_imap_pass_none <file>: SPOOL_MAIL_SMTP_PASSWORD of the self-host
+# stack, read from its secret file in the .env's SPOOL_SECRETS_DIR
+# (spl_secrets_none_value, SPL-2158), into a 0600 file. Never logged.
 spl_m3_imap_pass_none() {
   # shellcheck disable=SC2034 # statef: set by spl_secrets_none_paths, unused here
   local f="$1" envf statef pw
   spl_secrets_none_paths || return 1
-  pw="$(spl_secrets_none_get "$envf" SPOOL_MAIL_SMTP_PASSWORD)"
+  pw="$(spl_secrets_none_value "$envf" SPOOL_MAIL_SMTP_PASSWORD)"
   [[ "$(spl_secrets_none_state "$pw")" == set ]] ||
-    { do_log "FATAL no SPOOL_MAIL_SMTP_PASSWORD in $envf (the IMAP mailbox password)"; return 1; }
+    { do_log "FATAL no SPOOL_MAIL_SMTP_PASSWORD secret file in the SPOOL_SECRETS_DIR of $envf (the IMAP mailbox password, DEPLOY.md 2.3.1)"; return 1; }
   ( umask 077; printf '%s' "$pw" >"$f" ) || { rm -f "$f"; return 1; }
-  do_log "OK the relay password for IMAP is in a 0600 file for this run (SPOOL_MAIL_SMTP_PASSWORD, self-host .env)"
+  do_log "OK the relay password for IMAP is in a 0600 file for this run (SPOOL_MAIL_SMTP_PASSWORD, self-host secret file)"
 }
 
 spl_m3_imap_forget() {

@@ -8,6 +8,10 @@
 #          It also generates two S3 keys and starts the s3 service (bucket
 #          spool-files) before that up. CONTROL: a wrong A record fails before
 #          `up` (up is never called, and s3 is not started).
+#          SPL-2158: the superuser password, the S3 secret key and the SMTP
+#          password are Docker secret files in <stack>/secrets (dir 700,
+#          files 644, SPOOL_SECRETS_DIR in .env), never .env lines; values an
+#          older run left in .env move into their files unchanged.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -18,6 +22,10 @@ fails=0
 S="$T/stack"; mkdir -p "$S" "$T/stub"
 echo 'name: spool' >"$S/docker-compose.yml"
 IP=203.0.113.7
+SD="$S/secrets"
+sec() { cat "$SD/$1" 2>/dev/null; }
+# the three Postgres passwords: two .env lines and the superuser secret file
+pws() { grep -E '^SPOOL_DB_(OWNER|RUNTIME)_PASSWORD=' "$S/.env"; echo "SPOOL_DB_SUPERUSER_PASSWORD='$(sec db_superuser_password)'"; }
 # dig: the A record is $DIG_A; nc: busy when the port is in $NC_BUSY;
 # docker: every call logged, `compose ps` lists web when $PS_WEB=1, no
 # compose plugin when $NO_COMPOSE=1
@@ -67,13 +75,13 @@ grep -q "up -d --wait" "$T/calls.log" && grep -q -- "--project-directory $S" "$T
 [[ "$(stat -c %a "$S/.env")" == 600 ]] && pass ".env is mode 600" || fail ".env mode $(stat -c %a "$S/.env")"
 grep -qx "SPOOL_PUBLIC_URL='https://chat.example.com'" "$S/.env" && grep -qx "SPOOL_HUB_ENV='prd'" "$S/.env" \
   && grep -qx "SPOOL_MAIL_FROM='spool@chat.example.com'" "$S/.env" && pass ".env carries the own-domain profile" || fail ".env: $(cat "$S/.env")"
-pw1=$(grep -E '^SPOOL_DB_(OWNER|RUNTIME|SUPERUSER)_PASSWORD=' "$S/.env")
+pw1=$(pws)
 [[ $(grep -cE "='[0-9a-f]{48}'$" <<<"$pw1") -eq 3 && $(sort -u <<<"$pw1" | sed 's/.*=//' | sort -u | wc -l) -eq 3 ]] \
   && pass "three distinct generated 48-hex Postgres passwords" || fail "passwords: $pw1"
 if grep -qF "${pw1##*=}" <<<"$out" || grep -qF good-pw <<<"$out" || grep -qF good-pw "$T/calls.log"; then
   fail "a secret appears in the output or an argv"; else pass "no secret in the output or any argv"; fi
 s3access=$(grep -E "^SPOOL_S3_ACCESS_KEY='[0-9a-f]{48}'$" "$S/.env" | sed "s/^SPOOL_S3_ACCESS_KEY='//;s/'$//")
-s3secret=$(grep -E "^SPOOL_S3_SECRET_KEY='[0-9a-f]{48}'$" "$S/.env" | sed "s/^SPOOL_S3_SECRET_KEY='//;s/'$//")
+s3secret=$(sec s3_secret_key | grep -E '^[0-9a-f]{48}$')
 [[ -n "$s3access" && -n "$s3secret" && "$s3access" != "$s3secret" ]]   && pass "two distinct generated 48-hex S3 keys" || fail "s3 keys: access=${#s3access} secret=${#s3secret}"
 if grep -qF "$s3access" <<<"$pw1" || grep -qF "$s3secret" <<<"$pw1"; then
   fail "an S3 key repeats a Postgres password"; else pass "S3 keys differ from the Postgres passwords"; fi
@@ -82,15 +90,22 @@ if grep -qF "$s3access" <<<"$out" || grep -qF "$s3secret" <<<"$out"    || grep -
 s3n=$(grep -n 'up -d --wait s3$' "$T/calls.log" | sed -n 1p | cut -d: -f1)
 upn=$(grep -n 'up -d --wait$' "$T/calls.log" | sed -n 1p | cut -d: -f1)
 [[ -n "$s3n" && -n "$upn" && "$s3n" -lt "$upn" && $(s3ups) -eq 1 ]]   && pass "s3 is ensured once, before the hub's compose up" || fail "s3 order: s3=$s3n up=$upn log=$(cat "$T/calls.log")"
-s3before=$(grep -E '^SPOOL_S3_(ACCESS|SECRET)_KEY=' "$S/.env")
+s3before="$(grep -E '^SPOOL_S3_ACCESS_KEY=' "$S/.env") $(sec s3_secret_key)"
+if grep -qE '^SPOOL_(DB_SUPERUSER_PASSWORD|S3_SECRET_KEY|MAIL_SMTP_PASSWORD)=' "$S/.env"; then
+  fail "a secret-file key is a .env line"; else pass "no .env line holds the superuser, S3 secret or SMTP password"; fi
+grep -qx "SPOOL_SECRETS_DIR='./secrets'" "$S/.env" && [[ "$(stat -c %a "$SD")" == 700 ]] &&
+  [[ "$(stat -c %a "$SD/db_superuser_password") $(stat -c %a "$SD/s3_secret_key") $(stat -c %a "$SD/mail_smtp_password")" == "644 644 644" ]] &&
+  [[ "$(sec mail_smtp_password)" == good-pw ]] &&
+  pass "the three secret files: SPOOL_SECRETS_DIR=./secrets, dir 700, files 644, the SMTP answer in its file" ||
+  fail "secret files: $(ls -la "$SD" 2>&1) $(grep SECRETS_DIR "$S/.env")"
 
 # --- a re-run keeps the secrets (and a hand-set key), web holds its ports ----
 echo "SPOOL_TENANT=acme" >>"$S/.env"
 out=$(run_up PS_WEB=1 NC_BUSY="80 443"); rc=$?
-pw2=$(grep -E '^SPOOL_DB_(OWNER|RUNTIME|SUPERUSER)_PASSWORD=' "$S/.env")
+pw2=$(pws)
 [[ $rc -eq 0 && "$pw1" == "$pw2" ]] && pass "a re-run keeps the three passwords" || fail "re-run: rc=$rc $out"
-[[ $(grep -c "kept from the existing .env" <<<"$out") -eq 5 ]] && pass "a re-run says each generated secret was kept" || fail "kept lines: $out"
-s3after=$(grep -E '^SPOOL_S3_(ACCESS|SECRET)_KEY=' "$S/.env")
+[[ $(grep -c "kept from the existing install" <<<"$out") -eq 5 ]] && pass "a re-run says each generated secret was kept" || fail "kept lines: $out"
+s3after="$(grep -E '^SPOOL_S3_ACCESS_KEY=' "$S/.env") $(sec s3_secret_key)"
 [[ "$s3before" == "$s3after" && $(s3ups) -eq 1 && $(ups) -eq 1 ]]   && pass "a re-run keeps the two S3 keys and ensures the bucket once" || fail "s3 re-run: s3ups=$(s3ups) ups=$(ups)"
 grep -qx "SPOOL_TENANT=acme" "$S/.env" && grep -qF "login?tenant=acme" <<<"$out" && pass "a hand-set key survives and names the tenant in the link" || fail "tenant: $out"
 [[ "$(stat -c %a "$S/.env")" == 600 ]] && pass ".env still mode 600 after the re-run" || fail "re-run mode"
@@ -98,7 +113,17 @@ grep -q "port 80 (held by this stack" <<<"$out" && pass "a re-run accepts 80/443
 
 # --- answers come from .env on a re-run: no env var, no tty ------------------
 out=$(run_up SPOOL_DOMAIN= SPOOL_OWNER_EMAIL= SPOOL_MAIL_SMTP_HOST= SPOOL_MAIL_SMTP_USER= SPOOL_MAIL_SMTP_PASSWORD= PS_WEB=1); rc=$?
-[[ $rc -eq 0 && $(ups) -eq 1 ]] && pass "a re-run with no answers given reads them from .env" || fail "env answers: rc=$rc $out"
+[[ $rc -eq 0 && $(ups) -eq 1 && "$(sec mail_smtp_password)" == good-pw ]] && pass "a re-run with no answers given reads them from .env and the SMTP secret file" || fail "env answers: rc=$rc $out"
+
+# --- an older run's .env: the three values move into their files, unchanged ---
+cp -p "$S/.env" "$T/env.keep"; rm -rf "$SD"
+grep -v '^SPOOL_SECRETS_DIR=' "$T/env.keep" >"$S/.env"
+printf "SPOOL_DB_SUPERUSER_PASSWORD='%s'\nSPOOL_S3_SECRET_KEY='%s'\nSPOOL_MAIL_SMTP_PASSWORD='good-pw'\n" "${old_su:=$(printf 'ab%.0s' {1..24})}" "${old_s3:=$(printf 'cd%.0s' {1..24})}" >>"$S/.env"
+out=$(run_up SPOOL_DOMAIN= SPOOL_OWNER_EMAIL= SPOOL_MAIL_SMTP_HOST= SPOOL_MAIL_SMTP_USER= SPOOL_MAIL_SMTP_PASSWORD= PS_WEB=1); rc=$?
+[[ $rc -eq 0 && "$(sec db_superuser_password)" == "$old_su" && "$(sec s3_secret_key)" == "$old_s3" && "$(sec mail_smtp_password)" == good-pw ]] &&
+  ! grep -qE '^SPOOL_(DB_SUPERUSER_PASSWORD|S3_SECRET_KEY|MAIL_SMTP_PASSWORD)=' "$S/.env" && grep -qx "SPOOL_SECRETS_DIR='./secrets'" "$S/.env" &&
+  pass "an older .env: the three values move into their secret files unchanged and leave .env" || fail "migrate: rc=$rc $out $(cut -d= -f1 "$S/.env" | tr '\n' ' ')"
+if grep -qF "$old_su" <<<"$out" || grep -qF "$old_s3" <<<"$out"; then fail "a moved secret appears in the output"; else pass "a moved secret is not in the output"; fi
 
 # --- CONTROL: a wrong A record fails before up -------------------------------
 cp -p "$S/.env" "$T/env.before"

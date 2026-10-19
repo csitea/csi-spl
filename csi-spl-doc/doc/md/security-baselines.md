@@ -183,3 +183,66 @@ Test, with its red controls (a web with no healthcheck, a disabled hub-init
 check and a `depends_on` on a one shot that only waits for it to start each
 fail): `csi-spl-iac/src/bash/tests/compose-healthchecks.tst.sh`. The readiness
 file: section 6 of `csi-spl-api/src/bash/tests/hub-entrypoint.tst.sh`.
+
+## 8. Standalone secrets are Docker secret files
+
+Owner security scan, revised list, action 1: "Migrate docker-compose secrets
+from env vars to Docker secrets or GCP Secret Manager
+(SPOOL_DB_SUPERUSER_PASSWORD, SPOOL_S3_SECRET_KEY, SPOOL_MAIL_SMTP_PASSWORD)."
+Issue SPL-2158, epic SPL-2151. Built: the Docker secrets part, for the
+standalone `docker-compose.yml`. Not built: the GCP Secret Manager part
+(see the end of this section).
+
+- The root `docker-compose.yml` declares three `secrets:`, each a file in
+  `${SPOOL_SECRETS_DIR}`: `db_superuser_password`, `s3_secret_key` and
+  `mail_smtp_password`. They are mounted under `/run/secrets` and read
+  through `*_FILE` variables, so none of the three is in `.env`, in
+  `docker compose config` or in `docker inspect`. Postgres reads
+  `POSTGRES_PASSWORD_FILE` itself; hub-init reads
+  `SPOOL_SUPERUSER_PASSWORD_FILE`, the hub `SPOOL_S3_SECRET_KEY_FILE` and
+  `SPOOL_HUB_MAIL_SMTP_PASSWORD_FILE`.
+- The hub reads a secret through `internal/secretfile.Lookup`
+  (`csi-spl-api/src/go/spool-hub-api`): `<NAME>_FILE`, when set, wins over
+  `<NAME>`; an unreadable file is an error naming the variable; with neither
+  set the caller's existing check decides (the mail config's "must be set
+  when SPOOL_HUB_MAIL_SMTP_USER is"). The plain env var stays for lde and
+  Cloud Run. `hub-entrypoint.sh` does the same in shell (`file_env`).
+- `csi-spl-api/src/docker/secret-env.sh` runs in front of the image's own
+  entrypoint for `s3`, `hub-init` and `hub`. It exports `<NAME>` from
+  `<NAME>_FILE`: SeaweedFS reads only `AWS_SECRET_ACCESS_KEY`, and a hub image
+  older than SPL-2158 (the pinned `stable-2026-10-12`) reads only the plain
+  variables. Both read the same file. Once `do_pin_compose_images` pins a
+  release that carries SPL-2158, `hub-init` and `hub` can drop the shim.
+- Unset, `SPOOL_SECRETS_DIR` is `csi-spl-api/src/docker/local-secrets`, the
+  public local defaults (the former compose env defaults), so
+  `docker compose up -d` still needs no setup on a laptop. Off localhost,
+  hub-init refuses the default superuser password, as before.
+  `do_spl_self_host_up` (csi-spl-orc) writes the three files to `./secrets`
+  (git-ignored) and `SPOOL_SECRETS_DIR=./secrets` to `.env`. It moves a value
+  an older run left in `.env` into its file unchanged. By hand: DEPLOY.md
+  section 2.3.1.
+- File modes: outside swarm, compose bind-mounts a secret file as it is and
+  ignores `uid`, `gid` and `mode`. Measured on docker 26.1.5 / compose 2.26.1
+  (n=1): a 0600 file owned by the host user was `Permission denied` for
+  container uid 10001; a 0644 file in a 0700 dir was read. So the files are
+  0644 in a 0700 directory. A missing file stops `up` with `bind source path
+  does not exist`.
+- The self-host secret checks follow the files: `do_spl_secrets_check` and
+  `do_spl_secrets_seed_all` under `SPOOL_CLOUD_PROVIDER=none`, and
+  `do_spl_m3_e2e` (its IMAP password). A key still in `.env` is `MOVED`, and
+  a secrets dir other than 700 is `MODE`.
+
+Tests, with their red controls: `csi-spl-iac/src/bash/tests/compose-secrets.tst.sh`
+(no plain secret env var, every `*_FILE` mounted and declared, the default
+files, `./secrets` ignored, the shim; 9 FAIL on the compose file before this
+change), `internal/secretfile`, `TestS3SecretKeyFile`,
+`TestMailSMTPPasswordFile`, `TestNoneS3SecretByFile`, section 7 of
+`hub-entrypoint.tst.sh`, and the orc `secrets-none`, `self-host-up` and
+`m3-e2e-none` tests.
+
+GCP Secret Manager, not built (it needs the owner's go): the Cloud Run hub
+already takes `SPOOL_HUB_MAIL_SMTP_PASSWORD` from Secret Manager
+(terraform step 030 `secret_environment_variables`), and Cloud Run has no
+compose S3 or Postgres superuser. Mounting those as files instead of env vars
+would be a step 030 change (a `volumes` secret mount plus the `*_FILE` env
+var), applied to dev, then prd, under the owner's go for each apply.

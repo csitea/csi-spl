@@ -119,11 +119,13 @@ do_secrets_seed_gcp() {
 
 # ------------------------------------------------------------ provider none ---
 # do_secrets_seed_none - fill what do_secrets_check_none finds empty, in the
-# two self-host stores (spl-secrets-check.func.sh): each missing Postgres
-# password of .env is generated (24 random bytes, hex, as do_spl_self_host_up
-# does; a value already there is kept, so a second run changes nothing), the
-# .env is rewritten whole with umask 077 and mode 600, and session.key is
-# minted into an existing state dir (32 random bytes, hex, as hub-init does).
+# self-host stores (spl-secrets-check.func.sh): each missing Postgres
+# password is generated (24 random bytes, hex, as do_spl_self_host_up does; a
+# value already there is kept, so a second run changes nothing), the .env is
+# rewritten whole with umask 077 and mode 600, the superuser password goes to
+# its Docker secret file (SPL-2158; SPOOL_SECRETS_DIR, ./secrets when .env
+# names none), and session.key is minted into an existing state dir (32
+# random bytes, hex, as hub-init does).
 # An outside value (the SMTP password) and a public compose default are listed
 # as NEED, never invented. Values never touch argv, stdout or a log.
 do_secrets_seed_none() {
@@ -135,11 +137,11 @@ do_secrets_seed_none() {
   local key req kind state
   local -a gen=() need=()
   while IFS=$'\t' read -r key req kind; do
-    state="$(spl_secrets_none_state "$(spl_secrets_none_get "$envf" "$key")")"
+    state="$(spl_secrets_none_state "$(spl_secrets_none_value "$envf" "$key")")"
     case "$state:$req:$kind" in
-      set:*) do_log "KEEP $key: set in .env" ;;
+      set:*) do_log "KEEP $key: set" ;;
       empty:*:gen) gen+=("$key") ;;
-      empty:required:ask) need+=("$key (SPOOL_MAIL_TRANSPORT=smtp): set it in $envf, or re-run ./run -a do_spl_self_host_up") ;;
+      empty:required:ask) need+=("$key (SPOOL_MAIL_TRANSPORT=smtp): write its secret file (DEPLOY.md 2.3.1), or re-run ./run -a do_spl_self_host_up") ;;
       default:required:*) need+=("$key is the public compose default: rotate it in Postgres, then in $envf") ;;
       *) do_log "SKIP $key: optional, not set" ;;
     esac
@@ -169,7 +171,10 @@ spl_secrets_none_seed_env() {
   local -A val=()
   [[ -f "$envf" && "$(spl_secrets_none_mode "$envf")" != 600 ]] && fix_mode=1
   if (( dry )); then
-    for key in "${gen[@]}"; do do_log "INFO DRY_RUN would generate $key into $envf (24 random bytes, hex)"; done
+    for key in "${gen[@]}"; do
+      if spl_secret_file_name "$key" >/dev/null; then do_log "INFO DRY_RUN would generate $key into its secret file (24 random bytes, hex)"
+      else do_log "INFO DRY_RUN would generate $key into $envf (24 random bytes, hex)"; fi
+    done
     (( fix_mode == 0 )) || do_log "INFO DRY_RUN would chmod 600 $envf"
     return 0
   fi
@@ -183,6 +188,7 @@ spl_secrets_none_seed_env() {
     [[ ${#v} -eq 48 ]] || { do_log "ERROR could not generate $key"; errs=$((errs + 1)); continue; }
     val[$key]="$v"
   done
+  spl_secrets_none_seed_files
   local tmp="$envf.tmp.$$" line
   if (
     umask 077
@@ -194,13 +200,32 @@ spl_secrets_none_seed_env() {
       else
         echo "# written by ./run -a do_spl_secrets_seed_all (spec 076, provider none); never commit it."
       fi
-      for key in "${gen[@]}"; do [[ -n "${val[$key]+x}" ]] && printf "%s='%s'\n" "$key" "${val[$key]}"; done
+      for key in "${gen[@]}" SPOOL_SECRETS_DIR; do [[ -n "${val[$key]+x}" ]] && printf "%s='%s'\n" "$key" "${val[$key]}"; done
     } >"$tmp"
   ) && chmod 600 "$tmp" && mv -f "$tmp" "$envf"; then
-    for key in "${!val[@]}"; do do_log "INFO $key generated into $envf (value not logged)"; done
+    for key in "${!val[@]}"; do [[ "$key" == SPOOL_SECRETS_DIR ]] || do_log "INFO $key generated into $envf (value not logged)"; done
   else
     rm -f "$tmp"; do_log "ERROR cannot write $envf"; errs=$((errs + 1))
   fi
+}
+
+# spl_secrets_none_seed_files - the secret-file step of spl_secrets_none_seed_env
+# (reads and edits its val; counts a failure in errs): each generated key that
+# compose reads as a Docker secret leaves val for its file in the .env's
+# SPOOL_SECRETS_DIR; with none named, ./secrets, and val gets that line.
+spl_secrets_none_seed_files() {
+  local key dir
+  dir="$(spl_secrets_none_dir "$envf")"
+  for key in "${!val[@]}"; do
+    spl_secret_file_name "$key" >/dev/null || continue
+    if [[ -z "$dir" ]]; then dir="$(dirname "$envf")/secrets"; val[SPOOL_SECRETS_DIR]=./secrets; fi
+    if spl_secrets_none_put_file "$dir" "$key" "${val[$key]}"; then
+      do_log "INFO $key generated into its secret file in $dir (value not logged)"
+    else
+      do_log "ERROR cannot write the secret file of $key in $dir"; errs=$((errs + 1))
+    fi
+    unset 'val[$key]'
+  done
 }
 
 # spl_secrets_none_seed_key - the session.key step of do_secrets_seed_none

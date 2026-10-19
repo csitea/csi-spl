@@ -17,6 +17,11 @@
 # @description      passwords on its first boot, and the bucket was created
 # @description      with the S3 keys). A missing or still-local value is
 # @description      generated (48 hex). The values are never printed.
+# @description      The superuser password, the S3 secret key and the SMTP
+# @description      password are Docker secret files (SPL-2158), not .env
+# @description      lines: <dir>/secrets (0700, each file 0644) and
+# @description      SPOOL_SECRETS_DIR=./secrets in .env. A value an older run
+# @description      left in .env is moved into its file and off .env.
 # @description   4. starts the s3 service and waits until bucket spool-files
 # @description      is present, then `docker compose up -d --wait`, then
 # @description      prints the owner link. A second run leaves the keys and
@@ -88,6 +93,15 @@ spl_self_host_port_busy() {
   fi
 }
 
+# spl_self_host_kept <KEY> - the value an earlier run kept: a secret-file key
+# from its file (SPL-2158), else from .env (also where an older run kept it)
+spl_self_host_kept() {
+  local v
+  v="$(spl_secrets_none_value "$envf" "$1")"
+  [[ -n "$v" ]] || v="$(spl_self_host_env_get "$envf" "$1")"
+  printf '%s' "$v"
+}
+
 # spl_self_host_answers - step 1: fill ans[] and domain, email, smtp_*, from
 # (declared by do_spl_self_host_up) from env var > existing .env > prompt > default
 spl_self_host_answers() {
@@ -95,7 +109,7 @@ spl_self_host_answers() {
   for row in "${SPL_SELF_HOST_ASK[@]}"; do
     IFS='|' read -r key prompt def <<<"$row"
     val="${!key:-}"
-    [[ -n "$val" ]] || val="$(spl_self_host_env_get "$envf" "$key")"
+    [[ -n "$val" ]] || val="$(spl_self_host_kept "$key")"
     if [[ -z "$val" && -t 0 ]]; then
       if [[ "$key" == *PASSWORD ]]; then
         read -r -s -p "$prompt: " val; echo >&2
@@ -192,25 +206,27 @@ spl_self_host_preflight() {
 # (Supabase's generated keys)
 spl_self_host_write_env() {
   local k sec
+  local -A file=([SPOOL_MAIL_SMTP_PASSWORD]="${ans[SPOOL_MAIL_SMTP_PASSWORD]}")
   local -A put=(
     [SPOOL_PUBLIC_URL]="https://$domain" [SPOOL_SITE_ADDRESS]="$domain" [SPOOL_DOMAIN]="$domain"
     [SPOOL_BIND]=0.0.0.0 [SPOOL_HTTP_PORT]=80 [SPOOL_HTTPS_PORT]=443
     [SPOOL_HUB_ENV]=prd [SPOOL_LOG_FORMAT]=json [SPOOL_AUTH_DEBUG_LINKS]=false [SPOOL_COOKIE_SECURE]=true
     [SPOOL_MAIL_TRANSPORT]=smtp [SPOOL_MAIL_PREFLIGHT]=require [SPOOL_MAIL_FROM]="$from"
     [SPOOL_OWNER_EMAIL]="$email" [SPOOL_MAIL_SMTP_HOST]="$smtp_host" [SPOOL_MAIL_SMTP_PORT]="$smtp_port"
-    [SPOOL_MAIL_SMTP_USER]="$smtp_user" [SPOOL_MAIL_SMTP_PASSWORD]="${ans[SPOOL_MAIL_SMTP_PASSWORD]}"
+    [SPOOL_MAIL_SMTP_USER]="$smtp_user"
   )
   for k in "${SPL_SELF_HOST_SECRETS[@]}"; do
-    sec="$(spl_self_host_env_get "$envf" "$k")"
+    sec="$(spl_self_host_kept "$k")"
     if [[ -z "$sec" || "$sec" == spool-local-* || "$sec" == "<"* ]]; then
       sec="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
       [[ ${#sec} -eq 48 ]] || { do_log "FATAL could not generate $k"; return 1; }
       do_log "INFO $k generated (value not logged)"
     else
-      do_log "INFO $k kept from the existing .env"
+      do_log "INFO $k kept from the existing install"
     fi
-    put[$k]="$sec"
+    if spl_secret_file_name "$k" >/dev/null; then file[$k]="$sec"; else put[$k]="$sec"; fi
   done
+  spl_self_host_write_files || return 1
 
   local tmp="$envf.tmp.$$" line
   if ! (
@@ -223,7 +239,7 @@ spl_self_host_write_env() {
       if [[ -f "$envf" ]] && grep -qE '^[A-Za-z_][A-Za-z0-9_]*=' "$envf"; then
         echo "# kept from the previous .env"
         grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$envf" | while IFS= read -r line; do
-          [[ -n "${put[${line%%=*}]+x}" ]] || printf '%s\n' "$line"
+          [[ -n "${put[${line%%=*}]+x}" || -n "${file[${line%%=*}]+x}" ]] || printf '%s\n' "$line"
         done
       fi
     } >"$tmp"
@@ -231,6 +247,20 @@ spl_self_host_write_env() {
     rm -f "$tmp"; do_log "FATAL cannot write $envf"; return 1
   fi
   do_log "INFO wrote $envf (mode 600)"
+}
+
+# spl_self_host_write_files - the secret-file part of step 3 (reads file and
+# edits put of spl_self_host_write_env): each value into its Docker secret
+# file in the .env's SPOOL_SECRETS_DIR, ./secrets when it names none
+spl_self_host_write_files() {
+  local k dir
+  dir="$(spl_secrets_none_dir "$envf")"
+  if [[ -z "$dir" ]]; then dir="$(dirname "$envf")/secrets"; put[SPOOL_SECRETS_DIR]=./secrets; fi
+  for k in "${!file[@]}"; do
+    spl_secrets_none_put_file "$dir" "$k" "${file[$k]}" ||
+      { do_log "FATAL cannot write the secret file of $k in $dir"; return 1; }
+  done
+  do_log "INFO wrote ${#file[@]} secret file(s) into $dir (dir 700, files 644, values not logged)"
 }
 
 do_spl_self_host_up() {
@@ -260,14 +290,14 @@ do_spl_self_host_up() {
 # spl_self_host_s3_ensure - start s3 and wait until bucket spool-files exists,
 # before the hub roll. The compose service creates the bucket on startup and
 # its healthcheck is that bucket. A re-run waits on the same bucket and does
-# not write new keys. The keys stay in .env; this never puts them on a command
-# line or in a log.
+# not write new keys. The access key stays in .env and the secret key in its
+# secret file; this never puts them on a command line or in a log.
 spl_self_host_s3_ensure() {
   local key secret
   key="$(spl_self_host_env_get "$envf" SPOOL_S3_ACCESS_KEY)"
-  secret="$(spl_self_host_env_get "$envf" SPOOL_S3_SECRET_KEY)"
+  secret="$(spl_secrets_none_value "$envf" SPOOL_S3_SECRET_KEY)"
   [[ "$key" =~ ^[0-9a-f]{48}$ && "$secret" =~ ^[0-9a-f]{48}$ && "$key" != "$secret" ]] ||
-    { do_log "FATAL S3 keys in $envf are missing or not 48 hex characters"; return 1; }
+    { do_log "FATAL S3 keys (SPOOL_S3_ACCESS_KEY in $envf, the s3_secret_key secret file) are missing or not 48 hex characters"; return 1; }
   do_log "INFO starting s3 and ensuring bucket spool-files before the hub"
   docker compose --project-directory "$dir" up -d --wait s3 ||
     { do_log "FATAL the s3 service did not become healthy, so bucket spool-files is not ready"; return 1; }

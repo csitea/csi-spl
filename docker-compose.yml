@@ -40,6 +40,13 @@
 # Every service sits on the one bridge network `spool` (security action 3),
 # never on compose's implicit default; web-volume-owner has none at all.
 # Service names (pg, s3, hub) resolve on it; only web publishes ports.
+#
+# Three secrets are Docker secret files, never env vars (security action 1,
+# SPL-2158): the Postgres superuser password, the S3 secret key and the SMTP
+# password, mounted under /run/secrets and read through *_FILE. They come
+# from ${SPOOL_SECRETS_DIR}; unset, that is csi-spl-api/src/docker/local-secrets,
+# the public local defaults. Anything beyond localhost sets
+# SPOOL_SECRETS_DIR=./secrets (git-ignored): .env.example and DEPLOY.md.
 name: spool
 
 x-db: &db
@@ -56,12 +63,13 @@ services:
     environment:
       <<: *db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${SPOOL_DB_SUPERUSER_PASSWORD:-spool-local-superuser}
+      POSTGRES_PASSWORD_FILE: /run/secrets/spool_db_superuser_password
       POSTGRES_DB: postgres
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
       - pg-data:/var/lib/postgresql/data
       - ./csi-spl-api/src/docker/pg-init.sh:/docker-entrypoint-initdb.d/10-spool-owner.sh:ro
+    secrets: [spool_db_superuser_password]
     healthcheck:
       # over TCP, as hub-init dials it: on a fresh volume the image first runs
       # a socket-only temporary server for initdb + pg-init.sh, then restarts;
@@ -79,13 +87,18 @@ services:
     # the image's seaweed user (uid 1000): its /data is seaweed-owned, and the
     # entrypoint already chowned a volume an older root start made
     user: seaweed
+    # SeaweedFS reads only AWS_SECRET_ACCESS_KEY: secret-env.sh sets it from
+    # the secret file, then runs the image's own entrypoint
+    entrypoint: ["/bin/sh", "/opt/spool/secret-env.sh", "AWS_SECRET_ACCESS_KEY", "--", "/entrypoint.sh"]
     command: ["mini", "-dir=/data", "-ip=s3", "-s3.port=9000"]
     environment:
       AWS_ACCESS_KEY_ID: ${SPOOL_S3_ACCESS_KEY:-spool-local-s3-access}
-      AWS_SECRET_ACCESS_KEY: ${SPOOL_S3_SECRET_KEY:-spool-local-s3-secret}
+      AWS_SECRET_ACCESS_KEY_FILE: /run/secrets/spool_s3_secret_key
       S3_BUCKET: spool-files
+    secrets: [spool_s3_secret_key]
     volumes:
       - s3-data:/data
+      - ./csi-spl-api/src/docker/secret-env.sh:/opt/spool/secret-env.sh:ro
     healthcheck:
       # bucket directory, not the listen port: weed mini creates it after the
       # S3 listener is up (4.48 mini.go, ensureMiniBuckets before ready)
@@ -108,6 +121,9 @@ services:
     image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
     # the image's own USER spool (hub.Dockerfile), stated
     user: "10001:10001"
+    # secret-env.sh: a hub image older than SPL-2158 reads only the plain env
+    # var; a newer one reads the _FILE itself (same file, same value)
+    entrypoint: ["/bin/sh", "/opt/spool/secret-env.sh", "SPOOL_SUPERUSER_PASSWORD", "--", "/bin/sh", "/usr/local/bin/hub-entrypoint.sh"]
     command: ["init"]
     environment:
       SPOOL_OWNER_DSN: postgres://${SPOOL_DB_OWNER:-spool_hub}:${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
@@ -121,9 +137,11 @@ services:
       SPOOL_BIND: ${SPOOL_BIND:-127.0.0.1}
       SPOOL_OWNER_EMAIL: ${SPOOL_OWNER_EMAIL:-}
       SPOOL_OWNER_PASSWORD: ${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}
-      SPOOL_SUPERUSER_PASSWORD: ${SPOOL_DB_SUPERUSER_PASSWORD:-spool-local-superuser}
+      SPOOL_SUPERUSER_PASSWORD_FILE: /run/secrets/spool_db_superuser_password
+    secrets: [spool_db_superuser_password]
     volumes:
       - hub-state:/var/lib/spool/state
+      - ./csi-spl-api/src/docker/secret-env.sh:/opt/spool/secret-env.sh:ro
     depends_on:
       pg:
         condition: service_healthy
@@ -145,6 +163,7 @@ services:
     build: *hub-build
     image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12@sha256:ccdee0eb22cdfa6d0f5380dfd4f5f9df4c90634bf0c6f01fc2bf200a0d5347e6}
     user: "10001:10001"
+    entrypoint: ["/bin/sh", "/opt/spool/secret-env.sh", "SPOOL_S3_SECRET_KEY", "SPOOL_HUB_MAIL_SMTP_PASSWORD", "--", "/bin/sh", "/usr/local/bin/hub-entrypoint.sh"]
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
@@ -153,7 +172,7 @@ services:
       SPOOL_S3_ENDPOINT: http://s3:9000
       SPOOL_S3_BUCKET: spool-files
       SPOOL_S3_ACCESS_KEY: ${SPOOL_S3_ACCESS_KEY:-spool-local-s3-access}
-      SPOOL_S3_SECRET_KEY: ${SPOOL_S3_SECRET_KEY:-spool-local-s3-secret}
+      SPOOL_S3_SECRET_KEY_FILE: /run/secrets/spool_s3_secret_key
       SPOOL_S3_USE_PATH_STYLE: "true"
       SPOOL_HUB_DB_DSN: postgres://${SPOOL_DB_RUNTIME:-spool_hub_rt}:${SPOOL_DB_RUNTIME_PASSWORD:-spool-local-runtime}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
       SPOOL_HUB_FILES_DIR: /var/lib/spool/files
@@ -191,15 +210,17 @@ services:
       SPOOL_HUB_MAIL_SMTP_HOST: ${SPOOL_MAIL_SMTP_HOST:-}
       SPOOL_HUB_MAIL_SMTP_PORT: ${SPOOL_MAIL_SMTP_PORT:-587}
       SPOOL_HUB_MAIL_SMTP_USER: ${SPOOL_MAIL_SMTP_USER:-}
-      SPOOL_HUB_MAIL_SMTP_PASSWORD: ${SPOOL_MAIL_SMTP_PASSWORD:-}
+      SPOOL_HUB_MAIL_SMTP_PASSWORD_FILE: /run/secrets/spool_mail_smtp_password
       SPOOL_HUB_MAIL_FROM: ${SPOOL_MAIL_FROM:-}
       # at start the hub connects to the relay and logs in (no mail sent);
       # require = a dead relay, a wrong password, or no relay on a prd hub
       # stops `up` here instead of failing every confirmation mail later
       SPOOL_HUB_MAIL_PREFLIGHT: ${SPOOL_MAIL_PREFLIGHT:-require}
+    secrets: [spool_s3_secret_key, spool_mail_smtp_password]
     volumes:
       - hub-state:/var/lib/spool/state:ro
       - hub-files:/var/lib/spool/files
+      - ./csi-spl-api/src/docker/secret-env.sh:/opt/spool/secret-env.sh:ro
     depends_on:
       s3:
         condition: service_healthy
@@ -277,6 +298,18 @@ services:
 networks:
   spool:
     driver: bridge
+
+# Docker secret files (SPL-2158). Outside swarm compose bind-mounts each file
+# as it is on the host and ignores uid/mode, so the container users (postgres,
+# seaweed, 10001) read it by its own mode: keep the files 0644 inside a 0700
+# directory (DEPLOY.md, "Secret files").
+secrets:
+  spool_db_superuser_password:
+    file: ${SPOOL_SECRETS_DIR:-./csi-spl-api/src/docker/local-secrets}/db_superuser_password
+  spool_s3_secret_key:
+    file: ${SPOOL_SECRETS_DIR:-./csi-spl-api/src/docker/local-secrets}/s3_secret_key
+  spool_mail_smtp_password:
+    file: ${SPOOL_SECRETS_DIR:-./csi-spl-api/src/docker/local-secrets}/mail_smtp_password
 
 volumes:
   pg-data: {}

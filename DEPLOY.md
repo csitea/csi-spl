@@ -58,7 +58,8 @@ apply as soon as the stack is reachable beyond the machine:
 
 1. The three Postgres passwords must be your own (`openssl rand -hex 24`
    makes one), set **before** the first `up`: Postgres takes them on a new
-   volume only.
+   volume only. The owner and runtime passwords go in `.env`; the superuser
+   password is a secret file (2.3.1).
 2. The first sign-up does **not** become the owner: set `SPOOL_OWNER_EMAIL`,
    and `hub-init` prints a one-time owner link for that address.
 
@@ -70,6 +71,51 @@ domain does not keep you signed in unless you set `SPOOL_COOKIE_SECURE=false`,
 and then the hub logs `auth.cookie_not_secure` at start and file upload and
 download still fail in the browser (they need a secure context): use a
 domain, or reach the machine through an ssh tunnel to `localhost:8080`.
+
+#### 2.3.1 Secret files
+
+Three secrets reach the containers as Docker secret files under
+`/run/secrets`, never as env vars, so they are not in `.env`,
+`docker compose config` or `docker inspect`: the Postgres superuser
+password, the S3 secret key and the SMTP password
+([security baselines](csi-spl-doc/doc/md/security-baselines.md) section 8).
+compose reads them from `SPOOL_SECRETS_DIR`. Unset, that is
+`csi-spl-api/src/docker/local-secrets`, the public local defaults, which
+`hub-init` refuses off localhost. `./run -a do_spl_self_host_up`
+(csi-spl-orc) writes all three for you. By hand, in the checkout:
+
+Make the directory (git-ignored), readable only by you:
+
+```bash
+mkdir -m 700 secrets
+```
+
+Generate the superuser password and the S3 secret key. Outside swarm, compose
+mounts each file with its own mode, so the files must be readable by the
+container users (0644); the 0700 directory keeps other host users out:
+
+```bash
+(umask 022 && openssl rand -hex 24 >secrets/db_superuser_password && openssl rand -hex 24 >secrets/s3_secret_key)
+```
+
+Type the SMTP password (it is not echoed and stays out of the shell history):
+
+```bash
+(umask 022 && read -rs -p 'SMTP password: ' p && printf '%s\n' "$p" >secrets/mail_smtp_password)
+```
+
+Point compose at the directory:
+
+```bash
+echo 'SPOOL_SECRETS_DIR=./secrets' >>.env
+```
+
+Upgrading a stack whose `.env` still holds `SPOOL_DB_SUPERUSER_PASSWORD`,
+`SPOOL_S3_SECRET_KEY` or `SPOOL_MAIL_SMTP_PASSWORD`: compose no longer reads
+them. Copy each value into its file instead of generating a new one
+(Postgres keeps the superuser password of its first boot), delete the three
+lines from `.env`, then `docker compose up -d`. A re-run of
+`do_spl_self_host_up` moves them for you.
 
 ### 2.4 Backup, restore and upgrade
 
@@ -228,7 +274,9 @@ and agents still seat with a root key (A5 adds join tokens).
 
 | you see | cause | next step |
 |---|---|---|
-| `hub-init`: `these Postgres passwords are still the public defaults` | the stack is reachable beyond the machine and `.env` still holds the compose defaults | set the three `SPOOL_DB_*_PASSWORD` values in `.env`; on a stack that never held data run `docker compose down -v`, then `docker compose up -d` |
+| `hub-init`: `these Postgres passwords are still the public defaults` | the stack is reachable beyond the machine and `.env` (or, for the superuser, the secret file) still holds the compose defaults | set `SPOOL_DB_OWNER_PASSWORD` and `SPOOL_DB_RUNTIME_PASSWORD` in `.env` and the superuser password in its secret file (2.3.1); on a stack that never held data run `docker compose down -v`, then `docker compose up -d` |
+| `secret-env: FATAL <NAME>_FILE names a file this container cannot read` | the secret file is missing or not readable by the container user | make the file 0644 inside the 0700 `SPOOL_SECRETS_DIR` (2.3.1), then `docker compose up -d` |
+| `docker compose up`: `bind source path does not exist: .../secrets/<file>` | `SPOOL_SECRETS_DIR` names a directory without that file | create the three files (2.3.1) |
 | `hub-init`: `the first sign-up does NOT become the owner here` | off localhost with no `SPOOL_OWNER_EMAIL` | set `SPOOL_OWNER_EMAIL` in `.env`, run `docker compose up -d`, then read the owner link in `docker compose logs hub-init` |
 | hub log: `mail.preflight_failed` | the SMTP relay refused the connection or the login | fix the `SPOOL_MAIL_*` values in `.env`, then `docker compose up -d` |
 | hub log: `mail.preflight_skipped` | no relay configured: no confirmation or invite mail is sent | fine on localhost (the form shows the link); set `SPOOL_MAIL_*` for a real domain |

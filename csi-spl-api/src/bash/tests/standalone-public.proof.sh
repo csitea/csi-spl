@@ -10,6 +10,8 @@
 # The hub keeps SPOOL_HUB_ENV=lde and the on-screen confirmation links, so no
 # mail relay is needed; the public URL is https://chat.example.org, reached
 # through the published port. It deletes its volumes (docker compose down -v).
+# From 2 on the superuser password is a Docker secret file in its own
+# SPOOL_SECRETS_DIR (SPL-2158, DEPLOY.md 2.3.1), removed at the end.
 set -uo pipefail
 PORT="${SPOOL_HTTP_PORT:-8080}"
 BASE="http://localhost:$PORT"
@@ -40,7 +42,8 @@ role_of() {
 }
 
 export SPOOL_PUBLIC_URL="$PUBLIC"
-unset SPOOL_OWNER_EMAIL SPOOL_BOOTSTRAP_OWNER SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD
+unset SPOOL_OWNER_EMAIL SPOOL_BOOTSTRAP_OWNER SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_SECRETS_DIR
+SECRETS="$(mktemp -d)"; trap 'rm -rf "$SECRETS"' EXIT
 
 # --- 1. W9 --------------------------------------------------------------------------
 fresh
@@ -51,8 +54,11 @@ dc up -d web >/dev/null 2>&1 && fail "1. up with the default passwords on a publ
 # --- 2. W18, no owner email ---------------------------------------------------------------
 SPOOL_DB_OWNER_PASSWORD="o-$(openssl rand -hex 12)"
 SPOOL_DB_RUNTIME_PASSWORD="r-$(openssl rand -hex 12)"
-SPOOL_DB_SUPERUSER_PASSWORD="s-$(openssl rand -hex 12)"
-export SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD
+export SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD
+chmod 700 "$SECRETS"
+(umask 022 && echo "s-$(openssl rand -hex 12)" >"$SECRETS/db_superuser_password" &&
+  openssl rand -hex 24 >"$SECRETS/s3_secret_key" && : >"$SECRETS/mail_smtp_password")
+export SPOOL_SECRETS_DIR="$SECRETS"
 fresh
 dc up -d web >/dev/null 2>&1 && fail "2. up with no SPOOL_OWNER_EMAIL on a public URL succeeded" ||
   { init_log | grep 'set SPOOL_OWNER_EMAIL' >/dev/null && pass "2. W18: public URL + no SPOOL_OWNER_EMAIL -> hub-init refuses" || fail "2. W18: $(init_log)"; }

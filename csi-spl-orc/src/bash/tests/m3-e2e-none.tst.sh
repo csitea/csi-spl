@@ -2,7 +2,8 @@
 #------------------------------------------------------------------------------
 # Purpose: spec 076, do_spl_m3_e2e under provider none makes NO gcloud call.
 #          The relay password for IMAP is SPOOL_MAIL_SMTP_PASSWORD of the
-#          self-host .env (0600 file, in no output) and the invite reaches
+#          self-host stack, its Docker secret file (SPL-2158; 0600 copy, in no
+#          output) and the invite reaches
 #          local Postgres through spl_db_runtime_local, the helper the
 #          db-actions-none callers use. The gcloud and cloud-sql-proxy shims
 #          FAIL on any call, so a gcloud path reached under none turns the run
@@ -21,8 +22,10 @@ orc_stub 97 gcloud cloud-sql-proxy docker curl
 orc_stub 0 spool
 mkdir -p "$T/sh" "$T/home" "$T/tenants"
 RT='postgres://spool_hub_rt:none-fixture-pw@127.0.0.1:5432/spool_hub?sslmode=disable'
-printf "SPOOL_MAIL_SMTP_PASSWORD='none-relay-s3cret'\n" >"$T/sh/.env"
+printf "SPOOL_SECRETS_DIR='./secrets'\n" >"$T/sh/.env"
 chmod 600 "$T/sh/.env"
+mkdir -m 700 "$T/sh/secrets"
+printf 'none-relay-s3cret\n' >"$T/sh/secrets/mail_smtp_password"
 printf '%s\n' '{"tenant":"e2e","root_private_key":"none-root-key-fixture"}' >"$T/tenants/e2e.20261005T000000Z.json"
 
 run() {
@@ -59,19 +62,20 @@ grep -q '^spool hub-invite --tenant e2e --email .*+spl-e2e-.* --role owner$' "$T
   && pass "none m3-e2e: the owner human is invited through local Postgres" \
   || fail "none m3-e2e: no hub-invite: $(tr '\n' ' ' <"$T/calls.log")"
 grep -q '^m3py auth-check invited=1 pass=none-relay-s3cret mode=600$' "$T/calls.log" \
-  && pass "none m3-e2e: the IMAP password is the self-host .env value, in a 0600 file" \
+  && pass "none m3-e2e: the IMAP password is the self-host secret file's value, in a 0600 file" \
   || fail "none m3-e2e: IMAP pass file: $(grep '^m3py' "$T/calls.log" | sed 's/pass=[^ ]*/pass=[x]/' | tr '\n' ' ')"
 grep -q '^m3py run ' "$T/calls.log" && pass "none m3-e2e: the run step is reached" || fail "none m3-e2e: no run step"
 [[ ! -e "$T/state/m3-e2e/e2e/imap-pass" ]] && pass "none m3-e2e: the IMAP pass file is removed after the run" \
   || fail "none m3-e2e: imap-pass left behind"
 
-# --- none with no SMTP password in the .env: stops before any call -----------
-printf "SPOOL_DB_NAME='spool_hub'\n" >"$T/sh/.env"
+# --- none with no SMTP password secret file: stops before any call -----------
+# (a value left in .env is no longer read: compose does not either)
+printf "SPOOL_DB_NAME='spool_hub'\nSPOOL_MAIL_SMTP_PASSWORD='none-relay-s3cret'\n" >"$T/sh/.env"
 out2=$(SNIPPET='do_spl_m3_e2e; echo RC=$?' run SPOOL_CLOUD_PROVIDER=none SPOOL_HUB_DB_DSN="$RT" 2>&1)
 grep -q 'FATAL no SPOOL_MAIL_SMTP_PASSWORD' <<<"$out2" && ! grep -qx 'RC=0' <<<"$out2" && ! grep -q '^gcloud ' "$T/calls.log" \
-  && pass "none m3-e2e: no SMTP password in .env stops with FATAL, no gcloud" \
+  && pass "none m3-e2e: no SMTP password secret file stops with FATAL (a .env line is not read), no gcloud" \
   || fail "none m3-e2e without a password: $(printf '%s\n' "$out2" | grep -E '^(FATAL|RC=)' | sed -n '1,3p')"
-printf "SPOOL_MAIL_SMTP_PASSWORD='none-relay-s3cret'\n" >"$T/sh/.env"
+printf "SPOOL_SECRETS_DIR='./secrets'\n" >"$T/sh/.env"
 
 # --- control: under gcp the relay password still comes from gcloud ----------
 mkdir -p "$T/home/.gcp/.csi" "$T/ctl"

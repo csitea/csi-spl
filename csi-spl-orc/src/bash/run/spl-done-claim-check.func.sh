@@ -15,13 +15,17 @@
 # @description   - every token of 9..12 or 40 lowercase hex with at least one
 # @description     letter a..f is a sha (a UUID is cut out first; an all-digit
 # @description     token is a run id, not a sha; a 32-hex md5 or a token
-# @description     right after an "md5" label is a file hash, SPL-2332); SPL-2338:
+# @description     right after an "md5" label is a file hash, SPL-2332; a commit
+# @description     reachable from origin's refs/notes/*, the release notes, is
+# @description     no code, SPL-2560); SPL-2338:
 # @description     when a line of the body starts with the word sha / shas
 # @description     ("sha:", "- **sha**:", "SHA:") and holds a sha, only those
 # @description     lines are the claim (a sha quoted on another line is
 # @description     context, not a landing); with none, every sha of the body
 # @description   - DONE_CLAIM_AGE_MIN (15) minutes after the message: a git
-# @description     fetch of each repo in DONE_CLAIM_REPO_DIRS, then each sha
+# @description     fetch of each repo in DONE_CLAIM_REPO_DIRS (its notes refs
+# @description     too, into refs/done-claim/notes/*: the local ones are never
+# @description     overwritten), then each sha
 # @description     must resolve in one of them and be an ancestor of that
 # @description     repo's trunk (origin/master, else origin/main), or carry a
 # @description     patch already on it (`git cherry` "-": a review-branch sha
@@ -99,7 +103,7 @@ do_spl_done_claim_check() {
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
   local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
   while IFS=$'\t' read -r id from ts task body; do
-    shas="$(spl_done_claim_shas "$body")"
+    shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body")")"
     bad=""
     if grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
@@ -183,9 +187,26 @@ spl_done_claim_tokens() {
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | grep '[a-f]' | awk '!s[$0]++' | paste -sd' ' -
 }
 
+# spl_done_claim_notes <repos file> <shas>: <shas> without the commits
+# reachable from a notes ref (refs/notes/*, or origin's fetched into
+# refs/done-claim/notes/*) of any repo: a release-notes commit quoted in a
+# result is no claim (SPL-2560, c-461's fc9aca8e0). One line, space-separated.
+spl_done_claim_notes() {
+  local s full top ref notes out=()
+  for s in $2; do
+    notes=0
+    while read -r top ref; do
+      full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
+      [[ -n "$(git -C "$top" for-each-ref --count=1 --contains "$full" refs/notes refs/done-claim/notes 2>/dev/null)" ]] && { notes=1; break; }
+    done <"$1"
+    (( notes )) || out+=("$s")
+  done
+  echo "${out[*]}"
+}
+
 # spl_done_claim_repos: one line per repo of DONE_CLAIM_REPO_DIRS (default the
-# repo holding this tree): "<top dir> <trunk ref>", fetched first unless
-# DONE_CLAIM_FETCH=0. A repo that cannot be read is a FATAL: a missing clone
+# repo holding this tree): "<top dir> <trunk ref>", fetched first (with
+# origin's notes refs, SPL-2560) unless DONE_CLAIM_FETCH=0. A repo that cannot be read is a FATAL: a missing clone
 # must not turn every sha into an alert. Then the cnf's customer repos whose
 # clone is on this box (spl_done_claim_landed_repos, SPL-2420).
 spl_done_claim_repos() {
@@ -195,6 +216,8 @@ spl_done_claim_repos() {
     top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" || { do_log "FATAL $d is not a git repo" >&2; rc=1; continue; }
     if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]]; then
       git -C "$top" fetch -q origin 2>/dev/null || { do_log "FATAL git fetch origin failed in $top" >&2; rc=1; continue; }
+      git -C "$top" fetch -q origin '+refs/notes/*:refs/done-claim/notes/*' 2>/dev/null ||
+        do_log "WARN git fetch of the notes refs failed in $top: a notes sha may alert" >&2
     fi
     ref=""
     for ref in origin/master origin/main; do git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null && break; ref=""; done

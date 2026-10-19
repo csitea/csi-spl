@@ -16,7 +16,8 @@
 # claims only that line's shas; a sha quoted on another line raises nothing.
 # SPL-2420: a sha on the trunk of a cnf customer repo (env.box.landed_repos,
 # LANE_LANDED_CNF in the sandbox) whose clone is on this box is landed; a sha
-# in no known repo still alerts; a clone on another box is skipped.
+# in no known repo still alerts; a clone on another box is skipped. SPL-2560:
+# a commit reachable from origin's refs/notes/* (the release notes) is no sha.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -244,5 +245,29 @@ v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
 [ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ "$(verdict quoted)" = landed ] && [ "$(verdict unl)" = would-alert ] &&
   pass "10. a sha on a cnf customer repo's fetched trunk is landed; a sha in no known repo's trunk still alerts; the csi-spl verdicts stand; a clone on another box is skipped" ||
   fail "10. cnf customer repo (rc $rc) got '$v': $(cat "$T/o")"
+
+# 11. SPL-2560 (c-461's result 05089b84, synthetic): a body with no sha line
+# quotes the refs/notes/release-notes commit next to its code sha. A second
+# clone adds the note and pushes the notes ref; the checked clone has never
+# fetched it. The notes commit is no claim; the code sha alone is judged.
+SP="$T/spool11"
+git clone -q "$T/spl.git" "$T/spl-notes" 2>/dev/null
+for i in $(seq 1 50); do
+  rg spl-notes notes --ref=release-notes add -f -m "Lay-What: a fix $i" HEAD 2>/dev/null
+  [[ "$(rg spl-notes rev-parse refs/notes/release-notes | cut -c1-9)" =~ [a-f] ]] && break
+done
+rg spl-notes push -q origin refs/notes/release-notes
+NOTESHA=$(rg spl-notes rev-parse refs/notes/release-notes)
+msg c-002/archive notes c-586 c-002 30 "Landed ${LANDED:0:9} fix(orc). Gates: green; notes added since as \`refs/notes/release-notes\` ${NOTESHA:0:9}"
+msg c-002/archive notesonly c-587 c-002 30 "notes added as ${NOTESHA:0:9}"
+! rg spl cat-file -e "$NOTESHA^{object}" 2>/dev/null && pass "11. control: the checked clone has not fetched the notes commit" ||
+  fail "11. control: the checked clone already has $NOTESHA"
+run DONE_CLAIM_STATE_DIR="$T/st11"; rc=$?
+v="$(for k in notes notesonly; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "notes=landed notesonly=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "notes" { print $4 }' "$T/o")" = "${LANDED:0:9}" ] &&
+  grep -q '^notesonly	.*no-sha$' "$T/o" && ! rg spl rev-parse -q --verify refs/notes/release-notes >/dev/null &&
+  pass "11. SPL-2560: a commit on origin's refs/notes/* is no claim (fetched to a private ref, the local notes refs untouched): the code sha beside it is landed; a body citing only a notes commit reads as no sha" ||
+  fail "11. notes ref (rc $rc) got '$v': $(cat "$T/o")"
 
 exit "$fails"

@@ -8,6 +8,9 @@ t_sandbox
 # Panes inherit the server's environment: a dry-run launcher prints its plan
 # and ends, and remain-on-exit keeps the pane to read.
 t_tmux SPAWN_DRY_RUN=1
+# That ended pane is a failed start to the start check (exit 4 since SPL-2627,
+# test-spawn-window-dead-tmux.sh); this test is about the name and the claim.
+export SPAWN_START_CHECK=0
 SW="$T_SCRIPTS/spawn-window.sh"
 WD="$T_TMP/plain"; mkdir -p "$WD"
 TM=(tmux -S "$SPOOL_TMUX_SOCKET")

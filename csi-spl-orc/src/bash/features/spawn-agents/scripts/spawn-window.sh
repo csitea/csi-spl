@@ -28,12 +28,16 @@
 # for its input box (lib/start-check.inc.sh). A known dialog on it (Settings
 # Warning, trust prompt, auth/login, usage limit, auto-mode offer) = exit 11
 # at once, "<ID> <PANE>" still printed and the dialog named on stderr; the
-# window stays for a human and nothing is typed into it. No box in time, or
-# the pane ended: one WARN, exit 0. SPAWN_START_CHECK=0 skips it (the
+# window stays for a human and nothing is typed into it. No box in time, the
+# pane still alive: one WARN, exit 0, the window kept for a human. The pane
+# ended or tmux went away (SPL-2627): exit 4 like a pane gone before its
+# seed, no "<ID> <PANE>" line (it is printed after the check), the window
+# killed and the claim released. SPAWN_START_CHECK=0 skips it (the
 # rotation and the agent restart run their own after the pid is known).
 #
-# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, or the new pane
-# is gone before its seed (both release the claim), 5 no session,
+# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, the new pane
+# is gone before its seed, or it ended during the start check (all three
+# release the claim), 5 no session,
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
@@ -385,10 +389,12 @@ sw_issue() {  # WORKDIR BRIEF
   fi
   echo "spawn-window: ${TITLE} carries issue ${key} (wip)" >&2
 }
-# A refused issue releases the id this call just claimed (empty spool dirs).
+# A refused issue releases the id this call just claimed (empty spool dirs,
+# and the notice strip's .pokes of a window that died in the start check).
 sw_release_claim() {
   [ "$DRY" = 1 ] || [ "${SPAWN_REUSE_ID:-0}" = 1 ] && return 0
   rm -f "${SPOOL_ROOT}/${TITLE}/lifetime/issue" 2>/dev/null
+  rm -rf "${SPOOL_ROOT:?}/${TITLE:?}/.pokes" 2>/dev/null
   rmdir "${SPOOL_ROOT}/${TITLE}/inbox" "${SPOOL_ROOT}/${TITLE}/outbox" "${SPOOL_ROOT}/${TITLE}/archive" \
     "${SPOOL_ROOT}/${TITLE}/lifetime" "${SPOOL_ROOT}/${TITLE}" 2>/dev/null || true
 }
@@ -470,18 +476,32 @@ if [ "${SPOOL_SHOW_PANE:-auto}" != 0 ]; then
   fi
 fi
 
-printf '%s %s\n' "$TITLE" "$pane"
-
+# "<ID> <PANE>" goes out only once the start check has not failed the spawn:
+# the od pool, the claude handover and the peer restart grep it without
+# reading the exit code, so a pane that ended must never print it (SPL-2627).
+rc=0
 if [ "$KIND" = claude ] && [ "${SPAWN_START_CHECK:-1}" != 0 ]; then
   # shellcheck source=../lib/start-check.inc.sh
   . "$HERE/../lib/start-check.inc.sh"
   sw_capture() { "${SPOOL_TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null; }
   sw_gone() { [ "$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{pane_dead}' 2>/dev/null || echo 1)" = 1 ]; }
   why="$(spool_start_check "$pane" "${SPAWN_START_CHECK_WAIT:-45}" sw_capture sw_gone)"; rc=$?
-  case "$rc" in
-    0) ;;
-    3) echo "spawn-window: START FAIL ${TITLE} ${pane}: the session is stopped on a '${why}' dialog; nothing was answered: fix its cause$(spool_start_hint "$why"), then the window" >&2
-       exit 11 ;;
-    *) echo "spawn-window: WARN ${TITLE} ${pane}: ${why} (start check)" >&2 ;;
-  esac
+  # The pane ended or tmux went away: no session will ever ack, a failed
+  # spawn like the pane gone before its seed. Its dead window goes with the
+  # claim; a server that is gone took it already.
+  if [ "$rc" -eq 5 ]; then
+    "${SPOOL_TM[@]}" kill-window -t "$pane" 2>/dev/null || true
+    sw_release_claim
+    echo "spawn-window: ${TITLE} ${pane}: ${why} (start check); the claim on ${TITLE} is released" >&2
+    exit 4
+  fi
 fi
+
+printf '%s %s\n' "$TITLE" "$pane"
+
+case "$rc" in
+  0) ;;
+  3) echo "spawn-window: START FAIL ${TITLE} ${pane}: the session is stopped on a '${why}' dialog; nothing was answered: fix its cause$(spool_start_hint "$why"), then the window" >&2
+     exit 11 ;;
+  *) echo "spawn-window: WARN ${TITLE} ${pane}: ${why} (start check)" >&2 ;;
+esac

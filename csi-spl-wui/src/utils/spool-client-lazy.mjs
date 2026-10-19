@@ -1647,6 +1647,37 @@ async function getFleetTokens(ctx, window = '') {
 }
 
 /**
+ * Spec 140 3.8 (SPL-2567): the operator's paid items and the effective price
+ * per token, one method so the initial client carries one stub name, not
+ * five (ci_initial_gzip_kb sits at its ceiling). `op`:
+ *   'list'                GET    /v1/operator/fleet-tokens/paid
+ *   'create', body        POST   /v1/operator/fleet-tokens/paid
+ *   'patch', id, body     PATCH  /v1/operator/fleet-tokens/paid/{id}
+ *   'delete', id          DELETE /v1/operator/fleet-tokens/paid/{id}
+ *   'effective'           GET    /v1/operator/fleet-tokens/effective (the hub's default range)
+ * Operator admin only, as getFleetTokens. The mock answers from
+ * monitoring-paid.mjs, which loads only here and on the Paid card.
+ */
+async function fleetPaid(ctx, op, a, b) {
+  const { live, mock } = ctx
+  const base = '/v1/operator/fleet-tokens/paid'
+  const one = (id) => base + '/' + encodeURIComponent(id)
+  const json = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  if (mock) {
+    const m = await import('./monitoring-paid.mjs')
+    const ops = { list: () => m.mockPaidList(), create: () => m.mockPaidCreate(a), patch: () => m.mockPaidPatch(a, b), delete: () => m.mockPaidDelete(a), effective: () => m.mockPaidEffective() }
+    if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
+    return ops[op]()
+  }
+  if (op === 'list') return live(base)
+  if (op === 'create') return live(base, json('POST', a))
+  if (op === 'patch') return live(one(a), json('PATCH', b))
+  if (op === 'delete') return live(one(a), { method: 'DELETE' })
+  if (op === 'effective') return live('/v1/operator/fleet-tokens/effective')
+  throw new Error('fleetPaid: unknown op ' + op)
+}
+
+/**
  * Spec 123 5.4 (SPL-2199): GET /v1/tenant/fx/currencies, the codes the
  * costs' second currency may be ({default, currencies}), for the Settings ->
  * Appearance picker. Any signed-in member.
@@ -1808,6 +1839,7 @@ export const lazySpoolMethods = {
   getTenantCosts,
   getFleetTokens,
   getFxCurrencies,
+  fleetPaid,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

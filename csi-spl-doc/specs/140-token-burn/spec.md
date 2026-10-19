@@ -495,6 +495,23 @@ reads the items (`PAID_CMD=list`) or the effective price (`PAID_CMD=effective
 FROM= TO=`) through the hub as the env's project service account; `create`
 and `delete` are for test fixtures and are dry runs unless `DRY_RUN=0`.
 
+**In the WUI (SPL-2567).** Monitoring -> Tokens carries a Paid card under
+the tables, for the operator admin only (the Tokens tab's gate; a 403 draws
+nothing). It lists the items with add, edit and delete: a form with the
+fields above, checked as the hub checks them before anything is sent (the
+end after the start, an amount above 0, USD or a currency from
+`GET /v1/tenant/fx/currencies`), the hub's own refusal text shown as it
+comes. Under it, the effective price per 1M tokens per vendor beside the
+list price of the same days, read once on open and after each change, never
+polled: `not_metered` reads "Not metered" with the daily share, a vendor with
+tokens but a list cost of 0 (no price held, grok) reads "not priced", never
+$0.00, and cache reads stay their own column. Code:
+`csi-spl-wui/src/components/monitoring/token-burn/{PaidItemsCard,PaidItemForm,EffectivePriceTable}.vue`
+(their own chunk), `src/utils/monitoring-paid.mjs` (helpers and the mock
+hub), the lazy client's `fleetPaid(op, ...)`. Tests:
+`tests/unit/monitoring-paid.test.mjs`, the paid round of
+`tests/e2e/monitoring-costs.test.mjs`.
+
 ### 3.9 Grok burn: named apart, per turn, backfilled (SPL-2461)
 
 Owner HUM-10, t1 efd618b2 (msgs 2439f1b6 "Collect the agent token statistics

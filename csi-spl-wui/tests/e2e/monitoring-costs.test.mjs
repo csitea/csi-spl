@@ -24,6 +24,11 @@
 //     the stale marker (amber after 45 s, red after 90 s, cleared by
 //     Refresh), the empty state. For anyone else: no card, no tab, and the
 //     direct URL is the 403 sentence. No Tokens code in the initial download.
+//   - spec 140 3.8 (SPL-2567): the Tokens tab's Paid card for an operator
+//     admin: empty -> the form refuses a 0 price and an end before the start
+//     -> add one item -> it shows, the effective price for its vendor ->
+//     edit -> the hub's refusal text shows as it came -> delete -> empty.
+//     Anyone else: no Paid card.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -34,6 +39,7 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { COSTS_MOCK_KEY } from '../../src/utils/tenant-costs.mjs'
 import { TOKENS_MOCK_KEY, TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
+import { PAID_MOCK_REFUSE_KEY } from '../../src/utils/monitoring-paid.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -106,6 +112,80 @@ const titles = (p, sel) => p.$$eval(sel, (els) => els.map((e) => ({ src: e.close
 const go = (p, path) => p.evaluate((path) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(path), path)
 const DAY = '\\d{4}-\\d{2}-\\d{2}'
 const waitFor = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 20000 }).then(() => true, () => false)
+/** Set a form field as a person would (an input event Vue's v-model reads); works for date inputs in any locale. */
+const setField = (p, sel, value) => p.$eval(sel, (e, v) => {
+  e.value = v
+  e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }))
+}, value)
+const isoDay = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
+const waitText = (p, sel, want) => p.waitForFunction((s, w) => (document.querySelector(s)?.textContent || '').replace(/\s+/g, ' ').trim() === w, { timeout: 10000 }, sel, want).then(() => true, () => false)
+
+/** SPL-2567: the Paid card's whole round on the Tokens tab: empty, add, edit, a refusal, delete, empty. */
+async function paidRound(p, base, size) {
+  await open(p, base, '/monitoring/tokens')
+  ok('paid: the Paid card shows for an operator admin', await waitFor(p, '[data-test=paid-card]'))
+  ok('paid: no item yet', await waitFor(p, '[data-test=paid-empty]'))
+  ok('paid: the effective table lists five kinds', await waitFor(p, '[data-test=paid-effective]') && (await count(p, '[data-test=paid-effective-row]')) === 5)
+  const claudeStatus = () => p.$eval('[data-test=paid-effective-row][data-vendor=claude]', (e) => e.getAttribute('data-status')).catch(() => '')
+  ok('paid: claude has the list price only', (await claudeStatus()) === 'list_only', await claudeStatus())
+  await p.click('[data-test=paid-add]')
+  ok('paid: Add opens the form', await waitFor(p, '[data-test=paid-form]'))
+  await setField(p, '[data-test=paid-f-plan]', 'E2E fixture')
+  await setField(p, '[data-test=paid-f-amount]', '0')
+  await p.click('[data-test=paid-save]')
+  ok('paid: a 0 price is refused before sending', await waitText(p, '[data-test=paid-form-error]', 'The price must be a number above 0.'), await text(p, '[data-test=paid-form-error]'))
+  await setField(p, '[data-test=paid-f-amount]', '300')
+  await setField(p, '[data-test=paid-f-start]', isoDay(-10))
+  await setField(p, '[data-test=paid-f-end]', isoDay(-10))
+  await p.click('[data-test=paid-save]')
+  ok('paid: an end not after the start is refused', await waitText(p, '[data-test=paid-form-error]', 'The first day not paid must come after the first day paid.'), await text(p, '[data-test=paid-form-error]'))
+  await setField(p, '[data-test=paid-f-end]', isoDay(20))
+  await p.click('[data-test=paid-save]')
+  ok('paid: the added item shows', await waitFor(p, '[data-test=paid-item-row]') && (await count(p, '[data-test=paid-item-row]')) === 1)
+  ok('paid: the form closes on save', (await count(p, '[data-test=paid-form]')) === 0)
+  ok('paid: its plan and price', (await text(p, '[data-test=paid-item-plan]')) === 'E2E fixture' && (await text(p, '[data-test=paid-item-amount]')) === '$300.00', [await text(p, '[data-test=paid-item-plan]'), await text(p, '[data-test=paid-item-amount]')])
+  await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'effective', { timeout: 10000 }).catch(() => null)
+  const eff = await text(p, '[data-test=paid-effective-row][data-vendor=claude] [data-test=paid-eff-value]')
+  ok('paid: claude now has an effective price per 1M tokens', (await claudeStatus()) === 'effective' && /^\$\d+\.\d{2,4}$/.test(eff), [await claudeStatus(), eff])
+  ok('paid: 10 of its 30 days in the range: $100.00 paid', (await text(p, '[data-test=paid-effective-row][data-vendor=claude] [data-test=paid-eff-paid]')) === '$100.00')
+  ok('paid: grok (no price held) says "not priced" for its list price, never $0.00', (await text(p, '[data-test=paid-effective-row][data-vendor=grok] [data-test=paid-eff-list]')) === 'not priced')
+    await p.click('[data-test=paid-edit]')
+  ok('paid: Edit opens the form with the item', await waitFor(p, '[data-test=paid-form]') && (await p.$eval('[data-test=paid-f-plan]', (e) => e.value)) === 'E2E fixture')
+  await setField(p, '[data-test=paid-f-plan]', 'E2E fixture edited')
+  await setField(p, '[data-test=paid-f-amount]', '150')
+  await p.click('[data-test=paid-save]')
+  ok('paid: the edit shows', await waitText(p, '[data-test=paid-item-plan]', 'E2E fixture edited') && (await text(p, '[data-test=paid-item-amount]')) === '$150.00', await text(p, '[data-test=paid-item-amount]'))
+  await p.evaluate((k) => localStorage.setItem(k, 'currency must be USD or one the hub holds an exchange rate for'), PAID_MOCK_REFUSE_KEY)
+  await p.click('[data-test=paid-edit]')
+  await waitFor(p, '[data-test=paid-form]')
+  await p.click('[data-test=paid-save]')
+  ok('paid: the hub refusal shows its own text', await waitText(p, '[data-test=paid-form-refused]', 'The hub refused it: currency must be USD or one the hub holds an exchange rate for'), await text(p, '[data-test=paid-form-refused]'))
+  await p.click('[data-test=paid-cancel]')
+  /* agy is paid but logs no tokens: the hub's not_metered, shown as such with its daily share */
+  await p.click('[data-test=paid-add]')
+  await waitFor(p, '[data-test=paid-form]')
+  await setField(p, '[data-test=paid-f-vendor]', 'agy')
+  await setField(p, '[data-test=paid-f-plan]', 'E2E fixture agy')
+  await setField(p, '[data-test=paid-f-amount]', '30')
+  await setField(p, '[data-test=paid-f-start]', isoDay(-30))
+  await setField(p, '[data-test=paid-f-end]', isoDay(0))
+  await p.click('[data-test=paid-save]')
+  ok('paid: a second item shows', await p.waitForFunction(() => document.querySelectorAll('[data-test=paid-item-row]').length === 2, { timeout: 10000 }).then(() => true, () => false))
+  await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=agy]')?.getAttribute('data-status') === 'not_metered', { timeout: 10000 }).catch(() => null)
+  ok('paid: agy paid but unmetered says "Not metered", its daily share $1.00', (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-value]')) === 'Not metered'
+    && (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-day]')) === '$1.00', await text(p, '[data-test=paid-effective-row][data-vendor=agy]'))
+  if (size.width < 600) ok('paid: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-tokens-paid-${size.width}.png`, fullPage: true })
+  for (let i = 0; i < 2; i++) {
+    const left = await count(p, '[data-test=paid-item-row]')
+    await p.click('[data-test=paid-delete]')
+    ok('paid: Delete asks first', await waitFor(p, '[data-test=paid-delete-yes]'))
+    await p.click('[data-test=paid-delete-yes]')
+    await p.waitForFunction((n) => document.querySelectorAll('[data-test=paid-item-row]').length < n, { timeout: 10000 }, left).catch(() => null)
+  }
+  ok('paid: deleted, the card is empty again', await waitFor(p, '[data-test=paid-empty]') && (await count(p, '[data-test=paid-item-row]')) === 0)
+  ok('paid: claude is back to the list price only', await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'list_only', { timeout: 10000 }).then(() => true, () => false))
+}
 
 const server = await startServer()
 const browser = await launch()
@@ -349,6 +429,13 @@ try {
       await ctx.close()
     }
 
+    /* SPL-2567: the Paid card's round, an operator admin */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { operator: true })
+      await paidRound(p, server.base, size)
+      await ctx.close()
+    }
+
     /* CONTROL: not an operator admin: no card, no tab, the direct URL is the 403 sentence */
     {
       const { ctx, p } = await costsPage(browser, server.base, size)
@@ -359,6 +446,7 @@ try {
       await open(p, server.base, '/monitoring/tokens')
       ok('tokens control: the direct URL shows the 403 sentence', await waitFor(p, '[data-test=tokens-forbidden]'))
       ok('tokens control: no table', (await count(p, '[data-test=tokens-agent-row]')) === 0 && (await count(p, '[data-test=tokens-kpis]')) === 0)
+      ok('paid control: no Paid card for anyone but an operator admin', (await count(p, '[data-test=paid-card]')) === 0)
       await ctx.close()
     }
 

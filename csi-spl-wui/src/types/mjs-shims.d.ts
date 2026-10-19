@@ -464,7 +464,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function recipientOf(msg: unknown): { id: string, box: string } | null
   export function headerRecipientOf(msg: unknown): { id: string, box: string } | null
   export function formatElapsed(sec: number): string
-  export function formatTopicTs(ts: string, originMs?: number): string
+  export function formatTopicTs(ts: string, originMs?: number, sent?: (at: string, age: string) => string): string
   export function channelSlug(name: string): string
   export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string
   export function retentionDays(row: { channel_id?: string, channel?: string, retention_days?: number }): number

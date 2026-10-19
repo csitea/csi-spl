@@ -663,6 +663,7 @@
     "unknown_author": "necunoscut",
     "card_aria": "{who}, {kind}",
     "open_topic": "Deschide tema",
+    "time_sent": "{at} trimis acum {age}",
     "replies": "{n} răspuns | {n} răspunsuri",
     "filter_label": "Filtru:",
     "matches": "Potriviri: {count}",

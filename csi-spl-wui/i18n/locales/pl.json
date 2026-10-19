@@ -663,6 +663,7 @@
     "unknown_author": "nieznany",
     "card_aria": "{who}, {kind}",
     "open_topic": "Otwórz temat",
+    "time_sent": "{at} wysłano {age} temu",
     "replies": "{n} odpowiedź | {n} odpowiedzi",
     "filter_label": "Filtr:",
     "matches": "Dopasowania: {count}",

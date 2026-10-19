@@ -663,6 +663,7 @@
     "unknown_author": "okänd",
     "card_aria": "{who}, {kind}",
     "open_topic": "Öppna ämne",
+    "time_sent": "{at} skickat för {age} sedan",
     "replies": "{n} svar | {n} svar",
     "filter_label": "Filtrera:",
     "matches": "{count} träff(ar)",

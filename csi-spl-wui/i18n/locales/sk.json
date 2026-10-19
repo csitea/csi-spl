@@ -663,6 +663,7 @@
     "unknown_author": "neznámy",
     "card_aria": "{who}, {kind}",
     "open_topic": "Otvoriť tému",
+    "time_sent": "{at} odoslané pred {age}",
     "replies": "{n} odpoveď | Počet odpovedí: {n}",
     "filter_label": "Filter:",
     "matches": "Zhody: {count}",

@@ -21,6 +21,7 @@ import {
   signedInHuman,
   viewerHumanId,
 } from '../../src/utils/channel-members.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -440,9 +441,17 @@ describe('every people and agent list is vertical, one avatar per row', () => {
 
 describe('SPL-997: the fallback responder line (spec 038 FR-035)', () => {
   it('names the agent a post goes to when no member agent is online', () => {
-    assert.deepEqual(channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: true,
-      recent: { count: 3, id: 'CLE-001', at: '2026-09-27T10:40:12Z' } }),
-    { id: 'CLE-001', box: 'box-desk', active: true, off: false, recent: { count: 3, id: 'CLE-001', at: '2026-09-27 10:40' } })
+    setTimeZoneSource(() => 'UTC')
+    try {
+      assert.deepEqual(channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: true,
+        recent: { count: 3, id: 'CLE-001', at: '2026-09-27T10:40:12Z' } }),
+      { id: 'CLE-001', box: 'box-desk', active: true, off: false, recent: { count: 3, id: 'CLE-001', at: '2026-09-27 10:40' } })
+      /* SPL-2144: the time reads in the person's zone, not the hub's UTC digits */
+      setTimeZoneSource(() => 'Pacific/Kiritimati')
+      assert.equal(channelFallbackLine({ id: 'CLE-001', active: true, recent: { count: 1, at: '2026-09-27T10:40:12Z' } }).recent.at, '2026-09-28 00:40')
+    } finally {
+      setTimeZoneSource(() => '')
+    }
     assert.deepEqual(channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: false, recent: { count: 0 } }),
       { id: 'CLE-001', box: 'box-desk', active: false, off: false, recent: { count: 0, id: '', at: '' } })
   })

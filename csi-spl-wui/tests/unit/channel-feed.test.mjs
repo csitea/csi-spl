@@ -102,6 +102,8 @@ describe('channel-feed', () => {
     assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T16:08:12Z')), '2026-09-19 14:05:00 sent 2h 3m')
     assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00 sent 0s')
     assert.equal(formatTopicTs('not a date', 1), 'not a date')
+    /* SPL-2144: the UI language words the line (MessageCard passes t('feed.time_sent')) */
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:05:07Z'), (at, age) => `${at} lähetetty ${age} sitten`), '2026-09-19 14:05:00 lähetetty 7s sitten')
     assert.equal(formatBytes(2048, 'fi'), '2,0 KiB')
     assert.equal(formatBytes(2048, 'en'), '2.0 KiB')
     assert.equal(retentionDays({ channel_id: 'alerts' }), 7)

@@ -44,6 +44,13 @@
 - FR-007 No document x-scroll at any locale (long strings).
 - FR-008 The default locale is one cnf value (`env.i18n.default_locale`)
   shared by the WUI build and the hub.
+- FR-009 (SPL-2144, UI suggestion 9, owner t1 1061f05f msg 4d63f24c) Every
+  date and time the WUI prints reads the person's time zone (Settings ->
+  Appearance, `TimeZoneSetting`, else the browser's) through
+  `src/utils/date-iso.mjs`, and every word around it comes from the
+  catalogue of the language picked (`LanguageSetting`). The digits stay ISO
+  (`yyyy-mm-dd HH:MM`, 24-hour) in every locale (CLE-77908); relative ages
+  (`7s`, `2h 3m`) stay as they are.
 
 ### 3.1 Status (trunk `28442ef6`, n=1, `git grep` / unit runs)
 
@@ -56,9 +63,33 @@
 | FR-005 | Implemented | T005, T020, T021, T022, T032 |
 | FR-006 | Implemented | T005a, T021, T022 (`auth/handler.go` `RequestLocale`: X-Locale > Accept-Language > default) |
 | FR-007 | Implemented | T031 (`no-x-scroll.test.mjs`, 19 locales) |
+| FR-009 | Implemented | SPL-2144: see 3.2; `tests/e2e/local-time.test.mjs` step 6 (fi + `Pacific/Kiritimati`, Chrome in UTC: list row, topic pane clock, last-data clock) |
 | FR-008 | Implemented | T006; WUI via `30_wui-build-deploy.yml:187-215`, hub via `csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh:42-43` (env.i18n.default_locale -> `SPOOL_HUB_DEFAULT_LOCALE`) |
 
 Beyond this spec, in the same code (no FR here): the `federated_signin` and `tenant_invite` mails are localized too (`internal/mail/templates/*` -> 38 files each = 19 x subject+txt); `members_admin.go:165` mails invites in the request's `X-Locale`; `X-Locale` is also in the CORS allow-lists of `channel_members.go`, `channels.go`, `edit.go`, `rbac.go`; `PUT /api/v1/auth/preferences` also carries `diagnostics_enabled` (rdb 0038); WUI helpers `utils/localeTargetPath.mjs`, `composables/useLocaleSwitch.ts`, `python/i18n/find_dead_keys.py`.
+
+### 3.2 Dates and times, audited 2026-10-19 (SPL-2144)
+
+Every place under `csi-spl-wui/src` that formats a date or a time (grep
+`toLocale*`, `Intl.DateTimeFormat`, `Intl.RelativeTimeFormat`,
+`getHours/getDate/...`, `toISOString().slice`, `.slice(11, 16)`), tree
+`1c367612d`. Zone = reads the picked zone; language = its words come from
+the picked language.
+
+| surface | file | zone | language | after SPL-2144 |
+|---|---|---|---|---|
+| message list row, topic card | `utils/channel-feed.mjs` `formatMsgListTs` | yes | n/a (ISO digits) | unchanged |
+| topic pane clock `... sent 7s` | `utils/channel-feed.mjs` `formatTopicTs` | yes | **no**: `sent` was English | key `feed.time_sent` |
+| phone card time | `utils/channel-feed.mjs` `phoneCardTime` | yes | n/a | unchanged |
+| last-data clock + its title | `utils/last-data.mjs` | **no**: the browser's zone | n/a | `isoDateTimeSec` |
+| channel properties, fallback responder "recent at" | `utils/channel-members.mjs` `channelFallbackLine` | **no**: the hub's UTC digits | n/a | `isoDateTime` |
+| times inside a message body | `utils/body-times*.mjs` | yes | n/a | unchanged |
+| issue history, debug panel ages | `IssueHistory.vue`, `DebugPanel.vue` | n/a | yes (`Intl.RelativeTimeFormat(locale)`) | unchanged |
+| calendar, hours, roadmap, goals, people, monitoring, search, events | through `date-iso.mjs` / `date-iso-zone.mjs` | yes | n/a | unchanged |
+| hover of a list row, `/events` | `formatIsoTs`: UTC with `Z` (owner's settled row format) | explicit UTC | n/a | unchanged, by design |
+| all-day event days, billing days, flow line keys | `calIsoDay`, `tenant-costs.mjs`, `monitoring-paid.mjs`, `flow-fold.mjs` `utcDay` | UTC days by design (a stored day, a billing day, a grouping key never printed) | n/a | unchanged |
+| user access-until date input | `utils/tenant-users.mjs` `accessDateOf` | the browser's day, the inverse of `accessUntilOfDate` | n/a | unchanged (a date input round trip) |
+| mock hours timer | `utils/hours-timer.mjs` `mockPieces` | mock only | n/a | unchanged |
 
 ## 4. Open questions (owner)
 
@@ -72,4 +103,4 @@ Beyond this spec, in the same code (no FR here): the `federated_signin` and `ten
   links for a person with no preference) renders English; browsers asking
   for another shipped language are redirected from `/` only.
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->
+<!-- version: 1.2.0 · updated: 2026-10-19 · last-edit: 2026-10-19T21:00:00Z -->

@@ -663,6 +663,7 @@
     "unknown_author": "неизвестен",
     "card_aria": "{who}, {kind}",
     "open_topic": "Отвори темата",
+    "time_sent": "{at} изпратено преди {age}",
     "replies": "{n} отговор | {n} отговора",
     "filter_label": "Филтър:",
     "matches": "Съвпадения: {count}",

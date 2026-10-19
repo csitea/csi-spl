@@ -663,6 +663,7 @@
     "unknown_author": "nezināms",
     "card_aria": "{who}, {kind}",
     "open_topic": "Atvērt tēmu",
+    "time_sent": "{at} nosūtīts pirms {age}",
     "replies": "{n} atbilde | {n} atbildes",
     "filter_label": "Filtrs:",
     "matches": "Atbilstības: {count}",

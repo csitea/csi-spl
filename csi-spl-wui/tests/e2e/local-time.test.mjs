@@ -10,6 +10,10 @@
 //   4  a picked zone (Settings -> Appearance, per workspace) wins over the
 //      browser's at once, without a reload, and clearing it returns
 //   5  Settings -> Appearance shows the zone picker with the browser's zone first
+//   6  SPL-2144 (UI suggestion 9): a non-default language (fi) and a picked zone
+//      far from UTC (Pacific/Kiritimati, +14) with Chrome in UTC: the list row
+//      (topic card), the topic pane clock (worded in Finnish) and the
+//      last-data clock all read the picked zone
 //
 //   node tests/e2e/local-time.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/local-time.test.mjs
@@ -90,6 +94,51 @@ const paneClock = (p) => p.evaluate((iso) => {
   return el ? el.textContent.trim() : ''
 }, ISO)
 
+/** 6: language + picked zone on three surfaces (SPL-2144) */
+async function runLanguageZone(browser, base) {
+  const zone = 'Pacific/Kiritimati'
+  const p = await browser.newPage()
+  await p.emulateTimezone('UTC')
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(`${base}/fi/lobby`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  if (!(await signIn(p, zone))) throw new Error('no session store')
+  await p.waitForSelector('.live-rows > article.msg', { timeout: NAV })
+  const lang = await p.evaluate(() => document.documentElement.lang)
+  check('6 the page is in Finnish', /^fi/.test(lang), { lang })
+  const id = `tz-lang-${Date.now()}`
+  await inject(p, id)
+  await p.waitForSelector(`.live-rows > article.msg[data-msg-id="${id}"]`, { timeout: 15000 })
+  const want = wall(AT, zone)
+  const v = await rowView(p, id)
+  check(`6 ${zone} list row (topic card): ${want.slice(0, 16)}`, v.list === want.slice(0, 16), v)
+
+  /* the last-data clock: its text against its own data-at, read in one tick */
+  await p.waitForFunction(() => !!document.querySelector('[data-test=last-data-clock]')?.getAttribute('data-at'), { timeout: 15000 }).catch(() => null)
+  const clock = await p.evaluate(() => {
+    const el = document.querySelector('[data-test=last-data-clock]')
+    return { text: (el?.textContent || '').trim(), at: el?.getAttribute('data-at') || '' }
+  })
+  const wantClock = clock.at ? wall(new Date(clock.at), zone).slice(11) : '?'
+  check(`6 ${zone} last-data clock: ${wantClock}`, clock.text === wantClock, { ...clock, want: wantClock })
+
+  await p.evaluate((id) => document.querySelector(`.live-rows > article.msg[data-msg-id="${id}"]`)?.click(), id)
+  await p.waitForSelector('[data-pane="topic"] .feed-body', { timeout: 15000 })
+  await p.waitForFunction(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('live-pane')
+    return s && s.taskId && !s.loading
+  }, { timeout: 15000 })
+  await sleep(800)
+  await p.evaluate((ts) => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('live-pane')
+    s.messages = [...s.messages, { v: 1, msg_id: 'tz-lang-reply-' + Date.now(), task_id: s.taskId, ts, received_at: ts, from: 'HUM-7', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: 'reply', files: [] }]
+  }, ISO)
+  await p.waitForFunction(() => [...document.querySelectorAll('.msg-time')].some((e) => / (sent|lähetetty) /.test(e.textContent || '')), { timeout: 15000 }).catch(() => null)
+  const pane = await paneClock(p)
+  check(`6 ${zone} topic pane in Finnish: "${want} lähetetty ... sitten"`, pane.startsWith(want + ' lähetetty ') && pane.endsWith(' sitten'), { pane, want })
+  await p.close()
+}
+
 async function run(browser, base, zone) {
   const p = await browser.newPage()
   await p.emulateTimezone(zone)
@@ -151,6 +200,7 @@ const browser = await launch()
 let code = 0
 try {
   for (const zone of ['Europe/Helsinki', 'UTC']) await run(browser, server.base, zone)
+  await runLanguageZone(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

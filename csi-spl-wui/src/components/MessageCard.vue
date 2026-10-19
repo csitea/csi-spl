@@ -586,7 +586,7 @@ const at = computed(() => activityOf(props.msg))
  */
 const fullTime = computed(() => (
   props.sinceMs != null
-    ? formatTopicTs(at.value, props.sinceMs)
+    ? formatTopicTs(at.value, props.sinceMs, (when: string, age: string) => t('feed.time_sent', { at: when, age }))
     : formatMsgListTs(at.value)
 ))
 /* SPL-1000 (owner, "on mobile only"): a phone drops this year's `2026-`;

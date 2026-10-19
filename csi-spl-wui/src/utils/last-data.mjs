@@ -4,7 +4,12 @@
  * The shared client and the live socket call noteLastData(). It stores
  * one number (Date.now()) and asks for at most one paint per frame.
  * It does not tick, and it does not write a store.
+ *
+ * SPL-2144: it prints in the viewer's zone (Settings -> Appearance, else the
+ * browser's) through date-iso.mjs, like every other clock of the WUI.
  */
+
+import { isoDateTimeSec } from './date-iso.mjs'
 
 const PLACEHOLDER = '--:--:--'
 
@@ -12,10 +17,6 @@ let at = 0
 let scheduled = false
 let epoch = 0
 const listeners = new Set()
-
-function pad(n) {
-  return String(n).padStart(2, '0')
-}
 
 function schedule(fn) {
   if (typeof requestAnimationFrame === 'function') {
@@ -35,20 +36,15 @@ function flush(gen) {
   }
 }
 
-/** Local HH:mm:ss, zero-padded, 24-hour. No instant yet: `--:--:--`. */
+/** HH:mm:ss in the viewer's zone, zero-padded, 24-hour. No instant yet: `--:--:--`. */
 export function formatLastDataClock(ms) {
-  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return PLACEHOLDER
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return PLACEHOLDER
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return formatLastDataDate(ms).slice(11) || PLACEHOLDER
 }
 
-/** Local `yyyy-mm-dd HH:mm:ss` for the tooltip. '' when there is no instant. */
+/** `yyyy-mm-dd HH:mm:ss` in the viewer's zone, for the tooltip. '' when there is no instant. */
 export function formatLastDataDate(ms) {
   if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return ''
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${formatLastDataClock(ms)}`
+  return isoDateTimeSec(ms)
 }
 
 /** Latest stamp in ms, or 0 before the first successful response. */

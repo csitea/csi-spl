@@ -663,6 +663,7 @@
     "unknown_author": "tundmatu",
     "card_aria": "{who}, {kind}",
     "open_topic": "Ava teema",
+    "time_sent": "{at} saadetud {age} tagasi",
     "replies": "{n} vastus | {n} vastust",
     "filter_label": "Filtreeri:",
     "matches": "{count} vaste(t)",

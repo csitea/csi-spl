@@ -663,6 +663,7 @@
     "unknown_author": "nežinomas",
     "card_aria": "{who}, {kind}",
     "open_topic": "Atidaryti temą",
+    "time_sent": "{at} išsiųsta prieš {age}",
     "replies": "{n} atsakymas | {n} atsakymai",
     "filter_label": "Filtras:",
     "matches": "Atitikmenų: {count}",

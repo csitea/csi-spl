@@ -14,6 +14,7 @@ import {
   resetLastData,
 } from '../../src/utils/last-data.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -47,14 +48,29 @@ describe('formatLastDataClock', () => {
 
   it('uses the local clock, not UTC', () => {
     const src = read('src/utils/last-data.mjs')
-    assert.match(src, /getHours\(\)/)
-    assert.doesNotMatch(src, /getUTC/)
+    assert.match(src, /isoDateTimeSec/)
+    assert.doesNotMatch(src, /getUTC|getHours/)
     const d = new Date(2026, 5, 15, 15, 4, 5)
     assert.equal(formatLastDataClock(d.getTime()), localClock(d))
     if (d.getTimezoneOffset() !== 0) {
       const utc = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
       assert.notEqual(formatLastDataClock(d.getTime()), utc)
     }
+  })
+
+  /* SPL-2144: the clock follows Settings -> Appearance -> Time zone (it read the browser's zone) */
+  it("prints in the person's picked zone, else the browser's", () => {
+    const at = Date.UTC(2026, 9, 19, 20, 31, 7)
+    try {
+      setTimeZoneSource(() => 'Pacific/Kiritimati')
+      assert.equal(formatLastDataClock(at), '10:31:07')
+      assert.equal(formatLastDataDate(at), '2026-10-20 10:31:07')
+      setTimeZoneSource(() => 'America/Los_Angeles')
+      assert.equal(formatLastDataClock(at), '13:31:07')
+    } finally {
+      setTimeZoneSource(() => '')
+    }
+    assert.equal(formatLastDataClock(at), localClock(new Date(at)))
   })
 
   it('is the placeholder before any instant', () => {

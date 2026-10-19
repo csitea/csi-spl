@@ -663,6 +663,7 @@
     "unknown_author": "tuntematon",
     "card_aria": "{who}, {kind}",
     "open_topic": "Avaa aihe",
+    "time_sent": "{at} lähetetty {age} sitten",
     "replies": "{n} vastaus | {n} vastausta",
     "filter_label": "Suodatin:",
     "matches": "Osumia: {count}",

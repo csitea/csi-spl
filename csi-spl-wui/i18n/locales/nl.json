@@ -663,6 +663,7 @@
     "unknown_author": "onbekend",
     "card_aria": "{who}, {kind}",
     "open_topic": "Onderwerp openen",
+    "time_sent": "{at} verzonden {age} geleden",
     "replies": "{n} reactie | {n} reacties",
     "filter_label": "Filteren:",
     "matches": "{count} resultaat/resultaten",

@@ -663,6 +663,7 @@
     "unknown_author": "bilinmiyor",
     "card_aria": "{who}, {kind}",
     "open_topic": "Konuyu aç",
+    "time_sent": "{at} {age} önce gönderildi",
     "replies": "{n} yanıt | {n} yanıt",
     "filter_label": "Filtre:",
     "matches": "{count} eşleşme",

@@ -324,15 +324,20 @@ export function formatElapsed(sec) {
  * Topic-pane clock: absolute local time, the word `sent`, then elapsed age
  * (`7s` / `1m` / `2h 3m`) from `originMs` (topic open, ticking).
  * A reply after open shows `sent 0s` until origin catches up.
+ * SPL-2144: `sent(at, age)` words it in the UI language (MessageCard passes
+ * t('feed.time_sent')); without it the line stays English.
+ * @param {unknown} ts
+ * @param {unknown} originMs
+ * @param {(at: string, age: string) => string} [sent]
  */
-export function formatTopicTs(ts, originMs) {
+export function formatTopicTs(ts, originMs, sent = (at, age) => at + ' sent ' + age) {
   const abs = formatAbsTs(ts)
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return abs
   const origin = Number(originMs)
   if (!Number.isFinite(origin)) return abs
   const sec = Math.max(0, Math.floor((origin - d.getTime()) / 1000))
-  return abs + ' sent ' + formatElapsed(sec)
+  return sent(abs, formatElapsed(sec))
 }
 
 /** Hub channel slug (channels-v1 §5.1: ^[a-z0-9][a-z0-9-]{0,63}$). */

@@ -663,6 +663,7 @@
     "unknown_author": "άγνωστος",
     "card_aria": "{who}, {kind}",
     "open_topic": "Άνοιγμα θέματος",
+    "time_sent": "{at} στάλθηκε πριν από {age}",
     "replies": "{n} απάντηση | {n} απαντήσεις",
     "filter_label": "Φίλτρο:",
     "matches": "{count} αποτελέσματα",

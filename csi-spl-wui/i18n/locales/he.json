@@ -663,6 +663,7 @@
     "unknown_author": "לא ידוע",
     "card_aria": "{who}, {kind}",
     "open_topic": "פתיחת נושא",
+    "time_sent": "{at} נשלח לפני {age}",
     "replies": "תגובה אחת | {n} תגובות",
     "filter_label": "סינון:",
     "matches": "{count} תוצאות",

@@ -663,6 +663,7 @@
     "unknown_author": "невідомо",
     "card_aria": "{who}, {kind}",
     "open_topic": "Відкрити тему",
+    "time_sent": "{at} надіслано {age} тому",
     "replies": "{n} відповідь | {n} відповідей",
     "filter_label": "Фільтр:",
     "matches": "Збігів: {count}",

@@ -134,3 +134,14 @@ variable "query_insights_plans_per_minute" {
     error_message = "query_insights_plans_per_minute must be between 0 and 20."
   }
 }
+
+variable "connector_enforcement" {
+  type        = string
+  description = "REQUIRED: only Cloud SQL connectors (the Auth Proxy, Cloud Run's /cloudsql socket, the language connectors) may connect; NOT_REQUIRED: an authorized network could also admit raw clients (there are none). SPL-2161; cnf per env, dev first."
+  default     = "NOT_REQUIRED"
+
+  validation {
+    condition     = contains(["REQUIRED", "NOT_REQUIRED"], var.connector_enforcement)
+    error_message = "connector_enforcement must be REQUIRED or NOT_REQUIRED."
+  }
+}

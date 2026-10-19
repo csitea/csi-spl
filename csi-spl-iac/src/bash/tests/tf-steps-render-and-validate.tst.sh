@@ -208,6 +208,19 @@ grep -qx 'availability_type = "REGIONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/prd/tf/
   && pass "prd 040 renders availability_type REGIONAL" || fail "prd 040 is not REGIONAL (SPL-2250)"
 grep -qx 'availability_type = "ZONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/040-cloud-sql-postgres.vars.tfvars" \
   && pass "dev 040 renders availability_type ZONAL" || fail "dev 040 is not ZONAL (HA is prd-only, SPL-2250)"
+# SPL-2161 (radar step 2): dev requires Cloud SQL connectors first; prd keeps
+# NOT_REQUIRED until the owner's go after a clean dev. The public IP stays
+# (wf 20/45/49 runners and the boxes reach the DB only through the proxy).
+grep -qx 'connector_enforcement = "REQUIRED"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/040-cloud-sql-postgres.vars.tfvars" \
+  && pass "dev 040 renders connector_enforcement REQUIRED" || fail "dev 040 does not require connectors (SPL-2161)"
+grep -qx 'connector_enforcement = "NOT_REQUIRED"' "$APP_ROOT/csi-spl-cnf/csi-spl/prd/tf/040-cloud-sql-postgres.vars.tfvars" \
+  && pass "prd 040 renders connector_enforcement NOT_REQUIRED (waits on the owner's go)" || fail "prd 040 connector_enforcement changed without the owner's go (SPL-2161)"
+grep -qE '^ *connector_enforcement *= *var\.connector_enforcement' "$TFD/040-cloud-sql-postgres/03-cloud-sql.tf" \
+  && pass "040 wires connector_enforcement from cnf" || fail "040 does not read var.connector_enforcement"
+grep -qE '^ *ipv4_enabled *= *true' "$TFD/040-cloud-sql-postgres/03-cloud-sql.tf" \
+  && pass "040 keeps the public IP the proxy clients need" || fail "040 dropped ipv4: wf 20/45/49 and the boxes lose the DB"
+grep -q 'authorized_networks' "$TFD/040-cloud-sql-postgres/03-cloud-sql.tf" \
+  && fail "040 declares an authorized network (raw clients on the public IP)" || pass "040 declares no authorized network"
 # CONTROL for the plain-DSN check: the exact-key grep catches a planted DSN
 printf '%s\n' 'environment_variables = {"SPOOL_HUB_DB_DSN_EPOCH": "1", "SPOOL_HUB_DB_DSN": "postgres://x"}' |
   grep -E '^environment_variables ' | grep '"SPOOL_HUB_DB_DSN":' >/dev/null && pass "CONTROL: a planted plain SPOOL_HUB_DB_DSN is caught" \

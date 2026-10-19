@@ -16,5 +16,6 @@ backup_enabled = true
 query_insights_enabled = true
 query_insights_string_length = 1024
 query_insights_plans_per_minute = 5
+connector_enforcement = "REQUIRED"
 dsn_secret_id = "csi-spl-hub-db-dsn"
 owner_dsn_secret_id = "csi-spl-hub-db-owner-dsn"

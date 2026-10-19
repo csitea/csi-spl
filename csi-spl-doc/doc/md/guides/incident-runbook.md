@@ -25,13 +25,11 @@ The spool fleet operates continuous autonomous rotations across agent seats (see
 
 ### 2.2 Owner paging rules (owner gates only)
 
-The human owner (`HUM-10`) is **never** alerted for routine operations or self-healing procedures. The owner is consulted **only** when an explicit owner gate is required per [CLAUDE.md](../../../../CLAUDE.md) and [fleet rules index](../fleet-rules-index.md):
+The human owner (`HUM-10`) is **never** alerted for routine operations or self-healing procedures. The owner is consulted **only** when an explicit owner gate is required. The list of GCP owner gates has one home: the repo [CLAUDE.md](../../../../CLAUDE.md) rule "Nothing mutates GCP without the owner" (project create, billing link, IAM change, `terraform apply`, the destructive `gcp-*` actions). Every fleet rule and its home: [fleet rules index](../fleet-rules-index.md). Beyond those, the owner decides:
 
-1. **GCP account / project mutations**: `gcloud projects create`, project deletion, billing account association, and IAM role grants.
-2. **Production infrastructure apply**: Running `terraform apply` or `make do-provision` on `prd`.
-3. **Emergency order overrides**: Applying changes to `prd` ahead of `dev` (`ENV_ORDER_OVERRIDE=<owner msg id>`).
-4. **Force-push approval**: Any non-fast-forward push or ref deletion on `master` (strictly forbidden without owner approval; [developer-guide.md](../developer-guide.md) section 3).
-5. **Business decisions**: Billing account changes, tenant ownership transfers, or workspace tier adjustments.
+1. **Emergency order overrides**: applying changes to `prd` ahead of `dev` (`ENV_ORDER_OVERRIDE=<owner msg id>`).
+2. **Force-push approval**: any non-fast-forward push or ref deletion on `master` ([developer-guide.md](../developer-guide.md) section 3).
+3. **Business decisions**: tenant ownership transfers or workspace tier adjustments.
 
 ## 3. Escalation path and timelines
 
@@ -72,12 +70,25 @@ Every diagnostic and remediation command is a version-controlled named action. A
   cd csi-spl-orc && ENV=prd ./run -a do_check_hub_deploy
   ```
   Action file: `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`
-- **Restart Cloud Run hub service (force a fresh revision)**:
+- **Restart Cloud Run hub service (force a fresh revision)**: a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Preview first (`DRY_RUN=1` is the default and changes nothing):
+  ```bash
+  cd csi-spl-iac && ENV=prd DRY_RUN=1 ./run -a do_gcp_hub_restart
+  ```
+  Then c-001 alone:
   ```bash
   cd csi-spl-iac && ENV=prd DRY_RUN=0 ./run -a do_gcp_hub_restart
   ```
-  Action file: `csi-spl-iac/src/bash/run/gcp-hub-restart.func.sh` (run with `DRY_RUN=1` first to preview).
-- **Rollback hub to previous release**:
+  Action file: `csi-spl-iac/src/bash/run/gcp-hub-restart.func.sh`. It refuses while the ready revision was restarted less than `HUB_RESTART_MIN_AGE_S` (600 s) ago, so a second seat acting on the same incident cannot restart prd twice.
+- **Rollback hub to previous release**: a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Dev goes first: `ENV=prd` is refused (rc 4) until dev already serves the target commit, unless `ENV_ORDER_OVERRIDE=<owner msg id>` is set, which is for an emergency only. Preview, then roll dev, then preview and roll prd:
+  ```bash
+  cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=1 ./run -a do_hub_rollback
+  ```
+  ```bash
+  cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=0 ./run -a do_hub_rollback
+  ```
+  ```bash
+  cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=1 ./run -a do_hub_rollback
+  ```
   ```bash
   cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=0 ./run -a do_hub_rollback
   ```
@@ -105,9 +116,9 @@ Every diagnostic and remediation command is a version-controlled named action. A
   cd csi-spl-orc && LEASE_CMD=show ./run -a do_spl_dispatch_lease
   ```
   Action file: `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`
-- **Restart local desk service**:
+- **Restart local desk service**: only c-001 (the orchestrator) runs it; agent seeds forbid any other seat to run `do_spl_desk_up`, so they send c-001 the exact command and wait. `ENV`, `TENANT_ID` and `DESK_AGENT` are required (its `@param` block); it is a dry run unless `DRY_RUN=0`:
   ```bash
-  cd csi-spl-orc && ./run -a do_spl_desk_up
+  cd csi-spl-orc && ENV=<env> TENANT_ID=<workspace> DESK_AGENT=<id> DRY_RUN=0 ./run -a do_spl_desk_up
   ```
   Action file: `csi-spl-orc/src/bash/run/spl-desk-up.func.sh`
 - **Restart remote peer box or satellite**:

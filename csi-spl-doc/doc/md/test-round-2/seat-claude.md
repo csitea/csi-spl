@@ -123,9 +123,9 @@ took 42 s and 21 s, already under the plan's targets. Every solo run passed
 
 ## 5. Signature
 
-**Not signed on v1.0 `b784c1a9887b628bee28f1a0277fe8e36a1673e7`.** Section 6
-lists what blocks it. I sign the next version that fixes rows 05, 07, 08, 09
-and 11.
+**Not signed on `d31332fce2f97531b149aef63fa52c44d9284baa`** either:
+section 7 lists the blockers, which are now rows 05 and 09 only. I sign the
+next sha that fixes them.
 
 ## 6. Review of v1.0 (`b784c1a98`)
 
@@ -157,3 +157,17 @@ is a trap for whoever re-measures.)
 replace them with actions the `grep -r` above shows at 0, e.g. merging 07, 08
 and 11's leftovers). Each row's "number now" should cite that `grep -r`
 command.
+
+## 7. Review of the v1.0 refinement (`d31332fce`)
+
+**Fixed:** rows 07 (msg-edit-probe and wire-probe), 08
+(`gcp-compute-lb-list`), 10 and 11 (rotate-status, local-hub-status and
+dispatch-deploy-lag) now name only actions with 0 tests, which matches
+section 6.
+
+**Still blocking:**
+
+| row | claim | measured on `origin/master` (2026-10-19 ~15:00Z) | fix |
+|---|---|---|---|
+| 09 | `spl-token-burn-push-env`, `spl-wd-orch-outcome` and `spl-standby-bench-helpers` have 0 tests | `csi-spl-orc/src/bash/tests/wd-orch-outcome.tst.sh` (170 lines) sources `spl-watchdog.func.sh` and drives `spl_wd_orch_outcome`. `csi-spl-orc/src/bash/tests/spl-standby-bench.tst.sh` (221 lines) drives `do_spl_standby_bench`, which calls every `_spl_standby_bench_*` helper, through refusals, dry run and the prd opt-in. `grep -rlE 'token.burn.push.env\|token_burn_push_env'` over every test dir -> 0 | keep `spl-token-burn-push-env` only, or add 2 actions the same `grep -r` shows at 0 |
+| 05 | `check-pre-push-{baseline,override,timeout-label}.tst.sh` have no red control | the only evidence is the absence of the word "control" (plan 3.7). The three tests already assert their failure paths: override case 1 "duplicate migration prefix -> REFUSED" (`check-pre-push-override.tst.sh:9`), baseline cases 3-4 "still broken -> WARN" and "a part that HANGS -> killed" (`check-pre-push-baseline.tst.sh:9-10`), timeout-label case 3 "TIMED OUT after 1s" (`:9`, `:63`) | state per test which code break no current case catches (planted, and run to show it stays green), or replace the row |

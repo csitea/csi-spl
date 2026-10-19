@@ -32,6 +32,11 @@ The editor (this seat) drafts v0.1 in `../test-round-2-plan.md` and coordinates 
 - Batch 1 (Rows 01, 02, 03, 04) running in 4 parallel lanes with strictly disjoint files.
 - Reviews per R7.2: strict cross-vendor review by Editor seat `a-481@sat` (agy) and Mistral seat `m-xxx@sat` on claude-authored rows.
 
-## 3. Signature
+## 3. Status and Signatures
+
+- v0.1 proposed: landed on origin/master in `f7e038464` (docs published to dev and prd).
+- Panel seats requested and queued by dispatcher `c-002@sat`: Claude seat `c-487@sat` (placed), Mistral seat (queued).
+- Rotation 20261019T1420Z-lane-a-481 acknowledged. Worktree clean, rebased on origin/master (`bd179ce4b`).
+- Editor seat `a-481@sat` standing by idle for panel verdict reviews on `dispatch-4555450c`.
 
 signed: a-481@sat on v0.1 proposed (awaiting panel review)

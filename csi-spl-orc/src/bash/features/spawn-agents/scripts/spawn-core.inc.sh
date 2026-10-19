@@ -434,14 +434,9 @@ _sp_kind_ok() {  # ID KIND
   [ "${SPAWN_REUSE_ID:-0}" = 1 ] && spool_spawn_is_seat "$1"
 }
 
-# The pane ends in `exec bash --norc`: the box user's ~/.bashrc may run
-# `git config --global` (an identity loader); a rotation kills this pane a
-# second later and left a stale ~/.gitconfig.lock that failed every agent's
-# global git config (SPL-1898).
-spawn_main() {
-  TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
-  local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args=""
-
+# Step 1 of spawn_main: refuse a test sandbox, resolve the spool env, the
+# permission flags and the identity, and validate TITLE and WORKDIR.
+spawn_guards_env() {
   # A test sandbox (tests/lib.inc.sh t_sandbox) never launches a real agent:
   # without SPAWN_DRY_RUN=1 it is refused before any side effect (2026-10-01,
   # a debug run without the flag created a stray worktree + spool dir).
@@ -503,7 +498,10 @@ spawn_main() {
   # $TITLE is the id (dirs, worktree, branch); $DISPLAY_NAME is what a human
   # reads in the tmux bar.
   DISPLAY_NAME="$(spool_decorate "$TITLE")"
+}
 
+# Step 2: the spool dirs, the brief, the worktree, the lane row and the seed text.
+spawn_init_dirs() {
   # The agent's spool dirs. next-agent-id.sh normally claimed them already;
   # creating them again is idempotent (0775, local-folder-layout.md).
   MSGDIR="${SPOOL_ROOT}/${TITLE}"
@@ -529,7 +527,10 @@ spawn_main() {
     PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
+}
 
+# Step 3: the window name, the registry row and the trust pre-accept.
+spawn_register_agent() {
   # This window's pane + socket, exported into the agent session so helpers
   # can self-target. Convenience only: `--agent <ID>` resolves through the
   # registry and survives the sudo hop that strips these.
@@ -565,7 +566,15 @@ spawn_main() {
     [ "$_sp_trc" -eq 3 ] && _sp_fail "trust for ${RUNDIR} did not verify -- ${SPAWN_KIND} would stop on its trust prompt"
   fi
   _sp_plan trust "trust-workdir.sh --settle ${RUNDIR} ${SPOOL_AGENT_USER} ${SPAWN_KIND}"
+}
 
+# Step 4: build the launch line; a dry run prints the plan, a live run
+# execs the agent.
+# The pane ends in `exec bash --norc`: the box user's ~/.bashrc may run
+# `git config --global` (an identity loader); a rotation kills this pane a
+# second later and left a stale ~/.gitconfig.lock that failed every agent's
+# global git config (SPL-1898).
+spawn_launch_session() {
   _sp_cli="${SPAWN_BIN##*/}"
   _sp_idl="${SPAWN_RESUME_ID,,}"; _sp_idl="${_sp_idl//_/ }"
   # The resume stub carries the same permission flags as the launch. A grok
@@ -621,4 +630,15 @@ spawn_main() {
   HIST_TARGET="${HISTFILE:-$HOME/.bash_history}"
   [ -n "$HIST_TARGET" ] && printf '%s\n' "${RESTORE}" >>"$HIST_TARGET" 2>/dev/null
   exec bash --norc
+}
+
+# An adapter calls this with <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]. The steps
+# share its locals (bash dynamic scope).
+spawn_main() {
+  TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
+  local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args=""
+  spawn_guards_env
+  spawn_init_dirs
+  spawn_register_agent
+  spawn_launch_session
 }

@@ -59,7 +59,7 @@
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
 # @param LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH (optional) - fleet mode: that role's own machine ranking, same form as LEASE_PRIORITY (env or lease.conf); unset = LEASE_PRIORITY
 # @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
-# @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
+# @param LEASE_OWNER_CMD (optional) - fleet mode: replaces the one ops-channel notice per orch take-over (do_spl_fleet_notice; never a DM to the owner, SPL-2584)
 # @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
 # @param LEASE_ORCH_FALLBACK / LEASE_DISPATCH_FALLBACK (optional) - fleet mode (SPL-2544): the VENDORS, comma-separated, the role's seat (LEASE_ORCH / LEASE_MASTER) switches to IN PLACE when no seat of the role can act (do_spl_role_failover); default LEASE_VENDOR_ORDER; a legacy id list (g-001,a-001) reads as its letters' vendors; none = off (env or lease.conf)
 # @param LEASE_VENDOR_ORDER (optional) - fleet mode: the vendors, best first, default claude,grok,agy (owner: "the order is claude -> grok -> agy"); a holder of a better vendor outranks any machine rank (env or lease.conf)
@@ -1670,25 +1670,24 @@ spl_lease_transcript_tail() {
   return 0
 }
 
-# The owner hears ONE message per orchestrator take-over (27f01e16): a DM
-# from the new holder's desk to LEASE_OWNER, else lease.conf ASKS_OWNER (the
-# owner leg of the asks, 4.3). LEASE_OWNER_CMD replaces the DM (the text on
-# stdin). In the background: a slow hub must not stall the tick.
+# ONE notice per orchestrator take-over (27f01e16), posted by the new
+# holder's desk as a new topic of the fleet's ops channel (do_spl_fleet_notice,
+# cnf env.fleet_notices.channel), never a DM to the owner (SPL-2584, t1
+# 4b49e47d msg 6c089b4a; how-to-post.md rule 18). LEASE_OWNER_CMD replaces the
+# post (the text on stdin). In the background: a slow hub must not stall the
+# tick.
 spl_fleet_owner_dm() {
-  local who="$1" text="$2" owner="${LEASE_OWNER:-${ASKS_OWNER:-}}"
+  local who="$1" text="$2"
   if [[ -n "${LEASE_OWNER_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    $LEASE_OWNER_CMD <<<"$text" >/dev/null 2>&1 || spl_lease_log "WARN owner DM failed (LEASE_OWNER_CMD)"
-    spl_lease_log "OWNER-DM orch take-over: $who"; return 0
+    $LEASE_OWNER_CMD <<<"$text" >/dev/null 2>&1 || spl_lease_log "WARN ops notice failed (LEASE_OWNER_CMD)"
+    spl_lease_log "OPS-NOTICE orch take-over: $who"; return 0
   fi
-  [[ -n "$owner" ]] || owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9][0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | sed -n 1p)"
-  [[ "$owner" =~ ^HUM-[0-9]+$ ]] ||
-    { spl_lease_log "WARN orch take-over by $who: no owner to tell (LEASE_OWNER, or ASKS_OWNER in lease.conf)"; return 0; }
-  ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="${who%@*}" DESK_TO="$owner" \
-      DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
-      timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_desk_reply \
+  ( ENV="${LEASE_ENV:-}" TENANT_ID="${LEASE_TENANT:-}" DESK_BOX="${LEASE_DESK_BOX:-}" DESK_AGENT="${who%@*}" \
+      DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
+      timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_fleet_notice \
       >>"$LEASE_DIR/owner-dm.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
-  spl_lease_log "OWNER-DM orch take-over: $who -> $owner"
+  spl_lease_log "OPS-NOTICE orch take-over: $who -> the ops channel"
 }
 
 # Why each local agent of a role is not a candidate: "<id>: <why>; ...".

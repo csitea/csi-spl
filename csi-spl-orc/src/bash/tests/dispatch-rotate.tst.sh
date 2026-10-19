@@ -176,7 +176,7 @@ case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
   do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
-  do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice) exit 0 ;;
   do_spl_ask_close) exit "$(cat "$T/askclose.rc" 2>/dev/null || echo 0)" ;;
   do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
@@ -362,8 +362,8 @@ act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1; rc=$?
 [[ "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] && grep -q $'^%2\t102\t$0\tc-902@box > dispatcher$' "$T/tmux/panes" &&
   [[ "$(tail -1 "$T/ai.log")" == "adopt c-902 102" ]] && pass "4. the hold removed, the lease, the window name and the map back on the old M" ||
   fail "4. lease=$(cat "$D/lease") $(cat "$T/tmux/panes")"
-grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-" "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
-  pass "4. ALERT: one ask + one owner DM (FR-075)" || fail "4. alert: $(cat "$T/run.log")"
+grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-" "$T/run.log" && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" &&
+  pass "4. ALERT: one ask + one ops channel notice (FR-075)" || fail "4. alert: $(cat "$T/run.log")"
 [[ ! -e "$T/proc/2903" && -d "$T/proc/103" ]] && ! grep -q REFRESH "$D/rotate.log" && pass "4. no refresh after a failed master" || fail "4. refreshed anyway"
 
 # --- 5. a failed F refresh ------------------------------------------------------------------
@@ -651,7 +651,7 @@ took=$(( SECONDS - t0 + $(awk '{s += $1} END {print int(s / 1000)}' "$T/vclock" 
   fail "14. rc=$rc took=${took}s $(cat "$T/o")"
 [[ -d "$T/proc/102" && "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] && grep -qx 'kill %2902' "$T/tmux/log" &&
   grep -q "^do_spl_ask_put .*ASK_FROM=c-902 .*ASK_SUMMARY=ROTATION FAILED master SPAWN the new session in %2902 is stopped on a 'Settings Warning'" "$T/run.log" &&
-  grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+  grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" &&
   pass "14. ... the old M keeps the role and the lease, the new window closed, ALERT = ask + owner DM" || fail "14. after: $(cat "$T/run.log") $(cat "$T/tmux/log")"
 ! grep -qE '^keys %2902 (Enter|1)$' "$T/tmux/log" && pass "14. ... nothing answered the dialog (no Enter, no 1)" || fail "14. keys: $(grep '%2902' "$T/tmux/log")"
 world; act DRY_RUN=0 >"$T/o" 2>&1
@@ -664,7 +664,7 @@ echo "0e5a2c1b-1111-4222-8333-944455556666 20261007T1715Z-master ACK" >"$S/c-902
 act DRY_RUN=0 >"$T/o" 2>&1
 rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
 grep -q "^do_spl_ask_close ASK_ID=0e5a2c1b-1111-4222-8333-944455556666 ASK_STATE=done .*BODY=c-902@box-desk recovered at [0-9T:-]*Z by rotation $rid, now pid 2902\$" "$T/run2.log" &&
-  grep -q "^do_spl_desk_reply ASK_ID= ASK_STATE= DESK_TASK=0e5a2c1b-1111-4222-8333-944455556666 DESK_KIND=note BODY=c-902@box-desk recovered at [0-9T:-]*Z by rotation $rid, now pid 2902\$" "$T/run2.log" &&
+  grep -q "^do_spl_fleet_notice ASK_ID= ASK_STATE= DESK_TASK= DESK_KIND=note BODY=c-902@box-desk recovered at [0-9T:-]*Z by rotation $rid, now pid 2902\$" "$T/run2.log" &&
   [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 && ! -e "$S/c-902/lifetime/alerts.open" ]] &&
   grep -q " $rid RECOVERED OK ask 0e5a2c1b of 20261007T1715Z-master closed" "$D/rotate.log" &&
   pass "15. an open alert + an ACK OK: the ask closed, one recovered line to the owner on its thread, the file gone" || fail "15. $(cat "$T/run2.log") $(grep RECOVERED "$D/rotate.log")"
@@ -908,7 +908,7 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   grep -q ' GATE SKIP failover not able: c-903 wd S2: HIT [0-9]*s ago' "$T/o" && ! grep -q ' FAIL ' "$T/o" &&
   pass "21. SPL-1890: failover on a fresh watchdog HIT: GATE SKIP, no hold, no spawn, the lease stays on c-902" ||
   fail "21. unable failover rc=$rc $(cat "$T/o")"
-! grep -q '^do_spl_ask_put\|^do_spl_desk_reply' "$T/run.log" 2>/dev/null &&
+! grep -q '^do_spl_ask_put\|^do_spl_desk_reply\|^do_spl_fleet_notice' "$T/run.log" 2>/dev/null &&
   [[ "$(grep -c 'send c-900 -> c-900 note dispatch-rotate .*ROTATION SKIP failover not able: c-903' "$T/send.log" 2>/dev/null)" == 1 ]] &&
   pass "21. ... no ask, no owner DM; the orchestrator gets one note" || fail "21. alert legs: $(cat "$T/run.log" "$T/send.log" 2>&1)"
 act DRY_RUN=0 >"$T/o" 2>&1

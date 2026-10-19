@@ -24,6 +24,8 @@ TOLD=33333333-3333-4333-8333-333333333333
 cat >"$B/post" <<'EOF'
 #!/usr/bin/env bash
 [ -e "$CARD_T_DIR/post.fail" ] && exit 1
+# a DM topic: the desk reply's exit 6 (the hub's dm_not_blocker, SPL-2584)
+grep -qxs "$1" "$CARD_T_DIR/post.dm" && { echo "dm-refused $1" >>"$CARD_T_DIR/calls.log"; exit 6; }
 id="$(printf '%08d-0000-4000-8000-%012d' "$(( $(wc -l <"$CARD_T_DIR/hub.tsv") + 1 ))" 0)"
 printf '%s\t%s\t%s\n' "$id" "$1" "$(sha256sum <"$2" | cut -c1-16)" >>"$CARD_T_DIR/hub.tsv"
 echo "post $1 by $DESK_AGENT" >>"$CARD_T_DIR/calls.log"
@@ -182,6 +184,20 @@ out="$(tick)"
 has "holder's own edit fails: WARN, never re-posted" "never re-posted" "$out"
 eq "holder's own edit fails: no new message" 3 "$(rows)"
 rm -f "$T_TMP/edit.fail" "$T_TMP/gone.c-002"
+
+# 11. SPL-2584: a DM topic gets no status card. The hub refuses the post
+#   (exit 6); the topic is marked and never tried again (red on the old code,
+#   which retried the post every tick).
+export CARD_STATE_DIR="$T_TMP/state11" CARD_T_LEASE="c-002@pc"
+echo "$T2" >"$T_TMP/post.dm"; put_issues wip; : >"$L"
+out="$(tick)"; rc=$?
+eq "DM topic: the tick exits 0" 0 "$rc"
+has "DM topic: says it gets no card" "is a DM topic: no status card there" "$out"
+eq "DM topic: one refused try, the channel topic posted" "dm-refused $T2
+post $T1 by c-002" "$(sort "$L")"
+put_issues blocked; : >"$L"; tick >/dev/null
+hasnt "DM topic: never tried again" "$T2" "$(cat "$L")"
+rm -f "$T_TMP/post.dm"
 
 eq "usage is refused" 64 "$(bash "$R" --bogus >/dev/null 2>&1; echo $?)"
 t_done

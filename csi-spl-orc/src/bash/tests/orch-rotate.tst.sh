@@ -205,7 +205,7 @@ case "$a" in
   do_spl_asks_open) echo "[INFO] a log line"
     echo '{"fleet":"main","hub":"ok","asks":[{"ask_id":"aaaaaaaa-0000-4000-8000-000000000001","kind":"task","state":"open","from":"c-002@box-desk","topic":"87eaa57b","summary":"lower the budget","age_s":600},{"ask_id":"bbbbbbbb-0000-4000-8000-000000000002","kind":"blocker","state":"acked","acked_by":"c-900@box-desk","from":"c-911@box-desk","topic":"sat","summary":"drill go?","age_s":7200}]}' ;;
   do_spl_lane_map) echo '{"fleet":"main","hub":"ok","lanes":[{"agent_id":"c-077","agent_box":"box-desk","branch":"c-077-x","scope":"the x lane","state":"live","age_s":300},{"agent_id":"c-078","agent_box":"sat","branch":"c-078-y","scope":"done one","state":"done"}]}' ;;
-  do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice) exit 0 ;;
   do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_REGISTRY=${LANE_MIX_REGISTRY:-}" >>"$T/mix.log"
     echo "LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix2.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
@@ -381,7 +381,7 @@ grep -q '^keys %20 /exit$' "$T/tmux/log" && grep -qx 'kill %20' "$T/tmux/log" &&
 grep -q "keys %2 Rotation $rid failed; you keep the role. Read $D/handoff/$rid-c-900.md" "$T/tmux/log" &&
   pass "5. the old pane is told where its handoff is" || fail "5. no line to the old pane"
 grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-900 ASK_TOPIC=orch-rotate-$rid" "$T/run.log" &&
-  grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10 DESK_KIND=blocker' "$T/run.log" && pass "5. ALERT: one ask + one owner DM" || fail "5. alert: $(cat "$T/run.log")"
+  grep -q '^do_spl_fleet_notice .*DESK_TO= DESK_KIND=blocker' "$T/run.log" && pass "5. ALERT: one ask + one ops channel notice" || fail "5. alert: $(cat "$T/run.log")"
 
 # --- 6. T-ORCH-SPAWN-FAIL --------------------------------------------------------------------
 world; echo nopane >"$T/spawn.mode"

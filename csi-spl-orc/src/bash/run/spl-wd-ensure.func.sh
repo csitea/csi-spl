@@ -163,24 +163,23 @@ spl_wd_ensure_alert() {
   return 0
 }
 
-# The owner DM, the path the orch take-over uses (spl_fleet_owner_dm):
-# do_spl_desk_reply from this box's desk to ASKS_OWNER, in the background.
+# The people leg, the path the orch take-over uses (spl_fleet_owner_dm): a new
+# topic of the fleet's ops channel (do_spl_fleet_notice) from this box's desk,
+# in the background; never a DM to the owner (SPL-2584, how-to-post.md rule 18).
 spl_wd_ensure_owner() {
-  local text="$1" owner
+  local text="$1"
   if [[ -n "${WD_ENSURE_OWNER_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     $WD_ENSURE_OWNER_CMD <<<"$text" >/dev/null 2>&1 || do_log "WARN owner DM failed (WD_ENSURE_OWNER_CMD)"
     return 0
   fi
-  owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9][0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | sed -n 1p)"
-  [[ "$owner" =~ ^HUM-[0-9]+$ && -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]] ||
-    { do_log "WARN no owner DM: $LEASE_CONF names no ASKS_OWNER, LEASE_ENV or LEASE_TENANT"; return 0; }
+  [[ -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]] ||
+    { do_log "WARN no ops notice: $LEASE_CONF names no LEASE_ENV or LEASE_TENANT"; return 0; }
   ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="${LEASE_DESK_BOX:-$(spl_desk_box_default)}" \
-      DESK_AGENT="${LEASE_ORCH:-$(spl_role_seat 1)}" DESK_TO="$owner" DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" \
-      DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
-      timeout 120 "${PROJ_PATH:-}/run" -a do_spl_desk_reply \
+      DESK_AGENT="${LEASE_ORCH:-$(spl_role_seat 1)}" DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
+      timeout 120 "${PROJ_PATH:-}/run" -a do_spl_fleet_notice \
       >> "$WD_DIR/owner-dm.out" 2>&1 < /dev/null 7>&- 8>&- & ) 2>/dev/null
-  do_log "INFO owner DM to $owner started (log $WD_DIR/owner-dm.out)"
+  do_log "INFO ops channel notice started (log $WD_DIR/owner-dm.out)"
   return 0
 }
 

@@ -145,7 +145,7 @@ echo "$2 PEER_SEAT=${PEER_SEAT:-} ASK_KIND=${ASK_KIND:-} DESK_TO=${DESK_TO:-}" >
 echo "$2 ASK_ID=${ASK_ID:-} DESK_TASK=${DESK_TASK:-} DESK_KIND=${DESK_KIND:-} BODY=${ASK_REASON:-}${DESK_BODY:-}" >> "$T/run2.log"
 case "$2" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
-  do_spl_ask_put|do_spl_desk_reply|do_spl_peer_poll|do_spl_ask_close) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice|do_spl_peer_poll|do_spl_ask_close) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -313,10 +313,10 @@ rc="$(go ID=c-933 CAUSE=rebirth DRY_RUN=0)"
 world; lane c-934 %34 -; reborn c-934; printf '%s S3\n' $((T0 - 1800)) $((T0 - 1200)) $((T0 - 600)) > "$S/c-934/lifetime/restarts"
 rc="$(go ID=c-934 CAUSE=rebirth DRY_RUN=0)"
 [[ "$rc" == 4 && ! -e "$T/spawn.log" && -s "$S/c-934/lifetime/heldout" ]] && grep -q 'held out: 3 restarts in the last hour' "$T/o" &&
-  [[ "$(grep -c '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log")" == 1 ]] &&
+  [[ "$(grep -c '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log")" == 1 ]] &&
   pass "6. the 4th restart in an hour: held out, ONE admin alert, nothing spawned" || fail "6. fourth rc=$rc: $(cat "$T/o")"
 rc="$(go ID=c-934 CAUSE=rebirth DRY_RUN=0 LEASE_NOW=$((T0 + 7200)))"
-[[ "$rc" == 4 && ! -e "$T/spawn.log" ]] && grep -q 'held out until the admin clears it' "$T/o" && [[ "$(grep -c '^do_spl_desk_reply' "$T/run.log")" == 1 ]] &&
+[[ "$rc" == 4 && ! -e "$T/spawn.log" ]] && grep -q 'held out until the admin clears it' "$T/o" && [[ "$(grep -c '^do_spl_fleet_notice' "$T/run.log")" == 1 ]] &&
   pass "6. still held 2 h later (no expiry), no second alert" || fail "6. 2 h later rc=$rc: $(cat "$T/o")"
 
 # --- 7. a failed lane spawn ---------------------------------------------------------------------------
@@ -399,7 +399,7 @@ t0=$SECONDS; rc="$(go ID=c-943 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=1
   grep -q '^kill -TERM 3943$' "$T/kill.log" && ! grep -q '^keys %3943 ' "$T/tmux/log" 2>/dev/null &&
   pass "13. Settings Warning on the new session: RS-SPAWN FAIL at once (${took}s), named, signalled, nothing typed" ||
   fail "13. rc=$rc took=${took}s $(tail -5 "$T/o") keys: $(grep %3943 "$T/tmux/log" 2>/dev/null)"
-grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" &&
   grep -qE '^[0-9a-f-]{36} [0-9]{8}T[0-9]{4}Z-rs-c-943 RS-SPAWN$' "$S/c-943/lifetime/alerts.open" &&
   pass "13. ... ALERT = ask + owner DM, recorded in lifetime/alerts.open" || fail "13. alert: $(cat "$T/run.log") $(cat "$S/c-943/lifetime/alerts.open" 2>&1)"
 ! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
@@ -411,7 +411,7 @@ rc="$(go ID=c-944 CAUSE=rebirth DRY_RUN=0)"
 line="c-944@box1 recovered at [0-9T:-]*Z by do_spl_agent_restart [0-9]*T[0-9]*Z-rs-c-944 (rebirth), now pid 3944"
 [[ "$rc" == 0 && ! -e "$S/c-944/lifetime/alerts.open" ]] &&
   grep -q "^do_spl_ask_close ASK_ID=1a2b3c4d-1111-4222-8333-944455556666 .*BODY=$line\$" "$T/run2.log" &&
-  grep -q "^do_spl_desk_reply ASK_ID= DESK_TASK=1a2b3c4d-1111-4222-8333-944455556666 DESK_KIND=note BODY=$line\$" "$T/run2.log" &&
+  grep -q "^do_spl_fleet_notice ASK_ID= DESK_TASK= DESK_KIND=note BODY=$line\$" "$T/run2.log" &&
   [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 ]] &&
   pass "14. an open alert + DONE OK: the ask closed, one recovered line on its thread, the file gone" || fail "14. rc=$rc $(cat "$T/run2.log" 2>&1) $(tail -3 "$T/o")"
 world; rm -f "$T/run2.log"; lane c-945 %45 -; reborn c-945

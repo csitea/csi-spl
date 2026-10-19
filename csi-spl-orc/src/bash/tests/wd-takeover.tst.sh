@@ -88,7 +88,7 @@ echo "$2 PEER_SEAT=${PEER_SEAT:-} ASK_KIND=${ASK_KIND:-} DESK_TO=${DESK_TO:-}" >
 case "$2" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
-  do_spl_ask_put|do_spl_desk_reply|do_spl_peer_poll) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice|do_spl_peer_poll) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -270,10 +270,10 @@ world; agent c-914 %14 -; mkdir -p "$D/wd"; printf '%s\n%s\n' "$((T0 - 1200))" "
 rc="$(take ID=c-914 REASON=S3 DRY_RUN=0 REQ_FROM=c-001)"
 [[ "$rc" == 4 && ! -e "$T/spawn.log" && -s "$D/wd/c-914.heldout" ]] && grep -q 'held out: 2 takeovers' "$T/o" &&
   pass "6. a third in an hour: not done, held out (exit 4)" || fail "6. third rc=$rc: $(cat "$T/o")"
-[[ "$(grep -c '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log")" == 1 && "$(grep -c '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log")" == 1 ]] &&
+[[ "$(grep -c '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log")" == 1 && "$(grep -c '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log")" == 1 ]] &&
   pass "6. ONE owner DM (and one ask)" || fail "6. DM: $(cat "$T/run.log")"
 rc="$(take ID=c-914 REASON=S3 DRY_RUN=0 REQ_FROM=c-001)"
-[[ "$rc" == 4 && "$(grep -c '^do_spl_desk_reply' "$T/run.log")" == 1 ]] && grep -q 'held out after' "$T/o" &&
+[[ "$rc" == 4 && "$(grep -c '^do_spl_fleet_notice' "$T/run.log")" == 1 ]] && grep -q 'held out after' "$T/o" &&
   pass "6. a held-out id: refused again, no second DM" || fail "6. heldout again rc=$rc: $(cat "$T/o")"
 world; agent c-915 %15 -; mkdir -p "$D/wd"; printf '%s\n%s\n' "$((T0 - 1200))" "$T0" > "$D/wd/c-915.takeovers"
 rc="$(take ID=c-915 REASON=S3 DRY_RUN=0 WD_EVIDENCE="pane %15")"
@@ -285,7 +285,7 @@ rc="$(take ID=c-916 REASON=S4 DRY_RUN=0)"
 [[ "$rc" == 1 ]] && alive 4016 && [[ "$(win %16)" == c-916@box1 && -z "$(win %3916)" ]] && [[ ! -e "$T/kill.log" ]] &&
   pass "7. a fresh session that does not start: the old pid 4016 and its window name kept, the new window closed" ||
   fail "7. failed start rc=$rc win=$(win %16)/$(win %3916): $(cat "$T/o")"
-[[ -s "$D/wd/c-916.heldout" ]] && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" && grep -q 'WD-SPAWN FAIL' "$D/rotate.log" &&
+[[ -s "$D/wd/c-916.heldout" ]] && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" && grep -q 'WD-SPAWN FAIL' "$D/rotate.log" &&
   [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE FAIL" ]] && ! grep -q -- '--kind blocker' "$T/sent" 2>/dev/null &&
   pass "7. held out, ask + owner DM, DONE FAIL, no investigation blocker" || fail "7. alert: $(cat "$D/rotate.log")"
 

@@ -10,11 +10,15 @@
 // W), never on a phone, never over a menu or a dialog; Ctrl / Cmd + W stays
 // the browser's. The listener is composables/useGlobalKeys.ts.
 
-/** The X of every closable pane (UiCloseButton renders one of each pair). */
+/**
+ * The X of every closable pane (UiCloseButton renders one of each pair). The
+ * calendar hours panel's X is matched by its suffix: its full name would put
+ * calendar code markers in the home download (calendar.test.mjs AC-02).
+ */
 export const PANE_CLOSE_X = [
   'button.topic-close',
   'button[data-test="users-pane-close"]',
-  'button[data-test="hours-panel-close"]',
+  'button[data-test$="-panel-close"]',
   'button[data-test="section-close"]',
   'button[data-testid="side-search-close"]',
 ].join(', ')

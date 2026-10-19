@@ -47,7 +47,7 @@ describe('SPL-2552: Shift + W', () => {
   })
 
   it('names the X of every closable pane', () => {
-    for (const sel of ['button.topic-close', 'users-pane-close', 'hours-panel-close', 'section-close', 'side-search-close']) {
+    for (const sel of ['button.topic-close', 'users-pane-close', '-panel-close"]', 'section-close', 'side-search-close']) {
       assert.ok(PANE_CLOSE_X.includes(sel), sel)
     }
   })

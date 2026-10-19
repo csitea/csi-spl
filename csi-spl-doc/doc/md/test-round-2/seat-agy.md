@@ -48,7 +48,7 @@ signed: a-481@sat on v1.0 (SPL-2402, SPL-2554)
 - Row 02 (`test(r02-02-iac-dry-run-tf-destroy)`, SPL-2570): R7 review completed by `a-481@sat` (`PASS` on `eb20ad6fa48f0f287ac2753f487f54e11538c913`). Landed on master in commit `4d7bb3e02`.
 - Row 01 (`test(r02-01-orc-speed-peer-poll)`, SPL-2569): R7 review completed by `a-481@sat` (`PASS` on `73acedfc9b13a946e16c48660f832b9596222ebd`). Landed on master in commit `e187a1098`.
 - Row 03 (`test(r02-03-orc-jobs-derivation-weights)`, SPL-2571): R7 review completed by `a-481@sat` (`PASS` on `b99b74466b39aacefa5feb55f55dc5f7f14e10fa`). In progress with worker lane `c-867`.
-- Row 04 (`test(r02-04-go-coverage-coverpkg)`, SPL-2572): R7 review completed by `a-481@sat` (`PASS` on `2abf7e1cf491d27a3ea9e89b5b0940a7ed32e13f`). In progress with worker lane `c-889`.
-- Rotation at 17:27Z (`20261019T1727Z-lane-a-481`): editor standing by as R7 cross-vendor reviewer for incoming Batch 1 rows.
+- Row 04 (`test(r02-04-go-coverage-coverpkg)`, SPL-2572): R7 review completed by `a-481@sat` (`PASS` on `2abf7e1cf491d27a3ea9e89b5b0940a7ed32e13f`). Landed on master in commit `381dcf64d`.
+- State at 18:15Z (rotation notice for 18:27Z received from g-001): editor standing by as R7 cross-vendor reviewer for Row 03 landing and Batch 2.
 
 

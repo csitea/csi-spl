@@ -1,4 +1,4 @@
-# Issues Multi-Select Panel Review — Mistral Seat (m-239@tnk)
+# Issues Multi-Select Panel Review — Mistral Seat
 
 **Task**: Independent review of [`issues-multiselect-panel-plan.md`](../issues-multiselect-panel-plan.md) (v1.1, sha `52121d356`) for SPL-2403 and SPL-2497.
 
@@ -45,5 +45,5 @@
 
 **GO**: The plan meets all owner requirements and reviewer recommendations. The **3D tabs** and **multi-select UI** are ready for implementation.
 
-**Reviewer**: `m-239@tnk` (Mistral Reviewer Seat)
+**Reviewer**: m-239 (Mistral Reviewer Seat)
 **Date**: 2026-10-19T11:00:00Z

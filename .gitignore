@@ -7,6 +7,10 @@
 # run.sh logs
 **/dat/log/
 
+# make do-tf-plan PLAN_REF=<ref>: the ref's exported tree, removed after
+# the run (SPL-2602, csi-spl-orc/src/bash/run/tf-plan-ref.func.sh)
+/.tf-plan-ref/
+
 # terraform run dirs, plugins, local state and plans
 **/bin/
 **/.terraform/

@@ -6,7 +6,15 @@ tf-new-step: demand_var-STEP
 tf-remove-step: demand_var-STEP
 	./run -a do_tf_remove_step
 
-.PHONY: do-tf-plan ## @-> 03.01 saves a terraform plan
+.PHONY: no-plan-ref
+no-plan-ref:
+	@if [ -n "$(strip $(PLAN_REF))" ]; then echo "REFUSED: PLAN_REF=$(PLAN_REF) is plan-only (SPL-2602); only make do-tf-plan takes it. Unset PLAN_REF to run this target from this tree."; exit 1; fi
+
+.PHONY: do-tf-plan ## @-> 03.01 saves a terraform plan; PLAN_REF=<branch|sha> plans that ref instead (plan only)
+ifneq ($(strip $(PLAN_REF)),)
+do-tf-plan: demand_var-ENV demand_var-STEP
+	@env ENV='$(ENV)' STEP='$(STEP)' PLAN_REF='$(PLAN_REF)' ./run -a do_tf_plan_ref
+else
 do-tf-plan: demand_var-ENV demand_var-STEP
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
@@ -31,6 +39,7 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_plan \
 	'
+endif
 
 .PHONY: do-tf-plan-pending ## @-> 03.01b read-only: does ENV have pending changes for STEP (exit 0 clean, 2 pending, 1 error)
 do-tf-plan-pending: demand_var-ENV demand_var-STEP
@@ -49,7 +58,7 @@ do-tf-plan-pending: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-import ## @-> 03.02 import terraform resource
-do-import: demand_var-AWS_PROFILE demand_var-ENV demand_var-TF_PROJ demand_var-RESOURCE_ADDRESS demand_var-RESOURCE_IDENTIFIER demand_var-STEP
+do-import: no-plan-ref demand_var-AWS_PROFILE demand_var-ENV demand_var-TF_PROJ demand_var-RESOURCE_ADDRESS demand_var-RESOURCE_IDENTIFIER demand_var-STEP
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -68,7 +77,7 @@ do-import: demand_var-AWS_PROFILE demand_var-ENV demand_var-TF_PROJ demand_var-R
 	'
 
 .PHONY: do-provision ## @-> 03.03 provision a step
-do-provision: demand_var-ENV demand_var-STEP
+do-provision: no-plan-ref demand_var-ENV demand_var-STEP
 	./run -a do_check_container_dns
 	@case "$(STEP)" in 030-cloud-run-hub) \
 	  ENV=$(ENV) ./run -a do_check_hub_image_regress \
@@ -103,12 +112,12 @@ do-provision: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-provision-and-update-gh-keys ## @-> 03.03b provision step 120 + update GH GCP keys via gh CLI
-do-provision-and-update-gh-keys: demand_var-ENV
+do-provision-and-update-gh-keys: no-plan-ref demand_var-ENV
 	@$(MAKE) do-provision ENV=$(ENV) STEP=120-github-general-secrets
 	@ENV=$(ENV) ./run -a do_github_update_gcp_keys
 
 .PHONY: do-tf-apply-target ## @-> 03.04 provision target resource only
-do-tf-apply-target: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-apply-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -125,7 +134,7 @@ do-tf-apply-target: demand_var-ENV demand_var-STEP demand_var-TARGET
 	'
 
 .PHONY: do-deprovision ## @-> 03.05 divest a step only
-do-deprovision: demand_var-ENV demand_var-STEP
+do-deprovision: no-plan-ref demand_var-ENV demand_var-STEP
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -159,7 +168,7 @@ do-tf-plan-destroy: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-provision-local ## @-> 03.07 provision a step locally
-do-provision-local: demand_var-ENV demand_var-STEP
+do-provision-local: no-plan-ref demand_var-ENV demand_var-STEP
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -174,7 +183,7 @@ do-provision-local: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-deprovision-local ## @-> 03.08 divest a step locally
-do-deprovision-local: demand_var-ENV demand_var-STEP
+do-deprovision-local: no-plan-ref demand_var-ENV demand_var-STEP
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -189,7 +198,7 @@ do-deprovision-local: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-tf-destroy-target ## @-> 03.09 divest target resource only
-do-tf-destroy-target: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-destroy-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -205,7 +214,7 @@ do-tf-destroy-target: demand_var-ENV demand_var-STEP demand_var-TARGET
 	'
 
 .PHONY: do-tf-import ## @-> 03.10 import target resource to state
-do-tf-import: demand_var-ENV demand_var-STEP demand_var-TARGET demand_var-ID
+do-tf-import: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET demand_var-ID
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -222,7 +231,7 @@ do-tf-import: demand_var-ENV demand_var-STEP demand_var-TARGET demand_var-ID
 	'
 
 .PHONY: do-tf-replace-target ## @-> 03.11 reprovision (destroy/recreates) terraform resource
-do-tf-replace-target: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-replace-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -238,7 +247,7 @@ do-tf-replace-target: demand_var-ENV demand_var-STEP demand_var-TARGET
 	'
 
 .PHONY: do-tf-taint-target ## @-> 03.12 taint terraform resource
-do-tf-taint-target: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-taint-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -254,7 +263,7 @@ do-tf-taint-target: demand_var-ENV demand_var-STEP demand_var-TARGET
 	'
 
 .PHONY: do-tf-untaint-target ## @-> 03.13 untaint terraform resource
-do-tf-untaint-target: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-untaint-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -299,7 +308,7 @@ do-tf-state-pull: demand_var-ENV demand_var-STEP
 	'
 
 .PHONY: do-tf-state-push ## @-> 03.16 push state to s3
-do-tf-state-push: demand_var-ENV demand_var-STEP demand_var-TFSTATE_FILE
+do-tf-state-push: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TFSTATE_FILE
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -315,7 +324,7 @@ do-tf-state-push: demand_var-ENV demand_var-STEP demand_var-TFSTATE_FILE
 	'
 
 .PHONY: do-tf-state-remove ## @-> 03.17 remove target resource from state (state backup first; dry run unless DRY_RUN=0; FORCE=1 skips the lock)
-do-tf-state-remove: demand_var-ENV demand_var-STEP demand_var-TARGET
+do-tf-state-remove: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \

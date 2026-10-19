@@ -140,6 +140,23 @@ mount the tree that last ran `make do-setup-app-inf`.
   for the same step (`do_tf_plan_pending`, a csi-spl action, in its own run
   dir through `TF_RUN_DIR_SUFFIX` in `tf-init`) and is refused while dev is
   pending. The rule: `csi-spl-doc/doc/md/fleet-rules-index.md` section 2.
+- A plan of a branch (SPL-2602): `cd csi-spl-orc && PLAN_REF=<branch|sha>
+  ENV=dev STEP=<step> make do-tf-plan` runs `do_tf_plan_ref`
+  (`csi-spl-orc/src/bash/run/tf-plan-ref.func.sh`) on the host. The
+  tf-runner mounts only the main checkout and no lane switches it, so the
+  action `git archive`s the ref's commit into the git-ignored
+  `<main checkout>/.tf-plan-ref/<sha12>.<env>.<step>.<pid>/`, runs that
+  tree's own `./run -a do_tf_plan` in the tf-runner (`docker exec -w`), and
+  removes the dir on every exit. The ref's terraform, committed tfvars and
+  env.json are read; its run dir sits inside the export, so it never clashes
+  with a run of the same env + step from the checkout. It is PLAN ONLY:
+  `ACTION` other than `plan` is refused, every apply-type make target refuses
+  while `PLAN_REF` is set, and `ENV=prd` is refused until a dev plan of the
+  same sha and step exited 0 (marker
+  `${XDG_STATE_HOME:-~/.local/state}/csi-spl/tf-plan-ref/<sha>.<step>.dev.ok`).
+  Steps reading `var.proj_path` (036, 060, 061) show that path as a change.
+  Applying a ref still means landing it and applying from the main checkout
+  with the owner's go. Test: `csi-spl-orc/src/bash/tests/tf-plan-ref.tst.sh`.
 - The ported `gcp-*` actions each run under a throwaway `CLOUDSDK_CONFIG`
   (GRK-3361). csi-spl's rule "never write the shared gcloud config" beats
   csi-rel's `config set` / `activate-service-account` / `auth revoke --all`

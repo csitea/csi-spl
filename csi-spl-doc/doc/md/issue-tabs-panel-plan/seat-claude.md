@@ -217,5 +217,27 @@ reads `issues.vue`, for example "the selected rule uses `--focus-ring` and
 
 ## 6. Signature
 
-v0.1: **agree with changes**. I sign v1.0 when sections 3 and 4 are folded
-in or answered on this task.
+v0.1: **agree with changes** (c1660b375).
+
+**v1.0 (c922f1a9f): SIGNED, agree.** I checked the v1.0 text against
+sections 3 and 4 of this file:
+
+- Folded in: marker `--focus-ring` at `--select-bar-w` (P5, O1), equal
+  boxes and bottom radii 0 (O2), `align-items: flex-end` joint (O4),
+  recessed inactive `--color-bg-2` + `--bevel-shade` (O5), only existing
+  tokens and the corrected values (P2, P3, O6, O7), `min-block-size:
+  2.75rem` (O3), T1-T6 adopted (P4), the `v-for` and the existing i18n keys
+  kept (row 03), and 2 commits with the clip test in the template commit
+  (P8, rows 04/05).
+- Not folded, and not blocking: "unanimous" in 3.5 (P7).
+
+### 6.1 Build notes the row briefs must carry
+
+These do not change the design. Each one costs a row lane a red run if its
+brief leaves it out.
+
+| # | Row | Note | Evidence |
+|---|---|---|---|
+| N1 | 01, 02 | The red-control commands as written fail on **every** tree, so they control nothing. Use `cd csi-spl-wui && pnpm test:unit <name>` (or `node tests/unit/<name>.test.mjs`). | `pnpm --filter csi-spl-wui test:unit tests/unit/list-clip-modes.test.mjs` → "unit runner: filter [tests/unit/list-clip-modes.test.mjs] matched none of 397 files", exit 1; `pnpm test:unit list-clip-modes` → "all 1 file(s) passed", exit 0 (2026-10-19, origin/master after c922f1a9f) |
+| N2 | 01 | Section 3.1 gives the selected tab `border-bottom: 0` **and** `border-bottom: 1px solid var(--color-surface)` with `margin-bottom: -1px`. T1 asserts `border-bottom-width: 0px`, which the second form fails. Pick one: T1 then reads "no visible bottom marker: width 0, or colour == the tab's own background". | plan v1.0 section 3.1, "Physical tab geometry" and "Seamless panel connection" bullets |
+| N3 | 01 | On a phone the panel under the tabs is `--color-bg`, not `--color-surface`. The 412x915 run read the opaque background behind the tablist from `.issues-detail` as `rgb(6, 9, 18)`; on desktop it is the dialog, `rgb(14, 28, 51)` = `--color-surface`. A `--color-surface` tab is joined on desktop but sits on the phone panel as a lighter block (1.17:1 dark, 1.07:1 light). T4 (geometry) still passes. The row should take the selected fill from the panel it joins, or record a 412x915 capture showing the owner the phone look. | `/var/spool-hub/dispatch/67d850ce/work/c-227/c227-measure.json`, runs `412x915` `today.header.bg` |

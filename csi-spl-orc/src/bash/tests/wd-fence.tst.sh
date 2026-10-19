@@ -41,6 +41,13 @@
 #      lifts it (UNHELD, the takeover runs). The probe failing as well (the
 #      network is gone) fences and TERMs as in 3. RED control: with the probe
 #      off (the code before) the same silence fences and TERMs both lanes
+#  11. SPL-2599: three instances share one WD_DIR (sat 2026-10-18 07:11Z:
+#      UNFENCED instance 3 and 2, then 11 lanes fenced again, every wip
+#      retry run twice). Instance A acks and unfences while instance B is
+#      mid fence pass: B fences no lane after A's UNFENCED; B whose fence
+#      was due before A's ack does not fence the box; two instances
+#      unfencing at once retry a failed wip push once and log one UNFENCED.
+#      RED control: SPL_WD_FENCE_NOLOCK=1 (the code before) shows each race
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -294,6 +301,75 @@ echo up > "$T/probe"; WD_HUB_PROBE_CMD="" ticks 30 120 silent
 [[ -e "$T/wd/fenced" ]] && grep -qx "kill -TERM 150" "$T/acts" &&
   pass "10. RED control: probe off (the code before) fences and TERMs on the same silence" ||
   fail "10. RED control: probe off did not fence: $(cat "$T/acts" 2>/dev/null)"
+
+# ---- 11. instances race at UNFENCED (one WD_DIR, SPL-2599) ---------------------
+# midpass11: instance B (2) starts a fenced tick; between the seat and its
+# first lane instance A (3) gets an ack and unfences (A's whole tick)
+midpass11() {
+  spl_wd_fence_is_seat() {
+    [[ "$1" == c-001 ]] && return 0
+    if [[ ! -e "$T/a11.done" ]]; then
+      touch "$T/a11.done"; echo ok > "$T/hub"
+      WD_INST=3 spl_wd_fence $(( T0 + 181 )) "$T/tick"
+    fi
+    return 1
+  }
+  WD_INST=2 spl_wd_fence "$@"
+}
+# race11 NOLOCK: the box fenced (both lanes pushed and TERMed), then midpass11;
+# prints: kills, FENCE lines after A's UNFENCED, box state
+race11() {
+  reset; rm -f "$T/a11.done"
+  ticks 0 0 ok; ticks 30 120 silent
+  echo silent > "$T/hub"; SPL_WD_FENCE_NOLOCK="$1" DRY_RUN=0 wd midpass11 $(( T0 + 180 )) "$T/tick"
+  echo "$(n acts kill) $(awk '/UNFENCED instance 3/ {u = 1; next} u && / FENCE c-05/' "$T/wd.log" | wc -l) $([[ -e "$T/wd/fenced" ]] && echo fenced || echo free)"
+}
+r="$(race11 "")"
+[[ "$r" == "2 0 free" ]] && pass "11. B mid fence pass while A unfences: B fences no lane after UNFENCED (kills 2, box free)" ||
+  fail "11. B fenced after A's UNFENCED: kills, FENCE lines after UNFENCED, state = $r"
+r="$(race11 1)"
+[[ "$r" != "2 0 free" ]] && pass "11. RED control: no fence lock (the code before) re-fences after UNFENCED ($r)" ||
+  fail "11. RED control: no fence lock did not re-fence ($r)"
+# stale11: instance B's fence is due, then instance A acks before B fences
+stale11() {
+  spl_wd_hub_reachable() { echo ok > "$T/hub"; WD_INST=3 spl_wd_fence $(( T0 + 121 )) "$T/tick"; return 1; }
+  WD_INST=2 spl_wd_fence "$@"
+}
+stale_run() {
+  reset; ticks 0 0 ok; ticks 30 90 silent
+  echo silent > "$T/hub"; SPL_WD_FENCE_NOLOCK="$1" DRY_RUN=0 wd stale11 $(( T0 + 120 )) "$T/tick"
+  echo "$(n acts kill) $(n sent FENCED) $([[ -e "$T/wd/fenced" ]] && echo fenced || echo free)"
+}
+r="$(stale_run "")"
+[[ "$r" == "0 0 free" ]] && pass "11. B's fence due before A's ack: B fences nothing, sends no note" ||
+  fail "11. stale due fenced: kills, notes, state = $r"
+r="$(stale_run 1)"
+[[ "$r" != "0 0 free" ]] && pass "11. RED control: no fence lock fences on the stale due ($r)" ||
+  fail "11. RED control: no fence lock did not fence on the stale due ($r)"
+# retry_run NOLOCK: c-050's fence wip push failed; two instances unfence at
+# once (0.3 s apart), the retry push slow (1 s); prints: c-050 pushes, retry lines,
+# UNFENCED lines, UNHELD lines
+retry_run() {
+  local i
+  reset; rm -f "$T/net"
+  printf '#!/usr/bin/env bash\nsleep 1\necho "wip $ID" >> "$T/acts"\n' > "$T/bin/wipslow"; chmod +x "$T/bin/wipslow"
+  ticks8 0 0 ok; ticks8 30 120 silent
+  echo ok > "$T/hub"
+  for i in 2 3; do
+    # instance 3 0.3 s later: its beat's tmp file is named by $$, shared here
+    ( fence11_tick() { WD_WIP_CMD="$T/bin/wipslow"; WD_INST=$i spl_wd_fence "$@"; }
+      (( i == 3 )) && sleep 0.3
+      SPL_WD_FENCE_NOLOCK="$1" DRY_RUN=0 wd fence11_tick $(( T0 + 150 )) "$T/tick" ) &
+  done
+  wait
+  echo "$(n acts 'wip c-050') $(n wd.log 'UNFENCED c-050') $(n wd.log 'UNFENCED instance') $(n wd.log UNHELD)"
+}
+r="$(retry_run "")"
+[[ "$r" == "2 1 1 0" ]] && pass "11. two instances unfence at once: c-050's wip retried once, one UNFENCED line, no UNHELD" ||
+  fail "11. concurrent unfence: c-050 pushes, retry lines, UNFENCED lines, UNHELD lines = $r"
+r="$(retry_run 1)"
+[[ "$r" != "2 1 1 0" ]] && pass "11. RED control: no fence lock retries once per instance ($r)" ||
+  fail "11. RED control: no fence lock retried once ($r)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

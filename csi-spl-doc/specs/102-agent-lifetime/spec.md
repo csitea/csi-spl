@@ -558,6 +558,14 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   running: seats never move (next point). Once it reaches the hub again, it
   reads `running_box` for each of its agents: a lane now running elsewhere
   is not started here (10.3); the rest restart through section 4.
+- **Held, not fenced** (SPL-2529): no ack for `box_down_min`, yet the hub
+  answers its liveness probe (`/version`): the hub's beat path fails, not
+  this box's network, so the box is **held**: it starts nothing and TERMs
+  no lane; the next ack lifts it, the probe failing too fences as above.
+- **One fence per box, whatever the instances** (SPL-2599): the fence state
+  changes only under `<wd>/fence.lock`; a fence pass re-checks there, before
+  `fenced` and before each lane, that the fence is still due, and one
+  instance lifts it and retries its failed wip pushes once.
 - **What moves**: only lanes. A seat is a slot of its box (001..004); the
   other boxes' seats take its jobs by the 093 claim (093 10), so a down
   box's seats simply wait for their box.

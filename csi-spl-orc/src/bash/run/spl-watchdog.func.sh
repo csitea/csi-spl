@@ -1568,6 +1568,12 @@ spl_wd_journal_f2() {
 # timed out, the fence TERMed ~25 lanes and the watchdog restarted them all.
 # A held box (<WD_DIR>/held) starts nothing and TERMs no lane; the next ack
 # lifts it; the probe failing as well fences as before.
+# One WD_DIR, up to three instances (SPL-2599): every change of the fence
+# state runs under <WD_DIR>/fence.lock (spl_wd_fence_locked), and the fence
+# pass re-checks there, before `fenced` and before each lane, that the box is
+# still fenced and the fence still due. Sat 2026-10-18 07:11Z without it:
+# instances 3 and 2 unfenced, a third instance mid pass re-fenced 11 lanes,
+# and every UNFENCED wip retry ran twice, once per instance.
 
 # spl_wd_fence NOW TICK: the tick's one call (after its agents are listed).
 spl_wd_fence() {
@@ -1583,45 +1589,97 @@ spl_wd_fence() {
     fi
     return 0
   fi
-  if ( set -C; echo "$now" > "$WD_DIR/fenced" ) 2>/dev/null; then
-    spl_wd_log "FENCED${WD_INST:+ instance $WD_INST}: no beat ack for $(( now - $(spl_wd_beat_ack) ))s (box_down_min $(spl_wd_down_min)): this box starts nothing and stops its lanes"
+  local new
+  new="$(spl_wd_fence_locked spl_wd_fence_start "$now")" || return 0
+  if [[ "$new" == new ]]; then
     if [[ "${DRY_RUN:-1}" == 0 ]]; then
       spl_wd_send orchestrator note "fence-${WD_BOX:-box}" "FENCED (spec 102 10.2): box ${WD_BOX:-?} has had no beat ack from the hub for box_down_min ($(spl_wd_down_min) min). It starts nothing and TERMs its lanes after their wip push; seats keep running. It lifts at the next ack." || true
     fi
   fi
   local -a jp=()
+  local rc
   while IFS=$'\t' read -r id pid _pane; do
     spl_wd_fence_is_seat "$id" && continue
-    ( set -C; echo "$now" > "$WD_DIR/fence.term.$id" ) 2>/dev/null || continue
-    spl_wd_fence_lane "$id" "$(spl_wd_fence_pid "$id" "$pid" "$tick")" &
+    rc=0; spl_wd_fence_locked spl_wd_fence_claim "$now" "$id" || rc=$?
+    (( rc == 2 )) && break
+    (( rc == 0 )) || continue
+    spl_wd_fence_lane "$id" "$(spl_wd_fence_pid "$id" "$pid" "$tick")" "$now" &
     jp+=("$!")
   done < "$tick/agents"
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
   return 0
 }
 
-# spl_wd_unfence: the fence lifts. The lanes whose fence wip push failed
-# (fence.wipfail.<id>: origin was as unreachable as the hub, a Wi-Fi outage
-# on the PC box 2026-10-16: 8 of 8 rc=1) get it once more, now that the
-# network is back, before the fence state goes.
+# spl_wd_fence_locked FN ARGS: FN in a subshell under <WD_DIR>/fence.lock
+# (WD_FENCE_LOCK_WAIT s, 10; no lock -> 1). SPL_WD_FENCE_NOLOCK=1 skips the
+# lock and the re-checks (the code before SPL-2599: the test's RED control).
+spl_wd_fence_locked() {
+  [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] && { "$@"; return; }
+  ( flock -w "${WD_FENCE_LOCK_WAIT:-10}" 5 || exit 1; "$@" ) 5>>"$WD_DIR/fence.lock"
+}
+
+# spl_wd_fence_still NOW: 0 while the box is fenced and the fence still due
+# (an ack another instance got since this pass began lifts it).
+spl_wd_fence_still() {
+  [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] && return 0
+  [[ -e "$WD_DIR/fenced" ]] && spl_wd_fence_due "$1"
+}
+
+# spl_wd_fence_claim NOW ID: 0 when this pass fences the lane, 1 when an
+# earlier pass did (fence.term.<id>), 2 when the fence lifted: the pass stops.
+spl_wd_fence_claim() {
+  spl_wd_fence_still "$1" || return 2
+  ( set -C; echo "$1" > "$WD_DIR/fence.term.$2" ) 2>/dev/null || return 1
+  return 0
+}
+
+# spl_wd_fence_start NOW: under the fence lock. 1 when the fence is no longer
+# due (another instance's ack); else `fenced`, and "new" printed (with the
+# FENCED line) when this call created it.
+spl_wd_fence_start() {
+  [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] || spl_wd_fence_due "$1" || return 1
+  ( set -C; echo "$1" > "$WD_DIR/fenced" ) 2>/dev/null || return 0
+  spl_wd_log "FENCED${WD_INST:+ instance $WD_INST}: no beat ack for $(( $1 - $(spl_wd_beat_ack) ))s (box_down_min $(spl_wd_down_min)): this box starts nothing and stops its lanes"
+  echo new
+}
+
+# spl_wd_unfence: the fence lifts, once: the instance that takes the fence
+# state under the lock (spl_wd_unfence_take) lifts it, another finds nothing.
+# The lanes whose fence wip push failed (fence.wipfail.<id>: origin was as
+# unreachable as the hub, a Wi-Fi outage on the PC box 2026-10-16: 8 of 8
+# rc=1) get it once more, now that the network is back.
 spl_wd_unfence() {
-  local f id rc
-  local -a jp=()
-  if [[ ! -e "$WD_DIR/fenced" ]]; then
-    rm -f "$WD_DIR/held"
+  local took id
+  local -a jp=() ids=()
+  took="$(spl_wd_fence_locked spl_wd_unfence_take)" || return 0
+  if [[ "$took" == held ]]; then
     spl_wd_log "UNHELD${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; starts resume"
     return 0
   fi
-  for f in "$WD_DIR"/fence.wipfail.*; do
-    [[ -e "$f" ]] || continue
-    id="${f##*/fence.wipfail.}"
+  read -r -a ids <<<"${took#fenced}"
+  for id in "${ids[@]}"; do
     ( rc=0; spl_wd_fence_wip "$id" || rc=$?
       spl_wd_log "UNFENCED $id: wip push retried, rc=$rc" ) &
     jp+=("$!")
   done
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
-  rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
+  [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] && rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
   spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
+}
+
+# spl_wd_unfence_take: under the fence lock. Prints "fenced <id>..." (the
+# lanes to retry) or "held" and removes that state; 1 when another instance
+# already lifted it.
+spl_wd_unfence_take() {
+  local f out
+  if [[ ! -e "$WD_DIR/fenced" ]]; then
+    [[ -e "$WD_DIR/held" || "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] || return 1
+    rm -f "$WD_DIR/held"; echo held; return 0
+  fi
+  out=fenced
+  for f in "$WD_DIR"/fence.wipfail.*; do [[ -e "$f" ]] && out+=" ${f##*/fence.wipfail.}"; done
+  [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] || rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
+  echo "$out"
 }
 
 # spl_wd_box_fenced: 0 while this box is fenced or held (spl_wd_takeover's
@@ -1648,15 +1706,18 @@ spl_wd_fence_wip() {
     >> "$WD_DIR/fence.$1.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&-
 }
 
-# spl_wd_fence_lane ID PID: the wip push (a failure is kept for the retry at
-# UNFENCED), then TERM, checked WD_FENCE_TERM_WAIT (10) s later. DRY_RUN=1
-# only logs.
+# spl_wd_fence_lane ID PID NOW: the wip push (a failure is kept for the retry
+# at UNFENCED), then TERM, checked WD_FENCE_TERM_WAIT (10) s later; a fence
+# lifted during the push TERMs nothing. DRY_RUN=1 only logs.
 spl_wd_fence_lane() {
   local id="$1" pid="$2" rc=0 i
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
     spl_wd_log "FENCE-DRY $id: would push its wip ref, then TERM pid $pid"; return 0
   fi
   spl_wd_fence_wip "$id" || rc=$?
+  if ! spl_wd_fence_still "$3"; then
+    spl_wd_log "FENCE $id: wip push rc=$rc; the fence lifted meanwhile, no TERM"; return 0
+  fi
   (( rc == 0 )) || echo "$rc" > "$WD_DIR/fence.wipfail.$id"
   if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
     spl_wd_log "FENCE $id: wip push rc=$rc; no agent process to TERM"; return 0

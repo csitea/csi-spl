@@ -24,6 +24,13 @@
 #                     and the spawn-an-agent launcher names the spec's main
 #   7 commit-address  the address on the repo CLAUDE.md "Commits:" line = the
 #                     address of every recent commit by that author name
+#   8 repo-refs       every path, action (do_*), make target (make do-*) and
+#                     spec folder (spec NNN) that the repo-root CLAUDE.md and
+#                     AGENTS.md name exists on the tree: a path at the root or
+#                     under a csi-spl-* component (a git-ignored one, e.g.
+#                     tpl-gen/, is skipped and counted), an action defined in a
+#                     *.sh, a target in a Makefile or *.mk, a folder
+#                     csi-spl-doc/specs/NNN-*
 #   It runs in the pre-push hygiene part (do_check_pre_push) and in the orc
 #   suite (tests/check-fleet-rules-drift.tst.sh). Read-only.
 # @param FLEET_RULES_TREE (optional) - default: $APP_PATH, the checkout to read
@@ -46,12 +53,13 @@ do_check_fleet_rules_drift() {
   _frd_language_rule "$tree" "$home" || rc=1
   _frd_per_kind_main "$tree" "$home" || rc=1
   _frd_commit_address "$tree" || rc=1
+  _frd_repo_refs "$tree" || rc=1
 
   if (( rc )); then
-    _frd_log "FAIL fleet rules drift: two sources disagree (above); fix the copy that is not the home named in fleet-rules-index.md"
+    _frd_log "FAIL fleet rules drift: two sources disagree, or an agent doc names what is not on the tree (above); fix the copy that is not the home named in fleet-rules-index.md"
     return 1
   fi
-  _frd_log "OK fleet rules: no drift over 7 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
+  _frd_log "OK fleet rules: no drift over 8 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
 }
 
 _frd_log() { if declare -F do_log >/dev/null; then do_log "$*"; else echo "$*"; fi; }
@@ -226,5 +234,73 @@ _frd_commit_address() {  # <tree>
     [[ "$ae" == "$addr" ]] || { _frd_log "FAIL commit-address: a commit by that author name uses <$ae>, CLAUDE.md says <$addr>"; bad=1; }
   done < <(git -C "$t" log -"${FLEET_RULES_HISTORY:-50}" --no-merges --no-mailmap --format='%an|%ae' 2>/dev/null | sort -u)
   (( bad )) || _frd_log "OK commit-address: CLAUDE.md = the recent commits by that author ($n distinct identities read)"
+  return "$bad"
+}
+
+# _frd_doc_refs <tree>: "<kind>\t<ref>\t<file>:<line>" for each reference the
+# repo-root agent docs make; kinds: path, action, target, spec
+_FRD_AGENT_DOCS="CLAUDE.md AGENTS.md"
+_frd_doc_refs() {
+  local t="$1" f ln m w ws
+  for f in $_FRD_AGENT_DOCS; do
+    [[ -f "$t/$f" ]] || continue
+    while IFS=: read -r ln m; do
+      m="${m#](}"; m="${m%)}"; m="${m%%#*}"
+      [[ -z "$m" || "$m" =~ ^[a-z]+: ]] || printf 'path\t%s\t%s:%s\n' "$m" "$f" "$ln"
+    done < <(grep -noE '\]\([^)]+\)' "$t/$f")
+    while IFS=: read -r ln m; do
+      read -ra ws <<<"${m//\`/ }"
+      for w in "${ws[@]}"; do _frd_is_path_word "$w" && printf 'path\t%s\t%s:%s\n' "${w%/}" "$f" "$ln"; done
+    done < <(grep -noE '`[^`]+`' "$t/$f")
+    grep -noE '(^|[^A-Za-z0-9_])do_[a-z0-9_]+' "$t/$f" | sed -E "s/^([0-9]+):[^d]?(do_.*)/action\t\2\t$f:\1/"
+    grep -noE 'make do-[a-z0-9-]+[*]?' "$t/$f" | grep -vE '[-*]$' | sed -E "s/^([0-9]+):make (.*)/target\t\2\t$f:\1/"
+    grep -noiE '(^|[^a-z])specs? [0-9]{3}([^0-9]|$)' "$t/$f" | sed -E "s/^([0-9]+):.*([0-9]{3}).*/spec\t\2\t$f:\1/"
+  done
+  return 0
+}
+# A word inside backticks names a repo path when it has a '/', no placeholder
+# or shell character, and is neither a host ("github.com/...") nor a list of
+# extensions (".mjs/.js").
+_frd_is_path_word() {
+  local w="$1"
+  [[ "$w" == */* && "$w" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] || return 1
+  [[ "$w" =~ ^[A-Za-z0-9-]+\.[a-z]{2,}/ || "$w" =~ ^\.[a-z]+/\.[a-z]+$ ]] && return 1
+  return 0
+}
+# _frd_path_ok <tree> <path>: 0 on the tree (root or a csi-spl-* component),
+# 2 git-ignored (a sibling clone such as tpl-gen/), 1 missing
+_frd_path_ok() {
+  local t="$1" p="$2" c
+  [[ -e "$t/$p" ]] && return 0
+  for c in "$t"/csi-spl-*/; do [[ -e "$c$p" ]] && return 0; done
+  git -C "$t" check-ignore "$p" "$p/" >/dev/null 2>&1 && return 2
+  grep -qxF -e "/$p/" -e "/$p" -e "$p/" "$t/.gitignore" 2>/dev/null && return 2  # a tree with no git
+  return 1
+}
+_frd_defined_actions() {  # <tree>: every do_* function a *.sh defines
+  grep -rhoE '^[[:space:]]*(function[[:space:]]+)?do_[a-z0-9_]+[[:space:]]*\(\)' --include='*.sh' \
+    --exclude-dir=node_modules --exclude-dir=.git "$1"/csi-spl-* 2>/dev/null \
+    | sed -E 's/^[[:space:]]*(function[[:space:]]+)?//; s/[[:space:]]*\(\)$//' | sort -u
+}
+_frd_defined_targets() {  # <tree>: every do-* make target
+  grep -rhoE '^do-[a-z0-9-]+:' --include='*.mk' --include=Makefile \
+    --exclude-dir=node_modules --exclude-dir=.git "$1"/csi-spl-* 2>/dev/null | sed 's/:$//' | sort -u
+}
+
+_frd_repo_refs() {  # <tree>
+  local t="$1" kind ref at acts tgts bad=0 n=0 ign=0 ok
+  acts="$(_frd_defined_actions "$t")"; tgts="$(_frd_defined_targets "$t")"
+  while IFS=$'\t' read -r kind ref at; do
+    n=$((n + 1)); ok=1
+    case "$kind" in
+      path)   _frd_path_ok "$t" "$ref"; case $? in 0) ;; 2) ign=$((ign + 1)) ;; *) ok=0 ;; esac ;;
+      action) grep -qxF "$ref" <<<"$acts" || ok=0 ;;
+      target) grep -qxF "$ref" <<<"$tgts" || ok=0 ;;
+      spec)   compgen -G "$t/csi-spl-doc/specs/$ref-*" >/dev/null || ok=0 ;;
+    esac
+    (( ok )) || { _frd_log "FAIL repo-refs: $at names $kind '$ref', not on the tree"; bad=1; }
+  done < <(_frd_doc_refs "$t")
+  (( n )) || { _frd_log "FAIL repo-refs: no reference found in $_FRD_AGENT_DOCS"; return 1; }
+  (( bad )) || _frd_log "OK repo-refs: $n references in $_FRD_AGENT_DOCS are on the tree ($ign git-ignored, skipped)"
   return "$bad"
 }

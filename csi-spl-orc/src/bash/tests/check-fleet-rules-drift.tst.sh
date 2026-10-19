@@ -3,7 +3,9 @@
 # Purpose: do_check_fleet_rules_drift passes on this tree and on a copy of its
 #          rule sources, and turns red on a PLANTED disagreement of each pinned
 #          fact (id letters, count regex, ceiling number, data-rule and
-#          language-rule pins, commit address), in the tree and in a box's installed copies. Every
+#          language-rule pins, commit address, a path / action / make target /
+#          spec folder named in the repo-root CLAUDE.md or AGENTS.md that is
+#          not on the tree), in the tree and in a box's installed copies. Every
 #          control names the fact that broke. The sources are copied into a
 #          throwaway tree; nothing outside it is written.
 #------------------------------------------------------------------------------
@@ -27,7 +29,7 @@ NAME="FirstName LastName" ADDR="first.last@example.com"
 mk_tree() {  # <dir>
   local d="$1"
   mkdir -p "$d"
-  (cd "$APP_ROOT" && cp --parents CLAUDE.md csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md \
+  (cd "$APP_ROOT" && cp --parents CLAUDE.md AGENTS.md .gitignore csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md \
      csi-spl-doc/doc/md/fleet-rules-index.md csi-spl-doc/doc/md/lane-integration-rules.md \
      csi-spl-doc/doc/help/how-to-post.md csi-spl-orc/src/bash/scripts/spl-session-prune.sh \
      csi-spl-orc/src/bash/run/spl-orch-load-report.func.sh csi-spl-orc/src/bash/run/spl-lane-mix.func.sh \
@@ -36,8 +38,26 @@ mk_tree() {  # <dir>
      csi-spl-orc/src/bash/features/spool-install/steps/y4-claude-config.sh \
      "$FRAG"/*.md "$CMDS"/*.md "$d"/)
   sed -i -E "s/^- Commits: \`[^\`]+\`/- Commits: \`$NAME <$ADDR>\`/" "$d/CLAUDE.md"
+  stub_refs "$d"
   git -C "$d" init -q && git -C "$d" add -A \
     && git -C "$d" -c user.name="$NAME" -c user.email="$ADDR" commit -q -m base
+}
+# Every reference the agent docs make gets a stub in the copy, where the real
+# tree has it: a path (file or dir, at the root or under its component), an
+# action, a make target, a spec folder.
+stub_refs() {  # <dir>
+  local d="$1" kind ref c
+  while IFS=$'\t' read -r kind ref _; do
+    case "$kind" in
+      path)
+        for c in "" csi-spl-*/; do [[ -e "$APP_ROOT/$c$ref" ]] && break; c=-; done
+        [[ "$c" == - || -e "$d/$c$ref" ]] && continue
+        if [[ -d "$APP_ROOT/$c$ref" ]]; then mkdir -p "$d/$c$ref"; else mkdir -p "$(dirname "$d/$c$ref")"; touch "$d/$c$ref"; fi ;;
+      action) mkdir -p "$d/csi-spl-orc/src/bash/run"; echo "$ref() { :; }" >>"$d/csi-spl-orc/src/bash/run/stub-actions.sh" ;;
+      target) mkdir -p "$d/csi-spl-orc/src/make"; printf '%s:\n' "$ref" >>"$d/csi-spl-orc/src/make/stub.mk" ;;
+      spec)   compgen -G "$d/csi-spl-doc/specs/$ref-*" >/dev/null || mkdir -p "$d/csi-spl-doc/specs/$ref-stub" ;;
+    esac
+  done < <(cd "$APP_ROOT" && _frd_doc_refs "$APP_ROOT")
 }
 run() { FLEET_RULES_TREE="$1" FLEET_RULES_HOME="${2:-}" do_check_fleet_rules_drift >"$T/out" 2>&1; }
 # control <label> <expected FAIL fragment>: the last run must be red and name it
@@ -54,7 +74,8 @@ else fail "1: this tree drifts"; sed 's/^/    /' "$T/out"; fi
 # 2. The copy is green, so every red below is the plant alone.
 mk_tree "$T/base"
 run "$T/base"; rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'OK commit-address' "$T/out"; then pass "2: the copied tree is green, commit-address compared"
+if [[ $rc -eq 0 ]] && grep -q 'OK commit-address' "$T/out" && grep -q 'OK repo-refs: .* (1 git-ignored, skipped)' "$T/out"; then
+  pass "2: the copied tree is green, commit-address compared, $(grep -oE 'repo-refs: [0-9]+ references' "$T/out")"
 else fail "2: the copied tree is not green"; sed 's/^/    /' "$T/out"; fi
 
 plant() { rm -rf "$T/p"; cp -a "$T/base" "$T/p"; }
@@ -114,6 +135,21 @@ sed -i 's/\[acgmq\]-\[0-9\]{3}/[acgq]-[0-9]{3}/' "$H/.claude/commands/qwen-spawn
 run "$T/base" "$H"; rc=$?; control "10 installed launcher" "id-letters: $H/.claude/commands/qwen-spawn.md has \[acgq\]"
 cat "$T/base/$FRAG"/*.md | sed '/fleet-pin data-rule-vendors/d' >"$H/.claude/CLAUDE.md"; cp "$T/base/$CMDS"/qwen-spawn.md "$H/.claude/commands/"
 run "$T/base" "$H"; rc=$?; control "10 installed CLAUDE.md predates the pin" "data-rule: $H/.claude/CLAUDE.md has no data-rule-vendors pin"
+
+# 12. repo-refs: CLAUDE.md or AGENTS.md names what is not on the tree, one plant per kind.
+plant; echo 'See `csi-spl-doc/doc/md/no-such-page.md`.' >>"$T/p/CLAUDE.md"
+run "$T/p"; rc=$?; control "12a repo-refs path" "repo-refs: CLAUDE.md:[0-9]* names path 'csi-spl-doc/doc/md/no-such-page.md'"
+plant; echo 'See [the gone spec](csi-spl-doc/specs/999-gone/spec.md#1-x).' >>"$T/p/AGENTS.md"
+run "$T/p"; rc=$?; control "12b repo-refs link" "repo-refs: AGENTS.md:[0-9]* names path 'csi-spl-doc/specs/999-gone/spec.md'"
+plant; echo 'Run `./run -a do_no_such_action`.' >>"$T/p/CLAUDE.md"
+run "$T/p"; rc=$?; control "12c repo-refs action" "repo-refs: CLAUDE.md:[0-9]* names action 'do_no_such_action'"
+plant; echo 'Run `make do-no-such-target`.' >>"$T/p/CLAUDE.md"
+run "$T/p"; rc=$?; control "12d repo-refs target" "repo-refs: CLAUDE.md:[0-9]* names target 'do-no-such-target'"
+plant; echo 'Read spec 998 first.' >>"$T/p/AGENTS.md"
+run "$T/p"; rc=$?; control "12e repo-refs spec" "repo-refs: AGENTS.md:[0-9]* names spec '998'"
+# 12f. a referenced path removed from the tree (not only a new bad line) is red too.
+plant; rm -f "$T/p/csi-spl-doc/doc/md/pre-push-gate.md"
+run "$T/p"; rc=$?; control "12f repo-refs removed file" "repo-refs: CLAUDE.md:[0-9]* names path 'csi-spl-doc/doc/md/pre-push-gate.md'"
 
 # 11. A tree with no git history skips fact 5 and says so; it never passes it silently.
 plant; rm -rf "$T/p/.git"

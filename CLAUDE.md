@@ -12,7 +12,8 @@ them.
 | `csi-spl-orc` | Local dev orchestration (`lde`), the terraform infra stack (`make do-setup-app-inf`: `con-csi-csi-spl-{tf-runner,tpl-gen,conf-validator}`) and its `make do-tf-*` targets, test DB, test dispatch |
 | `csi-spl-cnf` | `csi-spl/<env>.env.yaml`, the single source of truth; tpl-gen renders `csi-spl/<env>/tf/*.tfvars` from it |
 | `csi-spl-doc` | `doc/md/csi-spl.feature.md` — start there |
-| `csi-spl-dat`, `csi-spl-utl` | README only, until they have content |
+| `csi-spl-utl` | box upkeep `./run` actions (`src/bash/run/`): disk sweep and guard (`do_sweep_workdirs`), health checks, log rotation, orphan and container reaping |
+| `csi-spl-dat` | README only, until it has content |
 | `tpl-gen/` | git-ignored sibling clone, pinned by `csi-spl-iac/cnf/tpl-gen.ref` |
 
 ## Environments
@@ -149,4 +150,5 @@ How to apply:
   [fleet-rules-index.md](csi-spl-doc/doc/md/fleet-rules-index.md). A rule lives
   in one place, the others point to it; `./run -a do_check_fleet_rules_drift`
   (csi-spl-orc, also in the pre-push hygiene part) fails when two copies of a
-  pinned fact disagree.
+  pinned fact disagree, or when this file or `AGENTS.md` names a path, action,
+  make target or spec folder that is not on the tree.

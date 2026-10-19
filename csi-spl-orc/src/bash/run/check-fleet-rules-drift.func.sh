@@ -30,7 +30,10 @@
 #                     under a csi-spl-* component (a git-ignored one, e.g.
 #                     tpl-gen/, is skipped and counted), an action defined in a
 #                     *.sh, a target in a Makefile or *.mk, a folder
-#                     csi-spl-doc/specs/NNN-*
+#                     csi-spl-doc/specs/NNN-*, a terraform step ("terraform
+#                     steps NNN, NNN") csi-spl-iac/src/terraform/NNN-*; and
+#                     the CLAUDE.md dir table has a row per top-level
+#                     csi-spl-* dir of the tree
 #   It runs in the pre-push hygiene part (do_check_pre_push) and in the orc
 #   suite (tests/check-fleet-rules-drift.tst.sh). Read-only.
 # @param FLEET_RULES_TREE (optional) - default: $APP_PATH, the checkout to read
@@ -238,7 +241,7 @@ _frd_commit_address() {  # <tree>
 }
 
 # _frd_doc_refs <tree>: "<kind>\t<ref>\t<file>:<line>" for each reference the
-# repo-root agent docs make; kinds: path, action, target, spec
+# repo-root agent docs make; kinds: path, action, target, spec, tfstep
 _FRD_AGENT_DOCS="CLAUDE.md AGENTS.md"
 _frd_doc_refs() {
   local t="$1" f ln m w ws
@@ -255,6 +258,9 @@ _frd_doc_refs() {
     grep -noE '(^|[^A-Za-z0-9_])do_[a-z0-9_]+' "$t/$f" | sed -E "s/^([0-9]+):[^d]?(do_.*)/action\t\2\t$f:\1/"
     grep -noE 'make do-[a-z0-9-]+[*]?' "$t/$f" | grep -vE '[-*]$' | sed -E "s/^([0-9]+):make (.*)/target\t\2\t$f:\1/"
     grep -noiE '(^|[^a-z])specs? [0-9]{3}([^0-9]|$)' "$t/$f" | sed -E "s/^([0-9]+):.*([0-9]{3}).*/spec\t\2\t$f:\1/"
+    while IFS=: read -r ln m; do
+      grep -oE '[0-9]{3}' <<<"$m" | sed "s|^|tfstep\t|; s|\$|\t$f:$ln|"
+    done < <(grep -noiE 'terraform steps? (`?[0-9]{3}`?(, | and | or |/)?)+' "$t/$f")
   done
   return 0
 }
@@ -287,6 +293,19 @@ _frd_defined_targets() {  # <tree>: every do-* make target
     --exclude-dir=node_modules --exclude-dir=.git "$1"/csi-spl-* 2>/dev/null | sed 's/:$//' | sort -u
 }
 
+# _frd_dir_table <tree>: the CLAUDE.md dir table ("| `csi-spl-x` | ... |")
+# has a row for each top-level csi-spl-* dir, so a new component is listed
+_frd_dir_table() {
+  local t="$1" d bad=0
+  for d in "$t"/csi-spl-*/; do
+    [[ -d "$d" ]] || continue
+    d="$(basename "$d")"
+    grep -qE "^\| \`$d\` \|" "$t/CLAUDE.md" 2>/dev/null \
+      || { _frd_log "FAIL repo-refs: the CLAUDE.md dir table has no row for $d"; bad=1; }
+  done
+  return "$bad"
+}
+
 _frd_repo_refs() {  # <tree>
   local t="$1" kind ref at acts tgts bad=0 n=0 ign=0 ok
   acts="$(_frd_defined_actions "$t")"; tgts="$(_frd_defined_targets "$t")"
@@ -297,9 +316,11 @@ _frd_repo_refs() {  # <tree>
       action) grep -qxF "$ref" <<<"$acts" || ok=0 ;;
       target) grep -qxF "$ref" <<<"$tgts" || ok=0 ;;
       spec)   compgen -G "$t/csi-spl-doc/specs/$ref-*" >/dev/null || ok=0 ;;
+      tfstep) compgen -G "$t/csi-spl-iac/src/terraform/$ref-*" >/dev/null || ok=0 ;;
     esac
     (( ok )) || { _frd_log "FAIL repo-refs: $at names $kind '$ref', not on the tree"; bad=1; }
   done < <(_frd_doc_refs "$t")
+  _frd_dir_table "$t" || bad=1
   (( n )) || { _frd_log "FAIL repo-refs: no reference found in $_FRD_AGENT_DOCS"; return 1; }
   (( bad )) || _frd_log "OK repo-refs: $n references in $_FRD_AGENT_DOCS are on the tree ($ign git-ignored, skipped)"
   return "$bad"

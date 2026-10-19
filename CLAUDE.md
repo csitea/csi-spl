@@ -7,11 +7,12 @@ them.
 | dir | holds |
 |---|---|
 | `csi-spl-api` | Go module (`src/go/spool-hub-api`) for spool box CLI, MCP server, and Cloud Run hub API |
-| `csi-spl-wui` | Nuxt 3 + TypeScript Slack-like WUI (M3). lde is `pnpm dev`; ship is `nuxt generate` to Firebase Hosting (`016`/`019`). Hub API stays on Cloud Run. |
+| `csi-spl-wui` | Nuxt 3 + TypeScript Slack-like WUI (M3). lde is `pnpm dev`; ship is `nuxt generate` to Firebase Hosting (terraform steps `016`, `019`). Hub API stays on Cloud Run. |
 | `csi-spl-iac` | `./run` actions (GCP project bootstrap, the csi-rel `gcp-*` and `tf-*` actions, `do_provision`) and the terraform steps |
 | `csi-spl-orc` | Local dev orchestration (`lde`), the terraform infra stack (`make do-setup-app-inf`: `con-csi-csi-spl-{tf-runner,tpl-gen,conf-validator}`) and its `make do-tf-*` targets, test DB, test dispatch |
 | `csi-spl-cnf` | `csi-spl/<env>.env.yaml`, the single source of truth; tpl-gen renders `csi-spl/<env>/tf/*.tfvars` from it |
 | `csi-spl-doc` | `doc/md/csi-spl.feature.md` — start there |
+| `csi-spl-rdb` | the hub's Postgres schema: ordered, forward-only DDL in `csi-spl-rdb/src/sql/postgres/spool-hub/` |
 | `csi-spl-utl` | box upkeep `./run` actions (`src/bash/run/`): disk sweep and guard (`do_sweep_workdirs`), health checks, log rotation, orphan and container reaping |
 | `csi-spl-dat` | README only, until it has content |
 | `tpl-gen/` | git-ignored sibling clone, pinned by `csi-spl-iac/cnf/tpl-gen.ref` |
@@ -151,4 +152,5 @@ How to apply:
   in one place, the others point to it; `./run -a do_check_fleet_rules_drift`
   (csi-spl-orc, also in the pre-push hygiene part) fails when two copies of a
   pinned fact disagree, or when this file or `AGENTS.md` names a path, action,
-  make target or spec folder that is not on the tree.
+  make target, spec folder or terraform step that is not on the tree, or the
+  dir table above has no row for a top-level `csi-spl-*` dir.

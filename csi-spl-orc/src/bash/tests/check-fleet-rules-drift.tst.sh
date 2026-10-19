@@ -4,8 +4,9 @@
 #          rule sources, and turns red on a PLANTED disagreement of each pinned
 #          fact (id letters, count regex, ceiling number, data-rule and
 #          language-rule pins, commit address, a path / action / make target /
-#          spec folder named in the repo-root CLAUDE.md or AGENTS.md that is
-#          not on the tree), in the tree and in a box's installed copies. Every
+#          spec folder / terraform step named in the repo-root CLAUDE.md or
+#          AGENTS.md that is not on the tree, a csi-spl-* dir with no row in
+#          the CLAUDE.md dir table), in the tree and in a box's installed copies. Every
 #          control names the fact that broke. The sources are copied into a
 #          throwaway tree; nothing outside it is written.
 #------------------------------------------------------------------------------
@@ -56,6 +57,7 @@ stub_refs() {  # <dir>
       action) mkdir -p "$d/csi-spl-orc/src/bash/run"; echo "$ref() { :; }" >>"$d/csi-spl-orc/src/bash/run/stub-actions.sh" ;;
       target) mkdir -p "$d/csi-spl-orc/src/make"; printf '%s:\n' "$ref" >>"$d/csi-spl-orc/src/make/stub.mk" ;;
       spec)   compgen -G "$d/csi-spl-doc/specs/$ref-*" >/dev/null || mkdir -p "$d/csi-spl-doc/specs/$ref-stub" ;;
+      tfstep) compgen -G "$d/csi-spl-iac/src/terraform/$ref-*" >/dev/null || mkdir -p "$d/csi-spl-iac/src/terraform/$ref-stub" ;;
     esac
   done < <(cd "$APP_ROOT" && _frd_doc_refs "$APP_ROOT")
 }
@@ -150,6 +152,13 @@ run "$T/p"; rc=$?; control "12e repo-refs spec" "repo-refs: AGENTS.md:[0-9]* nam
 # 12f. a referenced path removed from the tree (not only a new bad line) is red too.
 plant; rm -f "$T/p/csi-spl-doc/doc/md/pre-push-gate.md"
 run "$T/p"; rc=$?; control "12f repo-refs removed file" "repo-refs: CLAUDE.md:[0-9]* names path 'csi-spl-doc/doc/md/pre-push-gate.md'"
+plant; echo 'Served by terraform steps `019`, `998`.' >>"$T/p/CLAUDE.md"
+run "$T/p"; rc=$?; control "12g repo-refs terraform step" "repo-refs: CLAUDE.md:[0-9]* names tfstep '998'"
+# 12h. a top-level csi-spl-* dir with no row in the CLAUDE.md dir table.
+plant; sed -i '/^| `csi-spl-rdb` |/d' "$T/p/CLAUDE.md"
+run "$T/p"; rc=$?; control "12h repo-refs dir table row" "repo-refs: the CLAUDE.md dir table has no row for csi-spl-rdb"
+plant; mkdir -p "$T/p/csi-spl-new"
+run "$T/p"; rc=$?; control "12i repo-refs new component" "repo-refs: the CLAUDE.md dir table has no row for csi-spl-new"
 
 # 11. A tree with no git history skips fact 5 and says so; it never passes it silently.
 plant; rm -rf "$T/p/.git"

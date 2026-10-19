@@ -60,7 +60,8 @@ mention is a one-line pointer.
 ## 3. The drift check
 
 `cd csi-spl-orc && ./run -a do_check_fleet_rules_drift` reads the sources in
-section 1 and fails when two of them disagree on a pinned fact:
+section 1 and fails when two of them disagree on a pinned fact, or when the
+repo `CLAUDE.md` or `AGENTS.md` names what is not on the tree:
 
 | # | fact | compared |
 |---|---|---|
@@ -70,6 +71,8 @@ section 1 and fails when two of them disagree on a pinned fact:
 | 3.4 | data-rule | every `fleet-pin data-rule-vendors` pin (1.1 `20`, 1.5) agrees, its prose names each pinned vendor, and `do_spl_lane_mix`'s secret pick is in the set |
 | 3.5 | language-rule | the same for the `fleet-pin language-rule-final` pins and `do_spl_lane_mix`'s `i18n` pick |
 | 3.6 | commit-address | the repo `CLAUDE.md` "Commits:" address vs every recent commit by that author name |
+| 3.7 | per-kind-main | each per-kind table (its "main \| backup" header) in 1.1 `20` and 1.5 names the spec's main vendor per kind |
+| 3.8 | repo-refs | every path, link, `do_*` action, `make do-*` target, "spec NNN" folder and "terraform step NNN" the repo `CLAUDE.md` and `AGENTS.md` name exists on the tree, and the `CLAUDE.md` dir table has a row per top-level `csi-spl-*` dir |
 
 It runs in the pre-push hygiene part (`do_check_pre_push`) and in the orc
 suite (`csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh`, with a

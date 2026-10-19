@@ -631,6 +631,15 @@ resource, and its age would have come from each machine's own clock.
   `lease.conf` without them behaves exactly as before. E.g.
   `LEASE_PRIORITY=<pc box>,sat` + `LEASE_PRIORITY_ORCH=sat,<pc box>` hands the
   orch role back to the satellite and the dispatch role back to the pc.
+- **Move one role to a named box** (SPL-2643, owner csitea 1be68c11):
+  `cd csi-spl-orc && ROLE=orch|dispatch TO_BOX=<box> DRY_RUN=0 ./run -a do_spl_role_move`
+  (dry run by default) writes the hub pin row `pin-<role>`, which every box's
+  loop reads and ranks that box first for the role, over every `lease.conf`;
+  it fails fast on a box in no ranking, a box the hub beats do not call
+  healthy, or (this machine) no able seat, and waits for the hub row to be
+  renewed from the box, else undoes the pin. The pin ends after
+  `LEASE_PIN_TTL` (86400 s, 0 = never) or with `TO_BOX=none`. Test:
+  `csi-spl-orc/src/bash/tests/spl-role-move.tst.sh`.
 - Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` simulates two
   machines against a hub stub (CAS, expiry at 181 s, priority handback, local
   order, lost race, unreachable hub, hub clock, stalled agents, 6b: a

@@ -141,10 +141,10 @@ spl_lease_conf() {
   [[ -f "$LEASE_CONF" ]] || return 0
   while IFS='=' read -r k v; do
     case "$k" in
-      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX|LEASE_INTERMITTENT|LEASE_HOLDDOWN|LEASE_ORCH_FALLBACK|LEASE_DISPATCH_FALLBACK|LEASE_VENDOR_ORDER|LEASE_FALLBACK_WAIT)
+      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX|LEASE_INTERMITTENT|LEASE_HOLDDOWN|LEASE_ORCH_FALLBACK|LEASE_DISPATCH_FALLBACK|LEASE_VENDOR_ORDER|LEASE_FALLBACK_WAIT|LEASE_PIN_TTL)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v" ;;
     esac
-  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$|^LEASE_INTERMITTENT=[a-z0-9][a-z0-9,-]*$|^LEASE_HOLDDOWN=[0-9]+$|^LEASE_(ORCH|DISPATCH)_FALLBACK=[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$|^LEASE_VENDOR_ORDER=[a-z]+(,[a-z]+)*$|^LEASE_FALLBACK_WAIT=[0-9]+$' "$LEASE_CONF")
+  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$|^LEASE_INTERMITTENT=[a-z0-9][a-z0-9,-]*$|^LEASE_HOLDDOWN=[0-9]+$|^LEASE_(ORCH|DISPATCH)_FALLBACK=[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$|^LEASE_VENDOR_ORDER=[a-z]+(,[a-z]+)*$|^LEASE_(FALLBACK_WAIT|PIN_TTL)=[0-9]+$' "$LEASE_CONF")
   return 0
 }
 
@@ -1108,11 +1108,61 @@ spl_fleet_read() {
 # (LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH, else LEASE_PRIORITY);
 # unknown = last.
 spl_fleet_rank() {
-  local i=0 m k="LEASE_PRIORITY_${2^^}"
+  local i=0 m k="LEASE_PRIORITY_${2^^}" p="LEASE_PIN_BOX_${2^^}"
+  # a pinned box (spl_fleet_pin) ranks before every other box of the role
+  if [[ -n "${2:-}" && -n "${!p:-}" ]]; then [[ "$1" == "${!p}" ]] && { echo 0; return; }; i=1; fi
   [[ -n "${2:-}" && -n "${!k:-}" ]] || k=LEASE_PRIORITY
   IFS=, read -ra _ms <<<"${!k}"
   for m in "${_ms[@]}"; do [[ "$m" == "$1" ]] && { echo "$i"; return; }; i=$((i + 1)); done
   echo "$i"
+}
+
+# ---- a role pinned to a box (SPL-2643, do_spl_role_move) ----------------------
+# Owner HUM-10 (csitea 1be68c11, msg f1fd503c): "move the orchestrator to the
+# sat box". The ranking lives in each machine's lease.conf, so a move written
+# there on one box ping-pongs with the boxes that still rank another first.
+# The pin is one more hub lease row, (fleet, "pin-<role>"), holder
+# "<seat>@<box>", written by do_spl_role_move: every box reads the same row,
+# so every box ranks the pinned box first for that role (spl_fleet_rank), and
+# the role moves by the usual handback (LEASE_HOLDDOWN, then one LEASE_PERIOD
+# before the new seat is told ACTIVE). An intermittent box that is pinned
+# hands back too. Nothing else changes: a pinned box whose seat cannot act
+# goes stale and the role fails over as before; the pin brings it back once
+# the seat is able again. The pin ends when its row is older than
+# LEASE_PIN_TTL on the hub's clock (default 86400 s, 0 = never; env or
+# lease.conf) or when do_spl_role_move writes it to box "none" (TO_BOX=none).
+# Read every LEASE_PIN_READ s (60), cached in <dir>/fleet.<role>.pin as
+# "<read epoch> <holder|-> <age at read>"; a failed read keeps the last one.
+# Off with LEASE_PIN=0, and under the LEASE_HUB_CMD stub unless LEASE_PIN=1.
+
+spl_fleet_pin_on() {
+  [[ "${LEASE_PIN:-}" != 0 ]] && [[ -z "${LEASE_HUB_CMD:-}" || "${LEASE_PIN:-}" == 1 ]]
+}
+
+# spl_fleet_pin <role>: sets LEASE_PIN_BOX_<ROLE> to the box the role is
+# pinned to, empty for none; a change (an expiry too) is logged once.
+spl_fleet_pin() {
+  local role="$1" f="$LEASE_DIR/fleet.$1.pin" now at=0 h=- a=-1 prev out ttl="${LEASE_PIN_TTL:-86400}" box=""
+  local FH FG FA FW
+  spl_fleet_pin_on || { printf -v "LEASE_PIN_BOX_${role^^}" '%s' ""; return 0; }
+  now="$(spl_lease_now)"
+  [[ -s "$f" ]] && read -r at h a < "$f"
+  [[ "$at" =~ ^[0-9]+$ && "$a" =~ ^-?[0-9]+$ && -n "$h" ]] || { at=0 h=- a=-1; }
+  if (( now - at >= ${LEASE_PIN_READ:-60} )) &&
+     out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "pin-$role" 2>&1)" && spl_fleet_read "$out"; then
+    at="$now" h="${FH:--}" a="$FA"
+    (( FG == 0 )) && h=- a=-1
+    printf '%s %s %s\n' "$at" "$h" "$a" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  fi
+  [[ "$h" == *@* && "${h##*@}" != none ]] && (( a >= 0 )) && { [[ "$ttl" == 0 ]] || (( a + now - at < ttl )); } &&
+    box="${h##*@}"
+  prev="$(cat "$LEASE_DIR/fleet.$role.pin-box" 2>/dev/null)"
+  if [[ "$box" != "$prev" ]]; then
+    echo "$box" > "$LEASE_DIR/fleet.$role.pin-box"
+    spl_lease_log "PIN $role: ${prev:-none} -> ${box:-none} (row $h, LEASE_PIN_TTL ${ttl}s)"
+  fi
+  printf -v "LEASE_PIN_BOX_${role^^}" '%s' "$box"
+  return 0
 }
 
 # ---- the beat-health demotion (t1 3cfc236e, the 2026-10-11 lesson) ----------
@@ -1716,6 +1766,8 @@ spl_fleet_role_tick() {
   local ct=0 ht=0 wait
   ok="$LEASE_DIR/fleet.$role.ok"
   now="$(spl_lease_now)"
+  spl_fleet_pin "$role"
+  local pinv="LEASE_PIN_BOX_${role^^}"
   cand="$(spl_fleet_candidate "$role")"
   [[ -n "$cand" ]] && ct="$(spl_fleet_tier "$cand")"
   # the hold-down clock (spec 092): "<first> <last> <tier>", the first and the
@@ -1753,7 +1805,7 @@ spl_fleet_role_tick() {
   elif (( ct < ht )) || { (( ct == ht )) && spl_fleet_outranks "$me" "$hm" "$role"; }; then
     # the handback (spec 092 FR-001): a returning box takes nothing back until
     # proven healthy; a better vendor (SPL-2521) outranks any machine rank
-    if (( ct == ht )) && spl_fleet_intermittent "$me"; then
+    if (( ct == ht )) && spl_fleet_intermittent "$me" && [[ "$me" != "${!pinv:-}" ]]; then
       spl_fleet_once "$role.hold-int" "HOLD $role: $me is intermittent (LEASE_INTERMITTENT): it takes $role only when $FH goes stale"
     elif (( now - since < hold )); then
       spl_fleet_once "$role.hold" "HOLD $role: $me able $((now - since))s < LEASE_HOLDDOWN ${hold}s: $FH keeps it"

@@ -30,6 +30,13 @@
 #      record goes when the seat is claude again; a standby box hands it back
 #  10. dispatch: c-002 -> g-002 (LEASE_MASTER), the dispatcher brief in the
 #      seed, c-003 untouched
+#  11. SPL-2609, proof of work: the switch sends the new seat a probe task
+#      (its inbox) carrying the ACK command; the fake seat runs that REAL
+#      command (ROLE_FAILOVER_CMD=ack, spl_rotate_ack_send) as its new pid.
+#      RED CONTROL: a seat that starts and sits at an idle prompt but never
+#      acks (NO_ACK=g) is NOT able: closed, dirs back, lease.conf untouched,
+#      grok backed off (before SPL-2609 it took the seat). A seat that acks
+#      is able; the ack from another pid is refused.
 #  RED CONTROL: on a tree before SPL-2544 every case fails (no such action).
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -114,7 +121,25 @@ case "$LANE_MIX_SPLIT_KIND" in
   *agy=100*) if [ "${AGY_OUT:-0}" = 1 ]; then echo "agy 100 skip (no agy cli); share to claude"; echo "pick=claude"; else echo "pick=agy"; fi ;;
 esac
 EOF
-printf '#!/bin/sh\necho "send $*" >>"$T/send.log"\n' >"$T/bin/send"
+# spool-send.sh: the sender's outbox copy, as the real one writes it; a
+# probe task (ACK-COMMAND in the body) to a seat whose vendor letter is not
+# in NO_ACK is acked by that seat: the REAL ack command, run as its new pid
+cat >"$T/bin/send" <<'EOF'
+#!/usr/bin/env bash
+echo "send $*" >>"$T/send.log"
+from="" to="" kind="" task="" body=""
+while [ $# -gt 0 ]; do case "$1" in --from) from="$2"; shift 2 ;; --to) to="$2"; shift 2 ;; --kind) kind="$2"; shift 2 ;; --task) task="$2"; shift 2 ;; --body) body="$2"; shift 2 ;; *) shift ;; esac; done
+if [ -d "$SPOOL_ROOT/$from" ]; then
+  mkdir -p "$SPOOL_ROOT/$from/outbox"
+  jq -n --arg f "$from" --arg t "$to" --arg k "$kind" --arg ta "$task" '{msg_id: "m", from: $f, to: $t, kind: $k, task_id: $ta}' >"$SPOOL_ROOT/$from/outbox/$(date +%s%N).json"
+fi
+case "$kind $body" in task*ACK-COMMAND:*) ;; *) exit 0 ;; esac
+case " ${NO_ACK:-} " in *" ${to%%-*} "*) echo "seat $to never acks" >>"$T/ack.log"; exit 0 ;; esac
+role="$(sed -nE 's/.*ROLE_FAILOVER_ROLE=([a-z]+).*/\1/p' <<<"$body")"; rid="$(sed -nE 's/.*ROTATE_ID=([^ ]+).*/\1/p' <<<"$body")"
+npid="$(sed -n 's/^ROTATE_NEW_PID=//p' "$SPOOL_ROOT/dispatch/role-failover/rotate.failover-$role.ctx")"
+env ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE="$role" ROTATE_ID="$rid" ROTATE_CALLER_PID="${ACK_PID:-$npid}" "$T/bin/act" >>"$T/ack.log" 2>&1
+echo "ack rc=$?" >>"$T/ack.log"
+EOF
 # the lease's pane read (LEASE_PANE_CMD <pid>): $T/pane/<pid>, else an idle prompt
 printf '#!/bin/sh\ncat "$T/pane/$1" 2>/dev/null || printf "❯ \\n"\n' >"$T/bin/pane"
 printf '#!/bin/sh\nexit 0\n' >"$T/bin/tr"
@@ -136,6 +161,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
   ROTATE_TMUX="$T/bin/tmux" ROTATE_SPAWN="$T/bin/spawn" ROTATE_KILL="$T/bin/kill" ROTATE_AI="$T/bin/ai" ROTATE_RUN="$T/bin/run" ROTATE_SEND="$T/bin/send" \
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_LEASE_KINDS="claude grok agy" ROTATE_SWITCH_DESK_ENVS="" DESK_STATE_ROOT="$T/desks" ROTATE_CLAUDE_BIN=/bin/true \
   ROTATE_POLL=1 ROTATE_START_WAIT=3 ROTATE_START_CHECK_WAIT=0 ROTATE_NEW_EXIT_WAIT=1 ROTATE_TERM_WAIT=1 ROLE_FAILOVER_EXIT_WAIT=1 START_CHECK_POLL=0 \
+  ROLE_FAILOVER_ACK_WAIT=2 \
   LANE_MIX_WD_DIR="$T/wd"
 
 # the box: three claude role seats, each its own real dir; c-001 on a login picker
@@ -286,6 +312,30 @@ act ROLE_FAILOVER_ROLE=dispatch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   grep -q '^# Dispatcher brief for g-002 (master)' "$S/g-002/lifetime/prompt.txt" && [[ "$(cat "$S/c-003/lifetime/prompt.txt")" == "SEED c-003" ]] &&
   pass "10. dispatch: the master seat c-002 -> g-002 (LEASE_MASTER), the dispatcher brief in its seed; c-001 and c-003 untouched" ||
   fail "10. rc=$rc $(cat "$D/lease.conf") $(cat "$T/o")"
+
+# --- 11. SPL-2609: able = the probe acked, not a prompt ------------------------------------------
+# RED CONTROL: grok starts, its pane an idle prompt (the lease's test passes), never acks
+world
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 NO_ACK=g >"$T/o" 2>&1; rc=$?
+grep -q '^spawn grok g-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" && grep -q -- '--to g-001 --kind task .*PROBE [0-9T]*Z-failover-g-001: .*ACK-COMMAND: .*ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID=[0-9T]*Z-failover-g-001 ' "$T/send.log" &&
+  pass "11. the switch sends the new seat g-001 a probe task carrying the ACK command" || fail "11. probe: $(cat "$T/send.log" 2>&1)"
+[[ $rc == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ "$(lnk g-001)" == c-001 && ! -d "$T/proc/3001" && -s "$D/role-failover/refused.001.grok" ]] &&
+  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able: no ack of the probe [0-9T]*Z-failover-g-001 within 2s (up, but it did no work).*seat switch back g-001 -> c-001; lease.conf untouched' "$T/o" &&
+  grep -q 'no ack of the probe' "$D/able.g-001" &&
+  pass "11. RED CONTROL: a grok seat at an idle prompt that never acks is NOT able: closed, dirs back to c-001, lease.conf untouched, grok backed off" ||
+  fail "11. no-ack: rc=$rc conf=$(key LEASE_ORCH) c-001=$(lnk c-001) $(cat "$T/o")"
+# the seat acks: able, by the real ack sender
+world
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(key LEASE_ORCH)" == g-001 ]] && grep -q 'ACK OK sent by pid 3001' "$T/ack.log" &&
+  jq -e 'select(.kind == "result" and .from == "g-001" and (.task_id | test("^failover-orch-rotate-[0-9T]+Z-failover-g-001$")))' "$S/g-001/outbox/"*.json >/dev/null 2>&1 &&
+  grep -q 'SWITCH OK g-001 acked the probe [0-9T]*Z-failover-g-001' "$T/o" &&
+  pass "11. a seat that runs the probe's ack (its result in g-001/outbox) is able: lease.conf LEASE_ORCH=g-001" ||
+  fail "11. ack: rc=$rc conf=$(key LEASE_ORCH) $(cat "$T/ack.log" 2>&1) $(cat "$T/o")"
+rid="$(grep -oE 'ROTATE_ID=[0-9T]+Z-failover-g-001' "$T/send.log" | sed -n 1p | cut -d= -f2)"
+act ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID="$rid" ROTATE_CALLER_PID=999 DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc == 3 ]] && grep -q "ACK FAIL refused: caller pid '999' is not the new session 3001" "$T/o" &&
+  pass "11. the same ack from another pid is refused (exit 3)" || fail "11. wrong pid: rc=$rc $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

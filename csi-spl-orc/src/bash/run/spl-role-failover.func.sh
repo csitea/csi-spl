@@ -27,7 +27,15 @@
 # @description      window renamed -retiring, SPAWN_REUSE_ID=1, the start
 # @description      check, the identity map) with a seed naming the role and a
 # @description      handoff; ROLE_FAILOVER_SETTLE s later the lease's own able
-# @description      test (spl_fleet_try) judges it
+# @description      test (spl_fleet_try) judges it, and then a proof of WORK
+# @description      (SPL-2609): the switch sent the seat a probe task on the
+# @description      spool, in its inbox, carrying the rotation's ACK command
+# @description      (spl_rotate_ack_send, as do_spl_orch_rotate's ack; here
+# @description      ROLE_FAILOVER_CMD=ack); the seat is able only once that
+# @description      ack is in its outbox within ROLE_FAILOVER_ACK_WAIT s. The
+# @description      lease's test alone passes for a session that started and
+# @description      sits at an idle prompt (its stuck check fires only on an
+# @description      unread inbox older than LEASE_UNREAD_MAX, 600 s)
 # @description   6. able: lease.conf LEASE_ORCH / LEASE_MASTER = NEW, the old
 # @description      process ended (/exit, TERM, KILL), its window closed, the
 # @description      seat recorded in role-failover/seat.<NNN> (the rotation
@@ -41,11 +49,14 @@
 # @param ROLE_FAILOVER_SEAT (optional) - the seat id the lease saw; checked against lease.conf
 # @param ROLE_FAILOVER_SILENT (optional) - s the holder has been silent (from the lease); a vendor whose wait has not run is skipped; empty = no wait check (a hand run)
 # @param ROLE_FAILOVER_SETTLE (optional) - s between the start and the able test, default 30
+# @param ROLE_FAILOVER_ACK_WAIT (optional) - s the new seat gets, after the able test, to run the probe's ack, default 300 (grok role sessions acked 12-17 s after their start in the rotations of 2026-10-18/19, n=7)
+# @param ROLE_FAILOVER_CMD (optional) - switch (default) | ack: run BY the new seat, with ROTATE_ID=<the probe's id>, as its probe task states
 # @param ROLE_FAILOVER_BACKOFF (optional) - s a vendor that failed for a seat is not tried again, default 1800
 # @param ROLE_FAILOVER_EXIT_WAIT (optional) - s the old session gets after /exit before TERM, default 30
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ROLE_FAILOVER_ROLE=orch ./run -a do_spl_role_failover
 # @example ROLE_FAILOVER_ROLE=dispatch DRY_RUN=0 ./run -a do_spl_role_failover
+# @example ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID=20261019T2000Z-failover-g-001 ./run -a do_spl_role_failover
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
@@ -61,9 +72,14 @@ do_spl_role_failover() {
     dispatch) fam=dispatch key=LEASE_MASTER ;;
     *) do_log "FATAL ROLE_FAILOVER_ROLE must be orch or dispatch, got: '$role'"; return 1 ;;
   esac
-  [[ "${ROLE_FAILOVER_SETTLE:=30}" =~ ^[0-9]+$ && "${ROLE_FAILOVER_BACKOFF:=1800}" =~ ^[0-9]+$ && "${ROLE_FAILOVER_EXIT_WAIT:=30}" =~ ^[0-9]+$ ]] ||
-    { do_log "FATAL ROLE_FAILOVER_SETTLE, ROLE_FAILOVER_BACKOFF and ROLE_FAILOVER_EXIT_WAIT must be whole seconds"; return 1; }
+  [[ "${ROLE_FAILOVER_SETTLE:=30}" =~ ^[0-9]+$ && "${ROLE_FAILOVER_BACKOFF:=1800}" =~ ^[0-9]+$ && "${ROLE_FAILOVER_EXIT_WAIT:=30}" =~ ^[0-9]+$ && "${ROLE_FAILOVER_ACK_WAIT:=300}" =~ ^[0-9]+$ ]] ||
+    { do_log "FATAL ROLE_FAILOVER_SETTLE, ROLE_FAILOVER_BACKOFF, ROLE_FAILOVER_EXIT_WAIT and ROLE_FAILOVER_ACK_WAIT must be whole seconds"; return 1; }
   RF_DIR="$LEASE_DIR/role-failover" RF_LOG="$LEASE_DIR/role-failover.log"
+  case "${ROLE_FAILOVER_CMD:-switch}" in
+    switch) ;;
+    ack) spl_role_failover_ack "$role"; return $? ;;
+    *) do_log "FATAL ROLE_FAILOVER_CMD must be switch or ack, got: '$ROLE_FAILOVER_CMD'"; return 1 ;;
+  esac
   rid="$(spl_rotate_new_rid "failover-$role")"
   # the old and the new session are different vendors (spl_rotate_cli reads it)
   # shellcheck disable=SC2034
@@ -80,9 +96,10 @@ do_spl_role_failover() {
   fi
   local ph
   ph="$(ROTATE_STATE_DIR="" spl_rotate_ctx_load "$fam" && echo "$ROTATE_RID $ROTATE_PHASE" || true)"
-  # this run's own .state / .ctx: <lease dir>/role-failover/rotate.failover.*
+  # this run's own .state / .ctx: <lease dir>/role-failover/rotate.failover-<role>.*
+  # (per role: an orch and a dispatch switch at once keep their own probe ctx)
   # shellcheck disable=SC2034 # read by spl_rotate_log / spl_rotate_spawn
-  ROTATE_FAMILY=failover ROTATE_STATE_DIR="$RF_DIR"
+  ROTATE_FAMILY="failover-$role" ROTATE_STATE_DIR="$RF_DIR"
   if [[ -n "$ph" ]] && spl_disp_in_flight "${ph#* }"; then
     spl_role_failover_say "$rid" SKIP "rotation ${ph% *} is in flight at ${ph#* } (rotate.$fam.ctx): it resumes first"; return 0
   fi
@@ -173,7 +190,7 @@ spl_role_failover_own() {
 # spl_role_failover_run RID ROLE KEY OLD SEAT VENDOR NEW: steps 4-7. Non-zero =
 # failed and put back, ROTATE_ERR says why.
 spl_role_failover_run() {
-  local rid="$1" role="$2" key="$3" old="$4" seat="$5" v="$6" new="$7" opid opane seed rec
+  local rid="$1" role="$2" key="$3" old="$4" seat="$5" v="$6" new="$7" opid opane seed rec ack arc
   # shellcheck disable=SC2034 # the rotation globals spl_rotate_spawn / _restore / _end read
   ROTATE_RID="$rid" ROTATE_KIND="$v" \
     ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_NEW_DIALOG="" ROTATE_SWITCH_FROM="$seat" ROTATE_SWITCH_TO="$new" \
@@ -202,11 +219,21 @@ spl_role_failover_run() {
   if ! spl_rotate_spawn "$new" "$seed"; then
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
+  ack="${rid%%-*}-failover-$new"
+  spl_role_failover_probe "$rid" "$role" "$new" "$ack"
   sleep "$ROLE_FAILOVER_SETTLE"
   if ! spl_fleet_try "$new" >/dev/null; then
     ROTATE_ERR="$v $new (pid $ROTATE_NEW_PID) not able ${ROLE_FAILOVER_SETTLE}s after the start: $(spl_role_failover_able "$new")"
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
+  spl_role_failover_say "$rid" WAIT "$new is up and not stuck; up to ${ROLE_FAILOVER_ACK_WAIT}s for its ack of the probe $ack (proof of work)"
+  arc=0; spl_rotate_ack_wait "$new" "$ack" "$ROLE_FAILOVER_ACK_WAIT" || arc=$?
+  if (( arc )); then
+    ROTATE_ERR="$v $new (pid $ROTATE_NEW_PID) not able: $( ((arc == 2)) && echo "it ended before it acked the probe $ack" || echo "no ack of the probe $ack within ${ROLE_FAILOVER_ACK_WAIT}s (up, but it did no work)")"
+    printf '%s\n' "$ROTATE_ERR" > "$LEASE_DIR/able.$new" 2>/dev/null || true
+    spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
+  fi
+  spl_role_failover_say "$rid" OK "$new acked the probe $ack: it read its inbox and ran the command"
   if ! spl_rotate_conf_flip "$key" "$old" "$new"; then
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
@@ -228,6 +255,38 @@ spl_role_failover_run() {
   spl_rotate_note "$new" "$(spl_rotate_ack_task "$rid")" \
     "VENDOR FAILOVER $rid on $ROTATE_BOX: seat $seat ($(spl_fleet_vendor "$seat")) could not act; $new ($v, pid $ROTATE_NEW_PID) runs the $role seat now, same inbox. The lease names it at its next tick; the hourly rotation hands it back once claude can act. Log: $ROTATE_LOG" result
   return 0
+}
+
+# spl_role_failover_probe RID ROLE NEW ACK: the proof-of-work probe
+# (SPL-2609). ACK is RID's time + failover + NEW: one per seat and vendor
+# tried, in the form spl_rotate_ack_send takes. The run's ctx is saved under
+# it at phase ACK, so the ack sender accepts it only from the new pid. A task
+# on the spool to NEW (its inbox, poked) carries the ACK command; the ack
+# lands as a result in NEW's outbox (spl_rotate_ack_seen). The command is in
+# the inbox only, never in the seed or the first prompt: a seat that does
+# not read its inbox never acks.
+spl_role_failover_probe() {
+  local rid="$1" role="$2" new="$3" ack="$4" cmd rid0="$ROTATE_RID"
+  # shellcheck disable=SC2034 # saved in the ctx the ack sender loads
+  ROTATE_PHASE=ACK ROTATE_RID="$ack"
+  spl_rotate_ctx_save "$ROTATE_FAMILY"
+  ROTATE_RID="$rid0"
+  cmd="cd $PROJ_PATH && sudo -u ${SPOOL_BOX_USER:-$USER} env SPOOL_ROOT=$SPOOL_ROOT ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=$role ROTATE_ID=$ack ./run -a do_spl_role_failover"
+  spl_rotate_note "$new" "$(spl_rotate_ack_task "$ack")" \
+    "PROBE $ack: you are $new@$ROTATE_BOX, the $role seat after a vendor failover. Run this ack now, exactly, before anything else: ACK-COMMAND: $cmd ; without it within ${ROLE_FAILOVER_ACK_WAIT}s of your start check this seat is not able and the switch is rolled back." task
+  spl_role_failover_say "$rid" WAIT "probe $ack sent to $new's inbox (task $(spl_rotate_ack_task "$ack"))"
+}
+
+# spl_role_failover_ack ROLE: ROLE_FAILOVER_CMD=ack, run by the new seat:
+# the rotation's ack sender (spl_rotate_ack_send: the probe in flight at
+# phase ACK, the caller the new pid) on the failover's own ctx.
+spl_role_failover_ack() {
+  # shellcheck disable=SC2034 # read by spl_rotate_family / spl_rotate_log / spl_rotate_ctx_*
+  local ROTATE_FAMILY="failover-$1" ROTATE_STATE_DIR="$RF_DIR" ROTATE_CMD=ack
+  if ! spl_rotate_ctx_load "$ROTATE_FAMILY" || [[ -z "$ROTATE_SWITCH_TO" ]]; then
+    do_log "FATAL no vendor failover of the $1 seat waits for an ack ($RF_DIR/rotate.$ROTATE_FAMILY.ctx)"; return 3
+  fi
+  spl_rotate_ack_send "$1" "$ROTATE_SWITCH_TO"
 }
 
 # spl_role_failover_back RID SEAT NEW OLD_PANE: a failed switch put back: the
@@ -254,7 +313,9 @@ You are $new@$ROTATE_BOX, the $role seat. The previous $seat session could
 not act (the fleet lease's able test: $(spl_role_failover_able "$seat")), so
 this seat switched vendor in place: same seat, same inbox (every letter of
 the seat links to $SPOOL_ROOT/$new), same lease key. Read $ROTATE_HANDOFF,
-then your inbox (spool recv --as $new), then act in your role:
+then your inbox (spool recv --as $new): its PROBE task carries an
+ACK-COMMAND, run it first; without that ack within ${ROLE_FAILOVER_ACK_WAIT}s this switch
+is rolled back. Then act in your role:
 $ROTATE_SPEC section 1 ($role), 4.1 (fleet lease), 4.3 (asks).
 Do not greet; post nothing about the switch.
 

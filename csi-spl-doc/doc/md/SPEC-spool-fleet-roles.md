@@ -505,9 +505,22 @@ resource, and its age would have come from each machine's own clock.
     seat's `lifetime/prompt.txt` is ever written). It then starts the vendor
     in the seat through the rotation's spawn (the start check, the identity
     map), and `ROLE_FAILOVER_SETTLE` (30 s) later judges it with the lease's
-    own test. Able: `lease.conf` takes the new id, the old session ends, and
-    `role-failover/seat.<NNN>` records it. Not able: the new session closes,
-    the dirs go back, `lease.conf` is untouched, the next vendor is tried.
+    own test, then asks for a proof of work (SPL-2609): the lease's test
+    alone passes for a session that started and sits at an idle prompt (its
+    stuck check fires only on an unread inbox older than 600 s), so a seat
+    that never reads its inbox passed it. Right after the start the switch
+    sends the seat a probe task on the spool (its inbox, poked; task
+    `failover-<role>-rotate-<ts>-failover-<new id>`) carrying the rotation's
+    ACK command (`ROLE_FAILOVER_CMD=ack ... do_spl_role_failover`, which runs
+    the hourly rotation's ack sender `spl_rotate_ack_send`: accepted only
+    from the new pid). The command is in the inbox only, never in the seed.
+    The seat is able only once that ack is a result in its outbox within
+    `ROLE_FAILOVER_ACK_WAIT` (300 s; grok role sessions acked 12-17 s after
+    their start in the rotations of 2026-10-18/19, n=7). Able: `lease.conf`
+    takes the new id, the old session ends, and `role-failover/seat.<NNN>`
+    records it. Not able (no ack, or the lease's test fails): the new session
+    closes, the dirs go back, `lease.conf` is untouched, that vendor is
+    backed off, the next vendor is tried.
     The lease follows the seat's link at once (`spl_fleet_seat_id`).
     `LEASE_ORCH_FALLBACK` / `LEASE_DISPATCH_FALLBACK` now list VENDORS
     (default `LEASE_VENDOR_ORDER`; an old id list reads as its letters'
@@ -546,7 +559,9 @@ resource, and its age would have come from each machine's own clock.
   - Tests: `csi-spl-orc/src/bash/tests/fleet-lease-vendor-failover.tst.sh`
     (the 2026-10-19 login expiry on two boxes, the lease side) and
     `role-failover.tst.sh` (the switch: grok, grok unable -> agy, the
-    handback, the red control of the 10-19 overwrite, the rotation lock).
+    handback, the red control of the 10-19 overwrite, the rotation lock;
+    case 11, the red control of a seat at an idle prompt that never acks
+    the probe: not able).
 - **The standby takes over on two conditions** (owner, t1 27f01e16,
   2026-10-02: "The failover should just stand by and in certain conditions he
   should take over"). Measured 16:37Z-18:27Z that day: the orchestrator's

@@ -181,7 +181,7 @@ grep -q '^kill -TERM 101$' "$T/kill.log" && [[ "$(wc -l <"$T/kill.log")" == 1 &&
   pass "4. only the seat's own pid got a signal (TERM 101), the other seats untouched" || fail "4. kill: $(cat "$T/kill.log")"
 [[ "$(key LEASE_ORCH)" == g-001 && ! -e "$T/wd/c-001.heldout" ]] && grep -q -- '-failover-orch SWITCH OK g-001' "$T/o" &&
   grep -q 'DRILL RESULT OK PROVED: lease.conf LEASE_ORCH=g-001 (was c-001); .*g-001 has live pid 3001; the old c-001 pid 101 gone: yes' "$T/o" &&
-  grep -q 'DRILL RESULT NOTE NOT PROVED: that g-001 works the orch role' "$T/o" && grep -q -- '-drill-orch DRILL STOP OK pid 101' "$D/rotate.log" &&
+  grep -q 'DRILL RESULT NOTE NOT PROVED: that g-001 works the whole orch role' "$T/o" && grep -q -- '-drill-orch DRILL STOP OK pid 101' "$D/rotate.log" &&
   ! grep -q 'do_spl_agent_restart' "$T/run.log" 2>/dev/null &&
   pass "4. the failover's lines and the new holder printed, the hold released, no restore" || fail "4. result: $(cat "$T/o") $(ls "$T/wd" 2>&1)"
 [[ ! -e "$D/rotate.orch.state" ]] && pass "4. the drill writes no rotate.orch.state (it is no rotation)" || fail "4. state: $(cat "$D/rotate.orch.state")"
@@ -242,7 +242,7 @@ waitfor 'DRILL RESULT NOTE'; DL="$(ls "$D/role-failover/"*.drill.log 2>/dev/null
 cp="$(cat "$T/caller.pid")"
 [[ -n "$DL" && "$(key LEASE_ORCH)" == g-001 ]] && grep -q "DRILL DETACH OK the drill of c-001 runs detached" "$T/o" &&
   grep -q "^stop $cp held=y" "$T/order.log" && grep -q 'failover orch seat=c-001 DRY_RUN=0' "$T/order.log" &&
-  grep -q 'DRILL RESULT OK PROVED: lease.conf LEASE_ORCH=g-001' "$DL" && grep -q 'DRILL RESULT NOTE NOT PROVED: that g-001 works the orch role' "$DL" &&
+  grep -q 'DRILL RESULT OK PROVED: lease.conf LEASE_ORCH=g-001' "$DL" && grep -q 'DRILL RESULT NOTE NOT PROVED: that g-001 works the whole orch role' "$DL" &&
   ! kill -0 "$cp" 2>/dev/null &&
   pass "9. the caller IS the seat (pid $cp): its group killed by the stop, the detached drill still ran the failover (log $DL)" ||
   fail "9. conf=$(key LEASE_ORCH) order=$(order) caller: $(cat "$T/o") log: $(cat "$DL" 2>&1)"

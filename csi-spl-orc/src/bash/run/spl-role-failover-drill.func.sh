@@ -28,10 +28,11 @@
 # @description   4. runs do_spl_role_failover at once with ROLE_FAILOVER_SEAT
 # @description   5. prints the failover's rotate.log lines and what it
 # @description      PROVED (lease.conf's new holder, which the failover wrote
-# @description      only after its own able test passed; its live pid; the
-# @description      old pid gone) and, in one line, what it did NOT prove (that
-# @description      the new seat works the role: that able test passes for a
-# @description      session that started and sits idle)
+# @description      only after its own able test passed, which since SPL-2609
+# @description      includes the new seat's ack of a probe task from its
+# @description      inbox; its live pid; the old pid gone) and, in one line,
+# @description      what it did NOT prove (that the new seat works the whole
+# @description      role: the asks book, its inbox beyond the probe)
 # @description   6. lease.conf still names the seat and no process carries it:
 # @description      the hold released, the seat restarted by the normal restore
 # @description      path (do_spl_agent_restart CAUSE=S3), so the role is never
@@ -164,7 +165,8 @@ spl_rfd_untrap() { trap - EXIT INT TERM; }
 
 # spl_rfd_after KEY SEAT OLD_PID: what the drill proved, and what it did not.
 # lease.conf names another id: the failover's OK came only after its own able
-# test (spl_fleet_try, ROLE_FAILOVER_SETTLE s after the start) passed for it;
+# test (spl_fleet_try, ROLE_FAILOVER_SETTLE s after the start, then the ack of
+# the probe task in its inbox within ROLE_FAILOVER_ACK_WAIT) passed for it;
 # the new id's live pid and the old pid's end are checked here. Still SEAT
 # and nothing carries SEAT: the seat is restarted (do_spl_agent_restart).
 spl_rfd_after() {
@@ -173,8 +175,8 @@ spl_rfd_after() {
   if [[ "$now" != "$seat" ]]; then
     npid="$(spl_lease_agent_pid "$now")"
     [[ -d "${LEASE_PROC_ROOT:-/proc}/$opid" ]] && gone="NO, pid $opid still runs"
-    spl_rfd_say RESULT OK "PROVED: lease.conf $key=$now (was $seat); the failover's own able test (spl_fleet_try, ${ROLE_FAILOVER_SETTLE:-30}s after the start) passed for $now; $now has live pid ${npid:-NONE NOW}; the old $seat pid $opid gone: $gone"
-    spl_rfd_say RESULT NOTE "NOT PROVED: that $now works the $ROLE_FAILOVER_ROLE role (acks its seed, reads the asks book, answers its inbox): that able test passes for a session that started and sits idle, check $now's pane and outbox"
+    spl_rfd_say RESULT OK "PROVED: lease.conf $key=$now (was $seat); the failover's own able test (spl_fleet_try ${ROLE_FAILOVER_SETTLE:-30}s after the start, then $now acked the probe task from its inbox within ${ROLE_FAILOVER_ACK_WAIT:-300}s) passed; $now has live pid ${npid:-NONE NOW}; the old $seat pid $opid gone: $gone"
+    spl_rfd_say RESULT NOTE "NOT PROVED: that $now works the whole $ROLE_FAILOVER_ROLE role (reads the asks book, answers its inbox beyond the probe): the able test proves it read its inbox and ran the probe's ack, check $now's pane and outbox"
     return 0
   fi
   if [[ -n "$(spl_lease_agent_pid "$seat")" ]]; then

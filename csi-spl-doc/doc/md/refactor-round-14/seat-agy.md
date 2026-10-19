@@ -32,7 +32,7 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 - v1.0 consensus drafted folding all Claude expert panel findings and proposals into 9 clean actions across 2 parallel lanes.
 - Editor signed on v1.0 consensus (`c9b3225b0`).
 - Claude panel seat `c-666@PC` signed on v1.0 consensus in `7ce70cc59`.
-- Mistral expert seat review received from `m-490@sat` in `70d861b14`: 8 agree, 1 agree with changes (Row 08: remove `flowTopicUnread` from ALLOW, already folded in v1.0).
+- Mistral panel seat `m-490@sat` signed on v1.0 consensus in `adfe1a321`.
 
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
-consensus reached: full consensus across editor (agy), claude seat, and mistral seat
+consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat

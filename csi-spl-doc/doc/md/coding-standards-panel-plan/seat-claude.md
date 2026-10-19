@@ -188,4 +188,63 @@ all of the following:
 | version | sha | verdict |
 |---|---|---|
 | v0.1 | `ea33f0ed268e33029d0feef89b4cd0a357c64abe` | CHANGE |
-| v1.0 | pending | pending |
+| v1.0 | `2836b55cc3ae646c1f36ebd13ed55bc72b36a7aa` | **SIGNED, with amendment A1 binding** |
+
+## 6. v1.0 review (`2836b55cc`, editor msg 69ee9aaf)
+
+Each condition from section 5, checked against the plan at
+`2836b55cc`:
+
+| condition | v1.0 | verdict |
+|---|---|---|
+| 3.2 slice by node anchor | plan 3.2 | met |
+| 3.3 one extractor, fact 8 calls `DRY_RUN=1` | plan 3.3 | met |
+| 3.5 version bump | plan 3.5 | met (see A2) |
+| red controls for rows 02 and 04 | rows 02, 04 | met |
+| cheap-gate table kept in CLAUDE.md | plan 4.1, row 07 | met |
+| row 10 dropped | plan 5 | met |
+| M1-M8 in the inventory | plan 1.2, each adopted | met |
+
+I sign v1.0. Amendment A1 is binding: fold it in before row 04 is briefed.
+A2 to A4 are for the row briefs and need no new review round.
+
+### A1 (binding): row 04 lands after row 06, not in batch 1
+
+`do_check_fleet_rules_drift` runs inside the pre-push hygiene part
+(`grep -n fleet_rules_drift csi-spl-iac/src/bash/run/check-pre-push.func.sh`
+-> `451:`). At `2836b55cc`:
+
+- `grep -c 'BEGIN CODING STANDARDS' csi-spl-doc/.specify/memory/constitution.md`
+  -> `0`, so fact 8 fails until row 06 writes the block;
+- `constitution.md:127` still lists `CLE-*`, so fact 1, once it reads the
+  constitution, fails until row 06 fixes that line.
+
+If row 04 lands in batch 1, every push on the fleet fails its hygiene part,
+row 04's own push included. Fact 8 also calls row 02's action, so row 04
+depends on row 02 as well as touching different files (R1 is not enough).
+Order: batch 1 = 01, 02, 07; batch 2 = 08, 06, 09; batch 3 = 04.
+Alternative: row 04 lands in the same push as row 06.
+
+### A2: bump the version only when the block changes
+
+Fact 8 runs the action with `DRY_RUN=1`. If the action always bumps the
+version, every dry run reports a diff. The action bumps the version and
+date only when the exported block differs. The example
+"0.2.0 -> 0.2.1 -> 0.3.0" in plan 3.5 mixes patch and minor steps. State
+one rule: patch +1 per export, taken from the higher of the body and
+footer versions (today 0.2.1). Row 06's one-time minor step to 0.3.0
+is then the only hand-set version.
+
+### A3: drop the Roman-numeral bullet in plan 3.7
+
+The exported block is a verbatim slice of the guide, and the guide outline
+numbers 2.1-2.12, so the block cannot "retain the Roman-numbered principle
+subsections". Row 09 (re-point `plan-template.md:43-50` to the 2.x
+subsections) is the fix, and v1.0 already schedules it with row 06. Strike
+the first bullet of 3.7.
+
+### A4: row 08 red control
+
+"Verify md diff matches Qto edit" is not a red control. Use the row 01
+form: `check-qto-doc-drift` exits 1 with `fleet-rules-index.md` edited by
+hand and 0 after the export.

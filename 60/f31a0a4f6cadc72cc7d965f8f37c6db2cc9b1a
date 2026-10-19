@@ -1,0 +1,6 @@
+Lay-What: Each box can now keep its backup grok and agy role seats running and waiting, so they can take over the orchestrator or dispatcher job.
+Lay-How: A named action starts any missing backup seat in standby, checks that it can work, and closes and pauses a seat that cannot; the 5-minute box tick runs it once switched on.
+Lay-Why: The automatic switch from claude to grok to agy could never happen, because no backup seat was running anywhere.
+Tech-What: do_spl_role_fallback_up starts each LEASE_ORCH_FALLBACK / LEASE_DISPATCH_FALLBACK id with no live process as a STANDBY seat; desk-reconcile-cron.sh runs it (ROLE_FALLBACK_CMD=cron).
+Tech-How: spl_fleet_fallback for the ids, spl_lease_agent_pid for liveness, spl_rotate_spawn (now allowed with no old pane) to start, spl_fleet_try to judge; flock + id lock; backoff file per refused id; opt-in role-fallback.conf.
+Tech-Why: The SPL-2521 failover only hands a role to a live, able process, and 0 fallback seats ran on either fleet box on 2026-10-19.

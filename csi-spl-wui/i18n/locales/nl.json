@@ -965,6 +965,7 @@
       "help": "Deze lijst tonen",
       "search": "Zoeken",
       "close": "Een menu of paneel sluiten",
+      "close_pane": "Het meest rechtse paneel sluiten",
       "menu_hint": "Sneltoets: {key}",
       "issue_rows": "Issuerijen",
       "flow_lines": "Flowregels"

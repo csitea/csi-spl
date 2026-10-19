@@ -965,6 +965,7 @@
       "help": "Bu listeyi göster",
       "search": "Ara",
       "close": "Bir menüyü veya paneli kapat",
+      "close_pane": "En sağdaki paneli kapat",
       "menu_hint": "Kısayol: {key}",
       "issue_rows": "İş satırları",
       "flow_lines": "Akış satırları"

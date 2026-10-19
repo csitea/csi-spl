@@ -965,6 +965,7 @@
       "help": "Zobraziť tento zoznam",
       "search": "Hľadať",
       "close": "Zavrieť ponuku alebo panel",
+      "close_pane": "Zavrieť panel úplne vpravo",
       "menu_hint": "Skratka: {key}",
       "issue_rows": "Riadky úloh",
       "flow_lines": "Riadky toku"

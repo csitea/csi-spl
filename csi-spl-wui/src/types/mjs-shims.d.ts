@@ -2770,3 +2770,11 @@ declare module '~/utils/contact-links.mjs' {
   export function hasPhone(text: string): boolean
   export function phoneBlocks<T>(blocks: T[]): T[]
 }
+
+/* SPL-2552: Shift + W closes the rightmost pane */
+declare module '~/utils/pane-close.mjs' {
+  export const PANE_CLOSE_X: string
+  export function inTextField(el: unknown): boolean
+  export function isCloseKey(ev: { key?: string, code?: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, isComposing?: boolean, repeat?: boolean } | null | undefined): boolean
+  export function rightmostClose<T>(xs: readonly T[], leftOf: (x: T) => number): T | null
+}

@@ -965,6 +965,7 @@
       "help": "Rādīt šo sarakstu",
       "search": "Meklēt",
       "close": "Aizvērt izvēlni vai paneli",
+      "close_pane": "Aizvērt paneli, kas ir vistālāk pa labi",
       "menu_hint": "Īsinājumtaustiņš: {key}",
       "issue_rows": "Uzdevumu rindas",
       "flow_lines": "Plūsmas rindas"

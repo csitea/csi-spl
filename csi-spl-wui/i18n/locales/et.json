@@ -965,6 +965,7 @@
       "help": "Näita seda loendit",
       "search": "Otsi",
       "close": "Sulge menüü või paneel",
+      "close_pane": "Sulge kõige parempoolsem paneel",
       "menu_hint": "Kiirklahv: {key}",
       "issue_rows": "Ülesannete read",
       "flow_lines": "Voo read"

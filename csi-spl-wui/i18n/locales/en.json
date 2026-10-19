@@ -965,6 +965,7 @@
       "help": "Show this list",
       "search": "Search",
       "close": "Close a menu or panel",
+      "close_pane": "Close the rightmost panel",
       "menu_hint": "Shortcut: {key}",
       "issue_rows": "Issue rows",
       "flow_lines": "Flow lines"

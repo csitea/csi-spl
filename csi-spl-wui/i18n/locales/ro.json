@@ -965,6 +965,7 @@
       "help": "Arată această listă",
       "search": "Caută",
       "close": "Închide un meniu sau un panou",
+      "close_pane": "Închide panoul cel mai din dreapta",
       "menu_hint": "Comandă rapidă: {key}",
       "issue_rows": "Rânduri de sarcini",
       "flow_lines": "Rânduri din flux"

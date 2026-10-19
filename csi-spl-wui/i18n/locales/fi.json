@@ -965,6 +965,7 @@
       "help": "Näytä tämä luettelo",
       "search": "Haku",
       "close": "Sulje valikko tai paneeli",
+      "close_pane": "Sulje oikeanpuoleisin paneeli",
       "menu_hint": "Pikanäppäin: {key}",
       "issue_rows": "Tehtävärivit",
       "flow_lines": "Virran rivit"

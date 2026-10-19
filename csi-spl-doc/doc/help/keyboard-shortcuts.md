@@ -16,6 +16,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 | **`Escape`** | Omnibox focused | Blur the Omnibox and return focus to the previously active element |
 | **`Escape`** | Modal or menu open | Dismiss open modal, dialog, or context menu |
 | **`Escape`** | Message editor active | Cancel in-place message edit and restore original text |
+| **`Shift + W`** | Global, desktop, not while typing | Close the **rightmost pane**, the same as its X: the topic pane on the right first, then a section page (Issues, Calendar, …), then the search results on the left. With no pane open beyond the conversation it does nothing. In a text field it types a capital W; `Ctrl + W` / `Cmd + W` stays the browser's. Off while **Settings → Behaviour → Keyboard shortcuts** is off |
 | **`Tab`** / **`Shift + Tab`** | Global | Navigate forward or backward through interactive focus stops |
 | **`ArrowDown` / `ArrowUp`** | Channels list, a channel row focused (a click on it keeps the focus there), desktop | Open the next or previous channel at once; the focus moves with it. The list does not wrap at its ends |
 | **`j` / `k`** | Channels list, a channel row focused, desktop | The same as `ArrowDown` / `ArrowUp`; off while **Settings → Behaviour → Keyboard shortcuts** is off |

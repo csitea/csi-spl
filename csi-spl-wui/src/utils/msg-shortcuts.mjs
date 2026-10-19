@@ -55,6 +55,8 @@ export const NAV_SHORTCUTS = Object.freeze([
   Object.freeze({ keys: ['⇧', '?'], labelKey: 'feed.shortcuts.help' }),
   Object.freeze({ keys: ['/'], labelKey: 'feed.shortcuts.search' }),
   Object.freeze({ keys: ['Esc'], labelKey: 'feed.shortcuts.close' }),
+  /* SPL-2552: the rightmost pane's X (utils/pane-close.mjs, useGlobalKeys.ts) */
+  Object.freeze({ keys: ['⇧', 'W'], labelKey: 'feed.shortcuts.close_pane' }),
 ])
 
 const BY_ITEM = new Map(MSG_SHORTCUTS.flatMap((s) => s.items.map((id) => [id, s.key])))

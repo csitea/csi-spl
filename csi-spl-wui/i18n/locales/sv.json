@@ -965,6 +965,7 @@
       "help": "Visa den här listan",
       "search": "Sök",
       "close": "Stäng en meny eller panel",
+      "close_pane": "Stäng panelen längst till höger",
       "menu_hint": "Kortkommando: {key}",
       "issue_rows": "Ärenderader",
       "flow_lines": "Flödesrader"

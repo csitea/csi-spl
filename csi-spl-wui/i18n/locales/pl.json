@@ -965,6 +965,7 @@
       "help": "Pokaż tę listę",
       "search": "Szukaj",
       "close": "Zamknij menu lub panel",
+      "close_pane": "Zamknij panel najbardziej po prawej",
       "menu_hint": "Skrót: {key}",
       "issue_rows": "Wiersze zgłoszeń",
       "flow_lines": "Wiersze przepływu"

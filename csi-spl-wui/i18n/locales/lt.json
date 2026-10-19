@@ -965,6 +965,7 @@
       "help": "Rodyti šį sąrašą",
       "search": "Ieškoti",
       "close": "Uždaryti meniu ar skydelį",
+      "close_pane": "Uždaryti dešiniausią skydelį",
       "menu_hint": "Spartusis klavišas: {key}",
       "issue_rows": "Užduočių eilutės",
       "flow_lines": "Srauto eilutės"

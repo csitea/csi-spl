@@ -16,8 +16,16 @@
 // right (when open) -> Omnibox, and back. The target is the pane's selected
 // row, else its first row, else its heading (utils/pane-focus.mjs). Not a
 // letter, so the keyboard_shortcuts setting does not turn it off (FR-012).
+//
+// SPL-2552: Shift + W closes the rightmost pane, the same click as its X
+// (utils/pane-close.mjs). Not in a text field, not over a menu or a dialog,
+// not on a phone; a Shift letter, so the keyboard_shortcuts setting turns it
+// off (FR-012). Ctrl / Cmd + W stays the browser's.
 import { usePhone } from '~/composables/useTouchUi'
 import { usePaneFocus } from '~/stores/pane-focus'
+import { useSessionStore } from '~/stores/session'
+import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { PANE_CLOSE_X, inTextField, isCloseKey, rightmostClose } from '~/utils/pane-close.mjs'
 import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */
@@ -82,8 +90,21 @@ function onPaneKey(ev: KeyboardEvent): boolean {
   return true
 }
 
+/** Shift + W: click the X of the rightmost pane on screen; true when one was there. */
+function onCloseKey(ev: KeyboardEvent): boolean {
+  if (inTextField(ev.target) || inTextField(document.activeElement)) return false
+  const xs = [...document.querySelectorAll<HTMLButtonElement>(PANE_CLOSE_X)]
+    .filter((x) => shown(x) && !x.disabled && !x.closest('[role="dialog"], dialog'))
+  const x = rightmostClose(xs, (b) => (b.parentElement || b).getBoundingClientRect().left)
+  if (!x) return false
+  ev.preventDefault()
+  x.click()
+  return true
+}
+
 export function useGlobalKeys() {
   const phone = usePhone()
+  const session = useSessionStore()
   onMounted(() => {
     installed += 1
     if (listener) return
@@ -91,6 +112,10 @@ export function useGlobalKeys() {
       if (ev.defaultPrevented || ev.isComposing) return
       if (ev.key === 'F6') {
         if (!phone.value && !paletteOpen.value && !document.querySelector(OVERLAY_OPEN)) onPaneKey(ev)
+        return
+      }
+      if (isCloseKey(ev)) {
+        if (!phone.value && !paletteOpen.value && shortcutsOn(session.claims?.keyboard_shortcuts) && !document.querySelector(OVERLAY_OPEN)) onCloseKey(ev)
         return
       }
       if (!isPaletteChord(ev)) return

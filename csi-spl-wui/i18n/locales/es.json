@@ -965,6 +965,7 @@
       "help": "Mostrar esta lista",
       "search": "Buscar",
       "close": "Cerrar un menú o panel",
+      "close_pane": "Cerrar el panel de más a la derecha",
       "menu_hint": "Atajo: {key}",
       "issue_rows": "Filas de incidencias",
       "flow_lines": "Líneas del flujo"

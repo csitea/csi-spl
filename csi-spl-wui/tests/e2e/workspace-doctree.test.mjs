@@ -346,6 +346,31 @@ try {
     return { top: r.top, bottom: r.bottom, vh: innerHeight, hash: location.hash, id: h.id, scroller: document.querySelector('.wsdocs-page .feed-body')?.scrollTop ?? 0 }
   })
   ok('a contents click scrolls to the heading', scrolled.hash === '#' + scrolled.id && scrolled.scroller > 0 && scrolled.top >= 0 && scrolled.bottom <= scrolled.vh, scrolled)
+
+  /* perf round 6 row 10 (SPL-2438): a narrow doc pane (a 1024 px window) starts
+     with the contents closed and holds none of its DOM (v-show kept 31 hidden
+     nodes on an 8-section doc); opened, a link still scrolls, then it closes */
+  const push = (to) => p.evaluate((to) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to), to)
+  const docUrl = await p.evaluate(() => location.pathname + location.search)
+  await p.setViewport({ width: 1024, height: 360 })
+  await push('/')
+  await p.waitForFunction(() => !document.querySelector('[data-test=ws-doc-view]'), { timeout: STEP })
+  await push(docUrl)
+  await p.waitForSelector('[data-test=ws-doc-row]', { visible: true, timeout: STEP })
+  const closedNodes = await p.evaluate(() => document.querySelectorAll('.wsdoc__toc, .wsdoc__toc *').length)
+  ok('a narrow doc pane mounts no contents DOM while it is closed', closedNodes === 0, { closedNodes })
+  await p.click('[data-test=ws-doc-toc-toggle]')
+  await p.waitForSelector('[data-test=ws-doc-toc-item] a', { visible: true, timeout: STEP })
+  const narrowLinks = await p.$$('[data-test=ws-doc-toc-item] a')
+  await narrowLinks[narrowLinks.length - 1].click()
+  await new Promise((r) => setTimeout(r, 300))
+  const narrowGo = await p.evaluate(() => {
+    const h = [...document.querySelectorAll('[data-test=ws-doc-row]')].at(-1).querySelector('h3')
+    const r = h.getBoundingClientRect()
+    return { top: r.top, bottom: r.bottom, vh: innerHeight, hash: location.hash, id: h.id, toc: document.querySelectorAll('.wsdoc__toc').length }
+  })
+  ok('on a narrow pane a contents link scrolls to its heading, then the contents unmount',
+    narrowGo.hash === '#' + narrowGo.id && narrowGo.top >= 0 && narrowGo.bottom <= narrowGo.vh && narrowGo.toc === 0, narrowGo)
   await p.setViewport({ width: 1280, height: 800 })
 
   /* no search box of its own: the omnibox is the only search, desktop and phone (the owner, t1 3cf88d1c) */

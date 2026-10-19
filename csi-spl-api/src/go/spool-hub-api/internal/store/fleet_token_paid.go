@@ -229,7 +229,8 @@ func fleetPaidBurn(v string, days []FleetVendorDay, from, to time.Time) FleetPai
 			row.Tokens, row.CacheRead, row.ListCostUSD = row.Tokens+d.Tokens, row.CacheRead+d.CacheRead, row.ListCostUSD+d.ListCostUSD
 		}
 	}
-	if row.Tokens > 0 {
+	// No list cost (no price row) is an unknown price: null, never 0 (SPL-2635).
+	if row.Tokens > 0 && row.ListCostUSD > 0 {
 		per := cents(row.ListCostUSD / float64(row.Tokens) * 1e6)
 		row.ListUSDPerMTok = &per
 	}

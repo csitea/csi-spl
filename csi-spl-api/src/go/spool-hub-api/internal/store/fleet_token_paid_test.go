@@ -323,3 +323,19 @@ func TestCheckFleetPaidItem(t *testing.T) {
 		}
 	}
 }
+
+// SPL-2635: a vendor with tokens but no list cost (no price row) has no list
+// price: null, never 0 ("free"); a priced vendor keeps its value.
+func TestFleetPaidBurnUnpricedListNull(t *testing.T) {
+	from, to := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	days := []FleetVendorDay{
+		{Day: from, Vendor: "grok", Tokens: 5_000_000},
+		{Day: from, Vendor: "claude", Tokens: 2_000_000, ListCostUSD: 30},
+	}
+	if g := fleetPaidBurn("grok", days, from, to); g.Tokens != 5_000_000 || g.ListCostUSD != 0 || g.ListUSDPerMTok != nil {
+		t.Errorf("grok unpriced: tokens %d list cost %v list per mtok %v, want 5000000 0 nil", g.Tokens, g.ListCostUSD, g.ListUSDPerMTok)
+	}
+	if c := fleetPaidBurn("claude", days, from, to); c.ListUSDPerMTok == nil || *c.ListUSDPerMTok != 15 {
+		t.Errorf("claude priced: list per mtok %v, want 15", c.ListUSDPerMTok)
+	}
+}

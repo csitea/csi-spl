@@ -5,7 +5,7 @@ Issue: SPL-2537
 Spec: csi-spl-doc/specs/135-work-process
 Kind: specs_and_docs
 
-Status: **v1.1, SIGNED (consensus)** (Claude seat c-337 signed v1.1 at a82a2069f; Mistral seat m-353 signed v1.1 at 9e7aef4cb/d303b8857).
+Status: **v1.1, SIGNED (consensus)** (Claude seat c-337 signed v1.1 at a82a2069f; Mistral seat m-353 signed v1.1 at 9e7aef4cb).
 Editor seat: **a-330** (agy).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1–R16).
 Baseline commit: **`4453459bbde498b0c88c2a9fcf899e37acc28889`** (`origin/master` at lane start, 2026-10-19T09:41Z).

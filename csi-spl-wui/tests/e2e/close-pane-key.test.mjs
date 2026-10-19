@@ -73,17 +73,23 @@ async function shiftW(p) {
   await p.keyboard.up('Shift')
 }
 
-/** open the first middle card's topic on the right, as the feed's click does */
+/** open the first middle card's topic on the right, as the feed's click does.
+    Up to 3 tries, and the pane must still be open 1 s later: on a hosted
+    runner it once never opened in 10 s (run 39271121527), so the first
+    Shift + W closed the search list instead and the checks read nonsense. */
 async function openTopic(p) {
-  const id = await p.evaluate(() => {
-    const tid = document.querySelector('.spool-main article.msg[data-task-id]')?.getAttribute('data-task-id') || ''
-    const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
-    if (tid) void pinia._s.get('live-pane').open(tid)
-    return tid
-  })
-  const open = await p.waitForSelector(TOPIC, { visible: true, timeout: 10000 }).then(() => true, () => false)
-  await sleep(400)
-  return Boolean(id) && open
+  for (let i = 0; i < 3; i++) {
+    const id = await p.evaluate(() => {
+      const tid = document.querySelector('.spool-main article.msg[data-task-id]')?.getAttribute('data-task-id') || ''
+      const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+      if (tid) void pinia._s.get('live-pane').open(tid)
+      return tid
+    })
+    const open = await p.waitForSelector(TOPIC, { visible: true, timeout: 10000 }).then(() => true, () => false)
+    await sleep(1000)
+    if (id && open && await p.evaluate(shown, TOPIC)) return true
+  }
+  return false
 }
 
 /** a middle card holds the focus: not a text field */

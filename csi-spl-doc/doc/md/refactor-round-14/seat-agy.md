@@ -1,37 +1,35 @@
-# Round 14 - agy editor seat proposal (a-615@<box>)
+# Round 14 - agy editor seat proposal & consensus (a-615@PC)
 
-Measured on `e9fa87f74` (`origin/master`, 2026-10-19).
+Measured on `e9fa87f74` (`origin/master`, 2026-10-19) and re-verified on `ab685ef25` / `b8e6ad94c`.
 
-A proposal for round 14: balanced refactoring across WUI (components, stores, composables, unused exports), Bash tooling/orchestration (`spawn_main`, `do_check_pre_push`, `do_provision_firebase_dns`), and Go API coverage (`internal/payments`).
-The editor (this seat) merges the expert panel seats into `../refactor-round-14-plan.md`.
-The expert panel seats (claude, mistral, grok) write their seat files beside this file, verify the empirical measurements on current trunk, give verdicts per row, and reach consensus per `rounds-rulebook.md`.
+Balanced refactoring across WUI (component/composable decomposition, unused exports ratchet), Bash tooling/orchestration (`spawn_main`, `do_check_pre_push`, `do_log`), and Go API coverage (`internal/payments`).
+The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates consensus across expert panel seats.
 
-## 1. The 10 actions (v0.1 proposed)
+## 1. The 9 actions (v1.0 consensus)
 
-| # | slug | sites | n (measured on `e9fa87f74`) | target | kind |
-|---|---|---|---|---|---|
-| 01 | `refactor(r14-01-wui-decompose-doc-view)` | `wui:src/components/workspace-docs/WorkspaceDocView.vue:242-918` | 677 script lines | < 500 lines | complex_coding |
-| 02 | `refactor(r14-02-orc-small-spawn-main)` | `orc:src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:75-258` | 184 lines | steps <= 80 lines | simple_coding |
-| 03 | `refactor(r14-03-wui-decompose-qto-tree)` | `wui:src/components/workspace-docs/QtoFileTree.vue:240-893` | 654 script lines | < 500 lines | complex_coding |
-| 04 | `refactor(r14-04-iac-small-check-pre-push)` | `iac:src/bash/run/check-pre-push.func.sh:30-166` | 137 lines | steps <= 80 lines | simple_coding |
-| 05 | `refactor(r14-05-wui-decompose-calendar-main)` | `wui:src/components/CalendarMainView.vue:326-937` | 612 script lines | < 500 lines | complex_coding |
-| 06 | `test(r14-06-go-coverage-payments-paypal)` | `api:src/go/spool-hub-api/internal/payments/paypal_payments.go:338-390` | 72.4% statement coverage | floor >= 74.0 | tests |
-| 07 | `refactor(r14-07-wui-small-composable-mobile-stack)` | `wui:src/composables/useMobileStack.ts:1-531` | 531 lines | <= 250 lines | simple_coding |
-| 08 | `refactor(r14-08-wui-ratchet-unused-exports)` | `wui:tests/unit/unused-exports.test.mjs` | 75 unused exports in ALLOW | cap <= 60 | simple_coding |
-| 09 | `refactor(r14-09-wui-decompose-notification-store)` | `wui:src/stores/notification.ts:1-569` | 569 lines | <= 250 lines | complex_coding |
-| 10 | `refactor(r14-10-iac-small-provision-firebase-dns)` | `iac:src/bash/run/provision-firebase-dns.func.sh:35-203` | 169 lines | steps <= 80 lines | simple_coding |
+| # | slug | sites | n (measured on `ab685ef25`) | target | kind | batch | lane |
+|---|---|---|---|---|---|---|---|
+| 01 | `refactor(r14-01-wui-decompose-doc-view)` | `wui:src/components/workspace-docs/WorkspaceDocView.vue:339-1015` | 677 script lines | < 500 lines | complex_coding | 1 | Lane 1 |
+| 02 | `refactor(r14-02-orc-small-spawn-main)` | `orc:src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:439-622` | 184 lines | steps <= 80 lines | complex_coding | 1 | Lane 2 |
+| 03 | `refactor(r14-03-wui-decompose-qto-tree)` | `wui:src/components/workspace-docs/QtoFileTree.vue:139-792` | 654 script lines | < 500 lines | complex_coding | 2 | Lane 1 |
+| 04 | `refactor(r14-04-iac-small-check-pre-push)` | `iac:src/bash/run/check-pre-push.func.sh:914-1050` | 137 lines | steps <= 80 lines | simple_coding | 2 | Lane 2 |
+| 05 | `refactor(r14-05-wui-decompose-calendar-main)` | `wui:src/components/CalendarMainView.vue:206-817` | 612 script lines | < 500 lines | complex_coding | 3 | Lane 1 |
+| 06 | `test(r14-06-go-coverage-payments-paypal)` | `api:src/go/spool-hub-api/internal/payments/paypal_payments.go:338-390` | 72.4% statement coverage | floor >= 74.0 | tests | 3 | Lane 2 |
+| 07 | `refactor(r14-07-wui-small-composable-mobile-stack)` | `wui:src/composables/useMobileStack.ts:1-531` | 531 lines | <= 420 lines | simple_coding | 4 | Lane 1 |
+| 08 | `refactor(r14-08-wui-ratchet-unused-exports)` | `wui:tests/unit/unused-exports.test.mjs` | 75 unused exports in ALLOW | cap <= 60 | simple_coding | 4 | Lane 2 |
+| 09 | `refactor(r14-09-bash-small-run-do-log)` | `iac:src/bash/run/run.sh:320-462`, `orc:src/bash/run/run.sh:320-462` | 143 lines in 2 files | steps <= 80 lines | complex_coding | 5 | Lane 2 |
 
-## 2. Parallel Lanes
+## 2. 2 Parallel Lanes
 
-- Lane 1: Rows 01, 03, 05, 07, 09
-- Lane 2: Rows 02, 04, 06, 08, 10
+- Lane 1 (WUI): Rows 01 -> 03 -> 05 -> 07
+- Lane 2 (Bash / API / Gate / Logging): Rows 02 -> 04 -> 06 -> 08 -> 09
 - Starts with: Row 01 (`WorkspaceDocView.vue`) and Row 02 (`spawn-core.inc.sh`) in parallel (Batch 1).
 
 ## 3. Status and Signatures
 
-- v0.1 proposed: landed on origin/master in `b7fad2def` (docs published to dev and prd).
-- Panel seats requested and queued by dispatcher `c-002@sat`: Claude seat `c002-r14-seat-claude` (position 2/41), Mistral seat `c002-r14-seat-mistral` (position 3/41).
-- Rotation at 14:56Z acknowledged. Worktree clean, rebased on origin/master (`e428729eb`).
-- Editor seat `a-615@<box>` standing by idle for panel verdict reviews on `dispatch-dc15ad65`.
+- v0.1 proposed: landed on origin/master in `b7fad2def`.
+- Claude expert seat review received from `c-666@PC` in `b8e6ad94c`: 1 agree, 6 agree with changes, 3 disagree (08 site corrections, 09 target already met, 10 file hash-pinned to csi-rel), 2 proposals (7.1 `do_log` split across iac+orc `run.sh`, 7.2 R2 bold source-text test column).
+- v1.0 consensus drafted folding all Claude expert panel findings and proposals into 9 clean actions across 2 parallel lanes.
+- Editor signed on v1.0 consensus. Standing by for Claude seat signature.
 
-signed: a-615@<box> on v0.1 proposed (awaiting panel review)
+signed: a-615@PC on v1.0 consensus

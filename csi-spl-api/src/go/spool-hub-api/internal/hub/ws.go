@@ -594,6 +594,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	if rf == nil {
 		rf = s.sendContentRefusal(ctx, x, env, m, f.TypedBy)
 	}
+	if rf == nil {
+		ctx = s.boxDMRef(ctx, x, m.From, f.RefTaskID) // spec 067 3.3, dm_ref.go
+		rf = s.humanPostRefusal(ctx, x, env, m)       // SPL-2584, human_post_guard.go
+	}
 	var undo func()
 	if rf == nil {
 		rf, undo = s.claimAnswer(ctx, x, env, m, f)
@@ -602,7 +606,6 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, rf.token, rf.status, rf.detail)
 		return
 	}
-	ctx = s.boxDMRef(ctx, x, m.From, f.RefTaskID) // spec 067 3.3, dm_ref.go
 	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
 	if err != nil && undo != nil {
 		undo()

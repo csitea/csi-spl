@@ -345,6 +345,9 @@ type Hub struct {
 	// sockets this process holds (the same LISTEN connection,
 	// hub/wui_wake.go). false = only the storing process's browsers get it live.
 	WakeWUI bool `env:"SPOOL_HUB_WAKE_WUI" envDefault:"true"`
+	// SPL-2584: the human post guard (hub/human_post_guard.go, how-to-post.md
+	// rule 18). false = the off switch; the hub applies neither rule.
+	HumanPostGuard bool `env:"SPOOL_HUB_HUMAN_POST_GUARD" envDefault:"true"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
 	// regardless of what the (stale, dir-derived) box-desk roster says about

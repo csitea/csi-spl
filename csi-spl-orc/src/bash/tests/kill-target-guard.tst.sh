@@ -138,17 +138,19 @@ r="$(hook "$HOOK" claude 'kill 3200')"
 if [ "$r" = "0|" ]; then pass "hook claude: an own child passes"; else fail "hook claude own child: $r"; fi
 r="$(hook "$HOOK" agy 'kill 3200')"
 if [ "$r" = '0|{"decision":"allow"}' ]; then pass "hook agy: an own child allow"; else fail "hook agy own child: $r"; fi
-# RED: the hook as it was before SPL-2583 (origin/master's parent of the
-# change, read from git) lets the sat command through.
+# RED: the hook as it was before SPL-2583 (3bec8b115, kept as a fixture:
+# CI checks out shallow, so git history is not there) lets the sat command
+# through.
 old="$T/old-hook"
 mkdir -p "$old"
 cp "$SA/lib/force-push-guard.inc.sh" "$SA/lib/heredoc-collision-guard.inc.sh" "$old/"
-if git -C "$SA" show "${KILL_GUARD_RED_REF:-3bec8b115}:csi-spl-orc/src/bash/features/spawn-agents/scripts/force-push-guard-hook.sh" >"$old/force-push-guard-hook.sh" 2>/dev/null; then
+OLD_HOOK="$(dirname "${BASH_SOURCE[0]}")/fixtures/kill-target-guard/force-push-guard-hook.pre-spl-2583.sh"
+if cp "$OLD_HOOK" "$old/force-push-guard-hook.sh" 2>/dev/null; then
   r="$(FORCE_PUSH_GUARD_LIB="$old/force-push-guard.inc.sh" hook "$old/force-push-guard-hook.sh" claude "$SAT")"
   if [ "$r" = "0|" ]; then pass "red: the pre-SPL-2583 hook let the sat command through"
   else fail "red: the pre-SPL-2583 hook answered $r"; fi
 else
-  echo "SKIP: red hook (no git history for ${KILL_GUARD_RED_REF:-3bec8b115} in this checkout)"
+  fail "red: fixture $OLD_HOOK missing"
 fi
 
 # 3b. mistral: the vibe pre_tool hook (vibe-push-guard.py) denies it too

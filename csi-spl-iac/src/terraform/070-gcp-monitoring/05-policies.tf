@@ -180,3 +180,68 @@ resource "google_monitoring_alert_policy" "sql_down" {
     content   = "The hub's Cloud SQL instance ${var.cloud_sql_instance_name} reports down. The hub cannot serve while it is."
   }
 }
+
+# SPL-2542 (Cloud Run radar step 5): capacity. max_instances is per revision,
+# so both conditions group by revision: during a roll or a canary two
+# revisions run side by side, each under its own ceiling.
+resource "google_monitoring_alert_policy" "instances_at_max" {
+  display_name          = "${local.name} hub at max instances"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "a revision runs ${var.hub_max_instances} instance(s), its max, for ${var.instances_at_max_seconds}s"
+    condition_threshold {
+      filter          = "metric.type = \"run.googleapis.com/container/instance_count\" AND ${local.run}"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.hub_max_instances - 1
+      duration        = "${var.instances_at_max_seconds}s"
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.revision_name"]
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "${var.auto_close_seconds}s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "The hub has run at its max instances (${var.hub_max_instances}) for ${var.instances_at_max_seconds}s: no headroom left, the next load step is 429s. Check CPU and requests in flight (`ENV=<env> ./run -a do_spl_hub_run_metrics`) before raising cnf hub.cloud_run.max_instances; more instances need a bigger DB tier."
+  }
+}
+
+resource "google_monitoring_alert_policy" "memory_high" {
+  display_name          = "${local.name} hub memory high"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "p99 container memory above ${format("%.0f", var.memory_utilization_threshold * 100)}% for ${var.memory_high_seconds}s"
+    condition_threshold {
+      filter          = "metric.type = \"run.googleapis.com/container/memory/utilizations\" AND ${local.run}"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.memory_utilization_threshold
+      duration        = "${var.memory_high_seconds}s"
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["resource.label.revision_name"]
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "${var.auto_close_seconds}s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "A hub instance uses more than ${format("%.0f", var.memory_utilization_threshold * 100)}% of its container memory: near the Go GOMEMLIMIT, then an OOM kill that drops every socket on it. Check the hub's logs and memory graph of ${var.hub_service_name}."
+  }
+}

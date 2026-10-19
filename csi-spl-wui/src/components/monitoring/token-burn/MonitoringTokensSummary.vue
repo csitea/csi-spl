@@ -46,15 +46,16 @@ const hit = computed(() => cacheHitPct(props.summary.todayCacheRead, props.summa
 .tk-kpi-sub { margin: 2px 0 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
 /* Row 04 of tokens-tab-panel-plan.md: on a phone the three cards sit side
    by side (351px stacked -> under 115px), each subtitle one line. The rate's
-   unit shrinks to subtitle size and, being after an inline-block number, may
-   wrap below it ("/minuutti" never fits a ~111px tile at 1.125rem). */
+   unit shrinks to subtitle size. SPL-2485: a value never wraps or spills
+   (fi "113,3 t./minuutti", "19,35 milj." at 360px), so the rate tile is the
+   widest, the cost tile the narrowest, and a heading wraps at 0.75rem. */
 @media (max-width: 600px) {
-  .tk-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .tk-kpi { padding: 6px 8px; }
-  .tk-kpi h3 { margin-bottom: 2px; line-height: 1.25; }
-  .tk-kpi-value { font-size: 1.125rem; line-height: 1.25; }
-  .tk-kpi-value--unit { font-size: 0.8125rem; }
-  .tk-kpi-num { display: inline-block; font-size: 1.125rem; }
+  .tk-kpis { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr) minmax(0, 0.8fr); gap: 6px; }
+  .tk-kpi { padding: 6px 5px; }
+  .tk-kpi h3 { margin-bottom: 2px; font-size: 0.75rem; line-height: 1.2; }
+  .tk-kpi-value { font-size: 0.9375rem; line-height: 1.25; white-space: nowrap; }
+  .tk-kpi-value--unit { font-size: 0.6875rem; }
+  .tk-kpi-num { font-size: 0.9375rem; }
   .tk-kpi-sub { line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 </style>

@@ -77,12 +77,13 @@ const folded = (v: Vendor) => !v.metered || (!v.active && !v.rate && !v.todayTok
    then rate, today's tokens, cost), and a folded kind is one muted line */
 .tk-vfold th { font-weight: 400; color: var(--color-muted); }
 @media (max-width: 600px) {
-  .tk-table tr.tk-vrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  .tk-table tr.tk-vrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
   .tk-table tr.tk-vrow > th { flex: 1 1 auto; order: 0; }
   .tk-table tr.tk-vrow > .tk-vlive { order: 1; }
   .tk-table tr.tk-vrow > .tk-vstatus { order: 2; }
   .tk-table tr.tk-vrow::after { content: ''; flex-basis: 100%; height: 0; order: 3; }
-  .tk-table tr.tk-vrow > .tk-vfig { order: 4; }
+  /* the three figures stay one line in fi at 360px (SPL-2486: the cost fell to a third line, 90px) */
+  .tk-table tr.tk-vrow > .tk-vfig { order: 4; padding: 0 2px; font-size: 0.8125rem; white-space: nowrap; }
   .tk-table tr.tk-vrow > .tk-vfig::before { content: none; }
   .tk-table tr.tk-vrow > .tk-vfig + .tk-vfig::before { content: '· '; color: var(--color-muted); }
   .tk-table tr.tk-vrow > .tk-vstatus::before { content: none; }

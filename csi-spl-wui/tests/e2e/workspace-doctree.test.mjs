@@ -888,7 +888,9 @@ try {
 
   /* t1 b4dd79e2 ("on mobile, the showing of the omnibox while editing in QTO
      doc is obsolete"): on a phone the omnibox hides while a field of the
-     document is in focus and comes back when it leaves; a desktop keeps it. Control: before e1f5f536a it never hides. */
+     document is in focus and comes back when it leaves; a desktop keeps it. Control: before e1f5f536a it never hides.
+     SPL-2516 (qto reading panel row 02): on a phone's docs routes the dock is
+     collapsed while reading too; the compact search button stands in for it. */
   const omnibox = (q) => q.evaluate(() => {
     /* on a phone the wrapper is display: contents (no box): measure its form */
     const el = document.querySelector('[data-test=top-bar-omnibox] form')
@@ -912,6 +914,8 @@ try {
   await outlineIs(m, 'doc', ['1', '1.1', '1.1.1'])
   await settle()
   const reading = await omnibox(m)
+  const searchBtn = (q) => q.evaluate(() => !!document.querySelector('[data-test=docs-search-open]'))
+  const readingBtn = await searchBtn(m)
   await shoot(m, 'phone-view')
   await m.tap('[data-test=ws-doc-row] [data-test=ws-doc-text]')
   await settle()
@@ -920,18 +924,20 @@ try {
   await m.keyboard.press('Escape')
   await settle()
   const afterCancel = await omnibox(m)
+  const afterCancelBtn = await searchBtn(m)
   await m.tap('[data-test=ws-doc-doctitle]')
   await settle()
   const editingTitle = await omnibox(m)
   await m.keyboard.press('Enter')
   await settle()
   const afterSave = await omnibox(m)
+  const afterSaveBtn = await searchBtn(m)
   await shoot(m, 'phone-after')
-  ok('phone: the omnibox shows while the document is read', reading === 'shown', reading)
+  ok('phone: the dock is collapsed while the document is read, the search button shows (SPL-2516)', reading === 'hidden' && readingBtn, { reading, readingBtn })
   ok('phone: it hides while a section text is edited', editingText === 'hidden', editingText)
-  ok('phone: it comes back after Esc (cancel)', afterCancel === 'shown', afterCancel)
+  ok('phone: after Esc (cancel) the dock stays collapsed, the search button shows', afterCancel === 'hidden' && afterCancelBtn, { afterCancel, afterCancelBtn })
   ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
-  ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
+  ok('phone: after Enter (save) the dock stays collapsed, the search button shows', afterSave === 'hidden' && afterSaveBtn, { afterSave, afterSaveBtn })
 
   /* phone pictures (owner HUM-10, t1 46d9c236 msg 3c943bd0: "do it on mobile
      as well"): touch taps only. Tap a paragraph, the Insert picture control

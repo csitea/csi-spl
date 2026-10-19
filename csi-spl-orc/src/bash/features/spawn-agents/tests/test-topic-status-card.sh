@@ -5,7 +5,8 @@
 #   an unchanged card calls the hub not at all; the default discussion and a
 #   topic with no recent move get no card; a box that does not hold the
 #   dispatch lease touches nothing; a source that cannot be read touches no
-#   card; a failed edit is retried, never re-posted.
+#   card; a failed edit is retried, never re-posted; a card whose author
+#   left after the lease moved is re-posted ONCE by the new holder.
 # The hub is a stub: hub.tsv holds one row per message (msg id, topic, body
 # sha); post appends a row, edit rewrites the row of its id.
 set -uo pipefail
@@ -31,6 +32,7 @@ EOF
 cat >"$B/edit" <<'EOF'
 #!/usr/bin/env bash
 [ -e "$CARD_T_DIR/edit.fail" ] && exit 1
+[ -e "$CARD_T_DIR/gone.$DESK_AGENT" ] && exit 1
 grep -q "^$1	" "$CARD_T_DIR/hub.tsv" || exit 1
 awk -F'\t' -v OFS='\t' -v id="$1" -v h="$(sha256sum <"$2" | cut -c1-16)" '$1 == id { $3 = h } { print }' \
   "$CARD_T_DIR/hub.tsv" >"$CARD_T_DIR/hub.tmp" && mv "$CARD_T_DIR/hub.tmp" "$CARD_T_DIR/hub.tsv"
@@ -154,6 +156,32 @@ put_issues 'done'
 card="$(CARD_CLOSED_MAX=0 tick --print)"
 hasnt "closed rows capped: an older done row hidden" "| SPL-11 |" "$card"
 has "closed rows capped: the hidden ones counted" "| +1 | older done/diss issues not shown |" "$card"
+
+# 10. The lease moves on this box (SPL-2528): the old author still edits its
+#   card while its desk is up; once it is gone the new holder posts ONE new
+#   card, records itself as the author and edits that one from then on.
+export CARD_T_LEASE="c-003@pc"
+put_issues wip; : >"$L"
+tick >/dev/null
+eq "lease moved, old author up: it edits its own card" "edit 00000001-0000-4000-8000-000000000000 by c-002" "$(cat "$L")"
+touch "$T_TMP/gone.c-002"; put_issues blocked; : >"$L"
+out="$(tick)"; rc=$?
+eq "old author gone: exits 0" 0 "$rc"
+eq "old author gone: a failed edit, then one post by the holder" "post $T1 by c-003" "$(cat "$L")"
+has "old author gone: says re-posted" "re-posted by c-003 as" "$out"
+hasnt "old author gone: no WARN" "could not be edited" "$out"
+eq "old author gone: one new message" 3 "$(rows)"
+eq "old author gone: the card file names the holder" "c-003" "$(sed -n 2p "$CARD_STATE_DIR/$T1.card")"
+: >"$L"; tick >/dev/null
+eq "re-posted card unchanged: no hub call" 0 "$(calls)"
+put_issues wip; : >"$L"; tick >/dev/null
+eq "re-posted card: edited in place by the holder, no post" "edit 00000003-0000-4000-8000-000000000000 by c-003" "$(cat "$L")"
+eq "re-posted card: still three messages" 3 "$(rows)"
+touch "$T_TMP/edit.fail"; put_issues blocked; : >"$L"
+out="$(tick)"
+has "holder's own edit fails: WARN, never re-posted" "never re-posted" "$out"
+eq "holder's own edit fails: no new message" 3 "$(rows)"
+rm -f "$T_TMP/edit.fail" "$T_TMP/gone.c-002"
 
 eq "usage is refused" 64 "$(bash "$R" --bogus >/dev/null 2>&1; echo $?)"
 t_done

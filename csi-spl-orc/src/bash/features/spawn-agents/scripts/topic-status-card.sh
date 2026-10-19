@@ -25,7 +25,11 @@
 # "<key>\t<sha>" once a key landed, served.tsv "<sha>\t<env>" once that env
 # serves the sha. Only the box that posted a
 # message can edit it: a lease that moves to another box starts that box's
-# own card per topic there (at most one more message per topic).
+# own card per topic there (at most one more message per topic). A lease that
+# moves between agents on THIS box keeps the old author editing its card while
+# its desk is seated; once that edit fails (its desk is gone: do_spl_desk_edit
+# runs as the stored author only) the new holder posts one new card and
+# becomes its author (SPL-2528: one message per lease move, never per tick).
 #
 # Safe degradation: a source that cannot be read (issues, lane map, queue)
 # skips the whole tick with one WARN line and edits nothing; a failed edit
@@ -201,21 +205,32 @@ card_edit() {
   _card_run $(_card_desk) "DESK_AGENT=$1" "MSG_ID=$2" "DESK_BODY_FILE=$3" DRY_RUN=0 do_spl_desk_edit >/dev/null
 }
 
-# card_sync TOPIC BODY_FILE: post once, else edit when the card changed.
+# _card_post_new TOPIC BODY_FILE HASH VERB: post a new card as CARD_AUTHOR
+# and record it.
+_card_post_new() {
+  local msg
+  msg="$(card_post "$1" "$2")" || msg=""
+  [[ "$msg" =~ $CARD_UUID ]] || { say "WARN card ${1:0:8} did not post; retried next tick"; return 1; }
+  printf '%s\n%s\n%s\n' "$msg" "$CARD_AUTHOR" "$3" >"$CARD_DIR/$1.card"
+  say "OK card ${1:0:8} $4 as $msg"
+}
+
+# card_sync TOPIC BODY_FILE: post once, else edit when the card changed; a
+# card whose earlier author can no longer edit it is re-posted by the holder.
 card_sync() {
   local f="$CARD_DIR/$1.card" hash msg by old
   hash="$(sha256sum <"$2" | cut -c1-64)"
   printf '\n_as of %s_\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >>"$2"
-  if [ ! -s "$f" ]; then
-    msg="$(card_post "$1" "$2")" || msg=""
-    [[ "$msg" =~ $CARD_UUID ]] || { say "WARN card ${1:0:8} did not post; retried next tick"; return 1; }
-    printf '%s\n%s\n%s\n' "$msg" "$CARD_AUTHOR" "$hash" >"$f"
-    say "OK card ${1:0:8} posted as $msg"; return 0
-  fi
+  [ -s "$f" ] || { _card_post_new "$1" "$2" "$hash" posted; return; }
   { IFS= read -r msg; IFS= read -r by; IFS= read -r old; } <"$f"
   [ "$hash" = "$old" ] && return 0
-  card_edit "$by" "$msg" "$2" ||
-    { say "WARN card ${1:0:8} ($msg) could not be edited; retried next tick, never re-posted"; return 1; }
+  if ! card_edit "$by" "$msg" "$2"; then
+    if [ "$by" != "$CARD_AUTHOR" ]; then
+      say "INFO card ${1:0:8} ($msg): its author $by can no longer edit it; $CARD_AUTHOR holds the lease now"
+      _card_post_new "$1" "$2" "$hash" "re-posted by $CARD_AUTHOR"; return
+    fi
+    say "WARN card ${1:0:8} ($msg) could not be edited; retried next tick, never re-posted"; return 1
+  fi
   printf '%s\n%s\n%s\n' "$msg" "$by" "$hash" >"$f"
   say "OK card ${1:0:8} edited in place ($msg, no new message)"
 }

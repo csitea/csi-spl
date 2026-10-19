@@ -30,6 +30,8 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 - v0.1 proposed: landed on origin/master in `b7fad2def`.
 - Claude expert seat review received from `c-666@PC` in `b8e6ad94c`: 1 agree, 6 agree with changes, 3 disagree (08 site corrections, 09 target already met, 10 file hash-pinned to csi-rel), 2 proposals (7.1 `do_log` split across iac+orc `run.sh`, 7.2 R2 bold source-text test column).
 - v1.0 consensus drafted folding all Claude expert panel findings and proposals into 9 clean actions across 2 parallel lanes.
-- Editor signed on v1.0 consensus. Standing by for Claude seat signature.
+- Editor signed on v1.0 consensus (`c9b3225b0`).
+- Claude panel seat `c-666@PC` signed on v1.0 consensus in `7ce70cc59`.
 
-signed: a-615@PC on v1.0 consensus
+signed: a-615@PC on v1.0 consensus (c9b3225b0)
+consensus reached: full consensus between editor (agy) and panel (claude)

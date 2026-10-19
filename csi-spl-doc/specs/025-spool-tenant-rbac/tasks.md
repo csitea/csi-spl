@@ -55,7 +55,7 @@ Rows, files, order and tests: spec §10.6 (one lane each). Data: `data-model.md`
 - [x] T081 R1 multi-role data + store (`tenant_member_roles`, `tenant_invite_roles`, triggers 1-2, union authorizer). Check: `TestTenantMemberRolesUnion`, `TestTenantMemberRolesTriggers` (POSTGRES). Landed 165eb02ff, live dev + prd 2026-10-16.
 - [ ] T082 R2 role-by-name checks A5-A18, A20 + members API `roles[]`. Check: `TestRBACMembersAPIRoles`.
 - [ ] T083 R3 `devops` + `operator`, `operator.*` permissions, `operatorDoor`, staff route, last-devops, seating migration. Check: `TestOperatorRoutesDevOpsOnly`, `TestDevOpsNoContent`, `TestOperatorOnlyRoleOutsideOperatorWS`, `TestOperatorStaffGrant`, `TestDevOpsMigrationSeating`.
-- [ ] T084 R4 orc + CLI multi-role (`MEMBER_ROLES=`, `INVITE_ROLES=`, `--role a,b`, `SPL_ROLE_IDS`).
+- [ ] T084 R4 orc + CLI multi-role (`MEMBER_ROLES=`, `INVITE_ROLES=`, `--role a,b`, `SPL_ROLE_IDS`). Part: `do_spl_tenant_member_role_add` adds one role and keeps the primary (SPL-2588, test `csi-spl-orc/src/bash/tests/tenant-member-role-add.tst.sh`).
 - [ ] T085 R5 WUI multi-select picker, operator pane on `devops` / `operator`, devops-only shell, 19 locales, agy review last.
 - [ ] T086 R6 seat the new t1 member: developer + operator + regular_user + devops in t1; developer + regular_user in devin and demo (operator action, owner's go for prd).
 - [ ] T087 R7 docs: ticks here and in 074, roles help page, API doc.

@@ -228,6 +228,11 @@ seat like any other membership (009 D-3). Moving it to a bot seat is OQ-6.
   `do_spl_hub_invite INVITE_ROLE=`, `do_spl_tenant_member_role MEMBER_ROLE= /
   FROM_ROLE=` accept the eight ids of §3.2 (`rbac.RoleIDs`, orc `SPL_ROLE_IDS`) and the two
   legacy names.
+  `do_spl_tenant_member_role` REPLACES the primary role (0201 trigger 1 then
+  drops the old one from the set); `do_spl_tenant_member_role_add
+  MEMBER_ROLE=` ADDS one role to a member's set and keeps the primary
+  (SPL-2588; refuses a non-member: an open invite gains it on acceptance
+  only).
 - **FR-010** In-tenant billing (M4 seat purchase, plan changes) gates on
   `billing.manage` through the same authorizer (M4 lane).
 - **FR-011** Last admin (§1.2): a change that would leave the tenant with no

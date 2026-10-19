@@ -447,5 +447,21 @@ if [ "${DESK_RESPONDER:-1}" != 0 ]; then
   say "INFO do_spl_responder_sweep exit $rsc"
   [ "$rc" = 0 ] && [ "$rsc" != 0 ] && rc=1
 fi
+
+# SPL-2532: the fallback role seats (LEASE_ORCH_FALLBACK, LEASE_DISPATCH_FALLBACK:
+# grok, then agy) kept live as STANDBY, so the lease's vendor fallback
+# (SPL-2521) has a live seat to hand a role to. LAST, because starting a seat
+# waits for it (up to a few minutes): it never delays the desks. A no-op until
+# <spool root>/dispatch/role-fallback.conf says ROLE_FALLBACK=1
+# (ROLE_FALLBACK_CMD=enable); its own lock keeps the dev and prd ticks from
+# starting a seat twice. The peer switch and the lease pause cut it, like the
+# lease ensure; DESK_ROLE_FALLBACK=0 turns it off. Its result does not change
+# the reconcile's exit code.
+if [ "${DESK_ROLE_FALLBACK:-1}" != 0 ] && [ "$peer_cut" = 0 ] && [ "$lease_paused" = 0 ]; then
+  fout="$(cd "$ORC" && env -u TENANT_ID ROLE_FALLBACK_CMD=cron DRY_RUN=0 ./run -a do_spl_role_fallback_up 2>&1)"
+  frc=$?
+  printf '%s\n' "$fout" | grep -E ' (STARTED|REFUSED) |FATAL|ERR' | while IFS= read -r l; do say "INFO $l"; done
+  say "INFO do_spl_role_fallback_up exit $frc"
+fi
 [ "$rc" = 0 ] && [ "$stale" = 1 ] && rc=1
 exit "$rc"

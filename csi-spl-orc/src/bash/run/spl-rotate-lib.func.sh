@@ -899,9 +899,14 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 spl_rotate_spawn() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG=""
-  spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
-    { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
-  sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
+  # no old window (a seat with no session yet, do_spl_role_fallback_up): no
+  # rename, and spawn-window picks the session (SPOOL_SESSION, else the attached one)
+  sess="${SPOOL_SESSION:-}"
+  if [[ -n "${ROTATE_OLD_PANE:-}" ]]; then
+    spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
+      { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
+    sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
+  fi
   # the box tag the old window showed (<ID>@<tag>), so the new one is named alike
   tag="${SPOOL_BOX_TAG:-}"
   # (named for the old id when the rotation switched it: ROTATE_SWITCH_FROM)
@@ -922,7 +927,7 @@ spl_rotate_spawn() {
   t0=$SECONDS
   while (( SECONDS - t0 < ROTATE_START_WAIT )); do
     for pid in $(spl_rotate_pids "$id"); do
-      [[ "$pid" != "$ROTATE_OLD_PID" && "$(spl_rotate_pane_of_pid "$pid")" == "$ROTATE_NEW_PANE" ]] && { ROTATE_NEW_PID="$pid"; break 2; }
+      [[ "$pid" != "${ROTATE_OLD_PID:-}" && "$(spl_rotate_pane_of_pid "$pid")" == "$ROTATE_NEW_PANE" ]] && { ROTATE_NEW_PID="$pid"; break 2; }
     done
     sleep "$ROTATE_POLL"
   done

@@ -13,17 +13,17 @@
 // Names carry "calSwipe" because Nuxt auto-imports every utils export.
 
 /** dy that locks a gesture to vertical scrolling (if dx has not reached CAL_SWIPE_LOCK_DX) */
-export const CAL_SWIPE_LOCK_DY = 10
+const CAL_SWIPE_LOCK_DY = 10
 /** dx that locks a gesture to a page turn (when also > 1.5 dy) */
-export const CAL_SWIPE_LOCK_DX = 16
+const CAL_SWIPE_LOCK_DX = 16
 /** a horizontal track this long on release turns the page (the stack's own MOBILE_SWIPE_MIN_DX) */
-export const CAL_SWIPE_TURN_DX = 64
+const CAL_SWIPE_TURN_DX = 64
 /** the Back zone on the leading edge (S4 Q3: 24 px, not 16, clears the OS's ~20 px) */
 export const CAL_SWIPE_EDGE_PX = 24
 /** a tap moves less than this ... */
 export const CAL_SWIPE_TAP_PX = 8
 /** ... and is released before this */
-export const CAL_SWIPE_TAP_MS = 300
+const CAL_SWIPE_TAP_MS = 300
 /** a still finger held longer than this lifts the event (097 hold-to-drag) */
 export const CAL_SWIPE_HOLD_MS = 400
 

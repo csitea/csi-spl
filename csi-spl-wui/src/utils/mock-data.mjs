@@ -5,7 +5,7 @@ const T0 = '2026-09-18T10:00:00Z'
 /* The lde mock #lobby id (the welcome topic below) is MOCK_LOBBY_TASK_ID in
    mock-ids.mjs, apart so the live first screen does not load this file. */
 
-export const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
+const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
 
 export const MOCK_CHANNELS = [
   { channel_id: 'lobby', name: 'lobby', created_by: 'HUM-1' },
@@ -23,7 +23,7 @@ export const MOCK_ROSTER = {
   'box-wui': ['HUM-1', 'HUM-2', 'HUM-12', 'HUM-3'],
 }
 
-export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'CLE-11@box-desk', 'HUM-1@box-wui']
+const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'CLE-11@box-desk', 'HUM-1@box-wui']
 
 /* CLE-77794: the People section's per-member detail (view-v1 §4.1 humans[]):
    owner flag, free-text interests and last_seen. No personal names (dist
@@ -69,7 +69,7 @@ export const MOCK_BOX_STAT_HOURS = [
 
 /* CLE-77794: the Agents section's per-box detail (view-v1 §4.1 boxes[]):
    online and last_hello_at, so the card can show a box's liveness. */
-export const MOCK_BOXES = [
+const MOCK_BOXES = [
   { box_id: 'box-a', online: true, last_hello_at: T0, agents: ['CLE-07', 'GRK-03'] },
   { box_id: 'box-b', online: false, last_hello_at: T0, agents: ['CLE-07', 'AGY-02'] },
   { box_id: 'box-desk', online: true, last_hello_at: T0, agents: ['CLE-11'], ...MOCK_DESK_FACTS },

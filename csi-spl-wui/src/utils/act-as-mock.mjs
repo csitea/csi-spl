@@ -8,7 +8,7 @@
  */
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 
-export const MOCK_ACT_AS_KEY = 'spool.mock.act_as'
+const MOCK_ACT_AS_KEY = 'spool.mock.act_as'
 
 // The avatar menu (and its "Act as…" item) shows only for a signed-in session.
 // The mock is signed-OUT by default (so the login e2e specs keep working), so
@@ -17,7 +17,7 @@ export const MOCK_ACT_AS_KEY = 'spool.mock.act_as'
 export const MOCK_SESSION_KEY = 'spool.mock.session'
 
 /** The opt-in mock session claims ({ hum, name, email, t }), or null. */
-export function mockSessionGet(store) {
+function mockSessionGet(store) {
   return storageGetJson(MOCK_SESSION_KEY, null, store)
 }
 
@@ -28,7 +28,7 @@ export function mockSessionGet(store) {
 export const MOCK_SIGNED_OUT_KEY = 'spool.mock.signed_out'
 
 /** Did the e2e opt into a settled signed-out mock session? */
-export function mockSignedOut(store) {
+function mockSignedOut(store) {
   return storageGetJson(MOCK_SIGNED_OUT_KEY, false, store) === true
 }
 
@@ -66,7 +66,7 @@ export function mockMeGet(store) {
 }
 
 /** The stored mock act-as ({ target_hum, expires_at }), or null. */
-export function mockActAsGet(store) {
+function mockActAsGet(store) {
   return storageGetJson(MOCK_ACT_AS_KEY, null, store)
 }
 
@@ -101,7 +101,7 @@ export function mockArchivePolicy() {
  * member's role ('admin' | 'developer', default developer) an e2e opts into
  * with localStorage `spool.mock.role`. Read only when the policy hook is on.
  */
-export function mockRole() {
+function mockRole() {
   try {
     const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.role') || '') : ''
     return ['admin', 'developer'].includes(v) ? v : 'developer'

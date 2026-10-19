@@ -80,7 +80,7 @@ export function topButtonsBottom(doc, box) {
 
 /* the grip and the size handle stand 16 px over the box's free edge
    (OmniboxGrip.vue); at the limit they end on the header row, not over it */
-export const GRIP_REACH_PX = 16
+const GRIP_REACH_PX = 16
 
 /**
  * The tallest a resized phone-dock field may be at the bottom: from the
@@ -104,7 +104,7 @@ export function dockFieldMax({ boxBottom, boxH, fieldH, limitTop }) {
  *            of the feed stays readable on the left
  */
 export const PHONE_POSITIONS = Object.freeze(['bottom', 'top', 'right'])
-export const DEFAULT_PHONE_POSITION = 'bottom'
+const DEFAULT_PHONE_POSITION = 'bottom'
 /** localStorage key: the place is this browser's, not the account's. */
 export const PHONE_POSITION_KEY = 'spool.omnibox-phone-pos'
 
@@ -117,7 +117,7 @@ export function parsePhonePosition(v) {
 }
 
 /** Below this many px of travel the grip was tapped, not dragged (a tap opens the menu). */
-export const DRAG_SLOP = 8
+const DRAG_SLOP = 8
 
 /**
  * Where a released drag lands: the upper 40% of the screen is the top, the
@@ -162,11 +162,11 @@ export const PHONE_SIZE_KEY = 'spool.omnibox-phone-size'
 export const HEIGHT_MAX = 0.5
 /* a dragged height may go up to the whole room; the px cap under the top
    button section (dockFieldMax, --dock-field-max) is what really stops it */
-export const HEIGHT_LIMIT = 1
-export const WIDTH_MIN_PX = 280
-export const WIDTH_GAP_PX = 48
+const HEIGHT_LIMIT = 1
+const WIDTH_MIN_PX = 280
+const WIDTH_GAP_PX = 48
 /** Less than this many px over one line and a dragged field is one line again. */
-export const HEIGHT_SNAP_PX = 16
+const HEIGHT_SNAP_PX = 16
 export const SIZE_PRESETS = Object.freeze(['small', 'medium', 'large'])
 const HEIGHT_PRESET = Object.freeze({ small: 0, medium: 0.25, large: HEIGHT_MAX })
 /* small at 390 px: 281 px, the field still shows a few words */

@@ -39,10 +39,10 @@ export { perfMark }
 /** The hub's sets (store/perf_samples.go, rdb 0106 CHECKs). */
 export const PERF_METRICS = Object.freeze(['load_rail', 'load_messages', 'send_ack', 'deliver_visible', 'switch_view', 'type_next_paint', 'inp', 'scroll_jank', 'reconnect_live'])
 export const PERF_VIEWS = Object.freeze(['topic', 'channel', 'dm', 'flow', 'search'])
-export const PERF_CACHES = Object.freeze(['cold', 'warm'])
-export const PERF_OUTCOMES = Object.freeze(['ok', 'fail', 'timeout'])
-export const PERF_NETS = Object.freeze(['slow-2g', '2g', '3g', '4g'])
-export const PERF_HIDDEN_S = Object.freeze(['30-300', '300-3600', '3600+'])
+const PERF_CACHES = Object.freeze(['cold', 'warm'])
+const PERF_OUTCOMES = Object.freeze(['ok', 'fail', 'timeout'])
+const PERF_NETS = Object.freeze(['slow-2g', '2g', '3g', '4g'])
+const PERF_HIDDEN_S = Object.freeze(['30-300', '300-3600', '3600+'])
 
 /** Limits (spec 4 transport and sampling, 4.0 rules). */
 export const PERF_BUFFER_MAX = 500
@@ -51,11 +51,11 @@ export const PERF_FLUSH_MS = 30_000
 export const PERF_HOUR_CAP = 300
 export const PERF_SEND_TIMEOUT_MS = 5_000
 export const PERF_FAIL_STOP = 3
-export const PERF_VALUE_MAX_MS = 600_000
+const PERF_VALUE_MAX_MS = 600_000
 /** M4 (spec 3.1): a clock offset less certain than this drops the sample. */
 export const PERF_CLOCK_ERR_MAX_MS = 250
 /** M7: a scroll burst ends after this long without a scroll event. */
-export const PERF_SCROLL_IDLE_MS = 150
+const PERF_SCROLL_IDLE_MS = 150
 
 const HOUR_MS = 3_600_000
 /** M3: a send start older than this never pairs with a row (a refused send). */
@@ -72,7 +72,7 @@ let active = null
 let unobserve = null
 
 /** A random lowercase uuid, or '' when the browser has no crypto. */
-export function perfSessionId(c = globalThis.crypto) {
+function perfSessionId(c = globalThis.crypto) {
   try {
     if (c && typeof c.randomUUID === 'function') return String(c.randomUUID()).toLowerCase()
     if (c && typeof c.getRandomValues === 'function') {
@@ -87,7 +87,7 @@ export function perfSessionId(c = globalThis.crypto) {
 }
 
 /** 'phone' at the phone layout's breakpoint (useMobileStack), else 'desktop'. */
-export function perfDevice(w = globalThis) {
+function perfDevice(w = globalThis) {
   try {
     return w.matchMedia && w.matchMedia(MOBILE_STACK_QUERY).matches ? 'phone' : 'desktop'
   } catch {
@@ -96,7 +96,7 @@ export function perfDevice(w = globalThis) {
 }
 
 /** navigator.connection.effectiveType where the browser has it, else ''. */
-export function perfNet(nav = globalThis.navigator) {
+function perfNet(nav = globalThis.navigator) {
   try {
     const t = nav && nav.connection && nav.connection.effectiveType
     return PERF_NETS.includes(t) ? t : ''
@@ -141,12 +141,12 @@ export function perfSample(metric, valueMs, fields, ctx) {
 }
 
 /** POST one body with fetch, keepalive, text/plain (CORS-safelisted). */
-export function perfFetchSender(url, { credentials = 'include', fetchFn = globalThis.fetch } = {}) {
+function perfFetchSender(url, { credentials = 'include', fetchFn = globalThis.fetch } = {}) {
   return (body, signal) => fetchFn(url, { method: 'POST', body, credentials, keepalive: true, cache: 'no-store', headers: { 'content-type': 'text/plain' }, signal })
 }
 
 /** The final beacon; false when the browser has none or refuses it. */
-export function perfBeaconSender(url, nav = globalThis.navigator) {
+function perfBeaconSender(url, nav = globalThis.navigator) {
   return (body) => {
     try {
       return !!(nav && typeof nav.sendBeacon === 'function' && nav.sendBeacon(url, body))
@@ -426,7 +426,7 @@ function observeScroll(win, mark) {
 }
 
 /** The passive observers (M6b, M7); never throws. Returns their stop. */
-export function perfObserve(win, mark) {
+function perfObserve(win, mark) {
   const stops = []
   for (const watch of [observeInp, observeScroll]) {
     try { stops.push(watch(win, mark)) } catch { /* that metric stays off */ }

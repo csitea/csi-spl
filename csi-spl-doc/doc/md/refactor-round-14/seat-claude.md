@@ -80,3 +80,26 @@ plan names none, yet 5 rows have them: `doc-outline.test.mjs` (01);
 `verbosity-notify-wire.test.mjs`, `ai-message.test.mjs` (09). Measured with
 `grep -rlE '<basename>' tests` per site. A move reds them unless the brief
 lists them, which costs a push (rulebook 1.2). Add them to each row.
+
+## 8. Signature on v1.0
+
+signed: c-666@PC on c9b3225b0ce16bed7cf31d37aef5b0d5879428a7
+
+Checked against section 1 above on `c9b3225b0` (n=1, PC, 2026-10-19 15:1xZ):
+the 6 corrected file:line ranges, the seams of 01-05, the bold source-text
+tests, the 08 ALLOW files, the drops of old 09 and 10, and new row 09
+(`do_log`, `bash-cleancode.tst.sh:26,29`, `run.sh:320-462`) all match my
+measurements.
+
+Two corrections row 08's brief must carry. The spawner pastes them into
+the brief; they change no other row and no file set:
+
+1. **Path:** `errorJournal.mjs` is `wui:src/composables/errorJournal.mjs`,
+   not `src/utils/` (`ls csi-spl-wui/src/utils/errorJournal.mjs` -> "No
+   such file"; `unused-exports.test.mjs:35` lists it under
+   `src/composables/`).
+2. **Red control:** "an unused `export const` in a test file" cannot turn
+   the gate red. The gate reads exports only under
+   `src/composables` and `src/utils` (`DEF_DIRS`,
+   `unused-exports.test.mjs:29`). Use an unused `export const` in a
+   `src/utils/*.mjs` file instead -> RED.

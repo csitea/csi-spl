@@ -85,6 +85,7 @@ func msgFor(tenant, task, toBox string, ts, now time.Time, env string) Message {
 		FromBox: "box-a", FromID: "GRK-03", ToBox: toBox, ToID: "CLE-07", Kind: "task", Body: "hi",
 		Files: []byte(`[]`), Msg: []byte(`{"v":1}`), EnvSig: "sig", Env: []byte(env),
 		ReceivedAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour),
+		IsParent: 1, // the hub's default for every send but a pane-open reply (SPL-2506: a topic's card)
 	}
 }
 

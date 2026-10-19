@@ -333,7 +333,7 @@ func flowFoldSQL() string {
 			  AND (SELECT count(*) FROM hit) < (SELECT count(*) FROM ev) AND (SELECT count(*) FROM ev) = $5
 			  AND (e.at, e.msg_id) < (SELECT x.at, x.msg_id FROM ev x ORDER BY x.at, x.msg_id LIMIT 1)
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
-		raw AS (SELECT ` + flowEventCols("e", "m", "$9::text") + `, e.at AS ev_at
+		raw AS (SELECT ` + flowEventCols("e", "m", "$3", "$9::text") + `, e.at AS ev_at
 			FROM (SELECT h.tenant_id, h.member_id, h.msg_id, h.kind, h.at FROM hit h
 				UNION ALL SELECT f.tenant_id, f.member_id, f.msg_id, f.kind, f.at FROM fill f
 				ORDER BY at DESC, msg_id DESC LIMIT $5) e

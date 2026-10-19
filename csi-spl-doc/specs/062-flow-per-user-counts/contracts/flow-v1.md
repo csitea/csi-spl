@@ -88,6 +88,12 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
   topic has no `t:` mark of the member: SPL-2124, the thread mark alone
   decides its topic's lines, as the card counts them), or by
   `dm:<from>` / `dm:<from>@<from_box>` at or past it (a DM).
+- A channel line whose topic (a sub-thread line: its parent topic) has no
+  live `is_parent` 1 row in that channel is read too (SPL-2506, owner t1
+  bd5edeb3): the channel lists a topic by that row, and the sweep purges an
+  expired head while later replies live on, so such a line had no card to
+  show it on. The `issues` and `tasks` boards and the lobby's thread are left
+  out (their lines are rows of their own pages).
 - `f:<msg_id>` rows are swept with their message.
 
 ## 4. WS frame on /v1/wui/ws

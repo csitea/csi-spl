@@ -22,7 +22,7 @@ import (
 // flowFoldSQLBeforeP511 is flowFoldSQL as it was before P5-11: the CONTROL
 // the new form is compared with, row for row.
 func flowFoldSQLBeforeP511() string {
-	return `WITH raw AS (SELECT ` + flowEventCols("e", "m", "$9::text") + `, e.at AS ev_at
+	return `WITH raw AS (SELECT ` + flowEventCols("e", "m", "$3", "$9::text") + `, e.at AS ev_at
 			FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
 			WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
 			  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))

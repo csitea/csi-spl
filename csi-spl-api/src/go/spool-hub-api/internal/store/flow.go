@@ -360,7 +360,7 @@ func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time, lob
 	ev := FlowEvent{MsgID: m.MsgID, TaskID: m.TaskID, ParentTaskID: m.ParentTaskID, Channel: m.Channel,
 		FromID: m.FromID, FromBox: m.FromBox, ToID: m.ToID, ToBox: m.ToBox, TypedBy: m.TypedBy,
 		Kind: e.kind, Body: m.Body, At: m.ReceivedAt, Files: filesCount(m.Files)}
-	ev.Unread = !s.flowCoveredLocked(k[0], member, m) && !s.archivedHiddenLocked(k[0], m, lobby)
+	ev.Unread = !s.flowCoveredLocked(k[0], member, m) && !s.archivedHiddenLocked(k[0], m, lobby) && !s.flowHeadlessLocked(k[0], m, now, lobby)
 	return ev, true
 }
 
@@ -389,6 +389,26 @@ func (s *Memory) flowCoveredLocked(tenant, member string, m *Message) bool {
 		}
 	}
 	return false
+}
+
+// flowHeadlessLocked: a channel line whose topic (its parent topic for a
+// sub-thread line) has no live is_parent 1 row in that channel is read, as
+// flowHeadlessSQL (SPL-2506): the channel shows no card for it. The issues
+// and tasks boards list their lines on their own pages.
+func (s *Memory) flowHeadlessLocked(tenant string, m *Message, now time.Time, lobby string) bool {
+	topic := m.ParentTaskID
+	if topic == "" {
+		topic = m.TaskID
+	}
+	if m.Channel == "" || m.Channel == ChannelIssues || m.Channel == ChannelTasks || topic == lobby {
+		return false
+	}
+	for k, h := range s.messages {
+		if k[0] == tenant && h.TaskID == topic && h.Channel == m.Channel && h.IsParent == 1 && h.ExpiresAt.After(now) {
+			return false
+		}
+	}
+	return true
 }
 
 // flowListLocked is every listed event of member, newest first.

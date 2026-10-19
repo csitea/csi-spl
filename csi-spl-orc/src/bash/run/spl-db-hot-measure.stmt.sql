@@ -86,7 +86,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=97b66e5d6a4aca873bbf9fae33cc28a4c3a2a73164ca14c5ee9d543b9037ac14 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=764dabc60c40b4170ccf1de7c8de95ba9511168b670781e72c8dc12fe7506a02 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
@@ -132,7 +132,11 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 		OR (fm.channel IS NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id
 			AND r.mark_key IN ('dm:' || fm.from_id, 'dm:' || fm.from_id || '@' || fm.from_box) AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id)))
 		OR (fm.channel IS NOT NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 'ch:' || fm.channel AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id))
-			AND NOT EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 't:' || fm.task_id::text))))
+			AND NOT EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = fe.tenant_id AND r.member_id = fe.member_id AND r.mark_key = 't:' || fm.task_id::text))
+		OR (fm.channel IS NOT NULL AND fm.channel NOT IN ('issues', 'tasks')
+			AND coalesce(fm.parent_task_id, fm.task_id)::text <> $5::text AND NOT EXISTS (SELECT 1 FROM messages h
+			WHERE h.tenant_id = fe.tenant_id AND h.task_id = coalesce(fm.parent_task_id, fm.task_id) AND h.channel = fm.channel
+			AND h.is_parent = 1 AND h.expires_at > $3))))
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),

@@ -104,7 +104,14 @@ func flowDoorSQL(e, m, pub string) string {
 // its topic (SPL-2124, the CLE-77930 rule): opening a channel moves ch: past
 // the replies its cards still count as "<new>/<total>", so the thread mark
 // alone decides that topic's lines.
-func flowCoveredSQL(e, m, lobby string) string {
+//
+// A channel line whose topic has no live card in its channel is read too
+// (SPL-2506, owner t1 bd5edeb3: "it shows 3 unread msgs, but ... there are no
+// topics with those unread msgs"): the channel lists a topic by its is_parent
+// 1 row, and the sweep purges an expired head while later replies live on,
+// so their ch: and t: counts had no card to show them on. now is a bound
+// timestamptz; the lobby's thread and the issues / tasks boards are left out.
+func flowCoveredSQL(e, m, now, lobby string) string {
 	mark := `SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = `
 	past := ` AND (` + m + `.received_at, ` + m + `.msg_id::text) <= (r.at, r.msg_id)`
 	return `(NOT (true` + archivedHideSQL(m, e+`.tenant_id`, lobby) + `) OR EXISTS (` + mark + `'f:' || ` + e + `.msg_id::text)
@@ -112,7 +119,21 @@ func flowCoveredSQL(e, m, lobby string) string {
 		OR (` + m + `.channel IS NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id
 			AND r.mark_key IN ('dm:' || ` + m + `.from_id, 'dm:' || ` + m + `.from_id || '@' || ` + m + `.from_box)` + past + `))
 		OR (` + m + `.channel IS NOT NULL AND EXISTS (` + mark + `'ch:' || ` + m + `.channel` + past + `)
-			AND NOT EXISTS (` + mark + `'t:' || ` + m + `.task_id::text)))`
+			AND NOT EXISTS (` + mark + `'t:' || ` + m + `.task_id::text))` + flowHeadlessSQL(e, m, now, lobby) + `)`
+}
+
+// flowHeadlessSQL: OR the channel line's topic (its parent topic for a
+// sub-thread line) has no live is_parent 1 row in that channel (SPL-2506).
+// The issues and tasks boards are left out: their lines (HUB-0 writes them
+// with is_parent 0) are rows of their own pages, not channel cards. One probe
+// of messages_task_received.
+func flowHeadlessSQL(e, m, now, lobby string) string {
+	topic := `coalesce(` + m + `.parent_task_id, ` + m + `.task_id)`
+	return `
+		OR (` + m + `.channel IS NOT NULL AND ` + m + `.channel NOT IN ('` + ChannelIssues + `', '` + ChannelTasks + `')
+			AND ` + topic + `::text <> ` + lobby + ` AND NOT EXISTS (SELECT 1 FROM messages h
+			WHERE h.tenant_id = ` + e + `.tenant_id AND h.task_id = ` + topic + ` AND h.channel = ` + m + `.channel
+			AND h.is_parent = 1 AND h.expires_at > ` + now + `))`
 }
 
 // flowCountsSQL selects the ten counts (badge mention/reply/dm/channels/dms,
@@ -160,7 +181,7 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
 			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_box, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
-		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
+		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", now, lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
@@ -212,11 +233,11 @@ func threadMarksSQL(tenant, member, lobby string) string {
 
 // flowEventCols are the FlowEvent columns of event e / message m, scanned
 // by scanFlowEvent.
-func flowEventCols(e, m, lobby string) string {
+func flowEventCols(e, m, now, lobby string) string {
 	return e + `.msg_id::text, ` + m + `.task_id::text, coalesce(` + m + `.parent_task_id::text, ''), coalesce(` + m + `.channel, ''),
 		` + m + `.from_id, ` + m + `.from_box, coalesce(` + m + `.to_id, ''), coalesce(` + m + `.to_box, ''), coalesce(` + m + `.typed_by, ''),
 		` + e + `.kind, left(` + m + `.body, 400), CASE WHEN jsonb_typeof(` + m + `.files) = 'array' THEN jsonb_array_length(` + m + `.files) ELSE 0 END,
-		` + m + `.received_at, NOT ` + flowCoveredSQL(e, m, lobby)
+		` + m + `.received_at, NOT ` + flowCoveredSQL(e, m, now, lobby)
 }
 
 func scanFlowEvent(r pgx.Rows, extra ...any) (FlowEvent, error) {
@@ -262,7 +283,7 @@ func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) 
 		}
 		limit := min(q.Limit, FlowMaxPage)
 		reads = append(reads, tenantRead{
-			sql: `SELECT ` + flowEventCols("e", "m", "$9::text") + `
+			sql: `SELECT ` + flowEventCols("e", "m", "$3", "$9::text") + `
 				FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
 				WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
 				  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
@@ -291,7 +312,7 @@ func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members
 	if len(members) == 0 {
 		return out, nil
 	}
-	err := s.queryTenant(ctx, tenant, `SELECT `+flowEventCols("e", "m", "$6::text")+`, e.member_id, c.*
+	err := s.queryTenant(ctx, tenant, `SELECT `+flowEventCols("e", "m", "$4", "$6::text")+`, e.member_id, c.*
 		FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
 		CROSS JOIN LATERAL (`+flowCountsSQL("e.tenant_id", "e.member_id", "$4", "$5::text[]", "$6::text")+`) c
 		WHERE e.tenant_id = $1 AND e.msg_id = $2 AND e.member_id = ANY($3) AND e.expires_at > $4`+flowDoorSQL("e", "m", "$5::text[]"),

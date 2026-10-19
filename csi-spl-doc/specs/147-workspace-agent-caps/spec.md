@@ -3,7 +3,7 @@
 **Feature ID**: `147-workspace-agent-caps` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only) · **Version**: 1.1.0
 **Created**: 2026-10-19 · **Updated**: 2026-10-19 · **Epic**: SPL-2400 · **Issue**: SPL-2586 · **Lane**: a-799-c002-spec-workspace-agent-caps
 **Authority**: this file for system behaviour, database schema, protocol rules, API contracts, and enforcement semantics. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
-**Reviews**: [review-claude.md](review-claude.md) (c-864, R7 seat, v1.0.0; folded into v1.1.0).
+**Reviews**: [review-claude.md](review-claude.md) (c-864, R7 seat, signed off on master in commit 0a97ae54d).
 
 Builds on, and does not repeat:
 - [002 box-agent-messaging](../002-box-agent-messaging/spec.md) (local spool, box CLI, MCP server)
@@ -540,7 +540,7 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 ### 12.3 Sign-Off
 
 - **Specification Author**: a-799 (Gemini 3.8 Flash High)
-- **Status**: v1.1.0 Consensus Fold Complete. All 12 sections aligned with reviewer feedback. Ready for R7 reviewer countersignature.
+- **Status**: v1.1.0 Consensus Signed Off (c-864 on 0a97ae54d). Accepted by dispatch in msg 6a4652bb.
 
 ---
 

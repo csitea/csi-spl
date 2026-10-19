@@ -267,8 +267,9 @@
           </figure>
         </section>
       </article>
+      <!-- v-if, not v-show (perf round 6 row 10): a narrow pane starts closed and mounts none of the contents' nodes -->
       <nav
-        v-show="tocOpen"
+        v-if="tocOpen"
         id="ws-doc-toc"
         class="wsdoc__toc"
         data-test="ws-doc-toc"

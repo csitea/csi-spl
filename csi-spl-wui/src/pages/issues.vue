@@ -201,7 +201,7 @@
                     :title="statusF ? t(statusHintKey(statusF)) : undefined"
                     @click="statusOpen = !statusOpen"
                   >{{ statusF ? statusLabel(statusF) : t('issues.filter_all') }}</button>
-                  <div v-show="statusOpen" class="issues-status-dd__list" role="listbox">
+                  <div v-if="statusOpen" class="issues-status-dd__list" role="listbox">
                     <button type="button" class="issues-status-dd__opt" data-test="issues-filter-status-all" @click="pickStatus('')">
                       {{ t('issues.filter_all') }}
                     </button>

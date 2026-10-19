@@ -2710,7 +2710,7 @@ select.issues-pctl { appearance: auto; }
     height: 56px;
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
   }
-  .issues-mbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 0 12px 8px; min-width: 0; }
+  .issues-mbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 0 12px; min-width: 0; }
   .issues-mbar { align-items: center; }
   .issues-mbar__btn { position: relative; flex: none; min-height: var(--tap, 44px); min-width: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
   .issues-mbar__sorted { flex: 1 1 auto; min-width: 0; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2725,7 +2725,10 @@ select.issues-pctl { appearance: auto; }
     flex: 0 0 auto;
     display: flex;
     gap: 8px;
-    padding: 0 12px 8px;
+    padding: 0 12px;
+    /* SPL-2527: the chip row tucks 8px under the bar - a 44px tap box each,
+       the drawn pill inset 5px, so the header stack is 80px, not 104px */
+    margin-top: -8px;
     min-width: 0;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -2749,6 +2752,10 @@ select.issues-pctl { appearance: auto; }
   }
   .issues-sheet__st { display: flex; flex-wrap: wrap; gap: 8px; }
   .issues-chip[aria-pressed="true"], .issues-chip[aria-checked="true"] { background: var(--color-selected); border-color: var(--color-accent); }
+  /* the strip's chips draw their pill on ::before; the filter sheet's chips keep theirs */
+  .issues-chips .issues-chip { position: relative; z-index: 0; border: 0; background: transparent; }
+  .issues-chips .issues-chip::before { content: ''; position: absolute; inset: 5px 0; z-index: -1; border: 1px solid var(--color-border); border-radius: var(--radius-pill); }
+  .issues-chips .issues-chip[aria-pressed="true"]::before { background: var(--color-selected); border-color: var(--color-accent); }
   .issues-merror { padding: 0 12px 8px; }
   .issues-cards { list-style: none; margin: 0; padding: 0 0 88px; min-width: 0; }
   .issues-cards .issues-note { padding: 8px 12px; }
@@ -2809,7 +2816,8 @@ select.issues-pctl { appearance: auto; }
     height: 16px;
     box-sizing: border-box;
     border: 2px solid var(--color-muted);
-    border-radius: var(--radius-sm);
+    /* SPL-2527: a square checkbox, not the status glyph's circle */
+    border-radius: var(--radius-xs);
     background: var(--color-bg);
   }
   .issues-check--card input:checked::before, .issues-check--page input:checked::before { border-color: var(--color-accent); background: var(--color-accent); }

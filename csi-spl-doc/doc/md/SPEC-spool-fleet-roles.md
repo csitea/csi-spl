@@ -455,7 +455,7 @@ resource, and its age would have come from each machine's own clock.
 
 | this machine | does |
 |---|---|
-| no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`; then the role's fallback seats, below) | writes nothing; a lease it held goes stale |
+| no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`; each as its seat runs it now, below) | writes nothing; a lease it held goes stale; past the next vendor's wait its seat switches vendor in place (below) |
 | holds it | renews; the local master/failover order still applies inside the machine |
 | holder silent > 180 s on the hub's clock | takes over |
 | ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`), its candidate able for `LEASE_HOLDDOWN` s without a break, and the machine not in `LEASE_INTERMITTENT` | takes it back (the handback) |
@@ -483,27 +483,58 @@ resource, and its age would have come from each machine's own clock.
   dfe76b16: "the order is claude -> grok -> agy"). Until then the candidates
   were the claude ids above only, and grok came in only through the hourly
   rotation (4.4), never on a stall. Now:
-  - after its own ids each role tries its fallback seats, judged by the same
-    able + stuck test: `LEASE_ORCH_FALLBACK` (default `g-001,a-001`) and
-    `LEASE_DISPATCH_FALLBACK` (default `g-002,g-003,a-002,a-003`), env or
-    `lease.conf`, `none` = off. An agy process (comm `agy`) counts as live;
+  - **the role's own seat switches vendor in place** (SPL-2544; c-001's
+    decision, option 2). SPL-2521/2532 ran separate standby seats (`g-001`,
+    `a-001`, `g-002`, ...); on the boxes those ids are links to the claude
+    seats' dirs (4.4, "the id follows the vendor"), so a standby start wrote
+    over a claude seat's prompt (2026-10-19 09:5xZ), and since SPL-2541 all 6
+    default ids were refused: the failover could never start. Now there is
+    one process per seat. When no seat of the role on this machine passes the
+    able + stuck test and the holder has been silent past the next vendor's
+    wait (below), the lease (`spl_fleet_switch_tick`) launches
+    `do_spl_role_failover` (`csi-spl-orc/src/bash/run/spl-role-failover.func.sh`)
+    for the role's seat (orch `LEASE_ORCH`, dispatch `LEASE_MASTER`), at most
+    once per `LEASE_SWITCH_RETRY` (120 s). Under the rotation's lock
+    (`rotate.<orch|dispatch>.lock`; a rotation in flight goes first) and the
+    id lock, it takes the next vendor after the seat's that passes its guards
+    (grok: the rotation's `spl_rotate_grok_why`; agy: lane-mix and a lease
+    that counts it), whose wait has run and that is not backed off
+    (`ROLE_FAILOVER_BACKOFF`, 1800 s). It runs `role-seat-switch.sh` (the one
+    dir moves, every other letter links to it, so the inbox, handoff and lease
+    key carry over) and refuses a start whose dir is not its own (no other
+    seat's `lifetime/prompt.txt` is ever written). It then starts the vendor
+    in the seat through the rotation's spawn (the start check, the identity
+    map), and `ROLE_FAILOVER_SETTLE` (30 s) later judges it with the lease's
+    own test. Able: `lease.conf` takes the new id, the old session ends, and
+    `role-failover/seat.<NNN>` records it. Not able: the new session closes,
+    the dirs go back, `lease.conf` is untouched, the next vendor is tried.
+    The lease follows the seat's link at once (`spl_fleet_seat_id`).
+    `LEASE_ORCH_FALLBACK` / `LEASE_DISPATCH_FALLBACK` now list VENDORS
+    (default `LEASE_VENDOR_ORDER`; an old id list reads as its letters'
+    vendors; `none` = off); `LEASE_ROLE_SWITCH=0` turns the switch off;
+    `do_spl_role_fallback_up` is a no-op. An agy process (comm `agy`) counts
+    as live;
   - **the vendor ranks before the machine** (`LEASE_VENDOR_ORDER`, default
     `claude,grok,agy`; the vendor is the id's letter): a fallback seat never
     takes a role from an able seat of a better vendor, and an able claude
     seat on any box takes it back from a grok or agy holder (the handback,
     with `LEASE_HOLDDOWN`, also from an intermittent box);
-  - **a claude seat anywhere comes first**: a fallback seat takes a role only
-    when its holder has been silent `LEASE_STALE` + `LEASE_FALLBACK_WAIT`
-    (60 s) per step down the order (grok > 240 s, agy > 300 s). A machine
+  - **a claude seat anywhere comes first**: a seat switches to a vendor (and
+    a seat of a worse vendor takes a role) only when the holder has been
+    silent `LEASE_STALE` + `LEASE_FALLBACK_WAIT` (60 s) per step down the
+    order (grok > 240 s, agy > 300 s). A machine
     whose best able seat is of a worse vendor than the one holding stops
     renewing (`FALLBACK-WAIT <role>: ...`, logged once) and waits the same way;
-  - **bound**: from the last renewal of a seat that cannot act to grok
-    holding the role is at most `LEASE_STALE` + `LEASE_FALLBACK_WAIT` + one
-    `LEASE_PERIOD` = 300 s with the defaults, no human step. The switch is
-    logged as `VENDOR <role>: <old> (claude) -> <new> (grok)`, and an orch
-    switch DMs the owner once like any take-over.
-  - It needs a LIVE fallback seat: on 2026-10-19 no `g-00x` / `a-00x` process
-    ran on either box, so none could have taken over.
+  - **bound**: from the last renewal of a seat that cannot act to the switch
+    is at most `LEASE_STALE` + `LEASE_FALLBACK_WAIT` + one `LEASE_PERIOD` =
+    300 s with the defaults, no human step; the new vendor's start and one
+    more tick follow. The lease logs `SWITCH <role>: ...`, then
+    `VENDOR <role>: <old> (claude) -> <new> (grok)`, and an orch switch DMs
+    the owner once like any take-over.
+  - **the handback** is the hourly rotation's (4.4): for a seat in
+    `role-failover/seat.<NNN>` the successor is claude once claude can act
+    (`spl_rotate_claude_out` says nothing), else the seat keeps its vendor;
+    a standby box hands its seat back too.
   - **The no-orchestrator alert** (`spl_asks_orch_alert`,
     `csi-spl-orc/src/bash/run/spl-asks-tick.func.sh`; the hub's orch holder
     silent past `ASKS_ORCH_STALE`, 600 s) was posted 2026-10-18T12:07:09Z
@@ -512,9 +543,10 @@ resource, and its age would have come from each machine's own clock.
     direct message; and the cleared post keeps how long it was open
     (`Cleared <ts> after 19 h 30 min open, nothing to do. Was: ...`). Test:
     `csi-spl-orc/src/bash/tests/asks.tst.sh` R2/R3.
-  - Test: `csi-spl-orc/src/bash/tests/fleet-lease-vendor-failover.tst.sh`
-    (the 2026-10-19 login expiry on two boxes; `LEASE_SRC=<old file>` runs
-    it red against the pre-SPL-2521 code).
+  - Tests: `csi-spl-orc/src/bash/tests/fleet-lease-vendor-failover.tst.sh`
+    (the 2026-10-19 login expiry on two boxes, the lease side) and
+    `role-failover.tst.sh` (the switch: grok, grok unable -> agy, the
+    handback, the red control of the 10-19 overwrite, the rotation lock).
 - **The standby takes over on two conditions** (owner, t1 27f01e16,
   2026-10-02: "The failover should just stand by and in certain conditions he
   should take over"). Measured 16:37Z-18:27Z that day: the orchestrator's
@@ -814,7 +846,9 @@ it is not restated here.
   when this box's dispatch lease names a claude seat silent past
   `LEASE_STALE` (180 s). Once claude is able again, the next rotation is
   claude. Both out = claude, both reasons named. The standby swap (a seat
-  out on its limit) follows the same rule. `ROTATE_GROK_STANDBY=0` in
+  out on its limit) follows the same rule. A seat the lease's in-place
+  failover moved (4.1) goes back to claude at the first rotation once claude
+  can act, never before. `ROTATE_GROK_STANDBY=0` in
   `rotate.conf` keeps claude whatever its state. Tests: `orch-rotate.tst.sh`
   sections 15, 18, 20 and `dispatch-rotate.tst.sh` 19;
 - what ran: `<spool root>/dispatch/rotate.log`, one line per step;

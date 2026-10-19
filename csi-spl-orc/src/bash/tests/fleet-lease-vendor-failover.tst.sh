@@ -1,34 +1,41 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: SPL-2521, the vendor fallback of the fleet lease (owner HUM-10, t1
-#          b3e90079: "there was login on the claude and ... grok should have
-#          been able to take over the orchestratio n, but it did not"; msg
-#          dfe76b16: "the order is claude -> grok -> agy"). A replay of the
-#          2026-10-19 07:2xZ picture on two stubbed machines, sat (ranked
-#          first) and pc: every claude seat alive but its login expired
-#          ("Login expired · Please run /login", an API-error last turn), the
-#          grok seats g-001 / g-002 live and able.
+# Purpose: SPL-2521 + SPL-2544, the vendor fallback of the fleet lease (owner
+#          HUM-10, t1 b3e90079: "there was login on the claude and ... grok
+#          should have been able to take over the orchestratio n, but it did
+#          not"; msg dfe76b16: "the order is claude -> grok -> agy"). A replay
+#          of the 2026-10-19 07:2xZ picture on two stubbed machines, sat
+#          (ranked first) and pc: every claude seat alive but its login
+#          expired ("Login expired · Please run /login", an API-error last
+#          turn). SPL-2544: no separate standby seat; the role's own seat
+#          switches vendor IN PLACE (do_spl_role_failover). Here its effect is
+#          the LEASE_SWITCH_RUN stub: the seat's dir moves to the new letter
+#          (the old letters link to it), the old process ends, the new vendor's
+#          process carries the new id (role-failover.tst.sh tests the action).
 #   1. setup: every seat able, sat holds orch (c-001) and dispatch (c-002)
-#   2. BEFORE (control, LEASE_*_FALLBACK=none = the pre-SPL-2521 candidates):
-#      the claude logins expire on both boxes; 10 min later the hub still
-#      names the dead claude seats. Run with LEASE_SRC=<the old
-#      spl-dispatch-lease.func.sh> the whole file shows this red.
-#   3. AFTER: the same expiry. A fallback seat waits LEASE_STALE +
-#      LEASE_FALLBACK_WAIT (silent > 240 s) so a claude seat anywhere comes
-#      first; at most 300 s after the last renewal of the dead seat (LEASE_STALE
-#      + LEASE_FALLBACK_WAIT + one LEASE_PERIOD: the acceptance bound, no human
-#      step) grok holds both roles: g-001@sat orch, g-002@sat
-#      dispatch; told ACTIVE; the owner gets ONE DM for the orch failover.
-#   4. a fallback seat never takes a role from an able claude holder, even on
-#      a machine ranked first (vendor before rank)
-#   5. hand back: pc's claude login works again; pc's c-001/c-002 (vendor
-#      claude) outrank the grok holder on sat after LEASE_HOLDDOWN; then sat's
-#      claude is back and the old rank handback returns both roles to sat
-#   6. an able claude seat on another box takes before the grok fallback of
-#      the holder's own box (181 s, not 241 s)
-#   7. agy is the third step: claude and grok seats cannot act, a-001 takes
-#      orch only past LEASE_STALE + 2 x LEASE_FALLBACK_WAIT (300 s)
+#   2. BEFORE (control, LEASE_*_FALLBACK=none = no switch): the claude logins
+#      expire on both boxes; 10 min later the hub still names the dead claude
+#      seats and no switch was launched
+#   3. AFTER: the same expiry. No switch while the holder is silent <= 240 s
+#      (LEASE_STALE + LEASE_FALLBACK_WAIT, so a claude seat anywhere comes
+#      first); at most 300 s after the last renewal (+ one LEASE_PERIOD, no
+#      human step) each box switches its seat in place (c-001 -> g-001, c-002
+#      -> g-002), ONE launch per seat, and the next tick sat's grok holds both
+#      roles: g-001@sat orch, g-002@sat dispatch; the seat's new id is told
+#      ACTIVE; the owner gets ONE DM for the orch failover
+#   4. no switch while an able claude seat holds the role, even on a machine
+#      ranked first (vendor before rank)
+#   5. hand back: pc's seats back on claude (the rotation's handback) outrank
+#      the grok holder on sat after LEASE_HOLDDOWN; then sat's claude is back
+#      and the old rank handback returns both roles to sat
+#   6. an able claude seat on another box takes before the holder box's
+#      switch (181 s, not 241 s): no SWITCH on sat
+#   7. agy is the third step: the seat's grok cannot act either; it switches
+#      g-001 -> a-001 only past LEASE_STALE + 2 x LEASE_FALLBACK_WAIT (300 s),
+#      then a-001 holds orch
 #   8. spl_lease_agent_pid counts an agy process (comm agy)
+#   9. LEASE_ROLE_SWITCH=0 launches no switch; a failed switch (the seat
+#      unchanged) is launched again only after LEASE_SWITCH_RETRY
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -69,6 +76,23 @@ STUB
 printf '#!/bin/sh\nf="$PANE_DIR/$1"; [ -e "$f" ] || exit 1; exec cat "$f"\n' >"$T/bin/pane"
 printf '#!/bin/sh\nf="$TR_DIR/$1"; [ -e "$f" ] || exit 1; exec cat "$f"\n' >"$T/bin/tr"
 printf '#!/bin/sh\ncat >>"%s/owner-dm"\n' "$T" >"$T/bin/dm"
+# the in-place switch's effect (do_spl_role_failover), on the machine of
+# SPOOL_ROOT ($T/<m>/spool): c-00N -> g-00N, g-00N -> a-00N. SWITCH_FAIL=<vendor>:
+# nothing changes; SWITCH_BAD=<vendor>: the new process sits on a login picker.
+cat >"$T/bin/switch" <<'STUB'
+#!/usr/bin/env bash
+M="$(dirname "$SPOOL_ROOT")"; seat="$ROLE_FAILOVER_SEAT"; n="${seat#*-}"
+case "${seat%%-*}" in c) v=grok l=g base=300 ;; g) v=agy l=a base=400 ;; *) exit 0 ;; esac
+new="$l-$n"
+echo "$ROLE_FAILOVER_ROLE $seat -> $new silent=$ROLE_FAILOVER_SILENT" >>"$M/switches"
+[ "${SWITCH_FAIL:-}" = "$v" ] && exit 0
+R="$SPOOL_ROOT"; [ -L "$R/$new" ] && rm -f "$R/$new"; mkdir -p "$R/$new"
+for x in a c g; do [ "$x-$n" = "$new" ] || { rm -rf "${R:?}/$x-$n"; ln -s "$new" "$R/$x-$n"; }; done
+for d in "$M/proc"/*; do grep -qzx "SPOOL_AGENT_ID=$seat" "$d/environ" 2>/dev/null && rm -rf "$d"; done
+pid=$((base + 10#$n)); mkdir -p "$M/proc/$pid" "$M/pane"; echo "$v" >"$M/proc/$pid/comm"; printf 'SPOOL_AGENT_ID=%s\0' "$new" >"$M/proc/$pid/environ"
+[ "${SWITCH_BAD:-}" = "$v" ] && printf 'Select login method:\n\n ❯ 1. Account\n' >"$M/pane/$pid"
+exit 0
+STUB
 chmod +x "$T/bin/"*
 
 # agent <machine> <pid> <id> [comm]
@@ -76,13 +100,20 @@ agent() { mkdir -p "$T/$1/proc/$2" "$T/$1/pane" "$T/$1/tr"; echo "${4:-claude}" 
 # login_expired <machine> <pid>... / login_ok <machine> <pid>...: the 2026-10-05 fixtures
 login_expired() { local m="$1" p; shift; for p in "$@"; do cp "$FX/login-expired-2026-10-05.pane" "$T/$m/pane/$p"; cp "$FX/login-expired.jsonl" "$T/$m/tr/$p"; done; }
 login_ok() { local m="$1" p; shift; for p in "$@"; do rm -f "${T:?}/${m:?}/pane/${p:?}"; cp "$FX/good-turn.jsonl" "$T/$m/tr/$p"; done; }
-# cant_act <machine> <pid>...: a stuck dialog no key clears (a login picker)
-cant_act() { local m="$1" p; shift; for p in "$@"; do printf 'Select login method:\n\n ❯ 1. Claude account\n   2. Console account\n' >"$T/$m/pane/$p"; done; }
+# back_to_claude <machine> <pid> <seat>: the rotation's handback: the seat's
+# dir is the claude letter's again, a claude process carries it, able
+back_to_claude() {
+  local m="$1" p="$2" seat="$3" n="${3#*-}" R="$T/$1/spool" x d
+  for x in a g; do rm -rf "${R:?}/$x-$n"; done; rm -rf "${R:?}/$seat"; mkdir -p "$R/$seat"
+  for x in a g; do ln -s "$seat" "$R/$x-$n"; done
+  for d in "$T/$m/proc"/*; do grep -qzE "SPOOL_AGENT_ID=[ag]-$n" "$d/environ" 2>/dev/null && rm -rf "$d"; done
+  agent "$m" "$p" "$seat"; login_ok "$m" "$p"
+}
 
 reset() {
   rm -rf "${T:?}/sat" "${T:?}/pc" "${T:?}/hub" "${T:?}/owner-dm"; mkdir -p "$T/hub"
-  agent sat 200 c-001; agent sat 201 c-002; agent sat 202 c-003; agent sat 210 g-001 grok; agent sat 211 g-002 grok
-  agent pc 100 c-001; agent pc 101 c-002; agent pc 102 c-003; agent pc 110 g-001 grok; agent pc 111 g-002 grok
+  agent sat 200 c-001; agent sat 201 c-002; agent sat 202 c-003
+  agent pc 100 c-001; agent pc 101 c-002; agent pc 102 c-003
 }
 
 PRIO=sat,pc
@@ -93,7 +124,7 @@ tick() {
     LEASE_PANE_CMD="$T/bin/pane" PANE_DIR="$T/$m/pane" LEASE_TRANSCRIPT_CMD="$T/bin/tr" TR_DIR="$T/$m/tr" \
     LEASE_OWNER_CMD="$T/bin/dm" SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
     LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" LEASE_LIMIT_TZ=Etc/GMT-3 LEASE_HOLDDOWN=0 \
-    LEASE_ORCH=c-001 LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 "$@" bash -c '
+    LEASE_ORCH=c-001 LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 LEASE_SWITCH_RUN="$T/bin/switch" LEASE_SWITCH_SYNC=1 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$SRC"
@@ -106,99 +137,125 @@ hub2() { echo "$(hubh orch) $(hubh dispatch)"; }
 sentc() { grep -c -- "$2" "$T/$1/sent" 2>/dev/null || true; }
 logc() { grep -c -- "$2" "$T/$1/spool/dispatch/lease.log" 2>/dev/null || true; }
 dms() { grep -c '^Orchestrator failover' "$T/owner-dm" 2>/dev/null || true; }
+swc() { [[ -f "$T/$1/switches" ]] || { echo 0; return 0; }; grep -c -- "$2" "$T/$1/switches" || true; }
 
 # --- 1. setup ---------------------------------------------------------------------
 reset
 both 10000
 [[ "$(hub2)" == "c-001@sat c-002@sat" ]] && pass "1. every seat able: sat holds orch c-001 and dispatch c-002" || fail "1. hub: $(hub2) $(cat "$T/out")"
 
-# --- 2. BEFORE: no fallback, the lease stays on the dead claude seats ----------------
+# --- 2. BEFORE: no switch, the lease stays on the dead claude seats ----------------
 OFF=(LEASE_ORCH_FALLBACK=none LEASE_DISPATCH_FALLBACK=none)
 both 10060 "${OFF[@]}"
 login_expired sat 200 201 202; login_expired pc 100 101 102
 for n in 10120 10180 10240 10300 10360 10420 10480 10540 10600 10660; do both "$n" "${OFF[@]}"; done
-[[ "$(hub2)" == "c-001@sat c-002@sat" ]] &&
-  pass "2. CONTROL (no fallback, the pre-SPL-2521 rule): 600 s after the logins expired the hub still names the dead c-001@sat / c-002@sat" ||
-  fail "2. control: hub $(hub2)"
+[[ "$(hub2)" == "c-001@sat c-002@sat" && "$(swc sat .)" == 0 && "$(swc pc .)" == 0 ]] &&
+  pass "2. CONTROL (LEASE_*_FALLBACK=none: no switch): 600 s after the logins expired the hub still names the dead c-001@sat / c-002@sat, 0 switches" ||
+  fail "2. control: hub $(hub2) switches sat $(swc sat .) pc $(swc pc .)"
 
-# --- 3. AFTER: grok takes both roles within 300 s --------------------------------------
+# --- 3. AFTER: each seat switches in place; grok holds both roles ------------------------
 reset
 both 20000; both 20060
 login_expired sat 200 201 202; login_expired pc 100 101 102
 # the last renewal by an able seat was at 20060; tick every 60 s from there
 for n in 20120 20180 20240 20300; do both "$n"; done
-[[ "$(hub2)" == "c-001@sat c-002@sat" ]] &&
-  pass "3. 240 s after the last renewal no grok seat has taken a role yet (a claude seat anywhere takes at 181 s)" || fail "3. early: hub $(hub2)"
-[[ "$(logc sat 'FALLBACK-WAIT orch')" == 1 && "$(logc sat 'FALLBACK-WAIT dispatch')" == 1 ]] &&
-  pass "3. sat logs FALLBACK-WAIT once per role while it waits" || fail "3. wait log: $(cat "$T/sat/spool/dispatch/lease.log")"
+[[ "$(hub2)" == "c-001@sat c-002@sat" && "$(swc sat .)" == 0 && "$(swc pc .)" == 0 ]] &&
+  pass "3. 240 s after the last renewal no seat has switched yet (a claude seat anywhere takes at 181 s)" || fail "3. early: hub $(hub2) switches $(cat "$T/sat/switches" 2>&1)"
 both 20360
+[[ "$(swc sat '^orch c-001 -> g-001 silent=300$')" == 1 && "$(swc sat '^dispatch c-002 -> g-002 silent=300$')" == 1 &&
+   "$(swc pc '^orch c-001 -> g-001')" == 1 && "$(swc pc '^dispatch c-002 -> g-002')" == 1 ]] &&
+  pass "3. 300 s after the last renewal (bound: LEASE_STALE + LEASE_FALLBACK_WAIT + one LEASE_PERIOD) each box switches its seats in place: c-001 -> g-001, c-002 -> g-002" ||
+  fail "3. switch: sat $(cat "$T/sat/switches" 2>&1) pc $(cat "$T/pc/switches" 2>&1)"
+[[ "$(logc sat 'SWITCH orch: c-001 (claude) cannot act')" == 1 && "$(logc sat 'SWITCH dispatch: c-002 (claude) cannot act')" == 1 ]] &&
+  pass "3. lease.log names each switch" || fail "3. log: $(cat "$T/sat/spool/dispatch/lease.log")"
+both 20420
 dt=$(( $(cut -d' ' -f3 "$T/hub/main.orch") - 20060 ))
-[[ "$(hub2)" == "g-001@sat g-002@sat" ]] && (( dt <= 300 )) &&
-  pass "3. AFTER: grok holds orch g-001@sat and dispatch g-002@sat ${dt}s after the last renewal (bound: 300 s, no human step)" ||
+[[ "$(hub2)" == "g-001@sat g-002@sat" && "$dt" == 360 ]] &&
+  pass "3. AFTER: the next tick grok holds orch g-001@sat and dispatch g-002@sat (${dt}s after the last renewal, no human step)" ||
   fail "3. after: hub $(hub2) dt=$dt $(tail -5 "$T/sat/spool/dispatch/lease.log")"
-[[ "$(sentc sat 'g-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 && "$(sentc sat 'g-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 &&
-   "$(sentc sat 'c-001 :: FLEET LEASE orch: STANDBY')" == 1 ]] &&
-  pass "3. g-001 and g-002 are told ACTIVE once, c-001 STANDBY" || fail "3. sent: $(cat "$T/sat/sent")"
+[[ "$(sentc sat 'g-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 && "$(sentc sat 'g-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
+  pass "3. the seats' new ids g-001 and g-002 are told ACTIVE once" || fail "3. sent: $(cat "$T/sat/sent")"
 [[ "$(dms)" == 1 && "$(logc sat 'VENDOR orch: c-001@sat (claude) -> g-001@sat (grok)')" == 1 ]] &&
   pass "3. the owner gets ONE DM for the orch failover; lease.log names the vendor switch" || fail "3. dms $(dms): $(cat "$T/sat/spool/dispatch/lease.log")"
-for n in 20420 20480; do both "$n"; done
-[[ "$(hub2)" == "g-001@sat g-002@sat" && "$(dms)" == 1 ]] &&
-  pass "3. grok renews; pc's grok (same vendor, ranked second) leaves it" || fail "3. renew: hub $(hub2)"
+for n in 20480 20540 20600; do both "$n"; done
+[[ "$(hub2)" == "g-001@sat g-002@sat" && "$(dms)" == 1 && "$(swc sat .)" == 2 && "$(swc pc .)" == 2 ]] &&
+  pass "3. grok renews; pc's grok (same vendor, ranked second) leaves it; no second switch" || fail "3. renew: hub $(hub2) switches sat $(swc sat .) pc $(swc pc .)"
 
-# --- 4. vendor before rank: a fallback never takes from an able claude holder ------------
+# --- 4. vendor before rank: no switch while an able claude holds ------------------------
 reset
 login_expired pc 100 101 102
 both 30000
 for n in 30060 30120 30480 30900; do both "$n" LEASE_PRIORITY=pc,sat; done
-[[ "$(hub2)" == "c-001@sat c-002@sat" && "$(logc pc 'FLEET orch: none -> c-001@sat')" == 1 && "$(logc pc 'takes over')" == 0 ]] &&
-  pass "4. pc ranked first with only grok able never takes a role from sat's able claude seats" || fail "4. hub $(hub2): $(cat "$T/pc/spool/dispatch/lease.log")"
+[[ "$(hub2)" == "c-001@sat c-002@sat" && "$(logc pc 'takes over')" == 0 && "$(swc pc .)" == 0 ]] &&
+  pass "4. pc ranked first, its claude dead: sat's able claude keeps both roles, pc launches no switch" || fail "4. hub $(hub2) pc switches $(swc pc .): $(cat "$T/pc/spool/dispatch/lease.log")"
 
 # --- 5. hand back to claude ---------------------------------------------------------
 reset
 both 40000; login_expired sat 200 201 202; login_expired pc 100 101 102
-for n in 40060 40120 40180 40240 40300 40360; do both "$n"; done
+for n in 40060 40120 40180 40240 40300 40360 40420; do both "$n"; done
 [[ "$(hub2)" == "g-001@sat g-002@sat" ]] || fail "5. setup: hub $(hub2)"
-login_ok pc 100 101 102
-both 40420 LEASE_HOLDDOWN=120; both 40480 LEASE_HOLDDOWN=120
+back_to_claude pc 100 c-001; back_to_claude pc 101 c-002
+both 40480 LEASE_HOLDDOWN=120; both 40540 LEASE_HOLDDOWN=120
 [[ "$(hub2)" == "g-001@sat g-002@sat" && "$(logc pc 'HOLD orch: pc able 0s < LEASE_HOLDDOWN 120s: g-001@sat keeps it')" == 1 ]] &&
-  pass "5. pc's claude able again: grok keeps both roles inside LEASE_HOLDDOWN" || fail "5. hold: hub $(hub2) $(cat "$T/pc/spool/dispatch/lease.log")"
-both 40540 LEASE_HOLDDOWN=120
+  pass "5. pc's seats back on claude: grok keeps both roles inside LEASE_HOLDDOWN" || fail "5. hold: hub $(hub2) $(cat "$T/pc/spool/dispatch/lease.log")"
+both 40600 LEASE_HOLDDOWN=120
 [[ "$(hub2)" == "c-001@pc c-002@pc" ]] &&
   pass "5. after LEASE_HOLDDOWN pc's claude (vendor before rank) takes both roles back from sat's grok" || fail "5. handback: hub $(hub2)"
-both 40600 LEASE_HOLDDOWN=120; both 40660 LEASE_HOLDDOWN=120
+both 40660 LEASE_HOLDDOWN=120; both 40720 LEASE_HOLDDOWN=120
 [[ "$(sentc sat 'g-001 :: FLEET LEASE orch: STANDBY')" == 1 && "$(sentc pc 'c-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 &&
    "$(cut -d' ' -f1 "$T/sat/spool/dispatch/lease.orch")" == c-001@pc ]] &&
   pass "5. g-001 stood down (STANDBY), pc's c-001 told ACTIVE once" || fail "5. sent sat: $(cat "$T/sat/sent") pc: $(cat "$T/pc/sent")"
-login_ok sat 200 201 202
-for n in 40720 40780 40840 40900; do both "$n" LEASE_HOLDDOWN=120; done
+back_to_claude sat 200 c-001; back_to_claude sat 201 c-002
+for n in 40780 40840 40900 40960; do both "$n" LEASE_HOLDDOWN=120; done
 [[ "$(hub2)" == "c-001@sat c-002@sat" ]] &&
   pass "5. sat's claude back: the rank handback (unchanged) returns both roles to sat" || fail "5. rank: hub $(hub2)"
 
-# --- 6. a claude seat on another box comes before the holder box's grok -----------------
+# --- 6. a claude seat on another box comes before the holder box's switch ----------------
 reset
 both 50000
 login_expired sat 200 201 202
 for n in 50060 50120 50180; do both "$n"; done
 [[ "$(hub2)" == "c-001@sat c-002@sat" ]] || fail "6. early: hub $(hub2)"
-both 50240
-[[ "$(hub2)" == "c-001@pc c-002@pc" && "$(logc sat 'VENDOR')" == 0 ]] &&
-  pass "6. sat's claude dead, pc's able: pc's claude takes both at 181..240 s, sat's grok never does" || fail "6. hub $(hub2) $(cat "$T/sat/spool/dispatch/lease.log")"
+for n in 50240 50300 50360 50420; do both "$n"; done
+[[ "$(hub2)" == "c-001@pc c-002@pc" && "$(logc sat 'VENDOR')" == 0 && "$(swc sat .)" == 0 ]] &&
+  pass "6. sat's claude dead, pc's able: pc's claude takes both at 181..240 s, sat never switches" || fail "6. hub $(hub2) switches $(swc sat .) $(cat "$T/sat/spool/dispatch/lease.log")"
 
 # --- 7. agy, the third step -------------------------------------------------------------
 reset
-agent pc 120 a-001 agy
-both 60000
-cant_act sat 210 211; cant_act pc 110 111
+both 60000; both 60060
 login_expired sat 200 201 202; login_expired pc 100 101 102
-for n in 60060 60120 60180 60240 60300; do both "$n"; done
-[[ "$(hubh orch)" == c-001@sat ]] && pass "7. agy waits past grok's 240 s (silent 300 s, still c-001@sat)" || fail "7. early: hub $(hub2)"
-both 60360
-[[ "$(hubh orch)" == a-001@pc ]] &&
-  pass "7. claude and grok cannot act anywhere: agy a-001@pc holds orch (> LEASE_STALE + 2 x 60 s)" || fail "7. hub $(hub2) $(cat "$T/pc/spool/dispatch/lease.log")"
+for n in 60120 60180 60240 60310; do both "$n" SWITCH_BAD=grok; done
+[[ "$(swc sat '^orch c-001 -> g-001 silent=250$')" == 1 && "$(hubh orch)" == c-001@sat ]] &&
+  pass "7. silent 250 s: the seat switched to grok, whose new session cannot act either (still c-001@sat)" || fail "7. grok step: hub $(hub2) $(cat "$T/sat/switches" 2>&1)"
+both 60350 SWITCH_BAD=grok
+[[ "$(swc sat '^orch g-001 -> a-001')" == 0 && "$(hubh orch)" == c-001@sat ]] &&
+  pass "7. agy waits past 300 s (silent 290 s, grok cannot act: no g-001 -> a-001 yet)" || fail "7. early agy: $(cat "$T/sat/switches")"
+both 60370 SWITCH_BAD=grok
+[[ "$(swc sat '^orch g-001 -> a-001 silent=310$')" == 1 ]] &&
+  pass "7. silent 310 s > LEASE_STALE + 2 x 60 s: the seat switches g-001 -> a-001 in place" || fail "7. agy switch: $(cat "$T/sat/switches")"
+both 60430 SWITCH_BAD=grok
+[[ "$(hubh orch)" == a-001@sat ]] &&
+  pass "7. claude and grok cannot act anywhere: agy a-001@sat holds orch" || fail "7. hub $(hub2) $(cat "$T/sat/spool/dispatch/lease.log")"
 
 # --- 8. an agy process counts -----------------------------------------------------------
-got="$(env SRC="$SRC" LEASE_PROC_ROOT="$T/pc/proc" bash -c 'do_log() { :; }; source "$SRC"; spl_lease_agent_pid a-001' 2>&1)"
+agent pc 120 a-009 agy
+got="$(env SRC="$SRC" LEASE_PROC_ROOT="$T/pc/proc" bash -c 'do_log() { :; }; source "$SRC"; spl_lease_agent_pid a-009' 2>&1)"
 [[ "$got" == 120 ]] && pass "8. spl_lease_agent_pid finds the agy process" || fail "8. agy pid: '$got'"
+
+# --- 9. the switch off; a failed switch retried after LEASE_SWITCH_RETRY -------------------
+reset
+both 70000; login_expired sat 200 201 202; login_expired pc 100 101 102
+for n in 70060 70120 70180 70240 70300 70360 70420; do both "$n" LEASE_ROLE_SWITCH=0; done
+[[ "$(swc sat .)" == 0 && "$(hub2)" == "c-001@sat c-002@sat" ]] &&
+  pass "9. LEASE_ROLE_SWITCH=0: no switch launched" || fail "9. off: $(cat "$T/sat/switches" 2>&1)"
+reset
+both 80000; login_expired sat 200 201 202; login_expired pc 100 101 102
+for n in 80060 80120 80180 80240 80300; do both "$n" SWITCH_FAIL=grok; done
+[[ "$(swc sat '^orch c-001 -> g-001 silent=300$')" == 1 ]] || fail "9. first try: $(cat "$T/sat/switches" 2>&1)"
+both 80360 SWITCH_FAIL=grok
+[[ "$(swc sat '^orch c-001 -> g-001')" == 1 ]] && pass "9. a failed switch is not launched again inside LEASE_SWITCH_RETRY (120 s)" || fail "9. retry early: $(cat "$T/sat/switches")"
+both 80420 SWITCH_FAIL=grok
+[[ "$(swc sat '^orch c-001 -> g-001')" == 2 ]] && pass "9. ... and launched again once it has run" || fail "9. retry: $(cat "$T/sat/switches")"
 
 (( fails == 0 )) && { echo "PASS: all fleet-lease-vendor-failover.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease-vendor-failover.tst.sh assertion(s)"; exit 1

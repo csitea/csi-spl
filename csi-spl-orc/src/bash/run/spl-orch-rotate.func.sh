@@ -62,7 +62,7 @@ do_spl_orch_rotate() {
   spl_rotate_conf || return 1
   spl_is_agent_id "${LEASE_ORCH:-}" || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
   # the old and the new session may be different vendors (spl_orch_rotate_vendor)
-  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral}"
+  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"
   ROTATE_MIX_JOURNAL="${ROTATE_MIX_JOURNAL:-$LEASE_DIR/rotate.orch.mix.tsv}"
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_orch_rotate_auto ;;
@@ -92,16 +92,7 @@ spl_orch_rotate_auto() {
   spl_orch_rotate_left "$rid" || return 1
   [[ "$ROTATE_GO" == 1 ]] || return 0
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
-  if [[ -n "${LEASE_FLEET:-}" ]]; then
-    holder="$(spl_orch_rotate_holder)"
-    # the hub writes the holder under the NEW id once the alias exists
-    # (c-001@box-desk while lease.conf says CLE-001: every rotation skipped);
-    # a standby with a switch pending switches too, so both boxes move
-    if [[ "$holder" != "$id@$ROTATE_BOX" && ( -z "$new" || "$holder" != "$new@$ROTATE_BOX" ) ]]; then
-      [[ -n "$new" ]] || { spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 0; }
-      spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id -> $new is pending: switching this machine's session"
-    fi
-  fi
+  spl_orch_rotate_standby_gate "$rid" "$id" "$new" || return 0
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
   fi
@@ -154,6 +145,26 @@ spl_orch_rotate_auto() {
   spl_orch_rotate_run || return 1
 }
 
+# spl_orch_rotate_standby_gate RID ID NEW: fleet mode, this machine not the
+# orch holder: 1 (logged SKIP) unless a switch is pending. The hub writes the
+# holder under the NEW id once the alias exists (c-001@box-desk while
+# lease.conf says CLE-001: every rotation skipped); a standby with a switch
+# pending switches too, so both boxes move; a failover seat (SPL-2544) of a
+# standby box is handed back once claude can act.
+spl_orch_rotate_standby_gate() {
+  local rid="$1" id="$2" new="$3" holder
+  [[ -n "${LEASE_FLEET:-}" ]] || return 0
+  holder="$(spl_orch_rotate_holder)"
+  [[ "$holder" != "$id@$ROTATE_BOX" && ( -z "$new" || "$holder" != "$new@$ROTATE_BOX" ) ]] || return 0
+  if [[ -n "$new" ]]; then
+    spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id -> $new is pending: switching this machine's session"
+  elif spl_rotate_failover_due "$id"; then
+    spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id is a failover seat and claude can act again: handing it back"
+  else
+    spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 1
+  fi
+}
+
 # spl_orch_rotate_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY: the successor's
 # vendor. Owner HUM-10 (msgs a1e5c678, ff1baf01) made orchestrating a task
 # kind, cnf agent_split_by_kind.orchestration. ROTATE_ORCH_SPLIT=0 (default):
@@ -165,10 +176,12 @@ spl_orch_rotate_auto() {
 # pick (hold, no answer) or a vendor outside claude/grok/mistral = claude.
 # A non-claude pick the fleet lease would not count as the holder
 # (spl_rotate_lease_sees) = claude: the role would lose its lease.
-# ROTATE_ROLE_VENDOR, when set, decides first (spl_rotate_role_vendor).
+# ROTATE_ROLE_VENDOR, when set, decides first (spl_rotate_role_vendor); a
+# seat an in-place failover moved before that (spl_rotate_failover_vendor).
 spl_orch_rotate_vendor() {
   local out pick why
   ROTATE_KIND=claude
+  spl_rotate_failover_vendor "$LEASE_ORCH" && return 0
   spl_rotate_role_vendor && return 0
   if [[ "${ROTATE_ORCH_SPLIT:-0}" != 1 ]]; then
     ROTATE_VENDOR_WHY="ROTATE_ORCH_SPLIT=0: claude"; return 0

@@ -12,6 +12,8 @@
 #   spl_rotate_grok_why                     why grok cannot take a role seat (lane-mix, its limit, the lease); nothing = it can
 #   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
 #   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
+#   spl_rotate_failover_vendor ID           a seat do_spl_role_failover moved: claude once claude can act, else it stays (SPL-2544)
+#   spl_rotate_failover_due ID              that seat, and claude can act again: the handback is due
 #   spl_rotate_conf_flip KEY OLD NEW        lease.conf KEY=OLD -> NEW and the shell's KEY
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
 #   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
@@ -309,6 +311,52 @@ spl_rotate_seat_switch() {
   out="$(${ROTATE_SEAT_SWITCH:-bash "$ROTATE_FEAT/scripts/role-seat-switch.sh"} --apply --desk-envs "${ROTATE_SWITCH_DESK_ENVS-dev prd}" "$1" "$2" 2>&1 7>&- 8>&- 9>&-)" ||
     { ROTATE_ERR="the seat switch $1 -> $2 failed: $(tr '\n' ' ' <<<"$out" | cut -c1-300)"; return 1; }
   ROTATE_SWITCH_OUT="$(grep -c '^DO ' <<<"$out" || true) step(s)"
+}
+
+# ---- the in-place vendor failover (SPL-2544) ------------------------------------
+# do_spl_role_failover (spl-role-failover.func.sh) switches a role seat that
+# cannot act to the next vendor IN PLACE and records it in
+# <lease dir>/role-failover/seat.<NNN>: "<from> <to> <vendor> <rid> <epoch>".
+# The hourly rotation hands the seat back: its successor is claude once
+# claude can act again (spl_rotate_claude_out says nothing), else the seat
+# keeps its vendor, so a rotation never hands a role to a claude that still
+# cannot act. The record goes once the seat runs as a claude id again.
+
+# spl_rotate_failover_seat ID: 0 and the record when ID is the id a failover
+# switched its seat to and ID still runs it. A record whose seat is a claude
+# id again is removed (the handback is done).
+spl_rotate_failover_seat() {
+  local id="${1%%@*}" n f from to rest
+  n="$(spl_role_seat_num "$id" 2>/dev/null)" || return 1
+  f="$LEASE_DIR/role-failover/seat.$n"
+  [[ -s "$f" ]] || return 1
+  read -r from to rest < "$f" || return 1
+  if [[ "$to" != "$id" ]]; then
+    [[ "$(spl_fleet_vendor "$id")" == claude ]] && rm -f "$f"
+    return 1
+  fi
+  echo "$from $to $rest"
+}
+
+# spl_rotate_failover_vendor ID -> ROTATE_KIND, ROTATE_VENDOR_WHY for a seat
+# a failover moved (spl_rotate_failover_seat); non-zero for any other seat.
+# shellcheck disable=SC2034 # ROTATE_KIND / ROTATE_VENDOR_WHY are read by the caller
+spl_rotate_failover_vendor() {
+  local rec cwhy kind
+  rec="$(spl_rotate_failover_seat "$1")" || return 1
+  cwhy="$(spl_rotate_claude_out)"
+  if [[ -z "$cwhy" ]]; then
+    ROTATE_KIND=claude ROTATE_VENDOR_WHY="failover seat $1 (switched from ${rec%% *}): claude can act again: the handback"
+    return 0
+  fi
+  kind="$(spl_fleet_vendor "${1%%@*}")"
+  ROTATE_KIND="$kind" ROTATE_VENDOR_WHY="failover seat $1: claude still cannot act ($cwhy): $kind stays"
+}
+
+# spl_rotate_failover_due ID: 0 when ID is a failover seat and claude can act again.
+spl_rotate_failover_due() {
+  spl_rotate_failover_seat "$1" >/dev/null || return 1
+  [[ -z "$(spl_rotate_claude_out)" ]]
 }
 
 # spl_rotate_conf_flip KEY OLD NEW: lease.conf KEY=OLD -> KEY=NEW (a backup
@@ -899,7 +947,7 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 spl_rotate_spawn() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG=""
-  # no old window (a seat with no session yet, do_spl_role_fallback_up): no
+  # no old window (a seat whose process is gone, do_spl_role_failover): no
   # rename, and spawn-window picks the session (SPOOL_SESSION, else the attached one)
   sess="${SPOOL_SESSION:-}"
   if [[ -n "${ROTATE_OLD_PANE:-}" ]]; then

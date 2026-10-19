@@ -61,9 +61,10 @@
 # @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
 # @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
 # @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
-# @param LEASE_ORCH_FALLBACK / LEASE_DISPATCH_FALLBACK (optional) - fleet mode (SPL-2521): the seats, comma-separated, that take the role when none of LEASE_ORCH (orch) / LEASE_MASTER, LEASE_FAILOVER (dispatch) is able, in order; default g-001,a-001 / g-002,g-003,a-002,a-003; none = off (env or lease.conf)
+# @param LEASE_ORCH_FALLBACK / LEASE_DISPATCH_FALLBACK (optional) - fleet mode (SPL-2544): the VENDORS, comma-separated, the role's seat (LEASE_ORCH / LEASE_MASTER) switches to IN PLACE when no seat of the role can act (do_spl_role_failover); default LEASE_VENDOR_ORDER; a legacy id list (g-001,a-001) reads as its letters' vendors; none = off (env or lease.conf)
 # @param LEASE_VENDOR_ORDER (optional) - fleet mode: the vendors, best first, default claude,grok,agy (owner: "the order is claude -> grok -> agy"); a holder of a better vendor outranks any machine rank (env or lease.conf)
-# @param LEASE_FALLBACK_WAIT (optional) - fleet mode: a fallback-vendor seat takes a role only when the holder has been silent LEASE_STALE + this many s per step down the vendor order (grok 1x, agy 2x), so an able claude seat on any box takes it first; default 60 (env or lease.conf)
+# @param LEASE_FALLBACK_WAIT (optional) - fleet mode: a seat switches to the next vendor (and a seat of a worse vendor takes a role) only when the holder has been silent LEASE_STALE + this many s per step down the vendor order (grok 1x, agy 2x), so an able claude seat on any box takes it first; default 60 (env or lease.conf)
+# @param LEASE_ROLE_SWITCH (optional) - fleet mode: 0 turns the in-place vendor switch off; LEASE_SWITCH_RETRY (default 120 s) between two launches for one seat; LEASE_SWITCH_RUN (tests) replaces ./run, LEASE_SWITCH_SYNC=1 runs it in the foreground; off under SPOOL_TEST=1 or a fake LEASE_PROC_ROOT unless LEASE_SWITCH_RUN is set
 # @param LEASE_HOLDDOWN (optional) - fleet mode: a rank handback waits until this machine's candidate has been able this many s without a break (spec 092), default 300, 0 = at once
 # @param LEASE_INTERMITTENT (optional) - fleet mode: boxes, comma-separated, that lose power routinely (a laptop): a listed box never hands back by rank, it takes a role only when empty or stale (env or lease.conf)
 # @param LEASE_DESK_GATE / LEASE_DESK_DIR (optional) - fleet mode: 0 turns off the desk gate of the dispatch role (spec 092 FR-002); LEASE_DESK_DIR replaces the desk dir it reads (default <state>/desk/LEASE_TENANT/LEASE_DESK_BOX)
@@ -78,6 +79,9 @@
 # this machine's desk box id (specs/058), also when sourced on its own
 declare -F spl_desk_box_default >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-desk-box.func.sh"
+# the role seat list (SPL_ROLE_SEAT_RX), its one home
+[[ -n "${SPL_ROLE_SEAT_RX:-}" ]] ||
+  source "${BASH_SOURCE[0]%/*}/../features/spawn-agents/lib/spool-env.inc.sh"
 SPL_BOX_HEALTH_SRC="${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-box-health.func.sh"
 declare -F spl_box_health_verdicts >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-box-health.func.sh"
@@ -1325,8 +1329,8 @@ spl_fleet_alert_post() {
   return 2
 }
 
-# This machine's live candidate for a role (empty = none): the local order,
-# then the role's fallback seats (SPL-2521, below).
+# This machine's live candidate for a role (empty = none): the local order
+# (spl_fleet_role_agents).
 spl_fleet_candidate() {
   local id desk
   # the dispatcher is the seat that posts: no desk that can post, no candidate (spec 092 FR-002)
@@ -1350,7 +1354,7 @@ spl_fleet_try() {
   return 1
 }
 
-# ---- the vendor fallback (SPL-2521, owner HUM-10 t1 b3e90079) -----------------
+# ---- the vendor fallback (SPL-2521, SPL-2544; owner HUM-10 t1 b3e90079) -------
 # 2026-10-19: "there was login on the claude and ... grok should have been able
 # to take over the orchestration, but it did not". The candidates were the
 # claude ids of lease.conf only (LEASE_ORCH; LEASE_MASTER, LEASE_FAILOVER), so
@@ -1359,33 +1363,118 @@ spl_fleet_try() {
 # msg dfe76b16: "if the leading orchestrator is having logi isseus or whatever
 # error the backup orchestrator should kick - in , and the order is claude ->
 # grok -> agy". Now:
-# - each role has fallback seats after its own ids (LEASE_ORCH_FALLBACK,
-#   default g-001,a-001; LEASE_DISPATCH_FALLBACK, default
-#   g-002,g-003,a-002,a-003), judged by the same able + stuck test;
+# - the role's seat SWITCHES VENDOR IN PLACE (SPL-2544): one seat, one real
+#   spool dir, one inbox (role-seat-switch.sh, SPL-1685). SPL-2521/2532 ran
+#   separate standby seats g-001, a-001, ... instead; on the boxes those ids
+#   are links to the claude seats' dirs, so a standby start wrote over a
+#   claude seat's prompt (2026-10-19 09:5xZ) and, refused since SPL-2541,
+#   none could start. Now no second process: when no seat of the role on
+#   this machine can act (the able + stuck test) and the holder is silent
+#   past the next vendor's wait (below), the lease launches
+#   do_spl_role_failover, which starts that vendor IN the seat under the
+#   rotation's lock (spl-role-failover.func.sh). LEASE_ORCH_FALLBACK /
+#   LEASE_DISPATCH_FALLBACK list the vendors (default LEASE_VENDOR_ORDER);
 # - a holder's vendor (its id letter) ranks before the machine rank
 #   (LEASE_VENDOR_ORDER, default claude,grok,agy): an able claude seat on any
 #   box takes the role back from a grok or agy holder (the handback, with its
-#   LEASE_HOLDDOWN), and a fallback seat never takes it from a better vendor;
-# - a fallback seat takes a role only when its holder has been silent
-#   LEASE_STALE + LEASE_FALLBACK_WAIT (60 s) per step down the order: grok at
-#   240 s, agy at 300 s. So an able claude seat on another box, which takes at
-#   LEASE_STALE, comes first. A machine holding a role with a better vendor
-#   than its best able seat stops renewing and waits the same way
-#   (FALLBACK-WAIT, logged once).
-# Worst case from the last renewal of a seat that cannot act to grok holding
-# it: LEASE_STALE + LEASE_FALLBACK_WAIT + one LEASE_PERIOD = 300 s (defaults).
+#   LEASE_HOLDDOWN), and a seat of a worse vendor never takes it from a better one;
+# - a seat switches to the next vendor (and a worse-vendor seat takes a role)
+#   only when the holder has been silent LEASE_STALE + LEASE_FALLBACK_WAIT
+#   (60 s) per step down the order: grok at 240 s, agy at 300 s. So an able
+#   claude seat on another box, which takes at LEASE_STALE, comes first. A
+#   machine holding a role with a better vendor than its best able seat stops
+#   renewing and waits the same way (FALLBACK-WAIT, logged once).
+# From the last renewal of a seat that cannot act to the switch: LEASE_STALE
+# + LEASE_FALLBACK_WAIT + one LEASE_PERIOD = 300 s (defaults); the new
+# vendor's start (do_spl_role_failover: ROTATE_START_WAIT, the start check,
+# ROLE_FAILOVER_SETTLE) and one more tick follow.
 
-# spl_fleet_fallback <role>: the role's fallback seats, space-separated, minus
-# its own ids; "none" = no fallback.
+# spl_fleet_fallback <role>: the vendors the role's seat may switch to, in
+# order, space-separated: LEASE_<ROLE>_FALLBACK, else LEASE_VENDOR_ORDER; an id
+# in the list (the SPL-2521 form, g-001) reads as its letter's vendor; "none"
+# = no switch.
 spl_fleet_fallback() {
-  local k="LEASE_${1^^}_FALLBACK" def="" v id own out=""
-  case "$1" in orch) def=g-001,a-001; own=" $LEASE_ORCH " ;; dispatch) def=g-002,g-003,a-002,a-003; own=" $LEASE_MASTER $LEASE_FAILOVER " ;; esac
-  v="${!k:-$def}"
+  local k="LEASE_${1^^}_FALLBACK" v x out=" "
+  v="${!k:-${LEASE_VENDOR_ORDER:-claude,grok,agy}}"
   [[ "$v" == none ]] && return 0
-  for id in ${v//,/ }; do
-    [[ "$id" =~ ^[A-Za-z0-9_-]+$ && "$own $out " != *" $id "* ]] && out+="${out:+ }$id"
+  for x in ${v//,/ }; do
+    [[ "$x" =~ ^[a-z]-[0-9]+$|^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] && x="$(spl_fleet_vendor "$x")"
+    [[ "$x" =~ ^(claude|grok|agy|mistral|qwen)$ && "$out" != *" $x "* ]] && out+="$x "
   done
-  echo "$out"
+  out="${out# }"; echo "${out% }"
+}
+
+# spl_fleet_switch_next <role> <seat>: the first vendor of spl_fleet_fallback
+# ranked after <seat>'s vendor (LEASE_VENDOR_ORDER); nothing = none left.
+spl_fleet_switch_next() {
+  local st v
+  st="$(spl_fleet_tier "$2")"
+  for v in $(spl_fleet_fallback "$1"); do
+    (( $(spl_fleet_tier "$(spl_fleet_vendor_id "$v")") > st )) && { echo "$v"; return 0; }
+  done
+  return 0
+}
+
+# spl_fleet_vendor_id <vendor>: a probe id in its letter (claude -> c-0, ...).
+spl_fleet_vendor_id() {
+  case "$1" in claude) echo c-0 ;; grok) echo g-0 ;; agy) echo a-0 ;; mistral) echo m-0 ;; qwen) echo q-0 ;; *) echo x-0 ;; esac
+}
+
+# spl_fleet_role_seat <role>: the seat a switch moves, as it runs now
+# (spl_fleet_seat_id): orch LEASE_ORCH, dispatch LEASE_MASTER.
+spl_fleet_role_seat() {
+  case "$1" in orch) spl_fleet_seat_id "$LEASE_ORCH" ;; dispatch) spl_fleet_seat_id "$LEASE_MASTER" ;; esac
+}
+
+# spl_fleet_switch_tick <role>: no seat of the role can act on this machine.
+# Past the next vendor's wait (the holder silent > LEASE_STALE + its tier x
+# LEASE_FALLBACK_WAIT; a role never held is a setup, not a stall), launch the
+# in-place switch of the role's seat (do_spl_role_failover), at most once per
+# LEASE_SWITCH_RETRY s per seat. A dispatch desk that cannot post is no
+# vendor's fault: no switch.
+spl_fleet_switch_tick() {
+  local role="$1" seat next wait f at="" was="" now
+  spl_fleet_switch_on || return 0
+  (( FG > 0 )) || return 0
+  [[ "$role" != dispatch ]] || spl_fleet_desk_able >/dev/null || return 0
+  seat="$(spl_fleet_role_seat "$role")"
+  [[ "$seat" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
+  next="$(spl_fleet_switch_next "$role" "$seat")"
+  if [[ -z "$next" ]]; then
+    spl_fleet_once "$role.switch-none" "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act and no vendor is left after it (fallback: '$(spl_fleet_fallback "$role")')"
+    return 0
+  fi
+  wait=$(( LEASE_STALE + $(spl_fleet_tier "$(spl_fleet_vendor_id "$next")") * ${LEASE_FALLBACK_WAIT:-60} ))
+  (( FA > wait )) || return 0
+  now="$(spl_lease_now)"; f="$LEASE_DIR/fleet.$role.switch"
+  [[ -s "$f" ]] && read -r at was _ < "$f"
+  [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < ${LEASE_SWITCH_RETRY:-120} )) && return 0
+  echo "$now $seat $next" > "$f"
+  spl_lease_log "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${FA}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
+  spl_fleet_switch_start "$role" "$seat" "$FA"
+}
+
+# 0 when this loop may launch a switch: LEASE_ROLE_SWITCH (default 1); a
+# sandbox (SPOOL_TEST=1, a fake LEASE_PROC_ROOT) only with a LEASE_SWITCH_RUN stub.
+spl_fleet_switch_on() {
+  [[ "${LEASE_ROLE_SWITCH:-1}" == 1 ]] || return 1
+  [[ -n "${LEASE_SWITCH_RUN:-}" ]] && return 0
+  [[ "${SPOOL_TEST:-0}" != 1 && -z "${LEASE_PROC_ROOT:-}" ]]
+}
+
+# spl_fleet_switch_start <role> <seat> <silent>: do_spl_role_failover in its
+# own process (a start waits minutes; the lease tick never does), the lease's
+# ids dropped from its env so it reads lease.conf as it is now.
+spl_fleet_switch_start() {
+  local -a cmd=(env -u LEASE_ORCH -u LEASE_MASTER -u LEASE_FAILOVER SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
+    ROLE_FAILOVER_ROLE="$1" ROLE_FAILOVER_SEAT="$2" ROLE_FAILOVER_SILENT="$3" DRY_RUN=0
+    timeout "${LEASE_SWITCH_TIMEOUT:-1800}" "${LEASE_SWITCH_RUN:-$PROJ_PATH/run}" -a do_spl_role_failover)
+  if [[ "${LEASE_SWITCH_SYNC:-0}" == 1 ]]; then
+    "${cmd[@]}" >>"$LEASE_DIR/role-failover.out" 2>&1 7>&- 8>&- </dev/null || true
+    return 0
+  fi
+  ( "${cmd[@]}" >>"$LEASE_DIR/role-failover.out" 2>&1 7>&- 8>&- </dev/null & ) 2>/dev/null
+  return 0
 }
 
 # spl_fleet_vendor <id>: the vendor its letter names (c- and the legacy CLE- claude).
@@ -1430,6 +1519,19 @@ spl_fleet_desk_able() {
   [[ -n "$ts" && -n "$started" ]] && at="$(date -d "$ts" +%s 2>/dev/null)" && (( at < started )) &&
     { echo "desk: sidecar pid=$pid (re)started, no session up since"; return 1; }
   return 0
+}
+
+# spl_fleet_seat_id <id>: the id that runs <id>'s role seat now. A role seat
+# has ONE real spool dir; the other letters link to it (role-seat-switch.sh,
+# SPL-1685): <id> a link to a sibling letter of the same seat = that letter.
+# Anything else is <id> itself. So the lease follows an in-place switch at its
+# next tick, before lease.conf (read once per loop) catches up.
+spl_fleet_seat_id() {
+  local id="$1" r="${SPOOL_ROOT:-/var/spool-hub}" t
+  [[ "$id" =~ ^${SPL_ROLE_SEAT_RX}$ && -L "$r/$id" ]] || { echo "$id"; return 0; }
+  t="$(readlink "$r/$id")"; t="${t##*/}"
+  [[ "$t" =~ ^${SPL_ROLE_SEAT_RX}$ && "${t#*-}" == "${id#*-}" && -d "$r/$t" && ! -L "$r/$t" ]] && { echo "$t"; return 0; }
+  echo "$id"
 }
 
 # Is <box> listed in LEASE_INTERMITTENT (a box that loses power routinely)?
@@ -1597,9 +1699,13 @@ spl_fleet_why() {
 }
 
 # The local agents of a role, in order (who hears ACTIVE / STANDBY): its own
-# ids, then its fallback seats (SPL-2521).
+# ids, each as its seat runs it now (spl_fleet_seat_id: c-001 switched in
+# place to grok is g-001). No separate fallback seats (SPL-2544).
 spl_fleet_role_agents() {
-  case "$1" in orch) echo "$LEASE_ORCH $(spl_fleet_fallback orch)" ;; dispatch) echo "$LEASE_MASTER $LEASE_FAILOVER $(spl_fleet_fallback dispatch)" ;; esac
+  case "$1" in
+    orch) spl_fleet_seat_id "$LEASE_ORCH" ;;
+    dispatch) echo "$(spl_fleet_seat_id "$LEASE_MASTER") $(spl_fleet_seat_id "$LEASE_FAILOVER")" ;;
+  esac
 }
 
 spl_fleet_mirror_file() { [[ "$1" == dispatch ]] && echo "$LEASE_FILE" || echo "$LEASE_FILE.$1"; }
@@ -1633,6 +1739,7 @@ spl_fleet_role_tick() {
   wait=$(( LEASE_STALE + ct * ${LEASE_FALLBACK_WAIT:-60} ))
   if [[ -z "$cand" ]]; then
     [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
+    spl_fleet_switch_tick "$role"
   elif (( FG == 0 )) || { [[ "$hm" == "$me" ]] && (( ct <= ht )); }; then
     want="$cand@$me"
   elif [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then

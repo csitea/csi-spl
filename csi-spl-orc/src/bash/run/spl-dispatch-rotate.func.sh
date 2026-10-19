@@ -72,7 +72,7 @@ do_spl_dispatch_rotate() {
   ROTATE_ACK_TIMEOUT="${ROTATE_ACK_TIMEOUT:-600}"
   spl_rotate_conf || return 1
   # the old and the new session may be different vendors (ROTATE_ROLE_VENDOR)
-  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral}"
+  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"
   : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
   spl_is_agent_id "${LEASE_MASTER:-}" && spl_is_agent_id "${LEASE_FAILOVER:-}" &&
      [[ "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
@@ -286,6 +286,8 @@ spl_disp_standby_swap() {
     pid="$(spl_rotate_pids "$id" | sed -n 1p)"
     [[ -n "$pid" ]] || continue
     why="$(spl_disp_seat_out "$id" "$pid")"
+    # a failover seat (SPL-2544) goes back to claude once claude can act
+    [[ -n "$why" ]] || ! spl_rotate_failover_due "$id" || why="a failover seat and claude can act again (the handback)"
     [[ -n "$why" ]] || continue
     n=$((n + 1))
     spl_disp_standby_one "$base-$role" "$role" "$id" "$pid" "$why" || rc=$?
@@ -334,7 +336,7 @@ spl_disp_standby_say() {
 spl_disp_standby_one() {
   local rid="$1" role="$2" id="$3" pid="$4" why="$5" was pane new rc=0
   was="$(spl_disp_seat_vendor "$id")"
-  spl_disp_vendor
+  spl_disp_vendor "$id"
   if [[ "$ROTATE_KIND" == "$was" ]]; then
     spl_disp_standby_say "$rid" "$id ($was) is out ($why), but its successor would be $was too ($ROTATE_VENDOR_WHY): no replacement"
     return 0
@@ -389,7 +391,7 @@ spl_disp_once() {
 
 spl_disp_plan() {
   local rid="$1" m="$2" mpid="$3" pane="$4" age="$5" f="$6" fpid="$7"
-  spl_disp_vendor
+  spl_disp_vendor "$m"
   spl_rotate_log "$rid" GATE PLAN "pass: $m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
   spl_rotate_log "$rid" HOLD PLAN "$LEASE_DIR/rotate.hold = $m; the lease moves to $f (wait ${ROTATE_PROMOTE_WAIT}s)"
   spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
@@ -482,9 +484,12 @@ spl_disp_release() {
 
 # ---- one role: QUIESCE .. CLOSE ------------------------------------------------
 
-# spl_disp_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY: claude, unless
-# ROTATE_ROLE_VENDOR names the seats' vendor (spl_rotate_role_vendor).
+# spl_disp_vendor [ID] -> ROTATE_KIND, ROTATE_VENDOR_WHY: claude, unless
+# ID (default: this rotation's seat) is a seat an in-place failover moved
+# (spl_rotate_failover_vendor, SPL-2544) or ROTATE_ROLE_VENDOR names the
+# seats' vendor (spl_rotate_role_vendor).
 spl_disp_vendor() {
+  spl_rotate_failover_vendor "${1:-$(spl_rotate_role_id "$(spl_disp_role)")}" && return 0
   spl_rotate_role_vendor && return 0
   ROTATE_KIND=claude ROTATE_VENDOR_WHY="dispatch seats: claude"
 }
@@ -504,7 +509,7 @@ spl_disp_run() {
   fi
   chmod 0640 "$seed" 2>/dev/null || true
   spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
-  spl_disp_vendor
+  spl_disp_vendor "$id"
   local new
   if new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
     # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);

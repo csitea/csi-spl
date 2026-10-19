@@ -6,6 +6,8 @@
 # SPAWN_PLAN_DIR/prompt.txt) and asserts the ACCEPTED-gated closing line, in
 # place of the old "report and /exit-clean". Control: the same launchers with
 # the old closing line (SPAWN_EXIT_RULE set back to it) -> the gate is missing.
+# The waiting lane schedules no poll of its own (SPL-2608: a vibe loop tripped
+# the watchdog S5 rule); the control seed lacks that sentence.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -14,6 +16,7 @@ export SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>'
 GATE="Run /exit-clean (the exit-clean skill) ONLY on a spool message on your task whose body starts with ACCEPTED (dispatch holder or spawner), never on your own done."
 IDLE="When your task is verified done: send your result, then stay idle and answer send-backs."
 OLD="When your task is verified done: report and /exit-clean."
+NOPOLL="While waiting, never schedule your own poll (vendor loop, /loop, cron, sleep): the spool poke wakes you."
 echo brief > "$T_TMP/brief.md"
 
 # The control tree: this feature's scripts and lib, the closing line as before.
@@ -35,8 +38,10 @@ for k in claude grok agy qwen mistral; do
   has "$k: the seed says report, then stay idle for send-backs" "$IDLE" "$s"
   has "$k: the seed runs /exit-clean only on ACCEPTED" "$GATE" "$s"
   hasnt "$k: the old self-close on its own done is gone" "$OLD" "$s"
+  has "$k: the seed forbids a self-scheduled poll while waiting" "$NOPOLL" "$s"
   c="$(seed "$CTL/scripts" "$k" "$id" "$T_TMP/ctl-$k")"
   has "$k: control renders a seed" "Your spool agent id is ${id}" "$c"
   hasnt "$k: control (old closing line): no ACCEPTED gate -> FAIL" "$GATE" "$c"
+  hasnt "$k: control (old closing line): no self-poll ban -> FAIL" "$NOPOLL" "$c"
 done
 t_done

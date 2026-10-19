@@ -34,7 +34,7 @@ and by nothing else.
 |---|---|
 | `id` | `SPOOL_AGENT_ID` (else `MCP_BOT_AGENT_ID`) in the process environment |
 | `kind` | the CLI's argv[0] (claude, grok, agy, qwen, vibe = mistral) |
-| `session_id` | the process's own `~/.claude/sessions/<pid>.json` (its start time must match), else `--session-id` / `--resume` |
+| `session_id` | claude: the process's own `~/.claude/sessions/<pid>.json` (its start time must match); else `--session-id` / `--resume` / `--conversation` in its argv; grok with no such flag: grok's own store, `<GROK_HOME or ~/.grok>/sessions/<cwd>/<sid>/summary.json`, the newest session of its cwd created since the process started (with `--continue`, the newest of that cwd); else none, and the restore refuses the record as unknown |
 | `worktree` | the session file's cwd, else `/proc/<pid>/cwd` |
 | `session_name` | the session file's `name` (`--name`, `/rename`) |
 | `title` | the session name without tag and id, adopted when the session name changes; else what `riname.sh` set; first set from the window name only when that name carries the same id |

@@ -69,6 +69,10 @@ type issueJSON struct {
 	// least one. A list read carries the links; a single-issue read adds each
 	// one's state and title (issue_discussions.go).
 	Discussions []issueDiscussionJSON `json:"discussions,omitempty"`
+	// Archived and AutoClosed (SPL-2607): only the agent op get of an
+	// archived issue sets them, both present; a live issue leaves them out.
+	Archived   *bool `json:"archived,omitempty"`
+	AutoClosed *bool `json:"auto_closed,omitempty"`
 }
 
 type issueLabelJSON struct {

@@ -313,7 +313,8 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		out, err = scanIssue(tx.QueryRow(ctx, `WITH w AS (`+flowWatchAssigneeUpsert("$1", "$17::uuid", "$8", "$13")+`)
 			UPDATE issues SET title = $3, description = $4, status = $5,
 				priority = $6, level = $7, assignee = $8, labels = $9, deadline = $10, parent_number = $11,
-				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15, kind = $16
+				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15, kind = $16,
+				auto_closed = false
 			WHERE tenant_id = $1 AND number = $2
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
@@ -347,6 +348,35 @@ func (s *Postgres) GetIssue(ctx context.Context, tenant string, number int) (Iss
 	})
 	return out, err
 }
+
+// GetIssueAnyState reads the row live or archived, with archived_at and
+// auto_closed (rdb 0210) beside issueCols (SPL-2607).
+func (s *Postgres) GetIssueAnyState(ctx context.Context, tenant string, number int) (Issue, error) {
+	var out Issue
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		prefix, err := txPrefix(ctx, tx, tenant)
+		if err != nil {
+			return err
+		}
+		var archived, auto bool
+		out, err = scanIssue(stateRow{tx.QueryRow(ctx, `SELECT `+issueCols+`, archived_at IS NOT NULL, auto_closed
+			FROM issues WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL`, tenant, number), &archived, &auto}, tenant, prefix)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		out.Archived, out.AutoClosed = archived, archived && auto
+		return err
+	})
+	return out, err
+}
+
+// stateRow adds GetIssueAnyState's two trailing columns to scanIssue's.
+type stateRow struct {
+	pgx.Row
+	archived, auto *bool
+}
+
+func (r stateRow) Scan(dest ...any) error { return r.Row.Scan(append(dest, r.archived, r.auto)...) }
 
 func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, error) {
 	return s.listIssueRows(ctx, tenant, issueCols, scanIssue)
@@ -592,7 +622,7 @@ func txAutoCloseEpic(ctx context.Context, tx pgx.Tx, tenant, prefix string, pare
 	cur.Status = st
 	stampStatus(&cur, now)
 	out, err := scanIssue(tx.QueryRow(ctx, `UPDATE issues SET status = $3, updated_by = $4, updated_at = $5,
-			completed_at = $6, canceled_at = $7
+			completed_at = $6, canceled_at = $7, auto_closed = true
 		WHERE tenant_id = $1 AND number = $2
 		RETURNING `+issueCols, tenant, epic, cur.Status, by, now, cur.CompletedAt, cur.CanceledAt), tenant, prefix)
 	if err != nil {
@@ -674,7 +704,7 @@ func (s *Postgres) UnarchiveIssue(ctx context.Context, tenant string, number int
 	// keeps cascadeStamp's one shape (the $3 = now, $4 = by placeholders).
 	kids, err := s.cascadeStamp(ctx, cascadeOp{
 		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
-		live: "deleted_at IS NULL AND archived_at IS NOT NULL", set: "archived_at = NULL, archived_by = NULL, updated_at = $3, updated_by = $4", cascade: cascade,
+		live: "deleted_at IS NULL AND archived_at IS NOT NULL", set: "archived_at = NULL, archived_by = NULL, auto_closed = false, updated_at = $3, updated_by = $4", cascade: cascade,
 		epicTree: true,
 	}, &out)
 	return out, kids, err

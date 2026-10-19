@@ -163,6 +163,12 @@ type Issue struct {
 	// with its cascade (ClosesEpic) answered on it. The row itself is in its
 	// ArchivedWith.
 	AutoClosedEpic *Issue
+	// Archived and AutoClosed (SPL-2607, rdb 0210) are read only by
+	// GetIssueAnyState: the row is archived, and its close was the epic
+	// auto-close of SPL-1729 (false for a human close). Every other read
+	// leaves both false.
+	Archived   bool
+	AutoClosed bool
 	// Discussions are the topic ids a create links (rdb 0194, SPL-1593): at
 	// least one. Reads leave it nil; IssueDiscussions reads the links.
 	Discussions []string
@@ -379,6 +385,9 @@ type Issues interface {
 	// own change in place and reports CascadeErr.
 	UpdateIssue(ctx context.Context, tenantID string, number int, p IssuePatch, by string, now time.Time) (Issue, error)
 	GetIssue(ctx context.Context, tenantID string, number int) (Issue, error)
+	// GetIssueAnyState is GetIssue that also answers an archived issue, with
+	// Archived and AutoClosed set (SPL-2607). A deleted one is ErrNotFound.
+	GetIssueAnyState(ctx context.Context, tenantID string, number int) (Issue, error)
 	// ListIssues is every issue of the tenant, newest number first.
 	ListIssues(ctx context.Context, tenantID string) ([]Issue, error)
 	// IssuePrefix is the tenant's key prefix (IssuePrefixDefault when unset).
@@ -773,6 +782,7 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	row = copyIssue(row)
 	wasEpic, was := row.IsEpic(), row.Level
 	applyPatch(&row, p, by, now)
+	row.AutoClosed = false // a person's update ends the auto-close mark (SPL-2607)
 	if err := checkIssue(&row); err != nil {
 		return Issue{}, err
 	}
@@ -830,7 +840,7 @@ func (m *memIssues) autoCloseEpicLocked(tenant string, parent int, by string, no
 	}
 	was := copyIssue(epic)
 	epic = copyIssue(epic)
-	epic.Status, epic.UpdatedBy, epic.UpdatedAt = st, by, now
+	epic.Status, epic.UpdatedBy, epic.UpdatedAt, epic.AutoClosed = st, by, now, true
 	stampStatus(&epic, now)
 	m.rows[tenant][epic.Number] = copyIssue(epic)
 	m.recordLocked(tenant, epic.Number, issueChanges(was, epic)...)
@@ -892,6 +902,22 @@ func (s *Memory) GetIssue(_ context.Context, tenant string, number int) (Issue, 
 		return Issue{}, ErrNotFound
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
+	return copyIssue(row), nil
+}
+
+// GetIssueAnyState: the live row, else the archived one flagged (SPL-2607).
+func (s *Memory) GetIssueAnyState(ctx context.Context, tenant string, number int) (Issue, error) {
+	if i, err := s.GetIssue(ctx, tenant, number); !errors.Is(err, ErrNotFound) {
+		i.AutoClosed = false
+		return i, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	row, ok := s.iss.archived[tenant][number]
+	if !ok {
+		return Issue{}, ErrNotFound
+	}
+	row.Prefix, row.Archived = s.iss.prefixOf(tenant), true
 	return copyIssue(row), nil
 }
 
@@ -1007,7 +1033,9 @@ func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, by
 		s.iss.rows[tenant] = map[int]Issue{}
 	}
 	for _, n := range append([]int{number}, kids...) {
-		s.iss.rows[tenant][n] = s.iss.archived[tenant][n]
+		back := s.iss.archived[tenant][n]
+		back.AutoClosed = false
+		s.iss.rows[tenant][n] = back
 		delete(s.iss.archived[tenant], n)
 		s.iss.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventUnarchived})
 	}

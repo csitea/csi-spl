@@ -253,11 +253,24 @@ func (s *Server) agentGetIssue(ctx context.Context, tenant, ref string) (any, *i
 	if !ok {
 		return nil, &issueErr{http.StatusNotFound, "not_found", "no such issue"}
 	}
-	i, err := is.GetIssue(ctx, tenant, n)
+	// SPL-2607: an archived issue answers too, flagged, so an agent can
+	// tell an auto-closed epic (SPL-1729) from one a person closed.
+	i, err := is.GetIssueAnyState(ctx, tenant, n)
 	if ie := storeIssueErr(err); ie != nil {
 		return nil, ie
 	}
-	out := toIssueJSON(i, s.storeGetter(ctx, tenant))
+	get := s.storeGetter(ctx, tenant)
+	if i.Archived { // its parent is archived with it
+		get = func(p int) (store.Issue, bool) {
+			pi, err := is.GetIssueAnyState(ctx, tenant, p)
+			return pi, p != 0 && err == nil
+		}
+	}
+	out := toIssueJSON(i, get)
+	if i.Archived {
+		archived, auto := true, i.AutoClosed
+		out.Archived, out.AutoClosed = &archived, &auto
+	}
 	s.withFullDiscussions(ctx, tenant, "", &out)
 	return map[string]any{"issue": out}, nil
 }

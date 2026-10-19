@@ -203,7 +203,7 @@ mints):
 | `issue_op` | request fields | reply `issue` |
 |---|---|---|
 | `list` | `query` (§4 in URL query form; `assignee=me` is `as`) | the §1 list object |
-| `get` | `issue_ref` | `{issue}` |
+| `get` | `issue_ref` | `{issue}`; an archived issue too, with `archived`, `auto_closed` (below) |
 | `create` | `issue` (§3 body) | `{issue}` |
 | `update` | `issue_ref`, `issue` (§3 patch) | `{issue}` |
 | `label` | `issue` = `{name, color?}` | `{label}` |
@@ -219,6 +219,15 @@ mints):
   agent on the issue's `task_id` in `#tasks`, `to` `ALL-0`, `to_box`
   `box-wui`, unsigned like a browser post, and shown live in browsers. It is
   delivered to no box.
+- **`get` answers an archived issue** (SPL-2607, rdb 0210): its `issue`
+  adds `archived: true` and `auto_closed: true|false`; `auto_closed` is
+  true only on an epic whose close was section 10's (the SPL-1729
+  auto-close), false for a close by a person or an agent, an issue archived
+  with its epic, and an archive by hand. A live issue answers exactly as
+  before, with neither key; a deleted one stays `not_found`. Every other op,
+  and every browser route and list, still treats an archived issue as
+  absent. An agent reads any issue of its tenant, as before; only the
+  archived state is new.
 - Front ends: `spool issue <op> --as <AGENT> …` (prints the reply as JSON);
   `create --discussions <id>,…`, `link|unlink --ref SPL-3 --discussion <id>`.
 
@@ -330,6 +339,14 @@ automatically".
   `descendants`. The epic's topic gets a hub note:
   `Closed as <status> automatically: its last open issue SPL-n was closed by
   <who> at <ISO UTC>.` A failed cascade files the bug of section 9.
+- **The mark** (SPL-2607, rdb 0210): the auto-close sets `issues.auto_closed`
+  on the epic; any later update of the row by a person or an agent, and an
+  unarchive, clear it. The agent `get` answers it for an archived epic
+  (section 6), so a placer on another box can tell an auto-closed epic it
+  may reopen from one a person closed (SPL-2558). The migration backfills
+  the archived epics whose `Closed as <status> automatically` hub note was
+  posted with their current archive (within 5 minutes); a note gone with
+  message retention leaves the epic unmarked.
 - Only the moment the last issue closes triggers it: an epic left with only
   closed issues by a delete or an archive stays open until it is closed by
   hand.

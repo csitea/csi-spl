@@ -187,8 +187,10 @@ func TestAgentIssues(t *testing.T) {
 	if f := readType(t, watcher, "issue"); f["op"] != "archive" || f["issue"].(map[string]any)["key"] != "SPL-3" {
 		t.Fatalf("archive frame %v", f)
 	}
-	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); hubErr(err) != "not_found" {
-		t.Fatalf("archived issue still readable: %v", err)
+	// SPL-2607: an archived issue answers, flagged archived.
+	if out, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil ||
+		out["issue"].(map[string]any)["archived"] != true || out["issue"].(map[string]any)["auto_closed"] != false {
+		t.Fatalf("archived issue get: %v %v", err, out)
 	}
 	if _, err := arch("unarchive", "SPL-3", ""); err != nil {
 		t.Fatalf("agent unarchive: %v", err)
@@ -202,15 +204,15 @@ func TestAgentIssues(t *testing.T) {
 	if f := readType(t, watcher, "issue"); f["op"] != "archive" || len(descs(f["descendants"])) != 1 {
 		t.Fatalf("cascade archive frame %v", f)
 	}
-	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); hubErr(err) != "not_found" {
-		t.Fatalf("cascade left the child readable: %v", err)
+	if out, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil || out["issue"].(map[string]any)["archived"] != true {
+		t.Fatalf("cascade left the child live: %v %v", err, out)
 	}
 	if out, err := arch("unarchive", "SPL-1", "cascade=true"); err != nil || len(descs(out["descendants"])) != 1 {
 		t.Fatalf("cascade unarchive: %v %v", err, out)
 	}
 	readType(t, watcher, "issue")
-	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil {
-		t.Fatalf("CONTROL cascade unarchive restored the child: %v", err)
+	if out, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil || out["issue"].(map[string]any)["archived"] != nil {
+		t.Fatalf("CONTROL cascade unarchive restored the child: %v %v", err, out)
 	}
 	if _, err := arch("archive", "SPL-9", ""); hubErr(err) != "not_found" {
 		t.Fatalf("archive missing: %v", err)

@@ -197,7 +197,7 @@ do-deprovision-local: no-plan-ref demand_var-ENV demand_var-STEP
 		./run -a do_divest_local \
 	'
 
-.PHONY: do-tf-destroy-target ## @-> 03.09 divest target resource only
+.PHONY: do-tf-destroy-target ## @-> 03.09 divest target resource only (dry run unless DRY_RUN=0)
 do-tf-destroy-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
@@ -209,6 +209,7 @@ do-tf-destroy-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARG
 		-e APP=$${APP#*-} \
 		-e TARGET="$(TARGET)" \
 		-e STEP=$(STEP) \
+		-e DRY_RUN="$(DRY_RUN)" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_destroy_target \
 	'

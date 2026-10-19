@@ -7,8 +7,8 @@ checkpoints.
 
 Status vocabulary: `../README.md` §2.3 (`[x]` Implemented, `[~]` Partial / in progress, `[ ]` Planned).
 
-Version: **v0.1.0** (Spec Only). All tasks below are planned awaiting owner review
-and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §10.
+Version: **v0.2.0**. All tasks below are planned awaiting owner review
+and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §14.
 
 ---
 
@@ -28,7 +28,7 @@ and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §10.
 
 1. **One lane per task:** A file is owned by exactly one task. A lane that needs changes in files outside its task scope coordinates with the orchestrator (`c-001`).
 2. **Postgres on runtime role:** Store, RLS, and auth tests run on Postgres as the runtime role (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`), never as superuser or owner.
-3. **Controls required:** Every security and isolation test includes a failing control (e.g. Controls C1..C3 in `spec.md` §8.2) verified on a throwaway branch.
+3. **Controls required:** Every security and isolation test includes a failing control (e.g. Controls C1..C6 in `spec.md` §12.2) verified on a throwaway branch.
 4. **Distribution hygiene:** Zero personal names, OS usernames, owner emails, or literal `/home/` paths.
 5. **No AI trailers:** Author identity must match the repository's pinned committer without trailers.
 6. **Deploy & Lag verification:** When built, changes are verified on both `dev` and `prd` via `./run -a do_check_deploy_lag`.
@@ -216,4 +216,93 @@ and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §10.
 
 ---
 
-<!-- version: 0.1.0 · updated: 2026-10-17 · last-edit: 2026-10-17T10:30:00Z -->
+## Phase 7: Discussion Properties, Idle Dismissal & Abuse Protection (Owner msgs 1d031b1c, edf8e150, d8adaced, 3c233ec5)
+
+- [ ] **T016: Discussion Properties UI: Dedicated Agent management & cost confirmation**
+  - **Layer:** Web User Interface (WUI)
+  - **Owns:** `WUI/components/DiscussionPropertiesDialog.vue`, `WUI/components/TopicContextMenu.vue`, `WUI/components/DiscussionPropertiesSheet.vue`
+  - **Waits on:** T012, T018
+  - **Description:**
+    - Implement topic right-click context menu (desktop) and kebab / long-press bottom sheet (mobile) opening "Discussion Properties" (§8.1, FR-004).
+    - Provide "Dedicated Agent" management: vendor dropdown defaulting to `agent_split_by_kind` main vendor (§8.2, FR-006).
+    - Display mandatory cost transparency confirmation dialog (§8.4, FR-008): warns that reserving agents is expensive, shows idle timeout, outlines 3/5/6 abuse rules, and shows current abuse count.
+    - Implement live dedicated agent card showing real-time status, uptime, countdown to idle dismissal, and interactions (§8.5, FR-005).
+    - Provide "Dismiss Dedicated Agent" button for clean manual termination (§8.6, FR-005).
+    - Gate UI actions by workspace role per Spec 025; disable for banned users with explanatory badge (§8.3, FR-007, FR-015).
+  - **Done:** Unit and component tests verify menu trigger, vendor default selection, confirmation notice display, and RBAC button state; i18n parity green.
+
+- [ ] **T017: Hub Schema & Store for Discussion Idle Config & Abuse Tracking**
+  - **Layer:** Database Schema & Hub Store (RDB / GO)
+  - **Owns:** `RDB/0203_dedicated_idle_and_abuses.sql`, `GO/store/dedicated_idle.go`, `GO/store/dedicated_abuse.go`, `GO/store/dedicated_abuse_test.go`
+  - **Waits on:** T001, T002
+  - **Description:**
+    - Migration `0203_dedicated_idle_and_abuses.sql`: add `idle_timeout_seconds` (default 3600), `last_activity_at`, and `dedicated_interaction_count` to messages; create `dedicated_agent_abuses` table with `(tenant_id, human_id, abuse_count, is_banned, banned_at, banned_by, unbanned_at, unbanned_by, last_abuse_at)` (§3.4, FR-009, FR-013).
+    - Implement store methods: `GetDiscussionIdleConfig`, `SetDiscussionIdleConfig`, `TouchTopicActivity`, `RecordDedicatedInteraction`, `IncrementUserAbuse`, `GetUserAbuseStatus`, `ResetUserAbuse` (§9.1, §10.2).
+    - Enforce check constraints on idle timeout (300 s to 86400 s; 0 allowed for admin "never") and non-negative abuse counter.
+  - **Done:** Migration applies cleanly; unit tests verify atomic counter increments, activity timestamp updates, and store queries.
+
+- [ ] **T018: Hub API Endpoints for Topic Dedicated Agents, Idle Config & Abuse Administration**
+  - **Layer:** Hub API Endpoints (GO)
+  - **Owns:** `GO/hub/dedicated_topic_api.go`, `GO/hub/dedicated_abuse_api.go`, `GO/hub/dedicated_topic_api_test.go`
+  - **Waits on:** T005, T017
+  - **Description:**
+    - Implement `GET /v1/topics/{task_id}/dedicated-agent` (inspect live state) and `DELETE /v1/topics/{task_id}/dedicated-agent` (dismiss agent) (§8.5, §8.6, FR-005).
+    - Implement `POST /v1/topics/{task_id}/dedicated-agent` (bind agent to topic): verify user ban status; if `is_banned = true`, refuse with HTTP 403 `dedicated_feature_banned` (Control C4, §10.4, FR-015).
+    - Implement `PUT /v1/topics/{task_id}/idle-timeout` (configure discussion timeout) (§9.1, FR-009).
+    - Implement `GET /v1/members/{user_id}/dedicated-abuse` and `POST /v1/members/{user_id}/reset-dedicated-abuse` (unban user and reset abuse counter, restricted to workspace owner and admin) (§10.4, FR-015).
+  - **Done:** API integration tests verify topic dedicated agent binding, rejection of banned users (Control C4), and administrator ban reset.
+
+- [ ] **T019: Inactivity Monitor and Automatic Idle Dismissal Daemon**
+  - **Layer:** Orchestration / Daemon (GO / RUN / SA)
+  - **Owns:** `GO/hub/dedicated_idle_monitor.go`, `RUN/spl-dedicated-idle-sweep.func.sh`, `SA/scripts/dismiss-dedicated-agent.sh`, `OT/dedicated-idle-dismiss.tst.sh`
+  - **Waits on:** T008, T017
+  - **Description:**
+    - Build inactivity monitor scanning dedicated topic bindings where `now() - last_activity_at > idle_timeout_seconds` (§9.3, FR-010, FR-011).
+    - Check agent execution status: if an active tool call or turn is running, defer dismissal with a 5-minute grace period (§9.4, FR-012).
+    - For confirmed idle agent: dispatch `/exit-clean` to agent process; release seat on host box; remove binding from `dedicated_agents` (§9.3, FR-010).
+    - Post non-AI system message in topic announcing dismissal for idleness ("idle agents consume resources") and how to re-add (§9.3, FR-010).
+    - If `dedicated_interaction_count == 0`, trigger abuse event against reserving user (Control C5, §10.1, FR-013). If interactions > 0, do not count abuse (Control C6).
+    - Handle edge case: messages arriving during shutdown are buffered in topic, and user is alerted to re-add (§9.4, FR-012).
+  - **Done:** Test verifies automatic dismissal after silence, seat reclamation, system message posting, tool call grace, and correct abuse accounting.
+
+- [ ] **T020: Abuse Warning Notifications & Ban Enforcement Engine**
+  - **Layer:** Hub Protocol & Notifications (GO)
+  - **Owns:** `GO/hub/dedicated_abuse_guard.go`, `GO/hub/dedicated_abuse_guard_test.go`
+  - **Waits on:** T017, T018
+  - **Description:**
+    - Hook abuse counter increment:
+      - At 3 abuses: dispatch Warning 1 system notification to user and topic quoting "reserving agents is expensive" (§10.3, FR-014).
+      - At 5 abuses: dispatch Final Warning 2 system notification to user (§10.3, FR-014).
+      - At 6 abuses: set `is_banned = true`, dispatch ban notification, and block further dedicated agent reservations (§10.3, FR-014, FR-015).
+    - Ensure all warnings are deterministic system lines generated by code without AI.
+  - **Done:** Unit tests verify notification dispatch at 3 and 5 abuses, and automatic feature ban at 6 abuses.
+
+- [ ] **T021: Admin User Management: Ban Inspection & Lifting UI**
+  - **Layer:** Web User Interface (WUI)
+  - **Owns:** `WUI/components/TenantUsersDialog.vue`, `WUI/components/UserDedicatedAbuseBadge.vue`
+  - **Waits on:** T016, T018
+  - **Description:**
+    - In Tenant Users / Settings management dialog, display dedicated agent abuse tally and ban status badge per user (§10.4, FR-015).
+    - For workspace owner (`biz_owner`) and admin: provide action button "Reset Abuses & Unban" calling `POST /v1/members/{user_id}/reset-dedicated-abuse` (§10.4, FR-015).
+  - **Done:** UI tests verify badge rendering and successful execution of unban action restoring user privileges.
+
+- [ ] **T022: E2E Verification of Discussion Properties, Idle Dismissal, and Abuse Escalation**
+  - **Layer:** System Integration (OT)
+  - **Owns:** `OT/dedicated-idle-dismiss-abuse-e2e.tst.sh`
+  - **Waits on:** T015, T016, T019, T020, T021
+  - **Description:**
+    - Comprehensive end-to-end integration test:
+      1. User opens topic Discussion Properties via right-click; selects vendor (defaulting to lane-mix); confirms cost warning modal.
+      2. Dedicated agent starts. Zero messages sent. Advance clock past 1-hour idle timeout.
+      3. Daemon dismisses agent cleanly (`/exit-clean`); seat released; system notice posted in topic; abuse count increments to 1.
+      4. Repeat unused reservations until 3 abuses -> verify Warning 1 notification received.
+      5. Repeat until 5 abuses -> verify Warning 2 notification received.
+      6. 6th unused dismissal -> verify user banned (`is_banned = true`); subsequent reservation attempt fails with 403 `dedicated_feature_banned` (Control C4).
+      7. Workspace owner clicks "Reset Abuses & Unban" -> user unbanned, abuses reset to 0, dedication allowed again.
+      8. Reserve agent and post 1 user interaction; advance clock past idle timeout -> verify agent dismissed but abuse count stays 0 (Control C6).
+      9. In-flight tool call suppresses dismissal until tool completion (Control C5 / §9.4).
+  - **Done:** Full scenario passes on testkit; Controls C4, C5, C6 verified green.
+
+---
+
+<!-- version: 0.2.0 · updated: 2026-10-19 · last-edit: 2026-10-19T17:00:00Z -->

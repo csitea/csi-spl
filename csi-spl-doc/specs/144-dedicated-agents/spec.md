@@ -1,10 +1,10 @@
 # Feature Specification: Dedicated Agents (Private Scopes for Channel and Topic Isolation)
 
 **Feature ID**: `144-dedicated-agents` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only)
-**Created**: 2026-10-17 · **Lane**: a-424-dedicated-agents (SPL-2343)
+**Created**: 2026-10-17 · **Updated**: 2026-10-19 · **Lanes**: a-424-dedicated-agents (SPL-2343), a-778-dedicated-agents (SPL-2585)
 **Authority**: this file for behaviour, protocol rules, data model, and contracts; `tasks.md` for the concrete implementation tasks and verification checkpoints. Status vocabulary: `../README.md` §2.3.
 
-Builds on `002` (box-agent-messaging: local spool, CLI, MCP), `003` (spool-message-bus: WebSocket frames, envelope signing, routing), `038` (spool-agent-channel-post: channel membership, `routeChannel`), `067` (dm-channel-linkage), `068` (peer-seats: dispatcher and orchestrator roles), `130` (flow-what-is-happening), and `136` (spool-encrypted-at-rest: private workspace isolation).
+Builds on `002` (box-agent-messaging: local spool, CLI, MCP), `003` (spool-message-bus: WebSocket frames, envelope signing, routing), `025` (spool-tenant-rbac: workspace roles and permissions), `038` (spool-agent-channel-post: channel membership, `routeChannel`), `067` (dm-channel-linkage), `068` (peer-seats: dispatcher and orchestrator roles), `115` (vendor-lane-mix: kind table and vendor defaults), `130` (flow-what-is-happening), and `136` (spool-encrypted-at-rest: private workspace isolation).
 
 ---
 
@@ -14,6 +14,22 @@ Recorded 2026-10-17:
 
 > "Owner idea 2026-10-17: a new term and feature, 'dedicated agents': agents dedicated to ONE channel or ONE discussion (topic) and nothing else, whose scope stays private from every other worker."
 
+Recorded 2026-10-17 (HUM-10, t1 1d76d339, msg 1d031b1c-9d9b-4994-864f-892946273ffe):
+
+> "it should be possible for users to have a dedicated agent in a discussion from right click properties on a discussion , but with a configurable amount of being iddle with no input will dismiss this agent - the default should be 1hour ... , because idle agents consume resources"
+
+Recorded 2026-10-17 (Follow-up msg edf8e150-3e1f-4805-9612-788be3e8765d):
+
+> "and if users are abusing this fesature - after 3 abuses they should be warned about it , after 5 once again and after 6 completely banned from the feature ..."
+
+Recorded 2026-10-17 (Follow-up msg d8adaced-c6a7-469d-8f8d-4ebeb6d36ee4 - Abuse definition poll decision):
+
+> "Dedicating an agent , but than not using it for more than 1h ... ( confiurable amount of time with default of 1h )"
+
+Recorded 2026-10-17 (Follow-up msg 3c233ec5-da7c-4ae6-b331-e191c0806d8c):
+
+> "i.e. users must understand that reserving agents is expensive"
+
 ### Core Principles Derived From the Request
 
 - **P1 (Strict Scope Binding):** A dedicated agent is bound to exactly ONE scope within a workspace: either one channel or one topic (discussion thread). It does not wander across scopes.
@@ -22,6 +38,9 @@ Recorded 2026-10-17:
 - **P4 (Zero Ambient Leakage):** Messages and metadata inside a private scope are never copied or leaked into issues, shared memory lessons, global Flow events, or other channels.
 - **P5 (Hub-Enforced Security):** Isolation is enforced by database schema constraints, Row-Level Security (RLS), and hub API rejection gates—never by prompt instructions or agent cooperative goodwill.
 - **P6 (Lifecycle Persistence):** The dedication binding is recorded in the hub store and survives agent restarts, process crashes, and vendor rotations (`SPAWN_REUSE_ID=1`).
+- **P7 (Explicit Resource Cost Transparency):** Reserving a dedicated agent allocates dedicated compute and an agent seat while it waits. Reserving agents is expensive. Users are explicitly informed before confirmation of this resource cost, the idle timeout, and the abuse rules (3 / 5 / 6).
+- **P8 (Automatic Idle Reclamation):** An agent dedicated to a discussion that receives zero new input (human post or message to the agent) within the configured idle timeout (default 1 hour) is automatically dismissed via clean exit (`/exit-clean`) to free its seat.
+- **P9 (Graduated Abuse Enforcement):** Dedicating an agent without utilizing it before idle timeout constitutes an abuse. Accumulating abuses triggers code-generated system warnings at 3 and 5 abuses, and a hard feature ban at 6 abuses, revocable only by the workspace owner.
 
 ---
 
@@ -34,6 +53,12 @@ Recorded 2026-10-17:
 - **Scope Binding:** The persistent tuple `(tenant_id, agent_id, box_id, scope_type, scope_id)` registered in the hub database. One scope may have multiple dedicated agents bound to it; an agent may be bound to at most one scope at a time.
 - **Private Scope (`is_private_scope`):** An owner-controlled boolean flag on a channel or topic. When enabled (`true`), the scope is invisible to general fleet agents and dispatchers; only human members of that scope and agents explicitly dedicated to that scope can interact with or view it.
 - **General Fleet Agent:** A non-dedicated agent (e.g., standard lane workers `a-*`, `c-*`, `g-*`, `m-*`, `q-*`, orchestrator `c-001`, dispatchers `c-002..c-004`) operating across arbitrary issues, sweeps, and discussions in the workspace.
+- **Discussion Properties / Context Menu:** The contextual properties panel for a topic/discussion accessed via desktop right-click or mobile long-press / kebab menu on a topic card or thread list entry.
+- **Discussion Idle Timeout:** The duration of inactivity (absence of human posts or agent messages in that topic) after which the dedicated agent is dismissed. Configurable per discussion, defaults to 1 hour (3600 seconds).
+- **Idle Dedicated Agent:** An active dedicated agent whose bound topic has observed no new messages for the duration of the discussion idle timeout.
+- **Unused Dedicated Agent (Abuse Event):** An agent dedicated to a topic that is dismissed by idle timeout having received zero interactions (prompts, replies, task instructions) since dedication.
+- **Dedicated Abuse Counter:** The persistent per-user, per-workspace integer tally of unused dedicated agent dismissals.
+- **Feature Ban:** Workspace-level revocation of the ability to bind dedicated agents, triggered upon reaching 6 recorded abuses.
 
 ---
 
@@ -111,7 +136,7 @@ Any agent on the same host can inspect another agent's spool files unless separa
 
 ## 3. Data Model & Schema Changes
 
-To support dedicated agents and private scopes, migration `0202_dedicated_agents.sql` is introduced.
+To support dedicated agents, private scopes, idle dismissal, and abuse tracking, migrations `0202_dedicated_agents.sql` and `0203_dedicated_idle_and_abuses.sql` are introduced.
 
 ### 3.1 `dedicated_agents` table
 
@@ -150,6 +175,39 @@ Update RLS policies for `messages`, `deliveries`, and `dedicated_agents`:
 - Dedicated agents can only read messages whose `(channel = scope_id)` or `(task_id = scope_id)`.
 - Non-dedicated agents are denied read access to any message where `is_private_scope = true`.
 - Human members of the channel/topic retain access according to standard member policies (`channel_humans`).
+
+### 3.4 Discussion idle configuration and abuse accounting (`0203_dedicated_idle_and_abuses.sql`)
+
+```sql
+-- Migration 0203_dedicated_idle_and_abuses.sql
+
+-- Discussion idle configuration & tracking
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS idle_timeout_seconds integer NOT NULL DEFAULT 3600;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS last_activity_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS dedicated_interaction_count integer NOT NULL DEFAULT 0;
+
+-- Abuse accounting per user per workspace
+CREATE TABLE IF NOT EXISTS dedicated_agent_abuses (
+    tenant_id       varchar(64)  NOT NULL,
+    human_id        varchar(64)  NOT NULL,
+    abuse_count     integer      NOT NULL DEFAULT 0,
+    is_banned       boolean      NOT NULL DEFAULT false,
+    banned_at       timestamptz,
+    banned_by       varchar(64),
+    unbanned_at     timestamptz,
+    unbanned_by     varchar(64),
+    last_abuse_at   timestamptz,
+    created_at      timestamptz  NOT NULL DEFAULT now(),
+    updated_at      timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT pk_dedicated_agent_abuses PRIMARY KEY (tenant_id, human_id),
+    CONSTRAINT fk_dedicated_agent_abuses_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    CONSTRAINT chk_abuse_count_nonnegative CHECK (abuse_count >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dedicated_agent_abuses_banned
+    ON dedicated_agent_abuses (tenant_id, is_banned)
+    WHERE is_banned = true;
+```
 
 ---
 
@@ -299,13 +357,13 @@ In `csi-spl-wui/src/components/ChannelPropertiesDialog.vue`:
    - Add button/dropdown option: **"Bind as Dedicated Agent"** and **"Unbind"**.
    - Invokes `POST /v1/channels/{channel}/dedicated-agents` and `DELETE /v1/channels/{channel}/dedicated-agents/{agent_id}`.
 
-### 6.2 Topic Properties & Menu
+### 6.2 Topic Properties & Context Menu
 
 In `TopicPane.vue` and `MessageCard.vue`:
-- Add a topic action menu item: **"Scope Settings"**.
-- Allows the owner to:
-  - Toggle **"Private Topic"**.
-  - Assign / bind a dedicated agent specifically to that discussion topic (`task_id`).
+- Add a context menu (desktop right-click and mobile long-press / kebab menu) providing: **"Discussion Properties"** (`t('topic.properties.menu_item')`).
+- Opens a dedicated modal / drawer with tabs:
+  - **Scope Settings**: Toggle **"Private Topic"** (`is_private_scope`).
+  - **Dedicated Agent**: Manage dedicated agent for this discussion topic (`task_id`), select vendor, configure idle timeout, inspect live agent state, or dismiss the agent.
 
 ### 6.3 Badges
 
@@ -334,9 +392,7 @@ When a dedicated agent accesses the WUI via a session token (or when viewing the
 To spawn a dedicated agent, `spawn-window.sh` and `spawn-core.inc.sh` support an explicit flag:
 
 ```bash
-SPAWN_DEDICATED_SCOPE="channel:<channel_id>" \
-  bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh \
-  claude auto /opt/csi/csi-spl-wt/a-XXX /path/to/brief.md dedicated-agent
+SPAWN_DEDICATED_SCOPE="channel:<channel_id>"   bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh   claude auto /opt/csi/csi-spl-wt/a-XXX /path/to/brief.md dedicated-agent
 ```
 Or for a topic:
 ```bash
@@ -375,9 +431,199 @@ To prevent host-level snooping (Spec 136 §1.1):
 
 ---
 
-## 8. Tests and Acceptance Criteria
+## 8. Discussion Properties: Dedicated Agent Lifecycle (Start, Inspect, Stop)
 
-### 8.1 Acceptance Criteria
+### 8.1 Discussion Properties Access (Desktop & Mobile)
+
+The primary user entry point for assigning and managing a dedicated agent on a discussion is the Discussion Properties interface:
+- **Desktop**: Right-clicking on any message card in a topic (`MessageCard.vue`) or on the topic entry in the discussion thread list (`TopicPane.vue`) opens the topic context menu with a prominent item: **"Discussion Properties"** (`t('topic.properties.menu_item')`).
+- **Mobile & Touch**: A long-press gesture on a topic card, or tapping the three-dots (kebab) menu icon in the topic header, opens the mobile Discussion Properties bottom sheet (`DiscussionPropertiesSheet.vue`).
+- Within Discussion Properties, the user selects the **"Dedicated Agent"** tab/section to inspect or configure the dedicated agent for that specific `task_id`.
+
+### 8.2 Starting a Dedicated Agent & Vendor Selection
+
+When no dedicated agent is currently assigned to the discussion:
+1. **Vendor Selection Dropdown**: The user can choose the agent vendor from the active fleet vendors (`claude`, `grok`, `mistral`, `agy`, `qwen`).
+2. **Default Vendor Selection**: The dropdown defaults to the vendor recommended by the fleet lane-mix kind table (`env.box.agent_split_by_kind` in `csi-spl-cnf/csi-spl/all.env.yaml`, reading the main candidate for the topic's kind, falling back to `claude` per Spec 115).
+3. **Optional Model & System Context**: Allows the user to provide initial topic instructions or keep defaults.
+
+### 8.3 Role-Based Access Control (RBAC per Spec 025)
+
+Starting and removing dedicated agents consumes fleet compute resources and is subject to tenant RBAC permissions:
+- **Authorized Roles**:
+  - `biz_owner` (Workspace Owner): Unrestricted permission across all topics in the workspace.
+  - `admin` (Workspace Admin): Unrestricted permission across all topics in the workspace.
+  - `product_owner`, `developer`, `regular_user`, `biz_customer`: Permitted on discussions within channels they belong to, provided they have not been banned from the feature.
+- **Denied Roles & Actors**:
+  - Guests (`GST-*`): Denied. The "Dedicated Agent" option is hidden or disabled (`403 Forbidden`).
+  - Read-only members: Denied.
+  - Banned Users (`is_banned = true` in `dedicated_agent_abuses`): Denied with an explanatory badge: *"You are banned from reserving dedicated agents in this workspace (6 abuses). Reserving agents is expensive."*
+
+### 8.4 Resource Cost Transparency & Confirmation Notice
+
+To enforce the owner's binding principle—verbatim: *"i.e. users must understand that reserving agents is expensive"*—the WUI requires an explicit confirmation modal before any dedicated agent is started:
+- **Resource Consumption Warning**: Clear banner stating: *"Reserving a dedicated agent allocates dedicated compute and reserves an active agent seat while it waits. Reserving agents is expensive."*
+- **Idle Timeout Disclosure**: Shows the configured idle timeout (e.g. *"Default idle timeout: 1 hour"*), informing the user that the agent will be automatically dismissed if no new input occurs within that timeframe.
+- **Abuse Policy Notice**: Explicitly outlines the 3 / 5 / 6 threshold policy:
+  *"If this dedicated agent times out after 1 hour without being used, it counts as 1 abuse. After 3 abuses you will receive a warning, after 5 a final warning, and after 6 abuses you will be banned from reserving dedicated agents in this workspace."*
+- **Current Abuse Count Display**: Shows the user's active count: *"Your current abuse tally: X of 6"*.
+- **Confirmation Action**: The user must click **"I Understand, Reserve Agent"** to trigger the spawn API call.
+
+### 8.5 Inspecting Live Dedicated Agent State
+
+When an agent is actively bound to the discussion, the Discussion Properties panel displays its real-time operational status:
+- **Agent Identity**: Agent ID (e.g. `a-782@box-1`), vendor badge, and model.
+- **Live Status**: `Active` (processing/generating), `Idle Waiting` (waiting for user input), or `Shutting Down`.
+- **Session Timers**:
+  - Bound at / Uptime.
+  - Time of last input (`last_activity_at`).
+  - Remaining time before automatic idle dismissal (countdown clock, e.g. `42m 15s remaining until dismissal`).
+- **Activity Metrics**: Total interaction count during this reservation (used to determine if an idle dismissal constitutes an abuse).
+
+### 8.6 Removing / Dismissing a Dedicated Agent
+
+A user can manually release the dedicated agent at any time:
+- In Discussion Properties, click **"Dismiss Dedicated Agent"**.
+- **Authorization**: The user who reserved the agent, any participant with writer access in the discussion, or any workspace admin/owner.
+- **Teardown Flow**:
+  1. The client invokes `DELETE /v1/topics/{task_id}/dedicated-agent`.
+  2. The hub issues a clean exit command (`/exit-clean`) to the agent process.
+  3. The agent process flushes pending logs and terminates cleanly (status 0).
+  4. The hub unbinds the row from `dedicated_agents` and releases the agent seat.
+  5. The hub posts a system message in the discussion: *"Dedicated agent <agent-id> was dismissed by @<user>. Seat freed."*
+
+---
+
+## 9. Idle Timeout & Automatic Dismissal Lifecycle
+
+### 9.1 Configurable Per-Discussion Idle Timeout
+
+Dedicated agents must not linger indefinitely when abandoned. The owner's rationale is binding and verbatim: *"because idle agents consume resources"*.
+- **Default Duration**: Exactly **1 hour** (`3600` seconds).
+- **Configurability**: Configurable per discussion in the Discussion Properties dialog (`idle_timeout_seconds`).
+- **Permitted Bounds**:
+  - **Minimum**: `5 minutes` (`300` seconds). Prevents thrashing, rapid cycling, and premature kills during human typing/thinking delays.
+  - **Maximum**: `24 hours` (`86400` seconds). Enforces an upper limit to prevent persistent seat hoarding across days.
+  - **"Never" (Disable Timeout)**: Disabled for regular users. Only a workspace owner (`biz_owner`) or admin may select "Never" (represented by `idle_timeout_seconds = 0`), which displays an explicit confirmation warning regarding continuous compute costs and seat occupation.
+
+### 9.2 Definition of "Idle"
+
+A dedicated agent is considered **idle** when there is no new activity in its bound scope:
+- **Inactivity Criteria**: Zero new messages posted to the topic thread (`task_id`), whether from human participants or other authorized agents.
+- **Activity / Clock Reset**:
+  - A human message posted to the discussion immediately updates `last_activity_at = now()` and resets the idle countdown timer to the full duration.
+  - A message directed to the agent resets the timer.
+  - Internal agent tool execution cycles during an ongoing response turn keep the agent active and prevent timeout expiration (see §9.4).
+
+### 9.3 Dismissal Lifecycle & Execution
+
+Dismissal is governed by a lightweight daemon on the hub and host box (`spl-dedicated-idle-sweep`):
+1. **Evaluation**: Daemon scans active dedicated topic bindings where `now() - last_activity_at > idle_timeout_seconds`.
+2. **Execution**:
+   - The hub/box initiates graceful dismissal by dispatching `/exit-clean` to the agent session.
+   - The agent persists scratch files, flushes outbox queues, and terminates cleanly with exit code 0.
+   - The agent seat is retired and freed on the host box (`agent-id-retire.sh`), reclaiming CPU, memory, and tmux resources.
+   - The binding is removed from `dedicated_agents`.
+3. **Abuse Accounting**: If the agent's interaction count (`dedicated_interaction_count`) is 0, this event is recorded as an abuse against the dedicating user (see §10).
+4. **System Line in Topic**:
+   - The hub posts an automated non-AI system message directly into the topic:
+     > *"Dedicated agent `<agent-id>` was dismissed due to idleness (no activity for 1 hour). Idle agents consume resources. To bring back a dedicated agent, open Discussion Properties (right-click) and select Dedicated Agent."*
+
+### 9.4 Edge Cases & Safeguards
+
+- **Edge Case 1: Input during shutdown**
+  - *Scenario*: A human posts a message to the discussion while the agent is in the process of shutting down (between the timeout trigger and process exit).
+  - *Handling*: The hub stores and commits the human message into the topic thread. Because the agent session is already executing `/exit-clean`, the shutdown sequence is not aborted, preventing half-torn or corrupt LLM state. Once the agent process exits, the hub detects that an unconsumed post arrived during teardown and displays a topic notification: *"Your message was received after agent dismissal initiated. Start a new dedicated agent from Discussion Properties to continue."*
+- **Edge Case 2: Running tool call at timeout**
+  - *Scenario*: The idle timeout expires while the agent is executing an active, long-running tool call (e.g. bash compilation, git rebase, database query, or remote fetch).
+  - *Handling*: The agent is actively working, not idle. The idle monitor checks the agent's live execution state via its lifetime process status. If an active tool execution or inference turn is underway, dismissal is postponed. A 5-minute grace period is granted. Once the tool completes and the agent returns its response to the topic, the idle timer restarts.
+- **Edge Case 3: Re-adding after dismissal**
+  - *Scenario*: A user re-adds a dedicated agent to a discussion where a previous agent was dismissed.
+  - *Handling*: A fresh session is started (`SPAWN_DEDICATED_SCOPE="topic:<task_id>"`). The agent receives a clean process environment, pristine scratch directory, and fresh context. The agent seed automatically ingests the topic's conversation history (`spool tail --task <task_id>`), allowing it to seamlessly resume the discussion with full conversational context without inheriting dirty process memory from the dismissed session.
+
+---
+
+## 10. Abuse Protection, Warning Escalation & Feature Ban
+
+### 10.1 The Abuse Definition (Closed by Owner Decision)
+
+Owner order verbatim (msg `d8adaced-c6a7-469d-8f8d-4ebeb6d36ee4`):
+> "Dedicating an agent , but than not using it for more than 1h ... ( confiurable amount of time with default of 1h )"
+
+- **The Exact Definition**: Exactly **one abuse** is counted when a dedicated agent is assigned to a discussion and is subsequently dismissed by the idle timeout having received **zero user interactions** (human messages, prompts, or task requests) during its entire reservation lifetime.
+- **Legitimate Use Exemption**: If the user or topic participants send at least one interaction to the agent, the reservation served a purpose. When such an agent times out after 1 hour of subsequent inactivity, it is dismissed as normal resource hygiene and **no abuse** is recorded.
+
+### 10.2 Per-User, Per-Workspace Abuse Accounting
+
+- **Accounting Store**: Persisted in the hub database table `dedicated_agent_abuses` keyed by `(tenant_id, human_id)`.
+- **Counter Invariants**:
+  - Increments atomically upon an unused idle dismissal event.
+  - Tally is scoped to the workspace (tenant).
+  - Tally does not automatically decay with time; it stands until explicitly reset by an administrator.
+
+### 10.3 Escalation Thresholds & Warning System
+
+Owner order verbatim (msg `edf8e150-3e1f-4805-9612-788be3e8765d`):
+> "and if users are abusing this fesature - after 3 abuses they should be warned about it , after 5 once again and after 6 completely banned from the feature ..."
+
+All warnings and ban notifications are deterministic, code-generated system messages without AI:
+
+1. **Threshold 3 (First Warning)**:
+   - Triggered on the 3rd recorded abuse.
+   - A system notification is sent to the user and posted in the topic:
+     > *"Warning (3/6): A dedicated agent you reserved was dismissed due to inactivity without being used. Reserving agents is expensive and consumes shared fleet resources. Further unused reservations will result in a ban from the dedicated agent feature."*
+2. **Threshold 5 (Second / Final Warning)**:
+   - Triggered on the 5th recorded abuse.
+   - An urgent warning toast and notification are dispatched to the user:
+     > *"Final Warning (5/6): You have reserved 5 dedicated agents that timed out without being used. Reserving agents is expensive. One more unused reservation will result in an immediate ban from dedicating agents in this workspace."*
+3. **Threshold 6 (Feature Ban)**:
+   - Triggered on the 6th recorded abuse.
+   - The user's record in `dedicated_agent_abuses` is updated: `is_banned = true`, `banned_at = now()`.
+   - A ban notification is delivered to the user:
+     > *"Feature Banned: You have reached 6 unused dedicated agent timeouts. You are now banned from reserving dedicated agents in this workspace because idle agents consume resources. Contact your workspace owner to review and lift this ban."*
+
+### 10.4 Ban Enforcement & Lifting
+
+- **Hard Enforcement**:
+  - **Hub API Gate**: Any request to `POST /v1/topics/{task_id}/dedicated-agent` or `POST /v1/channels/{channel}/dedicated-agents` initiated by a banned user is refused with HTTP 403 Forbidden, returning error token `dedicated_feature_banned` and message `"user is banned from dedicating agents due to repeated unused reservations"`.
+  - **WUI Presentation**: In the Discussion Properties dialog, the "Reserve Agent" button is disabled and replaced with a red status badge: `Banned from reserving dedicated agents (6 abuses)`.
+- **Lifting a Ban**:
+  - **Authority**: Strictly the **workspace owner** (`biz_owner`) or a workspace `admin` per Spec 025.
+  - **Procedure**:
+    1. The admin navigates to Workspace Settings > Members (`TenantUsersDialog.vue`).
+    2. Users with recorded abuses or active bans display an abuse chip (e.g. `Abuses: 6 (Banned)`).
+    3. The admin clicks the user action **"Reset Abuses & Unban"**.
+    4. The client calls `POST /v1/members/{user_id}/reset-dedicated-abuse`.
+    5. The hub sets `abuse_count = 0`, `is_banned = false`, `unbanned_at = now()`, `unbanned_by = <admin_id>`, and records an audit log entry.
+    6. The user receives a system notification that their dedicated agent privileges have been reinstated.
+
+---
+
+## 11. Functional Requirements (FR Matrix)
+
+| FR ID | Summary & Requirement | Layer | Status |
+|---|---|---|---|
+| **FR-001** | **Dedicated Scope Isolation**: Agent bound to exactly one channel (`channel:<id>`) or topic (`topic:<task_id>`); cannot join general dispatch or ambient channels. | Hub / Store | Planned |
+| **FR-002** | **Private Scope Blackout**: Orchestrator (`c-001`) and dispatchers (`c-002..c-004`) receive 0 deliveries from scopes with `is_private_scope = true`. | Hub Routing | Planned |
+| **FR-003** | **Hard Bidirectional Gate**: Outbound sends by dedicated agent targeting any channel, topic, or DM outside its bound scope are refused with HTTP 403 `dedicated_scope_violation`. | Hub Protocol | Planned |
+| **FR-004** | **Discussion Properties Entry Point**: Right-click context menu on message cards / topic list items (desktop) and long-press / kebab menu (mobile) opens Discussion Properties. | WUI | Planned (Owner msg 1d031b1c) |
+| **FR-005** | **Dedicated Agent Lifecycle Controls**: Start dedicated agent, inspect live state (status, uptime, remaining idle time), and manually dismiss via Discussion Properties. | WUI / Hub | Planned (Owner msg 1d031b1c) |
+| **FR-006** | **Vendor Selection & Defaulting**: Vendor dropdown in Discussion Properties defaults to the main candidate of the fleet lane-mix kind table (`agent_split_by_kind` in `all.env.yaml`). | WUI / Orc | Planned |
+| **FR-007** | **Role-Based Authorization for Dedicated Agents**: Permitted for `biz_owner`, `admin`, `developer`, `product_owner`, `regular_user` per Spec 025; refused for guests (`GST-*`) and banned users. | Hub RBAC | Planned |
+| **FR-008** | **Resource Cost Transparency & Warning Prompt**: Mandatory confirmation notice before reserving: explains compute resource cost ("reserving agents is expensive"), idle timeout, 3/5/6 abuse rules, and current abuse tally. | WUI | Planned (Owner msgs 3c233ec5, edf8e150) |
+| **FR-009** | **Configurable Per-Discussion Idle Timeout**: Per-discussion idle timeout defaulting to 1 hour (3600 s); configurable between 5 min and 24 h; "Never" option restricted to workspace owners/admins with cost warning. | Hub / WUI | Planned (Owner msg 1d031b1c) |
+| **FR-010** | **Automatic Idle Dismissal Lifecycle**: Inactive agent dismissed on timeout via clean exit (`/exit-clean`); seat released; system notice posted in topic explaining idleness and re-add instructions. | Hub / Box | Planned (Owner msg 1d031b1c) |
+| **FR-011** | **Inactivity Tracking & Timer Reset**: Topic inactivity clock measures time since last human post or agent message in topic; any new message resets the idle timer. | Hub Store | Planned (Owner msg 1d031b1c) |
+| **FR-012** | **Idle Dismissal Edge Cases**: Messages arriving during shutdown buffered and surfaced with re-add prompt; active tool execution defers timeout; re-adding restores conversation history into fresh session. | Hub / Box | Planned |
+| **FR-013** | **Abuse Definition & Accounting**: 1 abuse recorded when dedicated agent is dismissed by idle timeout with 0 user interactions; tracked per user per workspace in `dedicated_agent_abuses`. | Hub Store | Planned (Owner msg d8adaced) |
+| **FR-014** | **Graduated Abuse Warnings & Ban**: Deterministic system warnings emitted at 3 abuses and 5 abuses; hard feature ban applied at 6 abuses; all text cites "reserving agents is expensive". | Hub Guard | Planned (Owner msgs edf8e150, 3c233ec5) |
+| **FR-015** | **Ban Enforcement & Owner Lifting**: Banned users receive HTTP 403 on dedication attempts and disabled UI; workspace owner or admin can inspect and reset abuses via Tenant Users settings. | Hub / WUI | Planned (Owner msg edf8e150) |
+
+---
+
+## 12. Tests and Acceptance Criteria
+
+### 12.1 Acceptance Criteria
 
 | ID | Area | Condition | Expected Result |
 |---|---|---|---|
@@ -394,32 +640,46 @@ To prevent host-level snooping (Spec 136 §1.1):
 | **AC-11** | Spawning | Spawn with `SPAWN_DEDICATED_SCOPE` | Agent registered in hub, excluded from general lane routing. |
 | **AC-12** | WUI | Channel Properties dialog | Shows Private Scope toggle and Dedicated Agents management. |
 | **AC-13** | WUI Badges | MessageCard & Header | Displays "Dedicated" badge on agent, "Private Scope" lock on header. |
+| **AC-14** | WUI Context Menu | Right-click topic card or mobile kebab | Opens Discussion Properties modal with Dedicated Agent settings tab. |
+| **AC-15** | WUI Vendor Pick | Open Dedicated Agent selector | Dropdown populated with fleet vendors; defaults to `agent_split_by_kind` pick. |
+| **AC-16** | WUI Cost Warning | Confirm dedication | Confirmation modal displays compute cost notice, timeout, abuse policy, and current tally. |
+| **AC-17** | Idle Dismissal | Topic inactive for idle timeout (1 h default) | Agent dismissed cleanly via `/exit-clean`; seat released; system notice posted in topic. |
+| **AC-18** | Tool Call Grace | Agent executing tool call at timeout expiration | Dismissal postponed until tool execution completes. |
+| **AC-19** | Re-add Context | Re-add dedicated agent after dismissal | Fresh session spawned and ingests prior discussion transcript. |
+| **AC-20** | Abuse Warnings & Ban | Unused agent times out at 3, 5, 6 abuses | Emits Warning 1 at 3, Warning 2 at 5, and applies feature ban at 6. |
+| **AC-21** | Owner Unban | Workspace owner resets user abuses | User's ban lifted, abuse counter reset to 0, dedication restored. |
 
-### 8.2 Negative Controls & Red Tests
+### 12.2 Negative Controls & Red Tests
 
 - **Control C1 (Scope Escape):** An agent dedicated to `channel:ch-a` crafts an envelope with `channel:ch-b` and valid box signature. The hub *must* return HTTP 403 `dedicated_scope_violation`.
 - **Control C2 (Dispatcher Interception):** Dispatcher `c-002` queries `BoxTaskEnvelopes` for a private topic on its own box. The store *must* return empty results.
 - **Control C3 (Sweep Interception):** Seed a private scope topic with a human post older than `SWEEP_MIN_AGE`. Run `do_spl_unanswered_sweep`. The output report *must* contain 0 items.
+- **Control C4 (Banned User Dedication Refusal):** User with 6 abuses attempts `POST /v1/topics/{task_id}/dedicated-agent`. The hub *must* return HTTP 403 `dedicated_feature_banned`.
+- **Control C5 (Unused Idle Abuse Increment):** Dedicated agent times out with 0 interactions. The hub *must* increment user's `abuse_count` by 1.
+- **Control C6 (Used Agent Dismissal Non-Abuse):** Dedicated agent receives 1 interaction and later times out. The hub dismisses the agent, but `abuse_count` *must not* increment.
 
 ---
 
-## 9. Migration Strategy & Rollout
+## 13. Migration Strategy & Rollout
 
 1. **Phase 1: Database Schema Migration**
-   - Apply `0202_dedicated_agents.sql` to `dev` then `prd`.
+   - Apply `0202_dedicated_agents.sql` to `dev` then `prd` (table `dedicated_agents`, columns `is_private_scope`).
    - Columns `is_private_scope` default to `false`; `dedicated_agents` table starts empty.
-   - Completely backward-compatible: zero impact on existing running agents or channels.
-2. **Phase 2: Hub API Logic Deployment**
-   - Deploy Cloud Run hub API with inbound/outbound scope validation and sweep query exclusion.
-   - Inactive until an owner binds an agent or marks a scope private.
-3. **Phase 3: Orchestration & Spawning**
-   - Deploy `SPAWN_DEDICATED_SCOPE` launcher support and mode `0700` spool directory provisioning.
-4. **Phase 4: Web UI Updates**
-   - Deploy Nuxt 3 UI with Channel Properties dialog controls and badges.
+   - Backward-compatible: zero impact on existing running agents or channels.
+2. **Phase 1b: Discussion Idle Configuration & Abuse Table Migration**
+   - Apply `0203_dedicated_idle_and_abuses.sql` to `dev` then `prd` (`idle_timeout_seconds`, `last_activity_at`, `dedicated_interaction_count`, and table `dedicated_agent_abuses`).
+3. **Phase 2: Hub API Logic Deployment**
+   - Deploy Cloud Run hub API with inbound/outbound scope validation, sweep query exclusion, topic dedication endpoints, and abuse enforcement engine.
+4. **Phase 3: Orchestration, Inactivity Daemon & Spawning**
+   - Deploy `SPAWN_DEDICATED_SCOPE` launcher support, mode `0700` spool directory provisioning, and `spl-dedicated-idle-sweep` cron.
+5. **Phase 4: Web UI Updates**
+   - Deploy Nuxt 3 UI with Discussion Properties context menu, cost transparency confirmation modal, live dedicated card, and Tenant Users abuse management.
 
 ---
 
-## 10. Open Questions for the Owner
+## 14. Open Questions for the Owner
+
+> **Abuse Definition Question (CLOSED 2026-10-17)**: Resolved by owner message `d8adaced-c6a7-469d-8f8d-4ebeb6d36ee4`: one abuse is defined as dedicating an agent and leaving it unused until the 1-hour idle timeout dismisses it. Thresholds 3, 5, and 6 count these events.
 
 - **Q1: Can a dedicated agent ever be rebound to a different scope without a full restart?**
   - *Option A (Recommended):* No. A dedicated agent's process lifecycle is tied to its initial scope. To change scopes, unbind and terminate the agent, then spawn a fresh agent for the new scope. This eliminates state leakage in LLM context windows.
@@ -439,4 +699,4 @@ To prevent host-level snooping (Spec 136 §1.1):
 
 ---
 
-<!-- version: 0.1.0 · updated: 2026-10-17 · last-edit: 2026-10-17T10:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-19 · last-edit: 2026-10-19T17:00:00Z -->

@@ -16,7 +16,7 @@ Concurrency: **build 2 row lanes in parallel at all times**.
 Consensus: **no owner go, no question to the owner** (rulebook 1.4).  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps 1..1 up to 3 max 5, bands, R1-R16), by pointer.  
 
-**Status: v1.0, Consensus reached (Editor signed on c9b3225b0; Claude seat signed in 7ce70cc59)**.
+**Status: v1.0, Consensus reached (Editor signed on c9b3225b0; Claude seat signed in 7ce70cc59; Mistral seat reviewed in 70d861b14)**.
 
 Editor: **a-615@PC** (agy).  
 Panel reviewer: **c-666@PC** (claude).  
@@ -97,7 +97,7 @@ All 9 rows touch disjoint files across `csi-spl-wui/`, `csi-spl-orc/`, `csi-spl-
 - **Expert Panel:**
   - Editor / agy seat: `a-615@PC` (`seat-agy.md`)
   - Claude seat: `c-666@PC` (`seat-claude.md`)
-  - Mistral seat: `m-xxx@sat` (`seat-mistral.md` - docs and review only per owner rule: no mistral coding rows)
+  - Mistral seat: `m-490@sat` (`seat-mistral.md` - docs and review only per owner rule: no mistral coding rows)
   - Grok seat: `g-xxx@<box>` (`seat-grok.md` - conditional subject to vendor quota availability)
 - **Reviewers per row (R7.2):**
   - All coding rows are assigned to Claude per owner directive (no mistral coding rows, owner 10-17).
@@ -148,5 +148,5 @@ All 9 rows touch disjoint files across `csi-spl-wui/`, `csi-spl-orc/`, `csi-spl-
 |---|---|---|---|---|
 | Editor | agy | a-615@PC | v1.0 editor consensus | `refactor-round-14/seat-agy.md` |
 | Claude seat | claude | c-666@PC | signed on c9b3225b0 in 7ce70cc59 | `refactor-round-14/seat-claude.md` |
-| Mistral seat (docs/review only) | mistral | pending | pending spawn / review | `refactor-round-14/seat-mistral.md` |
+| Mistral seat (docs/review only) | mistral | m-490@sat | reviewed in 70d861b14 (8 agree / 1 agree with changes folded) | `refactor-round-14/seat-mistral.md` |
 | Grok seat | grok | pending | pending review of v0.1 (quota check) | `refactor-round-14/seat-grok.md` |

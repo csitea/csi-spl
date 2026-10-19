@@ -67,6 +67,31 @@ check "...and claimed nothing" test -z "$(find "$SPOOL_ROOT" -mindepth 1 -maxdep
 sed -i '/^c-517\t/d' "$SPOOL_ROOT/registry.tsv"
 eq "one free number in a full line is found" g-517 "$(bash "$NAI" --kind grok)"
 
+# SPL-2646: a line held full only by quarantine still hands out an id. A reap
+# retires every dead id at once, so all of them sit in the 24 h quarantine; the
+# allocator then takes the quarantined number retired longest ago (its last
+# retire counts; a tie goes to the cursor's walk order), with a WARN line, and
+# never a number a hard rule (1-4, 6) holds.
+r quar
+for i in $(seq 4 999); do case "$i" in 600|650|700|710) continue ;; esac; printf 'c-%03d\tclaude\t%%1\t/x\t20261001T000000Z\t20261002T020000Z\n' "$i"; done >"$SPOOL_ROOT/registry.retired.tsv"
+printf 'c-600\tclaude\t%%1\t/x\t20261001T000000Z\t20261002T000000Z\n' >>"$SPOOL_ROOT/registry.retired.tsv"
+printf 'c-600\tclaude\t\t/x\t20261002T050000Z\n' >"$SPOOL_ROOT/registry.tsv"
+printf 'c-650\tclaude\t%%1\t/x\t20261001T000000Z\t20261001T230000Z\n' >>"$SPOOL_ROOT/registry.retired.tsv"
+printf 'c-650\tclaude\t%%1\t/x\t20261002T020500Z\t20261002T030000Z\n' >>"$SPOOL_ROOT/registry.retired.tsv"
+printf 'c-700\tclaude\t%%1\t/x\t20261001T000000Z\t20261002T010000Z\n' >>"$SPOOL_ROOT/registry.retired.tsv"
+mkdir "$SPOOL_ROOT/c-710"; printf 'c-710\tclaude\t%%1\t/x\t20261001T000000Z\t20261002T003000Z\n' >>"$SPOOL_ROOT/registry.retired.tsv"
+err="$(SPOOL_NOW=2026-10-02T12:00:00Z bash "$NAI" --kind grok 2>&1 >"$T_TMP/quar.out")"; rc=$?
+eq "a line full only by quarantine still hands out an id (exit 0)" 0 "$rc"
+eq "...the quarantined number retired longest ago, held by no hard rule" g-700 "$(cat "$T_TMP/quar.out")"
+has "...printed, never silent: one WARN naming the id and its retire time" "WARN: reusing quarantined g-700 (c-700 retired 20261002T010000Z" "$err"
+check "...and claimed it" test -d "$SPOOL_ROOT/g-700/inbox"
+eq "...a tie goes to the cursor's walk order" g-701 "$(SPOOL_NOW=2026-10-02T12:00:00Z bash "$NAI" --kind grok 2>/dev/null)"
+sed -i '/^c-517\t/d' "$SPOOL_ROOT/registry.retired.tsv"
+eq "a free number beats every quarantined one" g-517 "$(SPOOL_NOW=2026-10-02T12:00:00Z bash "$NAI" --kind grok 2>/dev/null)"
+eq "--no-reserve takes the same fallback, from the cursor" g-518 "$(SPOOL_NOW=2026-10-02T12:00:00Z bash "$NAI" --kind grok --no-reserve 2>/dev/null)"
+for i in $(seq 4 999); do printf 'c-%03d\tclaude\t\t/x\t20261001T000000Z\n' "$i"; done >"$SPOOL_ROOT/registry.tsv"
+SPOOL_NOW=2026-10-02T12:00:00Z bash "$NAI" --kind grok >/dev/null 2>&1; eq "control: quarantine plus hard rules on every number is still full (exit 1)" 1 "$?"
+
 # The owner switches (Q1, Q2) are one variable each.
 r sw
 eq "Q2 per kind: each kind starts at 004" "c-004 g-004" "$(SPOOL_ID_COUNTER=kind bash "$NAI" --kind claude) $(SPOOL_ID_COUNTER=kind bash "$NAI" --kind grok)"

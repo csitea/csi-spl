@@ -22,13 +22,19 @@
 #   3. its identity record agents/<ID>.json exists;
 #   4. a tmux window carries it;
 #   5. it was retired (registry.retired.tsv) less than SPOOL_ID_QUARANTINE_H
-#      hours ago (default 24);
+#      hours ago (default 24; its last retire counts). A preference, not a hard
+#      hold: see below;
 #   6. a row of the box's workdir table (workdirs.tsv, column 3) names it: its
 #      finished lane's worktree still waits for the disk sweep, and a new lane
 #      of that id would reuse the old worktree and its branch.
+# Rules 1-4 and 6 are hard. Rule 5 only orders: when the walk finds no number
+# free of all six, the quarantined numbers no hard rule holds are tried in
+# retire order, oldest first (a tie in walk order), and the one taken is
+# printed as a WARN line with its retire time (SPL-2646: a reap retires every
+# dead id at once, which held a whole line full for 24 h).
 # The claim is still `mkdir` without -p: one syscall both refuses a used id and
 # locks out a concurrent spawn racing for the same one. A full line (every
-# number skipped) is exit 1; nothing is ever reused silently.
+# number held by a hard rule) is exit 1; nothing is ever reused silently.
 #
 # Usage:
 #   next-agent-id.sh --kind claude|grok|agy|qwen|mistral # prints e.g. c-004
@@ -167,7 +173,7 @@ else SCOPE="$LETTER"; CURSOR="${SPOOL_ROOT}/agent-id.${LETTER}.cursor"; fi
 ID_TOK="[${SCOPE}]-[0-9]{3}"
 
 # ---- the held numbers: the 6 skip rules ------------------------------------
-declare -A HELD=()
+declare -A HELD=() QUAR=()
 _hold() {  # WHY — ids on stdin, one per line (anything else is ignored)
   local id n
   while IFS= read -r id; do
@@ -204,8 +210,14 @@ _now_epoch() {
   else date -u -d "$n" +%s; fi
 }
 QUAR_FROM="$(date -u -d "@$(( $(_now_epoch) - QUAR_H * 3600 ))" +%Y%m%dT%H%M%SZ)"
+# QUAR[n] = "<retired-utc> <id>", the number's latest retire inside the window.
 if [ -r "${SPOOL_ROOT}/registry.retired.tsv" ]; then
-  _hold "5:quarantine" < <(awk -F'\t' -v from="$QUAR_FROM" '$6 >= from { print $1 }' "${SPOOL_ROOT}/registry.retired.tsv")
+  while read -r _rt _rid; do
+    _rid="${_rid%%@*}"
+    [[ "$_rid" =~ ^${ID_TOK}$ ]] || continue
+    _rn=$((10#${_rid#?-}))
+    [[ "${QUAR[$_rn]:-}" > "$_rt" ]] || QUAR[$_rn]="$_rt $_rid"
+  done < <(awk -F'\t' -v from="$QUAR_FROM" '$6 >= from { print $6, $1 }' "${SPOOL_ROOT}/registry.retired.tsv")
 fi
 _wd="${WORKDIR_TABLE:-${SPOOL_ROOT}/workdirs.tsv}"
 [ -r "$_wd" ] && _hold "6:workdir" < <(awk -F'\t' '!/^#/ && NF { print $3 }' "$_wd")
@@ -213,7 +225,7 @@ if [ -n "$ALSO_REG" ]; then
   _hold "2:also-registry" < <(_reg_ids "${ALSO_REG}/registry.tsv")
   _hold "1:also-registry" < <(_dir_ids "$ALSO_REG")
 fi
-say "line ${LETTER}-$(printf %03d "$LO")..${HI}, counter ${ID_COUNTER} (${SCOPE}), ${#HELD[@]} number(s) held, quarantine since ${QUAR_FROM}"
+say "line ${LETTER}-$(printf %03d "$LO")..${HI}, counter ${ID_COUNTER} (${SCOPE}), ${#HELD[@]} number(s) held, ${#QUAR[@]} quarantined since ${QUAR_FROM}"
 
 # ---- the cursor (flock), then the walk -------------------------------------
 _cursor_read() {
@@ -231,25 +243,45 @@ if [ "$RESERVE" -eq 1 ]; then
   chmod 0664 "$CURSOR" 2>/dev/null || true
   flock -w 30 9 || { echo "ERROR: ${CURSOR} stayed locked for 30 s" >&2; exit 1; }
 fi
+# _take N [WARN]: hand out number N (claimed, unless --no-reserve) and exit 0,
+# printing WARN to stderr first; return 1 when its dir is taken.
+_take() {
+  local id; id="$(printf '%s-%03d' "$LETTER" "$1")"
+  if [ "$RESERVE" -eq 0 ]; then
+    if _taken "$id"; then say "skip ${id}: exists"; return 1; fi
+    [ -z "${2:-}" ] || printf 'next-agent-id: WARN: %s\n' "$2" >&2
+    say "chose ${id} (not claimed: --no-reserve)"
+    printf '%s\n' "$id"; exit 0
+  fi
+  if _claim "$id"; then
+    [ -z "${2:-}" ] || printf 'next-agent-id: WARN: %s\n' "$2" >&2
+    _mkdirs "$id"
+    printf '%03d\n' "$1" >"$CURSOR"
+    say "claimed ${id} (${SPOOL_ROOT}/${id}); cursor -> ${1}"
+    printf '%s\n' "$id"; exit 0
+  fi
+  say "skip ${id}: ${SPOOL_ROOT}/${id} exists or is not creatable"
+  return 1
+}
 cur="$(_cursor_read)"
 say "cursor ${CURSOR}: ${cur}"
-span=$((HI - LO + 1)); n="$cur"
+span=$((HI - LO + 1)); n="$cur"; QORDER=()
 for ((i = 0; i < span; i++)); do
   n=$((n + 1)); [ "$n" -gt "$HI" ] && n="$LO"
   ID="$(printf '%s-%03d' "$LETTER" "$n")"
   if [ -n "${HELD[$n]:-}" ]; then say "skip ${ID}: rule ${HELD[$n]}"; continue; fi
-  if [ "$RESERVE" -eq 0 ]; then
-    if _taken "$ID"; then say "skip ${ID}: exists"; continue; fi
-    say "chose ${ID} (not claimed: --no-reserve)"
-    printf '%s\n' "$ID"; exit 0
+  if [ -n "${QUAR[$n]:-}" ]; then
+    say "skip ${ID}: rule 5:quarantine ${QUAR[$n]#* } (retired ${QUAR[$n]%% *})"
+    QORDER+=("${QUAR[$n]%% *} ${i} ${n}"); continue
   fi
-  if _claim "$ID"; then
-    _mkdirs "$ID"
-    printf '%03d\n' "$n" >"$CURSOR"
-    say "claimed ${ID} (${SPOOL_ROOT}/${ID}); cursor -> ${n}"
-    printf '%s\n' "$ID"; exit 0
-  fi
-  say "skip ${ID}: ${SPOOL_ROOT}/${ID} exists or is not creatable"
+  _take "$n" || true
 done
-echo "ERROR: the ${LETTER}- line $(printf %03d "$LO")-${HI} is full on this machine (${SPOOL_ROOT}; counter ${ID_COUNTER}, ${#HELD[@]} held)" >&2
+# No number free of all six rules: the quarantined ones, retired longest ago first.
+if [ "${#QORDER[@]}" -gt 0 ]; then
+  while read -r _rt _ n; do
+    ID="$(printf '%s-%03d' "$LETTER" "$n")"
+    _take "$n" "reusing quarantined ${ID} (${QUAR[$n]#* } retired ${_rt}, under ${QUAR_H} h ago): no number on the ${LETTER}- line is free of all 6 rules" || true
+  done < <(printf '%s\n' "${QORDER[@]}" | sort -k1,1 -k2,2n)
+fi
+echo "ERROR: the ${LETTER}- line $(printf %03d "$LO")-${HI} is full on this machine (${SPOOL_ROOT}; counter ${ID_COUNTER}, ${#HELD[@]} held, ${#QUAR[@]} quarantined)" >&2
 exit 1

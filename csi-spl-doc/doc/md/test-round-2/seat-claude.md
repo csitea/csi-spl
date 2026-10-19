@@ -123,4 +123,37 @@ took 42 s and 21 s, already under the plan's targets. Every solo run passed
 
 ## 5. Signature
 
-Pending v1.0.
+**Not signed on v1.0 `b784c1a9887b628bee28f1a0277fe8e36a1673e7`.** Section 6
+lists what blocks it. I sign the next version that fixes rows 05, 07, 08, 09
+and 11.
+
+## 6. Review of v1.0 (`b784c1a98`)
+
+**Folded correctly:** rows 01 (cpu target, solo, n=3), 02 and 06 (`DRY_RUN`
+code commit, terraform and `do_tf_init` stubs, sandbox cwd, pinning
+`-lock=false`), 03 (P1), 04 (P2, `-coverpkg`), 12 (site `test-install.sh`)
+and dropping A6.
+
+**Blocking:** the six new rows 05 and 07-11 come from the file-name grep that
+section 4.2 (P2) warned about, and 5 of the 6 are fully or partly done.
+Measured on `origin/master` after `b784c1a98`, with
+`grep -rlE -e <name> -e <name_with_underscores>` over
+`csi-spl-{orc,iac,api}/src/bash/tests` and every
+`csi-spl-orc/src/bash/features/*/tests`. (A wildcard git pathspec such as
+`features/*/tests` matches no file inside that directory and reads 0, which
+is a trap for whoever re-measures.)
+
+| row | actions said to have 0 tests | already tested by | left |
+|---|---|---|---|
+| 05 | identity-reconcile, name-resume | both actions are wrappers: `spawn-agents/tests/test-agent-identity-reconcile.sh` (209 lines, sources `lib/agent-identity.inc.sh`), and `test-agent-name-shape.sh` section 5 runs `agent-name-resume.sh` (`:56-74`) | the two 25-27 line `do_` wrappers only: drop the row |
+| 07 | msg-edit-probe, wire-probe, desk-live-proof | `csi-spl-orc/src/bash/tests/desk-live-proof.tst.sh` (195 lines, with a RED CONTROL) covers `spl_desk_live_*` | msg-edit-probe and wire-probe |
+| 08 | lb-list, list-cloudsql, list-firewall-rules, list-static-dns-addresses | `csi-spl-iac/src/bash/tests/gcp-tf-shared-bodies.tst.sh:21` (`LISTS=(cloudsql ... firewall-rules ... static-dns-addresses ...)`) runs all three against a stubbed gcloud and checks `--account` | `gcp-compute-lb-list` only |
+| 09 | vibe-output-cap-install, vibe-push-guard-install, vibe-loop-cost | the install actions wrap spool-install steps Y15 and Y12 (`spl-vibe-push-guard-install.func.sh:22`), which `spool-install/tests/test-y12-vibe-push-guard.sh` and `test-y15-vibe-output-cap.sh` drive, dry run included. `vibe-loop-cost.py` is part 5 of the Y15 test (`:18`, `:29`) | the thin `do_` wrappers only: drop the row |
+| 10 | sync-local-to-s3, tail-logs, satellite-image-latest | none found | all 3: keep |
+| 11 | lane-age-report, rotate-status, local-hub-status, dispatch-deploy-lag | `spawn-agents/tests/test-lane-age-report.sh` runs `lane-age-report.sh` | rotate-status, local-hub-status, dispatch-deploy-lag |
+
+**Fix:** keep row 10; shrink 07 to msg-edit-probe + wire-probe, 08 to
+`gcp-compute-lb-list`, and 11 to its 3 untested actions; drop 05 and 09 (or
+replace them with actions the `grep -r` above shows at 0, e.g. merging 07, 08
+and 11's leftovers). Each row's "number now" should cite that `grep -r`
+command.

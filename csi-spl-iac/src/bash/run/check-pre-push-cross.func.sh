@@ -46,6 +46,7 @@ _PPX_MAP=(
   "help-connect-agent.tst.sh csi-spl-doc/doc/help README.md"
   "owner-acceptance-register.tst.sh csi-spl-doc/specs/031-spool-owner-acceptance csi-spl-orc/src/bash csi-spl-wui/tests csi-spl-api/src/go"
   "compose-healthchecks.tst.sh docker-compose.yml csi-spl-api/src/docker/hub-entrypoint.sh"
+  "compose-secrets.tst.sh docker-compose.yml .gitignore csi-spl-api/src/docker/secret-env.sh csi-spl-api/src/docker/local-secrets"
   "hub-env-typed-values.tst.sh csi-spl-api/src/go/spool-hub-api"
   "workflow-go-mod-verify.tst.sh csi-spl-api/src/go/spool-hub-api/go.mod"
   "rdb-no-store-entities.tst.sh csi-spl-rdb/src/sql"

@@ -203,7 +203,10 @@ grep -q 'positive integers' <<<"$(knob '{minutes: 0}')" && pass "12. minutes 0 r
 grep -q 'canary=$(yq -r ".env.hub.cloud_run.canary.enabled // false"' "$WF" && pass "13. wf 20 reads cnf hub.cloud_run.canary.enabled" || fail "13. no canary cnf read in $WF"
 grep -qF 'DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" IMAGE_REF="$IMAGE_REF" EXPECT_COMMIT="$GITHUB_SHA" \' "$WF" && grep -qF './csi-spl-orc/run -a do_canary_hub_deploy | tee' "$WF" \
   && pass "13. wf 20 runs do_canary_hub_deploy with the minted image and the commit" || fail "13. no canary run in $WF"
-for e in all dev prd; do
+# the owner's go is per env: dev on (HUM-10 msg 828eb2f5, 2026-10-18), all + prd off until a prd go
+v="$(yq -r '.env.hub.cloud_run.canary.enabled // "unset"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml")"
+[[ "$v" == true ]] && pass "13. cnf dev: canary enabled (owner go 828eb2f5)" || fail "13. cnf dev canary.enabled=$v"
+for e in all prd; do
   v="$(yq -r '.env.hub.cloud_run.canary.enabled // "unset"' "$APP_ROOT/csi-spl-cnf/csi-spl/$e.env.yaml")"
   [[ "$v" == false || "$v" == unset ]] && pass "13. cnf $e: canary not enabled until the owner's go" || fail "13. cnf $e canary.enabled=$v"
 done

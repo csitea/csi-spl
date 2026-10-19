@@ -1,8 +1,8 @@
 # Hub canary deploy (Cloud Run radar step 3, SPL-2249)
 
-Status: **planned, not built on master**. The code sits on the review
-branch `review/c-322-spl-2249-canary`; cnf `hub.cloud_run.canary.enabled` is
-`false` in every env until the owner's go (t1 `8f476aa8`), dev first.
+Status: **on master** since `e32bef074`. cnf `hub.cloud_run.canary.enabled`
+is `true` on **dev** (owner GO HUM-10 msg `828eb2f5`, 2026-10-18, t1 poll
+`35012991`: dev only) and `false` on prd until a later prd go.
 
 ## 1. What it does
 
@@ -123,9 +123,10 @@ inside its 30 min timeout.
 ## 5. Turning it on
 
 1. Owner's go for dev. Set `enabled: true` in `csi-spl-cnf/csi-spl/dev.env.yaml`,
-   render (`ENV=dev ./run -a do_tpl_gen`, no tfvars change), push. Apply 030
-   on dev (the `ignore_changes` only; the dev plan of 2026-10-16 was
-   "No changes").
+   render (`ENV=dev ./run -a do_tpl_gen`, no tfvars change), push. Done
+   2026-10-19. The 030 `ignore_changes` is a lifecycle rule, not a resource
+   change: it needs no apply (the dev 030 plan of 2026-10-19 shows no line of
+   it; its one change is another lane's env flip, applied under that lane's go).
 2. A week of dev deploys; read each run's `canary:` lines.
 3. Owner's go for prd: the same in `prd.env.yaml`, then the 030 prd apply.
 

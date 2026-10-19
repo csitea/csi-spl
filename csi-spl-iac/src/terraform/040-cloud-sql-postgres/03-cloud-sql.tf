@@ -35,10 +35,21 @@ resource "google_sql_database_instance" "hub" {
     disk_autoresize             = true
     deletion_protection_enabled = var.deletion_protection
 
-    # Public IP with NO authorized network: the only way in is the Cloud SQL
-    # connector (Cloud Run's /cloudsql socket, the Auth Proxy), which
-    # authenticates with IAM (roles/cloudsql.client) and encrypts. No VPC,
-    # no peering, nothing to open.
+    # SPL-2161 (radar step 2, trivy GCP-0017): the public IP stays, on
+    # purpose. Every client but the hub runs OUTSIDE Google's network - the
+    # GitHub-hosted runners of wf 20 (migrate before each roll), 45 (backup
+    # verify, restore check) and 49 (restore drill), and the boxes'
+    # owner-gated orc actions - and reaches the instance only through the
+    # Cloud SQL Auth Proxy over this IP; a private-IP-only instance cuts all
+    # of them off. NO authorized network (measured dev + prd 2026-10-19:
+    # none), so a raw Postgres client cannot connect at all; the way in is
+    # the Cloud SQL connector (Cloud Run's /cloudsql socket, the Auth Proxy),
+    # which authenticates with IAM (roles/cloudsql.client) and encrypts.
+    # connector_enforcement REQUIRED (cnf) makes that the ONLY way in, even
+    # if someone adds an authorized network by hand.
+    # Plan: csi-spl-doc/specs/007-spool-hub-api-infra/radar-step2-sql-private-ip.md
+    connector_enforcement = var.connector_enforcement
+
     ip_configuration {
       ipv4_enabled = true
       ssl_mode     = "ENCRYPTED_ONLY"

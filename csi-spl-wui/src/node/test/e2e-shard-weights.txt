@@ -18,6 +18,8 @@
 # docs-dock-collapse (SPL-2516, new 2026-10-19): no CI sample yet; 28 = the
 # lowest of 3 local sat runs (28/47/69 s, load 20..30), so the file does not
 # take the median; refresh it from CI with the next weights round.
+# unread-first-order (SPL-2506, new 2026-10-19): no CI sample yet; 5 = the
+# lowest of 3 local sat runs (5.0/4.8/4.5 s, load 14), rounded up.
 tests/e2e/act-as.test.mjs 14
 tests/e2e/agent-at-box.test.mjs 8
 tests/e2e/agent-id-mention.test.mjs 6
@@ -268,6 +270,7 @@ tests/e2e/typed-by.test.mjs 2
 tests/e2e/undo-snackbar-mobile.test.mjs 37
 tests/e2e/unread-divider.test.mjs 9
 tests/e2e/unread-drops-on-read.test.mjs 25
+tests/e2e/unread-first-order.test.mjs 5
 tests/e2e/unread-on-row.test.mjs 2
 tests/e2e/unread-sum.test.mjs 2
 tests/e2e/user-menu-lazy-mount.test.mjs 6

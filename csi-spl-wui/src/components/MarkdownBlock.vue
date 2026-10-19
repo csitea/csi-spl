@@ -326,12 +326,32 @@ MdNodes.props = ['nodes', 'stamp']
 .md-block :deep(th),
 .md-block :deep(td) {
   border: 1px solid var(--color-border);
-  padding: 0.25em 0.6em;
+  padding: 0.4em 0.75em;
   text-align: left;
   vertical-align: top;
   overflow-wrap: normal;
 }
 .md-block :deep(th) { background: var(--color-bg-2); font-weight: 600; }
+.md-block :deep(thead th) { border-bottom: 2px solid var(--color-border-strong); }
+/* SPL-2466 row 01: zebra rows. --color-row-alt is a translucent veil (one
+   value per theme family, variables.css), so the same step shows on an odd
+   (clear) card and on an even (already veiled) one. A pipe table has a tbody;
+   an HTML table may hold its rows straight under <table> (counted over the
+   rows with a td, so a header row of th stays out). :where keeps these
+   at the .md-block weight, so a modifier class or the hover below wins. */
+.md-block :deep(:where(tbody > tr:nth-child(even), table > tr:nth-child(even of tr:has(> td)))) {
+  background: var(--color-row-alt);
+}
+.md-block :deep(.md-table--no-zebra :where(tr)) { background: none; }
+.md-block :deep(.md-table :where(tbody > tr:hover, table > tr:hover)) {
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+}
+.md-block :deep(.md-table--compact :where(th, td)) { padding: 0.2em 0.4em; }
+.md-block :deep(.md-table--compact table) { font-size: 0.8125rem; }
+.md-block :deep(.md-table--dense table) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
 /* spec 137: a "Table: <desc>" line is the table's caption, read under it */
 .md-block :deep(caption) {
   caption-side: bottom;

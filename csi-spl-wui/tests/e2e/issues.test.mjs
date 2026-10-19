@@ -141,6 +141,12 @@ try {
   ok('2d the closed Assignee control is no wider than 13em, near prio / level, the full text on hover',
     widths.assignee <= widths.capPx + 1 && widths.assignee < widths.controlOldWay && widths.assignee <= Math.max(widths.prio, widths.level) * 1.5 && widths.title === 'Assignee: All', widths)
 
+  /* perf p6-04 (SPL-2579): the closed Status filter mounts no list; it was 26 hidden nodes */
+  const closedDd = await p.evaluate(() => ({
+    btn: !!document.querySelector('[data-test=issues-filter-status-btn]'),
+    nodes: document.querySelectorAll('[data-test=issues-filter-status] .issues-status-dd__list, [data-test=issues-filter-status] .issues-status-dd__list *').length,
+  }))
+  ok('2g the closed Status filter mounts 0 list nodes (v-if, not a hidden v-show list)', closedDd.btn && closedDd.nodes === 0, closedDd)
   await p.click('[data-test=issues-filter-status-btn]')
   await p.waitForSelector('[data-test=issues-filter-status-opt][data-value="wip"]', { visible: true, timeout: 5000 })
   const codes = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-code', (els) => els.map((e) => e.textContent.trim()))

@@ -26,7 +26,9 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   `record` keeps a conflicting id's record, so this one holds
   restore-plan [--since UTC] [--until UTC] [--ids "ID ..."] [--agent-user U]
                   the records a reboot restore starts again (RESTORE rows) and
-                  the ones it refuses (REFUSE + reason); see the action
+                  the ones it refuses (REFUSE + reason); see the action.
+                  Session '-': mistral continues its worktree's last session;
+                  a role seat (c-001..g-003) starts fresh from its handoff.md
   hash            the hash of the records as they are on disk
   rename OLD NEW  move OLD's record to NEW.json with id NEW and re-hash
                   index.json (specs/061 FR-011); exit 1 no record, 3 NEW has one
@@ -76,6 +78,8 @@ PY_LOADER = re.compile(r"^python[0-9.]*$")
 AGENT_ID = r"(?:[acgmq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
 ID_RE = re.compile(r"^" + AGENT_ID + r"$")
 NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])(" + AGENT_ID + r")(?![0-9])")
+# A role seat (spool-env.inc.sh SPL_ROLE_SEAT_RX, and its legacy form).
+ROLE_SEAT_RE = re.compile(r"^(?:[acgmq]-00[1-3]|(?:CLE|GRK|AGY|QWN)-00[1-3])$")
 BADGES = (">", "?", "!")
 VOLATILE = ("updated_at",)  # never part of the hash, never a reason to rewrite
 FIELDS = (
@@ -1028,7 +1032,23 @@ def cmd_restore_plan(args, proc):
         )
         user = args.agent_user or ran
         why, copy_from = "", ""
-        if not sid and kind == "mistral":
+        handoff = os.path.join(
+            os.path.dirname(os.path.abspath(args.dir)), i, "handoff.md"
+        )
+        if not sid and kind != "mistral" and ROLE_SEAT_RE.match(i):
+            # A role seat holds a role, not a task: with no recorded session
+            # it starts FRESH ('-') from its role handoff, as an m- lane does
+            # (sat reboot 2026-10-18: g-002 and g-003 were refused, and with
+            # the <pc box> off the roles had nowhere to fall).
+            sid = "-"
+            if not os.path.isfile(handoff):
+                why = (
+                    "its session is unknown and it has no role handoff %s; not guessing one"
+                    % handoff
+                )
+            elif not wt or not os.path.isdir(wt):
+                why = "its worktree %s is gone (a fresh start needs it)" % wt
+        elif not sid and kind == "mistral":
             # A fresh m- lane has no session id yet: its adapter takes '-'
             # (restore-mistral.sh plans `vibe --continue` in the worktree).
             sid = "-"

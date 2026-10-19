@@ -21,7 +21,11 @@
 # @description named and skipped - never guessed - when its session is unknown
 # @description or on two records, already running, its worktree is gone, or
 # @description its transcript is not under its worktree's project dir or
-# @description belongs to another agent. Each started agent gets a fresh row
+# @description belongs to another agent. Two exceptions to "session unknown":
+# @description an m- lane continues its worktree's last vibe session, and a role
+# @description seat (c-001..g-003, any vendor) with its <id>/handoff.md starts
+# @description a NEW session kicked to that handoff (session '-', SPL-2638).
+# @description Each started agent gets a fresh row
 # @description in the spool registry (and IDENTITY_LEGACY_REGISTRY, if set);
 # @description then the windows are named from the map (reconcile) and the
 # @description map is checked. Each window and claude --name is "<ID>@<tag>"

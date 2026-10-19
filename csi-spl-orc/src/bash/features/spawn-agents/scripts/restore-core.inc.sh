@@ -26,6 +26,11 @@
 #   RESTORE_SID_OPTIONAL 1: an empty or '-' SESSION_ID is not refused;
 #                       RESTORE_ARGS gets "" and resumes the directory's last
 #                       session (mistral: --continue)
+#   RESTORE_SID_FRESH   1: a '-' SESSION_ID (only '-', an empty one is still
+#                       refused) is a role seat the identity restore found with
+#                       no recorded session: RESTORE_ARGS gets "" and starts a
+#                       NEW session, kicked to its <spool root>/<id>/handoff.md
+#                       (claude, grok; SPL-2638)
 #   RESTORE_EXEC_PREFIX words before spool-harness and the CLI, as spawn's
 #                       SPAWN_EXEC_PREFIX (mistral: env -u MISTRAL_API_KEY ...)
 #   RESTORE_EXTRA_FLAGS flags after the permission flags (mistral: --max-price N)
@@ -68,6 +73,16 @@ _rs_kick() {  # TITLE RUNDIR BRANCH BRIEF
   fi
 }
 
+# The kick of a fresh role seat (RESTORE_SID_FRESH, '-'): no session to
+# resume, so the new one reads the role handoff, then its brief (arg 4 when a
+# file, else lifetime/brief.md) and its inbox.
+_rs_fresh_kick() {  # TITLE RUNDIR ARG4
+  local ho="$SPOOL_ROOT/$1/handoff.md" brief=""
+  if [ -n "$3" ] && [ -f "$3" ]; then brief="$3"
+  elif [ -s "$SPOOL_ROOT/$1/lifetime/brief.md" ]; then brief="$SPOOL_ROOT/$1/lifetime/brief.md"; fi
+  printf '%s' "FRESH START: the box restarted and no session of the role seat $1 was recorded, so this is a NEW session of that seat in $2, not a resume. First read your role handoff at ${ho}${brief:+, then your brief at ${brief}}, then your spool inbox (spool recv). State a 3-line status (what the role holds, what is open, what you are waiting for), then continue your role from there."
+}
+
 # _rs_clear_hold ID: spec 102 6.1, the hold "does not expire; the admin's
 # restart clears it". A restore by hand (an adapter a person runs, or
 # do_spl_agent_identity_restore with IDENTITY_RESTORE_IDS) IS that admin act:
@@ -97,12 +112,13 @@ _rs_write_kick() {  # FILE KICK
 }
 
 restore_main() {
-  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc kick_file display cur args cmd stub pane sock pane_env
+  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc kick_file display cur args cmd stub pane sock pane_env fresh=""
   SPOOL_ENV_NO_BINS=0 spool_env_resolve
   spool_valid_id "$title" 2>/dev/null || _rs_fail "TITLE '${title}' is not an agent id (e.g. ${RESTORE_ID_PREFIX:-${RESTORE_KIND:0:1}}-07)"
   [ -n "$rundir" ] && [ -d "$rundir" ] || _rs_fail "RUNDIR '${rundir}' does not exist - the session cannot be restored in place; spawn it again"
+  [ "$sid" = - ] && [ "${RESTORE_SID_FRESH:-0}" = 1 ] && { sid=""; fresh=1; }
   [ "$sid" = - ] && [ "${RESTORE_SID_OPTIONAL:-0}" = 1 ] && sid=""
-  [ -n "$sid" ] || [ "${RESTORE_SID_OPTIONAL:-0}" = 1 ] || _rs_fail "a session id is required"
+  [ -n "$sid" ] || [ "${RESTORE_SID_OPTIONAL:-0}" = 1 ] || [ -n "$fresh" ] || _rs_fail "a session id is required"
   pane_env="${RESTORE_ID_PREFIX:-${RESTORE_KIND^^}}"
   bin_var="$RESTORE_BIN_VAR"; bin="${!bin_var:-$RESTORE_KIND}"
   branch="$(git -C "$rundir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -110,6 +126,7 @@ restore_main() {
     brief)  kick="$(_rs_kick "$title" "$rundir" "$branch" "$arg4")" ;;
     prompt) kick="$arg4" ;;
   esac
+  [ -n "$fresh" ] && kick="$(_rs_fresh_kick "$title" "$rundir" "$arg4")"
   display="$(an_decorate "$title")"
 
   # The restorer recreated the window under its SAVED name, which may predate
@@ -141,7 +158,8 @@ restore_main() {
   echo "════════════════════════════════════════════════════════════════════"
   echo " RESTORING ${title} (${RESTORE_KIND})"
   echo "   dir      : ${rundir}${branch:+ (branch ${branch})}"
-  echo "   session  : ${sid:-<the last one in this dir>}"
+  if [ -n "$fresh" ]; then echo "   session  : <a new one, from the role handoff>"
+  else echo "   session  : ${sid:-<the last one in this dir>}"; fi
   echo "   re-resume: ${stub}"
   echo "════════════════════════════════════════════════════════════════════"
   # A kick re-orients the restored session and keeps the TUI up. If this CLI

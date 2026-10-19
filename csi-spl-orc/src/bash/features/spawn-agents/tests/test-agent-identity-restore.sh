@@ -24,6 +24,14 @@
 #   6. the automatic pass (no IDENTITY_RESTORE_IDS) runs each adapter with
 #      RESTORE_KEEP_HOLD=1: a spec 102 6.1 hold is the admin's to clear, and
 #      only a restore by hand clears it (restore-core.inc.sh)
+#   7. (SPL-2638, sat reboot 2026-10-18: g-002 and g-003 REFUSEd, "its session
+#      is unknown") a ROLE seat (g-002 grok, c-003 claude) with no recorded
+#      session plans RESTORE with session '-', a fresh start from its role
+#      handoff; controls: a role seat without <id>/handoff.md and a sessionless
+#      lane are still refused; the real restore-grok.sh / restore-claude.sh
+#      start a NEW session (no --resume) kicked to the handoff, and an empty
+#      session id is still refused; red control: the code before the fix
+#      refuses the sessionless g- role seat
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -116,5 +124,49 @@ for i in CLE-81 CLE-82; do
 done
 
 eq "6. the automatic pass keeps every hold (RESTORE_KEEP_HOLD=1)" "CLE-81 keep=1 CLE-82 keep=1" "$(sort "$T_TMP/keep" | tr '\n' ' ' | sed 's/ $//')"
+
+# --- 7 a sessionless role seat starts fresh from its role handoff ------------------
+recordk() {  # ID KIND WORKTREE
+  python3 - "$SPOOL_ROOT/agents/$1.json" "$@" <<'PY'
+import json, sys
+f, i, kind, wt = sys.argv[1:5]
+json.dump({"v": 1, "id": i, "kind": kind, "session_id": None, "worktree": wt, "title": "role " + i,
+           "user": None, "pid": 4000000, "proc_start": "1", "tmux_session": "t", "window_id": "@9", "pane_id": "%9",
+           "alive": True, "updated_at": "2026-10-01T02:00:00Z"}, open(f, "w"), indent=1, sort_keys=True)
+PY
+}
+ME="$(id -un)"
+mkdir -p "$W/g-002" "$W/c-003" "$W/g-001" "$W/c-591"
+for i in g-002 c-003 c-591; do mkdir -p "$SPOOL_ROOT/$i"; echo "# handoff $i" > "$SPOOL_ROOT/$i/handoff.md"; done
+recordk g-002 grok   "$W/g-002"   # role seat, its handoff on disk
+recordk c-003 claude "$W/c-003"   # role seat, its handoff on disk
+recordk g-001 grok   "$W/g-001"   # role seat, NO handoff
+recordk c-591 claude "$W/c-591"   # a lane, not a role seat
+rp() { ai_panes | python3 "${1:-$T_SCRIPTS/agent-identity.py}" --dir "$SPOOL_ROOT/agents" restore-plan --ids "g-002 c-003 g-001 c-591" --agent-user "$ME"; }
+plan="$(rp)"
+has "7. a sessionless grok role seat plans a fresh restore ('-')" "RESTORE	g-002	grok	$ME	-	$W/g-002	" "$plan"
+has "7. a sessionless claude role seat plans a fresh restore ('-')" "RESTORE	c-003	claude	$ME	-	$W/c-003	" "$plan"
+has "7. control: a role seat with no role handoff is refused" "REFUSE	g-001	its session is unknown and it has no role handoff $SPOOL_ROOT/g-001/handoff.md" "$plan"
+has "7. control: a sessionless lane is still refused" "REFUSE	c-591	its session is unknown; not guessing one" "$plan"
+
+git init -q "$T_TMP/main" && git -C "$T_TMP/main" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q --allow-empty -m init
+mkdir -p "$SPOOL_ROOT/g-002/lifetime"; echo "# Brief: dispatch" > "$SPOOL_ROOT/g-002/lifetime/brief.md"
+out="$(env RESTORE_PRINT=1 GROK_BIN=grok bash "$T_SCRIPTS/restore-grok.sh" g-002 "$T_TMP/main" - 2>&1)"
+hasnt "7. restore-grok.sh '-': a NEW session, no --resume" "--resume" "$out"
+has "7. ... kicked to its restore note" "\"Read and follow your restore note: $SPOOL_ROOT/g-002/lifetime/kick.txt\"" "$out"
+has "7. ... which names the role handoff and the brief" "First read your role handoff at $SPOOL_ROOT/g-002/handoff.md, then your brief at $SPOOL_ROOT/g-002/lifetime/brief.md" "$out"
+out="$(env RESTORE_PRINT=1 CLAUDE_BIN=claude bash "$T_SCRIPTS/restore-claude.sh" c-003 "$T_TMP/main" - 2>&1)"
+hasnt "7. restore-claude.sh '-': a NEW session, no --resume" "--resume" "$out"
+has "7. ... kicked to the role handoff" "FRESH START: the box restarted and no session of the role seat c-003 was recorded" "$out"
+has "7. control: a session id still resumes it" "--resume s-3" "$(env RESTORE_PRINT=1 GROK_BIN=grok bash "$T_SCRIPTS/restore-grok.sh" g-002 "$T_TMP/main" s-3 2>&1)"
+has "7. control: an empty session id is still refused" "a session id is required" "$(env RESTORE_PRINT=1 GROK_BIN=grok bash "$T_SCRIPTS/restore-grok.sh" g-002 "$T_TMP/main" "" 2>&1)"
+
+OLD="$T_TMP/agent-identity.old.py"
+PRE=f35ebaaaf  # master just before SPL-2638 (a shallow clone lacks it: skipped, named)
+if git -C "$T_REPO" show "$PRE:csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-identity.py" > "$OLD" 2>/dev/null; then
+  has "7. red control: the code before the fix refuses the sessionless g- role seat" "REFUSE	g-002	its session is unknown; not guessing one" "$(rp "$OLD")"
+else
+  echo "SKIP 7 red control: $PRE is not in this clone (shallow?)"
+fi
 
 t_done

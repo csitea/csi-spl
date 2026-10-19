@@ -443,7 +443,7 @@ resource, and its age would have come from each machine's own clock.
 
 | this machine | does |
 |---|---|
-| no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`) | writes nothing; a lease it held goes stale |
+| no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`; then the role's fallback seats, below) | writes nothing; a lease it held goes stale |
 | holds it | renews; the local master/failover order still applies inside the machine |
 | holder silent > 180 s on the hub's clock | takes over |
 | ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`), its candidate able for `LEASE_HOLDDOWN` s without a break, and the machine not in `LEASE_INTERMITTENT` | takes it back (the handback) |
@@ -465,6 +465,44 @@ resource, and its age would have come from each machine's own clock.
     box never hands back by rank; it takes a role only when the role is empty
     or its holder is stale. Rank it where it should stand among the boxes
     that ARE up; the class, not the name, keeps it from taking roles back.
+- **Vendor fallback: claude, then grok, then agy** (SPL-2521, owner HUM-10,
+  t1 b3e90079, 2026-10-19: "there was login on the claude and ... grok should
+  have been able to take over the orchestratio n, but it did not"; msg
+  dfe76b16: "the order is claude -> grok -> agy"). Until then the candidates
+  were the claude ids above only, and grok came in only through the hourly
+  rotation (4.4), never on a stall. Now:
+  - after its own ids each role tries its fallback seats, judged by the same
+    able + stuck test: `LEASE_ORCH_FALLBACK` (default `g-001,a-001`) and
+    `LEASE_DISPATCH_FALLBACK` (default `g-002,g-003,a-002,a-003`), env or
+    `lease.conf`, `none` = off. An agy process (comm `agy`) counts as live;
+  - **the vendor ranks before the machine** (`LEASE_VENDOR_ORDER`, default
+    `claude,grok,agy`; the vendor is the id's letter): a fallback seat never
+    takes a role from an able seat of a better vendor, and an able claude
+    seat on any box takes it back from a grok or agy holder (the handback,
+    with `LEASE_HOLDDOWN`, also from an intermittent box);
+  - **a claude seat anywhere comes first**: a fallback seat takes a role only
+    when its holder has been silent `LEASE_STALE` + `LEASE_FALLBACK_WAIT`
+    (60 s) per step down the order (grok > 240 s, agy > 300 s). A machine
+    whose best able seat is of a worse vendor than the one holding stops
+    renewing (`FALLBACK-WAIT <role>: ...`, logged once) and waits the same way;
+  - **bound**: from the last renewal of a seat that cannot act to grok
+    holding the role is at most `LEASE_STALE` + `LEASE_FALLBACK_WAIT` + one
+    `LEASE_PERIOD` = 300 s with the defaults, no human step. The switch is
+    logged as `VENDOR <role>: <old> (claude) -> <new> (grok)`, and an orch
+    switch DMs the owner once like any take-over.
+  - It needs a LIVE fallback seat: on 2026-10-19 no `g-00x` / `a-00x` process
+    ran on either box, so none could have taken over.
+  - **The no-orchestrator alert** (`spl_asks_orch_alert`,
+    `csi-spl-orc/src/bash/run/spl-asks-tick.func.sh`; the hub's orch holder
+    silent past `ASKS_ORCH_STALE`, 600 s) was posted 2026-10-18T12:07:09Z
+    and sat in #alerts 19 h 30 min with nobody acting. Now, still open after
+    `ASKS_ORCH_PAGE_MIN` (30; 0 = off), the owner (`ASKS_OWNER`) gets ONE
+    direct message; and the cleared post keeps how long it was open
+    (`Cleared <ts> after 19 h 30 min open, nothing to do. Was: ...`). Test:
+    `csi-spl-orc/src/bash/tests/asks.tst.sh` R2/R3.
+  - Test: `csi-spl-orc/src/bash/tests/fleet-lease-vendor-failover.tst.sh`
+    (the 2026-10-19 login expiry on two boxes; `LEASE_SRC=<old file>` runs
+    it red against the pre-SPL-2521 code).
 - **The standby takes over on two conditions** (owner, t1 27f01e16,
   2026-10-02: "The failover should just stand by and in certain conditions he
   should take over"). Measured 16:37Z-18:27Z that day: the orchestrator's

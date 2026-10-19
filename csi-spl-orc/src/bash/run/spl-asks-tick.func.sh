@@ -49,6 +49,7 @@
 # @param ASKS_OWNER_MIN (optional) - minutes after which an unacked ask goes to the fallback seats, default 60 (also lease.conf; the name is kept for the lease.conf already deployed)
 # @param ASKS_ALERT_MIN (optional) - minutes the fallback seats may leave an ask unacked before the owner alert, default ASKS_OWNER_MIN (also lease.conf)
 # @param ASKS_ORCH_STALE (optional) - seconds the hub's orch holder may be silent before the no-orchestrator alert, default 600 (also lease.conf)
+# @param ASKS_ORCH_PAGE_MIN (optional) - minutes the no-orchestrator alert may stay open before the owner (ASKS_OWNER) gets ONE direct message, default 30, 0 = never (SPL-2521)
 # @param ASKS_LOCK_MIN (optional) - minutes an acked ask's holder may stay quiet before the lock expires, default 60, 0 = never (also lease.conf)
 # @param ASKS_MAX_RAISES (optional) - the delivery limit: raises after which an open ask is dead-lettered, default 4, 0 = never (also lease.conf)
 # @param ASKS_OWNER (optional) - the owner's human id (HUM-<n>), mentioned in an alert (also lease.conf)
@@ -370,23 +371,33 @@ spl_asks_orch_alert() {
 spl_asks_alert_who() { [[ "${ASKS_OWNER:-}" =~ ^HUM-[0-9]+$ ]] && printf ' @%s' "$ASKS_OWNER"; return 0; }
 
 # ONE alert per cause: posted once while the cause holds (<asks dir>/.alert.
-# <cause>: post id, author, text); when the cause clears, the post is edited
-# to say so - no new post, nothing for the owner to answer.
+# <cause>: post id, author, text, the epoch it was posted); when the cause
+# clears, the post is edited to say so and how long it was open - no new post,
+# nothing for the owner to answer.
+# The no-orchestrator alert (cause orch) is the one exception (SPL-2521): on
+# 2026-10-18 it was posted 12:07:09Z and sat open 19 h 30 min, an #alerts line
+# nobody read, while the owner was away. Open ASKS_ORCH_PAGE_MIN (30) with no
+# seat of any vendor taking the role (the lease's claude -> grok -> agy
+# fallback), the owner gets ONE direct message (spl_asks_owner_page).
 spl_asks_alert() {  # CAUSE ACTIVE(0|1) TEXT AUTHOR
-  local f msg="" by="" old=""
+  local f msg="" by="" old="" at=""
   f="$(spool_asks_dir)/.alert.$1" || return 0
   if [[ "$2" == 1 ]]; then
-    [[ -s "$f" ]] && return 0
+    if [[ -s "$f" ]]; then
+      [[ "$1" == orch ]] && spl_asks_owner_page "$f"
+      return 0
+    fi
     msg="$(spl_asks_alert_post "$4" "$3")" || msg=""
     if [[ -z "$msg" ]]; then do_log "WARN the $1 alert did not post; retried next tick"; return 0; fi
-    printf '%s\n%s\n%s\n' "$msg" "$4" "$3" >"$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    printf '%s\n%s\n%s\n%s\n' "$msg" "$4" "$3" "$(date +%s)" >"$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    rm -f "$f.paged"
     do_log "ALERT $1 (once, until it clears): $3"
     return 0
   fi
   [[ -s "$f" ]] || return 0
-  { IFS= read -r msg; IFS= read -r by; IFS= read -r old; } <"$f"
-  if spl_asks_alert_clear "$by" "$msg" "$old"; then
-    rm -f "$f"
+  { IFS= read -r msg; IFS= read -r by; IFS= read -r old; IFS= read -r at; } <"$f"
+  if spl_asks_alert_clear "$by" "$msg" "$old" "$at"; then
+    rm -f "$f" "$f.paged"
     do_log "OK the $1 alert cleared itself (post $msg edited, no new post)"
   else
     do_log "WARN the $1 alert could not be marked cleared; retried next tick"
@@ -414,11 +425,48 @@ spl_asks_alert_post() {  # AUTHOR TEXT
   printf '%s' "$msg"
 }
 
-# The cleared alert: the same post, edited in place (its author edits it).
-spl_asks_alert_clear() {  # AUTHOR MSG TEXT
-  local body
+# "19 h 30 min" / "12 min" for <seconds>.
+spl_asks_dur() {
+  local m=$(( $1 / 60 ))
+  if (( m >= 60 )); then printf '%d h %d min' $(( m / 60 )) $(( m % 60 )); else printf '%d min' "$m"; fi
+}
+
+# ONE direct message to the owner while the no-orchestrator alert <file> has
+# been open ASKS_ORCH_PAGE_MIN; <file>.paged marks it sent (until it clears).
+# ASKS_ALERT_CMD (ASK_ALERT_OP=page) replaces the message. No owner = a WARN.
+spl_asks_owner_page() {  # ALERT_FILE
+  local f="$1" msg by text at now min="${ASKS_ORCH_PAGE_MIN:-30}" body out
+  [[ "$min" =~ ^[0-9]+$ ]] && (( min > 0 )) || return 0
+  [[ -e "$f.paged" ]] && return 0
+  { IFS= read -r msg; IFS= read -r by; IFS= read -r text; IFS= read -r at; } <"$f"
+  [[ "$at" =~ ^[0-9]+$ ]] || return 0
+  now="$(date +%s)"
+  (( now - at >= min * 60 )) || return 0
+  body="No live orchestrator for $(spl_asks_dur $(( now - at ))) and no seat (claude, grok, agy) on any box took the role over. The #alerts post ($msg) says what to do: ${text/\*\*ALERT\*\* @${ASKS_OWNER:-HUM-none}: /}"
+  if [[ -n "${ASKS_ALERT_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    ASK_ALERT_OP=page ASK_ALERT_MSG="$msg" $ASKS_ALERT_CMD <<<"$body" >/dev/null || { do_log "WARN the owner page failed; retried next tick"; return 0; }
+  elif [[ ! "${ASKS_OWNER:-}" =~ ^HUM-[0-9]+$ ]]; then
+    do_log "WARN the orch alert is open ${min}+ min and no ASKS_OWNER to page"
+  elif [[ -n "${ASKS_HUB_CMD:-}" || "${LANE_MODE:-}" != hub ]]; then
+    do_log "PAGE (not sent, no hub on this machine): $body"
+  else
+    out="$(ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$by" DESK_TO="$ASKS_OWNER" \
+      DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" DESK_KIND=note DESK_BODY="$body" DRY_RUN=0 do_spl_desk_reply 2>&1)" ||
+      { do_log "WARN the owner page failed; retried next tick: $(tail -1 <<<"$out")"; return 0; }
+  fi
+  date +%s >"$f.paged"
+  do_log "PAGE the owner once: the orch alert is open $(spl_asks_dur $(( now - at )))"
+}
+
+# The cleared alert: the same post, edited in place (its author edits it). It
+# keeps how long it was open (SPL-2521: "Cleared" alone hid 19 h 30 min); an
+# alert file from before has no posted time and says nothing about it.
+spl_asks_alert_clear() {  # AUTHOR MSG TEXT [POSTED_EPOCH]
+  local body open=""
   [[ "$2" == unposted ]] && return 0
-  body="Cleared $(date -u +%Y-%m-%dT%H:%M:%SZ), nothing to do. Was: ${3/ @${ASKS_OWNER:-HUM-none}/}"
+  [[ "${4:-}" =~ ^[0-9]+$ ]] && open=" after $(spl_asks_dur $(( $(date +%s) - $4 ))) open"
+  body="Cleared $(date -u +%Y-%m-%dT%H:%M:%SZ)$open, nothing to do. Was: ${3/ @${ASKS_OWNER:-HUM-none}/}"
   if [[ -n "${ASKS_ALERT_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     ASK_ALERT_OP=clear ASK_ALERT_MSG="$2" $ASKS_ALERT_CMD <<<"$body" >/dev/null

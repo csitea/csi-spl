@@ -609,10 +609,23 @@ out="$(pctick)"; pctick >/dev/null
 al="$(jq -r 'select(.op == "post") | .text' "$T/pc/alert.log")"
 [[ "$(alerts pc post)" -eq 1 && "$al" == "**ALERT** @HUM-10: no live orchestrator on any box - c-001@sat has held the orch lease silent 15 min."* && "$al" == *"Blocks: "* && "$al" == *"IDENTITY_RESTORE_IDS=c-001"* && "$out" == *"held on sat"* ]] &&
   pass "R2: the hub's orch holder silent past ASKS_ORCH_STALE: the dispatch holder's machine posts ONE alert over two ticks" || fail "orch alert: $(cat "$T/pc/alert.log") / $out"
+# SPL-2521: open ASKS_ORCH_PAGE_MIN (30) with nobody taking the role, the owner
+# gets ONE direct message (2026-10-18: the alert sat 19 h 30 min unread)
+[[ "$(alerts pc page)" -eq 0 ]] && pass "R2 (SPL-2521): open under 30 min: the owner is not paged" || fail "early page: $(cat "$T/pc/alert.log")"
+af="$T/pc/spool/asks/.alert.orch"
+sed -i "4s/.*/$(( $(date +%s) - 70200 ))/" "$af"
+out="$(pctick)"; pctick >/dev/null
+pg="$(jq -r 'select(.op == "page") | .text' "$T/pc/alert.log")"
+[[ "$(alerts pc page)" -eq 1 && "$(alerts pc post)" -eq 1 && "$pg" == "No live orchestrator for 19 h 30 min and no seat (claude, grok, agy) on any box took the role over."* &&
+   "$pg" == *"c-001@sat has held the orch lease silent"* && "$pg" != *"@HUM-10"* && "$out" == *"PAGE the owner once"* ]] &&
+  pass "R2 (SPL-2521): open 19 h 30 min: the owner gets ONE direct message over two ticks, no new post" || fail "page: $(cat "$T/pc/alert.log") / $out"
+pctick ASKS_ORCH_PAGE_MIN=0 >/dev/null
+[[ "$(alerts pc page)" -eq 1 ]] && pass "R2 (SPL-2521): CONTROL ASKS_ORCH_PAGE_MIN=0 pages nobody" || fail "page off: $(cat "$T/pc/alert.log")"
 echo "c-001@east 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
 pctick >/dev/null; pctick >/dev/null
-[[ "$(alerts pc post)" -eq 1 && "$(alerts pc clear)" -eq 1 && "$(jq -r 'select(.op == "clear") | .text' "$T/pc/alert.log")" == "Cleared "*"Was: **ALERT**: no live orchestrator"* ]] &&
-  pass "R3: an orchestrator is live again: the alert clears itself once, no new post" || fail "orch clear: $(cat "$T/pc/alert.log")"
+[[ "$(alerts pc post)" -eq 1 && "$(alerts pc clear)" -eq 1 && "$(jq -r 'select(.op == "clear") | .text' "$T/pc/alert.log")" == "Cleared "*" after 19 h 30 min open, nothing to do. Was: **ALERT**: no live orchestrator"* &&
+   ! -e "$af" && ! -e "$af.paged" ]] &&
+  pass "R3: an orchestrator is live again: the alert clears itself once, no new post, and keeps how long it was open (SPL-2521)" || fail "orch clear: $(cat "$T/pc/alert.log")"
 rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"
 
 # R4: the 90 asks the owner was paged for on 2026-10-11..12 (the journal's

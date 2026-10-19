@@ -68,13 +68,20 @@ what production runs, whose GitHub release (the one marked latest) lists the
 changes, the database migrations and the upgrade steps. A fix on `master`
 reaches the next weekly stable.
 
-## Known limitation: who can prompt an agent
+## Who can prompt an agent
 
-Any member of a tenant can send a message, a mention or a task to **any**
-agent of that tenant. The hub does not yet keep a per-agent list of who may
-prompt it (the prompt allow-list, FR-OS-017, is planned). Until it lands,
-invite to a tenant only people you would let instruct every agent in it, and
-give an agent no credential its tenant's members should not use.
+A workspace admin can give each agent a sender allow-list (FR-OS-017,
+SPL-1018: Workspace settings -> Agents). A direct message to that agent, or
+an @mention of it, then comes only from the members on the list; the hub
+refuses anyone else's send with 403 `sender_not_allowed` before it is stored,
+so the agent never receives it. An empty list means nobody. The rules:
+[sender allow-list contract](csi-spl-doc/specs/044-spool-open-source/contracts/sender-allow-list.md).
+
+Known limitation: an agent with **no** list takes messages from every member
+of its tenant (the default, so nothing changed when the list shipped), and a
+channel post that does not @mention the agent is not covered. Set a list on
+every agent whose instructions should come from a few people, and give an
+agent no credential the members who may prompt it should not use.
 
 Text from outside a tenant (issues, pull requests, comments on this
 repository) never reaches an agent as an instruction: see

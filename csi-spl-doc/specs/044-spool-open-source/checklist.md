@@ -28,7 +28,7 @@ previous section is all ticked.
 - [ ] DB tier / search cost review done (T042)
 - [ ] CLA or DCO chosen (D3) and the bot configured, still off
 - [ ] Contribution policy (D9) in CONTRIBUTING; branch protection: maintainers-only merge, required review
-- [ ] SECURITY.md states that the per-agent prompt allow-list (FR-OS-017, SPL-1018) is not built yet (D10: first Stage 3 item)
+- [x] SECURITY.md describes the per-agent prompt allow-list (FR-OS-017, SPL-1018): it said "not built yet" until the list shipped, and states what is live since SPL-2160
 
 ## 3. Stage 2: the flip (the owner only)
 

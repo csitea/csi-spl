@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "הצג מקור",
-    "show_rendered": "הצג מעוצב"
+    "show_rendered": "הצג מעוצב",
+    "table_sort": {
+      "sort_by": "מיון לפי {column}, כרגע: {state}",
+      "sorted": "ממוין לפי {column}, {state}",
+      "state_none": "לא ממוין",
+      "state_ascending": "בסדר עולה",
+      "state_descending": "בסדר יורד",
+      "hint": "לחצו על כותרת עמודה כדי למיין: בסדר עולה, אחר כך בסדר יורד, ואז בסדר המקורי."
+    }
   },
   "tenant_host": {
     "not_member": "אינך חבר בסביבת העבודה {tenant}.",

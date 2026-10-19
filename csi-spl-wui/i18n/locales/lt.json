@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Rodyti šaltinį",
-    "show_rendered": "Rodyti suformatuotą"
+    "show_rendered": "Rodyti suformatuotą",
+    "table_sort": {
+      "sort_by": "Rikiuoti pagal {column}, dabar: {state}",
+      "sorted": "Surikiuota pagal {column}, {state}",
+      "state_none": "nerikiuota",
+      "state_ascending": "didėjančiai",
+      "state_descending": "mažėjančiai",
+      "hint": "Spustelėkite stulpelio antraštę, kad surikiuotumėte: didėjančiai, tada mažėjančiai, tada pradine tvarka."
+    }
   },
   "tenant_host": {
     "not_member": "Jūs nesate darbo srities {tenant} narys.",

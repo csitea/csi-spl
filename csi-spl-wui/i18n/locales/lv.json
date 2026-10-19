@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Rādīt avotu",
-    "show_rendered": "Rādīt formatētu"
+    "show_rendered": "Rādīt formatētu",
+    "table_sort": {
+      "sort_by": "Kārtot pēc {column}, pašlaik: {state}",
+      "sorted": "Sakārtots pēc {column}, {state}",
+      "state_none": "nav kārtots",
+      "state_ascending": "augošā secībā",
+      "state_descending": "dilstošā secībā",
+      "hint": "Noklikšķiniet uz kolonnas virsraksta, lai kārtotu: augošā secībā, tad dilstošā, tad sākotnējā secībā."
+    }
   },
   "tenant_host": {
     "not_member": "Jūs neesat darbvietas {tenant} dalībnieks.",

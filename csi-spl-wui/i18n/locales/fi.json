@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Näytä lähdeteksti",
-    "show_rendered": "Näytä muotoiltuna"
+    "show_rendered": "Näytä muotoiltuna",
+    "table_sort": {
+      "sort_by": "Lajittele: {column}, nyt: {state}",
+      "sorted": "Lajiteltu: {column}, {state}",
+      "state_none": "ei lajiteltu",
+      "state_ascending": "nouseva",
+      "state_descending": "laskeva",
+      "hint": "Lajittele napsauttamalla sarakkeen otsikkoa: nouseva, sitten laskeva, sitten alkuperäinen järjestys."
+    }
   },
   "tenant_host": {
     "not_member": "Et ole työtilan {tenant} jäsen.",

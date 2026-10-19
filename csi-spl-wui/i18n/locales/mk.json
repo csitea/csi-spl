@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Прикажи извор",
-    "show_rendered": "Прикажи форматирано"
+    "show_rendered": "Прикажи форматирано",
+    "table_sort": {
+      "sort_by": "Подреди по {column}, моментално: {state}",
+      "sorted": "Подредено по {column}, {state}",
+      "state_none": "неподредено",
+      "state_ascending": "растечки",
+      "state_descending": "опаѓачки",
+      "hint": "Кликнете на заглавие на колона за подредување: растечки, потоа опаѓачки, потоа првобитниот редослед."
+    }
   },
   "tenant_host": {
     "not_member": "Не сте член на работниот простор {tenant}.",

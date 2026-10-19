@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Bron tonen",
-    "show_rendered": "Opgemaakt tonen"
+    "show_rendered": "Opgemaakt tonen",
+    "table_sort": {
+      "sort_by": "Sorteren op {column}, nu: {state}",
+      "sorted": "Gesorteerd op {column}, {state}",
+      "state_none": "niet gesorteerd",
+      "state_ascending": "oplopend",
+      "state_descending": "aflopend",
+      "hint": "Klik op een kolomkop om te sorteren: oplopend, dan aflopend, dan de oorspronkelijke volgorde."
+    }
   },
   "tenant_host": {
     "not_member": "U bent geen lid van de werkruimte {tenant}.",

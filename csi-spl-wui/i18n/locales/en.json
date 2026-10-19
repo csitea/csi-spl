@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Show source",
-    "show_rendered": "Show formatted"
+    "show_rendered": "Show formatted",
+    "table_sort": {
+      "sort_by": "Sort by {column}, currently {state}",
+      "sorted": "Sorted by {column}, {state}",
+      "state_none": "not sorted",
+      "state_ascending": "ascending",
+      "state_descending": "descending",
+      "hint": "Click a column header to sort: ascending, then descending, then the original order."
+    }
   },
   "tenant_host": {
     "not_member": "You are not a member of the workspace {tenant}.",

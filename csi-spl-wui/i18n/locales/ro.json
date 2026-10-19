@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Arată sursa",
-    "show_rendered": "Arată formatat"
+    "show_rendered": "Arată formatat",
+    "table_sort": {
+      "sort_by": "Sortează după {column}, acum: {state}",
+      "sorted": "Sortat după {column}, {state}",
+      "state_none": "nesortat",
+      "state_ascending": "crescător",
+      "state_descending": "descrescător",
+      "hint": "Fă clic pe antetul unei coloane pentru a sorta: crescător, apoi descrescător, apoi în ordinea inițială."
+    }
   },
   "tenant_host": {
     "not_member": "Nu sunteți membru al spațiului de lucru {tenant}.",

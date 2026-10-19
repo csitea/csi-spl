@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Kaynağı göster",
-    "show_rendered": "Biçimlendirilmiş göster"
+    "show_rendered": "Biçimlendirilmiş göster",
+    "table_sort": {
+      "sort_by": "Sırala: {column}, şu an: {state}",
+      "sorted": "Sıralandı: {column}, {state}",
+      "state_none": "sıralanmamış",
+      "state_ascending": "artan",
+      "state_descending": "azalan",
+      "hint": "Sıralamak için bir sütun başlığına tıklayın: önce artan, sonra azalan, sonra özgün sıra."
+    }
   },
   "tenant_host": {
     "not_member": "{tenant} çalışma alanının üyesi değilsiniz.",

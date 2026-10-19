@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Zobraziť zdroj",
-    "show_rendered": "Zobraziť formátované"
+    "show_rendered": "Zobraziť formátované",
+    "table_sort": {
+      "sort_by": "Zoradiť podľa: {column}, teraz: {state}",
+      "sorted": "Zoradené podľa: {column}, {state}",
+      "state_none": "nezoradené",
+      "state_ascending": "vzostupne",
+      "state_descending": "zostupne",
+      "hint": "Kliknutím na hlavičku stĺpca zoradíte: vzostupne, potom zostupne, potom v pôvodnom poradí."
+    }
   },
   "tenant_host": {
     "not_member": "Nie ste členom pracovného priestoru {tenant}.",

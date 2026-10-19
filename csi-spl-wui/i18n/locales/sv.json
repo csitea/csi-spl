@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Visa källa",
-    "show_rendered": "Visa formaterat"
+    "show_rendered": "Visa formaterat",
+    "table_sort": {
+      "sort_by": "Sortera efter {column}, nu: {state}",
+      "sorted": "Sorterat efter {column}, {state}",
+      "state_none": "osorterad",
+      "state_ascending": "stigande",
+      "state_descending": "fallande",
+      "hint": "Klicka på en kolumnrubrik för att sortera: stigande, sedan fallande, sedan den ursprungliga ordningen."
+    }
   },
   "tenant_host": {
     "not_member": "Du är inte medlem i arbetsytan {tenant}.",

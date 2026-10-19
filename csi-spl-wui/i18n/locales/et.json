@@ -1453,7 +1453,15 @@
   },
   "markdown": {
     "show_source": "Näita lähteteksti",
-    "show_rendered": "Näita vormindatult"
+    "show_rendered": "Näita vormindatult",
+    "table_sort": {
+      "sort_by": "Sordi veeru {column} järgi, praegu: {state}",
+      "sorted": "Sorditud veeru {column} järgi, {state}",
+      "state_none": "sortimata",
+      "state_ascending": "kasvavalt",
+      "state_descending": "kahanevalt",
+      "hint": "Sortimiseks klõpsa veeru päisel: kasvavalt, siis kahanevalt, siis algses järjekorras."
+    }
   },
   "tenant_host": {
     "not_member": "Te ei ole tööruumi {tenant} liige.",

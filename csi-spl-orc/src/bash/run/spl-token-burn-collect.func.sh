@@ -425,13 +425,14 @@ spl_token_burn_sum() {
       k = a SUBSEP minute(t)
       if (met && x1 + x2 + x3 + x4 == 0) return
       if (!(k in bv)) { bv[k] = v; bm[k] = m; bmet[k] = met; dirty[k] = 1 }
+      if (met) bmet[k] = 1
       if (m != "") bm[k] = m
-      if (x1 + x2 + x3 + x4 > 0) { b1[k] += x1; b2[k] += x2; b3[k] += x3; b4[k] += x4; dirty[k] = 1 }
+      if (x1 + x2 + x3 + x4 > 0) { b1[k] += x1; b2[k] += x2; b3[k] += x3; b4[k] += x4; dirty[k] = 1; bmet[k] = 1 }
     }
     FILENAME == d "/ids.tsv" { if ($2 >= now - ttl) { iseen[$1] = $2; for (j = 1; j <= 4; j++) im[$1, j] = $(j + 2) }; next }
     FILENAME == d "/sessions.tsv" { if ($7 >= now - 172800) { k = $1 SUBSEP $2; sseen[k] = $7; for (j = 1; j <= 4; j++) sc[k, j] = $(j + 2) }; next }
     FILENAME == d "/agents.tsv" { agent[$1] = $2; next }
-    FILENAME == d "/buckets.tsv" { if ($4 >= now - win) { k = $1 SUBSEP $4; bv[k] = $2; bm[k] = $3; b1[k] = $5; b2[k] = $6; b3[k] = $7; b4[k] = $8; bmet[k] = $9; dirty[k] = $10; if ($9 == 1) metered_agents[$1] = 1 }; next }
+    FILENAME == d "/buckets.tsv" { if ($4 >= now - win) { k = $1 SUBSEP $4; bv[k] = $2; bm[k] = $3; b1[k] = $5; b2[k] = $6; b3[k] = $7; b4[k] = $8; bmet[k] = ($5 + $6 + $7 + $8 > 0 ? 1 : $9); dirty[k] = $10; if (bmet[k] == 1) metered_agents[$1] = 1 }; next }
     FILENAME == live { id = $1; sub(/@.*/, "", id)
       if (id ~ /^(a-[0-9]+|AGY-[0-9]+)$/) ev[++n] = "U\tagy\t" id
       else if (id ~ /^(q-[0-9]+|QWN-[0-9]+)$/) ev[++n] = "U\tqwen\t" id
@@ -444,10 +445,6 @@ spl_token_burn_sum() {
     END {
       for (e = 1; e <= n; e++) {
         split(ev[e], f, "\t")
-        if (f[1] == "U") {
-          if (f[2] == "agy" && (f[3] in metered_agents)) continue
-          add(f[3], f[2], "", now, 0, 0, 0, 0, 0); unm++; continue
-        }
         if (f[1] == "A") {
           if (f[4] < now - win) { late++; continue }
           id = f[3]; if (id in iseen) continue; iseen[id] = now
@@ -462,13 +459,21 @@ spl_token_burn_sum() {
           a = (f[2] in agent) ? agent[f[2]] : "unattributed"
           add(a, "claude", f[5], f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; claude++; continue
         }
-        if (f[1] != "S") continue
-        k = f[2] SUBSEP f[3]
-        if (!(k in sseen)) for (j = 1; j <= 4; j++) sc[k, j] = (f[2] == "grok" && f[12] != "" ? f[11 + j] : f[10] >= now - win ? 0 : f[j + 5])
-        sseen[k] = now
-        for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - sc[k, j]; if (x[j] < 0) x[j] = f[j + 5]; sc[k, j] = f[j + 5] }
-        a = (f[2] == "mistral" ? agent_of(origin[f[11]]) : grok_agent(f[11]))
-        add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; sessions++
+        if (f[1] == "S") {
+          k = f[2] SUBSEP f[3]
+          if (!(k in sseen)) for (j = 1; j <= 4; j++) sc[k, j] = (f[2] == "grok" && f[12] != "" ? f[11 + j] : f[10] >= now - win ? 0 : f[j + 5])
+          sseen[k] = now
+          for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - sc[k, j]; if (x[j] < 0) x[j] = f[j + 5]; sc[k, j] = f[j + 5] }
+          a = (f[2] == "mistral" ? agent_of(origin[f[11]]) : grok_agent(f[11]))
+          add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; sessions++; continue
+        }
+      }
+      for (e = 1; e <= n; e++) {
+        split(ev[e], f, "\t")
+        if (f[1] == "U") {
+          if (f[2] == "agy" && (f[3] in metered_agents)) continue
+          add(f[3], f[2], "", now, 0, 0, 0, 0, 0); unm++; continue
+        }
       }
       for (id in iseen) print id, iseen[id], im[id, 1] + 0, im[id, 2] + 0, im[id, 3] + 0, im[id, 4] + 0 > (nx "/ids.tsv")
       for (k in sseen) { split(k, p, SUBSEP); print p[1], p[2], sc[k, 1] + 0, sc[k, 2] + 0, sc[k, 3] + 0, sc[k, 4] + 0, sseen[k] > (nx "/sessions.tsv") }
@@ -486,7 +491,8 @@ spl_token_burn_frame() {
   awk -F'\t' '$10 == 1' "$1/buckets.tsv" | jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t") |
     {agent_id: .[0], vendor: .[1], model: (if .[2] == "" then null else .[2] end),
      minute: (.[3] | tonumber | todate), tokens_in: (.[4] | tonumber), tokens_out: (.[5] | tonumber),
-     cache_read: (.[6] | tonumber), cache_write: (.[7] | tonumber), is_metered: (.[8] == "1")}) |
+     cache_read: (.[6] | tonumber), cache_write: (.[7] | tonumber),
+     is_metered: (.[8] == "1" or ((.[4] | tonumber) + (.[5] | tonumber) + (.[6] | tonumber) + (.[7] | tonumber) > 0))}) |
     {type: "lane", lane_op: "fleet_tokens_push", samples: .}'
 }
 

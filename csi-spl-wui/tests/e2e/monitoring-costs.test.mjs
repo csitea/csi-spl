@@ -18,7 +18,7 @@
 //     shows the dash saying so (mock scenario 'norate').
 //   - spec 140 (SPL-2322): Monitoring -> Tokens. For an operator admin (mock
 //     opt-in) the Costs page carries the Tokens card (today's fleet tokens
-//     and cost) linking to the Tokens tab: the KPI strip, the kinds (agy
+//     and cost) linking to the Tokens tab: the KPI strip, the kinds (qwen
 //     "Not metered" with dashes, never 0; an unpriced kind "not priced"),
 //     the lanes sorted by rate as numbers, the kind filter, the burn badges,
 //     the stale marker (amber after 45 s, red after 90 s, cleared by
@@ -420,12 +420,12 @@ try {
       await ctx.close()
     }
 
-    /* the empty fleet: no lane yet, an honest sentence, agy still not metered */
+    /* the empty fleet: no lane yet, an honest sentence, qwen still not metered */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { operator: true, tokens: 'empty' })
       await open(p, server.base, '/monitoring/tokens')
       ok('tokens empty: the empty sentence', await waitFor(p, '[data-test=tokens-agents-empty]'))
-      ok('tokens empty: agy still "Not metered"', (await count(p, '[data-test=tokens-vendor-row][data-vendor=agy] [data-test=tokens-not-metered]')) === 1)
+      ok('tokens empty: qwen still "Not metered"', (await count(p, '[data-test=tokens-vendor-row][data-vendor=qwen] [data-test=tokens-not-metered]')) === 1)
       await ctx.close()
     }
 

@@ -39,6 +39,8 @@
 
 ## Sign-Off
 **Status**: `GOOD` (v1.0 ready for implementation).
-**Next**: Await editor’s call for v1.0 signature.
+**v1.0**: SIGNED, agree.
+
+> **Note**: This review is based on empirical measurements and the editor’s baseline data. No personal names or credentials were used.
 
 > **Note**: This review is based on empirical measurements and the editor’s baseline data. No personal names or credentials were used.

@@ -27,7 +27,6 @@ const MAX_SCRIPT = 500
 // NEW file over MAX_SCRIPT fails.
 const BIG = new Map([
   ['src/pages/issues.vue', 876],
-  ['src/components/workspace-docs/WorkspaceDocView.vue', 677],
   ['src/components/workspace-docs/QtoFileTree.vue', 654],
   ['src/components/CalendarMainView.vue', 612],
 ])

@@ -305,7 +305,7 @@
       data-test="ws-doc-img-file"
       :accept="DOC_IMAGE_TYPES.join(',')"
       @change="onImageFile"
-      @cancel="imageFor = null; picFor = null"
+      @cancel="pickCancel"
     >
     <UiPointMenu
       :open="Boolean(menu)"
@@ -337,22 +337,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, triggerRef, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
-  DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget, setDocNumbered,
+  DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget, setDocNumbered,
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
-import { assetRoute, figureNumbers, imagePaths, paraRuns, picToken, setPicCaption, type ParaRun } from './-doc-pics'
-import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from './-doc-blocks'
+import { assetRoute, figureNumbers, paraRuns, type ParaRun } from './-doc-pics'
+import { previewLinks } from './-doc-blocks'
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
 import { anchorOf, docLink, resolveAnchor } from './-doc-anchor'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { useDocHeadBar } from './-doc-headbar'
+import { useDocInsert } from '~/composables/useDocInsert'
+import { useDocPictures } from '~/composables/useDocPictures'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
@@ -375,28 +377,17 @@ const state = ref<'loading' | 'ready' | 'failed'>('loading')
 const busy = ref(false)
 /* Qto's "open as doc": one branch shown alone ('' = the whole document) */
 const branch = ref('')
-/* the level-1 sections whose (empty) paragraph the user opened */
-const paraOpen = reactive(new Set<string>())
 /** paragraph text is optional at every level; level 1 shows none until asked (owner msgs 9debc0df, ab5b890e) */
 const paraShown = (it: DocItem) => it.depth > 1 || Boolean(it.body) || paraOpen.has(it.id)
-/* the sections whose (empty) code block the user opened from the menu */
-const codeOpen = reactive(new Set<string>())
-/* an image's hub path -> the URL the <img> shows (an object URL of the bytes) */
-const imgUrl = reactive<Record<string, string>>({})
 const docTitleEl = ref<HTMLElement | null>(null)
+/* the hidden image file picker */
 const fileEl = ref<HTMLInputElement | null>(null)
-/* the section the file picker adds an image to */
-const imageFor = ref<DocItem | null>(null)
 const editMode = useEditModeStore()
 const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
-/* the paragraph in focus (its Insert picture control shows) and the read paragraphs opened for editing */
+/* the paragraph in focus (its Insert picture control shows) */
 const paraFocus = ref('')
-const paraEditing = reactive(new Set<string>())
-/* the picture the file picker inserts: the paragraph and its text and cursor when the picker opened */
-const picFor = ref<{ it: DocItem, value: string, start: number, end: number } | null>(null)
-/* the last paragraph save, awaited before a picture is inserted on top of it */
-let saving: Promise<unknown> = Promise.resolve()
+const { fieldSizing, paraOpen, codeOpen, paraEditing, grow, growAll, textOf, revert, editPara, openField, insertTable, insertQuote } = useDocInsert(rootEl)
 const doomed = ref<DocItem | null>(null)
 /* the bar's one status line: an unknown anchor, a copied link */
 const status = ref('')
@@ -465,18 +456,6 @@ const attr = (it: DocItem, k: string) => {
   return typeof v === 'string' ? v : ''
 }
 
-/** resolve each image's src once (the hub path is read with the session's credentials) */
-function resolveImages() {
-  for (const it of withPreamble.value) {
-    for (const p of [attr(it, 'img_http_path'), ...imagePaths(it.body, props.session.doc)]) {
-      if (p && !(p in imgUrl)) {
-        imgUrl[p] = ''
-        void props.session.client.imageSrc(p).then((u) => { imgUrl[p] = u })
-      }
-    }
-  }
-}
-
 /** the whole document, in document order, read as the root's subtree: the root (the preamble) first (false = it did not load) */
 async function load(): Promise<boolean> {
   const s = props.session
@@ -492,24 +471,9 @@ async function load(): Promise<boolean> {
   return true
 }
 
-/* a textarea as tall as its text; field-sizing: content does it where the browser has it */
-const fieldSizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')
-function grow(el: HTMLTextAreaElement) {
-  if (fieldSizing) return
-  el.style.height = 'auto'
-  el.style.height = el.scrollHeight + 'px'
-}
-function growAll() {
-  if (fieldSizing) return
-  rootEl.value?.querySelectorAll<HTMLTextAreaElement>('.wsdoc__item textarea').forEach(grow)
-}
-
-function revert(el: HTMLTextAreaElement, was: string) {
-  el.value = was
-  grow(el)
-  el.blur()
-  editMode.setEditing(false)
-}
+const { imgUrl, resolveImages, onImageFile, pickCancel, pickImage, pickPic, pastePic, dragPic, dropPic, leavePara, commitCaption } = useDocPictures({
+  props, busy, docs: withPreamble, attr, commit, commitAttrs, fileEl, paraFocus, editor: { paraEditing, grow, textOf },
+})
 
 async function commit(it: DocItem, field: 'title' | 'body', value: string) {
   if (it[field] === value) return
@@ -555,148 +519,6 @@ async function renameDoc() {
   emit('renamed', r.title)
 }
 
-/** one image checked here as the hub checks it, then uploaded: its hub path ('' = refused) */
-async function upload(file: File): Promise<string> {
-  const s = props.session
-  if (!DOC_IMAGE_TYPES.includes(file.type) || file.size > DOC_IMAGE_MAX) {
-    s.error.value = 'ws_doctree.err_image'
-    return ''
-  }
-  busy.value = true
-  try {
-    const up = await s.run(() => s.client.uploadImage(s.doc, file))
-    if (!up) {
-      if (s.error.value === 'ws_doctree.err_failed') s.error.value = 'ws_doctree.err_image'
-      return ''
-    }
-    return up.img_http_path
-  } finally {
-    busy.value = false
-  }
-}
-
-/** the file picker's image: a picture into a paragraph, else the section's image */
-async function onImageFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  const it = imageFor.value
-  const pic = picFor.value
-  input.value = ''
-  imageFor.value = null
-  picFor.value = null
-  if (!file) return
-  if (pic) return insertPic(pic.it, file, pic.value, pic.start, pic.end)
-  if (!it) return
-  const path = await upload(file)
-  if (path) await commitAttrs(it, { img_http_path: path, img_name: attr(it, 'img_name') || file.name.replace(/\.[^.]+$/, '') })
-}
-
-/** a paragraph left: its text saved, then it reads again (rendered, never the old text first) unless
-    the picker is about to insert into it or it was opened again meanwhile */
-function leavePara(it: DocItem, el: HTMLTextAreaElement) {
-  const done = commit(it, 'body', el.value)
-  saving = done
-  if (picFor.value?.it.id === it.id) return
-  paraFocus.value = ''
-  void done.finally(() => {
-    if (paraFocus.value !== it.id) paraEditing.delete(it.id)
-  })
-}
-
-/** a read paragraph opened for editing, its cursor at the end */
-async function editPara(id: string) {
-  paraEditing.add(id)
-  await nextTick()
-  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${id}"] [data-test=ws-doc-text]`)
-  if (!el) return
-  grow(el)
-  el.focus()
-  el.setSelectionRange(el.value.length, el.value.length)
-}
-
-/** a picture's file: an image file of the transfer, else none */
-function imageOf(list: DataTransferItemList | undefined): File | null {
-  for (const x of list ?? []) {
-    if (x.kind === 'file' && x.type.startsWith('image/')) return x.getAsFile()
-  }
-  return null
-}
-
-function pastePic(it: DocItem, e: ClipboardEvent) {
-  const file = imageOf(e.clipboardData?.items)
-  if (!file) return
-  e.preventDefault()
-  const el = e.target as HTMLTextAreaElement
-  void insertPic(it, file, el.value, el.selectionStart, el.selectionEnd)
-}
-
-function dragPic(e: DragEvent) {
-  if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
-}
-
-function dropPic(it: DocItem, e: DragEvent) {
-  const file = imageOf(e.dataTransfer?.items)
-  if (!file) return
-  e.preventDefault()
-  const el = e.target as HTMLTextAreaElement
-  void insertPic(it, file, el.value, el.selectionStart, el.selectionEnd)
-}
-
-/** the Insert picture control: the picker opens, the paragraph's text and cursor kept for the insert */
-function pickPic(it: DocItem) {
-  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
-  if (!el) return
-  picFor.value = { it, value: el.value, start: el.selectionStart, end: el.selectionEnd }
-  fileEl.value?.click()
-}
-
-/** upload a picture and put its token at the cursor, on its own line; the caption is then selected to type over */
-async function insertPic(it: DocItem, file: File, value: string, start: number, end: number) {
-  const path = await upload(file)
-  if (!path) return
-  await saving
-  const stem = file.name.replace(/\.[^.]+$/, '').trim()
-  const token = picToken(stem && stem !== 'image' ? stem : t('ws_doctree.picture_caption'), path)
-  const pre = value.slice(0, start)
-  const post = value.slice(end)
-  const before = pre && !pre.endsWith('\n') ? pre + '\n' : pre
-  const next = before + token + (post && !post.startsWith('\n') ? '\n' : '') + post
-  paraEditing.add(it.id)
-  await commit(it, 'body', next)
-  resolveImages()
-  await nextTick()
-  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
-  if (!el) return
-  el.value = it.body
-  grow(el)
-  el.focus()
-  el.setSelectionRange(before.length + 2, before.length + token.indexOf(']('))
-}
-
-/** Insert table / Insert quote (spec 137 T010, T011): the block goes into the
-    paragraph being edited, at the cursor, and its first placeholder is
-    selected; the paragraph saves when it is left, as typed text does */
-function insertAt(it: DocItem, make: (selected: string) => Block) {
-  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
-  if (!el) return
-  const r = insertBlock(el.value, el.selectionStart, el.selectionEnd, make)
-  el.value = r.value
-  grow(el)
-  el.focus()
-  el.setSelectionRange(r.selStart, r.selEnd)
-}
-function insertTable(it: DocItem) {
-  insertAt(it, () => tableBlock((n) => t('ws_doctree.table_header', { n }), (n) => t('ws_doctree.table_cell', { n })))
-}
-function insertQuote(it: DocItem) {
-  insertAt(it, (selected) => quoteBlock(selected, t('ws_doctree.quote_text'), t('ws_doctree.quote_source')))
-}
-
-/** a figure's caption edited in place: the k-th picture's token rewritten */
-async function commitCaption(it: DocItem, k: number, caption: string) {
-  await commit(it, 'body', setPicCaption(it.body, props.session.doc, k, caption))
-}
-
 function shapeOf(it: DocItem): DocShape {
   const sib = byParent.value.get(it.parent) ?? []
   const i = sib.findIndex((s) => s.id === it.id)
@@ -732,16 +554,8 @@ const menuItems = computed(() => {
 
 /** the menu's view-only entries: open the branch alone or as a list, export it */
 async function viewOp(id: string, it: DocItem): Promise<boolean> {
-  if (id === 'add_paragraph') {
-    paraOpen.add(it.id)
-    await nextTick()
-    rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)?.focus()
-    return true
-  }
-  if (id === 'add_code') {
-    codeOpen.add(it.id)
-    await nextTick()
-    rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-src]`)?.focus()
+  if (id === 'add_paragraph' || id === 'add_code') {
+    await openField(it, id === 'add_code')
     return true
   }
   if (id === 'numbered') {
@@ -759,8 +573,7 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
     return true
   }
   if (id === 'add_image') {
-    imageFor.value = it
-    fileEl.value?.click()
+    pickImage(it)
     return true
   }
   if (id === 'open_branch') {

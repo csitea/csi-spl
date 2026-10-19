@@ -152,9 +152,12 @@
       <ArchiveUndoToast v-if="archiveUndo.toast.value" />
     </ClientOnly>
     <!-- HUM-10 ae2e5093: Shift + ? lists the message keyboard shortcuts; the
-         chunk loads on the first Shift + ? only -->
+         chunk loads on the first Shift + ? only. perf round 6 row 11
+         (SPL-2439): Shift + K is off on a phone (KindKeyHost returns on
+         usePhone(), the same isMobile ref), so a phone neither fetches the
+         host's chunk nor runs its setup -->
     <ClientOnly>
-      <LazyKindKeyHost />
+      <LazyKindKeyHost v-if="!stack.isMobile.value" />
       <LazyMsgShortcutsHelp v-if="shortcutsHelp" />
     </ClientOnly>
     <!-- 081 T004: Ctrl + K, the command palette; its chunk loads on the first open -->

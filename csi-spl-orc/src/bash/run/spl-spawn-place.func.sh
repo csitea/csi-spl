@@ -311,7 +311,7 @@ spl_spawn_place_slug() {  # SLUG
 }
 
 # Prints why the pinned BOX takes no lane now and returns 0: its BOX line is at
-# or past its overflow mark, DEGRADED or AT CAP. No line for it: returns 1
+# or past its overflow mark, CORDONED, DEGRADED or AT CAP. No line for it: returns 1
 # (spawn-window judges it).
 spl_spawn_place_pin_full() {  # BOX
   local line
@@ -322,6 +322,7 @@ spl_spawn_place_pin_full() {  # BOX
       if (!seen && $i ~ /^[0-9]+%$/) { p = $i + 0; seen = 1 }
       if ($i == "band") { split($(i + 1), h, "[.][.]"); hi = h[2] + 0 }
     }
+    if (/  CORDONED /) { printf "box %s is CORDONED (do_spl_box_cordon)", b; exit 0 }
     if (/DEGRADED/) { printf "box %s is DEGRADED", b; exit 0 }
     if (/AT CAP/) { printf "box %s is at its CI-busy agent cap", b; exit 0 }
     if (seen && hi > 0 && p >= hi * over / 100) { printf "box %s at %d%% is past its overflow mark (%d%%, %d%% of its high %d%%)", b, p, hi * over / 100, over, hi; exit 0 }

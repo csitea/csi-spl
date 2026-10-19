@@ -31,6 +31,9 @@
 #          user's transcripts reads 100 until its reset, with no banner in a
 #          pane; a newer real answer, a passed reset, an entry older than
 #          LANE_QUOTA_LOG_MIN or a quote by a model -> no reading.
+#          17. a CORDONED box (do_spl_box_cordon, sat alone panel row 01)
+#          is never picked, not by the every-box-degraded fallback either;
+#          every box cordoned -> hold; an expired cordon is none.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -460,6 +463,35 @@ out="$(lq)"
 ent "claude-x" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"
 out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && pass "16e. CONTROL the text in a real model answer (an agent quoting it) is no reading" || fail "16e. quoted: $out"
+
+# 17. sat alone panel row 01 (SPL-2629): a CORDONED box (do_spl_box_cordon,
+#     <spool root>/dispatch/cordon/<box> with until=<epoch>) is never picked,
+#     not even by the every-box-degraded fallback; an expired cordon is none.
+#     box-a is first in order and under its low mark, so the cordon alone
+#     moves the pick. n = 10 picks.
+mkdir -p "$T/spool/dispatch/cordon"
+target 50 75 '["box-a","box-b"]'
+stats "box-a:1:8" "box-b:1:8"
+printf 'until=%s at=2026-10-20T00:00:00Z by=test min=240\n' $(( $(date +%s) + 3600 )) >"$T/spool/dispatch/cordon/box-a"
+bad=0
+for i in $(seq 1 10); do [[ "$(pick "$(run)")" == box-b ]] || bad=$((bad + 1)); done
+out="$(run)"
+[[ $bad == 0 ]] && grep -q '^BOX box-a .*  CORDONED (until 20[0-9-]*T[0-9:]*Z)$' <<<"$out" &&
+  pass "17. RED CONTROL (FAILs on 691e2cdd6) a cordoned box-a is never picked (n = 10 picks, pick=box-b), its line says CORDONED" ||
+  fail "17. cordon: $bad of 10 picks took box-a: $out"
+out="$(run BEATS="$T/all.json" HUB_NOW=$((B0 + 600)))"
+[[ "$(pick "$out")" == box-b ]] && pass "17. every box degraded: the fallback still skips the cordoned box-a (pick=box-b)" ||
+  fail "17. degraded fallback: $out"
+printf 'until=%s\n' $(( $(date +%s) + 3600 )) >"$T/spool/dispatch/cordon/box-b"
+out="$(run)"
+grep -q '^pick=hold reason=every box with a sample is CORDONED (box-a box-b)' <<<"$out" &&
+  pass "17. every box cordoned -> pick=hold, spawn nothing" || fail "17. all cordoned: $out"
+printf 'until=%s\n' $(( $(date +%s) - 1 )) >"$T/spool/dispatch/cordon/box-a"
+out="$(run)"
+[[ "$(pick "$out")" == box-a ]] && ! grep -q '^BOX box-a .*CORDONED' <<<"$out" &&
+  pass "17. an expired cordon is none: box-a picked again" || fail "17. expired: $out"
+rm -f "$T/spool/dispatch/cordon/box-a" "$T/spool/dispatch/cordon/box-b"
+[[ "$(pick "$(run)")" == box-a ]] && pass "17. CONTROL no cordon file -> box-a, the pick as before" || fail "17. no cordon"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

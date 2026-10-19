@@ -25,6 +25,12 @@
 # @description later) is closed (spl_rotate_restore) and not started again
 # @description for ROLE_FALLBACK_BACKOFF s, so a seat on its weekly limit is
 # @description not restarted every tick.
+# @description An id whose spool dir resolves to another id's dir (g-001 ->
+# @description c-001: a role seat link, role-seat-switch.sh, SPL-1685) is that
+# @description seat in another letter, so it is REFUSED "shares <dir> with
+# @description <id>" and nothing is started or written there (SPL-2541); a
+# @description started seat that is closed moves its registry.tsv row to
+# @description registry.retired.tsv.
 # @description Idempotent; one run at a time per box (flock on
 # @description <spool root>/dispatch/role-fallback.lock) and per id (the id
 # @description lock, spec 102 4.2). Dry run unless DRY_RUN=0: PLAN lines only.
@@ -144,6 +150,7 @@ spl_role_fallback_one() {
   local role="$1" id="$2" kind pid why rid t now
   kind="$(spl_rotate_id_kind "$id")"
   case "$kind" in grok|agy) ;; *) spl_role_fallback_say SKIP "$id" "vendor '${kind:-unknown}' is no fallback vendor (grok, agy)"; return 0 ;; esac
+  why="$(spl_role_fallback_shared "$id")" && { spl_role_fallback_say REFUSED "$id" "$why: nothing started"; return 0; }
   pid="$(spl_lease_agent_pid "$id")"
   if [[ -n "$pid" ]]; then
     if spl_fleet_try "$id" >/dev/null; then spl_role_fallback_say OK "$id" "live and able, pid $pid ($kind, $role standby)"
@@ -169,15 +176,44 @@ spl_role_fallback_one() {
   return 0
 }
 
+# spl_role_fallback_shared ID: 0 and "shares <dir> with <other id>" when ID's
+# spool dir resolves (a link, followed) to the dir of another id; its own
+# <ID>@<box> dir is no share. 1 when it has no dir or its own.
+spl_role_fallback_shared() {
+  local real other
+  [[ -e "$SPOOL_ROOT/$1" ]] || return 1
+  real="$(readlink -f "$SPOOL_ROOT/$1")" || return 1
+  other="${real##*/}"; other="${other%%@*}"
+  [[ "$other" != "$1" ]] || return 1
+  echo "shares $real with $other"
+}
+
+# spl_role_fallback_unregister ID SINCE: ID's registry.tsv rows spawned at or
+# after SINCE (this start's) move to registry.retired.tsv, retired-utc as
+# column 6 (agent-id-retire.sh's form); rewritten in place under its lock.
+spl_role_fallback_unregister() {
+  local reg="$SPOOL_ROOT/registry.tsv" now
+  [[ -s "$reg" ]] || return 0
+  now="$(date -u +%Y%m%dT%H%M%SZ)"
+  (
+    flock -w 30 9 || exit 1
+    awk -F'\t' -v OFS='\t' -v id="$1" -v s="$2" -v t="$now" '$1 == id && $5 >= s {
+      x = (NF >= 6 && $6 !~ /^[0-9]{8}T[0-9]{6}Z$/) ? $6 : ""; $6 = t; if (x != "") $7 = x; print }' "$reg" >>"$SPOOL_ROOT/registry.retired.tsv"
+    keep="$(awk -F'\t' -v id="$1" -v s="$2" '!($1 == id && $5 >= s)' "$reg")"
+    if [[ -n "$keep" ]]; then printf '%s\n' "$keep" >"$reg"; else : >"$reg"; fi
+  ) 9>>"$reg.lock" || echo "WARN role fallback: $1's registry row not closed (registry.tsv.lock)" >&2
+}
+
 # Start one seat through the rotation's path, then judge it with the lease's
 # test; a seat that cannot act is closed and backed off.
 spl_role_fallback_start() {
-  local role="$1" id="$2" kind="$3" seed="$RF_DIR/$2.seed.md" why=""
+  local role="$1" id="$2" kind="$3" seed="$RF_DIR/$2.seed.md" why="" since
   spl_role_fallback_seed "$role" "$id" > "$seed" || { spl_role_fallback_say REFUSED "$id" "cannot write $seed"; return 0; }
   chmod 0644 "$seed" 2>/dev/null || true
   # shellcheck disable=SC2034 # the rotation globals spl_rotate_spawn / spl_rotate_restore read
   ROTATE_RID="$4" ROTATE_KIND="$kind" ROTATE_FAMILY=fallback ROTATE_STATE_DIR="$RF_DIR" \
     ROTATE_OLD_PANE="" ROTATE_OLD_PID="" ROTATE_OLD_NAME="" ROTATE_LANE_SCOPE="role $id $role standby (fallback)"
+  since="$(date -u +%Y%m%dT%H%M%SZ)"
   if ! spl_rotate_spawn "$id" "$seed"; then
     why="$ROTATE_ERR"
   else
@@ -190,6 +226,7 @@ spl_role_fallback_start() {
     return 0
   fi
   spl_rotate_restore "$id" "" "${ROTATE_NEW_PANE:-}"
+  spl_role_fallback_unregister "$id" "$since"
   printf '%s %s\n' "$(date +%s)" "$(tr '\n' ' ' <<<"$why" | cut -c1-200)" > "$RF_DIR/refused.$id"
   spl_role_fallback_say REFUSED "$id" "started and closed: $why (no retry for ${ROLE_FALLBACK_BACKOFF}s)"
 }

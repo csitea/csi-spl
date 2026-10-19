@@ -26,6 +26,13 @@
 #  10. desk-reconcile-cron.sh runs it (ROLE_FALLBACK_CMD=cron DRY_RUN=0) and
 #      logs only its STARTED / REFUSED lines; its failure does not fail the
 #      reconcile; DESK_ROLE_FALLBACK=0 and the lease pause skip it
+#  11. SPL-2541: a fallback id whose spool dir resolves to another id's dir
+#      (g-001 -> c-001, the role seat links of role-seat-switch.sh) -> REFUSED
+#      "shares <dir> with <id>", dry run too; nothing started, c-001's
+#      lifetime prompt untouched. A started-and-closed seat (case 5) leaves no
+#      open registry.tsv row: its row moves to registry.retired.tsv.
+#      RED CONTROL (before SPL-2541): case 11 starts g-001 and overwrites
+#      c-001/lifetime/prompt.txt; case 5's row stays open in registry.tsv.
 #  RED CONTROL: on a tree without the action (master before SPL-2532) every
 #  case fails (the action file is missing; case 10: no such step).
 #------------------------------------------------------------------------------
@@ -76,6 +83,10 @@ cat >"$T/bin/spawn" <<'EOF'
 id="$2"; n="${id##*-}"; pid=$(( 3000 + 10#$n )); pane="%3$n"
 echo "spawn $1 $2 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-}" >>"$T/spawn.log"
 cp "$4" "$T/seed.$id"
+# spawn-core's side effects: the seed into the id's spool dir (a link is
+# followed, as on the box) and one registry.tsv row
+[ -d "$SPOOL_ROOT/$id" ] && { mkdir -p "$SPOOL_ROOT/$id/lifetime"; cp "$4" "$SPOOL_ROOT/$id/lifetime/prompt.txt"; }
+printf '%s\t%s\t%s\t%s\t%s\t-\n' "$id" "$1" "$pane" "$3" "$(date -u +%Y%m%dT%H%M%SZ)" >>"$SPOOL_ROOT/registry.tsv"
 printf '%s\t%s\n' "$pane" "$pid" >>"$T/tmux/panes"
 [ -f "$T/spawn.screen.$id" ] && { cp "$T/spawn.screen.$id" "$T/tmux/screen.$pane"; cp "$T/spawn.screen.$id" "$T/pane/$pid"; }
 [ -f "$T/spawn.lease-pane.$id" ] && cp "$T/spawn.lease-pane.$id" "$T/pane/$pid"
@@ -114,7 +125,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
   ROTATE_POLL=1 ROTATE_START_WAIT=3 ROTATE_START_CHECK_WAIT=0 ROTATE_NEW_EXIT_WAIT=1 START_CHECK_POLL=0
 
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/pane/"* "$T/"*.log "$T/seed."* "$T/spawn.screen."* "$T/spawn.lease-pane."* "$T/ai."* "${D:?}"/* "${S:?}"/[acg]-0*
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/pane/"* "$T/"*.log "$T/seed."* "$T/spawn.screen."* "$T/spawn.lease-pane."* "$T/ai."* "${D:?}"/* "${S:?}"/[acg]-0* "$S/registry."*
   echo "$CONF" >"$D/lease.conf"
   echo "c-002@sat 1760000000" >"$D/lease"; echo "c-001@sat 1760000000" >"$D/lease.orch"
   "$T/bin/proc" 101 c-001; "$T/bin/proc" 102 c-002; "$T/bin/proc" 103 c-003
@@ -167,6 +178,9 @@ act DRY_RUN=0 ROLE_FALLBACK_IDS=g-002 >"$T/o" 2>&1; rc=$?
 [[ $rc == 0 && "$(spawns)" == 1 && ! -d "$T/proc/3002" ]] && grep -q '^kill -TERM 3002' "$T/kill.log" && grep -q '^kill-window %3002' "$T/tmux/log" &&
   grep -q " REFUSED g-002 started and closed: .*'grok weekly limit' dialog" "$T/o" && [[ -s "$D/role-fallback/refused.g-002" ]] &&
   pass "5. a seat started on the quota dialog: closed (TERM, window killed), REFUSED, backed off" || fail "5. rc=$rc spawns=$(spawns) $(cat "$T/kill.log" "$T/o" 2>&1)"
+[[ "$(grep -c '^g-002	' "$S/registry.tsv")" == 0 && "$(grep -c '^g-002	grok	%3002	.*	[0-9]\{8\}T[0-9]\{6\}Z	[0-9]\{8\}T[0-9]\{6\}Z' "$S/registry.retired.tsv" 2>/dev/null)" == 1 ]] &&
+  pass "5. the closed seat leaves no open registry row (moved to registry.retired.tsv, retired-utc column 6)" ||
+  fail "5. registry: $(cat "$S/registry.tsv" 2>&1) | retired: $(cat "$S/registry.retired.tsv" 2>&1)"
 : >"$T/spawn.log"
 act DRY_RUN=0 ROLE_FALLBACK_IDS=g-002 >"$T/o" 2>&1
 [[ "$(spawns)" == 0 ]] && grep -q ' BACKOFF g-002 refused 0 min ago' "$T/o" &&
@@ -183,6 +197,11 @@ act DRY_RUN=0 ROLE_FALLBACK_IDS=g-001 >"$T/o" 2>&1; rc=$?
 [[ $rc == 0 && "$(spawns)" == 1 && ! -d "$T/proc/3001" ]] && grep -q '^kill -TERM 3001' "$T/kill.log" &&
   grep -q ' REFUSED g-001 started and closed: not able 30s after the start: stalled pid=3001: Select login method' "$T/o" && [[ -s "$D/role-fallback/refused.g-001" ]] &&
   pass "5. a clean start the lease's able test refuses: closed, REFUSED, backed off" || fail "5. able after start: rc=$rc $(cat "$T/kill.log" "$T/o" 2>&1)"
+
+# a started seat keeps its row
+world; act DRY_RUN=0 ROLE_FALLBACK_IDS=g-001 >"$T/o" 2>&1
+[[ "$(grep -c '^g-001	grok	%3001	' "$S/registry.tsv")" == 1 && ! -e "$S/registry.retired.tsv" ]] &&
+  pass "5. a STARTED seat keeps its registry row" || fail "5. started row: $(cat "$S/registry.tsv" 2>&1) $(cat "$T/o")"
 
 # --- 6. none, no fleet --------------------------------------------------------------------
 world
@@ -242,6 +261,23 @@ cron DESK_ROLE_FALLBACK=0
 ! grep -q do_spl_role_fallback_up "$T/runs" && pass "10. DESK_ROLE_FALLBACK=0 skips it" || fail "10. off: $(cat "$T/runs")"
 echo "pause" >"$D/lease.pause"; cron; rm -f "$D/lease.pause"
 ! grep -q do_spl_role_fallback_up "$T/runs" && pass "10. the lease pause cuts it" || fail "10. pause: $(cat "$T/runs")"
+
+# --- 11. a fallback id that shares another id's spool dir -> REFUSED ---------------------
+world; mkdir -p "$S/c-001/lifetime" "$S/c-001/inbox"; echo "C-001 SEED" >"$S/c-001/lifetime/prompt.txt"; ln -s c-001 "$S/g-001"
+act "${G2[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 0 ]] && grep -q " REFUSED g-001 shares $S/c-001 with c-001" "$T/o" && ! grep -q ' PLAN g-001 ' "$T/o" &&
+  grep -q ' PLAN g-002 no live seat' "$T/o" &&
+  pass "11. dry run: g-001 -> c-001 REFUSED (shares the dir), g-002 still PLAN" || fail "11. dry: rc=$rc $(cat "$T/o")"
+act DRY_RUN=0 "${G2[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 1 && "$(cat "$S/c-001/lifetime/prompt.txt")" == "C-001 SEED" ]] && ! grep -q '^spawn grok g-001 ' "$T/spawn.log" &&
+  grep -q " REFUSED g-001 shares $S/c-001 with c-001" "$T/o" && grep -q ' STARTED g-002' "$T/o" &&
+  [[ "$(grep -c '^g-001	' "$S/registry.tsv")" == 0 ]] &&
+  pass "11. DRY_RUN=0: g-001 not started, c-001's lifetime prompt untouched, no g-001 row; g-002 started" ||
+  fail "11. rc=$rc spawns=$(spawns) prompt=$(cat "$S/c-001/lifetime/prompt.txt") $(cat "$T/o")"
+world; mkdir -p "$S/g-001@box-desk"; ln -s g-001@box-desk "$S/g-001"
+act DRY_RUN=0 ROLE_FALLBACK_IDS=g-001 >"$T/o" 2>&1
+[[ "$(spawns)" == 1 ]] && grep -q ' STARTED g-001' "$T/o" &&
+  pass "11. its own @box dir (g-001 -> g-001@box-desk) is no share: started" || fail "11. self-loop: $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

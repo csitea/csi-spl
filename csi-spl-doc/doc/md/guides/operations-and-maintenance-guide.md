@@ -132,6 +132,38 @@ cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_box_disk_sweep
 cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_box_disk_sweep
 ```
 
+<a id="ws-doc-2f1d4764-fd9f-42e4-ad30-85c27e9a4712"></a>
+## 2.9 Clean finished lane workdirs, plan
+
+A finished lane keeps its worktree, its `/tmp` scratch and its `/var/tmp` leftovers for 24 hours: the retire lists them in `$SPOOL_ROOT/workdirs.tsv` (path, kind, agent, box, branch, finished_at). The box disk sweep runs this action every time it runs (its `workdirs` step); run it by hand to see what it would remove now. A dry run unless `DRY_RUN=0`.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> ./run -a do_sweep_workdirs
+```
+
+One line per row. `PLAN remove` or `REMOVE`: the directory is older than the limit and nothing holds it. `KEEP fresh`: younger than the limit. `KEEP in-use`: a process works in it. `KEEP dirty`: a worktree with uncommitted or untracked files; it stays until someone commits or removes them. `DROP gone`: the directory no longer exists, so the row goes. `DROP reused`: a new lane now holds the worktree, so the row goes and the directory stays.
+
+An `ALERT critical disk` line means 8% or less of a disk is free: rows older than 6 hours go, oldest first. Check the disk with `df -h` and read the sweep's other steps in `box-disk-sweep.log`.
+
+<a id="ws-doc-49e00f04-a42c-465e-98ae-7539af69267f"></a>
+## 2.10 Clean finished lane workdirs, apply
+
+Removes what the plan above listed as `PLAN remove`. A worktree goes through `git worktree remove`, never `rm -rf`; its branch goes only when it is merged.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_workdirs
+```
+
+<a id="ws-doc-d25a9f24-2c98-4999-9f34-87af2537eec7"></a>
+## 2.11 A bad deploy: roll back
+
+When a deploy breaks the hub or the WUI:
+
+- A `prd` rollback is the owner's call, per incident.
+- Roll `dev` back to the same `TO` first with `do_wui_rollback` / `do_hub_rollback` (DevOps guide, "Rollback"), then check `/version` and `build.json`.
+- An older WUI ships the CSP `connect-src` of its own time, so a workspace host added since then fails in it.
+- The rollback holds until the next deploy or the wf 21 catch-up; land the fix or a revert on master before that.
+
 <a id="ws-doc-fe7fd6e5-02f7-4d1b-9c8e-b45d2c55015a"></a>
 # 3 Role rotation
 

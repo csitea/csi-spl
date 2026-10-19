@@ -5,7 +5,7 @@ Issue: SPL-2537
 Spec: csi-spl-doc/specs/135-work-process
 Kind: specs_and_docs
 
-Status: **v1.0, DRAFT (incorporating panel review)** (verdict CHANGE on v0.1 by claude reviewer seat c-337 folded in; signed by reviewer seats before execution).
+Status: **v0.2, DRAFT** (incorporating claude reviewer seat c-337 verdict CHANGE; awaiting mistral reviewer seat review).
 Editor seat: **a-330** (agy).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1–R16).
 Baseline commit: **`4453459bbde498b0c88c2a9fcf899e37acc28889`** (`origin/master` at lane start, 2026-10-19T09:41Z).
@@ -307,7 +307,7 @@ Lane map verification (`bash lane-map.sh --check <paths>`) confirms that none of
 
 ## 6. Panel consensus and signatures
 
-The draft v0.1 plan (`ea33f0ed268e33029d0feef89b4cd0a357c64abe`) was submitted to the cross-vendor panel. Reviewer verdicts and dispatcher feedback were folded into v1.0:
+The draft v0.1 plan (`ea33f0ed268e33029d0feef89b4cd0a357c64abe`) was submitted to the cross-vendor panel. Reviewer verdicts and dispatcher feedback were folded into v0.2:
 
 1. **Claude reviewer seat (`c-337`):**
    - Reviewed v0.1 in `seat-claude.md` (landed at `d0bd4021c`).
@@ -325,16 +325,17 @@ The draft v0.1 plan (`ea33f0ed268e33029d0feef89b4cd0a357c64abe`) was submitted t
      - Missed rules M1–M8 and Subsection 2.12 added to inventory and outline.
      - Line counts and stale line 40 reference corrected.
 
-2. **Dispatcher guidance (`c-002@sat`):**
+2. **Dispatcher guidance (`c-002`):**
    - Rows 02 and 04 marked `complex_coding` / vendor `claude` (enforcing owner rule HUM-10 `b61851fb`: no Mistral coding or testing lanes).
+   - Guidance on panel process (msg `8ab93221`): This intermediate version incorporates the claude seat review as v0.2. Signatures will be collected on v1.0 once the mistral seat (ask `e92cd070`, queued pos 1/48) renders its verdict.
 
 3. **Mistral reviewer seat:**
-   - Queued as ask `e92cd070`, unplaced in fleet lane map. Dispatcher notified; proceeding with Claude seat sign-off on v1.0.
+   - Queued as ask `e92cd070`, position 1/48 in spawn queue. To receive v0.2 SHA when placed.
 
 ### 6.1 Panel signature table
 
 | Seat | Role | Vendor | Status | Signature (v1.0 SHA) |
 |---|---|---|---|---|
-| `a-330` | Editor | agy | v1.0 ready | Pending push |
-| `c002-coding-standards-panel-seat-claude` | Reviewer | claude | v0.1 reviewed (CHANGE); awaiting v1.0 | Pending |
-| `c002-coding-standards-panel-seat-mistral` | Reviewer | mistral | Queued (e92cd070) | Pending |
+| `a-330` | Editor | agy | v0.2 ready | Pending v1.0 |
+| `c002-coding-standards-panel-seat-claude` | Reviewer | claude | v0.1 reviewed (CHANGE); v0.2 incorporated | Pending v1.0 |
+| `c002-coding-standards-panel-seat-mistral` | Reviewer | mistral | Queued (e92cd070, pos 1/48) | Pending review of v0.2 |

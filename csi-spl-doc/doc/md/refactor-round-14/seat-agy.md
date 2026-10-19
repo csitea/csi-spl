@@ -37,13 +37,14 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
 consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat
 
-## 4. Current Status on Rotation (20:52Z)
+## 4. Current Status on Rotation (21:53Z)
 
 - Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
 - Mistral seat `m-490@sat` re-measured on `938a31f67` and updated `seat-mistral.md` in `e973768a7`; acknowledged by editor `a-615` (msg `3518c0a5`).
-- Dispatch lease holder confirmed `Verdict GOOD (NOT an exit)` and queued Batch 1 (Rows 01 + 02). Current dispatch lease holder is `g-002@sat`.
-- Row 01 (`refactor(r14-01-wui-decompose-doc-view)`, SPL-2575): R7 review completed by `a-615` (`PASS` on `216bad49b999456347c4698fee787ce6e891cfee`), landed on origin/master in `aa1345a1d`.
-- Row 02 (`refactor(r14-02-orc-small-spawn-main)`, SPL-2576): R7 review completed by `a-615` (`PASS` on `5dd714f2eb02fe0b8d0cce1ce86fd1e1849be9ff`), review line sent to `c-154` on `dispatch-dc15ad65`.
+- Batch 1 completed and landed on origin/master:
+  - Row 01 (`refactor(r14-01-wui-decompose-doc-view)`, SPL-2575): R7 review completed by `a-615` (PASS), landed on origin/master in `aa1345a1d`.
+  - Row 02 (`refactor(r14-02-orc-small-spawn-main)`, SPL-2576): R7 review completed by `a-615` (PASS on `5dd714f2eb02fe0b8d0cce1ce86fd1e1849be9ff`), landed on origin/master in `278f72c9d`.
+- Batch 2 ready for dispatch: Row 03 (`refactor(r14-03-wui-decompose-qto-tree)`, Lane 1) and Row 04 (`refactor(r14-04-iac-small-check-pre-push)`, Lane 2). Current dispatch lease holder is `g-003@sat`.
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Hourly rotation at 20:52Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 2 dispatch updates.
+- Hourly rotation at 21:53Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 2 dispatch updates.

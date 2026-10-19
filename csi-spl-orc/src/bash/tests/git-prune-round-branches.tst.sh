@@ -21,6 +21,10 @@
 #      PRUNE_UNLANDED=1 deletes them
 #   9. CONTROLS: without the lane-prefix match the lane branches are missed;
 #      without the cherry check the unlanded tip is deleted
+#  10. a round named by its branch prefix (ROUND=r01, sdlc, b01, or the
+#      zero-padded 01 = r01): its review, wip and lane-prefixed refs listed
+#      and deleted; the near misses (r1, r010, sdlcx, b011, review/sdlc with
+#      no dash) kept; a bad prefix (r0, 00, Sdlc, review/sdlc, sdlc*) refused
 # The remote is a local bare repo; nothing touches a real origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -124,7 +128,7 @@ done
 
 # 4. CONTROL: a widened pattern deletes the r6 ref and the keep check sees it ---
 fixture c
-sed 's|"review/r${n}-"\*|"review/"*|' "$FUNC" >"$T/wide.func.sh"
+sed 's|"review/${p}-"\*|"review/"*|' "$FUNC" >"$T/wide.func.sh"
 if cmp -s "$FUNC" "$T/wide.func.sh"; then
   fail "control: the sed did not widen the review pattern"
 else
@@ -213,7 +217,7 @@ want="$(printf '%s\n' "${KEEP[@]}" | sort)"
 
 # 9. CONTROLS: the old matcher and no cherry check -----------------------------
 fixture cl "${LANE7[@]}"
-sed '/\[acgmq\]-\[0-9\]{3}-r/d' "$FUNC" >"$T/nolane.func.sh"
+sed '/\[acgmq\]-\[0-9\]{3}-\$/d' "$FUNC" >"$T/nolane.func.sh"
 if cmp -s "$FUNC" "$T/nolane.func.sh"; then
   fail "control: the sed did not drop the lane-prefix match"
 else
@@ -232,6 +236,37 @@ else
     && fail "control: without the cherry check the unlanded tip survived" \
     || pass "control: without the cherry check the unlanded tip is deleted"
 fi
+
+# 10. rounds named by their branch prefix ------------------------------------
+NAMED=(review/r01-01 review/r01-10-x wip/c-5-r01-y review/sdlc-07-2 wip/c-247-c002-sdlc-seat review/c-104-sdlc-02 review/b01-03 m-946-b01-04)
+NEARN=(review/r1-x review/r010-x wip/c-6-r010 review/sdlcx-1 wip/c-7-sdlcx review/sdlc review/b011-x)
+fixture nm "${NAMED[@]}" "${NEARN[@]}"
+before="$(heads "$T/nm")"
+for args in "ROUND=r01,sdlc,b01" "ROUNDS=01 sdlc b01" "ROUND=r01,01,sdlc,b01,sdlc"; do
+  out="$(run_prune "$FUNC" "$T/nm" "$args")"; rc=$?
+  got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort)"
+  want="$(printf '%s\n' "${NAMED[@]}" | sort)"
+  [[ $rc -eq 0 && "$got" == "$want" && "$(heads "$T/nm")" == "$before" ]] \
+    && pass "$args dry run: the 8 named-round refs listed, no near miss" || fail "$args: rc=$rc got=$(paste -sd' ' - <<<"$got") out=$out"
+done
+out="$(run_prune "$FUNC" "$T/nm" ROUND=sdlc)"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort | paste -sd' ' -)"
+[[ $rc -eq 0 && "$got" == "review/c-104-sdlc-02 review/sdlc-07-2 wip/c-247-c002-sdlc-seat" ]] \
+  && pass "ROUND=sdlc lists only the 3 sdlc refs" || fail "ROUND=sdlc: rc=$rc got=$got"
+out="$(run_prune "$FUNC" "$T/nm" ROUND=1)"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | paste -sd' ' -)"
+[[ $rc -eq 0 && "$got" == "review/r1-x" ]] && pass "ROUND=1 lists review/r1-x only, no r01 ref" || fail "ROUND=1: rc=$rc got=$got"
+out="$(run_prune "$FUNC" "$T/nm" ROUND="r01,sdlc,b01" DRY_RUN=0)"; rc=$?
+want="$(printf '%s\n' "${R7[@]}" "${KEEP[@]}" "${NEARN[@]}" | sort)"
+[[ $rc -eq 0 && "$(heads "$T/nm")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 8 ]] \
+  && pass "ROUND=r01,sdlc,b01 DRY_RUN=0: the 8 refs gone, near misses kept" || fail "named delete: rc=$rc heads=$(heads "$T/nm" | paste -sd' ' -) out=$out"
+fixture nb
+before="$(heads "$T/nb")"
+for args in "ROUND=r0" "ROUND=00" "ROUND=r00" "ROUND=Sdlc" "ROUND=review/sdlc" "ROUND=sdlc*" "ROUND=sdlc-1" "ROUND=r" "ROUND=7,c"; do
+  out="$(run_prune "$FUNC" "$T/nb" "$args" DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$(heads "$T/nb")" == "$before" && "$out" == *FATAL* ]] \
+    && pass "refused, nothing deleted: '${args} DRY_RUN=0'" || fail "'${args}': rc=$rc out=$out"
+done
 
 if (( fails )); then
   echo "FAILED: $fails"

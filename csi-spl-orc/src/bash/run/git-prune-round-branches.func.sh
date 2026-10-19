@@ -16,9 +16,16 @@
 # @description line each. master / main, and any ref outside the patterns,
 # @description are never deleted. In wip/*r<ROUND>* the r<ROUND> stands alone:
 # @description wip/x-r17-y and wip/x-r70-y are not round 7's.
+# @description A round is named by its number (r<N> = 7 or the zero-padded
+# @description 01) or by its branch prefix (r01, sdlc, b01): the prefix then
+# @description takes the place of r<N> in every pattern, e.g. ROUND=sdlc
+# @description matches review/sdlc-*, wip/*sdlc* and [review/]<id>-sdlc-*
+# @description (bug round 1 retro; SPL-2525).
 # @description Run with DRY_RUN=0 only by the round's retro lane, after the
 # @description retro has run C7 over the review branches (round plan R7.4, R8).
-# @param ROUND (required, or ROUNDS) - the round number(s), e.g. 8, or "7,8"
+# @param ROUND (required, or ROUNDS) - the round(s), e.g. 8, "7,8", 01, r01, sdlc or b01
+# @param ROUND a number N means prefix r<N> as written (01 = r01, not r1); a
+# @param ROUND prefix is [a-z][a-z0-9]+ (2+ characters), r0 / 00 refused
 # @param ROUNDS (optional) - the same list under its plural name, e.g. "7 8";
 # @param ROUNDS set ROUND or ROUNDS, not both. Separators: comma and/or space
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -29,34 +36,41 @@
 # @example ROUND=7 DRY_RUN=0 ./run -a do_git_prune_round_branches
 # @example ROUND="7,8" ./run -a do_git_prune_round_branches
 # @example ROUNDS="7 8 9" DRY_RUN=0 ./run -a do_git_prune_round_branches
+# @example ROUND="r01,sdlc,b01" ./run -a do_git_prune_round_branches
 #------------------------------------------------------------------------------
 
-# prune_round_match <round> <branch>: 0 when the branch (no refs/heads/) is one
-# of that round's review, wip or lane-prefixed branches. Never master or main.
+# prune_round_match <prefix> <branch>: 0 when the branch (no refs/heads/) is
+# one of that round's review, wip or lane-prefixed branches. Never master or
+# main. In wip/ a prefix ending in a digit is not followed by one (r7 is not
+# r70), a prefix ending in a letter not by a letter or digit (sdlc not sdlcx).
 prune_round_match() {
-  local n="$1" b="$2"
+  local p="$1" b="$2" tail='[^0-9]'
   case "$b" in master | main) return 1 ;; esac
-  [[ "$b" == "review/r${n}-"* ]] && return 0
-  [[ "$b" =~ ^(review/)?[acgmq]-[0-9]{3}-r${n}- ]] && return 0
-  [[ "$b" =~ ^wip/(.*[^0-9A-Za-z])?r${n}([^0-9].*)?$ ]]
+  [[ "$p" == *[0-9] ]] || tail='[^0-9A-Za-z]'
+  [[ "$b" == "review/${p}-"* ]] && return 0
+  [[ "$b" =~ ^(review/)?[acgmq]-[0-9]{3}-${p}- ]] && return 0
+  [[ "$b" =~ ^wip/(.*[^0-9A-Za-z])?${p}(${tail}.*)?$ ]]
 }
 
-# prune_round_parse <spec>: the round numbers of "7", "7,8" or "7 8", one per
-# line, in order, each once. Non-zero on an empty list or a non-number.
+# prune_round_parse <spec>: the branch prefixes of "7", "7,8", "7 8", "01",
+# "r01,sdlc,b01", one per line, in order, each once: a number N is r<N> as
+# written, any other [a-z][a-z0-9]+ is the prefix itself. Non-zero on an empty
+# list, a zero round (0, 00, r0) or anything else.
 prune_round_parse() {
   local n seen=" " parts=()
   read -ra parts <<<"${1//,/ }"
   ((${#parts[@]})) || return 1
   for n in "${parts[@]}"; do
-    [[ "$n" =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ "$n" =~ ^[0-9]+$ ]] && n="r$n"
+    [[ "$n" =~ ^[a-z][a-z0-9]+$ && ! "$n" =~ ^r0+$ ]] || return 1
     [[ "$seen" == *" $n "* ]] && continue
     seen+="$n "
     echo "$n"
   done
 }
 
-# prune_round_list <git-dir> <remote> <round>...: one "<branch>\t<sha>" line per
-# head on the remote that matches any of the rounds, each head once.
+# prune_round_list <git-dir> <remote> <prefix>...: one "<branch>\t<sha>" line
+# per head on the remote that matches any of the rounds, each head once.
 prune_round_list() {
   local g="$1" r="$2" heads sha ref b n
   shift 2
@@ -71,11 +85,11 @@ prune_round_list() {
   return 0
 }
 
-# prune_round_patterns <round>...: "review/r7-*, wip/*r7* or [review/]<id>-r7-*"
+# prune_round_patterns <prefix>...: "review/r7-*, wip/*r7* or [review/]<id>-r7-*"
 # per round, joined.
 prune_round_patterns() {
-  local n out=""
-  for n in "$@"; do out+="${out:+, }review/r${n}-*, wip/*r${n}* or [review/]<id>-r${n}-*"; done
+  local p out=""
+  for p in "$@"; do out+="${out:+, }review/${p}-*, wip/*${p}* or [review/]<id>-${p}-*"; done
   echo "$out"
 }
 
@@ -107,7 +121,7 @@ do_git_prune_round_branches() {
   local list b sha left n trunk u count=0 kept=0 refs=() rounds=() del=() still=""
 
   [[ -z "${ROUND:-}" || -z "${ROUNDS:-}" ]] || { do_log "FATAL set ROUND or ROUNDS, not both: ROUND='$ROUND' ROUNDS='$ROUNDS'"; return 1; }
-  n="$(prune_round_parse "$spec")" || { do_log "FATAL ROUND must be round numbers, e.g. ROUND=8 or ROUND=\"7,8\", got: '$spec'"; return 1; }
+  n="$(prune_round_parse "$spec")" || { do_log "FATAL ROUND must be round numbers or branch prefixes, e.g. ROUND=8, ROUND=\"7,8\" or ROUND=\"r01,sdlc,b01\", got: '$spec'"; return 1; }
   mapfile -t rounds <<<"$n"
   n="${rounds[*]}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }

@@ -327,42 +327,12 @@ do_log() {
     return $?
   fi
 
-  print_ok() {
-    GREEN_COLOR="\033[0;32m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${GREEN_COLOR} ✔ ${1:-} ${DEFAULT_COLOR}"
-  }
-
-  print_warning() {
-    YELLOW_COLOR="\033[33m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${YELLOW_COLOR} ⚠ ${1:-} ${DEFAULT_COLOR}"
-  }
-
-  print_info() {
-    BLUE_COLOR="\033[0;34m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${BLUE_COLOR} ℹ ${1:-} ${DEFAULT_COLOR}"
-  }
-
-
-  print_debug() {
-    CYAN_COLOR="\033[0;36m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${CYAN_COLOR} ⚙ ${1:-} ${DEFAULT_COLOR}"
-  }
-
-  print_fail() {
-    RED_COLOR="\033[0;31m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${RED_COLOR} ❌ [NOK] ${1:-}${DEFAULT_COLOR}"
-  }
-
-  print_fatal() {
-    RED_COLOR="\033[0;31m"
-    DEFAULT_COLOR="\033[0m"
-    echo -e "${RED_COLOR} 💣 [FATAL] ${1:-}${DEFAULT_COLOR}"
-  }
+  print_ok() { echo -e "\033[0;32m ✔ ${1:-} \033[0m"; }
+  print_warning() { echo -e "\033[33m ⚠ ${1:-} \033[0m"; }
+  print_info() { echo -e "\033[0;34m ℹ ${1:-} \033[0m"; }
+  print_debug() { echo -e "\033[0;36m ⚙ ${1:-} \033[0m"; }
+  print_fail() { echo -e "\033[0;31m ❌ [NOK] ${1:-}\033[0m"; }
+  print_fatal() { echo -e "\033[0;31m 💣 [FATAL] ${1:-}\033[0m"; }
 
   # First two words and the remainder, the same bytes as
   # `echo $* | cut -d" " -f1/-f2/-f3-`, with no fork. Unquoted $* collapses
@@ -403,7 +373,8 @@ do_log() {
 
   # One mkdir per directory, not one per line. Resolve again only when
   # LOG_DIR changes or the directory is gone.
-  if [[ "${_do_log_dir_ready:-}" != "${LOG_DIR:-}" || -z "${LOG_DIR:-}" || ! -d "${LOG_DIR:-}" ]]; then
+  if [[ "${_do_log_dir_ready:-}" != "${LOG_DIR:-}" || -z "${LOG_DIR:-}" ]] ||
+    [[ ! -d "${LOG_DIR:-}" && "${_do_log_off:-}" != "${LOG_DIR:-}" ]]; then
     local _log_dir
     if [[ -n "${LOG_DIR:-}" ]]; then
       _log_dir="$LOG_DIR"
@@ -421,9 +392,26 @@ do_log() {
     log_dir="$_log_dir"
     export LOG_DIR="$log_dir"
     _do_log_dir_ready="$LOG_DIR"
+    _do_log_off=""
   fi
   log_dir="$LOG_DIR"
   log_file="$log_dir/${PROJ:-run}.${_do_log_day}.log"
+  # A log dir or file nobody can write never aborts the command (SPL-2617):
+  # the append failed and the ERR trap turned the run FATAL. Log to a
+  # per-user temp dir instead, else keep no log file; say so on stderr.
+  if [[ "${_do_log_off:-}" != "$log_dir" ]] &&
+    [[ ! -w "$log_dir" || ( -e "$log_file" && ! -w "$log_file" ) ]]; then
+    local _log_fb="${TMPDIR:-/tmp}/run-log-${EUID}"
+    if [[ "$log_dir" != "$_log_fb" ]] && mkdir -p "$_log_fb" 2>/dev/null && [[ -w "$_log_fb" ]]; then
+      echo "WARN log $log_file is not writable, logging to $_log_fb" >&2
+      export LOG_DIR="$_log_fb" && _do_log_dir_ready="$_log_fb" && log_dir="$_log_fb"
+      log_file="$log_dir/${PROJ:-run}.${_do_log_day}.log"
+    else
+      echo "WARN log $log_file is not writable, no log file" >&2
+      _do_log_off="$log_dir"
+    fi
+  fi
+  if [[ "${_do_log_off:-}" == "$log_dir" ]]; then log_file=/dev/null; fi
 
   # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
   # full line): the file gets the full line, stdout `LEVEL msg`.
@@ -451,13 +439,13 @@ do_log() {
   fi
 
   case "$type_of_msg" in
-  'FATAL') print_fatal "$msg" | tee -a $log_file ;;
-  'ERROR') print_fail "$msg" | tee -a $log_file ;;
-  'WARNING'|'WARN') print_warning "$msg" | tee -a $log_file ;;
-  'INFO') print_info "$msg" | tee -a $log_file ;;
-  'OK')    print_ok    "$msg" | tee -a $log_file ;;
-  'DEBUG') print_debug "$msg" | tee -a $log_file ;;
-  *) echo "$msg" | tee -a $log_file ;;
+  'FATAL') print_fatal "$msg" | tee -a "$log_file" ;;
+  'ERROR') print_fail "$msg" | tee -a "$log_file" ;;
+  'WARNING'|'WARN') print_warning "$msg" | tee -a "$log_file" ;;
+  'INFO') print_info "$msg" | tee -a "$log_file" ;;
+  'OK')    print_ok    "$msg" | tee -a "$log_file" ;;
+  'DEBUG') print_debug "$msg" | tee -a "$log_file" ;;
+  *) echo "$msg" | tee -a "$log_file" ;;
   esac
 }
 

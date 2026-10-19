@@ -282,12 +282,20 @@ render() {
       [ "${#out[@]}" -ge "$budget" ] && break
     done
   fi
-  # Home + erase, then only what fits: a repaint is the only way to put the
-  # newest record on top, and it must not overflow the pane.
-  printf '%s[H%s[2J' "$esc" "$esc"
+  # Home, then overwrite in place: each line is erased (EL 2) before it is
+  # written, and what is left below the last one is erased (ED 0) from a
+  # cursor that is no longer at the top-left. A repaint is the only way to put
+  # the newest record on top, and it must not overflow the pane.
+  #
+  # Not "home + clear screen" (ED 2): tmux's scroll-on-clear (default on)
+  # copies the whole old screen into the scrollback first, and until
+  # drop_scrollback runs a capture sees every record twice. CI run 39214423686
+  # (OA-11 "after the respawn: copies off: M-1=2"), 3/120 here at 8 parallel.
+  printf '%s[H' "$esc"
   for (( i = 0; i < ${#out[@]} && i < budget; i++ )); do
-    printf '%s\n' "${out[i]}"
+    printf '%s[2K%s\n' "$esc" "${out[i]}"
   done
+  printf '%s[J' "$esc"
   drop_scrollback
 }
 

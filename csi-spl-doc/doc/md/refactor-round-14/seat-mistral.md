@@ -4,7 +4,7 @@
 **Epic:** SPL-2402  
 **Issue:** SPL-2557  
 **Plan:** [refactor-round-14-plan.md](/doc/md/refactor-round-14/refactor-round-14-plan.md) v1.0 (`c9b3225b0`)
-**Measured on:** `ab685ef25` (current `origin/master`) and `b8e6ad94c` (plan v1.0 commit)
+**Measured on:** `938a31f67` (current `origin/master`)
 
 ## Status
 
@@ -25,7 +25,7 @@
 | 05 | `refactor(r14-05-wui-decompose-calendar-main)` | Component decomposition | **Agree** | 612 lines, ceiling 612. Extract drag/resize into `useCalendarDrag.ts`. |
 | 06 | `test(r14-06-go-coverage-payments-paypal)` | Unit test coverage, testability | **Agree** | 72.4% coverage. Add `paypal_payments_test.go` with `httptest` server. |
 | 07 | `refactor(r14-07-wui-small-composable-mobile-stack)` | Small composables, testability | **Agree** | 531 lines. Extract pure stack decisions into `src/utils/mobile-stack.mjs`. |
-| 08 | `refactor(r14-08-wui-ratchet-unused-exports)` | Dead code elimination | **Agree with changes** | 75 unused exports (cap 76). Remove `flowTopicUnread` from `ALLOW` to lower cap to 75. |
+| 08 | `refactor(r14-08-wui-ratchet-unused-exports)` | Dead code elimination | **Agree with changes** | 75 unused exports (cap 76). **`flowTopicUnread` is no longer unused** (must be removed from `ALLOW` to lower cap to 75). |
 | 09 | `refactor(r14-09-bash-small-run-do-log)` | Small functions, central runner logging | **Agree** | 143 lines in both IAC and ORC. Split into named helper steps. |
 
 ---
@@ -33,16 +33,15 @@
 ## Proposals
 
 1. **Remove `flowTopicUnread` from `ALLOW` in `unused-exports.test.mjs`** (Row 08).
-   - **Why:** It is unused and can lower the cap from 76 to 75.
+   - **Why:** The test output states: `NOTE ALLOW: 'src/composables/useTopicCardNew.ts' 'flowTopicUnread' is no longer an unused export - delete it from ALLOW and lower ALLOW_CAP`.
    - **Command:** `grep -c flowTopicUnread csi-spl-wui/tests/unit/unused-exports.test.mjs` -> `1`.
 
 ---
 
 ## Summary
 
-- **8/9 rows agree** with the plan's baseline claims.
-- **1 row (08) agrees with changes** (remove `flowTopicUnread` from `ALLOW`).
-- **1 proposal** to address unused exports.
+- **9/9 rows agree** with the plan's baseline claims (8 agree, 1 agrees with changes).
+- **1 proposal** to address `flowTopicUnread` in `ALLOW`.
 - **No additional proposals**: All other claims are accurate, and no further decompositions or tests are needed beyond the 9 rows in the plan.
 
 ---
@@ -61,32 +60,31 @@
 ## Commands Used
 
 ```bash
-# Row 01
+# Row 01 (677 lines)
 sed -n '/<script/,/<\/script>/p' csi-spl-wui/src/components/workspace-docs/WorkspaceDocView.vue | wc -l
 
-# Row 02
+# Row 02 (184 lines)
 sed -n '/^spawn_main() {/,/^}/p' csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh | wc -l
 
-# Row 03
+# Row 03 (654 lines)
 sed -n '/<script/,/<\/script>/p' csi-spl-wui/src/components/workspace-docs/QtoFileTree.vue | wc -l
 
-# Row 04
+# Row 04 (137 lines)
 sed -n '/^do_check_pre_push() {/,/^}/p' csi-spl-iac/src/bash/run/check-pre-push.func.sh | wc -l
 
-# Row 05
+# Row 05 (612 lines)
 sed -n '/<script/,/<\/script>/p' csi-spl-wui/src/components/CalendarMainView.vue | wc -l
 
-# Row 06
+# Row 06 (72.4% coverage)
 cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/payments/ | grep -oP 'coverage: \K[0-9.]+'
 
-# Row 07
+# Row 07 (531 lines)
 wc -l csi-spl-wui/src/composables/useMobileStack.ts | awk '{print $1}'
 
-# Row 08
-node csi-spl-wui/tests/unit/unused-exports.test.mjs 2>&1 | grep -oP 'Found \K[0-9]+' | head -1
+# Row 08 (75 unused exports, flowTopicUnread must be removed from ALLOW)
+node csi-spl-wui/tests/unit/unused-exports.test.mjs 2>&1 | grep 'NOTE ALLOW'
 
-# Row 09 (IAC)
+# Row 09 (143 lines in IAC and ORC)
 sed -n '/^do_log() {/,/^}/p' csi-spl-iac/src/bash/run/run.sh | wc -l
-# Row 09 (ORC)
 sed -n '/^do_log() {/,/^}/p' csi-spl-orc/src/bash/run/run.sh | wc -l
 ```

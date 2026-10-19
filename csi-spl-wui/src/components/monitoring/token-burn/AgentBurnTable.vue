@@ -140,5 +140,8 @@ function clock(iso: string) {
 .tk-sort-pick { display: none; }
 @media (max-width: 600px) {
   .tk-sort-pick { display: flex; }
+  /* the select fits the phone, its long fi options cut, not the page (SPL-2487) */
+  .tk-agents-tools, .tk-filter { min-width: 0; max-width: 100%; }
+  .tk-filter select { min-width: 0; max-width: 100%; }
 }
 </style>

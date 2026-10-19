@@ -38,4 +38,15 @@
   .tk-agent .tk-a-box { order: 10; }
   .tk-agent .tk-a-today { order: 11; }
   .tk-agent .tk-a-last { order: 12; }
+  /* each line stays one line (SPL-2488, fi at 360 px): the figures keep their
+     width, a labelled one takes the rest and cuts its label to an ellipsis,
+     never its value */
+  .tk-agent .tk-a-rate, .tk-agent .tk-a-cost, .tk-agent .tk-a-box { flex: none; white-space: nowrap; }
+  .tk-agent .tk-a-rate1m, .tk-agent .tk-a-today, .tk-agent .tk-a-last { display: flex; flex: 1 1 0; white-space: nowrap; }
+  .tk-agent td[data-label]::before { flex: 1 1 0; width: 0; max-width: max-content; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+}
+/* the desktop agent table fits 1280 px in fi (SPL-2488): a figure's header
+   wraps its words, its cells stay on one line */
+@media (min-width: 601px) {
+  .tk-table thead th.num { white-space: normal; }
 }

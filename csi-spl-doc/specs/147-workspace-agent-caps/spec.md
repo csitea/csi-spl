@@ -25,7 +25,7 @@ Recorded 2026-10-19:
   > "given the following biz needs https://csitea.spool-hub.ai/channel/csitea-sells?topic=02d271a2-1721-461e-8067-14390f097a45 the spool-hub admin should be able to define a max amount of agents and their kind per workspace"
 
 - Business requirement from discussion (csitea topic `02d271a2-1721-461e-8067-14390f097a45`, msg `dc010e3c`):
-  > "the new workspace az-recruitment gets not more than 1 claude and 1 grok instance and 2 agy and 1 mistral"
+  > "the new workspace <CUSTOMER-WORKSPACE> gets not more than 1 claude and 1 grok instance and 2 agy and 1 mistral"
 
 - Dispatcher post:
   > `https://spool-hub.ai/m/93aa0ccd-7eec-4dc4-87a8-8ada9d23f557`
@@ -37,14 +37,14 @@ Recorded 2026-10-19:
 3. **P3 (Workspace Admin Read-Only Visibility):** Administrators of individual workspaces may read and inspect their workspace's caps (via API and Workspace Settings), but can never modify them. Any mutation attempt by a workspace admin is refused with HTTP 403 Forbidden.
 4. **P4 (Default Uncapped / Zero Regression):** A workspace with no cap configured for a given vendor defaults to unlimited live instances (`max_live = NULL` / absent row). Existing workspaces without explicit caps continue to operate exactly as today, constrained only by tenant-wide `seats_bots` (M4) or box host limits.
 5. **P5 (Universal Path Enforcement):** The cap must be enforced across every path that seats, connects, or spawns an agent into a workspace. If admitting an agent would cause the count of live agents of that vendor in that workspace to exceed `max_live`, the operation is refused.
-6. **P6 (Informative Rejection Message):** Every refusal explicitly identifies the affected workspace, the agent vendor, the configured cap, and the current live count (e.g. `refused: claude agent cap reached for workspace az-recruitment: max 1 live, currently 1 live`).
+6. **P6 (Informative Rejection Message):** Every refusal explicitly identifies the affected workspace, the agent vendor, the configured cap, and the current live count (e.g. `refused: claude agent cap reached for workspace example-ws: max 1 live, currently 1 live`).
 7. **P7 (Dynamic Concurrency Lifecycle):** Caps apply strictly to concurrent *live* instances. When an agent terminates cleanly (`/exit-clean`) or is retired, its live seat is released, immediately restoring capacity for subsequent spawns or desk seating of that vendor.
 
 ---
 
 ## 1. Glossary and Core Definitions
 
-- **Workspace / Tenant:** The isolated tenant container on a spool-hub instance, identified by `workspace_id` (in database schemas and headers: `tenant_id`, e.g. `t1`, `az-recruitment`).
+- **Workspace / Tenant:** The isolated tenant container on a spool-hub instance, identified by `workspace_id` (in database schemas and headers: `tenant_id`, e.g. `t1`, `example-ws`).
 - **Spool-Hub Admin (Operator Admin):** A human member holding the `admin` role in the designated operator workspace (Spec 074, `tenants.is_operator = true`). Only this identity holds instance-wide management authority (`operator.workspaces`).
 - **Workspace Admin:** A member holding the `admin` role within a regular workspace (Spec 025). Holds `tenant.settings` for their own workspace, but possesses zero operator privileges.
 - **Agent Kind / Vendor:** The underlying AI model vendor and runtime kind of an agent. Governed by Spec 061 and Spec 115, the valid vendor set is:
@@ -199,7 +199,7 @@ CREATE POLICY operator_scope ON tenant_agent_caps
 
 All mutations of `tenant_agent_caps` record an entry in `operator_audit` (`store.OperatorAudit`, `csi-spl-rdb/src/sql/postgres/spool-hub/0115_operator_audit.sql`):
 - `action`: `"set_agent_caps"` or `"delete_agent_cap"`
-- `tenant_id`: the target workspace (e.g. `az-recruitment`)
+- `tenant_id`: the target workspace (e.g. `example-ws`)
 - `actor_hum`: the human ID of the operator admin
 - `detail`: `{"vendor": "claude", "max_live": 1, "previous": null}`
 
@@ -345,7 +345,7 @@ Returns all configured agent caps for the designated workspace.
 
 **Request:**
 ```http
-GET /v1/operator/workspaces/az-recruitment/agent-caps HTTP/1.1
+GET /v1/operator/workspaces/example-ws/agent-caps HTTP/1.1
 Host: api.<BASE_DOMAIN>
 Cookie: session=<operator_admin_session>
 ```
@@ -353,7 +353,7 @@ Cookie: session=<operator_admin_session>
 **Response (200 OK):**
 ```json
 {
-  "workspace_id": "az-recruitment",
+  "workspace_id": "example-ws",
   "caps": {
     "claude": 1,
     "grok": 1,
@@ -370,7 +370,7 @@ Configures or updates agent caps for the designated workspace. Passing `null` or
 
 **Request:**
 ```http
-PUT /v1/operator/workspaces/az-recruitment/agent-caps HTTP/1.1
+PUT /v1/operator/workspaces/example-ws/agent-caps HTTP/1.1
 Host: api.<BASE_DOMAIN>
 Content-Type: application/json
 Cookie: session=<operator_admin_session>
@@ -392,7 +392,7 @@ Returns the updated caps object and records an audit row in `operator_audit`.
 - `400 Bad Request`: `{"error": "bad_vendor", "detail": "vendor 'deepseek' is not supported"}`
 - `400 Bad Request`: `{"error": "bad_cap", "detail": "max_live must be a non-negative integer"}`
 - `403 Forbidden`: `{"error": "operator.workspaces", "detail": "only an admin of the operator workspace manages agent caps"}`
-- `404 Not Found`: `{"error": "not_found", "detail": "workspace 'az-recruitment' does not exist"}`
+- `404 Not Found`: `{"error": "not_found", "detail": "workspace 'example-ws' does not exist"}`
 
 #### `DELETE /v1/operator/workspaces/{id}/agent-caps/{vendor}`
 Removes the cap for a specific vendor, reverting that vendor to uncapped.
@@ -410,14 +410,14 @@ Allows administrators of the active workspace to inspect their current caps and 
 ```http
 GET /v1/tenant/agent-caps HTTP/1.1
 Host: api.<BASE_DOMAIN>
-X-Spool-Tenant: az-recruitment
+X-Spool-Tenant: example-ws
 Cookie: session=<workspace_admin_session>
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "workspace_id": "az-recruitment",
+  "workspace_id": "example-ws",
   "caps": {
     "claude": 1,
     "grok": 1,
@@ -475,13 +475,13 @@ In `csi-spl-wui/src/components/TenantSettingsDialog.vue` (under the **Agents** t
 
 ---
 
-## 8. Acceptance Case: The `az-recruitment` Scenario
+## 8. Acceptance Case: The `example-ws` Scenario
 
 This acceptance case mirrors the verbatim owner requirement from msg `dc010e3c` and validates the end-to-end enforcement lifecycle.
 
 ### Setup
-- Workspace `az-recruitment` is provisioned on the cloud instance.
-- Spool-hub admin configures the agent caps via `PUT /v1/operator/workspaces/az-recruitment/agent-caps`:
+- Workspace `example-ws` is provisioned on the cloud instance.
+- Spool-hub admin configures the agent caps via `PUT /v1/operator/workspaces/example-ws/agent-caps`:
   ```json
   {
     "caps": {
@@ -497,42 +497,42 @@ This acceptance case mirrors the verbatim owner requirement from msg `dc010e3c` 
 ### Execution Sequence
 
 1. **First Claude Seat:**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=c-004 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=c-004 DRY_RUN=0`
    - Outcome: **PASS** (1/1 Claude live). Agent `c-004` appears in roster.
 2. **Second Claude Seat (Violation):**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=c-005 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=c-005 DRY_RUN=0`
    - Outcome: **REFUSED** with exit code 1.
-   - Error: `FATAL agent c-005 (claude) exceeds workspace az-recruitment cap of 1 (currently 1 live); seating refused`.
+   - Error: `FATAL agent c-005 (claude) exceeds workspace example-ws cap of 1 (currently 1 live); seating refused`.
    - Verification: `c-005` is not added to roster; `c-004` remains unaffected.
 3. **First AGY Seat:**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=a-004 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=a-004 DRY_RUN=0`
    - Outcome: **PASS** (1/2 AGY live).
 4. **Second AGY Seat:**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=a-005 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=a-005 DRY_RUN=0`
    - Outcome: **PASS** (2/2 AGY live).
 5. **Third AGY Seat (Violation):**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=a-006 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=a-006 DRY_RUN=0`
    - Outcome: **REFUSED**. Error names cap of 2 reached.
 6. **First Grok Seat:**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=g-004 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=g-004 DRY_RUN=0`
    - Outcome: **PASS** (1/1 Grok live).
 7. **Second Grok Seat (Violation):**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=g-005 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=g-005 DRY_RUN=0`
    - Outcome: **REFUSED**.
 8. **First Mistral Seat:**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=m-004 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=m-004 DRY_RUN=0`
    - Outcome: **PASS** (1/1 Mistral live).
 9. **Second Mistral Seat (Violation):**
-   - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=m-005 DRY_RUN=0`
+   - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=m-005 DRY_RUN=0`
    - Outcome: **REFUSED**.
 10. **Uncapped Qwen Seats:**
     - Seating `q-004` and `q-005` both succeed without hindrance because `qwen` has no cap.
 11. **Seat Reclamation:**
     - Agent `c-004` completes task and executes `/exit-clean`.
     - Host retires `c-004`; hub WebSocket announcement drops `c-004` from roster.
-    - Claude live count in `az-recruitment` drops to 0.
+    - Claude live count in `example-ws` drops to 0.
 12. **Subsequent Seating:**
-    - Command: `do_spl_desk_up TENANT_ID=az-recruitment DESK_AGENT=c-005 DRY_RUN=0`
+    - Command: `do_spl_desk_up TENANT_ID=example-ws DESK_AGENT=c-005 DRY_RUN=0`
     - Outcome: **PASS** (1/1 Claude live).
 
 ---
@@ -563,15 +563,15 @@ This acceptance case mirrors the verbatim owner requirement from msg `dc010e3c` 
 - **AC-01 (Store Persistence):** Store correctly inserts, updates, and deletes vendor caps for a tenant; queries return exact `(vendor, max_live)` mapping.
 - **AC-02 (Operator Auth Gate):** Request to `PUT /v1/operator/workspaces/{id}/agent-caps` with regular workspace admin token is rejected with HTTP 403 `operator.workspaces`.
 - **AC-03 (Store Roster Rejection):** `SetRoster` rejects adding a 2nd `claude` agent to a workspace with `claude: 1`, returning `ErrVendorCapExceeded`.
-- **AC-04 (Desk Up Refusal):** `do_spl_desk_up` for `c-005` in `az-recruitment` (with `c-004` active) exits with code 1 and outputs formatted refusal message.
-- **AC-05 (Spawn Window Refusal):** `spawn-window.sh` for `claude` in `az-recruitment` exits with code 14 and leaves tmux windows untouched.
+- **AC-04 (Desk Up Refusal):** `do_spl_desk_up` for `c-005` in `example-ws` (with `c-004` active) exits with code 1 and outputs formatted refusal message.
+- **AC-05 (Spawn Window Refusal):** `spawn-window.sh` for `claude` in `example-ws` exits with code 14 and leaves tmux windows untouched.
 - **AC-06 (Live Count Reclamation):** Retiring `c-004` immediately allows `c-005` to be seated via `do_spl_desk_up`.
 - **AC-07 (Uncapped Vendor Independence):** Workspace with `claude: 1` allows multiple `qwen` instances to seat concurrently without interference.
 
 ### 10.2 Negative Controls & Red Tests
 
 - **Control C1 (Cap Bypass Failure):** Execute `SetRoster` with two Claude agents when `claude: 1`. Disabling `vendorCapGate` allows both to seat; with `vendorCapGate` active, the transaction *must* fail with `ErrVendorCapExceeded`.
-- **Control C2 (Privilege Escalation Failure):** Issue `PUT /v1/operator/workspaces/{id}/agent-caps` using a session token from `az-recruitment` admin. The endpoint *must* return HTTP 403 Forbidden.
+- **Control C2 (Privilege Escalation Failure):** Issue `PUT /v1/operator/workspaces/{id}/agent-caps` using a session token from `example-ws` admin. The endpoint *must* return HTTP 403 Forbidden.
 - **Control C3 (Default Regression Guard):** Verify seating in an uncapped workspace. The cap check *must* return nil and allow seating without error.
 
 ---
@@ -584,10 +584,10 @@ To implement this specification cleanly across parallel lanes without merge coll
 |---|---|---|---|---|---|
 | **R1** | Lane A | Database Migration & Hub Store Logic | `csi-spl-rdb/src/sql/postgres/spool-hub/0209_workspace_agent_caps.sql`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/agent_caps.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/agent_caps_postgres.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/agent_caps_memory.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/agent_caps_test.go` | — | `TestVendorCapGate`: inserting 2nd agent of capped vendor in `SetRoster` succeeds instead of returning `ErrVendorCapExceeded`. |
 | **R2** | Lane A | Hub API Routes & Operator RBAC | `csi-spl-api/src/go/spool-hub-api/internal/hub/operator_agent_caps.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/hub/tenant_agent_caps.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/hub/operator_agent_caps_test.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/hub/tenant_agent_caps_test.go` | R1 | `TestOperatorAgentCapsRBAC`: workspace admin calling `PUT /v1/operator/workspaces/{id}/agent-caps` returns 200 instead of 403 Forbidden. |
-| **R3** | Lane A | Desk Seating Action & Shell Integration | `csi-spl-orc/src/bash/run/spl-agent-caps.func.sh`<br>`csi-spl-orc/src/bash/run/spl-desk-up.func.sh`<br>`csi-spl-orc/src/bash/tests/desk-agent-caps.tst.sh` | R1, R2 | `desk-agent-caps.tst.sh`: `do_spl_desk_up` seats a 2nd claude in `az-recruitment` when cap is 1 instead of exiting 1 with refusal. |
-| **R4** | Lane B | Spawn Window Gate & Dispatcher Lane Mix | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`<br>`csi-spl-orc/src/bash/run/spl-take.func.sh`<br>`csi-spl-orc/src/bash/tests/spawn-vendor-caps.tst.sh` | R3 | `spawn-vendor-caps.tst.sh`: `spawn-window.sh` starts tmux pane for 2nd claude in `az-recruitment` instead of exiting 14. |
+| **R3** | Lane A | Desk Seating Action & Shell Integration | `csi-spl-orc/src/bash/run/spl-agent-caps.func.sh`<br>`csi-spl-orc/src/bash/run/spl-desk-up.func.sh`<br>`csi-spl-orc/src/bash/tests/desk-agent-caps.tst.sh` | R1, R2 | `desk-agent-caps.tst.sh`: `do_spl_desk_up` seats a 2nd claude in `example-ws` when cap is 1 instead of exiting 1 with refusal. |
+| **R4** | Lane B | Spawn Window Gate & Dispatcher Lane Mix | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`<br>`csi-spl-orc/src/bash/run/spl-take.func.sh`<br>`csi-spl-orc/src/bash/tests/spawn-vendor-caps.tst.sh` | R3 | `spawn-vendor-caps.tst.sh`: `spawn-window.sh` starts tmux pane for 2nd claude in `example-ws` instead of exiting 14. |
 | **R5** | Lane B | Web User Interface & Localization | `csi-spl-wui/src/components/OperatorPane.vue`<br>`csi-spl-wui/src/components/TenantSettingsDialog.vue`<br>`csi-spl-wui/src/utils/spool-client-lazy.mjs`<br>`csi-spl-wui/src/stores/operator-pane.ts`<br>`csi-spl-wui/i18n/locales/en.json` (and all 19 locales) | R2 | `pnpm run test:unit`: workspace admin in non-operator workspace sees editable inputs instead of read-only badge/table. |
-| **R6** | Lane B | Acceptance Test Suite (`az-recruitment`) | `csi-spl-api/src/bash/tests/test-workspace-agent-caps.sh`<br>`csi-spl-orc/src/bash/tests/az-recruitment-caps.tst.sh`<br>`csi-spl-wui/tests/e2e/workspace-agent-caps.test.mjs` | R1–R5 | `az-recruitment-caps.tst.sh`: full multi-vendor acceptance sequence allows a 2nd concurrent claude to seat alongside the 1st. |
+| **R6** | Lane B | Acceptance Test Suite (`example-ws`) | `csi-spl-api/src/bash/tests/test-workspace-agent-caps.sh`<br>`csi-spl-orc/src/bash/tests/example-ws-caps.tst.sh`<br>`csi-spl-wui/tests/e2e/workspace-agent-caps.test.mjs` | R1–R5 | `example-ws-caps.tst.sh`: full multi-vendor acceptance sequence allows a 2nd concurrent claude to seat alongside the 1st. |
 
 ---
 

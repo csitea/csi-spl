@@ -7,10 +7,10 @@ Owner Topic: `67d850ce-38c9-4eec-90a7-f5b6e295e2bc` (3D Detail tabs)
 Task: `dispatch-67d850ce`  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1–R16), [CLAUDE.md](../../../CLAUDE.md), [developer-guide.md](developer-guide.md)  
 
-**Status: CONSENSUS CANDIDATE v1.0 (SIGNED BY CLAUDE SEAT 53b09c861, AWAITING MISTRAL REPLACEMENT SEAT)**  
+**Status: FULL CONSENSUS v1.0 (SIGNED BY ALL THREE SEATS)**  
 Editor: **a-226** (agy)  
 Claude Reviewer Seat: **c-227** (claude, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md), verdict: **SIGNED, agree**, commit `53b09c861`)  
-Mistral Reviewer Seat: replacement queued by orchestrator (ask `2b08ba9a` / `d1dad53c`, slug `c002-issue-tabs-panel-seat-mistral-2`, replacing stalled `m-239` per rounds-rulebook §2.7.3)  
+Mistral Reviewer Seat: **m-275** (mistral, seat file [seat-mistral.md](issue-tabs-panel-plan/seat-mistral.md), verdict: **SIGNED, agree**, commit `b9f2d3b65`)  
 Dispatch Lease Holder: **c-002** (sat)  
 
 **Pinned Baseline & Measurement Protocol:**  
@@ -277,7 +277,7 @@ In accordance with [rounds-rulebook.md](rounds-rulebook.md) §3.2 and owner inst
 
 | Seat | Vendor | Agent ID | Status | Verdict & Signature |
 |---|---|---|---|---|
-| **Editor** | Antigravity (Google) | `a-226` | **Signed v1.0 candidate** | Authored v1.0 consensus candidate incorporating Claude reviewer findings (P1–P8, T1–T6, N1–N3), consolidating to 2 green batches, correcting tokens, and defining single-color focus/selection geometry. |
+| **Editor** | Antigravity (Google) | `a-226` | **Signed v1.0 plan** | Authored v1.0 consensus candidate incorporating Claude reviewer findings (P1–P8, T1–T6, N1–N3), consolidating to 2 green batches, correcting tokens, and defining single-color focus/selection geometry. |
 | **Reviewer 1** | Claude (Anthropic) | `c-227` | **SIGNED, agree (v1.0)** | Landed commit `53b09c861`, seat file [seat-claude.md](issue-tabs-panel-plan/seat-claude.md). Signed v1.0 consensus candidate. Provided notes N1–N3 for row briefs. |
-| **Reviewer 2** | Mistral | `c002-issue-tabs-panel-seat-mistral-2` | *Seat replacement queued* | Initial seat `m-239` stalled; replacement queued by orchestrator at head of queue (ask `2b08ba9a` / `d1dad53c`, brief points to `c922f1a9f`) per rounds-rulebook §2.7.3. Awaiting spawn and review. |
+| **Reviewer 2** | Mistral | `m-275` | **SIGNED, agree (v1.0)** | Landed commits `71e5c510c` & `b9f2d3b65`, seat file [seat-mistral.md](issue-tabs-panel-plan/seat-mistral.md). Confirmed empirical targets T1–T6 and owner 3D requirements. Signed v1.0. |
 

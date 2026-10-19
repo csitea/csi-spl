@@ -14,7 +14,8 @@
 # @description     asked for, which closes it (spec 135 Q7, owner msg 910b14c9)
 # @description   - a move that closes the issue's epic with it (SPL-1729) while
 # @description     a queued spawn ask's brief on this box names that epic
-# @description     reopens the epic: that lane files its issue under it (SPL-2508)
+# @description     reopens the epic: that lane files its issue under it (SPL-2508);
+# @description     a brief on another box: that box's placer reopens it (SPL-2558)
 # @description   - every (issue, sha) pair acted on goes to a ledger (closed.tsv:
 # @description     key, sha, moved | noop) and never
 # @description     acts again: an issue the owner reopens is not closed again by
@@ -285,7 +286,8 @@ Reopen it if it is not done: the same commit never closes it again."
 # queued spawn ask's brief on this box still names that epic: reopen it, or
 # that lane's issue is refused at launch (unknown_parent; SPL-2508, epic
 # SPL-2372 on 2026-10-18). A brief on another box is not seen here: its
-# placer hands the ask to the orchestrator with the reason (do_spl_spawn_place).
+# placer reopens the auto-closed epic when that row is next (do_spl_spawn_place,
+# SPL-2558). The reopen is li_epic_reopen (lane-issue.inc.sh), shared with it.
 spl_icl_keep_epic() {
   local key="$1" epic asks
   epic="$(tail -n 1 <<<"$2" | jq -r '(.result.epic_closed // .epic_closed // {}).key // empty' 2>/dev/null)"
@@ -295,8 +297,8 @@ spl_icl_keep_epic() {
     do_log "INFO $key closed its epic $epic (SPL-1729); no queued spawn brief here names it"
     return 0
   fi
-  if spl_desk_issue_run unarchive --ref "$epic" >/dev/null && spl_desk_issue_run update --ref "$epic" --status wip >/dev/null &&
-    spl_desk_issue_run comment --ref "$epic" --body "Reopened by do_spl_issue_close_landed: $key closed it as its last open issue, but queued spawn asks still name it on their Epic: line ($asks), and their lanes file their issues under it (SPL-2508)." >/dev/null; then
+  declare -F li_epic_reopen >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
+  if li_epic_reopen "$epic" "Reopened by do_spl_issue_close_landed: $key closed it as its last open issue, but queued spawn asks still name it on their Epic: line ($asks), and their lanes file their issues under it (SPL-2508)."; then
     do_log "OK $epic reopened: queued spawn asks $asks name it"
   else
     do_log "WARN $key closed its epic $epic, which queued spawn asks $asks name, and reopening it failed: reopen it by hand"

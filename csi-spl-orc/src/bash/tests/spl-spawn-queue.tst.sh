@@ -690,6 +690,53 @@ out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-508 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$E3")")" == "placed: c-508@box-desk" ]] && grep -q "^claude auto $T $T/briefs/open-epic.md open-epic$" "$T/launch.log" &&
   pass "16. control: the same brief with its epic open (wip) is launched" || fail "16. placer open epic: $out | $(cat "$T/launch.log") | $(hubrow "$E3")"
 
+# 17. SPL-2558: the placer reopens an epic the SPL-1729 close archived ------------------
+# The closer on box A reopens only for a brief on A; this row's brief is on the
+# placer's box B. The hub's get answers an archived epic with auto_closed
+# (SPL-2607), do_spl_issue_status as a 4th field. RED on master: handed off.
+E4=25580004-0000-4000-8000-000000000004; E5=25580005-0000-4000-8000-000000000005; E6=25580006-0000-4000-8000-000000000006
+cat >"$T/bin/istatus2" <<'STUB'
+#!/usr/bin/env bash
+row="$(awk -F'\t' -v k="$1" '$1 == k { print $2 "\t" $3 }' "$EPICS")"
+[[ -n "$row" ]] || exit 1
+printf 'issue-status\t%s\t%s\n' "$1" "${row%$'\t'}"
+STUB
+chmod +x "$T/bin/istatus2"
+EH2=(LI_HUB_STATUS_CMD="$T/bin/istatus2" EPICS="$T/epics.tsv" DESK_CALLS="$T/desk.log")
+# the desk: the lease's (spl_lane_issue_desk) and its hub calls, recorded; DESK_FAIL=<op> fails that op
+DESK='spl_lane_issue_desk() { echo "desk $*" >>"$DESK_CALLS"; }
+spl_desk_issue_run() { echo "$1 $2 $3 ${4:-} ${5:-} ${6:-}" >>"$DESK_CALLS"; [[ "$1" != "${DESK_FAIL:-none}" ]] || { echo "FATAL spool issue $1: hub refused" >&2; return 1; }; }
+'
+placeq() {  # ASK_ID EPIC_ROW: queue the open-epic brief while SPL-8 is open, then set SPL-8 to EPIC_ROW
+  # rows an earlier case left queued or with the holder would be placed first
+  jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+  put "$1" c-002@box-desk "dispatch-c002sat-${1:7:1}" "SPAWN REQUEST reopen"
+  printf 'SPL-8\twip\n' >"$T/epics.tsv"
+  on pc do_spl_spawn_enqueue "${EH2[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE=claude:open-epic >/dev/null 2>&1
+  printf 'SPL-8\t%s\n' "$2" >"$T/epics.tsv"
+  rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"; : >"$T/desk.log"
+}
+placeq "$E4" $'done\tauto-closed'
+out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" LAUNCH_ID=c-509 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$E4")")" == "placed: c-509@box-desk" ]] && grep -q "^claude auto $T $T/briefs/open-epic.md open-epic$" "$T/launch.log" &&
+  grep -qx "desk $T/pc/spool 0" "$T/desk.log" && grep -q '^unarchive --ref SPL-8 ' "$T/desk.log" && grep -q '^update --ref SPL-8 --status wip ' "$T/desk.log" &&
+  grep -qF 'comment --ref SPL-8 --body Reopened by do_spl_spawn_place: auto-closed (SPL-1729), head brief open-epic names it' "$T/desk.log" &&
+  grep -q 'OK SPL-8 reopened: it was auto-closed and head brief open-epic names it' <<<"$out" && ! grep -q 'blocker' "$T/send.log" &&
+  pass "17. placer: an epic the SPL-1729 close archived is reopened (unarchive, wip, comment) as the lease's desk, and the row launched" ||
+  fail "17. auto-closed reopen: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E4")"
+placeq "$E5" $'done\tarchived'
+out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" LAUNCH_ID=c-510 2>&1)"
+[[ ! -s "$T/launch.log" && ! -s "$T/desk.log" && "$(jq -r .state <<<"$(hubrow "$E5")")" == acked ]] &&
+  grep -qF "It needs you: brief $T/briefs/open-epic.md names epic SPL-8, but SPL-8 is done on the hub: point its 'Epic:' line" "$T/send.log" &&
+  pass "17. control: the same row with an epic a person closed (archived, not auto_closed) is handed off, no unarchive, nothing launched" ||
+  fail "17. human close: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E5")"
+placeq "$E6" $'done\tauto-closed'
+out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" DESK_FAIL=unarchive LAUNCH_ID=c-511 2>&1)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$E6")")" == acked ]] && ! grep -q '^update ' "$T/desk.log" &&
+  grep -qF "names epic SPL-8, but SPL-8 is done on the hub: point its 'Epic:' line at an open epic, or reopen SPL-8 (SPL-2508); reopening it failed: FATAL spool issue unarchive: hub refused" "$T/send.log" &&
+  pass "17. a failed reopen hands the row off with the failure, nothing launched" ||
+  fail "17. failed reopen: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E6")"
+
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'
 #!/usr/bin/env bash

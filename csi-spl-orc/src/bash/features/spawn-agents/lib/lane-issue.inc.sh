@@ -228,12 +228,16 @@ li_hub_read() {
 # 10 min). li_epic_closed EPIC -> one reason on stdout when the hub says
 # EPIC is done, diss or not a live issue; nothing when it is open or the hub
 # did not answer (an outage refuses nothing; the launch still reports it).
+# An epic the SPL-1729 close archived (the hub's get answers auto_closed,
+# SPL-2607) adds a 2nd TSV field `auto-closed`: a placer may reopen it
+# (li_epic_reopen, SPL-2558); a close by a person or an agent has none.
 li_epic_closed() {
-  local out st
+  local out st mark
   out="$(li_hub_read "$1")"
   st="$(li_status_of "$1" <<<"$out")"
+  mark="$(awk -F'\t' -v k="$1" '$1 == "issue-status" && $2 == k { m = $4 } END { if (m == "auto-closed") print "\tauto-closed" }' <<<"$out")"
   case "$st" in
-    done|diss) printf '%s is %s on the hub\n' "$1" "$st" ;;
+    done|diss) printf '%s is %s on the hub%s\n' "$1" "$st" "$mark" ;;
     "") grep -q 'not_found' <<<"$out" && printf '%s is not a live issue on the hub (archived, deleted or never filed)\n' "$1" ;;
   esac
   return 0
@@ -241,17 +245,32 @@ li_epic_closed() {
 
 # li_brief_epic_closed BRIEF -> one line naming the brief, its epic and the
 # fix when the epic the lane would be filed under is closed (li_epic_closed);
-# nothing for an open epic, a brief with an `Issue:` key or no epic. Callers:
-# do_spl_spawn_enqueue (refuses the ask) and do_spl_spawn_place (hands it to
-# the orchestrator instead of launching it).
+# nothing for an open epic, a brief with an `Issue:` key or no epic; the
+# `auto-closed` field of li_epic_closed passes through as a 2nd TSV field.
+# Callers: do_spl_spawn_enqueue (refuses the ask) and do_spl_spawn_place
+# (reopens an auto-closed epic and launches, else hands it to the
+# orchestrator instead of launching it).
 li_brief_epic_closed() {
-  local out epic why
+  local out epic why mark=""
   out="$(li_brief_epic_spec "$1" 2>/dev/null)" || return 0
   epic="${out#*$'\t'}"
   [ -n "$out" ] && [ -n "$epic" ] || return 0
   why="$(li_epic_closed "$epic")"
-  [ -z "$why" ] || printf "brief %s names epic %s, but %s: point its 'Epic:' line at an open epic, or reopen %s (SPL-2508)\n" "$1" "$epic" "$why" "$epic"
+  [ -n "$why" ] || return 0
+  [[ "$why" != *$'\t'auto-closed ]] || { why="${why%$'\t'auto-closed}"; mark=$'\t'auto-closed; }
+  printf "brief %s names epic %s, but %s: point its 'Epic:' line at an open epic, or reopen %s (SPL-2508)%s\n" "$1" "$epic" "$why" "$epic" "$mark"
   return 0
+}
+
+# li_epic_reopen EPIC COMMENT: unarchive EPIC, set it wip and comment why, as
+# the desk spl_desk_issue_run acts for (the caller resolves it). Callers:
+# do_spl_issue_close_landed (a move closed an epic a brief on this box names)
+# and do_spl_spawn_place (its head brief names an auto-closed epic, SPL-2558).
+# Exit 1 at the first failed call.
+li_epic_reopen() {
+  spl_desk_issue_run unarchive --ref "$1" >/dev/null &&
+    spl_desk_issue_run update --ref "$1" --status wip >/dev/null &&
+    spl_desk_issue_run comment --ref "$1" --body "$2" >/dev/null
 }
 
 # li_end_cmd ID -> the command that ends a lane's issue without landing.

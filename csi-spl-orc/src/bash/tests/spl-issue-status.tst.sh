@@ -4,6 +4,7 @@
 # gate makes when a lane landed nothing, against a stub desk (no network): one
 # `issue-status<TAB>key<TAB>status` line from either answer shape; a failed
 # read, an answer with no status and a bad key exit 1 and print no such line.
+# An archived issue (SPL-2607) adds a 4th field: auto-closed or archived (SPL-2558).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -17,6 +18,8 @@ spl_desk_issue_run() {
     down) echo "FATAL spool issue get: hub unreachable"; return 1 ;;
     nested) printf "{\"result\":{\"issue\":{\"key\":\"%s\",\"status\":\"done\"}}}\n" "$3" ;;
     flat) printf "{\"result\":{\"key\":\"%s\",\"status\":\"wip\"}}\n" "$3" ;;
+    auto) printf "{\"result\":{\"issue\":{\"key\":\"%s\",\"status\":\"done\",\"archived\":true,\"auto_closed\":true}}}\n" "$3" ;;
+    human) printf "{\"result\":{\"issue\":{\"key\":\"%s\",\"status\":\"done\",\"archived\":true,\"auto_closed\":false}}}\n" "$3" ;;
     *) echo "{\"result\":{\"issue\":{}}}" ;;
   esac
 }
@@ -34,6 +37,12 @@ run ISSUE_REF=SPL-12 ANSWER=nested
 run ISSUE_REF=SPL-12 ANSWER=flat
 [[ $RC -eq 0 ]] && grep -qxP 'issue-status\tSPL-12\twip' "$T/o" &&
   pass "a flat answer's status" || fail "flat (rc=$RC): $(cat "$T/o")"
+run ISSUE_REF=SPL-12 ANSWER=auto
+[[ $RC -eq 0 ]] && grep -qxP 'issue-status\tSPL-12\tdone\tauto-closed' "$T/o" &&
+  pass "an epic the SPL-1729 close archived: a 4th field auto-closed" || fail "auto (rc=$RC): $(cat "$T/o")"
+run ISSUE_REF=SPL-12 ANSWER=human
+[[ $RC -eq 0 ]] && grep -qxP 'issue-status\tSPL-12\tdone\tarchived' "$T/o" &&
+  pass "control: archived by a close of a person: a 4th field archived, never auto-closed" || fail "human (rc=$RC): $(cat "$T/o")"
 run ISSUE_REF=SPL-12 ANSWER=down
 [[ $RC -eq 1 ]] && ! grep -q '^issue-status' "$T/o" &&
   pass "the hub unreachable: exit 1, no status line" || fail "down (rc=$RC): $(cat "$T/o")"

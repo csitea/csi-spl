@@ -342,6 +342,7 @@ spl_spawn_place_take() {  # HOLDER HEAD
     return 0
   fi
   [[ -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_epic_closed "$brief")"
+  [[ "$closed" != *$'\t'auto-closed ]] || closed="$(spl_spawn_place_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}")"
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
   if [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
     touch "$(spool_asks_dir)/.place.last"
@@ -353,12 +354,35 @@ spl_spawn_place_take() {  # HOLDER HEAD
 
 # The brief's epic is closed on the hub (li_brief_epic_closed, SPL-2508): the
 # lane's issue would be refused at launch (unknown_parent, spawn-window exit
-# 12) and the row retried every SPAWN_PLACE_GAP_MIN. It goes to the holder
-# once instead, the reason in the blocker; nothing is launched.
+# 12) and the row retried every SPAWN_PLACE_GAP_MIN. An epic the SPL-1729
+# close archived (the `auto-closed` field) is reopened and the row launched
+# (spl_spawn_place_reopen, SPL-2558: the closer reopens only for a brief on
+# its own box). A close by a person or an agent, or a failed reopen, goes to
+# the holder once instead, the reason in the blocker; nothing is launched.
 spl_spawn_place_epic_closed() {  # BRIEF
   declare -F li_brief_epic_closed >/dev/null ||
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 0
   li_brief_epic_closed "$1"
+}
+
+# Reopen the auto-closed epic BRIEF names (li_epic_reopen) as the lease's desk
+# (spl_lane_issue_desk, in a subshell: its ENV / DESK_AGENT stay there).
+# Prints nothing when it reopened, else WHY with the failure for the hand-off.
+spl_spawn_place_reopen() {  # BRIEF SLUG WHY
+  local epic out
+  declare -F li_epic_reopen >/dev/null ||
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || { printf '%s\n' "$3"; return 0; }
+  epic="$(li_brief_epic_spec "$1" 2>/dev/null)"; epic="${epic#*$'\t'}"
+  if out="$(
+    declare -F spl_lane_issue_desk >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-issue.func.sh"
+    spl_lane_issue_desk "${SPOOL_ROOT:-/var/spool-hub}" 0 &&
+      li_epic_reopen "$epic" "Reopened by do_spl_spawn_place: auto-closed (SPL-1729), head brief $2 names it on its Epic: line, and its lane files its issue under it (SPL-2558)." 2>&1
+  )"; then
+    do_log "OK $epic reopened: it was auto-closed and head brief $2 names it (SPL-2558)" >&2
+    return 0
+  fi
+  do_log "WARN reopening the auto-closed epic $epic failed: $(tail -n 1 <<<"$out")" >&2
+  printf '%s; reopening it failed: %s\n' "$3" "$(tail -n 1 <<<"$out")"
 }
 
 # The vendor to launch: VENDOR, except mistral on UI work while the cnf

@@ -72,7 +72,7 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     local brief; brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "${place#*:}")"
     [[ -z "$brief" ]] || LI_REFUSED="ask not queued" li_brief_epic_spec "$brief" >/dev/null || return 1
     local closed; closed="$([[ -z "$brief" ]] || li_brief_epic_closed "$brief")"
-    [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
+    [[ -z "$closed" ]] || { do_log "FATAL ask not queued: ${closed%$'\t'auto-closed}" >&2; return 1; }
   fi
   row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
   (( rc == 0 )) || return "$rc"

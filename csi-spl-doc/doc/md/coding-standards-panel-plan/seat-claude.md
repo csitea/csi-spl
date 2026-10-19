@@ -248,3 +248,28 @@ the first bullet of 3.7.
 "Verify md diff matches Qto edit" is not a red control. Use the row 01
 form: `check-qto-doc-drift` exits 1 with `fleet-rules-index.md` edited by
 hand and 0 after the export.
+
+## 7. v1.1 sign-off (`b9f2c62ef`, editor msg f593368c)
+
+`git diff 2836b55cc b9f2c62ef -- csi-spl-doc/doc/md/coding-standards-panel-plan.md`,
+checked against section 6:
+
+| amendment | v1.1 | verdict |
+|---|---|---|
+| A1 row 04 after row 06 | batch 1 = 01, 02, 07; batch 2 = 08, 06, 09; batch 3 = 04 (plan 5, 5.1) | met |
+| A2 bump only on a changed block | plan 3.5: +1 patch from the higher of body and footer, no change when the block is equal, row 06 sets 0.3.0 once | met |
+| A3 Roman-numeral bullet struck | plan 3.7 rewritten; row 09 re-points the template | met |
+| A4 row 08 red control | row 08: `check-qto-doc-drift` 1 after a hand edit, 0 after the export | met |
+
+A5 (non-binding, for the row 06 brief): fact 8 does not exist until row 04
+lands in batch 3, so row 06's red control "un-exported constitution fails
+fact 8" cannot run in batch 2. Use the action itself instead: before the
+sync, `DRY_RUN=1 ./run -a do_spl_export_constitution_coding_standards` exits
+1; after it, the same command exits 0.
+
+**v1.1: SIGNED** by the claude seat at
+`b9f2c62ef0a258f972bad0487b7e69ea506a701f`.
+
+| version | sha | verdict |
+|---|---|---|
+| v1.1 | `b9f2c62ef0a258f972bad0487b7e69ea506a701f` | **SIGNED** |

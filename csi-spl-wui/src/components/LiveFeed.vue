@@ -282,12 +282,18 @@ const { newestLast } = useViewPrefs()
 const { viewerId } = useMessageEdit()
 /* SPL-2422 / SPL-2506: a counted topic card's unseen opener and hub unread (the template and `shown` ask; before `shown`, which setup reads at once) */
 const cardNew = useTopicCardNew(() => props.unreadBoundary, viewerId, props)
-/* SPL-2506: cards and replies with unread go to the edge new posts go to, the most at the very edge */
+/* SPL-2506: cards and replies with unread go to the edge new posts go to, the most at the very edge;
+   a thread's opener stays on top (A6), only its replies move */
 const unreadOrder = useUnreadOrder()
+/* The middle pane marks every card. A thread marks only its opening card:
+   its earliest card, not every level-1 row - an agent's DM answer is stored
+   at level 1 and is a reply that may move (owner, t1 ffc3b83c). */
+const openerId = computed(() => (props.topicCardMenu ? String(props.moveCtx?.opener || '') || paneOpenerId(props.rows) : ''))
+const unreadRank = (m: SpoolMessage) => (openerId.value && String(m.msg_id) === openerId.value ? 0 : countedRow(m) ? cardNew.unseen(m) : Number(isNew(m)))
 /* the rows in DOM (= reading) order */
 /* CLE-77840: a reply deleted with the Delete key stays hidden while its Undo
    window is open, even if a re-read brings the hub's (not yet deleted) row back */
-const shown = computed(() => unreadOrder.order(displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[], (m) => (countedRow(m) ? cardNew.unseen(m) : Number(isNew(m))), (m) => String(m.ts || '')))
+const shown = computed(() => unreadOrder.order(displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[], unreadRank, (m) => String(m.ts || '')))
 /* Newest last: a thread follows new replies too while its reader sits at the
    bottom (A6); a reader scrolled up in it is never moved. */
 const { pill, jump, hold } = useScrollAnchor(
@@ -620,10 +626,6 @@ function openable(m: SpoolMessage) {
   if (props.openButton) return Boolean(m.task_id)
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
 }
-/* The middle pane marks every card. A thread marks only its opening card:
-   its earliest card, not every level-1 row - an agent's DM answer is stored
-   at level 1 and is a reply that may move (owner, t1 ffc3b83c). */
-const openerId = computed(() => (props.topicCardMenu ? String(props.moveCtx?.opener || '') || paneOpenerId(props.rows) : ''))
 function topicMenuFor(m: SpoolMessage) {
   if (props.openButton) return true
   if (!props.topicCardMenu || !isTopicCard(m)) return false

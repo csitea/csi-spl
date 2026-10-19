@@ -144,7 +144,10 @@ try {
   await focusCard(p)
   await shiftW(p)
   await sleep(600)
-  ok('with no pane beyond the conversation, Shift + W does nothing', p.url() === before && await p.evaluate(shown, '.spool-main article.msg'), p.url())
+  /* the cards may re-render as the search list leaves: wait for them, as the
+     checks above do (hosted run 39275590633 read none the instant after) */
+  const cards = await until(p, shown, '.spool-main article.msg', 3000)
+  ok('with no pane beyond the conversation, Shift + W does nothing', p.url() === before && cards, { url: p.url(), cards })
 
   /* ---- in the composer Shift + W types ---- */
   ok('a topic opens again', await openTopic(p))

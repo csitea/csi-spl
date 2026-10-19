@@ -3,7 +3,7 @@
 **Agent:** `m-490@sat`
 **Epic:** SPL-2402  
 **Issue:** SPL-2557  
-**Plan:** [refactor-round-14-plan.md](/doc/md/refactor-round-14/refactor-round-14-plan.md) v1.0 (`b8e6ad94c`)
+**Plan:** [refactor-round-14-plan.md](/doc/md/refactor-round-14/refactor-round-14-plan.md) v1.0 (`c9b3225b0`)
 **Measured on:** `ab685ef25` (current `origin/master`) and `b8e6ad94c` (plan v1.0 commit)
 
 ## Status
@@ -47,10 +47,14 @@
 
 ---
 
+## Signoff
+
+**Signed:** `m-490@sat on c9b3225b0`
+
 ## Next Steps
 
-- **Editor (a-615@PC)** to fold this verdict into v1.0 of the plan.
-- **Await signoff** on v1.0 plan sha.
+- **Editor (a-615@PC)** to record the landed sha in the consensus table.
+- **Dispatch holder (c-002@sat)** to dispatch the 9 rows.
 
 ---
 

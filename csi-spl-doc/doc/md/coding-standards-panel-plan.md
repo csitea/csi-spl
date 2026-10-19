@@ -5,11 +5,12 @@ Issue: SPL-2537
 Spec: csi-spl-doc/specs/135-work-process
 Kind: specs_and_docs
 
-Status: **v0.2, DRAFT** (incorporating claude reviewer seat c-337 verdict CHANGE; awaiting mistral reviewer seat review).
+Status: **v1.1, DRAFT (incorporating panel consensus)** (Claude seat c-337 verdict CHANGE + binding amendment A1 folded in; Mistral seat m-353 verdict GOOD folded in; awaiting v1.1 signatures from both reviewer seats).
 Editor seat: **a-330** (agy).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1–R16).
 Baseline commit: **`4453459bbde498b0c88c2a9fcf899e37acc28889`** (`origin/master` at lane start, 2026-10-19T09:41Z).
 Reviewed v0.1 commit: **`ea33f0ed268e33029d0feef89b4cd0a357c64abe`**.
+Reviewed v0.2 commit: **`b776859b91e3b6ef068fa21fcfd52dc15bfc79e8`**.
 
 ## 0. Context and owner orders
 
@@ -207,10 +208,12 @@ To prevent duplicate slicing logic from drifting, the codebase uses exactly ONE 
 
 Lists that already have a canonical machine-checked source in code (the 19 fast linter parts in `check-pre-push-lint.func.sh`, the cleancode limits in `cleancode_test.go` and `cleancode.test.mjs`, the i18n key baselines) will NOT be retyped in the Developer Guide. Retyped lists inevitably drift without automated detection. The Developer Guide states the rule conceptually and cites the authoritative gate file. Clean code limits (80 lines, depth 4, params 8/6) are cited specifically because they are pinned by automated cleancode tests.
 
-### 3.5 Governance and versioning automation (resolving review item 3.5)
+### 3.5 Governance and versioning automation (resolving review item 3.5 & A2)
 
 Per `constitution.md:209-212`, every amendment to the constitution must bump the version and `Last Amended` date. Because the constitution is updated via automated export from the Developer Guide:
-- The export action `do_spl_export_constitution_coding_standards` automatically increments the patch version (e.g. `0.2.0` -> `0.2.1` -> `0.3.0`) and updates the `Last Amended` date in both the body and metadata footer of `constitution.md`.
+- The export action `do_spl_export_constitution_coding_standards` bumps the patch version (+1, incrementing from the higher of the body and footer version numbers, currently `0.2.1`) and updates the `Last Amended` date in both the body and metadata footer of `constitution.md` **only when the exported block has changed**.
+- If the exported block is identical to the current constitution block, the action makes no changes, ensuring `DRY_RUN=1` reporting does not trigger spurious diffs.
+- Row 06's initial synchronization sets the version to `0.3.0` (as a one-time minor step).
 - Drift fact 8 compares only the bounded `<!-- BEGIN CODING STANDARDS -->` block, ignoring the header version and date lines, allowing clean automated synchronization.
 
 ### 3.6 Developer Guide ack churn prevention (resolving review item 3.6)
@@ -219,11 +222,9 @@ Section 6 of the Developer Guide mandates that any change to `developer-guide.md
 - Build row 01 lands ALL text changes to the Developer Guide in ONE single commit.
 - Subsequent build rows (02–09) touch only scripts, tests, `CLAUDE.md`, `fleet-rules-index.md`, and `constitution.md`, ensuring no further developer guide blob churn occurs.
 
-### 3.7 Spec-kit reference integrity (resolving review item 3.7)
+### 3.7 Spec-kit reference integrity (resolving review item 3.7 & A3)
 
-Spec-kit templates (such as `plan-template.md:43-50`) check core principles by Roman numeral ("I. Paths", "II. Env", "VI. Cnf-only", "V. Hygiene"). To maintain compatibility with existing spec-kit tooling and workflows:
-- The exported Coding Standards block retains the Roman-numbered principle subsections within its structure.
-- Build row 09 (`plan-template.md` sync) is scheduled in Batch 3 alongside Row 06 (constitution sync), ensuring both land synchronously.
+The exported block is a verbatim slice of Developer Guide Section 2 (numbered subsections 2.1–2.12). Existing spec-kit templates (such as `plan-template.md:43-50`) that check core principles by Roman numeral are updated in Row 09 to align Constitution Check citations with the new 2.x subsection structure. Build row 09 is scheduled in Batch 2 alongside Row 06 (constitution sync), ensuring both land synchronously.
 
 ---
 
@@ -264,18 +265,18 @@ Per reviewer recommendations and dispatcher guidance:
 - Rows 04 and 05 are merged into a single build row (drift check plus test per rule M3).
 - Former Row 10 (re-ack gate) is dropped: pre-push execution is every developer's duty, not a separate build row.
 - Rows 02 and 04 Kind is set to `complex_coding`, vendor `claude` (under HUM-10 `b61851fb`, Mistral is barred from coding and testing lanes).
-- Row 09 is moved to Batch 3 with Row 06.
+- Row 04 is scheduled in Batch 3 (landing AFTER Row 06) per binding amendment A1, because `do_check_fleet_rules_drift` runs inside the pre-push hygiene suite and would fail if fact 8 or fact 1 were enabled before `constitution.md` carried the exported block and clean agent IDs.
 - Total count: **7 consolidated rows** across 3 batches, comfortably under the 10-row ceiling.
 
 | # | Slug & commit subject | Practice | Why | Sites file:line (max 5) | n | Test & concrete red control | Box | Vendor | Kind | Batch |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 01 | `doc(c002-01-qto-dev-guide-coding-standards)` | Qto authoring, docs | Primary home for coding standards lives in Qto doc c65bbfbd and exports to developer-guide.md in ONE commit (no ack churn) | Qto doc `c65bbfbd`<br>`csi-spl-doc/doc/md/developer-guide.md` | 1 Qto doc | Author new Section 2 in Qto doc c65bbfbd; export via `do_spl_doctree_export_md`. Every rule has gate file or "review only". **Target:** `grep -c 'Enforced by'` equals rule count. **Red control:** `check-qto-doc-drift` exits 1 with hand-edited md and 0 after export. Record slice node id in commit body. | sat | agy | specs_and_docs | 1 |
-| 02 | `feat(c002-02-orc-export-constitution-action)` | Shell action & test (M3) | Automated export action and test script in same commit per rule M3 | `csi-spl-orc/src/bash/run/spl-export-constitution-coding-standards.func.sh`<br>`csi-spl-orc/src/bash/tests/export-constitution-coding-standards.tst.sh` | 2 files | Implement `do_spl_export_constitution_coding_standards` and unit test. Slices by stable node anchor, preserves envelope, bumps version/date. **Target:** action exits 0, writes block. **Red control:** planted duplicate end anchor or missing begin marker makes action exit non-zero without modifying file; corrupted delimiter fails test (rc 1). | sat | claude | complex_coding | 1 |
-| 04 | `feat(c002-04-orc-drift-check-constitution)` | Drift detection & test (M3) | Fact 8 calling export action with DRY_RUN=1; constitution added to fact 1 sources | `csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh`<br>`csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh` | 2 files | Add fact 8 to `do_check_fleet_rules_drift` executing action with `DRY_RUN=1`. Add `constitution.md` to `_frd_sources` so fact 1 checks agent ID syntax. **Target:** passes with 8 facts. **Red control:** planted mismatch between guide and constitution exits 1; synced files exit 0; planted `CLE-*` in constitution fails fact 1. | sat | claude | complex_coding | 1 |
+| 02 | `feat(c002-02-orc-export-constitution-action)` | Shell action & test (M3) | Automated export action and test script in same commit per rule M3 | `csi-spl-orc/src/bash/run/spl-export-constitution-coding-standards.func.sh`<br>`csi-spl-orc/src/bash/tests/export-constitution-coding-standards.tst.sh` | 2 files | Implement `do_spl_export_constitution_coding_standards` and unit test. Slices by stable node anchor, preserves envelope, bumps version/date when block changes. **Target:** action exits 0, writes block. **Red control:** planted duplicate end anchor or missing begin marker makes action exit non-zero without modifying file; corrupted delimiter fails test (rc 1). | sat | claude | complex_coding | 1 |
 | 07 | `doc(c002-07-repo-claude-md-pointers)` | Pointer rationalization | Convert prose rules to developer-guide links; retain cheap-gate table and Commits line | `CLAUDE.md:47-63,139-140`<br>`AGENTS.md:1-11` | 2 files | Replace redundant prose with links to `developer-guide.md#2-coding-standards`. Keep cheap-gate table (lines 94-117) and "Commits:" line intact. **Target:** `grep -c` of moved rules in `CLAUDE.md` drops by number moved; drift fact 7 (`_frd_commit_address`) passes green. **Red control:** syntax check clean, dist hygiene clean. | sat | agy | specs_and_docs | 1 |
-| 08 | `doc(c002-08-fleet-rules-index-update)` | Index update | Designate Developer Guide Coding Standards as one home for coding rules in fleet index | Qto doc `9d7d5428`<br>`csi-spl-doc/doc/md/fleet-rules-index.md:27-56` | 1 Qto doc | Update Qto doc `9d7d5428` Section 2 with node anchor links to Row 01; run `do_spl_doctree_export_md`. **Target:** `check-qto-doc-drift` clean, all markdown links valid. **Red control:** verify md diff matches Qto edit. | sat | agy | specs_and_docs | 2 (after 01) |
-| 06 | `doc(c002-06-sync-spec-kit-constitution)` | Spec-kit sync, constitution | Sync constitution from developer guide; fix obsolete agent IDs and retired relay references | `csi-spl-doc/.specify/memory/constitution.md:1-217` | 1 file | Run `do_spl_export_constitution_coding_standards`. Update header Sync Impact Report to v0.3.0. Fix line 40 ("relay bucket") and retire `CLE-*`. **Target:** `do_check_fleet_rules_drift` exits 0 with 8 facts. **Red control:** un-exported constitution fails fact 8; synced constitution passes fact 8 and fact 1. | sat | claude | specs_and_docs | 3 (after 01, 02, 04) |
-| 09 | `doc(c002-09-spec-kit-template-fix)` | Template hygiene | Fix stale csi-rel remnant in plan-template.md and align Constitution Check | `csi-spl-doc/.specify/templates/plan-template.md:40-50` | 1 template | Fix line 46 (`csi-rel-cnf` -> `csi-spl-cnf`); align Constitution Check list with Developer Guide subsections. **Target:** `do_check_dist_hygiene` clean; template citations match constitution. **Red control:** `grep csi-rel-cnf` drops to 0. | sat | agy | specs_and_docs | 3 (with 06) |
+| 08 | `doc(c002-08-fleet-rules-index-update)` | Index update | Designate Developer Guide Coding Standards as one home for coding rules in fleet index | Qto doc `9d7d5428`<br>`csi-spl-doc/doc/md/fleet-rules-index.md:27-56` | 1 Qto doc | Update Qto doc `9d7d5428` Section 2 with node anchor links to Row 01; run `do_spl_doctree_export_md`. **Target:** `check-qto-doc-drift` clean, all markdown links valid. **Red control (A4):** `check-qto-doc-drift` exits 1 with `fleet-rules-index.md` edited by hand and 0 after the export. | sat | agy | specs_and_docs | 2 (after 01) |
+| 06 | `doc(c002-06-sync-spec-kit-constitution)` | Spec-kit sync, constitution | Sync constitution from developer guide; fix obsolete agent IDs and retired relay references | `csi-spl-doc/.specify/memory/constitution.md:1-217` | 1 file | Run `do_spl_export_constitution_coding_standards`. Update header Sync Impact Report to v0.3.0. Fix line 40 ("relay bucket") and retire `CLE-*`. **Target:** `do_check_fleet_rules_drift` exits 0. **Red control:** un-exported constitution fails fact 8; synced constitution passes fact 8 and fact 1. | sat | claude | specs_and_docs | 2 (after 01, 02) |
+| 09 | `doc(c002-09-spec-kit-template-fix)` | Template hygiene | Fix stale csi-rel remnant in plan-template.md and align Constitution Check | `csi-spl-doc/.specify/templates/plan-template.md:40-50` | 1 template | Fix line 46 (`csi-rel-cnf` -> `csi-spl-cnf`); align Constitution Check list with Developer Guide subsections. **Target:** `do_check_dist_hygiene` clean; template citations match constitution. **Red control:** `grep csi-rel-cnf` drops to 0. | sat | agy | specs_and_docs | 2 (with 06) |
+| 04 | `feat(c002-04-orc-drift-check-constitution)` | Drift detection & test (M3) | Fact 8 calling export action with DRY_RUN=1; constitution added to fact 1 sources (A1: lands after 06) | `csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh`<br>`csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh` | 2 files | Add fact 8 to `do_check_fleet_rules_drift` executing action with `DRY_RUN=1`. Add `constitution.md` to `_frd_sources` so fact 1 checks agent ID syntax. **Target:** passes with 8 facts. **Red control:** planted mismatch between guide and constitution exits 1; synced files exit 0; planted `CLE-*` in constitution fails fact 1. | sat | claude | complex_coding | 3 (after 06) |
 
 ---
 
@@ -286,18 +287,18 @@ Batch assignments guarantee zero file overlap across concurrent executions:
 - **Batch 1 (Initial implementations and guide authoring):**
   - Row 01: Qto doc `c65bbfbd`, `csi-spl-doc/doc/md/developer-guide.md`
   - Row 02: `csi-spl-orc/src/bash/run/spl-export-constitution-coding-standards.func.sh`, `csi-spl-orc/src/bash/tests/export-constitution-coding-standards.tst.sh`
-  - Row 04: `csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh`, `csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh`
   - Row 07: `CLAUDE.md`, `AGENTS.md`
   *Zero file overlap across Batch 1 items.*
 
-- **Batch 2 (Fleet index update):**
+- **Batch 2 (Index update, constitution sync, and template alignment):**
   - Row 08: Qto doc `9d7d5428`, `csi-spl-doc/doc/md/fleet-rules-index.md` (updates pointers to Row 01 anchor)
-  *Zero file overlap with Batch 1.*
-
-- **Batch 3 (Constitution sync and template alignment):**
   - Row 06: `csi-spl-doc/.specify/memory/constitution.md` (syncs using Rows 01 & 02)
   - Row 09: `csi-spl-doc/.specify/templates/plan-template.md` (aligns with Row 06)
-  *Zero file overlap between Row 06 and Row 09, and zero overlap with earlier batches.*
+  *Zero file overlap between Rows 08, 06, and 09, and zero overlap with earlier batches.*
+
+- **Batch 3 (Drift check activation per binding amendment A1):**
+  - Row 04: `csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh`, `csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh`
+  *Runs after Row 06 has populated the constitution block and cleaned agent IDs, ensuring pre-push hygiene passes across the fleet.*
 
 ### 5.2 Off every live lane (R3 verification)
 
@@ -307,35 +308,29 @@ Lane map verification (`bash lane-map.sh --check <paths>`) confirms that none of
 
 ## 6. Panel consensus and signatures
 
-The draft v0.1 plan (`ea33f0ed268e33029d0feef89b4cd0a357c64abe`) was submitted to the cross-vendor panel. Reviewer verdicts and dispatcher feedback were folded into v0.2:
+The plan was reviewed independently by both reviewer seats across two review iterations:
 
 1. **Claude reviewer seat (`c-337`):**
-   - Reviewed v0.1 in `seat-claude.md` (landed at `d0bd4021c`).
-   - Verdict: **CHANGE**.
-   - Incorporated changes:
-     - Section slicing changed from unstable heading text to stable Qto node anchor `ws-doc-<uuid>` (3.2).
-     - Single extractor architecture: drift fact 8 calls action with `DRY_RUN=1` (3.3).
-     - Automated governance and patch version bumping in export action (3.5).
-     - All Developer Guide text landed in Row 01 (one commit) to prevent re-ack churn (3.6).
-     - Row 09 moved to Batch 3 alongside Row 06 to preserve spec-kit reference integrity (3.7).
-     - Rows 02+03 merged (action + test per M3); concrete red controls specified.
-     - Rows 04+05 merged (drift fact 8 + test per M3); fact 1 sources expanded.
-     - Row 07 retains cheap-gate table and "Commits:" line.
-     - Row 10 dropped as a separate build row.
-     - Missed rules M1–M8 and Subsection 2.12 added to inventory and outline.
-     - Line counts and stale line 40 reference corrected.
+   - Reviewed v0.1 in `seat-claude.md` (landed at `d0bd4021c`). Verdict: **CHANGE**.
+   - Signed v1.0 in `seat-claude.md` section 6 (landed at `2c70de6ca`). Verdict: **SIGNED, with amendment A1 binding**:
+     - *Amendment A1 (binding):* Row 04 (drift fact 8 + fact 1 sources) must land AFTER Row 06 in Batch 3, because `do_check_fleet_rules_drift` runs inside the pre-push hygiene suite and would fail if fact 8 or fact 1 were enabled before `constitution.md` carried the exported block and clean agent IDs.
+     - *Amendment A2:* Bump the version only when the block changes (`DRY_RUN=1` must not diff identically).
+     - *Amendment A3:* Strike the Roman-numeral bullet in Section 3.7; Row 09 is the template fix.
+     - *Amendment A4:* Row 08 red control: `check-qto-doc-drift` exits 1 with a hand edit and 0 after export.
+   - All four amendments are folded directly into this v1.1 text.
 
-2. **Dispatcher guidance (`c-002`):**
+2. **Mistral reviewer seat (`m-353`):**
+   - Reviewed v0.2 (`b776859b9`) in `seat-mistral.md` (landed at `49560aeae`).
+   - Verdict: **GOOD** (no defects found, all sections verified, ready for final sign-off).
+
+3. **Dispatcher guidance (`c-002`):**
    - Rows 02 and 04 marked `complex_coding` / vendor `claude` (enforcing owner rule HUM-10 `b61851fb`: no Mistral coding or testing lanes).
-   - Guidance on panel process (msg `8ab93221`): This intermediate version incorporates the claude seat review as v0.2. Signatures will be collected on v1.0 once the mistral seat (ask `e92cd070`, queued pos 1/48) renders its verdict.
-
-3. **Mistral reviewer seat:**
-   - Queued as ask `e92cd070`, position 1/48 in spawn queue. To receive v0.2 SHA when placed.
+   - Panel consensus protocol (msgs `8ab93221`, `f26e488e`): Both reviewer seats verify and sign the unified plan in their respective seat files before presentation to the repo owner.
 
 ### 6.1 Panel signature table
 
-| Seat | Role | Vendor | Status | Signature (v1.0 SHA) |
+| Seat | Role | Vendor | Status | Signature (v1.1 SHA) |
 |---|---|---|---|---|
-| `a-330` | Editor | agy | v0.2 ready | Pending v1.0 |
-| `c002-coding-standards-panel-seat-claude` | Reviewer | claude | v0.1 reviewed (CHANGE); v0.2 incorporated | Pending v1.0 |
-| `c002-coding-standards-panel-seat-mistral` | Reviewer | mistral | Queued (e92cd070, pos 1/48) | Pending review of v0.2 |
+| `a-330` | Editor | agy | v1.1 ready | Pending push |
+| `c002-coding-standards-panel-seat-claude` | Reviewer | claude | v1.0 signed (2c70de6ca, A1 binding); awaiting v1.1 | Pending |
+| `c002-coding-standards-panel-seat-mistral` | Reviewer | mistral | v0.2 reviewed GOOD (49560aeae); awaiting v1.1 | Pending |

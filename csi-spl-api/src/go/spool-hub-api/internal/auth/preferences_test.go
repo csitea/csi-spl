@@ -558,6 +558,20 @@ func TestPreferencesRailOrder(t *testing.T) {
 			t.Fatalf("session after twelve: %s", got.raw)
 		}
 	}
+	// SPL-2587: the thirteen (+ Reporting) is a valid new order, read back by the
+	// session; an unknown thirteenth tab is still refused.
+	thirteen := `["reporting",` + twelve[1:]
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+thirteen+`}`); got.code != http.StatusOK {
+		t.Fatalf("thirteen tabs: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); true {
+		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != thirteen {
+			t.Fatalf("session after thirteen: %s", got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["gauges",`+twelve[1:]+`}`); got.code != http.StatusBadRequest {
+		t.Fatalf("thirteen with an unknown: %d %s", got.code, got.raw)
+	}
 	// ten ids with Calendar but without Boxes is no set the hub admits
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["calendar","agents","people","events","archive","flow","topics","issues","channels","dm"]}`); got.code != http.StatusBadRequest {
 		t.Fatalf("ten with calendar, no boxes: %d %s", got.code, got.raw)

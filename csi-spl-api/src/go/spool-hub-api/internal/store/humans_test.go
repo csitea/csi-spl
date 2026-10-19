@@ -417,6 +417,21 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetRailOrder(ctx, hum, append([]string{"monitoring"}, eleven[1:]...)); err == nil {
 				t.Fatal("SetRailOrder accepted monitoring without calendar")
 			}
+			// SPL-2587 (rdb 0209): the thirteen with reporting store and read back; the
+			// twelve above still does, and reporting without monitoring is refused
+			thirteen := append([]string{"reporting"}, twelve...)
+			if err := h.SetRailOrder(ctx, hum, thirteen); err != nil {
+				t.Fatal("thirteen with reporting", err)
+			}
+			if got, err := h.RailOrder(ctx, hum); err != nil || strings.Join(got, ",") != strings.Join(thirteen, ",") {
+				t.Fatalf("rail order with reporting got %v %v", got, err)
+			}
+			if err := h.SetRailOrder(ctx, hum, append([]string{"reporting"}, eleven...)); err == nil {
+				t.Fatal("SetRailOrder accepted reporting without monitoring")
+			}
+			if err := h.SetRailOrder(ctx, hum, append([]string{"gauges"}, twelve...)); err == nil {
+				t.Fatal("SetRailOrder accepted an unknown thirteenth tab")
+			}
 			if err := h.SetRailOrder(ctx, hum, nil); err != nil {
 				t.Fatal(err)
 			}

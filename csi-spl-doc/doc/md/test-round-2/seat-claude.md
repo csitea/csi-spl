@@ -123,9 +123,10 @@ took 42 s and 21 s, already under the plan's targets. Every solo run passed
 
 ## 5. Signature
 
-**Not signed on `d31332fce2f97531b149aef63fa52c44d9284baa`** either:
-section 7 lists the blockers, which are now rows 05 and 09 only. I sign the
-next sha that fixes them.
+signed: c-487@sat on c80e765756afff89d1aa257af200f9f0b01221b6
+
+The v1.0 plan as refined in `c80e76575` fixes every blocker in sections 6
+and 7 (section 8 shows the checks).
 
 ## 6. Review of v1.0 (`b784c1a98`)
 
@@ -171,3 +172,20 @@ section 6.
 |---|---|---|---|
 | 09 | `spl-token-burn-push-env`, `spl-wd-orch-outcome` and `spl-standby-bench-helpers` have 0 tests | `csi-spl-orc/src/bash/tests/wd-orch-outcome.tst.sh` (170 lines) sources `spl-watchdog.func.sh` and drives `spl_wd_orch_outcome`. `csi-spl-orc/src/bash/tests/spl-standby-bench.tst.sh` (221 lines) drives `do_spl_standby_bench`, which calls every `_spl_standby_bench_*` helper, through refusals, dry run and the prd opt-in. `grep -rlE 'token.burn.push.env\|token_burn_push_env'` over every test dir -> 0 | keep `spl-token-burn-push-env` only, or add 2 actions the same `grep -r` shows at 0 |
 | 05 | `check-pre-push-{baseline,override,timeout-label}.tst.sh` have no red control | the only evidence is the absence of the word "control" (plan 3.7). The three tests already assert their failure paths: override case 1 "duplicate migration prefix -> REFUSED" (`check-pre-push-override.tst.sh:9`), baseline cases 3-4 "still broken -> WARN" and "a part that HANGS -> killed" (`check-pre-push-baseline.tst.sh:9-10`), timeout-label case 3 "TIMED OUT after 1s" (`:9`, `:63`) | state per test which code break no current case catches (planted, and run to show it stays green), or replace the row |
+
+## 8. Review of the second refinement (`c80e76575`)
+
+- **Row 09:** now `spl-token-burn-push-env` only. It has 0 tests: the
+  `grep -r` from section 7 over every test dir -> 0.
+- **Row 05:** I checked each of the three named gaps against the current
+  tests by reading them. I did not plant any of them.
+  1. Override with failing hygiene: `check-pre-push-override.tst.sh:37`
+     stubs `do_check_dist_hygiene` to always return 0, so no case sees
+     hygiene fail under the override.
+  2. `TIMED OUT` on a passing part: every case in
+     `check-pre-push-timeout-label.tst.sh` (`:7-11`, `:35` "whose suites all
+     hang") runs a part that hangs, and none asserts that a passing part
+     prints no note.
+  3. HEAD unparseable against a clean base: `check-pre-push-baseline.tst.sh`
+     has `bad bad _mute_part` (7c, `:96`) but no `good bad _mute_part`
+     (`grep -c 'good bad _mute_part'` -> 0).

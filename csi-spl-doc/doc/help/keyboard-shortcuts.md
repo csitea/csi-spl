@@ -6,6 +6,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-74439ef4-41fa-490b-ab81-29acb261c244"></a>
 ## 1. Global Navigation
 
 | Shortcut | Context | Action |
@@ -23,6 +24,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-5eb960d8-ef88-4056-9243-42f893a4b4a4"></a>
 ## 2. Top Omnibox & Composer
 
 | Shortcut | Context | Action |
@@ -41,6 +43,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-af96e6f9-1456-4cd2-8713-98475840cb01"></a>
 ## 3. Message Cards & Thread Navigation
 
 | Shortcut | Context | Action |
@@ -55,6 +58,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-1ff2c8f0-98df-44d7-9122-0f13c0011cde"></a>
 ## 4. Pane Dividers & Resizing
 
 | Shortcut | Context | Action |
@@ -66,6 +70,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-d101aedc-3812-4661-a5f1-1201ed8bfa21"></a>
 ## 5. Global Search Results (`/search`)
 
 | Shortcut | Context | Action |
@@ -76,6 +81,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 ---
 
+<a id="ws-doc-b6e51fab-4a09-46c0-ba07-7d74858c46e2"></a>
 ## 6. Accessibility & Screen Reader Support
 
 Spool conforms to modern accessibility standards:
@@ -85,6 +91,7 @@ Spool conforms to modern accessibility standards:
 
 ---
 
+<a id="ws-doc-e871a099-4f3f-4ff5-86e7-482bcbe54445"></a>
 ## 7. Message shortcuts
 
 These keys act on the **selected message**. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.
@@ -106,10 +113,12 @@ These keys act on the **selected message**. They work on a desktop. Turn them of
 | **`Shift + M`** | Selected message, desktop | Move or merge… |
 | **`Shift + D`** | Selected message, desktop | Delete |
 
+<a id="ws-doc-e6b1d949-e215-4b53-8f0f-ca70e515832e"></a>
 ## 8. When these keys stay quiet
 
 A message shortcut runs only when that menu item would be offered for the selected message. **`Shift + R`** opens the selected message's menu. **`Shift + B`** works on a reply in the topic pane on the right: it selects that topic's first message in the list in the middle (the channel's or the direct messages' card, or the topic's row in the topic view) and scrolls it into view. When the list does not show that topic, it selects the topic's first message in the topic pane instead, reading older replies in when that message is not loaded. **`Shift + U`** on that first message selects the reply you came from again, in the panel it was in, or the topic's latest reply when you did not come from one. On a topic's first message, or a message with no topic, **`Shift + B`** does nothing. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
+<a id="ws-doc-fb9968aa-aec2-41a0-a085-2b9e0c1b3047"></a>
 ## 9. Release notes
 
 In the **Release notes** dialog (the version at the bottom of the left pane, then **Release notes**). The letter keys work on a desktop, never while you type, and turn off with **Settings → Behaviour → Keyboard shortcuts**.
@@ -124,6 +133,7 @@ In the **Release notes** dialog (the version at the bottom of the left pane, the
 
 **Load older versions** at the end of the list reads the next older versions, until the list ends with **This is the first entry**.
 
+<a id="ws-doc-60ffb40e-cc62-434a-938a-de9bceb69cb0"></a>
 ## 10. Issue row shortcuts
 
 On the **Issues** list these keys act on the **selected issue row**, the same keys the messages use for the same actions. Each runs the row's right-click menu item, and only when that menu offers it. They work on a desktop and follow **Settings → Behaviour → Keyboard shortcuts**. On a phone, swipe an issue card **left** to archive it (after a confirm) and **right** to open its menu, the same as a message card; a long press opens the menu too.
@@ -140,6 +150,7 @@ On the **Issues** list these keys act on the **selected issue row**, the same ke
 | **`Shift + M`** | Selected issue row, desktop | Move to… |
 | **`Shift + D`** | Selected issue row, desktop | Delete |
 
+<a id="ws-doc-f32d4298-de71-4491-a272-3f023969a77b"></a>
 ## 11. Flow line shortcuts
 
 In the **Flow** list these keys act on the **selected line**, the same keys the messages use for the same actions. A line folds one topic's day (or one day of releases), so the keys that change one message (edit, archive, move, delete, the thread jumps) do nothing there. **Shift + O** opens the discussion, or the release log on a release line. Right-click a line (a long press on a phone) for its menu: Open discussion, Open issue when the topic has one, Open release log, Copy link, Copy text and Mark read. They follow **Settings → Behaviour → Keyboard shortcuts**.

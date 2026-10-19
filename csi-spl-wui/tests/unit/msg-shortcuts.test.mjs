@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import {
   FLOW_LINE_ACTIONS, FLOW_SHORTCUTS, ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, flowShortcutFor, flowShortcutHint, flowShortcutItem, flowShortcutsSection, inTypingOrOverlay, listRowFor, mdCell, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
+import { dropQtoStamp } from '../../src/node/help/sync-help.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -158,7 +159,9 @@ describe('hints, the setting, the catalogue', () => {
 })
 
 /** The help section, from the "## 7" heading up to the next heading or the version footer. */
-function helpSection(md) {
+/* the section's text as the reader gets it: a qto export's stamp and heading anchors dropped, as the served copy does */
+function helpSection(raw) {
+  const md = dropQtoStamp(raw)
   const at = md.indexOf('## 7. Message shortcuts')
   if (at < 0) return ''
   const rest = md.slice(at)
@@ -184,6 +187,14 @@ describe('help page: the Message shortcuts section is this map', () => {
     const dropped = want.replace(/\| \*\*`Shift \+ H`\*\*[^\n]*\n/, '')
     assert.notEqual(dropped, want)
     assert.equal(helpSection('## 6. Earlier\n\n' + dropped + '\n\n<!-- version: x -->'), dropped)
+  })
+
+  it('a qto export (spec 138: an anchor line before each heading) still matches (SPL-2546)', () => {
+    const md = readFileSync(join(WUI, '../csi-spl-doc/doc/help/keyboard-shortcuts.md'), 'utf8').replace(/^<a id="ws-doc-[^"]+"><\/a>\n/gm, '')
+    let n = 0
+    const anchored = md.replace(/^(?=#{1,6} )/gm, () => `<a id="ws-doc-${(++n).toString(16).padStart(8, '0')}"></a>\n`)
+    assert.ok(n > 8 && anchored.includes('></a>\n## 8. '), 'CONTROL: the section after 7 carries an anchor')
+    assert.equal(helpSection(anchored), want)
   })
 })
 

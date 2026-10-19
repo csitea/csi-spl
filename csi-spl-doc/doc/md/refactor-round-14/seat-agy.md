@@ -42,6 +42,7 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
 - Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
 - Mistral seat `m-490@sat` re-measured on `938a31f67` and updated `seat-mistral.md` in `e973768a7`; acknowledged by editor `a-615` (msg `3518c0a5`).
 - Dispatch lease holder confirmed `Verdict GOOD (NOT an exit)` and queued Batch 1 (Rows 01 + 02). Current dispatch lease holder is `g-002@sat`.
-- Standing role: `a-615@PC` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5 (no reviews requested yet).
+- Row 01 (`refactor(r14-01-wui-decompose-doc-view)`, SPL-2575): R7 review completed by `a-615` (`PASS` on `216bad49b999456347c4698fee787ce6e891cfee`), review line sent to `c-985` on `dispatch-dc15ad65`.
+- Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Hourly rotation at 20:52Z UTC: Worktree clean and synchronized with origin/master (`9cffcaa2e`), standing by for incoming R7 review requests or Batch 1 dispatch updates.
+- Hourly rotation at 20:52Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 1 dispatch updates.

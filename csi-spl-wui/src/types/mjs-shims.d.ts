@@ -2335,6 +2335,9 @@ declare module '~/utils/mobile-stack.mjs' {
   export type MobileLevel = 1 | 2 | 3
   export const MOBILE_STACK_MAX_PX: number
   export const MOBILE_STACK_QUERY: string
+  export const MOBILE_TABLET_MIN_PX: number
+  export const MOBILE_TABLET_QUERY: string
+  export function mobileChannelInitials(name: string): string
   export const MOBILE_LEVEL_KEY: string
   export const MOBILE_BELOW_KEY: string
   export const MOBILE_SWIPE_MIN_DX: number

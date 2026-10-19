@@ -54,6 +54,10 @@ export const ON_DEMAND_COMPONENTS = {
   // once its own strings are merged, so first paint is unchanged (a key
   // literal here would pull it into core)
   "components/ComposerDraftState.vue": "idle",
+  // SPL-2145: the tablet channel strip names its expand button by the core
+  // "Channels" until its own string is merged (a key literal here would
+  // pull it into core)
+  "components/TabletStrip.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

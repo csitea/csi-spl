@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Înapoi",
-    "more": "Mai mult"
+    "more": "Mai mult",
+    "tablet_expand": "Afișează toate canalele și secțiunile"
   },
   "nav": {
     "topics": "Teme",

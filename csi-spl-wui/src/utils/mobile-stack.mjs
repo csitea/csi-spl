@@ -16,6 +16,26 @@
 export const MOBILE_STACK_MAX_PX = 820
 export const MOBILE_STACK_QUERY = `(max-width: ${MOBILE_STACK_MAX_PX}px)`
 
+/**
+ * SPL-2145 (UI review suggestion 3): a tablet, 600..820 px, keeps a narrow
+ * strip of the channels (components/TabletStrip.vue) beside the one panel of
+ * levels 2 and 3; a phone under MOBILE_TABLET_MIN_PX keeps one panel alone.
+ */
+export const MOBILE_TABLET_MIN_PX = 600
+export const MOBILE_TABLET_QUERY = `(min-width: ${MOBILE_TABLET_MIN_PX}px) and (max-width: ${MOBILE_STACK_MAX_PX}px)`
+
+/**
+ * The tablet strip's label for a channel: the first letter of each of its
+ * first two words ("dev-ops" -> "DO"), else its first two letters ("lobby"
+ * -> "LO"). Letters and digits of any script; '#' when the name has none.
+ */
+export function mobileChannelInitials(name) {
+  const words = String(name || '').split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  if (!words.length) return '#'
+  const pick = words.length > 1 ? [...words[0]][0] + [...words[1]][0] : [...words[0]].slice(0, 2).join('')
+  return pick.toLocaleUpperCase()
+}
+
 /** The key this shell adds to history.state (vue-router keeps unknown keys). */
 export const MOBILE_LEVEL_KEY = 'splLevel'
 /** Set on an entry the shell pushed on top of an in-app entry: Back = history.back(). */

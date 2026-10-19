@@ -39,7 +39,8 @@ import { useSessionStore } from '~/stores/session'
  * and a popstate restores the level its entry says. Deep links open where
  * they point (`/channel/x` at 2, `?topic=` at 3) and Back still walks 3 -> 2
  * -> 1 inside the app. 600..820 px tablets get the same ONE panel (decision:
- * a 600 px topic beside a 220 px feed reads worse than two full screens).
+ * a 600 px topic beside a 220 px feed reads worse than two full screens),
+ * plus a 60 px channel strip beside levels 2 and 3 (SPL-2145, TabletStrip).
  * Above 820 px nothing here does anything: `isMobile` is false, `level` is
  * still computed but no CSS reads it, and no history entry is written.
  *

@@ -101,7 +101,9 @@ async function pinFont(page) {
   }
 }
 
-/** every visible card: its text box and header, against the window edges */
+/** every visible card: its text box and header, against the window edges.
+ *  Left is measured from the card's own pane (SPL-2145: a tablet's channel
+ *  strip sits left of it; on a phone the pane starts at the screen edge). */
 function edges(page) {
   return page.evaluate(() => {
     const vw = document.documentElement.clientWidth
@@ -117,15 +119,16 @@ function edges(page) {
         const body = a.querySelector('.msg-body')
         const b = body && body.getBoundingClientRect()
         const av = a.querySelector(':scope > .avatar')
+        const edge = a.closest('.spool-main, .topic')?.getBoundingClientRect().left || 0
         const meta = a.querySelector('.msg-meta')
         const items = meta ? [...meta.children].flatMap((el) => (getComputedStyle(el).display === 'contents' ? [...el.children] : [el])) : []
         const mids = items.filter((el) => !el.classList.contains('msg-reactions') && el.getClientRects().length)
           .map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
         return {
           id: a.getAttribute('data-msg-id'),
-          textL: b ? Math.round((b.left + px(body, 'paddingLeft') + px(body, 'borderLeftWidth')) * 10) / 10 : null,
+          textL: b ? Math.round((b.left - edge + px(body, 'paddingLeft') + px(body, 'borderLeftWidth')) * 10) / 10 : null,
           textR: b ? Math.round((vw - (b.right - px(body, 'paddingRight') - px(body, 'borderRightWidth'))) * 10) / 10 : null,
-          avatarL: av ? Math.round(av.getBoundingClientRect().left * 10) / 10 : null,
+          avatarL: av ? Math.round((av.getBoundingClientRect().left - edge) * 10) / 10 : null,
           headRows: mids.length ? 1 + mids.filter((m, i) => i > 0 && m - mids[0] > 12).length : 0,
         }
       }).filter((c) => c.textL != null),

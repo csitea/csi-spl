@@ -55,6 +55,9 @@
           @input="setSidebar"
           @reset="resetSidebar"
         />
+        <!-- SPL-2145: a tablet (600..820 px) keeps a narrow strip of the
+             channels beside levels 2 and 3; a phone never mounts it -->
+        <LazyTabletStrip v-if="shellIn && tabletStrip" />
         <template v-if="mountMain">
         <main class="spool-main">
           <slot />
@@ -228,7 +231,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { MOBILE_STACK_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
+import { MOBILE_STACK_QUERY, MOBILE_TABLET_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
@@ -444,6 +447,16 @@ function focusAfterRoute() {
 const offPageFinish = useNuxtApp().hook('page:finish', () => { void nextTick(focusAfterRoute) })
 onUnmounted(() => offPageFinish())
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
+/* SPL-2145 (UI review suggestion 3): 600..820 px is a tablet - levels 2 and
+   3 keep a narrow channel strip beside the one panel (TabletStrip); level 1
+   is the full list itself, and a section page has its own strip on top */
+const tablet = ref(false)
+onMounted(() => {
+  const mq = window.matchMedia(MOBILE_TABLET_QUERY)
+  tablet.value = mq.matches
+  mq.addEventListener('change', (e) => { tablet.value = e.matches })
+})
+const tabletStrip = computed(() => tablet.value && stack.isMobile.value && stack.level.value !== 1 && !sectionStrip.value)
 /* perf round 6 row 07 (SPL-2436): a phone that boots at level 2 or 3 hides
    the sidebar with CSS (main.css; its strip shows on a section page only),
    ~150-230 nodes the reader never sees. Mount it in an idle slot instead

@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Atpakaļ",
-    "more": "Vairāk"
+    "more": "Vairāk",
+    "tablet_expand": "Rādīt visus kanālus un sadaļas"
   },
   "nav": {
     "topics": "Tēmas",

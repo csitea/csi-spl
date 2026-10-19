@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Tagasi",
-    "more": "Veel"
+    "more": "Veel",
+    "tablet_expand": "Näita kõiki kanaleid ja jaotisi"
   },
   "nav": {
     "topics": "Teemad",

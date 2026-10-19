@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Atgal",
-    "more": "Daugiau"
+    "more": "Daugiau",
+    "tablet_expand": "Rodyti visus kanalus ir skyrius"
   },
   "nav": {
     "topics": "Temos",

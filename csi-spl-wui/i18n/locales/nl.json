@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Terug",
-    "more": "Meer"
+    "more": "Meer",
+    "tablet_expand": "Alle kanalen en secties tonen"
   },
   "nav": {
     "topics": "Onderwerpen",

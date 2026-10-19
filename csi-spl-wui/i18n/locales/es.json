@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Atrás",
-    "more": "Más"
+    "more": "Más",
+    "tablet_expand": "Mostrar todos los canales y secciones"
   },
   "nav": {
     "topics": "Temas",

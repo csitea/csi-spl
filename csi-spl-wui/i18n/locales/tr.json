@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Geri",
-    "more": "Daha fazla"
+    "more": "Daha fazla",
+    "tablet_expand": "Tüm kanalları ve bölümleri göster"
   },
   "nav": {
     "topics": "Konular",

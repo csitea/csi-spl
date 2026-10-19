@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Takaisin",
-    "more": "Lisää"
+    "more": "Lisää",
+    "tablet_expand": "Näytä kaikki kanavat ja osiot"
   },
   "nav": {
     "topics": "Aiheet",

@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Späť",
-    "more": "Viac"
+    "more": "Viac",
+    "tablet_expand": "Zobraziť všetky kanály a sekcie"
   },
   "nav": {
     "topics": "Témy",

@@ -13,7 +13,8 @@
   },
   "mobile": {
     "back": "Tillbaka",
-    "more": "Mer"
+    "more": "Mer",
+    "tablet_expand": "Visa alla kanaler och avsnitt"
   },
   "nav": {
     "topics": "Ämnen",

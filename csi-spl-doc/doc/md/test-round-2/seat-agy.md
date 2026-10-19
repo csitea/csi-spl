@@ -47,7 +47,8 @@ signed: a-481@sat on v1.0 (SPL-2402, SPL-2554)
 - Mistral reviewer seat `m-639@PC` landed full verdict on origin/master in `ec8d6de0b` (10 agree, 2 agree with changes, 0 disagree, 2 proposals).
 - Row 02 (`test(r02-02-iac-dry-run-tf-destroy)`, SPL-2570): R7 review completed by `a-481@sat` (`PASS` on `eb20ad6fa48f0f287ac2753f487f54e11538c913`). Landed on master in commit `4d7bb3e02`.
 - Row 01 (`test(r02-01-orc-speed-peer-poll)`, SPL-2569): R7 review completed by `a-481@sat` (`PASS` on `73acedfc9b13a946e16c48660f832b9596222ebd`). Landed on master in commit `e187a1098`.
-- Rows 03 and 04: queued in dispatcher backlog (positions 2 and 3).
+- Row 03 (`test(r02-03-orc-jobs-derivation-weights)`, SPL-2571): R7 review completed by `a-481@sat` (`PASS` on `b99b74466b39aacefa5feb55f55dc5f7f14e10fa`). In progress with worker lane `c-867`.
+- Row 04 (`test(r02-04-go-coverage-coverpkg)`, SPL-2572): queued in dispatcher backlog (position 1 of 47).
 - Rotation at 17:27Z (`20261019T1727Z-lane-a-481`): editor standing by as R7 cross-vendor reviewer for incoming Batch 1 rows.
 
 

@@ -19,6 +19,10 @@
 //       C1 the draft and the theme pick are back (localStorage is per profile)
 //       C2 the view token is gone (sessionStorage is per tab)
 //       C3 the Pinia-only flag is at its default
+//     SIGN OUT (session store logout), then sign in as HUM-2 (SPL-2556):
+//       O1 the read cursors (localStorage spool.read-cursors) are gone, so
+//          HUM-2 does not start from HUM-1's read marks
+//       O2 the view token is gone from this tab's sessionStorage
 //
 //   CONTROL: STATE_CONTROL=1 also copies the view token into localStorage, as
 //   a regression that kept the secret per profile would: S7 and C2 go red.
@@ -34,6 +38,8 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const CONTROL = process.env.STATE_CONTROL === '1'
 const HUM = 'HUM-1'
+const NEXT_HUM = 'HUM-2'
+const CURSOR_KEY = 'spool.read-cursors'
 const BOX = 'form.composer.omnibox--global textarea'
 const PATH = '/channel/feedback'
 const DRAFT = 'kept across reload'
@@ -96,6 +102,7 @@ const snapshot = (p, token) => p.evaluate((token) => {
     viewToken: sessionStorage.getItem('spool.view_token'),
     editing: st.editMode ? st.editMode.isEditing : null,
     hum: st.session?.claims?.hum ?? null,
+    cursors: localStorage.getItem('spool.read-cursors'),
     tokenInLocal: Object.keys(local).filter((k) => String(local[k]).includes(token)),
   }
 }, token)
@@ -149,6 +156,31 @@ try {
   ok('C1 new tab: the draft and the theme pick are back', c.box === DRAFT && c.theme === picked, { box: c.box, theme: c.theme })
   ok('C2 new tab: the view token is gone', !c.viewToken && c.tokenInLocal.length === 0, { viewToken: c.viewToken, keys: c.tokenInLocal })
   ok('C3 new tab: the Pinia-only flag is at its default', c.editing === false, { editing: c.editing })
+
+  /* SIGN OUT on this tab, then the next member signs in on the same browser */
+  await q.evaluate((token) => sessionStorage.setItem('spool.view_token', token), TOKEN)
+  const a = await snapshot(q, TOKEN)
+  ok('sign-out setup: HUM-1 has read cursors and a view token',
+    Boolean(a.cursors && a.cursors !== '{}') && a.viewToken === TOKEN, { cursors: a.cursors, viewToken: a.viewToken })
+  await q.evaluate(async () => {
+    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+    await pinia?._s.get('session')?.logout()
+  })
+  await q.waitForFunction(() => location.pathname.endsWith('/login'), { timeout: NAV_TIMEOUT })
+  const out = await q.evaluate((key) => ({
+    cursors: localStorage.getItem(key),
+    viewToken: sessionStorage.getItem('spool.view_token'),
+  }), CURSOR_KEY)
+  await q.evaluate((hum) => {
+    localStorage.setItem('spool.mock.session', JSON.stringify({ hum, name: 'Member', email: 'member@example.com', t: 'mock' }))
+  }, NEXT_HUM)
+  await q.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await settle(q)
+  const b = await snapshot(q, TOKEN)
+  ok('O1 sign-out: HUM-1\'s read cursors are gone before HUM-2 signs in', out.cursors === null && b.hum === NEXT_HUM,
+    { atSignOut: out.cursors, hum: b.hum })
+  ok('O2 sign-out: the view token is gone from this tab', out.viewToken === null && !b.viewToken,
+    { atSignOut: out.viewToken, afterSignIn: b.viewToken })
   ok('no page error', errors.length === 0, errors)
   await q.close()
 } finally {

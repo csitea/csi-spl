@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { setViewToken, useSpoolApi } from '~/composables/useSpoolApi'
+import { clearCursors } from '~/utils/read-cursor.mjs'
 import { takeEarlySession } from '~/utils/early-session.mjs'
 import { writeSignedOutHint } from '~/utils/signed-out-hint.mjs'
 import { clearDrafts } from '~/utils/drafts.mjs'
@@ -219,6 +220,8 @@ function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | nu
       markSignedIn(false)
       /* 080 FR-008: the next member on this browser never sees these drafts */
       clearDrafts(undefined, hum)
+      /* SPL-2556: the view token leaves this tab with the session */
+      setViewToken('')
       /* 027 budget: card-clip (and file-preview behind it) is only needed on
          sign-out here, so it is not part of the initial chunk */
       const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')
@@ -231,6 +234,10 @@ function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | nu
     state.value = 'out'
     claims.value = null
     await navigateTo(useNuxtApp().$localePath('/login'))
+    /* SPL-2556: the next member does not start from these read marks (the
+       hub keeps them for this member). After the navigation: an open feed
+       marks itself read again when the session goes out, until it is left. */
+    if (import.meta.client) clearCursors()
   }
 
   /**

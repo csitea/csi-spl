@@ -98,6 +98,9 @@ export default defineNuxtPlugin(() => {
 
   /** The open channel's hub row: reading it keeps the hub cursor for the next read=. */
   function markActive() {
+    /* SPL-2556: the login page shows no feed: the sign-out route to it kept
+       marking the last open channel read into the map sign-out clears */
+    if (/(^|\/)login\/?$/.test(String(route.path || ''))) return
     const c = ctx()
     if (!c.activeKey) return
     /* CLE-77804: freeze the New-messages divider boundary at the real open,

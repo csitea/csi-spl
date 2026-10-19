@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   loadCursors,
   saveCursors,
+  clearCursors,
   isUnread,
   advanceCursor,
   markReadAt,
@@ -35,6 +36,18 @@ describe('local read cursors', () => {
     const boom = { getItem() { throw new Error('x') }, setItem() { throw new Error('x') } }
     assert.deepEqual(loadCursors(boom), {})
     assert.equal(saveCursors(cursors, boom), false)
+  })
+
+  it('SPL-2556: clearCursors drops the map so the next member starts from none', () => {
+    const store = memoryStore()
+    saveCursors({ 'ch:alerts': { ts: '2026-09-19T05:00:00Z', id: 'm1' } }, store)
+    store.setItem('spool.drafts', '{}')
+    assert.equal(clearCursors(store), true)
+    assert.equal(store.getItem(CURSOR_KEY), null)
+    assert.deepEqual(loadCursors(store), {})
+    assert.equal(store.getItem('spool.drafts'), '{}')
+    const boom = { getItem() { throw new Error('x') }, removeItem() { throw new Error('x') } }
+    assert.equal(clearCursors(boom), false)
   })
 
   it('treats missing cursor as unread and equal ts+id as read', () => {

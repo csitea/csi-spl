@@ -24,6 +24,26 @@ export function saveCursors(cursors, store) {
   return storageSetJson(CURSOR_KEY, v, store)
 }
 
+/**
+ * SPL-2556: sign-out drops the browser's one cursor map, so the next member
+ * on this browser does not start from the last one's read marks. Cleared, not
+ * keyed per member: the member's marks live on the hub (read-sync.mjs, GET
+ * /v1/me/reads) and come back on their next sign-in.
+ *
+ * @param {Storage} [store] defaults to localStorage
+ * @returns {boolean} the key is gone
+ */
+export function clearCursors(store) {
+  try {
+    const s = store && typeof store.removeItem === 'function' ? store : globalThis.localStorage
+    if (!s) return false
+    s.removeItem(CURSOR_KEY)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function isUnread(msg, cursor) {
   if (!cursor || !cursor.ts) return true
   const ts = when(msg)

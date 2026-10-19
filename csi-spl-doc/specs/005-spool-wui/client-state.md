@@ -42,10 +42,10 @@ again in the same browser profile.
 | `spool.was-signed-in` | localStorage | yes | yes | tells "your session ended" from "never signed in" (`utils/session-recover.mjs`) |
 | page, channel, DM, open topic | the URL | yes | only by reopening the URL | 1.2 |
 | composer drafts `spool.drafts` | localStorage, per member | yes | yes | spec 080; 30 days / 50 places, dropped at send and at sign-out |
-| read cursors `spool.read-cursors` | localStorage | yes | yes | local unread marks, synced to the hub by `utils/read-sync.mjs` |
+| read cursors `spool.read-cursors` | localStorage | yes | yes | local unread marks, synced to the hub by `utils/read-sync.mjs`; dropped at sign-out (section 3) |
 | theme, font size, card clip, chime, alerts, muted channels, pane widths and collapse, rail labels, hidden cards, issues folds and columns, calendar view, command palette recents, PWA offer, first-run, hours timer | localStorage (`spool-theme`, `spool-font-size`, `spool-card-clip*`, `spool.chime*`, `spool.alerts`, `spool.muted-channels`, `spool.pane-*`, ...) | yes | yes | this browser's conveniences (1.3); several are also mirrored to the member's hub prefs |
 | locale | localStorage `csi-spl-lang` + cookie `i18n_redirected` | yes | yes | the root redirect reads the cookie before the app boots |
-| view token `spool.view_token` | sessionStorage | yes | no | a secret: this tab only (view-v1 §2) |
+| view token `spool.view_token` | sessionStorage | yes | no | a secret: this tab only (view-v1 §2); dropped at sign-out |
 | tab tenant `spool.tenant`, identity `spool.as` | sessionStorage | yes | no | `?tenant=` / `?as=` remembered for the tab |
 | checkout id and claim token `spool.checkout.*` | sessionStorage | yes | no | a secret, dropped after the claim |
 | unsent event log `spl.event-log.queue.v1` | sessionStorage | yes | no | resent by the same tab |
@@ -53,10 +53,25 @@ again in the same browser profile.
 | app shell | Cache Storage (service worker) | yes | yes | offline start; no member data |
 | `spool.mock.*` | localStorage | yes | yes | the lde/e2e mock hub only, never read by a live build |
 
-## 3. Known gaps (reported, not changed here)
+## 3. Sign-out (SPL-2556)
 
-- `spool.read-cursors` is one map per browser, not per member, and sign-out
-  (`signOutActions` in `csi-spl-wui/src/stores/session.ts`) does not clear it:
-  the next member on the same browser starts from the previous member's marks.
-- Sign-out does not remove `spool.view_token` from the tab's sessionStorage;
-  it lasts until the tab closes.
+Two gaps found by SPL-2169 are closed in `signOutActions`
+(`csi-spl-wui/src/stores/session.ts`):
+
+- `spool.read-cursors` is one map per browser. Sign-out removes it
+  (`clearCursors` in `csi-spl-wui/src/utils/read-cursor.mjs`), so the next
+  member on the same browser does not start from the previous member's marks.
+  It is cleared rather than keyed per member: the member's marks are kept on
+  the hub (`GET /v1/me/reads`, `utils/read-sync.mjs`) and come back with that
+  member's next sign-in, and a per-member key would touch every reader of the
+  map. It is cleared after the navigation to the login page: the open feed
+  marks itself read again when the session goes out, and the route watch in
+  `csi-spl-wui/src/plugins/notify.client.ts` no longer marks the last open
+  channel read on the login page. A mark read in the last 5 s before sign-out
+  (`PUSH_MS`) may not have reached the hub yet and is lost with the map.
+- Sign-out removes `spool.view_token` from the tab's sessionStorage and from
+  the API client (`setViewToken('')`), instead of keeping it until the tab
+  closes.
+
+Pinned by `csi-spl-wui/tests/e2e/client-state-reload.test.mjs` (O1, O2) and
+`csi-spl-wui/tests/unit/read-cursor.test.mjs`.

@@ -44,7 +44,10 @@ signed: a-481@sat on v1.0 (SPL-2402, SPL-2554)
 ## 4. Execution Progress and Standby
 
 - v1.0 consensus reached and signed on master by all 3 panel seats: Editor `a-481@sat` (`c80e76575`), Claude seat `c-487@sat` (`16406d863`), Mistral reviewer seat `m-639@PC` (`22963e082`). Confirmed by dispatcher `c-002@sat` with Verdict GOOD.
+- Mistral reviewer seat `m-639@PC` landed full verdict on origin/master in `ec8d6de0b` (10 agree, 2 agree with changes, 0 disagree, 2 proposals).
 - Row 02 (`test(r02-02-iac-dry-run-tf-destroy)`, SPL-2570): R7 review completed by `a-481@sat` (`PASS` on `eb20ad6fa48f0f287ac2753f487f54e11538c913`). Landed on master in commit `4d7bb3e02`.
-- Row 01 (`test(r02-01-orc-speed-peer-poll)`, SPL-2569): in progress in worker lane `c-492@sat`.
-- Rotation at 17:26Z: editor standing by as R7 cross-vendor reviewer for incoming Batch 1 rows.
+- Row 01 (`test(r02-01-orc-speed-peer-poll)`, SPL-2569): R7 review completed by `a-481@sat` (`PASS` on `73acedfc9b13a946e16c48660f832b9596222ebd`). Landed on master in commit `e187a1098`.
+- Rows 03 and 04: queued in dispatcher backlog (positions 2 and 3).
+- Rotation at 17:27Z (`20261019T1727Z-lane-a-481`): editor standing by as R7 cross-vendor reviewer for incoming Batch 1 rows.
+
 

@@ -7,7 +7,7 @@ Owner HUM-10, t1 topic `4555450c-09da-4dda-9b16-735409b0ac6e`:
 Rounds need no owner go (rulebook 1.4: consensus between panel seats, then implementation, no questions to the owner).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1-R16), by pointer, not copied. Issue: SPL-2402 (lane SPL-2554).
 
-**Status: v1.0, CONSENSUS REACHED**. Panel feedback folded from Claude seat `c-487@sat` (`cefa6c737`) and Mistral reviewer seat `m-639@PC` (`e428729eb`).
+**Status: v1.0, CONSENSUS REACHED AND SIGNED**. Panel feedback folded from Claude seat `c-487@sat` (`cefa6c737`, `16406d863`) and Mistral reviewer seat `m-639@PC` (`e428729eb`, `22963e082`, `ec8d6de0b`). Signed on `c80e76575` by all 3 panel seats.
 
 Editor: **a-481@sat** (agy).
 
@@ -250,6 +250,11 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
   - Dropped fixed A6 flake row per unanimous panel consensus.
   - Replaced already-tested WUI utilities/composables and duplicate helper suites with 28 untested bash actions across orc and iac.
   - Verified R1 disjoint file sets across all 3 batches of 4 parallel lanes.
+- v1.0 (refinements & consensus signatures):
+  - Refined on `d31332fce` and `c80e76575` per Claude seat review: Row 09 scoped strictly to `spl-token-burn-push-env` (0 tests across all test suites); Row 05 negative controls refined to the 3 exact failure modes verified in code (override hygiene bypass, unconditional TIMED OUT note on passing suites, clean-base unparseable crash).
+  - Claude seat `c-487@sat` signed v1.0 on `c80e76575` in commit `16406d863`.
+  - Mistral seat `m-639@PC` signed v1.0 on `c80e76575` in commit `22963e082`, and landed its full verdict at `ec8d6de0b` (10 agree, 2 agree with changes, 0 disagree; both proposals for WUI utilities and source regex tests evaluated and documented in Section 6).
+  - Editor seat `a-481@sat` signed v1.0 on `c80e76575` in `seat-agy.md`.
 
 ---
 
@@ -257,7 +262,7 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
 
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| Editor | agy | a-481@sat | signed on v1.0 | `test-round-2/seat-agy.md` |
-| Claude seat | claude | c-487@sat | reviewed v0.1 (`cefa6c737`), awaiting v1.0 signing | `test-round-2/seat-claude.md` |
-| Mistral seat (docs/review only) | mistral | m-639@PC | reviewed v0.1 (`e428729eb`), awaiting v1.0 signing | `test-round-2/seat-mistral.md` |
+| Editor | agy | a-481@sat | signed on v1.0 (`c80e76575`) | `test-round-2/seat-agy.md` |
+| Claude seat | claude | c-487@sat | signed on v1.0 `c80e76575` (`16406d863`) | `test-round-2/seat-claude.md` |
+| Mistral seat (docs/review only) | mistral | m-639@PC | signed on v1.0 `c80e76575` (`22963e082`, verdict `ec8d6de0b`) | `test-round-2/seat-mistral.md` |
 | Grok seat | grok | unseated | unseated (quota limitation) | `test-round-2/seat-grok.md` |

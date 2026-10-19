@@ -47,7 +47,8 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
-trap 'for s in "$T"/*/peer/*/poll.pid; do [ -f "$s" ] && kill -- "-$(cat "$s")" 2>/dev/null; done; rm -rf "$T"' EXIT
+HUBD=""
+trap 'for s in "$T"/*/peer/*/poll.pid; do [ -f "$s" ] && kill -- "-$(cat "$s")" 2>/dev/null; done; [ -n "$HUBD" ] && { kill "$HUBD"; wait "$HUBD"; } 2>/dev/null; rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
 T0=1800000000
 
@@ -185,9 +186,49 @@ save()
 if out is not None: print(json.dumps(out))
 sys.exit(rc)
 EOF
-printf '#!/usr/bin/env bash\nexec python3 "%s/bin/hub.py" "$@"\n' "$T" > "$T/bin/hub"
+# the hub as a command (the poll loops of section 9): hub.py itself, no bash in front
+{ printf '#!%s -S\n' "$(command -v python3)"; cat "$T/bin/hub.py"; } > "$T/bin/hub"
+# the hub as a function (every simulated tick, sequential): the same hub.py,
+# run per call inside ONE python (hubd) fed through two fifos - a call costs
+# no fork, where a python start costs ~25 ms and a run makes ~1300 calls
+cat > "$T/bin/hubd.py" <<'EOF'
+import contextlib, io, os, sys, traceback
+code = compile(open(sys.argv[1]).read(), "hub.py", "exec")
+req = os.fdopen(os.open(sys.argv[2], os.O_RDWR), "r")
+rep = os.fdopen(os.open(sys.argv[3], os.O_RDWR), "w")
+rep.write("ready\n"); rep.flush()
+for line in req:
+    f = line.rstrip("\n").split("\x1f")
+    os.environ.update(HUB_DIR=f[1], LEASE_NOW=f[2], HUB_LIE=f[3])
+    if not f[3]: del os.environ["HUB_LIE"]
+    sys.argv = ["hub"] + f[4:]
+    g, out, rc = {"__name__": "__main__"}, io.StringIO(), 0
+    try:
+        with contextlib.redirect_stdout(out): exec(code, g)
+    except SystemExit as e: rc = e.code or 0
+    except Exception: traceback.print_exc(); rc = 1  # as python3 hub.py would exit
+    finally:
+        if g.get("lk"): g["lk"].close()
+    rep.write("%s\x1f%s\x1f%s\n" % (f[0], rc, out.getvalue().rstrip("\n"))); rep.flush()
+EOF
+mkfifo "$T/hub.req" "$T/hub.rep"
+python3 -S "$T/bin/hubd.py" "$T/bin/hub.py" "$T/hub.req" "$T/hub.rep" & HUBD=$!
+read -r -t 10 _ <> "$T/hub.rep" || { echo "FAIL: the hub stub did not start"; exit 1; }
+hubf() {
+  local id="$BASHPID.$EPOCHREALTIME" a r IFS=$'\x1f'
+  a="$*"
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$id" "$HUB_DIR" "$LEASE_NOW" "${HUB_LIE:-}" "$a" 1<> "$T/hub.req"
+  while IFS= read -r -t 30 r <> "$T/hub.rep"; do [[ "${r%%$'\x1f'*}" == "$id" ]] && break; done
+  [[ "${r%%$'\x1f'*}" == "$id" ]] || return 75
+  r="${r#*$'\x1f'}"
+  [[ -n "${r#*$'\x1f'}" ]] && printf '%s\n' "${r#*$'\x1f'}"
+  return "${r%%$'\x1f'*}"
+}
 printf '#!/usr/bin/env bash\necho "$1 $LEASE_NOW" >> "%s/rings"\n' "$T" > "$T/bin/poke"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/pane"
+# the pane of every simulated agent: none to read (the builtin false), so the
+# able check reads no screen; the screen checks have their own tests
+# (fleet-lease, dispatch-lease) and cost ~15 forks per able check here
+PANE=false
 chmod +x "$T/bin/"*
 
 BOXES="sat pc"
@@ -219,25 +260,32 @@ fresh() {
   done
 }
 agent() { mkdir -p "$T/$1/proc/$2"; echo "$4" > "$T/$1/proc/$2/comm"; printf 'HOME=/x\0SPOOL_AGENT_ID=%s\0' "$3" > "$T/$1/proc/$2/environ"; }
-pid_of() { grep -lzx "SPOOL_AGENT_ID=$2" "$T/$1"/proc/*/environ 2>/dev/null | sed -n 1p | xargs -r dirname | xargs -r basename; }
+# pid_of <box> <seat>: the first fake pid whose environ carries the id (builtins only: act asks every second)
+pid_of() {
+  local d e
+  for d in "$T/$1"/proc/*/; do
+    { mapfile -d '' -t e < "${d}environ"; } 2>/dev/null || continue
+    [[ " ${e[*]} " == *" SPOOL_AGENT_ID=$2 "* ]] && { d="${d%/}"; echo "${d##*/}"; return 0; }
+  done
+}
 kill_agent() { rm -rf "${T:?}/$1/proc/$(pid_of "$1" "$2")"; }
 # the simulated agent: mode = idle:<since> | working | frozen:<last progress> | error; accepts = yes | no
 mode() { mkdir -p "$T/$1/agent/$2"; echo "$3" > "$T/$1/agent/$2/mode"; }
 accepts() { mkdir -p "$T/$1/agent/$2"; echo "$3" > "$T/$1/agent/$2/accepts"; }
-iso() { date -u -d "@$1" +%FT%TZ; }
 # beat <box> <seat>: the heartbeat.json its hooks would have written by now
 beat() {
   local m st=working p=$((T0 + NOW)) err=null
-  m="$(cat "$T/$1/agent/$2/mode")"
+  read -r m < "$T/$1/agent/$2/mode"
   case "$m" in
     idle:*) st=idle p="${m#idle:}" ;;
     frozen:*) p="${m#frozen:}" ;;
     error) st=idle err='"Login expired · Please run /login"' ;;
   esac
-  mkdir -p "$T/$1/$2"
-  printf '{"v":1,"id":"%s","state":"%s","progress_ts":"%s","tool":null,"tool_since":null,"api_error":%s}\n' "$2" "$st" "$(iso "$p")" "$err" > "$T/$1/$2/heartbeat.json"
+  [[ -d "$T/$1/$2" ]] || mkdir -p "$T/$1/$2"
+  TZ=UTC printf -v p '%(%FT%TZ)T' "$p"
+  printf '{"v":1,"id":"%s","state":"%s","progress_ts":"%s","tool":null,"tool_since":null,"api_error":%s}\n' "$2" "$st" "$p" "$err" > "$T/$1/$2/heartbeat.json"
 }
-hubc() { HUB_DIR="$T/hub" LEASE_NOW="$((T0 + ${NOW:-0}))" python3 "$T/bin/hub.py" "$@"; }
+hubc() { HUB_DIR="$T/hub" LEASE_NOW="$((T0 + ${NOW:-0}))" hubf "$@"; }
 # act <box> <seat>: the agent accepts every stub in its inbox it has not tried
 act() {
   local b="$1" s="$2" f mid n a
@@ -245,9 +293,9 @@ act() {
   read -r a < "$T/$b/agent/$s/accepts"
   [[ "$a" == yes && -n "$(pid_of "$b" "$s")" ]] || return 0
   for f in "$T/$b/$s"/inbox/*-r[0-9]*.json; do
-    [[ -f "$f" ]] || continue
+    [[ -f "$f" && ! -e "$T/$b/agent/$s/tried/${f##*/}" ]] || continue
+    mkdir -p "$T/$b/agent/$s/tried"; : > "$T/$b/agent/$s/tried/${f##*/}"
     read -r mid n < <(jq -r '"\(.msg_id) \(.round)"' "$f")
-    mkdir -p "$T/$b/agent/$s/tried"
     ( set -o noclobber; : > "$T/$b/agent/$s/tried/$mid.$n" ) 2>/dev/null || continue
     # it accepts, answers at once and is back at its prompt
     hubc --accept "$mid" --round "$n" --seat "$s@$b" >/dev/null && mode "$b" "$s" "idle:$((T0 + NOW))"
@@ -256,13 +304,13 @@ act() {
 # tick <box> <seat>: its heartbeat, then one loop tick in a subshell (each loop is its own process)
 tick() {
   beat "$1" "$2"
-  ( export SPOOL_ROOT="$T/$1" PEER_BOX="$1" LEASE_PROC_ROOT="$T/$1/proc" LEASE_PANE_CMD="$T/bin/pane" \
-      PEER_HUB_CMD="$T/bin/hub" PEER_POKE_CMD="$T/bin/poke" HUB_DIR="$T/hub" LEASE_NOW="$((T0 + NOW))"
+  ( export SPOOL_ROOT="$T/$1" PEER_BOX="$1" LEASE_PROC_ROOT="$T/$1/proc" LEASE_PANE_CMD="$PANE" \
+      PEER_HUB_CMD=hubf PEER_POKE_CMD="$T/bin/poke" HUB_DIR="$T/hub" LEASE_NOW="$((T0 + NOW))"
     spl_peer_init && spl_peer_seated "$2" && spl_peer_tick "$2" )
 }
 # run <from> <to>: advance the clock second by second; each seat of TICKERS
 # whose stagger falls on that second ticks, then every agent acts on its stubs.
-# A tick costs ~0.2 s (hub stub, jq): a scenario ticks only the seats it
+# A tick costs ~0.1 s (jq, the able check): a scenario ticks only the seats it
 # needs, and skips the stretches where every lock is provably still valid.
 run() {
   local bs
@@ -273,7 +321,8 @@ run() {
   NOW=$2
 }
 # field <msg> <jq expr on the hub row>
-field() { NOW=${NOW:-0} hubc dump | jq -r --arg m "$1" ".[] | select(.msg_id == \$m) | $2"; }
+# (the hub's own file, read as the stub's dump would print it: no python start)
+field() { [[ -s "$T/hub/db.json" ]] || return 0; jq -r --arg m "$1" ".[] | select(.msg_id == \$m) | $2" "$T/hub/db.json"; }
 # every stub of <msg> written anywhere (inbox or archive): "<seat>@<box> <round> <lost>"
 stubs_of() {
   local b
@@ -360,7 +409,9 @@ mode sat c-001 "frozen:$((T0 + 7))"; mode sat c-002 working
 TICKERS+=" pc.c-001"; run 8 30
 [[ "$(field a1 .locked_until)" == $((T0 + 7 + 120)) ]] && pass "3 FR-002: the renew writes anchor + 120 s (progress at 7 s -> locked until 127 s), never now + 120" ||
   fail "3 FR-002: locked until $(( $(field a1 .locked_until) - T0 ))"
-run 31 140
+# a2's renew at 26 s holds it to 146 s and nothing moves before a1's 127 s:
+# the clock jumps to 116 s, and c-002 renews a2 again before 140 s
+run 31 35; run 116 140
 moved="$(field a1 '.rounds[1][0] // 0')"
 (( moved - T0 - 7 > 120 && moved - T0 - 7 <= 125 )) || fail "3 FR-001: a1 new round at $((moved - T0))"
 [[ "$(field a2 '.claim_n')" == 1 && "$(field a2 .responsible)" == c-002@sat && "$(field a2 .state)" == owned ]] &&
@@ -415,7 +466,10 @@ done
 park_setup 300 c-150
 mode sat c-001 "idle:$((T0 + 17))"; mode sat c-002 "idle:$((T0 + 17))"
 # the holders' own renew settles their rows first: a lock that ran out would show here as free
-run 18 310
+# each renew holds a parked lock to now + 120 s: ticks 100 s apart keep it
+# (a renew that did not would free it within the next window), so the clock
+# jumps between 10 s windows
+for w in 18 120 220 300; do run "$w" $((w + 10)); done
 ok=0
 for i in 1 2 3 4 5; do [[ "$(field "p$i" '.state + .responsible')" == parked"$(field "p$i" '.claims[0][1]')" && "$(field "p$i" .claim_n)" == 1 ]] && ok=$((ok + 1)); done
 (( ok == 5 )) && pass "5 FR-006 control: n=5 parked jobs of able idle holders (no progress for 290 s) stayed parked for the whole 300 s park" ||
@@ -518,7 +572,7 @@ grep -q 'FENCE unconfirmed b1' "$T/sat/peer/peer.log" && grep -q 'FENCE lost b1'
 fresh
 cat > "$T/bin/run" <<EOF
 #!/usr/bin/env bash
-export LEASE_PROC_ROOT="$T/sat/proc" LEASE_PANE_CMD="$T/bin/pane" PEER_HUB_CMD="$T/bin/hub" \
+export LEASE_PROC_ROOT="$T/sat/proc" LEASE_PANE_CMD="$PANE" PEER_HUB_CMD="$T/bin/hub" \
   PEER_POKE_CMD="$T/bin/poke" HUB_DIR="$T/hub" LEASE_NOW="$T0" SPOOL_ROOT="$T/sat" PEER_POLL_SEC=1
 do_log() { :; }
 source "$PROJ_ROOT/src/bash/run/spl-peer-poll.func.sh"
@@ -544,7 +598,7 @@ NOW=0 hubc post g1
 run 0 3 2>/dev/null
 [[ "$(field g1 .responsible)" == g-004@sat ]] && pass "10 grok seat: found by its harness's process, offered the round, it accepts" || fail "10 grok seat: g1 is '$(field g1 .responsible)'"
 kill_agent sat g-003; agent sat 999 g-003 claude-other
-( export SPOOL_ROOT="$T/sat" PEER_BOX=sat LEASE_PROC_ROOT="$T/sat/proc" LEASE_PANE_CMD="$T/bin/pane"; spl_peer_init; export PEER_HARNESS=grok; [[ -z "$(spl_peer_able g-003)" ]] ) &&
+( export SPOOL_ROOT="$T/sat" PEER_BOX=sat LEASE_PROC_ROOT="$T/sat/proc" LEASE_PANE_CMD="$PANE"; spl_peer_init; export PEER_HARNESS=grok; [[ -z "$(spl_peer_able g-003)" ]] ) &&
   pass "10 grok seat: an unrelated process carrying the id does not count" || fail "10 grok seat: counted a foreign process"
 
 # ---- 11. spec 110: the mistral letter ----------------------------------------------

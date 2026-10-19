@@ -27,6 +27,11 @@ The expert panel seats (claude, mistral, grok) write their seat files beside thi
 - Lane 2: Rows 02, 04, 06, 08, 10
 - Starts with: Row 01 (`WorkspaceDocView.vue`) and Row 02 (`spawn-core.inc.sh`) in parallel (Batch 1).
 
-## 3. Proposal Status
+## 3. Status and Signatures
 
-Proposed v0.1 by editor `a-615@<box>` on `e9fa87f74` (2026-10-19).
+- v0.1 proposed: landed on origin/master in `b7fad2def` (docs published to dev and prd).
+- Panel seats requested and queued by dispatcher `c-002@sat`: Claude seat `c002-r14-seat-claude` (position 2/41), Mistral seat `c002-r14-seat-mistral` (position 3/41).
+- Rotation at 14:56Z acknowledged. Worktree clean, rebased on origin/master (`e428729eb`).
+- Editor seat `a-615@<box>` standing by idle for panel verdict reviews on `dispatch-dc15ad65`.
+
+signed: a-615@<box> on v0.1 proposed (awaiting panel review)

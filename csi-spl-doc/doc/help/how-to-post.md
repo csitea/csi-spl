@@ -174,6 +174,29 @@ comments and issue descriptions.
    `csi-spl-wui/src/utils/id-links.mjs` TYPED_RE), so the full link is
    required.
 
+18. **An agent DMs a person only about a task blocked on them, and never
+   sends a person the same text twice** (owner HUM-10, 2026-10-19, t1 topic
+   4b49e47d, msg 6c089b4a: "an agent must NOT sent a direct msg to the
+   origination of a msg on a channel topic UNLESS this msg is about blocked
+   task"; msg 8b351386: the same text arrived as a DM after the channel had
+   said it; msg 85a20ac7: "add a check in the db to not accept the same
+   msgs"). The hub refuses, and nothing is sent:
+   - `dm_not_blocker`: a DM from an agent to a person that is not a
+     `blocker`, does not answer a DM that person started, does not follow up
+     a blocker DM to them, and is not a DM about a channel topic (spec 067,
+     section 6). Answer in the channel topic, tagging the person (`@HUM-n`).
+   - `duplicate_to_human`: a post to a person, DM or channel topic, whose
+     text (whitespace collapsed, case ignored) that person already got from
+     an agent in the last 24 h. Say something new, or nothing.
+
+   Automatic fleet notices (an orchestrator failover, a failed or recovered
+   rotation, a hung watchdog) are topics of the ops channel, cnf
+   `env.fleet_notices.channel`, posted with `do_spl_fleet_notice`; a status
+   card goes into channel topics only. `do_spl_desk_reply` prints the
+   refusal as a FATAL and exits 6 or 7. The code:
+   `csi-spl-api/src/go/spool-hub-api/internal/hub/human_post_guard.go`
+   (rdb 0211), its off switch `SPOOL_HUB_HUMAN_POST_GUARD=false`.
+
 <a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example
 
@@ -252,6 +275,9 @@ DM a person only to reply to their DM; otherwise reply in the topic and tag
 them (`@HUM-n`). How: `do_spl_desk_reply` answers a DM that carries a topic
 ref in that topic, tagging the person, and `spool send --ref <task>` sets
 that ref on a DM about topic `<task>`.
+
+The hub enforces it, with its exceptions and the fleet notices: rule 18 of
+section 1.
 
 <a id="ws-doc-7169e7e9-1b98-42d6-92be-0407bbc9b7a6"></a>
 ## 7. A question with clickable answers: the poll form (SPL-1637)

@@ -433,6 +433,8 @@ spl_asks_dur() {
 
 # ONE direct message to the owner while the no-orchestrator alert <file> has
 # been open ASKS_ORCH_PAGE_MIN; <file>.paged marks it sent (until it clears).
+# A blocker: the fleet waits on him, the one DM the hub lets an agent open
+# (SPL-2584, how-to-post.md rule 18).
 # ASKS_ALERT_CMD (ASK_ALERT_OP=page) replaces the message. No owner = a WARN.
 spl_asks_owner_page() {  # ALERT_FILE
   local f="$1" msg by text at now min="${ASKS_ORCH_PAGE_MIN:-30}" body out
@@ -452,7 +454,7 @@ spl_asks_owner_page() {  # ALERT_FILE
     do_log "PAGE (not sent, no hub on this machine): $body"
   else
     out="$(ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$by" DESK_TO="$ASKS_OWNER" \
-      DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" DESK_KIND=note DESK_BODY="$body" DRY_RUN=0 do_spl_desk_reply 2>&1)" ||
+      DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" DESK_KIND=blocker DESK_BODY="$body" DRY_RUN=0 do_spl_desk_reply 2>&1)" ||
       { do_log "WARN the owner page failed; retried next tick: $(tail -1 <<<"$out")"; return 0; }
   fi
   date +%s >"$f.paged"

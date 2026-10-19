@@ -60,6 +60,12 @@
 # @description question (DESK_KIND=blocker at least) keeps that link and cites
 # @description it whenever it refers to the question again (owner, t1 48d09034;
 # @description csi-spl-doc/doc/help/how-to-post.md rule 9). No secret is read.
+# @description The hub refuses two posts to a person (SPL-2584, how-to-post.md
+# @description rule 18), and nothing is sent: a DM that is not a blocker and
+# @description does not answer a DM that person started (exit 6, dm_not_blocker),
+# @description and a body that person already got from an agent in the last
+# @description 24 h, in a DM or a channel topic (exit 7, duplicate_to_human).
+# @description The FATAL names the rule and where the post belongs instead.
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -130,8 +136,8 @@ do_spl_desk_reply() {
   local ids=()
   spl_desk_attach_args "${files[@]}"
 
-  local sent route=dm sent_task="$ans_task"
-  _spl_desk_reply_send || return 1
+  local sent route=dm sent_task="$ans_task" src=0
+  _spl_desk_reply_send || { src=$?; (( src == 6 || src == 7 )) && return "$src"; return 1; }
   local summary link
   summary="$(SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" SPL_LINK_BASE="$(_spl_desk_reply_link_base "$tenant")" \
     _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head")"
@@ -193,14 +199,47 @@ _spl_desk_reply_choose() {
 # _spl_desk_reply_send: send the answer into the caller's sent / route /
 # sent_task (do_spl_desk_reply's locals). Spec 067 rule 2: a DM about topic T
 # (ans_ref) is answered IN T tagging the human; edge 2 falls back to the DM
-# with --ref T. 1 with the FATAL when the send fails.
+# with --ref T. 1 with the FATAL when the send fails; 6 / 7 when the hub's
+# human post guard refused it (_spl_desk_reply_refusal).
 _spl_desk_reply_send() {
-  local rc=0 ref_args=()
+  local rc=0 errf g
+  errf="$(mktemp "${TMPDIR:-/tmp}/spl-desk-send.XXXXXX")" || { do_log "FATAL could not make a temp file for the send's errors"; return 1; }
+  _spl_desk_reply_send_to "$errf"; rc=$?
+  cat "$errf" >&2
+  if (( rc != 0 )); then
+    _spl_desk_reply_refusal "$(cat "$errf")"; g=$?
+    (( g != 0 )) && rc=$g
+  fi
+  rm -f "$errf"
+  return "$rc"
+}
+
+# _spl_desk_reply_refusal <send stderr>: the hub's human post guard (SPL-2584)
+# as a FATAL naming the rule and the place the post belongs: 6 for
+# dm_not_blocker, 7 for duplicate_to_human, 0 for any other error.
+_spl_desk_reply_refusal() {
+  local ops=""
+  [[ -r "${SPL_CNF:-}" ]] && ops="$(yq -r '.env.fleet_notices.channel // ""' "$SPL_CNF" 2>/dev/null)"
+  if [[ "$1" == *dm_not_blocker* ]]; then
+    do_log "FATAL nothing was sent: a DM to $ans_to must be a blocker (DESK_KIND=blocker) or answer a DM $ans_to started (how-to-post.md rule 18, owner t1 4b49e47d). Post it in the channel topic it belongs to (DESK_TASK=<that topic>), or as a new topic: do_spl_desk_post DESK_CHANNEL=<channel>${ops:+; a fleet notice: do_spl_fleet_notice (#$ops)}"
+    return 6
+  elif [[ "$1" == *duplicate_to_human* ]]; then
+    do_log "FATAL nothing was sent: $ans_to already got this text from an agent in the last 24 h (how-to-post.md rule 18, owner t1 4b49e47d msg 85a20ac7). Say something new, or nothing"
+    return 7
+  fi
+  return 0
+}
+
+# _spl_desk_reply_send_to <stderr file>: the sends of _spl_desk_reply_send,
+# their stderr into the file. A guard refusal in the topic is final: the DM
+# fallback (edge 2) would only be refused again, or reach the person as a DM.
+_spl_desk_reply_send_to() {
+  local errf="$1" rc=0 ref_args=()
   if [[ -z "$ans_ref" && "$ans_to" == HUM-* ]] && _spl_desk_reply_is_welcome "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task"; then
     ans_ref="$ans_task" route=welcome-dm
     sent_task="$(_spl_desk_reply_welcome_task "$tenant" "$ans_task" "$ans_to")" || { do_log "FATAL no DM topic id for $ans_to"; return 1; }
     sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-      --task "$sent_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" --ref "$ans_ref")" || rc=$?
+      --task "$sent_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" --ref "$ans_ref" 2>>"$errf")" || rc=$?
     (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in the DM about welcome topic $ans_ref: $sent"; return 1; }
     do_log "INFO $ans_task is a #lobby welcome topic: $agent answers $ans_to in DM $sent_task, not in front of every member (SPL-2553)"
     return 0
@@ -208,9 +247,11 @@ _spl_desk_reply_send() {
   if [[ -n "$ans_ref" ]]; then
     if _spl_desk_reply_can_read "$d" "$box" "$tenant" "$hub" "$ans_ref"; then
       sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-        --task "$ans_ref" --to-box box-wui --kind "$kind" --body "$(_spl_desk_reply_tag "$ans_to" "$body")" "${ids[@]}")" || rc=$?
+        --task "$ans_ref" --to-box box-wui --kind "$kind" --body "$(_spl_desk_reply_tag "$ans_to" "$body")" "${ids[@]}" 2>>"$errf")" || rc=$?
       if (( rc == 0 )); then
         route=topic; sent_task="$ans_ref"
+      elif grep -q 'duplicate_to_human' "$errf"; then
+        return 1
       else
         do_log "WARN could not post in topic $ans_ref ($sent): answering $ans_to in the DM instead (spec 067 edge 2)"
         route=dm-fallback; rc=0
@@ -223,7 +264,7 @@ _spl_desk_reply_send() {
   if [[ "$route" != topic ]]; then
     [[ "$route" == dm-fallback ]] && ref_args=(--ref "$ans_ref")
     sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-      --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}")" || rc=$?
+      --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}" 2>>"$errf")" || rc=$?
   fi
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
 }

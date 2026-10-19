@@ -103,7 +103,7 @@ echo "$2 PEER_SEAT=${PEER_SEAT:-} ASK_KIND=${ASK_KIND:-} DESK_TO=${DESK_TO:-}" >
 case "$2" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
-  do_spl_ask_put|do_spl_desk_reply|do_spl_peer_poll) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice|do_spl_peer_poll) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -251,7 +251,7 @@ LEASE_NOW="$(at 15)" DRY_RUN=0 "$T/bin/act" do_spl_peer_restart > "$T/o" 2>&1; r
   grep -q 'SPAWN FAIL no claude session carrying c-002 started in %3002 within 3s; the old session (pid 102) keeps the seat' "$T/o" &&
   pass "4. a fresh session that does not start: the old pid 102 keeps the seat and its window name, the new window is closed" ||
   fail "4. failed start rc=$rc win=$(win %2)/$(win %3002): $(cat "$T/o")"
-grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" &&
   pass "4. alerted: an ask and an owner DM" || fail "4. alert: $(cat "$T/run.log")"
 waitfor "$T/run.log" '^do_spl_peer_poll PEER_SEAT=c-002 ' && pass "4. the old session's poll loop is started again" || fail "4. no loop: $(cat "$T/run.log")"
 grep -q "adopt c-002 102" "$T/ai.log" 2>/dev/null && pass "4. the identity map points at the old pid again" || fail "4. map: $(cat "$T/ai.log" 2>/dev/null)"

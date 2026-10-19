@@ -1242,9 +1242,8 @@ spl_rotate_ack_send() {
 # ---- ALERT (FR-075) ----------------------------------------------------------------
 
 # spl_rotate_alert ROLE RID PHASE REASON [STATE]: an ask in the ask book (kind
-# blocker, topic <family>-rotate-<rid>) and, at once, a DM to the owner
-# (ASKS_OWNER_CMD, else ASKS_OWNER from lease.conf through do_spl_desk_reply).
-# No owner setting: one WARN, the ask alone. Best effort, logged. The ask is
+# blocker, topic <family>-rotate-<rid>) and, at once, a notice in the fleet's
+# ops channel (spl_rotate_owner_say). No hub setting: one WARN, the ask alone. Best effort, logged. The ask is
 # also recorded in <spool root>/<id>/lifetime/alerts.open ("<ask> <rid>
 # <phase>"), so the seat's next healthy start can say it recovered
 # (spl_rotate_recovered).
@@ -1265,24 +1264,25 @@ spl_rotate_alert() {
   return 0
 }
 
-# spl_rotate_owner_say RID ID ASK BODY KIND [PHASE]: the owner leg of an
-# alert, the DM threaded on ASK. Logged under PHASE (ALERT); no owner
-# setting: one WARN.
+# spl_rotate_owner_say RID ID ASK BODY KIND [PHASE]: the people leg of an
+# alert: a new topic in the fleet's ops channel (do_spl_fleet_notice, cnf
+# env.fleet_notices.channel), never a DM to the owner (SPL-2584, t1 4b49e47d;
+# how-to-post.md rule 18). ASKS_OWNER_CMD replaces it (tests). Logged under
+# PHASE (ALERT); no LEASE_ENV / LEASE_TENANT: one WARN.
 spl_rotate_owner_say() {
-  local rid="$1" id="$2" ask="$3" body="$4" kind="$5" ph="${6:-ALERT}" owner
-  owner="${ASKS_OWNER:-$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | tail -1)}"
+  local rid="$1" id="$2" ask="$3" body="$4" kind="$5" ph="${6:-ALERT}"
   if [[ -n "${ASKS_OWNER_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     if ASK_JSON="{\"ask_id\":\"$ask\"}" $ASKS_OWNER_CMD <<<"$body" >/dev/null 2>&1 7>&- 8>&- 9>&-; then
       spl_rotate_log "$rid" "$ph" OK "owner told (ASKS_OWNER_CMD)"
     else spl_rotate_log "$rid" "$ph" FAIL "ASKS_OWNER_CMD failed"; fi
-  elif [[ "$owner" =~ ^HUM-[0-9]+$ && -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]]; then
-    if env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_AGENT="$id" DESK_TO="$owner" DESK_TASK="$ask" DESK_KIND="$kind" \
-        DESK_BODY="$body" DRY_RUN=0 timeout 120 "$ROTATE_RUN" -a do_spl_desk_reply >/dev/null 2>&1 7>&- 8>&- 9>&-; then
-      spl_rotate_log "$rid" "$ph" OK "DM to $owner"
-    else spl_rotate_log "$rid" "$ph" FAIL "the DM to $owner failed"; fi
+  elif [[ -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]]; then
+    if env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_AGENT="$id" DESK_KIND="$kind" \
+        DESK_BODY="$body" DRY_RUN=0 timeout 120 "$ROTATE_RUN" -a do_spl_fleet_notice >/dev/null 2>&1 7>&- 8>&- 9>&-; then
+      spl_rotate_log "$rid" "$ph" OK "ops channel notice (ask ${ask:0:8})"
+    else spl_rotate_log "$rid" "$ph" FAIL "the ops channel notice failed"; fi
   else
-    spl_rotate_log "$rid" "$ph" WARN "no owner leg (ASKS_OWNER_CMD, or ASKS_OWNER + LEASE_ENV + LEASE_TENANT in $LEASE_CONF): the ask alone"
+    spl_rotate_log "$rid" "$ph" WARN "no ops notice (ASKS_OWNER_CMD, or LEASE_ENV + LEASE_TENANT in $LEASE_CONF): the ask alone"
   fi
   return 0
 }

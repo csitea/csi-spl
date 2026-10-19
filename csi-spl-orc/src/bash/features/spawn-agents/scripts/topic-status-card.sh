@@ -20,6 +20,8 @@
 #      of spl_asks_alert_clear in spl-asks-tick.func.sh): no new message row,
 #      the old text kept as a revision. An unchanged card calls the hub not
 #      at all.
+# A DM topic gets no card (SPL-2584): the hub refuses the post (the desk
+# reply's exit 6) and <topic>.dm keeps the topic skipped from then on.
 # State: <CARD_STATE_DIR>/<topic>.card = msg id, author, sha256 of the card
 # without its "as of" line (time alone never edits it); landed.tsv caches
 # "<key>\t<sha>" once a key landed, served.tsv "<sha>\t<env>" once that env
@@ -186,14 +188,15 @@ card_rows() {
     | sort_by(.key | ltrimstr("SPL-") | tonumber? // 0)' <<<"$1"
 }
 
-# card_post TOPIC BODY_FILE -> the new message id.
+# card_post TOPIC BODY_FILE -> the new message id; the desk reply's exit code
+# on a failure (6: the hub refused it as a DM, SPL-2584).
 card_post() {
   local out
-  if [ -n "${CARD_POST_CMD:-}" ]; then out="$(DESK_AGENT="$CARD_AUTHOR" $CARD_POST_CMD "$1" "$2")" || return 1
+  if [ -n "${CARD_POST_CMD:-}" ]; then out="$(DESK_AGENT="$CARD_AUTHOR" $CARD_POST_CMD "$1" "$2")" || return $?
   else
     # shellcheck disable=SC2046 # the desk triple, split on purpose
     out="$(_card_run $(_card_desk) "DESK_AGENT=$CARD_AUTHOR" "DESK_TASK=$1" DESK_KIND=note \
-      "DESK_TO=$(_card_conf ASKS_OWNER)" "DESK_BODY_FILE=$2" DRY_RUN=0 do_spl_desk_reply)" || return 1
+      "DESK_TO=$(_card_conf ASKS_OWNER)" "DESK_BODY_FILE=$2" DRY_RUN=0 do_spl_desk_reply)" || return $?
   fi
   grep '^{' <<<"$out" | tail -1 | jq -r '.msg_id // .send.msg_id // empty' 2>/dev/null
 }
@@ -206,10 +209,16 @@ card_edit() {
 }
 
 # _card_post_new TOPIC BODY_FILE HASH VERB: post a new card as CARD_AUTHOR
-# and record it.
+# and record it. A topic the hub refuses the card in as a DM (exit 6,
+# dm_not_blocker: a card is no blocker, SPL-2584) gets <topic>.dm and no card
+# from then on: a status card goes into channel topics only.
 _card_post_new() {
-  local msg
-  msg="$(card_post "$1" "$2")" || msg=""
+  local msg rc=0
+  msg="$(card_post "$1" "$2")" || { rc=$?; msg=""; }
+  if [ "$rc" = 6 ]; then
+    : >"$CARD_DIR/$1.dm"
+    say "INFO card ${1:0:8} is a DM topic: no status card there (how-to-post.md rule 18)"; return 0
+  fi
   [[ "$msg" =~ $CARD_UUID ]] || { say "WARN card ${1:0:8} did not post; retried next tick"; return 1; }
   printf '%s\n%s\n%s\n' "$msg" "$CARD_AUTHOR" "$3" >"$CARD_DIR/$1.card"
   say "OK card ${1:0:8} $4 as $msg"
@@ -274,6 +283,7 @@ card_main() {
   card_sources || return 1
   for topic in $(jq -r '[.[].topic] | unique | .[]' <<<"$CARD_ROWS"); do
     [[ "$topic" =~ $CARD_UUID ]] || continue
+    [ -e "$CARD_DIR/$topic.dm" ] && continue
     body="$CARD_DIR/.body.$topic.$$"
     card_body "$topic" >"$body"
     if [ "$mode" = --print ]; then printf '## %s\n' "$topic"; cat "$body"; echo

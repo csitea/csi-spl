@@ -134,6 +134,10 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 case "$(readlink -f "$T")" in /var/spool-hub|/var/spool-hub/*) echo "FAIL: refusing to run inside the live spool root ($T)"; exit 1 ;; esac
 mkdir -p "$T/bin" "$T/hub" "$T/pc/proc" "$T/sat/proc"
+# LEASE_ASKS_RUN: the ./run the lease starts its background actions with; this
+# one only records "<args> | DESK_TO=.. DESK_KIND=.. | <body>" (SPL-2584)
+printf '#!/bin/sh\nprintf "%%s | DESK_TO=%%s DESK_KIND=%%s | %%s\\n" "$*" "${DESK_TO:-}" "${DESK_KIND:-}" "${DESK_BODY:-}" >>"%s/asksrun.log"\n' "$T" >"$T/bin/asksrun"
+chmod +x "$T/bin/asksrun"
 
 cat >"$T/bin/send" <<'STUB'
 #!/bin/sh
@@ -180,7 +184,7 @@ tick() {
   local ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
   [[ "$m" == sat ]] && ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
-    SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
+    SENT="$T/$m/sent" LEASE_ASKS_RUN="$T/bin/asksrun" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
     LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" LEASE_LIMIT_TZ=Etc/GMT-3 LEASE_HOLDDOWN=0 "${ids[@]}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -427,8 +431,8 @@ tick sat 31391 "${T15[@]}"
 tick sat 31392 "${T15[@]}"; tick sat 31450 "${T15[@]}"
 [[ "$(hubh orch)" == CLE-001@sat && "$(hubh dispatch)" == CLE-002@pc && "$(sentc sat 'CLE-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 ]] &&
   pass "15. 181 s later the satellite's orchestrator takes orch over; dispatch stays on pc" || fail "15. takeover: hub $(hubh orch)/$(hubh dispatch): $(cat "$T/sat/spool/dispatch/lease.log")"
-[[ "$(dms)" == 1 && "$(grep -c 'CLE-001@sat took over from CLE-001@pc, silent 181s' "$T/owner-dm")" == 1 && "$(logc sat 'OWNER-DM orch take-over')" == 1 ]] &&
-  pass "15. the owner gets ONE DM for the take-over" || fail "15. dm: $(cat "$T/owner-dm" 2>&1)"
+[[ "$(dms)" == 1 && "$(grep -c 'CLE-001@sat took over from CLE-001@pc, silent 181s' "$T/owner-dm")" == 1 && "$(logc sat 'OPS-NOTICE orch take-over')" == 1 ]] &&
+  pass "15. ONE ops notice for the take-over" || fail "15. dm: $(cat "$T/owner-dm" 2>&1)"
 tick pc 31460 "${T15[@]}"
 [[ "$(hubh orch)" == CLE-001@sat && "$(mirror pc orch)" == CLE-001@sat ]] &&
   pass "15. still stuck: pc does not take it back on priority" || fail "15. stuck handback: hub $(hubh orch)"
@@ -444,12 +448,17 @@ tick pc 31570 "${T15[@]}"; tick sat 31690 "${T15[@]}"
 tick sat 31691 "${T15[@]}"
 [[ "$(hubh orch)" == CLE-001@sat && "$(dms)" == 2 ]] &&
   pass "15. dead holder: the satellite takes over at 181 s, one DM" || fail "15. dead: hub $(hubh orch) dms $(dms)"
-# no owner leg: the take-over is logged with a WARN, nothing sent
-rm -rf "$T/hub"/*; agent pc 100 CLE-001; echo 31700 >"$T/act/100"
+# the real leg (no LEASE_OWNER_CMD): the notice is do_spl_fleet_notice, a post
+# into the ops channel, never a DM to the owner (SPL-2584, t1 4b49e47d; red on
+# the old code, which ran do_spl_desk_reply with DESK_TO=<owner>)
+rm -rf "$T/hub"/*; rm -f "$T/asksrun.log"; agent pc 100 CLE-001; echo 31700 >"$T/act/100"
 tick pc 31700 LEASE_ACTIVITY_CMD="$T/bin/act"; kill_agent pc 100
-tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER= ASKS_OWNER=
-[[ "$(hubh orch)" == CLE-001@sat && "$(logc sat 'WARN orch take-over by CLE-001@sat: no owner to tell')" == 1 && "$(dms)" == 2 ]] &&
-  pass "15. no owner configured: one WARN, nothing sent" || fail "15. no owner: $(tail -3 "$T/sat/spool/dispatch/lease.log")"
+tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER=HUM-10 ASKS_OWNER=HUM-10
+for _ in $(seq 1 50); do grep -q failover "$T/asksrun.log" 2>/dev/null && break; sleep 0.1; done
+[[ "$(hubh orch)" == CLE-001@sat && "$(grep -c '^-a do_spl_fleet_notice | DESK_TO= DESK_KIND=note | Orchestrator failover: CLE-001@sat took over' "$T/asksrun.log" 2>/dev/null)" == 1 &&
+   "$(grep -c 'DESK_TO=HUM' "$T/asksrun.log" 2>/dev/null)" == 0 && "$(dms)" == 2 ]] &&
+  pass "15. the take-over notice goes to the ops channel (do_spl_fleet_notice), no DM to the owner" ||
+  fail "15. ops notice: $(cat "$T/asksrun.log" 2>&1) $(tail -3 "$T/sat/spool/dispatch/lease.log")"
 
 # --- 16. the lease in every served tenant ------------------------------------------------
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"

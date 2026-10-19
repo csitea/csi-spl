@@ -91,6 +91,11 @@ type Options struct {
 	// the browser sockets this process holds (store.WUIWaker). false = off,
 	// so a rig with two servers on one store sees each line once per socket.
 	WakeWUI bool
+	// HumanPostGuard (SPL-2584, human_post_guard.go): refuse a box send to a
+	// person that is a non-blocker DM the person did not start, or a body
+	// that person already got from an agent in the last 24 h. false = off
+	// (the zero value: test rigs post agent DMs as fixtures).
+	HumanPostGuard bool
 	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
 	// in its topic within this grace is escalated to the tenant's responder by
 	// the relay sweep, whatever the (stale) roster says about who is online.

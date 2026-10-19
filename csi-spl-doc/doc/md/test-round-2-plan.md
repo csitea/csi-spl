@@ -7,11 +7,11 @@ Owner HUM-10, t1 topic `4555450c-09da-4dda-9b16-735409b0ac6e`:
 Rounds need no owner go (rulebook 1.4: consensus between panel seats, then implementation, no questions to the owner).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (R1-R16), by pointer, not copied. Issue: SPL-2402 (lane SPL-2554).
 
-**Status: v0.1, PROPOSED**. Submitted to expert panel for cross-vendor review.
+**Status: v1.0, CONSENSUS REACHED**. Panel feedback folded from Claude seat `c-487@sat` (`cefa6c737`) and Mistral reviewer seat `m-639@PC` (`e428729eb`).
 
 Editor: **a-481@sat** (agy).
 
-**One sha:** baseline counts measured on **`59ffb5dd3`** (`origin/master`, 2026-10-19 13:22Z, CI run 39259601111 success). CI per-file wall times and CPU times are taken from completed master run 39259601111 (`--- slowest 10 test files (wall s, cpu s)` across orc hermetic shards 1/3, 2/3, 3/3) and `do_report_ci_gate` across the last 100 master runs (40 success, 32 cancelled, 27 failure, 1 running).
+**One sha:** baseline counts measured on **`59ffb5dd3`** (`origin/master`, 2026-10-19 13:22Z, CI run 39259601111 success) and re-verified on `b7fad2def`, `cefa6c737`, and `e428729eb`. CI per-file wall times and CPU times are taken from completed master run 39259601111 (`--- slowest 10 test files (wall s, cpu s)` across orc hermetic shards 1/3, 2/3, 3/3), solo timings on sat (n=3), and `do_report_ci_gate` across the last 100 master runs.
 
 ---
 
@@ -29,10 +29,10 @@ The repository contains **3,430+ test files executing across 4 main modules**. F
 | **IAC** (`csi-spl-iac/`) | 151 `.tst.sh` test files | ~480 assertions | 158 s (~2.6 min) | **2.6%** (98 of 3,750 job-min) | 14,400 LOC (bash/hcl) | 0 failure runs in last 100 | **Fast runtime; but 7 destructive actions have zero tests**, including destructive Terraform state/target mutations (`tf-destroy-target`, `tf-destroy-local-step-bucket`, `tf-remove-step`, `tf-replace-target`, `tf-state-push`) and destructive GCP API disables (`gcp-modify-project-apis-disable`, `gcp-project-apis-disable`). |
 
 ### Summary Verdict
-1. **WUI:** **Too little real unit testing, too much heavy/flaky E2E.** Flaky E2E races (e.g. `message-order.test.mjs` failing 10 times in CI shard 6/8) cause repeated pipeline re-runs, while core composables and utilities have zero behavioral tests.
-2. **ORC:** **Second-tier tests suffer large idle sleep waits (`peer-poll` 361 s at ~54% idle, `desk-up-all` 165 s at ~72% idle, `desk-welcome` 96 s at ~76% idle, `desk-pin` 98 s at ~70% idle).**
-3. **API:** **Well balanced**, but needs unit tests and floor ratchet for `internal/auth/fakeidp` (3.5% coverage).
-4. **IAC:** **Critical safety gap**: 7 destructive Terraform state and GCP API disable actions lack hermetic tests and dry-run assertions.
+1. **ORC:** **Runner contention and second-tier slow tests.** The CI runner has `nproc=4` but hardcodes `njobs=6`, causing severe runner CPU contention where identical tests run 4× slower in packed shards (165 s vs 42 s). `peer-poll` (solo 174 s wall, 197 s CPU) and `spool-install` (solo 62 s CPU) dominate execution time. 28 bash actions across orc (15) and iac (13) have zero tests.
+2. **IAC:** **Critical safety gap:** Destructive Terraform state and target mutations (`tf-destroy-target`, `tf-destroy-local-step-bucket`, `tf-remove-step`, `tf-replace-target`, `tf-state-push`) lack hermetic tests and `DRY_RUN` default 1 guards.
+3. **API:** **Cross-package coverage floor reporting gap:** `run-all-tests.sh` runs `go test -cover` per package without `-coverpkg`, failing to credit cross-package test execution (e.g. `internal/auth/fakeidp` showing 3.5% despite being 89.1% exercised by `internal/auth` flow tests).
+4. **WUI:** **E2E Flake A6 resolved:** `tests/e2e/message-order.test.mjs` case A6 was a regression from `dedf3e9bb` fixed on master by `59ffb5dd3` (SPL-2506), with 0 failures in subsequent master runs. Drop from round per panel consensus.
 
 ---
 
@@ -49,7 +49,7 @@ Derived from `CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` 
 | 5 | `orc: hermetic 2/3` (`OA-11` / `OA-13`) | ORC | 2 runs | **Real Fault** | `FAIL: OA-11 after the respawn: copies off: M-1=2` / `FAIL: OA-13 --max 5` (runs 39177816216, 39214423686; fixed). |
 | 6 | `orc: hermetic 3/3` (`maintenance.lock`) | ORC | 1 run | **Real Fault** | `FAIL: 1. rc=0 changed: gone ... maintenance.lock PLAN posts-dir mkdir -p + chmod 2777` (run 39218763702; fixed). |
 
-**Flake vs. Real Fault:** The dominant persistent test flake across master in recent runs is `tests/e2e/message-order.test.mjs` case A6 (10 failures in shard 6/8).
+**Flake vs. Real Fault:** `tests/e2e/message-order.test.mjs` case A6 failed 10 times in shard 6/8 across master runs between `dedf3e9bb` and `59ffb5dd3`. Re-measurement by both Claude and Mistral seats confirmed that `59ffb5dd3` (SPL-2506) completely fixed the root cause (0 failures in completed runs since). Per unanimous panel consensus, this row is resolved and excluded from Round 2.
 
 ---
 
@@ -143,18 +143,18 @@ Every item below was measured on `59ffb5dd3` (`origin/master`, 2026-10-19):
 
 | # | slug | practice | why | sites file:line (max 5) | number now (command) | target | red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 01 | `test(r02-01-orc-speed-peer-poll)` | mock clock / event-driven polling | `peer-poll.tst.sh` takes 361.5 s CI wall (~54% idle, 166.7 s CPU) simulating 8 OD loops on 2 boxes | `orc:src/bash/tests/peer-poll.tst.sh:1-250` | 361.5 s CI wall (CI run 39259601111 job 3/3; 518 s in `orc-shard-weights.txt`) | < 150 s CI wall | Injected peer poll timeout trips assertion under < 150 s | sat | claude | tests | **1 (Lane 1)** |
-| 02 | `test(r02-02-iac-dry-run-tf-destroy)` | hermetic dry-run tests for destructive Terraform actions | `tf-destroy-target` and `tf-destroy-local-step-bucket` are destructive actions with 0 tests | `iac:src/bash/tests/tf-destroy-target.tst.sh` (new)<br>`iac:src/bash/tests/tf-destroy-local-step-bucket.tst.sh` (new) | 0 tests for both actions (`grep -rlqw tf-destroy-target csi-spl-iac/src/bash/tests \|\| echo 0`) | 2 hermetic tests asserting dry-run default, stubbed terraform/gcloud, required flags, refusal on missing ENV | Inverting DRY_RUN guard or omitting target flag trips failure | sat | claude | tests | **1 (Lane 2)** |
-| 03 | `test(r02-03-wui-unit-msg-apply)` | behavioral unit tests for core message mutation utility | `msg-apply.mjs` has 0 tests (`git grep -l "msg-apply" csi-spl-wui/tests/` -> 0) | `wui:tests/unit/msg-apply.test.mjs` (new)<br>`wui:src/utils/msg-apply.mjs:1-150` | 0 tests for `msg-apply.mjs` | 1 unit test suite covering message insertion, deduplication, updates, and sorting | Mutating message apply sort order or dropping id match trips test failure | sat | claude | tests | **1 (Lane 3)** |
-| 04 | `test(r02-04-go-coverage-fakeidp)` | unit test suite and coverage floor ratchet | `internal/auth/fakeidp` has only 3.5% statement coverage and floor 3.5 (`fakeidp_test.go` missing) | `api:src/go/spool-hub-api/internal/auth/fakeidp/fakeidp_test.go` (new)<br>`api:src/bash/tests/go-coverage-floor.txt:18` | 3.5% statement coverage, floor 3.5 (`go test -cover ./internal/auth/fakeidp`) | > 70.0% coverage, ratchet floor in `go-coverage-floor.txt` to 70.0 | Removing fake token handler in `fakeidp_test.go` drops coverage under floor and trips `run-all-tests.sh --coverage-floor` | sat | claude | tests | **1 (Lane 4)** |
-| 05 | `test(r02-05-orc-speed-desk-up-all)` | process readiness polling / eliminate fixed sleep | `desk-up-all.tst.sh` takes 165.0 s CI wall (~72% idle, 46.9 s CPU) in fixed sleep loops (lines 340, 408-410, 468) | `orc:src/bash/tests/desk-up-all.tst.sh:1-200` | 165.0 s CI wall (CI run 39259601111 job 3/3; cpu 46.9 s) | < 60 s CI wall | Process termination failure trips assertion within < 60 s | sat | claude | tests | **2 (Lane 1, after 01)** |
-| 06 | `test(r02-06-iac-dry-run-tf-state-target)` | hermetic dry-run tests for state and step removal actions | `tf-remove-step`, `tf-replace-target`, and `tf-state-push` have 0 tests | `iac:src/bash/tests/tf-remove-step.tst.sh` (new)<br>`iac:src/bash/tests/tf-replace-target.tst.sh` (new)<br>`iac:src/bash/tests/tf-state-push.tst.sh` (new) | 0 tests for all 3 actions | 3 hermetic tests asserting dry-run default, refusal on missing ENV/step, stubbed terraform state commands | Omitting state confirmation or bypassing dry-run guard trips failure | sat | claude | tests | **2 (Lane 2, after 02)** |
-| 07 | `test(r02-07-wui-unit-tenant-host-core)` | behavioral unit tests for tenant host resolution | `tenant-host-core.mjs` has 0 tests (`git grep -l "tenant-host-core" csi-spl-wui/tests/` -> 0) | `wui:tests/unit/tenant-host-core.test.mjs` (new)<br>`wui:src/utils/tenant-host-core.mjs:1-120` | 0 tests for `tenant-host-core.mjs` | 1 unit test suite covering tenant domain parsing, default fallbacks, custom domain resolution | Returning incorrect tenant fallback trips assertion failure | sat | claude | tests | **2 (Lane 3, after 03)** |
-| 08 | `test(r02-08-wui-flake-message-order)` | deterministic DOM state wait / eliminated race | `tests/e2e/message-order.test.mjs` failed 10 times in CI (last 100 runs, shard 6/8) on case A6 thread bottom-sitting race | `wui:tests/e2e/message-order.test.mjs:270-305` | 10 CI failures in last 100 runs (runs 39258854521, 39256952187, 39256267400, 39255036322, 39247318829) | 0 flakes across 20 consecutive runs (`node tests/e2e/message-order.test.mjs`) | Inverting sort order assertion breaks test | sat | claude | tests | **2 (Lane 4, after 04)** |
-| 09 | `test(r02-09-orc-speed-desk-welcome-pin)` | mock socket sleep loops / tight polling intervals | `desk-welcome.tst.sh` (95.7 s wall, ~76% idle) and `desk-pin.tst.sh` (98.2 s wall, ~70% idle) spend ~70-76% idle waiting on fixed sleep ticks | `orc:src/bash/tests/desk-welcome.tst.sh:1-150`<br>`orc:src/bash/tests/desk-pin.tst.sh:1-150` | 95.7 s and 98.2 s CI wall (CI run 39259601111 jobs 2/3 and 3/3) | < 40 s CI wall each | Broken pin or welcome status check trips immediate failure | sat | claude | tests | **3 (Lane 1, after 05)** |
-| 10 | `test(r02-10-iac-dry-run-gcp-apis-disable)` | hermetic dry-run tests for destructive GCP API disabling | `gcp-modify-project-apis-disable` and `gcp-project-apis-disable` have 0 tests, risking unintended API disabling | `iac:src/bash/tests/gcp-modify-project-apis-disable.tst.sh` (new)<br>`iac:src/bash/tests/gcp-project-apis-disable.tst.sh` (new) | 0 tests for both actions | 2 hermetic tests asserting dry-run default, gcloud stubbing, required service account, refusal on missing ENV | Missing `--account` or bypassing dry-run guard trips failure | sat | claude | tests | **3 (Lane 2, after 06)** |
-| 11 | `test(r02-11-wui-unit-composables)` | behavioral unit tests for untested core composables | `useBuildWatch.ts`, `useOpenMessage.ts`, and `useRoadmapGoals.ts` have 0 tests in `csi-spl-wui/tests/` | `wui:tests/unit/useBuildWatch.test.mjs` (new)<br>`wui:tests/unit/useOpenMessage.test.mjs` (new)<br>`wui:tests/unit/useRoadmapGoals.test.mjs` (new) | 0 tests for all 3 composables (`git grep -l "useBuildWatch\|useOpenMessage\|useRoadmapGoals" csi-spl-wui/tests/` -> 0) | 3 unit test suites covering reactivity, error handling, state updates | Inverting mock api responses in tests trips failure | sat | claude | tests | **3 (Lane 3, after 07)** |
-| 12 | `test(r02-12-orc-speed-spool-install)` | mock file-watcher / eliminate installer idle wait | `spool-install.tst.sh` takes 92.5 s CI wall (243 s packing weight) running multi-step installer loops | `orc:src/bash/tests/spool-install.tst.sh:1-250` | 92.5 s CI wall (CI run 39259601111 job 3/3; 243 s in `orc-shard-weights.txt`) | < 45 s CI wall | Installer verification failure trips test exit within cap | sat | claude | tests | **3 (Lane 4, after 08)** |
+| 01 | `test(r02-01-orc-speed-peer-poll)` | cut forks / loop optimization | `peer-poll.tst.sh` is slowest orc test (solo 168.6-174.1 s wall at 190-197 s cpu, n=3). Section 2/3 loops & hub stub forks dominate. | `orc:src/bash/tests/peer-poll.tst.sh:1-350` | solo 168.6-174.1 s wall, 190-197 s cpu (n=3, sat) | solo cpu < 100 s (n=3) | Injected peer poll timeout trips assertion under < 100 s | sat | claude | tests | **1 (Lane 1)** |
+| 02 | `test(r02-02-iac-dry-run-tf-destroy)` | hermetic dry-run tests + `DRY_RUN` default 1 for destructive Terraform actions | `tf-destroy-target` and `tf-destroy-local-step-bucket` have 0 tests and lack `DRY_RUN` guards | `iac:src/bash/run/tf-destroy-target.func.sh`<br>`iac:src/bash/run/tf-destroy-local-step-bucket.func.sh`<br>`iac:src/bash/tests/tf-destroy-target.tst.sh` (new)<br>`iac:src/bash/tests/tf-destroy-local-step-bucket.tst.sh` (new) | 0 tests for both actions; 0 `DRY_RUN` guards | 2 hermetic tests asserting dry-run default, stubbed `terraform` on PATH, stubbed `do_tf_init`, required flags, refusal on missing ENV | Inverting DRY_RUN guard or omitting target flag trips failure | sat | claude | tests | **1 (Lane 2)** |
+| 03 | `test(r02-03-orc-jobs-derivation-weights)` | right-size orc CI pool (`njobs` from `nproc`) & refresh weights | CI runner has `nproc=4` but hardcodes `njobs=6`, causing severe runner CPU contention (tests 4× slower in packed shards). Weights drifted (e.g. `spl-session-prune` 243 s vs 20 s actual). | `orc:src/bash/tests/run-all-tests.sh:80-95`<br>`orc:src/bash/tests/orc-shard-weights.txt`<br>`orc:src/bash/tests/orc-jobs-derivation.tst.sh` (new) | `njobs=6` hardcoded when `GITHUB_ACTIONS=true` on 4-core runner; drifted weights | `njobs` capped at `nproc`; `orc-shard-weights.txt` refreshed; hermetic unit test for `njobs` derivation | Hardcoding `njobs=99` trips cap test; stale weight comparison trips test | sat | claude | tests | **1 (Lane 3)** |
+| 04 | `test(r02-04-go-coverage-coverpkg)` | cross-package `-coverpkg` measurement & floor ratchets | `go test ./...` without `-coverpkg` fails to count cross-package usage (`fakeidp` sits at 3.5% floor despite 89.1% execution by `internal/auth` flow tests). | `api:src/bash/tests/run-all-tests.sh:100-120`<br>`api:src/bash/tests/go-coverage-floor.txt:23` | `fakeidp` sits at 3.5% floor without cross-package coverage; bare `-coverprofile` | `run-all-tests.sh` supports `-coverpkg=./...` or merged profile; ratchet fakeidp floor to 80.0 | Removing fake token handler drops coverage below floor and trips `run-all-tests.sh` | sat | claude | tests | **1 (Lane 4)** |
+| 05 | `test(r02-05-orc-agent-identity-reconcile)` | hermetic tests for agent identity reconcile & name resume | `spl-agent-identity-reconcile` and `spl-agent-name-resume` manage agent window titles and session state across tmux with 0 tests | `orc:src/bash/run/spl-agent-identity-reconcile.func.sh`<br>`orc:src/bash/run/spl-agent-name-resume.func.sh`<br>`orc:src/bash/tests/spl-agent-identity-reconcile.tst.sh` (new) | 0 tests for both agent identity actions | Hermetic test suite asserting dry-run PLAN output, compare-and-set pane id handling, tmux stubbing, refusal on bad DRY_RUN | Inverting dry-run check or mutating pane id format trips test assertion | sat | claude | tests | **2 (Lane 1, after 01)** |
+| 06 | `test(r02-06-iac-dry-run-tf-state-target)` | hermetic dry-run tests + `DRY_RUN` default 1 for state/step actions | `tf-remove-step`, `tf-replace-target`, `tf-state-push`, and `tf-state-pull` have 0 tests. `tf-remove-step` deletes files relative to cwd. | `iac:src/bash/run/tf-remove-step.func.sh`<br>`iac:src/bash/run/tf-replace-target.func.sh`<br>`iac:src/bash/run/tf-state-push.func.sh`<br>`iac:src/bash/run/tf-state-pull.func.sh`<br>`iac:src/bash/tests/tf-state-actions.tst.sh` (new) | 0 tests for all 4 state actions; 0 `DRY_RUN` guards | Hermetic test suite asserting dry-run default, refusal on missing STEP/TARGET, sandbox cwd for `tf-remove-step`, pin `-lock=false` for `tf-state-push` | Bypassing DRY_RUN or omitting required env trips failure | sat | claude | tests | **2 (Lane 2, after 02)** |
+| 07 | `test(r02-07-orc-untested-probe-actions)` | hermetic tests for diagnostic probe actions | `spl-msg-edit-probe`, `spl-wire-probe`, and `spl-desk-live-proof` have 0 tests in `csi-spl-orc/src/bash/run/` | `orc:src/bash/run/spl-msg-edit-probe.func.sh`<br>`orc:src/bash/run/spl-wire-probe.func.sh`<br>`orc:src/bash/run/spl-desk-live-proof.func.sh`<br>`orc:src/bash/tests/spl-probe-actions.tst.sh` (new) | 0 tests for all 3 probe actions | Hermetic test suite verifying stubbed curl/socket checks, output parsing, exit code contracts | Corrupting probe response json or stub failure trips test | sat | claude | tests | **2 (Lane 3, after 03)** |
+| 08 | `test(r02-08-iac-gcp-list-actions)` | hermetic tests for GCP resource list actions | `gcp-compute-lb-list`, `gcp-list-cloudsql`, `gcp-list-firewall-rules`, `gcp-list-static-dns-addresses` have 0 tests | `iac:src/bash/run/gcp-compute-lb-list.func.sh`<br>`iac:src/bash/run/gcp-list-cloudsql.func.sh`<br>`iac:src/bash/run/gcp-list-firewall-rules.func.sh`<br>`iac:src/bash/run/gcp-list-static-dns-addresses.func.sh`<br>`iac:src/bash/tests/gcp-list-actions.tst.sh` (new) | 0 tests for all 4 list actions | Hermetic test suite asserting `--account`, `--project`, throwaway CLOUDSDK_CONFIG, and refusal on missing ENV | Omitting `--account` or missing ENV trips test failure | sat | claude | tests | **2 (Lane 4, after 04)** |
+| 09 | `test(r02-09-orc-vibe-guard-actions)` | hermetic tests for vibe guard installation actions | `spl-vibe-output-cap-install`, `spl-vibe-push-guard-install`, and `spl-vibe-loop-cost` have 0 tests in `csi-spl-orc/src/bash/run/` | `orc:src/bash/run/spl-vibe-output-cap-install.func.sh`<br>`orc:src/bash/run/spl-vibe-push-guard-install.func.sh`<br>`orc:src/bash/run/spl-vibe-loop-cost.func.sh`<br>`orc:src/bash/tests/spl-vibe-guard-actions.tst.sh` (new) | 0 tests for all 3 vibe guard actions | Hermetic test suite asserting dry-run PLAN, config file modification in sandbox, loop cost computation | Inverting dry-run flag or bad config syntax trips failure | sat | claude | tests | **3 (Lane 1, after 05)** |
+| 10 | `test(r02-10-iac-gcp-sync-tail-satellite)` | hermetic tests for utility and log tail actions | `gcp-sync-local-to-s3`, `gcp-tail-logs`, and `satellite-image-latest` have 0 tests in `csi-spl-iac/src/bash/run/` | `iac:src/bash/run/gcp-sync-local-to-s3.func.sh`<br>`iac:src/bash/run/gcp-tail-logs.func.sh`<br>`iac:src/bash/run/satellite-image-latest.func.sh`<br>`iac:src/bash/tests/gcp-misc-actions.tst.sh` (new) | 0 tests for all 3 actions | Hermetic test suite asserting argument validation, stubbed aws/gcloud/curl commands, refusal on missing ENV | Omitting mandatory arguments trips test failure | sat | claude | tests | **3 (Lane 2, after 06)** |
+| 11 | `test(r02-11-orc-lane-lifecycle-actions)` | hermetic tests for lane lifecycle reporting actions | `spl-lane-age-report`, `spl-rotate-status`, `spl-local-hub-status`, `spl-dispatch-deploy-lag` have 0 tests | `orc:src/bash/run/spl-lane-age-report.func.sh`<br>`orc:src/bash/run/spl-rotate-status.func.sh`<br>`orc:src/bash/run/spl-local-hub-status.func.sh`<br>`orc:src/bash/run/spl-dispatch-deploy-lag.func.sh`<br>`orc:src/bash/tests/spl-lane-lifecycle-actions.tst.sh` (new) | 0 tests for all 4 reporting actions | Hermetic test suite asserting stdout formatting, TSV output parsing, exit code contracts | Invalid TSV headers or missing status trips failure | sat | claude | tests | **3 (Lane 3, after 07)** |
+| 12 | `test(r02-12-orc-speed-spool-install)` | cut forks / reuse installation fixture | `test-install.sh` takes solo 59.6-62.5 s wall at 62-64 s cpu (111 PASS), packed at 243 s weight | `orc:src/bash/features/spool-install/tests/test-install.sh:1-300`<br>`orc:src/bash/tests/spool-install.tst.sh:1-10` | solo 59.6-62.5 s wall at 62-64 s cpu (n=3, sat) | solo cpu < 35 s (n=3) via fixture reuse and fork reduction | Broken install verification trips test exit code | sat | claude | tests | **3 (Lane 4, after 08)** |
 
 **First 4 rows:** Rows 01, 02, 03, and 04 (Batch 1).
 
@@ -168,35 +168,34 @@ Per owner directive (msg `fe3064af`): **12 rows built 4 lanes in parallel**.
 
 - **Batch 1 (Parallel Lanes 1–4):**
   - Row 01: `orc:src/bash/tests/peer-poll.tst.sh`
-  - Row 02: `iac:src/bash/tests/tf-destroy-target.tst.sh`, `iac:src/bash/tests/tf-destroy-local-step-bucket.tst.sh`
-  - Row 03: `wui:tests/unit/msg-apply.test.mjs`, `wui:src/utils/msg-apply.mjs`
-  - Row 04: `api:src/go/spool-hub-api/internal/auth/fakeidp/fakeidp_test.go`, `api:src/bash/tests/go-coverage-floor.txt`
-  *(All files disjoint across modules. `orc-shard-weights.txt` is NOT touched by any speed row).*
+  - Row 02: `iac:src/bash/run/tf-destroy-target.func.sh`, `iac:src/bash/run/tf-destroy-local-step-bucket.func.sh`, `iac:src/bash/tests/tf-destroy-target.tst.sh`, `iac:src/bash/tests/tf-destroy-local-step-bucket.tst.sh`
+  - Row 03: `orc:src/bash/tests/run-all-tests.sh`, `orc:src/bash/tests/orc-shard-weights.txt`, `orc:src/bash/tests/orc-jobs-derivation.tst.sh`
+  - Row 04: `api:src/bash/tests/run-all-tests.sh`, `api:src/bash/tests/go-coverage-floor.txt`
+  *(All files disjoint across modules).*
 
 - **Batch 2 (Parallel Lanes 1–4, after Batch 1 lands):**
-  - Row 05: `orc:src/bash/tests/desk-up-all.tst.sh`
-  - Row 06: `iac:src/bash/tests/tf-remove-step.tst.sh`, `iac:src/bash/tests/tf-replace-target.tst.sh`, `iac:src/bash/tests/tf-state-push.tst.sh`
-  - Row 07: `wui:tests/unit/tenant-host-core.test.mjs`, `wui:src/utils/tenant-host-core.mjs`
-  - Row 08: `wui:tests/e2e/message-order.test.mjs`
+  - Row 05: `orc:src/bash/run/spl-agent-identity-reconcile.func.sh`, `orc:src/bash/run/spl-agent-name-resume.func.sh`, `orc:src/bash/tests/spl-agent-identity-reconcile.tst.sh`
+  - Row 06: `iac:src/bash/run/tf-remove-step.func.sh`, `iac:src/bash/run/tf-replace-target.func.sh`, `iac:src/bash/run/tf-state-push.func.sh`, `iac:src/bash/run/tf-state-pull.func.sh`, `iac:src/bash/tests/tf-state-actions.tst.sh`
+  - Row 07: `orc:src/bash/run/spl-msg-edit-probe.func.sh`, `orc:src/bash/run/spl-wire-probe.func.sh`, `orc:src/bash/run/spl-desk-live-proof.func.sh`, `orc:src/bash/tests/spl-probe-actions.tst.sh`
+  - Row 08: `iac:src/bash/run/gcp-compute-lb-list.func.sh`, `iac:src/bash/run/gcp-list-cloudsql.func.sh`, `iac:src/bash/run/gcp-list-firewall-rules.func.sh`, `iac:src/bash/run/gcp-list-static-dns-addresses.func.sh`, `iac:src/bash/tests/gcp-list-actions.tst.sh`
   *(All files disjoint).*
 
 - **Batch 3 (Parallel Lanes 1–4, after Batch 2 lands):**
-  - Row 09: `orc:src/bash/tests/desk-welcome.tst.sh`, `orc:src/bash/tests/desk-pin.tst.sh`
-  - Row 10: `iac:src/bash/tests/gcp-modify-project-apis-disable.tst.sh`, `iac:src/bash/tests/gcp-project-apis-disable.tst.sh`
-  - Row 11: `wui:tests/unit/useBuildWatch.test.mjs`, `wui:tests/unit/useOpenMessage.test.mjs`, `wui:tests/unit/useRoadmapGoals.test.mjs`
-  - Row 12: `orc:src/bash/tests/spool-install.tst.sh`
+  - Row 09: `orc:src/bash/run/spl-vibe-output-cap-install.func.sh`, `orc:src/bash/run/spl-vibe-push-guard-install.func.sh`, `orc:src/bash/run/spl-vibe-loop-cost.func.sh`, `orc:src/bash/tests/spl-vibe-guard-actions.tst.sh`
+  - Row 10: `iac:src/bash/run/gcp-sync-local-to-s3.func.sh`, `iac:src/bash/run/gcp-tail-logs.func.sh`, `iac:src/bash/run/satellite-image-latest.func.sh`, `iac:src/bash/tests/gcp-misc-actions.tst.sh`
+  - Row 11: `orc:src/bash/run/spl-lane-age-report.func.sh`, `orc:src/bash/run/spl-rotate-status.func.sh`, `orc:src/bash/run/spl-local-hub-status.func.sh`, `orc:src/bash/run/spl-dispatch-deploy-lag.func.sh`, `orc:src/bash/tests/spl-lane-lifecycle-actions.tst.sh`
+  - Row 12: `orc:src/bash/features/spool-install/tests/test-install.sh`, `orc:src/bash/tests/spool-install.tst.sh`
   *(All files disjoint).*
 
 ### 5.2 4-Lane Progression
-- **Lane 1 (Orc Speed - Peer Poll & Desk Waits):** Row 01 -> Row 05 -> Row 09
+- **Lane 1 (Orc Speed & Agent Identity):** Row 01 -> Row 05 -> Row 09
 - **Lane 2 (IAC Safety - Destructive Terraform & GCP Actions):** Row 02 -> Row 06 -> Row 10
-- **Lane 3 (WUI Unit - Utilities & Composables):** Row 03 -> Row 07 -> Row 11
-- **Lane 4 (Contracts & Stability - API Floor, E2E Flake & Install):** Row 04 -> Row 08 -> Row 12
+- **Lane 3 (Orc Infrastructure - Runner Pool, Probes & Lifecycle):** Row 03 -> Row 07 -> Row 11
+- **Lane 4 (Contracts, Tooling & Install - Go Coverpkg & Install):** Row 04 -> Row 08 -> Row 12
 
 ### 5.3 Collision Control (R3)
 `lane-map.sh --check` verifies none of these paths are owned by any live lane on any box.
 Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guide / constitution / drift check files), the watchdog fence lanes (`spl-watchdog.func.sh`, `wd-*.tst.sh`), and the role-fallback guard lane (`spl-role-fallback-up.func.sh`, `role-fallback-up.tst.sh`). None of these files are touched by any row in this plan.
-`orc-shard-weights.txt` is excluded from all individual row sites to eliminate multi-lane merge conflicts; a single refresh can be performed post-Batch 3.
 
 ---
 
@@ -204,14 +203,20 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
 
 | Proposal / Practice | Why not | Measured evidence |
 |---|---|---|
-| `spl-lane-mix.tst.sh` speed refactor | Mostly CPU work (yq parsing and subshells); wall 336.8 s vs CPU 209.6 s; not an idle-wait loop | CPU time = 209.6 s (~62% of runtime). Cutting sleep loops does not reduce runtime without rewriting the configuration loader. |
+| `tests/e2e/message-order.test.mjs` case A6 flake fix | Root cause was regression from `dedf3e9bb` fixed by `59ffb5dd3` (SPL-2506); 0 failures in runs since | Both Claude and Mistral seats confirmed 0 failures across completed master runs post-fix. Dropped per consensus. |
+| `desk-up-all`, `desk-welcome`, `desk-pin` sleep loops | Solo wall times are 42.8 s, 21.0 s, 27.4 s (already < targets); no wait loops | High CI wall in shard 3/3 is runner CPU contention (`njobs=6` on `nproc=4`), resolved systematically by Row 03. |
+| `msg-apply.mjs` standalone unit test | Already tested through re-exports | `applyEdit` is called 9 times in `tests/unit/msg-edit-wire.test.mjs` via `msg-edit.mjs:293`. |
+| `tenant-host-core.mjs` standalone unit test | Already tested through re-exports | `tests/unit/tenant-host.test.mjs` covers `tenant-host-core.mjs` at 96.92% lines and 84.38% branches. |
+| `internal/auth/fakeidp` duplicate tests | Already 89.1% covered by `internal/auth` flow tests | Bare `go test ./...` reported 3.5% only because it lacks `-coverpkg`. Solved systematically by Row 04. |
+| `useBuildWatch`, `useOpenMessage`, `useRoadmapGoals` plain unit tests | Pure logic is already tested in underlying `.mjs` utilities; `.ts` files are Vue/Pinia glue | Plain node cannot import TS composables without a full Nuxt component harness. |
+| `gcp-modify-project-apis-disable` / `gcp-project-apis-disable` new tests | Already tested | `csi-spl-iac/src/bash/tests/gcp-tf-shared-bodies.tst.sh:101-113` runs both actions against stubbed gcloud (63 PASS). |
+| `spl-lane-mix.tst.sh` speed refactor | Mostly CPU work (yq parsing and subshells); wall 336.8 s vs CPU 209.6 s | CPU time = 209.6 s (~62% of runtime). Cutting sleep loops does not reduce runtime without rewriting config loader. |
 | `spl-db-hot-measure.tst.sh` speed refactor | Heavy CPU parallelism (CPU 225.5 s > wall 180.8 s) | Parallel worker load under load test harness; not idle wait. |
 | `calendar-purge-trash.tst.sh` speed refactor | CPU-bound Postgres/database operations (wall 147.7 s, CPU 169.2 s) | CPU time exceeds wall time. No sleep loops to eliminate. |
 | `demo-wipe.tst.sh` speed refactor | CPU-bound database wipe operations (wall 158.0 s, CPU 248.1 s) | CPU time exceeds wall time. |
-| `spl-session-prune.tst.sh` speed refactor | Despite packing weight 243 s in `orc-shard-weights.txt`, actual runtime in CI is under 20 s | Test finishes quickly in CI; packing weight is stale rather than real execution bottleneck. |
-| Wholesale rewrite of all 297 WUI text tests | Massive diff churn across ~300 files violating single-responsibility and push caps | Tackled incrementally via behavioral unit tests for core utilities and composables (Rows 03, 07, 11). |
-| Unskipping all 4 E2E tests in `ci-skip.txt` (`csp-violations`, `live-interop`, `rounded-corners`, `scroll-anchor`) | Environmental limitations in headless Chromium (mock server CSP headers, browser window manager) | Tests fail in headless container environments without display server support. |
-| Per-row edits to `orc-shard-weights.txt` | Violates R1 (disjoint files per batch) across multiple speed rows | Stale packing weights file cannot be concurrently edited by parallel lanes. Refreshed once post-Batch 3. |
+| `spl-session-prune.tst.sh` speed refactor | Despite packing weight 243 s in `orc-shard-weights.txt`, actual runtime in CI is under 20 s | Test finishes quickly in CI; packing weight is stale rather than real execution bottleneck (refreshed in Row 03). |
+| Wholesale rewrite of all 297 WUI text tests | Massive diff churn across ~300 files violating single-responsibility and push caps | Tackled incrementally in dedicated feature and refactor lanes. |
+| Unskipping all 4 E2E tests in `ci-skip.txt` | Environmental limitations in headless Chromium | Tests fail in headless container environments without display server support. |
 | Splitting orc hermetic tests into 4+ shards | Bottlenecked by runner capacity; sat has ~3 runners online on average | Spec 133: adding shards increases queue time without reducing wall time when runner pool is constrained. |
 
 ---
@@ -220,12 +225,12 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
 
 - **Expert Panel:**
   - Editor / agy seat: `a-481@sat` (`test-round-2/seat-agy.md`)
-  - Claude seat: `c-xxx@sat` (`test-round-2/seat-claude.md`)
-  - Mistral seat (docs/review only per owner rule): `m-xxx@sat` (`test-round-2/seat-mistral.md`)
-  - Grok seat: `g-xxx@<box>` (`test-round-2/seat-grok.md` - if seated / quota permits)
+  - Claude seat: `c-487@sat` (`test-round-2/seat-claude.md`)
+  - Mistral seat (docs/review only per owner rule): `m-639@PC` (`test-round-2/seat-mistral.md`)
+  - Grok seat: unseated (quota limitation per dispatcher `c-002@sat`)
 - **Reviewers per row (R7.2):**
   - Vendor mix: all 12 rows are assigned to claude (`do_spl_lane_mix` for kind=tests: claude 85%, grok 15%; owner rule: no mistral coding or test-writing rows).
-  - Cross-vendor review: Editor seat `a-481@sat` (agy) and Mistral seat `m-xxx@sat` (docs/review only) provide strict cross-vendor review for all 12 claude-authored rows (`grep -c 'same vendor'` -> 0).
+  - Cross-vendor review: Editor seat `a-481@sat` (agy) and Mistral seat `m-639@PC` (docs/review only) provide strict cross-vendor review for all 12 claude-authored rows (`grep -c 'same vendor'` -> 0).
   - Review lines verified via `do_spl_review_line_check`.
 
 ---
@@ -233,6 +238,13 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
 ## 8. Changes
 
 - v0.1: Initial proposed plan for Test Round 2 (testing self-reflection round 2), answering owner questions on testing balance (too much / too little), top failing tests in CI (message-order A6 flake), and 12 empirical changes structured across 3 batches of 4 rows for 4 parallel build lanes (owner override `fe3064af`).
+- v1.0: Consensus reached with expert panel seats. Folded verdict from Claude seat `c-487@sat` (`cefa6c737`) and Mistral seat `m-639@PC` (`e428729eb`):
+  - Adopted Claude Proposal P1 as Row 03 (`test(r02-03-orc-jobs-derivation-weights)`): right-sizes `njobs` in `run-all-tests.sh` to runner `nproc` and refreshes drifted shard weights.
+  - Adopted Claude Proposal P2 / Mistral Proposal 2 as Row 04 (`test(r02-04-go-coverage-coverpkg)`): adds cross-package `-coverpkg` support to Go aggregate test runner and ratchets fakeidp floor.
+  - Adopted Claude changes on Row 01 (solo CPU < 100 s target, fork reduction), Row 02 (`DRY_RUN` default 1, stubbed terraform on PATH and `do_tf_init`), Row 06 (`DRY_RUN` default 1, sandbox cwd, state lock pin), and Row 12 (site `test-install.sh`, solo CPU < 35 s target).
+  - Dropped fixed A6 flake row per unanimous panel consensus.
+  - Replaced already-tested WUI utilities/composables and duplicate helper suites with 28 untested bash actions across orc and iac.
+  - Verified R1 disjoint file sets across all 3 batches of 4 parallel lanes.
 
 ---
 
@@ -240,7 +252,7 @@ Disjoint from live work: the coding-standards panel (t1 2402f33e: developer guid
 
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| Editor | agy | a-481@sat | v0.1 proposed | `test-round-2/seat-agy.md` |
-| Claude seat | claude | pending | pending review of v0.1 | `test-round-2/seat-claude.md` |
-| Mistral seat (docs/review only) | mistral | pending | pending review of v0.1 | `test-round-2/seat-mistral.md` |
-| Grok seat | grok | pending | pending review of v0.1 | `test-round-2/seat-grok.md` |
+| Editor | agy | a-481@sat | signed on v1.0 | `test-round-2/seat-agy.md` |
+| Claude seat | claude | c-487@sat | reviewed v0.1 (`cefa6c737`), awaiting v1.0 signing | `test-round-2/seat-claude.md` |
+| Mistral seat (docs/review only) | mistral | m-639@PC | reviewed v0.1 (`e428729eb`), awaiting v1.0 signing | `test-round-2/seat-mistral.md` |
+| Grok seat | grok | unseated | unseated (quota limitation) | `test-round-2/seat-grok.md` |

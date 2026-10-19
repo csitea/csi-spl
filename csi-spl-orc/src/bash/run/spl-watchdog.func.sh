@@ -1451,6 +1451,7 @@ spl_wd_user() { local u; u="$(cat "$1/user" 2>/dev/null || true)"; echo "${u:-un
 # orchestrator gets ONE blocker naming the verdicts.
 spl_wd_takeover() {
   local id="$1" code="$2" ev="$3" now n cause
+  if [[ -e "$WD_DIR/held" && ! -e "$WD_DIR/fenced" ]]; then echo "held: the hub answers but acks no beat; this box starts nothing (SPL-2529)"; return 1; fi
   if spl_wd_box_fenced; then echo "fenced: this box starts nothing (spec 102 10.2)"; return 1; fi
   now="$(spl_lease_now)"
   if [[ "$code" != reboot ]]; then
@@ -1558,14 +1559,28 @@ spl_wd_journal_f2() {
 # once after its wip push (the seats keep running) and the orchestrator gets
 # ONE note. The next ack lifts it. A box with no hub (no fleet in lease.conf)
 # or WD_BEAT=0 never beats and is never fenced. Seams: WD_BEAT_CMD (the hub
-# call: `<cmd> put --pid <pid>`), WD_WIP_CMD (the wip push), WD_KILL_CMD.
+# call: `<cmd> put --pid <pid>`), WD_WIP_CMD (the wip push), WD_KILL_CMD,
+# WD_HUB_PROBE_CMD (the liveness probe).
+# HELD, not fenced (SPL-2529): when the fence is due but the hub answers its
+# liveness probe (spl_wd_hub_reachable), this box has its network; the hub's
+# beat path (its DB) is what fails, and then every box would fence. Sat
+# 2026-10-18 07:00-07:11Z, a planned prd DB apply: /version 200, every beat
+# timed out, the fence TERMed ~25 lanes and the watchdog restarted them all.
+# A held box (<WD_DIR>/held) starts nothing and TERMs no lane; the next ack
+# lifts it; the probe failing as well fences as before.
 
 # spl_wd_fence NOW TICK: the tick's one call (after its agents are listed).
 spl_wd_fence() {
   local now="$1" tick="$2" id pid _pane
   spl_wd_beat "$now"
   if ! spl_wd_fence_due "$now"; then
-    [[ -e "$WD_DIR/fenced" ]] && spl_wd_unfence
+    [[ -e "$WD_DIR/fenced" || -e "$WD_DIR/held" ]] && spl_wd_unfence
+    return 0
+  fi
+  if [[ ! -e "$WD_DIR/fenced" ]] && spl_wd_hub_reachable; then
+    if ( set -C; echo "$now" > "$WD_DIR/held" ) 2>/dev/null; then
+      spl_wd_log "HELD${WD_INST:+ instance $WD_INST}: no beat ack for $(( now - $(spl_wd_beat_ack) ))s (box_down_min $(spl_wd_down_min)), but the hub answers its liveness probe: its beat path fails, not this box's network; this box starts nothing and TERMs no lane"
+    fi
     return 0
   fi
   if ( set -C; echo "$now" > "$WD_DIR/fenced" ) 2>/dev/null; then
@@ -1592,6 +1607,11 @@ spl_wd_fence() {
 spl_wd_unfence() {
   local f id rc
   local -a jp=()
+  if [[ ! -e "$WD_DIR/fenced" ]]; then
+    rm -f "$WD_DIR/held"
+    spl_wd_log "UNHELD${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; starts resume"
+    return 0
+  fi
   for f in "$WD_DIR"/fence.wipfail.*; do
     [[ -e "$f" ]] || continue
     id="${f##*/fence.wipfail.}"
@@ -1600,12 +1620,25 @@ spl_wd_unfence() {
     jp+=("$!")
   done
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
-  rm -f "$WD_DIR/fenced" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
+  rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
   spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
 }
 
-# spl_wd_box_fenced: 0 while this box is fenced (spl_wd_takeover's gate).
-spl_wd_box_fenced() { [[ -e "$WD_DIR/fenced" ]]; }
+# spl_wd_box_fenced: 0 while this box is fenced or held (spl_wd_takeover's
+# and the boot path's gate).
+spl_wd_box_fenced() { [[ -e "$WD_DIR/fenced" || -e "$WD_DIR/held" ]]; }
+
+# spl_wd_hub_reachable: 0 when the hub answers its liveness probe within
+# WD_HUB_PROBE_TIMEOUT (5) s: WD_HUB_PROBE_CMD, else GET <SPL_HUB_URL>/version
+# (the hub's own answer; it needs no DB). No hub URL -> 1 (fence as before).
+spl_wd_hub_reachable() {
+  if [[ -n "${WD_HUB_PROBE_CMD:-}" ]]; then
+    timeout -k 1 "${WD_HUB_PROBE_TIMEOUT:-5}" "$WD_HUB_PROBE_CMD" >/dev/null 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&-
+    return
+  fi
+  [[ -n "${SPL_HUB_URL:-}" ]] || return 1
+  curl -fsS -o /dev/null --max-time "${WD_HUB_PROBE_TIMEOUT:-5}" "${SPL_HUB_URL%/}/version" < /dev/null 6>&- 7>&- 8>&- 9>&- 2>/dev/null
+}
 
 # spl_wd_fence_wip ID: the lane's wip push, bounded by WD_FENCE_WIP_TIMEOUT
 # (origin may be as far away as the hub); its rc.

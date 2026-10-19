@@ -34,6 +34,13 @@
 #      today; a box that did not sleep is fenced as in 3 (no regression).
 #      RED control: WD_FENCE_RESUME_GRACE=0 (the code before) fences on the
 #      first tick after the wake (the PC box 2026-10-16 20:01:16Z, 11 lanes TERMed)
+#  10. SPL-2529: no beat ack, yet the hub answers its liveness probe (sat
+#      2026-10-18 07:00-07:11Z: a planned prd DB apply; /version 200, every
+#      beat timed out) -> HELD, not fenced: <wd>/held, nothing pushed, TERMed
+#      or sent, a takeover refused ("held:"), one HELD line; the next ack
+#      lifts it (UNHELD, the takeover runs). The probe failing as well (the
+#      network is gone) fences and TERMs as in 3. RED control: with the probe
+#      off (the code before) the same silence fences and TERMs both lanes
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -57,6 +64,8 @@ printf '#!/usr/bin/env bash\necho "wip $ID" >> "$T/acts"\n' > "$T/bin/wip"
 printf '#!/usr/bin/env bash\necho "kill $*" >> "$T/acts"\n' > "$T/bin/kill"
 printf '#!/usr/bin/env bash\necho "send $*" >> "$T/sent"\n' > "$T/bin/send"
 printf '#!/usr/bin/env bash\necho "restart $ID $CAUSE" >> "$T/restarts"\n' > "$T/bin/restart"
+# the hub's liveness probe: "$T/probe" says up (the hub answers) or down
+printf '#!/usr/bin/env bash\necho probe >> "$T/probes"\n[ "$(cat "$T/probe" 2>/dev/null)" = up ]\n' > "$T/bin/probe"
 chmod +x "$T/bin/"*
 
 # one seat (c-001) and two lanes, as spl_wd_agents lists them: id pid pane
@@ -73,11 +82,11 @@ wd() {
     source "$RUN_DIR/spl-watchdog.func.sh"
     export SPOOL_ROOT="$T/spool" WD_DIR="$T/wd" WD_LOG="$T/wd.log" WD_SEND="$T/bin/send" WD_FROM=c-001 WD_BOX=box1
     export WD_BEAT_CMD="$T/bin/hub" WD_BEAT_TIMEOUT=1 WD_WIP_CMD="$T/bin/wip" WD_KILL_CMD="$T/bin/kill"
-    export WD_FENCE_TERM_WAIT="${WD_FENCE_TERM_WAIT:-0}"
+    export WD_FENCE_TERM_WAIT="${WD_FENCE_TERM_WAIT:-0}" WD_HUB_PROBE_CMD="${WD_HUB_PROBE_CMD-$T/bin/probe}"
     export WD_TAKEOVER_CMD="$T/bin/restart" RESTART_MAX_PER_HOUR=3 WD_TICK_SEQ=1
     "$@" )
 }
-reset() { rm -rf "$T/wd" "$T/spool" "$T/acts" "$T/sent" "$T/restarts" "$T/beats" "$T/wd.log"; mkdir -p "$T/wd" "$T/spool"; }
+reset() { rm -rf "$T/wd" "$T/spool" "$T/acts" "$T/sent" "$T/restarts" "$T/beats" "$T/probes" "$T/wd.log"; mkdir -p "$T/wd" "$T/spool"; echo down > "$T/probe"; }
 # ticks FROM TO MODE: one fence call per 30 s from T0+FROM to T0+TO with the hub in MODE
 ticks() {
   local s; echo "$3" > "$T/hub"
@@ -251,6 +260,40 @@ sleep9 180; rm -f "$T/wd/resume"
 ticks 30 120 silent
 [[ -e "$T/wd/fenced" ]] && pass "9. no resume: hub silent 120 s -> fenced as in 3" || fail "9. no resume yet not fenced"
 unset WD_FENCE_RESUME_GRACE
+
+# ---- 10. the hub answers, its beat does not: held, never fenced --------------
+reset
+ticks 0 0 ok
+echo up > "$T/probe"
+ticks 30 150 silent
+[[ ! -e "$T/wd/fenced" && -e "$T/wd/held" && "$(n acts .)" == 0 && "$(n sent .)" == 0 ]] &&
+  pass "10. no ack for 150 s, the hub's probe answers: held, not fenced; nothing pushed, TERMed or sent" ||
+  fail "10. fenced=$([[ -e "$T/wd/fenced" ]] && echo yes || echo no) held=$([[ -e "$T/wd/held" ]] && echo yes || echo no) acts=$(tr '\n' ' ' < "$T/acts" 2>/dev/null) sent=$(n sent .)"
+[[ "$(n wd.log 'HELD: no beat ack')" == 1 ]] && pass "10. one HELD line over two held ticks" || fail "10. HELD lines: $(grep HELD "$T/wd.log" 2>/dev/null)"
+[[ "$(n probes probe)" == 2 ]] && pass "10. the probe runs only once the fence is due (2 of 5 ticks)" || fail "10. probes: $(n probes probe)"
+out="$(LEASE_NOW=$(( T0 + 160 )) wd spl_wd_takeover c-050 S3 "dead")"; rc=$?
+[[ "$rc" != 0 && "$out" == held:* && ! -s "$T/restarts" ]] &&
+  pass "10. a held box starts nothing: takeover refused ($out)" || fail "10. takeover while held: rc=$rc out=$out restarts=$(cat "$T/restarts" 2>/dev/null)"
+ticks 180 180 ok
+[[ ! -e "$T/wd/held" && "$(n wd.log 'UNHELD')" == 1 && "$(n acts .)" == 0 ]] &&
+  pass "10. the next ack lifts the hold (UNHELD), still nothing TERMed" ||
+  fail "10. after the ack: held=$([[ -e "$T/wd/held" ]] && echo yes || echo no) unheld=$(n wd.log UNHELD) acts=$(n acts .)"
+out="$(LEASE_NOW=$(( T0 + 190 )) wd spl_wd_takeover c-050 S3 "dead")"
+for _ in $(seq 50); do [[ -s "$T/restarts" ]] && break; sleep 0.1; done   # the restart starts detached
+grep -q "restart c-050 S3" "$T/restarts" 2>/dev/null && pass "10. control: unheld, the takeover runs" || fail "10. no takeover after the hold lifted ($out)"
+reset
+ticks 0 0 ok
+echo up > "$T/probe"; ticks 30 120 silent
+echo down > "$T/probe"; ticks 150 150 silent
+[[ -e "$T/wd/fenced" && "$(n sent FENCED)" == 1 ]] && grep -qx "kill -TERM 150" "$T/acts" && grep -qx "kill -TERM 151" "$T/acts" &&
+  pass "10. held, then the probe fails too (network gone): fenced, both lanes TERMed, one note" ||
+  fail "10. probe down after a hold: fenced=$([[ -e "$T/wd/fenced" ]] && echo yes || echo no) acts=$(tr '\n' ' ' < "$T/acts" 2>/dev/null)"
+reset
+ticks 0 0 ok
+echo up > "$T/probe"; WD_HUB_PROBE_CMD="" ticks 30 120 silent
+[[ -e "$T/wd/fenced" ]] && grep -qx "kill -TERM 150" "$T/acts" &&
+  pass "10. RED control: probe off (the code before) fences and TERMs on the same silence" ||
+  fail "10. RED control: probe off did not fence: $(cat "$T/acts" 2>/dev/null)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

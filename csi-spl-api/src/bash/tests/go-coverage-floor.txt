@@ -20,7 +20,12 @@ internal/agentid 97.0
 # point under what they read; go test -count=1 -cover, go1.26.9, n=3 read
 # auth-demo 71.8, githubtest 21.1, logging 100.0, testkit 78.6, fakehub 82.1.
 internal/auth/cmd/auth-demo 70.0
-internal/auth/fakeidp 3.5
+# internal/auth/fakeidp: 80.0 coverpkg (r02-04). It has no flow tests of its
+# own (3.5 bare); internal/auth's flow tests run it: go test -count=1
+# -coverpkg=./internal/auth/fakeidp ./internal/auth/fakeidp ./internal/auth,
+# go1.26.9, no DSN, n=3 read 89.1 each; the gate unions it with fakeidp's own
+# profile (3.5) and reads 89.6.
+internal/auth/fakeidp 80.0 coverpkg=internal/auth
 internal/billing 80.8
 # internal/blob: 66.9 with TestAvatarKey (r12-08), 66.2 without; go test -count=1
 # -cover ./internal/blob/, go1.26.9, n=3 read 66.9 each.

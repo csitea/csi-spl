@@ -34,6 +34,10 @@ slow() { echo "SKIP-TIER (fast tier; CI workflow 10/20 runs it): $1"; }
 # checks ONLY them, against the profiles hub-pg.tst.sh writes into
 # $SPL_COVER_DIR (several profiles of one package are unioned). The gate
 # never raises a floor; a lane that adds tests raises its line by hand.
+# A floor tagged `coverpkg=<pkg>[,<pkg>...]` (r02-04) is measured with
+# -coverpkg: the named packages' tests count toward it too (fakeidp is run by
+# internal/auth's flow tests, not by its own). cover_cross_pkg writes those
+# profiles; coverage_floor unions them with the plain one.
 # Usage: coverage_floor <profile>... -- <floor-file> <go-module-dir> <plain|pg>
 coverage_floor() {
   local profiles=() mod
@@ -58,6 +62,16 @@ coverage_floor() {
       exit (bad > 0)
     }' "$2" "${profiles[@]}" | sort -k3
   return "${PIPESTATUS[0]}"
+}
+# Usage: cover_cross_pkg <floor-file> <go-module-dir> <out-dir>
+cover_cross_pkg() {
+  local pkg tag t args
+  while read -r pkg tag; do
+    args=("./$pkg")
+    for t in ${tag//,/ }; do args+=("./$t"); done
+    echo "-coverpkg=./$pkg: ${args[*]}"
+    ( cd "$2" && go test -coverpkg="./$pkg" -coverprofile="$3/xpkg-${pkg//\//_}.out" "${args[@]}" )
+  done < <(awk '$0 !~ /^#/ && $3 ~ /^coverpkg=/ { sub(/^coverpkg=/, "", $3); print $1, $3 }' "$1")
 }
 if [ "${1:-}" = --coverage-floor ]; then # the check alone: run-all-tests.sh --coverage-floor <plain|pg> <floor-file> <profile>...
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,8 +124,12 @@ else
   slow "go test -race"
 fi
 
+echo "== go coverage, cross-package floors (r02-04: -coverpkg for floors tagged coverpkg=) =="
+cover_cross_pkg "$HERE/go-coverage-floor.txt" "$MOD" "$COVER_DIR"
+xpkg=("$COVER_DIR"/xpkg-*.out); [ -e "${xpkg[0]}" ] || xpkg=()
+
 echo "== go coverage floor (r5-10, $HERE/go-coverage-floor.txt) =="
-coverage_floor "$COVER_DIR/cover.out" -- "$HERE/go-coverage-floor.txt" "$MOD" plain
+coverage_floor "$COVER_DIR/cover.out" "${xpkg[@]}" -- "$HERE/go-coverage-floor.txt" "$MOD" plain
 echo "ok   - every package within 1.0 point of its floor (pg floors: after the hub Postgres gate)"
 
 echo "== standalone hub-init rules (047 W9, W18) =="

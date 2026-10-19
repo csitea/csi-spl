@@ -2,7 +2,8 @@
 
 Status: **on master** since `e32bef074`. cnf `hub.cloud_run.canary.enabled`
 is `true` on **dev** (owner GO HUM-10 msg `828eb2f5`, 2026-10-18, t1 poll
-`35012991`: dev only) and `false` on prd until a later prd go.
+`35012991`) and on **prd** (owner GO HUM-10 msg `320a8bfd`, t1 `8f476aa8`,
+poll `a71b612b`: "roll prd through the canary from the next hub deploy").
 
 ## 1. What it does
 
@@ -128,7 +129,11 @@ inside its 30 min timeout.
    change: it needs no apply (the dev 030 plan of 2026-10-19 shows no line of
    it; its one change is another lane's env flip, applied under that lane's go).
 2. A week of dev deploys; read each run's `canary:` lines.
-3. Owner's go for prd: the same in `prd.env.yaml`, then the 030 prd apply.
+3. Owner's go for prd: the same in `prd.env.yaml`, render
+   (`ENV=prd ./run -a do_tpl_gen`, no tfvars change), push. Done 2026-10-19
+   (msg `320a8bfd`). That go covers the cnf flip and the next prd deploy
+   through workflow 20 only, no 030 apply: as on dev, the `ignore_changes`
+   is a lifecycle rule and needs none.
 
 Test: `bash csi-spl-orc/src/bash/tests/canary-hub-deploy.tst.sh` (gcloud, curl
 and sleep stubbed; includes the gate on the 2026-10-16 numbers) and

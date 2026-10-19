@@ -1101,6 +1101,9 @@ declare module '~/utils/scroll-anchor.mjs' {
   export function firstVisibleRow(root: Element | null, edge: number): Element | null
   export function layoutTop(el: HTMLElement | null): number
   export function scrollerOf(el: Element | null, doc?: Document): Element
+  export function patchStep(o?: { enabled?: boolean, newestLast?: boolean, captured?: boolean }): 'off' | 'append' | 'prepend' | 'none'
+  export function prependPlan(prevKeys: string[], nextKeys: string[], isOwn?: (key: string) => boolean): { step: 'none' | 'jump' | 'hold', added: number }
+  export function appendPlan(prevKeys: string[], nextKeys: string[], isOwn?: (key: string) => boolean): { step: 'bottom' | 'hold', added: number, own: boolean }
 }
 
 declare module '~/utils/thread-jump.mjs' {

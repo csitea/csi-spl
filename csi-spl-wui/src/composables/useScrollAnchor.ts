@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 import {
-  anchorAfterAppend, anchorAfterPrepend, appendedCount, distanceFromBottom, firstVisibleRow, isFreshList,
-  layoutTop, NEAR_BOTTOM_PX, NEAR_TOP_PX, prependedCount, scrollerOf,
+  anchorAfterAppend, anchorAfterPrepend, appendPlan, distanceFromBottom, firstVisibleRow,
+  layoutTop, NEAR_BOTTOM_PX, NEAR_TOP_PX, patchStep, prependPlan, scrollerOf,
 } from '~/utils/scroll-anchor.mjs'
 
 /** where the reader was, read before the DOM patch */
@@ -177,25 +177,21 @@ function anchorNow(a: Anchor, b: Before) {
 
 /* after it: hold the visible rows in place, or jump for our own send */
 function afterPatch(a: Anchor, next: string[], prev: string[]) {
-  if (!a.enabled()) {
-    a.before = null
-    return
-  }
   const b = a.before
   a.before = null
-  if (a.newestLast()) {
+  const on = a.enabled()
+  const step = patchStep({ enabled: on, newestLast: on && a.newestLast(), captured: b !== null })
+  if (step === 'append') {
     observeRows(a)
     afterAppend(a, b, prev, next)
-    return
-  }
-  if (b) afterPrepend(a, b, prev, next)
+  } else if (step === 'prepend' && b) afterPrepend(a, b, prev, next)
 }
 
 function afterPrepend(a: Anchor, b: Before, prev: string[], next: string[]) {
   const s = b.el
-  const added = prependedCount(prev, next)
-  if (!added) return
-  if (next.slice(0, added).some(a.isOwn)) {
+  const { step, added } = prependPlan(prev, next, a.isOwn)
+  if (step === 'none') return
+  if (step === 'jump') {
     jump(a)
     return
   }
@@ -208,15 +204,15 @@ function afterPrepend(a: Anchor, b: Before, prev: string[], next: string[]) {
 }
 
 function afterAppend(a: Anchor, b: Before | null, prev: string[], next: string[]) {
-  if (isFreshList(prev, next)) {
+  const { step, added, own } = appendPlan(prev, next, a.isOwn)
+  if (step === 'bottom') {
     a.pill.value = 0
     toBottom(a)
     return
   }
   if (!b) return
-  const added = appendedCount(prev, next)
   const r = anchorAfterAppend({
-    top: b.top, atBottom: b.atBottom, own: next.slice(next.length - added).some(a.isOwn), added, pill: a.pill.value,
+    top: b.top, atBottom: b.atBottom, own, added, pill: a.pill.value,
     anchorBefore: b.y, anchorAfter: anchorNow(a, b),
   })
   a.pill.value = r.pill

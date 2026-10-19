@@ -81,6 +81,55 @@ export function anchorAfterAppend({ top = 0, atBottom = false, own = false, anch
   return { bottom: false, top: top + shift, pill: pill + Math.max(0, added) }
 }
 
+/*
+ * The key-list decisions of one feed change (r13-07): which way the change
+ * goes, which rows to hold, and when to stick to the bottom, decided from the
+ * keys alone. composables/useScrollAnchor.ts reads the DOM and applies them.
+ */
+
+/**
+ * Which step a feed change takes:
+ * - 'off': the anchor is off (a thread pane), nothing moves;
+ * - 'append': newest last, see appendPlan (with or without a capture);
+ * - 'prepend': newest first, the reader's place was captured before the patch;
+ * - 'none': newest first, nothing was captured.
+ * @returns {'off' | 'append' | 'prepend' | 'none'}
+ */
+export function patchStep({ enabled = true, newestLast = false, captured = false } = {}) {
+  if (!enabled) return 'off'
+  if (newestLast) return 'append'
+  return captured ? 'prepend' : 'none'
+}
+
+/**
+ * Newest first, after the key list changed:
+ * - 'none': nothing arrived above the previous first row;
+ * - 'jump': one of the arrivals is our own send, go to the newest end;
+ * - 'hold': hold the visible rows in place (anchorAfterPrepend), `added`
+ *   rows arrived above.
+ * @returns {{ step: 'none' | 'jump' | 'hold', added: number }}
+ */
+export function prependPlan(prevKeys, nextKeys, isOwn = () => false) {
+  const added = prependedCount(prevKeys, nextKeys)
+  if (!added) return { step: 'none', added }
+  if ((nextKeys || []).slice(0, added).some((k) => isOwn(k))) return { step: 'jump', added }
+  return { step: 'hold', added }
+}
+
+/**
+ * Newest last, after the key list changed:
+ * - 'bottom': a different list (isFreshList), land at its bottom, no pill;
+ * - 'hold': the same list changed; `added` rows arrived below, `own` when one
+ *   of them is our own send (anchorAfterAppend then sticks to the bottom).
+ * @returns {{ step: 'bottom' | 'hold', added: number, own: boolean }}
+ */
+export function appendPlan(prevKeys, nextKeys, isOwn = () => false) {
+  if (isFreshList(prevKeys, nextKeys)) return { step: 'bottom', added: 0, own: false }
+  const next = nextKeys || []
+  const added = appendedCount(prevKeys, nextKeys)
+  return { step: 'hold', added, own: added > 0 && next.slice(next.length - added).some((k) => isOwn(k)) }
+}
+
 /**
  * The element that scrolls a feed: itself or the nearest ancestor with
  * overflow-y auto or scroll. A short list is still that scroller.

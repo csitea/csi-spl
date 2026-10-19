@@ -42,7 +42,7 @@ describe('MessageCard feed rendering (SPL-1750, SPL-1762)', () => {
   it('SPL-1762: the scroll anchor observes each row after every patch, and lets go of removed ones', () => {
     assert.match(anchor, /function observeRows\(a: Anchor\)[\s\S]*?querySelectorAll\('\[data-key\]'\)[\s\S]*?ro\.observe\(el\)/)
     assert.match(anchor, /if \(!el\.isConnected\) \{\s*ro\.unobserve\(el\)/)
-    assert.match(anchor, /if \(a\.newestLast\(\)\) \{\s*observeRows\(a\)\s*afterAppend/)
+    assert.match(anchor, /if \(step === 'append'\) \{\s*observeRows\(a\)\s*afterAppend/)
   })
   it('the replies button marks an empty count (no replies, nothing new: SPL-2422)', () => {
     assert.match(src, /data-test="topic-replies"[\s\S]{0,120}:data-zero="count === 0 && unreadCount === 0 \? 'true' : undefined"/)

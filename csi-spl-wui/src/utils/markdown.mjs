@@ -28,6 +28,8 @@
  *     link to the picture, labelled with its alt text
  *   - no style attribute ever: a table cell's alignment is data-align, styled
  *     by the component
+ *   - a table's only class is a closed set of md-table--<hint> names
+ *     (TABLE_HINTS, SPL-2466 row 02); any other hint or class is dropped
  *   - task lists, footnotes and heading ids (spec 137 T018) are passes of
  *     this file over the tree, not markdown-it plugins; an id is always
  *     ANCHOR_PREFIX + a slug, never text copied as written
@@ -59,6 +61,7 @@ export const ATTRS = {
   sup: new Set(['id']),
   h1: new Set(['id']), h2: new Set(['id']), h3: new Set(['id']),
   h4: new Set(['id']), h5: new Set(['id']), h6: new Set(['id']),
+  table: new Set(['class']),
   th: new Set(['data-align', 'colspan', 'rowspan']),
   td: new Set(['data-align', 'colspan', 'rowspan']),
   pre: new Set(['data-lang']),
@@ -312,6 +315,7 @@ export function htmlTableNodes(html) {
       continue
     }
     const node = el(tag, tag === 'th' || tag === 'td' ? cellAttrs(m[3]) : {})
+    if (tag === 'table') addTableHints(node, attrOf(m[3], 'class').split(/\s+/))
     top().children.push(node)
     if (tag !== 'br' && !/\/\s*$/.test(m[3])) stack.push(node)
   }
@@ -425,9 +429,15 @@ function isCaptionRow(tr) {
   return typeof cells[0].children[0] === 'string' && CAPTION.test(cells[0].children[0])
 }
 
-function captionOf(children) {
+/* "Table: [compact, dense] Results": a leading bracket that names at least one
+   TABLE_HINTS token is the table's hints, not caption text (SPL-2466 row 02) */
+const CAPTION_HINTS = /^\[([a-z][a-z, -]{0,80})\][ \t]*/i
+
+function captionOf(children, table) {
   const [first, ...rest] = children
-  const text = first.replace(CAPTION, '').replace(/^[ \t]+/, '')
+  let text = first.replace(CAPTION, '').replace(/^[ \t]+/, '')
+  const hints = CAPTION_HINTS.exec(text)
+  if (hints && addTableHints(table, hints[1].split(/[\s,]+/))) text = text.slice(hints[0].length)
   return el('caption', {}, [el('strong', {}, ['Table:']), ...(text || rest.length ? [' '] : []), ...(text ? [text] : []), ...rest])
 }
 
@@ -437,7 +447,7 @@ function tableCaptions(list) {
     const prev = out.at(-1)
     if (prev && typeof prev !== 'string' && prev.tag === 'table' && !prev.children.some((c) => c.tag === 'caption')
       && typeof n !== 'string' && n.tag === 'p' && typeof n.children[0] === 'string' && CAPTION.test(n.children[0])) {
-      prev.children = [captionOf(n.children), ...prev.children]
+      prev.children = [captionOf(n.children, prev), ...prev.children]
       continue
     }
     if (typeof n !== 'string' && n.tag === 'table') {
@@ -446,9 +456,84 @@ function tableCaptions(list) {
       if (last && typeof last !== 'string' && last.tag === 'tr' && isCaptionRow(last)) {
         body.children = body.children.slice(0, -1)
         const cell = last.children.find((c) => typeof c !== 'string')
-        n.children = [captionOf(cell.children), ...n.children.filter((c) => c !== body || body.children.length)]
+        n.children = [captionOf(cell.children, n), ...n.children.filter((c) => c !== body || body.children.length)]
       }
     }
+    out.push(n)
+  }
+  return out
+}
+
+/*
+ * Table author hints (md-tables panel plan v1.0 section 3.4, SPL-2466 row 02).
+ * A post styles a table without markup the browser would run: each hint is a
+ * word from TABLE_HINTS and becomes the class md-table--<word> on the table,
+ * which the component styles. Three ways to write one, each portable (a forge
+ * or a terminal shows a comment or a caption, never a broken table):
+ *   - a comment on the line before or after a pipe table:
+ *     <!-- table: compact, no-sort --> ; it is taken out of the text
+ *   - a caption hint: "Table: [compact] Results" (captionOf above)
+ *   - an HTML table's class: <table class="compact no-sort">
+ * A word outside TABLE_HINTS is dropped; a comment that names none of them,
+ * or that stands away from a table, stays as written.
+ */
+export const TABLE_HINTS = new Set(['compact', 'dense', 'no-sort', 'no-zebra', 'stacked', 'scroll'])
+const TABLE_CLASS = /^md-table--(compact|dense|no-sort|no-zebra|stacked|scroll)$/
+const HINT_COMMENT = /^<!--[ \t]*table:[ \t]*([a-z, \t-]{0,80}?)[ \t]*-->$/i
+
+/** Only the md-table--<hint> words of a class value, space separated ('' = none). */
+export function safeTableClass(value) {
+  return [...new Set(String(value ?? '').split(/\s+/).filter((c) => TABLE_CLASS.test(c)))].join(' ')
+}
+
+/** The table's class gains each known hint word; true when one was known. */
+function addTableHints(table, words) {
+  const known = words.map((w) => w.trim().toLowerCase().replace(/^md-table--/, '')).filter((w) => TABLE_HINTS.has(w))
+  if (!known.length) return false
+  const cls = safeTableClass([table.attrs.class || '', ...known.map((w) => `md-table--${w}`)].join(' '))
+  table.attrs = { ...table.attrs, class: cls }
+  return true
+}
+
+/** The hint words of a hint comment written as text, else null. */
+function hintWords(s) {
+  const m = typeof s === 'string' ? HINT_COMMENT.exec(s.trim()) : null
+  if (!m) return null
+  const words = m[1].split(/[\s,]+/).filter(Boolean)
+  return words.some((w) => TABLE_HINTS.has(w.toLowerCase())) ? words : null
+}
+
+/* a comment as its own block: a top-level string (html: true) or a paragraph
+   holding only it (html: false, where it is plain text) */
+function hintBlock(n) {
+  if (typeof n === 'string') return hintWords(n)
+  return n.tag === 'p' && n.children.length === 1 ? hintWords(n.children[0]) : null
+}
+
+/* typed on the line right under a pipe table, the comment arrives as the
+   table's last row: its first cell, the others empty */
+function hintRow(table) {
+  const body = table.children.find((c) => typeof c !== 'string' && c.tag === 'tbody')
+  const last = body?.children.at(-1)
+  if (!last || typeof last === 'string' || last.tag !== 'tr') return
+  const cells = last.children.filter((c) => typeof c !== 'string')
+  if (!cells.length || !cells.slice(1).every((c) => !c.children.length) || cells[0].children.length !== 1) return
+  const words = hintWords(cells[0].children[0])
+  if (!words) return
+  addTableHints(table, words)
+  body.children = body.children.slice(0, -1)
+  if (!body.children.length) table.children = table.children.filter((c) => c !== body)
+}
+
+function tableHints(list) {
+  const isTable = (n) => n && typeof n !== 'string' && n.tag === 'table'
+  const out = []
+  for (let i = 0; i < list.length; i++) {
+    const n = list[i]
+    if (isTable(n)) hintRow(n)
+    const words = isTable(n) ? null : hintBlock(n)
+    if (words && isTable(list[i + 1])) { addTableHints(list[i + 1], words); continue }
+    if (words && isTable(out.at(-1))) { addTableHints(out.at(-1), words); continue }
     out.push(n)
   }
   return out
@@ -488,7 +573,7 @@ function gfmExtras(nodes, notes, noteTree, anchors) {
     out.push(s.slice(last))
     return out.filter((c) => c !== '')
   }
-  const walk = (list, inText) => tableCaptions(list).flatMap((n) => {
+  const walk = (list, inText) => tableHints(tableCaptions(list)).flatMap((n) => {
     if (typeof n === 'string') return inText && notes.size ? refs(n) : [n]
     if (n.tag === 'li') markTask(n)
     if (n.tag === 'blockquote') markCite(n)
@@ -602,7 +687,8 @@ export function treeToHtml(nodes, origin) {
     // carries the URL that actually loads; an external link is left as written.
     const outAttrs = open && open.internal ? { ...n.attrs, href: open.href } : n.attrs
     let attrs = Object.entries(outAttrs || {})
-      .filter(([k]) => allowed.has(k))
+      .map(([k, v]) => [k, k === 'class' ? safeTableClass(v) : v])
+      .filter(([k, v]) => allowed.has(k) && (k !== 'class' || v))
       .map(([k, v]) => ` ${k}="${esc(v)}"`)
       .join('')
     if (open && !open.internal) attrs += ` target="_blank" rel="${NEW_TAB_REL}"`

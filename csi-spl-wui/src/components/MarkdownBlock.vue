@@ -70,6 +70,8 @@ function labelFor(href: string, written: string) {
 
 const tree = shallowRef<MdNode[] | null>(null)
 let tags: Set<string> = new Set()
+/* SPL-2466 row 02: a table's hint classes, filtered again at the DOM (markdown.mjs safeTableClass) */
+let tableClass: (v: unknown) => string = () => ''
 /* only the newest render may write; an older one that resolves late is dropped */
 let seq = 0
 
@@ -86,9 +88,10 @@ watch(
     }
     if (!import.meta.client) return
     try {
-      const { markdownTree, TAGS } = await import('~/utils/markdown.mjs')
+      const { markdownTree, TAGS, safeTableClass } = await import('~/utils/markdown.mjs')
       if (mine !== seq) return
       tags = TAGS
+      tableClass = safeTableClass
       /* SPL-1291: a doc link opens /docs/<path> (cnf repoWebUrl) */
       const docsRepo = String(pub.repoWebUrl || '')
       tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null, anchors: props.anchors })
@@ -191,7 +194,7 @@ function node(n: MdNode, inCode = false): VNodeChild {
     }
     return h('a', anchor, lab && labelMod.value ? [appLinkText(labelMod.value, lab)] : short ? [short.text] : kids)
   }
-  if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
+  if (n.tag === 'table') return h('div', { class: ['md-table', tableClass(n.attrs.class)] }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}
   for (const k of ['start', 'data-align', 'data-lang', 'colspan', 'rowspan', 'id', 'data-task', 'data-footnotes', 'data-cite']) if (n.attrs[k]) attrs[k] = n.attrs[k]
   return h(n.tag, attrs, kids)

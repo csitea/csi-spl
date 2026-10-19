@@ -1484,6 +1484,8 @@ declare module '~/utils/markdown.mjs' {
   export function headingSlug(text: string): string
   export function markdownTree(src: string, opts?: MdOptions): MdNode[]
   export function htmlTableNodes(html: string): MdNode[]
+  export const TABLE_HINTS: Set<string>
+  export function safeTableClass(value: unknown): string
   export function treeToHtml(nodes: MdNode[], origin?: string): string
   export function markdownToHtml(src: string, origin?: string, opts?: MdOptions): string
   export function renderMarkdown(src: string, origin?: string): string

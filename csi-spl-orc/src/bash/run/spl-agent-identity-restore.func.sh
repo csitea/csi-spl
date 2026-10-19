@@ -157,11 +157,8 @@ _ai_grok_fallback() {  # ID USER DRY RID
 # Why grok cannot start a restored seat as USER, nothing when it can: no grok
 # CLI on the user's login PATH (GROK_BIN, default grok), no sign-in
 # (~/.grok/auth.json empty or missing), or its weekly limit: the NEWEST
-# watchdog verdict of any grok seat of this box (ctx*/<id>/out.s2, registry
-# kind grok, else a g- id) is S2 kind=limit within ROTATE_GROK_LIMIT_FRESH s
-# (604800). Newest of all, not per seat: a seat that hit the limit and never
-# ran again keeps it in its last verdict (sat 10-18: g-178's of 10-15, while
-# g-002 and g-003 wrote clean ones that day). File reads only.
+# watchdog verdict of all grok seats of this box is S2 kind=limit
+# (spl_rotate_grok_out, the rotation's own check, SPL-2555). File reads only.
 _ai_grok_why() {  # USER
   local u="$1" bin="${GROK_BIN:-grok}" home su=()
   [[ "$(id -un)" == "$u" ]] || su=(sudo -n -u "$u")
@@ -173,18 +170,9 @@ _ai_grok_why() {  # USER
   home="$(_ai_home "$u")"
   [[ -n "$home" ]] && { [[ -s "$home/.grok/auth.json" ]] || "${su[@]}" test -s "$home/.grok/auth.json" 2>/dev/null; } ||
     { echo "no grok sign-in for $u (${home:-?}/.grok/auth.json)"; return 0; }
-  local wd="${LANE_MIX_WD_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/wd}" f id k t best=-1 bestf=""
-  for f in "$wd"/ctx*/*/out.s2; do
-    [[ -f "$f" ]] || continue
-    id="$(basename "$(dirname "$f")")"
-    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" 2>/dev/null || true)"
-    [[ "$k" == grok || ( -z "$k" && "$id" == g-* ) ]] || continue
-    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
-    if (( t > best )); then best="$t" bestf="$f"; fi
-  done
-  (( best >= 0 && $(date +%s) - best <= ${ROTATE_GROK_LIMIT_FRESH:-604800} )) || return 0
-  f="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "$bestf" 2>/dev/null || true)"
-  [[ -z "$f" ]] || echo "its limit: $(basename "$(dirname "$bestf")") S2 kind=limit $(( ($(date +%s) - best) / 60 ))m ago: ${f#HIT S2 kind=limit }"
+  local lim
+  lim="$(spl_rotate_grok_out)"
+  [[ -z "$lim" ]] || echo "its limit: $lim"
   return 0
 }
 

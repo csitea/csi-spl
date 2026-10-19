@@ -80,6 +80,10 @@
 #  21. SPL-1890: a failover on a fresh watchdog HIT = GATE SKIP failover not
 #      able, no hold, no spawn, no ask/DM, one orchestrator note (not twice);
 #      the dry run shows it. Controls: an old HIT or an OK verdict rotates
+#  22. SPL-2555: spl_rotate_grok_out judges the NEWEST grok verdict across
+#      seats: g-178 on its limit 3 days ago, g-002 clean 1 h ago = grok not
+#      out. Controls: the newest across seats a limit = out; one seat alone
+#      on its limit = out; a tie (same second) with a limit = out
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -922,6 +926,25 @@ for v in "HIT S2 $(( $(date +%s) - 600 ))" "OK $(date +%s)"; do
     pass "21. CONTROL: wd.c-903 '${v%% [0-9]*}' (old or OK) rotates to DONE" || fail "21. control '$v' rc=$rc $(cat "$T/o")"
 done
 rm -f "$D/wd.c-903"
+
+# --- 22. SPL-2555: grok's limit is judged by the newest verdict across seats ---------------------
+# go: the real lib, sourced in a subshell, on its own watchdog dir
+go() { ( export SPOOL_ROOT="$S" LANE_MIX_WD_DIR="$T/wd22"; source "$PROJ_ROOT/src/bash/run/spl-rotate-lib.func.sh"; spl_rotate_grok_out ); }
+v22() {  # ID AGE VERDICT: one out.s2 written AGE ago
+  mkdir -p "$T/wd22/ctx.1/$1"; printf '%s\n' "$3" >"$T/wd22/ctx.1/$1/out.s2"; touch -d "$2" "$T/wd22/ctx.1/$1/out.s2"
+}
+rm -rf "$T/wd22"; v22 g-178 '3 days ago' 'HIT S2 kind=limit pane: You hit your weekly limit'; v22 g-002 '1 hour ago' ''
+o="$(go)"; [[ -z "$o" ]] && pass "22. g-178 limit 3 days ago, g-002 clean 1 h ago: grok is not out" || fail "22. stale seat: '$o'"
+rm -rf "$T/wd22"; v22 g-178 '1 hour ago' 'HIT S2 kind=limit pane: You hit your weekly limit'; v22 g-002 '3 hours ago' ''
+o="$(go)"; [[ "$o" == 'g-178 S2 kind=limit 60m ago: pane: You hit your weekly limit' ]] &&
+  pass "22. control: the newest verdict across seats is a limit: out ($o)" || fail "22. newest limit: '$o'"
+rm -rf "$T/wd22"; v22 g-178 '2 days ago' 'HIT S2 kind=limit pane: weekly'
+o="$(go)"; [[ "$o" == 'g-178 S2 kind=limit '*'m ago: pane: weekly' ]] && pass "22. control: one seat alone on its limit: out" || fail "22. alone: '$o'"
+rm -rf "$T/wd22"; v22 g-002 '10 minutes ago' 'HIT S2 kind=limit pane: weekly'; v22 g-003 '10 minutes ago' ''
+touch -r "$T/wd22/ctx.1/g-002/out.s2" "$T/wd22/ctx.1/g-003/out.s2"
+o="$(go)"; [[ "$o" == 'g-002 S2 kind=limit 10m ago: pane: weekly' ]] && pass "22. control: a tie with a limit: out" || fail "22. tie: '$o'"
+rm -rf "$T/wd22"; v22 g-178 '8 days ago' 'HIT S2 kind=limit pane: weekly'
+o="$(go)"; [[ -z "$o" ]] && pass "22. control: a limit older than ROTATE_GROK_LIMIT_FRESH: not out" || fail "22. old: '$o'"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

@@ -16,11 +16,13 @@
 #   c-905  retired, salvaged on pass 1, then a tracked dir made read-only
 #          (as another user's dir is) -> pass 2 keeps it whole, nothing deleted
 # Origin's refs are counted before and after every run: none is added.
-# A first real run with WT_SALVAGE=0 (the default) keeps c-901 dirty and
-# writes nothing; the other runs pass WT_SALVAGE=1.
+# A first real run with WT_SALVAGE=0 (the off switch) keeps c-901 dirty and
+# writes nothing; pass 1 runs with WT_SALVAGE unset (the default is on,
+# SPL-2550), the dry run and pass 2 pass WT_SALVAGE=1.
 #
 # Red control: the script before SPL-2514 keeps c-901 dirty on every pass;
-# 2385546e2's (the wip-push salvage) adds refs to origin: both FAIL here.
+# 2385546e2's (the wip-push salvage) adds refs to origin; a default of 0
+# (before SPL-2550) keeps c-901 dirty on pass 1: all FAIL here.
 set -euo pipefail
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -62,8 +64,10 @@ old "$root"
 # plant one, so the 600 / 700 checks below see what sat sees.
 acl=0; if command -v setfacl >/dev/null && setfacl -d -m g::rwx -m o::- "$spool" 2>/dev/null; then acl=1; fi
 
+# SALV unset: the run gets no WT_SALVAGE at all, so it sees the default.
 run() {
-  WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" WT_SALVAGE="${SALV:-1}" \
+  env -u WT_SALVAGE ${SALV+WT_SALVAGE="$SALV"} \
+    WT_REPO="$repo" WT_ROOT="$root" WT_SWEEP_AGE_H=24 SPOOL_ROOT="$spool" DRY_RUN="$1" \
     bash "$sweep" >"$tmp/$2.out" 2>&1 || true
 }
 log="$spool/wt-salvage.tsv"
@@ -73,7 +77,7 @@ SALV=0 run 0 off
 check "WT_SALVAGE=0: c-901 KEEP dirty" has "$tmp/off.out" "KEEP dirty .*/c-901$"
 check "WT_SALVAGE=0: no log" [ ! -e "$log" ]
 
-run 1 dry
+SALV=1 run 1 dry
 D="$tmp/dry.out"
 check "dry: c-901 salvage planned" has "$D" "KEEP dirty-retired-salvage-planned .*/c-901$"
 check "dry: writes no salvage log" [ ! -e "$log" ]
@@ -83,6 +87,7 @@ check "dry: DONE would-salvage=4" has "$D" 'would-salvage=4 '
 run 0 p1
 P1="$tmp/p1.out"
 s901="$(row c-901 5)"; b901="$(row c-901 4)"; arch="$(row c-901 8)"
+check "pass 1: WT_SALVAGE unset salvages (default on)" has "$P1" "START .* salvage=1$"
 check "pass 1: c-901 SALVAGE line" has "$P1" "SALVAGE c-901 $s901 -> .*/c-901\.[0-9TZ]+\.bundle residue=1 "
 check "pass 1: c-901 kept until a later pass" [ -f "$root/c-901/csi-spl-orc/a.sh" ]
 check "pass 1: NO ref reaches origin" [ "$(refs_n)" = "$refs0" ]
@@ -112,7 +117,7 @@ s904="$(row c-904 5)"; b903="$(row c-903 4)"
 echo "edit again" >>"$root/c-904/csi-spl-orc/a.sh"; old "$root/c-904"
 chmod 555 "$root/c-905/csi-spl-orc"
 n905="$(find "$root/c-905" -path '*/node_modules' -prune -o -type f -print | wc -l)"
-run 0 p2
+SALV=1 run 0 p2
 P2="$tmp/p2.out"
 check "pass 2: c-901 REMOVED, salvaged sha logged" has "$P2" "REMOVE .*/c-901 branch c-901-lane salvaged $s901$"
 check "pass 2: c-901 tree gone" [ ! -e "$root/c-901" ]

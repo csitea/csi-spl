@@ -385,8 +385,8 @@ after the agent is done.
   mid-rebase or a detached tree keeps it, and so does a tree with a dir the
   sweep user cannot write (another user's dir would stop the removal half
   way). Ignored files (node_modules, .nuxt,
-  bin) are build output. Off by default (`WT_SALVAGE=1` turns it on) until
-  the live run is accepted. Test: `wt-dirty-salvage.tst.sh` (origin's ref
+  bin) are build output. On by default since the dispatcher accepted the
+  live run (SPL-2550); `WT_SALVAGE=0` turns it off. Test: `wt-dirty-salvage.tst.sh` (origin's ref
   count unchanged; a corrupt bundle refuses the removal).
 
 ## 6. Limits (W3, R4, R12)

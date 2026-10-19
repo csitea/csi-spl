@@ -36,3 +36,10 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
 consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat
+
+## 4. Current Status on Rotation (16:48Z)
+
+- Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
+- Dispatch lease holder `c-002@sat` confirmed `Verdict GOOD (NOT an exit)` and queued Batch 1 (Rows 01 + 02) with orchestrator `c-001`.
+- Standing role: `a-615@PC` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
+- Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).

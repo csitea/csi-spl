@@ -117,4 +117,31 @@ After T1 ships on prd: HUM-46 opens the DM topic from a notification (the
 `/t/…` page) and replies without an @mention. The line appears in the owner's
 `/dm/HUM-46@box-wui` within a second, and the badge counts it.
 
-<!-- last-edit: 2026-10-09T16:40:00Z -->
+## 5. A desk answer in a #lobby welcome topic goes to a DM (SPL-2553)
+
+Source: owner HUM-10, t1 #lobby topic cd9b0f47 msg 118f32d7 (2026-10-19),
+"why I see this communication as it seems that it has to be between [a
+member] and the agent". Measured on prd (read-only `do_spl_db_query`, n=22
+rows): the topic's root a90d620c is the bot welcome for HUM-24
+(`desk-welcome-text.py`), and every row after it, the member's questions to
+`ALL-0` and the desks' answers to `HUM-24`, is stored with channel `lobby`
+(`channelOf` inherits the topic's channel), so every #lobby member reads it.
+
+The fix (candidate c of the lane brief) is in `do_spl_desk_reply`, the one
+door every desk answer and every `do_spl_take` line goes through: when the
+topic answered is a #lobby topic whose subject is a welcome text
+(`desk-welcome-text.py --match`), the answer goes to a DM with the person,
+carrying `--ref <welcome topic>`. The DM's task id is a uuid5 of tenant,
+welcome topic and person, so every desk's answers share one DM topic. A
+topic list the desk cannot read keeps the answer in the topic.
+
+Not chosen: (a) welcome as a DM, against the owner's rule that the bots greet
+a newcomer in #lobby (SPL-961, 2026-09-26); (b) the hub moving a member's
+own reply into a private topic, a change of where a person's line is stored
+that needs a spec decision. The member's question itself stays where they
+posted it; existing rows are not moved and nobody's read access changes.
+
+Test: `csi-spl-orc/src/bash/tests/desk-reply-welcome-dm.tst.sh` (4 of its 7
+checks fail on the code before the fix).
+
+<!-- last-edit: 2026-10-19T16:50:00Z -->

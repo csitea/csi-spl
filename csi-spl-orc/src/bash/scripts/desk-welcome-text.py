@@ -8,6 +8,8 @@ words".
 
   desk-welcome-text.py --locale <l> --default-locale <l> --slot <n> --seed <s> --name <name>
   desk-welcome-text.py --check     (every locale x variant under the word cap)
+  desk-welcome-text.py --match < <first line of a post>
+                                   (exit 0 when it is one of these welcomes)
 
 Three variants per locale. One greeter per tenant posts now (CLE-77896),
 but a ledger planned before that may hold three bots, so bot <slot> takes
@@ -155,6 +157,23 @@ def compose(locale, default_locale, slot, seed, name):
     raise SystemExit(f"desk-welcome-text: no form of the text fits {MAX_WORDS} words")
 
 
+def is_welcome(line):
+    """True when <line> is one of TEXTS with some name in it (SPL-2553): the
+    desk reply asks it of a #lobby topic's subject, the first line of its
+    root, so a desk answers a person's question there in a DM instead."""
+    line = line.strip()
+    for texts in TEXTS.values():
+        for tpl in texts:
+            pre, post = tpl.split("{name}", 1)
+            if (
+                line.startswith(pre)
+                and line.endswith(post)
+                and len(line) > len(pre) + len(post)
+            ):
+                return True
+    return False
+
+
 def check():
     bad = 0
     for loc, texts in TEXTS.items():
@@ -175,6 +194,7 @@ def check():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--match", action="store_true")
     ap.add_argument("--locale", default="")
     ap.add_argument("--default-locale", default="en")
     ap.add_argument("--slot", type=int, default=0)
@@ -183,6 +203,8 @@ def main():
     a = ap.parse_args()
     if a.check:
         return check()
+    if a.match:
+        return 0 if is_welcome(sys.stdin.readline()) else 1
     print(compose(a.locale, a.default_locale, a.slot, a.seed, a.name))
     return 0
 

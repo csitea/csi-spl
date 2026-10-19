@@ -35,6 +35,15 @@
 # @description      carrying --ref T, when this desk cannot read T (hub-tail
 # @description      returns nothing) or the post into T fails (edge 2). The
 # @description      DESK_TO + full DESK_TASK form reads no message: no T.
+# @description   5. SPL-2553: an answer to a person in a #lobby WELCOME topic
+# @description      (its subject is a desk-welcome-text.py text) goes to a DM
+# @description      with that person, carrying --ref <the welcome topic>,
+# @description      never into the topic: every #lobby member reads it, and a
+# @description      newcomer's support questions there were public (owner
+# @description      HUM-10, t1 cd9b0f47 msg 118f32d7). One DM topic per
+# @description      welcome topic and person (a uuid5 of tenant, topic and
+# @description      person), so every desk's answers there share it. A topic
+# @description      list the desk cannot read keeps the answer in the topic.
 # @description A body that opens with **Live** is refused (FATAL, nothing sent)
 # @description without its proof: a sha on origin/master served by dev and prd
 # @description (or `no deploy`), a `checked:` and a `not checked:` line
@@ -187,6 +196,15 @@ _spl_desk_reply_choose() {
 # with --ref T. 1 with the FATAL when the send fails.
 _spl_desk_reply_send() {
   local rc=0 ref_args=()
+  if [[ -z "$ans_ref" && "$ans_to" == HUM-* ]] && _spl_desk_reply_is_welcome "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task"; then
+    ans_ref="$ans_task" route=welcome-dm
+    sent_task="$(_spl_desk_reply_welcome_task "$tenant" "$ans_task" "$ans_to")" || { do_log "FATAL no DM topic id for $ans_to"; return 1; }
+    sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
+      --task "$sent_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" --ref "$ans_ref")" || rc=$?
+    (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in the DM about welcome topic $ans_ref: $sent"; return 1; }
+    do_log "INFO $ans_task is a #lobby welcome topic: $agent answers $ans_to in DM $sent_task, not in front of every member (SPL-2553)"
+    return 0
+  fi
   if [[ -n "$ans_ref" ]]; then
     if _spl_desk_reply_can_read "$d" "$box" "$tenant" "$hub" "$ans_ref"; then
       sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
@@ -208,6 +226,35 @@ _spl_desk_reply_send() {
       --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}")" || rc=$?
   fi
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
+}
+
+# _spl_desk_reply_is_welcome <state dir> <box> <tenant> <hub> <agent> <task>:
+# 0 when <task> is a #lobby topic whose subject (its root's first line) is a
+# welcome text of desk-welcome-text.py (SPL-2553). The topic list is the box
+# twin of the WUI's, newest activity first; one page of 100 holds a topic a
+# person just wrote in. hub-tail cannot answer it: a box holds no root posted
+# before it was seated (prd cd9b0f47, 2026-10-19: root a90d620c missing).
+_spl_desk_reply_is_welcome() {
+  local out subject
+  out="$(spl_desk_spool "$1" "$2" "$3" "$4" -- topics --as "$5" --channel lobby --limit 100 --json 2>/dev/null)" || return 1
+  subject="$(python3 -c '
+import json, sys
+try:
+    page = json.loads(sys.argv[1])
+except ValueError:
+    sys.exit(1)
+for t in page.get("topics") or []:
+    if isinstance(t, dict) and t.get("task_id") == sys.argv[2]:
+        print(" ".join(str(t.get("subject", "")).splitlines()[:1]))
+        sys.exit(0)
+sys.exit(1)' "$out" "$6")" || return 1
+  python3 "$PROJ_PATH/src/bash/scripts/desk-welcome-text.py" --match <<<"$subject"
+}
+
+# _spl_desk_reply_welcome_task <tenant> <welcome task> <human>: the DM topic
+# id a desk answers <human> in about that welcome topic, the same on every box.
+_spl_desk_reply_welcome_task() {
+  python3 -c 'import sys, uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spool:welcome-dm:" + ":".join(sys.argv[1:4])))' "$1" "$2" "$3"
 }
 
 # _spl_desk_reply_link_base <tenant>: the WUI base of the permalink, on the

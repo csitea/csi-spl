@@ -42,20 +42,25 @@ describe('monitoring tokens: the hub body as a view', () => {
     assert.deepEqual(v.vendors.map((x) => x.vendor), ['claude', 'mistral', 'grok', 'agy', 'qwen'])
     assert.equal(v.agents.length, 7)
   })
-  it('agy is never metered: its figures stay null, its status is unmetered (T032 red control)', () => {
+  it('unmetered vendors (qwen or agy with no counts) stay null and unmetered, while metered agy reads its figures (T032 red control)', () => {
     const v = mock()
     const agy = v.vendors.find((x) => x.vendor === 'agy')
     assert.equal(agy.metered, false)
     assert.equal(agy.status, 'unmetered')
     for (const k of ['rate', 'fresh', 'todayTokens', 'todayCost']) assert.equal(agy[k], null, k)
-    /* CONTROL: even a hub that wrongly sent 0 for agy reads as null, never "0 tokens" */
-    const wrong = fleetTokensOf({ by_vendor: [{ vendor: 'agy', active_agents: 1, burn_rate_tokens_per_min: 0, today_total_tokens: 0, today_cost: 0, status: 'metered' }] })
-    assert.equal(wrong.vendors[0].metered, false)
-    assert.equal(wrong.vendors[0].todayTokens, null)
-    assert.equal(wrong.vendors[0].todayCost, null)
     const lane = v.agents.find((a) => a.vendor === 'agy')
     assert.equal(lane.metered, false)
     assert.equal(agentStatus(lane, v.asOf), 'not_metered')
+    /* CONTROL: even a hub that wrongly sent 0 for an unmetered vendor reads as null, never "0 tokens" */
+    const wrong = fleetTokensOf({ by_vendor: [{ vendor: 'qwen', active_agents: 1, burn_rate_tokens_per_min: 0, today_total_tokens: 0, today_cost: 0, status: 'metered' }] })
+    assert.equal(wrong.vendors[0].metered, false)
+    assert.equal(wrong.vendors[0].todayTokens, null)
+    assert.equal(wrong.vendors[0].todayCost, null)
+    /* agy when metered reads real counts (SPL-2598) */
+    const met = fleetTokensOf({ by_vendor: [{ vendor: 'agy', active_agents: 1, burn_rate_tokens_per_min: 500, today_total_tokens: 12000, today_cost: 0, status: 'metered' }] })
+    assert.equal(met.vendors[0].metered, true)
+    assert.equal(met.vendors[0].todayTokens, 12000)
+    assert.equal(met.vendors[0].status, 'metered')
   })
   it('a kind with a metered lane the hub holds no price for is unpriced, a priced kind is not', () => {
     const v = mock()

@@ -152,14 +152,23 @@ The collector inspects four distinct vendor session formats:
 - **Location**: `<agent_home>/.grok/sessions/<slug_uri>/updates.jsonl` or `chat_history.jsonl`, cross-referenced with `<agent_home>/.grok/active_sessions.json`.
 - **Parsing**: API response blocks containing standard OpenAI completion `usage` objects (`prompt_tokens`, `completion_tokens`).
 
-#### 2.3.4 Antigravity (`agy`) — the unmetered vendor
-- **Location**: `<agent_home>/.gemini/antigravity-cli/*.pb` (binary Protocol Buffer storage).
-- **The Gap**: As documented in `do_spl_review_line_check` and `c002-token-burn-spec.md` line 8, agy session state is compiled protobuf and is currently unreadable without proprietary schemas.
+#### 2.3.4 Antigravity (`agy`)
+- **Location**: `<agent_home>/.gemini/antigravity-cli/brain/<conversation-id>/.system_generated/logs/transcript.jsonl` (and `transcript_full.jsonl`).
+- **Telemetry Extraction**: While session state includes binary protobuf files (`.pb`), Antigravity records full conversation transcripts in JSON Lines format under the conversation brain directory.
+- **Parsing**: Lines of type `PLANNER_RESPONSE` contain `token_usage` metrics:
+  - `tokens_in`: `.token_usage.input_tokens` (prompt tokens, already excluding cache read tokens).
+  - `tokens_out`: `.token_usage.output_tokens` (completion tokens).
+  - `cache_read`: `.token_usage.cache_read_tokens` (cached prompt tokens).
+  - `cache_write`: `0`.
+  - `model`: e.g. `gemini-3.8-flash` (or model name extracted from model config/response).
+- **Attribution to Agent**:
+  1. Prompt seed path: the initial user prompt step (`step_index: 0`) contains `/var/spool-hub/<agent_id>/lifetime/prompt.txt`.
+  2. Workspace database: `<agent_home>/.gemini/antigravity-cli/conversation_summaries.db` contains `workspace_uris` matching the worktree pattern `-wt[0-9]*[/-]([A-Za-z]+-[0-9]+)`.
+  3. Direct worktree path regex from transcripts.
 - **Reporting & Display Invariant**:
-  - Agy lanes are detected from `/var/spool-hub/registry.tsv` and active tmux panes.
-  - The collector reports these active lanes with `is_metered: false` and `status: "unmetered"`.
-  - The hub stores and the WUI displays a prominent **"Not metered (binary .pb format)"** badge.
-  - **Agy token counts and costs are NEVER rendered as zero (`0`)**. Displaying zero would falsely imply free usage; displaying "Not metered" explicitly exposes the telemetry gap.
+  - Running agy lanes with resolved transcripts report `is_metered: true` with measured token counts.
+  - Any agy lane without discovered transcript token counts reports `is_metered: false` with `status: "unmetered"` (tokens NEVER rendered as zero).
+  - The unmetered vendor control is now `qwen`.
 
 ### 2.4 Incremental read state & deduplication
 
@@ -400,9 +409,10 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   two samples of one `(agent_id, minute)`; `bad_frame` for another
   `fleet_tokens_*` op or no `msg_id`; `not_operator` (403) for a box outside
   the operator workspace (the rows are the instance's). The connection stays
-  open. `is_metered` absent reads true; an agy sample must say false.
+  open. `is_metered` absent reads true; an unmetered sample (vendor `qwen`, or
+  any unmetered lane) must say false.
 - **Pricing**: vendor to `model_prices.provider`: claude `anthropic`,
-  mistral `mistral`, grok `xai`, qwen `qwen`; a model's `[1m]`-style suffix
+  mistral `mistral`, grok `xai`, agy `google`, qwen `qwen`; a model's `[1m]`-style suffix
   and an 8-digit snapshot date (`claude-haiku-4-5-20251001` prices as
   `claude-haiku-4-5`, SPL-2323) are dropped for the lookup. The price row in
   force at the minute wins. mistral's model is vibe's alias
@@ -563,13 +573,14 @@ pushed minutes into `fleet_token_burn_daily`.
 (`# csi-spl:box-cron:token-burn`, `token-burn-collect-cron.sh`) is the
 collection; no new job. The daily cost source `fleet_tokens`
 (`do_spl_cost_tokens_read`, spec 123 4.3) adds each grok lane's turns of the
-day from the same homes (`spl_cost_tokens_grok`), so Monitoring -> Costs
-lists grok's tokens beside claude's; a grok lane with rows there is no
+day from the same homes (`spl_cost_tokens_grok`) and each Antigravity lane's
+turns of the day (`spl_cost_tokens_agy`), so Monitoring -> Costs lists grok's
+and agy's tokens beside claude's; a grok or agy lane with rows there is no
 longer "unmetered".
 
-**No price.** `model_prices` holds no `xai` row: grok minutes are stored
-`priced=false`, cost 0, and the Tokens tab and the Costs card say "not
-priced", never a cost of 0. A price row added later is applied with
+**No price.** `model_prices` holds no `xai` or `google` row: grok and agy
+minutes are stored `priced=false`, cost 0, and the Tokens tab and the Costs
+card say "not priced", never a cost of 0. A price row added later is applied with
 `do_spl_token_burn_reprice` (3.7).
 
 ---

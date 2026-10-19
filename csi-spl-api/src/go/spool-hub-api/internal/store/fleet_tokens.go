@@ -34,9 +34,8 @@ const (
 	FleetTokenRowsMax = 150000
 )
 
-// fleetTokenProviders maps an agent kind to its model_prices provider. agy
-// is unmetered and has none.
-var fleetTokenProviders = map[string]string{"claude": "anthropic", "mistral": "mistral", "grok": "xai", "qwen": "qwen"}
+// fleetTokenProviders maps an agent kind to its model_prices provider.
+var fleetTokenProviders = map[string]string{"claude": "anthropic", "mistral": "mistral", "grok": "xai", "agy": "google", "qwen": "qwen"}
 
 // FleetTokenProvider is the model_prices provider of an agent kind ("" = none).
 func FleetTokenProvider(vendor string) string { return fleetTokenProviders[vendor] }
@@ -228,6 +227,7 @@ type fleetTokenVendorAcc struct {
 	in, out, cr, cw, burn, fresh int64
 	cost                         float64
 	active                       int
+	metered                      int
 }
 
 // fleetTokenFold is FleetTokenSummarize's state: the window's bounds at
@@ -354,6 +354,9 @@ func (f *fleetTokenFold) countLive(l FleetTokenBucket) {
 	f.sum.ActiveAgents++
 	if va := f.vendors[l.Vendor]; va != nil {
 		va.active++
+		if l.IsMetered {
+			va.metered++
+		}
 	}
 	switch {
 	case !l.IsMetered:
@@ -363,13 +366,13 @@ func (f *fleetTokenFold) countLive(l FleetTokenBucket) {
 	}
 }
 
-// vendorRows is every kind in wire.FleetTokenVendors order; agy's sums are null.
+// vendorRows is every kind in wire.FleetTokenVendors order; unmetered kind's sums are null.
 func (f *fleetTokenFold) vendorRows() []wire.VendorTokenBurn {
 	out := []wire.VendorTokenBurn{}
 	for _, v := range wire.FleetTokenVendors {
 		va := f.vendors[v]
 		vb := wire.VendorTokenBurn{Vendor: v, ActiveAgents: va.active, Status: "idle"}
-		if v == wire.FleetBurnVendorUnmetered {
+		if va.active > 0 && (v == wire.FleetBurnVendorUnmetered || va.metered == 0) {
 			vb.Status = "unmetered"
 		} else {
 			if va.active > 0 {

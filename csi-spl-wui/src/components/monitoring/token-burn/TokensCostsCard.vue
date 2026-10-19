@@ -33,7 +33,10 @@ const localePath = useLocalePath()
 const view = ref<ReturnType<typeof fleetTokensOf> | null>(null)
 const kinds = computed(() => (view.value ? tokensCardVendors(view.value) : []))
 /* the agent kind labels the roster uses (agents.kinds.*), as the Tokens tab */
-const kindLabel = (v: string) => (te('agents.kinds.' + v) ? t('agents.kinds.' + v) : v)
+const kindLabel = (v: string) => {
+  const k = 'agents.kinds.' + (v === 'agy' ? 'antigravity' : v)
+  return te(k) ? t(k) : v
+}
 
 onMounted(async () => {
   try {

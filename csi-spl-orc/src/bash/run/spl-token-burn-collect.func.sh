@@ -142,10 +142,11 @@ spl_token_burn_homes() {
 # a subagent's new file does not move any dir the walk would list.
 # Sets the caller's TOKEN_BURN_PY: read builtins, no process forked.
 spl_token_burn_reader_py() {
-  local a b
+  local a b c
   spl_token_burn_reader_py_find
   spl_token_burn_reader_py_read
-  TOKEN_BURN_PY="$a$b"
+  spl_token_burn_reader_py_models
+  TOKEN_BURN_PY="$a$b$c"
 }
 
 # The reader's first half: the state in, the candidate transcripts found.
@@ -197,6 +198,12 @@ for e in ls(home + "/.grok/sessions"):
         for s in ls(e.path):
             if s.is_dir():
                 cand[s.path + "/usage.json"] = "grok"
+for e in ls(home + "/.gemini/antigravity-cli/brain"):
+    if e.is_dir() and look(e.name, e.path):
+        p = e.path + "/.system_generated/logs/transcript.jsonl"
+        if not os.path.exists(p) and os.path.exists(e.path + "/transcript.jsonl"):
+            p = e.path + "/transcript.jsonl"
+        cand[p] = "agy"
 EOF_PY
 }
 
@@ -245,6 +252,8 @@ for f, vendor in todo:
     elif vendor == "mistral":
         if tail(vendor, f, st, (b'"tokenUsage"',)):
             vibe.add(os.path.dirname(os.path.dirname(f)))
+    elif vendor == "agy":
+        tail(vendor, f, st, (b'"PLANNER_RESPONSE"', b'"input_tokens"'))
     else:
         tail(vendor, f, st, (b'"usage"', b'"assistant"'))
         if st.st_mtime >= now - active and "/subagents/" not in f:
@@ -252,6 +261,12 @@ for f, vendor in todo:
                 if s.name.endswith(".jsonl") and s.path not in cand:
                     cand[s.path] = "claude"
                     todo.append((s.path, "claude"))
+EOF_PY
+}
+
+# The reader's third half: emit vibe and agy metadata.
+spl_token_burn_reader_py_models() {
+  IFS= read -r -d '' c <<'EOF_PY' || :
 for d in vibe:
     try:
         emit("M", "mistral", d, json.load(open(d + "/meta.json")).get("origin_directory") or "")
@@ -267,6 +282,18 @@ if vibe:
         emit("V", "mistral", alias.get(act.group(1), act.group(1)) if act else "unknown")
     except OSError:
         emit("V", "mistral", "unknown")
+if any(v == "agy" for _, v in todo):
+    import json
+    m_name = "gemini-3.8-flash"
+    try:
+        s_cfg = json.load(open(home + "/.gemini/antigravity-cli/settings.json"))
+        raw_m = s_cfg.get("model", "")
+        if "flash" in raw_m.lower(): m_name = "gemini-3.8-flash"
+        elif "pro" in raw_m.lower(): m_name = "gemini-3.8-pro"
+        elif raw_m: m_name = raw_m.lower().replace(" ", "-")
+    except Exception:
+        pass
+    emit("V", "agy", m_name)
 emit("L", str(listed[0]))
 out.flush()
 sys.exit(3 if rows[0] else 0)
@@ -298,6 +325,10 @@ spl_token_burn_events() {
         select(. != null) | .tokenUsage as $t |
         ["S", "mistral", .id, (.updatedAt | epoch), "", (($t.inputTokens | nz) - ($t.cachedInputTokens | nz) | nz),
          ($t.outputTokens | nz), ($t.cachedInputTokens | nz), 0, (.createdAt | epoch), ($f[2] | split("/journal/")[0])] | @tsv
+      elif $f[1] == "agy" then
+        $r | select(.type == "PLANNER_RESPONSE") |
+        ["A", $f[2], ($f[2] + ":" + (.step_index | tostring)), ($r.created_at | epoch), ($r.model // ""),
+         (.input_tokens | nz), (.output_tokens | nz), (.cache_read_tokens | nz), 0] | @tsv
       else
         $r | .session as $s | select($s | type == "object") |
         ["S", "grok", .sessionId, (.updatedAt | epoch), ($s.primaryModelId // ($s.modelUsage // {} | keys | first) // "unknown"),
@@ -312,15 +343,18 @@ spl_token_burn_events() {
     end'
 }
 
-# spl_token_burn_agents DIR EVENTS: the agent of each claude transcript not
-# yet in DIR/agents.tsv, by spl_cost_tokens_agent (the spool record naming
-# its session, else the -wt-<id> project dir), cached: one lookup per file.
+# spl_token_burn_agents DIR EVENTS: the agent of each claude or agy transcript
+# not yet in DIR/agents.tsv, cached: one lookup per file.
 spl_token_burn_agents() {
-  local f
+  local f vendor
   awk -F'\t' 'FILENAME == ARGV[1] { known[$1] = 1; next }
-    $1 == "F" && $2 == "claude" && !($3 in known) { print $3 }' "$1/agents.tsv" "$2" |
-    while IFS= read -r f; do
-      printf '%s\t%s\n' "$f" "$(spl_cost_tokens_agent "${SPOOL_ROOT:-/var/spool-hub}" "$f")"
+    $1 == "F" && ($2 == "claude" || $2 == "agy") && !($3 in known) { print $2, $3 }' "$1/agents.tsv" "$2" |
+    while IFS=' ' read -r vendor f; do
+      if [[ "$vendor" == "agy" ]]; then
+        printf '%s\t%s\n' "$f" "$(spl_cost_tokens_agy_agent "$f")"
+      else
+        printf '%s\t%s\n' "$f" "$(spl_cost_tokens_agent "${SPOOL_ROOT:-/var/spool-hub}" "$f")"
+      fi
     done >>"$1/agents.tsv"
 }
 
@@ -397,7 +431,7 @@ spl_token_burn_sum() {
     FILENAME == d "/ids.tsv" { if ($2 >= now - ttl) { iseen[$1] = $2; for (j = 1; j <= 4; j++) im[$1, j] = $(j + 2) }; next }
     FILENAME == d "/sessions.tsv" { if ($7 >= now - 172800) { k = $1 SUBSEP $2; sseen[k] = $7; for (j = 1; j <= 4; j++) sc[k, j] = $(j + 2) }; next }
     FILENAME == d "/agents.tsv" { agent[$1] = $2; next }
-    FILENAME == d "/buckets.tsv" { if ($4 >= now - win) { k = $1 SUBSEP $4; bv[k] = $2; bm[k] = $3; b1[k] = $5; b2[k] = $6; b3[k] = $7; b4[k] = $8; bmet[k] = $9; dirty[k] = $10 }; next }
+    FILENAME == d "/buckets.tsv" { if ($4 >= now - win) { k = $1 SUBSEP $4; bv[k] = $2; bm[k] = $3; b1[k] = $5; b2[k] = $6; b3[k] = $7; b4[k] = $8; bmet[k] = $9; dirty[k] = $10; if ($9 == 1) metered_agents[$1] = 1 }; next }
     FILENAME == live { id = $1; sub(/@.*/, "", id)
       if (id ~ /^(a-[0-9]+|AGY-[0-9]+)$/) ev[++n] = "U\tagy\t" id
       else if (id ~ /^(q-[0-9]+|QWN-[0-9]+)$/) ev[++n] = "U\tqwen\t" id
@@ -405,18 +439,28 @@ spl_token_burn_sum() {
     $1 == "F" { print $2, $3, $4, $5 > (nx "/files.tsv"); files++; next }
     $1 == "L" { listed += $2; next }
     $1 == "M" { origin[$3] = $4; next }
-    $1 == "V" { vmodel = $3; next }
+    $1 == "V" { if ($2 == "mistral") vmodel = $3; else if ($2 == "agy") agymodel = $3; else vmodel = $3; next }
     { ev[++n] = $0 }
     END {
       for (e = 1; e <= n; e++) {
         split(ev[e], f, "\t")
-        if (f[1] == "U") { add(f[3], f[2], "", now, 0, 0, 0, 0, 0); unm++; continue }
+        if (f[1] == "U") {
+          if (f[2] == "agy" && (f[3] in metered_agents)) continue
+          add(f[3], f[2], "", now, 0, 0, 0, 0, 0); unm++; continue
+        }
+        if (f[1] == "A") {
+          if (f[4] < now - win) { late++; continue }
+          id = f[3]; if (id in iseen) continue; iseen[id] = now
+          a = (f[2] in agent) ? agent[f[2]] : "unattributed"
+          m = (f[5] != "") ? f[5] : (agymodel != "") ? agymodel : "gemini-3.8-flash"
+          add(a, "agy", m, f[4], f[6], f[7], f[8], f[9], 1); metered_agents[a] = 1; agy++; continue
+        }
         if (f[1] == "C") {
           if (f[4] < now - win) { late++; continue }
           id = f[3]; iseen[id] = now
           for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - im[id, j]; if (x[j] < 0) x[j] = 0; else im[id, j] = f[j + 5] }
           a = (f[2] in agent) ? agent[f[2]] : "unattributed"
-          add(a, "claude", f[5], f[4], x[1], x[2], x[3], x[4], 1); claude++; continue
+          add(a, "claude", f[5], f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; claude++; continue
         }
         if (f[1] != "S") continue
         k = f[2] SUBSEP f[3]
@@ -424,14 +468,14 @@ spl_token_burn_sum() {
         sseen[k] = now
         for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - sc[k, j]; if (x[j] < 0) x[j] = f[j + 5]; sc[k, j] = f[j + 5] }
         a = (f[2] == "mistral" ? agent_of(origin[f[11]]) : grok_agent(f[11]))
-        add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); sessions++
+        add(a, f[2], (f[2] == "mistral" ? vmodel : f[5]), f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; sessions++
       }
       for (id in iseen) print id, iseen[id], im[id, 1] + 0, im[id, 2] + 0, im[id, 3] + 0, im[id, 4] + 0 > (nx "/ids.tsv")
       for (k in sseen) { split(k, p, SUBSEP); print p[1], p[2], sc[k, 1] + 0, sc[k, 2] + 0, sc[k, 3] + 0, sc[k, 4] + 0, sseen[k] > (nx "/sessions.tsv") }
       for (k in bv) { split(k, p, SUBSEP); q += dirty[k]; nb++
         print p[1], bv[k], bm[k], p[2], b1[k] + 0, b2[k] + 0, b3[k] + 0, b4[k] + 0, bmet[k], dirty[k] + 0 > (nx "/buckets.tsv") }
-      printf "token-burn tick mode=%s files=%d listed=%d claude_rows=%d session_rows=%d unmetered=%d late=%d buckets=%d queued=%d",
-        mode, files, listed, claude, sessions, unm, late, nb, q > (d "/tick.stats")
+      printf "token-burn tick mode=%s files=%d listed=%d claude_rows=%d agy_rows=%d session_rows=%d unmetered=%d late=%d buckets=%d queued=%d",
+        mode, files, listed, claude, agy, sessions, unm, late, nb, q > (d "/tick.stats")
     }' "$dir/ids.tsv" "$dir/sessions.tsv" "$dir/agents.tsv" "$dir/buckets.tsv" "$4" "$5" || return 1
   mv -f -t "$dir" "$n/files.tsv" "$n/ids.tsv" "$n/sessions.tsv" "$n/buckets.tsv" || return 1
 }

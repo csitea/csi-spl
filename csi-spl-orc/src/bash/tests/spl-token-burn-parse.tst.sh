@@ -158,6 +158,22 @@ b7() { awk -F'\t' -v a="$1" '$1 == a { print $2; o += $6 } END { print o + 0 }' 
 [[ "$(b7 c-101)" == "112 claude " ]] && [[ "$(b7 g-302)" == "0 " ]] &&
   pass "7. control: by the claude rule the grok tokens merge into c-101 ($(b7 c-101)), and g-302 has no bucket" || fail "7. control: c-101=$(b7 c-101) g-302=$(b7 g-302)"
 
+AGY_DIR="$H/.gemini/antigravity-cli/brain/conv_a402/.system_generated/logs"
+mkdir -p "$AGY_DIR"
+printf '{"model":"Gemini 3.8 Flash (High)"}\n' >"$H/.gemini/antigravity-cli/settings.json"
+cat >"$AGY_DIR/transcript.jsonl" <<EOF
+{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"$(iso $((M0 - 10)))","content":"seed: /var/spool-hub/a-402/lifetime/prompt.txt"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"$(iso $((M0 + 6)))","input_tokens":500,"output_tokens":40,"cache_read_tokens":200}
+EOF
+printf "a-401\na-402\nc-101\nq-501@sat\n" >"$T/live"
+tick >/dev/null
+[[ "$(bucket a-402)" == "agy gemini-3.8-flash 500 40 200 0 1" ]] &&
+  pass "8. agy: transcript PLANNER_RESPONSE turns emitted as metered bucket" || fail "8. agy: $(bucket a-402)"
+[[ -z "$(awk -F'\t' '$1 == "a-402" && $9 == 0' "$S/buckets.tsv")" ]] &&
+  pass "8. metered agy lane emits no unmetered bucket" || fail "8. a-402 unmetered bucket found"
+[[ "$(bucket a-401)" == "agy - 0 0 0 0 0" ]] &&
+  pass "8. control: agy lane with no transcript is unmetered, never metered 0" || fail "8. a-401: $(bucket a-401)"
+
 leak="$(grep -rlF "$TXT" "$S" "$T/pushed" 2>/dev/null)"
 [[ -z "$leak" && -s "$S/buckets.tsv" ]] && pass "6. no transcript text in the state dir or the pushed frames" || fail "6. text leaked into: $leak"
 

@@ -30,7 +30,7 @@ export const TOKENS_SURGE_PER_MIN = 60000
 /** A lane is Active when its newest minute is this close to the answer's as_of (the hub's burn window). */
 export const TOKENS_ACTIVE_S = 5 * 60
 /** The agent kind that reports no tokens (wire.FleetBurnVendorUnmetered). */
-export const TOKENS_UNMETERED_VENDOR = 'agy'
+export const TOKENS_UNMETERED_VENDOR = 'qwen'
 /** The kinds in the hub's order (wire.FleetTokenVendors). */
 export const TOKENS_VENDORS = Object.freeze(['claude', 'mistral', 'grok', 'agy', 'qwen'])
 /** e2e opt-in (mock only): the operator admin, operator-console.mjs OPERATOR_MOCK_KEY (the same key shows the tab). */
@@ -261,12 +261,12 @@ export function mockFleetTokens(window = TOKENS_DEFAULT_WINDOW, store = mockStor
   const NULLS = { burn_rate_tokens_per_min: null, fresh_tokens_per_min: null, today_tokens_in: null, today_tokens_out: null,
     today_cache_read: null, today_cache_write: null, today_total_tokens: null, today_cost: null }
   /* [vendor, active, rate, fresh, today, cost, status] */
-  const vendorRow = ([vendor, active, rate, fresh, total, cost, status]) => (vendor === TOKENS_UNMETERED_VENDOR
+  const vendorRow = ([vendor, active, rate, fresh, total, cost, status]) => (vendor === TOKENS_UNMETERED_VENDOR || status === 'unmetered' || !status
     ? { vendor, active_agents: active, ...NULLS, status: 'unmetered' }
     : { vendor, active_agents: active, burn_rate_tokens_per_min: rate, fresh_tokens_per_min: fresh, today_tokens_in: total,
         today_tokens_out: 0, today_cache_read: 0, today_cache_write: 0, today_total_tokens: total, today_cost: cost, status })
   /* [agent_id, vendor, box, model, rate 1m, rate 5m, fresh, today, cost, priced, minutes ago] */
-  const agentRow = ([agent_id, vendor, box, model, r1, rate, fresh, total, cost, priced, last]) => (vendor === TOKENS_UNMETERED_VENDOR
+  const agentRow = ([agent_id, vendor, box, model, r1, rate, fresh, total, cost, priced, last]) => (vendor === TOKENS_UNMETERED_VENDOR || rate === null
     ? { agent_id, vendor, model: null, box, burn_rate_1m_tokens_per_min: null, burn_rate_tokens_per_min: null, fresh_tokens_per_min: null,
         today_total_tokens: null, today_cost: null, is_metered: false, priced: false, last_active: ago(last) }
     : { agent_id, vendor, model, box, burn_rate_1m_tokens_per_min: r1, burn_rate_tokens_per_min: rate, fresh_tokens_per_min: fresh,

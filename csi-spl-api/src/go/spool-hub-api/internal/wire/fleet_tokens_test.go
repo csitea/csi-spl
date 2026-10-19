@@ -60,7 +60,7 @@ func TestFleetTokensPushStrict(t *testing.T) {
 		"negative count":    `{"samples":[{` + ok + `,"tokens_in":-1}]}`,
 		"empty model":       `{"samples":[{` + ok + `,"model":""}]}`,
 		"bad minute":        `{"samples":[{"agent_id":"c-1","vendor":"claude","minute":"yesterday"}]}`,
-		"metered agy":       `{"samples":[{"agent_id":"a-1","vendor":"agy","minute":"2026-10-15T10:40:00Z"}]}`,
+		"metered qwen":      `{"samples":[{"agent_id":"q-1","vendor":"qwen","minute":"2026-10-15T10:40:00Z"}]}`,
 		"unmetered tokens":  `{"samples":[{` + ok + `,"is_metered":false,"tokens_out":3}]}`,
 		"duplicate minute":  `{"samples":[{` + ok + `},{"agent_id":"c-1","vendor":"claude","minute":"2026-10-15T10:40:30Z"}]}`,
 		"empty samples":     `{"samples":[]}`,
@@ -79,5 +79,9 @@ func TestFleetTokensPushStrict(t *testing.T) {
 	// CONTROL: the same fields, all present, pass.
 	if _, err := DecodeFleetTokensPush(json.RawMessage(`{"samples":[{` + ok + `}]}`)); err != nil {
 		t.Fatalf("CONTROL: %v", err)
+	}
+	// agy can now be metered (SPL-2598).
+	if _, err := DecodeFleetTokensPush(json.RawMessage(`{"samples":[{"agent_id":"a-1","vendor":"agy","minute":"2026-10-15T10:40:00Z","tokens_in":100,"is_metered":true}]}`)); err != nil {
+		t.Fatalf("metered agy: %v", err)
 	}
 }

@@ -153,5 +153,23 @@ run_read "$F" >/dev/null
 [[ -n "$(awk -F'\t' '$2 == "g-201" && $7 == "unmetered"' "$OUT")" && -z "$(awk -F'\t' '$3 == "grok" && $7 != "unmetered"' "$OUT")" ]] &&
   pass "10. control: without COST_GROK_HOMES g-201 is unmetered, no grok row" || fail "10. control: $(grep grok "$OUT")"
 
+A_HOME="$T/ahome"
+mkdir -p "$A_HOME/.gemini/antigravity-cli/brain/s_agy/.system_generated/logs"
+printf '{"model":"Gemini 3.8 Flash (High)"}\n' >"$A_HOME/.gemini/antigravity-cli/settings.json"
+cat >"$A_HOME/.gemini/antigravity-cli/brain/s_agy/.system_generated/logs/transcript.jsonl" <<EOF
+{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"${DAY}T00:00:00Z","content":"seed: /var/spool-hub/a-301/lifetime/prompt.txt"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"${DAY}T08:00:00Z","input_tokens":100,"output_tokens":20,"cache_read_tokens":500}
+{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"${DAY}T09:00:00Z","input_tokens":50,"output_tokens":10,"cache_read_tokens":200}
+{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-10-08T23:59:59Z","input_tokens":999,"output_tokens":999,"cache_read_tokens":999}
+EOF
+out="$(run_read "$F" COST_AGY_HOMES="$T/ahome")"; rc=$?
+a_rows="$(awk -F'\t' '$3 == "agy" && $7 != "unmetered" { print $2 "|" $4 "|" $6 "=" $7 }' "$OUT" | sort | paste -sd' ')"
+[[ "$rc" == 0 && "$a_rows" == "a-301|gemini-3.8-flash|cache_read=700 a-301|gemini-3.8-flash|input=150 a-301|gemini-3.8-flash|output=30" ]] &&
+  pass "11. agy: the turns of DAY per agent and model, summed into day rows" || fail "11. agy rows: $a_rows | $out"
+[[ -z "$(awk -F'\t' '$2 == "a-301" && $7 == "unmetered"' "$OUT")" ]] && pass "11. an agy lane with rows gets no unmetered row" || fail "11. a-301 still unmetered"
+run_read "$F" >/dev/null
+[[ -n "$(awk -F'\t' '$2 == "a-301" && $7 == "unmetered"' "$OUT")" && -z "$(awk -F'\t' '$3 == "agy" && $7 != "unmetered"' "$OUT")" ]] &&
+  pass "11. control: without COST_AGY_HOMES a-301 is unmetered, no agy metered row" || fail "11. control: $(grep a-301 "$OUT")"
+
 echo "spl-cost-tokens-read: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

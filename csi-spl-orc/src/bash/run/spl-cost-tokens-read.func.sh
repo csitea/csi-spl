@@ -31,20 +31,22 @@
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_tokens_read
 #------------------------------------------------------------------------------
 do_spl_cost_tokens_read() {
-  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows um grok
+  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows um grok agy
   spl_cost_day_ok "$day" || return 2
   dir="${COST_DAY_DIR:-$root/cost}"
   mkdir -p "$dir" || { echo "FATAL cannot create $dir" >&2; return 1; }
   out="$dir/tokens-$day.tsv"
   rows="$(spl_cost_tokens_rows "$day" "$root")" || { echo "FATAL fleet_tokens: reading the $day transcripts failed" >&2; return 1; }
   grok="$(spl_cost_tokens_grok "$day")" || { echo "FATAL fleet_tokens: reading the $day grok sessions failed" >&2; return 1; }
-  um="$(spl_cost_tokens_unmetered "$day" "$root" | awk -F'\t' 'NR == FNR { m[$2] = 1; next } !($2 in m)' <(printf '%s\n' "$grok") -)" ||
+  agy="$(spl_cost_tokens_agy "$day")" || { echo "FATAL fleet_tokens: reading the $day agy sessions failed" >&2; return 1; }
+  um="$(spl_cost_tokens_unmetered "$day" "$root" | awk -F'\t' 'NR == FNR { m[$2] = 1; next } !($2 in m)' <(printf '%s\n%s\n' "$grok" "$agy") -)" ||
     { echo "FATAL fleet_tokens: listing the unmetered agents of $day failed" >&2; return 1; }
   if ! {
     printf '%s\n' "$rows" | grep '^#'
     printf 'day\tagent_id\tvendor\tmodel\tservice_tier\tkind\tunits\torigin\n'
     printf '%s\n' "$rows" | grep -v '^#' | grep . || true
     [[ -z "$grok" ]] || printf '%s\n' "$grok"
+    [[ -z "$agy" ]] || printf '%s\n' "$agy"
     [[ -z "$um" ]] || printf '%s\n' "$um"
   } > "$out.$$" || ! mv -f "$out.$$" "$out"; then
     rm -f "$out.$$"; echo "FATAL fleet_tokens: cannot write $out" >&2; return 1
@@ -208,6 +210,141 @@ spl_cost_tokens_grok() {
       for (x in s) { split(x, p, SUBSEP); if (p[3] == 5) seen[p[1] SUBSEP p[2]] = 1 }
       for (k in seen) { split(k, p, SUBSEP)
         for (j = 5; j <= 8; j++) if (s[k, j] > 0) print day, p[1], "grok", p[2], "-", kind[j - 4], s[k, j], "transcript" | "sort" } }'
+}
+
+# spl_cost_tokens_agy_agent FILE [ROOT]: the agent an agy transcript belongs
+# to: prompt.txt in the first lines, else workspace_uris in
+# conversation_summaries.db, else -wt-<id> in the path.
+spl_cost_tokens_agy_agent() {
+  local f="$1" id conv_id home db uris
+  id="$(head -n 5 "$f" 2>/dev/null | grep -oE '/var/spool-hub/[A-Za-z0-9_-]+/lifetime/prompt\.txt' | sed -n 1p)"
+  if [[ -n "$id" ]]; then
+    id="${id#/var/spool-hub/}"
+    id="${id%/lifetime/prompt.txt}"
+    echo "$id"; return 0
+  fi
+  if [[ "$f" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]]; then
+    echo "${BASH_REMATCH[1]}"; return 0
+  fi
+  if [[ "$f" =~ /brain/([^/]+)/ ]]; then
+    conv_id="${BASH_REMATCH[1]}"
+    home="${f%/.gemini/*}"
+    db="$home/.gemini/antigravity-cli/conversation_summaries.db"
+    if [[ -f "$db" && -n "$conv_id" ]]; then
+      uris="$(python3 -c "import sqlite3, sys; con = sqlite3.connect(sys.argv[1]); r = con.execute('SELECT workspace_uris FROM conversation_summaries WHERE conversation_id = ?', (sys.argv[2],)).fetchone(); print(r[0] if r else '')" "$db" "$conv_id" 2>/dev/null)"
+      if [[ "$uris" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]]; then
+        echo "${BASH_REMATCH[1]}"; return 0
+      fi
+    fi
+  fi
+  echo unattributed
+}
+
+# SPL_COST_TOKENS_AGY_PY: python script to parse agy transcripts for a day
+SPL_COST_TOKENS_AGY_PY='
+import glob, json, os, re, sys, sqlite3
+
+day = sys.argv[1]
+homes = sys.argv[2:]
+results = {}
+
+for h in homes:
+    brain = h + "/.gemini/antigravity-cli/brain"
+    if not os.path.isdir(brain):
+        continue
+    db_map = {}
+    db_path = h + "/.gemini/antigravity-cli/conversation_summaries.db"
+    if os.path.exists(db_path):
+        try:
+            con = sqlite3.connect(db_path)
+            for row in con.execute("SELECT conversation_id, workspace_uris FROM conversation_summaries"):
+                db_map[row[0]] = row[1]
+        except Exception:
+            pass
+
+    model = "gemini-3.8-flash"
+    settings_file = h + "/.gemini/antigravity-cli/settings.json"
+    if os.path.exists(settings_file):
+        try:
+            m = json.load(open(settings_file)).get("model", "")
+            if "flash" in m.lower(): model = "gemini-3.8-flash"
+            elif "pro" in m.lower(): model = "gemini-3.8-pro"
+        except Exception:
+            pass
+
+    candidates = glob.glob(brain + "/*/.system_generated/logs/transcript.jsonl") + glob.glob(brain + "/*/transcript.jsonl")
+    for t in candidates:
+        try:
+            st = os.stat(t)
+        except OSError:
+            continue
+        conv_id = t.split("/brain/")[1].split("/")[0]
+        agent_id = None
+        try:
+            with open(t, "r", errors="ignore") as f:
+                first_lines = [f.readline() for _ in range(5)]
+                for line in first_lines:
+                    m = re.search(r"/var/spool-hub/([A-Za-z0-9_-]+)/lifetime/prompt\.txt", line)
+                    if m:
+                        agent_id = m.group(1)
+                        break
+                if not agent_id:
+                    uris = db_map.get(conv_id, "")
+                    m = re.search(r"-wt[0-9]*[/-]([A-Za-z0-9_-]+)", uris)
+                    if m: agent_id = m.group(1)
+                if not agent_id:
+                    m = re.search(r"-wt[0-9]*[/-]([A-Za-z0-9_-]+)", t)
+                    if m: agent_id = m.group(1)
+                if not agent_id:
+                    agent_id = "unattributed"
+
+                f.seek(0)
+                for line in f:
+                    if "\"PLANNER_RESPONSE\"" not in line or "\"input_tokens\"" not in line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except Exception:
+                        continue
+                    if d.get("type") != "PLANNER_RESPONSE":
+                        continue
+                    created = d.get("created_at", "")
+                    if not created.startswith(day):
+                        continue
+                    tin = d.get("input_tokens", 0)
+                    tout = d.get("output_tokens", 0)
+                    tcr = d.get("cache_read_tokens", 0)
+                    k = (agent_id, model)
+                    if k not in results:
+                        results[k] = {"input": 0, "output": 0, "cache_read": 0}
+                    results[k]["input"] += tin
+                    results[k]["output"] += tout
+                    results[k]["cache_read"] += tcr
+        except Exception:
+            pass
+
+for (a, m), counts in sorted(results.items()):
+    for kind in ["input", "output", "cache_read"]:
+        if counts[kind] > 0:
+            print(f"{day}\t{a}\tagy\t{m}\t-\t{kind}\t{counts[kind]}\ttranscript")
+'
+
+# spl_cost_tokens_agy DAY: the agy turns of DAY, summed per agent and model
+# into the day file's rows (input, output, cache_read). An agy lane with
+# rows here gets no "unmetered" row.
+spl_cost_tokens_agy() {
+  local day="$1" homes=() u h
+  if [[ -n "${COST_TRANSCRIPT_DIRS:-}" ]]; then
+    [[ -n "${COST_AGY_HOMES:-}" ]] || return 0
+    read -r -a homes <<< "$COST_AGY_HOMES"
+  else
+    for u in $(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}"); do
+      h="$(getent passwd "$u" | cut -d: -f6)"
+      [[ -n "$h" ]] && homes+=("$h")
+    done
+  fi
+  [[ ${#homes[@]} -gt 0 ]] || return 0
+  python3 -c "$SPL_COST_TOKENS_AGY_PY" "$day" "${homes[@]}"
 }
 
 # One row per agent of another vendor (agy, grok, mistral, qwen) seen on

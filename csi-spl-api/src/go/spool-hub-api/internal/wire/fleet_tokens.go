@@ -31,7 +31,7 @@ var FleetTokenVendors = []string{"claude", "mistral", "grok", "agy", "qwen"}
 
 // FleetBurnVendorUnmetered is the kind whose lanes report no tokens (spec
 // 140 2.3.4): its samples say a lane is live, never how much it burned.
-const FleetBurnVendorUnmetered = "agy"
+const FleetBurnVendorUnmetered = "qwen"
 
 // Push limits.
 const (
@@ -159,7 +159,7 @@ func (r rawFleetTokenSample) check() (FleetTokenSample, string) {
 	case bad(s.TokensIn) || bad(s.TokensOut) || bad(s.CacheRead) || bad(s.CacheWrite):
 		return s, "tokens_in, tokens_out, cache_read and cache_write must be 0..1e12"
 	case s.Vendor == FleetBurnVendorUnmetered && s.IsMetered:
-		return s, "an agy sample is unmetered (is_metered false)"
+		return s, "a " + FleetBurnVendorUnmetered + " sample is unmetered (is_metered false)"
 	case !s.IsMetered && s.Total() != 0:
 		return s, "an unmetered sample carries zero counts"
 	}

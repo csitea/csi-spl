@@ -58,7 +58,11 @@ mkdir -p "$T/bin" "$T/shared/csi-spl-orc/src/bash/scripts"
 printf '#!/usr/bin/env bash\nif [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi\ncp "$1" "$FAKE_CRONTAB"\n' >"$T/bin/crontab"
 chmod +x "$T/bin/crontab"
 cp "$PROJ_ROOT/src/bash/scripts/unanswered-sweep-cron.sh" "$T/shared/csi-spl-orc/src/bash/scripts/"
-git init -q "$R" && git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+# no auto maintenance: a commit starts a detached `git maintenance run --auto`
+# whose objects/maintenance.lock comes and goes inside case 1's tree window
+# (wf10 39218763702: "gone .git/objects/maintenance.lock")
+git init -q "$R" && git -C "$R" config maintenance.auto false &&
+  git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 
 # agent <pid> <id> [perm] [model] - perm skip (the default) = --dangerously-skip-permissions,
 # anything else = --permission-mode <perm>

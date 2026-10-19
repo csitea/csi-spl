@@ -22,9 +22,18 @@
 # @description Reads the commits after the cursor (the master sha of the last
 # @description complete run) up to ISSUE_CLOSE_REF; the first run needs
 # @description ISSUE_CLOSE_SINCE=all (the back-fill: master's whole history) or
-# @description a sha. Standing: the box cron issue-close-landed (hourly, the
-# @description box that seats the CI ops desk), not a CI job: a move needs the
-# @description desk's box-signed hub session, which no CI runner holds.
+# @description a sha. Standing: the box cron issue-close-landed (every 5 min,
+# @description ISSUE_CLOSE_HOLDER=1), not a CI job: a move needs the desk's
+# @description box-signed hub session, which no CI runner holds.
+# @description Holder mode (SPL-2631, sat-alone panel row 03): only the box of
+# @description the dispatch lease holder sweeps, so the sweep moves with the
+# @description lease. The cursor and the ledger travel through the env's box
+# @description state store (do_spl_box_state_put / _get) as snapshots
+# @description <rw_prefix>/issue-close-landed/<env>-<tenant>/<YYYYMMDD>/<epoch>-<sha>/
+# @description {cursor,closed.tsv}, a new object name each time (the store
+# @description never overwrites): the holder adopts the newest one that is
+# @description ahead of its own cursor (ledger rows merged), sweeps, then
+# @description publishes its own; any other box only publishes what it holds.
 # @description Prints one TSV row per named key (key, moved | would-move |
 # @description noop | skip | failed, sha(s), detail) and a summary line. Reads
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
@@ -41,18 +50,23 @@
 # @param ISSUE_CLOSE_EVIDENCE (optional) - TSV key, sha[,sha], why: landings a review cited
 # @param   though no commit names the key by the rule (a triage back-fill); same comment + ledger
 # @param ISSUE_CLOSE_WUI_URL (optional) - the release note host, default the cnf's WUI
+# @param ISSUE_CLOSE_HOLDER (optional) - 1: holder mode (above); default 0
+# @param SPOOL_ROOT (optional) - holder mode: the spool root of dispatch/lease, default /var/spool-hub
+# @param SPOOL_BOX_TAG (optional) - holder mode: this box, default SPOOL_BOX_TAG of <SPOOL_ROOT>/box.env
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci ISSUE_CLOSE_SINCE=all ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci DRY_RUN=0 ./run -a do_spl_issue_close_landed
+# @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 ISSUE_CLOSE_HOLDER=1 ./run -a do_spl_issue_close_landed
 #------------------------------------------------------------------------------
 do_spl_issue_close_landed() {
   do_require_bin git python3 || return 1
   local dry=1 ref="${ISSUE_CLOSE_REF:-origin/master}" since="${ISSUE_CLOSE_SINCE:-}" dir head rng wui list plan
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   dir="$(spl_icl_state_dir)" || return 1
-  if [[ "${ISSUE_CLOSE_FETCH:-1}" == 1 && "$ref" == */* ]]; then
-    git -C "$APP_PATH" fetch -q "${ref%%/*}" "${ref#*/}" || { do_log "FATAL git fetch $ref failed"; return 1; }
+  if [[ "${ISSUE_CLOSE_HOLDER:-0}" == 1 ]]; then
+    spl_icl_holder_tick "$dir" "$dry"; return
   fi
+  spl_icl_fetch "$ref" || return 1
   head="$(git -C "$APP_PATH" rev-parse -q --verify "$ref^{commit}")" || { do_log "FATAL $ref is not a commit"; return 1; }
   rng="$(spl_icl_range "$dir" "$since" "$head")" || return 1
   wui="$(spl_icl_wui_url)" || return 1
@@ -78,6 +92,117 @@ do_spl_issue_close_landed() {
   fi
   return $rc
 }
+
+# spl_icl_fetch REF: fetch the ref's remote first (ISSUE_CLOSE_FETCH=1, default).
+spl_icl_fetch() {
+  [[ "${ISSUE_CLOSE_FETCH:-1}" == 1 && "$1" == */* ]] || return 0
+  git -C "$APP_PATH" fetch -q "${1%%/*}" "${1#*/}" || { do_log "FATAL git fetch $1 failed"; return 1; }
+}
+
+# spl_icl_holder_tick DIR DRY: holder mode (SPL-2631). The box of the dispatch
+# lease holder adopts the store's newest snapshot, sweeps, publishes its own;
+# any other box only publishes the state it holds, so the next holder finds it.
+spl_icl_holder_tick() {
+  local dir="$1" dry="$2" root="${SPOOL_ROOT:-/var/spool-hub}" holder="" box hbox rc=0
+  read -r holder _ <"$root/dispatch/lease" 2>/dev/null || holder=""
+  box="${SPOOL_BOX_TAG:-$(sed -n 's/^SPOOL_BOX_TAG=//p' "$root/box.env" 2>/dev/null | tail -n 1)}"
+  hbox="${holder#*@}"; [[ "$holder" == *@* ]] || hbox="$box"
+  if [[ ! "$holder" =~ ^[A-Za-z][A-Za-z0-9-]*(@[a-z0-9][a-z0-9-]*)?$ || -z "$box" || "$hbox" != "$box" ]]; then
+    do_log "OK issue-close-landed: the dispatch holder ${holder:-<none>} is not on this box (${box:-<unknown>}); its box sweeps"
+    spl_icl_publish "$dir" "$dry" || do_log "WARN issue-close-landed: the hand-over snapshot was not published; the next tick retries"
+    return 0
+  fi
+  spl_icl_fetch "${ISSUE_CLOSE_REF:-origin/master}" || return 1
+  spl_icl_adopt "$dir" "$dry" || do_log "WARN issue-close-landed: the box state store was not read; this run goes on with the local cursor"
+  ISSUE_CLOSE_HOLDER=0 ISSUE_CLOSE_FETCH=0 do_spl_issue_close_landed || rc=$?
+  (( rc == 0 )) || return $rc
+  spl_icl_publish "$dir" "$dry" || do_log "WARN issue-close-landed: the snapshot was not published; the next tick retries"
+  return 0
+}
+
+# spl_icl_store_prefix -> the snapshot prefix under rw_prefix: issue-close-landed/<env>-<tenant>
+spl_icl_store_prefix() { printf 'issue-close-landed/%s-%s\n' "${ENV:?ENV unset}" "$TENANT_ID"; }
+
+# spl_icl_newest -> <YYYYMMDD>/<epoch>-<sha> of the store's newest snapshot,
+# empty when it holds none: the newest day dir, then its newest snapshot.
+spl_icl_newest() {
+  local pre day snap
+  pre="$(spl_icl_store_prefix)"
+  day="$(spl_icl_store_ls "$pre/")" || return 1
+  day="$(grep -oE '/[0-9]{8}/$' <<<"$day" | tr -d / | sort | tail -n 1)"
+  [[ -n "$day" ]] || return 0
+  snap="$(spl_icl_store_ls "$pre/$day/")" || return 1
+  snap="$(grep -oE '/[0-9]{10}-[0-9a-f]{40}/$' <<<"$snap" | tr -d / | sort | tail -n 1)"
+  [[ -z "$snap" ]] || printf '%s/%s\n' "$day" "$snap"
+}
+
+# spl_icl_adopt DIR DRY: take the store's newest cursor when this box has none
+# or it is ahead of this box's; the ledgers are merged (a row is never lost).
+spl_icl_adopt() {
+  local dir="$1" dry="$2" snap rsha lsha="" tmp
+  snap="$(spl_icl_newest)" || return 1
+  [[ -n "$snap" ]] || { do_log "INFO issue-close-landed: the box state store holds no snapshot yet"; return 0; }
+  rsha="${snap##*-}"
+  [[ -s "$dir/cursor" ]] && lsha="$(head -n 1 "$dir/cursor")"
+  [[ "$rsha" != "$lsha" ]] || return 0
+  if [[ -n "$lsha" ]] && ! git -C "$APP_PATH" merge-base --is-ancestor "$lsha" "$rsha" 2>/dev/null; then
+    do_log "INFO issue-close-landed: the store's cursor ${rsha:0:12} is not ahead of this box's ${lsha:0:12}: kept"
+    return 0
+  fi
+  (( dry )) && { do_log "OK DRY_RUN: would adopt the store's cursor ${rsha:0:12} and ledger ($snap)"; return 0; }
+  tmp="$(mktemp -d)"
+  if ! spl_icl_store_get "$(spl_icl_store_prefix)/$snap" "$tmp" || [[ "$(head -n 1 "$tmp/cursor" 2>/dev/null)" != "$rsha" ]]; then
+    rm -rf "$tmp"; do_log "WARN issue-close-landed: snapshot $snap could not be read or names another sha"; return 1
+  fi
+  local rc=0
+  touch "$dir/closed.tsv" "$tmp/closed.tsv" && awk 'NF && !seen[$0]++' "$dir/closed.tsv" "$tmp/closed.tsv" >"$dir/closed.tsv.tmp" &&
+    mv "$dir/closed.tsv.tmp" "$dir/closed.tsv" && printf '%s\n' "$rsha" >"$dir/cursor.tmp" && mv "$dir/cursor.tmp" "$dir/cursor" &&
+    printf '%s\n' "$rsha" >"$dir/published" || rc=1
+  rm -rf "$tmp"
+  (( rc == 0 )) || { do_log "WARN issue-close-landed: snapshot $snap was read but not written to $dir"; return 1; }
+  do_log "OK issue-close-landed: adopted the store's cursor ${rsha:0:12} and ledger ($snap)"
+}
+
+# spl_icl_publish DIR DRY: put this box's cursor + ledger as a new snapshot,
+# once per cursor ($DIR/published remembers the last one put).
+spl_icl_publish() {
+  local dir="$1" dry="$2" sha now day tmp rc=0
+  [[ -s "$dir/cursor" ]] || return 0
+  sha="$(head -n 1 "$dir/cursor")"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { do_log "WARN issue-close-landed: $dir/cursor holds no sha"; return 1; }
+  [[ "$(head -n 1 "$dir/published" 2>/dev/null)" != "$sha" ]] || return 0
+  now="$(date -u +%s)"; day="$(date -u -d "@$now" +%Y%m%d)"
+  (( dry )) && { do_log "OK DRY_RUN: would publish cursor ${sha:0:12} as $day/$now-$sha"; return 0; }
+  tmp="$(mktemp -d)"; mkdir -p "$tmp/$now-$sha"
+  cp "$dir/cursor" "$tmp/$now-$sha/cursor" && { cp "$dir/closed.tsv" "$tmp/$now-$sha/closed.tsv" 2>/dev/null || : >"$tmp/$now-$sha/closed.tsv"; } &&
+    chmod 0644 "$tmp/$now-$sha/"* && spl_icl_store_put "$tmp/$now-$sha" "$(spl_icl_store_prefix)/$day" || rc=1
+  rm -rf "$tmp"
+  (( rc == 0 )) || return 1
+  printf '%s\n' "$sha" >"$dir/published"
+  do_log "OK issue-close-landed: published cursor ${sha:0:12} as $day/$now-$sha"
+}
+
+# spl_icl_store_ls REL -> the child URLs under <rw_prefix>/REL of the store
+# (gcloud storage ls); empty, not a failure, when nothing is there.
+spl_icl_store_ls() {
+  local out
+  spl_box_state_gs_begin gcloud >&2 || return 1
+  if out="$(gcloud storage ls "gs://$SPL_BOX_STATE_BUCKET/$SPL_BOX_STATE_RW_PREFIX/$1" --account="$GCP_ACCOUNT" 2>&1)"; then
+    printf '%s\n' "$out"; return 0
+  fi
+  grep -q 'matched no objects' <<<"$out" && return 0
+  do_log "WARN issue-close-landed: cannot list $1 in the box state store: ${out##*$'\n'}" >&2
+  return 1
+}
+
+# spl_icl_store_get REL DEST: download the snapshot <rw_prefix>/REL/ into DEST.
+spl_icl_store_get() {
+  spl_box_state_gs_begin >&2 || return 1
+  DRY_RUN=0 SRC="$SPL_BOX_STATE_RW_PREFIX/$1/" DEST="$2" do_spl_box_state_get >&2
+}
+
+# spl_icl_store_put SRC PREFIX: upload the snapshot dir SRC under <rw_prefix>/PREFIX/.
+spl_icl_store_put() { DRY_RUN=0 SRC="$1" PREFIX="$2" do_spl_box_state_put >&2; }
 
 # spl_icl_state_dir -> the cursor + ledger dir of ENV + TENANT_ID, created.
 spl_icl_state_dir() {

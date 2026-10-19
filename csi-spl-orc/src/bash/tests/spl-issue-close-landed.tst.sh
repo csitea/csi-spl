@@ -158,9 +158,20 @@ run DRY_RUN=0 ISSUE_CLOSE_EVIDENCE="$T/ev.tsv"; rc=$?
   grep -qx "SPL-13	$CHORE	moved" "$ST/closed.tsv" &&
   pass "10. a cited landing (ISSUE_CLOSE_EVIDENCE) closes with the same comment and ledger; an unknown sha is skipped" || fail "10. evidence (rc $rc): $(cat "$T/o")"
 
-# 11. the cron acts only on the box that holds the cursor
-out="$(ISSUE_CLOSE_ALLOW_WORKTREE=1 ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
-[ "$rc" = 0 ] && grep -q 'no cursor' <<<"$out" && pass "11. the cron is a no-op on a box with no cursor" || fail "11. cron (rc $rc: $out)"
+# 11. the cron runs the action in holder mode on every box (SPL-2631): the
+# action, not a local cursor, decides which box sweeps. A fake orc tree whose
+# ./run logs its call; the state dir is empty, as on a box that never ran the
+# back-fill. RED on the old cron: "no cursor" and ./run never called.
+F="$T/fake/x-y-orc"
+mkdir -p "$F/src/bash/scripts" "$F/lib/bash/funcs"
+cp "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh" "$F/src/bash/scripts/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh" "$F/lib/bash/funcs/"
+printf '#!/bin/sh\necho "run $* ENV=$ENV TENANT_ID=$TENANT_ID HOLDER=$ISSUE_CLOSE_HOLDER STATE=$ISSUE_CLOSE_STATE_DIR DRY_RUN=$DRY_RUN" >>"$CRON_LOG"\n' >"$F/run"
+chmod +x "$F/run"
+out="$(CRON_LOG="$T/cron.log" ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$F/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/cron.log" 2>/dev/null)" = "run -a do_spl_issue_close_landed ENV=prd TENANT_ID=t1 HOLDER=1 STATE=$T/empty DRY_RUN=0" ] &&
+  pass "11. the cron runs do_spl_issue_close_landed in holder mode (ISSUE_CLOSE_HOLDER=1) on a box with no cursor too" ||
+  fail "11. cron (rc $rc: $out // $(cat "$T/cron.log" 2>/dev/null))"
 
 grep -qE '^issue-close-landed +\| \*/5 \* \* \* \* +\| src/bash/scripts/issue-close-landed-cron.sh ' "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" &&
   pass "12. the box-crons manifest carries the 5-minute issue-close-landed row" || fail "12. no issue-close-landed row in box-crons.manifest"
@@ -191,5 +202,49 @@ run DRY_RUN=0 LIST="$T/list30.json" ISSUE_CLOSE_QUEUE_CMD="$T/queue" QSLUG=other
   grep -q 'INFO SPL-30 closed its epic SPL-31 (SPL-1729); no queued spawn brief here names it' "$T/o" &&
   pass "13. control: the same auto-close with no queued brief naming SPL-31 leaves it closed (no unarchive, no reopen)" ||
   fail "13. control (rc $rc, ${S30:0:7} ${S30B:0:7}): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 14. SPL-2631 (sat alone, row 03): the cursor and the ledger follow the
+# dispatch holder through the box state store. Box A holds them and is not the
+# holder: it only publishes them. Box B is the holder with an empty state dir:
+# it adopts A's snapshot, closes what landed since, and publishes its own.
+# RED on master: B has no cursor, so it closes nothing. The store is a dir;
+# ls / get / put are stubbed the way gcloud storage prints and copies.
+STORE="$T/store"; mkdir -p "$STORE" "$T/root/dispatch"
+STORE_STUBS='spl_icl_store_ls() { echo "ls $1" >>"$STUB_LOG"; [ -d "$STORE/$1" ] || return 0; local c; for c in $(ls -1 "$STORE/$1"); do echo "gs://b/shared/$1$c/"; done; }
+spl_icl_store_get() { echo "get $1" >>"$STUB_LOG"; mkdir -p "$2" && cp -r "$STORE/$1/." "$2/"; }
+spl_icl_store_put() { echo "put $2/${1##*/}" >>"$STUB_LOG"; mkdir -p "$STORE/$2" && cp -r "$1" "$STORE/$2/"; }
+'
+hrun() {
+  : >"$T/calls.log"
+  SNIPPET="${STUBS}${STORE_STUBS}do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/list40.json" TENANT_ID=t1 DESK_AGENT=c-684 \
+    ISSUE_CLOSE_REF=master ISSUE_CLOSE_FETCH=0 ISSUE_CLOSE_WUI_URL=https://wui.example.com STORE="$STORE" SPOOL_ROOT="$T/root" \
+    ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 "$@" >"$T/o" 2>&1
+}
+echo "c-002@boxb 1792447777" >"$T/root/dispatch/lease"
+ACUR="$(cat "$ST/cursor")"
+hrun ISSUE_CLOSE_STATE_DIR="$ST" SPOOL_BOX_TAG=boxa; rc=$?
+snapA="$(find "$STORE" -name cursor -path "*-$ACUR/cursor" | sed -n 1p)"
+[ "$rc" = 0 ] && grep -q 'holder c-002@boxb is not on this box (boxa)' "$T/o" && ! grep -q '^hub\|^list' "$T/calls.log" &&
+  [ -n "$snapA" ] && [ "$(cat "$snapA")" = "$ACUR" ] && cmp -s "${snapA%/cursor}/closed.tsv" "$ST/closed.tsv" &&
+  pass "14a. a box that is not the holder sweeps nothing and publishes its cursor + ledger to the box state store" ||
+  fail "14a. publish (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+hrun ISSUE_CLOSE_STATE_DIR="$ST" SPOOL_BOX_TAG=boxa; rc=$?
+[ "$rc" = 0 ] && ! grep -q '^put' "$T/calls.log" && pass "14a. control: published once, the next tick puts nothing" || fail "14a. republish (rc $rc): $(cat "$T/calls.log")"
+
+printf '{"env":"dev","result":{"next_cursor":"","issues":[%s]}}\n' "$(issue SPL-40 wip issue)" >"$T/list40.json"
+S40=$(commit "fix(orc, SPL-40): landed while box A is off")
+SB="$T/stateB"
+hrun ISSUE_CLOSE_STATE_DIR="$SB" SPOOL_BOX_TAG=boxb; rc=$?
+[ "$rc" = 0 ] && [ "$(row SPL-40)" = moved ] && grep -q '^hub update SPL-40 done' "$T/calls.log" && [ "$(grep -c '^hub update' "$T/calls.log")" = 1 ] &&
+  [ "$(cat "$SB/cursor" 2>/dev/null)" = "$S40" ] && grep -qx "SPL-10	$S10	moved" "$SB/closed.tsv" && grep -qx "SPL-40	$S40	moved" "$SB/closed.tsv" &&
+  grep -q "^put .*-$S40\$" "$T/calls.log" &&
+  pass "14b. the holder box with no cursor adopts the store's cursor + ledger, closes only what landed since, and publishes its own" ||
+  fail "14b. holder adopt (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log") // cursor $(cat "$SB/cursor" 2>/dev/null)"
+
+rm -rf "$STORE"; mkdir -p "$STORE"
+hrun ISSUE_CLOSE_STATE_DIR="$T/stateC" SPOOL_BOX_TAG=boxb; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'no cursor' "$T/o" && ! grep -q '^hub\|^put' "$T/calls.log" &&
+  pass "14c. control: a holder box with no cursor and an empty store is refused, closes nothing" ||
+  fail "14c. empty store (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

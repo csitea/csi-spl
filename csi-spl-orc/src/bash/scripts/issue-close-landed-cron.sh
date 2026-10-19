@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # issue-close-landed-cron.sh - the standing run of do_spl_issue_close_landed
 # (t1 dee4081d: a fix landed on master moves the issues it names to done),
-# hourly from the box user's crontab. Installed by do_install_box_crons as the
-# row issue-close-landed of cnf/box-crons/box-crons.manifest
+# every 5 min from the box user's crontab. Installed by do_install_box_crons as
+# the row issue-close-landed of cnf/box-crons/box-crons.manifest
 # (`# csi-spl:box-cron:issue-close-landed`), the same line on every box.
 #
-# ONE box acts: the one whose state dir holds the cursor, i.e. the box where
-# the back-fill (ISSUE_CLOSE_SINCE=all DRY_RUN=0) ran. The cursor and the
-# ledger that stops a reopened issue being closed again live there; every
-# other box prints one OK line and exits 0, so no issue gets two comments.
+# ONE box acts: the box of the dispatch lease holder (SPL-2631, sat-alone
+# panel row 03), so the sweep follows the lease when a box goes away. The
+# action runs in holder mode (ISSUE_CLOSE_HOLDER=1): the cursor and the ledger
+# that stops a reopened issue being closed again travel through the env's box
+# state store; the holder adopts the newest, sweeps and publishes its own,
+# every other box only publishes what it holds, so no issue gets two comments.
 # The desk that comments and moves: the responder (SPL_RSP_AGENT on box-rsp,
 # seated on every box with a responder); ISSUE_CLOSE_AGENT / ISSUE_CLOSE_BOX
 # override it. A cron job reads no profile: the PATH is set here.
@@ -32,16 +34,13 @@ esac
 env_name="${ISSUE_CLOSE_ENV:-prd}" tenant="${ISSUE_CLOSE_TENANT:-t1}"
 oa="$(basename "$ORC")"; oa="${oa%-orc}"
 state="${ISSUE_CLOSE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/$oa/issue-close-landed/$env_name-$tenant}"
-if [ ! -s "$state/cursor" ]; then
-  say "OK issue-close-landed: no cursor in $state - the box where the back-fill ran sweeps"
-  exit 0
-fi
+mkdir -p "$state" || { say "FATAL cannot create $state"; exit 1; }
 lock="$state/run.lock"
 exec 9>"$lock"
 flock -n 9 || { say "OK another issue-close-landed run holds $lock"; exit 0; }
 say "START issue-close-landed $env_name $tenant"
 ( cd "$ORC" && env ENV="$env_name" TENANT_ID="$tenant" DESK_AGENT="${ISSUE_CLOSE_AGENT:-$SPL_RSP_AGENT}" \
-    DESK_BOX="${ISSUE_CLOSE_BOX:-box-rsp}" ISSUE_CLOSE_STATE_DIR="$state" DRY_RUN=0 \
+    DESK_BOX="${ISSUE_CLOSE_BOX:-box-rsp}" ISSUE_CLOSE_STATE_DIR="$state" ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 \
     timeout 900 ./run -a do_spl_issue_close_landed ); rc=$?
 say "STOP issue-close-landed rc=$rc"
 [ "$rc" = 0 ] || exit 1

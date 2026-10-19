@@ -17,15 +17,16 @@
 // row, else its first row, else its heading (utils/pane-focus.mjs). Not a
 // letter, so the keyboard_shortcuts setting does not turn it off (FR-012).
 //
-// SPL-2552: Shift + W closes the rightmost pane, the same click as its X
-// (utils/pane-close.mjs). Not in a text field, not over a menu or a dialog,
-// not on a phone; a Shift letter, so the keyboard_shortcuts setting turns it
-// off (FR-012). Ctrl / Cmd + W stays the browser's.
+// SPL-2552: Shift + W closes the rightmost pane (the leftmost in a right-to-
+// left locale), the same click as its X (utils/pane-close.mjs). Not in a text
+// field, not over a menu or a dialog, not on a phone; a Shift letter, so the
+// keyboard_shortcuts setting turns it off (FR-012). Ctrl / Cmd + W stays the
+// browser's.
 import { usePhone } from '~/composables/useTouchUi'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { useSessionStore } from '~/stores/session'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
-import { PANE_CLOSE_X, inTextField, isCloseKey, rightmostClose } from '~/utils/pane-close.mjs'
+import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '~/utils/pane-close.mjs'
 import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */
@@ -95,7 +96,8 @@ function onCloseKey(ev: KeyboardEvent): boolean {
   if (inTextField(ev.target) || inTextField(document.activeElement)) return false
   const xs = [...document.querySelectorAll<HTMLButtonElement>(PANE_CLOSE_X)]
     .filter((x) => shown(x) && !x.disabled && !x.closest('[role="dialog"], dialog'))
-  const x = rightmostClose(xs, (b) => (b.parentElement || b).getBoundingClientRect().left)
+  const rtl = getComputedStyle(document.documentElement).direction === 'rtl'
+  const x = rightmostClose(xs, (b) => paneEnd((b.parentElement || b).getBoundingClientRect(), rtl))
   if (!x) return false
   ev.preventDefault()
   x.click()

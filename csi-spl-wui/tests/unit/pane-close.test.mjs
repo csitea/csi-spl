@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PANE_CLOSE_X, inTextField, isCloseKey, rightmostClose } from '../../src/utils/pane-close.mjs'
+import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '../../src/utils/pane-close.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (rel) => readFileSync(join(SRC, rel), 'utf8')
@@ -44,6 +44,13 @@ describe('SPL-2552: Shift + W', () => {
     assert.equal(rightmostClose([{ id: 'a', x: 5 }, { id: 'b', x: 5 }], (b) => b.x).id, 'b')
     assert.equal(rightmostClose([{ id: 'nan', x: NaN }], (b) => b.x), null)
     assert.equal(rightmostClose([], (b) => b.x), null)
+  })
+
+  it('in a right-to-left locale the pane furthest left is the one to close', () => {
+    const search = { left: 1180, right: 1440 }
+    const topic = { left: 0, right: 470 }
+    assert.equal(rightmostClose([search, topic], (r) => paneEnd(r, false)), search)
+    assert.equal(rightmostClose([search, topic], (r) => paneEnd(r, true)), topic)
   })
 
   it('names the X of every closable pane', () => {

@@ -97,7 +97,7 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 | **FR-010** | Every key from this spec keeps focus in the pane where it was pressed | Planned |
 | **FR-011** | `Shift+?` shows the five groups from one table; help §1 and §7 are generated from it and unit-tested | Planned |
 | **FR-012** | The `keyboard_shortcuts` setting turns off the single-letter and Shift keys; `Ctrl+K`, `F6`, `Esc` and the skip link stay (they are not letters) | Planned |
-| **FR-013** | `Shift+W` on a desktop closes the rightmost open pane, the same as its X (SPL-2552, owner t1 7af14523 msg 5e6f0db8); nothing with no pane beyond the base view, in a text field, over a menu or dialog, or on a phone; a Shift letter, so FR-012's setting turns it off | Built |
+| **FR-013** | `Shift+W` on a desktop closes the rightmost open pane, the same as its X (SPL-2552, owner t1 7af14523 msg 5e6f0db8); in a right-to-left locale (he) the layout mirrors, so it closes the leftmost, the pane that opened last; nothing with no pane beyond the base view, in a text field, over a menu or dialog, or on a phone; a Shift letter, so FR-012's setting turns it off | Built |
 
 ## 6. Acceptance scenarios
 

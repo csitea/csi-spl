@@ -66,3 +66,15 @@ export function rightmostClose(xs, leftOf) {
   }
   return best
 }
+
+/**
+ * Where a pane sits along the reading direction, for rightmostClose: its
+ * left edge, or in a right-to-left locale (he) minus its right edge, since
+ * the layout mirrors and the pane that opens last sits furthest LEFT there.
+ *
+ * @param {{ left: number, right: number }} rect the pane's box
+ * @param {boolean} rtl
+ */
+export function paneEnd(rect, rtl) {
+  return rtl ? -rect.right : rect.left
+}

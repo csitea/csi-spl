@@ -173,6 +173,30 @@ try {
   await until(p, () => !document.querySelector('[data-testid=msg-shortcuts-help]'), null, 3000)
   ok('... and closing that list leaves the topic open', await p.evaluate(shown, TOPIC))
 
+  /* ---- right to left (he): the mirrored layout puts the topic pane on the
+     LEFT, so the pane that opened last is the leftmost; the search list on
+     the right stays. CONTROL: picking by screen position alone closed the
+     search list here and left the topic open. ---- */
+  const r = await browser.newPage()
+  r.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  await r.evaluateOnNewDocument(() => {
+    try {
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' }))
+    } catch { /* private mode */ }
+  })
+  await r.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  await r.goto(`${srv.base}/he/search?q=${Q}`, { waitUntil: 'networkidle2' })
+  await r.waitForSelector(ENTRY, { visible: true, timeout: NAV_TIMEOUT })
+  await r.click(ENTRY)
+  await r.waitForSelector('.spool-main article.msg[data-task-id]', { visible: true, timeout: 15000 })
+  ok('rtl: the page is right to left', await r.evaluate(() => getComputedStyle(document.documentElement).direction === 'rtl'))
+  ok('rtl: a topic opens', await openTopic(r))
+  await focusCard(r)
+  await shiftW(r)
+  ok('rtl: Shift + W closes the topic pane', await until(r, gone, TOPIC, 3000))
+  ok('rtl: ... and leaves the search list open', await until(r, shown, ENTRY, 3000))
+  await r.close()
+
   /* ---- phone: not there ---- */
   const m = await browser.newPage()
   m.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))

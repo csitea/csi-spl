@@ -2777,4 +2777,5 @@ declare module '~/utils/pane-close.mjs' {
   export function inTextField(el: unknown): boolean
   export function isCloseKey(ev: { key?: string, code?: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, isComposing?: boolean, repeat?: boolean } | null | undefined): boolean
   export function rightmostClose<T>(xs: readonly T[], leftOf: (x: T) => number): T | null
+  export function paneEnd(rect: { left: number, right: number }, rtl: boolean): number
 }

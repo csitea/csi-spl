@@ -48,7 +48,7 @@ function label(b: ActionButton) {
 </script>
 
 <style scoped>
-.issue-actions { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.issue-actions { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .issue-actions__btn {
   display: inline-flex;
   align-items: center;

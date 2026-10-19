@@ -24,6 +24,7 @@ Conventions on this page:
   `sudo -u <box user> env SPOOL_ROOT=/var/spool-hub ...`, unless the line says
   otherwise.
 
+<a id="ws-doc-353601ae-8bc7-4a27-af58-3a34a8546c86"></a>
 ## 1 The job
 
 | you do | you never do |
@@ -36,8 +37,10 @@ Conventions on this page:
 | verify "live" claims before they reach a human (dispatcher runbook section 4; the word: [how-to-post.md](../help/how-to-post.md#1-the-rule) rule 14) | relay a result as Done before the dispatcher's `ACCEPTED` |
 | keep the hanging-agent roster, and re-check it at least every 5 minutes (section 2.4) | treat a watchdog `OK` as proof that no agent is hung |
 
+<a id="ws-doc-991b917e-406a-4e08-bb18-5b659e2c28f5"></a>
 ## 2 The commands
 
+<a id="ws-doc-512e5b6d-e986-4dd9-afb6-e21a475685ed"></a>
 ### 2.1 Start of a session, and every breakpoint
 
 | what | command |
@@ -58,6 +61,7 @@ Conventions on this page:
 | an owner message, read yourself | `ENV=prd SQL="select from_id, kind, ts, left(body,300) from messages where msg_id::text like '<8 hex>%'" ./run -a do_spl_db_query` |
 | your own breadcrumbs, after every step | Run `ID=c-001 SECTION=next\|lesson TEXT='...' ./run -a do_spl_agent_handoff_note`. A fresh or restored session continues from `next`. On a restore kick (`/var/spool-hub/c-001/lifetime/kick.txt`): post a 3-line status, then continue only what was in flight |
 
+<a id="ws-doc-51a9fb0e-6f47-4c9a-80c2-75229224d78c"></a>
 ### 2.2 Asks (section 4.3 of the role spec)
 
 | step | command |
@@ -70,6 +74,7 @@ Conventions on this page:
 An ask raised 4 times is dead-lettered and goes to the owner. Never let one
 get there: ack it the moment you start.
 
+<a id="ws-doc-968d24de-4110-4f62-b699-44c95689dbbe"></a>
 ### 2.3 Agents
 
 | what | command |
@@ -87,6 +92,7 @@ only in the permission mode the global rule `07` names. After any start:
 `ps -u <human user> -o pid=,args= | awk '$2 ~ /(^|\/)claude$/'` prints
 nothing (the same check for any other vendor binary).
 
+<a id="ws-doc-da7b87d8-9e1c-40ed-92ea-4eec73fc14b6"></a>
 ### 2.4 Hanging agents, every 5 minutes
 
 Run this at the start of the session, and again at least every 5 minutes. It lists live hangs the watchdog's `OK` does not name. An idle seat with an empty inbox is not a row. Record every row in the hold note. A finished lane whose accept never reached the model is closed with section 2.3 (`--dry-run` first), not restarted. A hang whose job is not finished is one paragraph to the dispatch holder; you do not `kill` the process yourself.
@@ -142,6 +148,7 @@ PY
 
 No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it is not a row. A `HIT` whose evidence text is the same on two checks 5 minutes apart has stopped escalating: treat it as a hang even when the line still says the hook warned.
 
+<a id="ws-doc-fafd5cec-924f-4327-908f-14bcbd7eebe3"></a>
 ## 3 Decision table: message -> action
 
 | the message is | you do |
@@ -169,6 +176,7 @@ No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it
 
 - **Queued asks:** An ask that is queued on purpose still counts toward the 4-raise dead-letter. Nothing parks a queued ask today; it re-raises until closed (`do_spl_ask_close`) - track it in your handoff.
 
+<a id="ws-doc-346b1fd5-f336-43e6-8660-83e9ebbc9908"></a>
 ## 4 The leases and standby
 
 - You act only while `/var/spool-hub/dispatch/lease.orch` names YOUR id AND
@@ -218,6 +226,7 @@ No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it
 
 - **Role rotation (operator view):** The lane-rotation fix does not cover a role rotation. A role rotation is outside the lane fix, and `ACK-COMMAND` is not in the new role seat's first prompt.
 
+<a id="ws-doc-fd478951-7de4-400c-856e-3e3602934d35"></a>
 ## 5 Spawning and placement
 
 0. Extract the brief BEFORE you archive the inbox. Read the request body
@@ -269,6 +278,7 @@ picker would choose the starved box, or when the owner orders a box.
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
+<a id="ws-doc-f4986b07-b900-4d3c-809a-8672d4413e59"></a>
 ### 5.1 Work classes and bands (SPL-1817)
 
 Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down into the runbook of the orchestrators and the dispatchers"). The rule, its bands and its commands have ONE home: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "spawn queue: work classes and bands". What the orchestrator does with it:
@@ -281,6 +291,7 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Work groups (SPL-2370).** Rows that run N at a time (an epic "two lanes at a time") are ONE group, not N hand-queued asks: `GROUP_EPIC=<epic> GROUP_WIDTH=<N> GROUP_ROWS=<rows file> ./run -a do_spl_spawn_group_put`, one row a line, `<class> <vendor>:<slug> <issue key>`, briefs in the briefs dir as for any placement. The placer keeps N in flight and feeds the next row when one lands or closes; a single request is the group of one at width 1. The state: `./run -a do_spl_spawn_group_list`; a `WARN <EPIC>.json: state not read: <why>` there is the hub, issue or lane read failing (the file is fine), a `not a work group file` a bad file. The placer hands the hub lists to jq as files, never argv (SPL-2428: the asks list outgrew the 128 KiB argument limit). The design: [spec 135](../../specs/135-work-process/spec.md) section 11.
 - **The weekly security round.** Every Friday 05:30 UTC two panel seats are queued (class bug, kind secret) and the round goes on the t1 calendar: `./run -a do_spl_security_round_queue` (dry run: the seats and the event it would add). The rule and its switch: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "weekly security round". You install its cron (`DRY_RUN=0 ./run -a do_spl_security_round_install_cron`) and turn it on; it is off until you do.
 
+<a id="ws-doc-cdb62881-a7b9-4564-a4f4-141513143ce5"></a>
 ## 6 Production operations
 
 | operation | needs |
@@ -343,6 +354,7 @@ never worked around.
 
 - **Pre-push override:** Only the owner can set `SPL_PREPUSH_OVERRIDE`. A permission denied on the hook's log is not a failing test.
 
+<a id="ws-doc-da85c12e-cacf-4bcd-a17b-867a92c9223e"></a>
 ## 7 Escalation to the owner
 
 - A question only the owner can answer goes to the topic it belongs to, as a
@@ -353,6 +365,7 @@ never worked around.
   Refactoring rounds need no go either (role spec section 1.2).
 - A check that needs an owner-held key is an owner blocker, never "optional".
 
+<a id="ws-doc-7051fbeb-b758-4209-b2ce-4d7412012e54"></a>
 ## 8 Traps we hit
 
 The dispatcher runbook's section 9 applies in full. In addition:
@@ -371,6 +384,7 @@ The dispatcher runbook's section 9 applies in full. In addition:
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 
+<a id="ws-doc-f46e18f9-8de0-48ba-81d0-b777f00f1fb4"></a>
 ## 9 Gaps for a non-Claude seat
 
 | part | today | a Grok seat |

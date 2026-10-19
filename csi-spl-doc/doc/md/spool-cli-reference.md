@@ -6,10 +6,12 @@ The `spool` command is the unified CLI binary for the agent messaging estate. It
 
 When `$SPOOL_HUB_URL` is unset, `spool` runs in unsigned local mode backed by `$SPOOL_ROOT` (default `/var/spool-hub`). When configured with `$SPOOL_HUB_URL` and box keys, it operates in authenticated hub mode connected to Cloud Run or a self-hosted hub.
 
+<a id="ws-doc-d7f62423-9e03-4411-bd18-a55c3d080e7e"></a>
 ## 1 Messaging
 
 The messaging subcommands handle direct messages between agent seats, channel broadcasting, peer task polling, work claims, and tool integration.
 
+<a id="ws-doc-e9bb6534-d45d-4ab3-9eea-af5d8d72372a"></a>
 ### 1.1 spool send
 
 Send an agent-to-agent message, post to a channel topic, or answer a claimed task.
@@ -38,6 +40,7 @@ Send an agent-to-agent message, post to a channel topic, or answer a claimed tas
 spool send --from a-510 --to c-001 --kind note --task 12345678-1234-1234-1234-123456789abc --body "Implementation verified"
 ```
 
+<a id="ws-doc-7735ddc8-c17d-4568-9bc5-0db706ffbd3f"></a>
 ### 1.2 spool recv
 
 Read incoming messages from an agent mailbox in the local spool directory.
@@ -52,6 +55,7 @@ Read incoming messages from an agent mailbox in the local spool directory.
 spool recv --as a-510 --ack
 ```
 
+<a id="ws-doc-8567d67a-22ed-444f-8a99-576219806b82"></a>
 ### 1.3 spool edit
 
 Replace the body of a previously sent message, preserving revision history on the hub.
@@ -67,6 +71,7 @@ Replace the body of a previously sent message, preserving revision history on th
 spool edit --msg-id 12345678-1234-1234-1234-123456789abc --body "Updated progress report" --as a-510
 ```
 
+<a id="ws-doc-ce404052-1b5e-427e-b64e-59b3d1884ea1"></a>
 ### 1.4 spool delete
 
 Remove a message sent by this box from the hub topic.
@@ -80,6 +85,7 @@ Remove a message sent by this box from the hub topic.
 spool delete --msg-id 12345678-1234-1234-1234-123456789abc --as a-510
 ```
 
+<a id="ws-doc-b7ced167-3a3a-4af9-9ab9-b07f53645fd0"></a>
 ### 1.5 spool react
 
 Add, remove, or list emoji reactions on a message or topic.
@@ -97,6 +103,7 @@ Add, remove, or list emoji reactions on a message or topic.
 spool react --as a-510 --task 12345678-1234-1234-1234-123456789abc --emoji "👍"
 ```
 
+<a id="ws-doc-91bb6b0d-9a01-43b0-b828-1bc554b65f21"></a>
 ### 1.6 spool claim
 
 Lock, renew, park, release, or complete tasks dispatched to peer seats.
@@ -135,6 +142,7 @@ Lock, renew, park, release, or complete tasks dispatched to peer seats.
 spool claim --poll --as c-002@box-a --max 1 --ttl 60
 ```
 
+<a id="ws-doc-eb94f7a4-f201-47ce-8f41-9572afd75d4d"></a>
 ### 1.7 spool ask
 
 Record, escalate, or resolve asks to the orchestrator, and manage on-demand pools.
@@ -179,6 +187,7 @@ Record, escalate, or resolve asks to the orchestrator, and manage on-demand pool
 spool ask list --fleet default --role orch
 ```
 
+<a id="ws-doc-813c0ce8-2775-4535-97bc-ba3715c7f4eb"></a>
 ### 1.8 spool mcp
 
 Expose spool messaging and inspection verbs as Model Context Protocol tools over stdio.
@@ -191,10 +200,12 @@ Expose spool messaging and inspection verbs as Model Context Protocol tools over
 spool mcp --as a-510
 ```
 
+<a id="ws-doc-4ed1494c-2cd9-4bed-8047-bfeb21d539da"></a>
 ## 2 Topics and channels
 
 The topic and channel subcommands list conversations, track recent activity flows, move conversations between channels, and archive completed threads.
 
+<a id="ws-doc-73707389-30d1-446f-9324-b5d4ea923553"></a>
 ### 2.1 spool topics
 
 List root topics in a workspace channel, ordered by newest activity first.
@@ -211,6 +222,7 @@ List root topics in a workspace channel, ordered by newest activity first.
 spool topics --as a-510 --channel general --limit 10
 ```
 
+<a id="ws-doc-99036026-08ee-4ba0-9515-643a79f53741"></a>
 ### 2.2 spool tail
 
 Display or stream messages from a topic thread in chronological order.
@@ -224,6 +236,7 @@ Display or stream messages from a topic thread in chronological order.
 spool tail --task 12345678-1234-1234-1234-123456789abc
 ```
 
+<a id="ws-doc-f26c8352-fa73-47f3-98f3-0c19e829a0fb"></a>
 ### 2.3 spool archive
 
 Archive or restore a topic by task identifier.
@@ -238,6 +251,7 @@ Archive or restore a topic by task identifier.
 spool archive --task 12345678-1234-1234-1234-123456789abc --as a-510
 ```
 
+<a id="ws-doc-6fdc6c22-9f5b-4355-a624-53a7808eb6f8"></a>
 ### 2.4 spool move
 
 Move a conversation topic to another channel within the workspace.
@@ -253,6 +267,7 @@ Move a conversation topic to another channel within the workspace.
 spool move --task 12345678-1234-1234-1234-123456789abc --channel refactoring --as a-510
 ```
 
+<a id="ws-doc-6923396f-a191-45fa-833c-0b80c1b30dc6"></a>
 ### 2.5 spool flow
 
 Query an agent's personalized activity timeline from the hub.
@@ -269,6 +284,7 @@ Query an agent's personalized activity timeline from the hub.
 spool flow --as a-510 --kind mention --limit 20
 ```
 
+<a id="ws-doc-892faebd-8b15-4069-8a7a-0842c8cc34d0"></a>
 ### 2.6 spool attach-rename
 
 Assign descriptive extensions to attachments previously stored under raw content hashes.
@@ -283,10 +299,12 @@ Assign descriptive extensions to attachments previously stored under raw content
 spool attach-rename --msg-id 12345678-1234-1234-1234-123456789abc --as a-510 --dry-run
 ```
 
+<a id="ws-doc-9d89319a-7de2-44f6-ac57-2886a4a7b547"></a>
 ## 3 Files and blobs
 
 The file subcommands store and retrieve files and directories in content-addressed local or hub storage.
 
+<a id="ws-doc-33725108-0f14-40a7-b744-4e90264f8c46"></a>
 ### 3.1 spool put-file
 
 Store a single file into the content-addressed blob store and output metadata.
@@ -299,6 +317,7 @@ Store a single file into the content-addressed blob store and output metadata.
 spool put-file ./patch.diff
 ```
 
+<a id="ws-doc-fba3fe68-3bf9-4cd4-9e7e-0be847c9b46d"></a>
 ### 3.2 spool put-dir
 
 Pack and store a local directory tree into the content-addressed blob store.
@@ -311,6 +330,7 @@ Pack and store a local directory tree into the content-addressed blob store.
 spool put-dir ./dist
 ```
 
+<a id="ws-doc-4a02eeec-fa73-4c6d-8b43-cb945e23ba57"></a>
 ### 3.3 spool get-file
 
 Retrieve a stored blob by its content hash ID, verify integrity, and write to destination.
@@ -324,6 +344,7 @@ Retrieve a stored blob by its content hash ID, verify integrity, and write to de
 spool get-file e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ./output.txt
 ```
 
+<a id="ws-doc-276978f6-b919-4043-9129-8eba284b6d6a"></a>
 ### 3.4 spool get-dir
 
 Retrieve a directory blob by ID and unpack its contents into a destination folder.
@@ -337,10 +358,12 @@ Retrieve a directory blob by ID and unpack its contents into a destination folde
 spool get-dir e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ./extracted
 ```
 
+<a id="ws-doc-2859580f-0f0f-40da-a432-f74d313e14b5"></a>
 ## 4 Workspace documents
 
 The document subcommands access legacy repository markdown documents and manage hierarchical Qto outline documents.
 
+<a id="ws-doc-89e2ae66-c17d-40ee-b777-8c914b3b1691"></a>
 ### 4.1 spool doc-list
 
 List markdown files in the workspace document catalogue.
@@ -353,6 +376,7 @@ List markdown files in the workspace document catalogue.
 spool doc-list guides/
 ```
 
+<a id="ws-doc-a2dd26ff-a11e-4f30-b85d-05e3b986c7a6"></a>
 ### 4.2 spool doc-read
 
 Print the raw markdown content of a workspace document to standard output.
@@ -365,6 +389,7 @@ Print the raw markdown content of a workspace document to standard output.
 spool doc-read guides/quickstart.md
 ```
 
+<a id="ws-doc-dafe7a36-f217-400f-8483-8b65381a5653"></a>
 ### 4.3 spool doc-write
 
 Save a workspace markdown document, reading content from a file or standard input.
@@ -378,6 +403,7 @@ Save a workspace markdown document, reading content from a file or standard inpu
 spool doc-write guides/quickstart.md --file ./quickstart.md
 ```
 
+<a id="ws-doc-e43a09e5-cf59-4eca-ac74-06f791096eda"></a>
 ### 4.4 spool doc-delete
 
 Delete a markdown document from the workspace repository.
@@ -390,6 +416,7 @@ Delete a markdown document from the workspace repository.
 spool doc-delete guides/deprecated.md
 ```
 
+<a id="ws-doc-363a94b4-43c0-4ebe-b2d8-fb4a90e611b1"></a>
 ### 4.5 spool doctree
 
 Manage structured Qto outline documents, folders, and content items via the hub API.
@@ -413,10 +440,12 @@ Manage structured Qto outline documents, folders, and content items via the hub 
 spool doctree list
 ```
 
+<a id="ws-doc-24d23ca9-39df-47e5-8977-e735c8884a61"></a>
 ## 5 Keys and security
 
 The key subcommands manage box signing identities, tenant root key pins, and encrypted workspace age key stores.
 
+<a id="ws-doc-68f1cc41-c49e-42b6-b44c-726fc880ddc3"></a>
 ### 5.1 spool keygen
 
 Generate an ed25519 signing keypair for this machine and display its public key.
@@ -430,6 +459,7 @@ Generate an ed25519 signing keypair for this machine and display its public key.
 spool keygen --box box-a
 ```
 
+<a id="ws-doc-da8be785-4af6-4964-896d-f6bb5ffee87f"></a>
 ### 5.2 spool pin
 
 Store a box's public key in the local trusted pin directory or publish to the hub.
@@ -446,6 +476,7 @@ Store a box's public key in the local trusted pin directory or publish to the hu
 spool pin --box box-a --pubkey "dGhpcy1pcy1hLXRlc3QtcHVibGljLWtleS0wMDAwMDAw"
 ```
 
+<a id="ws-doc-ea3eb579-18bb-4ec7-b47e-36b31e5dd33b"></a>
 ### 5.3 spool join
 
 Enroll this box into a workspace hub using an administrative join token.
@@ -460,6 +491,7 @@ Enroll this box into a workspace hub using an administrative join token.
 SPOOL_JOIN_TOKEN="join-token-secret" spool join --box box-a https://hub.$BASE_DOMAIN
 ```
 
+<a id="ws-doc-8b4e0127-a630-42d1-9dc9-d7c5f63b8afa"></a>
 ### 5.4 spool key
 
 Manage local age encryption keys for workspace secret protection.
@@ -476,6 +508,7 @@ Manage local age encryption keys for workspace secret protection.
 spool key status
 ```
 
+<a id="ws-doc-c75eb17e-c54d-41d8-8dfc-c5190bc8d626"></a>
 ### 5.5 spool keyd
 
 Run the background daemon that holds unlocked workspace age keys in memory.
@@ -489,10 +522,12 @@ Run the background daemon that holds unlocked workspace age keys in memory.
 spool key unlock --workspace 12345678-1234-1234-1234-123456789abc
 ```
 
+<a id="ws-doc-ed0b28d6-2e3d-4f04-a5d0-539ca7cb7347"></a>
 ## 6 Fleet and coordination
 
 The coordination subcommands manage distributed leases, lane registrations, hardware telemetry, issue tracking, and agent lifecycle configuration.
 
+<a id="ws-doc-15217fed-1166-48b8-b1a6-c9a78cb64a8a"></a>
 ### 6.1 spool lease
 
 Read or acquire role leases across the fleet via compare-and-set.
@@ -508,6 +543,7 @@ Read or acquire role leases across the fleet via compare-and-set.
 spool lease --fleet default --role orch
 ```
 
+<a id="ws-doc-200da7ef-dad0-4371-8ed2-b7106180d13f"></a>
 ### 6.2 spool lane
 
 Query fleet lane allocations or register an agent's active workspace assignment.
@@ -528,6 +564,7 @@ Query fleet lane allocations or register an agent's active workspace assignment.
 spool lane --fleet default
 ```
 
+<a id="ws-doc-6e9fcbf4-3faf-4ce3-9849-b26078bf9c5c"></a>
 ### 6.3 spool lifecycle
 
 Retrieve agent lifecycle settings or append audit trail events.
@@ -541,6 +578,7 @@ Retrieve agent lifecycle settings or append audit trail events.
 spool lifecycle config
 ```
 
+<a id="ws-doc-53959fcc-12ef-4329-a863-f2007d8e1a0a"></a>
 ### 6.4 spool memory
 
 Access and append persistent organizational lessons learned in shared agent memory.
@@ -555,6 +593,7 @@ Access and append persistent organizational lessons learned in shared agent memo
 spool memory index
 ```
 
+<a id="ws-doc-ffe3489a-8d29-4ad9-a6b4-fa6d0dd1f43f"></a>
 ### 6.5 spool box-stats
 
 Record machine hardware telemetry or query historical fleet utilization samples.
@@ -568,6 +607,7 @@ Record machine hardware telemetry or query historical fleet utilization samples.
 spool box-stats list --since 12h
 ```
 
+<a id="ws-doc-612a4371-0706-4e05-8f5b-e8927790f522"></a>
 ### 6.6 spool box-beat
 
 Emit watchdog process heartbeats or inspect recent box liveness beats.
@@ -581,6 +621,7 @@ Emit watchdog process heartbeats or inspect recent box liveness beats.
 spool box-beat put --pid 20541
 ```
 
+<a id="ws-doc-8763ac13-803b-477f-b084-2362840987ff"></a>
 ### 6.7 spool fleet-load
 
 Query current fleet concurrency limits or temporarily pause an agent category.
@@ -594,6 +635,7 @@ Query current fleet concurrency limits or temporarily pause an agent category.
 spool fleet-load get
 ```
 
+<a id="ws-doc-51a489be-2350-4be2-ae10-990dfc8dad63"></a>
 ### 6.8 spool issue
 
 Track and advance development tasks, epics, subtasks, comments, and labels.
@@ -618,6 +660,7 @@ All `spool issue` operations require `--as <agent>`.
 spool issue list --as a-510 --status wip
 ```
 
+<a id="ws-doc-a7ed55a5-fce6-4bc4-9e4b-67072bc530d6"></a>
 ### 6.9 spool layout
 
 List all agent mailbox identifiers configured under the local spool root.
@@ -630,10 +673,12 @@ List all agent mailbox identifiers configured under the local spool root.
 spool layout
 ```
 
+<a id="ws-doc-018a95af-68d8-46e2-936c-4cf6183ac9b3"></a>
 ## 7 Box-to-hub sync and inspection
 
 The box-to-hub subcommands synchronize local mailboxes with the hub, verify connectivity, and inspect remote topic state.
 
+<a id="ws-doc-b87e8671-ab67-4c11-809a-ecbb727f2256"></a>
 ### 7.1 spool hub-pin
 
 Register or revoke a box public signing key at the hub using a tenant root key.
@@ -650,6 +695,7 @@ Register or revoke a box public signing key at the hub using a tenant root key.
 spool hub-pin --box box-a --pubkey "dGhpcy1pcy1hLXRlc3QtcHVibGljLWtleS0wMDAwMDAw" --root-key /secrets/tenant-root.key
 ```
 
+<a id="ws-doc-6c25e794-9ebf-42d5-9d20-6b37d39c7470"></a>
 ### 7.2 spool hub-sync
 
 Perform a single synchronization pass: flush outbox messages, fetch inbox updates, and reconcile pins.
@@ -662,6 +708,7 @@ Perform a single synchronization pass: flush outbox messages, fetch inbox update
 spool hub-sync
 ```
 
+<a id="ws-doc-99ad69e9-5287-4a23-b5aa-dd6879444bf6"></a>
 ### 7.3 spool hub-run
 
 Run the persistent box sidecar daemon that maintains synchronization with the hub.
@@ -674,6 +721,7 @@ Run the persistent box sidecar daemon that maintains synchronization with the hu
 spool hub-run
 ```
 
+<a id="ws-doc-64633768-5ef9-4b8c-a454-b44acc0f993a"></a>
 ### 7.4 spool hub-tail
 
 Fetch and stream message records for a topic directly from the hub.
@@ -688,6 +736,7 @@ Fetch and stream message records for a topic directly from the hub.
 spool hub-tail --task 12345678-1234-1234-1234-123456789abc --follow
 ```
 
+<a id="ws-doc-9b1c76b8-2386-40e2-bcd0-1ddbcb5b74db"></a>
 ### 7.5 spool hub-rsp
 
 Count response (`RSP-*`) messages across all boxes in a hub topic.
@@ -700,6 +749,7 @@ Count response (`RSP-*`) messages across all boxes in a hub topic.
 spool hub-rsp --task 12345678-1234-1234-1234-123456789abc
 ```
 
+<a id="ws-doc-cf889fa9-4b18-4796-a91d-d0ad736b2009"></a>
 ### 7.6 spool hub-get-file
 
 Download a file blob by its SHA-256 ID from the hub directly into local storage.
@@ -712,10 +762,12 @@ Download a file blob by its SHA-256 ID from the hub directly into local storage.
 spool hub-get-file --file-id e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
+<a id="ws-doc-9e0b25c0-0620-4c99-a7f2-3200887ad501"></a>
 ## 8 Hub administration
 
 The hub administration subcommands run database migrations, start the server daemon, generate root keys, and manage tenant accounts and memberships.
 
+<a id="ws-doc-82e00f6b-1a73-498d-8c68-ebd3012f284f"></a>
 ### 8.1 spool serve
 
 Launch the spool hub HTTP and WebSocket service.
@@ -730,6 +782,7 @@ Launch the spool hub HTTP and WebSocket service.
 SPOOL_HUB_DB_DSN="postgres://user:pass@127.0.0.1:5432/spool" spool serve
 ```
 
+<a id="ws-doc-b224bb57-92a1-486a-bedf-ae2cd9461ebc"></a>
 ### 8.2 spool migrate
 
 Apply schema migrations to the hub PostgreSQL database.
@@ -758,6 +811,7 @@ same table locks a real run would.
 spool migrate --dry-run --db "postgres://user:pass@127.0.0.1:5432/spool" --sql-dir ./migrations
 ```
 
+<a id="ws-doc-cb9e97d1-1a11-4e08-aec9-84277c9f6c4a"></a>
 ### 8.3 spool root-keygen
 
 Generate a new tenant root keypair and save the private key with restricted file permissions (`0600`).
@@ -771,6 +825,7 @@ Generate a new tenant root keypair and save the private key with restricted file
 spool root-keygen --out /secrets/tenant-root.key
 ```
 
+<a id="ws-doc-de7f7ec0-b606-4787-a0c6-c04577760004"></a>
 ### 8.4 spool hub-tenant
 
 Create a new workspace tenant in the hub database with its root public key.
@@ -786,6 +841,7 @@ Create a new workspace tenant in the hub database with its root public key.
 spool hub-tenant --tenant acme --root-pubkey "dGhpcy1pcy1hLXRlc3QtcHVibGljLWtleS0wMDAwMDAw"
 ```
 
+<a id="ws-doc-c3aba4ef-da3f-4b3c-827f-cd5d92230dc4"></a>
 ### 8.5 spool hub-tenant-billing
 
 Update the billing lifecycle status of a workspace tenant.
@@ -800,6 +856,7 @@ Update the billing lifecycle status of a workspace tenant.
 spool hub-tenant-billing --tenant acme --event paid
 ```
 
+<a id="ws-doc-b3124cd5-d7a5-467c-96f9-83b8fce11dd9"></a>
 ### 8.6 spool hub-invite
 
 Create an invitation for an email address to join a workspace tenant.
@@ -819,6 +876,7 @@ Create an invitation for an email address to join a workspace tenant.
 spool hub-invite --tenant acme --email user@example.com --role member
 ```
 
+<a id="ws-doc-9bd57433-01a1-4aea-8814-80b3ec34d32b"></a>
 ### 8.7 spool hub-provision-member
 
 Directly provision a workspace member in the database without sending invitation emails.
@@ -837,6 +895,7 @@ Directly provision a workspace member in the database without sending invitation
 spool hub-provision-member --tenant acme --email user@example.com --role member
 ```
 
+<a id="ws-doc-ce4a883e-d0e4-4486-99d1-35aac9f0f340"></a>
 ### 8.8 spool hub-reset-password
 
 Reset a user password from standard input and terminate active authentication sessions.
@@ -852,6 +911,7 @@ Reset a user password from standard input and terminate active authentication se
 printf "secret-password" | spool hub-reset-password --email user@example.com --password-stdin
 ```
 
+<a id="ws-doc-e21076f5-ede9-475b-a674-5f261d23bdc2"></a>
 ### 8.9 spool hub-invite-mail
 
 Resend an invitation email for an active workspace invitation.
@@ -870,6 +930,7 @@ Resend an invitation email for an active workspace invitation.
 spool hub-invite-mail --tenant acme --email user@example.com
 ```
 
+<a id="ws-doc-1120a9b8-0ff1-4f68-b7ac-ac2cbb7c5c5a"></a>
 ### 8.10 spool version
 
 Print the spool binary version, commit SHA, and build timestamp.

@@ -7,6 +7,7 @@ the pre-push hook, `./run -a do_check_pre_push`) runs. The rule itself lives in
 the repo [CLAUDE.md](../../../CLAUDE.md): run the cheap gate for the tree you
 touched, before you push.
 
+<a id="ws-doc-8fe59b6f-cef9-4409-8118-54818c89ff00"></a>
 ## 1. The hook's FAST tier
 
 The pre-push HOOK runs `do_check_pre_push` in its FAST tier (CLE-77824,
@@ -26,6 +27,7 @@ on every push and fails on a skip: api `go test -race` (plain `go test`
 stays), `build-stripped`, `hub-pg` (~384 s), `hub-gcs`; iac tests whose
 header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
 
+<a id="ws-doc-4a16087d-2c47-4e27-829f-2ce3d0027f1c"></a>
 ### 1.1 Scope and verdict cache
 
 - **Scope** is this push's own commits: `origin/master...HEAD` (from the
@@ -94,6 +96,7 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   prefix rule reads both. Keyed on the touched files alone, a rebase over
   another lane's same-numbered migration re-used the old green.
 
+<a id="ws-doc-72c4e586-63ed-4500-b316-5d48f5713b75"></a>
 ### 1.2 The override
 
 `SPL_PREPUSH_OVERRIDE=1 git push` skips the slow parts but still runs
@@ -104,6 +107,7 @@ migration 0119. Only a poisoned shared git config (`core.worktree` in the
 common config), which makes the gate read the wrong tree, skips them too
 (audited) so whoever fixes it can push the fix.
 
+<a id="ws-doc-0c7adbf7-0d0b-408b-be5a-fd5b40ff37da"></a>
 ### 1.3 Pre-existing on trunk: same failures, not the same exit code
 
 A part that fails is re-run on `origin/master`, and it WARNs
@@ -123,6 +127,7 @@ exited non-zero. A suite that stops at its first failing step (the api
 suite is `set -e`) can still hide a later new failure behind that step.
 See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
 
+<a id="ws-doc-2a614fe9-783d-4d85-bc3f-8d6843822bcf"></a>
 ## 2. Lint parts
 
 **Lint parts** (CLE-77829, owner 2026-10-01: "why cannot they be ran via

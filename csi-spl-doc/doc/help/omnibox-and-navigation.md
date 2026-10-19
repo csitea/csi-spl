@@ -6,6 +6,7 @@ The **Top Omnibox** is the central command center of Spool. Permanently mounted 
 
 ---
 
+<a id="ws-doc-de930f75-1b9f-474c-843f-ac243af3353c"></a>
 ## 1. Dual-Role Operation
 
 The Omnibox operates in two primary modes:
@@ -15,6 +16,7 @@ The Omnibox operates in two primary modes:
 
 ---
 
+<a id="ws-doc-6b15bcb4-a94c-4223-9d32-ef62bf747d03"></a>
 ## 2. Smart Pane-Focus Routing (Spec 033)
 
 One of Spool's most powerful features is **Smart Pane-Focus Routing**. Because the Omnibox is located in the top bar above all three panes, Spool determines where your message belongs based on **which pane you interacted with last**:
@@ -31,6 +33,7 @@ One of Spool's most powerful features is **Smart Pane-Focus Routing**. Because t
 +-----------------------------------------+-----------------------------------------+
 ```
 
+<a id="ws-doc-78d2a67d-14ce-4ed0-a220-e3fba5338681"></a>
 ### How the Level Rule Works
 
 - **Starting a New Topic (Level 1, `is_parent = 1`)**:
@@ -41,6 +44,7 @@ One of Spool's most powerful features is **Smart Pane-Focus Routing**. Because t
   - The Omnibox placeholder changes to reflect replying (e.g. *"Reply to topic..."*).
   - Any message you send while the Right Pane is active will be stored as a thread reply line (`is_parent = 0`). It appears exclusively in that thread and never creates duplicate cards in the main feed.
 
+<a id="ws-doc-ec9e47b7-98df-4756-8418-b0b5ab41104a"></a>
 ### Explicit Routing: The `in: <topic>` Keyword
 
 You can override pane selection at any time using the `in:` keyword:
@@ -53,17 +57,21 @@ Spool will automatically route the message into the specified topic, regardless 
 
 ---
 
+<a id="ws-doc-151113d6-a3cd-45c4-a810-0f4e29e252d0"></a>
 ## 3. Autocomplete Features
 
+<a id="ws-doc-b619b869-c2af-4f97-9d8f-ab62612ad8b6"></a>
 ### 3.1 Mention Autocomplete (`@`)
 Type `@` anywhere in the Omnibox to trigger the roster mention popup:
 - Displays all team members (`HUM-*`) and active AI agents (`c-007`, `g-003`, `a-001`, `q-002`, and an older id such as `CLE-07`).
 - Shows each person or bot's avatar and a live green presence dot indicating online connection.
 - Use `ArrowUp` / `ArrowDown` to navigate and `Enter` or `Tab` to select.
 
+<a id="ws-doc-3b4879d1-30c6-496c-bea5-35cc005acd0d"></a>
 ### 3.2 Topic Autocomplete (`in:`)
 Type `in:` to trigger a list of existing topics in the current workspace. Select a topic to quickly append a reply without opening the thread pane first.
 
+<a id="ws-doc-7721684d-d336-4916-8daf-46c4f630adc4"></a>
 ### 3.3 Search Operator Autocomplete
 When in `/search` mode, typing triggers suggestions for available filter operators:
 - `from:` (filter by sender)
@@ -75,6 +83,7 @@ When in `/search` mode, typing triggers suggestions for available filter operato
 
 ---
 
+<a id="ws-doc-cfccc90c-e613-491e-b920-b77eb962ba93"></a>
 ## 4. Code Composer Mode
 
 When discussing technical problems or sharing patches, Spool provides a dedicated **Code Block Mode**:
@@ -89,6 +98,7 @@ When discussing technical problems or sharing patches, Spool provides a dedicate
 
 ---
 
+<a id="ws-doc-4c41d563-ab58-4399-8ee4-3edab2734fa1"></a>
 ## 5. File Attachments
 
 You can attach files directly to any message or agent task:
@@ -105,6 +115,7 @@ You can attach files directly to any message or agent task:
 
 ---
 
+<a id="ws-doc-9436de24-55e3-4328-b690-4fda46a522dd"></a>
 ## 6. Sending Resilience & Error Recovery
 
 Network interruptions or temporary server restarts will never cause you to lose your message:
@@ -119,6 +130,7 @@ Network interruptions or temporary server restarts will never cause you to lose 
   - *the hub refused the file (503 unavailable)*: the hub answered with an error, and the notice names its status and reason.
 - Once the send succeeds, the composer smoothly clears and resets focus.
 
+<a id="ws-doc-2c5d9757-469e-487a-9d75-8d97b668cdc1"></a>
 ### 6.1 Waiting for an agent's answer: the hourglass
 
 The moment you click send, a small spinning hourglass appears on your message (beside *Sending…*, then next to its time once the hub has it), in the thread and on its topic card in the channel. It goes away when the first agent message after yours arrives in that topic. A message that could not be sent (it waits for the network, or comes back to the box with a reason) shows no hourglass.
@@ -131,6 +143,7 @@ The moment you click send, a small spinning hourglass appears on your message (b
 
 ---
 
+<a id="ws-doc-0e147684-c44d-40e3-8355-cb7cbbffd21e"></a>
 ## 7. Global Keyboard Shortcuts
 
 | Key | Context | Action |
@@ -144,6 +157,7 @@ The moment you click send, a small spinning hourglass appears on your message (b
 
 ---
 
+<a id="ws-doc-1f0b733a-689c-4f4d-85cc-06b08bfb7ff1"></a>
 ## 8. Where an id in a message opens
 
 Clicking a topic id or a message id in a message opens the place that holds it, in this window. A phone uses the same places as a wide window. What becomes a link is in [Message Interactions & Formatting](./message-actions-and-formatting.md).
@@ -161,6 +175,7 @@ The address is `/channel/<name>?topic=<topic id>` for a channel topic, with `#<m
 
 ---
 
+<a id="ws-doc-d1f6af2d-f13c-4114-a3a7-318cb6012d9b"></a>
 ## 9. The message box on a phone
 
 At 820 px and below, the top bar is a short row and the message box docks at
@@ -186,8 +201,10 @@ setting: the box is docked, and the grip above chooses where.
 
 ---
 
+<a id="ws-doc-f1c5c9ae-090d-4650-b4e3-55218d4aa12b"></a>
 ## 10. Drafts and the target chip
 
+<a id="ws-doc-1a1f6416-67f6-42e4-8770-5df3efbfd1b0"></a>
 ### 10.1 One draft per place
 
 The box keeps what you typed for each place a send can go to: a channel, a
@@ -210,11 +227,13 @@ uses that channel's draft.
   end (on a phone, on a line under the text). **Clear** next to it empties
   the box and removes the draft.
 
+<a id="ws-doc-1c60dbc2-a83c-432e-8445-6e4545f6165b"></a>
 ### 10.2 The pencil mark
 
 A small pencil on a channel or direct-message row in the sidebar, or on a
 topic card, means a draft waits there. Point at it to read **Draft**.
 
+<a id="ws-doc-f0d48352-8534-404e-a520-e627dfd101b5"></a>
 ### 10.3 The target chip
 
 While the box holds text, a chip at its start says where **Enter** will
@@ -236,6 +255,7 @@ The chip shows in the box in the top bar and at the bottom of the middle
 pane (**Settings → Behaviour → Omnibox position**). The docked box on a phone
 has no chip.
 
+<a id="ws-doc-a014e28b-608a-497f-9060-6386d704f3ea"></a>
 ### 10.4 Sent without a network
 
 A message you send while the network is gone is not lost. Its row stays in
@@ -251,6 +271,7 @@ reuses the message id, so it never posts a second copy.
 
 ---
 
+<a id="ws-doc-8431e880-78d4-41fc-a1fe-5f261940a7ff"></a>
 ## Next Steps
 
 To learn how channels, DMs, and presence work, proceed to [Channels & Direct Messages](./channels-and-direct-messages.md).

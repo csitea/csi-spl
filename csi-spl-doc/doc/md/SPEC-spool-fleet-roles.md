@@ -8,6 +8,7 @@ route every message. Owner decisions 2026-10-03 (sections 2.1, 3): every OD
 seat (orchestrator, master, failover) is in every channel, and the OD that
 takes a post answers it and owns that topic.
 
+<a id="ws-doc-1214da5c-bf7d-4656-a3cb-9578af4f21fb"></a>
 ## 1. Roles
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
@@ -39,6 +40,7 @@ spawner sets `--dangerously-skip-permissions`; the model comes from the agent us
 settings, and a relaunch (`restore-claude-plain.sh`) passes it explicitly
 because `--resume` keeps the session's old model.
 
+<a id="ws-doc-da6b4940-9722-43d7-862f-11c41e2f7020"></a>
 ### 1.1 One agent, one small task
 
 Owner decision 2026-10-01, tightened 2026-10-02: *"the same agent is re-used
@@ -76,6 +78,7 @@ An agent never reopens a closed discussion on its own.
 ⏸️ on a topic's opening message = on hold (not archived). An agent sets or
 clears it with `do_spl_react`.
 
+<a id="ws-doc-8d605fe4-b3ff-4985-bc94-0d138c865523"></a>
 ### 1.2 Refactoring rounds need no owner go
 
 The rules for creating and executing bug-fix rounds and refactoring rounds (round size cap of at most 10 items, push caps, continuous execution, and standing rules R1–R16) have their one home in [rounds rulebook](rounds-rulebook.md).
@@ -95,6 +98,7 @@ a prd mutation, a `terraform apply` or a key still needs the owner's go for
 that one call (repo `CLAUDE.md`); the round itself does not. All round creation
 and standing rules (R1–R16) are in [rounds-rulebook.md](rounds-rulebook.md).
 
+<a id="ws-doc-1c29fd39-9360-47ea-8f21-6978e62ce515"></a>
 ### 1.3 Issues track the work, discussions stay talk
 
 Owner, HUM-10, t1 5ea2e615 (2026-10-12), decided in
@@ -116,6 +120,7 @@ The key is enforced at the lane's exit and its rate measured weekly (Q6);
 unchanged ([developer guide](developer-guide.md) 1.1-1.4, Q5). Commands for
 lanes: [lane issue and docs](lane-issue-and-docs.md).
 
+<a id="ws-doc-0810a441-f54e-4bd8-87cc-6d21755a3ea8"></a>
 ### 1.4 The orchestrator never runs terraform itself
 
 Owner, HUM-10, t1 topic cd592c84-45ab-49a6-927c-0864718e53b9, msg 116ab2b5-90e3-4905-9317-10397a3c4d35 (2026-10-14), verbatim:
@@ -130,6 +135,7 @@ lane (kind `complex_coding`, claude) that carries the owner's go msg id,
 re-plans, applies only the plan the owner approved, and reports back to the
 orchestrator.
 
+<a id="ws-doc-dd1b1c90-390b-4c60-a421-a317af4db98e"></a>
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
@@ -148,6 +154,7 @@ dev and prd, while `lease.conf` exists; a changed `GAP`/`DEAD`/`UNSEATED` set
 is logged, a new prd `GAP` goes to the lease holder and to the orchestrator
 after an hour open).
 
+<a id="ws-doc-5769dd4a-685d-43ad-be1f-fd5fbb20575d"></a>
 ### 2.1 Every OD seat is in every channel
 
 Owner (HUM-10, t1 `d40c3e2f`, 2026-10-03 ~18:25Z), verbatim: *"Of course
@@ -178,6 +185,7 @@ the post names it (`@c-001`, `c-001`, `orchestrator`); every other one waits
 in its inbox, and the 2-minute backstop and the unanswered sweep reach it as
 messages addressed to it (`spool_notify_orch_quiet`, owner HUM-10 2026-10-07).
 
+<a id="ws-doc-64b35c15-3c3a-4153-87b6-beaa6edbe9f3"></a>
 ## 3. The routing rule: the OD that takes a post owns it
 
 Owner (HUM-10, t1 `d40c3e2f`, 2026-10-03 ~18:26Z), verbatim: *"The
@@ -249,6 +257,7 @@ Ownership of a lane's code comes from the spool registry, the window names
 and the orchestrator's lane table. An OD never guesses which lane owns
 something; it asks `c-001`.
 
+<a id="ws-doc-41c921ec-fb7f-443c-b144-79a3e95755bd"></a>
 ### 3.1 A "live" claim is checked before it is posted
 
 A web UI change is live only when the served `build.json` commit contains the
@@ -256,6 +265,7 @@ agent's commit (`git merge-base --is-ancestor <sha> <served>`); a hub change is
 checked the same way against `/version`. An unproven claim goes back to the
 agent.
 
+<a id="ws-doc-5628be9b-5b62-4cdf-83a9-3497b7b51b5b"></a>
 ### 3.2 The unanswered sweep: the pull that finds what nobody answered
 
 The routing rule acts on DELIVERIES, so it only ever sees a post the moment
@@ -313,6 +323,7 @@ row and calls it a GAP when the sweep never ran, its last note failed, or it
 is over 30 minutes old. Without `DELIVER=1` the action only reports: run it
 by hand to see the current list.
 
+<a id="ws-doc-f0a9302b-49fa-4e37-a3cd-7f0c0695e687"></a>
 ## 4. Master and failover: the heartbeat lease
 
 ```mermaid
@@ -401,6 +412,7 @@ sequenceDiagram
 - Setting it all up on a machine: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md)
   (`do_spl_dispatch_setup`, verified by `do_spl_dispatch_check`).
 
+<a id="ws-doc-3e11a9b0-8186-4b11-a7c2-a77d0555ccfa"></a>
 ### 4.1 Across machines: the fleet lease (spec 061)
 
 Owner decision "a" (t1 5fe56859, 2026-10-01): exactly ONE orchestrator and
@@ -583,6 +595,7 @@ resource, and its age would have come from each machine's own clock.
   LEASE_HOLDDOWN=0` control that hands back at once). The hub side is tested by
   `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
 
+<a id="ws-doc-5de900ba-0de3-4d5b-900e-a6150ead844e"></a>
 ### 4.2 Messages and reports across machines (specs/058 N1)
 
 Each machine has its own spool root (`/var/spool-hub`). A peer message or a
@@ -615,6 +628,7 @@ the sender's machine.
   `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
   script against a fake `/proc`).
 
+<a id="ws-doc-e391c436-5cac-438f-acea-03aaae5e1451"></a>
 ### 4.3 Asks to the orchestrator: fire and forget, tracked until closed
 
 Owner bug t1 #spool-hub-bugs 2f7996aa (2026-10-02 01:58Z): "there needs to be
@@ -756,6 +770,7 @@ live lanes; the rule, its numbers and its commands live in one place:
 [fleet-rules-index.md](fleet-rules-index.md) section 2, the row "spawn queue:
 work classes and bands".
 
+<a id="ws-doc-718510f3-4b5e-4a96-a6e7-07855f5b6079"></a>
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 
 Every role gets a FRESH session under the SAME id once an hour, so no
@@ -808,6 +823,7 @@ it is not restated here.
 - `do_spl_dispatch_check` has a `dispatch rotation` row: a GAP when the last
   rotation on the machine holding the lease is over 3 h old (060 FR-072).
 
+<a id="ws-doc-e753651a-35dc-4d00-991b-e5bcfe7d6cbb"></a>
 ## 5. What this replaced
 
 Before 2026-10-01 the orchestrator read every message itself, a standing first
@@ -816,6 +832,7 @@ workspaces. Three paths meant duplicate routing and an orchestrator buried in
 traffic. Both older agents retire once the dispatchers have routed a test post
 end to end in every seated workspace.
 
+<a id="ws-doc-8b184924-0010-4fec-be34-468006a0d089"></a>
 ## 6. Failure modes seen on 2026-10-01
 
 | failure | effect | guard |
@@ -824,6 +841,7 @@ end to end in every seated workspace.
 | registry rows kept pre-reboot pane ids; tmux reuses pane numbers after a restart | a re-run window rename renamed a neighbour's window | the registry is refreshed after every restore; a resolver checks that a pane still runs that agent before using it |
 | the shared checkout lagged trunk | spawns re-installed a stale pre-push hook | spawn from an up-to-date worktree; the common hook execs the pushing worktree's own hook |
 
+<a id="ws-doc-2bbfa5d3-6b7b-4424-88b4-53b15a8e8597"></a>
 ## 7. Status
 
 | piece | state |

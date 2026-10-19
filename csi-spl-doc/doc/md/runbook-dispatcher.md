@@ -23,6 +23,7 @@ Conventions on this page:
   `sudo -u <box user> env SPOOL_ROOT=/var/spool-hub ...`, unless the line says
   otherwise.
 
+<a id="ws-doc-774c292b-a08e-43a5-80f9-20935126bd13"></a>
 ## 1 The job
 
 | you do | you never do |
@@ -38,8 +39,10 @@ Conventions on this page:
 2 minutes, the orchestrator takes it as the backstop. The orchestrator then
 owns that topic.
 
+<a id="ws-doc-9a9c355d-6266-48d1-8a6c-f2664324c88e"></a>
 ## 2 The commands
 
+<a id="ws-doc-83911995-a9bb-4abf-bfc8-24550ed440fa"></a>
 ### 2.1 Read
 
 | what | command |
@@ -56,6 +59,7 @@ owns that topic.
 | seats, gaps, sweep and rotation health, a workspace's channels | `./run -a do_spl_dispatch_check` |
 | an owner post with `[image attached … file_id …]` | The desk inbox JSON is under `~<box user>/.local/share/csi-spl/cloud/<env>/desk/<workspace>/<box>/spool/<your id>/inbox/`. Fetch the file with that env's `spool get-file <file_id> <dest>`. Use the `SPOOL_ROOT`, `SPOOL_KEYS_DIR`, `SPOOL_BOX_ID`, `SPOOL_HUB_URL` and `SPOOL_TENANT` of that desk. Look at the file before you answer |
 
+<a id="ws-doc-20cfece9-0abf-4d36-bd80-80a345b9180b"></a>
 ### 2.2 Write
 
 | what | command |
@@ -89,6 +93,7 @@ secrets, and no filler: a post that only acknowledges is not sent.
 
 - **Disk sweep (operator view):** A disk sweep (`box-disk-sweep`) freed count is only real if the file count dropped. Ignore rc=0 or DONE if no files were removed.
 
+<a id="ws-doc-499cfac4-db50-42b8-9df0-08761f938ad3"></a>
 ## 3 Decision table: message -> action
 
 For each message do exactly one row, then archive it.
@@ -113,6 +118,7 @@ For each message do exactly one row, then archive it.
 | a short owner answer ("yes", "all a", "2") | find WHICH question it answers (your last post in that topic with those options; one topic can hold two lists) and state your reading in the reply, so the owner can correct it |
 | the owner says no to the same thing three times | take it as decided: pause the work (not cancel), say how to resume, never argue a fourth time |
 
+<a id="ws-doc-05ebea69-cd34-4895-870c-a8fd4ad1ca03"></a>
 ## 4 Verifying a sha and a deploy
 
 "Landed" is not "Done". Done is yours to judge, against the task's own Done
@@ -147,6 +153,7 @@ Before you post:
 
 - **Pre-push override:** Only the owner can set `SPL_PREPUSH_OVERRIDE`. A permission denied on the hook's log is not a failing test.
 
+<a id="ws-doc-92e6ce04-af23-4f84-aced-37ec93b04065"></a>
 ## 5 The leases and standby
 
 | file | line | you act only when |
@@ -194,6 +201,7 @@ Before you post:
 
 - **Role rotation (operator view):** The lane-rotation fix does not cover a role rotation. A role rotation is outside the lane fix, and `ACK-COMMAND` is not in the new role seat's first prompt.
 
+<a id="ws-doc-f93b597d-ddc9-4821-a2f1-ed90ce3c86de"></a>
 ## 6 Spawning and placement
 
 The dispatcher that takes real lane work spawns it itself.
@@ -230,6 +238,7 @@ closed by the orchestrator, not kept open "in case".
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
+<a id="ws-doc-2c996df0-a7d6-4c68-9bef-79de340283b2"></a>
 ### 6.1 Work classes and bands (SPL-1817)
 
 Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down into the runbook of the orchestrators and the dispatchers"). The rule, its bands and its commands have ONE home: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "spawn queue: work classes and bands". What the dispatcher does with it:
@@ -241,6 +250,7 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Tell the owner when their spawn request is queued or placed (SPL-2429).** A human sender has no spool inbox, so the queue sends its "queued" and "placed" notes for a `HUM-<n>` request to you, the dispatch lease holder: a note headed "SPAWN QUEUE, for a human sender" with the full topic uuid and, when placed, the lane id. Post it as In progress in that topic.
 - **Post the share report** when the owner asks, or with a band breach: `./run -a do_spl_spawn_share` prints it in markdown, ready to post (`do_spl_desk_reply`).
 
+<a id="ws-doc-5af882b9-82ca-40ba-a468-e9d732595220"></a>
 ## 7 The data rule
 
 Owner rule (2026-10-08, msg 803c3b38, spec 110 D2), extended by the owner on
@@ -271,6 +281,7 @@ Whatever the vendor:
   a private repo. Rewriting public history, or making a repository private,
   is the owner's decision alone.
 
+<a id="ws-doc-5f745821-7db2-455c-9b8e-835134c4a95f"></a>
 ## 8 Escalation
 
 | what | to | how |
@@ -294,6 +305,7 @@ any crossing with ONE final message.
 
 - **Exit gate ACCEPTED:** An `ACCEPTED` line must come from a role seat or the spawner. An editor's line is refused, and a seat on the other box needs its own line from the spawner.
 
+<a id="ws-doc-bf09aa57-889d-4d53-a77c-88b95187b0d3"></a>
 ## 9 Traps we hit
 
 | trap | what happened | what to do |
@@ -314,6 +326,7 @@ any crossing with ONE final message.
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 
+<a id="ws-doc-08c0e5bb-57c7-42b3-859c-c8ef952d5c9d"></a>
 ## 10 Gaps for a non-Claude seat
 
 These parts of today's setup still assume a Claude seat; a Grok seat works

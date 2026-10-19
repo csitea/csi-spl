@@ -8,6 +8,7 @@ how to install the setup on a box, and how to diagnose and recover from failures
 
 ---
 
+<a id="ws-doc-a85813e5-aa40-4ba8-9f5a-e9a1bd13e1a0"></a>
 ## 1. Architecture Overview (The v1.2 Target Model)
 
 Under Spec 102 v1.2, watchdog supervision on each box is provided by a
@@ -50,6 +51,7 @@ three-tier architecture designed to eliminate single points of failure:
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+<a id="ws-doc-8e181d12-ccca-4635-a316-180863475758"></a>
 ### 1.1 The 3-Watchdog Daemon Pool
 - Every box runs **three active watchdog daemons** simultaneously (`INSTANCE` 1, 2, 3) as the unprivileged box user (`<box user>`).
 - Each holds an exclusive OS file lock (`run.<inst>.lock`, non-blocking `flock`) for its entire lifetime. Lock files are never unlinked (`rm -f` is forbidden).
@@ -57,12 +59,14 @@ three-tier architecture designed to eliminate single points of failure:
 - **One judge per agent per tick**: Before evaluating any agent, an instance acquires `<id>.judge.lock` (`flock -n`). If held by a peer or judged within `WD_TICK - 5` s, the instance skips that agent. All situation and episode states are written strictly under the judge lock.
 - **Mutual peer supervision (WD4)**: Surviving instances inspect peer liveness (`kill -0`) and peer progress timestamps (`last_progress_ts` in `heartbeat.<inst>.json`). Dead peers are restarted immediately; hung peers ($\ge \text{WD\_HUNG} = 180\text{ s}$) are cleanly terminated (`SIGTERM`, grace, `SIGKILL`) and restarted under `run.<inst>.start.lock`.
 
+<a id="ws-doc-a06634a3-2e9b-4eac-87ba-5bb38563da1e"></a>
 ### 1.2 The Crontab Starter
 - The crontab line (`@reboot` and `* * * * *`, box user) executes the watchdogs' own start command: `spl_wd_inst_start`.
 - It performs exactly one task: **if fewer than 3 instances run, start the missing ones**.
 - It contains **zero separate supervisor logic, zero heartbeat (`inst = 0`), and zero alerts**.
 - It runs unprivileged from the self-updating desk-cron checkout, always launching daemons from the verified `code/good` snapshot.
 
+<a id="ws-doc-ee4f4095-b881-4ba1-9d3d-f85ae3906bbf"></a>
 ### 1.3 Hub-Derived Liveness & Box Beats
 - Watchdog instances 1, 2, 3 report their beats to the hub's `box_beats` table.
 - There is **no keeper beat (`inst = 0`)**.
@@ -73,6 +77,7 @@ three-tier architecture designed to eliminate single points of failure:
 - The bench verdict (`spl_box_health_verdicts`) judges a box at "now" and at every whole minute (epoch seconds divisible by 60) of the hold, not at now minus k minutes (SPL-2257). With a grid that moved by seconds on each read, a 10-min beat count that dipped under `min_beat_pct` for less than a minute was bad on one read and good on the next, so two boxes reading seconds apart disagreed: on prd 2026-10-16 the PC box read sat `recovering` at 19:08:15Z and took both roles, sat read itself healthy at 19:08:32Z and took them back, 20 holder changes 18:10-19:31Z. On whole minutes a past checkpoint reads the same to every box until it leaves the hold. "healthy for" counts from the last bad instant (the bad checkpoint, or the end of a gap over `max_gap`).
 - A box back from a suspend is not fenced at once (SPL-2257). The tick that sees a gap of more than 3 ticks writes `resume` (and `resume.gap`, the seconds slept); for `WD_FENCE_RESUME_GRACE` seconds (180) after it, an old beat ack does not fence the box, and `wd.log` reads `RESUME detected (slept Ns), fence held for 180s` once. The hub acking within the grace means no fence; a hub still silent after it fences as before. A box already fenced before it slept stays fenced until an ack. Measured: the PC box slept 19:53:41-20:01:10Z 2026-10-16, fenced at 20:01:16Z and TERMed 11 lanes; the hub acked at 20:01:32Z.
 
+<a id="ws-doc-baa83f87-aee1-4082-9d3e-fedc66014cc4"></a>
 ### 1.4 The v1.2 Decision: No Separate Keeper
 In topic `637269bb-d97b-4861-b45e-87200652b169` (HUM-10), the owner decided:
 - msg `a606118a`: *"what is the keeper - there should not be any single point of failure ?!"*
@@ -81,14 +86,17 @@ In topic `637269bb-d97b-4861-b45e-87200652b169` (HUM-10), the owner decided:
 
 This eliminated the separate keeper daemon (`do_spl_wd_ensure`), keeper heartbeats, and keeper alerts. Redundancy is achieved through mutual peer supervision among the 3 watchdogs, backed by a simple crontab starter and hub-level observation.
 
+<a id="ws-doc-7a4eeaa4-9e72-4ee4-8ab2-32ecd4038345"></a>
 ### 1.5 Watchdog Self-Healing & Cron Daemon Monitoring
 - **Crontab Line Self-Healing**: On each tick, an active watchdog checks that the crontab starter line exists in the box user's crontab. If the line was deleted or corrupted, the watchdog reinstalls it via `do_spl_wd_ensure_install_cron`.
 - **Cron Daemon Failure Detection**: The crontab starter touches `<spool root>/dispatch/wd/starter.last` on every run. If this file becomes stale while watchdogs continue running, the watchdogs detect that the system cron daemon has stopped. Since restarting cron requires root privileges, the watchdogs raise an admin alert (Section 11.2, WD5) rather than attempting a fix.
 
 ---
 
+<a id="ws-doc-5846ef9d-04ab-4191-882c-1bd07824198c"></a>
 ## 2. Codebase Status: Live Today vs. Built by Tasks T023a..T027
 
+<a id="ws-doc-93c84827-d6b8-4506-8c89-71e57b5b7c18"></a>
 ### 2.1 Summary Table
 
 | Component | Live Today (Existing Code) | Built by Tasks (T023a..T027 Target) | Task |
@@ -103,6 +111,7 @@ This eliminated the separate keeper daemon (`do_spl_wd_ensure`), keeper heartbea
 | **Admin Alerts** | Legacy `ASKS_OWNER` DM via `do_spl_desk_reply` on crash loop or hung loop | Section 11.2 hub admin messages (DM + email) sent directly by watchdogs on 2 of 3 down, down > 5 min, or cron stopped | T026 |
 | **Verification & Drill** | Manual testing | Comprehensive live drill covering peer restart, hung kill, rolling update, crontab line restore, cron dead alert | T027 |
 
+<a id="ws-doc-22d26e0f-26f2-4554-9cc9-f3dfb7310a27"></a>
 ### 2.2 Proof of Live Code Today (Grep Verifications)
 
 Run these commands from the repository root to verify the existing live implementation:
@@ -147,10 +156,12 @@ Run these commands from the repository root to verify the existing live implemen
 
 ---
 
+<a id="ws-doc-57757a80-67e5-4220-9524-cd7382ae1fde"></a>
 ## 3. Files, Locks, Heartbeats, and Directory Layout
 
 All runtime files live under `<spool root>/dispatch/wd/` (default `/var/spool-hub/dispatch/wd/`) and log directories `/var/<org>/<org>-<app>/wd/` (default `/var/csi/csi-spl/wd/`):
 
+<a id="ws-doc-b01b3e2e-8447-42dc-b402-d0d82d2d1489"></a>
 ### 3.1 Directory Structure
 
 ```text
@@ -187,6 +198,7 @@ All runtime files live under `<spool root>/dispatch/wd/` (default `/var/spool-hu
 └── inst.<n>.down_since        # Epoch timestamp recording when instance <n> became down
 ```
 
+<a id="ws-doc-a1ccac63-ee66-409f-b4e8-a0c9fff8e8b5"></a>
 ### 3.2 Heartbeat Schema (`heartbeat.<inst>.json`)
 Each instance updates its heartbeat at tick start and after each evaluated agent:
 ```json
@@ -208,15 +220,18 @@ Each instance updates its heartbeat at tick start and after each evaluated agent
 
 ---
 
+<a id="ws-doc-5079bcb9-8dee-45f7-9eb6-38e7c82461f1"></a>
 ## 4. Installation and Verification on a Box
 
 Every watchdog installation step is a named action in source code, fully reproducible and idempotent.
 
+<a id="ws-doc-75f75a9a-9a0d-4669-bc31-1ab66df3414c"></a>
 ### 4.1 Prerequisites
 - Host running Linux with bash 5+.
 - Box user account (`<box user>`) with access to `<spool root>` (`/var/spool-hub`) and `<desk cron checkout>` (`/opt/csi/csi-spl-desk-cron`).
 - Standard system utilities: `flock`, `crontab`, `setsid`, `pkill`/`kill`.
 
+<a id="ws-doc-f3446c71-2089-451a-a353-f6729b65616c"></a>
 ### 4.2 Installing the Crontab Starter Lines
 The crontab starter is managed entirely by `do_spl_wd_ensure_install_cron`
 (default `WD_CRON_KIND=start`). It writes TWO tagged lines and takes the
@@ -250,6 +265,7 @@ missing starter lines back by itself on its next tick (`peers.log`: `CRON restor
    @reboot PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /opt/csi/csi-spl-desk-cron/csi-spl-orc/run -a do_spl_wd_inst_start >> /var/csi/csi-spl/wd/starter.out 2>&1 # csi-spl:wd-start-boot
    ```
 
+<a id="ws-doc-02c0de75-dad8-4f6f-b1fa-8ba5e59591e3"></a>
 ### 4.3 Launching the Watchdog Instances
 The starter line launches the missing instances within a minute. To start them now
 (from `code/good/csi-spl-orc/run` when that snapshot exists, else the checkout's `./run`):
@@ -272,6 +288,7 @@ Every peer action (restart, TERM, KILL, crontab restore, alert) is one line in:
 tail -n 20 /var/spool-hub/dispatch/wd/peers.log
 ```
 
+<a id="ws-doc-e77e6f77-15e0-4eea-b473-c3cadb37ebff"></a>
 ### 4.4 Peer Rules (T023b)
 - `WD_HUNG = max(3 * WD_TICK, 180)` s; the floor is not configurable.
 - A judge checks its peers only when it wrote its own heartbeat this tick
@@ -286,10 +303,12 @@ tail -n 20 /var/spool-hub/dispatch/wd/peers.log
 
 ---
 
+<a id="ws-doc-1fb603e8-3504-4a1f-9e21-2a7f05e74e3b"></a>
 ## 5. "When Something is Wrong" Checklist
 
 When troubleshooting watchdog anomalies, follow this step-by-step diagnostic checklist.
 
+<a id="ws-doc-ad8fae28-93ab-406b-a9e4-e8ec94484809"></a>
 ### Checklist Quick Reference
 
 | Issue / Symptom | Primary Diagnostic Command | Resolution Action |
@@ -304,8 +323,10 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
 
 ---
 
+<a id="ws-doc-49f69b69-b28c-4e1e-9bc8-4da519435f71"></a>
 ### Detailed Procedures
 
+<a id="ws-doc-f5700494-1bed-44b3-bd64-3c24412b5392"></a>
 #### Scenario 1: One Watchdog Instance is Dead
 1. Check running processes:
    ```bash
@@ -327,6 +348,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_INSTANCES=<missing_instance_number> ./run -a do_spl_wd_inst_start
    ```
 
+<a id="ws-doc-ec974d54-b235-42f2-959d-de6017524c4c"></a>
 #### Scenario 2: Watchdog Instance is Hung
 1. Inspect heartbeat progress timestamps:
    ```bash
@@ -350,6 +372,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_INSTANCES=<inst> ./run -a do_spl_wd_inst_start
    ```
 
+<a id="ws-doc-43fff758-e3b0-4314-89ee-a0777904c76e"></a>
 #### Scenario 3: All Three Watchdogs Are Dead
 1. Verify if any instance is holding a lock:
    ```bash
@@ -362,6 +385,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && ./run -a do_spl_wd_inst_start
    ```
 
+<a id="ws-doc-f140bfa1-f30d-4675-9759-f4ca6dd58ae4"></a>
 #### Scenario 4: Crontab Starter Line Was Deleted or Corrupted
 1. Check crontab line status:
    ```bash
@@ -374,6 +398,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron
    ```
 
+<a id="ws-doc-8cc094f1-e0c3-42fd-9381-34b2005e86e3"></a>
 #### Scenario 5: System Cron Daemon is Dead
 1. Check when the starter last ran:
    ```bash
@@ -388,6 +413,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    sudo systemctl restart cron
    ```
 
+<a id="ws-doc-beafec05-5f67-4b56-aab0-afff3deac581"></a>
 #### Scenario 6: Rolling Self-Update Failure or Stalled Rollout
 1. Inspect the code links:
    ```bash

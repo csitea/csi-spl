@@ -8,6 +8,7 @@ fleet rules, what it governs, and the ONE home of each rule that used to be
 written in two or more places. A rule is changed in its home; every other
 mention is a one-line pointer.
 
+<a id="ws-doc-48cbd3a3-9d51-41a1-a7f8-96c749af6299"></a>
 ## 1. The sources
 
 | # | source | read by | governs |
@@ -24,6 +25,7 @@ mention is a one-line pointer.
 | 1.10 | `csi-spl-doc/doc/md/guides/devops-guide.md` | operator / DevOps | the GCP estate and the pipelines, test runs in production (the opt-in rule) |
 | 1.11 | `csi-spl-doc/doc/md/rounds-rulebook.md` | planners, reviewers, dispatchers, row lanes | rules for creating bug-fix and refactoring rounds (at most 10 items, pushes per item, standing rules R1-R16) |
 
+<a id="ws-doc-e75e7140-6790-45a5-a12a-3d185f4bac43"></a>
 ## 2. One home per rule
 
 | rule | its home | pointers elsewhere |
@@ -54,6 +56,7 @@ mention is a one-line pointer.
 | dev always equals or leads prd (SPL-1947). Owner, HUM-10 t1 36247645: msg 15204547 ("Dev should always be in sync with Prod, or it should be in a newer version than Prod"), msg b8980ea7 ("Production should be just a repetition of the thing which has already been performed in dev"). **The rule:** an infrastructure change goes plan dev, apply dev, prove it on dev, plan prd from the SAME commit and the SAME step, apply prd, which repeats dev and nothing more. **The gate:** a prd apply of a step (`make do-provision`, `do-tf-apply-target`; iac `do_provision`, `do_tf_apply`, `do_tf_apply_target`) first plans dev for that step from the same tree (`do_tf_plan_pending`, read-only, or a clean dev plan of the same sha younger than `ENV_ORDER_CACHE_MINUTES`, 60) and is REFUSED while dev has pending changes (exit 3) or its plan fails (exit 1). The only way past: `ENV_ORDER_OVERRIDE=<owner msg id>` for an owner-approved emergency, logged as a WARN and in `csi-spl-iac/dat/log/env-order-override.log`. **The drift check:** `cd csi-spl-orc && ./run -a do_check_env_order` (read-only) prints dev vs prd per terraform step, hub `/version`, WUI `build.json` and cnf `hub.image.tag`, and exits 1 when prd leads anywhere (2: a row unknown); daily by `do_check_env_order_install_cron`, installed by the orchestrator on the box whose tf-runner is up | this row; in code `csi-spl-iac/src/bash/run/check-dev-leads-prd.func.sh`, `tf-plan-pending.func.sh`, `csi-spl-orc/src/bash/run/check-env-order.func.sh`; tests `env-order-gate.tst.sh` (iac), `check-env-order.tst.sh` (orc) | 1.10 section 5.3 (the step order, one sentence on the gate); repo `CLAUDE.md` (one line); `csi-rel-flow-map.md` section 3.2 |
 | owner topic text in briefs: a brief that names an owner topic also quotes the owner's words; the launcher adds the topic text (the human posts of each linked topic, read through this box's desk) to the lane's `lifetime/brief.md`, which stays on the box: personal data of its workspace, never in git, never in a spool body to another workspace's agent (SPL-2107; owner HUM-10, #spool-hub topic e055195c) | this row; in code `spawn-agents/scripts/topic-text.sh`, called by `spawn_topic_text` in `spawn-core.inc.sh`; test `spawn-agents/tests/test-spawn-topic-text.sh` | `brief-dispatcher.tpl.md` "What to do with each message" (one line) |
 
+<a id="ws-doc-dcbdf536-801a-4163-822a-1e7156c04eb0"></a>
 ## 3. The drift check
 
 `cd csi-spl-orc && ./run -a do_check_fleet_rules_drift` reads the sources in

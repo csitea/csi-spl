@@ -86,6 +86,7 @@ never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
 the card's `Source` line carries the full id the hub linked, and the key is
 posted back only in a named topic, never in the default one.
 
+<a id="ws-doc-95b49ee8-d0f1-44d4-9ece-f6d87fa89181"></a>
 ### 0.3 No issue without an epic and a git spec (SPL-2355)
 
 Owner HUM-10, t1 topic 7a98c2d1 (2026-10-17), msg ef77b762 ("you shouldn't

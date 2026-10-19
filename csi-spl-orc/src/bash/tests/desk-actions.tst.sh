@@ -1115,7 +1115,7 @@ printf '#!/bin/sh\necho "$*" >>"%s/mute-sends.log"\nexit "${MUTE_SEND_RC:-0}"\n'
 mute ws-b box-desk c-002 '25 hours ago'
 mute t1 box-desk c-003 '1 hour ago'
 mute t1 box-desk CLE-00 '30 hours ago'
-mutes() { SNIPPET=do_spl_desk_check_mutes in_orc DESK_AGENT=CLE-00 DESK_MUTE_ALARM_STATE_DIR="$T/mute-state" \
+mutes() { SNIPPET=do_spl_desk_check_mutes in_orc DESK_AGENT=CLE-00 DESK_MUTE_ALARM_TO=c-001 DESK_MUTE_ALARM_STATE_DIR="$T/mute-state" \
   DESK_MUTE_ALARM_SEND="$T/mute-send.sh" MUTE_SEND_RC="${1:-0}" 2>&1; }
 sends() { { cat "$T/mute-sends.log" 2>/dev/null || true; } | grep -c .; }
 out="$(mutes)"

@@ -99,7 +99,7 @@ do_spl_desk_up() {
   chmod -R go-rwx "$d" || return 1
 
   local pub
-  pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return 1
+  pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return $?
   unset SPOOL_JOIN_TOKEN
   spl_desk_mute "$d" "$agent" "$poke"
   spl_desk_purge_pokes "$d" "$agent" "$poke"
@@ -197,7 +197,12 @@ spl_desk_spool() {
 }
 
 # spl_desk_pin <state dir> <box> <tenant> <hub> <root key json>: the box key and
-# its hub pin, once per desk. Prints the box public key.
+# its hub pin, once per desk. Prints the box public key, and nothing else: the
+# caller captures stdout, so every log line goes to stderr. Before SPL-2634 they
+# went to stdout and were captured: the dev desks on sat failed every tick from
+# 2026-10-14 to 2026-10-19 with only "FAIL could not seat c-001" in the log.
+# With no root key and no join token it asks the hub (spl_desk_pin_check):
+# exit 3 = not pinned yet, so the caller can tell it from a fault.
 spl_desk_pin() {
   local d="$1" box="$2" tenant="$3" hub="$4" rkj="$5" pub key out rc=0
   if [[ -s "$d/pinned" ]]; then cat "$d/pinned"; return 0; fi
@@ -207,18 +212,38 @@ spl_desk_pin() {
     printf '%s\n' "$pub" >"$d/pinned"
     cat "$d/pinned"; return 0
   fi
-  [[ -s "$rkj" ]] || { do_log "FATAL the first run of desk $box needs ROOT_KEY_JSON (the tenant's saved create JSON) or SPOOL_JOIN_TOKEN (a workspace admin's join token)"; return 1; }
-  [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
-  pub="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
+  if [[ -z "$rkj" ]]; then spl_desk_pin_check "$d" "$box" "$tenant" "$hub"; return $?; fi
+  [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON $rkj is missing or empty" >&2; return 1; }
+  [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600" >&2; return 1; }
+  pub="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub" >&2; return 1; }
   key="$(umask 077 && mktemp)" || return 1
   spl_root_key_to_file "$rkj" "$key" ||
-    { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)"; return 1; }
+    { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)" >&2; return 1; }
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"
-  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }
+  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out" >&2; return 1; }
   printf '%s\n' "$pub" >"$d/pinned"
-  do_log "INFO pinned $box ($pub) under $tenant at $hub"
+  do_log "INFO pinned $box ($pub) under $tenant at $hub" >&2
   cat "$d/pinned"
+}
+
+# spl_desk_pin_check <state dir> <box> <tenant> <hub>: a desk with no pin file
+# and no root key. Mint (or reuse) the box key and ask the hub (`spool
+# hub-sync`, do_spl_desk_pin's check mode) whether it is pinned: an admin may
+# have pinned it from another box (BOX_PUBKEY mode), which writes no file here.
+# Pinned: write <state>/pinned, print the key, 0. Not pinned or not reachable:
+# one line with the admin command, 3. Logs go to stderr, as in spl_desk_pin.
+spl_desk_pin_check() {
+  local d="$1" box="$2" tenant="$3" hub="$4" pub out
+  mkdir -p "$d/keys" && chmod go-rwx "$d" "$d/keys" || { do_log "FATAL cannot create $d/keys" >&2; return 1; }
+  pub="$(spl_desk_box_pub "$d" "$box" "$tenant" "$hub")" || { do_log "$pub" >&2; return 1; }
+  if out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-sync 2>&1)"; then
+    printf '%s\n' "$pub" >"$d/pinned"
+    do_log "INFO the hub accepts $box ($pub) under $tenant: pinned from another box, $d/pinned written" >&2
+    cat "$d/pinned"; return 0
+  fi
+  do_log "FAIL desk $box of $tenant ($ENV) is NOT PINNED at $hub, so no agent can be seated on it (hub said: $(printf '%s' "$out" | tail -n 1 | cut -c1-200)). A tenant admin, on the box with the root key, runs: ENV=$ENV TENANT_ID=$tenant DESK_BOX=$box BOX_PUBKEY=$pub ROOT_KEY_JSON=<the tenant create JSON> DRY_RUN=0 ./run -a do_spl_desk_pin. Or seat it on this box with ROOT_KEY_JSON (the tenant's saved create JSON) or SPOOL_JOIN_TOKEN (a workspace admin's join token)" >&2
+  return 3
 }
 
 # spl_desk_od_ids: the orchestrator and dispatcher seat ids, LEASE_ORCH /

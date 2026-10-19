@@ -72,7 +72,14 @@
 # @param   one. What do_spl_desk_up_tenants runs for a tenant other than the
 # @param   box's main one: its desk holds agents someone chose for it, and this
 # @param   brings its sidecar back after it died (SPL-1004), default 0
-# @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box
+# @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box. Without
+# @param   it an unpinned desk asks the hub once per tick (spl_desk_pin_check):
+# @param   a key an admin pinned from another box seats on the next tick; until
+# @param   then ONE line names the admin command and the action exits 3
+# @param SPOOL_RSP_BOX (box config, $SPOOL_BOX_ENV) - this machine's responder
+# @param   box (e.g. <box>-rsp). The main pass (not DESK_SEATED_ONLY) gives it
+# @param   a key and the same pin check, so do_spl_responder_sweep can seat it
+# @param   (_spl_desk_up_all_rsp). The default box-rsp is left alone
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_desk_up_all
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_desk_up_all
@@ -123,16 +130,9 @@ do_spl_desk_up_all() {
     exec 8>&-; return 0
   fi
 
-  local apoke
-  for a in "${seat[@]}"; do
-    _spl_desk_up_all_poke "$d" "$a" "$poke" "$mute" "$only"
-    if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$apoke" \
-       DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up; then
-      seated+=("$a")
-    else
-      failed+=("$a"); do_log "FAIL could not seat $a on $box"
-    fi
-  done
+  local unpinned=0
+  _spl_desk_up_all_seat "$d" "$tenant" "$box" "$poke" "$mute" "$only"
+  [[ "$only" == 1 ]] || _spl_desk_up_all_rsp "$tenant" "$box"
 
   # SECOND PASS over the ones that failed (_spl_desk_up_all_recheck).
   _spl_desk_up_all_recheck "$d" "$box"
@@ -148,6 +148,54 @@ do_spl_desk_up_all() {
 
   flock -u 8; exec 8>&-
   _spl_desk_up_all_report "$tenant" "$box" "$d" "${#live[@]}" "${#seat[@]}" "$hub" "$hrc"
+}
+
+# _spl_desk_up_all_seat <state dir> <tenant> <box> <poke> <mute list> <seated-only>:
+# do_spl_desk_up for each of the caller's seat[], into its seated[] / failed[].
+# Exit 3 from do_spl_desk_up is "this desk is not pinned at the hub" (SPL-2634):
+# the same answer for every agent of the desk, so the rest are not tried, and
+# the caller's unpinned is set. Before, sat logged 3 FAIL lines per tick on dev
+# with the cause swallowed (spl_desk_pin).
+_spl_desk_up_all_seat() {
+  local d="$1" tenant="$2" box="$3" poke="$4" mute="$5" only="$6" a i urc apoke
+  for ((i = 0; i < ${#seat[@]}; i++)); do
+    a="${seat[$i]}"
+    _spl_desk_up_all_poke "$d" "$a" "$poke" "$mute" "$only"
+    urc=0
+    TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$apoke" \
+      DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up || urc=$?
+    if (( urc == 0 )); then
+      seated+=("$a")
+    elif (( urc == 3 )); then
+      unpinned=1; failed+=("${seat[@]:$i}")
+      do_log "FAIL $box in $tenant ($ENV) is not pinned at the hub: none of ${seat[*]:$i} can be seated until a tenant admin pins it (the do_spl_desk_pin line above)"
+      return 0
+    else
+      failed+=("$a"); do_log "FAIL could not seat $a on $box"
+    fi
+  done
+}
+
+# _spl_desk_up_all_rsp <tenant> <desk box>: this machine's responder box
+# (SPOOL_RSP_BOX in the box config, spl_rsp_box_default) gets its key and the
+# hub pin check, as the desk box does. do_spl_responder_sweep only re-seats an
+# RSP desk that is already pinned and never mints one, so on sat dev the
+# responder had no desk at all ("no sat-rsp desk seated", 7152 of 7152 sweep
+# lines, 2026-10-18). Pinned: nothing to do here. Not pinned: one line with the
+# admin command; it does not fail the desk reconcile, the sweep reports the RSP
+# desk itself. The default box-rsp (no box config line) is never minted.
+_spl_desk_up_all_rsp() {
+  local tenant="$1" box="$2" rsp dr
+  declare -F spl_rsp_box_default >/dev/null || return 0
+  rsp="$(spl_rsp_box_default)"
+  [[ "$rsp" != box-rsp && "$rsp" != "$box" ]] || return 0
+  dr="$SPL_STATE_DIR/desk/$tenant/$rsp"
+  [[ -s "$dr/pinned" ]] && return 0
+  do_spl_desk_cnf && spl_host_spool || return 0
+  if spl_desk_pin_check "$dr" "$rsp" "$tenant" "$SPL_HUB_URL" >/dev/null; then
+    do_log "INFO the responder box $rsp of $tenant is pinned: do_spl_responder_sweep seats it"
+  fi
+  return 0
 }
 
 # _spl_desk_up_all_pick <state dir> <seated-only>: fills the caller's seat[]
@@ -326,6 +374,7 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "state_dir": state,
 EOF_PY
   if [[ ${#failed[@]} -gt 0 ]]; then
     do_log "FAIL ${#failed[@]} of $nseat agent(s) were not seated on $box: ${failed[*]}"
+    (( ${unpinned:-0} )) && return 3
     return 1
   fi
   if (( hrc )); then

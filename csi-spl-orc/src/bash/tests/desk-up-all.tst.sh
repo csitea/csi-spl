@@ -39,6 +39,11 @@
 #      answered the owner): a review lane is not seated, a DO seat, a lease.conf
 #      id, a DESK_SEAT id and a .desk-role marker are, and an already seated
 #      lane is kept and named. CONTROL: DESK_ROLE_ONLY=0 seats every live agent
+#  13. SPL-2634: an UNPINNED desk asks the hub (spl_desk_pin_check): pinned from
+#      another box -> pin file written; not pinned -> exit 3, the admin line on
+#      stderr (never the captured stdout), one seat try per tick. The box
+#      config's SPOOL_RSP_BOX gets the same check. CONTROLS: a pinned desk asks
+#      nothing, a non-pin failure still tries every agent, box-rsp never minted
 # No real crontab, no real tmux, no cloud call: crontab and tmux are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -503,6 +508,67 @@ out=$(role DESK_ROLE_ONLY=0)
 out=$(role DESK_ROLE_ONLY=2); rc=$?
 [[ $rc -ne 0 && "$out" == *"DESK_ROLE_ONLY must be 0 or 1"* ]] && pass "a bad DESK_ROLE_ONLY is refused" || fail "DESK_ROLE_ONLY=2 (rc=$rc): $out"
 rm -f "$T/spool/dispatch/lease.conf"
+
+# --- 13. an UNPINNED desk (SPL-2634, sat dev 2026-10-14..19) -----------------------
+# The dev desks on sat had a box key and no pin file; every tick logged "FAIL
+# could not seat c-001 on sat" three times, and the cause (spl_desk_pin's FATAL)
+# was printed into a captured $(...) and lost. Now the pin check asks the hub:
+# pinned elsewhere -> the pin file is written and seating goes on; not pinned ->
+# exit 3 and ONE line with the admin command, the cause on stderr, never stdout.
+newkey() { python3 -c 'import base64,os,sys; open(sys.argv[1],"w").write(base64.b64encode(os.urandom(64)).decode()+"\n")' "$1"; }
+pubof() { python3 -c 'import base64,sys; print(base64.b64encode(base64.b64decode(open(sys.argv[1]).read().strip())[32:]).decode())' "$1"; }
+printf '#!/bin/sh\necho "spool-ok $*" >>"$STUB_LOG"\nexit 0\n' >"$T/stub/spool-ok"; chmod +x "$T/stub/spool-ok"
+PD="$T/pin/dev/desk/t1/box-desk"
+mkdir -p "$PD/keys" "$PD/spool/c-001"
+newkey "$PD/keys/box-box-desk.key"; PUB="$(pubof "$PD/keys/box-box-desk.key")"
+pin() { SNIPPET="SPL_SPOOL='$1'; spl_desk_pin '$PD' box-desk t1 https://hub.invalid ''" in_orc SPL_STATE_DIR="$T/pin/dev" 2>"$T/pin.err"; }
+: >"$T/calls.log"
+out=$(pin "$T/stub/spool"); rc=$?
+[[ $rc -eq 3 && -z "$out" && ! -e "$PD/pinned" ]] &&
+  pass "an unpinned desk the hub refuses: exit 3, nothing on stdout (the captured key), no pin file" ||
+  fail "unpinned, hub refuses (rc=$rc, stdout '$out'): $(cat "$T/pin.err")"
+grep -q "NOT PINNED" "$T/pin.err" && grep -q "BOX_PUBKEY=$PUB ROOT_KEY_JSON=<the tenant create JSON> DRY_RUN=0 ./run -a do_spl_desk_pin" "$T/pin.err" &&
+  grep -q 'spool hub-sync' "$T/calls.log" &&
+  pass "…and the cause reaches stderr with the admin command for this box key, after asking the hub" ||
+  fail "unpinned cause line: $(cat "$T/pin.err") / $(cat "$T/calls.log")"
+out=$(pin "$T/stub/spool-ok"); rc=$?
+[[ $rc -eq 0 && "$out" == "$PUB" && "$(cat "$PD/pinned" 2>/dev/null)" == "$PUB" ]] &&
+  pass "a key pinned from another box: the hub accepts it, the pin file is written, the key printed" ||
+  fail "pinned elsewhere (rc=$rc, stdout '$out'): $(cat "$T/pin.err")"
+: >"$T/calls.log"
+out=$(pin "$T/stub/spool"); rc=$?
+[[ $rc -eq 0 && "$out" == "$PUB" && ! -s "$T/calls.log" ]] &&
+  pass "CONTROL a desk with a pin file asks the hub nothing" || fail "CONTROL pinned (rc=$rc): $out / $(cat "$T/calls.log")"
+
+# The reconcile stops at the first exit 3 (same desk, same answer) and exits 3.
+printf '%s\n' 'c-001 ORC' 'c-002 dispatch' 'c-003 do' >"$T/pin-windows.txt"
+upall() { SNIPPET="do_spl_desk_up() { echo \"CALL up \$DESK_AGENT\"; return $1; }; do_spl_desk_up_all" in_orc SPL_STATE_DIR="$T/pin/dev" \
+            TENANT_ID=t1 DESK_HUB_CHECK=0 DESK_RETIRE=0 DESK_RECHECK_SECS=0 DRY_RUN=0 STUB_TMUX_WINDOWS="$T/pin-windows.txt" "${@:2}" 2>&1; }
+out=$(upall 3); rc=$?
+[[ $rc -eq 3 && "$(grep -c '^CALL up' <<<"$out")" == 1 && "$out" == *"not pinned at the hub: none of c-001 c-002 c-003 can be seated"* &&
+   "$out" == *'"failed": ["c-001", "c-002", "c-003"]'* ]] &&
+  pass "an unpinned desk: one seat try, one line, every agent listed as failed, exit 3" || fail "up_all unpinned (rc=$rc): $out"
+out=$(upall 1); rc=$?
+[[ $rc -eq 1 && "$(grep -c '^CALL up' <<<"$out")" == 3 && "$(grep -c 'could not seat' <<<"$out")" == 3 ]] &&
+  pass "CONTROL any other seat failure still tries every agent and exits 1" || fail "CONTROL up_all rc 1 (rc=$rc): $out"
+
+# The responder box of the box config gets its key and the same check.
+RB="$T/pin/dev/desk/t1/x-rsp"
+mkdir -p "$RB/keys"; newkey "$RB/keys/box-x-rsp.key"; RPUB="$(pubof "$RB/keys/box-x-rsp.key")"
+printf 'SPOOL_RSP_BOX=x-rsp\n' >"$T/rsp-box.env"
+rsp() { SNIPPET="spl_host_spool() { SPL_SPOOL='$1'; }; do_spl_desk_up() { return 0; }; do_spl_desk_up_all" in_orc SPL_STATE_DIR="$T/pin/dev" \
+          TENANT_ID=t1 DESK_HUB_CHECK=0 DESK_RETIRE=0 DRY_RUN=0 STUB_TMUX_WINDOWS="$T/pin-windows.txt" "${@:2}" 2>&1; }
+out=$(rsp "$T/stub/spool" SPOOL_BOX_ENV="$T/rsp-box.env"); rc=$?
+[[ $rc -eq 0 && "$out" == *"desk x-rsp of t1 (dev) is NOT PINNED"*"BOX_PUBKEY=$RPUB "* && ! -e "$RB/pinned" ]] &&
+  pass "the box config's responder box is checked: not pinned -> its admin line, the desks still pass" || fail "rsp unpinned (rc=$rc): $out"
+out=$(rsp "$T/stub/spool" SPOOL_BOX_ENV="$T/rsp-box.env" DESK_SEATED_ONLY=1)
+[[ "$out" != *"x-rsp"* ]] && pass "CONTROL a seated-only pass (another tenant) leaves the responder box alone" || fail "CONTROL rsp seated-only: $out"
+out=$(rsp "$T/stub/spool")
+[[ "$out" != *"rsp"* && ! -e "$T/pin/dev/desk/t1/box-rsp" ]] &&
+  pass "CONTROL no SPOOL_RSP_BOX line: the default box-rsp is never minted" || fail "CONTROL default rsp: $out"
+out=$(rsp "$T/stub/spool-ok" SPOOL_BOX_ENV="$T/rsp-box.env"); rc=$?
+[[ $rc -eq 0 && "$(cat "$RB/pinned" 2>/dev/null)" == "$RPUB" && "$out" == *"responder box x-rsp of t1 is pinned"* ]] &&
+  pass "a responder box pinned from another box: its pin file is written for the responder sweep" || fail "rsp pinned (rc=$rc): $out"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-up-all.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

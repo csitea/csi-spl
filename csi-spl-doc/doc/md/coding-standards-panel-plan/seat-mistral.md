@@ -6,8 +6,8 @@
 **Kind:** specs_and_docs
 
 **Reviewer:** m-353 (Mistral)
-**Plan Version:** v0.2
-**Plan SHA:** b776859b91e3b6ef068fa21fcfd52dc15bfc79e8
+**Plan Version:** v1.1
+**Plan SHA:** b9f2c62ef0a258f972bad0487b7e69ea506a701f
 **Reviewed on:** 2026-10-19
 
 ---
@@ -117,9 +117,6 @@ bash lane-map.sh --check csi-spl-doc/doc/md/developer-guide.md --agent m-353  # 
 
 ---
 
-## 5. Signature (v1.0)
+## 5. Signature (v1.1)
 
-Pending editor request. Format:
-```
-**Signed:** m-353 (Mistral) at <sha>
-```
+**Signed:** m-353 (Mistral) at b9f2c62ef0a258f972bad0487b7e69ea506a701f

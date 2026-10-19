@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """y13-force-push-guard.py - spool-install step y13, the JSON half.
 
-  y13-force-push-guard.py <home> <guard-dir> <dry 0|1> <hook-src> <lib-src> [<heredoc-lib-src>]
+  y13-force-push-guard.py <home> <guard-dir> <dry 0|1> <hook-src> <lib-src> [<heredoc-lib-src> [<kill-lib-src>]]
 
 Copies the hook, the ONE shared matcher and the heredoc-collision matcher
-(SPL-2474; the hook runs both) into <guard-dir>, then wires every
+(SPL-2474) and the kill-target matcher (SPL-2583; the hook runs all three)
+into <guard-dir>, then wires every
 harness that has a config dir in <home> to it (claude, grok, qwen, agy):
 a PreToolUse hook on the shell tool, failing CLOSED, plus deny rules where
 the harness reads them. Our entries are found by the marker
@@ -144,6 +145,8 @@ def main():
     st.copy(lib_src, os.path.join(guard_dir, "force-push-guard.inc.sh"))
     if len(sys.argv) > 6:
         st.copy(sys.argv[6], os.path.join(guard_dir, "heredoc-collision-guard.inc.sh"))
+    if len(sys.argv) > 7:
+        st.copy(sys.argv[7], os.path.join(guard_dir, "kill-target-guard.inc.sh"))
     done = []
     if os.path.isdir(os.path.join(home, ".claude")):
         # grok reads this file too (hooks and permissions.deny): its payload is

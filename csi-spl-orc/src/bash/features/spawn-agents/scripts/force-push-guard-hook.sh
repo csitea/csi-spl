@@ -23,6 +23,10 @@
 # heredoc-collision-guard.inc.sh (SPL-2474): a heredoc nested in one with the
 # same delimiter, whose first close lets the rest run as shell (the
 # 2026-10-17 `rm -rf /*`). Only a command holding "<<" reaches it.
+# And the kill-target matcher, ../lib/kill-target-guard.inc.sh (SPL-2583): a
+# kill of pid 0/1, a process group, tmux / cron / systemd / sshd, another
+# agent, or a computed target list (the 2026-10-18 `sudo kill $pids` that
+# took sat down). Only a command holding "kill" reaches it.
 # Fails CLOSED: no matcher next to this file, no python3, or a payload that
 # cannot be read is a refusal, never a pass. Installed as a copy, next to its
 # matcher, by spool-install step y13 (do_install_force_push_guard).
@@ -39,6 +43,12 @@ hlib="${HEREDOC_COLLISION_GUARD_LIB:-}"
 if [ -z "$hlib" ]; then
   for f in "$here/heredoc-collision-guard.inc.sh" "$here/../lib/heredoc-collision-guard.inc.sh"; do
     [ -r "$f" ] && { hlib="$f"; break; }
+  done
+fi
+klib="${KILL_TARGET_GUARD_LIB:-}"
+if [ -z "$klib" ]; then
+  for f in "$here/kill-target-guard.inc.sh" "$here/../lib/kill-target-guard.inc.sh"; do
+    [ -r "$f" ] && { klib="$f"; break; }
   done
 fi
 
@@ -105,6 +115,18 @@ if [ "$rc" != 0 ]; then
   why="${why#force-push-guard: refused: }"
   refuse "${why:-the guard returned $rc (fail closed)}"
 fi
+case "$cmd" in
+  *kill*)
+    [ -n "$klib" ] && [ -r "$klib" ] ||
+      refuse "the matcher kill-target-guard.inc.sh is missing next to $0 (fail closed)" kill-guard
+    # shellcheck source=../lib/kill-target-guard.inc.sh
+    . "$klib" || refuse "cannot load $klib (fail closed)" kill-guard
+    why="$(kill_target_guard_check "$cmd" 2>&1)"; rc=$?
+    if [ "$rc" != 0 ]; then
+      why="${why#kill-guard: refused: }"
+      refuse "${why:-the guard returned $rc (fail closed)}" kill-guard
+    fi ;;
+esac
 case "$cmd" in *"<<"*) ;; *) allow ;; esac
 [ -n "$hlib" ] && [ -r "$hlib" ] ||
   refuse "the matcher heredoc-collision-guard.inc.sh is missing next to $0 (fail closed)" heredoc-collision

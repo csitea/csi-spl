@@ -101,6 +101,10 @@ Who does which step: [fleet roles](SPEC-spool-fleet-roles.md) section 1.3.
   [lane integration rules](lane-integration-rules.md) section 1.1.
 - Push each commit soon: a change held back while trunk moves becomes a
   rebase nobody can resolve (same page, section 1.3).
+- Stop a process by its own pid or its `./run` stop action: the pre-tool
+  kill guard (`csi-spl-orc/src/bash/features/spawn-agents/lib/kill-target-guard.inc.sh`,
+  SPL-2583) refuses a kill of pid 0 or 1, a process group, tmux, cron,
+  systemd, sshd, another agent, a computed target list, `killall` and `pkill -f`.
 
 <a id="ws-doc-fe2e4a35-68b4-448f-8645-c1d6c567c6ea"></a>
 ### 2.2 Rebase onto the others' work, re-test, then push

@@ -79,6 +79,8 @@ before every upgrade: migrations are forward-only.
 With no `SPOOL_IMAGE_TAG`, `docker compose up -d` pulls the newest stable
 release's images by sha256 digest, not by their tag
 ([security baselines](csi-spl-doc/doc/md/security-baselines.md) section 4).
+For hosted estate data redundancy, restore procedures, and recovery times, see the
+[disaster recovery guide](csi-spl-doc/doc/md/disaster-recovery.md).
 
 ### 2.5 Rollback
 
@@ -246,6 +248,7 @@ and agents still seat with a root key (A5 adds join tokens).
 ## 6. More
 
 - [README.md](README.md): every compose setting, backup and restore, the agent harness
+- [Disaster recovery guide](csi-spl-doc/doc/md/disaster-recovery.md): data redundancy, restore procedures, and recovery time objectives
 - [Connect an agent](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/connect-an-agent.md): registering `spool mcp` in an editor
 - [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md), [SECURITY.md](https://github.com/csitea/csi-spl/blob/master/SECURITY.md)
 - [spec 072](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/072-rapid-deployability/spec.md): what is being built to make every path faster

@@ -46,10 +46,11 @@ Per box, it reads every push state dir whose log changed in the last
 | the push | its agent | alert |
 |---|---|---|
 | `PUSHED`, or `RUNNING` with `END PUSHED` in its log | any | never |
-| `REFUSED` / `GAVE-UP`, or `RUNNING` with that `END` in its log | live (process + pane in the identity map) | no: the lane polls its own verdict |
-| the same | retired, or no live pane | ONE blocker |
-| `RUNNING`, no `END` line, no worker holds the lock (`DIED`) | retired, or no live pane | ONE blocker |
+| `REFUSED` / `GAVE-UP`, or `RUNNING` with that `END` in its log | live (section 4) | no: the lane polls its own verdict |
+| the same | retired, or not live | ONE blocker |
+| `RUNNING`, no `END` line, no worker holds the lock (`DIED`) | retired, or not live | ONE blocker |
 | `RUNNING`, a worker holds the lock | any | no: still running |
+| `RUNNING` with `since=` less than `PUSH_ORPHAN_START_GRACE_S` (120 s) ago | any | no: a run just started (section 4) |
 
 The blocker goes to the dispatch lease holder (`<spool root>/dispatch/lease`)
 from the box's orchestrator seat, on the brief's `dispatch-<hex8>` task
@@ -67,3 +68,31 @@ pane is gone, none on the next tick, and none after the dir is retired. A
 live lane's refusal and a landed push never alert. A dead worker alerts as
 `DIED`. Red control: without the marker check, the m-595 sequence alerts on
 every tick.
+
+## 4. A rotated lane is live (SPL-2621)
+
+On 2026-10-19 two alerts called a working lane gone: c-692 (alert 489b469c,
+15:35Z) and a-615 (alert 06f5f398, 16:3xZ). Both were rotated lanes in a
+`<id>@<box> rotate` window, alive in the watchdog log, and a-615 had a new
+push running. The check proved "alive" only through the identity map's pane,
+which does not follow a rotation into a new pane.
+
+An agent is live when any one of these names its id:
+
+- the identity map: a live process and its pane (`ai_live_ids`, `ai_pane_of`);
+- a live pane (`pane_dead` 0): its window name starts with the id, after an
+  optional `<tag>: ` and before `@<box>`, a space or the end; or its title
+  does after the status glyph (`◑ c-520@sat`). A retiring window
+  (`m-490-2111Z-retiring`) and an id in the middle of a title do not count;
+- a process's args: `--name <id>[@<box>]`, `SPOOL_AGENT_ID=<id>`, or the seed
+  path `<spool root>/<id>/lifetime/`.
+
+A lane that retries its own refused push writes `RUNNING since=<now>` before
+it cuts the log and before its worker takes the lock, so for a moment the
+dir reads like the old refusal or a dead worker. A `RUNNING` status whose
+`since=` is less than `PUSH_ORPHAN_START_GRACE_S` (default 120) seconds old
+is a run in progress.
+
+Test: `spl-push-orphan-check.tst.sh` cases 9 and 10. Red control: on the code
+before the fix, six case-9 rows (window, tagged window, title, `--name`, seed
+path, `SPOOL_AGENT_ID`) alert, and so does the just-started run of case 10.

@@ -8,8 +8,11 @@
 # @description (<SPOOL_ROOT>/.retired/<id>.<ts>/lifetime/push-master), whose log
 # @description changed within PUSH_ORPHAN_MAX_AGE_MIN. A push ALERTS when its
 # @description verdict is REFUSED, GAVE-UP or DIED (status RUNNING, no worker
-# @description holds the lock, no END line in the log) AND its agent is gone
-# @description (retired, or no live process + pane in the identity map). ONE
+# @description holds the lock, no END line in the log) AND its agent is gone:
+# @description retired, or neither the identity map nor any live pane (window
+# @description name, pane title) nor any process (args) carries its id - the
+# @description map's pane is stale after a rotation (SPL-2621). A run the lane
+# @description started less than PUSH_ORPHAN_START_GRACE_S ago is RUNNING. ONE
 # @description blocker to the dispatch lease holder per push: agent, sha, the
 # @description log's last line, the brief's topic. The marker `orphan-alerted`
 # @description in the push dir (it moves with a retired dir) holds the push's
@@ -20,7 +23,10 @@
 # @param PUSH_ORPHAN_MAX_AGE_MIN (optional) - only pushes whose log changed within it; default 360
 # @param PUSH_ORPHAN_TO (optional) - default the dispatch lease holder
 # @param PUSH_ORPHAN_TASK (optional) - the task when the brief names no dispatch-<hex8>; default dispatch-push-orphan
-# @param PUSH_ORPHAN_LIVE_CMD (optional) - test seam: prints the live agent ids
+# @param PUSH_ORPHAN_START_GRACE_S (optional) - a RUNNING status younger than it is a new run; default 120
+# @param PUSH_ORPHAN_LIVE_CMD (optional) - test seam: prints the identity map's live agent ids
+# @param PUSH_ORPHAN_PANES_CMD (optional) - test seam: prints <pane_dead> TAB <window_name> TAB <pane_title> per pane
+# @param PUSH_ORPHAN_PS_CMD (optional) - test seam: prints the args of every process
 # @param PUSH_ORPHAN_SEND (optional) - test seam: the spool-send.sh to run
 # @example ./run -a do_spl_push_orphan_check
 # @example DRY_RUN=0 ./run -a do_spl_push_orphan_check
@@ -52,8 +58,17 @@ _po_dirs() {
     -mmin "-$1" -printf '%h\n' 2>/dev/null | sort -u
 }
 
-# The agent ids the identity map proves alive with a pane on this box.
+# The agent ids alive on this box: the identity map's (a process + its pane),
+# then every id a live pane or a process carries. A rotated lane runs in a new
+# pane the map may not name yet (c-692, a-615 on 2026-10-19, SPL-2621).
 _po_live_ids() {
+  _po_map_ids
+  _po_pane_ids
+  _po_proc_ids
+  return 0
+}
+
+_po_map_ids() {
   if [[ -n "${PUSH_ORPHAN_LIVE_CMD:-}" ]]; then bash -c "$PUSH_ORPHAN_LIVE_CMD"; return 0; fi
   local id live
   live="$(ai_tmux list-panes -a -F '#{pane_id}' 2>/dev/null)"
@@ -63,11 +78,35 @@ _po_live_ids() {
   return 0
 }
 
+# A live pane whose window name starts with the id ("<tag>: " first, "@<box>"
+# or a word after), or whose title does after its status glyph ("◑ c-520@sat").
+# A retiring window ("m-490-2111Z-retiring") and an id mid-title never count.
+_po_pane_ids() {
+  local dead win title rx="^([A-Za-z0-9][A-Za-z0-9._-]*: )?(${SPOOL_AGENT_ID_RX})(@[a-z0-9][a-z0-9-]*)?( |$)"
+  while IFS=$'\t' read -r dead win title; do
+    [[ "$dead" == 0 ]] || continue
+    [[ "$win" =~ $rx ]] && echo "${BASH_REMATCH[2]}"
+    [[ "${title#[^[:alnum:]]* }" =~ $rx ]] && echo "${BASH_REMATCH[2]}"
+  done < <(if [[ -n "${PUSH_ORPHAN_PANES_CMD:-}" ]]; then bash -c "$PUSH_ORPHAN_PANES_CMD"
+           else ai_tmux list-panes -a -F $'#{pane_dead}\t#{window_name}\t#{pane_title}' 2>/dev/null; fi)
+  return 0
+}
+
+# A process whose args name the id: --name <id>[@box], SPOOL_AGENT_ID=<id>,
+# or the seed path <SPOOL_ROOT>/<id>/lifetime/.
+_po_proc_ids() {
+  local x="(${SPOOL_AGENT_ID_RX})" root="${SPOOL_ROOT%/}"
+  { if [[ -n "${PUSH_ORPHAN_PS_CMD:-}" ]]; then bash -c "$PUSH_ORPHAN_PS_CMD"; else ps -eo args= 2>/dev/null; fi; } |
+    grep -oE -- "--name ${x}(@[a-z0-9-]+)?( |\$)|SPOOL_AGENT_ID=['\"]?${x}(['\" ]|\$)|${root//./\\.}/${x}/lifetime/" |
+    grep -oE -- "${x}"
+  return 0
+}
+
 # _po_verdict <push dir> - prints PUSHED | REFUSED | GAVE-UP | DIED | RUNNING | NONE.
 # A RUNNING status with an END line in the log takes the END's word: a worker
 # that wrote its END to the log but whose status write was lost (m-595).
 _po_verdict() {
-  local d="$1" first end
+  local d="$1" first end since
   first="$(sed -n 1p "$d/status" 2>/dev/null)"
   case "$first" in
     PUSHED*) echo PUSHED; return ;;
@@ -76,6 +115,11 @@ _po_verdict() {
     RUNNING) ;;
     *) echo NONE; return ;;
   esac
+  # A run just started: its worker may not hold the lock yet, and the log may
+  # still be the last run's (status is written before the log is cut).
+  since="$(sed -n '/^since=/{s///p;q}' "$d/status" 2>/dev/null)"
+  [[ -n "$since" ]] && since="$(date -u -d "$since" +%s 2>/dev/null)" &&
+    (( $(date -u +%s) - since < ${PUSH_ORPHAN_START_GRACE_S:-120} )) && { echo RUNNING; return; }
   end="$(grep -oE ' END (PUSHED|REFUSED|GAVE-UP)' "$d/log" 2>/dev/null | tail -n 1)"
   [[ -n "$end" ]] && { echo "${end# END }"; return; }
   # flock -E 75: 75 = a worker holds it; 0 = free; anything else = unreadable.

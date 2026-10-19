@@ -21,6 +21,13 @@
 #   7. a new push in an already alerted dir -> alerts again (once per push)
 #   8. DRY_RUN=1 plans: a PLAN line, no send, no marker; the live spool root
 #      is refused under SPOOL_TEST (96)
+#   9. a rotated lane (SPL-2621, c-692 + a-615 on 2026-10-19): the identity
+#      map's pane is stale (no id from the map) but a live pane or process
+#      carries the id -> no alert: by window name, by pane title, by process
+#      args (--name, the seed path, SPOOL_AGENT_ID); controls: the pane is
+#      dead, a retiring window name, an id only mid-title -> each alerts
+#  10. a newer run the lane started (status RUNNING since just now, lock not
+#      yet taken, the log still the old END REFUSED) -> no alert
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -32,6 +39,8 @@ mkdir -p "$R/dispatch" "$R/.retired" "$T/bin"
 echo "c-002@sat 1792183913" >"$R/dispatch/lease"
 echo "LEASE_ORCH=c-001" >"$R/dispatch/lease.conf"
 : >"$T/live"
+: >"$T/panes"
+: >"$T/ps"
 printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>%q\n' "$T/sends" >"$T/bin/send"
 chmod +x "$T/bin/send"
 
@@ -53,7 +62,8 @@ lane() {
 }
 check() {
   SNIPPET='do_spl_push_orphan_check' in_orc SPOOL_TEST=1 SPOOL_ROOT="$R" SPOOL_BOX_TAG=box1 \
-    PUSH_ORPHAN_LIVE_CMD="cat $T/live" PUSH_ORPHAN_SEND="$T/bin/send" DRY_RUN=0 "$@" 2>&1
+    PUSH_ORPHAN_LIVE_CMD="cat $T/live" \
+    PUSH_ORPHAN_PANES_CMD="cat $T/panes" PUSH_ORPHAN_PS_CMD="cat $T/ps" PUSH_ORPHAN_SEND="$T/bin/send" DRY_RUN=0 "$@" 2>&1
 }
 sends() { if [ -f "$T/sends" ]; then grep -c -- "^--from " "$T/sends"; else echo 0; fi; }
 
@@ -139,6 +149,45 @@ out="$(check DRY_RUN=1)"
 mkdir -p "$T/live-root"
 out="$(SNIPPET='do_spl_push_orphan_check' in_orc SPOOL_TEST=1 SPOOL_LIVE_ROOT="$T/live-root" SPOOL_ROOT="$T/live-root" SPOOL_TEST_GUARD_LOG= 2>&1)"; rc=$?
 [ "$rc" = 96 ] && grep -q REFUSED <<<"$out" && pass "8. the live spool root (a stand-in) is refused under SPOOL_TEST" || fail "8. guard (rc $rc: $out)"
+
+# 9 a rotated lane: the map proves nothing, a live pane or process carries the id
+# the earlier cases' leftovers (m-704 once its lane is gone, m-708) alert here, uncounted
+: >"$T/live"; check >/dev/null
+REF="REFUSED push of $SHA (the hook or a rule said no)"
+# alive <case> <agent> <panes line or ""> <ps line or ""> <want: none|alert>
+alive() {
+  rm -f "$T/sends"; : >"$T/live"
+  printf '%s' "$3" >"$T/panes"; printf '%s' "$4" >"$T/ps"
+  lane "$R/$2" "$REF" REFUSED
+  out="$(check)"
+  if [ "$5" = none ]; then
+    [ "$(sends)" = 0 ] && [ ! -e "$R/$2/lifetime/push-master/orphan-alerted" ] && pass "$1 -> no alert" || fail "$1 ($out)"
+  else
+    [ "$(sends)" = 1 ] && grep -q "ALERT $2 REFUSED" <<<"$out" && pass "$1 -> alerts" || fail "$1 ($out)"
+  fi
+  rm -rf "${R:?}/$2"
+}
+P=$'\t'
+alive "9. rotated lane, window 'a-615@box2 rotate', live pane" a-615 "0${P}a-615@box2 rotate${P}box2"$'\n' "" none
+alive "9. tagged window 'sat: c-692@sat'" c-692 "0${P}sat: c-692@sat${P}sat"$'\n' "" none
+alive "9. pane title '◑ c-693@sat' in a 'bash' window" c-693 "0${P}bash${P}◑ c-693@sat"$'\n' "" none
+alive "9. process args --name c-694@sat" c-694 "" "/usr/bin/claude --name c-694@sat --dangerously-skip-permissions"$'\n' none
+alive "9. process args, the seed path" g-695 "" "grok Read and follow your seed: $R/g-695/lifetime/prompt.txt"$'\n' none
+alive "9. process args SPOOL_AGENT_ID='m-696'" m-696 "" "su - ai -c export SPOOL_AGENT_ID='m-696' X=1"$'\n' none
+alive "9. control: the same window, pane dead" a-697 "1${P}a-697@box2 rotate${P}box2"$'\n' "" alert
+alive "9. control: a retiring window 'm-698-2111Z-retiring'" m-698 "0${P}m-698-2111Z-retiring${P}sat"$'\n' "" alert
+alive "9. control: the id only mid-title, a longer id in the args" c-699 "0${P}g-002@sat dispatcher${P}relay c-699 result"$'\n' "--name c-6990@sat"$'\n' alert
+: >"$T/panes"; : >"$T/ps"
+
+# 10 a newer run the lane just started
+rm -f "$T/sends"
+lane "$R/c-700" RUNNING REFUSED
+printf 'RUNNING\nsince=%s\n' "$(date -u +%FT%TZ)" >"$R/c-700/lifetime/push-master/status"
+out="$(check)"
+[ "$(sends)" = 0 ] && pass "10. status RUNNING since just now, lock free, old END REFUSED in the log -> no alert" || fail "10. new run ($out)"
+printf 'RUNNING\nsince=%s\n' "$(date -u -d '10 minutes ago' +%FT%TZ)" >"$R/c-700/lifetime/push-master/status"
+out="$(check)"
+[ "$(sends)" = 1 ] && grep -q "ALERT c-700 REFUSED" <<<"$out" && pass "10. control: the same, since 10 min ago -> alerts" || fail "10. control ($out)"
 
 echo "spl-push-orphan-check: $fails failure(s)"
 [ "$fails" -eq 0 ]

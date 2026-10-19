@@ -2,11 +2,13 @@
 # Run every *.tst.sh next to this file; exit non-zero if any fails.
 #
 # Perf round 4, C2: the files run ORC_TEST_JOBS at a time (default 6 on CI,
-# 4 elsewhere; 1 = the old serial loop, streamed live). Each file's stdout and
-# stderr are buffered to its own file and printed in suite order, so the log
-# reads like a serial run and the per-file verdicts are the same. A test whose
-# first 40 lines carry the line '# serial' (it shares a fixed /tmp path, $HOME
-# or tmux state with another test) runs alone, after the pool.
+# 4 elsewhere, capped at the CPUs, nproc or ORC_TEST_NPROC; 1 = the old
+# serial loop, streamed live; --print-jobs prints the value and exits). Each
+# file's stdout and stderr are buffered to its own file and printed in suite
+# order, so the log reads like a serial run and the per-file verdicts are
+# the same. A test whose first 40 lines carry the line '# serial' (it shares
+# a fixed /tmp path, $HOME or tmux state with another test) runs alone, after
+# the pool.
 #
 # Default: every file, as CI runs it. Lane mode (doc
 # fleet-hot-commands-2026-10-07.md 3.9, the full suite is ~11 min):
@@ -39,15 +41,24 @@
 # 2026-10-12: two shards were 7,378 s and 5,543 s of summed wall, 33 % apart,
 # under every-2nd-file). On CI (ORC_TEST_TIMES=1) the run ends with
 # '--- every file (wall s)', one '<file> <secs>' line each, to refresh the
-# weights from.
+# weights from: save those lines of several runs into one file, then
+#   run-all-tests.sh --weights-from <f>   prints the refreshed weights: each
+#                                         file's median over its n >= 3
+#                                         lines, '*' the median of those
+#   run-all-tests.sh --check-weights <f>  exits 1 when a file's median and
+#                                         its weight differ by > 2x and
+#                                         > 60 s (a stale weight), naming it
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
-changed=0 bg=""
+changed=0 bg="" print_jobs=0 wmode="" wtimes=""
 while (( $# )); do
   case "$1" in
     --changed) changed=1 ;;
     --background) bg="${2:-}"; [[ -n "$bg" ]] || { echo "--background needs a result file" >&2; exit 2; }; shift ;;
-    *) echo "usage: run-all-tests.sh [--changed] [--background <result-file>]" >&2; exit 2 ;;
+    --print-jobs) print_jobs=1 ;;
+    --weights-from|--check-weights)
+      wmode=$1 wtimes="${2:-}"; [[ -f "$wtimes" ]] || { echo "$1 needs a file of '<file> <secs>' lines" >&2; exit 2; }; shift ;;
+    *) echo "usage: run-all-tests.sh [--changed] [--background <result-file>] [--print-jobs] [--weights-from|--check-weights <times-file>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -80,11 +91,21 @@ if [[ -z "${SPOOL_TEST_GUARD_LOG:-}" ]]; then
   SPOOL_TEST_GUARD_LOG=$(mktemp); guard_own=1
 fi
 export SPOOL_TEST_GUARD_LOG
+# done_early <rc>: end a mode that runs no test (--print-jobs, the weights modes)
+done_early() { (( guard_own )) && rm -f "$SPOOL_TEST_GUARD_LOG"; exit "$1"; }
+# Test round 2 row 03 (SPL-2571): the default pool never exceeds the CPUs.
+# CI ran 6 files at once on nproc=4 runners (68 of 68 shard jobs,
+# 2026-10-19), so the same file ran up to 4x slower in a packed shard. An
+# explicit ORC_TEST_JOBS is taken as given.
 njobs="${ORC_TEST_JOBS:-}"
 if [[ -z "$njobs" ]]; then
   if [[ "${GITHUB_ACTIONS:-}" == true ]]; then njobs=6; else njobs=4; fi
+  ncpu="${ORC_TEST_NPROC:-$(nproc 2>/dev/null || echo 4)}"
+  [[ "$ncpu" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_NPROC must be a positive integer (got '$ncpu')" >&2; done_early 2; }
+  (( njobs > ncpu )) && njobs=$ncpu
 fi
-[[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
+[[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; done_early 2; }
+(( print_jobs )) && { echo "$njobs"; done_early 0; }
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
 # wt[<basename>] = weight (s); wdef = the weight of an unlisted file
@@ -99,6 +120,33 @@ if [[ -f "$wfile" ]]; then
   done <"$wfile"
 fi
 weight() { local b=${1##*/}; echo "${wt[$b]:-$wdef}"; }
+# medians <times-file>: '<file> <median s> <n>' per file of its
+# '<file> <secs>' lines (a log timestamp column before them is skipped)
+medians() {
+  awk 'NF >= 2 && $(NF - 1) ~ /\.tst\.sh$/ && $NF ~ /^[0-9]+(\.[0-9]+)?$/ { print $(NF - 1), $NF }' "$1" \
+    | sort -k1,1 -k2,2n \
+    | awk 'function out() { if (n) printf "%s %.0f %d\n", f, (n % 2 ? v[(n + 1) / 2] : (v[n / 2] + v[n / 2 + 1]) / 2), n }
+           $1 != f { out(); f = $1; n = 0 } { v[++n] = $2 } END { out() }'
+}
+if [[ "$wmode" == --weights-from ]]; then
+  med=$(medians "$wtimes" | awk '$3 >= 3 { print $1, $2 }')
+  [[ -n "$med" ]] || { echo "* 1"; done_early 0; }
+  echo "* $(awk '{ print $2 }' <<<"$med" | sort -n | awk '{ v[++n] = $1 } END { printf "%.0f", n % 2 ? v[(n + 1) / 2] : (v[n / 2] + v[n / 2 + 1]) / 2 }')"
+  echo "$med"
+  done_early 0
+fi
+if [[ "$wmode" == --check-weights ]]; then
+  checked=0 stale=0
+  while read -r f m k; do
+    w=$(weight "$f") checked=$((checked + 1))
+    lo=$(( w < m ? w : m )) hi=$(( w < m ? m : w ))
+    if (( hi > 2 * lo && hi - lo > 60 )); then
+      echo "stale weight: $f weight $w s, measured median $m s (n=$k)"; stale=$((stale + 1))
+    fi
+  done < <(medians "$wtimes")
+  echo "--- weights: $checked files checked, $stale stale"
+  (( stale == 0 )) && done_early 0; done_early 1
+fi
 # heaviest_first <file>...: '<index> <weight>' per file (0-based), heaviest
 # first, a tie in the given order
 heaviest_first() {

@@ -119,7 +119,16 @@ try {
 
   await shiftW(p)
   ok('Shift + W closes the rightmost pane (the topic)', await until(p, gone, TOPIC, 3000))
-  ok('... and leaves the search list open', await p.evaluate(shown, ENTRY))
+  /* waits, as the checks around it do: one hosted job read it gone, twice, the
+     instant the topic left (run 39264153837); the next hosted run and the box
+     read it kept (run 39266091119, same WUI code) */
+  const kept = await until(p, shown, ENTRY, 3000)
+  ok('... and leaves the search list open', kept, kept ? undefined : await p.evaluate((s) => ({
+    url: location.pathname + location.search,
+    panel: Boolean(document.querySelector(s)),
+    mode: document.querySelector(`${s} [data-testid=left-list]`)?.getAttribute('data-mode') ?? null,
+    entries: document.querySelectorAll(`${s} [data-testid=left-entry]`).length,
+  }), SEARCH))
 
   await focusCard(p)
   await shiftW(p)

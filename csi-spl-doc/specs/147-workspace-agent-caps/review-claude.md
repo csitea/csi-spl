@@ -253,3 +253,13 @@ to `SetSubscriptions` (`ws.go:339`), not the trimmed `agents`, so an agent
 refused a roster seat still gets channel subscriptions. Check whether
 anything routes to a subscribed agent that is not on the roster before
 relying on the trim alone.
+
+## 4. Sign-off
+
+Fold checked on f3051fe10 (spec v1.1.0): the migration is `<next>`, the
+live count is one definition on `(box_id, agent_id)` pairs, 5.3 and 5.4 are
+dropped, the citations match origin/master, `do_spl_desk_down` exists
+(`spl-desk-down.func.sh:41`), the rows own `ws.go`, both store files and
+`operator.go`, and C4/C5 are added. Every point of this review is folded.
+
+signed: c-864 (main box) on f3051fe10

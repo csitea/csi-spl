@@ -37,7 +37,7 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
 consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat
 
-## 4. Current Status on Rotation (09:32Z)
+## 4. Current Status on Rotation (10:33Z)
 
 - Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
 - Mistral seat `m-490` re-measured on `938a31f67` and updated `seat-mistral.md` in `e973768a7`; acknowledged by editor `a-615` (msg `3518c0a5`).
@@ -54,10 +54,10 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
   - Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, SPL-2696, Lane 1): R7 review completed by `a-615` (PASS on `fc7cbe82fea7853b32c389d7c72cf03bc7ddf018`), landed on origin/master in `edcd611be`.
   - Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, SPL-2697, Lane 2): R7 review completed by `a-615` (PASS on `0593f33599472fa1ef4ad273d77b8460a91db216`), landed on origin/master in `54e3cfee2` (v2.9.8-c3).
 - CI status: Docs publish workflow runs completed green.
-- Master trunk synchronization: Synchronized with `origin/master` at `6b0d08b91` (v3.0.4-c3).
+- Master trunk synchronization: Synchronized with `origin/master` at `4b870d96e`.
 - Lane 1 status: Completed in full (all 4 rows landed).
 - Lane 2 status: Rows 02, 04, 06, 08 landed; final action Batch 5 / Row 09 ready for dispatch.
-- Batch 5 status: Row 09 (`refactor(r14-09-bash-small-run-do-log)`, Lane 2) pending dispatch by dispatch lease holder (`g-002@sat`). Target: split `do_log` (143 lines) into helper steps <= 80 lines keeping `iac:src/bash/run/run.sh` and `orc:src/bash/run/run.sh` byte-identical, eliminating both entries from `LONG` in `bash-cleancode.tst.sh`.
+- Batch 5 status: Row 09 (`refactor(r14-09-bash-small-run-do-log)`, Lane 2) pending dispatch by dispatch lease holder (`c-003@sat`). Target: split `do_log` (143 lines) into helper steps <= 80 lines keeping `iac:src/bash/run/run.sh` and `orc:src/bash/run/run.sh` byte-identical, eliminating both entries from `LONG` in `bash-cleancode.tst.sh`.
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for Row 09 per plan §5, followed by compiling Round 14 Retrospective (R8).
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Rotation handoff (09:32Z UTC): Worktree clean, rebased to `6b0d08b91`, inbox drained, ready for 09:32Z rotation and Batch 5 review upon dispatch.
+- Rotation handoff (10:33Z UTC): Worktree clean, rebased to `4b870d96e`, inbox drained, ready for 10:33Z rotation and Batch 5 review upon dispatch.

@@ -9,6 +9,7 @@
 #      src <APP_PATH>/<org>-<app>-dat/src/web/html/ or SRC_DIR, --account=<SA>
 #   2. ENV / ORG / APP empty -> refused, no `storage` call
 #   3. no key, no ACCOUNT -> refused, no `storage` call
+#  3b. a failing `storage rsync` -> the action's rc is not 0 (SPL-2731)
 #   do_gcp_tail_logs
 #   4. ENV=dev: activates the dev key, one `logging read` with the defaults,
 #      --project=<org>-<app>-dev and --account=<the dev SA>
@@ -146,6 +147,9 @@ sync; rc=$?
 bad=$(check_refused storage 'no gcloud account')
 [[ -z "$bad" ]] && pass "3. sync: no key, no ACCOUNT -> refused, no storage call" || fail "3. $bad"
 mv "$T/key.json" "$T/home/.gcp/.csi/key-csi-spl-dev.json"
+sync STUB_FAIL='storage rsync'; rc=$?
+[[ $rc -ne 0 && -n "$(calls storage)" ]] && grep -q 'ERROR gcloud storage rsync failed' "$T/out" \
+  && pass "3b. sync: a failing rsync -> rc $rc, logged" || fail "3b. failing rsync: rc=$rc $(cat "$T/out")"
 
 # --- 4. tail: ENV=dev, the defaults ----------------------------------------------
 tail_logs; rc=$?

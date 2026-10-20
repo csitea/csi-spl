@@ -36,9 +36,11 @@ do_gcp_sync_local_to_s3() {
 
   # Dry run of gcloud storage rsync command for safety
   gcloud storage rsync --delete-unmatched-destination-objects -r --dry-run -x ".git/|wp-config.php" ${SRC_DIR} ${GCS_BUCKET} --account="${account}"
+  local _rc=$?
+  [[ $_rc -eq 0 ]] || do_log "ERROR gcloud storage rsync failed, rc=$_rc"
 
   # If you're satisfied with the dry run output, drop --dry-run to perform the actual sync
   # gcloud storage rsync --delete-unmatched-destination-objects -r -x ".git/|wp-config.php" ${SRC_DIR} ${GCS_BUCKET}
 
-  local _rc=$?
+  return "$_rc"
 }

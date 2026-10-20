@@ -12,6 +12,10 @@
 #      cap 2700s)": the note names the load-scaled budget and the load it read
 #      (`timeout` is stubbed to return 124 at once: no 30-min wait)
 #   5. the env budget of case 1 is named in the note
+#   6. a suite that passes at once logs no TIMED OUT note
+#   7. a suite that fails at once (rc 1) logs no TIMED OUT note either
+#   (red control for 6-7: a `do_log ... TIMED OUT after ...` emitted before
+#   _pp_run's rc check passed cases 1-5, where every suite does time out)
 #   Each part's suite in 1..3 is a stub that sleeps past its budget, so the real
 #   `timeout` kills it; no real suite runs.
 #------------------------------------------------------------------------------
@@ -39,6 +43,11 @@ printf '#!/usr/bin/env bash\nexec sleep 30\n' >"$R/csi-spl-api/src/bash/tests/ru
 printf '#!/usr/bin/env bash\nexec sleep 30\n' >"$R/csi-spl-iac/src/bash/tests/run-all-tests.sh"
 echo lock >"$R/csi-spl-wui/pnpm-lock.yaml"; echo lock >"$R/csi-spl-wui/node_modules/.pnpm/lock.yaml"
 printf '#!/usr/bin/env bash\nexec sleep 30\n' >"$T/bin/pnpm"; chmod +x "$T/bin/pnpm"
+# Two trees whose iac suite returns at once: rc 0 and rc 1.
+for rc in 0 1; do
+  mkdir -p "$T/quick$rc/csi-spl-iac/src/bash/tests"
+  printf '#!/usr/bin/env bash\necho "FAIL: quick"\nexit %s\n' "$rc" >"$T/quick$rc/csi-spl-iac/src/bash/tests/run-all-tests.sh"
+done
 
 note_of() {  # <part-fn> -> the "TIMED OUT after Ns" the run logged
   : >"$LOG"
@@ -69,5 +78,10 @@ check "4. api full tier names its load-scaled budget and the load" \
 check "5. an env budget is named in the note" "TIMED OUT after 2s (PRE_PUSH_API_FULL_TIMEOUT)" \
   "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full full_note_of _pp_part_api)"
 
-echo "--- $((5 - fails))/5 passed ---"
+check "6. a passing suite logs no TIMED OUT note" "" \
+  "$(R="$T/quick0"; _pp_timeout=30; note_of _pp_part_iac)"
+check "7. a suite failing with rc 1 logs no TIMED OUT note" "" \
+  "$(R="$T/quick1"; _pp_timeout=30; note_of _pp_part_iac)"
+
+echo "--- $((7 - fails))/7 passed ---"
 [[ "$fails" -eq 0 ]]

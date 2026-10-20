@@ -12,6 +12,10 @@
 #        and nothing else (no iac / wui / api / other lint part)
 #     3. PRE_PUSH_LINT=0 cannot drop lint-migration from the override
 #     4. a re-push with nothing changed re-uses the lint-migration verdict
+#     5. override + a failing hygiene check (lint-migration green) -> REFUSED:
+#        the override skips the slow parts, never hygiene's verdict (red
+#        control: `do_check_dist_hygiene || true` in _pp_part_hygiene passed
+#        cases 1-4, whose hygiene stub always returned 0)
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -34,7 +38,13 @@ chmod +x "$XDG_CACHE_HOME/csi-spl/lint-venv-pglast/bin/python"
 
 do_log() { echo "$*"; }
 HYG="$T/hygiene.runs"
-do_check_dist_hygiene() { echo x >>"$HYG"; return 0; }
+# hygiene fails only on a tree that carries leak.txt (case 5); the base re-check
+# runs on a trunk tree without it, so that red is this push's own
+do_check_dist_hygiene() {
+  echo x >>"$HYG"
+  [[ -e "$HYGIENE_TREE/leak.txt" ]] && { echo "leak.txt:1: banned literal"; return 1; }
+  return 0
+}
 # shellcheck source=../run/check-pre-push.func.sh
 . "$FUNC"
 
@@ -78,6 +88,14 @@ grep -q 'prefix 0119 is taken by more than one file' "$T/out" \
 # 3. PRE_PUSH_LINT=0 (the lint rollback) does not drop it from the override
 gate PRE_PUSH_LINT=0; eq "3. PRE_PUSH_LINT=0 + override + duplicate -> still REFUSED" 1 "$?"
 eq "3. ... lint-migration still ran" FAIL "$(verdict lint-migration)"
+
+# 5. clear the duplicate (0119_mine -> 0120_mine), then plant a hygiene red
+git -C "$R" mv "$MIG/0119_mine.sql" "$MIG/0120_mine.sql"; git -C "$R" commit -qm "mine: renumber to 0120"
+gate; eq "5. (setup) override + no duplicate + clean hygiene -> passes" 0 "$?"
+echo leak >"$R/leak.txt"; git -C "$R" add leak.txt; git -C "$R" commit -qm "mine: a leak"
+gate; eq "5. override + a failing hygiene check -> REFUSED" 1 "$?"
+eq "5. ... hygiene FAIL" FAIL "$(verdict hygiene)"
+eq "5. ... while lint-migration is green (the refusal is hygiene's)" PASS "$(verdict lint-migration | sed 's/-cached$//')"
 
 echo "-- check-pre-push-override.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

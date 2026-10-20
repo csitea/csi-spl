@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Prehľad vydaní už čoskoro."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Ste offline",
+      "kept": "Zobrazujú sa správy, ktoré toto zariadenie uložilo o {time}.",
+      "none": "Nové správy prídu, keď sa sieť vráti."
+    }
   }
 }

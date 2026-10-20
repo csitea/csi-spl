@@ -28,7 +28,13 @@ Pinned by `csi-spl-wui/tests/e2e/client-state-reload.test.mjs`.
    (view-v1 §2) and the checkout claim token stay in sessionStorage or memory;
    the session cookie is the hub's, set and cleared by the hub.
 6. **IndexedDB is not used.** The service worker (`src/public/sw.js`) keeps
-   the app shell in Cache Storage, no member data.
+   the app shell and the `/_nuxt` bundle files in Cache Storage, no member
+   data.
+7. **Offline, the last copy of a feed is read** (SPL-2149, section 4). The
+   first page of each channel or DM feed read from the hub, and the channel
+   list, are kept in localStorage `spool.offline-feeds`, and shown when a read
+   fails for want of a network. This is member data on the device: it is
+   dropped at sign-out (section 3).
 
 ## 2. The inventory
 
@@ -50,7 +56,8 @@ again in the same browser profile.
 | checkout id and claim token `spool.checkout.*` | sessionStorage | yes | no | a secret, dropped after the claim |
 | unsent event log `spl.event-log.queue.v1` | sessionStorage | yes | no | resent by the same tab |
 | one-shot guards (chunk reload, build reload, notify open, preferred theme/locale applied, early login, root locale) | sessionStorage | yes | no | each fires once per tab |
-| app shell | Cache Storage (service worker) | yes | yes | offline start; no member data |
+| app shell, `/_nuxt` bundle files | Cache Storage (service worker: `spool-shell-v1`, `spool-chunks-v1`) | yes | yes | offline start; no member data |
+| last feed pages and channel list `spool.offline-feeds` | localStorage | yes | yes | offline reading (section 4); at most 8 feeds and 1.5 M characters; dropped at sign-out |
 | `spool.mock.*` | localStorage | yes | yes | the lde/e2e mock hub only, never read by a live build |
 
 ## 3. Sign-out (SPL-2556)
@@ -72,6 +79,52 @@ Two gaps found by SPL-2169 are closed in `signOutActions`
 - Sign-out removes `spool.view_token` from the tab's sessionStorage and from
   the API client (`setViewToken('')`), instead of keeping it until the tab
   closes.
+- Sign-out removes `spool.offline-feeds` (SPL-2149, `clearOfflineFeeds`), so
+  the next member on the browser never reads the previous member's messages.
 
 Pinned by `csi-spl-wui/tests/e2e/client-state-reload.test.mjs` (O1, O2) and
 `csi-spl-wui/tests/unit/read-cursor.test.mjs`.
+
+## 4. Offline reading (SPL-2149)
+
+UI review suggestion 8 (owner HUM-10, t1 1061f05f msg 4d63f24c): "ADD
+OFFLINE/PWA SUPPORT. PwaInstallOffer exists but no service worker or offline
+fallback was found." The worker did exist (`src/public/sw.js`, registered in
+`src/plugins/pwa.client.ts`) and answered an offline navigation with its
+cached document. Measured on the mock bundle (master `f54dded26`, n=1 per
+case, `/channel/lobby` visited online, then CDP offline and a reload):
+
+| served as | after the offline reload |
+|---|---|
+| the e2e harness (`serve-generated.mjs`, no cache header) | blank: 0 characters of text, every `/_nuxt` chunk `ERR_INTERNET_DISCONNECTED` |
+| with Hosting's `/_nuxt` immutable header | the 3 cards render, from the HTTP cache and the mock's in-memory data |
+
+So offline reading rested on the HTTP cache alone, the live hub's reads kept
+nothing (an offline reload of a live tab has no messages: the session probe
+answers `unknown`, which reads nothing), and nothing said the tab was offline.
+What changed:
+
+1. **Bundle files.** The worker keeps each `/_nuxt/**` file a page loads in
+   `spool-chunks-v1` and answers from it first (hashed names: never stale;
+   `/_nuxt/builds/**` stays the network's; at most 400 files). Unit test
+   `csi-spl-wui/tests/unit/sw-app-shell.test.mjs`.
+2. **Feeds.** `csi-spl-wui/src/utils/offline-feed.mjs` keeps each first page
+   the channel store reads (`refresh`) and the channel list
+   (`loadChannels`). A read that fails because the browser is offline, or a
+   fetch that reached no server, shows the kept copy; the store's
+   `offlineAt` holds the time it was read. A live tab whose probe answers
+   `unknown` while offline (`readsKeptCopy`, `utils/offline-queue.mjs`)
+   opens the channel from the kept copy. The mock hub's reads fail offline as
+   a fetch would. Unit test `csi-spl-wui/tests/unit/offline-feed.test.mjs`.
+3. **The strip.** `csi-spl-wui/src/components/OfflineBanner.vue` says
+   "You are offline" and, for a kept copy, the time it was saved. Its strings
+   are on demand (second catalogue). The channel and DM pages mount it and
+   it renders only while the browser is offline. Its chunk loads with the
+   page, and the reader's after the first page it keeps, so the worker holds
+   both for the offline reload. Neither is in the first download
+   (`ci_initial_gzip_kb`): master was at its 155 KB ceiling.
+
+Pinned by `csi-spl-wui/tests/e2e/offline-read.test.mjs` (red on master
+`f54dded26`: the page is blank after the offline reload). Not covered by an
+e2e: the live hub path (CI e2e is the mock bundle) and a lazy page chunk
+never loaded online, which still fails offline.

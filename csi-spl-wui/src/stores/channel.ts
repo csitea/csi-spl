@@ -60,6 +60,11 @@ type SentFrame = {
   showHere: boolean, asDm: boolean, peerId: string, channelNow: string | null, from: string,
 }
 
+/* SPL-2149: the kept copies (utils/offline-feed.mjs) load after the first page, not in the entry chunk
+   (027 budget); null when that chunk did not load (the page is just not kept, nothing is read back) */
+type OfflineFeed = typeof import('~/utils/offline-feed.mjs')
+const offlineFeed = <T>(f: (m: OfflineFeed) => T) => import('~/utils/offline-feed.mjs').then(f).catch(() => null)
+
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
@@ -83,6 +88,8 @@ function channelState() {
   const unread = ref<Record<string, number>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
+  /** SPL-2149: when the open feed is the copy kept on this device (no network), the time it was read; null = from the hub */
+  const offlineAt = ref<string | null>(null)
   /**
    * last activity per channel id and per DM peer label, fed by the
    * tab-wide `all` follow (plugins/spool-live.client.ts). The sidebar orders
@@ -116,7 +123,7 @@ function channelState() {
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   return {
-    api, i18n, mentionPoke, channels, active, peer, messages, unread, loading, error, liveAt, dmAt, dmSeed,
+    api, i18n, mentionPoke, channels, active, peer, messages, unread, loading, error, offlineAt, liveAt, dmAt, dmSeed,
     ordered, feed, search, visible, lastLive, olderCursor, totals, loadingOlder, view, newestFirst, hasOlder,
   }
 }
@@ -228,7 +235,17 @@ function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Pro
   async function loadChannels() {
     const read: Record<string, string> = api.mock ? {} : readMap(loadCursors()) as Record<string, string>
     /* a member's first read of a fresh page flips the door to the session cookie (010 FR-009), as the lobby does */
-    channels.value = await withSessionRetry(api, () => api.listChannels({ read })) as ChannelInfo[]
+    try {
+      channels.value = await withSessionRetry(api, () => api.listChannels({ read })) as ChannelInfo[]
+    } catch (e) {
+      /* SPL-2149: no network - the list this device read last, if any */
+      const kept = await offlineFeed((m) => m.keptChannelRows(api.tenant, e)) as ChannelInfo[] | null
+      if (!kept) throw e
+      if (!channels.value.length) channels.value = kept
+      return
+    }
+    const rows = channels.value
+    void offlineFeed((m) => m.saveChannels(api.tenant, rows))
   }
 
   async function createChannel(name: string, description = '') {
@@ -299,9 +316,22 @@ function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
   return { resetView, loadOlder, setSearch }
 }
 
+/**
+ * A first page of the open feed: `rows` (the hub's, or a kept copy), plus the
+ * sends not on the hub yet. 080 T006: a send held for the network - keep its
+ * row; SPL-2026: so is one still waiting for its ack (the mock's 4 s poll ran over it).
+ */
+function withHeld(s: ChannelState, queue: Outbox['queue'], rows: unknown[]) {
+  const { active, peer, messages } = s
+  const fresh = rows.map(feedRow) as unknown as FeedMessage[]
+  const inFlight = (m: FeedMessage) => (m.waiting ? queue.has(m.msg_id) : Boolean(m.pending) && belongsTo(m, { channel: active.value, peer: peer.value }))
+  const held = messages.value.filter((m) => inFlight(m) && !fresh.some((f) => f.msg_id === m.msg_id))
+  return [...fresh, ...held]
+}
+
 /** Opening a channel or DM, its first page, and the catch-up after a reconnect. */
 function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'queue'> & { resetView: () => void }) {
-  const { api, i18n, active, peer, messages, unread, loading, error, totals, olderCursor } = s
+  const { api, i18n, active, peer, messages, unread, loading, error, offlineAt, totals, olderCursor } = s
   const { follow, queue, resetView } = d
   async function selectChannel(name: string) {
     if (active.value !== name || peer.value) resetView()
@@ -322,23 +352,21 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
   async function refresh() {
     loading.value = true
     error.value = null
+    const where = { channel: active.value || undefined, peer: peer.value || undefined }
     try {
       const page = await withSessionRetry(api, () => api.listMessages({
-        channel: active.value || undefined,
-        peer: peer.value || undefined,
+        ...where,
         limit: WINDOW,
       }))
-      const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
-      /* 080 T006: a send held for the network is not on the hub yet - keep its row;
-         SPL-2026: so is one still waiting for its ack (the mock's 4 s poll ran over it) */
-      const inFlight = (m: FeedMessage) => (m.waiting ? queue.has(m.msg_id) : Boolean(m.pending) && belongsTo(m, { channel: active.value, peer: peer.value }))
-      const held = messages.value.filter((m) => inFlight(m) && !fresh.some((f) => f.msg_id === m.msg_id))
-      messages.value = [...fresh, ...held]
+      messages.value = withHeld(s, queue, page.messages || [])
       totals.value = page.totals || {}
       olderCursor.value = page.next || null
+      offlineAt.value = null
+      void offlineFeed((m) => m.keepPage(api.tenant, where, page))
       follow()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_failed')
+      /* SPL-2149: no network - the copy of this feed this device read last */
+      if (!(await offlineFeed((m) => m.showKept(s, (rows: unknown[]) => withHeld(s, queue, rows), e, where)))) error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_failed')
     } finally {
       loading.value = false
     }

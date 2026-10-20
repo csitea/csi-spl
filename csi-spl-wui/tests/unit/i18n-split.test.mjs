@@ -88,7 +88,9 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue', 'components/FeedEmpty.vue', 'components/ComposerDraftState.vue', 'components/TabletStrip.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue', 'components/FeedEmpty.vue', 'components/ComposerDraftState.vue', 'components/TabletStrip.vue', 'components/OfflineBanner.vue'])
+    /* SPL-2149: the offline strip renders only once its strings are merged */
+    assert.match(read('src/components/OfflineBanner.vue'), /const ready = computed\(\(\) => te\('offline\.banner\.title'\)\)/)
     /* SPL-2145: the tablet strip's expand button says the core "Channels" until its own string is merged */
     assert.match(read('src/components/TabletStrip.vue'), /te\('mobile\.tablet_expand'\) \? t\('mobile\.tablet_expand'\) : t\('sidebar\.channels'\)/)
     /* SPL-2143: the composer's "Draft saved" line renders only once its strings are merged */

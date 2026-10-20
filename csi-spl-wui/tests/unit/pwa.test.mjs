@@ -29,12 +29,13 @@ describe('pwa', () => {
     assert.ok(existsSync(join(WUI, 'src/public/icons/apple-touch-icon.png')))
   })
 
-  it('W9: the service worker caches only the app shell, keyed by build, with its own kill switch', () => {
+  it('W9: the service worker caches only the app shell (and, SPL-2149, the hashed bundle files), with its own kill switch', () => {
     const sw = src('src/public/sw.js').replace(/^\s*\/\/.*$/gm, '')
     /* behaviour: tests/unit/sw-app-shell.test.mjs drives the fetch handler */
     assert.match(sw, /const SHELL_CACHE = 'spool-shell-v1'/)
     assert.match(sw, /navigationPreload\.enable\(\)/)
-    assert.match(sw, /k !== SHELL_CACHE\)\.map\(\(k\) => caches\.delete\(k\)\)/)
+    assert.match(sw, /const CHUNK_CACHE = 'spool-chunks-v1'/)
+    assert.match(sw, /k !== SHELL_CACHE && k !== CHUNK_CACHE\)\.map\(\(k\) => caches\.delete\(k\)\)/)
     assert.doesNotMatch(sw, /\.addAll\(/, 'no precache: only documents the network just served')
   })
 

@@ -2,6 +2,8 @@
   <div class="feed-col" data-pane="msgs">
     <FeedHeader :title="'#' + titleName" />
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" :boundary="feedBoundary" />
+    <!-- SPL-2149: shows only offline; mounted here, not in app.vue (027 ci_initial_gzip_kb) -->
+    <LazyOfflineBanner />
   </div>
 </template>
 
@@ -26,6 +28,7 @@ import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { readsKeptCopy } from '~/utils/offline-queue.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -74,7 +77,8 @@ const { releaseStaleTopic } = useTopicFeedClose({
    live waits for a member session — same predicate as onSession. */
 watch([name, () => session.state], async ([n, st]) => {
   topicFeedReady.value = false
-  if (!api.mock && String(st) !== 'in') return
+  /* SPL-2149: offline with no answer from the hub, the copy this device kept */
+  if (!api.mock && String(st) !== 'in' && !readsKeptCopy(st)) return
   void import('~/utils/read-sync-boot').then((m) => m.startReadSync(api)) /* CLE-77930: reads follow the member across devices */
   notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)

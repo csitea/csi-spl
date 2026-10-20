@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Sa oled võrguühenduseta",
+      "kept": "Näidatakse sõnumeid, mille see seade salvestas {time}.",
+      "none": "Uued sõnumid tulevad, kui võrk on tagasi."
+    }
   }
 }

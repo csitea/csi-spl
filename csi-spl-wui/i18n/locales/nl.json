@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Het uitgaverapport komt binnenkort."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Je bent offline",
+      "kept": "Je ziet de berichten die dit apparaat om {time} heeft opgeslagen.",
+      "none": "Nieuwe berichten komen binnen zodra het netwerk terug is."
+    }
   }
 }

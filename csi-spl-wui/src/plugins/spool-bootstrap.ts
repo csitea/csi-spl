@@ -11,6 +11,7 @@ import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { createShellBootstrap } from '~/utils/shell-bootstrap.mjs'
+import { readsKeptCopy } from '~/utils/offline-queue.mjs'
 
 export default defineNuxtPlugin(() => {
   if (!import.meta.client) return
@@ -25,5 +26,10 @@ export default defineNuxtPlugin(() => {
     return
   }
   const session = useSessionStore()
-  watch(() => session.state, (state) => { void boot.onSession(String(state)) }, { immediate: true })
+  watch(() => session.state, (state) => {
+    /* SPL-2149: offline, the probe cannot answer: the channel list this device
+       kept (not boot.start(), which runs once and must still run when 'in') */
+    if (readsKeptCopy(state)) void channel.loadChannels().catch(() => {})
+    void boot.onSession(String(state))
+  }, { immediate: true })
 })

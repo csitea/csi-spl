@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "El informe de versiones llegará pronto."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Estás sin conexión",
+      "kept": "Se muestran los mensajes que este dispositivo guardó a las {time}.",
+      "none": "Los mensajes nuevos llegarán cuando vuelva la red."
+    }
   }
 }

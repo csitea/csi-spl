@@ -20,6 +20,15 @@ export function isOffline(nav = globalThis.navigator) {
 }
 
 /**
+ * SPL-2149: a live tab whose session probe could not reach the hub
+ * ('unknown', auth-v1 section 4) while the browser is offline reads the
+ * copies this device kept (utils/offline-feed.mjs).
+ */
+export function readsKeptCopy(sessionState, nav = globalThis.navigator) {
+  return String(sessionState) === 'unknown' && isOffline(nav)
+}
+
+/**
  * A failure the network caused, not the hub: the socket closed or the ack
  * never came ('closed' / 'timeout') while the browser is offline or the
  * socket is not open. A timeout on an open socket while online is a slow hub:

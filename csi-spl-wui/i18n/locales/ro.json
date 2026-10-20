@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Raportul versiunilor vine în curând."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Ești offline",
+      "kept": "Se afișează mesajele salvate pe acest dispozitiv la {time}.",
+      "none": "Mesajele noi vor sosi când revine rețeaua."
+    }
   }
 }

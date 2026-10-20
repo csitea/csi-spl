@@ -5,6 +5,8 @@
 // the network within FRESH_MS; a reload always goes to the network; a cached
 // answer whose background revalidation names another build tells the tab;
 // the API is never cached; offline falls back to the cached shell.
+// SPL-2149: /_nuxt/** bundle files are kept in their own cache and answered
+// from it first, so an offline reload paints (not /_nuxt/builds/**).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -87,7 +89,14 @@ function worker() {
       matchAll: async () => [...tabs.values()],
     },
   }
-  const fetchImpl = async (req) => { fetched.push(req.url); throw new TypeError('no fetch expected in this test') }
+  /* a test that expects requests sets w.net (url -> Response or Error) */
+  let netFor = null
+  const fetchImpl = async (req) => {
+    fetched.push(req.url)
+    const r = netFor ? netFor(req.url) : new TypeError('no fetch expected in this test')
+    if (r instanceof Error) throw r
+    return r
+  }
   vm.runInNewContext(SW, {
     self, caches: store.api, fetch: (r) => fetchImpl(r), Headers, Response, URL, MessageChannel, console,
     setTimeout: (fn) => setTimeout(fn, 0),
@@ -140,19 +149,21 @@ function worker() {
     await job
   }
 
-  return { go, ask, activate, clock, store, fetched, preload: () => preloadOn }
+  return { go, ask, activate, clock, store, fetched, preload: () => preloadOn, set net(fn) { netFor = fn } }
 }
 
 const shellOf = (w) => w.store.stores.get('spool-shell-v1') || new Map()
+const chunksOf = (w) => w.store.stores.get('spool-chunks-v1') || new Map()
 
 describe('sw.js app shell (perf round 4 W9)', () => {
-  it('activate enables navigation preload and keeps only the shell cache', async () => {
+  it('activate enables navigation preload and keeps only the shell and chunk caches', async () => {
     const w = worker()
     await w.store.api.open('spool-shell-v1')
+    await w.store.api.open('spool-chunks-v1')
     await w.store.api.open('some-old-cache')
     await w.activate()
     assert.equal(w.preload(), true)
-    assert.deepEqual([...w.store.stores.keys()], ['spool-shell-v1'])
+    assert.deepEqual([...w.store.stores.keys()], ['spool-shell-v1', 'spool-chunks-v1'])
   })
 
   it('a navigation with no confirmed build goes to the network (the preload) and keeps the document', async () => {
@@ -226,7 +237,7 @@ describe('sw.js app shell (perf round 4 W9)', () => {
     assert.match(await res.text(), /build-0002/)
   })
 
-  it('the API, non-GET and non-navigation requests are never cached or answered from cache', async () => {
+  it('the API, non-GET and non-navigation requests (bundle files aside) are never cached or answered from cache', async () => {
     const w = worker()
     const cb = await w.go('/api/v1/auth/callback?code=x', net('', { status: 200 }))
     assert.ok(cb.res, 'an API navigation still uses the preload (one request, not two)')
@@ -234,8 +245,10 @@ describe('sw.js app shell (perf round 4 W9)', () => {
     assert.equal(shellOf(w).size, 0)
     const post = await w.go('/login', net(doc('build-0001')), { method: 'POST' })
     assert.equal(post.res, null, 'not intercepted')
-    const sub = await w.go('/_nuxt/entry.js', net('x', { ctype: 'text/javascript' }), { mode: 'no-cors' })
+    const sub = await w.go('/logo.webp', net('x', { ctype: 'image/webp' }), { mode: 'no-cors' })
     assert.equal(sub.res, null, 'not intercepted')
+    const api = await w.go('/api/v1/view/channels', net('{}', { ctype: 'application/json' }), { mode: 'cors' })
+    assert.equal(api.res, null, 'not intercepted')
     await w.go('/build.json', net('{}', { ctype: 'application/json' }))
     assert.equal(shellOf(w).size, 0)
   })
@@ -255,5 +268,48 @@ describe('sw.js app shell (perf round 4 W9)', () => {
     w.clock.now += 3_600_000
     const { res } = await w.go('/lobby', new TypeError('Failed to fetch'))
     assert.match(await res.text(), /build-0001/)
+  })
+})
+
+describe('sw.js bundle files (SPL-2149: offline reading)', () => {
+  const js = (body) => net(body, { ctype: 'text/javascript' })
+
+  it('a /_nuxt file is fetched once, kept, and answered from the cache after that, offline too', async () => {
+    const w = worker()
+    w.net = () => js('chunk-a')
+    const first = await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
+    assert.equal(await first.res.text(), 'chunk-a')
+    assert.ok(chunksOf(w).has(ORIGIN + '/_nuxt/Ab12Cd.js'), 'kept')
+    w.net = () => new TypeError('Failed to fetch')
+    const again = await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
+    assert.equal(await again.res.text(), 'chunk-a', 'offline: the kept copy')
+    assert.deepEqual(w.fetched, [ORIGIN + '/_nuxt/Ab12Cd.js'], 'one network request in all')
+  })
+
+  it('CONTROL: a file never loaded online fails offline, as before (nothing invented)', async () => {
+    const w = worker()
+    w.net = () => new TypeError('Failed to fetch')
+    await assert.rejects(w.go('/_nuxt/Never.js', null, { mode: 'cors' }), TypeError)
+    assert.equal(chunksOf(w).size, 0)
+  })
+
+  it('build meta, other origins and failed answers are never kept', async () => {
+    const w = worker()
+    w.net = (url) => (url.endsWith('/404.js') ? net('gone', { status: 404, ctype: 'text/html' }) : js('x'))
+    const meta = await w.go('/_nuxt/builds/latest.json', null, { mode: 'cors' })
+    assert.equal(meta.res, null, 'build-watch reads the network: not intercepted')
+    await w.go('/_nuxt/404.js', null, { mode: 'cors' })
+    w.net = () => net('x', { type: 'opaque', ctype: 'text/javascript' })
+    await w.go('/_nuxt/Opaque.js', null, { mode: 'no-cors' })
+    assert.equal(chunksOf(w).size, 0)
+  })
+
+  it('at most MAX_CHUNKS (400) files are kept, the oldest dropped first', async () => {
+    const w = worker()
+    w.net = (url) => js(url)
+    for (let i = 0; i < 425; i++) await w.go(`/_nuxt/c${i}.js`, null, { mode: 'cors' })
+    const kept = [...chunksOf(w).keys()]
+    assert.equal(kept.length, 400)
+    assert.equal(kept[0], ORIGIN + '/_nuxt/c25.js', 'the 25 oldest went')
   })
 })

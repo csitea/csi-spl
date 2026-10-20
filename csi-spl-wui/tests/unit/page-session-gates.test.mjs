@@ -25,7 +25,8 @@ describe('channel and dm pages do not duplicate the shell reads (W4)', () => {
       const s = src(page)
       assert.match(s, /useSessionStore\(\)/)
       assert.match(s, /useSpoolApi\(\)/)
-      assert.match(s, /if \(!api\.mock && String\(st\) !== 'in'\) return/)
+      /* SPL-2149: the channel page also opens offline from the kept copy (readsKeptCopy) */
+      assert.match(s, /if \(!api\.mock && String\(st\) !== 'in'( && !readsKeptCopy\(st\))?\) return/)
     })
   }
 

@@ -2307,6 +2307,7 @@ declare module '~/utils/offline-queue.mjs' {
     drain(): Promise<void>
   }
   export function isOffline(nav?: { onLine?: boolean } | null): boolean
+  export function readsKeptCopy(sessionState: unknown, nav?: { onLine?: boolean } | null): boolean
   export function isNetworkFailure(err: unknown, opts?: { offline?: boolean, socket?: string }): boolean
   export function offlineError(): Error & { token: 'closed' }
   export function createSendQueue(opts?: { stillOffline?: (err: unknown) => boolean, onFail?: (msgId: string, err: unknown) => void }): SendQueue

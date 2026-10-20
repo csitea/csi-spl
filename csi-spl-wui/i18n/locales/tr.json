@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Sürüm raporu yakında geliyor."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Çevrimdışısınız",
+      "kept": "Bu cihazın {time} saatinde kaydettiği mesajlar gösteriliyor.",
+      "none": "Yeni mesajlar ağ geri geldiğinde gelir."
+    }
   }
 }

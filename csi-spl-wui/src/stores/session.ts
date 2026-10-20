@@ -222,6 +222,9 @@ function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | nu
       clearDrafts(undefined, hum)
       /* SPL-2556: the view token leaves this tab with the session */
       setViewToken('')
+      /* SPL-2149: the next member never reads the feeds kept for offline reading
+         (utils/offline-feed.mjs OFFLINE_FEEDS_KEY, by name: no chunk to load at sign-out) */
+      try { localStorage.removeItem('spool.offline-feeds') } catch { /* storage blocked: nothing kept */ }
       /* 027 budget: card-clip (and file-preview behind it) is only needed on
          sign-out here, so it is not part of the initial chunk */
       const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')

@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Raport wydań już wkrótce."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Jesteś offline",
+      "kept": "Wyświetlane są wiadomości zapisane na tym urządzeniu o {time}.",
+      "none": "Nowe wiadomości pojawią się, gdy wróci sieć."
+    }
   }
 }

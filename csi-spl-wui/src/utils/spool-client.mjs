@@ -12,6 +12,7 @@ import {
 import { storageGetJson } from './prefs.mjs'
 import { MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { noteLastData } from './last-data.mjs'
+import { isOffline, offlineError } from './offline-queue.mjs'
 
 /**
  * P3-30: the client methods that live in spool-client-lazy.mjs (writers,
@@ -672,7 +673,11 @@ function feedReads(api, mock, mk) {
      * changed after that cursor; `delta` says whether the hub answered so.
      */
     async listMessages({ channel, peer, limit = 50, since, topics = 20, before, changedSince, rx } = {}) {
-      if (mock) return (await mk.answers()).mockListMessages(mk.state, { channel, peer, limit, since })
+      if (mock) {
+        /* SPL-2149: an offline browser reaches no hub - the mock's reads fail as a fetch would */
+        if (isOffline()) throw offlineError()
+        return (await mk.answers()).mockListMessages(mk.state, { channel, peer, limit, since })
+      }
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
       /* CLE-34984 / T122: one request for the whole page where the hub
          inlines each topic's newest `limit` messages; a topic the answer
@@ -732,7 +737,10 @@ function shellReads(mock, mk, live) {
      * retention_days.
      */
     async listChannels({ read } = {}) {
-      if (mock) return mk.state.channels.slice()
+      if (mock) {
+        if (isOffline()) throw offlineError()
+        return mk.state.channels.slice()
+      }
       const q = new URLSearchParams()
       for (const r of channelReadQuery(read)) q.append('read', r)
       const qs = q.toString()

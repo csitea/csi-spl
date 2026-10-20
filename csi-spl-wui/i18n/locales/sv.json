@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Versionsrapporten kommer snart."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Du är offline",
+      "kept": "Visar meddelandena som den här enheten sparade {time}.",
+      "none": "Nya meddelanden kommer när nätverket är tillbaka."
+    }
   }
 }

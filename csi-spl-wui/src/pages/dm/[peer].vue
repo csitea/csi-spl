@@ -24,6 +24,8 @@
       <p v-if="startCalled" class="dm-start__hint" role="status" data-test="dm-start-hint">{{ t(startHintKey) }}</p>
     </div>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" :seated-at="seatedAt" />
+    <!-- SPL-2149: shows only offline (components/OfflineBanner.vue) -->
+    <LazyOfflineBanner />
   </div>
 </template>
 

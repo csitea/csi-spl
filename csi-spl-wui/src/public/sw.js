@@ -21,14 +21,26 @@
 // tab gets SHELL_STALE and plugins/pwa.client.ts applies build-watch's own
 // reload rules. A deploy therefore never sticks behind the old shell.
 // Offline, a navigation falls back to the cached document of that path.
-// /_nuxt/** stays the HTTP cache's (immutable); /api/** is never cached.
+// /api/** is never cached.
+//
+// Bundle files (SPL-2149, UI suggestion 8). Offline, the cached document
+// alone painted nothing: every /_nuxt chunk it names failed unless the HTTP
+// cache still held it (measured on the mock bundle served without Hosting's
+// immutable header: 0 characters of text after an offline reload). Each
+// /_nuxt/** file a page loads is now kept in CHUNK_CACHE and answered from
+// there first. Their names carry a content hash, so a kept file is never
+// stale; a new build asks for new names. /_nuxt/builds/** (latest.json, the
+// build meta) stays the network's: build-watch reads it to find a deploy.
+// At most MAX_CHUNKS files, the oldest dropped first.
 //
 // Kill switch: activate deletes every Cache Storage entry except
-// SHELL_CACHE, so renaming SHELL_CACHE (or shipping the network-only worker
-// again, which deleted them all) drops every shell. Served with max-age=0
+// SHELL_CACHE and CHUNK_CACHE, so renaming them (or shipping the network-only
+// worker again, which deleted them all) drops every shell and chunk. Served with max-age=0
 // (firebase.json `**`) and registered with updateViaCache 'none', so a new
 // copy is picked up on the next navigation.
 const SHELL_CACHE = 'spool-shell-v1'
+const CHUNK_CACHE = 'spool-chunks-v1'
+const MAX_CHUNKS = 400
 const FRESH_MS = 30000
 const SHELL_STALE = 'spool:shell-stale'
 const SHELL_ASK = 'spool:shell-ask'
@@ -45,7 +57,7 @@ self.addEventListener('install', () => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys()
-    await Promise.all(keys.filter((k) => k !== SHELL_CACHE).map((k) => caches.delete(k)))
+    await Promise.all(keys.filter((k) => k !== SHELL_CACHE && k !== CHUNK_CACHE).map((k) => caches.delete(k)))
     const reg = self.registration
     if (reg && reg.navigationPreload) {
       try { await reg.navigationPreload.enable() } catch { /* not supported: plain fetch */ }
@@ -162,10 +174,45 @@ self.addEventListener('message', (event) => {
   }))
 })
 
+/** A hashed bundle file of this app: /_nuxt/**, not the build meta. */
+function isChunkPath(url) {
+  return url.origin === self.location.origin && url.pathname.startsWith('/_nuxt/') && !url.pathname.startsWith('/_nuxt/builds/')
+}
+
+/** puts since the last trim: the cache is counted every TRIM_EVERY puts */
+let chunkPuts = 0
+const TRIM_EVERY = 25
+
+async function trimChunks(cache) {
+  const keys = await cache.keys()
+  for (const old of keys.slice(0, Math.max(0, keys.length - MAX_CHUNKS))) await cache.delete(old)
+}
+
+/** Kept copy first; else the network, kept when it is a whole same-origin 200. */
+async function chunk(event) {
+  const req = event.request
+  const cache = await caches.open(CHUNK_CACHE)
+  const kept = await cache.match(req, { ignoreSearch: true })
+  if (kept) return kept
+  const res = await fetch(req)
+  if (res.status === 200 && res.type === 'basic') {
+    const copy = res.clone()
+    event.waitUntil(cache.put(req, copy).then(() => {
+      if (++chunkPuts % TRIM_EVERY === 0) return trimChunks(cache)
+      return undefined
+    }).catch(() => { /* a full or blocked cache: the file still answers, it is just not kept */ }))
+  }
+  return res
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
-  if (req.mode !== 'navigate' || req.method !== 'GET') return
-  event.respondWith(navigate(event))
+  if (req.method !== 'GET') return
+  if (req.mode === 'navigate') {
+    event.respondWith(navigate(event))
+    return
+  }
+  if (isChunkPath(new URL(req.url))) event.respondWith(chunk(event))
 })
 
 // Bug A (t1 5002067f): on Android a new-message alert can only be shown

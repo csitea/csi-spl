@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "The Releases report is coming soon."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "You are offline",
+      "kept": "Showing the messages this device saved at {time}.",
+      "none": "New messages arrive when the network is back."
+    }
   }
 }

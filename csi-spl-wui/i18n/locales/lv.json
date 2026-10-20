@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Laidienu pārskats drīzumā."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Jūs esat bezsaistē",
+      "kept": "Tiek rādītas ziņas, ko šī ierīce saglabāja {time}.",
+      "none": "Jaunās ziņas pienāks, kad tīkls atjaunosies."
+    }
   }
 }

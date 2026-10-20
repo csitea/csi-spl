@@ -3232,5 +3232,12 @@
     "releases": {
       "soon": "Julkaisuraportti on tulossa pian."
     }
+  },
+  "offline": {
+    "banner": {
+      "title": "Olet offline-tilassa",
+      "kept": "Näytetään viestit, jotka tämä laite tallensi {time}.",
+      "none": "Uudet viestit tulevat, kun verkko palaa."
+    }
   }
 }

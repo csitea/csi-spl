@@ -58,6 +58,9 @@ export const ON_DEMAND_COMPONENTS = {
   // "Channels" until its own string is merged (a key literal here would
   // pull it into core)
   "components/TabletStrip.vue": "idle",
+  // SPL-2149: the offline strip renders once its own strings are merged
+  // (te()); app.vue mounts it only offline, so first paint is unchanged
+  "components/OfflineBanner.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

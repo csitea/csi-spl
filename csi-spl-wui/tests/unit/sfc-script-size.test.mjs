@@ -27,7 +27,6 @@ const MAX_SCRIPT = 500
 // NEW file over MAX_SCRIPT fails.
 const BIG = new Map([
   ['src/pages/issues.vue', 876],
-  ['src/components/CalendarMainView.vue', 612],
 ])
 
 function walk(dir, out = []) {

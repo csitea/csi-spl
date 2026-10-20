@@ -215,14 +215,12 @@ import { calendarRestore, calendarUpdate } from '~/utils/calendar-events-api.mjs
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import {
-  CAL_DAY_MIN, CAL_DRAG_PX, CAL_HOLD_MS, CAL_SNAP_MIN, CAL_TOUCH_SLOP_PX,
-  calCreateSlot, calDayLayout, calDragErrorKey, calEventDay, calHhmm, calMinuteOf, calMoveTo, calResizeTo, calSameTimes, calSnap,
-} from '~/utils/calendar-drag.mjs'
+import { CAL_DAY_MIN, CAL_SNAP_MIN, calDayLayout, calDragErrorKey, calEventDay, calHhmm } from '~/utils/calendar-drag.mjs'
 import type { CalTimes } from '~/utils/calendar-drag.mjs'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
+import { useCalendarDrag } from '~/composables/useCalendarDrag'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 
 const props = defineProps<{ focus: string, today: string }>()
@@ -486,8 +484,8 @@ const ITEM_MENU_ITEMS: PointMenuItem[] = [{ id: 'copy_link', icon: 'copy', label
 const itemMenu = shallowRef<{ x: number, y: number, ev: CalendarItem } | null>(null)
 const { copyLink } = useCalendarEventLink()
 function onItemMenu(e: MouseEvent, ev: CalendarItem) {
-  if (gesture) e.preventDefault()
-  if (gesture || !calStored(ev)) return
+  if (active()) e.preventDefault()
+  if (active() || !calStored(ev)) return
   e.preventDefault()
   itemMenu.value = { x: e.clientX, y: e.clientY, ev }
 }
@@ -565,32 +563,14 @@ async function issueLinkMissing(key: string) {
   notice.value = miss.notice
 }
 
-/* ---- 097 T013: drag ---------------------------------------------------- */
+/* ---- 097 T013: drag (useCalendarDrag) ------------------------------------ */
 
-type Gesture = {
-  kind: 'move' | 'resize' | 'create'
-  ev: CalendarItem | null
-  day: string
-  pointerId: number
-  touch: boolean
-  x0: number
-  y0: number
-  t0: number
-  live: boolean
-  timer: ReturnType<typeof setTimeout> | undefined
-  grab: number
-  from: number
-}
-let gesture: Gesture | null = null
-const dragging = ref(false)
-const lifted = ref('')
-const ghost = ref<{ day: string, a: number, b: number } | null>(null)
 const saving = ref('')
 const notice = ref('')
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
-/* the click a drag's release makes is not a click on the day or the event */
-let upStamp = Number.NEGATIVE_INFINITY
-const dragClick = (e: Event) => e.timeStamp - upStamp < 100
+const { dragging, lifted, ghost, active, dragClick, onItemDown, onResizeDown, onGridDown, onContextMenu } = useCalendarDrag({
+  weekEl, preview, busy: () => !!saving.value, onCreate: openCreate, onDrop: (ev, next) => { void saveTimes(ev, next) },
+})
 
 function itemAttrs(ev: CalendarItem) {
   const edit = calEditable(ev)
@@ -622,155 +602,7 @@ function itemAttrs(ev: CalendarItem) {
 }
 const resizable = (ev: CalendarItem) => calEditable(ev) && !ev.all_day
 
-/* under the pointer: a grid's day and minute, or a list day (minute null) */
-function hitAt(x: number, y: number): { day: string, min: number | null } | null {
-  for (const el of document.elementsFromPoint(x, y)) {
-    const g = el.closest<HTMLElement>('[data-grid-day]')
-    if (g) {
-      const r = g.getBoundingClientRect()
-      return { day: String(g.dataset.gridDay), min: ((y - r.top) / r.height) * CAL_DAY_MIN }
-    }
-    const d = el.closest<HTMLElement>('[data-test=calendar-week-day]')
-    if (d) return { day: String(d.dataset.day), min: null }
-  }
-  return null
-}
-
-function begin(e: PointerEvent, kind: Gesture['kind'], ev: CalendarItem | null, day: string) {
-  if (e.button !== 0 || gesture || saving.value) return
-  const hit = hitAt(e.clientX, e.clientY)
-  const min = hit?.min ?? null
-  gesture = {
-    kind, ev, day, pointerId: e.pointerId, touch: e.pointerType !== 'mouse',
-    x0: e.clientX, y0: e.clientY, t0: e.timeStamp, live: false, timer: undefined,
-    grab: ev && min !== null && !ev.all_day ? min - calMinuteOf(ev.starts_at) : 0,
-    from: min === null ? 0 : Math.floor(min / CAL_SNAP_MIN) * CAL_SNAP_MIN,
-  }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onUp)
-  window.addEventListener('pointercancel', onCancel)
-  /* a resize handle is its own target: it drags at once, finger or mouse */
-  if (kind === 'resize') liftOff()
-  else if (gesture.touch) gesture.timer = setTimeout(liftOff, CAL_HOLD_MS)
-}
-
-function onItemDown(e: PointerEvent, ev: CalendarItem, day: string) {
-  e.stopPropagation()
-  if (calEditable(ev)) begin(e, 'move', ev, day)
-}
-function onResizeDown(e: PointerEvent, ev: CalendarItem, day: string) {
-  if (!calEditable(ev)) return
-  e.preventDefault()
-  begin(e, 'resize', ev, day)
-}
-function onGridDown(e: PointerEvent, day: string) {
-  begin(e, 'create', null, day)
-}
-
-/* the hold is over (or the mouse moved): the drag begins */
-function liftOff() {
-  const g = gesture
-  if (!g || g.live) return
-  g.live = true
-  dragging.value = true
-  if (g.ev) lifted.value = g.ev.id
-  if (g.kind === 'create') ghost.value = { day: g.day, a: g.from, b: g.from + 60 }
-}
-
-function onMove(e: PointerEvent) {
-  const g = gesture
-  if (!g || e.pointerId !== g.pointerId) return
-  if (!g.live) {
-    const far = Math.hypot(e.clientX - g.x0, e.clientY - g.y0)
-    /* a hold is judged by the input's own clock: a busy page may run the
-       timer after the finger has already held long enough and moved */
-    if (g.touch && e.timeStamp - g.t0 >= CAL_HOLD_MS) liftOff()
-    else if (g.touch && far > CAL_TOUCH_SLOP_PX) stop() /* a swipe: the list scrolls */
-    else if (!g.touch && far > CAL_DRAG_PX) liftOff()
-    if (!g.live) return
-  }
-  e.preventDefault()
-  follow(g, e.clientX, e.clientY)
-  edgeScroll(e.clientY)
-}
-
-function follow(g: Gesture, x: number, y: number) {
-  const hit = hitAt(x, y)
-  if (!hit) return
-  if (g.kind === 'create') {
-    if (hit.day === g.day && hit.min !== null) ghost.value = { day: g.day, a: g.from, b: calSnap(hit.min) }
-    return
-  }
-  const ev = g.ev!
-  let next: CalTimes | null = null
-  if (g.kind === 'resize') {
-    if (hit.day === g.day && hit.min !== null) next = calResizeTo(ev, calSnap(hit.min))
-  } else {
-    next = calMoveTo(ev, hit.day, hit.min === null || ev.all_day ? null : calSnap(hit.min - g.grab, 0, CAL_DAY_MIN - CAL_SNAP_MIN))
-  }
-  if (next) preview.value = { id: ev.id, ...next }
-}
-
-/* near the scroller's top or bottom edge the view scrolls on */
-function edgeScroll(y: number) {
-  const box = weekEl.value
-  if (!box) return
-  const r = box.getBoundingClientRect()
-  if (y < r.top + 32) box.scrollTop -= 12
-  else if (y > r.bottom - 32) box.scrollTop += 12
-}
-
-/* a live drag keeps the finger from scrolling. The listener is on the
-   scroller for good: the browser decides at touchstart whether a touch may
-   be cancelled, so one added at pointerdown is too late (every touchmove
-   then arrives uncancelable and the day scrolls under the drag) */
-function onTouchMove(e: TouchEvent) {
-  if (gesture?.live && e.cancelable) e.preventDefault()
-}
-onMounted(() => weekEl.value?.addEventListener('touchmove', onTouchMove, { passive: false }))
-onBeforeUnmount(() => weekEl.value?.removeEventListener('touchmove', onTouchMove))
-function onContextMenu(e: Event) {
-  if (gesture) e.preventDefault()
-}
-
-function stop() {
-  const g = gesture
-  if (g?.timer) clearTimeout(g.timer)
-  gesture = null
-  dragging.value = false
-  lifted.value = ''
-  window.removeEventListener('pointermove', onMove)
-  window.removeEventListener('pointerup', onUp)
-  window.removeEventListener('pointercancel', onCancel)
-}
-function onCancel(e: PointerEvent) {
-  if (!gesture || e.pointerId !== gesture.pointerId) return
-  stop()
-  preview.value = null
-  ghost.value = null
-}
-function onUp(e: PointerEvent) {
-  const g = gesture
-  if (!g || e.pointerId !== g.pointerId) return
-  const live = g.live
-  stop()
-  if (!live) return
-  upStamp = e.timeStamp
-  if (g.kind === 'create') {
-    const gh = ghost.value
-    ghost.value = null
-    if (gh) openCreate(g.day, calCreateSlot(gh.a, gh.b))
-    return
-  }
-  const next = preview.value
-  if (!next || calSameTimes(g.ev!, next)) {
-    preview.value = null
-    return
-  }
-  void saveTimes(g.ev!, next)
-}
 onBeforeUnmount(() => {
-  stop()
   if (noticeTimer) clearTimeout(noticeTimer)
 })
 

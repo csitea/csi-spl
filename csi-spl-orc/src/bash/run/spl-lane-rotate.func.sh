@@ -333,7 +333,7 @@ spl_lane_rotate_workdir() {
   local w
   w="$(jq -r '.worktree // empty' "$SPOOL_ROOT/agents/$1.json" 2>/dev/null || true)"
   [[ -n "$w" && -d "$w" ]] && { echo "$w"; return 0; }
-  ROTATE_OLD_PID="$2" spl_rotate_workdir "$1"
+  ROTATE_OLD_PID="$2" spl_rotate_workdir "$1" || true
 }
 
 # ---- the login probe (do_spl_agent_login_check's) -------------------------------

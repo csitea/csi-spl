@@ -209,7 +209,7 @@ spl_ars_gate() {
     *) ARS_CODE="$cause" ARS_EV="${ARS_EV:-requested ($cause), no situation re-run}" ;;
   esac
   [[ -z "$left" ]] || ARS_PID=""
-  ARS_WT="$(spl_rotate_workdir "$id")"
+  ARS_WT="$(spl_rotate_workdir "$id")" || { spl_ars_refuse "$id" 4 "$(spl_rotate_workdir_why "$id")"; return; }
   # shellcheck disable=SC2034 # read by the takeover helpers (spl_wdt_section, spl_wdt_spawn)
   WDT_CODE="$ARS_CODE" WDT_EV="$ARS_EV" WDT_CTX="$ctx" WDT_PID="$ARS_PID" WDT_PANE="$ARS_PANE" WDT_SEAT=""
   if spl_peer_seated "$id"; then WDT_SEAT=1; else PEER_HARNESS="$(spl_wd_harness "$id")"; fi

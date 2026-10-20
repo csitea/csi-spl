@@ -107,6 +107,15 @@ its weekly limit on 2026-10-01.
   - as the agent user (`SPOOL_AGENT_USER` from box.env);
   - through `spawn-window.sh claude <ID>` with `SPAWN_REUSE_ID=1`: the same
     spool dir, so the same inbox and archive.
+  - in a working dir that is never a home dir (`spl_rotate_workdir`,
+    SPL-2715): `ROTATE_WORKDIR`, else the id's newest registry rundir (on a
+    seat switch, the other end's too), else the old pid's cwd (read as root,
+    `ROTATE_PRIV`, when the caller cannot), else for a role id the role's
+    checkout (`ROTATE_ROLE_WORKDIR`, default the tree the code runs from).
+    None of them = the step FAILs with the reason. In a home dir Claude reads
+    `<home>/.claude/settings.json` as project settings: on 2026-10-20 (one box,
+    rid `20261020T0905Z-orch`) a hook there denied every Bash call and the
+    successor never acked.
 
   The spawn rewrites the identity map `agents/<ID>.json` for the new pid. The
   rotation checks that `ai_pane_of <ID>` resolves to the NEW pane before it

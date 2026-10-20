@@ -129,7 +129,7 @@ spl_orch_rotate_auto() {
     [[ -n "$new" ]] && spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: role rename (spool dir, registry, identity, window, dev+prd desks), lease.conf LEASE_ORCH=$new; the successor starts as $new"
     [[ -z "$new" ]] && new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]] &&
       spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: the $ROTATE_KIND successor takes its vendor's id (seat switch: spool dir, links for the other letters, registry, identity, dev+prd desks); lease.conf LEASE_ORCH=$new once its pid shows"
-    spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN $ROTATE_KIND $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt the new pid; vendor: $ROTATE_VENDOR_WHY"
+    spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN $ROTATE_KIND $id $(spl_rotate_workdir "$id" || echo "REFUSED: $(spl_rotate_workdir_why "$id")") <seed> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt the new pid; vendor: $ROTATE_VENDOR_WHY"
     spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$id/outbox"
     spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more"
     spl_rotate_log "$rid" CLOSE PLAN "close $pane by pane id; check one process, the lease, the map"

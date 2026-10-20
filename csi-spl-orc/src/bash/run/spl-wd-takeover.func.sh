@@ -236,7 +236,7 @@ spl_wdt_run() {
     spl_peer_rlog "$rid" WD-HANDOFF PLAN "$hand (the 060 handoff + ## watchdog)"
     local a="the old first prompt"; [[ -n "$WDT_BOXENV" ]] && a="the fresh seat section"
     spl_peer_rlog "$rid" WD-SEED PLAN "$seed: $a + the handoff"
-    spl_peer_rlog "$rid" WD-SPAWN PLAN "$ROTATE_SPAWN $PEER_HARNESS $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1); wait ${WD_START_WAIT}s"
+    spl_peer_rlog "$rid" WD-SPAWN PLAN "$ROTATE_SPAWN $PEER_HARNESS $id $(spl_rotate_workdir "$id" || echo "REFUSED: $(spl_rotate_workdir_why "$id")") <seed> (SPAWN_REUSE_ID=1); wait ${WD_START_WAIT}s"
     [[ -n "$WDT_BOXENV" ]] && spl_peer_rlog "$rid" WD-SPAWN PLAN "windowless seat: a fresh session, no --resume; SPAWN_BOX=local $(tr '\n' ' ' <<<"$WDT_BOXENV")"
     [[ -n "$WDT_PID" ]] && spl_peer_rlog "$rid" WD-RETIRE PLAN "TERM pid $WDT_PID, KILL after ${ROTATE_TERM_WAIT}s"
     spl_peer_rlog "$rid" WD-BLOCKER PLAN "one blocker to the peers on task wd-$id-$ts"

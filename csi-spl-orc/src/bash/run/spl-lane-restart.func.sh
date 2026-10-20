@@ -66,8 +66,7 @@ do_spl_lane_restart() {
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_lane_restart_log "$rid" GATE FAIL "$id pid $pid sits in no tmux pane"; return 1; }
   ROTATE_OLD_PID="$pid"
-  wt="$(spl_rotate_workdir "$id")"
-  [[ -d "$wt" && "$wt" != "$HOME" ]] || { spl_lane_restart_log "$rid" GATE FAIL "no worktree for $id"; return 1; }
+  wt="$(spl_rotate_workdir "$id")" || { spl_lane_restart_log "$rid" GATE FAIL "no worktree for $id: $(spl_rotate_workdir_why "$id")"; return 1; }
   if ! spl_lane_restart_clean "$wt"; then
     spl_lane_restart_log "$rid" GATE FAIL "$wt: $LANE_DIRTY; land what is green (commit, rebase, push) first"
     return 1

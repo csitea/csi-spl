@@ -191,7 +191,7 @@ spl_peer_restart_seat() {
     spl_peer_rlog "$rid" LOOP PLAN "stop the $id poll loop (its locks stay on the hub)"
     spl_peer_rlog "$rid" HANDOFF PLAN "$hand (the 060 handoff, no lease lines)"
     spl_peer_rlog "$rid" SEED PLAN "$seed: $(spl_peer_distill_state "$id") + the handoff"
-    spl_peer_rlog "$rid" SPAWN PLAN "$ROTATE_SPAWN $PEER_HARNESS $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1); wait ${PEER_START_WAIT}s for its pid"
+    spl_peer_rlog "$rid" SPAWN PLAN "$ROTATE_SPAWN $PEER_HARNESS $id $(spl_rotate_workdir "$id" || echo "REFUSED: $(spl_rotate_workdir_why "$id")") <seed> (SPAWN_REUSE_ID=1); wait ${PEER_START_WAIT}s for its pid"
     [[ -n "$pid" ]] && spl_peer_rlog "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${PEER_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more"
     spl_peer_rlog "$rid" LOOP PLAN "start the $id poll loop"
     echo "---- DRY_RUN: nothing was touched. Re-run with DRY_RUN=0."
@@ -255,8 +255,9 @@ spl_peer_retire() {
 # non-zero = failed, the reason in ROTATE_ERR.
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_peer_restart_spawn() {
-  local id="$1" seed="$2" sess="" tag="${SPOOL_BOX_TAG:-}" bin="" out pid user t0 got
+  local id="$1" seed="$2" sess="" tag="${SPOOL_BOX_TAG:-}" bin="" out pid user t0 got wd
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID=""
+  wd="$(spl_rotate_workdir "$id")" || { ROTATE_ERR="$(spl_rotate_workdir_why "$id")"; return 1; }
   if [[ -n "$ROTATE_OLD_PANE" ]]; then
     spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
       { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
@@ -269,7 +270,7 @@ spl_peer_restart_spawn() {
   fi
   out="$(env ${sess:+"SPOOL_SESSION=$sess"} SPAWN_REUSE_ID=1 SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
     SPAWN_LANE_SCOPE="seat $id (restart $ROTATE_RID)" \
-    bash "$ROTATE_SPAWN" "$PEER_HARNESS" "$id" "$(spl_rotate_workdir "$id")" "$seed" peer-restart 2>&1 6>&- 7>&- 8>&- 9>&-)" || true
+    bash "$ROTATE_SPAWN" "$PEER_HARNESS" "$id" "$wd" "$seed" peer-restart 2>&1 6>&- 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"
   [[ -n "$ROTATE_NEW_PANE" ]] || { ROTATE_ERR="spawn printed no pane: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; return 1; }
   t0=$SECONDS

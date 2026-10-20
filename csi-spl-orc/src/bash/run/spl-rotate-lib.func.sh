@@ -945,7 +945,7 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # Non-zero = failed, the reason in ROTATE_ERR; the caller runs spl_rotate_restore.
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_spawn() {
-  local id="$1" seed="$2" sess out pid user t0 got tag bin
+  local id="$1" seed="$2" sess out pid user t0 got tag bin wd
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG=""
   # no old window (a seat whose process is gone, do_spl_role_failover): no
   # rename, and spawn-window picks the session (SPOOL_SESSION, else the attached one)
@@ -963,10 +963,11 @@ spl_rotate_spawn() {
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
   [[ "${ROTATE_KIND:-claude}" == claude ]] || bin=""
+  wd="$(spl_rotate_workdir "$id")" || { ROTATE_ERR="$(spl_rotate_workdir_why "$id")"; return 1; }
   # SPAWN_START_CHECK=0: the dialog check runs here, once the pid is known
   out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
     SPAWN_LANE_SCOPE="${ROTATE_LANE_SCOPE:-role $id (rotation $ROTATE_RID)}" \
-    bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
+    bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$wd" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"
   [[ -n "$ROTATE_NEW_PANE" ]] || { ROTATE_ERR="spawn printed no pane: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; return 1; }
   spl_rotate_log "$ROTATE_RID" SPAWN WAIT "spawn-window: $(tr '\n' '|' <<<"$out" | tail -c 400)"
@@ -1040,13 +1041,74 @@ spl_rotate_start_check() {
   return 0
 }
 
-# The new session's working dir: ROTATE_WORKDIR, else the id's newest
-# registry rundir, else the old process's cwd, else HOME.
+# spl_rotate_workdir ID: the new session's working dir, the first usable of:
+# ROTATE_WORKDIR; the id's newest registry rundir (on a seat switch, the other
+# end's too: ROTATE_SWITCH_FROM / ROTATE_SWITCH_TO); the old process's cwd,
+# read as root (ROTATE_PRIV, default sudo -n) when the caller cannot (the old
+# pid runs as the agent user); for a role id (LEASE_ORCH / _MASTER /
+# _FAILOVER or a seat switch end) the role's checkout, ROTATE_ROLE_WORKDIR,
+# else the tree this code runs from. Never a home dir (spl_rotate_is_home):
+# there Claude loads <home>/.claude/settings.json as PROJECT settings; on
+# 2026-10-20 (one box, rid 20261020T0905Z-orch) its failing hook denied every
+# Bash call and the successor never acked (SPL-2715). Nothing usable =
+# prints nothing, exit 1: the caller fails the step (spl_rotate_workdir_why).
 spl_rotate_workdir() {
-  local d="${ROTATE_WORKDIR:-}"
-  [[ -n "$d" ]] || d="$(awk -F'\t' -v id="$1" '$1 == id {r = $4} END {print r}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
-  [[ -n "$d" && -d "$d" ]] || d="$(readlink "${LEASE_PROC_ROOT:-/proc}/${ROTATE_OLD_PID:-0}/cwd" 2>/dev/null || true)"
-  echo "${d:-$HOME}"
+  local id="$1" d c
+  for c in "${ROTATE_WORKDIR:-}" "$(spl_rotate_registry_dir "$id")" \
+           "$(spl_rotate_registry_dir "${ROTATE_SWITCH_FROM:-}")" "$(spl_rotate_registry_dir "${ROTATE_SWITCH_TO:-}")" \
+           "$(spl_rotate_old_cwd)"; do
+    spl_rotate_workdir_ok "$c" && { echo "$c"; return 0; }
+  done
+  if spl_rotate_is_role "$id"; then
+    d="${ROTATE_ROLE_WORKDIR:-}"
+    [[ -n "$d" || -z "${PROJ_PATH:-}" ]] || d="$(cd "$PROJ_PATH/.." 2>/dev/null && pwd || true)"
+    spl_rotate_workdir_ok "$d" && { echo "$d"; return 0; }
+  fi
+  return 1
+}
+
+# The refusal reason for a step whose spl_rotate_workdir printed nothing.
+spl_rotate_workdir_why() {
+  local role=""
+  spl_rotate_is_role "$1" && role=", no role checkout"
+  echo "no working dir for $1: no registry rundir, the old pid's cwd (pid ${ROTATE_OLD_PID:-none}) unreadable or a home dir$role; a new session never starts in a home dir (SPL-2715)"
+}
+
+# The newest registry rundir of ID (nothing for an empty ID).
+spl_rotate_registry_dir() {
+  [[ -n "${1:-}" ]] || return 0
+  awk -F'\t' -v id="$1" '$1 == id {r = $4} END {print r}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true
+}
+
+# The old process's cwd: read plainly, else as root (ROTATE_PRIV).
+spl_rotate_old_cwd() {
+  local f="${LEASE_PROC_ROOT:-/proc}/${ROTATE_OLD_PID:-}/cwd"
+  [[ -n "${ROTATE_OLD_PID:-}" ]] || return 0
+  readlink "$f" 2>/dev/null || ${ROTATE_PRIV:-sudo -n} readlink "$f" 2>/dev/null || true
+}
+
+# 0 when DIR is an existing dir and not a home dir.
+spl_rotate_workdir_ok() { [[ -n "$1" && -d "$1" ]] && ! spl_rotate_is_home "$1"; }
+
+# 0 when DIR is $HOME, the agent user's home or any account's home (passwd).
+spl_rotate_is_home() {
+  local d h
+  d="$(cd "$1" 2>/dev/null && pwd -P || echo "$1")"
+  for h in "${HOME:-}" "${ROTATE_AGENT_HOME:-}"; do
+    [[ -n "$h" && "$d" == "$(cd "$h" 2>/dev/null && pwd -P || echo "$h")" ]] && return 0
+  done
+  getent passwd 2>/dev/null | cut -d: -f6 | grep -xF -- "$d" >/dev/null
+}
+
+# 0 when ID holds a role here (lease.conf), is one end of a seat switch or
+# a role seat id (<letter>-001..004, spec 102 section 2).
+spl_rotate_is_role() {
+  [[ -n "$1" ]] || return 1
+  [[ "$1" =~ ^[a-z]-00[1-4]$ ]] && return 0
+  case "$1" in
+    "${LEASE_ORCH:-/}"|"${LEASE_MASTER:-/}"|"${LEASE_FAILOVER:-/}"|"${ROTATE_SWITCH_FROM:-/}"|"${ROTATE_SWITCH_TO:-/}") return 0 ;;
+  esac
+  return 1
 }
 
 # spl_rotate_restore ID OLD_PANE NEW_PANE: the failure path. The new session

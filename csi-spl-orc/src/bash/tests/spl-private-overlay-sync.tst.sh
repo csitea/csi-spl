@@ -113,8 +113,8 @@ run_sync DRY_RUN=0 && fail "a newer target is overwritten" ||
 run_sync DRY_RUN=0 SYNC_FROM_USER=agnt && same && [[ "$(cat "$T/owners/$(stat -c %i "$(ovl ownr)")")" == ownr ]] &&
   pass "SYNC_FROM_USER=agnt copies the agent's copy to the owner" || fail "from agnt: $(cat "$T/o")"
 
-# --- 6. the provision path syncs both at once ------------------------------------------------------
-SNIP='spl_th_token zq-new new' run_sync MARK_DB=0 TENANT_VISIBLE=0; rc=$?
+# --- 6. the provision path syncs both at once (a box run: CI refuses a new hidden tenant) ---
+SNIP='spl_th_token zq-new new' run_sync MARK_DB=0 TENANT_VISIBLE=0 GITHUB_ACTIONS=; rc=$?
 [[ $rc -eq 0 ]] && grep -q "^ws-hidden-0[0-9]$" "$T/o" && same && grep -q "INFO agnt: replaced" "$T/o" &&
   pass "a new hidden tenant on the master box reaches both users" || fail "provision: rc=$rc out=$(cat "$T/o")"
 

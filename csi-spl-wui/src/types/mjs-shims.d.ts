@@ -2231,6 +2231,15 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileOverlayState(state: unknown, id: number | null): Record<string, unknown>
   export function mobileOverlayPop(open: number[], state: unknown, lastPos: number | null):
     | { kind: 'none' } | { kind: 'close', keep: number } | { kind: 'leave' } | { kind: 'dead', back: boolean }
+  export function mobileStatePosition(state: unknown): number | null
+  export function mobileRecordStep(tagged: MobileLevel | null, next: MobileLevel, inPlace: boolean): { step: 'tag' | 'push' | 'none', clearInPlace: boolean }
+  export function mobilePushPlan(href: string, state: unknown, next: MobileLevel, tagged: MobileLevel | null): { under: string | null, state: Record<string, unknown>, url: string | undefined }
+  export function mobileBackStep(s: { mobile: boolean, overlays: number, level: MobileLevel, hasBelow: boolean, up: () => boolean }): 'overlay' | 'history' | 'down' | 'none'
+  export function mobileAfterNavStep(failure: 'duplicated' | 'other' | null, mobile: boolean, tagged: MobileLevel | null): 'push' | 'tag' | 'none'
+  export function mobileSwipeStart(active: boolean, touches: ArrayLike<{ clientX: number, clientY: number }> | null | undefined): { x: number, y: number } | null
+  export function mobilePopDropsTopic(step: { kind: string, back?: boolean }): boolean
+  export function mobileOverlayCloseStep(open: number[], id: number, current: number | null): 'back' | 'drop' | 'wait' | 'none'
+  export function mobileStaleLoginLoad(navType: string | undefined, phone: boolean, path: string): boolean
 }
 
 declare module '~/utils/viewport-resize.mjs' {

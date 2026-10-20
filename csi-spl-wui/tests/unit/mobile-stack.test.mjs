@@ -9,13 +9,23 @@ import {
   isMobileBackSwipe,
   isMobileFrontDoor,
   isStaleLoginStep,
+  mobileAfterNavStep,
+  mobileBackStep,
   mobileHasBelow,
   mobileHistoryStep,
   mobileInPlaceStep,
   mobileInitialLevel,
   mobileLoginFrontDoor,
   mobileLevelOf,
+  mobileOverlayCloseStep,
+  mobileOverlayOf,
+  mobilePopDropsTopic,
+  mobilePushPlan,
+  mobileRecordStep,
+  mobileStaleLoginLoad,
   mobileStaleTopicUrl,
+  mobileStatePosition,
+  mobileSwipeStart,
   mobileTagState,
   mobileTaggedLevel,
 } from '../../src/utils/mobile-stack.mjs'
@@ -131,5 +141,96 @@ describe('087 T003: Back never lands on the sign-in page while signed in', () =>
     assert.equal(mobileLoginFrontDoor('/fi/login/'), '/fi')
     assert.equal(mobileLoginFrontDoor('/sr-Latn/login?x=1'), '/sr-Latn')
     assert.equal(mobileLoginFrontDoor('/channel/lobby'), '/')
+  })
+})
+
+// r14-07 (SPL-2696): the stack decisions useMobileStack.ts applies.
+describe('r14-07: Back by the chevron or a swipe', () => {
+  const s = (o) => ({ mobile: true, overlays: 0, level: 2, hasBelow: false, up: () => false, ...o })
+  it('the top overlay goes first, then an entry of ours below, else down in place', () => {
+    assert.equal(mobileBackStep(s({ overlays: 1, hasBelow: true, level: 3 })), 'overlay')
+    assert.equal(mobileBackStep(s({ hasBelow: true, level: 3 })), 'history')
+    assert.equal(mobileBackStep(s({ level: 3 })), 'down')
+    assert.equal(mobileBackStep(s({ level: 2 })), 'down')
+  })
+  it('CONTROL: not a phone, or level 1, does nothing', () => {
+    assert.equal(mobileBackStep(s({ mobile: false, overlays: 1, level: 3 })), 'none')
+    assert.equal(mobileBackStep(s({ level: 1, hasBelow: true })), 'none')
+  })
+  it('a page level above a level-2 deep link steps up first, and is asked only there', () => {
+    let asked = 0
+    const up = (r) => () => { asked++; return r }
+    assert.equal(mobileBackStep(s({ up: up(true) })), 'none')
+    assert.equal(mobileBackStep(s({ up: up(false) })), 'down')
+    assert.equal(asked, 2)
+    mobileBackStep(s({ level: 3, up: up(true) }))
+    mobileBackStep(s({ hasBelow: true, up: up(true) }))
+    assert.equal(asked, 2, 'up() is not asked on level 3 or with an entry below')
+  })
+})
+
+describe('r14-07: recording a level that moved without a popstate', () => {
+  it('folds the in-place push to the thread and uses the pending open up', () => {
+    assert.deepEqual(mobileRecordStep(2, 3, true), { step: 'tag', clearInPlace: true })
+    assert.deepEqual(mobileRecordStep(2, 3, false), { step: 'push', clearInPlace: false })
+    assert.deepEqual(mobileRecordStep(null, 2, true), { step: 'tag', clearInPlace: false })
+    assert.deepEqual(mobileRecordStep(3, 3, false), { step: 'none', clearInPlace: false })
+  })
+  it('a push leaves the entry below without the topic; the new entry keeps it', () => {
+    const href = 'https://x.example.com/channel/lobby?topic=abc'
+    const p = mobilePushPlan(href, { position: 4, splOverlay: 7 }, 3, 2)
+    assert.equal(p.under, '/channel/lobby')
+    assert.equal(p.url, href)
+    assert.deepEqual(p.state, { position: 4, splOverlay: null, [MOBILE_LEVEL_KEY]: 3, [MOBILE_BELOW_KEY]: 2 })
+  })
+  it('CONTROL: nothing stale to drop keeps the URL; an untagged entry pushes over 1', () => {
+    const p = mobilePushPlan('https://x.example.com/channel/lobby', null, 2, null)
+    assert.equal(p.under, null)
+    assert.equal(p.url, undefined)
+    assert.equal(p.state[MOBILE_BELOW_KEY], 1)
+  })
+})
+
+describe('r14-07: route navigations, popstates and overlays', () => {
+  it('after a navigation: a duplicate on a phone shows level 2, a fresh entry is tagged', () => {
+    assert.equal(mobileAfterNavStep('duplicated', true, null), 'push')
+    assert.equal(mobileAfterNavStep('duplicated', false, null), 'none')
+    assert.equal(mobileAfterNavStep('other', true, null), 'none')
+    assert.equal(mobileAfterNavStep(null, true, null), 'tag')
+    assert.equal(mobileAfterNavStep(null, true, 2), 'none', 'an entry tagged already is not re-tagged')
+  })
+  it('a popped entry drops its stale topic unless the shell swallows the event', () => {
+    assert.equal(mobilePopDropsTopic({ kind: 'none' }), true)
+    assert.equal(mobilePopDropsTopic({ kind: 'leave' }), true)
+    assert.equal(mobilePopDropsTopic({ kind: 'dead', back: true }), true)
+    assert.equal(mobilePopDropsTopic({ kind: 'close', keep: 0 }), false)
+    assert.equal(mobilePopDropsTopic({ kind: 'dead', back: false }), false)
+  })
+  it('an overlay that closed: back over its current entry, drop a gone one, wait under another', () => {
+    assert.equal(mobileOverlayCloseStep([1, 2], 2, 2), 'back')
+    assert.equal(mobileOverlayCloseStep([1, 2], 2, null), 'drop')
+    assert.equal(mobileOverlayCloseStep([1, 2], 1, 2), 'wait')
+    assert.equal(mobileOverlayCloseStep([1, 2], 3, 2), 'none')
+  })
+  it('history position and overlay id read only well-formed values', () => {
+    assert.equal(mobileStatePosition({ position: 5 }), 5)
+    assert.equal(mobileStatePosition({ position: '5' }), null)
+    assert.equal(mobileStatePosition(null), null)
+    assert.equal(mobileOverlayOf({ splOverlay: 3 }), 3)
+  })
+})
+
+describe('r14-07: swipe start and the stale login load', () => {
+  it('one finger on an active stack starts a swipe; anything else does not', () => {
+    assert.deepEqual(mobileSwipeStart(true, [{ clientX: 10, clientY: 20 }]), { x: 10, y: 20 })
+    assert.equal(mobileSwipeStart(false, [{ clientX: 10, clientY: 20 }]), null)
+    assert.equal(mobileSwipeStart(true, [{ clientX: 1, clientY: 1 }, { clientX: 2, clientY: 2 }]), null)
+    assert.equal(mobileSwipeStart(true, []), null)
+  })
+  it('only a back_forward load of /login on a phone waits for the session', () => {
+    assert.equal(mobileStaleLoginLoad('back_forward', true, '/fi/login'), true)
+    assert.equal(mobileStaleLoginLoad('navigate', true, '/login'), false)
+    assert.equal(mobileStaleLoginLoad('back_forward', false, '/login'), false)
+    assert.equal(mobileStaleLoginLoad('back_forward', true, '/channel/lobby'), false)
   })
 })

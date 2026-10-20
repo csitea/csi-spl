@@ -10,6 +10,11 @@
  *   level 2 = the MIDDLE panel (a channel / DM / lobby feed, a page's list)
  *   level 3 = the RIGHT panel (the open topic / thread)
  * A tap pushes, Back (the chevron, a swipe right, browser Back) pops one level.
+ * Deep links open where they point (`/channel/x` at 2, `?topic=` at 3) and
+ * Back still walks 3 -> 2 -> 1 inside the app. 600..820 px tablets get the
+ * same ONE panel (decision: a 600 px topic beside a 220 px feed reads worse
+ * than two full screens), plus a 60 px channel strip beside levels 2 and 3
+ * (SPL-2145, TabletStrip). Above 820 px the shell writes no history entry.
  */
 
 /** Widest viewport that gets the one-panel shell. 821 px and up is desktop. */
@@ -162,6 +167,87 @@ export function mobileInPlaceStep(step, next, inPlace) {
 }
 
 /**
+ * The level moved to `next` without a popstate: what to record. mobileHistoryStep,
+ * folded by mobileInPlaceStep while an open-in-place is pending; that pending
+ * open is used up (`clearInPlace`) once the thread is on screen.
+ * @param {1|2|3|null} tagged what the current entry says
+ * @param {1|2|3} next the level now on screen
+ * @param {boolean} inPlace an open-in-place is pending
+ * @returns {{ step: 'tag'|'push'|'none', clearInPlace: boolean }}
+ */
+export function mobileRecordStep(tagged, next, inPlace) {
+  return { step: mobileInPlaceStep(mobileHistoryStep(tagged, next), next, inPlace), clearInPlace: inPlace && next === 3 }
+}
+
+/**
+ * The level went UP on the same entry: the entry to push, so Back comes down
+ * again. c78fb3ec: the entry left below must not keep the topic's URL (a link
+ * to ?topic= wrote it there before the topic opened), or Back onto it opens
+ * the topic again - stuck on level 3. It keeps its page (`under`, written onto
+ * it first); the new entry takes the topic URL (`url`).
+ * @param {string} href the current URL
+ * @param {unknown} state the current history.state
+ * @param {1|2|3} next the level now on screen
+ * @param {1|2|3|null} tagged what the current entry says
+ * @returns {{ under: string|null, state: Record<string, unknown>, url: string|undefined }}
+ */
+export function mobilePushPlan(href, state, next, tagged) {
+  const under = mobileStaleTopicUrl(href, tagged)
+  return { under, state: mobileTagState(mobileOverlayState(state, null), next, tagged ?? 1), url: under ? href : undefined }
+}
+
+/**
+ * Back by the chevron or a swipe (pop()):
+ *   'overlay' - SPL-994: the top overlay goes first (its entry is stepped over)
+ *   'history' - an entry of ours is below: history.back()
+ *   'down'    - a deep link, nothing of ours below: step down a level in place
+ *   'none'    - not a phone, level 1 already, or (t1 3b8891e0) a page level
+ *               above the deep link stepped up itself (`up()` returned true)
+ * `up` is asked last, and only on level 2 with nothing below.
+ * @param {{ mobile: boolean, overlays: number, level: 1|2|3, hasBelow: boolean, up: () => boolean }} s
+ * @returns {'overlay'|'history'|'down'|'none'}
+ */
+export function mobileBackStep(s) {
+  if (!s.mobile) return 'none'
+  if (s.overlays > 0) return 'overlay'
+  if (s.level === 1) return 'none'
+  if (s.hasBelow) return 'history'
+  if (s.level === 2 && s.up()) return 'none'
+  return 'down'
+}
+
+/**
+ * A route navigation finished (router.afterEach):
+ *   'push' - it failed as a duplicate on a phone: a tap on the link to the
+ *            page already behind level 1, so show level 2
+ *   'tag'  - a fresh entry: a push from the level we were on
+ *   'none' - another failure, or an entry tagged already (a replace writing
+ *            ?topic=, or a popstate the popstate listener has applied;
+ *            re-applying would race a topic that opened before its entry
+ *            was pushed, and close it)
+ * @param {'duplicated'|'other'|null} failure
+ * @param {boolean} mobile
+ * @param {1|2|3|null} tagged what the new entry says
+ * @returns {'push'|'tag'|'none'}
+ */
+export function mobileAfterNavStep(failure, mobile, tagged) {
+  if (failure) return failure === 'duplicated' && mobile ? 'push' : 'none'
+  return tagged === null ? 'tag' : 'none'
+}
+
+/**
+ * Where a back swipe starts, or null when this touch cannot be one: the
+ * stack must be `active` (a phone above level 1) and one finger down.
+ * @param {boolean} active
+ * @param {ArrayLike<{ clientX: number, clientY: number }>|null|undefined} touches
+ * @returns {{ x: number, y: number }|null}
+ */
+export function mobileSwipeStart(active, touches) {
+  const p = touches && touches.length === 1 ? touches[0] : null
+  return active && p ? { x: p.clientX, y: p.clientY } : null
+}
+
+/**
  * One touch gesture: does it pop a level? A right swipe that starts in the
  * left half of the screen, travels MOBILE_SWIPE_MIN_DX and stays mostly
  * horizontal. In rtl the mirror image pops.
@@ -186,6 +272,11 @@ export function isMobileBackSwipe(g) {
  * cached copy of the state under history.state, so a deleted key comes back.
  */
 export const MOBILE_OVERLAY_KEY = 'splOverlay'
+
+/** vue-router's history position (state.position) of an entry, or null. */
+export function mobileStatePosition(state) {
+  return state && typeof state === 'object' && typeof state.position === 'number' ? state.position : null
+}
 
 /** The overlay id a history entry was pushed for, or null. */
 export function mobileOverlayOf(state) {
@@ -218,7 +309,7 @@ export function mobileOverlayState(state, id) {
  */
 export function mobileOverlayPop(open, state, lastPos) {
   const id = mobileOverlayOf(state)
-  const pos = state && typeof state === 'object' && typeof state.position === 'number' ? state.position : null
+  const pos = mobileStatePosition(state)
   const down = pos !== null && lastPos !== null && pos < lastPos
   if (id !== null && !open.includes(id)) return { kind: 'dead', back: down }
   if (open.length === 0) return { kind: 'none' }
@@ -227,6 +318,36 @@ export function mobileOverlayPop(open, state, lastPos) {
     return keep === open.length ? { kind: 'none' } : { kind: 'close', keep }
   }
   return down ? { kind: 'leave' } : { kind: 'close', keep: 0 }
+}
+
+/**
+ * c78fb3ec: the router is about to read the popped entry's URL. One tagged
+ * below 3 that still names a topic (an older build wrote them) would open it
+ * again - level 3, a new push, the same entry on the next Back, stuck until
+ * the app restarts - so its topic is dropped first. Not when the shell
+ * swallows the event: an overlay close, or a dead entry we came UP onto.
+ * @param {{ kind: string, back?: boolean }} step mobileOverlayPop's answer
+ */
+export function mobilePopDropsTopic(step) {
+  return step.kind !== 'close' && !(step.kind === 'dead' && !step.back)
+}
+
+/**
+ * An overlay closed by its own X, backdrop or Escape (or unmounted):
+ *   'back' - its entry is the current one: step back over it
+ *   'drop' - its entry is gone already: just forget it
+ *   'wait' - one above it is still open: its entry goes when that one goes
+ *   'none' - it has no entry
+ * @param {number[]} open the overlay ids with an entry, bottom -> top
+ * @param {number} id the overlay that closed
+ * @param {number|null} current mobileOverlayOf(history.state)
+ * @returns {'back'|'drop'|'wait'|'none'}
+ */
+export function mobileOverlayCloseStep(open, id, current) {
+  const i = open.indexOf(id)
+  if (i < 0) return 'none'
+  if (i < open.length - 1) return 'wait'
+  return current === id ? 'back' : 'drop'
 }
 
 /*
@@ -256,4 +377,16 @@ export function isStaleLoginStep(path, sessionState) {
 export function mobileLoginFrontDoor(path) {
   const m = MOBILE_LOGIN_PATH.exec(String(path || '').split(/[?#]/, 1)[0])
   return (m && m[1]) || '/'
+}
+
+/**
+ * A fresh document load of /login: does it wait for the session probe and
+ * then leave as a stale step? Only a back_forward load (a history step), on a
+ * phone, of a login path. The session is checked once the probe settles.
+ * @param {string|undefined} navType PerformanceNavigationTiming.type
+ * @param {boolean} phone the viewport matches MOBILE_STACK_QUERY
+ * @param {string} path location.pathname
+ */
+export function mobileStaleLoginLoad(navType, phone, path) {
+  return navType === 'back_forward' && phone && isStaleLoginStep(path, 'in')
 }

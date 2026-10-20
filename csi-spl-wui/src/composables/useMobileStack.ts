@@ -1,19 +1,26 @@
-import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref, type ShallowRef } from 'vue'
 import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import {
   MOBILE_STACK_QUERY,
   isMobileBackSwipe,
   isStaleLoginStep,
+  mobileAfterNavStep,
+  mobileBackStep,
   mobileHasBelow,
-  mobileHistoryStep,
-  mobileInPlaceStep,
   mobileInitialLevel,
   mobileLevelOf,
   mobileLoginFrontDoor,
+  mobileOverlayCloseStep,
   mobileOverlayOf,
   mobileOverlayPop,
   mobileOverlayState,
+  mobilePopDropsTopic,
+  mobilePushPlan,
+  mobileRecordStep,
+  mobileStaleLoginLoad,
   mobileStaleTopicUrl,
+  mobileStatePosition,
+  mobileSwipeStart,
   mobileTagState,
   mobileTaggedLevel,
   type MobileLevel,
@@ -21,48 +28,25 @@ import {
 import { useSessionStore } from '~/stores/session'
 
 /**
- * SPL-989 (epic SPL-988) — the phone / small-tablet navigation stack. THE one
+ * SPL-989 (epic SPL-988) — the phone / small-tablet navigation stack: THE one
  * place that decides which panel is on screen at <= 820 px; no other file
- * writes its own stack or history logic (lanes M2..M5 build on this).
+ * writes its own stack or history logic. The owner's model (levels 1 left,
+ * 2 middle, 3 right) and every pure decision of it live in
+ * utils/mobile-stack.mjs; this file applies them to the DOM, history and the
+ * router. Back (the chevron `pop()`, a swipe, browser Back) pops one level:
+ * every push leaves an entry tagged with its level (history.state.splLevel)
+ * and a popstate restores the level its entry says.
  *
- * The owner's model, fixed: at <= 820 px exactly ONE of the desktop's three
- * panels shows, full screen.
- *   level 1 — the LEFT panel: the section chooser (Channels, DMs, Issues,
- *             Topics, Flow, Event log, ...) and the chosen section's list.
- *             The app opens here (`/`).
- *   level 2 — the MIDDLE panel: whatever page the route shows (a channel /
- *             DM / lobby feed, /issues, /events, /settings ...).
- *   level 3 — the RIGHT panel: the open topic / thread (either topic store).
- * A tap pushes one level; Back pops one — the chevron (`pop()`), a swipe
- * right (`swipe` handlers) and browser Back all do the same, because every
- * push leaves a history entry tagged with its level (history.state.splLevel)
- * and a popstate restores the level its entry says. Deep links open where
- * they point (`/channel/x` at 2, `?topic=` at 3) and Back still walks 3 -> 2
- * -> 1 inside the app. 600..820 px tablets get the same ONE panel (decision:
- * a 600 px topic beside a 220 px feed reads worse than two full screens),
- * plus a 60 px channel strip beside levels 2 and 3 (SPL-2145, TabletStrip).
- * Above 820 px nothing here does anything: `isMobile` is false, `level` is
- * still computed but no CSS reads it, and no history entry is written.
- *
- * Usage (any component):
+ * Usage (any component; each call's own doc says more):
  *   const stack = useMobileStack()
- *   stack.isMobile.value        // true at <= 820 px
- *   stack.level.value           // 1 | 2 | 3, the panel on screen
- *   stack.push(2)               // show the middle panel without a route change
- *                               // (a tap on the row for the page already behind)
- *   stack.pop()                 // Back one level (the chevron's click handler)
- *   stack.home()                // straight to level 1 (a "sections" button)
- *   stack.rightPanel(() => detailOpen.value, closeDetail)
- *                               // a page's own right panel (not a topic store)
- *                               // counts as level 3; Back calls closeDetail
- *   stack.overlay(() => sheetOpen.value, closeSheet)
- *                               // SPL-994: a dialog / bottom sheet is the TOP
- *                               // level while open; Back calls closeSheet and
- *                               // the level under it stays where it was
- *   stack.up(() => stepUp())    // t1 3b8891e0: a page with levels of its own
- *                               // (Documents' ?in=) loaded fresh at one: Back
- *                               // with nothing of ours below calls it first;
- *                               // true = it stepped up in place itself
+ *   stack.isMobile.value / stack.level.value   // <= 820 px? / 1 | 2 | 3 on screen
+ *   stack.push(2)       // the middle panel without a route change (a tap on the
+ *                       // row for the page already behind)
+ *   stack.pop()         // Back one level (the chevron's click handler)
+ *   stack.home()        // straight to level 1 (a "sections" button)
+ *   stack.rightPanel(() => detailOpen.value, closeDetail)   // a page's own level 3
+ *   stack.overlay(() => sheetOpen.value, closeSheet)        // SPL-994: the TOP level
+ *   stack.up(() => stepUp())   // t1 3b8891e0: a page level above its deep link
  * A route navigation (NuxtLink, router.push) needs NO call: leaving level 1 by
  * a link is noticed in router.afterEach. Opening a topic needs no call either:
  * level 3 follows the topic stores. Only layouts/default.vue calls install().
@@ -88,18 +72,11 @@ function tag(lv: MobileLevel, below?: number) {
   window.history.replaceState(mobileTagState(window.history.state, lv, below), '')
 }
 
-/**
- * The level went UP on the same entry: add one, so Back comes down again.
- * c78fb3ec: the entry left below must not keep the topic's URL (a link to
- * ?topic= wrote it there before the topic opened), or Back onto it opens the
- * topic again - stuck on level 3. It keeps its page; the new entry takes the
- * topic URL.
- */
+/** The level went UP on the same entry: add one (utils mobilePushPlan, c78fb3ec). */
 function pushLevel(next: MobileLevel, tagged: MobileLevel | null) {
-  const href = window.location.href
-  const under = mobileStaleTopicUrl(href, tagged)
-  if (under) window.history.replaceState(window.history.state, '', under)
-  window.history.pushState(mobileTagState(mobileOverlayState(window.history.state, null), next, tagged ?? 1), '', under ? href : undefined)
+  const plan = mobilePushPlan(window.location.href, window.history.state, next, tagged)
+  if (plan.under) window.history.replaceState(window.history.state, '', plan.under)
+  window.history.pushState(plan.state, '', plan.url)
 }
 
 /** Show `lv` without touching history (a popstate already moved it). */
@@ -109,44 +86,31 @@ function applyLevel(lv: MobileLevel) {
   home.value = lv === 1
 }
 
-/**
- * A page whose own right panel is level 3 (the issue detail): while `open`
- * is true the stack is at 3, and Back (chevron, swipe, browser) calls
- * `close`. Unregisters itself when the calling component's scope ends.
- */
-function rightPanel(open: MaybeRefOrGetter<boolean>, close: () => void) {
-  const entry: RightPanel = { open, close }
-  panels.value = [...panels.value, entry]
-  const off = () => { panels.value = panels.value.filter((p) => p !== entry) }
-  if (getCurrentScope()) onScopeDispose(off)
+/** Add `item` to `list`; the returned off removes it, also when the calling scope ends (`scoped`). */
+function enlist<T>(list: ShallowRef<T[]>, item: T, scoped = true) {
+  list.value = [...list.value, item]
+  const off = () => { list.value = list.value.filter((x) => x !== item) }
+  if (scoped && getCurrentScope()) onScopeDispose(off)
   return off
 }
 
+/** A page's own right panel (the issue detail): level 3 while `open`; Back calls `close`. */
+const rightPanel = (open: MaybeRefOrGetter<boolean>, close: () => void) => enlist<RightPanel>(panels, { open, close })
+
 /*
- * SPL-994 — overlays. A dialog or a bottom sheet is the TOP level while it is
- * open: opening it pushes a history entry (a copy of the one under it, tagged
- * with the overlay's id), and Back - browser, Android gesture, the chevron,
- * the swipe - comes down onto the entry under it. A popstate listener in the
- * CAPTURE phase sees that first (at the target, capture listeners run before
- * vue-router's and the level's own), closes the overlay and stops the event:
- * the route and the level never move. Closing by the overlay's own X, backdrop
- * or Escape steps back over its entry the same way, so history never drifts.
- * The router may have replaced the overlay's entry meanwhile (a filter sheet
- * writing its query): the entry under it is rewritten with that URL and state,
- * so the router's idea of "current" and the address bar agree.
- * A router.push while an overlay has an entry first steps back over the
- * overlay entries (closing them), then pushes: the new page lands on top of
- * the page, not on top of a sheet. Every history move runs through one queue,
- * because history.back() is asynchronous and a pushState issued before it
- * lands would be the entry it removes.
+ * SPL-994 — overlays (the entry model: utils/mobile-stack.mjs). A CAPTURE-phase
+ * popstate listener runs before vue-router's, closes the overlay and stops the
+ * event: route and level never move. An overlay entry the router replaced (a
+ * filter sheet writing its query) is copied onto the entry under it, so the
+ * router's "current" and the address bar agree. Every history move runs through
+ * one queue: history.back() is async, and a pushState issued before it lands
+ * would be the entry it removes.
  */
 type Overlay = { id: number, open: () => boolean, close: () => void, state: Record<string, unknown> | null, url: string }
 const overlays: Overlay[] = []
 let overlaySeq = 0
-/* SPL-1005: the open-state of every overlay that the bottom composer dock
-   must yield to - a page sheet (the Issues filters, a dialog, a menu) is
-   modal over it. The dock's own pickers (the @ list) opt out. Reactive, so
-   `sheetOpen` follows each overlay's own `open`. */
+/* SPL-1005: the open-state of every overlay the composer dock yields to (a page
+   sheet, a dialog, a menu is modal over it); the dock's own pickers opt out */
 const dockSheets = shallowRef<Array<() => boolean>>([])
 const sheetOpen = computed(() => dockSheets.value.some((g) => g()))
 let queue: Promise<void> = Promise.resolve()
@@ -163,10 +127,7 @@ function enqueue(op: () => void | Promise<void>): Promise<void> {
   return queue
 }
 
-function statePosition(): number | null {
-  const s = window.history.state as { position?: unknown } | null
-  return s && typeof s.position === 'number' ? s.position : null
-}
+const statePosition = () => mobileStatePosition(window.history.state)
 
 /** history.go(-n), resolved when its popstate has been handled (or after a timeout). */
 function stepBack(n: number): Promise<void> {
@@ -182,9 +143,9 @@ function stepBack(n: number): Promise<void> {
   })
 }
 
-function wake() {
-  popWaiter?.()
-}
+const wake = () => popWaiter?.()
+/* no overlay entry and no history move queued: a move can run at once */
+const historyIdle = () => !overlays.length && !queued
 
 /** the top overlay's entry changed under us (the router replaced it, a level tag) */
 function snapTop() {
@@ -203,72 +164,49 @@ function onPopCapture(e: PopStateEvent) {
     return
   }
   const step = mobileOverlayPop(overlays.map((o) => o.id), e.state, lastPos)
-  /* c78fb3ec: the router is about to read this entry's URL. One tagged below
-     3 that still names a topic (an older build wrote them) would open it
-     again - level 3, a new push, the same entry on the next Back, stuck until
-     the app restarts: drop the topic from it first */
-  if (step.kind !== 'close' && !(step.kind === 'dead' && !step.back)) dropStaleTopic(e.state)
+  if (mobilePopDropsTopic(step)) dropStaleTopic(e.state)
   if (step.kind === 'none') return
+  /* a dead entry we came down onto: the router follows onto it, then one more step down */
+  if (step.kind === 'dead' && step.back) return void setTimeout(() => window.history.back(), 0)
   if (step.kind === 'dead') {
-    if (step.back) {
-      /* the router follows onto it; then one more step down */
-      setTimeout(() => window.history.back(), 0)
-      return
-    }
     e.stopImmediatePropagation()
     skipPops++
-    window.history.back()
-    return
+    return void window.history.back()
   }
-  if (step.kind === 'leave') {
-    const gone = overlays.splice(0)
-    for (const o of gone.reverse()) if (o.open()) o.close()
-    wake()
-    return
-  }
-  e.stopImmediatePropagation()
   const top = overlays[overlays.length - 1]
-  const gone = overlays.splice(step.keep)
-  const under = overlays[step.keep - 1]
-  const state = mobileOverlayState(top.state, under ? under.id : null)
-  window.history.replaceState(state, '', top.url)
-  if (under) {
-    under.state = state
-    under.url = top.url
+  const keep = step.kind === 'leave' ? 0 : step.keep
+  const gone = overlays.splice(keep).reverse()
+  const under = overlays[keep - 1]
+  if (step.kind === 'close') {
+    e.stopImmediatePropagation()
+    const state = mobileOverlayState(top.state, under ? under.id : null)
+    window.history.replaceState(state, '', top.url)
+    if (under) Object.assign(under, { state, url: top.url })
   }
-  for (const o of gone.reverse()) if (o.open()) o.close()
+  for (const o of gone) if (o.open()) o.close()
   wake()
+  if (step.kind === 'leave') return
   /* an overlay under it that closed while this one was open: step over its entry too */
   if (under && !under.open()) void enqueue(() => (overlays[overlays.length - 1] === under ? stepBack(1) : undefined))
 }
 
+/** c78fb3ec (utils mobilePopDropsTopic): the popped entry forgets its stale topic. */
 function dropStaleTopic(state: unknown) {
-  if (!isMobile.value) return
-  const url = mobileStaleTopicUrl(window.location.href, mobileTaggedLevel(state))
+  const url = isMobile.value && mobileStaleTopicUrl(window.location.href, mobileTaggedLevel(state))
   if (url) window.history.replaceState(state, '', url)
 }
 
 /*
- * 087 T003 (FR-001): a history step onto /login with a signed-in session
- * (utils/mobile-stack.mjs isStaleLoginStep) never paints the sign-in page.
- * The entry becomes the front door and Back steps once more, so it walks on
- * out of the app as if the stale entry were not there. Three ways to land:
- *   - a popstate inside one document: a capture listener (beside
- *     onPopCapture) stops it before vue-router renders the login route
- *   - a bfcache restore of the /login document (Back from a document loaded
- *     after it): pageshow hides the page before its next frame, then steps
- *   - a fresh back_forward load of /login: the prerendered page is on screen
- *     until the session probe settles; then the same step
- * Armed by plugins/mobile-stale-login.client.ts on every document (the login
- * layout never calls install()). Phones only (FR-007).
+ * 087 T003 (FR-001, utils isStaleLoginStep): a stale /login is left from a popstate
+ * (capture, before vue-router renders it), a bfcache restore (pageshow hides it
+ * first) or a back_forward load (mobileStaleLoginLoad, after the session probe).
+ * Armed by plugins/mobile-stale-login.client.ts on every document; phones only.
  */
 let staleArmed = false
 let staleLeft = false
 let staleTimer: ReturnType<typeof setTimeout> | undefined
 
-function onPhone() {
-  return window.matchMedia(MOBILE_STACK_QUERY).matches
-}
+const onPhone = () => window.matchMedia(MOBILE_STACK_QUERY).matches
 
 /** Replace the stale entry with the front door and step back past it. */
 function leaveStaleLogin(state: unknown, hide: boolean) {
@@ -290,9 +228,7 @@ function guardStaleLogin() {
   window.addEventListener('popstate', (e) => {
     /* the step back landed in this document: no fallback */
     clearTimeout(staleTimer)
-    if (!stale()) return
-    e.stopImmediatePropagation()
-    leaveStaleLogin(e.state, false)
+    if (stale()) { e.stopImmediatePropagation(); leaveStaleLogin(e.state, false) }
   }, { capture: true })
   window.addEventListener('pagehide', () => clearTimeout(staleTimer))
   window.addEventListener('pageshow', (e) => {
@@ -302,7 +238,7 @@ function guardStaleLogin() {
     if (stale()) leaveStaleLogin(window.history.state, true)
   })
   const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
-  if (nav?.type !== 'back_forward' || !onPhone() || !isStaleLoginStep(window.location.pathname, 'in')) return
+  if (!mobileStaleLoginLoad(nav?.type, onPhone(), window.location.pathname)) return
   const stop = watch(() => session.state, (s) => {
     if (s === 'loading') return
     stop()
@@ -323,98 +259,56 @@ function overlayOpened(o: Overlay) {
 
 function overlayClosed(o: Overlay) {
   void enqueue(async () => {
-    const i = overlays.indexOf(o)
-    if (i < 0) return
-    /* one under another open overlay: its entry goes when the one above goes */
-    if (i < overlays.length - 1) return
-    if (mobileOverlayOf(window.history.state) === o.id) await stepBack(1)
-    else overlays.splice(i, 1)
+    const step = mobileOverlayCloseStep(overlays.map((x) => x.id), o.id, mobileOverlayOf(window.history.state))
+    if (step === 'back') await stepBack(1)
+    else if (step === 'drop') overlays.splice(overlays.indexOf(o), 1)
   })
 }
 
-/**
- * A dialog or bottom sheet: while `open` is true (and the viewport is a
- * phone's) it is the top level, and Back calls `close` instead of popping the
- * panel under it. Closing it any other way steps back over its history entry.
- * Unregisters itself when the calling component's scope ends.
- */
+/** A dialog or bottom sheet: the top level while `open` (on a phone); Back calls `close`. */
 function overlay(open: MaybeRefOrGetter<boolean>, close: () => void, opts: { keepsDock?: boolean, history?: boolean } = {}) {
   if (!import.meta.client) return () => {}
-  /* CLE-77853: `history: false` - the overlay's open state is a route of its
-     own (Settings' ?settings=), so the router already gave it an entry and
-     Back is the router's; it still covers the dock */
+  /* CLE-77853: `history: false` - its open state is a route of its own (Settings'
+     ?settings=), so Back is the router's; it still covers the dock */
   const o: Overlay = { id: ++overlaySeq, open: opts.history === false ? () => false : () => toValue(open), close, state: null, url: '' }
   const stop = watch(o.open, (v) => { if (v) overlayOpened(o); else overlayClosed(o) }, { immediate: true, flush: 'sync' })
-  const covers = () => toValue(open)
-  if (!opts.keepsDock) dockSheets.value = [...dockSheets.value, covers]
-  const off = () => {
-    stop()
-    o.open = () => false
-    dockSheets.value = dockSheets.value.filter((g) => g !== covers)
-    overlayClosed(o)
-  }
+  const undock = opts.keepsDock ? () => {} : enlist(dockSheets, () => toValue(open), false)
+  const off = () => { stop(); o.open = () => false; undock(); overlayClosed(o) }
   if (getCurrentScope()) onScopeDispose(off)
   return off
 }
 
-/**
- * CLE-77882: the next topic that opens (within `ms`) lands on the entry the
- * open-in-place route push made, instead of pushing one more: Back from the
- * opened message returns to the list it was opened from.
- */
-function landInPlace(ms = 5000) {
-  if (!isMobile.value) return
-  inPlaceUntil = Date.now() + ms
-}
+/** CLE-77882: the next topic open (within `ms`) lands on the current entry: Back returns to the list. */
+const landInPlace = (ms = 5000) => { if (isMobile.value) inPlaceUntil = Date.now() + ms }
 
-function push(lv: 2 | 3) {
-  if (lv >= 2) home.value = false
-}
+const push = (lv: 2 | 3) => { if (lv >= 2) home.value = false }
 
 function pop() {
-  if (!isMobile.value) return
-  /* SPL-994: the top overlay first */
-  if (overlays.length) return void enqueue(() => (overlays.length ? stepBack(1) : undefined))
-  if (level.value === 1) return
-  if (mobileHasBelow(window.history.state)) return void window.history.back()
-  /* a deep link: nothing of ours below. A page level above it first (t1
-     3b8891e0), else step down in place */
-  if (level.value === 2 && ups.value.some((u) => u())) return
-  applyLevel((level.value - 1) as MobileLevel)
+  const stepsUp = () => ups.value.some((u) => u())
+  const step = mobileBackStep({ mobile: isMobile.value, overlays: overlays.length, level: level.value, hasBelow: mobileHasBelow(window.history.state), up: stepsUp })
+  if (step === 'overlay') void enqueue(() => (overlays.length ? stepBack(1) : undefined))
+  else if (step === 'history') window.history.back()
+  else if (step === 'down') applyLevel((level.value - 1) as MobileLevel)
 }
 
 /* t1 3b8891e0: pages whose deep link has levels of its own above it */
 const ups = shallowRef<Array<() => boolean>>([])
 
 /**
- * A page with levels of its own inside level 2 (Documents' drill-down,
- * ?in=): Back on its deep link, with no entry of ours below, calls `up`
- * before leaving the page; `up` returns true when it stepped up a level
- * itself (in place: router.replace), false at its top. Unregisters itself
- * when the calling component's scope ends.
+ * A page with levels of its own inside level 2 (Documents' ?in=): Back on its
+ * deep link calls `up` first (utils mobileBackStep); true = it stepped up in place.
  */
-function up(handler: () => boolean) {
-  ups.value = [...ups.value, handler]
-  const off = () => { ups.value = ups.value.filter((u) => u !== handler) }
-  if (getCurrentScope()) onScopeDispose(off)
-  return off
-}
+const up = (handler: () => boolean) => enlist(ups, handler)
 
-function toHome() {
-  if (!isMobile.value) return
-  applyLevel(1)
-}
+const toHome = () => { if (isMobile.value) applyLevel(1) }
 
-/* swipe right = Back */
+/* swipe right = Back (utils isMobileBackSwipe) */
 let touch: { x: number, y: number } | null = null
 function onTouchStart(e: TouchEvent) {
-  const p = e.touches[0]
-  touch = isMobile.value && level.value > 1 && e.touches.length === 1 && p ? { x: p.clientX, y: p.clientY } : null
+  touch = mobileSwipeStart(isMobile.value && level.value > 1, e.touches)
 }
 /* CLE-77906: a card's swipe-to-archive took this gesture - it is not a Back */
-function claimSwipe() {
-  touch = null
-}
+const claimSwipe = () => { touch = null }
 function onTouchEnd(e: TouchEvent) {
   const p = e.changedTouches[0]
   const start = touch
@@ -437,7 +331,6 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   isMobile.value = mq.matches
   mq.addEventListener('change', (e) => { isMobile.value = e.matches })
 
-  /* the entry the app was loaded on */
   /* SPL-994: before vue-router's popstate listener (capture runs first at the target) */
   window.addEventListener('popstate', onPopCapture, { capture: true })
   /* the overlay's entry can be rewritten by anyone (vue-router, a page writing
@@ -450,10 +343,11 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   lastPos = statePosition()
   const routerPush = router.push.bind(router)
   router.push = ((to) => {
-    if (!overlays.length && !queued) return routerPush(to)
+    if (historyIdle()) return routerPush(to)
     return enqueue(() => (overlays.length ? stepBack(overlays.length) : undefined)).then(() => routerPush(to))
   }) as typeof router.push
 
+  /* the entry the app was loaded on */
   const first = mobileTaggedLevel(window.history.state) ?? mobileInitialLevel(route.path, route.query as Record<string, unknown>)
   home.value = first === 1
   tag(first)
@@ -461,15 +355,10 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   /* a route navigation: a fresh entry is a push from the level we were on */
   router.afterEach((_to, _from, failure) => {
     lastPos = statePosition()
-    if (failure) {
-      /* a tap on the link to the page already behind level 1 */
-      if (isNavigationFailure(failure, NavigationFailureType.duplicated) && isMobile.value) push(2)
-      return
-    }
-    /* an entry we tagged already: a replace (?topic= written) or a popstate,
-       which the popstate listener has applied. Re-applying here would race a
-       topic that opened before its entry was pushed, and close it. */
-    if (mobileTaggedLevel(window.history.state) !== null) return
+    const kind = failure ? (isNavigationFailure(failure, NavigationFailureType.duplicated) ? 'duplicated' : 'other') : null
+    const step = mobileAfterNavStep(kind, isMobile.value, mobileTaggedLevel(window.history.state))
+    if (step === 'push') return push(2)
+    if (step !== 'tag') return
     const below = level.value
     home.value = false
     tag(level.value, below)
@@ -488,16 +377,14 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
     if (!isMobile.value) return
     const record = () => {
       const tagged = mobileTaggedLevel(window.history.state)
-      const inPlace = inPlaceUntil > Date.now()
-      const step = mobileInPlaceStep(mobileHistoryStep(tagged, next), next, inPlace)
-      if (inPlace && next === 3) inPlaceUntil = 0
+      const { step, clearInPlace } = mobileRecordStep(tagged, next, inPlaceUntil > Date.now())
+      if (clearInPlace) inPlaceUntil = 0
       if (step === 'tag') tag(next)
       else if (step === 'push') pushLevel(next, tagged)
     }
-    /* SPL-994: a level pushed from inside an overlay (a menu opening a
-       thread) lands after the overlay's entry is gone, not on top of it;
-       one queued to open after the move (/releases/<ref>'s dialog) stays */
-    if (!overlays.length && !queued) return record()
+    /* SPL-994: a level pushed from inside an overlay (a menu opening a thread) lands after
+       the overlay's entry is gone; one queued to open after the move (/releases/<ref>) stays */
+    if (historyIdle()) return record()
     const above = overlays.length
     void enqueue(async () => {
       if (above && overlays.length) await stepBack(overlays.length)

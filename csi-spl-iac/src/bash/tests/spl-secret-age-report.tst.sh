@@ -12,6 +12,9 @@
 #   4. a disabled key is never OVER
 #   5. a max age that is not whole days -> refused before any gcloud call
 #   6. a versions list that fails -> non-zero, never an empty row
+#   7. per_secret (SPL-2657): a secret's own max age beats the class one,
+#      both ways, and is shown in its row; a per_secret value that is not
+#      whole days -> refused before any gcloud call
 # gcloud is a stub on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -86,7 +89,7 @@ cfg=$(awk -F'|' '/\|secrets / {print $1; exit}' "$T/calls.log")
 # --- 3. CONTROL: max ages set ---------------------------------------------------------
 set_max 30 20; act; rc=$?
 [[ $rc -eq 1 ]] && grep -q '^OVER: 2$' "$T/out" && pass "3. CONTROL: max ages 30/20 -> 2 OVER, exit 1" || fail "3. rc=$rc $(cat "$T/out")"
-[[ "$(row c-multi)" == *"| MULTI OVER |" ]] && pass "3. the 43-day-old enabled version is OVER 30" || fail "3. multi: $(row c-multi)"
+[[ "$(row c-multi)" == *"| MULTI OVER | 30 |" ]] && pass "3. the 43-day-old enabled version is OVER 30" || fail "3. multi: $(row c-multi)"
 grep -q '| abcdef01 | 2026-09-17 | 28 | never | NO-EXPIRY OVER |' "$T/out" && pass "3. the 28-day-old key is OVER 20" || fail "3. key: $(cat "$T/out")"
 # --- 4. disabled key ----------------------------------------------------------------
 grep -q '| 00112233 | 2026-08-01 | 75 | 2027-08-01 | DISABLED |' "$T/out" && pass "4. a disabled key is never OVER" || fail "4. disabled: $(cat "$T/out")"
@@ -100,6 +103,18 @@ set_max '"90d"' null; act; rc=$?
 set_max null null; act STUB_FAIL=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'cannot list the versions of c-multi' "$T/out" && ! grep -q '^| c-multi' "$T/out" \
   && pass "6. a failing versions list -> non-zero, no row" || fail "6. rc=$rc $(cat "$T/out")"
+
+# --- 7. per-secret max age ----------------------------------------------------------
+set_per() { yq -i ".env.secrets.max_age_days.per_secret = $1" "$T/app/csi-spl-cnf/csi-spl/all.env.yaml"; }
+set_max null null; set_per '{"a-key": 3}'; act; rc=$?
+[[ $rc -eq 1 ]] && grep -q '^OVER: 1$' "$T/out" && [[ "$(row a-key)" == *"| OVER | 3 |" ]] && [[ "$(row c-multi)" == *"| MULTI | - |" ]] \
+  && pass "7. class null, a-key 3 d -> only the 4-day-old a-key is OVER" || fail "7. per rc=$rc $(cat "$T/out")"
+set_max 30 null; set_per '{"c-multi": 60}'; act; rc=$?
+[[ $rc -eq 0 ]] && [[ "$(row c-multi)" == *"| MULTI | 60 |" ]] && [[ "$(row a-key)" == *"|  | 30 |" ]] \
+  && pass "7. class 30, c-multi 60 d -> its 43-day-old version is not OVER" || fail "7. beats rc=$rc $(cat "$T/out")"
+set_per '{"a-key": "90d"}'; act; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q '|secrets ' "$T/calls.log" && grep -q 'per_secret must map a secret id to positive whole days, not: a-key' "$T/out" \
+  && pass "7. per_secret '90d' -> refused before any gcloud call" || fail "7. bad rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

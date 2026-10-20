@@ -13,6 +13,9 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @description The max ages are cnf env.secrets.max_age_days.secret_version and
 # @description .sa_key, in days; null = not set (the owner decides after the
 # @description inventory, SPL-1945), and then nothing is OVER.
+# @description cnf env.secrets.max_age_days.per_secret (secret id -> days) is the
+# @description rotation schedule of a secret (SPL-2657): it beats the class
+# @description max age for that secret; the table shows each secret's cap.
 # @description Metadata only: it never runs `versions access`, so no value is
 # @description read. Runs as the env's project SA in a private gcloud config.
 # @description Exit 1 when anything is OVER, else 0.
@@ -29,18 +32,22 @@ do_spl_secret_age_report() {
   do_gcp_spl_proj_id || return 1
   local p="$PROJ_ID" cnf="$_spl_sdk_dir/cnf.yaml" d="$_spl_sdk_dir/dump"
   do_spl_merged_cnf "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP" "$ENV" "$cnf" || return 1
-  local max_sec max_key
+  local max_sec max_key per bad
   max_sec="$(yq -r '.env.secrets.max_age_days.secret_version // ""' "$cnf")"
   max_key="$(yq -r '.env.secrets.max_age_days.sa_key // ""' "$cnf")"
   [[ -z "$max_sec" || "$max_sec" =~ ^[1-9][0-9]*$ ]] && [[ -z "$max_key" || "$max_key" =~ ^[1-9][0-9]*$ ]] ||
     { do_log "FATAL env.secrets.max_age_days must be positive whole days or null, got: secret_version='$max_sec' sa_key='$max_key'"; return 1; }
+  per="$(yq -o=json -I=0 '.env.secrets.max_age_days.per_secret // {}' "$cnf")"
+  bad="$(yq -r '.env.secrets.max_age_days.per_secret // {} | to_entries | .[] | select((.value | tag) != "!!int" or .value < 1) | .key' "$cnf")"
+  [[ -z "$bad" ]] || { do_log "FATAL env.secrets.max_age_days.per_secret must map a secret id to positive whole days, not: ${bad//$'\n'/ }"; return 1; }
 
   do_gcp_pin_account || return 1
   spl_secret_age_dump "$p" "$GCP_ACCOUNT" "$d" || return 1
-  python3 - "$d" "$p" "${max_sec:-}" "${max_key:-}" "${SECRET_AGE_NOW:-}" <<'PY'
+  python3 - "$d" "$p" "${max_sec:-}" "${max_key:-}" "${SECRET_AGE_NOW:-}" "$per" <<'PY'
 import datetime as dt, json, os, sys
-d, proj, max_sec, max_key, now = sys.argv[1:]
+d, proj, max_sec, max_key, now, per = sys.argv[1:]
 max_sec, max_key = (int(x) if x else None for x in (max_sec, max_key))
+per = json.loads(per)
 now = dt.datetime.fromisoformat(now.replace("Z", "+00:00")) if now else dt.datetime.now(dt.timezone.utc)
 def ld(f):
     with open(os.path.join(d, f)) as fh: return json.load(fh)
@@ -48,17 +55,18 @@ def ts(s): return dt.datetime.fromisoformat(s.replace("Z", "+00:00")[:19] + "+00
 def age(s): return (now - ts(s)).days
 cap = lambda m: f"max age {m} d" if m else "max age not set: the owner decides, SPL-1945"
 over = 0
-print(f"## {proj}: Secret Manager ({cap(max_sec)})\n")
-print("| secret | enabled | enabled versions (n: created, age d) | flags |\n|---|---|---|---|")
+print(f"## {proj}: Secret Manager ({cap(max_sec)}; a per-secret max age beats it)\n")
+print("| secret | enabled | enabled versions (n: created, age d) | flags | max age d |\n|---|---|---|---|---|")
 for name in sorted(os.listdir(os.path.join(d, "secret"))):
     vs = [v for v in ld(f"secret/{name}") if v.get("state") == "ENABLED"]
     vs.sort(key=lambda v: int(v["name"].split("/")[-1]))
-    flags = []
+    flags, sid = [], name[:-5]
+    m = per.get(sid, max_sec)
     if not vs: flags.append("EMPTY")
     if len(vs) > 1: flags.append("MULTI")
-    if max_sec and any(age(v["createTime"]) > max_sec for v in vs): flags.append("OVER"); over += 1
+    if m and any(age(v["createTime"]) > m for v in vs): flags.append("OVER"); over += 1
     cell = ", ".join(f'{v["name"].split("/")[-1]}: {v["createTime"][:10]}, {age(v["createTime"])}' for v in vs) or "-"
-    print(f"| {name[:-5]} | {len(vs)} | {cell} | {' '.join(flags)} |")
+    print(f"| {sid} | {len(vs)} | {cell} | {' '.join(flags)} | {m or '-'} |")
 print(f"\n## {proj}: user-managed service account keys ({cap(max_key)})\n")
 print("| service account | key | created | age d | expires | flags |\n|---|---|---|---|---|---|")
 for name in sorted(os.listdir(os.path.join(d, "sa"))):

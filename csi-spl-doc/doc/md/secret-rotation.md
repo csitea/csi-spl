@@ -26,21 +26,32 @@ back to.
 
 ## 2. Rotating one secret
 
-1. **Add the new version** with the secret's seed action (for example
-   `do_spl_wui_key_seed`, `do_spl_mail_secret_seed`, `do_spl_gh_app_key_put`).
-   The hub still reads the old pin: nothing changes yet.
-2. **Raise the pin** in cnf `hub.secret_versions` to the new number, run
-   `ENV=<env> ./run -a do_tpl_gen` and commit both.
+`do_spl_secret_rotate` (csi-spl-iac, SPL-2657) walks these steps for one
+secret and refuses a step out of order. `ROTATE_STEP=status` (the default)
+prints the newest enabled version, the cnf pin and the live hub pin, and names
+the next step:
+`cd csi-spl-iac && ENV=<env> SECRET=<id> ./run -a do_spl_secret_rotate`.
+Test: `csi-spl-iac/src/bash/tests/spl-secret-rotate.tst.sh`.
+
+1. **Add the new version** with the secret's seed action; `status` names it
+   per secret (for example `do_spl_mail_secret_seed`,
+   `do_spl_payment_secret_seed`, `do_spl_gh_app_key_put`). The session key,
+   the box-wui key and the DB DSN have no rotating seed action yet: their
+   version is added by hand. The hub still reads the old pin: nothing changes
+   yet.
+2. **Raise the pin**: `ROTATE_STEP=pin DRY_RUN=0` sets cnf
+   `hub.secret_versions` to the newest enabled version (it refuses when that
+   is not above the pin) and runs `do_tpl_gen`; commit both.
 3. **Apply 030**, dev first, then prd, with the owner's go:
    `cd csi-spl-orc && ENV=<env> STEP=030-cloud-run-hub make do-tf-plan`, then
    `make do-provision`. Cloud Run makes a new revision that reads the new
    version; the old revision still reads the old one.
-4. **Prove it**: `do_check_hub_deploy` and `/version` answer, and the hub
-   logs show no secret-access error.
-5. **Disable the old version**:
-   `cd csi-spl-iac && ENV=<env> SECRET=<id> ./run -a do_spl_secret_version_disable_old`
-   (dry run first, then `DRY_RUN=0`). It refuses while the hub still pins the
-   version it would disable.
+4. **Prove it**: `ROTATE_STEP=verify` checks that the live hub reads the cnf
+   pin and its newest revision is Ready; `do_check_hub_deploy` and `/version`
+   answer, and the hub logs show no secret-access error.
+5. **Disable the old version**: `ROTATE_STEP=disable`, which runs
+   `do_spl_secret_version_disable_old` (dry run first, then `DRY_RUN=0`). It
+   refuses while the hub still pins the version it would disable.
 
 Undo before step 5: lower the pin and apply 030 again, or route traffic back
 to the previous revision. Undo after step 5:
@@ -62,14 +73,36 @@ start. That is why step 5 comes last, and why
 `do_spl_secret_version_disable_old` reads the live service first. `latest`
 does not avoid it: disabling the newest version breaks `latest` the same way.
 
-## 4. Rotation schedule (proposal, the owner decides: SPL-1945)
+## 4. Rotation schedule (owner approved: poll c5bf2101, answer A, 2026-10-20)
 
-`do_spl_secret_age_report` flags a version `OVER` once cnf
-`env.secrets.max_age_days.secret_version` is set; it is `null` today.
+cnf `env.secrets.max_age_days.per_secret` (all.env.yaml) holds a max age in
+days for each secret the hub pins; it beats the class value
+`secret_version` (still `null`). `do_spl_secret_age_report` shows each
+secret's max age and flags it `OVER` past it (exit 1). A test keeps the list
+equal to the secrets pinned in dev and prd.
 
-| secret class | proposed cadence | note |
+| secret | max age, days | how a new version is made |
 |---|---|---|
-| DB DSN (`csi-spl-hub-db-dsn`) | 90 days | the password changes in SQL first, then the new DSN version |
-| session key | 180 days, or on a leak | one key, no key ring: rotating it signs every session out |
-| IdP client secrets, SMTP password, Stripe keys, GitHub App key, LinkedIn app | 180 days, or when the provider rotates | rotated at the provider, then seeded |
-| box-wui key (`csi-spl-hub-wui-key`) | on a leak | the boxes trust its public key; a rotation is a box rollout too |
+| `csi-spl-hub-db-dsn` | 90 | new password for the hub DB user in Cloud SQL, then the new DSN as a version |
+| `csi-spl-hub-auth-session-key` | 180, or on a leak | 48 random bytes; signs every session out (one key, no key ring) |
+| `csi-spl-hub-auth-{google,facebook,linkedin}-client-secret` | 180, or when the IdP rotates | at the IdP, then `do_spl_auth_idp_secret_seed` |
+| `csi-spl-hub-marketing-linkedin-client-{id,secret}` | 180 | at LinkedIn, the pair together |
+| `csi-spl-hub-mail-smtp-password` | 180 | a new app password, then `do_spl_mail_secret_seed` |
+| `csi-spl-hub-stripe-secret-key` | 180 | roll at Stripe, then `do_spl_payment_secret_seed` |
+| `csi-spl-hub-stripe-webhook-secret` | 365 | roll the endpoint's secret at Stripe |
+| `spool-hub-github-app-key` | 180 | a new key in the GitHub App, then `do_spl_gh_app_key_put` |
+| `csi-spl-hub-wui-key` | 365, or on a leak | spec 014 `contracts/wui-dispatch.md` section 2.3: the boxes trust its public key, so a box rollout too |
+
+### 4.1 Why no secret rotates by itself
+
+Secret Manager's own rotation schedule (`rotation` + `topics` on a secret)
+only publishes a message to a Pub/Sub topic when a rotation is due; a
+rotator subscribed to it would still have to add the version, and the pin
+move is a 030 apply that waits for the owner's go. Nine of the twelve
+secrets are made at a third party (IdPs, LinkedIn, Stripe, the mail
+provider, GitHub), where no rotator can reach. So the schedule lives in cnf and the age report
+reads it; no Pub/Sub topic, service agent or rotator is built, and the
+project has no Pub/Sub API enabled (cnf `steps.001-enable-gcp-services`).
+The three made here (DB DSN, session key, box-wui key) could get a rotator
+later; each needs a seed action that adds a version first, and the box-wui
+key a box rollout too.

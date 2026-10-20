@@ -1839,7 +1839,16 @@
       "none_ticked": "Neviens dalībnieks nav atzīmēts: neviens nevar rakstīt šim aģentam.",
       "cancel": "Atcelt"
     },
-    "takeover": "Aģenta pārņemšana"
+    "takeover": "Aģenta pārņemšana",
+    "caps_title": "Darbvietas aģentu ietilpība",
+    "caps_note": "Aģentu ierobežojumus nosaka spool-hub administrators, lai pārvaldītu skaitļošanas resursu sadali.",
+    "caps_col_vendor": "Piegādātājs",
+    "caps_col_cap": "Ierobežojums",
+    "caps_col_live": "Aktīvi",
+    "caps_col_status": "Statuss",
+    "caps_unlimited": "Neierobežots",
+    "caps_available": "Pieejams",
+    "caps_at_limit": "Sasniegts ierobežojums"
   },
   "help": {
     "title": "Palīdzība",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} arhivēta.",
     "error_id": "ID drīkst saturēt mazos burtus, ciparus un domuzīmes (līdz 32), un tam jāsākas ar burtu vai ciparu.",
     "error_email": "Administratora e-pasts nav derīga adrese.",
-    "error_billing": "Nezināms norēķinu statuss."
+    "error_billing": "Nezināms norēķinu statuss.",
+    "caps_open": "Aģentu ierobežojumi",
+    "caps_hint": "Lielākais katra piegādātāja aktīvo aģentu skaits šajā darbvietā. Atstājiet tukšu, ja ierobežojuma nav; 0 bloķē piegādātāju.",
+    "caps_unlimited": "Neierobežots",
+    "caps_save": "Saglabāt ierobežojumus",
+    "caps_saved": "Aģentu ierobežojumi saglabāti: {name}",
+    "caps_error": "Katrs ierobežojums ir tukšs (neierobežots) vai vesels skaitlis, 0 vai vairāk"
   },
   "palette": {
     "title": "Doties uz",

@@ -1839,7 +1839,16 @@
       "none_ticked": "Hiçbir üye işaretlenmedi: bu ajana kimse mesaj gönderemez.",
       "cancel": "İptal"
     },
-    "takeover": "Ajan devralma"
+    "takeover": "Ajan devralma",
+    "caps_title": "Çalışma alanının ajan kapasitesi",
+    "caps_note": "Ajan sınırları, işlem kaynaklarının dağıtımını yönetmek için spool-hub yöneticisi tarafından belirlenir.",
+    "caps_col_vendor": "Sağlayıcı",
+    "caps_col_cap": "Sınır",
+    "caps_col_live": "Etkin",
+    "caps_col_status": "Durum",
+    "caps_unlimited": "Sınırsız",
+    "caps_available": "Müsait",
+    "caps_at_limit": "Sınırda"
   },
   "help": {
     "title": "Yardım",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} arşivlendi.",
     "error_id": "Kimlik küçük harf, rakam ve tirelerden (en fazla 32) oluşmalı ve bir harf ya da rakamla başlamalıdır.",
     "error_email": "Yöneticinin e-postası geçerli bir adres değil.",
-    "error_billing": "Bilinmeyen faturalama durumu."
+    "error_billing": "Bilinmeyen faturalama durumu.",
+    "caps_open": "Ajan sınırları",
+    "caps_hint": "Bu çalışma alanında her sağlayıcının aynı anda etkin olabilecek en fazla ajan sayısı. Sınırsız için boş bırakın; 0 sağlayıcıyı engeller.",
+    "caps_unlimited": "Sınırsız",
+    "caps_save": "Sınırları kaydet",
+    "caps_saved": "{name} için ajan sınırları kaydedildi",
+    "caps_error": "Her sınır boştur (sınırsız) ya da 0 veya daha büyük bir tam sayıdır"
   },
   "palette": {
     "title": "Git",

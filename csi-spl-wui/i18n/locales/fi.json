@@ -1839,7 +1839,16 @@
       "none_ticked": "Yhtään jäsentä ei ole valittu: kukaan ei voi viestiä tälle agentille.",
       "cancel": "Peruuta"
     },
-    "takeover": "Agentin haltuunotto"
+    "takeover": "Agentin haltuunotto",
+    "caps_title": "Työtilan agenttikapasiteetti",
+    "caps_note": "Agenttirajat asettaa spool-hubin ylläpitäjä laskentaresurssien jakamiseksi.",
+    "caps_col_vendor": "Toimittaja",
+    "caps_col_cap": "Raja",
+    "caps_col_live": "Aktiivisia",
+    "caps_col_status": "Tila",
+    "caps_unlimited": "Rajoittamaton",
+    "caps_available": "Vapaana",
+    "caps_at_limit": "Raja täynnä"
   },
   "help": {
     "title": "Ohje",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} arkistoitu.",
     "error_id": "Tunnuksessa saa olla pieniä kirjaimia, numeroita ja yhdysmerkkejä (enintään 32), ja sen on alettava kirjaimella tai numerolla.",
     "error_email": "Ylläpitäjän sähköposti ei ole kelvollinen osoite.",
-    "error_billing": "Tuntematon laskutuksen tila."
+    "error_billing": "Tuntematon laskutuksen tila.",
+    "caps_open": "Agenttirajat",
+    "caps_hint": "Kunkin toimittajan aktiivisten agenttien enimmäismäärä tässä työtilassa. Jätä tyhjäksi, jos rajaa ei ole; 0 estää toimittajan.",
+    "caps_unlimited": "Rajoittamaton",
+    "caps_save": "Tallenna rajat",
+    "caps_saved": "Agenttirajat tallennettu: {name}",
+    "caps_error": "Jokainen raja on tyhjä (rajoittamaton) tai kokonaisluku, 0 tai suurempi"
   },
   "palette": {
     "title": "Siirry",

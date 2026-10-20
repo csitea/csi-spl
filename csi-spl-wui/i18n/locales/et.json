@@ -1839,7 +1839,16 @@
       "none_ticked": "Ühtegi liiget pole märgitud: keegi ei saa sellele agendile kirjutada.",
       "cancel": "Tühista"
     },
-    "takeover": "Agentide ülevõtmine"
+    "takeover": "Agentide ülevõtmine",
+    "caps_title": "Tööruumi agentide mahutavus",
+    "caps_note": "Agentide piiranguid seab spool-hub'i administraator, et juhtida arvutusressursside jaotust.",
+    "caps_col_vendor": "Tarnija",
+    "caps_col_cap": "Piirang",
+    "caps_col_live": "Aktiivsed",
+    "caps_col_status": "Olek",
+    "caps_unlimited": "Piiramatu",
+    "caps_available": "Vaba",
+    "caps_at_limit": "Piir täis"
   },
   "help": {
     "title": "Abi",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} on arhiveeritud.",
     "error_id": "ID peab koosnema väiketähtedest, numbritest ja sidekriipsudest (kuni 32) ning algama tähe või numbriga.",
     "error_email": "Administraatori e-post ei ole kehtiv aadress.",
-    "error_billing": "Tundmatu arvelduse olek."
+    "error_billing": "Tundmatu arvelduse olek.",
+    "caps_open": "Agentide piirangud",
+    "caps_hint": "Iga tarnija aktiivsete agentide suurim arv selles tööruumis. Jätke tühjaks, kui piirangut pole; 0 blokeerib tarnija.",
+    "caps_unlimited": "Piiramatu",
+    "caps_save": "Salvesta piirangud",
+    "caps_saved": "Agentide piirangud salvestati: {name}",
+    "caps_error": "Iga piirang on tühi (piiramatu) või täisarv, 0 või suurem"
   },
   "palette": {
     "title": "Mine",

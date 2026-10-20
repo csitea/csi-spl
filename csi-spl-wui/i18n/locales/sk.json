@@ -1839,7 +1839,16 @@
       "none_ticked": "Nie je označený žiadny člen: tomuto agentovi nemôže nikto písať.",
       "cancel": "Zrušiť"
     },
-    "takeover": "Prevzatie agentom"
+    "takeover": "Prevzatie agentom",
+    "caps_title": "Kapacita agentov pracovného priestoru",
+    "caps_note": "Limity agentov nastavuje správca spool-hub, aby riadil prideľovanie výpočtových prostriedkov.",
+    "caps_col_vendor": "Dodávateľ",
+    "caps_col_cap": "Limit",
+    "caps_col_live": "Aktívni",
+    "caps_col_status": "Stav",
+    "caps_unlimited": "Neobmedzene",
+    "caps_available": "Voľné",
+    "caps_at_limit": "Limit dosiahnutý"
   },
   "help": {
     "title": "Pomoc",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} archivovaný.",
     "error_id": "ID musí obsahovať malé písmená, číslice a pomlčky (najviac 32) a začínať písmenom alebo číslicou.",
     "error_email": "E-mail správcu nie je platná adresa.",
-    "error_billing": "Neznámy stav fakturácie."
+    "error_billing": "Neznámy stav fakturácie.",
+    "caps_open": "Limity agentov",
+    "caps_hint": "Najvyšší počet aktívnych agentov každého dodávateľa v tomto pracovnom priestore. Nechajte prázdne pre neobmedzene; 0 dodávateľa zablokuje.",
+    "caps_unlimited": "Neobmedzene",
+    "caps_save": "Uložiť limity",
+    "caps_saved": "Limity agentov boli uložené pre {name}",
+    "caps_error": "Každý limit je prázdny (neobmedzene) alebo celé číslo, 0 alebo viac"
   },
   "palette": {
     "title": "Prejsť na",

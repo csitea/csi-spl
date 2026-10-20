@@ -1839,7 +1839,16 @@
       "none_ticked": "Nie zaznaczono żadnego członka: nikt nie może pisać do tego agenta.",
       "cancel": "Anuluj"
     },
-    "takeover": "Przejęcie przez agenta"
+    "takeover": "Przejęcie przez agenta",
+    "caps_title": "Pojemność agentów obszaru roboczego",
+    "caps_note": "Limity agentów ustala administrator spool-hub, aby zarządzać przydziałem mocy obliczeniowej.",
+    "caps_col_vendor": "Dostawca",
+    "caps_col_cap": "Limit",
+    "caps_col_live": "Aktywni",
+    "caps_col_status": "Stan",
+    "caps_unlimited": "Bez limitu",
+    "caps_available": "Dostępne",
+    "caps_at_limit": "Osiągnięto limit"
   },
   "help": {
     "title": "Pomoc",
@@ -2264,7 +2273,13 @@
     "archived_notice": "Zarchiwizowano {name}.",
     "error_id": "Identyfikator musi składać się z małych liter, cyfr i myślników (do 32) i zaczynać się literą lub cyfrą.",
     "error_email": "E-mail administratora nie jest prawidłowym adresem.",
-    "error_billing": "Nieznany stan rozliczeń."
+    "error_billing": "Nieznany stan rozliczeń.",
+    "caps_open": "Limity agentów",
+    "caps_hint": "Największa liczba aktywnych agentów każdego dostawcy w tym obszarze roboczym. Pozostaw puste, aby nie ograniczać; 0 blokuje dostawcę.",
+    "caps_unlimited": "Bez limitu",
+    "caps_save": "Zapisz limity",
+    "caps_saved": "Zapisano limity agentów dla {name}",
+    "caps_error": "Każdy limit jest pusty (bez limitu) albo jest liczbą całkowitą, 0 lub więcej"
   },
   "palette": {
     "title": "Przejdź do",

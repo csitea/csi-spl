@@ -1839,7 +1839,16 @@
       "none_ticked": "Niciun membru bifat: nimeni nu poate scrie acestui agent.",
       "cancel": "Anulează"
     },
-    "takeover": "Preluare de către agent"
+    "takeover": "Preluare de către agent",
+    "caps_title": "Capacitatea de agenți a spațiului de lucru",
+    "caps_note": "Limitele de agenți sunt stabilite de administratorul spool-hub pentru a gestiona alocarea resurselor de calcul.",
+    "caps_col_vendor": "Furnizor",
+    "caps_col_cap": "Limită",
+    "caps_col_live": "Activi",
+    "caps_col_status": "Stare",
+    "caps_unlimited": "Nelimitat",
+    "caps_available": "Disponibil",
+    "caps_at_limit": "Limită atinsă"
   },
   "help": {
     "title": "Ajutor",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} a fost arhivat.",
     "error_id": "ID-ul trebuie să conțină litere mici, cifre și cratime (până la 32) și să înceapă cu o literă sau o cifră.",
     "error_email": "E-mailul administratorului nu este o adresă validă.",
-    "error_billing": "Stare de facturare necunoscută."
+    "error_billing": "Stare de facturare necunoscută.",
+    "caps_open": "Limite de agenți",
+    "caps_hint": "Numărul maxim de agenți activi ai fiecărui furnizor în acest spațiu de lucru. Lăsați gol pentru nelimitat; 0 blochează furnizorul.",
+    "caps_unlimited": "Nelimitat",
+    "caps_save": "Salvează limitele",
+    "caps_saved": "Limitele de agenți au fost salvate pentru {name}",
+    "caps_error": "Fiecare limită este goală (nelimitat) sau un număr întreg, 0 sau mai mare"
   },
   "palette": {
     "title": "Mergi la",

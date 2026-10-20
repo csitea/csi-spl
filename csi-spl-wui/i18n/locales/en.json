@@ -1839,7 +1839,16 @@
       "none_ticked": "No member ticked: nobody may message this agent.",
       "cancel": "Cancel"
     },
-    "takeover": "Agent takeover"
+    "takeover": "Agent takeover",
+    "caps_title": "Workspace agent capacity",
+    "caps_note": "Agent limits are configured by the spool-hub administrator to govern compute allocation.",
+    "caps_col_vendor": "Vendor",
+    "caps_col_cap": "Cap",
+    "caps_col_live": "Live",
+    "caps_col_status": "Status",
+    "caps_unlimited": "Unlimited",
+    "caps_available": "Available",
+    "caps_at_limit": "At limit"
   },
   "help": {
     "title": "Help",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} archived.",
     "error_id": "The id must be lowercase letters, digits and dashes (up to 32), starting with a letter or digit.",
     "error_email": "The admin email is not a valid address.",
-    "error_billing": "Unknown billing status."
+    "error_billing": "Unknown billing status.",
+    "caps_open": "Agent caps",
+    "caps_hint": "The most live agents of each vendor in this workspace. Leave it empty for unlimited; 0 blocks the vendor.",
+    "caps_unlimited": "Unlimited",
+    "caps_save": "Save caps",
+    "caps_saved": "Agent caps saved for {name}",
+    "caps_error": "Each cap is empty (unlimited) or a whole number, 0 or more"
   },
   "palette": {
     "title": "Go to",

@@ -70,6 +70,7 @@ const LAZY_METHODS = [
   'createOperatorWorkspace',
   'patchOperatorWorkspace',
   'archiveOperatorWorkspace',
+  'agentCaps',
   'editMessage',
   'deleteMessage',
   'mergeMessage',

@@ -1839,7 +1839,16 @@
       "none_ticked": "Ingen medlem markerad: ingen får skriva till den här agenten.",
       "cancel": "Avbryt"
     },
-    "takeover": "Agentövertagande"
+    "takeover": "Agentövertagande",
+    "caps_title": "Arbetsytans agentkapacitet",
+    "caps_note": "Agentgränserna ställs in av spool-hubs administratör för att styra fördelningen av beräkningsresurser.",
+    "caps_col_vendor": "Leverantör",
+    "caps_col_cap": "Gräns",
+    "caps_col_live": "Aktiva",
+    "caps_col_status": "Status",
+    "caps_unlimited": "Obegränsat",
+    "caps_available": "Ledigt",
+    "caps_at_limit": "Gränsen nådd"
   },
   "help": {
     "title": "Hjälp",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} arkiverad.",
     "error_id": "Id:t ska bestå av små bokstäver, siffror och bindestreck (högst 32) och börja med en bokstav eller siffra.",
     "error_email": "Administratörens e-post är inte en giltig adress.",
-    "error_billing": "Okänd faktureringsstatus."
+    "error_billing": "Okänd faktureringsstatus.",
+    "caps_open": "Agentgränser",
+    "caps_hint": "Det högsta antalet aktiva agenter per leverantör i den här arbetsytan. Lämna tomt för obegränsat; 0 spärrar leverantören.",
+    "caps_unlimited": "Obegränsat",
+    "caps_save": "Spara gränser",
+    "caps_saved": "Agentgränserna sparades för {name}",
+    "caps_error": "Varje gräns är tom (obegränsat) eller ett heltal, 0 eller mer"
   },
   "palette": {
     "title": "Gå till",

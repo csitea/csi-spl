@@ -1839,7 +1839,16 @@
       "none_ticked": "Nepažymėtas nė vienas narys: niekas negali rašyti šiam agentui.",
       "cancel": "Atšaukti"
     },
-    "takeover": "Agentų perėmimas"
+    "takeover": "Agentų perėmimas",
+    "caps_title": "Darbo srities agentų talpa",
+    "caps_note": "Agentų ribas nustato spool-hub administratorius, kad valdytų skaičiavimo išteklių paskirstymą.",
+    "caps_col_vendor": "Tiekėjas",
+    "caps_col_cap": "Riba",
+    "caps_col_live": "Aktyvūs",
+    "caps_col_status": "Būsena",
+    "caps_unlimited": "Neribota",
+    "caps_available": "Laisva",
+    "caps_at_limit": "Riba pasiekta"
   },
   "help": {
     "title": "Pagalba",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} archyvuota.",
     "error_id": "ID turi sudaryti mažosios raidės, skaitmenys ir brūkšneliai (iki 32), o pradžioje turi būti raidė arba skaitmuo.",
     "error_email": "Administratoriaus el. paštas nėra tinkamas adresas.",
-    "error_billing": "Nežinoma atsiskaitymo būsena."
+    "error_billing": "Nežinoma atsiskaitymo būsena.",
+    "caps_open": "Agentų ribos",
+    "caps_hint": "Didžiausias aktyvių kiekvieno tiekėjo agentų skaičius šioje darbo srityje. Palikite tuščią, jei ribos nėra; 0 blokuoja tiekėją.",
+    "caps_unlimited": "Neribota",
+    "caps_save": "Išsaugoti ribas",
+    "caps_saved": "Agentų ribos išsaugotos: {name}",
+    "caps_error": "Kiekviena riba yra tuščia (neribota) arba sveikasis skaičius, 0 ar daugiau"
   },
   "palette": {
     "title": "Eiti į",

@@ -5,7 +5,9 @@
      instance's workspaces (search, status filter), creates one, suspends /
      resumes and archives (soft: suspend + archive, with a confirm).
      The hub's 403 operator.workspaces is the gate on every call; a 403 here
-     hides the section. Loaded lazily: the shell's initial chunk stays put. -->
+     hides the section. Loaded lazily: the shell's initial chunk stays put.
+     Spec 147 7.1 (SPL-2676): per workspace, its agent caps by vendor (empty =
+     unlimited, 0 = blocked), GET / PUT /v1/operator/workspaces/{id}/agent-caps. -->
 <template>
   <aside
     class="topic operator-pane"
@@ -130,6 +132,36 @@
               @click="confirming = w.id"
             >{{ t('operator.archive') }}</button>
           </div>
+          <div class="op-actions">
+            <button
+              type="button"
+              class="btn ghost"
+              :disabled="busy !== ''"
+              :aria-expanded="capsFor === w.id ? 'true' : 'false'"
+              data-test="operator-caps-open"
+              @click="toggleCaps(w)"
+            >{{ t('operator.caps_open') }}</button>
+          </div>
+          <form v-if="capsFor === w.id" class="op-caps" data-test="operator-caps" @submit.prevent="saveCaps(w)">
+            <p class="muted">{{ t('operator.caps_hint') }}</p>
+            <label v-for="v in AGENT_CAP_VENDORS" :key="v" class="op-field">
+              <span>{{ t('tenant_settings.split_' + v) }}</span>
+              <input
+                v-model="capsDraft[v]"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                :placeholder="t('operator.caps_unlimited')"
+                data-test="operator-caps-input"
+                :data-vendor="v"
+              >
+            </label>
+            <div class="op-actions">
+              <button type="submit" class="btn" :disabled="busy !== ''" data-test="operator-caps-save">{{ t('operator.caps_save') }}</button>
+              <button type="button" class="btn ghost" :disabled="busy !== ''" @click="capsFor = ''">{{ t('operator.cancel') }}</button>
+            </div>
+          </form>
         </li>
       </ul>
       <p v-else-if="!loading" class="muted" data-test="operator-empty">{{ t('operator.empty') }}</p>
@@ -154,12 +186,14 @@ import {
   replaceOperatorWorkspace,
 } from '~/utils/operator-console.mjs'
 import type { OperatorWorkspace } from '~/utils/operator-console.mjs'
+import { AGENT_CAP_VENDORS, agentCapsDraft, agentCapsPutBody, normalizeAgentCaps } from '~/utils/agent-caps.mjs'
 
 type OperatorApi = {
   listOperatorWorkspaces: () => Promise<unknown>
   createOperatorWorkspace: (body: Record<string, string>) => Promise<unknown>
   patchOperatorWorkspace: (id: string, patch: Record<string, unknown>) => Promise<unknown>
   archiveOperatorWorkspace: (id: string) => Promise<unknown>
+  agentCaps: (op: 'get' | 'put', id: string, body?: unknown) => Promise<unknown>
 }
 
 const { t } = useI18n({ useScope: 'global' })
@@ -176,6 +210,9 @@ const confirming = ref('')
 const notice = ref('')
 const error = ref('')
 const rootKey = ref('')
+/* spec 147: the workspace whose caps form is open, and its draft ('' = unlimited) */
+const capsFor = ref('')
+const capsDraft = reactive<Record<string, string>>(agentCapsDraft(null))
 
 const shown = computed(() => filterOperatorWorkspaces(pane.rows, { q: q.value, status: status.value }))
 const statusOf = (w: OperatorWorkspace) => operatorWorkspaceStatus(w)
@@ -246,6 +283,34 @@ async function create() {
   creating.value = false
 }
 
+async function toggleCaps(w: OperatorWorkspace) {
+  if (capsFor.value === w.id) {
+    capsFor.value = ''
+    return
+  }
+  busy.value = w.id
+  notice.value = ''
+  error.value = ''
+  try {
+    Object.assign(capsDraft, agentCapsDraft(normalizeAgentCaps(await api.agentCaps('get', w.id))))
+    capsFor.value = w.id
+  } catch (e) {
+    failed(e)
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function saveCaps(w: OperatorWorkspace) {
+  const { body, error: bad } = agentCapsPutBody(capsDraft)
+  if (!body) {
+    error.value = t(bad || 'operator.caps_error')
+    return
+  }
+  const out = await write(w.id, () => api.agentCaps('put', w.id, body), t('operator.caps_saved', { name: nameOf(w) }))
+  if (out) capsFor.value = ''
+}
+
 onMounted(() => { void reload() })
 </script>
 
@@ -270,7 +335,7 @@ onMounted(() => { void reload() })
   background: var(--color-surface);
   color: var(--color-fg);
 }
-.op-create, .op-key {
+.op-create, .op-key, .op-caps {
   display: flex;
   flex-direction: column;
   gap: 10px;

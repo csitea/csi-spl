@@ -1839,7 +1839,16 @@
       "none_ticked": "Geen lid aangevinkt: niemand mag deze agent berichten sturen.",
       "cancel": "Annuleren"
     },
-    "takeover": "Agentovername"
+    "takeover": "Agentovername",
+    "caps_title": "Agentcapaciteit van de werkruimte",
+    "caps_note": "Agentlimieten worden ingesteld door de beheerder van spool-hub om de verdeling van rekenkracht te regelen.",
+    "caps_col_vendor": "Leverancier",
+    "caps_col_cap": "Limiet",
+    "caps_col_live": "Actief",
+    "caps_col_status": "Status",
+    "caps_unlimited": "Onbeperkt",
+    "caps_available": "Beschikbaar",
+    "caps_at_limit": "Limiet bereikt"
   },
   "help": {
     "title": "Hulp",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} gearchiveerd.",
     "error_id": "De id bestaat uit kleine letters, cijfers en streepjes (maximaal 32) en begint met een letter of cijfer.",
     "error_email": "Het e-mailadres van de beheerder is ongeldig.",
-    "error_billing": "Onbekende factuurstatus."
+    "error_billing": "Onbekende factuurstatus.",
+    "caps_open": "Agentlimieten",
+    "caps_hint": "Het maximale aantal actieve agents per leverancier in deze werkruimte. Laat leeg voor onbeperkt; 0 blokkeert de leverancier.",
+    "caps_unlimited": "Onbeperkt",
+    "caps_save": "Limieten opslaan",
+    "caps_saved": "Agentlimieten opgeslagen voor {name}",
+    "caps_error": "Elke limiet is leeg (onbeperkt) of een geheel getal van 0 of meer"
   },
   "palette": {
     "title": "Ga naar",

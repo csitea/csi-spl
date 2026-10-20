@@ -1754,6 +1754,32 @@ async function archiveOperatorWorkspace(ctx, id) {
   return live('/v1/operator/workspaces/' + encodeURIComponent(id), { method: 'DELETE' })
 }
 
+/**
+ * Spec 147 (SPL-2676): per-workspace agent caps by vendor.
+ *   'tenant'         GET /v1/tenant/agent-caps (any member: caps, live, can_edit)
+ *   'get', id        GET /v1/operator/workspaces/{id}/agent-caps
+ *   'put', id, body  PUT /v1/operator/workspaces/{id}/agent-caps ({caps: {vendor: n | null}})
+ * The operator routes are 403 operator.workspaces for anyone but an admin of
+ * the operator workspace. The mock loads with the call (utils/agent-caps.mjs).
+ */
+async function agentCaps(ctx, op, id, body) {
+  const { live, mock } = ctx
+  if (mock) {
+    const m = await import('./agent-caps.mjs')
+    if (op === 'tenant') return m.mockTenantAgentCaps()
+    if (op === 'get') return m.mockOperatorAgentCaps(id)
+    if (op === 'put') return m.mockOperatorPutAgentCaps(id, body)
+    throw new Error('agentCaps: unknown op ' + op)
+  }
+  if (op === 'tenant') return live('/v1/tenant/agent-caps')
+  const path = '/v1/operator/workspaces/' + encodeURIComponent(id) + '/agent-caps'
+  if (op === 'get') return live(path)
+  if (op === 'put') {
+    return live(path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  }
+  throw new Error('agentCaps: unknown op ' + op)
+}
+
 /* the mock's uploaded bytes, per client (ctx) */
 const mockBlobs = new WeakMap()
 const blobsOf = (ctx) => {
@@ -1840,6 +1866,7 @@ export const lazySpoolMethods = {
   getFleetTokens,
   getFxCurrencies,
   fleetPaid,
+  agentCaps,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

@@ -9,7 +9,10 @@
      Spec 073 4.6 (108 T010): join tokens and Revoke seat, only with
      agents.join, loaded on demand (JoinTokensPanel).
      SPL-1018 (spec 044 FR-OS-017): who may message each agent (AgentSenders,
-     loaded on demand). -->
+     loaded on demand).
+     Spec 147 7.2 (SPL-2676): the workspace's agent caps per vendor, READ-ONLY
+     (GET /v1/tenant/agent-caps): only the spool-hub admin sets them, in the
+     operator console. Hidden when the hub does not answer the route. -->
 <template>
   <SettingsSection id="tenant-agents" :title="t('tenant_settings.agents_title')" data-test="tenant-settings-agents">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -41,6 +44,28 @@
 
   <!-- SPL-1018: who may DM or @mention each agent, on demand -->
   <AgentSenders v-if="!loading && !loadError && seats.length" :seats="seats" />
+
+  <SettingsSection v-if="capsView" id="tenant-agent-caps" :title="t('tenant_settings.caps_title')" data-test="tenant-settings-agent-caps">
+    <p class="muted ts-hint">{{ t('tenant_settings.caps_note') }}</p>
+    <table class="ts-caps" data-test="tenant-agent-caps-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('tenant_settings.caps_col_vendor') }}</th>
+          <th scope="col">{{ t('tenant_settings.caps_col_cap') }}</th>
+          <th scope="col">{{ t('tenant_settings.caps_col_live') }}</th>
+          <th scope="col">{{ t('tenant_settings.caps_col_status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="r in capRows" :key="r.vendor" data-test="tenant-agent-cap-row" :data-vendor="r.vendor" :data-status="r.status">
+          <td>{{ t('tenant_settings.split_' + r.vendor) }}</td>
+          <td data-test="tenant-agent-cap">{{ r.cap === null ? t('tenant_settings.caps_unlimited') : r.cap }}</td>
+          <td data-test="tenant-agent-cap-live">{{ r.live }}</td>
+          <td><span class="ts-badge" :class="'ts-badge--' + r.status" data-test="tenant-agent-cap-status">{{ t('tenant_settings.caps_' + r.status) }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </SettingsSection>
 
   <SettingsSection id="tenant-responders" :title="t('tenant_settings.responders_title')" data-test="tenant-settings-responders">
     <p class="muted ts-hint">{{ t('tenant_settings.responders_hint') }}</p>
@@ -117,6 +142,7 @@ import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validRespond
 import { normalizeId } from '~/utils/agent-id.mjs'
 import { useAccessStore } from '~/stores/access'
 import { canJoinAgents } from '~/utils/join-tokens.mjs'
+import { agentCapRows, normalizeAgentCaps } from '~/utils/agent-caps.mjs'
 
 const JoinTokensPanel = defineAsyncComponent(() => import('~/components/JoinTokensPanel.vue'))
 const AgentSenders = defineAsyncComponent(() => import('~/components/AgentSenders.vue'))
@@ -154,6 +180,17 @@ async function addToLobby(s: Seat) {
 /* Revoke seat answered: the box's agents leave the list */
 function dropBox(box: string) {
   seats.value = seats.value.filter((s) => s.box !== box)
+}
+/* spec 147: null until the hub answered GET /v1/tenant/agent-caps */
+type CapsApi = { agentCaps: (op: 'tenant') => Promise<unknown> }
+const capsView = ref<ReturnType<typeof normalizeAgentCaps> | null>(null)
+const capRows = computed(() => agentCapRows(capsView.value))
+async function loadCaps() {
+  try {
+    capsView.value = normalizeAgentCaps(await (api as unknown as CapsApi).agentCaps('tenant'))
+  } catch {
+    capsView.value = null
+  }
 }
 const responders = ref<string[]>([])
 const saved = ref<string[]>([])
@@ -229,6 +266,7 @@ async function save() {
 watch(() => session.state, (st) => {
   if (st === 'in' || api.mock) {
     void load()
+    void loadCaps()
     void access.load().finally(() => { accessReady.value = true })
   }
 }, { immediate: true })
@@ -244,6 +282,12 @@ watch(() => session.state, (st) => {
 .ts-row__btn { flex: none; padding: 2px 10px; font-size: 0.8125rem; }
 .ts-ok { color: var(--color-ok); }
 .ts-connect { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.ts-caps { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.ts-caps th, .ts-caps td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--color-border); }
+.ts-caps th { color: var(--color-muted); font-weight: 500; }
+.ts-badge { font-size: 0.75rem; padding: 1px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); color: var(--color-muted); }
+.ts-badge--available { color: var(--color-ok); border-color: var(--color-ok); }
+.ts-badge--at_limit { color: var(--color-warn); border-color: var(--color-warn); }
 .ts-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); }
 .ts-dot--on { background: var(--color-ok); }
 .ts-hint { margin: 0 0 10px; }

@@ -1839,7 +1839,16 @@
       "none_ticked": "Ningún miembro marcado: nadie puede escribir a este agente.",
       "cancel": "Cancelar"
     },
-    "takeover": "Relevo de agentes"
+    "takeover": "Relevo de agentes",
+    "caps_title": "Capacidad de agentes del espacio de trabajo",
+    "caps_note": "El administrador de spool-hub configura los límites de agentes para gobernar la asignación de cómputo.",
+    "caps_col_vendor": "Proveedor",
+    "caps_col_cap": "Límite",
+    "caps_col_live": "Activos",
+    "caps_col_status": "Estado",
+    "caps_unlimited": "Sin límite",
+    "caps_available": "Disponible",
+    "caps_at_limit": "En el límite"
   },
   "help": {
     "title": "Ayuda",
@@ -2264,7 +2273,13 @@
     "archived_notice": "{name} archivado.",
     "error_id": "El identificador debe tener letras minúsculas, dígitos y guiones (hasta 32) y empezar por una letra o un dígito.",
     "error_email": "El correo del administrador no es una dirección válida.",
-    "error_billing": "Estado de facturación desconocido."
+    "error_billing": "Estado de facturación desconocido.",
+    "caps_open": "Límites de agentes",
+    "caps_hint": "El máximo de agentes activos de cada proveedor en este espacio de trabajo. Déjelo vacío para no tener límite; 0 bloquea al proveedor.",
+    "caps_unlimited": "Sin límite",
+    "caps_save": "Guardar límites",
+    "caps_saved": "Límites de agentes guardados para {name}",
+    "caps_error": "Cada límite está vacío (sin límite) o es un número entero igual o mayor que 0"
   },
   "palette": {
     "title": "Ir a",

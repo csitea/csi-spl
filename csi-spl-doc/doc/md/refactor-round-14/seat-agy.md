@@ -37,14 +37,19 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
 consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat
 
-## 4. Current Status on Rotation (22:54Z)
+## 4. Current Status on Rotation (06:48Z)
 
 - Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
 - Mistral seat `m-490@sat` re-measured on `938a31f67` and updated `seat-mistral.md` in `e973768a7`; acknowledged by editor `a-615` (msg `3518c0a5`).
 - Batch 1 completed and landed on origin/master:
   - Row 01 (`refactor(r14-01-wui-decompose-doc-view)`, SPL-2575): R7 review completed by `a-615` (PASS), landed on origin/master in `aa1345a1d`.
   - Row 02 (`refactor(r14-02-orc-small-spawn-main)`, SPL-2576): R7 review completed by `a-615` (PASS on `5dd714f2eb02fe0b8d0cce1ce86fd1e1849be9ff`), landed on origin/master in `278f72c9d`.
-- Batch 2 ready for dispatch: Row 03 (`refactor(r14-03-wui-decompose-qto-tree)`, Lane 1) and Row 04 (`refactor(r14-04-iac-small-check-pre-push)`, Lane 2). Current dispatch lease holder is `g-002@sat`.
+- Batch 2 completed and landed on origin/master:
+  - Row 03 (`refactor(r14-03-wui-decompose-qto-tree)`, SPL-2648): R7 review completed by `a-585@sat` (PASS on `18be50ad8e2d28ba08ab8edf7091dea127714c38`), landed on origin/master in `c65a1e9a4`.
+  - Row 04 (`refactor(r14-04-iac-small-check-pre-push)`, SPL-2651): R7 review completed by `a-581@sat` (PASS on `8958ad3d4e972d648e1c2d4006cd698e983d70d8`), landed on origin/master in `db8486e6d`.
+- Batch 3 in progress:
+  - Row 05 (`refactor(r14-05-wui-decompose-calendar-main)`, Lane 1): in flight (`c-601@sat`).
+  - Row 06 (`test(r14-06-go-coverage-payments-paypal)`, SPL-2682, Lane 2): R7 review completed by `a-615` (PASS on `deb8fa8f918f344a975e7528d2ef3b60a17b273a`), review line sent to `c-604@sat` on task `b2d47420-0b60-5998-87de-9c9d746d9eaf`.
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Hourly rotation at 22:54Z UTC: Worktree clean and synchronized with origin/master at `15de286cf`, standing by for incoming R7 review requests or Batch 2 dispatch updates.
+- Status at 06:48Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 3/4 dispatch updates.

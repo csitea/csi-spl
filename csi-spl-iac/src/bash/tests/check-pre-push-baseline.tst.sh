@@ -14,6 +14,10 @@
 #           the old rc-only compare WARNed it)
 #        c. unparseable output on HEAD and base    -> FAIL (fail closed)
 #        d. HEAD green                             -> PASS
+#        e. unparseable output on HEAD, base GREEN -> FAIL (a new crash; red
+#           control: waving an empty HEAD signature through as WARN when the
+#           base is green passed a-d, none of which pairs a mute HEAD with a
+#           green base)
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
@@ -80,6 +84,8 @@ _sig_part() {
   return "$rc"
 }
 _mute_part() { echo "something went wrong"; return 1; }
+# green on a 'good' tree, else a crash whose output names no failing item
+_mute_head_part() { grep -q good "$1/flag" 2>/dev/null && return 0; echo "something went wrong"; return 1; }
 names() {  # <base-flag> <head-flag> <part-fn> -> "<failed>|<stat>|<name>"
   local R; R="$ROOT/n$RANDOM$RANDOM"
   { git init -q "$R"; printf '%b\n' "$1" >"$R/flag"; git -C "$R" add flag; git -C "$R" commit -qm base
@@ -95,6 +101,7 @@ eq "7b. base fails A, HEAD fails A+B -> FAIL" "1|FAIL" "$(cut -d'|' -f1,2 <<<"$o
 case "$out7b" in *"NEW on your tree: go-test TestB)"*) pass "7b. ... naming only B as NEW" ;; *) fail "7b. ... naming only B as NEW" "$out7b" ;; esac
 eq "7c. unparseable output on HEAD and base -> FAIL (fail closed)" "1|FAIL" "$(names bad bad _mute_part | cut -d'|' -f1,2)"
 eq "7d. HEAD green -> PASS" "0|PASS" "$(names TestA good _sig_part | cut -d'|' -f1,2)"
+eq "7e. unparseable crash on HEAD, green base -> FAIL" "1|FAIL" "$(names good bad _mute_head_part | cut -d'|' -f1,2)"
 
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.

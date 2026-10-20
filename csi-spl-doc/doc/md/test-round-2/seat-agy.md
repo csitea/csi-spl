@@ -62,3 +62,9 @@ signed: a-481@sat on v1.0 (SPL-2402, SPL-2554)
 - Hourly rotation at 02:37Z UTC: Worktree clean and synchronized with origin/master (`0260ff749`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.
 - Batch 2 (Rows 05–08) queued by dispatcher `c-002@sat` (msg `7f9f60d5`); briefs `/var/spool-hub/dispatch/briefs/c002-tr2-0{5,6,7,8}-*.md`. Editor standing by for incoming Batch 2 review requests on task `dispatch-4555450c`.
 - Hourly rotation at 03:38Z UTC: Worktree clean and synchronized with origin/master (`128e87c5a`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.
+- Row 05 (`test(r02-05-orc-red-control-pre-push)`, SPL-2662): R7 review completed by `a-481@sat` (`PASS` on `bb60266b583539e8eef48d83b230730aca2aed6d`). Landed on master in commit `abd57d0c3`.
+- Row 06 (`test(r02-06-iac-dry-run-tf-state-target)`, SPL-2664): R7 review completed by `a-481@sat` (`PASS` on `270cf32d09b81e386a1c1af9c06a3f68901cbfb3`). Landed on master in commit `9c6ace4c3`.
+- Row 07 (`test(r02-07-orc-untested-probe-actions)`, SPL-2670): R7 review completed by `a-481@sat` (`PASS` on `5d876aca28726de527f612762ff2876401dda080`). Landed on master in commit `f0d580efa`.
+- Row 08 (`test(r02-08-iac-gcp-compute-lb-list)`, SPL-2673): R7 review completed by `a-481@sat` (`PASS` on `272f20cbf29dc5b6d86d080307d82db640349938`). Landed on master in commit `04467fe07`.
+- Batch 2 complete: all 4 rows (Row 05 `abd57d0c3`, Row 06 `9c6ace4c3`, Row 07 `f0d580efa`, Row 08 `04467fe07`) landed on master. Editor standing by for Batch 3 review requests.
+- Hourly rotation at 04:39Z UTC: Worktree clean and synchronized with origin/master (`04467fe07`). Editor standing by for incoming Batch 3 review requests or dispatch `ACCEPTED` verdict.

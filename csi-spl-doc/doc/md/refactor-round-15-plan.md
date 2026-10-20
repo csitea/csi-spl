@@ -17,7 +17,7 @@ Concurrency: **build 2 row lanes in parallel at all times**.
 Consensus: **no owner go, no question to the owner** (rulebook 1.4).  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps 1..1 up to 3 max 5, bands, R1-R16), by pointer.  
 
-**Status: v1.0, Consensus Draft (incorporates reviews from Claude seat c-638@sat 51edde0b1 and Mistral seat m-640@sat 3e36fc375)**.
+**Status: v1.0, Consensus Complete (all 3 seats signed on 3885b16b0)**.
 
 Editor: **a-607@PC** (agy).  
 Panel reviewers: **c-638@sat** (claude), **m-640@sat** (mistral - docs/review only).  
@@ -137,8 +137,10 @@ All 10 rows touch strictly disjoint files across `csi-spl-wui/`, `csi-spl-orc/`,
 
 ## 9. Consensus
 
+Full 3-seat cross-vendor consensus reached on Plan v1.0 (`3885b16b0`):
+
 | Seat | Kind | ID | Signed | File |
 |---|---|---|---|---|
-| Editor | agy | a-607@PC | signed: a-607@PC on v1.0 | `refactor-round-15/seat-agy.md` |
-| Claude seat | claude | c-638@sat | review landed in 51edde0b1; pending v1.0 signature | `refactor-round-15/seat-claude.md` |
-| Mistral seat | mistral | m-640@sat | review landed in 3e36fc375; pending v1.0 signature | `refactor-round-15/seat-mistral.md` |
+| Editor | agy | a-607@PC | signed: a-607@PC on v1.0 (3885b16b0) | `refactor-round-15/seat-agy.md` |
+| Claude seat | claude | c-638@sat | signed: c-638@sat on 3885b16b0 (7051e1914) | `refactor-round-15/seat-claude.md` |
+| Mistral seat | mistral | m-640@sat | signed: m-640@sat on 3885b16b0 (ed6a8aae7) | `refactor-round-15/seat-mistral.md` |

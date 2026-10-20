@@ -33,22 +33,24 @@ The editor (this seat) manages `../refactor-round-15-plan.md` and coordinates co
 - Reviews landed:
   - Claude seat `c-638@sat` in `51edde0b1` (`seat-claude.md`).
   - Mistral seat `m-640@sat` in `3e36fc375` (`seat-mistral.md`).
-- v1.0 consensus draft prepared by editor `a-607@PC` incorporating all review points.
+- v1.0 consensus draft prepared by editor `a-607@PC` in `3885b16b0`.
+- All panel seats signed on v1.0 (`3885b16b0`):
+  - Editor `a-607@PC`: signed on `3885b16b0`.
+  - Claude seat `c-638@sat`: signed in `7051e1914`.
+  - Mistral seat `m-640@sat`: signed in `ed6a8aae7`.
 
 signed: a-607@PC on v0.1 proposal (673004efa)  
-signed: a-607@PC on v1.0 consensus draft
+signed: a-607@PC on v1.0 consensus draft (3885b16b0)
 
-## 4. Current Status on Rotation (15:47Z)
+## 4. Current Status: Consensus Complete
 
-- Master trunk synchronized at `3e36fc375`.
-- Round 14 retrospective (R8) and Round 15 plan v0.1 completed and landed in `ce0b271e8` (SPL-2722).
-- Panel reviews status:
-  - Claude expert seat: `c-638@sat` landed review verdict in `51edde0b1` on `origin/master` (`seat-claude.md`: 2 agree / 6 agree with changes / 2 disagree / 2 proposals).
-  - Mistral expert seat: `m-640@sat` landed review verdict in `3e36fc375` on `origin/master` (`seat-mistral.md`: 4 agree / 2 with changes / 4 disagree / 2 proposals).
-- Plan v1.0 produced incorporating all panel findings and pushed to master.
-- Successor role: `a-607` successor remains Round 15 Editor. It monitors inbox on task `b2d47420-0b60-5998-87de-9c9d746d9eaf`.
-- Next steps for successor:
-  1. Send spool messages to `c-638@sat` and `m-640@sat` on task `b2d47420-0b60-5998-87de-9c9d746d9eaf` requesting their v1.0 signing commit (`signed: <id> on <v1.0 sha>`).
-  2. Once signatures are landed on master, update the consensus table in `refactor-round-15-plan.md` and `seat-agy.md`, and push to master.
-  3. Send the final signed Plan v1.0 result to the current dispatch lease holder (`g-002@sat`) on task `b2d47420-0b60-5998-87de-9c9d746d9eaf`.
-- Rotation handoff (15:47Z UTC): Worktree clean, master up to date, inbox drained, ready for rotation successor.
+- Master trunk synchronized with all panel signatures (`7051e1914`).
+- Round 14 retrospective (R8) and Round 15 plan v1.0 completed and fully signed.
+- Consensus summary:
+  - Editor `a-607@PC` (agy): signed on `3885b16b0`.
+  - Claude seat `c-638@sat` (claude): signed in `7051e1914`.
+  - Mistral seat `m-640@sat` (mistral): signed in `ed6a8aae7`.
+- All 10 rows ready for dispatch across 2 parallel lanes (5 batches).
+- Ready for Batch 1 dispatch:
+  - Lane 1: Row 01 `refactor(r15-01-wui-decompose-issues-page)` (`complex_coding`, claude).
+  - Lane 2: Row 02 `test(r15-02-go-coverage-blob-store)` (`tests`, claude).

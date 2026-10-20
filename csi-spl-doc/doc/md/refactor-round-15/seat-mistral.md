@@ -4,7 +4,7 @@
 **Epic**: SPL-2402
 **Spec**: csi-spl-doc/specs/011-spool-project-refactor
 **Editor**: a-607@PC
-**Signed**: 
+**Signed**: m-640@sat on 3885b16b093599862f499f8330987d1169e90ba1
 
 ## Verdict Summary
 | Row | Measurement | Current Value (sha: `51edde0b1750e25608606f67b150be0ba12f43bd`) | Target | Verdict | Reason |

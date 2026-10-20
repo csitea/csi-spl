@@ -5,8 +5,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { carriesFiles, filesOf, pasteAttaches } from '../../src/utils/transfer-files.mjs'
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { carriesFiles, filesOf, pasteAttaches } = await importTs('src/utils/transfer-files.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

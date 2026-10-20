@@ -3,7 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
 import { archiveStamp, withoutTopics } from '~/utils/topic-archive.mjs'
-import { topicsWithKind } from '~/utils/topic-kind.mjs'
+import { topicsWithKind } from '~/utils/topic-kind'
 import { useLive } from '~/composables/useLive'
 import type { SpoolMessage, TopicRow } from '~/types/spool'
 

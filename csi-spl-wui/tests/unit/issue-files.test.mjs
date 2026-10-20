@@ -5,7 +5,9 @@
 // Run: node tests/unit/issue-files.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { descFileLink, descFileRefs, uploadRefs } from '../../src/utils/issue-files.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { descFileLink, descFileRefs, uploadRefs } = await importTs('src/utils/issue-files.ts')
 
 const SHA = 'a'.repeat(64)
 const SHA2 = 'b'.repeat(64)

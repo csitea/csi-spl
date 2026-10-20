@@ -6,7 +6,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { useViewerStore } from '~/stores/viewer'
-import { messageKind } from '~/utils/topic-kind.mjs'
+import { messageKind } from '~/utils/topic-kind'
 import { canEditMessage } from '~/utils/msg-edit.mjs'
 import type { SpoolMessage } from '~/types/spool'
 

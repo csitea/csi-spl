@@ -1,7 +1,7 @@
 import type { ComputedRef, Ref, WatchSource } from 'vue'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { isTopKind, type Issue } from '~/utils/issues.mjs'
-import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
+import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk'
 import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import type { IssuePickerMenu, IssuesApi } from '~/composables/issuesPageTypes'
 

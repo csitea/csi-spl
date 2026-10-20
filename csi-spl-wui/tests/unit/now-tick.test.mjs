@@ -1,11 +1,12 @@
-// CLE-35075: the topic pane's 1 Hz clock (utils/now-tick.mjs) keeps the
+// CLE-35075: the topic pane's 1 Hz clock (utils/now-tick.ts) keeps the
 // old contract - an immediate reading on enable, one reading per second while
 // open, stopped on close - and adds one rule: no ticks while the tab is
 // hidden, and a fresh reading the moment it is visible again.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { importTs } from './lib/load-ts.mjs'
 
-import { createNowTick } from '../../src/utils/now-tick.mjs'
+const { createNowTick } = await importTs('src/utils/now-tick.ts')
 
 function rig(visibility = 'visible') {
   let t = 1000

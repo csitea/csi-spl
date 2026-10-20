@@ -1,5 +1,5 @@
 import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
-import { createNowTick } from '~/utils/now-tick.mjs'
+import { createNowTick } from '~/utils/now-tick'
 
 /**
  * A 1 Hz clock, running only while `enabled` is true (an open topic pane)
@@ -17,7 +17,7 @@ import { createNowTick } from '~/utils/now-tick.mjs'
  * getter and unwraps a ref, so both shapes work and the clock stops again. */
 export function useNowTick(enabled: MaybeRefOrGetter<boolean>) {
   const now = ref(Date.now())
-  /* CLE-35075: paused while the tab is hidden (utils/now-tick.mjs) */
+  /* CLE-35075: paused while the tab is hidden (utils/now-tick.ts) */
   const clock = createNowTick({
     set: (ms: number) => { now.value = ms },
     doc: import.meta.client ? document : null,

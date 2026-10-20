@@ -6,22 +6,25 @@
 // back to visible the clock reads Date.now() at once, so the first painted
 // frame is exactly what the old always-on clock would have shown.
 
-/**
- * @param {{
- *   set: (ms: number) => void,
- *   now?: () => number,
- *   doc?: { visibilityState?: string, addEventListener?: Function, removeEventListener?: Function } | null,
- *   every?: (fn: () => void, ms: number) => unknown,
- *   cancel?: (id: unknown) => void,
- * }} deps
- */
-export function createNowTick(deps) {
+type TickDoc = {
+  visibilityState?: string
+  addEventListener?: (t: string, fn: () => void) => void
+  removeEventListener?: (t: string, fn: () => void) => void
+}
+
+export function createNowTick(deps: {
+  set: (ms: number) => void
+  now?: () => number
+  doc?: TickDoc | null
+  every?: (fn: () => void, ms: number) => unknown
+  cancel?: (id: unknown) => void
+}): { enable(on: boolean): void, running(): boolean, dispose(): void } {
   const now = deps.now || (() => Date.now())
-  const doc = deps.doc === undefined ? (typeof document === 'undefined' ? null : document) : deps.doc
-  const every = deps.every || ((fn, ms) => setInterval(fn, ms))
-  const cancel = deps.cancel || ((id) => clearInterval(/** @type {any} */ (id)))
+  const doc: TickDoc | null = deps.doc === undefined ? (typeof document === 'undefined' ? null : document) : deps.doc
+  const every = deps.every || ((fn: () => void, ms: number) => setInterval(fn, ms))
+  const cancel = deps.cancel || ((id: unknown) => clearInterval(id as ReturnType<typeof setInterval>))
   let enabled = false
-  let id = null
+  let id: unknown = null
 
   const hidden = () => Boolean(doc && doc.visibilityState === 'hidden')
 
@@ -43,7 +46,7 @@ export function createNowTick(deps) {
 
   return {
     /** on: the pane is open */
-    enable(on) {
+    enable(on: boolean) {
       enabled = Boolean(on)
       sync()
     },

@@ -14,10 +14,10 @@
  */
 
 /** how many per-issue calls run at once */
-export const BULK_PARALLEL = 4
+export const BULK_PARALLEL: number = 4
 
 /** `key` checked or unchecked: `on` true / false, or the opposite of now. */
-export function toggleKey(sel, key, on) {
+export function toggleKey(sel: string[], key: string, on?: boolean): string[] {
   const list = Array.isArray(sel) ? sel : []
   if (!key) return list
   const has = list.includes(key)
@@ -31,7 +31,7 @@ export function toggleKey(sel, key, on) {
  * included) takes the state `on`. No anchor, or an anchor no longer in the
  * list, behaves as a plain click on `key`.
  */
-export function rangeSelect(sel, order, anchor, key, on) {
+export function rangeSelect(sel: string[], order: string[], anchor: string, key: string, on?: boolean): string[] {
   const keys = Array.isArray(order) ? order : []
   const a = anchor ? keys.indexOf(anchor) : -1
   const b = keys.indexOf(key)
@@ -44,7 +44,7 @@ export function rangeSelect(sel, order, anchor, key, on) {
 }
 
 /** The header box's state for the rows shown: 'none', 'some' or 'all'. */
-export function pageState(sel, shown) {
+export function pageState(sel: string[], shown: string[]): 'none' | 'some' | 'all' {
   const keys = Array.isArray(shown) ? shown : []
   const set = new Set(Array.isArray(sel) ? sel : [])
   const n = keys.filter((k) => set.has(k)).length
@@ -53,7 +53,7 @@ export function pageState(sel, shown) {
 }
 
 /** The header box clicked: every shown row checked, or (all already were) none. */
-export function toggleAll(sel, shown) {
+export function toggleAll(sel: string[], shown: string[]): string[] {
   const keys = Array.isArray(shown) ? shown : []
   const list = Array.isArray(sel) ? sel : []
   if (pageState(list, keys) === 'all') {
@@ -65,7 +65,7 @@ export function toggleAll(sel, shown) {
 }
 
 /** Only the keys still on the list (a row deleted, archived or filtered away leaves the selection). */
-export function keepShown(sel, keys) {
+export function keepShown(sel: string[], keys: string[]): string[] {
   const list = Array.isArray(sel) ? sel : []
   const set = new Set(Array.isArray(keys) ? keys : [])
   const out = list.filter((k) => set.has(k))
@@ -77,16 +77,20 @@ export function keepShown(sel, keys) {
  * `{ done: [keys], failed: [{ key, error }] }`, in the keys' order.
  * `onProgress(finished, total)` after each call.
  */
-export async function runBulk(keys, fn, { parallel = BULK_PARALLEL, onProgress } = {}) {
+export async function runBulk(
+  keys: string[],
+  fn: (key: string) => Promise<unknown>,
+  { parallel = BULK_PARALLEL, onProgress }: { parallel?: number, onProgress?: (finished: number, total: number) => void } = {},
+): Promise<{ done: string[], failed: { key: string, error: unknown }[] }> {
   const list = Array.isArray(keys) ? [...keys] : []
-  const outcome = new Array(list.length)
+  const outcome: { ok: boolean, error?: unknown }[] = new Array(list.length)
   let next = 0
   let finished = 0
   const worker = async () => {
     while (next < list.length) {
       const i = next++
       try {
-        await fn(list[i])
+        await fn(list[i]!)
         outcome[i] = { ok: true }
       } catch (error) {
         outcome[i] = { ok: false, error }
@@ -97,11 +101,11 @@ export async function runBulk(keys, fn, { parallel = BULK_PARALLEL, onProgress }
   }
   const n = Math.max(1, Math.min(Number(parallel) || 1, list.length))
   await Promise.all(Array.from({ length: list.length ? n : 0 }, worker))
-  const done = []
-  const failed = []
+  const done: string[] = []
+  const failed: { key: string, error: unknown }[] = []
   list.forEach((key, i) => {
-    if (outcome[i].ok) done.push(key)
-    else failed.push({ key, error: outcome[i].error })
+    if (outcome[i]!.ok) done.push(key)
+    else failed.push({ key, error: outcome[i]!.error })
   })
   return { done, failed }
 }

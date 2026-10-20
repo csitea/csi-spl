@@ -5,13 +5,16 @@
  * on the page was opened by the browser instead of attached.
  */
 
-/**
- * Does this transfer carry files (a drag from the desktop, a copied file)?
- * @param {unknown} dt a DataTransfer, or null
- * @returns {boolean}
- */
-export function carriesFiles(dt) {
-  const d = /** @type {{ types?: ArrayLike<string> } | null} */ (dt)
+/** The parts of a DataTransfer read here (a test passes a plain object). */
+type Transfer = {
+  types?: ArrayLike<string>
+  files?: ArrayLike<File>
+  items?: ArrayLike<{ kind: string, getAsFile: () => File | null }>
+}
+
+/** Does this transfer carry files (a drag from the desktop, a copied file)? */
+export function carriesFiles(dt: DataTransfer | null | undefined): boolean {
+  const d = dt as Transfer | null | undefined
   if (!d || !d.types) return false
   return Array.from(d.types).includes('Files')
 }
@@ -19,15 +22,13 @@ export function carriesFiles(dt) {
 /**
  * The files in a paste or a drop. `files` first; a clipboard that lists its
  * picture only under `items` (some browsers, for a screenshot) is read there.
- * @param {unknown} dt a DataTransfer, or null
- * @returns {File[]}
  */
-export function filesOf(dt) {
-  const d = /** @type {{ files?: ArrayLike<File>, items?: ArrayLike<{ kind: string, getAsFile: () => File | null }> } | null} */ (dt)
+export function filesOf(dt: DataTransfer | null | undefined): File[] {
+  const d = dt as Transfer | null | undefined
   if (!d) return []
   const listed = d.files ? Array.from(d.files).filter(Boolean) : []
   if (listed.length) return listed
-  const out = []
+  const out: File[] = []
   for (const item of d.items ? Array.from(d.items) : []) {
     if (item && item.kind === 'file') {
       const f = item.getAsFile()
@@ -41,11 +42,9 @@ export function filesOf(dt) {
  * Should a paste attach its files instead of inserting text? Yes when it
  * carries files and no rich text. A copy from a document (text/html with an
  * embedded picture) stays a text paste.
- * @param {unknown} dt a DataTransfer, or null
- * @returns {boolean}
  */
-export function pasteAttaches(dt) {
-  const d = /** @type {{ types?: ArrayLike<string> } | null} */ (dt)
+export function pasteAttaches(dt: DataTransfer | null | undefined): boolean {
+  const d = dt as Transfer | null | undefined
   if (!d || !d.types) return false
   const types = Array.from(d.types)
   return filesOf(dt).length > 0 && !types.includes('text/html')

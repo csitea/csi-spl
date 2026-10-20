@@ -2,7 +2,7 @@
      a tenant's admin or business owner, the next 3 steps until the workspace
      is set up - invite a teammate, connect an agent, start a topic in
      #lobby. Each step reads done from what the hub already answers
-     (utils/first-run.mjs); the card hides once all three are done, or when
+     (utils/first-run.ts); the card hides once all three are done, or when
      the viewer presses Hide (this browser, per tenant). Loaded lazily by
      pages/lobby.vue (`/` lands there since t1 e4bfddb1), only for a viewer who may open Tenant settings. -->
 <template>
@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { firstRunHiddenKey, firstRunSteps, firstRunVisible } from '~/utils/first-run.mjs'
+import { firstRunHiddenKey, firstRunSteps, firstRunVisible } from '~/utils/first-run'
 
 const props = defineProps<{ tenant: string, topics: number }>()
 const { t } = useI18n({ useScope: 'global' })

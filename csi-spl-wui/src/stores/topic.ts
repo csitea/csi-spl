@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics.mjs'
+import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { topicOf } from '~/utils/channel-feed.mjs'
 import { useChannelStore } from '~/stores/channel'

@@ -473,10 +473,10 @@ function pickPicture() {
   pictureError.value = ''
   pictureInput.value?.click()
 }
-async function pictureChanged(run: (m: typeof import('~/utils/own-picture.mjs')) => Promise<'' | 'type' | 'size' | 'failed'>) {
+async function pictureChanged(run: (m: typeof import('~/utils/own-picture')) => Promise<'' | 'type' | 'size' | 'failed'>) {
   pictureBusy.value = true
   try {
-    const got = await run(await import('~/utils/own-picture.mjs'))
+    const got = await run(await import('~/utils/own-picture'))
     pictureError.value = got
     if (got) return
     /* the remembered pre-upload 404 would hide the new picture after a reload */

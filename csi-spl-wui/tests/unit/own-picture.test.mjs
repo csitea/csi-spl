@@ -1,14 +1,14 @@
 // t1 ccaee528: a person changes their own picture from the account menu.
-// The request half (src/utils/own-picture.mjs): PUT the picked file to the
+// The request half (src/utils/own-picture.ts): PUT the picked file to the
 // hub's /api/v1/auth/avatar, DELETE to go back to the IdP picture, and the
 // hub's refusals as messages. CONTROLS: a wrong type or an over-cap file never
 // reaches the hub; a 415 / 413 / 5xx / network error is never "stored".
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import {
-  OWN_PICTURE_MAX_BYTES, deleteOwnPicture, ownPictureAnswer, ownPictureProblem, putOwnPicture,
-} from '../../src/utils/own-picture.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { OWN_PICTURE_MAX_BYTES, deleteOwnPicture, ownPictureAnswer, ownPictureProblem, putOwnPicture } = await importTs('src/utils/own-picture.ts')
 
 const png = { type: 'image/png', size: 1200 }
 
@@ -79,7 +79,7 @@ describe('own picture: the hub requests', () => {
 describe('own picture: the account menu', () => {
   const menu = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8')
   it('loads the request code lazily, never as a static import (initial chunk budget)', () => {
-    assert.match(menu, /await import\('~\/utils\/own-picture\.mjs'\)/)
+    assert.match(menu, /await import\('~\/utils\/own-picture'\)/)
     assert.doesNotMatch(menu, /^import .*own-picture/m)
   })
   it('every locale names the items and the three refusals', () => {

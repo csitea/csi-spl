@@ -7,10 +7,11 @@
  * a `/?topic=<task_id>` deep link still opens that topic in the right pane.
  * A phone stays on `/`, whose screen is the left panel (the Channels list),
  * unless the link names a topic (`?topic=` / `?in=`, level 3): then #lobby too.
- * @param {{ phone: boolean, query?: Record<string, unknown> }} s
- * @returns {{ path: string, query: Record<string, unknown> } | null} null = stay
+ * null = stay.
  */
-export function lobbyHomeTarget({ phone, query } = { phone: false }) {
+export function lobbyHomeTarget(
+  { phone, query }: { phone: boolean, query?: Record<string, unknown> } = { phone: false },
+): { path: string, query: Record<string, unknown> } | null {
   const q = { ...(query || {}) }
   if (phone && !q.topic && !q.in) return null
   return { path: '/lobby', query: q }
@@ -18,10 +19,10 @@ export function lobbyHomeTarget({ phone, query } = { phone: false }) {
 
 /* the address as the document loaded it (plugins/0.loaded-url.client.ts);
    undefined until noted, null once taken */
-let loaded
+let loaded: { path: string, search: string } | null | undefined
 
 /** Note the first load's path and query (once per document). */
-export function noteLoadedUrl(path, search) {
+export function noteLoadedUrl(path: string, search: string): void {
   if (loaded === undefined) loaded = { path: String(path || '/'), search: String(search || '') }
 }
 
@@ -30,14 +31,12 @@ export function noteLoadedUrl(path, search) {
  * prefix, isFrontDoor), once: every later call, and a load of any other page,
  * gets null, and the caller reads the router, which holds the real query by
  * then (an in-app visit).
- * @param {(path: string) => boolean} isFrontDoor
- * @returns {Record<string, string> | null}
  */
-export function takeLoadedQuery(isFrontDoor) {
+export function takeLoadedQuery(isFrontDoor: (path: string) => boolean): Record<string, string> | null {
   const was = loaded
   loaded = null
   if (!was || !isFrontDoor(was.path)) return null
-  const out = {}
+  const out: Record<string, string> = {}
   for (const [k, v] of new URLSearchParams(was.search)) out[k] = v
   return out
 }

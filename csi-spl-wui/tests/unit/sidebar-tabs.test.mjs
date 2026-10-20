@@ -10,8 +10,10 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SIDE_TABS, routeForTab, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { RAIL_IDS } from '../../src/utils/rail-order.mjs'
-import { lobbyHomeTarget, noteLoadedUrl, takeLoadedQuery } from '../../src/utils/home-target.mjs'
 import { isMobileFrontDoor } from '../../src/utils/mobile-stack.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { lobbyHomeTarget, noteLoadedUrl, takeLoadedQuery } = await importTs('src/utils/home-target.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

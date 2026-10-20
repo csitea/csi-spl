@@ -308,12 +308,6 @@ declare module '~/utils/live-ws.mjs' {
   }): () => void
 }
 
-declare module '~/utils/home-target.mjs' {
-  export function lobbyHomeTarget(s?: { phone: boolean, query?: Record<string, unknown> }): { path: string, query: Record<string, unknown> } | null
-  export function noteLoadedUrl(path: string, search: string): void
-  export function takeLoadedQuery(isFrontDoor: (path: string) => boolean): Record<string, string> | null
-}
-
 declare module '~/utils/sidebar-tabs.mjs' {
   export const SIDE_TABS: readonly ['dm', 'channels', 'flow']
   export const USERS_TAB: 'users'
@@ -599,12 +593,6 @@ declare module '~/utils/topic-in.mjs' {
     text: string,
     choices: { taskId?: string, title?: string, channel?: string }[],
   ): { taskId: string, channel: string, title: string, body: string }
-}
-
-
-declare module '~/utils/born-topics.mjs' {
-  export function noteBornTopic<T>(rows: T[] | null | undefined, paneOpen: unknown, topicId: unknown, row: unknown): T[]
-  export function dismissBornTopic<T extends { msg_id?: string }>(rows: T[] | null | undefined, msgId: string): T[]
 }
 
 declare module '~/utils/auth-client.mjs' {
@@ -1132,22 +1120,6 @@ declare module '~/utils/pane-scroll.mjs' {
 declare module '~/utils/topic-list.mjs' {
   export function bumpTopic<T>(topics: T[], m: Record<string, unknown>): T[]
   export function mergeTopicPage<T>(topics: T[], page: T[]): T[]
-}
-
-declare module '~/utils/topic-kind.mjs' {
-  export function messageKind(msg: { kind?: string } | null | undefined): string
-  export function retargetKinds(kinds: Record<string, number> | null | undefined, from: string, to: string): Record<string, number>
-  export function topicsWithKind<R extends { task_id: string, kinds: Record<string, number> }>(topics: R[], taskId: string, from: string, to: string): R[]
-}
-
-declare module '~/utils/own-picture.mjs' {
-  export type OwnPictureProblem = '' | 'type' | 'size' | 'failed'
-  export const OWN_PICTURE_TYPES: string[]
-  export const OWN_PICTURE_MAX_BYTES: number
-  export function ownPictureProblem(file: { type: string, size: number } | null | undefined): '' | 'type' | 'size'
-  export function ownPictureAnswer(status: number): OwnPictureProblem
-  export function putOwnPicture(authBase: string, file: File, fetchFn?: typeof fetch): Promise<OwnPictureProblem>
-  export function deleteOwnPicture(authBase: string, fetchFn?: typeof fetch): Promise<'' | 'failed'>
 }
 
 declare module '~/utils/avatar.mjs' {
@@ -1725,14 +1697,6 @@ declare module '~/utils/connect-agent.mjs' {
   export function firstPrompt(agent: string): string
 }
 
-declare module '~/utils/first-run.mjs' {
-  export type FirstRunStep = { id: 'invite' | 'agent' | 'topic', to: string, done: boolean }
-  export const FIRST_RUN_STEPS: { id: string, to: string }[]
-  export function firstRunHiddenKey(tenant: unknown): string
-  export function firstRunSteps(o?: { members?: number | null, invites?: number | null, roster?: Record<string, string[]> | null, topics?: number }): FirstRunStep[]
-  export function firstRunVisible(o: { canSetUp: boolean, hidden: boolean, steps: FirstRunStep[] }): boolean
-}
-
 declare module '~/utils/commit-link-hook.mjs' {
   export type CommitLinker = { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string }
   export function setCommitLinkProvider(fn: (() => CommitLinker | null) | null): void
@@ -1969,20 +1933,6 @@ declare module '~/utils/font-size.mjs' {
   export function readStoredFontSize(store?: unknown, fallback?: number): number
   export function writeStoredFontSize(level: unknown, store?: unknown): boolean
   export function applyFontSizeAttr(level: unknown, el?: { setAttribute?(k: string, v: string): void } | null): number
-}
-
-
-declare module '~/utils/issue-files.mjs' {
-  export interface IssueFileRef { mode: 'blob', kind: 'file', file_id: string, sha256: string, bytes: number, name: string }
-  export function uploadRefs(files: File[], upload: (f: File) => Promise<{ file_id: string, sha256: string, bytes: number }>): Promise<IssueFileRef[]>
-  export function descFileLink(ref: { name?: string, file_id?: string, sha256?: string, bytes?: number }, url: string): string
-  export function descFileRefs(text: string): IssueFileRef[]
-}
-
-declare module '~/utils/transfer-files.mjs' {
-  export function carriesFiles(dt: DataTransfer | null | undefined): boolean
-  export function filesOf(dt: DataTransfer | null | undefined): File[]
-  export function pasteAttaches(dt: DataTransfer | null | undefined): boolean
 }
 
 declare module '~/utils/file-preview.mjs' {
@@ -2364,16 +2314,6 @@ declare module '~/utils/mobile-stack.mjs' {
     | { kind: 'none' } | { kind: 'close', keep: number } | { kind: 'leave' } | { kind: 'dead', back: boolean }
 }
 
-declare module '~/utils/now-tick.mjs' {
-  export function createNowTick(deps: {
-    set: (ms: number) => void
-    now?: () => number
-    doc?: { visibilityState?: string, addEventListener?: (t: string, fn: () => void) => void, removeEventListener?: (t: string, fn: () => void) => void } | null
-    every?: (fn: () => void, ms: number) => unknown
-    cancel?: (id: unknown) => void
-  }): { enable(on: boolean): void, running(): boolean, dispose(): void }
-}
-
 declare module '~/utils/viewport-resize.mjs' {
   type ViewportTarget = { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void }
   type ViewportSubscribeOpts = { visual?: boolean, initial?: boolean }
@@ -2424,20 +2364,6 @@ declare module '~/utils/issues-colw.mjs' {
   export function tabStore(): Storage | null
   export function stashColWidths(widths: ColWidths, hum: string | undefined, store: Storage | null, now?: number): boolean
   export function takeColWidthsStash(store: Storage | null, now?: number): { hum: string, w: ColWidths } | null
-}
-
-declare module '~/utils/issues-bulk.mjs' {
-  export const BULK_PARALLEL: number
-  export function toggleKey(sel: string[], key: string, on?: boolean): string[]
-  export function rangeSelect(sel: string[], order: string[], anchor: string, key: string, on?: boolean): string[]
-  export function pageState(sel: string[], shown: string[]): 'none' | 'some' | 'all'
-  export function toggleAll(sel: string[], shown: string[]): string[]
-  export function keepShown(sel: string[], keys: string[]): string[]
-  export function runBulk(
-    keys: string[],
-    fn: (key: string) => Promise<unknown>,
-    opts?: { parallel?: number, onProgress?: (finished: number, total: number) => void },
-  ): Promise<{ done: string[], failed: { key: string, error: unknown }[] }>
 }
 
 declare module '~/utils/row-keys.mjs' {

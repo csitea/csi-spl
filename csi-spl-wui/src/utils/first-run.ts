@@ -9,21 +9,25 @@
  * this browser). Node tests import this file.
  */
 
-export const FIRST_RUN_STEPS = [
+export type FirstRunStep = { id: 'invite' | 'agent' | 'topic', to: string, done: boolean }
+
+export const FIRST_RUN_STEPS: { id: FirstRunStep['id'], to: string }[] = [
   { id: 'invite', to: '/tenant-settings/members' },
   { id: 'agent', to: '/tenant-settings/agents' },
   { id: 'topic', to: '/lobby' },
 ]
 
 /** Browser storage key of the viewer's "Hide" for one tenant. */
-export const firstRunHiddenKey = (tenant) => 'spl-first-run-hidden:' + String(tenant || '')
+export const firstRunHiddenKey = (tenant: unknown): string => 'spl-first-run-hidden:' + String(tenant || '')
 
 /**
  * The steps with their state. members / invites: counts from /v1/members
  * (null = unknown, the step stays open); roster: the /v1/view/roster map;
  * topics: the home list's length.
  */
-export function firstRunSteps({ members = null, invites = null, roster = null, topics = 0 } = {}) {
+export function firstRunSteps({ members = null, invites = null, roster = null, topics = 0 }: {
+  members?: number | null, invites?: number | null, roster?: Record<string, string[]> | null, topics?: number
+} = {}): FirstRunStep[] {
   const agents = Object.entries(roster || {}).some(([box, ids]) => box !== 'box-wui' && Array.isArray(ids) && ids.length > 0)
   const done = {
     invite: (Number(members) || 0) > 1 || (Number(invites) || 0) > 0,
@@ -34,6 +38,6 @@ export function firstRunSteps({ members = null, invites = null, roster = null, t
 }
 
 /** Show the card: the viewer may set the tenant up, has not hidden it, and a step is open. */
-export function firstRunVisible({ canSetUp, hidden, steps }) {
+export function firstRunVisible({ canSetUp, hidden, steps }: { canSetUp: boolean, hidden: boolean, steps: FirstRunStep[] }): boolean {
   return Boolean(canSetUp) && !hidden && Array.isArray(steps) && steps.some((s) => !s.done)
 }

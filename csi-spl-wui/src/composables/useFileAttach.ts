@@ -8,7 +8,7 @@
  * decides what happens to `picked`.
  */
 import { onBeforeUnmount, ref, type Ref } from 'vue'
-import { filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
+import { filesOf, pasteAttaches } from '~/utils/transfer-files'
 
 export function useFileAttach(fileEl: Ref<HTMLInputElement | null>) {
   const picked = ref<File[]>([])

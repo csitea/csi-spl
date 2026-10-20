@@ -2,7 +2,7 @@
 // hydration drops the query from the address and restores it later, so the
 // page cannot read it when it mounts. Note the address as loaded, before any
 // of that (pages/index.vue takes it once).
-import { noteLoadedUrl } from '~/utils/home-target.mjs'
+import { noteLoadedUrl } from '~/utils/home-target'
 
 export default defineNuxtPlugin({
   name: 'spool:loaded-url',

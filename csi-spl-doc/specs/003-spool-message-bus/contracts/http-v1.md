@@ -349,7 +349,7 @@ the default; Windows = right), and asks before it calls this.
 - No undo. The hub has no audit table for deletes; it logs one line per
   removal (`attachment removed`, with the msg_ids and `blob_deleted`).
 - An issue description names its files with a markdown link
-  (`utils/issue-files.mjs`); the WUI also takes that link out of the
+  (`utils/issue-files.ts`); the WUI also takes that link out of the
   description text.
 
 ## 4. Pins (owned by 004 / 006, hosted here)

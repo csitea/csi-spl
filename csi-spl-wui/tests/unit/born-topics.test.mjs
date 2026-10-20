@@ -6,7 +6,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dismissBornTopic, noteBornTopic } from '../../src/utils/born-topics.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { dismissBornTopic, noteBornTopic } = await importTs('src/utils/born-topics.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

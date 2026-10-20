@@ -4,7 +4,9 @@
 // Run: node tests/unit/issues-bulk.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { BULK_PARALLEL, keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '../../src/utils/issues-bulk.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { BULK_PARALLEL, keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } = await importTs('src/utils/issues-bulk.ts')
 
 const ROWS = ['SPL-9', 'SPL-8', 'SPL-7', 'SPL-6', 'SPL-5']
 

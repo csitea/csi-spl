@@ -86,7 +86,7 @@
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useFileAttach } from '~/composables/useFileAttach'
-import { descFileRefs } from '~/utils/issue-files.mjs'
+import { descFileRefs } from '~/utils/issue-files'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 const props = defineProps<{
   text: string

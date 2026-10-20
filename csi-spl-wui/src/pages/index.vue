@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useSettledQuery } from '~/composables/useSettledQuery'
-import { lobbyHomeTarget, takeLoadedQuery } from '~/utils/home-target.mjs'
+import { lobbyHomeTarget, takeLoadedQuery } from '~/utils/home-target'
 import { isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 
 const route = useRoute()

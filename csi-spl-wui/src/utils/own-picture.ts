@@ -7,23 +7,25 @@
  * type and caps the size); the same checks here only answer sooner.
  */
 
-export const OWN_PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+export type OwnPictureProblem = '' | 'type' | 'size' | 'failed'
+
+const OWN_PICTURE_TYPES: string[] = ['image/png', 'image/jpeg', 'image/webp']
 /** auth.AvatarMaxBytes on the hub. */
-export const OWN_PICTURE_MAX_BYTES = 256 * 1024
+export const OWN_PICTURE_MAX_BYTES: number = 256 * 1024
 
 /** What is wrong with a picked file before any request: '' | 'type' | 'size'. */
-export function ownPictureProblem(file) {
+export function ownPictureProblem(file: { type: string, size: number } | null | undefined): '' | 'type' | 'size' {
   if (!file || !OWN_PICTURE_TYPES.includes(file.type)) return 'type'
   if (!(file.size > 0) || file.size > OWN_PICTURE_MAX_BYTES) return 'size'
   return ''
 }
 
-function avatarUrl(authBase) {
+function avatarUrl(authBase: string): string {
   return `${String(authBase || '').replace(/\/+$/, '')}/api/v1/auth/avatar`
 }
 
 /** The hub's answer as a problem: '' (stored), 'type' (415), 'size' (413), else 'failed'. */
-export function ownPictureAnswer(status) {
+export function ownPictureAnswer(status: number): OwnPictureProblem {
   if (status === 204 || status === 200) return ''
   if (status === 415) return 'type'
   if (status === 413) return 'size'
@@ -31,7 +33,7 @@ export function ownPictureAnswer(status) {
 }
 
 /** Upload `file` as the signed-in person's picture: '' | 'type' | 'size' | 'failed'. */
-export async function putOwnPicture(authBase, file, fetchFn = globalThis.fetch) {
+export async function putOwnPicture(authBase: string, file: File, fetchFn: typeof fetch = globalThis.fetch): Promise<OwnPictureProblem> {
   const bad = ownPictureProblem(file)
   if (bad) return bad
   try {
@@ -45,7 +47,7 @@ export async function putOwnPicture(authBase, file, fetchFn = globalThis.fetch) 
 }
 
 /** Back to the sign-in provider's picture: '' | 'failed'. */
-export async function deleteOwnPicture(authBase, fetchFn = globalThis.fetch) {
+export async function deleteOwnPicture(authBase: string, fetchFn: typeof fetch = globalThis.fetch): Promise<'' | 'failed'> {
   try {
     const res = await fetchFn(avatarUrl(authBase), { method: 'DELETE', credentials: 'include' })
     return ownPictureAnswer(res.status) ? 'failed' : ''

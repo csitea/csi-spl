@@ -3,7 +3,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { withoutMsg } from '~/utils/feed.mjs'
-import { descFileLink, uploadRefs, type IssueFileRef } from '~/utils/issue-files.mjs'
+import { descFileLink, uploadRefs, type IssueFileRef } from '~/utils/issue-files'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import type { Issue } from '~/utils/issues.mjs'
@@ -157,7 +157,7 @@ function useCommentPost(o: IssueCommentsOpts, d: CommentPostDeps) {
   /* HUM-10 (t1 43ebdf0b): a description's file. The hub serves a file only to a
      reader of a message that carries it (rdb 0028), so the file rides on a note
      in the issue's discussion and the description names it with a link to it
-     (utils/issue-files.mjs). */
+     (utils/issue-files.ts). */
   async function attachToDescription(files: File[]): Promise<string[]> {
     const issue = o.detail.value
     if (!issue || !issue.task_id) throw new Error('issue has no discussion')

@@ -1,8 +1,10 @@
-// W15 (spec 047, SPL-1172): the first-run checklist rules (utils/first-run.mjs).
+// W15 (spec 047, SPL-1172): the first-run checklist rules (utils/first-run.ts).
 //
 // Run: node tests/unit/first-run.test.mjs
-import { FIRST_RUN_STEPS, firstRunHiddenKey, firstRunSteps, firstRunVisible } from '../../src/utils/first-run.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { FIRST_RUN_STEPS, firstRunHiddenKey, firstRunSteps, firstRunVisible } = await importTs('src/utils/first-run.ts')
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }

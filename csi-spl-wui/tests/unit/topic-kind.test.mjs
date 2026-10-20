@@ -8,7 +8,9 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
-import { retargetKinds, topicsWithKind } from '../../src/utils/topic-kind.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { retargetKinds, topicsWithKind } = await importTs('src/utils/topic-kind.ts')
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(root, rel), 'utf8')

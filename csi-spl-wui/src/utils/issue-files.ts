@@ -12,15 +12,18 @@
  * description view reads it back as a file card (descFileRefs).
  */
 
+/** One stored file as the wire carries it (the channel store's toFileRefs shape). */
+export interface IssueFileRef { mode: 'blob', kind: 'file', file_id: string, sha256: string, bytes: number, name: string }
+
 /**
- * Upload each picked File and return the wire refs (the channel store's
- * toFileRefs shape). `upload` is uploadWithFreshToken bound to the client.
- * @param {File[]} files
- * @param {(f: File) => Promise<{ file_id: string, sha256: string, bytes: number }>} upload
- * @returns {Promise<Array<{ mode: 'blob', kind: 'file', file_id: string, sha256: string, bytes: number, name: string }>>}
+ * Upload each picked File and return the wire refs. `upload` is
+ * uploadWithFreshToken bound to the client.
  */
-export async function uploadRefs(files, upload) {
-  const refs = []
+export async function uploadRefs(
+  files: File[],
+  upload: (f: File) => Promise<{ file_id: string, sha256: string, bytes: number }>,
+): Promise<IssueFileRef[]> {
+  const refs: IssueFileRef[] = []
   for (const f of files || []) {
     const up = await upload(f)
     refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
@@ -29,17 +32,14 @@ export async function uploadRefs(files, upload) {
 }
 
 /** brackets and line breaks would end the link text early */
-const cleanName = (name) => String(name || 'file').replace(/[[\]\r\n]+/g, ' ').trim() || 'file'
+const cleanName = (name: unknown): string => String(name || 'file').replace(/[[\]\r\n]+/g, ' ').trim() || 'file'
 
 /**
  * The markdown that names one stored file in a description:
  * `[name](<url>#bytes=<n>)`. The fragment never reaches the hub; it keeps the
- * size for the card.
- * @param {{ name?: string, file_id?: string, sha256?: string, bytes?: number }} ref
- * @param {string} url the client's fileUrl(file_id)
- * @returns {string}
+ * size for the card. `url` is the client's fileUrl(file_id).
  */
-export function descFileLink(ref, url) {
+export function descFileLink(ref: { name?: string, file_id?: string, sha256?: string, bytes?: number }, url: string): string {
   const n = Number(ref && ref.bytes)
   const frag = Number.isFinite(n) && n >= 0 ? `#bytes=${Math.floor(n)}` : ''
   return `[${cleanName(ref && ref.name)}](${url}${frag})`
@@ -47,16 +47,12 @@ export function descFileLink(ref, url) {
 
 const LINK = /\[([^\]\n]*)\]\(([^()\s]*\/v1\/files\/([0-9a-f]{64}))(?:#bytes=(\d+))?\)/g
 
-/**
- * The stored files a description names (descFileLink), once each, in order.
- * @param {string} text
- * @returns {Array<{ mode: 'blob', kind: 'file', file_id: string, sha256: string, bytes: number, name: string }>}
- */
-export function descFileRefs(text) {
-  const out = []
-  const seen = new Set()
+/** The stored files a description names (descFileLink), once each, in order. */
+export function descFileRefs(text: string): IssueFileRef[] {
+  const out: IssueFileRef[] = []
+  const seen = new Set<string>()
   for (const m of String(text || '').matchAll(LINK)) {
-    const id = m[3]
+    const id = m[3]!
     if (seen.has(id)) continue
     seen.add(id)
     out.push({ mode: 'blob', kind: 'file', file_id: id, sha256: id, bytes: m[4] ? Number(m[4]) : 0, name: m[1] || id.slice(0, 12) })

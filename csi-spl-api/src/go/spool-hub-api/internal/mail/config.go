@@ -39,10 +39,6 @@ type Config struct {
 	Preflight string `env:"SPOOL_HUB_MAIL_PREFLIGHT" envDefault:"warn"`
 }
 
-// envSMTPPassword is the env name of Config.SMTPPassword; its _FILE variant
-// is read by load, after the struct tags.
-const envSMTPPassword = "SPOOL_HUB_MAIL_SMTP_PASSWORD"
-
 // Load reads the process environment.
 func Load() (*Config, error) { return load(env.Options{}) }
 
@@ -60,7 +56,9 @@ func load(o env.Options) (*Config, error) {
 	if o.Environment != nil {
 		getenv = func(k string) string { return o.Environment[k] }
 	}
-	pw, err := secretfile.Lookup(envSMTPPassword, getenv)
+	// The env name stays a literal argument: a const named after a password
+	// is a gosec G101 finding (SPL-2158).
+	pw, err := secretfile.Lookup("SPOOL_HUB_MAIL_SMTP_PASSWORD", getenv)
 	if err != nil {
 		return nil, fmt.Errorf("parse mail config: %w", err)
 	}

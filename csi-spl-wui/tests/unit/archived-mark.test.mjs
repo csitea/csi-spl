@@ -19,7 +19,9 @@ import * as Vue from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { renderToString } from 'vue/server-renderer'
 import { archiveStamp } from '../../src/utils/topic-archive.mjs'
-import { mergeTopicPage } from '../../src/utils/topic-list.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { mergeTopicPage } = await importTs('src/utils/topic-list.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')

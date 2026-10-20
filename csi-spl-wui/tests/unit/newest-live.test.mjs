@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url'
 import { mergeById, newestFirst, pendingRow, withoutMsg } from '../../src/utils/feed.mjs'
 import { channelView, dmFollow, feedRow, mergeLive, mergePage, rowFromAck } from '../../src/utils/channel-feed.mjs'
 import { anchorAfterPrepend, layoutTop, NEAR_TOP_PX, prependedCount, scrollerOf } from '../../src/utils/scroll-anchor.mjs'
-import { bumpTopic, mergeTopicPage } from '../../src/utils/topic-list.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { bumpTopic, mergeTopicPage } = await importTs('src/utils/topic-list.ts')
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')

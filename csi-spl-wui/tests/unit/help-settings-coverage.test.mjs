@@ -18,10 +18,12 @@ import { HELP_SRC } from '../../src/node/help/sync-help.mjs'
 import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
 import { TENANT_SETTINGS_SECTIONS } from '../../src/utils/tenant-settings-nav.mjs'
 import { SOUND_NAMES } from '../../src/utils/notify.mjs'
-import { SUBMIT_KEYS } from '../../src/utils/submit-key.mjs'
 import { CLOSE_BUTTONS } from '../../src/utils/view-prefs.mjs'
 import { RAIL_TABS } from '../../src/utils/rail-order.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { SUBMIT_KEYS } = await importTs('src/utils/submit-key.ts')
 
 /* Every left-rail tab must be explained by a help page. The map names the page
    (a slug in doc/help) and a keyword that page must contain; a RAIL_TABS id with

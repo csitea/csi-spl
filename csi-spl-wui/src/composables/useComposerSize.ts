@@ -6,7 +6,7 @@
 // The automatic size stops at 40% of the window; the grip can go to the
 // bottom of the screen. The bar itself stays 58px (SPL-977).
 import type { Ref } from 'vue'
-import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
+import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size'
 import { omniboxMaxHeight, resizeHeight, topButtonsBottom } from '~/utils/omnibox-dock.mjs'
 import { useComposerWrap, type WrapOpts } from '~/composables/useComposerWrap'
 

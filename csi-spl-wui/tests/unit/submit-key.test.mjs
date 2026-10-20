@@ -5,15 +5,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  SUBMIT_KEYS,
-  DEFAULT_SUBMIT_KEY,
-  parseSubmitKey,
-  submitKeyAction,
-  submitHintKey,
-  submitHintFor,
-  applySubmitKeySetting,
-} from '../../src/utils/submit-key.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { SUBMIT_KEYS, DEFAULT_SUBMIT_KEY, parseSubmitKey, submitKeyAction, submitHintKey, submitHintFor, applySubmitKeySetting } = await importTs('src/utils/submit-key.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

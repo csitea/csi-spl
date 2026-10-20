@@ -31,7 +31,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import { SUBMIT_KEYS, applySubmitKeySetting, type SubmitKey } from '~/utils/submit-key.mjs'
+import { SUBMIT_KEYS, applySubmitKeySetting, type SubmitKey } from '~/utils/submit-key'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()

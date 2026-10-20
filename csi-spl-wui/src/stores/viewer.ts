@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
-import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
+import { bumpTopic, mergeTopicPage } from '~/utils/topic-list'
 import { archiveStamp, withoutTopics } from '~/utils/topic-archive.mjs'
 import { topicsWithKind } from '~/utils/topic-kind'
 import { useLive } from '~/composables/useLive'

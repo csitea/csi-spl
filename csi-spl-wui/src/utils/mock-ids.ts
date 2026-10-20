@@ -5,4 +5,4 @@
  */
 
 /** lde mock #lobby: the welcome topic of mock-data.mjs. The real id comes from the hub / cnf. */
-export const MOCK_LOBBY_TASK_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+export const MOCK_LOBBY_TASK_ID: string = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'

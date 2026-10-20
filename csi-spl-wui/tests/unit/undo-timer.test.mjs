@@ -4,8 +4,10 @@
 // while a finger is on it.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { importTs } from './lib/load-ts.mjs'
 
-import { UNDO_NOTE_MS, UNDO_TOUCH_MIN_MS, createUndoTimer, isTouchUi, undoWindowMs } from '../../src/utils/undo-timer.mjs'
+const { UNDO_NOTE_MS, UNDO_TOUCH_MIN_MS, createUndoTimer, isTouchUi, undoWindowMs } = await importTs('src/utils/undo-timer.ts')
+
 
 /** A fake clock: set/clear plus advance(ms). */
 function rig(opts) {

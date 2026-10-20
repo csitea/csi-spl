@@ -5,8 +5,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } from '../../src/utils/omnibox-size.mjs'
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } = await importTs('src/utils/omnibox-size.ts')
 
 describe('omnibox size across a collapse', () => {
   it('a drag reopens at that height, capped by the window', () => {

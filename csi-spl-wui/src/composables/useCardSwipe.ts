@@ -25,7 +25,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'v
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
 import { paneOfRow } from '~/utils/reselect-row.mjs'
-import { isTouchUi } from '~/utils/undo-timer.mjs'
+import { isTouchUi } from '~/utils/undo-timer'
 import { useHiddenCards } from '~/composables/useHiddenCards'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useLiveFeed } from '~/stores/live'

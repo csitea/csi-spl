@@ -28,7 +28,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSettingSave } from '~/composables/useSettingSave'
-import { applyDebugPaneSetting } from '~/utils/debug-pane.mjs'
+import { applyDebugPaneSetting } from '~/utils/debug-pane'
 import { hoursReadingOn } from '~/utils/hours-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })

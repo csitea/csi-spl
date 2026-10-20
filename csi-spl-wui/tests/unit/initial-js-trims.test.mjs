@@ -31,10 +31,10 @@ describe('mock data out of the live initial JS (P3-15)', () => {
     for (const name of names) assert.doesNotMatch(client, bare(name), `${name} must be read as a member (data.${name}), never bare`)
   })
 
-  it('useLive takes the lobby id from mock-ids.mjs, not mock-data.mjs', () => {
+  it('useLive takes the lobby id from mock-ids.ts, not mock-data.mjs', () => {
     const src = read('../../src/composables/useLive.ts')
     assert.doesNotMatch(src, /mock-data/)
-    assert.match(src, /from '~\/utils\/mock-ids\.mjs'/)
+    assert.match(src, /from '~\/utils\/mock-ids'/)
   })
 
   it('a mock client\'s first calls wait for the lazily loaded mock data', async () => {

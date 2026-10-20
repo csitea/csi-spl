@@ -1,6 +1,6 @@
 import { effectScope } from 'vue'
 import { personLabel } from '~/utils/channel-feed.mjs'
-import { sameNames } from '~/utils/display-name.mjs'
+import { sameNames } from '~/utils/display-name'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 

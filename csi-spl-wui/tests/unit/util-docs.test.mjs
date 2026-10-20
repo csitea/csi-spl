@@ -95,7 +95,6 @@ const CEILING = {
   'tenant-host-boot.mjs': 1,
   'tenant-settings-mock.mjs': 1,
   'tenant.mjs': 1,
-  'undo-timer.mjs': 1,
   'view-api.mjs': 2,
   'view-prefs.mjs': 4,
 }

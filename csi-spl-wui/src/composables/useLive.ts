@@ -1,7 +1,7 @@
 import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
-import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids.mjs'
+import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids'
 import { REVISION_FETCH_MS } from '~/utils/fetch-timeouts.mjs'
 
 /**

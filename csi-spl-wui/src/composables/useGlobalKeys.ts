@@ -26,7 +26,7 @@ import { usePhone } from '~/composables/useTouchUi'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { useSessionStore } from '~/stores/session'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
-import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '~/utils/pane-close.mjs'
+import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '~/utils/pane-close'
 import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */

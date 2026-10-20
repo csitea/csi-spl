@@ -6,7 +6,7 @@
 // below), so it does not flip again when that indent is removed. A blur
 // parks the bar at one line; the row comes back with the caret.
 import type { Ref } from 'vue'
-import { omniboxIsMultiline, omniboxOneLinePad } from '~/utils/omnibox-size.mjs'
+import { omniboxIsMultiline, omniboxOneLinePad } from '~/utils/omnibox-size'
 import type { ComposerProps } from '~/composables/composerProps'
 
 export interface WrapOpts {

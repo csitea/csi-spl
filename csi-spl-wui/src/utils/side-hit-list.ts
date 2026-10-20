@@ -4,8 +4,7 @@
  * Search results (lane C) and Flow entries (lane B). The list stays while the
  * reader clicks through; each entry opens its message in its original place.
  *
- * An item: { key, group?, who?: { id, box? }, where?, when?, segs?, text?,
- *            badge?, title?, unread? }
+ * An item (SideHitItem):
  *   group  a heading label; consecutive items with the same group share one
  *   segs   [{ text, mark }] - the snippet with the match marked (search)
  *   text   the plain snippet when there is no segs (flow)
@@ -15,8 +14,31 @@
  *   ai     an AI agent posted it (SPL-2120): the entry carries the agent bar
  */
 
+export type SideHitSeg = { text: string, mark: boolean }
+
+export type SideHitItem = {
+  key: string
+  msgId?: string
+  type?: string
+  group?: string
+  who?: { id: string, box?: string }
+  where?: string
+  when?: string
+  segs?: SideHitSeg[]
+  text?: string
+  badge?: string
+  title?: string
+  unread?: boolean
+  /** the clock the list is ordered by, stamped as data-ts */
+  ts?: string
+  /** spec 130: a folded Flow line - its text is clamped to 1 line (3 on a phone) */
+  fold?: boolean
+  /** SPL-2120: an AI agent posted it - the entry carries the agent bar */
+  ai?: boolean
+}
+
 /** The next active index for a key over `n` items (wrapping), -1 for none. */
-export function cycleIndex(i, n, key) {
+export function cycleIndex(i: number, n: number, key: string): number {
   if (!n) return -1
   const cur = Number.isInteger(i) && i >= 0 && i < n ? i : -1
   switch (key) {
@@ -32,11 +54,9 @@ export function cycleIndex(i, n, key) {
  * Consecutive items with one group label become one run, in order. Items
  * without a group form runs with group ''. Each item keeps its flat index,
  * which is what the keyboard walks.
- * @param {Array<{ key: string, group?: string }>} items
- * @returns {Array<{ group: string, items: Array<{ item: any, index: number }> }>}
  */
-export function groupRuns(items) {
-  const runs = []
+export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }> {
+  const runs: Array<{ group: string, items: Array<{ item: T, index: number }> }> = []
   for (const [index, item] of (items || []).entries()) {
     const group = String(item.group || '')
     const last = runs[runs.length - 1]
@@ -47,7 +67,7 @@ export function groupRuns(items) {
 }
 
 /** The snippet as marked segments: `segs` when given, else the plain `text`. */
-export function itemSegments(item) {
+export function itemSegments(item: { segs?: SideHitSeg[], text?: string } | null | undefined): SideHitSeg[] {
   if (item && Array.isArray(item.segs) && item.segs.length) return item.segs
   const text = item && item.text ? String(item.text) : ''
   return text ? [{ text, mark: false }] : []

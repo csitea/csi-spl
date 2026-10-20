@@ -1,11 +1,13 @@
 // SPL-2552: Shift + W closes the rightmost pane. The pure half is
-// utils/pane-close.mjs; the wiring is read from useGlobalKeys.ts.
+// utils/pane-close.ts; the wiring is read from useGlobalKeys.ts.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '../../src/utils/pane-close.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } = await importTs('src/utils/pane-close.ts')
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (rel) => readFileSync(join(SRC, rel), 'utf8')

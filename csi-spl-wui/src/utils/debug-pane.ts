@@ -1,4 +1,4 @@
-// csi-spl-wui/src/utils/debug-pane.mjs
+// csi-spl-wui/src/utils/debug-pane.ts
 //
 // The "Debug pane" checkbox in Settings → Appearance as a pure,
 // node-testable step: flip the session claim at once so the DebugPanel at the
@@ -11,17 +11,17 @@
 // next probe even if this revert were skipped.
 
 /**
- * @param {unknown} want the checkbox's new state; only the literal `true` ticks.
- * @param {{ current: unknown, apply: (on: boolean) => void,
- *           save: (on: boolean) => Promise<{ ok: boolean }> }} io
- * @returns {Promise<{ ok: boolean, value: boolean, out?: unknown }>}
+ * @param want the checkbox's new state; only the literal `true` ticks.
  */
-export async function applyDebugPaneSetting(want, { current, apply, save }) {
+export async function applyDebugPaneSetting(
+  want: unknown,
+  { current, apply, save }: { current: unknown, apply: (on: boolean) => void, save: (on: boolean) => Promise<{ ok: boolean }> },
+): Promise<{ ok: boolean, value: boolean, out?: unknown }> {
   const prev = current === true
   const next = want === true
   if (next === prev) return { ok: true, value: prev }
   apply(next)
-  let out
+  let out: { ok: boolean, error?: unknown }
   try {
     out = await save(next)
   } catch (e) {

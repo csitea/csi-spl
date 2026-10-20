@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import HumanName from '~/components/HumanName.vue'
-import { cycleIndex, groupRuns, itemSegments, type SideHitItem } from '~/utils/side-hit-list.mjs'
+import { cycleIndex, groupRuns, itemSegments, type SideHitItem } from '~/utils/side-hit-list'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 
 const props = defineProps<{

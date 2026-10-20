@@ -1,4 +1,4 @@
-// csi-spl-wui/src/utils/submit-key.mjs
+// csi-spl-wui/src/utils/submit-key.ts
 //
 // Settings -> Behaviour -> "Text fields" (SPL-976, spec 023 3.7): what Enter
 // does in every multi-line text field of the WUI. One rule, one place; each
@@ -12,7 +12,9 @@
 // the account (humans.submit_key, rdb 0062); the session answers it as the
 // `submit_key` claim, null when never picked.
 
-export const SUBMIT_KEYS = Object.freeze(['enter', 'ctrl-enter'])
+export type SubmitKey = 'enter' | 'ctrl-enter'
+
+export const SUBMIT_KEYS: readonly SubmitKey[] = Object.freeze(['enter', 'ctrl-enter'] as const)
 
 /*
  * The mode of a person who never picked one (humans.submit_key NULL):
@@ -20,22 +22,26 @@ export const SUBMIT_KEYS = Object.freeze(['enter', 'ctrl-enter'])
  * names the same default (auth.DefaultSubmitKey). A person who picked a mode
  * keeps it; the owner's rows were pinned to 'ctrl-enter' before the flip.
  */
-export const DEFAULT_SUBMIT_KEY = 'enter'
+export const DEFAULT_SUBMIT_KEY: SubmitKey = 'enter'
+
+function isSubmitKey(raw: unknown): raw is SubmitKey {
+  return (SUBMIT_KEYS as readonly unknown[]).includes(raw)
+}
 
 /** One of SUBMIT_KEYS exactly, else the default. */
-export function parseSubmitKey(raw) {
-  return SUBMIT_KEYS.includes(raw) ? raw : DEFAULT_SUBMIT_KEY
+export function parseSubmitKey(raw: unknown): SubmitKey {
+  return isSubmitKey(raw) ? raw : DEFAULT_SUBMIT_KEY
 }
 
 /**
  * What one keydown in a text field means.
  *
- * @param {{ key?: string, shiftKey?: boolean, altKey?: boolean, ctrlKey?: boolean,
- *           metaKey?: boolean, isComposing?: boolean, keyCode?: number } | null | undefined} ev
- * @param {{ mode?: unknown, inCode?: boolean }} [opts]
- * @returns {'submit' | 'newline' | ''} '' = not Enter: not ours.
+ * @returns '' = not Enter: not ours.
  */
-export function submitKeyAction(ev, { mode, inCode = false } = {}) {
+export function submitKeyAction(
+  ev: { key?: string, shiftKey?: boolean, altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, isComposing?: boolean, keyCode?: number } | null | undefined,
+  { mode, inCode = false }: { mode?: unknown, inCode?: boolean } = {},
+): 'submit' | 'newline' | '' {
   if (!ev || String(ev.key) !== 'Enter') return ''
   /* an IME is committing a word (keyCode 229 on Safari): never a send */
   if (ev.isComposing || ev.keyCode === 229) return 'newline'
@@ -48,37 +54,32 @@ export function submitKeyAction(ev, { mode, inCode = false } = {}) {
 /**
  * The catalogue key of a hint that names the keys: `byMode[mode]`, else the
  * default mode's.
- * @param {unknown} mode
- * @param {Record<string, string>} byMode
  */
-export function submitHintKey(mode, byMode) {
+export function submitHintKey(mode: unknown, byMode: Record<string, string>): string {
   return byMode[parseSubmitKey(mode)] || byMode[DEFAULT_SUBMIT_KEY] || ''
 }
 
 /**
  * A placeholder key that names the keys: `base` is the Ctrl+Enter wording,
  * and `<base>_enter` the Enter-sends one, in every locale.
- * @param {unknown} mode
- * @param {string} base
  */
-export function submitHintFor(mode, base) {
+export function submitHintFor(mode: unknown, base: string): string {
   return parseSubmitKey(mode) === 'enter' ? `${base}_enter` : base
 }
 
 /**
  * The radio's save, optimistic like the Debug pane: mirror the claim at once
  * so every field follows, save it, and put the old value back on a refusal.
- * @param {unknown} want
- * @param {{ current: unknown, apply: (k: string) => void,
- *           save: (k: string) => Promise<{ ok: boolean }> }} io
- * @returns {Promise<{ ok: boolean, value: string, out?: unknown }>}
  */
-export async function applySubmitKeySetting(want, { current, apply, save }) {
+export async function applySubmitKeySetting(
+  want: unknown,
+  { current, apply, save }: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },
+): Promise<{ ok: boolean, value: SubmitKey, out?: unknown }> {
   const prev = parseSubmitKey(current)
-  if (!SUBMIT_KEYS.includes(want)) return { ok: false, value: prev }
-  if (want === prev && SUBMIT_KEYS.includes(current)) return { ok: true, value: prev }
+  if (!isSubmitKey(want)) return { ok: false, value: prev }
+  if (want === prev && isSubmitKey(current)) return { ok: true, value: prev }
   apply(want)
-  let out
+  let out: { ok: boolean, error?: unknown }
   try {
     out = await save(want)
   } catch (e) {

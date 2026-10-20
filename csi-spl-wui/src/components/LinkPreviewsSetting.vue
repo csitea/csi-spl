@@ -29,7 +29,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSettingSave } from '~/composables/useSettingSave'
-import { applyDebugPaneSetting } from '~/utils/debug-pane.mjs'
+import { applyDebugPaneSetting } from '~/utils/debug-pane'
 import { parseLinkPreviews } from '~/utils/link-preview.mjs'
 
 /* saveViewPref's key list is typed in mjs-shims.d.ts; the PUT itself takes any key */

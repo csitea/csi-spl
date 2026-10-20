@@ -68,7 +68,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { pinRows } from '~/utils/sidebar-row-menu.mjs'
-import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
+import { feedbackChannelCopy } from '~/utils/feedback-channel'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()

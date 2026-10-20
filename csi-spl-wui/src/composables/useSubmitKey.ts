@@ -9,7 +9,7 @@
 // A field with its own keys (pickers, fences) asks keyAction() instead and
 // acts on 'submit' itself.
 import { useSessionStore } from '~/stores/session'
-import { parseSubmitKey, submitHintFor, submitHintKey, submitKeyAction, type SubmitKey } from '~/utils/submit-key.mjs'
+import { parseSubmitKey, submitHintFor, submitHintKey, submitKeyAction, type SubmitKey } from '~/utils/submit-key'
 
 export function useSubmitKey() {
   const session = useSessionStore()

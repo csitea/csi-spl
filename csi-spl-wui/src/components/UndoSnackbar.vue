@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import type { UiIconName } from '~/utils/uiIcons'
-import { createUndoTimer, isTouchUi } from '~/utils/undo-timer.mjs'
+import { createUndoTimer, isTouchUi } from '~/utils/undo-timer'
 import { isPhoneOrTouch, onOutsideTap } from '~/utils/outside-tap.mjs'
 
 const props = withDefaults(defineProps<{

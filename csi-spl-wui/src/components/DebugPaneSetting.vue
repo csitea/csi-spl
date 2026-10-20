@@ -39,7 +39,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { diagnosticsGranted } from '@/composables/debugAudience.mjs'
-import { applyDebugPaneSetting } from '~/utils/debug-pane.mjs'
+import { applyDebugPaneSetting } from '~/utils/debug-pane'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()

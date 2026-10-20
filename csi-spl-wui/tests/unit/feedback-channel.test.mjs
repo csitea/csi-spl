@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { feedbackChannelCopy, feedbackChannelFromPath, isFeedbackChannel } from '../../src/utils/feedback-channel.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { feedbackChannelCopy, feedbackChannelFromPath, isFeedbackChannel } = await importTs('src/utils/feedback-channel.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

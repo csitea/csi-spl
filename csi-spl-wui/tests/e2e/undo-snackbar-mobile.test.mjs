@@ -33,7 +33,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const A = 'cle-77871-a'
-/* utils/undo-timer.mjs UNDO_TOUCH_MIN_MS */
+/* utils/undo-timer.ts UNDO_TOUCH_MIN_MS */
 const TOUCH_MS = 6000
 
 if (OUT) mkdirSync(OUT, { recursive: true })

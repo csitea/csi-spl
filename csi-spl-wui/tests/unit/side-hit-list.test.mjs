@@ -5,7 +5,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { cycleIndex, groupRuns, itemSegments } from '../../src/utils/side-hit-list.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { cycleIndex, groupRuns, itemSegments } = await importTs('src/utils/side-hit-list.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

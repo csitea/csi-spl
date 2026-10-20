@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { applyDisplayName, validDisplayName } from '~/utils/display-name.mjs'
+import { applyDisplayName, validDisplayName } from '~/utils/display-name'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 const { t } = useI18n({ useScope: 'global' })

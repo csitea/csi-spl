@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { MOVE_UNDO_MS, useMove } from '~/composables/useMove'
-import { UNDO_NOTE_MS } from '~/utils/undo-timer.mjs'
+import { UNDO_NOTE_MS } from '~/utils/undo-timer'
 
 const { t } = useI18n({ useScope: 'global' })
 const move = useMove()

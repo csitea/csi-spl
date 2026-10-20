@@ -7,8 +7,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { importTs } from './lib/load-ts.mjs'
 
-import { sameNames } from '../../src/utils/display-name.mjs'
+const { sameNames } = await importTs('src/utils/display-name.ts')
+
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 

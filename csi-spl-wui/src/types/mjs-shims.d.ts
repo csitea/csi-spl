@@ -503,10 +503,6 @@ declare module '~/utils/channel-feed.mjs' {
   export function applyChannelFrame<T>(rows: T[], frame: unknown): T[]
 }
 
-declare module '~/utils/mock-ids.mjs' {
-  export const MOCK_LOBBY_TASK_ID: string
-}
-
 declare module '~/utils/mock-data.mjs' {
   export const MOCK_MESSAGES: Record<string, unknown>[]
   export function cloneMock(): unknown
@@ -567,18 +563,6 @@ declare module '~/utils/mention-poke.mjs' {
   export function splitPokes(ids: string[], access: MentionAccess, seated?: string[]): { ok: string[], direct: string[], refused: string[] }
   export function channelAccess(list: { default?: boolean, members?: string[], agents?: ({ id: string } | string)[], responders?: string[] } | null): MentionAccess
   export function topicWhere(rows: unknown[], taskId: string): { channel: string } | { ends: string[] } | null
-}
-
-
-declare module '~/utils/feedback-channel.mjs' {
-  export const FEEDBACK_CHANNEL_ID: string
-  export function isFeedbackChannel(id: string | null | undefined): boolean
-  export function feedbackChannelFromPath(path: string | null | undefined): string
-  export function feedbackChannelCopy(
-    channelId: string | null | undefined,
-    copy: { name?: string, description?: string } | null | undefined,
-    storedDescription?: string,
-  ): { name: string, description: string } | null
 }
 
 declare module '~/utils/topic-in.mjs' {
@@ -1117,11 +1101,6 @@ declare module '~/utils/pane-scroll.mjs' {
   export function openThreadRow(row: HTMLElement | null | undefined): void
 }
 
-declare module '~/utils/topic-list.mjs' {
-  export function bumpTopic<T>(topics: T[], m: Record<string, unknown>): T[]
-  export function mergeTopicPage<T>(topics: T[], page: T[]): T[]
-}
-
 declare module '~/utils/avatar.mjs' {
   export function hashSeed(s: string): number
   export function isHuman(id: string): boolean
@@ -1309,32 +1288,6 @@ declare module '~/utils/code-blocks.mjs' {
   export function enterAction(o: { inCode?: boolean, shift?: boolean, alt?: boolean, mod?: boolean }): 'send' | 'newline'
   export function exitFence(text: string, caret?: number): { text: string, cursor: number }
   export function closeOpenFence(text: string): string
-}
-
-declare module '~/utils/omnibox-size.mjs' {
-  export const OMNIBOX_LINE_PX: 36
-  export function omniboxFocusHeight(
-    userHeight: number | null | undefined,
-    openHeight: number | null | undefined,
-    maxPx: number,
-  ): number | null
-  export function omniboxRememberHeight(s: {
-    userHeight?: number | null
-    openHeight?: number | null
-    measured: number
-    keep: boolean
-  }): number | null
-  export function omniboxOneLinePad(s?: {
-    glyph?: boolean
-    chip?: boolean
-    chipWidth?: number
-    phone?: boolean
-  }): number
-  export function omniboxIsMultiline(s?: {
-    text?: string
-    textWidth?: number
-    contentWidth?: number
-  }): boolean
 }
 
 declare module '~/utils/code-view.mjs' {
@@ -1796,33 +1749,6 @@ declare module '~/utils/theme.mjs' {
   export function buildEarlyThemeScript(): string
 }
 
-declare module '~/utils/display-name.mjs' {
-  export const MAX_DISPLAY_NAME: number
-  export function sameNames(a: Record<string, string> | null | undefined, b: Record<string, string> | null | undefined): boolean
-  export function validDisplayName(raw: unknown): { ok: boolean, name: string }
-  export function applyDisplayName(
-    raw: unknown,
-    io: { current: unknown, save: (name: string) => Promise<{ ok: boolean, data?: unknown }>, apply: (name: string) => void },
-  ): Promise<{ ok: boolean, name: string, reason?: 'invalid' | 'unchanged' | 'refused', out?: unknown }>
-}
-
-declare module '~/utils/submit-key.mjs' {
-  export type SubmitKey = 'enter' | 'ctrl-enter'
-  export const SUBMIT_KEYS: readonly SubmitKey[]
-  export const DEFAULT_SUBMIT_KEY: SubmitKey
-  export function parseSubmitKey(raw: unknown): SubmitKey
-  export function submitKeyAction(
-    ev: { key?: string, shiftKey?: boolean, altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, isComposing?: boolean, keyCode?: number } | null | undefined,
-    opts?: { mode?: unknown, inCode?: boolean },
-  ): 'submit' | 'newline' | ''
-  export function submitHintKey(mode: unknown, byMode: Record<string, string>): string
-  export function submitHintFor(mode: unknown, base: string): string
-  export function applySubmitKeySetting(
-    want: unknown,
-    io: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },
-  ): Promise<{ ok: boolean, value: SubmitKey, out?: unknown }>
-}
-
 declare module '~/utils/view-prefs.mjs' {
   export type MessageOrder = 'newest-first' | 'newest-last'
   export type ComposerPosition = 'top' | 'bottom'
@@ -1910,13 +1836,6 @@ declare module '~/utils/rail-order.mjs' {
     want: string[] | null,
     io: { current: unknown, apply: (o: string[] | null) => void, save: (o: string[] | null) => Promise<{ ok: boolean }> },
   ): Promise<{ ok: boolean, value: string[] | null, out?: unknown }>
-}
-
-declare module '~/utils/debug-pane.mjs' {
-  export function applyDebugPaneSetting(
-    want: unknown,
-    io: { current: unknown, apply: (on: boolean) => void, save: (on: boolean) => Promise<{ ok: boolean }> },
-  ): Promise<{ ok: boolean, value: boolean, out?: unknown }>
 }
 
 declare module '~/utils/font-size.mjs' {
@@ -2434,31 +2353,6 @@ declare module '~/utils/outside-tap.mjs' {
   export function isPhoneOrTouch(win?: Window): boolean
 }
 
-declare module '~/utils/undo-timer.mjs' {
-  export const UNDO_TOUCH_MIN_MS: number
-  export const UNDO_NOTE_MS: number
-  export function undoWindowMs(duration: number, opts?: { touch?: boolean, undo?: boolean }): number
-  export function isTouchUi(win?: Window): boolean
-  export type UndoTimer = {
-    arm(): void
-    hold(reason?: string): void
-    release(reason?: string): void
-    touched(): void
-    stop(): void
-    windowMs(): number
-    readonly armed: boolean
-    readonly held: boolean
-  }
-  export function createUndoTimer(opts: {
-    duration: number
-    touch?: boolean
-    undo?: boolean
-    onExpire: () => void
-    set?: (fn: () => void, ms: number) => unknown
-    clear?: (id: unknown) => void
-  }): UndoTimer
-}
-
 declare module '~/utils/reselect-row.mjs' {
   export const RESELECT_WAIT_MS: number
   export function paneOfRow(el: Element | null | undefined): '' | 'topic' | 'main'
@@ -2466,33 +2360,6 @@ declare module '~/utils/reselect-row.mjs' {
   export function findRow(msgId: string, pane?: string, doc?: Document): HTMLElement | null
   export function selectRow(row: HTMLElement | null, doc?: Document): boolean
   export function reselectRow(msgId: string, opts?: { pane?: string, doc?: Document, wait?: number, set?: (fn: () => void, ms: number) => unknown }): Promise<boolean>
-}
-
-declare module '~/utils/side-hit-list.mjs' {
-  export type SideHitSeg = { text: string, mark: boolean }
-  export type SideHitItem = {
-    key: string
-    msgId?: string
-    type?: string
-    group?: string
-    who?: { id: string, box?: string }
-    where?: string
-    when?: string
-    segs?: SideHitSeg[]
-    text?: string
-    badge?: string
-    title?: string
-    unread?: boolean
-    /** the clock the list is ordered by, stamped as data-ts */
-    ts?: string
-    /** spec 130: a folded Flow line - its text is clamped to 1 line (3 on a phone) */
-    fold?: boolean
-    /** SPL-2120: an AI agent posted it - the entry carries the agent bar */
-    ai?: boolean
-  }
-  export function cycleIndex(i: number, n: number, key: string): number
-  export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>
-  export function itemSegments(item: { segs?: SideHitSeg[], text?: string } | null | undefined): SideHitSeg[]
 }
 
 declare module '~/utils/section-strip.mjs' {
@@ -2700,13 +2567,4 @@ declare module '~/utils/contact-links.mjs' {
   export function phoneParts(text: string): { type: 'text' | 'link', text: string, href?: string }[]
   export function hasPhone(text: string): boolean
   export function phoneBlocks<T>(blocks: T[]): T[]
-}
-
-/* SPL-2552: Shift + W closes the rightmost pane */
-declare module '~/utils/pane-close.mjs' {
-  export const PANE_CLOSE_X: string
-  export function inTextField(el: unknown): boolean
-  export function isCloseKey(ev: { key?: string, code?: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, isComposing?: boolean, repeat?: boolean } | null | undefined): boolean
-  export function rightmostClose<T>(xs: readonly T[], leftOf: (x: T) => number): T | null
-  export function paneEnd(rect: { left: number, right: number }, rtl: boolean): number
 }

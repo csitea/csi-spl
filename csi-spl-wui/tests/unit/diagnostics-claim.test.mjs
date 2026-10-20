@@ -21,7 +21,9 @@ import { fileURLToPath } from 'node:url'
 
 import { createAuthClient } from '../../src/utils/auth-client.mjs'
 import { debugPanelVisibleFor, diagnosticsGranted } from '../../src/composables/debugAudience.mjs'
-import { applyDebugPaneSetting } from '../../src/utils/debug-pane.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { applyDebugPaneSetting } = await importTs('src/utils/debug-pane.ts')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC = join(__dirname, '../../src')
@@ -148,7 +150,7 @@ describe('CONTROL: the claim is not settable from the browser', () => {
   ]
 
   for (const rel of ['composables/debugAudience.mjs', 'composables/useErrorJournal.ts',
-    'utils/debug-pane.mjs', 'components/DebugPaneSetting.vue']) {
+    'utils/debug-pane.ts', 'components/DebugPaneSetting.vue']) {
     it(`${rel} reads none of them`, () => {
       const code = codeOf(readFileSync(join(SRC, rel), 'utf8'))
       for (const s of BROWSER_SOURCES) {

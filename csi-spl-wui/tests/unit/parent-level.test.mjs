@@ -15,12 +15,14 @@ import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { channelView as channelViewOf, mergeLive, rowFromAck, rowsForRightPane } from '../../src/utils/channel-feed.mjs'
 import { pendingRow } from '../../src/utils/feed.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
-import { bumpTopic } from '../../src/utils/topic-list.mjs'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 import { KEY_NAV_MS, eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, paneTakesLine } from '../../src/utils/pane-focus.mjs'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { importTs } from './lib/load-ts.mjs'
+
+const { bumpTopic } = await importTs('src/utils/topic-list.ts')
 
 /* channelView answers { rows, hasOlder }; these checks read the rows. */
 const channelView = (messages) => channelViewOf(messages).rows

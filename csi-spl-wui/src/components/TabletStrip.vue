@@ -40,7 +40,7 @@
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useChannelStore } from '~/stores/channel'
 import { mobileChannelInitials } from '~/utils/mobile-stack.mjs'
-import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
+import { feedbackChannelCopy } from '~/utils/feedback-channel'
 
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()

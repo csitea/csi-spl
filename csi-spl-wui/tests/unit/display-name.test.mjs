@@ -17,9 +17,11 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MAX_DISPLAY_NAME, applyDisplayName, validDisplayName } from '../../src/utils/display-name.mjs'
 import { createAuthClient } from '../../src/utils/auth-client.mjs'
 import { userIdentity } from '../../src/utils/user-menu.mjs'
+import { importTs } from './lib/load-ts.mjs'
+
+const { MAX_DISPLAY_NAME, applyDisplayName, validDisplayName } = await importTs('src/utils/display-name.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 let failed = 0

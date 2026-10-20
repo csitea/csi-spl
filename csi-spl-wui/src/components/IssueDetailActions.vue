@@ -11,6 +11,7 @@
       type="button"
       class="issue-actions__btn"
       :class="{ 'issue-actions__btn--danger': b.danger, 'issue-actions__btn--tap': tap }"
+      :ref="b.id === 'copy' ? copyRef : undefined"
       :data-test="'issues-detail-' + b.id"
       :data-copied="b.id === 'copy' && copied ? 'true' : undefined"
       :aria-label="t(label(b))"
@@ -24,6 +25,7 @@
 
 <script setup lang="ts">
 import type { UiIconName } from '@/utils/uiIcons'
+import { playTapAnim } from '~/composables/useTapAnim'
 
 const props = defineProps<{
   /** the phone's top bar: 44 px tap targets */
@@ -45,6 +47,14 @@ const buttons: ActionButton[] = [
 function label(b: ActionButton) {
   return b.id === 'copy' && props.copied ? 'common.copied' : b.labelKey
 }
+
+/* SPL-2479 plan row 02: the copy's check draws itself once when it appears;
+   the page's own timeout turns it back into the copy glyph */
+let copyBtn: HTMLElement | null = null
+function copyRef(el: unknown) { copyBtn = el as HTMLElement | null }
+watch(() => props.copied, (on) => {
+  if (on) void nextTick(() => { if (copyBtn) playTapAnim(copyBtn, 'draw') })
+})
 </script>
 
 <style scoped>

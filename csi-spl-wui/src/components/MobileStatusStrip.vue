@@ -53,6 +53,7 @@
         <span class="status-strip__sha">{{ buildCommit || versionLabel }}</span>
         <button
           v-if="buildCommit"
+          ref="copyBtn"
           type="button"
           class="status-strip__copy"
           data-test="status-strip-version-copy"
@@ -89,6 +90,7 @@ import LastDataClock from '@/components/LastDataClock.vue'
 import PoweredBy from '@/components/PoweredBy.vue'
 import { useLive } from '~/composables/useLive'
 import { useCopyText } from '~/composables/useCopyText'
+import { playTapAnim } from '~/composables/useTapAnim'
 import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { setStatusStripHeight } from '~/composables/useStatusStrip'
@@ -135,6 +137,12 @@ const buildMeta = computed(() => {
 const { copied: copiedId, copy: copyText } = useCopyText()
 const copied = computed(() => copiedId.value === 'strip-commit')
 function copyCommit() { void copyText(buildCommit.value, 'strip-commit') }
+/* SPL-2479 plan row 02: the check draws itself once; useCopyText's timeout
+   turns it back into the copy glyph */
+const copyBtn = ref<HTMLElement | null>(null)
+watch(copied, (on) => {
+  if (on) void nextTick(() => { if (copyBtn.value) playTapAnim(copyBtn.value, 'draw') })
+})
 
 /* one card at a time; a tap outside the strip or Esc closes it, Back too */
 const open = ref<'' | 'health' | 'version'>('')

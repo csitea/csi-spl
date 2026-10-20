@@ -129,3 +129,54 @@ every live agent. Then FROZEN.md in the reference is rewritten per its §1.4.
 - the box engine's box-only operations (ACL normalisation, mode-churn repair,
   the claude-sessions/login features); listed as `excluded` in the manifest.
 - a hub-side join token (037 T005).
+
+## 5. Memory parity: what each vendor loads (SPL-2738, 2026-10-20)
+
+Owner, 2026-10-20 (t1 5471b31d, msg b66130f6): "it is a smell that claude
+keeps in his memory something the grok agents do not know, invesitate what
+copy and apply".
+
+### 5.1 What each vendor loads at session start
+
+Measured 2026-10-20 on the two fleet boxes, as the agent user, n=1 each.
+
+| vendor | loads | claude's auto-memory? |
+|---|---|---|
+| claude | `~/.claude/CLAUDE.md`, the repo `CLAUDE.md`, and `~/.claude/projects/<slug>/memory/MEMORY.md` (the index; a fact file is read when a line points to it) | yes, its own |
+| grok 1.0.62 | `~/.claude/CLAUDE.md` (its claude-compat scan), the repo `CLAUDE.md` + `AGENTS.md`, every `*.md` in `~/.grok/rules/` (symlinks followed), its own memory only when `[memory] enabled` | no: `grok inspect` in a lane worktree lists 3 instruction files, none of them memory |
+| agy | `~/.gemini/config/rules/*.md` (the lane rule, the exit rule, graft) | no |
+| mistral | `~/.vibe/AGENTS.md` | no |
+
+`<slug>` is the main checkout's absolute path with every non-alphanumeric
+character turned into `-`; a worktree's sessions use the main checkout's
+memory. Its size on the day: box one 311 files (`ls | wc -l`), `MEMORY.md`
+170 lines, 23,771 bytes; box two 151 files, 150 lines, 27,467 bytes. Of box
+one's 310 fact files, 170 are linked from `MEMORY.md` (3 of them "Area index"
+files) and the other 140 from those area indexes, none orphaned; by
+frontmatter type 51 feedback, 216 project, 40 reference, 3 untyped. The
+owner rules and fleet traps sit in all three types, so the fix gives grok the
+whole index, as claude has it, rather than a hand-picked subset.
+
+### 5.2 The gap and the fix
+
+grok sees none of it: no spool-install step pointed it there
+(`grep -rl claude/projects` over the grok, agy and vibe rule files -> only
+an unrelated session-move recipe). The fix copies nothing:
+spool-install step Y18 (`steps/y18-grok-memory.sh`, `--fleet`, homes with
+`~/.grok`) writes two home rules into `~/.grok/rules`:
+
+- `fleet-memory-0-where.md`: where the index and its files are on this box,
+  read the files a line names, check a lesson against the tree, never post
+  or commit the text;
+- `fleet-memory-1-index.md`: a symlink to the claude `MEMORY.md` itself, so
+  a lesson claude saves is in the next grok session with no second copy.
+
+Both users of a box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_grok_memory_install`.
+Test: `spool-install/tests/test-y18-grok-memory.sh` (red without the step;
+with grok on PATH it drives `grok inspect` on a sandbox home: no memory rule
+before, both rules after). The memory stays on the box, under the agent
+user's home; the repo holds only the step.
+
+agy has the same gap and the same kind of rules dir (every
+`~/.gemini/config/rules/*.md`); mistral loads only `~/.vibe/AGENTS.md`, so it
+needs a pointer line there. Neither is changed by SPL-2738.

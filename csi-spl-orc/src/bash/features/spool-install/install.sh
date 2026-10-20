@@ -79,6 +79,11 @@
 #   6f. only with --fleet: core.pager=cat in your global git config, so an
 #      agent's git never opens a pager on a tty (steps/y16-git-pager-off.sh;
 #      both users of a box: ./run -a do_spl_git_pager_off_install)
+#   6g. only with --fleet, when ~/.grok exists: grok loads the fleet lessons
+#      claude keeps in its auto-memory - a header rule plus a symlink to the
+#      claude MEMORY.md of the repo in ~/.grok/rules, no copy
+#      (steps/y18-grok-memory.sh, SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the
+#      repo; both users of a box: ./run -a do_spl_grok_memory_install)
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -1008,6 +1013,7 @@ source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule |
 . "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 . "$_here/steps/y15-vibe-output-cap.sh" && spool_install_vibe_output_cap "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe output cap: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 [ "$FLEET" = 1 ] && { . "$_here/steps/y16-git-pager-off.sh" && spool_install_git_pager_off "$HOME" "$DRY" || die 7 "git pager: cannot set core.pager in $HOME's git config"; }
+[ "$FLEET" = 1 ] && { . "$_here/steps/y18-grok-memory.sh" && spool_install_grok_memory "$HOME" "$DRY" || die 7 "grok memory: cannot link the claude memory index into $HOME/.grok/rules"; }
 . "$_here/steps/y13-force-push-guard.sh" && spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET" || die 7 "force-push-guard: cannot wire the force-push block into the harness settings"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 

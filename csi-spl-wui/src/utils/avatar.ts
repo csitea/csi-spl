@@ -6,20 +6,20 @@
  * user text inside the SVG (only numbers and colours), so nothing to escape.
  */
 
-import { idPrefix } from './agent-id.mjs'
-import { ROSTER_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
+import { idPrefix } from '~/utils/agent-id.mjs'
+import { ROSTER_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
 /** FNV-1a 32-bit, then a small xorshift stream for independent picks. */
-export function hashSeed(s) {
+export function hashSeed(s: string): number {
   let h = 0x811c9dc5
   for (const ch of String(s || '')) {
-    h ^= ch.codePointAt(0)
+    h ^= ch.codePointAt(0) ?? 0
     h = Math.imul(h, 0x01000193) >>> 0
   }
   return h >>> 0
 }
 
-function stream(seed) {
+function stream(seed: number): () => number {
   let x = seed || 0x9e3779b9
   return () => {
     x ^= x << 13; x >>>= 0
@@ -30,41 +30,41 @@ function stream(seed) {
 }
 
 /* one hue per kind: the spec 061 letter and its legacy prefix share it */
-const PREFIX_HUE = { c: 175, CLE: 175, g: 28, GRK: 28, a: 275, AGY: 275 }
+const PREFIX_HUE: Record<string, number> = { c: 175, CLE: 175, g: 28, GRK: 28, a: 275, AGY: 275 }
 
 /** A human: a member HUM-* or a door-off guest GST-* (wui-live-ws 0.4.1 §3.1). */
-export function isHuman(id) {
+export function isHuman(id: string): boolean {
   return /^(HUM|GST)-/.test(String(id || ''))
 }
 
 /** A member (store) human, the only kind with a stored picture; never a guest. */
-export function isMember(id) {
+export function isMember(id: string): boolean {
   return /^HUM-\d+$/.test(String(id || ''))
 }
 
-export function prefixOf(id) {
+export function prefixOf(id: string): string {
   return idPrefix(id)
 }
 
-function hsl(h, s, l) {
+function hsl(h: number, s: number, l: number): string {
   return `hsl(${((h % 360) + 360) % 360} ${s}% ${l}%)`
 }
 
 /** Robot SVG string. key = id or id@box. */
-export function robotSvg(key) {
+export function robotSvg(key: string): string {
   const id = String(key || '').split('@')[0]
   const next = stream(hashSeed(key))
-  const pick = (n) => next() % n
+  const pick = (n: number): number => next() % n
   const base = PREFIX_HUE[prefixOf(id)] ?? (hashSeed(prefixOf(id)) % 360)
   const hue = base + (pick(41) - 20)
   const body = hsl(hue, 62, 58)
   const dark = hsl(hue, 45, 28)
   const glow = hsl(hue + 180, 90, 62)
   const bg = hsl(hue + 30, 40, 92)
-  const r = [4, 10, 16][pick(3)]
+  const r = [4, 10, 16][pick(3)] ?? 4
   const w = 36 + pick(3) * 4
   const x = 32 - w / 2
-  const parts = []
+  const parts: string[] = []
   parts.push(`<rect width="64" height="64" rx="14" fill="${bg}"/>`)
   // antenna
   const ant = pick(4)
@@ -99,12 +99,12 @@ export function robotSvg(key) {
 }
 
 /** Human identicon: 5×5 mirrored grid, colour from the id. */
-export function identiconSvg(key) {
+export function identiconSvg(key: string): string {
   const next = stream(hashSeed(key))
   const hue = next() % 360
   const fg = hsl(hue, 55, 48)
   const bg = hsl(hue, 30, 93)
-  const cells = []
+  const cells: [number, number][] = []
   for (let row = 0; row < 5; row++) {
     for (let col = 0; col < 3; col++) {
       if (next() % 2) {
@@ -118,7 +118,7 @@ export function identiconSvg(key) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${bg}"/>${rects}</svg>`
 }
 
-export function avatarSvg(id, box) {
+export function avatarSvg(id: string, box?: string): string {
   const key = box ? `${id}@${box}` : String(id || '')
   return isHuman(id) ? identiconSvg(key) : robotSvg(key)
 }
@@ -126,10 +126,10 @@ export function avatarSvg(id, box) {
 /* The generated picture is a pure function of id@box, and every card draws
    two: remember the few hundred a tab sees instead of rebuilding the SVG and
    URI-encoding it per mount (CLE-35075). Bounded: cleared when full. */
-const avatarUris = new Map()
+const avatarUris = new Map<string, string>()
 const AVATAR_URI_MAX = 1000
 
-export function avatarDataUri(id, box) {
+export function avatarDataUri(id: string, box?: string): string {
   const key = String(id || '') + '\n' + String(box || '')
   let uri = avatarUris.get(key)
   if (uri === undefined) {
@@ -149,10 +149,19 @@ export function avatarDataUri(id, box) {
 
 const FILE_ID_RE = /^[0-9a-f]{64}$/
 
+/** The roster fields a member row carries here (view-v1 §4.1 `humans`). */
+type RosterHuman = { human_id?: unknown, avatar_file_id?: unknown, display_name?: unknown }
+
+/** The roster's member rows, [] for anything else. */
+function rosterHumans(data: unknown): RosterHuman[] {
+  const humans = data && typeof data === 'object' ? (data as { humans?: unknown }).humans : null
+  return Array.isArray(humans) ? humans : []
+}
+
 /** view-v1 §4.1 roster → { 'HUM-3': '<sha256 hex>' }; null / malformed ids are dropped. */
-export function avatarFilesFromView(data) {
-  const out = {}
-  for (const h of (data && Array.isArray(data.humans) ? data.humans : [])) {
+export function avatarFilesFromView(data: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const h of rosterHumans(data)) {
     const id = h && String(h.human_id || '')
     const fid = h && typeof h.avatar_file_id === 'string' ? h.avatar_file_id : ''
     if (isMember(id) && FILE_ID_RE.test(fid)) out[id] = fid
@@ -164,7 +173,7 @@ export function avatarFilesFromView(data) {
  * The picture URL for id@box, or '' (draw the default). Humans only, and only
  * as themselves: a HUM-* on the browser box (or no box), never an agent id.
  */
-export function avatarImageUrl(base, id, box, files) {
+export function avatarImageUrl(base: string, id: string, box: string | undefined, files: Record<string, string>): string {
   if (!isMember(id) || (box && box !== 'box-wui')) return ''
   const fid = files && Object.prototype.hasOwnProperty.call(files, id) ? String(files[id]) : ''
   if (!FILE_ID_RE.test(fid)) return ''
@@ -172,19 +181,21 @@ export function avatarImageUrl(base, id, box, files) {
 }
 
 /** Alt text: the id the card already names, so a screen reader hears who it is. */
-export function avatarAlt(id, box) {
+export function avatarAlt(id: string, box?: string): string {
   const who = String(id || '') + (box && box !== 'box-wui' ? `@${box}` : '')
   return who ? `avatar of ${who}` : 'avatar'
 }
 
 /** i18n sibling of avatarAlt: `feed.avatar_of` {who} or `feed.avatar`. */
-export function avatarAltKey(id, box) {
+export function avatarAltKey(id: string, box?: string): { key: string, params: Record<string, string> } {
   const who = String(id || '') + (box && box !== 'box-wui' ? `@${box}` : '')
   return who ? { key: 'feed.avatar_of', params: { who } } : { key: 'feed.avatar', params: {} }
 }
 
-export const AVATAR_FILES_TTL_MS = 60_000
-const avatarLoads = new Map()
+const AVATAR_FILES_TTL_MS = 60_000
+/** What the roster read gives: picture file ids and display names, by member id. */
+type RosterRead = { files: Record<string, string>, names: Record<string, string> }
+const avatarLoads = new Map<string, { at: number, promise: Promise<Record<string, string>>, names: Promise<Record<string, string>> }>()
 /* The last roster read that ANSWERED, per (base, token). A later read that
    fails resolves this, not {}: every avatar re-reads the roster once the TTL
    is out, and an answer of {} replaced the page's whole picture and name map,
@@ -192,7 +203,7 @@ const avatarLoads = new Map()
    stored picture back to its identicon and every name back to its id until
    the next good read - "the avatars disappear from time to time" (owner,
    prd t1 432769d8 + 177db6cf, 2026-09-26). */
-const rosterLastGood = new Map()
+const rosterLastGood = new Map<string, RosterRead>()
 
 /**
  * One roster read per (base, token) per TTL, shared by every avatar on the
@@ -202,14 +213,22 @@ const rosterLastGood = new Map()
  * then joins the roster store's identical one in flight instead of being a
  * second request.
  */
-export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, read = null, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS } = {}) {
+export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, read = null, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS }: {
+  base?: string
+  token?: string
+  credentials?: RequestCredentials
+  fetchFn?: typeof fetch
+  read?: (() => Promise<unknown>) | null
+  now?: () => number
+  ttlMs?: number
+} = {}): Promise<Record<string, string>> {
   const root = String(base || '').replace(/\/+$/, '')
   const key = `${root}\n${token}`
   const hit = avatarLoads.get(key)
   if (hit && now() - hit.at < ttlMs) return hit.promise
-  const headers = { accept: 'application/json' }
+  const headers: Record<string, string> = { accept: 'application/json' }
   if (token) headers.authorization = `Bearer ${token}`
-  const json = (async () => {
+  const json = (async (): Promise<unknown> => {
     try {
       if (typeof read === 'function') return (await read()) || null
       if (typeof fetchFn !== 'function') return null
@@ -219,7 +238,7 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
       return null
     }
   })()
-  const read1 = json.then((data) => {
+  const read1 = json.then((data): RosterRead => {
     if (data === null) return rosterLastGood.get(key) || { files: {}, names: {} }
     const got = { files: avatarFilesFromView(data), names: humanNamesFromView(data) }
     rosterLastGood.set(key, got)
@@ -241,9 +260,9 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
  * chose in Settings > Profile. A member with none is left out (the WUI shows
  * the id).
  */
-export function humanNamesFromView(data) {
-  const out = {}
-  for (const h of (data && Array.isArray(data.humans) ? data.humans : [])) {
+export function humanNamesFromView(data: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const h of rosterHumans(data)) {
     const id = h && String(h.human_id || '')
     const name = h && typeof h.display_name === 'string' ? h.display_name.trim() : ''
     if (isMember(id) && name) out[id] = name
@@ -252,7 +271,7 @@ export function humanNamesFromView(data) {
 }
 
 /** The display names from the same roster read as the pictures (one fetch, same cache). */
-export function loadHumanNames(opts = {}) {
+export function loadHumanNames(opts: { base?: string, token?: string, credentials?: RequestCredentials, read?: (() => Promise<unknown>) | null } = {}): Promise<Record<string, string>> {
   const o = opts && typeof opts === 'object' ? opts : {}
   const root = String(o.base || '').replace(/\/+$/, '')
   loadAvatarFiles(o)
@@ -261,9 +280,9 @@ export function loadHumanNames(opts = {}) {
 }
 
 /** png / jpeg / gif / webp from the magic bytes (the hub serves octet-stream), else ''. */
-export function avatarImageMime(bytes) {
+export function avatarImageMime(bytes: ArrayBuffer | Uint8Array): string {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
-  const at = (i, ...xs) => xs.every((x, k) => b[i + k] === x)
+  const at = (i: number, ...xs: number[]): boolean => xs.every((x, k) => b[i + k] === x)
   if (at(0, 0x89, 0x50, 0x4e, 0x47)) return 'image/png'
   if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg'
   if (at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif'
@@ -271,13 +290,13 @@ export function avatarImageMime(bytes) {
   return ''
 }
 
-const avatarImages = new Map()
+const avatarImages = new Map<string, Promise<string>>()
 
 /** bytes → data:<type>;base64,… (chunked, so a 256 KiB picture never overflows the call stack). */
-export function bytesToDataUri(bytes, type) {
+export function bytesToDataUri(bytes: ArrayBuffer | Uint8Array, type: string): string {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
   let bin = ''
-  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000))
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000) as unknown as number[])
   return `data:${type};base64,${btoa(bin)}`
 }
 
@@ -300,17 +319,23 @@ export function bytesToDataUri(bytes, type) {
  */
 export const AVATAR_MISS_KEY = 'spool.avatar.miss'
 /** A picture fetch that has not answered by then is given up (and asked again on the next mount). */
-export const AVATAR_FETCH_TIMEOUT_MS = 8000
-export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, missStore = null, timeoutMs = AVATAR_FETCH_TIMEOUT_MS } = {}) {
+const AVATAR_FETCH_TIMEOUT_MS = 8000
+export function loadAvatarImageUrl(url: string, { credentials = 'omit', fetchFn = globalThis.fetch, missStore = null, timeoutMs = AVATAR_FETCH_TIMEOUT_MS }: {
+  credentials?: RequestCredentials
+  fetchFn?: typeof fetch
+  missStore?: Pick<Storage, 'getItem' | 'setItem'> | null
+  timeoutMs?: number
+} = {}): Promise<string> {
   if (!url) return Promise.resolve('')
-  if (avatarImages.has(url)) return avatarImages.get(url)
+  const held = avatarImages.get(url)
+  if (held) return held
   const readMiss = () => { try { return missStore ? missStore.getItem(AVATAR_MISS_KEY) : null } catch { return null } }
   if (readMiss() === url) return Promise.resolve('')
   /* A 404 or a non-image answer is final for the page; a network error, a
      5xx or a timeout is not kept, so the next avatar that mounts asks again
      instead of showing the default until a reload. */
   let transient = false
-  const promise = (async () => {
+  const promise = (async (): Promise<string> => {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null
     const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
     try {
@@ -338,12 +363,12 @@ export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = global
 }
 
 /** Forget the cached roster read only (names and picture ids), not the pictures. */
-export function forgetRosterRead() {
+export function forgetRosterRead(): void {
   avatarLoads.clear()
 }
 
 /** Test seam: forget every cached roster read and picture. */
-export function resetAvatarFiles() {
+export function resetAvatarFiles(): void {
   avatarLoads.clear()
   avatarImages.clear()
   rosterLastGood.clear()

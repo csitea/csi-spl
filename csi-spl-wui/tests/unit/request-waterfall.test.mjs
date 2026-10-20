@@ -11,12 +11,13 @@ import { readFileSync } from 'node:fs'
 import { createSpoolClient, TOPIC_READS_IN_FLIGHT, FIRST_SCREEN_MS } from '../../src/utils/spool-client.mjs'
 import { withSessionRetry } from '../../src/utils/live-follow.mjs'
 import { sharedPreview, resetSharedPreviews, PREVIEW_CACHE_MAX } from '../../src/utils/file-preview.mjs'
-import { loadAvatarFiles, resetAvatarFiles } from '../../src/utils/avatar.mjs'
 import { createReadSync } from '../../src/utils/read-sync.mjs'
 import { loadCursors } from '../../src/utils/read-cursor.mjs'
 import { dmReadParams } from '../../src/utils/channel-feed.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import { createSeedGate, readSyncPage, seedWaitsForPull } from '../../src/utils/dm-seed.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { loadAvatarFiles, resetAvatarFiles } = await importTs('src/utils/avatar.ts')
 
 const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 const tick = () => new Promise((r) => setTimeout(r, 0))

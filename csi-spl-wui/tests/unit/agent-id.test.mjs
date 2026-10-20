@@ -13,16 +13,17 @@ import {
   isWritableAgentId, legacyAccepted, normalizeId, setAgentIdNow,
 } from '../../src/utils/agent-id.mjs'
 import { agentKind, isAgentId as kindIsAgentId } from '../../src/utils/agent-kind.mjs'
-import { prefixOf, robotSvg } from '../../src/utils/avatar.mjs'
 import { mentionParts, richParts } from '../../src/utils/code-blocks.mjs'
 import { mentionedIds } from '../../src/utils/notify.mjs'
 import { mentionBoxes } from '../../src/utils/mention-poke.mjs'
 import { parseMention } from '../../src/utils/channel-feed.mjs'
 import { cleanAs } from '../../src/utils/live-ws.mjs'
-import { validAgentId } from '../../src/utils/connect-agent.mjs'
 import { validResponderId } from '../../src/utils/tenant-settings.mjs'
 import { isAgentId as pickerIsAgentId } from '../../src/utils/mention-autocomplete.mjs'
 import { isAiMessage } from '../../src/utils/typed-by.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { prefixOf, robotSvg } = await importTs('src/utils/avatar.ts')
+const { validAgentId } = await importTs('src/utils/connect-agent.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ROOT = join(WUI, '..')

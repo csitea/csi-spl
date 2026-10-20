@@ -42,7 +42,7 @@ import {
   loadCheckout,
   pollAndClaim,
   resetClaim,
-} from '~/utils/checkout-client.mjs'
+} from '~/utils/checkout-client'
 import { cardReturnCleanUrl } from '~/utils/card-element.mjs'
 
 definePageMeta({ layout: 'login' })

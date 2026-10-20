@@ -72,7 +72,7 @@ import {
   bindSnackbarToJournal,
   createSnackbarQueue,
   tickWhileShown,
-} from '~/utils/error-snackbar.mjs'
+} from '~/utils/error-snackbar'
 import { isPhoneOrTouch, onOutsideTap } from '~/utils/outside-tap.mjs'
 
 type SnackItem = {

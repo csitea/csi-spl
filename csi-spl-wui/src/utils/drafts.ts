@@ -8,9 +8,14 @@
  * Storage-shaped object (default localStorage, see prefs.mjs), so the desktop
  * composer and the mobile drafts reuse the same model.
  */
-import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { storageGetJson, storageSetJson } from '~/utils/prefs.mjs'
 
-export const DRAFTS_KEY = 'spool.drafts'
+export type DraftEntry = { text: string, ts: number }
+export type DraftPlaces = Record<string, DraftEntry>
+export type DraftTarget = string | { taskId?: unknown, peer?: unknown, channel?: unknown } | null | undefined
+export type DraftPending = { human: unknown, place: unknown, text: unknown }
+
+export const DRAFTS_KEY = 'spool.drafts' as const
 export const DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 export const DRAFT_MAX_ENTRIES = 50
 
@@ -22,10 +27,8 @@ const PLACE_RE = /^(ch|dm|t):.+$/
  * a peer is a DM; a channel (with or without its `#`) is a new topic there.
  * An already-formed place (`ch:x`, `dm:x`, `t:x`) is returned as is;
  * `new:<channel>` is folded into `ch:<channel>`.
- * @param {string | { taskId?: unknown, peer?: unknown, channel?: unknown } | null | undefined} target
- * @returns {string}
  */
-export function draftPlaceOf(target) {
+export function draftPlaceOf(target: DraftTarget): string {
   if (typeof target === 'string') {
     const s = target.trim()
     if (s.startsWith('new:')) return draftPlaceOf({ channel: s.slice(4) })
@@ -41,25 +44,25 @@ export function draftPlaceOf(target) {
   return ''
 }
 
-function isEntry(e) {
-  return Boolean(e) && typeof e === 'object' && typeof e.text === 'string' && e.text !== ''
-    && Number.isFinite(e.ts)
+function isEntry(e: unknown): e is DraftEntry {
+  const x = e as Partial<DraftEntry> | null
+  return Boolean(x) && typeof x === 'object' && typeof x?.text === 'string' && x.text !== ''
+    && Number.isFinite(x.ts)
 }
 
 /**
  * One member's drafts without the stale ones: entries older than 30 days
  * and all but the newest 50 are dropped, so are malformed entries.
- * @param {unknown} places  `{<place>: {text, ts}}`
- * @param {number} now  ms since epoch
- * @returns {Record<string, { text: string, ts: number }>}
+ * @param places `{<place>: {text, ts}}`
+ * @param now ms since epoch
  */
-function prunePlaces(places, now) {
+function prunePlaces(places: unknown, now: number): DraftPlaces {
   if (!places || typeof places !== 'object' || Array.isArray(places)) return {}
   const kept = Object.entries(places)
-    .filter(([place, e]) => PLACE_RE.test(place) && isEntry(e) && now - e.ts <= DRAFT_MAX_AGE_MS)
+    .filter((kv): kv is [string, DraftEntry] => PLACE_RE.test(kv[0]) && isEntry(kv[1]) && now - kv[1].ts <= DRAFT_MAX_AGE_MS)
     .sort((a, b) => b[1].ts - a[1].ts)
     .slice(0, DRAFT_MAX_ENTRIES)
-  const out = {}
+  const out: DraftPlaces = {}
   for (const [place, e] of kept) out[place] = { text: e.text, ts: e.ts }
   return out
 }
@@ -67,13 +70,10 @@ function prunePlaces(places, now) {
 /**
  * FR-004: the whole `spool.drafts` value with every member's drafts pruned
  * (30 days, newest 50 per member). A member left with none is dropped.
- * @param {unknown} all
- * @param {number} [now]
- * @returns {Record<string, Record<string, { text: string, ts: number }>>}
  */
-export function pruneDrafts(all, now = Date.now()) {
+export function pruneDrafts(all: unknown, now = Date.now()): Record<string, DraftPlaces> {
   if (!all || typeof all !== 'object' || Array.isArray(all)) return {}
-  const out = {}
+  const out: Record<string, DraftPlaces> = {}
   for (const [humanId, places] of Object.entries(all)) {
     if (!humanId) continue
     const kept = prunePlaces(places, now)
@@ -82,22 +82,19 @@ export function pruneDrafts(all, now = Date.now()) {
   return out
 }
 
-function readAll(store, now) {
+function readAll(store: Storage | undefined, now: number): Record<string, DraftPlaces> {
   return pruneDrafts(storageGetJson(DRAFTS_KEY, {}, store), now)
 }
 
-function writeAll(store, all) {
+function writeAll(store: Storage | undefined, all: Record<string, DraftPlaces>): boolean {
   return storageSetJson(DRAFTS_KEY, all, store)
 }
 
 /**
  * The member's drafts, `{<place>: {text, ts}}`, pruned on load; the pruned
  * value is written back. No member, nothing.
- * @param {Storage | undefined} store
- * @param {unknown} humanId
- * @param {number} [now]
  */
-export function loadDrafts(store, humanId, now = Date.now()) {
+export function loadDrafts(store: Storage | undefined, humanId: unknown, now = Date.now()): DraftPlaces {
   const id = String(humanId ?? '')
   if (!id) return {}
   const all = readAll(store, now)
@@ -107,12 +104,8 @@ export function loadDrafts(store, humanId, now = Date.now()) {
 
 /**
  * The draft text of one place, or ''.
- * @param {Storage | undefined} store
- * @param {unknown} humanId
- * @param {unknown} place
- * @param {number} [now]
  */
-export function draftText(store, humanId, place, now = Date.now()) {
+export function draftText(store: Storage | undefined, humanId: unknown, place: DraftTarget, now = Date.now()): string {
   const p = draftPlaceOf(place)
   if (!p) return ''
   return loadDrafts(store, humanId, now)[p]?.text || ''
@@ -121,14 +114,9 @@ export function draftText(store, humanId, place, now = Date.now()) {
 /**
  * FR-002: keep `text` as the draft of `place`. Blank text (only whitespace)
  * is no draft: the place is cleared instead.
- * @param {Storage | undefined} store
- * @param {unknown} humanId
- * @param {unknown} place
- * @param {unknown} text
- * @param {number} [now]
- * @returns {boolean} written
+ * @returns written
  */
-export function saveDraft(store, humanId, place, text, now = Date.now()) {
+export function saveDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, text: unknown, now = Date.now()): boolean {
   const id = String(humanId ?? '')
   const p = draftPlaceOf(place)
   if (!id || !p) return false
@@ -141,13 +129,9 @@ export function saveDraft(store, humanId, place, text, now = Date.now()) {
 
 /**
  * FR-003: a successful send drops that place's draft.
- * @param {Storage | undefined} store
- * @param {unknown} humanId
- * @param {unknown} place
- * @param {number} [now]
- * @returns {boolean} written
+ * @returns written
  */
-export function clearDraft(store, humanId, place, now = Date.now()) {
+export function clearDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, now = Date.now()): boolean {
   const id = String(humanId ?? '')
   const p = draftPlaceOf(place)
   if (!id || !p) return false
@@ -161,12 +145,9 @@ export function clearDraft(store, humanId, place, now = Date.now()) {
 
 /**
  * FR-008: sign-out drops every draft of that member; other members keep theirs.
- * @param {Storage | undefined} store
- * @param {unknown} humanId
- * @param {number} [now]
- * @returns {boolean} written
+ * @returns written
  */
-export function clearDrafts(store, humanId, now = Date.now()) {
+export function clearDrafts(store: Storage | undefined, humanId: unknown, now = Date.now()): boolean {
   const id = String(humanId ?? '')
   if (!id) return false
   const all = readAll(store, now)
@@ -180,16 +161,14 @@ export function clearDrafts(store, humanId, now = Date.now()) {
  * composer registers a getter of its pending draft; `flushDraft()` writes it
  * at once (drafts-flush.client.ts calls it on hide and on pagehide).
  */
-let draftSource = null
+let draftSource: (() => DraftPending | null | false | undefined) | null = null
 
 /**
  * Register the composer's pending-draft getter: it returns
  * `{human, place, text}` while a debounced save is pending, else null.
  * One source at a time; the returned function unregisters it.
- * @param {() => ({ human: unknown, place: unknown, text: unknown } | null | false | undefined)} source
- * @returns {() => void}
  */
-export function registerDraftSource(source) {
+export function registerDraftSource(source: () => DraftPending | null | false | undefined): () => void {
   draftSource = typeof source === 'function' ? source : null
   return () => {
     if (draftSource === source) draftSource = null
@@ -199,12 +178,10 @@ export function registerDraftSource(source) {
 /**
  * 088 FR-001: write the pending debounced draft now, through saveDraft
  * (same format). Nothing registered or nothing pending, nothing written.
- * @param {Storage | undefined} [store]
- * @param {number} [now]
- * @returns {boolean} written
+ * @returns written
  */
-export function flushDraft(store, now = Date.now()) {
+export function flushDraft(store?: Storage, now = Date.now()): boolean {
   const pending = draftSource?.()
   if (!pending || typeof pending !== 'object') return false
-  return saveDraft(store, pending.human, pending.place, pending.text, now)
+  return saveDraft(store, pending.human, pending.place as DraftTarget, pending.text, now)
 }

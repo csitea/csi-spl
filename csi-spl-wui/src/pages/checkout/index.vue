@@ -59,7 +59,7 @@ import {
   checkoutMode,
   formatPrice,
   saveCheckout,
-} from '~/utils/checkout-client.mjs'
+} from '~/utils/checkout-client'
 import { validTenant } from '~/utils/tenant.mjs'
 import { mountCardPayment } from '~/utils/card-element.mjs'
 

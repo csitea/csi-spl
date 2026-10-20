@@ -16,7 +16,7 @@ const pathsOf = (files: unknown): string[] =>
 
 async function hubTree(api: Api): Promise<string[]> {
   if (api.mock) {
-    const { mockDocs } = await import('~/utils/docs-mock.mjs')
+    const { mockDocs } = await import('~/utils/docs-mock')
     const raw = mockDocs('tree.json')
     return raw ? pathsOf((JSON.parse(raw) as { files?: unknown }).files) : []
   }

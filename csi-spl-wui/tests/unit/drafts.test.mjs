@@ -3,11 +3,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { memoryStore } from '../../src/utils/prefs.mjs'
-import {
-  DRAFTS_KEY, DRAFT_MAX_AGE_MS, DRAFT_MAX_ENTRIES,
-  draftPlaceOf, pruneDrafts, loadDrafts, draftText, saveDraft, clearDraft, clearDrafts,
-  registerDraftSource, flushDraft,
-} from '../../src/utils/drafts.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { DRAFTS_KEY, DRAFT_MAX_AGE_MS, DRAFT_MAX_ENTRIES, draftPlaceOf, pruneDrafts, loadDrafts, draftText, saveDraft, clearDraft, clearDrafts, registerDraftSource, flushDraft } = await importTs('src/utils/drafts.ts')
 
 const NOW = Date.UTC(2026, 9, 5, 12, 0, 0)
 const DAY = 24 * 60 * 60 * 1000

@@ -18,7 +18,7 @@ export function useRepoDocs() {
   /** a doc's markdown, null for a 404, 'off' when the hub has no docs bucket; throws otherwise */
   async function read(path: string): Promise<string | null | 'off'> {
     if (api.mock) {
-      const { mockDocs } = await import('~/utils/docs-mock.mjs')
+      const { mockDocs } = await import('~/utils/docs-mock')
       return mockDocs(path)
     }
     const headers: Record<string, string> = {}

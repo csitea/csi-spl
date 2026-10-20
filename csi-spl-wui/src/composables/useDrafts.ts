@@ -1,6 +1,6 @@
 import { getCurrentInstance, onBeforeUnmount, onMounted, shallowRef } from 'vue'
 import { useSessionStore } from '~/stores/session'
-import { DRAFTS_KEY, draftPlaceOf, pruneDrafts, type DraftPlaces, type DraftTarget } from '~/utils/drafts.mjs'
+import { DRAFTS_KEY, draftPlaceOf, pruneDrafts, type DraftPlaces, type DraftTarget } from '~/utils/drafts'
 import { storageGet } from '~/utils/prefs.mjs'
 
 /**

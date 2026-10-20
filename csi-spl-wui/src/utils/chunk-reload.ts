@@ -8,13 +8,14 @@
 export const RELOAD_GUARD_MS = 10_000
 
 /** True when this looks like a missing build chunk. */
-export function isChunkLoadError(err) {
-  const msg = String((err && (err.message || err.reason?.message)) || err || '')
+export function isChunkLoadError(err: unknown): boolean {
+  const e = err as { message?: string, reason?: { message?: string } } | null | undefined
+  const msg = String((e && (e.message || e.reason?.message)) || err || '')
   return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk [\w-]+ failed|ChunkLoadError/i.test(msg)
 }
 
 /** Reload now? `last` is the epoch ms of the previous chunk reload, or 0. */
-export function shouldReload(last, now = Date.now()) {
+export function shouldReload(last: number, now = Date.now()): boolean {
   const l = Number(last) || 0
   return !(l > 0 && now - l >= 0 && now - l < RELOAD_GUARD_MS)
 }
@@ -30,8 +31,8 @@ export function shouldReload(last, now = Date.now()) {
  * catch takes it, or onUnhandledChunkError below does. Either way the page
  * reloads once.
  */
-export function onPreloadError(ev, reload) {
-  const msg = String(ev?.payload?.message || '')
+export function onPreloadError(ev: Event & { payload?: unknown }, reload: () => void): void {
+  const msg = String((ev?.payload as { message?: string } | undefined)?.message || '')
   if (/Unable to preload CSS/.test(msg)) ev.preventDefault()
   reload()
 }
@@ -41,7 +42,7 @@ export function onPreloadError(ev, reload) {
  * reloads once. It is marked handled so it is not also reported as an
  * uncaught page error. Any other rejection is left alone.
  */
-export function onUnhandledChunkError(ev, reload) {
+export function onUnhandledChunkError(ev: PromiseRejectionEvent, reload: () => void): void {
   if (!isChunkLoadError(ev?.reason)) return
   ev.preventDefault()
   reload()

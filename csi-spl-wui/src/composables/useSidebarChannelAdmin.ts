@@ -12,7 +12,7 @@ import type { useSpoolApi } from '~/composables/useSpoolApi'
 import type { useLive } from '~/composables/useLive'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { MUTED_CHANNELS_KEY, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
-import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
+import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members'
 
 /* a channel's mute, kept in this browser (notify.mjs) */
 function useChannelMute() {

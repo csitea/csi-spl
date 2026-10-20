@@ -2,8 +2,9 @@
 // the memo must return exactly the encoded SVG a fresh call builds.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { importTs } from './lib/load-ts.mjs'
 
-import { avatarDataUri, avatarSvg } from '../../src/utils/avatar.mjs'
+const { avatarDataUri, avatarSvg } = await importTs('src/utils/avatar.ts')
 
 describe('avatarDataUri memo', () => {
   it('equals the encoded SVG for humans, agents, boxes and repeats', () => {

@@ -116,7 +116,7 @@ function settingsRows(t: Translate, here: { path: string, query: LocationQuery }
 async function readRepoDocs(api: SpoolApi): Promise<TreeFile[]> {
   let body: { files?: TreeFile[] } | null
   if (api.mock) {
-    const { mockDocs } = await import('~/utils/docs-mock.mjs')
+    const { mockDocs } = await import('~/utils/docs-mock')
     const raw = mockDocs('tree.json')
     try { body = raw ? JSON.parse(raw) as { files?: TreeFile[] } : null } catch { body = null }
   } else {

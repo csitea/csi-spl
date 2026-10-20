@@ -9,9 +9,10 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { applyChannelFrame } from '../../src/utils/channel-feed.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
-import { canDeleteChannel } from '../../src/utils/channel-members.mjs'
 import { rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
 import { FRAMES } from '../../src/utils/live-ws.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { canDeleteChannel } = await importTs('src/utils/channel-members.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

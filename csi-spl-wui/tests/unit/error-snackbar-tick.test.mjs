@@ -3,8 +3,9 @@
 // always-on interval.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { importTs } from './lib/load-ts.mjs'
 
-import { SNACKBAR_TICK_MS, SNACKBAR_TTL_MS, createSnackbarQueue, tickWhileShown } from '../../src/utils/error-snackbar.mjs'
+const { SNACKBAR_TICK_MS, SNACKBAR_TTL_MS, createSnackbarQueue, tickWhileShown } = await importTs('src/utils/error-snackbar.ts')
 
 function rig() {
   let t = 0

@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import CodeBlock from '~/components/CodeBlock.vue'
-import { connectAgentScript, cursorMcpJson, firstPrompt, validAgentId, validBoxId } from '~/utils/connect-agent.mjs'
+import { connectAgentScript, cursorMcpJson, firstPrompt, validAgentId, validBoxId } from '~/utils/connect-agent'
 import { normalizeId } from '~/utils/agent-id.mjs'
 
 const props = defineProps<{ tenant: string, hubUrl: string, open: boolean }>()

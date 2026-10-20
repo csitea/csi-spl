@@ -11,16 +11,16 @@
  * Returns [{ text, kind? }], kind 'inline' | 'block'. Pure: node tests import it.
  * Loaded only with ComposerCodeMarks.vue, a lazy chunk.
  */
-import { tokenize } from './code-blocks.mjs'
+import { tokenize } from '~/utils/code-blocks.mjs'
 
-function ticksAt(s, i) {
+function ticksAt(s: string, i: number): number {
   let n = 0
   while (s[i + n] === '`') n++
   return n
 }
 
 /** tokenize's closer: the first run of >= n backticks at or after `from` */
-function fenceEnd(s, from, n) {
+function fenceEnd(s: string, from: number, n: number): number {
   let i = from
   while (i < s.length) {
     const at = s.indexOf('`', i)
@@ -33,11 +33,11 @@ function fenceEnd(s, from, n) {
 }
 
 /** The draft as runs [{ text, kind? }]; kind 'inline' | 'block' marks code. */
-export function composerCodeRuns(src) {
+export function composerCodeRuns(src: string): { text: string, kind?: 'inline' | 'block' }[] {
   const s = String(src ?? '')
-  const runs = []
+  const runs: { text: string, kind?: 'inline' | 'block' }[] = []
   let at = 0
-  const take = (end, kind) => {
+  const take = (end: number, kind?: 'inline' | 'block') => {
     if (end <= at) return
     runs.push(kind ? { text: s.slice(at, end), kind } : { text: s.slice(at, end) })
     at = end

@@ -28,7 +28,7 @@ onMounted(async () => {
   if (!props.withPrice || useSpoolApi().mock) return
   try {
     /* loaded on demand: the sign-in page's first download stays as it was */
-    const { createCheckoutClient, checkoutMode, formatPrice } = await import('~/utils/checkout-client.mjs')
+    const { createCheckoutClient, checkoutMode, formatPrice } = await import('~/utils/checkout-client')
     const out = await createCheckoutClient().plan()
     if (!out.ok || !out.data || !['fake', 'card'].includes(checkoutMode(out.data))) return
     fmt.value = formatPrice

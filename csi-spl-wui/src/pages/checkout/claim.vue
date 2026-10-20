@@ -36,7 +36,7 @@ import {
   createCheckoutClient,
   readClaimFragment,
   resetClaim,
-} from '~/utils/checkout-client.mjs'
+} from '~/utils/checkout-client'
 
 // scrollToTop: false makes Nuxt's scrollBehavior return before it reads
 // to.hash. Otherwise vue-router treats "#checkout=…&token=…" as a CSS selector

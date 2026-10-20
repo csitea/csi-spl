@@ -1,8 +1,9 @@
 // t1 3558e416: the composer's code marks - runs that cover the draft exactly.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { composerCodeRuns } from '../../src/utils/composer-code-marks.mjs'
 import { parseBody, closeOpenFence } from '../../src/utils/code-blocks.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { composerCodeRuns } = await importTs('src/utils/composer-code-marks.ts')
 
 const kinds = (s) => composerCodeRuns(s).map((r) => (r.kind ? `${r.kind}:${r.text}` : r.text))
 

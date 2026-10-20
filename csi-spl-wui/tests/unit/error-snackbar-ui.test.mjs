@@ -20,7 +20,7 @@ describe('ErrorSnackbar.vue', () => {
     assert.match(src, /tickWhileShown\(queue\)/)
     assert.match(src, /getErrors/)
     assert.match(src, /subscribeErrors/)
-    assert.match(src, /from '~\/utils\/error-snackbar\.mjs'/)
+    assert.match(src, /from '~\/utils\/error-snackbar'/)
   })
 
   it('slides in from the top and drops the slide when motion is reduced', () => {

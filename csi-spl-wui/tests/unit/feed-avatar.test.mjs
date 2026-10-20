@@ -2,10 +2,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
-import {
-  avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
-  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, AVATAR_MISS_KEY, loadAvatarFiles, loadHumanNames, resetAvatarFiles, robotSvg,
-} from '../../src/utils/avatar.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember, avatarImageMime, bytesToDataUri, loadAvatarImageUrl, AVATAR_MISS_KEY, loadAvatarFiles, loadHumanNames, resetAvatarFiles, robotSvg } = await importTs('src/utils/avatar.ts')
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
 
@@ -272,8 +270,8 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
   it('CLE-3406: never a blob: URL - every deployed CSP img-src is exactly self + data:', () => {
     const render = readFileSync(new URL('../../../csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh', import.meta.url), 'utf8')
     assert.match(render, /"img-src 'self' data:",/)
-    const src = readFileSync(new URL('../../src/utils/avatar.mjs', import.meta.url), 'utf8')
-    assert.equal(/createObjectURL/.test(src), false, 'avatar.mjs makes a blob: URL the deployed CSP blocks')
+    const src = readFileSync(new URL('../../src/utils/avatar.ts', import.meta.url), 'utf8')
+    assert.equal(/createObjectURL/.test(src), false, 'avatar.ts makes a blob: URL the deployed CSP blocks')
   })
 
   it('bytesToDataUri survives a picture at the 256 KiB hub cap (chunked)', () => {

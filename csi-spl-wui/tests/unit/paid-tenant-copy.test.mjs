@@ -21,7 +21,7 @@ describe('Buy a workspace (047 W2)', () => {
   })
 
   it('the price line comes from the plan, only while it is on sale, and loads the client lazily', () => {
-    assert.match(link, /await import\('~\/utils\/checkout-client\.mjs'\)/)
+    assert.match(link, /await import\('~\/utils\/checkout-client'\)/)
     assert.doesNotMatch(link, /^import .*checkout-client/m)
     assert.match(link, /\['fake', 'card'\]\.includes\(checkoutMode\(out\.data\)\)/)
     assert.match(link, /t\('checkout\.price', \{ price \}\)/)

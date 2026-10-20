@@ -4,7 +4,7 @@ import { setViewToken, useSpoolApi } from '~/composables/useSpoolApi'
 import { clearCursors } from '~/utils/read-cursor.mjs'
 import { takeEarlySession } from '~/utils/early-session.mjs'
 import { writeSignedOutHint } from '~/utils/signed-out-hint.mjs'
-import { clearDrafts } from '~/utils/drafts.mjs'
+import { clearDrafts } from '~/utils/drafts'
 import { markSignedIn } from '~/utils/session-recover.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'

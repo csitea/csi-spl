@@ -1,4 +1,4 @@
-import { flushDraft } from '~/utils/drafts.mjs'
+import { flushDraft } from '~/utils/drafts'
 
 /*
  * 088 FR-001: `visibilitychange` -> hidden and `pagehide` are the last events

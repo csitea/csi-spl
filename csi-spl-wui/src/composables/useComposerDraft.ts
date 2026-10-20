@@ -13,7 +13,7 @@
 import type { Ref } from 'vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSessionStore } from '~/stores/session'
-import { clearDraft, draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
+import { clearDraft, draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { omniboxMode } from '~/utils/search.mjs'
 import type { ComposerProps } from '~/composables/composerProps'

@@ -1,4 +1,4 @@
-// csi-spl-wui/src/utils/error-snackbar.mjs
+// csi-spl-wui/src/utils/error-snackbar.ts
 //
 // The error snackbar's state (005 FR-WUI-ERR-SNACK).
 //
@@ -31,24 +31,52 @@ export const SNACKBAR_MAX = 3
 /** How long a row stays up after its last occurrence. */
 export const SNACKBAR_TTL_MS = 8000
 /** An identical error within this window bumps the count instead of a new row. */
-export const SNACKBAR_COALESCE_MS = 5000
+const SNACKBAR_COALESCE_MS = 5000
 /** How often the component should call tick(). */
 export const SNACKBAR_TICK_MS = 500
 /** A journal record older than this at bind time is history, not news. */
-export const SNACKBAR_REPLAY_MS = 15000
+const SNACKBAR_REPLAY_MS = 15000
 /** Longest line on screen; the event log keeps the whole (capped) message. */
-export const SNACKBAR_TEXT_CHARS = 200
+const SNACKBAR_TEXT_CHARS = 200
+
+/** One row as a subscriber sees it. */
+export interface SnackbarItem {
+  id: string
+  errorId: string
+  text: string
+  source: string
+  status: number
+  count: number
+  at: string
+  expiresAt: number
+  held: boolean
+}
+
+/** A row inside the queue: the public fields plus the coalescing key and clock. */
+type SnackbarRow = SnackbarItem & { key: string, lastAt: number }
+
+/** The journal record fields the queue reads. */
+type JournalRec = { message?: unknown, code?: unknown, name?: unknown, status?: unknown, source?: unknown, method?: unknown, path?: unknown, errorId?: unknown, at?: unknown, seq?: unknown, inline?: unknown }
+
+/** The queue createSnackbarQueue returns. */
+export interface SnackbarQueue {
+  push(rec: unknown): string
+  dismiss(id: string): void
+  hold(id: string, on: boolean): void
+  tick(): boolean
+  clear(): void
+  subscribe(fn: (items: SnackbarItem[]) => void): () => void
+  items(): SnackbarItem[]
+}
 
 /**
  * The one line a snackbar row shows for a journal record. Falls back from the
  * message to the error code, the error name and the HTTP status, so a row is
  * never blank.
- *
- * @param {any} rec
- * @returns {string}
  */
-export function snackbarText(rec) {
-  if (!rec || typeof rec !== 'object') return ''
+export function snackbarText(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return ''
+  const rec = raw as JournalRec
   const pick = [rec.message, rec.code, rec.name]
     .map((v) => (typeof v === 'string' ? v.trim() : ''))
     .find(Boolean)
@@ -58,23 +86,23 @@ export function snackbarText(rec) {
 }
 
 /** What makes two records "the same error" for coalescing. */
-function sameKey(rec, text) {
+function sameKey(rec: JournalRec, text: string): string {
   return [String(rec.source || ''), String(rec.method || ''), String(rec.path || ''),
     String(Number(rec.status) || 0), text].join('\u0001')
 }
 
 /** createSnackbarQueue's options with every default filled in. */
-function snackbarOptions(opts) {
+function snackbarOptions(opts: { now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number }) {
   return {
     now: typeof opts.now === 'function' ? opts.now : () => Date.now(),
-    max: Number.isFinite(opts.max) && opts.max > 0 ? opts.max : SNACKBAR_MAX,
-    ttl: Number.isFinite(opts.ttlMs) && opts.ttlMs > 0 ? opts.ttlMs : SNACKBAR_TTL_MS,
-    coalesce: Number.isFinite(opts.coalesceMs) && opts.coalesceMs >= 0 ? opts.coalesceMs : SNACKBAR_COALESCE_MS,
+    max: Number.isFinite(opts.max) && Number(opts.max) > 0 ? Number(opts.max) : SNACKBAR_MAX,
+    ttl: Number.isFinite(opts.ttlMs) && Number(opts.ttlMs) > 0 ? Number(opts.ttlMs) : SNACKBAR_TTL_MS,
+    coalesce: Number.isFinite(opts.coalesceMs) && Number(opts.coalesceMs) >= 0 ? Number(opts.coalesceMs) : SNACKBAR_COALESCE_MS,
   }
 }
 
 /** A repeat of the error `hit` shows at time t: count it and restart its clock. */
-function bumpRow(hit, rec, t, ttl) {
+function bumpRow(hit: SnackbarRow, rec: JournalRec, t: number, ttl: number): void {
   hit.count += 1
   hit.lastAt = t
   hit.expiresAt = t + ttl
@@ -83,7 +111,7 @@ function bumpRow(hit, rec, t, ttl) {
 }
 
 /** A fresh row for journal record `rec`, first shown at time t. */
-function newRow({ id, key, text, rec, t, ttl }) {
+function newRow({ id, key, text, rec, t, ttl }: { id: string, key: string, text: string, rec: JournalRec, t: number, ttl: number }): SnackbarRow {
   return {
     id,
     key,
@@ -100,27 +128,24 @@ function newRow({ id, key, text, rec, t, ttl }) {
 }
 
 /** The rows as subscribers see them: without the coalescing key and clock. */
-function publicRows(rows) {
+function publicRows(rows: SnackbarRow[]): SnackbarItem[] {
   return rows.map(({ key, lastAt, ...pub }) => ({ ...pub }))
 }
 
 /** Hand every subscriber the same snapshot. */
-function notifyAll(listeners, snap) {
+function notifyAll(listeners: Set<(items: SnackbarItem[]) => void>, snap: SnackbarItem[]): void {
   for (const fn of listeners) {
     try { fn(snap) } catch { /* a bad subscriber must not break the queue */ }
   }
 }
 
-/**
- * @param {{ now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number }} [opts]
- */
-export function createSnackbarQueue(opts = {}) {
+export function createSnackbarQueue(opts: { now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number } = {}): SnackbarQueue {
   const { now, max, ttl, coalesce } = snackbarOptions(opts)
 
-  /** @type {any[]} newest first */
-  let rows = []
+  /** newest first */
+  let rows: SnackbarRow[] = []
   let nextId = 0
-  const listeners = new Set()
+  const listeners = new Set<(items: SnackbarItem[]) => void>()
 
   const view = () => publicRows(rows)
   const emit = () => notifyAll(listeners, view())
@@ -128,11 +153,11 @@ export function createSnackbarQueue(opts = {}) {
   /**
    * Show one journal record. Returns the row's id, or '' when the record is
    * not showable.
-   * @param {any} rec
    */
-  function push(rec) {
+  function push(raw: unknown): string {
     try {
-      if (!rec || typeof rec !== 'object') return ''
+      if (!raw || typeof raw !== 'object') return ''
+      const rec = raw as JournalRec
       const text = snackbarText(rec)
       const key = sameKey(rec, text)
       const t = now()
@@ -146,21 +171,21 @@ export function createSnackbarQueue(opts = {}) {
       }
       emit()
       // The row this record landed on is the newest, so it is first.
-      return rows[0].id
+      return rows[0]?.id ?? ''
     } catch {
       return ''
     }
   }
 
   /** Remove a row now (close button). */
-  function dismiss(id) {
+  function dismiss(id: string): void {
     const before = rows.length
     rows = rows.filter((r) => r.id !== id)
     if (rows.length !== before) emit()
   }
 
   /** Pause (true) or restart (false) a row's clock — hover and focus. */
-  function hold(id, on) {
+  function hold(id: string, on: boolean): void {
     const r = rows.find((x) => x.id === id)
     if (!r || r.held === !!on) return
     r.held = !!on
@@ -171,7 +196,7 @@ export function createSnackbarQueue(opts = {}) {
   }
 
   /** Drop expired rows. Returns true when something changed. */
-  function tick() {
+  function tick(): boolean {
     const t = now()
     const keep = rows.filter((r) => r.held || r.expiresAt > t)
     if (keep.length === rows.length) return false
@@ -180,13 +205,13 @@ export function createSnackbarQueue(opts = {}) {
     return true
   }
 
-  function clear() {
+  function clear(): void {
     if (!rows.length) return
     rows = []
     emit()
   }
 
-  function subscribe(fn) {
+  function subscribe(fn: (items: SnackbarItem[]) => void): () => void {
     listeners.add(fn)
     return () => { listeners.delete(fn) }
   }
@@ -201,15 +226,16 @@ export function createSnackbarQueue(opts = {}) {
  * starts the clock, the last row leaving stops it; rows expire exactly as
  * before because every row is pushed through the queue, and a push emits.
  *
- * @param {ReturnType<typeof createSnackbarQueue>} queue
- * @param {{ every?: (fn: () => void, ms: number) => unknown, cancel?: (id: unknown) => void }} [timers]
- * @returns {() => void} stop
+ * @returns stop
  */
-export function tickWhileShown(queue, timers = {}) {
-  const every = timers.every || ((fn, ms) => setInterval(fn, ms))
-  const cancel = timers.cancel || ((id) => clearInterval(/** @type {any} */ (id)))
-  let id = null
-  function sync(items) {
+export function tickWhileShown(
+  queue: { tick(): boolean, items(): unknown[], subscribe(fn: (items: unknown[]) => void): () => void },
+  timers: { every?: (fn: () => void, ms: number) => unknown, cancel?: (id: unknown) => void } = {},
+): () => void {
+  const every = timers.every || ((fn: () => void, ms: number): unknown => setInterval(fn, ms))
+  const cancel = timers.cancel || ((id: unknown) => clearInterval(id as ReturnType<typeof setInterval>))
+  let id: unknown = null
+  function sync(items: unknown[]) {
     if (items.length && id == null) id = every(() => { queue.tick() }, SNACKBAR_TICK_MS)
     else if (!items.length && id != null) {
       cancel(id)
@@ -231,17 +257,22 @@ export function tickWhileShown(queue, timers = {}) {
  * bind, records younger than SNACKBAR_REPLAY_MS are shown too — an error
  * raised while the page was still booting is still news.
  *
- * @param {ReturnType<typeof createSnackbarQueue>} queue
- * @param {{ getErrors: () => any[], subscribeErrors: (fn: (r: any[]) => void) => () => void, now?: () => number }} journal
- * @returns {() => void} unbind
+ * @returns unbind
  */
-export function bindSnackbarToJournal(queue, journal) {
+export function bindSnackbarToJournal(
+  queue: SnackbarQueue,
+  journal: {
+    getErrors: () => unknown[]
+    subscribeErrors: (fn: (r: unknown[]) => void) => () => void
+    now?: () => number
+  },
+): () => void {
   const now = typeof journal.now === 'function' ? journal.now : () => Date.now()
   let lastSeq = 0
-  const seqOf = (r) => (r && Number.isFinite(Number(r.seq)) ? Number(r.seq) : 0)
+  const seqOf = (r: JournalRec | null | undefined): number => (r && Number.isFinite(Number(r.seq)) ? Number(r.seq) : 0)
 
-  function take(records, replay) {
-    for (const r of Array.isArray(records) ? records : []) {
+  function take(records: unknown, replay: boolean) {
+    for (const r of (Array.isArray(records) ? records : []) as JournalRec[]) {
       const s = seqOf(r)
       if (s <= lastSeq) continue
       lastSeq = s
@@ -255,7 +286,7 @@ export function bindSnackbarToJournal(queue, journal) {
     }
   }
 
-  let initial = []
+  let initial: unknown[] = []
   try { initial = journal.getErrors() } catch { initial = [] }
   take(initial, true)
   // clearErrors() empties the buffer; the journal's seq never goes back, so

@@ -20,18 +20,3 @@ declare module '~/utils/repo-edit.mjs' {
   export function editActionErrorOf(status: number, body: unknown): { key: string, params: Record<string, string | number> }
   export function editBase(read: () => Promise<string>): { loaded(base: string): void, saved(): void, open(): Promise<string> }
 }
-
-declare module '~/utils/docs-mock.mjs' {
-  export const MOCK_AUTHOR: { git_name: string, git_email: string, author_source: string }
-  export const MOCK_REJECT: string
-  export function mockDocBase(path: string): string
-  export function mockRepoSave(path: string, text: string, ifMatch: string): { status: number, body: unknown }
-  export function mockAuthorNotice(body: unknown): { status: number, body: unknown }
-  export const MOCK_CONFLICT: string
-  export const MOCK_FAIL: string
-  export const MOCK_AGENT_EDIT: string
-  export function mockRepoEdits(q: { mine?: boolean, path?: string }): { status: number, body: unknown }
-  export function mockRepoRetry(id: string): { status: number, body: unknown }
-  export function mockRepoConflict(id: string): { status: number, body: unknown }
-  export function mockRepoReset(): void
-}

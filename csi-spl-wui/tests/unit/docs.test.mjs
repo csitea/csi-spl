@@ -9,7 +9,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { DOCS_REPO_BASE, buildDocsTree, docsAncestors, docsHref, rewriteDocsLinks, validDocsPath, visibleDocsRows } from '../../src/utils/docs.mjs'
-import { mockDocs } from '../../src/utils/docs-mock.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { mockDocs } = await importTs('src/utils/docs-mock.ts')
 
 const FROM = 'csi-spl-doc/doc/md/csi-spl.feature.md'
 
@@ -118,6 +119,6 @@ describe('wiring', () => {
   it('the page reads the hub, never a bundled copy', () => {
     const s = read('src/pages/docs.vue')
     assert.match(s, /\/v1\/docs\//)
-    assert.equal(/docs-md|import\s+.*docs-mock/.test(s.replace(/await import\('~\/utils\/docs-mock\.mjs'\)/, '')), false)
+    assert.equal(/docs-md|import\s+.*docs-mock/.test(s.replace(/await import\('~\/utils\/docs-mock'\)/, '')), false)
   })
 })

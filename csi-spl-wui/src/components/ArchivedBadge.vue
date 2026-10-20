@@ -56,8 +56,8 @@ const title = computed(() => {
   return stamp ? `${stamp} · ${t('archive.unarchive_topic')}` : t('archive.unarchive_topic')
 })
 
-let mod: Promise<typeof import('~/utils/archived-card.mjs')> | null = null
-const lazy = () => (mod ||= import('~/utils/archived-card.mjs'))
+let mod: Promise<typeof import('~/utils/archived-card')> | null = null
+const lazy = () => (mod ||= import('~/utils/archived-card'))
 
 watch(() => [props.taskId, props.at] as const, async ([task, at]) => {
   card.value = null

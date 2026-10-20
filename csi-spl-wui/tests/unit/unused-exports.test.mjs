@@ -43,7 +43,6 @@ const ALLOW = new Map([
   ['src/composables/useVimNavigation.ts', ['VIM_OVERLAY_OPEN', 'VIM_MOUNTED_ATTR']],
   ['src/utils/agent-id.mjs', ['AGENT_ID_SRC', 'LEGACY_ID_SRC']],
   ['src/utils/auth-client.mjs', ['PROVIDERS_TIMEOUT_MS']],
-  ['src/utils/avatar.mjs', ['AVATAR_FETCH_TIMEOUT_MS']],
   ['src/utils/await-reply.mjs', ['DEFAULT_AWAIT_MINUTES']],
   ['src/utils/calendar-phone-nav.mjs', ['CAL_PHONE_MONTHS', 'CAL_PHONE_WEEKDAYS']],
   ['src/utils/card-clip.mjs', ['CARD_TITLE_CHARS', 'cardClipSessionKey']],
@@ -80,7 +79,7 @@ const ALLOW = new Map([
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
   ['src/utils/tree-drag.mjs', ['TREE_DROP_EDGE']],
 ])
-const ALLOW_CAP = 54
+const ALLOW_CAP = 53
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

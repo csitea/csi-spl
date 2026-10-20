@@ -10,17 +10,41 @@
  *   - root_private_key: returned by the claim to the caller, which holds it in
  *     component memory. This module never stores, logs or puts it in a URL.
  */
-import { validTenant } from './tenant.mjs'
-import { cardKeyUsable } from './card-element.mjs'
-import { ACCOUNT_CALL_TIMEOUT_MS } from './fetch-timeouts.mjs'
+import { validTenant } from '~/utils/tenant.mjs'
+import { cardKeyUsable } from '~/utils/card-element.mjs'
+import { ACCOUNT_CALL_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
-export const CHECKOUT_PREFIX = '/api/v1/checkout'
+const CHECKOUT_PREFIX = '/api/v1/checkout'
 
 /** sessionStorage keys. checkout_id is not a secret (§1.3 carries none). */
 export const CHECKOUT_STORE_ID = 'spool.checkout.id'
 export const CHECKOUT_STORE_CLAIM = 'spool.checkout.claim'
 
-const ERRORS = {
+/** One call's answer; it never throws. */
+export interface CheckoutResult {
+  ok: boolean
+  status: number
+  data: Record<string, unknown> | null
+  error: string
+}
+
+/** What claimOnce / pollAndClaim end in. */
+export type ClaimOutcome =
+  | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, tenant_host?: string, host_status?: string, email?: string } }
+  | { state: 'claimed' | 'expired' | 'failed' | 'cancelled' | 'stopped' }
+  | { state: 'error', error: string }
+
+/** The checkout routes, as createCheckoutClient builds them. */
+export interface CheckoutClient {
+  plan(): Promise<CheckoutResult>
+  /** `locale` (spec 021 T022): the active UI locale, kept on the checkout row so the claim mail speaks it. */
+  start(b: { tenant_id: string, email: string, locale?: string }): Promise<CheckoutResult>
+  status(id: string): Promise<CheckoutResult>
+  claim(b: { checkout_id: string, claim_token: string }): Promise<CheckoutResult>
+  fakePay(id: string): Promise<CheckoutResult>
+}
+
+const ERRORS: Record<string, string> = {
   bad_request: 'Check the email address and try again.',
   bad_tenant_id: 'That name is not allowed — use lower-case letters, digits and dashes.',
   tenant_taken: 'That name is taken — pick another one.',
@@ -45,7 +69,7 @@ const ERRORS = {
 const GENERIC_ERROR = 'Something went wrong — try again.'
 
 /** Copy for an error token. Never echoes hub `detail` (it could carry input). */
-export function checkoutErrorMessage(code) {
+export function checkoutErrorMessage(code: string): string {
   const c = String(code || '')
   if (!c) return ''
   return ERRORS[c] || GENERIC_ERROR
@@ -56,29 +80,29 @@ export function checkoutErrorMessage(code) {
  * render it through t(); the English above stays the en source. null for an
  * empty code, `checkout.error.generic` for an unknown one.
  */
-export function checkoutErrorKey(code) {
+export function checkoutErrorKey(code: string): { key: string, params: Record<string, unknown> } | null {
   const c = String(code || '')
   if (!c) return null
   return { key: Object.hasOwn(ERRORS, c) ? `checkout.error.${c}` : 'checkout.error.generic', params: {} }
 }
 
 /** Every checkout error code with its English copy (en catalogue source + tests). */
-export function checkoutErrorCopy() {
+export function checkoutErrorCopy(): Record<string, string> {
   return { ...ERRORS, generic: GENERIC_ERROR }
 }
 
 /** One NumberFormat per locale, built on first use (a new one per call costs
  *  ~x25 a reused one); null for a locale Intl refuses. */
-const PRICE_FORMATS = new Map()
-function priceFormat(locale) {
+const PRICE_FORMATS = new Map<string, Intl.NumberFormat | null>()
+function priceFormat(locale: string): Intl.NumberFormat | null {
   if (!PRICE_FORMATS.has(locale)) {
-    let f = null
+    let f: Intl.NumberFormat | null = null
     try {
       f = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     } catch { /* unknown locale → the plain form */ }
     PRICE_FORMATS.set(locale, f)
   }
-  return PRICE_FORMATS.get(locale)
+  return PRICE_FORMATS.get(locale) ?? null
 }
 
 /**
@@ -86,7 +110,7 @@ function priceFormat(locale) {
  * active UI locale) the amount uses that locale's digits and separators,
  * e.g. 'fi' → "20,00 EUR"; without one the output is unchanged.
  */
-export function formatPrice(cents, currency, locale) {
+export function formatPrice(cents: unknown, currency: unknown, locale?: string): string {
   const n = Number(cents)
   if (!Number.isFinite(n) || n < 0) return ''
   let amount = (n / 100).toFixed(2)
@@ -106,7 +130,7 @@ export function formatPrice(cents, currency, locale) {
  *                   no form, so no checkout holds a slug that the page cannot
  *                   take payment for
  */
-export function checkoutMode(plan) {
+export function checkoutMode(plan: Record<string, unknown> | null | undefined): 'fake' | 'card' | 'none' | 'unsupported' {
   const p = plan || {}
   const rail = String(p.rail || 'none')
   if (rail === 'none' || p.available === false) return 'none'
@@ -119,7 +143,7 @@ export function checkoutMode(plan) {
  * §1.8: `#checkout=<id>&token=<t>` → { id, token }; anything malformed → ''s.
  * Pure: the page clears the fragment itself (history.replaceState).
  */
-export function readClaimFragment(hash) {
+export function readClaimFragment(hash: string): { id: string, token: string } {
   const q = new URLSearchParams(String(hash || '').replace(/^#/, ''))
   const id = String(q.get('checkout') || '')
   const token = String(q.get('token') || '')
@@ -128,18 +152,18 @@ export function readClaimFragment(hash) {
 }
 
 /** A file name for the key download: `<tenant>.root.key`. */
-export function keyFileName(tenant) {
+export function keyFileName(tenant: string): string {
   return `${validTenant(tenant) ? tenant : 'tenant'}.root.key`
 }
 
 // ── storage (sessionStorage only) ─────────────────────────────────────────
 
-function session(storage) {
+function session(storage?: Storage): Storage | null {
   if (storage) return storage
   try { return globalThis.sessionStorage || null } catch { return null }
 }
 
-export function saveCheckout({ checkout_id, claim_token } = {}, storage) {
+export function saveCheckout({ checkout_id, claim_token }: { checkout_id?: unknown, claim_token?: unknown } = {}, storage?: Storage): boolean {
   const s = session(storage)
   if (!s) return false
   try {
@@ -152,7 +176,7 @@ export function saveCheckout({ checkout_id, claim_token } = {}, storage) {
 }
 
 /** { id, token } from sessionStorage; '' for what is missing. */
-export function loadCheckout(storage) {
+export function loadCheckout(storage?: Storage): { id: string, token: string } {
   const s = session(storage)
   if (!s) return { id: '', token: '' }
   try {
@@ -163,13 +187,13 @@ export function loadCheckout(storage) {
 }
 
 /** Drop the claim token (§2.4). The id stays so a reload can show "already claimed". */
-export function dropClaimToken(storage) {
+export function dropClaimToken(storage?: Storage): void {
   const s = session(storage)
   try { if (s) s.removeItem(CHECKOUT_STORE_CLAIM) } catch { /* nothing to drop */ }
 }
 
 /** Drop both keys: a new checkout starts clean. */
-export function forgetCheckout(storage) {
+export function forgetCheckout(storage?: Storage): void {
   const s = session(storage)
   try {
     if (s) { s.removeItem(CHECKOUT_STORE_CLAIM); s.removeItem(CHECKOUT_STORE_ID) }
@@ -178,7 +202,7 @@ export function forgetCheckout(storage) {
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
-export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } = {}) {
+export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' }: { fetchFn?: typeof fetch, base?: string } = {}): CheckoutClient {
   const root = String(base || '').replace(/\/+$/, '')
 
   /**
@@ -186,8 +210,8 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
    * envelope token, 'network' when the hub was not reached, 'unavailable' for
    * a non-JSON failure. A request body never reaches an error or a log.
    */
-  async function call(path, { method = 'GET', body } = {}) {
-    let res
+  async function call(path: string, { method = 'GET', body }: { method?: string, body?: unknown } = {}): Promise<CheckoutResult> {
+    let res: Response
     try {
       res = await fetchFn(`${root}${CHECKOUT_PREFIX}${path}`, {
         method,
@@ -202,7 +226,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
     } catch {
       return { ok: false, status: 0, data: null, error: 'network' }
     }
-    let data = null
+    let data: Record<string, unknown> | null = null
     try { data = await res.json() } catch { data = null }
     if (res.ok) return { ok: true, status: res.status, data, error: '' }
     return { ok: false, status: res.status, data: null, error: String((data && data.error) || 'unavailable') }
@@ -224,7 +248,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
      * 2e2c601). Omitted when empty; the hub falls back to its default and
      * refuses nothing, so an unknown code costs the buyer nothing.
      */
-    start({ tenant_id, email, locale } = {}) {
+    start({ tenant_id, email, locale }: { tenant_id?: string, email?: string, locale?: string } = {}) {
       const loc = String(locale || '').trim()
       return call('', {
         method: 'POST',
@@ -232,15 +256,15 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
       })
     },
     /** §1.3 → data { checkout_id, tenant_id, status, claimed, tenant_host, host_status }. */
-    status(id) {
+    status(id: string) {
       return call(`/${encodeURIComponent(String(id || ''))}`)
     },
     /** §1.4 → data { tenant_id, tenant_url, root_private_key, emailed }. Pages go through claimOnce. */
-    claim({ checkout_id, claim_token } = {}) {
+    claim({ checkout_id, claim_token }: { checkout_id?: string, claim_token?: string } = {}) {
       return call('/claim', { method: 'POST', body: { checkout_id: String(checkout_id || ''), claim_token: String(claim_token || '') } })
     },
     /** §1.5, lde/dev only. */
-    fakePay(id) {
+    fakePay(id: string) {
       return call('/fake-pay', { method: 'POST', body: { checkout_id: String(id || '') } })
     },
   }
@@ -252,7 +276,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
  * In-flight / settled claims by checkout id, module-wide, so a re-mounted
  * success page or two overlapping polls share ONE POST /claim.
  */
-const CLAIMS = new Map()
+const CLAIMS = new Map<string, Promise<ClaimOutcome>>()
 
 /**
  * POST /claim for this checkout at most once per page load (either token,
@@ -264,14 +288,15 @@ const CLAIMS = new Map()
  *                                5xx, network); the page may offer ONE
  *                                user-initiated retry via resetClaim()
  */
-export function claimOnce(client, { id, token } = {}, storage) {
+export function claimOnce(client: CheckoutClient, { id, token }: { id?: string, token?: string } = {}, storage?: Storage): Promise<ClaimOutcome> {
   const key = String(id || '')
-  if (CLAIMS.has(key)) return CLAIMS.get(key)
-  const p = (async () => {
-    const out = await client.claim({ checkout_id: key, claim_token: token })
+  const held = CLAIMS.get(key)
+  if (held) return held
+  const p = (async (): Promise<ClaimOutcome> => {
+    const out = await client.claim({ checkout_id: key, claim_token: String(token ?? '') })
     if (out.ok && out.data && out.data.root_private_key) {
       dropClaimToken(storage)
-      return { state: 'ok', result: out.data }
+      return { state: 'ok', result: out.data as Extract<ClaimOutcome, { state: 'ok' }>['result'] }
     }
     if (out.status === 410) {
       dropClaimToken(storage)
@@ -284,7 +309,7 @@ export function claimOnce(client, { id, token } = {}, storage) {
 }
 
 /** Forget a FAILED claim so a user click may try once more. */
-export async function resetClaim(id) {
+export async function resetClaim(id: string): Promise<void> {
   const key = String(id || '')
   const p = CLAIMS.get(key)
   if (!p) return
@@ -298,14 +323,21 @@ export async function resetClaim(id) {
  * { state: 'failed' | 'cancelled' | 'stopped' | 'error', error? }.
  * `isStopped()` ends the loop (page left); `sleep` is injectable for tests.
  */
-export async function pollAndClaim(client, { id, token } = {}, {
+export async function pollAndClaim(client: CheckoutClient, { id = '', token = '' }: { id?: string, token?: string } = {}, {
   storage,
   intervalMs = 2000,
   maxPolls = 450,
-  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
   isStopped = () => false,
   onStatus = () => {},
-} = {}) {
+}: {
+  storage?: Storage
+  intervalMs?: number
+  maxPolls?: number
+  sleep?: (ms: number) => Promise<void>
+  isStopped?: () => boolean
+  onStatus?: (s: string) => void
+} = {}): Promise<ClaimOutcome> {
   for (let i = 0; i < maxPolls; i++) {
     if (isStopped()) return { state: 'stopped' }
     const st = await client.status(id)
@@ -341,12 +373,17 @@ export async function pollAndClaim(client, { id, token } = {}, {
  * host_status seen, or 'stopped' when `isStopped()` (page left). A failed
  * poll is retried; nothing here throws.
  */
-export async function pollHostReady(client, id, {
+export async function pollHostReady(client: CheckoutClient, id: string, {
   intervalMs = 30000,
   maxPolls = 240,
-  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
   isStopped = () => false,
-} = {}) {
+}: {
+  intervalMs?: number
+  maxPolls?: number
+  sleep?: (ms: number) => Promise<void>
+  isStopped?: () => boolean
+} = {}): Promise<string> {
   let last = 'pending'
   for (let i = 0; i < maxPolls; i++) {
     if (isStopped()) return 'stopped'

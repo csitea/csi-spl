@@ -1,14 +1,9 @@
 // The error snackbar's queue (005 FR-WUI-ERR-SNACK), executed.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { importTs } from './lib/load-ts.mjs'
 
-import {
-  SNACKBAR_MAX,
-  SNACKBAR_TTL_MS,
-  bindSnackbarToJournal,
-  createSnackbarQueue,
-  snackbarText,
-} from '../../src/utils/error-snackbar.mjs'
+const { SNACKBAR_MAX, SNACKBAR_TTL_MS, bindSnackbarToJournal, createSnackbarQueue, snackbarText } = await importTs('src/utils/error-snackbar.ts')
 
 function clock(t0 = 1_000_000) {
   let t = t0

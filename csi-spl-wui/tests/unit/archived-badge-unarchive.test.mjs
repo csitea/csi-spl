@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url'
 import * as Vue from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { renderToString } from 'vue/server-renderer'
-import { archivedCardOf, unarchivedTopic } from '../../src/utils/archived-card.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { archivedCardOf, unarchivedTopic } = await importTs('src/utils/archived-card.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')

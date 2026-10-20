@@ -12,7 +12,7 @@
  * one agent edit for the mock member starts failed, for My edits' retry.
  */
 
-const DOCS = {
+const DOCS: Record<string, string> = {
   'README.md': '# Spool\n\nThe repository root. Start with the [feature doc](./csi-spl-doc/doc/md/csi-spl.feature.md).\n',
   'csi-spl-doc/doc/md/csi-spl.feature.md': '# Spool feature\n\nHow the spool works.\n\n## Posting\n\nSee [How to post](../help/how-to-post.md) and [spec 072](../../specs/072-rapid-deployability/spec.md).\n\n| part | role |\n| --- | --- |\n| hub | relays |\n| box | runs agents |\n',
   'csi-spl-doc/doc/help/how-to-post.md': '# How to Post\n\nA post is markdown. Back to the [feature doc](../md/csi-spl.feature.md).\n\n```bash\necho hello\n```\n',
@@ -28,10 +28,10 @@ export const MOCK_AUTHOR = { git_name: 'FirstName LastName', git_email: 'member@
 /** A save carrying this marker is refused as the hub's secret gate would (422). */
 export const MOCK_REJECT = 'MOCK-SECRET'
 
-const title = (md, path) => (/^#\s+(.+?)\s*$/m.exec(md) || [])[1] || path.split('/').pop()
+const title = (md: string, path: string): string => (/^#\s+(.+?)\s*$/m.exec(md) || [])[1] || path.split('/').pop() || ''
 
 /** A stable 40-hex fake blob sha per path. */
-function fakeBlob(path) {
+function fakeBlob(path: string): string {
   let h = 2166136261
   for (const c of path) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0
   return h.toString(16).padStart(8, '0').repeat(5)
@@ -50,22 +50,28 @@ const ME = 'HUM-1'
 export const MOCK_AGENT_EDIT = 'mock-edit-agent-1'
 const AGENT_PATH = 'csi-spl-doc/specs/072-rapid-deployability/spec.md'
 
-const overlays = new Map()
+/** A row of the mock edits queue. */
+type MockEdit = { edit_id: string, path: string, status: string, human_id: string, actor_kind: 'member' | 'agent', agent_id: string, text: string, failed: boolean, commit_sha: string, last_error: string, created_at: string }
+
+/** A mock route's answer. */
+type MockAnswer = { status: number, body: unknown }
+
+const overlays = new Map<string, string>()
 let consented = false
 let seq = 0
 /** The queue, newest first: the hub's repo_doc_edits for this workspace. */
-let edits = []
+let edits: MockEdit[] = []
 
-function seedEdits() {
+function seedEdits(): void {
   edits = [{ edit_id: MOCK_AGENT_EDIT, path: AGENT_PATH, status: 'failed', human_id: ME, actor_kind: 'agent', agent_id: 'c-101', text: '', failed: true, commit_sha: '', last_error: 'github: 503 service unavailable', created_at: '2026-10-07T08:00:00Z' }]
 }
 seedEdits()
 
 /** The master blob a conflict is resolved against. */
-const headBlob = (path) => fakeBlob(path + '@head')
+const headBlob = (path: string): string => fakeBlob(path + '@head')
 
 /** One step of the mock worker on every edit it still owes a push. */
-function tick() {
+function tick(): void {
   for (const e of edits) {
     if (e.status === 'queued') e.status = 'pushing'
     else if (e.status === 'pushing') {
@@ -85,24 +91,24 @@ function tick() {
   }
 }
 
-const view = (e) => ({ edit_id: e.edit_id, path: e.path, status: e.status, human_id: e.human_id, actor_kind: e.actor_kind, ...(e.agent_id ? { agent_id: e.agent_id } : {}), base: fakeBlob(e.path), git_name: MOCK_AUTHOR.git_name, git_email: MOCK_AUTHOR.git_email, author_source: MOCK_AUTHOR.author_source, tries: 0, ...(e.last_error ? { last_error: e.last_error } : {}), ...(e.commit_sha ? { commit_sha: e.commit_sha } : {}), created_at: e.created_at, updated_at: e.created_at })
+const view = (e: MockEdit) => ({ edit_id: e.edit_id, path: e.path, status: e.status, human_id: e.human_id, actor_kind: e.actor_kind, ...(e.agent_id ? { agent_id: e.agent_id } : {}), base: fakeBlob(e.path), git_name: MOCK_AUTHOR.git_name, git_email: MOCK_AUTHOR.git_email, author_source: MOCK_AUTHOR.author_source, tries: 0, ...(e.last_error ? { last_error: e.last_error } : {}), ...(e.commit_sha ? { commit_sha: e.commit_sha } : {}), created_at: e.created_at, updated_at: e.created_at })
 
 /** The body the hub would answer for GET /v1/docs/<path>, null for a 404. */
-export function mockDocs(path) {
+export function mockDocs(path: string): string | null {
   if (path === 'tree.json') {
     return JSON.stringify({ v: 1, files: Object.entries(DOCS).map(([p, md]) => ({ path: p, title: title(md, p), blob: fakeBlob(p), editable: !DENIED.has(p), ...(overlays.has(p) ? { overlay: true } : {}) })) })
   }
-  if (overlays.has(path)) return overlays.get(path)
-  return Object.prototype.hasOwnProperty.call(DOCS, path) ? DOCS[path] : null
+  if (overlays.has(path)) return overlays.get(path) ?? null
+  return Object.prototype.hasOwnProperty.call(DOCS, path) ? DOCS[path] ?? null : null
 }
 
 /** The X-Spool-Doc-Base the hub sends with a doc. */
-export function mockDocBase(path) {
+export function mockDocBase(path: string): string {
   return Object.prototype.hasOwnProperty.call(DOCS, path) ? fakeBlob(path) : ''
 }
 
 /** PUT /v1/docs/<path> with If-Match: { status, body }. */
-export function mockRepoSave(path, text, ifMatch) {
+export function mockRepoSave(path: string, text: string, ifMatch: string): MockAnswer {
   if (!Object.prototype.hasOwnProperty.call(DOCS, path) || DENIED.has(path)) return { status: 403, body: { error: 'path_denied', detail: 'denied' } }
   const im = String(ifMatch ?? '').replace(/"/g, '')
   const resolving = edits.some((e) => e.path === path && e.status === 'conflict') && im === headBlob(path)
@@ -113,7 +119,7 @@ export function mockRepoSave(path, text, ifMatch) {
   overlays.set(path, String(text))
   const id = 'mock-edit-' + (++seq)
   /* the author's queued rows fold into this save; their conflict rows are resolved by it */
-  const superseded = []
+  const superseded: string[] = []
   for (const e of edits) {
     if (e.path === path && e.human_id === ME && e.actor_kind === 'member' && (e.status === 'queued' || e.status === 'conflict')) {
       e.status = 'superseded'
@@ -125,14 +131,15 @@ export function mockRepoSave(path, text, ifMatch) {
 }
 
 /** POST /v1/docs/author-notice: 204, or 409 author_changed for another identity. */
-export function mockAuthorNotice(body) {
+export function mockAuthorNotice(raw: unknown): MockAnswer {
+  const body = raw as { git_name?: unknown, git_email?: unknown } | null | undefined
   if (!body || body.git_name !== MOCK_AUTHOR.git_name || body.git_email !== MOCK_AUTHOR.git_email) return { status: 409, body: { error: 'author_changed', ...MOCK_AUTHOR } }
   consented = true
   return { status: 204, body: null }
 }
 
 /** GET /v1/docs/edits?mine=1|path=: one worker tick, then the rows newest first. */
-export function mockRepoEdits(q) {
+export function mockRepoEdits(q: { mine?: boolean, path?: string }): MockAnswer {
   if (!q || (!q.mine && !q.path)) return { status: 400, body: { error: 'bad_request', detail: 'name mine=1 or path=<doc>' } }
   tick()
   const rows = edits.filter((e) => (q.path ? e.path === q.path : true) && (q.mine ? e.human_id === ME : true))
@@ -140,7 +147,7 @@ export function mockRepoEdits(q) {
 }
 
 /** POST /v1/docs/edits/{id}/retry: a failed edit back to the queue (202). */
-export function mockRepoRetry(id) {
+export function mockRepoRetry(id: string): MockAnswer {
   const e = edits.find((x) => x.edit_id === id)
   if (!e) return { status: 404, body: { error: 'not_found', detail: 'no such edit' } }
   if (e.status !== 'failed') return { status: 409, body: { error: 'not_failed', detail: 'this one is ' + e.status } }
@@ -150,7 +157,7 @@ export function mockRepoRetry(id) {
 }
 
 /** GET /v1/docs/edits/{id}/conflict: {base, theirs, mine} of a conflict. */
-export function mockRepoConflict(id) {
+export function mockRepoConflict(id: string): MockAnswer {
   const e = edits.find((x) => x.edit_id === id)
   if (!e) return { status: 404, body: { error: 'not_found', detail: 'no such edit' } }
   if (e.status !== 'conflict') return { status: 409, body: { error: 'not_conflict', detail: 'this edit is ' + e.status } }
@@ -159,7 +166,7 @@ export function mockRepoConflict(id) {
 }
 
 /** Tests: back to no overlay, no consent and the seeded queue. */
-export function mockRepoReset() {
+export function mockRepoReset(): void {
   overlays.clear()
   consented = false
   seq = 0

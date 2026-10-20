@@ -85,7 +85,7 @@ ok('markdownSource links a hash in prose and a hash-only code span', markdownSou
 setCommitLinkProvider(null)
 
 /* no repository literal in the three url users: every piece comes from cnf */
-for (const f of ['src/utils/commit-links.mjs', 'src/utils/help.mjs', 'src/utils/connect-agent.mjs']) {
+for (const f of ['src/utils/commit-links.mjs', 'src/utils/help.mjs', 'src/utils/connect-agent.ts']) {
   const src = readFileSync(new URL('../../' + f, import.meta.url), 'utf8')
   ok(`${f} names no repository url`, !/https?:\/\/(?!\/)[a-z0-9.-]+\.[a-z]{2,}\//i.test(src))
 }

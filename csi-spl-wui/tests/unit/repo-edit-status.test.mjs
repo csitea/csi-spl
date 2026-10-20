@@ -9,7 +9,8 @@ import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { EDIT_STATUSES, chipOf, conflictOf, editActionErrorOf, editOf, editsOf, headerEdit, ifMatchOf, isPending } from '../../src/utils/repo-edit.mjs'
-import { MOCK_AGENT_EDIT, MOCK_AUTHOR, MOCK_CONFLICT, MOCK_FAIL, mockAuthorNotice, mockDocBase, mockDocs, mockRepoConflict, mockRepoEdits, mockRepoReset, mockRepoRetry, mockRepoSave } from '../../src/utils/docs-mock.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { MOCK_AGENT_EDIT, MOCK_AUTHOR, MOCK_CONFLICT, MOCK_FAIL, mockAuthorNotice, mockDocBase, mockDocs, mockRepoConflict, mockRepoEdits, mockRepoReset, mockRepoRetry, mockRepoSave } = await importTs('src/utils/docs-mock.ts')
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8')
 const SHA = 'abcdef0123456789abcdef0123456789abcdef01'

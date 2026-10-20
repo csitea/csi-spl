@@ -5,7 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RELOAD_GUARD_MS, isChunkLoadError, onPreloadError, onUnhandledChunkError, shouldReload } from '../../src/utils/chunk-reload.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { RELOAD_GUARD_MS, isChunkLoadError, onPreloadError, onUnhandledChunkError, shouldReload } = await importTs('src/utils/chunk-reload.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 

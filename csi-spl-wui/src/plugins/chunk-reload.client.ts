@@ -2,7 +2,7 @@
 // new build instead of breaking (see utils/chunk-reload.mjs).
 // Client-only by file suffix: Nuxt loads a *.client.ts plugin only in the
 // client bundle, so an import.meta.client guard here is dead.
-import { onPreloadError, onUnhandledChunkError, shouldReload } from '~/utils/chunk-reload.mjs'
+import { onPreloadError, onUnhandledChunkError, shouldReload } from '~/utils/chunk-reload'
 
 const KEY = 'spool.chunk-reload-at'
 

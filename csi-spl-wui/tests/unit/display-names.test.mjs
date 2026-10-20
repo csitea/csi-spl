@@ -6,8 +6,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { humanNamesFromView, loadAvatarFiles, loadHumanNames, resetAvatarFiles } from '../../src/utils/avatar.mjs'
 import { personLabel } from '../../src/utils/channel-feed.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { humanNamesFromView, loadAvatarFiles, loadHumanNames, resetAvatarFiles } = await importTs('src/utils/avatar.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

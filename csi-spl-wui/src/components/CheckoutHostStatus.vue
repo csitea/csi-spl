@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { createCheckoutClient, pollHostReady } from '~/utils/checkout-client.mjs'
+import { createCheckoutClient, pollHostReady } from '~/utils/checkout-client'
 
 const props = defineProps<{ checkoutId: string, host: string, initial: string }>()
 const { t } = useI18n({ useScope: 'global' })

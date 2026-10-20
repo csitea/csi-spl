@@ -4,20 +4,30 @@
 // channel dialogs and the rail menu, which load later, so they live here and
 // ride with those chunks. Import them from here, never re-export them from
 // spool-client.mjs (that would put them back in the initial JS).
-import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
-import { isParticipantId } from './agent-id.mjs'
-import { isoDateTime } from './date-iso.mjs'
+import { isPublicChannel, normalizeChannelId, rosterHumanIds } from '~/utils/spool-client.mjs'
+import { isParticipantId } from '~/utils/agent-id.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
+
+/** What the hub says of a channel agent: '' = it did not say. */
+export type ChannelAgentState = '' | 'online' | 'offline' | 'unseated'
+
+/** An agent row of the dialog: its state only when the hub said one. */
+type AgentRow = { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }
+
+/** Sort agent rows by id, then box. */
+const byIdBox = (a: { id: string, box: string }, b: { id: string, box: string }): number =>
+  (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0)
 
 /**
  * Who the invite picker offers: HUM-* already in the tenant, not already
  * in the channel. Agents, guests and current members are left out.
  */
-export function channelInviteCandidates(rosterIds, memberIds) {
+export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[] {
   const members = new Set((memberIds || []).map((id) => String(id)))
-  const seen = new Set()
-  const out = []
+  const seen = new Set<string>()
+  const out: string[] = []
   for (const raw of rosterIds || []) {
     const id = String(raw || '')
     if (!HUMAN_ID_RE.test(id) || members.has(id) || seen.has(id)) continue
@@ -32,10 +42,10 @@ export function channelInviteCandidates(rosterIds, memberIds) {
  * every id. Any other text matches when the id contains it, ignoring case,
  * so "17" finds HUM-17.
  */
-export function filterPeopleContains(ids, query, names = null) {
+export function filterPeopleContains(ids: readonly string[] | null | undefined, query?: string, names: Record<string, string> | null = null): string[] {
   const q = String(query || '').trim().toLowerCase()
-  const nameOf = (id) => (names && typeof names === 'object' && Object.hasOwn(names, id) ? String(names[id] || '') : '')
-  const out = []
+  const nameOf = (id: string): string => (names && typeof names === 'object' && Object.hasOwn(names, id) ? String(names[id] || '') : '')
+  const out: string[] = []
   for (const raw of ids || []) {
     const id = String(raw || '')
     if (!id) continue
@@ -50,9 +60,9 @@ export function filterPeopleContains(ids, query, names = null) {
  * every row. Any other text matches when the id or the box contains it,
  * ignoring case, so "desk" finds an agent on box-desk.
  */
-export function filterAgentsContains(rows, query) {
+export function filterAgentsContains(rows: readonly { id?: string, box?: string }[] | null | undefined, query?: string): { id: string, box: string }[] {
   const q = String(query || '').trim().toLowerCase()
-  const out = []
+  const out: { id: string, box: string }[] = []
   for (const row of rows || []) {
     if (!row || !row.id) continue
     const id = String(row.id)
@@ -63,14 +73,14 @@ export function filterAgentsContains(rows, query) {
 }
 
 /** Hub error token (`not_a_member`, `channel_public`, `forbidden`, `unknown_channel`). */
-export function inviteErrorToken(err) {
-  if (err && typeof err === 'object' && err.token) return String(err.token)
+export function inviteErrorToken(err: unknown): string {
+  if (err && typeof err === 'object' && (err as { token?: unknown }).token) return String((err as { token?: unknown }).token)
   if (err instanceof Error && err.message) return err.message
   return ''
 }
 
 /** Signed-in HUM-* . Live uses /v1/view/me. The mock has no me() and uses the roster. */
-export function signedInHuman(me, opts = {}) {
+export function signedInHuman(me: { humanId?: string | null } | null | undefined, opts: { mock?: boolean, rosterMe?: string } = {}): string {
   const id = me && typeof me.humanId === 'string' ? me.humanId : ''
   if (HUMAN_ID_RE.test(id)) return id
   if (opts && opts.mock) {
@@ -85,7 +95,7 @@ export function signedInHuman(me, opts = {}) {
  * when that read has not landed yet (a 401 before the session door is armed
  * used to leave the invite plus disabled for the channel owner).
  */
-export function viewerHumanId(me, socketId, opts = {}) {
+export function viewerHumanId(me: { humanId?: string | null } | null | undefined, socketId?: string, opts: { mock?: boolean, rosterMe?: string } = {}): string {
   const fromMe = signedInHuman(me, opts)
   if (fromMe) return fromMe
   const socket = String(socketId || '')
@@ -98,7 +108,7 @@ export function viewerHumanId(me, socketId, opts = {}) {
  * member may invite. An empty created_by is not that case.
  * An unknown caller may try; the hub still refuses a non-owner.
  */
-export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {}) {
+export function canAddChannelMember({ selfId, createdBy, membersOpenInvite }: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean } = {}): boolean {
   const self = String(selfId || '')
   const by = String(createdBy || '')
   if (!HUMAN_ID_RE.test(self)) return true
@@ -111,15 +121,15 @@ export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {
  * Announced agents the channel can still invite. Humans and the browser
  * box are not agents. An agent already in the channel is left out.
  */
-export function channelAgentCandidates(roster, current) {
+export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[] {
   const have = new Set((current || []).map((row) => String(row && row.id) + '\0' + String(row && row.box)))
-  const out = []
-  const seen = new Set()
+  const out: { id: string, box: string }[] = []
+  const seen = new Set<string>()
   const boxes = roster && typeof roster === 'object' ? Object.keys(roster) : []
   boxes.sort()
   for (const box of boxes) {
     if (box === 'box-wui') continue
-    const ids = Array.isArray(roster[box]) ? roster[box] : []
+    const ids = Array.isArray(roster?.[box]) ? roster[box] : []
     for (const raw of ids) {
       const id = String(raw || '')
       if (!isParticipantId(id) || id.startsWith('HUM-')) continue
@@ -129,12 +139,12 @@ export function channelAgentCandidates(roster, current) {
       out.push({ id, box })
     }
   }
-  out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
+  out.sort(byIdBox)
   return out
 }
 
 /** The Settings checkbox is enabled only for the channel owner. */
-export function canEditOpenInvite({ selfId, createdBy } = {}) {
+export function canEditOpenInvite({ selfId, createdBy }: { selfId?: string, createdBy?: string } = {}): boolean {
   const self = String(selfId || '')
   return HUMAN_ID_RE.test(self) && self === String(createdBy || '')
 }
@@ -144,8 +154,8 @@ export function canEditOpenInvite({ selfId, createdBy } = {}) {
  * it, and to nobody else - no role widens it (channels-v1 §5.4). A default
  * channel never. The hub refuses anyone else anyway; this only hides it.
  */
-export function canDeleteChannel({ selfId, row } = {}) {
-  const r = row || {}
+export function canDeleteChannel({ selfId, row }: { selfId?: string, row?: { channel_id?: string, default?: boolean, created_by?: string } } = {}): boolean {
+  const r: { channel_id?: string, default?: boolean, created_by?: string } = row || {}
   if (r.default === true || isPublicChannel(normalizeChannelId(String(r.channel_id || '')))) return false
   return canEditOpenInvite({ selfId, createdBy: r.created_by })
 }
@@ -157,7 +167,7 @@ export function canDeleteChannel({ selfId, row } = {}) {
  * hub. '' = the hub did not say (an older hub, or a row added in this dialog).
  * Neither state says the agent's terminal is running - the hub cannot see it.
  */
-export function channelAgentState(raw) {
+export function channelAgentState(raw: { online?: boolean, seated?: boolean, state?: string } | null | undefined): ChannelAgentState {
   if (!raw || typeof raw !== 'object') return ''
   if (raw.seated === false) return 'unseated'
   if (raw.online === true) return 'online'
@@ -176,13 +186,14 @@ export function channelAgentState(raw) {
  * off = the channel opted out (FR-039, a proof / test channel): nobody gets
  * its unheard posts.
  */
-export function channelFallbackLine(raw) {
-  if (!raw || typeof raw !== 'object') return null
+export function channelFallbackLine(input: unknown): { id: string, box: string, active: boolean, off: boolean, recent: { count: number, id: string, at: string } } | null {
+  if (!input || typeof input !== 'object') return null
+  const raw = input as { id?: unknown, box?: unknown, recent?: unknown, active?: unknown, off?: unknown }
   const rawId = String(raw.id || '')
   const id = isParticipantId(rawId) && !rawId.startsWith('HUM-') ? rawId : ''
   const box = id ? String(raw.box || '') : ''
-  const rec = raw.recent && typeof raw.recent === 'object' ? raw.recent : {}
-  const count = Number.isInteger(rec.count) && rec.count > 0 ? rec.count : 0
+  const rec = (raw.recent && typeof raw.recent === 'object' ? raw.recent : {}) as { count?: unknown, at?: unknown, id?: unknown }
+  const count = Number.isInteger(rec.count) && Number(rec.count) > 0 ? Number(rec.count) : 0
   /* SPL-2144: in the viewer's zone, like every clock (it printed the hub's UTC digits) */
   const at = count && typeof rec.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(rec.at)
     ? isoDateTime(rec.at)
@@ -191,9 +202,9 @@ export function channelFallbackLine(raw) {
 }
 
 /** Agents that receive the channel. People and the browser box are not agents. */
-export function channelAgentRows(agents) {
-  const rows = []
-  const seen = new Set()
+export function channelAgentRows(agents: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): AgentRow[] {
+  const rows: AgentRow[] = []
+  const seen = new Set<string>()
   for (const raw of agents || []) {
     const id = String((raw && raw.id) || '')
     const box = String((raw && raw.box) || '')
@@ -204,7 +215,7 @@ export function channelAgentRows(agents) {
     const state = channelAgentState(raw)
     rows.push(state ? { id, box, state } : { id, box })
   }
-  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
+  rows.sort(byIdBox)
   return rows
 }
 
@@ -213,18 +224,18 @@ export function channelAgentRows(agents) {
  * tenant, read-only, and only the agents someone added (owner decision
  * 2026-09-25). An announced agent is NOT in it until a member picks it.
  */
-export function defaultChannelRows(roster, subscribed) {
+export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { people: string[], agents: AgentRow[] } {
   const people = channelInviteCandidates(rosterHumanIds(roster), [])
   const agents = channelAgentRows(subscribed || [])
   return { people, agents }
 }
 
-export function aboutChannelName(row) {
+export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string {
   const name = String((row && row.name) || '').trim()
   if (name) return name
   return String((row && (row.channel_id || row.channel)) || '')
 }
 
-export function aboutChannelDescription(row) {
+export function aboutChannelDescription(row: { description?: string } | null | undefined): string {
   return String((row && row.description) || '').trim()
 }

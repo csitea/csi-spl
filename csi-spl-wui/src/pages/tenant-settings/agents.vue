@@ -135,7 +135,7 @@
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import ConnectAgentGuide from '~/components/ConnectAgentGuide.vue'
-import { boxHubUrl } from '~/utils/connect-agent.mjs'
+import { boxHubUrl } from '~/utils/connect-agent'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '~/utils/tenant-settings.mjs'

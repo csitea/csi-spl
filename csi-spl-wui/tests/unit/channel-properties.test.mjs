@@ -5,23 +5,9 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  aboutChannelDescription,
-  aboutChannelName,
-  canAddChannelMember,
-  canEditOpenInvite,
-  channelAgentCandidates,
-  channelAgentRows,
-  channelAgentState,
-  channelFallbackLine,
-  channelInviteCandidates,
-  defaultChannelRows,
-  filterAgentsContains,
-  filterPeopleContains,
-  signedInHuman,
-  viewerHumanId,
-} from '../../src/utils/channel-members.mjs'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

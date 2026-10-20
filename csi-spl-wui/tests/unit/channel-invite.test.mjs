@@ -5,7 +5,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSpoolClient, isPublicChannel } from '../../src/utils/spool-client.mjs'
-import { channelInviteCandidates, inviteErrorToken } from '../../src/utils/channel-members.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { channelInviteCandidates, inviteErrorToken } = await importTs('src/utils/channel-members.ts')
 
 function stubFetch(routes) {
   const calls = []

@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { ref } from 'vue'
-import { keyFileName } from '~/utils/checkout-client.mjs'
+import { keyFileName } from '~/utils/checkout-client'
 import { saveBlob } from '~/utils/save-blob.mjs'
 
 const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string, email?: string }>()

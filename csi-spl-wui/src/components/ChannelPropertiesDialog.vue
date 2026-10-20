@@ -331,7 +331,7 @@ import {
   filterPeopleContains,
   inviteErrorToken,
   viewerHumanId,
-} from '~/utils/channel-members.mjs'
+} from '~/utils/channel-members'
 import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'

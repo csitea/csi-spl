@@ -237,7 +237,7 @@ function toggle(path: string) {
    Throws for any other non-2xx, a network failure or a timeout ('failed'). */
 async function hubDoc(path: string, meta?: { base: string }): Promise<string | null | 'off'> {
   if (api.mock) {
-    const { mockDocs, mockDocBase } = await import('~/utils/docs-mock.mjs')
+    const { mockDocs, mockDocBase } = await import('~/utils/docs-mock')
     if (meta) meta.base = mockDocBase(path)
     return mockDocs(path)
   }

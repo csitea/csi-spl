@@ -8,25 +8,8 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  CHECKOUT_STORE_CLAIM,
-  CHECKOUT_STORE_ID,
-  checkoutErrorCopy,
-  checkoutErrorKey,
-  checkoutErrorMessage,
-  checkoutMode,
-  claimOnce,
-  createCheckoutClient,
-  dropClaimToken,
-  forgetCheckout,
-  formatPrice,
-  keyFileName,
-  loadCheckout,
-  readClaimFragment,
-  pollAndClaim,
-  resetClaim,
-  saveCheckout,
-} from '../../src/utils/checkout-client.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { CHECKOUT_STORE_CLAIM, CHECKOUT_STORE_ID, checkoutErrorCopy, checkoutErrorKey, checkoutErrorMessage, checkoutMode, claimOnce, createCheckoutClient, dropClaimToken, forgetCheckout, formatPrice, keyFileName, loadCheckout, readClaimFragment, pollAndClaim, resetClaim, saveCheckout } = await importTs('src/utils/checkout-client.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const TOKEN = 'ct_7f3a9b2c5d8e1f4a6b9c2d5e8f1a4b7c'
@@ -308,7 +291,7 @@ describe('claim link (1.2 §1.8)', () => {
 })
 
 describe('source + build output: where secrets may never go', () => {
-  const FILES = ['src/utils/checkout-client.mjs', 'src/pages/checkout/index.vue', 'src/pages/checkout/success.vue', 'src/pages/checkout/claim.vue', 'src/components/CheckoutKeyReveal.vue']
+  const FILES = ['src/utils/checkout-client.ts', 'src/pages/checkout/index.vue', 'src/pages/checkout/success.vue', 'src/pages/checkout/claim.vue', 'src/components/CheckoutKeyReveal.vue']
   const read = (p) => readFileSync(join(WUI, p), 'utf8')
   // code only: drop comments so the rules can be stated in prose
   const code = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -387,7 +370,7 @@ describe('source + build output: where secrets may never go', () => {
 // specs/024: the tenant host is provisioned after the payment; the page says
 // so until §1.3 reports it ready.
 describe('pollHostReady (specs/024)', async () => {
-  const { pollHostReady } = await import('../../src/utils/checkout-client.mjs')
+  const { pollHostReady } = await importTs('src/utils/checkout-client.ts')
   const noSleep = async () => {}
   const seqClient = (answers) => {
     let i = 0

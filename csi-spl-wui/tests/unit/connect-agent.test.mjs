@@ -9,12 +9,11 @@ import { mkdtempSync, writeFileSync, chmodSync, readFileSync, readdirSync, rmSyn
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  GO_MIN, toolChecks, spoolRepo, boxHubUrl, connectAgentScript, cursorMcpJson, firstPrompt, keyFileArg, validAgentId, validBoxId,
-} from '../../src/utils/connect-agent.mjs'
 import { previewOf } from '../../src/utils/code-view.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 import { setAgentIdNow } from '../../src/utils/agent-id.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { GO_MIN, toolChecks, spoolRepo, boxHubUrl, connectAgentScript, cursorMcpJson, firstPrompt, keyFileArg, validAgentId, validBoxId } = await importTs('src/utils/connect-agent.ts')
 
 /* spec 061 FR-004: these ids are legacy (CLE-01); pin the clock before
    LEGACY_ID_UNTIL so this file does not turn red at the deadline on its own */

@@ -22,7 +22,7 @@ async function hubCall(api: Api, path: string, init: RequestInit): Promise<Answe
 /** PUT /v1/docs/<path> with If-Match = the opened blob (none for a new doc). */
 async function putDoc(api: Api, p: Pending): Promise<Answer> {
   const ifMatch = ifMatchOf(p.base)
-  if (api.mock) return (await import('~/utils/docs-mock.mjs')).mockRepoSave(p.path, p.text, ifMatch)
+  if (api.mock) return (await import('~/utils/docs-mock')).mockRepoSave(p.path, p.text, ifMatch)
   const headers: Record<string, string> = { 'content-type': 'text/markdown; charset=utf-8' }
   if (ifMatch) headers['if-match'] = ifMatch
   return hubCall(api, p.path, { method: 'PUT', headers, body: p.text })
@@ -31,26 +31,26 @@ async function putDoc(api: Api, p: Pending): Promise<Answer> {
 /** POST /v1/docs/author-notice: the consent to exactly the identity shown. */
 async function postNotice(api: Api, who: RepoEditIdentity): Promise<Answer> {
   const body = { git_name: who.git_name, git_email: who.git_email }
-  if (api.mock) return (await import('~/utils/docs-mock.mjs')).mockAuthorNotice(body)
+  if (api.mock) return (await import('~/utils/docs-mock')).mockAuthorNotice(body)
   return hubCall(api, 'author-notice', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 }
 
 /** GET /v1/docs/edits?mine=1 or ?path=<doc> (T12). */
 async function listEdits(api: Api, q: { mine?: boolean, path?: string }): Promise<Answer> {
-  if (api.mock) return (await import('~/utils/docs-mock.mjs')).mockRepoEdits(q)
+  if (api.mock) return (await import('~/utils/docs-mock')).mockRepoEdits(q)
   const qs = q.mine ? 'mine=1' : 'path=' + encodeURIComponent(q.path ?? '')
   return hubCall(api, 'edits?' + qs, { method: 'GET' })
 }
 
 /** POST /v1/docs/edits/{id}/retry (T12). */
 async function postRetry(api: Api, id: string): Promise<Answer> {
-  if (api.mock) return (await import('~/utils/docs-mock.mjs')).mockRepoRetry(id)
+  if (api.mock) return (await import('~/utils/docs-mock')).mockRepoRetry(id)
   return hubCall(api, 'edits/' + encodeURIComponent(id) + '/retry', { method: 'POST' })
 }
 
 /** GET /v1/docs/edits/{id}/conflict (T12). */
 async function getConflict(api: Api, id: string): Promise<Answer> {
-  if (api.mock) return (await import('~/utils/docs-mock.mjs')).mockRepoConflict(id)
+  if (api.mock) return (await import('~/utils/docs-mock')).mockRepoConflict(id)
   return hubCall(api, 'edits/' + encodeURIComponent(id) + '/conflict', { method: 'GET' })
 }
 

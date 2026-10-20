@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarImageUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
+import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarImageUrl, loadAvatarFiles } from '~/utils/avatar'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useHumanNames } from '~/composables/useHumanNames'

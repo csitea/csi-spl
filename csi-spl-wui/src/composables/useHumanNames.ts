@@ -28,7 +28,7 @@ export function useHumanNames() {
     if (inFlight && !force) return inFlight
     /* 027 budget: the roster reader (avatar.mjs) rides a lazy chunk; the
        read is async anyway, so nothing on first paint waits for it */
-    const p = import('~/utils/avatar.mjs')
+    const p = import('~/utils/avatar')
       .then(({ forgetRosterRead, loadHumanNames }) => {
         if (force) forgetRosterRead()
         return loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })

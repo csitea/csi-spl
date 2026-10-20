@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { composerCodeRuns } from '~/utils/composer-code-marks.mjs'
+import { composerCodeRuns } from '~/utils/composer-code-marks'
 
 const props = defineProps<{ el: HTMLTextAreaElement | null, text: string }>()
 /* a draft ending in a newline still owns that last empty line */

@@ -37,7 +37,7 @@ The editor (this seat) manages `../refactor-round-14-plan.md` and coordinates co
 signed: a-615@PC on v1.0 consensus (c9b3225b0)
 consensus reached: full 3-seat consensus across editor (agy), claude seat, and mistral seat
 
-## 4. Current Status on Rotation (07:02Z)
+## 4. Current Status on Rotation (07:41Z)
 
 - Full 3-seat signature consensus on v1.0 landed on origin/master in `fc0e04619`.
 - Mistral seat `m-490@sat` re-measured on `938a31f67` and updated `seat-mistral.md` in `e973768a7`; acknowledged by editor `a-615` (msg `3518c0a5`).
@@ -50,7 +50,9 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
 - Batch 3 completed and landed on origin/master:
   - Row 05 (`refactor(r14-05-wui-decompose-calendar-main)`, SPL-2680, Lane 1): R7 review completed by `a-615` (PASS on `ea1dea06fefbcba5f00d26afa470bc05c511832e`), landed on origin/master in `6f43dddba`.
   - Row 06 (`test(r14-06-go-coverage-payments-paypal)`, SPL-2682, Lane 2): R7 review completed by `a-615` (PASS on `deb8fa8f918f344a975e7528d2ef3b60a17b273a`), landed on origin/master in `742dff732`.
+- CI status: Docs publish workflow runs `39382762984` (for Batch 2 + Row 06) and `39384514319` (for Batch 3 complete) both completed green (success on dev and prd).
+- Master trunk synchronization: Synchronized with `origin/master` at `704617890`.
 - Batch 4 ready for dispatch: Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, Lane 1) and Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, Lane 2).
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Status at 07:02Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 4 dispatch updates.
+- Status on 07:41Z rotation check: Worktree clean and synchronized with origin/master at `704617890`; standing by for incoming R7 review requests or Batch 4 dispatch updates.

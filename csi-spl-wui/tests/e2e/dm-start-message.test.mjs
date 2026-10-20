@@ -6,6 +6,11 @@
 //
 //   button   an empty DM shows a Message button (data-test=dm-start-message)
 //   focus    a click puts the caret in the Omnibox
+//   opened   SPL-2699 (t1 b4f175c7, owner: "cannot send a msg to an offline
+//            human" - his screenshot: the caret in the Omnibox, nothing else):
+//            the click also marks the Omnibox, keeps it in view and shows a
+//            hint naming the reader's own send key (1440 runs as ctrl-enter,
+//            the owner's mode; 390 as the default, Enter sends)
 //   send     a line typed there and sent reaches that agent: the stored row's
 //            to / to_box are the peer, and the button is gone
 //
@@ -30,6 +35,11 @@ const SHOT_DIR = process.env.SHOT_DIR || ''
 const PEERS = ['a-101@box-a', 'c-101@box-a', 'g-101@box-a', 'm-101@box-a']
 const OMNI = 'form.omnibox--global textarea'
 const CLAIMS = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
+/* SPL-2699: the hint the Message click shows, per Settings -> Behaviour mode */
+const SUBMIT = {
+  1440: { key: 'ctrl-enter', hint: 'Enter for a new line, Ctrl+Enter or Cmd+Enter to send' },
+  390: { key: null, hint: 'Enter sends, Shift+Enter adds a line' },
+}
 
 const results = []
 const check = (name, pass, ev) => {
@@ -125,7 +135,7 @@ async function run(browser, base, width) {
     window.__errs = []
     window.addEventListener('error', (e) => window.__errs.push(String(e.message || '')))
     try { localStorage.setItem('spool.mock.session', JSON.stringify(claims)) } catch { /* */ }
-  }, CLAIMS)
+  }, SUBMIT[width].key ? { ...CLAIMS, submit_key: SUBMIT[width].key } : CLAIMS)
   await p.goto(`${base}/lobby`, { waitUntil: 'load', timeout: NAV })
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
   await sleep(500)
@@ -141,6 +151,19 @@ async function run(browser, base, width) {
     await sleep(200)
     const focused = await p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI)
     check(`${width} ${id}: Message puts the caret in the Omnibox`, focused)
+    const opened = await p.evaluate((sel) => {
+      const form = document.querySelector(sel)?.closest('form')
+      const r = form ? form.getBoundingClientRect() : null
+      const hint = document.querySelector('[data-test=dm-start-hint]')
+      return {
+        marked: Boolean(form && form.classList.contains('omnibox--called') && getComputedStyle(form).outlineStyle === 'solid'),
+        inView: Boolean(r && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight),
+        hint: hint ? hint.textContent.trim() : null,
+        role: hint ? hint.getAttribute('role') : null,
+      }
+    }, OMNI)
+    check(`${width} ${id}: Message marks the Omnibox, in view`, opened.marked && opened.inView, opened)
+    check(`${width} ${id}: a hint names the reader's send key`, opened.hint === SUBMIT[width].hint && opened.role === 'status', opened)
     const line = `DM probe to ${id} at ${width}`
     await p.keyboard.type(line)
     await p.keyboard.down('Control'); await p.keyboard.press('Enter'); await p.keyboard.up('Control')

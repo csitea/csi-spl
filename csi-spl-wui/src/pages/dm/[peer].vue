@@ -18,6 +18,10 @@
       <button type="button" class="btn" data-test="dm-start-message" :title="peer" @click="focusComposer">
         <UiIcon name="messages" :size="16" /><span>{{ t('people.message') }}</span>
       </button>
+      <!-- SPL-2699 (t1 b4f175c7): the click opens the Omnibox, which may sit
+           far from this button; the hint says so and names the reader's own
+           send key (Settings -> Behaviour) -->
+      <p v-if="startCalled" class="dm-start__hint" role="status" data-test="dm-start-hint">{{ t(startHintKey) }}</p>
     </div>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" :seated-at="seatedAt" />
   </div>
@@ -61,7 +65,7 @@ const api = useSpoolApi()
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
-const { hintFor: sk } = useSubmitKey()
+const { hintFor: sk, mode: submitMode } = useSubmitKey()
 const stack = useMobileStack()
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 /* The person's chosen display name in the header; the URL keeps id@box. */
@@ -152,9 +156,27 @@ watch(openTopicId, async (id) => {
    m-, q- or a person) - Message puts the caret in the Omnibox, which already
    sends to this peer */
 const dmEmpty = computed(() => topicFeedReady.value && !channel.loading && channel.messages.length === 0)
+/* SPL-2699 (owner, t1 b4f175c7: "cannot send a msg to an offline human"):
+   the caret alone in a box at the top of a wide screen read as "nothing
+   happened" - and his Enter adds a line. So the click also brings the box
+   into view, marks it for a moment and says which keys send. */
+const startCalled = ref(false)
+const startHintKey = computed(() => (submitMode.value === 'enter' ? 'settings.submit_key.enter' : 'settings.submit_key.ctrl_enter'))
+let calledTimer: ReturnType<typeof setTimeout> | undefined
 function focusComposer() {
-  document.querySelector<HTMLTextAreaElement>('form.omnibox--global textarea')?.focus()
+  startCalled.value = true
+  const box = document.querySelector<HTMLTextAreaElement>('form.omnibox--global textarea')
+  if (!box) return
+  const form = box.closest('form')
+  form?.scrollIntoView({ block: 'nearest' })
+  box.focus()
+  if (!form) return
+  form.classList.add('omnibox--called')
+  clearTimeout(calledTimer)
+  calledTimer = setTimeout(() => form.classList.remove('omnibox--called'), 2400)
 }
+watch(peer, () => { startCalled.value = false })
+onBeforeUnmount(() => clearTimeout(calledTimer))
 
 /* read cursors follow channel.peer in plugins/notify.client.ts */
 onMounted(() => {
@@ -217,4 +239,11 @@ useOmniboxTarget({
 <style scoped>
 .dm-start { padding: 16px 16px 0; }
 .dm-start .btn { display: inline-flex; align-items: center; gap: 6px; }
+.dm-start__hint { margin: 8px 0 0; font-size: 0.8125rem; color: var(--color-muted); overflow-wrap: anywhere; }
+/* SPL-2699: the Omnibox the Message button opened, marked for a moment */
+:global(form.omnibox--global.omnibox--called) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
 </style>

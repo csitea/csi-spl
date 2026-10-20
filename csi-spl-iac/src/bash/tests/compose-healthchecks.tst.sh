@@ -30,8 +30,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # check_file <path>: one "BAD <svc>: <why>" or "OK <svc> <what>" line per check
 check_file() {
+  # yq's stderr stays out of the JSON: a warning in front of it made jq read
+  # nothing and the root file passed with 0 checks (SPL-2652)
   local json
-  json=$(yq -o json '.' "$1" 2>&1) || { echo "BAD -: does not parse: $json"; return; }
+  json=$(yq -o json '.' "$1" 2>"$T/yq.err") || { echo "BAD -: does not parse: $(cat "$T/yq.err")"; return; }
   jq -r '
     (.services // {}) as $s
     | ($s | to_entries[]
@@ -54,9 +56,13 @@ check_file() {
 
 # --- 1 + 2. the standalone compose file -----------------------------------------------
 [[ -f "$COMPOSE" ]] || { fail "no $COMPOSE"; exit 1; }
+n_chk=0
 while read -r verdict rest; do
+  n_chk=$((n_chk + 1))
   if [[ "$verdict" == OK ]]; then pass "$rest"; else fail "$rest"; fi
 done < <(check_file "$COMPOSE")
+# an empty read must never pass: the root file has services, so it has checks
+[[ "$n_chk" -gt 0 ]] && pass "$n_chk checks read from $(basename "$COMPOSE")" || fail "0 checks read from $COMPOSE (an empty read)"
 for s in hub-init web; do
   yq -e ".services[\"$s\"].healthcheck.test" "$COMPOSE" >/dev/null 2>&1 &&
     pass "$s has a healthcheck test" || fail "$s has no healthcheck test"

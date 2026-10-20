@@ -44,8 +44,10 @@ _allowed() {
 # check_file <path> <label>: prints one "BAD <label> <svc>: <why>" per
 # offending service, "OK <label> <svc> user=<u>" otherwise
 check_file() {
+  # yq's stderr stays out of the JSON: a warning in front of it made jq read
+  # nothing and the root file passed with 0 services (SPL-2652)
   local json svc u
-  json=$(yq -o json '.' "$1" 2>&1) || { echo "BAD $2 -: does not parse: $json"; return; }
+  json=$(yq -o json '.' "$1" 2>"$T/yq.err") || { echo "BAD $2 -: does not parse: $(cat "$T/yq.err")"; return; }
   while IFS=$'\t' read -r svc u; do
     [[ -n "$svc" ]] || continue
     if _allowed "$2" "$svc"; then echo "OK $2 $svc allow-listed (user=${u:-image default})"; continue; fi
@@ -59,14 +61,17 @@ check_file() {
 mapfile -t files < <(git -C "$APP_ROOT" ls-files | grep -E '(^|/)[^/]*compose[^/]*\.ya?ml$')
 [[ "${#files[@]}" -gt 0 ]] && pass "${#files[@]} compose files tracked" || fail "no compose file found under $APP_ROOT"
 [[ -f "$ALLOW" ]] || { fail "no allow-list $ALLOW"; exit 1; }
-n_svc=0 n_bad=0
+n_svc=0 n_bad=0 n_root=0
 for f in "${files[@]}"; do
   while read -r verdict rest; do
     n_svc=$((n_svc + 1))
+    [[ "$f" == docker-compose.yml ]] && n_root=$((n_root + 1))
     if [[ "$verdict" == OK ]]; then pass "$rest"; else fail "$rest"; n_bad=$((n_bad + 1)); fi
   done < <(check_file "$APP_ROOT/$f" "$f")
 done
 echo "INFO: $n_svc services in ${#files[@]} files, $n_bad running as root or with no explicit user"
+# an empty read must never pass: the root docker-compose.yml has services
+[[ "$n_root" -gt 0 ]] && pass "$n_root services read from docker-compose.yml" || fail "0 services read from docker-compose.yml (an empty read)"
 
 # --- 2. the allow-list: each row names a real service and a reason -----------------
 while IFS=$'\t' read -r f s r; do

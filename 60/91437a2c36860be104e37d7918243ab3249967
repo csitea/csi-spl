@@ -1,0 +1,6 @@
+Lay-What: Agents can no longer send you a private message unless they are stuck and need you, and never the same text twice.
+Lay-How: The server checks each agent message to a person and refuses a private one that is not a request for help, or a repeat.
+Lay-Why: Agents sent private messages that repeated what a channel had already said, so the owner read the same news twice.
+Tech-What: hub onSend guard for box sends to HUM-*: dm_not_blocker (403) and duplicate_to_human (409, 24 h); rdb 0211 spool_norm_body + index.
+Tech-How: hub/human_post_guard.go via store.HumanPostGuard (memory + Postgres); SPOOL_HUB_HUMAN_POST_GUARD is the off switch, default on.
+Tech-Why: nothing on the hub stopped agent DMs or repeats; the orc fleet code DMed the owner for every failover and status card.

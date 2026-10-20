@@ -18,8 +18,13 @@
 # @description dropDead timeout (up to 60 min on a DESK_RETIRE=0 customer desk).
 # @description While other agents share the sidecar only the seat goes, the
 # @description sidecar keeps running for them. An orchestrator or dispatcher
-# @description seat (lease.conf) is never released here: on a shared sidecar
-# @description it is refused, alone it only stops the sidecar.
+# @description seat (lease.conf) and a desk service id (SPL_DESK_AGENT_IDS:
+# @description the responder, the ops desk) are never released here: on a
+# @description shared sidecar it is refused, alone or with DESK_ALL=1 it only
+# @description stops the sidecar. The responder sweep's standby step stops the
+# @description RSP sidecar with DESK_AGENT=<the responder>; releasing that
+# @description seat made the hub refuse every send of the responder and the
+# @description issue closer (from_not_announced, sat-rsp + box-rsp, 2026-10-20).
 # @description Prints one JSON line (box, agent, the pid it stopped, whether a
 # @description sidecar was running at all). Idempotent: a desk that is already
 # @description down is OK, not an error.
@@ -60,13 +65,14 @@ do_spl_desk_down() {
   local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0 rel=0 stop=0
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then was=1; stop=1; pid="$(cat "$pidf")"; fi
-  [[ -n "$agent" && -d "$d/spool/$agent" ]] && ! spl_desk_is_od "$agent" && rel=1
+  [[ -n "$agent" && -d "$d/spool/$agent" ]] && ! spl_desk_is_od "$agent" &&
+    [[ " ${SPL_DESK_AGENT_IDS:-} " != *" $agent "* ]] && rel=1
   if (( was )) && [[ -n "$agent" && "${DESK_ALL:-0}" != 1 ]]; then
     local others
     others="$(spl_desk_seated "$d" | grep -vx -- "$agent" | tr '\n' ' ')"
     if [[ -n "${others// /}" ]]; then
       if (( ! rel )); then
-        do_log "FATAL the sidecar of $box in $tenant (pid $pid) also serves: ${others% }. Stopping it takes them ALL offline and nothing restarts it (SPL-1004). $agent has no seat this action releases (not seated, or an orchestrator or dispatcher seat); DESK_ALL=1 stops it for everyone"
+        do_log "FATAL the sidecar of $box in $tenant (pid $pid) also serves: ${others% }. Stopping it takes them ALL offline and nothing restarts it (SPL-1004). $agent has no seat this action releases (not seated, an orchestrator or dispatcher seat, or a desk service id); DESK_ALL=1 stops it for everyone"
         return 1
       fi
       stop=0

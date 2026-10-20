@@ -11,6 +11,10 @@
 #      sidecar is still refused and nothing moves; a dry run moves nothing.
 #   3. the last agent on the box: the sidecar stops AND its seat is released
 #      (RED before: the dir stayed, the next desk tick re-announced it).
+#   3b. a desk service id (SPL_DESK_AGENT_IDS, the responder c-684): the
+#      responder sweep's standby step (DESK_AGENT=c-684 DESK_ALL=1) stops the
+#      sidecar and leaves the seat. RED before: the seat moved to retired/ and
+#      the hub refused every send as c-684 (sat-rsp + box-rsp, 2026-10-20).
 #   4. agent-id-retire.sh run as a user whose $HOME holds no desks (an agent
 #      user retiring itself) drops the seat from the BOX user's desk root.
 #      RED before: it read the caller's $HOME, found no desk, and the seat
@@ -80,6 +84,23 @@ out=$(down_orc DESK_AGENT=c-005 DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"was_running": true'* && ! -e "$D/spool/c-005" ]] && released c-005 && ! alive &&
   pass "the last agent stops the sidecar and releases its seat" || fail "last agent (rc=$rc): $out"
 stop_sidecar
+
+# --- 3b. a desk service id: the sidecar stops, the seat stays ---------------------
+. "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh"
+for sid in $SPL_DESK_AGENT_IDS; do
+  seat "$sid"; seat c-006; fake_sidecar
+  out=$(down_orc DESK_AGENT="$sid" DESK_ALL=1 DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -eq 0 && -d "$D/spool/$sid/inbox" ]] && ! released "$sid" && ! alive &&
+    pass "desk service id $sid: DESK_ALL stops the sidecar and keeps its seat" ||
+    fail "desk service id $sid (rc=$rc, seats: $(seats)): $out"
+  [[ "$out" == *'"released": false'* ]] && pass "...its JSON line says not released" || fail "JSON line: $out"
+  fake_sidecar
+  out=$(down_orc DESK_AGENT="$sid" DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && -d "$D/spool/$sid/inbox" ]] && alive &&
+    pass "CONTROL desk service id $sid on a shared sidecar is refused, nothing moves" ||
+    fail "desk service id $sid shared (rc=$rc): $out"
+  stop_sidecar; rm -rf "${D:?}/spool/$sid" "$D/spool/c-006"
+done
 
 # --- 4. agent-id-retire.sh as an agent user: the box user's desk root --------------
 RET="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/agent-id-retire.sh"

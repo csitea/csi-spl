@@ -47,8 +47,12 @@
 #   var-tmp     -> top-level /var/tmp entries whose name carries the id
 #                  (c-272-base, c272-gocache): listed the same way
 #
-# Refused: a role id (001-003, CLE-001..003), and an id a tmux window still
-# carries (the agent may still be running: closing the window comes first).
+# Refused: a role id (001-003, CLE-001..003), a desk service id
+# (SPL_DESK_AGENT_IDS, spl-desk-agents.func.sh: the responder and the ops desk
+# run with no tmux window, so a retire would drop the seat they send from and
+# the hub refuses them, c-684 on sat-rsp / box-rsp 2026-10-20), and an id a
+# tmux window still carries (the agent may still be running: closing the
+# window comes first).
 # Hub DM and channel history stays as it is.
 #
 # Usage:
@@ -66,7 +70,8 @@
 # RETIRE_SCRATCH=0|1, RETIRE_VARTMP=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_VARTMP_ROOT (default /var/tmp), LANE_SCRATCH_* (its), WORKDIR_TABLE
 # (workdir-register.sh's).
-# Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
+# Exit 0 retired (or planned), 2 usage / not an agent id / a role id / a desk
+# service id (nothing is moved),
 # 3 a window still carries the id, 4 nothing on this machine holds the id
 # (no spool dir, registry row, record, desk seat or pending retirement).
 set -euo pipefail
@@ -77,6 +82,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 # shellcheck source=/dev/null
 . "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
+# shellcheck source=../../../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$_here/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
 
 APPLY=0; ID=""; SUCC=""
 while [ "$#" -gt 0 ]; do
@@ -93,6 +100,8 @@ ID="${ID%%@*}"
 [[ "$ID" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || { echo "agent-id-retire: '${ID}' is not an agent id" >&2; exit 2; }
 case "${ID#*-}" in 1|01|001|2|02|002|3|03|003)
   echo "agent-id-retire: ${ID} is a role id; roles are rotated, never retired" >&2; exit 2 ;; esac
+case " $SPL_DESK_AGENT_IDS " in *" $ID "*)
+  echo "agent-id-retire: ${ID} is a desk service id (SPL_DESK_AGENT_IDS); its desk seats stay, never retired" >&2; exit 2 ;; esac
 LEGACY_RX='^(CLE|GRK|AGY|QWN)-[0-9]+$'
 if [ -n "$SUCC" ]; then
   [[ "$ID" =~ $LEGACY_RX ]] || { echo "agent-id-retire: --successor maps a legacy id only; ${ID} is retired with no alias" >&2; exit 2; }

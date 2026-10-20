@@ -117,6 +117,21 @@ check "CONTROL: another box's seat of the same number stays" test -d "$DO/c-031/
 check "CONTROL: the other seats stay" test -d "$DK/c-002/inbox" -a -d "$DK/CLE-002/inbox"
 eq "a retired row maps nothing for the resolver" c-031 "$(SPOOL_ROOT="$R" bash -c ". '$T_SCRIPTS/../lib/spool-env.inc.sh'; spl_agent_id_resolve c-031")"
 
+# A desk service id (the responder, the ops desk) has no window by design: a
+# retire must refuse it and leave its seats, else the hub stops taking its
+# sends (c-684, sat-rsp + box-rsp, 2026-10-20). The ids come from the list.
+. "$T_SCRIPTS/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
+eq "the desk id list names the responder and the ops desk" "c-684 c-685" "$SPL_DESK_AGENT_IDS"
+for d in $SPL_DESK_AGENT_IDS; do
+  mkdir -p "$DK/$d/inbox" "$DO/$d/inbox" "$R/$d/inbox"
+  printf '%s\tclaude\t\t\t20261002T080000Z\n' "$d" >>"$R/registry.tsv"
+  bash "$RET" --apply "$d" >"$T_TMP/o" 2>&1; eq "retire of desk service id $d is refused (2)" 2 "$?"
+  has "...it says why" "$d is a desk service id" "$(cat "$T_TMP/o")"
+  check "...its seats stay on both desks" test -d "$DK/$d/inbox" -a -d "$DO/$d/inbox"
+  check "...its spool dir and registry row stay" test -d "$R/$d/inbox" -a -n "$(grep "^$d	" "$R/registry.tsv")"
+  hasnt "...and no alias row is written" "$d" "$(cut -f1 "$TB")"
+done
+
 printf 'GRK-77\tg-010\tgrok\ttb\t2026-10-02T00:00:00Z\n' >>"$TB"
 mkdir -p "$R/GRK-77/inbox"
 bash "$RET" --apply GRK-77 >"$T_TMP/o" 2>&1

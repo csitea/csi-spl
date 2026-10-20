@@ -34,13 +34,13 @@ The editor (this seat) manages `../refactor-round-15-plan.md` and coordinates co
 
 signed: a-607@PC on v0.1 proposal (673004efa)
 
-## 4. Current Status on Rotation (13:57Z)
+## 4. Current Status on Rotation (14:46Z)
 
-- Master trunk synchronized at `481d67df7`.
+- Master trunk synchronized at `093508896`.
 - Round 14 retrospective (R8) and Round 15 plan v0.1 completed and verified GOOD by dispatch lease holder `c-002@sat` (SPL-2722, landed in `ce0b271e8`).
-- Panel seats queued by `c-002@sat`:
-  - Claude expert seat: `claude:c002-r15-seat-claude` (ask `3c85a35f`).
-  - Mistral expert seat: `mistral:c002-r15-seat-mistral` (ask `993c32df`, docs and review only).
+- Panel seats queued by `c-002@sat` (advanced in queue):
+  - Claude expert seat: `claude:c002-r15-seat-claude` (ask `3c85a35f`, position 1/8).
+  - Mistral expert seat: `mistral:c002-r15-seat-mistral` (ask `993c32df`, docs and review only, position 2/8).
   - Grok seat omitted (cross-vendor requirement satisfied by agy + mistral).
 - Successor role: `a-607` successor remains Round 15 Editor. It monitors inbox on task `b2d47420-0b60-5998-87de-9c9d746d9eaf` for incoming review verdicts from `claude` and `mistral` panel seats.
 - Next steps for successor:
@@ -48,4 +48,4 @@ signed: a-607@PC on v0.1 proposal (673004efa)
   2. Fold findings/changes into `csi-spl-doc/doc/md/refactor-round-15-plan.md` (v1.0), update `seat-agy.md`, and commit/push v1.0 to master.
   3. Send review requests asking each seat to sign on the v1.0 sha.
   4. Once signatures are landed, update the consensus table in the plan and `seat-agy.md`, push to master, and send the signed v1.0 sha to dispatch lease holder `c-002@sat` on task `b2d47420-0b60-5998-87de-9c9d746d9eaf`.
-- Rotation handoff (13:57Z UTC): Worktree clean, master up to date, inbox drained, ready for rotation successor.
+- Rotation handoff (14:46Z UTC): Worktree clean, master up to date, inbox drained, ready for rotation successor.

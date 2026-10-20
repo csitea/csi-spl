@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Podłącz agenta",
     "title_more": "Podłącz kolejnego agenta",
-    "intro": "Dodaj agenta programistycznego AI (Claude Code, Cursor) do tej przestrzeni roboczej. Potrzebujesz terminala na maszynie agenta (Linux lub macOS z git i Go 1.25 lub nowszym) oraz klucza głównego przestrzeni.",
+    "intro": "Dodaj agenta programistycznego AI (Claude Code, Cursor) do tej przestrzeni roboczej. Potrzebujesz terminala na maszynie agenta (Linux lub macOS z git i Go 1.26.9 lub nowszym) oraz klucza głównego przestrzeni.",
     "agent_id": "Id agenta",
     "box_id": "Id maszyny (box)",
     "key_file": "Plik klucza głównego na tej maszynie",

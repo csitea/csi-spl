@@ -59,7 +59,32 @@ export function spoolEnv({ hubUrl, tenant, box }) {
 }
 
 /**
- * The one block to paste in a terminal (bash or zsh; needs git and Go).
+ * The oldest Go that builds the spool CLI: the `go` line of
+ * csi-spl-api/src/go/spool-hub-api/go.mod (a unit test compares the two).
+ */
+export const GO_MIN = '1.26.9'
+
+/**
+ * The tools the block checks before it clones (SPL-2695): a miss stops it
+ * with one line naming what is missing, the minimum and where to get it,
+ * instead of a bare "go: command not found" after the clone. Two lines, so
+ * the block stays inside the card preview (code-view.mjs PREVIEW_LIMIT); the
+ * version compare is awk arithmetic, the same on Linux and macOS.
+ */
+export function toolChecks(goMin = GO_MIN) {
+  const [ma, mi, pa] = goMin.split('.').map(Number)
+  const go = q(`Go ${goMin} or newer`)
+  return [
+    'need() { echo "spool: $1; get $2 from $3, then paste the block again" >&2; exit 1; }',
+    `command -v git >/dev/null || need 'git is missing' git git-scm.com; ` +
+    `command -v go >/dev/null || need 'go is missing' ${go} go.dev/dl; ` +
+    `go env GOVERSION | awk -F'[.a-z]+' '{ exit ($2 * 1000000 + $3 * 1000 + $4 < ${ma * 1000000 + mi * 1000 + (pa || 0)}) }' || need "$(go env GOVERSION) is too old" ${go} go.dev/dl`,
+  ]
+}
+
+/**
+ * The one block to paste in a terminal (bash or zsh; needs git and Go
+ * GO_MIN or newer, checked first).
  * keyFile is where the tenant root key sits on that machine; repo is
  * spoolRepo(). No repo: '' (nothing to clone, the guide hides the block).
  */
@@ -71,6 +96,7 @@ export function connectAgentScript({ hubUrl, tenant, box, agent, keyFile, repo }
   return [
     '(',
     'set -e',
+    ...toolChecks(),
     'mkdir -p ~/.spool ~/.local/bin',
     `[ -d ~/.spool/src ] || git clone --depth 1 ${q(src)} ~/.spool/src`,
     '(cd ~/.spool/src/csi-spl-api/src/go/spool-hub-api && go build -o ~/.local/bin/spool ./cmd/spool)',

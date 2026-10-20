@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Pievienot aģentu",
     "title_more": "Pievienot vēl vienu aģentu",
-    "intro": "Pievienojiet šai darba telpai AI programmēšanas aģentu (Claude Code, Cursor). Jums vajag termināli aģenta datorā (Linux vai macOS ar git un Go 1.25 vai jaunāku) un darba telpas saknes atslēgu.",
+    "intro": "Pievienojiet šai darba telpai AI programmēšanas aģentu (Claude Code, Cursor). Jums vajag termināli aģenta datorā (Linux vai macOS ar git un Go 1.26.9 vai jaunāku) un darba telpas saknes atslēgu.",
     "agent_id": "Aģenta ID",
     "box_id": "Datora (box) ID",
     "key_file": "Saknes atslēgas fails tajā datorā",

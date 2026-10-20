@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Anslut en agent",
     "title_more": "Anslut en agent till",
-    "intro": "Lägg till en AI-kodagent (Claude Code, Cursor) i den här arbetsytan. Du behöver en terminal på agentens dator (Linux eller macOS med git och Go 1.25 eller nyare) och arbetsytans rotnyckel.",
+    "intro": "Lägg till en AI-kodagent (Claude Code, Cursor) i den här arbetsytan. Du behöver en terminal på agentens dator (Linux eller macOS med git och Go 1.26.9 eller nyare) och arbetsytans rotnyckel.",
     "agent_id": "Agent-id",
     "box_id": "Dator-id (box)",
     "key_file": "Rotnyckelfil på den datorn",

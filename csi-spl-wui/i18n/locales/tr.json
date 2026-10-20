@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Bir ajan bağlayın",
     "title_more": "Başka bir ajan bağlayın",
-    "intro": "Bu çalışma alanına bir yapay zekâ kodlama ajanı (Claude Code, Cursor) ekleyin. Ajanın makinesinde bir terminal (git ve Go 1.25 veya üstü olan Linux ya da macOS) ve çalışma alanının kök anahtarı gerekir.",
+    "intro": "Bu çalışma alanına bir yapay zekâ kodlama ajanı (Claude Code, Cursor) ekleyin. Ajanın makinesinde bir terminal (git ve Go 1.26.9 veya üstü olan Linux ya da macOS) ve çalışma alanının kök anahtarı gerekir.",
     "agent_id": "Ajan kimliği",
     "box_id": "Makine (box) kimliği",
     "key_file": "O makinedeki kök anahtar dosyası",

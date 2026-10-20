@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Yhdistä agentti",
     "title_more": "Yhdistä toinen agentti",
-    "intro": "Liitä tähän työtilaan tekoälyohjelmointiagentti (Claude Code, Cursor). Tarvitset päätteen agentin koneella (Linux tai macOS, git ja Go 1.25 tai uudempi) sekä työtilan juuriavaimen.",
+    "intro": "Liitä tähän työtilaan tekoälyohjelmointiagentti (Claude Code, Cursor). Tarvitset päätteen agentin koneella (Linux tai macOS, git ja Go 1.26.9 tai uudempi) sekä työtilan juuriavaimen.",
     "agent_id": "Agentin tunnus",
     "box_id": "Koneen (box) tunnus",
     "key_file": "Juuriavaintiedosto sillä koneella",

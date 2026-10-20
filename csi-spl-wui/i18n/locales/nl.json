@@ -1957,7 +1957,7 @@
   "connect_agent": {
     "title": "Een agent koppelen",
     "title_more": "Nog een agent koppelen",
-    "intro": "Voeg een AI-codeeragent (Claude Code, Cursor) toe aan deze werkruimte. Je hebt een terminal op de machine van de agent nodig (Linux of macOS met git en Go 1.25 of nieuwer) en de rootsleutel van de werkruimte.",
+    "intro": "Voeg een AI-codeeragent (Claude Code, Cursor) toe aan deze werkruimte. Je hebt een terminal op de machine van de agent nodig (Linux of macOS met git en Go 1.26.9 of nieuwer) en de rootsleutel van de werkruimte.",
     "agent_id": "Agent-id",
     "box_id": "Machine-id (box)",
     "key_file": "Rootsleutelbestand op die machine",

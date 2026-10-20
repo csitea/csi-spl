@@ -5,7 +5,8 @@
 # Safe outcome: no id lost (every other registry row stays, unread mail is kept
 # aside), never handed out twice (held or quarantined at every point), and the
 # re-run leaves the end state of a clean retirement: the first generation
-# stamp, one quarantine row, one alias row (a legacy --successor kept, SPL-2408).
+# stamp, one quarantine row and no other, one alias row (a legacy --successor
+# kept, SPL-2408).
 # A private tmux server; the live box is never touched.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -53,6 +54,9 @@ done_state() {  # LABEL: the end state of a clean retirement
   eq "$1: the registry keeps c-099 only" c-099 "$(cut -f1 "$R/registry.tsv")"
   check "$1: c-004 is quarantined (registry.retired.tsv)" grep -q '^c-004	claude	' "$R/registry.retired.tsv"
   eq "$1: one quarantine row (registry.retired.tsv)" 1 "$(grep -c '^c-004	' "$R/registry.retired.tsv")"
+  # SPL-2653: a re-run after the rows moved quarantines nothing more; without
+  # the P_REG guard it appended a half-written row with an empty id.
+  eq "$1: ...and no other row in it (no half-written row)" 1 "$(wc -l <"$R/registry.retired.tsv")"
   check "$1: the record moved aside under the first generation" test ! -e "$R/agents/c-004.json" -a -s "$R/agents/retired/c-004.20261002T080000Z.json"
   eq "$1: one record generation" 1 "$(compgen -G "$R/agents/retired/c-004.*.json" | wc -l)"
   eq "$1: one alias row, c-004 -> retired" 1 "$(grep -c '^c-004	retired	claude	' "$R/agent-id-aliases.tsv" 2>/dev/null)"
@@ -91,6 +95,7 @@ has "legacy stop at alias: the planted fault fired" "planted: flock dies" "$(cat
 bash "$RET" --apply CLE-77 >/dev/null 2>&1; eq "legacy stop at alias: the re-run completes it" 0 "$?"
 eq "...the successor alias row is written once" 1 "$(grep -c '^CLE-77	c-500	' "$R/agent-id-aliases.tsv" 2>/dev/null)"
 eq "...one quarantine row" 1 "$(grep -c '^CLE-77	' "$R/registry.retired.tsv")"
+eq "...and no other row in it (no half-written row)" 1 "$(wc -l <"$R/registry.retired.tsv")"
 bash "$RET" --apply CLE-77 >/dev/null 2>&1; eq "...a third run finds nothing left (4)" 4 "$?"
 
 t_done

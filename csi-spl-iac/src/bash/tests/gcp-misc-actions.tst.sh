@@ -10,6 +10,8 @@
 #   2. ENV / ORG / APP empty -> refused, no `storage` call
 #   3. no key, no ACCOUNT -> refused, no `storage` call
 #  3b. a failing `storage rsync` -> the action's rc is not 0 (SPL-2731)
+#   do_gcp_sync_s3_to_local
+#  3c. a failing `storage rsync` -> the action's rc is not 0, logged (SPL-2737)
 #   do_gcp_tail_logs
 #   4. ENV=dev: activates the dev key, one `logging read` with the defaults,
 #      --project=<org>-<app>-dev and --account=<the dev SA>
@@ -35,7 +37,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 command -v jq >/dev/null || { echo "SKIP: no jq"; exit 0; }
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
-for a in gcp-sync-local-to-s3 gcp-tail-logs satellite-image-latest; do require_action "$RUN/$a.func.sh"; done
+for a in gcp-sync-local-to-s3 gcp-sync-s3-to-local gcp-tail-logs satellite-image-latest; do require_action "$RUN/$a.func.sh"; done
 
 SA() { echo "csi-spl-$1@csi-spl-$1.iam.gserviceaccount.com"; }
 mkdir -p "$T/home/.gcp/.csi" "$T/stub" "$T/tmp" "$T/empty"
@@ -150,6 +152,9 @@ mv "$T/key.json" "$T/home/.gcp/.csi/key-csi-spl-dev.json"
 sync STUB_FAIL='storage rsync'; rc=$?
 [[ $rc -ne 0 && -n "$(calls storage)" ]] && grep -q 'ERROR gcloud storage rsync failed' "$T/out" \
   && pass "3b. sync: a failing rsync -> rc $rc, logged" || fail "3b. failing rsync: rc=$rc $(cat "$T/out")"
+act "$RUN/gcp-sync-s3-to-local.func.sh" do_gcp_sync_s3_to_local STUB_FAIL='storage rsync'; rc=$?
+[[ $rc -ne 0 && -n "$(calls storage)" ]] && grep -q 'ERROR gcloud storage rsync failed' "$T/out" \
+  && pass "3c. s3-to-local: a failing rsync -> rc $rc, logged" || fail "3c. s3-to-local failing rsync: rc=$rc $(cat "$T/out")"
 
 # --- 4. tail: ENV=dev, the defaults ----------------------------------------------
 tail_logs; rc=$?

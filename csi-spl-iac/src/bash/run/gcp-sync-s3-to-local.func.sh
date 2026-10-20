@@ -55,5 +55,7 @@ do_gcp_sync_s3_to_local() {
     --account="${account}"
 
   local _rc=$?
+  [[ $_rc -eq 0 ]] || do_log "ERROR gcloud storage rsync failed, rc=$_rc"
 
+  return "$_rc"
 }

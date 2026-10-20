@@ -1,0 +1,6 @@
+Lay-What: Routine fleet news such as a handover or a restart now goes to the operations channel instead of a private message to you.
+Lay-How: Every place that used to message the owner privately now posts once in the operations channel; only "nobody is in charge" still asks you directly.
+Lay-Why: The owner got about twenty private messages a day that needed no action from him.
+Tech-What: orc do_spl_fleet_notice posts to cnf env.fleet_notices.channel; desk reply FATALs (exit 6/7) on the hub guard refusals.
+Tech-How: spl_fleet_owner_dm, spl_rotate_owner_say and spl_wd_ensure_owner call do_spl_fleet_notice; topic-status-card skips a DM topic.
+Tech-Why: those helpers sent DESK_TO=<owner> DMs for fleet events; the no-orchestrator page stays a DM, now kind blocker.

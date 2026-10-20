@@ -31,8 +31,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # check_file <path>: one "BAD <what>" or "OK <what>" line per check
 check_file() {
+  # yq's stderr stays out of the JSON: on the hosted runner (yq 4.54) jq read
+  # non-JSON in front of it for this compose file only (SPL-2158).
   local json
-  json=$(yq -o json '.' "$1" 2>&1) || { echo "BAD -: does not parse: $json"; return; }
+  json=$(yq -o json '.' "$1" 2>"$T/yq.err") || { echo "BAD -: does not parse: $(cat "$T/yq.err")"; return; }
   jq -r '
     def envmap: if type == "array" then map(split("=") | {key: .[0], value: (.[1:] | join("="))}) | from_entries else (. // {}) end;
     ["POSTGRES_PASSWORD", "AWS_SECRET_ACCESS_KEY", "SPOOL_SUPERUSER_PASSWORD", "SPOOL_S3_SECRET_KEY", "SPOOL_HUB_MAIL_SMTP_PASSWORD"] as $plain

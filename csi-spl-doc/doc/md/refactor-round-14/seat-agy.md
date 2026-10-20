@@ -47,9 +47,10 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
 - Batch 2 completed and landed on origin/master:
   - Row 03 (`refactor(r14-03-wui-decompose-qto-tree)`, SPL-2648): R7 review completed by `a-585@sat` (PASS on `18be50ad8e2d28ba08ab8edf7091dea127714c38`), landed on origin/master in `c65a1e9a4`.
   - Row 04 (`refactor(r14-04-iac-small-check-pre-push)`, SPL-2651): R7 review completed by `a-581@sat` (PASS on `8958ad3d4e972d648e1c2d4006cd698e983d70d8`), landed on origin/master in `db8486e6d`.
-- Batch 3 reviews completed:
-  - Row 05 (`refactor(r14-05-wui-decompose-calendar-main)`, SPL-2680, Lane 1): R7 review completed by `a-615` (PASS on `ea1dea06fefbcba5f00d26afa470bc05c511832e`), review line sent to `c-601@sat` on task `dispatch-dc15ad65` (cc `c-002@sat`).
+- Batch 3 completed and landed on origin/master:
+  - Row 05 (`refactor(r14-05-wui-decompose-calendar-main)`, SPL-2680, Lane 1): R7 review completed by `a-615` (PASS on `ea1dea06fefbcba5f00d26afa470bc05c511832e`), landed on origin/master in `6f43dddba`.
   - Row 06 (`test(r14-06-go-coverage-payments-paypal)`, SPL-2682, Lane 2): R7 review completed by `a-615` (PASS on `deb8fa8f918f344a975e7528d2ef3b60a17b273a`), landed on origin/master in `742dff732`.
+- Batch 4 ready for dispatch: Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, Lane 1) and Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, Lane 2).
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
 - Status at 07:02Z UTC: Worktree clean and synchronized with origin/master, standing by for incoming R7 review requests or Batch 4 dispatch updates.

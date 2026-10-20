@@ -94,6 +94,9 @@ do_spl_desk_up() {
   spl_desk_up_caller_ok "$agent" || return 1
   do_require_bin curl setsid || return 1
   spl_host_spool || return 1
+  # spec 147 5.2: a vendor at its workspace cap is refused before any dir or
+  # process (spl-agent-caps.func.sh); the hub's SetRoster gate is the authority.
+  spl_desk_cap_check "$d" "$box" "$tenant" "$hub" "$agent" || return 1
   mkdir -p "$d/spool/$agent/inbox" "$d/spool/$agent/outbox" "$d/spool/$agent/archive" "$d/spool/.hub" "$d/keys" ||
     { do_log "FATAL cannot create the desk state under $d"; return 1; }
   chmod -R go-rwx "$d" || return 1

@@ -47,6 +47,8 @@
 //	box-stats put --json <file|-> | box-stats list [--box <b>] [--since 20h]
 //	box-beat put --pid <n> | box-beat list [--box <b>] [--since 10m]
 //	          hub mode: append one box load + memory sample, or read the history (rdb 0117)
+//	caps    [check <agent-id>]
+//	          hub mode: the workspace's agent caps and live counts by vendor, or exit 3 when <agent-id>'s vendor is at its cap (spec 147)
 //	fleet-load get | fleet-load pause <kind> <until> [reason]
 //	          hub mode: the instance's fleet load target, {low, high, box_order, boxes,
 //	          agent_kinds_off, agent_kinds_paused, source} (rdb 0118, 0134, 0149), or
@@ -159,6 +161,7 @@ on a box (an agent's machine):
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
   memory              add or merge a lesson in the shared memory (add), read one (show), the titles (index)
   box-stats           append one box load + memory sample (put --json), or read the history (list)
+  caps                print the workspace's agent caps by vendor, or check one agent against them (check <id>)
   box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
@@ -308,14 +311,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
-	case "box-stats": // rdb 0117
-		return cmdBoxStats(cfg, rest)
-	case "box-beat": // spec 102 10.2, rdb 0147
-		return cmdBoxBeat(cfg, rest)
-	case "fleet-load": // rdb 0118
-		return cmdFleetLoad(cfg, rest)
-	case "fleet-tokens": // spec 140 3.4, rdb 0199
-		return cmdFleetTokens(cfg, rest)
+	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens":
+		return runFleetCmd(cfg, cmd, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
 	case "memory": // spec 102 12
@@ -333,6 +330,23 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
+	}
+}
+
+// runFleetCmd runs the box and fleet capacity verbs, split from runBoxCmd
+// to keep it under the clean-code cap.
+func runFleetCmd(cfg *config.Config, cmd string, rest []string) int {
+	switch cmd {
+	case "box-stats": // rdb 0117
+		return cmdBoxStats(cfg, rest)
+	case "caps": // spec 147, rdb 0212
+		return cmdCaps(cfg, rest)
+	case "box-beat": // spec 102 10.2, rdb 0147
+		return cmdBoxBeat(cfg, rest)
+	case "fleet-load": // rdb 0118
+		return cmdFleetLoad(cfg, rest)
+	default: // fleet-tokens: spec 140 3.4, rdb 0199
+		return cmdFleetTokens(cfg, rest)
 	}
 }
 

@@ -244,7 +244,7 @@
             :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: emojiLabel(chip.emoji) }) : t('feed.emoji.chip', { emoji: emojiLabel(chip.emoji), n: chip.count })"
             :title="chipTitle(chip)"
             :disabled="busy || !msg.msg_id || !!msg.pending"
-            @click.stop="onReact(chip.emoji)"
+            @click.stop="popChip($event, chip.emoji)"
           >
             <span aria-hidden="true">{{ chip.emoji }}</span>
             <span v-if="chip.showCount" class="msg-reaction__n">{{ chip.count }}</span>
@@ -464,7 +464,7 @@
       :x="pickerAt.x"
       :y="pickerAt.y"
       @close="pickerOpen = false"
-      @choose="onReact"
+      @choose="pickEmoji"
     />
   </article>
 </template>
@@ -494,6 +494,7 @@ import { POLL_HOST } from '~/utils/poll-fence.mjs'
 import type { CardClipMode } from '~/composables/useCardClip'
 import { LinkPreviewsLazy } from '~/composables/useLinkPreviewRefs'
 import { useCardReactions } from '~/composables/useCardReactions'
+import { playTapAnim } from '~/composables/useTapAnim'
 import { useCardEdit } from '~/composables/useCardEdit'
 import { useCardHeight, useCardTitle } from '~/composables/useCardHeight'
 import { useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
@@ -626,6 +627,19 @@ const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu }
 const {
   viewerId, pickerOpen, pickerAt, busy, reactError, chips, emojiLabel, chipTitle, phoneChips, emojiBtnName, openPickerFromButton, onReact,
 } = useCardReactions(props, emit, rowEl, mobile, menu)
+/* SPL-2714 (animations plan row 03): a tapped chip pops once, at the tap */
+function popChip(ev: MouseEvent, emoji: string) {
+  if (ev.currentTarget instanceof HTMLElement) playTapAnim(ev.currentTarget, 'pop')
+  void onReact(emoji)
+}
+/* a pick from the emoji sheet (a phone's only way to react) pops its chip
+   once the toggle is back; a removed last one has no chip and plays nothing */
+async function pickEmoji(emoji: string) {
+  await onReact(emoji)
+  await nextTick()
+  const chip = [...(rowEl.value?.querySelectorAll<HTMLElement>('.msg-reaction') || [])].find((el) => el.dataset.emoji === emoji)
+  if (chip) playTapAnim(chip, 'pop')
+}
 function onMenuReact() {
   closeMenu()
   pickerAt.value = { x: 0, y: 0 }

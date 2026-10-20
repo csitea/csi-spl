@@ -138,30 +138,25 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import UiFileTree, { type FileTreeDrop, type FileTreeRow } from '~/components/UiFileTree.vue'
+import UiFileTree, { type FileTreeRow } from '~/components/UiFileTree.vue'
 import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { docLink } from './-doc-anchor'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
-import { DocTreeError, useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
+import { DocTreeError, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 import { useRepoDocs } from './-repo-docs'
 import { buildDocsTree, docsAncestors, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
+import { QTO_ROOT as ROOT, docKey, folderKey, itemKey, useQtoTreeFolders } from '~/composables/useQtoTreeFolders'
+import { useQtoTreeDrop } from '~/composables/useQtoTreeDrop'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null, repo?: string }>()
 const emit = defineEmits<{ open: [doc: string, item: string], moved: [doc: string, rev: number], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
-/* row keys: / the root, f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section;
+/* row keys (useQtoTreeFolders): / the root, f:<node> a folder, d:<doc> a document, i:<doc>:<item> a section;
    the Repository branch (T023): r: itself, rd:<path> a repo folder, rf:<path> a repo doc */
-const ROOT = '/'
-const folderKey = (id: string) => 'f:' + id
-const docKey = (doc: string) => 'd:' + doc
-const itemKey = (doc: string, item: string) => `i:${doc}:${item}`
-
-/* the root starts open */
-const opened = ref<Set<string>>(new Set([ROOT]))
 /* each loaded document's items grouped by parent, in outline order */
 const kids = ref<Record<string, Map<string, DocItem[]>>>({})
 /* each loaded document's rev and root item, as its subtree read them: a section move's precondition and top level */
@@ -188,13 +183,6 @@ async function load(doc: string) {
   } catch { /* the document row stays, without sections */ }
 }
 
-function setOpen(key: string, on: boolean) {
-  const s = new Set(opened.value)
-  if (on) s.add(key)
-  else s.delete(key)
-  opened.value = s
-}
-
 /* an empty title reads as the document view's placeholder (Heading 1.1) */
 const itemName = (it: DocItem) => it.title.trim() || t('ws_doctree.heading_placeholder', { n: it.outline })
 const docName = (d: DocHead) => d.title || t('ws_doctree.default_doc_title')
@@ -211,86 +199,15 @@ function docRow(d: DocHead, depth = 0): FileTreeRow {
   return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, drag: Boolean(nodeOfDoc(d.id)), into: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
 }
 
-/* the folders: each loaded folder's children ('' = the top level), and each
-   folder's name and parent (the phone's path, the reveal) */
-const nodesAt = ref<Record<string, DocNode[]>>({})
-const folderOf = ref<Record<string, { name: string, parent: string }>>({})
-/* the hub has no /nodes (an older hub, a mock without folders): the flat list */
-const nodesOff = ref(false)
-const folder = useQtoFolder()
-/* the last row picked on the desktop was a folder: it is the marked row */
-const folderPicked = ref(false)
+/* the folders and the expanded rows (useQtoTreeFolders) */
+const folders = useQtoTreeFolders({ client: () => props.client, docs: () => props.docs, active: () => props.active })
+const { opened, setOpen, nodesAt, folderOf, nodesOff, folder, folderPicked, loadNodes, folderOfDoc, nodeOfDoc, folderRow, rootRow, folderPath, makeFolder, pickRoot, folderGone } = folders
 const folderOpen = ref(false)
-
-async function loadNodes(parent: string) {
-  try {
-    const r = await props.client.nodes(parent)
-    const info = { ...folderOf.value }
-    for (const n of r.nodes) if (n.kind === 'folder') info[n.id] = { name: n.name, parent }
-    folderOf.value = info
-    nodesAt.value = { ...nodesAt.value, [parent]: r.nodes }
-    nodesOff.value = false
-  } catch {
-    if (!parent) nodesOff.value = true
-  }
-}
-
-/** the folder a document's node sits in, '' = the top (or not loaded) */
-function folderOfDoc(doc: string): string {
-  for (const [parent, list] of Object.entries(nodesAt.value)) if (list.some((n) => n.doc === doc)) return parent
-  return ''
-}
-
-/** a document's node id, '' = none (an older hub's document, or not loaded) */
-function nodeOfDoc(doc: string): string {
-  for (const list of Object.values(nodesAt.value)) for (const n of list) if (n.doc === doc && n.id) return n.id
-  return ''
-}
 
 /** a document node as the list's head (the list carries the live title), else as the node says */
 function headOf(n: DocNode): DocHead {
   return props.docs.find((d) => d.id === n.doc) || { id: n.doc, title: n.title, description: n.description, rev: 0, items: 0, root: '', topic_id: '', updated_at: '' }
 }
-
-function folderRow(n: DocNode, depth: number): FileTreeRow {
-  const key = folderKey(n.id)
-  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', menu: true, drag: true, into: true, expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
-}
-
-/** the `/` row: the top level's folder, open unless closed */
-function rootRow(): FileTreeRow {
-  return { key: ROOT, depth: 0, name: '/', icon: 'folder', kind: 'root', menu: true, into: !nodesOff.value, expandable: true, open: opened.value.has(ROOT), active: folderPicked.value && !folder.value }
-}
-
-/** the folder's path from the top: Plans / 2026 */
-function folderPath(id: string): string {
-  const names: string[] = []
-  for (let f = folderOf.value[id]; f; f = folderOf.value[f.parent]) names.unshift(f.name)
-  return names.join(' / ')
-}
-
-/** every folder up from a document's open, so it shows where it landed */
-function reveal(doc: string) {
-  const s = new Set(opened.value).add(ROOT)
-  for (let p = folderOfDoc(doc); p; p = folderOf.value[p]?.parent || '') s.add(folderKey(p))
-  opened.value = s
-}
-
-/** New folder (a folder's or the root's menu): a folder in the current one, then its listing read again */
-async function makeFolder(name: string) {
-  const parent = folder.value
-  await props.client.createFolder(parent, name)
-  await loadNodes(parent)
-  const up = folderOf.value[parent]
-  if (up) await loadNodes(up.parent)
-  setOpen(parent ? folderKey(parent) : ROOT, true)
-}
-
-/* the list changed (a create, a rename, a delete): the loaded folders read again */
-watch(() => props.docs.map((d) => d.id + d.title).join('|'), async () => {
-  await Promise.all([...new Set(['', ...Object.keys(nodesAt.value)])].map(loadNodes))
-  if (props.active) reveal(props.active)
-}, { immediate: true })
 
 const drilling = computed(() => typeof props.drill === 'string')
 
@@ -469,13 +386,6 @@ function pickFolder(key: string) {
   else if (!nodesAt.value[folder.value]) void loadNodes(folder.value)
 }
 
-/** the `/` row: the top level becomes the current folder, and it opens */
-function pickRoot() {
-  folder.value = ''
-  folderPicked.value = true
-  setOpen(ROOT, true)
-}
-
 function select(key: string) {
   if (key === ROOT) return drilling.value ? toggle(ROOT) : pickRoot()
   if (drilling.value) return void drillSelect(key)
@@ -501,89 +411,8 @@ function select(key: string) {
   emit('open', doc, item)
 }
 
-/* the re-order: a row's node and its folder ('' = the top) */
-const nodeOfKey = (key: string) => (key.startsWith('f:') ? key.slice(2) : key.startsWith('d:') ? nodeOfDoc(key.slice(2)) : '')
-const parentOfKey = (key: string) => (key.startsWith('f:') ? folderOf.value[key.slice(2)]?.parent ?? '' : folderOfDoc(key.slice(2)))
-/** folder f is node or under it: a folder never goes into its own subtree */
-function within(f: string, node: string): boolean {
-  for (let p = f; p; p = folderOf.value[p]?.parent || '') if (p === node) return true
-  return false
-}
-
-/** where a dragged row may land: into a folder or `/`, or next to a row of its own kind (folders stay first) */
-function canDrop(key: string, target: string, where: FileTreeDrop): boolean {
-  if (key.startsWith('i:')) return canDropSection(key, target, where)
-  const node = nodeOfKey(key)
-  if (!node || nodesOff.value) return false
-  const folderMove = key.startsWith('f:')
-  if (where === 'into') {
-    if (target !== ROOT && !target.startsWith('f:')) return false
-    return !folderMove || !within(target === ROOT ? '' : target.slice(2), node)
-  }
-  if (key.slice(0, 2) !== target.slice(0, 2) || !nodeOfKey(target)) return false
-  return !folderMove || !within(parentOfKey(target), node)
-}
-
-/** a drop or Alt+Up / Alt+Down: the hub's move at that place, then both folders' listings read again */
-async function moveRow(key: string, target: string, where: FileTreeDrop) {
-  if (key.startsWith('i:')) return moveSection(key, target, where)
-  const node = nodeOfKey(key)
-  const from = parentOfKey(key)
-  const into = where === 'into'
-  const parent = into ? (target === ROOT ? '' : target.slice(2)) : parentOfKey(target)
-  try {
-    await props.client.moveNode(node, parent, into ? {} : { [where]: nodeOfKey(target) })
-  } catch (e) {
-    say(e instanceof DocTreeError && e.code === 'name_taken' ? 'ws_doctree.folder_menu.name_taken' : 'ws_doctree.err_failed')
-    return
-  }
-  const read = new Set([from, parent])
-  for (const f of [from, parent]) if (f) read.add(folderOf.value[f]?.parent ?? '')
-  await Promise.all([...read].map(loadNodes))
-  if (into) setOpen(parent ? folderKey(parent) : ROOT, true)
-  if (props.active) reveal(props.active)
-}
-
-/* a section's move (SPL-1892): its document's items by id, from the loaded subtree */
-function itemsOf(doc: string): Map<string, DocItem> {
-  const byId = new Map<string, DocItem>()
-  for (const list of kids.value[doc]?.values() || []) for (const it of list) byId.set(it.id, it)
-  return byId
-}
-
-/** a section of the same document: by or onto a section, or onto its document's row; never into its own subtree */
-function canDropSection(key: string, target: string, where: FileTreeDrop): boolean {
-  const [, doc, item] = key.split(':')
-  if (target === docKey(doc)) return where === 'into' && Boolean(rootOf[doc])
-  const [kind, tdoc, titem] = target.split(':')
-  if (kind !== 'i' || tdoc !== doc) return false
-  const byId = itemsOf(doc)
-  for (let it = byId.get(titem); it; it = byId.get(it.parent)) if (it.id === item) return false
-  return true
-}
-
-/** the hub's items/{item}/move: the parent and the final place under it (0 = last); a stale rev reads the document again */
-async function moveSection(key: string, target: string, where: FileTreeDrop) {
-  const [, doc, item] = key.split(':')
-  const titem = target.split(':')[2] || ''
-  const parent = where === 'into' ? titem || rootOf[doc] : itemsOf(doc).get(titem)?.parent
-  const sibs = (parent && kids.value[doc]?.get(parent) || []).filter((it) => it.id !== item)
-  const ord = where === 'into' ? 0 : sibs.findIndex((it) => it.id === titem) + (where === 'after' ? 2 : 1)
-  if (!parent || ord < 0) return
-  try {
-    const r = await props.client.move(doc, revOf[doc] ?? 0, item, parent, ord)
-    await load(doc)
-    if (where === 'into') setOpen(titem ? itemKey(doc, titem) : docKey(doc), true)
-    emit('moved', doc, r.rev)
-  } catch (e) {
-    const stale = e instanceof DocTreeError && e.status === 412
-    if (stale) {
-      await load(doc)
-      emit('moved', doc, revOf[doc] ?? 0)
-    }
-    say(stale ? 'ws_doctree.stale' : 'ws_doctree.err_failed')
-  }
-}
+/* the re-order (useQtoTreeDrop): where a dragged row may land, and the hub's move there */
+const { canDrop, moveRow } = useQtoTreeDrop({ client: () => props.client, active: () => props.active, folders, kids, revOf, rootOf, load, say, moved: (doc, rev) => emit('moved', doc, rev) })
 
 /* each row kind's menu (UiPointMenu, the WUI's one menu at a point) */
 type MenuKind = 'doc' | 'folder' | 'section' | 'root'
@@ -694,6 +523,7 @@ async function removeFolder() {
     await props.client.removeFolder(d.node, Boolean(d.held))
     dropping.value = null
     await folderGone(d.node)
+    emit('refresh')
   } catch (e) {
     const held = e instanceof DocTreeError && e.code === 'folder_not_empty' && !d.held ? e.body : null
     if (held) dropping.value = { ...d, held: { folders: Number(held.folders) || 0, documents: Number(held.documents) || 0 } }
@@ -701,21 +531,6 @@ async function removeFolder() {
   } finally {
     busy.value = false
   }
-}
-
-/** a folder went: its listing read again, the current folder moved up out of it, the page's list too */
-async function folderGone(node: string) {
-  const parent = folderOf.value[node]?.parent ?? ''
-  for (let f: string = folder.value; f; f = folderOf.value[f]?.parent || '') {
-    if (f === node) {
-      folder.value = parent
-      folderPicked.value = false
-      break
-    }
-  }
-  setOpen(folderKey(node), false)
-  await loadNodes(parent)
-  emit('refresh')
 }
 
 /* Delete: confirmed, then the hub's DELETE under the doc rev read just now */

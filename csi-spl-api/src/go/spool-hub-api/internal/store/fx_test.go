@@ -22,8 +22,12 @@ import (
 var fxQuotesTaken sync.Map
 
 // fxTestQuote is a three-letter code no other test of this run uses; the
-// leading Q keeps it off every real ISO 4217 code the fetch writes.
-func fxTestQuote(t *testing.T) string {
+// leading Q keeps it off every real ISO 4217 code the fetch writes. The map
+// only knows this process: hub-pg.tst.sh runs the store tests as SEQUENTIAL
+// group processes on ONE database (store-pg-groups.inc.sh), so a quote an
+// earlier group wrote rows under is also taken (run 39510389592: group b's
+// TestPutFXRates drew a group a quote and counted 2 + 3 = 5 rows).
+func fxTestQuote(t *testing.T, pg *Postgres) string {
 	t.Helper()
 	for {
 		n, err := rand.Int(rand.Reader, big.NewInt(26*26))
@@ -31,7 +35,16 @@ func fxTestQuote(t *testing.T) string {
 			t.Fatal(err)
 		}
 		q := fmt.Sprintf("Q%c%c", 'A'+rune(n.Int64()/26), 'A'+rune(n.Int64()%26))
-		if _, taken := fxQuotesTaken.LoadOrStore(q, true); !taken {
+		if _, taken := fxQuotesTaken.LoadOrStore(q, true); taken {
+			continue
+		}
+		var used bool
+		if err := pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+			return tx.QueryRow(context.Background(), `SELECT EXISTS (SELECT 1 FROM fx_rates WHERE quote = $1)`, q).Scan(&used)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !used {
 			return q
 		}
 	}
@@ -74,7 +87,7 @@ func TestCheckFXRates(t *testing.T) {
 func TestPutFXRates(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	q := fxTestQuote(t)
+	q := fxTestQuote(t, pg)
 	rows := []FXRate{{Day: "2003-04-04", Quote: q, Rate: 0.9, Source: "FED"}, {Day: "2003-04-07", Quote: q, Rate: 0.8, Source: "FED"}}
 	for i := 0; i < 2; i++ {
 		if n, err := pg.PutFXRates(ctx, rows); err != nil || n != 2 {
@@ -156,7 +169,7 @@ func TestCostMonthReadSecondCurrency(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
 	from, to, day := costTestMonth(t)
-	q := fxTestQuote(t)
+	q := fxTestQuote(t, pg)
 	a := newTenant(t, pg)
 	fri := fxFriday(t, from)
 	if _, err := pg.PutFXRates(ctx, []FXRate{

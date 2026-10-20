@@ -152,7 +152,7 @@ func TestFleetPaidFXRate(t *testing.T) {
 	ctx := context.Background()
 	// fxTestQuote, never a literal: TestPutFXRates counts its quote's rows, and a
 	// literal from the same Q.. pool collided with it on CI (run 39039744142).
-	q, none := fxTestQuote(t), fxTestQuote(t)
+	q, none := fxTestQuote(t, pg), fxTestQuote(t, pg)
 	if _, err := pg.PutFXRates(ctx, []FXRate{{Day: "2001-01-10", Quote: q, Rate: 2, Source: "FED"},
 		{Day: "2001-01-20", Quote: q, Rate: 3, Source: "ECB"}, {Day: "2001-01-20", Quote: q, Rate: 4, Source: "FED"}}); err != nil {
 		t.Fatal(err)

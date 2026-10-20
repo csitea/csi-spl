@@ -161,6 +161,42 @@ spl_lease_ids() {
 
 spl_lease_now() { echo "${LEASE_NOW:-$(date +%s)}"; }
 
+# Monotonic seconds since boot (/proc/uptime), which a wall-clock step never
+# moves. LEASE_MONO fakes it in tests; a test that sets only LEASE_NOW gets
+# that fake clock for both.
+spl_lease_mono() {
+  local up=""
+  [[ -n "${LEASE_MONO:-}" ]] && { echo "$LEASE_MONO"; return 0; }
+  [[ -n "${LEASE_NOW:-}" ]] && { echo "$LEASE_NOW"; return 0; }
+  read -r up _ < /proc/uptime 2>/dev/null || true
+  echo "${up%.*}"
+}
+
+# The local-mode lease age in s, for the watch (after spl_lease_read). LT is a
+# wall-clock epoch, so a clock step made the plain "now - LT" lie: +300 s
+# promoted a renewing master's failover, -600 s delayed a real failover 600 s
+# (SPL-2139 drill, SPL-2704). The watch keeps the age on the monotonic clock
+# in <lease dir>/watch.seen: "<holder> <epoch> <mono at age 0> <mono of the
+# look> <btime>". The same lease as at the last look ages by the monotonic
+# time since it; a lease written since the last look is at most that old, so
+# its wall age is cut to that (and a negative one to 0). No usable last look
+# (the first tick, a reboot, no monotonic clock): the wall age, never below 0.
+spl_lease_local_age() {
+  local f="$LEASE_DIR/watch.seen" mono bt age sh="" st="" sb="" sl="" sbt=""
+  age=$(( $(spl_lease_now) - LT )); (( age < 0 )) && age=0
+  mono="$(spl_lease_mono)"
+  [[ "$mono" =~ ^[0-9]+$ ]] || { echo "$age"; return 0; }
+  bt="$(awk '$1 == "btime" {print $2}' "${LEASE_PROC_ROOT:-/proc}/stat" 2>/dev/null)"
+  [[ -s "$f" ]] && read -r sh st sb sl sbt < "$f"
+  if [[ "$sb" =~ ^-?[0-9]+$ && "$sl" =~ ^[0-9]+$ && "$sbt" == "${bt:-0}" ]] && (( sl <= mono )); then
+    if [[ "$sh $st" == "$LH $LT" ]]; then age=$(( mono - sb ))
+    elif (( age > mono - sl )); then age=$(( mono - sl ))
+    fi
+  fi
+  printf '%s %s %s %s %s\n' "$LH" "$LT" "$(( mono - age ))" "$mono" "${bt:-0}" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  echo "$age"
+}
+
 # Sets LH (holder) and LT (epoch); no lease reads as "none 0".
 spl_lease_read() {
   LH=none LT=0
@@ -740,7 +776,7 @@ spl_lease_watch_tick() {
   spl_lease_asks_tick
   spl_lease_agent_run_tick
   spl_lease_read
-  age=$(( $(spl_lease_now) - LT ))
+  age="$(spl_lease_local_age)"
   # a fresh lease ends a "nobody dispatches" episode, so the next one is logged
   (( age <= LEASE_STALE )) && rm -f "$LEASE_FILE.nofailover"
   if [[ "$LH" == "$m" ]]; then
@@ -771,7 +807,7 @@ spl_lease_watch_tick() {
 spl_lease_promote() {
   local m="$1" f="$2" age
   spl_lease_read
-  age=$(( $(spl_lease_now) - LT ))
+  age="$(spl_lease_local_age)"
   [[ "$LH" != "$f" && "$age" -gt "$LEASE_STALE" ]] || return 1
   spl_lease_write "$f"; touch "$LEASE_FILE.failover"
   spl_lease_log "FAILOVER: $LH silent ${age}s -> $f active"

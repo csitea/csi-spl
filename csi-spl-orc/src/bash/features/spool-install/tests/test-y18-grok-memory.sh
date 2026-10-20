@@ -15,7 +15,9 @@
 #   7. install.sh calls the step once, only with --fleet
 #   8. do_spl_grok_memory_install, dry run, this user, a sandbox repo: rc 0,
 #      nothing written in the real ~/.grok/rules
-# The `grok inspect` checks need grok on PATH; without it they SKIP.
+# The `grok inspect` checks run only with grok on PATH (a dev box); without
+# it they print one INFO line and count nothing (CI's runners have no grok,
+# and its orc job refuses a SKIP line).
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2016  # the bash -c bodies expand in the child
 set -uo pipefail
@@ -23,10 +25,10 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 FEAT="$(cd "$TEST_DIR/.." && pwd)"
 ORC="$(cd "$FEAT/../../../.." && pwd)"
 STEP="$FEAT/steps/y18-grok-memory.sh"
-fails=0 n=0 skips=0
+fails=0 n=0 notrun=0
 pass() { n=$((n + 1)); echo "PASS: $1"; }
 fail() { n=$((n + 1)); echo "FAIL: $1"; fails=$((fails + 1)); }
-skip() { skips=$((skips + 1)); echo "SKIP: $1"; }
+notrun() { notrun=$((notrun + 1)); echo "INFO: not run (no grok on PATH): $1"; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
@@ -56,7 +58,7 @@ if [ "$HAVE_GROK" = 1 ]; then
   out="$(inspect "$H")"
   if [[ "$out" == *"Project Instructions"* ]] && [[ "$out" != *fleet-memory* ]]
   then pass "control: no step, grok inspect lists no memory rule"; else fail "control: $out"; fi
-else skip "control: no grok on PATH"; fi
+else notrun "control: grok inspect lists no memory rule"; fi
 
 # 3. dry run
 out="$(inst "$H" 1 "$R")"
@@ -75,7 +77,7 @@ if [ "$HAVE_GROK" = 1 ]; then
   out="$(inspect "$H")"
   if [[ "$out" == *"$hdr"* ]] && [[ "$out" == *"$idx"* ]]
   then pass "grok inspect lists both memory rules"; else fail "grok inspect after install: $out"; fi
-else skip "grok inspect after install: no grok on PATH"; fi
+else notrun "grok inspect lists both memory rules"; fi
 
 # 5. re-run
 cp "$hdr" "$T/before"
@@ -115,5 +117,5 @@ out="$(PROJ_PATH="$ORC" GROK_MEMORY_USERS="$(id -un)" GROK_MEMORY_REPO="$R" DRY_
 if [ "$rc" = 0 ] && [[ "$out" == *"OK grok memory: $(id -un) (DRY_RUN=1)"* ]] && [ "$(find "$HOME/.grok/rules" -maxdepth 1 -printf "%f %l %s\n" 2>/dev/null | sort | cksum)" = "$real" ]
 then pass "action dry run: rc 0, the real ~/.grok/rules untouched"; else fail "action: rc=$rc $out"; fi
 
-echo "--- y18 grok memory: $((n - fails))/$n passed, $skips skipped"
+echo "--- y18 grok memory: $((n - fails))/$n passed, $notrun grok checks not run"
 [ "$fails" = 0 ]

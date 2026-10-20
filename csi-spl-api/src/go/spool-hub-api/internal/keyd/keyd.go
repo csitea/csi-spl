@@ -170,9 +170,9 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 
 func handle(conn net.Conn, workspace string, secs []secret) (stop bool) {
 	defer conn.Close()
-	cred, err := peerCred(conn)
+	uid, err := peerUID(conn)
 	// int64 so a uid is not narrowed. A negative Getuid matches nothing.
-	if err != nil || int64(cred.Uid) != int64(os.Getuid()) {
+	if err != nil || int64(uid) != int64(os.Getuid()) {
 		_ = writeResp(conn, response{OK: false, Error: "peer uid refused"})
 		return false
 	}
@@ -368,34 +368,26 @@ func readLine(r io.Reader) ([]byte, error) {
 	return append([]byte(nil), sc.Bytes()...), nil
 }
 
-func peerCred(conn net.Conn) (*unix.Ucred, error) {
+// peerUID is the uid of the process at the other end of a unix socket.
+// The per-OS read is sockPeerUID (keyd_linux.go, keyd_darwin.go,
+// keyd_other.go); an OS with none refuses every peer.
+func peerUID(conn net.Conn) (uint32, error) {
 	uc, ok := conn.(*net.UnixConn)
 	if !ok {
-		return nil, errors.New("not a unix connection")
+		return 0, errors.New("not a unix connection")
 	}
 	raw, err := uc.SyscallConn()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	var cred *unix.Ucred
+	var uid uint32
 	var cerr error
 	if err := raw.Control(func(fd uintptr) {
-		cred, cerr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+		uid, cerr = sockPeerUID(int(fd))
 	}); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return cred, cerr
-}
-
-func harden() error {
-	if err := unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0); err != nil {
-		return errors.New("could not disable dumps")
-	}
-	var lim unix.Rlimit
-	if err := unix.Setrlimit(unix.RLIMIT_CORE, &lim); err != nil {
-		return errors.New("could not disable core dumps")
-	}
-	return nil
+	return uid, cerr
 }
 
 // wipeString zeroes a string this process owns, such as an identity just

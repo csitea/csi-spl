@@ -7,9 +7,10 @@
 #
 # SPL_API_TEST_TIER=fast (CLE-77824) is the pre-push hook's tier: it leaves out
 # the slow pieces -- build-stripped (two full builds), build-warm-mod-cache
-# (four builds, ~26 s), go test -race (the plain go test still runs), the hub
-# Postgres gate (~384 s) and the hub GCS gate -- and names each one it leaves
-# out. CI (workflow 10 and the workflow 20
+# (four builds, ~26 s), cli-cross-build (the four release targets, ~17 s),
+# go test -race (the plain go test still runs), the hub Postgres gate
+# (~384 s) and the hub GCS gate -- and names each one it leaves out.
+# CI (workflow 10 and the workflow 20
 # deploy gate) never sets it, so CI always runs the full suite.
 #
 # HUB_SUITE_PART (spec 133 r28) splits the suite over two wf 10 jobs that run
@@ -103,6 +104,7 @@ bash "$HERE/use-go-toolchain.tst.sh"
 bash "$HERE/warm-go-mod-cache.tst.sh"
 if [ "$tier" = full ]; then bash "$HERE/build-stripped.tst.sh"; else slow build-stripped.tst.sh; fi
 if [ "$tier" = full ]; then bash "$HERE/build-warm-mod-cache.tst.sh"; else slow build-warm-mod-cache.tst.sh; fi
+if [ "$tier" = full ]; then bash "$HERE/cli-cross-build.tst.sh"; else slow cli-cross-build.tst.sh; fi
 
 echo "== gofmt =="
 unformatted="$(cd "$MOD" && gofmt -l .)"

@@ -38,7 +38,7 @@ ok('a repo that is not an http(s) url is no repo', spoolRepo('ftp://x/y') === ''
 ok('it seats the box with the root key file', s.includes('spool hub-pin --box "$SPOOL_BOX_ID" --pubkey "$(spool keygen)" --root-key "$HOME/Downloads/t1.root.key"'))
 ok('it announces the agent (its spool dir)', s.includes('mkdir -p "$SPOOL_ROOT/CLE-01"'))
 ok('it keeps the box connected', s.includes('nohup spool hub-run'))
-ok('Claude Code gets the spool MCP seated as the agent', s.includes("claude mcp add spool -- bash -c '. ~/.spool/env && exec spool mcp --as CLE-01'"))
+ok('Claude Code gets the spool MCP seated as the agent, in every directory (--scope user, SPL-2698)', s.includes("claude mcp add --scope user spool -- bash -c '. ~/.spool/env && exec spool mcp --as CLE-01'"))
 ok('no secret in the block: the key stays a file path', !/[A-Za-z0-9+/]{80,}={0,2}/.test(s))
 const c = JSON.parse(cursorMcpJson({ agent: 'CLE-02' }))
 ok('Cursor mcp.json seats the same server', c.mcpServers.spool.command === 'bash' && c.mcpServers.spool.args[1] === '. ~/.spool/env && exec spool mcp --as CLE-02')

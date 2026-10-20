@@ -76,7 +76,7 @@ try {
     ok('the bundle names a clone url (NUXT_PUBLIC_REPO_CLONE_URL baked for e2e)', Boolean(clone), clone)
     ok('the block builds, seats, connects and adds the MCP', Boolean(clone) && s.includes(`git clone --depth 1 '${clone}' ~/.spool/src`) &&
       /spool hub-pin --box "\$SPOOL_BOX_ID" --pubkey "\$\(spool keygen\)" --root-key "\$HOME\/Downloads\/mock\.root\.key"/.test(s) &&
-      /nohup spool hub-run/.test(s) && /claude mcp add spool -- bash -c '\. ~\/\.spool\/env && exec spool mcp --as c-001'/.test(s), s.slice(0, 120))
+      /nohup spool hub-run/.test(s) && /claude mcp add --scope user spool -- bash -c '\. ~\/\.spool\/env && exec spool mcp --as c-001'/.test(s), s.slice(0, 120))
     ok('it names this tenant', /SPOOL_TENANT='mock'/.test(s))
     const copy = await p.$('[data-test=connect-agent-script] [data-testid=code-copy]')
     ok('the block has a copy button', Boolean(copy))

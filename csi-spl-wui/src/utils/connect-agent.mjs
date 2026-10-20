@@ -107,7 +107,7 @@ export function connectAgentScript({ hubUrl, tenant, box, agent, keyFile, repo }
     `mkdir -p "$SPOOL_ROOT/${agent}"`,
     `spool hub-pin --box "$SPOOL_BOX_ID" --pubkey "$(spool keygen)" --root-key ${keyFileArg(keyFile)}`,
     'nohup spool hub-run >~/.spool/hub-run.log 2>&1 &',
-    `claude mcp add spool -- bash -c '. ~/.spool/env && exec spool mcp --as ${agent}'`,
+    `claude mcp add --scope user spool -- bash -c '. ~/.spool/env && exec spool mcp --as ${agent}'`,
     ')',
   ].join('\n')
 }

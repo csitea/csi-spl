@@ -182,7 +182,7 @@ try {
   await sleep(300)
   const block = await p.$eval('[data-test=connect-agent-script] pre', (el) => el.innerText).catch(() => '')
   await p.screenshot({ path: join(OUT, '5-connect-agent.png'), fullPage: true })
-  step('5a W12 the Connect an agent block', /claude mcp add spool/.test(block) && block.includes(`--as ${AGENT}`), { open, lines: block.split('\n').length })
+  step('5a W12 the Connect an agent block', /claude mcp add --scope user spool/.test(block) && block.includes(`--as ${AGENT}`), { open, lines: block.split('\n').length })
   const home = join(WORK, 'home')
   mkdirSync(join(home, 'Downloads'), { recursive: true })
   const keyPath = join(home, 'Downloads', `${TENANT}.root.key`)

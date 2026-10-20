@@ -101,7 +101,9 @@ do_spl_wire_probe() {
   kill "$pid" 2>/dev/null
   rm -f "$d/spool/.hub/hub-run.pid"
 
-  python3 - "$n" "$a" "$b" "$ver" "$hub" <<'PY'
+  # The summary is the action's result: a leg reading it cannot parse fails
+  # the action, never an OK line under a traceback.
+  python3 - "$n" "$a" "$b" "$ver" "$hub" <<'PY' ||
 import json, sys
 n, a, b, ver, hub = sys.argv[1], json.loads(sys.argv[2]), json.loads(sys.argv[3]), sys.argv[4], sys.argv[5]
 try:
@@ -113,6 +115,7 @@ out = {"n": int(n), "hub": hub, "hub_version": v.get("version", ""), "hub_commit
        "delta_p50_ms": round(a["p50"] - b["p50"], 1), "delta_p95_ms": round(a["p95"] - b["p95"], 1)}
 print(json.dumps(out, sort_keys=True))
 PY
+    { do_log "FATAL do_spl_wire_probe could not read its leg timings (leg A: $a, leg B: $b)"; return 1; }
   do_log "OK do_spl_wire_probe measured $n sends per leg against $hub"
 }
 

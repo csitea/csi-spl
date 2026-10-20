@@ -89,7 +89,12 @@ jobs:
   test:
     name: Hub suite (run-all-tests.sh)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30, not 20 (2026-10-20): the 11 green suites from 10-19 17:20Z to
+    # 10-20 11:55Z took 14.7..18.2 min, under 2 min below a 20-min cap. The
+    # hosted runner's speed varies run to run (toolchain builds 3.5..4.1 min,
+    # pg gate 5.7..7.3 min), and 5 runs on 10-20 hit the cap at 20.2 min,
+    # each cut at a different step with no FAIL line: the hub sat undeployed.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 

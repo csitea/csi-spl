@@ -2639,9 +2639,16 @@ select.issues-pctl { appearance: auto; }
 .issues-sub-add { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; margin-top: 8px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--color-muted); cursor: pointer; }
 .issues-sub-add:hover, .issues-sub-add:focus-visible { color: var(--color-fg); border-color: var(--color-border); }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
-.issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.issues-talk__tab { margin: 8px 0 0; background: none; border: 0; border-bottom: 2px solid transparent; padding: 2px 2px 4px; font-family: inherit; font-size: 0.875rem; font-weight: 600; color: inherit; opacity: 0.7; cursor: pointer; }
-.issues-talk__tab[aria-selected='true'] { border-bottom-color: var(--accent, currentColor); opacity: 1; }
+/* SPL-2655 (owner t1 67d850ce, plan issue-tabs-panel-plan.md Option 1): 3D
+   folder tabs. The selected tab marks its TOP edge in the focus outline's own
+   colour (one colour when focused too) and takes the fill of the panel it
+   joins, its bottom border in that fill, so it opens into the panel; the
+   other is recessed. The panel is the dialog on desktop, the page on a phone. */
+.issues-talk__h { --issues-talk-panel: var(--color-bg); display: flex; align-items: flex-end; gap: 8px; min-width: 0; border-bottom: 1px solid var(--color-border); }
+.issues-detail-in[data-modal='true'] .issues-talk__h { --issues-talk-panel: var(--color-surface); }
+.issues-talk__tab { min-block-size: 2.75rem; margin: 8px 0 -1px; padding: 0.5rem 1rem; border: 1px solid transparent; border-bottom-color: var(--color-border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--color-bg-2); box-shadow: var(--bevel-shade); font-family: inherit; font-size: 0.875rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.issues-talk__tab:hover { color: var(--color-fg); }
+.issues-talk__tab[aria-selected='true'] { position: relative; z-index: 1; border-color: var(--color-border); border-bottom-color: var(--issues-talk-panel); background: var(--issues-talk-panel); box-shadow: inset 0 var(--select-bar-w) 0 var(--focus-ring), var(--bevel-shine); font-weight: 600; color: var(--color-fg); }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
 .issues-comment { min-width: 0; }
 .mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }

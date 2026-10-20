@@ -9,7 +9,10 @@
 //      deadline) and by keyboard (arrows, Enter, Esc)
 //   H  the History tab (rdb 0181): created and each edit, who and when
 //      (YYYY-MM-DD HH:MM:SS and relative, SPL-1666); on phones (PHONES,
-//      390x844 and 360x740) the absolute time only where it fits
+//      412x915, 390x844 and 360x740) the absolute time only where it fits
+//   T  the Discussion | History tabs are 3D folder tabs (SPL-2655, plan
+//      issue-tabs-panel-plan.md T1-T6): top marker, one focus colour, equal
+//      boxes on the baseline, the selected one in the panel's fill, 44 px
 //   D  delete with the one confirm; a parent with a live subtask asks the
 //      cascade confirm, its count in the button (HUM-10, t1 40c135cb)
 // Each operation carries a control: the same gesture cancelled changes nothing.
@@ -27,7 +30,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spool-issues-crud-'))
 const WIDTHS = (process.env.WIDTHS || '1440,1024').split(',').map(Number)
-const PHONES = (process.env.PHONES || '390x844,360x740').split(',').map((v) => v.split('x').map(Number))
+const PHONES = (process.env.PHONES || '412x915,390x844,360x740').split(',').map((v) => v.split('x').map(Number))
 const ISO_SEC = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/
 
 /* SPL-1666: each History row's time - the absolute part shown or not, the
@@ -69,6 +72,45 @@ async function launch() {
     } catch { /* next */ }
   }
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
+}
+
+/* SPL-2655: the tabs as the browser draws them. The marker colour is the first
+   colour of the selected tab's box-shadow; --focus-ring is resolved through a
+   probe; the panel is the nearest opaque ancestor of the tablist. A keyboard
+   key first, so focus() on the selected tab is :focus-visible (T2). */
+async function tabLook(p) {
+  await p.keyboard.press('Shift')
+  return p.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[data-test=issues-talk-tab]')]
+    const on = tabs.find((t) => t.getAttribute('aria-selected') === 'true')
+    const off = tabs.find((t) => t !== on)
+    const list = on.parentElement
+    const probe = document.createElement('i')
+    probe.style.color = 'var(--focus-ring)'
+    document.body.append(probe)
+    const ring = getComputedStyle(probe).color
+    probe.remove()
+    let panel = null
+    for (let e = list.parentElement; e && !panel; e = e.parentElement) {
+      const b = getComputedStyle(e).backgroundColor
+      if (b !== 'rgba(0, 0, 0, 0)') panel = b
+    }
+    const box = (t) => { const r = t.getBoundingClientRect(); const s = getComputedStyle(t); return { top: r.top, bottom: r.bottom, h: r.height, bg: s.backgroundColor, bbw: s.borderBottomWidth, bbc: s.borderBottomColor, shadow: s.boxShadow } }
+    on.focus()
+    const focus = { visible: on.matches(':focus-visible'), outline: getComputedStyle(on).outlineColor, w: getComputedStyle(on).outlineWidth }
+    on.blur()
+    const a = box(on)
+    return { ring, panel, list: list.getBoundingClientRect().bottom, on: a, off: box(off), marker: a.shadow.match(/^rgba?\([^)]*\)/)?.[0], inset: /^rgba?\([^)]*\) 0px 3px 0px 0px inset/.test(a.shadow), focus }
+  })
+}
+function tabChecks(where, t) {
+  ok(`T1 ${where}: the selected tab's marker is on its TOP edge, 3 px of --focus-ring; no visible bottom marker (its bottom border is its own fill)`,
+    t.inset && t.marker === t.ring && (t.on.bbw === '0px' || t.on.bbc === t.on.bg), t)
+  ok(`T2 ${where}: selected and focused shows one colour: the outline is the marker colour`, t.focus.visible && t.focus.outline === t.marker, t.focus)
+  ok(`T3 ${where}: both tabs have the same height and top`, Math.abs(t.on.h - t.off.h) <= 0.5 && Math.abs(t.on.top - t.off.top) <= 0.5, { on: t.on, off: t.off })
+  ok(`T4 ${where}: the selected tab sits on the tablist's bottom edge, in the fill of the panel it joins`, Math.abs(t.on.bottom - t.list) <= 0.5 && t.on.bg === t.panel, { bottom: t.on.bottom, list: t.list, bg: t.on.bg, panel: t.panel })
+  ok(`T5 ${where}: the inactive tab's fill differs from the selected one`, t.off.bg !== t.on.bg, { on: t.on.bg, off: t.off.bg })
+  ok(`T6 ${where}: each tab is at least 44 px high`, t.on.h >= 44 && t.off.h >= 44, { on: t.on.h, off: t.off.h })
 }
 
 const row = (key) => `[data-test=issues-row][data-key="${key}"]`
@@ -350,6 +392,7 @@ try {
        oldest first - created, then the title and description edits above, each
        with who and when (exact on hover); Discussion keeps the comment box,
        History has none (control) */
+    tabChecks(`${W}`, await tabLook(p))
     const talkIn = () => p.$('[data-test=issues-comment-input]').then(Boolean)
     const hCtl = await talkIn()
     await p.click('[data-test=issues-talk-tab][data-value="history"]')
@@ -504,6 +547,7 @@ try {
     await p.setViewport({ width: W, height: H, isMobile: true, hasTouch: true })
     await p.goto(server.base + '/issues?issue=SPL-1', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: NAV_TIMEOUT })
+    tabChecks(`${W}x${H}`, await tabLook(p))
     await p.$eval('[data-test=issues-talk-tab][data-value="history"]', (el) => el.click())
     await p.waitForSelector('[data-test=issues-history-row]', { visible: true, timeout: 5000 }).catch(() => {})
     await sleep(300)

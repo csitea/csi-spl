@@ -329,21 +329,6 @@ spl_dispatch_check_tenant() {
   fi
 }
 
-# The id that holds OD seat <id> on <box> in the roster of <data>: <id>
-# itself, else, on another box than this desk box, the role seat of the same
-# number (001..003) under any vendor letter - each box runs its role seats as
-# its own vendor (agentid.IsRoleSeat; the hub maps the alias, SPL-1716). prd
-# 2026-10-14: the box whose master is g-002 read the other, which seats c-002,
-# as "unseated: g-002@<box> g-003@<box>" on every workspace (SPL-1756). 1 when none.
-spl_dispatch_seat_on() {
-  local data="$1" box="$2" id="$3" rx s
-  spl_dispatch_rostered "$data" "$box" "$id" && { echo "$id"; return 0; }
-  rx="$(spl_dispatch_role_rx)"
-  [[ "$box" != "$DISPATCH_DESK_BOX" && -n "$rx" && "$id" =~ ^${rx}$ ]] || return 1
-  s="$(sed -n "s/^ros|$box|\(${rx}\)\$/\1/p" <<<"$data" | grep -- "-${id##*-}\$" | sed -n 1p)"
-  [[ -n "$s" ]] && echo "$s"
-}
-
 # The dispatcher's worktree: the identity map's (<spool root>/agents/<id>.json,
 # written at spawn), else <main checkout>-wt/<id>. Never the running checkout.
 spl_dispatch_worktree() {

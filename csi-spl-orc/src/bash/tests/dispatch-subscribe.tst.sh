@@ -18,6 +18,8 @@
 #      OD seat in the workspace at all is ABSENT (report only)
 #   9. SPL-2423: a humans-only channel (hon|, its people removed every agent)
 #      gets no OD seat add, is reported HUMANS-ONLY, and is no GAP for the check
+#  10. SPL-2650: another box's role seat under another vendor letter is not
+#      UNSEATED (the check's spl_dispatch_seat_on); a really missing one is
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -191,6 +193,25 @@ chk="$(env PROJ_PATH="$PROJ_ROOT" DISPATCH_SUBS_DIR="$SUBS" SPOOL_ROOT="$T/spool
   DISPATCH_ORCH=c-001 DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 DISPATCH_DESK_BOX=box-desk
   spl_dispatch_chans "$(cat "$DISPATCH_SUBS_DIR/w9.txt")"' 2>&1)"
 [[ "$chk" == lobby ]] && pass "9. spl_dispatch_chans (the check's channel list too) leaves the humans-only channels out" || fail "9. chans: $chk"
+
+# --- 10. SPL-2650: another box's role seat under another vendor letter is seated ---------------
+# prd 2026-10-20: the tick reported c-001@<box> c-002@<box> "unseated" on 8
+# workspaces while do_spl_dispatch_check read every seat seated: that box ran
+# the role seats under another letter, which the check accepts
+# (spl_dispatch_seat_on, SPL-1756) and subscribe's exact roster match did not.
+mkdir -p "$T/spool/dispatch"
+printf 'LEASE_FLEET=main\nLEASE_PRIORITY=box-desk,box-sat\n' >"$T/spool/dispatch/lease.conf"
+printf "chan|lobby\n${ODS}ros|box-sat|g-001\nros|box-sat|g-002\nros|box-sat|c-003\nsub|lobby|box-desk|c-001|invite\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|lobby|box-sat|c-003|invite\n" >"$SUBS/w10.txt"
+printf "chan|lobby\n${ODS}ros|box-sat|g-001\nros|box-sat|c-003\nsub|lobby|box-desk|c-001|invite\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|lobby|box-sat|c-003|invite\n" >"$SUBS/w11.txt"
+: >"$T/calls"
+run DISPATCH_TENANTS="w10 w11"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q '^UNSEATED w10' "$T/o" && grep -q 'SUM  w10: .* 0 OD seat(s) unseated' "$T/o" &&
+  pass "10. a role seat held under another vendor letter on another box (g-001 for c-001) is not UNSEATED" || fail "10. role seat: rc=$rc $(cat "$T/o")"
+grep -qx 'UNSEATED w11 c-002@box-sat (no roster row in w11: seat it with do_spl_desk_up; report only)' "$T/o" &&
+  pass "10. ... a role seat with no row under any letter is still UNSEATED" || fail "10. missing seat: $(cat "$T/o")"
+! grep -q 'PLAN add w1[01] .*(box-sat)' "$T/o" && pass "10. ... and what subscribe adds is unchanged (no add for the aliased seat)" ||
+  fail "10. adds: $(grep PLAN "$T/o")"
+rm -f "$T/spool/dispatch/lease.conf"
 
 echo "dispatch-subscribe: $fails failure(s)"
 [[ $fails -eq 0 ]]

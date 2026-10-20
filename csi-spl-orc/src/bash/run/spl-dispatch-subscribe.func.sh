@@ -24,6 +24,8 @@
 # @description   UNSEATED - REPORT ONLY: an OD seat of a fleet box with no
 # @description            roster row in the workspace: the hub refuses its
 # @description            subscription until do_spl_desk_up seats it there
+# @description            (another box's role seat counts under any vendor
+# @description            letter, spl_dispatch_seat_on, as in the check, SPL-2650)
 # @description   legacy - spec 061 L6: a role's OLD id (CLE-002 for c-002,
 # @description            from <spool root>/agent-id-aliases.tsv) is removed
 # @description            where the role's new id is already subscribed on
@@ -179,7 +181,7 @@ spl_dispatch_subscribe_tenant() {
   absent="$(spl_dispatch_fleet_boxes | grep -vxF -f <(printf '%s\n' $boxes) | tr '\n' ' ')"
   for fb in $boxes; do
     for a in $(spl_dispatch_od_ids); do
-      spl_dispatch_rostered "$data" "$fb" "$a" || unseated+="${unseated:+ }$a@$fb"
+      spl_dispatch_seat_on "$data" "$fb" "$a" >/dev/null || unseated+="${unseated:+ }$a@$fb"
     done
   done
   for ch in "${chans[@]}"; do
@@ -278,6 +280,21 @@ spl_dispatch_served_boxes() {
 # 0 when the workspace's roster in <data> has <agent> on <box>.
 spl_dispatch_rostered() {
   grep -qx "ros|$2|$3" <<<"$1"
+}
+
+# The id that holds OD seat <id> on <box> in the roster of <data>: <id>
+# itself, else, on another box than this desk box, the role seat of the same
+# number (001..003) under any vendor letter - each box runs its role seats as
+# its own vendor (agentid.IsRoleSeat; the hub maps the alias, SPL-1716). prd
+# 2026-10-14: the box whose master is g-002 read the other, which seats c-002,
+# as "unseated: g-002@<box> g-003@<box>" on every workspace (SPL-1756). 1 when none.
+spl_dispatch_seat_on() {
+  local data="$1" box="$2" id="$3" rx s
+  spl_dispatch_rostered "$data" "$box" "$id" && { echo "$id"; return 0; }
+  rx="$(spl_dispatch_role_rx)"
+  [[ "$box" != "$DISPATCH_DESK_BOX" && -n "$rx" && "$id" =~ ^${rx}$ ]] || return 1
+  s="$(sed -n "s/^ros|$box|\(${rx}\)\$/\1/p" <<<"$data" | grep -- "-${id##*-}\$" | sed -n 1p)"
+  [[ -n "$s" ]] && echo "$s"
 }
 
 # The legacy id an agent id was mapped from (agent-id-aliases.tsv), or nothing.

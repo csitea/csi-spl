@@ -231,7 +231,7 @@ do-tf-import: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET deman
 		./run -a do_tf_import \
 	'
 
-.PHONY: do-tf-replace-target ## @-> 03.11 reprovision (destroy/recreates) terraform resource
+.PHONY: do-tf-replace-target ## @-> 03.11 reprovision (destroy/recreates) terraform resource (dry run unless DRY_RUN=0)
 do-tf-replace-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
@@ -243,6 +243,7 @@ do-tf-replace-target: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TARG
 		-e APP=$${APP#*-} \
 		-e TARGET="$(TARGET)" \
 		-e STEP=$(STEP) \
+		-e DRY_RUN="$(DRY_RUN)" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_replace_target \
 	'
@@ -308,7 +309,7 @@ do-tf-state-pull: demand_var-ENV demand_var-STEP
 		./run -a do_tf_state_pull \
 	'
 
-.PHONY: do-tf-state-push ## @-> 03.16 push state to s3
+.PHONY: do-tf-state-push ## @-> 03.16 push state to s3 (dry run unless DRY_RUN=0)
 do-tf-state-push: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TFSTATE_FILE
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
@@ -320,6 +321,7 @@ do-tf-state-push: no-plan-ref demand_var-ENV demand_var-STEP demand_var-TFSTATE_
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e TFSTATE_FILE=$(TFSTATE_FILE) \
+		-e DRY_RUN="$(DRY_RUN)" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_state_push \
 	'

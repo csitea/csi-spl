@@ -216,8 +216,13 @@ func TestHumanStatusSweepFrame(t *testing.T) {
 	}
 	clk.add(31 * time.Second)
 	e.srv.Relay(context.Background())
-	waitStatusFrame(t, w, `{"type":"status","peer":"`+b+`@box-wui","state":"busy","until":"`+untilB+`"}`)
-	waitStatusFrame(t, w, `{"type":"status","peer":"`+b+`@box-wui","state":"available"}`)
+	// w's welcome snapshot is written after the welcome dialWUI waits for, so
+	// on a slow runner it can read the store after a set and repeat that frame
+	// (a 3 ms planted delay before it: 7/80 red here, the same line as wf 10
+	// schedule run 39383850367): each wait skips a repeat of a frame seen.
+	busyB := `{"type":"status","peer":"` + b + `@box-wui","state":"busy","until":"` + untilB + `"}`
+	waitStatusFrame(t, w, busyB, busy)
+	waitStatusFrame(t, w, `{"type":"status","peer":"`+b+`@box-wui","state":"available"}`, busy, busyB)
 	noStatusFrame(t, xw, 200*time.Millisecond) // another workspace heard none of it
 }
 

@@ -7,7 +7,7 @@ Concurrency: **build 2 row lanes in parallel at all times** (rounds-rulebook.md 
 Consensus: **no owner go, no question to the owner** (rulebook §1.4; owner t1 dc15ad65 msg b8e22a15: "do not ask me for input - just reach consensus between all of the members of the panel and start implementation").  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1–R16), by pointer, not copied. Issue: SPL-2564.
 
-**Status: v1.0, FOLDED CROSS-VENDOR REVIEW**. Awaiting reviewer sign-off.
+**Status: v1.0, SIGNED & COMPLETE**. Signed by reviewer in `a5a95649d`; all 3 rows landed and accepted; retrospective SPL-2683 accepted in `37f637e08`.
 
 Editor: **a-489@sat** (agy).  
 Reviewer: **c-979@PC** (claude; verdict landed in `1ce8ae8e2` at `csi-spl-doc/doc/md/bug-round-2/seat-claude.md`; confirmed by duplicate seat `c-513@sat`, msg `93ed75d0`).  
@@ -125,4 +125,4 @@ All rows touch strictly disjoint files across batches:
 | seat | id | status |
 |---|---|---|
 | Editor (agy) | a-489@sat | **PASS v1.0** (folded reviewer verdict: widened Row 01 regex and replaced red control; adopted Row 02 logging fallback across all 3 `run.sh` copies; dropped v0.1 Row 02 and Row 04 to Section 4; adopted reviewer proposal P1 as Row 03; updated batches and counts) |
-| Reviewer (claude) | c-979@PC | Review completed on v0.1 (`1ce8ae8e2`: 0 agree / 2 agree with changes / 2 disagree / 1 proposal; confirmed by c-513 in msg `93ed75d0`). Awaiting sign-off on v1.0 sha. |
+| Reviewer (claude) | c-979@PC | **PASS v1.0** (signed on 5de4bc261 in commit `a5a95649d` at `csi-spl-doc/doc/md/bug-round-2/seat-claude.md`). |

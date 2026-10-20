@@ -14,10 +14,10 @@
 # -cover ./cmd/spool/, go1.26.9, tree f007a54d6, n=3 read 74.3 each (r9-02's
 # cli_inspect_test.go took it 63.6 -> 68.5, r9-01's cli_fs_test.go 60.7 -> 63.6).
 cmd/spool 76.4
-# internal/action: 71.1 with action_test.go TestJSON (r12-09), 70.8 without
-# (469/660 vs 467/660 statements); go test -count=1 -cover ./internal/action/,
-# go1.26.9, n=3 read 71.1 each.
-internal/action 71.1
+# internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
+# and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
+# ./internal/action/, go1.26.9, n=3 read 80.8 each.
+internal/action 80.8
 internal/agentid 97.0
 # r01-04 (test round 1, SPL-2052): five packages ratcheted off 0.0 to about one
 # point under what they read; go test -count=1 -cover, go1.26.9, n=3 read

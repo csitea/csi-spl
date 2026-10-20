@@ -1,5 +1,5 @@
 // perf round 4 W5: useKeyboardInset subscribes to the tab's ONE viewport
-// source (utils/viewport-resize.mjs) - passive window + visualViewport
+// source (utils/viewport-resize.ts) - passive window + visualViewport
 // listeners, at most one run per frame - instead of adding three active
 // listeners of its own and reading innerHeight during mount.
 import { describe, it } from 'node:test'
@@ -8,7 +8,8 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createViewportResize } from '../../src/utils/viewport-resize.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { createViewportResize } = await importTs('src/utils/viewport-resize.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 

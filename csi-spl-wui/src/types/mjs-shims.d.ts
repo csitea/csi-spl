@@ -1602,23 +1602,6 @@ declare module '~/utils/font-size.mjs' {
   export function applyFontSizeAttr(level: unknown, el?: { setAttribute?(k: string, v: string): void } | null): number
 }
 
-declare module '~/utils/file-preview.mjs' {
-  export const PREVIEW_MAX_BYTES: number
-  export function isPreviewableImage(name: string | null | undefined, bytes?: number | null): boolean
-  export function previewImageMime(bytes: ArrayBuffer | Uint8Array | null | undefined): string
-  export type FileKind = 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'archive' | 'code' | 'media' | 'other'
-  export function fileExt(name: string | null | undefined): string
-  export function fileKind(name: string | null | undefined): {
-    kind: FileKind
-    icon: 'file' | 'file-text' | 'file-spreadsheet' | 'file-slides' | 'file-image' | 'file-archive' | 'file-code' | 'file-media'
-    ext: string
-  }
-  export function readDataUrl(file: Blob): Promise<string>
-  export const PREVIEW_CACHE_MAX: number
-  export function sharedPreview(fileId: string, load: () => Promise<string>): Promise<string>
-  export function resetSharedPreviews(): void
-}
-
 declare module '~/utils/event-log.mjs' {
   export const EVENT_FIELDS: Readonly<Record<string, string>>
   export const EVENT_CAPS: Readonly<Record<string, number>>
@@ -1938,13 +1921,6 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileStaleLoginLoad(navType: string | undefined, phone: boolean, path: string): boolean
 }
 
-declare module '~/utils/viewport-resize.mjs' {
-  type ViewportTarget = { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void }
-  type ViewportSubscribeOpts = { visual?: boolean, initial?: boolean }
-  export function createViewportResize(env?: { win?: (ViewportTarget & { visualViewport?: unknown }) | null, vv?: ViewportTarget | null, frame?: (fn: () => void) => unknown }): { subscribe(fn: () => void, opts?: ViewportSubscribeOpts): () => void, size(): number }
-  export function onViewportResize(fn: () => void, opts?: ViewportSubscribeOpts): () => void
-}
-
 declare module '~/utils/issue-columns-pref.mjs' {
   export const ISSUE_COLUMNS: readonly string[]
   export const ISSUE_COLUMN_MIN: number
@@ -2234,28 +2210,6 @@ declare module '~/utils/vim-nav.mjs' {
     seqState?: VimSeq | null,
     ctx?: { enabled?: boolean, phone?: boolean, overlayOpen?: boolean, now?: number },
   ): { action: VimAction | null, seq: VimSeq }
-}
-
-/* 103 T003: vim panels 0..3, the h / l resolver and the rows j / k walk */
-declare module '~/utils/vim-panels.mjs' {
-  export type VimPanel = 0 | 1 | 2 | 3
-  export type PanelQuery = { querySelectorAll?: (s: string) => ArrayLike<unknown> } | null
-  export const VIM_PANELS: readonly VimPanel[]
-  export const VIM_NOT_A_PANEL: string
-  export const VIM_COLLAPSED: string
-  export const VIM_ACTIVE_ITEM: string
-  export const PANE_SELECTORS: Readonly<Record<VimPanel, { readonly roots: readonly string[], items: string }>>
-  export function vimShown(el: unknown): boolean
-  export function activePanelOf(el: unknown): -1 | VimPanel
-  export function panelUsable(root: unknown, opts?: { visible?: (el: unknown) => boolean }): boolean
-  export function panelRoot(doc: PanelQuery, panel: number, opts?: { visible?: (el: unknown) => boolean }): Element | null
-  export function visiblePanels(doc: PanelQuery, opts?: { visible?: (el: unknown) => boolean }): VimPanel[]
-  export function resolveNextPanel(fromPanel: number, dir: 'left' | 'right' | 'back', visiblePanelsNow: readonly number[]): number
-  export function vimItemKey(el: unknown): string
-  export function vimRoveTabindex(items: readonly unknown[], current: unknown): void
-  export function panelItems(panelRootEl: PanelQuery | Element, panelId: number, opts?: { visible?: (el: unknown) => boolean, current?: unknown }): HTMLElement[]
-  export function panelEntry(items: readonly unknown[], opts?: { remembered?: string }): HTMLElement | null
-  export function vimStepItem(items: readonly unknown[], current: unknown, action: 'down' | 'up' | 'first' | 'last'): HTMLElement | null
 }
 
 declare module '~/utils/contact-links.mjs' {

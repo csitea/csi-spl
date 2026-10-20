@@ -159,7 +159,7 @@ The application already defines single-letter shortcuts, Shift-letter shortcuts,
 ### 6.1 One Unified Key Layer
 No per-view or per-component duplicate listeners.
 - **Pure Helper**: `src/utils/vim-nav.mjs` implements key mapping, sequence buffer (`g g`), and panel arithmetic without DOM dependencies for 100% unit testability.
-- **Panel Registry**: `src/utils/vim-panels.mjs` defines the DOM selector contracts for Panels 0, 1, 2, 3 across all view types.
+- **Panel Registry**: `src/utils/vim-panels.ts` defines the DOM selector contracts for Panels 0, 1, 2, 3 across all view types.
 - **Reactive State**: `src/stores/vim-nav.ts` tracks `{ currentPanel: 0|1|2|3, lastKeys: Record<PanelId, string> }`.
 - **Global Listener**: `src/composables/useVimNavigation.ts` installed once in `src/layouts/default.vue`.
 

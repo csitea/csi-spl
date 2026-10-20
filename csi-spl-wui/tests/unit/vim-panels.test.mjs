@@ -8,11 +8,12 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   VIM_ACTIVE_ITEM, VIM_COLLAPSED, VIM_PANELS, PANE_SELECTORS,
   activePanelOf, vimItemKey, panelEntry, panelItems, panelRoot, panelUsable,
   resolveNextPanel, vimRoveTabindex, vimShown, vimStepItem, visiblePanels,
-} from '../../src/utils/vim-panels.mjs'
+} = await importTs('src/utils/vim-panels.ts')
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 
@@ -335,7 +336,7 @@ describe('103 T003: the selectors name classes the WUI really renders', () => {
   walk(SRC)
   const all = vue.join('\n')
 
-  it('every root and row class appears in a .vue file (a rename must update vim-panels.mjs)', () => {
+  it('every root and row class appears in a .vue file (a rename must update vim-panels.ts)', () => {
     const sels = [...VIM_PANELS.flatMap((p) => [...PANE_SELECTORS[p].roots, ...PANE_SELECTORS[p].items.split(/\s*,\s*/)]), ...VIM_COLLAPSED.split(/\s*,\s*/)]
     const classes = new Set(sels.flatMap((s) => (s.match(/\.[\w-]+/g) || []).map((c) => c.slice(1))))
     assert.ok(classes.size > 20, `vacuous: only ${classes.size} classes`)

@@ -285,7 +285,7 @@ Named here, not specified.
 | Right-click message menu | `MessageMenu.vue`, `useMessageMenu.ts`; `b3d7c6b3`, `bcb954ea` |
 | PWA install | `src/plugins/pwa.client.ts`; `2d425bc5` |
 | Login wallpaper / crossfade | `d9daaa08`, `a79b74ee`, `74a1c40b` |
-| Picture preview | `src/utils/file-preview.mjs`; `4eab6fc6` |
+| Picture preview | `src/utils/file-preview.ts` (was `.mjs`, `4eab6fc6`) |
 | Clickable links in bodies | `src/utils/code-blocks.mjs`; `2b0f356c` |
 | Paste / drop to attach | `7267e602` |
 | Hide a DM row | `src/utils/sidebar-row-menu.mjs:71`; `6da1eaf9` |

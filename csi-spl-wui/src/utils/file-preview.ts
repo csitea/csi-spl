@@ -14,7 +14,7 @@ export const PREVIEW_MAX_BYTES = 10 * 1024 * 1024
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i
 
 /** true when `name` looks like a raster picture and is small enough to show inline */
-export function isPreviewableImage(name, bytes) {
+export function isPreviewableImage(name: string | null | undefined, bytes?: number | null): boolean {
   if (!IMAGE_EXT.test(String(name || ''))) return false
   const n = Number(bytes)
   return !(Number.isFinite(n) && n > PREVIEW_MAX_BYTES)
@@ -22,7 +22,10 @@ export function isPreviewableImage(name, bytes) {
 
 /* extension -> kind. The kind names the icon (UiIcon file-*) and the colour
    of the card's icon; anything unknown is a plain "other". */
-const KINDS = {
+export type FileKind = 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'archive' | 'code' | 'media' | 'other'
+type FileIcon = 'file' | 'file-text' | 'file-spreadsheet' | 'file-slides' | 'file-image' | 'file-archive' | 'file-code' | 'file-media'
+
+const KINDS: Record<Exclude<FileKind, 'other'>, string[]> = {
   pdf: ['pdf'],
   doc: ['doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages'],
   sheet: ['xls', 'xlsx', 'xlsm', 'ods', 'csv', 'tsv', 'numbers'],
@@ -32,7 +35,7 @@ const KINDS = {
   code: ['js', 'mjs', 'ts', 'py', 'go', 'sh', 'json', 'yaml', 'yml', 'xml', 'html', 'css', 'sql', 'rs', 'java', 'c', 'h', 'cpp', 'tf', 'toml', 'log'],
   media: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'mp4', 'mov', 'webm', 'mkv', 'avi'],
 }
-const ICON = {
+const ICON: Record<FileKind, FileIcon> = {
   pdf: 'file-text',
   doc: 'file-text',
   sheet: 'file-spreadsheet',
@@ -43,24 +46,24 @@ const ICON = {
   media: 'file-media',
   other: 'file',
 }
-const BY_EXT = new Map(Object.entries(KINDS).flatMap(([k, exts]) => exts.map((e) => [e, k])))
+const BY_EXT = new Map<string, FileKind>(Object.entries(KINDS).flatMap(([k, exts]) => exts.map((e): [string, FileKind] => [e, k as FileKind])))
 
 /** the lower-case extension of `name` without the dot, or '' */
-export function fileExt(name) {
+export function fileExt(name: string | null | undefined): string {
   const m = /\.([A-Za-z0-9]{1,8})$/.exec(String(name || ''))
   return m ? m[1].toLowerCase() : ''
 }
 
 /** { kind, icon, ext } for a file name: what the card and the composer chip draw */
-export function fileKind(name) {
+export function fileKind(name: string | null | undefined): { kind: FileKind, icon: FileIcon, ext: string } {
   const ext = fileExt(name)
   const kind = BY_EXT.get(ext) || 'other'
   return { kind, icon: ICON[kind], ext }
 }
 
 /** a picked File as a data: URL (every deployed CSP is img-src 'self' data:, never blob:) */
-export function readDataUrl(file) {
-  return new Promise((resolve) => {
+export function readDataUrl(file: Blob): Promise<string> {
+  return new Promise<string>((resolve) => {
     const r = new FileReader()
     r.onload = () => resolve(typeof r.result === 'string' ? r.result : '')
     r.onerror = () => resolve('')
@@ -72,13 +75,11 @@ export function readDataUrl(file) {
  * The picture type the bytes are, or '' when they are not one a browser
  * draws. The name only chose to fetch the file; a file NAMED .png that is not
  * a picture shows its icon instead.
- * @param {ArrayBuffer | Uint8Array | null | undefined} bytes
- * @returns {string}
  */
-export function previewImageMime(bytes) {
+export function previewImageMime(bytes: ArrayBuffer | Uint8Array | null | undefined): string {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
-  const at = (i, ...xs) => xs.every((x, k) => b[i + k] === x)
-  const ascii = (i, s) => at(i, ...[...s].map((c) => c.charCodeAt(0)))
+  const at = (i: number, ...xs: number[]) => xs.every((x, k) => b[i + k] === x)
+  const ascii = (i: number, s: string) => at(i, ...[...s].map((c) => c.charCodeAt(0)))
   if (at(0, 0x89, 0x50, 0x4e, 0x47)) return 'image/png'
   if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg'
   if (ascii(0, 'GIF8')) return 'image/gif'
@@ -93,7 +94,7 @@ export function previewImageMime(bytes) {
 
 /** Verified previews the page keeps, newest last (sharedPreview). */
 export const PREVIEW_CACHE_MAX = 48
-const previews = new Map()
+const previews = new Map<string, Promise<string>>()
 
 /**
  * One download + sha256 check per file for the life of the page.
@@ -104,11 +105,8 @@ const previews = new Map()
  * yields '' (a failure, a mismatch, not a picture) is not kept, so the next
  * card may try again. At most PREVIEW_CACHE_MAX previews are held; the
  * least recently used goes first.
- * @param {string} fileId
- * @param {() => Promise<string>} load
- * @returns {Promise<string>}
  */
-export function sharedPreview(fileId, load) {
+export function sharedPreview(fileId: string, load: () => Promise<string>): Promise<string> {
   const id = String(fileId || '')
   if (!id) return load()
   const hit = previews.get(id)
@@ -120,11 +118,11 @@ export function sharedPreview(fileId, load) {
   const run = Promise.resolve().then(load).catch(() => '')
   previews.set(id, run)
   run.then((url) => { if (!url && previews.get(id) === run) previews.delete(id) })
-  while (previews.size > PREVIEW_CACHE_MAX) previews.delete(previews.keys().next().value)
+  while (previews.size > PREVIEW_CACHE_MAX) previews.delete(previews.keys().next().value as string)
   return run
 }
 
 /** Test seam: forget every shared preview. */
-export function resetSharedPreviews() {
+export function resetSharedPreviews(): void {
   previews.clear()
 }

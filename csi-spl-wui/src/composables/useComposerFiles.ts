@@ -2,7 +2,7 @@
 // paperclip's picker and a pasted file (useFileAttach, shared with the issue
 // boxes), the picked pictures' thumbnails and a file dropped on the page.
 import type { Ref } from 'vue'
-import { isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
+import { isPreviewableImage, readDataUrl } from '~/utils/file-preview'
 import { carriesFiles, filesOf } from '~/utils/transfer-files'
 import { useFileAttach } from '~/composables/useFileAttach'
 import type { ComposerProps } from '~/composables/composerProps'

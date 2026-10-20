@@ -8,7 +8,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fileKind, fileExt, isPreviewableImage, previewImageMime, PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { fileKind, fileExt, isPreviewableImage, previewImageMime, PREVIEW_MAX_BYTES } = await importTs('src/utils/file-preview.ts')
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')

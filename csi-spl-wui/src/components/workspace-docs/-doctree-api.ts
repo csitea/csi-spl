@@ -7,7 +7,7 @@ import { ref, type Ref } from 'vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { docFetchTimeoutMs } from '~/utils/fetch-timeouts.mjs'
-import { readDataUrl } from '~/utils/file-preview.mjs'
+import { readDataUrl } from '~/utils/file-preview'
 
 export type DocHead = { id: string, title: string, description?: string, rev: number, items: number, root: string, topic_id: string, updated_at: string }
 export type DocItem = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }

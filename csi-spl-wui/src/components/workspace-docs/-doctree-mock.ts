@@ -6,7 +6,7 @@
    A write is kept in the tab's sessionStorage (SPL-1873: a re-order survives
    a reload, as on the hub); a new tab starts from the seed again.
    The `-` prefix keeps Nuxt from registering this file as a component. */
-import { readDataUrl } from '~/utils/file-preview.mjs'
+import { readDataUrl } from '~/utils/file-preview'
 import { authorOutline, outlineOf, siblingNumbers } from './-doc-outline'
 
 export type MockReply = { status: number, body: unknown }

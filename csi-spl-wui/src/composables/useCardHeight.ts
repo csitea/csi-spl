@@ -15,7 +15,7 @@ import {
   cardIsClipped,
   cardTitle,
 } from '~/utils/card-clip.mjs'
-import { onViewportResize } from '~/utils/viewport-resize.mjs'
+import { onViewportResize } from '~/utils/viewport-resize'
 import type { CardClipMode } from '~/composables/useCardClip'
 import { useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
 import type { FileRef, SpoolMessage } from '~/types/spool'

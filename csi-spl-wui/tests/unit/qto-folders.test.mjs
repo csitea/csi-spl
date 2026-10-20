@@ -13,7 +13,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -27,11 +27,14 @@ const esm = (src) => ts.transpileModule(src, {
 /* the outline helper the mock numbers with (spec 137 T012a): a data: URL has no directory to resolve './-doc-outline' from */
 const OUTLINE = 'data:text/javascript,' + encodeURIComponent(esm(read('src/components/workspace-docs/-doc-outline.ts'))).replace(/'/g, '%27')
 
+/* utils/file-preview.ts imports nothing, so its transpiled text loads from a data: URL as is */
+const FILE_PREVIEW = 'data:text/javascript,' + encodeURIComponent(esm(read('src/utils/file-preview.ts'))).replace(/'/g, '%27')
+
 let n = 0
 /** the mock module from TS source, a fresh copy each time (its state is module-level) */
 async function loadMock(src) {
   const js = esm(src)
-    .replace(/from '~\/utils\/file-preview\.mjs'/, `from '${pathToFileURL(join(WUI, 'src/utils/file-preview.mjs')).href}'`)
+    .replace(/from '~\/utils\/file-preview'/, `from '${FILE_PREVIEW}'`)
     .replace(/from '\.\/-doc-outline'/, `from '${OUTLINE}'`)
   return import('data:text/javascript,' + encodeURIComponent(js + `\n// copy ${++n}`))
 }

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { VIM_PANELS, vimItemKey, type VimPanel } from '~/utils/vim-panels.mjs'
+import { VIM_PANELS, vimItemKey, type VimPanel } from '~/utils/vim-panels'
 
 /* Spec 103 T004 (t1 7d9e1681): where vim navigation stands - the panel it is
    in (0 = icon rail, 1 = left list, 2 = centre list, 3 = topic pane), the row

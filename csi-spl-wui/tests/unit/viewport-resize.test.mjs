@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createViewportResize } from '../../src/utils/viewport-resize.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { createViewportResize } = await importTs('src/utils/viewport-resize.ts')
 import { messageCardSrc } from './lib/message-card-src.mjs'
 
 function rig() {

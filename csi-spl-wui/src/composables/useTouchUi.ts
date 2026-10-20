@@ -7,12 +7,12 @@
  *                       at the bottom (the composer, a bottom sheet, the send
  *                       error) sits ABOVE the keyboard. It subscribes to the
  *                       tab's one passive, rAF-coalesced viewport source
- *                       (utils/viewport-resize.mjs, perf round 4 W5), so it
+ *                       (utils/viewport-resize.ts, perf round 4 W5), so it
  *                       runs at most once per frame and never during mount.
  */
 import { keyboardInset } from '~/utils/touch-ui.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { onViewportResize } from '~/utils/viewport-resize.mjs'
+import { onViewportResize } from '~/utils/viewport-resize'
 
 /** SPL-989's one breakpoint (layouts/default.vue installs the stack) */
 export function usePhone() {

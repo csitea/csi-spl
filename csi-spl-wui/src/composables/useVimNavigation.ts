@@ -3,7 +3,7 @@
 // store and the ring css ride in a lazy chunk and the initial one does not
 // grow (160 KB ceiling).
 //
-// vim-nav.mjs says what a key means, vim-panels.mjs where the panels and
+// vim-nav.mjs says what a key means, vim-panels.ts where the panels and
 // their rows are, stores/vim-nav.ts where we stand. This file only acts:
 //   h / l / Esc    move the focus to the nearest shown panel that way
 //   j / k / gg / G step the rows of the panel the focus is in
@@ -22,7 +22,7 @@
 // The Keyboard shortcuts setting off, or a phone width: nothing.
 import '~/assets/css/vim-nav.css'
 import { VIM_SEQ_IDLE, vimNavMatch, vimNavOn } from '~/utils/vim-nav.mjs'
-import { activePanelOf, panelEntry, panelItems, panelRoot, resolveNextPanel, visiblePanels, vimStepItem } from '~/utils/vim-panels.mjs'
+import { activePanelOf, panelEntry, panelItems, panelRoot, resolveNextPanel, visiblePanels, vimStepItem } from '~/utils/vim-panels'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import { useVimNav } from '~/stores/vim-nav'

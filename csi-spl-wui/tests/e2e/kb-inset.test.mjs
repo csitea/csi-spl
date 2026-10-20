@@ -1,5 +1,5 @@
 // perf round 4 W5: the phone keyboard inset rides the tab's ONE passive,
-// rAF-coalesced viewport source (utils/viewport-resize.mjs).
+// rAF-coalesced viewport source (utils/viewport-resize.ts).
 //
 // On a 390x844 phone (mock tenant) it checks:
 //   listeners  window + visualViewport resize/scroll from useKeyboardInset are

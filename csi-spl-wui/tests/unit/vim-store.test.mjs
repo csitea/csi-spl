@@ -1,7 +1,7 @@
 // Spec 103 T004 (t1 7d9e1681): the vim-nav store (stores/vim-nav.ts) and the
 // vim focus ring (assets/css/vim-nav.css). The store is .ts, so the test
 // transpiles it with typescript and runs it against the real pinia + vue and
-// the real utils/vim-panels.mjs. Each check is a function returning the rules
+// the real utils/vim-panels.ts. Each check is a function returning the rules
 // it finds broken, so the controls can prove it catches a mutated source.
 //
 // Run: node tests/unit/vim-store.test.mjs
@@ -9,7 +9,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -20,6 +20,11 @@ const VUE = import.meta.resolve('vue')
 const STORE = read('src/stores/vim-nav.ts')
 const CSS = read('src/assets/css/vim-nav.css')
 
+/* utils/vim-panels.ts imports nothing, so its transpiled text loads from a data: URL as is */
+const VIM_PANELS_URL = 'data:text/javascript,' + encodeURIComponent(ts.transpileModule(read('src/utils/vim-panels.ts'), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText).replace(/'/g, '%27')
+
 /** The store module from TS source: bare imports pointed at real files. */
 async function loadStore(src) {
   const js = ts.transpileModule(src, {
@@ -27,7 +32,7 @@ async function loadStore(src) {
   }).outputText
     .replace(/from 'pinia'/, `from '${PINIA}'`)
     .replace(/from 'vue'/, `from '${VUE}'`)
-    .replace(/from '~\/utils\/vim-panels\.mjs'/, `from '${pathToFileURL(join(WUI, 'src/utils/vim-panels.mjs')).href}'`)
+    .replace(/from '~\/utils\/vim-panels'/, `from '${VIM_PANELS_URL}'`)
   const mod = await import('data:text/javascript,' + encodeURIComponent(js))
   const pinia = await import(PINIA)
   pinia.setActivePinia(pinia.createPinia())

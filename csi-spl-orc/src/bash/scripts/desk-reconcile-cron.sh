@@ -224,6 +224,27 @@ check_tools || exit $?
 # checkout), never while a git index.lock exists, only for a HEAD that is an
 # ancestor of trunk. DESK_DIRTY_RECOVER=0 turns it off. The blocker cites the
 # ref; `git -C <checkout> stash apply <ref>` gives the work back.
+#
+# ONE LOCK FOR EVERY MOVE OF THIS CHECKOUT (bug round 2 row 03, SPL-2672). Up to
+# 16 crontab lines fetch and check out this checkout, several in the same minute.
+# A tick that read HEAD and trunk between another line's fetch and its checkout,
+# or a half-written tree, reported (and "recovered") a checkout that was only
+# moving. Every installer's line moves it under flock on
+# <git dir>/desk-cron-checkout.lock (lib spl-desk-cron-lock.func.sh), and this
+# check takes the same lock, so it judges a settled tree. Waits up to
+# DESK_CRON_LOCK_WAIT seconds (default 300), then judges without it, with a WARN.
+co_lock=""
+if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && [ -r "$ORC/lib/bash/funcs/spl-desk-cron-lock.func.sh" ]; then
+  # shellcheck source=../../../lib/bash/funcs/spl-desk-cron-lock.func.sh
+  . "$ORC/lib/bash/funcs/spl-desk-cron-lock.func.sh"
+  co_lock="$(spl_desk_cron_lock_path "$ROOT")" || co_lock=""
+fi
+if [ -n "$co_lock" ] && exec 7>>"$co_lock"; then
+  flock -w "${DESK_CRON_LOCK_WAIT:-300}" 7 ||
+    say "WARN no checkout lock $co_lock within ${DESK_CRON_LOCK_WAIT:-300}s: the trunk check runs without it"
+else
+  co_lock=""
+fi
 rescue=""
 recover_dirty() {
   local lock="$mark_dir/recover.lock" snap ts n=1
@@ -295,6 +316,7 @@ if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${
     fi
   fi
 fi
+[ -n "$co_lock" ] && exec 7>&-
 
 # The dispatcher heartbeat lease (SPEC-spool-fleet-roles.md section 4): start
 # its renew + watch loops when they are not running. Idempotent (each loop

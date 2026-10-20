@@ -30,6 +30,8 @@
 # @example DRY_RUN=0 ./run -a do_spl_dispatch_rotate_install_cron
 # @example ROTATE_CRON_ACTION=check ./run -a do_spl_dispatch_rotate_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-checkout.func.sh"
 
@@ -53,7 +55,7 @@ do_spl_dispatch_rotate_install_cron() {
   logdir="${ROTATE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/dispatch-rotate}"
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   line="$(printf '%s * * * * %s%s >> %s/cron.out 2>&1 # %s' "$min" "$pre" "$script" "$logdir" "$tag")"
   # minutes o, o+every, ... never the rotation's own minute
   (( every )) && hline="$(printf '%s-59/%s * * * * %s%s --heal >> %s/heal.out 2>&1 # %s' \

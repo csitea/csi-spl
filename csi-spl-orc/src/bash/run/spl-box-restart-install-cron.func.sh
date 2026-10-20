@@ -25,6 +25,8 @@
 # @example BOX_RESTART_SLOT=1 DRY_RUN=0 ./run -a do_spl_box_restart_install_cron
 # @example BOX_RESTART_CRON_ACTION=check ./run -a do_spl_box_restart_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_render >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
 declare -F spl_brx_slot_parse >/dev/null ||
@@ -88,7 +90,7 @@ spl_brx_cron_build() {
   SPL_BRX_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/src/bash/scripts/box-restart-cron.sh"
   SPL_BRX_CRON_LOGDIR="${BOX_RESTART_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/box-restart}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $SPL_DESK_CRON_SRC && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$SPL_DESK_CRON_SRC" "$trunk")"
   SPL_BRX_CRON_LINE="*/5 * * * * $pre$SPL_BRX_CRON_SCRIPT --at '$SPL_BRX_CRON_AT' >> $SPL_BRX_CRON_LOGDIR/box-restart.out 2>&1 # $tag"
 }
 

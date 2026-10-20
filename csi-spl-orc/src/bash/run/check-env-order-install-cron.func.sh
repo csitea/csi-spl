@@ -19,6 +19,8 @@
 # @example DRY_RUN=0 ./run -a do_check_env_order_install_cron
 # @example ENV_ORDER_CRON_ACTION=check ./run -a do_check_env_order_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_render >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
@@ -41,7 +43,7 @@ do_check_env_order_install_cron() {
   logdir="${ENV_ORDER_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/env-order}"
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   line="$(printf '%s %s * * * %sDRY_RUN=0 %s >> %s/cron.out 2>&1 # %s' "$mm" "$hh" "$pre" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 

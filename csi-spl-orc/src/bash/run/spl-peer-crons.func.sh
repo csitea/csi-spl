@@ -30,6 +30,8 @@
 # @example APPLY=1 ./run -a do_spl_peer_crons
 # @example PEER_CRONS_CMD=check ./run -a do_spl_peer_crons
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_peer_restart_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-peer-restart.func.sh"
 declare -F spl_desk_cron_render >/dev/null ||
@@ -134,7 +136,7 @@ spl_peer_cron_build() {
   SPL_PEER_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/src/bash/scripts/peer-$name-cron.sh"
   SPL_PEER_CRON_LOGDIR="${PEER_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/peer}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 && "$name" != ensure ]] &&
-    pre="cd $SPL_DESK_CRON_SRC && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$SPL_DESK_CRON_SRC" "$trunk")"
   SPL_PEER_CRON_LINE="$sched $pre$SPL_PEER_CRON_SCRIPT >> $SPL_PEER_CRON_LOGDIR/$name.out 2>&1 # $SPL_PEER_CRON_TAG"
 }
 

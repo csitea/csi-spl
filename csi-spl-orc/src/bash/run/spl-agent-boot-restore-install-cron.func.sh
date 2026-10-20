@@ -37,6 +37,8 @@
 # @example BOOT_CRON_ACTION=check ./run -a do_spl_agent_boot_restore_install_cron
 # @example BOOT_CRON_ACTION=retire DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-checkout.func.sh"
 
@@ -55,7 +57,7 @@ do_spl_agent_boot_restore_install_cron() {
   logdir="${BOOT_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/agent-boot-restore}"
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   local gate; gate="$(spl_cron_boot_gate "$logdir/cron.out" "$script" "$tag")" || return 1
   line="$(printf '@reboot %s%s%s >> %s/cron.out 2>&1 # %s' "$gate" "$pre" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"

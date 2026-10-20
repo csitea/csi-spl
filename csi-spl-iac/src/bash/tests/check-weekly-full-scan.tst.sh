@@ -49,7 +49,7 @@ cmp -s "$CT" "$T/orig" && grep -q '^+0 17 \* \* 5 ' <<<"$out" \
 DRY_RUN=0 inst >/dev/null
 n="$(grep -c ' # csi-spl:weekly-full-scan$' "$CT")"
 line="$(grep ' # csi-spl:weekly-full-scan$' "$CT")"
-{ [[ "$n" == 1 ]] && [[ "$line" == "0 17 * * 5 "* ]] && [[ "$line" == *"cd $SRC && git fetch -q origin master && git checkout -q --detach origin/master;"* ]] \
+{ [[ "$n" == 1 ]] && [[ "$line" == "0 17 * * 5 "* ]] && [[ "$line" == *"cd $SRC && flock -w 300 \"\$(git rev-parse --absolute-git-dir)/desk-cron-checkout.lock\" sh -c 'git fetch -q origin master && git checkout -q --detach origin/master';"* ]] \
   && [[ "$line" == *"DRY_RUN=0 $SRC/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh"* ]]; } \
   && pass "2. one tagged line: Friday 17:00, self-updating desk-cron checkout, DRY_RUN=0" || fail "2. install" "n=$n line=$line"
 grep -qx '\*/3 \* \* \* \* echo desk # csi-spl:desk-reconcile' "$CT" && grep -qx '0 8 \* \* \* echo unrelated' "$CT" \

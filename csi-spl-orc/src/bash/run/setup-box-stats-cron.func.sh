@@ -24,6 +24,8 @@
 # @example DRY_RUN=0 ./run -a do_setup_box_stats_cron
 # @example BOX_STATS_CRON_ACTION=check ./run -a do_setup_box_stats_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_render >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
@@ -47,7 +49,7 @@ do_setup_box_stats_cron() {
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   line="$(printf '%s * * * * %s%s >> %s/cron.out 2>&1 # %s' "$sched" "$pre" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 

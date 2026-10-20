@@ -79,6 +79,9 @@
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_desk_install_service
 # @example ENV=prd TENANT_ID=t1 DESK_MUTE=CLE-00 DESK_CRON_EVERY=3 ./run -a do_spl_desk_install_service
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
+
 do_spl_desk_install_service() {
   do_require_bin crontab python3 || return 1
   ENV="${ENV:-dev}"
@@ -259,7 +262,7 @@ spl_desk_cron_build_line() {
     { do_log "FATAL DESK_CRON_OFFSET must be 0..$((every - 1)), got: '$off'"; return 1; }
   if (( off == 0 )); then sched="*/$every * * * *"; else sched="$off-59/$every * * * *"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   [[ "$env_name" == dev ]] || out="cron-$env_name.out"
   if [[ "$boot" == 1 ]]; then
     sched="@reboot" arg=" --boot"

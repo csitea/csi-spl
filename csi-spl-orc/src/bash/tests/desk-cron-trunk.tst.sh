@@ -27,6 +27,11 @@
 #      disk and cites the ref in the blocker. A trunk file an untracked file
 #      would overwrite: git refuses, the work stays in the ref, still stale.
 #      Sections 2-3 run with DESK_DIRTY_RECOVER=0 (the off switch).
+#  12. concurrent checkouts (SPL-2672, bug round 2 row 03): a mover moves origin
+#      between two SIBLING commits and runs the installers' crontab prefix 30
+#      times while ticks run beside it. With the shared lock
+#      (lib spl-desk-cron-lock.func.sh) no tick reports or recovers the moving
+#      checkout; without it (e2f26242e, n=6) 6..14 of ~15 ticks did.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -183,6 +188,58 @@ ref2="$(rescues | grep -vx "$ref")"
   pass "11. an untracked file trunk would overwrite: git refuses, file kept, work in the ref, still stale and told" ||
   fail "11. conflict: rc=$rc ref2=$ref2 $(cat "$T/o") sent: $(tail -1 "$T/sent")"
 rm -f "$CO/adds-x"; g checkout -q --detach origin/master
+
+# --- 12. concurrent checkouts are serialised with the tick (bug round 2 row 03) -----------
+# Several crontab lines fetch and check out the desk-cron checkout in the same minute.
+# A mover moves a bare origin's master between two SIBLING commits (neither an ancestor
+# of the other) and runs the installers' crontab prefix, while ticks run alongside.
+# Unserialised, a tick reads HEAD and trunk between a fetch and its checkout (or a
+# half-written tree) and reports a checkout that is only moving. With the shared lock
+# (spl-desk-cron-lock.func.sh) every tick judges a settled tree: no report.
+C12="$T/c12" B12="$T/c12-origin.git" O12="$T/c12/$ORC_NAME"
+mkdir -p "$C12" && git -c init.defaultBranch=master -C "$C12" init -q
+mkdir -p "$O12/src/bash/scripts" "$O12/src/bash/features/spawn-agents/scripts" "$O12/lib/bash/funcs"
+cp "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" "$O12/src/bash/scripts/"
+LOCK_LIB="$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh"
+[[ -f "$LOCK_LIB" ]] && cp "$LOCK_LIB" "$O12/lib/bash/funcs/"
+cp "$O/run" "$O12/run"; sed -i '/^dirt$/d' "$O12/run"
+cp "$O/src/bash/features/spawn-agents/scripts/spool-send.sh" "$O12/src/bash/features/spawn-agents/scripts/"
+chmod +x "$O12/run" "$O12/src/bash/scripts/desk-reconcile-cron.sh"
+g12() { git -C "$C12" -c user.name=t -c user.email=t@example.com "$@"; }
+g12 add . && g12 commit -q -m base; base12="$(g12 rev-parse HEAD)"
+side12() {  # <name>: a commit on base12 rewriting 400 files, so a checkout takes time
+  g12 checkout -q --detach "$base12" && mkdir -p "$C12/data"
+  for i in $(seq 1 400); do echo "$1 $i" >"$C12/data/f$i"; done
+  g12 add data && g12 commit -q -m "$1" && g12 rev-parse HEAD
+}
+s_x="$(side12 x)"; s_y="$(side12 y)"
+g12 branch -q -f master "$s_x"
+git clone -q --bare "$C12" "$B12"
+g12 remote add origin "$B12" && g12 fetch -q origin && g12 checkout -q --detach origin/master
+if [[ -f "$LOCK_LIB" ]]; then
+  # shellcheck source=/dev/null
+  source "$LOCK_LIB"; PRE12="$(spl_desk_cron_update_pre "$C12" master)"
+else
+  PRE12="cd $C12 && git fetch -q origin master && git checkout -q --detach origin/master; "
+fi
+(
+  for i in $(seq 1 30); do
+    [[ $((i % 2)) == 1 ]] && s="$s_y" || s="$s_x"
+    git -C "$B12" update-ref refs/heads/master "$s"
+    sh -c "${PRE12}true" >/dev/null 2>&1
+  done
+) & mover=$!
+: >"$T/o12"; k12=0
+while kill -0 "$mover" 2>/dev/null; do
+  env SPOOL_ROOT="$T/spool" DESK_CRON_TOOLS=git DESK_CRON_STATE_DIR="$T/state12" HOME="$T" \
+    bash "$O12/src/bash/scripts/desk-reconcile-cron.sh" >>"$T/o12" 2>&1
+  k12=$((k12 + 1))
+done
+wait "$mover"
+n12="$(grep -c 'NOT on trunk\|saved the dirty' "$T/o12")"
+[[ "$n12" == 0 && "$k12" -ge 3 ]] &&
+  pass "12. ticks beside 30 concurrent checkouts of two sibling commits: $k12 ticks, none reports or recovers the moving checkout" ||
+  fail "12. $n12 false report(s) or recoveries in $k12 ticks beside concurrent checkouts: $(grep 'NOT on trunk\|saved the dirty' "$T/o12" | sed -n 1,3p)"
 
 echo "desk-cron-trunk: $fails failure(s)"
 [[ $fails -eq 0 ]]

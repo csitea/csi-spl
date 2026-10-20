@@ -55,7 +55,7 @@ svc() {
     do_spl_desk_install_service' 2>&1
 }
 
-PRE="cd $C && git fetch -q origin master && git checkout -q --detach origin/master; "
+PRE="cd $C && flock -w 300 \"\$(git rev-parse --absolute-git-dir)/desk-cron-checkout.lock\" sh -c 'git fetch -q origin master && git checkout -q --detach origin/master'; "
 PD="\$HOME/.local/share/$OA/cloud/prd/m3-e2e/e2e"
 DEV3="*/3 * * * * ${PRE}ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 $SCRIPT >> $L/cron.out 2>&1 # $OA:desk-reconcile"
 PRD3="1-59/3 * * * * ${PRE}ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human $SCRIPT >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd"
@@ -118,7 +118,7 @@ mv "$T/away" "$C"
 out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_CRON_SRC="$C")"
 [[ "$out" == *"+*/3 * * * * ENV=dev"* ]] && pass "7. an explicit DESK_CRON_SRC gets no self-update prefix" || fail "7. explicit: $out"
 out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_CRON_SRC="$C" DESK_CRON_SELF_UPDATE=1)"
-[[ "$out" == *"+*/3 * * * * cd $C && git fetch"* ]] && pass "7. ...unless DESK_CRON_SELF_UPDATE=1" || fail "7. forced: $out"
+[[ "$out" == *"+*/3 * * * * ${PRE}ENV=dev"* ]] && pass "7. ...unless DESK_CRON_SELF_UPDATE=1" || fail "7. forced: $out"
 
 echo "desk-install-service-envs: $fails failure(s)"
 [[ $fails -eq 0 ]]

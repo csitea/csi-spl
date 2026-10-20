@@ -29,6 +29,8 @@
 # @example CPU_BUDGET_GATE_FLOOR_PCT=0 DRY_RUN=0 ./run -a do_setup_gh_runner_cpu_budget_cron
 # @example CPU_BUDGET_CRON_ACTION=check ./run -a do_setup_gh_runner_cpu_budget_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_render >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
@@ -52,7 +54,7 @@ do_setup_gh_runner_cpu_budget_cron() {
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh"
   logdir="${CPU_BUDGET_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/gh-runner-cpu-budget}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=%s CPU_BUDGET_CI_WEIGHT=%s %s >> %s/cron.out 2>&1 # %s' \
     "$pre" "$floor" "$reserve" "$weight" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"

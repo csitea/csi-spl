@@ -30,6 +30,8 @@
 # @example DRY_RUN=0 ./run -a do_spl_unanswered_sweep_install_cron
 # @example SWEEP_CRON_ACTION=check ./run -a do_spl_unanswered_sweep_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-checkout.func.sh"
 
@@ -56,7 +58,7 @@ do_spl_unanswered_sweep_install_cron() {
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   if (( every == 1 )); then sched="*"; elif (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
-    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+    pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   [[ "$env_name" == prd ]] || out="cron-$env_name.out"
   line="$(printf '%s * * * * %sENV=%s SWEEP_MIN_AGE=%s SWEEP_ESCALATE_AGE=%s %s >> %s/%s 2>&1 # %s' \
     "$sched" "$pre" "$env_name" "$min_age" "$esc_age" "$script" "$logdir" "$out" "$tag")"

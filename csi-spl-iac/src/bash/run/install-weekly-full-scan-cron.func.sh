@@ -21,6 +21,9 @@
 # @example WEEKLY_SCAN_CRON_ACTION=remove DRY_RUN=0 ./run -a do_install_weekly_full_scan_cron
 #------------------------------------------------------------------------------
 
+declare -F spl_desk_cron_update_pre >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh"
+
 _iwfs_read() {
   if [[ -n "${WEEKLY_SCAN_CRONTAB:-}" ]]; then cat "$WEEKLY_SCAN_CRONTAB" 2>/dev/null || true
   else crontab -l 2>/dev/null || true; fi
@@ -43,7 +46,7 @@ do_install_weekly_full_scan_cron() {
   case "$src" in */*-wt/*) do_log "FATAL $src is an agent worktree: it is deleted when its agent finishes, and the job would stop silently"; return 1 ;; esac
   logdir="${WEEKLY_SCAN_LOG_DIR:-/var/$org/$app/weekly-scan}"
   tag="# $app:weekly-full-scan"
-  line="0 17 * * 5 cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; DRY_RUN=0 $src/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh >> $logdir/cron.out 2>&1 $tag"
+  line="0 17 * * 5 $(spl_desk_cron_update_pre "$src" "$trunk")DRY_RUN=0 $src/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh >> $logdir/cron.out 2>&1 $tag"
 
   local old new
   old="$(mktemp)"; new="$(mktemp)"

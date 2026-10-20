@@ -126,9 +126,14 @@ func flowCoveredSQL(e, m, now, lobby string) string {
 // sub-thread line) has no live is_parent 1 row in that channel (SPL-2506).
 // The issues and tasks boards are left out: their lines (HUB-0 writes them
 // with is_parent 0) are rows of their own pages, not channel cards. One probe
-// of messages_task_received.
+// keyed on (tenant_id, task_id). The topic is a CASE, not coalesce (SPL-2705):
+// under row-level security a qual that Postgres cannot prove leakproof stays
+// behind the policy quals, a CoalesceExpr never is, so h.task_id = coalesce(..)
+// was a Filter and prd read the whole channel on messages_channel per line
+// (2026-10-20: 1 959 rows per loop, 85 790 of flow_counts' 94 046 buffers).
+// Test: flow_headless_plan_test.go.
 func flowHeadlessSQL(e, m, now, lobby string) string {
-	topic := `coalesce(` + m + `.parent_task_id, ` + m + `.task_id)`
+	topic := `CASE WHEN ` + m + `.parent_task_id IS NULL THEN ` + m + `.task_id ELSE ` + m + `.parent_task_id END`
 	return `
 		OR (` + m + `.channel IS NOT NULL AND ` + m + `.channel NOT IN ('` + ChannelIssues + `', '` + ChannelTasks + `')
 			AND ` + topic + `::text <> ` + lobby + ` AND NOT EXISTS (SELECT 1 FROM messages h

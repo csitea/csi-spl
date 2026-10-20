@@ -1,10 +1,14 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 )
@@ -24,11 +28,16 @@ func TestHubRunReconnectsAfterOneShotSync(t *testing.T) {
 	bx.c.SessionProbe = -1
 	bx.c.SupersedeYield = 300 * time.Millisecond
 	bx.c.SupersedeFight = 3 * time.Second
+	logs := &syncWriter{w: &bytes.Buffer{}}
+	bx.c.Log = zerolog.New(logs)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- bx.c.Run(ctx) }()
-	eventually(t, "the daemon's first session", func() bool { return sp.dials.Load() == 1 })
+	// "hub session up", not the upgrade count: the upgrade is counted before
+	// the hello, and a sync whose hello lands first is the one evicted, so
+	// the daemon never sees a 4409 (wf 20 39425899442, dials 1).
+	eventually(t, "the daemon's first session", func() bool { return strings.Contains(logs.String(), "hub session up") })
 
 	sync := hubclient.New(bx.cfg) // the hand-run hub-sync: same box, own process
 	sync.HTTP = e.client

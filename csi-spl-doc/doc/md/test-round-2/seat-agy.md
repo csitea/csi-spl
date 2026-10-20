@@ -60,3 +60,5 @@ signed: a-481@sat on v1.0 (SPL-2402, SPL-2554)
 - Hourly rotation at 00:35Z UTC: Worktree clean and synchronized with origin/master (`66f05d212`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.
 - Hourly rotation at 01:36Z UTC: Worktree clean and synchronized with origin/master (`546f89e88`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.
 - Hourly rotation at 02:37Z UTC: Worktree clean and synchronized with origin/master (`0260ff749`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.
+- Batch 2 (Rows 05–08) queued by dispatcher `c-002@sat` (msg `7f9f60d5`); briefs `/var/spool-hub/dispatch/briefs/c002-tr2-0{5,6,7,8}-*.md`. Editor standing by for incoming Batch 2 review requests on task `dispatch-4555450c`.
+- Hourly rotation at 03:38Z UTC: Worktree clean and synchronized with origin/master (`128e87c5a`). Editor standing by for incoming Batch 2 review requests or dispatch `ACCEPTED` verdict.

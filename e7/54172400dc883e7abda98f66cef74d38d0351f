@@ -1,0 +1,6 @@
+Lay-What: The backup coordinator no longer takes over too early or too late when a machine's clock jumps.
+Lay-How: The watcher now measures how long the main coordinator has been quiet with a clock that never jumps.
+Lay-Why: A clock jump made a healthy coordinator look dead, or kept a dead one in charge for ten minutes.
+Tech-What: Local-mode dispatch lease watch (no LEASE_FLEET) ages the lease on /proc/uptime, not the wall clock.
+Tech-How: spl_lease_local_age keeps holder, epoch, mono base, mono look and btime in dispatch/watch.seen; watch_tick and promote use it.
+Tech-Why: SPL-2139 drill: a +300 s jump promoted the failover of a renewing master, a -600 s step delayed a failover 600 s.

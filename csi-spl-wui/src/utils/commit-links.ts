@@ -16,8 +16,19 @@
  *
  * Loaded lazily (plugins/commit-links.client.ts) and reached through
  * utils/commit-link-hook.mjs, so the initial chunk does not grow. Pure: node
- * tests import this file directly.
+ * tests import this file through importTs.
  */
+
+/** A text or link part; `code` marks a link made from an inline code span. */
+export type CommitPart = { type: string, text: string, href?: string, code?: boolean }
+/** The token check of the id linker: true = an id it owns, never a commit. */
+export type IsId = (token: string) => boolean
+export type CommitLinker = {
+  blocks: (blocks: unknown[], isId?: IsId) => unknown[],
+  markdown: (src: string, isId?: IsId) => string,
+  inline: (text: string, isId?: IsId, before?: string) => string,
+}
+type Block = { type?: string, lang?: unknown, text?: string, parts?: CommitPart[], items?: { parts?: CommitPart[] }[] }
 
 const HASH_RE = /(?<![0-9A-Za-z_\-/.#@])[0-9a-fA-F]{7,40}(?![0-9A-Za-z_\-/@]|\.[0-9A-Za-z])/g
 const HAS_RUN = /[0-9a-fA-F]{7}/
@@ -30,32 +41,32 @@ const ID_WORD_RE = /\b(?:topics?|discussions?|threads?|msgs?|messages?|replies|r
 const PROTECT_RE = /```[\s\S]*?```|`{1,2}[^`\n]+`{1,2}|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<>)\]]+|www\.[^\s<>)\]]+/gi
 
 /** An http(s) url with no trailing slash, or '' when it is not one. */
-export function repoBase(url) {
+export function repoBase(url: unknown): string {
   const s = String(url ?? '').trim().replace(/\/+$/, '')
   return /^https?:\/\/[^\s"'<>]+$/i.test(s) ? s : ''
 }
 
 /** A url path that starts and ends with '/', or '' when it is not one. */
-export function repoPath(path) {
+export function repoPath(path: unknown): string {
   const s = String(path ?? '').trim()
   return /^\/[^\s"'<>?#]*\/$/.test(s) ? s : ''
 }
 
 /** Does the token read as a commit hash (not a word, not a plain number)? */
-export function isCommitHash(token) {
+export function isCommitHash(token: unknown): boolean {
   const s = String(token ?? '')
   return /^[0-9a-fA-F]{7,40}$/.test(s) && /[0-9]/.test(s) && /[a-fA-F]/.test(s)
 }
 
 /** The commit url prefix from the two cnf values, or '' (feature off). */
-export function commitPrefix(webUrl, commitPath) {
+export function commitPrefix(webUrl: unknown, commitPath: unknown): string {
   const b = repoBase(webUrl)
   const p = repoPath(commitPath)
   return b && p ? b + p : ''
 }
 
 /** <prefix><hash>, or '' when either is not usable. */
-export function commitHref(prefix, hash) {
+export function commitHref(prefix: string, hash: unknown): string {
   if (!prefix || !isCommitHash(hash)) return ''
   return prefix + String(hash).toLowerCase()
 }
@@ -64,32 +75,32 @@ export function commitHref(prefix, hash) {
  * A release note's commit: its sha is a commit by definition, so an
  * all-digit one links too. <prefix><sha>, or '' when either is not usable.
  */
-export function shaHref(prefix, sha) {
+export function shaHref(prefix: string, sha: unknown): string {
   const s = String(sha ?? '')
   return prefix && /^[0-9a-fA-F]{7,40}$/.test(s) ? prefix + s.toLowerCase() : ''
 }
 
-function protectRanges(s) {
-  const ranges = []
+function protectRanges(s: string): [number, number][] {
+  const ranges: [number, number][] = []
   PROTECT_RE.lastIndex = 0
-  for (const m of s.matchAll(PROTECT_RE)) ranges.push([m.index, m.index + m[0].length])
+  for (const m of s.matchAll(PROTECT_RE)) ranges.push([m.index ?? 0, (m.index ?? 0) + m[0].length])
   const openAt = s.lastIndexOf('```')
   if (openAt >= 0 && !ranges.some(([a, b]) => openAt >= a && openAt < b)) ranges.push([openAt, s.length])
   return ranges
 }
 
 /** Is the hex at start an id: a known topic/message (isId) or named as one? */
-function namedAsId(s, start, token, isId) {
+function namedAsId(s: string, start: number, token: string, isId?: IsId): boolean {
   if (typeof isId === 'function' && isId(token)) return true
   return ID_WORD_RE.test(s.slice(Math.max(0, start - 24), start))
 }
 
-function findHits(s, isId) {
+function findHits(s: string, isId?: IsId): { start: number, end: number }[] {
   const ranges = protectRanges(s)
-  const hits = []
+  const hits: { start: number, end: number }[] = []
   HASH_RE.lastIndex = 0
   for (const m of s.matchAll(HASH_RE)) {
-    const start = m.index
+    const start = m.index ?? 0
     const end = start + m[0].length
     if (!isCommitHash(m[0]) || ranges.some(([a, z]) => start >= a && end <= z) || namedAsId(s, start, m[0], isId)) continue
     hits.push({ start, end })
@@ -101,12 +112,12 @@ function findHits(s, isId) {
  * Text parts and link parts. `prefix` is commitPrefix(); '' = unchanged.
  * isId(token) = an id the id linker owns (never a commit).
  */
-export function linkifyCommitText(text, prefix, isId) {
+export function linkifyCommitText(text: unknown, prefix: string, isId?: IsId): CommitPart[] {
   const s = String(text ?? '')
   if (!prefix || !HAS_RUN.test(s)) return [{ type: 'text', text: s }]
   const hits = findHits(s, isId)
   if (!hits.length) return [{ type: 'text', text: s }]
-  const parts = []
+  const parts: CommitPart[] = []
   let last = 0
   for (const h of hits) {
     if (h.start > last) parts.push({ type: 'text', text: s.slice(last, h.start) })
@@ -119,7 +130,7 @@ export function linkifyCommitText(text, prefix, isId) {
 }
 
 /** The same markdown, a hash written as a link; code and links untouched. */
-export function linkifyCommitMarkdown(src, prefix, isId) {
+export function linkifyCommitMarkdown(src: unknown, prefix: string, isId?: IsId): string {
   const s = String(src ?? '')
   const parts = linkifyCommitText(s, prefix, isId)
   if (parts.length === 1 && parts[0].type === 'text') return s
@@ -127,14 +138,14 @@ export function linkifyCommitMarkdown(src, prefix, isId) {
 }
 
 /** An inline code span that is only a hash: its commit href, or ''. before = the text in front of it. */
-export function inlineCommitHref(prefix, text, isId, before = '') {
+export function inlineCommitHref(prefix: string, text: unknown, isId?: IsId, before = ''): string {
   const s = String(text ?? '').trim()
   if (!isCommitHash(s) || (typeof isId === 'function' && isId(s)) || ID_WORD_RE.test(String(before).slice(-24))) return ''
   return commitHref(prefix, s)
 }
 
-function linkifyParts(parts, prefix, isId) {
-  const out = []
+function linkifyParts(parts: CommitPart[] | undefined, prefix: string, isId?: IsId): CommitPart[] {
+  const out: CommitPart[] = []
   let before = ''
   for (const p of parts || []) {
     const after = p && typeof p.text === 'string' ? p.text : ''
@@ -160,9 +171,9 @@ function linkifyParts(parts, prefix, isId) {
  * A parseBody tree with hashes in text and hash-only code spans linked;
  * fences and links left alone. isId(token) = an id the id linker owns.
  */
-export function linkifyCommitBlocks(blocks, prefix, isId) {
+export function linkifyCommitBlocks<T>(blocks: T, prefix: string, isId?: IsId): T {
   if (!prefix || !Array.isArray(blocks)) return blocks
-  return blocks.map((b) => {
+  return blocks.map((b: Block | null) => {
     if (!b) return b
     if (b.type === 'code') {
       if (!MD_LANG.test(String(b.lang || ''))) return b
@@ -174,11 +185,11 @@ export function linkifyCommitBlocks(blocks, prefix, isId) {
       return { ...b, items: b.items.map((it) => ({ ...it, parts: linkifyParts(it.parts, prefix, isId) })) }
     }
     return b
-  })
+  }) as T
 }
 
 /** The linker utils/commit-link-hook.mjs holds: null when either value is unset. */
-export function commitLinker(webUrl, commitPath) {
+export function commitLinker(webUrl: unknown, commitPath: unknown): CommitLinker | null {
   const prefix = commitPrefix(webUrl, commitPath)
   if (!prefix) return null
   return {

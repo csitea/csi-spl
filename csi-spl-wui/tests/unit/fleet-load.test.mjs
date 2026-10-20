@@ -27,7 +27,8 @@ import {
   suggestFleetBoxes,
   validFleetBox,
 } from '../../src/utils/fleet-load.mjs'
-import { tenantSettingsSectionOf, tenantSettingsSections } from '../../src/utils/tenant-settings-nav.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { tenantSettingsSectionOf, tenantSettingsSections } = await importTs('src/utils/tenant-settings-nav.ts')
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 

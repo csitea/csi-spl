@@ -73,7 +73,7 @@ ok('null resets the kind', !normalizeTakeoverLadder(m1.get())[2].set)
 
 // --- the page wiring -------------------------------------------------------
 const page = readFileSync(new URL('../../src/pages/tenant-settings/takeover.vue', import.meta.url), 'utf8')
-const nav = readFileSync(new URL('../../src/utils/tenant-settings-nav.mjs', import.meta.url), 'utf8')
+const nav = readFileSync(new URL('../../src/utils/tenant-settings-nav.ts', import.meta.url), 'utf8')
 ok('the page reads and writes through the client', page.includes('api.getTakeoverLadder()') && page.includes('api.putTakeoverLadder('))
 ok('the nav lists the section for tenant.settings', nav.includes("{ id: 'takeover', label: 'tenant_settings.takeover', perm: 'tenant.settings' }"))
 

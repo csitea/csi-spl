@@ -1,5 +1,5 @@
 /**
- * Where code-blocks.mjs finds the commit linker (utils/commit-links.mjs).
+ * Where code-blocks.mjs finds the commit linker (utils/commit-links.ts).
  * plugins/commit-links.client.ts registers it once that chunk has loaded;
  * until then, with the cnf unset, and in a unit test it is null and a body
  * renders as it always did. Kept apart so the initial chunk carries only this.

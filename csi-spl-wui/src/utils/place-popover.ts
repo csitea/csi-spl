@@ -9,13 +9,23 @@
  * preferred top (a right-click, or a trigger's bottom edge).
  * `maxWidth` / `maxHeight` are the limits the panel has to apply.
  */
-export const POPOVER_MARGIN = 8
+const POPOVER_MARGIN = 8
 
-function px(v) {
+export type PopoverBox = { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number }
+export type PopoverViewport = { width: number, height: number }
+/** A trigger's viewport rect (see applyPopover). */
+export type PopoverAnchor = { left: number, right: number, top: number, bottom: number, align?: 'start' | 'end', gap?: number, lockWidth?: boolean }
+
+function px(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
-export function placePopover(anchor, size, viewport, margin = POPOVER_MARGIN) {
+export function placePopover(
+  anchor: { x?: number, y?: number, flipFrom?: number } | null | undefined,
+  size: { width?: number, height?: number } | null | undefined,
+  viewport: { width?: number, height?: number } | null | undefined,
+  margin: number = POPOVER_MARGIN,
+): PopoverBox {
   const m = Math.max(0, px(margin))
   const vw = Math.max(0, px(viewport && viewport.width))
   const vh = Math.max(0, px(viewport && viewport.height))
@@ -46,7 +56,7 @@ export function placePopover(anchor, size, viewport, margin = POPOVER_MARGIN) {
   return { left, top, flipped, maxWidth, maxHeight }
 }
 
-export function readViewport() {
+export function readViewport(): PopoverViewport {
   if (typeof window === 'undefined') return { width: 0, height: 0 }
   return { width: window.innerWidth, height: window.innerHeight }
 }
@@ -57,7 +67,12 @@ export function readViewport() {
  * `lockWidth` pins a percentage-width list (a locale menu) to the width it
  * had before it became position:fixed.
  */
-export function applyPopover(el, anchor, viewport, margin = POPOVER_MARGIN) {
+export function applyPopover(
+  el: HTMLElement | null | undefined,
+  anchor: PopoverAnchor,
+  viewport?: PopoverViewport,
+  margin: number = POPOVER_MARGIN,
+): PopoverBox | null {
   if (!el || el.offsetWidth < 1 || el.offsetHeight < 1) return null
   const width = el.offsetWidth
   const height = el.scrollHeight || el.offsetHeight
@@ -90,7 +105,12 @@ export function applyPopover(el, anchor, viewport, margin = POPOVER_MARGIN) {
 }
 
 /** A point anchor (a right-click, or a trigger corner already including its gap). */
-export function applyPopoverAtPoint(el, x, y, viewport) {
+export function applyPopoverAtPoint(
+  el: HTMLElement | null | undefined,
+  x: number,
+  y: number,
+  viewport?: PopoverViewport,
+): PopoverBox | null {
   return applyPopover(el, {
     left: x,
     right: x,
@@ -101,7 +121,7 @@ export function applyPopoverAtPoint(el, x, y, viewport) {
   }, viewport || readViewport())
 }
 
-export function focusWithoutScroll(el) {
+export function focusWithoutScroll(el?: { focus?: (opts?: { preventScroll?: boolean }) => void } | null): void {
   if (!el || typeof el.focus !== 'function') return
   el.focus({ preventScroll: true })
 }
@@ -111,10 +131,13 @@ export function focusWithoutScroll(el) {
  * screen, pin it inside the viewport. Returns a stop function, which
  * removes the observer and all three listeners; safe to call twice.
  */
-export function observePopover(host, opts) {
+export function observePopover(
+  host: HTMLElement | null | undefined,
+  opts: { panel: string, anchor: string, align?: 'start' | 'end', gap?: number },
+): () => void {
   if (!host || typeof MutationObserver === 'undefined') return () => {}
   const run = () => {
-    const panel = host.querySelector(opts.panel)
+    const panel = host.querySelector<HTMLElement>(opts.panel)
     const anchor = host.querySelector(opts.anchor)
     if (!panel || !anchor) return
     const r = anchor.getBoundingClientRect()

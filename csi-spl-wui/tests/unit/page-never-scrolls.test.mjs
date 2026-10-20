@@ -6,7 +6,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { placePopover } from '../../src/utils/place-popover.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { placePopover } = await importTs('src/utils/place-popover.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

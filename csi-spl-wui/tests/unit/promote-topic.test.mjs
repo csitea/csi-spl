@@ -6,7 +6,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { isPromoteDropTarget, mayPromoteMessage, movedNote } from '../../src/utils/move.mjs'
-import { moveHit } from '../../src/utils/move-drag.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { moveHit } = await importTs('src/utils/move-drag.ts')
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
 import { promoteFrame, promoteFrameFromAnswer, applyPromoteToStores, promoteErrorKey } from '../../src/utils/move-apply.mjs'
 

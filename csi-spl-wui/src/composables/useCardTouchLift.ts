@@ -5,7 +5,7 @@
  * over another topic card, which lights, and the list scrolls while the finger
  * is near its top or bottom edge. The release is the desktop drop (move.land):
  * the same Merge confirm, the same merge call, the same Undo. A finger that
- * moves before the hold is a scroll (move-drag.mjs slop) and lifts nothing; a
+ * moves before the hold is a scroll (move-drag.ts slop) and lifts nothing; a
  * hold released where it was opens the card menu, as the long press always
  * did (Merge into topic… there is the way that needs no drag). The 12 px
  * handle keeps opening Move to channel… (the rail is not beside the list).
@@ -13,7 +13,7 @@
  */
 import { computed, onBeforeUnmount, watch, type Ref } from 'vue'
 import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '~/utils/touch-ui.mjs'
-import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
+import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { buzz } from '~/composables/useCardSwipe'
 import type { useCardMove } from '~/composables/useCardMove'

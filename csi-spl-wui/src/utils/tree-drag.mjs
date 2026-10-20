@@ -5,7 +5,7 @@
 // tree row (UiFileTree) drags onto the gap between two rows, or onto a
 // folder row to go into it.
 //
-// Pointer events, not HTML5 drag, as move-drag.mjs: one path for mouse and
+// Pointer events, not HTML5 drag, as move-drag.ts: one path for mouse and
 // touch. A mouse lifts the row after TREE_DRAG_START_PX of travel. A finger
 // holds LONG_PRESS_MS first: the hold opens the row's menu (touch-ui.mjs, a
 // phone has no right-click), and a finger that then moves lifts the row

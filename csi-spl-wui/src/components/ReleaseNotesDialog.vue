@@ -230,7 +230,7 @@ import { displayVersion } from '~/utils/display-version.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { mergeReleasePages, nextReleaseCursor, releaseKeyFor, releaseNoteCount, releaseNotesRead } from '~/utils/release-notes-api.mjs'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
-import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links.mjs'
+import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links'
 import { shortHash, shortHashLabel } from '~/utils/hash-label.mjs'
 import { useSessionStore } from '~/stores/session'
 

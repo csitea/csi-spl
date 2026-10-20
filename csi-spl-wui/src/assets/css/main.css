@@ -411,7 +411,7 @@ html.pane-dragging * {
 .msg:where(:nth-child(even of .msg)) { --row-bg: var(--color-row-alt); background: var(--row-bg); }
 .msg:hover { background: var(--color-surface-hover); }
 /* SPL-1134: what follows the pointer while a card is dragged by its handle
-   (utils/move-drag.mjs; placed by useMove with a transform) */
+   (utils/move-drag.ts; placed by useMove with a transform) */
 .move-ghost {
   position: fixed;
   left: 0;

@@ -61,8 +61,8 @@ import { useTheme } from '~/composables/useTheme'
 import { THEMES, markSignedOutPick, saveThemeToAccount, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { nextMenuIndex } from '~/utils/user-menu.mjs'
-import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
+import { nextMenuIndex } from '~/utils/user-menu'
+import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover'
 
 // 'end': the list opens leftwards from the button's end edge (a picker at
 // the right of a row, Settings → Appearance), so it stays on a phone screen.

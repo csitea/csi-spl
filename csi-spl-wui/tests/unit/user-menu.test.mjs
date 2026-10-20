@@ -1,9 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabel, ownAvatarUrl, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
-} from '../../src/utils/user-menu.mjs'
+} = await importTs('src/utils/user-menu.ts')
 
 describe('user menu identity (CLE-3402: top-right avatar from auth-v1 §4 session claims)', () => {
   it('reads name, email, member id, method and tenant from the claims', () => {

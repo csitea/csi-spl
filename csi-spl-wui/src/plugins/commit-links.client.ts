@@ -16,7 +16,7 @@ export default defineNuxtPlugin(() => {
   const linker = shallowRef<Linker>(null)
   setCommitLinkProvider(() => linker.value)
   onNuxtReady(() => {
-    import('~/utils/commit-links.mjs')
+    import('~/utils/commit-links')
       .then((m) => { linker.value = m.commitLinker(webUrl, commitPath) })
       .catch(() => { /* hashes stay text */ })
   })

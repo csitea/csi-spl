@@ -454,7 +454,7 @@ export function parseBody(src) {
   // SPL-1609: phone numbers first, so no id / hash linker reads their digits
   const phoned = phoneBlocks(blocks)
   const linked = index.empty ? phoned : linkifyBlocks(phoned, index)
-  // Commit hashes after the ids (commit-links.mjs): null until it loads.
+  // Commit hashes after the ids (commit-links.ts): null until it loads.
   const commits = activeCommitLinker()
   const hashed = commits ? commits.blocks(linked, idTokenOf(index)) : linked
   // SPL-1592: a repo doc path written as text opens /docs (doc-paths.mjs)

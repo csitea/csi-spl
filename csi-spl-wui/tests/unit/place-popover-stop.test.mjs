@@ -5,7 +5,8 @@
 // host.querySelector, so those lookups count how often the listeners ran.
 import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { observePopover } from '../../src/utils/place-popover.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { observePopover } = await importTs('src/utils/place-popover.ts')
 
 const EVENTS = ['click', 'focusin', 'keydown']
 

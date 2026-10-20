@@ -83,7 +83,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAuthBase, useAuthClient } from '~/composables/useAuthClient'
 import { useSessionStore } from '~/stores/session'
-import { userIdentity } from '~/utils/user-menu.mjs'
+import { userIdentity } from '~/utils/user-menu'
 import {
   SIGN_IN_EMAIL_PROVIDERS,
   addSignInEmail,

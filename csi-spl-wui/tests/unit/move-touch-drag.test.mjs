@@ -5,13 +5,14 @@
 // Run: node tests/unit/move-touch-drag.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   MOVE_EDGE_MAX_STEP,
   MOVE_EDGE_PX,
   createEdgeScroll,
   createHandleDrag,
   edgeScrollStep,
-} from '../../src/utils/move-drag.mjs'
+} = await importTs('src/utils/move-drag.ts')
 import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '../../src/utils/touch-ui.mjs'
 
 /** The row gesture as MessageCard wires it on a phone, with a fake clock. */

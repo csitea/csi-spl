@@ -18,7 +18,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createAuthClient } from '../../src/utils/auth-client.mjs'
-import { userIdentity } from '../../src/utils/user-menu.mjs'
+const { userIdentity } = await importTs('src/utils/user-menu.ts')
 import { importTs } from './lib/load-ts.mjs'
 
 const { MAX_DISPLAY_NAME, applyDisplayName, validDisplayName } = await importTs('src/utils/display-name.ts')

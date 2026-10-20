@@ -85,7 +85,7 @@ import {
   ComboboxOptions,
 } from "@headlessui/vue"
 import { filterLocales, normalizeLocaleQuery } from "@/utils/localeSearch"
-import { observePopover } from "~/utils/place-popover.mjs"
+import { observePopover } from "~/utils/place-popover"
 
 type LocaleCode =
   | "bg" | "fi" | "ru" | "en" | "sv" | "he" | "tr" | "mk" | "el"

@@ -5,12 +5,12 @@
 // The controls plant each drift and prove the generator sees it.
 //
 // Run: node tests/unit/mjs-shims-drift.test.mjs
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { HEADER, reconcile, scanModule, tscInfer } from '../../src/node/generate-mjs-shims.mjs'
+import { HEADER, findLeaves, reconcile, scanModule, tscInfer } from '../../src/node/generate-mjs-shims.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const GEN = join(__dirname, '../../src/node/generate-mjs-shims.mjs')
@@ -94,6 +94,30 @@ const env = (over = {}) => ({ loadModule: (s) => mods[s], imports: new Map(), ..
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+}
+
+// 4. --leaves: a declared module that imports no local module and that no
+//    .mjs / .js imports (a .ts importer is fine) is a leaf (SPL-2170).
+{
+  const dir = mkdtempSync(join(tmpdir(), 'mjs-leaves-'))
+  try {
+    mkdirSync(join(dir, 'utils'))
+    const put = (f, text) => writeFileSync(join(dir, f), text)
+    put('utils/a.mjs', 'export const A = 1\n')
+    put('utils/b.mjs', "import { C } from '~/utils/c.mjs'\nexport const B = C\n")
+    put('utils/c.mjs', 'export const C = 1\n')
+    put('utils/d.mjs', "import { readFileSync } from 'node:fs'\nexport const D = readFileSync\n")
+    put('utils/x.ts', "import { D } from '~/utils/d.mjs'\nexport const X = D\n")
+    put('utils/e.mjs', "export const load = () => import('./f.mjs')\n")
+    put('utils/f.mjs', 'export const F = 1\n')
+    const shim = ['a', 'b', 'c', 'd', 'e', 'f', 'gone'].map((n) => `declare module '~/utils/${n}.mjs' {\n  export const X: number\n}\n`).join('\n')
+    const leaves = findLeaves(shim, dir)
+    ok(leaves.join() === '~/utils/a.mjs,~/utils/d.mjs', `findLeaves: ${leaves.join()}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+  const run = spawnSync(process.execPath, [GEN, '--leaves'], { encoding: 'utf8' })
+  ok(run.status === 0 && /declared module\(s\) are leaves/.test(run.stdout), `generate-mjs-shims --leaves exits ${run.status}:\n${run.stdout}${run.stderr}`)
 }
 
 console.log(failed

@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { EMOJI_CHOICES, emojiName } from '~/utils/emoji.mjs'
-import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
 import { useLongPressName } from '~/composables/useLongPressName'
 

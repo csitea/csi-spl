@@ -6,7 +6,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { MoveAnswer, MoveDrag, MoveFrame } from '~/utils/move-apply.mjs'
-import { moveHit, sameHit, type MoveHit } from '~/utils/move-drag.mjs'
+import { moveHit, sameHit, type MoveHit } from '~/utils/move-drag'
 import { reselectRow } from '~/utils/reselect-row.mjs'
 
 /** How long "Moved to ... · Undo" stays up (spec 3.3); MoveUndoToast runs it. */
@@ -148,7 +148,7 @@ function cancelMerge() { mergeAsk.value = null }
 
 /*
  * SPL-1134 (specs/045 §3.9) - the pointer drag from a card's handle. The
- * card feeds the gesture (utils/move-drag.mjs createHandleDrag); this holds
+ * card feeds the gesture (utils/move-drag.ts createHandleDrag); this holds
  * the one drag of the tab: the row under the pointer (`over`, read from the
  * element there, so EXACTLY one row can be lit), a small ghost with the
  * title, and the drop. A drop on nothing, or on a row that may not take it,

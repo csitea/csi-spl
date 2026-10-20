@@ -75,7 +75,7 @@ const ALLOW = new Map([
   ['src/utils/spool-client.mjs', ['PER_TOPIC_MAX']],
   ['src/utils/spool-client-mock.mjs', ['mockPersonName']],
   ['src/utils/tenant-host-boot.mjs', ['PENDING_POLL_MS']],
-  ['src/utils/tenant-settings-nav.mjs', ['FLEET_LOAD_SECTION']],
+  ['src/utils/tenant-settings-nav.ts', ['FLEET_LOAD_SECTION']],
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
   ['src/utils/tree-drag.mjs', ['TREE_DROP_EDGE']],
 ])

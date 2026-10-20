@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { MSG_KINDS } from '~/utils/msg-kind.mjs'
-import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{ open: boolean, x: number, y: number, current: string }>()

@@ -1,4 +1,4 @@
-// csi-spl-wui/src/utils/move-drag.mjs
+// csi-spl-wui/src/utils/move-drag.ts
 //
 // SPL-1134 (specs/045 §3.9): the drag HANDLE of a movable card. The owner:
 // hovering "the left-most side of the panel containing the topic" shows a
@@ -17,7 +17,23 @@ export const MOVE_DRAG_START_PX = 4
 /** A finger on the handle lifts the card after this hold (a phone opens the picker instead). */
 export const MOVE_TOUCH_HOLD_MS = 350
 /** A finger that moved more than this before the hold ended was not holding. */
-export const MOVE_TOUCH_SLOP_PX = 10
+const MOVE_TOUCH_SLOP_PX = 10
+
+export type MoveHit = { kind: 'channel' | 'card' | 'topics', id: string, scope: string, ok: boolean, title: string }
+type Pt = { pointerId: number, pointerType?: string, button?: number, clientX: number, clientY: number }
+export type HandleDrag = { readonly state: 'idle' | 'pressed' | 'lifted' | 'held', down(ev: Pt): boolean, move(ev: Pt): void, up(ev: Pt): void, cancel(): void, takeClick(): boolean }
+export type HandleDragOpts = {
+  onStart: (x: number, y: number) => void, onMove: (x: number, y: number) => void,
+  onDrop: (x: number, y: number) => void, onCancel: () => void, onHold?: () => boolean,
+  startPx?: number, holdMs?: number, slopPx?: number,
+  setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void,
+}
+export type EdgeScroll = { readonly running: boolean, at(x: number, y: number): void, stop(): void }
+export type EdgeScrollOpts = {
+  box: () => { top: number, bottom: number, scrollBy: (dy: number) => boolean } | null,
+  onScroll: (x: number, y: number) => void,
+  frame?: (fn: () => void) => unknown, cancelFrame?: (id: unknown) => void,
+}
 
 /**
  * What the pointer is over, read from the element under it: the nearest
@@ -27,39 +43,36 @@ export const MOVE_TOUCH_SLOP_PX = 10
  * `scope` (`data-move-scope`) tells apart two rows of one channel in two
  * rail lists (Channels and Flow): only the row under the pointer is lit.
  * null = nothing that takes this drag, so nothing is highlighted.
- *
- * @param {{ closest?: (sel: string) => any } | null | undefined} el
- * @param {{ kind?: string } | null | undefined} drag
- * @returns {{ kind: 'channel' | 'card' | 'topics', id: string, scope: string, ok: boolean, title: string } | null}
  */
-export function moveHit(el, drag) {
-  if (!el || typeof el.closest !== 'function' || !drag) return null
-  const row = el.closest('[data-move-drop]')
+export function moveHit(el: unknown, drag: { kind?: string } | null | undefined): MoveHit | null {
+  const node = el as { closest?: (sel: string) => { dataset?: Record<string, string | undefined> } | null } | null | undefined
+  if (!node || typeof node.closest !== 'function' || !drag) return null
+  const row = node.closest('[data-move-drop]')
   if (!row) return null
   const ds = row.dataset || {}
-  const kind = ds.moveDrop
+  const kind = ds.moveDrop as MoveHit['kind'] | undefined
   // A reply drags onto a topic card (move-v1 §3) or into the topics-list
   // background = PROMOTE to a new topic (8f588edd). A topic card drags onto a
   // channel row (a move, §2) OR onto another topic card (a MERGE, 714c7028).
   const fits = drag.kind === 'message' ? kind === 'card' || kind === 'topics' : kind === 'channel' || kind === 'card'
-  if (!fits || !ds.moveId) return null
+  if (!fits || !kind || !ds.moveId) return null
   return { kind, id: String(ds.moveId), scope: String(ds.moveScope || ''), ok: ds.moveOk === 'true', title: String(ds.moveTitle || '') }
 }
 
 /** Two hits name the same row with the same verdict (no store write for a no-op move). */
-export function sameHit(a, b) {
+export function sameHit(a: MoveHit | null, b: MoveHit | null): boolean {
   if (!a || !b) return a === b
   return a.kind === b.kind && a.id === b.id && a.scope === b.scope && a.ok === b.ok
 }
 
 /** createHandleDrag's options with every default filled in. */
-function handleDragOptions(opts) {
+function handleDragOptions(opts: HandleDragOpts) {
   return {
     startPx: opts.startPx ?? MOVE_DRAG_START_PX,
     holdMs: opts.holdMs ?? MOVE_TOUCH_HOLD_MS,
     slopPx: opts.slopPx ?? MOVE_TOUCH_SLOP_PX,
-    setTimer: opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms)),
-    clearTimer: opts.clearTimer ?? ((id) => clearTimeout(/** @type {any} */ (id))),
+    setTimer: opts.setTimer ?? ((fn: () => void, ms: number): unknown => setTimeout(fn, ms)),
+    clearTimer: opts.clearTimer ?? ((id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>)),
   }
 }
 
@@ -67,11 +80,11 @@ function handleDragOptions(opts) {
  * Where a press that has not lifted yet goes after the pointer moved (pure):
  * 'release' = a finger slid past the slop, so it was not holding;
  * 'lift' = a mouse / pen travelled far enough to start the drag; else 'wait'.
- *
- * @param {{ touch: boolean, x0: number, y0: number, x: number, y: number }} g
- * @param {{ startPx: number, slopPx: number }} cfg
  */
-function pressedMove(g, cfg) {
+function pressedMove(
+  g: { touch: boolean, x0: number, y0: number, x: number, y: number },
+  cfg: { startPx: number, slopPx: number },
+): 'release' | 'lift' | 'wait' {
   const d = Math.hypot(g.x - g.x0, g.y - g.y0)
   if (g.touch) return d > cfg.slopPx ? 'release' : 'wait'
   return d >= cfg.startPx ? 'lift' : 'wait'
@@ -88,18 +101,14 @@ function pressedMove(g, cfg) {
  *                    the Move to channel picker: its rail is not on screen)
  * `takeClick()` is true exactly once after a lift or a hold, so the click
  * the browser sends on release does not also open the topic.
- *
- * @param {{ onStart: (x: number, y: number) => void, onMove: (x: number, y: number) => void,
- *   onDrop: (x: number, y: number) => void, onCancel: () => void, onHold?: () => boolean,
- *   startPx?: number, holdMs?: number, slopPx?: number,
- *   setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void }} opts
  */
-export function createHandleDrag(opts) {
+export function createHandleDrag(opts: HandleDragOpts): HandleDrag {
   const cfg = handleDragOptions(opts)
-  /** The gesture so far. x0/y0 = where the press began, x/y = the pointer now.
-   * @type {{ state: 'idle' | 'pressed' | 'lifted' | 'held', pointerId: number, touch: boolean,
-   *   x0: number, y0: number, x: number, y: number, timer: unknown, swallow: boolean }} */
-  const g = { state: 'idle', pointerId: -1, touch: false, x0: 0, y0: 0, x: 0, y: 0, timer: null, swallow: false }
+  /** The gesture so far. x0/y0 = where the press began, x/y = the pointer now. */
+  const g: {
+    state: HandleDrag['state'], pointerId: number, touch: boolean,
+    x0: number, y0: number, x: number, y: number, timer: unknown, swallow: boolean,
+  } = { state: 'idle', pointerId: -1, touch: false, x0: 0, y0: 0, x: 0, y: 0, timer: null, swallow: false }
 
   function stopTimer() {
     if (g.timer !== null) cfg.clearTimer(g.timer)
@@ -130,8 +139,7 @@ export function createHandleDrag(opts) {
 
   return {
     get state() { return g.state },
-    /** @param {{ pointerId: number, pointerType?: string, button?: number, clientX: number, clientY: number }} ev */
-    down(ev) {
+    down(ev: Pt) {
       if (g.state !== 'idle') return false
       if (ev.pointerType === 'mouse' && ev.button !== 0) return false
       g.state = 'pressed'
@@ -143,8 +151,7 @@ export function createHandleDrag(opts) {
       if (g.touch) g.timer = cfg.setTimer(holdEnded, cfg.holdMs)
       return true
     },
-    /** @param {{ pointerId: number, clientX: number, clientY: number }} ev */
-    move(ev) {
+    move(ev: Pt) {
       if (ev.pointerId !== g.pointerId || g.state === 'idle' || g.state === 'held') return
       g.x = ev.clientX
       g.y = ev.clientY
@@ -159,8 +166,7 @@ export function createHandleDrag(opts) {
         opts.onMove(g.x, g.y)
       }
     },
-    /** @param {{ pointerId: number, clientX: number, clientY: number }} ev */
-    up(ev) {
+    up(ev: Pt) {
       if (ev.pointerId !== g.pointerId) return
       if (settle()) opts.onDrop(ev.clientX, ev.clientY)
     },
@@ -189,14 +195,8 @@ export const MOVE_EDGE_MAX_STEP = 16
  * How far the list scrolls this frame for a finger at `y` in a list spanning
  * `top..bottom` (viewport px): negative up, positive down, 0 in the middle.
  * The speed grows the deeper the finger is in the edge band.
- *
- * @param {number} y
- * @param {number} top
- * @param {number} bottom
- * @param {number} [edge]
- * @param {number} [max]
  */
-export function edgeScrollStep(y, top, bottom, edge = MOVE_EDGE_PX, max = MOVE_EDGE_MAX_STEP) {
+export function edgeScrollStep(y: number, top: number, bottom: number, edge = MOVE_EDGE_PX, max = MOVE_EDGE_MAX_STEP): number {
   if (!(bottom > top) || !Number.isFinite(y)) return 0
   const band = Math.min(edge, (bottom - top) / 3)
   if (y < top + band) return -Math.ceil(max * Math.min(1, (top + band - y) / band))
@@ -209,16 +209,11 @@ export function edgeScrollStep(y, top, bottom, edge = MOVE_EDGE_PX, max = MOVE_E
  * the loop; each frame the box from `box()` scrolls by edgeScrollStep and,
  * when it did, `onScroll(x, y)` runs (the rows moved under a finger that did
  * not, so the host re-reads the row under it). `stop()` ends the loop.
- *
- * @param {{ box: () => { top: number, bottom: number, scrollBy: (dy: number) => boolean } | null,
- *   onScroll: (x: number, y: number) => void,
- *   frame?: (fn: () => void) => unknown, cancelFrame?: (id: unknown) => void }} opts
  */
-export function createEdgeScroll(opts) {
-  const frame = opts.frame ?? ((fn) => requestAnimationFrame(fn))
-  const cancelFrame = opts.cancelFrame ?? ((id) => cancelAnimationFrame(/** @type {number} */ (id)))
-  /** @type {unknown} */
-  let id = null
+export function createEdgeScroll(opts: EdgeScrollOpts): EdgeScroll {
+  const frame = opts.frame ?? ((fn: () => void): unknown => requestAnimationFrame(fn))
+  const cancelFrame = opts.cancelFrame ?? ((id: unknown) => cancelAnimationFrame(id as number))
+  let id: unknown = null
   let x = 0
   let y = 0
   let on = false
@@ -232,8 +227,7 @@ export function createEdgeScroll(opts) {
   }
   return {
     get running() { return on },
-    /** @param {number} nx @param {number} ny */
-    at(nx, ny) {
+    at(nx: number, ny: number) {
       x = nx
       y = ny
       if (on) return

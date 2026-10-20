@@ -4,7 +4,8 @@
 // Run: node tests/unit/tenant-settings.test.mjs
 import { readFileSync, readdirSync } from 'node:fs'
 import { issuePrefixOf, marketingSaysWhy, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from '../../src/utils/tenant-settings.mjs'
-import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } from '../../src/utils/tenant-settings-nav.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } = await importTs('src/utils/tenant-settings-nav.ts')
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { mockPerfSummary, normalizePerfSummary, perfCompareRows, perfSummaryQuery } from '../../src/utils/perf-summary.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'

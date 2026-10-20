@@ -1,5 +1,5 @@
-import { nextMenuIndex } from '~/utils/user-menu.mjs'
-import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { nextMenuIndex } from '~/utils/user-menu'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
 
 /**

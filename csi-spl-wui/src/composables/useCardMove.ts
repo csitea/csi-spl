@@ -10,7 +10,7 @@
  */
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, mayPromoteMessage, type MoveDrag } from '~/utils/move.mjs'
-import { createHandleDrag } from '~/utils/move-drag.mjs'
+import { createHandleDrag } from '~/utils/move-drag'
 import { topicMenuLocks } from '~/utils/topic-menu.mjs'
 import { useMove } from '~/composables/useMove'
 import { useLive } from '~/composables/useLive'
@@ -128,7 +128,7 @@ export function useCardMove(
   function onHandleDown(ev: PointerEvent) {
     /* CLE-77906: a thumb's swipe often starts on the card's edge, which is this
        handle; the handle stops the row's pointerdown, so start it here. A finger
-       that moves before the hold is not a move-drag (move-drag.mjs slop), so the
+       that moves before the hold is not a move-drag (move-drag.ts slop), so the
        two never both run. */
     peer.swipeDown(ev)
     if (!movable.value || !handle.down(ev)) return

@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import type { useTenantSwitch } from '~/composables/useTenantSwitch'
-import { focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { focusWithoutScroll } from '~/utils/place-popover'
 import { tenantMatches } from '~/utils/tenant-switcher.mjs'
 
 const props = defineProps<{ ts: ReturnType<typeof useTenantSwitch> }>()

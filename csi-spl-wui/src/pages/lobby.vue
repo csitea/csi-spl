@@ -72,7 +72,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { lobbyFrames, takeLobbyWarm } from '~/utils/lobby-warm.mjs'
 import { whenPainted } from '~/utils/feed-first.mjs'
 import { useAccessStore } from '~/stores/access'
-import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
+import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()

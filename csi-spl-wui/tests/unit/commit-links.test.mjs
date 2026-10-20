@@ -1,13 +1,14 @@
 // HUM-10: git commit hashes in a message link to this instance's repository
-// (utils/commit-links.mjs, utils/commit-link-hook.mjs, the code-blocks seam).
+// (utils/commit-links.ts, utils/commit-link-hook.mjs, the code-blocks seam).
 // The url pieces are cnf env.wui.repo_web_url + repo_commit_path: nothing
 // here is a real repository, and unset means no link at all.
 //
 // Run: node tests/unit/commit-links.test.mjs
 import { readFileSync } from 'node:fs'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   commitHref, commitLinker, commitPrefix, isCommitHash, linkifyCommitBlocks, linkifyCommitMarkdown, linkifyCommitText,
-} from '../../src/utils/commit-links.mjs'
+} = await importTs('src/utils/commit-links.ts')
 import { activeCommitLinker, setCommitLinkProvider } from '../../src/utils/commit-link-hook.mjs'
 import { markdownSource, parseBody } from '../../src/utils/code-blocks.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
@@ -85,7 +86,7 @@ ok('markdownSource links a hash in prose and a hash-only code span', markdownSou
 setCommitLinkProvider(null)
 
 /* no repository literal in the three url users: every piece comes from cnf */
-for (const f of ['src/utils/commit-links.mjs', 'src/utils/help.mjs', 'src/utils/connect-agent.ts']) {
+for (const f of ['src/utils/commit-links.ts', 'src/utils/help.ts', 'src/utils/connect-agent.ts']) {
   const src = readFileSync(new URL('../../' + f, import.meta.url), 'utf8')
   ok(`${f} names no repository url`, !/https?:\/\/(?!\/)[a-z0-9.-]+\.[a-z]{2,}\//i.test(src))
 }

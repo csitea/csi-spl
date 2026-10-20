@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { HELP_SRC } from '../../src/node/help/sync-help.mjs'
 import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
-import { TENANT_SETTINGS_SECTIONS } from '../../src/utils/tenant-settings-nav.mjs'
+const { TENANT_SETTINGS_SECTIONS } = await importTs('src/utils/tenant-settings-nav.ts')
 import { SOUND_NAMES } from '../../src/utils/notify.mjs'
 import { CLOSE_BUTTONS } from '../../src/utils/view-prefs.mjs'
 import { RAIL_TABS } from '../../src/utils/rail-order.mjs'

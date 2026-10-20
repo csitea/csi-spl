@@ -19,7 +19,8 @@ import {
   applyThemeAttr,
 } from '../../src/utils/theme.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
-import { nextMenuIndex } from '../../src/utils/user-menu.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { nextMenuIndex } = await importTs('src/utils/user-menu.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

@@ -7,7 +7,7 @@
 // The copy never carries the hosted domain (it lives only in csi-spl-cnf and
 // csi-spl-doc: iac domain-single-source.tst.sh): `api.<domain>` becomes
 // {{api}} and `<domain>` becomes {{site}}, which the /help page fills from
-// the site it runs on (utils/help.mjs fillHelpHosts) - so a self-hosted
+// the site it runs on (utils/help.ts fillHelpHosts) - so a self-hosted
 // install reads its own address.
 //
 // Usage:

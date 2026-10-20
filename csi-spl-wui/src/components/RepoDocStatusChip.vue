@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { chipOf } from '~/utils/repo-edit.mjs'
-import { commitHref, commitPrefix } from '~/utils/commit-links.mjs'
+import { commitHref, commitPrefix } from '~/utils/commit-links'
 
 type ChipEdit = { edit_id: string, status: string, commit_sha?: string, merged_with?: string, last_error?: string }
 const props = withDefaults(defineProps<{ edit: ChipEdit | null, busy?: boolean }>(), { busy: false })

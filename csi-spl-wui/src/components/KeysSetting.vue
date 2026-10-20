@@ -82,7 +82,7 @@ import { writeClipboard } from '~/utils/clipboard.mjs'
 import { saveBlob } from '~/utils/save-blob.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSessionStore } from '~/stores/session'
-import { userIdentity } from '~/utils/user-menu.mjs'
+import { userIdentity } from '~/utils/user-menu'
 import {
   classifyPublicKeyInput,
   createKeysClient,

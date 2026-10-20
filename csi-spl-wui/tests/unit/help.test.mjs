@@ -1,7 +1,8 @@
-// W14 (spec 047, SPL-1169): the /help page's link rules (utils/help.mjs).
+// W14 (spec 047, SPL-1169): the /help page's link rules (utils/help.ts).
 //
 // Run: node tests/unit/help.test.mjs
-import { fillHelpHosts, helpHref, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } from '../../src/utils/help.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { fillHelpHosts, helpHref, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } = await importTs('src/utils/help.ts')
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0

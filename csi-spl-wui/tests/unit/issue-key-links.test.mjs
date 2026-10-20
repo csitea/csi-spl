@@ -9,7 +9,8 @@ import {
   inlineIssueHref, isIssueKey, issueHref, issueKeyPrefix, issueLinker, linkifyIssueBlocks, linkifyIssueMarkdown, linkifyIssueText,
 } from '../../src/utils/issue-key-links.mjs'
 import { activeIssueLinker, setIssueLinkProvider } from '../../src/utils/issue-link-hook.mjs'
-import { commitLinker, commitPrefix, inlineCommitHref, linkifyCommitBlocks } from '../../src/utils/commit-links.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { commitLinker, commitPrefix, inlineCommitHref, linkifyCommitBlocks } = await importTs('src/utils/commit-links.ts')
 import { setCommitLinkProvider } from '../../src/utils/commit-link-hook.mjs'
 import { setIdCatalogProvider } from '../../src/utils/id-links.mjs'
 import { bodyToHtml, markdownSource, parseBody } from '../../src/utils/code-blocks.mjs'

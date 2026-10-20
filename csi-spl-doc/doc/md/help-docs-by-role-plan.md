@@ -42,7 +42,7 @@ Where each permission is enforced (`grep -rn 'rbac\.<Perm>' internal/hub`, tests
 | `audit.read` | `hub/actas.go`, `hub/memberactivity.go`, `hub/box_stats.go` | another member's activity, box statistics |
 | `billing.manage`, `keys.manage` | no hub route checks them yet (`grep -rn 'BillingManage\|KeysManage' --include=*.go` finds only `rbac.go`) | nothing yet: no help page until a screen exists |
 
-The WUI gates the same way: `csi-spl-wui/src/utils/tenant-settings-nav.mjs`
+The WUI gates the same way: `csi-spl-wui/src/utils/tenant-settings-nav.ts`
 (`TENANT_SETTINGS_SECTIONS`, each with its `perm`) shows a Workspace settings
 section only when `/v1/view/me` lists its permission.
 
@@ -142,7 +142,7 @@ permission and `product_owner` holds five. `roles` is written from the code.
 | copy into the WUI | `csi-spl-wui/src/node/help/sync-help.mjs` | none: new flat pages are picked up; run it, then `--check` |
 | page order | `helpFiles()` ranks by the index's `](./x.md)` order | none: the index order is the nav order |
 | route | `csi-spl-wui/src/pages/help/[[page]].vue`, `/help/<slug>` | none for the tree |
-| links | `csi-spl-wui/src/utils/help.mjs` `helpHref` | none; note: it drops `#anchor` in-app (`route(m[1])`), so a link into a section lands at the page top |
+| links | `csi-spl-wui/src/utils/help.ts` `helpHref` | none; note: it drops `#anchor` in-app (`route(m[1])`), so a link into a section lands at the page top |
 | coverage guard | `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs` | reads `user-settings.md` for `TENANT_SETTINGS_SECTIONS`: point that half at `workspace-settings.md` |
 | optional (2.3) | `[[page]].vue` index view | a "your start page" line from `/v1/view/me` permissions (`normalizeMe`, `utils/access.mjs`), only if small |
 

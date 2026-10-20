@@ -43,7 +43,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import DisplayNameSetting from '~/components/DisplayNameSetting.vue'
 import InterestsSetting from '~/components/InterestsSetting.vue'
 import { useSessionStore } from '~/stores/session'
-import { avatarMode, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { avatarMode, userIdentity, userInitials } from '~/utils/user-menu'
 
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })

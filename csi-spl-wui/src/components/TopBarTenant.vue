@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { useTenantSwitch } from '~/composables/useTenantSwitch'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { focusWithoutScroll } from '~/utils/place-popover'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()

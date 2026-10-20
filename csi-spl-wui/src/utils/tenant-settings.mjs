@@ -1,7 +1,7 @@
 /**
  * Tenant settings (SPL-1037, specs/046), the section pages' helpers: the
  * body readers, the responder id rule, the error words. The entry gate and
- * the section list are tenant-settings-nav.mjs (the sidebar and the avatar
+ * the section list are tenant-settings-nav.ts (the sidebar and the avatar
  * menu load it eagerly; this file only rides with the lazy pages). Node
  * tests import this file.
  */

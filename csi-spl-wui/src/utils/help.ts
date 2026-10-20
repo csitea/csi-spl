@@ -6,11 +6,11 @@
  * at the file in the source repository: helpRepoBase() from cnf
  * env.wui.repo_web_url + env.wui.repo_help_path (/config.json repoWebUrl,
  * repoHelpPath). Either unset = no repository: such a link is dropped and
- * its text stays. Node tests import this file.
+ * its text stays. Node tests import this file through importTs.
  */
 
 /** Where a relative link that is not a help page resolves, or '' (none). */
-export function helpRepoBase(webUrl, helpPath) {
+export function helpRepoBase(webUrl: unknown, helpPath: unknown): string {
   const b = String(webUrl ?? '').trim().replace(/\/+$/, '')
   const p = String(helpPath ?? '').trim()
   if (!/^https?:\/\/[^\s"'<>]+$/i.test(b) || !/^\/[^\s"'<>?#]*\/$/.test(p)) return ''
@@ -18,7 +18,7 @@ export function helpRepoBase(webUrl, helpPath) {
 }
 
 /** A help page slug the copy can hold (the sync script's file rule). */
-export function validHelpSlug(s) {
+export function validHelpSlug(s: unknown): s is string {
   return typeof s === 'string' && /^[a-z0-9-]{1,80}$/.test(s)
 }
 
@@ -27,7 +27,7 @@ export function validHelpSlug(s) {
  * in-app path (the page passes its locale-aware one); `repoBase` is
  * helpRepoBase(). A repo link with no repoBase is '' (hidden).
  */
-export function helpHref(raw, route = (slug) => '/help/' + slug, repoBase = '') {
+export function helpHref(raw: unknown, route: (slug: string) => string = (slug) => '/help/' + slug, repoBase = ''): string {
   const s = String(raw ?? '').trim()
   if (!s) return s
   /* absolute, mailto, same-page anchor or site path: unchanged */
@@ -47,14 +47,14 @@ export function helpHref(raw, route = (slug) => '/help/' + slug, repoBase = '') 
  * where doc/help names the hosted domain): {{api}} = this site's hub host,
  * {{site}} = this site's own host. A token with no value stays readable.
  */
-export function fillHelpHosts(md, { api = '', site = '' } = {}) {
+export function fillHelpHosts(md: unknown, { api = '', site = '' }: { api?: string, site?: string } = {}): string {
   return String(md ?? '')
     .replace(/\{\{api\}\}/g, api || site || 'your-hub')
     .replace(/\{\{site\}\}/g, site || 'your-site')
 }
 
 /** The host of a URL ('' when it is not one). */
-export function hostOf(url) {
+export function hostOf(url: unknown): string {
   try { return new URL(String(url || '')).host } catch { return '' }
 }
 
@@ -62,8 +62,8 @@ export function hostOf(url) {
  * The markdown with every inline link target rewritten by helpHref; a link
  * helpHref hides keeps only its text.
  */
-export function rewriteHelpLinks(md, route, repoBase = '') {
-  return String(md ?? '').replace(/(!?)\[([^\]\n]*)\]\(([^)\s]+)\)/g, (all, bang, text, href) => {
+export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string, repoBase = ''): string {
+  return String(md ?? '').replace(/(!?)\[([^\]\n]*)\]\(([^)\s]+)\)/g, (_all, bang: string, text: string, href: string) => {
     const to = helpHref(href, route, repoBase)
     if (to) return bang + '[' + text + '](' + to + ')'
     return bang ? '' : text

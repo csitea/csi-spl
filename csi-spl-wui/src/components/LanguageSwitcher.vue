@@ -126,7 +126,7 @@ import {
 } from '@headlessui/vue'
 import { filterLocales, normalizeLocaleQuery } from '@/utils/localeSearch'
 import { useLocaleSwitch } from '@/composables/useLocaleSwitch'
-import { observePopover } from '~/utils/place-popover.mjs'
+import { observePopover } from '~/utils/place-popover'
 
 type LocaleCode = 'bg' | 'fi' | 'ru' | 'en' | 'sv' | 'he' | 'tr' | 'mk' | 'el' | 'lt' | 'et' | 'lv' | 'sr' | 'ro' | 'uk' | 'sk' | 'pl' | 'es' | 'nl'
 
@@ -380,7 +380,7 @@ async function onSelect(loc: LocaleEntry | null) {
   inset-inline-end: 0;
   top: calc(100% + 4px);
   /* Fit the widest row (flag + name + code) and no wider. NO min-width:100%
-     here: place-popover.mjs switches the panel to position:fixed and pins its
+     here: place-popover.ts switches the panel to position:fixed and pins its
      width via lockWidth, but a percentage min-width would then resolve against
      the viewport (100vw) and blow the list full-width. */
   width: max-content;

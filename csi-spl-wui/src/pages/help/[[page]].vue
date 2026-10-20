@@ -54,7 +54,7 @@
 
 <script setup lang="ts">
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import { fillHelpHosts, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
+import { fillHelpHosts, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help'
 import { boxHubUrl } from '~/utils/connect-agent'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'

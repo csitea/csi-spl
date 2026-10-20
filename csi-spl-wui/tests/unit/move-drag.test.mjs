@@ -3,14 +3,15 @@
 // Run: node tests/unit/move-drag.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   MOVE_DRAG_START_PX,
   MOVE_HANDLE_PX,
   MOVE_TOUCH_HOLD_MS,
   createHandleDrag,
   moveHit,
   sameHit,
-} from '../../src/utils/move-drag.mjs'
+} = await importTs('src/utils/move-drag.ts')
 
 /** A fake element: `closest` answers the row it sits in. */
 const inRow = (dataset) => ({ closest: (sel) => (sel === '[data-move-drop]' && dataset ? { dataset } : null) })

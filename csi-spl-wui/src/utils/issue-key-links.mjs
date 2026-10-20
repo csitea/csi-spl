@@ -17,7 +17,7 @@
 
 const MD_LANG = /^(?:md|markdown)$/i
 
-/* closed fences, inline code, markdown links, and bare urls (commit-links.mjs) */
+/* closed fences, inline code, markdown links, and bare urls (commit-links.ts) */
 const PROTECT_RE = /```[\s\S]*?```|`{1,2}[^`\n]+`{1,2}|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<>)\]]+|www\.[^\s<>)\]]+/gi
 
 /** The prefix as the hub stores it (upper case), or '' when it is not one. */

@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
-import { tenantSettingsSections } from '~/utils/tenant-settings-nav.mjs'
+import { tenantSettingsSections } from '~/utils/tenant-settings-nav'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 

@@ -84,7 +84,6 @@ const CEILING = {
   'msg-menu.mjs': 1,
   'notify.mjs': 20,
   'parent-section-open.mjs': 1,
-  'place-popover.mjs': 3,
   'prefs.mjs': 4,
   'rail-order.mjs': 1,
   'read-cursor.mjs': 6,

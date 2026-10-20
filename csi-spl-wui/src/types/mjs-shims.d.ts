@@ -799,33 +799,6 @@ declare module '~/utils/move.mjs' {
   export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
 }
 
-declare module '~/utils/move-drag.mjs' {
-  export type MoveHit = { kind: 'channel' | 'card' | 'topics', id: string, scope: string, ok: boolean, title: string }
-  export const MOVE_HANDLE_PX: number
-  export const MOVE_DRAG_START_PX: number
-  export const MOVE_TOUCH_HOLD_MS: number
-  export const MOVE_TOUCH_SLOP_PX: number
-  export function moveHit(el: unknown, drag: { kind?: string } | null | undefined): MoveHit | null
-  export function sameHit(a: MoveHit | null, b: MoveHit | null): boolean
-  type Pt = { pointerId: number, pointerType?: string, button?: number, clientX: number, clientY: number }
-  export type HandleDrag = { readonly state: 'idle' | 'pressed' | 'lifted' | 'held', down(ev: Pt): boolean, move(ev: Pt): void, up(ev: Pt): void, cancel(): void, takeClick(): boolean }
-  export function createHandleDrag(opts: {
-    onStart: (x: number, y: number) => void, onMove: (x: number, y: number) => void,
-    onDrop: (x: number, y: number) => void, onCancel: () => void, onHold?: () => boolean,
-    startPx?: number, holdMs?: number, slopPx?: number,
-    setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void,
-  }): HandleDrag
-  export const MOVE_EDGE_PX: number
-  export const MOVE_EDGE_MAX_STEP: number
-  export function edgeScrollStep(y: number, top: number, bottom: number, edge?: number, max?: number): number
-  export type EdgeScroll = { readonly running: boolean, at(x: number, y: number): void, stop(): void }
-  export function createEdgeScroll(opts: {
-    box: () => { top: number, bottom: number, scrollBy: (dy: number) => boolean } | null,
-    onScroll: (x: number, y: number) => void,
-    frame?: (fn: () => void) => unknown, cancelFrame?: (id: unknown) => void,
-  }): EdgeScroll
-}
-
 declare module '~/utils/move-apply.mjs' {
   export type MoveDrag = import('~/utils/move.mjs').MoveDrag
   export type MoveFrame = { type: 'topic_moved' | 'message_moved' | 'topic_merged' | 'topic_unmerged', msg_id: string, task_id: string, from_task: string, channel: string, from_channel: string, moved?: boolean, moved_by: string, moved_at?: string, msg_ids: string[] }
@@ -896,34 +869,6 @@ declare module '~/utils/topic-archive.mjs' {
   export function rowTopicState(size: unknown, msgId: string): RowTopicState
   export function topicFrameRows(frame: unknown, lobbyTaskId?: string): string[]
   export function withoutTopics<T>(rows: T[], taskIds: string[]): T[]
-}
-
-declare module '~/utils/place-popover.mjs' {
-  export const POPOVER_MARGIN: number
-  export function placePopover(
-    anchor: { x?: number, y?: number, flipFrom?: number },
-    size: { width?: number, height?: number },
-    viewport: { width?: number, height?: number },
-    margin?: number,
-  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number }
-  export function readViewport(): { width: number, height: number }
-  export function applyPopover(
-    el: HTMLElement | null | undefined,
-    anchor: { left: number, right: number, top: number, bottom: number, align?: 'start' | 'end', gap?: number, lockWidth?: boolean },
-    viewport?: { width: number, height: number },
-    margin?: number,
-  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number } | null
-  export function applyPopoverAtPoint(
-    el: HTMLElement | null | undefined,
-    x: number,
-    y: number,
-    viewport?: { width: number, height: number },
-  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number } | null
-  export function focusWithoutScroll(el?: { focus?: (opts?: { preventScroll?: boolean }) => void } | null): void
-  export function observePopover(
-    host: HTMLElement | null | undefined,
-    opts: { panel: string, anchor: string, align?: 'start' | 'end', gap?: number },
-  ): () => void
 }
 
 declare module '~/utils/parent-section.mjs' {
@@ -1075,30 +1020,6 @@ declare module '~/utils/pane-scroll.mjs' {
   export function scrollRowToTop(scroller: HTMLElement, row: Element): void
   export function scrollRowIntoPane(scroller: HTMLElement, row: Element): void
   export function openThreadRow(row: HTMLElement | null | undefined): void
-}
-
-declare module '~/utils/user-menu.mjs' {
-  export interface UserIdentity {
-    hum: string
-    name: string
-    email: string
-    method: string
-    tenant: string
-    primary: string
-    secondary: string
-  }
-  export function userIdentity(claims: unknown): UserIdentity
-  export function userInitials(claims: unknown): string
-  export function avatarMode(claims: unknown): 'member' | 'initials' | 'silhouette'
-  export function ownAvatarUrl(authBase: string, claims: unknown, rev?: number): string
-  export function methodLabel(p: unknown): string
-  export function menuButtonLabel(claims: unknown): string
-  export function methodLabelKey(p: unknown): { key: string, params: Record<string, unknown> }
-  export function menuButtonLabelKey(claims: unknown): { key: string, params: Record<string, unknown> }
-  export function nextMenuIndex(current: number, key: string, count: number): number
-  export function signInRedirect(fullPath: string): string
-  export function changePasswordOffered(claims: unknown, actingAs?: unknown): boolean
-  export const CHANGE_PASSWORD_PATH: string
 }
 
 declare module '~/utils/pane-widths.mjs' {
@@ -1483,14 +1404,6 @@ declare module '~/utils/tenant-users-mock.mjs' {
   export function createMockDirectory(now?: () => Date): unknown
 }
 
-declare module '~/utils/tenant-settings-nav.mjs' {
-  export type TenantSection = { id: string, label: string, perm: string }
-  export const TENANT_SETTINGS_SECTIONS: TenantSection[]
-  export function tenantSettingsSections(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): TenantSection[]
-  export function tenantSettingsVisible(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): boolean
-  export function tenantSettingsSectionOf(path: string): string
-}
-
 declare module '~/utils/tenant-settings.mjs' {
   export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number, mistral: number }
   export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string, topicArchivePolicy: string, agentSplit: AgentSplit }
@@ -1550,27 +1463,6 @@ declare module '~/utils/doc-paths.mjs' {
   export function codeDocHref(code: unknown, resolve: (raw: string) => string): string
   export function linkDocPathBlocks<T>(blocks: T, resolve: (raw: string) => string): T
   export function docPathLinker(paths: unknown, route?: (path: string) => string): { resolve: (raw: string) => string, blocks: (blocks: unknown[]) => unknown[] }
-}
-
-declare module '~/utils/commit-links.mjs' {
-  export function repoBase(url: unknown): string
-  export function repoPath(path: unknown): string
-  export function isCommitHash(token: unknown): boolean
-  export function commitPrefix(webUrl: unknown, commitPath: unknown): string
-  export function commitHref(prefix: string, hash: unknown): string
-  export function linkifyCommitText(text: unknown, prefix: string, isId?: (token: string) => boolean): { type: string, text: string, href?: string }[]
-  export function linkifyCommitMarkdown(src: unknown, prefix: string, isId?: (token: string) => boolean): string
-  export function linkifyCommitBlocks<T>(blocks: T, prefix: string, isId?: (token: string) => boolean): T
-  export function commitLinker(webUrl: unknown, commitPath: unknown): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string } | null
-}
-
-declare module '~/utils/help.mjs' {
-  export function helpRepoBase(webUrl: unknown, helpPath: unknown): string
-  export function validHelpSlug(s: unknown): boolean
-  export function helpHref(raw: unknown, route?: (slug: string) => string, repoBase?: string): string
-  export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string, repoBase?: string): string
-  export function fillHelpHosts(md: unknown, hosts?: { api?: string, site?: string }): string
-  export function hostOf(url: unknown): string
 }
 
 declare module '~/utils/docs.mjs' {

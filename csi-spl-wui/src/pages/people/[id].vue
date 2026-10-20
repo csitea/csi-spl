@@ -87,7 +87,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { canRemoveMember } from '~/utils/access.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu.mjs'
+import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu'
 import { useSessionStore } from '~/stores/session'
 
 const route = useRoute()

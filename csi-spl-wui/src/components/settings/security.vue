@@ -35,7 +35,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import SignInEmailsPanel from '~/components/SignInEmailsPanel.vue'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
-import { methodLabelKey, userIdentity } from '~/utils/user-menu.mjs'
+import { methodLabelKey, userIdentity } from '~/utils/user-menu'
 import { USERS_PERMISSION } from '~/utils/tenant-users.mjs'
 
 const session = useSessionStore()

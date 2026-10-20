@@ -68,8 +68,8 @@
 <script setup lang="ts">
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
-import { nextMenuIndex } from '~/utils/user-menu.mjs'
-import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
+import { nextMenuIndex } from '~/utils/user-menu'
+import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
 import type { UiIconName } from '~/utils/uiIcons'
 

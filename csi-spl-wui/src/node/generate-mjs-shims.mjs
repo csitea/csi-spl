@@ -18,12 +18,16 @@
 //     declaration tsc infers from the JS (`--allowJs --declaration`);
 //   - a declared function that takes fewer parameters than the JS one is
 //     reported: only a person can type the new parameter.
+// `--leaves` lists the declared modules that can move to .ts next (SPL-2170):
+// the file imports no local module, and no .mjs / .js under src/ imports it
+// (plain node cannot load a .ts; node tests reach one through importTs).
 // The other src/types/*.d.ts files declare names for the same modules (the
 // blocks merge); they count as declared and are checked, never rewritten.
 //
 // Usage:
 //   node src/node/generate-mjs-shims.mjs           # rewrite the shim (pnpm run shims)
 //   node src/node/generate-mjs-shims.mjs --check   # exit 1 on any drift (pnpm run shims:check)
+//   node src/node/generate-mjs-shims.mjs --leaves  # the declared modules that are leaves, one a line
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -233,9 +237,41 @@ export function tscInfer(srcDir = SRC) {
   }
 }
 
+// `~/`, `./` and `../` specifiers of import / export-from / import() in a file.
+const LOCAL_SPEC_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]((?:~\/|\.\.?\/)[^'"]+)['"]/g
+
+// The absolute paths a source file imports from this tree.
+export function localImports(abs, srcDir = SRC) {
+  const out = new Set()
+  for (const [, spec] of readFileSync(abs, "utf8").matchAll(LOCAL_SPEC_RE)) {
+    out.add(spec.startsWith(MOD_PREFIX) ? join(srcDir, spec.slice(MOD_PREFIX.length)) : resolve(dirname(abs), spec))
+  }
+  return out
+}
+
+// The declared `~/….mjs` modules that are leaves: on disk, importing no local
+// module, imported by no .mjs / .js under srcDir. Sorted specs.
+export function findLeaves(shimText, srcDir = SRC) {
+  const importedByJs = new Set()
+  for (const f of walk(srcDir, [".mjs", ".js"])) for (const p of localImports(f, srcDir)) importedByJs.add(p)
+  return [...ambientDecls(shimText).keys()]
+    .filter((spec) => spec.startsWith(MOD_PREFIX) && spec.endsWith(".mjs"))
+    .filter((spec) => {
+      const abs = join(srcDir, spec.slice(MOD_PREFIX.length))
+      return existsSync(abs) && localImports(abs, srcDir).size === 0 && !importedByJs.has(abs)
+    })
+    .sort()
+}
+
 function main() {
   const check = process.argv.includes("--check")
   const shimText = readFileSync(SHIM, "utf8")
+  if (process.argv.includes("--leaves")) {
+    const leaves = findLeaves(shimText)
+    for (const spec of leaves) console.log(spec)
+    console.log(`mjs-shims: ${leaves.length} declared module(s) are leaves`)
+    process.exit(0)
+  }
   const elsewhere = new Map()
   for (const f of readdirSync(dirname(SHIM)).filter((f) => f.endsWith(".d.ts")).sort()) {
     if (join(dirname(SHIM), f) !== SHIM) ambientDecls(readFileSync(join(dirname(SHIM), f), "utf8"), elsewhere)

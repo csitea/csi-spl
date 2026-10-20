@@ -46,7 +46,7 @@ import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { tenantSettingsSections, tenantSettingsSectionOf } from '~/utils/tenant-settings-nav.mjs'
+import { tenantSettingsSections, tenantSettingsSectionOf } from '~/utils/tenant-settings-nav'
 
 const session = useSessionStore()
 const route = useRoute()

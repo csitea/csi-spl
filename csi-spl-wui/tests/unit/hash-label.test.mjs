@@ -1,14 +1,15 @@
 // Owner t1 afb06ae8 ("convert the Git commit hashes to links to github.com"
 // ... "release log" ... "Both on mobile and on desktop") and t1 da98036e
 // (msg 8bfe3812: "Shorten them to 8 characters and add three dots"):
-// utils/hash-label.mjs (a full-hash link reads <8>...), commit-links.mjs
+// utils/hash-label.mjs (a full-hash link reads <8>...), commit-links.ts
 // shaHref (a release note's sha links, digits only included) and the one
 // source-repository constant (utils/source-repo.mjs).
 //
 // Run: node tests/unit/hash-label.test.mjs
 import { readFileSync } from 'node:fs'
 import { shortHash, shortHashLabel } from '../../src/utils/hash-label.mjs'
-import { commitPrefix, linkifyCommitText, shaHref } from '../../src/utils/commit-links.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { commitPrefix, linkifyCommitText, shaHref } = await importTs('src/utils/commit-links.ts')
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0

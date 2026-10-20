@@ -7,6 +7,7 @@ package spool
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,9 +27,11 @@ import (
 // Store binds the spool operations to a resolved config. clock is the wall
 // clock BounceRetired measures the quarantine against; nil = time.Now (tests
 // set it to cross the quarantine's end without back-dating registry rows).
+// warn takes the warnings of a send that delivered anyway; nil = os.Stderr.
 type Store struct {
 	cfg   *config.Config
 	clock func() time.Time
+	warn  io.Writer
 }
 
 // now reads s.clock, or time.Now when no clock is set.
@@ -37,6 +40,14 @@ func (s *Store) now() time.Time {
 		return s.clock()
 	}
 	return time.Now()
+}
+
+// warnOut is s.warn, or os.Stderr when no writer is set.
+func (s *Store) warnOut() io.Writer {
+	if s.warn != nil {
+		return s.warn
+	}
+	return os.Stderr
 }
 
 // New returns a Store over cfg.
@@ -200,12 +211,20 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 }
 
 // write puts a composed message in the recipient's inbox and the sender's
-// outbox.
+// outbox. The inbox write IS the delivery, so only its failure is an error.
+// A failed outbox copy after it is a warning on stderr (SPL-2703): returned
+// as an error it exited 1 for a delivered message, and every caller that
+// retries on a non-zero exit (spool-send.sh, desk actions) sent it twice.
+// No rollback of the inbox copy: the recipient may already be reading it.
 func (s *Store) write(m *msg.Message) error {
 	if _, err := s.writeBox(m, m.To, boxInbox); err != nil {
 		return err
 	}
-	return s.WriteOutbox(m)
+	if err := s.WriteOutbox(m); err != nil {
+		fmt.Fprintf(s.warnOut(), "spool: WARN %s was delivered to %s's inbox, but its copy in %s's outbox failed: %v; do not resend\n",
+			m.MsgID, m.To, m.From, err)
+	}
+	return nil
 }
 
 // Compose builds and validates an unsigned message without writing it.

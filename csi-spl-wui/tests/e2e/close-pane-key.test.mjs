@@ -67,6 +67,23 @@ async function until(p, fn, arg, ms = 6000) {
   return false
 }
 
+/** the URL once it has not changed for `quiet` ms (at most `ms`). The hit's
+    click lands on /channel/lobby?topic=<id>#<msg>, and a router.replace drops
+    the query about 1.2 s later (n=4 at 6x CPU throttle, the box); on a slow
+    hosted runner it landed after the 'before' read, so the no-pane check saw
+    a change Shift + W never made (schedule run 39356039456, both tries). */
+async function settledUrl(p, quiet = 1000, ms = 8000) {
+  const t0 = Date.now()
+  let last = p.url()
+  let since = t0
+  while (Date.now() - t0 < ms) {
+    await sleep(100)
+    const u = p.url()
+    if (u !== last) { last = u; since = Date.now() } else if (Date.now() - since >= quiet) break
+  }
+  return last
+}
+
 async function shiftW(p) {
   await p.keyboard.down('Shift')
   await p.keyboard.press('KeyW')
@@ -140,14 +157,14 @@ try {
   await shiftW(p)
   ok('Shift + W again closes the next pane (the search list)', await until(p, gone, SEARCH, 3000))
 
-  const before = p.url()
+  const before = await settledUrl(p)
   await focusCard(p)
   await shiftW(p)
-  await sleep(600)
+  const after = await settledUrl(p, 600)
   /* the cards may re-render as the search list leaves: wait for them, as the
      checks above do (hosted run 39275590633 read none the instant after) */
   const cards = await until(p, shown, '.spool-main article.msg', 3000)
-  ok('with no pane beyond the conversation, Shift + W does nothing', p.url() === before && cards, { url: p.url(), cards })
+  ok('with no pane beyond the conversation, Shift + W does nothing', after === before && cards, { before, after, cards })
 
   /* ---- in the composer Shift + W types ---- */
   ok('a topic opens again', await openTopic(p))

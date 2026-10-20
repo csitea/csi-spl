@@ -47,6 +47,9 @@ for m in "$OP op-admin@example.com" "$WS ws-admin@example.com"; do
 done
 ok "workspaces $OP (operator) and $WS, one admin each"
 
+# The log exists before the hub starts: the port poll below reads it at once,
+# and a sed on a missing file exits 2, which set -e turns into a dead test.
+: >"$WORK/hub.log"
 SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_FILES_DIR="$WORK/blobs" \
 SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:0" \
 SPOOL_HUB_LOG_FORMAT=json SPOOL_HUB_ENV=lde SPOOL_HUB_LOBBY_TASK_ID="$LOBBY" \

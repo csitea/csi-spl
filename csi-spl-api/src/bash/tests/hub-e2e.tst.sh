@@ -39,6 +39,10 @@ hub_logged_port() {
 }
 
 start_hub() {
+  # The log exists before the hub starts: hub_logged_port reads it at once,
+  # and a sed on a missing file exits 2 even with 2>/dev/null, which pipefail
+  # and set -e turn into a dead test. touch, not truncate: a restart appends.
+  touch "$WORK/hub.log"
   SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_FILES_DIR="$WORK/blobs" \
   SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:${PORT:-0}" \
   SPOOL_HUB_LOG_FORMAT=json SPOOL_HUB_ENV=lde \

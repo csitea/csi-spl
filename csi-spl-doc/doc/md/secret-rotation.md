@@ -106,3 +106,56 @@ project has no Pub/Sub API enabled (cnf `steps.001-enable-gcp-services`).
 The three made here (DB DSN, session key, box-wui key) could get a rotator
 later; each needs a seed action that adds a version first, and the box-wui
 key a box rollout too.
+
+## 5. SPL-1945 build order
+
+The owner's six answers (t1 fee9a38d, msg 4b8250d9): max ages GCP SA keys
+30 d, DB and session 90 d, vendor and payment 180 d, seat logins on re-login
+(Q1); the prd project key first, with a short pause of that box's prd actions
+until the new key is proven on both boxes and in CI (Q2); unused credentials
+removed only after their dry-run list is shown to the owner (Q3); one
+fine-grained GitHub token per box (Q4); root and desk box keys rehearsed on
+dev, then prd one workspace at a time, new key before old (Q5); secret reading
+moves to one dedicated user (Q6). One row per rotation, in build order. Every
+step that mints a key, changes IAM or Secret Manager, or touches prd needs the
+owner's go for that step.
+
+| # | rotation | named action | owner gate | proof |
+|---|---|---|---|---|
+| 1 | per-env project SA key, prd first (Q2) | `do_gcp_sa_key_rotate` (csi-spl-iac, built: 5.1); the copy to the other box `do_box_copy_gcp_key FORCE=1` (csi-spl-orc) | key mint and key delete: owner go per step, prd per step | `ROTATE_STEP=prove` proof id on both boxes + a green CI run on the new key, then `status` shows one key |
+| 2 | unused credentials: dry-run list (Q3) | to build: a list action over the two release SA keys, the org-wide GitHub token, the empty secret containers and the old seat credential backups; removal is a second step | the list is shown to the owner before anything is removed; each removal (IAM / Secret Manager / GitHub) is owner go | the list, then the same list empty |
+| 3 | one fine-grained GitHub token per box (Q4) | to build: a per-box token put + check; the org-wide token goes in row 2 | a GitHub token is minted by the owner | each box's `gh api` call answers with its own token; the old token revoked |
+| 4 | DB passwords: `csi-spl-hub-db-dsn`, 90 d | `do_spl_secret_rotate` (section 2); the new password + DSN version still by hand, a seed action to build | Cloud SQL user change, Secret Manager version, 030 apply: owner go each | `ROTATE_STEP=verify`, `do_check_hub_deploy`, `do_spl_secret_age_report` exit 0 |
+| 5 | vendor and payment keys, 180 d | the seed actions of section 4, then `do_spl_secret_rotate` | made at the vendor by the owner; 030 apply owner go | `ROTATE_STEP=verify`, the age report shows none `OVER` |
+| 6 | root and desk box keys (Q5) | to build: a box-key rotate action, new key before old | rehearsal on dev; prd one workspace at a time, owner go per workspace | each workspace's desk answers on the new key before the old one is removed |
+| 7 | one dedicated secret-reading user (Q6) | design row first (its own spec), no action yet | the design is the owner's to accept | the design's own tests |
+
+### 5.1 Rotating the per-env project SA key (row 1)
+
+`do_gcp_sa_key_rotate` (csi-spl-iac, SPL-2735) walks one rotation of
+`$HOME/.gcp/.<org>/key-<project>.json` (the key `do_gcp_account` reads) and
+refuses a step out of order. It runs as that key's SA in a throwaway gcloud
+config, never as the owner account, and never prints the key.
+`cd csi-spl-iac && ENV=<env> ./run -a do_gcp_sa_key_rotate`.
+Test: `csi-spl-iac/src/bash/tests/gcp-sa-key-rotate.tst.sh`.
+
+1. **status** (the default): the SA's user-managed keys, their age against
+   the 30 d max (`OVER`), which one the key file holds, and the next step.
+2. **mint** (`ROTATE_STEP=mint`, a dry run unless `DRY_RUN=0`): a new key,
+   written only to the key file, mode 600; the old file stays beside it as
+   `<file>.prev` for the undo. Refused while the SA already holds a second
+   user key.
+3. **copy** the new key file to the other box (`do_box_copy_gcp_key`,
+   `FORCE=1`) and to the CI secret, out of band.
+4. **prove** (`ROTATE_STEP=prove`) on each box: the key file alone mints a
+   token and reads the project; it prints a proof id `<box>:<key id
+   prefix>:<UTC time>` and records it on that box. Then one green CI run on
+   the new key.
+5. **retire** (`ROTATE_STEP=retire OLD_KEY_ID=<id> PROOF_IDS=<this box's>,<the
+   other box's> CI_RUN_ID=<run id>`, a dry run unless `DRY_RUN=0`): deletes
+   the old key id and `<file>.prev`. It checks this box's recorded proof and
+   the form of the other proof (another box, the same new key); it cannot
+   reach the other box or CI itself, so those ids are the caller's evidence.
+
+Undo before step 5: put `<file>.prev` back as the key file; the old key is
+still valid. After step 5 the old key is gone: mint again.

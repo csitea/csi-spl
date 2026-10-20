@@ -22,9 +22,6 @@ LONG="
   csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh do_gcp_import_to_cloudsql 174
   csi-spl-iac/src/bash/run/gcp-project-delete.func.sh do_gcp_project_delete 119
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
-  csi-spl-iac/src/bash/run/run.sh do_log 143
-
-  csi-spl-orc/src/bash/run/run.sh do_log 143
 "
 
 fails=0

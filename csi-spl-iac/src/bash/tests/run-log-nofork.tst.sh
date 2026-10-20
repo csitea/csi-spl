@@ -74,6 +74,11 @@ for mod in orc iac; do
   [[ -f "$src" ]] || { fail "$mod run.sh exists" "$src"; continue; }
   lib="$T/$mod-log.inc.sh"
   extract "$src" do_log "$lib" || { fail "$mod: extract do_log" "$src"; continue; }
+  # do_log runs its steps as top-level _do_log_* functions (r14-09)
+  for h in $(grep -oE '^_do_log_[a-z_]+' "$src"); do
+    extract "$src" "$h" "$lib.$h" && cat "$lib.$h" >>"$lib" \
+      || { fail "$mod: extract $h" "$src"; continue 2; }
+  done
 
   # 1. Byte-compare the visible line against the old formatter.
   bash -c '

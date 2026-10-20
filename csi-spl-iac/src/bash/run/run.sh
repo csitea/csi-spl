@@ -334,12 +334,28 @@ do_log() {
   print_fail() { echo -e "\033[0;31m ❌ [NOK] ${1:-}\033[0m"; }
   print_fatal() { echo -e "\033[0;31m 💣 [FATAL] ${1:-}\033[0m"; }
 
-  # First two words and the remainder, the same bytes as
-  # `echo $* | cut -d" " -f1/-f2/-f3-`, with no fork. Unquoted $* collapses
-  # IFS whitespace; a line with no space has no delimiter, and cut prints
-  # that whole line for every -f. RUN_LOG_EPOCH (seconds) freezes both
-  # stamps for a byte-compare; unset means now. printf %()T matches date
-  # in the same TZ.
+  # The steps below share these locals (bash dynamic scope) and set the
+  # globals type_of_msg, action, rest_of_msg, msg, log_dir and log_file.
+  local display_type _do_log_day
+  _do_log_split_words "$@"
+  _do_log_format_line
+  _do_log_resolve_dir
+  _do_log_resolve_file
+
+  # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
+  # full line): the file gets the full line, stdout `LEVEL msg`.
+  if [[ "${RUN_LOG_COMPACT:-0}" == "1" ]]; then
+    _do_log_emit_compact "$@"
+    return 0
+  fi
+  _do_log_emit_full
+}
+
+# First two words and the remainder, the same bytes as
+# `echo $* | cut -d" " -f1/-f2/-f3-`, with no fork. Unquoted $* collapses
+# IFS whitespace; a line with no space has no delimiter, and cut prints
+# that whole line for every -f.
+_do_log_split_words() {
   local _do_log_words=()
   read -r -a _do_log_words <<< "$*" || true
   if ((${#_do_log_words[@]} <= 1)); then
@@ -355,12 +371,16 @@ do_log() {
       rest_of_msg=""
     fi
   fi
+}
 
-  local display_type="${type_of_msg/WARNING/WARN}"
+# The full line into msg. RUN_LOG_EPOCH (seconds) freezes both stamps for a
+# byte-compare; unset means now. printf %()T matches date in the same TZ.
+_do_log_format_line() {
+  display_type="${type_of_msg/WARNING/WARN}"
   local type_padded
   type_padded=$(printf "%-7s" "[$display_type]")
 
-  local _do_log_ts _do_log_day
+  local _do_log_ts
   printf -v _do_log_ts '%(%Y-%m-%d %H:%M:%S %Z)T' "${RUN_LOG_EPOCH:--1}"
   printf -v _do_log_day '%(%Y%m%d)T' "${RUN_LOG_EPOCH:--1}"
 
@@ -370,9 +390,11 @@ do_log() {
   else
     msg=" $type_padded ${_do_log_ts} [${PROJ:-}][@${HOST_NAME:-}] [$$] $action $rest_of_msg"
   fi
+}
 
-  # One mkdir per directory, not one per line. Resolve again only when
-  # LOG_DIR changes or the directory is gone.
+# One mkdir per directory, not one per line. Resolve again only when
+# LOG_DIR changes or the directory is gone.
+_do_log_resolve_dir() {
   if [[ "${_do_log_dir_ready:-}" != "${LOG_DIR:-}" || -z "${LOG_DIR:-}" ]] ||
     [[ ! -d "${LOG_DIR:-}" && "${_do_log_off:-}" != "${LOG_DIR:-}" ]]; then
     local _log_dir
@@ -395,10 +417,13 @@ do_log() {
     _do_log_off=""
   fi
   log_dir="$LOG_DIR"
+}
+
+# A log dir or file nobody can write never aborts the command (SPL-2617):
+# the append failed and the ERR trap turned the run FATAL. Log to a
+# per-user temp dir instead, else keep no log file; say so on stderr.
+_do_log_resolve_file() {
   log_file="$log_dir/${PROJ:-run}.${_do_log_day}.log"
-  # A log dir or file nobody can write never aborts the command (SPL-2617):
-  # the append failed and the ERR trap turned the run FATAL. Log to a
-  # per-user temp dir instead, else keep no log file; say so on stderr.
   if [[ "${_do_log_off:-}" != "$log_dir" ]] &&
     [[ ! -w "$log_dir" || ( -e "$log_file" && ! -w "$log_file" ) ]]; then
     local _log_fb="${TMPDIR:-/tmp}/run-log-${EUID}"
@@ -412,32 +437,36 @@ do_log() {
     fi
   fi
   if [[ "${_do_log_off:-}" == "$log_dir" ]]; then log_file=/dev/null; fi
+}
 
-  # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
-  # full line): the file gets the full line, stdout `LEVEL msg`.
-  if [[ "${RUN_LOG_COMPACT:-0}" == "1" ]]; then
-    case "$type_of_msg" in
-    'FATAL') print_fatal "$msg" ;;
-    'ERROR') print_fail "$msg" ;;
-    'WARNING'|'WARN') print_warning "$msg" ;;
-    'INFO') print_info "$msg" ;;
-    'OK')    print_ok    "$msg" ;;
-    'DEBUG') print_debug "$msg" ;;
-    *) echo "$msg" ;;
-    esac >>"$log_file"
-    [[ "$type_of_msg" == "DEBUG" && "${RUN_LOG:-}" != "debug" ]] && return 0
-    [[ ( "$action" == "START" || "$action" == "STOP" ) && "$rest_of_msg" == "::: running "* ]] && return 0
-    [[ "$*" == *"'s run completed" ]] && return 0
-    local _body="$*"
-    _body="${_body#"$type_of_msg"}"
-    if [[ "$_body" == "$*" ]]; then
-      echo "$*"
-    else
-      echo "$display_type ${_body# }"
-    fi
-    return 0
+# _do_log_emit_compact <do_log args>: the full line to the file, `LEVEL msg`
+# to stdout; debug lines (unless RUN_LOG=debug), the runner's own START/STOP
+# and its completion line are file-only.
+_do_log_emit_compact() {
+  case "$type_of_msg" in
+  'FATAL') print_fatal "$msg" ;;
+  'ERROR') print_fail "$msg" ;;
+  'WARNING'|'WARN') print_warning "$msg" ;;
+  'INFO') print_info "$msg" ;;
+  'OK')    print_ok    "$msg" ;;
+  'DEBUG') print_debug "$msg" ;;
+  *) echo "$msg" ;;
+  esac >>"$log_file"
+  [[ "$type_of_msg" == "DEBUG" && "${RUN_LOG:-}" != "debug" ]] && return 0
+  [[ ( "$action" == "START" || "$action" == "STOP" ) && "$rest_of_msg" == "::: running "* ]] && return 0
+  [[ "$*" == *"'s run completed" ]] && return 0
+  local _body="$*"
+  _body="${_body#"$type_of_msg"}"
+  if [[ "$_body" == "$*" ]]; then
+    echo "$*"
+  else
+    echo "$display_type ${_body# }"
   fi
+  return 0
+}
 
+# The full line to stdout and the log file.
+_do_log_emit_full() {
   case "$type_of_msg" in
   'FATAL') print_fatal "$msg" | tee -a "$log_file" ;;
   'ERROR') print_fail "$msg" | tee -a "$log_file" ;;

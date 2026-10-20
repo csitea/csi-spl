@@ -60,8 +60,8 @@ sh "$TABLE" 040-cloud-sql-postgres "$T/nope.tfvars" >/dev/null 2>&1
 [[ $? -eq 1 ]] && pass "missing tfvars -> exit 1" || fail "missing tfvars not refused"
 
 # ---- the action -------------------------------------------------------------
-# the real iac do_log, so the stub answers in the format do_tf_import prints
-awk '/^do_log\(\) \{/,/^}/' "$APP_ROOT/csi-spl-iac/src/bash/run/run.sh" >"$T/do_log.sh"
+# the real iac do_log and its _do_log_* steps, so the stub answers in the format do_tf_import prints
+awk '/^_?do_log(_[a-z_]+)?\(\) \{/,/^}/' "$APP_ROOT/csi-spl-iac/src/bash/run/run.sh" >"$T/do_log.sh"
 command grep -q 'print_ok' "$T/do_log.sh" || fail "could not extract do_log from csi-spl-iac run.sh"
 mkdir -p "$T/log"
 # docker stub: `ps` lists $RUNNING; `exec` logs one line per call

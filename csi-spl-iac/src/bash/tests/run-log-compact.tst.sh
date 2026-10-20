@@ -26,7 +26,7 @@ ESC=$'\033'
 for mod in iac orc; do
   src="$REPO_ROOT/csi-spl-$mod/src/bash/run/run.sh"
   lib="$T/$mod.inc.sh"
-  awk '/^do_log\(\) \{/,/^}/; /^do_detect_log_mode\(\) \{/,/^}/' "$src" >"$lib"
+  awk '/^_?do_log(_[a-z_]+)?\(\) \{/,/^}/; /^do_detect_log_mode\(\) \{/,/^}/' "$src" >"$lib"
   grep -q '^do_detect_log_mode() {' "$lib" && grep -q 'print_ok' "$lib" \
     || { fail "$mod: extract do_log + do_detect_log_mode" "$src"; continue; }
 

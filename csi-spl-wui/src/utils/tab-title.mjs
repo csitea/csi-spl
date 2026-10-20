@@ -6,7 +6,7 @@
  * display name is itself "spool-hub") is plain "spool-hub". A page title, when
  * a page sets one, stays in front: "Search: x · hooli.spool-hub".
  */
-import { fixedTenantOption } from './tenant-switcher.mjs'
+import { fixedTenantOption } from './tenant-fixed.mjs'
 
 export const PRODUCT = 'spool-hub'
 

@@ -56,4 +56,13 @@ describe('tab title: unread count', () => {
     assert.match(app, /unreadRows\.section\('channels'\) - muted\) \+ unreadRows\.section\('dms'\)/)
     assert.doesNotMatch(app, /useFlowBadge|unreadTotal/, 'the title is the row sum, not the Flow total (spec 079 Q1)')
   })
+
+  it('SPL-2149: the tab title (first download) takes the single row from tenant-fixed.mjs, never the whole switcher', async () => {
+    const src = readFileSync(join(WUI, 'src/utils/tab-title.mjs'), 'utf8')
+    assert.match(src, /from '\.\/tenant-fixed\.mjs'/)
+    assert.doesNotMatch(src, /tenant-switcher/)
+    const sw = await import('../../src/utils/tenant-switcher.mjs')
+    const fixed = await import('../../src/utils/tenant-fixed.mjs')
+    assert.equal(sw.fixedTenantOption, fixed.fixedTenantOption, 'the drop box and Settings still import it from tenant-switcher.mjs')
+  })
 })

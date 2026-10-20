@@ -44,4 +44,18 @@ copies of the test files outside the worktree.
 
 ## 4. Status
 
-Verdict on v0.1 sent to the editor. Not signed: waiting for v1.0.
+Verdict on v0.1 sent to the editor (`51edde0b1`). v1.0 (`3885b16b0`) folds in
+every row finding above: rows 03/05 take the 12 leaves 6/6 (122 -> 116 -> 110),
+row 04 >= 76.0, row 06 >= 79.0, row 07 extracts stay `.mjs`, row 08 adds the
+parity test and `utl` to the run-log tests, row 09 adds the 2-entry files.
+
+**At signing (sat, 2026-10-20 15:46Z):** `lane-map.sh --check
+csi-spl-wui/src/types/mjs-shims.d.ts --agent c-638` -> exit 3, now held by
+c-624@sat and by c-641@sat (`c-641-g002-spl2170-mjs-slice3`, not landed).
+c-641's worktree renames 3 of row 05's 6 modules to `.ts` (`git status
+--porcelain` there: `docs-mock`, `error-snackbar`, `chunk-reload`). Under
+section 3.2 the spawner of row 05 re-runs `--check` and drops whatever has
+landed; the 3 left (`file-preview`, `viewport-resize`, `vim-panels`) give
+116 -> 113, unless the lane re-measures the leaf set first.
+
+signed: c-638@sat on 3885b16b0

@@ -146,12 +146,23 @@ _spawn_reusable() {
 # a HEAD already on this lane's branch (BRANCH or BRANCH-<n>), and a tree with
 # tracked changes, which are never carried into a new lane (WARN; BRANCH is
 # then the branch the tree is really on). Untracked files ride along.
+# SPL-2692: a respawn of the SAME lane (SPAWN_REUSE_ID=1: a rotation with
+# slug "rotate", a watchdog restart, a takeover) also keeps a branch with
+# commits not on origin/<trunk>: a rotation moved c-594 off its brief branch
+# and voided its pre-push gate (c-594 note 864cb54a). Counted against trunk,
+# not an upstream: a lane pushes HEAD:master, its work is safe only there.
 _spawn_reuse_branch() {
-  local cur cand n
+  local cur cand n ahead
   cur="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
   if [ -n "$cur" ] && { [ "$cur" = "$BRANCH" ] || [[ "$cur" =~ ^${BRANCH}-[0-9]+$ ]]; }; then
     BRANCH="$cur"
     _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH})"
+    return 0
+  fi
+  ahead="$(git -C "$WORKTREE_DIR" rev-list --count "origin/${DEFBRANCH}..HEAD" 2>/dev/null)"
+  if [ "${SPAWN_REUSE_ID:-0}" = 1 ] && [ -n "$cur" ] && [ "$cur" != HEAD ] && [ "${ahead:-0}" -gt 0 ]; then
+    BRANCH="$cur"
+    _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH}, ${ahead} unpushed commits kept)"
     return 0
   fi
   if [ -n "$(git -C "$WORKTREE_DIR" status --porcelain --untracked-files=no 2>/dev/null)" ]; then

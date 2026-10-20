@@ -7,6 +7,9 @@
 # Every box runs it; only the holder's box sends the holder's blocker (the
 # action checks), and every box tells the lanes it hosts when one of their
 # commits is in a red job's suspect range (spec 133 action 7).
+# Then do_check_ci_gate_stuck: ONE blocker to the holder per gate run with a
+# job queued over 60 min (c-001@sat note 4cbf224a, a 9 h queued run held the
+# push group); CI_GATE_STUCK_CHECK=0 skips it.
 #
 # A cron job reads no profile: the PATH is set here and the tools are checked
 # before any work. gh with no login reads GH_TOKEN from CI_RED_NOTE_GH_TOKEN_FILE
@@ -61,5 +64,8 @@ exec 9>"$lock"
 flock -n 9 || { say "OK another ci-red-note run holds $lock"; exit 0; }
 say "START ci-red-note"
 ( cd "$IAC" && ./run -a do_report_ci_red_note ); rc=$?
+if [ "${CI_GATE_STUCK_CHECK:-1}" = 1 ]; then
+  ( cd "$IAC" && ./run -a do_check_ci_gate_stuck ) || rc=1
+fi
 say "STOP ci-red-note rc=$rc"
 [ "$rc" = 0 ] || exit 1

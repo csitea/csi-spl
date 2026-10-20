@@ -22,6 +22,9 @@
 #   8. ORG_APP empty -> refused ("ORG_APP is required"), no gcloud call
 #      (both in a dry run and in a real one)
 #   9. CONTROL: no key, no ACCOUNT -> refused, no `gcloud compute` call
+#  10. every log line goes through do_log, the run framework's logger: no
+#      run prints "command not found" (log_info / log_warn / log_error are
+#      defined nowhere, so the test stubs only do_log; SPL-2674)
 # gcloud is a stub on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -61,10 +64,13 @@ act() {
   env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u PROJ_ID -u GCP_SA_KEY_FILE -u DELETE_BUCKET -u DRY_RUN \
     HOME="$T/home" TMPDIR="$T/tmp" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" ORG=csi APP=spl ENV=dev ORG_APP=csi-spl "$@" bash -c '
-    do_log() { echo "$*"; }; log_info() { echo "INFO $*"; }; log_warn() { echo "WARN $*"; }; log_error() { echo "ERROR $*"; }
+    do_log() { echo "$*"; }
     quit_on() { rv=$?; if [ $rv -ne 0 ]; then echo "FATAL Error: Failed to $1"; exit $rv; fi; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/gcp-compute-lb-cleanup.func.sh; do source "$f"; done
     do_gcp_compute_lb_cleanup' >"$T/out" 2>&1
+  local rc=$?
+  grep 'command not found' "$T/out" >>"$T/undefined.log"
+  return $rc
 }
 deletes() { grep '|compute .* delete ' "$T/calls.log" | cut -d'|' -f2-; }
 compute_calls() { grep -c '|compute ' "$T/calls.log"; }
@@ -152,6 +158,10 @@ act; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'no gcloud account' "$T/out" \
   && pass "9. CONTROL: no key, dry run -> refused, no gcloud call" || fail "9. dry: rc=$rc $(cat "$T/out")"
 mv "$T/key.json" "$T/home/.gcp/.csi/key-csi-spl-dev.json"
+
+# --- 10. no undefined helper in any run above --------------------------------
+[[ ! -s "$T/undefined.log" ]] && pass "10. every run logs through do_log: no 'command not found'" \
+  || fail "10. undefined helper: $(sort -u "$T/undefined.log")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

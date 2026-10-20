@@ -26,7 +26,7 @@ do_gcp_compute_lb_cleanup() {
   local gcp_project="${org}-${app}-${env}"
   local key_file="$HOME/.gcp/.${org}/key-${org}-${app}-${env}.json"
   local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { log_error "DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "ERROR DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
   local part kind name scope account parts
   mapfile -t parts < <(_gcp_lb_cleanup_parts)
 
@@ -50,34 +50,34 @@ do_gcp_compute_lb_cleanup() {
   account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
   do_gcp_log_identity "${gcp_project}" "${account}" "do_gcp_compute_lb_cleanup"
 
-  log_info "Activating service account for project: ${gcp_project}"
+  do_log "INFO Activating service account for project: ${gcp_project}"
   gcloud auth activate-service-account --key-file="${key_file}" || {
-    log_error "Failed to activate service account"
+    do_log "ERROR Failed to activate service account"
   return 1
   }
   account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   gcloud config set project "${gcp_project}"
 
-  log_info "=== Cleaning up LB resources for prefix: ${prefix} ==="
+  do_log "INFO === Cleaning up LB resources for prefix: ${prefix} ==="
 
   # 1-5. forwarding rules, target proxies, URL maps, backend bucket, SSL certificate
   for part in "${parts[@]}"; do
     read -r kind name scope <<<"${part}"
     # shellcheck disable=SC2086 # scope is empty or one flag
     gcloud compute "${kind}" delete "${prefix}-${name}" ${scope} --quiet --account="${account}" --project="${gcp_project}" 2>/dev/null && \
-      log_info "Deleted ${prefix}-${name}" || log_warn "Not found: ${prefix}-${name}"
+      do_log "INFO Deleted ${prefix}-${name}" || do_log "WARN Not found: ${prefix}-${name}"
   done
 
   # 6. Delete storage bucket (optional - prompt or use flag)
   if [[ "${DELETE_BUCKET:-false}" == "true" ]]; then
-    log_info "Deleting storage bucket: ${bucket_name}..."
+    do_log "INFO Deleting storage bucket: ${bucket_name}..."
     gcloud storage rm -r "gs://${bucket_name}" --account="${account}" 2>/dev/null && \
-      log_info "Deleted gs://${bucket_name}" || log_warn "Not found or failed: gs://${bucket_name}"
+      do_log "INFO Deleted gs://${bucket_name}" || do_log "WARN Not found or failed: gs://${bucket_name}"
   else
-    log_info "Skipping storage bucket deletion. Set DELETE_BUCKET=true to delete."
+    do_log "INFO Skipping storage bucket deletion. Set DELETE_BUCKET=true to delete."
   fi
 
-  log_info "=== LB cleanup complete ==="
+  do_log "INFO === LB cleanup complete ==="
 }
 
 #------------------------------------------------------------------------------
@@ -107,13 +107,13 @@ _gcp_lb_cleanup_dry_run() {
   local prefix="$1" gcp_project="$2" bucket_name="$3" key_file="$4" account part kind name scope
   account="${ACCOUNT:-${GCP_ACCOUNT:-}}"
   [[ -n "${account}" ]] || account=$(do_gcp_sa_key_email "${key_file}") \
-    || { log_error "no gcloud account: set ACCOUNT or provide the key ${key_file}"; return 1; }
-  log_info "DRY_RUN would run: gcloud auth activate-service-account --key-file=${key_file}"
+    || { do_log "ERROR no gcloud account: set ACCOUNT or provide the key ${key_file}"; return 1; }
+  do_log "INFO DRY_RUN would run: gcloud auth activate-service-account --key-file=${key_file}"
   while read -r kind name scope; do
-    log_info "DRY_RUN would run: gcloud compute ${kind} delete ${prefix}-${name}${scope:+ ${scope}} --quiet --account=${account} --project=${gcp_project}"
+    do_log "INFO DRY_RUN would run: gcloud compute ${kind} delete ${prefix}-${name}${scope:+ ${scope}} --quiet --account=${account} --project=${gcp_project}"
   done < <(_gcp_lb_cleanup_parts)
   if [[ "${DELETE_BUCKET:-false}" == "true" ]]; then
-    log_info "DRY_RUN would run: gcloud storage rm -r gs://${bucket_name} --account=${account}"
+    do_log "INFO DRY_RUN would run: gcloud storage rm -r gs://${bucket_name} --account=${account}"
   fi
-  log_info "DRY_RUN for ${prefix} complete: nothing was deleted. Re-run with DRY_RUN=0 to delete."
+  do_log "INFO DRY_RUN for ${prefix} complete: nothing was deleted. Re-run with DRY_RUN=0 to delete."
 }

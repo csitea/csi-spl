@@ -2,8 +2,13 @@
 
 #------------------------------------------------------------------------------
 # @description The terraform state pull command is used to manually download and output the state from remote state. This command also works with local state. https://developer.hashicorp.com/terraform/cli/commands/state/pull $ ORG=org APP=app ENV=env STEP=000-step make do-tf-state-pull
+# @description Read-only (it writes only the local copy under dat/tmp), so it
+# @description has no DRY_RUN gate.
+# @param ENV STEP - required
 #------------------------------------------------------------------------------
 do_tf_state_pull() {
+
+  : "${ENV:?ENV must be set}" "${STEP:?STEP must be set}"
 
   do_log "INFO START ::: provisioning step ${STEP}"
 

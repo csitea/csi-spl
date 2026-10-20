@@ -51,6 +51,7 @@ var operatorCallers = map[string]string{
 	"SetClaimLink":               "paid webhook / claim mail, keyed by the checkout id",
 	"ClaimCheckout":              "POST /v1/checkout/claim: checkout id + the claim secret's hash",
 	"ListWorkspaces":             "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the operator workspace reaches it",
+	"SetAgentCaps":               "PUT/DELETE /v1/operator/workspaces/{id}/agent-caps (spec 147, rdb 0212): writes ONE named workspace's caps + audit rows (WHERE tenant_id = $1); rdb 0212 lets only the operator scope write them; only an admin of the operator workspace reaches it",
 	"OperatorTenant":             "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",
 	"keyLiveElsewhere":           "POST /v1/pins/join (spec 073 T003, spec 108 3.1): whether a box key is live in any other workspace; a bool, never which workspace",
 	"TenantsMissingPublicNotice": "retention sweeper + hub start (rdb 0173): which tenants lack the #public notice; a primary-key probe per tenant, returns tenant ids only; no route",

@@ -225,6 +225,14 @@ func tenantPolicyGaps(ctx context.Context, dsn string, setup func(pgx.Tx) error)
 				}
 			}
 		}
+		if tenantReadOnlyTables[tb.name] {
+			// operator-written (crosstenant_test.go): the tenant reads its own
+			// rows and no tenant policy lets it write any
+			if !reads || writes {
+				gaps = append(gaps, fmt.Sprintf("%s: tenant read-only table: tenant reads own=%v (want true), writes own=%v (want false)", tb.name, reads, writes))
+			}
+			continue
+		}
 		if !reads || !writes {
 			gaps = append(gaps, fmt.Sprintf("%s: no tenant policy on app.tenant_id (tenant reads own=%v, writes own=%v; policies %d)", tb.name, reads, writes, len(tb.policies)))
 		}

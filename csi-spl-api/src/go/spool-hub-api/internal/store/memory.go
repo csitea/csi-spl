@@ -79,6 +79,8 @@ type Memory struct {
 	wake      memWake // wake.go (spec 059 S1), its own lock
 	// operator_workspaces.go (rdb 0115): operator_audit rows, guarded by mu
 	opAudit []OperatorAudit
+	// agent_caps_memory.go (rdb 0212): tenant -> vendor -> cap, guarded by mu
+	agentCaps map[string]map[string]memCap
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
 	operatorTenant string
 	// join_tokens.go (rdb 0119): agent join tokens by hash, guarded by mu
@@ -124,8 +126,9 @@ func NewMemory() *Memory {
 	return &Memory{
 		tenants: map[string]Tenant{}, pins: map[[2]string]*memPin{},
 		boxes: map[[2]string]time.Time{}, roster: map[[2]string][]string{},
-		seats:    map[[3]string]time.Time{},
-		messages: map[[2]string]*Message{}, deliveries: map[[3]string]*memDelivery{},
+		seats:     map[[3]string]time.Time{},
+		agentCaps: map[string]map[string]memCap{},
+		messages:  map[[2]string]*Message{}, deliveries: map[[3]string]*memDelivery{},
 		revisions: map[[2]string][]MessageRevision{},
 	}
 }
@@ -275,6 +278,9 @@ func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []strin
 	if t, ok := s.tenants[tenant]; ok && t.SeatsBots > 0 &&
 		overBotCap(t.SeatsBots, s.countBotsLocked(tenant), s.roster[[2]string{tenant, box}], agents) {
 		return ErrSeatQuota
+	}
+	if err := s.vendorCapGateLocked(tenant, box, agents, now); err != nil {
+		return err // spec 147: after the bot seat cap, as Postgres
 	}
 	if _, ok := s.boxes[[2]string{tenant, box}]; !ok {
 		s.boxes[[2]string{tenant, box}] = time.Time{} // the row, no hello (Postgres: last_hello_at NULL)

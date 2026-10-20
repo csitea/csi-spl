@@ -56,6 +56,8 @@ type Postgres struct {
 	kv seatsProbe
 	// run: is rdb 0153 roster.running there yet (agent_run.go)
 	run seatsProbe
+	// caps: is rdb 0212 tenant_agent_caps there yet (agent_caps_postgres.go)
+	caps seatsProbe
 	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
 	heads topicHeads
 }
@@ -335,6 +337,10 @@ func (s *Postgres) TouchBox(ctx context.Context, tenant, box string, now time.Ti
 func (s *Postgres) SetRoster(ctx context.Context, tenant, box string, agents []string, now time.Time) error {
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		if err := s.botSeatGate(ctx, tx, tenant, box, agents); err != nil {
+			return err
+		}
+		// spec 147: under botSeatGate's tenants row lock (agent_caps_postgres.go)
+		if err := s.vendorCapGate(ctx, tx, tenant, box, agents, now); err != nil {
 			return err
 		}
 		// One round trip for the replace: box row, clear, one multi-row insert

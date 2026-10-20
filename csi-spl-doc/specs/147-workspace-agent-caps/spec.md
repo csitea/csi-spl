@@ -458,15 +458,15 @@ Mirrors the owner requirement from msg `dc010e3c` and verifies full enforcement.
 
 | FR ID | Summary & Requirement | Enforcement Layer | Authority |
 |---|---|---|---|
-| **FR-001** | **Database Cap Schema**: Persist `tenant_agent_caps (tenant_id, vendor, max_live)` with RLS fail-closed policies. | Database Migration | Planned (`<next>`) |
+| **FR-001** | **Database Cap Schema**: Persist `tenant_agent_caps (tenant_id, vendor, max_live)` with RLS fail-closed policies. | Database Migration | Built R1 (rdb `0212`, SPL-2675) |
 | **FR-002** | **Spool-Hub Admin Management API**: `GET`, `PUT`, `DELETE`, `OPTIONS /v1/operator/workspaces/{id}/agent-caps` guarded by `operator.workspaces`. | Hub API (`operator`) | Planned |
 | **FR-003** | **Workspace Admin Read-Only API**: `GET /v1/tenant/agent-caps` returns caps and live counts; non-GET returns HTTP 405. | Hub API (`tenant`) | Planned |
-| **FR-004** | **Hub Roster Gate (`vendorCapGate`)**: In `SetRoster`, evaluate prospective vendor counts; reject additions exceeding `max_live` with `409 Conflict`. | Hub Store / Protocol | Planned |
-| **FR-005** | **WebSocket Hello Handling**: In `seatRoster`, trim incoming agents violating vendor caps while retaining previously seated agents. | Hub Protocol (`ws.go`) | Planned |
+| **FR-004** | **Hub Roster Gate (`vendorCapGate`)**: In `SetRoster`, evaluate prospective vendor counts; reject additions exceeding `max_live` with `409 Conflict`. | Hub Store / Protocol | Built R1 (SPL-2675) |
+| **FR-005** | **WebSocket Hello Handling**: In `seatRoster`, trim incoming agents violating vendor caps while retaining previously seated agents. | Hub Protocol (`ws.go`) | Built R1 (SPL-2675) |
 | **FR-006** | **Desk Seating Courtesy Check**: `do_spl_desk_up` checks vendor cap before sidecar spawn; exits 1 with fatal message naming cap and live count. | Bash Orchestration | Planned |
 | **FR-007** | **Explicit Desk Teardown**: `do_spl_desk_down` removes desk directory on agent exit, achieving prompt seat release. | Bash Orchestration | Planned |
-| **FR-008** | **Audit Logging**: Every create, update, or delete of workspace agent caps appends an audit row to `operator_audit`. | Hub Store (`audit`) | Planned |
-| **FR-009** | **Default Uncapped Semantics**: Unlisted vendors or workspaces with no rows in `tenant_agent_caps` permit arbitrary concurrent agents up to bot seat limit. | Hub Store / Bash | Planned |
+| **FR-008** | **Audit Logging**: Every create, update, or delete of workspace agent caps appends an audit row to `operator_audit`. | Hub Store (`audit`) | Built R1 (SPL-2675) |
+| **FR-009** | **Default Uncapped Semantics**: Unlisted vendors or workspaces with no rows in `tenant_agent_caps` permit arbitrary concurrent agents up to bot seat limit. | Hub Store / Bash | Built R1 (SPL-2675) |
 | **FR-010** | **Operator Console UI**: `OperatorPane.vue` renders editable inputs for all 5 vendors in workspace management drawer. | Web UI (`operator`) | Planned |
 | **FR-011** | **Workspace Settings UI**: `pages/tenant-settings/agents.vue` renders read-only status table showing caps, live counts, and limit badges. | Web UI (`tenant`) | Planned |
 
@@ -537,7 +537,11 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 | **Missed 1** | Customer desk seat release up to 60 min late without explicit desk directory removal. | Addressed in §0 (P7), §5.2, §8 (step 11), §9 (FR-007), and §11 (R4). | **Folded** |
 | **Missed 2** | Role/fleet seats in customer workspace count against cap; pair counting required. | Addressed in §1, §4.1, and §10.1 (AC-07). | **Folded** |
 
-### 12.3 Sign-Off
+### 12.3 Build Record
+
+- **R1** (Lane A, c-594, SPL-2675): `0212_workspace_agent_caps.sql`; `store.AgentCapStore` (`agent_caps*.go`), `vendorCapGate` in both `SetRoster`s after `botSeatGate`; `ws.go` answers an announce over a cap 409 `vendor_cap_exceeded` and trims a hello to old ∩ new plus each addition the caps still admit. A cap refuses only an ADDITION, so an operator lowering a cap unseats nobody (as `seats_bots`, 009 D-3). Live = a roster pair whose box stamped presence within `store.CapPresenceTTL` (60 s, the deploy's `presenceTTL()`), or the announcing box. Audit rows are written in the same operator transaction as the cap. Tests: `internal/store/agent_caps_test.go` (C1, C3, C4, C5, AC-01, AC-06, AC-07, the RLS write refusal), `internal/hub/agent_caps_ws_test.go`.
+
+### 12.4 Sign-Off
 
 - **Specification Author**: a-799 (Gemini 3.8 Flash High)
 - **Status**: v1.1.0 Consensus Signed Off (c-864 on 0a97ae54d). Accepted by dispatch in msg 6a4652bb.

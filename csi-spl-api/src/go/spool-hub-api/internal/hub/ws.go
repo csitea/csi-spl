@@ -482,9 +482,15 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		return
 	}
 	before, _ := s.o.Store.Roster(ctx, x.tenant)
+	var capErr *store.VendorCapError
 	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); errors.Is(err, store.ErrSeatQuota) {
 		// A new bot seat over the M4 cap (009 D-3): the previous roster stands.
 		x.fail(ctx, "", billing.TokenQuota, billing.HTTPSeatQuota, "bot seat cap reached: roster not updated")
+		return
+	} else if errors.As(err, &capErr) {
+		// A new agent over its vendor's workspace cap (spec 147 5.1): the
+		// previous roster stands; the detail names vendor, cap and count (P6).
+		x.fail(ctx, "", "vendor_cap_exceeded", http.StatusConflict, capErr.Error()+": roster not updated")
 		return
 	} else if err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
@@ -513,10 +519,13 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 // seatRoster stores a hello's roster. Over the M4 bot-seat cap (009 D-5) it
 // keeps the box's already-seated agents (old ∩ new) and drops the additions,
 // so existing peers keep working; the next announce is answered 402 quota.
+// Over a vendor's workspace cap (spec 147 5.1, FR-005) it keeps old ∩ new
+// too, then seats each addition the caps still admit, in announce order.
 // It returns the agents actually stored.
 func (s *Server) seatRoster(ctx context.Context, tenant, box string, agents []string, now time.Time) ([]string, error) {
 	err := s.o.Store.SetRoster(ctx, tenant, box, agents, now)
-	if !errors.Is(err, store.ErrSeatQuota) {
+	vendorCap := errors.Is(err, store.ErrVendorCapExceeded)
+	if !errors.Is(err, store.ErrSeatQuota) && !vendorCap {
 		return agents, err
 	}
 	before, err := s.o.Store.Roster(ctx, tenant)
@@ -528,14 +537,36 @@ func (s *Server) seatRoster(ctx context.Context, tenant, box string, agents []st
 		had[a] = true
 	}
 	keep := []string{}
+	var extra []string
 	for _, a := range agents {
 		if had[a] {
 			keep = append(keep, a)
+		} else {
+			extra = append(extra, a)
 		}
 	}
-	s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Int("announced", len(agents)).Int("seated", len(keep)).
-		Msg("ws hello over bot seat cap: new agents not seated")
-	return keep, s.o.Store.SetRoster(ctx, tenant, box, keep, now)
+	if !vendorCap {
+		s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Int("announced", len(agents)).Int("seated", len(keep)).
+			Msg("ws hello over bot seat cap: new agents not seated")
+		return keep, s.o.Store.SetRoster(ctx, tenant, box, keep, now)
+	}
+	if err := s.o.Store.SetRoster(ctx, tenant, box, keep, now); err != nil {
+		return keep, err
+	}
+	for _, a := range extra {
+		try := append(append([]string(nil), keep...), a)
+		err := s.o.Store.SetRoster(ctx, tenant, box, try, now)
+		if errors.Is(err, store.ErrVendorCapExceeded) || errors.Is(err, store.ErrSeatQuota) {
+			s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Str("agent", a).Err(err).
+				Msg("ws hello over a workspace agent cap: agent not seated")
+			continue
+		}
+		if err != nil {
+			return keep, err
+		}
+		keep = try
+	}
+	return keep, nil
 }
 
 // broadcastRoster pushes the tenant roster to every role=box session except skip.

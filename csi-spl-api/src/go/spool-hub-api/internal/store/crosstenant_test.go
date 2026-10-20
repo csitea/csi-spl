@@ -325,6 +325,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		ActorHum: hum, Action: AuditCreate}); err != nil {
 		t.Fatal(err)
 	}
+	// tenant_agent_caps (rdb 0212, spec 147): one vendor cap, set by the operator.
+	capOne := 1
+	if _, err := pg.SetAgentCaps(ctx, s.tenant, map[string]*int{"claude": &capOne},
+		AgentCapActor{Tenant: "op-seed", Hum: hum}, now); err != nil {
+		t.Fatal(err)
+	}
 	// repo_doc_edits, repo_doc_authors, repo_doc_author_notices (rdb 0142,
 	// spec 075 repo-edit T02): one queued edit of the seeded member, their
 	// git identity and its consent. No store API yet (T06), so rows under inTenant.
@@ -508,6 +514,12 @@ var systemReadTables = map[string]bool{"workspace_doc": true, "workspace_doc_ite
 var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true, "workspace_vendor_key_audit": true,
 	"marketing_post_events": true, "sql_query_audit": true}
 
+// tenantReadOnlyTables are read in a tenant's scope and written only in the
+// operator scope: their tenant_scope policy is FOR SELECT (rdb 0212
+// tenant_agent_caps, spec 147 P2). A's unscoped UPDATE / DELETE reaches NONE
+// of its own rows: stronger than reaching only A's.
+var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true}
+
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /
 // DELETE / a B-stamped INSERT change none of them. CONTROL: B's rows are
@@ -575,6 +587,12 @@ func TestCrossTenantEveryTable(t *testing.T) {
 				t.Errorf("%s: %s: %v", tb, w, err)
 				continue
 			}
+			if tenantReadOnlyTables[tb] {
+				if reached != 0 {
+					t.Errorf("%s: %s from A's scope reached %d row(s), want 0 (operator-written table)", tb, w, reached)
+				}
+				continue
+			}
 			if foreign != 0 || reached == 0 {
 				t.Errorf("%s: %s from A's scope reached %d row(s), %d not A's (want >0 and 0)", tb, w, reached, foreign)
 			}
@@ -583,10 +601,15 @@ func TestCrossTenantEveryTable(t *testing.T) {
 			t.Errorf("%s: B had %d row(s), now %d", tb, before[tb], n)
 		}
 		// A B-stamped row from A's scope: refused by WITH CHECK.
+		var restamped int64
 		err = pg.inTenant(ctx, a.tenant, func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, `UPDATE `+id+` SET tenant_id = $1 WHERE tenant_id = $2`, b.tenant, a.tenant)
+			tag, err := tx.Exec(ctx, `UPDATE `+id+` SET tenant_id = $1 WHERE tenant_id = $2`, b.tenant, a.tenant)
+			restamped = tag.RowsAffected()
 			return err
 		})
+		if tenantReadOnlyTables[tb] && err == nil && restamped == 0 {
+			continue // no tenant write reaches the table at all
+		}
 		if err == nil {
 			t.Errorf("%s: A re-stamped its own row(s) as B's", tb)
 		}

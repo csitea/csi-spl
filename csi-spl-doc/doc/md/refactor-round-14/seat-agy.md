@@ -52,10 +52,10 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
   - Row 06 (`test(r14-06-go-coverage-payments-paypal)`, SPL-2682, Lane 2): R7 review completed by `a-615` (PASS on `deb8fa8f918f344a975e7528d2ef3b60a17b273a`), landed on origin/master in `742dff732`.
 - CI status: Docs publish workflow runs `39382762984` (for Batch 2 + Row 06) and `39384514319` (for Batch 3 complete) both completed green (success on dev and prd).
 - Master trunk synchronization: Synchronized with `origin/master` at `704617890`.
-- Batch 4 reviews completed:
-  - Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, SPL-2696, Lane 1): R7 review completed by `a-615` (PASS on `fc7cbe82fea7853b32c389d7c72cf03bc7ddf018`), review line sent to `c-299` on task `dispatch-dc15ad65` (cc `c-002`).
-  - Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, SPL-2697, Lane 2): R7 review completed by `a-615` (PASS on `0593f33599472fa1ef4ad273d77b8460a91db216`), review line sent to `c-305` on task `dispatch-dc15ad65` (cc `c-002`).
+- Batch 4 completed and landed on origin/master:
+  - Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, SPL-2696, Lane 1): R7 review completed by `a-615` (PASS on `fc7cbe82fea7853b32c389d7c72cf03bc7ddf018`), landed on origin/master in `edcd611be`.
+  - Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, SPL-2697, Lane 2): R7 review completed by `a-615` (PASS on `0593f33599472fa1ef4ad273d77b8460a91db216`), landed on origin/master in `54e3cfee2` (v2.9.8-c3).
 - Batch 5 ready for dispatch: Row 09 (`refactor(r14-09-bash-small-run-do-log)`, Lane 2).
 - Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for incoming Round 14 rows per plan §5.
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Status at 08:12Z UTC: Batch 4 reviews completed PASS; standing by for landing of Rows 07 and 08 and dispatch of Batch 5 (Row 09).
+- Status at 08:20Z UTC: Batch 4 landed on origin/master (Rows 07 and 08); standing by for dispatch and R7 review of Batch 5 (Row 09).

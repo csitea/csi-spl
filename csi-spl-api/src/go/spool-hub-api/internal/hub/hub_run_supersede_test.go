@@ -1,0 +1,121 @@
+package hub_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+)
+
+// SPL-2712 (lane c-317, SPL-2698): the Connect an Agent help suggests one
+// `spool hub-sync` by hand. Its hello superseded the running `spool hub-run`,
+// which exited, and the box stayed offline. Now the daemon yields and says
+// hello again: a second upgrade within the yield, and it is still running.
+func TestHubRunReconnectsAfterOneShotSync(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	bx := e.box(tid, "box-a", "GRK-03")
+	e.pin(tid, bx)
+	sp := newSplit(e.client, e.client)
+	bx.c.HTTP = sp.client()
+	bx.cfg.SubmitSocket = "off"
+	bx.c.SessionProbe = -1
+	bx.c.SupersedeYield = 300 * time.Millisecond
+	bx.c.SupersedeFight = 3 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- bx.c.Run(ctx) }()
+	eventually(t, "the daemon's first session", func() bool { return sp.dials.Load() == 1 })
+
+	sync := hubclient.New(bx.cfg) // the hand-run hub-sync: same box, own process
+	sync.HTTP = e.client
+	sync.ReadyTimeout = 5 * time.Second
+	if _, err := sync.Sync(ctx); err != nil {
+		t.Fatalf("hub-sync: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for sp.dials.Load() < 2 {
+		select {
+		case err := <-done:
+			t.Fatalf("hub-run exited after a one-shot hub-sync (%v): the box stays offline", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("hub-run did not say hello again within 5 s of the sync (dials %d)", sp.dials.Load())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// past the fight window the re-hello still holds: nobody took it back
+	select {
+	case err := <-done:
+		t.Fatalf("hub-run exited after its re-hello: %v", err)
+	case <-time.After(bx.c.SupersedeFight + 500*time.Millisecond):
+	}
+	if d := sp.dials.Load(); d != 2 {
+		t.Fatalf("daemon upgrades: %d, want 2 (one re-hello)", d)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("Run after cancel: %v", err)
+	}
+}
+
+// Two long-running hub-runs on one box must not fight for it: after one
+// re-hello each, exactly one exits with ErrSuperseded and the other keeps it.
+func TestHubRunTwoDaemonsOneLeaves(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	bx := e.box(tid, "box-a", "GRK-03")
+	e.pin(tid, bx)
+	bx.cfg.SubmitSocket = "off"
+	daemon := func() (*hubclient.Client, *split) {
+		c := hubclient.New(bx.cfg)
+		sp := newSplit(e.client, e.client)
+		c.HTTP = sp.client()
+		c.ReadyTimeout = 5 * time.Second
+		c.SessionProbe = -1
+		c.SupersedeYield = 300 * time.Millisecond
+		c.SupersedeFight = 3 * time.Second
+		return c, sp
+	}
+	ca, spa := daemon()
+	cb, spb := daemon()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	da, db := make(chan error, 1), make(chan error, 1)
+	go func() { da <- ca.Run(ctx) }()
+	eventually(t, "daemon A up", func() bool { return spa.dials.Load() == 1 })
+	go func() { db <- cb.Run(ctx) }()
+
+	var left error
+	var stays chan error
+	select {
+	case left = <-da:
+		stays = db
+	case left = <-db:
+		stays = da
+	case <-time.After(5 * time.Second):
+		t.Fatalf("both daemons still running after 5 s (upgrades A %d, B %d): they fight", spa.dials.Load(), spb.dials.Load())
+	}
+	if !errors.Is(left, hubclient.ErrSuperseded) {
+		t.Fatalf("the daemon that left returned %v, want ErrSuperseded", left)
+	}
+	na, nb := spa.dials.Load(), spb.dials.Load()
+	select {
+	case err := <-stays:
+		t.Fatalf("the other daemon exited too: %v", err)
+	case <-time.After(1500 * time.Millisecond):
+	}
+	if a, b := spa.dials.Load(), spb.dials.Load(); a != na || b != nb {
+		t.Fatalf("upgrades after one daemon left: A %d->%d, B %d->%d: the survivor lost the box", na, a, nb, b)
+	}
+	if na+nb > 4 {
+		t.Fatalf("upgrades A %d + B %d: more than one re-hello each", na, nb)
+	}
+	cancel()
+	<-stays
+}

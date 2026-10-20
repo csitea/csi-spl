@@ -472,22 +472,32 @@ func (c *Client) pendingCount() int {
 // interval and re-announcing the roster when the $SPOOL_ROOT/*/ scan changes
 // (OQ-05). The backoff resets only after a session stayed up for stableAfter,
 // so a hub that accepts and drops at once is not hammered every second. It
-// returns when ctx ends, or ErrSuperseded when a newer hello took the box.
+// returns when ctx ends, or ErrSuperseded when another hub-run holds the box:
+// a newer hello first makes it yield and say hello again (supersede.go).
 func (c *Client) Run(ctx context.Context) error {
 	wctx, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
 	go c.watchQueue(wctx) // up or down: a down hub is when the queue grows
 	b := newBackoff(runBackoffBase, runBackoffMax, runBackoffMax)
 	b.half = true
+	rehello := false // the session held is the re-hello after a 4409
 	for {
 		var retryAfter time.Duration
 		sess, err := c.dial(ctx, wire.RoleBox, 0)
 		if err == nil {
 			c.Log.Info().Str("box", c.Cfg.BoxID).Msg("hub session up")
 			up := time.Now()
-			if err := c.hold(ctx, sess); err != nil {
-				return err
+			herr := c.hold(ctx, sess)
+			if errors.Is(herr, ErrSuperseded) && ctx.Err() == nil {
+				if c.yield(ctx, &rehello, time.Since(up)) {
+					return herr
+				}
+				continue
 			}
+			if herr != nil {
+				return herr
+			}
+			rehello = false
 			if time.Since(up) >= stableAfter {
 				b.reset()
 			}

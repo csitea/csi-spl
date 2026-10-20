@@ -41,7 +41,8 @@ import (
 // timeout). A send that hits it is kept pending-flush (delivery=pending).
 var ErrUnreachable = errors.New("hub unreachable")
 
-// ErrSuperseded is returned by Run when a newer role=box hello took the box.
+// ErrSuperseded is returned by Run when another hub-run holds the box (a
+// newer role=box hello first makes Run yield and re-hello, supersede.go).
 var ErrSuperseded = errors.New("session superseded by a newer hello for this box")
 
 // HubError is a refusal from the hub: an error frame, a REST error body, or a
@@ -148,6 +149,12 @@ type Client struct {
 	// env.box.fallback_queue; 0 = no WARN / no periodic line.
 	QueueWarnAfter time.Duration
 	QueueLogEvery  time.Duration
+	// SupersedeYield is how long `spool hub-run` waits after a newer hello
+	// took its box before it says hello again, and SupersedeFight how soon
+	// after that re-hello a second supersede means another long-running
+	// hub-run holds the box (supersede.go, SPL-2712). 0 = the defaults.
+	SupersedeYield time.Duration
+	SupersedeFight time.Duration
 	dropMu         sync.Mutex
 	stopSince      map[string]time.Time // agent -> first report that it does not run
 

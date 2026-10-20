@@ -54,10 +54,10 @@ consensus reached: full 3-seat consensus across editor (agy), claude seat, and m
   - Row 07 (`refactor(r14-07-wui-small-composable-mobile-stack)`, SPL-2696, Lane 1): R7 review completed by `a-615` (PASS on `fc7cbe82fea7853b32c389d7c72cf03bc7ddf018`), landed on origin/master in `edcd611be`.
   - Row 08 (`refactor(r14-08-wui-ratchet-unused-exports)`, SPL-2697, Lane 2): R7 review completed by `a-615` (PASS on `0593f33599472fa1ef4ad273d77b8460a91db216`), landed on origin/master in `54e3cfee2` (v2.9.8-c3).
 - CI status: Docs publish workflow runs completed green.
-- Master trunk synchronization: Synchronized with `origin/master` at `4b870d96e`.
+- Master trunk synchronization: Synchronized with `origin/master` at `e85d54b12`.
 - Lane 1 status: Completed in full (all 4 rows landed).
-- Lane 2 status: Rows 02, 04, 06, 08 landed; final action Batch 5 / Row 09 ready for dispatch.
-- Batch 5 status: Row 09 (`refactor(r14-09-bash-small-run-do-log)`, Lane 2) pending dispatch by dispatch lease holder (`c-003@sat`). Target: split `do_log` (143 lines) into helper steps <= 80 lines keeping `iac:src/bash/run/run.sh` and `orc:src/bash/run/run.sh` byte-identical, eliminating both entries from `LONG` in `bash-cleancode.tst.sh`.
-- Standing role: `a-615` is standing by as designated R7 cross-vendor reviewer for Row 09 per plan §5, followed by compiling Round 14 Retrospective (R8).
+- Lane 2 status: Rows 02, 04, 06, 08 landed; Row 09 reviewed PASS.
+- Batch 5 status: Row 09 (`refactor(r14-09-bash-small-run-do-log)`, SPL-2709, Lane 2): R7 review completed by `a-615` (PASS on `81f76cbbf0efbb678692338077ec4aa1141c6b60`), review line sent to `c-621@sat` on task `dispatch-dc15ad65` (note to dispatch lease holder `g-002@sat`). Awaiting landing by `c-621@sat` on origin/master.
+- Standing role: `a-615` is standing by for Row 09 landing on origin/master to complete Round 14 and compile Round 14 Retrospective (R8).
 - Next round input: Owner HUM-10 directive for Round 15 (SPL-2170, retiring WUI `.mjs` layer to pure TypeScript, 306 files) received and recorded for inclusion in Section 7 of Round 14 Retrospective (R8).
-- Rotation handoff (10:33Z UTC): Worktree clean, rebased to `4b870d96e`, inbox drained, ready for 10:33Z rotation and Batch 5 review upon dispatch.
+- Status at 11:34Z UTC: Worktree clean, rebased to `e85d54b12`, inbox drained, Row 09 review PASS delivered; standing by for landing.

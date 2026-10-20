@@ -98,6 +98,7 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 | **FR-011** | `Shift+?` shows the five groups from one table; help §1 and §7 are generated from it and unit-tested | Planned |
 | **FR-012** | The `keyboard_shortcuts` setting turns off the single-letter and Shift keys; `Ctrl+K`, `F6`, `Esc` and the skip link stay (they are not letters) | Planned |
 | **FR-013** | `Shift+W` on a desktop closes the rightmost open pane, the same as its X (SPL-2552, owner t1 7af14523 msg 5e6f0db8); in a right-to-left locale (he) the layout mirrors, so it closes the leftmost, the pane that opened last; nothing with no pane beyond the base view, in a text field, over a menu or dialog, or on a phone; a Shift letter, so FR-012's setting turns it off | Built |
+| **FR-014** | On a phone, where FR-001's chord is ignored, a **two-finger swipe up** opens the palette (SPL-2148, epic SPL-2130, UI suggestion 4: "useGlobalKeys disables all shortcuts on phones"). Both fingers travel up >= 64 px, at most 48 px sideways, and keep their distance within 40 px (more is the browser's pinch zoom). One finger stays the page's scroll, swipe-to-back (`isMobileBackSwipe`) and a card's swipe; no other gesture uses two fingers. Not over a menu, a dialog or a sheet; with the palette open it does nothing (Back, the X, the backdrop close it). Passive listeners, so the page still scrolls. Rule `csi-spl-wui/src/utils/phone-gestures.mjs`, listener `composables/useGlobalKeys.ts`; tests `tests/unit/phone-gestures.test.mjs`, `tests/e2e/command-palette.test.mjs` (390 px, touch) | Built |
 
 ## 6. Acceptance scenarios
 
@@ -128,7 +129,7 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 
 ## 8. Not in scope
 
-`g`-then-letter go-to sequences (Q3). Custom key bindings. Phone keys (FR-001 ignores phones).
+`g`-then-letter go-to sequences (Q3). Custom key bindings. Phone keys (FR-001 ignores phones; FR-014's two-finger swipe up is the one phone gesture).
 
 ## 9. Open questions, each with a recommended answer
 

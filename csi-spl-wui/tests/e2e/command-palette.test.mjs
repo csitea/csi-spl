@@ -12,6 +12,10 @@
 //        composer; opened from an element that has left the page, or from
 //        nothing, Esc / Ctrl + K leave it in the middle pane
 //   -    on a phone (390 px) Ctrl + K opens nothing
+//   -    SPL-2148, a phone (390 px, touch): a one-finger swipe right still
+//        goes Back (level 2 -> 1) and opens no palette; a two-finger swipe
+//        up opens the palette, and Back closes it; a two-finger pinch (the
+//        browser's zoom) opens nothing
 //   -    over Settings (a routed dialog, /settings) Ctrl + K opens the
 //        palette and is the page's key; Esc leaves Settings open and the page
 //        still locked; "fee" + Enter leaves Settings for #feedback and the
@@ -91,6 +95,21 @@ async function ctrlK(p) {
   await p.keyboard.press('k')
   await p.keyboard.up('Control')
 }
+
+/** A touch gesture through CDP: each finger from its `from` to its `to`. */
+async function touchSwipe(p, fingers, steps = 10) {
+  const cdp = await p.createCDPSession()
+  const at = (i) => fingers.map((f, id) => ({ x: Math.round(f.from.x + ((f.to.x - f.from.x) * i) / steps), y: Math.round(f.from.y + ((f.to.y - f.from.y) * i) / steps), id: id + 1 }))
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) })
+  for (let i = 1; i <= steps; i++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(i) })
+    await sleep(16)
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+  await sleep(400)
+}
+const mobileLevel = () => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level')
 
 async function load(p, path) {
   await p.goto(`${srv.base}${path}`, { waitUntil: 'networkidle2' })
@@ -246,6 +265,27 @@ try {
   await ctrlK(p)
   await sleep(800)
   ok('on a phone Ctrl + K opens nothing', !(await p.evaluate(shown, PALETTE)))
+
+  /* ---- SPL-2148: a phone's two-finger swipe up opens the palette; swipe-to-back stays ---- */
+  await load(p, '/')
+  await p.click('[data-testid=sidebar-tab-channels]')
+  await p.waitForSelector('#sidebar-panel-channels .nav-item')
+  const doc = await p.evaluate(() => performance.timeOrigin)
+  await p.evaluate(() => document.querySelector('#sidebar-panel-channels .nav-item')?.click())
+  ok('a phone: a channel tap pushes level 2', await until(p, (lv) => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === lv, '2', 6000), await p.evaluate(mobileLevel))
+  await touchSwipe(p, [{ from: { x: 20, y: 420 }, to: { x: 200, y: 425 } }], 6)
+  ok('a one-finger swipe right still goes Back to level 1', await until(p, (lv) => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === lv, '1', 4000), await p.evaluate(mobileLevel))
+  ok('... in the same document', (await p.evaluate(() => performance.timeOrigin)) === doc)
+  ok('... and opens no palette', !(await p.evaluate(shown, PALETTE)))
+  await touchSwipe(p, [{ from: { x: 150, y: 600 }, to: { x: 150, y: 440 } }, { from: { x: 240, y: 600 }, to: { x: 240, y: 440 } }])
+  ok('a two-finger swipe up opens the command palette', await until(p, shown, PALETTE, 6000))
+  await p.evaluate(() => history.back())
+  ok('... and Back closes it', await until(p, gone, PALETTE, 4000))
+  /* a fresh page: the pinch zooms it (the browser's gesture), and a zoomed page pans */
+  await load(p, '/')
+  await touchSwipe(p, [{ from: { x: 180, y: 600 }, to: { x: 140, y: 460 } }, { from: { x: 210, y: 600 }, to: { x: 250, y: 460 } }])
+  await sleep(800)
+  ok('a two-finger pinch opens nothing', !(await p.evaluate(shown, PALETTE)))
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)

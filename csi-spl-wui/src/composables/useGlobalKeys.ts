@@ -22,17 +22,27 @@
 // field, not over a menu or a dialog, not on a phone; a Shift letter, so the
 // keyboard_shortcuts setting turns it off (FR-012). Ctrl / Cmd + W stays the
 // browser's.
+//
+// SPL-2148 (UI suggestion 4: "useGlobalKeys disables all shortcuts on phones"):
+// on a phone, where none of the keys above work, a two-finger swipe up opens
+// the palette (utils/phone-gestures.mjs: why two fingers, and why it does not
+// clash with swipe-to-back or the browser's pinch zoom). Not over a menu, a
+// dialog or a sheet, as Ctrl + K; with the palette open it does nothing (Back,
+// the X and the backdrop close it). Passive listeners: the page still scrolls.
+import type { Ref } from 'vue'
 import { usePhone } from '~/composables/useTouchUi'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { useSessionStore } from '~/stores/session'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '~/utils/pane-close'
+import { isPaletteSwipe, paletteSwipeStart } from '~/utils/phone-gestures.mjs'
 import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */
 const paletteOpen = ref(false)
 let installed = 0
 let listener: ((ev: KeyboardEvent) => void) | null = null
+let touchOff: (() => void) | null = null
 
 /** A menu, a dialog or a sheet is open: the palette does not open over it. */
 const OVERLAY_OPEN = '.point-menu, [role="dialog"][aria-modal="true"], dialog[open]'
@@ -104,6 +114,45 @@ function onCloseKey(ev: KeyboardEvent): boolean {
   return true
 }
 
+type SwipePoint = { id: number, x: number, y: number }
+
+/** SPL-2148: the two-finger swipe up, on a phone; returns its remover. */
+function listenPaletteSwipe(phone: Ref<boolean>): () => void {
+  let start: SwipePoint[] | null = null
+  let last: SwipePoint[] = []
+  const note = (list: TouchList) => {
+    for (const t of Array.from(list)) {
+      const p = last.find((q) => q.id === t.identifier)
+      if (p) Object.assign(p, { x: t.clientX, y: t.clientY })
+    }
+  }
+  const onStart = (e: TouchEvent) => {
+    start = phone.value && !paletteOpen.value ? paletteSwipeStart(e.touches) : null
+    last = start ? start.map((p) => ({ ...p })) : []
+  }
+  const onMove = (e: TouchEvent) => { if (start) note(e.changedTouches) }
+  /* the first finger to lift ends it */
+  const onEnd = (e: TouchEvent) => {
+    if (!start) return
+    note(e.changedTouches)
+    const swiped = isPaletteSwipe(start, last)
+    start = null
+    if (swiped && phone.value && !paletteOpen.value && !overlayBlocksPalette()) paletteOpen.value = true
+  }
+  const onCancel = () => { start = null }
+  const opts = { capture: true, passive: true }
+  window.addEventListener('touchstart', onStart, opts)
+  window.addEventListener('touchmove', onMove, opts)
+  window.addEventListener('touchend', onEnd, opts)
+  window.addEventListener('touchcancel', onCancel, opts)
+  return () => {
+    window.removeEventListener('touchstart', onStart, opts)
+    window.removeEventListener('touchmove', onMove, opts)
+    window.removeEventListener('touchend', onEnd, opts)
+    window.removeEventListener('touchcancel', onCancel, opts)
+  }
+}
+
 export function useGlobalKeys() {
   const phone = usePhone()
   const session = useSessionStore()
@@ -132,12 +181,15 @@ export function useGlobalKeys() {
       if (!ev.repeat) paletteOpen.value = true
     }
     window.addEventListener('keydown', listener, true)
+    touchOff = listenPaletteSwipe(phone)
   })
   onBeforeUnmount(() => {
     installed -= 1
     if (installed > 0 || !listener) return
     window.removeEventListener('keydown', listener, true)
     listener = null
+    touchOff?.()
+    touchOff = null
     paletteOpen.value = false
   })
   return { paletteOpen }

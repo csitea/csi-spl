@@ -87,14 +87,20 @@ jobs:
   # test: the hub suite. A deploy never ships a red tree.
   # ---------------------------------------------------------------------------
   test:
-    name: Hub suite (run-all-tests.sh)
+    name: Hub suite (run-all-tests.sh) ${{ matrix.part }}
     runs-on: ubuntu-latest
-    # 30, not 20 (2026-10-20): the 11 green suites from 10-19 17:20Z to
-    # 10-20 11:55Z took 14.7..18.2 min, under 2 min below a 20-min cap. The
-    # hosted runner's speed varies run to run (toolchain builds 3.5..4.1 min,
-    # pg gate 5.7..7.3 min), and 5 runs on 10-20 hit the cap at 20.2 min,
-    # each cut at a different step with no FAIL line: the hub sat undeployed.
+    # Two legs side by side (HUB_SUITE_PART, as wf 10 runs it since spec 133
+    # r28): pg = the hub Postgres gate + its coverage floor, plain = the rest.
+    # Measured 2026-10-20, one serial job: 16.9..18.2 min on every green since
+    # 10-19 17:20Z, and 5 runs cut at the old 20-min cap. What grew: the go
+    # toolchain section 82 s -> 211..246 s (cli-cross-build.tst.sh, 4dc86e58c,
+    # four cold cross-builds ~47 s each) and the pg gate 333 s -> 346..625 s.
+    # The cap stays 30 per leg; each leg is about half the old serial suite.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [plain, pg]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -117,6 +123,7 @@ jobs:
         run: go mod download
 
       - name: Cache the fake-gcs emulator image
+        if: matrix.part == 'plain'
         # A cached copy is used as is (the tag is pinned); else it is pulled
         # through mirror.gcr.io: anonymous Docker Hub pulls hit
         # `toomanyrequests` (run 37992239649) and reset now and then (run
@@ -126,6 +133,8 @@ jobs:
           bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh "$img"
 
       - name: run-all-tests.sh
+        env:
+          HUB_SUITE_PART: ${{ matrix.part }}
         run: bash csi-spl-api/src/bash/tests/run-all-tests.sh
 
   # ---------------------------------------------------------------------------

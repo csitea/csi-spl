@@ -1455,8 +1455,8 @@
     "show_source": "Показати джерело",
     "show_rendered": "Показати форматованим",
     "table_sort": {
-      "sort_by": "Сортувати за: {column}, зараз: {state}",
-      "sorted": "Відсортовано за: {column}, {state}",
+      "sort_by": "Сортувати за {column}, наразі {state}",
+      "sorted": "Відсортовано за {column}, {state}",
       "state_none": "без сортування",
       "state_ascending": "за зростанням",
       "state_descending": "за спаданням",

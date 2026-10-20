@@ -1455,12 +1455,12 @@
     "show_source": "Bron tonen",
     "show_rendered": "Opgemaakt tonen",
     "table_sort": {
-      "sort_by": "Sorteren op {column}, nu: {state}",
+      "sort_by": "Sorteren op {column}, momenteel {state}",
       "sorted": "Gesorteerd op {column}, {state}",
       "state_none": "niet gesorteerd",
       "state_ascending": "oplopend",
       "state_descending": "aflopend",
-      "hint": "Klik op een kolomkop om te sorteren: oplopend, dan aflopend, dan de oorspronkelijke volgorde."
+      "hint": "Klik op een kolomkop om te sorteren: oplopend, dan aflopend, dan in de oorspronkelijke volgorde."
     }
   },
   "tenant_host": {

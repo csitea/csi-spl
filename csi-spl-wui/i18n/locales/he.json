@@ -1455,7 +1455,7 @@
     "show_source": "הצג מקור",
     "show_rendered": "הצג מעוצב",
     "table_sort": {
-      "sort_by": "מיון לפי {column}, כרגע: {state}",
+      "sort_by": "מיון לפי {column}, כרגע {state}",
       "sorted": "ממוין לפי {column}, {state}",
       "state_none": "לא ממוין",
       "state_ascending": "בסדר עולה",

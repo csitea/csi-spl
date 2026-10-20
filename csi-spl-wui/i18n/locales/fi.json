@@ -1455,8 +1455,8 @@
     "show_source": "Näytä lähdeteksti",
     "show_rendered": "Näytä muotoiltuna",
     "table_sort": {
-      "sort_by": "Lajittele: {column}, nyt: {state}",
-      "sorted": "Lajiteltu: {column}, {state}",
+      "sort_by": "Lajittele sarakkeen {column} mukaan, tällä hetkellä {state}",
+      "sorted": "Lajiteltu sarakkeen {column} mukaan, {state}",
       "state_none": "ei lajiteltu",
       "state_ascending": "nouseva",
       "state_descending": "laskeva",

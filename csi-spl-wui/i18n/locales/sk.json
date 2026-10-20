@@ -1455,8 +1455,8 @@
     "show_source": "Zobraziť zdroj",
     "show_rendered": "Zobraziť formátované",
     "table_sort": {
-      "sort_by": "Zoradiť podľa: {column}, teraz: {state}",
-      "sorted": "Zoradené podľa: {column}, {state}",
+      "sort_by": "Zoradiť podľa {column}, momentálne {state}",
+      "sorted": "Zoradené podľa {column}, {state}",
       "state_none": "nezoradené",
       "state_ascending": "vzostupne",
       "state_descending": "zostupne",

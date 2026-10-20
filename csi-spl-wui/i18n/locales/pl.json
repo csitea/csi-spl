@@ -1455,8 +1455,8 @@
     "show_source": "Pokaż źródło",
     "show_rendered": "Pokaż sformatowane",
     "table_sort": {
-      "sort_by": "Sortuj według: {column}, obecnie: {state}",
-      "sorted": "Posortowano według: {column}, {state}",
+      "sort_by": "Sortuj według {column}, obecnie {state}",
+      "sorted": "Posortowano według {column}, {state}",
       "state_none": "bez sortowania",
       "state_ascending": "rosnąco",
       "state_descending": "malejąco",

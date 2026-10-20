@@ -1455,7 +1455,7 @@
     "show_source": "Arată sursa",
     "show_rendered": "Arată formatat",
     "table_sort": {
-      "sort_by": "Sortează după {column}, acum: {state}",
+      "sort_by": "Sortează după {column}, în prezent {state}",
       "sorted": "Sortat după {column}, {state}",
       "state_none": "nesortat",
       "state_ascending": "crescător",

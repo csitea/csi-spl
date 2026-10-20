@@ -1455,7 +1455,7 @@
     "show_source": "Rodyti šaltinį",
     "show_rendered": "Rodyti suformatuotą",
     "table_sort": {
-      "sort_by": "Rikiuoti pagal {column}, dabar: {state}",
+      "sort_by": "Rikiuoti pagal {column}, šiuo metu {state}",
       "sorted": "Surikiuota pagal {column}, {state}",
       "state_none": "nerikiuota",
       "state_ascending": "didėjančiai",

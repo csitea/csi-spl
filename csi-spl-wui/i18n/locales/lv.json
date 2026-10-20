@@ -1455,7 +1455,7 @@
     "show_source": "Rādīt avotu",
     "show_rendered": "Rādīt formatētu",
     "table_sort": {
-      "sort_by": "Kārtot pēc {column}, pašlaik: {state}",
+      "sort_by": "Kārtot pēc {column}, pašlaik {state}",
       "sorted": "Sakārtots pēc {column}, {state}",
       "state_none": "nav kārtots",
       "state_ascending": "augošā secībā",

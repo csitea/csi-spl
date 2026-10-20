@@ -1455,12 +1455,12 @@
     "show_source": "Ver fuente",
     "show_rendered": "Ver con formato",
     "table_sort": {
-      "sort_by": "Ordenar por {column}, ahora: {state}",
+      "sort_by": "Ordenar por {column}, actualmente {state}",
       "sorted": "Ordenado por {column}, {state}",
       "state_none": "sin ordenar",
       "state_ascending": "ascendente",
       "state_descending": "descendente",
-      "hint": "Haz clic en el encabezado de una columna para ordenar: ascendente, luego descendente y luego el orden original."
+      "hint": "Haz clic en el encabezado de una columna para ordenar: ascendente, luego descendente y luego en el orden original."
     }
   },
   "tenant_host": {

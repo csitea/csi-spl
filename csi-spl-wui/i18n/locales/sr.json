@@ -1455,8 +1455,8 @@
     "show_source": "Прикажи извор",
     "show_rendered": "Прикажи форматирано",
     "table_sort": {
-      "sort_by": "Поређај по: {column}, тренутно: {state}",
-      "sorted": "Поређано по: {column}, {state}",
+      "sort_by": "Поређај по {column}, тренутно {state}",
+      "sorted": "Поређано по {column}, {state}",
       "state_none": "није поређано",
       "state_ascending": "растуће",
       "state_descending": "опадајуће",

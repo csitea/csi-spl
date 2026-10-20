@@ -1455,8 +1455,8 @@
     "show_source": "Показать исходник",
     "show_rendered": "Показать форматированным",
     "table_sort": {
-      "sort_by": "Сортировать по: {column}, сейчас: {state}",
-      "sorted": "Отсортировано по: {column}, {state}",
+      "sort_by": "Сортировать по {column}, в данный момент {state}",
+      "sorted": "Отсортировано по {column}, {state}",
       "state_none": "без сортировки",
       "state_ascending": "по возрастанию",
       "state_descending": "по убыванию",

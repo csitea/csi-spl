@@ -1455,12 +1455,12 @@
     "show_source": "Visa källa",
     "show_rendered": "Visa formaterat",
     "table_sort": {
-      "sort_by": "Sortera efter {column}, nu: {state}",
+      "sort_by": "Sortera efter {column}, för närvarande {state}",
       "sorted": "Sorterat efter {column}, {state}",
       "state_none": "osorterad",
       "state_ascending": "stigande",
       "state_descending": "fallande",
-      "hint": "Klicka på en kolumnrubrik för att sortera: stigande, sedan fallande, sedan den ursprungliga ordningen."
+      "hint": "Klicka på en kolumnrubrik för att sortera: stigande, sedan fallande, sedan i ursprunglig ordning."
     }
   },
   "tenant_host": {

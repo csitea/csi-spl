@@ -1455,8 +1455,8 @@
     "show_source": "Kaynağı göster",
     "show_rendered": "Biçimlendirilmiş göster",
     "table_sort": {
-      "sort_by": "Sırala: {column}, şu an: {state}",
-      "sorted": "Sıralandı: {column}, {state}",
+      "sort_by": "{column} sütununa göre sırala, şu anda {state}",
+      "sorted": "{column} sütununa göre sıralandı, {state}",
       "state_none": "sıralanmamış",
       "state_ascending": "artan",
       "state_descending": "azalan",

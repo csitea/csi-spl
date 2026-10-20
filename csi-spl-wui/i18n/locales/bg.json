@@ -1455,7 +1455,7 @@
     "show_source": "Покажи изходния текст",
     "show_rendered": "Покажи форматирано",
     "table_sort": {
-      "sort_by": "Сортирай по {column}, в момента: {state}",
+      "sort_by": "Сортирай по {column}, в момента {state}",
       "sorted": "Сортирано по {column}, {state}",
       "state_none": "без сортиране",
       "state_ascending": "възходящо",

@@ -39,8 +39,9 @@
 #      reads MUTED, not ok - the state two owner DMs sat unread in on
 #      2026-09-22 while every check said healthy - and the mute is per AGENT,
 #      because SPOOL_POKE belongs to the one sidecar the whole box shares
-#  11. do_spl_desk_down (SPL-1004): a DESK_AGENT run refuses while OTHER
-#      agents share the live sidecar, names them and stops nothing; the
+#  11. do_spl_desk_down (SPL-1004): a DESK_AGENT run while OTHER agents
+#      share the live sidecar releases only its own seat (spec 147 R4) and
+#      stops nothing; the
 #      last agent on the box, and DESK_ALL=1, still stop it. CONTROL: the
 #      fake sidecar reads as alive to spl_desk_alive before the runs
 #  14. do_spl_desk_check_mutes lists every other .no-poke seat (seat, tenant,
@@ -1037,11 +1038,13 @@ fake_sidecar
 for a in CLE-1 CLE-2; do mkdir -p "$DD/spool/$a"; done
 SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&
   pass "CONTROL the fake sidecar reads as alive" || fail "CONTROL the fake sidecar does not read as alive"
+# Spec 147 R4: the leaving agent's seat is released, the sidecar stays up.
 out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DESK_AGENT=CLE-1 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -ne 0 && "$out" == *FATAL*CLE-2* && "$out" != *CLE-1\ CLE-2* ]] &&
+[[ $rc -eq 0 && ! -e "$DD/spool/CLE-1" && -d "$DD/spool/CLE-2" && "$out" == *'"stopped_pid": null'* ]] &&
   SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&
-  pass "desk_down for one agent refuses while CLE-2 shares the sidecar, names it, stops nothing" ||
+  pass "desk_down for one agent releases only its seat while CLE-2 shares the sidecar, stops nothing" ||
   fail "desk_down with a co-seated agent (rc=$rc): $out"
+mkdir -p "$DD/spool/CLE-1"
 out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DESK_AGENT=CLE-1 DESK_ALL=1 DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"was_running": true'* ]] &&
   ! SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&

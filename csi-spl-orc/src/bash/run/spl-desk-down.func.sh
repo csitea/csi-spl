@@ -10,8 +10,16 @@
 # @description run refuses while OTHER agents are seated on that live sidecar,
 # @description and names them: an agent closing its own lane took every csi-rel
 # @description agent offline for 40 min that way (SPL-1004, 2026-09-27 11:47Z).
-# @description An agent that is done just leaves the desk up; DESK_ALL=1 stops
-# @description the box for everyone on purpose.
+# @description DESK_ALL=1 stops the box for everyone on purpose.
+# @description A DESK_AGENT run also RELEASES that agent's seat: its spool dir
+# @description moves to the desk's retired/ (inbox kept), so the sidecar stops
+# @description announcing it on its next rescan (~10 s) and a per-workspace
+# @description agent cap (spec 147) counts it free at once, not after the hub's
+# @description dropDead timeout (up to 60 min on a DESK_RETIRE=0 customer desk).
+# @description While other agents share the sidecar only the seat goes, the
+# @description sidecar keeps running for them. An orchestrator or dispatcher
+# @description seat (lease.conf) is never released here: on a shared sidecar
+# @description it is refused, alone it only stops the sidecar.
 # @description Prints one JSON line (box, agent, the pid it stopped, whether a
 # @description sidecar was running at all). Idempotent: a desk that is already
 # @description down is OK, not an error.
@@ -19,7 +27,7 @@
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_AGENT (optional) - the agent asking; refused while other agents share the sidecar
+# @param DESK_AGENT (optional) - the agent that leaves: its seat is released; the sidecar stops only when no other agent shares it
 # @param DESK_ALL (optional) - 1 = stop the sidecar although other agents are seated on it
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 ./run -a do_spl_desk_down
@@ -49,24 +57,38 @@ do_spl_desk_down() {
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ -z "$agent" ]] || spl_is_participant_id "$agent" || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 
-  local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0
+  local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0 rel=0 stop=0
   pidf="$d/spool/.hub/hub-run.pid"
-  if spl_desk_alive "$pidf"; then was=1; pid="$(cat "$pidf")"; fi
+  if spl_desk_alive "$pidf"; then was=1; stop=1; pid="$(cat "$pidf")"; fi
+  [[ -n "$agent" && -d "$d/spool/$agent" ]] && ! spl_desk_is_od "$agent" && rel=1
   if (( was )) && [[ -n "$agent" && "${DESK_ALL:-0}" != 1 ]]; then
     local others
     others="$(spl_desk_seated "$d" | grep -vx -- "$agent" | tr '\n' ' ')"
     if [[ -n "${others// /}" ]]; then
-      do_log "FATAL the sidecar of $box in $tenant (pid $pid) also serves: ${others% }. Stopping it takes them ALL offline and nothing restarts it (SPL-1004). Leave the desk up when $agent is done; DESK_ALL=1 stops it for everyone"
-      return 1
+      if (( ! rel )); then
+        do_log "FATAL the sidecar of $box in $tenant (pid $pid) also serves: ${others% }. Stopping it takes them ALL offline and nothing restarts it (SPL-1004). $agent has no seat this action releases (not seated, or an orchestrator or dispatcher seat); DESK_ALL=1 stops it for everyone"
+        return 1
+      fi
+      stop=0
     fi
   fi
+  local rdst
+  rdst="$d/retired/$agent.$(date -u +%Y%m%dT%H%M%SZ)"
   if (( dry )); then
-    if (( was )); then do_log "INFO DRY_RUN would: stop the hub-run sidecar of $box (pid $pid)"
+    (( rel )) && do_log "INFO DRY_RUN would: release the seat of $agent (move $d/spool/$agent to $rdst)"
+    if (( stop )); then do_log "INFO DRY_RUN would: stop the hub-run sidecar of $box (pid $pid)"
+    elif (( was )); then do_log "INFO DRY_RUN would: leave the hub-run sidecar of $box (pid $pid) running for the other seats"
     else do_log "INFO DRY_RUN nothing to stop: no live hub-run sidecar for $box in $tenant ($d)"; fi
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to stop it."
+    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
-  if (( was )); then
+  if (( rel )); then
+    mkdir -p "$d/retired" && mv "$d/spool/$agent" "$rdst" ||
+      { do_log "FATAL cannot release the seat of $agent (mv $d/spool/$agent $rdst)"; return 1; }
+    do_log "INFO released the seat of $agent: its spool dir is at $rdst and the sidecar stops announcing it on its next rescan"
+  fi
+  (( stop )) || pid=""
+  if (( stop )); then
     kill "$pid" 2>/dev/null || true
     local i
     for ((i = 0; i < 75; i++)); do spl_desk_alive "$pidf" || break; sleep 0.2; done
@@ -74,13 +96,14 @@ do_spl_desk_down() {
     spl_desk_alive "$pidf" && { do_log "FATAL the hub-run sidecar of $box (pid $pid) will not stop"; return 1; }
     rm -f "$pidf"
   fi
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$was" "$d" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$was" "$d" "$rel" <<'EOF_PY'
 import json, sys
-env, tenant, box, agent, pid, was, state = sys.argv[1:]
+env, tenant, box, agent, pid, was, state, rel = sys.argv[1:]
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent or None,
                   "stopped_pid": int(pid) if pid else None, "was_running": was == "1",
-                  "state_dir": state}, sort_keys=True))
+                  "released": rel == "1", "state_dir": state}, sort_keys=True))
 EOF_PY
-  if (( was )); then do_log "OK the desk $box is down in $tenant ($ENV): stopped hub-run pid $pid"
+  if (( stop )); then do_log "OK the desk $box is down in $tenant ($ENV): stopped hub-run pid $pid"
+  elif (( was )); then do_log "OK $agent left the desk $box in $tenant ($ENV); the sidecar keeps running for the other seats"
   else do_log "OK the desk $box was already down in $tenant ($ENV)"; fi
 }

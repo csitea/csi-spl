@@ -7,7 +7,10 @@
 #      prints the 3 lines and writes nothing; DRY_RUN=0 adds them, every other
 #      line kept; a second install changes no byte; --check = 3 installed;
 #      a hand-edited line reads "differs" and an install puts it back in place;
-#      the SPL-2053 hand-installed lines (as both boxes carry them) read "installed" as is;
+#      the disk-headroom line moves the desk checkout under the desk-cron lock,
+#      byte for byte the orc installer's prefix (SPL-2672), DESK_CRON_TRUNK honoured;
+#      the SPL-2053 box-disk-sweep line reads "installed" as is, its unlocked
+#      disk-headroom line "differs";
 #      remove restores the crontab byte for byte; through the ./run harness.
 #   2. inventory: a dir row gives size, file count and oldest date; a glob row
 #      with no match is "absent"; no file name ever reaches the table;
@@ -75,14 +78,28 @@ inst DRY_RUN=0 >/dev/null
 cmp -s "$CT" "$T/crontab.once" && pass "1. ...and an install puts it back in place" || fail "1. repair: $(cat "$CT")"
 inst DRY_RUN=0 DISK_GUARD_ACTION=remove >/dev/null
 cmp -s "$CT" "$T/crontab.orig" && pass "1. remove restores the crontab byte for byte" || fail "1. remove: $(cat "$CT")"
+# the disk-headroom line moves the desk checkout under the ONE desk-cron lock (SPL-2672)
+source "$UTL_ROOT/../csi-spl-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh"
+inst DRY_RUN=0 >/dev/null
+hl="$(grep ' # csi-spl:disk-headroom$' "$CT")"
+pre="$(spl_desk_cron_update_pre "$T/src-desk-cron" master)"
+[ "$hl" = "7-59/15 * * * * ${pre}DRY_RUN=0 $T/src-desk-cron/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $T/var/disk-headroom/cron.out 2>&1 # csi-spl:disk-headroom" ] \
+  && grep -q "^7-59/15 \* \* \* \* cd $T/src-desk-cron && flock -w " <<<"$hl" \
+  && pass "1. CONTROL: the disk-headroom line fetches + checks out under the desk-cron flock" || fail "1. headroom lock: $hl"
+out="$(inst DESK_CRON_TRUNK=main)"
+grep -q "^> 7-59/15 .*git fetch -q origin main && git checkout -q --detach origin/main'" <<<"$out" \
+  && pass "1. DESK_CRON_TRUNK sets the trunk the line follows" || fail "1. trunk: $out"
+out="$(inst DESK_CRON_TRUNK='m;x')"; rc=$?
+[ "$rc" = 1 ] && grep -q 'not a branch name' <<<"$out" && pass "1. a bad DESK_CRON_TRUNK is refused" || fail "1. bad trunk (rc $rc): $out"
+inst DRY_RUN=0 DISK_GUARD_ACTION=remove >/dev/null
 # the SPL-2053 hand-installed lines, as they read on both boxes (2026-10-16)
 D=/opt/csi/csi-spl-desk-cron V=/var/csi/csi-spl
 printf '%s\n' \
   "7-59/15 * * * * cd $D && git fetch -q origin master && git checkout -q --detach origin/master; DRY_RUN=0 $D/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $V/disk-headroom/cron.out 2>&1 # csi-spl:disk-headroom" \
   "11-59/15 * * * * DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$V/box-disk-sweep/box-disk-sweep.lock bash /opt/csi/csi-spl/csi-spl-orc/src/bash/scripts/box-disk-sweep.sh >> $V/box-disk-sweep/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep" >"$CT"
 out="$(inst DISK_GUARD_CHECK=true DISK_GUARD_SRC= DISK_GUARD_VAR=)"; rc=$?
-grep -q '^installed csi-spl:disk-headroom' <<<"$out" && grep -q '^installed csi-spl:box-disk-sweep' <<<"$out" && grep -q '^missing   csi-spl:disk-growth' <<<"$out" \
-  && pass "1. the boxes' SPL-2053 lines read installed byte for byte (defaults)" || fail "1. live form: $out"
+grep -q '^differs   csi-spl:disk-headroom' <<<"$out" && grep -q '^installed csi-spl:box-disk-sweep' <<<"$out" && grep -q '^missing   csi-spl:disk-growth' <<<"$out" \
+  && pass "1. the boxes' SPL-2053 lines: box-disk-sweep installed, the unlocked disk-headroom differs (defaults)" || fail "1. live form: $out"
 out="$(inst DISK_GUARD_ACTION=bogus)"; rc=$?
 [ "$rc" = 1 ] && grep -q 'must be install, check or remove' <<<"$out" && pass "1. a bad action is refused" || fail "1. bad action (rc $rc): $out"
 out="$(cd "$UTL_ROOT" && env PATH="$T/bin:$PATH" FAKE_CRONTAB="$CT" ./run -a do_box_disk_guard_install --check 2>&1)"; rc=$?

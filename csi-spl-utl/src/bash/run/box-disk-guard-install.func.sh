@@ -4,13 +4,16 @@
 # @description user's crontab: three lines, each tagged `# <org>-<app>:<name>`
 # @description at its end, so no other job is touched:
 # @description   disk-headroom  - csi-spl-orc check-disk-headroom.sh every 15 min
-# @description                    (7-59/15), from the self-updating desk checkout
+# @description                    (7-59/15), from the self-updating desk checkout,
+# @description                    moved to origin/<trunk> under the desk-cron
+# @description                    checkout lock (spl_desk_cron_update_pre, SPL-2672)
 # @description   box-disk-sweep - csi-spl-orc box-disk-sweep.sh every 15 min
 # @description                    (11-59/15), gated and locked (SPL-2053)
 # @description   disk-growth    - this module's do_box_disk_inventory once a day
 # @description                    (03:23), appending the growth record
-# @description The first two are byte for byte the lines SPL-2053 hand-installed
-# @description on the boxes, so --check on such a box reads "installed".
+# @description The box-disk-sweep line is byte for byte the one SPL-2053
+# @description hand-installed; the SPL-2053 disk-headroom line (no lock) reads
+# @description "differs" until an install replaces it.
 # @description Idempotent: a tagged line is replaced in place, a missing one is
 # @description appended. --check prints installed / missing / differs per line
 # @description and exits 1 unless all three are installed. Dry run unless DRY_RUN=0.
@@ -19,6 +22,7 @@
 # @param DISK_GUARD_SRC (optional) - the main checkout, default /opt/<org>/<org>-<app>
 # @param DISK_GUARD_DESK_SRC (optional) - the self-updating checkout, default <src>-desk-cron
 # @param DISK_GUARD_VAR (optional) - the state dir, default /var/<org>/<org>-<app>
+# @param DESK_CRON_TRUNK (optional) - the trunk the desk checkout follows, default master
 # @param DISK_GUARD_CRONTAB (optional) - the crontab binary (tests), default crontab
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_box_disk_guard_install --check
@@ -26,12 +30,17 @@
 # @example DRY_RUN=0 ./run -a do_box_disk_guard_install
 # @example DISK_GUARD_ACTION=remove DRY_RUN=0 ./run -a do_box_disk_guard_install
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_update_pre >/dev/null || {
+  _dg_utl="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  source "${_dg_utl%-utl}-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh"
+  unset _dg_utl
+}
 
 # disk_guard_lines: the three wanted lines, one per row, in tag order
 disk_guard_lines() {
-  local app="$1" src="$2" desk="$3" var="$4"
+  local app="$1" src="$2" desk="$3" var="$4" trunk="$5"
   printf '%s\n' \
-    "7-59/15 * * * * cd $desk && git fetch -q origin master && git checkout -q --detach origin/master; DRY_RUN=0 $desk/$app-orc/src/bash/scripts/check-disk-headroom.sh >> $var/disk-headroom/cron.out 2>&1 # $app:disk-headroom" \
+    "7-59/15 * * * * $(spl_desk_cron_update_pre "$desk" "$trunk")DRY_RUN=0 $desk/$app-orc/src/bash/scripts/check-disk-headroom.sh >> $var/disk-headroom/cron.out 2>&1 # $app:disk-headroom" \
     "11-59/15 * * * * DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$var/box-disk-sweep/box-disk-sweep.lock bash $src/$app-orc/src/bash/scripts/box-disk-sweep.sh >> $var/box-disk-sweep/box-disk-sweep.log 2>&1 # $app:box-disk-sweep" \
     "23 3 * * * cd $desk/$app-utl && DRY_RUN=0 ./run -a do_box_disk_inventory >> $var/box-disk-sweep/growth.cron.out 2>&1 # $app:disk-growth"
 }
@@ -48,10 +57,12 @@ do_box_disk_guard_install() {
   src="${DISK_GUARD_SRC:-/opt/$org/$app}"
   desk="${DISK_GUARD_DESK_SRC:-$src-desk-cron}"
   var="${DISK_GUARD_VAR:-/var/$org/$app}"
+  local trunk="${DESK_CRON_TRUNK:-master}"
+  [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
 
   local cur want=() tags=() l t
   cur="$("$cron" -l 2>/dev/null || true)"
-  mapfile -t want < <(disk_guard_lines "$app" "$src" "$desk" "$var")
+  mapfile -t want < <(disk_guard_lines "$app" "$src" "$desk" "$var" "$trunk")
   for l in "${want[@]}"; do tags+=("${l##* # }"); done
 
   # per line: installed / missing / differs

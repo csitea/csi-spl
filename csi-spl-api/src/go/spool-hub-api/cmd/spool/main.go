@@ -7,7 +7,8 @@
 // separate `spool-<verb>` binaries or shims ship (spec 002 Clarifications
 // 2026-09-18 spell them `spool <verb>`).
 //
-//	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID
+//	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID;
+//	          an existing key is kept and its public key printed (--force replaces it)
 //	pin     --box <box_id> --pubkey <b64> [--force] [--revoke] [--root-key <path>]
 //	join    [--box <box_id>] [<hub-url>] [-]   seat this box with a join token from
 //	          $SPOOL_JOIN_TOKEN or stdin (-); the box makes its own key (spec 073 4.4)
@@ -106,6 +107,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -137,7 +140,7 @@ var (
 const usage = `usage: spool <verb> [flags]      (spool <verb> -h lists a verb's flags)
 
 on a box (an agent's machine):
-  keygen              make this box's signing key (prints the PUBLIC key)
+  keygen              make this box's signing key, or keep the existing one (prints the PUBLIC key)
   key                 workspace age keys: init, unlock, lock, status, rotate (spec 136)
   keyd                hold unlocked workspace keys (started by key unlock)
   pin                 pin a box key locally; with --root-key also at the hub
@@ -380,7 +383,7 @@ func cmdBoxKey(cfg *config.Config, cmd string, rest []string) int {
 func cmdKeygen(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
 	box := fs.String("box", cfg.BoxID, "box id (default $SPOOL_BOX_ID)")
-	force := fs.Bool("force", false, "overwrite an existing key")
+	force := fs.Bool("force", false, "overwrite an existing key (without it an existing key is kept and its public key printed)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -389,6 +392,16 @@ func cmdKeygen(cfg *config.Config, args []string) int {
 	}
 	if err := cfg.CheckKeysDir(); err != nil {
 		return fail(err)
+	}
+	if !*force { // re-run safe (SPL-2710): an existing key is kept, its public half printed
+		priv, err := sign.LoadPrivate(cfg.KeysDir, *box)
+		if err == nil {
+			fmt.Println(sign.PinForm(priv.Public().(ed25519.PublicKey))) // print the PUBLIC key only
+			return 0
+		}
+		if !errors.Is(err, sign.ErrUnpinned) {
+			return fail(fmt.Errorf("%w (use --force to replace it)", err))
+		}
 	}
 	pub, err := sign.GenerateKey(cfg.KeysDir, *box, *force)
 	if err != nil {

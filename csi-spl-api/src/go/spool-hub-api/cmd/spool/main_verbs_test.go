@@ -74,7 +74,6 @@ func TestRunKeygenAndPin(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"keygen"}, "exists"},
 		{[]string{"keygen", "--box", "Not A Box"}, "must be a valid box id"},
 		{[]string{"keygen", "--nope"}, "flag provided but not defined"},
 		{[]string{"pin", "--box", "box-b"}, "pubkey"},
@@ -83,6 +82,20 @@ func TestRunKeygenAndPin(t *testing.T) {
 		if rc, _, errOut := runCap(t, "", c.args...); rc == 0 || !strings.Contains(errOut, c.want) {
 			t.Errorf("%v: rc %d %q, want a refusal naming %q", c.args, rc, errOut, c.want)
 		}
+	}
+	// A second keygen keeps the key and prints the same PUBLIC key, exit 0
+	// (SPL-2710): the Connect-an-agent block says "paste the block again"
+	// after a failed step, and `--pubkey "$(spool keygen)"` must not go empty.
+	rc2, again, errOut := runCap(t, "", "keygen")
+	if rc2 != 0 || strings.TrimSpace(again) != pub {
+		t.Fatalf("second keygen: rc %d %q %q, want rc 0 and %s", rc2, again, errOut, pub)
+	}
+	priv, err := sign.LoadPrivate(os.Getenv("SPOOL_KEYS_DIR"), "box-a")
+	if err != nil {
+		t.Fatalf("load private: %v", err)
+	}
+	if strings.Contains(again, base64.StdEncoding.EncodeToString(priv)) {
+		t.Fatal("second keygen printed the private key")
 	}
 	if rc, out, _ := runCap(t, "", "keygen", "--force"); rc != 0 || strings.TrimSpace(out) == pub {
 		t.Errorf("keygen --force: rc %d, same key %v", rc, strings.TrimSpace(out) == pub)

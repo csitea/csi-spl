@@ -21,6 +21,13 @@
 #   runners    runner-sweep.sh          idle runners only: _work/_temp files and _diag/*.log older
 #                                       than BOX_SWEEP_RUNNER_AGE days (default 2); never
 #                                       _work/<repo>, .runner or .credentials*
+#   runlogs    run-log-sweep.sh         the ./run action logs ($HOME/var/log/<proj>/*.log)
+#                                       older than 72 h (24 h low, 6 h crit), oldest
+#                                       first, never one a process holds open (SPL-2649:
+#                                       sat's held 8.8 GB, nothing pruned them); a
+#                                       plan only, also under DRY_RUN=0, until
+#                                       BOX_SWEEP_RUNLOG_APPLY=1 (the orchestrator
+#                                       decides the first live run)
 #   vartmp     tmp-stale-sweep.sh       TMP_STALE_ANY=1 on /var/tmp (the ROOT disk): any
 #                                       idle lane leftover, a live lane's name kept;
 #                                       low / crit level only, idle 72 h / 24 h
@@ -60,10 +67,13 @@
 # normal run is BOX_SWEEP_EVERY_MIN (240) old; a low / crit tick always runs.
 #
 #   DRY_RUN=1 (default) | 0           passed to every step
-#   BOX_SWEEP_STEPS        default "sessions tmp worktrees workdirs go docker journal runners vartmp logs"
+#   BOX_SWEEP_STEPS        default "sessions tmp worktrees workdirs go docker journal runners runlogs vartmp logs"
 #   BOX_SWEEP_JOURNAL_MAX  default 500M (journalctl --vacuum-size)
 #   BOX_SWEEP_RUNNER_ROOT  default /srv/gh-runner
 #   BOX_SWEEP_RUNNER_AGE   default 2 (days); idle runners only
+#   BOX_SWEEP_RUNLOG_ROOTS default "$HOME/var/log" (run-log-sweep.sh's RUN_LOG_SWEEP_ROOTS)
+#   BOX_SWEEP_RUNLOG_AGE_H default 72; BOX_SWEEP_LOW_RUNLOG_AGE_H / _CRIT_RUNLOG_AGE_H 24 / 6
+#   BOX_SWEEP_RUNLOG_APPLY default 0: the runlogs step only plans; 1 = it gets DRY_RUN
 #   BOX_SWEEP_DOCKER_UNTIL default 72h (the session age, AGE_DAYS=3)
 #   BOX_SWEEP_GO_AGE_MIN   default 1440
 #   BOX_SWEEP_VARTMP_ROOT  default /var/tmp
@@ -97,7 +107,7 @@ export PATH
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 dry="${DRY_RUN:-1}"
-steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees workdirs go docker journal runners vartmp logs}"
+steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees workdirs go docker journal runners runlogs vartmp logs}"
 until="${BOX_SWEEP_DOCKER_UNTIL:-72h}"
 scripts="${BOX_SWEEP_SCRIPTS:-$self_dir}"
 orc="${BOX_SWEEP_ORC:-$(cd "$self_dir/../../.." && pwd)}"
@@ -112,6 +122,8 @@ send="${BOX_SWEEP_SEND:-$orc/src/bash/features/spawn-agents/scripts/spool-send.s
 journal_max="${BOX_SWEEP_JOURNAL_MAX:-500M}"
 runner_root="${BOX_SWEEP_RUNNER_ROOT:-/srv/gh-runner}"
 runner_age="${BOX_SWEEP_RUNNER_AGE:-2}"
+runlog_roots="${BOX_SWEEP_RUNLOG_ROOTS:-$HOME/var/log}" runlog_age="${BOX_SWEEP_RUNLOG_AGE_H:-72}"
+runlog_dry=1; [[ "${BOX_SWEEP_RUNLOG_APPLY:-0}" == 1 ]] && runlog_dry="$dry"
 vartmp_root="${BOX_SWEEP_VARTMP_ROOT:-/var/tmp}" vartmp_age=""
 log_max="${BOX_SWEEP_LOG_MAX:-256M}"
 export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
@@ -147,13 +159,14 @@ note() {
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
 for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" "$runner_age" \
     "$go_cap" "$go_wait" "${BOX_SWEEP_LOW_GO_CAP_GB:-3}" "${BOX_SWEEP_CRIT_GO_CAP_GB:-1}" \
-    "${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}" "${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}"; do
+    "${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}" "${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}" \
+    "$runlog_age" "${BOX_SWEEP_LOW_RUNLOG_AGE_H:-24}" "${BOX_SWEEP_CRIT_RUNLOG_AGE_H:-6}"; do
   [[ "$v" =~ ^[0-9]+$ ]] || { say "FAIL the free %, age and interval limits must be whole numbers, got '$v'"; exit 2; }
 done
 [[ "$journal_max" =~ ^[0-9]+[KMGT]?$ ]] || { say "FAIL BOX_SWEEP_JOURNAL_MAX must be a size like 500M, got '$journal_max'"; exit 2; }
 [[ "$gate" == 0 || "$gate" == 1 ]] || { say "FAIL BOX_SWEEP_GATE must be 0 or 1, got '$gate'"; exit 2; }
 for s in $steps; do
-  case "$s" in sessions|tmp|worktrees|workdirs|go|docker|journal|runners|vartmp|logs) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
+  case "$s" in sessions|tmp|worktrees|workdirs|go|docker|journal|runners|runlogs|vartmp|logs) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
 done
 exec 9>>"$lock" || { say "FAIL cannot open the lock $lock"; exit 2; }
 flock -n 9 || { say "SKIP another box disk sweep holds $lock"; exit 0; }
@@ -166,10 +179,10 @@ fi
 level=normal
 if (( fpct < crit_pct )); then
   level=crit until="${BOX_SWEEP_CRIT_DOCKER_UNTIL:-2h}" go_age="${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" vartmp_age="${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}"
-  go_cap="${BOX_SWEEP_CRIT_GO_CAP_GB:-1}"
+  go_cap="${BOX_SWEEP_CRIT_GO_CAP_GB:-1}" runlog_age="${BOX_SWEEP_CRIT_RUNLOG_AGE_H:-6}"
 elif (( fpct < low_pct )); then
   level=low until="${BOX_SWEEP_LOW_DOCKER_UNTIL:-12h}" go_age="${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" vartmp_age="${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}"
-  go_cap="${BOX_SWEEP_LOW_GO_CAP_GB:-3}"
+  go_cap="${BOX_SWEEP_LOW_GO_CAP_GB:-3}" runlog_age="${BOX_SWEEP_LOW_RUNLOG_AGE_H:-24}"
 fi
 stamp="$lock.last-normal" noted="$lock.crit-noted"
 if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$stamp" -mmin -"$every" 2>/dev/null)" ]]; then
@@ -177,7 +190,7 @@ if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$st
 fi
 (( fpct >= crit_pct )) && rm -f "$noted" 2>/dev/null
 
-say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age go_cap_gb=$go_cap vartmp_age_h=${vartmp_age:-off} steps='$steps' $(df_line)"
+say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age go_cap_gb=$go_cap vartmp_age_h=${vartmp_age:-off} runlog_age_h=$runlog_age steps='$steps' $(df_line)"
 rc=0
 for s in $steps; do
   # the root-disk steps are driven by free space, never by age alone
@@ -192,6 +205,7 @@ for s in $steps; do
     docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" PRUNE_BUILDER_CAP_PCT="$cap_pct" bash "$scripts/prune-docker-images.sh" ;;
     journal)   DRY_RUN="$dry" BOX_SWEEP_JOURNAL_MAX="$journal_max" bash "$scripts/journal-sweep.sh" ;;
     runners)   DRY_RUN="$dry" BOX_SWEEP_RUNNER_ROOT="$runner_root" BOX_SWEEP_RUNNER_AGE="$runner_age" bash "$scripts/runner-sweep.sh" ;;
+    runlogs)   DRY_RUN="$runlog_dry" RUN_LOG_SWEEP_ROOTS="$runlog_roots" RUN_LOG_SWEEP_AGE_H="$runlog_age" bash "$scripts/run-log-sweep.sh" ;;
     vartmp)    DRY_RUN="$dry" TMP_STALE_ROOT="$vartmp_root" TMP_STALE_ANY=1 TMP_STALE_AGE_H="$vartmp_age" bash "$scripts/tmp-stale-sweep.sh" ;;
     logs)      DRY_RUN="$dry" LOG_SWEEP_MAX="$log_max" bash "$scripts/log-sweep.sh" ;;
   esac

@@ -14,7 +14,8 @@
 # @description     lane-rotate ACK) claims nothing to anyone and is skipped
 # @description   - every token of 9..12 or 40 lowercase hex with at least one
 # @description     letter a..f is a sha (a UUID is cut out first; an all-digit
-# @description     token is a run id, not a sha; a 32-hex md5 or a token
+# @description     token is a sha only when `git cat-file -t` names a commit in
+# @description     a repo, SPL-2706, else a run id; a 32-hex md5 or a token
 # @description     right after an "md5" label is a file hash, SPL-2332; a commit
 # @description     reachable from origin's refs/notes/*, the release notes, is
 # @description     no code, SPL-2560); SPL-2338:
@@ -103,7 +104,7 @@ do_spl_done_claim_check() {
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
   local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
   while IFS=$'\t' read -r id from ts task body; do
-    shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body")")"
+    shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
     bad=""
     if grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
@@ -165,7 +166,7 @@ spl_done_claim_results() {
       }' | sort -n -k1,1 | cut -f2-
 }
 
-# spl_done_claim_shas <body>: the shas the result CLAIMS (SPL-2338). When a
+# spl_done_claim_shas <body> [repos file]: the shas the result CLAIMS (SPL-2338). When a
 # line of <body> (lines split on \x1f) starts with the word sha or shas, after
 # list marks and bold (`sha:`, `- **sha**:`, `- **Sha:**`, `SHA:`), and one of
 # those lines holds a sha, only those lines count: a sha quoted on another line
@@ -173,18 +174,35 @@ spl_done_claim_results() {
 # of the body, as before. One line, space-separated.
 spl_done_claim_shas() {
   local claim
-  claim="$(tr '\037' '\n' <<<"$1" | grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' | spl_done_claim_tokens)"
-  [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens <<<"$1")"
+  claim="$(tr '\037' '\n' <<<"$1" | grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' | spl_done_claim_tokens "${2:-}")"
+  [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens "${2:-}" <<<"$1")"
   echo "$claim"
 }
 
-# spl_done_claim_tokens (stdin): the distinct hex tokens of 9..12 or 40 chars
-# holding a letter a..f, UUIDs and the token after an "md5" label cut out
-# first; one line, space-separated. 13..39 hex (a 32-hex md5) is no git sha.
+# spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
+# or 40 chars, UUIDs and the token after an "md5" label cut out first; one
+# line, space-separated. 13..39 hex (a 32-hex md5) is no git sha. An all-digit
+# token counts only when it is a commit of a repo in [repos file] (SPL-2706:
+# c-597's "sha: 704617890" read as no sha); else it is a run id.
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
     -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
-    tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | grep '[a-f]' | awk '!s[$0]++' | paste -sd' ' -
+    tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |
+    spl_done_claim_digit_commits "${1:-}" | paste -sd' ' -
+}
+
+# spl_done_claim_digit_commits [repos file] (stdin): the tokens holding a letter
+# a..f, and the all-digit ones `git cat-file -t` names a commit in a repo of
+# [repos file]: one cat-file per all-digit token and repo.
+spl_done_claim_digit_commits() {
+  local t top ref
+  while read -r t; do
+    [[ "$t" =~ [a-f] ]] && { echo "$t"; continue; }
+    [[ -n "$1" && -f "$1" ]] || continue
+    while read -r top ref; do
+      [[ "$(git -C "$top" cat-file -t "$t" 2>/dev/null)" == commit ]] && { echo "$t"; break; }
+    done <"$1"
+  done
 }
 
 # spl_done_claim_notes <repos file> <shas>: <shas> without the commits

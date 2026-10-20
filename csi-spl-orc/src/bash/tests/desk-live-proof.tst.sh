@@ -21,6 +21,8 @@
 #  10. SPL-2420 LIVE_REPO=<cnf name>: a customer repo's sha on its fetched
 #      trunk is Live with no deploy rule; a sha off its trunk, an unknown
 #      name, a clone on another box and a csi-spl sha are refused
+#  11. SPL-2706: an all-digit short sha of a commit on origin/master (c-597's
+#      704617890 shape) is a sha; a 9-digit number that is no commit is not
 # The served verdicts are stubbed at do_check_lane_served's seams
 # (_spl_served_needs_deploy / _spl_served_env, tested in lane-served.tst.sh);
 # the git side is a real repo with a local origin.
@@ -37,9 +39,9 @@ TOPIC=28559e83-ac82-4123-a2ef-4994da2c46a3
 # A repo whose origin/master holds ON; OFF is a local commit never pushed.
 g() { git -C "$T/wt" -c user.name=t -c user.email=t@example.com "$@"; }
 # commit_sha_word <msg>: an empty commit whose 9-char prefix has a digit AND a
-# letter. The guard skips a hex word without both (a run id, a date), so an
-# all-digit prefix (~1.5% of fresh hashes) turned cases 4-6 and 9 red at random
-# (wf 10 run 38954245818).
+# letter. The guard used to skip a hex word without both, so an all-digit
+# prefix (~1.5% of fresh hashes) turned cases 4-6 and 9 red at random (wf 10
+# run 38954245818); since SPL-2706 case 11 covers the all-digit one.
 commit_sha_word() {
   local i=0 h
   g commit -q --allow-empty -m "$1"
@@ -190,6 +192,30 @@ send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=far-rel; rc=$?
 one_line "10. a clone on another box: one line naming this box and the cnf's" "not a git repo on this box (box-a); its clone is on box box-b: run it there"
 send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=../cust; rc=$?
 one_line "10. a path as LIVE_REPO is refused" "must be a repo NAME the cnf knows, not a path or URL"
+
+# --- 11. an all-digit short sha (SPL-2706) ----------------------------------------
+# digit_word <msg>: an empty commit on master whose 9-char prefix is all digits
+# (~1.5% of hashes: amend until it is), pushed to origin.
+digit_word() {
+  local i=0 h
+  g commit -q --allow-empty -m "$1"
+  while h="$(g rev-parse HEAD)"; [[ ! "${h:0:9}" =~ ^[0-9]{9}$ ]]; do
+    i=$((i + 1)); (( i < 3000 )) || { fail "11. no all-digit 9-char prefix in $i amends"; return 1; }
+    g commit -q --amend --allow-empty -m "$1 $i"
+  done
+  g push -q origin HEAD:master
+}
+g checkout -q -b digit origin/master && digit_word digit
+DIG="$(g rev-parse HEAD)"
+B="**Live** ${DIG:0:9} (orc only, no deploy)"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" NEEDS=no; rc=$?
+sent "11. an all-digit short sha (${DIG:0:9}) of a commit on origin/master is a sha: sent" "$B"
+NUM=123456789
+[[ "$(g cat-file -t "$NUM" 2>/dev/null)" != commit ]] && pass "11. control: $NUM is no commit of the checkout" ||
+  fail "11. control: $NUM resolves to a commit"
+B="**Live** run $NUM (orc only, no deploy)"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" NEEDS=no; rc=$?
+refused "11. a 9-digit number that is no commit is still no sha" "commit sha on origin/master"
 
 echo "desk-live-proof: $fails failure(s)"
 ((fails == 0))

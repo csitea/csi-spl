@@ -19,7 +19,9 @@ reads and fetches, sends nothing, writes no ledger). Code:
    box checks it) and a result a lane sends itself (`to` = `from`, the
    lane-rotate ACK).
 2. Its shas: every token of 9..12 or 40 lowercase hex with at least one
-   letter a..f, UUIDs cut out first (an all-digit token is a CI run id).
+   letter a..f, UUIDs cut out first. An all-digit token is a sha only when
+   `git cat-file -t` names it a commit in a checked repo (SPL-2706: c-597's
+   `sha: 704617890`, a trunk commit, read as no sha); else it is a CI run id.
    13..39 hex is no git sha: a 32-hex md5 file hash (c-350, notes d60b054e
    and 48df14ac, 10-17) was read as four missing shas. A token right after
    an `md5` / `md5sum` label is skipped too (SPL-2332).

@@ -18,6 +18,8 @@
 # LANE_LANDED_CNF in the sandbox) whose clone is on this box is landed; a sha
 # in no known repo still alerts; a clone on another box is skipped. SPL-2560:
 # a commit reachable from origin's refs/notes/* (the release notes) is no sha.
+# SPL-2706: an all-digit short sha that is a commit (c-597's "sha: 704617890")
+# is a sha; an all-digit token that is no commit is still a run id.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -35,7 +37,7 @@ mkrepo spl
 mkrepo other
 # lettered <repo> <n> <msg>: commit (or amend) HEAD until its first <n> chars hold a
 # letter. A body quotes a 9- or 12-char prefix; an all-digit one (1 run in ~70 for 9)
-# reads as a run id and is dropped on purpose, so the fixture never quotes one.
+# is a sha only when it is a commit (SPL-2706, case 12): the fixture never quotes one.
 lettered() {
   local i
   for i in $(seq 1 50); do
@@ -269,5 +271,27 @@ v="$(for k in notes notesonly; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
   grep -q '^notesonly	.*no-sha$' "$T/o" && ! rg spl rev-parse -q --verify refs/notes/release-notes >/dev/null &&
   pass "11. SPL-2560: a commit on origin's refs/notes/* is no claim (fetched to a private ref, the local notes refs untouched): the code sha beside it is landed; a body citing only a notes commit reads as no sha" ||
   fail "11. notes ref (rc $rc) got '$v': $(cat "$T/o")"
+
+# 12. SPL-2706 (c-597's result 475cfaaa, synthetic): "sha: 704617890" named an
+# all-digit 9-char prefix of a trunk commit and read as no sha. A trunk commit
+# amended until its 9-char prefix is all digits (~1.5% of hashes).
+SP="$T/spool12"
+rg spl commit -q --allow-empty -m "digit sha"
+for i in $(seq 1 3000); do
+  [[ "$(rg spl rev-parse HEAD | cut -c1-9)" =~ ^[0-9]{9}$ ]] && break
+  rg spl commit -q --amend --allow-empty -m "digit sha $i"
+done
+DIG=$(rg spl rev-parse HEAD)
+rg spl push -q origin HEAD:master
+msg c-002/archive digit c-597 c-002 30 "- sha: ${DIG:0:9}"
+msg c-002/archive digitno c-598 c-002 30 "- sha: 123456789 (run id)"
+[[ "${DIG:0:9}" =~ ^[0-9]{9}$ && "$(rg spl cat-file -t 123456789 2>/dev/null)" != commit ]] &&
+  pass "12. control: ${DIG:0:9} is an all-digit trunk prefix, 123456789 no commit" || fail "12. control: fixture ${DIG:0:9}"
+run DONE_CLAIM_STATE_DIR="$T/st12"; rc=$?
+v="$(for k in digit digitno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "digit=landed digitno=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "digit" { print $4 }' "$T/o")" = "${DIG:0:9}" ] && grep -q '^digitno	.*no-sha$' "$T/o" &&
+  pass "12. SPL-2706: an all-digit short sha of a trunk commit is landed; a 9-digit number that is no commit is still no sha" ||
+  fail "12. all-digit sha (rc $rc) got '$v': $(cat "$T/o")"
 
 exit "$fails"

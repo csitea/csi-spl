@@ -17,8 +17,10 @@
 #   3. a `checked:` line naming the measured cases and a `not checked:` line
 #      (it may say `none`).
 # A hex word that is no commit of this checkout (a msg id, a topic prefix) is
-# not a sha. Any other opening (**Planned, not built yet**, **In progress**,
-# **Landed, not live yet**, a poll form, plain text) is not checked.
+# not a sha; an all-digit word that is one is (SPL-2706: "704617890" was
+# refused while the full sha passed). Any other opening (**Planned, not built
+# yet**, **In progress**, **Landed, not live yet**, a poll form, plain text)
+# is not checked.
 # SPL-2420: LIVE_REPO=<name> proves shas of a customer repo the cnf knows
 # (env.box.landed_repos, see spl_landed_repo) instead: its clone on this box
 # (else one FATAL naming this box and the cnf's), fetched, every sha an
@@ -63,7 +65,7 @@ spl_desk_live_proof() {
   local tok full seen=" " fetched=1
   bash "$fetch" -C "$wt" --remote "$remote" --branch "$branch" >/dev/null 2>&1 || fetched=0
   while read -r tok; do
-    [[ -n "$tok" && "$tok" =~ [0-9] && "$tok" =~ [a-f] ]] || continue
+    [[ -n "$tok" ]] || continue
     full="$(git -C "$wt" rev-parse --verify -q "$tok^{commit}" 2>/dev/null)" || continue
     [[ "$seen" == *" $full "* ]] && continue
     seen+="$full "; shas+=("$full")
@@ -122,7 +124,7 @@ spl_desk_live_repo_proof() {
     { miss+=("$(sed -E -n '1s/^.*FATAL //p' "$err")"); rm -f "$err"; spl_desk_live_verdict "${miss[@]}"; return; }
   rm -f "$err"
   while read -r tok; do
-    [[ -n "$tok" && "$tok" =~ [0-9] && "$tok" =~ [a-f] ]] || continue
+    [[ -n "$tok" ]] || continue
     full="$(spl_landed_repo_git "$clone" rev-parse --verify -q "$tok^{commit}" 2>/dev/null)" || continue
     [[ "$seen" == *" $full "* ]] && continue
     seen+="$full "; n=$((n + 1))

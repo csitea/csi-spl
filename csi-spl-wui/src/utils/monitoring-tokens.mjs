@@ -25,12 +25,12 @@ export const TOKENS_POLL_MS = 30000
 export const TOKENS_STALE_AMBER_S = 45
 export const TOKENS_STALE_RED_S = 90
 /** Fresh tokens per minute (in + out + cache write) for the burn badges (4.4.1). */
-export const TOKENS_ELEVATED_PER_MIN = 30000
-export const TOKENS_SURGE_PER_MIN = 60000
+const TOKENS_ELEVATED_PER_MIN = 30000
+const TOKENS_SURGE_PER_MIN = 60000
 /** A lane is Active when its newest minute is this close to the answer's as_of (the hub's burn window). */
-export const TOKENS_ACTIVE_S = 5 * 60
+const TOKENS_ACTIVE_S = 5 * 60
 /** The agent kind that reports no tokens (wire.FleetBurnVendorUnmetered). */
-export const TOKENS_UNMETERED_VENDOR = 'qwen'
+const TOKENS_UNMETERED_VENDOR = 'qwen'
 /** The kinds in the hub's order (wire.FleetTokenVendors). */
 export const TOKENS_VENDORS = Object.freeze(['claude', 'mistral', 'grok', 'agy', 'qwen'])
 /** e2e opt-in (mock only): the operator admin, operator-console.mjs OPERATOR_MOCK_KEY (the same key shows the tab). */
@@ -157,9 +157,9 @@ export function burnLevel(fresh) {
 }
 
 /** A change of the 1m rate against the 5m rate of at least this share is a trend (plan 5.3). */
-export const TOKENS_TREND_SHARE = 0.15
+const TOKENS_TREND_SHARE = 0.15
 /** The 5m rate the share is taken of is never below this, so a near-idle lane shows no trend on a few tokens. */
-export const TOKENS_TREND_FLOOR_PER_MIN = 1000
+const TOKENS_TREND_FLOOR_PER_MIN = 1000
 
 /**
  * A lane's burn velocity (SPL-2483, plan 5.3): 'rising' or 'falling' when the

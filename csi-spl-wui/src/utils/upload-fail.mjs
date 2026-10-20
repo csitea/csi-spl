@@ -53,14 +53,14 @@ export async function linkUp(live, waitMs = UPLOAD_LINK_WAIT_MS, stepMs = 100) {
 }
 
 /** The rejection for a hub that answered the upload with an error status. */
-export function uploadHttpError(status, token) {
+function uploadHttpError(status, token) {
   return Object.assign(new Error(`spool ${status} ${token || '/v1/files'}`), { status, token, upload: true })
 }
 
 /** Base stall limit of one POST /v1/files, before the time its bytes may take. */
-export const UPLOAD_STALL_BASE_MS = 15000
+const UPLOAD_STALL_BASE_MS = 15000
 /** The slowest link the stall limit allows for: 100 KB/s (1 ms per 100 bytes). */
-export const UPLOAD_STALL_BYTES_PER_MS = 100
+const UPLOAD_STALL_BYTES_PER_MS = 100
 
 /** How long one upload of `bytes` may go unanswered: a 916 KB picture, ~24 s. */
 export function uploadStallMs(bytes) {
@@ -90,7 +90,7 @@ export async function postWithStall(fetchFn, url, init, stallMs) {
 }
 
 /** e2e hook (mock bundle only): the localStorage key naming how the mock upload fails. */
-export const MOCK_UPLOAD_FAIL_KEY = 'spool.mock.upload-fail'
+const MOCK_UPLOAD_FAIL_KEY = 'spool.mock.upload-fail'
 
 /**
  * The mock bundle's stand-in for the hub's POST /v1/files while the e2e hook

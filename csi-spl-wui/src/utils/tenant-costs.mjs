@@ -20,9 +20,9 @@ export const COSTS_READ = 'costs.read'
 /** e2e opt-in (mock only): '' = a full estate month, 'empty' = today's prd (counts only, no GCP). */
 export const COSTS_MOCK_KEY = 'spool.mock.costs'
 /** A part at or under this share of the month (%) folds into the pie's "other". */
-export const COST_PIE_MIN_PCT = 1
+const COST_PIE_MIN_PCT = 1
 /** The months the picker offers, the current one first. */
-export const COST_MONTHS_BACK = 12
+const COST_MONTHS_BACK = 12
 
 /** The second currency when the person never picked one (the hub's store.DefaultSecondCurrency). */
 export const COST_SECOND_DEFAULT = 'EUR'
@@ -179,7 +179,7 @@ export function costCurrencyOptions(body, keep = '') {
 }
 
 /** Is a source the GCP estate's (its reader names it gcp...). */
-export function costIsGcp(source) {
+function costIsGcp(source) {
   return /^gcp/.test(String(source || ''))
 }
 

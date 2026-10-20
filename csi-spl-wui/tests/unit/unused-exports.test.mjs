@@ -30,17 +30,16 @@ const DEF_DIRS = [['src/composables', /\.(ts|mjs)$/], ['src/utils', /\.(mjs|ts)$
 
 // `<file>` -> its exports with no user outside the file, measured on
 // origin/master 2026-10-19 (r13-08) after the top 5 files were cleaned:
-// 107 before, 76 now. It may only shrink: delete a name when its export goes.
+// 107 before, 76 then; r14-08 (2026-10-20) cleaned the next 4 files and
+// dropped 2 names now used: 54. It may only shrink: delete a name when its
+// export goes.
 const ALLOW = new Map([
-  ['src/composables/errorJournal.mjs', ['MAX_MESSAGE_CHARS', 'MAX_FIELD_CHARS', 'MAX_SUMMARY_CHARS', 'noteFetchError', 'RECENT_ERROR_MS', 'normaliseRoute', 'isSameRoute']],
   ['src/composables/useIssueColumns.ts', ['ISSUE_COLUMNS_SAVE_MS']],
   ['src/composables/useLive.ts', ['AS_KEY']],
   ['src/composables/usePaletteItems.ts', ['PALETTE_GROUPS']],
   ['src/composables/useRealmHours.ts', ['useRealmHours']],
   ['src/composables/useSettledQuery.ts', ['firstQueryValue']],
   ['src/composables/useSpoolApi.ts', ['VIEW_TOKEN_KEY', 'TENANT_KEY']],
-  ['src/composables/useTapAnim.ts', ['TAP_KINDS']],
-  ['src/composables/useTopicCardNew.ts', ['flowTopicUnread']],
   ['src/composables/useVimNavigation.ts', ['VIM_OVERLAY_OPEN', 'VIM_MOUNTED_ATTR']],
   ['src/utils/agent-id.mjs', ['AGENT_ID_SRC', 'LEGACY_ID_SRC']],
   ['src/utils/auth-client.mjs', ['PROVIDERS_TIMEOUT_MS']],
@@ -62,7 +61,6 @@ const ALLOW = new Map([
   ['src/utils/id-links.mjs', ['resolveTyped']],
   ['src/utils/join-tokens.mjs', ['normalizeJoinToken']],
   ['src/utils/live-ws.mjs', ['RECONNECT_AWAY_MS', 'RECONNECT_TIMED_MS']],
-  ['src/utils/monitoring-tokens.mjs', ['TOKENS_ELEVATED_PER_MIN', 'TOKENS_SURGE_PER_MIN', 'TOKENS_ACTIVE_S', 'TOKENS_UNMETERED_VENDOR', 'TOKENS_TREND_SHARE', 'TOKENS_TREND_FLOOR_PER_MIN']],
   ['src/utils/msg-kind.mjs', ['KIND_ICONS']],
   ['src/utils/perf-mark.mjs', ['perfCache']],
   ['src/utils/perf-summary.mjs', ['PERF_P95_MIN_N']],
@@ -77,14 +75,12 @@ const ALLOW = new Map([
   ['src/utils/signed-out-redirect.mjs', ['isExemptScreen']],
   ['src/utils/spool-client.mjs', ['PER_TOPIC_MAX']],
   ['src/utils/spool-client-mock.mjs', ['mockPersonName']],
-  ['src/utils/tenant-costs.mjs', ['COST_PIE_MIN_PCT', 'COST_MONTHS_BACK', 'costIsGcp']],
   ['src/utils/tenant-host-boot.mjs', ['PENDING_POLL_MS']],
   ['src/utils/tenant-settings-nav.mjs', ['FLEET_LOAD_SECTION']],
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
   ['src/utils/tree-drag.mjs', ['TREE_DROP_EDGE']],
-  ['src/utils/upload-fail.mjs', ['uploadHttpError', 'UPLOAD_STALL_BASE_MS', 'UPLOAD_STALL_BYTES_PER_MS', 'MOCK_UPLOAD_FAIL_KEY']],
 ])
-const ALLOW_CAP = 76
+const ALLOW_CAP = 54
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

@@ -29,11 +29,11 @@ import { displayVersion } from '../utils/display-version.mjs'
 /** Ring-buffer cap. 50 × ≤2 KB ≈ 100 KB worst case, and it dies with the tab. */
 export const ERROR_JOURNAL_LIMIT = 50
 /** Longest message we keep. Long enough to diagnose, short enough to read. */
-export const MAX_MESSAGE_CHARS = 800
+const MAX_MESSAGE_CHARS = 800
 /** Longest any other single field may be. */
-export const MAX_FIELD_CHARS = 400
+const MAX_FIELD_CHARS = 400
 /** Longest one-line summary (the RUM sink caps `label` at 256 runes). */
-export const MAX_SUMMARY_CHARS = 200
+const MAX_SUMMARY_CHARS = 200
 
 // ── redaction ──────────────────────────────────────────────────────────────
 // Applied INSIDE the capture path, before a record enters the buffer.
@@ -323,7 +323,7 @@ export function extractErrorId(input) {
     // are all probed the same way, so a caller never has to know which one it
     // is holding. The response is in the list because ofetch hands the same
     // object to its onResponseError hook and to the FetchError it throws
-    // afterwards — stamping it there (see noteFetchError) is what makes the
+    // afterwards — stamping it there (see stampErrorId) is what makes the
     // banner quote the id the journal already recorded, rather than minting a
     // second one for one failure.
     const errs = [o, o.error, o.cause, o.response, o.error && o.error.response]
@@ -512,46 +512,6 @@ export function noteError(input, opts) {
   }
 }
 
-/**
- * ofetch hook adapter — `{ request, options, response, error }`, the same
- * context `reportApiFetchContext` receives. Only failures are recorded; a
- * successful response produces nothing.
- *
- * @param {object} ctx
- * @param {{ isClient?: boolean }} [opts]
- */
-export function noteFetchError(ctx, opts) {
-  try {
-    const response = ctx && ctx.response
-    const error = ctx && ctx.error
-    const status = statusFrom({ response, error, status: response && response.status })
-    // 4xx that are part of normal life (401 on /me for an anonymous visitor,
-    // 404 for a product that moved) are still recorded: "what exactly went
-    // wrong" is the whole point, and the panel is staff-only. Only a plain
-    // success is skipped.
-    if (typeof status === 'number' && status >= 200 && status < 400 && !error) return
-    const rec = noteError({
-      source: 'api',
-      method: (ctx && ctx.options && ctx.options.method) || 'GET',
-      url: (ctx && ctx.request) || '',
-      status,
-      error,
-      // The response as well as the error: on a 4xx/5xx ofetch has not built
-      // the FetchError yet, so `ctx.error` is undefined and the API's
-      // `error.error_id` is reachable only through `ctx.response`. Nothing
-      // reads this field except extractErrorId, and that returns an exact id
-      // or nothing at all.
-      response,
-    }, opts)
-    // Stamp the resolved id onto the RESPONSE, which is the one object ofetch
-    // carries over to the FetchError it is about to throw. A component handed
-    // that rejection then shows the id this record already holds.
-    stampErrorId(response, rec && rec.errorId)
-  } catch {
-    /* never break the fetch pipeline */
-  }
-}
-
 /** @returns {object[]} newest LAST (insertion order) */
 export function getErrors() {
   return records.slice()
@@ -603,7 +563,7 @@ export function resetErrorJournal() {
  * gap the scoping is for; when it is wrong it is wrong in the direction of
  * showing MORE, which is the only safe direction for a diagnostics panel.
  */
-export const RECENT_ERROR_MS = 15000
+const RECENT_ERROR_MS = 15000
 
 /**
  * Comparable form of a route path: redacted the same way a captured route is
@@ -613,7 +573,7 @@ export const RECENT_ERROR_MS = 15000
  * @param {unknown} raw
  * @returns {string}
  */
-export function normaliseRoute(raw) {
+function normaliseRoute(raw) {
   const s = redactPath(raw, 200)
   if (!s) return ''
   return s.length > 1 ? s.replace(/\/+$/, '') : s
@@ -628,7 +588,7 @@ export function normaliseRoute(raw) {
  * @param {unknown} b
  * @returns {boolean}
  */
-export function isSameRoute(a, b) {
+function isSameRoute(a, b) {
   const x = normaliseRoute(a)
   return !!x && x === normaliseRoute(b)
 }

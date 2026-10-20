@@ -1,0 +1,106 @@
+# ops: weekly bounded load test of the dev hub (SPL-2138, epic SPL-2129)
+#
+# The outside review (item 2): "NO LOAD OR SOAK TESTING in CI. Concurrency
+# default is 1000 requests per instance ... behavior under sustained load is
+# unproven." This runs csi-spl-orc do_spl_hub_load_test against DEV once a
+# week: read-only GETs at the action's default (20 rps x 60 s, <= 10 in
+# flight; hard caps 50 rps, 50 in flight, 900 s), then the Cloud Run side of
+# the same window. A red run is the alert, as 00_deploy-lag-watch.
+#
+# DEV ONLY: the action refuses every other env, and this file names no other.
+# The dev hub serves every lane's e2e, so nothing heavier than the action's
+# soak (10 rps x 600 s) belongs here.
+#
+# A GitHub-hosted runner, never the box runners: those serve trunk CI.
+#
+# THE SECRETS: the test login is the probe admin of wf 23
+# (SPL_PROBE_ADMIN_PW_DEV, cnf env.box.join_check_email / join_check_tenant);
+# the Cloud Run read uses the project key GCP_KEY_CSI_SPL_DEV (iac 120), or
+# the WIF variables when the key is absent. No login secret: the run is
+# skipped with a ::notice::. No GCP identity: the load still runs, the
+# Cloud Run read is skipped (LOAD_METRICS=0).
+#
+# Local equivalent: ENV=dev ./csi-spl-orc/run -a do_spl_hub_load_test
+
+name: "24 ops: hub load test (dev)"
+
+on:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      rps:
+        description: 'Requests a second (1..50)'
+        required: false
+        default: '20'
+      seconds:
+        description: 'Run length in seconds (1..900)'
+        required: false
+        default: '60'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-load-test
+  cancel-in-progress: false
+
+jobs:
+  load:
+    name: Load test the dev hub
+    # Estate guard (spec 072 A34): it loads OUR dev estate, so a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ENV: dev
+      HAS_PW: ${{ secrets.SPL_PROBE_ADMIN_PW_DEV != '' }}
+      HAS_KEY: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+      WIF_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Resolve the identity
+        run: |
+          set -euo pipefail
+          p="${GITHUB_REPOSITORY#*/}-$ENV"
+          if [[ "$HAS_KEY" == true ]]; then echo "LOAD_SA=$p@$p.iam.gserviceaccount.com" >> "$GITHUB_ENV"; echo "AUTH=key" >> "$GITHUB_ENV"
+          elif [[ -n "$WIF_PROVIDER" && -n "$WIF_SA" ]]; then echo "LOAD_SA=$WIF_SA" >> "$GITHUB_ENV"; echo "AUTH=wif" >> "$GITHUB_ENV"
+          else echo "AUTH=none" >> "$GITHUB_ENV"; echo "::notice::no GCP_KEY_CSI_SPL_DEV and no WIF variables: the Cloud Run read is skipped"; fi
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.AUTH == 'key'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: env.AUTH == 'wif'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        if: env.AUTH != 'none'
+
+      - name: do_spl_hub_load_test
+        if: env.HAS_PW == 'true'
+        env:
+          SPL_PROBE_ADMIN_PW: ${{ secrets.SPL_PROBE_ADMIN_PW_DEV }}
+          LOAD_RPS: ${{ inputs.rps || '20' }}
+          LOAD_SECONDS: ${{ inputs.seconds || '60' }}
+        run: |
+          set -uo pipefail
+          if [[ "$AUTH" == none ]]; then export LOAD_METRICS=0; else export GCP_ACCOUNT="$LOAD_SA"; fi
+          rc=0
+          ./csi-spl-orc/run -a do_spl_hub_load_test >load.out 2>&1 || rc=$?
+          cat load.out
+          { echo "## Hub load test: dev"; echo; echo '```'; grep -E '^(load:|path |/|TOTAL|achieved|PASS|FAIL)' load.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$rc" != 0 ]]; then echo "::error::the dev hub load test failed (error rate or p95 over its threshold, or the sign-in): see the job summary"; exit 1; fi
+
+      - name: No test login
+        if: env.HAS_PW != 'true'
+        run: |
+          echo "::notice::dev hub load test skipped: no secret SPL_PROBE_ADMIN_PW_DEV (the probe admin of wf 23)"

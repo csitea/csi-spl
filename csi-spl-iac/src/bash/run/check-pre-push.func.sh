@@ -907,39 +907,13 @@ _pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-s
   return 0
 }
 
-# ./run sources every *.func.sh into one shell: a top-level `set -e` in any of
-# them (a lane's file, 2026-10-17) killed this gate at its first false command,
-# with no PART line and no summary. The gate runs with errexit off and puts it
-# back on return; func-sh-no-top-level-errexit.tst.sh refuses such a file.
-do_check_pre_push() {
-  [[ $- == *e* ]] && { set +e; trap 'set -e; trap - RETURN' RETURN; do_log "WARN pre-push: errexit (set -e) leaked in from a sourced file -- off for this gate, back on when it returns"; }
-  local tree="${PRE_PUSH_TREE:-$APP_PATH}"
-  local mode="${PRE_PUSH_MODE:-fast}" base="${PRE_PUSH_BASE:-origin/master}"
-  local _PP_TIER="${PRE_PUSH_TIER:-fast}"
-  case "$mode" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_MODE must be fast or full (got '$mode')"; return 2 ;; esac
-  case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac
-  git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
-    || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
-  # A git hook can inherit a stripped PATH (measured 2026-10-01: a lane's push
-  # FAILed missing-tool=yq with yq in /usr/local/bin). APPEND the usual install
-  # dirs, as _pp_pnpm does, so a present tool is found; an absent one still FAILs.
-  local extra="${PRE_PUSH_EXTRA_PATH-/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin}"
-  [[ -n "$extra" ]] && export PATH="$PATH:$extra"
-  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl"
-  local _PP_LOG="${PRE_PUSH_LOG:-$cache_dir/pre-push.log}"
-  local _PP_CACHE="${PRE_PUSH_CACHE:-$cache_dir/pre-push.parts.green}"
-  local _PP_PASS="${PRE_PUSH_PASS:-$(dirname "$_PP_CACHE")/pre-push.tree.pass}" _PP_SKIP="${PRE_PUSH_SKIP_PASSED:-0}"
-  # Not inherited by the parts: the iac suite's own tests run this gate on
-  # throwaway trees, and must neither skip on nor write to the caller's record.
-  export -n PRE_PUSH_SKIP_PASSED PRE_PUSH_PASS 2>/dev/null || true
-  local _PP_TOP="$tree" _PP_HEAD
-  _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
-
-  local only="${PRE_PUSH_ONLY:-}"
-  case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
-  local all="hygiene blog iac orc orc-features wui-vendor wui wui-e2e api" parts="hygiene" p changed="" lint
-  local -A _PPL_FILES=()
-  local _PPL_SELECTED="" _PPE_FILES="" _PPE_CUT="" _PPF_FEATS="" _PPX_TESTS=""
+# The parts this run plans: sets the caller's changed, mode, parts, all and
+# lint (and, through _ppl_plan and _pp{e,f,x}_parts, the _PPL_/_PPE_/_PPF_/
+# _PPX_ locals do_check_pre_push declares). The lint parts run right after
+# hygiene: seconds, and the likeliest red.
+_pp_plan_parts() {  # <tree> <base> <only>
+  local tree="$1" base="$2" only="$3" p sel lint_all
+  all="hygiene blog iac orc orc-features wui-vendor wui wui-e2e api" parts="hygiene" changed=""
   if [[ "$mode" == full ]]; then
     parts="$all"
   elif ! changed="$(_pp_changed "$tree" "$base")"; then
@@ -947,7 +921,7 @@ do_check_pre_push() {
     mode=full; parts="$all"
   else
     for p in blog iac orc wui-vendor wui api; do
-      local sel="$changed"
+      sel="$changed"
       # wui: an edit to an existing e2e/bench file is not a wui input (CLE-77946:
       # an e2e-only lane re-ran the 150..260 s part after every rebase and lost
       # the trunk race 12 times in a row)
@@ -957,7 +931,6 @@ do_check_pre_push() {
     done
     _pp_cnf_only "$changed" && parts="${parts/ iac/ cnf}"
   fi; _ppe_parts "$changed" "$tree"; _ppf_parts "$changed" "$tree"; _ppx_parts "$changed"
-  # The lint parts run right after hygiene: seconds, and the likeliest red.
   if [[ "$only" == override ]]; then
     # The override skips the slow parts, never these: c-226's override landed
     # a duplicate migration 0119 that lint-migration refuses in a second.
@@ -966,33 +939,19 @@ do_check_pre_push() {
     parts="hygiene${lint:+ $lint}"; all="hygiene lint-migration"
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
-    local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
+    lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
     all="hygiene stale-tree $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui wui-e2e api"
     parts="${parts/hygiene/hygiene stale-tree${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi
+  return 0
+}
 
-  # A machine-readable plan line (also the whole of PLAN mode's output).
-  echo "PRE_PUSH_PLAN mode=$mode tier=$_PP_TIER parts=$parts"
-  if [[ "${PRE_PUSH_PLAN:-0}" == 1 ]]; then
-    do_log "INFO pre-push PLAN only (mode=$mode tier=$_PP_TIER): $parts"
-    return 0
-  fi
-
-  # The hook's second run on a tree this gate already passed whole: skip it.
-  local tkey=""
-  _pp_tree_pass_eligible "$only" && tkey="$(_pp_tree_key "$tree" "$_PP_TIER" "$parts" "$base")"
-  if [[ "$_PP_SKIP" == 1 ]] && _pp_tree_pass_has "$tkey"; then
-    _pp_verdict tree PASS-tree 0 "key=${tkey:0:12} parts=${parts// /,}"
-    do_log "INFO pre-push: PASS -- this exact tree ($(git -C "$tree" rev-parse --short 'HEAD^{tree}' 2>/dev/null)) already passed every part above (key ${tkey:0:12}); nothing re-run"
-    return 0
-  fi
-
-  do_log "INFO pre-push: mode=$mode tier=$_PP_TIER base=$base parts: $parts"
-  [[ "$_PP_TIER" == fast ]] && do_log "INFO pre-push: fast tier -- go test -race, hub-pg, hub-gcs, build-stripped and the slow iac tests (terraform validate, tpl-gen renders) run in CI workflow 10/20, not here"
-
-  local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
-  local _PP_FAILED=0 _PP_PREEXIST=0
+# Runs every planned part (a SKIP verdict for the rest), the advisory typos and
+# release-note checks, then prints the summary. Sets the caller's _PP_NAMES,
+# _PP_STAT, _PP_SECS, _PP_FAILED and _PP_PREEXIST through _pp_run.
+_pp_run_parts() {  # <tree> <base> <only> <changed>
+  local tree="$1" base="$2" only="$3" changed="$4" p i
   _pp_baseline_reap "$tree"
   # Record this run so do_stop_pre_push can stop it by pid -- never by a
   # pattern (`pkill -f do_check_pre_push` also matches every agent's argv).
@@ -1028,11 +987,70 @@ do_check_pre_push() {
 
   echo ""
   echo "============ pre-push summary (mode=$mode tier=$_PP_TIER) ============"
-  local i
   for i in "${!_PP_NAMES[@]}"; do
     printf '  %-4s %5ss  %s\n' "${_PP_STAT[$i]}" "${_PP_SECS[$i]}" "${_PP_NAMES[$i]}"
   done
   echo "======================================================================"
+  return 0
+}
+
+# ./run sources every *.func.sh into one shell: a top-level `set -e` in any of
+# them (a lane's file, 2026-10-17) killed this gate at its first false command,
+# with no PART line and no summary. The gate runs with errexit off and puts it
+# back on return; func-sh-no-top-level-errexit.tst.sh refuses such a file.
+do_check_pre_push() {
+  [[ $- == *e* ]] && { set +e; trap 'set -e; trap - RETURN' RETURN; do_log "WARN pre-push: errexit (set -e) leaked in from a sourced file -- off for this gate, back on when it returns"; }
+  local tree="${PRE_PUSH_TREE:-$APP_PATH}"
+  local mode="${PRE_PUSH_MODE:-fast}" base="${PRE_PUSH_BASE:-origin/master}"
+  local _PP_TIER="${PRE_PUSH_TIER:-fast}"
+  case "$mode" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_MODE must be fast or full (got '$mode')"; return 2 ;; esac
+  case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac
+  git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
+    || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
+  # A git hook can inherit a stripped PATH (measured 2026-10-01: a lane's push
+  # FAILed missing-tool=yq with yq in /usr/local/bin). APPEND the usual install
+  # dirs, as _pp_pnpm does, so a present tool is found; an absent one still FAILs.
+  local extra="${PRE_PUSH_EXTRA_PATH-/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin}"
+  [[ -n "$extra" ]] && export PATH="$PATH:$extra"
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl"
+  local _PP_LOG="${PRE_PUSH_LOG:-$cache_dir/pre-push.log}"
+  local _PP_CACHE="${PRE_PUSH_CACHE:-$cache_dir/pre-push.parts.green}"
+  local _PP_PASS="${PRE_PUSH_PASS:-$(dirname "$_PP_CACHE")/pre-push.tree.pass}" _PP_SKIP="${PRE_PUSH_SKIP_PASSED:-0}"
+  # Not inherited by the parts: the iac suite's own tests run this gate on
+  # throwaway trees, and must neither skip on nor write to the caller's record.
+  export -n PRE_PUSH_SKIP_PASSED PRE_PUSH_PASS 2>/dev/null || true
+  local _PP_TOP="$tree" _PP_HEAD
+  _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
+
+  local only="${PRE_PUSH_ONLY:-}"
+  case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
+  local all parts changed lint
+  local -A _PPL_FILES=()
+  local _PPL_SELECTED="" _PPE_FILES="" _PPE_CUT="" _PPF_FEATS="" _PPX_TESTS=""
+  _pp_plan_parts "$tree" "$base" "$only"
+
+  # A machine-readable plan line (also the whole of PLAN mode's output).
+  echo "PRE_PUSH_PLAN mode=$mode tier=$_PP_TIER parts=$parts"
+  if [[ "${PRE_PUSH_PLAN:-0}" == 1 ]]; then
+    do_log "INFO pre-push PLAN only (mode=$mode tier=$_PP_TIER): $parts"
+    return 0
+  fi
+
+  # The hook's second run on a tree this gate already passed whole: skip it.
+  local tkey=""
+  _pp_tree_pass_eligible "$only" && tkey="$(_pp_tree_key "$tree" "$_PP_TIER" "$parts" "$base")"
+  if [[ "$_PP_SKIP" == 1 ]] && _pp_tree_pass_has "$tkey"; then
+    _pp_verdict tree PASS-tree 0 "key=${tkey:0:12} parts=${parts// /,}"
+    do_log "INFO pre-push: PASS -- this exact tree ($(git -C "$tree" rev-parse --short 'HEAD^{tree}' 2>/dev/null)) already passed every part above (key ${tkey:0:12}); nothing re-run"
+    return 0
+  fi
+
+  do_log "INFO pre-push: mode=$mode tier=$_PP_TIER base=$base parts: $parts"
+  [[ "$_PP_TIER" == fast ]] && do_log "INFO pre-push: fast tier -- go test -race, hub-pg, hub-gcs, build-stripped and the slow iac tests (terraform validate, tpl-gen renders) run in CI workflow 10/20, not here"
+
+  local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
+  local _PP_FAILED=0 _PP_PREEXIST=0
+  _pp_run_parts "$tree" "$base" "$only" "$changed"
 
   if [[ "$_PP_FAILED" -gt 0 ]]; then
     do_log "FATAL pre-push: $_PP_FAILED part(s) FAILED -- do not push until green"

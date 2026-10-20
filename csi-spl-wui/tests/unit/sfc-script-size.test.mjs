@@ -25,9 +25,7 @@ const MAX_SCRIPT = 500
 // `<file>` -> ceiling: its script lines on origin/master 2026-10-16 (r13-02).
 // It may only shrink: decompose the component and lower or delete its line; a
 // NEW file over MAX_SCRIPT fails.
-const BIG = new Map([
-  ['src/pages/issues.vue', 876],
-])
+const BIG = new Map([])
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

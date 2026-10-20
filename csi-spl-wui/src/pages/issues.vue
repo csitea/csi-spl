@@ -1185,7 +1185,7 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
+import type { EpicSummary, Issue, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
 import { useTopicStore } from '~/stores/topic'
@@ -1200,9 +1200,7 @@ import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { useViewPrefs } from '~/composables/useViewPrefs'
-import { useIssueUnreadOrder } from '~/composables/useIssueUnreadOrder'
-import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
+import { ISSUES_VIEWS } from '~/utils/view-prefs.mjs'
 import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
 import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { useIssueOpen } from '~/composables/useIssueOpen'
@@ -1214,31 +1212,15 @@ import { useIssueSwipe } from '~/composables/useIssueSwipe'
 import { useIssueBulk } from '~/composables/useIssueBulk'
 import { useIssueComments } from '~/composables/useIssueComments'
 import { useIssueKeys } from '~/composables/useIssueKeys'
-import type { IssueMenuTarget } from '~/composables/useIssueMenu'
+import { useIssueFilters } from '~/composables/useIssueFilters'
+import { useIssueDetailForm } from '~/composables/useIssueDetailForm'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
-import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
+import { ISSUE_STATUSES, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
-import { deadlineOverdue, issueCalendarHref } from '~/utils/issue-calendar-link.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import {
-  ISSUE_LEVELS, ISSUE_PRIORITIES, LEVEL_SHORT,
-  applyIssueFrame,
-  applyLabelFrame,
-  deadlineToLocalInput,
-  groupIssues,
-  hubOrder,
-  ISSUE_PAGE,
-  nextSort,
-  sortDirKey,
-  sortFromQuery,
-  sortSheet,
-  levelKey,
-  localInputToDeadline,
-  controlLabel,
-  statusHintKey,
-  statusLabel,
-  stepKey,
+  ISSUE_LEVELS, ISSUE_PRIORITIES, LEVEL_SHORT, applyIssueFrame, applyLabelFrame, deadlineToLocalInput, ISSUE_PAGE, levelKey, statusHintKey, statusLabel, stepKey,
 } from '~/utils/issues-view.mjs'
 
 const STATUS_ICON: Record<string, string> = {
@@ -1286,29 +1268,6 @@ let loadSeq = 0
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
-/* owner, topics e65c0f60 + e00da93b + 3a589b54: one flat list, sorted by a
-   header click; the sort lives in ?sort=&dir=. With no ?sort= the list opens
-   with the person's PER-TENANT default (issues_sort claim, SPL-1181), else the
-   product default (priority ascending, applied by sortSheet/hubOrder). */
-function initialSort(): { col: string, dir: string } {
-  const q = sortFromQuery(route.query as Record<string, unknown>)
-  if (q.col) return q
-  const stored = session.claims?.issues_sort
-  if (stored && stored.col && stored.dir) return sortFromQuery({ sort: stored.col, dir: stored.dir })
-  return { col: '', dir: '' }
-}
-const sheetSort = ref(initialSort())
-const statusF = ref('')
-const statusOpen = ref(false)
-const priorityF = ref('')
-const levelF = ref('')
-const assigneeF = ref('')
-const labelF = ref('')
-const dueF = ref('')
-/* t1 27b3ab77: ?unread=1, the issues the Issues tab badge counts (a tap on
-   the badge opens the list with it on) */
-const unreadOn = () => String(route.query.unread || '') === '1'
-const unreadF = ref(unreadOn())
 const cursorKey = ref('')
 const openKey = ref('')
 const creating = ref(false)
@@ -1324,12 +1283,6 @@ watch(openKey, () => { talkTab.value = 'discussion' })
 /* the History tab reads again when the issue or its discussion moved */
 const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}`)
 const titleEl = ref<HTMLInputElement | null>(null)
-/* the open issue's title as typed, until it is saved. Vue writes `value` on
-   every re-render, so with form.title alone a re-render while typing (the
-   comments, subtasks or opened mark loading as the modal opens) put the old
-   title back under the cursor: "Beta row" + "al" (spec 133 round 19) */
-const detailTitleEdit = ref<string | null>(null)
-watch(() => detail.value?.key, () => { detailTitleEdit.value = null })
 const newTitleEl = ref<HTMLInputElement | null>(null)
 const descEl = ref<{ edit: () => Promise<void> } | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
@@ -1339,79 +1292,12 @@ const pageEl = ref<HTMLElement | null>(null)
    the page has no words of its own for it (issues.save_failed_reason) */
 const saveReason = ref('')
 const { copy: copyText, copied: copiedKey } = useCopyText()
-const draft = reactive({
-  title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
-  assignee: '', labels: [] as string[], deadlineLocal: '',
-  epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
-  /* SPL-1593: the discussions the new issue links (topic ids, short ids) */
-  discussions: [] as string[],
-})
 /* SPL-1593: the workspace's default discussion (the hub's list answer); a
    new issue starts linked to it, and the member may link others instead */
 const defaultDiscussion = ref('')
-/* SPL-1593: a subtask links the discussions of the issue it is under */
-const parentDiscussions = computed(() => (detail.value?.discussions || []).map((d) => d.task_id))
-const subtasks = ref<Issue[]>([])
-const subtaskOpen = ref(false)
 /* SPL-18: the epics of the tenant (the hub's summary), shared with the
    Issues tab's left-most panel (ChannelSidebar reads the same state). */
 const epics = useState<EpicSummary[]>('issue-epics', () => [])
-const epicF = computed(() => {
-  const q = route.query.epic
-  const raw = Array.isArray(q) ? q[0] : q
-  return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
-})
-const epicTitle = computed(() => epics.value.find((e) => e.key === epicF.value)?.title || '')
-/* owner b82f3853: the epic/feature the view is filtered to (?epic=), as a menu
-   target for the title-row actions button. null when the view is not filtered
-   to one epic - then the button is disabled with a tooltip. A level-1 top row;
-   the kind comes from the epics summary (epic vs feature), defaulting to epic. */
-const selectedEpic = computed<IssueMenuTarget | null>(() => {
-  const key = epicF.value
-  if (!key) return null
-  const e = epics.value.find((x) => x.key === key)
-  return { key, kind: e?.kind || 'epic', level: 1, title: e?.title || key, top: true }
-})
-function epicLabel(key: string) {
-  const e = epics.value.find((x) => x.key === key)
-  return e ? `${e.key} ${e.title}` : key
-}
-function epicTitleOf(key: string) {
-  return epics.value.find((x) => x.key === key)?.title || key
-}
-function toggleKind() {
-  draft.kind = draft.kind === 'issue' ? 'epic' : draft.kind === 'epic' ? 'feature' : 'issue'
-}
-/* CLE-77816: a level-1 row (epic / feature) toggles between the two while it is
-   open in the dialog; both are level 1, so the tree is untouched. Kind is not
-   editable to `issue` here (that would move it in the tree - level does that). */
-function editKind() {
-  const d = detail.value
-  if (!d || !isTopKind(d.kind)) return
-  void save(d.key, { kind: d.kind === 'epic' ? 'feature' : 'epic' })
-}
-/* SPL-18 level 3: the open issue's subtasks (parent=), re-read after a
-   frame that names it and after a subtask is added */
-async function loadSubtasks(issue: Issue | null) {
-  if (!issue || issue.kind !== 'issue') { subtasks.value = []; return }
-  try {
-    const data = await withSessionRetry(api, () => api.listIssues({ filter: { parent: [issue.key] }, sort: 'created' }))
-    if (detail.value?.key === issue.key) subtasks.value = (data.issues || []).map((row) => normalizeIssue(row))
-  } catch {
-    subtasks.value = []
-  }
-}
-/* SPL-974: the dialog created it; show it now, then re-read the list */
-function onSubtaskCreated(sub: Issue) {
-  void poke({ text: sub.title, where: { issue: true, issueKey: sub.key } })
-  const parent = detail.value
-  if (!parent || sub.parent !== parent.key) return
-  if (!subtasks.value.some((s) => s.key === sub.key)) subtasks.value = [...subtasks.value, sub]
-  void loadSubtasks(parent)
-}
-async function openParent() {
-  await openIssueKey(detail.value?.parent || '')
-}
 
 function boxOf(id: string) {
   return roster.people.find((p) => p.id === id)?.box || ''
@@ -1434,21 +1320,6 @@ function levelShort(n: number) {
 }
 function meId() {
   return roster.self?.id || live.identity.value || ''
-}
-function serverFilter(): IssueFilter {
-  const f: IssueFilter = { kind: 'issue' }
-  if (epicF.value) f.epic = [epicF.value]
-  if (statusF.value) f.status = [statusF.value]
-  if (priorityF.value !== '') f.priority = [Number(priorityF.value)]
-  if (levelF.value !== '') f.level = [Number(levelF.value)]
-  if (assigneeF.value) f.assignee = [assigneeF.value]
-  /* an unread row is always the viewer's: the badge reads the same list */
-  else if (unreadF.value) f.assignee = ['me']
-  if (labelF.value) f.label = [labelF.value]
-  /* one day: issues due on or before its last minute */
-  const before = dueF.value ? localInputToDeadline(`${dueF.value}:59`) : ''
-  if (before) f.deadlineBefore = before
-  return f
 }
 function errorKey(err: { status?: number, token?: string }, which: 'list' | 'one') {
   const status = Number(err && err.status) || 0
@@ -1474,55 +1345,30 @@ function refusedText(key: string, e: unknown): string {
   return key === 'issues.save_failed' && reason ? t('issues.save_failed_reason', { reason }) : t(key)
 }
 
-/* the whole closed-control text, for the hover when it is ellipsized */
-const assigneeTitle = computed(() => {
-  const v = assigneeF.value
-  const who = !v ? t('issues.filter_all') : v === 'me' ? t('issues.filter_me') : v === 'none' ? t('issues.filter_unassigned') : (assigneeOptions.value.find((p) => p.id === v)?.label || v)
-  return controlLabel(t('issues.filter_assignee'), who)
+/* SPL-992 (epic SPL-988): at <= 820 px the page is the phone's level 2 and
+   the open issue its level 3 - M1's useMobileStack owns levels and history */
+const stack = useMobileStack()
+const phone = computed(() => stack.isMobile.value)
+/* the filter row, the sort and their sheets: composables/useIssueFilters */
+const {
+  sheetSort, sortOpen, sheetColumns, serverOrder, toggleSort, sortChoices, sortValue, sortWords, pickSort, assigneeOptions, assigneeTitle,
+  epicF, epicTitle, selectedEpic, epicLabel, epicTitleOf, pickEpic, viewBy, pickView, folded, toggleFold, rowCount, shownGroups, flat,
+  unreadF, statusF, statusOpen, priorityF, levelF, assigneeF, labelF, dueF,
+  filtersOpen, filterRefs, filtersActive, serverFilter, pickStatus, clearFilters,
+} = useIssueFilters({
+  route, router, t, storedSort: () => session.claims?.issues_sort, people: () => roster.people, person, epics, reload: () => { void load() },
+  issues, phone, signedIn: () => session.state === 'in', meId, labelText,
 })
-const assigneeOptions = computed(() => {
-  const seen = new Set<string>()
-  const out: { id: string, label: string }[] = []
-  for (const p of roster.people) {
-    if (!p.id || seen.has(p.id)) continue
-    seen.add(p.id)
-    out.push({ id: p.id, label: person(p.id) })
-  }
-  return out
+/* the issue form's inputs and the new-issue draft: composables/useIssueDetailForm */
+const {
+  draft, activeAssignee, activeLabels, form, parentDiscussions, detailCalendarHref, detailOverdue, detailOrDraft, createIssue, resetDraft,
+  detailTitleEdit, onDraftInput, onTitle, onDescriptionSubmit, onDescriptionDraft, saveDescription,
+  toggleKind, editKind, onDetailPriority, applyDeadline, removeLabel, removeLastLabel,
+  subtasks, subtaskOpen, loadSubtasks, onSubtaskCreated, openParent,
+} = useIssueDetailForm({
+  api, phone, detail, creating, busy, saveError, saveReason, epics, epicF, defaultDiscussion, failKey, save, hold,
+  poke: (p) => poke(p), created: onCreated, openIssueKey: (key) => openIssueKey(key),
 })
-/* SPL-1028: the view. Signed in it is the person's (session claim, rdb 0072);
-   signed out (the mock tenant) a click still switches this page. Phones keep
-   the card list (SPL-992). */
-const viewPrefs = useViewPrefs()
-const unreadIssues = useIssueUnreadOrder() /* SPL-2506: unread issues at the edge new posts go to */
-const viewLocal = ref<IssuesView | ''>('')
-const viewBy = computed<IssuesView>(() => {
-  if (phone.value) return 'list'
-  return session.state === 'in' ? viewPrefs.issuesView.value : (viewLocal.value || 'list')
-})
-async function pickView(v: IssuesView) {
-  if (session.state === 'in') { await viewPrefs.save('issues_view', v); return }
-  viewLocal.value = v
-}
-const groups = computed(() => {
-  const base = unreadF.value ? issues.value.filter(isNewIssue) : issues.value
-  const kept = groupIssues(base, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
-  const rows = unreadIssues(sortSheet(kept, sheetSort.value, { name: person, labelName: labelText }))
-  if (viewBy.value !== 'status') return [{ status: '', count: rows.length, issues: rows }]
-  /* Linear's "group by status": every status in the workflow order, its
-     count, the sheet's sort inside each group; an empty group stays as a drop target */
-  return ISSUE_STATUSES.map((status) => {
-    const inGroup = rows.filter((i) => i.status === status)
-    return { status, count: inGroup.length, issues: inGroup }
-  })
-})
-/* folded status groups: a per-browser convenience (localStorage), not a hub setting */
-const FOLD_KEY = 'spool.issues-folded'
-const folded = ref<string[]>([])
-function toggleFold(status: string) {
-  folded.value = folded.value.includes(status) ? folded.value.filter((s) => s !== status) : [...folded.value, status]
-  try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded.value)) } catch { /* private window: this visit only */ }
-}
 /* drag a row onto another status group: composables/useIssueGroupDrag */
 const { dropStatus, onRowDragStart, onRowDragEnd, onGroupDragOver, onGroupDragLeave, onGroupDrop } = useIssueGroupDrag({
   enabled: () => viewBy.value === 'status',
@@ -1531,64 +1377,11 @@ const { dropStatus, onRowDragStart, onRowDragEnd, onGroupDragOver, onGroupDragLe
     if (issue && issue.status !== status) void save(issue.key, { status })
   },
 })
-const sheetColumns = computed(() => [
-  { col: 'key', name: t('issues_view.col_key'), cls: 'issues-c-key' },
-  { col: 'title', name: t('issues_view.col_title'), cls: 'issues-c-title' },
-  { col: 'status', name: t('issues.filter_status'), cls: '' },
-  { col: 'priority', name: t('issues.filter_priority'), cls: '' },
-  { col: 'level', name: t('issues.filter_level'), cls: '' },
-  { col: 'assignee', name: t('issues.filter_assignee'), cls: '' },
-  { col: 'label', name: t('issues.filter_label'), cls: '' },
-  { col: 'deadline', name: t('issues.field_deadline'), cls: '' },
-  { col: 'updated', name: t('issues.sort_updated'), cls: '' },
-])
-/* t1 d5d00918: the hub pages in the sheet's own column and direction */
-const serverOrder = computed(() => hubOrder(sheetSort.value))
-const serverOrderKey = computed(() => `${serverOrder.value.sort}:${serverOrder.value.dir}`)
 /* resizable columns: composables/useIssueColumnGrips (owner, topic beb4024f) */
 const { issueCols, colWidths, onGripDown, onGripKey } = useIssueColumnGrips({
   table: () => pageEl.value?.querySelector<HTMLElement>('.issues-table'),
 })
-function toggleSort(col: string) {
-  sheetSort.value = nextSort(col, sheetSort.value)
-}
-watch(sheetSort, (v) => {
-  if (!import.meta.client) return
-  const url = new URL(window.location.href)
-  if (v.col) { url.searchParams.set('sort', v.col); url.searchParams.set('dir', v.dir) }
-  else { url.searchParams.delete('sort'); url.searchParams.delete('dir') }
-  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
-})
-const rowCount = computed(() => groups.value.reduce((n, g) => n + g.count, 0))
-/* the table keeps its header and filter row when nothing matches; the note says so */
-const shownGroups = computed(() => (rowCount.value || viewBy.value === 'status' ? groups.value : []))
-/* J / K walk the rows in the order the sheet shows them */
-const flat = computed(() => groups.value.flatMap((g) => (g.status && folded.value.includes(g.status) ? [] : g.issues)))
-const activeAssignee = computed(() => creating.value ? draft.assignee : (detail.value?.assignee || ''))
-const activeLabels = computed(() => creating.value ? draft.labels : (detail.value?.labels || []))
-const form = computed(() => {
-  if (creating.value) {
-    return {
-      key: '', title: draft.title, description: draft.description, status: draft.status,
-      priority: draft.priority, level: isTopKind(draft.kind) ? 1 : 2, deadline: draft.deadlineLocal,
-      created_by: '', updated_by: '', task_id: '', epic: isTopKind(draft.kind) ? '' : draft.epic, kind: draft.kind as string,
-    }
-  }
-  const d = detail.value
-  if (!d) return null
-  return {
-    key: d.key, title: d.title, description: d.description, status: d.status,
-    priority: d.priority, level: d.level, deadline: deadlineToLocalInput(d.deadline),
-    created_by: d.created_by, updated_by: d.updated_by, task_id: d.task_id, epic: d.epic, kind: d.kind as string,
-  }
-})
 
-/* SPL-992 (epic SPL-988): at <= 820 px the page is the phone's level 2 and
-   the open issue its level 3 - M1's useMobileStack owns levels and history */
-const stack = useMobileStack()
-const phone = computed(() => stack.isMobile.value)
-const filtersOpen = ref(false)
-const sortOpen = ref(false)
 /* the one picker (status, priority, assignee, label, epic, level): composables/useIssuePicker */
 const { menu, menuIndex, menuPos, labelName, menuOptions, menuStyle, openMenu, clampMenuIntoView, onRowLevel, applyMenu, labelSet, onLabelNameBackspace, addLabel } = useIssuePicker({
   api, t, phone, issues, labels, epics, detail, creating, draft, cursorKey, busy, saveError, failKey, save,
@@ -1606,33 +1399,6 @@ stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
 stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value = false })
 stack.overlay(() => phone.value && sortOpen.value, () => { sortOpen.value = false })
 stack.overlay(() => phone.value && Boolean(menu.value), () => { menu.value = null })
-const filtersActive = computed(() => Boolean(unreadF.value || statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
-/* SPL-1596 (owner, t1 27b3ab77): each column once; the direction is said in
-   words ("Deadline, oldest first") and flipped by Reverse, never listed twice */
-const sortChoices = computed(() => [
-  { value: '', label: t('issues_mobile.sort_default') },
-  ...sheetColumns.value.map((c) => ({ value: c.col, label: c.name })),
-])
-const sortValue = computed(() => `${sheetSort.value.col}:${sheetSort.value.dir}`)
-const sortWords = computed(() => {
-  const s = sheetSort.value
-  const c = sheetColumns.value.find((x) => x.col === s.col)
-  return c ? t('issues_mobile.sort_now', { col: c.name, dir: t(sortDirKey(s.col, s.dir)) }) : t('issues_mobile.sort_default')
-})
-/* a new column starts ascending (as a header click); the same column keeps its direction */
-function pickSort(col: string, dir = '') {
-  const cur = sheetSort.value
-  sheetSort.value = sortFromQuery({ sort: col, dir: dir || (cur.col === col ? cur.dir : 'asc') })
-  sortOpen.value = false
-}
-/* an epic chip is the side panel's epic row: ?epic= on the same entry */
-function pickEpic(key: string) {
-  const query: Record<string, string> = {}
-  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
-  if (key) query.epic = key
-  else delete query.epic
-  void router.replace({ query })
-}
 
 async function load() {
   if (!api.mock && session.state !== 'in') {
@@ -1688,37 +1454,13 @@ async function loadMore() {
   }
 }
 
-function pickStatus(s: string) {
-  statusF.value = s
-  statusOpen.value = false
-}
-function clearFilters() {
-  sheetSort.value = { col: '', dir: '' }
-  unreadF.value = false
-  statusF.value = ''
-  statusOpen.value = false
-  priorityF.value = ''
-  levelF.value = ''
-  assigneeF.value = ''
-  labelF.value = ''
-  dueF.value = ''
-}
 function startCreate(status = '') {
   cancelOpen()
   creating.value = true
   openKey.value = ''
   detail.value = null
   writeIssueQuery('')
-  draft.title = ''
-  draft.description = ''
-  draft.status = (ISSUE_STATUSES as readonly string[]).includes(status) ? status : 'todo'
-  draft.priority = PRIO_DEFAULT
-  draft.assignee = ''
-  draft.labels = []
-  draft.deadlineLocal = ''
-  draft.kind = 'issue'
-  draft.discussions = defaultDiscussion.value ? [defaultDiscussion.value] : []
-  draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'diss')?.key || epics.value[0]?.key || ''
+  resetDraft(status)
   menu.value = null
   saveError.value = ''
   cursorCol.value = ''
@@ -1729,21 +1471,6 @@ function cancelCreate() {
   creating.value = false
   saveError.value = ''
   menu.value = null
-}
-function detailOrDraft(): Issue {
-  if (detail.value && !creating.value) return detail.value
-  return normalizeIssue({
-    key: draft.title ? 'draft' : '',
-    title: draft.title,
-    description: draft.description,
-    status: draft.status,
-    priority: draft.priority,
-    level: isTopKind(draft.kind) ? 1 : 2,
-    assignee: draft.assignee,
-    labels: draft.labels,
-    epic: draft.epic,
-    kind: draft.kind,
-  })
 }
 
 function scrollSelected() {
@@ -1807,118 +1534,23 @@ async function runEpicClose() {
   await save(c.key, { ...c.body, cascade: true })
   epicClose.value = null
 }
-function onDraftInput(ev: Event, field: 'title') {
-  const value = (ev.target as HTMLInputElement).value
-  if (creating.value) draft[field] = value
-  else detailTitleEdit.value = value
-}
-async function onTitle(ev: Event) {
-  const value = (ev.target as HTMLInputElement).value
-  if (creating.value) { draft.title = value; return }
-  if (!detail.value || value === detail.value.title) { detailTitleEdit.value = null; return }
-  await save(detail.value.key, { title: value })
-  /* keys typed while the save was out stay */
-  if (detailTitleEdit.value === value) detailTitleEdit.value = null
-}
-/* the submit key in the description: a new issue is created, an existing
-   one's text is already saved by IssueDescription */
-function onDescriptionSubmit() {
-  if (creating.value && !busy.value && draft.title.trim()) void createIssue()
-}
-function onDescriptionDraft(value: string) {
-  if (creating.value) draft.description = value
-}
-/* IssueDescription's save: true when stored, so a failure keeps its editor */
-async function saveDescription(value: string) {
-  if (creating.value) { draft.description = value; return true }
-  if (!detail.value) return false
-  if (value === detail.value.description) return true
-  const key = detail.value.key
-  const before = detail.value.description
-  await save(key, { description: value })
-  if (!saveError.value) void poke({ text: value, before, where: { issue: true, issueKey: key } })
-  return !saveError.value
-}
-/* SPL-2034: the open issue's calendar link (a set deadline only) and its
-   overdue tint */
 const localePath = useLocalePath()
-const detailCalendarHref = computed(() => (!creating.value && detail.value ? issueCalendarHref(detail.value.key, detail.value.deadline) : ''))
-const detailOverdue = computed(() => Boolean(detailCalendarHref.value) && deadlineOverdue(detail.value?.deadline || ''))
-function applyDeadline(local: string) {
-  if (creating.value) { draft.deadlineLocal = local; return }
-  if (!detail.value) return
-  const deadline = localInputToDeadline(local)
-  if (deadline === null) return
-  void save(detail.value.key, { deadline })
-}
 function onRowPriority(issue: Issue, ev: Event) {
   const n = Number((ev.target as HTMLSelectElement).value)
   if (n && n !== issue.priority) void save(issue.key, { priority: n })
 }
-function onDetailPriority(ev: Event) {
-  const n = Number((ev.target as HTMLSelectElement).value)
-  if (creating.value) { draft.priority = n; return }
-  if (detail.value && n && n !== detail.value.priority) void save(detail.value.key, { priority: n })
-}
-/* SPL-1633: the x on a chip of the issue modal's Labels field */
-async function removeLabel(id: string) {
-  if (creating.value) { draft.labels = draft.labels.filter((x) => x !== id); return }
-  const issue = detail.value
-  if (!issue?.key || !issue.labels.includes(id)) return
-  await save(issue.key, { labels: issue.labels.filter((x) => x !== id) })
-}
-function removeLastLabel() {
-  const last = activeLabels.value[activeLabels.value.length - 1]
-  if (last) void removeLabel(last)
-}
-async function createIssue() {
-  const title = draft.title.trim()
-  if (!title || busy.value) return
-  /* SPL-1593: the hub refuses an issue that links no discussion */
-  if (!draft.discussions.length) {
-    saveReason.value = ''
-    saveError.value = 'issue_discussions.required'
+/* a created issue: > 820 px the row stays in the sheet and the cursor moves
+   on to its cells (SPL-1027); a phone opens it */
+function onCreated(created: Issue) {
+  cursorKey.value = created.key
+  if (!phone.value) {
+    cursorCol.value = 'status'
+    focusCell()
     return
   }
-  busy.value = true
-  saveError.value = ''
-  const body: Record<string, unknown> = {
-    title,
-    description: draft.description,
-    status: draft.status,
-    priority: draft.priority,
-  }
-  body.discussions = draft.discussions.slice()
-  if (draft.assignee) body.assignee = draft.assignee
-  if (draft.labels.length) body.labels = draft.labels.slice()
-  /* The label and parent forms work on every hub since 0.7.0 (issues-v1 §8:
-     the epic label makes an epic, parent is the epic). */
-  if (isTopKind(draft.kind)) body.kind = draft.kind
-  else if (draft.epic) body.parent = draft.epic /* W16: no epic = a lone level-2 issue */
-  const deadline = localInputToDeadline(draft.deadlineLocal)
-  if (deadline) body.deadline = deadline
-  try {
-    const data = await withSessionRetry(api, () => api.createIssue(body))
-    const created = normalizeIssue(data.issue)
-    hold(created)
-    void poke({ text: `${title}\n${String(body.description || '')}`, where: { issue: true, issueKey: created.key } })
-    creating.value = false
-    if (!phone.value) {
-      /* SPL-1027: the row stays in the sheet; the cursor moves on to its cells */
-      cursorKey.value = created.key
-      cursorCol.value = 'status'
-      focusCell()
-      return
-    }
-    openKey.value = created.key
-    detail.value = created
-    cursorKey.value = created.key
-    writeIssueQuery(created.key)
-  } catch (e) {
-    saveError.value = failKey(e)
-  } finally {
-    busy.value = false
-  }
+  openKey.value = created.key
+  detail.value = created
+  writeIssueQuery(created.key)
 }
 
 /* the delete and archive confirms: composables/useIssueActConfirm */
@@ -1949,7 +1581,7 @@ const {
   clearSelection, onCheck, togglePage, toggleFocused, selectAllMatching, onBulkAct, onBulkConfirmOpen, runBulkConfirm, runBulkPatch,
 } = useIssueBulk({
   api, issues, flat, nextCursor, matchTotal, loadError, cursorKey, menu, menuPos, menuIndex, pageBoxEl,
-  filters: [unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF],
+  filters: filterRefs,
   loadMore, clampMenuIntoView, dropKeys, keepOrDrop, refreshEpics,
 })
 /* the page's keyboard and the click outside a pop-up: composables/useIssueKeys */
@@ -1966,17 +1598,6 @@ function dropKeys(keys: string[]) {
   if (detail.value && gone.has(detail.value.key)) closeDetail()
   if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
 }
-watch([unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, serverOrderKey, epicF], () => { void load() })
-/* ?unread=1 follows the filter, and the badge's link sets the filter */
-watch(() => route.query.unread, () => { unreadF.value = unreadOn() })
-watch(unreadF, (on) => {
-  if (!import.meta.client || on === unreadOn()) return
-  const query: Record<string, string> = {}
-  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
-  if (on) query.unread = '1'
-  else delete query.unread
-  void router.replace({ query })
-})
 watch(() => session.state, () => { void load() }, { immediate: true })
 watch(detail, (issue) => {
   if (creating.value) return
@@ -2035,10 +1656,6 @@ let offLabel = () => {}
 let offBack = () => {}
 onMounted(() => {
   colWidths.value = { ...issueCols.widths.value }
-  try {
-    const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
-    if (Array.isArray(raw)) folded.value = raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))
-  } catch { /* none folded */ }
   useTopicStore().close()
   useLiveFeed('pane').close()
   offIssue = live.onIssue((f) => {

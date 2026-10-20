@@ -153,7 +153,6 @@ describe('the components', () => {
   const body = read('src/components/MessageBody.vue')
   const block = read('src/components/MarkdownBlock.vue')
   const desc = read('src/components/IssueDescription.vue')
-  const issues = read('src/pages/issues.vue')
 
   it('MessageBody switches to markdown only when the body looks like it, or is told to', () => {
     assert.match(body, /props\.markdown \|\| looksLikeMarkdown\(props\.body\)/)
@@ -182,6 +181,7 @@ describe('the components', () => {
     assert.match(desc, /addEventListener\('pointerup', \(\) => setTimeout/)
     /* r13-06: the page's keys are composables/useIssueKeys.ts */
     assert.match(read('src/composables/useIssueKeys.ts'), /if \(k === 'e' && o\.form\.value\) \{ void o\.descEl\.value\?\.edit\(\)/)
-    assert.match(issues, /return !saveError\.value/)
+    /* r15-01: the description's save is composables/useIssueDetailForm.ts */
+    assert.match(read('src/composables/useIssueDetailForm.ts'), /return !o\.saveError\.value/)
   })
 })

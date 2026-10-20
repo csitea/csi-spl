@@ -318,7 +318,10 @@ describe('filter row labels', () => {
     const names = head.slice(0, head.indexOf('issues-frow'))
     assert.match(names, /v-for="c in sheetColumns"/)
     assert.match(names, /:aria-sort=/)
-    const cols = src.slice(src.indexOf('const sheetColumns = computed'), src.indexOf('])', src.indexOf('const sheetColumns = computed')))
+    /* r15-01: the columns live in composables/useIssueFilters.ts */
+    const filt = readFileSync(new URL('../../src/composables/useIssueFilters.ts', import.meta.url), 'utf8')
+    const cols = filt.slice(filt.indexOf('const sheetColumns = computed'), filt.indexOf('])', filt.indexOf('const sheetColumns = computed')))
+    assert.ok(cols.length > 0, 'sheetColumns found in useIssueFilters.ts')
     for (const k of ['issues_view.col_key', 'issues_view.col_title', 'issues.filter_status', 'issues.filter_priority', 'issues.filter_level', 'issues.filter_assignee', 'issues.filter_label', 'issues.field_deadline', 'issues.sort_updated']) {
       assert.ok(cols.includes(`t('${k}')`), k)
     }

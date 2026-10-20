@@ -62,7 +62,8 @@ describe('Issues rail tab', () => {
     assert.equal(/type="datetime-local"/.test(src), false)
     assert.equal(src.includes('issues-search'), false)
     assert.match(src, /HumanName/)
-    assert.match(src, /groupIssues\(/)
+    /* r15-01: the rows the sheet shows are composables/useIssueFilters.ts */
+    assert.match(read('src/composables/useIssueFilters.ts'), /groupIssues\(/)
     assert.match(src, /api\.listIssues\(/)
     // the discussion box and the phone dock share postComment (r13-06: composables/useIssueComments.ts)
     const comments = read('src/composables/useIssueComments.ts')

@@ -126,7 +126,8 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
   })
   it('issues: description (with before), new issue, comment, subtask', () => {
     /* r13-06: the comment's poke is composables/useIssueComments.ts */
-    const s = src('src/pages/issues.vue') + src('src/composables/useIssueComments.ts')
+    /* r15-01: the description, new issue and subtask pokes are composables/useIssueDetailForm.ts */
+    const s = src('src/pages/issues.vue') + src('src/composables/useIssueComments.ts') + src('src/composables/useIssueDetailForm.ts')
     assert.match(s, /poke\(\{ text: value, before, where: \{ issue: true, issueKey: key \} \}\)/)
     assert.match(s, /issueKey: created\.key/)
     assert.match(s, /poke\(\{ text, where: \{ issue: true, issueKey: issue\.key \} \}\)/)

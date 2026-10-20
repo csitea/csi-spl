@@ -84,7 +84,8 @@ describe('the WUI sends discussions on every create', () => {
     const page = src('src/pages/issues.vue')
     assert.match(page, /<LazyIssueDiscussions :issue-key="form\.key" :stamp="historyStamp" \/>\s*<label class="issues-field">/)
     assert.match(page, /data-test="issues-newrow-discussions"/)
-    assert.match(page, /body\.discussions = draft\.discussions\.slice\(\)/)
+    /* r15-01: the create body is composables/useIssueDetailForm.ts */
+    assert.match(src('src/composables/useIssueDetailForm.ts'), /body\.discussions = draft\.discussions\.slice\(\)/)
     assert.match(page, /:discussions="parentDiscussions"/)
     assert.match(src('src/components/IssueSubtaskDialog.vue'), /body\.discussions = props\.discussions\.slice\(\)/)
   })

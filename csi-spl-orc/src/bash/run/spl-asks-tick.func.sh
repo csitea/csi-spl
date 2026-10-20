@@ -352,14 +352,20 @@ spl_asks_fallback_alert() {  # HOLDER ROWS FALLBACK_SEATS
 # e2. Run on the machine holding the DISPATCH role: no live orchestrator on
 # any box = the hub's orch holder silent past ASKS_ORCH_STALE s. The lease
 # loop writes <dir>/fleet.orch.age "<holder> <silent s> <epoch read>" every
-# tick; without it nothing is known and nothing is said.
+# tick; without it nothing is known and nothing is said. A read older than
+# ASKS_ORCH_AGE_MAX (1 day), or an age below 0 or past it, is no data either
+# (SPL-2654: 2026-10-20 01:19Z "silent 29874319 min", an epoch-sized age,
+# while the holder was live).
 spl_asks_orch_alert() {
-  local dh="" h="" age="" seen="" active=0 text=""
+  local dh="" h="" age="" seen="" active=0 text="" now max="${ASKS_ORCH_AGE_MAX:-86400}"
   [[ -r "$SPOOL_ROOT/dispatch/lease" ]] && read -r dh _ <"$SPOOL_ROOT/dispatch/lease"
   [[ "$dh" == *@"$ASKS_BOX" ]] || return 0
   [[ -r "$SPOOL_ROOT/dispatch/fleet.orch.age" ]] && read -r h age seen _ <"$SPOOL_ROOT/dispatch/fleet.orch.age"
   [[ "$age" =~ ^[0-9]+$ && "$seen" =~ ^[0-9]+$ ]] || return 0
-  age=$(( age + $(date +%s) - seen ))
+  now="$(date +%s)"
+  (( now - seen >= 0 && now - seen <= max )) || return 0
+  age=$(( age + now - seen ))
+  (( age >= 0 && age <= max )) || return 0
   if [[ "$h" != *@* ]] || (( age > ${ASKS_ORCH_STALE:-600} )); then
     active=1
     text="**ALERT**$(spl_asks_alert_who): no live orchestrator on any box - ${h:-nobody} has held the orch lease silent $(( age / 60 )) min. Blocks: every ask to the orchestrator, spawns and lane placement. Do: restart the orchestrator seat on its box (\`IDENTITY_RESTORE_IDS=${h%@*} DRY_RUN=0 ./run -a do_spl_agent_identity_restore\`)."

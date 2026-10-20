@@ -626,6 +626,20 @@ pctick >/dev/null; pctick >/dev/null
 [[ "$(alerts pc post)" -eq 1 && "$(alerts pc clear)" -eq 1 && "$(jq -r 'select(.op == "clear") | .text' "$T/pc/alert.log")" == "Cleared "*" after 19 h 30 min open, nothing to do. Was: **ALERT**: no live orchestrator"* &&
    ! -e "$af" && ! -e "$af.paged" ]] &&
   pass "R3: an orchestrator is live again: the alert clears itself once, no new post, and keeps how long it was open (SPL-2521)" || fail "orch clear: $(cat "$T/pc/alert.log")"
+# SPL-2654: 2026-10-20 01:19Z "silent 29874319 min" (age + now - seen with seen
+# ~ 0, or an age the size of the epoch) while c-001@sat was live. A read older
+# than a day, or an age below 0 or over a day, is no data: say nothing.
+: >"$T/pc/alert.log"
+for bad in "c-001@sat 78 0" "c-001@sat $(date +%s) $(date +%s)" "c-001@sat 5 $(( $(date +%s) - 172800 ))" "c-001@sat 5 $(( $(date +%s) + 7200 ))"; do
+  echo "$bad" >"$T/pc/spool/dispatch/fleet.orch.age"
+  pctick >/dev/null
+  [[ "$(alerts pc post)" -eq 0 ]] && pass "SPL-2654: fleet.orch.age '$bad' is no data: no alert" || fail "SPL-2654 epoch-sized age '$bad' alerted: $(cat "$T/pc/alert.log")"
+done
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 1 ]] && pass "SPL-2654: CONTROL the real stale case (seen now, age 900) still alerts" || fail "SPL-2654 control: $(cat "$T/pc/alert.log")"
+echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
 rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"
 
 # R4: the 90 asks the owner was paged for on 2026-10-11..12 (the journal's

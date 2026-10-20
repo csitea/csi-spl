@@ -1199,6 +1199,36 @@ r30 "60,60,60,5,2,1" off LEASE_HEALTH=0
 [[ "$(logc sx 'NO-LOCAL-AGENT dispatch: this machine holds it')" == 1 && "$(a30 off)" == 0 && "$(sentc sx 'FLEET LEASE ALERT')" == 0 ]] &&
   pass "30. CONTROL: LEASE_HEALTH=0 (no verdicts): the log line only, as before" || fail "30. no verdicts: alerts $(cat "$T/alerts30.off" 2>&1)"
 
+# --- 31. an epoch-sized hub age is no data (SPL-2654) ----------------------------
+# 2026-10-20 01:19Z: "c-001@sat has held the orch lease silent 29874319 min"
+# while it was live. The same FA gates the in-place SWITCH; an age below 0 or
+# past LEASE_AGE_MAX (1 day) never launches one and is not written as an age.
+EPOCHY=1792459140
+sw31() {  # sw31 <FA>: one spl_fleet_switch_tick orch, the switch stub logs to $T/sw31.runs
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/sw31/spool" LEASE_PROC_ROOT="$T/sw31/proc" LEASE_NOW=5000 LEASE_STALE=180 \
+    LEASE_SWITCH_RUN="$T/bin/sw31" LEASE_SWITCH_SYNC=1 SW31="$T/sw31.runs" FA31="$1" bash -c '
+    do_log() { :; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init >/dev/null 2>&1
+    spl_fleet_role_seat() { echo c-001; }; spl_fleet_switch_next() { echo grok; }
+    spl_fleet_tier() { echo 1; }; spl_fleet_vendor() { echo claude; }; spl_fleet_vendor_id() { echo g-001; }
+    FH=c-001@sat FG=3 FA="$FA31"; spl_fleet_switch_tick orch' >/dev/null 2>&1
+}
+mkdir -p "$T/sw31/proc"; printf '#!/bin/sh\necho "$ROLE_FAILOVER_SILENT" >>"$SW31"\n' >"$T/bin/sw31"; chmod +x "$T/bin/sw31"
+sw31 "$EPOCHY"; sw31 -5; sw31 86401
+[[ ! -s "$T/sw31.runs" ]] && ! grep -qs 'SWITCH orch' "$T/sw31/spool/dispatch/lease.log" &&
+  pass "31. an epoch-sized, a negative and a 1-day+ hub age launch no SWITCH" || fail "31. switch on a bogus age: $(cat "$T/sw31.runs" 2>&1) $(cat "$T/sw31/spool/dispatch/lease.log" 2>&1)"
+sw31 500
+[[ "$(cat "$T/sw31.runs" 2>/dev/null)" == 500 && "$(logc sw31 'SWITCH orch')" == 1 ]] &&
+  pass "31. CONTROL: the holder silent 500 s > the 240 s wait launches ONE switch" || fail "31. control switch: $(cat "$T/sw31.runs" 2>&1) $(cat "$T/sw31/spool/dispatch/lease.log" 2>&1)"
+agent ex 700 CLE-001; agent ex 701 CLE-002; agent ex 702 CLE-003
+echo "CLE-001@sat 5 0" >"$T/hub/main.orch"; echo "CLE-002@sat 5 0" >"$T/hub/main.dispatch"
+tick ex "$EPOCHY" LEASE_PRIORITY=sat,ex
+read -r h31 a31 s31 _ <"$T/ex/spool/dispatch/fleet.orch.age" 2>/dev/null
+[[ "$h31" == CLE-001@sat && "$a31" == - && "$s31" == "$EPOCHY" && "$(logc ex 'AGE-UNKNOWN orch')" == 1 ]] &&
+  pass "31. the hub answers age $EPOCHY s: fleet.orch.age holds '-' (no data), logged once" || fail "31. age write: $(cat "$T/ex/spool/dispatch/fleet.orch.age" 2>&1) / $(grep AGE "$T/ex/spool/dispatch/lease.log" 2>&1)"
+rm -f "$T"/hub/main.*
+
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease.tst.sh assertion(s)"; exit 1

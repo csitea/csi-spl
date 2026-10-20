@@ -1104,6 +1104,20 @@ spl_fleet_read() {
   [[ "$FG" =~ ^[0-9]+$ && "$FA" =~ ^-?[0-9]+$ ]]
 }
 
+# 0 when FA is a silence to act on: 0..LEASE_AGE_MAX (1 day) s. Below 0 is no
+# row; past a day is no data (SPL-2654: an epoch-sized age, 2026-10-20).
+spl_fleet_age_known() { [[ "$FA" =~ ^[0-9]+$ ]] && (( FA <= ${LEASE_AGE_MAX:-86400} )); }
+
+# spl_fleet_age_write <role> <now>: <dir>/fleet.<role>.age "<holder> <FA> <now>"
+# for the asks tick; an age it cannot be is written as "-", no data, and an
+# AGE-UNKNOWN line is logged once (SPL-2654).
+spl_fleet_age_write() {
+  local fa=-
+  if spl_fleet_age_known; then fa="$FA"; rm -f "$LEASE_DIR/fleet.$1.age-unknown"
+  elif (( FG > 0 )); then spl_fleet_once "$1.age-unknown" "AGE-UNKNOWN $1: the hub answers ${FH:-none} silent ${FA}s (over ${LEASE_AGE_MAX:-86400}s or below 0): no data"; fi
+  printf '%s %s %s\n' "${FH:-none}" "$fa" "$2" > "$LEASE_DIR/fleet.$1.age" 2>/dev/null || true
+}
+
 # spl_fleet_rank <machine> <role>: its 0-based rank in the role's ranking
 # (LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH, else LEASE_PRIORITY);
 # unknown = last.
@@ -1495,7 +1509,7 @@ spl_fleet_switch_tick() {
     return 0
   fi
   wait=$(( LEASE_STALE + $(spl_fleet_tier "$(spl_fleet_vendor_id "$next")") * ${LEASE_FALLBACK_WAIT:-60} ))
-  (( FA > wait )) || return 0
+  spl_fleet_age_known && (( FA > wait )) || return 0
   now="$(spl_lease_now)"; f="$LEASE_DIR/fleet.$role.switch"
   [[ -s "$f" ]] && read -r at was _ < "$f"
   [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < ${LEASE_SWITCH_RETRY:-120} )) && return 0
@@ -1785,7 +1799,7 @@ spl_fleet_role_tick() {
   fi
   hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
   # the hub's silence of the holder, for the asks tick's no-orchestrator alert
-  printf '%s %s %s\n' "${FH:-none}" "${FA:-0}" "$now" > "$LEASE_DIR/fleet.$role.age" 2>/dev/null || true
+  spl_fleet_age_write "$role" "$now"
   [[ -n "$FH" ]] && ht="$(spl_fleet_tier "$FH")"
   wait=$(( LEASE_STALE + ct * ${LEASE_FALLBACK_WAIT:-60} ))
   if [[ -z "$cand" ]]; then

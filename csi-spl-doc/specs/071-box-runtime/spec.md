@@ -79,6 +79,7 @@ d8ca583e, poll 8ae29542 and msg 75ca7c94): `/usr/local/go` is a symlink to
 `/etc/profile.d/go.sh` appends `/usr/local/go/bin` to every login PATH, and the
 old 1.25.1 tree stays as `/usr/local/go1.25.1`. Measure it:
 `readlink -f /usr/local/go` and `sudo -u "$SPOOL_AGENT_USER" bash -lc 'go version'`.
+The next switch on any box runs through `cd csi-spl-iac && GO_VERSION=<X.Y.Z> GO_SWITCH_REASON=<why> AGENT_ID=<id> ./run -a do_box_go_switch` (SPL-2739, test `box-go-switch.tst.sh`): a dry run unless `DRY_RUN=0`, which needs the owner's go per box.
 
 ### 3.3 Not runtimes: never started or stopped by these actions
 

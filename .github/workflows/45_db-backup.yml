@@ -203,6 +203,11 @@ jobs:
           DRY_RUN: '0'
         run: ./run -a do_spl_backup_offsite
 
+      # Rel-10 (SPL-2661): Verify Cloud SQL automated daily backup < 26h (failure is the alert)
+      - name: Verify Cloud SQL automated backup (< 26h)
+        if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true'
+        run: (cd ../csi-spl-utl && ./run -a do_cloud_sql_backup_verify)
+
       - name: Drop the key
         if: always()
         working-directory: .

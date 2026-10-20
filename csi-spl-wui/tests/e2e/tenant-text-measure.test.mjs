@@ -18,7 +18,14 @@ import { TENANT_TEXT_PAD_PX } from '../../src/utils/tenant-switcher.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const VP = { name: '1280x800', width: 1280, height: 800 }
-const SRC = readFileSync(fileURLToPath(new URL('../../src/utils/tenant-switcher.mjs', import.meta.url)), 'utf8')
+const read = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+/* an inline module script resolves no relative import: tenant-switcher.mjs
+   imports its single row from tenant-fixed.mjs (SPL-2149), so that source is
+   put in place of the import line */
+const IMPORT_FIXED = "import { fixedTenantOption } from './tenant-fixed.mjs'\n"
+const SWITCHER = read('../../src/utils/tenant-switcher.mjs')
+if (!SWITCHER.includes(IMPORT_FIXED)) throw new Error('tenant-switcher.mjs no longer imports tenant-fixed.mjs as this test expects')
+const SRC = SWITCHER.replace(IMPORT_FIXED, read('../../src/utils/tenant-fixed.mjs').replace(/^export function /m, 'function ') + '\n')
 const SAMPLES = [
   'csitea', 'e2e', 'Tenant', 'Acme Widgets International', 'WWWWWWWWWWWW', 'iiiiiiiiiiii',
   'AVATAR Wave Tokyo', 'Ünïcödé Ätelier', 'Ελληνικά', 'Кириллица', '日本語テナント', 'a b  c', ' lead', 'trail ', '',

@@ -9541,6 +9541,136 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/agent-caps": {
+      "get": {
+        "operationId": "getOperatorWorkspacesAgentCaps",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 147: the workspace's agent caps, vendor -> max_live (capped vendors only), updated_at, updated_by. Only an admin of the operator workspace (403 operator.workspaces)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a workspace's agent caps by vendor",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorWorkspacesAgentCaps",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 147: body {\"caps\": {vendor: max_live | null}}; null removes that vendor's cap, an unnamed vendor is left as it is; one operator_audit row per changed vendor. Answers the caps. 400 bad_vendor / bad_cap, 503 not_migrated (rdb 0212)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set a workspace's agent caps by vendor",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/workspaces/{id}/agent-caps/{vendor}": {
+      "delete": {
+        "operationId": "deleteOperatorWorkspacesAgentCapsByVendor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vendor",
+            "required": true,
+            "schema": {
+              "enum": [
+                "claude",
+                "grok",
+                "mistral",
+                "agy",
+                "qwen"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Spec 147: the vendor is uncapped again (audited)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Remove one vendor's agent cap",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/perf/samples": {
       "post": {
         "operationId": "postPerfSamples",
@@ -10197,6 +10327,31 @@
           }
         },
         "summary": "Set or reset kinds of the takeover ladder {kinds: {<kind>: {order, max_failures} | null}} (SPL-2115); tenant.settings",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/agent-caps": {
+      "get": {
+        "operationId": "getTenantAgentCaps",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 147: {workspace_id, caps (every vendor, null = uncapped), live (live agents per vendor), can_edit}. Every member reads it; any other method is 405. A box reads the same over the lane op agent_caps_get (spool caps)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the workspace's agent caps and live counts",
         "tags": [
           "tenant"
         ]

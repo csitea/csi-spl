@@ -459,8 +459,8 @@ Mirrors the owner requirement from msg `dc010e3c` and verifies full enforcement.
 | FR ID | Summary & Requirement | Enforcement Layer | Authority |
 |---|---|---|---|
 | **FR-001** | **Database Cap Schema**: Persist `tenant_agent_caps (tenant_id, vendor, max_live)` with RLS fail-closed policies. | Database Migration | Built R1 (rdb `0212`, SPL-2675) |
-| **FR-002** | **Spool-Hub Admin Management API**: `GET`, `PUT`, `DELETE`, `OPTIONS /v1/operator/workspaces/{id}/agent-caps` guarded by `operator.workspaces`. | Hub API (`operator`) | Planned |
-| **FR-003** | **Workspace Admin Read-Only API**: `GET /v1/tenant/agent-caps` returns caps and live counts; non-GET returns HTTP 405. | Hub API (`tenant`) | Planned |
+| **FR-002** | **Spool-Hub Admin Management API**: `GET`, `PUT`, `DELETE`, `OPTIONS /v1/operator/workspaces/{id}/agent-caps` guarded by `operator.workspaces`. | Hub API (`operator`) | Built R2 (SPL-2675) |
+| **FR-003** | **Workspace Admin Read-Only API**: `GET /v1/tenant/agent-caps` returns caps and live counts; non-GET returns HTTP 405. | Hub API (`tenant`) | Built R2 (SPL-2675) |
 | **FR-004** | **Hub Roster Gate (`vendorCapGate`)**: In `SetRoster`, evaluate prospective vendor counts; reject additions exceeding `max_live` with `409 Conflict`. | Hub Store / Protocol | Built R1 (SPL-2675) |
 | **FR-005** | **WebSocket Hello Handling**: In `seatRoster`, trim incoming agents violating vendor caps while retaining previously seated agents. | Hub Protocol (`ws.go`) | Built R1 (SPL-2675) |
 | **FR-006** | **Desk Seating Courtesy Check**: `do_spl_desk_up` checks vendor cap before sidecar spawn; exits 1 with fatal message naming cap and live count. | Bash Orchestration | Planned |
@@ -540,6 +540,7 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 ### 12.3 Build Record
 
 - **R1** (Lane A, c-594, SPL-2675): `0212_workspace_agent_caps.sql`; `store.AgentCapStore` (`agent_caps*.go`), `vendorCapGate` in both `SetRoster`s after `botSeatGate`; `ws.go` answers an announce over a cap 409 `vendor_cap_exceeded` and trims a hello to old ∩ new plus each addition the caps still admit. A cap refuses only an ADDITION, so an operator lowering a cap unseats nobody (as `seats_bots`, 009 D-3). Live = a roster pair whose box stamped presence within `store.CapPresenceTTL` (60 s, the deploy's `presenceTTL()`), or the announcing box. Audit rows are written in the same operator transaction as the cap. Tests: `internal/store/agent_caps_test.go` (C1, C3, C4, C5, AC-01, AC-06, AC-07, the RLS write refusal), `internal/hub/agent_caps_ws_test.go`.
+- **R2** (Lane A, c-594, SPL-2675): `internal/hub/operator_agent_caps.go` (GET / PUT / DELETE / OPTIONS, `operatorActor`: a 403 carries `"error": "forbidden", "permission": "operator.workspaces"`, the house shape of every operator route, not the section 6.1 sketch's `"error": "operator.workspaces"`), `internal/hub/tenant_agent_caps.go` (GET for every member, 405 for any other method, `can_edit` true only for the operator workspace's admin there). A box reads the same answer over the lane op `agent_caps_get` (`box_lane.go` dispatch): a desk has a box key, not a member session, so section 5.2's "GET /v1/tenant/agent-caps using desk credentials" is that lane. `openapi.json` documents the four operations. Tests: `operator_agent_caps_test.go` (C2, AC-02, FR-008), `tenant_agent_caps_test.go`.
 
 ### 12.4 Sign-Off
 

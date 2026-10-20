@@ -72,6 +72,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onMemoryLane(ctx, x, f)
 		return
 	}
+	if isAgentCapsLaneOp(f.LaneOp) { // spec 147 6.2, rdb 0212: the workspace's agent caps
+		s.onAgentCapsLane(ctx, x, f)
+		return
+	}
 	if isFleetTokensLaneOp(f.LaneOp) { // spec 140, rdb 0199: live token burn
 		s.onFleetTokensLane(ctx, x, f)
 		return

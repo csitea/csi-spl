@@ -73,6 +73,13 @@ Measure it again: `crontab -l | grep -o '# csi-spl:[a-z0-9:-]*$'`.
 
 Go build caches are pruned by `do_prune_go_build_cache` on its own `*/5` crontab line (`# csi-spl:go-cache-prune`, installed like the box-stats cron by `do_setup_go_cache_prune_cron`): every hour, and on any tick where the filesystem that holds the cache is at or over 85% full.
 
+On the main box (not the satellite) the box Go is go1.26.9 since 2026-10-20 (SPL-2717, owner HUM-10, t1
+d8ca583e, poll 8ae29542 and msg 75ca7c94): `/usr/local/go` is a symlink to
+`/usr/local/go1.26.9` (the official tarball, sha256 checked against go.dev),
+`/etc/profile.d/go.sh` appends `/usr/local/go/bin` to every login PATH, and the
+old 1.25.1 tree stays as `/usr/local/go1.25.1`. Measure it:
+`readlink -f /usr/local/go` and `sudo -u "$SPOOL_AGENT_USER" bash -lc 'go version'`.
+
 ### 3.3 Not runtimes: never started or stopped by these actions
 
 - **Agent windows and everything in them.** That covers the `claude` and

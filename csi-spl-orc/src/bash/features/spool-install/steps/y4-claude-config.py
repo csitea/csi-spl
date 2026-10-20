@@ -117,6 +117,8 @@ def write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp.%d" % os.getpid()
     open(tmp, "w").write(text)
+    if os.path.exists(path):  # keep the old mode, whatever the umask (SPL-2716)
+        os.chmod(tmp, os.stat(path).st_mode & 0o7777)
     os.replace(tmp, path)
 
 

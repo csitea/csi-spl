@@ -15,7 +15,8 @@
 #                required: {} is a deny, a pass must say "allow"
 #   2. fail closed: the hook file gone, every harness still refuses
 #   3. deny globs in claude and qwen settings; other keys and hooks kept
-#   4. idempotent: a re-run changes nothing; dry run writes nothing
+#   4. idempotent: a re-run changes nothing; dry run writes nothing; the
+#      kept file mode survives umask 077 (a 664 file stays 664, new = 600)
 #   5. install.sh calls the step; the named action plans by default
 # Control: the same evaluation over the settings as they were BEFORE the step
 # lets every forbidden form through (the red the step closes).
@@ -208,6 +209,28 @@ diff -r "$T/after1" "$H" >/dev/null && ! printf '%s\n' "$out" | grep 'force-push
 printf '[1]\n' >"$H/.qwen/settings.json"
 bash -c '. "$1"; spool_install_force_push_guard "$2" "$2/.local/share/spool-agent" 0 1' _ "$STEP" "$H" >/dev/null 2>&1; rc=$?
 [ "$rc" = 7 ] && [ "$(cat "$H/.qwen/settings.json")" = "[1]" ] && pass "a non-object settings.json: left alone, rc 7" || fail "bad json rc=$rc"
+
+# --- 4c. the kept mode survives the umask (SPL-2716) -----------------------------------------------
+# A 664 settings.json rewritten under umask 077 stays 664 (the other box user
+# still reads it); a new file is 600. Control: the same save with the mode
+# handed only to os.open (the writer before the fix) comes back 600.
+python3 - "$FEAT/steps/y13-force-push-guard.py" "$T/umask" <<'EOF_PY' && pass "save under umask 077: a 664 file stays 664, a new file is 600, control 600" || fail "save under umask 077 cut the mode"
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("y13", sys.argv[1])
+y13 = importlib.util.module_from_spec(spec); spec.loader.exec_module(y13)
+d = sys.argv[2]; os.makedirs(d)
+old, new = os.path.join(d, "old.json"), os.path.join(d, "sub", "new.json")
+open(old, "w").write("{}\n"); os.chmod(old, 0o664)
+os.umask(0o077)
+st = y13.Step(False)
+st.save(old, {}, {"a": 1}, "t"); st.save(new, {}, {"a": 1}, "t")
+got = (oct(os.stat(old).st_mode & 0o777), oct(os.stat(new).st_mode & 0o777))
+ctl = os.path.join(d, "ctl.json"); open(ctl, "w").write("{}\n"); os.chmod(ctl, 0o664)
+mode = os.stat(ctl).st_mode & 0o777
+os.close(os.open(ctl + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)); os.replace(ctl + ".tmp", ctl)
+print("modes", got, "control", oct(os.stat(ctl).st_mode & 0o777))
+assert got == ("0o664", "0o600") and os.stat(ctl).st_mode & 0o777 == 0o600, got
+EOF_PY
 
 # --- 5. wiring -----------------------------------------------------------------------------------
 c="$(grep -c 'spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET"' "$FEAT/install.sh")"

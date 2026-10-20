@@ -11,7 +11,8 @@
 #      the old file first kept as CLAUDE.md.bak-spool-install-<UTC stamp>, a
 #      new one per forced run (an older backup is never overwritten)
 #   4. settings.json: other keys and the mirror hooks kept, ours win; a file
-#      that is not JSON fails the step and is left untouched
+#      that is not JSON fails the step and is left untouched; its mode is
+#      kept under any umask (664 under umask 077 stays 664)
 #   5. DRY=1 and SPOOL_INSTALL_CLAUDE_CONFIG=0 write nothing
 #   6. the assets carry no banned literal (the distribution-hygiene sweep)
 #   8. the BOX_USER's settings.json (the human's): only the 5 fleet keys and
@@ -169,6 +170,13 @@ H=$(fresh h4b); echo '{not json' >"$H/.claude/settings.json"
 step "$H" 2>"$T/err4"; rc=$?
 [ "$rc" != 0 ] && [ "$(cat "$H/.claude/settings.json")" = '{not json' ] &&
   pass "4: a settings.json that is not JSON fails the step and stays untouched" || fail "4: bad JSON rc=$rc"
+# The kept mode survives the umask (SPL-2716): a 664 settings.json rewritten
+# under umask 077 stays 664, so the other box user can still read it.
+H=$(fresh h4c); echo '{"theme": "light"}' >"$H/.claude/settings.json"; chmod 664 "$H/.claude/settings.json"
+(umask 077; step "$H" 2>/dev/null)
+m=$(stat -c %a "$H/.claude/settings.json")
+[ "$m" = 664 ] && grep -q SPOOL_INSTALL_SETTINGS "$H/.claude/settings.json" &&
+  pass "4: a 664 settings.json stays 664 under umask 077" || fail "4: mode $m after a rewrite under umask 077"
 
 # ── 5. DRY=1 and the off switch ──────────────────────────────────────────────
 H=$(fresh h5)

@@ -90,6 +90,7 @@ class Step:
         tmp = f"{path}.tmp.{os.getpid()}"
         mode = os.stat(path).st_mode & 0o777 if os.path.exists(path) else 0o600
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+        os.fchmod(fd, mode)  # os.open's mode is cut by the umask (SPL-2716)
         with os.fdopen(fd, "w") as f:
             f.write(json.dumps(new, indent=2) + "\n")
         os.replace(tmp, path)

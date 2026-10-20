@@ -104,9 +104,13 @@ nothing (an offline reload of a live tab has no messages: the session probe
 answers `unknown`, which reads nothing), and nothing said the tab was offline.
 What changed:
 
-1. **Bundle files.** The worker keeps each `/_nuxt/**` file a page loads in
-   `spool-chunks-v1` and answers from it first (hashed names: never stale;
-   `/_nuxt/builds/**` stays the network's; at most 400 files). Unit test
+1. **Bundle files.** The worker keeps a copy of each `/_nuxt/**` file a page
+   loads in `spool-chunks-v1`, beside the page's own request, and answers
+   from it only while it is offline (`navigator.onLine` false). Online the
+   page's request is never answered by the worker: answering every bundle
+   file turned i18n-split and last-data-clock red on master 37411c802 (wf10
+   39462940979). Hashed names: never stale; `/_nuxt/builds/**` stays the
+   network's; at most 400 files. Unit test
    `csi-spl-wui/tests/unit/sw-app-shell.test.mjs`.
 2. **Feeds.** `csi-spl-wui/src/utils/offline-feed.mjs` keeps each first page
    the channel store reads (`refresh`) and the channel list

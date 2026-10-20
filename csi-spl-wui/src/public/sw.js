@@ -27,11 +27,15 @@
 // alone painted nothing: every /_nuxt chunk it names failed unless the HTTP
 // cache still held it (measured on the mock bundle served without Hosting's
 // immutable header: 0 characters of text after an offline reload). Each
-// /_nuxt/** file a page loads is now kept in CHUNK_CACHE and answered from
-// there first. Their names carry a content hash, so a kept file is never
-// stale; a new build asks for new names. /_nuxt/builds/** (latest.json, the
-// build meta) stays the network's: build-watch reads it to find a deploy.
-// At most MAX_CHUNKS files, the oldest dropped first.
+// /_nuxt/** file a page loads is now kept in CHUNK_CACHE, and answered from
+// there only while the worker is offline (navigator.onLine false). Online
+// the page's own request goes to the network untouched and the worker keeps
+// a copy beside it: answering every chunk online turned two e2e files red
+// on master 37411c802 (i18n-split, last-data-clock; wf10 39462940979). Their
+// names carry a content hash, so a kept file is never stale; a new build
+// asks for new names. /_nuxt/builds/** (latest.json, the build meta) stays
+// the network's: build-watch reads it to find a deploy. At most MAX_CHUNKS
+// files, the oldest dropped first.
 //
 // Kill switch: activate deletes every Cache Storage entry except
 // SHELL_CACHE and CHUNK_CACHE, so renaming them (or shipping the network-only
@@ -188,21 +192,23 @@ async function trimChunks(cache) {
   for (const old of keys.slice(0, Math.max(0, keys.length - MAX_CHUNKS))) await cache.delete(old)
 }
 
-/** Kept copy first; else the network, kept when it is a whole same-origin 200. */
-async function chunk(event) {
-  const req = event.request
+/** Offline: the kept copy, else the network (which fails as it did before). */
+async function keptChunk(req) {
   const cache = await caches.open(CHUNK_CACHE)
   const kept = await cache.match(req, { ignoreSearch: true })
-  if (kept) return kept
-  const res = await fetch(req)
-  if (res.status === 200 && res.type === 'basic') {
-    const copy = res.clone()
-    event.waitUntil(cache.put(req, copy).then(() => {
-      if (++chunkPuts % TRIM_EVERY === 0) return trimChunks(cache)
-      return undefined
-    }).catch(() => { /* a full or blocked cache: the file still answers, it is just not kept */ }))
-  }
-  return res
+  return kept || fetch(req)
+}
+
+/** Online: keep a copy beside the page's own request, a whole same-origin 200 only. */
+async function keepChunk(req) {
+  try {
+    const cache = await caches.open(CHUNK_CACHE)
+    if (await cache.match(req, { ignoreSearch: true })) return
+    const res = await fetch(req)
+    if (res.status !== 200 || res.type !== 'basic') return
+    await cache.put(req, res)
+    if (++chunkPuts % TRIM_EVERY === 0) await trimChunks(cache)
+  } catch { /* offline, full or blocked: the page's request is not affected, the file is just not kept */ }
 }
 
 self.addEventListener('fetch', (event) => {
@@ -212,7 +218,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(navigate(event))
     return
   }
-  if (isChunkPath(new URL(req.url))) event.respondWith(chunk(event))
+  if (!isChunkPath(new URL(req.url))) return
+  if (self.navigator && self.navigator.onLine === false) event.respondWith(keptChunk(req))
+  else event.waitUntil(keepChunk(req))
 })
 
 // Bug A (t1 5002067f): on Android a new-message alert can only be shown

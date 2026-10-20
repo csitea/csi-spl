@@ -5,8 +5,9 @@
 // the network within FRESH_MS; a reload always goes to the network; a cached
 // answer whose background revalidation names another build tells the tab;
 // the API is never cached; offline falls back to the cached shell.
-// SPL-2149: /_nuxt/** bundle files are kept in their own cache and answered
-// from it first, so an offline reload paints (not /_nuxt/builds/**).
+// SPL-2149: /_nuxt/** bundle files are kept in their own cache beside the
+// page's own request, and answered from it only while the worker is offline,
+// so an offline reload paints (not /_nuxt/builds/**).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -82,6 +83,7 @@ function worker() {
     addEventListener: (t, fn) => { handlers[t] = fn },
     skipWaiting: () => {},
     location: { origin: ORIGIN },
+    navigator: { onLine: true },
     registration: { navigationPreload: { enable: async () => { preloadOn = true } } },
     clients: {
       claim: async () => {},
@@ -123,7 +125,12 @@ function worker() {
       respondWith: (p) => { answer = p },
       waitUntil: (p) => { pending.push(p) },
     })
-    if (!answer) { release(); return { res: null, tab, background: Promise.resolve() } }
+    if (!answer) {
+      release()
+      /* not answered: a background keep (a bundle file online) still settles */
+      while (pending.length) await pending.shift()
+      return { res: null, tab, background: Promise.resolve() }
+    }
     /* a cached answer must not wait for the network: race it unreleased */
     const early = await Promise.race([answer.then((r) => ({ r })), new Promise((r) => setTimeout(() => r(null), 20))])
     release()
@@ -149,7 +156,7 @@ function worker() {
     await job
   }
 
-  return { go, ask, activate, clock, store, fetched, preload: () => preloadOn, set net(fn) { netFor = fn } }
+  return { go, ask, activate, clock, store, fetched, preload: () => preloadOn, set net(fn) { netFor = fn }, set online(v) { self.navigator.onLine = v } }
 }
 
 const shellOf = (w) => w.store.stores.get('spool-shell-v1') || new Map()
@@ -274,22 +281,41 @@ describe('sw.js app shell (perf round 4 W9)', () => {
 describe('sw.js bundle files (SPL-2149: offline reading)', () => {
   const js = (body) => net(body, { ctype: 'text/javascript' })
 
-  it('a /_nuxt file is fetched once, kept, and answered from the cache after that, offline too', async () => {
+  it('online a /_nuxt file is the page\'s own request (not answered), kept once beside it', async () => {
     const w = worker()
     w.net = () => js('chunk-a')
     const first = await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
-    assert.equal(await first.res.text(), 'chunk-a')
+    assert.equal(first.res, null, 'online: not intercepted (wf10 39462940979: answering it turned i18n-split and last-data-clock red)')
     assert.ok(chunksOf(w).has(ORIGIN + '/_nuxt/Ab12Cd.js'), 'kept')
-    w.net = () => new TypeError('Failed to fetch')
     const again = await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
-    assert.equal(await again.res.text(), 'chunk-a', 'offline: the kept copy')
+    assert.equal(again.res, null, 'online: still not intercepted')
+    assert.deepEqual(w.fetched, [ORIGIN + '/_nuxt/Ab12Cd.js'], 'kept once: no second copy request')
+  })
+
+  it('offline a kept /_nuxt file is answered from the cache', async () => {
+    const w = worker()
+    w.net = () => js('chunk-a')
+    await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
+    w.online = false
+    w.net = () => new TypeError('Failed to fetch')
+    const off = await w.go('/_nuxt/Ab12Cd.js', null, { mode: 'cors' })
+    assert.equal(await off.res.text(), 'chunk-a', 'offline: the kept copy')
     assert.deepEqual(w.fetched, [ORIGIN + '/_nuxt/Ab12Cd.js'], 'one network request in all')
   })
 
   it('CONTROL: a file never loaded online fails offline, as before (nothing invented)', async () => {
     const w = worker()
+    w.online = false
     w.net = () => new TypeError('Failed to fetch')
     await assert.rejects(w.go('/_nuxt/Never.js', null, { mode: 'cors' }), TypeError)
+    assert.equal(chunksOf(w).size, 0)
+  })
+
+  it('online a copy that fails to fetch keeps nothing and throws nothing', async () => {
+    const w = worker()
+    w.net = () => new TypeError('Failed to fetch')
+    const r = await w.go('/_nuxt/Flaky.js', null, { mode: 'cors' })
+    assert.equal(r.res, null)
     assert.equal(chunksOf(w).size, 0)
   })
 

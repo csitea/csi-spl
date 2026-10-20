@@ -94,6 +94,7 @@ the hub's migrate).
 - An update is made on the satellite, then copied to the other user, the
   other box and the secret
   (`gh secret set SPL_PRIVATE_CNF_YAML < <file>`).
+- The satellite's two users stay equal by `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_sync` (SPL-2677): it copies the owner user's file to the agent user with the pull's checks (`SYNC_FROM_USER` picks the other way), refuses a differing target that is newer, and a new hidden tenant runs it at once.
 - Lost everywhere: the names are recoverable. Git history before SPL-1874
   still holds every slug in place (no history rewrite, CLAUDE.md 5.1): the
   placeholder at a list position stands for the slug at the same position in

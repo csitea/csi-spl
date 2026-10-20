@@ -86,15 +86,23 @@ spl_ppo_dest() {
 # /etc/csi-spl-satellite.env, after checking it answers as <box>; its
 # FATALs go to stderr, stdout is the caller's value.
 spl_ppo_box_users() {
-  local dest="$1" box="$2" envf tag owner agent err
+  local dest="$1" box="$2" envf err
   err="$(mktemp)" || return 1
   envf="$(ssh -o BatchMode=yes "$dest" 'cat /etc/csi-spl-satellite.env' </dev/null 2>"$err")" ||
     { do_log >&2 "FATAL ssh $dest: cannot read its /etc/csi-spl-satellite.env: $(tail -n1 "$err")"; rm -f "$err"; return 1; }
   rm -f "$err"
+  spl_ppo_env_users "$envf" "$box" "ssh $dest answers as"
+}
+
+# spl_ppo_env_users <env text> <box> <who>: "<owner> [<agent>]" from the text
+# of a box's /etc/csi-spl-satellite.env, after checking it names BOX_TAG=<box>
+# (<who> starts the refusal); FATALs to stderr.
+spl_ppo_env_users() {
+  local envf="$1" box="$2" who="$3" tag owner agent
   tag="$(sed -n 's/^BOX_TAG=\([a-z0-9][a-z0-9-]*\)$/\1/p' <<<"$envf")"
   owner="$(sed -n 's/^OWNER_USER=\([a-z_][a-z0-9_-]*\)$/\1/p' <<<"$envf")"
   agent="$(sed -n 's/^AGENT_USER=\([a-z_][a-z0-9_-]*\)$/\1/p' <<<"$envf")"
-  [[ "$tag" == "$box" ]] || { do_log >&2 "FATAL ssh $dest answers as box '${tag:-?}', not '$box': nothing pulled"; return 1; }
+  [[ "$tag" == "$box" ]] || { do_log >&2 "FATAL $who box '${tag:-?}', not '$box': nothing pulled"; return 1; }
   [[ -n "$owner" && -n "$agent" ]] ||
     { do_log >&2 "FATAL box $box names no OWNER_USER or AGENT_USER in /etc/csi-spl-satellite.env: nothing pulled"; return 1; }
   if [[ "$agent" == "$owner" ]]; then echo "$owner"; else echo "$owner $agent"; fi
@@ -103,13 +111,27 @@ spl_ppo_box_users() {
 # spl_ppo_pull_one <dest> <user> <home> <sha>: stream one overlay from the
 # source box into this box's copy, then verify it; prints the verify line.
 spl_ppo_pull_one() {
-  local dest="$1" u="$2" h="$3" sha="$4" out rc result
-  out="$(spl_ppo_remote "$dest" "$u" cat </dev/null 2>/dev/null | spl_ppo_local put "$u" "$h" "$sha" 2>/dev/null)"
+  local dest="$1" u="$2" h="$3" sha="$4"
+  spl_ppo_remote "$dest" "$u" cat </dev/null 2>/dev/null | spl_ppo_put_verify "$u" "$h" "$sha"
+}
+
+# spl_ppo_put_verify <user> <home> <sha>: write stdin as <user>'s overlay on
+# this box (spl_ppo_local put), then verify it; prints the verify line.
+spl_ppo_put_verify() {
+  local u="$1" h="$2" sha="$3" out rc result
+  out="$(spl_ppo_local put "$u" "$h" "$sha" 2>/dev/null)"
   rc=$?; result="$(sed -n 's/^result //p' <<<"$out")"
   case "$rc:$result" in
     0:copied | 0:replaced | 0:already-there) do_log "INFO $u: $result" ;;
-    *) do_log "FATAL pull for $u failed (exit $rc, ${result:-no result})"; return 1 ;;
+    *) do_log "FATAL write for $u failed (exit $rc, ${result:-no result})"; return 1 ;;
   esac
+  spl_ppo_verify_one "$u" "$h" "$sha"
+}
+
+# spl_ppo_verify_one <user> <home> <sha>: the verify line of <user>'s overlay
+# on this box against <sha>; non-zero unless mode, ACL, owner and sha hold.
+spl_ppo_verify_one() {
+  local u="$1" h="$2" sha="$3" out
   out="$(spl_ppo_local verify "$u" "$h" "" </dev/null 2>/dev/null)"
   local path mode closed fowner tsha eq=no
   path="$(sed -n 's/^path //p' <<<"$out")"; mode="$(sed -n 's/^mode //p' <<<"$out")"

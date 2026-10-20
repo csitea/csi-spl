@@ -174,8 +174,20 @@ spl_th_token() {
     spl_th_overlay_box_ok "$t" || return 1
     tok="$(spl_private_add "$t")" || return 1
     do_log "INFO a new hidden workspace: $tok in the private overlay (TENANT_VISIBLE=1 to list the slug publicly)" >&2
+    spl_th_overlay_sync_users >&2
   fi
   printf '%s\n' "$tok"
+}
+
+# spl_th_overlay_sync_users (SPL-2677): a new hidden line is written to the
+# running user's overlay only; copy it to the master box's other user at once
+# (do_spl_private_overlay_sync), or every lane (the agent user) FATALs on the
+# new placeholder. SPL_PRIVATE_CNF set: not a per-user file, nothing to copy.
+# A failed copy WARNs with the command: the tenant itself is already added.
+spl_th_overlay_sync_users() {
+  [[ -z "${SPL_PRIVATE_CNF:-}" ]] || return 0
+  DRY_RUN=0 SYNC_FROM_USER="$(id -un)" do_spl_private_overlay_sync && return 0
+  do_log "WARN the other box user's private overlay lacks the new line: cd csi-spl-orc && SYNC_FROM_USER=$(id -un) DRY_RUN=0 ./run -a do_spl_private_overlay_sync"
 }
 
 # spl_th_new_hidden <tenant> -> 0 when a run would add the tenant as a NEW

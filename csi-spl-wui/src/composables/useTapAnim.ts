@@ -14,7 +14,11 @@ import type { Directive } from 'vue'
  * most 400 ms, and the classes come off on the animation's own end event: no
  * timers. Reduced motion: no class at all. An undefined kind plays nothing.
  */
-export const TAP_KINDS = ['bounce', 'bubble', 'pop', 'flip', 'pulse', 'lift', 'nudge', 'wiggle', 'hop', 'tilt'] as const
+export const TAP_KINDS = [
+  'bounce', 'bubble', 'pop', 'flip', 'pulse', 'lift', 'nudge', 'wiggle', 'hop', 'tilt',
+  /* SPL-2479 panel plan row 01: started by playTapAnim on an event */
+  'draw', 'swell', 'ripple', 'greeting', 'settle',
+] as const
 export type TapKind = typeof TAP_KINDS[number]
 
 /* what each section shows: a speech bubble, a tick, a page, a heartbeat ... */
@@ -36,8 +40,7 @@ export function railTapKind(id: string): TapKind {
 const CLASSES = ['tap-anim', ...TAP_KINDS.map((k) => 'tap-anim--' + k)]
 const KIND = Symbol('tapKind')
 const PLAY = Symbol('tapPlay')
-const DONE = Symbol('tapDone')
-type TapEl = HTMLElement & { [KIND]?: TapKind | undefined, [PLAY]?: () => void, [DONE]?: (e: AnimationEvent) => void }
+type TapEl = HTMLElement & { [KIND]?: TapKind | undefined, [PLAY]?: () => void }
 
 function reduced() {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -47,8 +50,17 @@ function iconOf(el: HTMLElement): Element {
   return el.querySelector('svg') || el
 }
 
-function play(el: TapEl) {
-  const kind = el[KIND]
+/* one function, so adding it again to the same element is a no-op */
+function done(e: AnimationEvent) {
+  if (e.animationName.startsWith('tap-')) (e.target as Element).classList.remove(...CLASSES)
+}
+
+function listen(el: HTMLElement) {
+  el.addEventListener('animationend', done)
+  el.addEventListener('animationcancel', done)
+}
+
+function play(el: HTMLElement, kind: TapKind | undefined) {
   if (!kind || reduced()) return
   const icon = iconOf(el)
   if (icon.classList.contains('tap-anim')) {
@@ -59,26 +71,32 @@ function play(el: TapEl) {
   icon.classList.add('tap-anim', 'tap-anim--' + kind)
 }
 
+/**
+ * Play `kind` once on el's icon (its first svg, else el) from code, for an
+ * event that is not a tap: a copy done, a badge arriving, a reconnect. The
+ * same rules as the directive: nothing under reduced motion, the classes come
+ * off on the animation's end, a call while it runs starts it again.
+ */
+export function playTapAnim(el: HTMLElement, kind: TapKind) {
+  if (reduced()) return
+  listen(el)
+  play(el, kind)
+}
+
 export const vTapAnim: Directive<HTMLElement, TapKind | undefined> = {
   mounted(el: TapEl, binding) {
     el[KIND] = binding.value
-    el[PLAY] = () => play(el)
-    el[DONE] = (e: AnimationEvent) => {
-      if (e.animationName.startsWith('tap-')) (e.target as Element).classList.remove(...CLASSES)
-    }
+    el[PLAY] = () => play(el, el[KIND])
     el.addEventListener('click', el[PLAY])
-    el.addEventListener('animationend', el[DONE])
-    el.addEventListener('animationcancel', el[DONE])
+    listen(el)
   },
   updated(el: TapEl, binding) {
     el[KIND] = binding.value
   },
   beforeUnmount(el: TapEl) {
     if (el[PLAY]) el.removeEventListener('click', el[PLAY])
-    if (el[DONE]) {
-      el.removeEventListener('animationend', el[DONE])
-      el.removeEventListener('animationcancel', el[DONE])
-    }
+    el.removeEventListener('animationend', done)
+    el.removeEventListener('animationcancel', done)
   },
   getSSRProps() {
     return {}

@@ -2,8 +2,8 @@
    6c4ca93d): the one set of tap animations - the section rail (phone strip
    and desktop rail) and the phone composer dock. composables/useTapAnim.ts
    puts `tap-anim tap-anim--<kind>` on a pressed button's icon and takes it
-   off on animationend. Transform and opacity only, so no box moves; at most
-   400 ms. Change an animation here and every icon using it follows. */
+   off on animationend. Transform and opacity only, so no box moves; a tap
+   at most 400 ms. Change an animation here and every icon using it follows. */
 .tap-anim {
   transform-origin: 50% 50%;
   animation-duration: 360ms;
@@ -77,6 +77,41 @@
 @keyframes tap-tilt {
   0%, 100% { transform: none; }
   45% { transform: rotate(-18deg) scale(1.06); }
+}
+/* SPL-2479 panel plan row 01: motifs that playTapAnim(el, kind) starts
+   from an event rather than a tap; still transform and opacity only */
+/* copy done: the tick pops in */
+.tap-anim--draw { animation-name: tap-draw; }
+@keyframes tap-draw {
+  0% { transform: scale(.85); }
+  60% { transform: scale(1.15); }
+  100% { transform: none; }
+}
+/* unread badge arrives: one gentle swell */
+.tap-anim--swell { animation-name: tap-swell; }
+@keyframes tap-swell {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.14); }
+}
+/* connection back: two soft radar pulses */
+.tap-anim--ripple { animation-name: tap-ripple; animation-duration: 600ms; animation-iteration-count: 2; }
+@keyframes tap-ripple {
+  0%, 100% { transform: none; opacity: 1; }
+  50% { transform: scale(1.12); opacity: .6; }
+}
+/* mascot: a one-shot greeting wave */
+.tap-anim--greeting { animation-name: tap-greeting; animation-duration: 800ms; }
+@keyframes tap-greeting {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(-10deg) scale(1.06); }
+  50% { transform: rotate(8deg); }
+  75% { transform: rotate(-4deg); }
+}
+/* toast: rises in and settles */
+.tap-anim--settle { animation-name: tap-settle; animation-duration: 260ms; }
+@keyframes tap-settle {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
 }
 /* reduced motion: still (the script adds no class either) */
 @media (prefers-reduced-motion: reduce) {

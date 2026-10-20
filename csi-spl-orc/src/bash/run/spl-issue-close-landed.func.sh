@@ -35,6 +35,8 @@
 # @description never overwrites): the holder adopts the newest one that is
 # @description ahead of its own cursor (ledger rows merged), sweeps, then
 # @description publishes its own; any other box only publishes what it holds.
+# @description A store error (an HTTP 403 too) logs "store read failed (HTTP <code>)"
+# @description or "store publish failed (HTTP <code>)", never "no snapshot yet" (SPL-2688).
 # @description Prints one TSV row per named key (key, moved | would-move |
 # @description noop | skip | failed, sha(s), detail) and a summary line. Reads
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
@@ -184,26 +186,45 @@ spl_icl_publish() {
 }
 
 # spl_icl_store_ls REL -> the child URLs under <rw_prefix>/REL of the store
-# (gcloud storage ls); empty, not a failure, when nothing is there.
+# (gcloud storage ls); empty, not a failure, when nothing is there. Any other
+# error (a 403 too) is a failed read, never "no snapshot yet" (SPL-2688).
 spl_icl_store_ls() {
   local out
-  spl_box_state_gs_begin gcloud >&2 || return 1
+  spl_box_state_gs_begin gcloud >&2 || { do_log "WARN issue-close-landed: store read failed (HTTP none): no store credential" >&2; return 1; }
   if out="$(gcloud storage ls "gs://$SPL_BOX_STATE_BUCKET/$SPL_BOX_STATE_RW_PREFIX/$1" --account="$GCP_ACCOUNT" 2>&1)"; then
     printf '%s\n' "$out"; return 0
   fi
-  grep -q 'matched no objects' <<<"$out" && return 0
-  do_log "WARN issue-close-landed: cannot list $1 in the box state store: ${out##*$'\n'}" >&2
+  grep -q 'matched no objects' <<<"$out" && ! grep -qE '(HTTP|Error|Exception)[: ]*[0-9]{3}' <<<"$out" && return 0
+  do_log "WARN issue-close-landed: store read failed (HTTP $(spl_icl_http_code "$out")): cannot list $1: ${out##*$'\n'}" >&2
   return 1
+}
+
+# spl_icl_http_code TEXT -> the HTTP status gcloud printed (HTTPError 403,
+# AccessDeniedException: 403, ...), else "unknown".
+spl_icl_http_code() {
+  local c
+  c="$(grep -oE '(HTTP[A-Za-z]*|Exception|Error)[: ]+[0-9]{3}' <<<"$1" | grep -oE '[0-9]{3}$' | sed -n 1p)"
+  printf '%s\n' "${c:-unknown}"
 }
 
 # spl_icl_store_get REL DEST: download the snapshot <rw_prefix>/REL/ into DEST.
 spl_icl_store_get() {
-  spl_box_state_gs_begin >&2 || return 1
-  DRY_RUN=0 SRC="$SPL_BOX_STATE_RW_PREFIX/$1/" DEST="$2" do_spl_box_state_get >&2
+  local out
+  spl_box_state_gs_begin >&2 || { do_log "WARN issue-close-landed: store read failed (HTTP none): no store credential" >&2; return 1; }
+  out="$(DRY_RUN=0 SRC="$SPL_BOX_STATE_RW_PREFIX/$1/" DEST="$2" do_spl_box_state_get 2>&1)" && { printf '%s\n' "$out" >&2; return 0; }
+  printf '%s\n' "$out" >&2
+  do_log "WARN issue-close-landed: store read failed (HTTP $(spl_icl_http_code "$out")): cannot get $1" >&2
+  return 1
 }
 
 # spl_icl_store_put SRC PREFIX: upload the snapshot dir SRC under <rw_prefix>/PREFIX/.
-spl_icl_store_put() { DRY_RUN=0 SRC="$1" PREFIX="$2" do_spl_box_state_put >&2; }
+spl_icl_store_put() {
+  local out
+  out="$(DRY_RUN=0 SRC="$1" PREFIX="$2" do_spl_box_state_put 2>&1)" && { printf '%s\n' "$out" >&2; return 0; }
+  printf '%s\n' "$out" >&2
+  do_log "WARN issue-close-landed: store publish failed (HTTP $(spl_icl_http_code "$out")): cannot put $2/${1##*/}" >&2
+  return 1
+}
 
 # spl_icl_state_dir -> the cursor + ledger dir of ENV + TENANT_ID, created.
 spl_icl_state_dir() {

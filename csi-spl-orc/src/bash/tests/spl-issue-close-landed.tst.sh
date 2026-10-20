@@ -166,10 +166,11 @@ F="$T/fake/x-y-orc"
 mkdir -p "$F/src/bash/scripts" "$F/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh" "$F/src/bash/scripts/"
 cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh" "$F/lib/bash/funcs/"
-printf '#!/bin/sh\necho "run $* ENV=$ENV TENANT_ID=$TENANT_ID HOLDER=$ISSUE_CLOSE_HOLDER STATE=$ISSUE_CLOSE_STATE_DIR DRY_RUN=$DRY_RUN" >>"$CRON_LOG"\n' >"$F/run"
+printf '#!/bin/sh\necho "run $* ENV=$ENV TENANT_ID=$TENANT_ID HOLDER=$ISSUE_CLOSE_HOLDER STATE=$ISSUE_CLOSE_STATE_DIR DRY_RUN=$DRY_RUN DESK=$DESK_AGENT@$DESK_BOX" >>"$CRON_LOG"\nexit "${FAKE_RC:-0}"\n' >"$F/run"
 chmod +x "$F/run"
-out="$(CRON_LOG="$T/cron.log" ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$F/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
-[ "$rc" = 0 ] && [ "$(cat "$T/cron.log" 2>/dev/null)" = "run -a do_spl_issue_close_landed ENV=prd TENANT_ID=t1 HOLDER=1 STATE=$T/empty DRY_RUN=0" ] &&
+mkdir -p "$T/root11"
+out="$(CRON_LOG="$T/cron.log" SPOOL_ROOT="$T/root11" ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$F/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/cron.log" 2>/dev/null)" = "run -a do_spl_issue_close_landed ENV=prd TENANT_ID=t1 HOLDER=1 STATE=$T/empty DRY_RUN=0 DESK=c-684@box-rsp" ] &&
   pass "11. the cron runs do_spl_issue_close_landed in holder mode (ISSUE_CLOSE_HOLDER=1) on a box with no cursor too" ||
   fail "11. cron (rc $rc: $out // $(cat "$T/cron.log" 2>/dev/null))"
 
@@ -246,5 +247,71 @@ hrun ISSUE_CLOSE_STATE_DIR="$T/stateC" SPOOL_BOX_TAG=boxb; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'no cursor' "$T/o" && ! grep -q '^hub\|^put' "$T/calls.log" &&
   pass "14c. control: a holder box with no cursor and an empty store is refused, closes nothing" ||
   fail "14c. empty store (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 15. SPL-2688 fault 1: the cron's desk is THIS box's responder desk
+# (SPOOL_RSP_BOX of the box config), never a fixed box-rsp a box may not seat.
+# RED on the old cron: DESK=c-684@box-rsp on a box whose responder is sat-rsp.
+mkdir -p "$T/root15"; printf 'SPOOL_BOX_TAG=sat\nSPOOL_RSP_BOX=sat-rsp\n' >"$T/root15/box.env"; : >"$T/cron.log"
+out="$(CRON_LOG="$T/cron.log" SPOOL_ROOT="$T/root15" ISSUE_CLOSE_STATE_DIR="$T/s15" bash "$F/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
+[ "$rc" = 0 ] && grep -q ' DESK=c-684@sat-rsp$' "$T/cron.log" &&
+  pass "15. the cron seats the closer on this box's responder desk (SPOOL_RSP_BOX=sat-rsp), not a fixed box-rsp" ||
+  fail "15. desk (rc $rc: $out // $(cat "$T/cron.log"))"
+: >"$T/cron.log"
+out="$(CRON_LOG="$T/cron.log" SPOOL_ROOT="$T/root15" ISSUE_CLOSE_BOX=box-x ISSUE_CLOSE_STATE_DIR="$T/s15" bash "$F/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
+[ "$rc" = 0 ] && grep -q ' DESK=c-684@box-x$' "$T/cron.log" && pass "15. control: ISSUE_CLOSE_BOX still overrides it" || fail "15. override (rc $rc: $(cat "$T/cron.log"))"
+
+# 16. SPL-2688 fault 2: a store error (an HTTP 403 as on prd) is a failed read
+# or publish with its HTTP code, never "no snapshot yet". gcloud and the
+# box-state put are stubbed to answer as the 403 did.
+G403_STUBS='spl_box_state_gs_begin() { SPL_BOX_STATE_BUCKET=b SPL_BOX_STATE_RW_PREFIX=shared GCP_ACCOUNT=sa@example.com; }
+gcloud() { echo "ls $*" >>"$STUB_LOG"; echo "ERROR: (gcloud.storage.ls) HTTPError 403: sa does not have storage.objects.list access" >&2; return 1; }
+do_spl_box_state_put() { echo "put $PREFIX" >>"$STUB_LOG"; echo "ERROR: (gcloud.storage.cp) HTTPError 403: sa does not have storage.objects.get access"; return 1; }
+'
+g403() {
+  : >"$T/calls.log"
+  SNIPPET="${STUBS}${G403_STUBS}do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/list40.json" TENANT_ID=t1 DESK_AGENT=c-684 \
+    ISSUE_CLOSE_REF=master ISSUE_CLOSE_FETCH=0 ISSUE_CLOSE_WUI_URL=https://wui.example.com SPOOL_ROOT="$T/root" \
+    ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 "$@" >"$T/o" 2>&1
+}
+g403 ISSUE_CLOSE_STATE_DIR="$SB" SPOOL_BOX_TAG=boxb; rc=$?
+[ "$rc" = 0 ] && grep -q 'WARN issue-close-landed: store read failed (HTTP 403)' "$T/o" && ! grep -q 'no snapshot yet' "$T/o" &&
+  grep -q '^ls ' "$T/calls.log" &&
+  pass "16. a 403 on the store read logs 'store read failed (HTTP 403)', never 'no snapshot yet'; the holder goes on with its cursor" ||
+  fail "16. read 403 (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+mkdir -p "$T/state16"; cp "$SB/cursor" "$SB/closed.tsv" "$T/state16/"
+g403 ISSUE_CLOSE_STATE_DIR="$T/state16" SPOOL_BOX_TAG=boxa; rc=$?
+[ "$rc" = 0 ] && grep -q 'WARN issue-close-landed: store publish failed (HTTP 403)' "$T/o" && [ ! -e "$T/state16/published" ] &&
+  pass "16. a 403 on the publish logs 'store publish failed (HTTP 403)' and leaves it unpublished for the next tick" ||
+  fail "16. put 403 (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+[ "$(SNIPPET='spl_icl_http_code "AccessDeniedException: 403 denied"; spl_icl_http_code "network is unreachable"' in_orc 2>&1 | tr '\n' ' ')" = "403 unknown " ] &&
+  pass "16. the HTTP code is read from either gcloud form; none printed = unknown" || fail "16. http code parse"
+
+# 17. SPL-2688 fault 3: after ISSUE_CLOSE_ALERT_AFTER (default 6) red ticks in
+# a row ONE blocker goes to the orchestrator (task dispatch-issue-closer), again
+# at most once an hour while still red; a green tick resets the count.
+# RED on the old cron: a red tick sent nothing, for hours.
+printf '#!/bin/sh\necho "$*" >>"$SEND_LOG"\n' >"$T/send"
+mkdir -p "$T/root17/dispatch"; echo "c-002@sat 1792478752" >"$T/root17/dispatch/lease"; printf 'SPOOL_BOX_TAG=sat\n' >"$T/root17/box.env"
+tick17() { CRON_LOG="$T/cron.log" SEND_LOG="$T/send.log" SPOOL_ROOT="$T/root17" ISSUE_CLOSE_SEND="$T/send" ISSUE_CLOSE_STATE_DIR="$T/s17" "$@" \
+  bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >>"$T/o17" 2>&1; }
+: >"$T/send.log"; sends() { grep -c . "$T/send.log"; }
+for _ in 1 2 3 4 5; do tick17 env FAKE_RC=1; done; s5="$(sends)"
+tick17 env FAKE_RC=1; rc6=$?; s6="$(sends)"
+tick17 env FAKE_RC=1; s7="$(sends)"
+[ "$s5" = 0 ] && [ "$rc6" = 1 ] && [ "$s6" = 1 ] && [ "$s7" = 1 ] &&
+  grep -q -- '--from c-002 --to orchestrator --kind blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box sat: the last 6 ticks' "$T/send.log" &&
+  pass "17. the 6th red tick in a row sends ONE blocker to the orchestrator (dispatch-issue-closer), the 7th none" ||
+  fail "17. alert (sends after 5/6/7: $s5/$s6/$s7, rc6 $rc6): $(cat "$T/send.log") // $(tail -n 5 "$T/o17")"
+echo $(( $(date -u +%s) - 3601 )) >"$T/s17/red.alerted"
+tick17 env FAKE_RC=1; s8="$(sends)"
+tick17 env FAKE_RC=0; rcg=$?
+tick17 env FAKE_RC=1; s9="$(sends)"
+[ "$s8" = 2 ] && [ "$rcg" = 0 ] && [ "$s9" = 2 ] && [ "$(cat "$T/s17/red.count")" = 1 ] && [ ! -e "$T/s17/red.alerted" ] &&
+  pass "17. still red an hour later: one more blocker; a green tick resets the count (the next red is 1 of 6, no send)" ||
+  fail "17. repeat/reset (sends $s8/$s9, rc green $rcg, count $(cat "$T/s17/red.count" 2>/dev/null))"
+: >"$T/send.log"; rm -rf "$T/s17"
+for _ in 1 2; do tick17 env FAKE_RC=1 ISSUE_CLOSE_ALERT_AFTER=2 ISSUE_CLOSE_ALERT_FROM=c-009; done
+grep -q -- '--from c-009 --to orchestrator .*the last 2 ticks' "$T/send.log" &&
+  pass "17. control: ISSUE_CLOSE_ALERT_AFTER and ISSUE_CLOSE_ALERT_FROM set the count and the sender" || fail "17. knobs: $(cat "$T/send.log")"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

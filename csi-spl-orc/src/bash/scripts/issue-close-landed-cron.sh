@@ -11,9 +11,17 @@
 # that stops a reopened issue being closed again travel through the env's box
 # state store; the holder adopts the newest, sweeps and publishes its own,
 # every other box only publishes what it holds, so no issue gets two comments.
-# The desk that comments and moves: the responder (SPL_RSP_AGENT on box-rsp,
-# seated on every box with a responder); ISSUE_CLOSE_AGENT / ISSUE_CLOSE_BOX
-# override it. A cron job reads no profile: the PATH is set here.
+# The desk that comments and moves: the responder (SPL_RSP_AGENT), seated on
+# THIS box's responder desk, SPOOL_RSP_BOX of <SPOOL_ROOT>/box.env, else
+# box-rsp (SPL-2688: a fixed box-rsp is no desk on a box whose responder is
+# sat-rsp); ISSUE_CLOSE_AGENT / ISSUE_CLOSE_BOX override it. A cron job reads
+# no profile: the PATH is set here.
+#
+# Alert (SPL-2688): after ISSUE_CLOSE_ALERT_AFTER (default 6, 30 min)
+# consecutive red ticks, ONE spool blocker to the orchestrator on task
+# dispatch-issue-closer, again at most once an hour while still red; a green
+# tick resets the count. Sent from ISSUE_CLOSE_ALERT_FROM, else the dispatch
+# holder's id; ISSUE_CLOSE_SEND replaces spool-send.sh (tests).
 #
 # Exit: 0 ran (or not this box, or another run held the lock), 1 the action
 # failed, 2 a refusal (worktree, no ./run).
@@ -38,9 +46,38 @@ mkdir -p "$state" || { say "FATAL cannot create $state"; exit 1; }
 lock="$state/run.lock"
 exec 9>"$lock"
 flock -n 9 || { say "OK another issue-close-landed run holds $lock"; exit 0; }
+root="${SPOOL_ROOT:-/var/spool-hub}"
+
+# box_env KEY -> the value of KEY in the box config (quotes dropped), or nothing.
+box_env() { sed -n "s/^$1=['\"]\{0,1\}\([A-Za-z0-9][A-Za-z0-9-]*\)['\"]\{0,1\}\r\{0,1\}\$/\1/p" "$root/box.env" 2>/dev/null | tail -n 1; }
+
+# red_tick RC: count consecutive red ticks; at ISSUE_CLOSE_ALERT_AFTER of them
+# send one blocker to the orchestrator, then at most one an hour while red.
+red_tick() {
+  local n now last after="${ISSUE_CLOSE_ALERT_AFTER:-6}" from send
+  if [ "$1" = 0 ]; then rm -f "$state/red.count" "$state/red.alerted"; return 0; fi
+  [[ "$after" =~ ^[1-9][0-9]*$ ]] || after=6
+  n="$(cat "$state/red.count" 2>/dev/null)"; [[ "$n" =~ ^[0-9]+$ ]] || n=0
+  n=$((n + 1)); printf '%s\n' "$n" >"$state/red.count"
+  (( n >= after )) || return 0
+  now="$(date -u +%s)"; last="$(cat "$state/red.alerted" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  (( now - last >= 3600 )) || return 0
+  from="${ISSUE_CLOSE_ALERT_FROM:-}"; [ -n "$from" ] || { read -r from _ <"$root/dispatch/lease" 2>/dev/null; from="${from%@*}"; }
+  send="${ISSUE_CLOSE_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  if [ -n "$from" ] && SPOOL_ROOT="$root" bash "$send" --from "$from" --to orchestrator --kind blocker --task dispatch-issue-closer \
+       --body "ISSUE CLOSER RED on box $(box_env SPOOL_BOX_TAG): the last $n ticks of do_spl_issue_close_landed ($env_name $tenant) failed, so no landed fix closes its issue. The FATAL lines are in the closer's cron log (crontab row csi-spl:box-cron:issue-close-landed)." \
+       >/dev/null 2>&1; then
+    printf '%s\n' "$now" >"$state/red.alerted"; say "INFO told the orchestrator: $n red ticks in a row"
+  else
+    say "WARN $n red ticks in a row and the blocker to the orchestrator was not sent (from '${from:-<none>}'); the next tick retries"
+  fi
+}
+
+rsp="$(box_env SPOOL_RSP_BOX)"
 say "START issue-close-landed $env_name $tenant"
 ( cd "$ORC" && env ENV="$env_name" TENANT_ID="$tenant" DESK_AGENT="${ISSUE_CLOSE_AGENT:-$SPL_RSP_AGENT}" \
-    DESK_BOX="${ISSUE_CLOSE_BOX:-box-rsp}" ISSUE_CLOSE_STATE_DIR="$state" ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 \
+    DESK_BOX="${ISSUE_CLOSE_BOX:-${rsp:-box-rsp}}" ISSUE_CLOSE_STATE_DIR="$state" ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 \
     timeout 900 ./run -a do_spl_issue_close_landed ); rc=$?
 say "STOP issue-close-landed rc=$rc"
+red_tick "$rc"
 [ "$rc" = 0 ] || exit 1

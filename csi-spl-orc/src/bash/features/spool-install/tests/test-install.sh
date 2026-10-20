@@ -137,11 +137,14 @@ echo "build \$1 go=\$(command -v go)" >>"$T/build.log"
 # user's owner, group and umask mode), never written in place
 printf '#!/bin/sh\necho spool-stub\n' >"\$1.stub\$\$"; chmod +x "\$1.stub\$\$"; mv -f "\$1.stub\$\$" "\$1"
 EOF
-# the ./run stub: the mirror hooks come from the REAL action; the seat is scripted
+# the ./run stub: the mirror hooks come from the REAL action, run once (0.7 s
+# of cpu each) and replayed from $T/mirror.out after; the seat is scripted
 cat >"$T/stub/run" <<EOF
 #!/bin/bash
 case "\$2" in
-  do_spl_desk_mirror_settings) exec env PATH="/usr/local/bin:\$PATH" "$REAL_RUN" "\$@" ;;
+  do_spl_desk_mirror_settings)
+    [ -s "$T/mirror.out" ] || env PATH="/usr/local/bin:\$PATH" "$REAL_RUN" "\$@" >"$T/mirror.out" || { rm -f "$T/mirror.out"; exit 1; }
+    cat "$T/mirror.out" ;;
   do_spl_desk_pin)
     echo "pin ENV=\$ENV TENANT_ID=\$TENANT_ID DESK_BOX=\$DESK_BOX SPOOL_HUB_URL=\$SPOOL_HUB_URL ROOT_KEY_JSON=\$ROOT_KEY_JSON DRY_RUN=\$DRY_RUN yq=\$(command -v yq)" >>"$T/seat.log"
     printf '%s\n' "\${SPOOL_JOIN_TOKEN:-}" >"$T/tokseen"; printf '%s\n' "\$*" >>"$T/seat-argv.log"

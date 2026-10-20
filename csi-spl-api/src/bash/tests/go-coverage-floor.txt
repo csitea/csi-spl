@@ -29,7 +29,7 @@ internal/auth/fakeidp 80.0 coverpkg=internal/auth
 internal/billing 80.8
 # internal/blob: 66.9 with TestAvatarKey (r12-08), 66.2 without; go test -count=1
 # -cover ./internal/blob/, go1.26.9, n=3 read 66.9 each.
-internal/blob 66.9
+internal/blob 71.9
 internal/calquick 97.6
 internal/calrecur 98.8
 internal/cicdlogs 81.6

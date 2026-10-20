@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -139,5 +141,100 @@ func TestCacheable(t *testing.T) {
 		if got := cacheable(key); got != want {
 			t.Errorf("cacheable(%q) = %v, want %v", key, got, want)
 		}
+	}
+}
+
+// failingReadStore serves every Get as a reader that fails after a few bytes.
+type failingReadStore struct {
+	Store
+	closed int
+}
+
+var errMidRead = errors.New("mid-read failure")
+
+func (f *failingReadStore) Get(context.Context, string) (io.ReadCloser, error) {
+	return &failingBody{f: f, r: io.MultiReader(bytes.NewReader([]byte("abc")), iotest.ErrReader(errMidRead))}, nil
+}
+
+type failingBody struct {
+	f *failingReadStore
+	r io.Reader
+}
+
+func (b *failingBody) Read(p []byte) (int, error) { return b.r.Read(p) }
+func (b *failingBody) Close() error               { b.f.closed++; return nil }
+
+// A read that fails part way returns the error, closes the store's body and
+// keeps nothing.
+func TestCachedReadErrorKeepsNothing(t *testing.T) {
+	inner := &failingReadStore{Store: Dir{Root: t.TempDir()}}
+	c := NewCached(inner, 10_000, 4_000, time.Hour)
+	key, _ := Key("t1", sha([]byte("x")))
+	rc, err := c.Get(context.Background(), key)
+	if !errors.Is(err, errMidRead) || rc != nil {
+		t.Fatalf("Get = %v, %v; want nil, the read error", rc, err)
+	}
+	if inner.closed != 1 || len(c.items) != 0 || c.size != 0 {
+		t.Fatalf("closed %d, cache %d objects %d bytes; want 1, 0, 0", inner.closed, len(c.items), c.size)
+	}
+}
+
+// What the cache retains: an object within the per-object limit but over the
+// whole budget is served and not kept; keeping a key again replaces its entry
+// instead of counting its bytes twice.
+func TestCachedRetention(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name               string
+		maxBytes, maxObj   int64
+		size, keeps        int
+		wantItems, wantLen int64
+	}{
+		{"over budget", 1_000, 4_000, 2_000, 1, 0, 0},
+		{"at budget", 2_000, 4_000, 2_000, 1, 1, 2_000},
+		{"kept twice", 10_000, 4_000, 3_000, 2, 1, 3_000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inner := &countingStore{Store: Dir{Root: t.TempDir()}}
+			c := NewCached(inner, tc.maxBytes, tc.maxObj, time.Hour)
+			b := bytes.Repeat([]byte("r"), tc.size)
+			key, _ := Key("t1", sha(b))
+			if err := c.Put(ctx, key, b); err != nil {
+				t.Fatal(err)
+			}
+			if got := readAll(t, c, key); !bytes.Equal(got, b) {
+				t.Fatalf("read %d bytes, want %d", len(got), len(b))
+			}
+			for i := 1; i < tc.keeps; i++ {
+				c.keep(key, b)
+			}
+			if int64(len(c.items)) != tc.wantItems || c.size != tc.wantLen || int64(c.order.Len()) != tc.wantItems {
+				t.Fatalf("cache %d objects (%d in order) %d bytes; want %d, %d",
+					len(c.items), c.order.Len(), c.size, tc.wantItems, tc.wantLen)
+			}
+		})
+	}
+}
+
+// An object too big for the whole budget does not push out what is cached.
+func TestCachedOverBudgetKeepsOthers(t *testing.T) {
+	ctx := context.Background()
+	inner := &countingStore{Store: Dir{Root: t.TempDir()}}
+	c := NewCached(inner, 1_000, 4_000, time.Hour)
+	small := bytes.Repeat([]byte("s"), 500)
+	big := bytes.Repeat([]byte("b"), 2_000)
+	ks, _ := Key("t1", sha(small))
+	kb, _ := Key("t1", sha(big))
+	for k, b := range map[string][]byte{ks: small, kb: big} {
+		if err := c.Put(ctx, k, b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readAll(t, c, ks)
+	readAll(t, c, kb)
+	before := inner.gets
+	readAll(t, c, ks)
+	if inner.gets != before || c.size != 500 {
+		t.Fatalf("small object re-read from the store (%d reads), cache %d bytes; want 0 reads, 500 bytes", inner.gets-before, c.size)
 	}
 }

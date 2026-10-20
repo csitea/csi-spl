@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 func TestS3(t *testing.T) {
@@ -191,7 +194,13 @@ func TestS3DefaultChainConstructs(t *testing.T) {
 
 func openTestS3(t *testing.T) *S3 {
 	t.Helper()
-	srv := httptest.NewServer(newFakeS3("bkt"))
+	return openTestS3With(t, newFakeS3("bkt"))
+}
+
+// openTestS3With opens the driver on h: a fakeS3, or a handler in front of one.
+func openTestS3With(t *testing.T, h http.Handler) *S3 {
+	t.Helper()
+	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	t.Setenv(EnvS3AccessKey, "test-access-key")
 	t.Setenv(EnvS3SecretKey, "test-secret-key")
@@ -506,4 +515,208 @@ type errXML struct {
 	XMLName xml.Name `xml:"Error"`
 	Code    string   `xml:"Code"`
 	Message string   `xml:"Message"`
+}
+
+// faultS3 answers chosen requests with 403 AccessDenied (not retried by the
+// SDK) and hands every other one to the fake. A rule is "METHOD key", with
+// COPY for a PUT that carries X-Amz-Copy-Source and LIST <prefix> for a
+// listing.
+type faultS3 struct {
+	*fakeS3
+	faultMu sync.Mutex
+	fail    map[string]bool
+}
+
+func newFaultS3() *faultS3 {
+	return &faultS3{fakeS3: newFakeS3("bkt"), fail: map[string]bool{}}
+}
+
+func (f *faultS3) set(rules ...string) {
+	f.faultMu.Lock()
+	defer f.faultMu.Unlock()
+	f.fail = map[string]bool{}
+	for _, r := range rules {
+		f.fail[r] = true
+	}
+}
+
+func (f *faultS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, key := splitPath(r.URL.Path)
+	op := r.Method
+	switch {
+	case r.Method == http.MethodPut && r.Header.Get("X-Amz-Copy-Source") != "":
+		op = "COPY"
+	case r.Method == http.MethodGet && (key == "" || r.URL.Query().Get("list-type") == "2"):
+		op, key = "LIST", r.URL.Query().Get("prefix")
+	}
+	f.faultMu.Lock()
+	hit := f.fail[op+" "+key]
+	f.faultMu.Unlock()
+	if hit {
+		writeErr(w, http.StatusForbidden, "AccessDenied", "fault")
+		return
+	}
+	f.fakeS3.ServeHTTP(w, r)
+}
+
+// isAccessDenied: the injected 403 reached the caller, not a nil or a
+// not-found in its place.
+func isAccessDenied(err error) bool {
+	return err != nil && !errors.Is(err, ErrNotFound) && strings.Contains(err.Error(), "StatusCode: 403")
+}
+
+// Every S3 call that fails with anything but not-found passes that error up.
+func TestS3ErrorsPassUp(t *testing.T) {
+	ctx := context.Background()
+	listAll := func(s *S3) error {
+		return s.List(ctx, "p/", func(string, time.Time) error { return nil })
+	}
+	promote := func(s *S3) error {
+		_, err := s.Promote(ctx, "src", "dst")
+		return err
+	}
+	for _, tc := range []struct {
+		name  string
+		seed  string // key put before the fault is set
+		fault string
+		call  func(s *S3) error
+	}{
+		{"get", "k", "GET k", func(s *S3) error {
+			_, err := s.Get(ctx, "k")
+			return err
+		}},
+		{"delete head", "k", "HEAD k", func(s *S3) error { return s.Delete(ctx, "k") }},
+		{"delete remove", "k", "DELETE k", func(s *S3) error { return s.Delete(ctx, "k") }},
+		{"promote head dst", "src", "HEAD dst", promote},
+		{"promote copy", "src", "COPY dst", promote},
+		{"promote drop src", "src", "DELETE src", promote},
+		{"list page", "p/a", "LIST p/", listAll},
+		{"list head", "p/a", "HEAD p/a", listAll},
+		{"prefix bytes", "p/a", "LIST p/", func(s *S3) error {
+			_, err := s.PrefixBytes(ctx, "p/")
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFaultS3()
+			s := openTestS3With(t, f)
+			if err := s.Put(ctx, tc.seed, []byte(tc.seed)); err != nil {
+				t.Fatal(err)
+			}
+			f.set(tc.fault)
+			if err := tc.call(s); !isAccessDenied(err) {
+				t.Fatalf("err = %v, want the AccessDenied fault", err)
+			}
+		})
+	}
+}
+
+// A failed stream whose clean-up delete also fails reports both errors.
+func TestS3PutReaderJoinsCleanupError(t *testing.T) {
+	ctx := context.Background()
+	f := newFaultS3()
+	s := openTestS3With(t, f)
+	f.set("PUT k", "DELETE k")
+	_, err := s.PutReader(ctx, "k", strings.NewReader("body"))
+	if !isAccessDenied(err) || strings.Count(err.Error(), "StatusCode: 403") != 2 {
+		t.Fatalf("err = %v, want the PUT and the DELETE fault joined", err)
+	}
+	f.set("PUT k")
+	_, err = s.PutReader(ctx, "k", strings.NewReader("body"))
+	if !isAccessDenied(err) || strings.Count(err.Error(), "StatusCode: 403") != 1 {
+		t.Fatalf("err = %v, want the PUT fault alone", err)
+	}
+}
+
+// Promote onto an existing dst whose src is already gone is not an error: a
+// retried Promote finds its own earlier copy.
+func TestS3PromoteMissingSrc(t *testing.T) {
+	ctx := context.Background()
+	s := openTestS3(t)
+	if err := s.Put(ctx, "dst", []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	existed, err := s.Promote(ctx, "gone", "dst")
+	if err != nil || !existed {
+		t.Fatalf("Promote = %v, %v; want true, nil", existed, err)
+	}
+}
+
+// List stops at the first callback error and returns it.
+func TestS3ListCallbackError(t *testing.T) {
+	ctx := context.Background()
+	s := openTestS3(t)
+	for _, k := range []string{"p/a", "p/b"} {
+		if err := s.Put(ctx, k, []byte(k)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := errors.New("stop")
+	calls := 0
+	err := s.List(ctx, "p/", func(string, time.Time) error { calls++; return stop })
+	if !errors.Is(err, stop) || calls != 1 {
+		t.Fatalf("List = %v after %d calls, want stop after 1", err, calls)
+	}
+}
+
+// Touch keeps the object's other user metadata and sets the upload stamp.
+func TestS3TouchKeepsMetadata(t *testing.T) {
+	ctx := context.Background()
+	f := newFakeS3("bkt")
+	s := openTestS3With(t, f)
+	if err := s.Put(ctx, "k", []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.objs["k"].meta = map[string]string{"owner": "t1"}
+	f.mu.Unlock()
+	if err := s.Touch(ctx, "k"); err != nil {
+		t.Fatal(err)
+	}
+	o, _ := f.snapshot("k")
+	if o.meta["owner"] != "t1" || o.meta[uploadedMeta] == "" {
+		t.Fatalf("meta after Touch = %v, want owner kept and %s set", o.meta, uploadedMeta)
+	}
+}
+
+func TestS3Uploaded(t *testing.T) {
+	last := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	for name, tc := range map[string]struct {
+		meta map[string]string
+		want time.Time
+	}{
+		"no meta": {nil, last},
+		"garbage": {map[string]string{uploadedMeta: "not-a-time"}, last},
+		"earlier": {map[string]string{uploadedMeta: last.Add(-time.Second).Format(time.RFC3339Nano)}, last},
+		"later":   {map[string]string{uploadedMeta: last.Add(time.Second).Format(time.RFC3339Nano)}, last.Add(time.Second)},
+	} {
+		if got := s3Uploaded(last, tc.meta); !got.Equal(tc.want) {
+			t.Errorf("%s: s3Uploaded = %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	resp := func(code int) error {
+		return &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+			Err:      errors.New("bare"),
+		}
+	}
+	for name, tc := range map[string]struct {
+		err  error
+		want bool
+	}{
+		"nil":           {nil, false},
+		"plain":         {errors.New("x"), false},
+		"api NoSuchKey": {&smithy.GenericAPIError{Code: "NoSuchKey"}, true},
+		"api NotFound":  {&smithy.GenericAPIError{Code: "NotFound"}, true},
+		"api denied":    {&smithy.GenericAPIError{Code: "AccessDenied"}, false},
+		"http 404":      {resp(http.StatusNotFound), true},
+		"http 500":      {resp(http.StatusInternalServerError), false},
+	} {
+		if got := isNotFound(tc.err); got != tc.want {
+			t.Errorf("%s: isNotFound = %v, want %v", name, got, tc.want)
+		}
+	}
 }

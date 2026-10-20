@@ -28,6 +28,8 @@
 //   PROVE_RED=takeover-no-save node tests/e2e/tenant-settings.test.mjs
 // (Join tokens: the biz_owner mock is not set, so step 17 goes red)
 //   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
+// (Agent caps: the mock workspace has no caps set, so step 17b goes red)
+//   PROVE_RED=caps-unset node tests/e2e/tenant-settings.test.mjs
 // (Embed admin: the non-owner mock is not set, so step 18g goes red)
 //   PROVE_RED=embed-non-owner node tests/e2e/tenant-settings.test.mjs
 // (Members on a phone: the inner list is a scroller again, so 14c and 14d go red)
@@ -496,6 +498,26 @@ try {
   const bizRows = (await attrs(q, '[data-test=tenant-agent-row]', 'data-agent')).length
   const bizJoin = Boolean(await q.$('[data-test=join-tokens], [data-test=join-token-new], [data-test=join-seat-revoke]'))
   ok('17 a biz_owner sees the agents but no join-token or Revoke seat control', bizRows > 0 && !bizJoin, { bizRows, bizJoin })
+  // 7a. spec 147 7.2 (R6, SPL-2676): the workspace's agent caps, read-only.
+  // The mock tenant is example-ws with the section 8 caps and some live
+  // seats; the table shows cap, live and a badge per vendor and no control.
+  await q.evaluate((red) => {
+    if (red !== 'caps-unset') {
+      localStorage.setItem('spool.mock.agent_caps', JSON.stringify({ 'example-ws': { claude: 1, grok: 1, agy: 2, mistral: 1 } }))
+    }
+    localStorage.setItem('spool.mock.agent_caps_live', JSON.stringify({ 'example-ws': { claude: 1, agy: 1, qwen: 2 } }))
+  }, RED)
+  await q.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await q.waitForSelector('[data-test=tenant-agent-cap-row]', { visible: true, timeout: 10000 }).catch(() => null)
+  const capRows = await q.$$eval('[data-test=tenant-agent-cap-row]', (rs) => rs.map((r) => [
+    r.dataset.vendor, r.querySelector('[data-test=tenant-agent-cap]').textContent.trim(),
+    r.querySelector('[data-test=tenant-agent-cap-live]').textContent.trim(), r.dataset.status].join(':')))
+  ok('17b Agents shows the workspace caps per vendor: cap, live and status (qwen unlimited)', capRows.join() ===
+    'claude:1:1:at_limit,grok:1:0:available,agy:2:1:available,mistral:1:0:available,qwen:' + capRows[4]?.split(':')[1] + ':2:unlimited' &&
+    !/^[0-9]+$/.test(capRows[4]?.split(':')[1] || '0'), capRows)
+  const capControls = await q.$$eval('[data-test=tenant-settings-agent-caps] input, [data-test=tenant-settings-agent-caps] button, [data-test=tenant-settings-agent-caps] select', (xs) => xs.length).catch(() => -1)
+  ok('17c the caps table is read-only: no input, button or select', capControls === 0, { capControls })
+  await q.evaluate(() => { localStorage.removeItem('spool.mock.agent_caps'); localStorage.removeItem('spool.mock.agent_caps_live') })
   await q.evaluate(() => localStorage.removeItem('spool.mock.me'))
   await q.close()
 

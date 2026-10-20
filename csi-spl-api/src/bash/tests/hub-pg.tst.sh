@@ -324,6 +324,13 @@ rc=0; out="$(serve_behind "$WORK/sql-prev")" || rc=$?
   || { echo "FAIL - CONTROL: serve at the schema head did not start: rc=$rc $out"; exit 1; }
 echo "ok   - 072 A45: serve exits $behind_rc on a schema behind its image (ledger row $last deleted), naming spool migrate; CONTROL at the head it listens"
 
+# spec 147 section 8 (R6, SPL-2676): workspace agent caps end to end, on its
+# own database (it flags an operator workspace), as the runtime role.
+mkdb spool_hub_caps
+"$BIN" migrate --db "$(app_dsn spool_hub_caps)" --sql-dir "$SQL_DIR" >/dev/null
+own_sql spool_hub_caps "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
+bash "$HERE/workspace-agent-caps.tst.sh" "$BIN" "$(rt_dsn spool_hub_caps)"
+
 # 017 T029: the M1 demo runs as the RUNTIME role (DML grants only, as the
 # cloud hub after do_spl_db_owner_split); the hub's own startup check must
 # log db.rls_not_liftable.

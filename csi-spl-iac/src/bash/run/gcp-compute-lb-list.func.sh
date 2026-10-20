@@ -3,11 +3,22 @@
 declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 
 #------------------------------------------------------------------------------
-# @description List GCP Load Balancer resources for an environment
-# @example ENV=dev ./run -a do_gcp_compute_lb_list
-# @example ENV=dev ./run -a do_gcp_compute_lb_list
+# @description List GCP Load Balancer resources for an environment. Read-only:
+# @description lists the <org>-<app>-<env>-wui-* parts and the site bucket as the
+# @description env's project SA, in a private gcloud config. A missing ORG_APP or
+# @description ENV is refused before any gcloud call.
+# @example ORG_APP=csi-spl ENV=dev ./run -a do_gcp_compute_lb_list
 #------------------------------------------------------------------------------
 do_gcp_compute_lb_list() {
+  local org_app="${ORG_APP:?ORG_APP is required}"
+  local env="${ENV:?ENV is required (dev/tst/prd)}"
+  local org="${org_app%%-*}"
+  local app="${org_app##*-}"
+  local prefix="${org}-${app}-${env}-wui"
+  local bucket_name="${org}-${app}-${env}-site-static"
+  local gcp_project="${org}-${app}-${env}"
+  local key_file="$HOME/.gcp/.${org}/key-${org}-${app}-${env}.json"
+
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1
   trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
@@ -22,26 +33,17 @@ do_gcp_compute_lb_list() {
   # that will have moved by the time anyone looks.
   local account
   account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
-  do_gcp_log_identity "${gcp_project:-<unset>}" "${account}" "do_gcp_compute_lb_list"
+  do_gcp_log_identity "${gcp_project}" "${account}" "do_gcp_compute_lb_list"
 
-  local org_app="${ORG_APP:?ORG_APP is required}"
-  local org="${org_app%%-*}"
-  local app="${org_app##*-}"
-  local env="${ENV:?ENV is required (dev/tst/prd)}"
-  local prefix="${org}-${app}-${env}-wui"
-  local bucket_name="${org}-${app}-${env}-site-static"
-  local gcp_project="${org}-${app}-${env}"
-  local key_file="$HOME/.gcp/.${org}/key-${org}-${app}-${env}.json"
-
-  log_info "Activating service account for project: ${gcp_project}"
+  do_log "INFO Activating service account for project: ${gcp_project}"
   gcloud auth activate-service-account --key-file="${key_file}" || {
-    log_error "Failed to activate service account"
-  return 1
+    do_log "ERROR Failed to activate service account"
+    return 1
   }
   account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   gcloud config set project "${gcp_project}"
 
-  log_info "=== LB Resources for prefix: ${prefix} ==="
+  do_log "INFO === LB Resources for prefix: ${prefix} ==="
 
   echo ""
   echo "=== Forwarding Rules ==="

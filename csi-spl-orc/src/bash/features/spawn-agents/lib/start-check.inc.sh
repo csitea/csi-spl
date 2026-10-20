@@ -31,6 +31,17 @@
 #   not logged in      the input box IS drawn, its footer "Not logged in · Run /login"
 # and, from the lease's stall pattern (LEASE_STALL_RE_DEFAULT), the usage
 # limit and the login / API key failures.
+# Settings Error (claude 2.1.292, 2026-10-20, n=7 rotations 00:05Z..06:05Z
+# and a throwaway probe): a settings file Claude cannot read or parse, e.g. the
+# box user's 0600 ~/.claude/settings.json read as PROJECT settings by an agent
+# user session started in the box user's home:
+#   "  Settings Error" / "  /home/<u>/.claude/settings.json"
+#   "  └ Settings file could not be read: EACCES: permission denied, open '...'"
+#   "❯ 1. Fix with Claude" / "2. Exit and fix manually" / "3. Continue without these settings"
+# Its menu shares "Exit and fix manually" with a Settings Warning, so it
+# comes after that one. Matched on its menu's own words, never a bare
+# "settings"; never answered:
+# "Continue" drops the whole file, "Fix with Claude" edits it.
 # grok's weekly limit (SPL-1820, sat 2026-10-14 0807Z, n=1): a menu, no input
 # box, "Buy more credits" / "Try Again" over "↑/↓ navigate · y copy"; the
 # watchdog's text for it is "You hit your weekly limit" (spec 102 T029).
@@ -39,6 +50,7 @@
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
   'Settings Warning|^[[:space:]]*Settings Warning[[:space:]]*$'
+  'Settings Error|Continue without these settings|Exit and fix manually'
   'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files'
   'auto-mode offer|Make auto mode your default permission mode'
   'bypass-permissions confirm|Yes, I accept'
@@ -52,6 +64,7 @@ SPOOL_START_DIALOGS=(
 spool_start_hint() {
   case "$1" in
     'Settings Warning') printf ', the allow rules in the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json' ;;
+    'Settings Error') printf ', a settings file the session cannot read or parse (its path is on the screen): the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json and the .claude/settings*.json of its working dir, their file modes included' ;;
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
     'grok weekly limit') printf ', grok has no quota until its weekly reset: the successor must be claude' ;;

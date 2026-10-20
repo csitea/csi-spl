@@ -404,6 +404,30 @@ grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_fl
   pass "13. ... ALERT = ask + owner DM, recorded in lifetime/alerts.open" || fail "13. alert: $(cat "$T/run.log") $(cat "$S/c-943/lifetime/alerts.open" 2>&1)"
 ! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
+# --- 13b. the Settings Error menu: a settings file the session cannot read ----------------------
+# The screen as claude 2.1.292 drew it on 2026-10-20 (n=7 rotations, a
+# throwaway probe): the agent user started in the box user's home, whose 0600
+# ~/.claude/settings.json it reads as project settings. Before 13b's pattern
+# this was "no input box ... and no known dialog" and a 900 s ack wait.
+world; lane c-950 %50 -; reborn c-950
+printf '%s\n' '  Settings Error' '' '  /srv/boxuser/.claude/settings.json' \
+  "  └ Settings file could not be read: EACCES: permission denied, open '/srv/boxuser/.claude/settings.json'" '' \
+  '  Files with errors are skipped entirely, not just the invalid settings.' '' \
+  '  ❯ 1. Fix with Claude' '    2. Exit and fix manually' '    3. Continue without these settings' '' \
+  '  Enter to confirm · Esc to cancel' > "$T/tmux/screen.%3950"
+t0=$SECONDS; rc="$(go ID=c-950 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=120)"; took=$((SECONDS - t0))
+[[ "$rc" == 1 && "$took" -lt 60 && "$(nproc c-950)" == 0 ]] &&
+  grep -q "RS-SPAWN FAIL the new session in %3950 is stopped on a 'Settings Error' dialog (not answered: fix its cause, a settings file the session cannot read" "$D/rotate.log" &&
+  grep -q '^kill -TERM 3950$' "$T/kill.log" && ! grep -q '^keys %3950 ' "$T/tmux/log" 2>/dev/null &&
+  pass "13b. Settings Error menu on the new session: RS-SPAWN FAIL at once (${took}s), named with its hint, nothing typed" ||
+  fail "13b. rc=$rc took=${took}s $(tail -5 "$T/o") $(grep -a 'c-950' "$D/rotate.log" | tail -3) keys: $(grep %3950 "$T/tmux/log" 2>/dev/null)"
+# control: the old wording of a Settings Warning still names a Settings Warning (first match wins)
+# shellcheck source=../features/spawn-agents/lib/start-check.inc.sh
+source "$PROJ_PATH/src/bash/features/spawn-agents/lib/start-check.inc.sh"
+[[ "$(printf '  Settings Warning\n  ❯ 1. Continue\n    3. Exit and fix manually\n' | spool_start_dialog)" == 'Settings Warning' &&
+   "$(printf '  Applying the settings now\n────\n❯ \n────\n' | spool_start_dialog)" == '' ]] &&
+  pass "13b. control: a Settings Warning stays a Settings Warning; a bare 'settings' is no dialog" || fail "13b. control: the matcher order or a bare-settings match"
+
 # --- 14. recovered ------------------------------------------------------------------------------
 world; lane c-944 %44 -; reborn c-944
 echo "1a2b3c4d-1111-4222-8333-944455556666 20270115T0700Z-rs-c-944 RS-SPAWN" > "$S/c-944/lifetime/alerts.open"

@@ -59,6 +59,9 @@
 # @param   $SPOOL_ROOT/registry.tsv column 1 and the tmux window names
 # @param GO_CACHE_LOCK (optional) - 1 (default) or 0; the lock file is
 # @param   GO_CACHE_LOCK_FILE, else the go-cache-prune state dir
+# @param GO_CACHE_LOCK_WAIT (optional) - seconds to wait for a held lock,
+# @param   default 0: the run stops at once with an INFO line. Over 0 (the
+# @param   box disk sweep), a lock still held after the wait is a FAIL, rc 1
 # @example ./run -a do_prune_go_build_cache
 # @example DRY_RUN=0 ./run -a do_prune_go_build_cache
 # @example GO_CACHE_GATE=1 DRY_RUN=0 ./run -a do_prune_go_build_cache
@@ -189,7 +192,7 @@ go_cache_targets() {
 }
 
 # go_cache_lock_or_stop: 0 proceed (lock held, or no lock in use), 2 another
-# prune holds the lock and this run must stop.
+# prune holds the lock (after GO_CACHE_LOCK_WAIT seconds) and this run must stop.
 go_cache_lock_or_stop() {
   local lock app org
   [[ "${GO_CACHE_LOCK:-1}" == 1 ]] || return 0
@@ -204,7 +207,11 @@ go_cache_lock_or_stop() {
   fi
   mkdir -p "$(dirname "$lock")" 2>/dev/null || true
   exec 9>>"$lock" || return 0
-  flock -n 9 && return 0
+  if (( ${GO_CACHE_LOCK_WAIT:-0} > 0 )); then
+    flock -w "$GO_CACHE_LOCK_WAIT" 9 && return 0
+  else
+    flock -n 9 && return 0
+  fi
   return 2
 }
 
@@ -221,6 +228,7 @@ go_cache_check_inputs() {
   [[ "$thr" =~ ^[0-9]+$ ]] && (( thr <= 100 )) || { do_log "FATAL GO_CACHE_PRUNE_AT_PCT must be 0..100, got: '$thr'"; return 1; }
   [[ "$hour" =~ ^[0-9]+$ ]] && (( 10#$hour <= 59 )) || { do_log "FATAL GO_CACHE_HOURLY_MINUTE must be 0..59, got: '$hour'"; return 1; }
   [[ "${GO_CACHE_LOCK:-1}" == 0 || "${GO_CACHE_LOCK:-1}" == 1 ]] || { do_log "FATAL GO_CACHE_LOCK must be 0 or 1"; return 1; }
+  [[ "${GO_CACHE_LOCK_WAIT:-0}" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_LOCK_WAIT must be whole seconds, got: '${GO_CACHE_LOCK_WAIT}'"; return 1; }
 }
 
 # go_cache_due <user> <dir> <thr> <hour> <minute>: logs ONE line for this
@@ -457,7 +465,10 @@ do_prune_go_build_cache() {
   go_cache_check_inputs "$dry" "$gate" "$age" "$thr" "$hour" "$capgb" || return 1
 
   go_cache_lock_or_stop || lrc=$?
-  if (( lrc == 2 )); then
+  if (( lrc == 2 && ${GO_CACHE_LOCK_WAIT:-0} > 0 )); then
+    do_log "FAIL another Go build-cache prune still holds the lock after ${GO_CACHE_LOCK_WAIT} s; nothing pruned"
+    return 1
+  elif (( lrc == 2 )); then
     do_log "INFO a Go build-cache prune is already running; this one does nothing"
     return 0
   fi

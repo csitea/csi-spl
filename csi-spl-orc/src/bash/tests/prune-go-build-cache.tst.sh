@@ -15,6 +15,10 @@
 #      idle cache is removed whole; a live lane's, a recent one, a dir that
 #      is not a Go cache, a name with no lane id and a symlink are kept; the
 #      dry run removes nothing; RED CONTROL: no registry -> nothing removed
+#   7. the box disk sweep's go step, DRY_RUN=0 at level low, while another
+#      prune holds the lock for 2 s: it waits, then cuts an over-cap cache to
+#      the 3 GiB low cap. RED CONTROL: no wait -> the cache stays over the cap
+#      (2026-10-19 23:45Z on sat). A lock held past the wait is a FAIL step.
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -413,6 +417,76 @@ out="$(run_prune "$LM" 0 "GO_CACHE_LANE_PARENTS=$LP SPOOL_ROOT=$T/spool6 SPOOL_T
 [[ $rc -eq 0 && -f "$LP/go-build-c901/00/aa/old" && ! -e "$LP/go-build-c902" && "$out" == *"KEEP live-lane c-901"* ]] &&
   pass "6. a lane in registry.tsv is live (kept); one not in it is removed" ||
   fail "6. registry (rc=$rc): $out"
+
+# 7. the sweep's go step waits for the lock, then cuts to the level's cap ----
+# Three sparse 1600000000-byte files (4.8 GB) over the 3 GiB low cap
+# (3221225472): the oldest goes, 3200000031 bytes stay. The fake orc's ./run
+# runs the real action with this cache; the sweep passes the level's limits.
+O7="$T/orc7"; mkdir -p "$O7"
+cat >"$O7/run" <<EOF
+#!/usr/bin/env bash
+do_log() { printf '%s\n' "\$*"; }
+do_require_bin() { command -v "\$1" >/dev/null; }
+source "$PROJ_ROOT/src/bash/run/prune-go-build-cache.func.sh"
+do_prune_go_build_cache
+EOF
+chmod +x "$O7/run"
+mk_big() {
+  local d="$1"
+  rm -rf "$d"; mkdir -p "$d/00" "$d/ff"
+  printf 'cached build artifacts\n' >"$d/README"
+  printf 'depth-1\n' >"$d/keep"
+  truncate -s 1600000000 "$d/00/old" "$d/ff/mid" "$d/ff/new"
+  touch -d '5 minutes ago' "$d/00/old"
+  touch -d '3 minutes ago' "$d/ff/mid"
+  touch -d '1 minute ago' "$d/ff/new"
+}
+# sweep7 <wait s> <hold s>: the go step alone at a planted 10% (level low),
+# while a background flock holds the go-cache lock for <hold> seconds.
+sweep7() {
+  local held="$T/lock7.held"; rm -f "$held"
+  # shellcheck disable=SC2016  # $1 / $2 expand in the child shell
+  flock "$T/lock7" bash -c ': >"$1"; sleep "$2"' _ "$held" "$2" &
+  local hp=$! n=0
+  while [[ ! -e "$held" ]] && (( n++ < 50 )); do sleep 0.1; done
+  env SPOOL_TEST=1 GO_CACHE_DIRS="$S7" GO_CACHE_USERS="" GO_CACHE_LOCK_FILE="$T/lock7" \
+    DRY_RUN=0 BOX_SWEEP_STEPS=go BOX_SWEEP_FREE_PCT=10 BOX_SWEEP_ORC="$O7" \
+    BOX_SWEEP_LOCK="$T/sweep7.lock" BOX_SWEEP_GO_LOCK_WAIT_S="$1" \
+    bash "$PROJ_ROOT/src/bash/scripts/box-disk-sweep.sh" 2>&1
+  local r=$?
+  wait "$hp"
+  return "$r"
+}
+S7="$T/sweep-cap"
+mk_big "$S7"
+out="$(sweep7 30 2)"; rc=$?
+sz="$(du -sb "$S7" | awk 'NR==1 { print $1 }')"
+if [[ $rc -eq 0 && ! -e "$S7/00/old" && -f "$S7/ff/mid" && -f "$S7/ff/new" && "$sz" -le 3221225472 \
+  && "$out" == *'level=low'*'go_cap_gb=3'* && "$out" == *'cap_gb=3 dry_run=0'* && "$out" == *'STEP-OK go'* ]]; then
+  pass "7. the sweep's go step waits out a held lock, then cuts the cache to the 3 GiB low cap"
+else
+  fail "7. sweep go step (rc=$rc du=$sz): $out"
+fi
+mk_big "$S7"
+out="$(sweep7 0 3)"; rc=$?
+if [[ -f "$S7/00/old" && "$out" == *'already running; this one does nothing'* ]]; then
+  pass "7. RED CONTROL: with no lock wait the step does nothing and the cache stays over the cap"
+else
+  fail "7. no-wait control (rc=$rc): $out"
+fi
+mk_big "$S7"
+out="$(sweep7 1 4)"; rc=$?
+if [[ $rc -ne 0 && -f "$S7/00/old" && "$out" == *'still holds the lock after 1 s'* && "$out" == *'FAIL step go rc=1'* ]]; then
+  pass "7. a lock held past the wait is a FAIL step, not a silent STEP-OK"
+else
+  fail "7. lock past wait (rc=$rc): $out"
+fi
+out="$(sweep7 x 0)"; rc=$?
+if [[ $rc -eq 2 && "$out" == *"whole numbers, got 'x'"* ]]; then
+  pass "7. a bad lock wait is refused"
+else
+  fail "7. bad wait (rc=$rc): $out"
+fi
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

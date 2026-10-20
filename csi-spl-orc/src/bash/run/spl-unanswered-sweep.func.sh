@@ -416,6 +416,12 @@ SQL
 # channel un-archived, a workspace renamed, a workspace's AI agents default
 # changed (a channel's own switch is read: ai_agents_at), a humans-only mark
 # cleared (one set is read: humans_only_at, SPL-2423).
+# SPL-2705: the edited lines are found from message_revisions (edited_at since
+# :since), each one's topic then one pkey lookup into messages. A plain join
+# let the planner (it underestimates messages under the operator RLS scope)
+# walk every message and probe the revisions once each: prd 2026-10-20,
+# 48 822 probes, 101 744 of 101 919 buffers, an idle delta 127 ms against 73 ms
+# for the full read; it timed out first when the DB's storage slowed.
 _spl_sweep_delta_sql() {
   cat <<'SQL'
 WITH mv AS MATERIALIZED (
@@ -428,9 +434,11 @@ WITH mv AS MATERIALIZED (
    WHERE c.archived_at > to_timestamp(:since) OR c.deleted_at > to_timestamp(:since)
       OR c.ai_agents_at > to_timestamp(:since) OR c.humans_only_at > to_timestamp(:since)
   UNION
-  SELECT e.tenant_id, e.task_id FROM message_revisions r
-    JOIN messages e ON e.tenant_id = r.tenant_id AND e.msg_id = r.msg_id
-   WHERE r.edited_at > to_timestamp(:since)
+  SELECT v.tenant_id, v.task_id FROM (
+    SELECT r.tenant_id, (SELECT e.task_id FROM messages e
+                          WHERE e.tenant_id = r.tenant_id AND e.msg_id = r.msg_id) AS task_id
+      FROM message_revisions r WHERE r.edited_at > to_timestamp(:since)) v
+   WHERE v.task_id IS NOT NULL
   UNION
   SELECT u.tn, u.tk FROM unnest(:'tns'::text[], :'tks'::uuid[]) u (tn, tk)
    WHERE NOT EXISTS (SELECT 1 FROM topic_heads o WHERE o.tenant_id = u.tn AND o.task_id = u.tk)),

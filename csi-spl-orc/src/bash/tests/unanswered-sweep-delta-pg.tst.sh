@@ -205,5 +205,35 @@ else
   fail "5. a read at $t0..$t1 stores $n5, past the read: a change right after it would be missed"
 fi
 
+# 6. SPL-2705: the edited-lines arm starts from the few revisions edited since
+# :since, never from every message. prd 2026-10-20 (1 665 revisions, 48 822
+# messages): the planner walked messages_task_received and probed
+# message_revisions_pkey once per message, 101 744 of the read's 101 919
+# buffers, so an idle delta (127 ms) cost more than the full read (73 ms) and
+# crossed statement_timeout first when the instance's storage slowed. Every
+# message_revisions scan in the plan runs once (loops <= 1).
+q6="$(sweep _spl_sweep_delta_sql 2>"$T/e6")" || fail "6. statement: $(cat "$T/e6")"
+printf "BEGIN READ ONLY;\nSET LOCAL app.rls_scope = 'operator';\nEXPLAIN (ANALYZE, FORMAT JSON) %s;\nROLLBACK;\n" "$q6" >"$T/q6.sql"
+PGPASSWORD=rt psql -X -q -At -v ON_ERROR_STOP=1 -v days=7 -v since="$now1" -v tns='{}' -v tks='{}' "$RT_DSN" -f "$T/q6.sql" \
+  >"$T/p6.json" 2>"$T/e6" || fail "6. explain: $(cat "$T/e6")"
+loops6="$(python3 -c '
+import json, sys
+def walk(n):
+    if n.get("Relation Name") == "message_revisions":
+        yield n.get("Node Type", "?"), n.get("Actual Loops", 0)
+    for c in n.get("Plans", []):
+        yield from walk(c)
+txt = open(sys.argv[1]).read()
+plan = json.loads(txt[txt.index("["):])[0]["Plan"]
+print(" ".join("%s:%d" % x for x in walk(plan)) or "none")' "$T/p6.json" 2>&1)"
+nm="$(psql_owner -c "SELECT count(*) FROM messages")"
+if [[ "$loops6" == none || "$loops6" == *Traceback* ]]; then
+  fail "6. no message_revisions scan found in the delta plan: $loops6"
+elif [[ "$loops6" =~ :([2-9]|[1-9][0-9]+)( |$) ]]; then
+  fail "6. message_revisions is probed per row ($loops6, $nm messages): the edited-lines arm is driven from messages"
+else
+  pass "6. message_revisions is scanned once ($loops6) over $nm messages"
+fi
+
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

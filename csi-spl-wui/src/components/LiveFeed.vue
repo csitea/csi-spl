@@ -34,14 +34,17 @@
         {{ loadingOlder ? t('feed.loading_older') : t('feed.load_more') }}
       </button>
     </div>
-    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" :css="transitionsReady" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
+    <!-- SPL-2146: a long channel feed draws the rows near the viewport; this
+         spacer and the one after the rows stand for the others (useFeedWindow) -->
+    <div v-if="windowed" :ref="spacerTop" class="feed-spacer" data-testid="feed-spacer" aria-hidden="true" />
+    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" :css="transitionsReady && !windowed" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
       <!-- CLE-77804 (topic 1e7d56b8): feedItems interleaves the "New messages"
            divider with the rows so each iteration renders exactly ONE keyed
            element (the key lives on the <template>, as Vue requires). The
            divider marks where the unread block starts: newest-last reads top to
            bottom so it sits BEFORE the earliest unread; newest-first has the
            unread at the top, so it sits AFTER it. -->
-      <template v-for="it in feedItems" :key="it.key">
+      <template v-for="it in drawnItems" :key="it.key">
         <div
           v-if="it.divider"
           class="new-divider"
@@ -112,6 +115,7 @@
         />
       </template>
     </TransitionGroup>
+    <div v-if="windowed" :ref="spacerBottom" class="feed-spacer" data-testid="feed-spacer" aria-hidden="true" />
     <!-- SPL-2141: a parent may say more here (a channel's start, MessageFeed) -->
     <slot v-if="!loading && !failed && !rows.length" name="empty" :search="search">
       <p class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
@@ -255,6 +259,7 @@ const props = defineProps<{
   /** SPL-1994: a list of topic rows (/channel, /dm) marks a row whose topic
       waits for an agent's answer; a thread (clipPane "thread") marks the post. */
   awaitFor?: (taskId: string) => AwaitMark
+  virtual?: boolean /* SPL-2146: draw only the rows near the viewport (the channel feed) */
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -356,6 +361,7 @@ const feedRows = computed<FeedItem[]>(() => {
   }
   return out
 })
+const { drawnItems, windowed, spacerTop, spacerBottom, drawRow } = useFeedWindow({ items: () => feedItems.value, on: () => props.virtual === true, root }) /* SPL-2146 */
 
 /* The jump button shows only while the divider is off screen (scrolled away).
    Visibility is measured on scroll with getBoundingClientRect — deliberately
@@ -439,8 +445,8 @@ function jumpThreadEnd() {
   s.scrollTo({ top: st.top, behavior: reduce ? 'auto' : 'smooth' })
 }
 
-function jumpToUnread() {
-  const el = dividerEl()
+async function jumpToUnread() {
+  const el = dividerEl() || await drawRow('__new-divider__', dividerEl) /* SPL-2146: maybe not drawn */
   const scroller = el?.closest<HTMLElement>('.feed-body')
   if (!scroller) return
   hold()
@@ -574,7 +580,6 @@ function highlight(el: HTMLElement) {
   setTimeout(() => el.classList.remove('open-focus'), JUMP_FOCUS_MS)
 }
 watch(() => [want.value, wantSeq.value, props.rows.length, props.loadingOlder] as const, async ([id]) => {
-
   if (!props.holdScroll || !id || id === hashDone) return
   if (!props.rows.some((m) => String(m.msg_id) === id)) {
     /* not held yet: read the next older page; the rows watch comes back here */

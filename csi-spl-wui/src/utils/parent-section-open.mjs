@@ -193,6 +193,11 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '',
       if (!target) card.focus({ preventScroll: true, focusVisible: true })
       return
     }
+    /* SPL-2146: a long channel feed draws only the rows near the viewport;
+       ask it to draw this one if it holds it (useFeedWindow) */
+    document.dispatchEvent(new CustomEvent('spool:feed-reveal', { detail: target ? { taskId: target.taskId } : { msgId } }))
+    await sleep(0)
+    if (document.querySelector(sel)) continue
     const feed = document.querySelector('.spool-main [role="feed"]')
     const busy = !feed || feed.getAttribute('aria-busy') === 'true'
     const more = document.querySelector('.spool-main [data-testid="load-more"]')

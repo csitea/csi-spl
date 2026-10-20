@@ -15,6 +15,9 @@
     <div v-if="channel.error" class="plain-err-slot">
       <LazyPlainErrorNotice :message="channel.error" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
     </div>
+    <!-- SPL-2146: `virtual` - from 120 rows on, only the rows near the
+         viewport are drawn; a ?topic= card or the unread divider is drawn
+         when asked for (useFeedWindow). -->
     <LiveFeed
       :label="label"
       :rows="channel.newestFirst"
@@ -32,6 +35,7 @@
       clickable
       open-button
       clip
+      virtual
       :loading-older="channel.loadingOlder"
       @older="channel.loadOlder()"
       @clear-search="channel.setSearch('')"

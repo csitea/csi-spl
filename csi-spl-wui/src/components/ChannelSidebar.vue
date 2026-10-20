@@ -36,6 +36,7 @@
         :title="t(item.labelKey)"
         :data-pinned="item.movable ? undefined : 'last'"
         v-tap-anim="railTapKind(item.id)"
+        v-swell-up="railBadgeN(item.id)"
         @pointerdown="item.movable && railDrag.down($event, item.id as RailId)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
@@ -210,6 +211,7 @@
       :key="p.label"
       class="nav-row"
       :data-order="p.label"
+      v-swell-up="unreadOf('dm:' + p.label)"
       :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label], 'nav-row--pinned': pinnedPeers.includes(p.label), 'nav-row--drag': dragging('peers', p.label), 'nav-row--drop': dropping('peers', p.label, peerIndex), 'nav-row--drop-after': droppingAfter('peers', peerIndex, peers.length) }"
       @pointerdown="rowPointerDown($event, 'peers', p.label)"
       @contextmenu.prevent="openChannelMenu('dm:' + p.label)"
@@ -635,7 +637,8 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import { railTapKind, vTapAnim } from '~/composables/useTapAnim'
+import type { Directive } from 'vue'
+import { playTapAnim, railTapKind, vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'
@@ -930,6 +933,20 @@ const loop = useLoopStrip(railEl, {
 /* the rail's numbers and a row's unread / draft / DM badge (useSidebarCounts) */
 const { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread } = useSidebarCounts(api, live,
   () => channelRows.value.map((c) => String(c.channel_id || '')), () => peers.value.map((p) => p.label))
+/* row 04 of ui-animations-panel-plan.md (SPL-2736): a rail tab's unread
+   number or pip, and a DM row's badge, swell once when the number goes up.
+   The host stays mounted, so the first paint, an equal re-render and a fall
+   play nothing; playTapAnim does nothing under reduced motion. */
+const vSwellUp: Directive<HTMLElement, number> = {
+  updated(el, { value, oldValue }) {
+    const badge = value > (oldValue || 0) && el.querySelector<HTMLElement>('.badge-unread, .sidebar-tab__count, .sidebar-tab__pip')
+    if (badge) playTapAnim(badge, 'swell')
+  },
+}
+/* the number a rail tab's badge shows ("99+" reads 99); a pip counts 1 */
+function railBadgeN(id: string) {
+  return parseInt(id === 'flow' ? flowLabel.value : railCount(id)) || +tabUnread(id)
+}
 /* Flow stays on this page and mixes the
    lists. Direct messages and channels only swap the sidebar. */
 /* owner HUM-10 (t1 27b3ab77 msg 3aee57ba): "no way for me to find out what

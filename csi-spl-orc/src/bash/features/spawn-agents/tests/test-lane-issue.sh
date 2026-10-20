@@ -338,6 +338,42 @@ eq "E9 control (-m1 -o): refused" 1 "$RC"
 es "$LIB" 'Spec: csi-spl-doc/specs/041-two-pins'
 eq "E10 a spec line naming two epics: the first pin" "csi-spl-doc/specs/041-two-pins	SPL-75" "$(cat "$T_TMP/o")"
 es "$M1" 'Spec: csi-spl-doc/specs/041-two-pins'
-eq "E10 control (-m1 -o): not the one first pin" 1 "$([ "$(cat "$T_TMP/o")" = "csi-spl-doc/specs/041-two-pins	SPL-75" ]; echo $?)"
+eq "E10 control (-m1 -o): not the one first pin" 1 "$([ "$(cat "$T_TMP/o")" = "csi-spl-doc/specs/041-two-pins	SPL-75" ] && echo 0 || echo 1)"
 eq "E6 an Issue: key (an existing issue, none filed): passes" 0 "$RC"
+# --- F. a `Docs: none (<why>)` trailer whose reason wraps (SPL-2656) ---------
+# 66d208922 wrapped its reason onto a second, unindented line; the one-line
+# grep never saw the `)` and refused it. Control: that grep, appended to a copy.
+DR="$T_TMP/docs"
+git init -q -b master "$DR" && mkdir -p "$DR/csi-spl-api"
+DN=0
+dv() {  # LIB MSG -> li_docs_verdict of a new commit changing csi-spl-api/x.go, in $V
+  DN=$((DN + 1)); echo "$DN" >>"$DR/csi-spl-api/x.go"
+  git -C "$DR" add -A && git -C "$DR" -c user.name='FirstName LastName' -c user.email=dev@example.com commit -q -m "$2" || { V=commit-failed; return; }
+  V="$(bash -c '. "$1"; li_docs_verdict "$2" HEAD' _ "$1" "$DR" 2>/dev/null | cut -d' ' -f1)"
+}
+OLDD="$T_TMP/old-docs-lane-issue.inc.sh"
+cp "$LIB" "$OLDD"
+cat >>"$OLDD" <<'EOD'
+li_docs_verdict() {
+  local w="$1" s p code=""; shift
+  for s in "$@"; do
+    li_git "$w" log -1 --format=%B "$s" | grep -qiE '^Docs:[[:space:]]*none[[:space:]]*\([^)]*[^[:space:])][^)]*\)' && { echo "ok trailer"; return 0; }
+    while IFS= read -r p; do [ -z "$code" ] && li_is_code "$p" && code="$p"; done < <(li_git "$w" diff-tree --no-commit-id --name-only -r "$s")
+  done
+  [ -n "$code" ] && echo "missing $code" || echo "ok no behaviour change"
+}
+EOD
+WRAP_IND="$(printf 'fix(api): x\n\nDocs: none (the reason\n wraps here)')"
+WRAP_COL0="$(printf 'fix(api): x\n\nDocs: none (a Qto export: the needed\nchange is reported to the dispatch holder)\nCloses: SPL-1')"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (one line)')"; eq "F1 a one-line trailer: ok" ok "$V"
+dv "$LIB" "$WRAP_IND"; eq "F2 the reason wraps onto an indented line: ok" ok "$V"
+dv "$OLDD" "$WRAP_IND"; eq "F2 control (one-line grep): missing" missing "$V"
+dv "$LIB" "$WRAP_COL0"; eq "F3 the reason wraps onto an unindented line, then Closes: (66d208922): ok" ok "$V"
+dv "$OLDD" "$WRAP_COL0"; eq "F3 control (one-line grep): missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none')"; eq "F4 'Docs: none' with no reason: missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none ()')"; eq "F5 'Docs: none ()': missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (\n )')"; eq "F6 an empty reason over two lines: missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nThe gate reads a Docs: none (why) line, not this prose.')"; eq "F7 the words inside prose, not a trailer: missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (the reason\n\nstarts a new paragraph)')"; eq "F8 the ')' only after a blank line: missing" missing "$V"
+dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (the reason\nCloses: SPL-1 ok)')"; eq "F9 the ')' only on the next trailer: missing" missing "$V"
 t_done

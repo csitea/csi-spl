@@ -168,12 +168,19 @@ li_is_code() {
 
 # li_docs_verdict WORKDIR SHA... -> "ok <why>" or "missing <first code path>".
 # Docs are current when the commits change no code, or one of them touches
-# csi-spl-doc/, or one carries a `Docs: none (<why>)` trailer.
+# csi-spl-doc/, or one carries a `Docs: none (<why>)` trailer. The trailer is
+# read whole: its reason may wrap onto the next lines (indented or not), up to
+# a blank line or the next `Key:` line (66d208922, SPL-2656).
 li_docs_verdict() {
   local w="$1" s p code=""; shift
   [ $# -gt 0 ] || { echo "ok no commits"; return 0; }
   for s in "$@"; do
-    if li_git "$w" log -1 --format=%B "$s" | grep -qiE '^Docs:[[:space:]]*none[[:space:]]*\([^)]*[^[:space:])][^)]*\)'; then
+    if li_git "$w" log -1 --format=%B "$s" |
+      awk 'f && (/^[[:space:]]*$/ || /^[A-Za-z0-9-]+:/) { print j; f = 0 }
+           f { sub(/^[[:space:]]+/, ""); j = j " " $0; next }
+           tolower($0) ~ /^docs:/ { j = $0; f = 1 }
+           END { if (f) print j }' |
+      grep -iE '^Docs:[[:space:]]*none[[:space:]]*\([^)]*[^[:space:])][^)]*\)' >/dev/null; then
       echo "ok Docs: none trailer in ${s:0:12}"; return 0
     fi
     while IFS= read -r p; do

@@ -16,17 +16,17 @@ Review history: spool topic `dispatch-dc15ad65` (`spool tail --task dispatch-dc1
 `git log origin/master -E --grep='r14-[0-9]{2}' --format='%h %cI %s'` -> **9**
 commits carrying `r14-` in their subject; all **9** rows landed on master.
 
-| row | landed sha (lane) | landed (UTC) | pushes | red control | what it reduced, measured on `27cc7160c` |
-|---|---|---|---|---|---|
-| 01 `refactor(r14-01-wui-decompose-doc-view)` | `aa1345a1d` (c-985@sat) | 20:51Z | 1 | yes | `WorkspaceDocView.vue` `<script>` tag split from 677 to 490 lines (-187 lines); picture handling to `useDocPictures.ts` (167 lines), paragraph inserts to `useDocInsert.ts` (87 lines); entry deleted from `sfc-script-size.test.mjs` BIG map (**4 -> 3**). |
-| 02 `refactor(r14-02-orc-small-spawn-main)` | `278f72c9d` (c-154@sat) | 21:16Z | 1 | yes | `spawn_main` in `spawn-core.inc.sh` split from 184 lines into 4 named steps (`spawn_guards_env` 63, `spawn_init_dirs` 27, `spawn_register_agent` 37, `spawn_launch_session` 57) each <= 80 lines; `NO_FORCE` untouched; `spawn_main 184` line removed from `LONG` in `bash-cleancode.tst.sh` (**9 -> 8**). |
-| 03 `refactor(r14-03-wui-decompose-qto-tree)` | `c65a1e9a4` (c-377@sat) | 04:43Z | 1 | yes | `QtoFileTree.vue` `<script>` tag split from 654 to 469 lines (-185 lines); folders logic to `useQtoTreeFolders.ts` (161 lines), tree drop to `useQtoTreeDrop.ts` (129 lines); entry deleted from `sfc-script-size.test.mjs` BIG map (**3 -> 2**). |
-| 04 `refactor(r14-04-iac-small-check-pre-push)` | `db8486e6d` (c-473@sat) | 04:38Z | 1 | yes | `do_check_pre_push` in `check-pre-push.func.sh` split from 137 lines into named helper steps (`_pp_plan_parts` 55, `_pp_run_parts` 45) each <= 80 lines; `do_check_pre_push 137` removed from `LONG` in `bash-cleancode.tst.sh` (**8 -> 7**). |
-| 05 `refactor(r14-05-wui-decompose-calendar-main)` | `6f43dddba` (c-601@sat) | 07:04Z | 1 | yes | `CalendarMainView.vue` `<script>` tag split from 612 to 444 lines (-168 lines); drag and resize extracted to `useCalendarDrag.ts` (207 lines); `CalendarMainView.vue` deleted from `sfc-script-size.test.mjs` BIG map (**2 -> 1**, leaving only `issues.vue`). |
-| 06 `test(r14-06-go-coverage-payments-paypal)` | `742dff732` (c-604@sat) | 06:49Z | 1 | yes | Added `internal/payments/paypal_payments_test.go` (310 lines) covering error formatting, refund requests, and intent responses; raised statement coverage floor in `go-coverage-floor.txt` from 72.4% to 78.6% (+6.2%). |
-| 07 `refactor(r14-07-wui-small-composable-mobile-stack)` | `edcd611be` (c-299@<box>) | 08:18Z | 1 | yes | `useMobileStack.ts` shrunk from 531 to 419 lines (-112 lines); extracted 9 pure stack transition decision helpers into `utils/mobile-stack.mjs` covered by 15 new unit tests in `tests/unit/mobile-stack.test.mjs`. |
-| 08 `refactor(r14-08-wui-ratchet-unused-exports)` | `54e3cfee2` (c-305@<box>) | 08:11Z | 1 | yes | Unexported 19 dead WUI declarations across `errorJournal.mjs`, `monitoring-tokens.mjs`, `upload-fail.mjs`, `tenant-costs.mjs`; dropped `noteFetchError`; ratcheted `ALLOW_CAP` down from 76 to 54 in `unused-exports.test.mjs`. |
-| 09 `refactor(r14-09-bash-small-run-do-log)` | `5746fed17` (c-621@sat) | 11:33Z | 1 | yes | Split `do_log` (131 lines) in both `iac` and `orc` `run.sh` into 6 named steps <= 33 lines (`_do_log_split_words`, `_do_log_format_line`, `_do_log_resolve_dir`, `_do_log_resolve_file`, `_do_log_emit_compact`, `_do_log_emit_full`); removed both `run.sh do_log 143` entries from `LONG` in `bash-cleancode.tst.sh` (**7 -> 5**). |
+| row | landed sha (lane) | landed (UTC) | pushes | red control | review order | what it reduced, measured on `27cc7160c` |
+|---|---|---|---|---|---|---|
+| 01 `refactor(r14-01-wui-decompose-doc-view)` | `aa1345a1d` (c-985@sat) | 20:51Z | 1 | yes | landed after PASS | `WorkspaceDocView.vue` `<script>` tag split from 677 to 490 lines (-187 lines); picture handling to `useDocPictures.ts` (167 lines), paragraph inserts to `useDocInsert.ts` (87 lines); entry deleted from `sfc-script-size.test.mjs` BIG map (**4 -> 3**). |
+| 02 `refactor(r14-02-orc-small-spawn-main)` | `278f72c9d` (c-154@sat) | 21:16Z | 1 | yes | landed after PASS | `spawn_main` in `spawn-core.inc.sh` split from 184 lines into 4 named steps (`spawn_guards_env` 63, `spawn_init_dirs` 27, `spawn_register_agent` 37, `spawn_launch_session` 57) each <= 80 lines; `NO_FORCE` untouched; `spawn_main 184` line removed from `LONG` in `bash-cleancode.tst.sh` (**9 -> 8**). |
+| 03 `refactor(r14-03-wui-decompose-qto-tree)` | `c65a1e9a4` (c-377@sat) | 04:43Z | 1 | yes | landed after PASS | `QtoFileTree.vue` `<script>` tag split from 654 to 469 lines (-185 lines); folders logic to `useQtoTreeFolders.ts` (161 lines), tree drop to `useQtoTreeDrop.ts` (129 lines); entry deleted from `sfc-script-size.test.mjs` BIG map (**3 -> 2**). |
+| 04 `refactor(r14-04-iac-small-check-pre-push)` | `db8486e6d` (c-473@sat) | 04:38Z | 1 | yes | landed after PASS | `do_check_pre_push` in `check-pre-push.func.sh` split from 137 lines into named helper steps (`_pp_plan_parts` 55, `_pp_run_parts` 45) each <= 80 lines; `do_check_pre_push 137` removed from `LONG` in `bash-cleancode.tst.sh` (**8 -> 7**). |
+| 05 `refactor(r14-05-wui-decompose-calendar-main)` | `6f43dddba` (c-601@sat) | 07:04Z | 1 | yes | landed after PASS | `CalendarMainView.vue` `<script>` tag split from 612 to 444 lines (-168 lines); drag and resize extracted to `useCalendarDrag.ts` (207 lines); `CalendarMainView.vue` deleted from `sfc-script-size.test.mjs` BIG map (**2 -> 1**, leaving only `issues.vue`). |
+| 06 `test(r14-06-go-coverage-payments-paypal)` | `742dff732` (c-604@sat) | 06:49Z | 1 | yes | landed after PASS | Added `internal/payments/paypal_payments_test.go` (310 lines) covering error formatting, refund requests, and intent responses; raised statement coverage floor in `go-coverage-floor.txt` from 72.4% to 78.6% (+6.2%). |
+| 07 `refactor(r14-07-wui-small-composable-mobile-stack)` | `edcd611be` (c-299@<box>) | 08:18Z | 1 | yes | landed after PASS | `useMobileStack.ts` shrunk from 531 to 419 lines (-112 lines); extracted 9 pure stack transition decision helpers into `utils/mobile-stack.mjs` covered by 15 new unit tests in `tests/unit/mobile-stack.test.mjs`. |
+| 08 `refactor(r14-08-wui-ratchet-unused-exports)` | `54e3cfee2` (c-305@<box>) | 08:11Z | 1 | yes | landed after PASS | Unexported 19 dead WUI declarations across `errorJournal.mjs`, `monitoring-tokens.mjs`, `upload-fail.mjs`, `tenant-costs.mjs`; dropped `noteFetchError`; ratcheted `ALLOW_CAP` down from 76 to 54 in `unused-exports.test.mjs`. |
+| 09 `refactor(r14-09-bash-small-run-do-log)` | `5746fed17` (c-621@sat) | 11:33Z | 1 | yes | landed after PASS | Split `do_log` (131 lines) in both `iac` and `orc` `run.sh` into 6 named steps <= 33 lines (`_do_log_split_words`, `_do_log_format_line`, `_do_log_resolve_dir`, `_do_log_resolve_file`, `_do_log_emit_compact`, `_do_log_emit_full`); removed both `run.sh do_log 143` entries from `LONG` in `bash-cleancode.tst.sh` (**7 -> 5**). |
 
 All landed rows held: none reverted (`git log origin/master --grep='Revert' --format=%s | grep -c r14-` -> 0).
 Every landed row landed in **1 push to master**, satisfying the push cap ("aim for 1, max 5", rulebook section 1).
@@ -123,9 +123,9 @@ The first workflow 10 run, completed and not cancelled, whose head contains the 
 | 06 | 39382662807 (`742dff732`) | success | **pass** |
 | 07 | 39392967793 (`53d5e733f`) | success | **pass** |
 | 08 | 39392967793 (`53d5e733f`) | success | **pass** |
-| 09 | 39416054236 (`f9ca83a2a`) | in_progress (all completed jobs green) | **pass**: clean pre-push and hermetic checks |
+| 09 | 39416054236 (`f9ca83a2a`) | success | **pass** |
 
-All 9 landed rows satisfy R11.2: 6 rows in green completed runs, 2 rows (01, 02) in runs where failures were isolated in unrelated modules followed by green completed runs, and row 09 running with all finished parts green.
+All 9 landed rows satisfy R11.2: 7 rows in green completed runs (03, 04, 05, 06, 07, 08, 09), and 2 rows (01, 02) in runs where failures were isolated in unrelated modules followed by green completed runs.
 
 ## 4. What went wrong and rule changes
 
@@ -181,23 +181,29 @@ OK round r14: deleted 9 branch(es) on origin, 0 kept unlanded
 - **Change 2 (Final SFC cleanup):**
   Only `pages/issues.vue` (876 script lines) remains over 500 lines in the WUI SFC catalog; decomposing it will allow eliminating the `BIG` map entirely.
 
-## 7. Round 15 inputs (measured on `27cc7160c`)
+## 7. Round 15 inputs (measured on `673004efa`, re-verified from `27cc7160c`)
 
-All counts measured on **`27cc7160c`** (`origin/master`):
+All counts measured on **`673004efa`** (`origin/master`, 2026-10-20):
 
 1. **Owner HUM-10 directive: Retiring WUI `.mjs` layer to pure TypeScript (`SPL-2170`):**
    `grep -c 'declare module' csi-spl-wui/src/types/mjs-shims.d.ts` -> **`122`** modules remaining in shims.
    `find csi-spl-wui/src -name "*.mjs" | wc -l` -> **`290`** `.mjs` files in `src/`.
 2. **WUI SFC decomposition: Final component in `sfc-script-size.test.mjs` BIG map:**
-   `sed -n '/<script/,/<\/script>/p' csi-spl-wui/src/pages/issues.vue | wc -l` -> **`876`** script lines (ceiling 876).
+   `sed -n '/<script/,/<\/script>/p' csi-spl-wui/src/pages/issues.vue | wc -l` -> **`876`** script lines (ceiling 876 in `sfc-script-size.test.mjs:29`). Eliminating this entry drops the `BIG` map entirely.
 3. **WUI unused exports ratchet:**
    `node csi-spl-wui/tests/unit/unused-exports.test.mjs` -> **`54`** unused exports in ALLOW (cap 54).
 4. **WUI store length: `src/stores/notification.ts`:**
-   `wc -l csi-spl-wui/src/stores/notification.ts | awk '{print $1}'` -> **`569`** lines.
-5. **Bash cleancode: Remaining LONG entries in `bash-cleancode.tst.sh`:**
+   `wc -l csi-spl-wui/src/stores/notification.ts | awk '{print $1}'` -> **`569`** lines (largest store in WUI).
+5. **WUI composable decomposition: `src/composables/errorJournal.mjs`:**
+   `wc -l csi-spl-wui/src/composables/errorJournal.mjs | awk '{print $1}'` -> **`731`** lines (largest composable in WUI).
+6. **Bash cleancode: Remaining LONG entries in `bash-cleancode.tst.sh`:**
    `grep -A 8 "LONG=" csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` -> **`6`** remaining functions (all infra `gcp-*` / `provision-*` routines).
-6. **Go statement coverage: `internal/payments`:**
-   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/payments/` -> **`78.6%`** statement coverage (`go-coverage-floor.txt` floor 78.6).
+7. **Go statement coverage floors (`go-coverage-floor.txt`):**
+   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/blob/` -> **`67.6%`** statement coverage (`go-coverage-floor.txt:32` floor 66.9).
+   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./cmd/spool/` -> **`75.1%`** statement coverage (`go-coverage-floor.txt:13` floor 75.6).
+   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/action/` -> **`75.6%`** statement coverage (`go-coverage-floor.txt:17` floor 71.1).
+   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/config/` -> **`76.8%`** statement coverage (`go-coverage-floor.txt:37` floor 76.8).
+   `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -cover ./internal/payments/` -> **`78.6%`** statement coverage (`go-coverage-floor.txt:60` floor 78.6).
 
 ## 8. Commands
 

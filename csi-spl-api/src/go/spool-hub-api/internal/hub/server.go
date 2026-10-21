@@ -490,6 +490,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedRelink(mux) // specs/121 T206: the e-mail relink, off unless EmbedEnabled
 	// spec 143 T025: POST /v1/operator/deploys, operator_deploys.go
 	s.routeOperatorDeploys(mux)
+	s.routeReportingReleases(mux) // spec 143 T020/T021: /v1/reporting/releases/{daily,commits}
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

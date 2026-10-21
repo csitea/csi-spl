@@ -108,11 +108,11 @@ func (s *Postgres) SetAskCategory(ctx context.Context, tenant, fleet, askID, wor
 	return err
 }
 
-// categoryTokensSQL is the metered burn of [$1, $2) per category leaf: a
+// categoryBurnSQL is the metered burn of [$1, $2) per category leaf: a
 // placed request of tenant $3 ("placed: <agent>@<box>") claims its lane's
 // minutes from $4 before the placement to $4 before the next placement of
 // the same (agent, box); a minute no span claims is "".
-const categoryTokensSQL = `WITH placed AS (
+const categoryBurnSQL = `WITH placed AS (
 	SELECT a.category_path, m[1] AS agent_id, m[2] AS box_tag, a.updated_at - $4::interval AS span_from
 	FROM fleet_asks a, regexp_match(a.reason, '^placed: ([A-Za-z0-9-]+)@([a-z0-9-]+)$') AS m
 	WHERE a.tenant_id = $3 AND a.state = 'done' AND m IS NOT NULL
@@ -133,7 +133,7 @@ GROUP BY 1 ORDER BY 1`
 func (s *Postgres) CategoryTokens(ctx context.Context, op string, from, to time.Time) ([]CategoryLaneTokens, error) {
 	out := []CategoryLaneTokens{}
 	lead := fmt.Sprintf("%d seconds", int(CategoryPlaceLead/time.Second))
-	err := s.asOperatorQuery(ctx, categoryTokensSQL, []any{from.UTC(), to.UTC(), op, lead}, func(rows pgx.Rows) error {
+	err := s.asOperatorQuery(ctx, categoryBurnSQL, []any{from.UTC(), to.UTC(), op, lead}, func(rows pgx.Rows) error {
 		var l CategoryLaneTokens
 		if err := rows.Scan(&l.Path, &l.Tokens, &l.CacheRead, &l.CostUSD); err != nil {
 			return err

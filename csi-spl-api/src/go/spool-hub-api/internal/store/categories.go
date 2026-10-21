@@ -267,7 +267,7 @@ type categorySpan struct {
 // categorySpans are the placed requests among asks as spans: each from its
 // placement less CategoryPlaceLead to the next placement of the same
 // (agent, box) less the same. path is a request's category. The Memory
-// driver's rule; Postgres says it in categoryTokensSQL.
+// driver's rule; Postgres says it in categoryBurnSQL.
 func categorySpans(asks []FleetAsk, path func(FleetAsk) string) []categorySpan {
 	type placed struct {
 		agent, box, path string

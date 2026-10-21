@@ -3229,6 +3229,14 @@
       "posts": "Posty",
       "lanes": "Linie"
     },
+    "future": {
+      "tokens": "Raport tokenów już wkrótce.",
+      "issues": "Raport zgłoszeń już wkrótce.",
+      "posts": "Raport postów już wkrótce.",
+      "lanes": "Raport linii już wkrótce.",
+      "operators_only": "Ten raport jest tylko dla administratorów operatora.",
+      "tokens_link": "Zużycie tokenów floty znajdziesz w Monitorowaniu"
+    },
     "releases": {
       "soon": "Raport wydań już wkrótce."
     }

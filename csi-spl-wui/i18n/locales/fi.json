@@ -3229,6 +3229,14 @@
       "posts": "Viestit",
       "lanes": "Kaistat"
     },
+    "future": {
+      "tokens": "Tokeniraportti on tulossa pian.",
+      "issues": "Asiaraportti on tulossa pian.",
+      "posts": "Viestiraportti on tulossa pian.",
+      "lanes": "Kaistaraportti on tulossa pian.",
+      "operators_only": "Tämä raportti on vain operaattorin ylläpitäjille.",
+      "tokens_link": "Katso laivaston tokenien käyttö Valvonnasta"
+    },
     "releases": {
       "soon": "Julkaisuraportti on tulossa pian."
     }

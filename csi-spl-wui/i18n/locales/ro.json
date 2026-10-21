@@ -3229,6 +3229,14 @@
       "posts": "Postări",
       "lanes": "Linii"
     },
+    "future": {
+      "tokens": "Raportul tokenilor vine în curând.",
+      "issues": "Raportul problemelor vine în curând.",
+      "posts": "Raportul postărilor vine în curând.",
+      "lanes": "Raportul liniilor vine în curând.",
+      "operators_only": "Acest raport este doar pentru administratorii operatorului.",
+      "tokens_link": "Vezi consumul de tokeni al flotei în Monitorizare"
+    },
     "releases": {
       "soon": "Raportul versiunilor vine în curând."
     }

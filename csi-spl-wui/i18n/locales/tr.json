@@ -3229,6 +3229,14 @@
       "posts": "Gönderiler",
       "lanes": "Hatlar"
     },
+    "future": {
+      "tokens": "Belirteç raporu yakında geliyor.",
+      "issues": "Konu raporu yakında geliyor.",
+      "posts": "Gönderi raporu yakında geliyor.",
+      "lanes": "Hat raporu yakında geliyor.",
+      "operators_only": "Bu rapor yalnızca operatör yöneticileri içindir.",
+      "tokens_link": "Filonun belirteç kullanımını İzleme altında görün"
+    },
     "releases": {
       "soon": "Sürüm raporu yakında geliyor."
     }

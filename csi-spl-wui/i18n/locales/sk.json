@@ -3229,6 +3229,14 @@
       "posts": "Príspevky",
       "lanes": "Linky"
     },
+    "future": {
+      "tokens": "Prehľad tokenov už čoskoro.",
+      "issues": "Prehľad úloh už čoskoro.",
+      "posts": "Prehľad príspevkov už čoskoro.",
+      "lanes": "Prehľad liniek už čoskoro.",
+      "operators_only": "Tento prehľad je len pre administrátorov operátora.",
+      "tokens_link": "Spotrebu tokenov flotily nájdete v Monitorovaní"
+    },
     "releases": {
       "soon": "Prehľad vydaní už čoskoro."
     }

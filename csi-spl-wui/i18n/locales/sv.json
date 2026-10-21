@@ -3229,6 +3229,14 @@
       "posts": "Inlägg",
       "lanes": "Banor"
     },
+    "future": {
+      "tokens": "Tokenrapporten kommer snart.",
+      "issues": "Ärenderapporten kommer snart.",
+      "posts": "Inläggsrapporten kommer snart.",
+      "lanes": "Banrapporten kommer snart.",
+      "operators_only": "Den här rapporten är bara för operatörens administratörer.",
+      "tokens_link": "Se flottans tokenanvändning under Övervakning"
+    },
     "releases": {
       "soon": "Versionsrapporten kommer snart."
     }

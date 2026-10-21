@@ -3229,6 +3229,14 @@
       "posts": "Ieraksti",
       "lanes": "Līnijas"
     },
+    "future": {
+      "tokens": "Tokenu pārskats drīzumā.",
+      "issues": "Problēmu pārskats drīzumā.",
+      "posts": "Ierakstu pārskats drīzumā.",
+      "lanes": "Līniju pārskats drīzumā.",
+      "operators_only": "Šis pārskats ir tikai operatora administratoriem.",
+      "tokens_link": "Flotes tokenu patēriņš ir sadaļā Pārraudzība"
+    },
     "releases": {
       "soon": "Laidienu pārskats drīzumā."
     }

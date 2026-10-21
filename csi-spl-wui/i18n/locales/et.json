@@ -3229,6 +3229,14 @@
       "posts": "Postitused",
       "lanes": "Rajad"
     },
+    "future": {
+      "tokens": "Tokenite aruanne tuleb peagi.",
+      "issues": "Probleemide aruanne tuleb peagi.",
+      "posts": "Postituste aruanne tuleb peagi.",
+      "lanes": "Radade aruanne tuleb peagi.",
+      "operators_only": "See aruanne on ainult operaatori administraatoritele.",
+      "tokens_link": "Vaata laevastiku tokenikulu jaotises Seire"
+    },
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi."
     }

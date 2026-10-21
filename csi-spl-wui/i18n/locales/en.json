@@ -3229,6 +3229,14 @@
       "posts": "Posts",
       "lanes": "Lanes"
     },
+    "future": {
+      "tokens": "The Tokens report is coming soon.",
+      "issues": "The Issues report is coming soon.",
+      "posts": "The Posts report is coming soon.",
+      "lanes": "The Lanes report is coming soon.",
+      "operators_only": "This report is for operator admins only.",
+      "tokens_link": "See the fleet's token use under Monitoring"
+    },
     "releases": {
       "soon": "The Releases report is coming soon."
     }

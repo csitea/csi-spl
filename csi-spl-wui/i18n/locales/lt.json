@@ -3229,6 +3229,14 @@
       "posts": "Įrašai",
       "lanes": "Linijos"
     },
+    "future": {
+      "tokens": "Žetonų ataskaita netrukus.",
+      "issues": "Problemų ataskaita netrukus.",
+      "posts": "Įrašų ataskaita netrukus.",
+      "lanes": "Linijų ataskaita netrukus.",
+      "operators_only": "Ši ataskaita skirta tik operatoriaus administratoriams.",
+      "tokens_link": "Laivyno žetonų naudojimą rasite skiltyje Stebėsena"
+    },
     "releases": {
       "soon": "Leidimų ataskaita netrukus."
     }

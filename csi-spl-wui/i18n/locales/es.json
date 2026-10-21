@@ -3229,6 +3229,14 @@
       "posts": "Publicaciones",
       "lanes": "Líneas"
     },
+    "future": {
+      "tokens": "El informe de tokens llegará pronto.",
+      "issues": "El informe de incidencias llegará pronto.",
+      "posts": "El informe de publicaciones llegará pronto.",
+      "lanes": "El informe de líneas llegará pronto.",
+      "operators_only": "Este informe es solo para administradores del operador.",
+      "tokens_link": "Consulta el uso de tokens de la flota en Monitorización"
+    },
     "releases": {
       "soon": "El informe de versiones llegará pronto."
     }

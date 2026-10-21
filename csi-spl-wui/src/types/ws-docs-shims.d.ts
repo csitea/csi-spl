@@ -19,9 +19,3 @@ declare module '~/utils/ws-docs-mock.mjs' {
     history: { path: string, body: string }[]
   }
 }
-
-declare module '~/utils/ws-doc-download.mjs' {
-  export function wsDocFileName(path: string): string
-  export function wsDocBlob(md: string): Blob
-  export function downloadWsDoc(path: string, md: string): void
-}

@@ -71,7 +71,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { SQL_ROW_CAP, sqlErrorKey, sqlExportName, sqlResultOf, sqlToCsv, sqlToJson, sqlToTsv } from '~/utils/reporting-sql'
 import type { SqlResult } from '~/utils/reporting-sql'
 import { writeClipboard } from '~/utils/clipboard.mjs'
-import { saveBlob } from '~/utils/save-blob.mjs'
+import { saveBlob } from '~/utils/save-blob'
 
 type SqlApi = { reportingSql: (query: string) => Promise<unknown> }
 

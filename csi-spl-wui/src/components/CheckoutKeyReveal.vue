@@ -30,7 +30,7 @@
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { ref } from 'vue'
 import { keyFileName } from '~/utils/checkout-client'
-import { saveBlob } from '~/utils/save-blob.mjs'
+import { saveBlob } from '~/utils/save-blob'
 
 const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string, email?: string }>()
 const { t } = useI18n({ useScope: 'global' })

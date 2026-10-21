@@ -9,12 +9,11 @@
 /** How long the object URL outlives the click: long enough for any browser to start the save. */
 export const OBJECT_URL_REVOKE_MS = 10_000
 
-/**
- * @param {Blob} blob
- * @param {string} name the file name offered
- * @param {{ doc?: Document, url?: typeof URL, later?: (fn: () => void, ms: number) => unknown }} [env] seams for the unit test
- */
-export function saveBlob(blob, name, env = {}) {
+/** Seams for the unit test. */
+type SaveBlobEnv = { doc?: Document, url?: typeof URL, later?: (fn: () => void, ms: number) => unknown }
+
+/** `name` is the file name offered. */
+export function saveBlob(blob: Blob, name: string, env: SaveBlobEnv = {}): void {
   const doc = env.doc ?? document
   const url = env.url ?? URL
   const later = env.later ?? setTimeout

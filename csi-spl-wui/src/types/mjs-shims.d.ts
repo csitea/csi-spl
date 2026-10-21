@@ -713,29 +713,6 @@ declare module '~/utils/swipe-archive.mjs' {
   }
 }
 
-declare module '~/utils/touch-ui.mjs' {
-  export const LONG_PRESS_MS: number
-  export const LONG_PRESS_SLOP_PX: number
-  export const KEYBOARD_MIN_PX: number
-  export const COMPOSER_FOCUS_EVENT: string
-  export function keyboardInset(innerHeight: number, vv: { height?: number, offsetTop?: number } | null | undefined): number
-  export function isTouchPointer(pointerType: string | undefined): boolean
-  export function createLongPress(opts: {
-    onPress: (x: number, y: number) => void
-    delay?: number
-    slop?: number
-    setTimer?: (fn: () => void, ms: number) => unknown
-    clearTimer?: (id: unknown) => void
-  }): {
-    down(ev: { pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }): void
-    move(ev: { clientX: number, clientY: number }): void
-    up(): void
-    cancel(): void
-    takeClick(): boolean
-    readonly pending: boolean
-  }
-}
-
 declare module '~/utils/msg-ai-actions.mjs' {
   export type AiActionMode = 'post' | 'issue' | 'calendar'
   export interface AiActionDef { id: string, icon: import('~/utils/uiIcons').UiIconName, key: string, mode: AiActionMode, name: string, instruction: string }
@@ -2016,11 +1993,6 @@ declare module '~/utils/section-strip.mjs' {
   export function onStripGrid(pos: number, step: number): number
   export function chatKind(path: string): '' | 'channel' | 'dm'
   export function sectionExitPath(last: { channel?: string, dm?: string, chat?: string }, tab?: string): string
-}
-
-declare module '~/utils/save-blob.mjs' {
-  export const OBJECT_URL_REVOKE_MS: number
-  export function saveBlob(blob: Blob, name: string, env?: { doc?: Document, url?: typeof URL, later?: (fn: () => void, ms: number) => unknown }): void
 }
 
 declare module '~/utils/id-links.mjs' {

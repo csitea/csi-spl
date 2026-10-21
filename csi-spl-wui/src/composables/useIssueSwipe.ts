@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import type { Issue } from '~/utils/issues.mjs'
-import { createLongPress } from '~/utils/touch-ui.mjs'
+import { createLongPress } from '~/utils/touch-ui'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import type { useMobileStack } from '~/composables/useMobileStack'
 import { issueTarget } from '~/composables/useIssueActConfirm'

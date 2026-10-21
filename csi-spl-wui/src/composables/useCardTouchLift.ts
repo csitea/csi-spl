@@ -12,7 +12,7 @@
  * (MessageCard, split out in r13-01.)
  */
 import { computed, onBeforeUnmount, watch, type Ref } from 'vue'
-import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '~/utils/touch-ui.mjs'
+import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '~/utils/touch-ui'
 import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { buzz } from '~/composables/useCardSwipe'

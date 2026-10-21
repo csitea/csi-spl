@@ -1,11 +1,12 @@
 // SPL-1873 (owner HUM-10, t1 1a9a14b6 msg 32d5ea87): the Qto file tree's
-// re-order gesture and drop places (src/utils/tree-drag.mjs), without a
+// re-order gesture and drop places (src/utils/tree-drag.ts), without a
 // browser: fake timers.
 // Run: node tests/unit/tree-drag.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { TREE_DRAG_START_PX, createTreeDrag, dropWhere, siblingAt } from '../../src/utils/tree-drag.mjs'
-import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '../../src/utils/touch-ui.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { TREE_DRAG_START_PX, createTreeDrag, dropWhere, siblingAt } = await importTs('src/utils/tree-drag.ts')
+const { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } = await importTs('src/utils/touch-ui.ts')
 
 function rig() {
   const calls = []

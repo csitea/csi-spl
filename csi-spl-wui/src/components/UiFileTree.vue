@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
 import type { UiIconName } from '~/utils/uiIcons'
-import { createTreeDrag, dropWhere, siblingAt } from '~/utils/tree-drag.mjs'
+import { createTreeDrag, dropWhere, siblingAt } from '~/utils/tree-drag'
 
 export type FileTreeRow = {
   key: string
@@ -137,7 +137,7 @@ function onContext(i: number, e: MouseEvent) {
 }
 
 /* a phone has no right-click: a held touch opens the row's menu (touch-ui's
-   timing); a drag row then lifts when the finger moves (tree-drag.mjs) */
+   timing); a drag row then lifts when the finger moves (tree-drag.ts) */
 let pressAt = -1
 let pressPointer = -1
 const dragKey = ref('')

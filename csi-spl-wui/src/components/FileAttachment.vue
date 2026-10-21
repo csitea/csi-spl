@@ -49,7 +49,7 @@ import { sha256Hex } from '~/utils/spool-client.mjs'
 import { fileKind, isPreviewableImage, previewImageMime, sharedPreview } from '~/utils/file-preview'
 import { bytesToDataUri } from '~/utils/avatar'
 import type { FileRef } from '~/types/spool'
-import { saveBlob } from '~/utils/save-blob.mjs'
+import { saveBlob } from '~/utils/save-blob'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { useSessionStore } from '~/stores/session'
 

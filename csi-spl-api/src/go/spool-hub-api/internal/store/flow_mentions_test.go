@@ -76,7 +76,7 @@ var wuiUtils = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-wui", 
 func TestMentionGrammarPinnedToWUI(t *testing.T) {
 	pins := map[string][]string{
 		"agent-id.mjs": {
-			"export const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'",
+			"const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'",
 			"export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`",
 			"export const BOX_ID_SRC = '[a-z0-9][a-z0-9-]{0,31}'",
 		},
@@ -90,13 +90,15 @@ func TestMentionGrammarPinnedToWUI(t *testing.T) {
 	}
 	// AGENT_ID_SRC: [acgmq] (spec 110) is the target; [acgq] is accepted
 	// until T010 moves the WUI, so neither lane turns the other red. Go is
-	// then a superset: an @m-004 the WUI does not yet see.
+	// then a superset: an @m-004 the WUI does not yet see. The two *_SRC
+	// pins match with or without export: the grammar is pinned, not its
+	// visibility (SPL-2759 made both module-private).
 	b, err := os.ReadFile(filepath.Join(wuiUtils, "agent-id.mjs"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "export const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'") &&
-		!strings.Contains(string(b), "export const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'") {
+	if !strings.Contains(string(b), "const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'") &&
+		!strings.Contains(string(b), "const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'") {
 		t.Errorf("agent-id.mjs AGENT_ID_SRC is neither [acgmq] nor [acgq]: port the change to flow_mentions.go, then update this pin")
 	}
 	for file, lines := range pins {

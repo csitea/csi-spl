@@ -35,7 +35,11 @@ internal/billing 80.8
 internal/blob 71.9
 internal/calquick 97.6
 internal/calrecur 98.8
-internal/cicdlogs 81.6
+# internal/cicdlogs: 89.0 with r16-02's github_test.go (scrub 0 -> 100%, the
+# FetchLogs error paths, hasRealToken, runIDOK, writeVersion/now), 81.5
+# without on 593f2e41d; go test -count=1 -cover ./internal/cicdlogs/,
+# go1.26.10, n=3 read 89.0 each.
+internal/cicdlogs 89.0
 internal/cloud 95.8
 # internal/config: 89.7 with r15-10's config_test.go table tests (getters,
 # env overrides, dir resolvers), 78.1 without on a60bb00c8; go test -count=1

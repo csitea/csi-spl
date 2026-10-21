@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importTs } from './lib/load-ts.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 const {
   RAIL_TABS,
   RAIL_IDS,
@@ -261,7 +262,7 @@ describe('wiring', () => {
     assert.equal(tabForPath('/fi/calendar'), 'calendar')
     assert.equal(routeForTab('calendar'), '/calendar')
     assert.equal(isSectionPage('/calendar'), true)
-    const src = read('src/components/ChannelSidebar.vue')
+    const src = channelSidebarSrc()
     assert.match(src, /next === CALENDAR_TAB && tabForPath\(route\.path\) !== CALENDAR_TAB\) await navigateTo\(localePath\('\/calendar'\)\)/)
     assert.match(src, /const calendarRailOnly = computed\(\(\) => tab\.value === CALENDAR_TAB\)/)
     assert.match(src, /'sidebar--rail': issuesRailOnly \|\| calendarRailOnly/)

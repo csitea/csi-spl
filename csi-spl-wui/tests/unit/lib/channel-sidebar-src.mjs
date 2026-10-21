@@ -21,6 +21,8 @@ export const CHANNEL_SIDEBAR_FILES = [
   'src/composables/useSidebarRowDrag.ts',
   'src/composables/useSidebarRowKeys.ts',
   'src/composables/useSidebarVersion.ts',
+  'src/composables/useSidebarRailTabKeys.ts',
+  'src/composables/useSidebarRailOnly.ts',
 ]
 
 /** ChannelSidebar.vue, then every composable it was split into, one string. */

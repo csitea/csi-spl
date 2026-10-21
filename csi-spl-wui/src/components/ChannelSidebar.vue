@@ -689,6 +689,8 @@ import { useSidebarChannelAdmin } from '~/composables/useSidebarChannelAdmin'
 import { useSidebarChannelCreate } from '~/composables/useSidebarChannelCreate'
 import { useSidebarRowDrag } from '~/composables/useSidebarRowDrag'
 import { useSidebarRowKeys } from '~/composables/useSidebarRowKeys'
+import { useSidebarRailOnly } from '~/composables/useSidebarRailOnly'
+import { useSidebarRailTabKeys } from '~/composables/useSidebarRailTabKeys'
 import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -789,48 +791,6 @@ setLinkOpenHook((path: string) => {
   if (next) tab.value = next
 })
 onBeforeUnmount(() => setLinkOpenHook(null))
-/* spec 103 T006 (t1 7d9e1681): the vim ring (vim-nav.css) on the row the
-   keys moved to, the one ring on screen (useVimNavigation marks it alike) */
-function vimRing(el: HTMLElement) {
-  for (const old of document.querySelectorAll<HTMLElement>('[data-vim-selected]')) if (old !== el) old.removeAttribute('data-vim-selected')
-  el.setAttribute('data-vim-selected', 'true')
-  el.focus({ preventScroll: true })
-}
-/* spec 103 T006: Enter on a rail tab (j / k walk the tabs without opening
-   them) opens that section and puts the focus in its list, Panel 1: the open
-   channel or DM, else the first row. A section with no list here (Issues,
-   Calendar, ...) keeps what its page does with the focus. */
-async function enterRailTab(id: SideTab) {
-  await railClick(id)
-  await nextTick()
-  const panel = document.getElementById('sidebar-panel-' + id)
-  if (!panel || panel.getClientRects().length === 0) return
-  const rows = [...panel.querySelectorAll<HTMLElement>('.nav-item')].filter((el) => el.getClientRects().length > 0)
-  const to = rows.find((el) => el.matches('.active, [aria-current="page"]')) || rows.find((el) => el.matches('a[href]')) || rows[0]
-  if (to) vimRing(to)
-}
-function onTabKey(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !phone.value && session.claims?.keyboard_shortcuts !== false) {
-    const id = (e.currentTarget as HTMLElement | null)?.dataset.reorderId as SideTab | undefined
-    if (!id) return
-    e.preventDefault()
-    void enterRailTab(id)
-    return
-  }
-  const order = rail.value.map((item) => item.id)
-  const i = order.indexOf(tab.value)
-  let n = -1
-  if (e.key === 'ArrowDown') n = (i + 1) % order.length
-  else if (e.key === 'ArrowUp') n = (i - 1 + order.length) % order.length
-  else if (e.key === 'Home') n = 0
-  else if (e.key === 'End') n = order.length - 1
-  else return
-  e.preventDefault()
-  const next = order[n]
-  void selectTab(next)
-  document.getElementById('sidebar-tab-' + next)?.focus()
-}
-
 const channel = useChannelStore()
 const roster = useRosterStore()
 const session = useSessionStore()
@@ -859,28 +819,8 @@ const selfStatus = computed(() => {
 /* SPL-976: the description's submit key creates the channel, as the button does */
 const { onKeydown: onSubmitKey } = useSubmitKey()
 const localePath = useLocalePath()
-/* No "All issues" row. With no epic rows the panel is empty, so the
-   sidebar keeps the icon rail and the issue list takes the width. */
-const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
-const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
-/* spec 089 T007: /calendar is a single sheet like Issues - the sidebar keeps
-   the icon rail only; the page holds the year strip and the main view. */
-const calendarRailOnly = computed(() => tab.value === CALENDAR_TAB)
-/* SPL-1991: so is /monitoring - its own tab bar is the page's, not a list here */
-const monitoringRailOnly = computed(() => tab.value === MONITORING_TAB)
-/* spec 143 1.3 (SPL-2351): and /reporting, its tab bar the page's too */
-const reportingRailOnly = computed(() => tab.value === REPORTING_TAB)
-/* t1 67f91532 (owner: "the help section should have only 2 panes"): on
-   /help the sidebar keeps the icon rail only; the help page itself is the
-   two panes, its page list left and the document right. A phone keeps its
-   one-pane stack (the section strip above the page). */
-const helpRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'help')
-/* t1 c13e8023 (owner): on /docs the sidebar keeps the icon rail only; the
-   docs page is the two panes, the explorer left and the document right.
-   A phone keeps its one-pane stack. */
-const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'docs')
-/* any of the above: the sidebar is the icon rail alone (.sidebar--rail) */
-const railOnly = computed(() => issuesRailOnly.value || calendarRailOnly.value || monitoringRailOnly.value || reportingRailOnly.value || helpRailOnly.value || docsRailOnly.value)
+/* the pages that keep the icon rail alone, .sidebar--rail (useSidebarRailOnly) */
+const { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, helpRailOnly, docsRailOnly, railOnly } = useSidebarRailOnly(tab, mobileStack.isMobile, route)
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
@@ -899,6 +839,8 @@ watch(() => [session.state, access.me?.role ?? null] as const, async ([st]) => {
 const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
+/* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */
+const { onTabKey } = useSidebarRailTabKeys({ phone, tab, rail, railClick, selectTab })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 /* spec 109 FR-012: Settings -> Behaviour -> "Show labels" (RailOrderSetting),
    default off, kept in this browser: <html class="rail-labels"> names the

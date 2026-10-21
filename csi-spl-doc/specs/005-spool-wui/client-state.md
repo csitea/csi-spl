@@ -132,3 +132,24 @@ Pinned by `csi-spl-wui/tests/e2e/offline-read.test.mjs` (red on master
 `f54dded26`: the page is blank after the offline reload). Not covered by an
 e2e: the live hub path (CI e2e is the mock bundle) and a lazy page chunk
 never loaded online, which still fails offline.
+
+## 5. A tab open across a deploy (SPL-2770)
+
+A deploy removes the previous build's `/_nuxt/` files. A tab still on that
+build then asks for a chunk that is gone. Measured on prd 2026-10-21 (n=1):
+`curl -s -o /dev/null -w '%{http_code} %{content_type}' https://spool-hub.ai/_nuxt/doesnotexist123.js`
+-> `200 text/html`: the `**` SPA rewrite answered with the app shell, so the
+import failed as a MIME error and the tab went white (owner, twice,
+2026-10-20).
+
+The hosting config (`csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`,
+snapshot `csi-spl-wui/firebase.json`) now rewrites `/_nuxt/**`, ahead of `**`,
+to a sentinel path the build never writes, so a missing file answers 404.
+Hosting serves an existing file before any rewrite, so the current build is
+untouched. This replaces the narrower `/_nuxt/builds/**` rule (CLE-77803).
+With the 404, Vite's preload fails and `src/plugins/chunk-reload.client.ts`
+reloads the tab once into the live build (`vite:preloadError`,
+`app:chunkError`, or the browser's "Failed to fetch dynamically imported
+module"). The local `serve-generated.mjs` answers the same 404. Unit test
+`csi-spl-wui/tests/unit/firebase-builds-manifest.test.mjs` (red on master
+`4e673f24c`: a missing chunk got 200 `/200.html`).

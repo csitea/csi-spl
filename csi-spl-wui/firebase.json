@@ -93,7 +93,7 @@
         }
       },
       {
-        "source": "/_nuxt/builds/**",
+        "source": "/_nuxt/**",
         "destination": "/__stale-nuxt-build-404__"
       },
       {

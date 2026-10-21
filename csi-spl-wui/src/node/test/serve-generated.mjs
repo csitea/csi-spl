@@ -8,7 +8,9 @@
 //   1. SPA FALLBACK. render-wui-firebase-json.sh rewrites `**` to /200.html
 //      after the /api/v1/auth/** run rewrite, so every route without its own
 //      document (channels, DMs, /t/<id>, unknown URLs) boots the SPA shell and
-//      Nuxt's error page renders a client-side 404.
+//      Nuxt's error page renders a client-side 404. A missing /_nuxt/ file is
+//      the exception: a /_nuxt/** rewrite to a missing sentinel answers 404
+//      first (SPL-2770), so an old tab's lost chunk is a 404, not the shell.
 //   2. DIRECTORY INDEXES. `nuxt generate` writes `<route>/index.html`.
 //   3. A SAME-ORIGIN /api/** and /v1/**. `--api <origin>` proxies them to a
 //      hub (lde: the auth-demo or the spool hub), the way the Hosting rewrite
@@ -49,8 +51,9 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 }
 
-/** render-wui-firebase-json.sh ends with `"source": "**" -> /200.html`. */
-const SPA_FALLBACK = [/^\//]
+/** render-wui-firebase-json.sh ends with `"source": "**" -> /200.html`;
+ *  `/_nuxt/**` goes to a missing sentinel (404) before it. */
+const SPA_FALLBACK = [/^\/(?!_nuxt\/)/]
 
 async function readIfFile(p) {
   try {

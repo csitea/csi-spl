@@ -313,7 +313,11 @@ doc = {
       # destination file does not exist answers 404 — the clean signal Nuxt reads
       # as "build outdated" so the tab reloads into the live build. The current
       # build's files still serve at the static layer, before any rewrite.
-      {"source": "/_nuxt/builds/**", "destination": "/__stale-nuxt-build-404__"},
+      # SPL-2770: the same holds for every /_nuxt/ file, not only the
+      # manifest. An old tab's missing /_nuxt/<hash>.js got the 200 index HTML,
+      # so its import failed as a MIME error instead of a 404 and the tab went
+      # white (owner saw it twice, 2026-10-20). So the whole of /_nuxt/ 404s.
+      {"source": "/_nuxt/**", "destination": "/__stale-nuxt-build-404__"},
       {"source": "**", "destination": "/200.html"},
     ],
   }

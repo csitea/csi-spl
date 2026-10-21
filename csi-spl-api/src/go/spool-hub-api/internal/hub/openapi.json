@@ -8550,6 +8550,35 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/deploys": {
+      "post": {
+        "operationId": "postOperatorDeploy",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {deploy, stored}: the estate_deploys row (source ci); stored=false when the same workflow run already reported it (spec 143 T025)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Record one hub or WUI deploy of this hub's env (the deploy workflow's report)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-load": {
       "get": {
         "operationId": "getOperatorFleetLoad",

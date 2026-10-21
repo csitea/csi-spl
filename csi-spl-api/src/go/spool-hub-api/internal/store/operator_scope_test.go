@@ -83,6 +83,11 @@ var operatorCallers = map[string]string{
 	"PutFXRates":    "POST /v1/operator/fx/rates (SPL-2108): hub-wide exchange rates (rdb 0200, no tenant column); only the operator service account (operatorAuth) reaches it; answers a count",
 	"FXCurrencies":  "the second-currency setting's check and GET /v1/tenant/fx/currencies (SPL-2108): the quotes of the hub-wide rates (rdb 0200, no tenant column); reads no tenant's row",
 
+	// spec 143 T025 + T027 (SPL-2788): the deploy record, rdb 0202 estate_deploys (no tenant column).
+	"PutEstateDeploy":    "POST /v1/operator/deploys (spec 143 2.3.2): an estate deploy row (no tenant column); only the operator service account (operatorAuth) reaches it",
+	"LatestEstateDeploy": "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): the newest estate deploy row of (env, component), no tenant column; no route",
+	"FillEstateDeploy":   "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): writes the estate deploy row the workflow missed, no tenant column; no route",
+
 	// spec 121 T102: the visitor's request names no workspace until one row is read.
 	"EmbedCustomer":       "/v1/embed/<embed-id>/*, /embed/v1/chat?e= (spec 121 4.1, 5): the embed id in the URL, unique hub-wide, names its workspace; that one embed row",
 	"EmbedVisitorByToken": "visitor bearer (spec 121 4.1): embed id + the 256-bit token's sha256; that one live visitor row, whose channel scopes the rest of the request",

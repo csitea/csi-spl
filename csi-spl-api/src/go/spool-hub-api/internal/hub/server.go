@@ -120,7 +120,7 @@ type Options struct {
 	// Revision names the process a browser socket is on (bug B, 4ecb4b0d):
 	// Cloud Run's $K_REVISION, else a per-process id. See revision.go.
 	Revision string
-	Env      string // lde | dev | prd; shown by GET / only
+	Env      string // lde | dev | prd; GET / shows it, the deploy record keeps it
 	Now      func() time.Time
 	// Quota: 0 = unlimited. Enforced on send / pin / PUT file (006 T012).
 	QuotaMessagesPerMonth int
@@ -486,6 +486,8 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, embedassets.FS)
 	s.routeEmbedStaff(mux)  // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled
 	s.routeEmbedRelink(mux) // specs/121 T206: the e-mail relink, off unless EmbedEnabled
+	// spec 143 T025: POST /v1/operator/deploys, operator_deploys.go
+	s.routeOperatorDeploys(mux)
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

@@ -140,7 +140,8 @@ func cmdServe() int {
 	go hub.Supervise(ctx, log, "relay", func(ctx context.Context) { srv.RunRelay(ctx, hc.QueueRelay) }) // SPL-1004
 	go hub.Supervise(ctx, log, "wake", srv.RunWake)                                                     // spec 059 S1 + S3
 	go hub.Supervise(ctx, log, "blocker-issues", func(ctx context.Context) { srv.RunBlockerIssues(ctx, BlockerInterval) })
-	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare) // spec 090 T015, SPL-1634
+	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare)   // spec 090 T015, SPL-1634
+	go hub.Supervise(ctx, log, "deploy-reconcile", srv.RunDeployReconcile) // spec 143 T027, SPL-2788
 	return serveUntilDone(ctx, hc, log, srv)
 }
 

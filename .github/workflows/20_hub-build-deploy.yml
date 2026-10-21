@@ -717,6 +717,22 @@ jobs:
             *) echo "::error::cannot read the $ENV service state (rc $rc)"; exit 1 ;;
           esac
 
+      # spec 143 T026 (SPL-2788, owner poll 3 = C, msg a8bfcdd0): report this
+      # deploy to THIS env's hub, POST /v1/operator/deploys -> an rdb 0202
+      # estate_deploys row (source ci). As the project SA the auth step above
+      # activated from the repo secret GCP_KEY_CSI_SPL_<ENV>; no key in this
+      # file. A roll (rolled=true) reports success, or failed when the roll
+      # or its verify failed; "nothing to roll" is no deploy. Never fails the
+      # deploy (continue-on-error): the hub's 2-minute reconcile check fills
+      # in a deploy this step missed.
+      - name: Record the deploy (do_spl_deploy_record)
+        if: ${{ !cancelled() && steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && (steps.deploy.outputs.rolled == 'true' || steps.deploy.outcome == 'failure') }}
+        continue-on-error: true
+        env:
+          DEPLOY_VERSION: ${{ steps.ver.outputs.version }}
+          DEPLOY_STATUS: ${{ job.status == 'success' && 'success' || 'failed' }}
+        run: DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" DEPLOY_COMPONENT=hub ./csi-spl-orc/run -a do_spl_deploy_record
+
       # spec 065 L5: fill the release notes the version pop-up's "Release
       # notes" modal and the /releases/<sha> links read. The newest 500 trunk
       # commits, each with the first v-tag that contains it, upserted by sha

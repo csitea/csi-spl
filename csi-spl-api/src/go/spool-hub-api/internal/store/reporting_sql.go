@@ -411,13 +411,13 @@ func reportingSQLTypes(ctx context.Context, tx pgx.Tx, cols []ReportingSQLColumn
 		return nil
 	}
 	names := map[uint32]string{}
-	err := eachRow(ctx, tx, `SELECT oid::int8, format_type(oid, NULL) FROM pg_type WHERE oid = ANY($1::oid[])`, []any{oids}, func(r pgx.Rows) error {
-		var oid int64
+	err := eachRow(ctx, tx, `SELECT oid, format_type(oid, NULL) FROM pg_type WHERE oid = ANY($1::oid[])`, []any{oids}, func(r pgx.Rows) error {
+		var oid uint32
 		var name string
 		if err := r.Scan(&oid, &name); err != nil {
 			return err
 		}
-		names[uint32(oid)] = name
+		names[oid] = name
 		return nil
 	})
 	for i := range cols {

@@ -74,6 +74,12 @@
 #      verdict) = claude; no claude CLI, a claude lease holder silent past
 #      LEASE_STALE = grok; controls: a fresh or remote lease, a limit older
 #      than ROTATE_CLAUDE_LIMIT_FRESH, ROTATE_GROK_STANDBY=0 = claude
+#  21. SPL-2774, ROTATE_CMD=standby: a standby box (orch lease on another
+#      machine) whose g-001 (grok) is on its limit and ROTATE_ROLE_VENDOR=claude:
+#      red control = the auto run skips it; dry run plans g-001 -> c-001; DRY_RUN=0
+#      re-seats it (seat switch, ack, old retired, lease.conf), the fleet lease
+#      untouched; same vendor and able = no-op; able + no ROTATE_ROLE_VENDOR =
+#      kept; the holder's box or no fleet lease = refused, exit 3
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -956,6 +962,64 @@ act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" 
 [[ $rc -eq 0 && ! -e "$T/setsid.log" && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q 'keys %2 Escape' "$T/tmux/log" &&
   pass "19. CONTROL: a run outside the pane rotates to DONE, no re-run" || fail "19. control rc=$rc $(cat "$T/o")"
 
+
+# --- 21. SPL-2774: ROTATE_CMD=standby re-seats a standby box's orch seat on the successor's vendor --
+# 2026-10-21: orch lease c-001 on another box, the standby box's rotate.conf
+# ROTATE_ROLE_VENDOR=claude, its seat still g-001 (grok) on its weekly limit;
+# the auto run: GATE SKIP standby.
+export OLD_ID=g-001 DESK_STATE_ROOT="$T/desk"
+sb_world() {  # the standby box: g-001 (grok, pid 1001) the real seat dir, c-001 none
+  rm -rf "$S"/[acgmq]-001 "$T/desk/prd/desk/t1/box-desk/spool/"[acgmq]-001 "$D/wd"
+  mkdir -p "$S/g-001/inbox" "$S/g-001/outbox" "$S/g-001/archive" "$T/desk/prd/desk/t1/box-desk/spool/g-001/inbox"
+  printf 'LEASE_ORCH=g-001\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+  world; rm -rf "$T/proc/1001"; "$T/bin/proc" 1001 7200 g-001 grok
+  printf '  You hit your weekly limit.\n  ❯ Buy more credits\n    Try Again\n' >"$T/tmux/screen.%2"
+  echo "c-001@box-b $(date +%s)" >"$D/lease.orch"
+  wds2 g-001 ctx.2 60 "$LIM"
+}
+SBV=(LEASE_FLEET=main ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli")
+sb_world
+act DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' GATE SKIP standby (orch lease: c-001@box-b)' "$T/o" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
+  pass "21. RED CONTROL (today's path): the auto rotation skips the standby box, g-001 (grok, on its limit) stays" || fail "21. control rc=$rc $(cat "$T/o")"
+act ROTATE_CMD=standby "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$S/g-001" && ! -L "$S/g-001" && ! -e "$S/c-001" ]] && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
+  grep -q ' STANDBY PLAN g-001 (grok, pid 1001) -> claude; the fleet orch lease stays c-001@box-b' "$T/o" &&
+  grep -q ' SWITCH PLAN g-001 -> c-001: the claude successor takes its vendor' "$T/o" &&
+  grep -q " SPAWN PLAN .* $T/bin/spawn claude g-001 .*vendor: standby (orch lease: c-001@box-b), g-001 runs grok and cannot act (g-001 S2 kind=limit 1m ago: pane: You hit your weekly limit); successor ROTATE_ROLE_VENDOR=claude: claude" "$T/o" &&
+  pass "21. dry run (the default): plans g-001 -> c-001 on claude, moves nothing" || fail "21. dry rc=$rc $(grep -E 'PLAN|SKIP|REFUSED' "$T/o")"
+act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -q '^spawn claude c-001 ' "$T/spawn.log" &&
+  grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 ]] &&
+  grep -q ' DONE OK c-001@box-desk is pid 2001' "$T/o" &&
+  pass "21. standby + vendor mismatch: fresh claude c-001 in the seat, acked, g-001 retired, lease.conf LEASE_ORCH=c-001" || fail "21. reseat rc=$rc $(grep -E 'STANDBY|SWITCH|SPAWN|ACK|FAIL|DONE' "$T/o"; ls -l "$S")"
+[[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-001@box-b ]] && grep -q ' CLOSE OK ' "$T/o" && ! grep -q 'lease-moved' "$T/o" && [[ -f "$S/c-001/inbox/m1.json" ]] &&
+  pass "21. ... the fleet orch lease untouched (c-001@box-b), CLOSE OK, the inbox kept" || fail "21. lease: $(cat "$D/lease.orch"; grep CLOSE "$T/o")"
+# a claude seat that can act, the successor claude: no-op
+export OLD_ID=c-001; world; echo "c-001@box-b $(date +%s)" >"$D/lease.orch"; rm -rf "$D/wd"
+act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/1001" ]] && grep -q ' STANDBY SKIP c-001 runs claude, the successor would be claude too (ROTATE_ROLE_VENDOR=claude: claude): nothing to re-seat' "$T/o" &&
+  pass "21. standby + same vendor and able: no-op" || fail "21. noop rc=$rc $(cat "$T/o")"
+# an able grok seat and no ROTATE_ROLE_VENDOR: the split default alone never churns it
+export OLD_ID=g-001; sb_world; rm -rf "$D/wd"
+act ROTATE_CMD=standby DRY_RUN=0 LEASE_FLEET=main ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' STANDBY SKIP g-001 (grok) can act and ROTATE_ROLE_VENDOR is unset' "$T/o" &&
+  pass "21. an able grok seat, ROTATE_ROLE_VENDOR unset: kept" || fail "21. unset rc=$rc $(cat "$T/o")"
+# the lease holder's box, or no fleet lease: refused, exit 3
+sb_world; echo "g-001@box-desk $(date +%s)" >"$D/lease.orch"
+act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 && ! -e "$T/spawn.log" ]] && grep -q ' STANDBY REFUSED this machine holds the orch lease (g-001@box-desk): the auto rotation (ROTATE_CMD=auto) owns its seat' "$T/o" &&
+  pass "21. the lease holder's box: refused (exit 3)" || fail "21. holder rc=$rc $(cat "$T/o")"
+echo "c-001@box-b $(( $(date +%s) - 600 ))" >"$D/lease.orch"
+act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' STANDBY SKIP no fresh orch lease holder' "$T/o" &&
+  pass "21. a stale orch lease (moving): skipped, exit 0" || fail "21. stale rc=$rc $(cat "$T/o")"
+act ROTATE_CMD=standby DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 && ! -e "$T/spawn.log" ]] && grep -q ' STANDBY REFUSED no LEASE_FLEET' "$T/o" &&
+  pass "21. no fleet lease: refused (exit 3)" || fail "21. nofleet rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "21. no stray failing command under the ERR trap" || fail "21. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+export OLD_ID=c-900; unset DESK_STATE_ROOT; rm -f "$D/lease.orch"
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }
 echo "orch-rotate: $fails failure(s)"; exit 1

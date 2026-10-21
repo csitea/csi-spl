@@ -27,9 +27,22 @@
 # @description   ack     - run BY the new session: ROTATE_ID=<rid> from its seed
 # @description   abort   - run the current phase's failure path (FR-091)
 # @description   handoff - print the handoff a rotation would write now
+# @description   standby - SPL-2774: on a STANDBY box (another machine holds
+# @description             the orch fleet lease) whose ONE live orch seat
+# @description             runs another vendor than the successor rule
+# @description             names (ROTATE_ROLE_VENDOR first), or cannot act
+# @description             (its vendor's watchdog S2 limit verdict:
+# @description             spl_rotate_grok_out / spl_rotate_claude_out),
+# @description             the same QUIESCE .. CLOSE re-seats it on that
+# @description             vendor (g-001 -> c-001: seat switch, handoff, ack,
+# @description             old session retired, lease.conf LEASE_ORCH after
+# @description             the ack). No age, boot or stall gate (a seat on
+# @description             its limit menu is the case). The fleet lease is
+# @description             never taken or moved; on the holder's box it is
+# @description             refused (exit 3): the auto rotation owns that seat
 # @description One line per step in <spool root>/dispatch/rotate.log. Dry run
 # @description unless DRY_RUN=0: PLAN lines, nothing touched (FR-005).
-# @param ROTATE_CMD (optional) - auto (default) | ack | abort | handoff
+# @param ROTATE_CMD (optional) - auto (default) | ack | abort | handoff | standby
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param ROTATE_ID (ack) - the rotation id named in the new session's seed
 # @param ROTATE / ROTATE_ORCH (optional) - 0 turns rotation off (also <spool root>/dispatch/rotate.conf, FR-090)
@@ -51,6 +64,7 @@
 # @example DRY_RUN=0 ./run -a do_spl_orch_rotate
 # @example ROTATE_CMD=ack ROTATE_ID=20261002T0505Z-orch ./run -a do_spl_orch_rotate
 # @example ROTATE_CMD=abort DRY_RUN=0 ./run -a do_spl_orch_rotate
+# @example ROTATE_CMD=standby ./run -a do_spl_orch_rotate
 #------------------------------------------------------------------------------
 # the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
 declare -F spl_lease_conf_write >/dev/null ||
@@ -69,7 +83,8 @@ do_spl_orch_rotate() {
     ack)     spl_rotate_ack_send orch "$LEASE_ORCH" ;;
     abort)   spl_orch_rotate_abort ;;
     handoff) ROTATE_QUIESCE="not run (preview)" spl_rotate_handoff orch "$LEASE_ORCH" preview - ;;
-    *) do_log "FATAL ROTATE_CMD must be auto, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
+    standby) spl_orch_rotate_standby ;;
+    *) do_log "FATAL ROTATE_CMD must be auto, ack, abort, handoff or standby, got: '${ROTATE_CMD:-}'"; return 1 ;;
   esac
 }
 
@@ -118,10 +133,18 @@ spl_orch_rotate_auto() {
     return 0
   fi
 
+  spl_orch_rotate_go "$rid" "$id" "$pid" "$age" "$pane" "$new"
+}
+
+# spl_orch_rotate_go RID ID PID AGE PANE NEW: past the gates (auto or
+# standby): the dry run's PLAN lines, else QUIESCE .. CLOSE. The successor's
+# vendor: spl_orch_rotate_vendor, or the standby's own pick (ROTATE_STANDBY).
+spl_orch_rotate_go() {
+  local rid="$1" id="$2" pid="$3" age="$4" pane="$5" new="$6"
   ROTATE_RID="$rid" ROTATE_OLD_PID="$pid" ROTATE_OLD_PANE="$pane" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE=""
   ROTATE_OLD_NAME="$(spl_rotate_tmux display-message -p -t "$pane" '#{window_name}' 2>/dev/null || true)"
   ROTATE_HANDOFF="$ROTATE_HANDOFF_DIR/$rid-$id.md"
-  spl_orch_rotate_vendor
+  [[ -n "${ROTATE_STANDBY:-}" ]] || spl_orch_rotate_vendor
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_rotate_log "$rid" GATE PLAN "pass: $id pid $pid, ${age}s old, pane $pane '$ROTATE_OLD_NAME'"
     spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
@@ -163,6 +186,87 @@ spl_orch_rotate_standby_gate() {
   else
     spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 1
   fi
+}
+
+# ---- ROTATE_CMD=standby (SPL-2774) --------------------------------------------
+# 2026-10-21: the owner moved the orch lease to c-001 on another box (claude)
+# and the standby box's rotate.conf to ROTATE_ROLE_VENDOR=claude, but its seat stayed
+# g-001 (grok) on its weekly limit menu: the hourly rotation skips a standby
+# box (spl_orch_rotate_standby_gate) and the restore never changes a seat's
+# CLI. So a failover to sat would land on a dead seat. This path re-seats the
+# standby seat on the successor's vendor; the dispatch pair has its own
+# (spl_disp_standby_swap, SPL-1777).
+
+# spl_orch_rotate_standby: the gates, then spl_orch_rotate_go. rc 3 = refused
+# (no fleet lease, or this machine holds it); 0 = done, planned or skipped.
+spl_orch_rotate_standby() {
+  local id="$LEASE_ORCH" rid holder was out pid age pane
+  rid="$(spl_rotate_new_rid orch)"
+  exec 7>> "$LEASE_DIR/rotate.orch.lock"
+  flock -n 7 || { spl_rotate_log "$rid" STANDBY SKIP "locked"; return 0; }
+  local idl=0
+  spl_agent_id_lock "$id" do_spl_orch_rotate "$rid" || idl=$?
+  (( idl == 0 )) || { spl_rotate_log "$rid" STANDBY SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$idl"; }
+  spl_orch_rotate_left "$rid" || return 1
+  [[ "$ROTATE_GO" == 1 ]] || return 0
+  [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" STANDBY SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
+  holder="$(spl_orch_rotate_holder)"
+  local sb=0
+  spl_orch_rotate_standby_box "$rid" "$holder" || sb=$?
+  (( sb == 0 )) || return $(( sb == 3 ? 3 : 0 ))
+  was="$(spl_rotate_id_kind "$id")"
+  out="$(spl_orch_rotate_seat_out "$was")"
+  spl_orch_rotate_vendor
+  spl_orch_rotate_standby_due "$rid" "$id" "$was" "$out" || return 0
+  local -a pids
+  mapfile -t pids < <(spl_rotate_pids "$id")
+  (( ${#pids[@]} == 1 )) || { spl_rotate_log "$rid" STANDBY SKIP "$([[ ${#pids[@]} == 0 ]] && echo "absent: no live process carries $id" || echo "duplicate: ${#pids[@]} live processes carry $id (pids ${pids[*]})"); nothing to re-seat"; return 0; }
+  pid="${pids[0]}"; age="$(spl_rotate_age "$pid")"; age="${age:-0}"
+  pane="$(spl_rotate_pane_of_pid "$pid")"
+  [[ -n "$pane" ]] || { spl_rotate_log "$rid" STANDBY SKIP "absent: pid $pid is in no tmux pane"; return 0; }
+  ROTATE_VENDOR_WHY="standby (orch lease: $holder), $id runs $was${out:+ and cannot act ($out)}; successor $ROTATE_VENDOR_WHY"
+  spl_rotate_log "$rid" STANDBY "$([[ "${DRY_RUN:-1}" == 1 ]] && echo PLAN || echo OK)" "$id ($was, pid $pid) -> $ROTATE_KIND; the fleet orch lease stays $holder"
+  ROTATE_STANDBY="$holder" spl_orch_rotate_go "$rid" "$id" "$pid" "$age" "$pane" "$(spl_orch_rotate_new_id "$id")"
+}
+
+# spl_orch_rotate_standby_box RID HOLDER: 0 on a standby box; 3 (logged
+# REFUSED) with no fleet lease or when this machine holds it: the hourly auto
+# rotation owns that seat. No fresh holder: SKIP, 1 (the lease is moving).
+spl_orch_rotate_standby_box() {
+  if [[ -z "${LEASE_FLEET:-}" ]]; then
+    spl_rotate_log "$1" STANDBY REFUSED "no LEASE_FLEET: this machine is its own orch holder, the auto rotation owns its seat"; return 3
+  fi
+  if [[ -z "$2" ]]; then
+    spl_rotate_log "$1" STANDBY SKIP "no fresh orch lease holder in $LEASE_FILE.orch: not a standby box now"; return 1
+  fi
+  if [[ "${2#*@}" == "$ROTATE_BOX" ]]; then
+    spl_rotate_log "$1" STANDBY REFUSED "this machine holds the orch lease ($2): the auto rotation (ROTATE_CMD=auto) owns its seat"; return 3
+  fi
+  return 0
+}
+
+# spl_orch_rotate_seat_out VENDOR: why VENDOR cannot act here (the watchdog
+# S2 verdicts: spl_rotate_grok_out, spl_rotate_claude_out), nothing when it can.
+spl_orch_rotate_seat_out() {
+  case "$1" in
+    grok) spl_rotate_grok_out ;;
+    claude) spl_rotate_claude_out ;;
+  esac
+  return 0
+}
+
+# spl_orch_rotate_standby_due RID ID WAS OUT: 0 when the seat is re-seated:
+# the successor's vendor (ROTATE_KIND) differs from WAS, and ROTATE_ROLE_VENDOR
+# named it or the seat cannot act (OUT). A lane-mix pick alone never churns
+# an able standby seat. 1 = no-op, logged SKIP.
+spl_orch_rotate_standby_due() {
+  if [[ "$ROTATE_KIND" == "$3" ]]; then
+    spl_rotate_log "$1" STANDBY SKIP "$2 runs $3${4:+ and cannot act ($4)}, the successor would be $3 too ($ROTATE_VENDOR_WHY): nothing to re-seat"; return 1
+  fi
+  if [[ -z "${ROTATE_ROLE_VENDOR:-}" && -z "$4" ]]; then
+    spl_rotate_log "$1" STANDBY SKIP "$2 ($3) can act and ROTATE_ROLE_VENDOR is unset ($ROTATE_VENDOR_WHY): the seat keeps its vendor"; return 1
+  fi
+  return 0
 }
 
 # spl_orch_rotate_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY: the successor's
@@ -366,7 +470,8 @@ spl_orch_rotate_close() {
   [[ "$n" == 1 ]] || warn+=" processes=$n"
   lp="$(spl_lease_agent_pid "$id")"
   [[ "$lp" == "$ROTATE_NEW_PID" ]] || warn+=" lease-pid=${lp:-none}"
-  if [[ -n "${LEASE_FLEET:-}" ]]; then
+  # a standby re-seat (ROTATE_CMD=standby) leaves the lease on the holder's box
+  if [[ -n "${LEASE_FLEET:-}" && -z "${ROTATE_STANDBY:-}" ]]; then
     holder="$(spl_orch_rotate_holder)"
     [[ "$holder" == "$id@$ROTATE_BOX" ]] || warn+=" lease-moved(${holder:-none})"
   fi

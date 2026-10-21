@@ -875,6 +875,22 @@ it is not restated here.
   can act, never before. `ROTATE_GROK_STANDBY=0` in
   `rotate.conf` keeps claude whatever its state. Tests: `orch-rotate.tst.sh`
   sections 15, 18, 20 and `dispatch-rotate.tst.sh` 19;
+- **a standby box's orch seat follows the vendor too** (SPL-2774): the
+  hourly orch rotation skips a box whose orch lease another machine holds,
+  and the restore never changes a seat's CLI, so on 2026-10-21 the standby
+  box's seat stayed `g-001` (grok) on its weekly limit after the owner moved the role to
+  claude. `ROTATE_CMD=standby ./run -a do_spl_orch_rotate` (dry run unless
+  `DRY_RUN=0`) re-seats it: on a standby box whose one live orch seat runs
+  another vendor than the successor rule above names, with
+  `ROTATE_ROLE_VENDOR` set or the seat unable to act (its vendor's newest
+  watchdog verdict `S2 kind=limit`), the rotation's own QUIESCE .. CLOSE
+  starts the seat on that vendor (`g-001` -> `c-001`, the id follows the
+  vendor), with the handoff and the ack, retires the old session and sets
+  `lease.conf` `LEASE_ORCH` after the ack. It has no age, boot or stall gate
+  and never takes or moves the fleet lease; on the holder's box (or with no
+  fleet lease) it is refused, exit 3. The dispatch pair's standby swap is
+  `do_spl_dispatch_rotate`'s (SPL-1777). Test: `orch-rotate.tst.sh`
+  section 21;
 - what ran: `<spool root>/dispatch/rotate.log`, one line per step;
 - stop it: `ROTATE=0` (or `ROTATE_DISPATCH=0`) in
   `<spool root>/dispatch/rotate.conf` (060 FR-090);

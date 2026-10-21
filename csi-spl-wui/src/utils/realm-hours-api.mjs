@@ -1,15 +1,15 @@
 /**
  * Spec 118 T005 (sections 5.2, 7): the person's hours across workspaces on
- * the hub's realm routes (T003, T004):
+ * the hub's realm route (T003):
  *   GET /v1/me/realm/hours?from=&to=&tz=   the personal days (hours.Across)
- *   PUT /v1/me/realm/hours                 rows into several workspaces
- *   GET /v1/me/realm/targets?workspace=&q= one workspace's targets
+ * The PUT /v1/me/realm/hours and GET /v1/me/realm/targets clients had no
+ * caller and were removed (r15-09); add them back with their first user.
  * A realm route takes the person from the session alone: it refuses a
  * request naming a workspace (X-Spool-Tenant), so none is sent. The mock
  * answers an empty window. The `api` is useSpoolApi()'s { base, token,
  * credentials, mock }, as hours-team-api.mjs takes it.
  */
-import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
+import { HUB_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /** @typedef {import('./hours-across').PersonalDay} PersonalDay */
 /** @typedef {import('./hours-across').Totals} Totals */
@@ -27,21 +27,6 @@ import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
  * @property {Array<{ valid_from: string, day_minutes: number | null, week_minutes: number | null }>} limits
  */
 
-/**
- * @typedef {Object} RealmRow one PUT row: minutes, or start and end
- * @property {string} workspace
- * @property {string} op_id the retry key
- * @property {string} day YYYY-MM-DD in the workspace's zone
- * @property {string} target
- * @property {number} [minutes]
- * @property {string} [start] RFC 3339
- * @property {string} [end] RFC 3339
- * @property {string} [note]
- * @property {string} [state]
- */
-
-/** @typedef {{ rows: Array<{ op_id: string, workspace: string, status: 'ok' | 'period_frozen' | 'day_over_1440' | 'overlap_in_workspace' | 'unknown_target' | 'not_a_member' | 'bad_row' | 'unavailable', detail?: string, replayed?: boolean }> }} RealmWrite */
-/** @typedef {{ workspace: string, targets: Array<{ target: string, label: string, kind: string }> }} RealmTargets */
 /** @typedef {{ base: string, token?: string, credentials?: RequestCredentials, mock?: boolean }} RealmApi */
 
 function headersOf(api, extra = {}) {
@@ -89,39 +74,3 @@ export async function loadRealmHours(api, { from = '', to = '', tz = '' } = {}, 
   return r.json()
 }
 
-/**
- * PUT /v1/me/realm/hours: 200 with a status per row; no atomicity across
- * workspaces (one workspace's refusal leaves the others saved).
- * @param {RealmApi} api
- * @param {RealmRow[]} rows
- * @returns {Promise<RealmWrite>}
- */
-export async function saveRealmHours(api, rows) {
-  if (api.mock) return { rows: rows.map((row) => ({ op_id: row.op_id, workspace: row.workspace, status: 'ok' })) }
-  const r = await fetch(`${rootOf(api)}/v1/me/realm/hours`, {
-    method: 'PUT',
-    credentials: api.credentials,
-    headers: headersOf(api, { 'content-type': 'application/json' }),
-    body: JSON.stringify(rows),
-    signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
-  })
-  if (!r.ok) throw await refusal(r, 'realm hours save')
-  return r.json()
-}
-
-/**
- * GET /v1/me/realm/targets: what `workspace` shows the person to enter on.
- * @param {RealmApi} api
- * @param {string} workspace
- * @param {string} [q]
- * @param {AbortSignal} [signal]
- * @returns {Promise<RealmTargets>}
- */
-export async function loadRealmTargets(api, workspace, q = '', signal) {
-  if (api.mock) return { workspace, targets: [] }
-  const r = await fetch(`${rootOf(api)}/v1/me/realm/targets${query({ workspace, q })}`, {
-    credentials: api.credentials, headers: headersOf(api), signal: signal || AbortSignal.timeout(HUB_READ_TIMEOUT_MS),
-  })
-  if (!r.ok) throw await refusal(r, 'realm targets')
-  return r.json()
-}

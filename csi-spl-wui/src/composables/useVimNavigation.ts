@@ -29,10 +29,10 @@ import { useVimNav } from '~/stores/vim-nav'
 import type { Router } from 'vue-router'
 
 /** Open overlays: the global layer is suspended under any of them. */
-export const VIM_OVERLAY_OPEN = '.point-menu, .kind-picker, [role="dialog"][aria-modal="true"], dialog[open], [data-testid="command-palette"]'
+const VIM_OVERLAY_OPEN = '.point-menu, .kind-picker, [role="dialog"][aria-modal="true"], dialog[open], [data-testid="command-palette"]'
 
 /** Set on <html> while the listener is installed (the e2e proof that it mounted). */
-export const VIM_MOUNTED_ATTR = 'data-vim-nav'
+const VIM_MOUNTED_ATTR = 'data-vim-nav'
 
 type VimOpts = {
   /** the session's `keyboard_shortcuts` claim, read on every key */

@@ -14,13 +14,13 @@
  */
 
 export const HOURS_STEP = 15
-export const HOURS_DAY_CAP = 1440
+const HOURS_DAY_CAP = 1440
 export const HOURS_NOTE_MAX = 500
 export const HOURS_ADD_DEFAULT = 30
 export const HOURS_UNDO_MS = 10000
 
 /** minutes kept within 0..1440 */
-export function hoursClamp(min) {
+function hoursClamp(min) {
   return Math.min(HOURS_DAY_CAP, Math.max(0, Math.round(Number(min) || 0)))
 }
 

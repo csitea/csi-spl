@@ -19,9 +19,9 @@ import { hoursAddDays } from './hours-calendar.mjs'
 export const HOURS_MOCK_TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 export const HOURS_MOCK_TOPIC_2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 /** the member's writes: { "<day>|<target>": entry | { removed: true } } */
-export const HOURS_MOCK_ENTRIES = 'spool.mock.hours-entries'
+const HOURS_MOCK_ENTRIES = 'spool.mock.hours-entries'
 /** period states by start day: { "<YYYY-MM-DD>": { state, note } } */
-export const HOURS_MOCK_PERIODS = 'spool.mock.hours-periods'
+const HOURS_MOCK_PERIODS = 'spool.mock.hours-periods'
 
 const CAP = 1440
 

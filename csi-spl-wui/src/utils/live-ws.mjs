@@ -74,8 +74,8 @@ export const FRAMES = {
  * offline) longer than this, and only when a reconnect follows the wake
  * within RECONNECT_TIMED_MS.
  */
-export const RECONNECT_AWAY_MS = 30_000
-export const RECONNECT_TIMED_MS = 120_000
+const RECONNECT_AWAY_MS = 30_000
+const RECONNECT_TIMED_MS = 120_000
 
 /** M8's `hidden_s` bucket for an away time in ms (spec 4.1). */
 export function awayBucket(ms) {

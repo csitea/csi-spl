@@ -22,8 +22,8 @@ export const LEGACY_ID_UNTIL = '2026-10-03T20:59:59Z'
 const LEGACY_UNTIL_MS = Date.parse(LEGACY_ID_UNTIL)
 
 /** Regex sources, for the parsers that embed an id in a bigger pattern. */
-export const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'
-export const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'
+const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'
+const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'
 /** Any participant id, new or legacy (an agent, a member, a guest, a box). */
 export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`
 /** A box name (spec 058): `<ID>@<box>`. */

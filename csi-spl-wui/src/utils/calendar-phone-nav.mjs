@@ -16,8 +16,8 @@ import { isoDateTimeIn } from './date-iso-zone.mjs'
 
 export const CAL_PHONE_VIEWS = ['month', 'week', 'day']
 /** English fallbacks; the screens pass `calendar.months` / `calendar.weekdays`. */
-export const CAL_PHONE_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-export const CAL_PHONE_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const CAL_PHONE_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const CAL_PHONE_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const HOUR_MS = 3600000
 const QUARTER_MS = 900000

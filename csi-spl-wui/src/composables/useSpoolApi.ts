@@ -3,9 +3,9 @@ import { apiBaseFor, pickTenant } from '~/utils/tenant.mjs'
 import { pageTenant } from '~/utils/tenant-host-core.mjs'
 
 /** view-v1 §2: the view token lives in memory / sessionStorage, never localStorage or a URL. */
-export const VIEW_TOKEN_KEY = 'spool.view_token'
+const VIEW_TOKEN_KEY = 'spool.view_token'
 /** The tenant chosen via ?tenant= is remembered for the tab (not a secret). */
-export const TENANT_KEY = 'spool.tenant'
+const TENANT_KEY = 'spool.tenant'
 
 let client: ReturnType<typeof createSpoolClient> | null = null
 

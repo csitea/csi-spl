@@ -43,7 +43,7 @@ export const CARD_CLIP_DEFAULT = 'rows'
 /** Text rows a level-1 card shows in the default mode. */
 export const CARD_CLIP_ROWS = 5
 /** Characters of the body that make a card's title. */
-export const CARD_TITLE_CHARS = 90
+const CARD_TITLE_CHARS = 90
 /** One keyboard step of the grip (ArrowDown / ArrowUp), in rows. */
 export const CARD_GRIP_STEP_ROWS = 2
 
@@ -89,7 +89,7 @@ export function writeCardClipDefault(mode, store, pane = 'msgs') {
 }
 
 /** A pane's override for this sign-in only (sessionStorage). */
-export function cardClipSessionKey(pane) {
+function cardClipSessionKey(pane) {
   return 'spool-card-clip-session-' + (pane === 'thread' ? 'thread' : 'msgs')
 }
 

@@ -10310,6 +10310,109 @@
         ]
       }
     },
+    "/v1/reporting/sql": {
+      "post": {
+        "description": "Spec 143 section 3. Workspace admins only (403 admin_required). One SELECT (or WITH ... SELECT, VALUES, TABLE) in a READ ONLY transaction under this workspace's row level security, a 10 s statement budget, at most 2,000 rows (truncated). Only this workspace's tables are open, never one that keeps a secret. Every attempt is audited (sql_query_audit); a result whose audit row is not written is withheld (500 audit_failed). 400 tokens: read_only_violation, single_statement_only, forbidden_function, forbidden_relation, syntax_error, query_error, bad_query, result_too_large. 408 query_timeout.",
+        "operationId": "postReportingSQL",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "query": {
+                    "maxLength": 100000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "columns": {
+                      "items": {
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "duration_ms": {
+                      "type": "integer"
+                    },
+                    "row_count": {
+                      "type": "integer"
+                    },
+                    "rows": {
+                      "items": {
+                        "items": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "type": "array"
+                      },
+                      "maxItems": 2000,
+                      "type": "array"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "columns",
+                    "rows",
+                    "row_count",
+                    "truncated",
+                    "duration_ms"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the result set, every value in Postgres's text form (null = NULL)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "description": "query_timeout: the query ran past the 10 s statement budget"
+          }
+        },
+        "summary": "Run one read-only SQL query on this workspace's data (the Reporting SQL tab)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/takeover-ladder": {
       "get": {
         "operationId": "getTakeoverLadder",

@@ -49,6 +49,7 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
+const LABEL_HOLD_MS = 2500
 
 async function until(p, fn, ms = 8000, arg) {
   const t0 = Date.now()
@@ -124,9 +125,16 @@ async function run(browser, base, width) {
   await open('/lobby')
   check(`${tag}: archived the fixture topic`, await archiveFromCard(p))
 
+  /* the hub's answer (the mock's topic size read) waits LABEL_HOLD_MS, so the
+     label read below is always the plain label, never the button already */
+  await p.evaluate((ms) => localStorage.setItem('spool-mock-topic-size-delay-ms', String(ms)), LABEL_HOLD_MS)
   await open(`/lobby?topic=${ARCH}`)
   await until(p, () => Boolean(document.querySelector('[data-test=topic-section] header [data-test=archived-badge]')))
+  /* the header's own lazy card height control mounts on its own clock: under CI
+     load it landed after the label read and read as a jump (run 39688000086) */
+  await until(p, () => Boolean(document.querySelector('[data-test=topic-section] header [data-testid=card-clip-control]')))
   const label = await p.evaluate(snap)
+  await p.evaluate(() => localStorage.removeItem('spool-mock-topic-size-delay-ms'))
   /* the hub's answer turns the label into the button; the header must not move */
   const isButton = await until(p, () => document.querySelector('[data-test=topic-section] header [data-test=archived-badge]')?.tagName === 'BUTTON')
   /* the archive's own Undo toast goes first, so the screenshot shows the header alone */
@@ -137,7 +145,7 @@ async function run(browser, base, width) {
   check(`${tag}: the Archived label is a button named "Unarchive topic"`,
     isButton && before.tag === 'button' && before.type === 'button' && before.name === 'Unarchive topic' && /archived/i.test(before.text), before)
   check(`${tag}: label -> button moved no other header item`,
-    label.items === before.items && label.headerH === before.headerH && String(label.box) === String(before.box) && !before.xScroll, { label, before })
+    label.tag === 'span' && label.items === before.items && label.headerH === before.headerH && String(label.box) === String(before.box) && !before.xScroll, { label, before })
   if (phone) {
     check(`${tag}: the tap area is >= 44 px tall (a tap 20 px above / below the centre hits it)`,
       before.hitMid && before.hitUp && before.hitDown, before)

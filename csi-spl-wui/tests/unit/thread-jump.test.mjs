@@ -63,9 +63,14 @@ describe('the phone thread paints the arrow and nothing else does', () => {
     assert.match(feed, /:data-end="jumpEnds\.show"/)
     assert.match(feed, /:data-dir="jumpEnds\.dir"/)
     assert.match(feed, /t\(jumpEnds\.show === 'newest' \? 'feed\.new_pill_label' : 'feed\.jump_oldest'\)/)
-    assert.match(feed, /scrollTo\(\{ top: st\.top, behavior: reduce \? 'auto' : 'smooth' \}\)/)
-    assert.match(feed, /prefers-reduced-motion: reduce/)
+    /* r16-03: the tap and the measure live in useLiveFeedThreadEnds */
+    const ends = read('src/composables/useLiveFeedThreadEnds.ts')
+    assert.match(feed, /@click="jumpThreadEnd"/)
+    assert.match(feed, /useLiveFeedThreadEnds\(\{ root, phone, newestLast, /)
+    assert.match(ends, /scrollTo\(\{ top: st\.top, behavior: reduce \? 'auto' : 'smooth' \}\)/)
+    assert.match(ends, /prefers-reduced-motion: reduce/)
     assert.doesNotMatch(feed, /IntersectionObserver/)
+    assert.doesNotMatch(ends, /IntersectionObserver/)
   })
 
   it('the round button is drawn only at the phone width', () => {

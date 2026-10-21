@@ -1,0 +1,6 @@
+Lay-What: On a phone, archiving an issue (swipe left, or Archive in its menu) happens at once, with no confirmation box; an Undo button shows for a moment instead.
+Lay-How: The phone layout skips the archive question for a single issue and offers the same Archived - Undo bar messages already have.
+Lay-Why: The owner asked that archiving on mobile needs no confirmation; desktop, whole epics and Delete still ask.
+Tech-What: useIssueActConfirm archives one non-cascade issue at once when useMobileStack().isMobile; useArchiveUndo gains offerRestore; client unarchiveIssue (POST /v1/issues/{ref}/unarchive) plus mock.
+Tech-How: askAction short-circuits to archiveNow; a refusal (issue_has_children or error) opens the existing confirm with the cascade count or the error.
+Tech-Why: Owner HUM-10 t1 ff23df68 msg f702164e; e2e issues-ctxmenu 4k/7a/7b/7f and issues-detail-buttons 4@390, red on 6228bf921.

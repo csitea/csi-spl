@@ -28,7 +28,7 @@
       :aria-expanded="open === 'health'"
       @click="toggle('health')"
     >
-      <span class="status-strip__dot" :class="health" aria-hidden="true" />
+      <span v-reconnect-ripple="health" class="status-strip__dot" :class="health" aria-hidden="true" />
     </button>
     <NotificationCenter placement="strip" />
     <button
@@ -91,6 +91,7 @@ import PoweredBy from '@/components/PoweredBy.vue'
 import { useLive } from '~/composables/useLive'
 import { useCopyText } from '~/composables/useCopyText'
 import { playTapAnim } from '~/composables/useTapAnim'
+import { vReconnectRipple } from '~/composables/useConnectionRipple'
 import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { setStatusStripHeight } from '~/composables/useStatusStrip'

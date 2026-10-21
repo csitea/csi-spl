@@ -554,7 +554,7 @@
           :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })"
           :aria-label="t('sidebar.health.' + health)"
         >
-          <span class="health-dot" :class="health" />
+          <span v-reconnect-ripple="health" class="health-dot" :class="health" />
         </div>
         <NotificationCenter />
         <!-- The version sits on this row, just right of the note. Only the
@@ -639,6 +639,7 @@
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import type { Directive } from 'vue'
 import { playTapAnim, railTapKind, vTapAnim } from '~/composables/useTapAnim'
+import { vReconnectRipple } from '~/composables/useConnectionRipple'
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'

@@ -47,6 +47,8 @@ const STRIP_IMPORTS = {
   '@/components/PoweredBy.vue': COMP,
   '~/composables/useLive': stub(`import { ref } from '${VUE_URL}'; export const useLive = () => ({ state: ref('open') })`),
   '~/composables/useCopyText': COPY_URL,
+  /* row 05's reconnect ripple: not under test here */
+  '~/composables/useConnectionRipple': stub('export const vReconnectRipple = {}'),
   '~/composables/useTouchUi': stub(`import { ref } from '${VUE_URL}'; export const useKeyboardInset = () => ref(0)`),
   '~/composables/useMobileStack': stub(`import { ref } from '${VUE_URL}'; export const useMobileStack = () => ({ sheetOpen: ref(false), overlay() {} })`),
   '~/composables/useStatusStrip': stub('export function setStatusStripHeight() {}'),

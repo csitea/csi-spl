@@ -200,8 +200,11 @@ describe('newest-last scroll anchor', () => {
     /* the pill points at the newest end */
     assert.match(feed, /↑ \{\{ t\('feed\.new_pill'/)
     assert.match(feed, /↓ \{\{ t\('feed\.new_pill'/)
-    /* A9: a deep link stops the bottom follow once the row is on screen. */
-    assert.match(feed, /if \(!el \|\| !scroller \|\| scroller\.clientHeight <= 0\)/)
-    assert.match(feed, /hold\(\)\n\s+el\.focus\(\{ preventScroll: true \}\)/)
+    /* A9: a deep link stops the bottom follow once the row is on screen
+       (r16-03: the jump lives in useLiveFeedMessageJump, handed the feed's hold). */
+    const jump = read('src/composables/useLiveFeedMessageJump.ts')
+    assert.match(feed, /useLiveFeedMessageJump\(\{ props, root, hold, /)
+    assert.match(jump, /if \(!el \|\| !scroller \|\| scroller\.clientHeight <= 0\)/)
+    assert.match(jump, /hold\(\)\n\s+el\.focus\(\{ preventScroll: true \}\)/)
   })
 })

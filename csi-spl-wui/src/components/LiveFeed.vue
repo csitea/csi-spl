@@ -171,8 +171,6 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu.mjs'
 import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { JUMP_FOCUS_MS, onMessageJump } from '~/utils/msg-jump.mjs'
-import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { useTopicCardNew } from '~/composables/useTopicCardNew'
 import { useUnreadOrder } from '~/composables/useUnreadOrder'
@@ -402,48 +400,8 @@ function onFeedScroll() {
   if (phone.value && props.holdScroll) measureJump()
 }
 
-/* Phone thread. The scroller is the pane's .feed-body. A channel feed never
-   passes holdScroll, and a desktop is not phone, so this stays empty there. */
-const jumpEnds = ref(threadJumpState())
-/* The phone pane is display:none until the stack shows it, so the first
-   measure sees clientHeight 0. A size change (the pane appearing, the
-   keyboard, a late picture) measures again. It never asks for another page. */
-let jumpResize: ResizeObserver | null = null
-let jumpWatched: HTMLElement | null = null
-function watchJumpSize(s: HTMLElement) {
-  if (typeof ResizeObserver === 'undefined') return
-  if (!jumpResize) jumpResize = new ResizeObserver(() => measureJump())
-  if (jumpWatched === s) return
-  jumpResize.disconnect()
-  jumpWatched = s
-  jumpResize.observe(s)
-}
-function measureJump() {
-  if (!phone.value || props.holdScroll !== true) {
-    if (jumpEnds.value.show) jumpEnds.value = threadJumpState()
-    jumpResize?.disconnect()
-    jumpWatched = null
-    return
-  }
-  const s = root.value?.closest<HTMLElement>('.feed-body')
-  if (!s) return
-  watchJumpSize(s)
-  const next = threadJumpState({
-    scrollTop: s.scrollTop,
-    scrollHeight: s.scrollHeight,
-    clientHeight: s.clientHeight,
-    newestLast: newestLast.value,
-  })
-  const cur = jumpEnds.value
-  if (cur.show !== next.show || cur.dir !== next.dir || cur.top !== next.top) jumpEnds.value = next
-}
-function jumpThreadEnd() {
-  const s = root.value?.closest<HTMLElement>('.feed-body')
-  const st = jumpEnds.value
-  if (!s || !st.show) return
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  s.scrollTo({ top: st.top, behavior: reduce ? 'auto' : 'smooth' })
-}
+/* the phone thread's arrow to its other end (useLiveFeedThreadEnds) */
+const { jumpEnds, measureJump, jumpThreadEnd } = useLiveFeedThreadEnds({ root, phone, newestLast, holdScroll: () => props.holdScroll, rowCount: () => props.rows.length })
 
 async function jumpToUnread() {
   const el = dividerEl() || await drawRow('__new-divider__', dividerEl) /* SPL-2146: maybe not drawn */
@@ -483,17 +441,11 @@ onMounted(() => {
     dividerDone = firstNewId.value
     landUnread()
   }
-  void nextTick(() => measureJump())
-})
-watch([phone, newestLast, () => props.holdScroll, () => props.rows.length], async () => {
-  await nextTick()
-  measureJump()
 })
 onUnmounted(() => {
   stopLanding?.()
   clearTimeout(gateTimer)
   if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
-  jumpResize?.disconnect()
 })
 
 const announce = computed(() => {
@@ -521,96 +473,9 @@ function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
   return other
 }
 
-/* A pasted link to a thread line (#<msg_id>) moves that line to the top of
-   its list once it has loaded, selects it and highlights it. Only a thread
-   feed does this, and only once per hash, so later rows do not pull the
-   reader back. The document itself does not scroll. A row near the end needs
-   room after it (`landTail`) or the pane stops short and leaves the row down
-   the list.
-   Owner priority (t1 48d09034): a link clicked inside the topic that holds
-   it jumps too - also the same link again, or /m/<id> coming back to this
-   address (msg-jump.mjs asks, the hash does not change). A line older than
-   the rows held is read in with Load more, at most JUMP_PAGES pages, so a
-   question 50 messages up opens without scrolling. */
+/* a pasted or clicked link to a thread line lands on it (useLiveFeedMessageJump) */
 const route = useRoute()
-const landTail = ref(0)
-let hashDone = ''
-const JUMP_PAGES = 10
-const want = ref('')
-/* bumped per request, so the same id asked again runs the watch again */
-const wantSeq = ref(0)
-let wantPages = 0
-const offJump = onMessageJump((id) => {
-  if (!props.holdScroll) return
-  hashDone = ''
-  wantPages = 0
-  want.value = id
-  wantSeq.value += 1
-})
-onUnmounted(offJump)
-watch(() => route.hash, (hash) => {
-  const id = String(hash || '').replace(/^#/, '')
-  if (id && id !== want.value) { wantPages = 0; want.value = id }
-}, { immediate: true })
-/* HUM-10 (t1 36ea84a6): a link from one thread to another, on a phone, can
-   land while the pane still holds the old topic's rows; when they go, the
-   pane shrinks and the browser clamps the scroll, and the row ends above the
-   pane. Keep the row at the top for the frames that layout takes to settle,
-   until the reader moves the pane themselves. */
-const SETTLE_FRAMES = 30
-function settleRowTop(scroller: HTMLElement, el: HTMLElement) {
-  let left = SETTLE_FRAMES
-  const stop = () => { left = 0 }
-  const opts = { once: true, passive: true }
-  scroller.addEventListener('touchstart', stop, opts)
-  scroller.addEventListener('wheel', stop, opts)
-  const tick = () => {
-    if (left-- <= 0 || !el.isConnected) {
-      scroller.removeEventListener('touchstart', stop)
-      scroller.removeEventListener('wheel', stop)
-      return
-    }
-    if (Math.abs(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) > 2) scrollRowToTop(scroller, el)
-    requestAnimationFrame(tick)
-  }
-  requestAnimationFrame(tick)
-}
-function highlight(el: HTMLElement) {
-  el.classList.add('open-focus')
-  setTimeout(() => el.classList.remove('open-focus'), JUMP_FOCUS_MS)
-}
-watch(() => [want.value, wantSeq.value, props.rows.length, props.loadingOlder] as const, async ([id]) => {
-  if (!props.holdScroll || !id || id === hashDone) return
-  if (!props.rows.some((m) => String(m.msg_id) === id)) {
-    /* not held yet: read the next older page; the rows watch comes back here */
-    if (props.hasOlder && !props.loadingOlder && !props.loading && wantPages < JUMP_PAGES) {
-      wantPages += 1
-      emit('older')
-    }
-    return
-  }
-  for (let i = 0; i < 8; i++) {
-    await nextTick()
-    const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`)
-    const scroller = el?.closest<HTMLElement>('.feed-body')
-    if (!el || !scroller || scroller.clientHeight <= 0) {
-      await new Promise((r) => requestAnimationFrame(r))
-      continue
-    }
-    landTail.value = scroller.clientHeight
-    await nextTick()
-    /* newest last: the linked row wins over following the bottom (A9).
-       Focus first: a focus that still scrolls the pane is then corrected. */
-    hold()
-    el.focus({ preventScroll: true })
-    scrollRowToTop(scroller, el)
-    hashDone = id
-    highlight(el)
-    settleRowTop(scroller, el)
-    return
-
-  }
-}, { immediate: true })
+const { landTail } = useLiveFeedMessageJump({ props, root, hold, older: () => emit('older') })
 
 /* Spec 066 L6: the timings that end on this feed's paint - M2 the page
    load's first messages, M3 an own send confirmed, M5 a view switch - and M4

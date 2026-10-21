@@ -1,0 +1,6 @@
+Lay-What: Workspace admins can now ask their own data a question in plain database language, from the Reporting section.
+Lay-How: The server runs the question in a look-only mode, inside your workspace only, stops it after ten seconds and keeps a record of every question asked.
+Lay-Why: Admins wanted answers the ready-made reports do not give, without any risk of changing or leaking data.
+Tech-What: Hub POST /v1/reporting/sql runs one admin SELECT and returns up to 2,000 rows; every call is written to sql_query_audit.
+Tech-How: store/reporting_sql.go opens a READ ONLY tx in the tenant scope with statement_timeout 10s, checks the text and the EXPLAIN plan against an allow-list of RLS tenant relations and functions, and returns no result when the audit insert fails.
+Tech-Why: Spec 143 row 5, the SQL tab, with the 7 security red controls (cross-tenant, write, DDL, multi-statement, timeout, non-admin, audit) as tests.

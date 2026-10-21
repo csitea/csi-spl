@@ -199,6 +199,7 @@ To prevent recovery drift ("a backup that has never been restored is not a backu
 
 1. **Daily CI Verification (`45_db-backup.yml`)**:
    Every execution of the daily database export workflow automatically triggers `do_spl_db_backup_verify`, creating a local Postgres container on the runner, restoring the export, and verifying table presence against the live instance.
+   The live read goes through a fresh Cloud SQL proxy and is tried twice, 20 s apart (`SPL_DB_BACKUP_LIVE_TRIES`, `SPL_DB_BACKUP_LIVE_WAIT`). Each failed try logs psql's own last lines as `WARN`. "cannot read the live counts" after two tries is a failed read of the live database, not a bad dump: restore that dump on its own (`ENV=<env> OBJECT=<gs uri> ./run -a do_spl_db_backup_verify` from `csi-spl-orc`) before you call the backup broken (SPL-2797; the 2026-10-21 prd run failed this way while its dump restored 118 tables).
 2. **Automated Restore Drill (`do_spl_db_restore_drill`)**:
    Can be run on-demand or as a scheduled health check to prove that current repo schema migrations apply cleanly on top of the newest backup dump without schema corruption.
 3. **Key and Credential Leak Guards (`box-state-pack.sh scan`)**:

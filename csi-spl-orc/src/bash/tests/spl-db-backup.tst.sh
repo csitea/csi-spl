@@ -16,6 +16,9 @@
 #      two tables created later are listed as expected missing. A table the
 #      dump's own level should hold, missing, is still exit 5
 #   6. every gcloud call is pinned with --account
+#   7. the live count read (2026-10-21 prd: one failed try, no cause logged)
+#      says psql's own words, and a failed first try is retried through a
+#      fresh proxy; two failed tries are still a failure
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -230,5 +233,30 @@ bad=$(sed -e ':a' -e '/\\$/{N;s/\\\n//;ba' -e '}' "$ACTION" |
 [[ -z "$bad" ]] && pass "every gcloud invocation in the action carries --account" || fail "unpinned gcloud: $bad"
 grep -q 'enable-row-security' "$ACTION" && pass "the action explains the RLS trap a proxied pg_dump would hit" ||
   fail "no note on the RLS trap"
+
+# --- 7. the live count read: named and retried (2026-10-21 prd) ----------------------
+# spl_via_proxy is stubbed: try 1 prints what psql prints on a dead dial and
+# fails; try 2 prints the counts. A counter file stands in for the two proxies.
+VIA='spl_via_proxy(){ local n; n=$(( $(cat "$T/tries" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$T/tries";
+  if (( n <= ${FAIL_TRIES:-1} )); then echo "psql: error: connection to server at \"127.0.0.1\", port 1 failed: timeout expired"; return 2; fi
+  printf "%s\n" "tenants 2" "messages 10"; };'
+export T  # the stub reads it inside in_orc
+live_read() { # -> "rc=<n> tries=<n> <output>"; <out> in $T/live.txt
+  local out rc
+  rm -f "$T/tries" "$T/live.txt"
+  out=$(FAIL_TRIES="${FAIL_TRIES:-1}" SNIPPET="$VIA spl_db_backup_live_read '$T/live.txt'" \
+    in_orc SPL_DB_BACKUP_LIVE_WAIT=0 2>&1); rc=$?
+  echo "rc=$rc tries=$(cat "$T/tries" 2>/dev/null) $out"
+}
+o=$(FAIL_TRIES=1 live_read)
+[[ "$o" == "rc=0 tries=2 "* ]] && pass "a failed first live read is retried and the second one counts" || fail "retry: $o"
+grep -qx 'messages 10' "$T/live.txt" && pass "the retried read's counts reach the compare" || fail "live.txt: $(cat "$T/live.txt" 2>/dev/null)"
+[[ "$o" == *"read 1/2 failed (exit 2)"*"timeout expired"* ]] &&
+  pass "the failed try is logged with psql's own words" || fail "no cause logged: $o"
+o=$(FAIL_TRIES=2 live_read)
+[[ "$o" == "rc=1 tries=2 "* && "$o" == *"read 2/2 failed"*"timeout expired"* ]] &&
+  pass "CONTROL: two failed reads are exit 1, each named" || fail "two failures: $o"
+grep -q 'spl_db_backup_live_read "$work/live.txt"' "$PROJ_ROOT/src/bash/run/spl-db-backup-verify.func.sh" &&
+  pass "do_spl_db_backup_verify reads the live counts through spl_db_backup_live_read" || fail "verify bypasses the retrying read"
 
 (( fails == 0 )) && echo "OK spl-db-backup: all checks passed" || { echo "FAIL spl-db-backup: $fails check(s)"; exit 1; }

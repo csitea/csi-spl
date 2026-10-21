@@ -56,13 +56,34 @@ do_spl_db_backup_verify() {
 
   spl_db_backup_restore_counts "$work/dump.sql" >"$work/restored.txt" || rc=$?
   (( rc == 0 )) || { rm -rf "$work"; return $rc; }
-  spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" || rc=$?
-  (( rc == 0 )) || { rm -rf "$work"; do_log "FATAL $ENV: cannot read the live counts"; return 1; }
+  spl_db_backup_live_read "$work/live.txt" ||
+    { rm -rf "$work"; do_log "FATAL $ENV: cannot read the live counts"; return 1; }
 
   spl_db_backup_compare "$work/restored.txt" "$work/live.txt" \
     "$(spl_db_backup_dump_max "$work/dump.sql")" || rc=$?
   rm -rf "$work"
   return $rc
+}
+
+# spl_db_backup_live_read <out> -> the live counts into <out>, read-only, up
+# to SPL_DB_BACKUP_LIVE_TRIES times (default 2), each through a fresh proxy,
+# SPL_DB_BACKUP_LIVE_WAIT seconds apart (default 20). spl_psql_ro folds psql's
+# stderr into <out>, so a failed try logs those words before the next try
+# overwrites them. 2026-10-21 prd: one try, 36 s, "cannot read the live
+# counts" and no cause, the dump itself was good (restored 118 tables the
+# same day); a failed try that is never named cannot be told from a broken one.
+spl_db_backup_live_read() {
+  local out="$1" tries="${SPL_DB_BACKUP_LIVE_TRIES:-2}" wait="${SPL_DB_BACKUP_LIVE_WAIT:-20}" n rc
+  for ((n = 1; n <= tries; n++)); do
+    rc=0
+    spl_via_proxy _spl_db_backup_live_counts >"$out" || rc=$?
+    (( rc == 0 )) && return 0
+    do_log "WARN $ENV: live count read $n/$tries failed (exit $rc); its last lines:"
+    grep -v '^[0-9A-Za-z_]* [0-9]*$' "$out" 2>/dev/null | tail -n 10 |
+      while read -r l; do do_log "WARN   $l"; done
+    (( n < tries )) && sleep "$wait"
+  done
+  return 1
 }
 
 # spl_db_backup_newest <bucket> -> the newest object uri in the bucket.

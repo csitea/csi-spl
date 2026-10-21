@@ -65,6 +65,9 @@ const rightOpen = computed(() => topicOpen.value || panels.value.some((p) => toV
 const level = computed<MobileLevel>(() => mobileLevelOf({ home: home.value, topicOpen: rightOpen.value }))
 let closeTopic: () => void = () => {}
 let installed = false
+/* SPL-2785: one more each Back on a phone (pop() in place, or any popstate):
+   components/MobileBackWait.vue shows its dots while the screen it returns to loads */
+const backs = ref(0)
 /* CLE-77882: an open-in-place is navigating (utils/mobile-stack.mjs mobileInPlaceStep) */
 let inPlaceUntil = 0
 
@@ -288,7 +291,7 @@ function pop() {
   const step = mobileBackStep({ mobile: isMobile.value, overlays: overlays.length, level: level.value, hasBelow: mobileHasBelow(window.history.state), up: stepsUp })
   if (step === 'overlay') void enqueue(() => (overlays.length ? stepBack(1) : undefined))
   else if (step === 'history') window.history.back()
-  else if (step === 'down') applyLevel((level.value - 1) as MobileLevel)
+  else if (step === 'down') { applyLevel((level.value - 1) as MobileLevel); backs.value++ }
 }
 
 /* t1 3b8891e0: pages whose deep link has levels of its own above it */
@@ -368,6 +371,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   window.addEventListener('popstate', (e) => {
     lastPos = statePosition()
     inPlaceUntil = 0
+    if (isMobile.value) backs.value++
     const tagged = mobileTaggedLevel(e.state)
     if (tagged !== null) applyLevel(tagged)
   })
@@ -408,6 +412,8 @@ export function useMobileStack() {
     up,
     /** CLE-77882: the next topic open lands on the current entry (open in place) */
     landInPlace,
+    /** SPL-2785: counts every Back on a phone (MobileBackWait.vue) */
+    backs,
     /** SPL-1005: a page sheet / dialog / menu is open - the composer dock yields */
     sheetOpen,
     /** bind on the shell: @touchstart.passive / @touchend.passive */

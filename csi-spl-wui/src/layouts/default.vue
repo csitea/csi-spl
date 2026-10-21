@@ -103,6 +103,8 @@
            footer's dot, bell, note and version as a ~5 mm strip at the very
            bottom, under the docked composer -->
       <MobileStatusStrip v-if="stack.isMobile.value && !docsReading" />
+      <!-- SPL-2785: the bouncing dots after a Back, while the screen loads -->
+      <MobileBackWait v-if="stack.isMobile.value" />
       <!-- SPL-2516 (qto reading panel row 02): on a phone's docs routes the
            dock and the strip are collapsed; this keeps search one tap away
            (the omnibox store's openSearch brings the dock back in search
@@ -209,6 +211,7 @@ import TopBar from '@/components/TopBar.vue'
 import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
 /* CLE-77888: phones only, so its chunk is fetched only there */
 const MobileStatusStrip = defineAsyncComponent(() => import('@/components/MobileStatusStrip.vue'))
+const MobileBackWait = defineAsyncComponent(() => import('@/components/MobileBackWait.vue'))
 import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'

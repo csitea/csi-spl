@@ -76,7 +76,11 @@
 # remote serve accepts nobody else). A remote spawn that fails, is refused or
 # does not answer within SPAWN_REMOTE_WAIT falls back to this box, with a
 # WARN on stderr, after withdrawing that request (spawn-remote.sh --cancel)
-# so the target's serve does not start it later. pick=hold (exit 10) files
+# so the target's serve does not start it later. Before that fallback starts
+# anything, a fresh lane map read looks for a live lane on any box whose
+# branch carries this SLUG (a remote that started it but answered late, the
+# relay took 4 min on 2026-10-21, SPL-2801): if one does, stdout is its
+# "<ID>@<box> -" and exit 0, nothing starts here. pick=hold (exit 10) files
 # no request; a request already filed is withdrawn the same way.
 # SPAWN_BOX=<box> always wins (local, or this box's id, =
 # here), and never falls back (exit 8): lanes that need one box's checkout
@@ -182,6 +186,18 @@ sw_load_map() {
   else
     SW_MAP="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$HERE/lane-map.sh" --json 2>/dev/null | grep -m1 '^{')"
   fi
+}
+# The live lane that already carries SLUG on any box, as "<ID>@<box>", or
+# nothing (SPL-2801). A remote that answers after SPAWN_REMOTE_WAIT has still
+# started its lane; its row (branch "<ID>-<slug>", spawn-core) is on the hub.
+# The map is read FRESH: the one placement read is a whole wait old.
+sw_slug_live() {  # SLUG
+  local s
+  s="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr ' _/' '---' | tr -cd 'a-z0-9-' | sed -E 's/-+/-/g; s/^-//; s/-$//')"
+  [ -n "$s" ] || return 0
+  SW_MAP_READ=""; sw_load_map
+  jq -r --arg s "$s" '.lanes[]? | select(.state == "live" and .branch == "\(.agent_id)-\($s)")
+    | "\(.agent_id)@\(.agent_box)"' <<<"${SW_MAP:-}" 2>/dev/null | sed -n 1p
 }
 # 0 when BOX is measured without the $KIND CLI (VENDOR CLI above); a box
 # nobody measured is 1 (a candidate). Sets SW_CLIS to what was measured.
@@ -301,6 +317,11 @@ if [ -n "$TARGET" ]; then
   [ -z "${SPAWN_BOX:-}" ] || { echo "spawn-window: the spawn on SPAWN_BOX=${TARGET} did not start (spawn-remote exit ${rc})" >&2; exit 8; }
   SW_REMOTE_BOX="$TARGET" SW_REMOTE_OUT="$out"
   sw_withdraw_remote "$TARGET" "$out"
+  dup="$(sw_slug_live "${5:-}")"
+  if [ -n "$dup" ]; then
+    echo "spawn-window: the spawn on ${TARGET} did not answer in time (spawn-remote exit ${rc}), but ${dup} already runs slug ${5}: not starting it again here" >&2
+    printf '%s -\n' "$dup"; SW_JOURNAL_ID="$dup"; exit 0
+  fi
   ! sw_lacks_kind "$(spool_fleet_box)" || { sw_refuse_kind "$(spool_fleet_box)" "the spawn on ${TARGET} did not start (spawn-remote exit ${rc}) and this box has no ${KIND} CLI"; exit 13; }
   echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s): starting here instead" >&2
 fi

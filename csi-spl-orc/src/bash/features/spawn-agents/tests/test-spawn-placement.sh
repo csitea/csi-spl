@@ -46,6 +46,11 @@
 #      it; the BOX-0 row publishes cli= and the map reads it back
 #  14. WEEKLY QUOTA (SPL-2035): the BOX-0 row publishes wk=<kind>:<pct>; a
 #      pick=hold on it is exit 10 with its waiting reason
+#  15. LATE REMOTE (SPL-2801, ask 08d9ae0a became two lanes, one per box, on
+#      2026-10-21): the remote does not answer in time but its lane for the
+#      slug is live in the lane map -> its "<ID>@<box> -", exit 0, nothing
+#      starts here; CONTROL no such slug in the map -> the fallback still
+#      starts here; a done row or another slug does not block it
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -328,5 +333,37 @@ has "14. the BOX-0 row publishes this box's weekly usage" "--scope mem_kb=419430
 spawn_k claude SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="echo pick=hold reason=waiting: claude weekly >= 90% on box-a, box-b: queue the lane, spawn nothing"
 check "14. pick=hold on the weekly quota: exit 10, the reason on stderr, no remote request" \
   bash -c '[ "$1" = 10 ] && [[ "$2" == *"HOLD auto: waiting: claude weekly >= 90% on box-a, box-b"* ]] && [ ! -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
+
+# 15. a late remote: its lane for the slug is already live there
+printf '# brief\n' > "$T_TMP/brief.md"
+slug_rows() {  # STATE SLUG: 8 busy here; c-740 on the other box, branch c-740-SLUG, in STATE
+  { rows "$HERE_BOX" 8 100; echo "c-002 $OTHER"; echo "c-740 $OTHER 60 $1"; } | set_rows
+  jq -c --arg b "c-740-$2" '.lanes |= map(if .agent_id == "c-740" then .branch = $b else . end)' "$ROWS" > "$ROWS.t" && mv "$ROWS.t" "$ROWS"
+}
+spawn_slug() {  # SLUG -> OUT, RC; the remote never answers (exit 5)
+  rm -f "$T_TMP/remote.calls"
+  OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" "$T_TMP/brief.md" "$1" 2>&1)"; RC=$?
+}
+slug_rows live c002-s143-r3-releases
+spawn_slug c002-s143-r3-releases
+check "15. no answer in time, but c-740 runs the slug there: exit 0, its line, not started here" \
+  bash -c '[ "$1" = 0 ] && [[ "$2" == *"c-740@'"$OTHER"' -"* ]] && [[ "$2" != *"no tmux session"* ]] && [ -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
+has "15. ... and says why on stderr" "c-740@$OTHER already runs slug c002-s143-r3-releases: not starting it again here" "$OUT"
+spawn_slug C002_S143_R3_Releases
+check "15. ... the slug is matched the way spawn-core names the branch" \
+  bash -c '[ "$1" = 0 ] && [[ "$2" == *"c-740@'"$OTHER"' -"* ]]' _ "$RC" "$OUT"
+slug_rows live c002-other-slug
+spawn_slug c002-s143-r3-releases
+check "15. CONTROL no lane with the slug in the map: the fallback still starts here" \
+  bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]] && [[ "$2" == *"WARN the spawn on"* ]]' _ "$RC" "$OUT"
+slug_rows "done" c002-s143-r3-releases
+spawn_slug c002-s143-r3-releases
+check "15. CONTROL a done lane with the slug does not block it: starts here" \
+  bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]]' _ "$RC" "$OUT"
+slug_rows live c002-s143-r3-releases
+rm -f "$T_TMP/remote.calls"
+OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" "$T_TMP/brief.md" 2>&1)"; RC=$?
+check "15. CONTROL no slug given: nothing to match, starts here" \
+  bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]]' _ "$RC" "$OUT"
 
 t_done

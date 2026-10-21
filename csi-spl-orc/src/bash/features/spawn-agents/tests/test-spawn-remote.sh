@@ -156,4 +156,31 @@ else
   ok "8. skipped: no setfacl or no user nobody"
 fi
 
+# ---- 9. a late request is refused there, never raced (SPL-2801) -------------------
+# 2026-10-21: the relay took 4 min to deliver a request; home started its lane
+# 4 s after sat's 300 s wait ended, and sat had already started the same slug.
+# The request carries "expires: <epoch>" (now + wait - margin); serve starts
+# nothing after it. Its refusal, like every reply, lands in the requester's own
+# inbox (c-001 on sat), the place reply_file reads: case 1 sees the ok there.
+before="$(calls)"
+on "$B" sat env SPAWN_REMOTE_MARGIN=1 bash "$SR" --box home --wait 2 claude auto "$WORK" "$T_TMP/brief.md" late-slug \
+  >"$T_TMP/r9" 2>"$T_TMP/r9.err"; rc=$?
+eq "9. no serve tick within the wait: exit 5, task on stdout" 5 "$rc"
+req9="$(grep -l 'slug: late-slug' "$A"/c-001/inbox/*.json | sed -n 1p)"
+has "9. the request carries its expiry" "expires: " "$(jq -r .body "$req9")"
+serve_a
+eq "9. served after the expiry: spawn-window never ran" "$before" "$(calls)"
+has "9. ... logged EXPIRED" "EXPIRED" "$(tail -1 "$A/spawn-remote/serve.log")"
+rep9="$(grep -l "$(sed -n 's/^task //p' "$T_TMP/r9")" "$B"/c-001/inbox/*.json | sed -n 1p)"
+has "9. ... and the requester is told, in its own inbox" "reason: expired at" "$(jq -r .body "$rep9" 2>/dev/null)"
+req_b "$T_TMP/r9b" claude auto "$WORK" "$T_TMP/brief.md" on-time-slug
+eq "9. CONTROL a request served within its expiry: exit 0" 0 "$(cat "$T_TMP/r9b.rc")"
+eq "9. CONTROL ... spawned" "$((before + 1))" "$(calls)"
+body="$(printf 'spawn-request v1\nkind: claude\ntitle: auto\nworkdir: %s\nslug: old-sender\n---\n' "$WORK")"
+on "$B" sat bash "$T_SCRIPTS/spool-send.sh" --from c-001 --to c-001@home --kind task --no-ask --no-poke --body "$body" >/dev/null 2>&1
+serve_a
+eq "9. CONTROL a request with no expires line (an older sender) is still served" "$((before + 2))" "$(calls)"
+out="$(on "$B" sat env SPAWN_REMOTE_MARGIN=soon bash "$SR" --box home claude auto "$WORK" 2>&1)"; rc=$?
+eq "9. a SPAWN_REMOTE_MARGIN that is not seconds: exit 2" 2 "$rc"
+
 t_done

@@ -18,7 +18,11 @@
 #   --to (the target's mailbox) defaults to this machine's LEASE_ORCH, the role
 #   id every machine has. stdout: "<ID>@<box> <PANE>". --wait 0 does not wait
 #   and prints "task <task_id>" instead (default SPAWN_REMOTE_WAIT, 300 s; the
-#   receiver ticks once a minute).
+#   receiver ticks once a minute). A waiting request carries "expires: <epoch>"
+#   = now + wait - SPAWN_REMOTE_MARGIN (default 60 s, at most half the wait):
+#   the receiver starts nothing after it, so a request the relay delivers late
+#   is refused there instead of racing this side's local fallback (SPL-2801:
+#   on 2026-10-21 the relay took 4 min each way and one ask became two lanes).
 #
 # SERVE (the receiver, one tick; the box user's crontab runs it every minute,
 # installed by do_spl_spawn_remote_install_cron):
@@ -110,12 +114,15 @@ request() {
   if [ -n "$brief" ]; then
     [ -r "$brief" ] || { say "cannot read brief $brief"; exit 2; }
   fi
-  local tmp out rc task
+  local tmp out rc task margin="${SPAWN_REMOTE_MARGIN:-60}" expires=""
+  [[ "$margin" =~ ^[0-9]+$ ]] || { say "SPAWN_REMOTE_MARGIN must be seconds"; exit 2; }
+  [ "$margin" -le $(( wait / 2 )) ] || margin=$(( wait / 2 ))
+  [ "$wait" = 0 ] || expires="expires: $(( $(date +%s) + wait - margin ))"
   tmp="$(mktemp)" || exit 3
   {
     printf '%s\n' "$MAGIC_REQ" \
       "(For spawn-remote.sh --serve on this machine, not for the agent reading it: do not act on it, ack it.)" \
-      "kind: $kind" "title: $title" "workdir: $workdir" "slug: $slug" "---"
+      "kind: $kind" "title: $title" "workdir: $workdir" "slug: $slug" ${expires:+"$expires"} "---"
     if [ -n "$brief" ]; then cat -- "$brief"; fi
   } >"$tmp"
   task="$(python3 -c 'import uuid; print(uuid.uuid4())')" || { rm -f "$tmp"; exit 3; }
@@ -185,7 +192,7 @@ reply() {  # INBOX_ID TO TASK STATUS LINES...
 req_field() { sed -n '1,/^---$/p' <<<"$1" | sed -n "s/^$2: //p" | sed -n 1p; }
 
 handle() {  # INBOX_ID FILE
-  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester
+  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester expires
   msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
   [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
@@ -221,6 +228,12 @@ handle() {  # INBOX_ID FILE
   requester="${from%%@*}"
   if task_cancelled "$me" "$task"; then
     log_line CANCELLED "$msg" "$from" "task $task withdrawn before spawn"
+    return 0
+  fi
+  expires="$(req_field "$body" expires)"
+  if [[ "$expires" =~ ^[0-9]+$ ]] && [ "$(date +%s)" -gt "$expires" ]; then
+    log_line EXPIRED "$msg" "$from" "arrived after its expiry $expires: the requester starts it elsewhere"
+    reply "$me" "$from" "$task" refused "reason: expired at $expires before this box could start it"
     return 0
   fi
   if [ -n "${SPAWN_REMOTE_WINDOW_CMD:-}" ]; then

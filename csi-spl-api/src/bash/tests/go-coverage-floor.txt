@@ -64,10 +64,11 @@ internal/marketing 63.6
 internal/mcp 88.7
 internal/msg 84.9
 internal/notify 94.8
-# internal/payments: 78.6 with paypal_payments_test.go (r14-06), 72.4 without
-# (692/880 vs 637/880 statements); go test -count=1 -cover ./internal/payments/,
-# go1.26.9, n=3 read 78.6 each.
-internal/payments 78.6
+# internal/payments: 80.9 with stripe_refund_test.go (r16-04, 712/880), 78.6
+# without; paypal_payments_test.go (r14-06) took it 72.4 -> 78.6 (637 -> 692
+# of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
+# 80.9 each.
+internal/payments 80.9
 internal/rbac 89.3
 internal/search 95.6
 internal/sign 82.9

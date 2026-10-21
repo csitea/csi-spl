@@ -40,6 +40,11 @@ type stripeAPI struct {
 	idem     []string
 	cancels  []string
 	cancelIs string // error.code the cancel answers with ("" = 200)
+
+	refunds      []url.Values
+	refundIdem   []string // Idempotency-Key per refund ("" = header absent)
+	refundStatus int      // status /v1/refunds answers with (0 = 200)
+	refundBody   string   // body /v1/refunds answers with ("" = a refund id)
 }
 
 func (a *stripeAPI) server(t *testing.T) *httptest.Server {
@@ -64,6 +69,16 @@ func (a *stripeAPI) server(t *testing.T) *httptest.Server {
 				return
 			}
 			_, _ = w.Write([]byte(`{}`))
+		case r.URL.Path == "/v1/refunds":
+			a.refunds, a.refundIdem = append(a.refunds, r.PostForm), append(a.refundIdem, r.Header.Get("Idempotency-Key"))
+			if a.refundStatus != 0 {
+				w.WriteHeader(a.refundStatus)
+			}
+			if a.refundBody == "" {
+				_, _ = w.Write([]byte(`{"id":"re_` + r.PostForm.Get("payment_intent") + `"}`))
+				return
+			}
+			_, _ = w.Write([]byte(a.refundBody))
 		default:
 			http.NotFound(w, r)
 		}

@@ -16,7 +16,7 @@ import { channelView as channelViewOf, mergeLive, rowFromAck, rowsForRightPane }
 import { pendingRow } from '../../src/utils/feed.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
-import { KEY_NAV_MS, eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, paneTakesLine } from '../../src/utils/pane-focus.mjs'
+const { KEY_NAV_MS, eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, paneTakesLine } = await importTs('src/utils/pane-focus.ts')
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

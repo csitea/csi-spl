@@ -14,7 +14,7 @@
 //
 // 081 T006 (FR-006): F6 / Shift + F6 move the focus left pane -> middle ->
 // right (when open) -> Omnibox, and back. The target is the pane's selected
-// row, else its first row, else its heading (utils/pane-focus.mjs). Not a
+// row, else its first row, else its heading (utils/pane-focus.ts). Not a
 // letter, so the keyboard_shortcuts setting does not turn it off (FR-012).
 //
 // SPL-2552: Shift + W closes the rightmost pane (the leftmost in a right-to-
@@ -36,7 +36,7 @@ import { useSessionStore } from '~/stores/session'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { PANE_CLOSE_X, inTextField, isCloseKey, paneEnd, rightmostClose } from '~/utils/pane-close'
 import { isPaletteSwipe, paletteSwipeStart } from '~/utils/phone-gestures.mjs'
-import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
+import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */
 const paletteOpen = ref(false)

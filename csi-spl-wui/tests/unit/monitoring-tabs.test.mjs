@@ -12,7 +12,8 @@ import {
   monitoringTabFor,
   legacyMonitoringPath,
 } from '../../src/utils/monitoring-tabs.mjs'
-import { RAIL_TABS, RAIL_RETIRED, DEFAULT_RAIL_ORDER } from '../../src/utils/rail-order.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { RAIL_TABS, RAIL_RETIRED, DEFAULT_RAIL_ORDER } = await importTs('src/utils/rail-order.ts')
 import { MONITORING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSectionPage } from '../../src/utils/section-strip.mjs'
 

@@ -660,17 +660,6 @@ declare module '~/utils/view-api.mjs' {
   export function copyMoveFields<T extends Record<string, unknown>>(src: unknown, out: T): T
 }
 
-declare module '~/utils/pane-focus.mjs' {
-  export const MIDDLE: 'middle'
-  export const RIGHT: 'right'
-  export function paneOfTarget(el: unknown): '' | 'middle' | 'right'
-  export function paneTakesLine(opts?: { paneOpen?: boolean, lastPane?: string }): boolean
-  export const KEY_NAV_MS: number
-  export function eventChoosesPane(ev?: { type?: string, onScrollbar?: boolean, keyNavAt?: number, now?: number }): boolean
-  export function isKeyNav(ev: { key?: string, target?: unknown }): boolean
-  export function onScrollbar(ev: { target?: unknown, offsetX?: number, offsetY?: number }): boolean
-}
-
 declare module '~/utils/typed-by.mjs' {
   export function typedByAuthor(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): { id: string, box: string, via: string, viaBox: string }
   export function isAiMessage(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): boolean
@@ -1559,33 +1548,6 @@ declare module '~/utils/palette.mjs' {
   export function pushRecent(store: Storage | undefined, id: unknown): string[]
 }
 
-declare module '~/utils/rail-order.mjs' {
-  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting'
-  export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
-  export const RAIL_IDS: readonly RailId[]
-  export const RAIL_RETIRED: readonly string[]
-  export const RAIL_HUB_PENDING: readonly string[]
-  export function wireRailOrder(order: readonly string[]): string[]
-  export const RAIL_PINNED_LAST: 'archive'
-  export const DEFAULT_RAIL_ORDER: readonly RailId[]
-  export function pinRailOrder<T extends string>(order: readonly T[]): T[]
-  export function isRailMovable(id: string): boolean
-  export function dragAxis(rects: readonly { left: number, top: number, width: number, height: number }[]): { axis: 'x' | 'y', sign: 1 | -1 }
-  export function railLabelKey(tab: { labelKey: string, phoneLabelKey?: string }, phone: boolean): string
-  export const DRAG_THRESHOLD_PX: number
-  export function isRailOrder(raw: unknown): boolean
-  export function parseRailOrder(raw: unknown): RailId[]
-  export function sameOrder(a: unknown, b: unknown): boolean
-  export function moveTo<T extends string>(order: readonly T[], id: T, to: number): T[]
-  export function moveBy<T extends string>(order: readonly T[], id: T, delta: number): T[]
-  export function dropIndex(mids: readonly number[], from: number, pos: number): number
-  export function isDrag(dx: number, dy: number, threshold?: number): boolean
-  export function applyRailOrder(
-    want: string[] | null,
-    io: { current: unknown, apply: (o: string[] | null) => void, save: (o: string[] | null) => Promise<{ ok: boolean }> },
-  ): Promise<{ ok: boolean, value: string[] | null, out?: unknown }>
-}
-
 declare module '~/utils/font-size.mjs' {
   export const FONT_SIZE_KEY: 'spool-font-size'
   export const FONT_SIZE_MIN: 1
@@ -2181,21 +2143,6 @@ declare module '~/utils/offline-queue.mjs' {
   export function createSendQueue(opts?: { stillOffline?: (err: unknown) => boolean, onFail?: (msgId: string, err: unknown) => void }): SendQueue
   export function retryWith(msgId: string, text?: string): void
   export function takeMsgId(text: string, fresh: string): string
-}
-
-/* 081 T006: the F6 cycle, the skip link and the focus after a route change */
-declare module '~/utils/pane-focus.mjs' {
-  export const LEFT: 'left'
-  export const OMNIBOX: 'omnibox'
-  export type F6Pane = 'left' | 'middle' | 'right' | 'omnibox'
-  export const F6_ORDER: readonly F6Pane[]
-  export const PANE_ROOTS: Readonly<Record<F6Pane, string>>
-  export const PANE_TARGETS: Readonly<Record<F6Pane, { selected: string, first: string, heading: string }>>
-  export function paneAt(el: unknown): '' | F6Pane
-  export function paneKey(ev: { key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null): '' | 'next' | 'prev'
-  export function nextPane(from: string, opts?: { back?: boolean, has?: (pane: F6Pane) => boolean }): '' | F6Pane
-  export function paneTarget(root: ParentNode | null, pane: string, opts?: { firstRow?: boolean, visible?: (el: Element) => boolean }): Element | null
-  export function routeTakesFocus(nav?: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean }): boolean
 }
 
 declare module '~/utils/vim-nav.mjs' {

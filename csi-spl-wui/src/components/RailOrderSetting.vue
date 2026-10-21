@@ -82,7 +82,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
-import { RAIL_TABS, isRailMovable, moveBy, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, isRailMovable, moveBy, railLabelKey, type RailId } from '~/utils/rail-order'
 import { useMobileStack } from '~/composables/useMobileStack'
 
 const { t } = useI18n({ useScope: 'global' })

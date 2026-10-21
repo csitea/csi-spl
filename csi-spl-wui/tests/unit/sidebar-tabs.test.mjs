@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SIDE_TABS, routeForTab, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
-import { RAIL_IDS } from '../../src/utils/rail-order.mjs'
+const { RAIL_IDS } = await importTs('src/utils/rail-order.ts')
 import { isMobileFrontDoor } from '../../src/utils/mobile-stack.mjs'
 import { importTs } from './lib/load-ts.mjs'
 
@@ -128,8 +128,8 @@ describe('the strip is icons, in that order', () => {
   const css = src('src/assets/css/main.css')
 
   it('the rail lists the list tabs in order, icons only', () => {
-    /* SPL-979: the default order and icons live in utils/rail-order.mjs */
-    const tabs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/utils/rail-order.mjs'), 'utf8')
+    /* SPL-979: the default order and icons live in utils/rail-order.ts */
+    const tabs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/utils/rail-order.ts'), 'utf8')
     const ids = ["'channels'", "'dm'", "'flow'"]
     let at = 0
     for (const id of ids) {

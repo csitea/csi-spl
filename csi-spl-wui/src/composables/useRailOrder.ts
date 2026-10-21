@@ -3,7 +3,7 @@
 // claim (kept on the hub), so a drop in either place redraws both at once.
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { applyRailOrder, parseRailOrder, pinRailOrder, type RailId } from '~/utils/rail-order.mjs'
+import { applyRailOrder, parseRailOrder, pinRailOrder, type RailId } from '~/utils/rail-order'
 
 export function useRailOrder() {
   const session = useSessionStore()

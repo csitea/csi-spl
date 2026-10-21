@@ -1,12 +1,13 @@
 // 081 T006 (FR-006, FR-007, FR-009): the F6 cycle, the skip link and the
-// focus after a route change. The pure half is utils/pane-focus.mjs; the
+// focus after a route change. The pure half is utils/pane-focus.ts; the
 // wiring is read from useGlobalKeys.ts and layouts/default.vue.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { F6_ORDER, LEFT, MIDDLE, OMNIBOX, RIGHT, nextPane, paneAt, paneKey, paneOfTarget, paneTarget, routeTakesFocus } from '../../src/utils/pane-focus.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { F6_ORDER, LEFT, MIDDLE, OMNIBOX, RIGHT, nextPane, paneAt, paneKey, paneOfTarget, paneTarget, routeTakesFocus } = await importTs('src/utils/pane-focus.ts')
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (rel) => readFileSync(join(SRC, rel), 'utf8')

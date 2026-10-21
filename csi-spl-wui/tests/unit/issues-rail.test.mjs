@@ -20,10 +20,10 @@ describe('Issues rail tab', () => {
   })
 
   it('is the third tab, after channels and direct messages, before flow', () => {
-    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
+    /* SPL-979: the default order lives in utils/rail-order.ts RAIL_TABS;
        owner 2026-09-27: channels, direct messages, issues, ...; the Topics
        tab that followed Issues is gone (t1 e4bfddb1), Flow follows now */
-    const tabs = read('src/utils/rail-order.mjs')
+    const tabs = read('src/utils/rail-order.ts')
     const src = read('src/components/ChannelSidebar.vue')
     const channels = tabs.indexOf("{ id: 'channels', icon: 'hash'")
     const dm = tabs.indexOf("{ id: 'dm', icon: 'messages'")

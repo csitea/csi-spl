@@ -12,7 +12,8 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_POSITION, DOCK_ID, omniboxAtBottom, omniboxMaxHeight, parsePosition, resizeHeight } from '../../src/utils/omnibox-dock.mjs'
-import { paneOfTarget } from '../../src/utils/pane-focus.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { paneOfTarget } = await importTs('src/utils/pane-focus.ts')
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')

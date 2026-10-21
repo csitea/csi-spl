@@ -1,0 +1,6 @@
+Lay-What: Reporting has a new SQL tab where an admin types a question and sees the answer as a striped table.
+Lay-How: Press Run or Ctrl/Cmd+Enter; the answer can be copied or saved as a spreadsheet file or a data file.
+Lay-Why: Admins asked to take query answers into other tools without retyping them.
+Tech-What: WUI pages/reporting/sql.vue with utils/reporting-sql.ts: query box, zebra result table, Copy, Download .csv and .json.
+Tech-How: The page is lazy-loaded (initial bundle +89 B gzip) and calls the client reportingSql against POST /v1/reporting/sql; 19 locales carry reporting.sql.* keys.
+Tech-Why: Spec 143 row 5 (T033), owner answer 1 = C plus copy, up to 2,000 rows.

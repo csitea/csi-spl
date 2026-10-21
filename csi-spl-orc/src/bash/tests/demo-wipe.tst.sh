@@ -12,16 +12,21 @@
 #   A4. DRY_RUN defaults to 1 (the count path); DRY_RUN=0 is the delete path
 #   A5. the pinned-welcome hook: says T019 is missing, runs it once it exists
 #   A6. the seeded channels equal the hub's store.DefaultChannels
+#   A7. DEMO_WIPE_MAX_AGE_DAYS outside 2..365 is refused before any DB call
 #   B1. dry run: exact counts, nothing deleted
 #   B2. the wipe deletes the demo workspace's messages (and their topics,
 #       deliveries, reactions), read marks and topic watches, re-seeds a
 #       missing default channel, keeps an admin's channel
 #   B3. CONTROL: the other workspace's rows are untouched
 #   B4. CONTROL guard 2: the SQL itself refuses a workspace with a member
-#       whose role is not demo_user / admin / biz_owner, and deletes nothing
+#       whose role is not demo_user / admin / biz_owner / developer, and one
+#       holding a message older than the max age (t1: 30 days old, with a
+#       developer); it deletes nothing in either
 #   B5. a missing workspace is refused; a second wipe is a no-op
 #   B6. the ban list (rdb 0130 demo_bans, T016 part B) survives the wipe: a
 #       banned visitor stays banned after the night
+#   B8. SPL-2800 (prd red 10-20, 10-21): a developer the owner invited into
+#       the demo workspace no longer stops the wipe (B1/B2 run with one)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,7 +46,7 @@ runa() {
   local on="$1"; shift
   : >"$T/calls"
   printf 'env:\n  demo:\n    enabled: %s\n    workspace: demo\n' "$on" >"$T/cnf.yaml"
-  env -u DRY_RUN -u DEMO_WIPE_WORKSPACE FUNC="$FUNC" T="$T" "$@" bash -c '
+  env -u DRY_RUN -u DEMO_WIPE_WORKSPACE -u DEMO_WIPE_MAX_AGE_DAYS FUNC="$FUNC" T="$T" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -91,6 +96,12 @@ have="$(sed -n "s/^SPL_DEMO_WIPE_CHANNELS='{\(.*\)}'$/\1/p" "$FUNC")"
 [[ -n "$want" && "$have" == "$want" ]] && pass "A6. seeded channels {$have} = store.DefaultChannels" ||
   fail "A6. seeded channels '{$have}' != store.DefaultChannels '{$want}'"
 
+for bad in 1 366 x; do
+  runa true ENV=dev DRY_RUN=0 DEMO_WIPE_MAX_AGE_DAYS="$bad"; rc=$?
+  [[ $rc -eq 2 && ! -s "$T/calls" ]] && grep -q 'DEMO_WIPE_MAX_AGE_DAYS must be 2..365' "$T/e" &&
+    pass "A7. DEMO_WIPE_MAX_AGE_DAYS=$bad refused, no DB call" || fail "A7. $bad rc=$rc $(cat "$T/calls" "$T/e")"
+done
+
 # B ---------------------------------------------------------------------------
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
 if ! command -v docker >/dev/null || ! command -v psql >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/null 2>&1; then
@@ -121,13 +132,14 @@ PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 "$OWNER_DSN" -v runtime_role=spoo
 # demo (an admin, a visitor) and t1 (a developer): two topics + a DM each
 q "INSERT INTO humans (human_id) VALUES ('HUM-1'), ('HUM-2'), ('HUM-3')" >/dev/null
 for t in demo t1; do
+  if [[ "$t" == t1 ]]; then at="now() - interval '30 days'"; else at="now()"; fi
   q "INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex'))" >/dev/null
   q "INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, expires_at)
-     SELECT '$t', gen_random_uuid(), ('00000000-0000-4000-8000-00000000000' || (i % 2 + 1))::uuid, 'lobby', now(),
+     SELECT '$t', gen_random_uuid(), ('00000000-0000-4000-8000-00000000000' || (i % 2 + 1))::uuid, 'lobby', $at,
             'box-wui', 'HUM-2', 'box-demo', 'c-001', 'note', 'm' || i, '{}'::jsonb, 'sig', '\\x00'::bytea, now() + interval '1 day'
        FROM generate_series(1, 4) AS i
      UNION ALL
-     SELECT '$t', gen_random_uuid(), '00000000-0000-4000-8000-000000000009', NULL, now(),
+     SELECT '$t', gen_random_uuid(), '00000000-0000-4000-8000-000000000009', NULL, $at,
             'box-wui', 'HUM-2', 'box-demo', 'c-001', 'note', 'dm', '{}'::jsonb, 'sig', '\\x00'::bytea, now() + interval '1 day'" >/dev/null
   q "INSERT INTO deliveries (tenant_id, msg_id, to_box, expires_at) SELECT tenant_id, msg_id, 'box-demo', now() + interval '1 day' FROM messages WHERE tenant_id = '$t'" >/dev/null
   q "INSERT INTO read_marks (tenant_id, member_id, mark_key, at) VALUES ('$t', 'HUM-2', 'ch:lobby', now()), ('$t', 'HUM-2', 't:00000000-0000-4000-8000-000000000001', now())" >/dev/null
@@ -136,6 +148,7 @@ for t in demo t1; do
 done
 q "INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUES
      ('demo', 'HUM-1', 'admin', 'operator'), ('demo', 'HUM-2', 'demo_user', 'operator'),
+     ('demo', 'HUM-3', 'developer', 'HUM-1'),
      ('t1', 'HUM-1', 'biz_owner', 'operator'), ('t1', 'HUM-3', 'developer', 'HUM-1')" >/dev/null
 q "DELETE FROM channels WHERE tenant_id = 'demo' AND channel_id = 'feedback'" >/dev/null
 q "INSERT INTO demo_bans (tenant_id, key, banned_by) VALUES ('demo', 'acct:' || repeat('a', 64), 'HUM-1'), ('demo', 'mail:' || repeat('b', 64), 'HUM-1')" >/dev/null
@@ -170,16 +183,25 @@ runb demo 0; rc=$?
 [[ "$(counts t1)" == "5 5 2 1" ]] && pass "B3. CONTROL: t1's rows are untouched" || fail "B3. t1 counts=$(counts t1)"
 
 runb t1 0; rc=$?
-[[ $rc -ne 0 ]] && grep -q 'has members with role(s) developer: not a demo workspace, refused' "$T/o" &&
+[[ $rc -ne 0 ]] && grep -q 'workspace t1 holds messages older than 14 days: not a nightly-wiped demo workspace, refused' "$T/o" &&
   [[ "$(counts t1)" == "5 5 2 1" ]] &&
-  pass "B4. CONTROL: the SQL refuses t1 (a developer member) and deletes nothing" ||
+  pass "B4. CONTROL: the SQL refuses t1 (30-day-old messages) and deletes nothing" ||
   fail "B4. rc=$rc $(cat "$T/o") t1 counts=$(counts t1)"
+q "INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUES ('t1', 'HUM-2', 'regular_user', 'HUM-1')" >/dev/null
+runb t1 0; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'has members with role(s) regular_user: not a demo workspace, refused' "$T/o" &&
+  [[ "$(counts t1)" == "5 5 2 1" ]] &&
+  pass "B4. CONTROL: the SQL refuses t1 (a regular_user member) and deletes nothing" ||
+  fail "B4. role rc=$rc $(cat "$T/o") t1 counts=$(counts t1)"
 
 runb nope 0; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'workspace nope does not exist' "$T/o" && pass "B5. a missing workspace is refused" || fail "B5. rc=$rc $(cat "$T/o")"
 runb demo 0; rc=$?
 [[ $rc -eq 0 ]] && grep -qx '"messages":0,"topics":0,"read_marks":0,"flow_watches":0,"channels_reseeded":0' "$T/o" &&
   pass "B5. a second wipe is a no-op" || fail "B5. rerun rc=$rc $(cat "$T/o")"
+[[ "$(counts demo)" == "0 0 0 0" && "$(q "SELECT role FROM tenant_memberships WHERE tenant_id = 'demo' AND human_id = 'HUM-3'")" == developer ]] &&
+  pass "B8. SPL-2800: the demo workspace with an invited developer was wiped (B1, B2, B5), the member kept" ||
+  fail "B8. demo counts=$(counts demo), the invited developer's membership: $(q "SELECT role FROM tenant_memberships WHERE tenant_id = 'demo' AND human_id = 'HUM-3'")"
 [[ "$(bans)" == "2" ]] && pass "B6. the ban list survives two wipes (2 rows)" || fail "B6. demo_bans rows after the wipes: $(bans)"
 
 # spec 099 T006: the triggers kept every topic head right through this run

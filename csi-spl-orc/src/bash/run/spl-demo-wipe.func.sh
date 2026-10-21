@@ -12,9 +12,12 @@
 # @description   1 cnf: the workspace is env.demo.workspace; DEMO_WIPE_WORKSPACE
 # @description     naming any other id is refused. env.demo.enabled not true
 # @description     skips (exit 0, nothing read).
-# @description   2 DB, inside the wipe's own transaction: the workspace exists
-# @description     and has no member whose role is outside demo_user / admin /
-# @description     biz_owner (a real workspace has developers); else it aborts.
+# @description   2 DB, inside the wipe's own transaction: the workspace exists,
+# @description     has no member whose role is outside demo_user / admin /
+# @description     biz_owner / developer (the owner invites staff as developer,
+# @description     SPL-2800), and holds no message older than
+# @description     DEMO_WIPE_MAX_AGE_DAYS: a demo is wiped every night, a real
+# @description     workspace keeps its history. Either one aborts the wipe.
 # @description The SQL runs in TENANT RLS scope (app.tenant_id = the demo id),
 # @description so even a wrong WHERE cannot reach another workspace's rows.
 # @description PINNED WELCOME: 077 T019 (greeting seed) is not built. The hook
@@ -24,14 +27,18 @@
 # @param ENV - dev or prd
 # @param DRY_RUN (optional) - 1 (default): count in a READ ONLY transaction, delete nothing
 # @param DEMO_WIPE_WORKSPACE (optional) - must equal cnf env.demo.workspace
+# @param DEMO_WIPE_MAX_AGE_DAYS (optional) - 14 (default): guard 2 refuses a
+# @param   workspace holding a message older than this many days (2..365)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA (do_gcp_account)
 # @example ENV=dev ./run -a do_spl_demo_wipe
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_demo_wipe
 #------------------------------------------------------------------------------
 do_spl_demo_wipe() {
   spl_require_cloud_env || return 1
-  local dry="${DRY_RUN:-1}" ws on out rc=0
+  local dry="${DRY_RUN:-1}" age="${DEMO_WIPE_MAX_AGE_DAYS:-14}" ws on out rc=0
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
+  [[ "$age" =~ ^[0-9]{1,3}$ ]] && (( age >= 2 && age <= 365 )) ||
+    { do_log "FATAL DEMO_WIPE_MAX_AGE_DAYS must be 2..365, got: $age"; return 2; }
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   ws="$(spl_demo_wipe_workspace "$SPL_CNF")" || return 1
@@ -44,7 +51,7 @@ do_spl_demo_wipe() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   out="$(mktemp)" || return 1
-  DEMO_WS="$ws" DEMO_DRY="$dry" spl_via_proxy _spl_demo_wipe_run "$out" || rc=$?
+  DEMO_WS="$ws" DEMO_DRY="$dry" DEMO_AGE="$age" spl_via_proxy _spl_demo_wipe_run "$out" || rc=$?
   if (( rc != 0 )); then
     do_log "FATAL the wipe of $ws in $ENV failed, nothing was committed: $(tr '\n' ' ' <"$out")"
     rm -f "$out"; return 1
@@ -96,25 +103,30 @@ _spl_demo_wipe_run() {
   if [[ "$DEMO_DRY" == 1 ]]; then body="$(_spl_demo_wipe_sql_count)"; else body="$(_spl_demo_wipe_sql_delete)"; fi
   { _spl_demo_wipe_sql_guard; echo "$body"; echo 'COMMIT;'; } |
     spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v ws="$DEMO_WS" \
-      -v seed="$SPL_DEMO_WIPE_CHANNELS" >"$1" 2>&1
+      -v seed="$SPL_DEMO_WIPE_CHANNELS" -v age="${DEMO_AGE:-14}" >"$1" 2>&1
 }
 
 _spl_demo_wipe_sql_guard() {
   if [[ "$DEMO_DRY" == 1 ]]; then echo 'BEGIN READ ONLY;'; else echo 'BEGIN;'; fi
   cat <<'SQL'
 SET LOCAL app.tenant_id = :'ws';
+SET LOCAL spl.demo_wipe_age_days = :'age';
 DO $$
 DECLARE
     ws  text := current_setting('app.tenant_id');
+    age int  := current_setting('spl.demo_wipe_age_days')::int;
     bad text;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM tenants WHERE tenant_id = ws) THEN
         RAISE EXCEPTION 'demo wipe: workspace % does not exist', ws;
     END IF;
     SELECT string_agg(DISTINCT role, ',') INTO bad FROM tenant_memberships
-     WHERE tenant_id = ws AND role NOT IN ('demo_user', 'admin', 'biz_owner');
+     WHERE tenant_id = ws AND role NOT IN ('demo_user', 'admin', 'biz_owner', 'developer');
     IF bad IS NOT NULL THEN
         RAISE EXCEPTION 'demo wipe: workspace % has members with role(s) %: not a demo workspace, refused', ws, bad;
+    END IF;
+    IF EXISTS (SELECT 1 FROM messages WHERE tenant_id = ws AND ts < now() - make_interval(days => age)) THEN
+        RAISE EXCEPTION 'demo wipe: workspace % holds messages older than % days: not a nightly-wiped demo workspace, refused', ws, age;
     END IF;
 END $$;
 SQL

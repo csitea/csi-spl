@@ -292,6 +292,14 @@ the human, the ban stays. **The nightly wipe keeps the ban list**
 lapsed every night would be no ban). No unban route: a mistaken ban is an
 operator `DELETE FROM demo_bans` row, in tenant scope.
 
+**What the wipe refuses** (guard 2, inside its own transaction): a workspace
+with a member whose role is outside `demo_user`, `admin`, `biz_owner` and
+`developer`, or one holding a message older than `DEMO_WIPE_MAX_AGE_DAYS`
+(14): a demo is wiped every night, a real workspace keeps its history.
+`developer` is allowed since SPL-2800: the owner invited staff into the prd
+demo as developers (accepted 2026-10-19), and the old role-only guard then
+refused the 10-20 and 10-21 wipes. Test: `demo-wipe.tst.sh` B4, B8.
+
 ### 3.7 Cost controls (Q6)
 
 - The demo box carries its own AI-vendor key with a **hard spending cap set at

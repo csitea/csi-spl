@@ -6,7 +6,7 @@
 # csi-spl-orc do_spl_demo_wipe; its guards are the action's, not this file's:
 # any workspace other than env.demo.workspace is refused, and the SQL itself
 # aborts on a workspace with a member whose role is not demo_user / admin /
-# biz_owner. An env whose cnf env.demo.enabled is not true is SKIPPED by the
+# biz_owner / developer, or one holding a message older than 14 days. An env whose cnf env.demo.enabled is not true is SKIPPED by the
 # action (exit 0), so prd wipes nothing until 077 T024 turns its demo on.
 #
 # Same scheduler and auth as 45 (db backup): the per-env project key secrets

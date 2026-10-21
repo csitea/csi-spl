@@ -150,6 +150,41 @@ variable "sql_down_seconds" {
   description = "Page when Cloud SQL database/up reads 0 for this long."
 }
 
+variable "hub_max_instances" {
+  type        = number
+  description = "The hub's max instances per revision (cnf hub.cloud_run.max_instances, 030)."
+
+  validation {
+    condition     = var.hub_max_instances >= 1
+    error_message = "hub_max_instances must be at least 1."
+  }
+}
+
+variable "instances_at_max_seconds" {
+  type        = number
+  description = "Page when one hub revision runs hub_max_instances for this long."
+
+  validation {
+    condition     = var.instances_at_max_seconds >= 60 && var.instances_at_max_seconds <= 86400
+    error_message = "instances_at_max_seconds must be 60..86400 (Cloud Monitoring's condition duration)."
+  }
+}
+
+variable "memory_utilization_threshold" {
+  type        = number
+  description = "Page when a hub revision's p99 container memory utilisation (0..1) stays above this."
+
+  validation {
+    condition     = var.memory_utilization_threshold > 0 && var.memory_utilization_threshold < 1
+    error_message = "memory_utilization_threshold is a fraction of the container memory: above 0, below 1."
+  }
+}
+
+variable "memory_high_seconds" {
+  type        = number
+  description = "How long the memory utilisation must stay above the threshold before it pages."
+}
+
 variable "auto_close_seconds" {
   type        = number
   description = "An open incident whose condition stays clear this long is closed."

@@ -12,5 +12,6 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
 {{ key }} = {{ value | tojson }}
 {%- endfor %}
 hub_service_name        = {{ hub["service_name"] | tojson }}
+hub_max_instances       = {{ hub["cloud_run"]["max_instances"] | tojson }}
 cloud_sql_instance_name = {{ steps["040-cloud-sql-postgres"]["instance_name"] | tojson }}
 uptime_host             = {{ (dns.get("api_fqdn") or "") | tojson }}

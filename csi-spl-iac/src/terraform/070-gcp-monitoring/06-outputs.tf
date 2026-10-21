@@ -18,5 +18,7 @@ output "alert_policies" {
     google_monitoring_alert_policy.rate_5xx.name,
     google_monitoring_alert_policy.error_logs.name,
     google_monitoring_alert_policy.sql_down.name,
+    google_monitoring_alert_policy.instances_at_max.name,
+    google_monitoring_alert_policy.memory_high.name,
   ]
 }

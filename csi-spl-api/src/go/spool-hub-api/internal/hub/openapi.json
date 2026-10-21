@@ -10281,6 +10281,161 @@
         ]
       }
     },
+    "/v1/reporting/releases/commits": {
+      "get": {
+        "operationId": "getReportingReleasesCommits",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "RFC3339 time or YYYY-MM-DD day; default 30 days ago",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339 time or YYYY-MM-DD day (the whole day); default now",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma list of commit kinds (feat, fix, docs, ...)",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma list of areas, a scope's first word (wui, api, orc, ...)",
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "free text over subject, sha prefix, version and the Lay/Tech trailers",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "page size 1..200, default 50",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "rows to skip, default 0",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Releases report: one page of commits, newest first (spec 143 2.4.2)",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/v1/reporting/releases/daily": {
+      "get": {
+        "operationId": "getReportingReleasesDaily",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "RFC3339 time or YYYY-MM-DD day; default 30 days ago",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339 time or YYYY-MM-DD day (the whole day); default now",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma list of commit kinds (feat, fix, docs, ...)",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma list of areas, a scope's first word (wui, api, orc, ...)",
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Releases report: commits and deploys per UTC day (spec 143 2.4.1)",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
     "/v1/takeover-ladder": {
       "get": {
         "operationId": "getTakeoverLadder",

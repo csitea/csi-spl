@@ -1,0 +1,6 @@
+Lay-What: The sidebar's code is split into smaller files; nothing you see or do in the app changes.
+Lay-How: The keys that move between the sidebar's tabs, and the rules for which pages show only the narrow rail, moved word for word into two new files.
+Lay-Why: The sidebar's code was the largest in the app and close to the size limit, which made it hard to change safely.
+Tech-What: ChannelSidebar.vue script 494 -> 436 lines; no template, store or behaviour change.
+Tech-How: vimRing/enterRailTab/onTabKey -> composables/useSidebarRailTabKeys.ts; issueEpics, six *RailOnly and railOnly -> composables/useSidebarRailOnly.ts.
+Tech-Why: ChannelSidebar had the largest SFC script (494, cap MAX_SCRIPT 500 in sfc-script-size); refactor round r16-06.

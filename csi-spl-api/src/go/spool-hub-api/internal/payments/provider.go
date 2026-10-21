@@ -11,6 +11,8 @@ import (
 // the credential-free fake-pay rail.
 type PaymentProvider interface {
 	CreateIntent(ctx context.Context, orderID string, totalCents int, currency string) (intentID, clientSecret string, err error)
+	// Refund returns money for a paid intent. Part of the contract for a
+	// future operator refund; no handler calls it yet.
 	Refund(ctx context.Context, intentID string, amountCents int) error
 	// CancelIntent cancels the provider-side payment so a late payment can no
 	// longer be confirmed. Cancelling a terminal intent MUST be benign.

@@ -153,8 +153,8 @@ func (s *StripePayments) CancelIntent(ctx context.Context, intentID string) erro
 }
 
 // Refund creates a Stripe Refund against the given PaymentIntent without an
-// Idempotency-Key. Kept for the PaymentProvider contract; an operator refund
-// goes through RefundWithKey.
+// Idempotency-Key. It exists for the PaymentProvider contract; no handler or
+// operator path calls a refund yet.
 func (s *StripePayments) Refund(ctx context.Context, intentID string, amountCents int) error {
 	_, err := s.RefundWithKey(ctx, intentID, amountCents, "")
 	return err
@@ -162,7 +162,9 @@ func (s *StripePayments) Refund(ctx context.Context, intentID string, amountCent
 
 // RefundWithKey creates a Stripe Refund and forwards idempotencyKey as
 // Stripe's Idempotency-Key: a retry after a timeout that Stripe had already
-// accepted returns the first refund instead of creating a second one.
+// accepted returns the first refund instead of creating a second one. Its
+// only caller is Refund (with an empty key); it is kept, tested, for a future
+// operator refund, which nothing wires yet.
 func (s *StripePayments) RefundWithKey(ctx context.Context, intentID string, amountCents int, idempotencyKey string) (string, error) {
 	form := url.Values{}
 	form.Set("payment_intent", intentID)

@@ -136,6 +136,22 @@ describe('errorJournal: the buffer', () => {
     assert.ok(formatRecords([rec], { version: 'v0.1.0', page: '/' }).startsWith('spool WUI diagnostics'))
   })
 
+  it('serializes each record as its stamped summary line plus labelled detail lines', () => {
+    const rec = {
+      at: '2026-09-19T09:00:00.000Z', errorId: 'ERR-CLIENT-20260919-090000-0A1B', ref: 'E1-ab12',
+      method: 'GET', path: '/v1/view/topics', status: 502, origin: 'https://hub.example.com',
+      source: 'viewer', route: '/lobby', message: 'Bad Gateway',
+    }
+    assert.deepEqual(formatRecords([rec], { env: 'dev', page: '/lobby/' }).split('\n'), [
+      'spool WUI diagnostics · env dev · read on /lobby',
+      '2026-09-19T09:00:00.000Z ERR-CLIENT-20260919-090000-0A1B GET /v1/view/topics 502 (E1-ab12)',
+      '  origin: https://hub.example.com',
+      '  source: viewer',
+      '  route:  /lobby',
+      '  detail: Bad Gateway',
+    ])
+  })
+
   it('groups by origin page and collapses only for stale foreign records', () => {
     const now = Date.parse('2026-09-19T10:00:00Z')
     const recs = [

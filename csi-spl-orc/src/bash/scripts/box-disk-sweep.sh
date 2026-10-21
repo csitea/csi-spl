@@ -24,10 +24,11 @@
 #   runlogs    run-log-sweep.sh         the ./run action logs ($HOME/var/log/<proj>/*.log)
 #                                       older than 72 h (24 h low, 6 h crit), oldest
 #                                       first, never one a process holds open (SPL-2649:
-#                                       sat's held 8.8 GB, nothing pruned them); a
-#                                       plan only, also under DRY_RUN=0, until
-#                                       BOX_SWEEP_RUNLOG_APPLY=1 (the orchestrator
-#                                       decides the first live run)
+#                                       sat's held 8.8 GB, nothing pruned them); live
+#                                       under DRY_RUN=0 since the orchestrator's first
+#                                       live run (2026-10-21T21:54Z, sat: 61800 logs,
+#                                       2420 MB, kept_open=0; SPL-2804);
+#                                       BOX_SWEEP_RUNLOG_APPLY=0 keeps it a plan
 #   vartmp     tmp-stale-sweep.sh       TMP_STALE_ANY=1 on /var/tmp (the ROOT disk): any
 #                                       idle lane leftover, a live lane's name kept;
 #                                       low / crit level only, idle 72 h / 24 h
@@ -73,7 +74,7 @@
 #   BOX_SWEEP_RUNNER_AGE   default 2 (days); idle runners only
 #   BOX_SWEEP_RUNLOG_ROOTS default "$HOME/var/log" (run-log-sweep.sh's RUN_LOG_SWEEP_ROOTS)
 #   BOX_SWEEP_RUNLOG_AGE_H default 72; BOX_SWEEP_LOW_RUNLOG_AGE_H / _CRIT_RUNLOG_AGE_H 24 / 6
-#   BOX_SWEEP_RUNLOG_APPLY default 0: the runlogs step only plans; 1 = it gets DRY_RUN
+#   BOX_SWEEP_RUNLOG_APPLY default 1: the runlogs step gets DRY_RUN; 0 = it only plans (off switch)
 #   BOX_SWEEP_DOCKER_UNTIL default 72h (the session age, AGE_DAYS=3)
 #   BOX_SWEEP_GO_AGE_MIN   default 1440
 #   BOX_SWEEP_VARTMP_ROOT  default /var/tmp
@@ -123,7 +124,7 @@ journal_max="${BOX_SWEEP_JOURNAL_MAX:-500M}"
 runner_root="${BOX_SWEEP_RUNNER_ROOT:-/srv/gh-runner}"
 runner_age="${BOX_SWEEP_RUNNER_AGE:-2}"
 runlog_roots="${BOX_SWEEP_RUNLOG_ROOTS:-$HOME/var/log}" runlog_age="${BOX_SWEEP_RUNLOG_AGE_H:-72}"
-runlog_dry=1; [[ "${BOX_SWEEP_RUNLOG_APPLY:-0}" == 1 ]] && runlog_dry="$dry"
+runlog_dry=1; [[ "${BOX_SWEEP_RUNLOG_APPLY:-1}" == 1 ]] && runlog_dry="$dry"
 vartmp_root="${BOX_SWEEP_VARTMP_ROOT:-/var/tmp}" vartmp_age=""
 log_max="${BOX_SWEEP_LOG_MAX:-256M}"
 export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"

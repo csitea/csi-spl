@@ -117,7 +117,7 @@ go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440 CAP=8
 prune-docker-images DRY_RUN=0 UNTIL=72h
 journal-sweep DRY_RUN=0 UNTIL=
 runner-sweep DRY_RUN=0 UNTIL=
-run-log-sweep DRY_RUN=1 UNTIL="
+run-log-sweep DRY_RUN=0 UNTIL="
 [ "$(cat "$L")" = "$want" ] && pass "3. the steps run in order, DRY_RUN, the docker age and (to the utl workdirs action) the free % passed on" || fail "3. steps: $(cat "$L")"
 [ "$rc" = 1 ] && grep -q 'FAIL step tmp rc=1' <<<"$out" && grep -q 'DONE rc=1' <<<"$out" && pass "3. a failing step is reported and the next still runs" || fail "3. rc $rc ($out)"
 out="$(bsw BOX_SWEEP_STEPS='tmp rm-rf')"; rc=$?
@@ -283,7 +283,7 @@ cp "$CT" "$T/crontab.orig"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
 inst() { SNIPPET='do_box_disk_sweep_install_cron' in_orc BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/log" BOX_SWEEP_ALLOW_WORKTREE=1 "$@" 2>&1; }
 out="$(inst)"
-grep -q '^  +11-59/15 \* \* \* \* DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK='"$T"'/log/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/log/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
+grep -q '^  +11-59/15 \* \* \* \* DRY_RUN=0 BOX_SWEEP_RUNLOG_APPLY=1 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK='"$T"'/log/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/log/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
   && pass "4. the dry run prints the 15-min gated line" || fail "4. dry-run diff ($out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "4. ...and changes nothing" || fail "4. the dry run wrote the crontab"
 inst DRY_RUN=0 >/dev/null

@@ -30,7 +30,7 @@
 # @param BOX_SWEEP_RUNNER_ROOT (optional) - default /srv/gh-runner
 # @param BOX_SWEEP_RUNNER_AGE (optional) - default 2 (days)
 # @param BOX_SWEEP_RUNLOG_AGE_H (optional) - default 72; LOW_ / CRIT_RUNLOG_AGE_H 24 / 6
-# @param BOX_SWEEP_RUNLOG_APPLY (optional) - default 0: the runlogs step only plans; 1: it gets DRY_RUN
+# @param BOX_SWEEP_RUNLOG_APPLY (optional) - default 1: the runlogs step gets DRY_RUN; 0: it only plans
 # @param BOX_SWEEP_DOCKER_UNTIL (optional) - default 72h
 # @param BOX_SWEEP_LOW_VARTMP_AGE_H / BOX_SWEEP_CRIT_VARTMP_AGE_H (optional) - 72 / 24
 # @param BOX_SWEEP_LOG_MAX (optional) - default 256M

@@ -8,9 +8,14 @@
 #      reports the 2 MB; keeps a recent log, a log a process holds open, a
 #      non-.log file, a log one dir deeper and a symlink's target
 #   3. the sweep passes the retention by level: 72 h normal, 24 h low, 6 h crit;
-#      HOLD: under the cron's DRY_RUN=0 the step only plans until
-#      BOX_SWEEP_RUNLOG_APPLY=1 (the orchestrator decides the first live run)
+#      under DRY_RUN=0 the step runs live by default (SPL-2804, after the
+#      orchestrator's first live run 2026-10-21T21:54Z); the off switch
+#      BOX_SWEEP_RUNLOG_APPLY=0 keeps it a plan
 #   4. a bad age is refused (exit 2)
+#   5. the INSTALLED cron row's env (do_box_disk_sweep_install_cron, fake
+#      crontab) through the REAL sweep and run-log-sweep.sh: an aged planted
+#      log is removed, a log a process holds open is kept; RED CONTROL: the
+#      same row with BOX_SWEEP_RUNLOG_APPLY=0 (the old hold) removes nothing
 
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -68,10 +73,44 @@ done
 
 : >"$L"; DRY_RUN=0 BOX_SWEEP_STEPS=runlogs BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_LOCK="$T/s.lock" BOX_SWEEP_MOUNTS="$T" BOX_SWEEP_NOTE=0 \
   BOX_SWEEP_FREE_PCT=10 bash "$SW" >/dev/null 2>&1
-[ "$(cat "$L")" = "run-log-sweep DRY_RUN=1 AGE=24" ] && pass "3. HOLD: DRY_RUN=0 without BOX_SWEEP_RUNLOG_APPLY=1 only plans" || fail "3. hold ($(cat "$L"))"
+[ "$(cat "$L")" = "run-log-sweep DRY_RUN=0 AGE=24" ] && pass "3. DRY_RUN=0 without BOX_SWEEP_RUNLOG_APPLY runs live (default 1)" || fail "3. default ($(cat "$L"))"
+: >"$L"; DRY_RUN=0 BOX_SWEEP_RUNLOG_APPLY=0 BOX_SWEEP_STEPS=runlogs BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_LOCK="$T/s.lock" BOX_SWEEP_MOUNTS="$T" BOX_SWEEP_NOTE=0 \
+  BOX_SWEEP_FREE_PCT=10 bash "$SW" >/dev/null 2>&1
+[ "$(cat "$L")" = "run-log-sweep DRY_RUN=1 AGE=24" ] && pass "3. the off switch BOX_SWEEP_RUNLOG_APPLY=0 only plans" || fail "3. off switch ($(cat "$L"))"
 
 out="$(RUN_LOG_SWEEP_AGE_H=0 HOME="$H" bash "$RS" 2>&1)"; rc=$?
 [ "$rc" = 2 ] && grep -q 'FAIL RUN_LOG_SWEEP_AGE_H' <<<"$out" && pass "4. a zero age is refused" || fail "4. age 0 (rc $rc: $out)"
+
+# 5. the installed row's env, end to end
+CT="$T/crontab"; : >"$CT"
+printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
+row_env() {
+  : >"$CT"
+  SNIPPET='do_box_disk_sweep_install_cron' in_orc DRY_RUN=0 BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/cronlog" \
+    BOX_SWEEP_ALLOW_WORKTREE=1 "$@" >/dev/null 2>&1
+  grep ' # csi-spl:box-disk-sweep$' "$CT" | sed -E 's/^([^ ]+ ){5}//; s/ bash .*//'
+}
+plant5() {
+  H5="$T/h5-$1"; R5="$H5/var/log/csi-spl-orc"; mkdir -p "$R5"
+  mk "$R5/run.sh.20261001_000000.out.log"; mk "$R5/run.sh.20261002_000000.err.log"
+  touch -d '5 days ago' "$R5"/*.log
+}
+sweep5() { env $1 BOX_SWEEP_STEPS=runlogs BOX_SWEEP_MOUNTS="$T" BOX_SWEEP_NOTE=0 BOX_SWEEP_FREE_PCT=50 HOME="$H5" bash "$SW" 2>&1; }
+env_on="$(row_env)"
+grep -q '^DRY_RUN=0 BOX_SWEEP_RUNLOG_APPLY=1 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=' <<<"$env_on" \
+  && pass "5. the installed row carries DRY_RUN=0 BOX_SWEEP_RUNLOG_APPLY=1" || fail "5. row env ($env_on)"
+plant5 on; OPEN5="$R5/run.sh.20261002_000000.err.log"
+sleep 600 3>>"$OPEN5" & hold5=$!
+for _ in $(seq 300); do [ "$(readlink "/proc/$hold5/fd/3")" = "$OPEN5" ] && break; sleep 0.1; done
+out="$(sweep5 "$env_on")"
+[ ! -e "$R5/run.sh.20261001_000000.out.log" ] && grep -q 'DONE run-log sweep removed=1 .* kept_open=1$' <<<"$out" \
+  && pass "5. with the row's env the runlogs step removes the aged log (dry_run=0)" || fail "5. live row ($out)"
+[ -f "$OPEN5" ] && grep -q "KEEP open $OPEN5\$" <<<"$out" && pass "5. ...and keeps the log a process holds open" || fail "5. open log ($out)"
+kill "$hold5" 2>/dev/null; wait "$hold5" 2>/dev/null
+env_off="$(row_env BOX_SWEEP_CRON_RUNLOG_APPLY=0)"
+rm -f "$T/cronlog/box-disk-sweep.lock.last-normal"; plant5 off; out="$(sweep5 "$env_off")"
+grep -q 'BOX_SWEEP_RUNLOG_APPLY=0' <<<"$env_off" && [ "$(ls "$R5" | wc -l)" = 2 ] && grep -q 'removed=2 .*planned' <<<"$out" \
+  && pass "5. RED CONTROL: the row with BOX_SWEEP_RUNLOG_APPLY=0 only plans, removes nothing" || fail "5. control ($env_off: $out)"
 
 echo "run-log-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

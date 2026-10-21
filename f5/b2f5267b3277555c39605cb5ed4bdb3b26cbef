@@ -1,0 +1,6 @@
+Lay-What: On an issue, the Discussion and History tabs can now be switched with the arrow keys, and Home and End jump to the first and last tab.
+Lay-How: The two tabs behave like standard tabs: one key press moves to the other tab, and the attach button sits beside the tabs instead of among them.
+Lay-Why: People who use the keyboard or a screen reader could not move between the tabs as they expect, and the button confused the tab list.
+Tech-What: issues.vue talk tablist follows the WAI-ARIA tabs pattern: arrow keys wrap, Home/End, roving tabindex, aria-controls to a labelled tabpanel.
+Tech-How: useIssueTalkTabs holds tab state and the key handler; CardClipControl moved to a sibling actions box, kept mounted and hidden on History.
+Tech-Why: The tablist held a non-tab child and had no key handling, breaking the ARIA tabs contract (plan issue-tabs-panel-plan row 02).

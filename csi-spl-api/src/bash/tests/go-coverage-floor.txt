@@ -37,7 +37,10 @@ internal/calquick 97.6
 internal/calrecur 98.8
 internal/cicdlogs 81.6
 internal/cloud 95.8
-internal/config 76.8
+# internal/config: 89.7 with r15-10's config_test.go table tests (getters,
+# env overrides, dir resolvers), 78.1 without on a60bb00c8; go test -count=1
+# -cover ./internal/config/, go1.26.9, n=3 read 89.7 each.
+internal/config 89.7
 internal/edge 98.9
 internal/files 82.9
 internal/github 82.9

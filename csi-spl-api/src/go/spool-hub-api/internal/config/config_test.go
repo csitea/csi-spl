@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -551,5 +553,237 @@ func TestLoadHubEmbed(t *testing.T) {
 	t.Setenv("SPOOL_HUB_EMBED_TOKEN_IDLE_TTL", "1h")
 	if h, err := LoadHub(); err != nil || !h.EmbedEnabled || h.EmbedTokenIdleTTL != time.Hour {
 		t.Fatalf("on, 1h: %v", err)
+	}
+}
+
+// TestConfigInCodeDefaults: a Config built in code (no env) falls back to
+// SPOOL_ID_QUARANTINE_H's 24 h and the 10 s notify timeout; a positive value
+// wins.
+func TestConfigInCodeDefaults(t *testing.T) {
+	quarantine := []struct {
+		h    int
+		want time.Duration
+	}{
+		{0, 24 * time.Hour},
+		{-3, 24 * time.Hour},
+		{1, time.Hour},
+		{48, 48 * time.Hour},
+	}
+	for _, c := range quarantine {
+		if got := (&Config{IDQuarantineH: c.h}).IDQuarantine(); got != c.want {
+			t.Errorf("IDQuarantineH=%d: IDQuarantine()=%s, want %s", c.h, got, c.want)
+		}
+	}
+	notify := []struct {
+		d, want time.Duration
+	}{
+		{0, 10 * time.Second},
+		{-time.Second, 10 * time.Second},
+		{250 * time.Millisecond, 250 * time.Millisecond},
+		{time.Minute, time.Minute},
+	}
+	for _, c := range notify {
+		if got := (&Config{NotifyTimeout: c.d}).NotifyTimeoutOr(); got != c.want {
+			t.Errorf("NotifyTimeout=%s: NotifyTimeoutOr()=%s, want %s", c.d, got, c.want)
+		}
+	}
+}
+
+func TestChannelList(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{" , ,", nil},
+		{"lobby", []string{"lobby"}},
+		{" Lobby , OPS,,dev-ci ", []string{"lobby", "ops", "dev-ci"}},
+	}
+	for _, c := range cases {
+		got := (&Config{Channels: c.in}).ChannelList()
+		if strings.Join(got, "|") != strings.Join(c.want, "|") || len(got) != len(c.want) {
+			t.Errorf("Channels=%q: ChannelList()=%q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestMirror(t *testing.T) {
+	for v, want := range map[string]bool{"": false, "0": false, "false": false, "FALSE": false, "1": true, "true": true, "True": true} {
+		got, err := (&Config{MirrorLocal: v}).Mirror()
+		if err != nil || got != want {
+			t.Errorf("MirrorLocal=%q: Mirror()=%v,%v, want %v,nil", v, got, err, want)
+		}
+	}
+	for _, bad := range []string{"yes", "2", "on", " 1"} {
+		if _, err := (&Config{MirrorLocal: bad}).Mirror(); err == nil || !strings.Contains(err.Error(), "SPOOL_MIRROR_LOCAL") {
+			t.Errorf("MirrorLocal=%q: err=%v, want a SPOOL_MIRROR_LOCAL error", bad, err)
+		}
+	}
+}
+
+// TestTenantIDEdges adds the branches tenant_test.go leaves out: a mixed-case
+// SPOOL_TENANT, an unparseable URL and a first label that is no tenant id.
+func TestTenantIDEdges(t *testing.T) {
+	cases := []struct {
+		tenant, hubURL, want string
+	}{
+		{"Acme", "https://api.example.test", "acme"},
+		{"", "https://ACME.example.test:8443", "acme"},
+		{"", "https://bad_label.example.test", ""},
+		{"", "", ""},
+		{"", "://bad", ""},
+	}
+	for _, c := range cases {
+		if got := (&Config{Tenant: c.tenant, HubURL: c.hubURL}).TenantID(); got != c.want {
+			t.Errorf("Tenant=%q HubURL=%q: TenantID()=%q, want %q", c.tenant, c.hubURL, got, c.want)
+		}
+	}
+}
+
+// TestDirResolvers: HubDir, FilesDir and the submit socket all live under
+// SpoolRoot; SPOOL_SUBMIT_SOCKET=off (any case, padded) turns the socket off
+// and a path overrides it.
+func TestDirResolvers(t *testing.T) {
+	root := filepath.Join("/", "var", "spool-test")
+	c := &Config{SpoolRoot: root}
+	if got, want := c.HubDir(), filepath.Join(root, ".hub"); got != want {
+		t.Errorf("HubDir()=%q, want %q", got, want)
+	}
+	if got, want := c.FilesDir(), filepath.Join(root, "files"); got != want {
+		t.Errorf("FilesDir()=%q, want %q", got, want)
+	}
+	cases := []struct {
+		socket, path string
+		off          bool
+	}{
+		{"", filepath.Join(root, ".hub", "submit.sock"), false},
+		{"   ", filepath.Join(root, ".hub", "submit.sock"), false},
+		{"off", "", true},
+		{" OFF ", "", true},
+		{"/run/spool/s.sock", "/run/spool/s.sock", false},
+		{" /run/spool/s.sock ", "/run/spool/s.sock", false},
+	}
+	for _, s := range cases {
+		c := &Config{SpoolRoot: root, SubmitSocket: s.socket}
+		if got := c.SubmitOff(); got != s.off {
+			t.Errorf("SubmitSocket=%q: SubmitOff()=%v, want %v", s.socket, got, s.off)
+		}
+		if got := c.SubmitPath(); got != s.path {
+			t.Errorf("SubmitSocket=%q: SubmitPath()=%q, want %q", s.socket, got, s.path)
+		}
+	}
+}
+
+// setBoxBase clears the box env a test machine may carry, so Load sees only
+// what the test sets.
+func setBoxBase(t *testing.T, root string) {
+	t.Helper()
+	for _, k := range []string{
+		"SPOOL_KEYS_DIR", "SPOOL_PINS_DIR", "SPOOL_HUB_URL", "SPOOL_TENANT", "SPOOL_BOX_ID",
+		"SPOOL_MIRROR_LOCAL", "SPOOL_MSG_VERSION", "SPOOL_NOTIFY_TIMEOUT", "SPOOL_ID_QUARANTINE_H",
+		"SPOOL_CHANNELS", "SPOOL_SUBMIT_SOCKET", "SPOOL_LOG_LEVEL", "SPOOL_LOG_FORMAT",
+	} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("SPOOL_ROOT", root)
+}
+
+// TestLoadEnvDefaultsAndOverrides: Load fills the documented defaults
+// ($HOME/.spool/keys, <root>/pins, 10s, 24 h, info/console) and an env value
+// overrides each.
+func TestLoadEnvDefaultsAndOverrides(t *testing.T) {
+	root := t.TempDir()
+	home := t.TempDir()
+	setBoxBase(t, root)
+	t.Setenv("HOME", home)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.KeysDir != filepath.Join(home, ".spool", "keys") || c.PinsDir != filepath.Join(root, "pins") {
+		t.Errorf("dir defaults: KeysDir=%q PinsDir=%q", c.KeysDir, c.PinsDir)
+	}
+	if c.NotifyTimeoutOr() != 10*time.Second || c.IDQuarantine() != 24*time.Hour ||
+		c.LogLevel != "info" || c.LogFormat != "console" || c.ChannelList() != nil {
+		t.Errorf("value defaults: %+v", c)
+	}
+
+	t.Setenv("SPOOL_KEYS_DIR", filepath.Join(home, "k"))
+	t.Setenv("SPOOL_PINS_DIR", filepath.Join(home, "p"))
+	t.Setenv("SPOOL_NOTIFY_TIMEOUT", "3s")
+	t.Setenv("SPOOL_ID_QUARANTINE_H", "6")
+	t.Setenv("SPOOL_CHANNELS", "Ops,dev")
+	t.Setenv("SPOOL_LOG_LEVEL", "debug")
+	t.Setenv("SPOOL_LOG_FORMAT", "json")
+	t.Setenv("SPOOL_SUBMIT_SOCKET", "off")
+	c, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.KeysDir != filepath.Join(home, "k") || c.PinsDir != filepath.Join(home, "p") ||
+		c.NotifyTimeoutOr() != 3*time.Second || c.IDQuarantine() != 6*time.Hour ||
+		strings.Join(c.ChannelList(), ",") != "ops,dev" || c.LogLevel != "debug" ||
+		c.LogFormat != "json" || !c.SubmitOff() {
+		t.Errorf("overrides: %+v", c)
+	}
+}
+
+// TestLoadFailsFast: every unparseable or illegal env value is refused,
+// naming its field (a parse error) or its variable.
+func TestLoadFailsFast(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"notify-timeout", map[string]string{"SPOOL_NOTIFY_TIMEOUT": "ten"}, `"NotifyTimeout"`},
+		{"quarantine", map[string]string{"SPOOL_ID_QUARANTINE_H": "x"}, `"IDQuarantineH"`},
+		{"hub-url-scheme", map[string]string{"SPOOL_HUB_URL": "ftp://acme.example.test", "SPOOL_BOX_ID": "box-a"}, "SPOOL_HUB_URL"},
+		{"hub-url-host", map[string]string{"SPOOL_HUB_URL": "https://", "SPOOL_BOX_ID": "box-a"}, "SPOOL_HUB_URL"},
+		{"tenant", map[string]string{"SPOOL_HUB_URL": "https://api.example.test", "SPOOL_BOX_ID": "box-a", "SPOOL_TENANT": "Not A Tenant"}, "SPOOL_TENANT"},
+		{"mirror", map[string]string{"SPOOL_HUB_URL": "https://api.example.test", "SPOOL_BOX_ID": "box-a", "SPOOL_MIRROR_LOCAL": "yes"}, "SPOOL_MIRROR_LOCAL"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			setBoxBase(t, t.TempDir())
+			t.Setenv("SPOOL_KEYS_DIR", t.TempDir())
+			for k, v := range c.env {
+				t.Setenv(k, v)
+			}
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("err=%v, want one naming %s", err, c.want)
+			}
+		})
+	}
+	// local mode ignores the mirror flag
+	setBoxBase(t, t.TempDir())
+	t.Setenv("SPOOL_KEYS_DIR", t.TempDir())
+	t.Setenv("SPOOL_MIRROR_LOCAL", "yes")
+	if _, err := Load(); err != nil {
+		t.Fatalf("local mode with SPOOL_MIRROR_LOCAL=yes: %v", err)
+	}
+}
+
+// TestResolvePath: a path that does not exist yet is returned absolute and
+// cleaned, with symlinks resolved on the part that does.
+func TestResolvePath(t *testing.T) {
+	base := t.TempDir()
+	real, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct{ in, want string }{
+		{base, real},
+		{filepath.Join(base, "a", "b"), filepath.Join(real, "a", "b")},
+		{filepath.Join(link, "a", "..", "c"), filepath.Join(real, "c")},
+	}
+	for _, c := range cases {
+		if got, err := resolvePath(c.in); err != nil || got != c.want {
+			t.Errorf("resolvePath(%q)=%q,%v, want %q", c.in, got, err, c.want)
+		}
 	}
 }

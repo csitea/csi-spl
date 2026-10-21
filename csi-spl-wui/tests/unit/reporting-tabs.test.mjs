@@ -13,6 +13,7 @@ import {
   reportingTabFor,
 } from '../../src/utils/reporting-tabs.mjs'
 import { importTs } from './lib/load-ts.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 const { RAIL_TABS, RAIL_IDS, RAIL_HUB_PENDING, DEFAULT_RAIL_ORDER, wireRailOrder } = await importTs('src/utils/rail-order.ts')
 import { REPORTING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSectionPage } from '../../src/utils/section-strip.mjs'
@@ -48,7 +49,7 @@ describe('T010 the Reporting rail entry', () => {
     assert.equal(wireRailOrder([...DEFAULT_RAIL_ORDER]).every((id) => !RAIL_HUB_PENDING.includes(id)), true)
   })
   it('the sidebar keeps the icon rail only on Reporting, and the rail tab navigates there', () => {
-    const side = read('src/components/ChannelSidebar.vue')
+    const side = channelSidebarSrc()
     assert.match(side, /const reportingRailOnly = computed\(\(\) => tab\.value === REPORTING_TAB\)/)
     assert.match(side, /'sidebar--rail': [^}]*reportingRailOnly/)
     assert.match(side, /next === REPORTING_TAB && [^\n]*navigateTo\(localePath\('\/reporting'\)\)/)

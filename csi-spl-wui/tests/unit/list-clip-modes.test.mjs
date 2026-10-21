@@ -91,8 +91,12 @@ describe('right pane lists (the thread mode)', () => {
 
   it('issue discussion: the control by the heading; titles is one line, 5 rows is capped, full is whole', () => {
     const t = template('src/pages/issues.vue')
-    // rdb 0181: the heading is the Discussion | History tab row; the control shows on Discussion
-    assert.match(t, /<div class="issues-talk__h"[^>]*role="tablist"[^>]*>[\s\S]*?<LazyCardClipControl v-if="talkTab === 'discussion'" pane="thread" \/>\s*<\/div>/)
+    // rdb 0181: the heading is the Discussion | History tab row. SPL-2784: the
+    // control sits beside the tablist (only tabs inside it), mounted on both tabs
+    const list = t.match(/<div class="issues-talk__h"[^>]*role="tablist"[^>]*>([\s\S]*?)<\/div>/)
+    assert.ok(list, 'the tablist')
+    assert.doesNotMatch(list[1], /CardClipControl/)
+    assert.match(t, /<div class="issues-talk__actions"[^>]*>\s*<LazyCardClipControl pane="thread" \/>\s*<\/div>/)
     // SPL-982: a comment is a MessageCard, which clips itself (titles / 5 rows / full)
     assert.match(t, /<MessageCard[\s\S]*?class="issues-comment"[\s\S]*?:clip-mode="clipMode"[\s\S]*?\/>/)
     assert.match(script('src/pages/issues.vue'), /const \{ mode: clipMode \} = useCardClip\('thread'\)/)

@@ -13,6 +13,10 @@
 //   T  the Discussion | History tabs are 3D folder tabs (SPL-2655, plan
 //      issue-tabs-panel-plan.md T1-T6): top marker, one focus colour, equal
 //      boxes on the baseline, the selected one in the panel's fill, 44 px
+//   K  the tablist holds only its tabs, the clip control beside it; Left /
+//      Right (wrapping) and Home / End move between the tabs with a roving
+//      tabindex and aria-controls naming the shown panel; switching tabs moves
+//      neither the tabs nor the clip control (SPL-2784, plan row 02)
 //   D  delete with the one confirm; a parent with a live subtask asks the
 //      cascade confirm, its count in the button (HUM-10, t1 40c135cb)
 // Each operation carries a control: the same gesture cancelled changes nothing.
@@ -111,6 +115,47 @@ function tabChecks(where, t) {
   ok(`T4 ${where}: the selected tab sits on the tablist's bottom edge, in the fill of the panel it joins`, Math.abs(t.on.bottom - t.list) <= 0.5 && t.on.bg === t.panel, { bottom: t.on.bottom, list: t.list, bg: t.on.bg, panel: t.panel })
   ok(`T5 ${where}: the inactive tab's fill differs from the selected one`, t.off.bg !== t.on.bg, { on: t.on.bg, off: t.off.bg })
   ok(`T6 ${where}: each tab is at least 44 px high`, t.on.h >= 44 && t.off.h >= 44, { on: t.on.h, off: t.off.h })
+}
+
+/* SPL-2784 (plan row 02): the tablist's children, its keys and the boxes
+   on each tab (the tabs' top and height: the selected one is bolder, so
+   wider, by row 01's styling). Starts and ends on Discussion. */
+async function tabKeys(p, where) {
+  const look = () => p.evaluate(() => {
+    const list = document.querySelector('[data-test=issues-talk] [role=tablist]')
+    const tabs = [...list.querySelectorAll('[role=tab]')]
+    const on = tabs.find((t) => t.getAttribute('aria-selected') === 'true')
+    const panel = on && document.getElementById(on.getAttribute('aria-controls') || '')
+    const clip = document.querySelector('[data-test=issues-talk] [data-testid=card-clip-control]')
+    /* relative to the talk section: the dialog re-centring or the page
+       scrolling as the panel's height changes is not a shift of the header */
+    const o = list.closest('[data-test=issues-talk]').getBoundingClientRect()
+    const r = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return [b.left - o.left, b.top - o.top, b.width, b.height].map(Math.round).join() }
+    const y = (e) => { const b = e.getBoundingClientRect(); return [b.top - o.top, b.height].map(Math.round).join() }
+    return {
+      kids: [...list.children].map((c) => c.getAttribute('role')), clipIn: Boolean(clip && list.contains(clip)),
+      sel: on?.getAttribute('data-value'), focus: document.activeElement?.getAttribute('data-value') || null,
+      tabindex: tabs.map((t) => t.getAttribute('tabindex')).join(),
+      panel: Boolean(panel && panel.getAttribute('role') === 'tabpanel' && panel.getAttribute('aria-labelledby') === on.id),
+      boxes: { list: r(list), tabs: tabs.map(y).join('|'), clip: r(clip) },
+    }
+  })
+  await p.evaluate(() => document.querySelector('[data-test=issues-talk-tab][aria-selected="true"]')?.focus())
+  const a = await look()
+  ok(`K1 ${where}: the tablist holds only role=tab children; the clip control is beside it`, a.kids.length > 0 && a.kids.every((k) => k === 'tab') && !a.clipIn && Boolean(a.boxes.clip), a)
+  ok(`K2 ${where}: roving tabindex (only the selected tab is 0) and aria-controls names the shown tabpanel`, a.sel === 'discussion' && a.tabindex === '0,-1' && a.panel, a)
+  const seq = []
+  for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 'Home', 'End', 'Home']) {
+    await p.keyboard.press(key)
+    await sleep(80)
+    const s = await look()
+    seq.push({ key, sel: s.sel, focus: s.focus, tabindex: s.tabindex, panel: s.panel, boxes: s.boxes })
+  }
+  const want = ['history', 'discussion', 'history', 'discussion', 'history', 'discussion']
+  ok(`K3 ${where}: Right / Left wrap, Home / End go to the ends; the tab reached is selected, focused, the only tabindex 0, its panel shown`,
+    seq.every((s, i) => s.sel === want[i] && s.focus === want[i] && s.tabindex === (want[i] === 'discussion' ? '0,-1' : '-1,0') && s.panel), seq)
+  const h = seq.find((s) => s.sel === 'history')?.boxes
+  ok(`K4 ${where}: switching to History moves neither the tabs nor the clip control's box`, Boolean(h) && JSON.stringify(h) === JSON.stringify(a.boxes), { discussion: a.boxes, history: h })
 }
 
 const row = (key) => `[data-test=issues-row][data-key="${key}"]`
@@ -393,6 +438,7 @@ try {
        with who and when (exact on hover); Discussion keeps the comment box,
        History has none (control) */
     tabChecks(`${W}`, await tabLook(p))
+    await tabKeys(p, `${W}`)
     const talkIn = () => p.$('[data-test=issues-comment-input]').then(Boolean)
     const hCtl = await talkIn()
     await p.click('[data-test=issues-talk-tab][data-value="history"]')
@@ -548,6 +594,7 @@ try {
     await p.goto(server.base + '/issues?issue=SPL-1', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: NAV_TIMEOUT })
     tabChecks(`${W}x${H}`, await tabLook(p))
+    await tabKeys(p, `${W}x${H}`)
     await p.$eval('[data-test=issues-talk-tab][data-value="history"]', (el) => el.click())
     await p.waitForSelector('[data-test=issues-history-row]', { visible: true, timeout: 5000 }).catch(() => {})
     await sleep(300)

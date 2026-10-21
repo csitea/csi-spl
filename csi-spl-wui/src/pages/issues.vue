@@ -949,26 +949,38 @@
         <section v-if="!creating && form.task_id" class="issues-talk issues-detail-talk" data-test="issues-talk">
           <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
           <!-- rdb 0181 (owner t1 62e48cef): Discussion | History, Jira style -->
-          <div class="issues-talk__h" role="tablist" :aria-label="t('issues.discussion')">
-            <button
-              v-for="tab in TALK_TABS"
-              :key="tab"
-              type="button"
-              role="tab"
-              class="issues-talk__tab"
-              data-test="issues-talk-tab"
-              :data-value="tab"
-              :aria-selected="talkTab === tab ? 'true' : 'false'"
-              @click="talkTab = tab"
-            >
-              {{ tab === 'history' ? t('issue_history.tab') : t('issues.discussion') }}
-            </button>
-            <LazyCardClipControl v-if="talkTab === 'discussion'" pane="thread" />
+          <!-- SPL-2784 (plan issue-tabs-panel-plan.md row 02): only tabs in the
+               tablist, arrows / Home / End move between them (roving tabindex);
+               the clip control sits beside it, kept mounted and only hidden on
+               History, so switching tabs moves nothing -->
+          <div class="issues-talk__bar">
+            <div class="issues-talk__h" role="tablist" :aria-label="t('issues.discussion')" data-test="issues-talk-tablist">
+              <button
+                v-for="tab in TALK_TABS"
+                :id="'issues-talk-tab-' + tab"
+                :key="tab"
+                type="button"
+                role="tab"
+                class="issues-talk__tab"
+                data-test="issues-talk-tab"
+                :data-value="tab"
+                :aria-selected="talkTab === tab ? 'true' : 'false'"
+                :aria-controls="'issues-talk-panel-' + tab"
+                :tabindex="talkTab === tab ? 0 : -1"
+                @click="talkTab = tab"
+                @keydown="onTalkTabKey"
+              >
+                {{ tab === 'history' ? t('issue_history.tab') : t('issues.discussion') }}
+              </button>
+            </div>
+            <div class="issues-talk__actions" data-test="issues-talk-actions" :data-tab="talkTab">
+              <LazyCardClipControl pane="thread" />
+            </div>
           </div>
-          <div v-if="talkTab === 'history'" role="tabpanel">
+          <div v-if="talkTab === 'history'" id="issues-talk-panel-history" role="tabpanel" aria-labelledby="issues-talk-tab-history">
             <LazyIssueHistory :issue-key="form.key" :stamp="historyStamp" :name="person" :label="labelText" />
           </div>
-          <template v-else>
+          <div v-else id="issues-talk-panel-discussion" class="issues-talk__panel" role="tabpanel" aria-labelledby="issues-talk-tab-discussion">
           <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
           <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
                other one: the same header, the emoji 5px after the time, reactions,
@@ -1051,7 +1063,7 @@
               @cancel="commentFiles.onPickCancel"
             >
           </div>
-          </template>
+          </div>
         </section>
       </div>
       </div>
@@ -1214,6 +1226,7 @@ import { useIssueComments } from '~/composables/useIssueComments'
 import { useIssueKeys } from '~/composables/useIssueKeys'
 import { useIssueFilters } from '~/composables/useIssueFilters'
 import { useIssueDetailForm } from '~/composables/useIssueDetailForm'
+import { TALK_TABS, useIssueTalkTabs } from '~/composables/useIssueTalkTabs'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
@@ -1276,10 +1289,8 @@ const detail = ref<Issue | null>(null)
 const commentEl = ref<HTMLTextAreaElement | null>(null)
 const commentFileEl = ref<HTMLInputElement | null>(null)
 const pageBoxEl = ref<HTMLInputElement | null>(null)
-/* rdb 0181: the discussion section's two tabs; a newly opened issue starts on Discussion */
-const TALK_TABS = ['discussion', 'history'] as const
-const talkTab = ref<(typeof TALK_TABS)[number]>('discussion')
-watch(openKey, () => { talkTab.value = 'discussion' })
+/* rdb 0181 + SPL-2784: Discussion | History, and their keys */
+const { talkTab, onTalkTabKey } = useIssueTalkTabs(openKey)
 /* the History tab reads again when the issue or its discussion moved */
 const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}`)
 const titleEl = ref<HTMLInputElement | null>(null)
@@ -2266,6 +2277,12 @@ select.issues-pctl { appearance: auto; }
 .issues-talk__tab { min-block-size: 2.75rem; margin: 8px 0 -1px; padding: 0.5rem 1rem; border: 1px solid transparent; border-bottom-color: var(--color-border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--color-bg-2); box-shadow: var(--bevel-shade); font-family: inherit; font-size: 0.875rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
 .issues-talk__tab:hover { color: var(--color-fg); }
 .issues-talk__tab[aria-selected='true'] { position: relative; z-index: 1; border-color: var(--color-border); border-bottom-color: var(--issues-talk-panel); background: var(--issues-talk-panel); box-shadow: inset 0 var(--select-bar-w) 0 var(--focus-ring), var(--bevel-shine); font-weight: 600; color: var(--color-fg); }
+/* SPL-2784: the tablist holds only its tabs; the clip control beside it
+   carries the same baseline and keeps its box on History (hidden, not removed) */
+.issues-talk__bar { display: flex; align-items: stretch; min-width: 0; }
+.issues-talk__actions { flex: 1 1 auto; display: flex; align-items: flex-end; min-width: 0; padding-inline-start: 8px; border-bottom: 1px solid var(--color-border); }
+.issues-talk__actions[data-tab='history'] > * { visibility: hidden; }
+.issues-talk__panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
 .issues-comment { min-width: 0; }
 .mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }

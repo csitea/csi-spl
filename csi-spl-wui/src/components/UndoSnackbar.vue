@@ -22,11 +22,20 @@
      "whenever I click somewhere else, the snack bar ... should disappear".
      On a phone or touch UI it sits at the TOP, under the safe-area inset
      (never over the composer dock), and a tap anywhere outside it dismisses
-     it (utils/outside-tap.mjs). The desktop keeps the bottom centre. -->
+     it (utils/outside-tap.mjs). The desktop keeps the bottom centre.
+
+     Row 07 of ui-animations-panel-plan.md (SPL-2794): it settles in - rises
+     12 px and fades in, 260 ms - once, when it mounts. The callers key it by
+     item, so each new snackbar plays it once and an update plays nothing.
+     It is row 01's `tap-anim tap-anim--settle` (assets/css/tap-anim.css,
+     transform and opacity only, still under reduced motion) set on the root
+     itself: playTapAnim() would put it on the first svg inside, the close
+     icon. The root is centred by its margins, not a transform, so the
+     keyframes' transform moves it without shifting it sideways. -->
 <template>
   <div
     ref="rootEl"
-    class="undo-snackbar"
+    class="undo-snackbar tap-anim tap-anim--settle"
     role="status"
     aria-live="polite"
     aria-atomic="true"
@@ -119,11 +128,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .undo-snackbar {
   position: fixed;
-  left: 50%;
+  /* row 07: centred by the margins, so the settle transform owns transform */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   /* CLE-77871: above the phone's composer dock + keyboard (0 on a desktop)
      and the home-indicator inset */
   bottom: calc(1rem + max(calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px)), env(safe-area-inset-bottom, 0px)));
-  transform: translateX(-50%);
   z-index: var(--z-snackbar);
   display: flex;
   align-items: center;

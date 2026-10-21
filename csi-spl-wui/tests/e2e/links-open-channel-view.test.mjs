@@ -276,13 +276,34 @@ async function clickAt(p, at, phone) {
   else await p.mouse.click(at.x, at.y)
 }
 
-/* the post read with the Flow tab on the left (desktop) or in its thread (phone) */
+/* the post read with the Flow tab on the left (desktop) or in its thread (phone).
+   SPL-2765 (owner, 2026-10-21): a rail click closes the reply panel, so on a
+   desktop Flow is picked first and the topic opened after it, in-app (the
+   Flow list stays: holdFlow) */
 async function fromFlow(p, base, phone) {
-  await goto(p, `${base}/channel/alerts?topic=${CARRIER_TASK}`)
+  const at = `${base}/channel/alerts?topic=${CARRIER_TASK}`
+  await goto(p, at)
   if (!phone) {
     await p.waitForSelector('#sidebar-tab-flow', { visible: true, timeout: 15000 })
     await p.click('#sidebar-tab-flow')
     await p.waitForSelector('#sidebar-tab-flow[aria-selected="true"]', { timeout: 5000 })
+    await p.evaluate(async (to) => {
+      const router = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router
+      await router.push(to.split('?')[0])
+      await router.push(to)
+    }, at.slice(base.length))
+    await p.waitForFunction((t) => location.search.includes(t), { timeout: 15000 }, CARRIER_TASK)
+    await p.waitForSelector('#sidebar-tab-flow[aria-selected="true"]', { timeout: 5000 })
+    /* the pane opening narrows the feed: a link sampled before it stops
+       moving was clicked on the text beside it */
+    await p.waitForFunction((id) => {
+      const card = document.querySelector(`aside[data-pane=topic] article.msg[data-msg-id="${id}"]`)
+      const r = card && card.getBoundingClientRect()
+      const at = r && r.width > 0 ? `${r.left},${r.top},${r.width},${r.height}` : ''
+      const still = at && at === window.__lovAt && performance.now() - window.__lovSince > 500
+      if (at !== window.__lovAt) { window.__lovAt = at; window.__lovSince = performance.now() }
+      return still
+    }, { timeout: 15000, polling: 100 }, CARRIER)
   }
 }
 

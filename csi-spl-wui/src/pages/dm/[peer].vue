@@ -34,6 +34,7 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
+import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'
 import { useTopicStore } from '~/stores/topic'
@@ -61,6 +62,7 @@ const channel = useChannelStore()
 const topic = useTopicStore()
 const sidePane = useSidePane()
 const livePane = useLiveFeed('pane')
+const { lobbyTaskId } = useLive()
 const roster = useRosterStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
@@ -132,6 +134,7 @@ watch([peer, () => session.state], async ([p, st]) => {
   if (peer.value !== p) return
   topicFeedReady.value = true
   releaseStaleTopic()
+  if (channelPane()) livePane.close()
 }, { immediate: true })
 
 /* t1 404cd808 (owner: "it must be a clear indication in this view if
@@ -191,11 +194,30 @@ onMounted(() => {
    last; a click back in the middle makes the next line a new topic. */
 const paneFocus = usePaneFocus()
 function paneOpen() {
-  return paneTakesLine({ paneOpen: Boolean(topic.open || livePane.taskId), lastPane: paneFocus.last })
+  return paneTakesLine({ paneOpen: Boolean(topic.open || dmPaneTask()), lastPane: paneFocus.last })
 }
 
 function openTaskId() {
-  return topic.open ? String(topic.parentTaskId || livePane.taskId || '') : String(livePane.taskId || '')
+  return topic.open ? String(topic.parentTaskId || dmPaneTask()) : dmPaneTask()
+}
+
+/* SPL-2765 (prd msg 86530802, 2026-10-21): a note to a person was stored on
+   #lobby, in the lobby welcome discussion. The live pane had that discussion
+   open from /lobby; a channel -> DM route keeps the pane (topic-pane.mjs
+   routeLeavesTopic) and releaseStaleTopic closes only the topic store, so the
+   pane's task took the DM line and the hub filed it under that task's channel
+   (hub channels.go tagChannel / wuiChannel). A pane on the lobby task, or on
+   a task whose rows carry a channel, is not part of this DM: it never takes
+   the line here, and it closes once this person's list has loaded. */
+function channelPane() {
+  const id = String(livePane.taskId || '')
+  if (!id) return false
+  if (id === String(lobbyTaskId.value || '')) return true
+  return livePane.messages.some((m) => m.task_id === id && Boolean(m.channel))
+}
+
+function dmPaneTask() {
+  return channelPane() ? '' : String(livePane.taskId || '')
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {

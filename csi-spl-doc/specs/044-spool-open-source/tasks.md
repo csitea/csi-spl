@@ -29,7 +29,7 @@ owner's steps at the stage gates.
 
 | task | what | depends | FR | issue |
 |---|---|---|---|---|
-| [ ] T020 | Parameterise the estate out of product code: domain, project ids, SA e-mails, org id, OAuth client ids, Stripe keys read from the env file; `example.env.yaml` with every key documented | no decision | FR-OS-003 | SPL-66, SPL-1012 |
+| [x] T020 | (c-705, `9c72d4ed6`: root `example.env.yaml`, 267 keys, two tests hold it; privacy.html section 4 stays the hosted operator's text, a per-deployment edit) Parameterise the estate out of product code: domain, project ids, SA e-mails, org id, OAuth client ids, Stripe keys read from the env file; `example.env.yaml` with every key documented | no decision | FR-OS-003 | SPL-66, SPL-1012 |
 | [ ] T021 | Remove the other-org bucket/SA names from the 12 files at HEAD (spec §3.2), or keep them private-only by T004 | no decision | FR-OS-002 | SPL-63 |
 | [ ] T022 | Public README (what spool is, a 3-minute quickstart on T001, MCP setup), CONTRIBUTING, SECURITY.md (private reporting channel), CODE_OF_CONDUCT, issue/PR templates | T001 | FR-OS-007 | SPL-65 |
 | [ ] T023 | `csi-spl-wui/package.json` `license` field; SPDX identifier in the Go module doc; THIRD-PARTY-NOTICES incl. the icon set's ISC notice | no decision (AGPL); revisit after D2 | FR-OS-006 | SPL-62 |

@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { createLongPress } from '~/utils/touch-ui.mjs'
+import { createLongPress } from '~/utils/touch-ui'
 import { epicProgress } from '~/utils/issues-view.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
 

@@ -11,7 +11,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importTs } from './lib/load-ts.mjs'
 import { writeClipboard } from '../../src/utils/clipboard.mjs'
-import { saveBlob } from '../../src/utils/save-blob.mjs'
+const { saveBlob } = await importTs('src/utils/save-blob.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const {

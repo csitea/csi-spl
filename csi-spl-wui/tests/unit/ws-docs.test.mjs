@@ -9,8 +9,9 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DOCS_WRITE, canWriteDocs, newDocBody, newDocPath, wsDocsRoute, wsPathOf, wsTreeFiles } from '../../src/utils/ws-docs.mjs'
-import { wsDocBlob, wsDocFileName } from '../../src/utils/ws-doc-download.mjs'
 import { createMockWsDocs } from '../../src/utils/ws-docs-mock.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { wsDocBlob, wsDocFileName } = await importTs('src/utils/ws-doc-download.ts')
 
 describe('routes', () => {
   it('a workspace doc is /docs/ws/<path>, and the page reads its path back', () => {
@@ -119,7 +120,7 @@ describe('Download (owner HUM-10, ws-b msg 814fe6e1: "download the specification
   it('CONTROL the first screen does not carry it: the reader imports it on the click', () => {
     const read = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')
     const s = read('src/components/DocsWorkspaceDoc.vue')
-    assert.match(s, /await import\('~\/utils\/ws-doc-download\.mjs'\)/)
+    assert.match(s, /await import\('~\/utils\/ws-doc-download'\)/)
     assert.doesNotMatch(s, /^import .*ws-doc-download/m)
     assert.doesNotMatch(read('src/utils/ws-docs.mjs'), /Blob/)
   })

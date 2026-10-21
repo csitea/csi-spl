@@ -1,6 +1,6 @@
 // HUM-10 (owner, t1 5a410ad5): a phone drags a topic card into another topic.
 // The card's row gesture is createHandleDrag at the long-press timing
-// (touch-ui.mjs), and the list scrolls near its edges (edgeScrollStep /
+// (touch-ui.ts), and the list scrolls near its edges (edgeScrollStep /
 // createEdgeScroll). Without a browser: fake timers, fake frames.
 // Run: node tests/unit/move-touch-drag.test.mjs
 import { describe, it } from 'node:test'
@@ -13,7 +13,7 @@ const {
   createHandleDrag,
   edgeScrollStep,
 } = await importTs('src/utils/move-drag.ts')
-import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } from '../../src/utils/touch-ui.mjs'
+const { LONG_PRESS_MS, LONG_PRESS_SLOP_PX } = await importTs('src/utils/touch-ui.ts')
 
 /** The row gesture as MessageCard wires it on a phone, with a fake clock. */
 function rowRig() {

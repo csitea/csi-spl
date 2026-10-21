@@ -27,7 +27,7 @@
 
 import { MOBILE_SWIPE_EDGE_RATIO } from './mobile-stack.mjs'
 
-/** travel before the axis is decided; also the long-press slop (touch-ui.mjs) */
+/** travel before the axis is decided; also the long-press slop (touch-ui.ts) */
 export const SWIPE_LOCK_PX = 10
 /** lifting past this commits: 35% of the card, kept between these bounds */
 export const SWIPE_MIN_PX = 80

@@ -5,7 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { saveBlob, OBJECT_URL_REVOKE_MS } from '../../src/utils/save-blob.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { saveBlob, OBJECT_URL_REVOKE_MS } = await importTs('src/utils/save-blob.ts')
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 

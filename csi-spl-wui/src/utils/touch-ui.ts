@@ -18,16 +18,14 @@ export const LONG_PRESS_MS = 500
 /** a finger that moved more than this is scrolling, not pressing */
 export const LONG_PRESS_SLOP_PX = 10
 /** below this the "keyboard" is the browser's own toolbar sliding, not a keyboard */
-export const KEYBOARD_MIN_PX = 60
+const KEYBOARD_MIN_PX = 60
 
 /**
  * The keyboard's height over the layout viewport, px (0 = no keyboard).
- *
- * @param {number} innerHeight window.innerHeight (the layout viewport)
- * @param {{ height?: number, offsetTop?: number } | null | undefined} vv window.visualViewport
- * @returns {number}
+ * `innerHeight` is window.innerHeight (the layout viewport), `vv`
+ * window.visualViewport.
  */
-export function keyboardInset(innerHeight, vv) {
+export function keyboardInset(innerHeight: number, vv: { height?: number, offsetTop?: number } | null | undefined): number {
   const ih = Number(innerHeight)
   if (!vv || !Number.isFinite(ih) || ih <= 0) return 0
   const h = Number(vv.height)
@@ -37,13 +35,17 @@ export function keyboardInset(innerHeight, vv) {
   return inset >= KEYBOARD_MIN_PX ? inset : 0
 }
 
-/**
- * Only a finger (or a pen) long-presses. A mouse has its right-click.
- *
- * @param {string | undefined} pointerType
- */
-export function isTouchPointer(pointerType) {
+/** Only a finger (or a pen) long-presses. A mouse has its right-click. */
+export function isTouchPointer(pointerType: string | undefined): boolean {
   return pointerType === 'touch' || pointerType === 'pen'
+}
+
+type LongPressOpts = {
+  onPress: (x: number, y: number) => void
+  delay?: number
+  slop?: number
+  setTimer?: (fn: () => void, ms: number) => unknown
+  clearTimer?: (id: unknown) => void
 }
 
 /**
@@ -51,17 +53,13 @@ export function isTouchPointer(pointerType) {
  * runs once when a touch stayed within LONG_PRESS_SLOP_PX for LONG_PRESS_MS.
  * `takeClick()` is true exactly once after a press fired, so the click the
  * browser sends when that finger lifts does not also open the topic.
- *
- * @param {{ onPress: (x: number, y: number) => void, delay?: number, slop?: number,
- *   setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void }} opts
  */
-export function createLongPress(opts) {
+export function createLongPress(opts: LongPressOpts) {
   const delay = opts.delay ?? LONG_PRESS_MS
   const slop = opts.slop ?? LONG_PRESS_SLOP_PX
-  const setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms))
-  const clearTimer = opts.clearTimer ?? ((id) => clearTimeout(/** @type {any} */ (id)))
-  /** @type {unknown} */
-  let timer = null
+  const setTimer = opts.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms))
+  const clearTimer = opts.clearTimer ?? ((id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>))
+  let timer: unknown = null
   let start = { x: 0, y: 0 }
   let fired = false
 
@@ -71,8 +69,7 @@ export function createLongPress(opts) {
   }
 
   return {
-    /** @param {{ pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }} ev */
-    down(ev) {
+    down(ev: { pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }): void {
       stop()
       fired = false
       if (!isTouchPointer(ev.pointerType) || ev.isPrimary === false) return
@@ -83,20 +80,19 @@ export function createLongPress(opts) {
         opts.onPress(start.x, start.y)
       }, delay)
     },
-    /** @param {{ clientX: number, clientY: number }} ev */
-    move(ev) {
+    move(ev: { clientX: number, clientY: number }): void {
       if (timer === null) return
       if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > slop) stop()
     },
-    up() { stop() },
-    cancel() { stop() },
+    up(): void { stop() },
+    cancel(): void { stop() },
     /** true once after a press fired: the host swallows that click */
-    takeClick() {
+    takeClick(): boolean {
       const was = fired
       fired = false
       return was
     },
-    get pending() { return timer !== null },
+    get pending(): boolean { return timer !== null },
   }
 }
 

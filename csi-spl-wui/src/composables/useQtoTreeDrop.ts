@@ -1,6 +1,6 @@
 /*
  * The Qto file tree's re-order (QtoFileTree, split out in r14-03). The row
- * gesture and the drop place (before / after / into) are tree-drag.mjs's,
+ * gesture and the drop place (before / after / into) are tree-drag.ts's,
  * driven by UiFileTree; this decides whether a place takes the row
  * (`canDrop`) and makes the hub's move there (`moveRow`).
  *

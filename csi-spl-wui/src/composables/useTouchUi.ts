@@ -1,5 +1,5 @@
 /*
- * SPL-991: the phone half of the message area (rules: utils/touch-ui.mjs).
+ * SPL-991: the phone half of the message area (rules: utils/touch-ui.ts).
  *
  * usePhone()          - true at or below 820 px: useMobileStack().isMobile (SPL-989).
  * useKeyboardInset()  - keeps `--kb-inset` on <html> equal to the on-screen
@@ -10,7 +10,7 @@
  *                       (utils/viewport-resize.ts, perf round 4 W5), so it
  *                       runs at most once per frame and never during mount.
  */
-import { keyboardInset } from '~/utils/touch-ui.mjs'
+import { keyboardInset } from '~/utils/touch-ui'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { onViewportResize } from '~/utils/viewport-resize'
 

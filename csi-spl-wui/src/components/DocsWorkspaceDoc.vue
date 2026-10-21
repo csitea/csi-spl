@@ -130,7 +130,7 @@ function startEdit() {
 /* the bytes the hub returned, not the rendered HTML; the helper loads on
    the click, off the first screen */
 async function download() {
-  const { downloadWsDoc } = await import('~/utils/ws-doc-download.mjs')
+  const { downloadWsDoc } = await import('~/utils/ws-doc-download')
   downloadWsDoc(props.path, text.value)
 }
 

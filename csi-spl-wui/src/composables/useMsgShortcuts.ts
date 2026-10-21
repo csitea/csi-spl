@@ -23,7 +23,7 @@ import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { offeredItems, shortcutFor, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { cardEnterAction, shortcutAction, wantsPanelCard } from '~/utils/msg-shortcuts-dispatch.mjs'
 import { OVERLAY_OPEN, PANEL, TOPIC_PANE, backToPane, holdPanelFocus, intoPane, jumpInTopic, stepFeedSelection } from '~/utils/msg-shortcuts-dom.mjs'
-import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
+import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
 import type { Ref } from 'vue'
 
 export { holdPanelFocus as holdPanel, stepFeedSelection as stepSelection }

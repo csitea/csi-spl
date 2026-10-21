@@ -2,7 +2,7 @@
  * MessageCard's touch gestures (r13-01): the long press and the swipe.
  *
  * SPL-991 — a phone has no hover and no right-click: a long press opens the
- * card's menu as a bottom sheet (utils/touch-ui.mjs holds the timing rule).
+ * card's menu as a bottom sheet (utils/touch-ui.ts holds the timing rule).
  * Android also fires `contextmenu` on a long press; both open the same menu.
  *
  * CLE-77906 (owner, t1 topic 73c5d695) archived a topic by a swipe right;
@@ -22,7 +22,7 @@
  * swipe takes the gesture from the long press.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
-import { createLongPress } from '~/utils/touch-ui.mjs'
+import { createLongPress } from '~/utils/touch-ui'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
 import { paneOfRow } from '~/utils/reselect-row.mjs'
 import { isTouchUi } from '~/utils/undo-timer'

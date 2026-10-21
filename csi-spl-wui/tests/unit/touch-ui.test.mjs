@@ -2,18 +2,19 @@
 // Run: node tests/unit/touch-ui.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  LONG_PRESS_MS,
-  createLongPress,
-  isTouchPointer,
-  keyboardInset,
-} from '../../src/utils/touch-ui.mjs'
 import { MOBILE_STACK_QUERY } from '../../src/utils/mobile-stack.mjs'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { messageCardSrc } from './lib/message-card-src.mjs'
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const {
+  LONG_PRESS_MS,
+  createLongPress,
+  isTouchPointer,
+  keyboardInset,
+} = await importTs('src/utils/touch-ui.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 

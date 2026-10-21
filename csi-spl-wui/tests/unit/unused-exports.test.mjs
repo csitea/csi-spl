@@ -68,7 +68,7 @@ const ALLOW = new Map([
   ['src/utils/tenant-host-boot.mjs', ['PENDING_POLL_MS']],
   ['src/utils/tenant-settings-nav.ts', ['FLEET_LOAD_SECTION']],
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
-  ['src/utils/tree-drag.mjs', ['TREE_DROP_EDGE']],
+  ['src/utils/tree-drag.ts', ['TREE_DROP_EDGE']],
 ])
 const ALLOW_CAP = 35
 

@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Het uitgaverapport komt binnenkort."
+    },
+    "sql": {
+      "query_label": "SQL-query",
+      "placeholder": "SELECT … FROM … (alleen lezen, gegevens van deze werkruimte, maximaal 2.000 rijen)",
+      "run": "Query uitvoeren",
+      "run_hint": "Uitvoeren (Ctrl+Enter)",
+      "clear": "Wissen",
+      "running": "Bezig…",
+      "status": "Tijd: {ms} ms · Rijen: {n}",
+      "capped": "Beperkt tot {n} rijen",
+      "result_label": "Queryresultaat",
+      "copy": "Kopiëren",
+      "download_csv": ".csv downloaden",
+      "download_json": ".json downloaden",
+      "copied": "Gekopieerd naar het klembord",
+      "copy_failed": "Kopiëren mislukt",
+      "no_columns": "De query gaf geen kolommen terug.",
+      "error": {
+        "read_only_violation": "Geweigerd: het SQL-tabblad is alleen-lezen",
+        "single_statement_only": "Geweigerd: slechts één statement",
+        "forbidden_function": "Geweigerd: die functie is niet beschikbaar in het SQL-tabblad",
+        "forbidden_relation": "Geweigerd: die tabel is niet beschikbaar in het SQL-tabblad",
+        "syntax_error": "Queryfout",
+        "query_error": "Queryfout",
+        "bad_query": "Geweigerd: de query is hier niet geldig",
+        "result_too_large": "Geweigerd: het resultaat is te groot",
+        "admin_required": "Alleen beheerders van de werkruimte mogen query's uitvoeren",
+        "query_timeout": "De query duurde langer dan 10 seconden en is gestopt",
+        "other": "De query is niet uitgevoerd"
+      }
     }
   },
   "offline": {

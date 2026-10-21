@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "The Releases report is coming soon."
+    },
+    "sql": {
+      "query_label": "Query",
+      "placeholder": "SELECT … FROM … (read only, this workspace's data, up to 2,000 rows)",
+      "run": "Run query",
+      "run_hint": "Run (Ctrl+Enter)",
+      "clear": "Clear",
+      "running": "Running…",
+      "status": "Time: {ms} ms · Rows: {n}",
+      "capped": "Capped at {n} rows",
+      "result_label": "Query result",
+      "copy": "Copy",
+      "download_csv": "Download .csv",
+      "download_json": "Download .json",
+      "copied": "Copied to the clipboard",
+      "copy_failed": "Could not copy",
+      "no_columns": "The query returned no columns.",
+      "error": {
+        "read_only_violation": "Refused: the SQL tab is read only",
+        "single_statement_only": "Refused: one statement only",
+        "forbidden_function": "Refused: that function is not open to the SQL tab",
+        "forbidden_relation": "Refused: that table is not open to the SQL tab",
+        "syntax_error": "Query error",
+        "query_error": "Query error",
+        "bad_query": "Refused: the query is not valid here",
+        "result_too_large": "Refused: the result is too large",
+        "admin_required": "Only workspace admins may run queries",
+        "query_timeout": "The query took longer than 10 seconds and was stopped",
+        "other": "The query did not run"
+      }
     }
   },
   "offline": {

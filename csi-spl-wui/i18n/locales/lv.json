@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Laidienu pārskats drīzumā."
+    },
+    "sql": {
+      "query_label": "Vaicājums",
+      "placeholder": "SELECT … FROM … (tikai lasīšanai, šīs darbvietas dati, līdz 2000 rindām)",
+      "run": "Izpildīt vaicājumu",
+      "run_hint": "Izpildīt (Ctrl+Enter)",
+      "clear": "Notīrīt",
+      "running": "Izpilda…",
+      "status": "Laiks: {ms} ms · Rindas: {n}",
+      "capped": "Ierobežots līdz {n} rindām",
+      "result_label": "Vaicājuma rezultāts",
+      "copy": "Kopēt",
+      "download_csv": "Lejupielādēt .csv",
+      "download_json": "Lejupielādēt .json",
+      "copied": "Nokopēts starpliktuvē",
+      "copy_failed": "Neizdevās nokopēt",
+      "no_columns": "Vaicājums neatgrieza nevienu kolonnu.",
+      "error": {
+        "read_only_violation": "Atteikts: SQL cilne ir tikai lasīšanai",
+        "single_statement_only": "Atteikts: tikai viens priekšraksts",
+        "forbidden_function": "Atteikts: šī funkcija SQL cilnē nav pieejama",
+        "forbidden_relation": "Atteikts: šī tabula SQL cilnē nav pieejama",
+        "syntax_error": "Vaicājuma kļūda",
+        "query_error": "Vaicājuma kļūda",
+        "bad_query": "Atteikts: vaicājums šeit nav derīgs",
+        "result_too_large": "Atteikts: rezultāts ir pārāk liels",
+        "admin_required": "Vaicājumus var izpildīt tikai darbvietas administratori",
+        "query_timeout": "Vaicājums ilga vairāk nekā 10 sekundes un tika apturēts",
+        "other": "Vaicājums netika izpildīts"
+      }
     }
   },
   "offline": {

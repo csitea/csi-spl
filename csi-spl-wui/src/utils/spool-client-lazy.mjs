@@ -1655,6 +1655,23 @@ async function getFleetTokens(ctx, window = '') {
 }
 
 /**
+ * Spec 143 3.7 (SPL-2789): POST /v1/reporting/sql {query}, the Reporting SQL
+ * tab's one call: a read-only query in this workspace, at most 2,000 rows
+ * (403 admin_required for anyone but a workspace admin; 400 names a refused
+ * query's reason). The mock answers from reporting-sql.ts, which loads only
+ * here and on the SQL page.
+ */
+async function reportingSql(ctx, query) {
+  const { live, mock } = ctx
+  if (mock) return (await import('./reporting-sql')).mockReportingSql(query)
+  return live('/v1/reporting/sql', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: String(query || '') }),
+  })
+}
+
+/**
  * Spec 140 3.8 (SPL-2567): the operator's paid items and the effective price
  * per token, one method so the initial client carries one stub name, not
  * five (ci_initial_gzip_kb sits at its ceiling). `op`:
@@ -1872,6 +1889,7 @@ export const lazySpoolMethods = {
   patchFleetLoad,
   getTenantCosts,
   getFleetTokens,
+  reportingSql,
   getFxCurrencies,
   fleetPaid,
   agentCaps,

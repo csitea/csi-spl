@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Prehľad vydaní už čoskoro."
+    },
+    "sql": {
+      "query_label": "Dopyt",
+      "placeholder": "SELECT … FROM … (iba na čítanie, údaje tohto pracovného priestoru, najviac 2 000 riadkov)",
+      "run": "Spustiť dopyt",
+      "run_hint": "Spustiť (Ctrl+Enter)",
+      "clear": "Vymazať",
+      "running": "Prebieha…",
+      "status": "Čas: {ms} ms · Riadky: {n}",
+      "capped": "Obmedzené na {n} riadkov",
+      "result_label": "Výsledok dopytu",
+      "copy": "Kopírovať",
+      "download_csv": "Stiahnuť .csv",
+      "download_json": "Stiahnuť .json",
+      "copied": "Skopírované do schránky",
+      "copy_failed": "Kopírovanie zlyhalo",
+      "no_columns": "Dopyt nevrátil žiadne stĺpce.",
+      "error": {
+        "read_only_violation": "Odmietnuté: karta SQL je iba na čítanie",
+        "single_statement_only": "Odmietnuté: iba jeden príkaz",
+        "forbidden_function": "Odmietnuté: táto funkcia nie je v karte SQL dostupná",
+        "forbidden_relation": "Odmietnuté: táto tabuľka nie je v karte SQL dostupná",
+        "syntax_error": "Chyba dopytu",
+        "query_error": "Chyba dopytu",
+        "bad_query": "Odmietnuté: dopyt tu nie je platný",
+        "result_too_large": "Odmietnuté: výsledok je príliš veľký",
+        "admin_required": "Dopyty môžu spúšťať iba správcovia pracovného priestoru",
+        "query_timeout": "Dopyt trval dlhšie ako 10 sekúnd a bol zastavený",
+        "other": "Dopyt sa nespustil"
+      }
     }
   },
   "offline": {

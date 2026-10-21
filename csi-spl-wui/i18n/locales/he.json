@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "דוח הגרסאות יגיע בקרוב."
+    },
+    "sql": {
+      "query_label": "שאילתה",
+      "placeholder": "SELECT … FROM … (קריאה בלבד, נתוני סביבת העבודה הזו, עד 2,000 שורות)",
+      "run": "הרצת שאילתה",
+      "run_hint": "הרצה (Ctrl+Enter)",
+      "clear": "ניקוי",
+      "running": "מריץ…",
+      "status": "זמן: {ms} ms · שורות: {n}",
+      "capped": "הוגבל ל־{n} שורות",
+      "result_label": "תוצאת השאילתה",
+      "copy": "העתקה",
+      "download_csv": "הורדת ‎.csv",
+      "download_json": "הורדת ‎.json",
+      "copied": "הועתק ללוח",
+      "copy_failed": "ההעתקה נכשלה",
+      "no_columns": "השאילתה לא החזירה עמודות.",
+      "error": {
+        "read_only_violation": "נדחה: לשונית SQL היא לקריאה בלבד",
+        "single_statement_only": "נדחה: משפט אחד בלבד",
+        "forbidden_function": "נדחה: הפונקציה אינה זמינה בלשונית SQL",
+        "forbidden_relation": "נדחה: הטבלה אינה זמינה בלשונית SQL",
+        "syntax_error": "שגיאה בשאילתה",
+        "query_error": "שגיאה בשאילתה",
+        "bad_query": "נדחה: השאילתה אינה תקפה כאן",
+        "result_too_large": "נדחה: התוצאה גדולה מדי",
+        "admin_required": "רק מנהלי סביבת העבודה רשאים להריץ שאילתות",
+        "query_timeout": "השאילתה נמשכה יותר מ־10 שניות והופסקה",
+        "other": "השאילתה לא הורצה"
+      }
     }
   },
   "offline": {

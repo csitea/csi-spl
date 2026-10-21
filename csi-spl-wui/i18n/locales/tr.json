@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Sürüm raporu yakında geliyor."
+    },
+    "sql": {
+      "query_label": "Sorgu",
+      "placeholder": "SELECT … FROM … (salt okunur, bu çalışma alanının verileri, en fazla 2.000 satır)",
+      "run": "Sorguyu çalıştır",
+      "run_hint": "Çalıştır (Ctrl+Enter)",
+      "clear": "Temizle",
+      "running": "Çalışıyor…",
+      "status": "Süre: {ms} ms · Satır: {n}",
+      "capped": "{n} satırla sınırlandı",
+      "result_label": "Sorgu sonucu",
+      "copy": "Kopyala",
+      "download_csv": ".csv indir",
+      "download_json": ".json indir",
+      "copied": "Panoya kopyalandı",
+      "copy_failed": "Kopyalanamadı",
+      "no_columns": "Sorgu hiç sütun döndürmedi.",
+      "error": {
+        "read_only_violation": "Reddedildi: SQL sekmesi salt okunurdur",
+        "single_statement_only": "Reddedildi: yalnızca tek bir ifade",
+        "forbidden_function": "Reddedildi: bu işlev SQL sekmesinde kullanılamaz",
+        "forbidden_relation": "Reddedildi: bu tablo SQL sekmesinde kullanılamaz",
+        "syntax_error": "Sorgu hatası",
+        "query_error": "Sorgu hatası",
+        "bad_query": "Reddedildi: sorgu burada geçerli değil",
+        "result_too_large": "Reddedildi: sonuç çok büyük",
+        "admin_required": "Yalnızca çalışma alanı yöneticileri sorgu çalıştırabilir",
+        "query_timeout": "Sorgu 10 saniyeden uzun sürdü ve durduruldu",
+        "other": "Sorgu çalıştırılmadı"
+      }
     }
   },
   "offline": {

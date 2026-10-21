@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Raportul versiunilor vine în curând."
+    },
+    "sql": {
+      "query_label": "Interogare",
+      "placeholder": "SELECT … FROM … (doar citire, datele acestui spațiu de lucru, până la 2.000 de rânduri)",
+      "run": "Rulează interogarea",
+      "run_hint": "Rulează (Ctrl+Enter)",
+      "clear": "Golește",
+      "running": "Se rulează…",
+      "status": "Timp: {ms} ms · Rânduri: {n}",
+      "capped": "Limitat la {n} rânduri",
+      "result_label": "Rezultatul interogării",
+      "copy": "Copiază",
+      "download_csv": "Descarcă .csv",
+      "download_json": "Descarcă .json",
+      "copied": "Copiat în clipboard",
+      "copy_failed": "Nu s-a putut copia",
+      "no_columns": "Interogarea nu a întors nicio coloană.",
+      "error": {
+        "read_only_violation": "Refuzat: fila SQL este doar pentru citire",
+        "single_statement_only": "Refuzat: o singură instrucțiune",
+        "forbidden_function": "Refuzat: această funcție nu este disponibilă în fila SQL",
+        "forbidden_relation": "Refuzat: acest tabel nu este disponibil în fila SQL",
+        "syntax_error": "Eroare de interogare",
+        "query_error": "Eroare de interogare",
+        "bad_query": "Refuzat: interogarea nu este validă aici",
+        "result_too_large": "Refuzat: rezultatul este prea mare",
+        "admin_required": "Doar administratorii spațiului de lucru pot rula interogări",
+        "query_timeout": "Interogarea a durat mai mult de 10 secunde și a fost oprită",
+        "other": "Interogarea nu a rulat"
+      }
     }
   },
   "offline": {

@@ -15,8 +15,8 @@ export const REPORTING_TABS = Object.freeze([
   /* spec 143 2: every signed-in member (its page is spec 143 row 3; the
      shell holds a placeholder there) */
   Object.freeze({ id: 'releases', path: '/reporting/releases', labelKey: 'reporting.tab.releases', adminOnly: false, operatorsOnly: false, ready: true }),
-  /* spec 143 3: workspace admins only; ready when the SQL lane (T033) lands its page */
-  Object.freeze({ id: 'sql', path: '/reporting/sql', labelKey: 'reporting.tab.sql', adminOnly: true, operatorsOnly: false, ready: false }),
+  /* spec 143 3: workspace admins only; its page landed with T033 (SPL-2789) */
+  Object.freeze({ id: 'sql', path: '/reporting/sql', labelKey: 'reporting.tab.sql', adminOnly: true, operatorsOnly: false, ready: true }),
   /* spec 143 5.1, owner HUM-10 (t1 af25a1f3, msg a8bfcdd0): operator admins
      only; a workspace admin never sees it */
   Object.freeze({ id: 'tokens', path: '/reporting/tokens', labelKey: 'reporting.tab.tokens', adminOnly: false, operatorsOnly: true, ready: false }),

@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Versionsrapporten kommer snart."
+    },
+    "sql": {
+      "query_label": "Fråga",
+      "placeholder": "SELECT … FROM … (skrivskyddad, den här arbetsytans data, högst 2 000 rader)",
+      "run": "Kör fråga",
+      "run_hint": "Kör (Ctrl+Enter)",
+      "clear": "Rensa",
+      "running": "Kör…",
+      "status": "Tid: {ms} ms · Rader: {n}",
+      "capped": "Begränsad till {n} rader",
+      "result_label": "Frågans resultat",
+      "copy": "Kopiera",
+      "download_csv": "Ladda ner .csv",
+      "download_json": "Ladda ner .json",
+      "copied": "Kopierat till urklipp",
+      "copy_failed": "Kunde inte kopiera",
+      "no_columns": "Frågan gav inga kolumner.",
+      "error": {
+        "read_only_violation": "Nekad: SQL-fliken är skrivskyddad",
+        "single_statement_only": "Nekad: endast en sats",
+        "forbidden_function": "Nekad: funktionen är inte öppen för SQL-fliken",
+        "forbidden_relation": "Nekad: tabellen är inte öppen för SQL-fliken",
+        "syntax_error": "Fel i frågan",
+        "query_error": "Fel i frågan",
+        "bad_query": "Nekad: frågan är inte giltig här",
+        "result_too_large": "Nekad: resultatet är för stort",
+        "admin_required": "Endast arbetsytans administratörer får köra frågor",
+        "query_timeout": "Frågan tog mer än 10 sekunder och stoppades",
+        "other": "Frågan kördes inte"
+      }
     }
   },
   "offline": {

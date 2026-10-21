@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Raport wydań już wkrótce."
+    },
+    "sql": {
+      "query_label": "Zapytanie",
+      "placeholder": "SELECT … FROM … (tylko odczyt, dane tej przestrzeni roboczej, do 2000 wierszy)",
+      "run": "Uruchom zapytanie",
+      "run_hint": "Uruchom (Ctrl+Enter)",
+      "clear": "Wyczyść",
+      "running": "Wykonywanie…",
+      "status": "Czas: {ms} ms · Wiersze: {n}",
+      "capped": "Ograniczono do {n} wierszy",
+      "result_label": "Wynik zapytania",
+      "copy": "Kopiuj",
+      "download_csv": "Pobierz .csv",
+      "download_json": "Pobierz .json",
+      "copied": "Skopiowano do schowka",
+      "copy_failed": "Nie udało się skopiować",
+      "no_columns": "Zapytanie nie zwróciło żadnych kolumn.",
+      "error": {
+        "read_only_violation": "Odrzucono: karta SQL służy tylko do odczytu",
+        "single_statement_only": "Odrzucono: tylko jedna instrukcja",
+        "forbidden_function": "Odrzucono: ta funkcja nie jest dostępna w karcie SQL",
+        "forbidden_relation": "Odrzucono: ta tabela nie jest dostępna w karcie SQL",
+        "syntax_error": "Błąd zapytania",
+        "query_error": "Błąd zapytania",
+        "bad_query": "Odrzucono: zapytanie jest tu nieprawidłowe",
+        "result_too_large": "Odrzucono: wynik jest zbyt duży",
+        "admin_required": "Zapytania mogą uruchamiać tylko administratorzy przestrzeni roboczej",
+        "query_timeout": "Zapytanie trwało dłużej niż 10 sekund i zostało zatrzymane",
+        "other": "Zapytanie nie zostało wykonane"
+      }
     }
   },
   "offline": {

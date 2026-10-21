@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "El informe de versiones llegará pronto."
+    },
+    "sql": {
+      "query_label": "Consulta",
+      "placeholder": "SELECT … FROM … (solo lectura, datos de este espacio de trabajo, hasta 2000 filas)",
+      "run": "Ejecutar consulta",
+      "run_hint": "Ejecutar (Ctrl+Intro)",
+      "clear": "Borrar",
+      "running": "Ejecutando…",
+      "status": "Tiempo: {ms} ms · Filas: {n}",
+      "capped": "Limitado a {n} filas",
+      "result_label": "Resultado de la consulta",
+      "copy": "Copiar",
+      "download_csv": "Descargar .csv",
+      "download_json": "Descargar .json",
+      "copied": "Copiado al portapapeles",
+      "copy_failed": "No se pudo copiar",
+      "no_columns": "La consulta no devolvió columnas.",
+      "error": {
+        "read_only_violation": "Rechazada: la pestaña SQL es de solo lectura",
+        "single_statement_only": "Rechazada: solo una sentencia",
+        "forbidden_function": "Rechazada: esa función no está disponible en la pestaña SQL",
+        "forbidden_relation": "Rechazada: esa tabla no está disponible en la pestaña SQL",
+        "syntax_error": "Error en la consulta",
+        "query_error": "Error en la consulta",
+        "bad_query": "Rechazada: la consulta no es válida aquí",
+        "result_too_large": "Rechazada: el resultado es demasiado grande",
+        "admin_required": "Solo los administradores del espacio de trabajo pueden ejecutar consultas",
+        "query_timeout": "La consulta tardó más de 10 segundos y se detuvo",
+        "other": "La consulta no se ejecutó"
+      }
     }
   },
   "offline": {

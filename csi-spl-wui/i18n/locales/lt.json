@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Leidimų ataskaita netrukus."
+    },
+    "sql": {
+      "query_label": "Užklausa",
+      "placeholder": "SELECT … FROM … (tik skaitymui, šios darbo srities duomenys, iki 2 000 eilučių)",
+      "run": "Vykdyti užklausą",
+      "run_hint": "Vykdyti (Ctrl+Enter)",
+      "clear": "Išvalyti",
+      "running": "Vykdoma…",
+      "status": "Laikas: {ms} ms · Eilutės: {n}",
+      "capped": "Apribota iki {n} eilučių",
+      "result_label": "Užklausos rezultatas",
+      "copy": "Kopijuoti",
+      "download_csv": "Atsisiųsti .csv",
+      "download_json": "Atsisiųsti .json",
+      "copied": "Nukopijuota į iškarpinę",
+      "copy_failed": "Nepavyko nukopijuoti",
+      "no_columns": "Užklausa negrąžino jokių stulpelių.",
+      "error": {
+        "read_only_violation": "Atmesta: SQL skirtukas skirtas tik skaitymui",
+        "single_statement_only": "Atmesta: leidžiamas tik vienas sakinys",
+        "forbidden_function": "Atmesta: ši funkcija SQL skirtuke neprieinama",
+        "forbidden_relation": "Atmesta: ši lentelė SQL skirtuke neprieinama",
+        "syntax_error": "Užklausos klaida",
+        "query_error": "Užklausos klaida",
+        "bad_query": "Atmesta: užklausa čia negalioja",
+        "result_too_large": "Atmesta: rezultatas per didelis",
+        "admin_required": "Užklausas gali vykdyti tik darbo srities administratoriai",
+        "query_timeout": "Užklausa truko ilgiau nei 10 sekundžių ir buvo sustabdyta",
+        "other": "Užklausa nebuvo įvykdyta"
+      }
     }
   },
   "offline": {

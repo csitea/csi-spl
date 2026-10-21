@@ -67,10 +67,13 @@ describe('T011 utils/reporting-tabs.mjs', () => {
       assert.equal(typeof t.ready, 'boolean')
     }
   })
-  it('only Releases is ready today: every reader sees just it', () => {
-    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases'])
-    for (const who of [undefined, {}, { admin: true }, { operator: true }, { admin: true, operator: true, can: () => true }]) {
+  it('Releases and SQL are ready today (SQL since T033, SPL-2789): a member sees Releases, an admin both', () => {
+    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql'])
+    for (const who of [undefined, {}, { admin: false }]) {
       assert.deepEqual(ids(visibleReportingTabs(who)), ['releases'], JSON.stringify(who))
+    }
+    for (const who of [{ admin: true }, { operator: true }, { admin: true, operator: true, can: () => true }]) {
+      assert.deepEqual(ids(visibleReportingTabs(who)), ['releases', 'sql'], JSON.stringify(who))
     }
   })
   it('a member sees no admin tab; a workspace admin sees SQL', () => {

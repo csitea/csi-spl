@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi."
+    },
+    "sql": {
+      "query_label": "Päring",
+      "placeholder": "SELECT … FROM … (ainult lugemiseks, selle tööruumi andmed, kuni 2000 rida)",
+      "run": "Käivita päring",
+      "run_hint": "Käivita (Ctrl+Enter)",
+      "clear": "Tühjenda",
+      "running": "Käivitamine…",
+      "status": "Aeg: {ms} ms · Read: {n}",
+      "capped": "Piiratud {n} reaga",
+      "result_label": "Päringu tulemus",
+      "copy": "Kopeeri",
+      "download_csv": "Laadi alla .csv",
+      "download_json": "Laadi alla .json",
+      "copied": "Kopeeritud lõikelauale",
+      "copy_failed": "Kopeerimine ebaõnnestus",
+      "no_columns": "Päring ei tagastanud ühtegi veergu.",
+      "error": {
+        "read_only_violation": "Keeldutud: SQL-vaheleht on ainult lugemiseks",
+        "single_statement_only": "Keeldutud: ainult üks lause",
+        "forbidden_function": "Keeldutud: see funktsioon pole SQL-vahelehel lubatud",
+        "forbidden_relation": "Keeldutud: see tabel pole SQL-vahelehel lubatud",
+        "syntax_error": "Päringu viga",
+        "query_error": "Päringu viga",
+        "bad_query": "Keeldutud: päring pole siin kehtiv",
+        "result_too_large": "Keeldutud: tulemus on liiga suur",
+        "admin_required": "Päringuid võivad käivitada ainult tööruumi administraatorid",
+        "query_timeout": "Päring kestis üle 10 sekundi ja peatati",
+        "other": "Päringut ei käivitatud"
+      }
     }
   },
   "offline": {

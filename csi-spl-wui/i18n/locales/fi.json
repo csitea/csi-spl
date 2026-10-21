@@ -3239,6 +3239,36 @@
     },
     "releases": {
       "soon": "Julkaisuraportti on tulossa pian."
+    },
+    "sql": {
+      "query_label": "Kysely",
+      "placeholder": "SELECT … FROM … (vain luku, tämän työtilan tiedot, enintään 2 000 riviä)",
+      "run": "Suorita kysely",
+      "run_hint": "Suorita (Ctrl+Enter)",
+      "clear": "Tyhjennä",
+      "running": "Suoritetaan…",
+      "status": "Aika: {ms} ms · Rivit: {n}",
+      "capped": "Rajattu {n} riviin",
+      "result_label": "Kyselyn tulos",
+      "copy": "Kopioi",
+      "download_csv": "Lataa .csv",
+      "download_json": "Lataa .json",
+      "copied": "Kopioitu leikepöydälle",
+      "copy_failed": "Kopiointi epäonnistui",
+      "no_columns": "Kysely ei palauttanut sarakkeita.",
+      "error": {
+        "read_only_violation": "Hylätty: SQL-välilehti on vain luku -tilassa",
+        "single_statement_only": "Hylätty: vain yksi lause",
+        "forbidden_function": "Hylätty: funktio ei ole käytettävissä SQL-välilehdellä",
+        "forbidden_relation": "Hylätty: taulu ei ole käytettävissä SQL-välilehdellä",
+        "syntax_error": "Kyselyvirhe",
+        "query_error": "Kyselyvirhe",
+        "bad_query": "Hylätty: kysely ei kelpaa tässä",
+        "result_too_large": "Hylätty: tulos on liian suuri",
+        "admin_required": "Vain työtilan ylläpitäjät voivat suorittaa kyselyitä",
+        "query_timeout": "Kysely kesti yli 10 sekuntia ja keskeytettiin",
+        "other": "Kyselyä ei suoritettu"
+      }
     }
   },
   "offline": {

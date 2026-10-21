@@ -577,6 +577,10 @@ main "$@"
 # Upstream: a sibling project (its -utl, v3.8.2)
 #------------------------------------------------------------------------------
 # Version history (newest first):
+#   3.8.2  2026-10-21  One copy in csi-spl-iac, -orc and -utl, byte-identical
+#                      (run-sh-parity.tst.sh, SPL-2756).
+#   3.8.2  2026-10-16  Copied unchanged into csi-spl-utl from csi-spl-orc (SPL-2110).
+#   3.8.2  2026-09-18  Copied unchanged into csi-spl-orc from csi-spl-iac.
 #   3.8.2  2026-09-17  Copied unchanged into csi-spl-iac from sibling-prj-utl (the
 #                      newest of the sibling-prj and csi-rel copies).
 #   3.8.0  2026-04-30  Sync framework primitives from app-edw-utl: write-probe

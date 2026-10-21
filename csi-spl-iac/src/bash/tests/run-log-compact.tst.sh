@@ -5,7 +5,7 @@
 #          box or pid; DEBUG only with RUN_LOG=debug; no framework START/STOP
 #          banners and no "run completed" line. The log FILE keeps the full
 #          line for every call.
-#   Checks, for iac and orc run.sh (the real do_log + do_detect_log_mode,
+#   Checks, for iac, orc and utl run.sh (the real do_log + do_detect_log_mode,
 #   extracted with awk): the compact lines, the drops, the file, the mode
 #   switch. An action's own "START ::: <step>" line is kept. A do_log sourced
 #   without ./run's main (RUN_LOG_COMPACT unset) keeps the full line.
@@ -23,7 +23,7 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ESC=$'\033'
 
-for mod in iac orc; do
+for mod in iac orc utl; do
   src="$REPO_ROOT/csi-spl-$mod/src/bash/run/run.sh"
   lib="$T/$mod.inc.sh"
   awk '/^_?do_log(_[a-z_]+)?\(\) \{/,/^}/; /^do_detect_log_mode\(\) \{/,/^}/' "$src" >"$lib"

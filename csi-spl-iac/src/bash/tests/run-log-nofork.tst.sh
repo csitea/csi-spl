@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_log and the action dispatcher in iac and orc run.sh do not fork
+# Purpose: do_log and the action dispatcher in iac, orc and utl run.sh do not fork
 #          once per log line or once per action name (perf edition E18, C1's
 #          practice). A log line used to be 3x echo|cut, 2x date and a mkdir.
 #   Checks, for each run.sh:
@@ -69,7 +69,7 @@ EOF
   return "$rc"
 }
 
-for mod in orc iac; do
+for mod in orc iac utl; do
   src="$REPO_ROOT/csi-spl-$mod/src/bash/run/run.sh"
   [[ -f "$src" ]] || { fail "$mod run.sh exists" "$src"; continue; }
   lib="$T/$mod-log.inc.sh"

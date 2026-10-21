@@ -85,7 +85,6 @@ const CEILING = {
   'notify.mjs': 20,
   'parent-section-open.mjs': 1,
   'prefs.mjs': 4,
-  'rail-order.mjs': 1,
   'read-cursor.mjs': 6,
   'spool-client.mjs': 3,
   'tenant-host-boot.mjs': 1,

@@ -8,7 +8,7 @@ import { useSessionStore } from '~/stores/session'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 import { listRowKey, stepRow } from '~/utils/row-keys.mjs'
 import { focusPane } from '~/composables/useGlobalKeys'
-import { MIDDLE } from '~/utils/pane-focus.mjs'
+import { MIDDLE } from '~/utils/pane-focus'
 
 /* the feed reads its cards after the route: the old channel's cards are
    drawn again for a moment (new elements, old messages) and one of them

@@ -22,7 +22,8 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 /* CLE-77794: the drawn order is parseRailOrder(claim) — a legacy stored order
    keeps its place and the tabs added since (people, agents) are appended, so the
    expected order tracks RAIL_IDS instead of a hardcoded list. */
-import { parseRailOrder } from '../../src/utils/rail-order.mjs'
+import { importTs } from '../unit/lib/load-ts.mjs'
+const { parseRailOrder } = await importTs('src/utils/rail-order.ts')
 
 const results = []
 function check(name, pass, ev) {

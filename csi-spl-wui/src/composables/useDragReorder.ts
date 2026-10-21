@@ -9,7 +9,7 @@
 // the pointer was captured, the tabs reshuffled, and the browser's pan then
 // cancelled it back. `touchHoldMs`: on touch a drag needs a press held that
 // long without moving; a move before then is the browser's scroll.
-import { DRAG_THRESHOLD_PX, dragAxis, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order.mjs'
+import { DRAG_THRESHOLD_PX, dragAxis, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order'
 
 /* how long after a drag ends its click may still land and be swallowed; a
  * click later than this is the reader's own. Unrelated to the 400 ms in

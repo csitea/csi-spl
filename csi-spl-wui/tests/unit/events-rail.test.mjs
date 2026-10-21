@@ -19,11 +19,11 @@ describe('Event log rail tab', () => {
   })
 
   it('follows flow and archive; People follows it (CLE-77794)', () => {
-    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
+    /* SPL-979: the default order lives in utils/rail-order.ts RAIL_TABS;
        owner 2026-09-27 (topic 116646c8) left events out of the named order, so
        it sits after archive; CLE-77794 added People and Agents after it;
        SPL-2075 moved Agents into Monitoring. */
-    const tabs = read('src/utils/rail-order.mjs')
+    const tabs = read('src/utils/rail-order.ts')
     const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
     const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
     const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")

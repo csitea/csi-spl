@@ -12,7 +12,8 @@ import {
   reportingTabShows,
   reportingTabFor,
 } from '../../src/utils/reporting-tabs.mjs'
-import { RAIL_TABS, RAIL_IDS, RAIL_HUB_PENDING, DEFAULT_RAIL_ORDER, wireRailOrder } from '../../src/utils/rail-order.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { RAIL_TABS, RAIL_IDS, RAIL_HUB_PENDING, DEFAULT_RAIL_ORDER, wireRailOrder } = await importTs('src/utils/rail-order.ts')
 import { REPORTING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSectionPage } from '../../src/utils/section-strip.mjs'
 

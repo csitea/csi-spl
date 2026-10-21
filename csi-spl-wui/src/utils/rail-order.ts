@@ -1,4 +1,4 @@
-// csi-spl-wui/src/utils/rail-order.mjs
+// csi-spl-wui/src/utils/rail-order.ts
 //
 // Settings -> Behaviour -> "Left panel order" (SPL-979, spec 023 3.8): the
 // order of the six left-rail icons. The person drags the icons in the rail
@@ -11,8 +11,13 @@
 // CLE-77916 (owner, t1 topic 5463df22): Archive is ALWAYS the last section and
 // the one that cannot be dragged (RAIL_PINNED_LAST, pinRailOrder).
 
+import type { UiIconName } from '~/utils/uiIcons'
+
+export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting'
+type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }
+
 /** The tabs in the default order, with their icon and catalogue key. */
-export const RAIL_TABS = Object.freeze([
+export const RAIL_TABS: readonly RailTab[] = Object.freeze([
   /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,
      Direct messages, Issues, Topics, Flow, Archive; the Event log, which the
      owner did not name, goes last. A stored order (humans.rail_order) is kept
@@ -59,7 +64,7 @@ export const RAIL_TABS = Object.freeze([
 ])
 
 /** Every drawn rail id - a set, not the drawn order. */
-export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
+export const RAIL_IDS: readonly RailId[] = Object.freeze(RAIL_TABS.map((t) => t.id))
 
 /**
  * Owner HUM-10 (t1 e4bfddb1, msg a78e06c8: "Remove the whole topics view"):
@@ -71,7 +76,7 @@ export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
  * the Boxes icons both from mobile and on desktop"): agents and boxes too;
  * their pages are Monitoring -> Agents / Boxes.
  */
-export const RAIL_RETIRED = Object.freeze(['topics', 'agents', 'boxes'])
+export const RAIL_RETIRED: readonly string[] = Object.freeze(['topics', 'agents', 'boxes'])
 
 /**
  * SPL-1991: ids the rail draws before the hub admits them (auth.RailTabs and
@@ -83,14 +88,14 @@ export const RAIL_RETIRED = Object.freeze(['topics', 'agents', 'boxes'])
  * SPL-2351 (spec 143 1.1): reporting waited here until SPL-2587 (auth.RailTabs,
  * rdb 0209) admitted it, so none.
  */
-export const RAIL_HUB_PENDING = Object.freeze([])
+export const RAIL_HUB_PENDING: readonly string[] = Object.freeze([])
 
 /**
  * A drawn order as the hub stores it: the retired ids added, the ids the hub
  * does not admit yet left out, Archive last.
  */
-export function wireRailOrder(order) {
-  const drop = (id) => RAIL_RETIRED.includes(id) || RAIL_HUB_PENDING.includes(id)
+export function wireRailOrder(order: readonly string[]): string[] {
+  const drop = (id: string) => RAIL_RETIRED.includes(id) || RAIL_HUB_PENDING.includes(id)
   return pinRailOrder([...order.filter((id) => !drop(id)), ...RAIL_RETIRED])
 }
 
@@ -99,12 +104,12 @@ export function wireRailOrder(order) {
  * ALWAYS at the bottom and it must be the only one which is NOT draggable"):
  * Archive ends every drawn and every saved order, whatever was stored.
  */
-export const RAIL_PINNED_LAST = 'archive'
+export const RAIL_PINNED_LAST = 'archive' as const
 
 /** `order` with the pinned tab moved to the end (a copy; absent stays absent). */
-export function pinRailOrder(order) {
+export function pinRailOrder<T extends string>(order: readonly T[]): T[] {
   const out = order.filter((id) => id !== RAIL_PINNED_LAST)
-  if (out.length !== order.length) out.push(RAIL_PINNED_LAST)
+  if (out.length !== order.length) out.push(RAIL_PINNED_LAST as T)
   return out
 }
 
@@ -115,30 +120,28 @@ export function pinRailOrder(order) {
  * and Archive, so the desktop rail drew 3 talk/workspace lines (spec 109
  * T015); grouped, it draws 1. A stored order is drawn as stored.
  */
-export const DEFAULT_RAIL_ORDER = Object.freeze(pinRailOrder(moveTo([...RAIL_IDS], 'calendar', RAIL_IDS.indexOf('flow') + 1)))
+export const DEFAULT_RAIL_ORDER: readonly RailId[] = Object.freeze(pinRailOrder(moveTo([...RAIL_IDS], 'calendar', RAIL_IDS.indexOf('flow') + 1)))
 
 /** Can this rail tab be dragged / stepped? Archive cannot. */
-export function isRailMovable(id) {
+export function isRailMovable(id: string): boolean {
   return id !== RAIL_PINNED_LAST
 }
 
 /**
  * The catalogue key that names a rail tab: its phone name at <= 820 px
  * (useMobileStack().isMobile) when it has one, else its label.
- * @param {{ labelKey: string, phoneLabelKey?: string }} tab
- * @param {boolean} phone
  */
-export function railLabelKey(tab, phone) {
+export function railLabelKey(tab: { labelKey: string, phoneLabelKey?: string }, phone: boolean): string {
   return (phone && tab.phoneLabelKey) || tab.labelKey
 }
 
 /** A pointer must travel this far before a press becomes a drag: a click never reorders. */
-export const DRAG_THRESHOLD_PX = 6
+export const DRAG_THRESHOLD_PX: number = 6
 
 /** true when `raw` holds every rail id exactly once (the hub's IsRailOrder). */
-export function isRailOrder(raw) {
+export function isRailOrder(raw: unknown): boolean {
   if (!Array.isArray(raw) || raw.length !== RAIL_IDS.length) return false
-  const seen = new Set(raw)
+  const seen = new Set<unknown>(raw)
   return seen.size === RAIL_IDS.length && RAIL_IDS.every((id) => seen.has(id))
 }
 
@@ -149,21 +152,21 @@ export function isRailOrder(raw) {
  * stored order at all is the default order. Archive is always last
  * (CLE-77916), so an order stored with it elsewhere is drawn repaired.
  */
-export function parseRailOrder(raw) {
+export function parseRailOrder(raw: unknown): RailId[] {
   if (!Array.isArray(raw)) return [...DEFAULT_RAIL_ORDER]
-  const out = []
+  const out: RailId[] = []
   for (const id of raw) if (RAIL_IDS.includes(id) && !out.includes(id)) out.push(id)
   if (out.length === 0) return [...DEFAULT_RAIL_ORDER]
   for (const id of RAIL_IDS) if (!out.includes(id)) out.push(id)
   return pinRailOrder(out)
 }
 
-export function sameOrder(a, b) {
+export function sameOrder(a: unknown, b: unknown): boolean {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => x === b[i])
 }
 
 /** `order` with `id` moved to index `to` (clamped). Unknown id: a copy. */
-export function moveTo(order, id, to) {
+export function moveTo<T extends string>(order: readonly T[], id: T, to: number): T[] {
   const out = [...order]
   const from = out.indexOf(id)
   if (from < 0) return out
@@ -174,7 +177,7 @@ export function moveTo(order, id, to) {
 }
 
 /** One step up (-1) or down (+1); stops at either end. */
-export function moveBy(order, id, delta) {
+export function moveBy<T extends string>(order: readonly T[], id: T, delta: number): T[] {
   const from = order.indexOf(id)
   return from < 0 ? [...order] : moveTo(order, id, from + delta)
 }
@@ -185,7 +188,7 @@ export function moveBy(order, id, delta) {
  * order, `from` the dragged item's index there, both on the list's own axis
  * (dragAxis).
  */
-export function dropIndex(mids, from, pos) {
+export function dropIndex(mids: readonly number[], from: number, pos: number): number {
   let n = 0
   for (let i = 0; i < mids.length; i++) {
     if (i !== from && pos > mids[i]) n++
@@ -200,9 +203,8 @@ export function dropIndex(mids, from, pos) {
  * `sign * clientX` grows along the list. Measuring the strip on clientY made
  * every sideways press-and-move a "drop" at the first or the last index - the
  * tab under the finger jumped to an end and the order was saved.
- * @param {{ left: number, top: number, width: number, height: number }[]} rects
  */
-export function dragAxis(rects) {
+export function dragAxis(rects: readonly { left: number, top: number, width: number, height: number }[]): { axis: 'x' | 'y', sign: 1 | -1 } {
   if (!Array.isArray(rects) || rects.length < 2) return { axis: 'y', sign: 1 }
   const a = rects[0]
   const b = rects[rects.length - 1]
@@ -213,7 +215,7 @@ export function dragAxis(rects) {
 }
 
 /** Past the click-versus-drag threshold? */
-export function isDrag(dx, dy, threshold = DRAG_THRESHOLD_PX) {
+export function isDrag(dx: number, dy: number, threshold: number = DRAG_THRESHOLD_PX): boolean {
   return Math.hypot(Number(dx) || 0, Number(dy) || 0) >= threshold
 }
 
@@ -221,13 +223,13 @@ export function isDrag(dx, dy, threshold = DRAG_THRESHOLD_PX) {
  * Save a new order, optimistic like the other Behaviour setting: mirror the
  * claim at once (the rail and the Settings list both redraw), save it, put
  * the old one back on a refusal. `want` null = back to the default (clears).
- * @param {string[] | null} want
- * @param {{ current: unknown, apply: (o: string[] | null) => void,
- *           save: (o: string[] | null) => Promise<{ ok: boolean }> }} io
  */
-export async function applyRailOrder(want, { current, apply, save }) {
+export async function applyRailOrder(
+  want: string[] | null,
+  { current, apply, save }: { current: unknown, apply: (o: string[] | null) => void, save: (o: string[] | null) => Promise<{ ok: boolean }> },
+): Promise<{ ok: boolean, value: string[] | null, out?: unknown }> {
   /* a legacy (shorter) stored order is kept as it was on a revert */
-  const prev = Array.isArray(current) && current.length > 0 ? [...current] : null
+  const prev: string[] | null = Array.isArray(current) && current.length > 0 ? [...current] : null
   if (want !== null && !isRailOrder(want)) return { ok: false, value: prev }
   /* CLE-77916: whatever the caller built, Archive is saved last; the hub
      still wants the retired ids (RAIL_RETIRED) */
@@ -235,7 +237,7 @@ export async function applyRailOrder(want, { current, apply, save }) {
   if (want === null ? prev === null : (prev !== null && sameOrder(want, prev))) return { ok: true, value: prev }
   const next = want === null ? null : [...want]
   apply(next)
-  let out
+  let out: { ok: boolean, error?: unknown }
   try {
     out = await save(next)
   } catch (e) {

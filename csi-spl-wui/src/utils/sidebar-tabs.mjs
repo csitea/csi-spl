@@ -20,12 +20,12 @@ export const EVENTS_TAB = 'events'
 export const ISSUES_TAB = 'issues'
 
 /** Archive (SPL-983): archived threads on /archive, the 7th reorderable rail
- *  tab (last by default, utils/rail-order.mjs). A page, like the event log. */
+ *  tab (last by default, utils/rail-order.ts). A page, like the event log. */
 export const ARCHIVE_TAB = 'archive'
 
 /** People (CLE-77794): every tenant member; the list is the sidebar, the
  *  chosen person's card is /people/<id> (a page in the middle pane, like the
- *  DM feed). A reorderable rail tab (utils/rail-order.mjs). */
+ *  DM feed). A reorderable rail tab (utils/rail-order.ts). */
 export const PEOPLE_TAB = 'people'
 
 /** Calendar (spec 089 T007): /calendar, a single sheet like Issues (the year

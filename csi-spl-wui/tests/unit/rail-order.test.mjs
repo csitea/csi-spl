@@ -5,7 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
+import { importTs } from './lib/load-ts.mjs'
+const {
   RAIL_TABS,
   RAIL_IDS,
   DRAG_THRESHOLD_PX,
@@ -26,7 +27,7 @@ import {
   pinRailOrder,
   isRailMovable,
   dragAxis,
-} from '../../src/utils/rail-order.mjs'
+} = await importTs('src/utils/rail-order.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')

@@ -670,7 +670,7 @@ import { ARCHIVE_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, MONITORING_TAB, PEOP
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
-import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
@@ -693,7 +693,7 @@ import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring' | 'reporting'
-/* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
+/* The six rail tabs (utils/rail-order.ts RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
 const railOrder = useRailOrder()

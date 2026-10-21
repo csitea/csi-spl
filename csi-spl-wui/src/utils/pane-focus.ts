@@ -9,16 +9,14 @@
  * - but nothing routes a send on it any more.
  */
 
-export const MIDDLE = 'middle'
-export const RIGHT = 'right'
+export const MIDDLE = 'middle' as const
+export const RIGHT = 'right' as const
 
-/**
- * The pane an event target sits in, or '' for anywhere that does not choose.
- * @param {unknown} el
- * @returns {'' | 'middle' | 'right'}
- */
-export function paneOfTarget(el) {
-  const e = /** @type {{ closest?: (s: string) => unknown } | null} */ (el)
+type Closest = { closest?: (s: string) => unknown } | null
+
+/** The pane an event target sits in, or '' for anywhere that does not choose. */
+export function paneOfTarget(el: unknown): '' | 'middle' | 'right' {
+  const e = el as Closest
   if (!e || typeof e.closest !== 'function') return ''
   if (e.closest('.pane-divider')) return ''
   /* topic c6994436: the bottom Omnibox dock sits INSIDE .spool-main, but
@@ -30,7 +28,7 @@ export function paneOfTarget(el) {
 }
 
 /** A focusin this soon after a navigation key counts as the reader's own move. */
-export const KEY_NAV_MS = 1000
+export const KEY_NAV_MS: number = 1000
 
 /**
  * SPL-996: only the READER chooses a pane. Measured on prd t1 (2026-09-27,
@@ -43,9 +41,8 @@ export const KEY_NAV_MS = 1000
  * So a pointerdown counts unless it lands on the target's scrollbar, and a
  * focusin counts only right after a navigation key (Tab, arrows ...) pressed
  * outside a text field - typing and sending in the composer is not one.
- * @param {{ type?: string, onScrollbar?: boolean, keyNavAt?: number, now?: number }} ev
  */
-export function eventChoosesPane({ type = '', onScrollbar = false, keyNavAt = 0, now = 0 } = {}) {
+export function eventChoosesPane({ type = '', onScrollbar = false, keyNavAt = 0, now = 0 }: { type?: string, onScrollbar?: boolean, keyNavAt?: number, now?: number } = {}): boolean {
   if (type === 'pointerdown') return !onScrollbar
   if (type === 'focusin') return keyNavAt > 0 && now - keyNavAt >= 0 && now - keyNavAt <= KEY_NAV_MS
   return false
@@ -55,12 +52,11 @@ export function eventChoosesPane({ type = '', onScrollbar = false, keyNavAt = 0,
  * Is a keydown a navigation key pressed outside a text field? Typing (and the
  * Enter that sends) in the composer is not; Tab / arrows / Home / End / F6 on
  * a row or a button are.
- * @param {{ key?: string, target?: unknown }} ev
  */
-export function isKeyNav(ev) {
+export function isKeyNav(ev: { key?: string, target?: unknown }): boolean {
   const key = String((ev && ev.key) || '')
   if (!/^(Tab|Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown|F6)$/.test(key)) return false
-  const t = /** @type {{ closest?: (s: string) => unknown } | null} */ ((ev && ev.target) || null)
+  const t = ((ev && ev.target) || null) as Closest
   if (key !== 'Tab' && key !== 'F6' && t && typeof t.closest === 'function' && t.closest('textarea, input, [contenteditable="true"]')) return false
   return true
 }
@@ -69,10 +65,9 @@ export function isKeyNav(ev) {
  * A pointerdown on the element's own scrollbar: past its client box, while it
  * scrolls. offsetX/offsetY are relative to the padding edge, clientWidth /
  * clientHeight exclude the bar.
- * @param {{ target?: unknown, offsetX?: number, offsetY?: number }} ev
  */
-export function onScrollbar(ev) {
-  const el = /** @type {{ clientWidth?: number, clientHeight?: number, scrollWidth?: number, scrollHeight?: number } | null} */ ((ev && ev.target) || null)
+export function onScrollbar(ev: { target?: unknown, offsetX?: number, offsetY?: number }): boolean {
+  const el = ((ev && ev.target) || null) as { clientWidth?: number, clientHeight?: number, scrollWidth?: number, scrollHeight?: number } | null
   if (!el || typeof el.clientWidth !== 'number' || !el.clientWidth) return false
   const x = Number(ev.offsetX), y = Number(ev.offsetY)
   const vbar = (el.scrollHeight || 0) > (el.clientHeight || 0) && x >= el.clientWidth
@@ -83,9 +78,8 @@ export function onScrollbar(ev) {
 /**
  * Does the open right pane take the next Omnibox line? Whenever it is open
  * (SPL-996 B). `lastPane` is accepted for the old callers and ignored.
- * @param {{ paneOpen?: boolean, lastPane?: string }} [opts]
  */
-export function paneTakesLine({ paneOpen = false } = {}) {
+export function paneTakesLine({ paneOpen = false }: { paneOpen?: boolean, lastPane?: string } = {}): boolean {
   /* SPL-996, owner answer B (2026-09-27): the open pane takes every line
      until it is closed; the pane clicked last no longer decides */
   return Boolean(paneOpen)
@@ -96,14 +90,16 @@ export function paneTakesLine({ paneOpen = false } = {}) {
  * focus after a route change. paneOfTarget above stays as it is (the left
  * pane and the Omnibox choose no level); paneAt below names every F6 stop.
  */
-export const LEFT = 'left'
-export const OMNIBOX = 'omnibox'
+export const LEFT = 'left' as const
+export const OMNIBOX = 'omnibox' as const
+
+export type F6Pane = 'left' | 'middle' | 'right' | 'omnibox'
 
 /** The F6 order, left to right; Shift + F6 walks it back. */
-export const F6_ORDER = Object.freeze([LEFT, MIDDLE, RIGHT, OMNIBOX])
+export const F6_ORDER: readonly F6Pane[] = Object.freeze([LEFT, MIDDLE, RIGHT, OMNIBOX])
 
 /** Each pane's root in the shell. The docked Omnibox sits inside .spool-main, so paneAt tests it first. */
-export const PANE_ROOTS = Object.freeze({
+export const PANE_ROOTS: Readonly<Record<F6Pane, string>> = Object.freeze({
   [OMNIBOX]: '.top-bar__omnibox',
   [RIGHT]: 'aside.live-pane, aside.operator-pane',
   [MIDDLE]: '.spool-main',
@@ -114,7 +110,7 @@ export const PANE_ROOTS = Object.freeze({
  * Where the focus lands in a pane: its selected row, else its first row
  * (F6 only, spec 3.2), else its heading (spec 3.3).
  */
-export const PANE_TARGETS = Object.freeze({
+const PANE_TARGETS: Readonly<Record<F6Pane, { selected: string, first: string, heading: string }>> = Object.freeze({
   [LEFT]: { selected: '[aria-current="true"], [aria-current="page"], .sidebar-tab[aria-selected="true"]', first: 'a[href]:not([tabindex="-1"]), button:not([tabindex="-1"]):not([disabled])', heading: 'h1, h2, h3' },
   [MIDDLE]: { selected: '[data-selected="true"], [aria-current="true"]', first: '.msg[tabindex="0"], [role="row"], [role="option"]', heading: 'h1, h2' },
   [RIGHT]: { selected: '[data-selected="true"], [aria-current="true"]', first: '.msg[tabindex="0"]', heading: 'h1, h2, h3' },
@@ -124,24 +120,20 @@ export const PANE_TARGETS = Object.freeze({
 /**
  * The F6 pane an element sits in, or '' for none (a dialog, the top bar
  * outside the Omnibox, the body).
- * @param {unknown} el
- * @returns {'' | 'left' | 'middle' | 'right' | 'omnibox'}
  */
-export function paneAt(el) {
-  const e = /** @type {{ closest?: (s: string) => unknown } | null} */ (el)
+export function paneAt(el: unknown): '' | F6Pane {
+  const e = el as Closest
   if (!e || typeof e.closest !== 'function') return ''
-  for (const pane of [OMNIBOX, RIGHT, MIDDLE, LEFT]) {
-    if (e.closest(PANE_ROOTS[pane])) return /** @type {'left' | 'middle' | 'right' | 'omnibox'} */ (pane)
+  for (const pane of [OMNIBOX, RIGHT, MIDDLE, LEFT] as const) {
+    if (e.closest(PANE_ROOTS[pane])) return pane
   }
   return ''
 }
 
 /**
  * F6 forwards, Shift + F6 back; with Ctrl, Alt or Meta it is the browser's.
- * @param {{ key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null} ev
- * @returns {'' | 'next' | 'prev'}
  */
-export function paneKey(ev) {
+export function paneKey(ev: { key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null): '' | 'next' | 'prev' {
   if (!ev || ev.key !== 'F6' || ev.ctrlKey || ev.altKey || ev.metaKey) return ''
   return ev.shiftKey ? 'prev' : 'next'
 }
@@ -150,14 +142,11 @@ export function paneKey(ev) {
  * The next pane in the F6 cycle from `from`, skipping the panes not there
  * (the right pane while no topic is open). From nowhere F6 starts at the
  * left pane and Shift + F6 at the Omnibox; '' when there is nowhere to go.
- * @param {string} from
- * @param {{ back?: boolean, has?: (pane: string) => boolean }} [opts]
- * @returns {string}
  */
-export function nextPane(from, { back = false, has = () => true } = {}) {
+export function nextPane(from: string, { back = false, has = () => true }: { back?: boolean, has?: (pane: F6Pane) => boolean } = {}): '' | F6Pane {
   const there = F6_ORDER.filter((p) => has(p))
   if (!there.length) return ''
-  const i = F6_ORDER.indexOf(from)
+  const i = F6_ORDER.indexOf(from as F6Pane)
   if (i < 0) return back ? there[there.length - 1] : there[0]
   const n = F6_ORDER.length
   for (let k = 1; k < n; k++) {
@@ -171,19 +160,14 @@ export function nextPane(from, { back = false, has = () => true } = {}) {
  * The element to focus in a pane root: the selected row, else the first
  * row (unless `firstRow` is false), else the heading, else the root.
  * `visible` drops what a collapsed panel or a closed list hides.
- * @param {{ querySelectorAll?: (s: string) => ArrayLike<unknown> } | null} root
- * @param {string} pane
- * @param {{ firstRow?: boolean, visible?: (el: unknown) => boolean }} [opts]
- * @returns {unknown}
  */
-export function paneTarget(root, pane, { firstRow = true, visible = () => true } = {}) {
+export function paneTarget(root: ParentNode | null, pane: string, { firstRow = true, visible = () => true }: { firstRow?: boolean, visible?: (el: Element) => boolean } = {}): Element | null {
   if (!root || typeof root.querySelectorAll !== 'function') return null
-  const q = /** @type {(s: string) => ArrayLike<unknown>} */ (root.querySelectorAll.bind(root))
-  const t = /** @type {Record<string, { selected: string, first: string, heading: string }>} */ (PANE_TARGETS)[pane]
-  if (!t) return root
-  /** @param {string} sel */
-  const pick = (sel) => (sel ? Array.from(q(sel)).find((el) => visible(el)) : undefined)
-  return pick(t.selected) || (firstRow ? pick(t.first) : undefined) || pick(t.heading) || root
+  const q = (sel: string): ArrayLike<Element> => root.querySelectorAll(sel)
+  const t = (PANE_TARGETS as Readonly<Record<string, { selected: string, first: string, heading: string }>>)[pane]
+  if (!t) return root as Element
+  const pick = (sel: string) => (sel ? Array.from(q(sel)).find((el) => visible(el)) : undefined)
+  return pick(t.selected) || (firstRow ? pick(t.first) : undefined) || pick(t.heading) || (root as Element)
 }
 
 /**
@@ -194,9 +178,8 @@ export function paneTarget(root, pane, { firstRow = true, visible = () => true }
  * HUM-10 (t1 7d9e1681): nor out of the Channels list (`channelList`, the focus
  * on a channel row): a click there, or its arrow keys, opens the channel and
  * the next ArrowDown / ArrowUp walks on to the next channel.
- * @param {{ initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean }} [nav]
  */
-export function routeTakesFocus({ initial = false, popstate = false, failed = false, mobile = false, fromPath = '', toPath = '', typing = false, dialog = false, channelList = false } = {}) {
+export function routeTakesFocus({ initial = false, popstate = false, failed = false, mobile = false, fromPath = '', toPath = '', typing = false, dialog = false, channelList = false }: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean } = {}): boolean {
   if (initial || popstate || failed || mobile || typing || dialog || channelList) return false
   return fromPath !== toPath
 }

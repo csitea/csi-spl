@@ -19,7 +19,7 @@ import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
 const { TENANT_SETTINGS_SECTIONS } = await importTs('src/utils/tenant-settings-nav.ts')
 import { SOUND_NAMES } from '../../src/utils/notify.mjs'
 import { CLOSE_BUTTONS } from '../../src/utils/view-prefs.mjs'
-import { RAIL_TABS } from '../../src/utils/rail-order.mjs'
+const { RAIL_TABS } = await importTs('src/utils/rail-order.ts')
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 import { importTs } from './lib/load-ts.mjs'
 

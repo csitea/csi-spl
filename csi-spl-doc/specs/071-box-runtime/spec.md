@@ -73,11 +73,13 @@ Measure it again: `crontab -l | grep -o '# csi-spl:[a-z0-9:-]*$'`.
 
 Go build caches are pruned by `do_prune_go_build_cache` on its own `*/5` crontab line (`# csi-spl:go-cache-prune`, installed like the box-stats cron by `do_setup_go_cache_prune_cron`): every hour, and on any tick where the filesystem that holds the cache is at or over 85% full.
 
-On the main box (not the satellite) the box Go is go1.26.9 since 2026-10-20 (SPL-2717, owner HUM-10, t1
-d8ca583e, poll 8ae29542 and msg 75ca7c94): `/usr/local/go` is a symlink to
-`/usr/local/go1.26.9` (the official tarball, sha256 checked against go.dev),
-`/etc/profile.d/go.sh` appends `/usr/local/go/bin` to every login PATH, and the
-old 1.25.1 tree stays as `/usr/local/go1.25.1`. Measure it:
+On both boxes the box Go is go1.26.10 since 2026-10-21 (GO-2026-6809, the stdlib
+crypto/x509 fix that reddened wf 15; owner HUM-10, t1 1e709e5c, poll 09f9bcfa and
+msg ff5d4b5f; before it go1.26.9 since 2026-10-20, SPL-2717): `/usr/local/go` is a
+symlink to `/usr/local/go1.26.10` (the official tarball, sha256 checked against
+go.dev), `/etc/profile.d/go.sh` appends `/usr/local/go/bin` to every login PATH,
+and the old trees stay as `/usr/local/go1.26.9` (and `/usr/local/go1.25.1` on the
+main box). Measure it:
 `readlink -f /usr/local/go` and `sudo -u "$SPOOL_AGENT_USER" bash -lc 'go version'`.
 The next switch on any box runs through `cd csi-spl-iac && GO_VERSION=<X.Y.Z> GO_SWITCH_REASON=<why> AGENT_ID=<id> ./run -a do_box_go_switch` (SPL-2739, test `box-go-switch.tst.sh`): a dry run unless `DRY_RUN=0`, which needs the owner's go per box.
 

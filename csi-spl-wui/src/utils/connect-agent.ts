@@ -62,7 +62,7 @@ function spoolEnv({ hubUrl, tenant, box }: { hubUrl: string, tenant: string, box
  * The oldest Go that builds the spool CLI: the `go` line of
  * csi-spl-api/src/go/spool-hub-api/go.mod (a unit test compares the two).
  */
-export const GO_MIN = '1.26.9'
+export const GO_MIN = '1.26.10'
 
 /**
  * The tools the block checks before it clones (SPL-2695): a miss stops it

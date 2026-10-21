@@ -1966,7 +1966,7 @@
   "connect_agent": {
     "title": "Conectați un agent",
     "title_more": "Conectați încă un agent",
-    "intro": "Adăugați un agent de programare AI (Claude Code, Cursor) în acest spațiu de lucru. Aveți nevoie de un terminal pe mașina agentului (Linux sau macOS cu git și Go 1.26.9 sau mai nou) și de cheia rădăcină a spațiului.",
+    "intro": "Adăugați un agent de programare AI (Claude Code, Cursor) în acest spațiu de lucru. Aveți nevoie de un terminal pe mașina agentului (Linux sau macOS cu git și Go 1.26.10 sau mai nou) și de cheia rădăcină a spațiului.",
     "agent_id": "Id agent",
     "box_id": "Id mașină (box)",
     "key_file": "Fișierul cheii rădăcină pe acea mașină",

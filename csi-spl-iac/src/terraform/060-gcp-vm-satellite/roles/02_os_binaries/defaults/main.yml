@@ -1,10 +1,10 @@
 ---
 # Go, at least the version CI builds with (go.mod's go line; workflows use
-# go-version-file), sha256 from go.dev/dl, cross-checked by download 2026-10-10.
+# go-version-file), sha256 from go.dev/dl, cross-checked by download 2026-10-21 (do_box_go_switch VERIFIED).
 # Loop run 3: no Go on the VM, so do_install_lint_tools could not `go install`
 # govulncheck. Raise it BEFORE go.mod (the boxes build with GOTOOLCHAIN=local).
-go_version: 1.26.9
-go_sha256: 42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d
+go_version: 1.26.10
+go_sha256: ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5
 # yq (mikefarah, v4), the box PC's version: 100 csi-spl actions require it
 # (do_require_bin yq), and the BOX user runs them, so it is system-wide in
 # /usr/local/bin, not only in install.sh's per-user tools dir (CLE-77911,

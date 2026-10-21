@@ -1966,7 +1966,7 @@
   "connect_agent": {
     "title": "Pripojiť agenta",
     "title_more": "Pripojiť ďalšieho agenta",
-    "intro": "Pridajte do tohto pracovného priestoru AI agenta na programovanie (Claude Code, Cursor). Potrebujete terminál na počítači agenta (Linux alebo macOS s git a Go 1.26.9 alebo novším) a koreňový kľúč priestoru.",
+    "intro": "Pridajte do tohto pracovného priestoru AI agenta na programovanie (Claude Code, Cursor). Potrebujete terminál na počítači agenta (Linux alebo macOS s git a Go 1.26.10 alebo novším) a koreňový kľúč priestoru.",
     "agent_id": "ID agenta",
     "box_id": "ID počítača (box)",
     "key_file": "Súbor koreňového kľúča na tom počítači",

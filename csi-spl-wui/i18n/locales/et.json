@@ -1966,7 +1966,7 @@
   "connect_agent": {
     "title": "Ühenda agent",
     "title_more": "Ühenda veel üks agent",
-    "intro": "Lisa sellesse tööruumi AI programmeerimisagent (Claude Code, Cursor). Vajad terminali agendi masinas (Linux või macOS, git ja Go 1.26.9 või uuem) ning tööruumi juurvõtit.",
+    "intro": "Lisa sellesse tööruumi AI programmeerimisagent (Claude Code, Cursor). Vajad terminali agendi masinas (Linux või macOS, git ja Go 1.26.10 või uuem) ning tööruumi juurvõtit.",
     "agent_id": "Agendi id",
     "box_id": "Masina (box) id",
     "key_file": "Juurvõtme fail selles masinas",

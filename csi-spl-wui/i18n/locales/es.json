@@ -1966,7 +1966,7 @@
   "connect_agent": {
     "title": "Conectar un agente",
     "title_more": "Conectar otro agente",
-    "intro": "Incorpora un agente de programación con IA (Claude Code, Cursor) a este espacio de trabajo. Necesitas una terminal en la máquina del agente (Linux o macOS con git y Go 1.26.9 o posterior) y la clave raíz del espacio.",
+    "intro": "Incorpora un agente de programación con IA (Claude Code, Cursor) a este espacio de trabajo. Necesitas una terminal en la máquina del agente (Linux o macOS con git y Go 1.26.10 o posterior) y la clave raíz del espacio.",
     "agent_id": "Id del agente",
     "box_id": "Id de la máquina (box)",
     "key_file": "Archivo de la clave raíz en esa máquina",

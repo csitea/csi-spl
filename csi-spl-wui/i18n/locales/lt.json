@@ -1966,7 +1966,7 @@
   "connect_agent": {
     "title": "Prijunkite agentą",
     "title_more": "Prijunkite kitą agentą",
-    "intro": "Prijunkite AI programavimo agentą (Claude Code, Cursor) prie šios darbo vietos. Reikia terminalo agento kompiuteryje (Linux arba macOS su git ir Go 1.26.9 ar naujesne) ir darbo vietos šakninio rakto.",
+    "intro": "Prijunkite AI programavimo agentą (Claude Code, Cursor) prie šios darbo vietos. Reikia terminalo agento kompiuteryje (Linux arba macOS su git ir Go 1.26.10 ar naujesne) ir darbo vietos šakninio rakto.",
     "agent_id": "Agento ID",
     "box_id": "Kompiuterio (box) ID",
     "key_file": "Šakninio rakto failas tame kompiuteryje",

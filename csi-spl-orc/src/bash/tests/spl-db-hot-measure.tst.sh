@@ -129,7 +129,7 @@ SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub "" 0' in_orc SPL_HOT_STMT_FILE="
   fail "CONTROL: a hand-edited copy ran" || { grep -q "walk_all's text .* is not its builder's" "$T/o" && pass "CONTROL: a one-byte hand edit is refused" || fail "CONTROL text: $(cat "$T/o")"; }
 # The builders print the copy byte for byte today. The api suite's
 # TestHotStmtCopyCurrent is the same gate; this leg runs it from here when Go is on the box.
-GO_BIN=$(command -v go || true); [[ -x /usr/local/go1.26.9/bin/go ]] && GO_BIN=/usr/local/go1.26.9/bin/go
+GO_BIN=$(command -v go || true); [[ -x /usr/local/go/bin/go ]] && GO_BIN=/usr/local/go/bin/go
 API="$APP_ROOT/csi-spl-api/src/go/spool-hub-api"
 # 300 s, not 60: a fresh GitHub-hosted runner has no Go build cache and the
 # store package's cold compile outran 60 s there (timeout prints nothing: the

@@ -1089,6 +1089,16 @@ rm -f "$T/drop.got"; drop_of "$T/drop-none.yaml"
 rm -f "$T/drop.got"; drop_of "$T/drop-bad.yaml"
 [[ ! -f "$T/drop.got" ]] && grep -q 'FATAL cnf env.box.agent_drop_after_minutes' "$T/o" &&
   pass "a non-number threshold is refused before the sidecar starts" || fail "bad drop threshold: $(cat "$T/o")"
+# SPL-2803: the sidecar keeps the desk service ids past the drop; the
+# responder c-684 (the issue closer's id) has no process, so the run report
+# never says it runs. CONTROL: an ordinary lane id is not in the list.
+rm -f "$T/keep.got"; dd="$T/keep/$RANDOM"; mkdir -p "$dd/spool/.hub"
+SNIPPET="spl_desk_detach() { printf '%s\n' \"\${SPOOL_AGENT_KEEP-unset}\" >'$T/keep.got'; sleep 0 & }
+  SPL_SPOOL=true SPL_CNF='$T/drop-60.yaml' spl_desk_sidecar '$dd' box-desk t1 https://hub.invalid off 1" in_orc >"$T/o" 2>&1
+keep=" $(cat "$T/keep.got" 2>/dev/null) "
+[[ "$keep" == *" c-684 "* && "$keep" == *" c-685 "* ]] && pass "the sidecar keeps the desk ids past the drop (SPOOL_AGENT_KEEP: $keep)" ||
+  fail "desk ids not kept: got '$keep': $(cat "$T/o")"
+[[ "$keep" != *" c-045 "* ]] && pass "CONTROL an ordinary lane id is not kept" || fail "keep list holds c-045: $keep"
 # SPL-2165: the fallback queue's period and WARN age ride the same path, from
 # env.box.fallback_queue; no key = empty = off; a non-number is refused.
 queue_of() {

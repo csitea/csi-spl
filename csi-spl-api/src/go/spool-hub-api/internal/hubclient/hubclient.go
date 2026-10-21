@@ -143,6 +143,9 @@ type Client struct {
 	// has said does not run for longer than this (agent_drop.go, t1
 	// bc1a43e1 fix B). 0 = never.
 	DropAfter time.Duration
+	// Keep is the agent ids DropAfter never leaves out: the desk service
+	// ids, which run from cron with no live process (SPL-2803).
+	Keep map[string]bool
 	// QueueWarnAfter makes the fallback queue's periodic line a WARN once its
 	// oldest pending envelope is this old; QueueLogEvery is that line's
 	// period in hub-run (queue_health.go, SPL-2165). Both from cnf

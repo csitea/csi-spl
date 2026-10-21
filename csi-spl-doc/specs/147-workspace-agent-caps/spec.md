@@ -280,6 +280,7 @@ In `csi-spl-orc/src/bash/run/spl-desk-up.func.sh`:
     `FATAL agent $agent ($vendor) exceeds workspace $tenant cap of $max_live (currently $live live); seating refused`
   - Exit 1 before creating directories or starting sidecar.
 - **Explicit Seat Release on Exit:** When an agent exits cleanly or is retired, `do_spl_desk_down` or `agent-id-retire.sh` explicitly removes the agent's spool directory under `$SPL_STATE_DIR/desk/$tenant/$box/spool/$agent/`. On the next announcement tick, the box immediately reports the updated roster without the agent, releasing the seat within seconds rather than waiting for `agent_drop_after_minutes` (up to 60 minutes).
+- **Desk service ids are never dropped (SPL-2803):** the run report (`dispatch/agent-run.tsv`) has a line only for an agent with a live process, and an id with no line reads "not running". The desk service ids (`SPL_DESK_AGENT_IDS`: the responder `c-684`, as which the issue closer acts from cron, and the ops desk `c-685`) never have one, so `dropDead` left them out of the roster `agent_drop_after_minutes` after every sidecar start and the closer was refused `from_not_announced` (sat-rsp, 2026-10-20/21, flapping with each sidecar restart). `do_spl_desk_up` now passes them to the sidecar as `SPOOL_AGENT_KEEP`; a kept id stays announced (still reported as not running). Test: `hubclient/agent_drop_test.go` `TestDropDeadKeepsDeskServiceIDs`, `desk-actions.tst.sh` section 15.
 
 ---
 

@@ -1015,6 +1015,7 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 		return nil, fmt.Errorf("$SPOOL_AGENT_DROP_AFTER: %w", err)
 	}
 	c.DropAfter = drop
+	c.Keep = hubclient.ParseKeep(cfg.AgentKeep) // SPL-2803: desk service ids stay seated
 	if err := setQueueDurations(cfg, c); err != nil {
 		return nil, err
 	}

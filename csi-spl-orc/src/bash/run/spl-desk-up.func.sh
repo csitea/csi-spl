@@ -330,6 +330,17 @@ spl_desk_alive() {
     tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
 }
 
+# SPL-2803: the ids a desk sidecar keeps past the dead-agent drop
+# (SPOOL_AGENT_KEEP): the desk service ids (SPL_DESK_AGENT_IDS: the
+# responder, the ops desk). They act from cron with no live process, so the
+# run report never says they run; dropped, the issue closer (acting as the
+# responder) was refused from_not_announced an hour after every sidecar start.
+spl_desk_keep_ids() {
+  # shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+  [[ -n "${SPL_DESK_AGENT_IDS:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-agents.func.sh"
+  printf '%s' "${SPL_DESK_AGENT_IDS:-}"
+}
+
 # spl_desk_sidecar <state dir> <box> <tenant> <hub> <notify cmd>: ONE live
 # `spool hub-run` for this root, under a lock (two would both drain the queue).
 # Sets SPL_DESK_PID to its pid. It carries SPOOL_NOTIFY_CMD: the sidecar is the
@@ -409,6 +420,7 @@ spl_desk_sidecar() {
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
     SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" SPOOL_AGENT_DROP_AFTER="$drop" \
+    SPOOL_AGENT_KEEP="$(spl_desk_keep_ids)" \
     SPOOL_QUEUE_LOG_EVERY="$qlog" SPOOL_QUEUE_WARN_AFTER="$qwarn" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!

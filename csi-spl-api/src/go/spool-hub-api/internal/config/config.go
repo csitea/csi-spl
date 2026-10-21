@@ -64,6 +64,12 @@ type Config struct {
 	// longer than this - whole minutes, or a Go duration. do_spl_desk_up sets
 	// it from cnf env.box.agent_drop_after_minutes. Unset/0 = never.
 	AgentDropAfter string `env:"SPOOL_AGENT_DROP_AFTER"`
+	// AgentKeep (SPL-2803): agent ids the drop above never leaves out,
+	// space- or comma-separated. The desk service ids (the responder c-684,
+	// the ops desk c-685) act from cron with no live process, so the run
+	// report never says they run; do_spl_desk_up sets it from
+	// SPL_DESK_AGENT_IDS. Unset = none kept.
+	AgentKeep string `env:"SPOOL_AGENT_KEEP"`
 	// QueueWarnAfter / QueueLogEvery (SPL-2165): the hub-run sidecar logs its
 	// fallback queue (pending-flush dir) every QueueLogEvery, at WARN once the
 	// oldest entry is QueueWarnAfter old; `spool hub-queue` flags the same.

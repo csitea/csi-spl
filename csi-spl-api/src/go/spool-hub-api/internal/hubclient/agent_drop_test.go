@@ -94,3 +94,44 @@ func TestDropDeadRoleIDsAnyVendor(t *testing.T) {
 		t.Fatalf("past 1h = %v, want %v", got, want)
 	}
 }
+
+// SPL-2803: a desk service id (the responder c-684, which the issue closer
+// acts as from cron) has no live process, so the run report has no line for
+// it and AgentRunReport reads it as not running. Unless Keep names it, it
+// left the roster DropAfter after every sidecar start (sat-rsp, 10-21 21:10Z,
+// 63 min after the sidecar started), while its seat dir stayed on disk.
+func TestDropDeadKeepsDeskServiceIDs(t *testing.T) {
+	agents := []string{"c-045", "c-684"}
+	c, now := dropClient(t, map[string]string{AgentRunFile: "# agent-run v1\nc-045\trun\n"})
+	c.AgentRun = AgentRunReport(c.Cfg.FleetRoot, func() time.Time { return *now })
+	run := c.agentRun(agents)
+	if r, ok := run["c-684"]; !ok || r {
+		t.Fatalf("an id with no report line must read not running, got %v %v", r, ok)
+	}
+	c.Keep = ParseKeep("c-684 c-685")
+	if got := c.dropDead(agents, run); !reflect.DeepEqual(got, agents) {
+		t.Fatalf("first report dropped %v", got)
+	}
+	*now = now.Add(time.Hour + time.Second)
+	if got := c.dropDead(agents, c.agentRun(agents)); !reflect.DeepEqual(got, agents) {
+		t.Fatalf("past 1h the kept desk id left: %v", got)
+	}
+	// CONTROL: the same id not kept leaves the roster past DropAfter.
+	c.Keep = nil
+	if got := c.dropDead(agents, c.agentRun(agents)); !reflect.DeepEqual(got, agents) {
+		t.Fatalf("unkept, clock just started = %v", got)
+	}
+	*now = now.Add(time.Hour + time.Second)
+	if got := c.dropDead(agents, c.agentRun(agents)); !reflect.DeepEqual(got, []string{"c-045"}) {
+		t.Fatalf("unkept past 1h = %v, want [c-045]", got)
+	}
+}
+
+func TestParseKeep(t *testing.T) {
+	if got := ParseKeep(" c-684, c-685 "); !reflect.DeepEqual(got, map[string]bool{"c-684": true, "c-685": true}) {
+		t.Fatalf("ParseKeep = %v", got)
+	}
+	if got := ParseKeep(""); got != nil {
+		t.Fatalf("ParseKeep(\"\") = %v, want nil", got)
+	}
+}

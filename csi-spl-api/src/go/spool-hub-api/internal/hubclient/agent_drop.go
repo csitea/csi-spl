@@ -27,6 +27,13 @@ import (
 // session is on its way.
 //
 // No report (no fleet root, a stale one) drops nothing: nobody knows.
+//
+// An id in Client.Keep (SPOOL_AGENT_KEEP) is never dropped (SPL-2803). The
+// report has a line only for an id with a live process, and an id with no
+// line reads "not running" - so a desk service id, which acts from cron
+// (the issue closer runs as the responder c-684), was dropped DropAfter
+// after every sidecar start and its next request refused
+// from_not_announced, though its seat dir never moved.
 
 // AgentRunHeldWhy is the report's why prefix for an agent the dispatch
 // rotation holds (spl_lease_held: "held: rotation since <n>s").
@@ -82,7 +89,7 @@ func (c *Client) dropDead(agents []string, run map[string]bool) []string {
 	var seated map[string]bool
 	for _, id := range agents {
 		seen[id] = true
-		if r, ok := run[id]; !ok || r {
+		if r, ok := run[id]; !ok || r || c.Keep[id] {
 			delete(c.stopSince, id)
 			out = append(out, id)
 			continue
@@ -166,6 +173,19 @@ func heldAgents(path string) map[string]bool {
 			strings.HasPrefix(strings.TrimSpace(parts[2]), AgentRunHeldWhy) {
 			out[strings.TrimSpace(parts[0])] = true
 		}
+	}
+	return out
+}
+
+// ParseKeep reads SPOOL_AGENT_KEEP: agent ids split on spaces and commas.
+// Empty = nil.
+func ParseKeep(s string) map[string]bool {
+	var out map[string]bool
+	for _, id := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' }) {
+		if out == nil {
+			out = map[string]bool{}
+		}
+		out[id] = true
 	}
 	return out
 }

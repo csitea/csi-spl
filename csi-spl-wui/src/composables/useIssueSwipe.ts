@@ -60,7 +60,8 @@ export function useIssueSwipe(o: IssueSwipeOpts) {
 /* HUM-10 (owner, t1 aedca86a, f83f73b9): "the same swipes which work for the
    other listings of message cards should work". The phone's issue card takes
    MessageCard's swipe machine (utils/swipe-archive.mjs): LEFT is the menu's
-   Archive (its confirm: an issue has no undo), RIGHT opens the card's menu at
+   Archive (SPL-2783: on a phone at once, with Archived · Undo; a cascade
+   still asks), RIGHT opens the card's menu at
    the finger. A right swipe from the Back zone stays the shell's Back. One
    machine for the list; the card it runs on is remembered on pointerdown. */
 function cardSwipeMachine(o: IssueSwipeOpts, s: { swipe: SwipeState, held: SwipeHeld, rowPress: ReturnType<typeof createLongPress> }) {

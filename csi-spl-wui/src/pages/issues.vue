@@ -1555,7 +1555,7 @@ function onCreated(created: Issue) {
 
 /* the delete and archive confirms: composables/useIssueActConfirm */
 const { actConfirm, actBusy, actError, askAction, onActConfirmOpen, runAction, actConfirmLabel, actConfirmTitleKey, delTarget, delBusy, delError, askDelete, onDeleteOpen, confirmDelete } = useIssueActConfirm({
-  api, t, issues, subtasks, epics, detail, cursorKey, flat, menu, closeDetail, refreshEpics, errorKey, refusedText,
+  api, t, issues, subtasks, epics, detail, cursorKey, flat, menu, closeDetail, refreshEpics, errorKey, refusedText, phone, reload: load,
 })
 /* the open issue's discussion: composables/useIssueComments */
 const {

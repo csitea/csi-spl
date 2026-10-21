@@ -80,6 +80,15 @@ async function drag(p, x, y, dx, steps = 12) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await cdp.detach().catch(() => {})
 }
+/* SPL-2783: on a phone a single archive asks nothing; the confirm must not show */
+async function noConfirm(p, ms = 1500) {
+  return p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: ms }).then(() => false, () => true)
+}
+const cardGone = (p, k) => p.waitForFunction((key) => !document.querySelector(`[data-test=issues-card][data-key="${key}"]`), { timeout: 5000 }, k).then(() => true, () => false)
+async function undoArchive(p) {
+  await p.waitForSelector('[data-testid=archive-toast-undo]', { visible: true, timeout: 5000 })
+  await p.click('[data-testid=archive-toast-undo]')
+}
 async function cardBox(p, key) {
   return p.$eval(`[data-test=issues-card][data-key="${key}"]`, (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } })
 }
@@ -200,6 +209,14 @@ try {
     await p.setViewport({ width: 1400, height: 900 })
   }
 
+  // SPL-2783: on desktop the menu's Archive of one issue still asks
+  await rightClick(p, rowSel(spl2))
+  await p.waitForSelector('[data-test=issues-ctxmenu-archive]', { visible: true, timeout: 5000 })
+  await p.click('[data-test=issues-ctxmenu-archive]')
+  const deskAsk = await cascadeAsked(p)
+  await cancelCascade(p)
+  ok('4k desktop: the menu\'s Archive of one issue still shows the confirm', deskAsk === spl2 && Boolean(await p.$(rowSel(spl2))), { deskAsk, spl2 })
+
   // Delete a leaf issue: the confirm has no cascade count, and the row goes
   await rightClick(p, `[data-test=issues-row][data-key="${spl2}"]`)
   await p.waitForSelector('[data-test=issues-ctxmenu-delete]', { visible: true, timeout: 5000 })
@@ -226,8 +243,9 @@ try {
   ok('7 archiving the epic states its issue count and cascades to the child', Number(epicCount) >= 1 && childGone, { epicCount, childGone })
 
   // HUM-10 (t1 aedca86a, f83f73b9): on the phone an issue card swipes the
-  // way a message card does: LEFT archives (the menu's Archive, so its
-  // confirm), RIGHT opens the card's menu. 390 x 844, touch.
+  // way a message card does: LEFT archives (the menu's Archive), RIGHT opens
+  // the card's menu. 390 x 844, touch. SPL-2783 (owner, t1 ff23df68
+  // f702164e): "On mobile there is no need to confirm archiving".
   const ph = await browser.newPage()
   ph.on('pageerror', (e) => errors.push(String(e && e.message)))
   await ph.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
@@ -248,11 +266,13 @@ try {
   const [cLeft, cRight] = cards
   let b = await cardBox(ph, cLeft)
   await drag(ph, b.x + b.w - 20, b.y + b.h / 2, -200)
-  const swArch = await cascadeAsked(ph)
-  ok('7a phone: a LEFT swipe on an issue card asks to archive that issue', swArch === cLeft, { swArch, cLeft, cards })
+  const swNoAsk = await noConfirm(ph)
+  const swGone = await cardGone(ph, cLeft)
+  ok('7a phone: a LEFT swipe archives that issue at once, no confirm', swNoAsk && swGone, { swNoAsk, swGone, cLeft, cards })
   if (process.env.SHOT_DIR) await ph.screenshot({ path: `${process.env.SHOT_DIR}/issues-swipe-left-390.png` })
-  await cancelCascade(ph)
-  ok('7b phone: the card snaps back after the cancelled archive', await ph.$eval(`[data-test=issues-card][data-key="${cLeft}"]`, (el) => !el.style.transform || /translateX\(0/.test(getComputedStyle(el).transform) || getComputedStyle(el).transform === 'none'))
+  await undoArchive(ph)
+  const back = await ph.waitForSelector(`[data-test=issues-card][data-key="${cLeft}"]`, { visible: true, timeout: 5000 }).then(Boolean, () => false)
+  ok('7b phone: Archived · Undo brings the card back, snapped in place', back && await ph.$eval(`[data-test=issues-card][data-key="${cLeft}"]`, (el) => !el.style.transform || /translateX\(0/.test(getComputedStyle(el).transform) || getComputedStyle(el).transform === 'none'))
   b = await cardBox(ph, cRight)
   await drag(ph, b.x + b.w / 2 + 20, b.y + b.h / 2, 150)
   const swMenu = await ph.waitForSelector('[data-test=issues-ctxmenu]', { visible: true, timeout: 3000 }).then(Boolean, () => false)
@@ -261,6 +281,10 @@ try {
   if (process.env.SHOT_DIR) await ph.screenshot({ path: `${process.env.SHOT_DIR}/issues-swipe-menu-390.png` })
   const stillList = await ph.$('[data-test=issues-detail]')
   ok('7d phone: the swipe did not also open the issue', !stillList)
+  if (swMenu) await ph.click('[data-test=issues-ctxmenu-archive]')
+  const mNoAsk = await noConfirm(ph)
+  const mGone = await cardGone(ph, cRight)
+  ok('7f phone: the card menu\'s Archive archives at once, no confirm', swMenu && mNoAsk && mGone, { mNoAsk, mGone, cRight })
   await ph.close()
 
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))

@@ -68,7 +68,9 @@ export function closeArchivedPane(detail: { msgId?: string, taskId?: string, arc
   if (topic.open && (ids.has(String(topic.parentTaskId || '')) || ids.has(String(topic.target?.rootMsgId || '')))) topic.close()
 }
 
-type ArchiveToast = { id: number, msgId: string, pane: string, busy: boolean }
+/* SPL-2783: `restore` set = an issue archived on a phone (no confirm there);
+   Undo runs it in place of the topic's archived=false. */
+type ArchiveToast = { id: number, msgId: string, pane: string, busy: boolean, restore?: () => Promise<void> }
 
 const toast = shallowRef<ArchiveToast | null>(null)
 let seq = 0
@@ -90,11 +92,22 @@ export function useArchiveUndo() {
     toast.value = { id: ++seq, msgId: id, pane, busy: false }
   }
 
+  /** SPL-2783 (owner, t1 ff23df68 f702164e): the same toast for an issue
+      archived with no confirm; `restore` unarchives it and shows it again. */
+  function offerRestore(restore: () => Promise<void>) {
+    toast.value = { id: ++seq, msgId: '', pane: 'rail', busy: false, restore }
+  }
+
   async function undo() {
     const t = toast.value
     if (!t || t.busy) return
     toast.value = { ...t, busy: true }
     try {
+      if (t.restore) {
+        await t.restore()
+        toast.value = null
+        return
+      }
       await api.archiveTopic(t.msgId, false)
       await rereadFeeds()
       toast.value = null
@@ -106,5 +119,5 @@ export function useArchiveUndo() {
     }
   }
 
-  return { toast, offerUndo, undo, dismiss }
+  return { toast, offerUndo, offerRestore, undo, dismiss }
 }

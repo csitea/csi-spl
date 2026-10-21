@@ -195,6 +195,8 @@ declare module '~/utils/spool-client.mjs' {
     updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     deleteIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     archiveIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
+    /** SPL-2783: bring an archived issue back (the phone's Archived · Undo). */
+    unarchiveIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     /** SPL-1559: the signed-in member opened the issue (clears its unopened mark). */
     markIssueOpened(ref: string): Promise<{ key: string, unopened: boolean }>
     /** SPL-1593: link / unlink one discussion of the issue. */

@@ -1441,6 +1441,14 @@ async function archiveIssue(ctx, ref, { cascade = false } = {}) {
   return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/archive${q}`, { method: 'POST' })
 }
 
+/** SPL-2783: bring an archived issue back (the phone's Archived · Undo)
+ *  → `{ issue, descendants }`; POST /v1/issues/{ref}/unarchive. */
+async function unarchiveIssue(ctx, ref) {
+  const { live, mock, issuesMock } = ctx
+  if (mock) return issuesMock().unarchive(ref)
+  return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/unarchive`, { method: 'POST' })
+}
+
 /** SPL-1559 (rdb 0184): the signed-in member opened the issue, so it is no
  *  longer marked new for them → `{ key, unopened: false }`; 404 not_found. */
 async function markIssueOpened(ctx, ref) {
@@ -1907,6 +1915,7 @@ export const lazySpoolMethods = {
   updateIssue,
   deleteIssue,
   archiveIssue,
+  unarchiveIssue,
   markIssueOpened,
   linkIssueDiscussion,
   unlinkIssueDiscussion,

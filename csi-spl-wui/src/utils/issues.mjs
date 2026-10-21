@@ -480,6 +480,28 @@ function mockUpdate({ issues, labels, log, me, now }, ref, body) {
   return { issues: rows, answer: { issue, archived: true, closed: closing.open, descendants: closing.kids } }
 }
 
+/* SPL-2783: the mock's archive keeps each archived row (with what it took
+   along), so unarchive (the phone's Archived · Undo) can bring it back. */
+function mockArchiveStore({ rows, set, drop, view }) {
+  const archived = new Map()
+  function archive(ref, cascade) {
+    const before = rows()
+    const answer = drop(ref, cascade)
+    const gone = new Set([answer.issue.key, ...(answer.descendants || [])])
+    archived.set(answer.issue.key, before.filter((x) => gone.has(x.key)))
+    return answer
+  }
+  function unarchive(ref) {
+    const key = [...archived.keys()].find((k) => k.toLowerCase() === String(ref || '').toLowerCase())
+    if (!key) throw mockErr(404, 'not_found')
+    const back = archived.get(key)
+    archived.delete(key)
+    set([...rows(), ...back])
+    return { issue: view(back.find((x) => x.key === key)), descendants: back.map((x) => x.key).filter((k) => k !== key) }
+  }
+  return { archive, unarchive }
+}
+
 /**
  * The mock hub's issues (mock mode, no hub): the same answers as issues-v1,
  * held in memory for the tab. `now` is injectable for tests.
@@ -504,6 +526,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     return { issue: full(view(next)) }
   }
   const drop = (ref, cascade) => { const r = mockDrop(issues, find(ref), cascade, view); issues = r.issues; return r.answer }
+  const { archive, unarchive } = mockArchiveStore({ rows: () => issues, set: (rows) => { issues = rows }, drop, view })
   return {
     list(query = '') {
       const q = new URLSearchParams(query)
@@ -549,7 +572,8 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     },
     history(ref) { return mockHistoryOf(find(ref), log) },
     remove(ref, cascade = false) { return drop(ref, cascade) },
-    archive(ref, cascade = false) { return drop(ref, cascade) },
+    archive(ref, cascade = false) { return archive(ref, cascade) },
+    unarchive(ref) { return unarchive(ref) },
     label(body = {}) {
       const l = mockNewLabel(labels, body)
       labels = [...labels, l]

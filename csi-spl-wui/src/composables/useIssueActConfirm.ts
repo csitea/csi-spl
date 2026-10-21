@@ -3,6 +3,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { isTopKind, type EpicSummary, type Issue } from '~/utils/issues.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
 import type { IssuePickerMenu, IssuesApi } from '~/composables/issuesPageTypes'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
 
 /**
  * The single-issue delete confirm and the shared archive / delete confirm
@@ -24,6 +25,9 @@ export type IssueActConfirmOpts = {
   refreshEpics: () => void
   errorKey: (err: HubErr, which: 'list' | 'one') => string
   refusedText: (key: string, e: unknown) => string
+  /* SPL-2783: the page's phone check (useMobileStack) and its list re-read */
+  phone: Ref<boolean> | ComputedRef<boolean>
+  reload: () => Promise<void>
 }
 type ActConfirm = { target: IssueMenuTarget, action: 'archive' | 'delete', count: number }
 
@@ -58,6 +62,10 @@ export function useIssueActConfirm(o: IssueActConfirmOpts) {
     useIssueMenu().close()
     actError.value = ''
     const count = counts.descendantCount(tg)
+    /* SPL-2783 (owner, t1 ff23df68 f702164e): "On mobile there is no need to
+       confirm archiving". One issue on a phone archives at once, with the
+       Archived · Undo toast; a cascade (an epic, sub-issues) still asks. */
+    if (action === 'archive' && o.phone.value && !tg.top && count === 0) { void run.archiveNow(tg); return }
     actConfirm.value = { target: tg, action, count }
     if (tg.top || count > 0) return
     /* not loaded here: ask the hub, so the confirm states them before the call
@@ -114,7 +122,33 @@ function dropGone(o: IssueActConfirmOpts, gone: Set<string>) {
   if (o.detail.value && gone.has(o.detail.value.key)) o.closeDetail()
 }
 
+function dropAndMove(o: IssueActConfirmOpts, gone: Set<string>) {
+  dropGone(o, gone)
+  if (o.cursorKey.value && gone.has(o.cursorKey.value)) o.cursorKey.value = o.flat.value[0]?.key || ''
+}
+
 function useRunAction(o: IssueActConfirmOpts, s: ActState, probeSubCount: (key: string) => Promise<number>) {
+  /* SPL-2783: the phone's archive with no confirm. A refusal opens the
+     confirm after all: the cascade offer when it has sub-issues the list did
+     not know of, else the error - never a silent no-op. */
+  async function archiveNow(tg: IssueMenuTarget) {
+    if (s.actBusy.value) return
+    s.actBusy.value = true
+    try {
+      await withSessionRetry(o.api, () => o.api.archiveIssue(tg.key, { cascade: false }))
+      dropAndMove(o, new Set([tg.key]))
+      useArchiveUndo().offerRestore(async () => {
+        await withSessionRetry(o.api, () => o.api.unarchiveIssue(tg.key))
+        await o.reload()
+      })
+    } catch (e) {
+      const n = (e as HubErr)?.token === 'issue_has_children' ? await probeSubCount(tg.key) : 0
+      s.actConfirm.value = { target: tg, action: 'archive', count: n }
+      if (n === 0) s.actError.value = o.refusedText(actErrorKey(o, e as HubErr, false), e)
+    } finally {
+      s.actBusy.value = false
+    }
+  }
   async function runAction() {
     const c = s.actConfirm.value
     if (!c || s.actBusy.value) return
@@ -126,9 +160,7 @@ function useRunAction(o: IssueActConfirmOpts, s: ActState, probeSubCount: (key: 
       const res = c.action === 'archive'
         ? await withSessionRetry(o.api, () => o.api.archiveIssue(c.target.key, { cascade }))
         : await withSessionRetry(o.api, () => o.api.deleteIssue(c.target.key, { cascade }))
-      const gone = new Set<string>([c.target.key, ...((res.descendants as string[] | undefined) || [])])
-      dropGone(o, gone)
-      if (o.cursorKey.value && gone.has(o.cursorKey.value)) o.cursorKey.value = o.flat.value[0]?.key || ''
+      dropAndMove(o, new Set<string>([c.target.key, ...((res.descendants as string[] | undefined) || [])]))
       s.actConfirm.value = null
     } catch (e) {
       /* HUM-10: refused for sub-issues it did not know of: the confirm turns
@@ -156,7 +188,7 @@ function useRunAction(o: IssueActConfirmOpts, s: ActState, probeSubCount: (key: 
     if (c.count > 0 && c.target.top) return c.action === 'archive' ? 'issues_menu.archive_cascade_title' : 'issues_menu.delete_cascade_title'
     return c.action === 'archive' ? 'issues_menu.archive_title' : 'issues_menu.delete_title'
   })
-  return { runAction, actConfirmLabel, actConfirmTitleKey }
+  return { runAction, archiveNow, actConfirmLabel, actConfirmTitleKey }
 }
 
 type DeleteDeps = ActState & {

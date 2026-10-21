@@ -229,15 +229,19 @@ try {
       .then(() => p.evaluate(() => ({ text: window.__copied, label: document.querySelector('[data-test=issues-detail-copy]').getAttribute('aria-label') })), () => null)
     ok(`3 ${W}: Copy link copies ?issue=<key> and confirms`, Boolean(copy) && copy.text.endsWith(`/issues?issue=${a}`) && copy.label === 'Copied', copy)
 
-    // 4) Archive asks the archive confirm for this issue; confirming removes it
+    // 4) Archive asks the archive confirm for this issue; confirming removes it.
+    //    SPL-2783 (owner, t1 ff23df68 f702164e): on a phone it archives at once.
     await p.click('[data-test=issues-detail-archive]')
-    await p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 5000 })
-    const archKey = await p.$eval('[data-testid=issues-cascade-body]', (el) => el.getAttribute('data-key'))
-    await p.click('[data-testid=issues-cascade-confirm]')
+    let archKey = a
+    if (W > 820) {
+      await p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 5000 })
+      archKey = await p.$eval('[data-testid=issues-cascade-body]', (el) => el.getAttribute('data-key'))
+      await p.click('[data-testid=issues-cascade-confirm]')
+    } else if (await p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 1500 }).then(() => true, () => false)) archKey = 'asked'
     await p.waitForFunction((k) => !document.querySelector(`[data-test=issues-row][data-key="${k}"], [data-test=issues-card][data-key="${k}"]`), { timeout: 5000 }, a).catch(() => {})
     const archived = !(await p.$(row(a)))
     const closed = await waitModal(p, false)
-    ok(`4 ${W}: Archive confirms for the open issue, then archives it and closes the dialog`, archKey === a && archived && closed, { archKey, archived, closed })
+    ok(`4 ${W}: Archive ${W > 820 ? 'confirms for the open issue, then archives' : 'archives the open issue at once (no confirm)'} it and closes the dialog`, archKey === a && archived && closed, { archKey, archived, closed })
 
     // 5) Delete asks the single-issue confirm; confirming deletes it
     await openIssue(p, W, b)

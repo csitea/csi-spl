@@ -108,6 +108,7 @@ const LAZY_METHODS = [
   'updateIssue',
   'deleteIssue',
   'archiveIssue',
+  'unarchiveIssue',
   'markIssueOpened',
   'linkIssueDiscussion',
   'unlinkIssueDiscussion',

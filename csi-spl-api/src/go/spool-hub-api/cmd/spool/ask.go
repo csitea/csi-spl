@@ -11,7 +11,7 @@ import (
 )
 
 // askOps is every `spool ask` op, for the usage line.
-const askOps = "list put ack done decline raise escalate release dead queue enqueue lock-next renew reopen pool"
+const askOps = "list put ack done decline raise escalate release dead queue enqueue lock-next renew reopen pool category"
 
 // cmdAsk is `spool ask <op>` (CLE-77929): record, work or list the fleet's
 // asks to the orchestrator - the primitive do_spl_asks_* build on - and the
@@ -38,6 +38,8 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	class := fs.String("class", "", "queue: the work class, ci, refactor, bug or feature (required unless stored)")
 	flagF := fs.String("flag", "", "queue: urgent (a bug over its band) or bypass (a feature outside the bands, the owner's ask)")
 	flagMsg := fs.String("flag-msg", "", "queue --flag bypass: the owner message id that asked for it")
+	workKind := fs.String("work-kind", "", "category: the brief's work kind (spec 143 4.4), e.g. complex_coding")
+	category := fs.String("category", "", "category: the brief's category path, e.g. coding/hard")
 	all := fs.Bool("all", false, "list: also the closed asks of the last week")
 	// role od (spec 134, rdb 0183)
 	gen := fs.Int64("gen", 0, "renew|done|decline|release of an od job: the gen lock-next gave the holder")
@@ -72,7 +74,7 @@ func cmdAsk(cfg *config.Config, args []string) int {
 		Class: *class, Flag: *flagF, FlagMsg: *flagMsg,
 		Gen: *gen, Refuse: *refuse, Free: *free, Seat: *seat, Vendor: *vendor, Harness: *harness, Caps: splitList(*caps),
 		IssueKey: *issue, DedupeKey: *dedupe, VendorAllow: *vendorAllow, Needs: *needs, LeaseS: *lease, NeedsOwner: *needsOwner,
-		PoolSet: *set, Pool: poolFields()})
+		PoolSet: *set, Pool: poolFields(), WorkKind: *workKind, CategoryPath: *category})
 	if err != nil {
 		return fail(err)
 	}

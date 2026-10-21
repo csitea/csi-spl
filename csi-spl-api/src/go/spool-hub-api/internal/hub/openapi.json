@@ -8438,6 +8438,143 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/categories": {
+      "post": {
+        "operationId": "postOperatorCategories",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One node of the activity category tree (spec 143 4.5, rdb 0204). category_path is lowercase segments [a-z0-9_] joined by '/'; its parent (the path minus its last segment) must exist. On PUT category_path is the URL's and an absent field is kept.",
+                "properties": {
+                  "category_path": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "description": "up to 500 characters",
+                    "type": "string"
+                  },
+                  "dimensions": {
+                    "description": "the node's defaults of the four splits (kind, class, role, issue)",
+                    "type": "object"
+                  },
+                  "is_active": {
+                    "description": "default true; an inactive node leaves the members' tree",
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "description": "1..100 characters",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the node"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflict: category_exists"
+          }
+        },
+        "summary": "Add an activity category",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/categories/{path}": {
+      "put": {
+        "operationId": "putOperatorCategoriesByPath",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the node's category path, may contain `/` (e.g. coding/hard)",
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One node of the activity category tree (spec 143 4.5, rdb 0204). category_path is lowercase segments [a-z0-9_] joined by '/'; its parent (the path minus its last segment) must exist. On PUT category_path is the URL's and an absent field is kept.",
+                "properties": {
+                  "category_path": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "description": "up to 500 characters",
+                    "type": "string"
+                  },
+                  "dimensions": {
+                    "description": "the node's defaults of the four splits (kind, class, role, issue)",
+                    "type": "object"
+                  },
+                  "is_active": {
+                    "description": "default true; an inactive node leaves the members' tree",
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "description": "1..100 characters",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the node"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Change an activity category",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/channels": {
       "post": {
         "operationId": "postOperatorChannels",
@@ -10310,6 +10447,31 @@
         ]
       }
     },
+    "/v1/reporting/categories": {
+      "get": {
+        "operationId": "getReportingCategories",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {categories}, the active nodes of the activity category tree nested under children (spec 143 4.5)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the activity category tree",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
     "/v1/reporting/sql": {
       "post": {
         "description": "Spec 143 section 3. Workspace admins only (403 admin_required). One SELECT (or WITH ... SELECT, VALUES, TABLE) in a READ ONLY transaction under this workspace's row level security, a 10 s statement budget, at most 2,000 rows (truncated). Only this workspace's tables are open, never one that keeps a secret. Every attempt is audited (sql_query_audit); a result whose audit row is not written is withheld (500 audit_failed). 400 tokens: read_only_violation, single_statement_only, forbidden_function, forbidden_relation, syntax_error, query_error, bad_query, result_too_large. 408 query_timeout.",
@@ -10411,6 +10573,62 @@
         "tags": [
           "tenant"
         ]
+      }
+    },
+    "/v1/reporting/tokens/by-category": {
+      "get": {
+        "operationId": "getReportingTokensByCategory",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "first minute, RFC 3339 or a UTC day (default: to minus 7 days)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the end, excluded, RFC 3339 or a UTC day (default: now); at most 30 days after from",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1..10, or leaf (default) for every level",
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: from, to, depth, the totals (tokens = input + output + cache write, cache_read, cost_usd), categories (each node down to depth with its descendants' burn) and uncategorised (every minute no categorised placed request claims; never dropped)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Token burn rolled up by activity category",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
       }
     },
     "/v1/takeover-ladder": {

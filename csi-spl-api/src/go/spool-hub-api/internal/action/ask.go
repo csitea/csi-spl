@@ -21,6 +21,7 @@ import (
 //	release | dead                the lease tick's lock timeout / dead-letter (CLE-77942)
 //	queue                         a spawn request waits for room (rdb 0180), Placement optional;
 //	                              Class required unless stored, Flag urgent | bypass (+ FlagMsg) (rdb 0195)
+//	category                      a spawn request's WorkKind and CategoryPath, By acting (spec 143 4.4, rdb 0204)
 //
 // The OD pool's jobs, role od (spec 134 3.4, rdb 0183):
 //
@@ -63,8 +64,11 @@ type AskArgs struct {
 	LeaseS      int
 	NeedsOwner  bool
 	PoolSet     bool
-	Pool        map[string]any    // pool set: the od_pool fields to write (claude_n, grok_n, min_boxes, vendor_out, out_until, kinds)
-	Hub         *hubclient.Client // nil = hubclient.New(cfg)
+	Pool        map[string]any // pool set: the od_pool fields to write (claude_n, grok_n, min_boxes, vendor_out, out_until, kinds)
+	// category (spec 143 4.4): a spawn request's brief header; "" = not given
+	WorkKind     string
+	CategoryPath string
+	Hub          *hubclient.Client // nil = hubclient.New(cfg)
 }
 
 // Ask runs one op and returns the hub's answer {fleet, created, asks}. Hub
@@ -117,6 +121,17 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 			"summary": a.Summary, "deadline_at": in.Deadline}
 	case "enqueue", "lock-next", "pool":
 		return odBody(in)
+	case "category":
+		switch {
+		case !store.ValidAskAgent(in.By) || in.By == "":
+			return nil, fmt.Errorf("ask: category needs --by, the acting agent <ID>@<box>")
+		case !store.AskIDRe.MatchString(in.AskID):
+			return nil, fmt.Errorf("ask: --id must be the ask's id (a lowercase UUID)")
+		}
+		if why := store.CheckAskCategory(in.WorkKind, in.CategoryPath); why != "" {
+			return nil, fmt.Errorf("ask: %s", why)
+		}
+		v = map[string]any{"ask_id": in.AskID, "by": in.By, "work_kind": in.WorkKind, "category_path": in.CategoryPath}
 	case "release":
 		if in.AskID == "" {
 			if !store.ValidAskAgent(in.By) || in.By == "" {

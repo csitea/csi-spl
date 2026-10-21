@@ -153,6 +153,8 @@ type askAnswer struct {
 	Asks    []AskRow `json:"asks"`
 	Dead    []AskRow `json:"dead,omitempty"` // lock-next: the jobs it dead-lettered
 	Pool    *PoolRow `json:"pool,omitempty"`
+	// category: what the op recorded (spec 143 4.4, categories.go)
+	Category *AskCategoryRow `json:"category,omitempty"`
 }
 
 func askTime(t time.Time) string {
@@ -224,6 +226,8 @@ func (s *Server) boxAsk(ctx context.Context, x *session, f wire.Frame) (askAnswe
 		return s.askLockNext(ctx, x, f)
 	case "pool":
 		return s.askPool(ctx, x, f)
+	case "category":
+		return s.askCategory(ctx, x, f)
 	default:
 		return s.askUpdate(ctx, x, f)
 	}

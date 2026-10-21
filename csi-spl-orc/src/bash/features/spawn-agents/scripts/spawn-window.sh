@@ -421,6 +421,28 @@ sw_release_claim() {
 }
 sw_issue "$@" || { rc=$?; sw_release_claim; exit "$rc"; }
 
+# CATEGORY (spec 143 4.4, SPL-2790): the brief's "Kind:" (as the lane mix
+# reads it) and line-start "Category: <path>" go to
+# <spool root>/<id>/lifetime/category.json, {"work_kind", "category_path"}:
+# the lane's own record of what its tokens are spent on. The placer records
+# the same on the hub's request (do_spl_spawn_place). A brief with neither
+# writes nothing; a failed write is one WARN line, never a failed spawn.
+sw_category() {  # WORKDIR BRIEF
+  local brief="${2:-}" kind cat f
+  [ -n "$brief" ] && [ -r "$brief" ] || return 0
+  kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$brief" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
+  cat="$(grep -m1 -oE '^Category:[*_ ]*[a-z0-9_]+(/[a-z0-9_]+)*' "$brief" | sed -E 's/^Category:[*_ ]*//')"
+  [ -n "$kind$cat" ] || return 0
+  f="${SPOOL_ROOT}/${TITLE}/lifetime/category.json"
+  if [ "$DRY" = 1 ]; then
+    printf 'PLAN %-10s %s\n' category "work_kind ${kind:-none}, category_path ${cat:-none} -> $f"
+    return 0
+  fi
+  { mkdir -p "${f%/*}" && printf '{"work_kind":"%s","category_path":"%s"}\n' "$kind" "$cat" >"$f"; } 2>/dev/null ||
+    echo "spawn-window: WARN ${TITLE}: ${f} not written (work_kind ${kind:-none}, category_path ${cat:-none})" >&2
+}
+sw_category "$@"
+
 if [ "$DRY" = 1 ]; then
   printf 'PLAN %-10s %s\n' claim "${TITLE} -> ${SPOOL_ROOT}/${TITLE}" \
     window "new-window -d -t ${sess}: -n $(spool_decorate "$TITLE") (socket ${SPOOL_TMUX_SOCKET})"

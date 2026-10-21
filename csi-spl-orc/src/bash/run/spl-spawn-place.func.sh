@@ -76,6 +76,11 @@
 # @description         the brief needs judgement) the holder gets ONE blocker
 # @description         "place ask X now" with the summary and the close command
 # @description         (do_spl_spawn_placed); 1 brings it back if it is not placed
+# @description      CATEGORY (spec 143 4.4, SPL-2790): before a launch (4a) the
+# @description         brief's "Kind:" and "Category: <path>" are recorded on
+# @description         the request (fleet_asks work_kind, category_path) for
+# @description         the token rollup by category; a brief without them
+# @description         places as before, a refused path is one WARN line
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
@@ -346,10 +351,34 @@ spl_spawn_place_take() {  # HOLDER HEAD
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
   if [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
     touch "$(spool_asks_dir)/.place.last"
+    spl_spawn_place_category "$holder" "$id" "$brief"
     spl_spawn_place_launch "$holder" "$2" "$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")" "${ps[1]}" "$brief" "${ps[0]}"
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
+}
+
+# The brief's work kind and category on the hub's request (spec 143 4.4,
+# SPL-2790): its "Kind:" (spl_lane_mix_brief_kind, the picker's read; one
+# that is no fleet_asks work_kind is left out) and its line-start
+# "Category: <path>". The token rollup by category reads them. A brief with
+# neither sends nothing and places as before; a refused or failed record
+# (a path the tree does not hold) is one WARN line and the placement goes on.
+spl_spawn_place_category() {  # HOLDER ASK_ID BRIEF
+  local kind cat out
+  declare -F spl_lane_mix_brief_kind >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  kind="$(spl_lane_mix_brief_kind "$3")"
+  case " ${SPAWN_PLACE_WORK_KINDS:-specs_and_docs tests simple_coding complex_coding i18n secret review dispatch} " in
+    *" $kind "*) ;; *) kind="" ;;
+  esac
+  cat="$(grep -m1 -oE '^Category:[*_ ]*[a-z0-9_]+(/[a-z0-9_]+)*' "$3" 2>/dev/null | sed -E 's/^Category:[*_ ]*//')"
+  [[ -n "$kind$cat" ]] || return 0
+  if out="$(spl_asks_hub category --fleet "$LANE_FLEET" --id "$2" --by "$1" --work-kind "$kind" --category "$cat" 2>&1)"; then
+    do_log "INFO ask ${2:0:8}: work_kind ${kind:-none}, category ${cat:-none} recorded" >&2
+  else
+    do_log "WARN ask ${2:0:8}: its category was not recorded (${kind:-none} ${cat:-none}): $(tail -1 <<<"$out" | cut -c1-200); placed without it" >&2
+  fi
+  return 0
 }
 
 # The brief's epic is closed on the hub (li_brief_epic_closed, SPL-2508): the

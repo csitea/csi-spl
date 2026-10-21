@@ -56,6 +56,11 @@
 #      hub that does not answer queue it); a row queued while its epic was
 #      open whose epic closed since is handed to the holder with the reason,
 #      not launched (CONTROL: an open epic launches)
+#  18. spec 143 4.4 (SPL-2790): a launched row's brief "Kind:" and
+#      "Category:" are recorded on the hub's request before the launch; a
+#      brief with neither sends no category op and places as before
+#      (CONTROL); a path the hub refuses is one WARN line and the row is
+#      still placed
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -144,6 +149,10 @@ for r in rows:
         r["state"], r["u"] = "queued", now
         r.setdefault("q", now)
         if kv.get("placement"): r["placement"] = kv["placement"]
+    elif op == "category":
+        if kv.get("category") and kv["category"] not in ("coding", "coding/hard", "review", "review/r7"):
+            print("hub refused: unknown_category (400): no category %s" % kv["category"], file=sys.stderr); sys.exit(1)
+        r["work_kind"], r["category_path"] = kv.get("work-kind", ""), kv.get("category", "")
     else:
         print("hub refused: bad_frame (400): ask_op", file=sys.stderr); sys.exit(1)
     save(); answer([r])
@@ -736,6 +745,38 @@ out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" DESK_FAIL=unarchive LAUNCH_
   grep -qF "names epic SPL-8, but SPL-8 is done on the hub: point its 'Epic:' line at an open epic, or reopen SPL-8 (SPL-2508); reopening it failed: FATAL spool issue unarchive: hub refused" "$T/send.log" &&
   pass "17. a failed reopen hands the row off with the failure, nothing launched" ||
   fail "17. failed reopen: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E6")"
+
+# 18. spec 143 4.4 (SPL-2790): the brief's category on the request ----------------------
+G1=21430001-0000-4000-8000-000000000001; G2=21430002-0000-4000-8000-000000000002; G3=21430003-0000-4000-8000-000000000003
+printf 'Kind: complex_coding\nCategory: coding/hard\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-hard.md"
+printf 'No kind, no category.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-none.md"
+printf 'Kind: tests\nCategory: coding/no_such_node\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-bad.md"
+catq() {  # ASK_ID SLUG LAUNCH_ID: queue SLUG's brief alone, place it
+  jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+  put "$1" c-002@box-desk "dispatch-c002sat-${1:7:1}" "SPAWN REQUEST $2"
+  printf 'SPL-8\twip\n' >"$T/epics.tsv"
+  on pc do_spl_spawn_enqueue "${EH2[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$2" >/dev/null 2>&1
+  rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+  on pc do_spl_spawn_place "${EH2[@]}" LAUNCH_ID="$3" 2>&1
+}
+out="$(catq "$G1" cat-hard c-512)"
+r="$(hubrow "$G1")"
+[[ "$(jq -r .work_kind <<<"$r")" == complex_coding && "$(jq -r .category_path <<<"$r")" == coding/hard && "$(jq -r .reason <<<"$r")" == "placed: c-512@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/cat-hard.md cat-hard$" "$T/launch.log" && grep -q "work_kind complex_coding, category coding/hard recorded" <<<"$out" &&
+  pass "18. placer: the brief's Kind: and Category: are recorded on the request (work_kind complex_coding, category_path coding/hard), then it is launched" ||
+  fail "18. category recorded: $out | $r | $(cat "$T/launch.log")"
+out="$(catq "$G2" cat-none c-513)"
+r="$(hubrow "$G2")"
+[[ "$(jq -r 'has("work_kind") or has("category_path")' <<<"$r")" == false && "$(jq -r .reason <<<"$r")" == "placed: c-513@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/cat-none.md cat-none$" "$T/launch.log" && ! grep -q "category" <<<"$out" &&
+  pass "18. control: a brief with no Kind: and no Category: sends no category op and places exactly as before" ||
+  fail "18. no category: $out | $r | $(cat "$T/launch.log")"
+out="$(catq "$G3" cat-bad c-514)"
+r="$(hubrow "$G3")"
+[[ "$(jq -r 'has("category_path")' <<<"$r")" == false && "$(jq -r .reason <<<"$r")" == "placed: c-514@box-desk" ]] &&
+  grep -q "WARN ask ${G3:0:8}: its category was not recorded (tests coding/no_such_node): hub refused: unknown_category" <<<"$out" &&
+  pass "18. a category the hub refuses (no such node) is one WARN line; the row is still placed" ||
+  fail "18. refused category: $out | $r"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

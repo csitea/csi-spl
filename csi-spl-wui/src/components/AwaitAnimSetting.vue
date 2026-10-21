@@ -8,7 +8,11 @@
      unticked). Kept in the account (PUT /auth/preferences await_anims, per
      workspace), optimistic like Count my reading time: the claim changes as
      the box is clicked and changes back, with a status line, when the hub
-     refuses. The samples load with the list (Settings is on demand). -->
+     refuses. The samples load with the list (Settings is on demand).
+     SPL-2795 (panel plan row 08, epic SPL-2403): ticking a drawing pops an
+     accent ring round its sample once (playTapAnim, transform and opacity
+     only, the ring is absolute so nothing moves); unticking plays nothing,
+     reduced motion plays nothing, and the ring ends unseen. -->
 <template>
   <div class="await-anim-setting" data-test="await-anim-setting">
     <span id="await-anim-label" class="await-anim-setting__label">{{ t('settings.await_anim.label') }}</span>
@@ -22,9 +26,12 @@
             :checked="set.includes(id)"
             :disabled="saving || !signedIn || (set.length === 1 && set.includes(id))"
             :data-test="`await-anim-${id}`"
-            @change="toggle(id, ($event.target as HTMLInputElement).checked)"
+            @change="toggle(id, ($event.target as HTMLInputElement).checked, $event)"
           />
-          <LazyAwaitReply state="spin" :anim="id" preview />
+          <span class="await-anim-setting__preview">
+            <LazyAwaitReply state="spin" :anim="id" preview />
+            <span class="await-anim-setting__ring" aria-hidden="true" data-test="await-anim-ring" />
+          </span>
           <span>{{ t('settings.await_anim.' + id) }}</span>
         </label>
       </li>
@@ -39,6 +46,7 @@ import { useAuthClient } from '~/composables/useAuthClient'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { mirrorAwaitAnims, useAwaitAnim } from '~/composables/useAwaitAnim'
 import { toggleAwaitAnim } from '~/utils/await-reply.mjs'
+import { playTapAnim } from '~/composables/useTapAnim'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
@@ -47,10 +55,17 @@ const { set, ids } = useAwaitAnim()
 const { saving, status, run } = useSettingSave()
 const signedIn = computed(() => session.state === 'in')
 
+/* the ring round the sample next to a ticked box pops once; an untick plays nothing */
+function popRing(ev: Event) {
+  const ring = (ev.target as Element | null)?.closest('label')?.querySelector('.await-anim-setting__ring')
+  if (ring instanceof HTMLElement) playTapAnim(ring, 'pop')
+}
+
 /* tick or untick one drawing: the claim at once, the save after, back on a refusal */
-function toggle(id: string, on: boolean) {
+function toggle(id: string, on: boolean, ev: Event) {
   const next = toggleAwaitAnim(set.value, id, on)
   if (next === set.value) return
+  if (on) popRing(ev)
   const prev = session.claims?.await_anims ?? null
   return run(async () => {
     mirrorAwaitAnims(session, next)
@@ -90,4 +105,26 @@ function toggle(id: string, on: boolean) {
   cursor: pointer;
 }
 .await-anim-setting__opt--on { color: var(--color-accent); }
+/* the ring sits over the sample (absolute: 0 px layout shift) and is unseen
+   unless it pops; its own keyframes add the fade to tap-pop's scale, and the
+   name keeps the tap- prefix, so useTapAnim takes the classes off at the end */
+.await-anim-setting__preview {
+  position: relative;
+  display: inline-flex;
+}
+.await-anim-setting__ring {
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0 -4px; /* the sample sits 4 px in (its margin): the ring centres on it */
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.await-anim-setting__ring.tap-anim--pop { animation-name: tap-await-ring; }
+@keyframes tap-await-ring {
+  0% { opacity: 0; transform: scale(.85); }
+  60% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 0; transform: none; }
+}
 </style>

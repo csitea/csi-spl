@@ -1,0 +1,6 @@
+Lay-What: No visible change; a safety check on the new SQL tab code is now clean.
+Lay-How: The server reads the column types of an answer in their native size instead of converting them.
+Lay-Why: The security scanner flagged a possible number overflow, so it was removed rather than ignored.
+Tech-What: reportingSQLTypes scans pg_type oids into uint32.
+Tech-How: The oid is scanned straight into a uint32, so there is no int64-to-uint32 conversion.
+Tech-Why: gosec G115 (integer overflow conversion) in the first full pre-push run.

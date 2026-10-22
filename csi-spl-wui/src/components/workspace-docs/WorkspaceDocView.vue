@@ -350,11 +350,12 @@ import {
 import { assetRoute, figureNumbers, paraRuns, type ParaRun } from './-doc-pics'
 import { previewLinks } from './-doc-blocks'
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
-import { anchorOf, docLink, resolveAnchor } from './-doc-anchor'
-import { writeClipboard } from '~/utils/clipboard.mjs'
+import { anchorOf } from './-doc-anchor'
 import { useDocHeadBar } from './-doc-headbar'
 import { useDocInsert } from '~/composables/useDocInsert'
 import { useDocPictures } from '~/composables/useDocPictures'
+import { useDocLanding } from '~/composables/useDocLanding'
+import { useDocPermalink } from '~/composables/useDocPermalink'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
@@ -363,10 +364,6 @@ const { t } = useI18n({ useScope: 'global' })
 
 /* below this width the contents are a drawer over the document, closed at first */
 const NARROW = 760
-/* spec 138 G1: how long a deep link keeps its heading at the top while the layout above it grows */
-const SETTLE_MS = 2000
-/* a press on the '#' this long copies the section's link instead of following it */
-const LONG_PRESS_MS = 500
 
 const rootEl = ref<HTMLElement | null>(null)
 const { barEl, inHead, tocTop, markTocTop } = useDocHeadBar()
@@ -695,100 +692,8 @@ function say(text: string, transient = true) {
   if (transient) statusTimer = setTimeout(() => { status.value = '' }, 3000)
 }
 
-/** the section's link on the clipboard: the stable id form, the file tree's docHref */
-async function copyLink(it: DocItem) {
-  const href = docLink((to) => router.resolve(to), location.origin, props.session.doc, it.id)
-  say(t(await writeClipboard(href) ? 'ws_doctree.doc_menu.link_copied' : 'common.copy_failed'))
-}
-
-/* the '#': a click follows it, a long press copies its link (a touch has no hover menu) */
-let pressTimer: ReturnType<typeof setTimeout> | undefined
-let pressed = false
-function pressStart(it: DocItem) {
-  pressed = false
-  clearTimeout(pressTimer)
-  pressTimer = setTimeout(() => {
-    pressed = true
-    void copyLink(it)
-  }, LONG_PRESS_MS)
-}
-function pressEnd() {
-  clearTimeout(pressTimer)
-}
-function permaClick(it: DocItem) {
-  if (pressed) {
-    pressed = false
-    return
-  }
-  goTo(it.id)
-}
-
-/** the element the document scrolls in: the nearest scrolling ancestor, else the page */
-function scroller(): HTMLElement {
-  for (let el = rootEl.value?.parentElement; el; el = el.parentElement) {
-    if (/(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight) return el
-  }
-  return document.scrollingElement as HTMLElement ?? document.documentElement
-}
-
-/** the headings' scroll margin: where the sticky bar ends, measured (a phone's
-    bar too), not a fixed 4rem: the bar sticks inside the scroller's top
-    padding, so the margin is that padding plus the bar's height */
-function measureBar() {
-  const h = barEl.value?.getBoundingClientRect().height
-  if (!h) return
-  const pad = parseFloat(getComputedStyle(scroller()).paddingTop) || 0
-  rootEl.value?.style.setProperty('--wsdoc-bar-h', Math.ceil(h + pad) + 'px')
-}
-
-/* spec 138 G1: a deep link's heading at the top, scrolled again on every
-   resize of the document (pictures loading, textareas growing above it) for
-   SETTLE_MS, or until the user scrolls, types or taps; no fixed sleep */
-const USER_INPUT = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
-let settleStop: (() => void) | null = null
-function landOn(id: string) {
-  settleStop?.()
-  const el = document.getElementById(anchor(id))
-  if (!el) return
-  measureBar()
-  el.scrollIntoView({ block: 'start' })
-  const doc = rootEl.value?.querySelector('.wsdoc__doc')
-  if (typeof ResizeObserver === 'undefined' || !doc) return
-  const grows = new ResizeObserver(() => {
-    measureBar()
-    el.scrollIntoView({ block: 'start' })
-  })
-  const stop = () => {
-    grows.disconnect()
-    clearTimeout(timer)
-    for (const e of USER_INPUT) window.removeEventListener(e, stop, true)
-    settleStop = null
-  }
-  const timer = setTimeout(stop, SETTLE_MS)
-  for (const e of USER_INPUT) window.addEventListener(e, stop, { capture: true, passive: true })
-  grows.observe(doc)
-  settleStop = stop
-}
-
-/** the location's anchor on open: its section (spec 138 form A or D), else the top and one status line */
-function openAnchor() {
-  if (location.hash.length < 2) return
-  const id = resolveAnchor(location.hash, items.value.map((it) => it.id))
-  if (id) return landOn(id)
-  scroller().scrollTo({ top: 0 })
-  say(t('ws_doctree.anchor_unknown'), false)
-}
-
-/** a contents link or a permalink: scroll the heading in, the URL carries its anchor */
-function goTo(id: string) {
-  const el = document.getElementById(anchor(id))
-  if (!el) return
-  settleStop?.()
-  measureBar()
-  el.scrollIntoView({ block: 'start' })
-  history.replaceState(history.state, '', '#' + anchor(id))
-  if (narrow()) tocOpen.value = false
-}
+const { settleStop, openAnchor, goTo } = useDocLanding({ rootEl, barEl, items, anchor, say, narrow, tocOpen })
+const { copyLink, pressStart, pressEnd, permaClick } = useDocPermalink({ props, router, say, goTo })
 
 /* t1 b4dd79e2: a field of the document in focus is editing (the phone hides
    the omnibox); the dots and the links are not */
@@ -821,9 +726,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   editMode.setEditing(false)
   ro?.disconnect()
-  settleStop?.()
+  settleStop()
   clearTimeout(statusTimer)
-  clearTimeout(pressTimer)
+  pressEnd()
 })
 </script>
 

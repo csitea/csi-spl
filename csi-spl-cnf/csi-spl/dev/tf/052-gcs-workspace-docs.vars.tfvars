@@ -7,6 +7,6 @@ gcp_region  = "europe-north1"
 hub_runtime_sa_account_id = "csi-spl-hub-dev"
 
 bucket_prefix = "csi-spl-dev-docs-"
-workspaces = ["t1", "csitea", "e2e", "demo", "ws-hidden-10", "p1proof164658", "p1proof171204", "p1site174600", "m2card1", "m2card3", "m2card4", "m1devfi", "m1deven", "spl68-093728", "spl57b1", "spl57b2", "w1paid1", "w12live1", "b5paid1", "own1stripe", "ws-hidden-05", "bj108", "g226c36f21", "m2proof1", "m2proof2", "p1gone164717", "p1proof164647"]
+workspaces = ["t1", "csitea", "e2e", "demo", "ws-hidden-10", "p1proof164658", "p1proof171204", "p1site174600", "m2card1", "m2card3", "m2card4", "m1devfi", "m1deven", "spl68-093728", "spl57b1", "spl57b2", "w1paid1", "w12live1", "b5paid1", "own1stripe", "ws-hidden-05", "bj108"]
 soft_delete_retention_seconds = 604800
 backup_retention_days = 30

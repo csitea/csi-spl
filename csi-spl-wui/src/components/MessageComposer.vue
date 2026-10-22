@@ -338,11 +338,10 @@ import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
 import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
-import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind } from '~/utils/file-preview'
-import { useSidePane } from '~/composables/useSidePane'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useComposerDraft } from '~/composables/useComposerDraft'
 import { useComposerDock } from '~/composables/useComposerDock'
@@ -351,12 +350,10 @@ import { useComposerPickers } from '~/composables/useComposerPickers'
 import { useComposerSyntax } from '~/composables/useComposerSyntax'
 import { useComposerFiles } from '~/composables/useComposerFiles'
 import { useComposerTarget } from '~/composables/useComposerTarget'
+import { useComposerSend } from '~/composables/useComposerSend'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
-import { perfKeydown, perfSendStart } from '~/utils/perf-mark.mjs'
-import { parseOmnibox } from '~/utils/feed.mjs'
-import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
-import { channelLookupOf, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
-import { resolveInClause } from '~/utils/topic-in.mjs'
+import { perfKeydown } from '~/utils/perf-mark.mjs'
+import { omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 
 /* r13-03: the field's size, the phone dock, the pickers, the "?" button,
    the attachments, the draft and the target chip each live in a
@@ -589,6 +586,11 @@ const openAsk = useOpenChannelAsk({
   send: () => onSend(),
 })
 watch(text, (s) => openAsk.note(s))
+/* r17-05: the send path (pane switch, ask, search, pick, then the post) */
+const { onSend } = useComposerSend({
+  props, emit, text, picked, docked, searchMode, opClosed, inPickerOpen, inCandidates, inIdx, pickIn, pickedIn,
+  topicCatalogue, mp, openAsk, clearBox, sizeError, inCode,
+})
 
 function onKeydown(ev: KeyboardEvent) {
   /* spec 066 M6: keydown -> the next paint (one in ten; a no-op with RUM off) */
@@ -656,100 +658,6 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
     return true
   }
   return false
-}
-
-/** The line is a search, not a post: it has been run (true). */
-function searchInstead(): boolean {
-  if (props.global && searchMode.value) {
-    // the rest of the line goes to the hub verbatim (search-v1 §0)
-    emit('search', searchQueryOf(text.value))
-    opClosed.value = true
-    return true
-  }
-  /* t1 2b15a748: a # or / word that is not a visible channel still
-     searches. A visible one was asked above. A file picked with it is a post. */
-  const lookup = (props.global || props.omnibox) && !picked.value.length ? channelLookupOf(text.value) : null
-  if (!lookup) return false
-  emit('search', lookup)
-  text.value = props.global ? `/search ${lookup}` : ''
-  return true
-}
-
-/** Not a post: a pane switch, an open-channel ask, a search, a pick; true = handled. */
-function handledBeforeSend(): boolean {
-  /* `/switch-pane: messages|channels|topics|flow` changes the left pane
-     and is never sent. `topic` is the same pane. An unknown name stays in the box. */
-  const pane = props.global || props.omnibox ? switchPaneOf(text.value) : null
-  if (pane !== null) {
-    if (pane) {
-      useSidePane().request(pane)
-      clearBox()
-    }
-    return true
-  }
-  if (openAsk.beforeSend() || searchInstead()) return true
-  if (props.global && props.sendBlocked) {
-    /* (owner: "clicking the GO button does not create a comment"):
-       on a phone GO is the only button, so with no send target the text is
-       a search rather than a tap that does nothing. Desktop is unchanged. */
-    const q = text.value.trim()
-    if (docked.value && q) {
-      emit('search', q)
-      text.value = ''
-    }
-    return true
-  }
-  /* Enter and the Send button both land here. An open title list picks;
-     it does not send the half-typed `in:`. */
-  if (inPickerOpen.value) {
-    const row = inCandidates.value[inIdx.value]
-    if (row) pickIn(row)
-    return true
-  }
-  if (!props.omnibox || props.global) return false
-  const parsed = parseOmnibox(text.value)
-  if (!('search' in parsed)) return false
-  emit('search', parsed.search || '')
-  text.value = ''
-  return true
-}
-
-/** The post's body and where it goes: an `in: <title>` names the topic. */
-function sendTarget() {
-  /* SPL-1009: the field shows picked people by name; the message stores their tags */
-  let body = closeOpenFence(mp.encode(text.value)).trim()
-  let topicId = props.parentTaskId
-  let channelId: string | undefined
-  if ((props.global || props.omnibox) && body) {
-    const resolved = resolveInClause(body, topicCatalogue.value)
-    if (resolved.taskId) {
-      const chosen = pickedIn.value
-      const same = Boolean(chosen && resolved.title.toLowerCase() === chosen.title.toLowerCase())
-      body = resolved.body
-      topicId = same && chosen ? chosen.taskId : resolved.taskId
-      channelId = (same && chosen ? chosen.channel : resolved.channel) || undefined
-    }
-  }
-  return { body, topicId, channelId }
-}
-
-function onSend() {
-  if (handledBeforeSend()) return
-  const { body, topicId, channelId } = sendTarget()
-  if ((!body && !picked.value.length) || props.busy) return
-  const tooBig = sendLimitError(body)
-  if (tooBig) {
-    // nothing is sent and nothing is cleared: the author keeps the text and
-    // can attach it as a file (005 T023 upload) instead
-    sizeError.value = tooBig
-    return
-  }
-  /* spec 066 M3 starts here; LiveFeed ends it when the row is confirmed */
-  perfSendStart()
-  emit('send', body, topicId, picked.value.slice(), channelId)
-  clearBox()
-  pickedIn.value = null
-  inCode.value = false
 }
 
 /* e3e9ca61: the phone's top notice closes itself after this long */

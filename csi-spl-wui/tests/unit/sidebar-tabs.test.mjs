@@ -114,7 +114,8 @@ describe('/switch-pane:', () => {
   })
 
   it('the omnibox runs the command before it can send the line', () => {
-    const composer = src('src/components/MessageComposer.vue')
+    /* r17-05: MessageComposer's send path lives in useComposerSend */
+    const composer = src('src/composables/useComposerSend.ts')
     const send = composer.indexOf("emit('send'")
     const cmd = composer.indexOf('switchPaneOf(text.value)')
     assert.ok(cmd > 0 && send > cmd)

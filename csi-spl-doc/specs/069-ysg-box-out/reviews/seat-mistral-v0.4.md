@@ -10,21 +10,19 @@ Key changes:
 - Move desk folders, sidecars, and reconcile cron lines to `<agent-user>`.
 - MCP serve half and printed commands updated to follow the desk user.
 
+**v1.0 sha**: `3dff82d06` (folded in folder modes and sudo line count).
+
 ## 2. Re-checked measurements
 
-Re-checked 5+ rows from section 8.2 (Today, measured):
+Re-checked 5+ rows from section 8.2 (Today, measured) on `<pc box>` at `8bd808cbf` (2026-10-22 ~11:00Z):
 
-| Row | Measurement | Spec claim | Actual | Verdict |
-|---|---|---|---|---|
-| 8.2.1 | Desk folder modes | `0700` | `0775` | **Discrepancy** (spec claims stricter mode) |
-| 8.2.2 | Sidecar processes | All `<box-user>` | All `<box-user>` | ✅ |
-| 8.2.3 | Sudo hops for desk ops | 10+ lines | 17 lines | **Discrepancy** (higher count, but logic matches) |
-| 8.2.4 | Default desk resolution | `SPOOL_DESK_BOX` + `SPOOL_FLEET_TENANT` | Matches | ✅ |
-| 8.2.1 | Key file modes | `0600` | `0600` | ✅ |
-
-**Notes:**
-- Desk folder modes (`0775`) are less restrictive than claimed (`0700`). This is not a security risk (keys are `0600`), but the spec should clarify.
-- Sudo hop count (17) exceeds the spec's claim (10+), but all hops are accounted for in the logic.
+| Row | Measurement | Command | Spec claim | Actual | Verdict |
+|---|---|---|---|---|---|
+| 8.2.1 | Desk folder modes | `ls -ld ~<box-user>/.local/share/csi-spl/cloud/*/desk/` | `0700` (desk), `0700` (workspace) | `0700` (desk), `0775` (workspace) | **Updated in v1.0**: `desk/` and `<workspace>/` are `0775`, desks are `0700` |
+| 8.2.2 | Sidecar processes | `ps -eo user,args | awk '/ hub-run$/ {print $1}' | sort | uniq -c` | All `<box-user>` | All `<box-user>` | ✅ |
+| 8.2.3 | Sudo hops for desk ops | `git grep -n 'sudo -n -u.*\(desk\|spool\)' -- '*.func.sh' '*.sh' | grep -E '(desk|spool)' | wc -l` | 10+ lines | 17 lines (10 desk + 7 tmux) | **Updated in v1.0**: 17 lines |
+| 8.2.4 | Default desk resolution | `grep -n -A5 -B5 'SPOOL_DESK_BOX\|SPOOL_FLEET_TENANT' spool-mcp.sh` | `SPOOL_DESK_BOX` + `SPOOL_FLEET_TENANT` | Matches | ✅ |
+| 8.2.1 | Key file modes | `sudo find ~<box-user>/.local/share/csi-spl/cloud/prd/desk -name 'box-*.key' -exec ls -l {} \; | head -3` | `0600` | `0600` | ✅ |
 
 ## 3. Missed call sites
 
@@ -40,38 +38,40 @@ Verified the cutover plan includes:
 2. **Rollback**: `do_spl_desk_move MOVE_CMD=back` reverses the move, restores the original state, and clears `SPOOL_DESK_USER`.
 3. **Live proof per desk**: 4 acceptance criteria (sidecars as `<agent-user>`, desk folders moved, `do_spl_desk_check` green, agents can `spool_send` without `sudo`).
 
+**Downtime**: Per desk, from stop to start: estimated **60 s or less**, with a hard stop at **120 s** (spec 8.4).
+
 ## 5. Red controls
 
-All 8 build rows (B1-B8) have red controls:
+All 8 build rows (B1-B8) have red controls (copied from spec 8.5):
 
 | Row | Red control | Verdict |
 |---|---|---|
-| B1 | `do_check_fleet_rules_drift` | ✅ |
+| B1 | Unset key -> today's paths | ✅ |
 | B2 | Sandbox test (desks under user B + `SPOOL_DESK_USER=B`) | ✅ |
-| B3 | `git grep -c 'sudo -u'` | ✅ |
-| B4 | `git grep -c 'local/share/csi-spl/cloud'` | ✅ |
-| B5 | Live agent `spool_send` test | ✅ |
-| B6 | `crontab -u <agent-user> -l | grep -c desk-reconcile` | ✅ |
+| B3 | Stub `sudo` (same as today) | ✅ |
+| B4 | `git grep -c 'local/share/csi-spl/cloud'` -> 0 outside resolvers | ✅ |
+| B5 | Serve half exits when its desk dir is renamed | ✅ |
+| B6 | `crontab -u <agent-user> -l | grep -c desk-reconcile` = 4, `<box-user>` = 0 | ✅ |
 | B7 | Sandbox test (planted key mode 0644/missing) | ✅ |
-| B8 | `do_check_fleet_rules_drift` + `git grep -c 'sudo -u.*do_spl_desk_reply'` | ✅ |
+| B8 | `do_check_fleet_rules_drift` green + `git grep -c 'sudo -u.*do_spl_desk_reply'` -> 0 | ✅ |
 
 ## 6. Verdict
 
-**GOOD** (no changes needed).
+**GOOD (v1.0 signed)**.
 
 Rationale:
 - The spec is **complete**: All dependencies, call sites, and edge cases are accounted for.
-- The cutover plan is **safe**: Dry run, rollback, and live proof ensure no downtime.
+- The cutover plan is **safe**: Dry run, rollback, and live proof ensure minimal downtime.
 - Red controls are **effective**: Each build row has a test or gate that fails if the row is not implemented correctly.
-- Discrepancies are **minor**: Folder modes (`0775` vs `0700`) and sudo hop count (17 vs 10+) do not affect correctness or security.
+- Discrepancies are **resolved**: Folder modes and sudo hop count are now accurate in v1.0.
 
-## 7. Discrepancies
+## 7. Discrepancies (resolved in v1.0)
 
-| Discrepancy | Impact | Recommendation |
-|---|---|---|
-| Desk folder modes (`0775` vs `0700`) | None (keys are `0600`) | Clarify in spec: `0775` is acceptable. |
-| Sudo hop count (17 vs 10+) | None (all hops accounted for) | Update spec to reflect actual count. |
+| Discrepancy | Resolution |
+|---|---|
+| Desk folder modes (`0775` vs `0700`) | Updated in v1.0: `desk/` and `<workspace>/` are `0775`, desks are `0700` |
+| Sudo hop count (17 vs 10+) | Updated in v1.0: 17 lines (10 desk + 7 tmux) |
 
 ## 8. Sign-off
 
-This review is ready for v1.0 sign-off. The editor (c-156) may request changes or proceed to finalization.
+**v1.0 signed for sha `3dff82d06`**. This review is final.

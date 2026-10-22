@@ -146,7 +146,7 @@ Test: `csi-spl-iac/src/bash/tests/gcp-sa-key-rotate.tst.sh`.
    `<file>.prev` for the undo. Refused while the SA already holds a second
    user key.
 3. **copy** the new key file to the other box (`do_box_copy_gcp_key`,
-   `FORCE=1`) and to the CI secret, out of band.
+   `FORCE=1`) and to the CI secret (`cd csi-spl-iac && ENV=<env> DRY_RUN=0 ./run -a do_gh_secret_put_gcp_key`, SPL-2893: the key on gh's stdin only; test `gh-secret-put-gcp-key.tst.sh`).
 4. **prove** (`ROTATE_STEP=prove`) on each box: the key file alone mints a
    token and reads the project; it prints a proof id `<box>:<key id
    prefix>:<UTC time>` and records it on that box. Then one green CI run on

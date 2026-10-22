@@ -33,7 +33,9 @@
 # @param DESK_AGENT - required: the agent id of the pane (spl_is_agent_id)
 # @param ROOT_KEY_JSON - required on the FIRST run of a desk (the 0600 JSON
 # @param   do_spl_tenant_create wrote, field root_private_key); later runs reuse
-# @param   the pin and need no key. Or, instead of it, SPOOL_JOIN_TOKEN: a
+# @param   the pin and need no key. `-` reads it from stdin (spec 069 8.3: a
+# @param   desk user hands over a root key it cannot read; copied to a 0600
+# @param   scratch file, removed after the pin). Or, instead of it, SPOOL_JOIN_TOKEN: a
 # @param   workspace admin's join token (spec 073 / 108, do_spl_desk_pin join
 # @param   mode); it is used once and unset before the sidecar starts
 # @param DESK_BOX (optional) - default box-desk. The box this machine's panes answer from
@@ -101,8 +103,11 @@ do_spl_desk_up() {
     { do_log "FATAL cannot create the desk state under $d"; return 1; }
   chmod -R go-rwx "$d" || return 1
 
-  local pub
-  pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return $?
+  local pub rkj_tmp="" prc=0
+  if [[ "$rkj" == - && ! -s "$d/pinned" ]]; then rkj_tmp="$(spl_desk_key_stdin)" || return 1; rkj="$rkj_tmp"; fi
+  pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || prc=$?
+  [[ -n "$rkj_tmp" ]] && rm -f "$rkj_tmp"
+  (( prc == 0 )) || return "$prc"
   unset SPOOL_JOIN_TOKEN
   spl_desk_mute "$d" "$agent" "$poke"
   spl_desk_purge_pokes "$d" "$agent" "$poke"
@@ -228,6 +233,16 @@ spl_desk_pin() {
   printf '%s\n' "$pub" >"$d/pinned"
   do_log "INFO pinned $box ($pub) under $tenant at $hub" >&2
   cat "$d/pinned"
+}
+
+# spl_desk_key_stdin: ROOT_KEY_JSON=- (spec 069 row B7). Stdin into a 0600
+# scratch file; prints its path, which the caller removes. Empty stdin: refused.
+spl_desk_key_stdin() {
+  local f
+  f="$(umask 077 && mktemp)" || return 1
+  cat >"$f" || { rm -f "$f"; return 1; }
+  [[ -s "$f" ]] || { rm -f "$f"; do_log "FATAL ROOT_KEY_JSON=- but stdin is empty: pipe the tenant create JSON in" >&2; return 1; }
+  printf '%s' "$f"
 }
 
 # spl_desk_pin_check <state dir> <box> <tenant> <hub>: a desk with no pin file

@@ -3241,8 +3241,8 @@
       "soon": "Отчетът за изданията идва скоро.",
       "kpis_label": "Показатели на изданията",
       "kpi_releases": "Издания",
-      "kpi_commits": "Промени",
-      "kpi_per_day": "Промени на ден",
+      "kpi_commits": "Комити",
+      "kpi_per_day": "Комити на ден",
       "kpi_deploys": "Внедрявания",
       "kpi_deploys_value": "{dev} в dev, {prd} в prd",
       "filters_label": "Филтри на изданията",
@@ -3258,8 +3258,8 @@
       "loading": "Изданията се зареждат…",
       "error": "Изданията не можаха да се заредят.",
       "retry": "Опитай отново",
-      "empty": "Няма промени в този период.",
-      "day_commits": "Промени: {n}",
+      "empty": "Няма комити в този период.",
+      "day_commits": "Комити: {n}",
       "deploys_none": "Внедрявания: не са записани",
       "deploy_chip": "{env} {component}: {version} в {time} UTC",
       "notes_show": "Покажи бележките",
@@ -3269,10 +3269,10 @@
       "what": "Какво:",
       "how": "Как:",
       "why": "Защо:",
-      "open_commit": "Отвори бележката за {sha}",
+      "open_commit": "Отвори бележката към изданието за {sha}",
       "open_version": "Отвори бележките за {version}",
       "load_more": "Зареди още",
-      "shown": "Показани {shown} от {total} промени"
+      "shown": "Показани {shown} от {total} комита"
     },
     "sql": {
       "query_label": "Заявка",
@@ -3288,7 +3288,7 @@
       "download_csv": "Изтегли .csv",
       "download_json": "Изтегли .json",
       "copied": "Копирано в клипборда",
-      "copy_failed": "Неуспешно копиране",
+      "copy_failed": "Копирането не успя",
       "no_columns": "Заявката не върна колони.",
       "error": {
         "read_only_violation": "Отказано: разделът SQL е само за четене",

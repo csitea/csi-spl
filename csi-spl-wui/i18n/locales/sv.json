@@ -3293,8 +3293,8 @@
       "error": {
         "read_only_violation": "Nekad: SQL-fliken är skrivskyddad",
         "single_statement_only": "Nekad: endast en sats",
-        "forbidden_function": "Nekad: funktionen är inte öppen för SQL-fliken",
-        "forbidden_relation": "Nekad: tabellen är inte öppen för SQL-fliken",
+        "forbidden_function": "Nekad: funktionen är inte tillgänglig i SQL-fliken",
+        "forbidden_relation": "Nekad: tabellen är inte tillgänglig i SQL-fliken",
         "syntax_error": "Fel i frågan",
         "query_error": "Fel i frågan",
         "bad_query": "Nekad: frågan är inte giltig här",

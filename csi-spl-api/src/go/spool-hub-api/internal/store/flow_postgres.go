@@ -146,6 +146,70 @@ func flowHeadlessSQL(e, m, now, lobby string) string {
 // member in tenant at now, and the unread per sidebar row as a jsonb object
 // (FlowKeys: flowPlaceKey and t:<task_id>).
 //
+// The counts are flowEventCountsSQL's. The keys are its keys plus
+// flowChannelKeysSQL's lines (SPL-2837, bug round 3 row 03): a channel row
+// and a topic card count every unread line of the channel, as the channel
+// view does, not only the lines that concern the member. The Flow badge
+// counts stay the member's events (spec 062, "only what concerns me").
+func flowCountsSQL(tenant, member, now, pub, lobby string) string {
+	return `SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
+			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, sum(x.n)::int AS n FROM (
+				SELECT j.key, j.value::int AS n FROM jsonb_each_text(q.keys) j
+				UNION ALL SELECT x.key, 1 FROM (` + flowChannelKeysSQL(tenant, member, now, pub, lobby) + `) l
+					CROSS JOIN LATERAL (VALUES (l.place_key), (l.topic_key)) x(key)) x GROUP BY x.key) k)
+		FROM (` + flowEventCountsSQL(tenant, member, now, pub, lobby) + `) q(cm, cr, cd, cc, cdm, um, ur, ud, uc, udm, rel, keys)`
+}
+
+// flowChannelKeysSQL is the unread channel lines of a human member that have
+// no flow event of theirs (flowInsertCTE writes one only for a line that
+// mentions, addresses or replies to them), as (place_key, topic_key): a new
+// topic that names nobody, a reply in a topic they opened but do not watch.
+// The lines are found as ViewChannelStats finds them: cl walks the tenant's
+// channels (one probe each) and keeps the ones behind the member's read door
+// (flowDoorSQL's channel arms, once per channel), each read past the member's
+// ch: mark on messages_channel (every line when there is none); then the t:
+// marked topics' lines at or past the thread mark and before the channel's
+// mark (flowThreadTailSQL's complement, so no line is read twice).
+//
+// lc keeps a line that is not the member's own (from_id, typed_by), has no
+// flow event and is past its t: mark when there is one, behind OFFSET 0: each
+// is one primary-key probe, and on prd t1 (HUM-10) they drop all but a few of
+// the ~2 400 lines read, so the rest of the rules (flowCoveredSQL: f:, ch:,
+// archived, headless; the door again) probe those few, not a hash of the
+// tenant's messages. The t: test is flowCoveredSQL's own arm, so the result
+// is the same. The issues and tasks boards are not channels (ChannelHidden).
+func flowChannelKeysSQL(tenant, member, now, pub, lobby string) string {
+	cols := `x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at`
+	shown := ` NOT IN ('` + ChannelIssues + `', '` + ChannelTasks + `')`
+	human := member + `::text ~ '^(HUM|GST)-[0-9]+$'`
+	return `SELECT 'ch:' || lc.channel AS place_key, 't:' || lc.task_id::text AS topic_key FROM (SELECT lx.* FROM (
+			WITH RECURSIVE cl(ch) AS (SELECT (SELECT min(y.channel) FROM messages y WHERE y.tenant_id = ` + tenant + ` AND y.channel IS NOT NULL) WHERE ` + human + `
+				UNION ALL SELECT (SELECT min(y.channel) FROM messages y WHERE y.tenant_id = ` + tenant + ` AND y.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL)
+			SELECT ` + cols + ` FROM cl
+				CROSS JOIN LATERAL (SELECT coalesce(max(r.at), '-infinity'::timestamptz) AS at FROM read_marks r
+					WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + ` AND r.mark_key = 'ch:' || cl.ch) cb
+				CROSS JOIN LATERAL (SELECT ` + cols + ` FROM messages x WHERE x.tenant_id = ` + tenant + ` AND x.channel = cl.ch
+					AND x.received_at >= cb.at AND x.expires_at > ` + now + ` OFFSET 0) x
+				WHERE cl.ch IS NOT NULL AND cl.ch` + shown + ` AND (cl.ch = ANY(` + pub + `)
+					OR EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = ` + tenant + ` AND h.channel_id = cl.ch AND h.human_id = ` + member + `)
+					AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = ` + tenant + ` AND dc.channel_id = cl.ch AND dc.archived_at IS NOT NULL))
+			UNION ALL SELECT ` + cols + ` FROM ` + threadMarksSQL(tenant, member, lobby) + `
+				CROSS JOIN LATERAL (SELECT ` + cols + ` FROM messages x WHERE x.tenant_id = ` + tenant + ` AND x.task_id = k.task
+					AND x.received_at >= tm.at AND x.channel IS NOT NULL AND x.expires_at > ` + now + ` OFFSET 0) x
+				WHERE ` + human + ` AND x.channel` + shown + ` AND x.received_at < (SELECT max(r.at) FROM read_marks r
+					WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + ` AND r.mark_key = 'ch:' || x.channel)) lx
+			WHERE lx.from_id IS DISTINCT FROM ` + member + ` AND lx.typed_by IS DISTINCT FROM ` + member + `
+				AND (SELECT true FROM flow_events f WHERE f.tenant_id = ` + tenant + ` AND f.member_id = ` + member + ` AND f.msg_id = lx.msg_id) IS NULL
+				AND (SELECT true FROM read_marks r WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + `
+					AND r.mark_key = 't:' || lx.task_id::text AND (lx.received_at, lx.msg_id::text) <= (r.at, r.msg_id)) IS NULL
+			OFFSET 0) lc
+		CROSS JOIN LATERAL (SELECT ` + tenant + ` AS tenant_id, ` + member + `::text AS member_id, lc.msg_id) le
+		WHERE true` + flowDoorSQL("le", "lc", pub) + ` AND NOT ` + flowCoveredSQL("le", "lc", now, lobby)
+}
+
+// flowEventCountsSQL is flowCountsSQL over the member's flow events only:
+// the counts, and the keys of those events.
+//
 // It reads only the tail past each place's read mark (api perf ap-01b):
 // fp walks the member's distinct place_key values on flow_events_place (one
 // probe each, rdb 0137), fb takes each place's newest place mark (a DM place
@@ -163,7 +227,7 @@ func flowHeadlessSQL(e, m, now, lobby string) string {
 // an index condition on flow_events_place; and each tail event takes its
 // message by one primary-key probe (LATERAL ... LIMIT 1) instead of a hash of
 // every message in the tenant. Same rows, same counts.
-func flowCountsSQL(tenant, member, now, pub, lobby string) string {
+func flowEventCountsSQL(tenant, member, now, pub, lobby string) string {
 	return `WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + `
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + ` AND x.place_key > fp.k)
 			FROM fp WHERE fp.k IS NOT NULL),

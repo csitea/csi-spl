@@ -336,6 +336,7 @@ import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useChannelAgentPick } from '~/composables/useChannelAgentPick'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -443,6 +444,9 @@ const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, 
   ...row,
   key: row.id + '@' + row.box,
 })))
+const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } = useChannelAgentPick({
+  api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback,
+})
 
 function rosterOf(data: unknown): Record<string, string[]> | undefined {
   if (!data || typeof data !== 'object' || !('roster' in data)) return undefined
@@ -534,33 +538,6 @@ async function addChosen() {
   }
 }
 
-function agentLabel(row: unknown) {
-  if (!row || typeof row !== 'object') return ''
-  const r = row as { id?: string, box?: string }
-  if (!r.id) return ''
-  return r.box ? `${r.id} ${r.box}` : r.id
-}
-
-function onAgentQuery(ev: Event) {
-  const el = ev.target
-  agentQuery.value = el instanceof HTMLInputElement ? el.value : ''
-}
-
-function onChooseAgent(row: { id: string, box: string, key: string } | null) {
-  chosenAgent.value = row
-  agentQuery.value = ''
-}
-
-async function addChosenAgent() {
-  const row = chosenAgent.value
-  if (!row || busy.value || !canAdd.value) return
-  await pickAgent(row)
-  if (agents.value.some((a) => a.id === row.id && a.box === row.box)) {
-    chosenAgent.value = null
-    agentQuery.value = ''
-  }
-}
-
 async function removePerson(id: string) {
   if (busy.value || (!canAdd.value && id !== selfId.value)) return
   busy.value = true
@@ -568,50 +545,6 @@ async function removePerson(id: string) {
   try {
     await withSessionRetry(api, () => api.removeChannelMember(props.channelId, id))
     localMembers.value = localMembers.value.filter((member) => member !== id)
-  } catch (e) {
-    error.value = inviteErrorToken(e)
-  } finally {
-    busy.value = false
-  }
-}
-
-async function removeAgent(row: { id: string, box: string }) {
-  if (busy.value || !canAdd.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    await withSessionRetry(api, () => api.removeChannelAgent(props.channelId, row.id, row.box))
-    agents.value = agents.value.filter((a) => !(a.id === row.id && a.box === row.box))
-  } catch (e) {
-    error.value = inviteErrorToken(e)
-  } finally {
-    busy.value = false
-  }
-}
-
-// SPL-987: a picked agent's online / seated state is the hub's to say; read
-// the list again so the new row shows it (a failure keeps the row as it is).
-async function refreshAgentState() {
-  try {
-    const mem = await withSessionRetry(api, () => api.listChannelMembers(props.channelId))
-    const fresh = Array.isArray(mem.agents) ? mem.agents : []
-    agents.value = agents.value.map((a) => fresh.find((f) => f.id === a.id && f.box === a.box) || a)
-    fallback.value = channelFallbackLine((mem as { fallback?: unknown }).fallback)
-  } catch {
-    // the row stays without a state
-  }
-}
-
-async function pickAgent(row: { id: string, box: string }) {
-  if (busy.value || !canAdd.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    await withSessionRetry(api, () => api.addChannelAgent(props.channelId, row.id, row.box))
-    if (!agents.value.some((a) => a.id === row.id && a.box === row.box)) {
-      agents.value = [...agents.value, { id: row.id, box: row.box }]
-    }
-    void refreshAgentState()
   } catch (e) {
     error.value = inviteErrorToken(e)
   } finally {

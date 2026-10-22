@@ -16,7 +16,11 @@
 # @description     letter a..f is a sha (a UUID is cut out first; an all-digit
 # @description     token is a sha only when `git cat-file -t` names a commit in
 # @description     a repo, SPL-2706, else a run id; a 32-hex md5 or a token
-# @description     right after an "md5" label is a file hash, SPL-2332; a commit
+# @description     right after an "md5" label is a file hash, SPL-2332; a
+# @description     relay run-on-box request id (gr-cmd-<hex>, also .zip, or
+# @description     a token right after a "gr-cmd" / "request id" / "req"
+# @description     label) is no sha, SPL-2953: c-368's "gr-cmd-890b4562175b";
+# @description     a commit
 # @description     reachable from origin's refs/notes/*, the release notes, is
 # @description     no code, SPL-2560; a tree, a blob or a tag of no commit
 # @description     is no sha, SPL-2831: c-734's "(tree cefedf318)"); SPL-2338:
@@ -199,14 +203,17 @@ spl_done_claim_shas() {
 }
 
 # spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
-# or 40 chars, UUIDs and the token after an "md5" label cut out first; one
-# line, space-separated. 13..39 hex (a 32-hex md5) is no git sha. A token that
+# or 40 chars, UUIDs and the token after an "md5" label cut out first, and a
+# run-on-box request id (gr-cmd-<hex>[.zip], the token after a "gr-cmd",
+# "request id" or "req" label; SPL-2953); one line, space-separated. 13..39
+# hex (a 32-hex md5) is no git sha. A token that
 # is a tree, a blob or a tag of no commit in a repo of [repos file] is no sha
 # (c-734's "(tree cefedf318)"); an all-digit token counts only when it is a
 # commit (SPL-2706: c-597's "sha: 704617890" read as no sha), else a run id.
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
-    -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
+    -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' \
+    -e 's/(^|[^0-9a-zA-Z])(gr-cmd|request[ _-]?id|req)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |
     spl_done_claim_commits "${1:-}" | paste -sd' ' -
 }

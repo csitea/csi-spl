@@ -24,7 +24,12 @@ reads and fetches, sends nothing, writes no ledger). Code:
    `sha: 704617890`, a trunk commit, read as no sha); else it is a CI run id.
    13..39 hex is no git sha: a 32-hex md5 file hash (c-350, notes d60b054e
    and 48df14ac, 10-17) was read as four missing shas. A token right after
-   an `md5` / `md5sum` label is skipped too (SPL-2332).
+   an `md5` / `md5sum` label is skipped too (SPL-2332). So is a relay
+   run-on-box request id (SPL-2953: c-368's `gr-cmd-890b4562175b`, a
+   12-hex token that is no object, read as a pre-rebase sha): the hex of
+   `gr-cmd-<hex>` (also `.zip`) and a token right after a `gr-cmd`,
+   `request id` or `req` label. An unlabelled lettered token that is no
+   object still counts as a pre-rebase sha.
    **The claim is the sha line** (SPL-2338): when a line of the body starts
    with the word `sha` or `shas`, after list marks and bold (`sha:`,
    `- **sha**:`, `- **Sha:**`, `SHA:`, `- sha \`<sha>\``), and such a line
@@ -185,6 +190,8 @@ retired reviewer row beats an older code slug), a first-line R7 review line
 is `seat` from a lane with no slug, and a newest code slug still alerts. SPL-2327: a no-object sha is `rewritten` with one trunk commit
 of its key after the spawn, alerts with none, with two, with one older than
 48 h or older than the lane's spawn. SPL-2332: md5 tokens are no shas.
+SPL-2953: run-on-box request ids (`gr-cmd-<hex>`, `.zip`, a labelled one) beside
+a landed sha are no shas: landed.
 SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another
 line is landed; an unlanded sha on the sha line alerts though a landed sha
 is quoted elsewhere; `sha: none` and a body with no sha line read every sha.

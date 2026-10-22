@@ -124,6 +124,7 @@ msg c-002/inbox  md5   c-573 c-002 30 "landed $LANDED; files md5 d99415cbcf6b5c8
 msg c-002/inbox  old48 c-574 c-002 30 "SPL-9004 landed feedface0126"
 msg c-002/inbox  prespawn c-575 c-002 30 "SPL-9005 landed feedface0127"
 msg c-002/inbox  rew48 c-576 c-002 30 "SPL-9005 landed feedface0128, see SPL-9002 for the next step"
+msg c-002/inbox  grcmd c-577 c-002 30 "Verify gr-cmd-f628a3a8773b **exit 0**; landed $LANDED. Step 1 (gr-cmd-890b4562175b) was exit 0; zip gr-cmd-ab12cd34ef56.zip, request id: cafe0123beef, req=bead4567cafe, gr-cmd dead89abcdef"
 printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n%s\n' \
   "$T/wt/c-561	worktree	c-561	box-a	c-561-c002-rel-seat2-claude	$(iso "$NOW")" \
   "$T/wt/m-562	worktree	m-562	box-a	m-562-c002-test-reflection-round-plan	$(iso "$NOW")" \
@@ -150,8 +151,8 @@ verdict() { awk -F'\t' -v k="$1" '$1 == k { print $3 }' "$T/o"; }
 
 # 1. dry run: the verdicts, nothing sent, no ledger
 run; rc=$?
-v="$(for k in m595 land short other local rebased young role self uuid sat old note rev revsha seat plan code noslug pend gone topic rew nokey twokey md5 old48 prespawn rew48; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-want="m595=would-alert land=landed short=landed other=landed local=would-alert rebased=landed young= role= self= uuid=would-alert sat= old= note= rev=seat revsha=seat seat=seat plan=seat code=would-alert noslug=would-alert pend=pending gone=would-alert topic=would-alert rew=rewritten nokey=would-alert twokey=would-alert md5=landed old48=would-alert prespawn=would-alert rew48=rewritten "
+v="$(for k in m595 land short other local rebased young role self uuid sat old note rev revsha seat plan code noslug pend gone topic rew nokey twokey md5 old48 prespawn rew48 grcmd; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+want="m595=would-alert land=landed short=landed other=landed local=would-alert rebased=landed young= role= self= uuid=would-alert sat= old= note= rev=seat revsha=seat seat=seat plan=seat code=would-alert noslug=would-alert pend=pending gone=would-alert topic=would-alert rew=rewritten nokey=would-alert twokey=would-alert md5=landed old48=would-alert prespawn=would-alert rew48=rewritten grcmd=landed "
 [ "$rc" = 0 ] && [ "$v" = "$want" ] && [ ! -s "$T/calls.log" ] && [ ! -e "$ST/seen.tsv" ] &&
   pass "1. dry run: no sha (m-595's shape) and an unpushed sha would alert; a full, a 9-hex, another repo's and a rebased sha whose patch is on trunk (git cherry -) are landed; young, role seat, self-sent, other box, old and non-result skipped; a reviewer / seat / plan slug (live worktree or retired row, sha or not) is seat, a code slug or none alerts (also one whose topic only mentions seats); a sha on a live lane's review branch is pending, a gone lane's wip branch alerts; nothing sent" ||
   fail "1. dry run (rc $rc) got '$v' want '$want': $(cat "$T/o") // $(cat "$T/calls.log")"
@@ -160,6 +161,9 @@ want="m595=would-alert land=landed short=landed other=landed local=would-alert r
 [ "$(awk -F'\t' '$1 == "md5" { print $4 }' "$T/o")" = "$LANDED" ] && grep -q '^OK done-claim-check: .* 2 rewritten,' "$T/o" &&
   pass "2b. SPL-2332: a 32-hex md5 and a token after an md5 label are no shas (only the landed sha is read); SPL-2327: the OK line counts the rewritten ones" ||
   fail "2b. md5 / rewritten count: $(cat "$T/o")"
+[ "$(awk -F'\t' '$1 == "grcmd" { print $4 }' "$T/o")" = "$LANDED" ] &&
+  pass "2c. SPL-2953: a run-on-box request id (gr-cmd-<hex>, gr-cmd-<hex>.zip, after a gr-cmd / request id / req label) is no sha (only the landed sha is read)" ||
+  fail "2c. run-on-box request id: $(cat "$T/o")"
 
 # 3. real run: one note per alert, to the lease holder as the lease names it
 run DRY_RUN=0; rc=$?
@@ -168,7 +172,7 @@ run DRY_RUN=0; rc=$?
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-543 result local .*: sha $LOCAL not in the repository" "$T/calls.log" &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-571 result nokey .*: sha feedface0124 not an object in any repository (a pre-rebase sha?)$" "$T/calls.log" &&
   grep -q "c-572 result twokey .*: sha feedface0125 not an object in any repository" "$T/calls.log" &&
-  ! grep -q "c-540\|c-541\|c-542\|a-551\|a-560\|c-561\|m-562\|c-565\|c-570\|c-573\|c-576" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 22 ] &&
+  ! grep -q "c-540\|c-541\|c-542\|a-551\|a-560\|c-561\|m-562\|c-565\|c-570\|c-573\|c-576" "$T/calls.log" && [ "$(wc -l <"$ST/seen.tsv")" = 23 ] &&
   [ "$(grep -c '	rewritten	' "$ST/seen.tsv")" = 2 ] &&
   [ "$(grep -c '	seat	' "$ST/seen.tsv")" = 4 ] && ! grep -q '^pend	' "$ST/seen.tsv" &&
   pass "3. DRY_RUN=0: one note per alerting message to the holder (lane, msg id, sha, 'not in the repository'); landed, seat and pending ones send none; all but the pending one go to the ledger; SPL-2327: a no-object sha with no trunk commit of its key, with two, with one older than 48 h or older than the lane's spawn alerts 'not an object in any repository (a pre-rebase sha?)'; one after the spawn (a longer key SPL-90011 is not SPL-9001) is rewritten, no note" ||

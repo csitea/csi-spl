@@ -38,7 +38,7 @@ done
 # run_action <env assignments...> -> rc; calls in $T/calls.log
 run_action() {
   : >"$T/calls.log"; rm -f "$T/calls.log.cfg"
-  env -u ENV -u CLOUDSDK_CONFIG PATH="$T/bin:$PATH" GC_CALLS="$T/calls.log" ACTION="$ACTION" \
+  env -u ENV -u CLOUDSDK_CONFIG -u PROJ_PATH PATH="$T/bin:$PATH" GC_CALLS="$T/calls.log" ACTION="$ACTION" \
     PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh" HOME="$T/home" ORG=o APP=a "$@" \
     bash -c 'source "$PIN"; do_log(){ echo "$*"; }; do_require_var(){ [[ -n "$2" ]] || exit 1; }
       do_gcp_log_identity(){ echo "identity $1 $2"; }

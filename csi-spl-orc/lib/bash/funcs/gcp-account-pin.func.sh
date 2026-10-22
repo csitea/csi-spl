@@ -121,6 +121,32 @@ do_gcp_sa_key_file() {
 }
 
 #------------------------------------------------------------------------------
+# @description do_gcp_sa_key_file for the env $1, with ORG and APP read from
+# @description the project dir's own name (do_resolve_oap, when PROJ_PATH is
+# @description set) instead of the checkout dir that ./run takes APP from, so
+# @description a checkout named <org>-<app>-<x> finds the same key (SPL-2937).
+# @description The caller's ENV, ORG and APP are left as they were.
+# @description GCP_SA_KEY_FILE, PROJ_ID, SPL_PROJECT and GCP_PROJECT name ONE
+# @description project, so with one of them set a $3 of more than one env
+# @description refuses (every env would read that one project's key).
+# @param $1 the env, e.g. prd
+# @param $2 (optional) the conf file or dir, as do_gcp_cnf_value
+# @param $3 (optional) every env the caller loops over, e.g. "dev prd"
+# @example key=$(do_gcp_env_sa_key_file prd "" "${envs}") || echo "no prd key"
+#------------------------------------------------------------------------------
+do_gcp_env_sa_key_file() {
+  local ENV="${1:?env}" ORG="${ORG:-}" APP="${APP:-}" pin="${GCP_SA_KEY_FILE:-}${PROJ_ID:-}${SPL_PROJECT:-}${GCP_PROJECT:-}"
+  if [[ -n "${pin}" && "${3:-}" == *[![:space:]]*[[:space:]]*[![:space:]]* ]]; then
+    do_log "FATAL GCP_SA_KEY_FILE / PROJ_ID / SPL_PROJECT / GCP_PROJECT name one project: set ENV to one env, not '${3}'" >&2
+    return 2
+  fi
+  if [[ -n "${PROJ_PATH:-}" ]]; then
+    do_resolve_oap ORG && do_resolve_oap APP || return 1
+  fi
+  do_gcp_sa_key_file "${2:-}"
+}
+
+#------------------------------------------------------------------------------
 # @description Print the client_email of the SA key $1, or nothing and return 1
 # @description when the key is unreadable, is no JSON or carries no
 # @description client_email (jq's own error is dropped: the caller logs its

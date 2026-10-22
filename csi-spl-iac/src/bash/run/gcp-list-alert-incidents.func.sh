@@ -10,7 +10,7 @@
 # @description endpoint with the condition's own filter and aggregation, and
 # @description src/bash/scripts/alert-incidents.py finds where each held for
 # @description its duration. Each env runs AS ITS OWN project SA, from its key
-# @description $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json, used through
+# @description $HOME/.gcp/.<org>/key-<project>.json (do_gcp_env_sa_key_file), used through
 # @description CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE in a throwaway private
 # @description CLOUDSDK_CONFIG (removed afterwards); --account and --project on
 # @description every gcloud call, the access token only in a 0600 curl -K file.
@@ -24,18 +24,17 @@ do_gcp_list_alert_incidents() {
   do_require_var ORG "${ORG:-}"
   do_require_var APP "${APP:-}"
 
-  local envs env app key account project since until n_seen=0 rc=0
+  local envs env key account project since until n_seen=0 rc=0
   envs="${ENV:-${GCP_LIST_ENVS:-dev prd}}"
-  app="${APP#${ORG}-}"
   read -r since until < <(gcp_alert_window "${SINCE:-24h}" "${ALERT_UNTIL:-}") \
     || { do_log "FATAL SINCE='${SINCE:-}' is not <n>m, <n>h or <n>d, or ALERT_UNTIL is not a UTC time"; return 1; }
 
   for env in ${envs}; do
-    key="${HOME}/.gcp/.${ORG}/key-${ORG}-${app}-${env}.json"
-    if [[ ! -f "${key}" ]]; then
-      do_log "INFO no SA key for ${env} (${key}), skipped"
+    key=$(do_gcp_env_sa_key_file "${env}" "" "${envs}") || {
+      [[ $? -eq 2 ]] && return 1
+      do_log "INFO no SA key for ${env} (the project key, do_gcp_sa_key_file), skipped"
       continue
-    fi
+    }
     account=$(do_gcp_sa_key_email "${key}")
     project=$(jq -r '.project_id // ""' "${key}" 2>/dev/null)
     if [[ -z "${account}" || -z "${project}" ]]; then

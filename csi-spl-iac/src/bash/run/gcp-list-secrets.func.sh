@@ -3,7 +3,7 @@
 # @description List the Secret Manager secrets of each environment: names and
 # @description metadata only, never a value (no `versions access` is run).
 # @description Each env is listed AS ITS OWN project SA, from its key
-# @description $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json, in a throwaway
+# @description $HOME/.gcp/.<org>/key-<project>.json (do_gcp_env_sa_key_file), in a throwaway
 # @description private CLOUDSDK_CONFIG that is removed afterwards; the shared
 # @description ~/.config/gcloud is never read or written and every call carries
 # @description --account and --project. The key is used through
@@ -18,16 +18,15 @@ do_gcp_list_secrets() {
   do_require_var ORG "${ORG:-}"
   do_require_var APP "${APP:-}"
 
-  local envs env app key account project cfg n_seen=0 rc=0
+  local envs env key account project cfg n_seen=0 rc=0
   envs="${ENV:-${GCP_LIST_ENVS:-all dev tst stg prd}}"
-  app="${APP#${ORG}-}"
 
   for env in ${envs}; do
-    key="${HOME}/.gcp/.${ORG}/key-${ORG}-${app}-${env}.json"
-    if [[ ! -f "${key}" ]]; then
-      do_log "INFO no SA key for ${env} (${key}), skipped"
+    key=$(do_gcp_env_sa_key_file "${env}" "" "${envs}") || {
+      [[ $? -eq 2 ]] && return 1
+      do_log "INFO no SA key for ${env} (the project key, do_gcp_sa_key_file), skipped"
       continue
-    fi
+    }
     account=$(do_gcp_sa_key_email "${key}")
     project=$(jq -r '.project_id // ""' "${key}" 2>/dev/null)
     if [[ -z "${account}" || -z "${project}" ]]; then

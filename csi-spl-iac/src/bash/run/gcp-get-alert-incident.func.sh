@@ -13,7 +13,7 @@
 # @description by src/bash/scripts/alert-incident.py) over OPENED minus 2 h ..
 # @description OPENED plus 24 h, capped at now (ALERT_UNTIL overrides the end).
 # @description As the env's OWN project SA, from its key
-# @description $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json, through
+# @description $HOME/.gcp/.<org>/key-<project>.json (do_gcp_env_sa_key_file), through
 # @description CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE in a throwaway private
 # @description CLOUDSDK_CONFIG; --account and --project on every gcloud call,
 # @description the access token only in a 0600 curl -K file. Read-only.
@@ -25,14 +25,12 @@
 do_gcp_get_alert_incident() {
   do_require_var ORG "${ORG:-}"
   do_require_var APP "${APP:-}"
-  local env="${ENV:-}" policy="${POLICY:-}" opened="${OPENED:-}" app key account project since until now
+  local env="${ENV:-}" policy="${POLICY:-}" opened="${OPENED:-}" key account project since until now
   [[ "${env}" =~ ^[a-z]{2,8}$ ]] || { do_log "FATAL ENV must name one env (dev or prd), got: '${env}'"; return 1; }
   [[ -n "${policy}" && "${policy}" != *$'\n'* ]] || { do_log "FATAL POLICY must name one alert policy display name"; return 1; }
   [[ "${opened}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z$ ]] && date -u -d "${opened}" >/dev/null 2>&1 \
     || { do_log "FATAL OPENED must be YYYY-MM-DDTHH:MMZ (UTC), got: '${opened}'"; return 1; }
-  app="${APP#${ORG}-}"
-  key="${HOME}/.gcp/.${ORG}/key-${ORG}-${app}-${env}.json"
-  [[ -f "${key}" ]] || { do_log "FATAL no SA key for ${env} (${key})"; return 1; }
+  key=$(do_gcp_env_sa_key_file "${env}") || { do_log "FATAL no SA key for ${env} (the project key, do_gcp_sa_key_file)"; return 1; }
   account=$(do_gcp_sa_key_email "${key}")
   project=$(jq -r '.project_id // ""' "${key}" 2>/dev/null)
   [[ -n "${account}" && -n "${project}" ]] || { do_log "FATAL the SA key ${key} has no client_email or project_id"; return 1; }

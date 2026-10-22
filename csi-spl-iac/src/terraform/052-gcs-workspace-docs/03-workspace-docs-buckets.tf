@@ -35,6 +35,32 @@ resource "google_storage_bucket" "workspace_docs" {
     retention_duration_seconds = var.soft_delete_retention_seconds
   }
 
+  # spec 114 9.5: the daily per-workspace export under backup/ expires after
+  # backup_retention_days. Versioning is on, so the age rule only turns a
+  # live export into a noncurrent generation; the second rule deletes that
+  # generation 7 days later. No other prefix has a lifecycle rule.
+  lifecycle_rule {
+    condition {
+      age            = var.backup_retention_days
+      matches_prefix = ["backup/"]
+      with_state     = "LIVE"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = 7
+      matches_prefix             = ["backup/"]
+      with_state                 = "ARCHIVED"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   labels = {
     org       = var.org
     app       = var.app

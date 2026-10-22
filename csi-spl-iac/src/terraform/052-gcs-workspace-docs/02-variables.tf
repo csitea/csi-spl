@@ -63,3 +63,13 @@ variable "soft_delete_retention_seconds" {
   description = "Soft-delete retention, as 020/050/051 (604800 = 7 days, the GCS default)."
   default     = 604800
 }
+
+variable "backup_retention_days" {
+  type        = number
+  description = "Spec 114 9.5: lifecycle on the backup/ prefix only. A daily per-workspace Qto export older than N days is deleted (its noncurrent generation goes after the soft-delete week); the md docs, tree.json, .history/ and qto-assets/ never expire."
+
+  validation {
+    condition     = var.backup_retention_days >= 7 && var.backup_retention_days <= 3650
+    error_message = "backup_retention_days must be between 7 and 3650: below 7 a week of daily exports would not survive."
+  }
+}

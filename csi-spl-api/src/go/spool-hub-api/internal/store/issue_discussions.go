@@ -450,14 +450,23 @@ func (s *Postgres) UnlinkIssueDiscussion(ctx context.Context, tenant string, num
 	return issueDiscussionErr(err)
 }
 
+// issueBacklogMissingSQL lists the tenants whose issues link the backlog
+// topic while it has no row: each linking tenant once, its topic id computed
+// before the probe (MATERIALIZED), so the probe is one primary-key read. With
+// the id computed inside NOT EXISTS, RLS kept it off the index and every link
+// filtered its tenant's messages (prd 2026-10-22, SPL-2868, n=3: 750 probes,
+// 4 788 buffers, 174..238 ms -> 74, 10..14 ms; TestMissingHubCardsProbeByPrimaryKey).
+const issueBacklogMissingSQL = `WITH d AS MATERIALIZED (
+		SELECT DISTINCT tenant_id, spool_issue_backlog_id(tenant_id) AS id FROM issue_discussions
+		WHERE task_id = spool_issue_backlog_id(tenant_id))
+	SELECT d.tenant_id FROM d
+	WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = d.tenant_id AND m.msg_id = d.id)
+	ORDER BY d.tenant_id`
+
 // TenantsMissingIssueBacklog lists the tenants whose issues link the Issue backlog topic while that topic is missing (on Postgres).
 func (s *Postgres) TenantsMissingIssueBacklog(ctx context.Context) ([]string, error) {
 	out := []string{}
-	err := s.asOperatorQuery(ctx, `SELECT DISTINCT d.tenant_id FROM issue_discussions d
-		WHERE d.task_id = spool_issue_backlog_id(d.tenant_id)
-			AND NOT EXISTS (SELECT 1 FROM messages m
-				WHERE m.tenant_id = d.tenant_id AND m.msg_id = spool_issue_backlog_id(d.tenant_id))
-		ORDER BY d.tenant_id`, nil, func(r pgx.Rows) error {
+	err := s.asOperatorQuery(ctx, issueBacklogMissingSQL, nil, func(r pgx.Rows) error {
 		var id string
 		if err := r.Scan(&id); err != nil {
 			return err

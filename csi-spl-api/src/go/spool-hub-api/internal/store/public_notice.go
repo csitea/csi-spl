@@ -38,14 +38,23 @@ type PublicNotices interface {
 	TenantsMissingPublicNotice(ctx context.Context) ([]string, error)
 }
 
+// publicNoticeMissingSQL ($1: the system tenant) lists the tenants with no
+// notice row. The ids are computed first (MATERIALIZED): under the operator
+// RLS scope a key computed inside the probe by a non-leakproof function stays
+// off the index, and the probe filtered the tenant's messages one by one (prd
+// 2026-10-22, SPL-2868, n=3: 71..292 ms, 1 777 buffers -> 0.5..1.8 ms, 76; by
+// TestMissingHubCardsProbeByPrimaryKey).
+const publicNoticeMissingSQL = `WITH t AS MATERIALIZED (
+		SELECT tenant_id, spool_public_notice_id(tenant_id) AS id FROM tenants WHERE tenant_id <> $1)
+	SELECT t.tenant_id FROM t
+	WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = t.tenant_id AND m.msg_id = t.id)
+	ORDER BY t.tenant_id`
+
 // TenantsMissingPublicNotice is one operator read: a primary-key probe of
 // messages per tenant, tenant ids in order.
 func (s *Postgres) TenantsMissingPublicNotice(ctx context.Context) ([]string, error) {
 	var out []string
-	err := s.asOperatorQuery(ctx, `SELECT t.tenant_id FROM tenants t
-		WHERE t.tenant_id <> $1 AND NOT EXISTS (SELECT 1 FROM messages m
-			WHERE m.tenant_id = t.tenant_id AND m.msg_id = spool_public_notice_id(t.tenant_id))
-		ORDER BY t.tenant_id`, []any{SystemTenant}, func(r pgx.Rows) error {
+	err := s.asOperatorQuery(ctx, publicNoticeMissingSQL, []any{SystemTenant}, func(r pgx.Rows) error {
 		var id string
 		if err := r.Scan(&id); err != nil {
 			return err

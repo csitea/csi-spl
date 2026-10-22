@@ -239,13 +239,12 @@ import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calAddDays, calLoadWindow } from '~/utils/calendar-year.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
-import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
+import { useCalendarPhoneTurn } from '~/composables/useCalendarPhoneTurn'
 import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
 
 const CalendarPhoneWeek = defineAsyncComponent(() => import('./CalendarPhoneWeek.vue'))
 
 type View = 'month' | 'week' | 'day'
-type Point = { x: number, y: number, t: number }
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -568,127 +567,14 @@ onBeforeUnmount(() => {
   ctl?.abort()
   window.removeEventListener(CALENDAR_CHANGED_EVENT, onChanged)
   window.removeEventListener('focus', onChanged)
-  cancelAnimationFrame(raf)
   clearTimeout(noticeTimer)
 })
 
-/* ---- the page turn (spec 4.3, H2, H6) ---- */
+/* ---- the page turn (spec 4.3, H2, H6): useCalendarPhoneTurn ---- */
 const viewEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
-/** the neighbour on screen: 1 = the next period, -1 = the previous, 0 = none */
-const side = ref<0 | 1 | -1>(0)
-const turning = ref(false)
-const moving = ref(false)
-
-const pages = computed(() => {
-  const cur = { key: `p:${period.value}`, day: shownDay.value, dir: 0, period: period.value, title: title.value, inert: turning.value }
-  if (side.value === 0) return [cur]
-  const day = calPhoneStep(view.value, shownDay.value, side.value)
-  const r = calPhoneRange(view.value, day)
-  return [cur, { key: `n:${day}`, day, dir: side.value, period: r?.from || '', title: titleOf(day), inert: !turning.value }]
-})
-
-const isRtl = () => document.documentElement.dir === 'rtl'
-const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-const flat = (x: number) => `perspective(1200px) translateX(${x}px) rotateY(0deg) scale(1)`
-
-let pts: Point[] = []
-let lock: 'none' | 'x' | 'y' = 'none'
-let dx = 0
-let raf = 0
-function paint() {
-  raf = 0
-  if (trackEl.value) trackEl.value.style.transform = `translateX(${dx}px)`
-}
-
-function onTouchStart(e: TouchEvent) {
-  const p = e.touches[0]
-  pts = !turning.value && e.touches.length === 1 && p ? [{ x: p.clientX, y: p.clientY, t: e.timeStamp }] : []
-  lock = 'none'
-  dx = 0
-}
-function onTouchMove(e: TouchEvent) {
-  const p = e.touches[0]
-  const p0 = pts[0]
-  if (!p || !p0) return
-  const pt = { x: p.clientX, y: p.clientY, t: e.timeStamp }
-  pts.push(pt)
-  lock = calSwipeLock(p0, pt, lock)
-  if (lock !== 'x') return
-  const d = pt.x - p0.x
-  const rtl = isRtl()
-  /* a track toward Back from the edge zone is the stack's Back, not a turn */
-  if ((rtl ? d < 0 : d > 0) && calSwipeInEdge(p0.x, window.innerWidth, rtl)) return
-  dx = d
-  side.value = (rtl ? d > 0 : d < 0) ? 1 : -1
-  moving.value = true
-  if (!raf) raf = requestAnimationFrame(paint)
-}
-function onTouchEnd() {
-  const p0 = pts[0]
-  const rtl = isRtl()
-  /* the view keeps its swipes; one from the Back edge stays the stack's */
-  if (p0 && calSwipeClaims(p0.x, window.innerWidth, rtl)) stack.swipe.claim()
-  const kind = p0 ? calSwipeClassify({ points: pts, width: window.innerWidth, rtl }) : 'none'
-  const from = dx
-  pts = []
-  if (kind === 'next' || kind === 'prev') void turn(kind === 'next' ? 1 : -1, from)
-  else if (moving.value) void snapBack(from)
-}
-function onTouchCancel() {
-  const from = dx
-  pts = []
-  if (moving.value) void snapBack(from)
-}
-
-function rest() {
-  cancelAnimationFrame(raf)
-  raf = 0
-  dx = 0
-  moving.value = false
-  if (trackEl.value) trackEl.value.style.transform = ''
-}
-
-async function snapBack(from: number) {
-  const el = trackEl.value
-  if (el && !reducedMotion() && typeof el.animate === 'function') {
-    /* a cancelled animation (unmount, a new touch) still rests the page below */
-    await el.animate([{ transform: flat(from) }, { transform: flat(0) }], { duration: 150, easing: 'ease-out' }).finished.catch(() => undefined)
-  }
-  rest()
-  side.value = 0
-}
-
-/** turn one period: a swipe's release (from its offset) or < / > (from 0) */
-async function turn(dir: 1 | -1, from = 0) {
-  if (turning.value) return
-  const target = calPhoneStep(view.value, shownDay.value, dir)
-  if (!target) return
-  side.value = dir
-  turning.value = true
-  moving.value = true
-  await nextTick()
-  const el = trackEl.value
-  const w = viewEl.value?.clientWidth || window.innerWidth
-  const s = isRtl() ? -1 : 1
-  const to = -dir * s * w
-  if (el && !reducedMotion() && typeof el.animate === 'function') {
-    cancelAnimationFrame(raf)
-    raf = 0
-    el.style.transform = ''
-    const tilt = `perspective(1200px) translateX(${(from + to) / 2}px) rotateY(${dir * s * 8}deg) scale(0.98)`
-    /* a cancelled animation still lands the turn below */
-    await el.animate(
-      [{ transform: flat(from) }, { transform: tilt, offset: 0.5 }, { transform: flat(to) }],
-      { duration: 220, easing: 'ease-out' },
-    ).finished.catch(() => undefined)
-  }
-  shownDay.value = target
-  rest()
-  side.value = 0
-  turning.value = false
-  emit('move', target)
-}
+const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, turn } =
+  useCalendarPhoneTurn({ view, shownDay, period, title, titleOf, viewEl, trackEl, stack, onMove: (target) => emit('move', target) })
 </script>
 
 <style scoped>

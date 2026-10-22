@@ -13,6 +13,11 @@
 #      failed report never fails the deploy), DRY_RUN=0, the right
 #      component, the minted version, and no key literal. RED CONTROL: the
 #      same check on a copy with the step removed fails.
+#   5. SPL-2848: DEPLOY_ENV names the deployed env apart from the ENV hub,
+#      and 20 / 30 also report each deploy to the OTHER env's hub as that
+#      env's SA (its key into a credentials file only). RED CONTROL: before
+#      SPL-2848 no step reported to the other hub, so the prd Reporting page
+#      read "Deploys 0 on dev"; a copy without the step fails the check.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -66,7 +71,7 @@ out=$(act ENV=dev DRY_RUN=0 DEPLOY_COMPONENT=hub DEPLOY_VERSION=3.2.5 DEPLOY_SHA
 
 # --- 3. argument validation -------------------------------------------------
 : >"$CALLS"
-for bad in "ENV=lde" "ENV=" "DEPLOY_COMPONENT=inf" "DEPLOY_COMPONENT=" "DEPLOY_VERSION=3.2" "DEPLOY_VERSION=latest" \
+for bad in "ENV=lde" "ENV=" "DEPLOY_ENV=lde" "DEPLOY_COMPONENT=inf" "DEPLOY_COMPONENT=" "DEPLOY_VERSION=3.2" "DEPLOY_VERSION=latest" \
   "DEPLOY_STATUS=ok" "DEPLOY_SHA=${SHA:0:8}" "DEPLOY_SHA=${SHA^^}" "DEPLOY_RUN_ID=a;b"; do
   # shellcheck disable=SC2086 # the case is a word list on purpose
   out=$(act ENV=dev DRY_RUN=0 DEPLOY_COMPONENT=hub DEPLOY_VERSION=3.2.5 DEPLOY_SHA=$SHA $bad); rc=$?
@@ -104,6 +109,52 @@ done
 ! check_wf "$T/20_hub-build-deploy.yml" hub "Roll the 030 service to the minted image" >/dev/null &&
   ! check_wf "$T/30_wui-build-deploy.yml" wui "firebase deploy --only hosting" >/dev/null &&
   pass "RED CONTROL: a copy of 20 and 30 without the step fails the check" || fail "RED CONTROL: the check passed with the step removed"
+
+# --- 5. the other env's hub (SPL-2848) --------------------------------------
+out=$(act ENV=prd DEPLOY_ENV=dev DEPLOY_COMPONENT=hub DEPLOY_VERSION=3.2.5 DEPLOY_SHA=$SHA); rc=$?
+[[ $rc == 0 && "$(jq -r .env <<<"$out")" == dev ]] && grep -q 'the dev hub deploy of .* not reported to the prd hub' "$T/err" &&
+  pass "ENV=prd DEPLOY_ENV=dev -> a dev row for the prd hub" || fail "other env body: rc $rc '$out' err '$(cat "$T/err")'"
+: >"$CALLS"; : >"$BODIES"
+out=$(act ENV=prd DEPLOY_ENV=dev DRY_RUN=0 DEPLOY_COMPONENT=wui DEPLOY_VERSION=3.2.5 DEPLOY_SHA=$SHA); rc=$?
+[[ $rc == 0 && "$(cat "$CALLS")" == "POST /v1/operator/deploys" && "$(jq -r .env "$BODIES")" == dev ]] &&
+  grep -q "^OK the dev wui deploy of ${SHA:0:8} recorded" "$T/err" &&
+  pass "DRY_RUN=0 posts the dev row to the ENV (prd) hub" || fail "other env post: rc $rc '$(cat "$BODIES")' err '$(cat "$T/err")'"
+OSTEP="Record the deploy on the other env's hub (do_spl_deploy_record)"
+OAUTH="Authenticate to the other env's hub (deploy record)"
+# check_other <workflow file> <component> -> rc 0 when the other-hub report is wired
+check_other() {
+  local f="$1" comp="$2" names i j k a s
+  names="$(yq -r '.jobs.deploy.steps[].name // ""' "$f")"
+  i="$(grep -nxF -- "$STEP" <<<"$names" | cut -d: -f1)"
+  j="$(grep -nxF -- "$OAUTH" <<<"$names" | cut -d: -f1)"
+  k="$(grep -nxF -- "$OSTEP" <<<"$names" | cut -d: -f1)"
+  [[ -n "$i" && -n "$j" && -n "$k" && "$j" -gt "$i" && "$k" -gt "$j" ]] || { echo "steps missing or out of order ($i/$j/$k)"; return 1; }
+  a="$(yq -o=json ".jobs.deploy.steps[] | select(.name == \"$OAUTH\")" "$f")"
+  jq -e '.id == "auth_other" and .["continue-on-error"] == true
+    and (.uses | test("^google-github-actions/auth@"))
+    and (.with.credentials_json | test("dev. && .PRD. \\|\\| .DEV."))
+    and (.with.export_environment_variables == false) and (.with.create_credentials_file == true)
+    and (.if | test("!cancelled\\(\\)") and test("HAS_OTHER_KEY"))' <<<"$a" >/dev/null || { echo "auth wiring: $a"; return 1; }
+  s="$(yq -o=json ".jobs.deploy.steps[] | select(.name == \"$OSTEP\")" "$f")"
+  jq -e --arg c "$comp" '.["continue-on-error"] == true
+    and (.if | test("steps\\.auth_other\\.outcome == .success."))
+    and (.env.ENV | test("dev. && .prd. \\|\\| .dev."))
+    and (.env.DEPLOY_ENV == "${{ matrix.environment }}")
+    and (.env.OTHER_KEY_FILE | test("steps\\.auth_other\\.outputs\\.credentials_file_path"))
+    and (.run | test("DRY_RUN=0") and test("GCP_ACCOUNT=\u0027\u0027 ") and test("GCP_SA_KEY_FILE=\"\\$OTHER_KEY_FILE\"")
+      and test("DEPLOY_COMPONENT=" + $c + " ") and test("-a do_spl_deploy_record$"))' <<<"$s" >/dev/null || { echo "step wiring: $s"; return 1; }
+  ! grep -qiE 'private_key|BEGIN [A-Z ]*PRIVATE' <<<"$a$s" || { echo "key literal in the steps"; return 1; }
+  [[ "$(yq -r '.jobs.deploy.env.HAS_OTHER_KEY' "$f")" == *"'PRD' || 'DEV'"* ]] || { echo "no job-level HAS_OTHER_KEY"; return 1; }
+}
+msg=$(check_other "$WF/20_hub-build-deploy.yml" hub) &&
+  pass "GATE 20: the hub deploy is also reported to the other env's hub, as that env's SA" || fail "20 other: $msg"
+msg=$(check_other "$WF/30_wui-build-deploy.yml" wui) &&
+  pass "GATE 30: the WUI deploy is also reported to the other env's hub, as that env's SA" || fail "30 other: $msg"
+for wf in 20_hub-build-deploy 30_wui-build-deploy; do
+  yq "del(.jobs.deploy.steps[] | select(.name == \"$OSTEP\"))" "$WF/$wf.yml" >"$T/$wf-other.yml"
+done
+! check_other "$T/20_hub-build-deploy-other.yml" hub >/dev/null && ! check_other "$T/30_wui-build-deploy-other.yml" wui >/dev/null &&
+  pass "RED CONTROL: a copy of 20 and 30 without the other-hub step fails the check" || fail "RED CONTROL: the other-hub check passed with the step removed"
 
 echo "spl-deploy-record: $fails failure(s)"
 ((fails == 0))

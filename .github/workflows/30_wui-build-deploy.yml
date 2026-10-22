@@ -198,6 +198,7 @@ jobs:
       # a boolean: is this env's project key secret set (a step cannot read
       # its own env: in its `if`, so it lives at job level)
       HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+      HAS_OTHER_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'PRD' || 'DEV')] != '' }}
     steps:
       # fetch-depth 0 so the mint has this commit's history to read; the tag
       # itself is now claimed through the GitHub REST API (see the mint step),
@@ -605,6 +606,34 @@ jobs:
           DEPLOY_VERSION: ${{ steps.ver.outputs.version }}
           DEPLOY_STATUS: ${{ job.status == 'success' && 'success' || 'failed' }}
         run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" DEPLOY_COMPONENT=wui ./csi-spl-orc/run -a do_spl_deploy_record
+
+      # SPL-2848: each hub keeps both envs' deploys (spec 143 section 2.4.1),
+      # so the deploy is also reported to the OTHER env's hub, as that env's
+      # project SA (its hub's operator allow-list holds only that SA): the
+      # repo secret GCP_KEY_CSI_SPL_<OTHER> through auth into a credentials
+      # file only (export_environment_variables false), so this job's own
+      # gcloud identity is untouched. Same conditions and continue-on-error
+      # as the step above: a failed report never fails the deploy.
+      - name: Authenticate to the other env's hub (deploy record)
+        id: auth_other
+        if: ${{ !cancelled() && steps.ver.outputs.stale != 'true' && steps.fwd.outputs.ok == 'true' && steps.auth_key.outcome == 'success' && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') && env.HAS_OTHER_KEY == 'true' }}
+        continue-on-error: true
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'PRD' || 'DEV')] }}
+          create_credentials_file: true
+          export_environment_variables: false
+
+      - name: Record the deploy on the other env's hub (do_spl_deploy_record)
+        if: ${{ !cancelled() && steps.ver.outputs.stale != 'true' && steps.auth_other.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          ENV: ${{ matrix.environment == 'dev' && 'prd' || 'dev' }}
+          DEPLOY_ENV: ${{ matrix.environment }}
+          DEPLOY_VERSION: ${{ steps.ver.outputs.version }}
+          DEPLOY_STATUS: ${{ job.status == 'success' && 'success' || 'failed' }}
+          OTHER_KEY_FILE: ${{ steps.auth_other.outputs.credentials_file_path }}
+        run: DRY_RUN=0 GCP_ACCOUNT='' GCP_SA_KEY_FILE="$OTHER_KEY_FILE" DEPLOY_COMPONENT=wui ./csi-spl-orc/run -a do_spl_deploy_record
 
       # spec 033 T015 (SPL-12): the level 1 / level 2 live proof (T010 + the
       # /t/<task_id> surface of T014), signed in as the probe member, so a

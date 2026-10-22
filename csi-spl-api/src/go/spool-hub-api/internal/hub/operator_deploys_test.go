@@ -128,8 +128,8 @@ func randSHA(t *testing.T) string {
 // TestOperatorDeploysIngest (T025 GATE): the env's operator SA reports a
 // deploy and the row is stored (source ci, plain version written v-form);
 // the same run's re-post returns that row, stored=false. RED CONTROL: no
-// token is 401, a stranger's token 403, another env's record or a short
-// sha 400, and none of them writes a row.
+// token is 401, a stranger's token 403, an unknown env or a short sha 400,
+// and none of them writes a row.
 func TestOperatorDeploysIngest(t *testing.T) {
 	e, tid, ed, _ := deployEnv(t)
 	sha := randSHA(t)
@@ -142,7 +142,7 @@ func TestOperatorDeploysIngest(t *testing.T) {
 		{"no token", "", body, http.StatusUnauthorized},
 		{"bad token", "forged", body, http.StatusUnauthorized},
 		{"stranger", "stranger", body, http.StatusForbidden},
-		{"other env", "good", map[string]any{"env": "prd", "component": "hub", "version": "3.2.5", "commit_sha": sha}, http.StatusBadRequest},
+		{"unknown env", "good", map[string]any{"env": "stg", "component": "hub", "version": "3.2.5", "commit_sha": sha}, http.StatusBadRequest},
 		{"short sha", "good", map[string]any{"env": "dev", "component": "hub", "version": "3.2.5", "commit_sha": sha[:7]}, http.StatusBadRequest},
 		{"unknown field", "good", map[string]any{"env": "dev", "component": "hub", "version": "3.2.5", "commit_sha": sha, "x": 1}, http.StatusBadRequest},
 	} {
@@ -166,6 +166,42 @@ func TestOperatorDeploysIngest(t *testing.T) {
 	code, again := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body)
 	if row2, _ := again["deploy"].(map[string]any); code != http.StatusOK || again["stored"] != false || row2["deploy_id"] != row["deploy_id"] {
 		t.Fatalf("the same run's re-post: %d %v, want stored=false and deploy_id %v", code, again, row["deploy_id"])
+	}
+}
+
+// TestOperatorDeploysOtherEnv (SPL-2848 GATE): the hub keeps the estate's
+// deploys, so the dev hub stores a prd deploy the workflow reports to it
+// (and the prd hub a dev one). RED CONTROL: before SPL-2848 the hub answered
+// 400 wrong_env, so the other env's count stayed 0 ("Deploys 0 on dev" on
+// the prd Reporting page). The reconcile check still fills only its own env.
+func TestOperatorDeploysOtherEnv(t *testing.T) {
+	e, tid, ed, clk := deployEnv(t)
+	ctx := context.Background()
+	sha := randSHA(t)
+	body := map[string]any{"env": "prd", "component": "wui", "version": "3.2.6", "commit_sha": sha, "workflow_run_id": "185623911"}
+	code, out := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body)
+	if row, _ := out["deploy"].(map[string]any); code != http.StatusOK || out["stored"] != true || row["env"] != "prd" || row["source"] != "ci" {
+		t.Fatalf("RED CONTROL: the dev hub refused the prd deploy, so the other env's count stays 0: %d %v", code, out)
+	}
+	if r, ok, err := ed.LatestEstateDeploy(ctx, "prd", "wui"); err != nil || !ok || r.CommitSHA != sha {
+		t.Fatalf("GATE: the prd row on the dev hub: %+v %v %v", r, ok, err)
+	}
+	if code, again := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body); code != http.StatusOK || again["stored"] != false {
+		t.Fatalf("the same run's re-post: %d %v, want stored=false", code, again)
+	}
+	r := e.srv.NewDeployReconciler()
+	if r == nil {
+		t.Fatal("no reconciler on a dev hub with a deploy store")
+	}
+	r.Probe = func(context.Context, string) (hub.DeployServed, error) {
+		return hub.DeployServed{Version: "3.2.7", Commit: randSHA(t)}, nil
+	}
+	r.Grace = 0
+	r.Tick(ctx)
+	clk.add(time.Minute)
+	r.Tick(ctx)
+	if p, ok, _ := ed.LatestEstateDeploy(ctx, "prd", "wui"); !ok || p.CommitSHA != sha || p.Source != "ci" {
+		t.Fatalf("RED CONTROL: the dev hub's reconcile check wrote a prd row: %+v", p)
 	}
 }
 

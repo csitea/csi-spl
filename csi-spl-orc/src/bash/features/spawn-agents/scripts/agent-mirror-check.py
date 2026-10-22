@@ -19,8 +19,9 @@ An agent is mirrored when ALL of these hold:
   on      no $SPOOL_ROOT/.mirror-off
 
 Usage: agent-mirror-check.py [--json]
-Env:   AMC_PROC_ROOT (default /proc), AMC_SEATS (default
-       <box user home>/.local/share/csi-spl/cloud/*/desk/*/*), SPOOL_ROOT,
+Env:   AMC_PROC_ROOT (default /proc), AMC_SEATS (default <root>/*/desk/*/*,
+       <root> = desk-root.inc.sh: the desk user's (SPOOL_DESK_USER) state
+       root, else the box user's), SPOOL_ROOT,
        AMC_HOME_OF (tests: a dir holding <user>/ homes)
 Exit:  0 every live agent is mirrored, 1 one is not, 2 usage.
 A process of another user whose env cannot be read is retried with sudo -n.
@@ -133,11 +134,32 @@ def argv_of(pid):
     return [a.decode(errors="replace") for a in b.split(b"\0") if a] if b else []
 
 
-def seats_of(agent):
-    pat = os.environ.get("AMC_SEATS") or os.path.join(
-        home_of(os.environ.get("SPOOL_BOX_USER") or pwd.getpwuid(os.getuid()).pw_name),
-        ".local/share/csi-spl/cloud/*/desk/*/*",
+def desk_root(home):
+    """The cloud state root of this box's desks under desk-root.inc.sh (spec
+    069 row B4): the desk user's, else HOME's. "" when it cannot tell."""
+    lib = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "..", "lib", "desk-root.inc.sh"
     )
+    try:
+        r = subprocess.run(
+            ["bash", lib, home], capture_output=True, text=True, timeout=20
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def seats_of(agent):
+    pat = os.environ.get("AMC_SEATS")
+    if not pat:
+        root = desk_root(
+            home_of(
+                os.environ.get("SPOOL_BOX_USER") or pwd.getpwuid(os.getuid()).pw_name
+            )
+        )
+        if not root:
+            return []
+        pat = os.path.join(root, "*/desk/*/*")
     out = []
     for d in sorted(glob.glob(pat)):
         a = os.path.join(d, "spool", agent)

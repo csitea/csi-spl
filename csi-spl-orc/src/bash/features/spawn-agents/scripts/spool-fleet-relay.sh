@@ -23,7 +23,8 @@
 #   env     SPOOL_FLEET_ENV, box.env SPOOL_FLEET_ENV, lease.conf LEASE_ENV
 #   tenant  SPOOL_FLEET_TENANT, box.env SPOOL_FLEET_TENANT, lease.conf LEASE_TENANT
 #   box     SPOOL_DESK_BOX, box.env SPOOL_DESK_BOX, lease.conf LEASE_DESK_BOX, box-desk
-#   state   SPOOL_FLEET_STATE_ROOT, else <box user home>/.local/share/csi-spl/cloud
+#   state   SPOOL_FLEET_STATE_ROOT, else spool_desk_root: the desk user's
+#           (SPOOL_DESK_USER) state root, else this user's
 # The desk is <state>/<env>/desk/<tenant>/<box>.
 #
 # stdout: the `spool send` JSON ({delivery: sent|queued|pending, ...}).
@@ -39,6 +40,8 @@ set -uo pipefail
 say() { echo "spool-fleet-relay: $*" >&2; }
 # shellcheck source=../lib/spool-env.inc.sh
 . "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/desk-root.inc.sh
+. "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/desk-root.inc.sh"
 
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0
 while [ "$#" -gt 0 ]; do
@@ -75,7 +78,8 @@ BOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(kv "$LCON
   say "$TO is not an agent of this machine ($ROOT), and no fleet desk is configured to reach the other machine: set SPOOL_FLEET_ENV + SPOOL_FLEET_TENANT in $BOXENV (or LEASE_ENV + LEASE_TENANT in $LCONF). Nothing was sent."
   exit 3; }
 [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || { say "bad desk box '$BOX'"; exit 3; }
-STATE="${SPOOL_FLEET_STATE_ROOT:-$(getent passwd "$(id -un)" | cut -d: -f6)/.local/share/csi-spl/cloud}"
+STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" | cut -d: -f6)" "$BOXENV")}" ||
+  { say "no desk state root on this machine (SPOOL_DESK_USER has no home?). Nothing was sent."; exit 3; }
 d="$STATE/$ENVN/desk/$TENANT/$BOX"
 
 pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"

@@ -52,8 +52,9 @@ Usage:
                       counts that human as a desk owner
 
 Environment (post):
-  SPOOL_MIRROR_SEATS  glob of desk dirs, default
-                      $HOME/.local/share/csi-spl/cloud/*/desk/*/*
+  SPOOL_MIRROR_SEATS  glob of desk dirs, default <root>/*/desk/*/*, <root> =
+                      desk-root.inc.sh: the desk user's (SPOOL_DESK_USER)
+                      state root, else $HOME's
   SPOOL_MIRROR_SPOOL  the spool binary, default <env dir>/bin/spool
   SPOOL_MIRROR_DRY    1 = print the send argv instead of running it
 Environment (hook):
@@ -485,10 +486,28 @@ def hook_main(agy="", vibe=False):
 
 
 # ── post half (box user) ────────────────────────────────────────────────────
-def seats(agent):
-    pat = os.environ.get("SPOOL_MIRROR_SEATS") or os.path.expanduser(
-        "~/.local/share/csi-spl/cloud/*/desk/*/*"
+def desk_root(home):
+    """The cloud state root of this box's desks under desk-root.inc.sh (spec
+    069 row B4): the desk user's, else HOME's. "" when it cannot tell."""
+    lib = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "..", "lib", "desk-root.inc.sh"
     )
+    try:
+        r = subprocess.run(
+            ["bash", lib, home], capture_output=True, text=True, timeout=20
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def seats(agent):
+    pat = os.environ.get("SPOOL_MIRROR_SEATS")
+    if not pat:
+        root = desk_root(os.path.expanduser("~"))
+        if not root:
+            return []
+        pat = os.path.join(root, "*/desk/*/*")
     out = []
     for d in sorted(glob.glob(pat)):
         a = os.path.join(d, "spool", agent)

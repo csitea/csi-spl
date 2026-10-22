@@ -16,7 +16,8 @@
 #     --legacy  every legacy agent id seated (instead of the named ids)
 #     --box     only the desks of that box (default: every box dir)
 #
-# Env: DESK_STATE_ROOT (default $HOME/.local/share/csi-spl/cloud), DESK_ENVS
+# Env: DESK_STATE_ROOT (default spool_desk_root: the desk user's state root,
+# else $HOME's), DESK_ENVS
 # (default "dev prd"), DESK_TENANT (default every tenant), SPOOL_NOW.
 # Prints one SEATED line per desk with its matching ids (none: "-"), then one
 # PLAN / DO drop line per seat.
@@ -27,6 +28,8 @@ set -euo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/desk-root.inc.sh
+. "$_here/../lib/desk-root.inc.sh"
 
 APPLY=0; LEGACY=0; BOX="*"; IDS=()
 while [ "$#" -gt 0 ]; do
@@ -52,7 +55,7 @@ done
 [ -z "${DESK_TENANT:-}" ] || [[ "$DESK_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] \
   || { echo "desk-seat-drop: '${DESK_TENANT}' is not a tenant id" >&2; exit 2; }
 
-ROOT="${DESK_STATE_ROOT:-$HOME/.local/share/csi-spl/cloud}"
+ROOT="${DESK_STATE_ROOT:-$(spool_desk_root "$HOME")}"
 VERB=PLAN; [ "$APPLY" = 1 ] && VERB=DO
 NOW=""; spl_now_var NOW
 STAMP="$(date -u -d "$NOW" +%Y%m%dT%H%M%SZ)"

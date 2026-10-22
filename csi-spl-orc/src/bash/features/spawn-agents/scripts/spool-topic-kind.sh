@@ -38,7 +38,12 @@ ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "
 TENANT="${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}"; TENANT="${TENANT:-$(kv "$LCONF" LEASE_TENANT)}"
 BOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"; BOX="${BOX:-box-desk}"
 [[ "$ENVN" =~ ^(dev|prd|self)$ && "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || exit 3
-STATE="${SPOOL_FLEET_STATE_ROOT:-$(getent passwd "$(id -un)" | cut -d: -f6)/.local/share/csi-spl/cloud}"
+_here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=../lib/spool-env.inc.sh
+. "$_here/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/desk-root.inc.sh
+. "$_here/../lib/desk-root.inc.sh"
+STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" | cut -d: -f6)" "$BOXENV")}" || exit 3
 d="$STATE/$ENVN/desk/$TENANT/$BOX"
 pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
 [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" | grep ' hub-run' >/dev/null || exit 3

@@ -50,7 +50,8 @@ do_spl_desk_session_upload() {
   local feat; feat="$(spl_desk_mirror_scripts)"
   local hub d adir
   hub="$SPL_HUB_URL"
-  d="$SPL_STATE_DIR/desk/$tenant/$box"; adir="$d/spool/$agent"
+  # The desk root (spec 069 8.3): SPL_STATE_DIR with SPOOL_DESK_USER unset.
+  d="$(spl_desk_state_root)/desk/$tenant/$box" || return 1; adir="$d/spool/$agent"
   if (( dry )); then
     do_log "INFO DRY_RUN would: export $agent's transcript (the one holding '$token') as $auser, redacted"
     do_log "INFO DRY_RUN would: attach it in $agent's DM${to:+ with $to} from $box in $tenant at $hub"

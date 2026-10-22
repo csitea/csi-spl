@@ -75,23 +75,25 @@ if [[ -z "$DESK_AGENT" ]]; then
   exit 1
 fi
 
-# Locate desk state directory
+# Locate desk state directory: SPL_STATE_DIR, then the desk root of $ENV
+# (spl_desk_state_root, spec 069 section 8.3: the desk user's when
+# SPOOL_DESK_USER is set, else this user's), then, the key unset, the root of
+# the checkout's owner (the box user) for a caller running as another user.
+_orc="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../.." && pwd)"
+# shellcheck source=../../../lib/bash/funcs/spl-cloud-cnf.func.sh
+. "$_orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+declare -F do_log >/dev/null || do_log() { echo "$*" >&2; }
 d=""
 candidate_bases=(
   "${SPL_STATE_DIR:-}"
-  "$HOME/.local/share/csi-spl/cloud/$ENV"
+  "$(PROJ_PATH="$_orc" spl_desk_state_root "$ENV" || true)"
 )
-# If running as another user, also check the home of whoever owns the checkout or /home/*
+if [[ -z "$(spl_desk_user)" ]]; then
+  candidate_bases+=("$(SPOOL_DESK_USER="$(stat -c %U "$_orc" 2>/dev/null)" PROJ_PATH="$_orc" spl_desk_state_root "$ENV" 2>/dev/null || true)")
+fi
 for base in "${candidate_bases[@]}"; do
   [[ -n "$base" && -d "$base/desk/$TENANT_ID/$DESK_BOX" ]] && { d="$base/desk/$TENANT_ID/$DESK_BOX"; break; }
 done
-
-if [[ -z "$d" ]]; then
-  # Fallback: scan existing desk state paths
-  for p in /home/*/.local/share/csi-spl/cloud/"$ENV"/desk/"$TENANT_ID"/"$DESK_BOX"; do
-    if [[ -d "$p" ]]; then d="$p"; break; fi
-  done
-fi
 
 if [[ -z "$d" || ! -d "$d" ]]; then
   echo "FATAL: cannot find desk state directory for $ENV/$TENANT_ID/$DESK_BOX" >&2
@@ -101,11 +103,10 @@ fi
 # Locate spool binary
 spool_bin="${SPL_SPOOL:-}"
 if [[ -z "$spool_bin" || ! -x "$spool_bin" ]]; then
-  candidate_spools=(
-    "$(dirname "$d")/../../bin/spool"
-    "$HOME/.local/share/csi-spl/cloud/$ENV/bin/spool"
-    "/home/*/.local/share/csi-spl/cloud/$ENV/bin/spool"
-  )
+  candidate_spools=("$(dirname "$d")/../../bin/spool")
+  for base in "${candidate_bases[@]}"; do
+    [[ -n "$base" ]] && candidate_spools+=("$base/bin/spool")
+  done
   for s in "${candidate_spools[@]}"; do
     if [[ -x "$s" ]]; then spool_bin="$s"; break; fi
   done

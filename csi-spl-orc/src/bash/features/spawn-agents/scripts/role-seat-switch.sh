@@ -21,7 +21,7 @@
 # Usage:
 #   role-seat-switch.sh [--apply] [--desk-envs "dev prd"] OLD NEW
 # Env: SPOOL_ROOT, SPOOL_DESK_BOX, DESK_STATE_ROOT (default
-# $HOME/.local/share/csi-spl/cloud).
+# spool_desk_root: the desk user's state root, else $HOME's).
 # Exit 0 switched (or planned, or already switched), 1 failed, 2 usage.
 
 set -euo pipefail
@@ -30,6 +30,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
 spool_env_resolve
+# shellcheck source=../lib/desk-root.inc.sh
+. "$_here/../lib/desk-root.inc.sh"
 # shellcheck source=/dev/null
 . "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
@@ -52,7 +54,7 @@ spl_is_role_seat "$OLD" && spl_is_role_seat "$NEW" && [[ "$OLD" != *@* && "$NEW"
 
 R="$SPOOL_ROOT"
 BOX="$(spl_desk_box_default)"
-DESK_ROOT="${DESK_STATE_ROOT:-$HOME/.local/share/csi-spl/cloud}"
+DESK_ROOT="${DESK_STATE_ROOT:-$(spool_desk_root "$HOME")}"
 VERB=PLAN; [ "$APPLY" = 1 ] && VERB=DO
 step() { printf '%s %-9s %s\n' "$VERB" "$1" "$2"; }
 

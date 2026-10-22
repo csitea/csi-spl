@@ -37,7 +37,7 @@
 #                  none: no note, a WARN)
 #
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET, SPOOL_DESK_BOX, DESK_STATE_ROOT (default
-# $HOME/.local/share/csi-spl/cloud), RENAME_NOTE=0 (no note; default under
+# spool_desk_root: the desk user's state root, else $HOME's), RENAME_NOTE=0 (no note; default under
 # SPOOL_TEST=1).
 # Exit 0 every agent renamed (or planned, or already renamed), 1 one failed,
 # 2 usage, 4 no alias table.
@@ -47,6 +47,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
 spool_env_resolve
+# shellcheck source=../lib/desk-root.inc.sh
+. "$_here/../lib/desk-root.inc.sh"
 # shellcheck source=/dev/null
 . "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
@@ -69,7 +71,7 @@ done
 R="$SPOOL_ROOT"
 TABLE="$R/agent-id-aliases.tsv"
 BOX="$(spl_desk_box_default)"
-DESK_ROOT="${DESK_STATE_ROOT:-$HOME/.local/share/csi-spl/cloud}"
+DESK_ROOT="${DESK_STATE_ROOT:-$(spool_desk_root "$HOME")}"
 NOTE="${RENAME_NOTE:-}"
 [ -n "$NOTE" ] || { NOTE=1; [ "${SPOOL_TEST:-}" = 1 ] && NOTE=0; }
 [ -s "$TABLE" ] || { echo "agent-id-rename: no alias table ${TABLE}; run agent-id-map.sh --apply first" >&2; exit 4; }

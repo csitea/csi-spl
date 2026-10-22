@@ -56,7 +56,13 @@ BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
 ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "$LCONF" LEASE_ENV)}"
 FT="${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}"; FT="${FT:-$(kv "$LCONF" LEASE_TENANT)}"
 DBOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; DBOX="${DBOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"
-STATE="${SPOOL_FLEET_STATE_ROOT:-$(getent passwd "$(id -un)" | cut -d: -f6)/.local/share/csi-spl/cloud}"
+_here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=../lib/spool-env.inc.sh
+. "$_here/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/desk-root.inc.sh
+. "$_here/../lib/desk-root.inc.sh"
+# No desk root (SPOOL_DESK_USER has no home): no desk, each topic gets its line.
+STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" | cut -d: -f6)" "$BOXENV")}" || STATE=/nonexistent
 DESKS="$STATE/${ENVN:-none}/desk"
 
 # The seated tenants to try for a link on HOST, best first.

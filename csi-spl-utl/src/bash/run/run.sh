@@ -186,10 +186,34 @@ main() {
   ts=$(date "+%Y%m%d_%H%M%S")
   main_log_dir=~/var/log/${PROJ:-run.sh}/
   mkdir -p $main_log_dir
-  main_exec "$@" \
-    > >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log) \
-    2> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  # The two tees are named fds with known pids, so the exit can wait for them:
+  # an unwaited tee could copy the last stdout line after ./run returned, and a
+  # caller doing `./run ... >f; grep f` read f too early (SPL-2820). Each fd
+  # is closed in main_exec and in the other tee, so EOF follows main_exec.
+  exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
+  RUN_TEE_PIDS=$!
+  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  RUN_TEE_PIDS+=" $!"
+  trap do_wait_tees EXIT
+  main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
   exit $?
+}
+
+# do_wait_tees: the EXIT trap of main, so an `exit` from error_handler or an
+# action waits too. Closes this shell's ends of the tee pipes, then waits for
+# both tees, bounded by RUN_TEE_WAIT_S (2) seconds: a detached child that kept
+# a copy of stdout holds a tee open, and must not hold ./run. Polls with
+# kill -0, never a bare `wait` (it also waits on the procsubs and can hang).
+do_wait_tees() {
+  [[ -n "${RUN_TEE_PIDS:-}" && "$BASHPID" == "$$" ]] || return 0
+  local pid end=$((SECONDS + ${RUN_TEE_WAIT_S:-2}))
+  exec >&- 2>&- {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
+  for pid in $RUN_TEE_PIDS; do
+    while kill -0 "$pid" 2>/dev/null && ((SECONDS < end)); do
+      sleep 0.01
+    done
+  done
+  RUN_TEE_PIDS=
 }
 
 main_exec() {
@@ -573,10 +597,12 @@ main "$@"
 
 #==============================================================================
 # run.sh — minimalistic bash framework
-# Version:  3.8.2
+# Version:  3.8.3
 # Upstream: a sibling project (its -utl, v3.8.2)
 #------------------------------------------------------------------------------
 # Version history (newest first):
+#   3.8.3  2026-10-22  ./run exits only after its stdout/stderr tees ended
+#                      (bounded, RUN_TEE_WAIT_S), SPL-2820.
 #   3.8.2  2026-10-21  One copy in csi-spl-iac, -orc and -utl, byte-identical
 #                      (run-sh-parity.tst.sh, SPL-2756).
 #   3.8.2  2026-10-16  Copied unchanged into csi-spl-utl from csi-spl-orc (SPL-2110).
@@ -610,4 +636,4 @@ main "$@"
 # When copying this file into a downstream project: bump the version above and
 # append a new entry describing the local change. Keep the banner intact.
 #==============================================================================
-# csi-spl ::: v3.8.2
+# csi-spl ::: v3.8.3

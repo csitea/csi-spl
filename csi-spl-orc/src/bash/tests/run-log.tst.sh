@@ -12,6 +12,8 @@
 #   2. the fallback blocked too: still exit 0, no log file, WARN on stderr
 #   3. an existing dat/log/bash, or today's log file in it, without write
 #      permission (non-root only)
+#   4. a slow stdout tee (SPL-2820): ./run returns only after its tee wrote
+#      the last line, so `./run ... >f; grep f` never reads f too early
 # Each case runs against the orc, iac and utl run.sh (kept in lockstep), in a
 # throwaway tree with a probe action. A regular FILE in the way blocks a mkdir
 # even for root, so cases 1-2 hold under any user.
@@ -90,6 +92,19 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
       pass "$m: read-only log file falls back to TMPDIR" ||
       fail "$m: read-only log file: rc=$rc $(grep -h FATAL "$T/out" "$T/err" | sed -n 1p)"
   fi
+done
+
+# 4. a PATH shim delays the start of run.sh's own tees (not do_log's tee -a)
+real_tee=$(command -v tee)
+mkdir -p "$T/shim"
+printf '#!/usr/bin/env bash\n[[ " $* " == *" -a "* ]] || sleep 0.3\nexec %q "$@"\n' "$real_tee" >"$T/shim/tee"
+chmod +x "$T/shim/tee"
+for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
+  (cd "$T/$m/csi-x/csi-x-orc" && PATH="$T/shim:$PATH" HOME="$T/home" VAR_DIR="$T/var-slow" TMPDIR="$T/tmp-slow" \
+    ./run -a do_log_probe </dev/null 2>"$T/slow-$m.err" >"$T/slow-$m.out")
+  rc=$?
+  [[ $rc == 0 ]] && grep -q 'PROBE ran' "$T/slow-$m.out" && pass "$m: a slow stdout tee wrote before ./run returned" ||
+    fail "$m: slow stdout tee: rc=$rc, stdout lost its last line: $(head -c 200 "$T/slow-$m.out")"
 done
 
 echo "run-log: $fails failure(s)"

@@ -2,9 +2,9 @@
 #------------------------------------------------------------------------------
 # Purpose: a watchdog reload (spl_wd_upd_exec, spec 102 10.4.4) leaves no
 #          process of the code it left behind (SPL-1732). ./run starts every
-#          action as `main_exec > >(tee out.log) 2> >(tee err.log >&2)`; the
-#          two process substitutions keep their pipe's write end open on
-#          fds 62/63, which survive exec. Before the fix each reload kept the
+#          action with its stdout/stderr on two tee process substitutions;
+#          ./run keeps their pipes' write ends open on fds of its own (62/63,
+#          named fds since SPL-2820), which survive exec. Before the fix each reload kept the
 #          old code's two tee subshells alive for good (a desk box, 2026-10-13:
 #          926 processes over ~220 code/<sha> trees, ~4 per master push).
 #          In a scratch SPOOL_ROOT, one instance loop is started from
@@ -30,8 +30,9 @@ mkdir -p "$W/code"
 
 # the model below repeats ./run's tee line; it must still be ./run's
 # shellcheck disable=SC2016 # the literal line, not an expansion
-if grep -qF '> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)' "$PROJ_ROOT/run" &&
-   grep -qF '2> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)' "$PROJ_ROOT/run"; then
+if grep -qF 'exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)' "$PROJ_ROOT/run" &&
+   grep -qF 'exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)' "$PROJ_ROOT/run" &&
+   grep -qF 'main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-' "$PROJ_ROOT/run"; then
   pass "0 ./run still starts every action under the two tee process substitutions"
 else
   fail "0 ./run's tee line changed: update the model in this test"
@@ -71,9 +72,9 @@ main() {
   ts="$CODE"
   main_log_dir="$WD_DIR/log/"
   mkdir -p $main_log_dir
-  main_exec "$@" \
-    > >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log) \
-    2> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
+  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
   exit $?
 }
 main "$@"

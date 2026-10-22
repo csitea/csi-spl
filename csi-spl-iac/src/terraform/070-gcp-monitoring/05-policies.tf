@@ -123,6 +123,7 @@ resource "google_logging_metric" "hub_errors" {
 }
 
 resource "google_monitoring_alert_policy" "error_logs" {
+  depends_on            = [time_sleep.log_metrics]
   display_name          = "${local.name} hub error log rate"
   combiner              = "OR"
   notification_channels = local.channels
@@ -267,6 +268,7 @@ resource "google_logging_metric" "signin_5xx" {
 }
 
 resource "google_monitoring_alert_policy" "signin_5xx" {
+  depends_on            = [time_sleep.log_metrics]
   display_name          = "${local.name} hub sign-in 5xx"
   combiner              = "OR"
   notification_channels = local.channels
@@ -335,7 +337,26 @@ resource "google_logging_metric" "view_5xx" {
   }
 }
 
+# SPL-2934: Cloud Monitoring learns a new log metric minutes after Logging
+# creates it; a policy created in the same apply failed 404 on a 7 s old
+# metric ("could take up to 10 minutes"; the second apply 4 min later passed,
+# dev 2026-10-22). Each policy on a log metric of this step depends on this
+# wait. It sleeps when it is created, and it is replaced (so sleeps again)
+# only when a metric id in its triggers changes: an apply that adds no metric
+# does not wait. A depends_on changes no policy attribute.
+resource "time_sleep" "log_metrics" {
+  create_duration = "5m"
+
+  triggers = {
+    hub_errors   = google_logging_metric.hub_errors.id
+    signin_5xx   = google_logging_metric.signin_5xx.id
+    view_latency = google_logging_metric.view_latency.id
+    view_5xx     = google_logging_metric.view_5xx.id
+  }
+}
+
 resource "google_monitoring_alert_policy" "view_slow" {
+  depends_on            = [time_sleep.log_metrics]
   display_name          = "${local.name} hub views slow"
   combiner              = "OR"
   notification_channels = local.channels

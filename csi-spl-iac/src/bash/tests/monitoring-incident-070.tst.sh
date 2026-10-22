@@ -17,6 +17,12 @@
 #      and a tfvars without either threshold each fail the check; a policy
 #      with no channels fails the rule; the incident's measured series fire
 #      with the cnf thresholds where the week's normal series stays quiet
+#   6. SPL-2934: a fresh apply that creates a log metric and a policy on it
+#      failed 404 on the 7 s old metric (Monitoring lags Logging by minutes):
+#      every policy on a same-step log metric depends_on a time_sleep (from
+#      hashicorp/time, declared) with a create_duration and the metric's id
+#      in its triggers, so one apply waits for a new metric; controls drop
+#      each piece
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -164,5 +170,37 @@ other_v5=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
 fires "$v5_thr" 1 "${incident_v5[@]}" && pass "the incident's view 5xx fire with the cnf ${v5_cnf} in 5 min" || fail "the incident's view 5xx stay quiet"
 fires "$v5_thr" 1 "${other_v5[@]}" && fail "10-21T18Z (2 view 5xx in 5 min) fires" || pass "10-21T18Z (2 view 5xx in 5 min) stays quiet"
 fires 0 1 "${other_v5[@]}" && pass "CONTROL a threshold of 1 fires on 10-21T18Z" || fail "CONTROL a threshold of 1 stayed quiet on 10-21T18Z"
+
+# --- 6. SPL-2934: a policy on a same-step log metric waits for it -----------------
+# wait_ok <policies tf> <providers tf> -> 0 when every policy that filters on a
+# google_logging_metric of this step depends_on a time_sleep that declares a
+# create_duration and holds each such metric's id in its triggers
+wait_ok() {
+  local pol p ms m w ws n=0
+  grep -q 'source *= *"hashicorp/time"' <<<"$2" || { echo "  hashicorp/time not declared"; return 1; }
+  for pol in $(sed -nE 's/^resource "google_monitoring_alert_policy" "([a-z0-9_]+)".*/\1/p' <<<"$1"); do
+    p="$(block "$1" google_monitoring_alert_policy "$pol")"
+    ms="$(grep -oE 'google_logging_metric\.[a-z0-9_]+\.name' <<<"$p" | cut -d. -f2 | sort -u)"
+    [[ -n "$ms" ]] || continue
+    n=$((n + 1))
+    w="$(sed -nE 's/^[[:space:]]*depends_on[[:space:]]*=[[:space:]]*\[.*time_sleep\.([a-z0-9_]+).*/\1/p' <<<"$p" | sed -n 1p)"
+    [[ -n "$w" ]] || { echo "  policy $pol: no depends_on a time_sleep"; return 1; }
+    ws="$(block "$1" time_sleep "$w")"
+    [[ -n "$ws" ]] || { echo "  policy $pol: time_sleep.$w not defined"; return 1; }
+    [[ "$(attr "$ws" create_duration)" =~ ^\"[0-9]+[sm]\"$ ]] || { echo "  time_sleep.$w: no create_duration"; return 1; }
+    for m in $ms; do
+      grep -qE "= google_logging_metric\.$m\.id\$" <<<"$ws" || { echo "  time_sleep.$w: no trigger on google_logging_metric.$m.id"; return 1; }
+    done
+  done
+  (( n > 0 )) || { echo "  no policy on a log metric found"; return 1; }
+}
+prov="$(cat "$TFD/01-providers.tf")"
+wait_ok "$tf" "$prov" && pass "every policy on a same-step log metric waits for it (time_sleep, create_duration, metric id trigger)" \
+  || fail "a policy on a same-step log metric does not wait for its propagation"
+wait_ok "$(grep -v 'depends_on' <<<"$tf")" "$prov" >/dev/null && fail "CONTROL policies without depends_on passed" || pass "CONTROL policies without depends_on fail"
+wait_ok "$(drop "$tf" time_sleep log_metrics)" "$prov" >/dev/null && fail "CONTROL tf without the time_sleep passed" || pass "CONTROL tf without the time_sleep fails"
+wait_ok "$(grep -v 'create_duration' <<<"$tf")" "$prov" >/dev/null && fail "CONTROL a time_sleep without create_duration passed" || pass "CONTROL a time_sleep without create_duration fails"
+wait_ok "$(grep -v '= google_logging_metric.view_5xx.id' <<<"$tf")" "$prov" >/dev/null && fail "CONTROL a trigger set without view_5xx passed" || pass "CONTROL a trigger set without view_5xx fails"
+wait_ok "$tf" "$(grep -v 'hashicorp/time' <<<"$prov")" >/dev/null && fail "CONTROL providers without hashicorp/time passed" || pass "CONTROL providers without hashicorp/time fails"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-incident-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    # SPL-2934: time_sleep, so a policy waits for a log metric made in the same apply
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
   backend "gcs" {}

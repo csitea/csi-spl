@@ -74,6 +74,16 @@ Plan with `PLAN_REF=<sha> ENV=dev STEP=070-gcp-monitoring make do-tf-plan`
 The `REGEXP_EXTRACT(httpRequest.latency, ...)` extractor is checked by the
 API only at apply: the dev apply proves it.
 
+One apply is enough (SPL-2934). Cloud Monitoring learns a new log metric
+minutes after Logging creates it: the first dev apply of the sign-in policy
+failed `Error 404: Cannot find metric(s)` on a 7 s old metric, and a second
+apply 4 min later passed (2026-10-22, n=1). So every policy on a log metric of
+070 (`error_logs`, `signin_5xx`, `view_slow`) has `depends_on` the
+`time_sleep.log_metrics` wait (provider `hashicorp/time`): 5 min when it is
+created, and again only when a metric id in its triggers changes. An apply
+that adds no metric does not wait; the first apply after this change waits
+once. If 5 min is ever not enough, a second apply finishes the job.
+
 ## 5. Test
 
 `csi-spl-iac/src/bash/tests/monitoring-incident-070.tst.sh`: both log metrics
@@ -83,4 +93,7 @@ output. Controls: the terraform without either policy or metric, a mean in
 place of the p95, a policy with no channels and a tfvars without either
 threshold each fail; the incident's measured series (also capped at 6 s)
 fire with the cnf thresholds where a normal hour, a one-minute blip and
-10-21T18Z's two view 5xx stay quiet.
+10-21T18Z's two view 5xx stay quiet. Every policy on a log metric of the step
+depends on a `time_sleep` with a `create_duration` and that metric's id in
+its triggers; controls drop the `depends_on`, the wait, its duration, one
+trigger and the provider.

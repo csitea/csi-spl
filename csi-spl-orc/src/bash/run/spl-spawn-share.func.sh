@@ -76,16 +76,26 @@ spl_spawn_share_jq() {  # DIR
                   | sort_by(.at))}'
 }
 
-# The live lanes of the fleet map as a JSON array ({agent_id, agent_box}).
+# The live lanes of the fleet map as a JSON array ({agent_id, agent_box}),
+# by the lane map's own recent rule (spl_lane_table_recent, SPL-2836): a row
+# 0..LANE_RECENT_S (2 h) old, a live role seat (no Class: brief, so it only
+# adds to unknown), or a row with no age while the input's .hub is not ok (a
+# missing .hub reads as not ok). Hub rows nobody refreshed for days and
+# leftover local worktrees are not live lanes.
 spl_spawn_share_lanes() {
   local out
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   if [[ -n "${SPAWN_SHARE_LANES_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$($SPAWN_SHARE_LANES_CMD 2>/dev/null)"
   else
     out="$(LANE_FORMAT=json LANE_ALL=1 timeout "${SPAWN_SHARE_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
   fi
-  jq -e -c '[.lanes[] | select(.state == "live" and (.agent_id // "") != "") | {agent_id, agent_box}]' <<<"$out" 2>/dev/null
+  jq -e -c --argjson max "${LANE_RECENT_S:-7200}" --arg seat "^${SPL_ROLE_SEAT_RX}$" '
+    (.hub // "") as $h
+    | [.lanes[] | select(.state == "live" and (.agent_id // "") != "")
+       | select((.agent_id | test($seat)) or (.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok"))
+       | {agent_id, agent_box}]' <<<"$out" 2>/dev/null
 }
 
 # {"<ID>@<box>": "<class>"} from the `Class:` line of the briefs on this box.

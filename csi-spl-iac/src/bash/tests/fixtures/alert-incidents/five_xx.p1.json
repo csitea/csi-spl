@@ -1,0 +1,10 @@
+{
+  "timeSeries": [
+    {
+      "resource": {"type": "cloud_run_revision", "labels": {"project_id": "o-a-dev", "revision_name": "hub-dev-00042"}},
+      "points": [
+        {"interval": {"endTime": "2026-10-22T11:00:00.123Z"}, "value": {"doubleValue": 5}}
+      ]
+    }
+  ]
+}

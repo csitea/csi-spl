@@ -1,0 +1,17 @@
+{
+  "timeSeries": [
+    {
+      "resource": {"type": "cloudsql_database", "labels": {"project_id": "o-a-dev"}},
+      "points": [
+        {"interval": {"endTime": "2026-10-22T08:05:00Z"}, "value": {"doubleValue": 1}},
+        {"interval": {"endTime": "2026-10-22T08:04:00Z"}, "value": {"doubleValue": 0}},
+        {"interval": {"endTime": "2026-10-22T08:03:00Z"}, "value": {"doubleValue": 0}},
+        {"interval": {"endTime": "2026-10-22T08:02:00Z"}, "value": {"doubleValue": 0}},
+        {"interval": {"endTime": "2026-10-22T08:01:00Z"}, "value": {"doubleValue": 0}},
+        {"interval": {"endTime": "2026-10-22T08:00:00Z"}, "value": {"doubleValue": 1}},
+        {"interval": {"endTime": "2026-10-22T07:01:00Z"}, "value": {"doubleValue": 0}},
+        {"interval": {"endTime": "2026-10-22T07:00:00Z"}, "value": {"doubleValue": 0}}
+      ]
+    }
+  ]
+}

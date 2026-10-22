@@ -1,0 +1,15 @@
+{
+  "timeSeries": [
+    {
+      "resource": {"type": "cloud_run_revision", "labels": {"project_id": "o-a-dev", "revision_name": "hub-dev-00041"}},
+      "points": [
+        {"interval": {"endTime": "2026-10-22T10:10:00Z"}, "value": {"int64Value": "2"}},
+        {"interval": {"endTime": "2026-10-22T10:05:00Z"}, "value": {"int64Value": "6"}},
+        {"interval": {"endTime": "2026-10-22T10:00:00Z"}, "value": {"int64Value": "1"}},
+        {"interval": {"endTime": "2026-10-22T09:55:00Z"}, "value": {"int64Value": "7"}},
+        {"interval": {"endTime": "2026-10-22T09:50:00Z"}, "value": {"int64Value": "9"}}
+      ]
+    }
+  ],
+  "nextPageToken": "page-2"
+}

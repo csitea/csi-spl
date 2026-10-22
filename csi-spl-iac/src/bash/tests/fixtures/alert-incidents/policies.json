@@ -1,0 +1,59 @@
+[
+  {
+    "displayName": "o-a-dev hub 5xx rate",
+    "enabled": true,
+    "conditions": [
+      {
+        "displayName": "at least 5 HTTP 5xx in five minutes",
+        "conditionThreshold": {
+          "filter": "metric.type = \"fixture.test/five_xx\" AND resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"hub-dev\"",
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 4,
+          "duration": "0s",
+          "aggregations": [{"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_DELTA", "crossSeriesReducer": "REDUCE_SUM", "groupByFields": ["resource.label.revision_name"]}]
+        }
+      }
+    ]
+  },
+  {
+    "displayName": "o-a-dev Cloud SQL down",
+    "enabled": true,
+    "conditions": [
+      {
+        "displayName": "db up below 1 for 120s",
+        "conditionThreshold": {
+          "filter": "metric.type = \"fixture.test/db_up\" AND resource.labels.database_id = \"p:db\"",
+          "comparison": "COMPARISON_LT",
+          "thresholdValue": 1,
+          "duration": "120s",
+          "aggregations": [{"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_MIN"}]
+        }
+      }
+    ]
+  },
+  {
+    "displayName": "o-a-dev hub 429 streak",
+    "enabled": true,
+    "conditions": [
+      {
+        "displayName": "at least 10 HTTP 429 in one minute",
+        "conditionThreshold": {
+          "filter": "metric.type = \"fixture.test/four_29\"",
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 9,
+          "aggregations": [{"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_DELTA", "crossSeriesReducer": "REDUCE_SUM"}]
+        }
+      }
+    ]
+  },
+  {
+    "displayName": "o-a-dev disabled policy",
+    "enabled": false,
+    "conditions": [{"displayName": "never read", "conditionThreshold": {"filter": "metric.type = \"fixture.test/disabled\"", "comparison": "COMPARISON_GT", "thresholdValue": 0}}]
+  },
+  {
+    "displayName": "o-a-dev heartbeat absent",
+    "enabled": true,
+    "conditions": [{"displayName": "no heartbeat for 10 min", "conditionAbsent": {"filter": "metric.type = \"fixture.test/heartbeat\"", "duration": "600s"}}]
+  }
+]

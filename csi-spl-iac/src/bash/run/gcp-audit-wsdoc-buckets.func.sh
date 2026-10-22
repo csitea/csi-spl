@@ -115,7 +115,10 @@ for x in json.load(sys.stdin).get("bindings", []):
     case "$mem" in
       allUsers | allAuthenticatedUsers) _gcp_audit_wsdoc_find "public gs://$b $role $mem" ;;
       projectOwner:* | projectEditor:* | projectViewer:* | "$hubsa") ;;
-      user:*) _gcp_audit_wsdoc_find "member gs://$b $role user:<redacted>" ;;
+      # a person's address never reaches the log (SPL-2945 D1); a domain is
+      # an organisation, printed
+      user:* | *:user:* | group:* | *:group:*) _gcp_audit_wsdoc_find "member gs://$b $role ${mem%:*}:<redacted>" ;;
+      principal://* | principalSet://*) _gcp_audit_wsdoc_find "member gs://$b $role ${mem%%://*}://<redacted>" ;;
       *) _gcp_audit_wsdoc_find "member gs://$b $role $mem" ;;
     esac
   done <<<"$m"

@@ -164,6 +164,22 @@ if grep -q 'member gs://p-docs-w1 roles/storage.objectAdmin user:<redacted>$' "$
 else
   fail "human member: $(cat "$T/o")"
 fi
+# every principal kind that can carry a person's address prints redacted
+# (SPL-2945 D1); a domain names an organisation, not a person: printed
+for x in 'deleted:user:jane.doe@example.com?uid=123=deleted:user:<redacted>' \
+  'principal://iam.googleapis.com/locations/global/workforcePools/p/subject/jane.doe@example.com=principal://<redacted>' \
+  'principalSet://iam.googleapis.com/locations/global/workforcePools/p/group/jane.doe@example.com=principalSet://<redacted>' \
+  'group:jane.doe@example.com=group:<redacted>' 'deleted:group:jane.doe@example.com?uid=7=deleted:group:<redacted>'; do
+  mem="${x%=*}"; want="${x##*=}"
+  fixture; pol "roles/storage.objectViewer=$mem" >"$T/pol.p-docs-w1"; run_case
+  if [[ "$rc" == 1 ]] && grep -qF "member gs://p-docs-w1 roles/storage.objectViewer $want" "$T/o" && ! grep -q jane "$T/o"; then
+    pass "${want%<redacted>} member is a finding, printed redacted"
+  else
+    fail "${want%<redacted>} member not redacted (rc=$rc): $(grep member "$T/o")"
+  fi
+done
+fixture; pol roles/storage.objectViewer=domain:example.com >"$T/pol.p-docs-w1"; run_case
+red "a domain member is a finding, printed as is (an organisation, not a person)" 'member gs://p-docs-w1 roles/storage.objectViewer domain:example.com$'
 fixture; echo DENIED >"$T/pol.p-docs-w2"; run_case
 red "an unreadable policy is a finding, never private" 'unreadable gs://p-docs-w2 IAM policy$'
 fixture; sed -i 's/p-docs-w2\tTrue\tenforced/p-docs-w2\tFalse\tinherited/' "$T/buckets"; pol r=allUsers >"$T/pol.p-docs-w2"

@@ -87,3 +87,108 @@ func TestChannelUnreadCountsTopicReplies(t *testing.T) {
 		})
 	}
 }
+
+// TestChannelRowCountsEveryLine is bug round 3 row 03 (SPL-2837, owner
+// HUM-10, t1 b288e5be: "it still shows the amount of read messages wrongly on
+// the channel level"): the side-list channel row reads the Flow key
+// ch:<channel>, which counted flow_events only - lines that mention the
+// member, are addressed to them, or reply in a topic they watch. A new topic
+// that names nobody, and replies in a topic the member opened (t: mark) but
+// does not watch, showed on the cards and in the channel view, not on the
+// row. The ch: and t: keys now count every channel line the channel view
+// counts; the Flow badge counts (spec 062, "only what concerns me") do not.
+func TestChannelRowCountsEveryLine(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fe, rm := s.(FlowEvents), s.(ReadMarks)
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			if err := s.CreateChannel(ctx, Channel{TenantID: tid, ChannelID: "closed", Name: "closed", CreatedBy: "HUM-2", CreatedAt: now}); err != nil {
+				t.Fatal(err)
+			}
+			n := 0
+			line := func(channel, task, from, body string, parent int) Message {
+				t.Helper()
+				n++
+				at := now.Add(time.Duration(n-60) * time.Second)
+				m := msgFor(tid, task, "box-wui", at, at, "e")
+				m.Channel, m.FromID, m.FromBox, m.ToBox, m.ToID, m.Body, m.IsParent = channel, from, "box-a", "", "", body, parent
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+				return m
+			}
+			mark := func(marks map[string]ReadMark) {
+				t.Helper()
+				if err := rm.SaveReadMarks(ctx, tid, "HUM-1", marks, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			read := func() FlowPage {
+				t.Helper()
+				p, err := fe.FlowRead(ctx, FlowQuery{Tenant: tid, Member: "HUM-1", Now: now})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return p
+			}
+			check := func(step, channel string, want int) {
+				t.Helper()
+				stats, err := s.ViewChannelStats(ctx, tid, now, nil, "HUM-1", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				view := -1
+				for _, st := range stats {
+					if st.ChannelID == channel {
+						view = st.Unread
+					}
+				}
+				p := read()
+				if view != want || p.Keys["ch:"+channel] != want {
+					t.Fatalf("%s: channel view %d, side-row key ch:%s %d, want %d", step, view, channel, p.Keys["ch:"+channel], want)
+				}
+				for _, c := range []FlowCounts{p.Counts, p.Unread} {
+					if c.Mention != 0 || c.Reply != 0 || c.DM != 0 || c.Channels != 0 || c.Total != 0 {
+						t.Fatalf("%s: Flow badge counts %+v, want 0: no line concerns HUM-1", step, c)
+					}
+				}
+			}
+
+			// (a) a new topic that names nobody, after the channel was read
+			old := line("feedback", uuid4(), "c-034", "an older topic", 1)
+			mark(map[string]ReadMark{"ch:feedback": {At: old.ReceivedAt, MsgID: old.MsgID}})
+			A := uuid4()
+			line("feedback", A, "c-034", "a new opener, no mention", 1)
+			check("new opener, no mention", "feedback", 1)
+
+			// (b) 2 replies in a topic HUM-1 opened (t: mark) and does not watch
+			B := uuid4()
+			head := line("alerts", B, "c-034", "an alert, no mention", 1)
+			mark(map[string]ReadMark{"ch:alerts": {At: head.ReceivedAt, MsgID: head.MsgID},
+				ThreadMarkKey(B): {At: head.ReceivedAt, MsgID: head.MsgID, Seen: 1}})
+			line("alerts", B, "c-034", "reply 1", 0)
+			r2 := line("alerts", B, "c-034", "reply 2", 0)
+			check("2 replies in a read-but-unwatched topic", "alerts", 2)
+			if p := read(); p.Keys[ThreadMarkKey(B)] != 2 || p.Keys[ThreadMarkKey(A)] != 1 {
+				t.Fatalf("topic keys %d and %d, want 2 and 1", p.Keys[ThreadMarkKey(B)], p.Keys[ThreadMarkKey(A)])
+			}
+
+			// a channel mark past the replies leaves them to the t: mark; the
+			// t: mark at the last reply reads them
+			mark(map[string]ReadMark{"ch:alerts": {At: r2.ReceivedAt, MsgID: r2.MsgID}})
+			check("channel opened, topic not", "alerts", 2)
+			mark(map[string]ReadMark{ThreadMarkKey(B): {At: r2.ReceivedAt, MsgID: r2.MsgID, Seen: 3}})
+			check("topic opened", "alerts", 0)
+
+			// an own line, and a channel HUM-1 is not a member of, never count
+			line("feedback", A, "HUM-1", "my own reply", 0)
+			line("closed", uuid4(), "c-034", "behind the door", 1)
+			check("own reply", "feedback", 1)
+			if p := read(); p.Keys["ch:closed"] != 0 {
+				t.Fatalf("ch:closed = %d, want 0: HUM-1 is not a member", p.Keys["ch:closed"])
+			}
+		})
+	}
+}

@@ -53,9 +53,14 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 - `keys` = `unread` per sidebar row (owner, t1 77540e6f: a section's total
   is the sum of its rows). Every unread line counts once under its place,
   `ch:<channel>` or `dm:<peer>` (the sender as the sidebar labels it,
-  `<id>@<box>`), and once under its topic, `t:<task_id>`. So the `ch:` keys
-  sum to `unread.channels`, the `dm:` keys to `unread.dms` and the `t:` keys
-  to `unread.total`. The WUI draws each row's badge and each section's
+  `<id>@<box>`), and once under its topic, `t:<task_id>`. A channel row and
+  a topic card count every unread line of a channel the member can read,
+  as the channel view does, also the lines that concern nobody in
+  particular (a new topic that names no one, a reply in a topic the member
+  opened but does not watch; SPL-2837, bug round 3 row 03); the
+  `counts`/`unread` badges still count only the member's own events. So the
+  `dm:` keys sum to `unread.dms`, while the `ch:` keys are at least
+  `unread.channels`. The WUI draws each row's badge and each section's
   number from `keys` alone; a `dm:` key with no listed peer gets a row.
   Only keys > 0; `{}` when nothing is unread. Additive: an older hub omits it.
 - `kind` filters `events` only; `counts`, `unread` and `keys` are always the whole flow.

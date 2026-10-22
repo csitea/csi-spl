@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// flowCountsOracleSQL is flowCountsSQL before api perf ap-01b: every event
+// flowCountsOracleSQL is flowEventCountsSQL before api perf ap-01b: every event
 // of the member joined to its message and checked against the marks. It is
 // the oracle the tail read must equal, byte for byte of its result.
 func flowCountsOracleSQL(tenant, member, now, pub, lobby string) string {
@@ -87,7 +87,7 @@ func TestFlowCountsTailEqualsOracle(t *testing.T) {
 	check := func(step string, wantUnread int) {
 		t.Helper()
 		for _, mem := range members {
-			got, u := result(flowCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text"), mem)
+			got, u := result(flowEventCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text"), mem)
 			want, _ := result(flowCountsOracleSQL("$1", "$2", "$3", "$4::text[]", "$5::text"), mem)
 			if got != want {
 				t.Fatalf("%s: %s tail md5 %s, oracle %s", step, mem, got, want)
@@ -193,14 +193,14 @@ func flowCountsTailV1(t *testing.T, served string) string {
 	t.Helper()
 	for _, e := range flowLateralEdits {
 		if strings.Count(served, e[1]) != 1 {
-			t.Fatalf("served flowCountsSQL lost a LATERAL edit: %q", e[1])
+			t.Fatalf("served flowEventCountsSQL lost a LATERAL edit: %q", e[1])
 		}
 		served = strings.Replace(served, e[1], e[0], 1)
 	}
 	return served
 }
 
-// API perf ap-01b follow-up: the LATERAL shape of flowCountsSQL returns the
+// API perf ap-01b follow-up: the LATERAL shape of flowEventCountsSQL returns the
 // same row as the a8e3723 statement and the full-read oracle, under the
 // tenant's RLS scope, over several places: a channel marked part way, one
 // marked to the end, one place with NO mark (fb is '-infinity', not NULL),
@@ -243,7 +243,7 @@ func TestFlowCountsLateralEqualsTail(t *testing.T) {
 		}
 		return sum, unread
 	}
-	served := flowCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text")
+	served := flowEventCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text")
 	v1 := flowCountsTailV1(t, served)
 	broken := strings.Replace(served, flowLateralEdits[1][1], flowLateralEdits[1][0], 1)
 	check := func(step string, wantUnread int) {

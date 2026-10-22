@@ -231,7 +231,7 @@ func finishFold(q FlowQuery, window []flowFoldEvent, releases func(from, to time
 func (s *Memory) FlowFoldRead(_ context.Context, q FlowQuery) (FlowFold, error) {
 	s.mu.Lock()
 	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby)
-	counts, unread, keys := s.flowCountsLocked(q.Tenant, q.Member, all)
+	counts, unread, keys := s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby)
 	var window []flowFoldEvent
 	for _, ev := range all {
 		if q.Kind == FlowRelease || len(window) > FlowFoldWindow {

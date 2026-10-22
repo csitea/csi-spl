@@ -86,9 +86,58 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=eb6f831122035b4dc9202e2d793fcda85f9443c0afea25b1f292b7af03dfe7e1 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=0c2067112609b841ccdc21d12d9e90d3ba64019bdeea0c91de15e2017b2a7730 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
-WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
+SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
+			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, sum(x.n)::int AS n FROM (
+				SELECT j.key, j.value::int AS n FROM jsonb_each_text(q.keys) j
+				UNION ALL SELECT x.key, 1 FROM (SELECT 'ch:' || lc.channel AS place_key, 't:' || lc.task_id::text AS topic_key FROM (SELECT lx.* FROM (
+			WITH RECURSIVE cl(ch) AS (SELECT (SELECT min(y.channel) FROM messages y WHERE y.tenant_id = $1 AND y.channel IS NOT NULL) WHERE $2::text ~ '^(HUM|GST)-[0-9]+$'
+				UNION ALL SELECT (SELECT min(y.channel) FROM messages y WHERE y.tenant_id = $1 AND y.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL)
+			SELECT x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at FROM cl
+				CROSS JOIN LATERAL (SELECT coalesce(max(r.at), '-infinity'::timestamptz) AS at FROM read_marks r
+					WHERE r.tenant_id = $1 AND r.member_id = $2 AND r.mark_key = 'ch:' || cl.ch) cb
+				CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at FROM messages x WHERE x.tenant_id = $1 AND x.channel = cl.ch
+					AND x.received_at >= cb.at AND x.expires_at > $3 OFFSET 0) x
+				WHERE cl.ch IS NOT NULL AND cl.ch NOT IN ('issues', 'tasks') AND (cl.ch = ANY($4::text[])
+					OR EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = $1 AND h.channel_id = cl.ch AND h.human_id = $2)
+					AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = cl.ch AND dc.archived_at IS NOT NULL))
+			UNION ALL SELECT x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at FROM read_marks tm
+			CROSS JOIN LATERAL (SELECT CASE WHEN substr(tm.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN substr(tm.mark_key, 3)::uuid END AS task OFFSET 0) k
+			JOIN LATERAL (SELECT 1 WHERE tm.tenant_id = $1 AND tm.member_id = $2 AND tm.mark_key LIKE 't:%' AND k.task IS NOT NULL
+				AND EXISTS (SELECT 1 FROM messages y WHERE y.tenant_id = $1 AND y.task_id = k.task AND y.received_at >= tm.at)
+				AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.task_id = k.task AND z.archived_at IS NOT NULL AND k.task::text <> $5::text)) live ON true
+				CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at FROM messages x WHERE x.tenant_id = $1 AND x.task_id = k.task
+					AND x.received_at >= tm.at AND x.channel IS NOT NULL AND x.expires_at > $3 OFFSET 0) x
+				WHERE $2::text ~ '^(HUM|GST)-[0-9]+$' AND x.channel NOT IN ('issues', 'tasks') AND x.received_at < (SELECT max(r.at) FROM read_marks r
+					WHERE r.tenant_id = $1 AND r.member_id = $2 AND r.mark_key = 'ch:' || x.channel)) lx
+			WHERE lx.from_id IS DISTINCT FROM $2 AND lx.typed_by IS DISTINCT FROM $2
+				AND (SELECT true FROM flow_events f WHERE f.tenant_id = $1 AND f.member_id = $2 AND f.msg_id = lx.msg_id) IS NULL
+				AND (SELECT true FROM read_marks r WHERE r.tenant_id = $1 AND r.member_id = $2
+					AND r.mark_key = 't:' || lx.task_id::text AND (lx.received_at, lx.msg_id::text) <= (r.at, r.msg_id)) IS NULL
+			OFFSET 0) lc
+		CROSS JOIN LATERAL (SELECT $1 AS tenant_id, $2::text AS member_id, lc.msg_id) le
+		WHERE true AND CASE WHEN lc.channel IS NULL THEN le.member_id IN (lc.to_id, lc.from_id,
+			lc.to_id || '@' || lc.to_box, lc.from_id || '@' || lc.from_box)
+		WHEN lc.channel = ANY($4::text[]) THEN true
+		ELSE (EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = le.tenant_id AND h.channel_id = lc.channel AND h.human_id = le.member_id)
+				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = le.tenant_id AND cs.channel_id = lc.channel
+					AND cs.agent_id = split_part(le.member_id, '@', 1) AND cs.box_id = split_part(le.member_id, '@', 2) AND cs.origin <> 'removed'))
+			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = le.tenant_id AND dc.channel_id = lc.channel AND dc.archived_at IS NOT NULL) END AND NOT (NOT (true AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = le.tenant_id AND z.archived_at IS NOT NULL
+		AND (z.msg_id = lc.msg_id OR z.msg_id = lc.task_id
+			OR (z.task_id = lc.task_id AND lc.task_id::text <> $5::text)
+			OR (z.task_id = lc.parent_task_id AND lc.parent_task_id::text <> $5::text)))) OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = le.tenant_id AND r.member_id = le.member_id AND r.mark_key = 'f:' || le.msg_id::text)
+		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = le.tenant_id AND r.member_id = le.member_id AND r.mark_key = 't:' || lc.task_id::text AND (lc.received_at, lc.msg_id::text) <= (r.at, r.msg_id))
+		OR (lc.channel IS NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = le.tenant_id AND r.member_id = le.member_id
+			AND r.mark_key IN ('dm:' || lc.from_id, 'dm:' || lc.from_id || '@' || lc.from_box) AND (lc.received_at, lc.msg_id::text) <= (r.at, r.msg_id)))
+		OR (lc.channel IS NOT NULL AND EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = le.tenant_id AND r.member_id = le.member_id AND r.mark_key = 'ch:' || lc.channel AND (lc.received_at, lc.msg_id::text) <= (r.at, r.msg_id))
+			AND NOT EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = le.tenant_id AND r.member_id = le.member_id AND r.mark_key = 't:' || lc.task_id::text))
+		OR (lc.channel IS NOT NULL AND lc.channel NOT IN ('issues', 'tasks')
+			AND CASE WHEN lc.parent_task_id IS NULL THEN lc.task_id ELSE lc.parent_task_id END::text <> $5::text AND NOT EXISTS (SELECT 1 FROM messages h
+			WHERE h.tenant_id = le.tenant_id AND h.task_id = CASE WHEN lc.parent_task_id IS NULL THEN lc.task_id ELSE lc.parent_task_id END AND h.channel = lc.channel
+			AND h.is_parent = 1 AND h.expires_at > $3)))) l
+					CROSS JOIN LATERAL (VALUES (l.place_key), (l.topic_key)) x(key)) x GROUP BY x.key) k)
+		FROM (WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
 			FROM fp WHERE fp.k IS NOT NULL),
 		ft AS (SELECT fe.* FROM fp
@@ -152,7 +201,7 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 				  AND r.released_at > (SELECT s.at FROM read_marks s WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.mark_key = 'f:seen')),
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
-		FROM fc
+		FROM fc) q(cm, cr, cd, cc, cdm, um, ur, ud, uc, udm, rel, keys)
 -- @@stmt ch_counts sha256=281950a58d20ba4abcf87248ea217f26c5ec18e1d69e9fbb1e1cf6af33536437 scope=tenant exec=:'t',now(),:'r'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH c AS (

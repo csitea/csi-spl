@@ -1,7 +1,7 @@
 # Box owner lock: a box whose agents only its owner may reach (025 section 11)
 
 **Feature**: `specs/025-spool-tenant-rbac`, box owner lock · **Created**: 2026-10-22 · **Lane**: c-630 ·
-**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v0.2, review findings of m-797 folded (section 11); nothing built.
+**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); nothing built.
 **Builds on**: 025 (roles, permissions), 054 (act-as clone), 108 (workspace-owned boxes, pins, revoke),
 017 FR-SEC-031 (desk owners), 023 (human keys), the signed directive feature
 (`csi-spl-orc/src/bash/features/directive/`).
@@ -344,5 +344,6 @@ after the panel signs this plan, without a further owner go (rounds rulebook 1.4
 | seat | vendor | verdict | at |
 |---|---|---|---|
 | reviewer (docs review) | mistral, m-797@sat | CHANGES 5.1, 10 (msg 71c78d32) on v0.1 `5e019c763`; folded in v0.2: `fleet_load.go:119` was a comment line (now `:120`, `fleetLoadCaller`); the queue sites `retired_reply.go:75`, `ws.go:238`, `ws.go:985`, `fallback.go:256/:335/:382`, `backfill.go:160` added to 5.1 and the queue-write inventory to 5.2. Its other 9 "file not found / no function" items arrived with the paths stripped; every 5.1 reference re-read on `10e12f038`: 0 more wrong | 2026-10-22 |
+| reviewer (docs review) | mistral, m-797@sat | **SIGNED at `201f2e3a8`** (msg 7e792038) | 2026-10-22 |
 
-<!-- version: 0.2.0 · updated: 2026-10-22 · last-edit: 2026-10-22T20:10:00Z -->
+<!-- version: 1.0.0 · updated: 2026-10-22 · last-edit: 2026-10-22T19:40:00Z -->

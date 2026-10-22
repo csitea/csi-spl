@@ -117,7 +117,7 @@ describe('wiring', () => {
     assert.match(read('src/pages/docs.vue'), /definePageMeta\(\{ path: '\/docs\/:path\(\.\*\)\*' \}\)/)
   })
   it('the page reads the hub, never a bundled copy', () => {
-    const s = read('src/pages/docs.vue')
+    const s = read('src/pages/docs.vue') + read('src/composables/useDocsReader.ts')
     assert.match(s, /\/v1\/docs\//)
     assert.equal(/docs-md|import\s+.*docs-mock/.test(s.replace(/await import\('~\/utils\/docs-mock'\)/, '')), false)
   })

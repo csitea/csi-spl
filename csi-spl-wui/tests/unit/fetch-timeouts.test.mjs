@@ -120,7 +120,7 @@ describe('fetch timeouts', () => {
     ['composables/useLive.ts', /\/v1\/wui\/revision`, \{[^}]*signal: AbortSignal\.timeout\(REVISION_FETCH_MS\)/],
     ['composables/usePaletteItems.ts', /\/v1\/docs\/tree\.json`, \{[^}]*signal: AbortSignal\.timeout\(DOC_READ_TIMEOUT_MS\)/],
     ['composables/useWorkspaceDocs.ts', /const signal = init\.signal \?\? AbortSignal\.timeout\(docFetchTimeoutMs\(init\.method\)\)\n\s*return fetch\([^\n]*\.\.\.init, headers, signal \}\)/],
-    ['pages/docs.vue', /\/v1\/docs\/\$\{path\}`, \{[^}]*signal: AbortSignal\.timeout\(DOC_READ_TIMEOUT_MS\)/],
+    ['composables/useDocsReader.ts', /\/v1\/docs\/\$\{path\}`, \{[^}]*signal: AbortSignal\.timeout\(DOC_READ_TIMEOUT_MS\)/],
     ['pages/help/[[page]].vue', /fetch\(path, \{[^}]*signal: AbortSignal\.timeout\(DOC_READ_TIMEOUT_MS\)/],
   ]
   for (const [file, re] of sites) {

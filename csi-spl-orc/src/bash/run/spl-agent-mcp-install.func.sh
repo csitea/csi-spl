@@ -48,6 +48,14 @@
 # @description start and names the id with --as, and the server refuses any
 # @description other from/as with exit 78. A server with no id refuses to start.
 # @description A running CLI loads a new server only after a restart.
+# @description THE DESK USER (spec 069 section 8.3, row B5): with SPOOL_DESK_USER
+# @description set (env, else the box config; spl_desk_user) the box side goes
+# @description to <desk user home>/.local/share/<org>-<app>/mcp, written as that
+# @description user, with state-root = its cloud root (spl_desk_state_root);
+# @description the agent config names the desk user for the hop and this user
+# @description (the tmux server's) as SPOOL_MCP_TMUX_USER; seats are read from
+# @description the desk user's tree as that user. Unset: as before, and a
+# @description state-root left by an earlier set run is removed.
 # @description Dry run unless DRY_RUN=0.
 # @param AGENT_USER - required: the OS user the agent CLIs run as (no default)
 # @param MCP_ENVS (optional) - default "dev prd"
@@ -73,25 +81,26 @@ do_spl_agent_mcp_install() {
   for e in $seatenvs; do [[ "$e" =~ ^(dev|prd)$ ]] || { do_log "FATAL MCP_SEAT_ENVS may hold dev and prd only, got: '$e'"; return 1; }; done
   for c in $clis; do [[ "$c" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || { do_log "FATAL MCP_CLIS may hold claude, grok, agy, qwen and mistral only, got: '$c'"; return 1; }; done
 
-  local proj_base org_app me ahome mcpdir src build
+  local proj_base org_app me ahome mcpdir src build desk dhome deskroot tmuxu
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
   [[ "$proj_base" =~ ^([a-z]+)-([a-z]+)-orc$ ]] || { do_log "FATAL cannot read <org>-<app> from $PROJ_PATH"; return 1; }
   org_app="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
   me="$(id -un)"
   ahome="${SPL_AGENT_MCP_HOME:-$(getent passwd "$agent" | cut -d: -f6)}"
   [[ -n "$ahome" && -d "$ahome" ]] || { do_log "FATAL no home for AGENT_USER '$agent'"; return 1; }
-  mcpdir="${SPL_AGENT_MCP_DIR:-$HOME/.local/share/$org_app/mcp}"
+  spl_agent_mcp_desk || return 1
+  mcpdir="${SPL_AGENT_MCP_DIR:-$dhome/.local/share/$org_app/mcp}"
   src="$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-mcp.sh"
   build="${SPL_AGENT_MCP_BUILD:-$APP_PATH/$org_app-api/src/bash/build.sh}"
   [[ -r "$src" ]] || { do_log "FATAL missing $src"; return 1; }
   as_agent() { if [[ "$agent" == "$me" ]]; then "$@"; else sudo -n -u "$agent" -H "$@"; fi; }
   # 4. the seat lookup of spool-mcp: <box state>/cloud/<env>/desk/*/<box>/spool/<ID>
-  local stateroot="${SPL_AGENT_MCP_STATE_ROOT:-$(dirname "$mcpdir")/cloud}" deskbox="${SPOOL_DESK_BOX:-}" bin="$ahome/.local/bin/spool-mcp"
+  local stateroot="${SPL_AGENT_MCP_STATE_ROOT:-${deskroot:-$(dirname "$mcpdir")/cloud}}" deskbox="${SPOOL_DESK_BOX:-}" bin="$ahome/.local/bin/spool-mcp"
   [[ -n "$deskbox" ]] || deskbox="$(sed -n "s/^SPOOL_DESK_BOX=[\"']\{0,1\}\([a-z0-9-]*\).*/\1/p" "${SPOOL_BOX_ENV:-/var/spool-hub/box.env}" 2>/dev/null | tail -1)"
   deskbox="${deskbox:-box-desk}"
 
   if (( dry )); then
-    do_log "INFO DRY_RUN would: build spool from $APP_PATH into $mcpdir/spool and install $mcpdir/spool-mcp.sh (box user $me)"
+    do_log "INFO DRY_RUN would: build spool from $APP_PATH into $mcpdir/spool and install $mcpdir/spool-mcp.sh (box user $me, desk user $desk)"
     do_log "INFO DRY_RUN would: install $ahome/.local/bin/spool-mcp and $ahome/.config/spool-mcp/env as $agent"
     do_log "INFO DRY_RUN would: register spool-{$envs} in: $clis (where installed and missing; per seated agent for: ${seatenvs:-none})"
     for e in $seatenvs; do spl_agent_mcp_seat_env "$e"; done
@@ -100,7 +109,7 @@ do_spl_agent_mcp_install() {
   fi
 
   # 1. box side
-  spl_agent_mcp_box_side "$mcpdir" "$build" "$src" || return 1
+  spl_agent_mcp_box_side_desk "$mcpdir" "$build" "$src" || return 1
 
   # 2. agent side. The content goes through stdin: the agent user cannot read
   # the box user's checkout or state.
@@ -110,8 +119,8 @@ do_spl_agent_mcp_install() {
     cat >"$1.new"; chmod 755 "$1.new"
     if [ -e "$1" ] && ! cmp -s "$1" "$1.new"; then cp -p "$1" "$1.bak-$3"; fi
     mv -f "$1.new" "$1"
-    printf "SPOOL_MCP_BOX_USER=%s\nSPOOL_MCP_SERVE=%s\n" "$4" "$5" >"$2.new"; mv -f "$2.new" "$2"' \
-    _ "$bin" "$conf" "$ts" "$me" "$mcpdir/spool-mcp.sh" <"$src" ||
+    printf "SPOOL_MCP_BOX_USER=%s\nSPOOL_MCP_SERVE=%s\n%b" "$4" "$5" "${6:+SPOOL_MCP_TMUX_USER=$6\n}" >"$2.new"; mv -f "$2.new" "$2"' \
+    _ "$bin" "$conf" "$ts" "$desk" "$mcpdir/spool-mcp.sh" "$tmuxu" <"$src" ||
     { do_log "FATAL cannot install $bin as $agent"; return 1; }
   do_log "INFO agent side: $bin, $conf"
 
@@ -155,6 +164,42 @@ spl_agent_mcp_box_side() {
     { do_log "FATAL $mcpdir/spool accepts an invalid --as: it is older than the seated server"; return 1; }
   install -m 0755 "$src" "$mcpdir/spool-mcp.sh.new" && mv -f "$mcpdir/spool-mcp.sh.new" "$mcpdir/spool-mcp.sh" || return 1
   do_log "INFO box side: $mcpdir/spool-mcp.sh + $mcpdir/spool ($out)"
+}
+
+# spl_agent_mcp_desk (spec 069 row B5): the desk user into the install's
+# locals desk, dhome, deskroot and tmuxu, and as_desk to run as it. No
+# SPOOL_DESK_USER (spl_desk_user): the caller, $HOME, no deskroot and no tmuxu,
+# as before. A desk user: its home (getent), its cloud root
+# (spl_desk_state_root) and tmuxu = the caller, the tmux server's user.
+spl_agent_mcp_desk() {
+  as_desk() { if [[ "$desk" == "$me" ]]; then "$@"; else sudo -n -u "$desk" -H "$@"; fi; }
+  desk="$(spl_desk_user)"; desk="${desk:-$me}" dhome="$HOME" deskroot="" tmuxu=""
+  [[ "$desk" != "$me" ]] || return 0
+  dhome="$(getent passwd "$desk" | cut -d: -f6)"
+  [[ -n "$dhome" ]] || { do_log "FATAL no home for the desk user '$desk' (SPOOL_DESK_USER)"; return 1; }
+  deskroot="$(dirname "$(spl_desk_state_root dev)")" tmuxu="$me"
+}
+
+# spl_agent_mcp_box_side_desk <mcp dir> <build.sh> <spool-mcp.sh>: the box
+# side for the desk user (the install's desk, deskroot, as_desk). The caller
+# itself: spl_agent_mcp_box_side and no state-root, as before. Another user
+# (spec 069 row B5): built and probed as the caller in a scratch dir, then
+# written as the desk user through stdin, with state-root = deskroot.
+spl_agent_mcp_box_side_desk() {
+  local mcpdir="$1" build="$2" src="$3" root="$deskroot" tmp rc=0
+  if [[ "$desk" == "$me" ]]; then
+    spl_agent_mcp_box_side "$mcpdir" "$build" "$src" && rm -f "$mcpdir/state-root"; return
+  fi
+  tmp="$(mktemp -d)" || return 1
+  spl_agent_mcp_box_side "$tmp" "$build" "$src" || { rm -rf "$tmp"; return 1; }
+  as_desk bash -c 'set -e; mkdir -p "$1"; chmod 700 "$1"
+    cat >"$1/spool.new"; chmod 755 "$1/spool.new"; mv -f "$1/spool.new" "$1/spool"
+    printf "%s\n" "$3" >"$1/state-root.new"; mv -f "$1/state-root.new" "$1/state-root"
+    printf "%s" "$2" | base64 -d >"$1/spool-mcp.sh.new"; chmod 755 "$1/spool-mcp.sh.new"
+    mv -f "$1/spool-mcp.sh.new" "$1/spool-mcp.sh"' box-side "$mcpdir" "$(base64 -w0 <"$src")" "$root" <"$tmp/spool" || rc=1
+  rm -rf "$tmp"
+  (( rc == 0 )) || { do_log "FATAL cannot install the box side in $mcpdir as the desk user $desk"; return 1; }
+  do_log "INFO box side: $mcpdir/spool-mcp.sh + $mcpdir/spool as the desk user $desk (state-root $root)"
 }
 
 # spl_agent_mcp_seat_env <env> (SPL-2106): spool-<env> only for an agent that
@@ -237,8 +282,14 @@ spl_agent_mcp_local_set() {
 
 # spl_agent_mcp_seats <env> <id>: how many seats <id> holds in <env> on the
 # desk box, the lookup spool-mcp makes (<state>/<env>/desk/*/<box>/spool/<id>).
+# Reads the install's desk and me (as_desk).
 spl_agent_mcp_seats() {
   local d n=0
+  if [[ "$desk" != "$me" ]]; then  # the desk user's 0700 tree, read as that user
+    as_desk bash -c 'n=0; for d in "$1"/desk/*/"$2"/spool/"$3"; do [ -d "$d" ] && n=$((n + 1)); done; echo "$n"' \
+      seats "$stateroot/$1" "$deskbox" "$2"
+    return
+  fi
   for d in "$stateroot/$1/desk/"*"/$deskbox/spool/$2"; do [[ -d "$d" ]] && n=$((n + 1)); done
   echo "$n"
 }

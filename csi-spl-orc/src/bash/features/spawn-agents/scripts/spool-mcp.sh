@@ -43,6 +43,18 @@
 # ${XDG_CONFIG_HOME:-$HOME/.config}/spool-mcp/env} with SPOOL_MCP_BOX_USER and
 # SPOOL_MCP_SERVE (the box-side path).
 #
+# The desk user (spec 069 section 8.3, row B5): when the box config names
+# SPOOL_DESK_USER, the install puts the box side in THAT user's home, writes
+# its cloud root to <box side dir>/state-root (read here in place of
+# <box state>/cloud), and the config's SPOOL_MCP_BOX_USER is the desk user;
+# SPOOL_MCP_TMUX_USER keeps the tmux server's user for the window lookup.
+# Unset: no state-root and no SPOOL_MCP_TMUX_USER, as before.
+# A desk that moves while it is served (do_spl_desk_move renames the source)
+# ends the server: every SPOOL_MCP_WATCH_S seconds (default 5) the box side
+# checks that the desk dir is still the one it started on, and when it is gone
+# or replaced it stops `spool mcp` and exits 75. The CLI then starts
+# spool-mcp again, which reads the config the cutover rewrote.
+#
 # Two more box-side modes, SPL-2112 (owner HUM-10, csitea topic e055195c: a
 # hand-started claude, given a discussion link, reads it and contributes):
 #   --mint <kind>  the agent half found no id: claim the next free id of that
@@ -63,7 +75,8 @@
 # Exit codes before the server starts: 2 usage, 3 no config, 4 no agent id
 # (unseated; SPOOL_MCP_MINT=0, or the mint failed), 5 a named tenant the id
 # has no seat in (an unnamed one never refuses since SPL-2112), 6 no live
-# sidecar, 7 no binary.
+# sidecar, 7 no binary. After it started: the server's own code, or 75 when
+# the desk moved away.
 set -uo pipefail
 
 say() { echo "spool-mcp: $*" >&2; }
@@ -97,6 +110,14 @@ live_pid() {  # DESK_DIR
 sidecar_var() {  # PID NAME
   tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null | sed -n "s/^$2=//p;T;q"
 }
+# The cloud root that holds the desks, <root>/<env>/desk/...: SPOOL_MCP_STATE_ROOT,
+# else the desk user's root the install wrote to <box side dir>/state-root,
+# else <box side dir>/../cloud (the box user's, as before).
+state_root() {  # BOX_SIDE_DIR
+  local r=""
+  [ -r "$1/state-root" ] && r="$(head -n 1 "$1/state-root")"
+  printf '%s' "${SPOOL_MCP_STATE_ROOT:-${r:-$(dirname "$1")/cloud}}"
+}
 
 if [ "$SEAT" = 1 ]; then
   # --seat <env> <box> <tenant> <agent>: called by `spool mcp --seat-cmd`.
@@ -105,7 +126,7 @@ if [ "$SEAT" = 1 ]; then
      "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$AS" =~ $ID_RE && "${AS%%-*}" != BOX ]] ||
     { say "usage: spool-mcp --seat <dev|prd> <desk box> <tenant> <agent id>"; exit 2; }
   HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-  d="${SPOOL_MCP_STATE_ROOT:-$(dirname "$HERE")/cloud}/$ENVN/desk/$TENANT/$BOX"
+  d="$(state_root "$HERE")/$ENVN/desk/$TENANT/$BOX"
   pid="$(live_pid "$d")" || { say "no live hub-run sidecar for $BOX in $TENANT ($ENVN): nothing to seat $AS on"; exit 6; }
   proj="$(sidecar_var "$pid" PROJ_PATH)"
   [ -x "$proj/run" ] || { say "the sidecar of $BOX in $TENANT names no checkout with ./run (PROJ_PATH '$proj')"; exit 7; }
@@ -122,8 +143,9 @@ ENVN="${1:-}" TENANT="${2:-}" BOX="${3:-${_desk_box:-box-desk}}"
 # ── agent side ───────────────────────────────────────────────────────────────
 agent_id() {
   local id="${MCP_BOT_AGENT_ID:-${SPOOL_AGENT_ID:-}}" pane="${TMUX_PANE:-${CLE_TMUX_PANE:-}}" w
+  local tu="${SPOOL_MCP_TMUX_USER:-$SPOOL_MCP_BOX_USER}"  # the tmux server's user, not the desk user's
   if [ -z "$id" ] && [ -n "$pane" ]; then
-    w="$(sudo -n -u "$SPOOL_MCP_BOX_USER" tmux -S "${CLE_TMUX_SOCK:-/tmp/tmux-$(id -u "$SPOOL_MCP_BOX_USER")/default}" \
+    w="$(sudo -n -u "$tu" tmux -S "${CLE_TMUX_SOCK:-/tmp/tmux-$(id -u "$tu")/default}" \
           display-message -p -t "$pane" '#W' 2>/dev/null)"
     id="$(printf '%s\n' "$w" | sed -nE 's/^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)(@[a-z0-9][a-z0-9-]*)?( .*)?$/\2/p')"
   fi
@@ -155,7 +177,7 @@ fi
 
 # ── box side ─────────────────────────────────────────────────────────────────
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-STATE="${SPOOL_MCP_STATE_ROOT:-$(dirname "$HERE")/cloud}/$ENVN"
+STATE="$(state_root "$HERE")/$ENVN"
 if [ -n "$MINT" ]; then
   [[ "$MINT" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || { say "--mint: '$MINT' is not an agent kind"; exit 2; }
   # The allocator and the fleet root of the checkout a live desk sidecar runs.
@@ -214,14 +236,31 @@ umask 022 # a spool_get_file dest must be readable by the agent user
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 declare -a serve=(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_LOG_LEVEL=error "${envv[@]}" "$BIN" mcp --as "$AS"
   --desks "$STATE/desk" --desk-box "$BOX" --seat-cmd "$SELF --seat $ENVN $BOX")
-[ -n "$MINT" ] || exec "${serve[@]}"
-# A minted id lives as long as its session: serve, then retire it.
+# Serve as a child, watched: a desk that moves away (renamed, or replaced by a
+# copy at the same path: another dev:inode) stops the server, exit 75. A
+# minted id lives as long as its session: serve, then retire it.
+desk_ino() { stat -c '%d:%i' "$1" 2>/dev/null; }
+ino="$(desk_ino "$d")"
 exec 3<&0
 "${serve[@]}" <&3 3<&- &
 child=$!
+exec 3<&-
 trap 'kill -TERM "$child" 2>/dev/null' TERM INT HUP
+(
+  trap 'kill "$s" 2>/dev/null; exit 0' TERM
+  while kill -0 "$child" 2>/dev/null && kill -0 "$$" 2>/dev/null; do
+    sleep "${SPOOL_MCP_WATCH_S:-5}" & s=$!; wait "$s"
+    [ "$(desk_ino "$d")" = "$ino" ] && continue
+    say "the desk $d moved away (gone or replaced): stopping $AS's server, so the CLI starts spool-mcp again"
+    kill -TERM "$child" 2>/dev/null; exit 75
+  done
+) </dev/null >/dev/null &
+watcher=$!
 rc=0; wait "$child" || rc=$?
 while kill -0 "$child" 2>/dev/null; do wait "$child" || rc=$?; done
+kill -TERM "$watcher" 2>/dev/null; wrc=0; wait "$watcher" || wrc=$?
+[ "$wrc" = 75 ] && rc=75
+[ -n "$MINT" ] || exit "$rc"
 SPOOL_ROOT="${fleet:-/var/spool-hub}" SPOOL_DESK_BOX="$BOX" RETIRE_LANE=0 \
   bash "$proj/src/bash/features/spawn-agents/scripts/agent-id-retire.sh" --apply "$AS" >/dev/null 2>&1 ||
   say "could not retire $AS: the reaper will"

@@ -26,6 +26,10 @@
 #      it, keeps a live lane's, a recent one and a dot entry; the vartmp and
 #      logs steps never run at the normal level (CONTROL), run at low (72 h)
 #      and crit (24 h)
+#   3f. a lane dir holding another user's subdirs (planted via sudo -n as
+#      nobody) is removed as each owner, in ONE line; RED CONTROL: a root-owned
+#      child it cannot remove gives ONE `SKIP not-owner` line, no "Permission
+#      denied" line per file; a plain idle dir is still removed, a fresh one kept
 #   3e. the logs step on a stubbed logrotate: the dry run touches nothing; a
 #      planted 2 MB log over 1M is rotated once and the DONE line reports the
 #      measured delta; RED CONTROL: under the limit nothing is rotated, 0 B
@@ -244,6 +248,29 @@ out="$(DRY_RUN=0 TMP_STALE_ANY=1 vsw)"; rc=$?
 grep -q "KEEP live-lane $V/c-778-base\$" <<<"$out" && [ -f "$V/c-778-base/f" ] && pass "3d. a live lane's leftover is kept" || fail "3d. live-lane ($out)"
 grep -q "KEEP recent $V/c779-recent\$" <<<"$out" && [ -f "$V/.pnpm-store/f" ] && ! grep -q pnpm <<<"$out" \
   && pass "3d. a recent one and a dot entry are kept" || fail "3d. recent/dot ($out)"
+# 3f. a tree of two owners (sat, 2026-10-22: the agent user's lane dirs held the
+# box user's subdirs, 250527 "Permission denied" lines in one tick): each owner
+# removes its part, one line per dir; what root holds is ONE SKIP line
+STS="${TMP_STALE_SCRIPT:-$PROJ_ROOT/src/bash/scripts/tmp-stale-sweep.sh}"
+if sudo -n true 2>/dev/null && sudo -n -u nobody true 2>/dev/null; then
+  W="$(mktemp -d)"; chmod 755 "$W"
+  mkdir -m 777 "$W/c781-mixed" "$W/c782-rootkid"; mkdir "$W/c783-plain" "$W/c784-fresh"
+  sudo -n -u nobody sh -c "mkdir -p '$W/c781-mixed/sub/a' && for i in \$(seq 60); do echo x >'$W/c781-mixed/sub/a/f'\$i; done && chmod 755 '$W/c781-mixed/sub' '$W/c781-mixed/sub/a'"
+  sudo -n sh -c "mkdir '$W/c782-rootkid/r' && for i in \$(seq 60); do echo x >'$W/c782-rootkid/r/f'\$i; done"
+  for d in c781-mixed c782-rootkid c783-plain c784-fresh; do echo x >"$W/$d/mine"; done
+  sudo -n find "$W" -mindepth 1 -exec touch -h -d '3 days ago' {} +; touch "$W/c784-fresh/mine"
+  out="$(DRY_RUN=0 TMP_STALE_ROOT="$W" TMP_STALE_ANY=1 TMP_STALE_AGE_H=24 TMP_STALE_LIVE_IDS=c-001 TMP_STALE_SUDO=1 bash "$STS" 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$W/c781-mixed" ] && [ "$(grep -c "$W/c781-mixed" <<<"$out")" = 1 ] && grep -q "REMOVE [0-9]*KB owner=$(id -un) $W/c781-mixed\$" <<<"$out" \
+    && pass "3f. a dir holding another user's subdirs is removed as each owner, in one line" || fail "3f. mixed (rc $rc: $(head -c 2000 <<<"$out"))"
+  [ "$(grep -c "$W/c782-rootkid" <<<"$out")" = 1 ] && ! grep -q 'Permission denied' <<<"$out" \
+    && grep -qE "SKIP not-owner $W/c782-rootkid owner=$(id -un) left_owners=([^ ]*,)?root(,[^ ]*)? bytes=[0-9]+\$" <<<"$out" \
+    && pass "3f. RED CONTROL: a root-owned child it cannot remove writes ONE SKIP line, not one per file" || fail "3f. rootkid ($(head -c 2000 <<<"$out"))"
+  [ ! -e "$W/c783-plain" ] && grep -q "KEEP recent $W/c784-fresh\$" <<<"$out" && [ -f "$W/c784-fresh/mine" ] && grep -q 'DONE removed=2 .* skipped=1 ' <<<"$out" \
+    && pass "3f. CONTROLS: a plain idle dir is still removed, a fresh one kept" || fail "3f. controls ($(head -c 2000 <<<"$out"))"
+  sudo -n rm -rf -- "$W"
+else
+  echo "SKIP: 3f needs sudo -n (as root and as nobody) to plant a second owner"
+fi
 : >"$L"; out="$(FREE=50 bsw DRY_RUN=0 BOX_SWEEP_STEPS='vartmp logs')"
 grep -q 'SKIP step vartmp: level normal' <<<"$out" && grep -q 'SKIP step logs: level normal' <<<"$out" && [ ! -s "$L" ] \
   && pass "3d. CONTROL: at the normal level vartmp and logs never run (free space drives them)" || fail "3d. normal ($out / $(cat "$L"))"

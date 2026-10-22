@@ -1852,8 +1852,7 @@ spl_fleet_role_tick() {
   [[ -n "$FH" ]] && ht="$(spl_fleet_tier "$FH")"
   wait=$(( LEASE_STALE + ct * ${LEASE_FALLBACK_WAIT:-60} ))
   if [[ -z "$cand" ]]; then
-    [[ "$hm" == "$me" ]] && spl_fleet_nolocal "$role"
-    spl_fleet_switch_tick "$role"
+    spl_fleet_nocand "$role" "$hm" "$now"; want="$FWANT"
   elif (( FG == 0 )) || { [[ "$hm" == "$me" ]] && (( ct <= ht )); }; then
     want="$cand@$me"
   elif [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then
@@ -1901,6 +1900,59 @@ spl_fleet_role_tick() {
   # the holder (this machine, just written) copies it into every served tenant
   [[ "$won" == true ]] && spl_fleet_mirror_out "$role" "$FH"
   return 0
+}
+
+# ---- a far-off limit hands the role over at once (SPL-2892) ------------------
+# 2026-10-22 10:23:39Z: the orch seat's claude hit its weekly limit (reset 2
+# days away), grok was on its limit and agy is barred from the role by the
+# data rule, so the holder box had no vendor left and retried its in-place
+# switch every 2 min. Another box took the role only once the row went stale
+# AND one of its seats was able (11:01:51Z, 38 min). A limit with a known
+# reset is final, so waiting LEASE_STALE for the row to age buys nothing:
+# when every seat of the role on the holder box sits on a watchdog S2
+# kind=limit verdict (able.<id> "wd S2: HIT", <wd dir>/<id>.limit) that resets
+# more than LEASE_STALE from now, the holder box writes the hub row over to
+# the role's seat on the next box of the role's ranking (LEASE_ORCH /
+# LEASE_MASTER: ids 001-003 exist on every box). That box's able seat renews
+# it on its next tick, as its own row; a box whose seat cannot act lets it go
+# stale as before. ONE hop only: a box hands off only a row its own last write
+# made (fleet.<role>.ok), never one handed to it, so two limited boxes never
+# ping-pong. A shorter limit, a stall or a dead process keep the stale path.
+# LEASE_HANDOFF=0 turns it off.
+
+# spl_fleet_nocand <role> <holder box> <now>: no seat of the role can act
+# here. Sets FWANT to the holder to write (a handoff), else empty after the
+# NO-LOCAL-AGENT line (a role held here) and the in-place vendor switch.
+spl_fleet_nocand() {
+  FWANT=""
+  [[ "$2" == "$LEASE_MACHINE" ]] && FWANT="$(spl_fleet_handoff "$1" "$3")" && return 0
+  FWANT=""
+  [[ "$2" == "$LEASE_MACHINE" ]] && spl_fleet_nolocal "$1"
+  spl_fleet_switch_tick "$1"
+}
+
+# spl_fleet_handoff <role> <now>: prints the new holder and returns 0 when
+# this machine hands <role> over; 1 when it does not.
+spl_fleet_handoff() {
+  local role="$1" now="$2" id why r until="" won="" box="" k="LEASE_PRIORITY_${1^^}" seat m
+  [[ "${LEASE_HANDOFF:-1}" == 1 ]] || return 1
+  read -r won < "$LEASE_DIR/fleet.$role.ok" 2>/dev/null || return 1
+  [[ "$won" =~ ^[0-9]+$ ]] && spl_fleet_age_known && (( now - FA - won <= LEASE_PERIOD / 2 )) || return 1
+  for id in $(spl_fleet_role_agents "$role"); do
+    why="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
+    [[ "$why" == "wd S2: HIT"* ]] || return 1
+    read -r r < "${WD_STATE_DIR:-$LEASE_DIR/wd}/$id.limit" 2>/dev/null || return 1
+    [[ "$r" =~ ^[0-9]+$ ]] && (( r - now > LEASE_STALE )) || return 1
+    [[ -z "$until" ]] || (( r < until )) && until="$r"
+  done
+  [[ -n "$until" ]] || return 1
+  [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  IFS=, read -ra _ranked <<<"${!k:-}"
+  for m in "${_ranked[@]}"; do [[ -n "$m" && "$m" != "$LEASE_MACHINE" ]] && { box="$m"; break; }; done
+  [[ -n "$box" ]] || return 1
+  case "$role" in orch) seat="$LEASE_ORCH" ;; dispatch) seat="$LEASE_MASTER" ;; *) return 1 ;; esac
+  spl_lease_log "HANDOFF $role: $(spl_fleet_role_seat "$role") cannot act until $(date -u -d "@$until" +%FT%TZ) (watchdog S2 kind=limit) and no seat of $role here can: the hub row goes to $seat@$box now, not after LEASE_STALE"
+  echo "$seat@$box"
 }
 
 # ---- a rank handback names ONE holder (2026-10-11, two holders for 54 s) ------

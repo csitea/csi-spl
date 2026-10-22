@@ -44,6 +44,14 @@
 #      from this box's last failed hub call, so the switch comes only once
 #      the holder stays silent past the wait with the hub up
 #      (RED CONTROL: before SPL-2865 both boxes switched at the first read)
+#  11. SPL-2892, the 2026-10-22 10:23..11:01Z picture: the holder box's role
+#      seats sit on a weekly limit (watchdog S2 kind=limit, reset 2 days
+#      away) and no vendor is left on it. It writes the hub row over to the
+#      role's seat on the next box of the ranking at once, and that box's
+#      able seat holds the role the same tick (RED CONTROL: before SPL-2892
+#      the row stayed on the limited seat until it went stale, 181..240 s);
+#      a limit that resets inside LEASE_STALE moves nothing; with the other
+#      box limited too the row moves ONE hop, never back (no ping-pong)
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -284,6 +292,41 @@ both 90600
 [[ "$(swc sat '^orch c-001 -> g-001')" == 1 && "$(swc pc '^orch c-001 -> g-001')" == 1 ]] &&
   pass "10. the holder still silent 300 s after the hub came back: the seats switch as before" ||
   fail "10. late: sat $(cat "$T/sat/switches" 2>&1) pc $(cat "$T/pc/switches" 2>&1)"
+
+# --- 11. SPL-2892: a seat on a far-off limit hands the role over at once -----------------
+# on_limit <machine> <now> <reset> <id>...: the watchdog's S2 kind=limit verdict
+# (dispatch/wd.<id>) and the reset it read (dispatch/wd/<id>.limit)
+on_limit() {
+  local m="$1" now="$2" r="$3" id; shift 3
+  mkdir -p "$T/$m/spool/dispatch/wd"
+  for id in "$@"; do echo "HIT S2 $now" >"$T/$m/spool/dispatch/wd.$id"; echo "$r" >"$T/$m/spool/dispatch/wd/$id.limit"; done
+}
+reset
+both 100000
+[[ "$(hub2)" == "c-001@sat c-002@sat" ]] || fail "11. setup: hub $(hub2)"
+on_limit sat 100060 $((100060 + 172800)) c-001 c-002 c-003
+both 100060 SWITCH_FAIL=grok
+[[ "$(hub2)" == "c-001@pc c-002@pc" ]] &&
+  pass "11. RED CONTROL: sat's seats on a limit 2 days away, no vendor left: pc's able seats hold orch and dispatch in the same tick (was: the limited seat until stale, 181..240 s)" ||
+  fail "11. handover: hub $(hub2) $(cat "$T/sat/spool/dispatch/lease.log")"
+[[ "$(logc sat 'HANDOFF orch: c-001 cannot act until')" == 1 && "$(sentc pc 'c-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 && "$(swc sat .)" == 0 ]] &&
+  pass "11. lease.log names the handoff; pc's c-001 is told ACTIVE; sat launched no switch" ||
+  fail "11. log/sent: $(cat "$T/sat/spool/dispatch/lease.log") / $(cat "$T/pc/sent" 2>&1)"
+reset
+both 110000
+on_limit sat 110060 $((110060 + 100)) c-001 c-002 c-003
+both 110060
+[[ "$(hub2)" == "c-001@sat c-002@sat" && "$(logc sat HANDOFF)" == 0 ]] &&
+  pass "11. a limit that resets inside LEASE_STALE (100 s) moves nothing" || fail "11. short limit: hub $(hub2) $(cat "$T/sat/spool/dispatch/lease.log")"
+reset
+both 120000
+for n in 120060 120120 120180; do
+  on_limit sat "$n" $((120060 + 172800)) c-001 c-002 c-003; on_limit pc "$n" $((120060 + 172800)) c-001 c-002 c-003
+  both "$n" SWITCH_FAIL=grok
+done
+[[ "$(hub2)" == "c-001@pc c-002@pc" && "$(logc sat 'HANDOFF orch')" == 1 && "$(logc pc HANDOFF)" == 0 ]] &&
+  pass "11. both boxes on the limit: the row moves one hop (sat -> pc) and pc never hands it back" ||
+  fail "11. ping-pong: hub $(hub2) sat $(logc sat HANDOFF) pc $(logc pc HANDOFF)"
 
 (( fails == 0 )) && { echo "PASS: all fleet-lease-vendor-failover.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease-vendor-failover.tst.sh assertion(s)"; exit 1

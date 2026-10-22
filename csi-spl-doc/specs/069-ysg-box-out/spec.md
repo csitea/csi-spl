@@ -1,7 +1,8 @@
 # 069: ysg-box out - every spool dependency on ysg-box moves into csi-spl
 
-Status: **v0.4: section 8 "Desks under `<agent-user>`" added (its own draft
-v0.1, editor seat, waiting for the mistral seat's verdict); v0.3 owner
+Status: **v0.4: section 8 "Desks under `<agent-user>`" at v1.0 (editor
+c-156, mistral seat m-171 verdict GOOD on v0.1 in `reviews/seat-mistral-v0.4.md`
+(459f828dc), its v1.0 sign-off goes in the same file); v0.3 owner
 answered Q1..Q4 (section 6); inventory measured on `<pc box>` and on sat
 (section 2.9, by `do_check_ysg_box_deps`).**
 Spec only: no code, no crontab, no home-dir file, no ysg-box file was touched by
@@ -493,8 +494,12 @@ connect the chrome/firefox MCP, and `/signed-prompt` and `/tmux-color` work.
 
 ## 8. Desks under `<agent-user>` (v0.4)
 
-Section draft v0.1, editor seat c-156, 2026-10-22. Lane SPL-2849, epic
-SPL-2151. Docs only: nothing below has been built, installed, stopped or moved.
+v1.0, 2026-10-22. Editor seat c-156 (draft v0.1 `e55e6de2a`); mistral seat
+m-171, verdict GOOD on v0.1 in [its seat file](reviews/seat-mistral-v0.4.md)
+(`459f828dc`), which also carries its v1.0 sign-off; its two discrepancies are
+folded in 8.2.1 and 8.2.3. Lane
+SPL-2849, epic SPL-2151. Docs only: nothing below has been built, installed,
+stopped or moved.
 
 ### 8.1 What the owner asked (HUM-10, topic `13a90dc3`, verbatim)
 
@@ -524,6 +529,13 @@ only; no key file was opened). `<state>` = `<home of the desk owner>/.local/shar
 | sat | dev | 5 | 4 | 2 | 17 | 5 x `<box-user>:<box-user> 700` | 28M |
 | sat | prd | 11 | 10 | 2 | 137 | 11 x `<box-user>:<box-user> 700` | 502M |
 
+- Modes by level (`find <state>/<env>/desk -mindepth N -maxdepth N -type d -printf '%m\n' | sort | uniq -c`,
+  re-measured for the mistral seat's 0775 finding): `<state>/<env>/desk/`
+  itself and every `<workspace>/` dir are **0775** on both boxes (`<pc box>`
+  2 + 10, sat 4 + 10 workspace dirs); every desk below them is **0700**. So a
+  desk is closed even though its parents are not; the target (8.3) keeps
+  that, and the move sets the parents to 0700 as well since no other user
+  needs to list them.
 - A file under `<state>` not owned by `<box-user>`
   (`find <state> ! -user <box-user> | wc -l`): **0** on both boxes.
 - `<state>` itself: `<box-user>:<box-user> 700` on `<pc box>`, **`775` on sat**.
@@ -595,7 +607,7 @@ non-test `.sh`/`.py` -> **29 lines in 22 files**. Classified by reading each:
 | class | lines | sites |
 |---|---|---|
 | **reaches a desk** (desk tree or box key) | **10** | `spool-agent.sh:118,127` (seat discovery, `do_spl_desk_up`); `spool-mcp.sh:153` (every agent's spool MCP); `spool-fleet.inc.sh:125` (cross-machine relay: "the desk tree and its box key are the box user's (0700)"); `spool-send.sh:158` (topic-kind probe on every send); `agent-id-retire.sh:224` (seat drop); `asks.sh:149`, `lane-map.sh:98`, `lane-issue.inc.sh:224`, `spawn-window.sh:396` (`./run` actions that sign to the hub with the desk) |
-| tmux server (stays `<box-user>`) | 7 | `spool-env.inc.sh:475`, `spool-mcp.sh:126`, `tmux-close-window.sh:228`, `tmux-sort-windows.sh:74`, `tmux-window-color.sh:84`, `spl-watchdog.func.sh:435` (socket dir), and `tmux-close-window.sh:43` (comment) |
+| tmux server (stays `<box-user>`) | 7 (6 calls + 1 comment; with the 10 above, the 17 the mistral seat counted) | `spool-env.inc.sh:475`, `spool-mcp.sh:126`, `tmux-close-window.sh:228`, `tmux-sort-windows.sh:74`, `tmux-window-color.sh:84`, `spl-watchdog.func.sh:435` (socket dir), and `tmux-close-window.sh:43` (comment) |
 | printed instructions | 6 | `spl-dispatch-setup.func.sh:329,336` (`do_spl_desk_reply` / `do_spl_take` as the box user: **desk**); `spl-{dispatch,lane,orch}-rotate`, `spl-role-failover` ack lines (rotation, not desk) |
 | seed / prompt text | 6 | `spawn-core.inc.sh:314,319,336`, `spawn-chain-core.inc.sh:75,77`, `gc-session.sh:44` (the git-as-box-user rule; not desk) |
 
@@ -643,7 +655,8 @@ claim.
   `spl-cloud-cnf.func.sh` (`./run`). The state root is
   `<home of SPOOL_DESK_USER from getent>/.local/share/<org-app>/cloud/<env>`,
   never a literal path. A desk keeps its relative layout:
-  `<state>/<env>/desk/<workspace>/<desk id>/{keys,spool,retired,...}`.
+  `<state>/<env>/desk/<workspace>/<desk id>/{keys,spool,retired,...}`; desk
+dirs 0700 as today, `desk/` and `<workspace>/` 0700 (today 0775).
 - **Sidecar user** = `SPOOL_DESK_USER`. With it = `<agent-user>`, the
   existing same-user fast paths fire and agents reach their desk with **no
   sudo**.

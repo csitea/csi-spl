@@ -1206,9 +1206,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { isoDateTime } from '~/utils/date-iso.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -1227,13 +1225,15 @@ import { useIssueKeys } from '~/composables/useIssueKeys'
 import { useIssueFilters } from '~/composables/useIssueFilters'
 import { useIssueDetailForm } from '~/composables/useIssueDetailForm'
 import { TALK_TABS, useIssueTalkTabs } from '~/composables/useIssueTalkTabs'
+import { useIssueDisplay } from '~/composables/useIssueDisplay'
+import { useIssueUnopened } from '~/composables/useIssueUnopened'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
-import { ISSUE_STATUSES, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
-import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
+import { ISSUE_STATUSES, createMockIssues, isTopKind, issueByAgent, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
+import { isNewIssue } from '~/utils/my-issues-count.mjs'
 import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import {
-  ISSUE_LEVELS, ISSUE_PRIORITIES, LEVEL_SHORT, applyIssueFrame, applyLabelFrame, deadlineToLocalInput, ISSUE_PAGE, levelKey, statusHintKey, statusLabel, stepKey,
+  ISSUE_LEVELS, ISSUE_PRIORITIES, applyIssueFrame, applyLabelFrame, deadlineToLocalInput, ISSUE_PAGE, levelKey, statusHintKey, statusLabel, stepKey,
 } from '~/utils/issues-view.mjs'
 
 const STATUS_ICON: Record<string, string> = {
@@ -1310,51 +1310,12 @@ const defaultDiscussion = ref('')
    Issues tab's left-most panel (ChannelSidebar reads the same state). */
 const epics = useState<EpicSummary[]>('issue-epics', () => [])
 
-function boxOf(id: string) {
-  return roster.people.find((p) => p.id === id)?.box || ''
-}
-function person(id: string) {
-  return id ? shownPerson(id, boxOf(id), people.names.value) : ''
-}
-function labelText(id: string) {
-  return labels.value.find((l) => l.id === id)?.name || id
-}
-function dotStyle(id: string) {
-  const color = labels.value.find((l) => l.id === id)?.color || ''
-  return /^#[0-9a-f]{6}$/i.test(color) ? { background: color } : {}
-}
-function when(rfc: string) {
-  return isoDateTime(rfc)
-}
-function levelShort(n: number) {
-  return LEVEL_SHORT[n] || ''
-}
-function meId() {
-  return roster.self?.id || live.identity.value || ''
-}
-function errorKey(err: { status?: number, token?: string }, which: 'list' | 'one') {
-  const status = Number(err && err.status) || 0
-  const token = String((err && err.token) || '')
-  if (status === 401 || token === 'view_door' || token === 'unauthenticated') return 'issues.signed_out'
-  if (status === 403) return 'issues.forbidden'
-  if (status === 404) return which === 'list' ? 'issues.unavailable' : 'issues.not_found'
-  if (token === 'epic_required') return 'issues.err_epic_required'
-  if (token === 'bad_epic') return 'issues.err_bad_epic'
-  if (token === 'epic_has_issues') return 'issues.err_epic_has_issues'
-  if (status === 503 || token === 'unavailable') return 'issues.unavailable'
-  return which === 'list' ? 'issues.load_failed' : 'issues.save_failed'
-}
-/* a refused write: the page's own words, or the hub's reason (never a bare
-   "That change did not save" when the hub said why) */
-function failKey(e: unknown): string {
-  const key = errorKey(e as { status?: number, token?: string }, 'one')
-  saveReason.value = String((e as { detail?: string })?.detail || '')
-  return key === 'issues.save_failed' && saveReason.value ? 'issues.save_failed_reason' : key
-}
-function refusedText(key: string, e: unknown): string {
-  const reason = String((e as { detail?: string })?.detail || '')
-  return key === 'issues.save_failed' && reason ? t('issues.save_failed_reason', { reason }) : t(key)
-}
+/* who a row names, labels, times, levels, refused words: composables/useIssueDisplay */
+const { boxOf, person, labelText, dotStyle, when, levelShort, meId, errorKey, failKey, refusedText } = useIssueDisplay({
+  roster, people, live, labels, saveReason, t,
+})
+/* SPL-1559: the unopened marks: composables/useIssueUnopened */
+const { markOpened, checkUnopened } = useIssueUnopened({ api, issues, detail, meId })
 
 /* SPL-992 (epic SPL-988): at <= 820 px the page is the phone's level 2 and
    the open issue its level 3 - M1's useMobileStack owns levels and history */
@@ -1616,39 +1577,6 @@ watch(detail, (issue) => {
   void loadSubtasks(issue)
   void markOpened(issue)
 })
-/* SPL-1559 (owner t1 7edebc75): a new issue keeps the unread row's mark until
-   it is opened. Opening clears it at once, tells the hub, and asks the Issues
-   tab count to re-read; a refused write puts the mark back. */
-function setUnopened(key: string, on: boolean) {
-  issues.value = issues.value.map((i) => (i.key === key && i.unopened !== on ? { ...i, unopened: on } : i))
-}
-async function markOpened(issue: Issue | null) {
-  if (!issue || !issue.unopened) return
-  issue.unopened = false
-  setUnopened(issue.key, false)
-  try {
-    await withSessionRetry(api, () => api.markIssueOpened(issue.key))
-    window.dispatchEvent(new Event(ISSUE_OPENED_EVENT))
-  } catch {
-    setUnopened(issue.key, true)
-  }
-}
-/* SPL-1559: a frame carries no viewer's mark. A row that just became mine to
-   do (new, reassigned to me, reopened) asks the hub whether I opened it. */
-async function checkUnopened(before: Issue[], frame: unknown) {
-  const key = String((frame as { issue?: { key?: string } })?.issue?.key || '')
-  const me = meId()
-  const row = issues.value.find((i) => i.key === key)
-  const was = before.find((i) => i.key === key)
-  if (!row || !unopenedCandidate(row, me) || (was && unopenedCandidate(was, me))) return
-  try {
-    const data = await withSessionRetry(api, () => api.getIssue(key))
-    if (!normalizeIssue(data.issue).unopened) return
-    if (detail.value?.key === key) void markOpened({ ...row, unopened: true })
-    else setUnopened(key, true)
-  } catch { /* the next list read brings the mark */ }
-}
-
 /* SPL-18: a frame can move an issue between epics or change its status, so
    the left-most panel's counts are re-read (one light read, debounced). */
 let epicsTimer: ReturnType<typeof setTimeout> | null = null

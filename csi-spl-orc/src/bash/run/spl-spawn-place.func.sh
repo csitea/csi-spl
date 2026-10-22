@@ -63,7 +63,9 @@
 # @description      UI RULE (owner HUM-10, t1 b61851fb): a mistral placement whose
 # @description         brief names csi-spl-wui/ launches claude instead while
 # @description         cnf env.box.agent_split.mistral_ui_allowed is not true
-# @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest)
+# @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest);
+# @description         agy when the brief's "Kind:" is specs_and_docs or i18n
+# @description         (a review stays cross-vendor to a claude author, SPL-2942)
 # @description      CODING RULE (owner HUM-10, t1 b61851fb, msg 91bf8278): a
 # @description         mistral placement whose brief's "Kind:" is not
 # @description         specs_and_docs or i18n (none counts as coding) launches
@@ -416,18 +418,22 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY
 
 # The vendor to launch: VENDOR, except mistral on UI work while the cnf
 # switch mistral_ui_allowed is not true, or on a coding kind while
-# mistral_coding_allowed is not true -> claude (the UI and coding rules,
-# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). A row queued before the
-# enqueue refused it is launched, not dropped.
+# mistral_coding_allowed is not true (the UI and coding rules,
+# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). Such a row launches agy
+# when its brief's kind is specs_and_docs or i18n (agy is the main of both,
+# and a review stays cross-vendor to a claude author, SPL-2942), else claude.
+# A row queued before the enqueue refused it is launched, not dropped.
 spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
-  local why cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  local why kind to=claude cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { echo "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  kind="$(spl_lane_mix_brief_kind "$2")"
   why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
-  [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$(spl_lane_mix_brief_kind "$2")")"
+  [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
   [[ -n "$why" ]] || { echo "$1"; return 0; }
-  do_log "INFO ask ${3:0:8}: placed as mistral, launched as claude: $why" >&2
-  echo claude
+  case "$kind" in specs_and_docs|i18n) to=agy ;; esac
+  do_log "INFO ask ${3:0:8}: placed as mistral, launched as $to: $why" >&2
+  echo "$to"
 }
 
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls

@@ -40,7 +40,9 @@
 #      pinned box past its overflow mark HOLDs it (CONTROL: under it, it
 #      launches); a hand-off touches no .place.last (CONTROL: a launch does)
 #  13. SPL-2263: a mistral placement whose brief names csi-spl-wui/ launches
-#      claude (CONTROL: a docs brief stays mistral)
+#      claude, agy when its "Kind:" is specs_and_docs or i18n (SPL-2942, an R7
+#      review of a claude author stays cross-vendor) (CONTROL: a docs brief
+#      naming no csi-spl-wui/ stays mistral)
 #  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
@@ -567,8 +569,10 @@ HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
-# (APP_PATH=$T has no cnf: the default false). CONTROL: a docs brief keeps mistral.
+# (APP_PATH=$T has no cnf: the default false); SPL-2942: agy for a
+# specs_and_docs or i18n kind. CONTROL: a docs brief keeps mistral.
 U1=b7b7b7b7-0000-4000-8000-000000000001; U2=b8b8b8b8-0000-4000-8000-000000000002
+U3=b9b9b9b9-0000-4000-8000-000000000003; U4=babababa-0000-4000-8000-000000000004
 printf 'Kind: i18n. Translate the hover in csi-spl-wui/src/components/x.vue\n%s\n' "$ES" >"$T/briefs/ui-hover.md"
 printf 'Class: bug. Kind: specs_and_docs. Rewrite csi-spl-doc/doc/md/x.md\n%s\n' "$ES" >"$T/briefs/docs-x.md"
 put "$U1" c-002@box-desk dispatch-b61851fb-u "SPAWN REQUEST ui hover"
@@ -576,9 +580,28 @@ on pc do_spl_spawn_enqueue ASK_ID="$U1" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-h
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-503 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$U1")")" == "placed: c-503@box-desk" ]] &&
-  grep -q "^claude auto $T $T/briefs/ui-hover.md ui-hover$" "$T/launch.log" &&
-  grep -q "placed as mistral, launched as claude: mistral takes no UI work until do_spl_vendor_ui_retest passes" <<<"$out" &&
-  pass "a mistral placement with a WUI brief launches claude" || fail "ui placement: $out | $(cat "$T/launch.log")"
+  grep -q "^agy auto $T $T/briefs/ui-hover.md ui-hover$" "$T/launch.log" &&
+  grep -q "placed as mistral, launched as agy: mistral takes no UI work until do_spl_vendor_ui_retest passes" <<<"$out" &&
+  pass "a mistral placement with a Kind: i18n WUI brief launches agy" || fail "ui placement: $out | $(cat "$T/launch.log")"
+printf 'Kind: specs_and_docs\nR7 review of a claude row; files csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-review.md"
+put "$U3" c-002@box-desk dispatch-b61851fb-w "SPAWN REQUEST ui review"
+on pc do_spl_spawn_enqueue ASK_ID="$U3" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-review >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=a-507 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$U3")")" == "placed: a-507@box-desk" ]] &&
+  grep -q "^agy auto $T $T/briefs/ui-review.md ui-review$" "$T/launch.log" &&
+  grep -q "placed as mistral, launched as agy: mistral takes no UI work" <<<"$out" &&
+  pass "SPL-2942: a mistral placement with a Kind: specs_and_docs WUI brief launches agy, not claude" || fail "ui review placement: $out | $(cat "$T/launch.log")"
+printf 'env:\n  box:\n    agent_split:\n      mistral_coding_allowed: true\n' >"$T/coding-on-13.yaml"
+printf 'Kind: complex_coding\nSplit csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-code.md"
+put "$U4" c-002@box-desk dispatch-b61851fb-x "SPAWN REQUEST ui code"
+on pc do_spl_spawn_enqueue ASK_ID="$U4" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-code SPAWN_PLACE_CNF="$T/coding-on-13.yaml" >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-508 SPAWN_PLACE_CNF="$T/coding-on-13.yaml" 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$U4")")" == "placed: c-508@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/ui-code.md ui-code$" "$T/launch.log" &&
+  grep -q "placed as mistral, launched as claude: mistral takes no UI work" <<<"$out" &&
+  pass "SPL-2942 control: a Kind: complex_coding WUI brief still launches claude" || fail "ui code placement: $out | $(cat "$T/launch.log")"
 put "$U2" c-002@box-desk dispatch-b61851fb-v "SPAWN REQUEST docs"
 on pc do_spl_spawn_enqueue ASK_ID="$U2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:docs-x >/dev/null 2>&1
 : >"$T/launch.log"

@@ -251,6 +251,10 @@ trap 'kill -TERM "$child" 2>/dev/null' TERM INT HUP
   while kill -0 "$child" 2>/dev/null && kill -0 "$$" 2>/dev/null; do
     sleep "${SPOOL_MCP_WATCH_S:-5}" & s=$!; wait "$s"
     [ "$(desk_ino "$d")" = "$ino" ] && continue
+    # Past this line the verdict is 75: the main shell's TERM, sent once the
+    # child it waits on ends, would otherwise run the trap above (exit 0) and
+    # leave the child's 143 as the exit code (SPL-2913).
+    trap '' TERM
     say "the desk $d moved away (gone or replaced): stopping $AS's server, so the CLI starts spool-mcp again"
     kill -TERM "$child" 2>/dev/null; exit 75
   done

@@ -24,6 +24,7 @@ MARK="placeholder-overlay-$RANDOM$RANDOM"
 mkdir -p "$T/local/ownr/.gcp/.csi" "$T/local/agnt/.gcp/.csi" "$T/stub/local-bin" "$T/owners"
 printf 'OWNER_USER=ownr\nAGENT_USER=agnt\nBOX_TAG=sat\n' >"$T/box.env"
 ovl() { echo "$T/local/$1/.gcp/.csi/csi-spl-private.yaml"; }
+okey() { stat -c '%i-%W-%w' "$1" | tr ' ' _; }  # the fake owner key (chown stub)
 put() { printf 'workspaces:\n  ws-hidden-01: %s-%s\n' "$MARK" "$2" >"$(ovl "$1")" && chmod 600 "$(ovl "$1")"; }
 put ownr a; put agnt a
 
@@ -33,15 +34,18 @@ printf 'sudo %s\n' "$*" | head -c 200 >>"$STUB_LOG"; echo >>"$STUB_LOG"
 while [[ "$1" == -* ]]; do shift; done
 PATH="$FAKE_STUB_DIR/local-bin:$PATH" exec "$@"
 EOF2
+# A fake owner is keyed by inode AND birth time: a file deleted and written
+# again may get its old inode back, and must not inherit the old owner
+# (SPL-2913: CI read owner=agnt for ownr's new copy).
 cat >"$T/stub/local-bin/chown" <<'EOF2'
 #!/usr/bin/env bash
-printf '%s\n' "${1%:}" >"$FAKE_OWNERS/$(/usr/bin/stat -c %i "$2")"
+printf '%s\n' "${1%:}" >"$FAKE_OWNERS/$(/usr/bin/stat -c '%i-%W-%w' "$2" | tr ' ' _)"
 EOF2
 cat >"$T/stub/local-bin/stat" <<'EOF2'
 #!/usr/bin/env bash
 # not chowned: the user whose temp home holds it (a write by that user)
 if [[ "$1 $2" == "-c %U" ]]; then
-  cat "$FAKE_OWNERS/$(/usr/bin/stat -c %i "$3")" 2>/dev/null && exit 0
+  cat "$FAKE_OWNERS/$(/usr/bin/stat -c '%i-%W-%w' "$3" | tr ' ' _)" 2>/dev/null && exit 0
   r="${3#"$FAKE_LOCAL_ROOT"/}"; echo "${r%%/*}"; exit 0
 fi
 exec /usr/bin/stat "$@"
@@ -99,7 +103,7 @@ touch -d '-1 hour' "$(ovl agnt)"
 
 # --- 4. the sync ---------------------------------------------------------------------------------
 run_sync DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && same && [[ "$(stat -c %a "$(ovl agnt)")" == 600 && "$(cat "$T/owners/$(stat -c %i "$(ovl agnt)")")" == agnt ]] &&
+[[ $rc -eq 0 ]] && same && [[ "$(stat -c %a "$(ovl agnt)")" == 600 && "$(cat "$T/owners/$(okey "$(ovl agnt)")")" == agnt ]] &&
   grep -q "INFO agnt: replaced" "$T/o" && grep -q "^verify user=agnt path=$(ovl agnt) mode=600 closed=yes owner=agnt sha256_equal=yes$" "$T/o" &&
   pass "DRY_RUN=0: byte-equal, 600, owner agnt, verify line" || fail "sync: rc=$rc out=$(cat "$T/o")"
 compgen -G "$T/local/agnt/.gcp/.csi/*.pull.*" >/dev/null && fail "a temp file is left" || pass "no temp file left"
@@ -110,8 +114,16 @@ put agnt c; touch -d '+1 hour' "$(ovl agnt)"; cp "$(ovl agnt)" "$T/agnt.before"
 run_sync DRY_RUN=0 && fail "a newer target is overwritten" ||
   { grep -q "FATAL agnt's overlay differs from ownr's and is newer" "$T/o" && cmp -s "$(ovl agnt)" "$T/agnt.before" &&
     pass "a newer differing target is refused, untouched" || fail "newer: $(cat "$T/o")"; }
-run_sync DRY_RUN=0 SYNC_FROM_USER=agnt && same && [[ "$(cat "$T/owners/$(stat -c %i "$(ovl ownr)")")" == ownr ]] &&
+run_sync DRY_RUN=0 SYNC_FROM_USER=agnt && same && [[ "$(cat "$T/owners/$(okey "$(ovl ownr)")")" == ownr ]] &&
   pass "SYNC_FROM_USER=agnt copies the agent's copy to the owner" || fail "from agnt: $(cat "$T/o")"
+
+# a file deleted and written again gets its inode back on ext4 (the CI disk)
+# and must not inherit the old fake owner; on an inode-only key it read agnt
+f="$T/local/ownr/recycled"; echo a >"$f"; FAKE_OWNERS="$T/owners" "$T/stub/local-bin/chown" agnt: "$f"
+rm -f "$f"; echo b >"$f"
+[[ "$(FAKE_OWNERS="$T/owners" FAKE_LOCAL_ROOT="$T/local" "$T/stub/local-bin/stat" -c %U "$f")" == ownr ]] &&
+  pass "a recycled inode does not inherit the old fake owner" || fail "recycled inode: read $(FAKE_OWNERS="$T/owners" FAKE_LOCAL_ROOT="$T/local" "$T/stub/local-bin/stat" -c %U "$f")"
+rm -f "$f"
 
 # --- 6. the provision path syncs both at once (a box run: CI refuses a new hidden tenant) ---
 SNIP='spl_th_token zq-new new' run_sync MARK_DB=0 TENANT_VISIBLE=0 GITHUB_ACTIONS=; rc=$?

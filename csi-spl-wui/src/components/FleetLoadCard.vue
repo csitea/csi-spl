@@ -359,11 +359,10 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useSettingSave } from '~/composables/useSettingSave'
-import { moveItem } from '~/utils/tenant-settings.mjs'
+import { useFleetLoadBoxes } from '~/composables/useFleetLoadBoxes'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FLEET_AGENT_KINDS,
-  FLEET_BOX_MAX,
   FLEET_RUNNER_CPUS_MAX,
   fleetBandOk,
   fleetCpuOk,
@@ -374,7 +373,6 @@ import {
   fleetLoadStatusDetail,
   normalizeFleetLoad,
   suggestFleetBoxes,
-  validFleetBox,
 } from '~/utils/fleet-load.mjs'
 import type { FleetBoxBand, FleetKindPause, FleetLoadView } from '~/utils/fleet-load.mjs'
 
@@ -579,66 +577,9 @@ function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu' | 'ove
   }
 }
 
-/* an empty cap or core count is null: that box uses the fleet's */
-function editBand(i: number, field: 'low' | 'high' | 'runnerCpuPct' | 'runnerCpus', raw: string) {
-  const empty = field === 'runnerCpuPct' || field === 'runnerCpus' ? null : NaN
-  bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? empty : Number(raw) } : b))
-  resetBoxes.value = false
-}
-function removeBand(i: number) {
-  bands.value = bands.value.filter((_, j) => j !== i)
-  resetBoxes.value = false
-}
-/* A new band starts on the fleet band in force, for the admin to edit. */
-function addBand() {
-  const id = bandBox.value.trim().toLowerCase()
-  formError.value = ''
-  if (!validFleetBox(id)) {
-    formError.value = t('tenant_settings.fleet_load_bad_box')
-    return
-  }
-  if (bands.value.some((b) => b.box === id)) {
-    bandBox.value = ''
-    return
-  }
-  if (bands.value.length >= FLEET_BOX_MAX) {
-    formError.value = t('tenant_settings.fleet_load_full')
-    return
-  }
-  const lo = Number(low.value) || view.value?.defaults.low || 50
-  const hi = Number(high.value) || view.value?.defaults.high || 75
-  bands.value = bands.value.concat({ box: id, low: lo, high: hi })
-  resetBoxes.value = false
-  bandBox.value = ''
-}
-
-function move(i: number, delta: number) {
-  boxes.value = moveItem(boxes.value, i, delta)
-  resetOrder.value = false
-}
-function removeAt(i: number) {
-  boxes.value = boxes.value.filter((_, j) => j !== i)
-  resetOrder.value = false
-}
-function addBox() {
-  const id = candidate.value.trim().toLowerCase()
-  formError.value = ''
-  if (!validFleetBox(id)) {
-    formError.value = t('tenant_settings.fleet_load_bad_box')
-    return
-  }
-  if (boxes.value.includes(id)) {
-    candidate.value = ''
-    return
-  }
-  if (boxes.value.length >= FLEET_BOX_MAX) {
-    formError.value = t('tenant_settings.fleet_load_full')
-    return
-  }
-  boxes.value = boxes.value.concat(id)
-  resetOrder.value = false
-  candidate.value = ''
-}
+const { editBand, removeBand, addBand, move, removeAt, addBox } = useFleetLoadBoxes({
+  bands, boxes, resetBoxes, resetOrder, bandBox, candidate, formError, low, high, view, t,
+})
 
 async function persist(): Promise<{ ok: boolean, out?: { error: string, detail: string }, detail?: string }> {
   const s = view.value

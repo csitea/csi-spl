@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import {
   FLEET_AGENT_KINDS,
   FLEET_BAD_SETTING,
+  FLEET_BOX_MAX,
   FLEET_OPERATOR_KEY,
   applyFleetPatch,
   boxLoadPct,
@@ -31,6 +32,7 @@ import { importTs } from './lib/load-ts.mjs'
 const { tenantSettingsSectionOf, tenantSettingsSections } = await importTs('src/utils/tenant-settings-nav.ts')
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { ref } from 'vue'
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -283,6 +285,64 @@ ok('cpus: a box count 0..256 passes; 257 and 1.5 do not', fleetBandOk({ box: 'b'
   !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpus: 257 }) && !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpus: 1.5 }))
 const ovReset = normalizeFleetLoad(mockFleetWrite({ ci_overflow: null, runner_cpus: null }, ovStore))
 ok('mock: null resets overflow to on and cores to 0', ovReset.ciOverflow === true && ovReset.runnerCpus === 0 && ovReset.boxes[0].runnerCpus === 4)
+
+// The card's two box lists (useFleetLoadBoxes, r17-06): one admission check
+// for both adds (bad id, already there, full), and every edit clears its
+// list's reset flag.
+const { useFleetLoadBoxes } = await importTs('src/composables/useFleetLoadBoxes.ts')
+const lists = () => {
+  const r = {
+    bands: ref([]), boxes: ref([]), resetBoxes: ref(true), resetOrder: ref(true), bandBox: ref(''), candidate: ref(''),
+    formError: ref(''), low: ref(40), high: ref(70), view: ref(null), t: (k) => k,
+  }
+  return { r, fn: useFleetLoadBoxes(r) }
+}
+{
+  const { r, fn } = lists()
+  r.candidate.value = 'Bad Id!'
+  fn.addBox()
+  ok('boxes: a bad id says so and adds nothing', r.formError.value === 'tenant_settings.fleet_load_bad_box' && r.boxes.value.length === 0, r.formError.value)
+  r.candidate.value = ' Box-A '
+  fn.addBox()
+  ok('boxes: an add trims, lower-cases, clears the field and the reset', r.boxes.value.join() === 'box-a' && r.candidate.value === '' && !r.resetOrder.value && r.formError.value === '')
+  r.candidate.value = 'box-a'
+  r.formError.value = 'x'
+  fn.addBox()
+  ok('boxes: an id already there clears the field and the error, adds nothing', r.boxes.value.length === 1 && r.candidate.value === '' && r.formError.value === '')
+  r.boxes.value = Array.from({ length: FLEET_BOX_MAX }, (_, i) => `b${i}`)
+  r.candidate.value = 'box-z'
+  fn.addBox()
+  ok('boxes: a full order says so and keeps the field', r.formError.value === 'tenant_settings.fleet_load_full' && r.boxes.value.length === FLEET_BOX_MAX && r.candidate.value === 'box-z')
+  r.resetOrder.value = true
+  fn.move(1, -1)
+  ok('boxes: a move reorders and clears the reset', r.boxes.value.slice(0, 2).join() === 'b1,b0' && !r.resetOrder.value)
+  r.resetOrder.value = true
+  fn.removeAt(0)
+  ok('boxes: a remove drops that box and clears the reset', r.boxes.value[0] === 'b0' && r.boxes.value.length === FLEET_BOX_MAX - 1 && !r.resetOrder.value)
+}
+{
+  const { r, fn } = lists()
+  r.bandBox.value = '-bad'
+  fn.addBand()
+  ok('bands: a bad id says so and adds nothing', r.formError.value === 'tenant_settings.fleet_load_bad_box' && r.bands.value.length === 0)
+  r.bandBox.value = 'BOX-D'
+  fn.addBand()
+  ok('bands: a new band starts on the fleet band as edited', JSON.stringify(r.bands.value) === '[{"box":"box-d","low":40,"high":70}]' && r.bandBox.value === '' && !r.resetBoxes.value)
+  r.bandBox.value = 'box-d'
+  fn.addBand()
+  ok('bands: an id already there clears the field, adds nothing', r.bands.value.length === 1 && r.bandBox.value === '')
+  r.resetBoxes.value = true
+  fn.editBand(0, 'runnerCpuPct', '')
+  fn.editBand(0, 'high', '')
+  ok('bands: an empty cap is null, an empty mark NaN; the edit clears the reset', r.bands.value[0].runnerCpuPct === null && Number.isNaN(r.bands.value[0].high) && !r.resetBoxes.value)
+  r.bands.value = Array.from({ length: FLEET_BOX_MAX }, (_, i) => ({ box: `b${i}`, low: 1, high: 2 }))
+  r.bandBox.value = 'box-z'
+  fn.addBand()
+  ok('bands: a full list says so', r.formError.value === 'tenant_settings.fleet_load_full' && r.bands.value.length === FLEET_BOX_MAX)
+  r.resetBoxes.value = true
+  fn.removeBand(0)
+  ok('bands: a remove drops that band and clears the reset', r.bands.value[0].box === 'b1' && !r.resetBoxes.value)
+}
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

@@ -14,7 +14,13 @@
 #            SPL-600 its last issue landed 10 min ago
 #            SPL-700 no pairs in the title (not checked) - unless EPIC_STALL_KEYS
 #            SPL-800 nothing landed yet
-#   1. a dry run plans ONE blocker, for SPL-100 only, and sends nothing
+#            SPL-900 a rotated live lane on another box (branch c-380-rotate-4,
+#                    no brief of that slug) holds its wip issue: the brief
+#                    whose heading is the lane's scope names it; the
+#                    issue's assignee is the dispatcher (SPL-2805)
+#   1. a dry run plans ONE blocker, for SPL-100 only, and sends nothing;
+#      control: the rotated lane with a scope no brief carries leaves
+#      SPL-900 stalled
 #   2. a live run sends ONE blocker to the dispatch holder on
 #      dispatch-<topic8>, naming the epic, the topic and the next rows
 #   3. the next tick (6 h dedup) sends nothing; 7 h later it sends again
@@ -68,6 +74,7 @@ epic() {  # KEY TITLE TOPIC
   epic SPL-600 "Fresh epic, two lanes at a time" 66666666-6666-4666-8666-666666666666
   epic SPL-700 "Spec 999 - a long-lived spec epic" 77777777-7777-4777-8777-777777777777
   epic SPL-800 "Unstarted epic, two lanes at a time" 88888888-8888-4888-8888-888888888888
+  epic SPL-900 "Rotated lane epic, two lanes at a time" 99999999-9999-4999-8999-999999999999
 } | jq -s '{result: {issues: .}}' >"$T/epics.json"
 kid() {  # KEY EPIC STATUS [DONE_MIN_AGO] [ASSIGNEE]
   jq -c -n --arg k "$1" --arg e "$2" --arg s "$3" --arg c "${4:+$(at "${4:-0}")}" --arg a "${5:-}" \
@@ -84,6 +91,7 @@ kid() {  # KEY EPIC STATUS [DONE_MIN_AGO] [ASSIGNEE]
   kid SPL-601 SPL-600 "done" 10; kid SPL-602 SPL-600 todo
   kid SPL-701 SPL-700 "done" 900; kid SPL-702 SPL-700 todo
   kid SPL-801 SPL-800 todo; kid SPL-802 SPL-800 todo
+  kid SPL-901 SPL-900 "done" 120; kid SPL-902 SPL-900 wip "" c-002@box-desk
 } | jq -s . >"$T/kids.json"
 # a queue row whose placement brief names SPL-202; a live lane (other box)
 # whose brief names SPL-302; the assignee of SPL-402; the dispatcher's role
@@ -92,12 +100,14 @@ kid() {  # KEY EPIC STATUS [DONE_MIN_AGO] [ASSIGNEE]
 printf 'Issue: SPL-202\n' >"$T/briefs/r2-next.md"
 printf 'Issue: SPL-302\nEpic: SPL-300\n' >"$T/briefs/r3-row2.md"
 printf 'Epic: SPL-100 (the epic that showed it)\n' >"$T/briefs/bugfix.md"
+printf '# Lane brief: row 9 step 2 (one small task)\n\nIssue: SPL-902\nEpic: SPL-2402\n' >"$T/briefs/r9-step2.md"
 printf '[{"ask_id": "aaaaaaaa-0000-4000-8000-000000000002", "state": "queued", "enqueued_at": "2026-10-17T11:00:00Z", "placement": "claude:r2-next", "summary": "QUEUE please, next pair"}]\n' >"$T/rows.json"
 jq -n -c '{lanes: [
   {agent_id: "c-310", agent_box: "box-b", branch: "c-310-r3-row2", scope: "Lane brief: row 2", state: "live"},
   {agent_id: "c-410", agent_box: "box-b", branch: "c-410-x", scope: "Lane brief: x", state: "live"},
   {agent_id: "c-002", agent_box: "box-desk", branch: "c-002-rotate", scope: "role c-002 (rotation)", state: "live"},
   {agent_id: "c-373", agent_box: "box-desk", branch: "c-373-bugfix", scope: "Lane brief: bug", state: "live"},
+  {agent_id: "c-380", agent_box: "box-b", branch: "c-380-rotate-4", scope: "Lane brief: row 9 step 2 (one small task)", state: "live"},
   {agent_id: "c-999", agent_box: "box-b", branch: "c-999-r3-row2", scope: "SPL-302", state: "gone"}]}' >"$T/lanes.json"
 
 run() {  # ACTION [env...]
@@ -128,11 +138,16 @@ plans="$(grep -oE '^PLAN would send a blocker to c-002@box-desk on dispatch-[0-9
   pass "dry run: one blocker planned, for the stalled SPL-100 only, nothing sent" || fail "dry run plans '$plans': $out"
 before=$fails
 for k in "200:a queue row holds it: aaaaaaaa" "300:a live lane holds it: c-310@box-b" "400:a live lane holds it: c-410@box-b" \
-         "500:all 2 issue(s) closed" "600:SPL-601 landed 10 min ago" "800:no issue landed yet (2 open)"; do
+         "500:all 2 issue(s) closed" "600:SPL-601 landed 10 min ago" "800:no issue landed yet (2 open)" \
+         "900:a live lane holds it: c-380@box-b"; do
   grep -qF "INFO epic SPL-${k%%:*}: ${k#*:}" <<<"$out" || fail "SPL-${k%%:*} not skipped with '${k#*:}': $out"
 done
 grep -q 'SPL-700' <<<"$out" && fail "SPL-700 (no pairs in the title) was checked: $out"
-[[ $fails == "$before" ]] && pass "not stalled: a queue row, a live lane's brief, a live lane as assignee, all closed, landed 10 min ago, never started; a spec epic is not checked"
+[[ $fails == "$before" ]] && pass "not stalled: a queue row, a live lane's brief, a live lane as assignee, a rotated remote lane's brief by its heading, all closed, landed 10 min ago, never started; a spec epic is not checked"
+jq -c '.lanes |= map(if .agent_id == "c-380" then .scope = "Lane brief: some other task" else . end)' "$T/lanes.json" >"$T/lanes-other.json"
+out="$(run do_spl_epic_stall_check EPIC_STALL_LANES_CMD="cat $T/lanes-other.json")"
+grep -q 'PLAN would send a blocker .*epic SPL-900 stalled' <<<"$out" &&
+  pass "control: the rotated lane whose scope no brief carries does not hold SPL-900" || fail "rotated control: $out"
 
 # 2. a live run --------------------------------------------------------------------
 out="$(run do_spl_epic_stall_check DRY_RUN=0)"

@@ -131,9 +131,12 @@ spl_epic_stall_list() {  # WHAT
 
 # The live lanes as [{id, box, text}]: role and seat panes left out; the text
 # is the scope, the brief of the branch's slug and, on this box, the
-# lifetime issue and brief.
+# lifetime issue and brief. A rotated lane's branch is <id>-rotate[-N] and
+# no brief has that slug, so the brief whose "# " heading is the lane's scope
+# stands in for it (SPL-2805: a rotated lane on another box held SPL-2161,
+# yet its epic SPL-2151 was called stalled).
 spl_epic_stall_lanes() {
-  local out dir="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" id box branch scope slug text acc='[]'
+  local out dir="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" id box branch scope slug text acc='[]' heads
   if [[ -n "${EPIC_STALL_LANES_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$($EPIC_STALL_LANES_CMD 2>/dev/null)"
@@ -141,9 +144,12 @@ spl_epic_stall_lanes() {
     out="$(LANE_FORMAT=json LANE_ALL=1 timeout "${EPIC_STALL_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
   fi
   jq -e '.lanes' >/dev/null 2>&1 <<<"$out" || return 1
+  heads="$(awk 'FNR == 1 { sub(/^# /, ""); print $0 "\t" FILENAME }' "$dir"/*.md 2>/dev/null)"
   while IFS=$'\t' read -r id box branch scope; do
     slug="$(sed -E 's/^[a-z]-[0-9]+-//' <<<"$branch")"
-    text="$scope $(cat "$dir/$slug.md" 2>/dev/null)"
+    if [[ -f "$dir/$slug.md" ]]; then text="$scope $(cat "$dir/$slug.md")"
+    else text="$scope $(SCOPE="$scope" awk -F'\t' '$1 == ENVIRON["SCOPE"] { print $2 }' <<<"$heads" | xargs -r -d '\n' cat 2>/dev/null)"
+    fi
     [[ "$box" == "$ASKS_BOX" ]] && text+=" $(cat "$SPOOL_ROOT/$id/lifetime/issue" "$SPOOL_ROOT/$id/lifetime/brief.md" 2>/dev/null)"
     acc="$(jq -c --arg i "$id" --arg b "$box" --arg t "$text" '. + [{id: $i, box: $b, text: $t}]' <<<"$acc")"
   done < <(jq -r '.lanes[] | select(.state == "live" and (.agent_id // "") != "")

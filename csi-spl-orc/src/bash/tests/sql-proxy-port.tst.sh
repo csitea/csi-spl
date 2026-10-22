@@ -106,7 +106,12 @@ else
 fi
 
 # --- 2. unset port -> a free port, not 55499 ---------------------------------
+# 55499 lies in the kernel's ephemeral range, so a free-port pick could return
+# it by chance (wf 10 run 39710971456). Held here, only a fixed 55499 gets it.
 reset
+python3 "$T/listen.py" 55499 "$T/hold.pid" &
+if wait_listen "$T/hold.pid" 55499 || (exec 3<>/dev/tcp/127.0.0.1/55499) 2>/dev/null; then pass "control: 127.0.0.1:55499 is held, so no free-port pick returns it"
+else fail "control: nothing listens on 55499"; fi
 out=$(start FAKE_PROXY=listen 2>&1)
 got=$(sed -n 's/^RC=0 PORT=\([0-9]*\)$/\1/p' <<<"$out")
 if [[ -n "$got" && "$got" != 55499 ]]; then pass "unset SPL_PROXY_PORT: up on free port $got, not 55499"

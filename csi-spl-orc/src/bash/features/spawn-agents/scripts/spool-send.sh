@@ -142,7 +142,8 @@ send_lane_topic() {  # ID
 }
 
 # "owner" or "agent" for a topic uuid (scripts/spool-topic-kind.sh, run as the
-# box user: the desk tree is its own); non-zero when the hub cannot tell.
+# desk user: the desk tree is its own, spec 069 8.3); non-zero when the hub
+# cannot tell.
 # SPOOL_OWNER_TOPIC_CMD replaces the lookup; under SPOOL_TEST=1 without it
 # there is no lookup (no hub): 100, silently.
 send_topic_kind() {  # TASK
@@ -151,11 +152,12 @@ send_topic_kind() {  # TASK
     $SPOOL_OWNER_TOPIC_CMD "$1"; return
   fi
   [ "${SPOOL_TEST:-}" = 1 ] && return 100
-  local probe="$_here/spool-topic-kind.sh"
-  if [ "$(id -un)" = "$SPOOL_BOX_USER" ]; then
+  local probe="$_here/spool-topic-kind.sh" du
+  du="$(spool_desk_user)"
+  if [ "$(id -un)" = "$du" ]; then
     bash "$probe" --spool-root "$SPOOL_ROOT" "$1"
   else
-    sudo -n -u "$SPOOL_BOX_USER" -- bash "$probe" --spool-root "$SPOOL_ROOT" "$1"
+    sudo -n -u "$du" -- bash "$probe" --spool-root "$SPOOL_ROOT" "$1"
   fi
 }
 

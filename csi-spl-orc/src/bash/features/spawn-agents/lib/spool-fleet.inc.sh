@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # spool-fleet.inc.sh — messages and reports across the machines of one fleet
 # (specs/058 N1). Sourced by spool-send.sh and agent-send.sh after
-# spool-env.inc.sh (needs SPOOL_ROOT, SPOOL_BOX_USER, SPOOL_ORCHESTRATOR_ID).
+# spool-env.inc.sh (needs SPOOL_ROOT, spool_desk_user and
+# SPOOL_ORCHESTRATOR_ID).
 #
 # Each machine has its own $SPOOL_ROOT. A local `spool send` to an agent that
 # lives on the OTHER machine used to mint an orphan inbox here and report
@@ -115,13 +116,14 @@ spool_fleet_relay() {  # spool send args...
   if [ "${SPOOL_TEST:-}" = 1 ]; then
     echo "spool-fleet: relay REFUSED under SPOOL_TEST=1 (set SPOOL_FLEET_RELAY_CMD to a stub)" >&2; return 3
   fi
-  local relay="$SPOOL_FEATURE_DIR/scripts/spool-fleet-relay.sh"
-  if [ "$(id -un)" = "$SPOOL_BOX_USER" ]; then
+  local relay="$SPOOL_FEATURE_DIR/scripts/spool-fleet-relay.sh" du
+  du="$(spool_desk_user)"
+  if [ "$(id -un)" = "$du" ]; then
     SPOOL_ROOT="$SPOOL_ROOT" bash "$relay" "$@"
   else
-    # the desk tree and its box key are the box user's (0700); one hop, the
-    # way spool-mcp.sh reaches them. The root travels as an argument: sudo
-    # resets the environment.
-    sudo -n -u "$SPOOL_BOX_USER" -- bash "$relay" --spool-root "$SPOOL_ROOT" "$@"
+    # the desk tree and its box key are the desk user's (0700, spec 069 8.3);
+    # one hop, the way spool-mcp.sh reaches them. The root travels as an
+    # argument: sudo resets the environment.
+    sudo -n -u "$du" -- bash "$relay" --spool-root "$SPOOL_ROOT" "$@"
   fi
 }

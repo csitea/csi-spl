@@ -28,10 +28,11 @@
 #                  aside (desk-seat-drop.sh): its sidecar stops announcing it
 #                  as a member / tag target (owner 2026-10-05, t1 dc6d5e3f),
 #                  and a workspace agent cap (spec 147) counts the seat free
-#                  on the next rescan. The desks are the BOX user's (its home,
-#                  SPOOL_BOX_HOME), read as that user (sudo -n) when an agent
-#                  user retires itself: from its own $HOME it saw no desk and
-#                  the seat stayed announced (g-940, prd, 2026-10-14..20)
+#                  on the next rescan. The desks are the DESK user's
+#                  (spool_desk_user: SPOOL_DESK_USER, else the box user; spec
+#                  069 8.3), read as that user (sudo -n) when another user
+#                  retires: from its own $HOME it saw no desk and the seat
+#                  stayed announced (g-940, prd, 2026-10-14..20)
 #   worktree    -> the lane's linked worktree (record's "worktree", else the
 #                  registry rundir) and its branch: LISTED in the box's
 #                  workdir table ($SPOOL_ROOT/workdirs.tsv, workdir-register.sh),
@@ -65,7 +66,7 @@
 # SPOOL_DESK_BOX, RETIRE_LANE=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's; the root defaults
-# to the box user's, SPOOL_BOX_HOME = its passwd home),
+# to the desk user's, spool_desk_state; SPOOL_BOX_HOME names that home instead),
 # RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_SCRATCH=0|1, RETIRE_VARTMP=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_VARTMP_ROOT (default /var/tmp), LANE_SCRATCH_* (its), WORKDIR_TABLE
@@ -217,11 +218,16 @@ WT=""
 # ---- 4. the desk seats (counted here: a seat alone is a hold) ---------------
 desks="${RETIRE_DESKS:-}"
 [ -n "$desks" ] || { desks=1; [ "${SPOOL_TEST:-}" = 1 ] && [ -z "${DESK_STATE_ROOT:-}" ] && desks=0; }
-BOX_HOME="${SPOOL_BOX_HOME:-$(getent passwd "$SPOOL_BOX_USER" 2>/dev/null | cut -d: -f6)}"
-DROP=(env DESK_STATE_ROOT="${DESK_STATE_ROOT:-${BOX_HOME:-$HOME}/.local/share/csi-spl/cloud}"
+DESK_USER="$(spool_desk_user)"
+if [ -n "${DESK_STATE_ROOT:-}" ]; then DESK_CLOUD="$DESK_STATE_ROOT"
+elif [ -n "${SPOOL_BOX_HOME:-}" ]; then DESK_CLOUD="$SPOOL_BOX_HOME/.local/share/csi-spl/cloud"
+else DESK_CLOUD="$(spool_desk_state _ 2>/dev/null)"; DESK_CLOUD="${DESK_CLOUD%/_}"
+  [ -n "$DESK_CLOUD" ] || DESK_CLOUD="$HOME/.local/share/csi-spl/cloud"
+fi
+DROP=(env DESK_STATE_ROOT="$DESK_CLOUD"
   DESK_ENVS="${DESK_ENVS:-dev prd}" ${DESK_TENANT:+DESK_TENANT="$DESK_TENANT"} SPOOL_NOW="$NOW"
   bash "$_here/desk-seat-drop.sh" --box "$BOX" "$ID")
-[ "$(id -un)" = "$SPOOL_BOX_USER" ] || DROP=(sudo -n -u "$SPOOL_BOX_USER" "${DROP[@]}")
+[ "$(id -un)" = "$DESK_USER" ] || DROP=(sudo -n -u "$DESK_USER" "${DROP[@]}")
 seated=0
 if [ "$desks" = 1 ]; then
   plan="$("${DROP[@]}" 2>&1)" || echo "agent-id-retire: WARN desk seats not read (${plan##*$'\n'}); as the desk owner: $(printf '%q ' "${DROP[@]}")--apply" >&2

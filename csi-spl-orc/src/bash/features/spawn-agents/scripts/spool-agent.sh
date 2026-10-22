@@ -41,8 +41,10 @@
 #      never reissued (see "the id" below); SPOOL_BOX_TAG / BOX_TAG - the window
 #      tag, else the one the window already carries
 #
-# Runs as the box user (the owner of this checkout, who owns the desk state)
-# or as any user that may `sudo -n -u <box user>`: the desk steps hop.
+# Runs as the box user (the owner of this checkout and of the tmux server) or
+# as any user that may `sudo -n -u` it: the tmux steps hop to the box user,
+# the desk steps to the desk user (SPOOL_DESK_USER, else the box user; spec
+# 069 8.3), and a step whose user is the caller does not hop.
 # It must run inside tmux on the box user's server: a seat without a live
 # window is retired by the desk reconcile, and the web UI leg types into the
 # pane. Outside tmux it refuses (exit 3) unless --no-seat.
@@ -101,21 +103,32 @@ fi
 
 BOX_USER="${SPOOL_BOX_USER:-$(stat -c %U "$ORC")}"
 ME="$(id -un)"
-BOX_HOME="$(getent passwd "$BOX_USER" | cut -d: -f6)"
+# The desk user and its state root: the resolvers of spool-env.inc.sh, with
+# this script's box user (it does not run spool_env_resolve) and the box
+# config's SPOOL_DESK_USER (an env value wins).
+desk_resolve() {  # FUNC ARGS...: run a spool-env resolver for this box
+  ( SPOOL_BOX_USER="$BOX_USER"; SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; _spool_box_env_load; "$@" )
+}
+DESK_USER="$(desk_resolve spool_desk_user)"
 # The envs to seat on: --env, else every env that has this desk on the box
 # (the agent is then online wherever the humans are), else dev.
 # SPOOL_AGENT_DESK_ROOT (tests) may name the env as %ENV%; without it there is
 # one root, so only dev is discovered.
 seat_root_of() {
   if [ -n "${SPOOL_AGENT_DESK_ROOT:-}" ]; then printf '%s' "${SPOOL_AGENT_DESK_ROOT//%ENV%/$1}"
-  else printf '%s' "$BOX_HOME/.local/share/csi-spl/cloud/$1/desk/$TENANT/$BOX"; fi
+  else printf '%s' "$(desk_resolve spool_desk_state "$1")/desk/$TENANT/$BOX"; fi
+}
+as_box() {  # CMD... as the box user (the tmux server), env passed explicitly (sudo drops it)
+  if [ "$ME" = "$BOX_USER" ]; then "$@"; else sudo -n -u "$BOX_USER" "$@"; fi
+}
+as_desk() {  # CMD... as the desk user (the desk tree and its sidecar)
+  if [ "$ME" = "$DESK_USER" ]; then "$@"; else sudo -n -u "$DESK_USER" "$@"; fi
 }
 if [ -z "$ENVN" ]; then
   _envs="dev prd self"
   [ -n "${SPOOL_AGENT_DESK_ROOT:-}" ] && [[ "$SPOOL_AGENT_DESK_ROOT" != *%ENV%* ]] && _envs=dev
   for e in $_envs; do
-    if [ "$(id -un)" = "$BOX_USER" ]; then test -d "$(seat_root_of $e)" && ENVN="${ENVN:+$ENVN,}$e"
-    else sudo -n -u "$BOX_USER" test -d "$(seat_root_of $e)" 2>/dev/null && ENVN="${ENVN:+$ENVN,}$e"; fi
+    as_desk test -d "$(seat_root_of $e)" 2>/dev/null && ENVN="${ENVN:+$ENVN,}$e"
   done
   ENVN="${ENVN:-dev}"
 fi
@@ -123,9 +136,6 @@ ENVS=(${ENVN//,/ })
 SEAT_ROOT="$(seat_root_of "${ENVS[0]}")"
 TMUX_SOCK="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$BOX_USER")/default}"
 say() { echo "spool-agent: $*" >&2; }
-as_box() {  # CMD... as the box user, env passed explicitly (sudo drops it)
-  if [ "$ME" = "$BOX_USER" ]; then "$@"; else sudo -n -u "$BOX_USER" "$@"; fi
-}
 # The seat dir exists, the box sidecar is alive, and the roster already
 # names this agent. Reconnecting then skips do_spl_desk_up, which is the
 # hub pin and the roster wait. A missing piece falls through to the full seat.
@@ -133,13 +143,13 @@ seat_is_live() {
   local root="$1" id="$2" pidf roster pid
   pidf="$root/spool/.hub/hub-run.pid"
   roster="$root/spool/.hub/roster.json"
-  as_box test -d "$root/spool/$id/inbox" || return 1
-  as_box test -r "$pidf" || return 1
-  as_box test -r "$roster" || return 1
-  pid="$(as_box cat "$pidf" 2>/dev/null | tr -cd '0-9')"
+  as_desk test -d "$root/spool/$id/inbox" || return 1
+  as_desk test -r "$pidf" || return 1
+  as_desk test -r "$roster" || return 1
+  pid="$(as_desk cat "$pidf" 2>/dev/null | tr -cd '0-9')"
   [ -n "$pid" ] || return 1
-  as_box kill -0 "$pid" 2>/dev/null || return 1
-  as_box grep -q "\"$id\"" "$roster" || return 1
+  as_desk kill -0 "$pid" 2>/dev/null || return 1
+  as_desk grep -q "\"$id\"" "$roster" || return 1
 }
 tm() { as_box tmux -S "$TMUX_SOCK" "$@"; }
 
@@ -237,7 +247,7 @@ if [ "$DRY" = 1 ]; then
   if [ "$SEAT" = 1 ]; then
     for e in "${ENVS[@]}"; do
       if seat_is_live "$(seat_root_of "$e")" "$ID"; then echo "seat: already live on $e, skip do_spl_desk_up"
-      else echo "seat: $RUN -a do_spl_desk_up ENV=$e TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; fi
+      else echo "seat: $RUN -a do_spl_desk_up ENV=$e TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $DESK_USER)"; fi
     done
     echo "strip: the notice strip is split before $CLI paints"
   else echo "seat: skipped"; fi
@@ -265,8 +275,8 @@ if [ "$SEAT" = 1 ]; then
       seated=$((seated + 1))
       continue
     fi
-    out="$(as_box env ENV="$e" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" DRY_RUN=0 "$RUN" -a do_spl_desk_up 2>&1)"; rc=$?
-    if [ "$rc" -ne 0 ] && ! as_box test -d "$(seat_root_of "$e")/spool/$ID"; then
+    out="$(as_desk env ENV="$e" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" DRY_RUN=0 "$RUN" -a do_spl_desk_up 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && ! as_desk test -d "$(seat_root_of "$e")/spool/$ID"; then
       say "WARN the $e desk seat failed (rc $rc):"; printf '%s\n' "$out" | grep -E 'FATAL|FAIL' | tail -3 >&2; continue
     fi
     seated=$((seated + 1))
@@ -282,7 +292,7 @@ if [ "$SEAT" = 1 ]; then
   [ "$KIND" = agy ] && tm set-option -p -t "$PANE" @spool_strip 1 2>/dev/null
   strip=""
   for e in "${ENVS[@]}"; do
-    as_box test -d "$(seat_root_of "$e")/spool/$ID" || continue
+    as_desk test -d "$(seat_root_of "$e")/spool/$ID" || continue
     strip="$(as_box env SPOOL_ROOT="$(seat_root_of "$e")/spool" SPOOL_TMUX_SOCKET="$TMUX_SOCK" bash -c '
       F="$1"; . "$F/lib/spool-env.inc.sh" && . "$F/lib/spool-notify.inc.sh" && . "$F/lib/spool-poke-queue.inc.sh" &&
       spool_env_resolve && spool_show_notice_pane "$2" "$3"' _ "$FEAT" "$ID" "$PANE" 2>/dev/null)"
@@ -291,15 +301,15 @@ if [ "$SEAT" = 1 ]; then
 fi
 for e in "${ENVS[@]}"; do
   sr="$(seat_root_of "$e")"
-  as_box test -d "$sr/spool/$ID" || continue
+  as_desk test -d "$sr/spool/$ID" || continue
   if [ -n "$OPERATOR" ]; then
-    as_box python3 "$MIRROR_PY" operator "$sr/spool/$ID" "$OPERATOR" >/dev/null ||
+    as_desk python3 "$MIRROR_PY" operator "$sr/spool/$ID" "$OPERATOR" >/dev/null ||
       say "WARN could not record $OPERATOR as the operator of $ID ($e)"
   fi
   if [ "$MIRROR" = 0 ]; then
-    as_box touch "$sr/spool/$ID/.no-mirror" 2>/dev/null || say "WARN could not write $ID's .no-mirror ($e)"
-  elif as_box test -e "$sr/spool/$ID/.no-mirror"; then
-    as_box rm -f "$sr/spool/$ID/.no-mirror" 2>/dev/null
+    as_desk touch "$sr/spool/$ID/.no-mirror" 2>/dev/null || say "WARN could not write $ID's .no-mirror ($e)"
+  elif as_desk test -e "$sr/spool/$ID/.no-mirror"; then
+    as_desk rm -f "$sr/spool/$ID/.no-mirror" 2>/dev/null
   fi
 done
 
@@ -325,6 +335,6 @@ export MCP_BOT_AGENT_ID="$ID" SPOOL_AGENT_ID="$ID"
 say "$ID: starting $CLI (mirror $([ "$MIRROR" = 1 ] && echo on || echo off); DM it at the web UI as $ID@$BOX)"
 if [ "$BACKFILL" = 0 ]; then exec "${ARGV[@]}"; fi
 "${ARGV[@]}"; rc=$?
-as_box env ENV="${ENVS[0]}" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" SESSION_TOKEN="$SESSION_ID" \
+as_desk env ENV="${ENVS[0]}" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" SESSION_TOKEN="$SESSION_ID" \
   SESSION_AGENT_USER="$ME" DRY_RUN=0 "$RUN" -a do_spl_desk_session_upload 2>&1 | grep -E '^\{|FATAL' >&2
 exit "$rc"

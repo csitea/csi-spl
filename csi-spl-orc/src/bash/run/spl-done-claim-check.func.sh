@@ -49,7 +49,10 @@
 # @description     reviewed sha, by design not on trunk): ledger, no note. The
 # @description     slug is the lane's worktree branch (git worktree list of
 # @description     each repo, branch <id>-<slug>) or its retired row in
-# @description     $SPOOL_ROOT/workdirs.tsv (agent, branch); every slug found
+# @description     $SPOOL_ROOT/workdirs.tsv (agent, branch); SPL-2838: a lane
+# @description     whose worktree is a detached HEAD (an R7 reviewer on the
+# @description     reviewed sha) or whose retired row has no branch takes its
+# @description     spawn's local branch <id>-<slug> instead; every slug found
 # @description     for the id must mark it, and a lane with none is judged
 # @description     as before
 # @description   - a sha on no trunk but on a remote branch origin/<id>-...,
@@ -347,17 +350,29 @@ spl_done_claim_seats() {
   local top ref
   {
     while read -r top ref; do
-      git -C "$top" worktree list --porcelain 2>/dev/null | sed -nE 's#^branch refs/heads/(([cmagq]-[0-9]+)-.+)$#\2\t\1#p'
+      git -C "$top" worktree list --porcelain 2>/dev/null | awk '
+        /^worktree / { n = split($2, p, "/"); id = p[n] }
+        /^branch refs\/heads\/[cmagq]-[0-9]+-/ { b = substr($2, 12); match(b, /^[cmagq]-[0-9]+/); print substr(b, 1, RLENGTH) "\t" b "\tw" }
+        /^detached$/ && id ~ /^[cmagq]-[0-9]+$/ { print id "\t\td" }'
+      git -C "$top" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null | sed -nE 's#^(([cmagq]-[0-9]+)-.+)$#\2\t\1\tb#p'
     done <"$2"
     [[ -f "$1/workdirs.tsv" ]] &&
-      awk -F'\t' '!/^#/ && $2 == "worktree" && $3 ~ /^[cmagq]-[0-9]+$/ && $5 != "" { print $3 "\t" $5 }' "$1/workdirs.tsv"
+      awk -F'\t' '!/^#/ && $2 == "worktree" && $3 ~ /^[cmagq]-[0-9]+$/ { print $3 "\t" $5 "\t" ($5 == "" ? "d" : "w") }' "$1/workdirs.tsv"
   } | awk -F'\t' '
-    {
-      seen[$1] = 1; s = $2
+    function seat(s) {
       while (sub(/-(claude|agy|mistral|grok|qwen|takeover|spl-?[0-9]+)$/, "", s)) ;
-      if (s !~ /-(seat[0-9]*|review|reviewer|plan|planner)$/) code[$1] = 1
+      return s ~ /-(seat[0-9]*|review|reviewer|plan|planner)$/
     }
-    END { for (id in seen) if (!(id in code)) print id }' | sort
+    $3 == "b" { br[$1] = br[$1] " " $2; next }
+    $3 == "d" { det[$1] = 1; next }
+    { seen[$1] = 1; if (!seat($2)) code[$1] = 1 }
+    END {
+      for (id in br) if (id in det && !(id in seen)) {
+        seen[id] = 1; n = split(br[id], b, " ")
+        for (i = 1; i <= n; i++) if (!seat(b[i])) code[id] = 1
+      }
+      for (id in seen) if (!(id in code)) print id
+    }' | sort
 }
 
 # spl_done_claim_unparked <repos file> <live ids file> <shas>: the shas NOT on

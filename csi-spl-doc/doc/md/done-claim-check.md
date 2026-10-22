@@ -83,7 +83,12 @@ metadata the fleet writes itself, never the message body (t1 37349c9b):
    - the lane's worktree branch, `<id>-<slug>`, from `git worktree list` of
      each repo in `DONE_CLAIM_REPO_DIRS`;
    - its retired row in `$SPOOL_ROOT/workdirs.tsv` (agent, branch), written
-     by `agent-id-retire.sh`.
+     by `agent-id-retire.sh`;
+   - SPL-2838: a lane whose worktree is a detached HEAD (an R7 reviewer
+     checks the reviewed sha out detached: m-744, alerts 1ae5165f and
+     b987fe29) lists no branch, and its retired row has an empty branch.
+     For such a lane only, the spawn's own local branch `refs/heads/<id>-...`
+     of each repo is its slug.
    Every slug found for the id must mark it (one code slug, as from an old
    lane of a recycled id, and it is judged as before); a lane with no slug
    is judged as before. No list of ids is kept anywhere.
@@ -133,7 +138,9 @@ refuses. SPL-2313: a reviewer slug from a live worktree and a seat and a
 plan slug from retired `workdirs.tsv` rows are `seat`, with a sha or none; a
 code slug and no slug alert; a sha on a live lane's `review/` branch is
 `pending` and alerts once the lane leaves the registry; a gone lane's `wip/`
-sha alerts. SPL-2327: a no-object sha is `rewritten` with one trunk commit
+sha alerts. SPL-2838: a detached-HEAD reviewer, live or retired with an
+empty branch, is `seat` by its spawn branch; a detached code lane and a
+detached one with no branch alert. SPL-2327: a no-object sha is `rewritten` with one trunk commit
 of its key after the spawn, alerts with none, with two, with one older than
 48 h or older than the lane's spawn. SPL-2332: md5 tokens are no shas.
 SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another

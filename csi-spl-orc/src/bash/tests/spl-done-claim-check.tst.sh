@@ -317,4 +317,32 @@ v="$(for k in tree treeonly; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
   pass "13. a tree, a blob or a tag of a tree beside a landed sha is no claim: landed; a body citing only a tree id reads as no sha" ||
   fail "13. tree / blob id (rc $rc) got '$v': $(cat "$T/o")"
 
+# 14. SPL-2838 (m-744's results 5e2d8ef2, b99548a9, synthetic): an R7 reviewer
+# checks the reviewed sha out detached, so its worktree lists no branch and its
+# retired workdirs row has an empty branch. The spawn's own local branch
+# <id>-<slug> still names the slug: a reviewer one is seat; a code one, or a
+# lane with no branch at all, is judged as before.
+SP="$T/spool14"
+rg spl fetch -q origin
+rg spl worktree add -q -b m-744-c002-r17-mistral-r7-reviewer "$T/wt/m-744" origin/master 2>/dev/null
+rg wt/m-744 checkout -q --detach && rg wt/m-744 commit -q --allow-empty -m "reviewed, never pushed" && lettered wt/m-744 40 "reviewed"
+DET=$(rg wt/m-744 rev-parse HEAD)
+rg spl worktree add -q -b c-745-c002-fix-other "$T/wt/c-745" origin/master 2>/dev/null
+git -C "$T/wt/c-745" checkout -q --detach "$DET"
+rg spl branch -q m-747-c002-r17-agy-r7-review-spl-9001 "$DET"
+rg spl worktree add -q --detach "$T/wt/c-748" "$DET" 2>/dev/null
+mkdir -p "$SP"
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n' "$T/wt/m-747	worktree	m-747	box-a		$(iso "$NOW")" >"$SP/workdirs.tsv"
+msg c-002/archive detrev m-744 c-002 30 "review of $DET: PASS"
+msg c-002/archive detcode c-745 c-002 30 "done $DET"
+msg c-002/archive retrev m-747 c-002 30 "review of $DET: PASS"
+msg c-002/archive nobranch c-748 c-002 30 "done $DET"
+[[ "$(git -C "$T/wt/m-744" worktree list --porcelain | grep -A3 "^worktree $T/wt/m-744\$" | grep -c '^detached')" = 1 ]] &&
+  pass "14. control: m-744's worktree is a detached HEAD (no branch line)" || fail "14. control: fixture"
+run DONE_CLAIM_STATE_DIR="$T/st14"; rc=$?
+v="$(for k in detrev detcode retrev nobranch; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "detrev=seat detcode=would-alert retrev=seat nobranch=would-alert " ] &&
+  pass "14. a detached-HEAD lane keeps the slug of its spawn branch: a live or retired reviewer is seat; a code slug or no branch at all still alerts" ||
+  fail "14. detached reviewer (rc $rc) got '$v': $(cat "$T/o")"
+
 exit "$fails"

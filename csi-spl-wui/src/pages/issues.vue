@@ -2278,9 +2278,11 @@ select.issues-pctl { appearance: auto; }
 .issues-talk__tab:hover { color: var(--color-fg); }
 .issues-talk__tab[aria-selected='true'] { position: relative; z-index: 1; border-color: var(--color-border); border-bottom-color: var(--issues-talk-panel); background: var(--issues-talk-panel); box-shadow: inset 0 var(--select-bar-w) 0 var(--focus-ring), var(--bevel-shine); font-weight: 600; color: var(--color-fg); }
 /* SPL-2784: the tablist holds only its tabs; the clip control beside it
-   carries the same baseline and keeps its box on History (hidden, not removed) */
+   carries the same baseline and keeps its box on History (hidden, not removed).
+   It is pinned to the end, so the bolder selected tab (row 01) changing the
+   tablist's width by a pixel or two never moves it, even when the row is full */
 .issues-talk__bar { display: flex; align-items: stretch; min-width: 0; }
-.issues-talk__actions { flex: 1 1 auto; display: flex; align-items: flex-end; min-width: 0; padding-inline-start: 8px; border-bottom: 1px solid var(--color-border); }
+.issues-talk__actions { flex: 1 1 auto; display: flex; align-items: flex-end; justify-content: flex-end; min-width: 0; padding-inline-start: 8px; border-bottom: 1px solid var(--color-border); }
 .issues-talk__actions[data-tab='history'] > * { visibility: hidden; }
 .issues-talk__panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */

@@ -118,8 +118,10 @@ function tabChecks(where, t) {
 }
 
 /* SPL-2784 (plan row 02): the tablist's children, its keys and the boxes
-   on each tab (the tabs' top and height: the selected one is bolder, so
-   wider, by row 01's styling). Starts and ends on Discussion. */
+   on each tab (the tabs' top and height, the list's start, top and height:
+   the selected tab is bolder, so wider, by row 01's styling, and with some
+   fonts, DejaVu on the hosted runners, the list's width follows it).
+   Starts and ends on Discussion. */
 async function tabKeys(p, where) {
   const look = () => p.evaluate(() => {
     const list = document.querySelector('[data-test=issues-talk] [role=tablist]')
@@ -131,13 +133,14 @@ async function tabKeys(p, where) {
        scrolling as the panel's height changes is not a shift of the header */
     const o = list.closest('[data-test=issues-talk]').getBoundingClientRect()
     const r = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return [b.left - o.left, b.top - o.top, b.width, b.height].map(Math.round).join() }
+    const b = list.getBoundingClientRect()
     const y = (e) => { const b = e.getBoundingClientRect(); return [b.top - o.top, b.height].map(Math.round).join() }
     return {
       kids: [...list.children].map((c) => c.getAttribute('role')), clipIn: Boolean(clip && list.contains(clip)),
       sel: on?.getAttribute('data-value'), focus: document.activeElement?.getAttribute('data-value') || null,
       tabindex: tabs.map((t) => t.getAttribute('tabindex')).join(),
       panel: Boolean(panel && panel.getAttribute('role') === 'tabpanel' && panel.getAttribute('aria-labelledby') === on.id),
-      boxes: { list: r(list), tabs: tabs.map(y).join('|'), clip: r(clip) },
+      boxes: { list: [b.left - o.left, b.top - o.top, b.height].map(Math.round).join(), tabs: tabs.map(y).join('|'), clip: r(clip) },
     }
   })
   await p.evaluate(() => document.querySelector('[data-test=issues-talk-tab][aria-selected="true"]')?.focus())

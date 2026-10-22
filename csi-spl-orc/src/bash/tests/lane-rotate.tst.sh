@@ -35,6 +35,8 @@
 #      on 2026-10-11 never opened the seed it pointed to): the fake agent acks
 #      from its first prompt only; spawn-core renders SPAWN_PROMPT_HEAD_FILE on
 #      top; spawn-window forwards it into the pane
+#  19. a busy child whose command spans lines (a heredoc, a bash -c script) is
+#      reported as ONE line of at most 120 characters (SPL-2841)
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -391,6 +393,18 @@ check "15. spawn-core: the truth rule, then SPAWN_PROMPT_HEAD_FILE, lead prompt.
 # the real spawn-window starts the launcher in the pane with an env allowlist:
 # the head file must be on it (a live rotation on 2026-10-11 22:25Z lost it there)
 check "15. spawn-window forwards SPAWN_PROMPT_HEAD_FILE into the pane" 'sed -n "/^for v in SPOOL_ROOT /,/; do\$/p" "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" | grep -qw SPAWN_PROMPT_HEAD_FILE'
+
+# --- 19. a multi-line busy command is one rotate.log line (SPL-2841) ----------------
+# rotate.log held 166 unstamped lines 2026-10-12..22: each a line of a child's
+# script, cut one by one after its "in flight: running" line
+reset; mkdir -p "$T/proc/100" "$T/proc/200"
+echo '100 (claude) S 1 1' >"$T/proc/100/stat"; printf 'claude\0' >"$T/proc/100/cmdline"
+echo '200 (bash) S 100 1' >"$T/proc/200/stat"
+printf '/bin/bash\0-c\0git push origin HEAD:master\necho two\r\necho three %0200d\0' 0 >"$T/proc/200/cmdline"
+out19="$(source "$PROJ_ROOT/src/bash/run/spl-lane-rotate.func.sh"; ROTATE_LANE_BUSY_RE="git push" spl_lane_rotate_busy_child 100)"
+check "19. multi-line busy child: 1 line" '[ "$(printf "%s\n" "$out19" | wc -l)" = 1 ]'
+check "19. multi-line busy child: at most 120 characters, no CR" '[ "${#out19}" -le 120 ] && [[ "$out19" != *$'"'"'\r'"'"'* ]]'
+check "19. multi-line busy child: the command is still named" '[[ "$out19" == "/bin/bash -c git push origin HEAD:master echo two"* ]]'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

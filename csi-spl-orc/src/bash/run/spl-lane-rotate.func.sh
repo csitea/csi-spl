@@ -312,7 +312,9 @@ spl_lane_rotate_busy_child() {
   while (( ${#q[@]} )); do
     p="${q[0]}"; q=("${q[@]:1}")
     for d in ${kids[$p]:-}; do
-      cl="$(tr '\0' ' ' < "$root/$d/cmdline" 2>/dev/null || true)"
+      # NULs and line breaks to spaces: a multi-line command (a heredoc, a bash -c
+      # script) stays one rotate.log line (SPL-2841)
+      cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"
       grep -qE -- "$ROTATE_LANE_BUSY_RE" <<<"$cl" && { cut -c1-120 <<<"$cl"; return 0; }
       q+=("$d")
     done

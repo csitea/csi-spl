@@ -84,6 +84,13 @@
 #      seats: g-178 on its limit 3 days ago, g-002 clean 1 h ago = grok not
 #      out. Controls: the newest across seats a limit = out; one seat alone
 #      on its limit = out; a tie (same second) with a limit = out
+#  23. SPL-2899 (B): the fleet lease moves to another box during HOLD = HOLD
+#      SKIP standby, no ask, no resume. Control: it stays here = FAIL HOLD
+#  24. SPL-2899 (C): a fresh fleet.dispatch.hub-down = GATE SKIP hub-down, no
+#      hold, no ask. Control: a marker older than LEASE_STALE rotates
+#  25. SPL-2899 (F): a grok master, the lease kept on an able claude failover
+#      = RELEASE SKIP vendor rank, DONE, no ask. Controls: the failover not
+#      able, or no better vendor = RELEASE FAIL + ask
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -945,6 +952,84 @@ touch -r "$T/wd22/ctx.1/g-002/out.s2" "$T/wd22/ctx.1/g-003/out.s2"
 o="$(go)"; [[ "$o" == 'g-002 S2 kind=limit 10m ago: pane: weekly' ]] && pass "22. control: a tie with a limit: out" || fail "22. tie: '$o'"
 rm -rf "$T/wd22"; v22 g-178 '8 days ago' 'HIT S2 kind=limit pane: weekly'
 o="$(go)"; [[ -z "$o" ]] && pass "22. control: a limit older than ROTATE_GROK_LIMIT_FRESH: not out" || fail "22. old: '$o'"
+
+# --- 23. SPL-2899 (B): the lease moves to ANOTHER box during HOLD = HOLD SKIP standby, no alert ---
+# rotation-failures-2026-10-22.md row 2a: box 2's HOLD waited for c-003@<box-2>
+# while box 1 took the lease back as c-002@<box-1>: FAIL HOLD + ask, the role
+# served the whole time. Fleet mode (the loop moves the lease, not the hold).
+fleet_world() { world; rm -f "$D"/fleet.*; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-902@box-desk $(date +%s)" >"$D/lease"; }
+fleet_world
+( while [[ ! -e "$D/rotate.hold" ]]; do command sleep 0.05; done; echo "c-902@box-main $(date +%s)" >"$D/lease" ) & mover=$!
+act DRY_RUN=0 ROTATE_TEST_REAL=1 >"$T/o" 2>&1; rc=$?
+kill "$mover" 2>/dev/null; wait "$mover" 2>/dev/null
+[[ $rc -eq 0 && ! -e "$D/rotate.hold" && ! -e "$T/spawn.log" && -d "$T/proc/102" ]] &&
+  grep -q ' HOLD SKIP standby (lease c-902@box-main)' "$T/o" && ! grep -q ' FAIL ' "$T/o" &&
+  pass "23. (B) the lease on another box during HOLD: HOLD SKIP standby, no hold left, nothing spawned" || fail "23. (B) rc=$rc $(cat "$T/o")"
+! grep -q '^do_spl_ask_put\|^do_spl_fleet_notice' "$T/run.log" 2>/dev/null &&
+  pass "23. (B) ... no ask, no ops notice" || fail "23. (B) alerted: $(cat "$T/run.log" 2>&1)"
+act DRY_RUN=0 >"$T/o" 2>&1
+! grep -qE ' (RESUME|FAIL) ' "$T/o" && grep -q ' GATE SKIP standby (dispatch lease: c-902@box-main)' "$T/o" &&
+  pass "23. (B) ... the next run gates afresh (no RESUME of the skipped hold)" || fail "23. (B) next run: $(cat "$T/o")"
+# CONTROL: the lease never moves (stays on this box) = FAIL HOLD + ask, as before
+fleet_world
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' FAIL FAIL HOLD: the lease did not move to c-903' "$T/o" && ! grep -q 'HOLD SKIP' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master PROMOTE' "$T/run.log" &&
+  pass "23. (B) CONTROL: the lease stays on this box: FAIL HOLD + ask" || fail "23. (B) control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+
+# --- 24. SPL-2899 (C): a fresh fleet.dispatch.hub-down = GATE SKIP hub-down, no hold -------------
+# row 2b: HUB-UNREACHABLE at 17:14Z, GATE OK at 17:15Z, then FAIL HOLD + ask:
+# with the hub down no lease can move. The marker is SPL-2865's, only read here.
+fleet_world; echo "$(( $(date +%s) - 30 ))" >"$D/fleet.dispatch.hub-down"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$D/rotate.hold" && ! -e "$T/spawn.log" && "$(holder)" == c-902@box-desk ]] &&
+  grep -q ' GATE SKIP hub-down (the hub was unreachable from here [0-9]*s ago' "$T/o" && ! grep -qE ' (GATE OK|FAIL) ' "$T/o" &&
+  ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "24. (C) a fresh hub-down marker: GATE SKIP hub-down, no hold, no ask" || fail "24. (C) rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+act >"$T/o" 2>&1
+grep -q ' GATE SKIP hub-down' "$T/o" && ! grep -q ' HOLD PLAN ' "$T/o" &&
+  pass "24. (C) ... a dry run shows the same SKIP" || fail "24. (C) dry: $(cat "$T/o")"
+# CONTROL: a marker older than LEASE_STALE (180 s) gates as before (local mode: to DONE)
+world; echo "$(( $(date +%s) - 600 ))" >"$D/fleet.dispatch.hub-down"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && ! grep -q 'hub-down' "$T/o" &&
+  pass "24. (C) CONTROL: a hub-down marker 600s old: rotates to DONE" || fail "24. (C) control rc=$rc $(cat "$T/o")"
+rm -f "$D"/fleet.*
+
+# --- 25. SPL-2899 (F): RELEASE with the lease kept on a better-vendor failover = RELEASE SKIP ----
+# row 6: master g-002 (grok), failover c-003 (claude); the fleet's vendor rank
+# keeps the lease on c-003 past RELEASE's wait: RELEASE FAIL + ask, while the
+# lease came back by FALLBACK-WAIT 3 min later. The live shape at RELEASE.
+at_rank() {  # <master> <failover wd verdict or ->
+  world; rm -rf "$S/g-902" "$T/ai.g-902" "$D"/wd.*; mkdir -p "$S/g-902/inbox" "$S/g-902/outbox"
+  sed -i "s/^LEASE_MASTER=.*/LEASE_MASTER=$1/" "$D/lease.conf"; echo 'LEASE_FLEET=main' >>"$D/lease.conf"
+  echo "c-903@box-desk $(date +%s)" >"$D/lease"
+  rm -rf "$T/proc/102"; "$T/bin/proc" 2902 "$1" 0; printf '%%2902\t2902\t$0\t%s@box\n' "$1" >>"$T/tmux/panes"; echo 2902 >"$T/ai.$1"
+  [[ "$2" == - ]] || echo "$2" >"$D/wd.c-903"
+  date +%s >"$D/rotate.dispatch.last"
+  printf 'ROTATE_RID=20261019T1915Z-master\nROTATE_PHASE=RELEASE\nROTATE_OLD_PID=102\nROTATE_OLD_PANE=%%2\nROTATE_NEW_PID=2902\nROTATE_NEW_PANE=%%2902\n' >"$D/rotate.dispatch.ctx"
+}
+at_rank g-902 -
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q ' RELEASE SKIP vendor rank: the lease stays on c-903@box-desk (claude) over g-902 (grok)' "$T/o" &&
+  ! grep -qE ' (RELEASE FAIL|FAIL FAIL) ' "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "25. (F) grok master, the lease kept on the claude failover: RELEASE SKIP vendor rank, DONE, no ask" || fail "25. (F) rc=$rc phase=$(ctx ROTATE_PHASE) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+! grep -q 'NOT healthy' "$T/send.log" 2>/dev/null && ! grep -q REFRESH "$T/o" &&
+  pass "25. (F) ... no NOT-healthy note, no refresh of the acting failover" || fail "25. (F) note: $(cat "$T/o") $(cat "$T/send.log" 2>&1)"
+# CONTROL: the claude failover cannot act (fresh watchdog HIT) = RELEASE FAIL + ask, as before
+at_rank g-902 "HIT S2 $(date +%s)"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' RELEASE FAIL the lease is still c-903@box-desk' "$T/o" && ! grep -q 'RELEASE SKIP' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master RELEASE' "$T/run.log" &&
+  pass "25. (F) CONTROL: the failover not able: RELEASE FAIL + ask" || fail "25. (F) control-able rc=$rc $(cat "$T/o")"
+rm -f "$D/wd.c-903"
+# CONTROL: same vendor (claude master, claude failover) = RELEASE FAIL, as before
+at_rank c-902 -
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' RELEASE FAIL the lease is still c-903@box-desk' "$T/o" && ! grep -q 'RELEASE SKIP' "$T/o" &&
+  pass "25. (F) CONTROL: no better vendor on the failover: RELEASE FAIL" || fail "25. (F) control-rank rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "25. no stray failing command under the ERR trap" || fail "25. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -rf "$S/g-902"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

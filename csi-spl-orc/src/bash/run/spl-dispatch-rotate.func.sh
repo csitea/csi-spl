@@ -17,6 +17,8 @@
 # @description            the master at least ROTATE_MIN_AGE old, no orch
 # @description            rotation in flight (FR-051), not stalled (FR-022), the failover
 # @description            able to take the lease (SPL-1890: no fresh watchdog HIT, no stall),
+# @description            the hub reachable (no fleet.dispatch.hub-down younger than
+# @description            LEASE_STALE: GATE SKIP hub-down, SPL-2899 C),
 # @description            then the master's id lock (spec 102 4.2; held =
 # @description            exit 4), held from HOLD to its CLOSE only; the
 # @description            failover's is taken for its REFRESH .. CLOSE (held
@@ -24,14 +26,17 @@
 # @description   HEAL     a dispatcher with no live process is spawned by
 # @description            do_spl_dispatch_setup, nothing else this run (FR-021)
 # @description   HOLD     <dir>/rotate.hold names M: the lease loops skip M,
-# @description            F takes the lease and acts (FR-023)
+# @description            F takes the lease and acts (FR-023); the lease moved to
+# @description            another machine meanwhile = HOLD SKIP standby, no alert (SPL-2899 B)
 # @description   QUIESCE, HANDOFF, SPAWN (the old window renamed retiring, a
 # @description            new session beside the old one, seeded with the
 # @description            dispatcher brief + the rotation line; the handoff
 # @description            also arrives as a task in its inbox, FR-026), ACK
 # @description            (a result on dispatch-rotate-<rid> in its outbox,
 # @description            FR-041), RETIRE (/exit-clean, TERM, KILL), CLOSE
-# @description   RELEASE  the hold goes, M takes the lease back (FR-028)
+# @description   RELEASE  the hold goes, M takes the lease back (FR-028); kept on an
+# @description            able F of a better vendor = RELEASE SKIP vendor rank, no
+# @description            alert, no refresh (SPL-2899 F)
 # @description   REFRESH  the same for F, without a hold (FR-029)
 # @description   DONE     rotate.dispatch.last, a result note to the orchestrator;
 # @description            the fresh master re-read first: gone or off the lease =
@@ -158,6 +163,7 @@ spl_disp_rotate_auto() {
     spl_disp_once "unable.$f.$(tr -c 'a-z0-9' '_' <<<"${why%%:*}")" "ROTATION SKIP failover not able: $f@$ROTATE_BOX ($why); $m keeps the lease, no rotation until $f can take it"
     return 0
   fi
+  spl_disp_hub_down "$rid" && return 0
   # the master's id lock, for its swap only: the failover's stays free, so a
   # restart of it is never refused while the master phase runs
   spl_disp_id_lock "$m" "$rid" || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
@@ -171,7 +177,8 @@ spl_disp_rotate_auto() {
     { local dc=$?; return $(( dc == 3 ? 0 : dc )); }
   spl_disp_begin master "$rid" "$mpid" "$pane"
   spl_disp_step GATE OK "$m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
-  spl_disp_hold || return 1
+  local hrc=0; spl_disp_hold || hrc=$?
+  (( hrc == 0 )) || return $(( hrc == 3 ? 0 : 1 ))
   spl_disp_run || return 1
   spl_disp_run_all
 }
@@ -462,11 +469,51 @@ spl_disp_hold() {
   fi
   if ! spl_disp_wait_holder "$f"; then
     rm -f "$LEASE_DIR/rotate.hold"
+    spl_disp_hold_standby && return 3
     spl_disp_step FAIL FAIL "HOLD: the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s (it is $LH); $m keeps acting"
     spl_rotate_alert master "$ROTATE_RID" PROMOTE "the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s"
     return 1
   fi
   spl_disp_step HOLD OK "rotate.hold = $m; the lease is $LH"
+}
+
+# spl_disp_hold_standby: 0 when HOLD's wait ended with the lease on ANOTHER
+# machine (FR-044): this box is standby, the role is served there, so the
+# rotation ends with no alert and nothing to resume (SPL-2899 B; row 2a of
+# rotation-failures-2026-10-22.md: during box 2's HOLD box 1 took the lease
+# back, FAIL HOLD + ask twice). The master's id lock goes with it.
+spl_disp_hold_standby() {
+  spl_lease_remote || return 1
+  ROTATE_PHASE=DONE; spl_rotate_ctx_save dispatch
+  spl_agent_id_unlock "$LEASE_MASTER"
+  spl_rotate_log "$ROTATE_RID" HOLD SKIP "standby (lease $LH)"
+}
+
+# spl_disp_hub_down RID: 0 while this machine's last failed hub call
+# (fleet.dispatch.hub-down, SPL-2865's marker, only read here) is younger
+# than LEASE_STALE: no lease can move then, so a HOLD would only FAIL and
+# alert (SPL-2899 C; row 2b: HUB-UNREACHABLE 17:14Z, GATE OK 17:15Z).
+spl_disp_hub_down() {
+  local down="" now
+  read -r down _ < "$LEASE_DIR/fleet.dispatch.hub-down" 2>/dev/null || down=""
+  [[ "$down" =~ ^[0-9]+$ ]] || return 1
+  now="$(spl_lease_now)"
+  (( now - down < LEASE_STALE )) || return 1
+  spl_rotate_log "$1" GATE SKIP "hub-down (the hub was unreachable from here $(( now - down ))s ago, < LEASE_STALE ${LEASE_STALE}s)"
+}
+
+# spl_disp_rank_kept: 0 when RELEASE's wait ended with the lease on the
+# failover, able to act, whose vendor ranks above the master's
+# (LEASE_VENDOR_ORDER, spl_fleet_tier): the fleet loop keeps it there by
+# design and hands it back by FALLBACK-WAIT, so no alert (SPL-2899 F; row 6:
+# g-002 master, c-003 failover, RELEASE FAIL 3 min before the lease came back).
+spl_disp_rank_kept() {
+  local f="$LEASE_FAILOVER" m="$LEASE_MASTER"
+  [[ "$LH" == "$f" || "$LH" == "$f@$ROTATE_BOX" ]] || return 1
+  (( $(spl_fleet_tier "$f") < $(spl_fleet_tier "$m") )) || return 1
+  [[ -n "$(spl_lease_agent_able "$f")" ]] || return 1
+  ROTATE_RANKED="$LH"
+  spl_disp_step RELEASE SKIP "vendor rank: the lease stays on $LH ($(spl_fleet_vendor "$f")) over $m ($(spl_fleet_vendor "$m")); it comes back by the fleet's FALLBACK-WAIT"
 }
 
 # RELEASE: the hold goes and M renews; local mode writes it back at once and
@@ -620,6 +667,7 @@ spl_disp_close() {
   spl_agent_id_unlock "$id"
   spl_lease_log "ROTATE $role $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
   [[ "$role" == master ]] || return 0
+  ROTATE_RANKED=""
   spl_disp_release
   # FR-044 (spec 061): the fleet lease moved to ANOTHER machine mid-rotation,
   # so this box is standby and its master is never handed the lease back
@@ -632,6 +680,7 @@ spl_disp_close() {
     return 0
   fi
   if [[ "$LH" != "$LEASE_MASTER" && "$LH" != "$LEASE_MASTER@$ROTATE_BOX" ]]; then
+    spl_disp_rank_kept && return 0
     spl_disp_step RELEASE FAIL "the lease is still $LH ${ROTATE_PROMOTE_WAIT}s after the release; $LEASE_FAILOVER keeps acting"
     # RETIRE OK has run: the old session is gone, the new one is the master
     spl_rotate_alert master "$ROTATE_RID" RELEASE "the lease did not come back to $LEASE_MASTER" \
@@ -794,6 +843,11 @@ spl_disp_run_all() {
     # standby: the lease is on another machine, so no refresh and no
     # "holds the dispatch lease" note; the ctx ends DONE, nothing resumes
     spl_disp_step DONE OK "fresh $LEASE_MASTER pid ${ROTATE_NEW_PID:-?}; standby (lease $ROTATE_STANDBY): no release, no refresh"
+    return 0
+  fi
+  if [[ -n "${ROTATE_RANKED:-}" ]]; then
+    # SPL-2899 F: the failover acts by vendor rank, so it is not refreshed now
+    spl_disp_step DONE OK "fresh $LEASE_MASTER pid ${ROTATE_NEW_PID:-?}; the lease stays on $ROTATE_RANKED by vendor rank: no refresh"
     return 0
   fi
   spl_disp_refresh || rc=1

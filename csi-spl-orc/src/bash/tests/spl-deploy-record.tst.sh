@@ -142,6 +142,7 @@ check_other() {
     and (.env.DEPLOY_ENV == "${{ matrix.environment }}")
     and (.env.OTHER_KEY_FILE | test("steps\\.auth_other\\.outputs\\.credentials_file_path"))
     and (.run | test("DRY_RUN=0") and test("GCP_ACCOUNT=\u0027\u0027 ") and test("GCP_SA_KEY_FILE=\"\\$OTHER_KEY_FILE\"")
+      and test("^CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=\"\\$OTHER_KEY_FILE\" GOOGLE_APPLICATION_CREDENTIALS=\"\\$OTHER_KEY_FILE\" ")
       and test("DEPLOY_COMPONENT=" + $c + " ") and test("-a do_spl_deploy_record$"))' <<<"$s" >/dev/null || { echo "step wiring: $s"; return 1; }
   ! grep -qiE 'private_key|BEGIN [A-Z ]*PRIVATE' <<<"$a$s" || { echo "key literal in the steps"; return 1; }
   [[ "$(yq -r '.jobs.deploy.env.HAS_OTHER_KEY' "$f")" == *"'PRD' || 'DEV'"* ]] || { echo "no job-level HAS_OTHER_KEY"; return 1; }

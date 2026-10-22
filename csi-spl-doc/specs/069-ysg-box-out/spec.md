@@ -1,6 +1,9 @@
 # 069: ysg-box out - every spool dependency on ysg-box moves into csi-spl
 
-Status: **v0.3, owner answered Q1..Q4 (section 6); inventory measured on `<pc box>` and on sat (section 2.9, by `do_check_ysg_box_deps`).**
+Status: **v0.4: section 8 "Desks under `<agent-user>`" added (its own draft
+v0.1, editor seat, waiting for the mistral seat's verdict); v0.3 owner
+answered Q1..Q4 (section 6); inventory measured on `<pc box>` and on sat
+(section 2.9, by `do_check_ysg_box_deps`).**
 Spec only: no code, no crontab, no home-dir file, no ysg-box file was touched by
 this lane. Draft 2026-10-03, c-138 (v0.1 `6f9fe600`); v0.2 folds in the owner's
 answers, HUM-10 at 14:37Z, topic `828d50b1`.
@@ -487,3 +490,254 @@ the population; it passes only when **each list is empty**, on `<pc box>` and
 sat. Then the proof the owner asked for: move `<engine>` and `<overlay>`
 aside, reboot, and the fleet comes back (C2's job, now csi-spl's), agents
 connect the chrome/firefox MCP, and `/signed-prompt` and `/tmux-color` work.
+
+## 8. Desks under `<agent-user>` (v0.4)
+
+Section draft v0.1, editor seat c-156, 2026-10-22. Lane SPL-2849, epic
+SPL-2151. Docs only: nothing below has been built, installed, stopped or moved.
+
+### 8.1 What the owner asked (HUM-10, topic `13a90dc3`, verbatim)
+
+> e07ec1c2: "wouldn't it be more rational to have the desk's under the [<agent-user>]
+> OS user"
+
+> 533d1e27 (poll answer): "A — Yes: a spec first (panel), then a box-by-box
+> move, sat first"
+
+Out of scope (owner): the `box_mode_shared` join refusal on `<pc box>`.
+
+### 8.2 Today, measured
+
+All on csi-spl sha `8bd808cbf` (origin/master at this lane's start), n=1 run
+per box, 2026-10-22 ~11:00Z. `<pc box>` was measured locally. sat was
+measured over `ssh` with the same read-only probe (owners, modes and counts
+only; no key file was opened). `<state>` = `<home of the desk owner>/.local/share/csi-spl/cloud`.
+
+#### 8.2.1 Desk folders, owners, modes
+
+`find <state>/<env>/desk -mindepth 2 -maxdepth 2 -type d -printf '%u:%g %m\n' | sort | uniq -c`
+
+| box | env | desks | workspaces | desk ids | seats | owner:group mode | size |
+|---|---|---|---|---|---|---|---|
+| `<pc box>` | dev | 6 | 2 | 4 | 3 | 6 x `<box-user>:<box-user> 700` | 131M |
+| `<pc box>` | prd | 24 | 10 | 4 | 153 | 24 x `<box-user>:<box-user> 700` | 628M |
+| sat | dev | 5 | 4 | 2 | 17 | 5 x `<box-user>:<box-user> 700` | 28M |
+| sat | prd | 11 | 10 | 2 | 137 | 11 x `<box-user>:<box-user> 700` | 502M |
+
+- A file under `<state>` not owned by `<box-user>`
+  (`find <state> ! -user <box-user> | wc -l`): **0** on both boxes.
+- `<state>` itself: `<box-user>:<box-user> 700` on `<pc box>`, **`775` on sat**.
+- One desk = `<state>/<env>/desk/<workspace>/<desk id>/` holding `keys/`
+  (0700), `spool/` (0700; one dir per seat, `.hub/` with `hub-run.{pid,log,lock}`,
+  `files/` = the attachments, `pins/`), `retired/`, and top-level files
+  `pinned`, `answered`, `up-all.lock`, `responder.lock`, `seen-topics`,
+  `rebox-seated.txt`, `probe-results.json` (all 0600 except 7 x
+  `rebox-seated.txt` 0664 on `<pc box>` and 1 x `responder.lock` 0664 on sat).
+- **Keys** (`find <state>/*/desk -path '*/keys/*' -type f -printf '%u:%g %m\n' | sort | uniq -c`):
+  `<pc box>` **29**, sat **16**, every one `<box-user>:<box-user> 600`, one
+  `box-<desk id>.key` per desk. Contents not read.
+- **Attachments** (`<desk>/spool/files/`): `<pc box>` 14 dirs, 914 files;
+  sat 7 dirs, 307 files.
+- Beside `desk/`, each `<state>/<env>/` holds the sidecar binary `bin/spool`,
+  the rendered cnf (`cnf/`, `<env>.env.yaml`), `hub-url`, and operator state
+  (tenant root keys, backups, hub operator context, probe logins, e2e and
+  perf logs). Only `desk/` and `bin/` are desk state.
+
+#### 8.2.2 Sidecars and who starts them
+
+`ps -eo user,args | awk '/ hub-run$/ {print $1}' | sort | uniq -c`
+
+| box | `spool hub-run` processes | user | live desks / desk dirs |
+|---|---|---|---|
+| `<pc box>` | 12 | 12 x `<box-user>` | dev 1/6, prd 11/24 |
+| sat | 10 | 10 x `<box-user>` | dev 0/5, prd 10/11 |
+
+sat reproduces the dispatcher's figure (cac723f1: "10 sidecars run as the box
+user").
+
+Starters, `crontab -u <user> -l | grep -c desk-reconcile`:
+
+| starter | `<pc box>` | sat |
+|---|---|---|
+| `<box-user>` crontab `# csi-spl:desk-reconcile{,-prd}` (every 3 min, dev and prd) | 2 | 2 (in the count of 4) |
+| `<box-user>` crontab `# csi-spl:desk-reconcile{,-prd}@boot` | 2 | 2 (in the count of 4) |
+| `<agent-user>` crontab, any `desk` line | 0 | 0 |
+| systemd units (system + user) starting a sidecar | 0 | 0 (the one hit on sat is the `/var/spool-hub` mount) |
+
+The chain: `desk-reconcile-cron.sh` -> `do_spl_desk_up_all`
+(`spl-desk-up-all.func.sh:87`) -> `do_spl_desk_up` (`spl-desk-up.func.sh:62`)
+-> `spl_desk_detach ... spool hub-run` (`spl-desk-up.func.sh:463`). Other
+callers of `do_spl_desk_up` start a sidecar on demand: `spool-agent.sh:268`,
+`spool-mcp.sh:114` (`--seat`), `spl-desk-check.func.sh:255`,
+`spl-desk-rebox.func.sh:222`, `spl-desk-up-boxes.func.sh:113,116`,
+`spl-dispatch-setup.func.sh:443`, `spl-responder-sweep.func.sh:137`,
+`spl-pool-ctl.func.sh:257`. Each runs as whoever calls it, so it lands in
+**that user's** `$HOME` (`spl-cloud-cnf.func.sh:99`:
+`SPL_STATE_DIR="${SPL_STATE_DIR:-$HOME/.local/share/$SPL_ORG_APP/cloud/$ENV}"`).
+`do_spl_desk_install_service` installs only the cron line, by design (its
+header: no `loginctl enable-linger`, no root unit).
+
+The prd reconcile lines also pass the hub roster check a probe login (two
+files under `<box-user>`'s `<state>/prd/`) for `DESK_HUB_CHECK` (stranded-box
+repair, `spl-desk-up-all.func.sh:61-69`).
+
+#### 8.2.3 Who reaches a desk through `sudo -u <box-user>`
+
+The box user is resolved once: `SPOOL_BOX_USER` = owner of `$SPOOL_ROOT`
+(`spool-env.inc.sh:379-381`), or the owner of the orc checkout
+(`spool-agent.sh:102`); the MCP reads `SPOOL_MCP_BOX_USER` from
+`~<agent-user>/.config/spool-mcp/env` (both boxes: `=<box-user>`, serve half
+`~<box-user>/.local/share/csi-spl/mcp/spool-mcp.sh`).
+
+`git grep -n -E 'sudo[^|;]*-u "?\$\{?[A-Za-z_]*(BOX_USER|...)' 8bd808cbf` over
+non-test `.sh`/`.py` -> **29 lines in 22 files**. Classified by reading each:
+
+| class | lines | sites |
+|---|---|---|
+| **reaches a desk** (desk tree or box key) | **10** | `spool-agent.sh:118,127` (seat discovery, `do_spl_desk_up`); `spool-mcp.sh:153` (every agent's spool MCP); `spool-fleet.inc.sh:125` (cross-machine relay: "the desk tree and its box key are the box user's (0700)"); `spool-send.sh:158` (topic-kind probe on every send); `agent-id-retire.sh:224` (seat drop); `asks.sh:149`, `lane-map.sh:98`, `lane-issue.inc.sh:224`, `spawn-window.sh:396` (`./run` actions that sign to the hub with the desk) |
+| tmux server (stays `<box-user>`) | 7 | `spool-env.inc.sh:475`, `spool-mcp.sh:126`, `tmux-close-window.sh:228`, `tmux-sort-windows.sh:74`, `tmux-window-color.sh:84`, `spl-watchdog.func.sh:435` (socket dir), and `tmux-close-window.sh:43` (comment) |
+| printed instructions | 6 | `spl-dispatch-setup.func.sh:329,336` (`do_spl_desk_reply` / `do_spl_take` as the box user: **desk**); `spl-{dispatch,lane,orch}-rotate`, `spl-role-failover` ack lines (rotation, not desk) |
+| seed / prompt text | 6 | `spawn-core.inc.sh:314,319,336`, `spawn-chain-core.inc.sh:75,77`, `gc-session.sh:44` (the git-as-box-user rule; not desk) |
+
+One hop goes the other way: `spl-desk-session-upload.func.sh:118`
+(`sudo -n -u <agent-user>`, the desk owner reading an agent's session).
+
+Desk paths derived from a home, not from the box user variable
+(`git grep -n 'local/share/csi-spl' 8bd808cbf`, non-test, desk sites only):
+`agent-id-rename.sh:72`, `role-seat-switch.sh:55`, `desk-seat-drop.sh:55`,
+`agent-id-retire.sh:221`, `spool-agent.sh:111`, `spool-fleet-relay.sh:78`,
+`spool-topic-kind.sh:41`, `topic-text.sh:59`, `spool-mirror.py:488-491`,
+`agent-mirror-check.py:137-139`, `spl-desk-reply.sh:82,91,106-107`,
+`spool-mcp.sh:108,158` (relative to the serve half's install dir),
+`spl-cloud-cnf.func.sh:99`. 18 files name the root in all; the others are
+blog, lde, standby-bench, purge-undo and IAM state, not desks.
+
+So yes: every agent post, MCP call and seat change crosses one
+`sudo -n -u <box-user>`, and only the `[ "$(id -un)" = "$SPOOL_BOX_USER" ]`
+fast paths already in those files avoid it.
+
+#### 8.2.4 Default desk of the spool MCP
+
+`spool-mcp.sh:86-89, 175-197`: env from the argument (`spool-prd` -> `prd`),
+desk id = `SPOOL_DESK_BOX` (env, else `/var/spool-hub/box.env`; both boxes
+set it), workspace = the one seat, else `SPOOL_FLEET_TENANT` (set on sat
+only), else the first seated, else the first with a live sidecar.
+
+#### 8.2.5 Not a desk, unchanged by this section
+
+`/var/spool-hub` (`<box-user>:spool-agents 2770` on both; the local spool),
+the tmux server, the git checkouts (`/opt/csi/csi-spl`, the desk-cron
+checkout), the other csi-spl crontab lines, operator state. spec 108 boxes
+(one workspace, its own OS user, `spl-box-workspace.func.sh`) already run
+their desk under a per-workspace user and are out of scope: neither box has a
+claim.
+
+### 8.3 Target
+
+- **One new box key, `SPOOL_DESK_USER`**, in `/var/spool-hub/box.env`
+  (added to `SPOOL_BOX_ENV_KEYS`, `spool-env.inc.sh:292`). Unset = today
+  (`SPOOL_BOX_USER`), so every build row lands with no behaviour change, and
+  the per-box cutover is the one line that flips it to `<agent-user>`.
+- **One resolver each side**: `spool_desk_user` / `spool_desk_state` in
+  `spool-env.inc.sh` (scripts) and `spl_desk_state_root` in
+  `spl-cloud-cnf.func.sh` (`./run`). The state root is
+  `<home of SPOOL_DESK_USER from getent>/.local/share/<org-app>/cloud/<env>`,
+  never a literal path. A desk keeps its relative layout:
+  `<state>/<env>/desk/<workspace>/<desk id>/{keys,spool,retired,...}`.
+- **Sidecar user** = `SPOOL_DESK_USER`. With it = `<agent-user>`, the
+  existing same-user fast paths fire and agents reach their desk with **no
+  sudo**.
+- **Moves to `<agent-user>`**: `<state>/<env>/desk/` (whole), `<state>/<env>/bin/spool`
+  (rebuilt by `do_spl_desk_up`, not copied), a fresh cnf render
+  (`do_spl_desk_cnf`), the MCP serve half, and the 4 `desk-reconcile` crontab
+  lines (2 periodic, 2 `@reboot`). The prd probe login gets a 0600
+  `<agent-user>` copy for the hub check (named by role in logs, never by
+  content).
+- **Keys**: copied with the desk, `keys/` 0700, each `box-<desk id>.key`
+  0600, owner `<agent-user>`. The key identifies the desk to the hub, so the
+  hub sees the same box: no re-pin, no new key. Never in git, never in a log
+  or a post: the move action names keys by count and mode and compares
+  `sha256` source vs copy as a yes/no, never printed. A new desk after the
+  cutover still needs `ROOT_KEY_JSON` once; the operator hands it on stdin
+  (row B7).
+- **What `<box-user>` keeps**: the tmux server and socket, `/var/spool-hub`,
+  its crontab's other csi-spl lines, the checkouts, all operator state under
+  its `<state>/<env>/` (tenants, root keys, backups, hub operator context,
+  probe logins), the moved-aside desk copies until 8.4 step 6, its own
+  Claude login, and read access to the desks through
+  `sudo -u <agent-user>` (its sudoers rule). The human's own `claude`
+  sessions (`SPL-2112` minted ids) hop the other way:
+  `SPOOL_MCP_BOX_USER` becomes the desk user, `<agent-user>`.
+
+### 8.4 Per-box cutover (sat first, then `<pc box>`)
+
+Each box needs the **owner's go** for that box (G-sat, then G-pc). G-pc is
+asked only after sat ran 24 h with every check below green. Everything runs
+through `do_spl_desk_move` (row B7); nothing by hand.
+
+| step | what | downtime |
+|---|---|---|
+| 0 | Rows B1..B6 landed and on the desk-cron checkout of that box; `do_spl_desk_move` with `DRY_RUN=1` (the default) prints per desk: source, target, size, key count and modes, live sidecar pid, seats, and the exact order below. The owner's go is asked with that printout. | none |
+| 1 | Pause reconcile on that box: the existing `<spool root>/.desk-reconcile.<env>.pause` file (`desk-reconcile-cron.sh:373`). | none |
+| 2 | Per desk, one at a time, prd before dev, the dispatch and orchestrator desk (`SPOOL_FLEET_TENANT` / `SPOOL_DESK_BOX`) **last**: stop its sidecar (`do_spl_desk_down`), copy the desk dir to the `<agent-user>` target preserving modes, `chown -R <agent-user>`, verify (file count equal, key sha256 equal, modes as 8.3), rename the source to `desk.moved-<UTC>` beside it, start the sidecar as `<agent-user>` (`do_spl_desk_up`, `DESK_SEATED_ONLY=1`). | that desk only: stop -> start. Target <= 60 s per desk; **estimate, not measured**: the copy is local and the largest env dir is 628M for 24 desks. The first desk on sat measures it, and the action stops if one desk exceeds 120 s. |
+| 3 | Proof per desk, before the next one: `do_spl_desk_check` for that desk says live with a hub session (not `down`, not `stranded`). | - |
+| 4 | Switch the box: `SPOOL_DESK_USER=<agent-user>` in `box.env`; `do_spl_agent_mcp_install` rewrites `SPOOL_MCP_BOX_USER`; `do_spl_desk_install_service` moves the 4 marked reconcile lines to the `<agent-user>` crontab. | none for desks; each agent's MCP server reconnects (row B5) |
+| 5 | Unpause reconcile; one post per workspace (`do_spl_desk_probe`, one seat per workspace, posts and reads it back); `ps` shows every `hub-run` as `<agent-user>`, 0 as `<box-user>`; `do_check_ysg_box_deps` unchanged. | - |
+| 6 | After 7 days green, `do_spl_desk_move MOVE_CMD=prune` removes the `desk.moved-*` copies (dry run first). | - |
+
+Open measurement, made in the sat dry run and not assumed here: whether the
+hub queues a message for a desk whose sidecar is down, or the sender gets
+"Not sent". If it does not queue, step 2 runs in the quietest hour of that
+box's history (`do_spl_desk_check` traffic counts) and the owner is told the
+minute.
+
+**Rollback**, per desk or the whole box, any time before step 6:
+`do_spl_desk_move MOVE_CMD=back` runs the same steps in reverse (stop the
+`<agent-user>` sidecar, copy the target back over the `desk.moved-*` source so
+messages received since the move are kept, rename, start as `<box-user>`,
+check), then clears `SPOOL_DESK_USER` and moves the cron lines back. A desk
+whose step 3 fails is rolled back at once by the action, and the box stops
+there.
+
+### 8.5 Build rows
+
+Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in
+parallel, batch 3 after the sat cutover. Every row lands with
+`SPOOL_DESK_USER` unset = no change on either box.
+
+| row | what | sites (sha `8bd808cbf`) | red control | measure after | vendor | batch |
+|---|---|---|---|---|---|---|
+| B1 | the key and the resolvers | `spool-env.inc.sh:292,379-383`; `spl-cloud-cnf.func.sh:99`; new test `desk-user-resolve.tst.sh` | unset key -> today's paths (a test that expects the agent home must fail with the key unset) | test: unset = `SPOOL_BOX_USER`'s state root, set = the named user's home | claude | 1 |
+| B2 | agent-side hops follow the desk user | `spool-agent.sh:102-127,268`; `spool-send.sh:155-158`; `spool-fleet.inc.sh:119-125`; `agent-id-retire.sh:221-224` | a stub `sudo` that exits 99: with desk user = caller the send, relay and seat path never call it; with it unset they still do | `grep -c 'SPOOL_BOX_USER' <those files>` drops to the tmux lines only | claude | 2 |
+| B3 | `./run` hops follow the desk user | `asks.sh:147-149`; `lane-map.sh:96-98`; `lane-issue.inc.sh:222-224`; `spawn-window.sh:395-396` | same stub `sudo`; `HOME` passed is the desk user's | same grep | mistral | 2 |
+| B4 | desk-root readers use the resolver | `agent-id-rename.sh:72`; `role-seat-switch.sh:55`; `desk-seat-drop.sh:55`; `spool-fleet-relay.sh:78`; `spool-topic-kind.sh:41`; `topic-text.sh:59`; `spl-desk-reply.sh:82-107` (drops the `/home/*` glob); `spool-mirror.py:488-491`; `agent-mirror-check.py:137-139`; `spl-desk-session-upload.func.sh:118` (no hop when same user) | a sandbox with desks under user B and `SPOOL_DESK_USER=B`: each script finds them; with the old `$HOME` default it does not | `git grep -c 'local/share/csi-spl/cloud' -- <those files>` -> 0 outside the resolvers | mistral | 2 |
+| B5 | MCP follows the desk user | `spool-mcp.sh:107-108,137,153,158`; `spl-agent-mcp-install.func.sh:113` | the serve half exits (so the CLI restarts it) when its desk dir is renamed; red: today it keeps serving the old path | a live agent's `spool_send` works after its desk moved, no session restart | claude | 2 |
+| B6 | reconcile cron for the desk user | `spl-desk-install-service.func.sh`; `desk-reconcile-cron.sh:187-189` (`--print-crontab`); the probe-login location from env | installing for user B leaves 0 marked lines in user A's crontab and 4 in B's (sandbox crontab files); `PATH` carries `go` | `crontab -u <agent-user> -l \| grep -c desk-reconcile` = 4, `<box-user>` = 0, after G-sat | claude | 2 |
+| B7 | the move action | new `spl-desk-move.func.sh` (`do_spl_desk_move`, `MOVE_CMD=plan\|move\|back\|prune`) + `desk-move.tst.sh`; `ROOT_KEY_JSON=-` (stdin) in `spl-desk-up.func.sh:219` | sandbox desks with a fake sidecar: a planted key mode 0644 or a missing file stops the move and rolls that desk back; nothing prints key content (`grep` the log for the key bytes -> 0) | the sat dry run printout; then per desk downtime in seconds | claude | 2 |
+| B8 | docs and printed commands | `spl-dispatch-setup.func.sh:329,336`; the fleet CLAUDE.md fragment and dispatcher docs that say `sudo -u <box-user>` for a desk reply; this spec's acceptance | `do_check_fleet_rules_drift` green; printed command runs as the desk user | `git grep -c 'sudo -u .*do_spl_desk_reply'` -> 0 | agy | 3 |
+
+B2 and B5 both read `spool-env.inc.sh` but do not edit it (B1 does). B7
+calls B1's resolver and the existing desk up/down/check/probe actions; it
+edits only its own files plus one line in `spl-desk-up.func.sh`, which no
+other row touches.
+
+### 8.6 Acceptance, per box
+
+1. `ps -eo user,args | awk '/ hub-run$/ {print $1}' | sort | uniq -c` ->
+   only `<agent-user>`, as many as before the move (sat 10, `<pc box>` 12 at
+   the 8.2 measurement; re-read in the step 0 dry run).
+2. `find <box-user state>/*/desk -maxdepth 0` -> none (only `desk.moved-*`
+   until step 6); every desk under `<agent-user>`'s state root, 0700, keys
+   0600.
+3. `do_spl_desk_check` green for every desk; one probe post read back per
+   workspace (sat 10 prd + 4 dev, `<pc box>` 10 prd + 2 dev, re-read at step 0).
+4. Agents: `spool_send` from one seat per vendor works with no `sudo` in its
+   process tree.
+5. Re-run the 8.2.3 classification: the 10 desk lines no longer hop.
+
+### 8.7 Owner gates
+
+- G-sat: the go for the sat cutover, asked with the step 0 printout.
+- G-pc: the go for `<pc box>`, asked after sat's 24 h green.
+- No other question: the rows land without a go (no behaviour change while
+  `SPOOL_DESK_USER` is unset).

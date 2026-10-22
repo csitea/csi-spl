@@ -18,7 +18,7 @@
 #------------------------------------------------------------------------------
 do_setup_tf_mirror() {
   : "${TF_MIRROR_ROOT:?TF_MIRROR_ROOT must be set (no default) -- e.g. \$RUNNER_TOOL_CACHE/csi-spl-tf}"
-  local root="$TF_MIRROR_ROOT" tf="${TF_BIN:-$(command -v terraform 2>/dev/null)}"
+  local root="$TF_MIRROR_ROOT" tf="${TF_BIN:-$(type -P terraform 2>/dev/null)}"
   local tree="$PROJ_PATH/src/terraform" probe platform p c names=() rc=0
   [[ -n "$tf" && -x "$tf" ]] || { do_log "FATAL no terraform (TF_BIN or PATH)"; return 1; }
   [[ -d "$tree" ]] || { do_log "FATAL no terraform tree at $tree"; return 1; }

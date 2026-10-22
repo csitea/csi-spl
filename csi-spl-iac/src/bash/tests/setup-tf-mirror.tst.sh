@@ -9,6 +9,8 @@
 #   2. fresh: one `providers mirror` for the runner's platform, the probe asks
 #      for the steps' constraint, terraformrc = mirror path + include/exclude
 #   3. re-run: no download (idempotent)
+#   4. a terraform() shell function (tf-init's init-lock wrapper, sourced by
+#      ./run) does not hide the binary on PATH
 #   CONTROL: a mirror that still does not resolve after the download FAILS.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -52,6 +54,7 @@ run_setup() {
   # TF_LOG is terraform's own log level
   env -u TF_BIN -u TF_CLI_CONFIG_FILE -u TF_LOG PATH="$T/stub:$PATH" STUB_TF_LOG="$T/tf.log" PROBE_COPY="$T/probe.tf" PROJ_PATH="$T/proj" "$@" bash -c '
     do_log() { echo "$*"; }
+    [[ "${STUB_TF_FUNC:-0}" == 1 ]] && terraform() { command terraform "$@"; }
     source "'"$PROJ_ROOT"'/src/bash/run/setup-tf-mirror.func.sh"
     do_setup_tf_mirror' >"$T/out" 2>&1
 }
@@ -82,6 +85,12 @@ grep -qxF "    path    = \"$R/mirror\"" "$R/terraformrc" && grep -qxF "    inclu
 run_setup TF_MIRROR_ROOT="$R"; rc=$?
 [[ $rc -eq 0 && "$(mirrors)" -eq 1 ]] && grep -q 'already serves' "$T/out" \
   && pass "re-run: no second download" || fail "re-run rc=$rc mirrors=$(mirrors) $(cat "$T/out")"
+
+# --- 4. a terraform() function in the shell -------------------------------------
+run_setup TF_MIRROR_ROOT="$T/cache/func" STUB_TF_FUNC=1; rc=$?
+[[ $rc -eq 0 && -s "$T/cache/func/terraformrc" ]] \
+  && pass "a terraform() shell function does not hide the binary on PATH" \
+  || fail "with a terraform() function: rc=$rc $(cat "$T/out")"
 
 # --- CONTROL: a download that does not make the mirror resolve fails -------------
 run_setup TF_MIRROR_ROOT="$T/cache/other" STUB_MIRROR_EMPTY=1; rc=$?

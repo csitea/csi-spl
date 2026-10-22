@@ -146,10 +146,9 @@ import { writeClipboard } from '~/utils/clipboard.mjs'
 import { docLink } from './-doc-anchor'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { DocTreeError, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
-import { useRepoDocs } from './-repo-docs'
-import { buildDocsTree, docsAncestors, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 import { QTO_ROOT as ROOT, docKey, folderKey, itemKey, useQtoTreeFolders } from '~/composables/useQtoTreeFolders'
 import { useQtoTreeDrop } from '~/composables/useQtoTreeDrop'
+import { useQtoTreeRepo } from '~/composables/useQtoTreeRepo'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null, repo?: string }>()
 const emit = defineEmits<{ open: [doc: string, item: string], moved: [doc: string, rev: number], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
@@ -266,61 +265,9 @@ watch(() => props.drill, (key) => {
   if (doc && !kids.value[doc]) void load(doc)
 }, { immediate: true })
 
-/* the Repository branch (T023): tree.json read once, the first time it opens */
-const REPO = 'r:'
-const repoDocs = typeof props.repo === 'string' ? useRepoDocs() : null
-const repoTree = ref<DocsDir | null>(null)
-const repoOpen = ref<Set<string>>(new Set())
-let repoLoad: Promise<void> | null = null
-
-function loadRepo() {
-  if (!repoDocs || repoLoad) return repoLoad
-  repoLoad = (async () => {
-    try {
-      const files = await repoDocs.files()
-      if (files === 'off') throw new Error('docs off')
-      repoTree.value = buildDocsTree(files)
-    } catch {
-      repoLoad = null
-      status.value = t('ws_doctree.repo_failed')
-    }
-  })()
-  return repoLoad
-}
-
-function toggleRepo(key: string) {
-  if (key === REPO) {
-    const on = !opened.value.has(REPO)
-    setOpen(REPO, on)
-    if (on) void loadRepo()
-    return
-  }
-  const s = new Set(repoOpen.value)
-  const path = key.slice(3)
-  if (s.has(path)) s.delete(path)
-  else s.add(path)
-  repoOpen.value = s
-}
-
-/* the open repo doc (a fresh load of ?repo= too): its branch opens down to it */
-watch(() => props.repo, (path) => {
-  if (!path) return
-  setOpen(REPO, true)
-  repoOpen.value = new Set([...repoOpen.value, ...docsAncestors(path)])
-  void loadRepo()
-}, { immediate: true })
-
-function repoRows(): FileTreeRow[] {
-  const open = opened.value.has(REPO)
-  const out: FileTreeRow[] = [{ key: REPO, depth: 0, name: t('ws_doctree.repo_root'), icon: 'book-open', kind: 'repo', expandable: true, open }]
-  if (!open || !repoTree.value) return out
-  for (const r of visibleDocsRows(repoTree.value, repoOpen.value)) {
-    out.push(r.kind === 'dir'
-      ? { key: 'rd:' + r.path, depth: r.depth + 1, name: r.name, icon: 'folder', kind: 'repo-dir', expandable: true, open: r.open }
-      : { key: 'rf:' + r.path, depth: r.depth + 1, name: r.name, title: r.title, icon: 'file-text', kind: 'repo-doc', expandable: false, active: r.path === props.repo })
-  }
-  return out
-}
+/* the Repository branch (T023, useQtoTreeRepo): r: itself, rd:<path> a repo folder, rf:<path> a repo doc */
+const status = ref('')
+const { REPO, repoDocs, toggleRepo, repoRows } = useQtoTreeRepo({ repo: () => props.repo, opened, setOpen, status, t })
 
 const rows = computed<FileTreeRow[]>(() => {
   if (drilling.value) return drillRows.value
@@ -444,7 +391,6 @@ const MENUS: Record<MenuKind, PointMenuItem[]> = {
 const KINDS: Record<string, MenuKind> = { d: 'doc', f: 'folder', i: 'section', [ROOT]: 'root' }
 const menu = ref<{ kind: MenuKind, key: string, x: number, y: number } | null>(null)
 const menuItems = computed(() => menu.value?.kind === 'root' && nodesOff.value ? [NEW_DOC] : MENUS[menu.value?.kind ?? 'doc'])
-const status = ref('')
 let statusTimer: ReturnType<typeof setTimeout> | undefined
 const router = useRouter()
 

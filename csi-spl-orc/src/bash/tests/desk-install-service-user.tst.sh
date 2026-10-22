@@ -156,13 +156,18 @@ out="$(pc SPOOL_DESK_USER="$B")"; rc=$?
   pass "9. SPOOL_DESK_USER=$B: stdout stays the line, stderr names $B's crontab" || fail "9. rc=$rc $out / $(cat "$T/err")"
 
 # --- 10. PATH carries go -----------------------------------------------------------------
-mkdir -p "$T/home-b"
+# a stub go outside cron's PATH, reachable only through DESK_CRON_PATH_EXTRA: runs on
+# every runner (CI has no /usr/local/go*, and a SKIP there proves nothing)
+mkdir -p "$T/home-b" "$T/go-extra"
+printf '#!/bin/sh\n[ "$1 $2" = "env GOVERSION" ] && echo go99.0.0\n' >"$T/go-extra/go"; chmod +x "$T/go-extra/go"
+out=$(env -i PATH=/usr/bin:/bin HOME="$T/home-b" DESK_CRON_TOOLS=go DESK_CRON_PATH_EXTRA="$T/go-extra" \
+        bash "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" --check-tools 2>&1); rc=$?
+[[ $rc -eq 0 ]] && pass "10. go under DESK_CRON_PATH_EXTRA resolves under a cron PATH and an empty home" || fail "10. rc=$rc $out"
+# the box toolchain root, where this box has one (sat, the PC); the stub above covers CI
 if compgen -G '/usr/local/go*/bin/go' >/dev/null; then
   out=$(env -i PATH=/usr/bin:/bin HOME="$T/home-b" DESK_CRON_TOOLS=go \
           bash "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" --check-tools 2>&1); rc=$?
-  [[ $rc -eq 0 ]] && pass "10. go resolves under a cron PATH and the desk user's empty home" || fail "10. rc=$rc $out"
-else
-  echo "SKIP: 10. no /usr/local/go* on this runner (the box toolchain root)"
+  [[ $rc -eq 0 ]] && pass "10. go under /usr/local resolves under a cron PATH and an empty home" || fail "10. rc=$rc $out"
 fi
 
 echo "desk-install-service-user: $fails failure(s)"

@@ -18,6 +18,9 @@
 #      foreign member (a human one printed redacted), an unreadable policy
 #   5. on-050: a ref with no qto-assets/<sha> object is a finding, one with
 #      it is not; every ref of a workspace with no bucket is a finding
+#   6. ORG/APP unset, or as ./run sets them from the checkout dir (APP=<org>-
+#      <app>): the action reads them from the project dir's own name and
+#      finds <org>-<app>-orc (SPL-2945 send-back)
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -66,11 +69,14 @@ fixture() {
 
 # run_case [VAR=value ...] - the action in a subshell; output in $T/o, rc in
 # $rc, gcloud argv lines in $T/calls. Edit the fixture files before the call.
-#   stub knobs: CNF=noprefix (no bucket_prefix)
+#   stub knobs: CNF=noprefix (no bucket_prefix); OAP=<resolve-oap.func.sh>
+#   sources the real resolver; NOORGAPP=1 unsets ORG and APP
 run_case() {
   : >"$T/calls"
-  env -u CLOUDSDK_CONFIG F="$F" SDK="$SDK" TD="$T" ENV=prd APP_PATH="$T/app" ORG=t APP=x "$@" bash -c '
+  env -u CLOUDSDK_CONFIG -u PROJ_PATH F="$F" SDK="$SDK" TD="$T" ENV=prd APP_PATH="$T/app" ORG=t APP=x "$@" bash -c '
     do_log(){ echo "$*"; }
+    [[ -n "${OAP:-}" ]] && source "$OAP"
+    [[ "${NOORGAPP:-}" == 1 ]] && unset ORG APP
     do_require_bin(){ :; }
     do_gcp_spl_proj_id(){ PROJ_ID="test-${ENV}"; }
     do_gcp_pin_account(){ GCP_ACCOUNT=stub-sa@example.com; }
@@ -173,6 +179,15 @@ fixture; printf 'w3 %s\nw3 %s\n' "$S1" "$S2" >"$T/refs"; grep -v 'p-docs-w3' "$T
 red "every ref of a workspace with no bucket is on-050 (+ its no-bucket)" "on-050 w3 $S2\$" 3
 grep -q "storage ls gs://p-docs-w3" "$T/calls" && fail "listed qto-assets of a bucket that does not exist" ||
   pass "no listing of a bucket that does not exist"
+
+# --- 6. ORG/APP from the project dir, not the checkout dir --------------------------------
+OAPF="$PROJ_ROOT/lib/bash/funcs/resolve-oap.func.sh"
+fixture; run_case OAP="$OAPF" PROJ_PATH="$T/app/t-x-iac" NOORGAPP=1
+[[ "$rc" == 0 ]] && grep -q 'OK ENV=prd: 0 findings' "$T/o" && pass "ORG/APP unset: read from the project dir, <org>-<app>-orc found" ||
+  fail "ORG/APP unset (rc=$rc): $(cat "$T/o")"
+fixture; run_case OAP="$OAPF" PROJ_PATH="$T/app/t-x-iac" ORG=t APP=t-x
+[[ "$rc" == 0 ]] && grep -q 'OK ENV=prd: 0 findings' "$T/o" && pass "APP=<org>-<app> as ./run sets it from the checkout dir: still <org>-<app>-orc" ||
+  fail "APP=t-x (rc=$rc): $(cat "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

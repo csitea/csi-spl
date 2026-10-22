@@ -33,6 +33,10 @@ do_gcp_audit_wsdoc_buckets() {
   [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
   do_require_bin yq python3 || return 1
+  # ORG/APP from the project dir's own name: ./run takes APP from the checkout
+  # dir (csi-spl), which made <org>-<app>-orc csi-csi-spl-orc (SPL-2945)
+  if [[ -n "${PROJ_PATH:-}" ]]; then do_resolve_oap ORG && do_resolve_oap APP || return 1; fi
+  [[ -n "${ORG:-}" && -n "${APP:-}" ]] || { do_log "FATAL ORG and APP are unset and there is no PROJ_PATH to read them from"; return 1; }
 
   # the DB reads first, outside the private gcloud config: orc pins its own
   local ws refs

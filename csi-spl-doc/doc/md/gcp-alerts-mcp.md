@@ -36,6 +36,13 @@ In claude they are `mcp__gcp-alerts__gcp_alert_incidents` and
   incident. The list action rebuilds incidents by replaying each policy's
   condition over its time series, so one incident is named by its policy
   and the minute it opened.
+- `do_gcp_get_alert_incident` (`csi-spl-iac/src/bash/run/gcp-get-alert-incident.func.sh`)
+  replays that one policy the same way (`src/bash/scripts/alert-incident.py`
+  imports lane 1's `alert-incidents.py`) over OPENED minus 2 h .. plus 24 h
+  (capped at now) and prints the policy and its conditions, the incident with
+  its resource and peak, and the timeline: each aligned point around it,
+  marked `VIOLATES` or `ok`. Exit 3: no enabled policy of that name; exit 4:
+  none of it opened at that minute (the ones that did are listed).
 - Why a new server and not tools on the spool MCP: `spool-<env>` runs as the
   box user, seated per agent and per env, through a sudo hop to the desk. The
   alert tools need none of that. They run as the agent user, with its own
@@ -65,3 +72,6 @@ another iac dir.
   refused, the iac runner.
 - `csi-spl-orc/src/bash/tests/agent-mcp-gcp-alerts.tst.sh`: the install action
   (dry run, refusals, wrapper argv, registration, re-run, stale entry).
+- `csi-spl-iac/src/bash/tests/gcp-get-alert-incident.tst.sh`: the one-incident
+  action on lane 1's fixture (incident, condition, timeline, window, identity,
+  not found, controls).

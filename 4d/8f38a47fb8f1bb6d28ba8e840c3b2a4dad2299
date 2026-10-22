@@ -1,0 +1,6 @@
+Lay-What: The service can now store, per machine, a signed record of who owns it, plus a history of every change to that record.
+Lay-How: Each record carries a signature from the owner's key; when it is read back the signature is checked again, and a record changed without that key counts as owned by nobody and is logged.
+Lay-Why: This is the storage step for letting an owner lock a machine to themselves; nothing locks any machine yet, later steps add that.
+Tech-What: rdb 0213 adds box_locks and box_lock_audit with FORCE RLS; store adds BoxLockStore with memory and Postgres backends.
+Tech-How: Load re-verifies the Ed25519 signature over signed_body and that signed_body equals BoxLockBody of the row; writes need version + 1 and the same key; Postgres reads use a 5 s cache.
+Tech-Why: Spec 025 box-owner-lock row B1: a row edited in the database without the lock key must never grant ownership, so trust comes from the signature, not the row.

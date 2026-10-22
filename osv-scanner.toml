@@ -38,9 +38,11 @@
 #    ship `nuxt generate` static output to Firebase Hosting; xfq5 needs server
 #    islands, 0 *.server.vue / *.island.vue, 0 NuxtIsland / useHeadSafe in
 #    src; jjm6 needs `pages` disabled, src/pages has 35 pages and nuxt.config
-#    never sets pages: false. pnpm audit (workflow 15) was green on b8a153269,
-#    so package.json pnpm.auditConfig carries no entry yet; add the same three
-#    there if it reddens. Re-check by 2026-11-05 (SPL-2908).
+#    never sets pages: false. pnpm audit (workflow 15) reddened on 5c14f2efd
+#    (moderate vjh5 + xfq5; jjm6 is low, below its gate), so package.json
+#    pnpm.auditConfig.ignoreGhsas carries vjh5 + xfq5 with the same reasons and
+#    the same 2026-11-05 expiry: remove them together. Re-check by 2026-11-05
+#    (SPL-2908).
 #  - serialize-javascript (npm): low, below the pnpm-audit gate; Dependabot-
 #    tracked. GHSA-8wmf-6v46-5gfg (otel/sdk) was dropped once otel/sdk reached
 #    v1.45.0: osv-scanner 2.6.0 named it unused.

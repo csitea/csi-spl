@@ -92,15 +92,17 @@ describe('LiveFeed: a Load more button, not a scroll sentinel', () => {
 
 describe('TopicPane: the newest 30 replies, then older pages', () => {
   const pane = read('src/components/TopicPane.vue')
+  /* r18-05: the read and paging live in the pane's composable */
+  const reader = read('src/composables/useTopicPaneRead.ts')
 
   it('first read is newest first, 30 rows, and keeps the cursor', () => {
-    assert.match(pane, /api\.getTopic\(id, \{ order: 'desc', limit: WINDOW \}\)/)
-    assert.match(pane, /olderCursor\.value = data\.next \|\| null/)
-    assert.doesNotMatch(pane, /api\.getTopic\(id\)\)/)
+    assert.match(reader, /api\.getTopic\(id, \{ order: 'desc', limit: WINDOW \}\)/)
+    assert.match(reader, /olderCursor\.value = data\.next \|\| null/)
+    assert.doesNotMatch(reader, /api\.getTopic\(id\)\)/)
   })
 
   it('Load more reads before=<next> and merges by msg_id', () => {
-    const older = pane.slice(pane.indexOf('async function loadOlder'), pane.indexOf('async function loadOldestRow'))
+    const older = reader.slice(reader.indexOf('async function loadOlder'), reader.indexOf('async function loadOldestRow'))
     assert.match(older, /order: 'desc', limit: WINDOW, before: olderCursor\.value \|\| undefined/)
     /* the mock's first page (mockHead) joins the held rows: empty on live */
     assert.match(older, /mergeById\(\[\.\.\.liveRows\.value, \.\.\.mockHead\.value\], data\.messages \|\| \[\]\)/)
@@ -109,7 +111,7 @@ describe('TopicPane: the newest 30 replies, then older pages', () => {
   })
 
   it('the heading still names the first message when the newest page does not reach it', () => {
-    assert.match(pane, /api\.getTopic\(id, \{ limit: 1 \}\)/)
+    assert.match(reader, /api\.getTopic\(id, \{ limit: 1 \}\)/)
     assert.match(pane, /topicTitleFromRows\(oldestRow\.value \? \[oldestRow\.value, \.\.\.rows\] : rows, topic\.rootMsg\)/)
   })
 })

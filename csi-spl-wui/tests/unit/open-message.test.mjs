@@ -325,7 +325,8 @@ test('markOpened: a hidden copy is never marked; the visible one is, when it sho
    pages back toward a #<msg_id> hash, bounded. */
 test('TopicPane: a #<msg_id> older than the first page is paged to (at most HASH_PAGES), live only', async () => {
   const { readFileSync } = await import('node:fs')
-  const src = readFileSync(new URL('../../src/components/TopicPane.vue', import.meta.url), 'utf8')
+  /* r18-05: TopicPane's read and paging live in its composable */
+  const src = readFileSync(new URL('../../src/composables/useTopicPaneRead.ts', import.meta.url), 'utf8')
   const fn = src.slice(src.indexOf('async function reachHash'), src.indexOf("watch(() => route.hash"))
   assert.match(src, /const HASH_PAGES = 10\n/)
   assert.match(fn, /if \(api\.mock \|\| !id \|\| !want\) return/)
@@ -335,7 +336,7 @@ test('TopicPane: a #<msg_id> older than the first page is paged to (at most HASH
   /* declared before the immediate topic watch that calls it (no TDZ), and called after the first page */
   assert.ok(src.indexOf('async function reachHash') < src.indexOf('watch(() => [topic.open, topic.parentTaskId'))
   const first = src.slice(src.indexOf('watch(() => [topic.open, topic.parentTaskId'), src.indexOf('async function loadOlder'))
-  assert.match(first, /loading\.value = false\n  \}\n  void reachHash\(\)\n\}, \{ immediate: true \}\)/)
+  assert.match(first, /loading\.value = false\n    \}\n    void reachHash\(\)\n  \}, \{ immediate: true \}\)/)
 })
 
 /* HUM-10 (t1 36ea84a6): /m/<task_id> is a topic link; it opens at the topic's card */

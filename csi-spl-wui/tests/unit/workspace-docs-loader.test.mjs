@@ -28,7 +28,8 @@ describe('B8: a failed mock bucket import is asked again', () => {
 })
 
 describe('B9: TopicPane shows catalogue text, not the English error', () => {
-  const pane = read('src/components/TopicPane.vue')
+  /* r18-05: TopicPane's loaders live in its composable */
+  const pane = read('src/composables/useTopicPaneRead.ts')
   const loaders = pane.slice(pane.indexOf('async function catchUp'), pane.indexOf('async function loadOldestRow'))
 
   it('the three loaders map the failure to an i18n key', () => {

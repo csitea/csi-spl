@@ -1,0 +1,6 @@
+Lay-What: The team now gets an alert email when signing in fails or the message pages turn slow or fail.
+Lay-How: The service watches how long its pages take and how often they fail, and sends an email when that crosses a limit.
+Lay-Why: On 22 October signing in failed for half an hour and nobody was alerted, because only a basic "is it up" check existed.
+Tech-What: Terraform step 070 adds three log metrics and two alert policies: sign-in 5xx and /v1/view/* p95 latency or 5xx.
+Tech-How: Log metrics on the Cloud Run request log by path; thresholds from cnf (1 sign-in 5xx/5 min, p95 > 4 s for 300 s, 3 view 5xx/5 min).
+Tech-Why: The uptime check only probed /v1/health, which stayed 200 while sign-in returned 503 and views took 36-193 s.

@@ -36,6 +36,12 @@
 # @description     repos (env.box.landed_repos, resolved by spl_landed_repo of
 # @description     spl-lane-issue.func.sh) whose clone is on this box are
 # @description     repos too (a csi-rel sha on its master is landed)
+# @description   - SPL-2930: the sender lane's OWN repo counts too, resolved
+# @description     from its worktree (registry.tsv col 4, else its newest
+# @description     workdirs.tsv row) by `git rev-parse --git-common-dir`: a
+# @description     lane landing in a repo of no cnf list (c-179's
+# @description     sha) is judged there; a failed fetch of it keeps its last
+# @description     fetched trunk and the row and the note say so
 # @description   - a result with NO sha, or with a sha on no trunk -> ONE note
 # @description     to the dispatch lease holder (lane, msg id, the shas, "not
 # @description     in the repository"); every decided message goes to the
@@ -79,7 +85,7 @@
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
 # @param DONE_CLAIM_DAYS_H (optional) - hours of results read, default 24
-# @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree; the cnf's customer repos (env.box.landed_repos, SPL-2420) whose clone is on this box always count too
+# @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree; the cnf's customer repos (env.box.landed_repos, SPL-2420) whose clone is on this box always count too, and each sender lane's own repo (SPL-2930)
 # @param DONE_CLAIM_FETCH (optional) - 1 (default) fetches each repo before the check
 # @param DONE_CLAIM_STATE_DIR (optional) - the ledger's dir, default $XDG_STATE_HOME/csi-spl/done-claim-check
 # @param DONE_CLAIM_BOX (optional) - this box's id (a lane <id>@<other box> is skipped); default the desk box
@@ -109,11 +115,12 @@ do_spl_done_claim_check() {
     echo "OK done-claim-check: no lane result older than $age min left to judge"; rm -rf "$tmp"; return 0
   fi
   spl_done_claim_repos >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
+  spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" >"$tmp/stale"
   local to=""
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
-  local id from ts task body shas bad verdict n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
+  local id from ts task body shas bad verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
     bad=""
@@ -129,11 +136,12 @@ do_spl_done_claim_check() {
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
-      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/repos" >"$tmp/note"
+      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/repos" "$tmp/stale" >"$tmp/note"
       spl_done_claim_send "$to" "$tmp/note" || { rc=1; continue; }
       verdict=alert; n_alert=$((n_alert + 1))
     fi
-    printf '%s\t%s\t%s\t%s\n' "$id" "$from" "$verdict" "${shas:-no-sha}"
+    stale="$(spl_done_claim_stale "$tmp/stale" "$from")"
+    printf '%s\t%s\t%s\t%s%s\n' "$id" "$from" "$verdict" "${shas:-no-sha}" "${stale:+$'\t'$stale}"
     if [[ "$dry" == 0 && "$verdict" != pending ]]; then
       { mkdir -p "$state" && printf '%s\t%s\t%s\n' "$id" "$verdict" "$now" >>"$state/seen.tsv"; } || rc=1
     fi
@@ -261,6 +269,61 @@ spl_done_claim_repos() {
   done
   spl_done_claim_landed_repos "$listed" || rc=1
   return $rc
+}
+
+# spl_done_claim_lane_repos <root> <due file> <repos file>: SPL-2930 (c-179's
+# sha a486355b0 and c-189's own repo alerted "not in the repository",
+# 10-22): appends to <repos file> each sender lane's OWN repo not yet in it
+# (same git common dir), "<top> <trunk>", fetched unless DONE_CLAIM_FETCH=0.
+# No cnf list: the repo comes from the lane's worktree. A failed fetch (an
+# https origin with no credential) keeps its last fetched trunk and prints
+# "<lane>\t<top> <trunk>" for each lane judged on it; a repo with no trunk
+# is skipped with a WARN, never a FATAL.
+spl_done_claim_lane_repos() {
+  local have="" stale="" top ref c id wt
+  while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$3"
+  while read -r id; do
+    c=""
+    while read -r wt; do c="$(spl_done_claim_common "$wt")" && break; done < <(spl_done_claim_lane_wt "$1" "$id")
+    [[ -n "$c" ]] || continue
+    if grep -qxF -- "$c" <<<"$have"; then
+      awk -F'\t' -v c="$c" -v id="$id" '$1 == c { print id "\t" $2 }' <<<"$stale"
+      continue
+    fi
+    have+="$c"$'\n'
+    top="${c%/.git}"
+    ref=""
+    for ref in origin/master origin/main; do git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 && break; ref=""; done
+    [[ -n "$ref" ]] || { do_log "WARN $id's own repo $top has neither origin/master nor origin/main: not read" >&2; continue; }
+    if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] &&
+      ! GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$top" fetch -q origin </dev/null >/dev/null 2>&1; then
+      do_log "WARN git fetch origin failed in $top ($id's own repo): its last fetched $ref counts" >&2
+      stale+="$c"$'\t'"$top $ref"$'\n'
+      printf '%s\t%s %s\n' "$id" "$top" "$ref"
+    fi
+    echo "$top $ref" >>"$3"
+  done < <(cut -f2 "$2" | sed 's/@.*//' | sort -u)
+}
+
+# spl_done_claim_lane_wt <root> <lane id>: the lane's worktree dirs, newest
+# first: its registry.tsv row (col 4), then its workdirs.tsv worktree rows by
+# finished_at (an id is recycled: the newest that still exists wins).
+spl_done_claim_lane_wt() {
+  awk -F'\t' -v id="$2" '$1 == id && $4 != "" { print $4 }' "$1/registry.tsv" 2>/dev/null
+  awk -F'\t' -v id="$2" '!/^#/ && $2 == "worktree" && $3 == id && $1 != "" { print $6 "\t" $1 }' "$1/workdirs.tsv" 2>/dev/null |
+    sort -r | cut -f2
+}
+
+# spl_done_claim_common <dir>: the absolute git common dir of <dir> (a
+# worktree and its main clone share it), else false.
+spl_done_claim_common() {
+  [[ -d "$1" ]] && git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null
+}
+
+# spl_done_claim_stale <stale file> <from>: "own repo <top> not fetched,
+# judged on its last fetched <trunk>" when the lane's own repo failed its fetch.
+spl_done_claim_stale() {
+  awk -F'\t' -v id="${2%@*}" '$1 == id { split($2, a, " "); print "own repo " a[1] " not fetched, judged on its last fetched " a[2]; exit }' "$1"
 }
 
 # spl_done_claim_landed_repos "<tops already listed> ": "<clone> origin/<trunk>"
@@ -428,8 +491,9 @@ spl_done_claim_to() {
   else do_log "FATAL no dispatch lease holder and no LEASE_ORCH: nobody to tell"; return 1; fi
 }
 
-# spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>:
-# the body. A sha that is no object in any repo says so (SPL-2327).
+# spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>
+# [stale file]: the body. A sha that is no object in any repo says so
+# (SPL-2327); a lane whose own repo failed its fetch says so (SPL-2930).
 spl_done_claim_note() {
   local s gone known=() what=() w
   gone=" $(spl_done_claim_unknown "$6" "$5") "
@@ -442,6 +506,8 @@ spl_done_claim_note() {
   printf 'done-claim check: %s result %s (%s, task %s): %s\n\n' "$1" "$2" "$3" "${4:-none}" "${w%;}"
   printf -- '- checked %s min after the result, on: %s\n' "${DONE_CLAIM_AGE_MIN:-15}" \
     "$(awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }' "$6")"
+  w="$(spl_done_claim_stale "${7:-/dev/null}" "$1")"
+  [[ -n "$w" ]] && printf -- '- %s (git fetch failed)\n' "$w"
   printf -- '- rule: a lane result names a sha on the trunk (SPL-2265); one note per message\n'
 }
 

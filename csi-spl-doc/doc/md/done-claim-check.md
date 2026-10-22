@@ -49,7 +49,8 @@ reads and fetches, sends nothing, writes no ledger). Code:
    <sha>^` prints `- <sha>` (same patch-id under another sha, as a
    review-branch sha the rebase landed anew; c-002@sat, msg a34e2b44, n=3:
    bbaa9fe83, 5deaf8c1e, ad064cf5e). A sha of another repo is checked
-   in that repo.
+   in that repo. The sender lane's own repo is one of them too (section
+   1.3).
 4. No sha, or a sha on no trunk: ONE note to the dispatch lease holder on
    task `done-claim-check`: lane, msg id, the shas, "not in the repository".
    Every judged message goes to the ledger
@@ -137,6 +138,28 @@ msg 6be2504d: 7 of 26 would-alerts, e.g. c-298's b9a10361 landed as
 Not covered (report only): a sha that exists here but whose work landed
 under a rewritten patch (`git cherry` `+`, a different patch-id).
 
+### 1.3 The lane's own repository (SPL-2930)
+
+A lane that lands outside csi-spl alerted "not in the repository" (c-001
+msgs 6e7246a7 + 0bf0a44f, 2026-10-22, on the second box: c-179's sha
+a486355b0 was an ancestor of that repo's `origin/master`; c-189 lands in its
+own customer repo). The check read only the tree holding it plus cnf
+`env.box.landed_repos`.
+
+- The repos read for a result also include the sender lane's OWN repo:
+  its worktree from `registry.tsv` (column 4), else its newest
+  `workdirs.tsv` worktree row that still exists, then
+  `git rev-parse --git-common-dir`. A repo already read (same common dir,
+  e.g. a csi-spl worktree) is not read twice. No cnf list to keep, and no
+  repo name in this tree.
+- Its fetch runs with no terminal prompt and a 60 s limit. When it fails (an
+  https origin with no credential), the sha is judged on that repo's last
+  fetched trunk: the printed row gets a fifth column "own repo <dir> not
+  fetched, judged on its last fetched origin/master", and an alert note a
+  line saying so. The sha is an object there, so it is never "not an
+  object in any repository".
+- A lane whose worktree is gone (swept after 24 h) is judged as before.
+
 ## 2. Standing
 
 The box cron `done-claim-check`, every 5 min (row in
@@ -165,3 +188,8 @@ of its key after the spawn, alerts with none, with two, with one older than
 SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another
 line is landed; an unlanded sha on the sha line alerts though a landed sha
 is quoted elsewhere; `sha: none` and a body with no sha line read every sha.
+SPL-2930: a sha on the trunk of the lane's own repo (a clone of a repo that is
+neither csi-spl nor in `landed_repos`) alerts with the worktree unknown (red
+control) and is landed once `registry.tsv` names it; a retired lane's repo
+whose fetch fails is judged on its last fetched trunk (pushed sha landed,
+unpushed sha one "not in the repository" note, never "not an object").

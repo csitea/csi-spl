@@ -20,6 +20,9 @@
 # a commit reachable from origin's refs/notes/* (the release notes) is no sha.
 # SPL-2706: an all-digit short sha that is a commit (c-597's "sha: 704617890")
 # is a sha; an all-digit token that is no commit is still a run id.
+# SPL-2930: a sha on the trunk of the sender lane's OWN repo (its worktree in
+# registry.tsv or workdirs.tsv; no cnf list) is landed; a failed fetch of that
+# repo judges on its last fetched trunk and says so, never "not an object".
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -388,5 +391,53 @@ v="$(for k in r7live r7nosha r7det r7ret r7line codenew codelive r7later; do pri
 [ "$rc" = 0 ] && [ "$v" = "r7live=seat r7nosha=seat r7det=seat r7ret=seat r7line=seat codenew=would-alert codelive=would-alert r7later=would-alert " ] &&
   pass "15. SPL-2916: a recycled id is judged by its latest slug (a live reviewer worktree, on a branch or detached, or the newest retired reviewer row beats an older code slug: seat, sha or not); a body whose first line is an R7 review line is seat whatever the slug; a newest code slug, a live code worktree over an older reviewer branch, and an R7 line below a landing claim still alert" ||
   fail "15. recycled reviewer id / R7 line (rc $rc) got '$v': $(cat "$T/o")"
+
+# 16. SPL-2930 (c-179's result, sha a486355b0, and c-189's own repo,
+# 10-22, synthetic): a lane whose worktree is a clone of a repo that is not
+# csi-spl and not in the cnf's landed_repos. Its trunk carries the claimed sha.
+# A second lane's repo cannot be fetched (its origin is gone, as an https
+# origin with no credential): it is judged on its last fetched trunk.
+SP="$T/spool16"
+mkdir -p "$SP"
+mkrepo own
+rg own commit -q --allow-empty -m "own fix" && lettered own 12 "own fix" && rg own push -q origin HEAD:master
+OWNSHA=$(rg own rev-parse HEAD)
+rg own worktree add -q -b c-801-c001-fix-own "$T/wt/c-801" origin/master 2>/dev/null
+mkrepo nof
+rg nof commit -q --allow-empty -m "nof fix" && lettered nof 12 "nof fix" && rg nof push -q origin HEAD:master
+NOFSHA=$(rg nof rev-parse HEAD)
+rg nof commit -q --allow-empty -m "nof, never pushed" && lettered nof 12 "nof, never pushed"
+NOFLOCAL=$(rg nof rev-parse HEAD)
+rg nof worktree add -q --detach "$T/wt/m-802" "$NOFLOCAL" 2>/dev/null
+rg nof remote set-url origin "$T/gone.git"
+msg c-002/archive own c-801 c-002 30 "- sha: ${OWNSHA:0:12}"
+msg c-002/archive nof m-802 c-002 30 "- sha: ${NOFSHA:0:12}"
+msg c-002/archive noflocal m-802 c-002 25 "- sha: ${NOFLOCAL:0:12}"
+! rg spl cat-file -e "$OWNSHA^{object}" 2>/dev/null && ! rg other cat-file -e "$OWNSHA^{object}" 2>/dev/null &&
+  ! rg nof fetch -q origin 2>/dev/null &&
+  pass "16. control: the own repo's sha is in neither checked repo; the second own repo's fetch fails" || fail "16. control: fixture"
+run DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
+v="$(for k in own nof noflocal; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "own=would-alert nof=would-alert noflocal=would-alert " ] &&
+  pass "16. RED CONTROL with the lanes' worktrees unknown (the 10-22 gap) a sha of the lane's own repo alerts" ||
+  fail "16. no worktree (rc $rc) got '$v': $(cat "$T/o")"
+printf 'c-801\tclaude\t%%1\t%s\t20261022T000000Z\n' "$T/wt/c-801" >"$SP/registry.tsv"
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n' \
+  "$T/wt/m-802	worktree	m-802	box-a		$(iso "$NOW")" \
+  "$T/wt/m-802-old	worktree	m-802	box-a	m-802-c001-old	$(iso "$OLD")" >"$SP/workdirs.tsv"
+run DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
+v="$(for k in own nof noflocal; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "own=landed nof=landed noflocal=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "own" { print NF }' "$T/o")" = 4 ] &&
+  [ "$(awk -F'\t' '$1 == "nof" || $1 == "noflocal"' "$T/o" | grep -c "	own repo $T/nof not fetched, judged on its last fetched origin/master$")" = 2 ] &&
+  grep -q "WARN git fetch origin failed in $T/nof (m-802's own repo)" "$T/o" &&
+  pass "16. a sha on the trunk of the lane's own repo (registry worktree) is landed; a retired lane's repo whose fetch fails is judged on its last fetched trunk (landed / unpushed alerts) and the row says so" ||
+  fail "16. own repo (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 1 ] &&
+  grep -q "^SEND c-009 done-claim-check done-claim check: m-802 result noflocal .*: sha ${NOFLOCAL:0:12} not in the repository$" "$T/calls.log" &&
+  ! grep -q "not an object" "$T/calls.log" &&
+  pass "16. DRY_RUN=0: the unpushed sha of the unfetched own repo is ONE 'not in the repository' note, never 'not an object'" ||
+  fail "16. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 exit "$fails"

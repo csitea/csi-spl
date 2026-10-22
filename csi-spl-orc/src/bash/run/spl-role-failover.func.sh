@@ -41,8 +41,15 @@
 # @description      seat recorded in role-failover/seat.<NNN> (the rotation
 # @description      hands it back once claude can act: spl_rotate_failover_vendor)
 # @description   7. any failure in 4-6: the new session closed, the dirs
-# @description      switched back, lease.conf untouched (or put back), that
+# @description      switched back, the links the switch made for the seat's
+# @description      other letters removed and the seat's lifetime/prompt.txt
+# @description      put back (SPL-2865: 2026-10-22 a failed grok switch left
+# @description      g-001 -> c-001 and the grok seed in c-001's prompt),
+# @description      lease.conf untouched (or put back), that
 # @description      vendor backed off ROLE_FAILOVER_BACKOFF s, the next one tried
+# @description The seat is checked again after a vendor's guards, right before
+# @description its switch: able = SKIP (SPL-2865: the guards take minutes, and a
+# @description seat refused on a fresh watchdog HIT was able by then).
 # @description One line per step in <spool root>/dispatch/rotate.log (rid
 # @description <ts>-failover-<role>) and role-failover.log. Dry run unless DRY_RUN=0.
 # @param ROLE_FAILOVER_ROLE (required) - orch | dispatch
@@ -140,6 +147,10 @@ spl_role_failover_vendor() {
   fi
   why="$(spl_role_failover_guard "$v")"
   [[ -z "$why" ]] || { spl_role_failover_say "$rid" SKIP "$v cannot take seat $seat: $why"; return 1; }
+  # the guards take minutes (lane-mix): the seat may act again by now
+  if spl_fleet_try "$seat" >/dev/null; then
+    spl_role_failover_say "$rid" SKIP "$seat can act again (checked after the $v guards): nothing to switch"; return 0
+  fi
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_role_failover_say "$rid" PLAN "$seat ($(spl_fleet_vendor "$seat")) cannot act ($(spl_role_failover_able "$seat")): $seat -> $new in place (role-seat-switch.sh), start $v $new@$ROTATE_BOX in the seat (spawn-window.sh SPAWN_REUSE_ID=1), able ${ROLE_FAILOVER_SETTLE}s later = lease.conf $key=$new and the old session ended"
     echo "OK DRY_RUN nothing was switched. Re-run with DRY_RUN=0."
@@ -209,6 +220,7 @@ spl_role_failover_run() {
   seed="$ROTATE_HANDOFF_DIR/$rid-$new.seed.md"
   spl_role_failover_seed "$role" "$seat" "$new" > "$seed" && chmod 0644 "$seed" 2>/dev/null ||
     { ROTATE_ERR="cannot write the seed $seed"; spl_role_failover_say "$rid" FAIL "$ROTATE_ERR"; return 1; }
+  spl_role_failover_snap "$rid" "$seat" "$new"
   if ! spl_rotate_seat_switch "$seat" "$new"; then
     spl_role_failover_say "$rid" FAIL "$ROTATE_ERR; nothing started"; return 1
   fi
@@ -238,6 +250,7 @@ spl_role_failover_run() {
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
   spl_role_failover_say "$rid" OK "$new ($v, pid $ROTATE_NEW_PID, pane $ROTATE_NEW_PANE) runs the $role seat; lease.conf $key=$new"
+  [[ "${RF_PROMPT:-}" == "$RF_DIR/"* ]] && rm -f "$RF_PROMPT"
   rec="$seat $new $v $rid $(date +%s)"
   # the first claude id the seat left stays the one it goes back to
   [[ -s "$RF_DIR/seat.$(spl_role_seat_num "$new")" ]] && rec="$(cut -d' ' -f1 "$RF_DIR/seat.$(spl_role_seat_num "$new")") $new $v $rid $(date +%s)"
@@ -289,13 +302,45 @@ spl_role_failover_ack() {
   spl_rotate_ack_send "$1" "$ROTATE_SWITCH_TO"
 }
 
+# spl_role_failover_snap RID SEAT NEW: what a switch back must undo, taken
+# before the switch: the ids of the seat with no entry in the spool root
+# (RF_MADE; the switch links each to NEW) and the seat's lifetime/prompt.txt
+# (RF_PROMPT, a copy in RF_DIR; empty = the seat had none).
+spl_role_failover_snap() {
+  local id p="$SPOOL_ROOT/$2/lifetime/prompt.txt"
+  RF_MADE="" RF_PROMPT="$RF_DIR/$1-$2.prompt.txt"
+  for id in $(spl_role_seat_ids "$3"); do
+    [[ -e "$SPOOL_ROOT/$id" || -L "$SPOOL_ROOT/$id" ]] || RF_MADE+="$id "
+  done
+  if [[ -f "$p" ]]; then cp -p "$p" "$RF_PROMPT" 2>/dev/null || RF_PROMPT="?"
+  else RF_PROMPT=""; fi
+}
+
+# spl_role_failover_undo SEAT: after the switch back, the links the switch
+# made (RF_MADE, still a link to SEAT) removed and SEAT's lifetime/prompt.txt
+# (the new vendor's seed now) put back from RF_PROMPT. Prints what it did.
+spl_role_failover_undo() {
+  local seat="$1" id gone="" p="$SPOOL_ROOT/$1/lifetime/prompt.txt"
+  for id in ${RF_MADE:-}; do
+    [[ -L "$SPOOL_ROOT/$id" && "$(readlink "$SPOOL_ROOT/$id")" == "$seat" ]] && rm -f "$SPOOL_ROOT/$id" && gone+="$id "
+  done
+  [[ -n "$gone" ]] && printf '; links removed: %s' "${gone% }"
+  case "${RF_PROMPT:-}" in
+    "?") printf '; prompt.txt NOT put back (no copy taken)' ;;
+    "") rm -f "$p" && printf '; the seed in prompt.txt removed (it had none)' ;;
+    *) if cp "$RF_PROMPT" "$p" 2>/dev/null; then rm -f "$RF_PROMPT"; printf '; prompt.txt put back'
+       else printf '; prompt.txt NOT put back (copy in %s)' "$RF_PROMPT"; fi ;;
+  esac
+}
+
 # spl_role_failover_back RID SEAT NEW OLD_PANE: a failed switch put back: the
-# new session closed, the dirs back to SEAT, the old window's name back;
-# lease.conf was not written yet.
+# new session closed, the dirs back to SEAT, the links the switch made and
+# SEAT's prompt.txt undone, the old window's name back; lease.conf was not
+# written yet.
 spl_role_failover_back() {
   local rid="$1" seat="$2" new="$3" back=""
   spl_rotate_restore "$seat" "$4" "${ROTATE_NEW_PANE:-}"
-  if spl_rotate_seat_switch "$new" "$seat"; then back="; seat switch back $new -> $seat"
+  if spl_rotate_seat_switch "$new" "$seat"; then back="; seat switch back $new -> $seat$(spl_role_failover_undo "$seat")"
   else back="; the seat switch back FAILED ($ROTATE_ERR), $seat links to $new"; fi
   spl_role_failover_say "$rid" FAIL "$ROTATE_ERR$back; lease.conf untouched"
 }

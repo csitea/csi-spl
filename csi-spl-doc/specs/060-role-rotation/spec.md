@@ -504,6 +504,9 @@ REFRESH-F --fail--> keep old F, ALERT --> DONE
 | a message arrives mid-rotation | it lands in the same inbox and its poke rings the new window from SPAWN on; the new session reads the inbox before it acks | it lands in M's inbox; F works it under the hold; the new M skips what F's outbox shows handled |
 | the script is killed | the `.state` file resumes or fails the phase (FR-003); killed before SPAWN = `ABORT STALE`, the next run starts clean, no alert | the same; the hold goes with the STALE ctx, a dead hold ages out (FR-024) |
 | the hub is unreachable | the local `lease.orch` mirror rules apply (fleet-roles 4.1) | in fleet mode the HOLD CAS cannot land: `FAIL promote`, and M keeps acting |
+| the vendor failover (`do_spl_role_failover`, SPL-2544) right after a hub outage (SPL-2865, 2026-10-22 09:54Z) | no renewal lands while the hub is down, so the holder's silence counts from this box's last failed hub call at most (`fleet.orch.hub-down`): no switch until it is past the vendor's wait with the hub up (`SWITCH-WAIT`, logged once) | the same (`fleet.dispatch.hub-down`) |
+| the seat can act again while the failover checks the vendors (SPL-2865) | the seat is checked again after the vendor's guards, right before the switch: able = `SKIP`, nothing moved | the same |
+| the vendor failover's new session is not able (SPL-2865) | the dirs switch back, the links the switch made for the seat's other letters are removed and the seat's `lifetime/prompt.txt` is put back from the copy taken before the switch | the same |
 
 ## 6. The handoff file
 

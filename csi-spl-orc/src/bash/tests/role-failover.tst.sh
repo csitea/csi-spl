@@ -37,7 +37,16 @@
 #      acks (NO_ACK=g) is NOT able: closed, dirs back, lease.conf untouched,
 #      grok backed off (before SPL-2609 it took the seat). A seat that acks
 #      is able; the ack from another pid is refused.
-#  RED CONTROL: on a tree before SPL-2544 every case fails (no such action).
+#  12. SPL-2865 (b), 2026-10-22 09:54Z on the standby box: the silent holder
+#      was another box's seat, the lease launched the switch on a fresh wd
+#      HIT, and the seat was able again by the time the guards had run
+#      (rotate.log "cannot act (able )"). The seat is checked again right
+#      before the switch: able = SKIP, nothing moved or started.
+#  13. SPL-2865 (c): a failed switch puts back what it wrote: the links it
+#      made for the seat's other letters (g-001 -> c-001) go, and the seat's
+#      lifetime/prompt.txt is the one it had before (not the grok seed).
+#  RED CONTROL: on a tree before SPL-2544 every case fails (no such action);
+#  12 and 13 fail on a tree before SPL-2865.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -111,11 +120,13 @@ case "$1" in
 esac
 EOF
 # ./run: lane-mix answers per LANE_MIX_SPLIT_KIND (GROK_OUT=1: grok skipped),
-# every other action prints nothing
+# every other action prints nothing. HEAL=<pid>: a lane-mix call clears that
+# pid's pane (the seat can act again while the guards run)
 cat >"$T/bin/run" <<'EOF'
 #!/usr/bin/env bash
 echo "run $*" >>"$T/run.log"
 [ "$2" = do_spl_lane_mix ] || exit 0
+[ -n "${HEAL:-}" ] && rm -f "$T/pane/$HEAL"
 case "$LANE_MIX_SPLIT_KIND" in
   *grok=100*) if [ "${GROK_OUT:-0}" = 1 ]; then echo "grok 100 skip (no sign-in); share to claude"; echo "pick=claude"; else echo "pick=grok"; fi ;;
   *agy=100*) if [ "${AGY_OUT:-0}" = 1 ]; then echo "agy 100 skip (no agy cli); share to claude"; echo "pick=claude"; else echo "pick=agy"; fi ;;
@@ -234,7 +245,7 @@ act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 ROLE_FAILOVER_SILENT=310 >"$T/o
 world; printf '%s\n' "$LOGIN" >"$T/spawn.lease-pane.grok"
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 grep -q '^spawn grok g-001' "$T/spawn.log" && grep -q '^kill -TERM 3001' "$T/kill.log" && [[ ! -d "$T/proc/3001" ]] &&
-  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able 30s after the start: stalled pid=3001: Select login method.*seat switch back g-001 -> c-001; lease.conf untouched' "$T/o" &&
+  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able 30s after the start: stalled pid=3001: Select login method.*seat switch back g-001 -> c-001; links removed: a-001 g-001 m-001 q-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
   [[ -s "$D/role-failover/refused.001.grok" ]] &&
   pass "5. grok started but unable: closed, the dirs switched back, lease.conf untouched, grok backed off" || fail "5. back: rc=$rc $(cat "$T/kill.log" "$T/o" 2>&1)"
 [[ $rc == 0 && "$(key LEASE_ORCH)" == a-001 && "$(spawns)" == 2 ]] && real a-001 && [[ "$(lnk c-001)" == a-001 ]] && grep -q '^spawn agy a-001' "$T/spawn.log" &&
@@ -319,8 +330,8 @@ world
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 NO_ACK=g >"$T/o" 2>&1; rc=$?
 grep -q '^spawn grok g-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" && grep -q -- '--to g-001 --kind task .*PROBE [0-9T]*Z-failover-g-001: .*ACK-COMMAND: .*ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID=[0-9T]*Z-failover-g-001 ' "$T/send.log" &&
   pass "11. the switch sends the new seat g-001 a probe task carrying the ACK command" || fail "11. probe: $(cat "$T/send.log" 2>&1)"
-[[ $rc == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ "$(lnk g-001)" == c-001 && ! -d "$T/proc/3001" && -s "$D/role-failover/refused.001.grok" ]] &&
-  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able: no ack of the probe [0-9T]*Z-failover-g-001 within 2s (up, but it did no work).*seat switch back g-001 -> c-001; lease.conf untouched' "$T/o" &&
+[[ $rc == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ "$(lnk g-001)" == - && ! -d "$T/proc/3001" && -s "$D/role-failover/refused.001.grok" ]] &&
+  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able: no ack of the probe [0-9T]*Z-failover-g-001 within 2s (up, but it did no work).*seat switch back g-001 -> c-001; links removed: a-001 g-001 m-001 q-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
   grep -q 'no ack of the probe' "$D/able.g-001" &&
   pass "11. RED CONTROL: a grok seat at an idle prompt that never acks is NOT able: closed, dirs back to c-001, lease.conf untouched, grok backed off" ||
   fail "11. no-ack: rc=$rc conf=$(key LEASE_ORCH) c-001=$(lnk c-001) $(cat "$T/o")"
@@ -336,6 +347,27 @@ rid="$(grep -oE 'ROTATE_ID=[0-9T]+Z-failover-g-001' "$T/send.log" | sed -n 1p | 
 act ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID="$rid" ROTATE_CALLER_PID=999 DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc == 3 ]] && grep -q "ACK FAIL refused: caller pid '999' is not the new session 3001" "$T/o" &&
   pass "11. the same ack from another pid is refused (exit 3)" || fail "11. wrong pid: rc=$rc $(cat "$T/o")"
+
+# --- 12. SPL-2865 (b): the seat able again by the time the guards ran ----------------------
+world; echo "c-001@sat $(date +%s)" >"$D/lease.orch"
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 HEAL=101 >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ ! -e "$S/g-001" && "$(cat "$S/c-001/lifetime/prompt.txt")" == "SEED c-001" ]] &&
+  grep -q 'SWITCH SKIP c-001 can act again' "$T/o" && ! grep -q 'SWITCH WAIT c-001' "$T/o" &&
+  pass "12. the holder silent on another box, this box's seat able again before the switch: SKIP, nothing moved or started" ||
+  fail "12. rc=$rc spawns=$(spawns) g-001=$(lnk g-001) $(cat "$T/o")"
+
+# --- 13. SPL-2865 (c): a failed switch leaves no link and no seed behind ---------------------
+world; printf '%s\n' "$LOGIN" >"$T/spawn.lease-pane.grok"
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 >"$T/o" 2>&1; rc=$?
+rm -f "$T/spawn.lease-pane.grok"
+grep -q '^spawn grok g-001' "$T/spawn.log" && grep -q 'SWITCH FAIL grok g-001 .*seat switch back g-001 -> c-001' "$T/o" ||
+  fail "13. setup: the grok start did not fail: $(cat "$T/o")"
+[[ $rc == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ ! -e "$S/g-001" && ! -L "$S/g-001" && ! -L "$S/a-001" && ! -L "$S/m-001" && ! -L "$S/q-001" ]] &&
+  pass "13. the failed switch removed the links it made (g-001, a-001, m-001, q-001 -> c-001)" ||
+  fail "13. links: g=$(lnk g-001) a=$(lnk a-001) m=$(lnk m-001) $(ls -la "$S")"
+[[ "$(cat "$S/c-001/lifetime/prompt.txt")" == "SEED c-001" && -f "$S/c-001/inbox/m1.json" ]] &&
+  pass "13. the seat's lifetime/prompt.txt is its own seed again, the inbox kept" ||
+  fail "13. prompt: $(head -3 "$S/c-001/lifetime/prompt.txt")"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

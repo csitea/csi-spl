@@ -36,6 +36,14 @@
 #   8. spl_lease_agent_pid counts an agy process (comm agy)
 #   9. LEASE_ROLE_SWITCH=0 launches no switch; a failed switch (the seat
 #      unchanged) is launched again only after LEASE_SWITCH_RETRY
+#  10. SPL-2865 (a), the 2026-10-22 09:46-09:53Z store_unavailable outage:
+#      nobody can renew while the hub is down, so the holder's silence when
+#      it comes back is the outage's. A seat that cannot act on either box
+#      is not switched on the first read after the outage (the holder's age
+#      300 s, its last renewal before the hub went down); the silence counts
+#      from this box's last failed hub call, so the switch comes only once
+#      the holder stays silent past the wait with the hub up
+#      (RED CONTROL: before SPL-2865 both boxes switched at the first read)
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -62,6 +70,7 @@ STUB
 # the hub stub of fleet-lease.tst.sh: "holder gen at" per fleet+role, HUB_NOW its clock
 cat >"$T/bin/hub" <<'STUB'
 #!/bin/sh
+[ -n "${HUB_DOWN:-}" ] && { echo 'spool: hub unreachable: received close frame: reason = "store_unavailable"' >&2; exit 1; }
 shift
 fleet="" role="" holder="" ifgen=""
 while [ $# -gt 0 ]; do case "$1" in --fleet) fleet="$2";; --role) role="$2";; --holder) holder="$2";; --if-gen) ifgen="$2";; esac; shift 2; done
@@ -256,6 +265,25 @@ both 80360 SWITCH_FAIL=grok
 [[ "$(swc sat '^orch c-001 -> g-001')" == 1 ]] && pass "9. a failed switch is not launched again inside LEASE_SWITCH_RETRY (120 s)" || fail "9. retry early: $(cat "$T/sat/switches")"
 both 80420 SWITCH_FAIL=grok
 [[ "$(swc sat '^orch c-001 -> g-001')" == 2 ]] && pass "9. ... and launched again once it has run" || fail "9. retry: $(cat "$T/sat/switches")"
+
+# --- 10. SPL-2865 (a): a hub outage is no holder silence ----------------------------------
+reset
+both 90000; both 90060
+login_expired sat 200 201 202; login_expired pc 100 101 102
+for n in 90120 90180 90240 90300; do both "$n" HUB_DOWN=1; done
+[[ "$(logc pc 'HUB-UNREACHABLE orch')" == 1 && "$(swc sat .)" == 0 && "$(swc pc .)" == 0 ]] || fail "10. setup: $(cat "$T/pc/spool/dispatch/lease.log")"
+both 90360
+[[ "$(swc sat .)" == 0 && "$(swc pc .)" == 0 && "$(hub2)" == "c-001@sat c-002@sat" ]] &&
+  pass "10. the first read after the hub outage (holder silent 300 s, the hub down 90120..90300): no switch on either box" ||
+  fail "10. switched at the outage's end: sat $(cat "$T/sat/switches" 2>&1) pc $(cat "$T/pc/switches" 2>&1)"
+for n in 90420 90480 90540; do both "$n"; done
+[[ "$(swc sat .)" == 0 && "$(swc pc .)" == 0 ]] &&
+  pass "10. no switch while the silence since the last failed hub call (<= 240 s) is inside the wait" ||
+  fail "10. early: sat $(cat "$T/sat/switches" 2>&1) pc $(cat "$T/pc/switches" 2>&1)"
+both 90600
+[[ "$(swc sat '^orch c-001 -> g-001')" == 1 && "$(swc pc '^orch c-001 -> g-001')" == 1 ]] &&
+  pass "10. the holder still silent 300 s after the hub came back: the seats switch as before" ||
+  fail "10. late: sat $(cat "$T/sat/switches" 2>&1) pc $(cat "$T/pc/switches" 2>&1)"
 
 (( fails == 0 )) && { echo "PASS: all fleet-lease-vendor-failover.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease-vendor-failover.tst.sh assertion(s)"; exit 1

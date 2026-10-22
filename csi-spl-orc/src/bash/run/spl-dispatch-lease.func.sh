@@ -1529,6 +1529,11 @@ spl_fleet_role_seat() {
 # spl_fleet_switch_tick <role>: no seat of the role can act on this machine.
 # Past the next vendor's wait (the holder silent > LEASE_STALE + its tier x
 # LEASE_FALLBACK_WAIT; a role never held is a setup, not a stall), launch the
+# in-place switch. The silence counts from this machine's last failed hub call
+# at the latest (fleet.<role>.hub-down, spl_fleet_unreachable; SPL-2865): while
+# the hub is down nobody renews, so on 2026-10-22 09:54Z the first read after
+# the store_unavailable outage found the holder "silent 331s" and switched a
+# live seat. The rest: launch the
 # in-place switch of the role's seat (do_spl_role_failover), at most once per
 # LEASE_SWITCH_RETRY s per seat. A dispatch desk that cannot post is no
 # vendor's fault: no switch.
@@ -1547,11 +1552,19 @@ spl_fleet_switch_tick() {
   wait=$(( LEASE_STALE + $(spl_fleet_tier "$(spl_fleet_vendor_id "$next")") * ${LEASE_FALLBACK_WAIT:-60} ))
   spl_fleet_age_known && (( FA > wait )) || return 0
   now="$(spl_lease_now)"; f="$LEASE_DIR/fleet.$role.switch"
+  local sil="$FA" down=""
+  read -r down _ < "$LEASE_DIR/fleet.$role.hub-down" 2>/dev/null || down=""
+  [[ "$down" =~ ^[0-9]+$ ]] && (( now - down < sil )) && sil=$(( now - down ))
+  if (( sil <= wait )); then
+    spl_fleet_once "$role.switch-hubwait" "SWITCH-WAIT $role: ${FH:-the holder} silent ${FA}s, but the hub was unreachable from here $((now - down))s ago: no renewal could land; $seat switches only past ${wait}s of silence with the hub up"
+    return 0
+  fi
+  rm -f "$LEASE_DIR/fleet.$role.switch-hubwait"
   [[ -s "$f" ]] && read -r at was _ < "$f"
   [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < ${LEASE_SWITCH_RETRY:-120} )) && return 0
   echo "$now $seat $next" > "$f"
-  spl_lease_log "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${FA}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
-  spl_fleet_switch_start "$role" "$seat" "$FA"
+  spl_lease_log "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${sil}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
+  spl_fleet_switch_start "$role" "$seat" "$sil"
 }
 
 # 0 when this loop may launch a switch: LEASE_ROLE_SWITCH (default 1); a
@@ -1930,6 +1943,8 @@ spl_fleet_shown() {
 spl_fleet_unreachable() {
   local role="$1" now="$2" last=0 mine hb="$LEASE_DIR/fleet.$1.handback" at="" old="" new=""
   spl_fleet_once "$role.unreachable" "HUB-UNREACHABLE $role: $(tr '\n' ' ' <<<"$3" | cut -c1-200)"
+  # the holder's silence counts from here at the most (spl_fleet_switch_tick)
+  echo "$now" > "$LEASE_DIR/fleet.$role.hub-down" 2>/dev/null || true
   [[ -f "$LEASE_DIR/fleet.$role.ok" ]] && last="$(cat "$LEASE_DIR/fleet.$role.ok")"
   [[ -s "$hb" ]] && read -r at old new < "$hb"
   if [[ "$at" =~ ^[0-9]+$ && "$new" == *@"$LEASE_MACHINE" ]] && (( now - at >= LEASE_PERIOD && now - last <= LEASE_STALE )); then

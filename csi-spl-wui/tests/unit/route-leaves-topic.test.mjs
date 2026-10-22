@@ -29,7 +29,7 @@ describe('a link out of the open topic pane on a phone', () => {
   })
 
   it('the layout closes both topic stores on it', () => {
-    const src = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
+    const src = readFileSync(join(WUI, 'src/composables/useShellRouteFocus.ts'), 'utf8')
     assert.match(src, /if \(routeLeavesTopic\(nav\)\) \{ livePane\.close\(\); topic\.close\(\); operatorPane\.close\(\) \}/)
     assert.match(src, /router\.options\.history\.listen\(/)
   })

@@ -122,7 +122,7 @@ describe('081 T006 (FR-009): which navigations move the focus', () => {
   it('HUM-10 (t1 7d9e1681): never out of the Channels list, so the arrows walk on', () => {
     assert.equal(routeTakesFocus({ ...nav, channelList: true }), false)
     assert.equal(routeTakesFocus({ ...nav, channelList: false }), true)
-    const tpl = read('layouts/default.vue')
+    const tpl = read('composables/useShellRouteFocus.ts')
     assert.match(tpl, /channelList: inChannelList\(\)/)
     assert.match(tpl, /closest\?\.\('#sidebar-panel-channels a\.nav-item'\)/)
   })
@@ -137,13 +137,14 @@ describe('081 T006: wiring', () => {
   it('the skip link is the layout\'s first child and focuses the middle pane', () => {
     const tpl = read('layouts/default.vue')
     assert.match(tpl, /<div class="layout">\s*(<!--[\s\S]*?-->\s*)?<a class="skip-link"[^>]*@click\.prevent="skipToMsgs"/)
-    assert.match(tpl, /function skipToMsgs\(\) \{\s*focusPane\(MIDDLE\)/)
+    assert.match(read('composables/useShellRouteFocus.ts'), /function skipToMsgs\(\) \{\s*focusPane\(MIDDLE\)/)
   })
   it('the live region is polite and the route hook uses routeTakesFocus after 078\'s close rule', () => {
     const tpl = read('layouts/default.vue')
     assert.match(tpl, /role="status" aria-live="polite" data-testid="route-announce"/)
-    const close = tpl.indexOf('if (routeLeavesTopic(nav))')
-    const focus = tpl.indexOf('routeTakesFocus({ ...nav')
+    const src = read('composables/useShellRouteFocus.ts')
+    const close = src.indexOf('if (routeLeavesTopic(nav))')
+    const focus = src.indexOf('routeTakesFocus({ ...nav')
     assert.ok(close > 0 && focus > close, 'focus after the close rule')
   })
 })

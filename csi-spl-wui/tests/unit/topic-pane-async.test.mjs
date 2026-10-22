@@ -27,10 +27,21 @@ describe('SPL-2363 — the topic panes load on first open, not on every cold loa
 
   for (const pane of ['LiveTopicPane', 'TopicPane']) {
     it(`loads ${pane} lazily`, () => {
-      const re = new RegExp(`const ${pane} = defineAsyncComponent\\(\\(\\) => import\\('@/components/${pane}\\.vue'\\)\\)`)
+      const re = new RegExp(`const ${pane} = defineAsyncComponent\\(\\{ loader: \\(\\) => import\\('@/components/${pane}\\.vue'\\), \\.\\.\\.PANE_WAIT \\}\\)`)
       assert.match(layout, re)
     })
   }
+
+  /* SPL-2817: until a pane's chunk comes, a phone at level 3 showed a blank
+     screen with no Back. Its place (TopicPaneWait, with the one MobileBack)
+     shows from the first frame; under the app's Suspense a suspensible async
+     component ignores its loading component, so it must not be one.
+     CONTROL: drop `suspensible: false` and this goes red (and the e2e cell
+     ENTRIES=deep METHODS=chevron with HOLD_CHUNK fails 6/6). */
+  it('shows the pane\'s place, with its Back, while the chunk loads', () => {
+    assert.match(layout, /const PANE_WAIT = \{ loadingComponent: TopicPaneWait, delay: 0, suspensible: false \}/)
+    assert.match(layout, /import TopicPaneWait from '@\/components\/TopicPaneWait\.vue'/)
+  })
 
   it('keeps the one section chain: v-if LIVE, then v-else-if CHANNEL', () => {
     assert.match(layout, /<LiveTopicPane v-if="section === LIVE" \/>\s*<TopicPane v-else-if="section === CHANNEL" \/>/)

@@ -36,6 +36,8 @@
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/phone-back-matrix.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
 // Narrow: ENTRIES=tap,login METHODS=chevron,browser WIDTHS=360
+// CI load (SPL-2817): CPU_THROTTLE=6, or HOLD_CHUNK=<TopicPane chunk>:1000
+// (the generated name: grep -l topic-pane-close .output/public/_nuxt/*.js)
 //
 // Cells run CELL_JOBS at a time (default 3), each in its own browser context,
 // so no cell sees another's storage; the lines still print in matrix order.
@@ -76,6 +78,21 @@ const STRICT = process.env.KNOWN_RED === 'strict'
 const MEMBER = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/* The CI-load repro knobs (SPL-2817), off unless set: CPU_THROTTLE=<rate>
+   slows the tab's CPU that many times; HOLD_CHUNK=<substring>:<ms> holds
+   every script whose URL holds the substring that long (a slow chunk). */
+const CPU_THROTTLE = Number(process.env.CPU_THROTTLE) || 0
+const [HOLD_SUB, HOLD_MS] = (process.env.HOLD_CHUNK || '').split(':')
+async function slowDown(p) {
+  if (CPU_THROTTLE > 1) await (await p.target().createCDPSession()).send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE })
+  if (!HOLD_SUB) return
+  await p.setRequestInterception(true)
+  p.on('request', (r) => {
+    if (r.resourceType() === 'script' && r.url().includes(HOLD_SUB)) setTimeout(() => r.continue().catch(() => {}), Number(HOLD_MS) || 1000)
+    else r.continue().catch(() => {})
+  })
+}
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -217,6 +234,7 @@ async function cell(browser, base, width, entry, method) {
   try {
     await p.setViewport({ width, height: SIZES[width], isMobile: true, hasTouch: true })
     await p.evaluateOnNewDocument(boot, MEMBER)
+    await slowDown(p)
     const want = entry === 'channel' ? 2 : 3
     const start = await enter(p, base, entry)
     steps.push(`L${start}`)

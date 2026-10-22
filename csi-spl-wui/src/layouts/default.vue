@@ -213,6 +213,7 @@ import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
 const MobileStatusStrip = defineAsyncComponent(() => import('@/components/MobileStatusStrip.vue'))
 const MobileBackWait = defineAsyncComponent(() => import('@/components/MobileBackWait.vue'))
 import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
+import TopicPaneWait from '@/components/TopicPaneWait.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'
 import { isSectionPage } from '~/utils/section-strip.mjs'
@@ -226,9 +227,12 @@ import { useOperatorPane } from '~/stores/operator-pane'
 const OperatorPane = defineAsyncComponent(() => import('@/components/OperatorPane.vue'))
 /* perf round 6 row 02 (SPL-2363): the two topic panes load on their first
    open too. Auto-imported they rode index.html's modulepreload set (~43 KB
-   gzip of home JS) for a reader who never opens a topic. */
-const LiveTopicPane = defineAsyncComponent(() => import('@/components/LiveTopicPane.vue'))
-const TopicPane = defineAsyncComponent(() => import('@/components/TopicPane.vue'))
+   gzip of home JS) for a reader who never opens a topic. SPL-2817: on a
+   phone their place, with its Back, shows from the first frame (not
+   suspensible: under the app's Suspense the loading component is ignored). */
+const PANE_WAIT = { loadingComponent: TopicPaneWait, delay: 0, suspensible: false }
+const LiveTopicPane = defineAsyncComponent({ loader: () => import('@/components/LiveTopicPane.vue'), ...PANE_WAIT })
+const TopicPane = defineAsyncComponent({ loader: () => import('@/components/TopicPane.vue'), ...PANE_WAIT })
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'

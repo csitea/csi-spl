@@ -134,6 +134,17 @@ describe('the phone dock grip', async () => {
     assert.equal(m.snapPhonePosition({ ...vp, x: 195, y: 800 }), 'bottom')
     assert.equal(m.snapPhonePosition({ ...vp, x: 100, y: 500 }), 'bottom')
   })
+  it('SPL-2829: a zoomed page snaps by what the eye sees, the visual viewport', () => {
+    /* x2, panned to the lower right: the finger at the visible bottom */
+    const zoomed = { width: 195, height: 422, left: 195, top: 422 }
+    assert.equal(m.snapPhonePosition({ ...zoomed, x: 290, y: 830 }), 'bottom')
+    assert.equal(m.snapPhonePosition({ ...zoomed, x: 290, y: 460 }), 'top')
+    assert.equal(m.snapPhonePosition({ ...zoomed, x: 380, y: 700 }), 'right')
+    /* CONTROL: the layout viewport would call that bottom finger the right corner */
+    assert.equal(m.snapPhonePosition({ width: 390, height: 844, x: 290, y: 830 }), 'right')
+    assert.deepEqual(m.visibleScreen({ innerWidth: 390, innerHeight: 844, visualViewport: { width: 195, height: 422, offsetLeft: 195, offsetTop: 422 } }), zoomed)
+    assert.deepEqual(m.visibleScreen({ innerWidth: 390, innerHeight: 844, visualViewport: null }), { width: 390, height: 844, left: 0, top: 0 })
+  })
   it('a short travel is a tap (the menu), not a drag', () => {
     assert.equal(m.isPhoneDrag({ dx: 3, dy: 4 }), false)
     assert.equal(m.isPhoneDrag({ dx: 0, dy: -20 }), true)

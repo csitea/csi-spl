@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { HEIGHT_MAX, PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
+import { HEIGHT_MAX, PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition, visibleScreen } from '~/utils/omnibox-dock.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 
@@ -134,7 +134,7 @@ function onUp(e: PointerEvent) {
   clearDrag()
   if (!moved) return
   swallowClick = true
-  set(snapPhonePosition({ x: e.clientX, y: e.clientY, width: window.innerWidth, height: window.innerHeight }))
+  set(snapPhonePosition({ x: e.clientX, y: e.clientY, ...visibleScreen(window) }))
 }
 
 function onCancel() {

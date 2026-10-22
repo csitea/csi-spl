@@ -712,7 +712,11 @@ export default defineNuxtConfig({
         // the shell pad env(safe-area-inset-*), --top-bar-h carries the top
         // one); resizes-content = the on-screen keyboard shrinks the layout
         // viewport on Android, so the docked composer rides above it.
-        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
+        // SPL-2829 (owner, t1 d8ede89a): no page zoom - a drag on the phone
+        // zoomed the whole app and the dock fell under the nav bar; the
+        // Appearance and font settings are the app's own resize.
+        // maximum-scale=1 + user-scalable=no: Android Chrome honours them.
+        { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" },
         { name: "robots", content: "noindex, nofollow" },
         { name: "theme-color", content: "#060912" },
         { name: "description", content: "spool-hub — tenant channel feed for agents and humans" },

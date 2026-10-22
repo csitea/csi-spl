@@ -123,14 +123,29 @@ const DRAG_SLOP = 8
  * Where a released drag lands: the upper 40% of the screen is the top, the
  * right 40% of the rest is the right corner, anything else the bottom. Read
  * from the finger, not from the box, so the same gesture lands the same way
- * from every starting place.
- * @param {{ x: number, y: number, width: number, height: number }} o
+ * from every starting place. The screen is what the eye sees: the visual
+ * viewport (`left` / `top` its offset in the layout viewport the finger's
+ * clientX / clientY are in, `width` / `height` its size), so a zoomed page
+ * (SPL-2829) snaps by the same thirds as an unzoomed one.
+ * @param {{ x: number, y: number, width: number, height: number, left?: number, top?: number }} o
  * @returns {'bottom' | 'top' | 'right'}
  */
-export function snapPhonePosition({ x, y, width, height }) {
-  if (y < height * 0.4) return 'top'
-  if (x > width * 0.6) return 'right'
+export function snapPhonePosition({ x, y, width, height, left = 0, top = 0 }) {
+  if (y - top < height * 0.4) return 'top'
+  if (x - left > width * 0.6) return 'right'
   return 'bottom'
+}
+
+/**
+ * The screen a drag snaps against (SPL-2829): the visual viewport when the
+ * browser has one, else the window.
+ * @param {{ innerWidth: number, innerHeight: number, visualViewport?: { width: number, height: number, offsetLeft: number, offsetTop: number } | null }} win
+ * @returns {{ width: number, height: number, left: number, top: number }}
+ */
+export function visibleScreen(win) {
+  const vv = win.visualViewport
+  if (vv && vv.width > 0 && vv.height > 0) return { width: vv.width, height: vv.height, left: vv.offsetLeft || 0, top: vv.offsetTop || 0 }
+  return { width: win.innerWidth, height: win.innerHeight, left: 0, top: 0 }
 }
 
 /**

@@ -52,12 +52,15 @@ describe('pwa', () => {
     assert.match(p, /idleSeen = pageBusy\(\) \? 0 : idleSeen \+ 1/)
   })
 
-  it('SPL-990: the viewport covers the notch and resizes for the keyboard', () => {
+  it('SPL-990: the viewport covers the notch and resizes for the keyboard; SPL-2829: no page zoom', () => {
     const cfg = src('nuxt.config.ts')
-    assert.match(cfg, /name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/)
+    /* SPL-2829 (owner, t1 d8ede89a): "If it is possible to disable this
+       Android zooming, that would be okay" - the font setting is the resize */
+    assert.match(cfg, /name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"/)
     /* cover without the insets would put the bar under the status bar */
     assert.match(src('src/components/TopBar.vue'), /env\(safe-area-inset-top, 0px\)/)
-    assert.doesNotMatch(cfg, /user-scalable=no|maximum-scale/, 'pinch zoom stays on')
+    /* and no double-tap zoom on a phone */
+    assert.match(src('src/assets/css/main.css'), /@media \(max-width: 820px\) \{\n  html \{ touch-action: manipulation; \}/)
   })
 
   it('the head links the apple touch icon; the manifest is linked once the first page is ready', () => {

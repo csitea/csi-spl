@@ -51,6 +51,15 @@ describe('keyboardInset', () => {
     assert.equal(keyboardInset(800, { height: 760, offsetTop: 0 }), 0)
     assert.equal(keyboardInset(800, { height: 900, offsetTop: 0 }), 0)
   })
+  it('SPL-2829: zoomed in, every px of the layout viewport under the screen counts', () => {
+    /* the owner's screenshot: x1.07, the visual viewport at the top - 52 px
+       of the layout viewport under the screen, below the keyboard floor */
+    assert.equal(keyboardInset(800, { height: 748, offsetTop: 0, scale: 1.07 }), 52)
+    assert.equal(keyboardInset(800, { height: 400, offsetTop: 400, scale: 2 }), 0)
+    assert.equal(keyboardInset(800, { height: 400, offsetTop: 410, scale: 2 }), 0)
+    /* CONTROL: unzoomed, the same 52 px is a toolbar slide */
+    assert.equal(keyboardInset(800, { height: 748, offsetTop: 0, scale: 1 }), 0)
+  })
   it('is 0 without the API or with nonsense', () => {
     assert.equal(keyboardInset(800, null), 0)
     assert.equal(keyboardInset(800, undefined), 0)

@@ -97,6 +97,7 @@ disagrees on one: it read the phone topic pane as full-width, but the measured w
 | D6 | dropped on phones | the drag dividers, dragging to reorder the rail (still in Settings -> Behaviour), the keyboard-hint lines, the version hover card | there is no mouse or keyboard to use them |
 | D7 | the notch and home bar | `viewport-fit=cover`, plus `env(safe-area-inset-*)` padding on the top bar, the sheets and the composer | AGY-3501 |
 | D8 | iOS zoom on focus | text inputs are 16 px at <= 820 px | AGY-3501 |
+| D9 | page zoom (added 2026-10-22, SPL-2829) | **off**: the viewport meta carries `maximum-scale=1, user-scalable=no` (Android Chrome honours it) and `html` takes `touch-action: manipulation` at <= 820 px (no double-tap zoom); a zoom forced anyway (Chrome's "force enable zoom") lifts the docked composer onto the visual viewport (`keyboardInset` counts every px under it while `visualViewport.scale > 1`), and the grip snaps by the visual viewport | owner, HUM-10 t1 d8ede89a (msg b4ff9ea6): the omnibox "snaps too low ... It might be related somehow to Android zooming ... If it is possible to disable this Android zooming, that would be okay, because we have the Appearance and font setting". Cause: zoomed x~1.07 the screen ends ~50 px above the layout viewport's bottom, under the 60 px keyboard floor, so the fixed dock sat under the nav bar. Test: `tests/e2e/omnibox-phone-zoom.test.mjs` (412x915, and a 34 px bottom safe-area inset) |
 
 ## 6. Functional requirements
 

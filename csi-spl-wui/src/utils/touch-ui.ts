@@ -25,13 +25,19 @@ const KEYBOARD_MIN_PX = 60
  * `innerHeight` is window.innerHeight (the layout viewport), `vv`
  * window.visualViewport.
  */
-export function keyboardInset(innerHeight: number, vv: { height?: number, offsetTop?: number } | null | undefined): number {
+export function keyboardInset(innerHeight: number, vv: { height?: number, offsetTop?: number, scale?: number } | null | undefined): number {
   const ih = Number(innerHeight)
   if (!vv || !Number.isFinite(ih) || ih <= 0) return 0
   const h = Number(vv.height)
   const top = Number(vv.offsetTop) || 0
   if (!Number.isFinite(h) || h <= 0) return 0
   const inset = Math.round(ih - h - top)
+  /* SPL-2829 (owner, t1 d8ede89a): a page zoomed in (a forced zoom, the
+     viewport meta refuses a pinch) shows only part of the layout viewport,
+     and a fixed `bottom` is the LAYOUT bottom: at x1.07 the 50-odd px under
+     the screen read as "no keyboard" and the dock sat under the nav bar. So
+     zoomed, every px under the visual viewport counts */
+  if (Number(vv.scale) > 1.001) return Math.max(0, inset)
   return inset >= KEYBOARD_MIN_PX ? inset : 0
 }
 

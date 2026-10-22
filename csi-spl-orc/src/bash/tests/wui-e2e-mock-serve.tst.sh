@@ -8,6 +8,8 @@
 #          the script and carries no inline copy, and workflow 11 runs it by
 #          calling workflow 10 (spec 072 A35), holding no e2e of its own.
 #          CONTROL: a bundle server that never answers fails the script.
+#          SPL-2920: with no RUNNER_TEMP, log files someone else left in the
+#          shared TMPDIR neither stop the run nor show up as its logs.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -34,6 +36,19 @@ grep -qx ok <<<"$out" && pass "BASE_URL points at the bundle server" || fail "bu
 grep -q '^401 {"native":false,"providers":\[\]}' <<<"$out" && pass "the API stub answers session 401 + an empty provider list" || fail "API stub: $out"
 api_port=$(sed 's/.*://' "$T/api")
 curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$api_port/" && fail "the API stub outlived the script" || pass "both servers stop with the script"
+[[ -f "$T/wui-e2e-serve.log" && -f "$T/wui-e2e-api.log" ]] && pass "under RUNNER_TEMP the logs stay in RUNNER_TEMP (CI unchanged)" || fail "the logs are not in RUNNER_TEMP"
+
+# SPL-2920: another user's leftovers at the old fixed names in a shared TMPDIR.
+# The api log is a directory, so even root cannot write it; the serve log is a
+# read-only file holding an old run's line.
+shared="$T/shared"; mkdir -p "$shared/wui-e2e-api.log"
+echo "STALE serving on :37515" >"$shared/wui-e2e-serve.log"; chmod 0444 "$shared/wui-e2e-serve.log"
+out=$(cd "$wui" && env -u RUNNER_TEMP CHROME_PATH=/bin/true TMPDIR="$shared" API_FILE="$T/api" bash "$S" \
+  sh -c 'curl -fsS "$BASE_URL/login"' 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx ok <<<"$out" && pass "foreign logs in a shared TMPDIR do not stop the run" || fail "shared TMPDIR: rc=$rc $out"
+grep -q STALE <<<"$out" && fail "an old run's log was printed as this run's" || pass "no log from another run is printed"
+left=$(find "$shared" -mindepth 1 -maxdepth 1 -name 'wui-e2e-mock-serve.*' | wc -l)
+[[ $left -eq 0 ]] && pass "the private log dir is removed on exit" || fail "$left private log dir(s) left in TMPDIR"
 
 out=$(cd "$wui" && CHROME_PATH=/bin/true RUNNER_TEMP="$T" API_FILE="$T/api" NEVER_ANSWER=1 bash "$S" true 2>&1); rc=$?
 [[ $rc -ne 0 ]] && grep -q 'generated bundle not serving' <<<"$out" && pass "CONTROL: a silent bundle server fails the script" || fail "CONTROL: rc=$rc $out"

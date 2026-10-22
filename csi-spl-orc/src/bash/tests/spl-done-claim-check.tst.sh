@@ -294,4 +294,27 @@ v="$(for k in digit digitno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
   pass "12. SPL-2706: an all-digit short sha of a trunk commit is landed; a 9-digit number that is no commit is still no sha" ||
   fail "12. all-digit sha (rc $rc) got '$v': $(cat "$T/o")"
 
+# 13. c-734's result e7f096f6 (synthetic): "do_check_pre_push all PASS (tree
+# cefedf318)" beside its landed done sha. A tree, a blob, and a tag of a tree
+# are git objects but no commit: no claim. The landed sha alone is judged.
+SP="$T/spool13"
+TREE=$(rg spl rev-parse "$REVIEW^{tree}")
+BLOB=$(rg spl rev-parse "$REVIEW:f")
+for i in $(seq 1 50); do
+  rg spl tag -f -a treetag -m "tree tag $i" "$TREE" >/dev/null
+  [[ "$(rg spl rev-parse refs/tags/treetag | cut -c1-9)" =~ [a-f] ]] && break
+done
+TTAG=$(rg spl rev-parse refs/tags/treetag)
+msg c-002/archive tree c-599 c-002 30 "done ${LANDED:0:9}, do_check_pre_push all PASS (tree ${TREE:0:9}), blob ${BLOB:0:9}, tag ${TTAG:0:9}"
+msg c-002/archive treeonly c-600 c-002 30 "do_check_pre_push all PASS (tree ${TREE:0:9})"
+[[ "$(rg spl cat-file -t "${TREE:0:9}")/$(rg spl cat-file -t "${BLOB:0:9}")/$(rg spl cat-file -t "${TTAG:0:9}")" == tree/blob/tag &&
+  "${TREE:0:9}${BLOB:0:9}${TTAG:0:9}" =~ [a-f] ]] &&
+  pass "13. control: ${TREE:0:9} is a tree, ${BLOB:0:9} a blob, ${TTAG:0:9} a tag of a tree" || fail "13. control: fixture"
+run DONE_CLAIM_STATE_DIR="$T/st13"; rc=$?
+v="$(for k in tree treeonly; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "tree=landed treeonly=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "tree" { print $4 }' "$T/o")" = "${LANDED:0:9}" ] && grep -q '^treeonly	.*no-sha$' "$T/o" &&
+  pass "13. a tree, a blob or a tag of a tree beside a landed sha is no claim: landed; a body citing only a tree id reads as no sha" ||
+  fail "13. tree / blob id (rc $rc) got '$v': $(cat "$T/o")"
+
 exit "$fails"

@@ -18,7 +18,8 @@
 # @description     a repo, SPL-2706, else a run id; a 32-hex md5 or a token
 # @description     right after an "md5" label is a file hash, SPL-2332; a commit
 # @description     reachable from origin's refs/notes/*, the release notes, is
-# @description     no code, SPL-2560); SPL-2338:
+# @description     no code, SPL-2560; a tree, a blob or a tag of no commit
+# @description     is no sha, SPL-2831: c-734's "(tree cefedf318)"); SPL-2338:
 # @description     when a line of the body starts with the word sha / shas
 # @description     ("sha:", "- **sha**:", "SHA:") and holds a sha, only those
 # @description     lines are the claim (a sha quoted on another line is
@@ -181,27 +182,33 @@ spl_done_claim_shas() {
 
 # spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
 # or 40 chars, UUIDs and the token after an "md5" label cut out first; one
-# line, space-separated. 13..39 hex (a 32-hex md5) is no git sha. An all-digit
-# token counts only when it is a commit of a repo in [repos file] (SPL-2706:
-# c-597's "sha: 704617890" read as no sha); else it is a run id.
+# line, space-separated. 13..39 hex (a 32-hex md5) is no git sha. A token that
+# is a tree, a blob or a tag of no commit in a repo of [repos file] is no sha
+# (c-734's "(tree cefedf318)"); an all-digit token counts only when it is a
+# commit (SPL-2706: c-597's "sha: 704617890" read as no sha), else a run id.
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
     -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |
-    spl_done_claim_digit_commits "${1:-}" | paste -sd' ' -
+    spl_done_claim_commits "${1:-}" | paste -sd' ' -
 }
 
-# spl_done_claim_digit_commits [repos file] (stdin): the tokens holding a letter
-# a..f, and the all-digit ones `git cat-file -t` names a commit in a repo of
-# [repos file]: one cat-file per all-digit token and repo.
-spl_done_claim_digit_commits() {
-  local t top ref
+# spl_done_claim_commits [repos file] (stdin): the tokens that are a commit (or
+# a tag of one) in a repo of [repos file], and the lettered ones that are no
+# object in any (a pre-rebase sha, judged later). A tree, a blob or a tag of
+# no commit is dropped, as is an all-digit token that is no commit (a run id).
+spl_done_claim_commits() {
+  local t top ref kind
   while read -r t; do
-    [[ "$t" =~ [a-f] ]] && { echo "$t"; continue; }
-    [[ -n "$1" && -f "$1" ]] || continue
-    while read -r top ref; do
-      [[ "$(git -C "$top" cat-file -t "$t" 2>/dev/null)" == commit ]] && { echo "$t"; break; }
-    done <"$1"
+    kind=none
+    if [[ -n "$1" && -f "$1" ]]; then
+      while read -r top ref; do
+        git -C "$top" cat-file -e "$t" 2>/dev/null || continue
+        git -C "$top" rev-parse -q --verify "$t^{commit}" >/dev/null 2>&1 && { kind=commit; break; }
+        kind=other
+      done <"$1"
+    fi
+    [[ "$kind" == commit || ( "$kind" == none && "$t" =~ [a-f] ) ]] && echo "$t"
   done
 }
 

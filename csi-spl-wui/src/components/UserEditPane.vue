@@ -298,8 +298,9 @@ import { useAuthClient } from '~/composables/useAuthClient'
 import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { useRoleName } from '~/composables/useRoleName'
+import { useUserEditActions } from '~/composables/useUserEditActions'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { accessDateOf, accessUntilOfDate, inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, passwordResetState, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
+import { accessDateOf, inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, passwordResetState, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
 const props = defineProps<{
@@ -321,7 +322,6 @@ const roleName = useRoleName()
 const api = useSpoolApi()
 const auth = useAuthClient()
 const access = useAccessStore()
-const localePath = useLocalePath()
 
 // specs/054: offer "Act as" for a member the reader may impersonate. The hub
 // enforces the permission AND the strict role ceiling; `manageable && !you`
@@ -385,6 +385,13 @@ watch(() => [props.row?.key, props.creating], () => {
     void nextTick(() => emailEl.value?.focus())
   }
 }, { immediate: true })
+
+// Below the reset watch: its immediate run sets the refs these actions read.
+const { saveRole, actAs, saveProfile, toggleSuspend, saveAccess, clearAccess, destroy } = useUserEditActions({
+  api, auth, member, invite, run, notice,
+  form: { memberRole, profileName, profileLocale, accessDay, confirmOpen },
+  changed: (key) => emit('changed', key),
+})
 
 /* the sign-in page of the tenant the list came from */
 function linkOf(i: UserInvite | null) {
@@ -452,77 +459,6 @@ function sendInvite() {
   })
 }
 
-function saveRole() {
-  const m = member.value
-  if (!m) return
-  void run(async () => {
-    await api.setTenantUserRole(m.humanId, memberRole.value, m.role)
-    emit('changed', m.key)
-    notice.value = t('users.role_saved')
-  })
-}
-
-// specs/054: start acting as this member. On success THIS browser's cookie is
-// the clone, so a full reload re-inits every store as the clone and the
-// "Acting as X" banner shows. The hub 403s a target above the ceiling.
-function actAs() {
-  const m = member.value
-  if (!m) return
-  void run(async () => {
-    const res = await auth.actAsStart(m.humanId)
-    if (!res.ok) throw { token: res.error || 'unavailable' }
-    if (import.meta.client) window.location.assign(localePath('/lobby'))
-  })
-}
-
-function saveProfile() {
-  const m = member.value
-  if (!m) return
-  const patch: { display_name?: string, locale?: string } = {}
-  if (profileName.value.trim() !== m.displayName) patch.display_name = profileName.value.trim()
-  if (profileLocale.value) patch.locale = profileLocale.value
-  void run(async () => {
-    await api.patchTenantUser(m.humanId, patch)
-    emit('changed', m.key)
-    notice.value = t('users.profile_saved')
-  })
-}
-
-function toggleSuspend() {
-  const m = member.value
-  if (!m) return
-  void run(async () => {
-    await api.patchTenantUser(m.humanId, { disabled: !m.suspended })
-    emit('changed', m.key)
-    notice.value = m.suspended ? t('users.restored') : t('users.suspended_notice')
-  })
-}
-
-// The reloaded row keeps its key, so the date follows its access_until here.
-watch(() => member.value?.accessUntil, (v) => { accessDay.value = accessDateOf(v || '') })
-
-// spec 072 A27: end the member's access here after the chosen local day.
-function saveAccess() {
-  const m = member.value
-  const until = accessUntilOfDate(accessDay.value)
-  if (!m || !until) return
-  void run(async () => {
-    await api.patchTenantUser(m.humanId, { access_until: until })
-    emit('changed', m.key)
-    notice.value = t('users.access_saved', { date: accessDay.value })
-  })
-}
-
-function clearAccess() {
-  const m = member.value
-  if (!m) return
-  void run(async () => {
-    await api.patchTenantUser(m.humanId, { access_until: null })
-    emit('changed', m.key)
-    notice.value = t('users.access_cleared')
-  })
-}
-
 // CLE-77780: the explicit "Send the invite email" / "Resend" action — the only
 // way an invite's mail goes out, always on a click. The mail rides the current
 // invite; a 'sent' outcome says the relay took it, else it was stored only.
@@ -555,18 +491,6 @@ function resetPassword() {
     notice.value = t('users.reset_sent', { email: res?.email || m.email })
   }).then(() => nextTick(() => (noticeEl.value || errorEl.value)?.scrollIntoView({ block: 'center' })))
   resetOpen.value = false
-}
-
-function destroy() {
-  const m = member.value
-  const i = invite.value
-  void run(async () => {
-    if (m) await api.removeTenantUser(m.humanId)
-    else if (i) await api.revokeTenantInvite(i.email)
-    confirmOpen.value = false
-    emit('changed', '')
-  })
-  confirmOpen.value = false
 }
 </script>
 

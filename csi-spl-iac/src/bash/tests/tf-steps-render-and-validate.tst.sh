@@ -208,13 +208,13 @@ grep -qx 'availability_type = "REGIONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/prd/tf/
   && pass "prd 040 renders availability_type REGIONAL" || fail "prd 040 is not REGIONAL (SPL-2250)"
 grep -qx 'availability_type = "ZONAL"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/040-cloud-sql-postgres.vars.tfvars" \
   && pass "dev 040 renders availability_type ZONAL" || fail "dev 040 is not ZONAL (HA is prd-only, SPL-2250)"
-# SPL-2161 (radar step 2): dev requires Cloud SQL connectors first; prd keeps
-# NOT_REQUIRED until the owner's go after a clean dev. The public IP stays
+# SPL-2161 (radar step 2): both envs require Cloud SQL connectors (dev applied
+# first; prd's apply waits for the owner's go on its plan). The public IP stays
 # (wf 20/45/49 runners and the boxes reach the DB only through the proxy).
-grep -qx 'connector_enforcement = "REQUIRED"' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/040-cloud-sql-postgres.vars.tfvars" \
-  && pass "dev 040 renders connector_enforcement REQUIRED" || fail "dev 040 does not require connectors (SPL-2161)"
-grep -qx 'connector_enforcement = "NOT_REQUIRED"' "$APP_ROOT/csi-spl-cnf/csi-spl/prd/tf/040-cloud-sql-postgres.vars.tfvars" \
-  && pass "prd 040 renders connector_enforcement NOT_REQUIRED (waits on the owner's go)" || fail "prd 040 connector_enforcement changed without the owner's go (SPL-2161)"
+for e in dev prd; do
+  grep -qx 'connector_enforcement = "REQUIRED"' "$APP_ROOT/csi-spl-cnf/csi-spl/$e/tf/040-cloud-sql-postgres.vars.tfvars" \
+    && pass "$e 040 renders connector_enforcement REQUIRED" || fail "$e 040 does not require connectors (SPL-2161)"
+done
 grep -qE '^ *connector_enforcement *= *var\.connector_enforcement' "$TFD/040-cloud-sql-postgres/03-cloud-sql.tf" \
   && pass "040 wires connector_enforcement from cnf" || fail "040 does not read var.connector_enforcement"
 grep -qE '^ *ipv4_enabled *= *true' "$TFD/040-cloud-sql-postgres/03-cloud-sql.tf" \

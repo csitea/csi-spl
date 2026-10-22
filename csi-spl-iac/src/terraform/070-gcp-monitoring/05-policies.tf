@@ -245,3 +245,137 @@ resource "google_monitoring_alert_policy" "memory_high" {
     content   = "A hub instance uses more than ${format("%.0f", var.memory_utilization_threshold * 100)}% of its container memory: near the Go GOMEMLIMIT, then an OOM kill that drops every socket on it. Check the hub's logs and memory graph of ${var.hub_service_name}."
   }
 }
+
+# SPL-2867 (prd incident 2026-10-22): sign-in answered 503 after 10 s and the
+# read views took up to 193 s for half an hour while /v1/health stayed 200, so
+# the uptime check could not see it. Cloud Run's request_count and
+# request_latencies carry no path, so both read the hub's request log.
+locals {
+  request_log = "${local.run} AND logName : \"run.googleapis.com%2Frequests\""
+}
+
+resource "google_logging_metric" "signin_5xx" {
+  name        = "${local.name}-hub-signin-5xx"
+  description = "SPL-2867: hub sign-in requests (${var.signin_path}) answered with a 5xx, from Cloud Run's request log."
+  filter      = "${local.request_log} AND httpRequest.requestUrl : \"${var.signin_path}\" AND httpRequest.status >= 500"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}
+
+resource "google_monitoring_alert_policy" "signin_5xx" {
+  display_name          = "${local.name} hub sign-in 5xx"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "at least ${var.signin_5xx_per_5min} sign-in 5xx in five minutes"
+    condition_threshold {
+      filter          = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.signin_5xx.name}\" AND resource.type = \"cloud_run_revision\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.signin_5xx_per_5min - 1
+      duration        = "0s"
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "${var.auto_close_seconds}s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "Sign-in (${var.signin_path}) answers 5xx: nobody can log in, though /v1/health may still be 200. A 503 after 10 s is the hub's DB pool wait: slow queries hold the pool (incident 2026-10-22). Read the hub's error logs and `do_spl_db_health`; the remedy that worked is `do_gcp_hub_restart` (csi-spl-doc/doc/md/hub-signin-view-alerts.md)."
+  }
+}
+
+# The request log's httpRequest.latency is a duration string ("12.5s"): the
+# extractor keeps its number of seconds. Buckets 0.01 s * 1.5^n, n = 0..36,
+# up to ~6 h: Cloud Run's 3600 s request timeout falls inside them, and a
+# bucket is at most 1.5 times its lower edge, so the p95 read stays close.
+resource "google_logging_metric" "view_latency" {
+  name            = "${local.name}-hub-view-latency"
+  description     = "SPL-2867: latency in seconds of the hub's read views (${var.view_path}*), from Cloud Run's request log."
+  filter          = "${local.request_log} AND httpRequest.requestUrl : \"${var.view_path}\""
+  value_extractor = "REGEXP_EXTRACT(httpRequest.latency, \"([0-9.]+)s\")"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "s"
+  }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 36
+      growth_factor      = 1.5
+      scale              = 0.01
+    }
+  }
+}
+
+# The hub's per-view limit (SPL-2866) answers 503 view_timeout instead of a
+# slow view, which caps the latency the p95 sees: the 5xx count catches it.
+resource "google_logging_metric" "view_5xx" {
+  name        = "${local.name}-hub-view-5xx"
+  description = "SPL-2867: hub read view requests (${var.view_path}*) answered with a 5xx, from Cloud Run's request log."
+  filter      = "${local.request_log} AND httpRequest.requestUrl : \"${var.view_path}\" AND httpRequest.status >= 500"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}
+
+resource "google_monitoring_alert_policy" "view_slow" {
+  display_name          = "${local.name} hub views slow"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "p95 of ${var.view_path}* above ${var.view_p95_seconds}s for ${var.view_slow_seconds}s"
+    condition_threshold {
+      filter          = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.view_latency.name}\" AND resource.type = \"cloud_run_revision\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.view_p95_seconds
+      duration        = "${var.view_slow_seconds}s"
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_PERCENTILE_95"
+      }
+    }
+  }
+
+  conditions {
+    display_name = "at least ${var.view_5xx_per_5min} ${var.view_path}* 5xx in five minutes"
+    condition_threshold {
+      filter          = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.view_5xx.name}\" AND resource.type = \"cloud_run_revision\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.view_5xx_per_5min - 1
+      duration        = "0s"
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "${var.auto_close_seconds}s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "The hub's read views (${var.view_path}*) answer slower than ${var.view_p95_seconds}s at p95, or with 5xx (a 503 view_timeout is the per-view limit cutting a slow query): the web UI hangs, and slow queries holding the hub's DB pool starve sign-in next. /v1/health does not touch the pool and stays 200. Read pg_stat_activity (`do_spl_db_query`) and the hub's error logs (csi-spl-doc/doc/md/hub-signin-view-alerts.md)."
+  }
+}

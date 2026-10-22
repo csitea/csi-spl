@@ -185,6 +185,66 @@ variable "memory_high_seconds" {
   description = "How long the memory utilisation must stay above the threshold before it pages."
 }
 
+variable "signin_path" {
+  type        = string
+  description = "The hub's sign-in path: its 5xx page through signin_5xx."
+
+  validation {
+    condition     = can(regex("^/[A-Za-z0-9/_-]+$", var.signin_path))
+    error_message = "signin_path is a URL path: a slash, then letters, digits, / _ or -."
+  }
+}
+
+variable "signin_5xx_per_5min" {
+  type        = number
+  description = "Page when sign-in answers at least this many 5xx in five minutes."
+
+  validation {
+    condition     = var.signin_5xx_per_5min >= 1
+    error_message = "signin_5xx_per_5min must be at least 1."
+  }
+}
+
+variable "view_path" {
+  type        = string
+  description = "The path prefix of the hub's read views: their latency pages through view_slow."
+
+  validation {
+    condition     = can(regex("^/[A-Za-z0-9/_-]+$", var.view_path))
+    error_message = "view_path is a URL path: a slash, then letters, digits, / _ or -."
+  }
+}
+
+variable "view_p95_seconds" {
+  type        = number
+  description = "Page when the p95 latency of view_path requests over five minutes stays above this many seconds."
+
+  validation {
+    condition     = var.view_p95_seconds > 0
+    error_message = "view_p95_seconds must be above 0."
+  }
+}
+
+variable "view_slow_seconds" {
+  type        = number
+  description = "How long the view p95 must stay above view_p95_seconds before it pages."
+
+  validation {
+    condition     = var.view_slow_seconds >= 0 && var.view_slow_seconds <= 86400
+    error_message = "view_slow_seconds must be 0..86400 (Cloud Monitoring's condition duration)."
+  }
+}
+
+variable "view_5xx_per_5min" {
+  type        = number
+  description = "Page when view_path requests answer at least this many 5xx in five minutes (the hub's per-view limit answers 503 view_timeout)."
+
+  validation {
+    condition     = var.view_5xx_per_5min >= 1
+    error_message = "view_5xx_per_5min must be at least 1."
+  }
+}
+
 variable "auto_close_seconds" {
   type        = number
   description = "An open incident whose condition stays clear this long is closed."

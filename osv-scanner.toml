@@ -29,6 +29,18 @@
 #    csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas; remove both
 #    together once a fixed braces or a micromatch without it ships.
 #    Re-check by 2026-11-02.
+#  - nuxt + @nuxt/nitro-server 3.21.11 (npm, GHSA-vjh5-4x84-xrqp,
+#    GHSA-xfq5-w38q-pc2x, GHSA-jjm6-p2m9-9w4x; published 2026-10-22 16:51-17:00Z,
+#    reddened workflow 70 with no lockfile change): fixed only in nuxt 4.6.x,
+#    no fixed 3.x release (3.21.11 = latest 3.x), so the real fix is the nuxt 4
+#    migration. None reaches the shipped WUI (checked 2026-10-22):
+#    vjh5 needs a running Nitro server with case-insensitive route rules, we
+#    ship `nuxt generate` static output to Firebase Hosting; xfq5 needs server
+#    islands, 0 *.server.vue / *.island.vue, 0 NuxtIsland / useHeadSafe in
+#    src; jjm6 needs `pages` disabled, src/pages has 35 pages and nuxt.config
+#    never sets pages: false. pnpm audit (workflow 15) was green on b8a153269,
+#    so package.json pnpm.auditConfig carries no entry yet; add the same three
+#    there if it reddens. Re-check by 2026-11-05 (SPL-2908).
 #  - serialize-javascript (npm): low, below the pnpm-audit gate; Dependabot-
 #    tracked. GHSA-8wmf-6v46-5gfg (otel/sdk) was dropped once otel/sdk reached
 #    v1.45.0: osv-scanner 2.6.0 named it unused.
@@ -53,3 +65,19 @@ reason = "node-forge 1.4.0: no fixed version upstream; only listhen (nuxt dev se
 id = "GHSA-vfj7-8cjw-p6xm"
 ignoreUntil = 2026-11-02
 reason = "braces 3.0.3: no fixed version upstream; only micromatch 4.0.8 (latest) via fast-glob/globby under nitropack, unplugin-vue-router and @intlify/unplugin-vue-i18n pulls it, for build-time globbing of our own sources; not shipped in the generated WUI bundle. Re-check for a braces or micromatch release by the expiry."
+
+# SPL-2908: the three nuxt 3.21.11 advisories that reddened workflow 70 on 2026-10-22.
+[[IgnoredVulns]]
+id = "GHSA-vjh5-4x84-xrqp"
+ignoreUntil = 2026-11-05
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs a running Nitro server with case-insensitive route rules, the WUI ships as nuxt generate static output on Firebase Hosting. Real fix: nuxt 4 migration."
+
+[[IgnoredVulns]]
+id = "GHSA-xfq5-w38q-pc2x"
+ignoreUntil = 2026-11-05
+reason = "nuxt 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs server islands, the WUI has no .server.vue/.island.vue, NuxtIsland or useHeadSafe. Real fix: nuxt 4 migration."
+
+[[IgnoredVulns]]
+id = "GHSA-jjm6-p2m9-9w4x"
+ignoreUntil = 2026-11-05
+reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled, the WUI uses pages (src/pages). Real fix: nuxt 4 migration."

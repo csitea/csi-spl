@@ -364,7 +364,7 @@ describe('search rows carry the clock their group is ordered by', () => {
     const s = read('components/SideHitList.vue')
     assert.match(s, /:data-key="item\.key"/)
     assert.match(s, /:data-ts="item\.ts \|\| undefined"/)
-    assert.match(read('components/SearchSidePanel.vue'), /ts: rowAt\(row\)/)
+    assert.match(read('composables/useSearchSideItems.ts'), /ts: rowAt\(row\)/)
   })
 })
 

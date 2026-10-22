@@ -86,18 +86,15 @@
 <script setup lang="ts">
 import SideHitList from '~/components/SideHitList.vue'
 import { useAiListRun } from '~/composables/useAiListRun'
-import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { searchPath, type SearchRow } from '~/utils/search.mjs'
-import { flattenGroups, highlightSegments, isPlacedRow, originalHref, rowAt, searchRowMenuItems, searchTarget, topicPageOf } from '~/utils/search-results.mjs'
-import type { SideHitItem } from '~/utils/side-hit-list'
+import { isPlacedRow, originalHref, searchRowMenuItems, searchTarget, topicPageOf } from '~/utils/search-results.mjs'
+import { useSearchSideItems } from '~/composables/useSearchSideItems'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
-import { isoDateTime } from '~/utils/date-iso.mjs'
-import { namedText, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { createLongPress } from '~/utils/touch-ui'
 import { useCopyText } from '~/composables/useCopyText'
@@ -128,85 +125,7 @@ const viewerId = computed(() => String(access.me?.humanId || liveIdentity.value 
 const scrollEl = ref<HTMLElement | null>(null)
 const listRef = ref<{ focus: () => void, rowEl: (key: string) => HTMLElement | null } | null>(null)
 
-const rows = computed(() => (search.result ? flattenGroups(search.result.groups) : []))
-const byKey = computed(() => new Map(rows.value.map((r) => [r.key, r])))
-
-function groupLabel(type: string) { return t('search.group.' + type) }
-function typeOf(label: string) {
-  const g = search.result?.groups.find((x) => groupLabel(x.type) === label)
-  return g ? g.type : ''
-}
-function nextOf(label: string) {
-  const g = search.result?.groups.find((x) => groupLabel(x.type) === label)
-  return !!(g && g.next)
-}
-
-function when(ts: unknown): string {
-  if (!ts) return ''
-  return isoDateTime(new Date(String(ts)))
-}
-function label(id: unknown, box: unknown) {
-  const s = id ? String(id) : ''
-  return s ? shownPerson(s, box ? String(box) : undefined, people.names.value) : ''
-}
-/** Where a hit lives: #channel, the Issues label for an issue's discussion (SPL-68), or a DM. */
-function place(channel: unknown): string {
-  const c = String(channel || '')
-  if (!c) return t('search.in_dm')
-  return c === ISSUE_CHANNEL ? t('search.group.issues') : '#' + c
-}
-function badgeOf(r: Record<string, unknown>): string {
-  if (!isPlacedRow(r)) return ''
-  if (r.type === 'messages' && r.parent_task_id && r.parent_task_id !== r.task_id) return '↳'
-  return r.channel ? '#' : '@'
-}
-
-/** The meta of a non-posted hit, as the search page wrote it. */
-function metaOf(row: SearchRow): string {
-  const r: Record<string, unknown> = row
-  switch (row.type) {
-    case 'robots': return r.revoked ? t('search.revoked') : ''
-    case 'channels': return r.count != null ? t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0) : ''
-    case 'boxes': return Array.isArray(r.agents) ? r.agents.join(', ') : ''
-    case 'tenants': {
-      const role = String(r.role || '')
-      const roleLabel = role && te('role.' + role) ? t('role.' + role) : ''
-      return [String(r.tenant_id || ''), roleLabel, r.current ? t('search.current_tenant') : ''].filter(Boolean).join(' · ')
-    }
-    case 'events': return String(r.code || r.path || r.error_id || '')
-    case 'issues': return [r.status, r.priority, r.assignee].filter((x) => x != null && x !== '').map(String).join(' · ')
-    default: return ''
-  }
-}
-
-function itemOf(row: SearchRow): SideHitItem {
-  const r: Record<string, unknown> = row
-  const segs = highlightSegments(row.display.text, row.display.highlights)
-    .map((s: { text: string, mark: boolean }) => ({ text: row.type === 'messages' ? namedText(s.text, people.names.value) : s.text, mark: s.mark }))
-  const base: SideHitItem = { key: row.key, type: row.type, group: groupLabel(row.type), segs, title: row.display.text, ts: rowAt(row) }
-  if (r.msg_id && (row.type === 'messages' || row.type === 'files')) base.msgId = String(r.msg_id)
-  switch (row.type) {
-    case 'messages':
-      return { ...base, badge: badgeOf(r), who: r.from ? { id: String(r.from), box: r.from_box ? String(r.from_box) : '' } : undefined, where: place(r.channel), when: when(r.received_at || r.created_at) }
-    case 'topics':
-      return { ...base, badge: badgeOf(r), where: [place(r.channel), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0)].join(' · '), when: when(r.last_ts) }
-    case 'files':
-      return { ...base, badge: '📎', where: label(r.from, r.from_box), when: when(r.received_at) }
-    case 'users': {
-      const n = typeof r.display_name === 'string' ? r.display_name.trim() : ''
-      return { ...base, who: { id: String(r.id || ''), box: r.box ? String(r.box) : '' }, segs: n ? [{ text: n, mark: false }] : [], where: metaOf(row) }
-    }
-    case 'robots':
-      return { ...base, who: { id: String(r.id || ''), box: r.box ? String(r.box) : '' }, where: metaOf(row) }
-    case 'channels':
-      return { ...base, badge: '#', where: metaOf(row) }
-    case 'events':
-      return { ...base, where: metaOf(row), when: when(r.received_at) }
-    default:
-      return { ...base, where: metaOf(row) }
-  }
-}
-const items = computed(() => rows.value.map(itemOf))
+const { rows, byKey, items, typeOf, nextOf } = useSearchSideItems({ search, t, te, names: people.names })
 
 /* the chosen entry and the scroll survive a remount (a phone Back, a tab swap) */
 function noteScroll() {

@@ -11,7 +11,9 @@
 # @description              lanes 1..n), the id lock (4.2), done / retired =
 # @description              refused (exit 3), the 6.2 guards (not the human
 # @description              ones at hard-end, R3), held out = refused (the hold
-# @description              never expires), the limits of 6 (ONE counter
+# @description              never expires), the vendor at its usage limit =
+# @description              refused (RS-GATE SKIP vendor limit, SPL-2900),
+# @description              the limits of 6 (ONE counter
 # @description              lifetime/restarts, RESTART_MAX_PER_HOUR; the task
 # @description              caps REBIRTH_MAX / TASK_RESTART_MAX), and for a
 # @description              crash or a rebirth the situation re-run
@@ -110,7 +112,7 @@ do_spl_agent_restart() {
   spl_ars_slot "$id" || return
   spl_agent_id_lock "$id" do_spl_agent_restart "$rid" || rc=$?
   (( rc == 0 )) || { spl_ars_refuse "$id" "$rc" "id lock (spec 102 4.2): $SPL_ID_LOCK_WHY"; return; }
-  spl_ars_gate "$id" "$cause" "$now" || return
+  spl_ars_gate "$id" "$cause" "$now" "$rid" || return
   spl_ars_run "$id" "$rid" "$ts" "$now"
 }
 
@@ -219,8 +221,29 @@ spl_ars_gate() {
     WDT_BOXENV="$(spl_wdt_box_env)" ||
       { spl_ars_refuse "$id" 4 "a windowless seat starts only as the agent user its box config names: none"; return; }
   fi
+  spl_ars_vendor_gate "$id" "$4" || return
   spl_ars_limits "$id" "$now" || return
   return 0
+}
+
+# spl_ars_vendor_gate ID RID: a seat whose vendor is at its usage limit is not
+# restarted (SPL-2900, fix D of specs/060-role-rotation/rotation-failures-2026-10-22.md
+# row 3: <box-2> 10-18 00:54Z, a watchdog restart of c-002 opened on the
+# 'usage limit' dialog, RS-SPAWN FAIL + an alert). The role rotation's own
+# read-only checks decide it: spl_rotate_claude_out (its limit verdicts only:
+# its "no claude cli" and lease-silence answers are not a limit) and
+# spl_rotate_grok_out. Before the counters: nothing spawned, counted or
+# alerted; a refusal (exit 4), so the next watchdog tick asks again. A role
+# seat's vendor out is the role failover's job.
+spl_ars_vendor_gate() {
+  local why=""
+  case "$PEER_HARNESS" in
+    claude) why="$(spl_rotate_claude_out)"; [[ "$why" =~ ^[^\ ]+\ S2\ kind=limit\  ]] || why="" ;;
+    grok) why="$(spl_rotate_grok_out)" ;;
+  esac
+  [[ -n "$why" ]] || return 0
+  spl_peer_rlog "$2" RS-GATE SKIP "vendor limit: $PEER_HARNESS cannot act ($why): not restarted, the role failover's job, no alert"
+  spl_ars_refuse "$1" 4 "vendor limit: $PEER_HARNESS cannot act ($why)"
 }
 
 # A retired id: a row in registry.retired.tsv and none in registry.tsv

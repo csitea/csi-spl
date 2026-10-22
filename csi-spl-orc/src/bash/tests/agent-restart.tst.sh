@@ -79,6 +79,15 @@
 #      not refused as a duplicate, the jobs neither killed nor taken for the
 #      old session. Red control: the same pids without the ended screen ->
 #      exit 4 duplicate (the old rule for every case)
+#  20. the vendor at its usage limit (SPL-2900, fix D of the rotation
+#      failures doc, row 3: <box-2> 10-18 00:54Z, n=1, c-002 restarted for a
+#      stall opened on the 'usage limit' dialog): a fresh S2 kind=limit
+#      verdict of a claude seat -> RS-GATE SKIP vendor limit, exit 4 (the
+#      next tick asks again), nothing spawned, counted or alerted; the same
+#      for a grok lane on grok's weekly limit. Red control (origin/master):
+#      RS-SPAWN, then RS-SPAWN FAIL on the dialog + ALERT. Controls: a newer
+#      clean verdict of another claude seat (claude works again) and a
+#      verdict past ROTATE_CLAUDE_LIMIT_FRESH -> restarted to DONE OK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -619,6 +628,46 @@ left19 c-961 %61
 rc="$(go ID=c-961 CAUSE=S3 DRY_RUN=0)"
 [[ "$rc" == 4 ]] && grep -q 'duplicate: 2 live processes carry c-961' "$T/o" "$D/rotate.log" 2>/dev/null && [[ ! -s "$T/spawn.log" ]] &&
   pass "19. red control: the same jobs with no ended screen -> exit 4 duplicate, nothing spawned" || fail "19. red control rc=$rc: $(tail -3 "$T/o")"
+
+# --- 20. the vendor at its usage limit: no restart -------------------------------------------
+printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/claude"; chmod +x "$T/bin/claude"
+verdict() {  # verdict <id> <age s> <S2 line|clean>: a watchdog verdict of <id>, <age> s old (real clock)
+  local f="$D/wd/ctx.1/$1/out.s2"
+  mkdir -p "${f%/*}"
+  if [[ "$3" == clean ]]; then echo "MISS S2" > "$f"; else echo "HIT $3" > "$f"; fi
+  touch -d "@$(( $(date +%s) - $2 ))" "$f"
+}
+limit20() {  # limit20 <id> <pane> [comm] [screen]: a lane at rebirth whose new session would open on the limit dialog
+  local n="${1##*-}"
+  world; rm -f "$T/run.log"; lane "$1" "$2" - "${3:-claude}"; reborn "$1"
+  printf "%s\n" "${4:-  Claude usage limit reached · resets 3am (UTC)}" "  ❯ 1. Stop and wait for limit to reset" > "$T/tmux/screen.%3$n"
+}
+limit20 c-962 %62; verdict c-002 600 'S2 kind=limit usage limit reached'
+rc="$(go ID=c-962 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+bad=""
+[[ "$rc" == 4 ]] || bad+=" rc=$rc"
+grep -q 'RS-GATE SKIP vendor limit: claude cannot act (c-002 S2 kind=limit 10m ago: usage limit reached)' "$D/rotate.log" 2>/dev/null || bad+=" no-skip-line"
+[[ ! -s "$T/spawn.log" ]] || bad+=" spawned"
+grep -q 'RS-SPAWN' "$D/rotate.log" 2>/dev/null && bad+=" rs-spawn"
+grep -q '^do_spl_ask_put\|^do_spl_fleet_notice' "$T/run.log" 2>/dev/null && bad+=" alert"
+[[ ! -s "$S/c-962/lifetime/restarts" ]] || bad+=" counted"
+[[ -e "$S/c-962/lifetime/rebirth" ]] || bad+=" marker-consumed"
+grep -q ERRTRAP "$T/o" && bad+=" errtrap"
+[[ -z "$bad" ]] && pass "20. a fresh claude limit verdict: RS-GATE SKIP vendor limit, exit 4, nothing spawned, counted or alerted" ||
+  fail "20. claude limit:$bad -- $(tail -3 "$T/o") $(grep -a c-962 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
+limit20 g-963 %63 grok "  You hit your weekly limit"; verdict g-004 3600 'S2 kind=limit You hit your weekly limit'
+rc="$(go ID=g-963 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+[[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: grok cannot act (g-004 S2 kind=limit 60m ago' "$D/rotate.log" 2>/dev/null &&
+  pass "20. a grok lane on grok's weekly limit: RS-GATE SKIP vendor limit, nothing spawned" ||
+  fail "20. grok limit rc=$rc $(tail -3 "$T/o") $(grep -a g-963 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
+limit20 c-964 %64; rm -f "$T/tmux/screen.%3964"; verdict c-002 600 'S2 kind=limit usage limit reached'; verdict c-003 60 clean
+rc="$(go ID=c-964 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+[[ "$rc" == 0 ]] && grep -q '^spawn claude c-964 ' "$T/spawn.log" && ! grep -q 'RS-GATE SKIP' "$D/rotate.log" &&
+  pass "20. control: a newer clean verdict of another claude seat -> restarted to DONE OK" || fail "20. clean control rc=$rc $(tail -3 "$T/o")"
+limit20 c-965 %65; rm -f "$T/tmux/screen.%3965"; verdict c-002 30000 'S2 kind=limit usage limit reached'
+rc="$(go ID=c-965 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+[[ "$rc" == 0 ]] && grep -q '^spawn claude c-965 ' "$T/spawn.log" && ! grep -q 'RS-GATE SKIP' "$D/rotate.log" &&
+  pass "20. control: a limit verdict past ROTATE_CLAUDE_LIMIT_FRESH -> restarted to DONE OK" || fail "20. stale control rc=$rc $(tail -3 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

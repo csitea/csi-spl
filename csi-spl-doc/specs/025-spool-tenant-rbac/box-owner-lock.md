@@ -221,6 +221,24 @@ A row edited in the database without `K_lock` (owners widened, `peer_boxes` adde
 hub then treats the box as **locked to nobody**: every human refused, the box refused at hello, one
 `tampered` audit row and a note in the owner's DM. A deleted row is caught by cnf (6.4).
 
+**As built (row B1, SPL-2952)**: rdb `0213_box_locks.sql`; `internal/store/box_locks.go` (+ `_postgres.go`,
+`_memory.go`), interface `BoxLockStore`. For the later rows:
+
+- `BoxLock(ctx, tenant, box)` answers `nil` for an unlocked box, else the lock verified by `VerifyBoxLock`;
+  a failed verify comes back with `Tampered` set and bumps one `tampered` audit row (path `load`). Read
+  `IsOwner(hum)` / `IsPeer(box)`: both are false for every human and box on a tampered lock. An error means
+  refuse (5.2). Postgres serves it through a 5 s cache that its own writes clear; no `box_locks` table yet
+  (rdb 0213 not applied) reads as unlocked.
+- `signed_body` is `BoxLockBody(l)`: `encoding/json` of `tenant_id, box_id, lock_pubkey, box_pubkey, owners,
+  peer_boxes, hide_posts, version` in that order, an empty list as `[]`; keys and signature are standard
+  base64. `spool lock sign` (B4) signs exactly those bytes.
+- `CreateBoxLock` / `ChangeBoxLock` refuse a body that does not verify; a change must name the `lock_pubkey`
+  on file and the stored `version + 1` (`ErrBoxLockKey`, `ErrBoxLockVersion`). `LiftBoxLock` deletes; the lift
+  statement's signature is the route's check (B2). Each writes its `created` / `changed` / `lifted` row.
+- `RecordBoxLockAudit` bumps the row of the same box, human, from_box, path and verdict first written within
+  the last minute, else writes one. The audit table has an identity key `audit_id` (not in the sketch above).
+- Not in B1: the DM note on a tamper finding and the cnf check (6.4) are B2 / B6.
+
 ### 6.2 Routes (row B2)
 
 | route | who | body | does |

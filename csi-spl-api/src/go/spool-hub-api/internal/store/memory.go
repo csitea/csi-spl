@@ -81,6 +81,8 @@ type Memory struct {
 	opAudit []OperatorAudit
 	// agent_caps_memory.go (rdb 0212): tenant -> vendor -> cap, guarded by mu
 	agentCaps map[string]map[string]memCap
+	// box_locks_memory.go (rdb 0213): box locks and their audit, guarded by mu
+	boxLocks *memBoxLocks
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
 	operatorTenant string
 	// join_tokens.go (rdb 0119): agent join tokens by hash, guarded by mu

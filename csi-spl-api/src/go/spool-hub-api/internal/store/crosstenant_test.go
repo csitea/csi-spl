@@ -331,6 +331,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		AgentCapActor{Tenant: "op-seed", Hum: hum}, now); err != nil {
 		t.Fatal(err)
 	}
+	// box_locks, box_lock_audit (rdb 0213, spec 025 box owner lock): one
+	// signed lock of the seeded member, and its created audit row.
+	if err := pg.CreateBoxLock(ctx, newBoxLock(s.tenant, "box-a", testLockKey(t), hum), hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// repo_doc_edits, repo_doc_authors, repo_doc_author_notices (rdb 0142,
 	// spec 075 repo-edit T02): one queued edit of the seeded member, their
 	// git identity and its consent. No store API yet (T06), so rows under inTenant.

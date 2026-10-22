@@ -58,6 +58,10 @@ type Postgres struct {
 	run seatsProbe
 	// caps: is rdb 0212 tenant_agent_caps there yet (agent_caps_postgres.go)
 	caps seatsProbe
+	// lockTab: is rdb 0213 box_locks there yet; locks: the verified locks,
+	// 5 s (box_locks_postgres.go)
+	lockTab seatsProbe
+	locks   boxLockCache
 	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
 	heads topicHeads
 }

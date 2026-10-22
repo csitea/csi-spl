@@ -76,7 +76,7 @@ ok('CONTROL: never mailed reads not mailed', !inviteMailed(normalizeDirectory({ 
 
 // Every users.* key the code names exists in en.json (all 19 are the parity test's job).
 const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))
-const code = ['src/pages/users.vue', 'src/components/UserEditPane.vue', 'src/components/TenantUsers.vue', 'src/components/ChannelSidebar.vue'].map((f) => readFileSync(join(WUI, f), 'utf8')).join('\n')
+const code = ['src/pages/users.vue', 'src/components/UserEditPane.vue', 'src/composables/useUserEditActions.ts', 'src/components/TenantUsers.vue', 'src/components/ChannelSidebar.vue'].map((f) => readFileSync(join(WUI, f), 'utf8')).join('\n')
 const used = [...code.matchAll(/t\('(users\.[a-z_.]+|sidebar\.users)'/g)].map((x) => x[1])
 const get = (k) => k.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
 const missing = used.filter((k) => typeof get(k) !== 'string')

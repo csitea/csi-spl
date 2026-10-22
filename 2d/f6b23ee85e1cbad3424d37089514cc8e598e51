@@ -1,0 +1,6 @@
+Lay-What: The pulse on the unread number no longer plays when the app first opens, and no longer gets stuck on a hidden side panel on a phone.
+Lay-How: The pulse now waits until the first unread numbers have arrived and been drawn, and it is skipped on a number that is not on screen.
+Lay-Why: A pulse should mean something new arrived; playing it on every load made it noise, and a stuck pulse on a hidden panel never finished.
+Tech-What: WUI vSwellUp is gated on useSidebarCounts.countsLoaded; playTapAnim skips elements whose checkVisibility() is false.
+Tech-How: countsLoaded flips on the nextTick after the Flow store's and the Issues count's first read render; hidden elements get no animation classes.
+Tech-Why: The first counts read looked like an increment, so every load swelled; on a hidden element no animationend fired, so the classes stayed.

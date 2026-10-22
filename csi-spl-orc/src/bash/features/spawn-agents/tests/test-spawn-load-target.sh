@@ -10,6 +10,10 @@
 #      runs as SPOOL_BOX_USER with its HOME (the seated desk lives there), and
 #      its pick is used, no WARN; CONTROL the caller's own HOME (no hop, the
 #      code before the fix) is "not pinned" -> the WARN
+#   6b. SPOOL_DESK_USER (spec 069 row B3): the pick hops to the DESK user with
+#      its HOME, not to SPOOL_BOX_USER; a desk user = the spawner hops nowhere
+#      though SPOOL_BOX_USER is another user. CONTROL the old code hopped to
+#      SPOOL_BOX_USER in both
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -95,9 +99,10 @@ STUB
 chmod +x "$T_TMP/bin/hop" "$T_TMP/bin/orc-run"
 agent_spawn() {  # BOX_USER -> OUT, RC (a dry run: the PLAN, no remote call)
   rm -f "$T_TMP/hop.calls" "$T_TMP/map.called"
-  OUT="$(env -u SPAWN_BOX_PICK_CMD -u SPAWN_REMOTE_CMD SPOOL_BOX_USER="$1" SPAWN_ORC_RUN="$T_TMP/bin/orc-run" \
+  OUT="$(env -u SPAWN_BOX_PICK_CMD -u SPAWN_REMOTE_CMD -u SPOOL_DESK_USER SPOOL_BOX_USER="$1" "${DESK_ENV[@]}" SPAWN_ORC_RUN="$T_TMP/bin/orc-run" \
     SPAWN_PICK_HOP_CMD="$T_TMP/bin/hop" SPAWN_DRY_RUN=1 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
 }
+DESK_ENV=()
 agent_spawn "$DESK_USER"
 has "6. agent-user spawner: the pick runs as the box user" "$DESK_USER env HOME=$DESK_HOME SPOOL_ROOT=$SPOOL_ROOT" "$(cat "$T_TMP/hop.calls" 2>/dev/null)"
 has "6. ... and is used" "placing auto on $OTHER" "$OUT"
@@ -106,6 +111,14 @@ check "6. ... without reading the lane map" no_map
 agent_spawn "$(id -un)"
 has "6. CONTROL no hop (the caller's HOME): the old WARN" "WARN no load target pick (FATAL $HERE_BOX is not pinned in t1" "$OUT"
 check "6. CONTROL ... and no hop ran" test ! -e "$T_TMP/hop.calls"
+DESK_ENV=(SPOOL_DESK_USER="$DESK_USER")
+agent_spawn "$(id -un)"
+has "6b. desk user set, box user = the spawner: the pick runs as the desk user" "$DESK_USER env HOME=$DESK_HOME SPOOL_ROOT=$SPOOL_ROOT" "$(cat "$T_TMP/hop.calls" 2>/dev/null)"
+has "6b. ... and is used" "placing auto on $OTHER" "$OUT"
+DESK_ENV=(SPOOL_DESK_USER="$(id -un)")
+agent_spawn "$DESK_USER"
+check "6b. desk user = the spawner, box user another: no hop" test ! -e "$T_TMP/hop.calls"
+DESK_ENV=()
 
 # 7. CI busy (owner HUM-10, t1 f67e3656): a hold for CI holds a NEW lane only;
 #    the hourly rotation (its own id, SPAWN_REUSE_ID=1) replaces a session and

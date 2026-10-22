@@ -194,13 +194,36 @@ li_docs_verdict() {
 
 # li_hub_status KEY -> the key's status on the hub, best effort: nothing when
 # the read fails or takes over LI_HUB_TIMEOUT (default 20) seconds. The read is
-# do_spl_issue_status in this tree's orc, as the box user (the desk's keys are
-# theirs); LI_HUB_STATUS_CMD replaces it (tests: a stub, no network), called
+# do_spl_issue_status in this tree's orc, as the desk user (li_desk_user: the
+# desk's keys are theirs); LI_HUB_STATUS_CMD replaces it (tests: a stub, no network), called
 # with the key and expected to print the same `issue-status<TAB>KEY<TAB>status`.
 # A test sandbox (SPOOL_TEST=1) with no stub reads nothing.
 LI_ORC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 li_hub_status() {
   li_hub_read "$1" | li_status_of "$1"
+}
+
+# li_desk_user -> the OS user whose HOME holds the desks and their keys (spec
+# 069 section 8.3): SPOOL_DESK_USER (a script loads it from box.env), else
+# spl_desk_user's box config read when a ./run action sourced this, else
+# SPOOL_BOX_USER, as before the key. Empty when none is known.
+li_desk_user() {
+  local u="${SPOOL_DESK_USER:-}"
+  [ -n "$u" ] || ! declare -F spl_desk_user >/dev/null || u="$(spl_desk_user)"
+  printf '%s' "${u:-${SPOOL_BOX_USER:-}}"
+}
+
+# li_desk_hop ARRAY: set ARRAY to the prefix that runs a command as the desk
+# user with its HOME (`sudo -n -u <desk user> env HOME=<its home>`), or to
+# nothing when the caller is the desk user or none is known. The hop of every
+# ./run action here that signs to the hub with the desk.
+li_desk_hop() {
+  local -n _li_hop="$1"
+  local u
+  _li_hop=()
+  u="$(li_desk_user)"
+  [ -n "$u" ] && [ "$(id -un)" != "$u" ] || return 0
+  _li_hop=(sudo -n -u "$u" env HOME="$(getent passwd "$u" | cut -d: -f6)")
 }
 
 # li_status_of KEY < ANSWER -> the status on its `issue-status` line, or nothing.
@@ -212,17 +235,14 @@ li_status_of() {
 # too (the hub's "not_found" for an archived or deleted issue); nothing when
 # there is no hub to ask. The one hub read of li_hub_status and li_epic_closed.
 li_hub_read() {
-  local key="$1" home
+  local key="$1"
   local -a cmd=()
   if [ -n "${LI_HUB_STATUS_CMD:-}" ]; then
     timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>&1 </dev/null
     return 0
   fi
   [ "${SPOOL_TEST:-}" != 1 ] && [ -x "$LI_ORC/run" ] || return 0
-  if [ -n "${SPOOL_BOX_USER:-}" ] && [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
-    home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
-    cmd=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$home")
-  fi
+  li_desk_hop cmd
   (cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env ISSUE_REF="$key" \
     SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" ./run -a do_spl_issue_status 2>&1 </dev/null)
   return 0
@@ -282,14 +302,14 @@ li_epic_reopen() {
 
 # li_end_cmd ID -> the command that ends a lane's issue without landing.
 li_end_cmd() {
-  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue" "${SPOOL_BOX_USER:-<box user>}" "$1"
+  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue" "$(u="$(li_desk_user)"; printf '%s' "${u:-<box user>}")" "$1"
 }
 
 # li_landed_cmd ID -> the command for a lane whose work landed in another
 # repo (no csi-spl commit can close its key): do_spl_lane_issue checks the
 # sha on that repo's origin trunk, then sets the issue done (SPL-2229).
 li_landed_cmd() {
-  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha> DRY_RUN=0 ./run -a do_spl_lane_issue" "${SPOOL_BOX_USER:-<box user>}" "$1"
+  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha> DRY_RUN=0 ./run -a do_spl_lane_issue" "$(u="$(li_desk_user)"; printf '%s' "${u:-<box user>}")" "$1"
 }
 
 # li_end_record KEY END_FILE ID: the gate's verdict on an issue-end record. A

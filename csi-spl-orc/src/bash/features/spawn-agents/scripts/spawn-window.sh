@@ -99,9 +99,9 @@
 # back to the busy count above, with a WARN. SPAWN_BOX still wins, and the
 # 40-window ceiling is unchanged. Seams: SPAWN_BOX_PICK_CMD replaces the
 # action; SPAWN_BOX_PICK=0 skips it (the busy count alone). A spawner that is
-# not SPOOL_BOX_USER (the agent user) runs the action as SPOOL_BOX_USER, with
-# its HOME, whose state dir holds the seated desk (seam SPAWN_PICK_HOP_CMD,
-# default "sudo -n -u").
+# not the desk user (spool_desk_user: SPOOL_DESK_USER, else SPOOL_BOX_USER)
+# runs the action as the desk user, with its HOME, whose state dir holds the
+# seated desk (seam SPAWN_PICK_HOP_CMD, default "sudo -n -u").
 #
 # VENDOR CLI (SPL-1649): a lane goes only to a box that can start its kind.
 # Measured, never listed by hand: this box runs spool_vendor_clis (the agent
@@ -259,11 +259,13 @@ place_box() {
   if [ "${SPAWN_BOX_PICK:-1}" != 0 ]; then
     local out pick k pick_hop=()
     export BOX_PICK_KIND="$KIND"
-    # The desk state (the seated desk, its hub key) lives under the BOX user's
-    # HOME: an agent-user spawner hops there, the way lane-map.sh does.
-    if [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
+    # The desk state (the seated desk, its hub key) lives under the DESK
+    # user's HOME (spool_desk_user, spec 069 section 8.3): another spawner
+    # hops there, the way lane-map.sh does.
+    local desk_user; desk_user="$(spool_desk_user)"
+    if [ "$(id -un)" != "$desk_user" ]; then
       # shellcheck disable=SC2206 # a command prefix, split on purpose
-      pick_hop=(${SPAWN_PICK_HOP_CMD:-sudo -n -u} "$SPOOL_BOX_USER" env HOME="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)" "SPOOL_ROOT=$SPOOL_ROOT")
+      pick_hop=(${SPAWN_PICK_HOP_CMD:-sudo -n -u} "$desk_user" env HOME="$(_spool_home_of "$desk_user")" "SPOOL_ROOT=$SPOOL_ROOT")
       for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF BOX_PICK_KIND LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
         [ -n "${!k:-}" ] && pick_hop+=("$k=${!k}")
       done
@@ -392,9 +394,7 @@ sw_issue() {  # WORKDIR BRIEF
     printf 'PLAN %-10s %s\n' issue "${key:+link ${key} -> wip, assignee ${TITLE}}${key:-file one from ${brief} (wip, assignee ${TITLE})} -> ${SPOOL_ROOT}/${TITLE}/lifetime/issue"
     return 0
   fi
-  if [ "$(id -un)" != "$SPOOL_BOX_USER" ] && [ -z "${SPAWN_ISSUE_CMD:-}" ]; then
-    hop=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)")
-  fi
+  [ -n "${SPAWN_ISSUE_CMD:-}" ] || li_desk_hop hop
   if [ -n "${SPAWN_ISSUE_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(AGENT_ID="$TITLE" BRIEF="$brief" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="${SPAWN_LANE_TOPIC:-}" $SPAWN_ISSUE_CMD 2>&1)" || rc=$?
@@ -460,7 +460,7 @@ fi
 # too: the launcher re-checks the kind/id pair and keeps a respawn's brief
 # (a role seat under ROTATE_ROLE_VENDOR failed live without it, SPL-1605).
 envs=()
-for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
+for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_DESK_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
          SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
          SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")

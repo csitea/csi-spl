@@ -21,8 +21,9 @@
 #       (c-001..c-003, or an id in the dispatch lease.conf) is a no-op: the
 #       rotation successor carries the same id, so its lane never ends
 #
-# The action runs as $SPOOL_BOX_USER (the desk keys that sign the hub call are
-# theirs). Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
+# The action runs as the desk user, spool_desk_user (SPOOL_DESK_USER, else
+# $SPOOL_BOX_USER; spec 069 section 8.3): the desk keys that sign the hub call
+# are theirs. Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
 # write, 3 collision, 4 a live lane with no files: scope unknown); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
@@ -93,8 +94,9 @@ vars+=("SPOOL_ROOT=$SPOOL_ROOT")
 # moves ./run's framework lines to stderr, and of those only a WARN / FATAL
 # (the hub did not answer, a refusal) is passed on.
 if [ ${#quiet[@]} -gt 0 ]; then exec 2> >(grep --line-buffered -E 'WARN|FATAL|NOK' >&2); fi
-if [ "$(id -un)" != "$SPOOL_BOX_USER" ] && [ -z "${LANE_MAP_ORC:-}" ]; then
-  home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
-  cd "$orc" && exec sudo -n -u "$SPOOL_BOX_USER" env HOME="$home" "${vars[@]}" ./run -a "$action" "${quiet[@]}"
+desk_user="$(spool_desk_user)"
+if [ "$(id -un)" != "$desk_user" ] && [ -z "${LANE_MAP_ORC:-}" ]; then
+  home="$(_spool_home_of "$desk_user")"
+  cd "$orc" && exec sudo -n -u "$desk_user" env HOME="$home" "${vars[@]}" ./run -a "$action" "${quiet[@]}"
 fi
 cd "$orc" && exec env "${vars[@]}" ./run -a "$action" "${quiet[@]}"

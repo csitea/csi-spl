@@ -14,8 +14,9 @@
 #   asks.sh sync                             push this machine's journal to the hub
 #   asks.sh tick                             the lease loop's timer, by hand
 #
-# <id> is the ask id or its first 8 hex digits. The action runs as
-# $SPOOL_BOX_USER (the desk keys that sign the hub call are theirs). Exit
+# <id> is the ask id or its first 8 hex digits. The action runs as the desk
+# user, spool_desk_user (SPOOL_DESK_USER, else $SPOOL_BOX_USER; spec 069
+# section 8.3): the desk keys that sign the hub call are theirs. Exit
 # codes: the action's own (0 ok, 1 refused, 3 already closed); 64 usage.
 #
 # Peers (spec 068 L4): with a seat in $SPOOL_ROOT/peer/seats (SPOOL_TO_PEERS
@@ -144,8 +145,9 @@ for k in ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ORCH_ID SPOO
   [ -n "${!k:-}" ] && vars+=("$k=${!k}")
 done
 vars+=("SPOOL_ROOT=$SPOOL_ROOT")
-if [ "$(id -un)" != "$SPOOL_BOX_USER" ] && [ -z "${ASKS_ORC:-}" ]; then
-  home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
-  cd "$orc" && exec sudo -n -u "$SPOOL_BOX_USER" env HOME="$home" "${vars[@]}" ./run -a "$action"
+desk_user="$(spool_desk_user)"
+if [ "$(id -un)" != "$desk_user" ] && [ -z "${ASKS_ORC:-}" ]; then
+  home="$(_spool_home_of "$desk_user")"
+  cd "$orc" && exec sudo -n -u "$desk_user" env HOME="$home" "${vars[@]}" ./run -a "$action"
 fi
 cd "$orc" && exec env "${vars[@]}" ./run -a "$action"

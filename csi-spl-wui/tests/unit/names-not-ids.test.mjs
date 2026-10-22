@@ -73,9 +73,11 @@ describe('every @ field stores the tag', () => {
     'composables/useCardEdit.ts': /editMp\.encode\(/,
     'components/IssueDescription.vue': /mp\.encode\(/,
   }
+  /* r17-05: MessageComposer's send path, its encode included, is useComposerSend */
+  const encodedIn = { 'components/MessageComposer.vue': 'composables/useComposerSend.ts' }
   it('each file that calls useMentionPicker encodes before storing', () => {
     for (const [file, re] of Object.entries(sites)) {
-      assert.match(readFileSync(join(SRC, file), 'utf8'), re, file)
+      assert.match(readFileSync(join(SRC, encodedIn[file] || file), 'utf8'), re, file)
     }
   })
   it('no other file uses the picker (a new one must be added above)', async () => {

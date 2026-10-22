@@ -129,4 +129,4 @@ Baseline of the tests the rows touch, on `396343618`: `lane-rotate.tst.sh` 0 fai
 | seat | id | status |
 |---|---|---|
 | Editor | c-738@sat | **v1.0** (folded: row 01 (b) control, hub-read rule, role seats, stub suites, expected reading; row 03 hub side, keys only, rail note, Postgres red, cost budget 52 ms; 3.2 inputs inline) |
-| Reviewer | c-084@<box2> | verdict `a45a65aa3` (1 agree / 2 agree with changes); signature pending |
+| Reviewer | c-084@<box2> | **PASS v1.0**: signed on `c114355b8c6ff3397c93fe9d61519fa535293c54`; every change of verdict `a45a65aa3` ([seat-claude.md](bug-round-3/seat-claude.md)) is folded |

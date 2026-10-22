@@ -7,7 +7,7 @@ gcp_region  = "europe-north1"
 
 instance_name = "csi-spl-prd-pg"
 database_version = "POSTGRES_16"
-tier = "db-f1-micro"
+tier = "db-custom-1-3840"
 availability_type = "REGIONAL"
 disk_size_gb = 10
 database_name = "spool"

@@ -33,20 +33,33 @@
       - { user: "{{ agent_user }}", home: "{{ agent_home }}" }
   no_log: true
 
-- name: Refuse without the controller's GitHub token
-  ansible.builtin.assert:
-    that: lookup('env', 'GITHUB_TOKEN') | length > 0
-    fail_msg: "GITHUB_TOKEN is empty on the controller (the tf-runner's env)"
-  no_log: true
-
-- name: The GitHub token
-  ansible.builtin.copy:
-    dest: "{{ item.home }}/.github/token"
-    content: "{{ lookup('env', 'GITHUB_TOKEN') }}\n"
-    owner: "{{ item.user }}"
-    group: "{{ item.user }}"
-    mode: "0600"
+# One token per box (SPL-1945 row 3, SPL-2902): a box user's own token, put
+# there by do_gh_box_token_put, wins. The controller's GITHUB_TOKEN only seeds
+# a user whose token file is missing or empty, so a re-run never puts the
+# controller box's token back on the satellite.
+- name: The box users' GitHub token files
+  ansible.builtin.stat:
+    path: "{{ item.home }}/.github/token"
+    get_checksum: false
   loop:
     - { user: "{{ owner_user }}", home: "{{ owner_home }}" }
     - { user: "{{ agent_user }}", home: "{{ agent_home }}" }
+  register: gh_token_files
+
+- name: Refuse without the controller's GitHub token (only when a box user has no token of its own)
+  ansible.builtin.assert:
+    that: lookup('env', 'GITHUB_TOKEN') | length > 0
+    fail_msg: "GITHUB_TOKEN is empty on the controller (the tf-runner's env)"
+  when: gh_token_files.results | map(attribute='stat.size', default=0) | min == 0
+  no_log: true
+
+- name: The GitHub token (the controller's, only into a missing or empty token file; a box's own token is kept)
+  ansible.builtin.copy:
+    dest: "{{ item.item.home }}/.github/token"
+    content: "{{ lookup('env', 'GITHUB_TOKEN') }}\n"
+    owner: "{{ item.item.user }}"
+    group: "{{ item.item.user }}"
+    mode: "0600"
+  loop: "{{ gh_token_files.results }}"
+  when: item.stat.size | default(0) == 0
   no_log: true

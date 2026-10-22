@@ -11,6 +11,8 @@
 #   4. secrets: every task that reads a key or the token is no_log, the token
 #      reaches git through a helper (never a URL), no .credentials.json is
 #      copied, and terraform never reads GITHUB_TOKEN or a key file's content.
+#  4b. the controller's GitHub token only seeds a missing or empty token file
+#      (one token per box, SPL-2902). CONTROL: the unguarded tasks are caught.
 #   5. users come from the csi-spl cnf (steps.060-gcp-vm-satellite
 #      box_owner_user / box_agent_user, spec 069 Y8), sudoers is
 #      visudo-validated, homes are on the data disk.
@@ -117,6 +119,38 @@ grep -q 'no_log: true' "$STEP/tasks/git-sync.yml" && grep -q 'password=$GH_TOKEN
   && pass "git-sync: the token goes through a helper, no_log, never in a URL" || fail "git-sync leaks the token"
 grep -rn 'credentials\.json' "$R" | grep -v 'grep -q' | grep -v '^\S*:\s*#' | grep -vi 'no \.credentials\|never\|FAIL a credentials' \
   && fail "a role copies .credentials.json" || pass "no role copies an AI CLI login (.credentials.json)"
+
+# 4b. one token per box (SPL-2902): the controller's GITHUB_TOKEN only seeds a
+# missing or empty token file; a box's own token is never overwritten, and the
+# assert does not refuse a run where every box user has its own. Rows found in
+# a 06_secrets tasks file (none = guarded); ansible itself is not needed.
+token_guard_rows() {
+  python3 - "$1" <<'PY'
+import sys, yaml
+tasks = yaml.safe_load(open(sys.argv[1])) or []
+reg = [t["register"] for t in tasks if "ansible.builtin.stat" in t and "token" in str(t["ansible.builtin.stat"].get("path", ""))]
+if not reg:
+    print("no stat of the token files registered")
+for t in tasks:
+    mod = "copy" if "ansible.builtin.copy" in t else "assert" if "ansible.builtin.assert" in t else None
+    body = str(t.get("ansible.builtin." + mod, "")) if mod else ""
+    if "GITHUB_TOKEN" not in body:
+        continue
+    when = str(t.get("when", ""))
+    if not reg or reg[0] not in when + str(t.get("loop", "")) or "size" not in when:
+        print(mod + " of GITHUB_TOKEN runs without the token-file guard: " + t.get("name", "?"))
+    if t.get("no_log") is not True:
+        print(mod + " of GITHUB_TOKEN is not no_log: " + t.get("name", "?"))
+PY
+}
+rows=$(token_guard_rows "$R/06_secrets/tasks/main.yml")
+[[ -z "$rows" ]] && pass "4b. 06_secrets writes the controller's GitHub token only into a missing or empty token file, and asserts it only then" \
+  || fail "4b. 06_secrets may overwrite a box's own GitHub token: $(tr '\n' ';' <<<"$rows")"
+# CONTROL: the unguarded copy + assert (origin/master before SPL-2902) is caught
+C4="$(mktemp)"; sed '/^  when: /d' "$R/06_secrets/tasks/main.yml" >"$C4"
+crow=$(token_guard_rows "$C4"); rm -f "$C4"
+[[ $(grep -c 'without the token-file guard' <<<"$crow") -eq 2 ]] && pass "4b. CONTROL: an unguarded token copy and assert are caught" \
+  || fail "4b. CONTROL: an unguarded token copy or assert was NOT caught: '$crow'"
 
 # 5. users
 grep -q "'/csi-spl-cnf/csi-spl/' + env + '.env.json'" "$R/05_users/tasks/main.yml" \

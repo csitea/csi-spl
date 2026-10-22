@@ -218,8 +218,4 @@ The owner's mint steps, one token per box:
 Undo before step 9: put `token.prev` back as the token file and run
 `gh auth login --with-token` from it; the old token is still valid.
 
-Known gap: the satellite playbook (terraform step `060-gcp-vm-satellite`,
-role `06_secrets`) copies the controller's `GITHUB_TOKEN` into the
-satellite's token files, so a playbook run after step 8 puts the controller
-box's token on the satellite. Re-run put there until that role reads a
-per-box token.
+The satellite playbook (terraform step `060-gcp-vm-satellite`, role `06_secrets`, SPL-2902) keeps a box user's own token: it writes the controller's `GITHUB_TOKEN` only into a missing or empty token file, so a playbook run after step 8 leaves put's token in place (test: `satellite-ansible.tst.sh` 4b).

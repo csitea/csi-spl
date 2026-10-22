@@ -18,14 +18,16 @@
 # @param WORKDIR_SWEEP_CRIT_FREE_PCT (optional) - default cnf env.box.workdir_sweep.crit_free_pct, else 8
 # @param WORKDIR_SWEEP_FREE_PCT (optional) - the measured free % (the box sweep's), default measured here
 # @param WORKDIR_TABLE (optional) - default $SPOOL_ROOT/workdirs.tsv
+# @param WORKDIR_SWEEP_ORPHANS (optional) - default cnf env.box.workdir_sweep.orphans, else 0: 1 also sweeps the untabled <repo>-wt/<agent id> worktrees
 # @example ./run -a do_sweep_workdirs
 # @example DRY_RUN=0 ./run -a do_sweep_workdirs
+# @example WORKDIR_SWEEP_ORPHANS=1 ./run -a do_sweep_workdirs
 #------------------------------------------------------------------------------
 do_sweep_workdirs() {
   local oa cnf k v
   oa="$(basename "$PROJ_PATH")"; oa="${oa%-utl}"
   cnf="${WORKDIR_SWEEP_CNF:-$PROJ_PATH/../$oa-cnf/$oa/all.env.yaml}"
-  for k in age_h crit_age_h crit_free_pct; do
+  for k in age_h crit_age_h crit_free_pct orphans; do
     v="WORKDIR_SWEEP_${k^^}"
     [[ -n "${!v:-}" ]] && continue
     [[ -r "$cnf" ]] && command -v yq >/dev/null 2>&1 || continue

@@ -20,6 +20,10 @@
 #   7. a worktree a new lane took over (another branch) loses its row, not
 #      its dir; a vanished dir loses its row
 #   8. ./run -a do_sweep_workdirs reads cnf env.box.workdir_sweep.age_h
+#   9. untabled worktrees (SPL-2856, WORKDIR_SWEEP_ORPHANS=1): a 25 h clean,
+#      pushed <wt root>/<id> with no row is listed and goes (CONTROL: off, the
+#      default, it is not listed); dirty, unpushed, role id, desk id, a live
+#      local window and fresh ones are kept; a non-id name is not listed
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -139,6 +143,54 @@ lane c-910; add worktree c-910 3 "$W/c-910" c-910-x
 printf 'env:\n  box:\n    workdir_sweep:\n      age_h: 2\n      crit_age_h: 1\n      crit_free_pct: 8\n' >"$T/cnf.yaml"
 out="$(cd "$UTL" && DRY_RUN=0 WORKDIR_SWEEP_CNF="$T/cnf.yaml" WORKDIR_SWEEP_FREE_PCT=50 ./run -a do_sweep_workdirs 2>&1)"
 [ ! -e "$W/c-910" ] && grep -q "limit_h=2" <<<"$out" && pass "8. ./run -a do_sweep_workdirs takes age_h from cnf (2 h: the 3 h row goes)" || fail "8. cnf ($out)"
+
+# ---- 9. untabled worktrees -------------------------------------------------------
+O="$T/orph-wt"; mkdir -p "$O"
+olane() { gq -C "$T/repo" worktree add -b "$1-o" "$O/$1" origin/master; }
+# aged <dir> <h>: the dir and its git HEAD, index and HEAD log last touched <h> hours ago
+aged() { local gd; gd="$(git -C "$1" rev-parse --absolute-git-dir)"; touch -d "$(ago "$2")" "$1" "$gd/HEAD" "$gd/index" "$gd/logs/HEAD"; }
+for i in c-930 c-931 c-932 c-933 c-934 g-002 c-684; do olane "$i"; done
+gq -C "$O/c-932" commit --allow-empty -m unpushed
+echo wip >"$O/c-931/wip.txt"
+mkdir -p "$O/notes-dir"
+for i in c-930 c-931 c-932 c-933 g-002 c-684; do aged "$O/$i" 25; done; aged "$O/c-934" 1
+printf 'c-933@tb >\nc-9330@tb\n' >"$T/windows"
+export WORKDIR_SWEEP_WT_ROOT="$O" WORKDIR_SWEEP_WINDOWS="$T/windows"
+rows0="$(wc -l <"$TB")"
+out="$(sweep DRY_RUN=0)"
+! grep -q "$O/" <<<"$out" && [ -d "$O/c-930" ] && grep -q "orphans=0" <<<"$out" \
+  && pass "9. CONTROL: off (the default), an untabled 25 h worktree is not listed" || fail "9. off ($out)"
+out="$(sweep WORKDIR_SWEEP_ORPHANS=1)"
+grep -q "PLAN remove [0-9]*KB orphan-worktree $O/c-930 (c-930, 25h) branch c-930-o" <<<"$out" && [ -d "$O/c-930" ] \
+  && grep -q "INFO orphans: root=$O untabled=7 not-an-agent-id=1" <<<"$out" \
+  && pass "9. on, the dry run lists the untabled 25 h worktree (7 untabled, 1 non-id name) and removes nothing" || fail "9. dry ($out)"
+out="$(sweep WORKDIR_SWEEP_ORPHANS=1 DRY_RUN=0)"
+[ ! -e "$O/c-930" ] && ! in_list "$O/c-930" && ! has_branch c-930-o && [ "$(wc -l <"$TB")" = "$rows0" ] \
+  && grep -q "REMOVE [0-9]*KB orphan-worktree $O/c-930 (c-930, 25h) branch c-930-o" <<<"$out" \
+  && pass "9. a 25 h clean, pushed untabled worktree goes with its merged branch; the table is untouched" || fail "9. remove ($out)"
+grep -q "KEEP dirty .* orphan-worktree $O/c-931 " <<<"$out" && [ -f "$O/c-931/wip.txt" ] \
+  && pass "9. a dirty untabled worktree is kept" || fail "9. dirty ($out)"
+grep -q "KEEP unpushed .* orphan-worktree $O/c-932 " <<<"$out" && [ -d "$O/c-932" ] \
+  && pass "9. a clean untabled worktree with an unpushed commit is kept" || fail "9. unpushed ($out)"
+grep -q "KEEP role-id .* orphan-worktree $O/g-002 " <<<"$out" && [ -d "$O/g-002" ] \
+  && grep -q "KEEP desk-id orphan-worktree $O/c-684 " <<<"$out" && [ -d "$O/c-684" ] \
+  && pass "9. a role id (g-002) and a desk id (c-684) are refused" || fail "9. role/desk ($out)"
+grep -q "KEEP live-window .* orphan-worktree $O/c-933 " <<<"$out" && [ -d "$O/c-933" ] \
+  && pass "9. an id with a live window on this box is kept" || fail "9. window ($out)"
+grep -q "KEEP fresh 1h<24h orphan-worktree $O/c-934 " <<<"$out" && [ -d "$O/c-934" ] && [ -d "$O/notes-dir" ] \
+  && ! grep -q "$O/notes-dir" <<<"$out" \
+  && pass "9. a fresh (1 h) one is kept; a non-id dir is never listed" || fail "9. fresh/non-id ($out)"
+printf 'c-9330@tb\n' >"$T/windows"
+out="$(sweep WORKDIR_SWEEP_ORPHANS=1 DRY_RUN=0)"
+[ ! -e "$O/c-933" ] && pass "9. CONTROL: its window closed (c-9330 is another id), the same dir goes" || fail "9. window control ($out)"
+o_seen=""
+for v in true false; do
+  printf 'env:\n  box:\n    workdir_sweep:\n      age_h: 24\n      orphans: %s\n' "$v" >"$T/cnf-o.yaml"
+  out="$(cd "$UTL" && WORKDIR_SWEEP_CNF="$T/cnf-o.yaml" WORKDIR_SWEEP_FREE_PCT=50 ./run -a do_sweep_workdirs 2>&1)"
+  o_seen+="$(grep -c "INFO orphans: root=$O " <<<"$out")"
+done
+[ "$o_seen" = 10 ] && pass "9. ./run -a do_sweep_workdirs takes orphans from cnf (true: listed, false: not)" || fail "9. cnf orphans ($o_seen)"
+unset WORKDIR_SWEEP_WT_ROOT WORKDIR_SWEEP_WINDOWS
 
 echo "workdir-sweep: $fails failure(s)"
 [ "$fails" = 0 ]

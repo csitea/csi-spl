@@ -23,8 +23,11 @@ const defaultFileUsageTTL = time.Minute
 // path drop the entry instead, so the next upload lists afresh.
 type fileUsage struct {
 	ttl time.Duration
-	mu  sync.Mutex
-	m   map[string]usageEntry
+	// extra is the tenant's bytes stored outside t/<tenant>/files/: its Qto
+	// pictures in its own docs store (spec 114 R3); nil counts none.
+	extra func(ctx context.Context, tenant string) int64
+	mu    sync.Mutex
+	m     map[string]usageEntry
 }
 
 type usageEntry struct {
@@ -51,6 +54,9 @@ func (u *fileUsage) load(ctx context.Context, bs blob.Store, tenant string, now 
 	used, err := bs.PrefixBytes(ctx, "t/"+tenant+"/files/")
 	if err != nil {
 		return err
+	}
+	if u.extra != nil {
+		used += u.extra(ctx, tenant)
 	}
 	u.store(tenant, used, now)
 	return nil

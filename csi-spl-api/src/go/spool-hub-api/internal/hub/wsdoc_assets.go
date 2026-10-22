@@ -25,10 +25,14 @@ import (
 //	PUT /v1/workspace/doctree/{doc}/assets/{path...}  the bytes (Content-Type image/png|jpeg|gif|webp)
 //	GET /v1/workspace/doctree/{doc}/assets/{path...}  one picture
 //
-// The bytes live in the hub's object store at t/<tenant>/files/<sha256>
-// (owner msg 78f4ffd3: Qto's files go to the bucket, the text stays in the
-// database), tenant "system" for the repo tree; the doc root's attrs.assets
-// maps the path to that sha256 (store.DocAssetPath checks both). A blob a doc
+// The bytes of a workspace's picture live in that workspace's own docs
+// bucket (spec 114 section 9.2, step 052) at qto-assets/<sha256>; tenant
+// "system" (the repo tree, no 052 bucket) and a hub without workspace docs
+// stores keep the hub's object store at t/<tenant>/files/<sha256> (owner msg
+// 78f4ffd3: Qto's files go to the bucket, the text stays in the database).
+// A workspace picture stored before (050) is still read from there until the
+// copy action (spec 114 R4) has moved it. The doc root's attrs.assets maps
+// the path to that sha256 (store.DocAssetPath checks both). A 050 blob a doc
 // names is kept by the file retention sweep and by an attachment's removal
 // (fileKept). The type is sniffed from the bytes and must match the path's
 // extension; no SVG. Who: as every doctree route, ?fs=repo included.
@@ -41,6 +45,39 @@ type docAssetStore interface {
 
 var _ docAssetStore = (*store.Postgres)(nil)
 
+// DocAssetPrefix is where a workspace's Qto pictures sit in its own docs
+// store: qto-assets/<sha256>.
+const DocAssetPrefix = "qto-assets/"
+
+// docAssetBucket is tenant's own docs store for its pictures; own=false is
+// the hub's object store (tenant "system", or no workspace docs stores).
+func (s *Server) docAssetBucket(ctx context.Context, tenant string) (st blob.Store, own bool, err error) {
+	if tenant == store.SystemTenant || s.o.WorkspaceDocs == nil {
+		return nil, false, nil
+	}
+	st, err = s.o.WorkspaceDocs.Store(ctx, tenant)
+	return st, true, err
+}
+
+// docAssetBytes is the size of tenant's pictures in its own docs store, for
+// the file quota (fileUsage.extra). A store that cannot be listed counts 0
+// and is logged: an attachment upload never fails over the docs bucket.
+func (s *Server) docAssetBytes(ctx context.Context, tenant string) int64 {
+	st, own, err := s.docAssetBucket(ctx, tenant)
+	if !own {
+		return 0
+	}
+	var n int64
+	if err == nil {
+		n, err = st.PrefixBytes(ctx, DocAssetPrefix)
+	}
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("workspace", tenant).Msg("doc asset bytes; counted 0")
+		return 0
+	}
+	return n
+}
+
 // docAssetPutTries bounds the retries of the root's attrs edit when another
 // write moved the root's rev between the read and the edit.
 const docAssetPutTries = 3
@@ -52,7 +89,7 @@ func (s *Server) docAsset(w http.ResponseWriter, r *http.Request, perm string) (
 	if !ok {
 		return c, store.DocHead{}, "", false
 	}
-	if s.o.Blob == nil {
+	if _, own, _ := s.docAssetBucket(r.Context(), c.tenant); !own && s.o.Blob == nil {
 		writeErr(w, http.StatusNotFound, "files_off", "this hub has no object store")
 		return c, store.DocHead{}, "", false
 	}
@@ -119,6 +156,14 @@ func (s *Server) handleDocTreeAssetPut(w http.ResponseWriter, r *http.Request) {
 // takes the tenant's file quota, one already there restarts its upload time.
 // false has written the refusal.
 func (s *Server) docAssetKeep(w http.ResponseWriter, r *http.Request, tenant, id string, data []byte) bool {
+	st, own, err := s.docAssetBucket(r.Context(), tenant)
+	if own {
+		if err != nil {
+			s.docsUnavailable(w, tenant, "open", err)
+			return false
+		}
+		return s.docAssetKeepOwn(w, r, st, tenant, id, data)
+	}
 	key, err := blob.Key(tenant, id)
 	if err != nil {
 		writeErrCause(w, http.StatusInternalServerError, "internal", "content key", err)
@@ -149,24 +194,70 @@ func (s *Server) docAssetKeep(w http.ResponseWriter, r *http.Request, tenant, id
 	return true
 }
 
+// docAssetKeepOwn is docAssetKeep in the workspace's own docs store, at
+// qto-assets/<sha256>: content-addressed, so bytes already there are kept.
+func (s *Server) docAssetKeepOwn(w http.ResponseWriter, r *http.Request, st blob.Store, tenant, id string, data []byte) bool {
+	key := DocAssetPrefix + id
+	if ok, err := st.Exists(r.Context(), key); err == nil && ok {
+		return true
+	}
+	n := int64(len(data))
+	fits, err := s.fileUsage.reserve(r.Context(), s.o.Blob, s.quota(), tenant, n, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("blob prefix bytes")
+		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+		return false
+	}
+	if !fits {
+		writeQuota(w, "stored file bytes exceed the tenant quota")
+		return false
+	}
+	if err := putDoc(context.WithoutCancel(r.Context()), st, key, data); err != nil {
+		s.fileUsage.release(tenant, n)
+		s.docsUnavailable(w, tenant, "put asset "+id, err)
+		return false
+	}
+	return true
+}
+
+// docAssetOpen opens picture id of tenant: its own docs store first, then
+// the hub's object store, where a picture stored before spec 114 R3 still
+// sits until R4 moves it.
+func (s *Server) docAssetOpen(ctx context.Context, tenant, id string) (io.ReadCloser, error) {
+	key, err := blob.Key(tenant, id)
+	if err != nil {
+		return nil, blob.ErrNotFound
+	}
+	st, own, err := s.docAssetBucket(ctx, tenant)
+	if own {
+		if err != nil {
+			return nil, err
+		}
+		rc, err := st.Get(ctx, DocAssetPrefix+id)
+		if !errors.Is(err, blob.ErrNotFound) || s.o.Blob == nil {
+			return rc, err
+		}
+	}
+	return s.o.Blob.Get(ctx, key)
+}
+
 func (s *Server) handleDocTreeAssetGet(w http.ResponseWriter, r *http.Request) {
 	c, h, path, ok := s.docAsset(w, r, rbac.DocsRead)
 	if !ok {
 		return
 	}
 	id := store.DocAssetOf(h.RootAttrs, path)
-	key, err := blob.Key(c.tenant, id)
-	if id == "" || err != nil {
+	if id == "" {
 		writeErr(w, http.StatusNotFound, "not_found", "no such picture in this document")
 		return
 	}
-	rc, err := s.o.Blob.Get(r.Context(), key)
+	rc, err := s.docAssetOpen(r.Context(), c.tenant, id)
 	if errors.Is(err, blob.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such picture in this document")
 		return
 	}
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("key", key).Msg("blob get")
+		s.o.Log.Error().Err(err).Str("workspace", c.tenant).Str("sha256", id).Msg("doc asset get")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
 		return
 	}

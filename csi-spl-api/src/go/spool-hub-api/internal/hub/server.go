@@ -358,6 +358,9 @@ func New(o Options) (*Server, error) {
 		edge: edge.NewGuard(o.Edge, o.Log, o.Now), searchRate: edge.NewWindow(time.Minute, o.Now),
 		fileUsage: newFileUsage(o.FileUsageTTL), heads: newHeadShadow(o.TopicHeads, o.TopicHeadsSample),
 	}
+	if o.WorkspaceDocs != nil {
+		s.fileUsage.extra = s.docAssetBytes // spec 114 R3: a workspace's pictures count
+	}
 	if o.CICD != nil {
 		o.CICD.Bus = s
 		s.cicd = o.CICD

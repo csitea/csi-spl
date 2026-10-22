@@ -1,5 +1,11 @@
 # Spec 114: Workspace documents are private; sharing is a deliberate grant
 
+Version **v0.3** (2026-10-22, c-606, SPL-2914, measured on origin/master
+f382ca9d2): the owner answered Q1 = (a) and asked for each workspace's Qto
+and md docs in its **own private bucket** (section 0.1, section 9, build rows
+in [tasks.md](tasks.md) section 3). Sections 1-7 are v0.2 unchanged; Q2-Q4
+stay open.
+
 Version **v0.2** (2026-10-09), the review panel folded in by c-719 (claude)
 on v0.1 (seat 1, c-711, b65209947). Every finding of the four seats is
 applied or rejected, each with one line why, in section 7. The
@@ -34,6 +40,18 @@ What they ask for:
   schemas"), but also asks for a panel to discuss the technical solution.
   Section 3 compares physical separation (schemas, databases) against logical
   separation (shared tables + RLS) with numbers.
+
+### 0.1 Owner asks of 2026-10-22 (verbatim, HUM-10)
+
+| topic | msg | text |
+|---|---|---|
+| b0589387 | fb1d4894 | "also take into considerations the qto docs ... this workspace will have sensitive qto docs as well . and preferably md docs as well , but on it's private bucket - not on the public spool-hub buckets" |
+| 757015a8 | 00828f2e | "all of md docs in this workspace MUST be private and not visible to the Internet !!!" |
+| 555a4e29 | 15021657 | poll answer: "A — Its own private bucket per workspace, plus the per-workspace locks of spec 114 in the database" |
+
+Msg 15021657 also decides Q1 = (a) (section 8). What it asks for: the
+database locks of sections 3-6 for the Qto text, and one private bucket per
+workspace for everything file-shaped the workspace's docs produce (section 9).
 
 ## 1. Goals and terms
 
@@ -474,7 +492,10 @@ it into this v0.2.
 
 ## 8. Owner questions
 
-**Q1. How should workspace documents be kept apart?**
+**Q1. How should workspace documents be kept apart?** **Decided (a)**:
+owner HUM-10, topic 555a4e29, msg 15021657 ("A — Its own private bucket per
+workspace, plus the per-workspace locks of spec 114 in the database"); the
+bucket half is section 9.
 - (a) One set of tables, each row tagged with its workspace and locked to
   it by the database, plus a sharing table (**recommended**).
 - (b) A separate schema per workspace; sharing still needs the row locks
@@ -499,3 +520,157 @@ it into this v0.2.
 **Q4. Who in the owning workspace may share and stop sharing?**
 - (a) Workspace admins only (**recommended**).
 - (b) Any member who can edit the document.
+
+## 9. Per-workspace private bucket (v0.3)
+
+Owner asks: section 0.1. The Qto text stays in the database under the locks
+of sections 3-6 (msg 15021657, "plus the per-workspace locks of spec 114 in
+the database"); every FILE a workspace's docs produce lives in that
+workspace's own private bucket, and nowhere public.
+
+### 9.1 Where a workspace's docs live today (measured 2026-10-22, origin/master f382ca9d2)
+
+Bucket reads are read-only `gcloud storage` calls as each env's project
+service account in a throwaway `CLOUDSDK_CONFIG`, `--account` on every call
+(repo [CLAUDE.md](../../../CLAUDE.md)); database reads are
+`cd csi-spl-orc && ENV=<env> SQL="..." ./run -a do_spl_db_query`. Workspace
+slugs are printed as `<slug>` and human members as `user:<redacted>`; no
+object or row content was read.
+
+| what | where | measured |
+|---|---|---|
+| Qto doc text (spec 113 / 120) | Cloud SQL, shared tables `workspace_doc`, `workspace_doc_item`, `workspace_doc_rev_log`, `workspace_doc_node` with `tenant_id` + FORCE RLS (rdb `0157`, `0165`); repo docs under the reserved tenant `system`, readable by every workspace (rdb `0191`) | `select count(*) ...`: prd 306 docs, 286 of them `system`, 20 in 5 workspaces, 3,352 items, 2976 kB of item text, `workspace_doc_acl` 0 rows; dev 0 docs |
+| Qto doc pictures | the SHARED files bucket (step 050, `csi-spl-<env>-files`) at `t/<tenant>/files/<sha256>`, next to message attachments (`csi-spl-api/.../internal/hub/wsdoc_assets.go` lines 29-30 comment, :122 `blob.Key`, :143 `s.o.Blob.Put`, :163 `s.o.Blob.Get`) | prd: 1 workspace doc item names an asset (`attrs ? 'assets'`), `system` 0 |
+| workspace md docs (spec 075 phase 2, `/v1/workspace/docs`) | ONE bucket per workspace, step 052, `<bucket_prefix><slug>`; the hub opens it from the caller's verified tenant only (`internal/hub/workspace_docs.go` :59-75, test `workspace_docs_test.go` :155 "the store comes from the caller's verified tenant only"); cnf `SPOOL_HUB_WORKSPACE_DOCS_BUCKET` = `csi-spl-<env>-docs-{tenant}` (`csi-spl-cnf/csi-spl/<env>.env.json`) | `gcloud storage buckets list`: prd 18 buckets, dev 22; `gcloud storage ls gs://<b>/**`: prd 5 non-empty, 152 objects (96 under `.history/`), dev 2 non-empty, 8 objects (4) |
+| buckets vs workspaces | cnf `steps.052-gcs-workspace-docs.workspaces` (`prd.env.yaml` :161, `dev.env.yaml` :163), hand-kept, "no dynamic hook yet" (`all.env.yaml` :235 comment) | `comm` of `tenants.tenant_id` (minus `system`) with the bucket slugs: prd 18 workspaces, 0 without a bucket; **dev 27 workspaces, 5 without a bucket** |
+| repo md docs (spec 075) | the SHARED docs bucket (step 051, `csi-spl-<env>-docs`), uploaded by `do_publish_docs` (`csi-spl-orc/src/bash/run/publish-docs.func.sh` :111 `spl_docs_stage`, :140 `gcloud storage rsync`) | one bucket per env, hub SA `objectViewer` + `objectUser` |
+| Qto docs exported to md in git | `do_spl_doctree_export_md` writes a Qto doc into the PUBLIC repository; `csi-spl-doc/doc/md/qto-docs.tsv` is the map | 290 rows: 287 `repo` (tenant `system`), **3 of a workspace** (t1: `spool-cli-reference.md`, `guides/devops-guide.md`, `guides/system-guide.md`); the action takes any `TENANT_ID` (`spl-doctree-export-md.func.sh` :27-28) and has no workspace allow-list (`grep -nE 'FATAL|refus'` -> map, path and tree checks only) |
+| md docs on the Internet | the WUI build copies repo md whose last line is `<!-- public: true -->` to Firebase Hosting (`csi-spl-wui/src/node/docs/sync-public-docs.mjs` header) | `tail -n1` over `git ls-files '*.md'`: 4 files marked; none of the 3 workspace exports |
+| the one public bucket in code | step 053, spec 091 public dataset: `public_access_prevention = "inherited"` + `allUsers` objectViewer (`053-gcs-public-dataset/03-public-bucket.tf` :25) | not applied: absent from both bucket lists; its export role has 0 grants on `workspace_doc*` (`grep -c workspace_doc spool-hub-roles/public-export-grants.sql` -> 0) |
+| database backups | the dump of the whole database, every workspace's Qto text in one object, in step 045 `csi-spl-<env>-db-backups`, copied off-project by 046 | the export refuses a bucket with `allUsers` / `allAuthenticatedUsers` or without uniform access (`csi-spl-orc/src/bash/run/spl-db-backup.func.sh` :102-110) |
+
+Access of every bucket, both envs (`gcloud storage buckets list
+--format='value(name,uniform_bucket_level_access,public_access_prevention)'`
+and `get-iam-policy` per bucket):
+
+- all 29 (dev) and 25 (prd) buckets: uniform bucket-level access `True`,
+  public access prevention `enforced`.
+- **no bucket names `allUsers` or `allAuthenticatedUsers`** (0 of 54).
+- each 052 bucket: the hub runtime SA `roles/storage.objectAdmin`, plus the
+  six legacy project bindings (`projectOwner` / `projectEditor` /
+  `projectViewer`); versioning on.
+- project policy (`gcloud projects get-iam-policy`): `roles/owner` = the env
+  SA and one human (`user:<redacted>`); 0 members hold `roles/editor` or
+  `roles/viewer`, so the legacy bindings reach no one else. Org- and
+  folder-level inheritance was not measured.
+
+So today: no workspace doc is in a public bucket, and workspace md docs are
+already in their own private bucket in prd. What breaks the owner's rule is
+(1) Qto pictures in the shared 050 bucket, (2) no per-workspace backup of
+the Qto text outside the one whole-database dump, (3) dev workspaces without
+a bucket, (4) nothing refuses exporting a workspace's Qto doc into the public
+repository and from there, with a marker, to the Internet, and (5) nothing
+re-checks that the 052 buckets stay private.
+
+### 9.2 The bucket
+
+- **One bucket per workspace**: `<bucket_prefix><slug>`, the bucket of step
+  052 (`csi-spl-iac/src/terraform/052-gcs-workspace-docs/`). The prefix comes
+  from cnf `steps.052-gcs-workspace-docs.bucket_prefix`; the hub derives the
+  name from `SPOOL_HUB_WORKSPACE_DOCS_BUCKET` (`{tenant}` exactly once,
+  `config.go` `validateWorkspaceDocs`). No project, host or bucket literal in
+  code.
+- **Uniform bucket-level access** and **public access prevention
+  `enforced`** (052 `03-workspace-docs-buckets.tf` :26-27, live on all 40 052
+  buckets): no object ACL, and no IAM grant can make an object public.
+- **Who reads it**: the env's hub runtime SA only (objectAdmin, 052
+  `04-hub-object-admin.tf`); every request opens the bucket of the caller's
+  VERIFIED tenant, never one named in the request. Members and agents reach
+  it only through the hub's session door. No owner-account binding is added;
+  build and audit actions run as the env's project SA.
+- One SA per workspace (IAM-level separation) is rejected for now: the hub
+  would impersonate a different SA per request, and the SA count grows with
+  workspaces (Google's documented default is 100 SAs per project; not
+  re-checked today). The resolver test is the boundary, plus the audit of 9.4.
+- **Layout** inside the bucket:
+
+  | prefix | holds | written by |
+  |---|---|---|
+  | `<path>.md`, `tree.json`, `.history/` | workspace md docs (today) | `PUT /v1/workspace/docs/{path}` |
+  | `qto-assets/<sha256>` | Qto doc pictures (moves from 050) | `PUT /v1/workspace/doctree/{doc}/assets/{path}` |
+  | `backup/<yyyy-mm-dd>/` | the daily export of that workspace's Qto docs (md + root attrs + assets index) | the backup action of 9.5 |
+
+- **Tenant `system`** (the repo docs) has no 052 bucket and keeps 051 for
+  its md and 050 for its pictures: it is the public repository's own text.
+
+### 9.3 What moves
+
+| from | to | how |
+|---|---|---|
+| Qto pictures of a workspace: 050 `t/<tenant>/files/<sha256>` (prd: 1) | its 052 bucket `qto-assets/<sha256>` | the hub writes and reads new pictures there (tasks R3); a dry-run-first copy action moves existing ones and verifies each sha256 (R4); the 050 copy is left to the file retention sweep (`internal/hub/file_retention.go` :51), which keeps it while a message still names it |
+| nothing else | | workspace md docs are already in 052; Qto text stays in the database by decision (Q1 = (a)) |
+
+### 9.4 Refusing a workspace doc on a shared or public bucket
+
+Three guards, each a test with a red control:
+
+1. **Hub (Go)**: a test runs every workspace-doc write route
+   (`/v1/workspace/docs/*` and the doctree asset PUT) for a non-`system`
+   tenant against a RECORDING shared store (the 050 / 051 stores) and the
+   resolver; it asserts 0 writes to the shared store and every byte in that
+   tenant's own store. Red control: the asset route as it is today
+   (`s.o.Blob.Put`, `wsdoc_assets.go` :143) fails the test (tasks R7).
+2. **Export to the repository**: `do_spl_doctree_export_md` refuses a
+   `TENANT_ID` that is not in cnf `docs.repo_export_tenants` (the list the
+   owner allows into the public repository: `system` and today's t1);
+   `do_spl_doctree_import_md` adding a row for another workspace is refused
+   the same way. Red control: a map row of a workspace off the list, the
+   test expects the refusal (tasks R5).
+3. **Audit (read-only, daily)**: an action lists, per env, every workspace
+   without a 052 bucket, any 052 bucket that is not uniform + `enforced`,
+   names `allUsers` / `allAuthenticatedUsers`, or grants a non-legacy member
+   other than the hub runtime SA, and any `qto-assets` reference still
+   resolving to 050; it exits non-zero on any finding. Red control: a
+   fixture policy with `allUsers` and a fixture bucket list missing one
+   workspace, both must fail (tasks R1).
+
+### 9.5 Backups
+
+- **Per workspace**: a daily action exports each workspace's Qto docs
+  (through the operator scope, one workspace at a time) into ITS OWN bucket
+  under `backup/<yyyy-mm-dd>/`, after wf 45's dump; a lifecycle rule on that
+  prefix deletes after cnf `backup_retention_days`. Restoring one workspace
+  reads only its own bucket. This also covers tasks T005 (restore one
+  workspace).
+- **The bucket itself**: versioning on and 7-day soft delete (052, live),
+  so an overwrite or delete of an md doc or picture keeps the old generation.
+- **The whole-database dump stays** (045 + 046 off-project): it still holds
+  every workspace's Qto text in one private object, readable by the project
+  owners and the Cloud SQL service agent. Only model (d) (a per-workspace
+  key) would make that dump unreadable; it stays a later option (section
+  3.3).
+
+### 9.6 Terraform (plan only; terraform and IAM need the owner's go)
+
+Step **052-gcs-workspace-docs** already exists and is applied in both envs;
+no new step. It changes in two ways:
+
+1. cnf: dev's `workspaces` list gains its 5 missing workspaces (prd: none
+   missing). A new workspace still needs a cnf line + an apply; the audit
+   (9.4.3) names it until then.
+2. module: a `lifecycle_rule` on `matches_prefix = ["backup/"]`, age =
+   `backup_retention_days` (new variable, cnf).
+
+No IAM change: the hub runtime SA's objectAdmin already covers the new
+prefixes. Run: `cd csi-spl-orc && ENV=dev STEP=052-gcs-workspace-docs make
+do-tf-plan`, then prd; `make do-provision` only on the owner's go, dev before
+prd.
+
+### 9.7 Not covered by v0.3
+
+- Message attachments of a workspace stay in the shared 050 bucket under
+  `t/<tenant>/files/` (private, `enforced`); the owner's ask names docs.
+- Repo-doc edits (spec 075 repo-edit, `PUT /v1/docs/{path}`) still go from
+  any member to the public repository by design; a private workspace's text
+  pasted there is not detected.
+- Q2-Q4 (section 8) stay open.

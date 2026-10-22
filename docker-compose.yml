@@ -34,6 +34,21 @@
 #             SPOOL_SITE_ADDRESS set to a domain it also does TLS for it
 #   web-volume-owner  one shot: hands the web-data volume to web's uid
 #
+# Local dev mode (spec 148), for a developer building spool on their own
+# machine, is the `dev` profile of this same file:
+#
+#   docker compose --profile dev up -d
+#
+#   mail      Mailpit (dev profile only): catches every mail the hub sends;
+#             the inbox is http://localhost:8025 (REST /api/v1/messages), SMTP
+#             on :1025, both bound to 127.0.0.1 and nothing leaves the machine
+#
+# The profile adds the catcher; the hub's mail and the one-click dev login
+# stay the variables below (defaults: mail to the hub log, dev login off).
+# .env.example, block "local dev mode", sets them for the dev profile. The
+# hub refuses the dev login and the public default secrets outside
+# SPOOL_HUB_ENV=lde.
+#
 # Every service names a non-root user: (security action 2); the few that
 # start as root are in .compose-root-allow.tsv, each with its reason.
 #
@@ -211,11 +226,17 @@ services:
       SPOOL_HUB_MAIL_SMTP_PORT: ${SPOOL_MAIL_SMTP_PORT:-587}
       SPOOL_HUB_MAIL_SMTP_USER: ${SPOOL_MAIL_SMTP_USER:-}
       SPOOL_HUB_MAIL_SMTP_PASSWORD_FILE: /run/secrets/spool_mail_smtp_password
+      # starttls (the hub's own default) for a real relay; none only for the
+      # dev profile's Mailpit (host mail), which the hub allows on lde alone
+      SPOOL_HUB_MAIL_SMTP_TLS: ${SPOOL_MAIL_SMTP_TLS:-starttls}
       SPOOL_HUB_MAIL_FROM: ${SPOOL_MAIL_FROM:-}
       # at start the hub connects to the relay and logs in (no mail sent);
       # require = a dead relay, a wrong password, or no relay on a prd hub
       # stops `up` here instead of failing every confirmation mail later
       SPOOL_HUB_MAIL_PREFLIGHT: ${SPOOL_MAIL_PREFLIGHT:-require}
+      # the one-click "Dev login" as the workspace owner (spec 148 2.3.2):
+      # off unless set; the hub refuses to start with it on outside lde
+      SPOOL_HUB_AUTH_DEV_LOGIN_ENABLED: ${SPOOL_AUTH_DEV_LOGIN_ENABLED:-false}
     secrets: [spool_s3_secret_key, spool_mail_smtp_password]
     volumes:
       - hub-state:/var/lib/spool/state:ro
@@ -226,6 +247,11 @@ services:
         condition: service_healthy
       hub-init:
         condition: service_completed_successfully
+      # with --profile dev the hub's mail preflight dials Mailpit; without the
+      # profile there is no mail service and nothing waits
+      mail:
+        condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
       interval: 3s
@@ -276,6 +302,25 @@ services:
       interval: 3s
       timeout: 3s
       retries: 40
+    restart: unless-stopped
+
+  # Local dev mode only (spec 148 2.2): `docker compose --profile dev up`.
+  # Mailpit keeps the mail in memory, takes any SMTP sender with no login and
+  # no TLS, and publishes on loopback only, never on SPOOL_BIND.
+  mail:
+    image: axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a
+    profiles: ["dev"]
+    # the image names no user; Mailpit needs none (in-memory store, /tmp)
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:${SPOOL_MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${SPOOL_MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [spool]
     restart: unless-stopped
 
   # one shot before web: an older web ran as root and left web-data (Caddy's

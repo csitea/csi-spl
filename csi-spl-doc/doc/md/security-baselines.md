@@ -133,7 +133,11 @@ and attach all services." Issue SPL-2155, epic SPL-2151.
   join it with `networks: [spool]`, and the service names keep resolving on
   it. `web-volume-owner` stays on `network_mode: none`. Only `web` publishes
   host ports (`${SPOOL_BIND:-127.0.0.1}`, 8080 and 8443); pg, s3 and the hub
-  are reached by name only.
+  are reached by name only. The one exception is local dev mode's `mail`
+  (Mailpit, `--profile dev` only, spec 148): it joins `spool` too and
+  publishes SMTP 1025 and its inbox 8025 on `127.0.0.1` alone, never on
+  `SPOOL_BIND`; `compose-bridge-network.tst.sh` refuses a dev-profile port
+  off loopback and `compose-dev-profile.tst.sh` checks the profile (SPL-2910).
 - The lde stack (`csi-spl-orc/src/docker/docker-compose-*.yaml`, loaded
   together by `lde_compose` and the local hub's extra files) declares `lde`
   with `driver: bridge` in `docker-compose-infra.yaml`; every service joins

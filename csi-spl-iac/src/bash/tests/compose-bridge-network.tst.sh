@@ -15,12 +15,15 @@
 #      declares a network called `default`
 #   3. the standalone stack (docker-compose.yml) publishes host ports from
 #      `web` only: pg, s3 and the hub are reached by service name on the
-#      bridge, never from the host
+#      bridge, never from the host. The one exception is a service of the
+#      `dev` profile (local dev mode, spec 148: Mailpit) whose every port
+#      binds 127.0.0.1
 #   4. `docker compose config` parses docker-compose.yml with its defaults and
 #      the rendered model holds the same (SKIP without docker)
 #   CONTROLS: a planted stack with a service with no networks:, one on an
 #   undeclared network, one on a declared non-bridge network and a stack
-#   declaring `default` each fail the same check; a ports: on pg fails 3
+#   declaring `default` each fail the same check; a ports: on pg fails 3,
+#   and so do a dev-profile service on 0.0.0.0 and a loopback one outside dev
 # Hermetic for 1-3: yq + jq over the files, no docker, no network.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -68,6 +71,14 @@ check_model() {
 
 # host_ports <json file>: "<service>" per service that publishes a port
 host_ports() { jq -r '(.services // {}) | to_entries[] | select((.value.ports // []) | length > 0) | .key' "$1"; }
+# public_ports <json file>: the same, less a dev-profile service whose every
+# port binds 127.0.0.1 (a short "127.0.0.1:..." string or a long host_ip)
+public_ports() {
+  jq -r '(.services // {}) | to_entries[] | select((.value.ports // []) | length > 0)
+    | select((((.value.profiles // []) | index("dev")) != null
+              and ((.value.ports | map(if type == "string" then startswith("127.0.0.1:") else .host_ip == "127.0.0.1" end)) | all)) | not)
+    | .key' "$1"
+}
 
 tally() {
   local verdict rest
@@ -94,9 +105,9 @@ for st in "${STACKS[@]}"; do
   fi
 done
 
-# --- 3. standalone: only web publishes host ports ----------------------------------
-got=$(host_ports "$T/standalone.json" | tr '\n' ' ')
-[[ "$got" == "web " ]] && pass "standalone: only web publishes host ports" || fail "standalone: services publishing host ports: '$got' (want 'web')"
+# --- 3. standalone: only web publishes host ports (dev profile: loopback only) -----
+got=$(public_ports "$T/standalone.json" | tr '\n' ' ')
+[[ "$got" == "web " ]] && pass "standalone: only web publishes host ports (dev profile on 127.0.0.1 aside)" || fail "standalone: services publishing host ports: '$got' (want 'web')"
 
 # --- 4. docker compose renders the same model --------------------------------------
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
@@ -142,6 +153,16 @@ for s in fine none-ok; do
   grep -q "^OK plant $s " <<<"$out" && pass "control: $s passes" || fail "control: $s failed: $out"
 done
 [[ "$(host_ports "$T/plant.json" | tr '\n' ' ')" == "pg " ]] && pass "control: a ports: on pg is seen" || fail "control: ports on pg not seen"
+cat >"$T/plant-c.yaml" <<'EOF'
+services:
+  dev-open: { image: alpine, profiles: [dev], ports: ["0.0.0.0:1025:1025"] }
+  dev-loop: { image: alpine, profiles: [dev], ports: ["127.0.0.1:8025:8025", {target: 1025, published: "1025", host_ip: 127.0.0.1}] }
+  loop-no-profile: { image: alpine, ports: ["127.0.0.1:5432:5432"] }
+EOF
+yq -o json '.' "$T/plant-c.yaml" >"$T/plant-c.json" 2>/dev/null || fail "control: plant-c does not parse"
+[[ "$(public_ports "$T/plant-c.json" | sort | tr '\n' ' ')" == "dev-open loop-no-profile " ]] \
+  && pass "control: a dev service on 0.0.0.0 and a loopback one outside dev are seen, a loopback dev one is not" \
+  || fail "control: public_ports gave '$(public_ports "$T/plant-c.json" | tr '\n' ' ')'"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

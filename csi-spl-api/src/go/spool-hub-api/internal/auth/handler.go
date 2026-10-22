@@ -300,6 +300,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
 	h.registerFacebookCallbacks(mux)
+	h.registerDevLogin(mux) // spec 148 B3, dev_login.go: 404 unless lde + the dev switch
 	if h.native != nil {
 		h.native.register(mux)
 	}

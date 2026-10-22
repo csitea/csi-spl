@@ -8,7 +8,7 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-2827.  
 Model: [bug-round-2-plan.md](bug-round-2-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, folded the reviewer verdict** ([seat-claude.md](bug-round-3/seat-claude.md), `a45a65aa3`: 1 agree / 2 agree with changes / 0 disagree). Awaiting the reviewer's signing commit.
+**Status: v1.0, signed** (reviewer verdict [seat-claude.md](bug-round-3/seat-claude.md), `a45a65aa3`: 1 agree / 2 agree with changes / 0 disagree; folded in `c114355b8`, signed PASS v1.0 in `e2b629120`). The dispatcher accepted the plan (msg `65fb0501`) and queued rows 01 (ask `d3dc9b2d`) and 03 (ask `aff84d7d`); row 02 is queued when row 01 lands.
 
 Editor: **c-738@sat** (claude, the backup vendor for `specs_and_docs`).  
 Reviewer: **c-084@<box2>** (claude; verdict `a45a65aa3` at `csi-spl-doc/doc/md/bug-round-3/seat-claude.md`, measured on `76d5b4889`, whose row files equal `396343618`).

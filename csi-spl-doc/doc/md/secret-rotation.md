@@ -124,7 +124,7 @@ owner's go for that step.
 |---|---|---|---|---|
 | 1 | per-env project SA key, prd first (Q2) | `do_gcp_sa_key_rotate` (csi-spl-iac, built: 5.1); the copy to the other box `do_box_copy_gcp_key FORCE=1` (csi-spl-orc) | key mint and key delete: owner go per step, prd per step | `ROTATE_STEP=prove` proof id on both boxes + a green CI run on the new key, then `status` shows one key |
 | 2 | unused credentials: dry-run list (Q3) | `do_spl_secret_unused_list` (csi-spl-iac, read-only, SPL-2896): the SA keys, empty secret containers, GitHub token files and seat credential backups, each with its verdict and evidence; removal is a second step | the list is shown to the owner before anything is removed; each removal (IAM / Secret Manager / GitHub) is owner go | the list, then the same list empty |
-| 3 | one fine-grained GitHub token per box (Q4) | to build: a per-box token put + check; the org-wide token goes in row 2 | a GitHub token is minted by the owner | each box's `gh api` call answers with its own token; the old token revoked |
+| 3 | one fine-grained GitHub token per box (Q4) | `do_gh_box_token_put` (stdin only) + `do_gh_box_token_check` (read-only) (csi-spl-iac, SPL-2897: 5.2); the org-wide token goes in row 2 | a GitHub token is minted by the owner | each box's `gh api` call answers with its own token; the old token revoked |
 | 4 | DB passwords: `csi-spl-hub-db-dsn`, 90 d | `do_spl_secret_rotate` (section 2); the new password + DSN version still by hand, a seed action to build | Cloud SQL user change, Secret Manager version, 030 apply: owner go each | `ROTATE_STEP=verify`, `do_check_hub_deploy`, `do_spl_secret_age_report` exit 0 |
 | 5 | vendor and payment keys, 180 d | the seed actions of section 4, then `do_spl_secret_rotate` | made at the vendor by the owner; 030 apply owner go | `ROTATE_STEP=verify`, the age report shows none `OVER` |
 | 6 | root and desk box keys (Q5) | to build: a box-key rotate action, new key before old | rehearsal on dev; prd one workspace at a time, owner go per workspace | each workspace's desk answers on the new key before the old one is removed |
@@ -159,3 +159,66 @@ Test: `csi-spl-iac/src/bash/tests/gcp-sa-key-rotate.tst.sh`.
 
 Undo before step 5: put `<file>.prev` back as the key file; the old key is
 still valid. After step 5 the old key is gone: mint again.
+
+### 5.2 Per-box GitHub token (row 3)
+
+`do_gh_box_token_put` and `do_gh_box_token_check` (csi-spl-iac, SPL-2897,
+`src/bash/run/gh-box-token.func.sh`) put and prove one fine-grained token per
+box. Every reader on a box takes the token from the box user's
+`$HOME/.github/token` (the git credential helper, the crons' `GH_TOKEN`, the
+box playbooks) or from gh's stored login; put writes both, check proves both,
+and neither prints the token. Test: `csi-spl-iac/src/bash/tests/gh-box-token.tst.sh`.
+
+- **put** reads the token on stdin only (a hidden prompt on a terminal); a
+  token on argv is refused, because `./run` logs its argv. It refuses a token
+  that is not fine-grained (`github_pat_`) or that GitHub does not answer to.
+  A dry run unless `DRY_RUN=0`, which writes the file (mode 600), keeps the
+  old one as `token.prev` (the undo) and replaces gh's stored login.
+- **check** prints the login, the token type (`fine-grained`, `classic`, ...),
+  its expiry and the repo permissions it grants, then gh's stored login and
+  whether it is the same token. Exit 0 only for a fine-grained token on both.
+
+The scope the readers need (`git grep` of the gh calls, 2026-10-22), on the
+spool repo only (the tpl-gen clone is public):
+
+| permission | level | needed by |
+|---|---|---|
+| Contents | read and write | git fetch and push, the `v<X.Y.Z>` tags, `gh release` |
+| Workflows | read and write | a push that changes `.github/workflows/` |
+| Actions | read and write | `gh run list/view/watch/rerun/cancel`, `gh workflow run`, job logs |
+| Secrets | read and write | `gh secret list/set` (`do_gh_secret_put_gcp_key`) |
+| Variables | read and write | `gh variable list/set` (`do_gh_set_ci_vars`) |
+| Administration | read and write | repo runners and their registration token, rulesets, Actions and security settings |
+| Secret scanning alerts | read and write | `do_spl_secret_scan_alert_triage` |
+| Checks | read | check-run annotations (CI red notes) |
+| Metadata | read | always on |
+| Organization: Self-hosted runners | read and write | runner groups and org runners (`do_gh_runner_*`, the runner health check) |
+
+The owner's mint steps, one token per box:
+
+1. On github.com: profile menu, Settings, Developer settings, Personal access
+   tokens, Fine-grained tokens, Generate new token.
+2. Name `spool-<box>`, description `SPL-1945 row 3`.
+3. Resource owner: the org (not the personal account).
+4. Expiration: Custom, 180 days from today (Q1: vendor credentials, 180 d).
+5. Repository access: Only select repositories, the spool repo.
+6. Permissions: the table above; leave every other one at No access.
+7. Generate, and copy the token once. If the org requires approval of
+   fine-grained tokens, approve it under the org's Settings, Personal access
+   tokens, Pending requests.
+8. With the owner's go for that box, as every box user that runs agents:
+   `cd csi-spl-iac && DRY_RUN=0 ./run -a do_gh_box_token_put` and paste the
+   token at the prompt; then `./run -a do_gh_box_token_check` exits 0.
+9. When every box checks green and one push and one `gh run list` work on
+   each: delete the old classic token on GitHub (Developer settings, Tokens
+   (classic)), then on each box and user
+   `cd csi-spl-iac && GH_BOX_TOKEN_DROP_PREV=1 DRY_RUN=0 ./run -a do_gh_box_token_put`.
+
+Undo before step 9: put `token.prev` back as the token file and run
+`gh auth login --with-token` from it; the old token is still valid.
+
+Known gap: the satellite playbook (terraform step `060-gcp-vm-satellite`,
+role `06_secrets`) copies the controller's `GITHUB_TOKEN` into the
+satellite's token files, so a playbook run after step 8 puts the controller
+box's token on the satellite. Re-run put there until that role reads a
+per-box token.

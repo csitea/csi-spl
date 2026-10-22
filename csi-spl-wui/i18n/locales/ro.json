@@ -3311,5 +3311,10 @@
       "kept": "Se afișează mesajele salvate pe acest dispozitiv la {time}.",
       "none": "Mesajele noi vor sosi când revine rețeaua."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Instrumente de dezvoltare locală",
+    "login": "Autentificare de dezvoltare",
+    "mailbox": "Căsuța Mailpit"
   }
 }

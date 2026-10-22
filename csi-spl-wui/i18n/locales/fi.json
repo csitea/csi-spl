@@ -3311,5 +3311,10 @@
       "kept": "Näytetään viestit, jotka tämä laite tallensi {time}.",
       "none": "Uudet viestit tulevat, kun verkko palaa."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Paikallisen kehityksen työkalut",
+    "login": "Kehittäjän kirjautuminen",
+    "mailbox": "Mailpitin saapuneet"
   }
 }

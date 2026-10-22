@@ -3311,5 +3311,10 @@
       "kept": "Näidatakse sõnumeid, mille see seade salvestas {time}.",
       "none": "Uued sõnumid tulevad, kui võrk on tagasi."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Kohaliku arenduse tööriistad",
+    "login": "Arendaja sisselogimine",
+    "mailbox": "Mailpiti postkast"
   }
 }

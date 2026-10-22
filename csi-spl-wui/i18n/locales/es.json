@@ -3311,5 +3311,10 @@
       "kept": "Se muestran los mensajes que este dispositivo guardó a las {time}.",
       "none": "Los mensajes nuevos llegarán cuando vuelva la red."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Herramientas de desarrollo local",
+    "login": "Acceso de desarrollo",
+    "mailbox": "Bandeja de entrada de Mailpit"
   }
 }

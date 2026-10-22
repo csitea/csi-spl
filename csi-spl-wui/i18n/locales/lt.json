@@ -3311,5 +3311,10 @@
       "kept": "Rodomos žinutės, kurias šis įrenginys išsaugojo {time}.",
       "none": "Naujos žinutės ateis, kai grįš ryšys."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Vietinio kūrimo įrankiai",
+    "login": "Kūrėjo prisijungimas",
+    "mailbox": "Mailpit pašto dėžutė"
   }
 }

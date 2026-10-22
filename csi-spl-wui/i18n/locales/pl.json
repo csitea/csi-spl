@@ -3311,5 +3311,10 @@
       "kept": "Wyświetlane są wiadomości zapisane na tym urządzeniu o {time}.",
       "none": "Nowe wiadomości pojawią się, gdy wróci sieć."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Narzędzia lokalnego środowiska deweloperskiego",
+    "login": "Logowanie deweloperskie",
+    "mailbox": "Skrzynka Mailpit"
   }
 }

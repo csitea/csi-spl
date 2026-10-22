@@ -3311,5 +3311,10 @@
       "kept": "Je ziet de berichten die dit apparaat om {time} heeft opgeslagen.",
       "none": "Nieuwe berichten komen binnen zodra het netwerk terug is."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Lokale ontwikkeltools",
+    "login": "Ontwikkelaar inloggen",
+    "mailbox": "Mailpit-inbox"
   }
 }

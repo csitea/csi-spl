@@ -3311,5 +3311,10 @@
       "kept": "Zobrazujú sa správy, ktoré toto zariadenie uložilo o {time}.",
       "none": "Nové správy prídu, keď sa sieť vráti."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Nástroje lokálneho vývoja",
+    "login": "Vývojárske prihlásenie",
+    "mailbox": "Schránka Mailpit"
   }
 }

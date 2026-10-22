@@ -3311,5 +3311,10 @@
       "kept": "Tiek rādītas ziņas, ko šī ierīce saglabāja {time}.",
       "none": "Jaunās ziņas pienāks, kad tīkls atjaunosies."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Lokālās izstrādes rīki",
+    "login": "Izstrādātāja pieteikšanās",
+    "mailbox": "Mailpit iesūtne"
   }
 }

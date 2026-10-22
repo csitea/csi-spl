@@ -3311,5 +3311,10 @@
       "kept": "Bu cihazın {time} saatinde kaydettiği mesajlar gösteriliyor.",
       "none": "Yeni mesajlar ağ geri geldiğinde gelir."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Yerel geliştirme araçları",
+    "login": "Geliştirici girişi",
+    "mailbox": "Mailpit gelen kutusu"
   }
 }

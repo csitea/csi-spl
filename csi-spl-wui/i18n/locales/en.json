@@ -3311,5 +3311,10 @@
       "kept": "Showing the messages this device saved at {time}.",
       "none": "New messages arrive when the network is back."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Local dev tools",
+    "login": "Dev login",
+    "mailbox": "Mailpit inbox"
   }
 }

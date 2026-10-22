@@ -3311,5 +3311,10 @@
       "kept": "Visar meddelandena som den här enheten sparade {time}.",
       "none": "Nya meddelanden kommer när nätverket är tillbaka."
     }
+  },
+  "dev_toolbar": {
+    "aria": "Verktyg för lokal utveckling",
+    "login": "Utvecklarinloggning",
+    "mailbox": "Mailpit-inkorg"
   }
 }

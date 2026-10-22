@@ -18,6 +18,14 @@
 #           control: waving an empty HEAD signature through as WARN when the
 #           base is green passed a-d, none of which pairs a mute HEAD with a
 #           green base)
+#     8. (SPL-2813) the wui e2e runner's FAIL lines are a signature too (they
+#        read 0 lines before, so a trunk-red e2e blocked every wui push):
+#        a. same e2e check fails on HEAD and base        -> WARN, push allowed
+#        b. HEAD adds a second failing check, same file  -> FAIL "NEW on your tree"
+#        c. same check, another detail (px number)       -> WARN (detail dropped)
+#        d. real log line shapes -> e2e-file <path> + e2e <check>
+#        Red control: PP_SIG_FROM=<file holding the old _pp_sig> runs the cases
+#        on that function instead (8a and 8c FAIL "unparseable" on the old one).
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
@@ -39,6 +47,9 @@ eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 do_log() { :; }
 # shellcheck source=../run/check-pre-push.func.sh
 . "$FUNC"
+# red control hook (section 8): another _pp_sig, e.g. the one before SPL-2813
+# shellcheck disable=SC1090
+[[ -n "${PP_SIG_FROM:-}" ]] && . "$PP_SIG_FROM"
 
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
@@ -102,6 +113,37 @@ case "$out7b" in *"NEW on your tree: go-test TestB)"*) pass "7b. ... naming only
 eq "7c. unparseable output on HEAD and base -> FAIL (fail closed)" "1|FAIL" "$(names bad bad _mute_part | cut -d'|' -f1,2)"
 eq "7d. HEAD green -> PASS" "0|PASS" "$(names TestA good _sig_part | cut -d'|' -f1,2)"
 eq "7e. unparseable crash on HEAD, green base -> FAIL" "1|FAIL" "$(names good bad _mute_head_part | cut -d'|' -f1,2)"
+
+# 8. the wui e2e runner shape: every flag line that is not 'good' is one failing
+#    check '<check>|<detail>' in one test file, then the runner's file line
+_e2e_part() {
+  local l rc=0
+  while IFS= read -r l; do
+    [[ "$l" == good ]] && continue
+    echo "  FAIL ${l%%|*}: ${l#*|}"; rc=1
+  done <"$1/flag"
+  [[ "$rc" -eq 0 ]] || echo "  FAIL tests/e2e/issues-crud-modal.test.mjs (exit 1, then exit 1)"
+  return "$rc"
+}
+k4='K4 1440|switching to History moves neither {"list":"0,0,235,58"}'
+eq "8a. same e2e check fails on HEAD and base -> WARN (push allowed)" "0|WARN" "$(names "$k4" "$k4" _e2e_part | cut -d'|' -f1,2)"
+out8b="$(names "$k4" "$k4\nK5 1024|the tab row wraps {\"h\":58}" _e2e_part)"
+eq "8b. HEAD adds a second failing check -> FAIL" "1|FAIL" "$(cut -d'|' -f1,2 <<<"$out8b")"
+case "$out8b" in *"NEW on your tree: e2e K5 1024)"*) pass "8b. ... naming only K5 1024 as NEW" ;; *) fail "8b. ... naming only K5 1024 as NEW" "$out8b" ;; esac
+eq "8c. same check, another px number -> WARN" "0|WARN" "$(names "$k4" "${k4/235/232}" _e2e_part | cut -d'|' -f1,2)"
+# 8d. line shapes copied from wf 10 job 119555792585 (run 39696071548), JSON cut
+f8="$ROOT/e2e-8d.log"
+cat >"$f8" <<'LOG'
+  OK   control: the copy check FAILs on a plain new event's sheet {"mode":"create","title":""}
+  FAIL K4 1440: switching to History moves neither the tabs nor the clip control's box {"discussion":{"list":"0,0,235,58","tabs":"8,50|8,50","clip":"577,31,99,26"}}
+  FAIL K4 390x844: switching to History moves neither the tabs nor the clip control's box {"discussion":{"list":"0,0,228,58","tabs":"8,50|8,50","clip":"236,11,134,46"}}
+──[14/35] FAIL tests/e2e/issues-crud-modal.test.mjs (exit 1, then exit 1 on retry)
+e2e runner: 1 of 35 file(s) FAILED (twice: first run and retry)
+  FAIL tests/e2e/issues-crud-modal.test.mjs (exit 1, then exit 1)
+LOG
+eq "8d. real e2e log lines -> e2e-file + e2e <check>" \
+  "e2e K4 1440;e2e K4 390x844;e2e-file tests/e2e/issues-crud-modal.test.mjs" \
+  "$(_pp_sig "$f8" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
 
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.

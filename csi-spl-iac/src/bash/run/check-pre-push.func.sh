@@ -835,6 +835,9 @@ _pp_capture() {  # <file> <fn> <tree>
 #   timeout <file>         'TIMED OUT ... killed: <file>'
 #   test <title>           TAP 'not ok N - <title>', node '✖ <title>'
 #   e2e <spec> › <title>   playwright '✘ ... › <spec> › <title>'
+#   e2e-file <path>        wui e2e runner '  FAIL tests/e2e/<file>.test.mjs (exit ...)'
+#   e2e <check>            wui e2e check '  FAIL <check>: <detail>' (detail dropped:
+#                          its JSON boxes and px numbers differ per run and font)
 #   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
 #                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
 #   panic <msg>            'panic: <msg>'
@@ -865,6 +868,8 @@ _pp_sig() {  # <output-file> <tree-root>
     line ~ /^gofmt needed on:/ { fmt = 1; next }
     line ~ /--- FAIL: / { s = after(line, "--- FAIL: "); sub(/ .*/, "", s); emit("go-test", s); next }
     line ~ /^[ \t]*FAIL(:| -) / { s = after(line, "FAIL(:| -) "); sub(/ -- .*/, "", s); emit("fail", s); next }
+    line ~ /^[ \t]*FAIL tests\/e2e\/[^ ]+\.test\.mjs/ { s = after(line, "FAIL "); sub(/ .*/, "", s); emit("e2e-file", s); next }
+    line ~ /^[ \t]+FAIL [^ \t]/ && index(line, ": ") { s = after(line, "FAIL "); s = substr(s, 1, index(s, ": ") - 1); emit("e2e", s); next }
     line ~ /^FAIL[ \t]+[^ \t]+/ { split(line, f, /[ \t]+/); emit("go-pkg", f[2]); next }
     line ~ /^FAILED: / { s = after(line, "^FAILED: "); sub(/ .*/, "", s); emit("suite", s); next }
     line ~ /TIMED OUT .*killed: / { s = after(line, "killed: "); emit("timeout", s); next }

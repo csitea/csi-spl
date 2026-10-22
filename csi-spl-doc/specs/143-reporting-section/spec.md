@@ -257,6 +257,17 @@ A webhook/curl step is added to `.github/workflows/20_hub-build-deploy.yml` and 
 - **Authentication**: Cloud Run deployment Service Account Google ID token (`Authorization: Bearer <id_token>`).
 - **Endpoint**: `POST /v1/operator/deploys`
 
+**Both envs on every hub (SPL-2848).** Each hub keeps the estate's deploys,
+dev and prd, so one Reporting page counts both (the 2.4.1 payload). The step
+reports each deploy twice: to its own env's hub, and to the other env's hub
+as THAT env's project SA (step "Record the deploy on the other env's hub",
+the key `GCP_KEY_CSI_SPL_<OTHER>` into a credentials file only), because each
+hub's operator allow-list holds only its own env's SA. The row's `env` is the
+deployed env (`do_spl_deploy_record` `DEPLOY_ENV`), the hub called is `ENV`.
+Before this, a hub refused another env's row (400 `wrong_env`) and the prd
+page read "Deploys 0 on dev" while dev deployed. No IAM or cnf change; rows
+from before it are not copied across.
+
 Request payload:
 ```json
 {
@@ -275,7 +286,7 @@ A background ticker inside the hub periodically probes served environments to re
 - **What it compares**: For each environment (`dev`, `prd`) and component (`hub`, `wui`), queries the live served endpoints:
   - Hub: `GET /version` on Cloud Run, returning `{ "version": "v1.7.1-c3", "sha": "590297d..." }`.
   - WUI: `GET /build.json` on Firebase Hosting, returning `{ "version": "v1.7.1-c3", "commit_sha": "590297d..." }`.
-  The worker compares the returned live `version` and `commit_sha` against the most recent row in `estate_deploys` for that `(env, component)`.
+  The worker compares the returned live `version` and `commit_sha` against the most recent row in `estate_deploys` for that `(env, component)`. It reads and fills only its own hub's env; the other env's rows come from the CI step alone.
 - **How it marks a deploy it filled in**: When a mismatch is detected (the served version/sha is newer or differs from the latest recorded deploy), the reconciler inserts a new record into `estate_deploys` with:
   - `deployed_by = 'hub-reconcile'` (clearly marking the record as filled in by the reconciler rather than the CI webhook).
   - `workflow_run_id = 'reconcile'`.

@@ -22,8 +22,12 @@ import (
 //
 // Operator auth only (operatorAuth: the env's project SA id token), as every
 // /v1/operator write; the workflows call it through do_spl_deploy_record.
-// Each hub records its OWN env: its operator allow-list holds only that env's
-// SA, and the reconcile check reads that env's served endpoints.
+// Each hub keeps the ESTATE's deploys, both envs (spec 143 section 2.4.1
+// shows dev and prd rows on one page; SPL-2848: the prd page read "Deploys 0
+// on dev"): the workflow reports every deploy to its own env's hub and to
+// the other env's hub, each time as THAT hub's project SA (its operator
+// allow-list holds only that SA). The reconcile check still reads and fills
+// only this hub's own env.
 
 const (
 	// deployReconcileEvery is how often the check reads what the env serves.
@@ -51,7 +55,8 @@ func (s *Server) routeOperatorDeploys(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/operator/deploys", s.handleOperatorDeploy)
 }
 
-// ownDeployEnv is the env this hub records, "" on lde or an unset env.
+// ownDeployEnv is the env this hub's reconcile check reads, "" on lde or an
+// unset env.
 func (s *Server) ownDeployEnv() string {
 	if slices.Contains(store.EstateDeployEnvs, s.o.Env) {
 		return s.o.Env
@@ -95,10 +100,6 @@ func (s *Server) handleOperatorDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.DeployedBy == "" {
 		d.DeployedBy = by
-	}
-	if own := s.ownDeployEnv(); own != "" && d.Env != own {
-		writeErr(w, http.StatusBadRequest, "wrong_env", "this hub records "+own+" deploys only")
-		return
 	}
 	if why := store.CheckEstateDeploy(d); why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_deploy", why)

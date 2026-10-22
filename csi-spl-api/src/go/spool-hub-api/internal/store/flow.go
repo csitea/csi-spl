@@ -340,28 +340,34 @@ func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time, lob
 		return FlowEvent{}, false
 	}
 	member := k[1]
-	switch {
-	case m.Channel == "":
-		if !slices.Contains([]string{m.ToID, m.FromID, m.ToID + "@" + m.ToBox, m.FromID + "@" + m.FromBox}, member) {
-			return FlowEvent{}, false
-		}
-	case !ChannelPublic(m.Channel):
-		if s.ch.init(); s.ch.archivedCh(k[0], m.Channel) {
-			return FlowEvent{}, false
-		}
-		if IsFlowAgent(member) {
-			if !s.agentInChannelLocked(k[0], m.Channel, member) {
-				return FlowEvent{}, false
-			}
-		} else if _, ok := s.ch.humansLocked()[[2]string{k[0], m.Channel}][member]; !ok {
-			return FlowEvent{}, false
-		}
+	if !s.flowDoorLocked(k[0], member, m) {
+		return FlowEvent{}, false
 	}
 	ev := FlowEvent{MsgID: m.MsgID, TaskID: m.TaskID, ParentTaskID: m.ParentTaskID, Channel: m.Channel,
 		FromID: m.FromID, FromBox: m.FromBox, ToID: m.ToID, ToBox: m.ToBox, TypedBy: m.TypedBy,
 		Kind: e.kind, Body: m.Body, At: m.ReceivedAt, Files: filesCount(m.Files)}
 	ev.Unread = !s.flowCoveredLocked(k[0], member, m) && !s.archivedHiddenLocked(k[0], m, lobby) && !s.flowHeadlessLocked(k[0], m, now, lobby)
 	return ev, true
+}
+
+// flowDoorLocked is flowDoorSQL: a DM by its two ends (an agent end as
+// <id>@<box>), a created channel by its (unarchived) member list, a public
+// channel for every member.
+func (s *Memory) flowDoorLocked(tenant, member string, m *Message) bool {
+	switch {
+	case m.Channel == "":
+		return slices.Contains([]string{m.ToID, m.FromID, m.ToID + "@" + m.ToBox, m.FromID + "@" + m.FromBox}, member)
+	case !ChannelPublic(m.Channel):
+		if s.ch.init(); s.ch.archivedCh(tenant, m.Channel) {
+			return false
+		}
+		if IsFlowAgent(member) {
+			return s.agentInChannelLocked(tenant, m.Channel, member)
+		}
+		_, ok := s.ch.humansLocked()[[2]string{tenant, m.Channel}][member]
+		return ok
+	}
+	return true
 }
 
 // flowCoveredLocked: a mark covers the line (contract section 3). A ch:
@@ -426,7 +432,9 @@ func (s *Memory) flowListLocked(tenant, member string, now time.Time, lobby stri
 	return out
 }
 
-func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (counts, unread FlowCounts, keys map[string]int) {
+// flowCountsLocked is flowCountsSQL: the counts of the member's listed
+// events, their keys, and flowChannelKeysLocked's lines in the keys only.
+func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent, now time.Time, lobby string) (counts, unread FlowCounts, keys map[string]int) {
 	seen, hasSeen := s.readMarks[[3]string{tenant, member, FlowSeenKey}]
 	keys = map[string]int{}
 	for _, ev := range all {
@@ -442,7 +450,30 @@ func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (count
 	if hasSeen {
 		counts.Release = s.flowReleaseDaysAfter(seen.At)
 	}
+	s.flowChannelKeysLocked(tenant, member, keys, now, lobby)
 	return counts, unread, keys
+}
+
+// flowChannelKeysLocked adds to keys the unread channel lines of a human
+// member that have no flow event of theirs, as flowChannelKeysSQL (SPL-2837):
+// a channel row and its cards count every line the channel view counts.
+func (s *Memory) flowChannelKeysLocked(tenant, member string, keys map[string]int, now time.Time, lobby string) {
+	if !IsFlowMember(member) {
+		return
+	}
+	for k, m := range s.messages {
+		if k[0] != tenant || m.Channel == "" || ChannelHidden(m.Channel) || !now.Before(m.ExpiresAt) || m.FromID == member || m.TypedBy == member {
+			continue
+		}
+		if _, ok := s.flowEvents[[3]string{tenant, member, m.MsgID}]; ok {
+			continue
+		}
+		if !s.flowDoorLocked(tenant, member, m) || s.flowCoveredLocked(tenant, member, m) || s.archivedHiddenLocked(tenant, m, lobby) || s.flowHeadlessLocked(tenant, m, now, lobby) {
+			continue
+		}
+		keys[flowPlaceKey(m.Channel, "", "")]++
+		keys[ThreadMarkKey(m.TaskID)]++
+	}
 }
 
 // flowReleaseDaysAfter is the UTC days with a release after t.
@@ -468,7 +499,7 @@ func (s *Memory) FlowRead(_ context.Context, q FlowQuery) (FlowPage, error) {
 	defer s.mu.Unlock()
 	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby)
 	var p FlowPage
-	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all)
+	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby)
 	for _, ev := range all {
 		if q.Limit == 0 {
 			break
@@ -499,7 +530,7 @@ func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []s
 		if !ok {
 			continue
 		}
-		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now, lobby))
+		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now, lobby), now, lobby)
 		out[member] = FlowPush{Event: ev, Counts: c, Unread: u, Keys: keys}
 	}
 	return out, nil

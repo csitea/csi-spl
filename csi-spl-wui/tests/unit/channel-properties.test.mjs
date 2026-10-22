@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { ref } from 'vue'
 import { importTs } from './lib/load-ts.mjs'
 const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
 
@@ -208,9 +209,9 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /data-testid="channel-agent-add"/)
     assert.match(dialog, /data-testid="channel-agent-search"/)
     assert.match(dialog, /name="minus"/)
-    assert.match(dialog, /api\.addChannelAgent\(props\.channelId, row\.id, row\.box\)/)
+    assert.match(src('src/composables/useChannelAgentPick.ts'), /api\.addChannelAgent\(channelId\(\), row\.id, row\.box\)/)
     assert.match(dialog, /api\.removeChannelMember\(props\.channelId, id\)/)
-    assert.match(dialog, /api\.removeChannelAgent\(props\.channelId, row\.id, row\.box\)/)
+    assert.match(src('src/composables/useChannelAgentPick.ts'), /api\.removeChannelAgent\(channelId\(\), row\.id, row\.box\)/)
     const peoplePanel = dialog.slice(dialog.indexOf('data-testid="channel-people"'), dialog.indexOf('data-testid="channel-agents"'))
     assert.match(peoplePanel, /data-testid="channel-people-search"/)
     assert.match(peoplePanel, /data-testid="channel-people-add"/)
@@ -227,7 +228,7 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value, people\.names\.value\)/)
     assert.match(dialog, /filterAgentsContains\(agentCandidates\.value, agentQuery\.value\)/)
     assert.match(dialog, /function addChosen/)
-    assert.match(dialog, /function addChosenAgent/)
+    assert.match(src('src/composables/useChannelAgentPick.ts'), /function addChosenAgent/)
     assert.match(dialog, /viewerHumanId\(access\.me, live\.identity\.value/)
     assert.doesNotMatch(dialog, /function togglePeople/)
     assert.match(src('src/stores/access.ts'), /withSessionRetry\(api, \(\) => api\.me\(\)\)/)
@@ -467,5 +468,61 @@ describe('SPL-997: the fallback responder line (spec 038 FR-035)', () => {
       }
       for (const v of ['{count}', '{id}', '{at}']) assert.ok(p.fallback_recent.includes(v), f + ' fallback_recent ' + v)
     }
+  })
+})
+
+// r17-07: the agent pick (useChannelAgentPick), driven with a fake api. A
+// pick adds the row and reads the list again for its state; a remove drops
+// only that row; both use the channel id the getter gives at call time.
+describe('the agent pick', async () => {
+  const { useChannelAgentPick } = await importTs('src/composables/useChannelAgentPick.ts')
+  const setup = () => {
+    const calls = []
+    const api = {
+      addChannelAgent: async (...a) => { calls.push(['add', ...a]) },
+      removeChannelAgent: async (...a) => { calls.push(['remove', ...a]) },
+      listChannelMembers: async (id) => {
+        calls.push(['list', id])
+        return { agents: [{ id: 'CLE-1', box: 'box-a', online: true }] }
+      },
+    }
+    const r = {
+      busy: ref(false), canAdd: ref(true), error: ref(''), fallback: ref(null),
+      agents: ref([{ id: 'CLE-2', box: 'box-b' }]), chosenAgent: ref(null), agentQuery: ref(''),
+    }
+    let channel = 'one'
+    const fn = useChannelAgentPick({ api, channelId: () => channel, ...r })
+    return { calls, r, fn, move: (id) => { channel = id } }
+  }
+
+  it('a pick adds the row, then shows the state the hub reads back', async () => {
+    const { calls, r, fn, move } = setup()
+    move('two')
+    r.chosenAgent.value = { id: 'CLE-1', box: 'box-a', key: 'CLE-1@box-a' }
+    r.agentQuery.value = 'cle'
+    await fn.addChosenAgent()
+    await new Promise((res) => setTimeout(res, 0))
+    assert.deepEqual(calls, [['add', 'two', 'CLE-1', 'box-a'], ['list', 'two']])
+    assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }, { id: 'CLE-1', box: 'box-a', online: true }])
+    assert.equal(r.chosenAgent.value, null)
+    assert.equal(r.agentQuery.value, '')
+    assert.equal(r.busy.value, false)
+  })
+
+  it('a remove drops only that row', async () => {
+    const { calls, r, fn } = setup()
+    r.agents.value = [...r.agents.value, { id: 'CLE-3', box: 'box-c' }]
+    await fn.removeAgent({ id: 'CLE-2', box: 'box-b' })
+    assert.deepEqual(calls, [['remove', 'one', 'CLE-2', 'box-b']])
+    assert.deepEqual(r.agents.value, [{ id: 'CLE-3', box: 'box-c' }])
+  })
+
+  it('nothing moves without the right to add', async () => {
+    const { calls, r, fn } = setup()
+    r.canAdd.value = false
+    await fn.pickAgent({ id: 'CLE-1', box: 'box-a' })
+    await fn.removeAgent({ id: 'CLE-2', box: 'box-b' })
+    assert.deepEqual(calls, [])
+    assert.equal(fn.agentLabel({ id: 'CLE-1', box: 'box-a' }), 'CLE-1 box-a')
   })
 })

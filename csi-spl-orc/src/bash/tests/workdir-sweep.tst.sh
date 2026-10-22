@@ -147,8 +147,14 @@ out="$(cd "$UTL" && DRY_RUN=0 WORKDIR_SWEEP_CNF="$T/cnf.yaml" WORKDIR_SWEEP_FREE
 # ---- 9. untabled worktrees -------------------------------------------------------
 O="$T/orph-wt"; mkdir -p "$O"
 olane() { gq -C "$T/repo" worktree add -b "$1-o" "$O/$1" origin/master; }
-# aged <dir> <h>: the dir and its git HEAD, index and HEAD log last touched <h> hours ago
-aged() { local gd; gd="$(git -C "$1" rev-parse --absolute-git-dir)"; touch -d "$(ago "$2")" "$1" "$gd/HEAD" "$gd/index" "$gd/logs/HEAD"; }
+# aged <dir> <h>: the dir, its git HEAD and the times in its reflog <h> hours ago;
+# the HEAD log and index FILES are touched now, as a reflog expire or a git
+# status does without any work (CONTROL: aged by those mtimes, all read fresh)
+aged() {
+  local gd e; gd="$(git -C "$1" rev-parse --absolute-git-dir)"; e="$(date -u -d "$(ago "$2")" +%s)"
+  sed -i -E "s/> [0-9]+ ([+-][0-9]{4})\t/> $e \1\t/" "$gd/logs/HEAD"
+  touch -d "$(ago "$2")" "$1" "$gd/HEAD"; touch "$gd/logs/HEAD" "$gd/index"
+}
 for i in c-930 c-931 c-932 c-933 c-934 g-002 c-684; do olane "$i"; done
 gq -C "$O/c-932" commit --allow-empty -m unpushed
 echo wip >"$O/c-931/wip.txt"

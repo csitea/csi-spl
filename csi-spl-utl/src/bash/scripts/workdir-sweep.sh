@@ -27,8 +27,10 @@
 # Untabled worktrees (SPL-2856; WORKDIR_SWEEP_ORPHANS=1, off by default): a
 # dir <wt root>/<agent id> with no table row (a lane retired before the table
 # existed, or whose record named no worktree) is swept as an "orphan-worktree"
-# row on its current branch, aged from its last activity (the newest mtime of
-# the dir and its git HEAD, index and HEAD log), under every rule above, and
+# row on its current branch, aged from its last activity (the newest of the
+# dir's and its git HEAD's mtime and the time IN its last reflog entry: a
+# reflog expire or a git status rewrites the HEAD log and the index files
+# without any work), under every rule above, and
 # also KEPT when it is a role id (001-003, any letter, legacy CLE-001 too), a
 # desk id (SPL_DESK_AGENT_IDS), named by a tmux window on THIS box (ids repeat
 # across boxes: the box-local dir and the local tmux decide, never the bare
@@ -131,10 +133,12 @@ orphan_why() {
   case " $desk_ids " in *" $1 "*) echo "desk-id"; return ;; esac
   grep -qE "(^|[^A-Za-z0-9])$1([^0-9]|\$)" "$wins" && echo "live-window (a tmux window on this box carries $1)"
 }
-# last_active <path> <owner>: epoch of the newest mtime of the dir and its git HEAD, index, HEAD log
+# last_active <path> <owner>: epoch of the newest of the dir's and its git
+# HEAD's mtime and the time recorded in its last reflog entry
 last_active() {
-  local gd; gd="$(g "$2" "$1" rev-parse --absolute-git-dir 2>/dev/null)"
-  stat -c %Y -- "$1" ${gd:+"$gd/HEAD" "$gd/index" "$gd/logs/HEAD"} 2>/dev/null | sort -n | tail -1
+  local gd rl; gd="$(g "$2" "$1" rev-parse --absolute-git-dir 2>/dev/null)"
+  rl="$(g "$2" "$1" reflog -1 --date=unix --format=%gd 2>/dev/null)"; rl="${rl//[^0-9]/}"
+  { stat -c %Y -- "$1" ${gd:+"$gd/HEAD"} 2>/dev/null; [[ -z "$rl" ]] || echo "$rl"; } | sort -n | tail -1
 }
 n_orph=0
 if [[ "$orphans" == 1 ]]; then

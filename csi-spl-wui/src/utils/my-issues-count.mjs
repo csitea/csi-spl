@@ -45,9 +45,10 @@ export const ISSUE_OPENED_EVENT = 'spool:issue-opened'
  * Keeps count.value at the viewer's new (unopened) assigned issues: one read
  * now, and one after any issue frame, a reconnect or an issue opened in this
  * tab (frames come in bursts, so a re-read waits `delay` ms for the last of
- * them). Returns a stop function.
+ * them). `loaded` runs once, after the first read settles (the sidebar's
+ * unread swell waits for it, SPL-2815). Returns a stop function.
  */
-export function startMyIssuesCount({ api, live, count, delay = 1000 }) {
+export function startMyIssuesCount({ api, live, count, delay = 1000, loaded = undefined }) {
   let timer = null
   let stopped = false
   const load = async () => {
@@ -65,7 +66,7 @@ export function startMyIssuesCount({ api, live, count, delay = 1000 }) {
     window.addEventListener(ISSUE_OPENED_EVENT, soon)
     offs.push(() => window.removeEventListener(ISSUE_OPENED_EVENT, soon))
   }
-  void load()
+  void load().then(() => loaded?.())
   return () => {
     stopped = true
     clearTimeout(timer)

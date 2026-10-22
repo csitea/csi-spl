@@ -4,11 +4,11 @@
  * peerLabels read the rows the sidebar lists, so a section's number is the sum
  * of its rows' badges.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useSessionStore } from '~/stores/session'
 import { useNotificationStore } from '~/stores/notification'
 import { useDrafts } from '~/composables/useDrafts'
-import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowCountsRead, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
 import { useUnread } from '~/composables/useUnread'
 import type { useSpoolApi } from '~/composables/useSpoolApi'
 import type { useLive } from '~/composables/useLive'
@@ -26,15 +26,18 @@ function useCountStart(api: ReturnType<typeof useSpoolApi>, live: ReturnType<typ
   /* owner (t1 de3c2cf5 msg 26c89f60): the Issues tab counts the viewer's open
      assigned issues, an unanswered blocker's among them; its own lazy chunk */
   const myIssues = ref(0)
+  /* SPL-2815: the Issues number's first read settled, and rendered */
+  const issuesRead = ref(false)
+  const loaded = () => { void nextTick(() => { issuesRead.value = true }) }
   watch(() => api.mock || session.state === 'in', (on) => {
     if (!on || flowStarted || !import.meta.client) return
     flowStarted = true
     void import('~/stores/flow')
       .then((m) => nuxtApp.runWithContext(() => m.useFlowStore().startBadge()))
       .catch(() => { flowStarted = false })
-    void import('~/utils/my-issues-count.mjs').then((m) => m.startMyIssuesCount({ api, live, count: myIssues }), () => {})
+    void import('~/utils/my-issues-count.mjs').then((m) => m.startMyIssuesCount({ api, live, count: myIssues, loaded }), loaded)
   }, { immediate: true })
-  return myIssues
+  return { myIssues, issuesRead }
 }
 
 export function useSidebarCounts(api: ReturnType<typeof useSpoolApi>, live: ReturnType<typeof useLive>, channelIds: () => string[], peerLabels: () => string[]) {
@@ -48,7 +51,11 @@ export function useSidebarCounts(api: ReturnType<typeof useSpoolApi>, live: Retu
   /* spec 062: once the hub has counted (flowBadge >= 0) the number replaces the
      pip; a hub without the Flow route leaves -1 and the pip as it was */
   const flowBadge = useFlowBadge()
-  const myIssues = useCountStart(api, live)
+  const { myIssues, issuesRead } = useCountStart(api, live)
+  /* SPL-2815: the first counts are on screen (Flow's and the Issues number);
+     until then a number going up is the page loading, not news */
+  const flowRead = useFlowCountsRead()
+  const countsLoaded = computed(() => flowRead.value && issuesRead.value)
   const flowLabel = computed(() => countLabel(flowBadge.value))
   /* owner (t1 f4e6c677): once the hub splits its Flow unread (flowRail set),
      Channels and Direct messages show it as a number, and no pip at 0 */
@@ -105,5 +112,5 @@ export function useSidebarCounts(api: ReturnType<typeof useSpoolApi>, live: Retu
     if (id === 'flow') return flowBadge.value < 0 && flowUnread.value
     return false
   }
-  return { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread }
+  return { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread, countsLoaded }
 }

@@ -75,10 +75,12 @@ function play(el: HTMLElement, kind: TapKind | undefined) {
  * Play `kind` once on el's icon (its first svg, else el) from code, for an
  * event that is not a tap: a copy done, a badge arriving, a reconnect. The
  * same rules as the directive: nothing under reduced motion, the classes come
- * off on the animation's end, a call while it runs starts it again.
+ * off on the animation's end, a call while it runs starts it again. SPL-2815:
+ * nothing on an element that is not rendered (a hidden panel): no animation
+ * runs there, so no end event would ever take the classes off.
  */
 export function playTapAnim(el: HTMLElement, kind: TapKind) {
-  if (reduced()) return
+  if (reduced() || el.checkVisibility?.() === false) return
   listen(el)
   play(el, kind)
 }

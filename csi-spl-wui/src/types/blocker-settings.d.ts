@@ -18,5 +18,6 @@ declare module '~/utils/my-issues-count.mjs' {
     live?: { onIssue?: (fn: () => void) => unknown, onReconnected?: (fn: () => void) => unknown },
     count: { value: number },
     delay?: number,
+    loaded?: () => void,
   }): () => void
 }

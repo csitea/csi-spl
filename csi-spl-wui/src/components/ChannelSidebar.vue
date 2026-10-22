@@ -877,15 +877,17 @@ const loop = useLoopStrip(railEl, {
   watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value, qtoShown.value],
 })
 /* the rail's numbers and a row's unread / draft / DM badge (useSidebarCounts) */
-const { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread } = useSidebarCounts(api, live,
+const { flowLabel, flowKeys, unreadOf, hasDraft, dmBadgeLabel, dmTotalLabel, railCount, tabUnread, countsLoaded } = useSidebarCounts(api, live,
   () => channelRows.value.map((c) => String(c.channel_id || '')), () => peers.value.map((p) => p.label))
 /* row 04 of ui-animations-panel-plan.md (SPL-2736): a rail tab's unread
    number or pip, and a DM row's badge, swell once when the number goes up.
-   The host stays mounted, so the first paint, an equal re-render and a fall
-   play nothing; playTapAnim does nothing under reduced motion. */
+   The host stays mounted, so an equal re-render and a fall play nothing;
+   SPL-2815: the counts arrive after mount, so nothing plays until the first
+   ones are on screen (countsLoaded): the first load is the first paint.
+   playTapAnim does nothing under reduced motion or on a hidden badge. */
 const vSwellUp: Directive<HTMLElement, number> = {
   updated(el, { value, oldValue }) {
-    const badge = value > (oldValue || 0) && el.querySelector<HTMLElement>('.badge-unread, .sidebar-tab__count, .sidebar-tab__pip')
+    const badge = countsLoaded.value && value > (oldValue || 0) && el.querySelector<HTMLElement>('.badge-unread, .sidebar-tab__count, .sidebar-tab__pip')
     if (badge) playTapAnim(badge, 'swell')
   },
 }

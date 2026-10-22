@@ -8,6 +8,9 @@
 //     badge, once; animationend takes them off
 //   • nothing on the first paint, on an identical re-render, or when the
 //     count goes down; 0 classes under prefers-reduced-motion
+//   • SPL-2815: nothing while the first counts load (countsLoaded false: the
+//     0 -> N of the load is the first paint), and nothing on a badge that is
+//     not rendered (checkVisibility false: no animationend would take it off)
 //
 // Run: node --test tests/unit/unread-badge-pulse.test.mjs
 import { describe, it } from 'node:test'
@@ -34,9 +37,10 @@ function shippedDirective() {
   if (at < 0) return null
   const src = SCRIPT.slice(at, SCRIPT.indexOf('\n}\n', at) + 2)
   const js = tsToJs(src + '\nexport default vSwellUp\n')
-  return import(dataUrl(`const playTapAnim = globalThis.__swell.play\n${js}`)).then((m) => m.default)
+  return import(dataUrl(`const playTapAnim = globalThis.__swell.play\nconst countsLoaded = globalThis.__swell.loaded\n${js}`)).then((m) => m.default)
 }
-globalThis.__swell = { play: (...a) => tap.playTapAnim(...a) }
+/* countsLoaded (useSidebarCounts): the first counts are on screen */
+globalThis.__swell = { play: (...a) => tap.playTapAnim(...a), loaded: Vue.ref(true) }
 const vSwellUp = await shippedDirective()
 
 /* ---------- a DOM-less renderer, with what playTapAnim touches ---------- */
@@ -102,8 +106,9 @@ const flush = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) 
  * not 0. `store` is the unread store's count for the row; `tick` forces a
  * re-render with nothing changed.
  */
-async function mountRow(kind, n, reduce) {
+async function mountRow(kind, n, reduce, { loaded = true } = {}) {
   assert.ok(vSwellUp, 'ChannelSidebar.vue declares vSwellUp')
+  globalThis.__swell.loaded.value = loaded
   globalThis.matchMedia = (q) => ({ matches: reduce && q.includes('reduce') })
   const store = Vue.reactive({ n, tick: 0 })
   const badgeClass = { dm: 'badge-unread', rail: 'sidebar-tab__count', pip: 'sidebar-tab__pip' }[kind]
@@ -141,6 +146,10 @@ describe('ChannelSidebar binds the swell to its unread badges', () => {
     const row = TEMPLATE.match(/<div\s+v-for="\(p, peerIndex\) in peers"[^>]*>/)
     assert.ok(row, 'the DM row')
     assert.match(row[0], /v-swell-up="unreadOf\('dm:' \+ p\.label\)"/)
+  })
+
+  it('SPL-2815: plays nothing until countsLoaded (the first counts on screen)', () => {
+    assert.match(SCRIPT, /countsLoaded\.value && value > \(oldValue \|\| 0\)/)
   })
 
   it("plays 'swell' on the badge it finds, never a loop", () => {
@@ -193,6 +202,31 @@ describe('an unread count update swells the badge once', () => {
     r.store.n = 2
     await flush()
     assert.equal(r.swells(), 0)
+    r.app.unmount()
+  })
+
+  it('SPL-2815: the first counts loading (0 -> N before countsLoaded) play nothing; the next rise swells', async () => {
+    for (const kind of ['dm', 'rail', 'pip']) {
+      const r = await mountRow(kind, 0, false, { loaded: false })
+      r.store.n = 3
+      await flush()
+      assert.equal(r.swells(), 0, `${kind}: the load is the first paint`)
+      globalThis.__swell.loaded.value = true
+      r.store.n = 4
+      await flush()
+      assert.equal(r.swells(), 1, `${kind}: a real increase after the load swells`)
+      r.app.unmount()
+    }
+  })
+
+  it('SPL-2815: a badge that is not rendered gets no class (nothing would take it off)', async () => {
+    const r = await mountRow('dm', 1, false)
+    /* a hidden sidebar (a phone's level 2): the badge is not rendered */
+    r.badge().checkVisibility = () => false
+    r.store.n = 2
+    await flush()
+    assert.equal(r.swells(), 0)
+    assert.equal(r.badge().classes.size, 0)
     r.app.unmount()
   })
 

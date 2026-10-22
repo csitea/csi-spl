@@ -4,7 +4,7 @@ import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowCountsRead, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
 import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import { flowLineMark, mergeFlowLines, refreshFlowLines } from '~/utils/flow-fold.mjs'
@@ -247,6 +247,9 @@ async function readCounts(f: Flow) {
   } catch (e) {
     flowRefused(f, e)
   }
+  /* SPL-2815: after the render that showed them (the sidebar's swell waits) */
+  const read = useFlowCountsRead()
+  if (!read.value) void nextTick(() => { read.value = true })
 }
 
 /** Start the number (the sidebar calls this once, lazily): counts now, then the hub's frames. */

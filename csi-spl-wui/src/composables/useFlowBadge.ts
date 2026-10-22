@@ -32,3 +32,14 @@ const keys = ref<Record<string, number> | null>(null)
 export function useFlowKeys() {
   return keys
 }
+
+/**
+ * SPL-2815: true once the Flow store's first counts read has settled (counts
+ * or a refusal) and its numbers are on screen; the sidebar's unread swell
+ * plays nothing before it, so the first load is the first paint.
+ */
+const read = ref(false)
+
+export function useFlowCountsRead() {
+  return read
+}

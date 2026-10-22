@@ -15,6 +15,10 @@
 //   X  after the trigger: document scrollWidth equals the viewport (0 px)
 //   M4 with no trigger, a settled page logs 0 class adds over IDLE_MS and has
 //      0 running tap-* animations
+//   L  SPL-2815: the load itself swells nothing. The counts arrive after
+//      mount; the first 0 -> N is the first paint. From the goto to IDLE_MS
+//      after the feed shows: 0 tap-anim--swell adds logged, and 0 elements
+//      carry the class (a phone's hidden sidebar would keep it on)
 //
 // The rows and their triggers:
 //   01 a section rail tab tap (v-tap-anim; the phone's rail is on level 1)
@@ -313,6 +317,15 @@ async function viewport(browser, base, vp) {
   try {
     await p.goto(base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
+
+    /* L: the counts land after mount; their first load swells nothing */
+    await sleep(IDLE_MS)
+    const load = await p.evaluate(() => ({
+      adds: window.__tap.filter((e) => e.on && e.k === 'swell').map((e) => e.tag),
+      carry: document.querySelectorAll('.tap-anim--swell').length,
+    }))
+    ok(`${W} L load + ${IDLE_MS} ms idle: 0 tap-anim--swell adds, 0 elements carry it`,
+      load.adds.length === 0 && load.carry === 0, load)
 
     /* M4: the load settled, then an idle window with no trigger */
     await until(p, () => !document.getAnimations().some((a) => a.playState === 'running' && String(a.animationName || '').startsWith('tap-')), null, 5000)

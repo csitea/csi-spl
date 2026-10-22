@@ -16,6 +16,11 @@
 # @description   read <path>     spool doc-read    (runs as it is)
 # @description   write <path>    spool doc-write --file WSDOC_IN (dry run
 # @description                   unless DRY_RUN=0; the hub keeps .history/)
+# @description   delete <path>   spool doc-delete (dry run unless DRY_RUN=0;
+# @description                   the hub first writes a .history/ copy, and the
+# @description                   bucket keeps the old generation: a delete
+# @description                   hides the doc, it does not purge it; for that
+# @description                   see csi-spl-iac do_gcp_purge_wsdoc_prefix)
 # @description   rename          refused: the hub has no history-keeping
 # @description                   rename for a workspace doc (GET / PUT / DELETE
 # @description                   only, its .history/ is keyed by path), and a
@@ -26,7 +31,7 @@
 # @description WSDOC_IN outside the caller's worktree (APP_PATH), /tmp or
 # @description /var/spool-hub/dispatch, or inside the desk state. A write with
 # @description DRY_RUN=0 is refused unless DESK_AGENT is the caller itself
-# @description (do_spl_desk_doctree's caller check, SPL-2078).
+# @description (do_spl_desk_doctree's caller check, SPL-2078); so is a delete.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent the verb runs for (a seat of the desk)
@@ -34,8 +39,9 @@
 # @param   or `read ws/agents/join-your-agents.md`
 # @param WSDOC_IN (optional) - write only, and required there: the body file
 # @param DESK_BOX (optional) - default this machine's desk box (spl_desk_box_default)
-# @param DRY_RUN (optional) - 1 (default) or 0; list and read ignore it
+# @param DRY_RUN (optional) - 1 (default) or 0; write and delete only, list and read ignore it
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='list ws/agents/' ./run -a do_spl_desk_wsdoc
+# @example AGENT_ID=a-200 ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='delete <prefix>/x.md' DRY_RUN=0 ./run -a do_spl_desk_wsdoc
 # @example AGENT_ID=a-200 ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='write ws/agents/x.bg.md' WSDOC_IN=/var/spool-hub/dispatch/x.bg.md DRY_RUN=0 ./run -a do_spl_desk_wsdoc
 #------------------------------------------------------------------------------
 do_spl_desk_wsdoc() {
@@ -59,13 +65,18 @@ do_spl_desk_wsdoc() {
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1
 
   local cli=(doc-"$verb" "${args[@]:1}")
-  if [[ "$verb" == write ]]; then
-    cli+=(--file "$in")
+  if [[ "$verb" == write || "$verb" == delete ]]; then
+    [[ "$verb" == write ]] && cli+=(--file "$in")
     local drc=0
     spl_dry_run || drc=$?
     if (( drc == 0 )); then
-      do_log "INFO DRY_RUN would: spool doc-write ${args[1]} (from WSDOC_IN) for $agent on $box in $tenant"
-      do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
+      if [[ "$verb" == write ]]; then
+        do_log "INFO DRY_RUN would: spool doc-write ${args[1]} (from WSDOC_IN) for $agent on $box in $tenant"
+        do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
+      else
+        do_log "INFO DRY_RUN would: spool doc-delete ${args[1]} for $agent on $box in $tenant"
+        do_log "OK DRY_RUN nothing was deleted. Re-run with DRY_RUN=0 to run it."
+      fi
       return 0
     fi
     (( drc == 1 )) || return 1
@@ -108,11 +119,11 @@ _spl_desk_wsdoc_check() {
   local verb="${_ws_a[0]}" n=$((${#_ws_a[@]} - 1)) a
   local seg='[A-Za-z0-9_-][A-Za-z0-9._-]*'
   case "$verb" in
-    list | read | write) ;;
+    list | read | write | delete) ;;
     rename)
       do_log "FATAL rename is refused: the hub has no history-keeping rename for a workspace doc (GET / PUT / DELETE only, history is kept per path); a write + delete would cut its history. Ask the owner."
       return 1 ;;
-    *) do_log "FATAL '$verb' is not a wsdoc verb (list read write rename)"; return 1 ;;
+    *) do_log "FATAL '$verb' is not a wsdoc verb (list read write delete rename)"; return 1 ;;
   esac
   for a in "${_ws_a[@]:1}"; do
     [[ "$a" != -* ]] || { do_log "FATAL WSDOC_ARGS takes no flag ('$a'): write reads its body from WSDOC_IN"; return 1; }

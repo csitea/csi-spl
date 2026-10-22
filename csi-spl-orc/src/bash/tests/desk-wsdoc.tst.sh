@@ -19,6 +19,9 @@
 #      `doc-write <path> --file <WSDOC_IN>`
 #   7. a DRY_RUN=0 write for a DESK_AGENT that is not the caller (AGENT_ID)
 #      is refused, no spool call (SPL-2078); its dry run still works
+#   8. delete: DRY_RUN=1 (the default) makes no spool call; DRY_RUN=0 runs
+#      `doc-delete <path>`; a foreign DESK_AGENT, a non-.md path, a second
+#      path and WSDOC_IN are refused, no spool call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -86,8 +89,8 @@ run WSDOC_ARGS=list DESK_AGENT=c-009
 refused "an agent with no seat in the desk is refused" 'c-009 has no seat'
 run WSDOC_ARGS=list DESK_AGENT=c-002
 refused "a seat dir missing from the hub roster is refused" 'not in the hub roster'
-run WSDOC_ARGS='delete ws/agents/howto.md' DRY_RUN=0
-refused "an unknown verb is refused" "'delete' is not a wsdoc verb"
+run WSDOC_ARGS='move ws/agents/howto.md' DRY_RUN=0
+refused "an unknown verb is refused" "'move' is not a wsdoc verb"
 run WSDOC_ARGS='rename ws/agents/howto.md ws/agents/howto.en.md' DRY_RUN=0
 refused "rename is refused: no history-keeping rename on the hub" 'rename is refused'
 run WSDOC_ARGS="write ws/agents/howto.md --file $D/keys/box.key" DRY_RUN=0
@@ -126,6 +129,22 @@ refused "a DRY_RUN=0 write for a DESK_AGENT that is not the caller is refused" '
 run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md" AGENT_ID=c-999
 [[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
   pass "the dry run of a foreign write still works" || fail "foreign dry write (rc=$rc): $(cat "$T/o")"
+
+# --- 8. delete: dry run by default, DRY_RUN=0 runs, same refusals -------------------------
+run WSDOC_ARGS='delete ws/agents/howto.md'
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was deleted' "$T/o" && no_leak &&
+  pass "delete under the default DRY_RUN makes no spool call" || fail "dry delete (rc=$rc): $(cat "$T/o")"
+run WSDOC_ARGS='delete ws/agents/howto.md' DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doc-delete ws/agents/howto.md" ]] && no_leak &&
+  pass "delete with DRY_RUN=0 runs doc-delete <path>" || fail "delete (rc=$rc): $(argv) / $(cat "$T/o")"
+run WSDOC_ARGS='delete ws/agents/howto.md' AGENT_ID=c-999 DRY_RUN=0
+refused "a DRY_RUN=0 delete for a DESK_AGENT that is not the caller is refused" 'DESK_AGENT=a-177 is not you (c-999)'
+run WSDOC_ARGS='delete ws/agents/' DRY_RUN=0
+refused "a delete of a prefix (not a .md path) is refused" 'is not a workspace doc path'
+run WSDOC_ARGS='delete a.md b.md' DRY_RUN=0
+refused "delete takes one path" 'usage:'
+run WSDOC_ARGS='delete ws/agents/howto.md' WSDOC_IN="$IN/body.md" DRY_RUN=0
+refused "WSDOC_IN on a delete is refused" 'WSDOC_IN is for write only'
 
 echo "desk-wsdoc: $fails failure(s)"
 ((fails == 0))

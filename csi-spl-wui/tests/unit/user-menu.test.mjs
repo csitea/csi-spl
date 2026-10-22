@@ -148,7 +148,9 @@ describe('user menu panel is RTL-safe (spec 021 FR-004: logical properties)', ()
 })
 
 describe('a rotation never shows the CLOSED menu (the panel is v-if; clearPopover keeps display)', () => {
+  /* r18-07: clearPopover and placePanel live in useUserMenuNav.ts, the narrow watch in the SFC */
   const src = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8').split('<style')[0]
+    + readFileSync(new URL('../../src/composables/useUserMenuNav.ts', import.meta.url), 'utf8')
   it('the only bare style wipe is clearPopover, and it puts display back', () => {
     assert.equal(src.split("removeAttribute('style')").length - 1, 1)
     const fn = src.match(/function clearPopover\([^)]*\) \{([\s\S]*?)\n\}/)

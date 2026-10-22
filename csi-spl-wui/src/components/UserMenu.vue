@@ -291,11 +291,11 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
-import { avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu'
-import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover'
+import { avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabelKey, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu'
 import { AVATAR_MISS_KEY, forgetRosterRead, loadAvatarImageUrl } from '~/utils/avatar'
 import { useAuthBase } from '~/composables/useAuthClient'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useUserMenuNav } from '~/composables/useUserMenuNav'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 
 const session = useSessionStore()
@@ -351,107 +351,9 @@ const buttonLabel = computed(() => {
   return t(k.key, k.params)
 })
 
-const open = ref(false)
-const focused = ref(-1)
-const root = ref<HTMLElement | null>(null)
-const trigger = ref<HTMLButtonElement | null>(null)
-const item0 = ref<{ $el: HTMLElement } | null>(null)
-const item1 = ref<HTMLButtonElement | null>(null)
-const itemTenant = ref<{ $el: HTMLElement } | null>(null)
-const itemActAs = ref<HTMLButtonElement | null>(null)
-const itemStatus = ref<HTMLButtonElement | null>(null)
-const itemPassword = ref<{ $el: HTMLElement } | null>(null)
-const itemActAsStop = ref<HTMLButtonElement | null>(null)
-const itemPicture = ref<HTMLButtonElement | null>(null)
-const itemPictureRemove = ref<HTMLButtonElement | null>(null)
-
-function items(): HTMLElement[] {
-  return [item0.value?.$el, itemPicture.value, itemPictureRemove.value, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
-}
-
-/* drop the popover style but keep `display`. The panel is v-if now (SPL-2123),
-   so a closed one is not in the DOM; the guard stays because, under v-show,
-   wiping the whole style attribute on a rotation SHOWED the closed menu,
-   which then sat over the page and took its clicks (c-155: a card's open
-   icon opened Settings) */
-function clearPopover(panel: HTMLElement | null | undefined) {
-  if (!panel) return
-  const display = panel.style.display
-  panel.removeAttribute('style')
-  if (display) panel.style.display = display
-}
-
-function placePanel() {
-  const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
-  /* the bottom sheet is placed by CSS, not next to the button: a popover
-     style left from a desktop open must not override it */
-  if (phone()) { clearPopover(panel); return }
-  const btn = trigger.value
-  if (!panel || !btn) return
-  const r = btn.getBoundingClientRect()
-  applyPopover(panel, {
-    left: r.left,
-    right: r.right,
-    top: r.top,
-    bottom: r.bottom,
-    align: 'end',
-    gap: 6,
-  }, readViewport())
-}
-
-/* i < 0 counts from the end (-1 = the last item). The panel is v-if: its
-   items exist only after the render that opens it, so the index is resolved
-   after nextTick, never from items() of a closed menu (SPL-2123) */
-async function focusItem(i: number) {
-  focused.value = i
-  await nextTick()
-  if (i < 0) focused.value = i = Math.max(0, items().length + i)
-  placePanel()
-  focusWithoutScroll(items()[i])
-}
-
-function openAt(i: number) {
-  open.value = true
-  void focusItem(i)
-}
-
-function close(refocus: boolean) {
-  open.value = false
-  focused.value = -1
-  if (refocus) focusWithoutScroll(trigger.value)
-}
-
-function toggle() {
-  if (open.value) close(false)
-  else openAt(0)
-}
-
-function onTriggerKey(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    openAt(0)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    openAt(-1)
-  } else if (e.key === 'Escape' && open.value) {
-    e.preventDefault()
-    close(true)
-  }
-}
-
-function onMenuKey(e: KeyboardEvent) {
-  const n = items().length
-  const next = nextMenuIndex(focused.value, e.key, n)
-  if (next === -1) {
-    // Tab moves on naturally; Escape returns to the button
-    if (e.key === 'Escape') { e.preventDefault(); close(true) } else close(false)
-    return
-  }
-  if (next !== focused.value) {
-    e.preventDefault()
-    void focusItem(next)
-  }
-}
+/* r18-07: the menu button's open / focus / keys / placement; it binds
+   ref="trigger" and the item refs by name */
+const { open, root, clearPopover, close, toggle, onTriggerKey, onMenuKey } = useUserMenuNav({ phone })
 
 async function signOut() {
   close(false)

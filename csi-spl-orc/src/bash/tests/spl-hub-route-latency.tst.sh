@@ -8,7 +8,8 @@
 #   3. spl_hub_route_latency_table folds ids into one route, gives
 #      n / p50 / p95 / max / 4xx / 5xx / KB, lists websockets apart, and says
 #      so plainly on an empty or non-JSON body; a read that stopped at
-#      ROUTE_LIMIT prints TRUNCATED and the span it covers (api perf ap-00)
+#      ROUTE_LIMIT prints TRUNCATED and the span it covers (api perf ap-00);
+#      ROUTE_P99=1 adds p99_ms after p95_ms, the default keeps the columns
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -89,6 +90,16 @@ grep -qE '^ +1 GET +/v1/view/topics\?limit=40&per_topic=3 ' <<<"$qout" && pass "
 grep -qE 'channel=\{id\}&cursor=\{v\}' <<<"$qout" && pass "query mode: ids fold, long values read {v}" || fail "fold: $qout"
 grep -q '?' <<<"$(table "$QBODY" | grep view/topics)" && fail "default mode kept a query: $(table "$QBODY")" || pass "default mode: one row per path, no query"
 SNIPPET=do_spl_hub_route_latency in_orc ROUTE_QUERY=2 >"$T/o" 2>&1 && fail "ROUTE_QUERY=2: ran" || pass "ROUTE_QUERY=2: refused"
+
+# --- 5. ROUTE_P99=1 adds p99 after p95 (SPL-2866); off, the columns stay ----------
+P99BODY="[$(for _ in $(seq 1 98); do e GET /v1/view/channels 0.010 200 100 1; printf ','; done)$(e GET /v1/view/channels 9.000 200 100 2),$(e GET /v1/view/channels 9.000 200 100 3)]"
+pout=$(SNIPPET='spl_hub_route_latency_table 10' in_orc ROUTE_P99=1 <<<"$P99BODY" 2>&1)
+grep -qE '^ +n method +route +p50_ms +p95_ms +p99_ms +max_ms ' <<<"$pout" && awk '/\/v1\/view\/channels/{exit !($1==100 && $5=="10.0" && $6=="9000.0" && $7==9000)}' <<<"$pout" &&
+  pass "ROUTE_P99=1: p99_ms after p95_ms, nearest rank (n=100, two 9 s reads)" || fail "p99: $pout"
+dout=$(table "$P99BODY")
+grep -q p99_ms <<<"$dout" && fail "CONTROL: p99_ms without ROUTE_P99: $dout" || awk '/\/v1\/view\/channels/{exit !($6==9000)}' <<<"$dout" &&
+  pass "CONTROL: without ROUTE_P99 the columns are unchanged (max_ms 6th)" || fail "default columns: $dout"
+SNIPPET=do_spl_hub_route_latency in_orc ROUTE_P99=2 >"$T/o" 2>&1 && fail "ROUTE_P99=2: ran" || pass "ROUTE_P99=2: refused"
 
 grep -q 'no request log entries' <<<"$(table '[]')" && pass "empty window said plainly" || fail "empty window"
 grep -q 'no data' <<<"$(table 'not json')" && pass "non-JSON body said plainly" || fail "non-JSON"

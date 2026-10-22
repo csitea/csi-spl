@@ -17,6 +17,8 @@
 # @param ROUTE_SINCE (optional) - an RFC 3339 UTC start instead (e.g. 2026-09-27T21:00:00Z); ROUTE_HOURS then sets the window's length
 # @param ROUTE_TOP (optional) - rows printed, default 30
 # @param ROUTE_LIMIT (optional) - log entries read at most, default 50000
+# @param ROUTE_P99 (optional) - 1 adds a p99_ms column after p95_ms (SPL-2866:
+# @param   a request limit is picked from the p99); default 0 keeps the columns
 # @param ROUTE_QUERY (optional) - 1 splits each route by its query shape: the
 # @param   parameter names with their short values (ids folded, a long value
 # @param   reads {v}), e.g. ?dm=true&limit=50&per_topic=50 (CLE-77914); default 0
@@ -30,6 +32,7 @@ do_spl_hub_route_latency() {
   local query="${ROUTE_QUERY:-0}"
   spl_hub_route_latency_check_args "$hours" "$top" "$limit" "$since" || return 1
   [[ "$query" == 0 || "$query" == 1 ]] || { do_log "FATAL ROUTE_QUERY must be 0 or 1, got '$query'"; return 1; }
+  [[ "${ROUTE_P99:-0}" == 0 || "${ROUTE_P99:-0}" == 1 ]] || { do_log "FATAL ROUTE_P99 must be 0 or 1, got '$ROUTE_P99'"; return 1; }
   do_spl_cloud_cnf || return 1
   local svc
   svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
@@ -70,7 +73,7 @@ spl_hub_route_latency_check_args() {
 # says so with the span actually read (api perf ap-00).
 spl_hub_route_latency_table() {
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  SPL_ID_RX="$SPOOL_PARTICIPANT_RX" python3 -c '
+  SPL_ID_RX="$SPOOL_PARTICIPANT_RX" SPL_P99="${ROUTE_P99:-0}" python3 -c '
 import json, os, re, sys
 from urllib.parse import urlparse, parse_qsl
 top = int(sys.argv[1])
@@ -122,10 +125,14 @@ def pct(a, q):
 print("entries=%d routes=%d first=%s last=%s revisions=%s" % (len(entries), len(rows), t0, t1, ",".join(sorted(revs))))
 if limit and len(entries) >= limit:
     print("TRUNCATED: ROUTE_LIMIT=%d entries were read; the span is only %s..%s, not the whole window (raise ROUTE_LIMIT, max 200000, or narrow ROUTE_HOURS)" % (limit, t0, t1))
+p99 = os.environ.get("SPL_P99") == "1"
 hdr = "%6s %-7s %-*s %8s %8s %8s %5s %5s %8s %8s" % ("n", "method", W, "route", "p50_ms", "p95_ms", "max_ms", "4xx", "5xx", "p50_kb", "p95_kb")
+if p99:
+    hdr = hdr.replace("  p95_ms", "  p95_ms   p99_ms", 1)
 def line(k, r):
     m = r["ms"]
-    return "%6d %-7s %-*s %8.1f %8.1f %8.0f %5d %5d %8.1f %8.1f" % (len(m), k[0][:7], W, k[1][:W], pct(m, .5), pct(m, .95), max(m), r["4xx"], r["5xx"], pct(r["kb"], .5), pct(r["kb"], .95))
+    p = " %8.1f" % pct(m, .99) if p99 else ""
+    return "%6d %-7s %-*s %8.1f %8.1f%s %8.0f %5d %5d %8.1f %8.1f" % (len(m), k[0][:7], W, k[1][:W], pct(m, .5), pct(m, .95), p, max(m), r["4xx"], r["5xx"], pct(r["kb"], .5), pct(r["kb"], .95))
 ws = {k: r for k, r in rows.items() if k[1].split("?")[0].endswith("/ws")}
 rest = sorted(((k, r) for k, r in rows.items() if k not in ws), key=lambda kr: -sum(kr[1]["ms"]))
 print(); print("--- routes by total server time (top %d)" % top); print(hdr)

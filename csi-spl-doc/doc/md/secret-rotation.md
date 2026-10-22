@@ -163,7 +163,8 @@ still valid. After step 5 the old key is gone: mint again.
 ### 5.2 Per-box GitHub token (row 3)
 
 `do_gh_box_token_put` and `do_gh_box_token_check` (csi-spl-iac, SPL-2897,
-`src/bash/run/gh-box-token.func.sh`) put and prove one fine-grained token per
+`src/bash/run/gh-box-token-put.func.sh` and `gh-box-token-check.func.sh`, one
+action per file as `./run` requires) put and prove one fine-grained token per
 box. Every reader on a box takes the token from the box user's
 `$HOME/.github/token` (the git credential helper, the crons' `GH_TOKEN`, the
 box playbooks) or from gh's stored login; put writes both, check proves both,

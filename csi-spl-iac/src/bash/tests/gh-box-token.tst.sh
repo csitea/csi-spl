@@ -20,15 +20,20 @@
 #  10. DRY_RUN=2 -> refused before any gh call
 #  11. CONTROL: a put that logs the token is caught by the leak check
 #  12. check with no token file still reports gh's stored login, exit 1
+#  13. both actions are reachable through ./run (one action per file: run.sh
+#      registers only do_<file name>); CONTROL: an action name with no file
+#      of its own is "NOT found" through the same probe
 # gh is a stub. No network, no GitHub.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
-ACTION="$PROJ_ROOT/src/bash/run/gh-box-token.func.sh"
+ACTION="$PROJ_ROOT/src/bash/run/gh-box-token-put.func.sh"
+CHECK_ACTION="$PROJ_ROOT/src/bash/run/gh-box-token-check.func.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 require_action "$ACTION"
+require_action "$CHECK_ACTION"
 
 # built from pieces and short, so no secret scanner sees a token shape here
 FG="github""_pat_""FAKEFGNEW0001"
@@ -62,14 +67,14 @@ act_file() {
   printf '%s\n' "$in" | env -u DRY_RUN -u GH_TOKEN -u GITHUB_TOKEN -u GH_BOX_TOKEN_DROP_PREV \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/gh.log" STUB_GH_LOGIN="$T/gh-login" \
     STUB_GOOD="$FG $FG2 $CL" GH_BOX_TOKEN_REPO=example-org/example-repo \
-    ACTION_FILE="$file" FUNC="$func" "${envs[@]}" bash -c '
+    ACTION_FILE="$file" CHECK_FILE="$CHECK_ACTION" FUNC="$func" "${envs[@]}" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }; do_require_bin() { :; }
-    source "$ACTION_FILE"
+    source "$CHECK_FILE"; source "$ACTION_FILE"
     "$FUNC" "$@"' _ "${argv[@]}" >"$T/out" 2>&1
 }
 put() { local in="$1"; shift; act_file "$ACTION" do_gh_box_token_put "$in" "$@"; }
-check() { act_file "$ACTION" do_gh_box_token_check ""; }
+check() { act_file "$CHECK_ACTION" do_gh_box_token_check ""; }
 tokfile="$T/home/.github/token"
 set_file() { (umask 077; printf '%s\n' "$1" >"$tokfile"); }
 reset() { rm -f "$tokfile" "$tokfile.prev" "$T/gh-login"; set_file "$CL"; (umask 077; printf '%s\n' "$CL" >"$T/gh-login"); }
@@ -145,6 +150,23 @@ else reset; act_file "$T/leaky.func.sh" do_gh_box_token_put "$FG"; ! no_leak "$F
 reset; rm -f "$tokfile"; check; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'FAIL no readable token file' "$T/out" && grep -q 'gh stored login: type=classic same-as-file=no' "$T/out" && no_leak "$CL" \
   && pass "12. no token file -> FAIL, and gh's stored login is still reported" || fail "12. rc=$rc $(cat "$T/out")"
+
+# --- 13. reachable through ./run --------------------------------------------------------------------------------------
+# via_run <action> <stdin> -> rc; output in $T/out. The real ./run, the stub gh, a throwaway HOME.
+via_run() {
+  printf '%s\n' "$2" | (cd "$PROJ_ROOT" && env -u DRY_RUN -u GH_TOKEN -u GITHUB_TOKEN -u GH_BOX_TOKEN_DROP_PREV \
+    HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/gh.log" STUB_GH_LOGIN="$T/gh-login" \
+    STUB_GOOD="$FG $FG2 $CL" GH_BOX_TOKEN_REPO=example-org/example-repo ./run -a "$1") >"$T/out" 2>&1
+}
+reset; via_run do_gh_box_token_check ""; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q 'NOT found' "$T/out" && grep -q 'login=box-bot type=classic' "$T/out" && no_leak "$CL" \
+  && pass "13. ./run -a do_gh_box_token_check runs the action" || fail "13. rc=$rc $(tail -5 "$T/out")"
+reset; via_run do_gh_box_token_put "$FG"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'NOT found' "$T/out" && grep -q 'OK DRY_RUN the token is fine-grained and answers as box-bot' "$T/out" && same "$tokfile" "$CL" && no_leak "$FG" \
+  && pass "13. ./run -a do_gh_box_token_put runs the action (dry run)" || fail "13. rc=$rc $(tail -5 "$T/out")"
+via_run do_gh_box_token ""; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'NOT found' "$T/out" \
+  && pass "13. CONTROL: ./run -a do_gh_box_token (no file of its own) -> NOT found" || fail "13. CONTROL rc=$rc $(tail -5 "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

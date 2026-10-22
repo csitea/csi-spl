@@ -64,7 +64,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
 import type { UiIconName } from '~/utils/uiIcons'
-import { createTreeDrag, dropWhere, siblingAt } from '~/utils/tree-drag'
+import { siblingAt } from '~/utils/tree-drag'
+import { useFileTreeDrag } from '~/composables/useFileTreeDrag'
 
 export type FileTreeRow = {
   key: string
@@ -136,85 +137,20 @@ function onContext(i: number, e: MouseEvent) {
   openMenu(i, e.clientX, e.clientY)
 }
 
-/* a phone has no right-click: a held touch opens the row's menu (touch-ui's
-   timing); a drag row then lifts when the finger moves (tree-drag.ts) */
-let pressAt = -1
-let pressPointer = -1
-const dragKey = ref('')
-const dropAt = ref<{ key: string, where: FileTreeDrop } | null>(null)
-
-function canDrop(target: string, where: FileTreeDrop): boolean {
-  const t = props.rows.find((r) => r.key === target)
-  if (!t || target === dragKey.value || (where === 'into' && !t.into)) return false
-  return props.canDrop ? props.canDrop(dragKey.value, target, where) : where !== 'into'
-}
-
-/** the row under the pointer and the place on it */
-function track(x: number, y: number) {
-  const el = document.elementFromPoint(x, y)?.closest('[data-test=file-tree-row]')
-  const key = el instanceof HTMLElement ? el.dataset.key || '' : ''
-  if (!key || !el || els.get(key) !== el) {
-    dropAt.value = null
-    return
-  }
-  const where = dropWhere(y, el.getBoundingClientRect(), { before: canDrop(key, 'before'), after: canDrop(key, 'after'), into: canDrop(key, 'into') })
-  dropAt.value = where ? { key, where } : null
-}
-
-function endDrag() {
-  dragKey.value = ''
-  dropAt.value = null
-  window.removeEventListener('keydown', onEscape, true)
-}
-
-function onEscape(e: KeyboardEvent) {
-  if (e.key !== 'Escape') return
-  e.preventDefault()
-  e.stopPropagation()
-  gesture.cancel()
-}
-
-const gesture = createTreeDrag({
-  onHold: (x, y) => openMenu(pressAt, x, y),
-  onStart: () => {
-    const row = props.rows[pressAt]
-    if (!row) return
-    dragKey.value = row.key
-    focusKey.value = row.key
-    try { els.get(row.key)?.setPointerCapture(pressPointer) } catch { /* the pointer is gone */ }
-    window.addEventListener('keydown', onEscape, true)
-    emit('lift', row.key)
-  },
-  onMove: track,
-  onDrop: (x, y) => {
-    track(x, y)
-    const key = dragKey.value
-    const at = dropAt.value
-    endDrag()
-    if (key && at) emit('move', key, at.key, at.where)
-  },
-  onCancel: endDrag,
+/* the SPL-1873 long-press menu and drag re-order */
+const { dragKey, dropAt, gesture, press, onTouchMove, onRowClick, dispose } = useFileTreeDrag({
+  rows: () => props.rows,
+  canDrop: () => props.canDrop,
+  els,
+  focusKey,
+  openMenu,
+  select,
+  emit,
 })
-function press(i: number, e: PointerEvent) {
-  pressAt = i
-  pressPointer = e.pointerId
-  gesture.down(e, Boolean(props.rows[i]?.drag))
-}
-/* a held finger drags: the list under it does not scroll */
-function onTouchMove(e: TouchEvent) {
-  if (gesture.holding && e.cancelable) e.preventDefault()
-}
 onBeforeUnmount(() => {
-  gesture.cancel()
-  endDrag()
+  dispose()
   clearTimeout(refocusTimer)
 })
-
-/* the click a finger sends as it lifts from a long press, or a drag's release, does not also select */
-function onRowClick(i: number) {
-  if (gesture.takeClick()) return
-  select(i)
-}
 
 /** Alt+Up / Alt+Down: before the previous sibling, after the next one */
 function nudge(i: number, dir: -1 | 1) {

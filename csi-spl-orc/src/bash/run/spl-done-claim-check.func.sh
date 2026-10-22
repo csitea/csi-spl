@@ -52,9 +52,16 @@
 # @description     $SPOOL_ROOT/workdirs.tsv (agent, branch); SPL-2838: a lane
 # @description     whose worktree is a detached HEAD (an R7 reviewer on the
 # @description     reviewed sha) or whose retired row has no branch takes its
-# @description     spawn's local branch <id>-<slug> instead; every slug found
-# @description     for the id must mark it, and a lane with none is judged
-# @description     as before
+# @description     spawn's local branch <id>-<slug> instead; SPL-2916: ids are
+# @description     recycled, so only the id's LATEST slug counts: its live
+# @description     worktrees' branches (each must mark it), else for a live
+# @description     detached worktree its newest local <id>-<slug> branch (tip
+# @description     commit date), else its newest retired row (finished_at); a
+# @description     lane with none is judged as before
+# @description   - SPL-2916: a result whose first line is an R7 review line
+# @description     (`review: <id>[@<box>] [<vendor>] PASS|FAIL ...`, the format
+# @description     do_spl_review_line_check reads) is verdict seat: it names the
+# @description     reviewed branch sha, never a landing
 # @description   - a sha on no trunk but on a remote branch origin/<id>-...,
 # @description     origin/review/<id>-... or origin/wip/<id>-... of a lane
 # @description     still in this box's registry.tsv is verdict pending: no
@@ -110,7 +117,7 @@ do_spl_done_claim_check() {
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
     bad=""
-    if grep -qxF -- "${from%@*}" "$tmp/seats"; then
+    if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
     elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
@@ -339,40 +346,56 @@ spl_done_claim_rewrite() {
   [[ "$(grep -c . <<<"$(sort -u <<<"$hits")")" == 1 ]]
 }
 
-# spl_done_claim_seats <root> <repos file>: the lane ids whose every known
-# slug marks a seat, reviewer or plan lane (SPL-2313): its last word, once a
+# spl_done_claim_r7 <body>: true when the first non-blank line of <body> (lines
+# split on \x1f) is an R7 review line, `review: <id>[@<box>] [<vendor>]
+# PASS|FAIL ...` (SPL-2916, m-120's f6471a6c): a review, never a done-claim.
+spl_done_claim_r7() {
+  local first rx='^[[:space:]>*_`-]*review: [cmagq]-[0-9]{3,}(@[A-Za-z0-9._-]+)?( [a-z]+)? (PASS|FAIL)([[:space:]]|$)'
+  first="$(awk 'NF { print; exit }' <<<"${1//$'\037'/$'\n'}")"
+  [[ "$first" =~ $rx ]]
+}
+
+# spl_done_claim_seats <root> <repos file>: the lane ids whose LATEST slug
+# marks a seat, reviewer or plan lane (SPL-2313): its last word, once a
 # trailing vendor, "takeover" or spl key is cut, is seat[N], review[er] or
 # plan[ner] (a-321-c002-radar-r7-reviewer-agy yes, m-341-c002-done-claim-skip-
-# seat-lanes no; measured on 241 slugs of both boxes, 10-17). The slugs: each repo's
-# worktree branches <id>-<slug>, and the worktree rows of <root>/workdirs.tsv
-# (agent, branch) the retire writes. An id with one code slug is not listed.
+# seat-lanes no; measured on 241 slugs of both boxes, 10-17). Ids are recycled
+# (SPL-2916: m-120 of the other box, a reviewer, alerted on an older code slug of its id), so
+# the slug is the latest one: the branches of the id's live worktrees <id>-<slug>
+# (every one must mark it); else, its live worktree detached, its newest local
+# branch <id>-<slug> by tip commit date (a spawn branches off the trunk of its
+# day); else its newest worktree row of <root>/workdirs.tsv (agent, branch,
+# finished_at; an empty branch reads the newest local branch). An id whose
+# latest slug is a code slug, or that has none, is not listed.
 spl_done_claim_seats() {
   local top ref
   {
     while read -r top ref; do
       git -C "$top" worktree list --porcelain 2>/dev/null | awk '
         /^worktree / { n = split($2, p, "/"); id = p[n] }
-        /^branch refs\/heads\/[cmagq]-[0-9]+-/ { b = substr($2, 12); match(b, /^[cmagq]-[0-9]+/); print substr(b, 1, RLENGTH) "\t" b "\tw" }
-        /^detached$/ && id ~ /^[cmagq]-[0-9]+$/ { print id "\t\td" }'
-      git -C "$top" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null | sed -nE 's#^(([cmagq]-[0-9]+)-.+)$#\2\t\1\tb#p'
+        /^branch refs\/heads\/[cmagq]-[0-9]+-/ { b = substr($2, 12); match(b, /^[cmagq]-[0-9]+/); print "L\t" substr(b, 1, RLENGTH) "\t" b }
+        /^detached$/ && id ~ /^[cmagq]-[0-9]+$/ { print "D\t" id "\t" }'
+      git -C "$top" for-each-ref --format='%(committerdate:unix) %(refname:short)' refs/heads/ 2>/dev/null |
+        sed -nE 's#^([0-9]+) (([cmagq]-[0-9]+)-.+)$#B\t\3\t\2\t\1#p'
     done <"$2"
     [[ -f "$1/workdirs.tsv" ]] &&
-      awk -F'\t' '!/^#/ && $2 == "worktree" && $3 ~ /^[cmagq]-[0-9]+$/ { print $3 "\t" $5 "\t" ($5 == "" ? "d" : "w") }' "$1/workdirs.tsv"
+      awk -F'\t' '!/^#/ && $2 == "worktree" && $3 ~ /^[cmagq]-[0-9]+$/ { print "R\t" $3 "\t" $5 "\t" $6 }' "$1/workdirs.tsv"
   } | awk -F'\t' '
     function seat(s) {
       while (sub(/-(claude|agy|mistral|grok|qwen|takeover|spl-?[0-9]+)$/, "", s)) ;
       return s ~ /-(seat[0-9]*|review|reviewer|plan|planner)$/
     }
-    $3 == "b" { br[$1] = br[$1] " " $2; next }
-    $3 == "d" { det[$1] = 1; next }
-    { seen[$1] = 1; if (!seat($2)) code[$1] = 1 }
+    $1 == "L" { live[$2] = 1; if (!seat($3)) code[$2] = 1; next }
+    $1 == "D" { det[$2] = 1; next }
+    $1 == "B" { if (!($2 in bt) || $4 + 0 >= bt[$2]) { bt[$2] = $4 + 0; bb[$2] = $3 }; next }
+    $1 == "R" { if (!($2 in rt) || ($4 "") >= rt[$2]) { rt[$2] = $4 ""; rb[$2] = $3 }; next }
     END {
-      for (id in br) if (id in det && !(id in seen)) {
-        seen[id] = 1; n = split(br[id], b, " ")
-        for (i = 1; i <= n; i++) if (!seat(b[i])) code[id] = 1
+      for (id in live) if (!(id in code)) print id
+      for (id in det) if (!(id in live) && (id in bb) && seat(bb[id])) print id
+      for (id in rt) if (!(id in live) && !(id in det)) {
+        s = (rb[id] != "" ? rb[id] : bb[id]); if (s != "" && seat(s)) print id
       }
-      for (id in seen) if (!(id in code)) print id
-    }' | sort
+    }' | sort -u
 }
 
 # spl_done_claim_unparked <repos file> <live ids file> <shas>: the shas NOT on

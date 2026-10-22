@@ -345,4 +345,48 @@ v="$(for k in detrev detcode retrev nobranch; do printf '%s=%s ' "$k" "$(verdict
   pass "14. a detached-HEAD lane keeps the slug of its spawn branch: a live or retired reviewer is seat; a code slug or no branch at all still alerts" ||
   fail "14. detached reviewer (rc $rc) got '$v': $(cat "$T/o")"
 
+
+# 15. SPL-2916 (the other box's m-120, results f6471a6c, 6e992de7, d0a3f930, synthetic): an
+# R7 reviewer whose id was used before by a code lane. Its body starts with the
+# R7 line (`review: <id>@<box> <vendor> PASS <sha> ...`) naming the reviewed
+# branch sha, by design not on trunk. The seat decision reads the id's LATEST
+# slug: a live worktree's branch; for a detached live worktree the newest local
+# <id>-<slug> branch; with no live worktree the newest retired workdirs row.
+SP="$T/spool15"
+mkdir -p "$SP"
+rg spl fetch -q origin
+OLD=$((NOW - 86400))
+UNL=$(rg spl commit-tree -p origin/master -m "the reviewed branch, never on trunk" "origin/master^{tree}")
+for b in m-790-c002-fix-code m-791-c002-fix-code m-792-c002-fix-code m-794-c002-r7-reviewer; do
+  rg spl branch -q "$b" "$(GIT_COMMITTER_DATE="@$OLD" rg spl commit-tree -p origin/master -m "old $b" "origin/master^{tree}")"
+done
+rg spl worktree add -q -b m-790-c001-bug-round-3-mistral-r7-reviewer "$T/wt/m-790" origin/master 2>/dev/null
+rg spl worktree add -q -b m-791-c001-bug-round-3-mistral-r7-reviewer "$T/wt/m-791" origin/master 2>/dev/null
+git -C "$T/wt/m-791" checkout -q --detach "$UNL"
+rg spl worktree add -q -b m-794-c002-fix-later "$T/wt/m-794" origin/master 2>/dev/null
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n%s\n%s\n%s\n' \
+  "$T/wt/m-790	worktree	m-790	box-a	m-790-c002-fix-code	$(iso "$OLD")" \
+  "$T/wt/m-792	worktree	m-792	box-a	m-792-c002-fix-code	$(iso "$OLD")" \
+  "$T/wt/m-792	worktree	m-792	box-a	m-792-c001-bug-round-3-mistral-r7-reviewer	$(iso $((NOW - 600)))" \
+  "$T/wt/m-793	worktree	m-793	box-a	m-793-c001-old-r7-reviewer	$(iso "$OLD")" \
+  "$T/wt/m-793	worktree	m-793	box-a	m-793-c002-fix-code	$(iso $((NOW - 600)))" >"$SP/workdirs.tsv"
+R7="ran: bash x.tst.sh | read: 3 PASS | log: m-790@box-a:/path/journal.jsonl"
+msg c-002/archive r7live m-790 c-002 30 "review: m-790@box-a mistral PASS $UNL $R7"
+msg c-002/archive r7nosha m-790 c-002 30 "sent back, nothing to land"
+msg c-002/archive r7det m-791 c-002 30 "done $UNL"
+msg c-002/archive r7ret m-792 c-002 30 "review of $UNL: PASS"
+msg c-002/archive r7line c-795 c-002 30 "review: c-795@box-a claude FAIL $UNL $R7"
+msg c-002/archive codenew m-793 c-002 30 "done $UNL"
+msg c-002/archive codelive m-794 c-002 30 "done $UNL"
+msg c-002/archive r7later c-796 c-002 30 "landed $UNL
+review: c-796@box-a claude PASS $UNL $R7"
+[[ "$(rg spl log -1 --format=%ct m-791-c002-fix-code)" -lt "$(rg spl log -1 --format=%ct m-791-c001-bug-round-3-mistral-r7-reviewer)" ]] &&
+  ! rg spl merge-base --is-ancestor "$UNL" origin/master &&
+  pass "15. control: the reviewed sha is on no trunk; the recycled ids' old code branches are older than their reviewer branches" || fail "15. control: fixture dates"
+run DONE_CLAIM_STATE_DIR="$T/st15"; rc=$?
+v="$(for k in r7live r7nosha r7det r7ret r7line codenew codelive r7later; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "r7live=seat r7nosha=seat r7det=seat r7ret=seat r7line=seat codenew=would-alert codelive=would-alert r7later=would-alert " ] &&
+  pass "15. SPL-2916: a recycled id is judged by its latest slug (a live reviewer worktree, on a branch or detached, or the newest retired reviewer row beats an older code slug: seat, sha or not); a body whose first line is an R7 review line is seat whatever the slug; a newest code slug, a live code worktree over an older reviewer branch, and an R7 line below a landing claim still alert" ||
+  fail "15. recycled reviewer id / R7 line (rc $rc) got '$v': $(cat "$T/o")"
+
 exit "$fails"

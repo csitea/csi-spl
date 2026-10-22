@@ -63,7 +63,8 @@ clone must not turn every sha into an alert.
 
 Those lanes never push code, so a note for them is noise (c-928's 24 h dry
 run on the main box: a-586, a-592, a-738 among the 12 alerts). Both rules read only
-metadata the fleet writes itself, never the message body (t1 37349c9b):
+metadata the fleet writes itself, never the message body (t1 37349c9b); the
+one exception is the R7 review line of rule 1 (SPL-2916):
 
 1. **Verdict `seat`** (ledger, no note) when the lane's slug marks it: its
    LAST word, once a trailing vendor (`claude`, `agy`, `mistral`, `grok`,
@@ -89,9 +90,24 @@ metadata the fleet writes itself, never the message body (t1 37349c9b):
      b987fe29) lists no branch, and its retired row has an empty branch.
      For such a lane only, the spawn's own local branch `refs/heads/<id>-...`
      of each repo is its slug.
-   Every slug found for the id must mark it (one code slug, as from an old
-   lane of a recycled id, and it is judged as before); a lane with no slug
-   is judged as before. No list of ids is kept anywhere.
+   SPL-2916: ids are recycled, so only the id's LATEST slug counts (the
+   rule before, "every slug found must mark it", let an old code lane of the
+   same id turn the R7 reviewer m-120 of the other box into 3 alerts on 10-22: f6471a6c,
+   6e992de7, d0a3f930). In order: the branches of the id's live worktrees
+   (every one must mark it); else, its live worktree detached, its newest
+   local `<id>-...` branch by tip commit date (a spawn branches off the
+   trunk of its day); else its newest `workdirs.tsv` row by `finished_at`
+   (an empty branch reads the newest local branch). A lane with no slug is
+   judged as before. No list of ids is kept anywhere.
+
+   SPL-2916: a result whose first non-blank line is an R7 review line,
+   `review: <id>[@<box>] [<vendor>] PASS|FAIL ...` (the format
+   `do_spl_review_line_check` reads), is also `seat`, whatever the slug: it
+   names the reviewed branch sha, never a landing. A rotated reviewer seat
+   carries the slug `<id>-rotate`, which marks nothing; on sat's 24 h dry run
+   (10-22, empty ledger) this rule moved 9 results of m-766, m-767 and m-776
+   from `landed` to `seat` (114 landed, 10 seat, 17 alerts before; 105, 19,
+   17 after). An R7 line below a landing claim is no exception.
 2. **Verdict `pending`** (no note, no ledger, judged again on the next run)
    when every missing sha is on a remote branch `origin/<id>-...`,
    `origin/review/<id>-...` or `origin/wip/<id>-...` (`git branch -r
@@ -140,7 +156,10 @@ code slug and no slug alert; a sha on a live lane's `review/` branch is
 `pending` and alerts once the lane leaves the registry; a gone lane's `wip/`
 sha alerts. SPL-2838: a detached-HEAD reviewer, live or retired with an
 empty branch, is `seat` by its spawn branch; a detached code lane and a
-detached one with no branch alert. SPL-2327: a no-object sha is `rewritten` with one trunk commit
+detached one with no branch alert. SPL-2916: a recycled id is judged by its
+latest slug (a live reviewer worktree, on a branch or detached, or the newest
+retired reviewer row beats an older code slug), a first-line R7 review line
+is `seat` from a lane with no slug, and a newest code slug still alerts. SPL-2327: a no-object sha is `rewritten` with one trunk commit
 of its key after the spawn, alerts with none, with two, with one older than
 48 h or older than the lane's spawn. SPL-2332: md5 tokens are no shas.
 SPL-2338: a landed sha on the sha line plus a quoted unknown sha on another

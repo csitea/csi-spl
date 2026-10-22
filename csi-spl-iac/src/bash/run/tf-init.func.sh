@@ -71,7 +71,28 @@ tf_init_export_vars() {
   local key_project
   key_project=$(jq -r --arg s "$STEP" '.env.steps[$s].tf_key_project // empty' "$ENV_CONF_JSON_FLE" 2>/dev/null)
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json"
-  export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
+  # One plugin cache for every env + step (SPL-2821): keyed per env + step it
+  # never shared, and one env-order sweep landed the same two providers 59
+  # times (6.0 GB in the tf-runner on sat, 2026-10-22). The old per-step dirs
+  # go with do_remove_tf_plugin_cache_per_step.
+  export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+}
+
+# terraform: `init` runs under an flock beside the plugin cache, every other
+# subcommand straight through. Terraform does not make the cache safe for two
+# concurrent `init` writers, and two DIFFERENT steps may init at once (the
+# prd order gate plans dev inside a prd run, two operators, two steps); the
+# lock costs the length of an init whose providers are already cached.
+# Defined here so every caller of do_tf_init (tf-apply, tf-plan, ...) gets it.
+# TF_INIT_LOCK_WAIT (optional) - seconds to wait for the lock, default 1800.
+terraform() {
+  local a sub=""
+  for a in "$@"; do [[ "$a" == -* ]] || { sub="$a"; break; }; done
+  if [[ "$sub" == init && -n "${TF_PLUGIN_CACHE_DIR:-}" ]]; then
+    flock -w "${TF_INIT_LOCK_WAIT:-1800}" "${TF_PLUGIN_CACHE_DIR%/}.lock" terraform "$@"
+  else
+    command terraform "$@"
+  fi
 }
 
 # tf_init_switch_terraform: the plugin cache dir, then the pinned terraform

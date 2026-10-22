@@ -16,6 +16,8 @@
 #      call carries --account; the soft-deleted count is reported
 #   4. DRY_RUN=0: rm gets exactly the listed <url>#<gen>, the re-list is
 #      empty, after: 0; a generation still there after the rm is a FATAL
+#   6. the soft-deleted count: --soft-deleted without --all-versions (gcloud
+#      warns into the listing on both); 1 per prefix -> 2
 #   5. a listing gcloud refuses is a FATAL and deletes nothing; no match is
 #      an empty listing (counts 0, no rm)
 #------------------------------------------------------------------------------
@@ -70,7 +72,11 @@ run_case() {
       case "$1 $2" in
         "storage ls")
           [[ "${LS:-}" == denied ]] && { echo "ERROR: 403 permission denied"; return 1; }
-          [[ " $* " == *" --soft-deleted "* ]] && { echo "ERROR: (gcloud.storage.ls) One or more URLs matched no objects."; return 1; }
+          if [[ " $* " == *" --soft-deleted "* ]]; then
+            [[ " $* " == *" --all-versions "* ]] && echo "WARNING: The --all-versions flag has no effect when used with the --soft-deleted flag."
+            [[ "${SOFT:-}" == 2 ]] && { echo "${url%\*\*}x.md#9"; return 0; }
+            echo "ERROR: (gcloud.storage.ls) One or more URLs matched no objects."; return 1
+          fi
           local pre="${url%\*\*}" hit
           hit=$(grep -F "$pre" "$TD/objects" | while IFS= read -r l; do [[ "$l" == "$pre"* ]] && echo "$l"; done)
           [[ -n "$hit" ]] || { echo "ERROR: (gcloud.storage.ls) One or more URLs matched no objects."; return 1; }
@@ -149,6 +155,12 @@ run_case DRY_RUN=0 LS=denied
 run_case DRY_RUN=0 WSDOC_PREFIX=none/
 [[ "$rc" == 0 ]] && grep -qxF "INFO before: docs=0 history_objects=0 generations=0" "$T/o" && ! grep -q 'storage rm' "$T/calls" &&
   pass "no match is an empty listing: counts 0, no rm" || fail "no match (rc=$rc): $(cat "$T/o")"
+
+# --- 6. soft-deleted count -----------------------------------------------------------------
+run_case SOFT=2
+[[ "$rc" == 0 ]] && grep -q 'soft-deleted generations .*: 2$' "$T/o" &&
+  ! grep -q -- '--all-versions --soft-deleted' "$T/calls" && ! grep -q -- '--soft-deleted.*--all-versions' "$T/calls" &&
+  pass "soft-deleted generations are counted (2), listed without --all-versions" || fail "soft (rc=$rc): $(grep soft "$T/o") / $(grep soft "$T/calls")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

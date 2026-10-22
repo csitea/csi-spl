@@ -20,7 +20,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @description those generations and lists again; any left is a FATAL.
 # @description Soft-deleted objects (052 keeps them soft_delete_retention_seconds)
 # @description are counted and reported, never touched: they are not readable
-# @description through the hub and expire on their own.
+# @description through the hub and expire on their own (a purge leaves every
+# @description generation it deleted soft-deleted for that retention).
 # @description Object names (paths) are printed, never an object's content.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the workspace slug, one of 052's workspaces
@@ -94,9 +95,12 @@ do_gcp_purge_wsdoc_prefix() {
 # list or a line is not such a URL; no match is an empty listing.
 _gcp_purge_wsdoc_list() {
   local bucket="$1" prefix="$2" acct="$3" extra=("${@:4}") p out rc u name gen
+  # --soft-deleted lists every soft-deleted version itself; with
+  # --all-versions as well gcloud prints a WARNING line into the listing.
+  [[ " ${extra[*]} " == *" --soft-deleted "* ]] || extra=(--all-versions "${extra[@]}")
   for p in "$prefix" ".history/$prefix"; do
     rc=0
-    out=$(gcloud storage ls --all-versions "${extra[@]}" "$bucket/$p**" --project="$PROJ_ID" "$acct" 2>&1) || rc=$?
+    out=$(gcloud storage ls "${extra[@]}" "$bucket/$p**" --project="$PROJ_ID" "$acct" 2>&1) || rc=$?
     if ((rc != 0)); then
       grep -qi 'matched no objects' <<<"$out" && continue
       do_log "FATAL cannot list $bucket/$p (rc=$rc): $out" >&2

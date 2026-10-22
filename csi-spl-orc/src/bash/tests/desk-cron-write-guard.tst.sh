@@ -46,7 +46,8 @@ act() {
   local root="$1" snip="$2"; shift 2
   rc=0
   env -u QTO_CHECK -u QTO_DOC -u QTO_MAP -u DRY_RUN -u I18N_MASK_OUT -u I18N_UNMASK_DST \
-    PROJ_PATH="$root/csi-spl-orc" APP_PATH="$root" CALLS="$T/calls" GUARD="$GUARD" RUN="$RUN" SNIP="$snip" "$@" bash -c '
+    PROJ_PATH="$root/csi-spl-orc" APP_PATH="$root" TENANT_ID=t1 QTO_TENANT_CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" \
+    CALLS="$T/calls" GUARD="$GUARD" RUN="$RUN" SNIP="$snip" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }

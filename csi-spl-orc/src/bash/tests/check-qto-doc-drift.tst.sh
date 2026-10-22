@@ -105,7 +105,7 @@ mk_export_tree() {
 # run_export <env...>: the export action in a subshell with the stubbed hub;
 # CALLS gets "<fs> <verb> <doc>" per hub call.
 run_export() {
-  env "$@" APP_PATH="$E" PROJ_PATH="$PROJ_ROOT" HUB="$HUB" CALLS="$T/calls" bash -c '
+  env TENANT_ID=t1 "$@" APP_PATH="$E" PROJ_PATH="$PROJ_ROOT" HUB="$HUB" CALLS="$T/calls" bash -c '
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
     do_spl_desk_doctree() {

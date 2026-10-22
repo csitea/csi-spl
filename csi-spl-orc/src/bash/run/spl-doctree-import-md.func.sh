@@ -30,7 +30,8 @@
 # @description Every hub call goes through do_spl_desk_doctree (no key path).
 # @description Dry run unless DRY_RUN=0: prints the sections it would write.
 # @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace, e.g. t1
+# @param TENANT_ID - required: the workspace, e.g. t1; refused (before any
+# @param   hub call, in a dry run too) unless cnf docs.repo_export_tenants lists it
 # @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
 # @param MD_PATH - required: the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md or README.md
 # @param QTO_FS (optional) - the tree: workspace (default) or repo, the
@@ -47,6 +48,7 @@ do_spl_doctree_import_md() {
   local rel="${MD_PATH:-}" map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" tmp plan rc=0
   _spl_doctree_md_path "$rel" || return 1
   _spl_doctree_fs "${QTO_FS:-}" || return 1
+  _spl_doctree_tenant_allowed do_spl_doctree_import_md || return 1
   [[ -r "$APP_PATH/$rel" ]] || { do_log "FATAL no such md page: $rel"; return 1; }
   if [[ -r "$map" ]] && cut -f2 "$map" | grep -xF -- "$rel" >/dev/null; then
     do_log "FATAL $rel is already a qto doc export (a row in $map): edit the qto doc, then do_spl_doctree_export_md"

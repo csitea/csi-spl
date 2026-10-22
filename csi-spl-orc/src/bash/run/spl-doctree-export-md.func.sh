@@ -25,7 +25,10 @@
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).
 # @param ENV - required: dev or prd (the hub the qto docs live on; t1's are prd)
-# @param TENANT_ID - required: the workspace, e.g. t1
+# @param TENANT_ID - required: the workspace, e.g. t1; refused unless cnf
+# @param   docs.repo_export_tenants lists it (the workspaces the owner allows
+# @param   into the PUBLIC repository, spec 114 section 9.4.2), in compare mode too
+# @param QTO_TENANT_CNF (optional) - default <repo>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
 # @param QTO_DOC (optional) - export this doc id only; default every map row
 # @param QTO_MAP (optional) - default <repo>/csi-spl-doc/doc/md/qto-docs.tsv
@@ -40,6 +43,7 @@ do_spl_doctree_export_md() {
   do_require_bin python3 || return 1
   local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel fs n=0 drift=0 rc
   [[ -r "$map" ]] || { do_log "FATAL no qto doc map: $map"; return 1; }
+  _spl_doctree_tenant_allowed do_spl_doctree_export_md || return 1
   [[ "${QTO_CHECK:-0}" == 1 ]] || spl_refuse_desk_cron_tree do_spl_doctree_export_md || return 1
   while IFS=$'\t' read -r doc rel fs; do
     [[ -n "$doc" && "$doc" != \#* ]] || continue
@@ -107,6 +111,19 @@ _spl_doctree_export_assets() {
     fi
     do_log "OK $(dirname "$rel")/$path $how (qto doc $doc)"
   done <<<"$paths"
+}
+
+# _spl_doctree_tenant_allowed <action>: 0 when TENANT_ID is in cnf
+# docs.repo_export_tenants (spec 114 section 9.4.2, SPL-2950): a workspace's
+# docs reach the PUBLIC repository only when the owner listed it. No list, an
+# unreadable cnf or an empty TENANT_ID is a refusal, never a pass.
+_spl_doctree_tenant_allowed() {
+  local cnf="${QTO_TENANT_CNF:-$PROJ_PATH/../csi-spl-cnf/csi-spl/all.env.yaml}" list
+  list="$(yq -r '.env.docs.repo_export_tenants // [] | .[]' "$cnf" 2>/dev/null)" ||
+    { do_log "FATAL $1: cnf docs.repo_export_tenants is not readable in $cnf"; return 1; }
+  [[ -n "${TENANT_ID:-}" ]] && grep -qxF -- "$TENANT_ID" <<<"$list" && return 0
+  do_log "FATAL $1 refuses workspace '${TENANT_ID:-}': not in cnf docs.repo_export_tenants ($(tr '\n' ' ' <<<"$list" | sed 's/ $//')); its docs never go to the public repository"
+  return 1
 }
 
 # _spl_doctree_call <doctree args> [DOCTREE_IN]: one do_spl_desk_doctree verb

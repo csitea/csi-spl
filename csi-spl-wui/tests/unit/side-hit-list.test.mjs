@@ -72,7 +72,10 @@ describe('an open from the list keeps the keyboard on the list (CLE-001, wf11 fl
     assert.match(src, /pointerType !== 'touch'\) keepFocus\(\)/)
   })
   it('the hand-back is bounded and yields to the reader', () => {
-    assert.match(src, /const KEEP_MS = 2000/)
+    assert.match(src, /const KEEP_MS = 8000/)
+    /* SPL-2904: the keep ends shortly after the opened line's own focus is handed back */
+    assert.match(src, /const KEEP_AFTER_LINE_MS = 600/)
+    assert.match(src, /a\.matches\('\[data-msg-id\]'\)\) until = Math\.min\(until, Date\.now\(\) \+ KEEP_AFTER_LINE_MS\)/)
     assert.match(src, /addEventListener\('pointerdown', onPress, true\)/)
     assert.match(src, /addEventListener\('keydown', onKeyAny, true\)/)
     assert.match(src, /focus\(\{ preventScroll: true \}\)/)

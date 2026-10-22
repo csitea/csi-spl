@@ -104,28 +104,35 @@ function onFocus() {
 /* CLE-77884 (owner: browse the list fast with the keyboard): an open from
    the list leaves the focus ON the list, so Up/Down keep cycling. The place
    it opens focuses its own line (LiveFeed's #<msg> rule, a thread row) a
-   moment later; for a short while any such move is handed back, unless the
-   reader presses somewhere else first. Not after a tap: a phone has no keys. */
-const KEEP_MS = 2000
+   moment later; until then any such move is handed back, unless the
+   reader presses somewhere else first. Not after a tap: a phone has no keys.
+   SPL-2904: on a slow page that line comes after the old 2 s window (6x CPU:
+   3.4 s), so the keep lasts up to KEEP_MS and ends KEEP_AFTER_LINE_MS after
+   the line's own focus has been handed back. */
+const KEEP_MS = 8000
+const KEEP_AFTER_LINE_MS = 600
 let releaseKeep: (() => void) | null = null
 function keepFocus() {
   releaseKeep?.()
   const list = listEl.value
   if (!list || typeof document === 'undefined') return
-  const until = Date.now() + KEEP_MS
+  let until = Date.now() + KEEP_MS
   const back = () => {
     if (Date.now() > until) return release()
     if (!list.isConnected) return release()
     /* Shift + K opens the kind menu (teleported). Leave its focus alone. */
     if (document.querySelector('.kind-picker')) return
     const a = document.activeElement
-    if (!a || a === document.body || !list.contains(a)) list.focus({ preventScroll: true })
+    if (!a || a === document.body || !list.contains(a)) {
+      if (a instanceof HTMLElement && a.matches('[data-msg-id]')) until = Math.min(until, Date.now() + KEEP_AFTER_LINE_MS)
+      list.focus({ preventScroll: true })
+    }
   }
   const onIn = (ev: FocusEvent) => {
     if (ev.target instanceof Node && list.contains(ev.target)) return
     setTimeout(back, 0)
   }
-  const timers = [0, 150, 400, 900, 1600].map((ms) => setTimeout(back, ms))
+  const timers = [0, 150, 400, 900, 1600, 3000, 5000].map((ms) => setTimeout(back, ms))
   const release = () => {
     document.removeEventListener('focusin', onIn, true)
     document.removeEventListener('pointerdown', onPress, true)

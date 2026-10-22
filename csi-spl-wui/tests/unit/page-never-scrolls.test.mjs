@@ -127,7 +127,8 @@ describe('menus are placed before they take focus', () => {
 
   it('the user menu, the theme list and the locale lists focus without scrolling the page', () => {
     for (const rel of ['src/components/UserMenu.vue', 'src/components/ThemeToggle.vue']) {
-      const src = read(rel)
+      /* r18-07: the user menu's focus and placement live in useUserMenuNav.ts */
+      const src = rel === 'src/components/UserMenu.vue' ? read(rel) + read('src/composables/useUserMenuNav.ts') : read(rel)
       assert.match(src, /focusWithoutScroll\(/, rel)
       assert.match(src, /applyPopover\(/, rel)
       assert.doesNotMatch(src, /\.focus\(/, rel)

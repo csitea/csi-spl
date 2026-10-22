@@ -94,6 +94,43 @@ spl_cloud_cnf_locate() {
   source "$iac_lib/gcp-require-live-account.func.sh"
 }
 
+# spl_desk_user: the OS user that owns the desks (spec 069 section 8.3):
+# SPOOL_DESK_USER, else that key in the box config ($SPOOL_BOX_ENV, else
+# <live spool root>/box.env; under SPOOL_TEST=1 only a named SPOOL_BOX_ENV),
+# else empty: the desks stay in the caller's own state root, as before.
+spl_desk_user() {
+  local v="${SPOOL_DESK_USER:-}" f="${SPOOL_BOX_ENV:-${SPOOL_LIVE_ROOT:-/var/spool-hub}/box.env}" k val
+  [[ "${SPOOL_TEST:-}" == 1 && -z "${SPOOL_BOX_ENV:-}" ]] && f=""
+  if [[ -z "$v" && -r "$f" ]]; then
+    while IFS='=' read -r k val || [[ -n "$k" ]]; do
+      [[ "$k" == SPOOL_DESK_USER ]] || continue
+      val="${val%$'\r'}"; val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
+      v="$val"
+    done <"$f"
+  fi
+  printf '%s' "$v"
+}
+
+# spl_desk_state_root [env]: the cloud state root that holds env's desks
+# (default $ENV), <root>/desk/<workspace>/<desk id>. No desk user: today's
+# root, SPL_STATE_DIR when env is $ENV, else SPL_STATE_DIR's default under
+# $HOME. A desk user: <its home from getent>/.local/share/<org>-<app>/cloud/<env>.
+# SPL_STATE_DIR itself keeps the operator state and does not follow the desks.
+spl_desk_state_root() {
+  local e="${1:-${ENV:-}}" u h oa
+  [[ -n "$e" ]] || { do_log "FATAL spl_desk_state_root: no env" >&2; return 1; }
+  oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:?PROJ_PATH unset}")}"; oa="${oa%-orc}"
+  u="$(spl_desk_user)"
+  if [[ -z "$u" ]]; then
+    if [[ "$e" == "${ENV:-}" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s' "$SPL_STATE_DIR"
+    else printf '%s' "$HOME/.local/share/$oa/cloud/$e"; fi
+    return 0
+  fi
+  h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
+  [[ -n "$h" ]] || { do_log "FATAL desk user '$u' has no home (getent passwd)" >&2; return 1; }
+  printf '%s' "$h/.local/share/$oa/cloud/$e"
+}
+
 # spl_cloud_cnf_write: SPL_STATE_DIR and SPL_CNF, the merged cnf of $ENV.
 spl_cloud_cnf_write() {
   SPL_STATE_DIR="${SPL_STATE_DIR:-$HOME/.local/share/$SPL_ORG_APP/cloud/$ENV}"

@@ -289,7 +289,9 @@ spool_valid_id() {  # ID
 # SPOOL_DIR_LAYOUT=qualified (specs/058 6): new mailboxes are <ID>@<box>.
 # SPOOL_BOX_TAG: the <ID>@<tag> display tag. A cron job and an @reboot restore
 # read no profile, so the tag lives here too, or they name windows bare.
-SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG SPOOL_LOGIN_PEERS"
+# SPOOL_DESK_USER (spec 069 section 8.3): the OS user whose home holds the
+# desks and who runs their sidecars; unset = SPOOL_BOX_USER, as before.
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG SPOOL_LOGIN_PEERS SPOOL_DESK_USER"
 
 # Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
 _spool_box_env_load() {
@@ -309,6 +311,25 @@ _spool_home_of() {  # USER
 
 _spool_feature_dir() {
   cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd
+}
+
+# spool_desk_user: the OS user that owns the desks (spec 069 section 8.3).
+# SPOOL_DESK_USER (environment, else the box config), else SPOOL_BOX_USER,
+# so an unset key keeps the desks where they are today. After spool_env_resolve.
+spool_desk_user() {
+  printf '%s' "${SPOOL_DESK_USER:-$SPOOL_BOX_USER}"
+}
+
+# spool_desk_state ENV: the desk user's cloud state root for ENV,
+# <home from getent>/.local/share/<org>-<app>/cloud/<env>; the desks are
+# <root>/desk/<workspace>/<desk id>. <org>-<app> is this checkout's orc dir
+# name less -orc. Non-zero, nothing printed, when the user has no home.
+spool_desk_state() {  # ENV
+  local u h oa
+  u="$(spool_desk_user)"; h="$(_spool_home_of "$u")"
+  [ -n "$h" ] || { echo "spool-env: desk user '$u' has no home (getent passwd)" >&2; return 1; }
+  oa="$(basename "$(cd "$(_spool_feature_dir)/../../../.." && pwd)")"
+  printf '%s/.local/share/%s/cloud/%s' "$h" "${oa%-orc}" "${1:?spool_desk_state: ENV}"
 }
 
 # The test guard (CLE-77923). A test harness sets SPOOL_TEST=1; under it the

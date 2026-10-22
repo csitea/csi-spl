@@ -161,6 +161,17 @@ crontab, finds it in that inbox or archive, and runs ITS OWN `spawn-window.sh`
   strict patterns on both sides; nothing is evaluated.
 - Each request is handled once (`<root>/spawn-remote/seen`); every verdict is
   one line in `<root>/spawn-remote/serve.log`.
+- **Remote spawn expiry (SPL-2801)**: a waiting `spawn-request` carries
+  `expires: <epoch>` = now + wait - `SPAWN_REMOTE_MARGIN` (default 60 s, at most
+  half the wait). The receiving box starts nothing after that time: it logs
+  `EXPIRED` in `serve.log` and replies `refused`, `reason: expired ...`, and the
+  requester starts the lane elsewhere. The expiry compares wall clocks across
+  boxes, so it assumes both boxes are NTP-synced (sat checked 2026-10-21:
+  `timedatectl` `NTPSynchronized=yes`; the PC not checked).
+- **Live-slug guard on local fallback (SPL-2801)**: before `spawn-window`'s
+  local fallback starts anything after a remote that did not answer in time, it
+  reads the lane map fresh; if a live lane on any box already carries the slug
+  (branch `<ID>-<slug>`), it prints that `<ID>@<box>` and starts nothing.
 
 Install the receiver on each machine that should accept remote spawns:
 

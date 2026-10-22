@@ -21,7 +21,8 @@
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
       <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
       <ArchivedBadge v-if="archivedAt" :at="archivedAt" :show-when="true" :task-id="topic.parentTaskId || ''" @unarchived="archivedAt = ''" />
-      <LazyCardClipControl pane="thread" />
+      <!-- SPL-2807: the slot holds the lazy control's box, so the title does not jump when it mounts -->
+      <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,

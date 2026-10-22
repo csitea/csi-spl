@@ -791,6 +791,24 @@ html.pane-dragging * {
   min-width: 0;
 }
 .topic header > .icon-btn { flex-shrink: 0; }
+/* SPL-2807: the replies' height control is lazy and mounted after the title
+   on a cold open, so the title shrank (phone 326 -> 184 px) and the phone
+   header grew 53 -> 55 px. Its slot holds the control's box from the first
+   frame: three segments of CardClipControl.vue (icon 0.875rem + padding, 44 px
+   taps on a phone) plus their borders. */
+.topic header > .clip-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  min-width: calc(3 * (0.875rem + 16px) + 4px);
+  min-height: calc(0.875rem + 10px);
+}
+@media (max-width: 820px) {
+  .topic header > .clip-slot {
+    min-width: calc(3 * max(var(--tap), 0.875rem + 20px) + 2px);
+    min-height: calc(max(var(--tap), 0.875rem + 8px) + 2px);
+  }
+}
 .topic-heading__title {
   display: block;
   flex: 1 1 auto;

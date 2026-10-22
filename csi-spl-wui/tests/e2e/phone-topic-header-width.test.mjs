@@ -5,6 +5,9 @@
 // shows the sidebar. The thread title is the topic text, inside a four-side
 // 1px border on the desktop and with no border on a phone (t1 83bc77ae),
 // in a channel, on the home link (/?topic=) and on /t/:id.
+// SPL-2807: on a cold topic open the header's lazy clip control mounts late;
+// its slot is reserved, so no painted frame moves the title or the header
+// (was phone title 326 -> 184 px, header 53 -> 55 px; desktop 401 -> 294 px).
 //
 // Run: node tests/e2e/phone-topic-header-width.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -140,6 +143,52 @@ async function openThread(page, path) {
     }
   }
   throw new Error(`thread title never appeared: ${path}`)
+}
+
+/* SPL-2807: every animation frame from the first painted title until the
+   clip control is in: the title box and the header height, relative to the
+   header. One value means nothing moved when the control mounted. */
+async function clipMountFrames(width, path) {
+  const phone = width < 821
+  const ctx = await browser.createBrowserContext()
+  const p = await ctx.newPage()
+  await p.setViewport({ width, height: phone ? 844 : 900, isMobile: phone, hasTouch: phone, deviceScaleFactor: 1 })
+  await p.evaluateOnNewDocument(() => {
+    window.__clipFrames = []
+    const tick = () => {
+      const h = document.querySelector('[data-test=topic-section] header')
+      const t = h && h.querySelector('[data-test=topic-heading]')
+      if (t && t.textContent.trim()) {
+        const tr = t.getBoundingClientRect()
+        const hr = h.getBoundingClientRect()
+        const clip = h.querySelector('[data-testid=card-clip-control]') ? 'clip' : 'none'
+        const f = `${clip} title=${Math.round(tr.left - hr.left)},${Math.round(tr.width)}x${Math.round(tr.height)} header=${Math.round(hr.height)}`
+        if (window.__clipFrames.at(-1) !== f) window.__clipFrames.push(f)
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  /* the shell first, then the topic with every later chunk held 400 ms, so
+     the control lands after the title on every run, not only under CI load */
+  await p.goto(`${srv.base}/channel/lobby`, { waitUntil: 'load' })
+  await p.waitForSelector('[data-testid=sidebar-rail]', { timeout: 60000 })
+  await p.setRequestInterception(true)
+  p.on('request', (r) => {
+    if (/\/_nuxt\/.*\.(js|css)$/.test(r.url())) setTimeout(() => r.continue().catch(() => {}), 400)
+    else r.continue().catch(() => {})
+  })
+  await p.evaluate(async (to) => {
+    await document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to)
+  }, path)
+  for (let i = 0; i < 60; i++) {
+    if (await p.evaluate(() => window.__clipFrames.some((f) => f.startsWith('clip')))) break
+    await sleep(250)
+  }
+  await sleep(500)
+  const frames = await p.evaluate(() => window.__clipFrames)
+  await ctx.close()
+  return frames
 }
 
 const srv = await startServer()
@@ -279,6 +328,16 @@ try {
   }
 
   await page.close()
+
+  for (const width of [390, 1440]) {
+    for (const [name, path] of THREADS.slice(0, 2)) {
+      const frames = await clipMountFrames(width, path)
+      const geo = [...new Set(frames.map((f) => f.replace(/^\S+ /, '')))]
+      console.log(`CLIP-MOUNT ${width} ${name} ${frames.join(' | ')}`)
+      ok(`${width}px ${name} the clip control mounted`, frames.some((f) => f.startsWith('clip')), frames)
+      ok(`${width}px ${name} the title and header height stay put while the clip control mounts`, geo.length === 1, frames)
+    }
+  }
 } finally {
   await browser.close()
   await srv.stop()

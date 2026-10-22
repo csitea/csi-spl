@@ -17,6 +17,9 @@ APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 # points SPL_PRIVATE_CNF at its own synthetic file.
 export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 export SPL_PRIVATE_WARN=0
+# SPL-2911: a stale git-ignored bin/spool in a lane worktree is still skipped,
+# but its WARN no longer lands in a test that captures 2>&1.
+export SPOOL_BIN_STALE_WARN=0
 # specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
 # CLE-/PRB-/ORC- fixtures here do not turn the suite red at
 # SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in

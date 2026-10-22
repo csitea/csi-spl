@@ -10,6 +10,7 @@
 #   4. nothing else at all: the stale build anyway, with a WARN
 #   5. an explicit SPOOL_BIN always wins, with no check
 #   6. not a git checkout: the build is used, not judged
+#   7. SPOOL_BIN_STALE_WARN=0 (the orc test lib): still skipped, no WARN
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -21,7 +22,7 @@ git -C "$R" init -q && git -C "$R" add -A && git -C "$R" -c user.email=t@example
 src="$(git -C "$R" log -1 --format=%ct)"
 for b in "$API/bin/spool" "$T/path/spool" "$T/home/.local/bin/spool"; do printf '#!/bin/sh\necho %s\n' "$b" >"$b"; chmod +x "$b"; done
 resolve() {  # prints SPOOL_BIN, stderr to $T/err
-  env -u SPOOL_BIN HOME="$T/home" PATH="$1:/usr/bin:/bin" SPOOL_ROOT="$T/spool" SPOOL_TEST=1 ${2:+SPOOL_BIN=$2} \
+  env -u SPOOL_BIN HOME="$T/home" PATH="$1:/usr/bin:/bin" SPOOL_ROOT="$T/spool" SPOOL_TEST=1 SPOOL_BIN_STALE_WARN="${W:-1}" ${2:+SPOOL_BIN=$2} \
     bash -c '. "'"$R"'/csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh"; spool_env_resolve; printf "%s" "$SPOOL_BIN"' 2>"$T/err"
 }
 touch -d "@$((src + 60))" "$API/bin/spool"
@@ -30,6 +31,8 @@ touch -d "@$((src - 86400))" "$API/bin/spool"
 eq "2 a stale build is skipped for the spool on PATH" "$T/path/spool" "$(resolve "$T/path")"
 has "2 ... with a WARN naming the rebuild" "is older than its sources" "$(cat "$T/err")"
 has "2 ... and the build command" "csi-spl-api/src/bash/build.sh" "$(cat "$T/err")"
+eq "7 SPOOL_BIN_STALE_WARN=0: the stale build is still skipped" "$T/path/spool" "$(W=0 resolve "$T/path")"
+eq "7 ... and stderr is empty" "" "$(cat "$T/err")"
 eq "3 nothing on PATH: ~/.local/bin/spool" "$T/home/.local/bin/spool" "$(resolve "$T/nopath")"
 rm -f "$T/home/.local/bin/spool"
 eq "4 nothing else: the stale build anyway" "$API/bin/spool" "$(resolve "$T/nopath")"

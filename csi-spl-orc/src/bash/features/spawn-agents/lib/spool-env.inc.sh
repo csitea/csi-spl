@@ -48,13 +48,17 @@
 # it is built from: it may not speak today's protocol. Measured 2026-10-02:
 # the box user's checkout held a 2026-09-18 bin/spool (0.1.0-dev) that refused
 # kind blocker, and every spool-send.sh run from that tree failed with it.
-# Not a git checkout = not judged.
+# Not a git checkout = not judged. SPOOL_BIN_STALE_WARN=0 (the orc test lib
+# sets it) keeps the skip but drops the WARN: a lane worktree's git-ignored
+# bin/spool is stale after any api commit, and a test that captures 2>&1 read
+# the line as its own output (SPL-2911).
 _spool_bin_stale() {  # REPO BUILT
   local api=csi-spl-api/src/go/spool-hub-api src built
   src="$(git -C "$1" log -1 --format=%ct -- "$api/cmd" "$api/internal" "$api/go.mod" 2>/dev/null)"
   [ -n "$src" ] || return 1
   built="$(stat -c %Y "$2" 2>/dev/null)" || return 1
   if [ "$built" -lt "$src" ]; then
+    [ "${SPOOL_BIN_STALE_WARN:-1}" = 0 ] ||
     echo "spool-env: WARN $2 is older than its sources (built $(date -u -d "@$built" +%FT%TZ), last source commit $(date -u -d "@$src" +%FT%TZ)); not using it. Rebuild: bash $1/csi-spl-api/src/bash/build.sh $2" >&2
     return 0
   fi
@@ -68,6 +72,7 @@ _spool_bin_fallback() {  # BUILT
   b="$(command -v spool 2>/dev/null)"
   [ -z "$b" ] && [ -x "$HOME/.local/bin/spool" ] && b="$HOME/.local/bin/spool"
   if [ -z "$b" ] && [ -x "$1" ]; then
+    [ "${SPOOL_BIN_STALE_WARN:-1}" = 0 ] ||
     echo "spool-env: WARN no other spool found; using the stale $1 anyway" >&2
     b="$1"
   fi

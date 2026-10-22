@@ -141,15 +141,12 @@ import type { Ref } from 'vue'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import type { HoursDay } from '~/composables/useCalendarHours'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
-import { CAL_COLORS, calEditable } from '~/utils/calendar-event-form.mjs'
-import { calendarUpdate } from '~/utils/calendar-events-api.mjs'
-import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
-import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
+import { useCalendarPhoneDayDrag } from '~/composables/useCalendarPhoneDayDrag'
 import { isoClock } from '~/utils/date-iso.mjs'
 import { isoSeconds } from '~/utils/iso-seconds.mjs'
-import { CAL_DAY_MIN, CAL_DRAG_PX, CAL_SNAP_MIN, calDragErrorKey, calMinuteOf, calMoveTo, calSameTimes, calSnap } from '~/utils/calendar-drag.mjs'
 import { calPhoneDayHours, calPhoneEventDays, calPhoneHourPreset } from '~/utils/calendar-phone-nav.mjs'
-import { CAL_SWIPE_HOLD_MS, CAL_SWIPE_TAP_PX, calSwipeIsTap } from '~/utils/calendar-swipe.mjs'
+import { calSwipeIsTap } from '~/utils/calendar-swipe.mjs'
 
 type Times = { starts_at: string, ends_at: string }
 type Block = { ev: CalendarItem, top: number, h: number, col: number, cols: number, cont: boolean, time: string }
@@ -334,137 +331,10 @@ function onHourClick(e: MouseEvent, i: number) {
   if (preset) emit('create', { ...preset, at: isoAt(row.at), endAt: isoAt(row.at + HOUR_MS) })
 }
 
-/* ---- 097 hold-to-drag on an event: time only, the day stays ---- */
-type Gesture = { ev: CalendarItem, pointerId: number, touch: boolean, x0: number, y0: number, t0: number, grab: number, live: boolean, timer: ReturnType<typeof setTimeout> | undefined }
-let gesture: Gesture | null = null
-const lifted = ref('')
-const saving = ref('')
-const notice = ref('')
-let noticeTimer: ReturnType<typeof setTimeout> | undefined
-let upStamp = Number.NEGATIVE_INFINITY
-const dragClick = (e: Event) => e.timeStamp - upStamp < 100
-
-function gridY(clientY: number) {
-  return clientY - (gridEl.value?.getBoundingClientRect().top || 0)
-}
-
-function onEvDown(e: PointerEvent, ev: CalendarItem, top: number) {
-  touched = true
-  list.value = null
-  if (e.button !== 0 || gesture || saving.value || !calEditable(ev)) return
-  gesture = {
-    ev, pointerId: e.pointerId, touch: e.pointerType !== 'mouse', x0: e.clientX, y0: e.clientY, t0: e.timeStamp,
-    grab: gridY(e.clientY) - top, live: false, timer: undefined,
-  }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onUp)
-  window.addEventListener('pointercancel', onCancel)
-  if (gesture.touch) gesture.timer = setTimeout(liftOff, CAL_SWIPE_HOLD_MS + 1)
-}
-
-function liftOff() {
-  const g = gesture
-  if (!g || g.live) return
-  g.live = true
-  lifted.value = g.ev.id
-}
-
-function onMove(e: PointerEvent) {
-  const g = gesture
-  if (!g || e.pointerId !== g.pointerId) return
-  if (!g.live) {
-    const far = Math.hypot(e.clientX - g.x0, e.clientY - g.y0)
-    if (g.touch && far >= CAL_SWIPE_TAP_PX) return stop() /* a scroll or a page turn */
-    if (g.touch && e.timeStamp - g.t0 > CAL_SWIPE_HOLD_MS) liftOff()
-    else if (!g.touch && far > CAL_DRAG_PX) liftOff()
-    if (!g.live) return
-  }
-  e.preventDefault()
-  const y = Math.min(gridH.value - 1, Math.max(0, gridY(e.clientY) - g.grab))
-  const min = calMinuteOf(isoAt(atOf(y)))
-  if (Number.isNaN(min)) return
-  const next = calMoveTo(g.ev, props.day, calSnap(min, 0, CAL_DAY_MIN - CAL_SNAP_MIN))
-  if (next) preview.value = { id: g.ev.id, ...next }
-  edgeScroll(e.clientY)
-}
-
-function edgeScroll(y: number) {
-  const sc = scroller()
-  if (!sc) return
-  const r = sc.getBoundingClientRect()
-  if (y < r.top + 32) sc.scrollTop -= 12
-  else if (y > r.bottom - 32) sc.scrollTop += 12
-}
-
-function stop() {
-  const g = gesture
-  if (g?.timer) clearTimeout(g.timer)
-  gesture = null
-  lifted.value = ''
-  window.removeEventListener('pointermove', onMove)
-  window.removeEventListener('pointerup', onUp)
-  window.removeEventListener('pointercancel', onCancel)
-}
-function onCancel(e: PointerEvent) {
-  if (!gesture || e.pointerId !== gesture.pointerId) return
-  stop()
-  preview.value = null
-}
-function onUp(e: PointerEvent) {
-  const g = gesture
-  if (!g || e.pointerId !== g.pointerId) return
-  const live = g.live
-  stop()
-  if (!live) return
-  upStamp = e.timeStamp
-  const next = preview.value
-  if (!next || calSameTimes(g.ev, next)) {
-    preview.value = null
-    return
-  }
-  void saveTimes(g.ev, next)
-}
-
-/* a lifted event keeps the finger: no scroll, and no page turn in the shell */
-function onTouchMove(e: TouchEvent) {
-  if (!gesture?.live) return
-  if (e.cancelable) e.preventDefault()
-  e.stopPropagation()
-}
-function onContextMenu(e: Event) {
-  if (gesture) e.preventDefault()
-}
-
-function onEvClick(e: Event, ev: CalendarItem) {
-  if (dragClick(e)) return
-  emit('peek', ev)
-}
-
-function say(key: string) {
-  notice.value = key
-  if (noticeTimer) clearTimeout(noticeTimer)
-  noticeTimer = setTimeout(() => { notice.value = '' }, 6000)
-}
-
-/* PATCH the new times under If-Match (the updated_at this view read); the
-   shell reads the day again on CALENDAR_CHANGED_EVENT */
-async function saveTimes(ev: CalendarItem, next: Times) {
-  saving.value = ev.id
-  try {
-    await withSessionRetry(api, () => calendarUpdate(api, ev.id, { starts_at: next.starts_at, ends_at: next.ends_at }, props.today, ev.updated_at))
-    window.dispatchEvent(new Event(CALENDAR_CHANGED_EVENT))
-  } catch (e) {
-    preview.value = null
-    const key = calDragErrorKey((e || {}) as { status?: number, token?: string })
-    if (key === 'calendar_event.drag_conflict') window.dispatchEvent(new Event(CALENDAR_CHANGED_EVENT))
-    say(key)
-  } finally {
-    saving.value = ''
-  }
-}
-/* the read-back carries the saved times: the preview has done its work */
-watch(() => props.items, () => {
-  if (!saving.value && !gesture) preview.value = null
+/* ---- 097 hold-to-drag on an event: time only, the day stays (r17-09) ---- */
+const { lifted, saving, notice, dragClick, onEvDown, onEvClick, onTouchMove, onContextMenu, dispose } = useCalendarPhoneDayDrag({
+  api, day: () => props.day, today: () => props.today, items: () => props.items, peek: (ev) => emit('peek', ev),
+  preview, list, gridEl, gridH, atOf, isoAt, scroller, onTouch: () => { touched = true },
 })
 
 onMounted(() => {
@@ -473,9 +343,8 @@ onMounted(() => {
   void nextTick(scrollToStart)
 })
 onBeforeUnmount(() => {
-  stop()
+  dispose()
   if (clock) clearInterval(clock)
-  if (noticeTimer) clearTimeout(noticeTimer)
   rootEl.value?.removeEventListener('touchmove', onTouchMove)
 })
 </script>

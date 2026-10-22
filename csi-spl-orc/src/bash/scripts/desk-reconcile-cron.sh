@@ -187,6 +187,15 @@ if [ "$PRINT" = 1 ]; then
   printf '*/5 * * * * ENV=%s TENANT_ID=%s%s %s >> %s/cron.out 2>&1 # %s:desk-reconcile\n' \
     "$ENV_NAME" "$TENANT" "$m" "$SELF" \
     "${DESK_CRON_LOG_DIR:-/var/${ORG_APP%%-*}/$ORG_APP/desk-reconcile}" "$ORG_APP"
+  # The line belongs to the desk user (spec 069 8.5 row B6): name it on
+  # stderr, so stdout stays a line that can be piped into crontab.
+  if [ -r "$ORC/lib/bash/funcs/spl-cloud-cnf.func.sh" ]; then
+    # shellcheck source=../../../lib/bash/funcs/spl-cloud-cnf.func.sh
+    . "$ORC/lib/bash/funcs/spl-cloud-cnf.func.sh"
+    du="$(spl_desk_user)"
+    [ -z "$du" ] || [ "$du" = "$(id -un)" ] ||
+      echo "desk-reconcile-cron: SPOOL_DESK_USER=$du: this line belongs in the crontab of $du (sudo -n -u $du crontab -), not of $(id -un)" >&2
+  fi
   exit 0
 fi
 

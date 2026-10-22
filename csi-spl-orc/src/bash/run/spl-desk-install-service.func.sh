@@ -37,6 +37,12 @@
 # @description `@boot` suffix is outside `desk-reconcile(-[a-z]+)?$`, so the
 # @description box-restart desk pass (which strips five schedule fields) never
 # @description runs the @reboot line.
+# @description THE DESK USER (spec 069 section 8.5 row B6): when SPOOL_DESK_USER
+# @description (env, else the box config; spl_desk_user) names another user than
+# @description the caller, the lines go into THAT user's crontab through
+# @description `sudo -n -u <desk user> crontab`, and an install takes them out of
+# @description the caller's own, so the desks' sidecars start as their owner.
+# @description Unset, or naming the caller: the caller's crontab, as before.
 # @description Dry run unless DRY_RUN=0. --check / DESK_SERVICE_ACTION=check is
 # @description read-only and says whether the lines are installed.
 # @param DESK_SERVICE_ACTION (optional) - install (default) | remove | check
@@ -66,6 +72,10 @@
 # @param DESK_CRON_PROBE (optional) - 1 (default on prd) bakes PROBE_EMAIL /
 # @param   PROBE_PW_FILE of the m3-e2e member (<state>/m3-e2e/<DESK_CRON_PROBE_TENANT>,
 # @param   default e2e) into the line: the prd roster read signs in as a member
+# @param DESK_CRON_PROBE_DIR (optional) - the probe-login dir baked into the
+# @param   line instead of $HOME/.local/share/<org>-<app>/cloud/<env>/m3-e2e/<tenant>.
+# @param   An absolute path or one under a literal $HOME, which cron expands to
+# @param   the home of the crontab's owner (the desk user's 0600 copy, spec 069 8.3)
 # @param ONE LINE PER ENV: the tag is <org>-<app>:desk-reconcile on dev and
 # @param   <org>-<app>:desk-reconcile-<env> elsewhere, matched EXACTLY at the end
 # @param   of the line, so installing dev never touches the prd line (it did, as a
@@ -81,6 +91,8 @@
 #------------------------------------------------------------------------------
 declare -F spl_desk_cron_update_pre >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
+declare -F spl_desk_user >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-cloud-cnf.func.sh"
 
 do_spl_desk_install_service() {
   do_require_bin crontab python3 || return 1
@@ -94,6 +106,7 @@ do_spl_desk_install_service() {
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
 
   local src script logdir tag
+  spl_desk_cron_user || return 1
   tag="$(spl_desk_cron_tag)"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -135,7 +148,8 @@ do_spl_desk_install_service() {
 
   if [[ "$act" == remove ]]; then
     spl_desk_cron_write "$tag" "" && spl_desk_cron_write "$btag" "" || return 1
-    do_log "OK the desk reconcile (tick and @reboot) is out of the box user's crontab. Nothing re-seats agents now: run do_spl_desk_up_all by hand after a restart"
+    _spl_desk_cron_drop_caller "$tag" "$btag" || return 1
+    do_log "OK the desk reconcile (tick and @reboot) is out of $(spl_desk_cron_who). Nothing re-seats agents now: run do_spl_desk_up_all by hand after a restart"
     return 0
   fi
   _spl_desk_service_install "$src" "$script" "$logdir" "$tag" "$line" "$btag" "$bline" "$every"
@@ -158,7 +172,9 @@ _spl_desk_service_install() {
   [[ "$got" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${got:-<nothing>}"; return 1; }
   got="$(spl_desk_cron_line "$btag")"
   [[ "$got" == "$bline" ]] || { do_log "FATAL the crontab does not read back the @reboot line. Got: ${got:-<nothing>}"; return 1; }
-  do_log "OK the desk reconcile runs every ${every}m, and once at boot, as the box user:"
+  # only once the desk user's crontab reads back both lines: no gap with none
+  _spl_desk_cron_drop_caller "$tag" "$btag" || return 1
+  do_log "OK the desk reconcile runs every ${every}m, and once at boot, as ${SPL_DESK_CRON_USER:-the box user}:"
   spl_desk_cron_say "$line"
   spl_desk_cron_say "$bline"
   do_log "OK verify it later with DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service"
@@ -197,7 +213,9 @@ EOF_PY
     fi
     [[ "$current" == "$line" ]] ||
       do_log "INFO it was installed with different settings than this call would write - working, but not what these flags say. Installed: $current"
-    do_log "OK the desk reconcile is installed in the box user's crontab and the script it names is executable"
+    [[ -z "${SPL_DESK_CRON_USER:-}" || -z "$(SPL_DESK_CRON_USER="" spl_desk_cron_line "$(spl_desk_cron_tag)")" ]] ||
+      do_log "WARN the crontab of $(id -un) still holds a line tagged $(spl_desk_cron_tag): both crontabs reconcile the same desks. Move it: DRY_RUN=0 ./run -a do_spl_desk_install_service"
+    do_log "OK the desk reconcile is installed in $(spl_desk_cron_who) and the script it names is executable"
     return 0
   fi
   do_log "FAIL the desk reconcile is NOT installed: every agent on this box stays offline after the next tmux or box restart until someone notices"
@@ -216,12 +234,14 @@ _spl_desk_service_dry_plan() {
     [[ "$SPL_DESK_CRON_CREATE" == 1 ]] &&
       do_log "INFO DRY_RUN would: git worktree add --detach $src origin/${DESK_CRON_TRUNK:-master} (the self-updating checkout)"
     do_log "INFO DRY_RUN would: mkdir -p $logdir"
-    do_log "INFO DRY_RUN would: put the tick line and its @reboot twin in the box user's crontab:"
+    do_log "INFO DRY_RUN would: put the tick line and its @reboot twin in $(spl_desk_cron_who):"
     spl_desk_cron_say "$line"
     spl_desk_cron_say "$bline"
     (( installed )) && spl_desk_cron_say "replacing the line already there: $current"
     [[ -n "$bcurrent" ]] && spl_desk_cron_say "replacing the @reboot line already there: $bcurrent"
+    _spl_desk_cron_drop_caller_plan "$tag" "$btag"
   else
+    _spl_desk_cron_drop_caller_plan "$tag" "$btag"
     if (( installed )); then
       do_log "INFO DRY_RUN would: remove the tagged crontab line:"
       spl_desk_cron_say "$current"
@@ -276,7 +296,9 @@ spl_desk_cron_build_line() {
   if [[ "${DESK_CRON_PROBE:-$([[ "$env_name" == prd ]] && echo 1 || echo 0)}" == 1 ]]; then
     local pt="${DESK_CRON_PROBE_TENANT:-e2e}"
     [[ "$pt" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL DESK_CRON_PROBE_TENANT is not a tenant slug: '$pt'"; return 1; }
-    local d="\$HOME/.local/share/$SPL_ORG_APP/cloud/$env_name/m3-e2e/$pt"
+    local d="${DESK_CRON_PROBE_DIR:-\$HOME/.local/share/$SPL_ORG_APP/cloud/$env_name/m3-e2e/$pt}"
+    [[ "$d" =~ ^(\$HOME/|/)[A-Za-z0-9._/@-]*$ ]] ||
+      { do_log "FATAL DESK_CRON_PROBE_DIR must be an absolute path or \$HOME/<path>, plain characters only, got: '$d'" >&2; return 1; }
     probe=" PROBE_EMAIL=\$(cat $d/human-email) PROBE_PW_FILE=$d/pw-human"
   fi
   printf '%s %sENV=%s TENANT_ID=%s%s%s%s %s%s >> %s/%s 2>&1 # %s\n' \
@@ -326,9 +348,9 @@ spl_cron_boot_gate() {
 # unified diff, without writing anything.
 spl_desk_cron_diff() {
   local tmp; tmp="$(mktemp -d)" || return 1
-  crontab -l 2>/dev/null >"$tmp/before"
+  spl_desk_crontab -l 2>/dev/null >"$tmp/before"
   spl_desk_cron_render "$1" "$2" <"$tmp/before" >"$tmp/after"
-  echo "    crontab diff (before -> after):"
+  echo "    crontab ${SPL_DESK_CRON_USER:+of $SPL_DESK_CRON_USER }diff (before -> after):"
   diff -u --label before --label after "$tmp/before" "$tmp/after" | sed 's/^/    /'
   cmp -s "$tmp/before" "$tmp/after" && echo "    (no change)"
   rm -rf "$tmp"
@@ -410,10 +432,58 @@ spl_desk_cron_script() {
   return 1
 }
 
-# spl_desk_cron_line <tag>: the tagged line in the box user's crontab, or
-# nothing.
+# spl_desk_cron_user: whose crontab holds the reconcile lines, into
+# SPL_DESK_CRON_USER: the desk user (spl_desk_user, spec 069 8.5 row B6) when it
+# names another user than the caller, else empty = the caller's own crontab.
+spl_desk_cron_user() {
+  local u; u="$(spl_desk_user)"
+  SPL_DESK_CRON_USER=""
+  [[ -z "$u" || "$u" == "$(id -un)" ]] && return 0
+  [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL SPOOL_DESK_USER is not a user name: '$u'"; return 1; }
+  SPL_DESK_CRON_USER="$u"
+}
+
+# spl_desk_cron_who: the crontab the lines live in, for a log line.
+spl_desk_cron_who() {
+  if [[ -n "${SPL_DESK_CRON_USER:-}" ]]; then printf 'the crontab of %s' "$SPL_DESK_CRON_USER"
+  else printf "the box user's crontab"; fi
+}
+
+# spl_desk_crontab <args>: crontab for SPL_DESK_CRON_USER through
+# `sudo -n -u`, else the caller's own.
+spl_desk_crontab() {
+  if [[ -n "${SPL_DESK_CRON_USER:-}" ]]; then sudo -n -u "$SPL_DESK_CRON_USER" crontab "$@"
+  else crontab "$@"; fi
+}
+
+# _spl_desk_cron_drop_caller <tag> <boot tag>: with a desk user, take both
+# lines out of the CALLER's crontab (the move of spec 069 8.4 step 4). A
+# crontab without them is not rewritten.
+_spl_desk_cron_drop_caller() {
+  [[ -n "${SPL_DESK_CRON_USER:-}" ]] || return 0
+  local t
+  for t in "$@"; do
+    [[ -n "$(SPL_DESK_CRON_USER="" spl_desk_cron_line "$t")" ]] || continue
+    SPL_DESK_CRON_USER="" spl_desk_cron_write "$t" "" || return 1
+    do_log "OK took the line tagged $t out of the crontab of $(id -un): $(spl_desk_cron_who) holds it"
+  done
+}
+
+# _spl_desk_cron_drop_caller_plan <tag> <boot tag>: the dry run of it.
+_spl_desk_cron_drop_caller_plan() {
+  [[ -n "${SPL_DESK_CRON_USER:-}" ]] || return 0
+  local t
+  for t in "$@"; do
+    [[ -n "$(SPL_DESK_CRON_USER="" spl_desk_cron_line "$t")" ]] || continue
+    do_log "INFO DRY_RUN would also take the line tagged $t out of the crontab of $(id -un):"
+    SPL_DESK_CRON_USER="" spl_desk_cron_diff "$t" ""
+  done
+}
+
+# spl_desk_cron_line <tag>: the tagged line in the box user's crontab (the
+# desk user's, SPL_DESK_CRON_USER), or nothing.
 spl_desk_cron_line() {
-  crontab -l 2>/dev/null | awk -v t="# $1" 'length($0) >= length(t) && substr($0, length($0) - length(t) + 1) == t' | tail -n 1
+  spl_desk_crontab -l 2>/dev/null | awk -v t="# $1" 'length($0) >= length(t) && substr($0, length($0) - length(t) + 1) == t' | tail -n 1
 }
 
 # spl_desk_cron_write <tag> <line|"">: put exactly LINE in the crontab under
@@ -425,8 +495,9 @@ spl_desk_cron_line() {
 spl_desk_cron_write() {
   local tag="$1" line="$2" tmp rc
   tmp="$(mktemp)" || return 1
-  crontab -l 2>/dev/null | spl_desk_cron_render "$tag" "$line" >"$tmp"
-  crontab "$tmp"; rc=$?
+  spl_desk_crontab -l 2>/dev/null | spl_desk_cron_render "$tag" "$line" >"$tmp"
+  # the desk user cannot read the caller's temp file: it gets it on stdin
+  if [[ -n "${SPL_DESK_CRON_USER:-}" ]]; then spl_desk_crontab - <"$tmp"; else crontab "$tmp"; fi; rc=$?
   rm -f "$tmp"
   (( rc == 0 )) || { do_log "FATAL crontab refused the new file (exit $rc)"; return 1; }
   return 0

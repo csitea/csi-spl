@@ -241,14 +241,17 @@ _spl_lane_mix_avail() {
 }
 
 # spl_lane_mix_ui_target <brief-file> <paths> -> why the lane is UI work
-# (a path under csi-spl-wui/, or a brief naming it), else nothing. The
-# placer reads it too.
+# (a path under csi-spl-wui/, or a brief naming a path in it), else nothing.
+# The placer reads it too. The brief counts only where it names a path it
+# works on, csi-spl-wui/ then a letter, digit or _ (csi-spl-wui/src/...): the
+# bare dir word or a glob ("(no csi-spl-wui/ path)", "Do NOT touch
+# csi-spl-wui/**") is no UI work (SPL-2955, ask 9d969a0d lost seat a-774).
 spl_lane_mix_ui_target() {
   local p
   for p in ${2//,/ }; do
     [[ "${p#./}" == csi-spl-wui || "${p#./}" == csi-spl-wui/* ]] && { echo "path $p is under csi-spl-wui/"; return 0; }
   done
-  [[ -n "$1" && -r "$1" ]] && grep -q 'csi-spl-wui/' "$1" && echo "the brief names csi-spl-wui/"
+  [[ -n "$1" && -r "$1" ]] && grep -qE 'csi-spl-wui/[[:alnum:]_]' "$1" && echo "the brief names csi-spl-wui/"
   return 0
 }
 

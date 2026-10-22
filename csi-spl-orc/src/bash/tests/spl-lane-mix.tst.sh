@@ -748,6 +748,24 @@ mix LANE_MIX_KIND=simple_coding LANE_MIX_PATHS="csi-spl-orc/x.sh,./csi-spl-wui/s
   && pass "15. a csi-spl-wui/ path is UI work too" || fail "15. ui paths: $(cat "$T/out")"
 mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/docs-brief.md" LANE_MIX_PATHS="csi-spl-wuix/a,csi-spl-doc/x.md"
 [[ "$(pick)" == mistral ]] && pass "15. a docs brief (no csi-spl-wui/) still may go to mistral" || fail "15. docs brief: $(cat "$T/out")"
+# SPL-2955: only a named path under csi-spl-wui/ is UI work, not the bare dir
+# word or a glob in a sentence that rules it out (ask 9d969a0d lost a seat).
+# RED CONTROL: the negated brief read as UI work before the fix.
+printf 'this row is bash only (no csi-spl-wui/ path).\nDo NOT touch `csi-spl-wui/**`, csi-spl-wui/\n' >"$T/neg-brief.md"
+printf 'Split csi-spl-wui/src/composables/useDocsReader.ts\n' >"$T/named-brief.md"
+neg="$(bash -c 'source "$1"; spl_lane_mix_ui_target "$2" ""' _ "$FUNC" "$T/neg-brief.md")"
+named="$(bash -c 'source "$1"; spl_lane_mix_ui_target "$2" ""' _ "$FUNC" "$T/named-brief.md")"
+[[ -z "$neg" && "$named" == "the brief names csi-spl-wui/" ]] \
+  && pass "15. a brief that only mentions csi-spl-wui/ is no UI work; one naming csi-spl-wui/src/... is" \
+  || fail "15. ui mention: neg='$neg' named='$named'"
+mix LANE_MIX_KIND=simple_coding LANE_MIX_BRIEF="$T/neg-brief.md"
+[[ "$(pick)" == mistral ]] && pass "15. the negated-mention brief still may go to mistral" || fail "15. neg brief: $(cat "$T/out")"
+CTL="$T/ctl-ui"; mkdir -p "$CTL"
+sed 's/grep -qE .csi-spl-wui\/\[\[:alnum:\]_\]./grep -q "csi-spl-wui\/"/' "$FUNC" >"$CTL/f.sh"
+neg="$(bash -c 'source "$1"; spl_lane_mix_ui_target "$2" ""' _ "$CTL/f.sh" "$T/neg-brief.md")"
+grep -qF 'grep -q "csi-spl-wui/"' "$CTL/f.sh" && [[ "$neg" == "the brief names csi-spl-wui/" ]] \
+  && pass "15. control: the old whole-brief grep reads the negated brief as UI work" \
+  || fail "15. control: old grep gave '$neg'"
 mix LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF="$T/docs-brief.md" LANE_MIX_SPLIT_KIND='claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude'
 [[ "$(pick)" == mistral ]] && pass "15. specs_and_docs with mistral main, docs brief: mistral" || fail "15. docs main: $(cat "$T/out")"
 attempt task-ui claude fail:F2; attempt task-ui claude fail:F2

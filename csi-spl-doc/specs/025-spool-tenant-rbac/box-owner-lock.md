@@ -1,11 +1,11 @@
 # Box owner lock: a box whose agents only its owner may reach (025 section 11)
 
 **Feature**: `specs/025-spool-tenant-rbac`, box owner lock · **Created**: 2026-10-22 · **Lane**: c-630 ·
-**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v0.1, draft for the panel; nothing built.
+**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v0.2, review findings of m-797 folded (section 11); nothing built.
 **Builds on**: 025 (roles, permissions), 054 (act-as clone), 108 (workspace-owned boxes, pins, revoke),
 017 FR-SEC-031 (desk owners), 023 (human keys), the signed directive feature
 (`csi-spl-orc/src/bash/features/directive/`).
-**Code facts read on**: `8a3d12797` (origin/master, 2026-10-22T18:44:50Z). Paths under `internal/` are in
+**Code facts read on**: `8a3d12797` (origin/master, 2026-10-22T18:44:50Z), re-read on `10e12f038` for v0.2. Paths under `internal/` are in
 `csi-spl-api/src/go/spool-hub-api/internal/`; rdb paths are in `csi-spl-rdb/src/sql/postgres/spool-hub/`.
 
 Public repository: no box or person is named here. `<OWNER_BOX>` is the box the owner locks, `<SHARED_BOX>`
@@ -136,10 +136,11 @@ and has no hub route that grants it.
 | # | path | entry (file:line) | decides today | refusal under a lock |
 |---|---|---|---|---|
 | 1 | Channel post fanned out to member agents | WUI `send`, `wuiSend` `internal/hub/wui.go:560`; fan-out only with `agents.command` (`wui.go:758`); `routeChannel` `internal/hub/channels.go:261`, per-box loop at `:277` | channel membership + `agents.command` | the locked box is skipped in the loop unless the post's human (`typed_by` / sender) is an owner; the post still lands for everyone else; one audit row `channel_fanout` |
-| 1b | Fallback responder picks an online agent on any box | `fallbackPick` `internal/hub/fallback.go:83` | none | a locked box is never a fallback candidate for a non-owner's post |
-| 1c | Add an agent to a channel (back-fills history to its box) | `handleAddChannelAgent` `internal/hub/channel_members.go:347`; `backfillBox` `internal/hub/backfill.go:65` | `channels.edit` + `mayInviteChannel` | 403 `box_locked` when the agent is on a locked box and the caller is not an owner |
+| 1b | Fallback responder picks an online agent on any box | `fallbackPick` `internal/hub/fallback.go:83`, called at `:256` and on the retry at `:382`, queued at `:335` | none | a locked box is never a fallback candidate for a non-owner's post |
+| 1c | Add an agent to a channel (back-fills history to its box) | `handleAddChannelAgent` `internal/hub/channel_members.go:347`; `backfillBox` `internal/hub/backfill.go:65`, called at `channel_members.go:408`, at box connect `ws.go:238` and by the back-fill sweep `backfill.go:160` | `channels.edit` + `mayInviteChannel` | 403 `box_locked` when the agent is on a locked box and the caller is not an owner |
 | 2 | DM or `@agent` command | `wuiRecipient` `wui.go:848`, `agents.command` at `wui.go:827`; `dispatchCheck` `internal/hub/dispatch.go:125` (box resolved from `:136`); queued at `internal/hub/ws.go:974` | `agents.command`, roster, pin, `senderAllowed` `internal/hub/sender_allow.go:229` (per agent, not per box) | `dispatchCheck` answers 403 `box_locked` for a non-owner; checked before `senderAllowed`, so no allow-list edit widens it |
-| 2b | Reply in an agent's topic | `internal/hub/topic_reply.go:28` | `agents.command` | goes through `dispatchCheck`: same refusal |
+| 2b | Reply in an agent's topic | `internal/hub/topic_reply.go:28`, `dispatchCheck` at `:39` | `agents.command` | goes through `dispatchCheck`: same refusal |
+| 2c | Reply to a retired agent, re-routed to its box | `internal/hub/retired_reply.go:75` (`dispatchCheck`) | `agents.command` | goes through `dispatchCheck`: same refusal |
 | 3 | Bare `@mention` | `internal/hub/dispatch.go:79-81`; `sendTargets` `sender_allow.go:208` | channel membership | a mention of a locked-box agent by a non-owner is not delivered (path 1 skip) and the WUI shows `box_locked` |
 | 4 | Read agent topics, DMs, search, flow | `canReadTopic` / `topicVerdict` `internal/hub/privacy.go:129` / `:143`; `handleViewTopics` `view.go:602`, `handleViewTopic` `:1124`; `handleSearch` `search.go:111`; `handleViewFlow` `flow.go:113` | DM ends or channel membership | messages whose `from_box` or `to_box` is a locked box are hidden from non-owners (OQ-1); the same predicate in all four reads |
 | 4b | Live tail and subscribe | `wuiSubscribeTask` `internal/hub/wui.go:388`, `wuiSubscribeChannel` `:422`, `wuiSubscribeFollow` `:462`; per-message `wants` `wui.go:505` | `canReadTopic`, `canReadChannel` | same predicate in `wants` |
@@ -153,10 +154,10 @@ and has no hub route that grants it.
 | 8d | Sender allow-lists, channel AI-agents switch, agent split | `senderAllowActor` `internal/hub/sender_allow.go:68`; `handlePutChannelAIAgents` `internal/hub/channel_ai_agents.go:63`; `agent_split.go:79` | `tenant.settings` | writes naming a locked-box agent 403 `box_locked`; they can only narrow, but the lock owner decides |
 | 9 | Act-as clone (054) | `StartActAs` `internal/hub/actas.go:177`; clone check `readerIsActAsClone` `actas.go:29`, used only on DM lists | `members.impersonate` + ceiling; the WS send path has no clone check | a clone is a new `HUM-*`, never an owner, so every check above refuses it by construction; the lock check needs no clone rule |
 | 10 | Platform operator replay of unsigned posts | `internal/hub/replay_unsigned.go:54`, delivers via `routeChannel` at `:156` | `OperatorEmails` | path 1's check runs inside `routeChannel`, so the replay is refused per box too |
-| 10b | Operator-workspace routes (workspaces, agent caps, fleet load, fleet tokens) | `operatorActor` `internal/hub/operator_workspaces.go:83`; `fleet_load.go:119` | operator-workspace session role | writes naming a locked box 403 `box_locked`; reads drop it |
+| 10b | Operator-workspace routes (workspaces, agent caps, fleet load, fleet tokens) | `operatorActor` `internal/hub/operator_workspaces.go:83`; `fleetLoadCaller` `fleet_load.go:120` | operator-workspace session role | writes naming a locked box 403 `box_locked`; reads drop it |
 | 11 | Issue assigned to an agent | `checkAssignee` `internal/hub/issues.go:284` | agent in roster | a non-owner may not assign to a locked-box agent: 403 `box_locked` |
 | 12 | Another box's agent sends to a locked-box agent (box to box) | `onSend` `internal/hub/ws.go:603`, `sendRouteRefusal` `ws.go:686`; queued `ws.go:974` | box pin + tenant | refused unless the sending box is in the lock's `peer_boxes` (OQ-2): otherwise any admin could command a `<SHARED_BOX>` agent to relay into `<OWNER_BOX>` |
-| 12b | Another box's agent posts in a channel a locked agent is in | `routeChannel` `channels.go:274` (`agentPost`) | channel membership | same `peer_boxes` rule, in the same loop as path 1 |
+| 12b | Another box's agent posts in a channel a locked agent is in | `routeChannel` called from the box send at `ws.go:985`; `agentPost` at `channels.go:274` | channel membership | same `peer_boxes` rule, in the same loop as path 1 |
 | 13 | Terminal, tmux, send-keys, restart | none in the hub (no send-keys or tmux code under `internal/hub/`); the pane is touched only by box-side notify on delivery | box side only | nothing to refuse in the hub; on the box it is OS access (8.1) |
 
 ### 5.2 One check, called from every queue and view point
@@ -167,6 +168,15 @@ and has no hub route that grants it.
   otherwise it writes the audit row (6.3) and answers 403 `box_locked`. The message does not name the owner.
 - Queue points: `dispatchCheck`, the `routeChannel` loop, `fallbackPick`, `backfillBox`, `onSend`.
   The direct queue at `ws.go:974` is reached only after one of them.
+- Every queue write in `internal/hub/` on `10e12f038`, and why it is covered
+  (`git grep -nE 'Store\.Enqueue\(' -- csi-spl-api/src/go/spool-hub-api/internal/hub ':!*_test.go'` -> 8 lines):
+  `channels.go:291` (the `routeChannel` loop), `fallback.go:335` (a box `fallbackPick` chose), `ws.go:974`
+  (direct, after `onSend` / `dispatchCheck`); the other 5 queue to `box-wui`, the browser's own box, never to
+  an agent's box: `blocker_issue.go:394`, `dm_ref.go:140`, `fleet_tokens.go:392`, `issue_backlog.go:80`,
+  `public_notice.go:81`. Callers of the checked helpers: `dispatchCheck` `wui.go:730`, `topic_reply.go:39`,
+  `retired_reply.go:75`; `routeChannel` `ws.go:985`, `replay_unsigned.go:156`; `backfillBox` `ws.go:238`,
+  `channel_members.go:408`, `backfill.go:160`; `fallbackPick` `fallback.go:256`, `:382`. A new queue write
+  outside these helpers is a new path: B3's test lists the 8 lines and fails on a ninth (red control: add one).
 - View points: one predicate `hiddenByLock(tenant, hum, from_box, to_box)`, used by `canReadTopic`, `wants`,
   search, flow, roster, presence, pins list, box stats, files.
 - Fail closed: a `box_locks` read error refuses, never allows.
@@ -333,6 +343,6 @@ after the panel signs this plan, without a further owner go (rounds rulebook 1.4
 
 | seat | vendor | verdict | at |
 |---|---|---|---|
-| reviewer (docs review) | mistral | pending | — |
+| reviewer (docs review) | mistral, m-797@sat | CHANGES 5.1, 10 (msg 71c78d32) on v0.1 `5e019c763`; folded in v0.2: `fleet_load.go:119` was a comment line (now `:120`, `fleetLoadCaller`); the queue sites `retired_reply.go:75`, `ws.go:238`, `ws.go:985`, `fallback.go:256/:335/:382`, `backfill.go:160` added to 5.1 and the queue-write inventory to 5.2. Its other 9 "file not found / no function" items arrived with the paths stripped; every 5.1 reference re-read on `10e12f038`: 0 more wrong | 2026-10-22 |
 
-<!-- version: 0.1.0 · updated: 2026-10-22 · last-edit: 2026-10-22T19:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-22 · last-edit: 2026-10-22T20:10:00Z -->

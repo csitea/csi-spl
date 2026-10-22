@@ -205,7 +205,16 @@ _spawn_worktree() {
   # Keep the MAIN source in sync with trunk: fetch always, fast-forward only
   # when it is on trunk and clean. NEVER switch/reset it, never a merge commit.
   # git-fetch-fresh.sh: skipped when origin/<trunk> was fetched < 60 s ago.
-  _sp_live && bash "${_SP_DIR}/git-fetch-fresh.sh" -C "$REPO" --branch "$DEFBRANCH" >/dev/null 2>&1
+  # SPL-2864: it runs in the new pane, and an https origin that wants a login
+  # (a non-csi-spl seat's repo) printed "Username for ..." on the pane's tty
+  # and held the launcher until the rotation's 120 s start wait failed. So:
+  # never a prompt (GIT_TERMINAL_PROMPT=0), bounded (SPAWN_FETCH_TIMEOUT),
+  # and a failed fetch is one WARN: the worktree starts from the last fetch.
+  if _sp_live; then
+    GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never timeout "${SPAWN_FETCH_TIMEOUT:-60}" \
+      bash "${_SP_DIR}/git-fetch-fresh.sh" -C "$REPO" --branch "$DEFBRANCH" >/dev/null 2>&1 ||
+      echo "WARN: spawn fetch: git fetch origin ${DEFBRANCH} in ${REPO} failed or timed out (exit $?, prompts off); the worktree starts from the last fetched origin/${DEFBRANCH}" >&2
+  fi
   _sp_plan fetch "git-fetch-fresh.sh -C ${REPO} --branch ${DEFBRANCH}"
   main_br="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
   main_dirty="$(git -C "$REPO" status --porcelain 2>/dev/null)"

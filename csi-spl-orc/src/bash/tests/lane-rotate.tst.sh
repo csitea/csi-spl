@@ -37,6 +37,9 @@
 #      top; spawn-window forwards it into the pane
 #  19. a busy child whose command spans lines (a heredoc, a bash -c script) is
 #      reported as ONE line of at most 120 characters (SPL-2841)
+#  20. a new pane that never starts its agent (stopped on a git login
+#      prompt, SPL-2864): FAIL SPAWN names the screen, the NEW window is
+#      closed, the old one keeps its name, its pid and the lane
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -405,6 +408,24 @@ out19="$(source "$PROJ_ROOT/src/bash/run/spl-lane-rotate.func.sh"; ROTATE_LANE_B
 check "19. multi-line busy child: 1 line" '[ "$(printf "%s\n" "$out19" | wc -l)" = 1 ]'
 check "19. multi-line busy child: at most 120 characters, no CR" '[ "${#out19}" -le 120 ] && [[ "$out19" != *$'"'"'\r'"'"'* ]]'
 check "19. multi-line busy child: the command is still named" '[[ "$out19" == "/bin/bash -c git push origin HEAD:master echo two"* ]]'
+
+# --- 20. a new pane stuck before its agent starts: only it is closed (SPL-2864) ------
+# rid 20261022T1101Z-lane-c-179: the launcher's fetch asked "Username for
+# 'https://...'" in the new pane; nothing carrying the id started in 120 s
+cat >"$T/bin/spawn-stuck" <<'EOF2'
+#!/usr/bin/env bash
+n="$(cat "$T/next")"; echo $((n + 1)) >"$T/next"
+echo "spawn $1 $2 $3" >>"$T/spawn.log"
+printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
+printf "INFO: reusing existing worktree\nUsername for 'https://git.example.invalid': \n" >"$T/tmux/screen.%$n"
+echo "$2 %$n"
+EOF2
+chmod +x "$T/bin/spawn-stuck"
+reset; lane c-991 70
+ROTATE_SPAWN="$T/bin/spawn-stuck" tick
+check "20. stuck new pane: FAIL SPAWN names the prompt, the old session keeps the lane" 'grep -q "FAIL FAIL SPAWN: no claude carrying c-991 started in %3000 within 4s; the pane is up, no claude process in it: .*Username for" "$D/rotate.log" && grep -q "the old session (pid 2991) keeps the lane" "$D/rotate.log"'
+check "20. stuck new pane: its window closed, the old one not" 'grep -qx "kill %3000" "$T/tmux/log" && ! grep -qx "kill %991" "$T/tmux/log" && ! grep -q "^%3000	" "$T/tmux/panes"'
+check "20. the old window keeps its name and its pid" 'grep -q "^%991	2991	.*	c-991@box\$" "$T/tmux/panes" && [ -d "$T/proc/2991" ] && [ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

@@ -80,6 +80,12 @@
 #      re-seats it (seat switch, ack, old retired, lease.conf), the fleet lease
 #      untouched; same vendor and able = no-op; able + no ROTATE_ROLE_VENDOR =
 #      kept; the holder's box or no fleet lease = refused, exit 3
+#  22. SPL-2898 (A): two ACK failures on one old pid = one ask + one notice,
+#      the repeat logs ALERT SKIP; control: a SPAWN failure = a new ask; DONE
+#      OK ends the streak
+#  23. SPL-2898 (E): the old window gone before SPAWN renames it = SPAWN
+#      SKIP retired with tmux's reason, no ask, no notice, ctx ABORT, a note to
+#      the dispatch lease holder; control: a live old window rotates
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -149,7 +155,10 @@ case "$cmd" in
       else printf '❯\302\240\033[2mTry "how does <filepath> work?"\033[0m\n'; fi
       printf '────────\n  ⏵⏵ auto mode on\n'
     fi ;;
-  rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
+  rename-window) if [ -f "$T/tmux/gone.$tgt" ]; then rm -f "$T/tmux/gone.$tgt"; pid="$(field 2)"; [ -n "$pid" ] && rm -rf "${T:?}/proc/$pid"
+      awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; fi
+    grep -q "^$tgt	" "$P" || { echo "can't find pane: $tgt" >&2; exit 1; }
+    awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
     echo "rename $tgt ${args[0]}" >>"$L" ;;
   send-keys) k="${args[0]}"; echo "keys $tgt $k" >>"$L"
     if [ "$lit" = 1 ]; then printf '%s' "$k" >>"$T/tmux/typed.$tgt"
@@ -1020,6 +1029,52 @@ act ROTATE_CMD=standby DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "21. no stray failing command under the ERR trap" || fail "21. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
 export OLD_ID=c-900; unset DESK_STATE_ROOT; rm -f "$D/lease.orch"
 printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+# --- 22. SPL-2898 (A): one alert per streak (role, phase, old pid) -----------------------------
+# rotation-failures-2026-10-22.md section 2: one cause gave 20 FAIL runs on
+# the same old pid in 19 h and 12 notices. Two ACK failures on old pid 1001:
+# one ask + one notice; the repeat logs ALERT SKIP. Control: a SPAWN failure
+# on the same pid is a new streak (a new ask). A DONE OK ends the streak.
+world; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ACK_TIMEOUT=3 >"$T/o" 2>&1; rid1="$(ctx ROTATE_RID)"
+ask1="$(sed -n 's/.* ALERT OK ask \([0-9a-f]\{8\}\) in the ask book.*/\1/p' "$T/o")"
+rm -f "$D/rotate.orch.state"
+act DRY_RUN=0 ROTATE_ACK_TIMEOUT=3 >"$T/o2" 2>&1; rc=$?
+[[ $rc -ne 0 && -n "$ask1" ]] && grep -q ' FAIL FAIL ACK: no ack within 3s' "$T/o2" &&
+  [[ "$(grep -c '^do_spl_ask_put' "$T/run.log")" == 1 && "$(grep -c '^do_spl_fleet_notice' "$T/run.log")" == 1 ]] &&
+  pass "22. two ACK failures on old pid 1001: 1 do_spl_ask_put, 1 notice" ||
+  fail "22. streak: rc=$rc asks=$(grep -c '^do_spl_ask_put' "$T/run.log") notices=$(grep -c '^do_spl_fleet_notice' "$T/run.log") ($rid1) $(grep -E 'ALERT|FAIL' "$T/o2")"
+grep -q " ALERT SKIP repeat 2 of ask $ask1" "$T/o2" && grep -q " ALERT SKIP repeat 2 of ask $ask1" "$D/rotate.log" &&
+  pass "22. the repeat logs ALERT SKIP repeat 2 of ask <id>" || fail "22. no ALERT SKIP line: $(grep ALERT "$T/o2")"
+rm -f "$D/rotate.orch.state"; echo nopane >"$T/spawn.mode"
+act DRY_RUN=0 >"$T/o" 2>&1
+[[ "$(grep -c '^do_spl_ask_put' "$T/run.log")" == 2 ]] && grep -q ' ALERT OK ask ' "$T/o" && grep -q ' c-900 SPAWN 1001 [0-9a-f-]* 1$' "$D/rotate.orch.alert-streak" &&
+  pass "22. control: a SPAWN failure on the same pid is a new streak, a new ask" || fail "22. control: asks=$(grep -c '^do_spl_ask_put' "$T/run.log") $(grep ALERT "$T/o")"
+rm -f "$D/rotate.orch.state" "$T/spawn.mode" "$T/ack.mode"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -e "$D/rotate.orch.alert-streak" ]] &&
+  pass "22. DONE OK ends the streak (the streak file is gone)" || fail "22. done: rc=$rc $(ctx ROTATE_PHASE) $(cat "$D/rotate.orch.alert-streak" 2>/dev/null)"
+! grep -q ERRTRAP "$T/o" "$T/o2" && pass "22. no stray failing command under the ERR trap" || fail "22. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/o2")"
+
+# --- 23. SPL-2898 (E): the old window is already gone when SPAWN renames it --------------------
+# rotation-failures-2026-10-22.md row 5: tmux refused the rename because the
+# old window was gone; its stderr went to /dev/null and the alert named a pid
+# that was gone. Now: the reason is kept, SPAWN SKIP retired, no ask, no
+# notice, no "old session kept"; a note to the dispatch lease holder, the S3
+# restart brings the seat back.
+world; touch "$T/tmux/gone.%2"; echo "c-902@box-desk $(date +%s)" >"$D/lease"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+grep -q " SPAWN SKIP retired: .*can't find pane: %2" "$T/o" && grep -q " SPAWN SKIP retired: " "$D/rotate.log" &&
+  pass "23. gone old window: SPAWN SKIP retired, tmux's reason kept" || fail "23. rc=$rc $(grep -E 'SPAWN|FAIL' "$T/o")"
+! grep -q '^do_spl_ask_put\|^do_spl_fleet_notice' "$T/run.log" 2>/dev/null && ! grep -q ' FAIL FAIL ' "$T/o" &&
+  ! grep -rq 'old session kept' "$T/o" "$T/send.log" 2>/dev/null &&
+  pass "23. no ask, no notice, no FAIL, no 'old session kept'" || fail "23. alerted: $(cat "$T/run.log" 2>/dev/null) $(grep FAIL "$T/o")"
+[[ "$(ctx ROTATE_PHASE)" == ABORT && ! -e "$T/spawn.log" ]] && grep -q "send c-900 -> c-902 note orch-rotate-$(ctx ROTATE_RID): .*already gone" "$T/send.log" &&
+  pass "23. ctx ABORT, nothing spawned, one note to the dispatch lease holder" || fail "23. ctx=$(ctx ROTATE_PHASE) $(cat "$T/send.log" 2>/dev/null)"
+world; act DRY_RUN=0 >"$T/o" 2>&1
+grep -q ' SPAWN OK new pid 2001' "$T/o" && ! grep -q 'SKIP retired' "$T/o" &&
+  pass "23. control: the old window still there = rotated as before" || fail "23. control: $(grep -E 'SPAWN|FAIL' "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "23. no stray failing command under the ERR trap" || fail "23. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -f "$D/lease"
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }
 echo "orch-rotate: $fails failure(s)"; exit 1

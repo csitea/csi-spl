@@ -499,6 +499,14 @@ spl_orch_rotate_fail() {
   spl_orch_rotate_unswitch
   reason+="$ROTATE_UNSWITCH_WHY"
   spl_rotate_restore "$LEASE_ORCH" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
+  # the old window was gone before SPAWN renamed it (SPL-2898 fix E): no
+  # alert, no "old session kept"; the S3 restart brings the seat back
+  if [[ "$phase" == SPAWN && -n "${ROTATE_OLD_GONE:-}" ]]; then
+    spl_rotate_gone_end orch
+    spl_rotate_note "$(spl_rotate_lease_to "${LEASE_FILE:-$LEASE_DIR/lease}")" "$(spl_rotate_ack_task "$ROTATE_RID")" \
+      "**orch-rotate@$ROTATE_BOX**: rotation $ROTATE_RID of $LEASE_ORCH: the old session (pid $ROTATE_OLD_PID) was already gone at SPAWN: $ROTATE_ERR. Nothing spawned, no alert; the S3 restart brings the seat back."
+    return 0
+  fi
   spl_orch_rotate_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the role"
   spl_rotate_alert orch "$ROTATE_RID" "$phase" "$reason"
   if [[ "$phase" == ACK ]] && spl_rotate_alive "$ROTATE_OLD_PID"; then

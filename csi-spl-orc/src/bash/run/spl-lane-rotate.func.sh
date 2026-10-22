@@ -570,6 +570,13 @@ spl_lane_rotate_last() { echo "$(date +%s) $ROTATE_RID $1" > "$ROTATE_STATE_DIR/
 spl_lane_rotate_fail() {
   local id="$1" phase="$2" reason="$3"
   spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
+  # the old window was gone before SPAWN renamed it (SPL-2898 fix E): the
+  # lane was retired, nothing to tell
+  if [[ "$phase" == SPAWN && -n "${ROTATE_OLD_GONE:-}" ]]; then
+    spl_rotate_gone_end lane
+    spl_lane_rotate_last SKIP
+    return 0
+  fi
   spl_lane_rotate_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the lane"
   spl_lane_rotate_last FAIL
   spl_rotate_note "$(spl_lane_rotate_holder_to)" dispatch-lane-rotate \

@@ -40,6 +40,8 @@
 #  20. a new pane that never starts its agent (stopped on a git login
 #      prompt, SPL-2864): FAIL SPAWN names the screen, the NEW window is
 #      closed, the old one keeps its name, its pid and the lane
+#  21. SPL-2898 (E): the old window gone before SPAWN renames it: SPAWN SKIP
+#      retired with tmux's reason, no FAIL, no note, ctx ABORT
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -125,7 +127,10 @@ case "$cmd" in
       else printf '❯\302\240\033[2mTry "how does <filepath> work?"\033[0m\n'; fi
       printf '────────\n  ⏵⏵ auto mode on\n'
     fi ;;
-  rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
+  rename-window) if [ -f "$T/tmux/gone.$tgt" ]; then rm -f "$T/tmux/gone.$tgt"; pid="$(field 2)"; [ -n "$pid" ] && rm -rf "${T:?}/proc/$pid"
+      awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; fi
+    grep -q "^$tgt	" "$P" || { echo "can't find pane: $tgt" >&2; exit 1; }
+    awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
     echo "rename $tgt ${args[0]}" >>"$L" ;;
   send-keys) k="${args[0]}"; echo "keys $tgt $k" >>"$L"
     if [ "$lit" = 1 ]; then printf '%s' "$k" >>"$T/tmux/typed.$tgt"
@@ -427,6 +432,16 @@ check "20. stuck new pane: FAIL SPAWN names the prompt, the old session keeps th
 check "20. stuck new pane: its window closed, the old one not" 'grep -qx "kill %3000" "$T/tmux/log" && ! grep -qx "kill %991" "$T/tmux/log" && ! grep -q "^%3000	" "$T/tmux/panes"'
 check "20. the old window keeps its name and its pid" 'grep -q "^%991	2991	.*	c-991@box\$" "$T/tmux/panes" && [ -d "$T/proc/2991" ] && [ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
 
+# --- 21. SPL-2898 (E): the old window is already gone when SPAWN renames it ----------
+# rotation-failures-2026-10-22.md row 5: c-950, c-279, c-304 were retired 26..62 s
+# before their FAIL SPAWN; the rename's stderr went to /dev/null. Now: tmux's
+# reason is kept, the run ends SPAWN SKIP retired, no note to the holder.
+reset; lane c-992 70; touch "$T/tmux/gone.%992"
+tick
+check "21. gone old window: SPAWN SKIP retired, tmux's reason kept" 'grep -q " SPAWN SKIP retired: .*can.t find pane: %992" "$D/rotate.log"'
+check "21. gone old window: no FAIL, no note to the dispatch holder, nothing spawned" '! grep -q " FAIL FAIL " "$D/rotate.log" && [ "$(n "$T/send.log" "dispatch-lane-rotate")" = 0 ] && [ "$(n "$T/spawn.log")" = 0 ]'
+check "21. gone old window: the lane ctx ends ABORT" 'grep -qx "ROTATE_PHASE=ABORT" "$S/c-992/lifetime/rotate.lane.ctx"'
+check "21. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

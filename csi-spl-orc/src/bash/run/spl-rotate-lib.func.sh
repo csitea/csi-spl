@@ -387,6 +387,8 @@ spl_rotate_log() {
   echo "$line" >> "$ROTATE_LOG"
   [[ "$res" == SKIP ]] && return 0
   local sf; sf="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${rid##*-}").state"
+  # a DONE OK ends the alert streak (spl_rotate_alert_repeat, SPL-2898)
+  [[ "$phase $res" == "DONE OK" ]] && rm -f "${sf%.state}.alert-streak"
   printf '%s %s %s\n' "$rid" "$phase" "$(date +%s)" > "$sf.tmp.$$" && mv -f "$sf.tmp.$$" "$sf"
   return 0
 }
@@ -946,13 +948,12 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_spawn() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin wd
-  ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG=""
+  ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG="" ROTATE_OLD_GONE=""
   # no old window (a seat whose process is gone, do_spl_role_failover): no
   # rename, and spawn-window picks the session (SPOOL_SESSION, else the attached one)
   sess="${SPOOL_SESSION:-}"
   if [[ -n "${ROTATE_OLD_PANE:-}" ]]; then
-    spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
-      { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
+    spl_rotate_rename_old "$id" || return 1
     sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
   fi
   # the box tag the old window showed (<ID>@<tag>), so the new one is named alike
@@ -998,6 +999,42 @@ spl_rotate_spawn() {
   [[ "$got" == "$ROTATE_NEW_PANE" ]] ||
     { ROTATE_ERR="the identity map routes $id to '${got:-nothing}', not the new pane $ROTATE_NEW_PANE"; return 1; }
   return 0
+}
+
+# spl_rotate_rename_old ID: the old window gets its retiring name. Non-zero =
+# tmux refused; ROTATE_ERR keeps tmux's own words (SPL-2898, row 5 of
+# rotation-failures-2026-10-22.md: they went to /dev/null) and
+# ROTATE_OLD_GONE=1 when the old pane or the old pid is already gone, which
+# the caller ends with spl_rotate_gone_end, not with an alert.
+# shellcheck disable=SC2034 # ROTATE_OLD_GONE is read by the callers
+spl_rotate_rename_old() {
+  local err gone=""
+  err="$(spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$1")" 2>&1 >/dev/null)" && return 0
+  err="$(tr '\n' ' ' <<<"$err" | cut -c1-200)"
+  spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{pane_id}' >/dev/null 2>&1 || gone="pane $ROTATE_OLD_PANE is gone"
+  [[ -z "$gone" && -n "${ROTATE_OLD_PID:-}" ]] && ! spl_rotate_alive "$ROTATE_OLD_PID" && gone="old pid $ROTATE_OLD_PID is gone"
+  ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE (${err:-no message})${gone:+; $gone}"
+  [[ -n "$gone" ]] && ROTATE_OLD_GONE=1
+  return 1
+}
+
+# spl_rotate_gone_end FAMILY: the end of a run whose SPAWN found the old
+# window already gone (ROTATE_OLD_GONE, SPL-2898 fix E): ctx ABORT, one
+# "SPAWN SKIP retired" line, no alert. The caller says who is told.
+spl_rotate_gone_end() {
+  ROTATE_PHASE=ABORT
+  spl_rotate_ctx_save "$1"
+  spl_rotate_log "$ROTATE_RID" SPAWN SKIP "retired: $ROTATE_ERR; nothing spawned, no alert"
+}
+
+# spl_rotate_lease_to FILE: where a note to that lease's holder goes: <id>
+# on this box, <id>@<box> on another, orchestrator when it names nobody.
+spl_rotate_lease_to() {
+  local h=""
+  [[ -s "$1" ]] && read -r h _ < "$1"
+  spl_is_agent_id "${h%@*}" || { echo orchestrator; return 0; }
+  [[ "${h#*@}" == "$ROTATE_BOX" ]] && h="${h%@*}"
+  echo "$h"
 }
 
 # spl_rotate_prompt_head ID ACK SEED: the head of a role session's FIRST
@@ -1312,12 +1349,14 @@ spl_rotate_ack_send() {
 spl_rotate_alert() {
   local role="$1" rid="$2" phase="$3" reason="$4" id body ask
   id="$(spl_rotate_role_id "$role")"
+  spl_rotate_alert_repeat "$role $id $phase ${ROTATE_OLD_PID:-}" "$rid" && return 0
   # a 5th argument replaces "old session kept" once RETIRE OK has run
   body="ROTATION FAILED $role $phase $reason; ${5:-old session kept: $id@$ROTATE_BOX pid ${ROTATE_OLD_PID:-?}}"
   ask="$(cat /proc/sys/kernel/random/uuid)"
   if env ASK_ID="$ask" ASK_KIND=blocker ASK_FROM="$id" ASK_TO="${LEASE_ORCH:-}" ASK_TOPIC="$(spl_rotate_ack_task "$rid")" \
       ASK_SUMMARY="$body" timeout 120 "$ROTATE_RUN" -a do_spl_ask_put >/dev/null 2>&1 7>&- 8>&- 9>&-; then
     spl_rotate_log "$rid" ALERT OK "ask ${ask:0:8} in the ask book"
+    spl_rotate_alert_streak "$role $id $phase ${ROTATE_OLD_PID:-}" "$rid" "$ask"
     if spl_is_agent_id "$id" && mkdir -p "$SPOOL_ROOT/$id/lifetime" 2>/dev/null; then
       echo "$ask $rid $phase" >> "$SPOOL_ROOT/$id/lifetime/alerts.open" 2>/dev/null || true
     fi
@@ -1325,6 +1364,31 @@ spl_rotate_alert() {
   spl_rotate_owner_say "$rid" "$id" "$ask" "**$body**" blocker
   return 0
 }
+
+# One alert per streak (SPL-2898, rotation-failures-2026-10-22.md section 2:
+# one cause gave 20 FAIL runs on the same old pid in 19 h, and 12 notices).
+# The streak is rotate.<family>.alert-streak, one line "<role> <id> <phase>
+# <old pid> <ask> <n>"; a DONE OK removes it (spl_rotate_log). Only a numeric
+# old pid makes a key: with none every failure alerts, as before.
+# spl_rotate_alert_repeat KEY RID: 0 = KEY is the open streak: its count goes
+# up and one "ALERT SKIP repeat <n> of ask <id8>" line is logged.
+spl_rotate_alert_repeat() {
+  local key="$1" rid="$2" f r i p o ask n
+  [[ "$key" =~ \ [0-9]+$ ]] || return 1
+  f="$(spl_rotate_alert_streak_file "$rid")"
+  [[ -s "$f" ]] && read -r r i p o ask n < "$f" || return 1
+  [[ "$r $i $p $o" == "$key" && "$n" =~ ^[0-9]+$ ]] || return 1
+  n=$((n + 1))
+  echo "$key $ask $n" > "$f" 2>/dev/null || true
+  spl_rotate_log "$rid" ALERT SKIP "repeat $n of ask ${ask:0:8} ($key): no new ask, no notice"
+  return 0
+}
+# spl_rotate_alert_streak KEY RID ASK: a new streak starts at ASK.
+spl_rotate_alert_streak() {
+  [[ "$1" =~ \ [0-9]+$ ]] || return 0
+  echo "$1 $3 1" > "$(spl_rotate_alert_streak_file "$2")" 2>/dev/null || true
+}
+spl_rotate_alert_streak_file() { echo "${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${1##*-}").alert-streak"; }
 
 # spl_rotate_owner_say RID ID ASK BODY KIND [PHASE]: the people leg of an
 # alert: a new topic in the fleet's ops channel (do_spl_fleet_notice, cnf

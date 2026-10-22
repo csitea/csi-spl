@@ -228,6 +228,8 @@ describe('the last selected pane decides the level', () => {
 
   const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
   const read = (p) => readFileSync(join(SRC, p), 'utf8')
+  /* r18-08: the DM page's line target lives in useDmLineTarget.ts */
+  const readPage = (p) => read(p) + (p === 'pages/dm/[peer].vue' ? read('composables/useDmLineTarget.ts') : '')
   it('the shell records the pane on pointerdown and focus', () => {
     const layout = read('layouts/default.vue')
     assert.match(layout, /@pointerdown\.capture="paneFocus\.noteEvent"/)
@@ -239,7 +241,7 @@ describe('the last selected pane decides the level', () => {
   })
   for (const [page, fn] of [['pages/channel/[name].vue', 'paneOpen'], ['pages/dm/[peer].vue', 'paneOpen'], ['pages/lobby.vue', 'lobbyPaneOpen']]) {
     it(`${page} gates the pane on the last selected pane`, () => {
-      const s = read(page)
+      const s = readPage(page)
       assert.match(s, new RegExp(`function ${fn}\\(\\) \\{\\s*return paneTakesLine\\(\\{ paneOpen: [^,]+, lastPane: paneFocus\\.last \\}\\)`))
       assert.doesNotMatch(s, /omniboxReplyTaskId\(\{(?:(?!lastPane)[^}])*\}\)/, 'every reply-target call passes lastPane')
     })
@@ -308,13 +310,15 @@ describe('SPL-996: a post made while a topic is open goes into it', () => {
   })
   const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
   const read = (p) => readFileSync(join(SRC, p), 'utf8')
+  /* r18-08: the DM page's line target lives in useDmLineTarget.ts */
+  const readPage = (p) => read(p) + (p === 'pages/dm/[peer].vue' ? read('composables/useDmLineTarget.ts') : '')
   it('the shell records navigation keys, and the store gates pointerdown / focusin', () => {
     assert.match(read('layouts/default.vue'), /document\.addEventListener\('keydown', noteKey, true\)/)
     assert.match(read('stores/pane-focus.ts'), /if \(chooses\) set\(paneOfTarget\(ev\.target\)\)/)
   })
   it('every page passes the reply target to isParentFlag', () => {
     assert.match(read('pages/channel/[name].vue'), /replyTaskId: topicId \|\| ''/)
-    assert.match(read('pages/dm/[peer].vue'), /replyTaskId: topicId \|\| ''/)
+    assert.match(readPage('pages/dm/[peer].vue'), /replyTaskId: topicId \|\| ''/)
     assert.match(read('pages/t/[task_id].vue'), /replyTaskId: target \|\| '' \}\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\(topicId\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\('', fresh\)/)

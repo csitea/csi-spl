@@ -478,15 +478,13 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { activityOf } from '~/utils/feed.mjs'
 import { topicCounts } from '~/utils/topic-counts.mjs'
-import { isEdited, wantsDblClickEdit, wantsEdit } from '~/utils/msg-edit.mjs'
+import { isEdited, wantsDblClickEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useDrafts } from '~/composables/useDrafts'
 import { useMessageMenu } from '~/composables/useMessageMenu'
-import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, paneArchiveOffer } from '~/utils/topic-archive.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
-import { deleteKeyAction, rowStep } from '~/utils/row-keys.mjs'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { ownerAllows } from '~/utils/access.mjs'
@@ -503,6 +501,7 @@ import { useCardNotes } from '~/composables/useCardNotes'
 import { useCardLongPress, useCardSwipe, useCardSwipeFlags } from '~/composables/useCardSwipe'
 import { useCardMove, useCardMoveFlags } from '~/composables/useCardMove'
 import { useCardTouchLift } from '~/composables/useCardTouchLift'
+import { useCardKeys } from '~/composables/useCardKeys'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -840,85 +839,16 @@ function onDblClick(ev: MouseEvent) {
   startEdit()
 }
 
-/* Delete / Backspace on the selected row. A topic-level message
-   (is_parent 1) asks first, with the same confirm as the menu; a reply goes
-   at once and the "Deleted · Undo" snackbar offers it back. Who may delete
-   is the menu's gate, unchanged. preventDefault stops Backspace from
-   walking the browser history. True when the key was a delete. */
-function onDeleteKey(ev: KeyboardEvent): boolean {
-  const del = editing.value || removing.value
-    ? ''
-    : deleteKeyAction(ev, props.msg, { topicDelete: showTopicDelete.value, editable: Boolean(props.editable) && canEdit(props.msg) })
-  if (!del) return false
-  ev.preventDefault()
-  /* HUM-10 c13e8023: the focus stays in this card's panel (useMsgShortcuts) */
-  holdPanel(rowEl.value)
-  if (del === 'confirm-topic') void onMenuDeleteTopic()
-  else if (del === 'confirm-message') msgDeleteOpen.value = true
-  else {
-    /* the host drops it from its own rows; Undo hands it back (onDeleteRestore) */
-    deleteUndo.offer(props.msg)
-    emit('deleted', props.msg)
-  }
-  return true
-}
-
-function onKey(ev: KeyboardEvent) {
-  /* `e` on the focused row opens the editor. Checked BEFORE the
-     open-topic keys so a row that is editable but not clickable still takes
-     it, and guarded by the same target === currentTarget rule. */
-  if (wantsEdit(ev, { editable: props.editable && !editing.value })) {
-    ev.preventDefault()
-    startEdit()
-    return
-  }
-  /* CLE-77840 (owner, topic bc1fd547): ArrowDown / ArrowUp walk the focus,
-     which is the selection, to the next / previous message of this feed. */
-  const step = editing.value ? 0 : rowStep(ev)
-  if (step) {
-    if (stepSelection(rowEl.value, step)) ev.preventDefault()
-    return
-  }
-  if (onDeleteKey(ev)) return
-  if (!props.clickable) return
-  if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return
-  /* only the row itself: Enter inside a child control is that control's */
-  if (ev.target !== ev.currentTarget) return
-  ev.preventDefault()
-  emit('open-topic', props.msg)
-}
-
-/* HUM-10 ae2e5093: Shift + letter on the selected card runs the same handler
-   as its menu item, offered by the same flags (composables/useMsgShortcuts.ts) */
-const shortcutRun: Record<string, () => unknown> = {
-  open: onMenuOpen, parent: onMenuParent, edit: onMenuEdit, copy: copyMessageLink, 'copy-text': copyBody,
-  reply: onMenuReply, kind: onMenuKind, archive: onMenuArchive, delete: onMenuDelete, 'delete-topic': onMenuDeleteTopic,
-  'move-channel': () => openMovePicker('channel'), 'move-topic': () => openMovePicker('topic'),
-  'merge-topic': () => openMovePicker('merge'), 'promote-topic': onPromote, 'hide-flow': onMenuHide,
-}
-/* HUM-10 t1 4c5161e3: Shift + R opens this card's menu at the row, the
-   same point as the … button, so the first item can take the focus. */
-function openMenuFromShortcut() {
-  const row = rowEl.value
-  if (!row) return
-  const btn = row.querySelector<HTMLElement>('[data-testid="msg-menu-btn"]')
-  const anchor = btn ?? row
-  const r = anchor.getBoundingClientRect()
-  row.focus({ preventScroll: true })
-  if (btn) openMenuAt(r.left, r.bottom + 4)
-  else openMenuAt(r.left + 12, r.top + 12)
-}
-useMsgShortcuts({
-  row: rowEl,
-  busy: () => editing.value || removing.value,
-  run: (id) => shortcutRun[id]?.(),
-  openMenu: openMenuFromShortcut,
-  flags: () => ({
-    editable: !!props.editable && !editing.value, parent: showParent.value, parentKind: parentKind.value,
-    topicArchive: showTopicArchive.value, paneArchive: paneArchiveReply.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
-    moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
-    promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value,
-  }),
+const { onKey } = useCardKeys({
+  props, emit, rowEl, editing, removing, startEdit, canEdit, msgDeleteOpen, deleteUndo, openMenuAt,
+  actions: {
+    onMenuOpen, onMenuParent, onMenuEdit, copyMessageLink, copyBody, onMenuReply, onMenuKind,
+    onMenuArchive, onMenuDelete, onMenuDeleteTopic, openMovePicker, onPromote, onMenuHide,
+  },
+  flags: {
+    showParent, parentKind, showTopicArchive, paneArchiveReply, showTopicDelete, kindSettable,
+    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks,
+  },
 })
 
 onMounted(() => {

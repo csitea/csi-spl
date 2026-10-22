@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
 
@@ -44,7 +45,8 @@ describe('replies tab stop (SPL-942)', () => {
     assert.match(actions, /v-if="count > 0 \|\| unreadCount > 0 \|\| alwaysTopic"/)
     assert.match(vue, /tabindex="0"/)
     assert.doesNotMatch(vue, /tabindex="[1-9]/)
-    assert.match(vue, /function onKey\(ev: KeyboardEvent\)/)
-    assert.match(vue, /wantsEdit\(ev/)
+    /* r17-03: the row's keys live in useCardKeys.ts */
+    assert.match(messageCardSrc(), /function onKey\(ev: KeyboardEvent\)/)
+    assert.match(messageCardSrc(), /wantsEdit\(ev/)
   })
 })

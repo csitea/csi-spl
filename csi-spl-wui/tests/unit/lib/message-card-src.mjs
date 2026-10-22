@@ -22,6 +22,7 @@ export const MESSAGE_CARD_FILES = [
   'src/composables/useCardSwipe.ts',
   'src/composables/useCardMove.ts',
   'src/composables/useCardTouchLift.ts',
+  'src/composables/useCardKeys.ts',
 ]
 
 /** MessageCard.vue, then every composable it was split into, one string. */

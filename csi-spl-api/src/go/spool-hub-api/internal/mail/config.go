@@ -37,7 +37,14 @@ type Config struct {
 	// Preflight is the relay check at hub start (spec 047 W7): off, warn
 	// (log a CRITICAL line, keep serving) or require (refuse to start).
 	Preflight string `env:"SPOOL_HUB_MAIL_PREFLIGHT" envDefault:"warn"`
+	// HubEnv is SPOOL_HUB_ENV: in local dev mode (lde) TLS none may reach
+	// the compose network's catcher (Mailpit, host mail; spec 148 §2.2).
+	HubEnv string `env:"SPOOL_HUB_ENV"`
 }
+
+// localDevHubEnv is the local dev mode SPOOL_HUB_ENV (spec 148), the only
+// one whose plain-text catcher may be off loopback.
+const localDevHubEnv = "lde"
 
 // Load reads the process environment.
 func Load() (*Config, error) { return load(env.Options{}) }
@@ -98,8 +105,8 @@ func (c *Config) validate() error {
 	switch c.SMTPTLS {
 	case TLSStartTLS, TLSImplicit:
 	case TLSNone:
-		if !isLoopbackHost(c.SMTPHost) {
-			return fmt.Errorf("SPOOL_HUB_MAIL_SMTP_TLS=none is only allowed for a loopback catcher")
+		if !isLoopbackHost(c.SMTPHost) && c.HubEnv != localDevHubEnv {
+			return fmt.Errorf("SPOOL_HUB_MAIL_SMTP_TLS=none is only allowed for a loopback catcher, or any catcher with SPOOL_HUB_ENV=%s (got %q)", localDevHubEnv, c.HubEnv)
 		}
 	default:
 		return fmt.Errorf("SPOOL_HUB_MAIL_SMTP_TLS %q must be starttls, implicit or none", c.SMTPTLS)

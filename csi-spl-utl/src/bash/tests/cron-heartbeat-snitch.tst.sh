@@ -19,7 +19,9 @@
 #  13. --wrap runs the command, keeps its rc, writes the beat; the check reads it
 #  14. --beat writes a beat; a bad call is a usage error (exit 2)
 #  15. Default source runs only `crontab -l` (never writes a crontab)
-#  16. 43-line crontab checked under CHS_TEST_MAX_MS (default 250; target 100)
+#  16. 43-line crontab checked under CHS_TEST_MAX_MS of CPU time (default 250;
+#      target 100). CPU, not wall: a loaded box stretches wall time 4x (sat
+#      load ~42: 421 ms) while the work done stays the same.
 #  17. Through the csi-spl-utl ./run harness -> exits 0
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -288,12 +290,16 @@ for i in $(seq 1 43); do
   (( i % 2 )) && beat "job-$i" 30
   (( i % 3 )) && touch -d "@$((NOW - 30))" "$T/log/job-$i.out"
 done
-out=$(CRON_HB_CRONTAB_FILE="$big" run_check 1 2>&1); rc=$?
+# user+sys of the check and its children; wall elapsed_ms is only reported
+TIMEFORMAT='%3U %3S'
+{ time { out=$(CRON_HB_CRONTAB_FILE="$big" run_check 1 2>&1); rc=$?; }; } 2> "$T/cpu16"
+unset TIMEFORMAT
+cpu_ms=$(awk 'NF == 2 { printf "%d", ($1 + $2) * 1000 }' "$T/cpu16")
 ms=$(sed -n 's/.*elapsed_ms=\([0-9]*\).*/\1/p' <<< "$out")
-if [[ $rc -eq 0 && "$out" == *"lines=43 "* && -n "$ms" && "$ms" -lt "$max_ms" ]]; then
-  pass "16. 43 tagged lines checked in ${ms} ms (< ${max_ms}; target 100)"
+if [[ $rc -eq 0 && "$out" == *"lines=43 "* && -n "$cpu_ms" && "$cpu_ms" -lt "$max_ms" ]]; then
+  pass "16. 43 tagged lines checked in ${cpu_ms} ms CPU (< ${max_ms}; target 100; wall ${ms} ms)"
 else
-  fail "16. 43 lines (rc=$rc, ms=$ms, out=$(tail -n 2 <<< "$out"))"
+  fail "16. 43 lines (rc=$rc, cpu_ms=$cpu_ms, wall ms=$ms, time=$(cat "$T/cpu16"), out=$(tail -n 2 <<< "$out"))"
 fi
 
 # 17. Through ./run

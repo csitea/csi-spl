@@ -23,6 +23,8 @@ import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
+/* r18-08: the DM page's line target lives in useDmLineTarget.ts */
+const pageSrc = (rel) => src(rel) + (rel === 'src/pages/dm/[peer].vue' ? src('src/composables/useDmLineTarget.ts') : '')
 
 /* every page that registers a send target for the top-bar Omnibox */
 const OMNIBOX_PAGES = [
@@ -37,7 +39,7 @@ const OMNIBOX_PAGES = [
 describe('cause 1: the handler has to ACCEPT the files', () => {
   for (const page of OMNIBOX_PAGES) {
     it(`${page}: what it registers takes (text, files)`, () => {
-      const s = src(page)
+      const s = pageSrc(page)
       /* up to the registration's own closing `})` at column 0, not the first
          `})`: it contains nested calls like t('…', { target }) and slicing at
          those cut the `send:` line off. A fixed 400-character window did the

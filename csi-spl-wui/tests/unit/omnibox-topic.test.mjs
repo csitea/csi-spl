@@ -16,6 +16,8 @@ import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
+/* r18-08: the DM page's line target lives in useDmLineTarget.ts */
+const pageSrc = (rel) => src(rel) + (rel === 'src/pages/dm/[peer].vue' ? src('src/composables/useDmLineTarget.ts') : '')
 const PAGES = ['src/pages/dm/[peer].vue', 'src/pages/channel/[name].vue']
 
 describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => {
@@ -41,7 +43,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
 
   for (const page of PAGES) {
     it(`${page}: the open topic captures the Omnibox only while Topics is the selected list`, () => {
-      const s = src(page)
+      const s = pageSrc(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
       assert.match(s, /omniboxReplyTaskId/)
       assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) && !fresh, replyTaskId: topicId \|\| '' \}\)\)/)
@@ -96,7 +98,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.equal(isParentFlag({ paneVisible: false }), 1)
     assert.equal(isParentFlag({}), 1)
     for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
-      assert.match(src(page), /isParentFlag/, page)
+      assert.match(pageSrc(page), /isParentFlag/, page)
     }
   })
 })

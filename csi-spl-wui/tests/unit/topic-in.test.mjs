@@ -19,6 +19,8 @@ import { messageComposerSrc } from './lib/message-composer-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
+/* r18-08: the DM page's line target lives in useDmLineTarget.ts */
+const pageSrc = (rel) => src(rel) + (rel === 'src/pages/dm/[peer].vue' ? src('src/composables/useDmLineTarget.ts') : '')
 
 const SHORT = { taskId: 'short', title: 'Review', channel: '' }
 const LONG = { taskId: 'long', title: 'Review the spool', channel: 'tasks' }
@@ -131,7 +133,7 @@ describe('the box follows the line, not the open pane', () => {
 
   it('channel and DM no longer bind the Omnibox to the open topic', () => {
     for (const page of pages.slice(0, 2)) {
-      const s = src(page)
+      const s = pageSrc(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
       assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) && !fresh, replyTaskId: topicId \|\| '' \}\)\)/)
     }

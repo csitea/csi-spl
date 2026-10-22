@@ -145,6 +145,7 @@ on a box (an agent's machine):
   keygen              make this box's signing key, or keep the existing one (prints the PUBLIC key)
   key                 workspace age keys: init, unlock, lock, status, rotate (spec 136)
   keyd                hold unlocked workspace keys (started by key unlock)
+  lock                box owner lock: seal, unlock, serve, status, reseal, rotate-recovery, rebind, sign, create (spec 025)
   pin                 pin a box key locally; with --root-key also at the hub
   join                seat this box with a join token ($SPOOL_JOIN_TOKEN or - = stdin)
   send                send a message (hub mode: --channel posts a new topic)
@@ -271,6 +272,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 	switch cmd {
 	case "keygen", "pin", "join": // join: spec 073 4.4
 		return cmdBoxKey(cfg, cmd, rest)
+	case "lock": // spec 025 box-owner-lock.md, row B4
+		return cmdLock(cfg, rest)
 	case "send":
 		return cmdSend(cfg, rest)
 	case "recv":

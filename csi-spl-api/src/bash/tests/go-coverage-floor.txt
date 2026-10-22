@@ -58,6 +58,9 @@ internal/hours 98.0
 internal/hubclient 83.0
 internal/i18n 97.2
 internal/invitemail 85.3
+# internal/lockkey: 76.4 on its first commit (spec 025 row B4, SPL-2956);
+# go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 76.4 each.
+internal/lockkey 76.4
 internal/logging 99.0
 internal/mail 85.0
 internal/marketing 63.6

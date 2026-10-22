@@ -124,6 +124,37 @@ narrows the window; it does not claim the lock key is unrecoverable from a runni
 - A lost `<OWNER_BOX>` (stolen, disk dead) with the recovery code: seal a new box with `spool lock rebind`,
   which signs a change of `box_pubkey` with `K_lock` (6.2).
 
+### 4.6 As built: the box side (row B4, SPL-2956)
+
+Code: `internal/lockkey/` (seal, open, recovery code, unlock proof payload, lock body, the sealed holder),
+`cmd/spool/lock.go` (`spool lock seal | unlock | serve | status | reseal | rotate-recovery | rebind | sign |
+create`), and `boxKey` in `internal/action/join.go`. Tests: `go test ./internal/lockkey/ ./cmd/spool/ -run 'Lock'`
+and `TestJoinSealedBox` in `internal/action/`.
+
+- Files (4.1): `box-<id>.key.enc`, `lock/lock.key.enc`, `lock/lock.key.recovery.enc` and the public
+  `lock/lock.json` under the box's keys dir, each 0600 JSON with a clear header (`v`, `kdf`, `t`, `m_kib`,
+  `p`, `salt`, `nonce`, `kind`) and the sealed `ct`. The associated data is `tenant|box|kind|1`.
+- The sealed holder is `spool lock serve`, started by `spool lock unlock` when none runs. It takes the secret
+  over `lock/lockd.sock` (0600, peer uid must be its own), holds `K_box`, signs the unlock proof with `K_lock`
+  until `drop-lock`, and waits 60 s per try after 5 wrong secrets. A restart leaves it sealed.
+- `boxKey` (join) takes the key from the unlocked holder for a sealed box, and refuses a sealed box that is
+  not unlocked; it never makes a clear key next to a sealed one.
+- `spool lock sign` signs a file (stdin is the terminal the secret is typed on) and refuses a
+  `spool-unlock-v1` payload. `create` and `rebind` print `signed_body` in B1's canonical form with
+  `signature` (K_lock), and `create` adds `box_signature` (K_box), for the B2 routes.
+
+Where it differs from 4.2 to 4.5, and what is left for later rows:
+
+- The recovery code is 256 bits as 13 groups of 4 base32 characters (the last group may be shorter). "24
+  groups of 4" would be 480 bits.
+- Only `K_lock` has a recovery copy, so `reseal --recovery` cannot open the old `K_box`: it makes a new one,
+  prints its public key, and the hub accepts that only after `spool lock rebind`.
+- `rebind` on a new box needs the `lock/` files copied from a backup of the old box: the recovery copy of
+  `K_lock` is a file on the box, not something derived from the code.
+- Not wired yet (row B2, which owns `ws.go` and the hello): the proof in the hello frame, the ticket and the
+  `drop-lock` call after it. The hub client still reads the clear `box-<id>.key`, so a sealed box stays
+  offline even after `unlock` until B2 makes the client take its key from the holder.
+
 ## 5. Every access path and how it is refused
 
 ### 5.1 The paths (measured on `8a3d12797`)

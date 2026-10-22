@@ -19,6 +19,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -161,10 +162,16 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 	return JoinResult{Tenant: tenant, Box: in.Box, PubKey: pub}, nil
 }
 
-// boxKey loads the box key, or generates it when the box has none.
+// boxKey loads the box key, or generates it when the box has none. A box
+// sealed by the owner lock (spec 025 box-owner-lock.md 4.2) has its key only
+// as box-<id>.key.enc: it comes from the unlocked holder, and a sealed box is
+// refused, never given a new clear key that would be a second identity.
 func boxKey(cfg *config.Config, box string) (ed25519.PrivateKey, error) {
 	if err := cfg.CheckKeysDir(); err != nil {
 		return nil, err
+	}
+	if lockkey.IsSealed(cfg.KeysDir, box) {
+		return lockkey.HolderBoxKey(cfg.KeysDir)
 	}
 	priv, err := sign.LoadPrivate(cfg.KeysDir, box)
 	if !errors.Is(err, sign.ErrUnpinned) {

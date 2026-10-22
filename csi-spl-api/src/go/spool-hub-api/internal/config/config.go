@@ -625,7 +625,7 @@ func LoadHub() (*Hub, error) {
 	if h.Port != "" {
 		h.ListenAddr = ":" + h.Port
 	}
-	for _, check := range []func() error{h.checkStorage, h.checkLimits, h.checkViews, h.checkWUIKey} {
+	for _, check := range []func() error{h.checkStorage, h.checkLimits, h.checkViews, h.checkWUIKey, h.checkLeak} {
 		if err := check(); err != nil {
 			return nil, err
 		}

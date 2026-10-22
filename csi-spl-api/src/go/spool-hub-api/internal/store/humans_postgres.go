@@ -29,7 +29,7 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	if tenant != "" {
 		// humans / human_identities are hub-wide (no RLS); the membership
 		// half below is tenant-scoped (rdb 0014).
-		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), tenant); err != nil {
 			return "", err
 		}
 	}
@@ -475,7 +475,7 @@ func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now t
 	}
 	// Membership: tenant-scoped (rdb 0014), admitted_by 'operator'. An unknown
 	// role fails the rbac_roles FK (rdb 0021) and rolls the whole thing back.
-	if _, err := tx.Exec(ctx, pgScopeTenant, in.Tenant); err != nil {
+	if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), in.Tenant); err != nil {
 		return "", false, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by, created_at)

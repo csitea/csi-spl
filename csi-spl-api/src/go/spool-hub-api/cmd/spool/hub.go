@@ -295,7 +295,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		AllowTextOnly:   hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
-		TopicHeads: hc.TopicHeads, TopicHeadsSample: hc.TopicHeadsSample, // spec 099 5.1
+		ViewTimeout: hc.ViewTimeout, TopicHeads: hc.TopicHeads, TopicHeadsSample: hc.TopicHeadsSample, // SPL-2866; spec 099 5.1
 		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(), DemoWorkspace: hc.DemoTenant(), DemoAgentTurns: hc.DemoAgentTurns,
 		DemoMaxStay: hc.DemoMaxStay, DemoPostsPerMinute: hc.DemoPostsPerMinute, DemoPostsPerDay: hc.DemoPostsPerDay,
 		EmbedEnabled: hc.EmbedEnabled, EmbedMessageMaxBytes: hc.EmbedMessageMaxBytes, // specs/121 T104, and:

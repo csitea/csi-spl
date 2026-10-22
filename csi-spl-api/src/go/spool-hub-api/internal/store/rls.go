@@ -46,7 +46,7 @@ func (s *Postgres) inTenant(ctx context.Context, tenant string, fn func(pgx.Tx) 
 		return err
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), tenant); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -84,7 +84,7 @@ func (s *Postgres) inPerson(ctx context.Context, person string, fn func(pgx.Tx) 
 		return err
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, pgScopePerson, person); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopePerson), person); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -121,7 +121,7 @@ func (s *Postgres) inChannel(ctx context.Context, tenant, channel string, fn fun
 		return err
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, pgScopeChannel, tenant, channel); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeChannel), tenant, channel); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -146,7 +146,7 @@ func (s *Postgres) inMember(ctx context.Context, tenant, member string, fn func(
 		return ErrNoMember
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, pgScopeMember, tenant, member); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeMember), tenant, member); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -201,7 +201,7 @@ func (s *Postgres) tenantBatch(ctx context.Context, tenant, sql string, args []a
 // single batch, one implicit transaction.
 func (s *Postgres) scopeBatch(ctx context.Context, scope string, scopeArgs []any, sql string, args []any, use func(pgx.BatchResults) error) error {
 	b := &pgx.Batch{}
-	b.Queue(scope, scopeArgs...)
+	b.Queue(budgeted(ctx, scope), scopeArgs...)
 	b.Queue(sql, args...)
 	br := s.pool.SendBatch(ctx, b)
 	if _, err := br.Exec(); err != nil {
@@ -261,7 +261,7 @@ func (s *Postgres) queryTenantBatch(ctx context.Context, tenant string, reads ..
 		return err
 	}
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenant, tenant)
+	b.Queue(budgeted(ctx, pgScopeTenant), tenant)
 	for _, r := range reads {
 		b.Queue(r.sql, r.args...)
 	}
@@ -304,7 +304,7 @@ func scanRows(rows pgx.Rows, each func(pgx.Rows) error) error {
 // until the checkout row is read), and Migrate. Anything else uses inTenant.
 func (s *Postgres) asOperator(ctx context.Context, fn func(pgx.Tx) error) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, pgScopeOperator); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeOperator)); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -318,7 +318,7 @@ func (s *Postgres) asOperator(ctx context.Context, fn func(pgx.Tx) error) error 
 // TestOperatorScopeCallers lists its callers too. each is called once per row.
 func (s *Postgres) asOperatorQuery(ctx context.Context, sql string, args []any, each func(pgx.Rows) error) error {
 	b := &pgx.Batch{}
-	b.Queue(pgScopeOperator)
+	b.Queue(budgeted(ctx, pgScopeOperator))
 	b.Queue(sql, args...)
 	br := s.pool.SendBatch(ctx, b)
 	_, err := br.Exec()

@@ -288,6 +288,10 @@ type Hub struct {
 	DBMaxConns        int           `env:"SPOOL_HUB_DB_MAX_CONNS" envDefault:"8"`
 	DBMinConns        int           `env:"SPOOL_HUB_DB_MIN_CONNS" envDefault:"2"`
 	DBMaxConnIdleTime time.Duration `env:"SPOOL_HUB_DB_MAX_CONN_IDLE_TIME" envDefault:"5m"`
+	// The hard limit of one /v1/view/* request (SPL-2866): its context
+	// deadline (the pool wait included) and the server-side statement_timeout
+	// of each statement it runs. cnf env.hub.env sets it; 0 = no limit.
+	ViewTimeout time.Duration `env:"SPOOL_HUB_VIEW_TIMEOUT" envDefault:"0s"`
 	// Exactly one blob store: a GCS bucket (prod) or a local dir (tests / lde).
 	FilesBucket string `env:"SPOOL_HUB_FILES_BUCKET"`
 	FilesDir    string `env:"SPOOL_HUB_FILES_DIR"`
@@ -640,6 +644,9 @@ func (h *Hub) checkStorage() error {
 	}
 	if h.DBMaxConns < 1 || h.DBMinConns < 0 || h.DBMinConns > h.DBMaxConns || h.DBMaxConnIdleTime <= 0 {
 		return errors.New("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
+	}
+	if h.ViewTimeout < 0 {
+		return errors.New("SPOOL_HUB_VIEW_TIMEOUT must be 0 (off) or positive")
 	}
 	if (h.FilesBucket == "") == (h.FilesDir == "") {
 		return errors.New("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")

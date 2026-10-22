@@ -179,6 +179,9 @@ type Options struct {
 	// budget; 0 = 7 s.
 	SearchRatePerMin int
 	SearchBudget     time.Duration
+	// ViewTimeout is the hard limit of one /v1/view/* request (SPL-2866,
+	// view_deadline.go); 0 = none.
+	ViewTimeout time.Duration
 	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023
 	// FR-008); 0 = keysWritesPerHour.
 	KeysWriteLimit int
@@ -456,7 +459,7 @@ func (s *Server) Handler() http.Handler {
 	// carries the CORS headers the WUI needs to read it.
 	// frameGuard: no hub response may be framed, bar an embed's chat page
 	// (specs/121 T201, embed_serve.go).
-	inner := frameGuard(etagViews(s.edge.Wrap(mux)))
+	inner := frameGuard(etagViews(s.viewDeadline(s.edge.Wrap(mux))))
 	if s.o.Auth != nil {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}

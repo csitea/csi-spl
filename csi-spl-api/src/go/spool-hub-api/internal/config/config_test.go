@@ -336,7 +336,16 @@ func TestLoadHubDBPool(t *testing.T) {
 	if h.DBMaxConns != 8 || h.DBMinConns != 2 || h.DBMaxConnIdleTime.String() != "5m0s" {
 		t.Fatalf("pool defaults %d %d %s, want 8 2 5m", h.DBMaxConns, h.DBMinConns, h.DBMaxConnIdleTime)
 	}
+	if h.ViewTimeout != 0 { // SPL-2866: off unless cnf sets it
+		t.Fatalf("view timeout default %s, want 0", h.ViewTimeout)
+	}
+	t.Setenv("SPOOL_HUB_VIEW_TIMEOUT", "8s")
+	if h, err := LoadHub(); err != nil || h.ViewTimeout.String() != "8s" {
+		t.Fatalf("SPOOL_HUB_VIEW_TIMEOUT=8s: %v %v", h, err)
+	}
+	t.Setenv("SPOOL_HUB_VIEW_TIMEOUT", "0s")
 	for _, bad := range [][2]string{
+		{"SPOOL_HUB_VIEW_TIMEOUT", "-1s"},
 		{"SPOOL_HUB_DB_MAX_CONNS", "0"},
 		{"SPOOL_HUB_DB_MIN_CONNS", "9"},
 		{"SPOOL_HUB_DB_MIN_CONNS", "-1"},

@@ -216,7 +216,7 @@ func (s *Postgres) ViewTopicsUnlessClone(ctx context.Context, tenant, reader str
 	}
 	sql, args := viewTopicsSQL(tenant, q)
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenantNoJIT, tenant)
+	b.Queue(budgeted(ctx, pgScopeTenantNoJIT), tenant)
 	b.Queue(`SELECT EXISTS (SELECT 1 FROM member_clones
 		WHERE tenant_id = $1 AND clone_hum = $2 AND ended_at IS NULL)`, tenant, reader)
 	b.Queue(sql, args...)

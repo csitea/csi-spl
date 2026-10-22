@@ -104,8 +104,8 @@ func newHeadRead(tenant string, q TopicQuery, marked bool) *headRead {
 }
 
 // queue adds the header, the mark probe, the head walk and the due statement.
-func (r *headRead) queue(b *pgx.Batch) {
-	b.Queue(r.header, r.tenant)
+func (r *headRead) queue(ctx context.Context, b *pgx.Batch) {
+	b.Queue(budgeted(ctx, r.header), r.tenant)
 	if !r.marked {
 		b.Queue(headMarkSQL, r.tenant)
 	}
@@ -183,7 +183,7 @@ func (s *Postgres) headTopics(ctx context.Context, tenant string, q TopicQuery, 
 	}
 	r := newHeadRead(tenant, q, marked)
 	b := &pgx.Batch{}
-	r.queue(b)
+	r.queue(ctx, b)
 	br := s.pool.SendBatch(ctx, b)
 	defer br.Close()
 	served, err := r.read(br)
@@ -208,7 +208,7 @@ func (s *Postgres) viewTopicsHeadsUnlessClone(ctx context.Context, tenant, reade
 	}
 	r := newHeadRead(tenant, q, TopicHeadsTestAll)
 	b := &pgx.Batch{}
-	r.queue(b)
+	r.queue(ctx, b)
 	b.Queue(cloneGateSQL, tenant, reader)
 	br := s.pool.SendBatch(ctx, b)
 	defer br.Close()
@@ -266,9 +266,9 @@ func (s *Postgres) ViewTopicsShadow(ctx context.Context, tenant string, q TopicQ
 func shadowBatch(ctx context.Context, tx pgx.Tx, tenant string, q TopicQuery, r *headRead) (walk []TopicRow, ok bool, err error) {
 	sql, args := viewTopicsSQL(tenant, q)
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenantNoJIT, tenant)
+	b.Queue(budgeted(ctx, pgScopeTenantNoJIT), tenant)
 	b.Queue(sql, args...)
-	r.queue(b)
+	r.queue(ctx, b)
 	br := tx.SendBatch(ctx, b)
 	defer br.Close()
 	if _, err := br.Exec(); err != nil {

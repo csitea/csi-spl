@@ -289,7 +289,7 @@ func abRow(t *testing.T, pg *Postgres, tn string, q TopicQuery, n int) string {
 			r := newHeadRead(tn, q, true)
 			r.header = variants[v]
 			b := &pgx.Batch{}
-			r.queue(b)
+			r.queue(ctx, b)
 			br := pg.pool.SendBatch(ctx, b)
 			defer br.Close()
 			if _, err := r.read(br); err != nil {

@@ -16,6 +16,7 @@ number is a spec edit.
 | signed GET URL TTL | 15 minutes | hub |
 | hub queue TTL (offline `to_box`) | 7 days (max 1,000 queued messages per box; excess/older → `deliveries.state = expired`; `expired` is a hub row state, not a send-result `delivery` value) | hub |
 | viewer page size (`/v1/view/*`) | default 50, max 200 (clamped) | hub |
+| one viewer request (`/v1/view/*`) | cnf `SPOOL_HUB_VIEW_TIMEOUT` (5 s): each statement's `statement_timeout`, the request context 1 s more (pool wait included); past it the answer is `503 view_timeout` (SPL-2866) | hub |
 | viewer poll interval | ≥ 2 s | WUI |
 | view token lifetime | ≤ `hub.view_token_max_ttl` (cnf, default 12 h) | hub |
 | channel catch-up window | last 50 messages default (or since last-acked `ts`) | hub |
@@ -38,4 +39,4 @@ partial file.
 
 Model-token SSE (not spool).
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-22 · last-edit: 2026-10-22T13:00:00Z -->

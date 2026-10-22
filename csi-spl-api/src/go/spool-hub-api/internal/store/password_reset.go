@@ -54,7 +54,7 @@ func (s *Postgres) ResetNativePassword(ctx context.Context, tenant, email, pwHas
 		return "", err
 	}
 	if tenant != "" {
-		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), tenant); err != nil {
 			return "", err
 		}
 		var one int

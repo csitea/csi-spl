@@ -129,7 +129,7 @@ func (s *Postgres) LocateTopicOrMessage(ctx context.Context, tenants []string, i
 		if err := checkTenant(t); err != nil {
 			return "", err
 		}
-		b.Queue(pgScopeTenant, t)
+		b.Queue(budgeted(ctx, pgScopeTenant), t)
 		b.Queue(`SELECT EXISTS(SELECT 1 FROM messages WHERE tenant_id = $1 AND task_id = $2)
 			OR EXISTS(SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2)`, t, id)
 	}

@@ -314,8 +314,12 @@ func (s *Postgres) search(ctx context.Context, tenant string, q SearchQuery, sql
 		return err
 	}
 	b := &pgx.Batch{}
-	if q.Budget > 0 {
-		b.Queue(pgScopeTenantBudget, tenant, strconv.FormatInt(max(q.Budget.Milliseconds(), 1), 10))
+	budget := q.Budget
+	if d := StatementTimeout(ctx); d > 0 && (budget <= 0 || d < budget) {
+		budget = d // the request's budget (statement_budget.go) when tighter
+	}
+	if budget > 0 {
+		b.Queue(pgScopeTenantBudget, tenant, strconv.FormatInt(max(budget.Milliseconds(), 1), 10))
 	} else {
 		b.Queue(pgScopeTenant, tenant)
 	}

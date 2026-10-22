@@ -523,7 +523,7 @@ func (s *Postgres) Enqueue(ctx context.Context, tenant, msgID, toBox string, now
 		return err
 	}
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenant, tenant)
+	b.Queue(budgeted(ctx, pgScopeTenant), tenant)
 	b.Queue(`INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at)
 		VALUES ($1, $2, $3, 'queued', $4, $5) ON CONFLICT DO NOTHING`,
 		tenant, msgID, toBox, now, expires)

@@ -171,7 +171,7 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 func createIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time) (Issue, error) {
 	b := &pgx.Batch{}
 	b.Queue(`BEGIN`)
-	b.Queue(pgScopeTenant, in.TenantID)
+	b.Queue(budgeted(ctx, pgScopeTenant), in.TenantID)
 	b.Queue(`SELECT EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)`, in.TenantID)
 	if len(in.Labels) > 0 {
 		b.Queue(issueLabelCount, in.TenantID, in.Labels)

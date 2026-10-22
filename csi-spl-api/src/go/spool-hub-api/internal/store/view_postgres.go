@@ -197,7 +197,7 @@ func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, arg
 		return err
 	}
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenantNoJIT, tenant)
+	b.Queue(budgeted(ctx, pgScopeTenantNoJIT), tenant)
 	b.Queue(sql, args...)
 	br := s.pool.SendBatch(ctx, b)
 	defer br.Close()

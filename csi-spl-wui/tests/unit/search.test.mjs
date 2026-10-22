@@ -515,7 +515,7 @@ describe('issue hits (grammar 1.2)', () => {
     assert.deepEqual(completeOperators('assignee:').map((c) => c.insert), ['assignee:me ', 'assignee:none '])
     assert.deepEqual(completeOperators('label:'), [])
     assert.match(read('src/pages/search.vue'), /status:in_progress/)
-    assert.match(read('src/components/SearchSidePanel.vue'), /case 'issues'/)
+    assert.match(read('src/composables/useSearchSideItems.ts'), /case 'issues'/)
   })
   it('every locale names the issues group and the issue operators', () => {
     const files = readdirSync(join(WUI, 'i18n/locales')).filter((f) => f.endsWith('.json')).sort()
@@ -673,7 +673,7 @@ describe('search-results.mjs stays out of the initial bundle', () => {
     assert.match(readFileSync(join(WUI, 'src/pages/search.vue'), 'utf8'), STATIC)
   })
   /* CLE-77884: the left-panel list imports it too; it is itself async-only */
-  const LAZY = [join('src', 'pages', 'search.vue'), join('src', 'components', 'SearchSidePanel.vue')]
+  const LAZY = [join('src', 'pages', 'search.vue'), join('src', 'components', 'SearchSidePanel.vue'), join('src', 'composables', 'useSearchSideItems.ts')]
   it('no other source file imports it statically', () => {
     const bad = files.filter((f) => !LAZY.includes(f) && STATIC.test(readFileSync(join(WUI, f), 'utf8')))
     assert.deepEqual(bad, [])

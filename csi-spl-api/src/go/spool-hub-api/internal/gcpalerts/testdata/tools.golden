@@ -1,0 +1,50 @@
+[
+  {
+    "description": "Read-only: one Google Cloud Monitoring alert incident with its policy, resource and timeline (== ENV=\u003cenv\u003e POLICY=\u003cpolicy\u003e OPENED=\u003copened\u003e ./run -a do_gcp_get_alert_incident).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "description": "dev or prd",
+          "type": "string"
+        },
+        "opened": {
+          "description": "the minute the incident opened, UTC, YYYY-MM-DDTHH:MMZ, as the incident line prints it",
+          "type": "string"
+        },
+        "policy": {
+          "description": "the alert policy display name, as the incident line of gcp_alert_incidents prints it",
+          "type": "string"
+        }
+      },
+      "required": [
+        "env",
+        "policy",
+        "opened"
+      ],
+      "type": "object"
+    },
+    "name": "gcp_alert_incident"
+  },
+  {
+    "description": "Read-only: the Google Cloud Monitoring alert incidents of one environment in a window, grouped by alert type (policy) with count, first and last seen and the resource (== ENV=\u003cenv\u003e SINCE=\u003csince\u003e ./run -a do_gcp_list_alert_incidents).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "description": "dev or prd",
+          "type": "string"
+        },
+        "since": {
+          "description": "the window back from now: \u003cn\u003em, \u003cn\u003eh or \u003cn\u003ed, n 1..999 (default 24h)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "env"
+      ],
+      "type": "object"
+    },
+    "name": "gcp_alert_incidents"
+  }
+]

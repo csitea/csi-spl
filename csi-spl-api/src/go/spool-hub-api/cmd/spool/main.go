@@ -69,6 +69,8 @@
 //	doctree <verb> ...         the Qto outline documents (doctree.go): create, add, edit, export
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
+//	mcp-gcp-alerts --iac <dir> stdio MCP server of the GCP alert incidents, read-only
+//	                           (gcp_alerts.go, SPL-2887)
 //
 // Hub (spec 003; operator / box-daemon verbs, never called by agents):
 //
@@ -151,6 +153,7 @@ on a box (an agent's machine):
   get-file, get-dir   fetch a blob to a path
   tail                follow the local spool (--url <link>: a WUI discussion, read from the hub)
   mcp                 serve the spool tools over MCP on stdio (--as <agent>)
+  mcp-gcp-alerts      serve the read-only GCP alert incident tools over MCP on stdio (--iac <dir>)
   issue               list, get, create, update, comment, label, delete issues
   flow                what is happening for an agent: its folded Flow (hub mode)
   topics              list a channel's topics: task id, last activity, subject (hub mode)
@@ -252,6 +255,8 @@ func run(args []string) int {
 		return cmdHubInviteMail(rest)
 	case "root-keygen":
 		return cmdRootKeygen(rest)
+	case "mcp-gcp-alerts": // SPL-2887: no box config, the iac actions read the keys
+		return cmdMCPGCPAlerts(rest)
 	}
 
 	cfg, err := config.Load()

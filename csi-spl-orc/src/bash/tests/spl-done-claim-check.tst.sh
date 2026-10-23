@@ -504,4 +504,61 @@ run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st17"; rc=$?
   pass "17. DRY_RUN=0: no note and no ledger row for a not-checked sha (judged again next run); the fresh-repo and off-trunk shas each alert once" ||
   fail "17. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 18. SPL-3116 (msg b494ec3c: 4 of 4 notes 20:25-20:45Z 10-23 were false,
+# c-912/c-913/c-915's review requests 5dd951765, e829b0e06, 2f285d74e,
+# 82b3db2ac, synthetic): a sha on origin/review/<topic>-... with no lane id is
+# the sending lane's, pending while it is in registry.tsv. A retired sender with
+# the same shape, a live sender whose sha is on another (retired) id's branch,
+# and a live sender's sha on no branch still alert.
+SP="$T/spool18"
+mkdir -p "$SP"
+rg spl fetch -q origin
+# park <msg> <branch>: a commit off trunk, pushed to origin's <branch> only; its
+# 9-char prefix holds a letter (as lettered).
+park() {
+  local c i
+  for i in $(seq 1 50); do
+    c=$(rg spl commit-tree -p origin/master -m "$1 $i" "origin/master^{tree}")
+    [[ "${c:0:9}" =~ [a-f] ]] && break
+  done
+  rg spl push -q origin "$c:refs/heads/$2" && echo "$c"
+}
+T21=$(park "s107 T021" review/s107-v2-t021)
+T20=$(park "s107 T020" review/s107-v2-t020)
+T20X=$(park "s107 T020 expand" review/s107-v2-t020-expand)
+T22=$(park "s107 T022" wip/s107-v2-t022)
+R21=$(park "retired T021" review/s107-v2-r021)
+OID=$(park "another id's review" review/c-899-c002-other)
+for i in $(seq 1 50); do
+  NOB=$(rg spl commit-tree -p origin/master -m "on no branch $i" "origin/master^{tree}")
+  [[ "${NOB:0:9}" =~ [a-f] ]] && break
+done
+rg spl fetch -q origin
+for l in c-821 c-822 c-823 c-825 c-826; do printf '%s\tclaude\t%%9\t%s\t-\n' "$l" "$T/wt/c-563" >>"$SP/registry.tsv"; done
+msg c-002/archive rq21 c-821 c-002 30 "review request: ${T21:0:9} on review/s107-v2-t021"
+msg c-002/archive rq20 c-822 c-002 30 "review request: ${T20:0:9} and ${T20X:0:9}"
+msg c-002/archive rq22 c-823 c-002 30 "- sha: ${T22:0:9} (wip)"
+msg c-002/archive rqret c-824 c-002 30 "review request: ${R21:0:9}"
+msg c-002/archive rqoid c-825 c-002 30 "review request: ${OID:0:9}"
+msg c-002/archive rqnob c-826 c-002 30 "done ${NOB:0:9}"
+[[ "$(rg spl branch -r --contains "$T21" --format='%(refname:short)')" == origin/review/s107-v2-t021 ]] &&
+  ! rg spl merge-base --is-ancestor "$T21" origin/master && [ -z "$(rg spl branch -r --contains "$NOB")" ] &&
+  pass "18. control: ${T21:0:9} sits only on origin/review/s107-v2-t021 (no lane id), ${NOB:0:9} on no branch" ||
+  fail "18. control: fixture"
+run DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
+v="$(for k in rq21 rq20 rq22 rqret rqoid rqnob; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "rq21=pending rq20=pending rq22=pending rqret=would-alert rqoid=would-alert rqnob=would-alert " ] &&
+  pass "18. SPL-3116: a live lane's sha on origin/review/<topic> or origin/wip/<topic> (no lane id) is pending (the four-sha shape, two shas in one body too); a retired sender's, one on another id's branch, and one on no branch still alert" ||
+  fail "18. review branch without the lane id (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && ! grep -q 'c-821\|c-822\|c-823' "$T/calls.log" &&
+  grep -q "c-824 result rqret .*: sha ${R21:0:9} not in the repository$" "$T/calls.log" &&
+  ! grep -q '^rq21	\|^rq20	\|^rq22	' "$T/st18/seen.tsv" &&
+  pass "18. DRY_RUN=0: no note and no ledger row for the pending review requests; the three others alert once" ||
+  fail "18. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+: >"$SP/registry.tsv"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && grep -q "c-822 result rq20 .*: sha ${T20:0:9}, ${T20X:0:9} not in the repository$" "$T/calls.log" &&
+  pass "18. the lanes retired, their review-branch shas alert once" || fail "18. retired (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 exit "$fails"

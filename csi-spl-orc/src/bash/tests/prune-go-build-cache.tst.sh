@@ -20,10 +20,16 @@
 #      the 3 GiB low cap. RED CONTROL: no wait -> the cache stays over the cap
 #      (2026-10-19 23:45Z on sat). A lock held past the wait is a FAIL step.
 #   8. a cache whose user runs go (go, compile, link, vet, golangci-lint ...)
-#      is never pruned, neither the age step nor the size cap, also when the
-#      build starts between the plan and the delete; RED CONTROL: the same
-#      cache with an idle user is trimmed; gopls and a mere "go" in an
-#      argument do not count as busy. The cron prints one timestamped line.
+#      loses no fresh entry, neither by the age step nor by the size cap, and
+#      a build that starts between an idle plan and the delete stops it; RED
+#      CONTROL: the same cache with an idle user is trimmed; gopls and a mere
+#      "go" in an argument do not count as busy. The cron prints one
+#      timestamped line.
+#   9. busy AND over the cap: entries idle for over GO_CACHE_BUSY_MIN_AGE_MIN
+#      go (age step, then the cap oldest-first) until the cache is <= the cap;
+#      fresh ones, one idle under the margin and an executable entry whose
+#      directory Go touched stay. CONTROL: a margin over every entry deletes
+#      nothing (a WARN); a margin of 60 or less is refused.
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -540,6 +546,72 @@ out="$(GO_CACHE_LOG_DIR="$T/log" bash "$SH/csi-spl-orc/src/bash/scripts/prune-go
 [[ $rc -eq 0 && "$(grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z START go build cache prune' <<<"$out")" -eq 1 ]] &&
   pass "8. the cron prints ONE timestamped START line per run" ||
   fail "8. cron timestamp (rc=$rc): $out"
+
+# 9. busy and over the cap: idle entries go, used ones stay -----------------
+# sat 2026-10-23: a go build ran nearly all day, so the all-or-nothing busy
+# guard never let the 8G cap apply and the cache reached 15G. Sparse files:
+# a 8 h, b 5 h, c 4 h, f 150 min, x (inside the executable entry ff/x-d, its
+# own mtime 10 h, the directory 1 min: Go's markUsed touches the directory)
+# 300000000 each, n1 / n2 1000 bytes fresh. Age 420 min, margin 180: the age
+# step takes a (x is 10 h old by itself, but its entry was just used); then
+# 1200002031 bytes are 126260559 over 1 GiB, so the cap takes the oldest idle
+# entry, b. c, f, x, n1 and n2 stay, 900002031 bytes.
+mk_busy() {
+  local d="$1"
+  mkdir -p "$d/00" "$d/ff/x-d"
+  printf 'cached build artifacts\n' >"$d/README"
+  printf 'depth-1\n' >"$d/keep"
+  truncate -s 300000000 "$d/00/a" "$d/00/b" "$d/ff/c" "$d/ff/f" "$d/ff/x-d/x"
+  truncate -s 1000 "$d/00/n1" "$d/ff/n2"
+  touch -d '8 hours ago' "$d/00/a"
+  touch -d '5 hours ago' "$d/00/b"
+  touch -d '4 hours ago' "$d/ff/c"
+  touch -d '150 minutes ago' "$d/ff/f"
+  touch -d '10 hours ago' "$d/ff/x-d/x"
+  touch -d '1 minute ago' "$d/ff/x-d" "$d/00/n1" "$d/ff/n2"
+}
+S9="$T/busy-over"
+mk_busy "$S9"
+out="$(run_prune "$S9" 0 "GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+sz="$(du -sb "$S9" | awk 'NR==1 { print $1 }')"
+if [[ $rc -eq 0 && ! -e "$S9/00/a" && ! -e "$S9/00/b" && -f "$S9/ff/c" && -f "$S9/ff/f" && -f "$S9/ff/x-d/x" \
+  && -f "$S9/00/n1" && -f "$S9/ff/n2" && -f "$S9/keep" && -f "$S9/README" ]] && (( sz <= CAPB )) \
+  && [[ "$out" == *"KEEP busy user=$(id -un) path=$S9"* && "$out" == *'files=1 bytes=300000000 age_min=420 dry_run=0 busy=1'* \
+  && "$out" == *'files=1 bytes=300000000 cap_gb=1 dry_run=0 busy=1'* ]]; then
+  pass "9. busy and over the cap: the idle entries go oldest-first to <= 1 GiB; fresh, under-margin and just-used executable entries stay"
+else
+  fail "9. busy over cap (rc=$rc du=$sz): $out"
+fi
+
+mk_busy "$S9"
+out="$(run_prune "$S9" 1 "GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+[[ $rc -eq 0 && -f "$S9/00/a" && -f "$S9/00/b" && "$out" == *'cap_gb=1 dry_run=1 busy=1'* ]] &&
+  pass "9. busy DRY_RUN prints the plan and deletes nothing" ||
+  fail "9. busy dry (rc=$rc): $out"
+
+S9c="$T/busy-margin"
+mk_busy "$S9c"
+out="$(run_prune "$S9c" 0 "GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_CACHE_BUSY_MIN_AGE_MIN=600 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+[[ $rc -eq 0 && -f "$S9c/00/a" && -f "$S9c/00/b" && -f "$S9c/ff/c" && -f "$S9c/ff/x-d/x" \
+  && "$out" == *'stays over the 1G cap while busy'* ]] &&
+  pass "9. CONTROL: a busy margin over every entry deletes nothing and says the cache stays over the cap" ||
+  fail "9. margin control (rc=$rc): $out"
+
+# the delete checks each age again: a file used after the plan (fresh now),
+# and an executable entry whose directory was used, are not deleted.
+S9r="$T/busy-recheck"
+mk_busy "$S9r"
+touch -d '1 minute ago' "$S9r/00/b"
+printf '%s\n' "$S9r/00/a" "$S9r/00/b" "$S9r/ff/x-d/x" |
+  bash -c 'do_log() { :; }; source "$1/src/bash/run/prune-go-build-cache.func.sh"; go_cache_rm_idle "" 180' bash "$PROJ_ROOT"; rc=$?
+[[ $rc -eq 0 && ! -e "$S9r/00/a" && -f "$S9r/00/b" && -f "$S9r/ff/x-d/x" ]] &&
+  pass "9. the delete re-checks each age: a file or executable entry used since the plan stays" ||
+  fail "9. delete recheck (rc=$rc): $(ls -R "$S9r")"
+
+out="$(run_prune "$S9c" 0 "GO_CACHE_BUSY_MIN_AGE_MIN=60")"; rc=$?
+[[ $rc -ne 0 && -f "$S9c/00/a" && "$out" == FATAL*GO_CACHE_BUSY_MIN_AGE_MIN* ]] &&
+  pass "9. a busy margin of 60 min or less is refused (Go's mtime may be an hour stale)" ||
+  fail "9. margin 60 (rc=$rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

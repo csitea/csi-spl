@@ -20,14 +20,29 @@
 # @description us). DRY_RUN=1 (the default) prints counts and bytes only.
 # @description Before and after, the cache size and the free space on the
 # @description filesystem that holds it are printed.
-# @description A cache whose user runs go is never pruned: while that user
-# @description has a process whose program is go, compile, link, asm, cgo,
-# @description vet, golangci-lint, gosec, staticcheck or govulncheck, the cache
-# @description is a KEEP busy line and nothing in it is deleted, neither the
-# @description age step nor the size cap. It is checked before the plan and
-# @description again right before each delete (sat 2026-10-23: two pre-push
-# @description api runs failed with go-build "no such file" while the cron
-# @description trimmed the cache under them). gopls is not a build.
+# @description A busy cache is trimmed, but only by its idle entries: while
+# @description that user has a process whose program is go, compile, link,
+# @description asm, cgo, vet, golangci-lint, gosec, staticcheck or govulncheck
+# @description (gopls is not a build), the cache is a KEEP busy line and only
+# @description entries untouched for over GO_CACHE_BUSY_MIN_AGE_MIN (default
+# @description 180) may go, by the age step and by the size cap (oldest
+# @description first). Why that is safe: Go refreshes an entry's mtime each
+# @description time a build uses it once it is an hour old (go1.26
+# @description cmd/go/internal/cache/cache.go, markUsed: "only updates the
+# @description mtime if the current mtime is more than an hour old"), so an
+# @description entry a running build uses is at most 1 h + that build's run
+# @description time old; 180 = that hour + 2 h, over any go run here (the
+# @description longest go test -timeout in the repo is 80m). An executable
+# @description entry (<hash>-d/<binary>) is judged by its directory, the
+# @description path markUsed touches. Each file's age is checked again at its
+# @description delete. Why not keep the whole busy cache: sat 2026-10-23,
+# @description a go build ran nearly all day, the 8G cap never applied and
+# @description the cache reached 15G (/mnt/data 80% -> 90% in an hour).
+# @description Why not trim fresh entries while busy: the same day, two
+# @description pre-push api runs failed with go-build "no such file" while
+# @description the cron trimmed the cache under them. Busy is checked before
+# @description the plan and again before each delete: a build that starts
+# @description after an idle plan stops that run (nothing deleted).
 # @description GO_CACHE_GATE=1 (the cron) decides PER CACHE: a cache is
 # @description pruned on the hourly minute (GO_CACHE_HOURLY_MINUTE, default 0)
 # @description or when the filesystem that holds THAT cache is at or over
@@ -46,6 +61,8 @@
 # @description registry no lane cache is removed (a WARN).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param GO_CACHE_MAX_AGE_MIN (optional) - age in minutes, default 1440
+# @param GO_CACHE_BUSY_MIN_AGE_MIN (optional) - minutes, default 180, over
+# @param   60: while its user runs go, only entries older than this go
 # @param GO_CACHE_CAP_GB (optional) - whole gigabytes (1024^3), default 8;
 # @param   0 disables the size cap. The sweep's other marks are env defaults,
 # @param   not cnf, so the default lives here.
@@ -232,6 +249,10 @@ go_cache_check_inputs() {
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$gate" == 0 || "$gate" == 1 ]] || { do_log "FATAL GO_CACHE_GATE must be 0 or 1, got: '$gate'"; return 1; }
   [[ "$age" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_MAX_AGE_MIN must be a whole number of minutes, got: '$age'"; return 1; }
+  if [[ ! "${GO_CACHE_BUSY_MIN_AGE_MIN:-180}" =~ ^[0-9]+$ ]] || (( 10#${GO_CACHE_BUSY_MIN_AGE_MIN:-180} <= 60 )); then
+    do_log "FATAL GO_CACHE_BUSY_MIN_AGE_MIN must be whole minutes over 60 (Go refreshes a used entry's mtime only once it is an hour old), got: '${GO_CACHE_BUSY_MIN_AGE_MIN}'"
+    return 1
+  fi
   [[ "$capgb" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_CAP_GB must be a whole number of gigabytes, got: '$capgb'"; return 1; }
   [[ "$thr" =~ ^[0-9]+$ ]] && (( thr <= 100 )) || { do_log "FATAL GO_CACHE_PRUNE_AT_PCT must be 0..100, got: '$thr'"; return 1; }
   [[ "$hour" =~ ^[0-9]+$ ]] && (( 10#$hour <= 59 )) || { do_log "FATAL GO_CACHE_HOURLY_MINUTE must be 0..59, got: '$hour'"; return 1; }
@@ -288,10 +309,92 @@ go_cache_go_busy() {
 }
 
 # go_cache_keep_busy <user> <dir>: 0 (and one KEEP busy line) when that user
-# runs a Go build right now, so nothing in the cache may be deleted.
+# runs a Go build right now, so only idle entries may be deleted.
 go_cache_keep_busy() {
   go_cache_go_busy "$1" || return 1
-  do_log "KEEP busy user=$1 path=$2: a go build, test, vet or lint of that user is running; nothing deleted this run"
+  do_log "KEEP busy user=$1 path=$2: a go build, test, vet or lint of that user is running; only entries untouched for over ${GO_CACHE_BUSY_MIN_AGE_MIN:-180} min are deleted"
+}
+
+# go_cache_idle_list <user> <dir> <min>: "<epoch>\t<bytes>\t<path>" per file
+# at depth >= 2 whose last use is over <min> minutes ago, oldest first. The
+# last use of a file inside an executable entry (<hash>-d/<binary>, depth 3)
+# is the newer of its own and its directory's mtime: Go's markUsed touches
+# the directory. Deeper files are never listed.
+go_cache_idle_list() {
+  local u="$1" d="$2" min="$3" now
+  now="$(date +%s)"
+  (
+    set -o pipefail
+    go_cache_as "$u" find "$d" -xdev -mindepth 2 \( -type f -o -type d \) -printf '%d\t%y\t%T@\t%s\t%p\n' |
+      awk -F '\t' -v cut="$(( now - min * 60 ))" '
+        $2 == "d" { if ($1 == 2) dt[$5] = $3; next }
+        $1 > 3 { next }
+        {
+          e = $3
+          if ($1 == 3) { p = $5; sub(/\/[^\/]*$/, "", p); if (!(p in dt)) next; if (dt[p] > e) e = dt[p] }
+          if (e < cut) printf "%s\t%s\t%s\n", e, $4, $5
+        }' | sort -n -s
+  )
+}
+
+# go_cache_rm_idle <user> <min>: delete the paths on stdin, each only when it
+# (and, inside an executable entry, its entry directory) is still untouched
+# for over <min> minutes when find stats it right before the unlink. An
+# emptied executable entry directory is removed too.
+go_cache_rm_idle() {
+  local u="$1" min="$2"
+  # shellcheck disable=SC2016 # the script expands its own $p / $min
+  go_cache_as "$u" bash -c '
+    set -o pipefail
+    min=$1
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      case "$p" in
+        */*-d/*) e=${p%/*}
+          [ -n "$(find "$e" -maxdepth 0 -type d -mmin "+$min" -print)" ] || continue
+          find "$p" -maxdepth 0 -type f -mmin "+$min" -delete || exit 1
+          rmdir "$e" 2>/dev/null || true ;;
+        *) printf "%s\n" "$p" ;;
+      esac
+    done | xargs -r -d "\n" sh -c "find \"\$@\" -maxdepth 0 -type f -mmin +$min -delete" sh
+  ' bash "$min"
+}
+
+# go_cache_prune_busy <user> <dir> <age> <dry>: the busy cache's PLAN lines
+# and (dry 0) deletes, idle entries only (go_cache_idle_list). The age step
+# takes the idle entries older than max(age, the busy minimum); the size cap
+# trims the rest of the idle entries oldest-first until the cache is at or
+# under the cap. Adds to removed_files / removed_bytes. 1 when a list or a
+# delete fails.
+go_cache_prune_busy() {
+  local u="$1" d="$2" age="$3" dry="$4" min gb cap total list cutage agel capl="" excess an ab cn=0 cs=0
+  min=$(( 10#${GO_CACHE_BUSY_MIN_AGE_MIN:-180} ))
+  (( age > min )) || age=$min
+  gb="${GO_CACHE_CAP_GB:-8}"
+  cap=$(( gb * 1024 * 1024 * 1024 ))
+  list="$(go_cache_idle_list "$u" "$d" "$min")" || { do_log "FATAL cannot list idle cache entries in $d; nothing deleted there"; return 1; }
+  cutage=$(( $(date +%s) - age * 60 ))
+  agel="$(awk -F '\t' -v c="$cutage" 'NF >= 3 && $1 < c' <<<"$list")"
+  read -r an ab <<<"$(awk -F '\t' 'NF >= 3 { n++; b += $2 } END { printf "%d %d\n", n + 0, b + 0 }' <<<"$agel")"
+  printf 'PLAN user=%s files=%s bytes=%s age_min=%s dry_run=%s busy=1\n' "$u" "$an" "$ab" "$age" "$dry"
+  if (( cap > 0 )); then
+    total="$(go_cache_bytes "$u" "$d")" || return 1
+    [[ "$total" =~ ^[0-9]+$ ]] || return 1
+    excess=$(( total - ab - cap ))
+    if (( excess > 0 )); then
+      capl="$(awk -F '\t' -v c="$cutage" -v excess="$excess" 'NF >= 3 && $1 >= c && s < excess { s += $2; print }' <<<"$list")"
+      read -r cn cs <<<"$(awk -F '\t' 'NF >= 3 { n++; b += $2 } END { printf "%d %d\n", n + 0, b + 0 }' <<<"$capl")"
+      (( cs >= excess )) ||
+        do_log "WARN user=$u cache stays over the ${gb}G cap while busy: only $cs of $excess excess bytes are untouched for over $min min"
+    fi
+  fi
+  printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s busy=1\n' "$u" "$cn" "$cs" "$gb" "$dry"
+  if [[ "$dry" == 0 && $(( an + cn )) != 0 ]]; then
+    printf '%s\n%s\n' "$agel" "$capl" | awk -F '\t' 'NF >= 3 { print $3 }' | go_cache_rm_idle "$u" "$min" ||
+      { do_log "FATAL busy delete failed in $d"; return 1; }
+  fi
+  removed_files=$(( removed_files + an + cn ))
+  removed_bytes=$(( removed_bytes + ab + cs ))
 }
 
 # go_cache_cap_trim <user> <dir> <age-min> <dry>: one PLAN line for the size
@@ -327,7 +430,7 @@ go_cache_cap_trim() {
   fi
   printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s\n' "$u" "$n" "$s" "$gb" "$dry"
   if [[ "$dry" == 0 && "$n" != 0 ]]; then
-    go_cache_keep_busy "$u" "$d" && return 3
+    go_cache_go_busy "$u" && { do_log "KEEP busy user=$u path=$d: a go build started after the plan; nothing deleted this run"; return 3; }
     printf '%s\n' "$paths" | go_cache_as "$u" xargs -r -d $'\n' rm -f -- ||
       { do_log "FATAL size-cap delete failed in $d"; return 1; }
   fi
@@ -339,10 +442,10 @@ go_cache_cap_trim() {
 # and print its BEFORE / PLAN / AFTER lines. Adds to the caller's
 # removed_files / removed_bytes and sets first_free, first_mount and last_free
 # (the free space on first_mount only, never another filesystem's).
-# 1 when that cache was left untouched (the FATAL is logged). 0 with a KEEP
-# busy line, nothing deleted, while its user runs a Go build.
+# 1 when that cache was left untouched (the FATAL is logged). While its user
+# runs a Go build: a KEEP busy line and go_cache_prune_busy, idle entries only.
 go_cache_prune_one() {
-  local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b after_b crc=0
+  local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b crc=0 busy
   real="$(go_cache_as "$u" readlink -f -- "$d" 2>/dev/null || true)"
   depth=0
   [[ -n "$real" ]] && depth="$(awk -F/ '{ print NF }' <<<"$real")"
@@ -354,7 +457,8 @@ go_cache_prune_one() {
     do_log "FATAL $real is not a Go build cache (want a README file and real 00 and ff directories); nothing deleted"
     return 1
   fi
-  go_cache_keep_busy "$u" "$d" && return 0
+  busy=0
+  go_cache_keep_busy "$u" "$d" && busy=1
   before_b="$(go_cache_bytes "$u" "$real")" || { do_log "FATAL cannot measure $real"; return 1; }
   [[ "$before_b" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot measure $real"; return 1; }
   fs_line="$(go_cache_fs "$u" "$real")" || { do_log "FATAL cannot read the filesystem of $real"; return 1; }
@@ -362,6 +466,11 @@ go_cache_prune_one() {
   [[ "$free" =~ ^[0-9]+$ && "$pct" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot read the filesystem of $real"; return 1; }
   [[ -z "$first_free" ]] && { first_free="$free"; first_mount="$mount"; }
   printf 'BEFORE user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$before_b" "$free" "$pct" "$mount"
+  if (( busy )); then
+    go_cache_prune_busy "$u" "$real" "$age" "$dry" || return 1
+    go_cache_print_after "$u" "$real"
+    return 0
+  fi
   stats="$(go_cache_old_stats "$u" "$real" "$age")" || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
   read -r files bytes <<<"$stats"
   [[ "$files" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
@@ -370,17 +479,24 @@ go_cache_prune_one() {
   (( crc == 3 )) && return 0
   (( crc == 0 )) || return 1
   if [[ "$dry" == 0 && "$files" != 0 ]]; then
-    go_cache_keep_busy "$u" "$d" && return 0
+    go_cache_go_busy "$u" && { do_log "KEEP busy user=$u path=$d: a go build started after the plan; nothing more deleted this run"; return 0; }
     go_cache_as "$u" find "$real" -xdev -mindepth 2 -type f -mmin "+${age}" -delete ||
       { do_log "FATAL delete failed in $real"; return 1; }
   fi
+  go_cache_print_after "$u" "$real"
+  removed_files=$((removed_files + files))
+  removed_bytes=$((removed_bytes + bytes))
+}
+
+# go_cache_print_after <user> <dir>: the AFTER line; sets the caller's
+# last_free when the cache is on first_mount.
+go_cache_print_after() {
+  local u="$1" real="$2" after_b fs_line
   after_b="$(go_cache_bytes "$u" "$real")" || after_b="?"
   fs_line="$(go_cache_fs "$u" "$real")" || fs_line="$free ? $mount"
   go_cache_split_fs "$fs_line"
   [[ "$mount" == "$first_mount" ]] && last_free="$free"
   printf 'AFTER user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$after_b" "$free" "$pct" "$mount"
-  removed_files=$((removed_files + files))
-  removed_bytes=$((removed_bytes + bytes))
 }
 
 # go_cache_lane_id <name>: the normalised lane id a go-build-<lane> dir name

@@ -19,7 +19,8 @@
 # @description epic and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6).
 # @description An epic that is done, diss or archived on the hub refuses the
 # @description ask the same way (SPL-2508): the hub would refuse the lane's
-# @description issue under it ("unknown_parent") at launch.
+# @description issue under it ("unknown_parent") at launch. An epic the hub
+# @description auto-closed (SPL-1729) is reopened instead, never refused (SPL-3060).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share
@@ -72,7 +73,8 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     local brief; brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "${place#*:}")"
     [[ -z "$brief" ]] || LI_REFUSED="ask not queued" li_brief_epic_spec "$brief" >/dev/null || return 1
     local closed; closed="$([[ -z "$brief" ]] || li_brief_epic_closed "$brief")"
-    [[ -z "$closed" ]] || { do_log "FATAL ask not queued: ${closed%$'\t'auto-closed}" >&2; return 1; }
+    [[ "$closed" != *$'\t'auto-closed ]] || { spl_spawn_q_enqueue_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}"; closed=""; }
+    [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
   fi
   row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
   (( rc == 0 )) || return "$rc"
@@ -83,6 +85,19 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"
+}
+
+# An epic the SPL-1729 close archived (li_brief_epic_closed's `auto-closed`
+# field) never refuses the ask (SPL-3060): a spec epic is auto-closed as soon
+# as its spec-writing issue lands, before any build row is filed (SPL-3028,
+# SPL-3030 on 2026-10-23). It is reopened here the way the placer does
+# (spl_spawn_place_reopen); a failed reopen is one WARN and the ask queues
+# anyway: the placer tries the reopen again before it launches the row.
+spl_spawn_q_enqueue_reopen() {  # BRIEF SLUG WHY
+  local failed
+  failed="$(spl_spawn_place_reopen "$1" "$2" "$3" "Reopened by do_spl_spawn_enqueue: auto-closed (SPL-1729), queued brief $2 names it on its Epic: line, and its lane files its issue under it (SPL-3060).")"
+  [[ -z "$failed" ]] || do_log "WARN ask queued with its epic still closed: $failed; the placer tries the reopen again before it launches" >&2
+  return 0
 }
 
 # spl_spawn_enqueue_mistral_ok <placement> -> refuses (one FATAL line) a

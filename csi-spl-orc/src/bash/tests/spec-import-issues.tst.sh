@@ -566,5 +566,51 @@ else
   fail "logged report exists after return and the RETURN trap is reset ($b14why)"
 fi
 
+# SPL-3060: a spec epic the hub auto-closed (SPL-1729) when its spec-writing
+# issue landed is archived, no list shows it, and the spec read MISSING before
+# any build row was filed (SPL-3028, SPL-3030 on 2026-10-23). A spec that pins
+# its epic ('epic SPL-n', any case) gets it reopened (unarchive, wip, comment)
+# and the epics are re-listed. RED on master: no reopen, the spec stays MISSING.
+PINFIX="$FIX_TMP/pinfix"
+cp -r "$FIX" "$PINFIX"
+printf '# Feature Specification: sample mixed\n\nIssues: SPL-21 (v0.1) and epic SPL-20.\n' >"$PINFIX/026-sample-mixed/spec.md"
+SPEC_CALLS="$FIX_TMP/desk.calls"
+do_spl_issue_list() {  # the epics list: SPL-20 only once it is reopened (unarchived)
+  local e='{"key":"SPL-19","title":"Spec 001 - sample checklist","labels":["epic"],"parent":"","status":"wip","kind":"epic"}'
+  grep -q '^unarchive --ref SPL-20' "$SPEC_CALLS" 2>/dev/null && e="$e"',{"key":"SPL-20","title":"Spec 026 - sample mixed","labels":["epic"],"parent":"","status":"wip","kind":"epic"}'
+  printf '{"op":"list","result":{"epics":[%s],"issues":[%s],"labels":[{"id":"epic"}]}}\n' "$e" "$e"
+}
+spl_desk_issue_run() {  # the hub: SPL-20 is archived, auto_closed=$PIN_AUTO; writes are recorded
+  echo "$*" >>"$SPEC_CALLS"
+  [[ "$1" == get ]] && printf '{"op":"get","result":{"issue":{"key":"%s","status":"done","archived":true,"auto_closed":%s}}}\n' "$3" "${PIN_AUTO:-true}"
+  return 0
+}
+pin_run() {  # DRY [PIN_AUTO]: the reopen step on the pinfix plan; prints its log, then the pinnedmissing rows after it
+  local w="$FIX_TMP/pinwork"
+  rm -rf "$w"; mkdir -p "$w"; : >"$SPEC_CALLS"
+  python3 "$PY" parse --specs "$PINFIX" --out "$w/plan.json" >/dev/null
+  _spl_spec_list_epics "$w" eval,done >/dev/null
+  PIN_AUTO="${2:-true}" PROJ_PATH="$PROJ_ROOT" _spl_spec_reopen_auto_closed "$PY" "$w" eval,done "$1" 2>&1
+  echo "rc=$?"
+  python3 "$PY" pinnedmissing --plan "$w/plan.json" --list "$w/epics.out"
+}
+pinj=$(python3 "$PY" parse --specs "$PINFIX" --only 026)
+[[ "$(jq -r '.specs[0].pinned' <<<"$pinj")" == SPL-20 ]] &&
+  pass "a spec.md that names 'epic SPL-20' in lower case pins it" || fail "lower-case pin: $(jq -c '.specs' <<<"$pinj")"
+out="$(pin_run 0)"
+grep -qx 'unarchive --ref SPL-20' "$SPEC_CALLS" && grep -qx 'update --ref SPL-20 --status wip' "$SPEC_CALLS" &&
+  grep -q '^comment --ref SPL-20 --body Reopened by do_spl_spec_import_issues: auto-closed (SPL-1729), and spec 026 pins it' "$SPEC_CALLS" &&
+  grep -q 'OK epic SPL-20 of spec 026 reopened' <<<"$out" && grep -qx 'rc=0' <<<"$out" && ! grep -q $'^026\t' <<<"$out" &&
+  pass "import: a pinned spec epic the hub auto-closed is reopened (unarchive, wip, comment) and listed again, not MISSING" ||
+  fail "import auto-closed reopen: $out | $(cat "$SPEC_CALLS")"
+out="$(pin_run 0 false)"
+[[ "$(grep -vc '^get ' "$SPEC_CALLS")" == 0 ]] && grep -q $'^026\tSPL-20$' <<<"$out" && grep -qx 'rc=0' <<<"$out" &&
+  pass "import control: an epic a person closed (archived, not auto_closed) is left closed, the spec stays MISSING" ||
+  fail "import human close: $out | $(cat "$SPEC_CALLS")"
+out="$(pin_run 1)"
+[[ "$(grep -vc '^get ' "$SPEC_CALLS")" == 0 ]] && grep -q 'INFO DRY_RUN would reopen epic SPL-20 of spec 026' <<<"$out" &&
+  pass "import dry run: says it would reopen the auto-closed epic, writes nothing" ||
+  fail "import dry run reopen: $out | $(cat "$SPEC_CALLS")"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

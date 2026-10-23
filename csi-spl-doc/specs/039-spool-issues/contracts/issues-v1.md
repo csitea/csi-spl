@@ -350,6 +350,18 @@ automatically".
 - Only the moment the last issue closes triggers it: an epic left with only
   closed issues by a delete or an archive stays open until it is closed by
   hand.
+- **A spec epic closes too early** (SPL-3060): its first issue is usually
+  the spec-writing one, and its `Closes:` trailer auto-closes the epic before
+  any build row is filed (SPL-3028 and SPL-3030 on 2026-10-23). The hub rule
+  stays; the orc callers take the epic back by the `auto_closed` mark, the
+  way the placer does (`li_epic_reopen`: unarchive, `wip`, a comment), and
+  never for an epic a person closed:
+  - `do_spl_spawn_enqueue` reopens it instead of refusing the ask (a failed
+    reopen is one WARN and the ask queues; the placer tries again);
+  - `do_spl_spec_import_issues` reopens the epic a MISSING spec pins in its
+    `spec.md` (`Epic SPL-n`, any case) and re-lists, so it files the build
+    rows under it and `SPEC_IMPORT_CREATE_EPIC=1` makes no second epic; a dry
+    run says what it would reopen.
 - **The one-time backfill** of the epics already in that state:
   `ENV=prd TENANT_ID=t1 DESK_AGENT=<id> DRY_RUN=1 ./run -a
   do_spl_issue_epic_autoclose_backfill` (csi-spl-orc) prints the plan;
@@ -367,4 +379,4 @@ automatically".
   stays closed. `ISSUE_BACKFILL_CMD=verify` fails on an orphan left, a second
   epic for one spec, or a written link (`tried.tsv`) that did not land.
 
-<!-- version: 0.9.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:00:00Z -->
+<!-- version: 0.9.1 · updated: 2026-10-23 · last-edit: 2026-10-23T00:00:00Z -->

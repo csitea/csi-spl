@@ -17,6 +17,9 @@
 # @description "doc" issues under its epic, split in parts when long, and
 # @description writes the epic's description as their index: issue comments
 # @description expire with channel retention, a description does not.
+# @description A spec whose spec.md pins its epic ('Epic SPL-n') and whose epic
+# @description the hub auto-closed (SPL-1729) gets it reopened, never a second
+# @description one (SPL-3060); a dry run says it would.
 # @param ENV - required on a live run: dev or prd
 # @param TENANT_ID - required on a live run
 # @param DESK_AGENT - required on a live run: the seated agent id
@@ -88,11 +91,11 @@ do_spl_spec_import_issues() {
   local all_status=eval,todo,wip,diss,blocked,onhold,qas,done
   do_log "INFO listing epics (read-only) to scope the child list to this plan's specs"
   _spl_spec_list_epics "$work" "$all_status" || { do_log "FATAL the epic list failed"; return 1; }
+  _spl_spec_reopen_auto_closed "$py" "$work" "$all_status" "$dry" || return 1
 
-  # SPEC_IMPORT_CREATE_EPIC=1: create the 'Spec NNN - <heading>' epic for any of
-  # this plan's specs that has none, then re-list. The importer never invents an
-  # epic on its own (a dry run and the default leave it MISSING and print the
-  # exact do_spl_issue_create command in the report instead).
+  # SPEC_IMPORT_CREATE_EPIC=1 creates the 'Spec NNN - <heading>' epic of a plan
+  # spec with none (a pinned auto-closed one was reopened above), then re-lists;
+  # a dry run and the default leave it MISSING with the do_spl_issue_create command.
   if [[ "${SPEC_IMPORT_CREATE_EPIC:-0}" == 1 ]] && (( dry == 0 )); then
     _spl_spec_create_missing_epics "$py" "$work" "$all_status" || return 1
   fi
@@ -204,6 +207,35 @@ _spl_spec_list_epics() {
     unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
     do_spl_issue_list
   ) >"$work/epics.out"
+}
+
+# _spl_spec_reopen_auto_closed <parser> <work dir> <statuses> <dry 0|1>: a
+# MISSING spec whose spec.md pins its epic ('Epic SPL-n', pinnedmissing) and
+# whose epic the hub auto-closed (SPL-1729: archived with auto_closed) gets that
+# epic back, the way the placer does (li_epic_reopen: unarchive, wip, comment),
+# then the epics are re-listed (SPL-3060). Without it a spec epic dies the
+# moment its spec-writing issue lands, before any build row is filed, and
+# SPEC_IMPORT_CREATE_EPIC=1 would make a second epic. A dry run says what it
+# would reopen; an epic a person closed or archived is left as it is.
+_spl_spec_reopen_auto_closed() {
+  local py="$1" work="$2" all_status="$3" dry="$4" mspec key out n=0
+  while IFS=$'\t' read -r mspec key; do
+    [[ -n "$key" ]] || continue
+    out="$(spl_desk_issue_run get --ref "$key")" || { do_log "WARN spec $mspec pins epic $key, but the hub did not answer for it; it stays MISSING"; continue; }
+    [[ "$(tail -n 1 <<<"$out" | jq -r '(.result.issue // .result) | (.archived == true and .auto_closed == true)' 2>/dev/null)" == true ]] || continue
+    if (( dry )); then
+      do_log "INFO DRY_RUN would reopen epic $key of spec $mspec: the hub auto-closed it (SPL-1729); DRY_RUN=0 reopens it and files under it"
+      continue
+    fi
+    declare -F li_epic_reopen >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 1
+    li_epic_reopen "$key" "Reopened by do_spl_spec_import_issues: auto-closed (SPL-1729), and spec $mspec pins it as its epic: its build rows are filed under it (SPL-3060)." ||
+      { do_log "FATAL reopening the auto-closed epic $key of spec $mspec failed"; return 1; }
+    do_log "OK epic $key of spec $mspec reopened: the hub had auto-closed it (SPL-1729)"
+    n=$((n + 1))
+  done < <(python3 "$py" pinnedmissing --plan "$work/plan.json" --list "$work/epics.out")
+  (( n == 0 )) && return 0
+  do_log "INFO reopened $n epic(s); re-listing"
+  _spl_spec_list_epics "$work" "$all_status" || { do_log "FATAL the epic re-list failed"; return 1; }
 }
 
 # _spl_spec_create_missing_epics <parser> <work dir> <statuses>

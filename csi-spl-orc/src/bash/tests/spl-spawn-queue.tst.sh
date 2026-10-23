@@ -826,7 +826,7 @@ out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" LAUNCH_ID=c-509 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$E4")")" == "placed: c-509@box-desk" ]] && grep -q "^claude auto $T $T/briefs/open-epic.md open-epic$" "$T/launch.log" &&
   grep -qx "desk $T/pc/spool 0" "$T/desk.log" && grep -q '^unarchive --ref SPL-8 ' "$T/desk.log" && grep -q '^update --ref SPL-8 --status wip ' "$T/desk.log" &&
   grep -qF 'comment --ref SPL-8 --body Reopened by do_spl_spawn_place: auto-closed (SPL-1729), head brief open-epic names it' "$T/desk.log" &&
-  grep -q 'OK SPL-8 reopened: it was auto-closed and head brief open-epic names it' <<<"$out" && ! grep -q 'blocker' "$T/send.log" &&
+  grep -q 'OK SPL-8 reopened: it was auto-closed and brief open-epic names it' <<<"$out" && ! grep -q 'blocker' "$T/send.log" &&
   pass "17. placer: an epic the SPL-1729 close archived is reopened (unarchive, wip, comment) as the lease's desk, and the row launched" ||
   fail "17. auto-closed reopen: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E4")"
 placeq "$E5" $'done\tarchived'
@@ -841,6 +841,37 @@ out="$(on pc "${DESK}do_spl_spawn_place" "${EH2[@]}" DESK_FAIL=unarchive LAUNCH_
   grep -qF "names epic SPL-8, but SPL-8 is done on the hub: point its 'Epic:' line at an open epic, or reopen SPL-8 (SPL-2508); reopening it failed: FATAL spool issue unarchive: hub refused" "$T/send.log" &&
   pass "17. a failed reopen hands the row off with the failure, nothing launched" ||
   fail "17. failed reopen: $out | $(cat "$T/launch.log") | $(cat "$T/desk.log") | $(sends) | $(hubrow "$E6")"
+
+# 17b. SPL-3060: the enqueue reopens an auto-closed epic, never refuses it ---------------
+# A spec epic is auto-closed (SPL-1729) the moment its spec-writing issue lands,
+# before any build row is filed (SPL-3028, SPL-3030 on 2026-10-23); every brief
+# naming it was refused at enqueue. RED on master: "FATAL ask not queued".
+E7=30600007-0000-4000-8000-000000000007; E8=30600008-0000-4000-8000-000000000008; E9=30600009-0000-4000-8000-000000000009
+enq() {  # ASK_ID EPIC_ROW [VAR=..]: enqueue the open-epic brief while SPL-8 is EPIC_ROW
+  local a="$1" st="$2"; shift 2
+  jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+  put "$a" c-002@box-desk "dispatch-c002sat-${a:7:1}" "SPAWN REQUEST build row"
+  printf 'SPL-8\t%s\n' "$st" >"$T/epics.tsv"; : >"$T/desk.log"
+  on pc "${DESK}do_spl_spawn_enqueue" "${EH2[@]}" "$@" ASK_ID="$a" SPAWN_CLASS=feature SPAWN_PLACE=claude:open-epic 2>&1
+}
+out="$(enq "$E7" $'done\tauto-closed')"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$E7")")" == queued ]] && ! grep -q FATAL <<<"$out" &&
+  grep -qx "desk $T/pc/spool 0" "$T/desk.log" && grep -q '^unarchive --ref SPL-8 ' "$T/desk.log" && grep -q '^update --ref SPL-8 --status wip ' "$T/desk.log" &&
+  grep -qF 'comment --ref SPL-8 --body Reopened by do_spl_spawn_enqueue: auto-closed (SPL-1729), queued brief open-epic names it' "$T/desk.log" &&
+  pass "17b. enqueue: an epic the SPL-1729 close archived is reopened (unarchive, wip, comment) as the lease's desk, and the ask queued" ||
+  fail "17b. enqueue auto-closed: rc=$rc $out | $(cat "$T/desk.log") | $(hubrow "$E7")"
+out="$(enq "$E8" $'done\tarchived')"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$E8")")" == open && ! -s "$T/desk.log" ]] &&
+  grep -qF "FATAL ask not queued: brief $T/briefs/open-epic.md names epic SPL-8, but SPL-8 is done on the hub: point its 'Epic:' line" <<<"$out" &&
+  pass "17b. control: an epic a person closed (archived, not auto_closed) still refuses the ask, no unarchive" ||
+  fail "17b. enqueue human close: rc=$rc $out | $(cat "$T/desk.log") | $(hubrow "$E8")"
+out="$(enq "$E9" $'done\tauto-closed' DESK_FAIL=unarchive)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$E9")")" == queued ]] && ! grep -q '^update ' "$T/desk.log" &&
+  grep -qF "WARN ask queued with its epic still closed: brief $T/briefs/open-epic.md names epic SPL-8, but SPL-8 is done on the hub" <<<"$out" &&
+  grep -qF "reopening it failed: FATAL spool issue unarchive: hub refused; the placer tries the reopen again before it launches" <<<"$out" &&
+  pass "17b. a failed reopen at enqueue is one WARN, the ask still queues (the placer retries the reopen)" ||
+  fail "17b. enqueue failed reopen: rc=$rc $out | $(cat "$T/desk.log") | $(hubrow "$E9")"
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
 
 # 18. spec 143 4.4 (SPL-2790): the brief's category on the request ----------------------
 G1=21430001-0000-4000-8000-000000000001; G2=21430002-0000-4000-8000-000000000002; G3=21430003-0000-4000-8000-000000000003

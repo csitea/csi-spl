@@ -586,12 +586,13 @@ def _words(text: str) -> set:
 
 
 def _pinned_epic(directory: Path) -> str:
-    """A spec that names its epic in the first lines, e.g. 'Epic SPL-74'."""
+    """A spec that names its epic in the first lines, e.g. 'Epic SPL-74' or
+    'epic SPL-3028' (any case: specs 150 and 151 write it lower case)."""
     spec = directory / "spec.md"
     if not spec.is_file():
         return ""
     head = "\n".join(spec.read_text(encoding="utf-8").splitlines()[:40])
-    m = re.search(r"\bEpic\s+(SPL-\d+)\b", head)
+    m = re.search(r"\b[Ee][Pp][Ii][Cc]\s+(SPL-\d+)\b", head)
     return m.group(1) if m else ""
 
 
@@ -724,6 +725,18 @@ def missing_epics(plan: dict, list_doc: dict) -> list:
         ):
             out.append((row["spec"], row.get("heading") or row["dir"]))
     return out
+
+
+def pinned_missing(plan: dict, list_doc: dict) -> list:
+    """The MISSING plan specs (missing_epics) whose spec.md pins an epic key,
+    as (spec, key): an epic the hub auto-closed (SPL-1729) is archived and no
+    list shows it, so the import asks the hub for the pinned key (SPL-3060)."""
+    want = {spec for spec, _ in missing_epics(plan, list_doc)}
+    return [
+        (row["spec"], row["pinned"])
+        for row in plan.get("specs", [])
+        if row["spec"] in want and row.get("pinned")
+    ]
 
 
 def merge_lists(paths: list) -> dict:
@@ -1112,6 +1125,9 @@ def main(argv: list[str]) -> int:
     m = sub.add_parser("missingepics")
     m.add_argument("--plan", type=Path, required=True)
     m.add_argument("--list", type=Path, required=True)
+    n = sub.add_parser("pinnedmissing")
+    n.add_argument("--plan", type=Path, required=True)
+    n.add_argument("--list", type=Path, required=True)
     args = p.parse_args(argv)
     REDACT[:] = [
         w for w in (x.strip() for x in getattr(args, "redact", "").split(",")) if w
@@ -1121,6 +1137,12 @@ def main(argv: list[str]) -> int:
         listed = _json_line(args.list)
         for spec, heading in missing_epics(plan, listed):
             print(f"{spec}\t{heading}")
+        return 0
+    if args.cmd == "pinnedmissing":
+        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        listed = _json_line(args.list)
+        for spec, key in pinned_missing(plan, listed):
+            print(f"{spec}\t{key}")
         return 0
     if args.cmd == "epics":
         plan = json.loads(args.plan.read_text(encoding="utf-8"))

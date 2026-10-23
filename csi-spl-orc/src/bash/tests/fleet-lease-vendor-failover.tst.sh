@@ -52,6 +52,9 @@
 #      the row stayed on the limited seat until it went stale, 181..240 s);
 #      a limit that resets inside LEASE_STALE moves nothing; with the other
 #      box limited too the row moves ONE hop, never back (no ping-pong)
+#  12. SPL-2943, the second claude login: a claude process whose environ
+#      carries CLAUDE_CONFIG_DIR runs claude2; after agy the next vendor
+#      step is claude2, and after claude2 none is left
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -327,6 +330,17 @@ done
 [[ "$(hub2)" == "c-001@pc c-002@pc" && "$(logc sat 'HANDOFF orch')" == 1 && "$(logc pc HANDOFF)" == 0 ]] &&
   pass "11. both boxes on the limit: the row moves one hop (sat -> pc) and pc never hands it back" ||
   fail "11. ping-pong: hub $(hub2) sat $(logc sat HANDOFF) pc $(logc pc HANDOFF)"
+
+# --- 12. SPL-2943: the second claude login is the last vendor step ----------------------
+agent pc 130 c-007 claude
+agent pc 131 c-008 claude
+printf 'SPOOL_AGENT_ID=c-008\0CLAUDE_CONFIG_DIR=/x/.claude-2\0' >"$T/pc/proc/131/environ"
+fl12() { env -u LEASE_VENDOR_ORDER -u LEASE_ORCH_FALLBACK SRC="$SRC" LEASE_PROC_ROOT="$T/pc/proc" bash -c 'do_log() { :; }; source "$SRC"; '"$1" 2>&1; }
+got="$(fl12 'echo "$(spl_fleet_seat_vendor c-007) $(spl_fleet_seat_vendor c-008) $(spl_fleet_seat_vendor a-009)"')"
+[[ "$got" == "claude claude2 agy" ]] && pass "12. the seat's vendor from its process: claude, claude2 (CLAUDE_CONFIG_DIR), agy" || fail "12. seat vendors: '$got'"
+got="$(fl12 'echo "[$(spl_fleet_switch_next orch a-009)] [$(spl_fleet_switch_next orch c-008)] [$(spl_fleet_fallback orch)]"')"
+[[ "$got" == "[claude2] [] [claude grok agy claude2]" ]] &&
+  pass "12. after agy the next step is claude2; after claude2 no vendor is left" || fail "12. switch next: '$got'"
 
 (( fails == 0 )) && { echo "PASS: all fleet-lease-vendor-failover.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease-vendor-failover.tst.sh assertion(s)"; exit 1

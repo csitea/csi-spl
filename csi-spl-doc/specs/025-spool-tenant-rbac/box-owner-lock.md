@@ -283,6 +283,46 @@ No other route, role, permission or operator scope writes `box_locks`. The `K_lo
 `<OWNER_BOX>` by `spool lock sign` (terminal + secret); the WUI only carries it. A stolen owner session
 cookie therefore cannot change a lock, and neither can `K_lock` alone without an owner session.
 
+**As built (row B2, SPL-2964)**: `internal/hub/box_lock_routes.go`, the hello step in `helloRefusal`
+(`internal/hub/ws.go`), the hello and welcome fields `boot_id`, `unlock_proof`, `unlock_ticket` on
+`wire.Frame`, the four operations in `internal/hub/openapi.json`. Tests: `TestBoxLockRoutes`,
+`TestLockedHello` (`internal/hub/box_lock_routes_test.go`).
+
+- Every route needs a member's session; a visitor role (demo_user, channel_guest) is 403 before any
+  lookup. No role or permission grants anything: only the lock's owners (a tampered lock has none).
+- `POST` body: `spool lock create`'s output as is (`signed_body`, `signature`, `box_signature`).
+  Version 1; the confirming member in `owners` (else 403 `not_owner`); `box_pubkey` the pinned key and
+  `box_signature` that key's over `signed_body` (else 403 `bad_box_sig`); `signature` K_lock's (else 403
+  `bad_sig`). 409 when already locked. A live session of the box is closed (going away), so its next
+  hello needs the unlock.
+- The hub nonce is `<unix seconds>.<signature>`, the hub's own key (box-wui's) over
+  `spool-lock-nonce-v1|<tenant>|<box>|<seconds>`, good for 300 s; `GET` answers one to an owner. A hub
+  with no box-wui key cannot issue one: `PUT` and `DELETE` then answer 501.
+- `PUT` body: `signed_body`, `signature`, `nonce`, `nonce_signature` = K_lock over
+  `spool-lock-change-v1|<tenant>|<box>|<nonce>|<sha256 hex of signed_body>`. A non-owner is 403
+  `box_locked`; a statement or body under another key 403 `bad_sig`; a stale or foreign nonce 400
+  `stale_nonce`; a version other than stored + 1 409 `stale_version`. A new `box_pubkey` (rebind) is
+  pinned in the same call (force) and the box's live session closed.
+- `DELETE` body: `nonce`, `signature` = K_lock over `spool-lock-lift-v1|<tenant>|<box>|<stored
+  version>|<nonce>`; 204.
+- `GET`: the row, its audit rows (newest first, at most 200) and a nonce; 404 to anyone else.
+- Audit: each refusal bumps one `refused` row per human and path (`lock_create`, `lock_change`,
+  `lock_lift`, `lock_get`); the store writes `created` / `changed` / `lifted` (B1).
+- Hello (4.4): for a locked box the pinned key must be the lock's `box_pubkey` (else 4401
+  `locked_box_key`), and a `role=box` hello must carry a valid ticket for the same `boot_id`, or an
+  `unlock_proof`: K_lock over `lockkey.ProofPayload(tenant, box, nonce, boot_id, box_pubkey, ts)` with the
+  hello's own nonce and `ts` within 120 s. A proof earns a ticket on the welcome (`unlock_ticket`:
+  base64url JSON `{v, tenant, box, box_pubkey, boot_id, expires_at}` + `.` + the hub key's signature over
+  `spool-unlock-ticket-v1|<json part>`, 7 days). Anything else, and a tampered lock, is 4401
+  `locked_box_sealed` with one `sealed_hello` audit row (path `hello`). A `role=cli` hello is not a
+  delivery target and proves K_box, which exists only in the unlocked holder: it needs the key check only.
+  A `box_locks` read error answers `store_unavailable` (fail closed; the box redials).
+
+Not in B2, left for a later row: the box client (`internal/hubclient`) does not yet send the proof,
+keep the ticket or call `drop-lock`, and still reads the clear key, so a sealed box stays offline (4.6);
+the ticket TTL is a constant until cnf (B6); the owner's DM note on a tamper finding (6.1) and the daily
+audit digest (6.3).
+
 ### 6.3 Audit
 
 - Every refusal writes or bumps one `box_lock_audit` row per `(box, human or from_box, path)` per minute

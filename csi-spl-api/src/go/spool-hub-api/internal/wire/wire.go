@@ -220,6 +220,17 @@ type Frame struct {
 	// older box (or a stale report): its agents then read the box's presence.
 	AgentRun map[string]bool `json:"agent_run,omitempty"`
 
+	// hello (spec 025 box-owner-lock.md 4.4): a locked box's unlock. BootID
+	// names the box's boot; UnlockProof is K_lock's signature over
+	// lockkey.ProofPayload(tenant, box, nonce, boot_id, box pubkey, ts);
+	// UnlockTicket is a ticket from an earlier welcome, shown instead of a
+	// proof. Not signed by HelloPayload: the proof and the ticket carry their
+	// own signatures. Absent = an unlocked box. welcome: the ticket the hub
+	// issued for a proof.
+	BootID       string `json:"boot_id,omitempty"`
+	UnlockProof  string `json:"unlock_proof,omitempty"`
+	UnlockTicket string `json:"unlock_ticket,omitempty"`
+
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`

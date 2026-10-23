@@ -480,6 +480,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeWorkspaceDocs(mux) // specs/075 Phase 2: /v1/workspace/docs/{path...}
 	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
+	s.routeBoxLocks(mux)      // spec 025 box owner lock 6.2: /v1/boxes/{box}/lock, box_lock_routes.go
 	s.routeCostRead(mux)      // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
 	s.routeFXRates(mux)       // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
 	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens

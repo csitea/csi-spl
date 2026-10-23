@@ -71,6 +71,9 @@ type session struct {
 	// rotated: the hub closed this socket at its max life (ws_maxlife.go);
 	// the box redials at once, so drop treats it as a roll.
 	rotated atomic.Bool
+	// unlockTicket: the ticket a locked box's unlock proof earned at hello
+	// (box_lock_routes.go), sent on the welcome; "" otherwise.
+	unlockTicket string
 }
 
 // accepts reports whether this box's reader takes inner version v. No
@@ -208,7 +211,8 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	// connection, and the box redials.
 	sctx, cancel := context.WithTimeout(ctx, s.o.HelloStoreTimeout)
 	defer cancel()
-	if code, token := s.helloRefusal(sctx, t.ID, f, nonce); token != "" {
+	code, token, ticket := s.helloRefusal(sctx, t.ID, f, nonce)
+	if token != "" {
 		s.o.Log.Warn().Str("tenant", t.ID).Str("box", f.BoxID).Str("reason", token).Msg("ws hello refused")
 		conn.Close(code, token) //nolint:errcheck
 		return nil, false
@@ -218,6 +222,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		s.o.Log.Warn().Err(sctx.Err()).Str("tenant", t.ID).Str("box", f.BoxID).Msg("ws hello not seated")
 		return nil, false
 	}
+	x.unlockTicket = ticket
 	if f.Role == wire.RoleBox {
 		s.keepHostFacts(sctx, t.ID, f.BoxID, f.Host) // before the welcome: a roster read after it sees them
 	}
@@ -281,39 +286,41 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn, tenant str
 
 // helloRefusal checks the hello: its shape, never box-wui (the hub holds
 // box-wui's key; it is never a box session, specs/014), the nonce, the
-// clock skew, the pin and signature, and a box's roster. It answers the
-// close code and reason, or "" when the hello is good.
-func (s *Server) helloRefusal(ctx context.Context, tenant string, f wire.Frame, nonce string) (websocket.StatusCode, string) {
+// clock skew, the pin and signature, a box's roster, and a locked box's
+// unlock (spec 025 box-owner-lock.md 4.4, lockedHelloRefusal). It answers
+// the close code and reason, or "" when the hello is good, and the unlock
+// ticket the welcome carries ("" unless a proof earned one).
+func (s *Server) helloRefusal(ctx context.Context, tenant string, f wire.Frame, nonce string) (websocket.StatusCode, string, string) {
 	switch {
 	case f.Type != wire.THello || (f.Role != wire.RoleBox && f.Role != wire.RoleCLI) || !msg.ValidBoxID(f.BoxID):
-		return wire.CloseBadFrame, "bad_frame"
+		return wire.CloseBadFrame, "bad_frame", ""
 	case f.BoxID == WUIBox:
-		return wire.CloseUnauthorized, "unauthorized"
+		return wire.CloseUnauthorized, "unauthorized", ""
 	case f.Nonce != nonce:
-		return wire.CloseUnauthorized, "bad_nonce"
+		return wire.CloseUnauthorized, "bad_nonce", ""
 	case !s.skewOK(f.TS):
-		return wire.CloseUnauthorized, "stale_hello"
+		return wire.CloseUnauthorized, "stale_hello", ""
 	}
 	pub, err := s.o.Store.GetPin(ctx, tenant, f.BoxID)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		// A store error (SPL-2238: the hello deadline) is not a missing pin:
 		// below 4000 the box reads it as unreachable and redials.
-		return websocket.StatusTryAgainLater, "store_unavailable"
+		return websocket.StatusTryAgainLater, "store_unavailable", ""
 	}
 	if err != nil {
-		return wire.CloseUnauthorized, "unpinned_box"
+		return wire.CloseUnauthorized, "unpinned_box", ""
 	}
 	payload, err := wire.HelloPayload(f.BoxID, f.Nonce, f.TS)
 	if err != nil {
-		return wire.CloseBadFrame, "bad_frame"
+		return wire.CloseBadFrame, "bad_frame", ""
 	}
 	if err := verify(pub, payload, f.Sig); err != nil {
-		return wire.CloseUnauthorized, "bad_sig"
+		return wire.CloseUnauthorized, "bad_sig", ""
 	}
 	if f.Role == wire.RoleBox && !validRoster(f.Agents) {
-		return wire.CloseBadFrame, "roster_duplicate"
+		return wire.CloseBadFrame, "roster_duplicate", ""
 	}
-	return 0, ""
+	return s.lockedHelloRefusal(ctx, tenant, f, pub)
 }
 
 // seatSession stamps the box's hello and, for a box, seats its roster and
@@ -358,7 +365,7 @@ func (s *Server) welcome(ctx context.Context, x *session) bool {
 	x.agents = roster[x.box] // Roster sorts each box's list
 	tok, exp := s.slotToken(&x.upload, x.tenant, x.box, "")
 	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: x.box, Roster: roster, SpoolEnc: enc,
-		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
+		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339), UnlockTicket: x.unlockTicket})
 	x.markWelcomed()
 	if err != nil {
 		s.drop(x)

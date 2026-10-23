@@ -1521,6 +1521,567 @@
         ]
       }
     },
+    "/v1/boxes/{box}/lock": {
+      "delete": {
+        "operationId": "deleteBoxesByBoxLock",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "An owner's lift statement over a hub nonce. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                "properties": {
+                  "nonce": {
+                    "description": "from GET, at most 300 s old",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "K_lock over spool-lock-lift-v1|tenant|box|version|nonce",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "nonce",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Lifted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Lift a box lock",
+        "tags": [
+          "pins"
+        ]
+      },
+      "get": {
+        "operationId": "getBoxesByBoxLock",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The box's lock (the box_locks row) and a fresh hub nonce for the next change or lift. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                  "properties": {
+                    "audit": {
+                      "description": "GET only: audit rows, newest first",
+                      "items": {
+                        "properties": {
+                          "count": {
+                            "type": "integer"
+                          },
+                          "first_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "from_box": {
+                            "type": "string"
+                          },
+                          "human_id": {
+                            "type": "string"
+                          },
+                          "last_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "verdict": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "verdict",
+                          "first_at",
+                          "last_at",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "box_pubkey": {
+                      "description": "base64 Ed25519 key the lock accepts at hello",
+                      "type": "string"
+                    },
+                    "hide_posts": {
+                      "type": "boolean"
+                    },
+                    "lock_pubkey": {
+                      "description": "base64 Ed25519 key, K_lock",
+                      "type": "string"
+                    },
+                    "nonce": {
+                      "description": "hub nonce, good for 300 s; absent when the hub has no key",
+                      "type": "string"
+                    },
+                    "owners": {
+                      "description": "HUM-* ids",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "peer_boxes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "signature": {
+                      "description": "K_lock over signed_body",
+                      "type": "string"
+                    },
+                    "signed_body": {
+                      "description": "canonical JSON of the columns above",
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "tenant_id",
+                    "box_id",
+                    "lock_pubkey",
+                    "box_pubkey",
+                    "owners",
+                    "peer_boxes",
+                    "hide_posts",
+                    "version",
+                    "signed_body",
+                    "signature"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the lock, its audit and a nonce"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a box lock (owners only)",
+        "tags": [
+          "pins"
+        ]
+      },
+      "post": {
+        "operationId": "postBoxesByBoxLock",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The output of spool lock create, confirmed by an owner's session. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                "properties": {
+                  "box_signature": {
+                    "description": "the pinned box key over signed_body",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "K_lock over signed_body",
+                    "type": "string"
+                  },
+                  "signed_body": {
+                    "description": "lock body, version 1, naming the caller as an owner",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "signed_body",
+                  "signature",
+                  "box_signature"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The box's lock (the box_locks row) and a fresh hub nonce for the next change or lift. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                  "properties": {
+                    "audit": {
+                      "description": "GET only: audit rows, newest first",
+                      "items": {
+                        "properties": {
+                          "count": {
+                            "type": "integer"
+                          },
+                          "first_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "from_box": {
+                            "type": "string"
+                          },
+                          "human_id": {
+                            "type": "string"
+                          },
+                          "last_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "verdict": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "verdict",
+                          "first_at",
+                          "last_at",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "box_pubkey": {
+                      "description": "base64 Ed25519 key the lock accepts at hello",
+                      "type": "string"
+                    },
+                    "hide_posts": {
+                      "type": "boolean"
+                    },
+                    "lock_pubkey": {
+                      "description": "base64 Ed25519 key, K_lock",
+                      "type": "string"
+                    },
+                    "nonce": {
+                      "description": "hub nonce, good for 300 s; absent when the hub has no key",
+                      "type": "string"
+                    },
+                    "owners": {
+                      "description": "HUM-* ids",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "peer_boxes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "signature": {
+                      "description": "K_lock over signed_body",
+                      "type": "string"
+                    },
+                    "signed_body": {
+                      "description": "canonical JSON of the columns above",
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "tenant_id",
+                    "box_id",
+                    "lock_pubkey",
+                    "box_pubkey",
+                    "owners",
+                    "peer_boxes",
+                    "hide_posts",
+                    "version",
+                    "signed_body",
+                    "signature"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created: the box is locked"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: already locked, or version is not the stored version + 1"
+          }
+        },
+        "summary": "Lock a box to its owners",
+        "tags": [
+          "pins"
+        ]
+      },
+      "put": {
+        "operationId": "putBoxesByBoxLock",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "An owner's signed change at version + 1, over a hub nonce. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                "properties": {
+                  "nonce": {
+                    "description": "from GET, at most 300 s old",
+                    "type": "string"
+                  },
+                  "nonce_signature": {
+                    "description": "K_lock over spool-lock-change-v1|tenant|box|nonce|sha256 hex of signed_body",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "K_lock over signed_body",
+                    "type": "string"
+                  },
+                  "signed_body": {
+                    "description": "the new lock body",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "signed_body",
+                  "signature",
+                  "nonce",
+                  "nonce_signature"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The box's lock (the box_locks row) and a fresh hub nonce for the next change or lift. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md §6.2.",
+                  "properties": {
+                    "audit": {
+                      "description": "GET only: audit rows, newest first",
+                      "items": {
+                        "properties": {
+                          "count": {
+                            "type": "integer"
+                          },
+                          "first_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "from_box": {
+                            "type": "string"
+                          },
+                          "human_id": {
+                            "type": "string"
+                          },
+                          "last_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "verdict": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "verdict",
+                          "first_at",
+                          "last_at",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "box_pubkey": {
+                      "description": "base64 Ed25519 key the lock accepts at hello",
+                      "type": "string"
+                    },
+                    "hide_posts": {
+                      "type": "boolean"
+                    },
+                    "lock_pubkey": {
+                      "description": "base64 Ed25519 key, K_lock",
+                      "type": "string"
+                    },
+                    "nonce": {
+                      "description": "hub nonce, good for 300 s; absent when the hub has no key",
+                      "type": "string"
+                    },
+                    "owners": {
+                      "description": "HUM-* ids",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "peer_boxes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "signature": {
+                      "description": "K_lock over signed_body",
+                      "type": "string"
+                    },
+                    "signed_body": {
+                      "description": "canonical JSON of the columns above",
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "tenant_id",
+                    "box_id",
+                    "lock_pubkey",
+                    "box_pubkey",
+                    "owners",
+                    "peer_boxes",
+                    "hide_posts",
+                    "version",
+                    "signed_body",
+                    "signature"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the changed lock"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: already locked, or version is not the stored version + 1"
+          }
+        },
+        "summary": "Change a box lock",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
     "/v1/calendar/events": {
       "get": {
         "operationId": "getCalendarEvents",

@@ -693,13 +693,48 @@ _PP_BASE_WT=""
 _pp_baseline_tree() {  # <tree> <base>
   [[ -n "$_PP_BASE_WT" ]] && return 0
   git -C "$1" rev-parse --verify -q "$2^{commit}" >/dev/null 2>&1 || return 1
-  # Named for this process, so a later run can tell a dead run's leftover
-  # (_pp_baseline_reap) from a live one's.
+  _pp_baseline_stable_tree "$1" "$2" && return 0
+  # Busy (a concurrent run of this tree) or no lock: named for this process,
+  # so a later run can tell a dead run's leftover (_pp_baseline_reap) from a
+  # live one's.
   local tmp; tmp="$(mktemp -d "${TMPDIR:-/tmp}/csi-spl-pre-push-base.$$.XXXXXX" 2>/dev/null)" || return 1
   if git -C "$1" worktree add --detach -q "$tmp" "$2" >/dev/null 2>&1; then
     _PP_BASE_WT="$tmp"; return 0
   fi
   rmdir "$tmp" 2>/dev/null; return 1
+}
+# The base tree's path is STABLE per lane tree and user (SPL-3128): Go's build
+# cache keys hold the source dir (no -trimpath), so a fresh random path made
+# every re-check write its whole build again, never read back (sat, c-050,
+# 2026-10-23: 1.23 GB in 2 re-checks). Re-created at the same path it re-uses
+# them. A flock on <path>.lock, held until _pp_baseline_cleanup, keeps two
+# concurrent runs of one tree apart: the second falls back to a pid path. The
+# holder unlinks the lock file before it lets go, so none piles up in /tmp; a
+# lock taken on an unlinked file is not the path's (-ef) and counts as busy.
+_PP_BASE_LOCK_FD="" _PP_BASE_LOCK_FILE=""
+_pp_baseline_stable() {  # <tree> -> the stable base-tree path
+  local h; h="$(printf '%s' "$1" | sha1sum | cut -c1-12)"
+  echo "${TMPDIR:-/tmp}/csi-spl-pre-push-base.u$(id -u)-$h"
+}
+_pp_baseline_stable_tree() {  # <tree> <base>; sets _PP_BASE_WT, or returns 1
+  command -v flock >/dev/null 2>&1 || return 1
+  local wt fd; wt="$(_pp_baseline_stable "$1")"
+  exec {fd}>>"$wt.lock" 2>/dev/null || return 1
+  { flock -n "$fd" && [[ "/dev/fd/$fd" -ef "$wt.lock" ]]; } || { exec {fd}>&-; return 1; }
+  _PP_BASE_LOCK_FD="$fd" _PP_BASE_LOCK_FILE="$wt.lock"
+  # a SIGKILLed run's leftover at this path is ours now, under the lock
+  git -C "$1" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
+  git -C "$1" worktree prune 2>/dev/null || true
+  if git -C "$1" worktree add --detach -q "$wt" "$2" >/dev/null 2>&1; then
+    _PP_BASE_WT="$wt"; return 0
+  fi
+  _pp_baseline_unlock; return 1
+}
+_pp_baseline_unlock() {
+  [[ -n "$_PP_BASE_LOCK_FD" ]] || return 0
+  rm -f "$_PP_BASE_LOCK_FILE"
+  exec {_PP_BASE_LOCK_FD}>&-
+  _PP_BASE_LOCK_FD="" _PP_BASE_LOCK_FILE=""
 }
 # A killed hook (timeout, Ctrl-C, a closed pane) used to leave its baseline
 # worktree registered in the SHARED .git: 132 /tmp/tmp.* entries piled up by
@@ -713,12 +748,27 @@ _pp_baseline_reap() {  # <tree>
       kill -0 "$pid" 2>/dev/null && continue
       git -C "$1" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
     done || true  # no leftover: grep exits 1, which errexit + pipefail made fatal (SPL-2315)
+  # this user's stable ones: dead when nobody holds their lock
+  local u fd; u="${TMPDIR:-/tmp}/csi-spl-pre-push-base.u$(id -u)-"
+  if command -v flock >/dev/null 2>&1; then
+    git -C "$1" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' \
+      | grep -F "$u" | while IFS= read -r wt; do
+        [[ "$wt" =~ -[0-9a-f]{12}$ ]] || continue
+        exec {fd}>>"$wt.lock" 2>/dev/null || continue
+        if flock -n "$fd" && [[ "/dev/fd/$fd" -ef "$wt.lock" ]]; then
+          git -C "$1" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
+          rm -f "$wt.lock"
+        fi
+        exec {fd}>&-
+      done || true
+  fi
   git -C "$1" worktree prune 2>/dev/null || true
 }
 _pp_baseline_cleanup() {  # <tree>
   [[ -n "$_PP_BASE_WT" ]] || return 0
   git -C "$1" worktree remove --force "$_PP_BASE_WT" >/dev/null 2>&1 || rm -rf "$_PP_BASE_WT"
   _PP_BASE_WT=""
+  _pp_baseline_unlock
 }
 
 # The pidfile of the run gating <tree>: one per checkout, so a stop in one lane

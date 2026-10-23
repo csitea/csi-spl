@@ -373,6 +373,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedHours(ctx, pg, s.tenant, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// hours_standard_days, hours_jobs, hours_crews, hours_crew_members,
+	// hours_plan, hours_holidays (rdb 0215, spec 107 v2 T021): one row of
+	// each (hours_v2_rls_test.go).
+	if err := seedHoursV2Plan(ctx, pg, s.tenant, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
 	// spec 113 T001): a doc with its root and one rev-log entry, then its
 	// workspace_doc_node pair. No store API

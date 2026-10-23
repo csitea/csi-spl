@@ -1,6 +1,6 @@
 # 152 Roles and permissions: a configurable role x action list per workspace
 
-Version v0.3 draft (2026-10-23). This is step 1 of the owner rule for a big
+Version v0.3 (2026-10-23). This is step 1 of the owner rule for a big
 change: the written spec. Nothing in it is built until the owner has checked
 the action list (section 9) and the dispatcher has filed the build rows.
 
@@ -8,7 +8,9 @@ v0.3 replaces the v0.2 design (a fixed matrix per mode, `9b01369f4`) with the
 owner's ask of 2026-10-23 15:36Z: a configurable list of what each role may
 do, covering the whole life cycle of work with agents, edited in the admin
 Settings, with the modes as pre-set fills of that list. EDITOR c-393
-(claude) wrote it; the mistral seat reviews it ([panel.md](panel.md)).
+(claude) wrote the draft (`08215dd93`); SEAT c-484 (claude, the backup for
+a mistral seat that delivered no review) reviewed it, 21 rows, and its 4
+WRONG and 5 GAP rows are folded here ([panel.md](panel.md)).
 
 Source: prd topic in the owner's workspace,
 `topic:b4af24b2-65ec-4fde-bbaf-6350f24c025b`. Issues: SPL-3093 (this
@@ -219,8 +221,8 @@ may do it today, so the default changes nothing (3.6).
 | id | the action | today | enforced today at |
 |---|---|---|---|
 | `notes.send` | post a message for people | all | `hub/wui.go:837-845` and every message write (`hub/edit.go:84`, `hub/reactions.go:81`, ...) |
-| `channels.manage` | create a channel | O A P D C U | `hub/channels.go:452` |
-| `issues.create` (new) | file an issue | all | `hub/issues.go:866-888` (`topics.manage`) |
+| `channels.manage` | create a channel, unarchive a channel, remove another person from a channel | O A P D C U | `hub/channels.go:452`; `hub/channel_members.go:528` (unarchive), `:569` (remove another) |
+| `issues.create` (new) | file an issue | all | `hub/issues.go:891` through `issueWriter` (`:866-888`, `topics.manage`) |
 | `agents.dm` (new) | DM an agent (a new or an existing DM) | all but T | `hub/wui.go:838-839` (`agents.command`) |
 | `agents.start` (new) | open a NEW channel topic that addresses an agent | all but T | no check of its own (no concept, 2.4); `agents.command` |
 | `agents.mention` (new) | address an agent in an existing topic: `@agent`, a bare `@agent`, the mention poke | all but T | `hub/wui.go:838-839` (`agents.command`) |
@@ -231,24 +233,24 @@ may do it today, so the default changes nothing (3.6).
 | id | the action | today | enforced today at |
 |---|---|---|---|
 | `agents.reply` (new) | a reply in a channel-less topic goes on to its agent | all but T | `hub/topic_reply.go:26-28` (`agents.command`) |
-| `issues.edit` (new) | change an issue's title, description, labels, deadline, parent, kind | all | `hub/issues.go:866-888` |
-| `issues.assign` (new) | set an issue's assignee | all | same |
+| `issues.edit` (new) | change an issue's title, description, labels, deadline, parent, kind; create an issue label; add or remove an issue's discussion link; delete or archive one's OWN issue | all | `hub/issues.go:914`, `:979`, `:1032`, `:1134`; `hub/issue_discussions.go:335`, `:357`; all through `issueWriter` |
+| `issues.assign` (new) | set an issue's assignee | all | `hub/issues.go:914` |
 | `issues.prioritise` (new) | set an issue's priority or level, and a topic's priority once spec 150 has its route | all | same; topic: no route yet (2.6) |
-| `topics.manage` | move, merge, promote one's own topic or message | all | `hub/message_move.go:80` |
+| `topics.manage` | move or promote one's own topic or message (merging one's own messages needs only `notes.send`, `hub/merge.go:69`, and stays so) | all | `hub/message_move.go:80` |
 | `docs.write` | create, edit, delete workspace docs | all | 25 sites, e.g. `hub/workspace_docs.go:277`, `hub/wsdoc_tree.go:326` |
 | `files.write` | upload and delete files | all | `hub/demo.go:55` |
-| `channels.edit` | add or remove channel members and agents; archive or delete a channel | all | `hub/channel_members.go:131` |
+| `channels.edit` | add a member or an agent to a channel, remove an agent, archive or delete a channel. A CEILING: the channel's own rules still apply under it (add and remove need the creator or open invite, `hub/channel_members.go:293`, `:356`, `:430`; archive and delete need the creator, `:607-608`) | all, then the channel's rules | `hub/channel_members.go:131` |
 | `channels.ai_agents` (new) | switch the AI agents of a channel one did not create | O A | `hub/channel_ai_agents.go:55-58` (`tenant.settings`) |
-| `messages.kind` (new) | set the kind of someone else's message | O A | `hub/message_kind.go:34` (role names) |
+| `messages.kind` (new) | set the kind of someone else's message | O A | `hub/message_kind.go:124-138` (`setsAnyKind`; role list at `:34`) |
 
 **Review and accept (6)**
 
 | id | the action | today | enforced today at |
 |---|---|---|---|
-| `issues.status` (new) | change an issue's status: start, done, return, reopen | all | `hub/issues.go:866-888` |
-| `issues.blocker` (new) | make a blocker message an issue | O | `hub/blocker_issue_make.go:38` (owner flag) |
-| `topics.change_others` (new) | delete, move, merge or promote someone else's topic | O A | `hub/topic_archive.go:166-174` (role names) |
-| `issues.remove_others` (new) | delete, archive or restore someone else's issue | O A | `hub/issues.go:939-944`, `:1003`, `:1056`, `:1087` (`tenant.settings`) |
+| `issues.status` (new) | change an issue's status: start, done, return, reopen | all | `hub/issues.go:914` |
+| `issues.blocker` (new) | make a blocker message an issue | O | `hub/blocker_issue_make.go:38` (owner flag; the route also passes `issueWriter`, `:34`) |
+| `topics.change_others` (new) | edit, delete, move, merge or promote someone else's message or topic; remove their attachment | O A | `mayChangeTopic`, `hub/topic_archive.go:166-174` (role names), 8 callers: `hub/edit.go:184`, `hub/attachment_remove.go:149`, `hub/merge.go:167`, `hub/message_move.go:110`, `hub/topic_archive.go:128`, `:329`, `hub/box_move.go:171`, `hub/box_message_move.go:69` |
+| `issues.remove_others` (new) | delete or archive someone else's issue; restore ANY archived issue (one's own included) | O A | `hub/issues.go:939-944`, `:1003`, `:1056`, `:1087` (`tenant.settings`) |
 | `results.accept` (new) | accept or return an agent's result | all but T | not checked: a post (2.6); agent-read bit (3.10) |
 | `topics.archive` | archive a topic | the archive policy setting | `hub/topic_archive.go:146-161` |
 
@@ -257,7 +259,7 @@ may do it today, so the default changes nothing (3.6).
 | id | the action | today | enforced today at |
 |---|---|---|---|
 | `ship.approve` (new) | give an agent the go to release or deploy | all but T | not checked: a post (2.6); agent-read bit (3.10) |
-| `roadmap.publish` (new) | make the workspace roadmap public or private | O A | `hub/roadmap_switch.go:82` (role names) |
+| `roadmap.publish` (new) | make the workspace roadmap public or private; approve a roadmap goal (the approval message's author) | O A | `hub/roadmap_switch.go:82`, `hub/calendar_sync.go:252-254` (role names, list at `:83`) |
 | `marketing.publish` (new) | publish a marketing post | O | `hub/marketing_share.go:245`, `hub/marketing_posts.go:31` (owner flag) |
 | `embeds.manage` (new) | put a channel on a website (embeds and their keys) | O | `hub/embed_admin.go:92` (owner flag) |
 
@@ -269,7 +271,7 @@ may do it today, so the default changes nothing (3.6).
 | `members.roles` | change a member's roles | O A | `hub/rbac.go:379`, `:422` |
 | `members.impersonate` | act as a member | O A | `hub/actas.go:182` |
 | `agents.join` | mint and revoke agent join tokens, revoke a seat | A | `hub/join_tokens.go:183`, `:245`, `:276`, `:311` |
-| `tenant.settings` | the Workspace settings sections (agents and their allow-lists, vendor split, takeover, lifecycle, channels, general, hours, performance, marketing) | O A | `hub/tenant_settings.go:94`, `:107`; `hub/sender_allow.go:69`; `hub/agent_split.go:79`, `:92`; `hub/takeover_ladder.go:79`; `hub/agent_lifecycle.go:69`; `hub/perf_summary.go:67`; `hub/marketing_switch.go:117` |
+| `tenant.settings` | the Workspace settings sections (agents and their allow-lists, vendor split, takeover, lifecycle, channels, general, hours, performance, marketing); connect a marketing account; retry someone else's repo-doc edit | O A | `hub/tenant_settings.go:94`, `:107`; `hub/sender_allow.go:69`; `hub/agent_split.go:79`, `:92`; `hub/takeover_ladder.go:79`; `hub/agent_lifecycle.go:69`; `hub/perf_summary.go:67`; `hub/marketing_switch.go:117`; `hub/marketing_channels.go:98`; `hub/repo_docs_edit.go:892` |
 | `perms.edit` (new) | edit this list | O A | (new) |
 | `billing.manage` | billing; today only the token-budget alert | O | `hub/token_budget.go:114` |
 | `audit.read` | the audit trail, member activity, box stats | O A P | `hub/actas.go:82`, `hub/box_stats.go:105`, `hub/memberactivity.go:118` |
@@ -339,10 +341,21 @@ time (numbers race).
   issues), `tenant.settings` (for issues and channel AI agents), a role name
   or the owner flag switch to the action's own id. Every site after that
   inherits the list by asking for its id.
-- `issueWriter` keeps `notes.send` and asks, per PATCH, the id of each
-  field the body sets: `status` -> `issues.status`; `assignee` ->
+- `issueWriter` (`hub/issues.go:866-888`) keeps `notes.send` and billing
+  and drops `topics.manage`; each of its 9 callers then asks its own id:
+  create (`:891`) -> `issues.create`; a PATCH (`:914`) -> the id of each
+  field the body sets (`status` -> `issues.status`; `assignee` ->
   `issues.assign`; `priority`, `level` -> `issues.prioritise`; any other
-  field -> `issues.edit`. A body that sets two fields needs both.
+  field -> `issues.edit`; a body that sets two fields needs both); delete
+  (`:979`) and archive (`:1032`) of one's own issue -> `issues.edit`, of
+  another's -> `issues.remove_others` too; unarchive (`:1079`) ->
+  `issues.remove_others`; label create (`:1134`) and discussion add and
+  remove (`hub/issue_discussions.go:335`, `:357`) -> `issues.edit`; blocker
+  make (`hub/blocker_issue_make.go:34`) -> `issues.create` and
+  `issues.blocker`. The issue ids are seeded to exactly the roles that hold
+  `topics.manage` today, so `demo_user` (it holds `notes.send`,
+  `rbac/rbac.go:151`, not `topics.manage`) stays refused at every caller
+  (R29).
 - The new-topic test for `agents.start` is v0.2's: one `EXISTS` on
   `messages (tenant_id, task_id)` (index `messages_task_received`,
   `rdb/0083_messages_task_received_covering.sql:36`), only on a send that
@@ -450,14 +463,38 @@ T = tester, G = pure_agent, C = biz_customer, U = regular_user.
   workspace (as `hub/marketing_switch.go:42`). The handler logs the actor
   and every changed cell old -> new; `set_by` / `set_at` keep the last
   writer per cell.
-- **Who edits it**: `perms.edit`, O and A by default. Changing a cell of
-  the ADMINISTER stage needs `members.roles` as well: a grant there is as
-  strong as giving someone a role (D6).
+- **Who edits it**: `perms.edit`, O and A by default.
+- **No escalation (D6)**: a grant is a power, so the list obeys spec 025's
+  no-escalation rule, the one the hub already applies to roles
+  (`Access.Covers`, `rbac/rbac.go:254-268`, used at `hub/rbac.go:202`,
+  `:214`). The actor may change the cell (role R, action X) only when the
+  actor Covers R (the owner covers every role), and may GRANT X only when
+  the actor holds X. A preset is checked cell by cell: if any cell it
+  would change fails, the whole preset is refused, 403 naming the cell.
+  So an admin cannot give itself `hours.approve` (owner only) nor take
+  `costs.read` from the owner (R28); an owner can do both. An admin can
+  apply strict, corporate and agile, but not move_fast, which grants
+  `issues.blocker`, an owner-only action today (R32).
 - **Lock-out guard**: the cells `perms.edit`, `members.roles` and
   `members.invite` of `biz_owner` and `admin` are LOCKED to true: no PUT and
   no preset changes them (400 `locked_cell`). The last-owner and last-admin
   guards (2.6) already keep an enabled O or A in every workspace, so some
-  member can always edit the list. No new counting query.
+  member can always edit the list. No new counting query. Those guards
+  keep reading the SYSTEM grants (`setGrantsSQL`,
+  `store/humans_rbac_postgres.go:44-45`; `setGrantsTx`, `:86-91`; memory
+  `memRoles()`, `store/humans_rbac.go:42`); they agree with the list
+  because the three cells are locked on O and A. B3 must not move them
+  onto the list.
+- **The WUI follows the ids, not role names**: six WUI helpers gate a
+  menu by role name today: `wui/utils/msg-kind.mjs:26`
+  (`KIND_SETTER_ROLES`), `wui/utils/msg-edit.mjs:103`, `:112`,
+  `wui/utils/topic-menu.mjs:24`, `wui/utils/move.mjs:29`,
+  `wui/utils/topic-archive.mjs:20`, `:63`, `:79`, and
+  `wui/utils/access.mjs:76-79` (`ownerAllows`, the blocker button). Each
+  reads its id from `me.permissions` instead, and falls back to today's
+  role rule only when `permissions` is null (a door-off guest). Without
+  this, a move_fast tester would hold `messages.kind` on the hub and never
+  see the picker (R31). Row B10.
 
 ### 3.8 Agents are never blocked, and the allow-list stays
 
@@ -466,6 +503,15 @@ T = tester, G = pure_agent, C = biz_customer, U = regular_user.
   never run them, as for the allow-list (`hub/sender_allow.go:35-39`,
   `:247-250`). `pure_agent` is a person's role (a member who works mostly
   through agents), so it IS a column.
+- Two agent paths act FOR a person and do run a check on that person:
+  the box move paths call `mayChangeTopic` on the human the agent acts for
+  (`typed_by`; `hub/box_move.go:171`, `hub/box_message_move.go:69`), so
+  they follow that person's `topics.change_others`. That is the person's
+  right, not a check on the agent.
+- Agents' own doc writes read the `pure_agent` role's SYSTEM grant
+  (`agentDocs`, `hub/workspace_docs.go:113-120`, through
+  `rbac.DefaultRoles()`). It stays on the system grant: no cell applies to
+  an agent, and no build row moves it onto the list.
 - The per-agent allow-list stays as the second layer, unchanged: the list
   says what a ROLE may do, the allow-list which MEMBERS may reach ONE
   agent. Order on a send: the action's id, then the allow-list, then the
@@ -521,7 +567,7 @@ copies (developer guide 2.4):
   `composer.permission_hint`.
 
 agy reviews every locale as the LAST step before the WUI rows ship (fleet
-language rule, row B12).
+language rule, row B13).
 
 ## 4. Red controls
 
@@ -544,7 +590,7 @@ control that passes on both. c-007 is any agent member of the channel.
 | R12 | no rows: `TestListDefaultIsToday` | absent | 312 of 312 equal; one row turns one cell red |
 | R13 | a box frame from c-001 to c-007 in strict | delivered | delivered (C: agents never blocked) |
 | R14 | `PUT {cells: {"perms.edit": {"admin": false}}}` | 404 | 400 `locked_cell` |
-| R15 | a `product_owner` given `perms.edit` changes `members.invite` for `developer` | 404 | 403 `forbidden`, `permission: members.roles` |
+| R15 | a `product_owner` given `perms.edit` grants `members.invite` to `developer` | 404 | 403 `forbidden`, `permission: members.invite` (it does not hold it) |
 | R16 | corporate: a `developer` PATCHes an issue's `assignee` | 200 | 403, `permission: issues.assign` |
 | R17 | corporate: the same developer PATCHes the issue's `status` | 200 | 200 (C) |
 | R18 | move_fast: a `tester` sets another member's message kind | 403 | 200 |
@@ -557,13 +603,19 @@ control that passes on both. c-007 is any agent member of the channel.
 | R25 | i18n parity: the new keys in all 19 locales | missing | present; the `i18n-untranslated` count not raised |
 | R26 | the demo workspace: `PUT /v1/tenant/permissions` | 404 | 403 |
 | R27 | strict: a box delivery of a `developer`'s message carries `ship.approve: false` | absent | present (B8) |
+| R28 | an admin PUTs `hours.approve` for `admin` true; then `costs.read` for `biz_owner` false | 404 | 403 both (no escalation, 3.7); the owner doing both -> 200 |
+| R29 | `demo_user` POSTs an issue label | 403 | 403 (C: the issue ids are seeded without `demo_user`) |
+| R30 | strict, admin's `topics.change_others` set false: the admin deletes a developer's topic | 200 | 403, `permission: topics.change_others` |
+| R31 | WUI: me mocked as a tester holding `messages.kind`: the kind picker on another's message | hidden (role name) | shown (B10) |
+| R32 | an admin PUTs `{preset: "move_fast"}` | 404 | 403 naming `issues.blocker`; nothing stored |
 
 ## 5. Rollout
 
 Additive. With no rows every workspace is on today's table (3.6). Order:
-the migration (B1), rbac and store (B2, B3), the API (B4), the site rows
-(B5-B8), each proving R11 and R12 still green, the WUI (B9, B10), docs
-(B11); agy reviews the locales before B9 and B10 ship (B12). A hub with the
+the migration with the rbac ids in ONE commit (B1), the presets and the
+store (B2, B3), the API (B4), the site rows (B5-B8), each proving R11 and
+R12 still green, the WUI (B9-B11), docs (B12); agy reviews the locales
+before B9 and B11 ship (B13). A hub with the
 sites converted and an old WUI already enforces the list; the old WUI shows
 its generic refusal line.
 
@@ -577,9 +629,8 @@ its generic refusal line.
 
 ## 7. Risks
 
-- **A grant is a power**: `perms.edit` lets its holder give any role any
-  unlocked cell; the administer stage also needs `members.roles` (3.7), so
-  only those who may give roles may give admin powers.
+- **A grant is a power**: the no-escalation rule (3.7) bounds it: an
+  editor gives only what it holds, and only to roles it covers.
 - **Instances lag up to 1 minute** after a change (3.4, R21).
 - **Accept and ship are enforced by agents, not the hub** (3.10): a seat
   that ignores its seed is not stopped.
@@ -597,13 +648,14 @@ its generic refusal line.
 | D3 | The default is today: new ids seeded to today's roles; agile stores 0 rows | 3.6 |
 | D4 | The modes are fills of the list, not a separate check; v0.2's `prompt.mode` key and fixed matrix are dropped | owner msgs `cfc9d48a`, `9465ddb1` |
 | D5 | `agents.command` splits into five ids (`dm`, `start`, `mention`, `post`, `reply`) | its three sites, 2.2; v0.2 3.1, D9, D10 |
-| D6 | Administer cells need `members.roles` too | 3.7, R15 |
+| D6 | A cell change obeys spec 025's no-escalation rule: Covers the role, and holds the action to grant it; a preset is checked cell by cell | `rbac/rbac.go:254-268`; `hub/rbac.go:202`, `:214`; seat W1; R15, R28, R32 |
 | D7 | Lock-out: six cells locked; the existing last-owner and last-admin guards do the rest | `store/humans_rbac.go:113-124` |
 | D8 | Agents never checked; the allow-list unchanged, after the list | `hub/sender_allow.go:35-39`; 3.8 |
 | D9 | A plain post or a reply is never refused, only not delivered to agents | `hub/wui.go:715-726` |
 | D10 | Accept and ship are agent-read bits on the delivery, outside the signed object | 2.6; `msg/msg.go:102-114` |
 | D11 | `topics.archive` stays its own setting, shown in the list | `hub/topic_archive.go:146-161` |
-| D12 | An issue PATCH checks the id of each field it sets | `hub/issues.go:156-180`, `:866-888` |
+| D12 | Each `issueWriter` caller asks its own id; a PATCH asks the id of each field it sets | `hub/issues.go:156-180`, `:866-888`, 9 callers; seat G3 |
+| D13 | The WUI gates its menus by the ids in `me.permissions`, never by role name | the six helpers of 3.7; seat G1 |
 
 ## 9. Owner questions
 
@@ -621,7 +673,7 @@ presets' fills (3.5).
 ```poll
 Start work: tick each action the list should have
 [S1] Post a message for people
-[S2] Create a channel
+[S2] Create or unarchive a channel; remove a person from a channel
 [S3] File an issue
 [S4] DM an agent
 [S5] Open a new channel topic that prompts an agent
@@ -629,24 +681,24 @@ Start work: tick each action the list should have
 [S7] A plain channel post reaches the channel's agents
 Steer: tick each action the list should have
 [T1] A reply in a DM-style topic goes on to its agent
-[T2] Edit an issue (title, description, labels, deadline)
+[T2] Edit an issue (title, description, labels, deadline, links), delete one's own
 [T3] Assign an issue
 [T4] Set an issue's or a topic's priority
-[T5] Move, merge or promote one's own topic
+[T5] Move or promote one's own topic
 [T6] Write workspace docs
 [T7] Upload files
-[T8] Add or remove channel members and agents
+[T8] Add channel members and agents, archive a channel (the channel creator's rules still apply)
 [T9] Switch the AI agents of someone else's channel
 [T10] Set the kind of someone else's message
 Review and accept: tick each action the list should have
 [R1] Change an issue's status (done, return, reopen)
 [R2] Make a blocker an issue
-[R3] Delete or move someone else's topic
-[R4] Delete or archive someone else's issue
+[R3] Edit, delete or move someone else's message or topic
+[R4] Delete, archive or restore someone else's issue
 [R5] Accept or return an agent's result
 Ship: tick each action the list should have
 [P1] Give an agent the go to release or deploy
-[P2] Make the roadmap public
+[P2] Make the roadmap public; approve roadmap goals
 [P3] Publish a marketing post
 [P4] Put a channel on a website (embed)
 Administer: tick each action the list should have

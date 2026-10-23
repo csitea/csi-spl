@@ -8,7 +8,8 @@ experts propose a solution and options for the owner to choose from.
 | seat | agent | vendor | what it did |
 |---|---|---|---|
 | EDITOR | c-393 | claude | wrote v0.3 from the owner's 15:36Z ask and the code on `6af865c34` |
-| SEAT | `c002-s152-v03-seat-mistral` | mistral | reviews the v0.3 draft; its findings are folded below; it signs by message |
+| SEAT (closed) | m-909 | mistral | delivered no usable review: 4 empty messages (two bodies an unexpanded `$(cat ...)` of a file that did not exist), then findings with every claim and check field empty, 5 of 13 ids in the wrong stage, and the false claim that `tasks.md` is not in `08215dd93`. The dispatch holder closed the seat (msg `a76d68dc`); nothing of it is folded |
+| SEAT | c-484 | claude | the specs_and_docs backup: its own action list (msg `1651c719`) and a 21-row review of `08215dd93` read on `6af865c34`, n = 1 reading per line (msg `57afe882`): 12 OK, 4 WRONG, 5 GAP |
 
 What changed from v0.2, and why:
 
@@ -29,12 +30,30 @@ What changed from v0.2, and why:
 
 ### Seat findings and what was done with them
 
-(filled when the seat's review arrives)
+Every WRONG and GAP row was re-read by the editor on `6af865c34` before it
+was folded; all nine hold.
+
+| seat c-484 | editor's check | in v0.3 |
+|---|---|---|
+| W1: an admin can give itself owner-only powers (`hours.approve`) or take them from the owner (`costs.read`); "administer needs `members.roles`" does not stop it | `rbac/rbac.go:254-268` (`Covers`), `hub/rbac.go:202`, `:214` | taken: 3.7 no-escalation rule (Covers the role, holds the action to grant; presets cell by cell), D6 rewritten, R28, R32 (an admin cannot apply move_fast: it grants `issues.blocker`) |
+| W2: `channels.edit` is a ceiling over the creator / open-invite rules; removing another person, unarchive are `channels.manage` | `hub/channel_members.go:293`, `:356`, `:430`, `:528`, `:569`, `:607-608` | taken: both rows and poll S2, T8 reworded |
+| W3: merge asks `notes.send` only, not `topics.manage` | `hub/merge.go:69`, `:167` | taken: "merge" dropped from `topics.manage` and poll T5; merge stays as today |
+| W4: B1 alone or B2 alone reddens `TestRBACSeedMatchesDefaults` | `store/humans_rbac_test.go:170-197` | taken: B1 = the migration and the rbac ids in one commit |
+| G1: six WUI helpers gate menus by role name | `wui/utils/msg-kind.mjs:26`, `msg-edit.mjs:103`, `:112`, `topic-menu.mjs:24`, `move.mjs:29`, `topic-archive.mjs:20`, `:63`, `:79`, `access.mjs:76-79` | taken: 3.7, D13, row B10, R31 |
+| G2: `mayChangeTopic` also gates editing another's message and removing their attachment; box move paths run it for the human | 8 callers (`grep -n 'mayChangeTopic(' hub/*.go`) | taken: the row and poll R3 reworded, 3.8 box paths |
+| G3: `issueWriter` has 9 callers; dropping `topics.manage` must not let `demo_user` through | `hub/issues.go:891`, `:914`, `:979`, `:1032`, `:1079`, `:1134`; `hub/issue_discussions.go:335`, `:357`; `hub/blocker_issue_make.go:34` | taken: 3.4 caller map, the issue ids seeded without `demo_user`, restore under `issues.remove_others`, R29, B6 scope |
+| G4: goal approval, repo-doc retry and marketing account connect are in no row | `hub/calendar_sync.go:252-254`, `hub/repo_docs_edit.go:892`, `hub/marketing_channels.go:98` | taken: goal approval under `roadmap.publish` (poll P2), the other two under `tenant.settings`, B7 `calendar_sync.go` scope fixed |
+| G5: B5, B7, B8 line scopes | `hub/wui.go:736` (`wuiMayPost`'s one caller); `hub/message_kind.go:124-138` | taken: B5 `:727-772`, `:830-845`; B7 `:32-34`, `:124-138`; B8 filed after B5 lands, its file named then |
+| note: `agentDocs` reads the system grant | `hub/workspace_docs.go:113-120` | taken: one sentence in 3.8 |
+| row 10: the last-owner / last-admin guards read the system grants | `store/humans_rbac_postgres.go:44-45`, `:86-91`; `store/humans_rbac.go:42` | taken: 3.7 and B3 say they stay there |
+
+Not checked by the seat: the B5 p95 probe cost, the i18n plan, the page
+design of 3.7 (no code exists yet).
 
 ### Signatures
 
 - EDITOR c-393: v0.3 (sha in the landing commit).
-- SEAT: (pending)
+- SEAT c-484: (asked to sign after reading the folded version)
 
 ## v0.2 (2026-10-23)
 

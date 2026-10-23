@@ -247,7 +247,7 @@ out=$(deploy_lag DISPATCH_LAG_CMD="$OKCMD"); rc=$?
 check_lag_ok "4. deploy lag current/pending: header + 4 ok rows, url= dropped, '(in grace)' cut, exit 0" "$out" "$rc"
 
 LAGCMD='if [ "$ENV" = prd ]; then echo "prd hub lagging served=ef48 sha=0e72 n=5 age=54m grace=30m a|b"; else echo "dev hub current"; fi; echo "$ENV wui current"'
-out=$(deploy_lag DISPATCH_LAG_CMD="$LAGCMD"); rc=$?
+out=$(deploy_lag DISPATCH_LAG_CMD="$LAGCMD" DISPATCH_LAG_GRACE=30); rc=$?
 if [[ $rc -eq 1 && "$(grep -c 'GAP' <<<"$out")" == 1 ]] &&
   grep -qxF '| deploy lag prd hub | served=ef48 sha=0e72 n=5 age=54m grace=30m a/b | GAP trunk input not served after 30 min: 21_hub-deploy-catchup dispatches it; if it stays, the deploy is broken: gh run list --workflow 20_hub-build-deploy.yml |' <<<"$out" &&
   grep -qxF '| deploy lag dev hub | current | ok |' <<<"$out"; then
@@ -278,6 +278,19 @@ out=$(deploy_lag DISPATCH_LAG_CMD='echo "$ENV hub current sha=$SHA grace=$GRACE_
 if [[ $rc -eq 0 ]] && grep -qxF '| deploy lag prd hub | current sha=abc1234 grace=45 | ok |' <<<"$out"; then
   pass "4. ENV, SHA and GRACE_MINUTES reach the probe"
 else fail "4. probe env: rc=$rc out=$out"; fi
+out=$(unset DISPATCH_LAG_GRACE; deploy_lag DISPATCH_LAG_CMD='echo "$ENV hub current grace=$GRACE_MINUTES"'); rc=$?
+if [[ $rc -eq 0 ]] && grep -qxF '| deploy lag prd hub | current grace=60 | ok |' <<<"$out"; then
+  pass "4. DISPATCH_LAG_GRACE unset: the probe gets grace=60"
+else fail "4. default grace: rc=$rc out=$out"; fi
+AGE41CMD='if (( 41 < GRACE_MINUTES )); then v=pending; else v=lagging; fi; echo "$ENV hub $v n=1 age=41m"'
+out=$(unset DISPATCH_LAG_GRACE; deploy_lag DISPATCH_LAG_CMD="$AGE41CMD"); rc=$?
+if [[ $rc -eq 0 && "$out" != *GAP* ]] && grep -qxF '| deploy lag prd hub | pending n=1 age=41m | ok |' <<<"$out"; then
+  pass "4. a 41-min-old input under the default grace is pending, no GAP (healthy p90 ~46 min)"
+else fail "4. 41 min default grace: rc=$rc out=$out"; fi
+out=$(deploy_lag DISPATCH_LAG_CMD="$AGE41CMD" DISPATCH_LAG_GRACE=30); rc=$?
+if [[ $rc -eq 1 && "$(grep -c 'GAP trunk input not served after 30 min' <<<"$out")" == 2 ]]; then
+  pass "4. control: DISPATCH_LAG_GRACE=30 still makes the 41-min input a GAP"
+else fail "4. 41 min grace 30: rc=$rc out=$out"; fi
 out=$(deploy_lag DISPATCH_LAG_CMD="$OKCMD" DISPATCH_DEPLOY_LAG=0); rc=$?
 if [[ $rc -eq 0 && "$(grep -c '^| deploy lag' <<<"$out")" == 4 ]]; then
   pass "4. the action asks even with DISPATCH_DEPLOY_LAG=0 (that switch is the dispatch check's)"

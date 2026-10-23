@@ -333,7 +333,9 @@ cookie therefore cannot change a lock, and neither can `K_lock` alone without an
   version>|<nonce>`; 204.
 - `GET`: the row, its audit rows (newest first, at most 200) and a nonce; 404 to anyone else.
 - Audit: each refusal bumps one `refused` row per human and path (`lock_create`, `lock_change`,
-  `lock_lift`, `lock_get`); the store writes `created` / `changed` / `lifted` (B1).
+  `lock_lift`, `lock_get`): `not_owner`, `box_locked`, `bad_box_sig`, `bad_sig`, `stale_nonce` and
+  `stale_version` all do (`TestBoxLockRefusalsAudited`). A malformed request (415, 400 `bad_json` /
+  `bad_body`) writes none. The store writes `created` / `changed` / `lifted` (B1).
 - Hello (4.4): for a locked box the pinned key must be the lock's `box_pubkey` (else 4401
   `locked_box_key`), and a `role=box` hello must carry a valid ticket for the same `boot_id`, or an
   `unlock_proof`: K_lock over `lockkey.ProofPayload(tenant, box, nonce, boot_id, box_pubkey, ts)` with the

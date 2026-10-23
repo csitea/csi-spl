@@ -383,8 +383,14 @@ func parseLockBody(w http.ResponseWriter, c boxLockCall, req boxLockReq) (store.
 		SignedBody: req.SignedBody, Signature: req.Signature}, true
 }
 
-// lockWriteErr answers a store write error of a lock route.
-func lockWriteErr(w http.ResponseWriter, err error) {
+// lockWriteErr answers a store write error of a lock route. A bad
+// signature, an existing lock or a stale version is a refusal: one refused
+// audit row for the caller on path (6.3).
+func (s *Server) lockWriteErr(w http.ResponseWriter, r *http.Request, c boxLockCall, path string, err error) {
+	if errors.Is(err, store.ErrBoxLockTampered) || errors.Is(err, store.ErrBoxLockKey) ||
+		errors.Is(err, store.ErrBoxLockExists) || errors.Is(err, store.ErrBoxLockVersion) {
+		s.refuseLock(r.Context(), c, path)
+	}
 	switch {
 	case errors.Is(err, store.ErrBoxLockTampered), errors.Is(err, store.ErrBoxLockKey):
 		writeErr(w, http.StatusForbidden, "bad_sig", "the body is not signed by this box's lock key")
@@ -436,11 +442,12 @@ func (s *Server) handleCreateBoxLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if base64.StdEncoding.EncodeToString(pin) != l.BoxPubKey || verify(pin, []byte(l.SignedBody), req.BoxSignature) != nil {
+		s.refuseLock(r.Context(), c, boxLockPathCreate)
 		writeErr(w, http.StatusForbidden, "bad_box_sig", "the body is not signed by this box's pinned key")
 		return
 	}
 	if err := c.ls.CreateBoxLock(r.Context(), l, c.hum, s.o.Now()); err != nil {
-		lockWriteErr(w, err)
+		s.lockWriteErr(w, r, c, boxLockPathCreate, err)
 		return
 	}
 	s.closeLockedBox(c.tenant, c.box)
@@ -479,7 +486,7 @@ func (s *Server) handleChangeBoxLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := c.ls.ChangeBoxLock(r.Context(), l, c.hum, s.o.Now()); err != nil {
-		lockWriteErr(w, err)
+		s.lockWriteErr(w, r, c, boxLockPathChange, err)
 		return
 	}
 	if l.BoxPubKey != prev.BoxPubKey {
@@ -513,7 +520,7 @@ func (s *Server) handleLiftBoxLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := c.ls.LiftBoxLock(r.Context(), c.tenant, c.box, c.hum, s.o.Now()); err != nil {
-		lockWriteErr(w, err)
+		s.lockWriteErr(w, r, c, boxLockPathLift, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -521,13 +528,15 @@ func (s *Server) handleLiftBoxLock(w http.ResponseWriter, r *http.Request) {
 
 // lockStatementOK checks a change or lift statement: a fresh hub nonce for
 // this box, signed by the K_lock on file. A bad signature is 403 and one
-// refused audit row. ok=false: it answered.
+// refused audit row, and so is a stale or foreign nonce (400). ok=false: it
+// answered.
 func (s *Server) lockStatementOK(w http.ResponseWriter, r *http.Request, c boxLockCall, prev *store.BoxLock, nonce, sig, statement, path string) bool {
 	if len(s.o.WUIKey) != ed25519.PrivateKeySize {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub has no key to issue lock nonces")
 		return false
 	}
 	if !s.boxLockNonceOK(c.tenant, c.box, nonce) {
+		s.refuseLock(r.Context(), c, path)
 		writeErr(w, http.StatusBadRequest, "stale_nonce", "nonce is not this hub's, or older than 300 s: GET the lock for a new one")
 		return false
 	}

@@ -218,6 +218,57 @@ func TestBoxLockRoutes(t *testing.T) {
 	}
 }
 
+// Section 6.3: every refusal of a write bumps exactly one refused row on
+// its path, the store's refusals (bad_sig, box_locked, stale_version) and the
+// route's own (bad_box_sig, stale_nonce) included.
+func TestBoxLockRefusalsAudited(t *testing.T) {
+	r := newLockRig(t)
+	_, other, _ := ed25519.GenerateKey(nil)
+	v1 := r.body(1)
+	if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(v1, r.kbox)); code != http.StatusCreated {
+		t.Fatalf("create as the owner: %d %v", code, v)
+	}
+	nonce := r.nonce(t)
+	v2 := r.body(2, "box-peer")
+	if code, v := r.call(t, http.MethodPut, r.owner, r.changeReq(v2, nonce, r.klock)); code != http.StatusOK {
+		t.Fatalf("PUT as the owner: %d %v", code, v)
+	}
+	// A non-owner who names itself in owners passes the owner check of the
+	// body it sent; the box did not sign that body.
+	self := r.body(1)
+	self.Owners = []string{r.admin}
+	self.SignedBody = store.BoxLockBody(self)
+	self.Signature = lb64(ed25519.Sign(r.klock, []byte(self.SignedBody)))
+	forged := v1
+	forged.Signature = lb64(ed25519.Sign(other, []byte(v1.SignedBody)))
+	rekey := r.body(3)
+	rekey.LockPubKey = lb64(other.Public().(ed25519.PublicKey))
+	rekey.SignedBody = store.BoxLockBody(rekey)
+	rekey.Signature = lb64(ed25519.Sign(other, []byte(rekey.SignedBody)))
+	for _, c := range []struct {
+		name, method, as, path, code string
+		body                         map[string]any
+	}{
+		{"POST bad_box_sig on a locked box", http.MethodPost, r.admin, "lock_create", "bad_box_sig", r.createReq(self, other)},
+		{"POST bad_sig", http.MethodPost, r.owner, "lock_create", "bad_sig", r.createReq(forged, r.kbox)},
+		{"POST box_locked", http.MethodPost, r.owner, "lock_create", "box_locked", r.createReq(v1, r.kbox)},
+		{"PUT bad_sig statement", http.MethodPut, r.owner, "lock_change", "bad_sig", r.changeReq(r.body(3), nonce, other)},
+		{"PUT bad_sig body", http.MethodPut, r.owner, "lock_change", "bad_sig", r.changeReq(rekey, nonce, r.klock)},
+		{"PUT stale_version", http.MethodPut, r.owner, "lock_change", "stale_version", r.changeReq(v2, nonce, r.klock)},
+		{"PUT stale_nonce", http.MethodPut, r.owner, "lock_change", "stale_nonce", r.changeReq(r.body(3), "1."+lb64([]byte("x")), r.klock)},
+		{"DELETE stale_nonce", http.MethodDelete, r.owner, "lock_lift", "stale_nonce", r.liftReq(2, "1."+lb64([]byte("x")), r.klock)},
+	} {
+		key := c.path + "/refused"
+		before := r.audits(t)[key]
+		if code, v := r.call(t, c.method, c.as, c.body); v["error"] != c.code {
+			t.Fatalf("%s: %d %v", c.name, code, v)
+		}
+		if got := r.audits(t)[key]; got != before+1 {
+			t.Errorf("%s: %s count %d -> %d, want +1", c.name, key, before, got)
+		}
+	}
+}
+
 // helloAs answers a raw role hello for the rig's box, edited by edit, and
 // either the welcome or the close reason.
 func (r *lockRig) helloAs(t *testing.T, role string, edit func(f *wire.Frame, nonce string)) (wire.Frame, string) {

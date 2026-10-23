@@ -1577,6 +1577,12 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "415": {
+            "description": "Content-Type is not application/json"
+          },
+          "501": {
+            "description": "this hub's store keeps no box locks, or the hub has no key to issue lock nonces"
           }
         },
         "summary": "Lift a box lock",
@@ -1717,6 +1723,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "this hub's store keeps no box locks"
           }
         },
         "summary": "Read a box lock (owners only)",
@@ -1893,6 +1902,12 @@
           },
           "409": {
             "description": "Conflict: already locked, or version is not the stored version + 1"
+          },
+          "415": {
+            "description": "Content-Type is not application/json"
+          },
+          "501": {
+            "description": "this hub's store keeps no box locks"
           }
         },
         "summary": "Lock a box to its owners",
@@ -2074,6 +2089,12 @@
           },
           "409": {
             "description": "Conflict: already locked, or version is not the stored version + 1"
+          },
+          "415": {
+            "description": "Content-Type is not application/json"
+          },
+          "501": {
+            "description": "this hub's store keeps no box locks, or the hub has no key to issue lock nonces"
           }
         },
         "summary": "Change a box lock",

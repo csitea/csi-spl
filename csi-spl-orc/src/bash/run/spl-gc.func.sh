@@ -10,7 +10,10 @@
 # @description   start     - the cron's (gc-cron.sh): the slot's vendor from
 # @description               cnf/gc/gc.conf (:00 claude, :30 grok), no overlap
 # @description               (a live GC younger than GC_MAX_AGE = SKIP; an
-# @description               older one is ended first), a window gc@<box>
+# @description               older one is ended first), a window gc@<box>;
+# @description               its pane is watched GC_START_CHECK_S s: on a limit
+# @description               dialog (grok weekly limit, usage limit) the window
+# @description               is ended and the cnf fallback starts once
 # @description   scan      - the facts of every agent of this box, one block each
 # @description   begin     - start the clock on AGENT_ID (GC_AGENT_CAP s, the
 # @description               owner's 3 minutes), print its issue and last errors
@@ -43,6 +46,7 @@
 # @param AGENT_ID - the agent of begin / poke / restart / close-ask
 # @param GC_HINT / GC_WHY / GC_SUMMARY - the text of poke / close-ask / done
 # @param GC_VENDOR (optional) - start: this vendor instead of the slot's
+# @param GC_START_CHECK_S (optional) - start: how long to watch the new pane for a limit dialog (default 20)
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
 # @param GC_REPORT_TO (optional) - a fixed addressee instead of the dispatch lease holder (no cc, no fallback)
@@ -57,9 +61,11 @@ declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 declare -F spool_proc_env_get >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh"
+declare -F spool_start_check >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/start-check.inc.sh"
 
 SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY"
+SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY GC_START_CHECK_S"
 
 do_spl_gc() {
   local cmd="${GC_CMD:-status}"
@@ -109,6 +115,7 @@ spl_gc_conf() {
     [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
   done < <(grep -E '^GC_[A-Z_]+=[0-9]+$' "$GC_CONF" || true)
   : "${GC_AGENT_CAP:=180}" "${GC_MAX_AGE:=1500}" "${GC_POKE_WAIT:=1200}" "${GC_SILENT_AGE:=900}" "${GC_CLOSE_ASK_EVERY:=86400}"
+  : "${GC_START_CHECK_S:=20}"
   for k in $SPL_GC_KNOBS; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
@@ -147,7 +154,7 @@ spl_gc_live_pane() {
 }
 
 spl_gc_start() {
-  local t pane v r age vendor rid sess cmd
+  local t pane v r age vendor rid sess dialog
   exec 7>>"$GC_DIR/start.lock"
   flock -n 7 || { echo "SKIP another GC start runs"; return 0; }
   if read -r t pane v r _ 2>/dev/null < "$GC_DIR/run" && [[ -n "$(spl_gc_live_pane "$pane")" ]]; then
@@ -161,18 +168,59 @@ spl_gc_start() {
   fi
   vendor="${GC_VENDOR:-$(spl_gc_slot_vendor)}"
   rid="$(date -u -d "@$GC_NOW" +%Y%m%dT%H%MZ)-gc-$GC_BOX"
-  cmd="SPOOL_ROOT='$SPOOL_ROOT' bash '$SPL_GC_RUN_DIR/../features/gc/gc-session.sh' '$vendor' '$GC_FALLBACK' '$rid' '$(cd "$PROJ_PATH/.." && pwd)'"
-  if [[ "$GC_DRY" == 1 ]]; then echo "PLAN start $rid vendor=$vendor window=$GC_WIN: $cmd"; return 0; fi
+  if [[ "$GC_DRY" == 1 ]]; then echo "PLAN start $rid vendor=$vendor window=$GC_WIN: $(spl_gc_session_cmd "$vendor" "$rid")"; return 0; fi
   sess="$(spl_gc_tmux list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}' || true)"
   [[ -n "$sess" ]] || sess="$(spl_gc_tmux list-sessions -F '#{session_id}' 2>/dev/null | head -1 || true)"
   [[ -n "$sess" ]] || { spl_gc_log "FAIL $rid: no tmux session on this box"; do_log "FATAL no tmux session to start the GC in"; return 1; }
-  pane="$(spl_gc_tmux new-window -d -t "$sess:" -n "$GC_WIN" -P -F '#{pane_id}' "$cmd" 2>/dev/null | grep -m1 -E '^%[0-9]+$' || true)"
-  [[ -n "$pane" ]] || { spl_gc_log "FAIL $rid: new-window printed no pane"; do_log "FATAL the GC window did not start"; return 1; }
-  echo "$GC_NOW $pane $vendor $rid" > "$GC_DIR/run"
+  spl_gc_open "$sess" "$vendor" "$rid" || return 1
+  dialog="$(spl_gc_limit_dialog "$GC_PANE")"
+  if [[ -n "$dialog" ]]; then
+    spl_gc_tmux kill-window -t "$GC_PANE" >/dev/null 2>&1 || true
+    [[ "$vendor" != "$GC_FALLBACK" ]] || { spl_gc_fail "$rid" "$vendor stopped on $dialog, it is the fallback"; return 1; }
+    spl_gc_log "FALLBACK $rid $vendor -> $GC_FALLBACK: $dialog"
+    echo "FALLBACK $rid $vendor -> $GC_FALLBACK: $dialog"
+    vendor="$GC_FALLBACK"
+    spl_gc_open "$sess" "$vendor" "$rid" || return 1
+    dialog="$(spl_gc_limit_dialog "$GC_PANE" any)"
+    if [[ -n "$dialog" ]]; then
+      spl_gc_tmux kill-window -t "$GC_PANE" >/dev/null 2>&1 || true
+      spl_gc_fail "$rid" "the fallback $vendor stopped on $dialog, no third start"; return 1
+    fi
+  fi
+  echo "$GC_NOW $GC_PANE $vendor $rid" > "$GC_DIR/run"
   rm -f "$GC_DIR/cur"
-  spl_gc_log "START $rid $vendor $pane"
-  echo "START $rid $vendor $pane"
+  spl_gc_log "START $rid $vendor $GC_PANE"
+  echo "START $rid $vendor $GC_PANE"
 }
+
+spl_gc_session_cmd() {
+  printf "SPOOL_ROOT='%s' bash '%s' '%s' '%s' '%s' '%s'" "$SPOOL_ROOT" "$SPL_GC_RUN_DIR/../features/gc/gc-session.sh" \
+    "$1" "$GC_FALLBACK" "$2" "$(cd "$PROJ_PATH/.." && pwd)"
+}
+
+# spl_gc_open SESS VENDOR RID: a gc@<box> window running VENDOR's session; its pane in GC_PANE.
+spl_gc_open() {
+  GC_PANE="$(spl_gc_tmux new-window -d -t "$1:" -n "$GC_WIN" -P -F '#{pane_id}' "$(spl_gc_session_cmd "$2" "$3")" 2>/dev/null |
+    grep -m1 -E '^%[0-9]+$' || true)"
+  [[ -n "$GC_PANE" ]] || { spl_gc_log "FAIL $3: new-window printed no pane"; do_log "FATAL the GC window did not start"; return 1; }
+}
+
+spl_gc_fail() { spl_gc_log "FAIL $1: $2"; do_log "FATAL GC $1: $2"; }
+
+# spl_gc_limit_dialog PANE [any]: the dialog PANE stopped on within
+# GC_START_CHECK_S s (start-check's names), or nothing. Without "any" only a
+# limit (grok weekly limit, usage limit): a vendor out of quota, which the
+# fallback can replace. No input box within the wait = nothing, the window
+# stays (a slow CLI never blocks the cron).
+spl_gc_limit_dialog() {
+  local name rc=0
+  name="$(spool_start_check "$1" "$GC_START_CHECK_S" spl_gc_capture spl_gc_pane_gone)" || rc=$?
+  (( rc == 3 )) || return 0
+  [[ "${2:-}" == any || "$name" == 'grok weekly limit' || "$name" == 'usage limit' ]] || return 0
+  printf '%s\n' "$name"
+}
+spl_gc_capture() { spl_gc_tmux capture-pane -p -e -t "$1"; }
+spl_gc_pane_gone() { [[ -z "$(spl_gc_live_pane "$1")" ]]; }
 
 # ---- scan --------------------------------------------------------------------
 

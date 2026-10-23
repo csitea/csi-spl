@@ -8,6 +8,15 @@
 # Postgres comes from local server binaries (initdb) when installed, else from
 # a locally CACHED docker image (never pulled); with neither it skips (exit 0).
 # Usage: bash csi-spl-api/src/bash/tests/hub-pg.tst.sh
+# SPL-3107: run it, never source it. Sourced, it would run the whole suite in
+# the caller's shell (~16 min) and its exit would end that shell. A lane that
+# wants a throwaway Postgres DSN runs its command under hub-live-stack.sh,
+# which exports SPOOL_TEST_PG_DSN. The guard sits before `set`, so the
+# caller's shell options stay untouched.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  echo "hub-pg.tst.sh: run it with bash, never source it; for a throwaway Postgres DSN run your command under csi-spl-api/src/bash/hub-live-stack.sh, which exports SPOOL_TEST_PG_DSN" >&2
+  return 2
+fi
 set -euo pipefail
 
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local

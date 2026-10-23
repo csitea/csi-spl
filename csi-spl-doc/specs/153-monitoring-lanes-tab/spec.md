@@ -1,10 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
-Version v0.3 (2026-10-23), the panel draft. Step 2 of the owner rule for a
+Version v1.0 (2026-10-23), the panel result. Step 2 of the owner rule for a
 big change: the written spec, then the panel, then the build. v0.1
-(`20b5d6eae`) plus the editor's findings and the claude seat's findings
-and re-check (section 8). The agy seat has not reviewed yet; v1.0 follows its review and
-each seat's signature. Nothing in it is built.
+(`20b5d6eae`) plus the editor's findings, the claude seat's findings and
+re-check, and the agy seat's findings (section 8). Signed by each seat's
+own message on this sha (section 9). Nothing in it is built.
 
 Source: prd topic in the owner's workspace,
 `topic:5e7b15c9-2995-427d-8b05-659762fbb9d8`. Issue: SPL-3075 (this spec),
@@ -20,7 +20,8 @@ Paths used below:
 - `orc/` = `csi-spl-orc/src/bash/`
 
 Every `file:line` was read on origin/master `848de71ef` (v0.1 read
-`2343dadbe`; no cited code line moved between the two). Every prd count was
+`2343dadbe`; no cited code line moved between the two). The v1.0 changes
+(the agy seat's findings) were checked on `369b25d5f`. Every prd count was
 read on 2026-10-23 between 15:05Z and 15:40Z with
 `ENV=prd ./run -a do_spl_db_query` (csi-spl-orc), n = 1 read each, by the
 editor; the claude seat has no prd access and did not re-check them.
@@ -226,8 +227,10 @@ section 3.3 serves the live list only (decision P6).
   `margin-inline-start: 1.25rem` (20 px at the 16 px root), and the
   header's 12 px `gap` does not add to it (the nav's margin is the whole
   distance, e.g. a negative inline margin of the gap, or the gap moved to
-  the other children). The first tab's own `padding-inline-start` (12 px)
-  goes, so the first LABEL starts 20 px after "Monitoring".
+  the other children). Every tab keeps its `padding: 8px 12px`, the first
+  one too, so its underline and its tap target stay symmetric (agy seat):
+  the nav's own margin is 8 px, and the first LABEL starts 8 + 12 = 20 px
+  after "Monitoring".
 - The heading never shrinks or breaks: on this page only
   (`.monitoring-page .feed-header h2`, since `.feed-header h2` is shared),
   `flex: none; white-space: nowrap`.
@@ -242,8 +245,11 @@ section 3.3 serves the live list only (decision P6).
 - Phone (the `main.css:1003` block, header gap 6 px): the same row,
   0.75rem (12 px) after the heading (decision P5). There is no end X on a
   phone (`SectionClose.vue:9`), so the bar takes the rest of the row and
-  scrolls sideways INSIDE itself (`overflow-x: auto`, no scrollbar shown)
-  when the tabs do not fit; the page never scrolls sideways.
+  scrolls sideways INSIDE itself (`overflow-x: auto`) when the tabs do not
+  fit; the page never scrolls sideways. No scrollbar is shown, since it
+  would crowd the 52 px header and the 2 px underline:
+  `scrollbar-width: none` and `.monitoring-tabs::-webkit-scrollbar {
+  display: none }`.
 - The empty summary strip stays below the header, unchanged.
 
 ### 3.2 The Lanes tab (A2)
@@ -271,6 +277,19 @@ section 3.3 serves the live list only (decision P6).
   with the visibility catch-up), with "updated N s ago" and the same amber
   / red lag marks. `LANES_POLL_MS = 60000` in
   `wui/utils/monitoring-lanes.mjs`.
+- Long cells: the scope may be up to 500 characters
+  (`rdb/0096_fleet_lanes.sql:22`) and a topic title is long too. The
+  scope and discussion cells stay on one line (`white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis`, a max width of about
+  280 px) with the full text in a `title` attribute. The table sits in a
+  wrapper that scrolls sideways inside itself, as the Tokens table does
+  (`.tk-table-wrap { overflow-x: auto; max-width: 100% }`,
+  `wui/components/monitoring/token-burn/token-burn.css:5`). An empty
+  discussion or issue cell shows a muted dash.
+- Text: `monitoring.tab.lanes` reuses each locale's existing
+  `reporting.tab.lanes` word (19 locales, all present, e.g. en "Lanes",
+  bg "Линии"). "updated N s ago" mirrors `monitoring.tokens.updated`
+  (en "Updated {n} s ago"), the short "s" with no plural forms.
 - Sort: newest `updated_at` first. Empty list: one line, "No active lanes".
 - Who sees it: operator admins only (`operatorsOnly: true`), like Tokens:
   lane rows name fleet boxes, agents and the operator workspace's topics.
@@ -303,9 +322,10 @@ The view is empty of links while 207 of 212 rows carry no topic. So:
 - `rdb/`: a new migration `<next>_fleet_lanes_issue_key.sql` adds
   `fleet_lanes.issue_key text NOT NULL DEFAULT ''` (CHECK `''` or
   `^[A-Z][A-Z0-9]{1,9}-[0-9]{1,9}$`). `<next>` is the next free number at
-  B3's LAST rebase, re-checked after it: on `848de71ef` the last is
-  `0213_box_locks.sql`, and specs 150 and 151 plus five unlanded worktrees
-  on the second box already plan a `0214` (claude seat, 17:1xZ).
+  B3's LAST rebase, re-checked after it: on `848de71ef` the last was
+  `0213_box_locks.sql`; on `369b25d5f` `0214_topic_priorities.sql` has
+  landed (`a63179997`, SPL-3052, agy seat), so the next is at least
+  `0215`, and more unlanded worktrees plan numbers too.
 - `LaneRow` gets `issue_key`; `lane_op put` stores it.
 - `lane-map.sh put` gets `--issue K`.
 - `_spawn_lane_put` fills `--topic` from, in order: `SPAWN_LANE_TOPIC`;
@@ -336,13 +356,22 @@ The view is empty of links while 207 of 212 rows carry no topic. So:
 
 - The lane row's discussion link opens `/t/<topic_id>`.
 - `GET /v1/view/issues?discussion=<task_id>`: a new filter on the existing
-  list, served from `issue_discussions_task`. A value that is not a uuid
+  list, served from `issue_discussions_task`. The `ListIssues(ctx,
+  tenantID)` signature (`store/issues.go:392`) does NOT change: it has
+  about 20 callers outside the store (`git grep -n 'ListIssues(' --
+  csi-spl-api | grep -v 'func '` -> 20 on `369b25d5f`). A new store
+  method returns the issue numbers linked to one topic (interface, memory
+  store and Postgres), and the hub's one list path, `listIssues`
+  (`hub/issues.go:668`), keeps only those numbers. A value that is not a uuid
   is a 400 `bad_request`, checked before the query (the column is `uuid`:
   Postgres would throw 22P02). The issues list's access rules are
   unchanged.
 - The topic header shows its linked issues as chips (`SPL-3075 wip`), each
   to `/issues?issue=<KEY>` (`issueHref` with the tenant's key prefix).
-  None linked: no chip, no space.
+  None linked: no chip, no space. Each chip has an `aria-label` from a new
+  key `topic.issue_chip_aria` ("Linked issue {key}: {status}"); the status
+  code itself stays untranslated as in the issues list, its hover text the
+  existing `issues.status_hint.<id>` (`wui/utils/issues-view.mjs:13,25`).
 - The lane row ALSO shows the issue keys (3.2), so the issue is one click
   away even before the topic chips land (decision P3).
 
@@ -362,7 +391,8 @@ rule" twin, named in its control column.
 | C2b | B1 | the same page: the active tab's rect `bottom` vs the header's rect `bottom` | the tab is below the header | equal +-1 px | e2e: today the tab's bottom is a row below |
 | C3 | B1 | phone, 4 tabs (B1 lands before B4): narrow the viewport until the tabs overflow (320 px, the longest locale): heading and bar on one row, `scrollWidth <= innerWidth`, the h2's height is one line | two rows | one row, the bar scrolls inside itself | e2e: the same-row check fails today |
 | C3b | B4 | C3 again with 5 tabs as an operator admin, 360 px | n/a | as C3 | the C3 e2e, run with the lanes tab |
-| C4 | B1 | the end close X is the last element of the header row on desktop | yes | yes (C) | e2e reads `[data-close-side=end]` as the header's last child (desktop only: no X on a phone) |
+| C4 | B1 | with `close_buttons: 'windows'`, the end close X is the last element of the header row on desktop | yes | yes (C) | e2e sets the claim, reads `[data-close-side=end]` as the header's last child (desktop only: no X on a phone). The default `'mac'` renders the start X only (`wui/utils/view-prefs.mjs:77-79`, `UiCloseButton.vue:18` `v-if="shown"`): twin C4b |
+| C4b | B1 | the default `close_buttons: 'mac'`: the start X comes before the heading, no end X, the bar runs to the row's end | yes (start X first) | yes (C) | the same e2e with the default claim: `[data-close-side=start]` precedes the h2, `[data-close-side=end]` absent |
 | C5 | B1 | `monitoring-costs.test.mjs` and `rail-order-default.test.mjs` find the bar by data-test | pass | pass (C) | the two files, unchanged |
 | C6 | B2 | a dry-run spawn with `SPAWN_ISSUE=SPL-n` and a brief naming `topic:<uuid>`: the lane-map put line | `--topic ''`, no `--issue` | `--topic <uuid> --issue SPL-n` | `test-spawn-dry-run.sh` case greps the PLAN line |
 | C6b | B2 | a brief carrying a spool task alias uuid and a `/t/<uuid>` topic | `--topic ''` | `--topic` = the `/t/` uuid, never the alias uuid | the same test, the alias uuid planted first in the file |
@@ -387,7 +417,7 @@ rule" twin, named in its control column.
 | C21 | B5a | `GET /v1/view/issues?discussion=<uuid of topic 5e7b15c9>` | no such filter | the issues linked to that topic only, SPL-3075 among them | Go test: an unlinked issue is absent |
 | C21b | B5a | `?discussion=abc` | ignored | 400 `bad_request`, never 500 | Go test on Postgres (the memory store would not throw) |
 | C22 | B5a | the filter with a topic of another tenant | n/a | empty list, never that tenant's issues | Go test; twin: the same link in the caller's tenant is listed |
-| C23 | B5b | topic `/t/<uuid>` with a linked issue: a chip `SPL-n` to `/issues?issue=SPL-n` | no chip | the chip | e2e on the mock bundle |
+| C23 | B5b | topic `/t/<uuid>` with a linked issue: a chip `SPL-n` to `/issues?issue=SPL-n`, with its `aria-label` | no chip | the chip | e2e on the mock bundle |
 | C24 | B5b | a topic with no linked issue | no chip | no chip, no empty row (C) | e2e |
 
 ## 5. Build rows
@@ -396,11 +426,11 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 
 | row | area | files (only these) | after | cases |
 |---|---|---|---|---|
-| B1 tab row | wui | `wui/pages/monitoring.vue`; `wui/assets/css/main.css` (the `.monitoring-tabs` / `.monitoring-tab` rules at :1580-1584, one `.monitoring-page .feed-header h2` rule, one line in the phone block near :1003); the cases go into the existing `csi-spl-wui/tests/e2e/monitoring-costs.test.mjs` (a new e2e file moves the shard spread: if one is added, `node --test tests/unit/e2e-shard-pack.test.mjs` runs before the push) | - | C1-C5 |
+| B1 tab row | wui | `wui/pages/monitoring.vue`; `wui/assets/css/main.css` (the `.monitoring-tabs` / `.monitoring-tab` rules at :1580-1584 with the scrollbar rule, one `.monitoring-page .feed-header h2` rule, one line in the phone block near :1003); the cases go into the existing `csi-spl-wui/tests/e2e/monitoring-costs.test.mjs` (a new e2e file moves the shard spread: if one is added, `node --test tests/unit/e2e-shard-pack.test.mjs` runs before the push) | - | C1-C5 |
 | B3 hub view | rdb, api | a new `rdb/<next>_fleet_lanes_issue_key.sql` (3.4); `hub/box_lane.go`; new `hub/fleet_lanes_view.go` + `_test.go`; `store/fleet_lane.go`, `store/fleet_lane_postgres.go` and the memory store's fleet-lane methods; one line in `hub/server.go` (:487) | - | C7b, C9-C14b |
 | B2 lane row data | orc | `orc/features/spawn-agents/scripts/lane-map.sh`, `spawn-core.inc.sh` (`_spawn_lane_put` only), `orc/run/spl-spawn-place.func.sh` (the launch at :547-552 only), the lane-put run action, their tests under `orc/features/spawn-agents/tests/` and the placer's test | B3 on master (the issue field, the short-id resolution) | C6-C7 |
 | B4 Lanes tab | wui | `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/lanes/index.vue`; new `wui/utils/monitoring-lanes.mjs`; the hub client's fleet-lanes call; `csi-spl-wui/i18n/locales/*.json` (new keys only); `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; new `tests/unit/monitoring-lanes.test.mjs`; C17 and C3b in an existing monitoring e2e file (or a new one plus the shard-pack test) | B1, B3 | C3b, C15-C20 |
-| B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (the `ListIssues` interface at :392 and the memory store at :924) and `store/issues_postgres.go` (:381) | - | C21-C22 |
+| B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (one NEW interface method beside `ListIssues` at :392, which keeps its signature, and its memory store body) and `store/issues_postgres.go` (the new method only) | - | C21-C22 |
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
@@ -410,10 +440,10 @@ other, and each ends with an agy review of its text (the language rule).
 
 ## 6. Panel decisions
 
-Seats so far: editor c-898@sat (claude), seat c-228 (second box) (claude,
-msgs `a7c15b01`, `abea4bdc`). The agy seat (ask `5b006c9f`) has not reviewed; its
-findings and any dissent go in here before v1.0. The mistral seat
-(m-039, second box) was voided after two failed tries (c-002 msg `54ed5f39`).
+Seats: editor c-898@sat (claude), seat c-228 (second box) (claude,
+msgs `a7c15b01`, `abea4bdc`), seat a-277 (second box) (agy, msg
+`1c6e077e`). The mistral seat (m-039, second box) was voided after two
+failed tries (c-002 msg `54ed5f39`). All three seats: P1-P6 no dissent.
 
 | # | question | decision | reason | dissent |
 |---|---|---|---|---|
@@ -421,12 +451,17 @@ findings and any dissent go in here before v1.0. The mistral seat
 | P2 | the 172 stale `live` rows | the view's cut-off hides them; no close action, no prd write | all last written on or before 2026-10-14 (2.2); retire already runs `lane-map.sh done` (`agent-id-retire.sh:292-295`) | none |
 | P3 | issue keys on the lane row | yes, as well as through the discussion | the view already computes them, and the lane's own issue is often not linked to the row's topic | none |
 | P4 | poll or push | poll every 60 s | it matches Tokens and needs no socket change; the claude seat believes, unchecked, that no fleet-lane frame exists on the WUI socket | none |
-| P5 | the phone | one row, 12 px after the heading, the bar scrolls inside itself | no end X on a phone (`SectionClose.vue:9`); the h2 rule of 3.1 keeps the heading whole | none |
+| P5 | the phone | one row, 12 px after the heading, the bar scrolls inside itself with no scrollbar shown | no end X on a phone (`SectionClose.vue:9`); the h2 rule of 3.1 keeps the heading whole | none |
 | P6 | does Reporting T053 reuse B3's view | no, it keeps its own history query | spec 143:720 names `fleet_asks`, `box_beats` and registry logs; `fleet_lanes` keeps a `done` row only 7 days | none |
 
 ## 7. Owner questions
 
 Only the owner can answer these. The dispatcher posts them after v1.0.
+The build does not wait on O1: v1.0 builds (A), the safe side (3.2), and
+(B) would be its own later row. The agy seat recommends (A): lane rows
+name fleet boxes, branches and agent ids, and (B) needs cross-tenant
+filtering out of this spec's scope. The claude seats raised no
+dissent on (A) as the default.
 
 ```poll
 O1. Who may see the Monitoring Lanes tab?
@@ -442,7 +477,8 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 17:07 | c-898@sat | panel sha `20b5d6eae` and editor findings 1-3 to the claude seat (msg `5a638be8`) |
 | 2026-10-23 17:10 | c-228 (second box) | claude seat findings (msg `a7c15b01`): 33 rows checked; gaps folded in as 2.1 h2, 3.1 underline, 3.3 one tenant, 3.4 sources and dry run, 3.5 400, C2b, C3/C3b, C6b, C6c, C7b, C11b, C14b, C21b, B1 shard note, B3 `<next>` and `server.go` |
 | 2026-10-23 17:2x | c-228 (second box) | re-check of v0.2 (msg `abea4bdc`): 8 rows; folded in as the placer seam (:547-552, set once before the branch), the C6c alias twin, the burn join key with its prd measure (2.2, 3.2, C11b), B5a's store files; P1-P6 and O1 no dissent |
-| - | agy seat | pending |
+| 2026-10-23 22:38 | c-898@sat | panel sha `35a7f08fd` confirmed to the agy seat a-277 (second box) (msg `9960aade`) |
+| 2026-10-23 22:42 | a-277 (second box) | agy seat findings (msg `1c6e077e`), checked on `369b25d5f`: 12 rows, 7 OK; folded in as 3.1 first-tab padding kept and no scrollbar, 3.2 long cells and table wrap (the cited lines corrected to `0096:22` and `token-burn.css:5`), 3.2 text reuse, 3.4 `0214` landed, 3.5 chip `aria-label`, C4 under `'windows'` plus C4b, 3.5 and B5a `ListIssues` kept (20 callers by the editor's count; the seat said 23); P1-P6 no dissent; O1 recommends (A) |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is
@@ -450,4 +486,5 @@ not pinned (3.4).
 
 ## 9. Signatures
 
-v1.0 is signed by each seat's own message on that sha. None yet.
+v1.0 is signed by each seat's own message on this sha; the editor
+records each message id here after it arrives. None yet.

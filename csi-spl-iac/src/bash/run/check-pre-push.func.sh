@@ -793,7 +793,7 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     rm -f "$out"; return 0
   fi
   # Pre-existing on trunk? Re-run the SAME part against the base ref.
-  local bwt brc=0 bsha bout="" tsig bsig=""
+  local bwt="" brc=0 bsha bout="" tsig bsig=""
   bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"
   tsig="$(_pp_sig "$out" "$tree")"
   if _pp_baseline_tree "$tree" "$base"; then
@@ -810,7 +810,12 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
   if [[ "$brc" -eq 0 ]]; then
     _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
     [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green"
-    do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
+    if [[ ( "$rc" -eq 124 || "$rc" -eq 137 ) && -n "$bwt" ]]; then
+      # a timeout under box load is not proven a break (SPL-3115): refuse, never blame
+      do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree and passed on $base ($bsha): box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
+    else
+      do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
+    fi
     return 0
   fi
   _pp_compare "$label" "$part" "$el" "$note" "$base" "$bsha" "$tsig" "$bsig"

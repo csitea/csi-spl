@@ -46,6 +46,10 @@
 #    18. the real map: an orc run/ file selects comment-refs-exist; a wui file
 #        selects no orc-reading test; every fast-tier iac test that names
 #        another part's tree under $APP_ROOT or $PROJ_PATH/.. has a row
+#    19. (SPL-3115) a part that TIMES OUT (rc 124) on HEAD and passes on a
+#        green trunk -> still REFUSED (rc 1, FAIL), but logged as a timeout,
+#        never "a NEW failure your commits introduce"; CONTROL: a non-timeout
+#        break on a green trunk (case 1's) keeps that line
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -433,6 +437,25 @@ for f in "$TEST_DIR"/*.tst.sh; do
   [[ "$listed" == *" $(basename "$f") "* ]] || fail "18. $(basename "$f") reads another part's tree but has no _PPX_MAP row" "check-pre-push-cross.func.sh"
 done
 [[ "$fails" -eq 0 ]] && pass "18. every fast-tier iac test that reads another part's tree has a row"
+
+# 19. a timeout whose trunk re-run passes is refused, not blamed on the lane
+case19() {  # <repo> <api flag> -> rc; the do_log lines in $1.msgs
+  local R="$1"; mkrepo "$R" >/dev/null 2>&1
+  echo "$2" >"$R/csi-spl-api/flag"; git -C "$R" commit -qam "api: $2"
+  ( do_log() { echo "$*" >>"$MSGS"; }
+    _pp_part_api() { echo csi-spl-api >>"$COUNT"; grep -q slow "$1/csi-spl-api/flag" && return 124; _stub csi-spl-api "$1"; }
+    gate "$R" MSGS="$R.msgs" )
+}
+R="$ROOT/r19"; case19 "$R" slow; eq "19. api TIMED OUT on HEAD, green on trunk -> still REFUSED" 1 "$?"
+grep -q 'PART api FAIL .*TIMED OUT.*trunk=[0-9a-f]*-green' "$R.log" \
+  && pass "19. ... verdict FAIL, TIMED OUT, trunk green" || fail "19. ... verdict FAIL, TIMED OUT, trunk green" "$(cat "$R.log")"
+grep -q 'FATAL pre-push: FAIL .*TIMED OUT.*it timed out on your tree and passed on trunk' "$R.msgs" \
+  && pass "19. ... logged as a timeout that passed on trunk" || fail "19. ... logged as a timeout that passed on trunk" "$(cat "$R.msgs")"
+grep -q 'a NEW failure your commits introduce' "$R.msgs" \
+  && fail "19. ... not blamed on the lane's commits" "$(cat "$R.msgs")" || pass "19. ... not blamed on the lane's commits"
+R="$ROOT/r19c"; case19 "$R" bad; eq "19. CONTROL: a non-timeout break on a green trunk -> REFUSED" 1 "$?"
+grep -q 'FATAL pre-push: FAIL .*-- a NEW failure your commits introduce' "$R.msgs" \
+  && pass "19. CONTROL: ... still a NEW failure your commits introduce" || fail "19. CONTROL: ... still a NEW failure your commits introduce" "$(cat "$R.msgs" 2>/dev/null)"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

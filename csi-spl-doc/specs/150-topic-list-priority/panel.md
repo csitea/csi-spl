@@ -135,14 +135,19 @@ reaches the topic's readers. Fix: `topic_priority`, through `fanoutTopic`.
   (msg `7c24ae60`) holds the same text as `a88a3228`; a sign message with
   empty output blocks (`e4d73540`) was followed by `00f3e913`.
 
-### 3.2 agy seat
+### 3.2 agy seat: dropped
 
-(Pending: the agy seat is held in the spawn queue while agy is out of quota.)
+The dispatch lease holder dropped the agy seat (c-002, msg `35e9ac0b`: ask
+`4bfc4d62` declined, agy out of quota for ~11 h). The panel is the claude
+editor and the mistral seat. The language rule still holds: agy reviews all
+19 locales of the UI text as the last step before it ships, build row
+**B11** of v1.0 (it was B9 in v0.1; c-002's note says B9).
 
 ## 4. Signatures
 
 | seat | agent | signed | msg id |
 |---|---|---|---|
 | editor | c-875 | spec 150 v1.0 | the v1.0 commit |
-| mistral | m-876 | "SIGN spec 150 v1.0 blob 3c3fab2be6ee973b2ae6f9c0c29bc86719ddd3bb" | `00f3e913` |
-| agy | (pending) | | |
+| mistral | m-876 | "SIGN spec 150 v1.0 blob 3c3fab2be6ee973b2ae6f9c0c29bc86719ddd3bb" (the draft before section 8 and the header named the dropped seat) | `00f3e913` |
+| mistral | m-876 | the landed v1.0 sha | (requested) |
+| agy | - | dropped | c-002 `35e9ac0b` |

@@ -30,6 +30,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/files"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
@@ -163,6 +164,10 @@ type Client struct {
 
 	keysDirWarned sync.Once
 
+	// unlock is a sealed box's boot id and unlock ticket (unlock.go, spec
+	// 025 box-owner-lock.md 4.4).
+	unlock unlockState
+
 	// defaultHTTP is the one default client (and so the one transport and
 	// connection pool) of this Client; see http().
 	defaultHTTP     *http.Client
@@ -277,7 +282,15 @@ func (c *Client) box() (string, ed25519.PrivateKey, error) {
 	if !msg.ValidBoxID(b) {
 		return "", nil, fmt.Errorf("hub mode needs $SPOOL_BOX_ID (a valid box id)")
 	}
-	priv, err := sign.LoadPrivate(c.Cfg.KeysDir, b)
+	// A box sealed by the owner lock (spec 025 box-owner-lock.md 4.2) has
+	// K_box only inside the unlocked holder, never as a clear file.
+	var priv ed25519.PrivateKey
+	var err error
+	if c.sealed(b) {
+		priv, err = lockkey.HolderBoxKey(c.Cfg.KeysDir)
+	} else {
+		priv, err = sign.LoadPrivate(c.Cfg.KeysDir, b)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -382,8 +395,10 @@ func (c *Client) dial(ctx context.Context, role string, retries int) (*Session, 
 	wel, err := c.handshake(dctx, conn, role, box, priv, host)
 	if err != nil {
 		conn.CloseNow() //nolint:errcheck
+		c.forgetTicket(err)
 		return nil, err
 	}
+	c.keepTicket(box, wel.UnlockTicket)
 	s := &Session{
 		c: c, conn: conn, box: box, priv: priv, role: role,
 		token: wel.UploadToken, replies: make(chan wire.Frame, 64), queueEnd: make(chan int, 1),
@@ -462,6 +477,9 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	hello.Channels = c.Cfg.ChannelList()
 	hello.Host = host
 	hello.AgentRun = run
+	if c.sealed(box) {
+		c.addUnlock(&hello)
+	}
 	return hello, nil
 }
 

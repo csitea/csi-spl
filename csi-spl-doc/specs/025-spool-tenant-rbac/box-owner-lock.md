@@ -1,7 +1,7 @@
 # Box owner lock: a box whose agents only its owner may reach (025 section 11)
 
 **Feature**: `specs/025-spool-tenant-rbac`, box owner lock · **Created**: 2026-10-22 · **Lane**: c-630 ·
-**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); rows B1-B8 built, B6 including its help page `csi-spl-doc/doc/help/box-owner-lock.md` (SPL-3073); see each row's As built note.
+**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); rows B1-B8 built, B6 including its help page `csi-spl-doc/doc/help/box-owner-lock.md` (SPL-3073); B9 (the box client's unlock, SPL-3096) built, its dev-box measure open (4.7); see each row's As built note.
 **Builds on**: 025 (roles, permissions), 054 (act-as clone), 108 (workspace-owned boxes, pins, revoke),
 017 FR-SEC-031 (desk owners), 023 (human keys), the signed directive feature
 (`csi-spl-orc/src/bash/features/directive/`).
@@ -153,9 +153,34 @@ Where it differs from 4.2 to 4.5, and what is left for later rows:
   prints its public key, and the hub accepts that only after `spool lock rebind`.
 - `rebind` on a new box needs the `lock/` files copied from a backup of the old box: the recovery copy of
   `K_lock` is a file on the box, not something derived from the code.
-- Not wired yet (row B2, which owns `ws.go` and the hello): the proof in the hello frame, the ticket and the
-  `drop-lock` call after it. The hub client still reads the clear `box-<id>.key`, so a sealed box stays
-  offline even after `unlock` until B2 makes the client take its key from the holder.
+- The proof in the hello frame, the ticket and the `drop-lock` call after it are row B9's (4.7).
+
+### 4.7 As built: the box client's unlock (row B9, SPL-3096)
+
+Code: `internal/hubclient/unlock.go` and its calls in `hubclient.go` (`box`, `hello`, `dial`); the re-unlock
+in `internal/lockkey/daemon.go`. Tests: `TestSealedBoxUnlockHello`, `TestUnsealedHelloUnchanged`
+(`internal/hubclient/unlock_test.go`: the real hub on the memory store, the real sealed files and lockd),
+the re-unlock case in `TestHolder` (`internal/lockkey/`).
+
+- A sealed box (`box-<id>.key.enc` present) takes K_box from the unlocked holder (`HolderBoxKey`) for every
+  hello and envelope signature; it never reads or makes a clear key. No holder, or a sealed one: the client
+  has no key and sends no hello (`ErrSealed`).
+- Its `role=box` hello carries `boot_id` (the kernel's `/proc/sys/kernel/random/boot_id`; a random id per
+  client where there is none) and either the kept ticket or an `unlock_proof` the holder signs
+  (`HolderProof`, op `proof` over `lock/lockd.sock`) for this hello's nonce and ts. K_lock never enters the
+  client. A holder that cannot sign leaves the proof off: the hub refuses and audits that hello.
+- The first welcome with an `unlock_ticket` keeps it in memory and calls `drop-lock`. A reconnect shows the
+  ticket while its `expires_at` lies ahead; a `locked_box_sealed` refusal forgets it.
+- `spool lock unlock` on a holder whose K_lock was dropped opens the files again with the secret, so the
+  owner brings the box back after the ticket's TTL without restarting the holder (before B9 it answered
+  `unlocked` and kept no K_lock, so no proof could ever be made again).
+- An unsealed box's hello is unchanged: no `boot_id`, proof or ticket.
+- Red controls (each made red, then restored): no `addUnlock` call -> the unlocked box is refused
+  `locked_box_sealed`; no `keepTicket` -> no ticket kept; no `forgetTicket` -> the refused ticket is kept;
+  the clear key read for a sealed box -> `box is not pinned`; the old holder `unlock` -> no fresh proof after
+  the TTL.
+- The ticket lives in the client's memory: a restart of the box's connection (the `spool hub-run` process)
+  needs the secret again, as 4.3 says of a sidecar restart.
 
 ## 5. Every access path and how it is refused
 
@@ -425,8 +450,7 @@ cookie therefore cannot change a lock, and neither can `K_lock` alone without an
   delivery target and proves K_box, which exists only in the unlocked holder: it needs the key check only.
   A `box_locks` read error answers `store_unavailable` (fail closed; the box redials).
 
-Not in B2, left for a later row: the box client (`internal/hubclient`) does not yet send the proof,
-keep the ticket or call `drop-lock`, and still reads the clear key, so a sealed box stays offline (4.6);
+Not in B2, left for a later row: the box client's side (row B9, 4.7);
 the ticket TTL is a constant until cnf (B6); the owner's DM note on a tamper finding (6.1) and the daily
 audit digest (6.3).
 
@@ -588,8 +612,9 @@ the runtime login).
 | **B7** box-side drop | 3 | the owner-box sidecar drops deliveries from a non-peer box or a non-owner `typed_by` (5.3) | `internal/spool/lockfilter.go` (new) and its call in `Deliver` (`internal/spool/spool.go:262`) | a delivery with a non-owner `typed_by` is dropped; skip the filter → red | unit test | claude |
 | **B6** cnf, actions, docs | 4 | `hub.box_locks_expected` in cnf and its render, hub start check; `do_spl_box_lock` (create, show) and `do_spl_box_lock_break`; this spec's status and the help page | `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml`, its tpl-gen template, `csi-spl-iac/src/bash/run/spl-box-lock*.func.sh` + tests, `internal/config/config.go` (one key) | a hub started with a listed box and no row refuses that box; delete the check → red; the break action without the cnf removal refuses | `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code`; iac tests | claude |
 | **B8** WUI | 4 | lock confirm dialog, `box_locked` refusal text, lock pane for owners; strings in every locale | `csi-spl-wui/src/components/BoxLockPane.vue` (new), the refusal map, `i18n/locales/*.json` | another admin's DM shows the `box_locked` text; mock the hub refusal off → red | `pnpm run typecheck`, unit + e2e on the mock bundle; agy review of the strings LAST | claude, then agy (i18n) |
+| **B9** box client (built, SPL-3096) | 5 | the hubclient sends `unlock_proof` in the hello (K_lock over `lockkey.ProofPayload`, signed by the holder over `lock/lockd.sock`, never K_lock in the client), keeps the welcome's `unlock_ticket` and shows it on a reconnect within the TTL, calls `drop-lock` after the first ticket, reads K_box from the holder when sealed; an unsealed box as before | `internal/hubclient/unlock.go` (new), `hubclient.go`, `internal/lockkey/daemon.go`; the help page and its WUI copy | a sealed box's hello with no proof and no ticket is refused `locked_box_sealed`; remove the proof from the hello -> red; a ticket past TTL -> refused, then a fresh proof works | `go test ./internal/hubclient/... ./internal/lockkey/... ./internal/hub/...`; seal + unlock + lock on a dev box, n=1 | claude |
 
-Batches: 1 (B1, B4) → 2 (B2, B3) → 3 (B5, B7) → 4 (B6, B8). No file is in two rows of one batch: `ws.go` is
+Batches: 1 (B1, B4) → 2 (B2, B3) → 3 (B5, B7) → 4 (B6, B8) → 5 (B9). No file is in two rows of one batch: `ws.go` is
 in B2 only (B3 adds no line there; `onSend` reaches `boxLockRefusal` through `dispatch.go`'s helper, else B3
 moves to batch 3), `wui.go` is in B5 only (path 1's fan-out check sits in `channels.go`, B3). Rows are built
 after the panel signs this plan, without a further owner go (rounds rulebook 1.4); the prd lock creation
@@ -602,4 +627,4 @@ after the panel signs this plan, without a further owner go (rounds rulebook 1.4
 | reviewer (docs review) | mistral, m-797@sat | CHANGES 5.1, 10 (msg 71c78d32) on v0.1 `5e019c763`; folded in v0.2: `fleet_load.go:119` was a comment line (now `:120`, `fleetLoadCaller`); the queue sites `retired_reply.go:75`, `ws.go:238`, `ws.go:985`, `fallback.go:256/:335/:382`, `backfill.go:160` added to 5.1 and the queue-write inventory to 5.2. Its other 9 "file not found / no function" items arrived with the paths stripped; every 5.1 reference re-read on `10e12f038`: 0 more wrong | 2026-10-22 |
 | reviewer (docs review) | mistral, m-797@sat | **SIGNED at `201f2e3a8`** (msg 7e792038) | 2026-10-22 |
 
-<!-- version: 1.0.0 · updated: 2026-10-23 · last-edit: 2026-10-23T05:28:17Z -->
+<!-- version: 1.0.1 · updated: 2026-10-23 · last-edit: 2026-10-23T21:10:00Z -->

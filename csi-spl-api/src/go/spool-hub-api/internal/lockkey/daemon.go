@@ -107,9 +107,13 @@ func (h *Holder) handle(req request) response {
 	return response{Error: "unknown op"}
 }
 
+// unlock opens the keys with the secret. An unlocked holder that still has
+// K_lock answers as is; one whose K_lock was dropped (after a ticket, 4.4
+// step 3) opens the files again, so the owner can prove the unlock once the
+// ticket has expired without restarting the holder (row B9).
 func (h *Holder) unlock(secret []byte) response {
-	if h.keys != nil {
-		return response{OK: true, State: "unlocked", LockHeld: h.keys.Lock != nil}
+	if h.keys != nil && h.keys.Lock != nil {
+		return response{OK: true, State: "unlocked", LockHeld: true}
 	}
 	if h.failures >= MaxFailures && time.Since(h.lastTry) < h.Backoff {
 		return response{Error: "too many wrong secrets: wait " + h.Backoff.String() + " between tries"}
@@ -127,6 +131,9 @@ func (h *Holder) unlock(secret []byte) response {
 		return response{Error: err.Error()}
 	}
 	h.failures = 0
+	if h.keys != nil {
+		h.keys.Wipe()
+	}
 	h.keys = &k
 	return response{OK: true, State: "unlocked", LockHeld: true}
 }

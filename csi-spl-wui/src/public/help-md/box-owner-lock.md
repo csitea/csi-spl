@@ -10,20 +10,25 @@ This page is for the owner of a box: the person who runs it and wants its
 agents to be theirs alone. The design is spec 025's box owner lock
 (`csi-spl-doc/specs/025-spool-tenant-rbac/box-owner-lock.md`).
 
-## Before you start: what works today
+## Before you start: how a sealed box stays online
 
-The lock is built on the hub, on the box and in the web UI, but one link is
-not built yet: **the box does not yet prove its unlock to the hub when it
-connects**. So today:
+The lock is built on the hub, on the box and in the web UI. A sealed box's
+connection to the hub takes the box key from the unlocked key holder (section
+3), never from a file in the clear, and proves to the hub that you unlocked
+it, with a signature the holder makes with the lock key. So:
 
-- Sealing a box (`spool lock seal`) takes it off the hub: its key now exists
-  only sealed, and the box's connection cannot use the sealed key yet. It stays
-  offline, even after `spool lock unlock`.
-- Confirming a lock in the web UI closes the box's live connection, and the hub
-  then refuses its next hello without that proof. The box goes offline.
-
-Seal or lock a box only when you can do without it on the hub until that link
-lands. Check the spec's status line first.
+- A sealed box is on the hub only while its key holder is unlocked. After a
+  reboot, or a restart of the key holder, it stays offline until you type the
+  secret again with `spool lock unlock`.
+- Once the box is locked, the hub answers the first proof with an **unlock
+  ticket**, good for 7 days on the same boot, and the key holder then lets go
+  of the lock key (`spool lock status` shows `unlocked (lock key dropped)`).
+  The box reconnects with the ticket. When the ticket has expired, or the box's
+  connection was restarted, the hub refuses the box until you run
+  `spool lock unlock` again; that brings it back online.
+- A box running a `spool` built before this link (spec 025 box owner lock,
+  row B9) cannot use its sealed key: it stays offline once sealed. Update the
+  box's `spool` before you seal it.
 
 ## What the lock protects
 
@@ -95,8 +100,7 @@ spool lock unlock
 
 It starts the key holder if none runs and answers `unlocked`. A wrong secret
 is refused; after 5 wrong tries each try waits 60 seconds. Nobody else can
-open the box: its key exists on disk only sealed. (See "Before you start": the
-box does not reach the hub with these keys yet.)
+open the box: its key exists on disk only sealed.
 
 ## 4. Create the lock and name its owners
 

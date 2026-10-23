@@ -310,6 +310,23 @@ func TestHolder(t *testing.T) {
 	if _, err := HolderBoxKey(dir); err != nil {
 		t.Fatalf("the box key must stay after drop-lock: %v", err)
 	}
+	// Row B9: after drop-lock, unlock with the secret holds K_lock again (a
+	// ticket expired); a wrong secret does not.
+	if err := HolderUnlock(dir, []byte("a different secret, long enough")); err == nil {
+		t.Fatal("a wrong secret re-opened the dropped lock key")
+	}
+	if _, held, _ := HolderStatus(dir); held {
+		t.Fatal("the lock key is held after a wrong secret")
+	}
+	if err := HolderUnlock(dir, []byte(tSecret)); err != nil {
+		t.Fatal(err)
+	}
+	if _, held, _ := HolderStatus(dir); !held {
+		t.Fatal("unlock after drop-lock did not hold the lock key again")
+	}
+	if _, _, err := HolderProof(dir, "n", "b", "t"); err != nil {
+		t.Fatalf("no proof after the re-unlock: %v", err)
+	}
 	if err := HolderSeal(dir); err != nil {
 		t.Fatal(err)
 	}

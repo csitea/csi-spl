@@ -3,13 +3,21 @@
 # @description CLE-77918: the deploy-lag rows of the dispatch check. Per env
 # @description (dev and prd) and component (hub, wui), is trunk head SERVED?
 # @description A hub or WUI input that has been on trunk longer than
-# @description DISPATCH_LAG_GRACE minutes (30) and is still not live is a GAP
+# @description DISPATCH_LAG_GRACE minutes (60) and is still not live is a GAP
 # @description row, so do_spl_dispatch_tick notes it ONCE to the lease holder
 # @description (the row's key is "deploy lag <env> <component>"; the served /
 # @description oldest commits are the value, not the identity) and escalates
 # @description it to the orchestrator when it stays open. Built for the
 # @description 2026-10-01 case: both hubs served one commit for ~50 min while
 # @description every 20 run stood down, and nobody was told.
+# @description Why 60, not 30: a healthy hub deploy (commit to the end of its
+# @description green 20 run) takes ~29 min median, ~46 min p90 and ~52 min
+# @description p95, so a lower grace notes healthy deploys. About 3 in 100
+# @description green runs still take longer (e.g. 6b02b7ac2, 63.5 min), and
+# @description cancelled 20 runs make that tail an under-estimate. The cost:
+# @description a stall like 2026-10-01 is noted after 60 min, not 30, and
+# @description escalated ~60 min later (DISPATCH_GAP_ESCALATE, default 3600 s,
+# @description in do_spl_dispatch_tick). Do not lower it back to 30.
 # @description The verdicts come from do_check_deploy_lag (GET /version and
 # @description /build.json, local git, no credential). "cannot tell" is a
 # @description plain row, never a GAP: a flapping endpoint must not flap the
@@ -17,7 +25,7 @@
 # @param ENV - not used for the envs (both are asked); kept for do_spl_dispatch_check
 # @param DISPATCH_DEPLOY_LAG (optional) - 0 skips these rows
 # @param DISPATCH_LAG_ENVS (optional) - default "dev prd"
-# @param DISPATCH_LAG_GRACE (optional) - minutes, default 30
+# @param DISPATCH_LAG_GRACE (optional) - minutes, default 60
 # @param DISPATCH_LAG_SHA (optional) - the commit that must be live; default
 # @param   origin/master of the checkout, else its HEAD
 # @param DISPATCH_LAG_CMD (optional, tests) - replaces do_check_deploy_lag; gets
@@ -37,7 +45,7 @@ do_spl_dispatch_deploy_lag() {
 # Appends one row per env+component through the caller's row().
 spl_dispatch_deploy_lag_rows() {
   [[ "${DISPATCH_DEPLOY_LAG:-1}" != 0 ]] || return 0
-  local grace="${DISPATCH_LAG_GRACE:-30}" sha e out line comp verdict rest app state_root
+  local grace="${DISPATCH_LAG_GRACE:-60}" sha e out line comp verdict rest app state_root
   # r4-B2: do_spl_cloud_cnf renders the cnf into SPL_STATE_DIR, so each env
   # gets a fresh dir under one root that the RETURN trap removes on every
   # return path (2,046 leaked /tmp/tmp.*/cnf dirs before).

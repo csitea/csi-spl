@@ -27,6 +27,12 @@
 #      (pane changed, a post) = no restart; truly frozen = today's restart;
 #      an id with two panes is judged in the one its live harness (env
 #      SPOOL_AGENT_ID) runs in, never the kept old pane at bash
+#  14. the start check (b04-02): the :30 grok pane stopped on grok's weekly
+#      limit menu = that window ended, claude started in a new one and written
+#      to the run file, a FALLBACK line naming the dialog; the fallback on a
+#      dialog too = FAIL, no third start; no input box in the wait = kept.
+#      The stub screen draws no input box, so the suite waits
+#      GC_START_CHECK_S=0 s (one look) unless a case says otherwise
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc, old, gp and out are read inside the check strings (eval)
 set -uo pipefail
@@ -106,7 +112,8 @@ EOF
 chmod +x "$T/bin/"*
 
 export GC_PROC_ROOT="$T/proc" SPOOL_OWNER_HOP=0 PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 LEASE_MACHINE=box-a \
-  ROTATE_TMUX="$T/bin/tmux" GC_SEND="$T/bin/send" GC_RESTART_CMD="$T/bin/restart" GC_CLOSE_DELAY=0
+  ROTATE_TMUX="$T/bin/tmux" GC_SEND="$T/bin/send" GC_RESTART_CMD="$T/bin/restart" GC_CLOSE_DELAY=0 \
+  GC_START_CHECK_S=0 START_CHECK_POLL=0.1
 unset SPOOL_AGENT_ID SPOOL_BOX_TAG MCP_BOT_AGENT_ID TMUX TMUX_PANE GC_VENDOR GC_CONF GC_RUN_ID
 # gc <cmd> <now> [VAR=value ...]: one action run, its output in $T/out, its exit in rc
 gc() { local c="$1" t="$2"; shift 2; rc=0; env GC_CMD="$c" GC_NOW="$t" DRY_RUN="${DRY:-0}" "$@" "$T/bin/act" >"$T/out" 2>&1 || rc=$?; cat "$T/out" >>"$T/all.out"; }
@@ -324,6 +331,21 @@ rm -f "$T/proc/7003/environ"
 gc scan $(( H0 + 62 ))
 check "13. no live harness proven = the first pane (today's pick)" 'grep -q "^== a-925 pane=%801 " "$T/out"'
 check "13. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
+
+# --- 14. the start check: a vendor stopped on a limit dialog ---------------------------
+limit_screen() { printf '  ┃  You hit your weekly limit.\n  ┃  1 (○) Buy more credits\n  ┃  2 (○) Try Again\n' >"$T/tmux/screen.$1"; }
+reset; limit_screen %900
+gc start $(( H0 + 1800 ))
+check "14. grok on its weekly limit (%900) = that window ended, claude in a new one, claude in the run file" '[ "$rc" = 0 ] && grep -q "kill-window -t %900" "$T/tmux/log" && [ "$(gcwin)" = 1 ] && [ "$(n "$T/tmux/log" new-window)" = 2 ] && [ "$(awk "{print \$2, \$3}" "$D/gc/run")" = "%901 claude" ]'
+check "14. one FALLBACK line names the dialog, START names claude" '[ "$(n "$D/gc/gc.log" "FALLBACK 20261015T2130Z-gc-box-a grok -> claude: grok weekly limit")" = 1 ] && grep -q "START 20261015T2130Z-gc-box-a claude %901" "$D/gc/gc.log"'
+check "14. the fallback session is started as claude" 'grep -q "new-window .*gc-session.sh'"'"' '"'"'claude'"'"' '"'"'claude'"'"'" "$T/tmux/log"'
+reset; limit_screen %900; printf 'Usage limit reached · resets 4pm\n' >"$T/tmux/screen.%901"
+gc start $(( H0 + 1800 ))
+check "14. the fallback on a dialog too = FAIL, both windows ended, no third start (exit 1)" '[ "$rc" = 1 ] && [ "$(n "$T/tmux/log" new-window)" = 2 ] && [ "$(gcwin)" = 0 ] && grep -q "FAIL 20261015T2130Z-gc-box-a: the fallback claude stopped on usage limit" "$D/gc/gc.log" && [ ! -s "$D/gc/run" ]'
+reset
+s0=$SECONDS; gc start $(( H0 + 1800 )) GC_START_CHECK_S=1
+check "14. no input box within the wait = the window kept, as today (one start, grok)" '[ "$rc" = 0 ] && [ "$(n "$T/tmux/log" new-window)" = 1 ] && [ "$(awk "{print \$3}" "$D/gc/run")" = grok ] && ! grep -q FALLBACK "$D/gc/gc.log" && (( SECONDS - s0 < 5 ))'
+check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"
 if [ "$fails" -eq 0 ]; then echo "gc-agent: all checks passed"; exit 0; fi

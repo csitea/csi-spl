@@ -45,6 +45,8 @@ const CLOSE_RE = /^(`{3,})[ \t]*$/
    block; only when an option follows, so `[x] text` stays checkbox X */
 const OPTION_RE = /^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+(?=[([][ \t]*[A-Za-z0-9]{1,3}[ \t]*[)\]][ \t]+\S))?([([])[ \t]*([A-Za-z0-9]{1,3})[ \t]*([)\]])[ \t]+(\S.*)$/
 const CHAT_RE = /^chat about this\.?$/i
+/* a line that tries to be an option but is none (`A) x`, `(A] x`, `A. x`): named in pollProblems' reason */
+const NEAR_OPTION_RE = /^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+)?[([]?[ \t]*[A-Za-z0-9]{1,3}[ \t]*[)\].:][ \t]+\S/
 const KEYS_SRC = String.raw`([A-Za-z0-9]{1,3}(?:[ \t]*,[ \t]*[A-Za-z0-9]{1,3})*|none)\b`
 const MARKER_ANSWER_RE = new RegExp(String.raw`^Answer(?:[ \t]+(\d+))?:[ \t]*${KEYS_SRC}`, 'gim')
 /* SPL-1851: anywhere, not only leading: a reply sent while the caret sat
@@ -64,6 +66,11 @@ export { mayHavePoll } from './poll-fence.mjs'
  * renderer always adds it.
  */
 export function parsePoll(text) {
+  return readPoll(text).poll
+}
+
+/* parsePoll with the reason a fence is no form: { poll } or { poll: null, why } */
+function readPoll(text) {
   const questions = []
   let shape = ''
   let q = null
@@ -75,23 +82,64 @@ export function parsePoll(text) {
     if (!opt) {
       if (q && !q.options.length) q.text += ` ${line}`
       else questions.push(q = { text: line, options: [] })
+      if (NEAR_OPTION_RE.test(line)) (q.near ||= []).push(line)
       continue
     }
     const kind = m[1] === '(' ? 'radio' : 'check'
-    if (shape && shape !== kind) return null
+    if (shape && shape !== kind) return { poll: null, why: `radios \`(A)\` and checkboxes \`[A]\` are mixed ("${line}")` }
     shape = kind
     if (!q) questions.push(q = { text: '', options: [] })
     if (CHAT_RE.test(m[4].trim())) { q.chat = true; continue }
     const key = m[2].toUpperCase()
-    if (q.options.some((o) => o.key === key)) return null
+    if (q.options.some((o) => o.key === key)) return { poll: null, why: `key ${key} twice in question "${q.text}"` }
     q.options.push({ key, text: m[4].trim() })
   }
-  const real = questions.filter((x) => x.options.length || x.chat)
-  if (!real.length || real.length !== questions.length || real.some((x) => !x.options.length)) return null
+  const bare = questions.find((x) => !x.options.length)
+  if (bare) {
+    const near = bare.near ? `; not an option line: "${bare.near[0]}"` : ''
+    return { poll: null, why: `question "${bare.text}" has no option line${near}` }
+  }
+  if (!questions.length) return { poll: null, why: 'the fence is empty' }
   /* SPL-1654 (owner d16ba428): a radio question with ONE option is a Go
      button; a checkbox question keeps its box (an opt-in, not a go) */
   const kindOf = (options) => (shape === 'check' ? 'check' : options.length === 1 ? 'button' : 'radio')
-  return { multi: shape === 'check', questions: real.map(({ text, options }) => ({ text, kind: kindOf(options), options })) }
+  return { poll: { multi: shape === 'check', questions: questions.map(({ text, options }) => ({ text, kind: kindOf(options), options })) } }
+}
+
+/**
+ * SPL-3062 (owner HUM-10, msg fb2b4cdf): why a body's ```poll fences would
+ * not render as a form, one line per problem ([] when they would, or when
+ * there is none): a fence that does not parse, is not closed, or is the
+ * second one. A ```poll inside another fence is that fence's content. The
+ * send actions (csi-spl-orc spl_desk_poll_check) refuse a post on any line.
+ */
+export function pollProblems(body) {
+  const lines = String(body || '').replace(/\r\n?/g, '\n').split('\n')
+  const out = []
+  let forms = 0
+  for (let i = 0; i < lines.length; i++) {
+    const open = OPEN_RE.exec(lines[i])
+    const fence = open || FENCE_RE.exec(lines[i])
+    if (!fence) continue
+    const n = fence[1].length
+    let close = -1
+    for (let j = i + 1; j < lines.length; j++) {
+      const c = CLOSE_RE.exec(lines[j])
+      if (c && c[1].length >= n) { close = j; break }
+    }
+    if (open) {
+      forms++
+      if (forms > 1) out.push(`a second \`\`\`poll fence (line ${i + 1}): one form per message`)
+      else if (close < 0) out.push(`the \`\`\`poll fence of line ${i + 1} is never closed`)
+      else {
+        const { why } = readPoll(lines.slice(i + 1, close).join('\n'))
+        if (why) out.push(`the \`\`\`poll fence of line ${i + 1} is no form: ${why}`)
+      }
+    }
+    if (close < 0) break
+    i = close
+  }
+  return out
 }
 
 /**

@@ -358,6 +358,10 @@ Answer: B — Wait for CI
 
 An agent posts a form with the syntax in the body, through any send path:
 `spool send`, the MCP `spool_send`, or `do_spl_desk_reply`.
+`do_spl_desk_reply` and `do_spl_desk_post` refuse a body whose `poll` block
+would stay a code block (no option line, mixed, a key twice, unclosed, a
+second block): nothing is sent, and the FATAL names the block and why
+(SPL-3062).
 
 <a id="ws-doc-dee55e05-6c9f-4fed-a4b9-23ef20781a47"></a>
 ## 8. A tangent gets its own discussion (SPL-1778)

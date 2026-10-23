@@ -8,7 +8,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  answerBody, chatBody, chatPicks, lockSeconds, mayHavePoll, parseAnswer, parsePoll, pollAnswers, splitPolls,
+  answerBody, chatBody, chatPicks, lockSeconds, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
 } from '../../src/utils/poll.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -66,6 +66,27 @@ describe('parsePoll: one form, all radios or all checkboxes', () => {
     const p = parsePoll('Long\nquestion\n(A) x\n(C) Chat about this')
     assert.equal(p.questions[0].text, 'Long question')
     assert.deepEqual(p.questions[0].options, [{ key: 'A', text: 'x' }])
+  })
+})
+
+describe('pollProblems: why a form would not render (SPL-3062, the send check)', () => {
+  it('a body whose one fence is a form, or with no fence, has no problem', () => {
+    assert.deepEqual(pollProblems(`x\n${fence(RADIO)}\ny`), [])
+    assert.deepEqual(pollProblems(fence(CHECK)), [])
+    assert.deepEqual(pollProblems('no form here'), [])
+    assert.deepEqual(pollProblems(`\`\`\`\`text\n${fence('Q\nA) x')}\n\`\`\`\``), [])
+  })
+  it('each problem is one line naming the fence and why', () => {
+    assert.deepEqual(pollProblems(fence('Q\nA) x')), ['the ```poll fence of line 1 is no form: question "Q A) x" has no option line; not an option line: "A) x"'])
+    assert.match(pollProblems(fence('Q\n(A) x\n[B] y'))[0], /mixed/)
+    assert.match(pollProblems(fence('Q\n(A) x\n(a) y'))[0], /key A twice in question "Q"/)
+    assert.deepEqual(pollProblems(`${fence(RADIO)}\n${fence(RADIO)}`), ['a second ```poll fence (line 6): one form per message'])
+    assert.deepEqual(pollProblems('```poll\nQ\n(A) x'), ['the ```poll fence of line 1 is never closed'])
+  })
+  it('agrees with splitPolls: a fence with no problem renders as the form', () => {
+    for (const s of [RADIO, CHECK, 'Q\nA) x', 'Q\n(A) x\n[B] y', 'Go?\n(GO) Go']) {
+      assert.equal(pollProblems(fence(s)).length === 0, splitPolls(fence(s)).some((x) => x.type === 'poll'), s)
+    }
   })
 })
 

@@ -63,6 +63,7 @@ do_spl_desk_post() {
   done
   spl_desk_attach_check "${files[@]}" || return 1
   spl_desk_live_proof "$body" || return 1
+  spl_desk_poll_check "$body" || return 1
   # shellcheck source=../features/spawn-agents/lib/go-ask-guard.inc.sh
   source "$PROJ_PATH/src/bash/features/spawn-agents/lib/go-ask-guard.inc.sh" || return 1
   local ask

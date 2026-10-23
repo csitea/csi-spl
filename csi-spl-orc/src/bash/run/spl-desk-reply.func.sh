@@ -117,6 +117,7 @@ do_spl_desk_reply() {
   read -r -a files <<<"${DESK_FILES:-}"
   _spl_desk_reply_check_args "$body" "$kind" "$to" "$task" "${files[@]}" || return 1
   spl_desk_live_proof "$body" || return 1
+  spl_desk_poll_check "$body" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"

@@ -1,6 +1,7 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
-Version v1.0 (2026-10-23), the panel result. Step 2 of the owner rule for a
+Version v1.0 (2026-10-23), the panel result, with the claude seat's D1
+text fix (section 8). Step 2 of the owner rule for a
 big change: the written spec, then the panel, then the build. v0.1
 (`20b5d6eae`) plus the editor's findings, the claude seat's findings and
 re-check, and the agy seat's findings (section 8). Signed by each seat's
@@ -224,13 +225,13 @@ section 3.3 serves the live list only (decision P6).
   `<header class="feed-header">`, right after the `<h2>`, before
   `SectionClose side="end"`. The `data-test` values stay.
 - 5 mm: a CSS millimetre is 3.78 px, so 5 mm is 18.9 px. The bar gets
-  `margin-inline-start: 1.25rem` (20 px at the 16 px root), and the
+  `margin-inline-start: 0.5rem` (8 px at the 16 px root), and the
   header's 12 px `gap` does not add to it (the nav's margin is the whole
   distance, e.g. a negative inline margin of the gap, or the gap moved to
   the other children). Every tab keeps its `padding: 8px 12px`, the first
-  one too, so its underline and its tap target stay symmetric (agy seat):
-  the nav's own margin is 8 px, and the first LABEL starts 8 + 12 = 20 px
-  after "Monitoring".
+  one too, so its underline and its tap target stay symmetric (agy seat).
+  So the first LABEL starts 8 + 12 = 20 px (1.25rem) after the end of
+  "Monitoring", which is what C2 measures.
 - The heading never shrinks or breaks: on this page only
   (`.monitoring-page .feed-header h2`, since `.feed-header h2` is shared),
   `flex: none; white-space: nowrap`.
@@ -242,8 +243,10 @@ section 3.3 serves the live list only (decision P6).
   padding is cancelled for the nav, e.g. a negative block margin).
 - The end close X stays at the far end: the nav takes `flex: 1 1 auto;
   min-width: 0`; the X keeps `margin-inline-start: auto`.
-- Phone (the `main.css:1003` block, header gap 6 px): the same row,
-  0.75rem (12 px) after the heading (decision P5). There is no end X on a
+- Phone (the `main.css:1003` block, header gap 6 px): the same row, the
+  first LABEL 12 px after the heading (decision P5): the nav's margin is
+  0 and the header's 6 px gap does not add to it, so the 12 px is the
+  first tab's own padding. There is no end X on a
   phone (`SectionClose.vue:9`), so the bar takes the rest of the row and
   scrolls sideways INSIDE itself (`overflow-x: auto`) when the tabs do not
   fit; the page never scrolls sideways. No scrollbar is shown, since it
@@ -289,7 +292,9 @@ section 3.3 serves the live list only (decision P6).
 - Text: `monitoring.tab.lanes` reuses each locale's existing
   `reporting.tab.lanes` word (19 locales, all present, e.g. en "Lanes",
   bg "Линии"). "updated N s ago" mirrors `monitoring.tokens.updated`
-  (en "Updated {n} s ago"), the short "s" with no plural forms.
+  (en "Updated {n} s ago") word for word in each locale; most use a short
+  "s" with no plural forms (he and tr do not: "{n} שניות", "sn"; the
+  agy seat's call).
 - Sort: newest `updated_at` first. Empty list: one line, "No active lanes".
 - Who sees it: operator admins only (`operatorsOnly: true`), like Tokens:
   lane rows name fleet boxes, agents and the operator workspace's topics.
@@ -479,6 +484,8 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 17:2x | c-228 (second box) | re-check of v0.2 (msg `abea4bdc`): 8 rows; folded in as the placer seam (:547-552, set once before the branch), the C6c alias twin, the burn join key with its prd measure (2.2, 3.2, C11b), B5a's store files; P1-P6 and O1 no dissent |
 | 2026-10-23 22:38 | c-898@sat | panel sha `35a7f08fd` confirmed to the agy seat a-277 (second box) (msg `9960aade`) |
 | 2026-10-23 22:42 | a-277 (second box) | agy seat findings (msg `1c6e077e`), checked on `369b25d5f`: 12 rows, 7 OK; folded in as 3.1 first-tab padding kept and no scrollbar, 3.2 long cells and table wrap (the cited lines corrected to `0096:22` and `token-burn.css:5`), 3.2 text reuse, 3.4 `0214` landed, 3.5 chip `aria-label`, C4 under `'windows'` plus C4b, 3.5 and B5a `ListIssues` kept (20 callers by the editor's count; the seat said 23); P1-P6 no dissent; O1 recommends (A) |
+| 2026-10-23 22:4x | a-277 (second box) | signs `a60967dab` (msg `9305635a`), no dissent |
+| 2026-10-23 22:4x | c-228 (second box) | signs `a60967dab` with dissent D1 (msg `f6fc3588`): 3.1 gave the bar both a 20 px and an 8 px margin, and the phone's 12 px was ambiguous; fixed in 3.1 (bar margin 8 px, label at 20 px; phone: label at 12 px, nav margin 0). Also folded: the he and tr forms in 3.2 |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is
@@ -486,5 +493,11 @@ not pinned (3.4).
 
 ## 9. Signatures
 
-v1.0 is signed by each seat's own message on this sha; the editor
-records each message id here after it arrives. None yet.
+v1.0 is signed by each seat's own message; the editor records each
+message id here after it arrives.
+
+| seat | on `a60967dab` | on the D1 text fix |
+|---|---|---|
+| editor c-898@sat (claude) | the v1.0 commit | the D1 fix commit |
+| c-228 (second box) (claude) | `f6fc3588`, dissent D1 | pending |
+| a-277 (second box) (agy) | `9305635a`, no dissent | pending |

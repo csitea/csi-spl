@@ -1,7 +1,7 @@
 # Box owner lock: a box whose agents only its owner may reach (025 section 11)
 
 **Feature**: `specs/025-spool-tenant-rbac`, box owner lock · **Created**: 2026-10-22 · **Lane**: c-630 ·
-**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); nothing built.
+**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); rows B1-B5, B7 and B8 built, B6 built but for the help page; see each row's As built note.
 **Builds on**: 025 (roles, permissions), 054 (act-as clone), 108 (workspace-owned boxes, pins, revoke),
 017 FR-SEC-031 (desk owners), 023 (human keys), the signed directive feature
 (`csi-spl-orc/src/bash/features/directive/`).
@@ -537,6 +537,21 @@ Secret and recovery code both lost: `do_spl_box_lock_break` (row B6, per-env SA,
 a cnf commit that removes the box from `box_locks_expected`) deletes the row under the operator scope, writes
 an audit row and posts to the owner's DM. It is the power named in 8.2, given a name and a trail rather than
 left unnamed. It never runs without the owner's go for that call.
+
+**As built (row B6, SPL-3014)**: `csi-spl-orc/src/bash/run/spl-box-lock-break.func.sh`
+(`do_spl_box_lock_break`) and `spl-box-lock.func.sh` (`do_spl_box_lock`: `BOX_LOCK_CMD=create`, run on the
+sealed box, saves `spool lock create`'s statement as `<keys>/lock/lock.signed.json` 0600 and prints the
+cnf entry; `BOX_LOCK_CMD=show`, read only: the cnf entry, the row, the audit summary and whether the hub
+refuses the box). They live in `csi-spl-orc`, not `csi-spl-iac` as row B6 names: the proxy and cloud-cnf
+helpers they use (`spl_via_proxy`, `do_spl_cloud_cnf`) are orc's. Test:
+`csi-spl-orc/src/bash/tests/spl-box-lock.tst.sh` (stubs, then a real Postgres with the rdb migrations as
+the runtime login).
+
+- The break is a dry run unless `DRY_RUN=0`, which needs `BOX_LOCK_GO` (the owner's message id). It refuses
+  while the box is listed in `hub.box_locks_expected` of the working cnf OR of `origin/master`'s cnf (fetched
+  first), before any database call. It deletes the row and writes one `break` / `lifted` audit row in one
+  transaction; a box with no row is refused and nothing is written.
+- Not built: the post to the owner's DM; the action prints that the owner must be told on the go's topic.
 
 ### 8.4 Other limits
 

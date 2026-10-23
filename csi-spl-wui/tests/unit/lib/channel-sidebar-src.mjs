@@ -23,6 +23,7 @@ export const CHANNEL_SIDEBAR_FILES = [
   'src/composables/useSidebarVersion.ts',
   'src/composables/useSidebarRailTabKeys.ts',
   'src/composables/useSidebarRailOnly.ts',
+  'src/composables/useSidebarRailNav.ts',
 ]
 
 /** ChannelSidebar.vue, then every composable it was split into, one string. */

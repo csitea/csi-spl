@@ -666,9 +666,8 @@ import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
-import { chatKind, isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
+import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { ARCHIVE_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
-import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order'
@@ -678,8 +677,6 @@ import { useMove } from '~/composables/useMove'
 import { isChannelDropTarget } from '~/utils/move.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 import { useOperatorPane } from '~/stores/operator-pane'
-import { useLiveFeed } from '~/stores/live'
-import { useTopicStore } from '~/stores/topic'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { loadHiddenPeers, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import { useUnreadOrder } from '~/composables/useUnreadOrder'
@@ -692,6 +689,7 @@ import { useSidebarRowDrag } from '~/composables/useSidebarRowDrag'
 import { useSidebarRowKeys } from '~/composables/useSidebarRowKeys'
 import { useSidebarRailOnly } from '~/composables/useSidebarRailOnly'
 import { useSidebarRailTabKeys } from '~/composables/useSidebarRailTabKeys'
+import { useSidebarRailNav } from '~/composables/useSidebarRailNav'
 import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -720,7 +718,6 @@ const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: railLabelKey(item, phone.value), movable: isRailMovable(item.id) })))
 const dmLabelKey = computed(() => railLabelKey(RAIL_BY_ID.get('dm') || { labelKey: 'sidebar.direct_messages' }, phone.value))
 const tab = ref<SideTab>('dm')
-const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people'])
 /* the first render builds the open rail tab only. The other tabs
    (a v-show each) were built with it and hidden: on / the flow tab alone was
    915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page.
@@ -831,7 +828,6 @@ const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mo
    SPL-1804: only while me has not answered; a known guest (role null) must
    not re-read it, or the read overwrites the guest with the member it was. */
 const operatorPane = useOperatorPane()
-const livePane = useLiveFeed('pane'), topic = useTopicStore()
 watch(() => [session.state, access.me?.role ?? null] as const, async ([st]) => {
   if (st !== 'in' && !api.mock) return
   if (!access.me) await access.load()
@@ -840,8 +836,6 @@ watch(() => [session.state, access.me?.role ?? null] as const, async ([st]) => {
 const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
-/* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */
-const { onTabKey } = useSidebarRailTabKeys({ phone, tab, rail, railClick, selectTab })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 /* spec 109 FR-012: Settings -> Behaviour -> "Show labels" (RailOrderSetting),
    default off, kept in this browser: <html class="rail-labels"> names the
@@ -857,6 +851,10 @@ const sectionExit = useSectionExit()
 watch(() => route.fullPath, () => sectionExit.note(route.path, route.fullPath), { immediate: true })
 const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && isSectionPage(route.path))
 const onRailLink = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && Boolean(railLinkSection(route.path)))
+/* the rail and section navigation: a rail tab's click, the Issues number, the search list's X (useSidebarRailNav) */
+const { selectTab, railClick, closeSearch, onCountClick } = useSidebarRailNav({ tab, holdFlow, holdSearch, stripOnly, onRailLink, helpRailOnly, docsRailOnly })
+/* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */
+const { onTabKey } = useSidebarRailTabKeys({ phone, tab, rail, railClick, selectTab })
 function railOn(id: SideTab) {
   return tab.value === id && !onRailLink.value
 }
@@ -894,80 +892,6 @@ const vSwellUp: Directive<HTMLElement, number> = {
 /* the number a rail tab's badge shows ("99+" reads 99); a pip counts 1 */
 function railBadgeN(id: string) {
   return parseInt(id === 'flow' ? flowLabel.value : railCount(id)) || +tabUnread(id)
-}
-/* Flow stays on this page and mixes the
-   lists. Direct messages and channels only swap the sidebar. */
-/* owner HUM-10 (t1 27b3ab77 msg 3aee57ba): "no way for me to find out what
-   these three issues are" - the Issues number opens the list filtered to
-   exactly the issues it counts (?unread=1); the rest of the tab stays the tab */
-function onCountClick(id: SideTab, ev: Event) {
-  if (id !== ISSUES_TAB) return
-  ev.stopPropagation()
-  void selectTab(id, { unread: '1' })
-}
-async function selectTab(next: SideTab, query?: Record<string, string>) {
-  /* CLE-77886: on a phone, a tap on the section already selected above its
-     own page shows that section's list at level 1 (the Issues epics, ...),
-     where the page's Back chevron used to lead */
-  if (!query && stripOnly.value && next === tab.value && !onRailLink.value) {
-    mobileStack.home()
-    return
-  }
-  holdFlow.value = next === 'flow'
-  holdSearch.value = false
-  tab.value = next
-  /* CLE-77886: on a phone a section whose content is this sidebar's list
-     (Channels, DMs, Flow, People, Agents, Boxes) shows it at level 1 under
-     the strip - from a section page's strip too - instead of a bare page */
-  const phoneList = mobileStack.isMobile.value && PHONE_LIST_TABS.has(next)
-  if (phoneList && mobileStack.level.value > 1) mobileStack.home()
-  /* CLE-77886 (HUM-24, csitea 7930dfbf: no exit from Issues): on a desktop
-     Channels / Direct messages / Flow picked over a section page (Issues,
-     Event log, ...) also bring back the conversation the reader left - the
-     list on the left alone kept the page and read as a dead end. Owner
-     (t1 777d6c9a): on a rail-only page (Docs (Qto) /workspace/docs, a Help
-     or Docs document) the sidebar hides its list, so the tab alone changed
-     nothing and the rail read as frozen: leave it, to the lobby at least. */
-  const railOnlyPage = helpRailOnly.value || docsRailOnly.value
-  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && (railOnlyPage || (isSectionPage(route.path) && productPath(route.path) !== '/'))) {
-    const back = withoutQuery(sectionExit.target(next)) || (railOnlyPage ? '/lobby' : '')
-    if (back) await navigateTo(back.startsWith('/lobby') ? localePath(back) : back)
-  }
-  if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
-  if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
-  if (next === ISSUES_TAB && query) await navigateTo({ path: localePath('/issues'), query })
-  else if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
-  /* CLE-77794: People lands on its index (the "pick someone" card in the
-     middle pane); a click on a row then opens /people/<id>. */
-  if (next === PEOPLE_TAB && !phoneList && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
-  if (next === CALENDAR_TAB && tabForPath(route.path) !== CALENDAR_TAB) await navigateTo(localePath('/calendar'))
-  if (next === MONITORING_TAB && tabForPath(route.path) !== MONITORING_TAB) await navigateTo(localePath('/monitoring'))
-  if (next === REPORTING_TAB && tabForPath(route.path) !== REPORTING_TAB) await navigateTo(localePath('/reporting'))
-}
-/* SPL-2765 (owner, 2026-10-21): every click on a leftmost section closes the
-   reply panel and the list of the section left (a lobby topic left open on a
-   DM took a person's note, prd msg 86530802). A way back drops ?topic=; on a
-   phone the list is the screen. The panes close after the route: a topic
-   closed first replaces ?topic=, which cancelled the navigation. A topic's
-   page (/t/<id>) is the thread itself, no reply panel (spec 109 T007). */
-async function railClick(next: SideTab) {
-  if (/^\/t\/[^/]+$/.test(productPath(route.path))) return selectTab(next)
-  const to = mobileStack.isMobile.value ? '' : railSwitchPath(next, chatKind(route.path))
-  if (to) await navigateTo(to)
-  await selectTab(next)
-  livePane.close(); topic.close(); operatorPane.close()
-}
-function railSwitchPath(next: SideTab, kind: string) {
-  if (next === 'dm' && kind === 'channel') return withoutQuery(sectionExit.target('dm')) || localePath('/dm')
-  const back = next === 'channels' && kind === 'dm' ? withoutQuery(sectionExit.target('channels')) : ''
-  return back.startsWith('/lobby') ? localePath(back) : back
-}
-const withoutQuery = (path: string) => path.split(/[?#]/)[0]
-/* CLE-77884: the search list's X - back to the list the page belongs to */
-function closeSearch() {
-  holdSearch.value = false
-  tab.value = tabForPath(route.path) || 'channels'
-  if (isSearchPage(route.path)) void navigateTo(localePath('/'))
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {

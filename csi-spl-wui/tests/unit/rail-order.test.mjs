@@ -249,7 +249,7 @@ describe('wiring', () => {
     assert.equal(ARCHIVE_TAB, 'archive')
     assert.equal(tabForPath('/archive'), 'archive')
     assert.equal(tabForPath('/fi/archive'), 'archive')
-    const src = read('src/components/ChannelSidebar.vue')
+    const src = channelSidebarSrc()
     assert.match(src, /next === ARCHIVE_TAB && tabForPath\(route\.path\) !== ARCHIVE_TAB\) await navigateTo\(localePath\('\/archive'\)\)/)
     assert.match(src, /id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB && id !== REPORTING_TAB\) sidePane\.setCurrent\(id\)/)
     assert.ok(read('src/pages/archive.vue').length > 0)

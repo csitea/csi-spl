@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ISSUES_TAB, SIDE_TABS, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -24,7 +25,7 @@ describe('Issues rail tab', () => {
        owner 2026-09-27: channels, direct messages, issues, ...; the Topics
        tab that followed Issues is gone (t1 e4bfddb1), Flow follows now */
     const tabs = read('src/utils/rail-order.ts')
-    const src = read('src/components/ChannelSidebar.vue')
+    const src = channelSidebarSrc()
     const channels = tabs.indexOf("{ id: 'channels', icon: 'hash'")
     const dm = tabs.indexOf("{ id: 'dm', icon: 'messages'")
     const issues = tabs.indexOf("{ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }")

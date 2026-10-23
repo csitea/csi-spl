@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { EVENTS_TAB, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -31,7 +32,7 @@ describe('Event log rail tab', () => {
     assert.ok(flow > 0 && archive > flow && events > archive, 'events entry follows archive')
     assert.ok(people > events, 'People follows events')
     assert.equal(tabs.indexOf("{ id: 'agents', icon: 'bot'"), -1, 'no Agents rail tab (SPL-2075)')
-    const src = read('src/components/ChannelSidebar.vue')
+    const src = channelSidebarSrc()
     assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
   })
 

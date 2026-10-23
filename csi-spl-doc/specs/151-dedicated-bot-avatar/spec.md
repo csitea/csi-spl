@@ -1,17 +1,19 @@
 # 151 Dedicated bots: add agents to a DM, and a blobatar avatar
 
-Version v0.1 (2026-10-23). This is step 1 of the owner rule for a big
-change: the written spec. Nothing in it is built until the owner says go
-(dispatcher answers
-`1f5d0ca6`
-and
-`b3e3431a`).
+Version v0.2 (2026-10-23). Status: v0.2, owner go d6d5009c; build in
+progress.
+
+v0.1 was step 1 of the owner rule for a big change, the written spec
+(dispatcher answers `1f5d0ca6` and `b3e3431a`). v0.2 folds the owner's
+answers to its two questions and his go (section 7): Q1 = A, Q2 = B. Q2 = B
+changes part 2: a bot's face now depends on WHERE it is drawn (4.2), so
+rows T003, T004, T007 and T008 and the cases C11-C16 are reworked.
 
 Sources: prd topics in the owner's workspace, `/t/c1459184-8e76-4921-b8af-7be1f54d25cd`
 (the avatar) and `/t/cf359a19-1356-447c-9f94-c4cb5324b2ef` (agents in a
 DM; dispatcher answer
 `637bed7a`).
-Issues: SPL-3032 (this v0.1) and epic SPL-3030. Each build row in
+Issues: SPL-3032 (v0.1), SPL-3057 (this v0.2) and epic SPL-3030. Each build row in
 [tasks.md](tasks.md) has its own issue.
 
 Paths used below:
@@ -22,7 +24,12 @@ Paths used below:
 - `hub/` = `api/hub/`
 - `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`
 
-Every `file:line` was read on origin/master `e829c971f`.
+Every `file:line` was read on origin/master `e829c971f` (v0.1) and
+re-checked on `55a9d5b61` (v0.2): `git diff --stat e829c971f origin/master`
+over the 32 existing files this spec cites by path -> empty, and the last
+rdb migration is still `0213_box_locks.sql`. Four `avatar.ts` lines in 2.1
+were off by one in v0.1 and are corrected. The lines added in v0.2 were
+read on `55a9d5b61`.
 
 ## 1. The owner's asks, verbatim
 
@@ -44,13 +51,13 @@ becomes one of the "dedicated" bots of part 2.
 ### 2.1 Avatars
 
 - `wui/utils/avatar.ts:121` `avatarSvg(id, box)` draws an identicon for a
-  human (`isHuman`, `:35`, which covers HUM-* and GST-*). Anything else gets
-  the robot (`robotSvg`, `:53`). The key is `id@box` (`:122`).
+  human (`isHuman`, `:36`, which covers HUM-* and GST-*). Anything else gets
+  the robot (`robotSvg`, `:54`). The key is `id@box` (`:122`).
 - `wui/utils/avatar.ts:132` `avatarDataUri(id, box)` returns that SVG as a
   `data:image/svg+xml;utf8,` URI. It is memoised per id and box, at most
   1000 entries (`:128-141`).
-- `wui/utils/avatar.ts:171` `avatarImageUrl` returns a stored picture, for a
-  member HUM-* only (`isMember`, `:40`). No agent has a stored picture today.
+- `wui/utils/avatar.ts:176` `avatarImageUrl` returns a stored picture, for a
+  member HUM-* only (`isMember`, `:41`). No agent has a stored picture today.
 - `wui/components/SpoolAvatar.vue:35-37` shows the stored picture once it
   has loaded, and `avatarDataUri` until then. Every avatar in the WUI is
   this component.
@@ -200,7 +207,7 @@ The two specs do not conflict:
   limit and no isolation.
 - A spec 144 binding is also an agent a person dedicated by hand, so once
   spec 144 is built, its binding table joins the T007 query and that bot
-  gets the blobatar too.
+  gets the blobatar too, in the one channel or topic it is bound to.
 - If spec 144 is built first, T007 reads its table as well. Neither spec
   needs the other to start.
 
@@ -332,20 +339,30 @@ longer reach it. The messages it already wrote stay in the DM.
 
 ### 4.2 Part 2: the blobatar avatar
 
-**The rule.** For each bot (`id@box`), the same everywhere it is drawn:
+**The rule (owner Q2 = B, msg `d6d5009c`).** An avatar is drawn in a
+**scope**: a channel, a DM, or none. For a bot `id@box` drawn in scope S:
 
 1. A stored picture wins. Today only member humans have one
-   (`avatar.ts:171`).
+   (`avatar.ts:176`).
 2. A human: unchanged (the identicon).
-3. A **dedicated** bot: the blobatar of `id@box` (section 3).
-4. Any other bot: unchanged (the robot).
+3. A bot **dedicated in S**: the blobatar of `id@box` (section 3).
+4. Any other bot, and every bot drawn with no scope: unchanged (the robot).
 
-A bot is **dedicated** when this workspace has at least one live row in
-which a person added it by hand. That row is either:
+A bot is **dedicated in S** when S has a live row in which a person added
+it by hand:
 
-- in `channel_subscriptions`, with `origin = 'invite'` and `invited_by` a
-  HUM-*; or
-- in `dm_agents` (4.1), with `origin = 'invite'`.
+- S is channel `c`: a `channel_subscriptions` row for `c`, with
+  `origin = 'invite'` and `invited_by` set (a HUM-* or the backfilled
+  `legacy`);
+- S is a DM: a `dm_agents` row (4.1) for that DM's pair, with
+  `origin = 'invite'`.
+
+So the same bot is a blobatar in the channels and DMs it was added to and a
+robot everywhere else: in other channels, in other DMs (also a DM in which
+it is one of the two ends: nobody added it there), in the sidebar, on the
+issues page, on the box page, and in a mention picker outside those scopes.
+The blobatar itself is a pure function of `id@box` (section 3), so in every
+scope where the bot is dedicated it has the same face.
 
 **API changes.**
 
@@ -358,28 +375,68 @@ which a person added it by hand. That row is either:
     not a role number (001, 002, 003) gets `invited_by = 'legacy'`, which
     counts as a hand pick. The fleet's operator path seeds only role seats
     (2.2). On prd that is 109 rows.
-- The roster (`GET /v1/view/roster`) gives each box an `agent_dedicated`
-  list next to `seated_at` (`hub/view.go:225-256`), read from both tables in
-  one query.
-- The members answer gives each agent row `dedicated: true|false`.
+- The roster (`GET /v1/view/roster`, `viewBox` at `hub/view.go:225-248`)
+  gives each box an `agent_dedicated` map next to `seated_at`: agent id ->
+  `{channels: [<channel id>...], dms: [<peer id@box>...]}`, the scopes that
+  agent was added to by hand, read from both tables in one query. An agent
+  dedicated nowhere is left out; a box with none omits the key.
+- That map is filtered per reader, as the roster already is for the box
+  lock (`readerID` and `lockViewFor`, `hub/view.go:275-292`):
+  - `channels` lists only channels the reader may read (a private channel,
+    `is_private`, `rdb/0002_channels.sql:11`, only for its members);
+  - `dms` lists only DMs of which the reader is one end, named by the OTHER
+    end's `id@box`. A DM's agent list is never shown to a third person.
+  - A reader with no member session gets no `agent_dedicated`.
+- The members answer gives each agent row `dedicated: true|false`: dedicated
+  in that channel (T006). That answer is already one channel's scope.
 
-**WUI.**
+**WUI: who knows its scope.**
 
-- Every avatar already reads the roster (`SpoolAvatar.vue:55-68`). That
-  read also fills a shared set of dedicated `id@box`.
-- `avatarDataUri` stays the synchronous robot. A new
+The scope type `AvatarScope` (`{channel: string}`, `{dm: string}` with the
+peer's `id@box`, or none) and its Vue injection key live in a new
+`wui/utils/avatar-scope.ts` (T003, so T004 can use it). `SpoolAvatar` takes
+an optional `scope` prop and otherwise injects the nearest provided one;
+with neither it draws as today.
+
+| site | scope |
+|---|---|
+| `pages/channel/[name].vue` (provides it to every avatar in the pane: message cards, composer mention list) | `{channel: <name>}` |
+| `pages/dm/[peer].vue` (provides it the same way) | `{dm: <peer label>}` |
+| `MessageCard.vue:72` and `:109` | the card's own `msg.channel` when it has one (lobby, topic page, search), else the injected scope |
+| `ChannelPropertiesDialog.vue` agent rows `:186`, `:202`, `:250` | `{channel: <the dialog's channel>}`, provided by the dialog |
+| the new `DmAgentsDialog.vue` (T004) | `{dm: <the row's peer>}`, provided by the dialog |
+
+Everything else draws a bot with no scope, so as the robot:
+`ChannelSidebar.vue:229` (DM rows) and `:533` (people rows),
+`pages/monitoring/boxes/[id].vue:166`, the four assignee avatars of
+`pages/issues.vue` (`:301`, `:481`, `:585`, `:826`), and `MentionList.vue:34`
+outside a channel or DM pane. A DM card outside the DM page (the topic page,
+search) has no `msg.channel` and no provided pair, so it shows the robot.
+The agents pages draw no avatar today
+(`grep -ci avatar pages/agents/index.vue 'pages/agents/[id].vue'` -> 0 and
+0), and nothing changes there. The other sites
+(`TenantUsers.vue`, `settings/profile.vue`, `UserMenu.vue`,
+`pages/people/[id].vue`) draw only humans.
+
+**WUI: the face.**
+
+- `SpoolAvatar.vue` reads the roster today only for a human
+  (`SpoolAvatar.vue:61`, `!isHuman(props.id)` returns). It also reads it for
+  a bot drawn in a scope; the read joins the roster store's read in flight
+  (`:55-57`), so it adds no request. The read fills one shared set of
+  `id@box` + scope keys.
+- A pure helper in `avatar.ts` answers "dedicated in this scope" from that
+  set; `avatarDataUri` stays the synchronous robot, and a new
   `dedicatedAvatarUri(id, box)` loads `blobatar/uri` once and memoises the
-  result.
-- `SpoolAvatar.vue` shows the blobatar when the bot is in the set, and the
-  robot as before otherwise.
-
-Once someone adds a bot anywhere, it counts as dedicated in the whole
-workspace, so one bot keeps one face. Poll Q2 asks the owner to confirm
-this.
+  result by `id@box`.
+- `SpoolAvatar.vue` shows the blobatar when the bot is dedicated in its
+  scope, and the robot otherwise. The two are told apart by their prefix:
+  the robot is `data:image/svg+xml;utf8,` (`avatar.ts:136`), `blobatarUri`
+  is `data:image/svg+xml,` (section 3).
 
 ## 5. Red controls
 
-Each case FAILS on origin/master `e829c971f` today and passes once its row
+Each case FAILS on origin/master `55a9d5b61` today and passes once its row
 is built. Cases marked "guard" are green today and must stay green.
 
 | case | row | check | today |
@@ -394,33 +451,32 @@ is built. Cases marked "guard" are green today and must stay green.
 | C8 | T004 | wui e2e (mock): DM row menu -> Add an agent -> pick -> the agent is listed with a minus | no entry |
 | C9 | T006 | hub: `POST /v1/channels/{c}/agents` by HUM-1 stores `invited_by = HUM-1`, and the members answer says `dedicated: true` | no column, no field |
 | C10 | T006 | store: an operator INSERT (no `invited_by`) -> `dedicated: false` | no field |
-| C11 | T007 | hub: the roster's `agent_dedicated` lists a bot added to a channel by hand and a bot added to a DM, but not a role seat | no field |
-| C12 | T008 | wui unit: `dedicatedAvatarUri('c-9', 'box-a')` starts with `data:image/svg+xml,`, equals blobatar 2.7.0's `blobatarUri('c-9@box-a', {background: 'squircle'})`, and returns the same string when called twice | no function |
-| C13 | T008 | wui unit: `csi-spl-wui/package.json` has `"blobatar": "2.7.0"` (exact) | absent |
-| C14 | T008 | guard: a non-dedicated bot still gets `robotSvg`, a human still gets the identicon, and a member's stored picture still wins | green |
-| C15 | T008 | guard: `perf-budget.py bundle` `ci_initial_gzip_kb` <= 155, and up by no more than 0.5 KB on the same box (A/B) | green |
-| C16 | T008 | guard: `tests/unit/feed-avatar.test.mjs` (no `blob:`) and `csp-policy.test.mjs` | green |
+| C11 | T007 | hub: bot c-9 added by hand to channel `a` and to the DM HUM-1@box-wui <-> HUM-2@box-wui; role seat c-001 seeded in `a` by an operator row. HUM-1's roster has `agent_dedicated["c-9"] = {channels: ["a"], dms: ["HUM-2@box-wui"]}` and no entry for c-001 | no field |
+| C12 | T007 | hub, the privacy red control: HUM-3, not an end of that DM and allowed to read `a`, reads the roster: c-9 has `channels: ["a"]` and `dms: []`; with `a` made private and HUM-3 not a member, c-9 has no entry. Control: the same reads with the per-reader filter removed must fail this case | no field |
+| C13 | T008 | wui unit: `dedicatedAvatarUri('c-9', 'box-a')` starts with `data:image/svg+xml,`, equals blobatar 2.7.0's `blobatarUri('c-9@box-a', {background: 'squircle'})` and returns the same string when called twice; `csi-spl-wui/package.json` has `"blobatar": "2.7.0"` (exact) | no function, no dependency |
+| C14 | T008 | wui unit, the scope red control: with the set from C11, the helper says dedicated for c-9 in `{channel: 'a'}` and `{dm: 'HUM-2@box-wui'}`, and NOT dedicated for the same c-9 in `{channel: 'b'}` (a channel it was not added to), in `{dm: 'HUM-5@box-wui'}`, and with no scope; c-001 is not dedicated in `a` | no helper |
+| C15 | T008 | wui e2e (mock, extended in an existing e2e file): c-9's card in channel `a` has a `src` starting `data:image/svg+xml,` (blobatar); the same bot's card in channel `b`, its sidebar DM row and an issue assigned to it have `src` starting `data:image/svg+xml;utf8,` (robot) | robot in `a` too |
+| C16 | T008 | guard: a non-dedicated bot still gets `robotSvg`, a human the identicon and a member's stored picture still wins; `perf-budget.py bundle` `ci_initial_gzip_kb` <= 155 and up by no more than 0.5 KB on the same box (A/B); `tests/unit/feed-avatar.test.mjs` (no `blob:`) and `csp-policy.test.mjs` green | green |
 
 ## 6. Build order
 
 Part 1 rows come before part 2, the API before the WUI, and the docs last.
-The rows and their files are in [tasks.md](tasks.md). The build waits for
-the owner's go.
+The rows and their files are in [tasks.md](tasks.md). The owner gave the go
+(msg `d6d5009c`).
 
-## 7. Open owner questions
+## 7. The owner's answers
 
-The code cannot settle these two; each is a product choice.
+The code could not settle these two; each was a product choice. The owner
+(HUM-10) answered both in his workspace on 2026-10-23.
 
-```poll
-Q1. When you add an agent to a direct message, where does the conversation with it happen?
-(A) In the same direct message: the agent joins it, and both people see its answers there (this spec)
-(B) The direct message becomes a new private channel with the two of you and the agent
-```
+| question | topic | msg | answer |
+|---|---|---|---|
+| Q1. When you add an agent to a direct message, where does the conversation with it happen? | cf359a19 | `5ba9b628` | "A — In the same direct message: the agent joins it, and both people see its answers there" (as v0.1 says; section 4.1 stands) |
+| Q2. A bot added by hand to one channel or DM: where does it show the blobatar face? | c1459184 | `d6d5009c` | "B — Only in the channels and DMs it was added to; everywhere else it stays a robot" (section 4.2 reworked in v0.2) |
+| go | c1459184 | `d6d5009c` | "GO — Go": build spec 151 |
 
-```poll
-Q2. A bot added by hand to one channel or DM: where does it show the blobatar face?
-(A) Everywhere in the workspace, so a bot always has one face (this spec)
-(B) Only in the channels and DMs it was added to; everywhere else it stays a robot
-```
+The option not chosen for Q1 was "(B) The direct message becomes a new
+private channel with the two of you and the agent"; for Q2, "(A) Everywhere
+in the workspace, so a bot always has one face".
 
-<!-- version: 0.1.0 · updated: 2026-10-23 -->
+<!-- version: 0.2.0 · updated: 2026-10-23 -->

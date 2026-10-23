@@ -26,9 +26,10 @@ const redacted = "[redacted]"
 // sealVersion prefixes every sealed text, so a later format can be told apart.
 const sealVersion = "v1"
 
-// sealAAD binds the GCM tag to this format, so a blob sealed for another
-// purpose with the same data key never opens here.
-var sealAAD = []byte("spool-marketing-seal/" + sealVersion)
+// DefaultSealPurpose is the AAD of every sealer built without WithPurpose:
+// the marketing channel tokens. It binds the GCM tag to this format, so a blob
+// sealed for another purpose with the same data key never opens here.
+const DefaultSealPurpose = "spool-marketing-seal/" + sealVersion
 
 // ErrOpen is returned for any sealed text that does not open: bad format, a
 // wrapped key KMS refuses, or a GCM tag that does not match (tampering).
@@ -71,23 +72,41 @@ func (Plaintext) MarshalText() ([]byte, error) { return []byte(redacted), nil }
 // LogValue implements slog.LogValuer.
 func (Plaintext) LogValue() slog.Value { return slog.StringValue(redacted) }
 
-// Sealer seals and opens tokens with one KMS key.
+// Sealer seals and opens tokens with one KMS key, for one purpose (its AAD).
 type Sealer struct {
 	kms     KMS
 	keyName string
+	aad     []byte
 	rand    io.Reader
 }
 
+// SealerOption changes one NewSealer default.
+type SealerOption func(*Sealer)
+
+// WithPurpose seals and opens under purpose as the AAD instead of
+// DefaultSealPurpose (spec 149: `spool-gcal-token/v1`), so a text sealed for
+// one purpose never opens as another under the same KMS key.
+func WithPurpose(purpose string) SealerOption {
+	return func(s *Sealer) { s.aad = []byte(purpose) }
+}
+
 // NewSealer returns a Sealer for keyName (cnf `marketing.kms_key`). A missing
-// client or key name is an error: there is no unsealed fallback.
-func NewSealer(kms KMS, keyName string) (*Sealer, error) {
+// client, key name or purpose is an error: there is no unsealed fallback.
+func NewSealer(kms KMS, keyName string, opts ...SealerOption) (*Sealer, error) {
 	if kms == nil {
 		return nil, errors.New("marketing: seal needs a KMS client")
 	}
 	if strings.TrimSpace(keyName) == "" {
 		return nil, errors.New("marketing: seal needs a KMS key name (cnf marketing.kms_key)")
 	}
-	return &Sealer{kms: kms, keyName: keyName, rand: rand.Reader}, nil
+	s := &Sealer{kms: kms, keyName: keyName, aad: []byte(DefaultSealPurpose), rand: rand.Reader}
+	for _, o := range opts {
+		o(s)
+	}
+	if strings.TrimSpace(string(s.aad)) == "" {
+		return nil, errors.New("marketing: seal needs a purpose")
+	}
+	return s, nil
 }
 
 // Seal encrypts p under a fresh data key and returns the sealed text
@@ -107,7 +126,7 @@ func (s *Sealer) Seal(ctx context.Context, p Plaintext) (ciphertext, kmsKeyID st
 	if _, err := io.ReadFull(s.rand, nonce); err != nil {
 		return "", "", fmt.Errorf("marketing: nonce: %w", err)
 	}
-	box := gcm.Seal(nonce, nonce, []byte(p.s), sealAAD)
+	box := gcm.Seal(nonce, nonce, []byte(p.s), s.aad)
 	wrapped, keyVersion, err := s.kms.Encrypt(ctx, s.keyName, dek)
 	if err != nil {
 		return "", "", fmt.Errorf("marketing: kms wrap: %w", err)
@@ -135,7 +154,7 @@ func (s *Sealer) Open(ctx context.Context, ciphertext string) (Plaintext, error)
 	if len(box) < n+gcm.Overhead() {
 		return Plaintext{}, fmt.Errorf("%w: short ciphertext", ErrOpen)
 	}
-	out, err := gcm.Open(nil, box[:n], box[n:], sealAAD)
+	out, err := gcm.Open(nil, box[:n], box[n:], s.aad)
 	if err != nil {
 		return Plaintext{}, fmt.Errorf("%w: %w", ErrOpen, err)
 	}

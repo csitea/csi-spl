@@ -26,7 +26,9 @@
 #      pane + a note; no claude and no old process -> "respawn from the hold
 #      dir" + a note; respawn -> the old process killed, respawned once more
 #      (DONE) + a note; respawn failing twice -> a note
-#   6. the human check: a claude of the box user -> HUMAN FAIL + a note
+#   6. the human check: a claude of the box user -> HUMAN FAIL + a note; its
+#      fail message prints send.log
+#   6b. red control: a sender that drops the note fails case 6 with send.log shown
 #   7. LIFECYCLE_EVENTS=0: no event call
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -101,6 +103,7 @@ cat >"$T/bin/send" <<'EOF'
 from="" to="" kind="" task="" body=""
 while [ $# -gt 0 ]; do case "$1" in --from) from="$2"; shift 2 ;; --to) to="$2"; shift 2 ;; --kind) kind="$2"; shift 2 ;;
   --task) task="$2"; shift 2 ;; --body) body="$2"; shift 2 ;; *) shift ;; esac; done
+[ -e "$T/send.drop" ] && case "$body" in *"human's login"*) exit 0 ;; esac
 echo "send $from -> $to $kind $task: $body" >>"$T/send.log"
 EOF
 cat >"$T/bin/kill" <<'EOF'
@@ -136,7 +139,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
   LANE_START_WAIT=3 LANE_PS="$T/bin/ps" CLAUDE_BIN=/agent/home/.local/bin/claude ID=c-900
 
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$S/c-900/NOTES.md" "$T/respawn.mode" "$T/ps.stray" "$H" "$D/lane-restart.log"
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$S/c-900/NOTES.md" "$T/respawn.mode" "$T/ps.stray" "$T/send.drop" "$H" "$D/lane-restart.log"
   "$T/bin/proc" 1001 7200
   printf '%%2\t1001\n' >"$T/tmux/panes"
   echo '2026-10-03T03:00Z decided restart at 400k, not compact' >"$S/c-900/NOTES.md"
@@ -286,11 +289,18 @@ act DRY_RUN=0 SEAT_FAIL_ACTION=bogus >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'FATAL SEAT_FAIL_ACTION must be compact or respawn' "$T/o" && pass "5. a bad SEAT_FAIL_ACTION is refused" || fail "5. bogus: rc=$rc"
 
 # --- 6. the human check -------------------------------------------------------------
-world; touch "$T/ps.stray"
-act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 1 ]] && grep -q " HUMAN FAIL claude of the human's login human-x: 4242 " "$T/o" && ! grep -q 4243 "$T/o" &&
-  grep -q "a claude runs as the human's login human-x (pids: 4242)" "$T/send.log" &&
-  pass "6. a claude of the human's login: HUMAN FAIL + a note (a launcher shell is not counted)" || fail "6. rc=$rc $(cat "$T/o")"
+human_check() {
+  world; touch "$T/ps.stray"; [[ -z "${1:-}" ]] || touch "$T/send.drop"
+  act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+  [[ $rc -eq 1 ]] && grep -q " HUMAN FAIL claude of the human's login human-x: 4242 " "$T/o" && ! grep -q 4243 "$T/o" &&
+    grep -q "a claude runs as the human's login human-x (pids: 4242)" "$T/send.log" &&
+    pass "6. a claude of the human's login: HUMAN FAIL + a note (a launcher shell is not counted)" || fail "6. rc=$rc $(cat "$T/o") send.log: $(cat "$T/send.log" 2>/dev/null)"
+}
+human_check
+# 6b. red control: the sender drops the note; case 6's fail message must show send.log
+f0=$fails; human_check drop >"$T/o6b"; fails=$f0
+grep -q '^FAIL: 6\. rc=1 ' "$T/o6b" && grep -q ' HUMAN FAIL claude of the human' "$T/o6b" && grep -qF 'send.log:' "$T/o6b" &&
+  pass "6b. a lost note: case 6's fail message prints send.log" || fail "6b. $(cat "$T/o6b")"
 
 # --- 7. LIFECYCLE_EVENTS=0 --------------------------------------------------------------
 world

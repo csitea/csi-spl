@@ -22,7 +22,7 @@ import (
 var stampTables = []string{
 	"box_operators", "channel_humans", "channel_subscriptions", "channels", "deliveries", "issues",
 	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
-	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships",
+	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships", "topic_priorities",
 }
 
 // stampGlobalTables have no tenant_id: a write moves every tenant's stamp.
@@ -197,6 +197,10 @@ func TestChangeStampWriters(t *testing.T) {
 				}
 				return err
 			}},
+		{name: "topic priority", do: func(s seeded) error { // rdb 0214, spec 150 C303
+			_, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, s.humanID, at())
+			return err
+		}},
 		{name: "read marks", do: func(s seeded) error {
 			return pg.SaveReadMarks(ctx, s.tenant, s.humanID, map[string]ReadMark{"ch:lobby": {At: at().Add(time.Hour), MsgID: "m2"}}, at())
 		}},

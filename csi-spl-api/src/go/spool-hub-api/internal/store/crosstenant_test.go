@@ -336,6 +336,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.CreateBoxLock(ctx, newBoxLock(s.tenant, "box-a", testLockKey(t), hum), hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// topic_priorities (rdb 0214, spec 150 row B1): the seeded topic at 2.
+	if _, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// repo_doc_edits, repo_doc_authors, repo_doc_author_notices (rdb 0142,
 	// spec 075 repo-edit T02): one queued edit of the seeded member, their
 	// git identity and its consent. No store API yet (T06), so rows under inTenant.

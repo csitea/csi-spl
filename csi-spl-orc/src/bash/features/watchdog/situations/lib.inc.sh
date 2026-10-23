@@ -45,8 +45,10 @@ WD_AGY_AUTH_RE="you are currently not signed in|authentication required\. run 'a
 # exceeded. Please wait a moment before trying again." (spec 110 T013b),
 # plus claude's transcript entry on a usage limit, "You've hit your session
 # limit · resets 3:20pm (Europe/Helsinki)" (c-817 2026-10-10; any "hit your
-# <word> limit", grok's weekly one included).
-WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled|$WD_AGY_AUTH_RE}"
+# <word> limit", grok's weekly one included), plus agy's quota banner
+# "Individual quota reached. Please upgrade your subscription to increase your
+# limits. Resets in 13h53m38s." (a-860@sat 2026-10-23, SPL-3022; kind=limit).
+WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|individual quota reached|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled|$WD_AGY_AUTH_RE}"
 # A dead API key (spec 110 2.5, S2 kind=auth): vibe's 401 "Error: Invalid API
 # key (from env var MISTRAL_API_KEY). Please check your API key and try
 # again." No /login fixes it: the owner re-keys, so no restart either. agy's

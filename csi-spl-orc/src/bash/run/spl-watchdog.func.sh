@@ -1187,7 +1187,15 @@ spl_wd_limit_wake() { if [[ -s "$3/input" ]]; then spl_wd_repoke "$1" "$2"; else
 # unknown zone is unreadable, never a guess. A bare time is the occurrence
 # nearest NOW (within 12 h: a banner left on screen past its reset reads as
 # past); a dated one is this year's, or next year's once 180 days past.
+# agy's "Resets in 13h53m38s" (SPL-3022) is relative: NOW plus it. Read once
+# per episode, on the first tick that sees the banner, so a banner older than
+# that tick reads late by its age, never early.
 spl_wd_limit_reset() {
+  local rel='resets[[:space:]]+in[[:space:]]+(([0-9]+)d)?[[:space:]]*(([0-9]+)h)?[[:space:]]*(([0-9]+)m)?[[:space:]]*(([0-9]+)s)?'
+  if [[ "${1,,}" =~ $rel && -n "${BASH_REMATCH[2]}${BASH_REMATCH[4]}${BASH_REMATCH[6]}${BASH_REMATCH[8]}" ]]; then
+    echo $(( $2 + 10#${BASH_REMATCH[2]:-0} * 86400 + 10#${BASH_REMATCH[4]:-0} * 3600 + 10#${BASH_REMATCH[6]:-0} * 60 + 10#${BASH_REMATCH[8]:-0} ))
+    return 0
+  fi
   local re='(resets|automatically)[[:space:]]+(at[[:space:]]+)?(([a-z]{3})[a-z]*\.?[[:space:]]+([0-9]{1,2}),?[[:space:]]+(at[[:space:]]+)?)?([0-9]{1,2})(:([0-9]{2}))?[[:space:]]*([ap])\.?m([^(a-z]*\(([A-Za-z_]+(/[A-Za-z0-9_+-]+)*)\))?'
   local now="$2" nc=0 hit="" mon day h m tz d c
   shopt -q nocasematch || { shopt -s nocasematch; nc=1; }

@@ -7,13 +7,14 @@
 # tells the watchdog whether to DM the owner (login, access) or wait (limit);
 # kind=auth (spec 110 2.5) is a dead API key (WD_AUTH_RE), or agy with no
 # login (spec 132 section 7): no restart, one blocker to the dispatcher, and
-# lane-mix skips the kind until a re-key.
+# lane-mix skips the kind until a re-key. agy's "Individual quota reached"
+# names no "limit" in its match: a quota is kind=limit too (SPL-3022).
 # Usage: s2.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
 kind() {
   if grep -qiE -- "$WD_AUTH_RE" <<<"$1"; then echo auth
-  elif grep -qiE 'limit' <<<"$1"; then echo limit
+  elif grep -qiE 'limit|quota' <<<"$1"; then echo limit
   else echo login; fi
 }
 last="$(wd_last_turn)"

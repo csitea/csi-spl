@@ -243,6 +243,21 @@ grep -q "^HIT S2 kind=auth pane: authentication required. Run 'agy' to log in" <
 # the same screen under a moving spinner is still a working agent
 ctx s2as; cp "$FX/s2-agy-login.pane" "$C/pane"; echo 3 > "$C/spin_age"
 nohit "S2 control: agy's screen under a moving spinner is no hit" s2 a-900
+# agy's quota banner (a-860@sat 2026-10-23, SPL-3022, the banner line copied
+# from its pane capture): "Individual quota reached ... Resets in 13h53m38s."
+# is kind=limit with its reset, no login and no auth
+ctx s2aq; cp "$FX/s2-agy-quota.pane" "$C/pane"
+grep -qE '^HIT S2 kind=limit pane: Individual quota reached, Resets in 13h53m38s\.[[:space:]]*$' <<<"$(run_s s2 a-900)" &&
+  pass "S2 agy's 'Individual quota reached' banner is kind=limit with its reset" || fail "S2 agy quota: '$(run_s s2 a-900)'"
+# red control: the patterns before SPL-3022 read the same screen as no S2
+WD_STALL_RE='usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled' \
+  nohit "S2 red control: the pre-3022 patterns miss agy's quota banner" s2 a-900
+grep -v 'quota reached' "$FX/s2-agy-quota.pane" > "$C/pane"
+nohit "S2 control: the same agy screen without the banner line is no S2" s2 a-900
+cp "$FX/s2-agy-quota.pane" "$C/pane"; echo 3 > "$C/spin_age"
+nohit "S2 control: agy's quota banner under a moving spinner is no hit" s2 a-900
+ctx s2at; cp "$FX/agy-task-row.pane" "$C/pane"
+nohit "S2 control: agy's normal screen with its timer row is no S2" s2 a-849
 
 # S1 on vibe's unfinished plan (c-001@sat 2026-10-09, m-617 / m-618 idle
 # mid-plan after a Stop, inbox empty, n=2): a job of its own
@@ -1046,6 +1061,15 @@ for n in $((L0 + 3800)) $((L0 + 86400)); do out="$(at "$n")"; done
 [[ "$(wakes c-982)" == 1 ]] && [[ ! -s "$T/takeovers" ]] &&
   [[ "$(cat "$D/wd.log"* | grep -c "LIMIT-RESET-UNREAD c-982: .*resets 1:50am (Mars/Base).*back-off 3600s")" == 1 ]] &&
   pass "11 (c) ... ONE wake past the back-off + grace, none later in the day, no takeover, ONE wd.log line naming the text" || fail "11 (c): $out / $(cat "$D/wd.log"* | grep LIMIT)"
+# (d) agy's quota banner (SPL-3022): "Resets in 13h53m38s." is relative, read
+# from the tick that first sees it; ONE blocker names that reset, no takeover
+reset_box; rm -rf "$S"/a-*; agent a-981 %1 4081 agy 3600 "$FX/s2-agy-quota.pane"
+at $L0 >/dev/null; out="$(at $((L0 + 30)))"
+AQ=$(( L0 + 30 + 13 * 3600 + 53 * 60 + 38 ))
+grep -q 'a-981 HIT S2 kind=limit pane: Individual quota reached, Resets in 13h53m38s\. .*not able until the reset' <<<"$out" &&
+  [[ "$(cat "$D/wd/a-981.ep.S2.reset" 2>/dev/null)" == "$AQ" ]] && [[ ! -s "$T/takeovers" ]] &&
+  [[ "$(grep -c -- "--kind blocker --task wd-a-981 --body WATCHDOG (093 S2 kind=limit): a-981 is on its usage limit until $(date -u -d "@$AQ" +%FT%TZ):" "$T/sent")" == 1 ]] &&
+  pass "11 (d) agy's 'Resets in 13h53m38s' is the tick + 50018 s, ONE blocker, no takeover" || fail "11 (d) agy quota: $out / $(cat "$D/wd/a-981.ep.S2.reset" 2>/dev/null) / $(cat "$T/sent" 2>/dev/null)"
 
 # 12. a claude usage limit (no Stop): wait for the reset, never restart
 LIMTR="$FX/limit-session.jsonl"

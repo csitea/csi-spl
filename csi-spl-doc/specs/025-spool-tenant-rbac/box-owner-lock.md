@@ -139,6 +139,8 @@ and `TestJoinSealedBox` in `internal/action/`.
   until `drop-lock`, and waits 60 s per try after 5 wrong secrets. A restart leaves it sealed.
 - `boxKey` (join) takes the key from the unlocked holder for a sealed box, and refuses a sealed box that is
   not unlocked; it never makes a clear key next to a sealed one.
+- `spool keygen` refuses a sealed box, `--force` included: it exits 1, names `spool lock reseal / rebind`
+  and writes no clear `box-<id>.key` (bug round 4 row 01, SPL-2974; test `TestKeygenSealedBox` in `cmd/spool/`).
 - `spool lock sign` signs a file (stdin is the terminal the secret is typed on) and refuses a
   `spool-unlock-v1` payload. `create` and `rebind` print `signed_body` in B1's canonical form with
   `signature` (K_lock), and `create` adds `box_signature` (K_box), for the B2 routes.

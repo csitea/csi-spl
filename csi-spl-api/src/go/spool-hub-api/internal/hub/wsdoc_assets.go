@@ -195,10 +195,15 @@ func (s *Server) docAssetKeep(w http.ResponseWriter, r *http.Request, tenant, id
 }
 
 // docAssetKeepOwn is docAssetKeep in the workspace's own docs store, at
-// qto-assets/<sha256>: content-addressed, so bytes already there are kept.
+// qto-assets/<sha256>: content-addressed, so bytes already there are kept
+// and their upload time restarts, as the shared store's do: the retention
+// sweep (sweepOwnAssets) then keeps them until the doc names them.
 func (s *Server) docAssetKeepOwn(w http.ResponseWriter, r *http.Request, st blob.Store, tenant, id string, data []byte) bool {
 	key := DocAssetPrefix + id
 	if ok, err := st.Exists(r.Context(), key); err == nil && ok {
+		if err := st.Touch(context.WithoutCancel(r.Context()), key); err != nil {
+			s.o.Log.Warn().Err(err).Str("workspace", tenant).Str("sha256", id).Msg("doc asset touch")
+		}
 		return true
 	}
 	n := int64(len(data))

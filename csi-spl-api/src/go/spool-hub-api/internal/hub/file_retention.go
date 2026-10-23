@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
+
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -33,8 +35,8 @@ const (
 
 // FileSweepResult counts what one orphan sweep did.
 type FileSweepResult struct {
-	Scanned int // objects listed under t/ and tmp/
-	Deleted int // unreferenced blobs and stale tmp objects removed
+	Scanned int // objects listed under t/, tmp/ and each workspace's qto-assets/
+	Deleted int // unreferenced blobs, stale tmp objects and unnamed pictures removed
 }
 
 // SweepFiles deletes every tenant blob (t/<tenant>/files/<sha256>) that no
@@ -44,7 +46,8 @@ type FileSweepResult struct {
 // (an upload a crashed hub never promoted). Content-addressed: one sha256
 // can sit on several messages, so it goes only when NONE carries it. The
 // decision is re-checked right before each delete, so a re-upload (Touch)
-// or a send landing while the listing runs keeps the blob.
+// or a send landing while the listing runs keeps the blob. Then each
+// workspace's own docs store (sweepOwnAssets).
 func (s *Server) SweepFiles(ctx context.Context, now time.Time) (FileSweepResult, error) {
 	var r FileSweepResult
 	avatars := map[string]map[string]bool{}
@@ -85,7 +88,105 @@ func (s *Server) SweepFiles(ctx context.Context, now time.Time) (FileSweepResult
 		r.Deleted++
 		return nil
 	})
-	return r, err
+	if err != nil {
+		return r, err
+	}
+	return r, s.sweepOwnAssets(ctx, now, &r)
+}
+
+// ownAssetTenants lists the live workspaces (store.BlockerIssues has the
+// one such read): the ones whose own docs store the sweep walks.
+type ownAssetTenants interface {
+	BlockerTenants(ctx context.Context) ([]string, error)
+}
+
+// sweepOwnAssets deletes every picture in a workspace's own docs store
+// (qto-assets/<sha256>, spec 114 R3) that no doc of THAT workspace names and
+// that was uploaded more than FileOrphanGrace ago, re-checked right before
+// the delete (SPL-2963). Tenant "system" keeps the shared store, swept
+// above. A bucket that does not exist yet (dev before step 052's apply) is
+// skipped; any other store error does not stop the other workspaces and is
+// returned at the end. A store that cannot tell which pictures a doc names
+// deletes nothing.
+func (s *Server) sweepOwnAssets(ctx context.Context, now time.Time, r *FileSweepResult) error {
+	lt, ok := s.o.Store.(ownAssetTenants)
+	if _, held := s.o.Store.(docAssetStore); !ok || !held || s.o.WorkspaceDocs == nil {
+		return nil
+	}
+	tenants, err := lt.BlockerTenants(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, tenant := range tenants {
+		st, own, err := s.docAssetBucket(ctx, tenant)
+		if !own {
+			continue
+		}
+		if err == nil {
+			err = st.List(ctx, DocAssetPrefix, func(key string, up time.Time) error {
+				r.Scanned++
+				id := strings.TrimPrefix(key, DocAssetPrefix)
+				if now.Sub(up) < FileOrphanGrace || !docAssetSHA(id) {
+					return nil
+				}
+				gone, err := s.ownAssetDelete(ctx, st, tenant, id, now)
+				if gone {
+					r.Deleted++
+				}
+				return err
+			})
+		}
+		if err != nil && !bucketMissing(err) {
+			errs = append(errs, errors.Join(errors.New("workspace "+tenant+" qto-assets"), err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ownAssetDelete removes picture id from tenant's own store when no doc of
+// tenant names it and its upload is still older than the grace, both read
+// now rather than from the listing.
+func (s *Server) ownAssetDelete(ctx context.Context, st blob.Store, tenant, id string, now time.Time) (bool, error) {
+	if kept, err := s.fileKept(ctx, tenant, id); err != nil || kept {
+		return false, err
+	}
+	key := DocAssetPrefix + id
+	up, err := st.Uploaded(ctx, key)
+	if errors.Is(err, blob.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil || now.Sub(up) < FileOrphanGrace {
+		return false, err
+	}
+	if err := st.Delete(ctx, key); err != nil {
+		if errors.Is(err, blob.ErrNotFound) { // another hub process got it first
+			return false, nil
+		}
+		return false, err
+	}
+	s.fileUsage.forget(tenant)
+	return true, nil
+}
+
+// docAssetSHA: id is a lower-case hex sha256, the only name a picture has.
+func docAssetSHA(id string) bool {
+	if len(id) != 64 {
+		return false
+	}
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// bucketMissing: the store's bucket does not exist (GCS, or an S3 API's
+// NoSuchBucket); a directory store that does not exist lists nothing.
+func bucketMissing(err error) bool {
+	var api interface{ ErrorCode() string }
+	return errors.Is(err, storage.ErrBucketNotExist) || errors.As(err, &api) && api.ErrorCode() == "NoSuchBucket"
 }
 
 // orphanDelete removes key when no message in retention carries fileID and

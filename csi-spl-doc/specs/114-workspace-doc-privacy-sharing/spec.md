@@ -597,7 +597,7 @@ re-checks that the 052 buckets stay private.
   | prefix | holds | written by |
   |---|---|---|
   | `<path>.md`, `tree.json`, `.history/` | workspace md docs (today) | `PUT /v1/workspace/docs/{path}` |
-  | `qto-assets/<sha256>` | Qto doc pictures (moves from 050) | `PUT /v1/workspace/doctree/{doc}/assets/{path}` |
+  | `qto-assets/<sha256>` | Qto doc pictures (moves from 050); the hourly file retention sweep deletes one that no doc of THIS workspace names once it is older than `FileOrphanGrace` (24 h), and skips a bucket that does not exist yet (SPL-2963, `sweepOwnAssets` in `internal/hub/file_retention.go`) | `PUT /v1/workspace/doctree/{doc}/assets/{path}` |
   | `backup/<yyyy-mm-dd>/` | the daily export of that workspace's Qto docs (md + root attrs + assets index) | the backup action of 9.5 |
 
 - **Tenant `system`** (the repo docs) has no 052 bucket and keeps 051 for

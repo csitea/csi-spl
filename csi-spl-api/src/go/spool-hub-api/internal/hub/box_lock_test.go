@@ -13,6 +13,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -159,13 +160,14 @@ func (r *queueRig) online(t *testing.T, b *box, agents []string, features ...str
 // mid is a fresh message id.
 func mid() string { return uuidV4() }
 
-// Row B3 (section 5.1 paths 1, 1b, 1c, 2, 2b, 3, 10, 12b): each path is a
-// pair, the owner's message reaches box-own and the other admin's does not,
-// with one refused audit row where the path refuses a request. Path 12 (a
-// box's own send straight to box-own) is NOT covered: its call sits in
-// onSend (ws.go), batch 3; TestBoxSendLockRefusal tests its helper.
+// Row B3 (section 5.1 paths 1, 1b, 1c, 2, 2b, 3, 10, 12b) and path 12
+// (batch 3): each path is a pair, the owner's message reaches box-own and
+// the other admin's does not, with one refused audit row where the path
+// refuses a request. For path 12, a box's own send straight to box-own,
+// the pair is the peer box (delivered) and box-sh (403 box_locked).
 // RED CONTROL of the row: remove the boxLockRefusal call in dispatchCheck
-// and paths 2 and 2b go red.
+// and paths 2 and 2b go red; remove the boxSendLockRefusal call in onSend
+// (ws.go) and path 12 goes red.
 func TestBoxLockQueuePaths(t *testing.T) {
 	e, pub := queueEnv(t)
 	r := newQueueRig(t, e, pub, true)
@@ -291,6 +293,36 @@ func TestBoxLockQueuePaths(t *testing.T) {
 		}
 		if got := r.refused(t, "box_channel") - before; got != 1 {
 			t.Fatalf("box_channel refused audit +%d, want +1", got)
+		}
+	})
+
+	t.Run("12_box_send", func(t *testing.T) {
+		send := func(b *box, from string) (string, error) {
+			t.Helper()
+			cli, err := b.c.Dial(ctx, wire.RoleCLI)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeWait(cli)
+			m := chanMsg(uuidV4(), "CLE-01", "task", "run the suite")
+			m.From = from
+			_, err = cli.Send(ctx, signedIn(t, b, "box-own", "", "", m))
+			return m.MsgID, err
+		}
+		before := r.refused(t, "box_send")
+		if id, err := send(r.peer, "CLE-03"); err != nil || !r.queued("box-own", id) {
+			t.Fatalf("the peer box's send: %v, queued %v", err, r.queued("box-own", id))
+		}
+		id, err := send(r.sh, "CLE-02")
+		var he *hubclient.HubError
+		if !errors.As(err, &he) || he.Token != "box_locked" || he.Status != http.StatusForbidden {
+			t.Fatalf("box-sh send to CLE-01@box-own: %v, want 403 box_locked", err)
+		}
+		if r.queued("box-own", id) {
+			t.Fatal("box-sh send was queued to box-own")
+		}
+		if got := r.refused(t, "box_send") - before; got != 1 {
+			t.Fatalf("box_send refused audit +%d, want +1", got)
 		}
 	})
 

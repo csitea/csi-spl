@@ -233,10 +233,12 @@ and has no hub route that grants it.
 - `POST /v1/channels/{c}/agents` for an agent on a locked box is 403 `box_locked` for a non-owner (audit
   `channel_agent_add`), and a back-fill sends only the earlier posts the fan-out would have delivered (1c).
 - A lock read error refuses: 503 `store_unavailable` on a request, a skipped box in a loop, a pending back-fill.
-- **Path 12 is NOT covered.** A box's own send straight to a locked-box agent needs one call in `onSend`
-  (`internal/hub/ws.go`, row B2's file, the refusal chain at lines 622-641):
-  `if rf == nil { rf = s.boxSendLockRefusal(ctx, x, env, m) }`. That call moves to batch 3 (dispatcher,
-  msg e63df138). The helper (peer rule, audit path `box_send`) is built and tested, but nothing calls it yet.
+- **As built (path 12, batch 3, SPL-2993)**: a box's own send straight to a locked-box agent is refused in
+  `onSend` (`internal/hub/ws.go`), right after `sendRouteRefusal` has checked `to_box`:
+  `if rf == nil { rf = s.boxSendLockRefusal(ctx, x, env, m) }` (dispatcher, msg e63df138). A send from the
+  locked box itself or a peer box passes; any other box gets 403 `box_locked`, nothing is queued, and one
+  `box_send` audit row is written. Test: `TestBoxLockQueuePaths/12_box_send` (the peer box delivered,
+  `box-sh` refused); remove the call and it goes red.
 
 ### 5.3 What the owner box does on its own (defence in depth)
 
@@ -534,4 +536,4 @@ after the panel signs this plan, without a further owner go (rounds rulebook 1.4
 | reviewer (docs review) | mistral, m-797@sat | CHANGES 5.1, 10 (msg 71c78d32) on v0.1 `5e019c763`; folded in v0.2: `fleet_load.go:119` was a comment line (now `:120`, `fleetLoadCaller`); the queue sites `retired_reply.go:75`, `ws.go:238`, `ws.go:985`, `fallback.go:256/:335/:382`, `backfill.go:160` added to 5.1 and the queue-write inventory to 5.2. Its other 9 "file not found / no function" items arrived with the paths stripped; every 5.1 reference re-read on `10e12f038`: 0 more wrong | 2026-10-22 |
 | reviewer (docs review) | mistral, m-797@sat | **SIGNED at `201f2e3a8`** (msg 7e792038) | 2026-10-22 |
 
-<!-- version: 1.0.0 · updated: 2026-10-23 · last-edit: 2026-10-23T01:20:00Z -->
+<!-- version: 1.0.0 · updated: 2026-10-23 · last-edit: 2026-10-23T05:28:17Z -->

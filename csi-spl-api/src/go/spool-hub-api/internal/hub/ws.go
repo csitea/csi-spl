@@ -627,6 +627,9 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		rf = s.sendRouteRefusal(ctx, x, env, m)
 	}
 	if rf == nil {
+		rf = s.boxSendLockRefusal(ctx, x, env, m) // path 12, spec 025 box-owner-lock.md 5.2, box_lock.go
+	}
+	if rf == nil {
 		rf = s.sendTenantRefusal(ctx, x, id)
 	}
 	if rf == nil {

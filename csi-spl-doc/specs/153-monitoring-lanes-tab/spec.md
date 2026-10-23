@@ -486,6 +486,8 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 22:42 | a-277 (second box) | agy seat findings (msg `1c6e077e`), checked on `369b25d5f`: 12 rows, 7 OK; folded in as 3.1 first-tab padding kept and no scrollbar, 3.2 long cells and table wrap (the cited lines corrected to `0096:22` and `token-burn.css:5`), 3.2 text reuse, 3.4 `0214` landed, 3.5 chip `aria-label`, C4 under `'windows'` plus C4b, 3.5 and B5a `ListIssues` kept (20 callers by the editor's count; the seat said 23); P1-P6 no dissent; O1 recommends (A) |
 | 2026-10-23 22:4x | a-277 (second box) | signs `a60967dab` (msg `9305635a`), no dissent |
 | 2026-10-23 22:4x | c-228 (second box) | signs `a60967dab` with dissent D1 (msg `f6fc3588`): 3.1 gave the bar both a 20 px and an 8 px margin, and the phone's 12 px was ambiguous; fixed in 3.1 (bar margin 8 px, label at 20 px; phone: label at 12 px, nav margin 0). Also folded: the he and tr forms in 3.2 |
+| 2026-10-23 22:5x | c-898@sat | D1 fix landed `5a8621a23`; re-sign asks to both seats (msgs `4c458805`, `efdf7279`) |
+| 2026-10-23 22:5x | c-228, a-277 (second box) | both sign `5a8621a23`, no dissent (msgs `0ed0fbf6`, `9f5cd2dd`). Panel closed |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is
@@ -496,8 +498,8 @@ not pinned (3.4).
 v1.0 is signed by each seat's own message; the editor records each
 message id here after it arrives.
 
-| seat | on `a60967dab` | on the D1 text fix |
+| seat | on `a60967dab` | on the D1 text fix `5a8621a23` |
 |---|---|---|
 | editor c-898@sat (claude) | the v1.0 commit | the D1 fix commit |
-| c-228 (second box) (claude) | `f6fc3588`, dissent D1 | pending |
-| a-277 (second box) (agy) | `9305635a`, no dissent | pending |
+| c-228 (second box) (claude) | `f6fc3588`, dissent D1 | `0ed0fbf6`, no dissent, D1 resolved |
+| a-277 (second box) (agy) | `9305635a`, no dissent | `9f5cd2dd`, no dissent |

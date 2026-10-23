@@ -47,6 +47,8 @@
 #      watchdog's pane capture, or an S2 kind=limit verdict on an a- lane): a
 #      review row holds, queued, and blocks no other row; a non-review docs
 #      row launches claude (CONTROL: a banner past its reset launches agy)
+#  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
+#      of quota, review or not (CONTROL: agy in quota launches it as agy)
 #  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
@@ -654,6 +656,30 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=a-513 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$Q1")")" == "placed: a-513@box-desk" ]] &&
   grep -q "^agy auto $T $T/briefs/ui-r7.md ui-r7$" "$T/launch.log" && ! grep -q "^${Q1}"$'\t' "$T/pc/spool/asks/.place.wait" &&
   pass "SPL-3018 control: a banner past its reset = agy in: the review row launches agy" || fail "agy in: $out | $(cat "$T/launch.log")"
+rm -rf "$WD13"
+
+# 13c. SPL-3024: a row placed directly as agy:<slug> (agy chosen on purpose,
+# no swap) HOLDS while agy is out of quota, review or not: launching claude
+# would change the vendor someone picked. CONTROL: agy in quota launches it
+# as agy.
+Q3=bbbb0003-0000-4000-8000-000000000003
+mkdir -p "$WD13/ctx.3/a-860"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WD13/ctx.3/a-860/pane"
+printf 'Kind: specs_and_docs\nRewrite csi-spl-doc/doc/md/agy-direct.md\n%s\n' "$ES" >"$T/briefs/agy-direct.md"
+put "$Q3" c-002@box-desk dispatch-placer-direct-agy "SPAWN REQUEST agy direct"
+on pc do_spl_spawn_enqueue ASK_ID="$Q3" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-direct >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=a-514 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$Q3")")" == queued && ! -s "$T/launch.log" ]] &&
+  [[ "$(grep -c "INFO hold: ask ${Q3:0:8}: placed as agy, and agy is out of quota until 20[0-9-]*T[0-9:]*Z (a-860 banner" <<<"$out")" == 1 ]] &&
+  grep -q "^${Q3}"$'\t'".*agy is out of quota until" "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3024: agy out + a row placed as agy (not a review): held, queued, not launched, the reset named" || fail "agy direct out: $out | $(cat "$T/launch.log")"
+rm -rf "$WD13/ctx.3"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=a-515 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$Q3")")" == "placed: a-515@box-desk" ]] &&
+  grep -q "^agy auto $T $T/briefs/agy-direct.md agy-direct$" "$T/launch.log" && ! grep -q "^${Q3}"$'\t' "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3024 control: agy in quota: the row placed as agy launches agy" || fail "agy direct in: $out | $(cat "$T/launch.log")"
 rm -rf "$WD13"
 
 # 14. SPL-2429: a human sender's notes go to the dispatch lease holder -------------

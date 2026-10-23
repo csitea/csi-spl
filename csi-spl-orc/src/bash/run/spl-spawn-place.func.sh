@@ -72,7 +72,9 @@
 # @description         HOLDS when it is a review (brief Kind: review, or
 # @description         "review" in its file name or first heading): queued, out
 # @description         of the line, the reset in .place.wait; any other such
-# @description         row launches claude
+# @description         row launches claude. A row placed directly as agy:<slug>
+# @description         HOLDS too, review or not (SPL-3024): agy was picked on
+# @description         purpose, claude would change the vendor
 # @description      CODING RULE (owner HUM-10, t1 b61851fb, msg 91bf8278): a
 # @description         mistral placement whose brief's "Kind:" is not
 # @description         specs_and_docs or i18n (none counts as coding) launches
@@ -473,9 +475,9 @@ spl_spawn_place_review() {  # BRIEF
 # lane-mix's verdict (_spl_lane_mix_limit agy: a watchdog S2 kind=limit on an
 # a- lane, held LANE_MIX_LIMIT_FRESH s), and agy's own banner "Individual
 # quota reached ... Resets in 13h53m38s" in the watchdog's pane capture
-# (<wd>/ctx*/a-*/pane; the reset is its mtime + that time). The banner is the
-# one that fires today: the watchdog's stall pattern does not match it
-# (2026-10-23: 10 a- captures with it, no S2 verdict on any a- lane).
+# (<wd>/ctx*/a-*/pane; the reset is its mtime + that time). Both fire since
+# SPL-3022 made the watchdog read that banner as S2 kind=limit; the banner
+# alone also covers a lane the watchdog has not judged yet.
 spl_spawn_place_agy_out() {
   local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 ev="" hit
   now="$(date +%s)"
@@ -493,25 +495,32 @@ spl_spawn_place_agy_out() {
 }
 
 # 2c. While agy is out of quota here (spl_spawn_place_agy_out), a queued row
-# the placer launches whose swap is to agy (spl_spawn_place_swap) and which is
-# a review (spl_spawn_place_review) HOLDS (SPL-3018): it stays queued and out
-# of this tick's line, so it blocks no other row; one INFO line and its
-# .place.wait line name the reset. claude would break the cross-vendor review
-# of a claude author (SPL-2942). Prints ROWS minus the held ones.
+# the placer launches HOLDS when it is placed as agy (SPL-3024: agy was picked
+# on purpose, review or not), or when its swap is to agy (spl_spawn_place_swap)
+# and it is a review (spl_spawn_place_review, SPL-3018): claude would break
+# the cross-vendor review of a claude author (SPL-2942). A held row stays
+# queued and out of this tick's line, so it blocks no other row; one INFO line
+# and its .place.wait line name the reset. Prints ROWS minus the held ones.
 spl_spawn_place_agy_hold() {  # MARKED ROWS
-  local out="" id slug brief why held=()
-  while IFS=$'\t' read -r id slug; do
+  local out="" id vendor slug brief why held=()
+  while IFS=$'\t' read -r id vendor slug; do
     brief="$(spl_spawn_place_brief "$slug")"
-    [[ -n "$brief" && "$(spl_spawn_place_swap mistral "$brief" | cut -f1)" == agy ]] || continue
-    spl_spawn_place_review "$brief" || continue
+    [[ -n "$brief" ]] || continue
+    if [[ "$vendor" == agy ]]; then
+      why="placed as agy"
+    else
+      [[ "$(spl_spawn_place_swap mistral "$brief" | cut -f1)" == agy ]] || continue
+      spl_spawn_place_review "$brief" || continue
+      why="a review row stays cross-vendor (SPL-2942)"
+    fi
     [[ -n "$out" ]] || out="$(spl_spawn_place_agy_out)"
     [[ -n "$out" ]] || break
-    why="a review row stays cross-vendor (SPL-2942), and $out"
+    why="$why, and $out"
     spl_spawn_place_wait "$id" "$why"
     do_log "INFO hold: ask ${id:0:8}: $why; it stays queued" >&2
     held+=("$id")
-  done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | startswith("mistral:")))
-    | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))
+    | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 

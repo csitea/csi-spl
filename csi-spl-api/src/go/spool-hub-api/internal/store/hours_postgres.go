@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// The Postgres side of hours.go (rdb 0151, 0176). Every statement runs in the
+// The Postgres side of hours.go (rdb 0151, 0176, 0218). Every statement runs in the
 // tenant's RLS scope (FORCE RLS): a query that forgot its tenant_id still
 // cannot reach another workspace. A per-member statement runs in the member
 // scope too (inMember, rdb 0176's member_scope): one that forgot its
@@ -56,15 +57,22 @@ func (s *Postgres) HoursMinutes(ctx context.Context, tenant, member string, from
 
 func (s *Postgres) HoursEntries(ctx context.Context, tenant, member, from, to string) ([]HoursEntry, error) {
 	out := []HoursEntry{}
-	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, minutes, suggested_minutes, state,
-			coalesce(note, ''), updated_at, updated_by
+	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, kind, minutes, suggested_minutes, state,
+			coalesce(note, ''), coalesce(absence_type, ''), coalesce(entered_by, ''), coalesce(reason, ''),
+			category_minutes, updated_at, updated_by
 		FROM hours_entries
 		WHERE tenant_id = $1 AND member_id = $2 AND day BETWEEN $3::date AND $4::date
-		ORDER BY day, target`, []any{tenant, member, from, to}, func(r pgx.Rows) error {
+		ORDER BY day, target, kind`, []any{tenant, member, from, to}, func(r pgx.Rows) error {
 		var e HoursEntry
-		if err := r.Scan(&e.Day, &e.Target, &e.Minutes, &e.SuggestedMinutes, &e.State,
-			&e.Note, &e.UpdatedAt, &e.UpdatedBy); err != nil {
+		var cats []byte
+		if err := r.Scan(&e.Day, &e.Target, &e.Kind, &e.Minutes, &e.SuggestedMinutes, &e.State,
+			&e.Note, &e.AbsenceType, &e.EnteredBy, &e.Reason, &cats, &e.UpdatedAt, &e.UpdatedBy); err != nil {
 			return err
+		}
+		if cats != nil {
+			if err := json.Unmarshal(cats, &e.CategoryMinutes); err != nil {
+				return err
+			}
 		}
 		e.UpdatedAt = e.UpdatedAt.UTC()
 		out = append(out, e)
@@ -73,13 +81,27 @@ func (s *Postgres) HoursEntries(ctx context.Context, tenant, member, from, to st
 	return out, err
 }
 
-const hoursEntriesUpsert = `INSERT INTO hours_entries (tenant_id, member_id, day, target, minutes,
-		suggested_minutes, state, note, updated_at, updated_by)
-	SELECT $1, $2, u.d, u.t, u.m, u.sm, u.st, NULLIF(u.n, ''), $9, $10
-	FROM unnest($3::date[], $4::text[], $5::int[], $6::int[], $7::text[], $8::text[]) AS u(d, t, m, sm, st, n)
-	ON CONFLICT (tenant_id, member_id, day, target) DO UPDATE
+// hoursEntriesUpsert is the natural-key upsert on rdb 0218's five-column key.
+const hoursEntriesUpsert = `INSERT INTO hours_entries (tenant_id, member_id, day, target, kind, minutes,
+		suggested_minutes, state, note, absence_type, entered_by, reason, category_minutes, updated_at, updated_by)
+	SELECT $1, $2, u.d, u.t, u.k, u.m, u.sm, u.st, NULLIF(u.n, ''), NULLIF(u.ab, ''), NULLIF(u.eb, ''),
+		NULLIF(u.r, ''), NULLIF(u.c, '')::jsonb, $14, $15
+	FROM unnest($3::date[], $4::text[], $5::text[], $6::int[], $7::int[], $8::text[], $9::text[],
+		$10::text[], $11::text[], $12::text[], $13::text[]) AS u(d, t, k, m, sm, st, n, ab, eb, r, c)
+	ON CONFLICT (tenant_id, member_id, day, target, kind) DO UPDATE
 	SET minutes = EXCLUDED.minutes, suggested_minutes = EXCLUDED.suggested_minutes, state = EXCLUDED.state,
-		note = EXCLUDED.note, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`
+		note = EXCLUDED.note, absence_type = EXCLUDED.absence_type, entered_by = EXCLUDED.entered_by,
+		reason = EXCLUDED.reason, category_minutes = EXCLUDED.category_minutes,
+		updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`
+
+// hoursCategoryJSON is e's category split as jsonb text; "" = NULL.
+func hoursCategoryJSON(e HoursEntry) (string, error) {
+	if e.CategoryMinutes == nil {
+		return "", nil
+	}
+	b, err := json.Marshal(e.CategoryMinutes)
+	return string(b), err
+}
 
 // hoursCapOver is the first of the days whose approved minutes exceed the cap.
 const hoursCapOver = `SELECT day::text FROM hours_entries
@@ -101,17 +123,23 @@ func (s *Postgres) PutHoursEntries(ctx context.Context, tenant, member string, e
 		return err
 	}
 	n := len(es)
-	d, tg, st, note := make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+	d, tg, kd, st, note := make([]string, n), make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+	ab, eb, rs, cat := make([]string, n), make([]string, n), make([]string, n), make([]string, n)
 	m, sm := make([]int, n), make([]int, n) // 0..1440, checked; the SQL casts to int
 	for i, e := range es {
-		d[i], tg[i], st[i], note[i] = e.Day, e.Target, e.State, e.Note
+		d[i], tg[i], kd[i], st[i], note[i] = e.Day, e.Target, e.Kind, e.State, e.Note
+		ab[i], eb[i], rs[i] = e.AbsenceType, e.EnteredBy, e.Reason
 		m[i], sm[i] = e.Minutes, e.SuggestedMinutes
+		if cat[i], err = hoursCategoryJSON(e); err != nil {
+			return err
+		}
 	}
 	err = s.inMember(ctx, tenant, member, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, hoursMemberLock, tenant, member); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, hoursEntriesUpsert, tenant, member, d, tg, m, sm, st, note, now.UTC(), by); err != nil {
+		if _, err := tx.Exec(ctx, hoursEntriesUpsert, tenant, member, d, tg, kd, m, sm, st, note,
+			ab, eb, rs, cat, now.UTC(), by); err != nil {
 			return err
 		}
 		if err := putHoursSpans(ctx, tx, tenant, member, es); err != nil {
@@ -133,26 +161,28 @@ func (s *Postgres) PutHoursEntries(ctx context.Context, tenant, member string, e
 // hoursSpansDropActivity removes the activity spans of the entries a write
 // replaces them for (spec 107 3.4).
 const hoursSpansDropActivity = `DELETE FROM hours_entry_spans s
-	USING unnest($3::date[], $4::text[]) AS u(d, t)
-	WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.day = u.d AND s.target = u.t AND s.src = 'activity'`
+	USING unnest($3::date[], $4::text[], $5::text[]) AS u(d, t, k)
+	WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.day = u.d AND s.target = u.t AND s.kind = u.k
+		AND s.src = 'activity'`
 
 // hoursSpansInsert inserts spans; with hoursSpansSkip (the activity spans)
 // a span that overlaps a stored one is skipped, not refused.
 const (
-	hoursSpansInsert = `INSERT INTO hours_entry_spans (tenant_id, member_id, day, target, start_at, end_at, src)
-	SELECT $1, $2, u.d, u.t, u.s, u.e, u.src
-	FROM unnest($3::date[], $4::text[], $5::timestamptz[], $6::timestamptz[], $7::text[]) AS u(d, t, s, e, src)`
+	hoursSpansInsert = `INSERT INTO hours_entry_spans (tenant_id, member_id, day, target, kind, start_at, end_at, src)
+	SELECT $1, $2, u.d, u.t, u.k, u.s, u.e, u.src
+	FROM unnest($3::date[], $4::text[], $5::text[], $6::timestamptz[], $7::timestamptz[], $8::text[])
+		AS u(d, t, k, s, e, src)`
 	hoursSpansSkip = ` ON CONFLICT DO NOTHING`
 )
 
 // hoursSpanCols is one INSERT's spans as unnest columns.
 type hoursSpanCols struct {
-	d, tg, src []string
-	st, en     []time.Time
+	d, tg, kd, src []string
+	st, en         []time.Time
 }
 
 func (c *hoursSpanCols) add(e HoursEntry, sp HoursSpan) {
-	c.d, c.tg, c.src = append(c.d, e.Day), append(c.tg, e.Target), append(c.src, sp.Src)
+	c.d, c.tg, c.kd, c.src = append(c.d, e.Day), append(c.tg, e.Target), append(c.kd, e.Kind), append(c.src, sp.Src)
 	c.st, c.en = append(c.st, sp.Start), append(c.en, sp.End)
 }
 
@@ -163,11 +193,11 @@ func (c *hoursSpanCols) add(e HoursEntry, sp HoursSpan) {
 // then the activity spans, the hub's own derivation, skipped where they
 // overlap a stored span (their minutes stay unplaced, spec 118 6.2).
 func putHoursSpans(ctx context.Context, tx pgx.Tx, tenant, member string, es []HoursEntry) error {
-	var rd, rt []string
+	var rd, rt, rk []string
 	var own, act hoursSpanCols
 	for _, e := range es {
 		if hoursReplacesActivity(e) {
-			rd, rt = append(rd, e.Day), append(rt, e.Target)
+			rd, rt, rk = append(rd, e.Day), append(rt, e.Target), append(rk, e.Kind)
 		}
 		for _, sp := range e.Spans {
 			if sp.Src == HoursSpanActivity {
@@ -178,12 +208,12 @@ func putHoursSpans(ctx context.Context, tx pgx.Tx, tenant, member string, es []H
 		}
 	}
 	if len(rd) > 0 {
-		if _, err := tx.Exec(ctx, hoursSpansDropActivity, tenant, member, rd, rt); err != nil {
+		if _, err := tx.Exec(ctx, hoursSpansDropActivity, tenant, member, rd, rt, rk); err != nil {
 			return err
 		}
 	}
 	if len(own.d) > 0 {
-		_, err := tx.Exec(ctx, hoursSpansInsert, tenant, member, own.d, own.tg, own.st, own.en, own.src)
+		_, err := tx.Exec(ctx, hoursSpansInsert, tenant, member, own.d, own.tg, own.kd, own.st, own.en, own.src)
 		var pe *pgconn.PgError
 		if errors.As(err, &pe) && (pe.Code == "23P01" || (pe.Code == "23505" && pe.ConstraintName == "hours_entry_spans_pkey")) {
 			return ErrHoursOverlap
@@ -193,7 +223,7 @@ func putHoursSpans(ctx context.Context, tx pgx.Tx, tenant, member string, es []H
 		}
 	}
 	if len(act.d) > 0 {
-		_, err := tx.Exec(ctx, hoursSpansInsert+hoursSpansSkip, tenant, member, act.d, act.tg, act.st, act.en, act.src)
+		_, err := tx.Exec(ctx, hoursSpansInsert+hoursSpansSkip, tenant, member, act.d, act.tg, act.kd, act.st, act.en, act.src)
 		return err
 	}
 	return nil
@@ -201,12 +231,12 @@ func putHoursSpans(ctx context.Context, tx pgx.Tx, tenant, member string, es []H
 
 func (s *Postgres) HoursEntrySpans(ctx context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error) {
 	out := []HoursEntrySpan{}
-	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, start_at, end_at, src
+	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, kind, start_at, end_at, src
 		FROM hours_entry_spans
 		WHERE tenant_id = $1 AND member_id = $2 AND day BETWEEN $3::date AND $4::date
 		ORDER BY start_at`, []any{tenant, member, from, to}, func(r pgx.Rows) error {
 		var sp HoursEntrySpan
-		if err := r.Scan(&sp.Day, &sp.Target, &sp.Start, &sp.End, &sp.Src); err != nil {
+		if err := r.Scan(&sp.Day, &sp.Target, &sp.Kind, &sp.Start, &sp.End, &sp.Src); err != nil {
 			return err
 		}
 		sp.Start, sp.End = sp.Start.UTC(), sp.End.UTC()
@@ -221,7 +251,8 @@ func (s *Postgres) DeleteHoursEntry(ctx context.Context, tenant, member, day, ta
 		return err
 	}
 	tag, err := s.execMember(ctx, tenant, member, `DELETE FROM hours_entries
-		WHERE tenant_id = $1 AND member_id = $2 AND day = $3::date AND target = $4`, tenant, member, day, target)
+		WHERE tenant_id = $1 AND member_id = $2 AND day = $3::date AND target = $4 AND kind = 'work'`,
+		tenant, member, day, target)
 	if err != nil {
 		return err
 	}
@@ -322,7 +353,7 @@ func (s *Postgres) HoursIdleMinutes(ctx context.Context, tenant, member string) 
 
 // hoursPGErr maps a foreign-key violation (no such tenant) to ErrNotFound and
 // a CHECK violation to ErrHoursBad; the store's own checks run first, so
-// either means the row was refused by rdb 0151.
+// either means the row was refused by rdb 0151 or 0218.
 func hoursPGErr(err error) error {
 	var pe *pgconn.PgError
 	if !errors.As(err, &pe) {

@@ -109,13 +109,14 @@ func (s *Memory) pruneAgedHoursMinutes(_ context.Context, before time.Time) (int
 
 // memSweepEntriesLocked adds es where no entry is, all or none (the cap).
 func (s *Memory) memSweepEntriesLocked(k [2]string, p HoursPeriod, es []HoursEntry) error {
-	next := map[[2]string]HoursEntry{}
+	next := map[hoursEntryKey]HoursEntry{}
 	for dk, e := range s.hrs.entries[k] {
 		next[dk] = e
 	}
 	var days []string
 	for _, e := range es {
-		dk := [2]string{e.Day, e.Target}
+		e.Kind = HoursKindWork // the sweep writes work rows only (rdb 0218 default)
+		dk := e.key()
 		if _, ok := next[dk]; ok {
 			continue // the worker's own decision stays
 		}

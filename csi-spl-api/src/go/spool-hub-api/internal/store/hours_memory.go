@@ -6,19 +6,19 @@ import (
 	"time"
 )
 
-// memHours is Memory's rdb 0151 and 0176 tables, guarded by Memory.mu, each
-// keyed by (tenant, member).
+// memHours is Memory's rdb 0151, 0176 and 0218 tables, guarded by Memory.mu,
+// each keyed by (tenant, member).
 type memHours struct {
-	minutes map[[2]string]map[int64]HoursMinute    // unix minute -> row
-	entries map[[2]string]map[[2]string]HoursEntry // (day, target) -> row
-	periods map[[2]string]map[string]HoursPeriod   // period start -> row
-	spans   map[[2]string][]HoursEntrySpan         // by start
+	minutes map[[2]string]map[int64]HoursMinute        // unix minute -> row
+	entries map[[2]string]map[hoursEntryKey]HoursEntry // (day, target, kind) -> row
+	periods map[[2]string]map[string]HoursPeriod       // period start -> row
+	spans   map[[2]string][]HoursEntrySpan             // by start
 }
 
 func (h *memHours) init() {
 	if h.minutes == nil {
 		h.minutes = map[[2]string]map[int64]HoursMinute{}
-		h.entries = map[[2]string]map[[2]string]HoursEntry{}
+		h.entries = map[[2]string]map[hoursEntryKey]HoursEntry{}
 		h.periods = map[[2]string]map[string]HoursPeriod{}
 		h.spans = map[[2]string][]HoursEntrySpan{}
 	}
@@ -88,7 +88,14 @@ func (s *Memory) HoursEntries(_ context.Context, tenant, member, from, to string
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].Day < out[j].Day || (out[i].Day == out[j].Day && out[i].Target < out[j].Target)
+		a, b := out[i], out[j]
+		if a.Day != b.Day {
+			return a.Day < b.Day
+		}
+		if a.Target != b.Target {
+			return a.Target < b.Target
+		}
+		return a.Kind < b.Kind
 	})
 	return out, nil
 }
@@ -108,13 +115,14 @@ func (s *Memory) PutHoursEntries(ctx context.Context, tenant, member string, es 
 		return err
 	}
 	k := [2]string{tenant, member}
-	next := map[[2]string]HoursEntry{}
+	next := map[hoursEntryKey]HoursEntry{}
 	for dk, e := range s.hrs.entries[k] {
 		next[dk] = e
 	}
 	for _, e := range es {
 		e.UpdatedAt, e.UpdatedBy, e.Spans = now.UTC(), by, nil
-		next[[2]string{e.Day, e.Target}] = e
+		e.CategoryMinutes = copyCategoryMinutes(e.CategoryMinutes)
+		next[e.key()] = e
 	}
 	if err := memHoursCap(next, days); err != nil {
 		return err
@@ -132,22 +140,22 @@ func (s *Memory) PutHoursEntries(ctx context.Context, tenant, member string, es 
 // (ErrHoursOverlap on an overlap), then the activity spans that overlap
 // nothing.
 func memHoursSpans(old []HoursEntrySpan, es []HoursEntry) ([]HoursEntrySpan, error) {
-	drop := map[[2]string]bool{}
+	drop := map[hoursEntryKey]bool{}
 	for _, e := range es {
 		if hoursReplacesActivity(e) {
-			drop[[2]string{e.Day, e.Target}] = true
+			drop[e.key()] = true
 		}
 	}
 	out := []HoursEntrySpan{}
 	for _, sp := range old {
-		if !(sp.Src == HoursSpanActivity && drop[[2]string{sp.Day, sp.Target}]) {
+		if !(sp.Src == HoursSpanActivity && drop[hoursEntryKey{sp.Day, sp.Target, sp.Kind}]) {
 			out = append(out, sp)
 		}
 	}
 	var own, act []HoursEntrySpan
 	for _, e := range es {
 		for _, sp := range e.Spans {
-			row := HoursEntrySpan{Day: e.Day, Target: e.Target, HoursSpan: sp}
+			row := HoursEntrySpan{Day: e.Day, Target: e.Target, Kind: e.Kind, HoursSpan: sp}
 			if sp.Src == HoursSpanActivity {
 				act = append(act, row)
 			} else {
@@ -195,8 +203,20 @@ func (s *Memory) HoursEntrySpans(_ context.Context, tenant, member, from, to str
 	return out, nil
 }
 
+// copyCategoryMinutes keeps a stored row from sharing the caller's map.
+func copyCategoryMinutes(c map[string]int) map[string]int {
+	if c == nil {
+		return nil
+	}
+	out := make(map[string]int, len(c))
+	for k, v := range c {
+		out[k] = v
+	}
+	return out
+}
+
 // memHoursCap is ErrHoursDayCap when one of days sums above the cap.
-func memHoursCap(rows map[[2]string]HoursEntry, days []string) error {
+func memHoursCap(rows map[hoursEntryKey]HoursEntry, days []string) error {
 	sum := map[string]int{}
 	for _, e := range rows {
 		sum[e.Day] += hoursEntryCounts(e)
@@ -215,14 +235,14 @@ func (s *Memory) DeleteHoursEntry(ctx context.Context, tenant, member, day, targ
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	k, dk := [2]string{tenant, member}, [2]string{day, target}
+	k, dk := [2]string{tenant, member}, hoursEntryKey{day, target, HoursKindWork}
 	if _, ok := s.hrs.entries[k][dk]; !ok {
 		return ErrNotFound
 	}
 	delete(s.hrs.entries[k], dk)
 	kept := []HoursEntrySpan{} // the FK's cascade
 	for _, sp := range s.hrs.spans[k] {
-		if sp.Day != day || sp.Target != target {
+		if sp.Day != day || sp.Target != target || sp.Kind != HoursKindWork {
 			kept = append(kept, sp)
 		}
 	}

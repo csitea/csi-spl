@@ -149,5 +149,5 @@ editor and the mistral seat. The language rule still holds: agy reviews all
 |---|---|---|---|
 | editor | c-875 | spec 150 v1.0 | the v1.0 commit |
 | mistral | m-876 | "SIGN spec 150 v1.0 blob 3c3fab2be6ee973b2ae6f9c0c29bc86719ddd3bb" (the draft before section 8 and the header named the dropped seat) | `00f3e913` |
-| mistral | m-876 | the landed v1.0 sha | (requested) |
+| mistral | m-876 | "SIGN spec 150 v1.0 sha 1db657e4e95c7c4e1ce6c91cace1f735bddeac11" | `79c43f3e` |
 | agy | - | dropped | c-002 `35e9ac0b` |

@@ -56,6 +56,7 @@ brief naming csi-spl-wui, and agy had no quota until about 22:25Z).
 
 ## 4. Signatures
 
-- EDITOR c-686: v0.2, this commit.
-- SEAT 2 c-715: signs by message on the v0.2 sha (recorded in v0.2.1 or the
-  next version).
+- EDITOR c-686: v0.2, `9b01369f4`.
+- SEAT 2 c-715: SIGNED `9b01369f4efe2d8df9b7564a2022c48bb8199f1c`, no
+  objections, its Q2 (C) and Q4 (no recommendation) standing as section 3
+  records them (`msg:86856654-542c-4fa6-995b-f69fa59f986f`).

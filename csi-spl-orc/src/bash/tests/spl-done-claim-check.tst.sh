@@ -23,6 +23,11 @@
 # SPL-2930: a sha on the trunk of the sender lane's OWN repo (its worktree in
 # registry.tsv or workdirs.tsv; no cnf list) is landed; a failed fetch of that
 # repo judges on its last fetched trunk and says so, never "not an object".
+# SPL-3020: a sha the check could not judge (only in a repo whose fetch
+# failed; no object anywhere while a repo failed its fetch or the lane's own
+# repo was never read) is "not checked", no note; a local-trunk repo (`git
+# config spool.localTrunk <branch>`) is judged on that local branch. A lane
+# citing a no-object sha below has a registry worktree, as a live lane does.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -129,8 +134,9 @@ printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n%s\n' \
   "$T/wt/c-561	worktree	c-561	box-a	c-561-c002-rel-seat2-claude	$(iso "$NOW")" \
   "$T/wt/m-562	worktree	m-562	box-a	m-562-c002-test-reflection-round-plan	$(iso "$NOW")" \
   "$T/wt/m-567	worktree	m-567	box-a	m-567-c002-done-claim-skip-seat-lanes	$(iso "$NOW")" >"$SP/workdirs.tsv"
-printf 'c-565\tclaude\t%%1\t%s\t20261017T000000Z\nc-575\tclaude\t%%2\t%s\t%s\n' "$T/wt/c-565" "$T/wt/c-575" \
+printf 'c-565\tclaude\t%%1\t%s\t20261017T000000Z\nc-575\tclaude\t%%2\t%s\t%s\n' "$T/wt/c-565" "$T/wt/c-563" \
   "$(date -u -d "@$((NOW - 3600))" +%Y%m%dT%H%M%SZ)" >"$SP/registry.tsv"
+for l in c-571 c-572 c-574; do printf '%s\tclaude\t%%9\t%s\t-\n' "$l" "$T/wt/c-563" >>"$SP/registry.tsv"; done
 jq -n '{v:1, msg_id:"note", from:"c-549", to:"c-002", kind:"note", ts:"x", body:"no sha, a note"}' >"$SP/c-002/inbox/note.json"
 
 cat >"$T/send.sh" <<'EOF'
@@ -224,6 +230,7 @@ msg c-002/archive unl c-581 c-002 30 "- sha: $LOCAL
 msg c-002/archive none c-582 c-002 30 "sha: none
 landed ${LANDED:0:9}"
 msg c-002/archive nolabel c-583 c-002 30 "landed ${LANDED:0:9}, quoted 9c0ffee12345"
+for l in c-583 c-584 c-585; do printf '%s\tclaude\t%%9\t%s\t-\n' "$l" "$T/wt/c-563" >>"$SP/registry.tsv"; done
 run; rc=$?
 v="$(for k in quoted unl none nolabel; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
 [ "$rc" = 0 ] && [ "$v" = "quoted=landed unl=would-alert none=landed nolabel=would-alert " ] &&
@@ -422,8 +429,9 @@ msg c-002/archive noflocal m-802 c-002 25 "- sha: ${NOFLOCAL:0:12}"
   pass "16. control: the own repo's sha is in neither checked repo; the second own repo's fetch fails" || fail "16. control: fixture"
 run DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
 v="$(for k in own nof noflocal; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-[ "$rc" = 0 ] && [ "$v" = "own=would-alert nof=would-alert noflocal=would-alert " ] &&
-  pass "16. RED CONTROL with the lanes' worktrees unknown (the 10-22 gap) a sha of the lane's own repo alerts" ||
+[ "$rc" = 0 ] && [ "$v" = "own=unchecked nof=unchecked noflocal=unchecked " ] &&
+  [ "$(grep -c '	not checked (own repo not found' "$T/o")" = 3 ] &&
+  pass "16. with the lanes' worktrees unknown (the 10-22 gap) a sha of the lane's own repo is not checked (SPL-3020: that repo was never read), no alert" ||
   fail "16. no worktree (rc $rc) got '$v': $(cat "$T/o")"
 printf 'c-801\tclaude\t%%1\t%s\t20261022T000000Z\n' "$T/wt/c-801" >"$SP/registry.tsv"
 printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n' \
@@ -431,17 +439,69 @@ printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n%s\n%s\n' \
   "$T/wt/m-802-old	worktree	m-802	box-a	m-802-c001-old	$(iso "$OLD")" >"$SP/workdirs.tsv"
 run DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
 v="$(for k in own nof noflocal; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-[ "$rc" = 0 ] && [ "$v" = "own=landed nof=landed noflocal=would-alert " ] &&
+[ "$rc" = 0 ] && [ "$v" = "own=landed nof=landed noflocal=unchecked " ] &&
   [ "$(awk -F'\t' '$1 == "own" { print NF }' "$T/o")" = 4 ] &&
-  [ "$(awk -F'\t' '$1 == "nof" || $1 == "noflocal"' "$T/o" | grep -c "	own repo $T/nof not fetched, judged on its last fetched origin/master$")" = 2 ] &&
+  [ "$(awk -F'\t' '$1 == "nof" || $1 == "noflocal"' "$T/o" | grep -c "[	 ]own repo $T/nof not fetched, judged on its last fetched origin/master$")" = 2 ] &&
   grep -q "WARN git fetch origin failed in $T/nof (m-802's own repo)" "$T/o" &&
-  pass "16. a sha on the trunk of the lane's own repo (registry worktree) is landed; a retired lane's repo whose fetch fails is judged on its last fetched trunk (landed / unpushed alerts) and the row says so" ||
+  grep -q "^noflocal	m-802	unchecked	${NOFLOCAL:0:12}	not checked (git fetch failed in $T/nof): " "$T/o" &&
+  pass "16. a sha on the trunk of the lane's own repo (registry worktree) is landed; a retired lane's repo whose fetch fails is judged on its last fetched trunk (landed) and the row says so; a sha off that stale trunk is not checked (SPL-3020, alert 5bc7078d)" ||
   fail "16. own repo (rc $rc) got '$v': $(cat "$T/o")"
 run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st16"; rc=$?
-[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 1 ] &&
-  grep -q "^SEND c-009 done-claim-check done-claim check: m-802 result noflocal .*: sha ${NOFLOCAL:0:12} not in the repository$" "$T/calls.log" &&
-  ! grep -q "not an object" "$T/calls.log" &&
-  pass "16. DRY_RUN=0: the unpushed sha of the unfetched own repo is ONE 'not in the repository' note, never 'not an object'" ||
+[ "$rc" = 0 ] && [ ! -s "$T/calls.log" ] && ! grep -q '^noflocal	' "$T/st16/seen.tsv" && grep -q '^nof	m-802	landed' "$T/o" &&
+  pass "16. DRY_RUN=0: the sha off the unfetched own repo's stale trunk sends no note and stays out of the ledger (SPL-3020; it was ONE 'not in the repository' note before)" ||
   fail "16. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 17. SPL-3020 (alerts 5bc7078d and 2d6c1619, 10-23, synthetic): a sha the
+# check could not judge is "not checked (<why>)", never "not in the
+# repository". (a) The lane's own repo cannot fetch and the sha is only on its
+# newer origin; a lane whose repo was never scanned. (b) A repo whose trunk is
+# LOCAL by design (never pushed from this box: `git config spool.localTrunk
+# <branch>` in that clone) is judged on that local branch. (c) A sha absent
+# from a repo read fresh still alerts.
+SP="$T/spool17"
+mkdir -p "$SP"
+mkrepo fa
+git clone -q "$T/fa.git" "$T/fa-push" 2>/dev/null
+rg fa-push commit -q --allow-empty -m "fa newer" && lettered fa-push 12 "fa newer" && rg fa-push push -q origin HEAD:master
+FANEW=$(rg fa-push rev-parse HEAD)
+rg fa worktree add -q -b c-811-c001-fix-fa "$T/wt/c-811" origin/master 2>/dev/null
+rg fa remote set-url origin "$T/gone17.git"
+mkrepo lt
+rg lt commit -q --allow-empty -m "local trunk only" && lettered lt 12 "local trunk only"
+LTSHA=$(rg lt rev-parse HEAD)
+rg lt checkout -q -b side && rg lt commit -q --allow-empty -m "side, not on the local trunk" && lettered lt 12 "side"
+LTSIDE=$(rg lt rev-parse HEAD)
+rg lt checkout -q master
+rg lt worktree add -q --detach "$T/wt/c-812" "$LTSHA" 2>/dev/null
+mkrepo fr
+rg fr commit -q --allow-empty -m "fresh, never pushed" && lettered fr 12 "fresh, never pushed"
+FRLOCAL=$(rg fr rev-parse HEAD)
+rg fr worktree add -q --detach "$T/wt/c-813" "$FRLOCAL" 2>/dev/null
+printf 'c-811\tclaude\t%%1\t%s\t-\nc-812\tclaude\t%%2\t%s\t-\nc-813\tclaude\t%%3\t%s\t-\n' "$T/wt/c-811" "$T/wt/c-812" "$T/wt/c-813" >"$SP/registry.tsv"
+msg c-002/archive fanew c-811 c-002 30 "- sha: ${FANEW:0:12}"
+msg c-002/archive ltsha c-812 c-002 30 "- sha: ${LTSHA:0:12}"
+msg c-002/archive ltside c-812 c-002 25 "- sha: ${LTSIDE:0:12}"
+msg c-002/archive frlocal c-813 c-002 30 "- sha: ${FRLOCAL:0:12}"
+msg c-002/archive nolane c-814 c-002 30 "- sha: ${FANEW:0:12}"
+! rg fa cat-file -e "$FANEW^{object}" 2>/dev/null && ! rg fa fetch -q origin 2>/dev/null &&
+  ! rg lt merge-base --is-ancestor "$LTSHA" origin/master && rg lt merge-base --is-ancestor "$LTSHA" master &&
+  pass "17. control: the fa clone cannot fetch and lacks its origin's newer sha; lt's sha is on its local master, not on origin/master" ||
+  fail "17. control: fixture"
+git -C "$T/lt" config spool.localTrunk master
+run DONE_CLAIM_STATE_DIR="$T/st17"; rc=$?
+v="$(for k in fanew ltsha ltside frlocal nolane; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "fanew=unchecked ltsha=landed ltside=would-alert frlocal=would-alert nolane=unchecked " ] &&
+  grep -q "^fanew	c-811	unchecked	${FANEW:0:12}	.*not checked (.*git fetch failed in $T/fa" "$T/o" &&
+  grep -q "^nolane	c-814	unchecked	${FANEW:0:12}	not checked (.*own repo not found" "$T/o" &&
+  grep -q '^OK done-claim-check: 1 landed, .* 2 not checked, 2 would alert' "$T/o" &&
+  pass "17. (a) a sha whose candidate repo failed its fetch, or whose lane's repo was never scanned, is 'not checked (<why>)'; (b) a local-trunk repo's sha on its local master is landed, one off it alerts; (c) a sha absent from a repo read fresh alerts" ||
+  fail "17. not checked / local trunk (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st17"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 2 ] &&
+  grep -q "^SEND c-009 done-claim-check done-claim check: c-812 result ltside .*: sha ${LTSIDE:0:12} not in the repository$" "$T/calls.log" &&
+  grep -q "^SEND c-009 done-claim-check done-claim check: c-813 result frlocal .*: sha ${FRLOCAL:0:12} not in the repository$" "$T/calls.log" &&
+  ! grep -q "c-811\|c-814" "$T/calls.log" && ! grep -q "^fanew	\|^nolane	" "$T/st17/seen.tsv" &&
+  pass "17. DRY_RUN=0: no note and no ledger row for a not-checked sha (judged again next run); the fresh-repo and off-trunk shas each alert once" ||
+  fail "17. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 exit "$fails"

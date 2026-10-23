@@ -46,6 +46,18 @@
 # @description     lane landing in a repo of no cnf list (c-179's
 # @description     sha) is judged there; a failed fetch of it keeps its last
 # @description     fetched trunk and the row and the note say so
+# @description   - SPL-3020 (alerts 5bc7078d, 2d6c1619): a sha the check could
+# @description     not judge is verdict unchecked, "not checked (<why>)": a sha
+# @description     that resolves only in a repo whose fetch failed, or that is
+# @description     no object in any repo while a repo failed its fetch or the
+# @description     sender lane's own repo was never read (no worktree known, no
+# @description     trunk). No note, no ledger: judged again next run. Only a
+# @description     sha absent from a repo read fresh alerts
+# @description   - SPL-3020: a repo whose trunk is LOCAL by design (never pushed
+# @description     from this box) says so in its own clone, `git config
+# @description     spool.localTrunk <branch>` (box-local: a customer repo is
+# @description     named in no public cnf); it is judged on refs/heads/<branch>,
+# @description     never fetched
 # @description   - a result with NO sha, or with a sha on no trunk -> ONE note
 # @description     to the dispatch lease holder (lane, msg id, the shas, "not
 # @description     in the repository"); every decided message goes to the
@@ -84,7 +96,7 @@
 # @description     or several alert "not an object in any repository"
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
-# @description seat | pending | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
+# @description seat | pending | unchecked | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
 # @description fetches but sends nothing and writes no ledger.
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
@@ -118,16 +130,17 @@ do_spl_done_claim_check() {
   if [[ ! -s "$tmp/due" ]]; then
     echo "OK done-claim-check: no lane result older than $age min left to judge"; rm -rf "$tmp"; return 0
   fi
-  spl_done_claim_repos >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
-  spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" >"$tmp/stale"
+  : >"$tmp/unchk"
+  spl_done_claim_repos "$tmp/unchk" >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
+  spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" "$tmp/unchk" >"$tmp/stale"
   local to=""
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
-  local id from ts task body shas bad verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0
+  local id from ts task body shas bad unchk verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
-    bad=""
+    bad="" unchk=""
     if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
     elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
@@ -135,26 +148,30 @@ do_spl_done_claim_check() {
     elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/repos" "$bad")" == "$bad" ]] &&
       spl_done_claim_rewrite "$tmp/repos" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
       verdict=rewritten; n_rew=$((n_rew + 1))
+    elif unchk="$(spl_done_claim_unchecked "$tmp/repos" "$tmp/unchk" "${from%@*}" "$bad")" &&
+      bad="$(spl_done_claim_minus "$bad" "$unchk")" && [[ -n "$unchk" && -z "$bad" ]]; then
+      verdict=unchecked; n_unchk=$((n_unchk + 1))
     elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
-      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/repos" "$tmp/stale" >"$tmp/note"
+      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/repos" "$tmp/stale" "$unchk" >"$tmp/note"
       spl_done_claim_send "$to" "$tmp/note" || { rc=1; continue; }
       verdict=alert; n_alert=$((n_alert + 1))
     fi
     stale="$(spl_done_claim_stale "$tmp/stale" "$from")"
+    [[ -n "$unchk" ]] && stale="$(spl_done_claim_unchk_text "$unchk")${stale:+; $stale}"
     printf '%s\t%s\t%s\t%s%s\n' "$id" "$from" "$verdict" "${shas:-no-sha}" "${stale:+$'\t'$stale}"
-    if [[ "$dry" == 0 && "$verdict" != pending ]]; then
+    if [[ "$dry" == 0 && "$verdict" != pending && "$verdict" != unchecked ]]; then
       { mkdir -p "$state" && printf '%s\t%s\t%s\n' "$id" "$verdict" "$now" >>"$state/seen.tsv"; } || rc=1
     fi
   done <"$tmp/due"
   if [[ "$dry" == 0 ]]; then
     spl_done_claim_prune "$state/seen.tsv" "$((now - 2 * hours * 3600))"
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_alert alerted to $to"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert alerted to $to"
   else
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
   fi
   rm -rf "$tmp"
   return $rc
@@ -254,9 +271,10 @@ spl_done_claim_notes() {
   echo "${out[*]}"
 }
 
-# spl_done_claim_repos: one line per repo of DONE_CLAIM_REPO_DIRS (default the
+# spl_done_claim_repos [unchecked file]: one line per repo of DONE_CLAIM_REPO_DIRS (default the
 # repo holding this tree): "<top dir> <trunk ref>", fetched first (with
-# origin's notes refs, SPL-2560) unless DONE_CLAIM_FETCH=0. A repo that cannot be read is a FATAL: a missing clone
+# origin's notes refs, SPL-2560) unless DONE_CLAIM_FETCH=0; a local-trunk repo
+# (SPL-3020) is its local branch, unfetched. A repo that cannot be read is a FATAL: a missing clone
 # must not turn every sha into an alert. Then the cnf's customer repos whose
 # clone is on this box (spl_done_claim_landed_repos, SPL-2420).
 spl_done_claim_repos() {
@@ -264,6 +282,7 @@ spl_done_claim_repos() {
   # shellcheck disable=SC2086 # a space-separated list, split on purpose
   for d in ${DONE_CLAIM_REPO_DIRS:-$PROJ_PATH}; do
     top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" || { do_log "FATAL $d is not a git repo" >&2; rc=1; continue; }
+    if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref"; listed+="$top "; continue; fi
     if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]]; then
       git -C "$top" fetch -q origin 2>/dev/null || { do_log "FATAL git fetch origin failed in $top" >&2; rc=1; continue; }
       git -C "$top" fetch -q origin '+refs/notes/*:refs/done-claim/notes/*' 2>/dev/null ||
@@ -274,7 +293,7 @@ spl_done_claim_repos() {
     [[ -n "$ref" ]] || { do_log "FATAL $top has neither origin/master nor origin/main" >&2; rc=1; continue; }
     echo "$top $ref"; listed+="$top "
   done
-  spl_done_claim_landed_repos "$listed" || rc=1
+  spl_done_claim_landed_repos "$listed" "${1:-/dev/null}" || rc=1
   return $rc
 }
 
@@ -285,27 +304,34 @@ spl_done_claim_repos() {
 # No cnf list: the repo comes from the lane's worktree. A failed fetch (an
 # https origin with no credential) keeps its last fetched trunk and prints
 # "<lane>\t<top> <trunk>" for each lane judged on it; a repo with no trunk
-# is skipped with a WARN, never a FATAL.
+# is skipped with a WARN, never a FATAL. SPL-3020: [unchecked file] gets
+# "R\t<top>\t<why>" per repo whose fetch failed and "L\t<lane>\t<why>" per
+# lane whose own repo was not read; a local-trunk repo is its local branch.
 spl_done_claim_lane_repos() {
   local have="" stale="" top ref c id wt
   while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$3"
   while read -r id; do
     c=""
     while read -r wt; do c="$(spl_done_claim_common "$wt")" && break; done < <(spl_done_claim_lane_wt "$1" "$id")
-    [[ -n "$c" ]] || continue
+    [[ -n "$c" ]] || { printf 'L\t%s\town repo not found (no worktree in registry.tsv or workdirs.tsv)\n' "$id" >>"${4:-/dev/null}"; continue; }
     if grep -qxF -- "$c" <<<"$have"; then
       awk -F'\t' -v c="$c" -v id="$id" '$1 == c { print id "\t" $2 }' <<<"$stale"
       continue
     fi
     have+="$c"$'\n'
     top="${c%/.git}"
+    if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref" >>"$3"; continue; fi
     ref=""
     for ref in origin/master origin/main; do git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 && break; ref=""; done
-    [[ -n "$ref" ]] || { do_log "WARN $id's own repo $top has neither origin/master nor origin/main: not read" >&2; continue; }
+    if [[ -z "$ref" ]]; then
+      do_log "WARN $id's own repo $top has neither origin/master nor origin/main: not read" >&2
+      printf 'L\t%s\town repo %s has no trunk\n' "$id" "$top" >>"${4:-/dev/null}"; continue
+    fi
     if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] &&
       ! GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$top" fetch -q origin </dev/null >/dev/null 2>&1; then
       do_log "WARN git fetch origin failed in $top ($id's own repo): its last fetched $ref counts" >&2
       stale+="$c"$'\t'"$top $ref"$'\n'
+      printf 'R\t%s\tgit fetch failed in %s\n' "$top" "$top" >>"${4:-/dev/null}"
       printf '%s\t%s %s\n' "$id" "$top" "$ref"
     fi
     echo "$top $ref" >>"$3"
@@ -339,7 +365,8 @@ spl_done_claim_stale() {
 # (spl-lane-issue.func.sh) that do_spl_lane_issue and the **Live** proof use:
 # a sha on one of their trunks has landed (c-578's csi-rel sha, 10-17). A clone
 # on another box is that box's (skipped); a failed fetch warns and keeps the
-# clone's last fetched trunk, a missing trunk is a FATAL.
+# clone's last fetched trunk (an "R" row in [unchecked file], SPL-3020), a
+# missing trunk is a FATAL; a local-trunk clone is its local branch, unfetched.
 spl_done_claim_landed_repos() {
   local n row clone trunk rc=0 skip=" ${1:-}"
   while IFS=$'\t' read -r n _; do
@@ -347,9 +374,13 @@ spl_done_claim_landed_repos() {
     clone="${row%%$'\t'*}"
     [[ "$skip" == *" $clone "* ]] && continue
     skip+="$clone "
+    if trunk="$(spl_done_claim_local_trunk "$clone")"; then echo "$clone $trunk"; continue; fi
     if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] && trunk="$(spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}" 2>/dev/null)"; then :
     else
-      [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] && do_log "WARN git fetch origin failed in $clone ($n): its last fetched trunk counts" >&2
+      if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]]; then
+        do_log "WARN git fetch origin failed in $clone ($n): its last fetched trunk counts" >&2
+        printf 'R\t%s\tgit fetch failed in %s\n' "$clone" "$clone" >>"${2:-/dev/null}"
+      fi
       trunk="$(SLR_NO_FETCH=1 spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}")" || { rc=1; continue; }
     fi
     echo "$clone origin/$trunk"
@@ -373,6 +404,53 @@ spl_done_claim_missing() {
     (( ok )) || out+=("$s")
   done
   echo "${out[*]}"
+}
+
+# spl_done_claim_local_trunk <top>: "refs/heads/<branch>" when the clone says
+# its trunk is local by design (`git config spool.localTrunk <branch>`, never
+# pushed from this box, SPL-3020) and that branch exists; else false.
+spl_done_claim_local_trunk() {
+  local b
+  b="$(git -C "$1" config --get spool.localTrunk 2>/dev/null)" && [[ "$b" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+  git -C "$1" rev-parse -q --verify "refs/heads/$b^{commit}" >/dev/null 2>&1 || return 1
+  echo "refs/heads/$b"
+}
+
+# spl_done_claim_unchecked <repos file> <unchecked file> <lane id> <shas>:
+# "<sha>\t<why>" per sha of <shas> (all on no trunk) the check could not judge
+# (SPL-3020): it resolves only in a repo whose fetch failed (an "R" row), or it
+# is no object in any repo while the lane's own repo was not read ("L" row) or
+# any repo failed its fetch. A sha in a repo read fresh is not listed.
+spl_done_claim_unchecked() {
+  local s top ref why lw hit
+  lw="$(awk -F'\t' -v id="$3" '$1 == "L" && $2 == id { print $3; exit }' "$2" 2>/dev/null)"
+  for s in $4; do
+    why="" hit=0
+    while read -r top ref; do
+      git -C "$top" rev-parse -q --verify "$s^{commit}" >/dev/null 2>&1 || continue
+      hit=1
+      why="$(awk -F'\t' -v t="$top" '$1 == "R" && $2 == t { print $3; exit }' "$2" 2>/dev/null)"
+      [[ -n "$why" ]] && break
+    done <"$1"
+    if (( ! hit )); then
+      why="$lw"
+      [[ -n "$why" ]] || why="$(awk -F'\t' '$1 == "R" { printf "%s%s", (n++ ? ", " : ""), $3 }' "$2" 2>/dev/null)"
+    fi
+    if [[ -n "$why" ]]; then printf '%s\t%s\n' "$s" "$why"; fi
+  done
+  return 0
+}
+
+# spl_done_claim_minus <shas> <unchecked rows>: <shas> without the unchecked ones.
+spl_done_claim_minus() {
+  local s out=()
+  for s in $1; do grep -q -- "^$s"$'\t' <<<"$2" || out+=("$s"); done
+  echo "${out[*]}"
+}
+
+# spl_done_claim_unchk_text <unchecked rows>: "not checked (<why>): <sha>; ...".
+spl_done_claim_unchk_text() {
+  awk -F'\t' 'NF { printf "%snot checked (%s): %s", (n++ ? "; " : ""), $2, $1 }' <<<"$1"
 }
 
 # spl_done_claim_unknown <repos file> <shas>: the shas that are no object in
@@ -499,8 +577,9 @@ spl_done_claim_to() {
 }
 
 # spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>
-# [stale file]: the body. A sha that is no object in any repo says so
-# (SPL-2327); a lane whose own repo failed its fetch says so (SPL-2930).
+# [stale file] [unchecked rows]: the body. A sha that is no object in any repo says so
+# (SPL-2327); a lane whose own repo failed its fetch says so (SPL-2930); a sha
+# the check could not judge is listed apart, not counted (SPL-3020).
 spl_done_claim_note() {
   local s gone known=() what=() w
   gone=" $(spl_done_claim_unknown "$6" "$5") "
@@ -515,6 +594,7 @@ spl_done_claim_note() {
     "$(awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }' "$6")"
   w="$(spl_done_claim_stale "${7:-/dev/null}" "$1")"
   [[ -n "$w" ]] && printf -- '- %s (git fetch failed)\n' "$w"
+  [[ -n "${8:-}" ]] && printf -- '- not counted above: %s\n' "$(spl_done_claim_unchk_text "$8")"
   printf -- '- rule: a lane result names a sha on the trunk (SPL-2265); one note per message\n'
 }
 

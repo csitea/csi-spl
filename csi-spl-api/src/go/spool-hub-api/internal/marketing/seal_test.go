@@ -213,3 +213,83 @@ func TestPlaintextNeverLeaks(t *testing.T) {
 		t.Fatalf("no %q in captured output:\n%s", redacted, out)
 	}
 }
+
+// gcalPurpose is spec 149's calendar token AAD.
+const gcalPurpose = "spool-gcal-token/v1"
+
+// TestSealPurposeDoesNotOpenAsDefault is spec 149 C4: a token sealed with the
+// calendar purpose never opens under the marketing default, with the same
+// KMS key; its twin opens under the same purpose.
+func TestSealPurposeDoesNotOpenAsDefault(t *testing.T) {
+	ctx := context.Background()
+	kms := NewFakeKMS()
+	gcal, err := NewSealer(kms, testKeyName, WithPurpose(gcalPurpose))
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, _ := NewSealer(kms, testKeyName)
+	ct, _, err := gcal.Seal(ctx, NewPlaintext(testSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := def.Open(ctx, ct); !errors.Is(err, ErrOpen) || got.Reveal() != "" {
+		t.Fatalf("calendar text opened under the marketing default: err = %v", err)
+	}
+	twin, _ := NewSealer(kms, testKeyName, WithPurpose(gcalPurpose))
+	got, err := twin.Open(ctx, ct)
+	if err != nil || got.Reveal() != testSecret {
+		t.Fatalf("same purpose: Open = %q, %v", got.Reveal(), err)
+	}
+	dct, _, _ := def.Seal(ctx, NewPlaintext(testSecret))
+	if _, err := gcal.Open(ctx, dct); !errors.Is(err, ErrOpen) {
+		t.Fatalf("marketing text opened under the calendar purpose: err = %v", err)
+	}
+}
+
+func TestWithPurposeRefusesEmpty(t *testing.T) {
+	if _, err := NewSealer(NewFakeKMS(), testKeyName, WithPurpose(" ")); err == nil {
+		t.Error("empty purpose accepted")
+	}
+}
+
+// identityKMS "wraps" a data key as itself, so a sealed text is reproducible
+// from a fixed rand stream. Tests only.
+type identityKMS struct{}
+
+func (identityKMS) Encrypt(_ context.Context, keyName string, p []byte) ([]byte, string, error) {
+	return append([]byte(nil), p...), keyName + "/cryptoKeyVersions/1", nil
+}
+
+func (identityKMS) Decrypt(_ context.Context, _ string, wrapped []byte) ([]byte, error) {
+	return append([]byte(nil), wrapped...), nil
+}
+
+// sealedBeforePurpose was sealed by the pre-WithPurpose seal.go (origin/master
+// cf2e4cd09) with identityKMS, testKeyName and a rand stream of 0x42 bytes.
+const sealedBeforePurpose = "v1.QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI." +
+	"QkJCQkJCQkJCQkJCAEEKNG1qvt_VXsiTGGLMAs8SAHW84te5w9rjC88w89cnAu0y-6fPJ5ixQc1I6CJFkeQ"
+
+// TestDefaultOpensTextSealedBeforePurpose is spec 149 C5: the default AAD and
+// the sealed format are unchanged, so every stored marketing token still
+// opens; the calendar purpose does not open it, and sealing today with the
+// same inputs gives the same bytes.
+func TestDefaultOpensTextSealedBeforePurpose(t *testing.T) {
+	ctx := context.Background()
+	if DefaultSealPurpose != "spool-marketing-seal/v1" {
+		t.Fatalf("DefaultSealPurpose = %q", DefaultSealPurpose)
+	}
+	def, _ := NewSealer(identityKMS{}, testKeyName)
+	got, err := def.Open(ctx, sealedBeforePurpose)
+	if err != nil || got.Reveal() != testSecret {
+		t.Fatalf("Open old text = %q, %v", got.Reveal(), err)
+	}
+	gcal, _ := NewSealer(identityKMS{}, testKeyName, WithPurpose(gcalPurpose))
+	if _, err := gcal.Open(ctx, sealedBeforePurpose); !errors.Is(err, ErrOpen) {
+		t.Fatalf("old text opened under the calendar purpose: err = %v", err)
+	}
+	def.rand = bytes.NewReader(bytes.Repeat([]byte{0x42}, 64))
+	ct, _, err := def.Seal(ctx, NewPlaintext(testSecret))
+	if err != nil || ct != sealedBeforePurpose {
+		t.Fatalf("Seal today = %q, %v; want the pre-purpose bytes", ct, err)
+	}
+}

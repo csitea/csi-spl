@@ -302,7 +302,9 @@ Which deploy path?
 3. **`(A) text` is a radio button**: pick one per question. **`[A] text` is
    a checkbox**: pick any. A form is all radios or all checkboxes, never
    both; a mixed block stays a code block. A key is 1 to 3 letters or
-   digits, unique within its question; a leading `- ` is allowed.
+   digits, unique within its question; a leading `- ` is allowed. A
+   task-list box before an option (`- [ ] (A) text`) is dropped too
+   (SPL-3062), but write options as `(A) text`.
 4. **"Chat about this" is always the last option**, added by the WUI (do not
    write it). Picking it is not an answer: it opens the reply box in the
    topic with `Chat: wants to discuss`, the `Poll:` line and the question

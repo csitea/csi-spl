@@ -40,7 +40,10 @@ export const LOCK_SECONDS_PER_QUESTION = 45
 const OPEN_RE = /^(`{3,})poll[ \t]*$/
 const FENCE_RE = /^(`{3,})/
 const CLOSE_RE = /^(`{3,})[ \t]*$/
-const OPTION_RE = /^(?:[-*][ \t]+)?([([])[ \t]*([A-Za-z0-9]{1,3})[ \t]*([)\]])[ \t]+(\S.*)$/
+/* SPL-3062 (owner HUM-10, msg fb2b4cdf): a markdown task-list marker `[ ]` / `[x]`
+   before an option is dropped, so `- [ ] (A) text` is option A, not a code
+   block; only when an option follows, so `[x] text` stays checkbox X */
+const OPTION_RE = /^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+(?=[([][ \t]*[A-Za-z0-9]{1,3}[ \t]*[)\]][ \t]+\S))?([([])[ \t]*([A-Za-z0-9]{1,3})[ \t]*([)\]])[ \t]+(\S.*)$/
 const CHAT_RE = /^chat about this\.?$/i
 const KEYS_SRC = String.raw`([A-Za-z0-9]{1,3}(?:[ \t]*,[ \t]*[A-Za-z0-9]{1,3})*|none)\b`
 const MARKER_ANSWER_RE = new RegExp(String.raw`^Answer(?:[ \t]+(\d+))?:[ \t]*${KEYS_SRC}`, 'gim')

@@ -50,6 +50,15 @@ describe('parsePoll: one form, all radios or all checkboxes', () => {
     assert.equal(parsePoll('just text'), null)
     assert.equal(parsePoll('Q1\n(A) x\nQ2 with none'), null)
   })
+  it('SPL-3062: a task-list marker before an option is dropped', () => {
+    assert.deepEqual(parsePoll('Q\n[ ] (A) x\n- [ ] (B) y').questions[0].options, [{ key: 'A', text: 'x' }, { key: 'B', text: 'y' }])
+    assert.deepEqual(parsePoll('Q\n* [x] (B) y\n[X] (C) z').questions[0].options, [{ key: 'B', text: 'y' }, { key: 'C', text: 'z' }])
+    assert.deepEqual(parsePoll('Q\n- [ ] [A] x\n- [x] [B] y').questions[0].options.map((o) => o.key), ['A', 'B'])
+    assert.deepEqual(splitPolls(fence('Q\n[ ] (A) x\n[ ] (B) y')).map((s) => s.type), ['poll'])
+  })
+  it('SPL-3062 control: [x] with no option after it stays checkbox X', () => {
+    assert.deepEqual(parsePoll('Q\n[x] yes\n[n] no').questions[0].options, [{ key: 'X', text: 'yes' }, { key: 'N', text: 'no' }])
+  })
   it('a key twice in one question is not a form', () => {
     assert.equal(parsePoll('Q\n(A) x\n(a) y'), null)
   })

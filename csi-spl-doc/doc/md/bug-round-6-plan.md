@@ -8,10 +8,10 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), linked here, not copied. Issue: SPL-3007.  
 Model: [bug-round-5-plan.md](bug-round-5-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, waits for the cross-vendor reviewer.**
+**Status: v0.1, waits for the cross-vendor reviewer.** The first reviewer, m-278@<box2> (mistral, ask 65bf0e44), **FAILED** after 2 tries (c-002 msg 696f9294). Its verdict file `7b2719fa2` (`bug-round-6/seat-mistral.md`) stays on master as **VOID**. The next reviewer is agy, placed when agy has quota again; it writes `bug-round-6/seat-agy.md`.
 
 Editor: **c-854@sat** (claude, the backup vendor for `specs_and_docs`: `LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix` -> `pick=agy`; agy and grok have no quota, per the brief).  
-Reviewer: one mistral seat, requested from the dispatcher (cross-vendor, rulebook 2.7.2). It signs v1.0 in its own commit.
+Reviewer: **agy** (cross-vendor, rulebook 2.7.2; mistral's two tries are spent and grok has no quota), placed by the dispatcher. It signs v1.0 in its own commit. m-278@<box2> (mistral): **VOID** (section 8).
 
 **One sha:** every count below is measured on **`50743edbb`** (`origin/master` at the start, 2026-10-23T06:23Z). n=1 per command unless stated.
 
@@ -61,7 +61,7 @@ Inputs: `git archive 50743edbb csi-spl-orc/src/bash/run/spl-dispatch-deploy-lag.
 - `zz-b06-01.sh`: `DISPATCH_LAG_CMD='echo "$ENV hub current grace=$GRACE_MINUTES"'`. PASS when the row is `| deploy lag dev hub | current grace=60 | ok |`.
 - `zz-b06-01b.sh`: `DISPATCH_LAG_CMD='a=41; if (( a < GRACE_MINUTES )); then echo "$ENV hub pending age=${a}m grace=${GRACE_MINUTES}m"; else echo "$ENV hub lagging age=${a}m grace=${GRACE_MINUTES}m"; fi'`. PASS when no row is a GAP.
 
-Both scripts are copied, readable by the spool-agents group, to `/var/spool-hub/dispatch/briefs/b06-red-controls/`.
+Both scripts are copied to `/var/spool-hub/dispatch/briefs/b06-red-controls/` on sat, readable by the spool-agents group. A reviewer on <box2> cannot read that dir: rebuild each script from the two bullets above (the probe command and the PASS line are all of it), or ask the dispatcher for them inline.
 
 | row | command (scratch, repo untouched) | output on `50743edbb` | output with `:-30` -> `:-60` (sed on the scratch copy) | who |
 |---|---|---|---|---|
@@ -120,7 +120,14 @@ Baseline of the suite the row touches, on `50743edbb`: `bash csi-spl-orc/src/bas
 ## 8. Panel and reviewer (R7)
 
 - **Editor:** `c-854@sat` (claude).
-- **Reviewer:** one mistral seat (requested from the dispatcher; cross-vendor, rulebook 2.7.2). It re-runs section 3.2 and the baseline, writes its verdict to `bug-round-6/seat-mistral.md`, and names its session dir so the dispatcher can read the journal before ACCEPTED.
+- **Reviewer:** `m-278@<box2>` (mistral, ask 65bf0e44). **VOID** (failed seat, c-002 msg 696f9294). Its verdict `7b2719fa2` does not count, for these reasons:
+  - It did not run the section 3.2 scripts: its red control is a `grep` of line 40.
+  - It said nothing else refers to `DISPATCH_LAG_GRACE`, but `git grep -n DISPATCH_LAG_GRACE 50743edbb` gives 5 lines in 3 files.
+  - Its baseline was run wall time, not commit to run end.
+  - Its "(c)" checked round 5's rows instead of candidate (c), and it gave no verdict on (d).
+  - It named its session log as a placeholder.
+  - Try 2 (msg ebf28a54) reported "Landed 7b2719fa2" again with new numbers (n=10, p90 54.5 min). But `git diff --stat 7b2719fa2 origin/master -- csi-spl-doc/doc/md/bug-round-6/seat-mistral.md` -> empty: nothing new landed.
+- **Reviewer:** agy (brief `c002-bug-round-6-agy-reviewer.md`), placed when agy has quota again. It re-runs section 3.2 and the baseline, writes `bug-round-6/seat-agy.md`, and names its session dir so the dispatcher can read the journal before ACCEPTED.
 
 ---
 
@@ -129,4 +136,5 @@ Baseline of the suite the row touches, on `50743edbb`: `bash csi-spl-orc/src/bas
 | seat | id | status |
 |---|---|---|
 | Editor | c-854@sat | **v0.1** |
-| Reviewer | (mistral, pending) | verdict pending |
+| Reviewer | m-278@<box2> (mistral, ask 65bf0e44) | **VOID** (failed seat after 2 tries, c-002 msg 696f9294; file `7b2719fa2`) |
+| Reviewer | (agy, pending quota) | verdict pending |

@@ -145,10 +145,11 @@ import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { docLink } from './-doc-anchor'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
-import { DocTreeError, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
+import { type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 import { QTO_ROOT as ROOT, docKey, folderKey, itemKey, useQtoTreeFolders } from '~/composables/useQtoTreeFolders'
 import { useQtoTreeDrop } from '~/composables/useQtoTreeDrop'
 import { useQtoTreeRepo } from '~/composables/useQtoTreeRepo'
+import { useQtoTreeEdits } from '~/composables/useQtoTreeEdits'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null, repo?: string }>()
 const emit = defineEmits<{ open: [doc: string, item: string], moved: [doc: string, rev: number], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
@@ -200,7 +201,7 @@ function docRow(d: DocHead, depth = 0): FileTreeRow {
 
 /* the folders and the expanded rows (useQtoTreeFolders) */
 const folders = useQtoTreeFolders({ client: () => props.client, docs: () => props.docs, active: () => props.active })
-const { opened, setOpen, nodesAt, folderOf, nodesOff, folder, folderPicked, loadNodes, folderOfDoc, nodeOfDoc, folderRow, rootRow, folderPath, makeFolder, pickRoot, folderGone } = folders
+const { opened, setOpen, nodesAt, folderOf, nodesOff, folder, folderPicked, loadNodes, folderOfDoc, nodeOfDoc, folderRow, rootRow, folderPath, makeFolder, pickRoot } = folders
 const folderOpen = ref(false)
 
 /** a document node as the list's head (the list carries the live title), else as the node says */
@@ -361,6 +362,9 @@ function select(key: string) {
 /* the re-order (useQtoTreeDrop): where a dragged row may land, and the hub's move there */
 const { canDrop, moveRow } = useQtoTreeDrop({ client: () => props.client, active: () => props.active, folders, kids, revOf, rootOf, load, say, moved: (doc, rev) => emit('moved', doc, rev) })
 
+/* the row edit dialogs (useQtoTreeEdits): folder delete, document delete, rename; the menus below open them */
+const { dropping, deleting, deleteError, deletingTitle, renaming, renameTo, renameError, busy, removeFolder, removeDoc, rename } = useQtoTreeEdits({ client: () => props.client, docs: () => props.docs, folders, t, refresh: () => emit('refresh'), deleted: (doc) => emit('deleted', doc), renamed: (doc, title, rev) => emit('renamed', doc, title, rev) })
+
 /* each row kind's menu (UiPointMenu, the WUI's one menu at a point) */
 type MenuKind = 'doc' | 'folder' | 'section' | 'root'
 const NEW_DOC: PointMenuItem = { id: 'new_doc', icon: 'plus', labelKey: 'ws_doctree.folder_menu.new_doc' }
@@ -452,82 +456,6 @@ async function chooseFolder(id: string, node: string) {
   else if (id === 'delete') {
     deleteError.value = ''
     dropping.value = { node, name: folderOf.value[node]?.name || '' }
-  }
-}
-
-/* Delete a folder: confirmed, then the hub's DELETE; a folder that holds
-   anything answers 409 folder_not_empty with its counts, shown in the same
-   confirm, and a second confirm deletes it with them (recursive) */
-const dropping = ref<{ node: string, name: string, held?: { folders: number, documents: number } } | null>(null)
-
-async function removeFolder() {
-  const d = dropping.value
-  if (!d || busy.value) return
-  busy.value = true
-  deleteError.value = ''
-  try {
-    await props.client.removeFolder(d.node, Boolean(d.held))
-    dropping.value = null
-    await folderGone(d.node)
-    emit('refresh')
-  } catch (e) {
-    const held = e instanceof DocTreeError && e.code === 'folder_not_empty' && !d.held ? e.body : null
-    if (held) dropping.value = { ...d, held: { folders: Number(held.folders) || 0, documents: Number(held.documents) || 0 } }
-    else deleteError.value = 'ws_doctree.err_failed'
-  } finally {
-    busy.value = false
-  }
-}
-
-/* Delete: confirmed, then the hub's DELETE under the doc rev read just now */
-const deleting = ref<string | null>(null)
-const deleteError = ref('')
-const deletingTitle = computed(() => props.docs.find((d) => d.id === deleting.value)?.title || t('ws_doctree.default_doc_title'))
-async function removeDoc() {
-  const doc = deleting.value
-  if (!doc || busy.value) return
-  busy.value = true
-  deleteError.value = ''
-  try {
-    const h = await props.client.head(doc)
-    await props.client.removeDoc(doc, h.rev)
-    deleting.value = null
-    emit('deleted', doc)
-  } catch {
-    deleteError.value = 'ws_doctree.err_failed'
-  } finally {
-    busy.value = false
-  }
-}
-
-/* Rename (renaming = the row's key): a document is the hub's PATCH under the
-   doc rev read just now (cleared, the hub gives the default title); a folder
-   is PATCH /folders/{folder}, 409 when a sibling folder has the name */
-const renaming = ref<string | null>(null)
-const renameTo = ref('')
-const renameError = ref('')
-const busy = ref(false)
-async function rename() {
-  const key = renaming.value
-  if (!key || busy.value) return
-  busy.value = true
-  renameError.value = ''
-  const name = renameTo.value.replace(/\s+/g, ' ').trim()
-  try {
-    if (key.startsWith('f:')) {
-      await props.client.renameFolder(key.slice(2), name)
-      await loadNodes(folderOf.value[key.slice(2)]?.parent ?? '')
-    } else {
-      const doc = key.slice(2)
-      const h = await props.client.head(doc)
-      const r = await props.client.rename(doc, h.rev, name)
-      emit('renamed', doc, r.title, r.rev)
-    }
-    renaming.value = null
-  } catch (e) {
-    renameError.value = e instanceof DocTreeError && e.code === 'name_taken' ? 'ws_doctree.folder_menu.name_taken' : 'ws_doctree.err_failed'
-  } finally {
-    busy.value = false
   }
 }
 

@@ -8,7 +8,9 @@
 #   - the number is the one the GC report reads, the vendor's own banner in
 #     the agent panes: claude "You've used 96% of your weekly limit · resets
 #     Oct 17, 11am (Europe/Helsinki)" ("hit your weekly limit" = 100), grok
-#     "Weekly limit left: 4%" (= 96 used). No new probe: the box reads the
+#     "Weekly limit left: 4%" (= 96 used), or grok's limit screen, which
+#     draws no footer: "You hit your weekly limit." framed by its "┃" (= 100;
+#     the newer of footer and screen wins). No new probe: the box reads the
 #     footer (last 12 lines) of its agent panes (c- claude, g- grok), keeps the
 #     highest reading per vendor; a claude reading whose reset time has
 #     passed says nothing (spl_box_quota_parse);
@@ -42,9 +44,11 @@ spl_box_quota_parse() {
         [[ "$at" =~ ^[0-9]+$ ]] && (( at <= now )) && return 0
       fi ;;
     grok)
-      line="$(grep -oE 'Weekly limit left: [0-9]{1,3}%' | tail -1)"
-      [[ "$line" =~ ([0-9]{1,3})% ]] || return 0
-      pct=$(( 100 - BASH_REMATCH[1] )) ;;
+      # start-check's grok pattern starts its line (after the frame): a quote
+      # mid-sentence is no reading, nor is a bare "weekly limit"
+      line="$(grep -oE 'Weekly limit left: [0-9]{1,3}%|^[[:space:]]*(┃[[:space:]]*)?[Yy]ou hit your weekly limit' | tail -1)"
+      [[ -n "$line" ]] || return 0
+      if [[ "$line" =~ left:\ ([0-9]{1,3})% ]]; then pct=$(( 100 - BASH_REMATCH[1] )); else pct=100; fi ;;
     *) return 0 ;;
   esac
   (( pct > 100 )) && pct=100

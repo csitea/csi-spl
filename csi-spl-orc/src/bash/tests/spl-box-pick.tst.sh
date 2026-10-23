@@ -429,6 +429,16 @@ B="You've used 96% of your weekly limit · resets Oct 17, 11am (Europe/Helsinki)
 [[ "$(printf "  ⎿  You've hit your weekly limit · resets Oct 17, 11am (Europe/Helsinki)\n" | parse claude "$N")" == 100 ]] &&
   pass "16. hit your weekly limit -> 100" || fail "16. hit"
 [[ "$(printf ' Weekly limit left: 4%%\n' | parse grok "$N")" == 96 ]] && pass "16. grok footer left 4% -> 96" || fail "16. grok"
+# grok's limit screen draws no footer (b04-03): its framed line reads 100
+G="$(printf '  ┃  You hit your weekly limit.\n  ┃  1 (○) Buy more credits\n  ┃  2 (○) Try Again\n')"
+[[ "$(printf '%s\n' "$G" | parse grok "$N")" == 100 ]] &&
+  pass "16. RED CONTROL (FAILs on 7df27968f) grok limit screen -> 100" || fail "16. grok limit screen"
+[[ -z "$(printf '● the pane said: you hit your weekly limit\n' | parse grok "$N")" ]] &&
+  pass "16. CONTROL grok: a quoted limit mid-sentence is no reading" || fail "16. grok quoted"
+[[ "$(printf '%s\n Weekly limit left: 4%%\n' "$G" | parse grok "$N")" == 96 ]] &&
+  pass "16. grok: the newer of screen and footer wins (footer -> 96)" || fail "16. grok newer footer"
+[[ "$(printf ' Weekly limit left: 4%%\n%s\n' "$G" | parse grok "$N")" == 100 ]] &&
+  pass "16. grok: the newer of footer and screen wins (screen -> 100)" || fail "16. grok newer screen"
 
 # 16e. the limit the panes no longer show (SPL-2196): a box read "claude weekly
 # unknown <- pick" at its limit (c-001 msg 5c025d6e), no claude pane showed a

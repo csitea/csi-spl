@@ -23,7 +23,10 @@
 #      and a `docs(...)` commit with no line -> PUSHED
 #   9. the lane closes while its push runs (m-595, SPL-2264): the hook moves
 #      the state dir away as agent-id-retire does, then is red -> the moved dir
-#      reads REFUSED, not RUNNING; the same with a green hook -> PUSHED there
+#      reads REFUSED, not RUNNING; the same with a green hook -> PUSHED there.
+#      The hook waits 2 s before its mv, so the poll runs first: a status read
+#      mkdir -p's its state dir, and a poll of the target before the mv nested
+#      the moved dir inside it (TIMEOUT, CI run 39896056302)
 #  10. AGENT_ID names a lane, the tree is not its worktree (m-181, SPL-2312):
 #      the main checkout, another lane's worktree, PUSH_WORKTREE at the main
 #      checkout, and an id with no worktree at all -> exit 1, a FATAL naming
@@ -73,7 +76,7 @@ case "\$mode" in
     git -C "$O" push -q origin HEAD:master || { echo "STUB: the other push failed"; exit 1; } ;;
   red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; exit 1 ;;
   retire-red|retire-ok)
-    mv "$S" "\$(cat "$T/retire.to")"
+    sleep 2; mv "$S" "\$(cat "$T/retire.to")"
     [ "\$mode" = retire-red ] && { echo "deploy-gate FAILED: RETIRE-RED-MARKER"; exit 1; } ;;
   agent-red) [ -n "\${AGENT_ID:-}" ] && { echo "STUB: AGENT_ID=\$AGENT_ID reached the hook"; exit 1; } ;;
 esac
@@ -200,11 +203,16 @@ retire9() {
   commit "nine-$mode"; sha="$(git -C "$L" rev-parse HEAD)"
   run >/dev/null; v="$(verdict_in "$to")"; vrc=$?
 }
+# verdict_in <dir> - verdict() for the dir the hook moves the state to. It
+# reads status only once <dir>/status exists: the status read creates <dir>,
+# and the hook's mv would then nest the state dir inside it.
 verdict_in() {
-  local out rc
+  local out="no status file in $1" rc
   for _ in $(seq 1 60); do
-    out="$(SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$1" PUSH_CMD=status 2>&1)"; rc=$?
-    [ "$rc" -ne 3 ] && [ -f "$1/status" ] && { printf '%s\n' "$out"; return "$rc"; }
+    if [ -f "$1/status" ]; then
+      out="$(SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$1" PUSH_CMD=status 2>&1)"; rc=$?
+      [ "$rc" -ne 3 ] && { printf '%s\n' "$out"; return "$rc"; }
+    fi
     sleep 0.5
   done
   printf 'TIMEOUT\n%s\n' "$out"; return 9
@@ -214,8 +222,8 @@ retire9 retire-red
   && grep -q 'the state dir moved' "$T/retired-retire-red/lifetime/push-master/log" \
   && pass "9. the lane's dir moved away during a red push -> REFUSED written where it is now, not RUNNING" || fail "9. retire red (rc $vrc: $v)"
 retire9 retire-ok
-[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" \
-  && pass "9. ...and a green push from a moved dir -> PUSHED written there" || fail "9. retire ok (rc $vrc: $v)"
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" && [ ! -e "$T/retired-retire-ok/lifetime/push-master/${S##*/}" ] \
+  && pass "9. ...and a green push from a moved dir -> PUSHED written there, not nested" || fail "9. retire ok (rc $vrc: $v)"
 
 # 10 a lane id outside its own worktree is refused at start, nothing written
 W10="$T/lane-wt/c-998"

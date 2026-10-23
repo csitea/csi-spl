@@ -206,8 +206,27 @@ _ppe_plan() {
 # wui-e2e only when the change maps to an e2e file, FULL mode too: the map
 # needs a change, and CI runs every file anyway.
 _ppe_parts() {
+  _ppe_keep_heal "$2/csi-spl-wui"
   parts="${parts/ wui-e2e/}"
   _ppe_plan "$1" "$2" && parts+=" wui-e2e"
+  return 0
+}
+
+# _ppe_keep_heal <wui> - the part moves .output to .output.ppe-keep and puts
+# it back in its inner shell's EXIT trap, which a SIGKILL (timeout -k 10,
+# do_stop_pre_push) skips (SPL-3090). Left behind, the keep fails the next
+# gate's other parts. So, at plan time and again before the part moves
+# .output: finish that trap (the bundle symlink goes), then the keep goes
+# back to .output, or is removed when a .output is there. One line when it acts.
+_ppe_keep_heal() {
+  local w="$1"
+  [[ -e "$w/.output.ppe-keep" ]] || return 0
+  if [[ -L "$w/.output/public" ]]; then rm -f "$w/.output/public"; rmdir "$w/.output" 2>/dev/null || true; fi
+  if [[ -e "$w/.output" ]]; then
+    echo "wui-e2e: removed a stale .output.ppe-keep (a .output is there)"; rm -rf "$w/.output.ppe-keep"
+  else
+    echo "wui-e2e: restored .output from a stale .output.ppe-keep"; mv "$w/.output.ppe-keep" "$w/.output"
+  fi
   return 0
 }
 
@@ -243,7 +262,7 @@ _pp_part_wui_e2e() {
   local files="$_PPE_FILES" t missing=""
   for t in $files; do [[ -f "$tree/csi-spl-wui/$t" ]] || missing+=" $t"; done
   [[ -z "$missing" ]] || echo "wui-e2e: not in this tree (new in the push?):$missing"
-  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate
+  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal
   timeout -k 10 "${PRE_PUSH_E2E_TIMEOUT:-600}" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
@@ -259,6 +278,7 @@ _pp_part_wui_e2e() {
     fi
     key="$(_ppe_bundle_key "$tree")"
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"
+    _ppe_keep_heal .
     [[ -e .output ]] && mv .output .output.ppe-keep
     if [[ -n "$key" && -f "$cache/$key/public/index.html" ]]; then
       echo "wui-e2e: bundle re-used ($cache/${key:0:12}): no WUI input changed since it was built"

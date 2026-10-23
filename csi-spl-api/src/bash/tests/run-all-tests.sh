@@ -102,6 +102,7 @@ if want plain; then
 echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
 bash "$HERE/warm-go-mod-cache.tst.sh"
+bash "$HERE/go-cache-throwaway.tst.sh"
 if [ "$tier" = full ]; then bash "$HERE/build-stripped.tst.sh"; else slow build-stripped.tst.sh; fi
 if [ "$tier" = full ]; then bash "$HERE/build-warm-mod-cache.tst.sh"; else slow build-warm-mod-cache.tst.sh; fi
 if [ "$tier" = full ]; then bash "$HERE/cli-cross-build.tst.sh"; else slow cli-cross-build.tst.sh; fi

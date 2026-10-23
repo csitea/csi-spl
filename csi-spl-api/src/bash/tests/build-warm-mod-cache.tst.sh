@@ -2,7 +2,7 @@
 # build.sh warms THIS user's module cache before its offline build (SPL-1866).
 # After a go.sum bump the box that did not build it lacks the new modules; the
 # spawn build failed there with "module lookup disabled by GOPROXY=off". The
-# second box is played by a throwaway GOMODCACHE; the "network" is this box's
+# second box is played by a throwaway GOMODCACHE (and GOCACHE); the "network" is this box's
 # own warm cache served as file://, so the test needs none.
 #   1. cold cache + a proxy: the build warms the cache and passes
 #      (red before the fix: the offline build refused the module lookup)
@@ -34,8 +34,10 @@ fi
 T=$(mktemp -d)
 # the module cache is read-only by design
 trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
-# The build cache stays shared: only the module cache plays the second box.
-export GOMODCACHE="$T/mod"
+# The build cache is a throwaway too (SPL-3119): without -trimpath every
+# action id holds the package dir, so each run's builds from $T/mod wrote
+# ~575 MB of third-party entries no later run can reuse into the shared cache.
+export GOMODCACHE="$T/mod" GOCACHE="$T/build"
 unset GOFLAGS GOSUMDB
 
 # 1. cold cache, a reachable proxy

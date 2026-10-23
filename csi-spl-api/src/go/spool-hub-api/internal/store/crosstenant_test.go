@@ -462,7 +462,74 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// gcal_connections, gcal_event_map (rdb 0215, spec 149 B1, SPL-3123): the
+	// seeded member's Google connection and the calendar event it synced. No
+	// store API yet (B2), so raw rows under inTenant.
+	if err := seedGcal(ctx, pg, s.tenant, hum, ev.ID); err != nil {
+		t.Fatal(err)
+	}
 	return s
+}
+
+// seedGcal writes one Google connection for human and one map row for the
+// calendar event eventID, under tenant's scope. The sealed columns hold fake
+// text: no token is ever stored plain, and no test reaches Google.
+func seedGcal(ctx context.Context, pg *Postgres, tenant, human, eventID string) error {
+	return pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var conn string
+		if err := tx.QueryRow(ctx, `INSERT INTO gcal_connections (tenant_id, human_id, google_email, calendar_id,
+			access_sealed, refresh_sealed, kms_key_id, access_expiry)
+			VALUES ($1, $2, $3, 'cal-seed', 'sealed-a', 'sealed-r', 'fake-kms', now() + interval '1 hour')
+			RETURNING connection_id::text`, tenant, human, "gcal-"+tenant+"@example.com").Scan(&conn); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO gcal_event_map (connection_id, tenant_id, event_id, google_id, sync_hash)
+			VALUES ($1::uuid, $2, $3::uuid, 'g-seed', repeat('0', 64))`, conn, tenant, eventID)
+		return err
+	})
+}
+
+// TestCrossTenantGcal: spec 149 C1 and C2. C1: rdb 0215 applied, both
+// tables carry RLS, forced, and the two 0187-shape policies each. C2: tenant
+// A's scope reads 0 of B's gcal rows; CONTROL (the twin): B's scope reads
+// its own row, so the 0 is not an empty table.
+func TestCrossTenantGcal(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	for _, tb := range []string{"gcal_connections", "gcal_event_map"} {
+		var rls, forced bool
+		var pols []string
+		if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT c.relrowsecurity, c.relforcerowsecurity,
+				ARRAY(SELECT polname::text FROM pg_policy WHERE polrelid = c.oid ORDER BY 1)
+				FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = current_schema() AND c.relname = $1`, tb).Scan(&rls, &forced, &pols)
+		}); err != nil {
+			t.Fatalf("C1 %s: %v", tb, err)
+		}
+		if !rls || !forced || strings.Join(pols, ",") != "operator_scope,tenant_scope" {
+			t.Errorf("C1 %s: rls=%v forced=%v policies=%v, want true true [operator_scope tenant_scope]", tb, rls, forced, pols)
+		}
+	}
+	a := seedTenantAll(t, pg)
+	b := seedTenantAll(t, pg)
+	read := func(scope, owner, tb string) int {
+		var n int
+		if err := pg.inTenant(ctx, scope, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{tb}.Sanitize()+` WHERE tenant_id = $1`, owner).Scan(&n)
+		}); err != nil {
+			t.Fatalf("%s as %s: %v", tb, scope, err)
+		}
+		return n
+	}
+	for _, tb := range []string{"gcal_connections", "gcal_event_map"} {
+		if n := read(a.tenant, b.tenant, tb); n != 0 {
+			t.Errorf("C2 %s: tenant A reads %d of B's row(s), want 0", tb, n)
+		}
+		if n := read(b.tenant, b.tenant, tb); n != 1 {
+			t.Errorf("C2 control %s: tenant B reads %d of its own row(s), want 1", tb, n)
+		}
+	}
 }
 
 // tenantTables lists every table with a tenant_id column, from the catalogue.

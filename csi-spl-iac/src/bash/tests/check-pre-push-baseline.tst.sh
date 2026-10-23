@@ -26,6 +26,16 @@
 #        d. real log line shapes -> e2e-file <path> + e2e <check>
 #        Red control: PP_SIG_FROM=<file holding the old _pp_sig> runs the cases
 #        on that function instead (8a and 8c FAIL "unparseable" on the old one).
+#     9. (SPL-3128) the base tree's path is stable per lane tree, so Go's build
+#        cache (keyed on the source dir) is re-used, not re-written per re-check:
+#        a. two re-checks of one tree build the base at the same path
+#        b. a concurrent run of that tree (lock held) gets a pid path and
+#           leaves the held one alone
+#        c. no lock file is left behind
+#        d. a SIGKILLed run's stable leftover is reaped; a held one is kept
+#        e. (with go on PATH) a second re-check writes no new Go cache entry
+#        Red control: PP_FUNC_FROM=<the func file before SPL-3128>: 9a, 9d
+#        (reaped) and 9e FAIL there (9e: 10 cache files, then 14).
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
@@ -50,6 +60,9 @@ do_log() { :; }
 # red control hook (section 8): another _pp_sig, e.g. the one before SPL-2813
 # shellcheck disable=SC1090
 [[ -n "${PP_SIG_FROM:-}" ]] && . "$PP_SIG_FROM"
+# red control hook (section 9): the whole gate file of another commit
+# shellcheck disable=SC1090
+[[ -n "${PP_FUNC_FROM:-}" ]] && . "$PP_FUNC_FROM"
 
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
@@ -187,6 +200,53 @@ git -C "$R6" branch trunkbase; git -C "$R6" commit -q --allow-empty -m head
   _pp_run "stub" _stub_part "$R6" trunkbase >/dev/null 2>&1; _pp_baseline_cleanup "$R6" >/dev/null 2>&1 )
 n6="$(git -C "$R6" worktree list | wc -l)"
 eq "6. a pre-existing re-check leaves no baseline worktree behind" 1 "$n6"
+
+# 9. (SPL-3128) a stable base-tree path per lane tree; TMPDIR inside ROOT, so
+#    nothing lands in the box's /tmp
+_old_tmpdir="${TMPDIR-}"; export TMPDIR="$ROOT/tmp9"; mkdir -p "$TMPDIR"
+R9="$ROOT/r9"; git init -q "$R9"; echo bad >"$R9/flag"; git -C "$R9" add -A; git -C "$R9" commit -qm s
+_pp_recheck_path() {  # <tree>: build the base tree, print its path, clean up
+  local _PP_BASE_WT=""; _pp_baseline_tree "$1" HEAD || return 1
+  echo "$_PP_BASE_WT"; _pp_baseline_cleanup "$1"
+}
+p1="$(_pp_recheck_path "$R9")"; p2="$(_pp_recheck_path "$R9")"
+if [[ -n "$p1" && "$p1" == "$p2" ]]; then pass "9a. two re-checks of one tree build the base at the same path"
+else fail "9a. same base path per tree" "first '$p1' then '$p2'"; fi
+lk="$p1.lock"
+if [[ ! -e "$lk" ]]; then pass "9c. no lock file is left behind"; else fail "9c. lock file left" "$lk"; fi
+exec {h9}>>"$lk"; flock -n "$h9"
+( _PP_BASE_WT=""; _pp_baseline_tree "$R9" HEAD; echo "$_PP_BASE_WT" >"$ROOT/r9.busy"; _pp_baseline_cleanup "$R9" )
+busy="$(cat "$ROOT/r9.busy")"
+if [[ -n "$busy" && "$busy" != "$p1" && "$busy" == *"/csi-spl-pre-push-base.$$."* ]]; then
+  pass "9b. a concurrent run (lock held) gets a pid path"
+else fail "9b. busy fallback" "got '$busy' (stable '$p1')"; fi
+# 9d. a SIGKILL leftover: registered at the stable path, nobody holds its lock
+git -C "$R9" worktree add -q --detach "$p1" HEAD
+_pp_baseline_reap "$R9"
+if git -C "$R9" worktree list | grep -F "$p1" >/dev/null; then pass "9d. a held stable base tree is kept"
+else fail "9d. keep held" "$(git -C "$R9" worktree list)"; fi
+rm -f "$lk"; exec {h9}>&-
+_pp_baseline_reap "$R9"
+if ! git -C "$R9" worktree list | grep -F "$p1" >/dev/null && [[ ! -e "$p1" && ! -e "$lk" ]]; then
+  pass "9d. a dead run's stable base tree is reaped"
+else fail "9d. reap stable" "$(git -C "$R9" worktree list)"; fi
+# 9e. the point of it: the second re-check re-uses Go's cache entries
+if command -v go >/dev/null 2>&1; then
+  RG="$ROOT/rg"; git init -q "$RG"
+  printf 'module x\n\ngo 1.21\n' >"$RG/go.mod"; printf 'package p\n\nfunc F() int { return 1 }\n' >"$RG/p.go"
+  echo good >"$RG/flag"; git -C "$RG" add -A; git -C "$RG" commit -qm base; git -C "$RG" branch trunkbase
+  echo bad >"$RG/flag"; git -C "$RG" commit -qam head
+  _go_part() { (cd "$1" && go build ./...) && grep -q good "$1/flag"; }
+  _gc_files() { find "$GOCACHE" -type f ! -name trim.txt ! -name README | wc -l; }
+  _go_recheck() { local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
+    _pp_run "go" _go_part "$RG" trunkbase >/dev/null 2>&1; _pp_baseline_cleanup "$RG" >/dev/null 2>&1; }
+  export GOCACHE="$ROOT/gocache" GOTOOLCHAIN=local GOFLAGS=
+  _go_recheck; n1="$(_gc_files)"; _go_recheck; n2="$(_gc_files)"
+  eq "9e. a second re-check writes no new Go cache entry (after the first: $n1 files)" "$n1" "$n2"
+else
+  echo "SKIP: 9e. go is not on PATH"
+fi
+if [[ -n "$_old_tmpdir" ]]; then export TMPDIR="$_old_tmpdir"; else unset TMPDIR; fi
 
 echo "-- check-pre-push-baseline.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

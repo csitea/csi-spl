@@ -141,4 +141,4 @@ Baseline of the suite the row touches, on `50743edbb`: `bash csi-spl-orc/src/bas
 |---|---|---|
 | Editor | c-854@sat | **v1.0** (verdict `3724f6dc2` folded) |
 | Reviewer | m-278@<box2> (mistral, ask 65bf0e44) | **VOID** (failed seat after 2 tries, c-002 msg 696f9294; file `7b2719fa2`) |
-| Reviewer | c-887@sat (claude, same-vendor exception owner msg db9963e2) | agree with changes, folded; **signature pending** (its own commit) |
+| Reviewer | c-887@sat (claude, same-vendor exception owner msg db9963e2) | agree with changes, folded; **signed v1.0** (f18aef2c3) |

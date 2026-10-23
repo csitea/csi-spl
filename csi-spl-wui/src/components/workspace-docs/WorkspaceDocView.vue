@@ -342,20 +342,20 @@ import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
-import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
-  DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget, setDocNumbered,
-  type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
+  DOC_IMAGE_TYPES, editDocAttrs, editDocItem, removeDocItem,
+  type DocHead, type DocItem, type DocSession,
 } from './-doctree-api'
 import { assetRoute, figureNumbers, paraRuns, type ParaRun } from './-doc-pics'
 import { previewLinks } from './-doc-blocks'
-import { branchOf as branchIn, isNumbered } from './-doc-outline'
+import { branchOf as branchIn } from './-doc-outline'
 import { anchorOf } from './-doc-anchor'
 import { useDocHeadBar } from './-doc-headbar'
 import { useDocInsert } from '~/composables/useDocInsert'
 import { useDocPictures } from '~/composables/useDocPictures'
 import { useDocLanding } from '~/composables/useDocLanding'
 import { useDocPermalink } from '~/composables/useDocPermalink'
+import { useDocItemMenu } from '~/composables/useDocItemMenu'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
@@ -516,99 +516,12 @@ async function renameDoc() {
   emit('renamed', r.title)
 }
 
-function shapeOf(it: DocItem): DocShape {
-  const sib = byParent.value.get(it.parent) ?? []
-  const i = sib.findIndex((s) => s.id === it.id)
-  return { prev: i > 0 ? sib[i - 1] : undefined, parent: byId.value.get(it.parent), count: sib.length }
-}
-
-const menuItems = computed(() => {
-  const it = menu.value?.item
-  if (!it) return []
-  const sh = shapeOf(it)
-  const can = (k: 'indent' | 'outdent' | 'up' | 'down') => Boolean(moveTarget(k, it, sh.prev, sh.parent, sh.count))
-  const ops = new Map(docMenuItems({ indent: can('indent'), outdent: can('outdent'), up: can('up'), down: can('down') }).map((m) => [m.id, m]))
-  const more: PointMenuItem[] = [
-    { id: 'add_paragraph', icon: 'pencil', labelKey: 'ws_doctree.menu.add_paragraph' },
-    { id: 'add_code', icon: 'file-code', labelKey: 'ws_doctree.menu.add_code' },
-    { id: 'add_image', icon: 'file-image', labelKey: attr(it, 'img_http_path') ? 'ws_doctree.menu.replace_image' : 'ws_doctree.menu.add_image' },
-    /* spec 137 T019 gap: the heading's Numbered switch, attrs.numbered (T012a) */
-    { id: 'numbered', icon: 'hash', labelKey: isNumbered(it) ? 'ws_doctree.menu.numbering_off' : 'ws_doctree.menu.numbering_on' },
-    /* spec 138 G2: the section's link, the stable id (owner msg 748ecf3c) */
-    { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.menu.copy_link' },
-    { id: 'open_branch', icon: 'book-open', labelKey: 'ws_doctree.menu.open_branch' },
-    { id: 'open_list', icon: 'file-spreadsheet', labelKey: 'ws_doctree.menu.open_list' },
-    { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
-    { id: 'export_csv', icon: 'file', labelKey: 'ws_doctree.menu.export_csv' },
-  ]
-  for (const m of more) ops.set(m.id, m)
-  /* the owner's order (msg dd291fb8): add paragraph, promote, demote, delete, and so on */
-  const order = ['add_paragraph', 'add_code', 'add_image', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down', 'numbered',
-    'copy_link', 'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
-  const hasCode = Boolean(attr(it, 'src')) || codeOpen.has(it.id)
-  return order.filter((id) => (id !== 'add_paragraph' || !paraShown(it)) && (id !== 'add_code' || !hasCode)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
-})
-
-/** the menu's view-only entries: open the branch alone or as a list, export it */
-async function viewOp(id: string, it: DocItem): Promise<boolean> {
-  if (id === 'add_paragraph' || id === 'add_code') {
-    await openField(it, id === 'add_code')
-    return true
-  }
-  if (id === 'numbered') {
-    /* the hub re-numbers the siblings after it (and everything under them): read the document again */
-    busy.value = true
-    try {
-      if (await setDocNumbered(props.session, it, !isNumbered(it))) await load()
-    } finally {
-      busy.value = false
-    }
-    return true
-  }
-  if (id === 'copy_link') {
-    await copyLink(it)
-    return true
-  }
-  if (id === 'add_image') {
-    pickImage(it)
-    return true
-  }
-  if (id === 'open_branch') {
-    branch.value = it.id
-    await nextTick()
-    rootEl.value?.scrollIntoView({ block: 'start' })
-    return true
-  }
-  if (id === 'open_list') {
-    emit('list', it.outline)
-    return true
-  }
-  if (id !== 'export_md' && id !== 'export_csv') return false
-  const x = await import('./-doctree-export')
-  const part = branchOf(it)
-  const doc = props.title || t('ws_doctree.default_doc_title')
-  if (id === 'export_md') {
-    const figure = (n: number) => t('ws_doctree.figure', { n })
-    x.saveText(x.exportName(doc, it.outline || it.title, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }), 'text/markdown;charset=utf-8')
-  }
-  else x.saveText(x.exportName(doc, it.outline || it.title, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
-  return true
-}
-
 /** the bar's Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
 async function exportDoc() {
   const x = await import('./-doctree-export')
   const figure = (n: number) => t('ws_doctree.figure', { n })
   const md = x.branchToMarkdown(items.value, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }, preamble.value ?? undefined)
   x.saveText(x.exportName(props.title || t('ws_doctree.default_doc_title'), '', 'md'), md, 'text/markdown;charset=utf-8')
-}
-
-function openMenu(item: DocItem, x: number, y: number) {
-  menu.value = { x, y, item }
-}
-function openMenuAt(item: DocItem, e: MouseEvent) {
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  openMenu(item, r.left, r.bottom)
 }
 
 /** focus the title of a new item, its text selected (Qto opens a new node for naming) */
@@ -619,28 +532,6 @@ async function editTitle(id: string) {
   el.scrollIntoView({ block: 'nearest' })
   el.focus()
   el.select()
-}
-
-async function choose(id: string) {
-  const it = menu.value?.item
-  menu.value = null
-  if (!it) return
-  if (await viewOp(id, it)) return
-  const op = id as DocMenuId
-  if (op === 'print') return emit('print', it)
-  if (op === 'delete') {
-    doomed.value = it
-    return
-  }
-  busy.value = true
-  try {
-    const r = await runDocOp(props.session, op, it, shapeOf(it), t('ws_doctree.untitled'))
-    if (!r) return
-    await load()
-    if (r.item) await editTitle(r.item)
-  } finally {
-    busy.value = false
-  }
 }
 
 async function addFirst() {
@@ -694,6 +585,11 @@ function say(text: string, transient = true) {
 
 const { settleStop, openAnchor, goTo } = useDocLanding({ rootEl, barEl, items, anchor, say, narrow, tocOpen })
 const { copyLink, pressStart, pressEnd, permaClick } = useDocPermalink({ props, router, say, goTo })
+/* the section's point menu (r19-03): after copyLink, which it calls */
+const { menuItems, openMenu, openMenuAt, choose } = useDocItemMenu({
+  props, onList: (outline) => emit('list', outline), onPrint: (it) => emit('print', it), menu, doomed, busy, branch, rootEl,
+  byId, byParent, figs, attr, paraShown, codeOpen, openField, pickImage, copyLink, load, branchOf, editTitle,
+})
 
 /* t1 b4dd79e2: a field of the document in focus is editing (the phone hides
    the omnibox); the dots and the links are not */

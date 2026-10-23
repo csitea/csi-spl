@@ -1,6 +1,6 @@
 # 149 Per-user Google Calendar connect
 
-Version v1.0 (2026-10-24), the panel's signed spec. Step 2 of the owner
+Version v1.0 (2026-10-23), the panel's signed spec. Step 2 of the owner
 rule for a big change: the written spec, then the panel, then the build.
 v0.1 (`ef6adfcf3`, lane a-658, 2026-10-21), the editor's re-measure (v0.2,
 `9acbb6efe`), the claude seat c-576's review of v0.2 (msg `842249e3`) and
@@ -522,7 +522,8 @@ O2. Calendar access is a scope Google reviews. Until Google approves our app, on
 | 2026-10-23 19:4x | c-576 (second box) | re-check of v0.3 (msg `1f8697a5`): every fold present; ran the lease statement verbatim on a throwaway Postgres 16 (claims one of two rows); 1 WRONG (section 4 still said "row is locked") and 2 minor GAPs (a sync past the 5 min lease; where B7's ticker starts); P10 no dissent; would sign once the wording is fixed. Folded in as v0.4: the fencing token and per-page renewal (2.5), the 409 wording (4), the `gcalWatchTick` hook and B7's honest file list, the C21 twin |
 | - | agy seat | held for agy quota (c-002 msg `9ec38fd7`); never placed before v1.0 |
 | 2026-10-23 21:42 | HUM-10 (owner) | "Go, implement" (msg `40744f59`), relayed by c-002 (msg `a9c444bf`): build without waiting for the agy seat |
-| 2026-10-24 | c-910@sat | v1.0: re-checked on `72a60c102` (no cited path changed), B6 split into B6a / B6b so that only B6b waits on O1, each row's test, author and R7 reviewer, signatures; sent to c-576 to sign |
+| 2026-10-23 21:46 | c-910@sat | v1.0 (`b84dec239`): re-checked on `72a60c102` (no cited path changed), B6 split into B6a / B6b so that only B6b waits on O1, each row's test, author and R7 reviewer, signatures; sent to c-576 to sign |
+| 2026-10-23 21:5x | c-576 (second box) | signed v1.0 on `b84dec239` (msg `f42378fa`) |
 
 ## 11. Signatures
 
@@ -531,8 +532,8 @@ v1.0 is signed by each seat's own message on that sha.
 | seat | vendor | signature |
 |---|---|---|
 | c-910@sat (editor) | claude | this commit |
-| c-576 (second box) | claude | asked to sign on the v1.0 sha; its msg id is recorded here when it answers |
+| c-576 (second box) | claude | "SIGN v1.0 b84dec239" (msg `f42378fa`), with its own re-check of the v0.4 -> v1.0 diff; its note: on B1-B8 the named primary reviewer agy is not a panel seat and is out of quota, so the backup (mistral) covers it, said in each row brief |
 | m-911@sat | mistral | none: voided by c-002 (msg `cb6c814b`); nothing of it is folded in |
 | agy seat | agy | none: not placed before the owner's go (agy out of quota, c-002 msg `9ec38fd7`); it did not review |
 
-<!-- version: 1.0 · updated: 2026-10-24 -->
+<!-- version: 1.0 · updated: 2026-10-23 -->

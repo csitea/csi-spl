@@ -1,9 +1,9 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
-Version v0.2 (2026-10-23), the panel draft. Step 2 of the owner rule for a
+Version v0.3 (2026-10-23), the panel draft. Step 2 of the owner rule for a
 big change: the written spec, then the panel, then the build. v0.1
 (`20b5d6eae`) plus the editor's findings and the claude seat's findings
-(section 8). The agy seat has not reviewed yet; v1.0 follows its review and
+and re-check (section 8). The agy seat has not reviewed yet; v1.0 follows its review and
 each seat's signature. Nothing in it is built.
 
 Source: prd topic in the owner's workspace,
@@ -128,8 +128,12 @@ live rows. Where `SPAWN_LANE_TOPIC` is set (`git grep -n SPAWN_LANE_TOPIC
 hand commands of `csi-spl-doc/doc/md/runbook-dispatcher.md:225` and
 `csi-spl-doc/doc/md/runbook-orchestrator.md:82`. **The queue placer, which
 places most lanes, never passes it**: its launch
-(`orc/run/spl-spawn-place.func.sh:551-552`) calls `spawn-window.sh` with
-`SPAWN_BOX` and `SPOOL_AGENT_ID` only. This lane's own row is an example:
+(`orc/run/spl-spawn-place.func.sh:547-552`) calls `spawn-window.sh` with
+`SPAWN_BOX` and `SPOOL_AGENT_ID` only, on two lines: the test seam
+`SPAWN_PLACE_LAUNCH_CMD` (:547-549) and the real call (:551-552). An ask's
+topic is `^([A-Za-z0-9_-]{1,64})?$` (`rdb/0097_fleet_asks.sql:46`): a full
+uuid, or another id such as a `dispatch-<topic8>` alias (the task the
+queue's replies ride, `orc/run/spl-spawn-queue.func.sh:92-93`). This lane's own row is an example:
 `c-898@sat`, `live`, topic `''`.
 
 Other hub routes, none of which carries a lane's topic or issue:
@@ -144,7 +148,13 @@ Other hub routes, none of which carries a lane's topic or issue:
   agent `agent_id, vendor, model, box, last_active` and the burn.
   `last_active` is the last minute with token burn
   (`store/fleet_tokens.go:319`), pushed by the box cron every 30 s
-  (`orc/.../token-burn-collect-cron.sh:2-5`). The Tokens tab polls it every
+  (`orc/.../token-burn-collect-cron.sh:2-5`). The burn rows are per
+  `(box_tag, agent_id, minute_bucket)` with no tenant
+  (`rdb/0199_fleet_token_burn.sql:6,11-12,23`). In prd `box_tag` and
+  `fleet_lanes.agent_box` use the same box ids (2026-10-23 17:2xZ, n = 1:
+  burn rows of the last day carry `box_tag` `sat` 5046 and the second box
+  2781; `t1` live lane rows carry `agent_box` `sat` 132 and the second box
+  78; no other value on either side). The Tokens tab polls it every
   `TOKENS_POLL_MS = 30000` (`wui/utils/monitoring-tokens.mjs:23`) while the
   page is visible (`wui/pages/monitoring/tokens/index.vue:96-119`).
 
@@ -249,8 +259,11 @@ section 3.3 serves the live list only (decision P6).
   a lane id (`^[acgmq]-[0-9]{3}$`, the form of `rdb/0155:35`; the `BOX-0`
   box row and old upper-case ids are left out) AND either the agent's
   fleet-tokens `last_active` is within 15 min or `updated_at` is within
-  60 min. A vendor with no burn parser falls back to the 60 min part. On
-  today's data the 60 min part alone gives 23 rows instead of 212 (2.2).
+  60 min. A vendor with no burn parser falls back to the 60 min part. The
+  join is `fleet_token_burn_events.agent_id = fleet_lanes.agent_id AND
+  box_tag = fleet_lanes.agent_box` (the same ids, 2.2). Measured in prd
+  2026-10-23 17:21Z, n = 1, over the 145 `t1` live rows with a lane id:
+  burn within 15 min 25, `updated_at` within 60 min 24, active (either) 27.
   No new heartbeat column, no roster presence (lanes are often not in the
   roster, 2.2).
 - Refresh (decision P4): the page fetches every 60 s while the browser tab
@@ -306,9 +319,12 @@ The view is empty of links while 207 of 212 rows carry no topic. So:
   (already written before the put, 2.2: no reorder) and, in a dry run,
   from `_spawn_issue_block`'s fallback: `SPAWN_ISSUE`, then the brief's
   `Issue:` line.
-- The queue placer's launch (`orc/run/spl-spawn-place.func.sh:551-552`)
-  passes `SPAWN_LANE_TOPIC` from the ask's topic when it is a full topic
-  uuid. This is the path that places most lanes.
+- The queue placer (`orc/run/spl-spawn-place.func.sh:547-552`) sets
+  `SPAWN_LANE_TOPIC` from the ask's topic ONCE, before the
+  `SPAWN_PLACE_LAUNCH_CMD` branch, so the test seam and the real call
+  carry the same value; only when the topic is a full uuid (a
+  `dispatch-<topic8>` alias sets nothing). This is the path that places
+  most lanes.
 - A topic given as an 8-hex short id is passed to the put unchanged and
   resolved to the full uuid by the hub at `put`, or stored empty when it
   does not match exactly one topic of the tenant: a short id never reaches
@@ -350,14 +366,14 @@ rule" twin, named in its control column.
 | C5 | B1 | `monitoring-costs.test.mjs` and `rail-order-default.test.mjs` find the bar by data-test | pass | pass (C) | the two files, unchanged |
 | C6 | B2 | a dry-run spawn with `SPAWN_ISSUE=SPL-n` and a brief naming `topic:<uuid>`: the lane-map put line | `--topic ''`, no `--issue` | `--topic <uuid> --issue SPL-n` | `test-spawn-dry-run.sh` case greps the PLAN line |
 | C6b | B2 | a brief carrying a spool task alias uuid and a `/t/<uuid>` topic | `--topic ''` | `--topic` = the `/t/` uuid, never the alias uuid | the same test, the alias uuid planted first in the file |
-| C6c | B2 | the queue placer launches an ask whose topic is a full uuid | no `SPAWN_LANE_TOPIC` | `SPAWN_LANE_TOPIC=<uuid>` in the launch env | placer test with `SPAWN_PLACE_LAUNCH_CMD` recording its env |
+| C6c | B2 | the queue placer launches an ask whose topic is a full uuid | no `SPAWN_LANE_TOPIC` | `SPAWN_LANE_TOPIC=<uuid>` in the launch env | placer test with `SPAWN_PLACE_LAUNCH_CMD` recording its env (valid only because the value is set before the branch, 3.4); twin: an ask topic `dispatch-5e7b15c9` sets none |
 | C7 | B2 | the brief names only an 8-hex short id | `--topic ''` | `--topic <8 hex>`, unchanged | the dry-run test greps the PLAN line |
 | C7b | B3 | `lane_op put` with an 8-hex topic: one match, and two topics sharing the prefix | stored as sent | the full uuid; `''` for two matches | Go test, memory store and Postgres |
 | C8 | - | `agent-id-retire.sh c-NNN` closes its lane row | yes (`agent-id-retire.sh:292-295`) | yes (C) | the retire test's `lane-map.sh done` step |
 | C9 | B3 | `lane_op put` with `issue_key: "SPL-3075"`, then `list` | field dropped | returned | Go test on the memory store and on Postgres |
 | C10 | B3 | `issue_key: "spl 1"` | n/a | refused, row unchanged | Go test; twin: `"SPL-1"` is stored |
 | C11 | B3 | `GET /v1/operator/fleet-lanes` as an operator admin | no route | 200, active rows only | Go test: a `live` row 2 h old with no token burn for 2 h is absent |
-| C11b | B3 | a `live` row 3 h old whose agent burned tokens 5 min ago | no route | present | Go test |
+| C11b | B3 | a `live` row 3 h old, `agent_box` `sat`, whose agent burned tokens 5 min ago under `box_tag` `sat` | no route | present | Go test on Postgres; twin: the same burn under another `box_tag` leaves the row absent |
 | C12 | B3 | the same as a non-admin member of the operator workspace, and as an admin of another tenant | no route | 403 | Go test |
 | C13 | B3 | a `BOX-0` row and an upper-case `CLE-77` row, both live and fresh | n/a | absent | Go test; twin: a fresh `c-077` row is present |
 | C14 | B3 | a lane whose topic links SPL-1 and whose own key is SPL-2 | n/a | `issues` = SPL-1, SPL-2, each once | Go test; twin: a lane with SPL-1 as both lists it once |
@@ -382,25 +398,26 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 |---|---|---|---|---|
 | B1 tab row | wui | `wui/pages/monitoring.vue`; `wui/assets/css/main.css` (the `.monitoring-tabs` / `.monitoring-tab` rules at :1580-1584, one `.monitoring-page .feed-header h2` rule, one line in the phone block near :1003); the cases go into the existing `csi-spl-wui/tests/e2e/monitoring-costs.test.mjs` (a new e2e file moves the shard spread: if one is added, `node --test tests/unit/e2e-shard-pack.test.mjs` runs before the push) | - | C1-C5 |
 | B3 hub view | rdb, api | a new `rdb/<next>_fleet_lanes_issue_key.sql` (3.4); `hub/box_lane.go`; new `hub/fleet_lanes_view.go` + `_test.go`; `store/fleet_lane.go`, `store/fleet_lane_postgres.go` and the memory store's fleet-lane methods; one line in `hub/server.go` (:487) | - | C7b, C9-C14b |
-| B2 lane row data | orc | `orc/features/spawn-agents/scripts/lane-map.sh`, `spawn-core.inc.sh` (`_spawn_lane_put` only), `orc/run/spl-spawn-place.func.sh` (the launch at :551-552 only), the lane-put run action, their tests under `orc/features/spawn-agents/tests/` and the placer's test | B3 on master (the issue field, the short-id resolution) | C6-C7 |
+| B2 lane row data | orc | `orc/features/spawn-agents/scripts/lane-map.sh`, `spawn-core.inc.sh` (`_spawn_lane_put` only), `orc/run/spl-spawn-place.func.sh` (the launch at :547-552 only), the lane-put run action, their tests under `orc/features/spawn-agents/tests/` and the placer's test | B3 on master (the issue field, the short-id resolution) | C6-C7 |
 | B4 Lanes tab | wui | `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/lanes/index.vue`; new `wui/utils/monitoring-lanes.mjs`; the hub client's fleet-lanes call; `csi-spl-wui/i18n/locales/*.json` (new keys only); `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; new `tests/unit/monitoring-lanes.test.mjs`; C17 and C3b in an existing monitoring e2e file (or a new one plus the shard-pack test) | B1, B3 | C3b, C15-C20 |
-| B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test, the store's issue list query | - | C21-C22 |
+| B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (the `ListIssues` interface at :392 and the memory store at :924) and `store/issues_postgres.go` (:381) | - | C21-C22 |
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
 
-Order: B1, B3 and B5a may run at once; B2 after B3; B4 after B1 and B3;
+Order: B1, B3 and B5a may run at once (B3's store interface is
+`store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;
 B5b after B5a. B4 and B5b both add locale keys: they land one after the
 other, and each ends with an agy review of its text (the language rule).
 
 ## 6. Panel decisions
 
 Seats so far: editor c-898@sat (claude), seat c-228 (second box) (claude,
-msg `a7c15b01`). The agy seat (ask `5b006c9f`) has not reviewed; its
+msgs `a7c15b01`, `abea4bdc`). The agy seat (ask `5b006c9f`) has not reviewed; its
 findings and any dissent go in here before v1.0. The mistral seat
 (m-039, second box) was voided after two failed tries (c-002 msg `54ed5f39`).
 
 | # | question | decision | reason | dissent |
 |---|---|---|---|---|
-| P1 | what is "active" | `live` AND a lane id AND (fleet-tokens `last_active` within 15 min OR `updated_at` within 60 min); the row field is `last_active`, not `online` | lanes are often not in the roster (`spl-lane-issue.func.sh:164-166`), so presence reads false; the token burn is already a per-agent heartbeat every 30 s behind the same gate (2.2) | none |
+| P1 | what is "active" | `live` AND a lane id AND (fleet-tokens `last_active` within 15 min OR `updated_at` within 60 min), joined on `agent_id` + `box_tag = agent_box`; the row field is `last_active`, not `online` | lanes are often not in the roster (`spl-lane-issue.func.sh:164-166`), so presence reads false; the token burn is already a per-agent heartbeat every 30 s behind the same gate (2.2); the join matches in prd (25 of 27 active rows by burn, 3.2) | none |
 | P2 | the 172 stale `live` rows | the view's cut-off hides them; no close action, no prd write | all last written on or before 2026-10-14 (2.2); retire already runs `lane-map.sh done` (`agent-id-retire.sh:292-295`) | none |
 | P3 | issue keys on the lane row | yes, as well as through the discussion | the view already computes them, and the lane's own issue is often not linked to the row's topic | none |
 | P4 | poll or push | poll every 60 s | it matches Tokens and needs no socket change; the claude seat believes, unchecked, that no fleet-lane frame exists on the WUI socket | none |
@@ -424,6 +441,7 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 15:26 | c-898@sat | v0.1 landed, `20b5d6eae` |
 | 2026-10-23 17:07 | c-898@sat | panel sha `20b5d6eae` and editor findings 1-3 to the claude seat (msg `5a638be8`) |
 | 2026-10-23 17:10 | c-228 (second box) | claude seat findings (msg `a7c15b01`): 33 rows checked; gaps folded in as 2.1 h2, 3.1 underline, 3.3 one tenant, 3.4 sources and dry run, 3.5 400, C2b, C3/C3b, C6b, C6c, C7b, C11b, C14b, C21b, B1 shard note, B3 `<next>` and `server.go` |
+| 2026-10-23 17:2x | c-228 (second box) | re-check of v0.2 (msg `abea4bdc`): 8 rows; folded in as the placer seam (:547-552, set once before the branch), the C6c alias twin, the burn join key with its prd measure (2.2, 3.2, C11b), B5a's store files; P1-P6 and O1 no dissent |
 | - | agy seat | pending |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)

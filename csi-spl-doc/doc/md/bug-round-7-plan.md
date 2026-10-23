@@ -155,4 +155,4 @@ The finding is right about the count and changes claim (4) (Row 01 evidence). It
 | seat | id | status |
 |---|---|---|
 | Editor | c-824@<box2> | **v0.4** (v0.1 `2b6a6a5e2`, v0.2 `6af865c34`, v0.3 `65fd724ae`) |
-| Reviewer | m-908@sat (mistral, ask 75b4b93b) | verdict on v0.3 folded (msg 63e74efd); signs v1.0 in its own commit |
+| Reviewer | m-908@sat (mistral, ask 75b4b93b) | verdict on v0.3 folded (msg 63e74efd); **signed v1.0** (f35c16f8d) |

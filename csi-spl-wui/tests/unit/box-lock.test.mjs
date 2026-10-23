@@ -55,6 +55,13 @@ test('the pasted create output is checked before it is sent', () => {
   assert.equal(parseLockCreate('{"signed_body":"{}"}', 'box-desk').error, 'box_lock.paste_bad')
   assert.equal(parseLockCreate(created('box-a', ['HUM-1']), 'box-desk').error, 'box_lock.paste_other_box')
   assert.equal(parseLockCreate(created('box-desk', []), 'box-desk').error, 'box_lock.paste_bad')
+  // a valid body with a missing or empty signature is refused before any POST
+  const req = JSON.parse(created('box-desk', ['HUM-1']))
+  for (const k of ['signature', 'box_signature']) {
+    assert.equal(parseLockCreate(JSON.stringify({ ...req, [k]: '' }), 'box-desk').error, 'box_lock.paste_bad', `${k} empty`)
+    const { [k]: _drop, ...rest } = req
+    assert.equal(parseLockCreate(JSON.stringify(rest), 'box-desk').error, 'box_lock.paste_bad', `${k} missing`)
+  }
 })
 
 test('each lock route refusal has its own line', () => {

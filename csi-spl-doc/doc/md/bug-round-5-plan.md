@@ -8,12 +8,13 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-2987.  
 Model: [bug-round-4-plan.md](bug-round-4-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, for review.**
+**Status: v1.0, for the reviewer's signature** (reviewer verdict [seat-mistral.md](bug-round-5/seat-mistral.md), `80ed8199b`: rows 01 and 02 agree, 0 agree with changes, 0 disagree, no further defect found; nothing to fold into the rows).
 
 Editor: **c-081@<box2>** (claude, the backup vendor for `specs_and_docs`: `LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix` -> `pick=agy`; agy and grok have no quota, per the brief).  
-Reviewer: one cross-vendor seat, asked from the dispatcher (mistral, rulebook 2.7.2). It signs v1.0 in its own commit.
+Reviewer: **m-110@<box2>** (mistral, cross-vendor per rounds-rulebook 2.7.2: agy and grok had no quota; dispatcher ask fb100853); verdict `80ed8199b`. It signs v1.0 in its own commit.
 
-**One sha:** every count is measured on **`35a8a111d`** (`origin/master` at the start, 2026-10-23T03:27Z), n=1 per command unless stated.
+**One sha:** every count is measured on **`35a8a111d`** (`origin/master` at the start, 2026-10-23T03:27Z), n=1 per command unless stated.  
+Re-checked on `80ed8199b` (origin/master at the v1.0 fold): `git diff --stat 35a8a111d 80ed8199b -- <every row file> csi-spl-doc/doc/md/rounds-rulebook.md` -> empty.
 
 ---
 
@@ -117,7 +118,8 @@ Baseline of the suite the rows touch, on `35a8a111d`: `bash csi-spl-orc/src/bash
 ## 8. Panel and reviewer (R7)
 
 - **Editor:** `c-081@<box2>` (claude).
-- **Reviewer:** one cross-vendor seat from the dispatcher (mistral); it signs v1.0 in its own commit.
+- **Reviewer:** `m-110@<box2>` (mistral), verdict `80ed8199b` ([seat-mistral.md](bug-round-5/seat-mistral.md)); it signs v1.0 in its own commit.
+- The verdict landed on the third try: `3019534c7` was reported landed but the pre-push hygiene part had refused it (12 lines with a literal user, box or home path); `80ed8199b` puts placeholders in those lines. The review content did not change. The verdict names no session id under "Proof of the run", so the dispatcher reads m-110's journal before ACCEPTED.
 
 ---
 
@@ -125,5 +127,5 @@ Baseline of the suite the rows touch, on `35a8a111d`: `bash csi-spl-orc/src/bash
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-081@<box2> | **v0.1** |
-| Reviewer | (asked) | pending |
+| Editor | c-081@<box2> | **v1.0** (verdict `80ed8199b` folded: no row change) |
+| Reviewer | m-110@<box2> (mistral) | verdict agree 2 / 0 / 0; signature pending |

@@ -28,13 +28,17 @@
 #      `sudo -n -u <owner>`, the owner from the passwd home the path is under
 #      -> OK; controls: sudo -n refused -> exit 1 naming the owner and the
 #      command; a readable log never calls sudo
+#  10. one session, the reviewer checked here (bug round 5 row 02): (a) a log:
+#      dir holding 2 session dirs (the store root) -> exit 1, names the count;
+#      control: one session dir of it -> OK; (b) a header reviewer that is no
+#      agent id, or is not the log: owner -> SYNTAX FAIL, exit 1, on this box
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
-chk() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE_BOX=box-a "$@" 2>&1; }
+chk() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" "$@" 2>&1; }
 SHA=0123456789abcdef0123456789abcdef01234567
 line() { echo "review: m-159@box-a mistral PASS $SHA ran: $1 | read: 9 PASS | log: m-159@${3:-box-a}:$2"; }
 TST=csi-spl-orc/src/bash/tests/git-prune-round-branches.tst.sh
@@ -191,6 +195,21 @@ out="$(own REVIEW_LINE="$(line "bash $TST" "$W/s3")")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK 1 of 1"* && "$out" != *"read as"* && ! -s "$T/sudo.log" ]] \
   && pass "9. control: a readable log never calls sudo" || fail "9. readable calls sudo (rc $rc: $out)"
 chmod 700 "$L"
+
+# 10. one session dir, the reviewer checked on this box -------------------------
+U="$T/u10"
+for s in s1 s2; do mkdir -p "$U/$s/chunks"; echo '{}' >"$U/$s/CURRENT"; printf '%s' '[{"input":{"command":"ls"}}]' >"$U/$s/chunks/c1.json"; done
+printf '%s' '[{"input":{"command":"cd /x && bash '"$TST"'"}}]' >"$U/s2/chunks/c1.json"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$U")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"holds 2 sessions"* ]] && pass "10. log: the store root (2 session dirs) -> exit 1, names the count" || fail "10. store root (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(line "bash $TST" "$U/s2")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "10. control: log: one session dir of it -> OK 1 of 1" || fail "10. one session (rc $rc: $out)"
+l10="review: mistral@box-a mistral PASS $SHA ran: bash $TST | read: 9 PASS | log: mistral@box-a:$U/s2"
+out="$(chk REVIEW_LINE="$l10")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] && pass "10. a reviewer with no agent id -> SYNTAX FAIL, exit 1, on this box" || fail "10. no agent id (rc $rc: $out)"
+l10="review: m-902@box-a mistral PASS $SHA ran: bash $TST | read: 9 PASS | log: m-901@box-a:$U/s2"
+out="$(chk REVIEW_LINE="$l10")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"not the log: owner"* ]] && pass "10. a reviewer that is not the log: owner -> SYNTAX FAIL, exit 1, on this box" || fail "10. not the owner (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -52,13 +52,16 @@ with its time, then meetings, channels and **Other**.
 
 | a line shows | meaning |
 |---|---|
-| a mark | the day has suggestions you have not approved yet |
-| a lock | the day is frozen and can no longer change |
-| **Final** | a biz owner approved the period |
+| a dot | the day has suggestions you have not approved yet, or its period was returned |
+| a lock | the day is frozen, or a biz owner approved its period: it can no longer change |
+
+In the dialog the day says **Frozen** or **Final** (a biz owner approved the
+period) next to the lock.
 
 The calendar's right side has an **Hours** panel with a **Mine** tab: the open
-period's days, their totals and states. On a phone, open it from the calendar
-menu, **Hours**.
+period's days, their totals and states. The **Hours** button above the
+calendar shows or hides it. On a phone, open it from the calendar menu,
+**Hours**.
 
 ## 3. Approving your days
 
@@ -85,9 +88,13 @@ You can also change a line before you approve it, or after:
 - **Why** shows the activity a suggested line was counted from.
 - **Add note** puts a note (up to 500 characters) on a line. A note on a line
   not yet approved approves it.
-- The **timer** button in the top bar times work outside the app: pick what it
-  is for, and **Stop and log** adds the time to that day's line. It keeps
-  running across reloads on this device, and nobody sees it until you stop it.
+- The timer button in the top bar ("Start a timer for time worked outside
+  the app") opens the **Hours timer**, for work such as a call or an editor:
+  pick what it is for (**Recent topics**, **Issues** or **Channels**) and it
+  starts at once. **Stop and log** adds the time to that day's line;
+  **Discard** drops it. It keeps running across reloads on this device, and
+  nobody sees it until you stop it. A frozen day refuses the time: nothing is
+  written.
 
 A day holds at most 24 hours.
 
@@ -122,8 +129,9 @@ The biz owner never changes your numbers: they approve or return.
 the biz owner's note. Fix your lines, then press **Resubmit**: the period
 freezes again and goes back to the biz owner.
 
-**Download** (its own tab): pick a period, CSV or Excel (XLSX), and whether
-to include **Final only** (the default). One line per approved entry, with
+**Download** (its own tab): pick a day of the period (**Period containing**),
+the **Format**, CSV or XLSX (Excel), and whether to include **Final only**
+(the default). One line per approved entry, with
 the date, the member, what the time was for, minutes, decimal hours, the
 note and the period's state. Hours are number cells, so a spreadsheet can
 sum them. Rejected lines and unapproved suggestions are never in it.
@@ -142,9 +150,6 @@ sum them. Rejected lines and unapproved suggestions are never in it.
   after it closes. The approved lines stay.
 - By default only the biz owner has the Team and Download rights; a biz owner
   can give them to another role in the role editor.
-- A **time-accountant** role is planned: a person, possibly an accountant
-  from outside the organisation, who reads the approved hours and downloads
-  them, but approves nothing and sees no messages. It is not in the app yet.
 
 ## 7. Settings
 
@@ -175,4 +180,4 @@ Your days follow your own time zone when you set one, otherwise the
 workspace's. A change of period starts after the last frozen period: days
 already passed never move into a new period.
 
-<!-- version: 1.0.0 · updated: 2026-10-11 -->
+<!-- version: 1.0.1 · updated: 2026-10-23 -->

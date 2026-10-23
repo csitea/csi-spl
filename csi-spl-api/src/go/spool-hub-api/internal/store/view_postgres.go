@@ -301,7 +301,8 @@ func (b *topicsSQL) walkParties() string {
 
 // readerDoor is the read door (rdb 0028): the topic must hold at least one
 // message this reader may see - one in a public channel, one in a channel
-// they belong to, or a DM they are an end of. Same probe shape as Viewer, so
+// they belong to, a DM they are an end of, or a DM agent's message to that
+// DM (dmAgentDoorSQL, rdb 0214). Same probe shape as Viewer, so
 // it stays a LIMIT 1 index step inside the walk rather than a join. aggDoor
 // is the same rule PER MESSAGE for the summary: the door only decides
 // whether a topic is listed, so without it a topic mixing a DM with a #lobby
@@ -314,9 +315,9 @@ func (b *topicsSQL) readerDoor() (walk, aggDoor string) {
 	rd, pub, mine := b.c.arg(b.q.Reader), b.c.arg(PublicChannels), b.c.arg(b.q.ReaderChannels)
 	walk = " AND (SELECT true FROM messages d WHERE " + b.topic("d") + " AND (" +
 		"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
-		"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
+		"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + ")) OR " + dmAgentDoorSQL("d", rd) + ") LIMIT 1)"
 	aggDoor = " AND (m.channel = ANY(" + pub + "::text[]) OR m.channel = ANY(" + mine + "::text[]) OR " +
-		"(m.channel IS NULL AND (m.from_id = " + rd + " OR m.to_id = " + rd + ")))"
+		"(m.channel IS NULL AND (m.from_id = " + rd + " OR m.to_id = " + rd + ")) OR " + dmAgentDoorSQL("m", rd) + ")"
 	return walk, aggDoor
 }
 
@@ -455,7 +456,8 @@ func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 	door, doorArgs := "true", []any{}
 	if q.Reader != "" {
 		door = `((channel IS NULL AND (from_id = $9 OR to_id = $9))
-			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))`
+			OR channel = ANY($10::text[]) OR channel = ANY($11::text[])
+			OR ` + dmAgentDoorSQL("messages", "$9") + `)`
 		doorArgs = []any{q.Reader, PublicChannels, q.ReaderChannels}
 	}
 	archived := ""

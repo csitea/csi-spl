@@ -253,13 +253,29 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 ## reader
 WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id
-			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3)) OR (d.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = d.tenant_id AND da.agent_id = d.from_id AND da.agent_box = d.from_box
+		AND (da.a_id = $3 OR da.b_id = $3)
+		AND ((d.to_id = da.a_id AND d.to_box = da.a_box) OR (d.to_id = da.b_id AND d.to_box = da.b_box))
+		AND d.received_at >= da.added_at AND (da.removed_at IS NULL OR d.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = d.tenant_id AND dp.task_id = d.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box)))))) LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $6))) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1)
 			UNION ALL
 			SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL (
 				SELECT l.task_id, l.received_at FROM messages l
 				WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id
-			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3)) OR (d.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = d.tenant_id AND da.agent_id = d.from_id AND da.agent_box = d.from_box
+		AND (da.a_id = $3 OR da.b_id = $3)
+		AND ((d.to_id = da.a_id AND d.to_box = da.a_box) OR (d.to_id = da.b_id AND d.to_box = da.b_box))
+		AND d.received_at >= da.added_at AND (da.removed_at IS NULL OR d.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = d.tenant_id AND dp.task_id = d.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box)))))) LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $6))) AND l.received_at <= w.received_at
 					AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1
 			) s
@@ -272,7 +288,15 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
 					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
-			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)) OR (m.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = m.tenant_id AND da.agent_id = m.from_id AND da.agent_box = m.from_box
+		AND (da.a_id = $3 OR da.b_id = $3)
+		AND ((m.to_id = da.a_id AND m.to_box = da.a_box) OR (m.to_id = da.b_id AND m.to_box = da.b_box))
+		AND m.received_at >= da.added_at AND (da.removed_at IS NULL OR m.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = m.tenant_id AND dp.task_id = m.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box))))))
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
 				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
@@ -281,7 +305,15 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		ELSE '{}'::jsonb END
 		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
-			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)) OR (m.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = m.tenant_id AND da.agent_id = m.from_id AND da.agent_box = m.from_box
+		AND (da.a_id = $3 OR da.b_id = $3)
+		AND ((m.to_id = da.a_id AND m.to_box = da.a_box) OR (m.to_id = da.b_id AND m.to_box = da.b_box))
+		AND m.received_at >= da.added_at AND (da.removed_at IS NULL OR m.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = m.tenant_id AND dp.task_id = m.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box))))))
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
@@ -463,13 +495,29 @@ WITH w (task_id, received_at) AS (
 ## everything
 WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel = $3 AND l.channel IS NULL AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel = $4 AND x.channel IS NULL AND x.task_id = l.task_id
-			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND l.received_at <= $5 AND (l.received_at, l.task_id::text) < ($5, $6) AND (SELECT true FROM messages g WHERE g.tenant_id = $1 AND g.expires_at > $2 AND g.channel = $9 AND g.channel IS NULL AND g.task_id = l.task_id AND ((g.from_id = $7 AND g.from_box = $8) OR (g.to_id = $7 AND g.to_box = $8)) LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel = $11 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $10 OR v.to_id = $10) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel = $15 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($13::text[]) OR d.channel = ANY($14::text[]) OR (d.channel IS NULL AND (d.from_id = $12 OR d.to_id = $12))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $16 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = $1 AND p.parent_task_id = $17::uuid) AND (SELECT f.parent_task_id IS NOT DISTINCT FROM $17::uuid FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $18 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND l.received_at <= $5 AND (l.received_at, l.task_id::text) < ($5, $6) AND (SELECT true FROM messages g WHERE g.tenant_id = $1 AND g.expires_at > $2 AND g.channel = $9 AND g.channel IS NULL AND g.task_id = l.task_id AND ((g.from_id = $7 AND g.from_box = $8) OR (g.to_id = $7 AND g.to_box = $8)) LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel = $11 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $10 OR v.to_id = $10) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel = $15 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($13::text[]) OR d.channel = ANY($14::text[]) OR (d.channel IS NULL AND (d.from_id = $12 OR d.to_id = $12)) OR (d.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = d.tenant_id AND da.agent_id = d.from_id AND da.agent_box = d.from_box
+		AND (da.a_id = $12 OR da.b_id = $12)
+		AND ((d.to_id = da.a_id AND d.to_box = da.a_box) OR (d.to_id = da.b_id AND d.to_box = da.b_box))
+		AND d.received_at >= da.added_at AND (da.removed_at IS NULL OR d.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = d.tenant_id AND dp.task_id = d.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box)))))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $16 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = $1 AND p.parent_task_id = $17::uuid) AND (SELECT f.parent_task_id IS NOT DISTINCT FROM $17::uuid FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $18 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $19))) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1)
 			UNION ALL
 			SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL (
 				SELECT l.task_id, l.received_at FROM messages l
 				WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel = $3 AND l.channel IS NULL AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel = $4 AND x.channel IS NULL AND x.task_id = l.task_id
-			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND l.received_at <= $5 AND (l.received_at, l.task_id::text) < ($5, $6) AND (SELECT true FROM messages g WHERE g.tenant_id = $1 AND g.expires_at > $2 AND g.channel = $9 AND g.channel IS NULL AND g.task_id = l.task_id AND ((g.from_id = $7 AND g.from_box = $8) OR (g.to_id = $7 AND g.to_box = $8)) LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel = $11 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $10 OR v.to_id = $10) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel = $15 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($13::text[]) OR d.channel = ANY($14::text[]) OR (d.channel IS NULL AND (d.from_id = $12 OR d.to_id = $12))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $16 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = $1 AND p.parent_task_id = $17::uuid) AND (SELECT f.parent_task_id IS NOT DISTINCT FROM $17::uuid FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $18 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND l.received_at <= $5 AND (l.received_at, l.task_id::text) < ($5, $6) AND (SELECT true FROM messages g WHERE g.tenant_id = $1 AND g.expires_at > $2 AND g.channel = $9 AND g.channel IS NULL AND g.task_id = l.task_id AND ((g.from_id = $7 AND g.from_box = $8) OR (g.to_id = $7 AND g.to_box = $8)) LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel = $11 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $10 OR v.to_id = $10) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel = $15 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($13::text[]) OR d.channel = ANY($14::text[]) OR (d.channel IS NULL AND (d.from_id = $12 OR d.to_id = $12)) OR (d.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = d.tenant_id AND da.agent_id = d.from_id AND da.agent_box = d.from_box
+		AND (da.a_id = $12 OR da.b_id = $12)
+		AND ((d.to_id = da.a_id AND d.to_box = da.a_box) OR (d.to_id = da.b_id AND d.to_box = da.b_box))
+		AND d.received_at >= da.added_at AND (da.removed_at IS NULL OR d.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = d.tenant_id AND dp.task_id = d.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box)))))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $16 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = $1 AND p.parent_task_id = $17::uuid) AND (SELECT f.parent_task_id IS NOT DISTINCT FROM $17::uuid FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel = $18 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $19))) AND l.received_at <= w.received_at
 					AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1
 			) s
@@ -482,7 +530,15 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
 					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
-			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $21 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)))
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $21 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)) OR (m.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = m.tenant_id AND da.agent_id = m.from_id AND da.agent_box = m.from_box
+		AND (da.a_id = $12 OR da.b_id = $12)
+		AND ((m.to_id = da.a_id AND m.to_box = da.a_box) OR (m.to_id = da.b_id AND m.to_box = da.b_box))
+		AND m.received_at >= da.added_at AND (da.removed_at IS NULL OR m.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = m.tenant_id AND dp.task_id = m.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box))))))
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
 				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
@@ -491,7 +547,15 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		ELSE '{}'::jsonb END
 		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
-			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $22 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)))
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $22 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)) OR (m.channel IS NULL AND EXISTS (SELECT 1 FROM dm_agents da
+		WHERE da.tenant_id = m.tenant_id AND da.agent_id = m.from_id AND da.agent_box = m.from_box
+		AND (da.a_id = $12 OR da.b_id = $12)
+		AND ((m.to_id = da.a_id AND m.to_box = da.a_box) OR (m.to_id = da.b_id AND m.to_box = da.b_box))
+		AND m.received_at >= da.added_at AND (da.removed_at IS NULL OR m.received_at < da.removed_at)
+		AND EXISTS (SELECT 1 FROM messages dp WHERE dp.tenant_id = m.tenant_id AND dp.task_id = m.task_id
+			AND dp.channel IS NULL
+			AND ((dp.from_id = da.a_id AND dp.from_box = da.a_box AND dp.to_id = da.b_id AND dp.to_box = da.b_box)
+				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box))))))
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC

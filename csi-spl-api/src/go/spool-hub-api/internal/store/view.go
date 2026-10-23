@@ -209,7 +209,7 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 			(m.ToID == q.Agent && (q.AgentBox == "" || m.ToBox == q.AgentBox)) {
 			match[m.TaskID] = true
 		}
-		if q.Reader != "" && !readableBy(m.Channel, m.FromID, m.ToID, q.Reader, q.ReaderChannels) {
+		if q.Reader != "" && !s.readableLocked(tenant, m, q.Reader, q.ReaderChannels) {
 			continue
 		}
 		if q.Viewer == "" || m.FromID == q.Viewer || m.ToID == q.Viewer {
@@ -278,7 +278,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeID, m.ReceivedAt, m.MsgID) {
 			continue
 		}
-		if q.Reader != "" && !readableBy(m.Channel, m.FromID, m.ToID, q.Reader, q.ReaderChannels) {
+		if q.Reader != "" && !s.readableLocked(tenant, m, q.Reader, q.ReaderChannels) {
 			continue
 		}
 		out = append(out, s.viewMsgLocked(tenant, m))
@@ -331,6 +331,13 @@ func (s *Memory) ViewChannels(_ context.Context, tenant string, now time.Time) (
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Channel < out[j].Channel })
 	return out, nil
+}
+
+// readableLocked is readableBy plus the DM agent case (rdb 0214, spec 151
+// 4.1): an agent added to a DM writes to one end, and the other end reads
+// it too. s.mu is held.
+func (s *Memory) readableLocked(tenant string, m *Message, reader string, chans []string) bool {
+	return readableBy(m.Channel, m.FromID, m.ToID, reader, chans) || s.readableByDMAgentLocked(tenant, m, reader)
 }
 
 // readableBy is the rdb 0028 read door on one message: a public channel, a

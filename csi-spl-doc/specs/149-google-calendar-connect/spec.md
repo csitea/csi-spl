@@ -1,10 +1,10 @@
 # 149 Per-user Google Calendar connect
 
-Version v0.3 (2026-10-23), the panel draft. Step 2 of the owner rule for a
+Version v0.4 (2026-10-23), the panel draft. Step 2 of the owner rule for a
 big change: the written spec, then the panel, then the build. v0.1
 (`ef6adfcf3`, lane a-658, 2026-10-21), the editor's re-measure (v0.2,
-`9acbb6efe`) and the claude seat c-576's review of v0.2 (msg `842249e3`,
-section 10). The agy seat has not reviewed yet; v1.0 follows its review and
+`9acbb6efe`), the claude seat c-576's review of v0.2 (msg `842249e3`) and
+its re-check of v0.3 (msg `1f8697a5`) (section 10). The agy seat has not reviewed yet; v1.0 follows its review and
 each seat's signature. Nothing in it is built.
 
 Source: prd topic in the owner's workspace,
@@ -184,7 +184,12 @@ WHERE connection_id = (SELECT connection_id FROM gcal_connections WHERE due_at <
 AND status = 'connected' AND (sync_lease_until IS NULL OR sync_lease_until < now())
 ORDER BY due_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING ...`, then the
 Google calls run outside any transaction, and the lease is cleared at the
-end. The pool is 4 connections (`SPOOL_HUB_DB_MAX_CONNS` "4" in
+end. The claimed `sync_lease_until` value is the cycle's fencing token:
+every write the cycle makes to the connection or its map rows, and the
+final clear, carry `WHERE sync_lease_until = <the claimed value>`; a write
+that matches no row means another instance took the lease after 5 min, and
+the cycle stops at once. The cycle renews the lease (a new token, same
+check) after each page of Google results, so a long first sync keeps it. The pool is 4 connections (`SPOOL_HUB_DB_MAX_CONNS` "4" in
 `cnf/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`): a row lock held across
 Google HTTP calls would hold one of them for the whole sync.
 
@@ -233,8 +238,10 @@ the connection due; state `sync` answers 200 and does nothing. Any mismatch
 is 403 with no detail. A channel lives at most about 7 days (unchecked, I
 believe, from Google's docs); the ticker renews those ending within 24 h.
 Without pushes the 60 s cycle still syncs: a lost push costs only latency.
-The channel is B7's alone: B7's ticker creates one for every connected row
-that has none, renews it, and stops it on disconnect; before B7 lands no
+The channel is B7's alone: B7 adds one call in B6's sync cycle
+(`hub/gcal_sync.go`, after the lease is taken) to `s.gcalWatchTick`, which
+creates a channel for a connected row that has none and renews one ending
+within 24 h; disconnect stops it; before B7 lands no
 channel exists, so nothing pushes to a route that is not there yet.
 
 ### 2.7 WUI
@@ -343,7 +350,7 @@ own tenant.
 | `GET /v1/me/google-calendar` | member | `{connected:false}` or `{connected, google_email, calendar_title, status, status_detail, last_synced_at}`; never a token |
 | `POST` / `GET /v1/me/google-calendar/connect?workspace=` | member | `{authorize_url}` / 302 |
 | `GET /v1/me/google-calendar/callback` | Google's redirect (state + nonce cookie, no session needed) | 302 to the WUI |
-| `POST /v1/me/google-calendar/sync` | member | 202; 409 `sync_in_progress` while the row is locked |
+| `POST /v1/me/google-calendar/sync` | member | 202; 409 `sync_in_progress` while `sync_lease_until > now()` |
 | `DELETE /v1/me/google-calendar?remove_imported=0\|1` | member | 204 |
 | `POST /api/v1/webhooks/google-calendar` | Google | 200 / 403 |
 | `OPTIONS` on `/v1/me/google-calendar`, `/connect`, `/sync` | browser preflight | as every `/v1/me` route (`hub/channel_order.go:115`, `hub/hours_me.go:750`): the WUI calls the hub cross-origin |
@@ -386,7 +393,7 @@ control then carries its twin.
 | C18 | B6 | conflict: both sides edited, Google later | n/a | Google's values in Spool; the next cycle makes no PATCH | Go test, fake clock |
 | C19 | B6 | 410 on `syncToken` | n/a | token cleared, full list, no duplicate events | Go test |
 | C20 | B6 | refresh answers `invalid_grant` | n/a | status `revoked`, no further calls | Go test |
-| C21 | B6 | two cycles at once (two goroutines, Postgres) | n/a | each connection synced once; no transaction open during a fake Google call | Postgres test counts lease claims and the fake's calls |
+| C21 | B6 | two cycles at once (two goroutines, Postgres) | n/a | each connection synced once; no transaction open during a fake Google call | Postgres test counts lease claims and the fake's calls; twin: a fake clock past 5 min lets the second cycle claim, and the first cycle's next write matches no row and it stops (no write after that) |
 | C22 | B7 | push with a wrong channel token | 404 (no route) | 403, connection not due | Go test; twin: the right token marks it due |
 | C23 | B7 | a channel ending in 12 h; a connected row with no channel | n/a | stopped and created again; created | Go test, fake clock |
 | C23b | B7 | disconnect with a channel | n/a | the fake saw `channels/stop` | Go test |
@@ -412,7 +419,7 @@ agy review last.
 | B4 Google client | api | new `api/internal/gcal/` (`client.go`, `oauth.go`, `fakegcal/fakegcal.go`, tests) | - | C6 |
 | B5 connect routes | api, cnf | new `hub/gcal_connect.go` + `_test.go`; new `api/cmd/spool/hub_gcal.go`; one opts line in `api/cmd/spool/hub.go` (as :284); one block in `api/internal/config/config.go`; `hub/server.go`: one Options field (as :225-227) and one route line (:411-450); a `gcal:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes`) and its tpl-gen output | B2, B3, B4 | C7-C12, C24-C24c |
 | B6 sync | api | new `hub/gcal_sync.go` + `_test.go`; new `hub/gcal_map.go` (mapping, hash) + test; one line in `hub/server.go` `RunSweeper` (:585) | B5 | C13-C21 |
-| B7 push | api | new `hub/gcal_push.go` + `_test.go` (registered from `gcal_connect.go`'s route func: no new `server.go` line); channel create, renew and stop live here | B6 | C22-C23b |
+| B7 push | api | new `hub/gcal_push.go` + `_test.go` (the route registered from `gcal_connect.go`'s route func: no new `server.go` line); channel create, renew and stop live here; one call to `s.gcalWatchTick` in `hub/gcal_sync.go` (a B6 file, B7 runs after B6) and one in the disconnect path of `hub/gcal_connect.go` (a B5 file) | B6 | C22-C23b |
 | B8 WUI | wui | `wui/utils/settings-nav.mjs`; one import in `wui/components/SettingsDialog.vue`; new `wui/components/settings/calendar-google.vue`; new `wui/utils/gcal-client.mjs`; `csi-spl-wui/i18n/locales/en.json` (new keys only, the placeholder title of 2.5 included); a new `tests/unit/settings-nav.test.mjs` and its e2e | B5 | C25-C27 |
 | B9 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); then an agy review of the text (`LANE_MIX_KIND=i18n`) before it ships | B8 | C28 |
 | B10 help | doc | a new help page: how to connect, what is shared, how to disconnect; written in its qto doc and exported (`do_spl_doctree_export_md`), as every `csi-spl-doc/doc/help/*.md` is (`csi-spl-doc/doc/help/calendar.md:3`); agy review | B8 | - |
@@ -454,7 +461,7 @@ before v1.0.
 | P7 | outbound trigger | the 60 s cycle reads `GREATEST(updated_at, deleted_at)` past a cursor; no hook in the calendar handlers | no edit to `hub/calendar.go` (disjoint rows), and a failing Google call never fails a Spool write | c-576: v0.2's `updated_at` alone missed deletes (`store/calendar_postgres.go:269`); fixed in v0.3 |
 | P8 | where sync runs | in the hub (`RunSweeper`), claimed by a lease column (`sync_lease_until`) set in one short statement | CPU is always allocated, 1-2 instances (1.2 row 25); no new cron or service; the pool is 4 connections, so no transaction stays open across Google calls | c-576: v0.2's held row lock; changed to the lease in v0.3 |
 | P9 | push route | `/api/v1/webhooks/google-calendar` on the API origin | the payment webhooks' precedent (1.2 row 4); Google calls the hub directly, no Hosting rewrite | c-576: OK; possible domain verification is owner step S6 |
-| P10 | the kill switch in the WUI | the section shows in every workspace and says "not available here" on a 404 | `SETTINGS_SECTIONS` is a static list read by the dialog and the command palette (`git grep -ln SETTINGS_SECTIONS -- csi-spl-wui/src` -> `SettingsDialog.vue`, `usePaletteItems.ts`, `settings-nav.mjs`, `tenant-settings-nav.ts`); hiding it per workspace would put those files into B8 | - |
+| P10 | the kill switch in the WUI | the section shows in every workspace and says "not available here" on a 404 | `SETTINGS_SECTIONS` is a static list read by the dialog and the command palette (`git grep -ln SETTINGS_SECTIONS -- csi-spl-wui/src` -> `SettingsDialog.vue`, `usePaletteItems.ts`, `settings-nav.mjs`, `tenant-settings-nav.ts`); hiding it per workspace would put those files into B8 | c-576: none |
 
 ## 9. Owner questions
 
@@ -483,10 +490,12 @@ O2. Calendar access is a scope Google reviews. Until Google approves our app, on
 | 2026-10-23 19:1x-19:2x | m-911@sat (mistral seat) | msgs `bc25da14`, `f8d1d54a`, `6c2a6169`, `44c06c51`: no command or output in any row, after one send-back; voided by c-002 (msg `cb6c814b`); nothing folded in |
 | 2026-10-23 19:24 | c-910@sat | v0.2 sha to the claude seat c-576 (second box), replacing m-911 (msg `b738f767`) |
 | 2026-10-23 19:28 | c-576 (second box) (claude seat) | review (msg `842249e3`): 12 rows of 1.2 and 2.x re-checked OK (one line fix: `prompt` is :147); 2 WRONG (the `channel_id` column vs `store/channel_scope_rls_test.go:381`; deletes missed by an `updated_at` cursor) and 12 GAPs; folded in as the `watch_*` columns, the lease (P8), the delete cursor (P7), the scope with `openid email`, the workspace-host redirect, `OPTIONS` preflights, B1's `crosstenant_test.go`, B2's `memory.go`, B5's `hub.go` and Options field, channel work moved to B7, empty titles, occurrence exceptions both ways, P10, S0, S5's 030 apply, S6, the O2 text; cases C1b, C13b, C13c, C15b, C15c, C23b, C24b, C24c, C25b and the C4/C16 controls. The editor re-checked its two WRONG rows and the pool, preflight, seed, `memory.go` and `hub.go` claims on `19a6be809` |
+| 2026-10-23 19:3x | c-910@sat | v0.3 landed, `dc9c1b346`; to c-576 for re-check (msg `36d9da8c`) |
+| 2026-10-23 19:4x | c-576 (second box) | re-check of v0.3 (msg `1f8697a5`): every fold present; ran the lease statement verbatim on a throwaway Postgres 16 (claims one of two rows); 1 WRONG (section 4 still said "row is locked") and 2 minor GAPs (a sync past the 5 min lease; where B7's ticker starts); P10 no dissent; would sign once the wording is fixed. Folded in as v0.4: the fencing token and per-page renewal (2.5), the 409 wording (4), the `gcalWatchTick` hook and B7's honest file list, the C21 twin |
 | - | agy seat | pending (held for agy quota, c-002 msg `9ec38fd7`) |
 
 ## 11. Signatures
 
 v1.0 is signed by each seat's own message on that sha. None yet.
 
-<!-- version: 0.3 · updated: 2026-10-23 -->
+<!-- version: 0.4 · updated: 2026-10-23 -->

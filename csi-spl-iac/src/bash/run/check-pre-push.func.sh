@@ -67,7 +67,7 @@
 # @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the full-tier defaults too)
-# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 900 x the load per cpu
+# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 1950 x the load per cpu
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
 # @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
 # @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
@@ -498,12 +498,17 @@ _pp_budget() {  # <part-fn>
 # cpus, n=2 full tier: 450 s, 472 s at ~1.5; c-873 there TIMED OUT at 900 s
 # (load up to ~90, 5.6/cpu).
 # The slowest point, 862 s, sits at 96% of 900 s: no headroom once loaded.
+# The base, re-measured 2026-10-23 on the first desk box (16 cpus, trunk
+# 814d8fe84, n=2, run alone): 1111 s at load1 5.3..9.4 (0.33..0.59/cpu, the
+# first run, cold build cache) and 842 s at 9.4..7.9. Below 1/cpu the factor
+# is 1, so the 900 s base timed out a green trunk (c-878, n=3, at 7/16 cpus).
+# 1950 s is 1.75x the slowest, 1111 s, rounded up to the next 50 s.
 # The cap 2700 s (3x): 862 s scaled linearly to 5.6/cpu is ~2640 s (the wall
 # grows far slower than the load: 514 s at 0.12/cpu, 858 s at 1.82); sat's
 # 10-min load was over 3/cpu in 33 of 915 sar samples (10-04..10-11). A hung
 # suite still stops, after at most 45 min.
-# 900 s x (load1 / nproc when over 1), rounded up, at most PRE_PUSH_API_FULL_CAP
-# (default 2700 s), never under 900 s. The load is read ONCE per gate run
+# 1950 s x (load1 / nproc when over 1), rounded up, at most PRE_PUSH_API_FULL_CAP
+# (default 2700 s), never under 1950 s. The load is read ONCE per gate run
 # (_PP_LOAD), so the part's `timeout` and its TIMED OUT note show the same
 # number; _pp_budget_why names the budget and the load it came from.
 _pp_load_read() {  # sets _PP_LOAD="<load1> <nproc>", once
@@ -515,9 +520,10 @@ _pp_load_read() {  # sets _PP_LOAD="<load1> <nproc>", once
   [[ "$np" =~ ^[1-9][0-9]*$ ]] || np=1
   _PP_LOAD="$l1 $np"
 }
+_pp_api_full_base=1950
 _pp_api_full_default() {
   local l1 np; _pp_load_read; read -r l1 np <<<"$_PP_LOAD"
-  awk -v b=900 -v c="${PRE_PUSH_API_FULL_CAP:-2700}" -v l="$l1" -v n="$np" 'BEGIN {
+  awk -v b="$_pp_api_full_base" -v c="${PRE_PUSH_API_FULL_CAP:-2700}" -v l="$l1" -v n="$np" 'BEGIN {
     f = l / n; if (f < 1) f = 1
     x = b * f; if (x > int(x)) x = int(x) + 1
     if (x > c) x = c; if (x < b) x = b
@@ -530,7 +536,7 @@ _pp_budget_why() {  # <part-fn> -> where its budget came from (api only)
   elif [[ -n "${PRE_PUSH_API_FULL_TIMEOUT:-}" ]]; then echo "PRE_PUSH_API_FULL_TIMEOUT"
   else
     _pp_load_read
-    echo "api full default 900s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${PRE_PUSH_API_FULL_CAP:-2700}s"
+    echo "api full default ${_pp_api_full_base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${PRE_PUSH_API_FULL_CAP:-2700}s"
   fi
 }
 _pp_part_api() {

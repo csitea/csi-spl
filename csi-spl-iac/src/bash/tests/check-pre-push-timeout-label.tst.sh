@@ -8,7 +8,7 @@
 #   2. wui part, PRE_PUSH_WUI_TIMEOUT=3                 -> "TIMED OUT after 3s"
 #   3. iac part, shared part budget 1                   -> "TIMED OUT after 1s"
 #   4. api part, full tier, no env budget, load 32 on 16 cpus (stubbed reader)
-#      -> "TIMED OUT after 1800s (api full default 900s x load 32/16 cpus,
+#      -> "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus,
 #      cap 2700s)": the note names the load-scaled budget and the load it read
 #      (`timeout` is stubbed to return 124 at once: no 30-min wait)
 #   5. the env budget of case 1 is named in the note
@@ -73,7 +73,7 @@ check "3. iac reports the shared part budget" "TIMED OUT after 1s" \
   "$(_pp_timeout=1; note_of _pp_part_iac)"
 
 check "4. api full tier names its load-scaled budget and the load" \
-  "TIMED OUT after 1800s (api full default 900s x load 32/16 cpus, cap 2700s)" \
+  "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus, cap 2700s)" \
   "$(_pp_load_read() { _PP_LOAD="32 16"; }; timeout() { return 124; }; _PP_TIER=full full_note_of _pp_part_api)"
 check "5. an env budget is named in the note" "TIMED OUT after 2s (PRE_PUSH_API_FULL_TIMEOUT)" \
   "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full full_note_of _pp_part_api)"

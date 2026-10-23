@@ -4,7 +4,7 @@
 #          gate ~384 s, 318..514 s measured end to end) cannot fit the 300 s
 #          part default, so every full-tier push timed out on any tree.
 #   1. fast tier (default)          -> 300 s, the shared part default
-#   2. full tier                    -> 900 s, the api full-tier default
+#   2. full tier                    -> 1950 s, the api full-tier default
 #   3. full tier + PRE_PUSH_PART_TIMEOUT=77  -> 77 (the override still wins)
 #   4. fast tier + PRE_PUSH_PART_TIMEOUT=77  -> 77
 #   5. full tier + PRE_PUSH_API_FULL_TIMEOUT=1200 -> 1200
@@ -21,11 +21,17 @@
 #  10. the api full-tier default fits the box load (2026-10-11, sat load ~33 on
 #      16 cpus: the api part TIMED OUT at the fixed 900 s on every tree). The
 #      load reader is stubbed (_pp_load_read), the box running the test never
-#      moves a number: load/cpu 0.5 -> 900, 2 -> 1800, a huge load -> the cap,
+#      moves a number: load/cpu 0.5 -> 1950, 1.25 -> 2438, a huge load -> the cap,
 #      PRE_PUSH_API_FULL_CAP moves the cap, PRE_PUSH_API_FULL_TIMEOUT and
 #      PRE_PUSH_PART_TIMEOUT still win over the load, the fast tier keeps 300
 #  11. the budget's reason names the load it read and the cap
-#   RED CONTROL: against the old fixed default (900) case 10's load-2 check fails.
+#  12. a green trunk fits the idle-box default (2026-10-23, 16 cpus, trunk
+#      814d8fe84, n=2: the full-tier api suite ran 1111 s and 842 s below
+#      1 load per cpu, where the old 900 s base TIMED OUT it): the idle
+#      default is at least 1.75x the slowest, 1111 s
+#   RED CONTROL: against the old fixed default (900) case 10's load-2 check fails;
+#   against the old 900 s base (origin/master 814d8fe84) 6 of 27 fail: 2, 11, 12
+#   and three of 10 (load 8, 20 and 32).
 #   `timeout` is stubbed to print the budget it was handed, so the suites
 #   themselves never run.
 #------------------------------------------------------------------------------
@@ -57,7 +63,7 @@ check() {  # <label> <want> <got>
 }
 
 check "1. api fast tier -> 300"                 300  "$(budget _pp_part_api fast)"
-check "2. api full tier -> 900"                 900  "$(budget _pp_part_api full)"
+check "2. api full tier -> 1950"                1950 "$(budget _pp_part_api full)"
 check "3. api full + PRE_PUSH_PART_TIMEOUT=77"  77   "$(budget _pp_part_api full PRE_PUSH_PART_TIMEOUT=77)"
 check "4. api fast + PRE_PUSH_PART_TIMEOUT=77"  77   "$(budget _pp_part_api fast PRE_PUSH_PART_TIMEOUT=77)"
 check "5. api full + PRE_PUSH_API_FULL_TIMEOUT" 1200 "$(budget _pp_part_api full PRE_PUSH_API_FULL_TIMEOUT=1200)"
@@ -71,18 +77,24 @@ check "8b. orc-features fast tier -> 300"        300  "$(_PP_TIER=fast _pp_budge
 check "8b. orc-features full + PRE_PUSH_FEATURES_TIMEOUT" 1800 "$(PRE_PUSH_FEATURES_TIMEOUT=1800 _PP_TIER=full _pp_budget _pp_part_orc_features)"
 check "8b. orc-features fast + PRE_PUSH_FEATURES_TIMEOUT" 50   "$(PRE_PUSH_FEATURES_TIMEOUT=50 _PP_TIER=fast _pp_budget _pp_part_orc_features)"
 
-check "10. api full, load 8/16 (0.5 per cpu) -> 900"      900  "$(budget _pp_part_api full PLANT_LOAD=8)"
-check "10. api full, load 32/16 (2 per cpu) -> 1800"       1800 "$(budget _pp_part_api full PLANT_LOAD=32)"
-check "10. api full, load 40.5/16 -> 2279 (rounded up)"    2279 "$(budget _pp_part_api full PLANT_LOAD=40.5)"
+check "10. api full, load 8/16 (0.5 per cpu) -> 1950"     1950 "$(budget _pp_part_api full PLANT_LOAD=8)"
+check "10. api full, load 20/16 (1.25 per cpu) -> 2438 (rounded up)" 2438 "$(budget _pp_part_api full PLANT_LOAD=20)"
+check "10. api full, load 32/16 (2 per cpu) -> the 2700 s cap" 2700 "$(budget _pp_part_api full PLANT_LOAD=32)"
 check "10. api full, load 9999/16 -> the 2700 s cap"         2700 "$(budget _pp_part_api full PLANT_LOAD=9999)"
-check "10. api full, load 9999 + PRE_PUSH_API_FULL_CAP=1000" 1000 "$(budget _pp_part_api full PLANT_LOAD=9999 PRE_PUSH_API_FULL_CAP=1000)"
+check "10. api full, load 9999 + PRE_PUSH_API_FULL_CAP=3000" 3000 "$(budget _pp_part_api full PLANT_LOAD=9999 PRE_PUSH_API_FULL_CAP=3000)"
 check "10. api full, load 32 + PRE_PUSH_API_FULL_TIMEOUT wins" 1200 "$(budget _pp_part_api full PLANT_LOAD=32 PRE_PUSH_API_FULL_TIMEOUT=1200)"
 check "10. api full, load 32 + PRE_PUSH_PART_TIMEOUT wins"  77   "$(budget _pp_part_api full PLANT_LOAD=32 PRE_PUSH_PART_TIMEOUT=77)"
 check "10. api fast, load 32 -> 300 (the fast tier is not scaled)" 300 "$(budget _pp_part_api fast PLANT_LOAD=32)"
-check "11. the reason names the load and the cap" "api full default 900s x load 32/16 cpus, cap 2700s" \
+check "11. the reason names the load and the cap" "api full default 1950s x load 32/16 cpus, cap 2700s" \
   "$(PLANT_LOAD=32 _PP_TIER=full _pp_budget_why _pp_part_api)"
 check "11. an env budget names its variable" "PRE_PUSH_API_FULL_TIMEOUT" \
   "$(PRE_PUSH_API_FULL_TIMEOUT=1200 _PP_TIER=full _pp_budget_why _pp_part_api)"
+
+# 12. the idle default fits the measured green trunk (slowest 1111 s) x 1.75
+idle="$(budget _pp_part_api full PLANT_LOAD=0)"
+[[ "$idle" =~ ^[0-9]+$ ]] && (( idle * 100 >= 1111 * 175 )) \
+  && pass "12. idle full-tier api budget ${idle}s >= 1.75 x 1111 s (measured trunk)" \
+  || fail "12. idle full-tier api budget >= 1.75 x 1111 s (measured trunk)" "got '$idle'"
 
 # 9. the real timeout on a stub iac suite that runs 2 s
 unset -f timeout
@@ -93,6 +105,6 @@ check "9. CONTROL: planted 1 s full-tier budget -> TIMED OUT (rc 124)" 124 "$rc"
 rc=0; ( _PP_TIER=full _pp_part_iac "$T" ) || rc=$?
 check "9. the default full-tier budget -> the 2 s suite passes" 0 "$rc"
 
-total=26
+total=27
 echo "--- $((total - fails))/$total passed ---"
 [[ "$fails" -eq 0 ]]

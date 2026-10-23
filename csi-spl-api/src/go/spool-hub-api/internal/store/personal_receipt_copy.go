@@ -37,9 +37,9 @@ const (
 // period row whose freeze has not passed: 107 has no name for it.
 const realmStateOpen = "open"
 
-// RealmKindWork is 107 FR-27's default kind. hours_entries has no kind
-// column yet, so every copied entry is work until FR-27 adds it.
-const RealmKindWork = "work"
+// RealmKindWork is 107 FR-27's default kind. Since rdb 0215 every entry
+// carries its own kind (work, travel, wait, absence), copied as it is.
+const RealmKindWork = HoursKindWork
 
 // realmTextMax is rdb 0168's bound of workspace_name, label and approver_name.
 const realmTextMax = 200
@@ -132,7 +132,11 @@ func copyRealmReceipts(ctx context.Context, st realmCopySource, tenant, person, 
 		if e.State != HoursApproved {
 			continue // a rejected entry counts 0 (107)
 		}
-		in = append(in, realmCopyEntry{Day: e.Day, Target: e.Target, Kind: RealmKindWork, Minutes: e.Minutes})
+		kind := e.Kind
+		if kind == "" {
+			kind = RealmKindWork
+		}
+		in = append(in, realmCopyEntry{Day: e.Day, Target: e.Target, Kind: kind, Minutes: e.Minutes})
 	}
 	name := t.DisplayName
 	if name == "" {

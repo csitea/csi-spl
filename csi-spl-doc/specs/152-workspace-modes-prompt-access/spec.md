@@ -317,7 +317,7 @@ Counts: start 7, steer 10, review and accept 6, ship 4, administer 13 =
 | | settings keys (`tenants.settings`) | a table `tenant_role_grants` |
 |---|---|---|
 | shape | 39 keys `perm.<id>` = a role list, or one key of 312 cells | one row per CHANGED cell: `(tenant_id, role_id, permission_id, granted, set_by, set_at)` |
-| size | 39 x <= 120 chars; one key would exceed the 200-rune default (`store/tenant_kv.go:72`) | <= 312 rows per workspace; a preset writes its difference from today: strict 68, corporate 43, move_fast 41 rows, agile 0 |
+| size | 39 x <= 120 chars; one key would exceed the 200-rune default (`store/tenant_kv.go:72`) | <= 312 rows per workspace; a preset writes its difference from today: strict 68, corporate 43, move_fast 35 rows, agile 0 |
 | read path | the tenant row cache, a SECOND source beside the role cache that `s.access` reads | the role table `TenantRoles` already reads per tenant (`store/humans_rbac_postgres.go:14-32`), cached 1 min (`rbac/rbac.go:302-347`): one LEFT JOIN, no new query per request |
 | fit with spec 025 | none: permissions would live outside `rbac` | "a changed grant is a row edit" (`rdb/0021_tenant_rbac.sql:4-5`); 0021 planned per-tenant roles |
 | migration | none | one forward file: the 23 new permission rows and their system grants (mirroring today), the table, FORCE RLS with `tenant_scope` and `operator_scope` policies (as `rdb/0214_topic_priorities.sql:39-46`); about 60 lines |
@@ -394,7 +394,7 @@ T = tester, G = pure_agent, C = biz_customer, U = regular_user.
 | `channels.ai_agents` | steer | O A | O A | O A | all |
 | `messages.kind` | steer | O A | O A | O A P | all |
 | `issues.status` | review | all | O A P | O A P D G | all |
-| `issues.blocker` | review | O | O | O | all |
+| `issues.blocker` | review | O | O | O | O A |
 | `topics.change_others` | review | O A | O A | O A P | all |
 | `issues.remove_others` | review | O A | O A | O A | all |
 | `results.accept` | review | all but T | O A | O A P | all |
@@ -414,11 +414,16 @@ T = tester, G = pure_agent, C = biz_customer, U = regular_user.
   status); customers and regular users talk to agents in a DM only (a DM is
   `agents.dm`; their replies there are `agents.reply`), never in a channel.
 - **move_fast** ("move fast and break things"): every member role,
-  testers included, does every start, steer, review and ship action. It
-  still guards: the whole administer stage (as today), what the outside
-  world sees (marketing and embeds stay the owner's; the roadmap switch is
+  testers included, does every start, steer, review and ship action but
+  one: making a blocker an issue goes to owners and admins only. It still
+  guards: the whole administer stage (as today), what the outside world
+  sees (marketing and embeds stay the owner's; the roadmap switch is
   owners', admins' and product owners'), the locked cells (3.7), the
   per-agent allow-lists (3.8), box locks, demo and guest paths, billing.
+- **Every preset stays inside the admin's set**: no preset gives a role
+  an id the admin role lacks, so admins keep managing every role they
+  manage today (3.7, "Who admins can manage"). That is why move_fast gives
+  `issues.blocker` to O and A, not to all (seat N1).
 - **What a preset leaves alone**: the administer stage is the same in all
   four presets; an admin changes it cell by cell.
 
@@ -475,6 +480,20 @@ T = tester, G = pure_agent, C = biz_customer, U = regular_user.
   `costs.read` from the owner (R28); an owner can do both. An admin can
   apply strict, corporate and agile, but not move_fast, which grants
   `issues.blocker`, an owner-only action today (R32).
+- **Who admins can manage (seat N1)**: an admin invites, re-roles and
+  acts as only the roles it Covers, perms(role) within perms(admin)
+  (`rbac/rbac.go:258-268`): the invite (`hub/rbac.go:341`, default role
+  `developer`, `store/humans.go:74`), a role change (`hub/rbac.go:398`,
+  `:444`), the role picker's `grantable` (`hub/members_admin.go:146`,
+  `:158`) and act-as (`hub/actas.go:202`). These read the list's grants
+  (3.4). So when the OWNER gives a lower role an id the admin lacks (e.g.
+  `hours.read` to `product_owner`), admins can no longer invite, re-role or
+  act as members of that role, although their `members.invite` cell stays
+  locked true. This is the no-escalation rule working, not a fault, but it
+  must never surprise the owner: before a PUT that would take a role out
+  of the admin's reach, the page names the roles that leave it and asks
+  again, and the GET returns them (`admin_unreachable_roles`). No preset
+  does it (3.5); a single cell can (R33).
 - **Lock-out guard**: the cells `perms.edit`, `members.roles` and
   `members.invite` of `biz_owner` and `admin` are LOCKED to true: no PUT and
   no preset changes them (400 `locked_cell`). The last-owner and last-admin
@@ -607,7 +626,9 @@ control that passes on both. c-007 is any agent member of the channel.
 | R29 | `demo_user` POSTs an issue label | 403 | 403 (C: the issue ids are seeded without `demo_user`) |
 | R30 | strict, admin's `topics.change_others` set false: the admin deletes a developer's topic | 200 | 403, `permission: topics.change_others` |
 | R31 | WUI: me mocked as a tester holding `messages.kind`: the kind picker on another's message | hidden (role name) | shown (B10) |
-| R32 | an admin PUTs `{preset: "move_fast"}` | 404 | 403 naming `issues.blocker`; nothing stored |
+| R32 | an admin PUTs `{preset: "move_fast"}` | 404 | 403 naming `issues.blocker` (the admin would grant itself an id it lacks); nothing stored |
+| R33 | the owner grants `hours.read` to `product_owner`; then an admin invites a member as `product_owner` | 404, then 201 | GET lists `admin_unreachable_roles: ["product_owner"]`; the invite 403 (the admin no longer Covers it) |
+| R34 | the owner applies move_fast; then an admin invites a member as `developer` (the default role) | 404, then 201 | 200, then 201 (C: move_fast stays inside the admin's set) |
 
 ## 5. Rollout
 
@@ -656,6 +677,7 @@ its generic refusal line.
 | D11 | `topics.archive` stays its own setting, shown in the list | `hub/topic_archive.go:146-161` |
 | D12 | Each `issueWriter` caller asks its own id; a PATCH asks the id of each field it sets | `hub/issues.go:156-180`, `:866-888`, 9 callers; seat G3 |
 | D13 | The WUI gates its menus by the ids in `me.permissions`, never by role name | the six helpers of 3.7; seat G1 |
+| D14 | No preset gives a role an id the admin lacks; a single cell that does is named before it is saved | `Covers`, `rbac/rbac.go:258-268`, at `hub/rbac.go:341`, `:398`, `:444`, `hub/members_admin.go:146`, `:158`, `hub/actas.go:202`; seat N1; R33, R34 |
 
 ## 9. Owner questions
 
@@ -719,5 +741,5 @@ Presets: tick each preset whose fill (spec section 3.5) you approve as written
 [ST] Strict: only owners and admins prompt, accept and ship
 [CO] Corporate: owners, admins, product owners start; developers continue; customers DM only
 [AG] Agile: exactly today
-[MF] Move fast and break things: every role does all work; admin, marketing and embeds stay guarded
+[MF] Move fast and break things: every role does all work; administration, marketing, embeds and blocker issues stay guarded
 ```

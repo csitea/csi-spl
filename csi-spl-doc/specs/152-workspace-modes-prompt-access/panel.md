@@ -47,6 +47,13 @@ was folded; all nine hold.
 | note: `agentDocs` reads the system grant | `hub/workspace_docs.go:113-120` | taken: one sentence in 3.8 |
 | row 10: the last-owner / last-admin guards read the system grants | `store/humans_rbac_postgres.go:44-45`, `:86-91`; `store/humans_rbac.go:42` | taken: 3.7 and B3 say they stay there |
 
+Second round, on `5c3ce7fda` (msg `d64338be`): every fold above read OK;
+one new GAP.
+
+| seat c-484 | editor's check | in v0.3 |
+|---|---|---|
+| N1: a grant beyond the admin's set (move_fast's `issues.blocker` to all, or one cell such as `hours.read` to `product_owner`) takes those roles out of the admin's member management, since `Covers` reads the list's grants | `rbac/rbac.go:258-268`; `hub/rbac.go:341`, `:398`, `:444`; `hub/members_admin.go:146`, `:158`; `hub/actas.go:202`; `store/humans.go:74` | taken, both of the seat's options: (a) move_fast gives `issues.blocker` to O and A only (its fill now 35 rows), every preset stays inside the admin's set; (b) 3.7 "Who admins can manage": the page names the roles leaving the admin's reach before it saves, GET `admin_unreachable_roles`; D14, R33, R34; poll MF reworded |
+
 Not checked by the seat: the B5 p95 probe cost, the i18n plan, the page
 design of 3.7 (no code exists yet).
 

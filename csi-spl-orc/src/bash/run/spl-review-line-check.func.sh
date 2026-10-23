@@ -18,7 +18,11 @@
 # @description gone `<session>/journal/<n>.jsonl` is read as its session dir. Tool OUTPUT never counts:
 # @description a `git diff --stat` that lists a test file is not its run.
 # @description Never fetches a log from another box: run it on the reviewer's,
-# @description as a user who can read the reviewer's home.
+# @description as a user who can read the reviewer's home, or as any user that
+# @description may `sudo -n -u` the log's owner (the passwd user whose home the
+# @description path is under, else the owner of its nearest existing parent):
+# @description a log not readable as this user is read that way, with a
+# @description `NOTE read as <owner> (sudo -n)` line.
 # @description Prints `MISSING <name>` per test not run (exit 3), else
 # @description `OK <n> of <n>`. Exit 2: the log is on another box (named),
 # @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
@@ -26,14 +30,16 @@
 # @description sha, reviewer = log: owner, the vendor is the id's and any
 # @description registry.tsv row of it, ran: names a test (`SYNTAX OK`, exit 0;
 # @description `SYNTAX FAIL <why>`, exit 1); the run itself stays unchecked.
-# @description Exit 1: no line, no `log:`, or the log cannot be read.
+# @description Exit 1: no line, no `log:`, or the log cannot be read, not even
+# @description through `sudo -n -u <owner>` (the FATAL names the command to run
+# @description as the owner).
 # @param REVIEW_LINE (required) - the review line, as in the landing commit
 # @param REVIEW_LINE_SYNTAX (optional) - 1: a log on another box gets the syntax check here
 # @param REVIEW_LINE_BOX (optional) - this box; default SPOOL_BOX_TAG, else box.env, else hostname -s
 # @example REVIEW_LINE='review: m-159@box-a mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159@box-a:/path/journal' ./run -a do_spl_review_line_check
 #------------------------------------------------------------------------------
 do_spl_review_line_check() {
-  local line="${REVIEW_LINE:-}" ran box path me names
+  local line="${REVIEW_LINE:-}" ran box path me names owner=
   [[ -n "$line" ]] || { echo "FATAL REVIEW_LINE must be set (the 'review: ...' line)"; return 1; }
   line="${line#"${line%%review: *}"}"
   [[ "$line" == "review: "* ]] || { echo "FATAL REVIEW_LINE holds no 'review: ' line"; return 1; }
@@ -48,8 +54,38 @@ do_spl_review_line_check() {
   names="$(_spl_review_line_names "$ran")"
   [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
   path="$(_spl_review_line_vibe_session "$path")"
-  [[ -r "$path" ]] || { echo "FATAL log $path is not readable on $me as $(id -un)"; return 1; }
-  _spl_review_line_match "$path" <<<"$names"
+  if [[ ! -r "$path" ]]; then
+    owner="$(_spl_review_line_owner "$path")"
+    [[ -n "$owner" && "$owner" != "$(id -un)" ]] || { echo "FATAL log $path is not readable on $me as $(id -un)"; return 1; }
+    path="$(_spl_review_line_vibe_session "$path" "$owner")"
+    _spl_review_line_as "$owner" test -r "$path" 2>/dev/null || {
+      line="${line%%$'\n'*}"
+      echo "FATAL log $path is not readable on $me as $(id -un), nor through sudo -n -u $owner: run it as $owner: sudo -u $owner env REVIEW_LINE=${line@Q} ./run -a do_spl_review_line_check"
+      return 1
+    }
+    echo "NOTE read as $owner (sudo -n)"
+  fi
+  _spl_review_line_match "$path" "$owner" <<<"$names"
+}
+
+# _spl_review_line_owner <path> - the user whose passwd home the path is under
+# (the longest home that prefixes it), else the owner of its nearest existing
+# parent; empty when neither is found.
+_spl_review_line_owner() {
+  local p="$1" u
+  u="$(getent passwd 2>/dev/null | awk -F: -v p="$1" 'length($6) > 1 && index(p, $6 "/") == 1 && length($6) > n {n = length($6); u = $1} END {print u}')"
+  while [[ -z "$u" && -n "$p" ]]; do
+    [[ -e "$p" ]] && u="$(stat -c %U -- "$p" 2>/dev/null)"
+    [[ "$p" == */* ]] && p="${p%/*}" || p=
+  done
+  printf '%s' "$u"
+}
+
+# _spl_review_line_as <owner> <cmd>... - the command as is for an empty owner,
+# else through `sudo -n -u <owner>` (its argv, never a shell string).
+_spl_review_line_as() {
+  local u="$1"; shift
+  if [[ -n "$u" ]]; then sudo -n -u "$u" "$@"; else "$@"; fi
 }
 
 # _spl_review_line_remote <line> <box> <me> - a log on another box: exit 2
@@ -94,12 +130,14 @@ _spl_review_line_box() {
   printf '%s' "${v:-$(hostname -s)}"
 }
 
-# _spl_review_line_vibe_session <path> - the path, or for a vibe journal file
-# the store compacted away (`<session>/journal/<n>.jsonl` gone, the session
-# dir holding CURRENT or chunks/) that session dir, with a NOTE on stderr.
+# _spl_review_line_vibe_session <path> [owner] - the path, or for a vibe
+# journal file the store compacted away (`<session>/journal/<n>.jsonl` gone,
+# the session dir holding CURRENT or chunks/) that session dir, with a NOTE on
+# stderr; with an owner the tests run through `sudo -n -u <owner>`.
 _spl_review_line_vibe_session() {
-  local d="${1%/*}"
-  if [[ ! -e "$1" && "${d##*/}" == journal && ( -e "${d%/*}/CURRENT" || -d "${d%/*}/chunks" ) ]]; then
+  local d="${1%/*}" u="${2:-}"
+  if ! _spl_review_line_as "$u" test -e "$1" 2>/dev/null && [[ "${d##*/}" == journal ]] &&
+    { _spl_review_line_as "$u" test -e "${d%/*}/CURRENT" || _spl_review_line_as "$u" test -d "${d%/*}/chunks"; } 2>/dev/null; then
     echo "NOTE $1 is gone (vibe compacted the session): reading the session dir ${d%/*}" >&2
     printf '%s' "${d%/*}"
   else
@@ -117,10 +155,11 @@ _spl_review_line_names() {
   } | awk '!seen[$0]++'
 }
 
-# _spl_review_line_match <log path> < names - prints MISSING per name that no
-# "command" in the log names, then the count; exit 0 all found, 3 any missing.
+# _spl_review_line_match <log path> [owner] < names - prints MISSING per name
+# that no "command" in the log names, then the count; exit 0 all found, 3 any
+# missing. With an owner only this read runs through `sudo -n -u <owner>`.
 _spl_review_line_match() {
-  python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1"
+  _spl_review_line_as "${2:-}" python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1"
 }
 
 # shellcheck disable=SC2016

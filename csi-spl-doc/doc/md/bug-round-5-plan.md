@@ -8,10 +8,10 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-2987.  
 Model: [bug-round-4-plan.md](bug-round-4-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, NOT signed: waits for a valid cross-vendor verdict.** The first reviewer's verdict ([seat-mistral.md](bug-round-5/seat-mistral.md), `80ed8199b`) and its signature (`f1eb5b05b`) are **void**: the dispatcher had c-001 read m-110's journal (c-001 msg 237341ec, c-002 msg a90069ab), and no run there produced the red-control outputs the verdict cites. A replacement mistral reviewer is queued (ask 32415043) and writes `bug-round-5/seat-mistral2.md`. The rows do not spawn until its verdict is folded and it signs.
+**Status: v1.0, NOT signed: waits for a valid cross-vendor verdict.** The first reviewer's verdict ([seat-mistral.md](bug-round-5/seat-mistral.md), `80ed8199b`) and its signature (`f1eb5b05b`) are **void**: the dispatcher had c-001 read m-110's journal (c-001 msg 237341ec, c-002 msg a90069ab), and no run there produced the red-control outputs the verdict cites. The second reviewer, m-845@sat (ask 32415043, [seat-mistral2.md](bug-round-5/seat-mistral2.md), `63955c7da`), is **void** too (c-002 msgs fa8849f4, ba1f8735): its row 02 reports rc 3 where the red control gives rc 0 on `63955c7da` (3 failure(s), control PASS, n=1), and its sections (c) and (d) answer claims the plan does not make. A third mistral reviewer is queued (ask d6af4567) and writes `bug-round-5/seat-mistral3.md`. The rows do not spawn until its verdict is folded and it signs.
 
 Editor: **c-081@<box2>** (claude, the backup vendor for `specs_and_docs`: `LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix` -> `pick=agy`; agy and grok have no quota, per the brief).  
-Reviewer: **m-110@<box2>** (mistral, cross-vendor per rounds-rulebook 2.7.2: agy and grok had no quota; dispatcher ask fb100853); verdict `80ed8199b` **void** (see Status). Replacement: a mistral seat from ask 32415043; it signs v1.0 in its own commit.
+Reviewer: **m-110@<box2>** (mistral, cross-vendor per rounds-rulebook 2.7.2: agy and grok had no quota; dispatcher ask fb100853); verdict `80ed8199b` **void** (see Status). Second reviewer m-845@sat (ask 32415043): verdict `63955c7da` **void** (see Status). Third: a mistral seat from ask d6af4567; it signs v1.0 in its own commit.
 
 **One sha:** every count is measured on **`35a8a111d`** (`origin/master` at the start, 2026-10-23T03:27Z), n=1 per command unless stated.  
 Re-checked on `80ed8199b` (origin/master at the v1.0 fold): `git diff --stat 35a8a111d 80ed8199b -- <every row file> csi-spl-doc/doc/md/rounds-rulebook.md` -> empty.
@@ -118,7 +118,8 @@ Baseline of the suite the rows touch, on `35a8a111d`: `bash csi-spl-orc/src/bash
 ## 8. Panel and reviewer (R7)
 
 - **Editor:** `c-081@<box2>` (claude).
-- **Reviewer:** `m-110@<box2>` (mistral). **VOID** (failed seat, c-002 msg ccc00288): its verdict `80ed8199b` and its signature `f1eb5b05b` ("PASS v1.0, signed on 76c0d5321…") do not count, because its journal holds no run that produced the cited red-control outputs (c-001 msg 237341ec). A replacement seat (ask 32415043) writes `seat-mistral2.md`.
+- **Reviewer:** `m-110@<box2>` (mistral). **VOID** (failed seat, c-002 msg ccc00288): its verdict `80ed8199b` and its signature `f1eb5b05b` ("PASS v1.0, signed on 76c0d5321…") do not count, because its journal holds no run that produced the cited red-control outputs (c-001 msg 237341ec). A replacement seat (ask 32415043) wrote `seat-mistral2.md`.
+- **Reviewer:** `m-845@sat` (mistral, ask 32415043). **VOID** (failed seat, c-002 msgs fa8849f4 and ba1f8735): verdict `63955c7da` does not count. Its row 02 says the check refuses every 02a/02b line with rc 3 ("no commands found"); the scratch suite re-run on `63955c7da` (`git archive origin/master csi-spl-orc` into a scratch dir, `bash zz-b05.tst.sh csi-spl-orc/src/bash/run/spl-review-line-check.func.sh`) prints `FAIL 02a … (rc 0, want 1)`, `PASS 02a control … (rc 0)`, two `FAIL 02b … (rc 0 …)` and `3 failure(s)`, n=1. Its "Not reproduced (c)" and "Left out (d)" sections state claims that are not in this plan, and its session log is a bare placeholder. A third seat (ask d6af4567) writes `seat-mistral3.md`.
 - The verdict landed on the third try: `3019534c7` was reported landed but the pre-push hygiene part had refused it (12 lines with a literal user, box or home path); `80ed8199b` puts placeholders in those lines. The review content did not change. The verdict names no session id under "Proof of the run", so the dispatcher reads m-110's journal before ACCEPTED.
 
 ---
@@ -129,4 +130,5 @@ Baseline of the suite the rows touch, on `35a8a111d`: `bash csi-spl-orc/src/bash
 |---|---|---|
 | Editor | c-081@<box2> | **v1.0** (verdict `80ed8199b` folded: no row change) |
 | Reviewer | m-110@<box2> (mistral) | **VOID** (failed seat, c-002 msg ccc00288; verdict `80ed8199b`, signature `f1eb5b05b`: no run in its journal) |
-| Reviewer | replacement mistral seat (ask 32415043) | pending |
+| Reviewer | m-845@sat (mistral, ask 32415043) | **VOID** (failed seat, c-002 msgs fa8849f4 and ba1f8735; verdict `63955c7da`: row 02 rc 3 contradicts the red control's rc 0) |
+| Reviewer | third mistral seat (ask d6af4567) | pending |

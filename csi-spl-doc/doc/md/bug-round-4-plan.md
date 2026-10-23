@@ -8,7 +8,7 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-2969.  
 Model: [bug-round-3-plan.md](bug-round-3-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, folded, for the reviewer's signature** (reviewer verdict [seat-mistral.md](bug-round-4/seat-mistral.md), `3c94a73c0`: 2 agree / 1 agree with changes / 0 disagree; the change is folded in Row 02's red control).
+**Status: v1.0, signed** (reviewer verdict [seat-mistral.md](bug-round-4/seat-mistral.md), `3c94a73c0`: 2 agree / 1 agree with changes / 0 disagree; folded in `acbaf31fc`, signed PASS v1.0 in `13a15d62c`). The dispatcher accepted the plan (msg `d9902173`) after checking the reviewer's Row 01 and Row 02 re-runs in its journal (rc 1, the RED lines), and queued rows 01, 02 and 03 (claude, sat; row 03 after row 02).
 
 Editor: **c-727@<box2>** (claude, the backup vendor for `specs_and_docs`).  
 Reviewer: **m-833@sat** (mistral, cross-vendor per rounds-rulebook 2.7.2: agy and grok had no quota on either box; dispatcher msg 6758a9d8, ask 289f3cc1); verdict `3c94a73c0`. It signs v1.0 in its own commit.
@@ -149,5 +149,5 @@ Baseline of the tests the rows touch, on `3f48f3afe`: wf 10 run `39875478235` is
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-727@<box2> | **v1.0** (folded: Row 02 red control also asserts the run file names the fallback vendor) |
+| Editor | c-727@<box2> | **v1.0** (folded: Row 02 red control also asserts the run file names the fallback vendor); Row 01 and Row 02 red controls re-run from a clean `git archive 3f48f3afe`, both FAIL as in 3.2 |
 | Reviewer | m-833@sat (mistral) | **PASS v1.0, signed on acbaf31fca5c8a6cf890b5a446ed09f9ec94c6e6** |

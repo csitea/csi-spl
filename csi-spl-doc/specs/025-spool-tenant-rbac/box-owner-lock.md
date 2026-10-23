@@ -212,6 +212,30 @@ and has no hub route that grants it.
   search, flow, roster, presence, pins list, box stats, files.
 - Fail closed: a `box_locks` read error refuses, never allows.
 
+**As built (row B3, SPL-2970)**: `internal/hub/box_lock.go` (`boxLockRefusal`, `channelLockSkip`,
+`fallbackLockSkip`, `boxSendLockRefusal`) and one call each in `dispatch.go`, `channels.go`, `fallback.go`,
+`backfill.go` and `channel_members.go`. Tests: `TestBoxLockQueuePaths`, `TestBoxLockReplayUnsigned`
+(`internal/hub/box_lock_test.go`), `TestBoxSendLockRefusal`, `TestBoxLockQueueWriteInventory`
+(`box_lock_internal_test.go`).
+
+- `dispatchCheck` refuses a non-owner with 403 `box_locked` once the box is resolved, before the pin and the
+  allow-lists (paths 2, 2c). A reply in an agent's topic (2b) is not refused as a frame: `topicReplyAgent`
+  keeps any reply whose `dispatchCheck` fails as a browser-only post. So the admin's reply is acked with
+  no `to_box`, nothing is queued to the locked box, and one `dispatch` audit row is written.
+- The `routeChannel` loop skips the locked box for a browser post whose `from` is not an owner (paths 1, 3,
+  10) and for a box post whose `from_box` is neither the locked box nor a peer (12b). Audit paths
+  `channel_fanout` and `box_channel`; the post still reaches every other box.
+- `fallbackPick` takes the poster: a locked box is no candidate unless the poster is an owner (1b). No
+  audit row, because nothing the poster asked for is refused. The members answer's preview passes no
+  poster, so it never shows a locked box.
+- `POST /v1/channels/{c}/agents` for an agent on a locked box is 403 `box_locked` for a non-owner (audit
+  `channel_agent_add`), and a back-fill sends only the earlier posts the fan-out would have delivered (1c).
+- A lock read error refuses: 503 `store_unavailable` on a request, a skipped box in a loop, a pending back-fill.
+- **Path 12 is NOT covered.** A box's own send straight to a locked-box agent needs one call in `onSend`
+  (`internal/hub/ws.go`, row B2's file, the refusal chain at lines 622-641):
+  `if rf == nil { rf = s.boxSendLockRefusal(ctx, x, env, m) }`. That call moves to batch 3 (dispatcher,
+  msg e63df138). The helper (peer rule, audit path `box_send`) is built and tested, but nothing calls it yet.
+
 ### 5.3 What the owner box does on its own (defence in depth)
 
 The sidecar of `<OWNER_BOX>` keeps the lock's owners and `peer_boxes`, verified with `K_lock`'s public half,
@@ -435,4 +459,4 @@ after the panel signs this plan, without a further owner go (rounds rulebook 1.4
 | reviewer (docs review) | mistral, m-797@sat | CHANGES 5.1, 10 (msg 71c78d32) on v0.1 `5e019c763`; folded in v0.2: `fleet_load.go:119` was a comment line (now `:120`, `fleetLoadCaller`); the queue sites `retired_reply.go:75`, `ws.go:238`, `ws.go:985`, `fallback.go:256/:335/:382`, `backfill.go:160` added to 5.1 and the queue-write inventory to 5.2. Its other 9 "file not found / no function" items arrived with the paths stripped; every 5.1 reference re-read on `10e12f038`: 0 more wrong | 2026-10-22 |
 | reviewer (docs review) | mistral, m-797@sat | **SIGNED at `201f2e3a8`** (msg 7e792038) | 2026-10-22 |
 
-<!-- version: 1.0.0 · updated: 2026-10-22 · last-edit: 2026-10-22T19:40:00Z -->
+<!-- version: 1.0.0 · updated: 2026-10-23 · last-edit: 2026-10-23T01:20:00Z -->

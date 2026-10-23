@@ -98,6 +98,10 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 	if !s.channelAgentsHear(ctx, x.tenant, seat.Channel) { // SPL-1684 / SPL-2423: pending until the switch is on
 		return
 	}
+	lock, err := s.boxLock(ctx, x.tenant, seat.Box) // spec 025 B3 (box_lock.go)
+	if err != nil {
+		return // pending: a lock read error never back-fills (fail closed)
+	}
 	now := s.o.Now()
 	rows, err := bf.ChannelBackfill(ctx, x.tenant, seat.Channel, now.Add(-s.backfillWindow()), now, s.o.BackfillMax)
 	if err != nil {
@@ -106,7 +110,7 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 	}
 	n, topics, newest := 0, map[string]bool{}, store.BackfillMsg{}
 	for _, r := range rows {
-		if !s.backfillable(x, seat, r) {
+		if !s.backfillable(x, seat, r, lock) {
 			continue
 		}
 		f := wire.Frame{Type: wire.TRecv, Env: r.Env, Agents: []string{seat.Agent}, Backfill: seat.Channel}
@@ -134,11 +138,15 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 }
 
 // backfillable: a row the box will accept and the agent should read - signed,
-// tagged with exactly this channel, readable by the box's reader, and not the
-// agent's own post.
-func (s *Server) backfillable(x *session, seat store.BackfillSeat, r store.BackfillMsg) bool {
+// tagged with exactly this channel, readable by the box's reader, not the
+// agent's own post, and one the box's lock (nil = none) would have let the
+// live fan-out deliver (spec 025 B3, path 1c: no non-owner's earlier post).
+func (s *Server) backfillable(x *session, seat store.BackfillSeat, r store.BackfillMsg, lock *store.BoxLock) bool {
 	e, err := wire.ParseEnvelope(r.Env)
 	if err != nil || e.Sig == "" || store.NormalizeChannel(e.Channel) != seat.Channel {
+		return false
+	}
+	if ok, _, _, _ := lockAdmits(lock, e.FromBox, r.FromID); !ok {
 		return false
 	}
 	if !x.accepts(wire.InnerVersion(r.Env)) {

@@ -391,6 +391,11 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not_a_member", body.ID+" is not announced on "+body.Box)
 		return
 	}
+	// spec 025 B3 (box_lock.go): only a lock owner seats a locked box's agent.
+	if rf := s.boxLockRefusal(r.Context(), t.ID, body.Box, hum, boxLockPathChannelAgent); rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
+		return
+	}
 	if err := s.o.Store.InviteChannelAgent(r.Context(), t.ID, ch, body.Box, body.ID, s.o.Now()); err != nil {
 		switch {
 		case errors.Is(err, store.ErrNotFound), errors.Is(err, store.ErrConflict):

@@ -288,6 +288,9 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 		if len(channelTargets(agents)) == 0 {
 			continue
 		}
+		if s.channelLockSkip(ctx, tenant, box, env, m) { // spec 025 B3: a locked box hears its owners and peers only (box_lock.go)
+			continue
+		}
 		if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, box, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
 			s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Str("to_box", box).Msg("channel enqueue")
 			continue

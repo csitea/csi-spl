@@ -79,11 +79,13 @@ func (s *Server) agentOnline(tenant, box, agent string, roster map[string][]stri
 // when no agent of the tenant is online on a box that takes the frame. The
 // tenant's responder list comes first, in its order; then the longest-online
 // box, and on it the lowest agent id. An agent on a box whose reader would
-// refuse the envelope's inner version (0 = do not check) is skipped.
-func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[string][]string, boxes []fallbackBox, innerV int, avoid string) (fallbackBox, string, bool) {
+// refuse the envelope's inner version (0 = do not check) is skipped, and so
+// is a locked box unless hum, the poster, is an owner of its lock (spec 025
+// B3, path 1b, box_lock.go; hum "" = nobody's post, every locked box out).
+func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[string][]string, boxes []fallbackBox, innerV int, avoid, hum string) (fallbackBox, string, bool) {
 	usable := boxes[:0:0]
 	for _, b := range boxes {
-		if innerV == 0 || b.x.accepts(innerV) {
+		if (innerV == 0 || b.x.accepts(innerV)) && !s.fallbackLockSkip(ctx, tenant, b.box, hum) {
 			usable = append(usable, b)
 		}
 	}
@@ -253,7 +255,7 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 		log.Error().Err(err).Str("task_id", esc.taskID).Msg("fallback envelope")
 		return
 	}
-	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), esc.avoid)
+	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), esc.avoid, m.From)
 	if !ok {
 		log.Info().Msg("fallback: no online agent takes this post")
 		return
@@ -379,7 +381,7 @@ func (s *Server) fallbackInfo(ctx context.Context, tenant, channel string, agent
 	}
 	if boxes := s.fallbackBoxes(tenant); len(boxes) > 0 {
 		if roster, err := s.o.Store.Roster(ctx, tenant); err == nil {
-			if b, id, ok := s.fallbackPick(ctx, tenant, roster, boxes, 0, ""); ok {
+			if b, id, ok := s.fallbackPick(ctx, tenant, roster, boxes, 0, "", ""); ok {
 				out.ID, out.Box = id, b.box
 			}
 		}

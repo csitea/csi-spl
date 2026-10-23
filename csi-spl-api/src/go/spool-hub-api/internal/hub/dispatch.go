@@ -153,6 +153,11 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message, 
 	default:
 		return "", nil, "ambiguous_to_box", http.StatusConflict, m.To + " is announced on more than one box"
 	}
+	// spec 025 B3 (box_lock.go): a locked box's agents take only its owners'
+	// commands; before the pin and the sender allow-lists, so no edit widens it.
+	if rf := s.boxLockRefusal(ctx, c.tenant, box, c.member, boxLockPathDispatch); rf != nil {
+		return "", nil, rf.token, rf.status, rf.detail
+	}
 	if _, err := s.o.Store.GetPin(ctx, c.tenant, box); err != nil {
 		return "", nil, "unpinned_box", http.StatusNotFound, box + " is not pinned in this tenant"
 	}

@@ -122,10 +122,12 @@ watchEffect(() => { if (boxEl.value) boxEl.value.indeterminate = props.pageState
    lies over the sort/filter bar, in its 44 px box, one row, so the first tick
    no longer pushes the list down (it moved 88 px). Gmail's selection bar
    swaps in the same way. The notes hang below it over the chips, never
-   growing it. The page box is the cards' 16 px square in a 44 px tap box. */
+   growing it. The page box is the cards' 16 px square in a 44 px tap box.
+   No gap and a 13 px count: "Selected: 1" needs 100 px in DejaVu Sans (the
+   hosted CI runner's fallback) and 90 in Noto Sans; the box gives ~110. */
 @media (max-width: 820px) {
-  .issues-bulk { position: absolute; inset-block-start: 0; inset-inline: 0; z-index: 1; flex-wrap: nowrap; gap: 2px; height: var(--tap, 44px); min-height: 0; padding: 0 4px; }
-  .issues-bulk__n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; }
+  .issues-bulk { position: absolute; inset-block-start: 0; inset-inline: 0; z-index: 1; flex-wrap: nowrap; gap: 0; height: var(--tap, 44px); min-height: 0; padding: 0 2px; }
+  .issues-bulk__n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.8125rem; }
   .issues-bulk__acts { flex-wrap: nowrap; gap: 0; }
   .issues-bulk__btn { min-width: var(--tap, 44px); min-height: var(--tap, 44px); justify-content: center; padding: 0; }
   .issues-bulk__notes { position: absolute; inset-block-start: 100%; inset-inline: 0; padding: 6px 12px; background: var(--color-selected); border-bottom: 1px solid var(--color-border); }

@@ -93,7 +93,14 @@ const barBox = (p) => p.evaluate(() => {
     smallInputs: small('input'),
     rows: new Set(tops).size,
     labels: bar.querySelectorAll('.issues-bulk__label').length,
-    countFits: (() => { const n = bar.querySelector('[data-test=issues-bulk-count]'); return !!n && n.scrollWidth <= n.clientWidth + 1 })(),
+    /* the text's own width (a Range), not scrollWidth, which never reads below the box */
+    count: (() => {
+      const n = bar.querySelector('[data-test=issues-bulk-count]')
+      if (!n) return null
+      const r = document.createRange()
+      r.selectNodeContents(n)
+      return { need: Math.ceil(r.getBoundingClientRect().width), have: n.clientWidth }
+    })(),
     /* inert drops the covered bar from hit testing: lift it to see what is on top */
     covered: (() => {
       const m = document.querySelector('[data-test=issues-mbar]')
@@ -144,7 +151,7 @@ try {
     ok(`1 412 ${theme}: card 1 does not move on the first tick (<= 1 px)`, shift !== null && shift <= 1, { before, after, shift })
     ok(`2 412 ${theme}: the bulk bar is <= 56 px tall`, !!bar && bar.h > 0 && bar.h <= 56, bar)
     ok(`3 412 ${theme}: every bulk bar control keeps a 44x44 tap target`, !!bar && bar.smallButtons.length === 0 && bar.smallInputs.length === 0, bar && [...bar.smallButtons, ...bar.smallInputs])
-    ok(`4 412 ${theme}: the bulk bar is one row, its count not cut`, !!bar && bar.rows === 1 && bar.countFits, bar)
+    ok(`4 412 ${theme}: the bulk bar is one row, its count not cut`, !!bar && bar.rows === 1 && !!bar.count && bar.count.need <= bar.count.have + 1, bar)
     ok(`4b 412 ${theme}: the bar lies over the sort/filter bar (on top of its last button, which is inert)`, !!bar && bar.covered?.onTop === true && bar.covered.inert === true, bar)
     const x = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`5 412 ${theme}: no horizontal page scroll`, x <= 0, x)

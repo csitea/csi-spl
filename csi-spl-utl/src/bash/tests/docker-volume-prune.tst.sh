@@ -5,22 +5,24 @@
 # Drives the action against a STUB docker (listing files and an rm log under a
 # temp dir); the box's docker daemon is never touched.
 #   1. DRY_RUN=1 (the default): plans the old anonymous dangling volume with
-#      its size and the total, removes nothing, exit 1
+#      its size and the total, removes nothing, exit 0
 #   2. DRY_RUN=0 removes exactly that one volume (docker volume rm, no -f)
+#      and exits 0: removed > 0 with failed 0 is a success (SPL-3127)
 #   3. a named dangling volume is kept
 #   4. an anonymous dangling volume younger than the limit (59 min) is kept
 #   5. one mounted by a stopped container is kept (docker listed it dangling)
 #   6. DOCKER_VOLUME_PRUNE_MIN_AGE_MIN overrides the limit
 #   7. build cache: plan only with DRY_RUN=1, `builder prune -f --filter
 #      until=60m` with DRY_RUN=0, nothing without the flag
-#   8. a failed rm: WARN, counted, exit 1
+#   8. a failed rm: WARN, counted, exit 1 (the only non-zero after a run)
 #   9. docker volume ls fails -> exit 2; a bad age -> exit 2
 #  10. nothing to do -> exit 0
-#  11. ./run -a do_docker_volume_prune runs it
+#  11. ./run -a do_docker_volume_prune runs it, exit 0 (no FATAL on success)
 #  12. the code never calls `volume prune` or `system prune`
 #  13. LIVE GUARD: no call reached a docker outside $T
 # CONTROL: DOCKER_VOLUME_PRUNE_TST_FUNC_SH=<copy without the age check> makes
-# case 4 fail (the young volume is planned).
+# case 4 fail (the young volume is planned); a copy with the old exit line
+# `((n_done > 0 || failed > 0)) && return 1` makes cases 1, 2 and 7 fail.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -84,16 +86,16 @@ has() { grep -qF -- "$1" "$T/out"; }
 # 1. DRY_RUN unset = 1
 setup; : >"$RM_LOG"
 run_fn
-if [[ "$(rc)" == 1 ]] && has "PLAN remove volume $OLD (869.2MB, 600 min old" && [[ ! -s "$RM_LOG" ]] &&
+if [[ "$(rc)" == 0 ]] && has "PLAN remove volume $OLD (869.2MB, 600 min old" && [[ ! -s "$RM_LOG" ]] &&
   has "would remove 1 anonymous dangling volume(s) older than 60 min, total 869.2 MB"; then
-  pass "1. default DRY_RUN=1 plans the old volume with size and total, removes nothing, exit 1"
+  pass "1. default DRY_RUN=1 plans the old volume with size and total, removes nothing, exit 0"
 else fail "1. rc=$(rc) rm=$(cat "$RM_LOG") $(cat "$T/out")"; fi
 
 # 2. DRY_RUN=0
 : >"$RM_LOG"
 DRY_RUN=0 run_fn
-if [[ "$(rc)" == 1 && "$(cat "$RM_LOG")" == "volume rm $OLD" ]] && has "removed 1 anonymous"; then
-  pass "2. DRY_RUN=0 removes exactly the old anonymous dangling volume (volume rm, no -f)"
+if [[ "$(rc)" == 0 && "$(cat "$RM_LOG")" == "volume rm $OLD" ]] && has "removed 1 anonymous" && has "failed 0"; then
+  pass "2. DRY_RUN=0 removes exactly the old anonymous dangling volume (volume rm, no -f), failed 0 -> exit 0"
 else fail "2. rc=$(rc) rm=[$(cat "$RM_LOG")] $(cat "$T/out")"; fi
 
 # 3. / 4. / 5. (from the DRY_RUN=0 run above)
@@ -117,7 +119,7 @@ else fail "6. rm=$(cat "$RM_LOG")"; fi
 DOCKER_VOLUME_PRUNE_BUILD_CACHE=1 run_fn
 r1="$(rc)"; p1=0; has "PLAN docker builder prune -f --filter until=60m" && p1=1; s1="$(cat "$RM_LOG")"
 DRY_RUN=0 DOCKER_VOLUME_PRUNE_BUILD_CACHE=1 run_fn
-if [[ "$r1" == 1 && "$p1" == 1 && -z "$s1" ]] && grep -qx 'builder prune -f --filter until=60m' "$RM_LOG"; then
+if [[ "$r1" == 0 && "$p1" == 1 && -z "$s1" ]] && grep -qx 'builder prune -f --filter until=60m' "$RM_LOG"; then
   : >"$RM_LOG"; DRY_RUN=0 run_fn
   if ! grep -q builder "$RM_LOG"; then pass "7. build cache: plan, then prune until=60m with DRY_RUN=0, none without the flag"
   else fail "7. builder pruned without the flag"; fi
@@ -148,8 +150,8 @@ setup; : >"$RM_LOG"
 if [[ -z "${DOCKER_VOLUME_PRUNE_TST_FUNC_SH:-}" ]]; then
   (cd "$UTL_ROOT" && DRY_RUN=1 ./run -a do_docker_volume_prune) >"$T/out" 2>&1
   r=$?
-  if [[ "$r" == 1 ]] && has "PLAN remove volume $OLD" && [[ ! -s "$RM_LOG" ]]; then
-    pass "11. ./run -a do_docker_volume_prune runs it (exit 1, plan only)"
+  if [[ "$r" == 0 ]] && has "PLAN remove volume $OLD" && [[ ! -s "$RM_LOG" ]] && ! has FATAL; then
+    pass "11. ./run -a do_docker_volume_prune runs it (exit 0, no FATAL, plan only)"
   else fail "11. ./run rc=$r $(tail -5 "$T/out")"; fi
 fi
 

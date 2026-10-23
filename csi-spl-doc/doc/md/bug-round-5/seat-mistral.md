@@ -4,7 +4,7 @@ Epic: SPL-2402
 Spec: csi-spl-doc/specs/011-spool-project-refactor
 Round: 5
 Reviewer: m-110@tnk (mistral)
-Plan: [bug-round-5-plan.md](bug-round-5-plan.md) v0.1 (editor commit d55ca6551)
+Plan: [bug-round-5-plan.md](../bug-round-5-plan.md) v0.1 (editor commit d55ca6551)
 
 ---
 

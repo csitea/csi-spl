@@ -19,7 +19,7 @@
       :title="t('issues_bulk.select_page')"
       @click="emit('toggle-page')"
     >
-    <span class="issues-bulk__n" data-test="issues-bulk-count" aria-live="polite">{{ t('issues_bulk.count', { count }) }}</span>
+    <span class="issues-bulk__n" data-test="issues-bulk-count" aria-live="polite" :title="t('issues_bulk.count', { count })">{{ t('issues_bulk.count', { count }) }}</span>
     <span class="issues-bulk__acts">
       <button
         v-for="b in buttons"
@@ -42,17 +42,19 @@
       <UiIcon name="x" :size="16" />
       <span v-if="!phone" class="issues-bulk__label">{{ t('issues_bulk.clear') }}</span>
     </button>
-    <p v-if="notice" class="issues-bulk__note muted" data-test="issues-bulk-note">
-      <span>{{ notice }}{{ ' ' }}</span>
-      <button v-if="canMatchAll && !allMatching" type="button" class="issues-bulk__link" data-test="issues-bulk-all-matching" :disabled="selecting || busy" @click="emit('select-matching')">
-        {{ selecting ? t('issues_bulk.selecting') : t('issues_bulk.select_matching', { total }) }}
-      </button>
-    </p>
-    <p v-if="progress" class="issues-bulk__note muted" role="status" data-test="issues-bulk-progress">{{ t('issues_bulk.progress', { done: progress.done, total: progress.total }) }}</p>
-    <p v-else-if="result" class="issues-bulk__note" :class="{ 'issues-error': result.failed.length }" role="status" data-test="issues-bulk-result" :data-failed="result.failed.join(',')">
-      <span>{{ t('issues_bulk.result_ok', { done: result.done, total: result.total }) }}</span>
-      <span v-if="result.failed.length" data-test="issues-bulk-failed">{{ ' ' + t('issues_bulk.result_failed', { count: result.failed.length, keys: result.failed.join(', ') }) }}</span>
-    </p>
+    <div v-if="notice || progress || result" class="issues-bulk__notes">
+      <p v-if="notice" class="issues-bulk__note muted" data-test="issues-bulk-note">
+        <span>{{ notice }}{{ ' ' }}</span>
+        <button v-if="canMatchAll && !allMatching" type="button" class="issues-bulk__link" data-test="issues-bulk-all-matching" :disabled="selecting || busy" @click="emit('select-matching')">
+          {{ selecting ? t('issues_bulk.selecting') : t('issues_bulk.select_matching', { total }) }}
+        </button>
+      </p>
+      <p v-if="progress" class="issues-bulk__note muted" role="status" data-test="issues-bulk-progress">{{ t('issues_bulk.progress', { done: progress.done, total: progress.total }) }}</p>
+      <p v-else-if="result" class="issues-bulk__note" :class="{ 'issues-error': result.failed.length }" role="status" data-test="issues-bulk-result" :data-failed="result.failed.join(',')">
+        <span>{{ t('issues_bulk.result_ok', { done: result.done, total: result.total }) }}</span>
+        <span v-if="result.failed.length" data-test="issues-bulk-failed">{{ ' ' + t('issues_bulk.result_failed', { count: result.failed.length, keys: result.failed.join(', ') }) }}</span>
+      </p>
+    </div>
   </header>
 </template>
 
@@ -113,11 +115,25 @@ watchEffect(() => { if (boxEl.value) boxEl.value.indeterminate = props.pageState
 .issues-bulk__btn { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .issues-bulk__btn--danger:hover, .issues-bulk__btn--danger:focus-visible { color: var(--color-danger); }
 .issues-bulk__clear { margin-inline-start: auto; }
-.issues-bulk__note { flex: 1 0 100%; margin: 0; font-size: 0.875rem; }
+.issues-bulk__notes { flex: 1 0 100%; display: flex; flex-direction: column; gap: 4px; }
+.issues-bulk__note { margin: 0; font-size: 0.875rem; }
 .issues-bulk__link { padding: 0; margin-inline-start: 6px; border: 0; background: transparent; color: var(--color-accent); font: inherit; text-decoration: underline; cursor: pointer; }
+/* SPL-3026 (plan issues-multiselect-panel-plan.md 3.3): on a phone the bar
+   lies over the sort/filter bar, in its 44 px box, one row, so the first tick
+   no longer pushes the list down (it moved 88 px). Gmail's selection bar
+   swaps in the same way. The notes hang below it over the chips, never
+   growing it. The page box is the cards' 16 px square in a 44 px tap box. */
 @media (max-width: 820px) {
-  .issues-bulk { padding: 6px 12px; }
-  .issues-bulk__box { width: var(--tap, 44px); height: 22px; }
+  .issues-bulk { position: absolute; inset-block-start: 0; inset-inline: 0; z-index: 1; flex-wrap: nowrap; gap: 2px; height: var(--tap, 44px); min-height: 0; padding: 0 4px; }
+  .issues-bulk__n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; }
+  .issues-bulk__acts { flex-wrap: nowrap; gap: 0; }
   .issues-bulk__btn { min-width: var(--tap, 44px); min-height: var(--tap, 44px); justify-content: center; padding: 0; }
+  .issues-bulk__notes { position: absolute; inset-block-start: 100%; inset-inline: 0; padding: 6px 12px; background: var(--color-selected); border-bottom: 1px solid var(--color-border); }
+  .issues-bulk__box { appearance: none; -webkit-appearance: none; position: relative; width: var(--tap, 44px); height: var(--tap, 44px); border: 0; background: transparent; }
+  .issues-bulk__box::before { content: ''; position: absolute; inset: 0; margin: auto; width: 16px; height: 16px; box-sizing: border-box; border: 2px solid var(--color-muted); border-radius: var(--radius-xs); background: var(--color-bg); }
+  .issues-bulk__box:checked::before, .issues-bulk__box:indeterminate::before { border-color: var(--color-accent); background: var(--color-accent); }
+  .issues-bulk__box:checked::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 9px; border: solid var(--color-on-accent); border-width: 0 2px 2px 0; transform: translate(-50%, -60%) rotate(45deg); }
+  .issues-bulk__box:indeterminate::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 2px; background: var(--color-on-accent); transform: translate(-50%, -50%); }
+  .issues-bulk__box:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -8px; }
 }
 </style>

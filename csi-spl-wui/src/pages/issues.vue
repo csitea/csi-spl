@@ -91,7 +91,9 @@
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
            menu) and the epics as a chip strip in place of the sheet's header rows -->
       <template v-if="phone">
-        <div class="issues-mbar" data-test="issues-mbar">
+        <!-- SPL-3026: with a row checked the bulk bar lies over this bar (same
+             box, the list does not move); what it covers takes no focus -->
+        <div class="issues-mbar" data-test="issues-mbar" :inert="bulkOn || undefined">
           <label v-if="!bulkOn && rowCount" class="issues-check issues-check--page">
             <input type="checkbox" data-test="issues-select-page" :checked="bulkPage === 'all'" :aria-label="t('issues_bulk.select_page')" @click="togglePage">
           </label>
@@ -2270,6 +2272,8 @@ select.issues-pctl { appearance: auto; }
    bottom sheet. Targets are >= 44 px (--tap). Nothing here reaches > 820 px. */
 @media (max-width: 820px) {
   .issues-head { min-height: var(--tap, 44px); }
+  /* SPL-3026: the phone bulk bar is placed over the sort/filter bar from here */
+  .issues-list { position: relative; }
   .issues-mback { flex: 0 0 auto; min-width: var(--tap, 44px); min-height: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; }
   .issues-fab {
     position: fixed;

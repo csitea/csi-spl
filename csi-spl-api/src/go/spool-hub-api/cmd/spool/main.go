@@ -121,6 +121,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mcp"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -400,6 +401,12 @@ func cmdKeygen(cfg *config.Config, args []string) int {
 	}
 	if err := cfg.CheckKeysDir(); err != nil {
 		return fail(err)
+	}
+	// A box sealed by the owner lock (spec 025 box-owner-lock.md 4.6) keeps
+	// its key only as box-<id>.key.enc: a clear key beside it would be a
+	// second identity, so keygen refuses it, --force included.
+	if lockkey.IsSealed(cfg.KeysDir, *box) {
+		return fail(fmt.Errorf("box %s is sealed by the owner lock: its key is box-%s.key.enc; use spool lock reseal / rebind", *box, *box))
 	}
 	if !*force { // re-run safe (SPL-2710): an existing key is kept, its public half printed
 		priv, err := sign.LoadPrivate(cfg.KeysDir, *box)

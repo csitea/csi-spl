@@ -208,6 +208,16 @@ spl_role_failover_claude2_why() {
   return 0
 }
 
+# A restart in place (claude2 on a claude seat, SPL-2943): the old session
+# cannot act and shares the id, so every able test would read it (the lowest
+# pid): it ends now, not after the new one is judged.
+spl_role_failover_end_old() {
+  local rid="$1" seat="$2" opid="$3" opane="$4"
+  spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT" || true
+  [[ -n "$opane" ]] && { spl_rotate_tmux kill-window -t "$opane" 2>/dev/null || true; }
+  spl_role_failover_say "$rid" OK "the old session (pid $opid) of $seat ended before the able test (restart in place)"
+}
+
 # Why the lease's test refused ID, one line.
 spl_role_failover_able() { cat "$LEASE_DIR/able.$1" 2>/dev/null | tr '\n' ' ' | cut -c1-160; }
 
@@ -255,14 +265,8 @@ spl_role_failover_run() {
   if ! spl_rotate_spawn "$new" "$seed"; then
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
-  # a restart in place (claude2 on a claude seat): the old session cannot
-  # act and shares the id, so every able test would read it (the lowest
-  # pid): it ends now, not after the new one is judged
   if [[ "$new" == "$seat" && -n "$opid" ]]; then
-    spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT" || true
-    [[ -n "$opane" ]] && { spl_rotate_tmux kill-window -t "$opane" 2>/dev/null || true; }
-    spl_role_failover_say "$rid" OK "the old session (pid $opid) of $seat ended before the able test (restart in place)"
-    opid="" opane=""
+    spl_role_failover_end_old "$rid" "$seat" "$opid" "$opane"; opid="" opane=""
   fi
   ack="${rid%%-*}-failover-$new"
   spl_role_failover_probe "$rid" "$role" "$new" "$ack"

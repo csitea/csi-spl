@@ -1,5 +1,7 @@
 # Bug round 5 - mistral3 reviewer verdict (R7)
 
+Signed: PASS v1.0, signed on a9ce693edbedccab7ec6bde25fbd4b357abd7a29
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/011-spool-project-refactor  
 Plan: [bug-round-5-plan.md](/doc/md/bug-round-5/bug-round-5-plan.md) v1.0, commit `8be4e3448`  

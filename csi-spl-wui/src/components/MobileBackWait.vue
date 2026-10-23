@@ -1,9 +1,11 @@
 <!-- SPL-2785 (owner HUM-10, t1 c7185b1f): after a Back on a phone, three
      small bouncing dots while the screen it returns to is not ready yet,
      like the meetup web app. Every Back counts the same (the chevron, a
-     swipe right, browser Back: useMobileStack's `backs`). Shown only when
-     the wait passes BACK_WAIT_MS, so an instant Back never flashes; gone the
-     moment the screen is ready. Ready = no route still resolving and nothing
+     swipe right, browser Back: useMobileStack's `backs`). SPL-3120 (owner,
+     t1 c7185b1f: "Not visible on mobile"): the usual phone Backs (a topic to
+     its feed, a feed to the list) load nothing, so a loading-only pill never
+     showed; every Back now shows it at once for MIN_SHOW_MS, then for as long
+     as the screen is not ready. Ready = no route still resolving and nothing
      in the shell marked aria-busy (the feed while it loads) or still held by
      a late placeholder (.shell-late). The layout mounts it on a phone only,
      as its own lazy chunk; the drawing is await-anim/Dots.vue, whose
@@ -29,7 +31,8 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import Dots from '~/components/await-anim/Dots.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
 
-const BACK_WAIT_MS = 150
+/* long enough for each of the three dots to bounce once (Dots.vue: 1.1 s cycle, 0.3 s last delay) */
+const MIN_SHOW_MS = 700
 const POLL_MS = 100
 /* a screen that never says it is ready must not keep the dots forever */
 const GIVE_UP_MS = 15000
@@ -62,7 +65,7 @@ function busy() {
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined
-let until = 0
+let from = 0
 
 function stop() {
   clearTimeout(timer)
@@ -70,15 +73,16 @@ function stop() {
 }
 
 function check() {
-  if (!busy() || Date.now() > until) return stop()
-  shown.value = true
+  const age = Date.now() - from
+  if (age >= GIVE_UP_MS || (age >= MIN_SHOW_MS && !busy())) return stop()
   timer = setTimeout(check, POLL_MS)
 }
 
 watch(stack.backs, () => {
-  stop()
-  until = Date.now() + GIVE_UP_MS
-  timer = setTimeout(check, BACK_WAIT_MS)
+  clearTimeout(timer)
+  from = Date.now()
+  shown.value = true
+  timer = setTimeout(check, POLL_MS)
 })
 
 onBeforeUnmount(() => { stop(); offBefore(); offAfter(); offStart(); offFinish() })

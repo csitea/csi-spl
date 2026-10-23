@@ -1,16 +1,20 @@
 // SPL-2785 (owner HUM-10, t1 c7185b1f: "Clicking on back button should have
 // three bouncing small balls like in the meetup web app"): after a Back on a
 // phone, components/MobileBackWait.vue shows three small bouncing dots while
-// the screen it returns to loads, and only when that wait passes ~150 ms.
+// the screen it returns to loads. SPL-3120 (owner, t1 c7185b1f: "Not
+// visible on mobile"): the usual phone Backs load nothing, so the dots now
+// show at once on EVERY Back for ~0.7 s, and longer while the screen loads.
 //
 // The plant: the next channel.selectChannel waits SLOW_MS with the feed
 // marked loading (aria-busy), as a slow hub would. Each case watches the
 // dots with a MutationObserver from the moment of the Back.
 //   1-3. a slow Back by each way in (the chevron, browser Back, a swipe
 //        right): dots seen, and gone once the feed has loaded
-//   4.   the same Back with no plant (the mock answers at once): no dots
+//   4.   the same Back with no plant (the mock answers at once): the dots
+//        show for ~0.7 s, then go
 //   5.   a Back that needs no load (level 3 -> 2, the feed is there) with
-//        the plant armed: no dots
+//        the plant armed: the same short show, not held by the unused plant
+//   5b.  level 2 -> 1 (the feed to the list): the same short show
 //   6.   reduced motion: the dots show and do not move
 //   7.   desktop (1440): no dots element at all
 //
@@ -167,12 +171,16 @@ async function slowBack(browser, base, how) {
     const firstOn = log.find(([on]) => on)
     ok(`${how}: Back returns to #alerts and the feed loads`, pressed && back.path === '/channel/alerts' && !back.busy, back)
     ok(`${how}: the dots show while the feed loads`, Boolean(mid) && Boolean(firstOn), log)
-    ok(`${how}: not before ~150 ms (first shown at ${firstOn ? firstOn[1] : '-'} ms)`, Boolean(firstOn) && firstOn[1] >= 140, log)
+    ok(`${how}: at once (first shown at ${firstOn ? firstOn[1] : '-'} ms)`, Boolean(firstOn) && firstOn[1] < 140, log)
     ok(`${how}: gone once the feed has loaded (${Date.now() - t0} ms)`, gone && log.length >= 2 && !log[log.length - 1][0], log)
   } finally {
     await ctx.close().catch(() => {})
   }
 }
+
+/* one show then one hide, held at least MIN_MS and less than `max` */
+const MIN_MS = 600
+const shortShow = (log, max) => log.length === 2 && log[0][0] && !log[1][0] && log[1][1] - log[0][1] >= MIN_MS && log[1][1] - log[0][1] < max
 
 async function instantBacks(browser, base) {
   const { ctx, page, mounted } = await phone(browser, base)
@@ -182,9 +190,9 @@ async function instantBacks(browser, base) {
     await watchDots(page)
     await BACKS.chevron(page)
     const s = await waitFor(page, (x) => x.path === '/channel/alerts' && !x.busy)
-    await sleep(600)
+    await sleep(1200)
     let log = await dotsLog(page)
-    ok('instant: a Back the mock answers at once shows no dots', s.path === '/channel/alerts' && log.length === 0, { s, log })
+    ok('instant: a Back the mock answers at once shows the dots ~0.7 s, then they go', s.path === '/channel/alerts' && shortShow(log, 1500), { s, log })
 
     await vue(page, (id) => document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('topic')?.openTopic(id), TASK)
     const l3 = await waitFor(page, (x) => x.level === '3')
@@ -195,9 +203,16 @@ async function instantBacks(browser, base) {
     const l2 = await waitFor(page, (x) => x.level === '2')
     await sleep(SLOW_MS)
     log = await dotsLog(page)
-    ok('instant: 3 -> 2 needs no load, no dots even with a slow hub armed', l2.level === '2' && log.length === 0, { l2, log })
+    ok('instant: 3 -> 2 needs no load, the dots show ~0.7 s, not held by the slow hub armed', l2.level === '2' && shortShow(log, SLOW_MS), { l2, log })
     /* drop the unused plant */
     await vue(page, () => { const ch = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel'); delete ch.selectChannel })
+
+    await watchDots(page)
+    await BACKS.chevron(page)
+    const l1 = await waitFor(page, (x) => x.level === '1')
+    await sleep(1200)
+    log = await dotsLog(page)
+    ok('instant: 2 -> 1 (the feed to the list) shows the dots ~0.7 s, then they go', l1.level === '1' && shortShow(log, 1500), { l1, log })
   } finally {
     await ctx.close().catch(() => {})
   }

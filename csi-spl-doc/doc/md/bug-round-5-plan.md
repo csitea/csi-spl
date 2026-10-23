@@ -118,7 +118,7 @@ Baseline of the suite the rows touch, on `35a8a111d`: `bash csi-spl-orc/src/bash
 ## 8. Panel and reviewer (R7)
 
 - **Editor:** `c-081@<box2>` (claude).
-- **Reviewer:** `m-110@<box2>` (mistral), verdict `80ed8199b` ([seat-mistral.md](bug-round-5/seat-mistral.md)); it signs v1.0 in its own commit.
+- **Reviewer:** `m-110@<box2>` (mistral) | **PASS v1.0, signed on 76c0d532144a985da9c301ea874044641440f872**
 - The verdict landed on the third try: `3019534c7` was reported landed but the pre-push hygiene part had refused it (12 lines with a literal user, box or home path); `80ed8199b` puts placeholders in those lines. The review content did not change. The verdict names no session id under "Proof of the run", so the dispatcher reads m-110's journal before ACCEPTED.
 
 ---

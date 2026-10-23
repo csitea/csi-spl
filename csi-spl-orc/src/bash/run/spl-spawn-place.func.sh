@@ -66,6 +66,13 @@
 # @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest);
 # @description         agy when the brief's "Kind:" is specs_and_docs or i18n
 # @description         (a review stays cross-vendor to a claude author, SPL-2942)
+# @description      AGY OUT (SPL-3018): while agy is out of quota on this box
+# @description         (agy's banner in the watchdog's pane capture, or an S2
+# @description         kind=limit verdict on an a- lane), a row swapped to agy
+# @description         HOLDS when it is a review (brief Kind: review, or
+# @description         "review" in its file name or first heading): queued, out
+# @description         of the line, the reset in .place.wait; any other such
+# @description         row launches claude
 # @description      CODING RULE (owner HUM-10, t1 b61851fb, msg 91bf8278): a
 # @description         mistral placement whose brief's "Kind:" is not
 # @description         specs_and_docs or i18n (none counts as coding) launches
@@ -125,6 +132,7 @@ do_spl_spawn_place() {
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
   fi
+  rows="$(spl_spawn_place_agy_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
@@ -416,24 +424,95 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY
   printf '%s; reopening it failed: %s\n' "$3" "$(tail -n 1 <<<"$out")"
 }
 
-# The vendor to launch: VENDOR, except mistral on UI work while the cnf
-# switch mistral_ui_allowed is not true, or on a coding kind while
-# mistral_coding_allowed is not true (the UI and coding rules,
-# spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). Such a row launches agy
-# when its brief's kind is specs_and_docs or i18n (agy is the main of both,
-# and a review stays cross-vendor to a claude author, SPL-2942), else claude.
-# A row queued before the enqueue refused it is launched, not dropped.
-spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
+# The vendor a mistral row launches as, "<vendor>\t<why>": VENDOR and no why
+# unless it is mistral on UI work while the cnf switch mistral_ui_allowed is
+# not true, or on a coding kind while mistral_coding_allowed is not true (the
+# UI and coding rules, spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). Such a
+# row swaps to agy when its brief's kind is specs_and_docs or i18n (agy is the
+# main of both, and a review stays cross-vendor to a claude author, SPL-2942),
+# else to claude.
+spl_spawn_place_swap() {  # VENDOR BRIEF
   local why kind to=claude cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
-  [[ "$1" == mistral ]] || { echo "$1"; return 0; }
+  [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
   why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
   [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
-  [[ -n "$why" ]] || { echo "$1"; return 0; }
+  [[ -n "$why" ]] || { printf '%s\t\n' "$1"; return 0; }
   case "$kind" in specs_and_docs|i18n) to=agy ;; esac
+  printf '%s\t%s\n' "$to" "$why"
+}
+
+# The vendor to launch (spl_spawn_place_swap). A swap to agy while agy is out
+# of quota here (spl_spawn_place_agy_out, SPL-3018) launches claude instead,
+# unless the row is a review: spl_spawn_place_agy_hold keeps those queued.
+# A row queued before the enqueue refused it is launched, not dropped.
+spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
+  local sw to why out
+  sw="$(spl_spawn_place_swap "$1" "$2")"; to="${sw%%$'\t'*}" why="${sw#*$'\t'}"
+  [[ -n "$why" ]] || { echo "$to"; return 0; }
+  if [[ "$to" == agy ]] && ! spl_spawn_place_review "$2" && out="$(spl_spawn_place_agy_out)" && [[ -n "$out" ]]; then
+    to=claude why="$why; $out"
+  fi
   do_log "INFO ask ${3:0:8}: placed as mistral, launched as $to: $why" >&2
   echo "$to"
+}
+
+# A review row (SPL-3018; a review seat stays cross-vendor to its author,
+# SPL-2942, rounds-rulebook 2.7.2/2.7.3): the brief's "Kind:" is review, or
+# its file name or first "# " heading says review ("the cross-vendor R7
+# reviewer"). Any other row is not one.
+spl_spawn_place_review() {  # BRIEF
+  declare -F spl_lane_mix_brief_kind >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  [[ "$(spl_lane_mix_brief_kind "$1")" == review ]] && return 0
+  grep -qi 'review' <<<"$(basename "$1") $(grep -m1 '^# ' "$1" 2>/dev/null)"
+}
+
+# agy out of quota on this box (SPL-3018): "agy is out of quota until <UTC>
+# (<evidence>)", else nothing. Read only, from two records the box keeps:
+# lane-mix's verdict (_spl_lane_mix_limit agy: a watchdog S2 kind=limit on an
+# a- lane, held LANE_MIX_LIMIT_FRESH s), and agy's own banner "Individual
+# quota reached ... Resets in 13h53m38s" in the watchdog's pane capture
+# (<wd>/ctx*/a-*/pane; the reset is its mtime + that time). The banner is the
+# one that fires today: the watchdog's stall pattern does not match it
+# (2026-10-23: 10 a- captures with it, no S2 verdict on any a- lane).
+spl_spawn_place_agy_out() {
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 ev="" hit
+  now="$(date +%s)"
+  declare -F _spl_lane_mix_limit >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  hit="$(_spl_lane_mix_limit agy "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}")"
+  [[ -z "$hit" ]] || best=$(( ${hit%%$'\t'*} + ${LANE_MIX_LIMIT_FRESH:-21600} )) ev="${hit#*$'\t'}"
+  for f in "$wd"/ctx*/a-*/pane; do
+    line="$(grep -aoE 'Individual quota reached.*Resets in ([0-9]+h)?([0-9]+m)?([0-9]+s)?' "$f" 2>/dev/null | tail -n 1)"
+    [[ "$line" =~ Resets\ in\ (([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?$ ]] || continue
+    t=$(( $(stat -c %Y "$f" 2>/dev/null || echo 0) + 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
+    (( t > best )) && best="$t" ev="$(basename "$(dirname "$f")") banner, Resets in ${line##*Resets in }"
+  done
+  (( best > now )) || return 0
+  printf 'agy is out of quota until %s (%s)\n' "$(date -u -d "@$best" +%FT%TZ)" "$ev"
+}
+
+# 2c. While agy is out of quota here (spl_spawn_place_agy_out), a queued row
+# the placer launches whose swap is to agy (spl_spawn_place_swap) and which is
+# a review (spl_spawn_place_review) HOLDS (SPL-3018): it stays queued and out
+# of this tick's line, so it blocks no other row; one INFO line and its
+# .place.wait line name the reset. claude would break the cross-vendor review
+# of a claude author (SPL-2942). Prints ROWS minus the held ones.
+spl_spawn_place_agy_hold() {  # MARKED ROWS
+  local out="" id slug brief why held=()
+  while IFS=$'\t' read -r id slug; do
+    brief="$(spl_spawn_place_brief "$slug")"
+    [[ -n "$brief" && "$(spl_spawn_place_swap mistral "$brief" | cut -f1)" == agy ]] || continue
+    spl_spawn_place_review "$brief" || continue
+    [[ -n "$out" ]] || out="$(spl_spawn_place_agy_out)"
+    [[ -n "$out" ]] || break
+    why="a review row stays cross-vendor (SPL-2942), and $out"
+    spl_spawn_place_wait "$id" "$why"
+    do_log "INFO hold: ask ${id:0:8}: $why; it stays queued" >&2
+    held+=("$id")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | startswith("mistral:")))
+    | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls

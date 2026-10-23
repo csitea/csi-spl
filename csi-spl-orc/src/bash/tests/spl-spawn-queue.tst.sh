@@ -43,6 +43,10 @@
 #      claude, agy when its "Kind:" is specs_and_docs or i18n (SPL-2942, an R7
 #      review of a claude author stays cross-vendor) (CONTROL: a docs brief
 #      naming no csi-spl-wui/ stays mistral)
+#  13b. SPL-3018: the agy swap target out of quota (agy's banner in the
+#      watchdog's pane capture, or an S2 kind=limit verdict on an a- lane): a
+#      review row holds, queued, and blocks no other row; a non-review docs
+#      row launches claude (CONTROL: a banner past its reset launches agy)
 #  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
@@ -608,6 +612,49 @@ on pc do_spl_spawn_enqueue ASK_ID="$U2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:docs
 out="$(on pc do_spl_spawn_place LAUNCH_ID=m-504 2>&1)"
 grep -q "^mistral auto $T $T/briefs/docs-x.md docs-x$" "$T/launch.log" &&
   pass "control: a mistral placement with a docs brief stays mistral" || fail "docs placement: $out | $(cat "$T/launch.log")"
+
+# 13b. SPL-3018: the agy swap target out of quota. Its record on this box is
+# agy's banner in the watchdog's pane capture (ctx*/a-*/pane, reset = the
+# capture's mtime + "Resets in"), or lane-mix's S2 kind=limit verdict on an
+# a- lane. A review row (Kind: review, or "review" in the brief's name or
+# first heading) HOLDS, queued, one INFO line with the reset, and blocks no
+# other row; a non-review docs row launches claude; a stale banner = agy in.
+Q1=bbbb0001-0000-4000-8000-000000000001; Q2=bbbb0002-0000-4000-8000-000000000002
+WD13="$T/pc/spool/dispatch/wd"
+mkdir -p "$WD13/ctx.3/a-860"
+printf '> Read and follow your seed\n\n⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\nError ID: x-1\n' >"$WD13/ctx.3/a-860/pane"
+printf '# Lane brief: the cross-vendor R7 reviewer of row B8\nKind: specs_and_docs\nfiles csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-r7.md"
+printf 'Kind: specs_and_docs\nRewrite the help text in csi-spl-wui/src/pages/help.vue\n%s\n' "$ES" >"$T/briefs/ui-help.md"
+put "$Q1" c-002@box-desk dispatch-placer-agy-quota "SPAWN REQUEST ui r7"
+on pc do_spl_spawn_enqueue ASK_ID="$Q1" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-r7 >/dev/null 2>&1
+put "$Q2" c-002@box-desk dispatch-placer-agy-quota "SPAWN REQUEST ui help"
+on pc do_spl_spawn_enqueue ASK_ID="$Q2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-help >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-511 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$Q1")")" == queued ]] && ! grep -q "ui-r7" "$T/launch.log" &&
+  grep -q "INFO hold: ask ${Q1:0:8}: a review row stays cross-vendor (SPL-2942), and agy is out of quota until 20[0-9-]*T[0-9:]*Z (a-860 banner" <<<"$out" &&
+  grep -q "^${Q1}"$'\t'".*agy is out of quota until" "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3018: agy out + a review row: held, queued, not launched, the reset named" || fail "agy out review: $out | $(cat "$T/launch.log")"
+[[ "$(jq -r .reason <<<"$(hubrow "$Q2")")" == "placed: c-511@box-desk" ]] &&
+  grep -q "^claude auto $T $T/briefs/ui-help.md ui-help$" "$T/launch.log" &&
+  grep -q "placed as mistral, launched as claude: .*agy is out of quota until" <<<"$out" &&
+  pass "SPL-3018: agy out + a non-review docs row: claude, and the held review row blocks it not" || fail "agy out docs: $out | $(cat "$T/launch.log")"
+rm -rf "$WD13/ctx.3"; mkdir -p "$WD13/ctx.1/a-861"
+echo 'HIT S2 kind=limit pane: quota' >"$WD13/ctx.1/a-861/out.s2"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=a-512 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$Q1")")" == queued && ! -s "$T/launch.log" ]] &&
+  grep -q "INFO hold: ask ${Q1:0:8}: .*agy is out of quota until .*(a-861 S2 kind=limit" <<<"$out" &&
+  pass "SPL-3018: lane-mix's S2 kind=limit verdict on an a- lane holds it too" || fail "agy verdict: $out | $(cat "$T/launch.log")"
+rm -rf "$WD13/ctx.1"; mkdir -p "$WD13/ctx.3/a-860"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WD13/ctx.3/a-860/pane"
+touch -d '14 hours ago' "$WD13/ctx.3/a-860/pane"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=a-513 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$Q1")")" == "placed: a-513@box-desk" ]] &&
+  grep -q "^agy auto $T $T/briefs/ui-r7.md ui-r7$" "$T/launch.log" && ! grep -q "^${Q1}"$'\t' "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3018 control: a banner past its reset = agy in: the review row launches agy" || fail "agy in: $out | $(cat "$T/launch.log")"
+rm -rf "$WD13"
 
 # 14. SPL-2429: a human sender's notes go to the dispatch lease holder -------------
 H1=c1c1c1c1-0000-4000-8000-000000000001; H2=c2c2c2c2-0000-4000-8000-000000000002; H3=c3c3c3c3-0000-4000-8000-000000000003

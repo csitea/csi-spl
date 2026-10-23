@@ -93,6 +93,10 @@
       "title": "Monitoring"
     },
     {
+      "slug": "box-owner-lock",
+      "title": "Box Owner Lock"
+    },
+    {
       "slug": "reporting",
       "title": "Reporting"
     },

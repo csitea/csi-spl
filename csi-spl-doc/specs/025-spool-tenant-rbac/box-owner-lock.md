@@ -1,7 +1,7 @@
 # Box owner lock: a box whose agents only its owner may reach (025 section 11)
 
 **Feature**: `specs/025-spool-tenant-rbac`, box owner lock · **Created**: 2026-10-22 · **Lane**: c-630 ·
-**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); rows B1-B5, B7 and B8 built, B6 built but for the help page; see each row's As built note.
+**Issue**: SPL-2917 (epic SPL-2400) · **Status**: v1.0, signed by the mistral reviewer m-797@sat at `201f2e3a8` (section 11); rows B1-B8 built, B6 including its help page `csi-spl-doc/doc/help/box-owner-lock.md` (SPL-3073); see each row's As built note.
 **Builds on**: 025 (roles, permissions), 054 (act-as clone), 108 (workspace-owned boxes, pins, revoke),
 017 FR-SEC-031 (desk owners), 023 (human keys), the signed directive feature
 (`csi-spl-orc/src/bash/features/directive/`).

@@ -87,6 +87,15 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
     value, the workspace ids joined with commas, or the literal "all" #}
 {%- set mkt_ws = marketing["workspaces"] if (marketing is defined and marketing["workspaces"] is defined) else [] %}
 {%- set _ = run_env.update({"SPOOL_HUB_MARKETING_WORKSPACES": (mkt_ws if mkt_ws is string else (mkt_ws | join(",")))}) %}
+{#- spec 025 box owner lock 6.4 (row B6, SPL-3014): hub.box_locks_expected
+    reaches the hub as one plain env value, "<tenant>:<box>:<lock_pubkey>"
+    entries joined with commas ("" = no box locked) #}
+{%- set bl_exp = hub["box_locks_expected"] if hub["box_locks_expected"] is defined else [] %}
+{%- set bl_ents = [] %}
+{%- for e in bl_exp %}
+{%- set _ = bl_ents.append(e["tenant"] ~ ":" ~ e["box"] ~ ":" ~ e["lock_pubkey"]) %}
+{%- endfor %}
+{%- set _ = run_env.update({"SPOOL_HUB_BOX_LOCKS_EXPECTED": bl_ents | join(",")}) %}
 {#- spec 075 repo-edit T01: the GitHub App key's slot is 07's own resource
     (imported, never in auth_secret_ids); SPOOL_GITHUB_APP_KEY is injected
     only while docs.repo_edit.inject is "true" (a version exists) #}

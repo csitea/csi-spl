@@ -46,7 +46,8 @@ func (s *Postgres) BoxLock(ctx context.Context, tenant, box string) (*BoxLock, e
 		return l, nil
 	}
 	if !s.hasBoxLocks(ctx) {
-		return nil, nil
+		l, _ := s.expectLocks.apply(tenant, box, nil) // B6: a listed box stays refused
+		return l, nil
 	}
 	gen := s.locks.generation()
 	l := &BoxLock{}
@@ -59,6 +60,12 @@ func (s *Postgres) BoxLock(ctx context.Context, tenant, box string) (*BoxLock, e
 	}
 	if verifyLoaded(l) {
 		if err := s.RecordBoxLockAudit(ctx, tamperAudit(l), s.now()); err != nil {
+			return l, err
+		}
+	}
+	l, bad := s.expectLocks.apply(tenant, box, l) // B6, section 6.4
+	if bad {
+		if err := s.RecordBoxLockAudit(ctx, expectedAudit(tenant, box), s.now()); err != nil {
 			return l, err
 		}
 	}

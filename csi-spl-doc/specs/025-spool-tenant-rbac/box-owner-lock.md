@@ -439,6 +439,26 @@ audit digest (6.3).
 refuses to serve a listed box without a verified lock row with that `lock_pubkey`. So removing a lock by
 deleting its row needs a cnf commit on trunk too, which is visible in git history.
 
+**As built (row B6, SPL-3014)**: cnf `hub.box_locks_expected: []` in `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml`
+(empty in both: no box is locked), rendered by 030's template to `SPOOL_HUB_BOX_LOCKS_EXPECTED`, entries
+`<tenant>:<box>:<lock_pubkey>` joined with commas; `config.Hub.BoxLocksExpected` reads it. Code:
+`internal/store/box_locks_expected.go` (`ParseExpectedBoxLocks`, `ExpectBoxLocks`, `CheckExpectedBoxLocks`),
+one call each in `BoxLock` (Memory, Postgres) and `LockedBoxes`, and `expectBoxLocks` in `cmd/spool/hub.go`
+at start. Tests: `TestBoxLockExpected`, `TestParseExpectedBoxLocks` (`internal/store/`, memory and
+Postgres), `TestHubStartRefusesExpectedBoxWithoutLock`, `TestExpectBoxLocksRefusesBadList` (`cmd/spool/`),
+`csi-spl-iac/src/bash/tests/hub-box-locks-expected-030.tst.sh` (the render).
+
+- A listed box with no row, or with a row under another `lock_pubkey`, loads as `Tampered`: locked to
+  nobody, so every check of B2, B3 and B5 refuses it (hello `locked_box_sealed`, 403 `box_locked`, hidden),
+  with one `tampered` audit row (path `expected`) per load. `LockedBoxes` lists it even with no row. The
+  check is in the store, not in `internal/hub/`, so no queue or view point needs its own call.
+- A row created later under the listed key verifies again: the owner creates the lock (7.1 step 2) with
+  the box listed or not.
+- At start the hub logs `box_lock.expected_missing` per refused box and `box_lock.expected` with the counts.
+  A malformed list (not three parts, a key that is not 32 bytes of base64, a box listed twice) stops the
+  start: a typo never leaves a box unchecked.
+- On a database without rdb 0213 a listed box is refused too (no audit row: there is no table).
+
 ### 6.5 As built: the WUI (row B8, SPL-3015)
 
 Code: `csi-spl-wui/src/components/BoxLockPane.vue` (lazy, on the box's Monitoring card

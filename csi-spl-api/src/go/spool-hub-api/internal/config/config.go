@@ -416,6 +416,11 @@ type Hub struct {
 	// session's tenant there, as before). Both off by default.
 	WUITenantHosts bool   `env:"SPOOL_HUB_WUI_TENANT_HOSTS" envDefault:"false"`
 	WUIApexTenant  string `env:"SPOOL_HUB_WUI_APEX_TENANT"`
+	// BoxLocksExpected is cnf hub.box_locks_expected (spec 025
+	// box-owner-lock.md 6.4): "<tenant>:<box>:<lock_pubkey>" entries joined
+	// with commas. A listed box is served only with a verified lock row under
+	// that key (store.ParseExpectedBoxLocks; "" = none).
+	BoxLocksExpected string `env:"SPOOL_HUB_BOX_LOCKS_EXPECTED"`
 	// OperatorTenant is the BOOTSTRAP operator workspace (spec 074): the one
 	// workspace whose ADMINS manage every other workspace of this instance
 	// through /v1/operator/workspaces. The database is the authority

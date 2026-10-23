@@ -65,6 +65,8 @@ type Postgres struct {
 	// lockList: each workspace's locked box ids, 5 s, cleared with locks
 	// (box_locks_tenant.go)
 	lockList lockedBoxCache
+	// expectLocks: cnf hub.box_locks_expected (box_locks_expected.go)
+	expectLocks expectedBoxLocks
 	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
 	heads topicHeads
 }

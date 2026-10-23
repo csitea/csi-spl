@@ -43,7 +43,7 @@ func (s *Memory) LockedBoxes(_ context.Context, tenant string) ([]string, error)
 		}
 	}
 	sort.Strings(out)
-	return out, nil
+	return s.expectLocks.withListed(tenant, out), nil
 }
 
 // LockedBoxes implements LockedBoxLister: the cache first, else one read in
@@ -57,7 +57,7 @@ func (s *Postgres) LockedBoxes(ctx context.Context, tenant string) ([]string, er
 		return ids, nil
 	}
 	if !s.hasBoxLocks(ctx) {
-		return nil, nil
+		return s.expectLocks.withListed(tenant, nil), nil
 	}
 	var out []string
 	err := s.queryTenant(ctx, tenant, `SELECT box_id FROM box_locks WHERE tenant_id = $1 ORDER BY box_id`,
@@ -70,6 +70,7 @@ func (s *Postgres) LockedBoxes(ctx context.Context, tenant string) ([]string, er
 			return nil
 		})
 	if err == nil {
+		out = s.expectLocks.withListed(tenant, out) // B6, section 6.4
 		s.lockList.put(tenant, gen, out)
 	}
 	return out, err

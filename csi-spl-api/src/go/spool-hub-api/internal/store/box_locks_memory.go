@@ -30,13 +30,16 @@ func (s *Memory) BoxLock(_ context.Context, tenant, box string) (*BoxLock, error
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	row, ok := s.boxLocksLocked().locks[[2]string{tenant, box}]
-	if !ok {
-		return nil, nil
+	var l *BoxLock
+	if row, ok := s.boxLocksLocked().locks[[2]string{tenant, box}]; ok {
+		l = row.clone()
+		if verifyLoaded(l) {
+			s.recordBoxLockAuditLocked(tamperAudit(l), s.now().UTC())
+		}
 	}
-	l := row.clone()
-	if verifyLoaded(l) {
-		s.recordBoxLockAuditLocked(tamperAudit(l), s.now().UTC())
+	l, bad := s.expectLocks.apply(tenant, box, l) // B6, section 6.4
+	if bad {
+		s.recordBoxLockAuditLocked(expectedAudit(tenant, box), s.now().UTC())
 	}
 	return l, nil
 }

@@ -83,6 +83,8 @@ type Memory struct {
 	agentCaps map[string]map[string]memCap
 	// box_locks_memory.go (rdb 0213): box locks and their audit, guarded by mu
 	boxLocks *memBoxLocks
+	// box_locks_expected.go: cnf hub.box_locks_expected, read without mu
+	expectLocks expectedBoxLocks
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
 	operatorTenant string
 	// join_tokens.go (rdb 0119): agent join tokens by hash, guarded by mu

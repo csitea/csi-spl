@@ -104,6 +104,9 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	if err := expectBoxLocks(ctx, log, st, hc.BoxLocksExpected); err != nil {
+		return fail(err)
+	}
 	bs, err := openBlobStore(ctx, cf, hc)
 	if err != nil {
 		return fail(err)
@@ -182,6 +185,39 @@ func checkSchemaHead(ctx context.Context, log zerolog.Logger, st store.Store, di
 	}
 	ev.Str("applied", h.Applied).Str("bundled", h.Bundled).Bool("ahead", h.Ahead()).Msg("db.schema_head")
 	return h.Bundled, nil
+}
+
+// expectBoxLocks hands cnf hub.box_locks_expected to the store and checks
+// each listed box once (spec 025 box-owner-lock.md 6.4, row B6): a listed box
+// with no verified lock row under its listed key is refused (locked to
+// nobody, its hello sealed) from the first request, and logged here. A
+// malformed list stops the start: a typo must never leave a box unchecked.
+// A lock read error is logged; the store refuses on each request then.
+func expectBoxLocks(ctx context.Context, log zerolog.Logger, st store.Store, raw string) error {
+	exp, err := store.ParseExpectedBoxLocks(raw)
+	if err != nil {
+		return err
+	}
+	ex, ok1 := st.(store.BoxLockExpecter)
+	ls, ok2 := st.(store.BoxLockStore)
+	if len(exp) == 0 {
+		return nil
+	}
+	if !ok1 || !ok2 {
+		return errors.New("box_locks_expected is set but this store keeps no box locks")
+	}
+	ex.ExpectBoxLocks(exp)
+	refused, err := store.CheckExpectedBoxLocks(ctx, ls, exp)
+	if err != nil {
+		log.Error().Err(err).Int("expected", len(exp)).Msg("box_lock.expected_unread")
+		return nil
+	}
+	for _, x := range refused {
+		log.Error().Str("tenant", x.TenantID).Str("box", x.BoxID).
+			Msg("box_lock.expected_missing: no verified lock row under the listed key; box refused")
+	}
+	log.Info().Int("expected", len(exp)).Int("refused", len(refused)).Msg("box_lock.expected")
+	return nil
 }
 
 // hubOptions wires every dependency of the hub in boot order: the base

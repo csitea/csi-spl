@@ -88,7 +88,12 @@
 # @description     origin/review/<id>-... or origin/wip/<id>-... of a lane
 # @description     still in this box's registry.tsv is verdict pending: no
 # @description     note, no ledger, judged again next run; it alerts once
-# @description     that lane is retired
+# @description     that lane is retired. SPL-3116 (msg b494ec3c, n=4 of 4
+# @description     notes 20:25-20:45Z 10-23 were review requests on
+# @description     origin/review/s107-v2-t020..t022): a review/ or wip/ branch
+# @description     with no <id>- prefix is the SENDING lane's, pending while
+# @description     it is in registry.tsv; a branch named for another id stays
+# @description     that id's; a sha on no branch alerts as before
 # @description   - SPL-2327: a sha that is no object in any repo (a rebase in
 # @description     another tree) is verdict rewritten (landed, no note) when
 # @description     EXACTLY one trunk commit after the lane's spawn (registry.tsv,
@@ -151,7 +156,7 @@ do_spl_done_claim_check() {
     elif unchk="$(spl_done_claim_unchecked "$tmp/repos" "$tmp/unchk" "${from%@*}" "$bad")" &&
       bad="$(spl_done_claim_minus "$bad" "$unchk")" && [[ -n "$unchk" && -z "$bad" ]]; then
       verdict=unchecked; n_unchk=$((n_unchk + 1))
-    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad")" ]]; then
+    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad" "${from%@*}")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
@@ -546,9 +551,11 @@ spl_done_claim_seats() {
     }' | sort -u
 }
 
-# spl_done_claim_unparked <repos file> <live ids file> <shas>: the shas NOT on
-# a remote branch origin/[review/|wip/]<id>-... of a lane in <live ids>: a
-# plan lane's sha waiting there for a go is pending, not missing (SPL-2313).
+# spl_done_claim_unparked <repos file> <live ids file> <shas> [sender id]: the
+# shas NOT on a remote branch origin/[review/|wip/]<id>-... of a lane in <live
+# ids>: a plan lane's sha waiting there for a go is pending, not missing
+# (SPL-2313). SPL-3116: origin/review/<topic>... or origin/wip/<topic>... with
+# no lane id (c-912's review/s107-v2-t020) is the sender's own branch.
 spl_done_claim_unparked() {
   local s full top ref ids ok out=()
   for s in $3; do
@@ -556,7 +563,7 @@ spl_done_claim_unparked() {
     while read -r top ref; do
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
       ids="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null |
-        sed -nE 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p')"
+        sed -nE -e 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p;t' -e "s#^origin/(review|wip)/.+#${4:-}#p")"
       [[ -n "$ids" ]] && grep -qxFf "$2" <<<"$ids" && { ok=1; break; }
     done <"$1"
     (( ok )) || out+=("$s")

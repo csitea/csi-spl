@@ -598,7 +598,7 @@ re-checks that the 052 buckets stay private.
   |---|---|---|
   | `<path>.md`, `tree.json`, `.history/` | workspace md docs (today) | `PUT /v1/workspace/docs/{path}` |
   | `qto-assets/<sha256>` | Qto doc pictures (moves from 050); the hourly file retention sweep deletes one that no doc of THIS workspace names once it is older than `FileOrphanGrace` (24 h), and skips a bucket that does not exist yet (SPL-2963, `sweepOwnAssets` in `internal/hub/file_retention.go`) | `PUT /v1/workspace/doctree/{doc}/assets/{path}` |
-  | `backup/<yyyy-mm-dd>/` | the daily export of that workspace's Qto docs (md + root attrs + assets index) | the backup action of 9.5 |
+  | `backup/<yyyy-mm-dd>/` | the daily export of that workspace's Qto docs: its `workspace_doc`, `workspace_doc_item` and `workspace_doc_node` rows as JSON lines (`docs.jsonl`, `items.jsonl`, `nodes.jsonl`; the root attrs ride in the items), `assets.tsv` (the assets index) and `manifest.json` (counts, sha256 per file) | the backup action of 9.5 |
 
 - **Tenant `system`** (the repo docs) has no 052 bucket and keeps 051 for
   its md and 050 for its pictures: it is the public repository's own text.
@@ -642,6 +642,19 @@ Three guards, each a test with a red control:
   prefix deletes after cnf `backup_retention_days`. Restoring one workspace
   reads only its own bucket. This also covers tasks T005 (restore one
   workspace).
+  Built (R6, SPL-2998): `cd csi-spl-orc && ENV=<env> DRY_RUN=0 ./run -a
+  do_spl_wsdoc_backup` (`TENANT_ID=<slug>` for one workspace), a step of wf
+  45 after its dump and checks. Per workspace one read-only, repeatable-read
+  transaction in the operator scope, every `WHERE` naming that tenant. It
+  refuses a bucket other than that workspace's own and a row of another
+  tenant, uploads the manifest last, then reads the backup back from that
+  bucket only: the docs, items and nodes counted there must equal the
+  database counts of the same snapshot, and each file's sha256 its
+  manifest's. JSON lines rather than md: lossless, and restorable with SQL
+  without the desk the md export needs. Unlike the whole-database dump,
+  these rows pass through the runner (counts only in the log, a private
+  temp dir removed on return). Test:
+  `csi-spl-orc/src/bash/tests/spl-wsdoc-backup.tst.sh`.
 - **The bucket itself**: versioning on and 7-day soft delete (052, live),
   so an overwrite or delete of an md doc or picture keeps the old generation.
 - **The whole-database dump stays** (045 + 046 off-project): it still holds

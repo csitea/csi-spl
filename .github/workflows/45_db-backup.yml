@@ -53,6 +53,7 @@
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_backup
 #   ENV=<env>            ./csi-spl-orc/run -a do_spl_db_backup_verify
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_backup_offsite
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_wsdoc_backup   (spec 114 R6)
 # Restore: do_spl_db_restore / do_spl_files_restore (spec 029 §7).
 #
 # TOPIC HEADS (spec 099 T007). Each env's run also restores the dump it just
@@ -207,6 +208,15 @@ jobs:
       - name: Verify Cloud SQL automated backup (< 26h)
         if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true'
         run: (cd ../csi-spl-utl && ./run -a do_cloud_sql_backup_verify)
+
+      # spec 114 9.5 (R6): each workspace's Qto docs to ITS OWN 052 bucket
+      # backup/<yyyy-mm-dd>/, read back and counted. Last, so a red here never
+      # skips the steps above. Needs the psql of the restore-check step.
+      - name: Per-workspace Qto backup to each workspace's own bucket
+        if: steps.sel.outputs.go == '1' && github.event.inputs.verify != 'false'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: ./run -a do_spl_wsdoc_backup
 
       - name: Drop the key
         if: always()

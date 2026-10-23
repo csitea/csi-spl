@@ -113,11 +113,6 @@
              operator workspace only (lazy; hidden for everyone else) -->
         <BoxLoadBand v-if="!box.browser" :box="boxId" :sample="latest" />
 
-        <!-- spec 025 box owner lock (B8, SPL-3015): its owners see the lock and
-             its audit; anyone may paste an owner's `spool lock create` output
-             (lazy; wrapped, as a bare v-if on an async component crashed) -->
-        <div class="box-lock-slot"><BoxLockPane v-if="!box.browser" :box="boxId" /></div>
-
         <!-- the box's resources: each row opens its statistics on the right -->
         <nav class="box-res__list" :aria-label="t('boxes.resources')" data-test="box-resources">
           <h3>{{ t('boxes.resources') }}</h3>
@@ -173,6 +168,13 @@
             <HumanName class="box-seat__label" :id="p.id" :box="p.box" />
           </NuxtLink>
         </section>
+
+        <!-- spec 025 box owner lock (B8, SPL-3015): its owners see the lock and
+             its audit; anyone may paste an owner's `spool lock create` output
+             (lazy; wrapped, as a bare v-if on an async component crashed).
+             Last on the card: above the resources it pushed them under the
+             phone's docked composer, where a tap hit the composer. -->
+        <div class="box-lock-slot"><BoxLockPane v-if="!box.browser" :box="boxId" /></div>
       </section>
 
       <aside class="box-stats" data-test="box-stats" :aria-label="t('boxes.stats')">

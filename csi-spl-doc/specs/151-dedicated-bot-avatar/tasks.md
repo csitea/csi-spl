@@ -9,7 +9,8 @@ Status vocabulary:
 Status: **v0.1, waiting for the owner's go**. Requirements and cases are in
 [spec.md](spec.md). Epic SPL-3030.
 
-Each row is one small lane, and no two rows touch the same file. The order
+Each row is one small lane, and no two rows touch the same file, with one
+exception: T005 reviews the locale files T004 wrote, so it runs after T004 lands. The order
 is: part 1 before part 2, the API before the WUI, and the docs last.
 
 ## 1. Part 1: add agents to a direct message

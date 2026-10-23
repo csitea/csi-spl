@@ -101,7 +101,7 @@ only way an agent joins a channel is an `invite` row.
 `hub/channel_members.go:36`) lists each agent as `{id, box, online, seated}`
 (`wui/types/mjs-shims.d.ts:143`). Nothing in it says who added the agent.
 
-**Measured on prd** with `do_spl_db_query` (read-only, 2026-10-23 ~14:10Z):
+**Measured on prd** with `do_spl_db_query` (read-only, 2026-10-23 ~11:10Z):
 
 - `channel_subscriptions` holds 0 `announce` rows, so every agent in a
   channel is an `invite` row.
@@ -138,9 +138,10 @@ members.
 - The roster (`GET /v1/view/roster`, `hub/view.go:266`) lists each box's
   `agents []string` with `seated_at` and `agent_presence`
   (`hub/view.go:225-256`). It has no per-agent origin.
-- `grep -rniE "dedicated (bot|agent)"` over `csi-spl-api`, `csi-spl-wui/src`
-  and `csi-spl-doc/specs` -> no hit. "dedicated" exists only as a box's join
-  mode (`rdb/0170_box_join_switch.sql:16-19`, `pins.box_mode`).
+- In code, "dedicated" exists only as a box's join mode
+  (`rdb/0170_box_join_switch.sql:16-19`, `pins.box_mode`).
+  `grep -rliE "dedicated (bot|agent)" csi-spl-api csi-spl-wui/src` -> no
+  hit. In the specs it hits spec 144 (section 2.6) and some reviews.
 
 The WUI could guess "in a channel and not a role number", but that guess
 would mark the fleet's non-role helpers wrongly and could never see a DM
@@ -182,6 +183,26 @@ add. So the API has to change (section 4.2).
   `csi-spl-wui/i18n/locales/en.json:544-562`; there are 19 locale files. The
   channel dialog's "Add an agent" is `channels.properties.add_agent`
   (`en.json:1210`).
+
+### 2.6 Spec 144 uses the same word
+
+`csi-spl-doc/specs/144-dedicated-agents/spec.md` (v0.2, "Status: Planned
+(Spec Only)", its line 3; epic SPL-2390) defines a "Dedicated Agent" as a
+bot bound to ONE channel or ONE topic, with a private scope, an idle
+timeout and abuse limits. None of it is built:
+`grep -rlnE "dedicated_scope|is_private_scope|dedicated_agent" csi-spl-api/src csi-spl-rdb/src csi-spl-wui/src`
+-> no hit.
+
+The two specs do not conflict:
+
+- This spec's "dedicated" is the owner's own definition for the avatar
+  (msg `8dc2c599`): added by hand to a channel or a DM. It adds no scope
+  limit and no isolation.
+- A spec 144 binding is also an agent a person dedicated by hand, so once
+  spec 144 is built, its binding table joins the T007 query and that bot
+  gets the blobatar too.
+- If spec 144 is built first, T007 reads its table as well. Neither spec
+  needs the other to start.
 
 ## 3. blobatar
 

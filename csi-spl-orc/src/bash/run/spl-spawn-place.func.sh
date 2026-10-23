@@ -148,9 +148,11 @@ do_spl_spawn_place() {
 
 # 2. Marks each row: _l = the placer can launch it (a placement and its brief
 # file here), _h = it was handed to the holder (<asks dir>/.place.handed, one
-# ask_id per line, pruned to the rows still in line).
+# ask_id per line, pruned to the rows still in line). The .place.wait lines of
+# asks no longer in the queue are pruned too (SPL-3138).
 spl_spawn_place_mark() {  # ROWS
   local f id slug launchable=() handed=()
+  spl_spawn_place_wait_keep queued "$(jq -r '.[].ask_id' <<<"$1")"
   f="$(spool_asks_dir)/.place.handed"
   while IFS=$'\t' read -r id slug; do
     [[ -n "$(spl_spawn_place_brief "$slug")" ]] && launchable+=("$id")
@@ -501,7 +503,9 @@ spl_spawn_place_agy_out() {
 # and it is a review (spl_spawn_place_review, SPL-3018): claude would break
 # the cross-vendor review of a claude author (SPL-2942). A held row stays
 # queued and out of this tick's line, so it blocks no other row; one INFO line
-# and its .place.wait line name the reset. Prints ROWS minus the held ones.
+# and its .place.wait line name the reset; the agy line of any row not held
+# this tick is dropped (SPL-3138: agy back in quota, or the row no longer
+# holds). Prints ROWS minus the held ones.
 spl_spawn_place_agy_hold() {  # MARKED ROWS
   local out="" id vendor slug brief why held=()
   while IFS=$'\t' read -r id vendor slug; do
@@ -522,6 +526,7 @@ spl_spawn_place_agy_hold() {  # MARKED ROWS
     held+=("$id")
   done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))
     | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")"
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 
@@ -578,6 +583,19 @@ spl_spawn_place_wait() {  # ASK_ID WHY
   f="$(spool_asks_dir)/.place.wait"; tmp="$f.$$"
   { grep -v "^$1"$'\t' "$f" 2>/dev/null; [[ -z "$2" ]] || printf '%s\t%s\t%s\n' "$1" "$(date +%s)" "$2"; } >"$tmp"
   mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"
+}
+
+# Prunes <asks dir>/.place.wait. queued IDS: keeps only the lines of IDS
+# (ask_ids, one per line). held IDS: drops every "agy is out of quota" line
+# whose ask is not in IDS, keeps every other line.
+spl_spawn_place_wait_keep() {  # queued|held IDS
+  local f tmp
+  f="$(spool_asks_dir)/.place.wait"; tmp="$f.$$"
+  [[ -s "$f" ]] || return 0
+  if awk -F'\t' -v m="$1" -v ids="${2//$'\n'/ }" '
+    BEGIN { n = split(ids, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") K[a[i]] = 1 }
+    m == "queued" { if ($1 in K) print; next }
+    !($3 ~ /agy is out of quota/ && !($1 in K))' "$f" >"$tmp"; then mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"; else rm -f "$tmp"; fi
 }
 
 # 4b. The brief needs the orchestrator: one blocker to the holder.

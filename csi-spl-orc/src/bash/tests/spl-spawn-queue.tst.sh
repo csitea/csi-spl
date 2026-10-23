@@ -49,6 +49,9 @@
 #      row launches claude (CONTROL: a banner past its reset launches agy)
 #  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
 #      of quota, review or not (CONTROL: agy in quota launches it as agy)
+#      SPL-3138: agy back but the row not launched (ceiling full): its agy
+#      WAIT line is gone, a line of an ask no longer queued is pruned
+#      (CONTROL: a non-agy reason is kept)
 #  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
@@ -675,6 +678,20 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=a-514 2>&1)"
   grep -q "^${Q3}"$'\t'".*agy is out of quota until" "$T/pc/spool/asks/.place.wait" &&
   pass "SPL-3024: agy out + a row placed as agy (not a review): held, queued, not launched, the reset named" || fail "agy direct out: $out | $(cat "$T/launch.log")"
 rm -rf "$WD13/ctx.3"
+# SPL-3138: agy back in quota but the row not launched this tick (ceiling
+# full): its agy WAIT line is gone, and the line of an ask no longer queued
+# is pruned. CONTROL: a non-agy reason of a row is kept.
+printf 'dead0000-0000-4000-8000-000000000000\t1\twaiting: claude weekly\n' >>"$T/pc/spool/asks/.place.wait"
+out="$(on pc do_spl_spawn_place WINDOWS=40 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$Q3")")" == queued && ! -s "$T/launch.log" ]] && grep -q "hold: agent windows 40" <<<"$out" &&
+  ! grep -q "^${Q3}"$'\t' "$T/pc/spool/asks/.place.wait" && ! grep -q "agy is out of quota" "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3138: agy back, the row not launched (ceiling): its stale agy WAIT line is dropped" || fail "stale agy wait: $out | $(cat "$T/pc/spool/asks/.place.wait")"
+! grep -q "^dead0000-" "$T/pc/spool/asks/.place.wait" &&
+  pass "SPL-3138: the WAIT line of an ask no longer queued is pruned" || fail "dead wait line kept: $(cat "$T/pc/spool/asks/.place.wait")"
+printf '%s\t1\tagy is out of quota until x\nbbbb0009-0000-4000-8000-000000000009\t1\tpinned to sat: overflow\n' "$Q3" >"$T/wait-keep.tsv"
+out="$(on pc 'spl_asks_init; f="$(spool_asks_dir)/.place.wait"; cp "'"$T/wait-keep.tsv"'" "$f"; spl_spawn_place_wait_keep held ""; cat "$f"')"
+[[ "$out" == "bbbb0009-0000-4000-8000-000000000009"$'\t1\tpinned to sat: overflow' ]] &&
+  pass "SPL-3138 control: a non-agy WAIT reason is kept when the agy lines are dropped" || fail "wait keep: $out"
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=a-515 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$Q3")")" == "placed: a-515@box-desk" ]] &&

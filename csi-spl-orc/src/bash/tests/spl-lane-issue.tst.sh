@@ -49,7 +49,15 @@ STUBS='do_spl_desk_cnf() { SPL_WUI_URL=https://wui.invalid; return 0; }
 spl_desk_issue_run() {
   local a; for a in "$@"; do printf "%s|" "$a"; done >>"$STUB_LOG"; echo >>"$STUB_LOG"
   [[ "$1" == list ]] && { printf "%s\n" "${EPICS:-no epics}"; return 0; }
+  [[ "$1" == get ]] && { [[ -n "${ISSUE_GET:-}" ]] && printf "%s\n" "$ISSUE_GET"; return 0; }
   echo "$DESK_AGENT" >>"$STUB_LOG.as"
+  if [[ "$1" =~ ^(comment|update)$ && "$DESK_AGENT" == "${NOT_ANNOUNCED:-none}" ]]; then
+    echo "FATAL spool issue $1 as $DESK_AGENT: spool: hub refused: from_not_announced ($DESK_AGENT is not an agent announced by box-a)" >&2; return 1
+  fi
+  # ARCHIVE_ON_UPDATE: the last open issue of an epic; its close auto-closes
+  # the epic (SPL-1729), whose cascade archives this issue too.
+  if [[ "$1" == comment && -e "$STUB_LOG.archived" ]]; then echo "FATAL spool issue comment as $DESK_AGENT: spool: hub refused: not_found (no such issue)" >&2; return 1; fi
+  [[ "$1" == update && "${ARCHIVE_ON_UPDATE:-0}" == 1 ]] && : >"$STUB_LOG.archived"
   if [[ "$1" =~ ^(create|update)$ && -n "${DESC_COPY:-}" ]]; then
     local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY.$1"; }; done
   fi
@@ -65,7 +73,7 @@ spl_desk_issue_run() {
 do_spl_desk_reply() { printf "post|%s|%s|%s|\n" "$DESK_TASK" "$DRY_RUN" "$DESK_BODY" >>"$STUB_LOG"; }
 '
 run() {  # VAR=value... -> output in $T/o, rc in $rc
-  : >"$T/calls.log"; : >"$T/calls.log.as"
+  : >"$T/calls.log"; : >"$T/calls.log.as"; rm -f "$T/calls.log.archived"
   SNIPPET="${STUBS}do_spl_lane_issue" in_orc SPOOL_ROOT="$S" SPOOL_DESK_BOX=box-a TENANT_ID= "$@" >"$T/o" 2>&1; rc=$?
 }
 
@@ -182,6 +190,48 @@ run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY
   fail "end not announced (rc=$rc): as=$(sort -u "$T/calls.log.as" | tr '\n' ' ') / $(cat "$T/calls.log")"
 rm -rf "$S/dispatch/agent-run.tsv" "$T/state/dev/desk/t1/box-a/spool/c-123"
 
+# SPL-3064: an end that closes its epic's last open issue. The hub's epic
+# auto-close (SPL-1729) archives the issue in the status change's own
+# transaction, and a comment after it answered not_found (prd t1 SPL-3056 and
+# SPL-3055, 2026-10-23): no lifetime/issue-end, /exit-clean refused.
+rm -f "$S/c-123/lifetime/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='files-only task' ARCHIVE_ON_UPDATE=1 DRY_RUN=0
+[[ $rc -eq 0 && "$(cut -f1,2 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == $'diss\tfiles-only task' ]] &&
+  [[ "$(grep -E '^(comment|update)\|' "$T/calls.log" | cut -d'|' -f1 | paste -sd,)" == comment,update ]] &&
+  pass "end that archives the issue (epic auto-close): the comment goes first, then the status, issue-end written" ||
+  fail "end + archive (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+# The same end is retried, or the status already landed: the issue reads
+# back at the target (get answers archived rows), so the end is recorded.
+rm -f "$S/c-123/lifetime/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='files-only task' DRY_RUN=0 \
+  ISSUE_GET='{"op": "get", "result": {"issue": {"key": "SPL-42", "status": "diss", "archived": true}}}'
+[[ $rc -eq 0 && -s "$S/c-123/lifetime/issue-end" ]] && ! grep -qE '^(comment|update)\|' "$T/calls.log" &&
+  grep -q 'SPL-42 is already diss (archived): nothing to change' "$T/o" &&
+  pass "end of an issue already diss + archived: one OK line, no hub write, issue-end written" ||
+  fail "end idempotent (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+rm -f "$S/c-123/lifetime/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='files-only task' DRY_RUN=0 \
+  ISSUE_GET='{"op": "get", "result": {"issue": {"key": "SPL-42", "status": "wip"}}}'
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" && grep -q '^comment|' "$T/calls.log" &&
+  pass "control: an issue at wip is still commented and moved to diss" || fail "end from wip (rc=$rc): $(cat "$T/calls.log")"
+rm -f "$S/c-123/lifetime/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='files-only task' \
+  ISSUE_GET='{"op": "get", "result": {"issue": {"key": "SPL-42", "status": "diss"}}}'
+[[ $rc -eq 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q 'would: spool issue comment' "$T/o" &&
+  pass "dry run end: plans comment + status, reads nothing, writes nothing" || fail "dry end (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+# The run report says the lane runs, the hub has not announced it yet (c-174
+# on 2026-10-23, first try): the desk books it once, the comment names the lane.
+mkdir -p "$T/state/dev/desk/t1/box-a/spool/c-123"
+printf '# agent-run v1 1\nc-002\trun\nc-123\trun\n' >"$S/dispatch/agent-run.tsv"
+rm -f "$S/c-123/lifetime/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' NOT_ANNOUNCED=c-123 DRY_RUN=0
+[[ $rc -eq 0 && -s "$S/c-123/lifetime/issue-end" && "$(paste -sd, "$T/calls.log.as")" == c-123,c-002,c-002 ]] &&
+  grep -qx 'comment|--ref|SPL-42|--body|Lane c-123 ended without landing (diss): superseded by c-130 (booked by desk c-002 for lane c-123: the hub books only an agent its box announces)|' "$T/calls.log" &&
+  grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" && grep -q 'does not announce c-123 yet' "$T/o" &&
+  pass "lane refused from_not_announced: retried once as the desk c-002, the comment names the lane, issue-end written" ||
+  fail "not announced fallback (rc=$rc): as=$(paste -sd, "$T/calls.log.as") / $(cat "$T/calls.log") / $(cat "$T/o")"
+rm -rf "$S/dispatch/agent-run.tsv" "$T/state/dev/desk/t1/box-a/spool/c-123"
+
 # End done (SPL-2229): the work landed in ANOTHER repo. The repo comes from the
 # cnf by name (a src_dir basename), its clone is fetched, the sha must be on
 # origin/<trunk>; anything else is refused with nothing called or written.
@@ -211,6 +261,13 @@ done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="${LANDED:0:7}" DRY_RUN=0
   pass "done: an unfetched clone is fetched, the sha is on origin/master: done, a comment, issue-end with repo + full sha" ||
   fail "done (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
 cp "$S/c-123/lifetime/issue-end" "$T/lr/issue-end" 2>/dev/null
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0 ARCHIVE_ON_UPDATE=1
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"dvn-web"$'\t'"$LANDED" ]] &&
+  [[ "$(grep -E '^(comment|update)\|' "$T/calls.log" | cut -d'|' -f1 | paste -sd,)" == comment,update ]] &&
+  pass "done that archives the issue (epic auto-close, SPL-3064): comment first, then done, issue-end written" || fail "done + archive (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0 ISSUE_GET='{"result": {"issue": {"status": "done", "archived": true}}}'
+[[ $rc -eq 0 && -s "$S/c-123/lifetime/issue-end" ]] && ! grep -qE '^(comment|update)\|' "$T/calls.log" && grep -q 'SPL-42 is already done (archived)' "$T/o" &&
+  pass "done of an issue already done: no hub write, issue-end written" || fail "done idempotent (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$WIP" DRY_RUN=0
 refused "done: a sha only on a wip branch (fetched as origin/wip) is refused" "is not on origin/master (a branch only?)"
 done_run LANE_LANDED_REPO=other-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0

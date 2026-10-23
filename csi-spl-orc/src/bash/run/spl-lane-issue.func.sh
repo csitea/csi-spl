@@ -35,7 +35,14 @@
 # @description     status LANE_ISSUE_STATUS (diss, onhold or blocked), a comment
 # @description     with LANE_ISSUE_REASON, and lifetime/issue-end. The lane is
 # @description     the actor when its box's desk seats and announces it, else
-# @description     the desk acts and the comment names the lane (SPL-2287).
+# @description     the desk acts and the comment names the lane (SPL-2287);
+# @description     a lane the hub refuses from_not_announced is retried once
+# @description     as the desk. The comment goes BEFORE the status change: the
+# @description     close of an epic's last open issue auto-closes the epic
+# @description     (SPL-1729), whose cascade archives this issue in the same
+# @description     transaction, and a later comment answered not_found
+# @description     (SPL-3064). An issue already at the target status (done
+# @description     too) is ended: one OK line, no hub write, issue-end written.
 # @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-2229: the lane's
 # @description     work landed in ANOTHER repo, so no csi-spl commit can close
 # @description     its key): LANE_LANDED_REPO=<name> LANE_LANDED_SHA=<sha>. The
@@ -342,8 +349,7 @@ spl_lane_issue_end() {
   [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA), got: '$st'"; return 1; }
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
   spl_lane_issue_actor "$root" "$id"
-  spl_lane_issue_hub update --ref "$key" --status "$st" >/dev/null || return 1
-  spl_lane_issue_hub comment --ref "$key" --body "Lane $id ended without landing ($st): $why$SLI_BY" >/dev/null || return 1
+  spl_lane_issue_close "$key" "$st" "Lane $id ended without landing ($st): $why" || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> $st; nothing written. Re-run with DRY_RUN=0."; return 0; fi
   printf '%s\t%s\t%s\n' "$st" "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$root/$id/lifetime/issue-end" ||
     { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
@@ -360,12 +366,67 @@ spl_lane_issue_end() {
 # SLI_BY, appended to the comment, names whom it booked for: issue_events has
 # no note column, so the event itself cannot carry the lane.
 spl_lane_issue_actor() {
-  SLI_BY=""
+  SLI_BY="" SLI_DESK="$DESK_AGENT" SLI_LANE="$2"
   [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
   if [[ -d "${SPL_STATE_DIR:-}/desk/$TENANT_ID/$SLI_BOX/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
     DESK_AGENT="$2"; return 0
   fi
   SLI_BY=" (booked by desk $DESK_AGENT for lane $2: the hub books only an agent its box announces)"
+}
+
+# spl_lane_issue_close KEY STATUS BODY: an end's comment, then its status
+# change (SPL-3064). The status change goes last: closing an epic's last open
+# issue auto-closes the epic (SPL-1729), and that cascade archives the epic
+# AND this issue in the same transaction, after which `comment` (live rows
+# only) answers not_found. Measured on prd t1 2026-10-23, n=2: SPL-3056 and
+# SPL-3055 diss with archived_at = updated_at, their epics SPL-3038 / SPL-3035
+# auto_closed, the lanes' comment refused and lifetime/issue-end never written.
+# An issue already at STATUS (`get` answers archived rows too) is ended: one
+# OK line and no hub write, so a retry after such a run succeeds.
+spl_lane_issue_close() {
+  local key="$1" st="$2" body="$3" cur
+  if (( ! SLI_DRY )); then
+    cur="$(spl_lane_issue_status "$key")"
+    if [[ "${cur%% *}" == "$st" ]]; then
+      do_log "OK $key is already $st${cur#"$st"}: nothing to change, the end is recorded" >&2
+      return 0
+    fi
+  fi
+  spl_lane_issue_act comment --ref "$key" --body "$body" || return 1
+  spl_lane_issue_act update --ref "$key" --status "$st"
+}
+
+# spl_lane_issue_status KEY -> "<status>", "<status> (archived)", or empty
+# when the read fails (the writes then say why).
+spl_lane_issue_status() {
+  spl_desk_issue_run get --ref "$1" 2>/dev/null | python3 -c 'import json, sys
+try:
+    i = json.load(sys.stdin)["result"]["issue"]
+except Exception:
+    sys.exit(0)
+print(str(i.get("status", "")) + (" (archived)" if i.get("archived") else ""))' 2>/dev/null
+}
+
+# spl_lane_issue_act OP ARGS: one end call as DESK_AGENT, SLI_BY appended to
+# a --body. The lane acting itself (spl_lane_issue_actor) and refused
+# from_not_announced (the run report said it runs, its box's sidecar had not
+# announced it yet: c-174 on 2026-10-23) is retried once as the desk, and the
+# comment then names the lane.
+spl_lane_issue_act() {
+  local out rc=0
+  local -a a
+  _sli_args() { local j; a=("$@"); for ((j = 0; j < ${#a[@]}; j++)); do [[ "${a[j]}" == --body ]] && a[j + 1]+="$SLI_BY"; done; }
+  _sli_args "$@"
+  (( SLI_DRY )) && { spl_lane_issue_hub "${a[@]}" >/dev/null; return; }
+  out="$(spl_lane_issue_hub "${a[@]}" 2>&1 >/dev/null)" || rc=$?
+  if (( rc != 0 )) && [[ "$out" == *from_not_announced* && "$DESK_AGENT" == "${SLI_LANE:-}" && -n "${SLI_DESK:-}" && "$SLI_DESK" != "$DESK_AGENT" ]]; then
+    do_log "WARN the hub does not announce $DESK_AGENT yet: $1 as the desk $SLI_DESK" >&2
+    DESK_AGENT="$SLI_DESK"
+    SLI_BY=" (booked by desk $DESK_AGENT for lane $SLI_LANE: the hub books only an agent its box announces)"
+    _sli_args "$@"; rc=0
+    out="$(spl_lane_issue_hub "${a[@]}" 2>&1 >/dev/null)" || rc=$?
+  fi
+  (( rc == 0 )) || { printf '%s\n' "$out" >&2; return 1; }
 }
 
 # spl_lane_issue_landed ROOT ID: end done, the work landed in another repo
@@ -380,8 +441,7 @@ spl_lane_issue_landed() {
   why="landed in $repo ${full:0:12} on origin/$trunk"
   [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
   spl_lane_issue_actor "$root" "$id"
-  spl_lane_issue_hub update --ref "$key" --status "done" >/dev/null || return 1
-  spl_lane_issue_hub comment --ref "$key" --body "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build.$SLI_BY" >/dev/null || return 1
+  spl_lane_issue_close "$key" "done" "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build." || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> done ($why); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   printf 'done\t%s\t%s\t%s\t%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$repo" "$full" >"$root/$id/lifetime/issue-end" ||
     { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }

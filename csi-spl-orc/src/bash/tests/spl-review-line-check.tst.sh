@@ -24,6 +24,10 @@
 #      query; malformed (short sha, ids differ, vendor not the id's, a
 #      registry row of another vendor, ran: naming no test, no read:) -> rc 1;
 #      without the flag still exit 2, now with the query to run on that box
+#   9. a log not readable as this user (bug round 5 row 01): read through
+#      `sudo -n -u <owner>`, the owner from the passwd home the path is under
+#      -> OK; controls: sudo -n refused -> exit 1 naming the owner and the
+#      command; a readable log never calls sudo
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -151,6 +155,42 @@ done
 [[ $bad -eq 0 ]] && pass "8. malformed (short sha, ids differ, vendor not the id's, a retired registry row of another vendor, no test, no read:) -> SYNTAX FAIL, rc 1" || fail "8. malformed"
 out="$(syn "$(line "bash $TST" "$J")")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "8. a log on this box is still read with REVIEW_LINE_SYNTAX=1" || fail "8. local (rc $rc: $out)"
+
+# 9. a log only its owner can read (bug round 5 row 01) -------------------------
+# Stubs: getent names other-user with the locked dir as home; sudo logs its
+# argv, then runs the command with the locked dir swapped for a readable twin.
+L="$T/locked" W="$T/twin" S9="$T/s9"; mkdir -p "$L/s3/chunks" "$W" "$S9"
+printf '%s' '[{"input":{"command":"cd /x && bash '"$TST"'"}}]' >"$L/s3/chunks/c1.json"
+cp -r "$L/s3" "$W/"
+printf '#!/bin/sh\necho "other-user:x:4242:4242::%s:/bin/sh"\n' "$L" >"$S9/getent"
+cat >"$S9/sudo" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >>"$SUDO_LOG"
+[[ "${SUDO_RC:-0}" == 0 ]] || exit "$SUDO_RC"
+[[ "$1 $2" == "-n -u" ]] || exit 9
+shift 3
+a=(); for x in "$@"; do a+=("${x/#"$LOCKED"/"$TWIN"}"); done
+exec "${a[@]}"
+EOF
+chmod +x "$S9/getent" "$S9/sudo"
+own() { chk PATH="$S9:$PATH" SUDO_LOG="$T/sudo.log" LOCKED="$L" TWIN="$W" "$@"; }
+chmod 000 "$L"
+if [[ -r "$L/s3" ]]; then
+  pass "9. skipped: a chmod 000 dir is readable here (root)"
+else
+  out="$(own REVIEW_LINE="$(line "bash $TST" "$L/s3")")"; rc=$?
+  [[ $rc -eq 0 && "$out" == *"NOTE read as other-user (sudo -n)"* && "$out" == *"OK 1 of 1"* ]] && grep -q -- '-n -u other-user' "$T/sudo.log" 2>/dev/null \
+    && pass "9. a log not readable here is read through sudo -n -u <its owner> -> OK 1 of 1" || fail "9. read as owner (rc $rc: $out)"
+  : >"$T/sudo.log"
+  out="$(own SUDO_RC=1 REVIEW_LINE="$(line "bash $TST" "$L/s3")")"; rc=$?
+  [[ $rc -eq 1 && "$out" == *"not readable"*"other-user"* && "$out" == *"sudo -u other-user env REVIEW_LINE="*"do_spl_review_line_check"* ]] \
+    && pass "9. control: sudo -n refused -> exit 1, the FATAL names the owner and the command to run as it" || fail "9. sudo refused (rc $rc: $out)"
+fi
+: >"$T/sudo.log"
+out="$(own REVIEW_LINE="$(line "bash $TST" "$W/s3")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* && "$out" != *"read as"* && ! -s "$T/sudo.log" ]] \
+  && pass "9. control: a readable log never calls sudo" || fail "9. readable calls sudo (rc $rc: $out)"
+chmod 700 "$L"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

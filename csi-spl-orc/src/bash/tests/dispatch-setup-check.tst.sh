@@ -338,7 +338,7 @@ cp "$T/w2.keep" "$SUBS/w2.txt"
 # CLE-77918: a hub / WUI input unserved past the grace is a GAP row; the
 # served/oldest commits are its value, so the tick keys it on env+component
 LAGCMD='if [ "$ENV" = prd ]; then echo "prd hub lagging served=ef4803e5 sha=0e72d9e0 n=5 oldest=af06b13e age=54m grace=${GRACE_MINUTES}m url=https://x/version"; else echo "$ENV hub current served=a"; fi; echo "$ENV wui current served=a"'
-gap "prd hub unserved past the grace (CLE-77918)" '\| deploy lag prd hub \| served=ef4803e5 sha=0e72d9e0 n=5 oldest=af06b13e age=54m grace=30m \| GAP trunk input not served after 30 min' DISPATCH_LAG_CMD="$LAGCMD"
+gap "prd hub unserved past the grace (CLE-77918)" '\| deploy lag prd hub \| served=ef4803e5 sha=0e72d9e0 n=5 oldest=af06b13e age=54m grace=30m \| GAP trunk input not served after 30 min' DISPATCH_LAG_CMD="$LAGCMD" DISPATCH_LAG_GRACE=30
 grep -qE '\| deploy lag dev hub \| current served=a \| ok \|' "$T/o" && ! grep -q 'url=' "$T/o" &&
   pass "7. dev current stays ok next to it; the probe url is not in the row" || fail "7. lag rows: $(grep 'deploy lag' "$T/o")"
 check DISPATCH_LAG_CMD='echo "$ENV hub unknown url=x reason=unreachable"; echo "$ENV wui current"' >"$T/o" 2>&1; rc=$?

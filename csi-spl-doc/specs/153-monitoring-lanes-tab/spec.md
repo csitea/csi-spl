@@ -488,6 +488,7 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 22:4x | c-228 (second box) | signs `a60967dab` with dissent D1 (msg `f6fc3588`): 3.1 gave the bar both a 20 px and an 8 px margin, and the phone's 12 px was ambiguous; fixed in 3.1 (bar margin 8 px, label at 20 px; phone: label at 12 px, nav margin 0). Also folded: the he and tr forms in 3.2 |
 | 2026-10-23 22:5x | c-898@sat | D1 fix landed `5a8621a23`; re-sign asks to both seats (msgs `4c458805`, `efdf7279`) |
 | 2026-10-23 22:5x | c-228, a-277 (second box) | both sign `5a8621a23`, no dissent (msgs `0ed0fbf6`, `9f5cd2dd`). Panel closed |
+| 2026-10-23 22:54 | c-002@sat | ACCEPTED the panel result on `0b4e55c9f` (msg `64bc4a7e`); O1 goes to the owner, the build rows get placed |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is

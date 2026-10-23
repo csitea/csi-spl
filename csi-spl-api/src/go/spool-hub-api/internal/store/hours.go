@@ -30,6 +30,11 @@ import (
 //   - the spans of an entry (spec 107 3.4, rdb 0176 hours_entry_spans): its
 //     start and end times, written with the entry. An entry without spans
 //     stays valid (spec 118 Q2 A).
+//   - the v2 widening (spec 107 v2 T020, rdb 0215): an entry's kind joins
+//     its key (work, travel, wait, absence; FR-27), the job: target (FR-18),
+//     the proposed and disputed states (FR-23), the absence type (FR-30),
+//     who entered it for the member, a reason, and the category split
+//     (FR-28). No money field (FR-19).
 //
 // Privacy (spec 1.7): only this file's Postgres side names hours_minutes, and
 // every read takes the member it is for. Every per-member call runs in the
@@ -79,8 +84,41 @@ const (
 	HoursApproved = "approved" // an entry, or a period the biz owner signed off
 	HoursRejected = "rejected" // an entry; counts 0
 
+	// v2 entry states (FR-23): a foreman's row before the worker approves
+	// it, and one the worker disputed. Neither counts toward the day cap.
+	HoursProposed = "proposed"
+	HoursDisputed = "disputed"
+
 	HoursFrozen   = "frozen"
 	HoursReturned = "returned"
+)
+
+// Entry kinds (rdb 0215 CHECK, FR-27). The kind joins the entry's key: travel
+// to a job and work on it are two rows. "" means work (every v1 caller).
+const (
+	HoursKindWork    = "work"
+	HoursKindTravel  = "travel"
+	HoursKindWait    = "wait"
+	HoursKindAbsence = "absence"
+)
+
+// Absence types (rdb 0215 CHECK, FR-30): set exactly on an absence row.
+const (
+	HoursAbsenceSick     = "sick"
+	HoursAbsenceVacation = "vacation"
+	HoursAbsenceUnpaid   = "unpaid"
+	HoursAbsenceTraining = "training"
+	HoursAbsenceHoliday  = "holiday"
+)
+
+// Rate categories (FR-28), the keys of HoursEntry.CategoryMinutes. A label
+// on hours, never money (FR-19).
+const (
+	HoursCategoryNormal  = "normal"
+	HoursCategoryEvening = "evening"
+	HoursCategoryNight   = "night"
+	HoursCategoryWeekend = "weekend"
+	HoursCategoryHoliday = "holiday"
 )
 
 // Span sources (rdb 0176 CHECK). An activity span is an approved
@@ -130,16 +168,24 @@ type HoursMinute struct {
 	TZ     string    // the IANA zone of the minute's day (spec 1.6)
 }
 
-// HoursEntry is one hours_entries row: the worker's decision for (day, target).
+// HoursEntry is one hours_entries row: the worker's decision for (day,
+// target, kind).
 type HoursEntry struct {
 	Day              string // YYYY-MM-DD, the member's local day
-	Target           string // as HoursMinute, plus cal:<event_id>
+	Target           string // as HoursMinute, plus cal:<event_id> and job:<job_id>
+	Kind             string // HoursKindWork ("" on a write), HoursKindTravel, ...
 	Minutes          int
 	SuggestedMinutes int
-	State            string // HoursApproved or HoursRejected
+	State            string // HoursApproved, HoursRejected, HoursProposed or HoursDisputed
 	Note             string
-	UpdatedAt        time.Time
-	UpdatedBy        string
+	AbsenceType      string // HoursAbsenceSick, ...; set exactly when Kind is absence
+	EnteredBy        string // who entered it for the member (FR-23); "" = the member
+	Reason           string // a travel or wait row's reason (FR-27), <= 500
+	// CategoryMinutes is the approved minutes by rate category (FR-28),
+	// stored at approval; nil until then.
+	CategoryMinutes map[string]int
+	UpdatedAt       time.Time
+	UpdatedBy       string
 	// Spans are written with the entry (spec 107 3.4): activity spans replace
 	// the entry's activity spans, other sources add. Never read back here:
 	// HoursEntrySpans reads them.
@@ -157,6 +203,7 @@ type HoursSpan struct {
 type HoursEntrySpan struct {
 	Day    string
 	Target string
+	Kind   string
 	HoursSpan
 }
 
@@ -199,7 +246,7 @@ type Hours interface {
 	// HoursMinutes is the member's minutes in [from, to), oldest first.
 	HoursMinutes(ctx context.Context, tenant, member string, from, to time.Time) ([]HoursMinute, error)
 	// HoursEntries is the member's entries of days from..to (inclusive), by
-	// day then target.
+	// day, target, then kind.
 	HoursEntries(ctx context.Context, tenant, member, from, to string) ([]HoursEntry, error)
 	// PutHoursEntries upserts entries of one member as by, all or none:
 	// ErrHoursFrozen for a frozen day, ErrHoursDayCap above the cap.
@@ -207,8 +254,8 @@ type Hours interface {
 	// HoursEntrySpans is the spans of the member's entries of days from..to
 	// (inclusive), by start.
 	HoursEntrySpans(ctx context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error)
-	// DeleteHoursEntry removes one entry (an added row taken back);
-	// ErrNotFound when none, ErrHoursFrozen for a frozen day.
+	// DeleteHoursEntry removes the work entry of (day, target) (an added
+	// row taken back); ErrNotFound when none, ErrHoursFrozen for a frozen day.
 	DeleteHoursEntry(ctx context.Context, tenant, member, day, target string, now time.Time) error
 	// CreateHoursPeriod inserts a period row; false when the member already has
 	// a row from that start (the sweep's idempotent re-run).
@@ -416,7 +463,7 @@ func refuseFrozen(ctx context.Context, st hoursSettingsSource, tenant, member st
 
 var (
 	hoursMinuteTargetRE = regexp.MustCompile(`(?s)^((t|ch|dm):.{1,200}|ws)$`)
-	hoursEntryTargetRE  = regexp.MustCompile(`(?s)^((t|ch|dm|cal):.{1,200}|ws)$`)
+	hoursEntryTargetRE  = regexp.MustCompile(`(?s)^((t|ch|dm|cal|job):.{1,200}|ws)$`)
 )
 
 func hoursBad(format string, a ...any) error {
@@ -455,8 +502,8 @@ func normalizeHoursMinutes(member string, ms []HoursMinute) ([]HoursMinute, erro
 	return out, nil
 }
 
-// normalizeHoursEntries checks es (one row per (day, target)) and returns the
-// distinct days they touch.
+// normalizeHoursEntries checks es (one row per (day, target, kind)) and
+// returns the distinct days they touch.
 func normalizeHoursEntries(member, by string, es []HoursEntry) (days []string, err error) {
 	if strings.TrimSpace(member) == "" || strings.TrimSpace(by) == "" {
 		return nil, hoursBad("no member or author")
@@ -464,16 +511,16 @@ func normalizeHoursEntries(member, by string, es []HoursEntry) (days []string, e
 	if len(es) == 0 || len(es) > MaxHoursEntriesBatch {
 		return nil, hoursBad("1..%d entries per write", MaxHoursEntriesBatch)
 	}
-	seen := map[[2]string]bool{}
+	seen := map[hoursEntryKey]bool{}
 	dayset := map[string]bool{}
 	for i := range es {
 		e := &es[i]
 		if err := checkHoursEntry(e); err != nil {
 			return nil, err
 		}
-		k := [2]string{e.Day, e.Target}
+		k := e.key()
 		if seen[k] {
-			return nil, hoursBad("entry %s %s twice", e.Day, e.Target)
+			return nil, hoursBad("entry %s %s %s twice", e.Day, e.Target, e.Kind)
 		}
 		seen[k] = true
 		if !dayset[e.Day] {
@@ -485,20 +532,53 @@ func normalizeHoursEntries(member, by string, es []HoursEntry) (days []string, e
 	return days, nil
 }
 
+// hoursEntryKey is an entry's key within its member (rdb 0215's PK).
+type hoursEntryKey struct{ Day, Target, Kind string }
+
+func (e HoursEntry) key() hoursEntryKey { return hoursEntryKey{e.Day, e.Target, e.Kind} }
+
+var (
+	hoursEntryStates = map[string]bool{HoursApproved: true, HoursRejected: true, HoursProposed: true, HoursDisputed: true}
+	hoursKinds       = map[string]bool{HoursKindWork: true, HoursKindTravel: true, HoursKindWait: true, HoursKindAbsence: true}
+	hoursAbsences    = map[string]bool{HoursAbsenceSick: true, HoursAbsenceVacation: true, HoursAbsenceUnpaid: true,
+		HoursAbsenceTraining: true, HoursAbsenceHoliday: true}
+	hoursCategories = map[string]bool{HoursCategoryNormal: true, HoursCategoryEvening: true, HoursCategoryNight: true,
+		HoursCategoryWeekend: true, HoursCategoryHoliday: true}
+)
+
+// maxHoursEnteredBy is rdb 0215's bound of entered_by.
+const maxHoursEnteredBy = 200
+
 func checkHoursEntry(e *HoursEntry) error {
 	if _, err := ParseHoursDay(e.Day); err != nil {
 		return err
 	}
-	e.Note = strings.TrimSpace(e.Note)
+	e.Note, e.Reason, e.EnteredBy = strings.TrimSpace(e.Note), strings.TrimSpace(e.Reason), strings.TrimSpace(e.EnteredBy)
+	if e.Kind == "" {
+		e.Kind = HoursKindWork
+	}
 	switch {
 	case !hoursEntryTargetRE.MatchString(e.Target):
 		return hoursBad("target %q", e.Target)
+	case !hoursKinds[e.Kind]:
+		return hoursBad("entry kind %q", e.Kind)
 	case e.Minutes < 0 || e.Minutes > HoursDayCap || e.SuggestedMinutes < 0 || e.SuggestedMinutes > HoursDayCap:
 		return hoursBad("minutes of %s %s are 0..%d", e.Day, e.Target, HoursDayCap)
-	case e.State != HoursApproved && e.State != HoursRejected:
+	case !hoursEntryStates[e.State]:
 		return hoursBad("entry state %q", e.State)
-	case len([]rune(e.Note)) > MaxHoursNote:
-		return hoursBad("a note is at most %d characters", MaxHoursNote)
+	case (e.Kind == HoursKindAbsence) != (e.AbsenceType != ""):
+		return hoursBad("an absence type is set exactly on an absence row (%s %s %q)", e.Kind, e.Target, e.AbsenceType)
+	case e.AbsenceType != "" && !hoursAbsences[e.AbsenceType]:
+		return hoursBad("absence type %q", e.AbsenceType)
+	case len([]rune(e.Note)) > MaxHoursNote || len([]rune(e.Reason)) > MaxHoursNote:
+		return hoursBad("a note or a reason is at most %d characters", MaxHoursNote)
+	case len([]rune(e.EnteredBy)) > maxHoursEnteredBy:
+		return hoursBad("entered by is at most %d characters", maxHoursEnteredBy)
+	}
+	for c, m := range e.CategoryMinutes {
+		if !hoursCategories[c] || m < 0 || m > HoursDayCap {
+			return hoursBad("category minutes %q: %d", c, m)
+		}
 	}
 	return checkHoursSpans(e)
 }

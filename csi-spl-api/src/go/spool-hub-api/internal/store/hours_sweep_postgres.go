@@ -59,7 +59,7 @@ const hoursSweepEntries = `INSERT INTO hours_entries (tenant_id, member_id, day,
 		suggested_minutes, state, updated_at, updated_by)
 	SELECT $1, $2, u.d, u.t, u.m, u.sm, 'approved', $7, $8
 	FROM unnest($3::date[], $4::text[], $5::int[], $6::int[]) AS u(d, t, m, sm)
-	ON CONFLICT (tenant_id, member_id, day, target) DO NOTHING`
+	ON CONFLICT (tenant_id, member_id, day, target, kind) DO NOTHING`
 
 func (s *Postgres) freezeHoursPeriod(ctx context.Context, tenant string, p HoursPeriod, es []HoursEntry) (created bool, pruned int, err error) {
 	if err := checkHoursPeriod(&p); err != nil {

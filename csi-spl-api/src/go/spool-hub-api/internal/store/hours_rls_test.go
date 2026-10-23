@@ -229,7 +229,7 @@ func TestHoursChecks(t *testing.T) {
 	}
 	// The natural key: a second write of the same (member, day, target) is an upsert.
 	if _, err := pg.execTenant(ctx, tn, entry("2026-10-06", "cal:ev1", 45, 30, "approved")+
-		` ON CONFLICT (tenant_id, member_id, day, target) DO UPDATE SET minutes = EXCLUDED.minutes`, tn); err != nil {
+		` ON CONFLICT (tenant_id, member_id, day, target, kind) DO UPDATE SET minutes = EXCLUDED.minutes`, tn); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	var n, m int

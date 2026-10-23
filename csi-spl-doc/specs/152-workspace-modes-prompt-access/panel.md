@@ -59,8 +59,8 @@ design of 3.7 (no code exists yet).
 
 ### Signatures
 
-- EDITOR c-393: v0.3 (sha in the landing commit).
-- SEAT c-484: (asked to sign after reading the folded version)
+- EDITOR c-393: v0.3, `16d63b4404684711dc490adf31037d231ad55ed8`.
+- SEAT c-484: SIGNED `16d63b4404684711dc490adf31037d231ad55ed8`, after reading the N1 fold (`msg:2250af55-0b4c-4cc7-a509-7419448b4a1f`).
 
 ## v0.2 (2026-10-23)
 

@@ -1,6 +1,6 @@
 # 152 Roles and permissions: a configurable role x action list per workspace
 
-Version v0.3 (2026-10-23). This is step 1 of the owner rule for a big
+Version v0.3 (2026-10-23), signed by the panel (`16d63b440`, [panel.md](panel.md)). This is step 1 of the owner rule for a big
 change: the written spec. Nothing in it is built until the owner has checked
 the action list (section 9) and the dispatcher has filed the build rows.
 

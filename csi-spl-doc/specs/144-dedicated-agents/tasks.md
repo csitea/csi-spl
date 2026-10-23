@@ -37,9 +37,10 @@ and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §14.
 
 ## Phase 1: Data Model & Database Migration (RDB)
 
-- [ ] **T001: Migration `0202_dedicated_agents.sql`**
+- [x] **T001: Migration `0215_dedicated_agents.sql`** (planned as 0202, taken by then)
+  - **Built:** rdb `0215_dedicated_agents.sql` (SPL-3074): the table, the flags, `spool_agent_scope_ok` (an opaque function: inline EXISTS failed TestHiddenUnreadBufferBudget; the SQL tab plan check takes its call, store `planCallAllowed`) and the RESTRICTIVE `agent_scope` policies keyed on the transaction-local `app.agent_id` + `app.agent_box` (unset = no agent session, unchanged). Test `csi-spl-rdb/src/bash/tests/dedicated-agents-rls.tst.sh`, as the runtime login; red control `DEDICATED_RLS_CONTROL=1` (0215 without its policies) prints FAIL. `seedTenantAll` seeds the table for the cross-tenant census.
   - **Layer:** Database Schema (RDB)
-  - **Owns:** `RDB/0202_dedicated_agents.sql`, `RDB/test/`
+  - **Owns:** `RDB/0215_dedicated_agents.sql`, `csi-spl-rdb/src/bash/tests/dedicated-agents-rls.tst.sh`
   - **Waits on:** None (build entry point)
   - **Description:**
     - Create table `dedicated_agents` with `(tenant_id, agent_id, box_id, scope_type, scope_id, bound_by, bound_at)`.

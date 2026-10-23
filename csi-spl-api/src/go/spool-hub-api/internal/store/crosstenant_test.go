@@ -419,6 +419,16 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedSpecSync(ctx, pg, s.tenant, iss.Number, seedDoc); err != nil {
 		t.Fatal(err)
 	}
+	// dedicated_agents (rdb 0215, spec 144 T001): one agent bound to the
+	// seeded channel. No store API yet (T002), so a raw row under inTenant
+	// (csi-spl-rdb/src/bash/tests/dedicated-agents-rls.tst.sh).
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO dedicated_agents (tenant_id, agent_id, box_id, scope_type, scope_id, bound_by)
+			VALUES ($1, 'c-100', 'box-a', 'channel', $2, 'HUM-1')`, s.tenant, s.channelID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// tenant_agent_split_kind (rdb 0163, spec 115 RDB-1): the secret kind,
 	// claude 100 with mistral the backup. No store API yet (HUB-1), so raw
 	// rows under inTenant.

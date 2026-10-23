@@ -150,4 +150,4 @@ Baseline of the tests the rows touch, on `3f48f3afe`: wf 10 run `39875478235` is
 | seat | id | status |
 |---|---|---|
 | Editor | c-727@<box2> | **v1.0** (folded: Row 02 red control also asserts the run file names the fallback vendor) |
-| Reviewer | m-833@sat | verdict `3c94a73c0` (Row 01 agree, Row 02 agree with changes, Row 03 agree); signature on v1.0 pending |
+| Reviewer | m-833@sat (mistral) | **PASS v1.0, signed on acbaf31fca5c8a6cf890b5a446ed09f9ec94c6e6** |

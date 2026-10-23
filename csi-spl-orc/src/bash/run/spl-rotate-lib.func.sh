@@ -335,6 +335,11 @@ spl_rotate_failover_seat() {
     [[ "$(spl_fleet_vendor "$id")" == claude ]] && rm -f "$f"
     return 1
   fi
+  # claude2 (SPL-2943) keeps the claude id: the handback is done once the
+  # seat's live process runs the main login again (no CLAUDE_CONFIG_DIR)
+  if [[ "${rest%% *}" == claude2 && "$(spl_fleet_seat_vendor "$id")" == claude ]]; then
+    rm -f "$f"; return 1
+  fi
   echo "$from $to $rest"
 }
 
@@ -345,12 +350,17 @@ spl_rotate_failover_vendor() {
   local rec cwhy kind
   rec="$(spl_rotate_failover_seat "$1")" || return 1
   cwhy="$(spl_rotate_claude_out)"
+  ROTATE_CLAUDE_CONFIG_DIR=""
   if [[ -z "$cwhy" ]]; then
     ROTATE_KIND=claude ROTATE_VENDOR_WHY="failover seat $1 (switched from ${rec%% *}): claude can act again: the handback"
     return 0
   fi
   kind="$(spl_fleet_vendor "${1%%@*}")"
-  ROTATE_KIND="$kind" ROTATE_VENDOR_WHY="failover seat $1: claude still cannot act ($cwhy): $kind stays"
+  # a seat on the second login stays on it (SPL-2943)
+  if [[ "$(cut -d' ' -f3 <<<"$rec")" == claude2 ]]; then
+    kind=claude2 ROTATE_CLAUDE_CONFIG_DIR="${CLAUDE2_CONFIG_DIR:-${ROTATE_AGENT_HOME:-$HOME}/.claude-2}"
+  fi
+  ROTATE_KIND="${kind%2}" ROTATE_VENDOR_WHY="failover seat $1: claude still cannot act ($cwhy): $kind stays"
 }
 
 # spl_rotate_failover_due ID: 0 when ID is a failover seat and claude can act again.
@@ -964,9 +974,12 @@ spl_rotate_spawn() {
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
   [[ "${ROTATE_KIND:-claude}" == claude ]] || bin=""
+  # the second login (SPL-2943): a claude start under CLAUDE_CONFIG_DIR
+  local cfg="${ROTATE_CLAUDE_CONFIG_DIR:-}"
+  [[ "${ROTATE_KIND:-claude}" == claude ]] || cfg=""
   wd="$(spl_rotate_workdir "$id")" || { ROTATE_ERR="$(spl_rotate_workdir_why "$id")"; return 1; }
   # SPAWN_START_CHECK=0: the dialog check runs here, once the pid is known
-  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
+  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} ${cfg:+"SPAWN_CLAUDE_CONFIG_DIR=$cfg"} \
     SPAWN_LANE_SCOPE="${ROTATE_LANE_SCOPE:-role $id (rotation $ROTATE_RID)}" \
     bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$wd" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"

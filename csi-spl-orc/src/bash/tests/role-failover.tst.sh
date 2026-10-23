@@ -45,8 +45,16 @@
 #  13. SPL-2865 (c): a failed switch puts back what it wrote: the links it
 #      made for the seat's other letters (g-001 -> c-001) go, and the seat's
 #      lifetime/prompt.txt is the one it had before (not the grok seed).
+#  14. SPL-2943, the 2026-10-22 10:23..11:01Z picture: claude, grok and agy
+#      cannot act; a SECOND claude login (its own config folder,
+#      CLAUDE2_CONFIG_DIR) can. RED CONTROL: before SPL-2943 nothing took the
+#      seat ("no vendor is left"). Now the seat restarts IN PLACE as claude
+#      (same id c-001, no dir switch) with CLAUDE_CONFIG_DIR = that folder;
+#      no login in the folder = dormant, nothing started. The handback: the
+#      rotation keeps the second login while claude is out, the main login
+#      (no CLAUDE_CONFIG_DIR) once claude can act; the record goes then.
 #  RED CONTROL: on a tree before SPL-2544 every case fails (no such action);
-#  12 and 13 fail on a tree before SPL-2865.
+#  12 and 13 fail on a tree before SPL-2865; 14 before SPL-2943.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -105,7 +113,13 @@ printf '%s\t%s\n' "$pane" "$pid" >>"$T/tmux/panes"
 [ -f "$T/spawn.screen.$1" ] && { cp "$T/spawn.screen.$1" "$T/tmux/screen.$pane"; cp "$T/spawn.screen.$1" "$T/pane/$pid"; }
 [ -f "$T/spawn.lease-pane.$1" ] && cp "$T/spawn.lease-pane.$1" "$T/pane/$pid"
 "$T/bin/proc" "$pid" "$id" "$1"
+[ -n "${SPAWN_CLAUDE_CONFIG_DIR:-}" ] && { printf 'CLAUDE_CONFIG_DIR=%s\0' "$SPAWN_CLAUDE_CONFIG_DIR" >>"$T/proc/$pid/environ"; echo "cfg $id $SPAWN_CLAUDE_CONFIG_DIR" >>"$T/spawn.log"; }
 echo "$id $pane"
+EOF
+# claude auth status: logged in only under a CLAUDE_CONFIG_DIR holding "login"
+cat >"$T/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ -f "$CLAUDE_CONFIG_DIR/login" ]; then echo '{"loggedIn": true}'; else echo '{"loggedIn": false}'; fi
 EOF
 cat >"$T/bin/kill" <<'EOF'
 #!/usr/bin/env bash
@@ -368,6 +382,35 @@ grep -q '^spawn grok g-001' "$T/spawn.log" && grep -q 'SWITCH FAIL grok g-001 .*
 [[ "$(cat "$S/c-001/lifetime/prompt.txt")" == "SEED c-001" && -f "$S/c-001/inbox/m1.json" ]] &&
   pass "13. the seat's lifetime/prompt.txt is its own seed again, the inbox kept" ||
   fail "13. prompt: $(head -3 "$S/c-001/lifetime/prompt.txt")"
+
+# --- 14. SPL-2943: the second claude login ------------------------------------------------
+C2="$T/claude2"
+world; rm -rf "$C2"
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 AGY_OUT=1 ROTATE_CLAUDE_BIN="$T/bin/claude" CLAUDE2_CONFIG_DIR="$C2" >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && grep -q 'SWITCH SKIP claude2 cannot take seat c-001: no second login: the folder CLAUDE2_CONFIG_DIR does not exist (dormant)' "$T/o" &&
+  pass "14. no second login yet: claude2 is dormant, nothing started" || fail "14. dormant: rc=$rc $(cat "$T/o")"
+world; mkdir -p "$C2"; : >"$C2/login"
+act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 AGY_OUT=1 ROTATE_CLAUDE_BIN="$T/bin/claude" CLAUDE2_CONFIG_DIR="$C2" >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 1 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ ! -e "$S/g-001" && ! -e "$S/a-001" ]] &&
+  grep -q '^spawn claude c-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" && grep -qx "cfg c-001 $C2" "$T/spawn.log" &&
+  pass "14. RED CONTROL: claude, grok and agy out, the second login able: c-001 restarts in place as claude with CLAUDE_CONFIG_DIR=<second folder> (was: no vendor left)" ||
+  fail "14. claude2: rc=$rc spawns=$(spawns) $(cat "$T/spawn.log" 2>&1) $(cat "$T/o")"
+grep -q '^c-001 c-001 claude2 ' "$D/role-failover/seat.001" && [[ ! -d "$T/proc/101" && -f "$S/c-001/inbox/m1.json" ]] &&
+  pass "14. the old session ended, the inbox kept, the record names claude2" || fail "14. record: $(cat "$D/role-failover/seat.001" 2>&1) $(grep -E "SWITCH (FAIL|OK|WAIT)" "$T/o" | cut -c1-300)"
+mkdir -p "$T/wd/ctx1/c-005"; echo "HIT S2 kind=limit resets 9pm" >"$T/wd/ctx1/c-005/out.s2"
+out="$(env ROTATE_CLAUDE_BIN="$T/bin/claude" CLAUDE2_CONFIG_DIR="$C2" bash -c 'sleep() { :; }; do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"; spl_rotate_conf >/dev/null
+  spl_rotate_failover_vendor c-001; echo "KIND=$ROTATE_KIND CFG=$ROTATE_CLAUDE_CONFIG_DIR"' 2>&1)"
+[[ "$out" == *"KIND=claude CFG=$C2"* ]] && pass "14. the main login still out: the rotation keeps the seat on the second login" || fail "14. stays: $out"
+echo "OK" >"$T/wd/ctx1/c-005/out.s2"
+out="$(env ROTATE_CLAUDE_BIN="$T/bin/claude" CLAUDE2_CONFIG_DIR="$C2" bash -c 'sleep() { :; }; do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"; spl_rotate_conf >/dev/null
+  spl_rotate_failover_vendor c-001; echo "KIND=$ROTATE_KIND CFG=$ROTATE_CLAUDE_CONFIG_DIR"' 2>&1)"
+[[ "$out" == *"KIND=claude CFG= "* || "$out" == *"KIND=claude CFG=" ]] && pass "14. the main login back: the handback starts claude with no CLAUDE_CONFIG_DIR" || fail "14. handback: $out"
+"$T/bin/proc" 5001 c-001
+out="$(bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"; spl_rotate_conf >/dev/null
+  spl_rotate_failover_seat c-001 && echo KEPT || echo GONE' 2>&1)"
+[[ "$out" == *GONE* && ! -e "$D/role-failover/seat.001" ]] && pass "14. the seat on the main login again: the claude2 record is gone" || fail "14. record: $out"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

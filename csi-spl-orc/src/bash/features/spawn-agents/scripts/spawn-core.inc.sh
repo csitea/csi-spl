@@ -610,7 +610,11 @@ spawn_launch_session() {
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
   # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
   # hooks of specs/036), not with the env prepared inline here.
-  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
+  # SPL-2943: a claude seat under the second login (do_spl_role_failover
+  # claude2) runs with that account's own config folder
+  _sp_cfg_env=""
+  [ "$SPAWN_KIND" = claude ] && [ -n "${SPAWN_CLAUDE_CONFIG_DIR:-}" ] && _sp_cfg_env=" CLAUDE_CONFIG_DIR='${SPAWN_CLAUDE_CONFIG_DIR}'"
+  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}${_sp_cfg_env}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
 
   if ! _sp_live; then
     _sp_plan launch "$(spool_agent_cmd_text) -c \"${LAUNCH}\""

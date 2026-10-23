@@ -62,7 +62,7 @@
 # @param LEASE_OWNER_CMD (optional) - fleet mode: replaces the one ops-channel notice per orch take-over (do_spl_fleet_notice; never a DM to the owner, SPL-2584)
 # @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
 # @param LEASE_ORCH_FALLBACK / LEASE_DISPATCH_FALLBACK (optional) - fleet mode (SPL-2544): the VENDORS, comma-separated, the role's seat (LEASE_ORCH / LEASE_MASTER) switches to IN PLACE when no seat of the role can act (do_spl_role_failover); default LEASE_VENDOR_ORDER; a legacy id list (g-001,a-001) reads as its letters' vendors; none = off (env or lease.conf)
-# @param LEASE_VENDOR_ORDER (optional) - fleet mode: the vendors, best first, default claude,grok,agy (owner: "the order is claude -> grok -> agy"); a holder of a better vendor outranks any machine rank (env or lease.conf)
+# @param LEASE_VENDOR_ORDER (optional) - fleet mode: the vendors, best first, default claude,grok,agy,claude2 (owner: "the order is claude -> grok -> agy"; claude2 = claude under the second login, SPL-2943); a holder of a better vendor outranks any machine rank (env or lease.conf)
 # @param LEASE_FALLBACK_WAIT (optional) - fleet mode: a seat switches to the next vendor (and a seat of a worse vendor takes a role) only when the holder has been silent LEASE_STALE + this many s per step down the vendor order (grok 1x, agy 2x), so an able claude seat on any box takes it first; default 60 (env or lease.conf)
 # @param LEASE_ROLE_SWITCH (optional) - fleet mode: 0 turns the in-place vendor switch off; LEASE_SWITCH_RETRY (default 120 s) between two launches for one seat; LEASE_SWITCH_RUN (tests) replaces ./run, LEASE_SWITCH_SYNC=1 runs it in the foreground; off under SPOOL_TEST=1 or a fake LEASE_PROC_ROOT unless LEASE_SWITCH_RUN is set
 # @param LEASE_HOLDDOWN (optional) - fleet mode: a rank handback waits until this machine's candidate has been able this many s without a break (spec 092), default 300, 0 = at once
@@ -144,7 +144,7 @@ spl_lease_conf() {
       LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX|LEASE_INTERMITTENT|LEASE_HOLDDOWN|LEASE_ORCH_FALLBACK|LEASE_DISPATCH_FALLBACK|LEASE_VENDOR_ORDER|LEASE_FALLBACK_WAIT|LEASE_PIN_TTL)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v" ;;
     esac
-  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$|^LEASE_INTERMITTENT=[a-z0-9][a-z0-9,-]*$|^LEASE_HOLDDOWN=[0-9]+$|^LEASE_(ORCH|DISPATCH)_FALLBACK=[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$|^LEASE_VENDOR_ORDER=[a-z]+(,[a-z]+)*$|^LEASE_(FALLBACK_WAIT|PIN_TTL)=[0-9]+$' "$LEASE_CONF")
+  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$|^LEASE_INTERMITTENT=[a-z0-9][a-z0-9,-]*$|^LEASE_HOLDDOWN=[0-9]+$|^LEASE_(ORCH|DISPATCH)_FALLBACK=[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$|^LEASE_VENDOR_ORDER=[a-z0-9]+(,[a-z0-9]+)*$|^LEASE_(FALLBACK_WAIT|PIN_TTL)=[0-9]+$' "$LEASE_CONF")
   return 0
 }
 
@@ -1495,29 +1495,67 @@ spl_fleet_try() {
 # = no switch.
 spl_fleet_fallback() {
   local k="LEASE_${1^^}_FALLBACK" v x out=" "
-  v="${!k:-${LEASE_VENDOR_ORDER:-claude,grok,agy}}"
+  v="${!k:-${LEASE_VENDOR_ORDER:-claude,grok,agy,claude2}}"
   [[ "$v" == none ]] && return 0
   for x in ${v//,/ }; do
     [[ "$x" =~ ^[a-z]-[0-9]+$|^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] && x="$(spl_fleet_vendor "$x")"
-    [[ "$x" =~ ^(claude|grok|agy|mistral|qwen)$ && "$out" != *" $x "* ]] && out+="$x "
+    [[ "$x" =~ ^(claude|grok|agy|mistral|qwen|claude2)$ && "$out" != *" $x "* ]] && out+="$x "
   done
   out="${out# }"; echo "${out% }"
 }
 
 # spl_fleet_switch_next <role> <seat>: the first vendor of spl_fleet_fallback
-# ranked after <seat>'s vendor (LEASE_VENDOR_ORDER); nothing = none left.
+# ranked after <seat>'s vendor as it runs now (spl_fleet_seat_vendor,
+# LEASE_VENDOR_ORDER); nothing = none left.
 spl_fleet_switch_next() {
   local st v
-  st="$(spl_fleet_tier "$2")"
+  st="$(spl_fleet_vtier "$(spl_fleet_seat_vendor "$2")")"
   for v in $(spl_fleet_fallback "$1"); do
-    (( $(spl_fleet_tier "$(spl_fleet_vendor_id "$v")") > st )) && { echo "$v"; return 0; }
+    (( $(spl_fleet_vtier "$v") > st )) && { echo "$v"; return 0; }
   done
   return 0
 }
 
-# spl_fleet_vendor_id <vendor>: a probe id in its letter (claude -> c-0, ...).
+# spl_fleet_vendor_id <vendor>: a probe id in its letter (claude -> c-0, ...;
+# claude2, claude under the second login, runs a claude id too).
 spl_fleet_vendor_id() {
-  case "$1" in claude) echo c-0 ;; grok) echo g-0 ;; agy) echo a-0 ;; mistral) echo m-0 ;; qwen) echo q-0 ;; *) echo x-0 ;; esac
+  case "$1" in claude|claude2) echo c-0 ;; grok) echo g-0 ;; agy) echo a-0 ;; mistral) echo m-0 ;; qwen) echo q-0 ;; *) echo x-0 ;; esac
+}
+
+# ---- the second claude login (SPL-2943; owner HUM-10 t1 678d29e2) ---------
+# On 2026-10-22 10:23..11:01Z claude and grok sat on the weekly limit on every
+# box and no seat could act for 38 min. The last vendor step, after grok and
+# agy, is claude2: claude under a SECOND account, run by the same agent user
+# from its own config folder (CLAUDE_CONFIG_DIR; owner poll 0e7422ba: no new
+# OS user). The folder is ONE setting, CLAUDE2_CONFIG_DIR (default
+# <agent home>/.claude-2); the step stays dormant until that folder holds a
+# login (spl_role_failover_guard). Which login a claude seat runs is read from
+# its live process: a non-empty CLAUDE_CONFIG_DIR in its environ = claude2
+# (no launcher sets it for the main login).
+
+# spl_fleet_vtier <vendor>: its 0-based place in LEASE_VENDOR_ORDER (default
+# claude,grok,agy,claude2); a vendor not listed comes after all of them.
+spl_fleet_vtier() {
+  local i=0 m
+  local -a vs
+  IFS=, read -ra vs <<<"${LEASE_VENDOR_ORDER:-claude,grok,agy,claude2}"
+  for m in "${vs[@]}"; do [[ "$m" == "$1" ]] && { echo "$i"; return; }; i=$((i + 1)); done
+  echo "$i"
+}
+
+# spl_fleet_seat_vendor <seat>: the vendor the seat runs now: its letter's,
+# claude2 for a claude process whose environ carries CLAUDE_CONFIG_DIR.
+spl_fleet_seat_vendor() {
+  local v pid root="${LEASE_PROC_ROOT:-/proc}" cfg=""
+  v="$(spl_fleet_vendor "${1%@*}")"
+  [[ "$v" == claude ]] || { echo "$v"; return 0; }
+  pid="$(spl_lease_agent_pid "${1%@*}")"
+  if [[ -n "$pid" && -r "$root/$pid/environ" ]]; then
+    cfg="$(tr '\0' '\n' < "$root/$pid/environ" 2>/dev/null | sed -n 's/^CLAUDE_CONFIG_DIR=//p' | sed -n 1p)"
+  elif [[ -n "$pid" ]] && declare -F spool_proc_env_get >/dev/null; then
+    cfg="$(spool_proc_env_get "$root" CLAUDE_CONFIG_DIR "$pid" 2>/dev/null | awk '{print $2; exit}')"
+  fi
+  if [[ -n "$cfg" ]]; then echo claude2; else echo claude; fi
 }
 
 # spl_fleet_role_seat <role>: the seat a switch moves, as it runs now
@@ -1549,7 +1587,7 @@ spl_fleet_switch_tick() {
     spl_fleet_once "$role.switch-none" "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act and no vendor is left after it (fallback: '$(spl_fleet_fallback "$role")')"
     return 0
   fi
-  wait=$(( LEASE_STALE + $(spl_fleet_tier "$(spl_fleet_vendor_id "$next")") * ${LEASE_FALLBACK_WAIT:-60} ))
+  wait=$(( LEASE_STALE + $(spl_fleet_vtier "$next") * ${LEASE_FALLBACK_WAIT:-60} ))
   spl_fleet_age_known && (( FA > wait )) || return 0
   now="$(spl_lease_now)"; f="$LEASE_DIR/fleet.$role.switch"
   local sil="$FA" down=""
@@ -1563,8 +1601,8 @@ spl_fleet_switch_tick() {
   [[ -s "$f" ]] && read -r at was _ < "$f"
   [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < ${LEASE_SWITCH_RETRY:-120} )) && return 0
   echo "$now $seat $next" > "$f"
-  spl_lease_log "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${sil}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
-  spl_fleet_switch_start "$role" "$seat" "$sil"
+  spl_lease_log "SWITCH $role: $seat ($(spl_fleet_seat_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${sil}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
+  spl_fleet_switch_start "$role" "$seat" "$sil" "$next"
 }
 
 # 0 when this loop may launch a switch: LEASE_ROLE_SWITCH (default 1); a
@@ -1575,12 +1613,12 @@ spl_fleet_switch_on() {
   [[ "${SPOOL_TEST:-0}" != 1 && -z "${LEASE_PROC_ROOT:-}" ]]
 }
 
-# spl_fleet_switch_start <role> <seat> <silent>: do_spl_role_failover in its
+# spl_fleet_switch_start <role> <seat> <silent> <next>: do_spl_role_failover in its
 # own process (a start waits minutes; the lease tick never does), the lease's
 # ids dropped from its env so it reads lease.conf as it is now.
 spl_fleet_switch_start() {
   local -a cmd=(env -u LEASE_ORCH -u LEASE_MASTER -u LEASE_FAILOVER SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
-    ROLE_FAILOVER_ROLE="$1" ROLE_FAILOVER_SEAT="$2" ROLE_FAILOVER_SILENT="$3" DRY_RUN=0
+    ROLE_FAILOVER_ROLE="$1" ROLE_FAILOVER_SEAT="$2" ROLE_FAILOVER_SILENT="$3" ROLE_FAILOVER_NEXT="${4:-}" DRY_RUN=0
     timeout "${LEASE_SWITCH_TIMEOUT:-1800}" "${LEASE_SWITCH_RUN:-$PROJ_PATH/run}" -a do_spl_role_failover)
   if [[ "${LEASE_SWITCH_SYNC:-0}" == 1 ]]; then
     "${cmd[@]}" >>"$LEASE_DIR/role-failover.out" 2>&1 7>&- 8>&- </dev/null || true
@@ -1598,12 +1636,7 @@ spl_fleet_vendor() {
 # spl_fleet_tier <id-or-holder>: its vendor's 0-based place in
 # LEASE_VENDOR_ORDER; a vendor not listed comes after all of them.
 spl_fleet_tier() {
-  local v i=0 m
-  local -a vs
-  v="$(spl_fleet_vendor "${1%@*}")"
-  IFS=, read -ra vs <<<"${LEASE_VENDOR_ORDER:-claude,grok,agy}"
-  for m in "${vs[@]}"; do [[ "$m" == "$v" ]] && { echo "$i"; return; }; i=$((i + 1)); done
-  echo "$i"
+  spl_fleet_vtier "$(spl_fleet_vendor "${1%@*}")"
 }
 
 # Can this box's desk post (spec 092 FR-002)? 0 = yes; else prints why. On

@@ -528,7 +528,9 @@ resource, and its age would have come from each machine's own clock.
     `do_spl_role_fallback_up` is a no-op. An agy process (comm `agy`) counts
     as live;
   - **the vendor ranks before the machine** (`LEASE_VENDOR_ORDER`, default
-    `claude,grok,agy`; the vendor is the id's letter): a fallback seat never
+    `claude,grok,agy,claude2`; the vendor is the id's letter, and `claude2` a
+    claude process started with `CLAUDE_CONFIG_DIR`, the second login, SPL-2943,
+    spec 060 section 5.3): a fallback seat never
     takes a role from an able seat of a better vendor, and an able claude
     seat on any box takes it back from a grok or agy holder (the handback,
     with `LEASE_HOLDDOWN`, also from an intermittent box);

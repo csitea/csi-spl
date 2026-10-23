@@ -114,7 +114,7 @@ do_spl_role_failover() {
     spl_role_failover_say "$rid" SKIP "$seat can act again: nothing to switch"; return 0
   fi
   for v in $(spl_fleet_fallback "$role"); do
-    (( $(spl_fleet_tier "$(spl_fleet_vendor_id "$v")") > $(spl_fleet_tier "$seat") )) || continue
+    (( $(spl_fleet_vtier "$v") > $(spl_fleet_vtier "$(spl_fleet_seat_vendor "$seat")") )) || continue
     n=$((n + 1))
     spl_role_failover_vendor "$rid" "$role" "$key" "$old" "$seat" "$v" && return 0
   done
@@ -134,9 +134,9 @@ spl_role_failover_say() {
 # 0 = the seat runs VENDOR now (or a dry run planned it); 1 = try the next.
 spl_role_failover_vendor() {
   local rid="$1" role="$2" key="$3" old="$4" seat="$5" v="$6" new why wait bo t=""
-  new="$(spl_role_seat_id "$v" "$(spl_role_seat_num "$seat")")" ||
+  new="$(spl_role_seat_id "${v%2}" "$(spl_role_seat_num "$seat")")" ||
     { spl_role_failover_say "$rid" SKIP "no $v id for seat $seat"; return 1; }
-  wait=$(( LEASE_STALE + $(spl_fleet_tier "$(spl_fleet_vendor_id "$v")") * ${LEASE_FALLBACK_WAIT:-60} ))
+  wait=$(( LEASE_STALE + $(spl_fleet_vtier "$v") * ${LEASE_FALLBACK_WAIT:-60} ))
   if [[ "${ROLE_FAILOVER_SILENT:-}" =~ ^[0-9]+$ ]] && (( ROLE_FAILOVER_SILENT <= wait )); then
     spl_role_failover_say "$rid" SKIP "$v not yet: the holder is silent ${ROLE_FAILOVER_SILENT}s, $v takes a seat past ${wait}s"; return 1
   fi
@@ -183,8 +183,28 @@ spl_role_failover_guard() {
         echo "${why:-lane-mix gave '${pick:-no pick}'}"; return 0
       fi
       spl_rotate_lease_sees agy || echo "the fleet lease does not count an agy process as the holder" ;;
-    *) echo "$1 is no role vendor here (grok, agy)" ;;
+    claude2) spl_role_failover_claude2_why ;;
+    *) echo "$1 is no role vendor here (grok, agy, claude2)" ;;
   esac
+  return 0
+}
+
+# The second login's config folder (SPL-2943): CLAUDE2_CONFIG_DIR, else
+# <agent home>/.claude-2. The one setting; the owner logs in there once.
+spl_role_failover_claude2_dir() { echo "${CLAUDE2_CONFIG_DIR:-${ROTATE_AGENT_HOME:-$HOME}/.claude-2}"; }
+
+# Why claude under the second login cannot take a seat; nothing when it can:
+# the agent user's claude, run with CLAUDE_CONFIG_DIR=<that folder>, says
+# `auth status` loggedIn true. No login there yet = the step is dormant.
+# Reads the status only, never a credential file.
+spl_role_failover_claude2_why() {
+  local dir bin st
+  dir="$(spl_role_failover_claude2_dir)"
+  bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-${ROTATE_AGENT_HOME:-$HOME}/.local/bin/claude}}"
+  spl_rotate_as_agent test -d "$dir" 2>/dev/null || { echo "no second login: the folder CLAUDE2_CONFIG_DIR does not exist (dormant)"; return 0; }
+  st="$(spl_rotate_as_agent env CLAUDE_CONFIG_DIR="$dir" timeout "${ROTATE_SRC_TIMEOUT:-120}" "$bin" auth status 2>/dev/null |
+    jq -r '.loggedIn // false' 2>/dev/null || true)"
+  [[ "$st" == true ]] || echo "no second login: claude auth status in CLAUDE2_CONFIG_DIR is not loggedIn (dormant)"
   return 0
 }
 
@@ -202,8 +222,11 @@ spl_role_failover_own() {
 # failed and put back, ROTATE_ERR says why.
 spl_role_failover_run() {
   local rid="$1" role="$2" key="$3" old="$4" seat="$5" v="$6" new="$7" opid opane seed rec ack arc
+  # claude2 (SPL-2943): claude, started with CLAUDE_CONFIG_DIR = the second login
+  # shellcheck disable=SC2034 # spl_rotate_spawn reads it
+  ROTATE_CLAUDE_CONFIG_DIR="$(if [[ "$v" == claude2 ]]; then spl_role_failover_claude2_dir; fi)"
   # shellcheck disable=SC2034 # the rotation globals spl_rotate_spawn / _restore / _end read
-  ROTATE_RID="$rid" ROTATE_KIND="$v" \
+  ROTATE_RID="$rid" ROTATE_KIND="${v%2}" \
     ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_NEW_DIALOG="" ROTATE_SWITCH_FROM="$seat" ROTATE_SWITCH_TO="$new" \
     ROTATE_LANE_SCOPE="role $new $role (vendor failover from $seat)" ROTATE_ERR=""
   opid="$(spl_lease_agent_pid "$seat")"
@@ -221,7 +244,8 @@ spl_role_failover_run() {
   spl_role_failover_seed "$role" "$seat" "$new" > "$seed" && chmod 0644 "$seed" 2>/dev/null ||
     { ROTATE_ERR="cannot write the seed $seed"; spl_role_failover_say "$rid" FAIL "$ROTATE_ERR"; return 1; }
   spl_role_failover_snap "$rid" "$seat" "$new"
-  if ! spl_rotate_seat_switch "$seat" "$new"; then
+  # a claude seat to claude2 keeps its id: a restart in place, no dir switch
+  if [[ "$new" != "$seat" ]] && ! spl_rotate_seat_switch "$seat" "$new"; then
     spl_role_failover_say "$rid" FAIL "$ROTATE_ERR; nothing started"; return 1
   fi
   if ! spl_role_failover_own "$new"; then
@@ -230,6 +254,15 @@ spl_role_failover_run() {
   fi
   if ! spl_rotate_spawn "$new" "$seed"; then
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
+  fi
+  # a restart in place (claude2 on a claude seat): the old session cannot
+  # act and shares the id, so every able test would read it (the lowest
+  # pid): it ends now, not after the new one is judged
+  if [[ "$new" == "$seat" && -n "$opid" ]]; then
+    spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT" || true
+    [[ -n "$opane" ]] && { spl_rotate_tmux kill-window -t "$opane" 2>/dev/null || true; }
+    spl_role_failover_say "$rid" OK "the old session (pid $opid) of $seat ended before the able test (restart in place)"
+    opid="" opane=""
   fi
   ack="${rid%%-*}-failover-$new"
   spl_role_failover_probe "$rid" "$role" "$new" "$ack"
@@ -246,7 +279,7 @@ spl_role_failover_run() {
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
   spl_role_failover_say "$rid" OK "$new acked the probe $ack: it read its inbox and ran the command"
-  if ! spl_rotate_conf_flip "$key" "$old" "$new"; then
+  if [[ "$old" != "$new" ]] && ! spl_rotate_conf_flip "$key" "$old" "$new"; then
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
   spl_role_failover_say "$rid" OK "$new ($v, pid $ROTATE_NEW_PID, pane $ROTATE_NEW_PANE) runs the $role seat; lease.conf $key=$new"
@@ -264,7 +297,7 @@ spl_role_failover_run() {
       spl_rotate_alert "$([[ "$role" == orch ]] && echo orch || echo master)" "$rid" SWITCH "old pid $opid of $seat survived SIGKILL after the switch to $new"
     fi
   fi
-  [[ -e "$SPOOL_ROOT/agents/$seat.json" ]] && { spl_rotate_ai retire "$seat" "$rid" >/dev/null 2>&1 || true; }
+  [[ "$seat" != "$new" && -e "$SPOOL_ROOT/agents/$seat.json" ]] && { spl_rotate_ai retire "$seat" "$rid" >/dev/null 2>&1 || true; }
   spl_rotate_note "$new" "$(spl_rotate_ack_task "$rid")" \
     "VENDOR FAILOVER $rid on $ROTATE_BOX: seat $seat ($(spl_fleet_vendor "$seat")) could not act; $new ($v, pid $ROTATE_NEW_PID) runs the $role seat now, same inbox. The lease names it at its next tick; the hourly rotation hands it back once claude can act. Log: $ROTATE_LOG" result
   return 0
@@ -340,7 +373,8 @@ spl_role_failover_undo() {
 spl_role_failover_back() {
   local rid="$1" seat="$2" new="$3" back=""
   spl_rotate_restore "$seat" "$4" "${ROTATE_NEW_PANE:-}"
-  if spl_rotate_seat_switch "$new" "$seat"; then back="; seat switch back $new -> $seat$(spl_role_failover_undo "$seat")"
+  if [[ "$new" == "$seat" ]]; then back="; $seat restarted in place, no dir switch to undo"
+  elif spl_rotate_seat_switch "$new" "$seat"; then back="; seat switch back $new -> $seat$(spl_role_failover_undo "$seat")"
   else back="; the seat switch back FAILED ($ROTATE_ERR), $seat links to $new"; fi
   spl_role_failover_say "$rid" FAIL "$ROTATE_ERR$back; lease.conf untouched"
 }

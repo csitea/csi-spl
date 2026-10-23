@@ -44,6 +44,10 @@ type TopicAccess struct {
 	// DMParties are the ends of the UNTAGGED messages only - never of the
 	// channel-tagged ones.
 	DMParties []string
+	// Boxes are the distinct non-empty from_box and to_box of every message
+	// in the topic, sorted: the box owner lock hides a topic that touches a
+	// box locked to someone else (spec 025 box-owner-lock.md, row B5).
+	Boxes []string
 }
 
 // HasDM reports whether the topic holds an untagged (DM) message.
@@ -173,13 +177,19 @@ func (s *Memory) TopicAccess(_ context.Context, tenant, task string, now time.Ti
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var a TopicAccess
-	chans, ends := map[string]bool{}, map[string]bool{}
+	chans, ends, boxes := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, m := range s.liveLocked(tenant, now) {
 		if m.TaskID != task {
 			continue
 		}
 		a.Found = true
 		chans[m.Channel] = true
+		for _, b := range []string{m.FromBox, m.ToBox} {
+			if b != "" && !boxes[b] {
+				boxes[b] = true
+				a.Boxes = append(a.Boxes, b)
+			}
+		}
 		if m.Channel != "" {
 			continue
 		}
@@ -195,5 +205,6 @@ func (s *Memory) TopicAccess(_ context.Context, tenant, task string, now time.Ti
 	}
 	slices.Sort(a.Channels)
 	slices.Sort(a.DMParties)
+	slices.Sort(a.Boxes)
 	return a, nil
 }

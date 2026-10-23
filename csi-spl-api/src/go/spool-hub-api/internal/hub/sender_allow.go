@@ -127,6 +127,9 @@ func (s *Server) handlePutSenderList(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_agent", "the path names no agent id")
 		return
 	}
+	if !s.senderListLockOK(w, r, t.ID, a.HumanID) {
+		return
+	}
 	var body struct {
 		Members *[]string `json:"members"`
 	}
@@ -162,6 +165,18 @@ func (s *Server) handlePutSenderList(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: s.o.Now().UTC().Format(time.RFC3339)})
 }
 
+// senderListLockOK is the box owner lock on a list write (path 8d, row B5):
+// a list of an agent on a box locked to someone else is the lock owner's to
+// set, though a list can only narrow who reaches the agent. false = it
+// answered 403 box_locked (or 503).
+func (s *Server) senderListLockOK(w http.ResponseWriter, r *http.Request, tenant, hum string) bool {
+	if rf := s.seatLockRefusal(r.Context(), tenant, agentid.Normalize(r.PathValue("agent")), hum, boxLockPathSenderAllow); rf != nil {
+		writeLockRefusal(w, rf)
+		return false
+	}
+	return true
+}
+
 // senderMembers is the sorted, de-duplicated list; bad = the first id that is
 // not a HUM id.
 func senderMembers(in []string) (out []string, bad string) {
@@ -186,6 +201,9 @@ func (s *Server) handleDropSenderList(w http.ResponseWriter, r *http.Request) {
 	agent := listAgent(r)
 	if agent == "" {
 		writeErr(w, http.StatusBadRequest, "bad_agent", "the path names no agent id")
+		return
+	}
+	if !s.senderListLockOK(w, r, t.ID, a.HumanID) {
 		return
 	}
 	had, err := sa.DropSenderList(r.Context(), t.ID, agent)

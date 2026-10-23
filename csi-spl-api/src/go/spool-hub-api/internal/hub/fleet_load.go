@@ -140,7 +140,7 @@ func (s *Server) fleetLoadCaller(w http.ResponseWriter, r *http.Request) (string
 
 // GET /v1/operator/fleet-load
 func (s *Server) handleFleetLoad(w http.ResponseWriter, r *http.Request) {
-	tenant, _, _, ok := s.fleetLoadCaller(w, r)
+	tenant, a, _, ok := s.fleetLoadCaller(w, r)
 	if !ok {
 		return
 	}
@@ -149,6 +149,9 @@ func (s *Server) handleFleetLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f, err := fl.FleetLoadOf(r.Context(), tenant)
+	if err == nil {
+		f, err = s.lockKeepFleetLoad(r.Context(), tenant, opHum(a), f) // the box owner lock (path 10b, row B5)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "fleet load target unavailable")
 		return
@@ -318,6 +321,10 @@ func (s *Server) handlePatchFleetLoad(w http.ResponseWriter, r *http.Request) {
 	}
 	if (q.OrderedBy != "" && !humanIDRe.MatchString(q.OrderedBy)) || len(q.OrderedVia) > 64 {
 		writeErr(w, http.StatusBadRequest, "bad_setting", "ordered_by is a HUM-* id; ordered_via at most 64 characters")
+		return
+	}
+	if rf := s.fleetLoadLockRefusal(r.Context(), fl, tenant, opHum(a), p); rf != nil {
+		writeLockRefusal(w, rf) // the box owner lock (path 10b, row B5)
 		return
 	}
 	p.Now = s.o.Now()

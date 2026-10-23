@@ -134,8 +134,19 @@ func (s *Server) canReadTopic(ctx context.Context, tenant, task, human string) (
 	if !a.Found {
 		return false, false, nil
 	}
-	ok, err = s.topicVerdict(ctx, tenant, a, human)
+	ok, err = s.topicDoor(ctx, tenant, task, a, human)
 	return ok, true, err
+}
+
+// topicDoor is the whole door on a found topic: the box owner lock first
+// (row B5: a topic that touches a box locked to someone else reads as
+// absent, whatever the channel or DM rule says), then topicVerdict. The
+// fused page read (ViewTopicDoor) asks it too.
+func (s *Server) topicDoor(ctx context.Context, tenant, task string, a store.TopicAccess, human string) (bool, error) {
+	if hidden, err := s.topicLockHidden(ctx, tenant, task, a, human); err != nil || hidden {
+		return false, err
+	}
+	return s.topicVerdict(ctx, tenant, a, human)
 }
 
 // topicVerdict is canReadTopic's rule on a found topic's aggregate (also the

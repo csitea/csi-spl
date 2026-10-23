@@ -67,6 +67,7 @@ type wuiConn struct {
 	peers  map[string]bool // DM peers, "<id>" or "<id>@<box>" (v0.5), guarded by srv.mu
 	all    bool            // topic-list follow (v0.5), guarded by srv.mu
 	upload tokenSlot       // one live upload token per socket
+	locks  *lockSnaps      // the hub's box locks as last read (box_lock_view.go); nil = none
 	wmu    sync.Mutex
 	once   sync.Once
 	// rotated: the hub closed this socket at its max life (ws_maxlife.go).
@@ -304,7 +305,8 @@ func (s *Server) wuiHello(ctx context.Context, conn *websocket.Conn, tenant, hum
 		conn.Close(wire.CloseBadFrame, "bad_frame") //nolint:errcheck
 		return nil, false
 	}
-	c := &wuiConn{conn: conn, tenant: tenant, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}, peers: map[string]bool{}}
+	c := &wuiConn{conn: conn, tenant: tenant, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}, peers: map[string]bool{},
+		locks: &s.locks}
 	switch {
 	case msg.ValidID(h.As):
 		c.from = h.As
@@ -340,7 +342,11 @@ func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
 	if err := c.write(ctx, welcome); err != nil {
 		return false
 	}
+	lv, err := s.lockViewFor(ctx, c.tenant, c.member)
 	for _, p := range s.onlinePeers(ctx, c.tenant) {
+		if err != nil || lv.hidesSeat(p) { // the box owner lock (path 5, row B5)
+			continue
+		}
 		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
 	}
 	s.statusSnapshot(ctx, c) // spec 096: after the presence snapshot
@@ -503,6 +509,11 @@ func (p parties) is(key string) bool {
 // members is the channel's human members (rdb 0028), or nil when no
 // membership rule applies - a DM, or one of the public default channels.
 func (c *wuiConn) wants(taskID, channel string, p parties, members map[string]bool) bool {
+	// The box owner lock (path 4b, row B5) runs first and only refuses: a
+	// message to or from a box locked to someone else reaches only an owner.
+	if c.locks.hides(c.tenant, c.member, p) {
+		return false
+	}
 	party := p.is(c.from) || c.member != "" && p.is(c.member)
 	// The read door runs FIRST and only ever refuses. A socket may subscribe
 	// to a task_id while the topic is still empty (the lobby, a new topic),
@@ -991,7 +1002,8 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	// socket would keep delivering to someone removed from the channel
 	// seconds ago.
 	members := s.channelMemberSet(ctx, tenant, channel)
-	s.fanoutFlow(ctx, row) // spec 062: the line's flow events, to their members' sockets
+	s.tenantLocks(ctx, tenant) //nolint:errcheck // refreshes the snapshot wants reads; an error keeps the last one
+	s.fanoutFlow(ctx, row)     // spec 062: the line's flow events, to their members' sockets
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {

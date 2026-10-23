@@ -62,6 +62,9 @@ type Postgres struct {
 	// 5 s (box_locks_postgres.go)
 	lockTab seatsProbe
 	locks   boxLockCache
+	// lockList: each workspace's locked box ids, 5 s, cleared with locks
+	// (box_locks_tenant.go)
+	lockList lockedBoxCache
 	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
 	heads topicHeads
 }

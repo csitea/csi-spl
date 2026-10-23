@@ -147,11 +147,16 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
 		return
 	}
+	lv, err := s.lockViewFor(r.Context(), t.ID, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
+		return
+	}
 	body := map[string]any{"counts": p.Counts, "unread": p.Unread, "keys": wireFlowKeys(p.Keys)}
 	if r.URL.Query().Get("counts_only") != "true" {
 		events := make([]wireFlowEvent, 0, len(p.Events))
 		for _, e := range p.Events {
-			if !mod.drops(e.MsgID) { // specs/077 T016
+			if !mod.drops(e.MsgID) && !lv.hiddenByLock(e.FromBox, e.ToBox) { // specs/077 T016; the box owner lock (row B5)
 				ev := wireFlow(e)
 				ev.Hidden = mod.marks(e.MsgID)
 				events = append(events, ev)
@@ -225,8 +230,14 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 		return
 	}
 	members := make([]string, 0, len(socks))
+	p := parties{row.FromID, row.FromBox, row.ToID, row.ToBox}
 	for m := range socks {
-		members = append(members, m)
+		if !s.locks.hides(row.TenantID, m, p) { // the box owner lock (path 4, row B5)
+			members = append(members, m)
+		}
+	}
+	if len(members) == 0 {
+		return
 	}
 	go func() {
 		ctx := context.WithoutCancel(ctx)

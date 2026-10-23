@@ -231,6 +231,10 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 	if err != nil {
 		return nil, nil, err
 	}
+	lv, err := s.lockViewFor(ctx, t.ID, base.Viewer) // the box owner lock (path 4, row B5)
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, ty := range types {
 		sq := base
 		c := searchCursor{T: ty, H: hash}
@@ -247,6 +251,9 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 			return nil, nil, err
 		}
 		sec.Results = mod.keepResults(sec.Results)
+		if sec.Results, err = s.lockKeepResults(ctx, t.ID, base.Viewer, lv, ty, sec.Results); err != nil {
+			return nil, nil, err
+		}
 		groups[ty.Group()] = sec
 		names = append(names, string(ty))
 	}

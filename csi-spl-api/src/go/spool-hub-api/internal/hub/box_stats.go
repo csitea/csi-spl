@@ -102,7 +102,7 @@ func (s *Server) readBoxStats(ctx context.Context, bs store.BoxStats, tenant, bo
 
 // GET /v1/tenant/box-stats?box=&since=
 func (s *Server) handleBoxStats(w http.ResponseWriter, r *http.Request) {
-	t, _, _, _, ok := s.membersActor(w, r, rbac.AuditRead)
+	t, a, _, _, ok := s.membersActor(w, r, rbac.AuditRead)
 	if !ok {
 		return
 	}
@@ -116,6 +116,22 @@ func (s *Server) handleBoxStats(w http.ResponseWriter, r *http.Request) {
 	if ae != nil {
 		writeErr(w, ae.status, ae.token, ae.detail)
 		return
+	}
+	// The box owner lock (path 5b, row B5): a box locked to someone else is
+	// left out, its rows and its hours.
+	lv, err := s.lockViewFor(r.Context(), t.ID, a.HumanID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "box stats unavailable")
+		return
+	}
+	if lv.any() {
+		kept := make([]store.BoxStat, 0, len(out.Rows))
+		for _, row := range out.Rows {
+			if !lv.hides(row.Box) && !lv.hides(row.WriterBox) {
+				kept = append(kept, row)
+			}
+		}
+		out.Rows, out.Hours = kept, store.BoxStatHours(kept)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

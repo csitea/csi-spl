@@ -208,6 +208,11 @@ func (s *Server) handleJoinMint(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "box_id is not a box id ([a-z0-9-], up to 32)")
 		return
 	}
+	// The box owner lock (path 8c, row B5): no token seats a locked box id.
+	if rf := s.adminLockRefusal(r.Context(), t.ID, in.BoxID, a.HumanID, boxLockPathJoin); rf != nil {
+		writeLockRefusal(w, rf)
+		return
+	}
 	if in.ForHuman != "" {
 		if _, err := s.access(r.Context(), in.ForHuman, t.ID); !humanIDRe.MatchString(in.ForHuman) || err != nil {
 			writeErr(w, http.StatusBadRequest, "join_token_member",
@@ -320,6 +325,10 @@ func (s *Server) handleSeatRevoke(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "box_id is not a box id")
 		return
 	}
+	if rf := s.adminLockRefusal(r.Context(), t.ID, box, a.HumanID, boxLockPathSeatRevoke); rf != nil {
+		writeLockRefusal(w, rf) // the box owner lock (path 8c, row B5)
+		return
+	}
 	if err := js.RevokeSeat(r.Context(), t.ID, box, s.o.Now()); errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such pin")
 		return
@@ -392,6 +401,12 @@ func (s *Server) handleJoinRedeem(w http.ResponseWriter, r *http.Request) {
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
+		return
+	}
+	// The box owner lock (path 8c, row B5): a join never re-seats a locked
+	// box id, whoever minted the token.
+	if rf := s.adminLockRefusal(r.Context(), t.ID, req.BoxID, "", boxLockPathJoin); rf != nil {
+		writeLockRefusal(w, rf)
 		return
 	}
 	if !s.pinQuotaOK(w, r, t.ID, req.BoxID) {

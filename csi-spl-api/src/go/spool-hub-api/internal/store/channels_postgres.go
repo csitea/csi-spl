@@ -689,15 +689,23 @@ func topicAccessRead(tenant, task string, now time.Time, a *TopicAccess) tenantR
 	return tenantRead{sql: `SELECT count(*)::int,
 			array_agg(DISTINCT COALESCE(channel, '')),
 			COALESCE(array_agg(DISTINCT from_id) FILTER (WHERE channel IS NULL), '{}')
-				|| COALESCE(array_agg(DISTINCT to_id) FILTER (WHERE channel IS NULL), '{}')
+				|| COALESCE(array_agg(DISTINCT to_id) FILTER (WHERE channel IS NULL), '{}'),
+			COALESCE(array_agg(DISTINCT from_box) FILTER (WHERE from_box <> ''), '{}')
+				|| COALESCE(array_agg(DISTINCT to_box) FILTER (WHERE to_box <> ''), '{}')
 		FROM messages WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3`,
 		args: []any{tenant, task, now}, each: func(rows pgx.Rows) error {
-			var chans, ends []string
+			var chans, ends, boxes []string
 			var n int
-			if err := rows.Scan(&n, &chans, &ends); err != nil || n == 0 {
+			if err := rows.Scan(&n, &chans, &ends, &boxes); err != nil || n == 0 {
 				return err
 			}
 			a.Found, a.Channels = true, chans
+			sort.Strings(boxes)
+			for i, b := range boxes {
+				if i == 0 || b != boxes[i-1] {
+					a.Boxes = append(a.Boxes, b)
+				}
+			}
 			seen := map[string]bool{}
 			for _, p := range ends {
 				if p != "" && !seen[p] {

@@ -269,6 +269,27 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
 		return
 	}
+	// The box owner lock (path 5, row B5): a box locked to someone else is
+	// not in this reader's roster. A reader with no member session (a token
+	// door read) owns no lock: every locked box is left out.
+	hum, ok := s.readerID(r, t.ID)
+	if !ok {
+		hum = ""
+	}
+	lv, err := s.lockViewFor(r.Context(), t.ID, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
+		return
+	}
+	if lv.any() {
+		kept := make([]store.ViewBox, 0, len(rs.Boxes))
+		for _, b := range rs.Boxes {
+			if !lv.hides(b.BoxID) {
+				kept = append(kept, b)
+			}
+		}
+		rs.Boxes = kept
+	}
 	// Online presence for every box under ONE hub-mutex hold (map reads only),
 	// so the mutex that also guards routing is not taken once per box and never
 	// held across the base64 / time formatting below. A box whose socket is on
@@ -745,13 +766,19 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		return
 	}
 	out, next := topicsPage(rows, sq.Limit)
+	lv, err := s.lockViewFor(r.Context(), t.ID, sq.Reader)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return
+	}
+	out = lv.keepTopics(out, s.o.LobbyTaskID) // the box owner lock (row B5)
 	mod, err := s.moderation(r.Context(), t.ID, sq.Reader)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
 	}
 	out = mod.keepTopics(out) // specs/077 T016: a hidden opening message takes its topic row
-	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out, mod) {
+	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out, mod, lv) {
 		return
 	}
 	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
@@ -953,7 +980,7 @@ func (s *Server) deltaScope(w http.ResponseWriter, r *http.Request, t store.Tena
 // CLE-34985): one read for the whole page where the WUI made one request per
 // topic. The reader door is sq's, applied per message as ViewTopic applies
 // it. false = it answered with an error.
-func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic, mod modView) bool {
+func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic, mod modView, lv lockView) bool {
 	ids := make([]string, len(out))
 	for i := range out {
 		ids[i] = out[i].TaskID
@@ -998,7 +1025,7 @@ func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.
 			c := encCursor(rows[per-1].ReceivedAt, rows[per-1].MsgID)
 			out[i].MessagesNext = &c
 		}
-		rows = mod.keepMsgs(rows)
+		rows = mod.keepMsgs(lv.keepMsgs(rows))
 		vs := viewMsgsIn(rows, react, out[i].TaskID)
 		mod.markMsgs(rows, vs)
 		out[i].Messages = &vs
@@ -1155,7 +1182,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	if fused {
 		var may bool
 		_, may, rows, err = door.ViewTopicDoor(r.Context(), t.ID, sq, func(a store.TopicAccess) (bool, error) {
-			return s.topicVerdict(r.Context(), t.ID, a, hum)
+			return s.topicDoor(r.Context(), t.ID, task, a, hum)
 		})
 		if err == nil && !may {
 			// 404, never 403, as topicReader answers it.
@@ -1180,6 +1207,9 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
 		next = &c
 	}
+	if rows, ok = s.lockedRows(w, r, t.ID, hum, rows); !ok {
+		return
+	}
 	rows, mod, ok := s.moderatedRows(w, r, t.ID, hum, rows, sq)
 	if !ok {
 		return
@@ -1196,6 +1226,18 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// lockedRows is a topic page without the messages a box owner lock hides
+// from hum (row B5: the lobby's, since any other such topic reads 404).
+// false has answered 500.
+func (s *Server) lockedRows(w http.ResponseWriter, r *http.Request, tenant, hum string, rows []store.ViewMsg) ([]store.ViewMsg, bool) {
+	lv, err := s.lockViewFor(r.Context(), tenant, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return nil, false
+	}
+	return lv.keepMsgs(rows), true
 }
 
 // topicArchiveStamp sets body's archive stamp (specs/041); false has

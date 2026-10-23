@@ -82,6 +82,10 @@ func (s *Server) handlePutChannelAIAgents(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if rf := s.channelLockRefusal(r.Context(), t.ID, ch, hum, boxLockPathAIAgents); rf != nil {
+		writeLockRefusal(w, rf) // the box owner lock (path 8d, row B5)
+		return
+	}
 	switch err := ca.SetChannelAIAgents(r.Context(), t.ID, ch, on, s.o.Now()); {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")

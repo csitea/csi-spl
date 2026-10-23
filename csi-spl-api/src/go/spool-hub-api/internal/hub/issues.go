@@ -313,6 +313,33 @@ func (s *Server) checkAssignee(ctx context.Context, tenant, a string) *issueErr 
 	return &issueErr{http.StatusBadRequest, "bad_assignee", "assignee is not an agent of this tenant"}
 }
 
+// checkAssigneeBy is checkAssignee for an assignment actor makes on the
+// create and update paths: an agent on a locked box is assigned only by an
+// owner of the lock or by an agent of that box (path 11, row B5).
+func (s *Server) checkAssigneeBy(ctx context.Context, tenant, actor, a string) *issueErr {
+	if ie := s.checkAssignee(ctx, tenant, a); ie != nil || a == "" || humanIDRe.MatchString(a) {
+		return ie
+	}
+	switch all, err := s.tenantLocks(ctx, tenant); {
+	case err != nil:
+		return &issueErr{http.StatusServiceUnavailable, codeBoxLockStore, boxLockStoreDetail}
+	case len(all) == 0:
+		return nil
+	}
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		return &issueErr{http.StatusInternalServerError, "internal", "roster unavailable"}
+	}
+	ref, re := locateAgent(roster, a)
+	if re != nil {
+		return nil // checkAssignee passed it
+	}
+	if rf := s.assigneeLockRefusal(ctx, tenant, actor, ref.Box, roster); rf != nil {
+		return &issueErr{rf.status, rf.token, rf.detail}
+	}
+	return nil
+}
+
 func (s *Server) issueStore() (store.Issues, *issueErr) {
 	is, ok := s.o.Store.(store.Issues)
 	if !ok {
@@ -348,7 +375,7 @@ func (s *Server) createIssueOn(ctx context.Context, tenant, actor, task string, 
 	}
 	p.Status = nil // the create sets it, with its clock, in the store
 	store.ApplyIssuePatch(&in, p)
-	if ie := s.checkAssignee(ctx, tenant, in.Assignee); ie != nil {
+	if ie := s.checkAssigneeBy(ctx, tenant, actor, in.Assignee); ie != nil {
 		return store.Issue{}, ie
 	}
 	if ie := s.checkEpicField(ctx, tenant, q); ie != nil {
@@ -395,7 +422,7 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 		return store.Issue{}, ie
 	}
 	if p.Assignee != nil {
-		if ie := s.checkAssignee(ctx, tenant, *p.Assignee); ie != nil {
+		if ie := s.checkAssigneeBy(ctx, tenant, actor, *p.Assignee); ie != nil {
 			return store.Issue{}, ie
 		}
 	}

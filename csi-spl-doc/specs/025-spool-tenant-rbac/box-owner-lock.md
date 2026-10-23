@@ -245,6 +245,54 @@ and drops a delivery whose `from_box` is not itself, `box-wui` or a peer box, or
 an owner. This catches a hub that lost its check (a bad deploy); it does not catch a hub that lies about
 `typed_by` (8.2).
 
+### 5.4 As built: the view and admin points (row B5, SPL-2991)
+
+Code: `internal/hub/box_lock_view.go` (`lockView` and its one predicate `hiddenByLock(from_box, to_box)`,
+`topicLockHidden`, `fileLockHidden`, `adminLockRefusal`, `seatLockRefusal`, `channelLockRefusal`, the live
+snapshot `lockSnaps`); store `LockedBoxes` (`internal/store/box_locks_tenant.go`, the workspace's locked box
+ids, 5 s cache that a lock write through the same store clears) and `TopicAccess.Boxes` (every non-empty
+`from_box` / `to_box` of the topic). A workspace with no lock pays the one `LockedBoxes` read per request and
+nothing else. Test: `TestBoxLockViewPaths` (`internal/hub/box_lock_view_test.go`), one pair per path: the owner
+sees or changes it, the other admin is hidden, 404 or 403 `box_locked`, and the admin's control on the open box
+passes.
+
+| path | where | what a non-owner gets |
+|---|---|---|
+| 4 | `topicDoor` (`privacy.go`): `canReadTopic` and the fused page door (`view.go`); the topic list and its inline messages; the topic page; search (`search.go`: message, file, box and robot hits, topic hits by their `TopicAccess`); flow (`flow.go`, the page and the live event) | a topic that touches a locked box reads 404 and leaves every list; a message or event from or to one is left out |
+| 4b | `wants` (`wui.go`), so every live frame that asks it (new posts, edits, reactions, moves, merges, archive); subscribe goes through `canReadTopic` | no frame; subscribe answers `not_found` |
+| 5 | `handleViewRoster` (`view.go`); the welcome presence snapshot (`wui.go`) | the box's row and its agents' presence are left out |
+| 5b | `handleBoxStats` (`box_stats.go`); `handleAgentLifecycleEvents` (`agent_lifecycle.go`) | the box's rows, hours and lifecycle events are left out |
+| 6 | `fileReadableBy` (`rest.go`), so download, delete and re-attach | 404, unless a carrier the reader may read is not hidden |
+| 8 | `handlePin`, `handleRevoke` (`rest.go`), after the root signature | 403, audit `pin` / `revoke` |
+| 8b | `handleListPins` (`rest.go`) | the locked pin is listed only to the box itself, a peer box of its lock, or an owner's browser token |
+| 8c | join token mint and redeem, seat revoke (`join_tokens.go`) | 403, audit `join_token` / `seat_revoke` |
+| 8d | sender list `PUT` / `DELETE` (`sender_allow.go`, bare id by the roster); the channel AI agents switch when the channel holds an agent of a locked box (`channel_ai_agents.go`) | 403, audit `sender_allow` / `channel_ai_agents` |
+| 10b | `PATCH /v1/operator/fleet-load` (`fleet_load.go`) when `boxes` or `box_order`, stored or new, names a locked box; the `GET` drops it | 403, audit `operator_workspace` |
+| 11 | issue create and update (`checkAssigneeBy`, `issues.go`) | 403, audit `issue_assign`; an agent of the locked box may still assign its own box |
+
+Where it differs from 5.1 and 5.2:
+
+- A topic is hidden whole when ANY of its messages touches a locked box, not message by message: its list row
+  carries the first message's subject and its participants. The lobby is the exception: every member shares
+  it, so only its hidden messages go.
+- A hidden read writes no audit row (like `fallbackLockSkip`): it refuses nothing the reader asked to change,
+  and a list read would write one row per hidden topic. Every 403 writes one.
+- `hide_posts = false` is not honoured yet: every lock hides.
+- The live fan-out runs under the hub mutex and reads the locks last read for the workspace (each view read,
+  subscribe and stored message refreshes them). A lock made on another instance reaches its live frames after
+  that instance's next read (the 5 s cache).
+
+Not covered by this row:
+
+- `agent_split.go` and `operator_workspaces.go` are unchanged: their routes name no box or agent (per-kind
+  vendor weights; whole workspaces). The agent lifecycle `PATCH` is workspace-wide and names no box either.
+- The live roster and presence broadcasts at a box's connect (`broadcastRoster` in `ws.go`, the path 12 lane's
+  file; the presence frames in `channels.go`, B3's): an open socket of a non-owner still sees the locked box
+  come online. The welcome snapshot and `GET /v1/view/roster` are filtered.
+- The flow day fold (`flow_fold.go`) and the flow counts; the sender list `GET`; the lifecycle aggregates; the
+  DM counts and pointers of a topic list.
+- Box-session lane reads (`box_stats_list`, `lifecycle_*`, the fleet load lane): a box, not a human, asks.
+
 ## 6. Data, routes and audit
 
 ### 6.1 Tables (rdb `<next>_box_locks.sql`, row B1)

@@ -176,7 +176,7 @@ func (s *Server) handlePatchAgentLifecycle(w http.ResponseWriter, r *http.Reques
 
 // GET /v1/tenant/agent-lifecycle/events?since=&limit=
 func (s *Server) handleAgentLifecycleEvents(w http.ResponseWriter, r *http.Request) {
-	t, _, al, ok := s.agentLifecycleActor(w, r)
+	t, a, al, ok := s.agentLifecycleActor(w, r)
 	if !ok {
 		return
 	}
@@ -202,6 +202,9 @@ func (s *Server) handleAgentLifecycleEvents(w http.ResponseWriter, r *http.Reque
 		limit = n
 	}
 	evs, err := al.ListLifecycleEvents(r.Context(), t.ID, since, limit)
+	if err == nil {
+		evs, err = s.lockKeepLifecycle(r.Context(), t.ID, a.HumanID, evs) // the box owner lock (path 5b, row B5)
+	}
 	if err == nil {
 		var ag []store.LifecycleAggregate
 		if ag, err = al.LifecycleAggregates(r.Context(), t.ID, since); err == nil {

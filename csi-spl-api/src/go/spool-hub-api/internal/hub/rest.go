@@ -330,6 +330,12 @@ func (s *Server) fileReadableBy(ctx context.Context, tenant, fileID, box, hum st
 			may, err = s.o.Store.FileReadableByHuman(ctx, tenant, fileID, hum, mine, now)
 		}
 	}
+	if err == nil && may && box == "" {
+		// The box owner lock (path 6, row B5): only through a carrier no
+		// lock hides from this human. Download, delete and attach all ask.
+		hidden, herr := s.fileLockHidden(ctx, tenant, fileID, hum)
+		return !hidden && herr == nil, herr
+	}
 	if err != nil || may {
 		return may, err
 	}
@@ -387,7 +393,7 @@ func (s *Server) routePins(mux *http.ServeMux) {
 
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
-	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
+	t, tokBox, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
 	if !ok {
 		return
 	}
@@ -399,6 +405,9 @@ func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pins, err := s.o.Store.ListPins(r.Context(), t.ID)
+	if err == nil {
+		pins, err = s.lockKeepPins(r.Context(), t.ID, tokBox, s.tokenMember(r), pins) // path 8b, row B5
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "pins unavailable")
 		return
@@ -466,6 +475,12 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		writeUnpaid(w)
 		return
 	}
+	// The box owner lock (path 8, row B5): the root key never re-keys a
+	// locked box; its key changes only through a K_lock-signed rebind.
+	if rf := s.adminLockRefusal(r.Context(), t.ID, req.BoxID, "", boxLockPathPin); rf != nil {
+		writeLockRefusal(w, rf)
+		return
+	}
 	_, pinErr := s.o.Store.GetPin(r.Context(), t.ID, req.BoxID)
 	if errors.Is(pinErr, store.ErrNotFound) {
 		pins, err := s.o.Store.ListPins(r.Context(), t.ID)
@@ -520,6 +535,10 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
+		return
+	}
+	if rf := s.adminLockRefusal(r.Context(), t.ID, req.BoxID, "", boxLockPathRevoke); rf != nil {
+		writeLockRefusal(w, rf) // the box owner lock (path 8, row B5)
 		return
 	}
 	opTS, _ := time.Parse(time.RFC3339, req.TS) // skewOK parsed it already

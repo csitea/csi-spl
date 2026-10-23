@@ -71,7 +71,7 @@ sidecars, dev runs 1 sidecar. So the native path holds on both boxes.
 
 Measure it again: `crontab -l | grep -o '# csi-spl:[a-z0-9:-]*$'`.
 
-Go build caches are pruned by `do_prune_go_build_cache` on its own `*/5` crontab line (`# csi-spl:go-cache-prune`, installed like the box-stats cron by `do_setup_go_cache_prune_cron`): every hour, and on any tick where the filesystem that holds the cache is at or over 85% full.
+Go build caches are pruned by `do_prune_go_build_cache` on its own `*/5` crontab line (`# csi-spl:go-cache-prune`, installed like the box-stats cron by `do_setup_go_cache_prune_cron`): every hour, and on any tick where the filesystem that holds the cache is at or over 85% full. A cache whose user runs a Go build (a `go`, `compile`, `link`, `vet` or lint process of that user) is never pruned that run: a `KEEP busy` line, checked again right before each delete (SPL-2986; 2026-10-23 two pre-push api runs failed with go-build "no such file" under the trim). Each run starts with one timestamped `START` line in `cron.out`.
 
 On both boxes the box Go is go1.26.10 since 2026-10-21 (GO-2026-6809, the stdlib
 crypto/x509 fix that reddened wf 15; owner HUM-10, t1 1e709e5c, poll 09f9bcfa and

@@ -9,7 +9,7 @@
 # users include the CI runner user (GH_RUNNER_USER) when it exists, so a
 # runner cache on / is pruned even when the agents' caches sit on another
 # filesystem. cron.out gets one CACHE line per cache and a WARN for any user
-# whose cache cannot be read.
+# whose cache cannot be read, after one timestamped START line per run.
 #
 #   prune-go-build-cache-cron.sh
 #
@@ -35,6 +35,7 @@ org="${app%%-*}"
 lockdir="${GO_CACHE_LOG_DIR:-/var/${org}/${app}/go-cache-prune}"
 mkdir -p "$lockdir" 2>/dev/null || true
 
+say "START go build cache prune pid=$$"
 ( cd "$ORC" && DRY_RUN=0 GO_CACHE_GATE=1 GO_CACHE_LOCK_FILE="$lockdir/prune.lock" ./run -a do_prune_go_build_cache )
 rc=$?
 [ "$rc" = 0 ] || { say "FAIL go build cache prune rc=$rc"; exit 1; }

@@ -20,6 +20,14 @@
 # @description us). DRY_RUN=1 (the default) prints counts and bytes only.
 # @description Before and after, the cache size and the free space on the
 # @description filesystem that holds it are printed.
+# @description A cache whose user runs go is never pruned: while that user
+# @description has a process whose program is go, compile, link, asm, cgo,
+# @description vet, golangci-lint, gosec, staticcheck or govulncheck, the cache
+# @description is a KEEP busy line and nothing in it is deleted, neither the
+# @description age step nor the size cap. It is checked before the plan and
+# @description again right before each delete (sat 2026-10-23: two pre-push
+# @description api runs failed with go-build "no such file" while the cron
+# @description trimmed the cache under them). gopls is not a build.
 # @description GO_CACHE_GATE=1 (the cron) decides PER CACHE: a cache is
 # @description pruned on the hourly minute (GO_CACHE_HOURLY_MINUTE, default 0)
 # @description or when the filesystem that holds THAT cache is at or over
@@ -266,22 +274,32 @@ go_cache_split_fs() {
   pct="${pct%% *}"
 }
 
-# go_cache_go_busy <user>: 0 when that user's processes include go build,
-# go test or go vet. A full `go clean -cache` is allowed only when this is
-# false; the size cap never runs one (it would drop the warm tail).
+# go_cache_go_busy <user>: 0 when one of that user's processes is a Go
+# build: its program (argv[0], any path) is go, compile, link, asm, cgo, vet,
+# golangci-lint, gosec, staticcheck or govulncheck. Those read and write the
+# cache; a cache is never pruned while this is true. gopls is not counted:
+# it runs for hours and builds nothing.
 go_cache_go_busy() {
-  local u="$1" line
-  while IFS= read -r line; do
-    [[ "$line" =~ (^|[[:space:]/])go[[:space:]]+(build|test|vet)([[:space:]]|$) ]] && return 0
+  local u="$1" prog _
+  while read -r prog _; do
+    [[ "${prog##*/}" =~ ^(go|compile|link|asm|cgo|vet|golangci-lint|gosec|staticcheck|govulncheck)$ ]] && return 0
   done < <(ps -u "$u" -o args= 2>/dev/null || true)
   return 1
+}
+
+# go_cache_keep_busy <user> <dir>: 0 (and one KEEP busy line) when that user
+# runs a Go build right now, so nothing in the cache may be deleted.
+go_cache_keep_busy() {
+  go_cache_go_busy "$1" || return 1
+  do_log "KEEP busy user=$1 path=$2: a go build, test, vet or lint of that user is running; nothing deleted this run"
 }
 
 # go_cache_cap_trim <user> <dir> <age-min> <dry>: one PLAN line for the size
 # cap, then (dry 0) delete the oldest depth-2 files the age step is keeping
 # until du -sb is at or under the cap. Adds those counts to removed_files /
 # removed_bytes. Never runs `go clean -cache`. 1 when the list or the delete
-# fails (nothing from this step is deleted if the list fails).
+# fails (nothing from this step is deleted if the list fails), 3 when the
+# user started a go build after the plan (nothing deleted, KEEP busy).
 go_cache_cap_trim() {
   local u="$1" d="$2" age="$3" dry="$4" gb cap total old_b excess list n=0 s=0 paths
   gb="${GO_CACHE_CAP_GB:-8}"
@@ -308,23 +326,23 @@ go_cache_cap_trim() {
     fi
   fi
   printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s\n' "$u" "$n" "$s" "$gb" "$dry"
+  if [[ "$dry" == 0 && "$n" != 0 ]]; then
+    go_cache_keep_busy "$u" "$d" && return 3
+    printf '%s\n' "$paths" | go_cache_as "$u" xargs -r -d $'\n' rm -f -- ||
+      { do_log "FATAL size-cap delete failed in $d"; return 1; }
+  fi
   removed_files=$(( removed_files + n ))
   removed_bytes=$(( removed_bytes + s ))
-  if [[ "$dry" != 0 || "$n" == 0 ]]; then return 0; fi
-  if go_cache_go_busy "$u"; then
-    do_log "INFO user=$u a go build, test or vet is running: trimming oldest files to the cap, no go clean -cache"
-  fi
-  printf '%s\n' "$paths" | go_cache_as "$u" xargs -r -d $'\n' rm -f -- ||
-    { do_log "FATAL size-cap delete failed in $d"; return 1; }
 }
 
 # go_cache_prune_one <user> <dir> <age> <dry>: check, measure, prune one cache
 # and print its BEFORE / PLAN / AFTER lines. Adds to the caller's
 # removed_files / removed_bytes and sets first_free, first_mount and last_free
 # (the free space on first_mount only, never another filesystem's).
-# 1 when that cache was left untouched (the FATAL is logged).
+# 1 when that cache was left untouched (the FATAL is logged). 0 with a KEEP
+# busy line, nothing deleted, while its user runs a Go build.
 go_cache_prune_one() {
-  local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b after_b
+  local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b after_b crc=0
   real="$(go_cache_as "$u" readlink -f -- "$d" 2>/dev/null || true)"
   depth=0
   [[ -n "$real" ]] && depth="$(awk -F/ '{ print NF }' <<<"$real")"
@@ -336,6 +354,7 @@ go_cache_prune_one() {
     do_log "FATAL $real is not a Go build cache (want a README file and real 00 and ff directories); nothing deleted"
     return 1
   fi
+  go_cache_keep_busy "$u" "$d" && return 0
   before_b="$(go_cache_bytes "$u" "$real")" || { do_log "FATAL cannot measure $real"; return 1; }
   [[ "$before_b" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot measure $real"; return 1; }
   fs_line="$(go_cache_fs "$u" "$real")" || { do_log "FATAL cannot read the filesystem of $real"; return 1; }
@@ -347,8 +366,11 @@ go_cache_prune_one() {
   read -r files bytes <<<"$stats"
   [[ "$files" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
   printf 'PLAN user=%s files=%s bytes=%s age_min=%s dry_run=%s\n' "$u" "$files" "$bytes" "$age" "$dry"
-  go_cache_cap_trim "$u" "$real" "$age" "$dry" || return 1
+  go_cache_cap_trim "$u" "$real" "$age" "$dry" || crc=$?
+  (( crc == 3 )) && return 0
+  (( crc == 0 )) || return 1
   if [[ "$dry" == 0 && "$files" != 0 ]]; then
+    go_cache_keep_busy "$u" "$d" && return 0
     go_cache_as "$u" find "$real" -xdev -mindepth 2 -type f -mmin "+${age}" -delete ||
       { do_log "FATAL delete failed in $real"; return 1; }
   fi

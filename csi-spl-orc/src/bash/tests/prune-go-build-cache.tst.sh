@@ -19,6 +19,11 @@
 #      prune holds the lock for 2 s: it waits, then cuts an over-cap cache to
 #      the 3 GiB low cap. RED CONTROL: no wait -> the cache stays over the cap
 #      (2026-10-19 23:45Z on sat). A lock held past the wait is a FAIL step.
+#   8. a cache whose user runs go (go, compile, link, vet, golangci-lint ...)
+#      is never pruned, neither the age step nor the size cap, also when the
+#      build starts between the plan and the delete; RED CONTROL: the same
+#      cache with an idle user is trimmed; gopls and a mere "go" in an
+#      argument do not count as busy. The cron prints one timestamped line.
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -31,6 +36,22 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
+# fake ps for every run: the cache user is idle unless GO_PS_ARGS_FILE names
+# the args lines to print; from call GO_PS_BUSY_FROM on (counted in
+# GO_PS_COUNT) when set. Nothing here ever reads the box's real processes.
+mkdir -p "$T/ps"
+cat >"$T/ps/ps" <<'STUB'
+#!/usr/bin/env bash
+n=0
+if [ -n "${GO_PS_COUNT:-}" ]; then
+  n=$(( $(cat "$GO_PS_COUNT" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" >"$GO_PS_COUNT"
+fi
+[ "$n" -ge "${GO_PS_BUSY_FROM:-0}" ] && [ -n "${GO_PS_ARGS_FILE:-}" ] && cat "$GO_PS_ARGS_FILE"
+exit 0
+STUB
+chmod +x "$T/ps/ps"
+export PATH="$T/ps:$PATH"
 
 run_prune() {
   # $1 dir  $2 DRY_RUN  $3 extra env assignments (a single string, optional)
@@ -347,27 +368,8 @@ out="$(run_prune "$SD" 1 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1")"; rc=$
   pass "DRY_RUN prints the cap plan and deletes nothing" ||
   fail "cap dry (rc=$rc): $out"
 
-mkdir -p "$T/busy"
-cat >"$T/busy/ps" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "/usr/local/go/bin/go test ./..."
-STUB
-cat >"$T/busy/go" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >>"${GO_STUB_LOG:?}"
-exit 0
-STUB
-chmod +x "$T/busy/ps" "$T/busy/go"
-SB="$T/cap-busy"
+SB="$T/cap-bad"
 mk_sized "$SB"
-: >"$T/go.log"
-out="$(run_prune "$SB" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1 PATH=$T/busy:$PATH GO_STUB_LOG=$T/go.log")"; rc=$?
-if [[ $rc -eq 0 ]] && trimmed_to_1g "$SB" && [[ "$out" == *'no go clean -cache'* ]] && ! grep -q 'clean' "$T/go.log"; then
-  pass "a busy go test: oldest files trimmed to the cap, go clean -cache is not run"
-else
-  fail "cap busy (rc=$rc log=$(cat "$T/go.log" 2>/dev/null)): $out"
-fi
-
 out="$(run_prune "$SB" 0 "GO_CACHE_CAP_GB=no")"; rc=$?
 [[ $rc -ne 0 && -f "$SB/ff/new" && "$out" == *'GO_CACHE_CAP_GB'* && "$out" == FATAL* ]] &&
   pass "a bad GO_CACHE_CAP_GB is refused" ||
@@ -487,6 +489,57 @@ if [[ $rc -eq 2 && "$out" == *"whole numbers, got 'x'"* ]]; then
 else
   fail "7. bad wait (rc=$rc): $out"
 fi
+
+# 8. never prune a cache while its user runs go ------------------------------
+# 2026-10-23 on sat: two full-tier pre-push api runs failed with go-build "no
+# such file" while the */5 cron trimmed the box user's cache at 86% (n=2).
+# The ps stub plays the user's processes; the go stub logs any go call.
+cat >"$T/ps/go" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${GO_STUB_LOG:-/dev/null}"
+exit 0
+STUB
+chmod +x "$T/ps/go"
+printf '%s\n' "/usr/local/go/bin/go test -race ./..." >"$T/ps-go-test"
+printf '%s\n' "/usr/local/go1.26.10/pkg/tool/linux_amd64/compile -o /tmp/go-build1/b001/_pkg_.a -p x" >"$T/ps-compile"
+printf '%s\n' "/opt/go/bin/gopls serve" "vim go.mod" "bash -c cd /x && go" "git log --grep go" >"$T/ps-idle-lookalikes"
+
+S8="$T/busy-cap"
+mk_sized "$S8"
+: >"$T/go.log"
+out="$(run_prune "$S8" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test GO_STUB_LOG=$T/go.log")"; rc=$?
+if [[ $rc -eq 0 && -f "$S8/00/old" && -f "$S8/ff/mid" && -f "$S8/ff/new" && "$out" == *"KEEP busy user=$(id -un) path=$S8"* ]] \
+  && ! grep -q clean "$T/go.log"; then
+  pass "8. a running go test: the over-cap cache is not trimmed (a KEEP busy line), no go clean -cache"
+else
+  fail "8. busy cap (rc=$rc): $out"
+fi
+
+S8a="$T/busy-age"
+mk_cache "$S8a"
+out="$(run_prune "$S8a" 0 "GO_CACHE_GATE=1 GO_CACHE_USED_PCT=90 GO_CACHE_NOW_MIN=30 GO_PS_ARGS_FILE=$T/ps-compile")"; rc=$?
+[[ $rc -eq 0 && -f "$S8a/00/aa/old" && "$out" == *'KEEP busy'* ]] &&
+  pass "8. a running compile at 90% on the */5 gate: the old file is not deleted either" ||
+  fail "8. busy age (rc=$rc): $out"
+
+mk_sized "$S8"
+out="$(run_prune "$S8" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test GO_PS_BUSY_FROM=2 GO_PS_COUNT=$T/ps.count")"; rc=$?
+[[ $rc -eq 0 && -f "$S8/00/old" && "$out" == *'KEEP busy'* && "$out" == *'PLAN user='*'cap_gb=1'* ]] &&
+  pass "8. a go build that starts after the plan: checked again before the delete, nothing removed" ||
+  fail "8. busy after plan (rc=$rc count=$(cat "$T/ps.count" 2>/dev/null)): $out"
+
+mk_sized "$S8"
+out="$(run_prune "$S8" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-idle-lookalikes")"; rc=$?
+if [[ $rc -eq 0 ]] && trimmed_to_1g "$S8" && [[ "$out" != *'KEEP busy'* ]]; then
+  pass "8. RED CONTROL: gopls, an editor on go.mod and a bare 'go' word are idle: the same cache is trimmed to the cap"
+else
+  fail "8. idle control (rc=$rc): $out"
+fi
+
+out="$(GO_CACHE_LOG_DIR="$T/log" bash "$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z START go build cache prune' <<<"$out")" -eq 1 ]] &&
+  pass "8. the cron prints ONE timestamped START line per run" ||
+  fail "8. cron timestamp (rc=$rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

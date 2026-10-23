@@ -55,7 +55,7 @@ describe('pages/calendar.vue: the default week is the viewer\'s', () => {
 })
 
 describe('CalendarPhone: the fetch holds the viewer\'s days', () => {
-  const src = read('src/components/CalendarPhone.vue')
+  const src = read('src/composables/useCalendarPhoneEvents.ts')
   it('fetchRange asks calLoadWindow, not the UTC midnights of the range', () => {
     assert.match(src, /calLoadWindow\(r\.from, r\.to\)/)
     assert.doesNotMatch(src, /\$\{r\.(from|to)\}T00:00:00Z/)

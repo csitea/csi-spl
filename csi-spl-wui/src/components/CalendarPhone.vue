@@ -231,15 +231,13 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
-import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
-import { hubJsonHeaders } from '~/utils/hub-headers'
-import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { calDeadline } from '~/utils/calendar-event-form.mjs'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
-import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
-import { calAddDays, calLoadWindow } from '~/utils/calendar-year.mjs'
+import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
+import { calAddDays } from '~/utils/calendar-year.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
 import { useCalendarPhoneTurn } from '~/composables/useCalendarPhoneTurn'
+import { useCalendarPhoneEvents } from '~/composables/useCalendarPhoneEvents'
 import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
 
 const CalendarPhoneWeek = defineAsyncComponent(() => import('./CalendarPhoneWeek.vue'))
@@ -285,6 +283,9 @@ function onSegKey(e: KeyboardEvent) {
    target at once instead of waiting for the router's round trip */
 const shownDay = ref(props.focus)
 watch(() => props.focus, (d) => { shownDay.value = d })
+
+/* ---- events: useCalendarPhoneEvents (the shown range, neighbours prefetched) ---- */
+const { items, state } = useCalendarPhoneEvents({ api, view, shownDay, today: () => props.today })
 
 const names = computed(() => ({
   months: Array.from({ length: 12 }, (_, i) => t(`calendar.months.m${i + 1}`)),
@@ -415,65 +416,6 @@ function goToday() {
   emit('move', props.today)
 }
 
-/* ---- events: GET /v1/calendar/events for the shown range, the two
-   neighbours prefetched; a newer settle aborts the older fetches ---- */
-const items = shallowRef<CalendarItem[]>([])
-const state = ref<'loading' | 'ready' | 'failed'>('loading')
-const cache = new Map<string, CalendarItem[]>()
-let ctl: AbortController | null = null
-
-async function fetchRange(r: { from: string, to: string }, signal: AbortSignal): Promise<CalendarItem[]> {
-  const key = `${r.from}/${r.to}`
-  const hit = cache.get(key)
-  if (hit) return hit
-  /* a day wider than the range's UTC midnights: a timed event is drawn on
-     the viewer's day, so local Monday 00:30 at +03 is Sunday 21:30Z */
-  const { start, end } = calLoadWindow(r.from, r.to) || { start: '', end: '' }
-  let body: { events?: CalendarItem[] }
-  if (api.mock) {
-    const { mockCalendarEvents, mockWithIssueDeadlines } = await import('~/utils/calendar-mock.mjs')
-    /* SPL-2034: the mock workspace's issue deadlines, as the hub's */
-    const rows = await api.listIssues().then((r) => r.issues, () => [])
-    body = mockWithIssueDeadlines(mockCalendarEvents(start, end, props.today), rows)
-  } else {
-    const q = new URLSearchParams({ start, end })
-    const res = await fetch(`${api.base}/v1/calendar/events?${q}`, { credentials: api.credentials, headers: hubJsonHeaders(api.token), signal })
-    if (!res.ok) throw new Error('calendar events ' + res.status)
-    body = await res.json()
-  }
-  const list = Array.isArray(body?.events) ? body.events : []
-  if (!signal.aborted) cache.set(key, list)
-  return list
-}
-
-async function settle() {
-  ctl?.abort()
-  const mine = new AbortController()
-  ctl = mine
-  const timer = setTimeout(() => mine.abort(), DOC_READ_TIMEOUT_MS)
-  const day = shownDay.value
-  const v = view.value
-  const r = calPhoneRange(v, day)
-  if (!r) return
-  state.value = cache.has(`${r.from}/${r.to}`) ? state.value : 'loading'
-  try {
-    const list = await fetchRange(r, mine.signal)
-    if (mine.signal.aborted) return
-    items.value = list
-    state.value = 'ready'
-    for (const dir of [1, -1]) {
-      const n = calPhoneRange(v, calPhoneStep(v, day, dir))
-      if (n && !mine.signal.aborted) await fetchRange(n, mine.signal).catch(() => [])
-    }
-  } catch {
-    if (mine.signal.aborted) return
-    items.value = []
-    state.value = 'failed'
-  } finally {
-    clearTimeout(timer)
-  }
-}
-watch([view, shownDay], () => { void settle() })
 /* 089 T006: /calendar?event=<id> (a reminder's Open) peeks that event once
    the shown range holds it (spec 106 T011, as the desktop's main view) */
 const route = useRoute()
@@ -553,22 +495,7 @@ onBeforeRouteLeave(() => {
   window.addEventListener('popstate', () => setTimeout(closePeek, 0), { once: true })
   return false
 })
-function onChanged() {
-  cache.clear()
-  void settle()
-}
-onMounted(() => {
-  void settle()
-  window.addEventListener(CALENDAR_CHANGED_EVENT, onChanged)
-  /* SPL-2034: a deadline saved in another tab shows on return */
-  window.addEventListener('focus', onChanged)
-})
-onBeforeUnmount(() => {
-  ctl?.abort()
-  window.removeEventListener(CALENDAR_CHANGED_EVENT, onChanged)
-  window.removeEventListener('focus', onChanged)
-  clearTimeout(noticeTimer)
-})
+onBeforeUnmount(() => clearTimeout(noticeTimer))
 
 /* ---- the page turn (spec 4.3, H2, H6): useCalendarPhoneTurn ---- */
 const viewEl = ref<HTMLElement | null>(null)

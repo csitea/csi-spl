@@ -24,8 +24,9 @@
 # DRY_RUN=1 (default) prints each volume it would remove with its size, then
 # the count and the total, and changes nothing.
 #
-# Exit: 0 nothing to remove; 1 a volume was (or would be) removed, or a
-# removal failed; 2 docker unusable or a bad setting.
+# Exit: 0 nothing failed, whether or not a volume was (or would be) removed
+# (the summary line says how many); 1 a removal or the build-cache prune
+# failed; 2 docker unusable or a bad setting.
 #
 # Environment variables:
 #   DRY_RUN: 1 (default) plans only; 0 removes.
@@ -149,6 +150,6 @@ do_docker_volume_prune() {
     fi
   fi
 
-  ((n_done > 0 || failed > 0)) && return 1
+  ((failed > 0)) && return 1
   return 0
 }

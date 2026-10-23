@@ -89,8 +89,8 @@ CREATE TABLE hours_days (
 CREATE INDEX hours_days_day ON hours_days (tenant_id, day);
 
 CREATE TABLE hours_changes (
-    change_id  bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id  text        NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
+    change_id  bigint      GENERATED ALWAYS AS IDENTITY,
     actor      text        NOT NULL CHECK (length(actor) BETWEEN 1 AND 200),
     actor_kind text        NOT NULL CHECK (actor_kind IN ('member', 'terminal', 'sweep')),
     at         timestamptz NOT NULL DEFAULT now(),
@@ -101,14 +101,15 @@ CREATE TABLE hours_changes (
     before     jsonb       NULL CHECK (octet_length(before::text) <= 16384),
     after      jsonb       NULL CHECK (octet_length(after::text) <= 16384),
     reason     text        NULL CHECK (length(reason) <= 500),
+    PRIMARY KEY (tenant_id, change_id),
     CHECK (actor_kind <> 'sweep' OR actor = 'sweep')
 );
 CREATE INDEX hours_changes_member_at ON hours_changes (tenant_id, member_id, at);
 CREATE INDEX hours_changes_at ON hours_changes (at);
 
 CREATE TABLE hours_adjustments (
-    adjustment_id uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id     text        NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
+    adjustment_id uuid        NOT NULL DEFAULT gen_random_uuid(),
     member_id     text        NOT NULL CHECK (length(member_id) BETWEEN 1 AND 200),
     period_start  date        NOT NULL, -- the open period it lands in
     corrects_day  date        NOT NULL,
@@ -118,6 +119,7 @@ CREATE TABLE hours_adjustments (
     reason        text        NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
     created_by    text        NOT NULL CHECK (length(created_by) BETWEEN 1 AND 200),
     created_at    timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, adjustment_id),
     CHECK (corrects_day < period_start)
 );
 CREATE INDEX hours_adjustments_period ON hours_adjustments (tenant_id, member_id, period_start);

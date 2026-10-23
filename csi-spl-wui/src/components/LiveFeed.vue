@@ -170,12 +170,10 @@ import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu.mjs'
 import { useLive } from '~/composables/useLive'
-import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { useTopicCardNew } from '~/composables/useTopicCardNew'
 import { useUnreadOrder } from '~/composables/useUnreadOrder'
 import { seatDividerId } from '~/utils/seat-divider.mjs'
-import { landFeed, rowEl, unreadLandingId } from '~/utils/unread-landing.mjs'
 import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
@@ -361,92 +359,13 @@ const feedRows = computed<FeedItem[]>(() => {
 })
 const { drawnItems, windowed, spacerTop, spacerBottom, drawRow } = useFeedWindow({ items: () => feedItems.value, on: () => props.virtual === true, root }) /* SPL-2146 */
 
-/* The jump button shows only while the divider is off screen (scrolled away).
-   Visibility is measured on scroll with getBoundingClientRect — deliberately
-   not an observer (load-more-30 keeps the feed free of auto-load-on-scroll). */
-const dividerVisible = ref(false)
-/* CLE-77905 (owner, t1 05e24244, 2026-10-01: "Just remove it for now"): NOT on
-   a phone. It was meant to take the reader to the first unread message
-   (CLE-77804), but in newest-first the unread sit at the top, so it showed
-   "1 new" over the top card while the reader was already there - its jump to
-   top 0 moved nothing and the pill kept catching taps. Bring it back on
-   phones only once it has a target the reader is not already looking at. */
+/* CLE-77905: no unread jump on a phone (useLiveFeedUnreadJump); the thread arrow is phone-only */
 const phone = useMobileStack().isMobile
-const showUnreadJump = computed(() => !phone.value && newCount.value > 0 && !pill.value && !dividerVisible.value)
-function dividerEl(): HTMLElement | null {
-  return root.value?.querySelector<HTMLElement>('[data-testid="new-divider"]') || null
-}
-/* SPL-2430: where the unseen start (unreadLandingId); on screen hides the pill */
-function landingEl(): HTMLElement | null {
-  return newestLast.value ? dividerEl() : rowEl(root.value, unreadLandingId(shown.value, props.unreadBoundary, viewerId.value, false))
-}
-function measureDivider() {
-  const el = landingEl()
-  if (!el) {
-    dividerVisible.value = false
-    return
-  }
-  const scroller = el.closest<HTMLElement>('.feed-body')
-  if (!scroller) {
-    dividerVisible.value = true
-    return
-  }
-  const er = el.getBoundingClientRect()
-  const sr = scroller.getBoundingClientRect()
-  dividerVisible.value = er.bottom > sr.top && er.top < sr.bottom
-}
-function onFeedScroll() {
-  if (firstNewId.value) measureDivider()
-  if (phone.value && props.holdScroll) measureJump()
-}
-
 /* the phone thread's arrow to its other end (useLiveFeedThreadEnds) */
 const { jumpEnds, measureJump, jumpThreadEnd } = useLiveFeedThreadEnds({ root, phone, newestLast, holdScroll: () => props.holdScroll, rowCount: () => props.rows.length })
-
-async function jumpToUnread() {
-  const el = dividerEl() || await drawRow('__new-divider__', dividerEl) /* SPL-2146: maybe not drawn */
-  const scroller = el?.closest<HTMLElement>('.feed-body')
-  if (!scroller) return
-  hold()
-  /* newest-last: the unread block starts at the divider, read down from there.
-     newest-first: the unread sit at the top of the feed — go up to them. */
-  if (newestLast.value && el) scrollRowToTop(scroller, el)
-  else scroller.scrollTo({ top: 0, behavior: 'auto' })
-}
-
-/* On open (a new boundary, once the rows are in) land where the unseen start
-   (SPL-2430, owner t1 89010926): newest-last the divider, newest-first the
-   newest unseen, held while the cards settle (landFeed). Then measure whether
-   the divider is on screen for the jump button. */
-let dividerDone = ''
-let stopLanding: (() => void) | null = null
-watch(() => props.unreadBoundary, () => { dividerDone = '' })
-watch(() => [firstNewId.value, props.rows.length] as const, async ([id]) => {
-  await nextTick()
-  if (id && id !== dividerDone) {
-    dividerDone = id
-    landUnread()
-  }
-  measureDivider()
-}, { immediate: true })
-function landUnread() {
-  stopLanding?.()
-  /* an async pane renders before it is in the page (null): onMounted lands it */
-  stopLanding = landFeed(root.value, landingEl, hold, () => newestLast.value)
-}
-
-onMounted(() => {
-  if (typeof document !== 'undefined') document.addEventListener('scroll', onFeedScroll, { capture: true, passive: true })
-  if (firstNewId.value && !stopLanding) {
-    dividerDone = firstNewId.value
-    landUnread()
-  }
-})
-onUnmounted(() => {
-  stopLanding?.()
-  clearTimeout(gateTimer)
-  if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
-})
+/* CLE-77804 / SPL-2430: the "N new" jump and the landing on open (useLiveFeedUnreadJump) */
+const { showUnreadJump, jumpToUnread } = useLiveFeedUnreadJump({ props, root, phone, newestLast, shown, viewerId, firstNewId, newCount, pill, hold, drawRow, measureJump })
+onUnmounted(() => clearTimeout(gateTimer))
 
 const announce = computed(() => {
   const m = props.lastLive

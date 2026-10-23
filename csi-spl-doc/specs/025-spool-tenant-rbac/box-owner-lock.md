@@ -245,6 +245,29 @@ and drops a delivery whose `from_box` is not itself, `box-wui` or a peer box, or
 an owner. This catches a hub that lost its check (a bad deploy); it does not catch a hub that lies about
 `typed_by` (8.2).
 
+**As built (row B7, SPL-2992)**: `internal/spool/lockfilter.go`, called once in `deliverTo`
+(`internal/spool/spool.go`), the one function behind `Deliver`, `DeliverTo` and `DeliverQuiet`. The sidecar
+names each frame's `from_box` with `Store.FromBox(e.FromBox)` at its three delivery calls
+(`internal/hubclient/hubclient.go` `receive`, `backfill.go`, `fallback.go`). Tests: `TestBoxLockFilter`,
+`TestBoxLockFilterQuiet` (`internal/spool/lockfilter_test.go`), `TestSyncBoxLockDrops`
+(`internal/hubclient/box_lock_drop_test.go`).
+
+- The lock the box keeps is the owner's signed statement, `spool lock create` (or `rebind`) output as
+  printed, saved as `lock/lock.signed.json` under the box's keys dir. It is verified on every delivery
+  against `lock/lock.json`: K_lock's signature over `signed_body`, the body in B1's canonical form, and the
+  same tenant, box and `lock_pubkey`.
+- A hub frame never carries `typed_by` (`wire.Frame.TypedBy`: "never on a frame to a box"), so the human
+  the box checks is a browser post's `from`, the same rule as the hub's `lockAdmits` (B3): from `box-wui`
+  only an owner's `HUM-*`; from any other box only the box itself or a peer box. A peer box's post is not
+  checked for a human, as on the hub.
+- A box with no `lock/lock.json` is not sealed: nothing is filtered. A sealed box whose signed lock is
+  missing, malformed, signed by another key or for another box admits only its own box (fail closed, like
+  a tampered row, 6.1).
+- A dropped delivery is not written, rung or copied to the fleet inbox; the sidecar answers it as
+  delivered (no redelivery loop) and logs one line with ids and boxes, never the body.
+- Not in B7: `spool lock create` and `rebind` do not yet write `lock/lock.signed.json` themselves (B4's
+  `cmd/spool/lock.go`); until a later row does, the owner saves the printed output there.
+
 ### 5.4 As built: the view and admin points (row B5, SPL-2991)
 
 Code: `internal/hub/box_lock_view.go` (`lockView` and its one predicate `hiddenByLock(from_box, to_box)`,

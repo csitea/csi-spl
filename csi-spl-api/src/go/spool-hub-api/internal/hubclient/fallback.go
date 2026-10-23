@@ -52,7 +52,7 @@ func (s *Session) receiveFallback(ctx context.Context, raw []byte, agents []stri
 	}
 	s.fetchBlobs(ctx, m)
 	for _, id := range targets {
-		wrote, err := spool.New(s.c.Cfg).DeliverQuiet(m, id)
+		wrote, err := spool.New(s.c.Cfg).FromBox(e.FromBox).DeliverQuiet(m, id)
 		if err != nil {
 			return err
 		}

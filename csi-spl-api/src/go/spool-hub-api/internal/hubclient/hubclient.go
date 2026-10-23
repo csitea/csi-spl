@@ -940,7 +940,7 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 		targets = append(targets, m.To)
 	}
 	for _, id := range targets {
-		wrote, err := spool.New(s.c.Cfg).DeliverTo(m, id)
+		wrote, err := spool.New(s.c.Cfg).FromBox(e.FromBox).DeliverTo(m, id)
 		if err != nil {
 			return fmt.Errorf("%w: %w", errInboxWrite, err)
 		}

@@ -28,10 +28,13 @@ import (
 // clock BounceRetired measures the quarantine against; nil = time.Now (tests
 // set it to cross the quarantine's end without back-dating registry rows).
 // warn takes the warnings of a send that delivered anyway; nil = os.Stderr.
+// fromBox is the from_box of the hub envelope a delivery came in (FromBox,
+// lockfilter.go); "" = this box.
 type Store struct {
-	cfg   *config.Config
-	clock func() time.Time
-	warn  io.Writer
+	cfg     *config.Config
+	clock   func() time.Time
+	warn    io.Writer
+	fromBox string
 }
 
 // now reads s.clock, or time.Now when no clock is set.
@@ -258,7 +261,8 @@ func (s *Store) WriteOutbox(m *msg.Message) error {
 
 // Deliver writes a message that arrived from the hub into the recipient's
 // inbox, unless the same file is already in that inbox or its archive (a hub
-// redelivery is shown once). It reports whether it wrote.
+// redelivery is shown once), or the box lock drops it (lockfilter.go, spec
+// 025 box-owner-lock.md 5.3). It reports whether it wrote.
 func (s *Store) Deliver(m *msg.Message) (bool, error) {
 	return s.DeliverTo(m, m.To)
 }
@@ -280,6 +284,9 @@ func (s *Store) DeliverQuiet(m *msg.Message, id string) (bool, error) {
 func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 	if !msg.ValidID(id) {
 		return false, fmt.Errorf("to must be a valid agent id")
+	}
+	if s.lockDrops(m, id) {
+		return false, nil
 	}
 	dm := id == m.To
 	id = liveRoleSeat(s.cfg.SpoolRoot, id)

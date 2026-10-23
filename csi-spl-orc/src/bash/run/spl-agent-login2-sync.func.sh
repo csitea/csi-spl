@@ -1,9 +1,11 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description The second Claude login's sync (SPL-2943; owner HUM-10 t1
-# @description 678d29e2, msg abcbed75): the owner keeps the backup account's
-# @description Claude config (credential, session file, settings) in a folder
-# @description under the box user and renews it; this action copies it, one
+# @description 678d29e2, msg abcbed75): the backup account's Claude config
+# @description (credential, session file, settings) is the box user's own main
+# @description Claude config folder (owner choice B, msg d168e017: the owner's login and
+# @description the backup account are the same), renewed by its own use;
+# @description this action only reads it and copies it, one
 # @description way, into the agent user's second config folder, the one the
 # @description claude2 vendor step starts claude with (CLAUDE_CONFIG_DIR,
 # @description do_spl_role_failover). Run by the box cron (row login2-sync of
@@ -11,8 +13,9 @@
 # @description Guards (c-002 430b912f):
 # @description   1. the source is ONE setting, LOGIN2_SYNC_SRC (else
 # @description      SPOOL_LOGIN2_SRC in box.env); unset or missing = a WARN
-# @description      and nothing copied; never the box user's or the agent
-# @description      user's main ~/.claude, and never the destination itself.
+# @description      and nothing copied; the box user's own main config folder
+# @description      is allowed (owner B); never the agent user's main
+# @description      ~/.claude, and never the destination itself.
 # @description   2. newer only: copied only when the source credential's
 # @description      claudeAiOauth.expiresAt is later than the destination's
 # @description      (none there = 0); never the other way.
@@ -22,9 +25,10 @@
 # @description Prints only "copied, expires <UTC>" or why not: never content.
 # @description Dry run unless DRY_RUN=0.
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param LOGIN2_SYNC_SRC (optional) - the backup config folder the owner keeps (default: SPOOL_LOGIN2_SRC of box.env; none = WARN, no-op)
+# @param LOGIN2_SYNC_SRC (optional) - the backup config folder, the box user's own Claude config folder (default: SPOOL_LOGIN2_SRC of box.env; none = WARN, no-op)
 # @param CLAUDE2_CONFIG_DIR (optional) - the agent user's second config folder, default <agent home>/.claude-2 (the same default as do_spl_role_failover)
 # @param SPOOL_AGENT_USER (optional) - default SPOOL_AGENT_USER of box.env, else this user
+# @param LOGIN2_AGENT_HOME (optional, tests) - the agent user's home (default: from getent)
 # @param LOGIN2_SUDO (optional, tests) - the prefix that runs as the agent user ("" = none)
 # @example ./run -a do_spl_agent_login2_sync
 # @example DRY_RUN=0 ./run -a do_spl_agent_login2_sync
@@ -40,7 +44,7 @@ do_spl_agent_login2_sync() {
   user="${SPOOL_AGENT_USER:-}"
   [[ -n "$user" ]] || user="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
   [[ -n "$user" ]] || user="$(id -un)"
-  home="$(getent passwd "$user" | cut -d: -f6)"
+  home="${LOGIN2_AGENT_HOME:-$(getent passwd "$user" | cut -d: -f6)}"
   [[ -n "$home" ]] || { do_log "FATAL no home for the agent user $user"; return 1; }
   if [[ -n "${LOGIN2_SUDO+x}" ]]; then L2_SU="$LOGIN2_SUDO"
   elif [[ "$user" == "$(id -un)" ]]; then L2_SU=""
@@ -71,12 +75,13 @@ _l2_src() {
   printf '%s' "${s%/}"
 }
 
-# Refuse a source that is a main login or the destination (guard 1).
+# Refuse a source that is the agent user's main login or the destination
+# (guard 1). The box user's own main folder is allowed (owner B, d168e017).
 _l2_refuse() {
   local s d m
   s="$(readlink -m "$1")"; d="$(readlink -m "$2")"
-  for m in "$(readlink -m "$HOME/.claude")" "$(readlink -m "$3/.claude")" "$d"; do
-    [[ "$s" == "$m" ]] && { echo "login2-sync: REFUSED the source $1 is a main login or the destination itself"; return 1; }
+  for m in "$(readlink -m "$3/.claude")" "$d"; do
+    [[ "$s" == "$m" ]] && { echo "login2-sync: REFUSED the source $1 is the agent user's main login or the destination itself"; return 1; }
   done
   [[ "$d" == "$(readlink -m "$3/.claude")" ]] && { echo "login2-sync: REFUSED the destination $2 is the agent user's main login"; return 1; }
   return 0

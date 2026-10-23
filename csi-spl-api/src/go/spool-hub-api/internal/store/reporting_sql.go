@@ -342,9 +342,16 @@ func isIdentStart(c byte) bool {
 func isIdentPart(c byte) bool { return isIdentStart(c) || (c >= '0' && c <= '9') || c == '$' }
 
 // planCallAllowed: a call in the plan text is allowed when it is on the
-// hub's list, a type name with a modifier, or a policy's own read of the
-// scope (current_setting, which the RLS policies deparse into Filter).
+// hub's list, a type name with a modifier, or a policy's own call: its read
+// of the scope (current_setting) and rdb 0215's agent rule
+// (spool_agent_scope_ok, unqualified as the deparser prints it, never in
+// another schema), which the RLS policies deparse into Filter. The admin's
+// own text still may not call either: the hub's lexer checks it against
+// ReportingSQLFunctionAllowed alone.
 func planCallAllowed(qual, name string) bool {
+	if name == "spool_agent_scope_ok" {
+		return qual == ""
+	}
 	if qual != "" && qual != "pg_catalog" {
 		return false
 	}

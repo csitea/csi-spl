@@ -189,7 +189,8 @@ func TestSQLExecutorRefusesRelations(t *testing.T) {
 // the plan check (quoted, qualified or in FROM). Two kinds pass the plan
 // check and are the hub lexer's alone (hub TestSQLStaticGuard): an
 // immutable call the planner folds into a constant (repeat), and
-// current_setting, which every RLS policy deparses into the plan.
+// current_setting and spool_agent_scope_ok (rdb 0215), which the RLS
+// policies deparse into the plan.
 func TestSQLExecutorRefusesFunctions(t *testing.T) {
 	pg, a, _ := sqlTwoTenants(t)
 	for _, q := range []string{
@@ -201,6 +202,28 @@ func TestSQLExecutorRefusesFunctions(t *testing.T) {
 		var ref *ReportingSQLRefusal
 		if _, err := runSQL(t, pg, a, q); !errors.As(err, &ref) {
 			t.Errorf("%s: %v, want a refusal", q, err)
+		}
+	}
+}
+
+// TestSQLPlanPolicyCall (no Postgres): rdb 0215's messages and deliveries
+// policies deparse spool_agent_scope_ok into Filter, so the plan check takes
+// that one name unqualified; the same name in another schema, and any other
+// function of the hub's schema, stay refused (red control: drop the
+// spool_agent_scope_ok case of planCallAllowed and the first row fails).
+func TestSQLPlanPolicyCall(t *testing.T) {
+	for expr, want := range map[string]bool{
+		`((CASE WHEN (NULLIF(current_setting('app.agent_id'::text, true), ''::text) IS NULL) THEN 1 ELSE NULL::integer END IS NOT NULL) OR spool_agent_scope_ok(messages.tenant_id, messages.channel, messages.task_id, messages.is_private_scope))`: true,
+		`public.spool_agent_scope_ok(m.tenant_id, m.channel, m.task_id, m.is_private_scope)`:     false,
+		`pg_catalog.spool_agent_scope_ok(m.tenant_id, m.channel, m.task_id, m.is_private_scope)`: false,
+		`"evil".spool_agent_scope_ok(m.tenant_id, m.channel, m.task_id, m.is_private_scope)`:     false,
+		`embed_visitor_channel('a'::text, 'b'::text)`:                                            false,
+		`public.embed_visitor_channel('a'::text, 'b'::text)`:                                     false,
+	} {
+		err := planExprCheck(expr)
+		var ref *ReportingSQLRefusal
+		if got := err == nil; got != want || (!want && !errors.As(err, &ref)) {
+			t.Errorf("%s: err %v, want allowed=%v", expr, err, want)
 		}
 	}
 }

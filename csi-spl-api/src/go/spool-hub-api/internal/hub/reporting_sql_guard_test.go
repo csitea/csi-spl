@@ -67,6 +67,7 @@ func TestSQLStaticGuard(t *testing.T) {
 		"SELECT public.embed_visitor_channel('a', 'b')":            "forbidden_function",
 		"SELECT query_to_xml('select 1', true, true, '')":          "forbidden_function",
 		"SELECT current_setting('app.tenant_id')":                  "forbidden_function",
+		"SELECT spool_agent_scope_ok('t', 'c', NULL, false)":       "forbidden_function",
 		"SELECT pg_sleep(20)":                                      "forbidden_function",
 		"SELECT repeat('x', 1000000000)":                           "forbidden_function",
 		"SELECT * FROM dblink('x', 'select 1')":                    "forbidden_function",

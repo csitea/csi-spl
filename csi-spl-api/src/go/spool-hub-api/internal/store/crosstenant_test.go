@@ -373,6 +373,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedHours(ctx, pg, s.tenant, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// hours_days, hours_changes, hours_adjustments, hours_ops (rdb 0215,
+	// spec 107 v2 T022): one row of each for the seeded member
+	// (hours_record_rls_test.go).
+	if err := seedHoursRecord(ctx, pg, s.tenant, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
 	// spec 113 T001): a doc with its root and one rev-log entry, then its
 	// workspace_doc_node pair. No store API
@@ -517,11 +523,11 @@ var systemReadTables = map[string]bool{"workspace_doc": true, "workspace_doc_ite
 	"workspace_doc_rev_log": true, "workspace_doc_acl": true}
 
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
-// (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events,
+// (rdb 0131 demo_post_audit), a tenant delete (rdb 0171 usage_events,
 // rdb 0174 workspace_vendor_key_audit, rdb 0187 marketing_post_events,
-// rdb 0203 sql_query_audit).
+// rdb 0203 sql_query_audit) or the retention prune (rdb 0215 hours_changes).
 var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true, "workspace_vendor_key_audit": true,
-	"marketing_post_events": true, "sql_query_audit": true}
+	"marketing_post_events": true, "sql_query_audit": true, "hours_changes": true}
 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212

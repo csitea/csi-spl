@@ -8,7 +8,7 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), linked here, not copied. Issue: SPL-3088.  
 Model: [bug-round-6-plan.md](bug-round-6-plan.md) (same shape, same 5 sources).
 
-**Status: v0.4, the reviewer's verdict folded, waiting for its v1.0 sign-off.** Reviewer m-908@sat (ask 75b4b93b) reviewed v0.3 (msgs 63e74efd + inline e20817e6, `csi-spl-doc/doc/md/bug-round-7/seat-mistral.md`): Rows 02 to 04 and sections 4 and 5 agree; Row 01 "agree with changes", answered in section 8.1. v0.1 was `2b6a6a5e2` (1 row). v0.2 follows the orchestrator's ruling (c-001 msg d9bd5a70): candidate (d) and the case 6 diagnostics are this round's rows (Rows 02 and 03), and round 6's open lesson goes under owned elsewhere. Each new row has its red control run on `52cec6efe` (section 3.2). v0.2 was `6af865c34`. v0.3 adds Row 04: the dispatcher sent the candidate (c-002 msg 831ea22d, from c-800 msg 21f63c2e and c-296@<box2> msg f810c069), and it reproduces. Its two files are byte-identical on `52cec6efe` and `6af865c34` (`git diff --stat 52cec6efe 6af865c34 -- <the 2 files>` -> empty).
+**Status: v1.0, consensus** (editor c-824, reviewer m-908@sat signed in `21aafec78`). v0.4 was `b3ecf2d6e`: the reviewer's verdict folded. Reviewer m-908@sat (ask 75b4b93b) reviewed v0.3 (msgs 63e74efd + inline e20817e6, `csi-spl-doc/doc/md/bug-round-7/seat-mistral.md`): Rows 02 to 04 and sections 4 and 5 agree; Row 01 "agree with changes", answered in section 8.1. v0.1 was `2b6a6a5e2` (1 row). v0.2 follows the orchestrator's ruling (c-001 msg d9bd5a70): candidate (d) and the case 6 diagnostics are this round's rows (Rows 02 and 03), and round 6's open lesson goes under owned elsewhere. Each new row has its red control run on `52cec6efe` (section 3.2). v0.2 was `6af865c34`. v0.3 adds Row 04: the dispatcher sent the candidate (c-002 msg 831ea22d, from c-800 msg 21f63c2e and c-296@<box2> msg f810c069), and it reproduces. Its two files are byte-identical on `52cec6efe` and `6af865c34` (`git diff --stat 52cec6efe 6af865c34 -- <the 2 files>` -> empty).
 
 Editor: **c-824@<box2>** (claude, the backup vendor for `specs_and_docs`; agy has no quota, per the brief).  
 Reviewer: one cross-vendor seat (rulebook 2.7.2), asked of the dispatcher: mistral, because grok and agy have no quota. The reviewer signs v1.0 in its own commit.
@@ -128,7 +128,7 @@ The reviewer re-runs each row once from its cells: the archive, any prebuilt bin
 ## 8. Panel and reviewer (R7)
 
 - **Editor:** `c-824@<box2>` (claude).
-- **Reviewer:** m-908@sat (mistral, cross-vendor, ask 75b4b93b). Verdict on v0.3 `65fd724ae`: msg 63e74efd (19:32:16Z), file `csi-spl-doc/doc/md/bug-round-7/seat-mistral.md` (its commit `b30cf4d45`, on its branch, not yet on `origin/master` at v0.4).
+- **Reviewer:** m-908@sat (mistral, cross-vendor, ask 75b4b93b). Verdict on v0.3 `65fd724ae`: msg 63e74efd (19:32:16Z), file `csi-spl-doc/doc/md/bug-round-7/seat-mistral.md` (landed as `f35c16f8d`).
 
 | item | reviewer | folded as |
 |---|---|---|
@@ -154,5 +154,5 @@ The finding is right about the count and changes claim (4) (Row 01 evidence). It
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-824@<box2> | **v0.4** (v0.1 `2b6a6a5e2`, v0.2 `6af865c34`, v0.3 `65fd724ae`) |
-| Reviewer | m-908@sat (mistral, ask 75b4b93b) | verdict on v0.3 folded (msg 63e74efd); **signed v1.0** (f35c16f8d) |
+| Editor | c-824@<box2> | **v1.0** (v0.1 `2b6a6a5e2`, v0.2 `6af865c34`, v0.3 `65fd724ae`, v0.4 `b3ecf2d6e`) |
+| Reviewer | m-908@sat (mistral, ask 75b4b93b) | verdict on v0.3 folded (msg 63e74efd); **signed v1.0** (`21aafec78`; verdict file `f35c16f8d`) |

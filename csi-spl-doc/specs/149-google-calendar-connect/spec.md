@@ -1,11 +1,14 @@
 # 149 Per-user Google Calendar connect
 
-Version v0.4 (2026-10-23), the panel draft. Step 2 of the owner rule for a
-big change: the written spec, then the panel, then the build. v0.1
-(`ef6adfcf3`, lane a-658, 2026-10-21), the editor's re-measure (v0.2,
+Version v1.0 (2026-10-24), the panel's signed spec. Step 2 of the owner
+rule for a big change: the written spec, then the panel, then the build.
+v0.1 (`ef6adfcf3`, lane a-658, 2026-10-21), the editor's re-measure (v0.2,
 `9acbb6efe`), the claude seat c-576's review of v0.2 (msg `842249e3`) and
-its re-check of v0.3 (msg `1f8697a5`) (section 10). The agy seat has not reviewed yet; v1.0 follows its review and
-each seat's signature. Nothing in it is built.
+its re-check of v0.3 (msg `1f8697a5`) (section 10). The owner gave the go
+to build on 2026-10-23 21:42Z ("Go, implement", msg `40744f59`, relayed by
+c-002 msg `a9c444bf`), so v1.0 did not wait for the agy seat, which had
+not been placed (agy out of quota); it did not review and does not sign
+(section 11). Nothing in it is built.
 
 Source: prd topic in the owner's workspace,
 `topic:838e3484-d09c-4cd8-b06a-0c211d00e535`. Issue: SPL-3098 (this panel),
@@ -23,7 +26,12 @@ Paths used below:
 Every `file:line` was read on origin/master `dff1b61d6` (the panel sha) by
 the editor and re-read on `19a6be809` for the v0.3 changes (`git diff --stat
 9acbb6efe 19a6be809 -- csi-spl-api csi-spl-rdb csi-spl-cnf csi-spl-wui/src`
-touches none of the cited paths, per the seat), with `git show`, `git grep -n`, `grep -n` or `sed -n` on that
+touches none of the cited paths, per the seat) and checked again for
+v1.0 on `72a60c102` (`git diff --stat dff1b61d6 72a60c102 -- csi-spl-api
+csi-spl-rdb csi-spl-cnf csi-spl-wui/src` -> 11 files, under
+`internal/hubclient/`, `internal/lockkey/`, two help pages, `utils/poll.mjs`
+and two `src/bash` scripts: none of them cited; `ls rdb/ | tail -1` ->
+`0214_topic_priorities.sql`, so `<next>` is still 0215), with `git show`, `git grep -n`, `grep -n` or `sed -n` on that
 tree. Nothing was read from prd or GCP: no GCP call was made. A claim about
 Google's own behaviour that the editor did not test is marked "unchecked,
 I believe".
@@ -129,7 +137,9 @@ It mirrors 090 (`hub/marketing_channels.go`) with 010's nonce cookie added
    `Path=/v1/me/google-calendar/` and the auth `CookieDomain`.
 2. Google's URL carries the scope `openid email <O1 calendar scope>` (cnf
    `gcal.scopes`; `openid email` so the userinfo call answers the Google
-   email that `google_email` stores), `access_type=offline`,
+   email that `google_email` stores; B5 reads the value from cnf and does
+   not hard-code it, so B5 does not wait for O1: the calendar scope is
+   written into cnf with S2, from O1's answer), `access_type=offline`,
    `include_granted_scopes=true`, `prompt=consent`, `state`.
 3. `GET /v1/me/google-calendar/callback?code&state` on the WUI origin
    (Hosting's `/v1/**` rewrite reaches the hub,
@@ -374,26 +384,26 @@ control then carries its twin.
 | C4 | B3 | `Seal` with purpose `spool-gcal-token/v1`, `Open` with the marketing default | no option (`marketing/seal.go:83` `NewSealer(kms, keyName)`) | `ErrOpen` | Go test: red = does not compile on master; twin: the same purpose opens |
 | C5 | B3 | a text sealed with the marketing default still opens | opens | opens (C) | the existing `marketing/seal_test.go`, unchanged |
 | C6 | B4 | fake Google: token exchange, refresh, revoke, events list with `syncToken`, a 410 | n/a | parsed; 410 is `ErrSyncTokenGone` | Go test on `fakegcal` |
-| C7 | B5 | `POST /v1/me/google-calendar/connect` as a member of a `gcal.workspaces` workspace | 404 (no route) | 200 `{authorize_url}` with `access_type=offline`, `include_granted_scopes=true`, `state`, the O1 scope | Go test |
+| C7 | B5 | `POST /v1/me/google-calendar/connect` as a member of a `gcal.workspaces` workspace | 404 (no route) | 200 `{authorize_url}` with `access_type=offline`, `include_granted_scopes=true`, `state`, the scope string read from cnf `gcal.scopes` | Go test |
 | C8 | B5 | the same in a workspace not on the list | 404 | 404 (C) | Go test |
 | C9 | B5 | callback with a valid state and no nonce cookie | n/a | 400 `invalid_state`, nothing stored | Go test; twin: with the cookie, a row is stored |
 | C10 | B5 | callback with a state older than 15 min | n/a | 400, nothing stored | Go test, fake clock |
 | C11 | B5 | after a connect, neither fake token appears in the stored row or in any log line | n/a | true | Go test greps the row and the captured log |
 | C12 | B5 | `GET /v1/me/google-calendar` JSON | n/a | no key containing `token` or `sealed` | Go test |
 | C1b | B1 | `TestCrossTenantEveryTable` and `TestRLSChannelScopeCatalogue` with the new tables | pass | pass (C) | the two Postgres tests: B1 seeds both tables in `store/crosstenant_test.go` and names no `channel_id` column |
-| C13 | B6 | a Spool event the member created: one cycle | not in Google | inserted in the target calendar; a map row with its hash | Go test on `fakegcal` |
-| C14 | B6 | the same event edited in Spool | n/a | one PATCH; a second cycle with no change makes 0 calls | Go test counts the fake's calls |
-| C13b | B6 | the C13 event moved to trash in Spool | n/a | one DELETE at Google, map row gone | Go test; twin: an `updated_at`-only cursor misses it (the test asserts the call) |
-| C13c | B6 | a Spool series with one changed occurrence (a `recurring_event_id` row) | n/a | the series goes once; the exception row is not sent | Go test counts the fake's inserts |
-| C15 | B6 | a new event on the Google side | n/a | a Spool event, `private`, creator the member, `source_key gcal:<conn>:<id>` | Go test |
-| C15b | B6 | a Google event with an empty summary | n/a | stored with the placeholder title; the cycle completes | Go test |
-| C15c | B6 | a Google item with `recurringEventId` | n/a | skipped, no Spool row | Go test |
-| C16 | B6 | another member of the same workspace lists the calendar | n/a | does not see C15's event | Go test through `GET /v1/calendar/events` (`hub/calendar.go:1197`); twin: the connecting member does see it (else the check passes on an empty import) |
-| C17 | B6 | echo: after C13 the fake returns the same item in the next list | n/a | 0 Spool writes | Go test |
-| C18 | B6 | conflict: both sides edited, Google later | n/a | Google's values in Spool; the next cycle makes no PATCH | Go test, fake clock |
-| C19 | B6 | 410 on `syncToken` | n/a | token cleared, full list, no duplicate events | Go test |
-| C20 | B6 | refresh answers `invalid_grant` | n/a | status `revoked`, no further calls | Go test |
-| C21 | B6 | two cycles at once (two goroutines, Postgres) | n/a | each connection synced once; no transaction open during a fake Google call | Postgres test counts lease claims and the fake's calls; twin: a fake clock past 5 min lets the second cycle claim, and the first cycle's next write matches no row and it stops (no write after that) |
+| C13 | B6a | a Spool event the member created: one cycle | not in Google | inserted in the target calendar; a map row with its hash | Go test on `fakegcal` |
+| C14 | B6a | the same event edited in Spool | n/a | one PATCH; a second cycle with no change makes 0 calls | Go test counts the fake's calls |
+| C13b | B6a | the C13 event moved to trash in Spool | n/a | one DELETE at Google, map row gone | Go test; twin: an `updated_at`-only cursor misses it (the test asserts the call) |
+| C13c | B6a | a Spool series with one changed occurrence (a `recurring_event_id` row) | n/a | the series goes once; the exception row is not sent | Go test counts the fake's inserts |
+| C15 | B6b | a new event on the Google side | n/a | a Spool event, `private`, creator the member, `source_key gcal:<conn>:<id>` | Go test |
+| C15b | B6b | a Google event with an empty summary | n/a | stored with the placeholder title; the cycle completes | Go test |
+| C15c | B6b | a Google item with `recurringEventId` | n/a | skipped, no Spool row | Go test |
+| C16 | B6b | another member of the same workspace lists the calendar | n/a | does not see C15's event | Go test through `GET /v1/calendar/events` (`hub/calendar.go:1197`); twin: the connecting member does see it (else the check passes on an empty import) |
+| C17 | B6b | echo: after C13 the fake returns the same item in the next list | n/a | 0 Spool writes | Go test |
+| C18 | B6b | conflict: both sides edited, Google later | n/a | Google's values in Spool; the next cycle makes no PATCH | Go test, fake clock |
+| C19 | B6b | 410 on `syncToken` | n/a | token cleared, full list, no duplicate events | Go test |
+| C20 | B6a | refresh answers `invalid_grant` | n/a | status `revoked`, no further calls | Go test |
+| C21 | B6a | two cycles at once (two goroutines, Postgres) | n/a | each connection synced once; no transaction open during a fake Google call | Postgres test counts lease claims and the fake's calls; twin: a fake clock past 5 min lets the second cycle claim, and the first cycle's next write matches no row and it stops (no write after that) |
 | C22 | B7 | push with a wrong channel token | 404 (no route) | 403, connection not due | Go test; twin: the right token marks it due |
 | C23 | B7 | a channel ending in 12 h; a connected row with no channel | n/a | stopped and created again; created | Go test, fake clock |
 | C23b | B7 | disconnect with a channel | n/a | the fake saw `channels/stop` | Go test |
@@ -409,26 +419,40 @@ control then carries its twin.
 ## 6. Build rows
 
 Disjoint files per row. Data, then API, then sync, then WUI; i18n with the
-agy review last.
+agy review last. Author vendor per the fleet table (`complex_coding` and
+`tests`: claude; `i18n` and `specs_and_docs`: agy; no mistral coding,
+owner 2026-10-17). R7 reviewer (`csi-spl-doc/doc/md/rounds-rulebook.md`
+2.7.2): cross-vendor, named in the row brief before spawn, primary then
+backup. "api tests" = `bash csi-spl-api/src/bash/tests/run-all-tests.sh`;
+"full tier" = `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`
+(a store or migration change, on Postgres).
 
-| row | area | files (only these) | after | cases |
-|---|---|---|---|---|
-| B1 data | rdb, api | new `rdb/<next>_google_calendar.sql`; `store/crosstenant_test.go` (`seedTenantAll`: both tables, same commit, or `TestCrossTenantEveryTable` goes red) | - | C1-C2, C1b |
-| B2 store | api | new `store/gcal.go`, `store/gcal_memory.go`, `store/gcal_postgres.go`, `store/gcal_test.go`; one field in `store/memory.go` (as `marketing *memMarketing`, :72) | B1 | C3 |
-| B3 seal purpose | api | `api/internal/marketing/seal.go` (an AAD option on `NewSealer`, default unchanged), `seal_test.go` | - | C4-C5 |
-| B4 Google client | api | new `api/internal/gcal/` (`client.go`, `oauth.go`, `fakegcal/fakegcal.go`, tests) | - | C6 |
-| B5 connect routes | api, cnf | new `hub/gcal_connect.go` + `_test.go`; new `api/cmd/spool/hub_gcal.go`; one opts line in `api/cmd/spool/hub.go` (as :284); one block in `api/internal/config/config.go`; `hub/server.go`: one Options field (as :225-227) and one route line (:411-450); a `gcal:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes`) and its tpl-gen output | B2, B3, B4 | C7-C12, C24-C24c |
-| B6 sync | api | new `hub/gcal_sync.go` + `_test.go`; new `hub/gcal_map.go` (mapping, hash) + test; one line in `hub/server.go` `RunSweeper` (:585) | B5 | C13-C21 |
-| B7 push | api | new `hub/gcal_push.go` + `_test.go` (the route registered from `gcal_connect.go`'s route func: no new `server.go` line); channel create, renew and stop live here; one call to `s.gcalWatchTick` in `hub/gcal_sync.go` (a B6 file, B7 runs after B6) and one in the disconnect path of `hub/gcal_connect.go` (a B5 file) | B6 | C22-C23b |
-| B8 WUI | wui | `wui/utils/settings-nav.mjs`; one import in `wui/components/SettingsDialog.vue`; new `wui/components/settings/calendar-google.vue`; new `wui/utils/gcal-client.mjs`; `csi-spl-wui/i18n/locales/en.json` (new keys only, the placeholder title of 2.5 included); a new `tests/unit/settings-nav.test.mjs` and its e2e | B5 | C25-C27 |
-| B9 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); then an agy review of the text (`LANE_MIX_KIND=i18n`) before it ships | B8 | C28 |
-| B10 help | doc | a new help page: how to connect, what is shared, how to disconnect; written in its qto doc and exported (`do_spl_doctree_export_md`), as every `csi-spl-doc/doc/help/*.md` is (`csi-spl-doc/doc/help/calendar.md:3`); agy review | B8 | - |
+| row | area | files (only these) | after | cases | test (red on master, green on the row) | author | R7 reviewer (backup) |
+|---|---|---|---|---|---|---|---|
+| B1 data | rdb, api | new `rdb/<next>_google_calendar.sql`; `store/crosstenant_test.go` (`seedTenantAll`: both tables, same commit, or `TestCrossTenantEveryTable` goes red) | - | C1-C2, C1b | the rdb apply + Postgres tests of C1, C2, C1b; full tier | claude | agy (mistral) |
+| B2 store | api | new `store/gcal.go`, `store/gcal_memory.go`, `store/gcal_postgres.go`, `store/gcal_test.go`; one field in `store/memory.go` (as `marketing *memMarketing`, :72) | B1 | C3 | `store/gcal_test.go` (memory and Postgres); api tests; full tier | claude | agy (mistral) |
+| B3 seal purpose | api | `api/internal/marketing/seal.go` (an AAD option on `NewSealer`, default unchanged), `seal_test.go` | - | C4-C5 | `go test ./internal/marketing/`; api tests | claude | agy (mistral) |
+| B4 Google client | api | new `api/internal/gcal/` (`client.go`, `oauth.go`, `fakegcal/fakegcal.go`, tests) | - | C6 | `go test ./internal/gcal/...`; api tests | claude | agy (mistral) |
+| B5 connect routes | api, cnf | new `hub/gcal_connect.go` + `_test.go`; new `api/cmd/spool/hub_gcal.go`; one opts line in `api/cmd/spool/hub.go` (as :284); one block in `api/internal/config/config.go`; `hub/server.go`: one Options field (as :225-227) and one route line (:411-450); a `gcal:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` holding only `openid email` until S2) and its tpl-gen output | B2, B3, B4 | C7-C12, C24-C24c | `hub/gcal_connect_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | agy (mistral) |
+| B6a sync out | api | new `hub/gcal_sync.go` + `_test.go` (claim, lease, refresh, the Spool -> Google half); new `hub/gcal_map.go` (mapping, hash) + test; one line in `hub/server.go` `RunSweeper` (:585) | B5 | C13-C13c, C14, C20, C21 | `hub/gcal_sync_test.go`, `hub/gcal_map_test.go`; api tests; full tier | claude | agy (mistral) |
+| B6b sync in | api | new `hub/gcal_sync_in.go` + `_test.go` (the Google -> Spool half, called from B6a's cycle by one line in `hub/gcal_sync.go`) | B6a, **O1 = A or C** | C15-C19 | `hub/gcal_sync_in_test.go`; api tests; full tier | claude | agy (mistral) |
+| B7 push | api | new `hub/gcal_push.go` + `_test.go` (the route registered from `gcal_connect.go`'s route func: no new `server.go` line); channel create, renew and stop live here; one call to `s.gcalWatchTick` in `hub/gcal_sync.go` (a B6a file, B7 runs after it) and one in the disconnect path of `hub/gcal_connect.go` (a B5 file) | B6a (B6b too if placed) | C22-C23b | `hub/gcal_push_test.go`; api tests | claude | agy (mistral) |
+| B8 WUI | wui | `wui/utils/settings-nav.mjs`; one import in `wui/components/SettingsDialog.vue`; new `wui/components/settings/calendar-google.vue`; new `wui/utils/gcal-client.mjs`; `csi-spl-wui/i18n/locales/en.json` (new keys only, the placeholder title of 2.5 included); a new `tests/unit/settings-nav.test.mjs` and its e2e | B5 | C25-C27 | `pnpm run typecheck`; the new unit test; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | agy (mistral) |
+| B9 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); the agy review of the text is the last step before it ships (`LANE_MIX_KIND=i18n`) | B8 | C28 | the `i18n-untranslated` and `i18n-no-raw-text` ratchet tests | agy | claude (mistral) |
+| B10 help | doc | a new help page: how to connect, what is shared, how to disconnect; written in its qto doc and exported (`do_spl_doctree_export_md`), as every `csi-spl-doc/doc/help/*.md` is (`csi-spl-doc/doc/help/calendar.md:3`); agy review | B8 | - | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude (mistral) |
 
 Order: B1, B3 and B4 may run at once; B2 after B1; B5 after B2, B3 and B4;
-B6 after B5; B7 after B6; B8 after B5; B9 and B10 after B8. B5 (two hunks)
-and B6 (one line) both edit `hub/server.go`: B6 rebases onto B5. Each api row runs
-`bash csi-spl-api/src/bash/tests/run-all-tests.sh`; B1, B2 and B6 run
-`PRE_PUSH_TIER=full ./run -a do_check_pre_push` (store and migration).
+B6a after B5; B6b after B6a and only once O1 is answered A or C (on B it is
+not placed); B7 after B6a, and after B6b when B6b is placed (both edit
+`hub/gcal_sync.go`); B8 after B5; B9 and B10 after B8. B5 (two hunks) and
+B6a (one line) both edit `hub/server.go`: B6a rebases onto B5. If O1 is C,
+the busy-time view of the member's main calendar is one more row after B6b,
+written into this spec first (it needs a wider scope and is not specified
+here).
+
+What waits on the owner: only B6b (O1). O2 and S0-S6 gate switching the
+feature on for members (S5), not any row: every row is tested on the fake
+Google (2.8) and lands behind `gcal.workspaces: []`.
 
 ## 7. Owner steps (never a lane)
 
@@ -447,8 +471,9 @@ it, per env (dev first, then prd).
 
 ## 8. Panel decisions
 
-Editor and the claude seat c-576; the agy seat's dissent goes in its column
-before v1.0.
+Editor and the claude seat c-576. The agy seat did not review (section 11),
+so it recorded no dissent; if it reviews after v1.0, its findings go to the
+dispatcher as a change to this spec, not into this table.
 
 | # | question | decision | reason | dissent |
 |---|---|---|---|---|
@@ -465,7 +490,10 @@ before v1.0.
 
 ## 9. Owner questions
 
-Only the owner can answer these. The dispatcher posts them after v1.0.
+Only the owner can answer these. The dispatcher posts them after v1.0,
+one form per post (`csi-spl-doc/doc/help/how-to-post.md` section 7, rule 1).
+O1 decides whether B6b is placed; O2 decides only how S2 is done. Neither
+holds back B1-B6a or B7-B10.
 
 ```poll
 O1. What should a member's Google Calendar connection do?
@@ -492,10 +520,19 @@ O2. Calendar access is a scope Google reviews. Until Google approves our app, on
 | 2026-10-23 19:28 | c-576 (second box) (claude seat) | review (msg `842249e3`): 12 rows of 1.2 and 2.x re-checked OK (one line fix: `prompt` is :147); 2 WRONG (the `channel_id` column vs `store/channel_scope_rls_test.go:381`; deletes missed by an `updated_at` cursor) and 12 GAPs; folded in as the `watch_*` columns, the lease (P8), the delete cursor (P7), the scope with `openid email`, the workspace-host redirect, `OPTIONS` preflights, B1's `crosstenant_test.go`, B2's `memory.go`, B5's `hub.go` and Options field, channel work moved to B7, empty titles, occurrence exceptions both ways, P10, S0, S5's 030 apply, S6, the O2 text; cases C1b, C13b, C13c, C15b, C15c, C23b, C24b, C24c, C25b and the C4/C16 controls. The editor re-checked its two WRONG rows and the pool, preflight, seed, `memory.go` and `hub.go` claims on `19a6be809` |
 | 2026-10-23 19:3x | c-910@sat | v0.3 landed, `dc9c1b346`; to c-576 for re-check (msg `36d9da8c`) |
 | 2026-10-23 19:4x | c-576 (second box) | re-check of v0.3 (msg `1f8697a5`): every fold present; ran the lease statement verbatim on a throwaway Postgres 16 (claims one of two rows); 1 WRONG (section 4 still said "row is locked") and 2 minor GAPs (a sync past the 5 min lease; where B7's ticker starts); P10 no dissent; would sign once the wording is fixed. Folded in as v0.4: the fencing token and per-page renewal (2.5), the 409 wording (4), the `gcalWatchTick` hook and B7's honest file list, the C21 twin |
-| - | agy seat | pending (held for agy quota, c-002 msg `9ec38fd7`) |
+| - | agy seat | held for agy quota (c-002 msg `9ec38fd7`); never placed before v1.0 |
+| 2026-10-23 21:42 | HUM-10 (owner) | "Go, implement" (msg `40744f59`), relayed by c-002 (msg `a9c444bf`): build without waiting for the agy seat |
+| 2026-10-24 | c-910@sat | v1.0: re-checked on `72a60c102` (no cited path changed), B6 split into B6a / B6b so that only B6b waits on O1, each row's test, author and R7 reviewer, signatures; sent to c-576 to sign |
 
 ## 11. Signatures
 
-v1.0 is signed by each seat's own message on that sha. None yet.
+v1.0 is signed by each seat's own message on that sha.
 
-<!-- version: 0.4 · updated: 2026-10-23 -->
+| seat | vendor | signature |
+|---|---|---|
+| c-910@sat (editor) | claude | this commit |
+| c-576 (second box) | claude | asked to sign on the v1.0 sha; its msg id is recorded here when it answers |
+| m-911@sat | mistral | none: voided by c-002 (msg `cb6c814b`); nothing of it is folded in |
+| agy seat | agy | none: not placed before the owner's go (agy out of quota, c-002 msg `9ec38fd7`); it did not review |
+
+<!-- version: 1.0 · updated: 2026-10-24 -->

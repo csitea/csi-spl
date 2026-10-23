@@ -115,10 +115,34 @@ reaches the topic's readers. Fix: `topic_priority`, through `fanoutTopic`.
 `store/view_changes_postgres.go`); the delta is tested in
 `hub/view_delta_test.go`. The F2 row writes its case there.
 
-## 3. Panel questions P1-P4
+## 3. Seat votes
 
-(Filled in as the seats report; the result is spec.md section 6.)
+### 3.1 mistral seat, m-876
+
+- **Votes** (msg `a88a3228`): AGREE on F1-F6, on P1-P4 as the editor put
+  them (spec section 6, D1-D4), and on every section 7 trim: Q1 -> A, Q3 -> B,
+  Q4 -> the archive policy, Q6 -> per browser, Q7 -> A, Q8 -> A. "No disputed
+  claims"; build rows "correct and disjoint". No dissent.
+- **Its own checks** (msg `00f3e913`, after the editor asked for them in
+  `36f4b025`): it ran three commands on `25e1686d6` and pasted their output:
+  `store/change_stamp_test.go | sed -n 21,25p` (F1), `store/issues.go |
+  sed -n 60,66p` (Q3) and `store/fleet_ask.go | sed -n 251,273p` (P3, Q5).
+  The editor re-ran all three and diffed them: every pasted line matches,
+  and the F1 paste leaves off line 25 (`"rbac_roles", ... "tenant_memberships",`).
+- **How far it reaches:** the seat's votes on the other points restate the
+  editor's evidence and add no command of their own, so they are its
+  agreement, not an independent re-check. Its earlier "attached file"
+  (msg `7c24ae60`) holds the same text as `a88a3228`; a sign message with
+  empty output blocks (`e4d73540`) was followed by `00f3e913`.
+
+### 3.2 agy seat
+
+(Pending: the agy seat is held in the spawn queue while agy is out of quota.)
 
 ## 4. Signatures
 
-(Filled in when each seat signs v1.0 by its own message.)
+| seat | agent | signed | msg id |
+|---|---|---|---|
+| editor | c-875 | spec 150 v1.0 | the v1.0 commit |
+| mistral | m-876 | "SIGN spec 150 v1.0 blob 3c3fab2be6ee973b2ae6f9c0c29bc86719ddd3bb" | `00f3e913` |
+| agy | (pending) | | |

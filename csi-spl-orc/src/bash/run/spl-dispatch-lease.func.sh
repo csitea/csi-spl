@@ -635,16 +635,32 @@ spl_lease_send_esc() {
 # Spec 093 P1 (section 9): the watchdog's verdict $LEASE_DIR/wd.<id>
 # ("HIT <code> <epoch>" or "OK <epoch>") is read too; a HIT at most
 # WD_FRESH s (default 90) old is "wd <code>"; an older one, an OK or no file
-# changes nothing.
+# changes nothing. With "fleet" (spl_fleet_try) a live able seat is also
+# tested for stuck (spl_fleet_stuck), and a change of the verdict is logged.
 spl_lease_agent_able() {
   local id="$1" pid why
   pid="$(spl_lease_agent_pid "$id")"
   if [[ -z "$pid" ]]; then why="no live process"
   else why="$(spl_lease_agent_why "$id" "$pid" dismiss)"
+    [[ -z "$why" && "${2:-}" == fleet ]] && why="$(spl_fleet_stuck "$id" "$pid")" && [[ -n "$why" ]] && why="stuck pid=$pid: $why"
   fi
-  printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
+  if [[ "${2:-}" == fleet ]]; then spl_lease_able_write "$id" "${why:-able}"
+  else printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
+  fi
   [[ -z "$why" ]] && echo "$pid"
   return 0
+}
+
+# spl_lease_able_write <id> <why>: able.<id> holds the latest verdict, each
+# tick overwrites it; a change of verdict, its digits aside (a growing age is
+# no change), is logged once (SPL-3069: on 2026-10-23 the why of the 13:32Z
+# and 13:35Z not-able ticks was gone a tick later). A first "able" is no news.
+spl_lease_able_write() {
+  local f="$LEASE_DIR/able.$1" old=""
+  read -r old 2>/dev/null < "$f" || true
+  printf '%s\n' "$2" > "$f" 2>/dev/null
+  [[ "${old//[0-9]/}" == "${2//[0-9]/}" || ( -z "$old" && "$2" == able ) ]] ||
+    spl_lease_log "ABLE $1: $2 (was: ${old:-unknown})"
 }
 
 # Why the live <pid> of <id> cannot act; nothing when it can: a rotation
@@ -1435,7 +1451,7 @@ spl_fleet_candidate() {
   local id desk
   # the dispatcher is the seat that posts: no desk that can post, no candidate (spec 092 FR-002)
   if [[ "$1" == dispatch ]] && ! desk="$(spl_fleet_desk_able)"; then
-    for id in $(spl_fleet_role_agents dispatch); do printf '%s\n' "$desk" > "$LEASE_DIR/able.$id" 2>/dev/null; done
+    for id in $(spl_fleet_role_agents dispatch); do spl_lease_able_write "$id" "$desk"; done
     return 0
   fi
   for id in $(spl_fleet_role_agents "$1"); do spl_fleet_try "$id" && return 0; done
@@ -1445,13 +1461,8 @@ spl_fleet_candidate() {
 # spl_fleet_try <id>: prints <id> when it is live, able and not stuck;
 # non-zero otherwise, the why left in able.<id>.
 spl_fleet_try() {
-  local id="$1" pid why
-  pid="$(spl_lease_agent_able "$id")"
-  [[ -n "$pid" ]] || return 1
-  why="$(spl_fleet_stuck "$id" "$pid")"
-  [[ -z "$why" ]] && { echo "$id"; return 0; }
-  printf 'stuck pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$id" 2>/dev/null
-  return 1
+  [[ -n "$(spl_lease_agent_able "$1" fleet)" ]] || return 1
+  echo "$1"
 }
 
 # ---- the vendor fallback (SPL-2521, SPL-2544; owner HUM-10 t1 b3e90079) -------
@@ -1887,7 +1898,7 @@ spl_fleet_role_tick() {
   if [[ -z "$cand" ]]; then
     spl_fleet_nocand "$role" "$hm" "$now"; want="$FWANT"
   elif (( FG == 0 )) || { [[ "$hm" == "$me" ]] && (( ct <= ht )); }; then
-    want="$cand@$me"
+    want="$(spl_fleet_seat_move "$role" "$cand" "$ct" "$ht")"
   elif [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then
     # stale, or ours with only a worse vendor left (SPL-2521): a fallback
     # seat waits LEASE_FALLBACK_WAIT per vendor step, a claude seat does not
@@ -1933,6 +1944,58 @@ spl_fleet_role_tick() {
   # the holder (this machine, just written) copies it into every served tenant
   [[ "$won" == true ]] && spl_fleet_mirror_out "$role" "$FH"
   return 0
+}
+
+# ---- a same-box seat move waits out a blip (SPL-3069) ------------------------
+# 2026-10-23 13:32:34Z-13:36:42Z on sat, no rotation: dispatch went c-002 ->
+# c-003 -> c-002 -> c-003 -> c-002, each move telling one seat ACTIVE and the
+# other STANDBY. Each move away followed a watchdog S5 HIT on c-002 (wd.log
+# 13:31:45Z and 13:34:15Z, "the same call with the same result 5 times", OK
+# again 90 s and 60 s later): a fresh HIT is not able (spl_lease_agent_why),
+# the next able seat of the role took the row on that tick, and c-002's next
+# able tick took it back. Now a move between two seats of this box at the
+# same vendor tier is made only once it was wanted LEASE_SEAT_HOLD (2) ticks
+# in a row, the move back too; until then the holder keeps the row
+# (SEAT-HOLD, logged once). A holder that cannot act for good moves at once
+# (spl_fleet_seat_gone): no live process, a rotation hold, a watchdog S2
+# (limit) HIT, a stalled pane, a stuck unread. A vendor switch (another tier)
+# and a cross-box move keep their own rules.
+
+# spl_fleet_seat_gone <id>: 0 + why when <id> cannot act for good: no live
+# process, a rotation hold, or a verdict in able.<id> (this tick's, when <id>
+# was tried) other than "able" or a fresh watchdog HIT that is no S2 limit: a
+# stalled pane (a limit, a lost login) or an unread over LEASE_UNREAD_MAX
+# lasts. Files only, no pane read.
+spl_fleet_seat_gone() {
+  local why=""
+  [[ -n "$(spl_lease_agent_pid "$1")" ]] || { echo "no live process"; return 0; }
+  why="$(spl_lease_held "$1")"
+  [[ -n "$why" ]] && { echo "$why"; return 0; }
+  read -r why 2>/dev/null < "$LEASE_DIR/able.$1" || true
+  [[ -z "$why" || "$why" == able ]] && return 1
+  [[ "$why" == "wd "* && "$why" != "wd S2:"* ]] && return 1
+  echo "$why"
+}
+
+# spl_fleet_seat_move <role> <cand> <cand tier> <holder tier>: the holder to
+# write on a tick that may write <cand>@<this box>: that, or FH (the holder
+# keeps it) while a same-box move between seats of one tier waits.
+spl_fleet_seat_move() {
+  local role="$1" me="$LEASE_MACHINE" f="$LEASE_DIR/fleet.$1.seat-move" from="" to="" n=0 at=0 now
+  local hold="${LEASE_SEAT_HOLD:-2}"
+  now="$(spl_lease_now)"
+  if (( FG == 0 || $3 != $4 )) || [[ "${FH##*@}" != "$me" || "$FH" == "$2@$me" ]] ||
+    [[ " $(spl_fleet_role_agents "$role") " != *" ${FH%@*} "* ]] || spl_fleet_seat_gone "${FH%@*}" >/dev/null; then
+    rm -f "$f"; echo "$2@$me"; return 0
+  fi
+  [[ -s "$f" ]] && read -r from to n at < "$f"
+  [[ "$from $to" == "$FH $2@$me" && "$n" =~ ^[0-9]+$ && "$at" =~ ^[0-9]+$ ]] && (( now - at <= LEASE_STALE )) || n=0
+  n=$((n + 1))
+  (( n >= hold )) && { rm -f "$f"; echo "$2@$me"; return 0; }
+  echo "$FH $2@$me $n $now" > "$f"
+  (( n == 1 )) && rm -f "$LEASE_DIR/fleet.$role.seat-hold"
+  spl_fleet_once "$role.seat-hold" "SEAT-HOLD $role: $FH keeps it, $2 takes it only if wanted $hold ticks in a row (LEASE_SEAT_HOLD; $(spl_fleet_why "$role"))"
+  echo "$FH"
 }
 
 # ---- a far-off limit hands the role over at once (SPL-2892) ------------------

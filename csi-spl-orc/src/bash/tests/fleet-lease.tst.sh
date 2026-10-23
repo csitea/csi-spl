@@ -10,7 +10,8 @@
 #   3. pc silent: 180 s is not stale, 181 s is - the satellite takes over,
 #      its agents are told ACTIVE once
 #   4. pc returns: priority handback; the satellite's agents told STANDBY once
-#   5. local order: pc's master dies -> pc's failover holds at once
+#   5. local order: pc's master dies -> pc's failover holds at once; back, it
+#      holds again after LEASE_SEAT_HOLD (2) ticks (section 32)
 #   6. priority flip is one config change (LEASE_PRIORITY=sat,pc)
 #  6b. LEASE_PRIORITY_ORCH ranks the orch role on its own; unset = LEASE_PRIORITY
 #   7. a lost compare-and-set mirrors the real holder, never its own wish
@@ -120,6 +121,12 @@
 #      beats: ONE #alerts post and ONE spool note to the orch holder per
 #      episode, again after a seat came back and died. CONTROLS: ox healthy
 #      = the log line only; LEASE_HEALTH=0 (no verdicts) = the log line only.
+#  32. a same-box seat move waits out a blip (SPL-3069, sat 2026-10-23
+#      13:32-13:37Z: dispatch flipped c-002 <-> c-003 4 times, each move away
+#      on a fresh watchdog S5 HIT on c-002): a HIT on one tick moves nothing,
+#      on 2 ticks in a row moves once, the move back waits 2 ticks too; a dead
+#      master and an S2 HIT move at once; the why is logged once per change.
+#      CONTROL: LEASE_SEAT_HOLD=1 moves on the one-tick blip (the old rule).
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -253,6 +260,8 @@ tick pc 1400
   pass "5. pc's master gone: pc's failover holds at once, the fleet lease stays on pc" || fail "5. hub $(hubh dispatch)"
 agent pc 111 CLE-002
 tick pc 1460
+[[ "$(hubh dispatch)" == CLE-003@pc ]] && pass "5. pc's master back: the failover keeps it one tick (LEASE_SEAT_HOLD)" || fail "5. hold: hub $(hubh dispatch)"
+tick pc 1470
 [[ "$(hubh dispatch)" == CLE-002@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: STANDBY')" == 1 ]] &&
   pass "5. pc's master back: it holds again, the failover is told STANDBY" || fail "5. hub $(hubh dispatch)"
 
@@ -1228,6 +1237,40 @@ read -r h31 a31 s31 _ <"$T/ex/spool/dispatch/fleet.orch.age" 2>/dev/null
 [[ "$h31" == CLE-001@sat && "$a31" == - && "$s31" == "$EPOCHY" && "$(logc ex 'AGE-UNKNOWN orch')" == 1 ]] &&
   pass "31. the hub answers age $EPOCHY s: fleet.orch.age holds '-' (no data), logged once" || fail "31. age write: $(cat "$T/ex/spool/dispatch/fleet.orch.age" 2>&1) / $(grep AGE "$T/ex/spool/dispatch/lease.log" 2>&1)"
 rm -f "$T"/hub/main.*
+
+# --- 32. a same-box seat move waits out a blip (SPL-3069) ---------------------
+rm -rf "$T/pc" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/pane" "$T/pc/spool/dispatch"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+W32="$T/pc/spool/dispatch/wd.CLE-002"
+t32() { tick pc "$1" LEASE_PRIORITY=pc,sat "${@:2}"; }
+t32 50000
+[[ "$(hubh dispatch)" == CLE-002@pc ]] && pass "32. pc's master holds dispatch" || fail "32. setup: hub $(hubh dispatch)"
+echo "HIT S5 50050" >"$W32"; t32 50060
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(logc pc 'SEAT-HOLD dispatch: CLE-002@pc keeps it')" == 1 &&
+   "$(logc pc 'ABLE CLE-002: wd S5: HIT 10s ago (was: able)')" == 1 && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 ]] &&
+  pass "32. a one-tick S5 HIT on the master moves nothing; the hold and the why are logged" || fail "32. blip: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+echo "OK 50100" >"$W32"; t32 50120
+echo "HIT S5 50170" >"$W32"; t32 50180
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(logc pc 'SEAT-HOLD dispatch')" == 2 && "$(logc pc 'ABLE CLE-002: able (was: wd S5')" == 1 ]] &&
+  pass "32. able again in between: the next HIT starts a new hold" || fail "32. reset: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+t32 50240
+[[ "$(hubh dispatch)" == CLE-003@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && "$(logc pc 'ABLE CLE-002: wd S5')" == 2 ]] &&
+  pass "32. the HIT on 2 ticks in a row: one move to the failover" || fail "32. sustained: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+echo "OK 50290" >"$W32"; t32 50300
+[[ "$(hubh dispatch)" == CLE-003@pc ]] && pass "32. the master able again: the move back waits a tick" || fail "32. back hold: hub $(hubh dispatch)"
+t32 50360
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: STANDBY')" == 1 && "$(grep -c 'FLEET dispatch: ' "$T/pc/spool/dispatch/lease.log")" == 3 ]] &&
+  pass "32. ... and is made on the 2nd able tick: 2 moves in the episode, not 4" || fail "32. back: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+kill_agent pc 101; t32 50420
+[[ "$(hubh dispatch)" == CLE-003@pc ]] && pass "32. a dead master: the failover holds at once" || fail "32. dead: hub $(hubh dispatch)"
+agent pc 111 CLE-002; t32 50480; t32 50540
+echo "HIT S2 50590" >"$W32"; t32 50600
+[[ "$(hubh dispatch)" == CLE-003@pc && "$(logc pc 'ABLE CLE-002: wd S2')" == 1 ]] &&
+  pass "32. an S2 (limit) HIT on the master: the failover holds at once" || fail "32. S2: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+rm -f "$W32"; t32 50660; t32 50720
+echo "HIT S5 50770" >"$W32"; t32 50780 LEASE_SEAT_HOLD=1
+[[ "$(hubh dispatch)" == CLE-003@pc ]] &&
+  pass "32. CONTROL: LEASE_SEAT_HOLD=1 moves on the one-tick blip (the old rule)" || fail "32. control: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

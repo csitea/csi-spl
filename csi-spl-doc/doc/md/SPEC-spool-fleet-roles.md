@@ -456,7 +456,7 @@ resource, and its age would have come from each machine's own clock.
 | this machine | does |
 |---|---|
 | no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`; each as its seat runs it now, below) | writes nothing; a lease it held goes stale; past the next vendor's wait its seat switches vendor in place (below) |
-| holds it | renews; the local master/failover order still applies inside the machine |
+| holds it | renews; the local master/failover order still applies inside the machine, but a move between two of its seats of one vendor tier, and the move back, is made only once wanted `LEASE_SEAT_HOLD` (2) ticks in a row (`SEAT-HOLD <role>: ...`, SPL-3069); a holder with no live process, a rotation hold, an S2 limit, a stalled pane or a stuck unread moves at once; each change of a seat's able verdict is logged once (`ABLE <id>: ...`) |
 | holder silent > 180 s on the hub's clock | takes over |
 | ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`), its candidate able for `LEASE_HOLDDOWN` s without a break, and the machine not in `LEASE_INTERMITTENT` | takes it back (the handback) |
 | ranks before the holder, but able for less than `LEASE_HOLDDOWN` s, or listed in `LEASE_INTERMITTENT` | holds back, logged once as `HOLD <role>: ...` |

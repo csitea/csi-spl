@@ -88,6 +88,8 @@ export function sendFailureKey(err) {
     case 'unknown_agent': return 'composer.send_failed_agent_inactive'
     /* SPL-1018 (spec 044 FR-OS-017): the agent's allow-list does not name you */
     case 'sender_not_allowed': return 'composer.send_failed_not_allowed'
+    /* spec 025 box owner lock (B8, SPL-3015): the agent's box is locked to its owners */
+    case 'box_locked': return 'composer.send_failed_box_locked'
     default: return 'composer.send_failed'
   }
 }

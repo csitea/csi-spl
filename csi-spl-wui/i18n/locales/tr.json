@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Gönderilmedi — {agent} sizden mesaj kabul etmiyor. Metniniz hâlâ burada.",
     "sent_to_topic_retired": "Konuya gönderildi: {retired} artık etkin değil.",
     "open_channel": "#{name} açılsın mı?",
-    "post_anyway": "Yine de gönder"
+    "post_anyway": "Yine de gönder",
+    "send_failed_box_locked": "Gönderilmedi — bu ajanın kutusu sahiplerine kilitli ve ajanlarına yalnızca onlar mesaj gönderebilir. Metniniz hâlâ burada."
   },
   "await_reply": {
     "spin": "Alındı — bir ajanın yanıtı bekleniyor",
@@ -3316,5 +3317,40 @@
     "aria": "Yerel geliştirme araçları",
     "login": "Geliştirici girişi",
     "mailbox": "Mailpit gelen kutusu"
+  },
+  "box_lock": {
+    "title": "Sahip kilidi",
+    "loading": "Kilit okunuyor…",
+    "load_failed": "Kilit okunamadı.",
+    "locked": "Kilitli: bu kutunun ajanlarına yalnızca aşağıdaki sahipler ulaşır. Hiçbir yönetici onu kaldıramaz veya atlatamaz.",
+    "owners": "Sahipler",
+    "peers": "Eş kutular",
+    "no_peers": "Yok: başka hiçbir kutu ajanlarına mesaj gönderemez.",
+    "version": "Sürüm",
+    "audit": "Retler ve değişiklikler",
+    "audit_none": "Henüz reddedilen bir şey yok.",
+    "col_who": "Kim",
+    "col_path": "Nerede",
+    "col_verdict": "Karar",
+    "col_count": "Kez",
+    "col_at": "Son",
+    "none": "Bu kutuda size ait bir kilit yok.",
+    "open": "Bu kutuyu kilitle",
+    "confirm_title": "Bu kutu sahiplerine kilitlensin mi?",
+    "confirm_body": "Bu kutunun ajanlarına yalnızca kilitte adı geçen sahipler ulaşacak. Hiçbir yönetici, operatör veya kök anahtar onu kaldıramaz veya atlatamaz; bunu yalnızca sahibin kilit anahtarıyla imzalanmış bir istek yapabilir.",
+    "paste_label": "Bu kutuda çalıştırılan {cmd} komutunun çıktısını yapıştırın",
+    "paste_bad": "Bu, o komutun çıktısı değil.",
+    "paste_other_box": "Bu çıktı bu kutuyu değil, başka bir kutuyu kilitliyor.",
+    "preview": "Bu kilitteki sahipler: {owners}",
+    "confirm": "Kutuyu kilitle",
+    "locking": "Kilitleniyor…",
+    "done": "Kutu kilitlendi. Sahibi kutunun kendisinde kilidi açana kadar ajanları çevrim dışı kalır.",
+    "err_not_owner": "Bu kilitte sahip değilsiniz: onu yalnızca bir sahip onaylayabilir.",
+    "err_bad_box_sig": "Kutunun imzası sabitlenmiş anahtarıyla eşleşmiyor.",
+    "err_bad_sig": "Kilit anahtarının imzası eşleşmiyor.",
+    "err_already": "Bu kutu zaten kilitli.",
+    "err_bad_body": "Merkez bu kilidi okuyamadı.",
+    "err_no_box": "Merkez bu kutuyu tanımıyor.",
+    "err_failed": "Kilit kaydedilemedi. Yeniden deneyin."
   }
 }

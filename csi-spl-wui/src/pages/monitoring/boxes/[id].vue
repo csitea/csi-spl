@@ -113,6 +113,11 @@
              operator workspace only (lazy; hidden for everyone else) -->
         <BoxLoadBand v-if="!box.browser" :box="boxId" :sample="latest" />
 
+        <!-- spec 025 box owner lock (B8, SPL-3015): its owners see the lock and
+             its audit; anyone may paste an owner's `spool lock create` output
+             (lazy; wrapped, as a bare v-if on an async component crashed) -->
+        <div class="box-lock-slot"><BoxLockPane v-if="!box.browser" :box="boxId" /></div>
+
         <!-- the box's resources: each row opens its statistics on the right -->
         <nav class="box-res__list" :aria-label="t('boxes.resources')" data-test="box-resources">
           <h3>{{ t('boxes.resources') }}</h3>
@@ -206,6 +211,8 @@ import type { UiIconName } from '~/utils/uiIcons'
 const BoxStatsPane = defineAsyncComponent(() => import('@/components/BoxStatsPane.vue'))
 /* the load band (t1 05e0fa03) is its own chunk too: most viewers never see it */
 const BoxLoadBand = defineAsyncComponent(() => import('@/components/BoxLoadBand.vue'))
+/* the box owner lock pane (spec 025 B8) is its own chunk */
+const BoxLockPane = defineAsyncComponent(() => import('@/components/BoxLockPane.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -362,6 +369,7 @@ stack.rightPanel(
 .box-list__row.is-active { background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface)); }
 .box-list__tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .box-stats { min-width: 0; padding: 16px; }
+.box-lock-slot { display: contents; }
 .box-stats__pick { margin: 0; }
 .box-card__hero { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .box-card__glyph {

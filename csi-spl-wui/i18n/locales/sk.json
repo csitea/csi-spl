@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Neodoslané — {agent} od vás neprijíma správy. Váš text je stále tu.",
     "sent_to_topic_retired": "Odoslané do témy: {retired} už nie je aktívny.",
     "open_channel": "Otvoriť #{name}?",
-    "post_anyway": "Napriek tomu odoslať"
+    "post_anyway": "Napriek tomu odoslať",
+    "send_failed_box_locked": "Neodoslané — box tohto agenta je uzamknutý pre jeho vlastníkov a len oni môžu písať jeho agentom. Váš text je stále tu."
   },
   "await_reply": {
     "spin": "Prijaté — čaká sa na odpoveď agenta",
@@ -3316,5 +3317,40 @@
     "aria": "Nástroje lokálneho vývoja",
     "login": "Vývojárske prihlásenie",
     "mailbox": "Schránka Mailpit"
+  },
+  "box_lock": {
+    "title": "Zámok vlastníka",
+    "loading": "Načítava sa zámok…",
+    "load_failed": "Zámok sa nepodarilo načítať.",
+    "locked": "Uzamknutý: agentov tohto boxu dosiahnu len vlastníci uvedení nižšie. Žiadny správca ho nemôže zrušiť ani obísť.",
+    "owners": "Vlastníci",
+    "peers": "Partnerské boxy",
+    "no_peers": "Žiadne: žiadny iný box nemôže písať jeho agentom.",
+    "version": "Verzia",
+    "audit": "Odmietnutia a zmeny",
+    "audit_none": "Zatiaľ nič neodmietnuté.",
+    "col_who": "Kto",
+    "col_path": "Kde",
+    "col_verdict": "Výsledok",
+    "col_count": "Krát",
+    "col_at": "Naposledy",
+    "none": "Tento box nemá zámok, ktorý vlastníte.",
+    "open": "Uzamknúť tento box",
+    "confirm_title": "Uzamknúť tento box pre jeho vlastníkov?",
+    "confirm_body": "Agentov tohto boxu dosiahnu len vlastníci uvedení v zámku. Žiadny správca, operátor ani koreňový kľúč ho nemôže zrušiť ani obísť; môže to len požiadavka podpísaná kľúčom zámku vlastníka.",
+    "paste_label": "Vložte výstup príkazu {cmd} spusteného na tomto boxe",
+    "paste_bad": "Toto nie je výstup toho príkazu.",
+    "paste_other_box": "Tento výstup uzamyká iný box, nie tento.",
+    "preview": "Vlastníci v tomto zámku: {owners}",
+    "confirm": "Uzamknúť box",
+    "locking": "Uzamyká sa…",
+    "done": "Box je uzamknutý. Jeho agenti zostávajú offline, kým ho vlastník neodomkne priamo na boxe.",
+    "err_not_owner": "Nie ste vlastníkom v tomto zámku: potvrdiť ho môže len vlastník.",
+    "err_bad_box_sig": "Podpis boxu nezodpovedá jeho pripnutému kľúču.",
+    "err_bad_sig": "Podpis kľúča zámku nesedí.",
+    "err_already": "Tento box je už uzamknutý.",
+    "err_bad_body": "Hub nedokázal načítať tento zámok.",
+    "err_no_box": "Hub tento box nepozná.",
+    "err_failed": "Zámok sa nepodarilo uložiť. Skúste to znova."
   }
 }

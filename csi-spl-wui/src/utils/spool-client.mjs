@@ -42,6 +42,8 @@ const LAZY_METHODS = [
   'getTakeoverLadder',
   'putTakeoverLadder',
   'listAgentSenders',
+  'getBoxLock',
+  'createBoxLock',
   'putAgentSenders',
   'dropAgentSenders',
   'getMarketingSwitch',

@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Inte skickat — {agent} tar inte emot meddelanden från dig. Din text finns kvar.",
     "sent_to_topic_retired": "Skickat till ämnet: {retired} är inte längre aktiv.",
     "open_channel": "Öppna #{name}?",
-    "post_anyway": "Skicka ändå"
+    "post_anyway": "Skicka ändå",
+    "send_failed_box_locked": "Inte skickat — den här agentens box är låst för sina ägare, och bara de kan skriva till dess agenter. Din text finns kvar."
   },
   "await_reply": {
     "spin": "Mottaget — väntar på svar från en agent",
@@ -3316,5 +3317,40 @@
     "aria": "Verktyg för lokal utveckling",
     "login": "Utvecklarinloggning",
     "mailbox": "Mailpit-inkorg"
+  },
+  "box_lock": {
+    "title": "Ägarlås",
+    "loading": "Läser låset…",
+    "load_failed": "Låset kunde inte läsas.",
+    "locked": "Låst: bara ägarna nedan når den här boxens agenter. Ingen administratör kan häva eller kringgå det.",
+    "owners": "Ägare",
+    "peers": "Partnerboxar",
+    "no_peers": "Inga: ingen annan box får skriva till dess agenter.",
+    "version": "Låsversion",
+    "audit": "Avslag och ändringar",
+    "audit_none": "Inget avslaget ännu.",
+    "col_who": "Vem",
+    "col_path": "Var",
+    "col_verdict": "Utfall",
+    "col_count": "Gånger",
+    "col_at": "Senast",
+    "none": "Den här boxen har inget lås som du äger.",
+    "open": "Lås den här boxen",
+    "confirm_title": "Låsa den här boxen för sina ägare?",
+    "confirm_body": "Bara ägarna som anges i låset når den här boxens agenter. Ingen administratör, operatör eller rotnyckel kan häva eller kringgå det; bara en begäran signerad med ägarens låsnyckel kan det.",
+    "paste_label": "Klistra in utdata från {cmd}, körd på den här boxen",
+    "paste_bad": "Det här är inte det kommandots utdata.",
+    "paste_other_box": "Den här utdatan låser en annan box, inte den här.",
+    "preview": "Ägare i det här låset: {owners}",
+    "confirm": "Lås boxen",
+    "locking": "Låser…",
+    "done": "Boxen är låst. Dess agenter förblir offline tills ägaren låser upp den på själva boxen.",
+    "err_not_owner": "Du är inte ägare i det här låset: bara en ägare kan bekräfta det.",
+    "err_bad_box_sig": "Boxens signatur stämmer inte med dess fästa nyckel.",
+    "err_bad_sig": "Låsnyckelns signatur stämmer inte.",
+    "err_already": "Den här boxen är redan låst.",
+    "err_bad_body": "Navet kunde inte läsa det här låset.",
+    "err_no_box": "Navet känner inte till den här boxen.",
+    "err_failed": "Låset kunde inte sparas. Försök igen."
   }
 }

@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Nav nosūtīts — {agent} nepieņem no jums ziņas. Jūsu teksts joprojām ir šeit.",
     "sent_to_topic_retired": "Nosūtīts uz tēmu: {retired} vairs nav aktīvs.",
     "open_channel": "Atvērt #{name}?",
-    "post_anyway": "Tomēr publicēt"
+    "post_anyway": "Tomēr publicēt",
+    "send_failed_box_locked": "Nav nosūtīts — šī aģenta kaste ir slēgta tās īpašniekiem, un tikai viņi var rakstīt tās aģentiem. Jūsu teksts ir saglabāts."
   },
   "await_reply": {
     "spin": "Saņemts — gaida aģenta atbildi",
@@ -3316,5 +3317,40 @@
     "aria": "Lokālās izstrādes rīki",
     "login": "Izstrādātāja pieteikšanās",
     "mailbox": "Mailpit iesūtne"
+  },
+  "box_lock": {
+    "title": "Īpašnieka slēdzene",
+    "loading": "Nolasa slēdzeni…",
+    "load_failed": "Slēdzeni neizdevās nolasīt.",
+    "locked": "Slēgta: šīs kastes aģentus sasniedz tikai tālāk norādītie īpašnieki. Neviens administrators to nevar atcelt vai apiet.",
+    "owners": "Īpašnieki",
+    "peers": "Partnerkastes",
+    "no_peers": "Nav: neviena cita kaste nevar rakstīt tās aģentiem.",
+    "version": "Versija",
+    "audit": "Atteikumi un izmaiņas",
+    "audit_none": "Pagaidām nekas nav atteikts.",
+    "col_who": "Kas",
+    "col_path": "Kur",
+    "col_verdict": "Lēmums",
+    "col_count": "Reizes",
+    "col_at": "Pēdējoreiz",
+    "none": "Šai kastei nav jums piederošas slēdzenes.",
+    "open": "Slēgt šo kasti",
+    "confirm_title": "Vai slēgt šo kasti tās īpašniekiem?",
+    "confirm_body": "Šīs kastes aģentus sasniegs tikai slēdzenē nosauktie īpašnieki. Neviens administrators, operators vai saknes atslēga to nevar atcelt vai apiet; to var tikai pieprasījums, kas parakstīts ar īpašnieka slēdzenes atslēgu.",
+    "paste_label": "Ielīmējiet komandas {cmd} izvadi, kas palaista šajā kastē",
+    "paste_bad": "Tā nav šīs komandas izvade.",
+    "paste_other_box": "Šī izvade slēdz citu kasti, nevis šo.",
+    "preview": "Īpašnieki šajā slēdzenē: {owners}",
+    "confirm": "Slēgt kasti",
+    "locking": "Slēdz…",
+    "done": "Kaste ir slēgta. Tās aģenti paliek bezsaistē, līdz īpašnieks to atslēdz pašā kastē.",
+    "err_not_owner": "Jūs neesat šīs slēdzenes īpašnieks: apstiprināt var tikai īpašnieks.",
+    "err_bad_box_sig": "Kastes paraksts neatbilst tās piespraustajai atslēgai.",
+    "err_bad_sig": "Slēdzenes atslēgas paraksts neatbilst.",
+    "err_already": "Šī kaste jau ir slēgta.",
+    "err_bad_body": "Centrmezgls nevarēja nolasīt šo slēdzeni.",
+    "err_no_box": "Centrmezgls nepazīst šo kasti.",
+    "err_failed": "Slēdzeni neizdevās saglabāt. Mēģiniet vēlreiz."
   }
 }

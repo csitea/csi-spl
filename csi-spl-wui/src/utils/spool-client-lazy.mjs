@@ -558,6 +558,27 @@ async function revokeSeat(ctx, boxId) {
   return live(`/v1/tenant/agents/pins/${encodeURIComponent(b)}`, { method: 'DELETE' })
 }
 
+let boxLockMock = null
+const boxLockMockOf = async () => (boxLockMock ||= (await import('./box-lock.mjs')).createMockBoxLock())
+
+/** GET /v1/boxes/{box}/lock (spec 025 box owner lock, B2): the lock, its audit and a nonce, to an owner; 404 to anyone else. */
+async function getBoxLock(ctx, box) {
+  const { live, mock, state } = ctx
+  if (mock) return (await boxLockMockOf()).get(String(box || ''), state.me.id)
+  return live(`/v1/boxes/${encodeURIComponent(String(box || ''))}/lock`)
+}
+
+/** POST /v1/boxes/{box}/lock { signed_body, signature, box_signature }: `spool lock create`'s output, confirmed by an owner. */
+async function createBoxLock(ctx, box, req) {
+  const { live, mock, state } = ctx
+  if (mock) return (await boxLockMockOf()).create(String(box || ''), req, state.me.id)
+  return live(`/v1/boxes/${encodeURIComponent(String(box || ''))}/lock`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
 let embedMock = null
 const embedsMock = async () => (embedMock ||= (await import('./embed-admin-mock.mjs')).createMockEmbeds())
 
@@ -1866,6 +1887,8 @@ export const lazySpoolMethods = {
   getTakeoverLadder,
   putTakeoverLadder,
   listAgentSenders,
+  getBoxLock,
+  createBoxLock,
   putAgentSenders,
   dropAgentSenders,
   getMarketingSwitch,

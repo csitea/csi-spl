@@ -8,6 +8,16 @@
 //
 // Control: before SPL-1018 the Agents page has no [data-test=tenant-agent-senders].
 //
+// Spec 025 box owner lock, row B8 (SPL-3015), the other door on who may
+// message an agent: with the mock hook `spool.mock.box-lock` = a lock on
+// box-desk owned by someone else, the viewer (another admin) DMs CLE-11 on
+// that box: the mock answers 403 box_locked as the hub does (B3) and the
+// composer says so, keeping the text. CONTROL: the hook off, the same DM
+// sends (and on a build without B8 the refusal reads as the generic line).
+// The lock pane on the box's Monitoring card shows an owner the lock and its
+// audit; on an unlocked box it takes `spool lock create`'s output, refuses
+// another box's, and confirms it into a lock.
+//
 // Run:
 //   pnpm run test:e2e agent-senders
 //   BASE_URL=<generated bundle> pnpm run test:e2e agent-senders
@@ -57,6 +67,107 @@ const waitState = async (p, want) => {
   return state(p)
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const LOCK_KEY = 'spool.mock.box-lock'
+const LOCKED_TEXT = "Not sent — this agent's box is locked to its owners, and only they can message its agents. Your text is still here."
+
+/** a page with the mock lock hook set (or cleared) on every navigation */
+async function lockPage(lock) {
+  const p = await browser.newPage()
+  await pinAgentIdClock(p)
+  await p.evaluateOnNewDocument((k, v) => {
+    try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k) } catch { /* about:blank */ }
+  }, LOCK_KEY, lock ? JSON.stringify(lock) : '')
+  await p.setViewport({ width: 1280, height: 900 })
+  return p
+}
+
+/** DM CLE-11 on box-desk from the omnibox; what the reader sees after */
+async function dmLocked(p, text) {
+  await p.goto(server.base + '/dm/' + encodeURIComponent('CLE-11@box-desk'), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const ta = 'form.composer.omnibox--global textarea'
+  await p.waitForSelector(ta, { timeout: 15000 })
+  await p.focus(ta)
+  await p.type(ta, text)
+  await sleep(150)
+  await p.click('form.composer.omnibox--global [data-testid=send]')
+  await sleep(900)
+  return p.evaluate((n) => {
+    const el = document.querySelector('[data-test=omnibox-send-error]')
+    const box = document.querySelector('form.composer.omnibox--global textarea')
+    const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+    const msgs = (pinia.state.value.channel && pinia.state.value.channel.messages) || []
+    return {
+      error: el ? el.querySelector('[data-test=omnibox-send-error-message]')?.textContent.trim() || '' : '',
+      box: box ? box.value : '',
+      sent: msgs.some((m) => String(m.body || '').includes(n)),
+    }
+  }, text)
+}
+
+const lockCreated = (box, owners) => JSON.stringify({
+  signed_body: JSON.stringify({ tenant_id: 'mock', box_id: box, lock_pubkey: 'K', box_pubkey: 'B', owners, peer_boxes: [], hide_posts: true, version: 1 }),
+  signature: 'c2ln', box_signature: 'Ym94',
+})
+const paneState = (p) => p.$eval('[data-test=box-lock]', (el) => el.getAttribute('data-state')).catch(() => '')
+
+async function boxLockCases() {
+  console.log('-- box lock (spec 025 B8)')
+  /* another admin (the viewer HUM-1) DMs an agent of a box locked to HUM-9 */
+  let p = await lockPage({ box: 'box-desk', owners: ['HUM-9'] })
+  const refused = await dmLocked(p, 'b8-locked-dm-1')
+  ok('another admin\'s DM to a locked box shows the box_locked text', refused.error === LOCKED_TEXT, refused)
+  ok('the text stays in the box and nothing looks sent', refused.box === 'b8-locked-dm-1' && !refused.sent, refused)
+  /* the same viewer on the locked box's card: the hub hides the lock from a non-owner */
+  await p.goto(server.base + '/monitoring/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForFunction(() => ['none', 'locked'].includes(document.querySelector('[data-test=box-lock]')?.getAttribute('data-state') || ''), { timeout: 15000 }).catch(() => {})
+  ok('a non-owner reads "no lock you own", never the owners', (await paneState(p)) === 'none' && !(await p.$('[data-test=box-lock-owners]')), await paneState(p))
+  await p.close()
+
+  /* CONTROL: the hub refusal off (no hook), the same DM sends */
+  p = await lockPage(null)
+  const open = await dmLocked(p, 'b8-open-dm-2')
+  ok('CONTROL: with no lock the same DM sends, no error', open.sent && !open.error, open)
+  await p.close()
+
+  /* the owner's card: the lock, its owners and its audit */
+  p = await lockPage({ box: 'box-desk', owners: ['HUM-1'] })
+  await p.goto(server.base + '/monitoring/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=box-lock-locked]', { timeout: 15000 }).catch(() => null)
+  const owned = await p.evaluate(() => ({
+    owners: [...document.querySelectorAll('[data-test=box-lock-owners] [data-key]')].map((el) => el.getAttribute('data-key')),
+    audit: document.querySelectorAll('[data-test=box-lock-audit-row]').length,
+  }))
+  ok('an owner sees the lock, its owners and its audit', (await paneState(p)) === 'locked' && owned.owners.join() === 'HUM-1' && owned.audit === 1, owned)
+
+  /* an unlocked box: the confirm dialog takes the box's create output */
+  await p.goto(server.base + '/monitoring/boxes/box-a', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const opener = await p.waitForSelector('[data-test=box-lock-open]', { visible: true, timeout: 15000 }).catch(() => null)
+  ok('an unlocked box offers "Lock this box"', Boolean(opener))
+  if (opener) {
+    await opener.evaluate((x) => x.scrollIntoView({ block: 'center' }))
+    await opener.click()
+    await p.waitForSelector('[data-test=box-lock-paste]', { visible: true, timeout: 5000 })
+    await p.$eval('[data-test=box-lock-paste]', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })) }, lockCreated('box-desk', ['HUM-1']))
+    await sleep(200)
+    const other = await p.evaluate(() => ({
+      error: document.querySelector('[data-test=box-lock-error]')?.textContent.trim() || '',
+      disabled: Boolean(document.querySelector('[data-test=box-lock-confirm-btn]')?.disabled),
+    }))
+    ok('another box\'s output is refused before it is sent', other.error === 'This output locks another box, not this one.' && other.disabled, other)
+    await p.$eval('[data-test=box-lock-paste]', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })) }, lockCreated('box-a', ['HUM-1']))
+    await sleep(200)
+    const preview = await p.$eval('[data-test=box-lock-preview]', (el) => el.textContent.trim()).catch(() => '')
+    ok('the dialog names the owners the output locks it to', preview === 'Owners in this lock: HUM-1', preview)
+    await p.click('[data-test=box-lock-confirm-btn]')
+    await p.waitForSelector('[data-test=box-lock-done]', { timeout: 5000 }).catch(() => null)
+    ok('confirmed: the box reads locked', (await paneState(p)) === 'locked' && !(await p.$('[data-test=box-lock-paste]')), await paneState(p))
+  }
+  const sw = await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
+  ok('box lock: no sideways scroll', sw)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -99,6 +210,9 @@ try {
     ok('no sideways scroll', sw)
     await p.close()
   }
+
+  /* spec 025 B8: the box_locked refusal, the lock pane and its confirm */
+  await boxLockCases()
 } finally {
   await browser.close()
   await server.stop()

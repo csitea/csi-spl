@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Neišsiųsta — {agent} nepriima iš jūsų žinučių. Jūsų tekstas vis dar čia.",
     "sent_to_topic_retired": "Išsiųsta į temą: {retired} nebeaktyvus.",
     "open_channel": "Atverti #{name}?",
-    "post_anyway": "Vis tiek skelbti"
+    "post_anyway": "Vis tiek skelbti",
+    "send_failed_box_locked": "Neišsiųsta — šio agento dėžė užrakinta jos savininkams, ir tik jie gali rašyti jos agentams. Jūsų tekstas išsaugotas."
   },
   "await_reply": {
     "spin": "Gauta — laukiama agento atsakymo",
@@ -3316,5 +3317,40 @@
     "aria": "Vietinio kūrimo įrankiai",
     "login": "Kūrėjo prisijungimas",
     "mailbox": "Mailpit pašto dėžutė"
+  },
+  "box_lock": {
+    "title": "Savininko užraktas",
+    "loading": "Skaitomas užraktas…",
+    "load_failed": "Nepavyko perskaityti užrakto.",
+    "locked": "Užrakinta: šios dėžės agentus pasiekia tik toliau nurodyti savininkai. Joks administratorius negali jo panaikinti ar apeiti.",
+    "owners": "Savininkai",
+    "peers": "Partnerių dėžės",
+    "no_peers": "Nėra: jokia kita dėžė negali rašyti jos agentams.",
+    "version": "Versija",
+    "audit": "Atsisakymai ir pakeitimai",
+    "audit_none": "Kol kas nieko neatsisakyta.",
+    "col_who": "Kas",
+    "col_path": "Kur",
+    "col_verdict": "Sprendimas",
+    "col_count": "Kartai",
+    "col_at": "Paskutinį kartą",
+    "none": "Ši dėžė neturi jums priklausančio užrakto.",
+    "open": "Užrakinti šią dėžę",
+    "confirm_title": "Užrakinti šią dėžę jos savininkams?",
+    "confirm_body": "Šios dėžės agentus pasieks tik užrakte nurodyti savininkai. Joks administratorius, operatorius ar šakninis raktas negali jo panaikinti ar apeiti; tai gali tik užklausa, pasirašyta savininko užrakto raktu.",
+    "paste_label": "Įklijuokite komandos {cmd}, paleistos šioje dėžėje, išvestį",
+    "paste_bad": "Tai ne tos komandos išvestis.",
+    "paste_other_box": "Ši išvestis užrakina kitą dėžę, ne šią.",
+    "preview": "Savininkai šiame užrakte: {owners}",
+    "confirm": "Užrakinti dėžę",
+    "locking": "Užrakinama…",
+    "done": "Dėžė užrakinta. Jos agentai lieka neprisijungę, kol savininkas jos neatrakins pačioje dėžėje.",
+    "err_not_owner": "Jūs nesate šio užrakto savininkas: patvirtinti gali tik savininkas.",
+    "err_bad_box_sig": "Dėžės parašas neatitinka jos prisegto rakto.",
+    "err_bad_sig": "Užrakto rakto parašas neatitinka.",
+    "err_already": "Ši dėžė jau užrakinta.",
+    "err_bad_body": "Centras negalėjo perskaityti šio užrakto.",
+    "err_no_box": "Centras nepažįsta šios dėžės.",
+    "err_failed": "Nepavyko išsaugoti užrakto. Bandykite dar kartą."
   }
 }

@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Niet verzonden — {agent} neemt geen berichten van je aan. Je tekst staat er nog.",
     "sent_to_topic_retired": "Naar het onderwerp verzonden: {retired} is niet meer actief.",
     "open_channel": "#{name} openen?",
-    "post_anyway": "Toch plaatsen"
+    "post_anyway": "Toch plaatsen",
+    "send_failed_box_locked": "Niet verzonden — de box van deze agent is vergrendeld voor zijn eigenaren, en alleen zij kunnen de agents ervan berichten sturen. Je tekst staat er nog."
   },
   "await_reply": {
     "spin": "Ontvangen — wacht op antwoord van een agent",
@@ -3316,5 +3317,40 @@
     "aria": "Lokale ontwikkeltools",
     "login": "Ontwikkelaar inloggen",
     "mailbox": "Mailpit-inbox"
+  },
+  "box_lock": {
+    "title": "Eigenaarsvergrendeling",
+    "loading": "Vergrendeling lezen…",
+    "load_failed": "De vergrendeling kon niet worden gelezen.",
+    "locked": "Vergrendeld: alleen de eigenaren hieronder bereiken de agents van deze box. Geen beheerder kan haar opheffen of omzeilen.",
+    "owners": "Eigenaren",
+    "peers": "Partnerboxen",
+    "no_peers": "Geen: geen andere box mag de agents ervan berichten sturen.",
+    "version": "Versie",
+    "audit": "Weigeringen en wijzigingen",
+    "audit_none": "Nog niets geweigerd.",
+    "col_who": "Wie",
+    "col_path": "Waar",
+    "col_verdict": "Uitkomst",
+    "col_count": "Keer",
+    "col_at": "Laatst",
+    "none": "Deze box heeft geen vergrendeling van jou.",
+    "open": "Deze box vergrendelen",
+    "confirm_title": "Deze box vergrendelen voor zijn eigenaren?",
+    "confirm_body": "Alleen de eigenaren die in de vergrendeling staan, bereiken de agents van deze box. Geen beheerder, operator of rootsleutel kan haar opheffen of omzeilen; alleen een verzoek dat is ondertekend met de vergrendelingssleutel van de eigenaar kan dat.",
+    "paste_label": "Plak de uitvoer van {cmd}, uitgevoerd op deze box",
+    "paste_bad": "Dit is niet de uitvoer van dat commando.",
+    "paste_other_box": "Deze uitvoer vergrendelt een andere box, niet deze.",
+    "preview": "Eigenaren in deze vergrendeling: {owners}",
+    "confirm": "De box vergrendelen",
+    "locking": "Vergrendelen…",
+    "done": "De box is vergrendeld. De agents blijven offline tot de eigenaar hem op de box zelf ontgrendelt.",
+    "err_not_owner": "Je bent geen eigenaar in deze vergrendeling: alleen een eigenaar kan haar bevestigen.",
+    "err_bad_box_sig": "De handtekening van de box past niet bij zijn vastgezette sleutel.",
+    "err_bad_sig": "De handtekening van de vergrendelingssleutel klopt niet.",
+    "err_already": "Deze box is al vergrendeld.",
+    "err_bad_body": "De hub kon deze vergrendeling niet lezen.",
+    "err_no_box": "De hub kent deze box niet.",
+    "err_failed": "De vergrendeling kon niet worden opgeslagen. Probeer het opnieuw."
   }
 }

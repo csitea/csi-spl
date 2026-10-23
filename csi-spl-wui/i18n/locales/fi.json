@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Ei lähetetty — {agent} ei ota vastaan viestejä sinulta. Tekstisi on yhä tallessa.",
     "sent_to_topic_retired": "Lähetetty aiheeseen: {retired} ei ole enää aktiivinen.",
     "open_channel": "Avataanko #{name}?",
-    "post_anyway": "Lähetä silti"
+    "post_anyway": "Lähetä silti",
+    "send_failed_box_locked": "Ei lähetetty — tämän agentin kone on lukittu omistajilleen, ja vain he voivat lähettää viestejä sen agenteille. Tekstisi on yhä tallessa."
   },
   "await_reply": {
     "spin": "Vastaanotettu — odotetaan agentin vastausta",
@@ -3316,5 +3317,40 @@
     "aria": "Paikallisen kehityksen työkalut",
     "login": "Kehittäjän kirjautuminen",
     "mailbox": "Mailpitin saapuneet"
+  },
+  "box_lock": {
+    "title": "Omistajan lukko",
+    "loading": "Luetaan lukkoa…",
+    "load_failed": "Lukkoa ei voitu lukea.",
+    "locked": "Lukittu: vain alla olevat omistajat tavoittavat tämän koneen agentit. Kukaan ylläpitäjä ei voi poistaa tai ohittaa sitä.",
+    "owners": "Omistajat",
+    "peers": "Kumppanikoneet",
+    "no_peers": "Ei yhtään: mikään muu kone ei voi lähettää viestejä sen agenteille.",
+    "version": "Versio",
+    "audit": "Estot ja muutokset",
+    "audit_none": "Mitään ei ole vielä estetty.",
+    "col_who": "Kuka",
+    "col_path": "Missä",
+    "col_verdict": "Tulos",
+    "col_count": "Kertaa",
+    "col_at": "Viimeksi",
+    "none": "Tällä koneella ei ole omistamaasi lukkoa.",
+    "open": "Lukitse tämä kone",
+    "confirm_title": "Lukitaanko tämä kone omistajilleen?",
+    "confirm_body": "Vain lukossa nimetyt omistajat tavoittavat tämän koneen agentit. Kukaan ylläpitäjä, operaattori tai pääavain ei voi poistaa tai ohittaa sitä; vain omistajan lukkoavaimella allekirjoitettu pyyntö voi.",
+    "paste_label": "Liitä komennon {cmd} tuloste, ajettuna tällä koneella",
+    "paste_bad": "Tämä ei ole sen komennon tuloste.",
+    "paste_other_box": "Tämä tuloste lukitsee toisen koneen, ei tätä.",
+    "preview": "Omistajat tässä lukossa: {owners}",
+    "confirm": "Lukitse kone",
+    "locking": "Lukitaan…",
+    "done": "Kone on lukittu. Sen agentit pysyvät poissa linjoilta, kunnes omistaja avaa lukon itse koneella.",
+    "err_not_owner": "Et ole tämän lukon omistaja: vain omistaja voi vahvistaa sen.",
+    "err_bad_box_sig": "Koneen allekirjoitus ei vastaa sen kiinnitettyä avainta.",
+    "err_bad_sig": "Lukkoavaimen allekirjoitus ei täsmää.",
+    "err_already": "Tämä kone on jo lukittu.",
+    "err_bad_body": "Keskitin ei voinut lukea tätä lukkoa.",
+    "err_no_box": "Keskitin ei tunne tätä konetta.",
+    "err_failed": "Lukkoa ei voitu tallentaa. Yritä uudelleen."
   }
 }

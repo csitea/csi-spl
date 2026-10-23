@@ -102,6 +102,9 @@ declare module '~/utils/spool-client.mjs' {
     listAgentSenders(): Promise<{ tenant_id?: string, lists?: { agent: string, members: string[], updated_by?: string, updated_at?: string }[] }>
     putAgentSenders(agent: string, members: string[]): Promise<{ agent: string, members: string[] }>
     dropAgentSenders(agent: string): Promise<null>
+    /* spec 025 box owner lock (B8): the lock routes an owner's WUI carries (B2) */
+    getBoxLock(box: string): Promise<{ owners?: string[], peer_boxes?: string[], version?: number, audit?: unknown[] }>
+    createBoxLock(box: string, req: { signed_body: string, signature: string, box_signature: string }): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listMarketingPosts(): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>

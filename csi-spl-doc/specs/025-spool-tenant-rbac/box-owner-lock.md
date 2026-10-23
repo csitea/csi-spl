@@ -439,6 +439,30 @@ audit digest (6.3).
 refuses to serve a listed box without a verified lock row with that `lock_pubkey`. So removing a lock by
 deleting its row needs a cnf commit on trunk too, which is visible in git history.
 
+### 6.5 As built: the WUI (row B8, SPL-3015)
+
+Code: `csi-spl-wui/src/components/BoxLockPane.vue` (lazy, on the box's Monitoring card
+`/monitoring/boxes/<box>`), `csi-spl-wui/src/utils/box-lock.mjs` (the pasted-output check, the lock route
+refusal map, the mock), `sendFailureKey` in `csi-spl-wui/src/utils/send-failure.mjs` (the refusal map), the
+client methods `getBoxLock` / `createBoxLock` (`spool-client-lazy.mjs`), and the keys `box_lock.*` and
+`composer.send_failed_box_locked` in every `i18n/locales/*.json`. Tests: `tests/unit/box-lock.test.mjs`, the
+box lock cases in `tests/e2e/agent-senders.test.mjs`.
+
+- A send the hub refuses with `box_locked` (path 2) reads "Not sent — this agent's box is locked to its
+  owners, and only they can message its agents. Your text is still here." next to the composer, with the
+  text kept. The line names no owner (5.2).
+- The pane: an owner sees the owners, the peer boxes, the version and the audit rows `GET` answers. Anyone
+  else, and an unlocked box, reads "This box has no lock you own." (the hub answers both 404, so the WUI
+  cannot tell them apart). A hub with no lock store (501) shows no pane.
+- The confirm dialog takes `spool lock create`'s printed output as is, refuses text that is not that output
+  or names another box before anything is sent, shows the owners it names, and `POST`s it. Each refusal of
+  6.2 (`not_owner`, `bad_box_sig`, `bad_sig`, `box_locked` 409, `bad_body`, `not_found`) has its own line.
+  The WUI holds no key and signs nothing.
+- Mock bundle: the hook `spool.mock.box-lock` = `{box, owners, peer_boxes}` stands in for a hub with that
+  lock (the send refusal and `GET`); with no hook every box is open.
+- Not in B8: `PUT` (change) and `DELETE` (lift) in the WUI: both need `K_lock`'s signature over a hub nonce
+  that `GET` hands out, so the owner signs on the box; a later row can carry them the same way.
+
 ## 7. Migration and the owner's proof
 
 ### 7.1 Migration

@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Nie wysłano — {agent} nie przyjmuje od Ciebie wiadomości. Twój tekst jest nadal tutaj.",
     "sent_to_topic_retired": "Wysłano do wątku: {retired} nie jest już aktywny.",
     "open_channel": "Otworzyć #{name}?",
-    "post_anyway": "Wyślij mimo to"
+    "post_anyway": "Wyślij mimo to",
+    "send_failed_box_locked": "Nie wysłano — box tego agenta jest zablokowany dla jego właścicieli i tylko oni mogą pisać do jego agentów. Twój tekst nadal tu jest."
   },
   "await_reply": {
     "spin": "Odebrano — czeka na odpowiedź agenta",
@@ -3316,5 +3317,40 @@
     "aria": "Narzędzia lokalnego środowiska deweloperskiego",
     "login": "Logowanie deweloperskie",
     "mailbox": "Skrzynka Mailpit"
+  },
+  "box_lock": {
+    "title": "Blokada właściciela",
+    "loading": "Odczytywanie blokady…",
+    "load_failed": "Nie udało się odczytać blokady.",
+    "locked": "Zablokowany: tylko poniżsi właściciele docierają do agentów tego boxa. Żaden administrator nie może zdjąć blokady ani jej obejść.",
+    "owners": "Właściciele",
+    "peers": "Boxy partnerskie",
+    "no_peers": "Brak: żaden inny box nie może pisać do jego agentów.",
+    "version": "Wersja",
+    "audit": "Odmowy i zmiany",
+    "audit_none": "Na razie niczego nie odmówiono.",
+    "col_who": "Kto",
+    "col_path": "Gdzie",
+    "col_verdict": "Werdykt",
+    "col_count": "Razy",
+    "col_at": "Ostatnio",
+    "none": "Ten box nie ma Twojej blokady.",
+    "open": "Zablokuj ten box",
+    "confirm_title": "Zablokować ten box dla jego właścicieli?",
+    "confirm_body": "Do agentów tego boxa dotrą tylko właściciele wymienieni w blokadzie. Żaden administrator, operator ani klucz główny nie może jej zdjąć ani obejść; może to zrobić tylko żądanie podpisane kluczem blokady właściciela.",
+    "paste_label": "Wklej wynik polecenia {cmd} uruchomionego na tym boxie",
+    "paste_bad": "To nie jest wynik tego polecenia.",
+    "paste_other_box": "Ten wynik blokuje inny box, nie ten.",
+    "preview": "Właściciele w tej blokadzie: {owners}",
+    "confirm": "Zablokuj box",
+    "locking": "Blokowanie…",
+    "done": "Box jest zablokowany. Jego agenci pozostają offline, dopóki właściciel nie odblokuje go na samym boxie.",
+    "err_not_owner": "Nie jesteś właścicielem w tej blokadzie: tylko właściciel może ją potwierdzić.",
+    "err_bad_box_sig": "Podpis boxa nie pasuje do jego przypiętego klucza.",
+    "err_bad_sig": "Podpis klucza blokady się nie zgadza.",
+    "err_already": "Ten box jest już zablokowany.",
+    "err_bad_body": "Hub nie mógł odczytać tej blokady.",
+    "err_no_box": "Hub nie zna tego boxa.",
+    "err_failed": "Nie udało się zapisać blokady. Spróbuj ponownie."
   }
 }

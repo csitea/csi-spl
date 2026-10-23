@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "No enviado: {agent} no acepta mensajes tuyos. Tu texto sigue aquí.",
     "sent_to_topic_retired": "Enviado al tema: {retired} ya no está activo.",
     "open_channel": "¿Abrir #{name}?",
-    "post_anyway": "Publicar de todos modos"
+    "post_anyway": "Publicar de todos modos",
+    "send_failed_box_locked": "No enviado: el equipo de este agente está bloqueado para sus propietarios, y solo ellos pueden escribir a sus agentes. Tu texto sigue aquí."
   },
   "await_reply": {
     "spin": "Recibido — esperando la respuesta de un agente",
@@ -3316,5 +3317,40 @@
     "aria": "Herramientas de desarrollo local",
     "login": "Acceso de desarrollo",
     "mailbox": "Bandeja de entrada de Mailpit"
+  },
+  "box_lock": {
+    "title": "Bloqueo del propietario",
+    "loading": "Leyendo el bloqueo…",
+    "load_failed": "No se pudo leer el bloqueo.",
+    "locked": "Bloqueado: solo los propietarios de abajo llegan a los agentes de este equipo. Ningún administrador puede levantarlo ni saltárselo.",
+    "owners": "Propietarios",
+    "peers": "Equipos asociados",
+    "no_peers": "Ninguno: ningún otro equipo puede escribir a sus agentes.",
+    "version": "Versión",
+    "audit": "Rechazos y cambios",
+    "audit_none": "Aún no se ha rechazado nada.",
+    "col_who": "Quién",
+    "col_path": "Dónde",
+    "col_verdict": "Resultado",
+    "col_count": "Veces",
+    "col_at": "Última",
+    "none": "Este equipo no tiene un bloqueo tuyo.",
+    "open": "Bloquear este equipo",
+    "confirm_title": "¿Bloquear este equipo para sus propietarios?",
+    "confirm_body": "Solo los propietarios nombrados en el bloqueo llegarán a los agentes de este equipo. Ningún administrador, operador ni clave raíz puede levantarlo ni saltárselo; solo una solicitud firmada con la clave de bloqueo del propietario.",
+    "paste_label": "Pega la salida de {cmd}, ejecutado en este equipo",
+    "paste_bad": "Esta no es la salida de ese comando.",
+    "paste_other_box": "Esta salida bloquea otro equipo, no este.",
+    "preview": "Propietarios en este bloqueo: {owners}",
+    "confirm": "Bloquear el equipo",
+    "locking": "Bloqueando…",
+    "done": "El equipo está bloqueado. Sus agentes siguen desconectados hasta que el propietario lo desbloquee en el propio equipo.",
+    "err_not_owner": "No eres propietario en este bloqueo: solo un propietario puede confirmarlo.",
+    "err_bad_box_sig": "La firma del equipo no coincide con su clave fijada.",
+    "err_bad_sig": "La firma de la clave de bloqueo no coincide.",
+    "err_already": "Este equipo ya está bloqueado.",
+    "err_bad_body": "El hub no pudo leer este bloqueo.",
+    "err_no_box": "El hub no conoce este equipo.",
+    "err_failed": "No se pudo guardar el bloqueo. Inténtalo de nuevo."
   }
 }

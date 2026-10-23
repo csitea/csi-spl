@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Ei saadetud — {agent} ei võta sinult sõnumeid vastu. Sinu tekst on alles.",
     "sent_to_topic_retired": "Saadetud teemasse: {retired} pole enam aktiivne.",
     "open_channel": "Kas avada #{name}?",
-    "post_anyway": "Postita ikkagi"
+    "post_anyway": "Postita ikkagi",
+    "send_failed_box_locked": "Ei saadetud — selle agendi kast on lukustatud omanikele ja ainult nemad saavad selle agentidele kirjutada. Sinu tekst on alles."
   },
   "await_reply": {
     "spin": "Kätte saadud — ootab agendi vastust",
@@ -3316,5 +3317,40 @@
     "aria": "Kohaliku arenduse tööriistad",
     "login": "Arendaja sisselogimine",
     "mailbox": "Mailpiti postkast"
+  },
+  "box_lock": {
+    "title": "Omaniku lukk",
+    "loading": "Luku lugemine…",
+    "load_failed": "Lukku ei õnnestunud lugeda.",
+    "locked": "Lukus: selle kasti agentideni jõuavad ainult allpool olevad omanikud. Ükski administraator ei saa seda tühistada ega mööda minna.",
+    "owners": "Omanikud",
+    "peers": "Partnerkastid",
+    "no_peers": "Pole: ükski teine kast ei saa selle agentidele kirjutada.",
+    "version": "Versioon",
+    "audit": "Keeldumised ja muudatused",
+    "audit_none": "Veel pole midagi keelatud.",
+    "col_who": "Kes",
+    "col_path": "Kus",
+    "col_verdict": "Otsus",
+    "col_count": "Korda",
+    "col_at": "Viimati",
+    "none": "Sellel kastil pole sinu lukku.",
+    "open": "Lukusta see kast",
+    "confirm_title": "Kas lukustada see kast selle omanikele?",
+    "confirm_body": "Selle kasti agentideni jõuavad ainult lukus nimetatud omanikud. Ükski administraator, operaator ega juurvõti ei saa seda tühistada ega mööda minna; seda saab teha ainult omaniku lukuvõtmega allkirjastatud päring.",
+    "paste_label": "Kleebi käsu {cmd} väljund, mis käivitati selles kastis",
+    "paste_bad": "See ei ole selle käsu väljund.",
+    "paste_other_box": "See väljund lukustab teise kasti, mitte selle.",
+    "preview": "Omanikud selles lukus: {owners}",
+    "confirm": "Lukusta kast",
+    "locking": "Lukustamine…",
+    "done": "Kast on lukus. Selle agendid jäävad võrguühenduseta, kuni omanik selle kastis endas avab.",
+    "err_not_owner": "Sa ei ole selle luku omanik: kinnitada saab ainult omanik.",
+    "err_bad_box_sig": "Kasti allkiri ei vasta selle kinnitatud võtmele.",
+    "err_bad_sig": "Lukuvõtme allkiri ei vasta.",
+    "err_already": "See kast on juba lukus.",
+    "err_bad_body": "Jaotur ei suutnud seda lukku lugeda.",
+    "err_no_box": "Jaotur ei tunne seda kasti.",
+    "err_failed": "Lukku ei õnnestunud salvestada. Proovi uuesti."
   }
 }

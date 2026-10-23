@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Not sent — {agent} does not take messages from you. Your text is still here.",
     "sent_to_topic_retired": "Sent to the topic: {retired} is retired.",
     "open_channel": "Open #{name}?",
-    "post_anyway": "Post anyway"
+    "post_anyway": "Post anyway",
+    "send_failed_box_locked": "Not sent — this agent's box is locked to its owners, and only they can message its agents. Your text is still here."
   },
   "await_reply": {
     "spin": "Received — waiting for an agent's answer",
@@ -3316,5 +3317,40 @@
     "aria": "Local dev tools",
     "login": "Dev login",
     "mailbox": "Mailpit inbox"
+  },
+  "box_lock": {
+    "title": "Owner lock",
+    "loading": "Reading the lock…",
+    "load_failed": "The lock could not be read.",
+    "locked": "Locked: only the owners below can reach this box's agents. No admin can lift or bypass it.",
+    "owners": "Owners",
+    "peers": "Peer boxes",
+    "no_peers": "None: no other box may message its agents.",
+    "version": "Version",
+    "audit": "Refusals and changes",
+    "audit_none": "Nothing refused yet.",
+    "col_who": "Who",
+    "col_path": "Where",
+    "col_verdict": "Verdict",
+    "col_count": "Times",
+    "col_at": "Last",
+    "none": "This box has no lock you own.",
+    "open": "Lock this box",
+    "confirm_title": "Lock this box to its owners?",
+    "confirm_body": "Only the owners named in the lock will reach this box's agents. No admin, operator or root key can lift or bypass it; only a request signed with the owner's lock key can.",
+    "paste_label": "Paste the output of {cmd}, run on this box",
+    "paste_bad": "This is not that command's output.",
+    "paste_other_box": "This output locks another box, not this one.",
+    "preview": "Owners in this lock: {owners}",
+    "confirm": "Lock the box",
+    "locking": "Locking…",
+    "done": "The box is locked. Its agents stay offline until the owner unlocks it on the box.",
+    "err_not_owner": "You are not an owner in this lock: only an owner can confirm it.",
+    "err_bad_box_sig": "The box's signature does not match its pinned key.",
+    "err_bad_sig": "The lock key's signature does not match.",
+    "err_already": "This box is already locked.",
+    "err_bad_body": "The hub could not read this lock.",
+    "err_no_box": "The hub does not know this box.",
+    "err_failed": "The lock could not be saved. Try again."
   }
 }

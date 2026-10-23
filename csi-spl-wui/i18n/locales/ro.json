@@ -654,7 +654,8 @@
     "send_failed_not_allowed": "Netrimis — {agent} nu primește mesaje de la tine. Textul tău este încă aici.",
     "sent_to_topic_retired": "Trimis în subiect: {retired} nu mai este activ.",
     "open_channel": "Deschideți #{name}?",
-    "post_anyway": "Postează oricum"
+    "post_anyway": "Postează oricum",
+    "send_failed_box_locked": "Netrimis — boxul acestui agent este blocat pentru proprietarii săi și doar ei pot scrie agenților lui. Textul tău este încă aici."
   },
   "await_reply": {
     "spin": "Primit — se așteaptă răspunsul unui agent",
@@ -3316,5 +3317,40 @@
     "aria": "Instrumente de dezvoltare locală",
     "login": "Autentificare de dezvoltare",
     "mailbox": "Căsuța Mailpit"
+  },
+  "box_lock": {
+    "title": "Blocarea proprietarului",
+    "loading": "Se citește blocarea…",
+    "load_failed": "Blocarea nu a putut fi citită.",
+    "locked": "Blocat: doar proprietarii de mai jos ajung la agenții acestui box. Niciun administrator nu poate ridica sau ocoli blocarea.",
+    "owners": "Proprietari",
+    "peers": "Boxuri partenere",
+    "no_peers": "Niciunul: niciun alt box nu poate scrie agenților lui.",
+    "version": "Versiune",
+    "audit": "Refuzuri și modificări",
+    "audit_none": "Nimic refuzat încă.",
+    "col_who": "Cine",
+    "col_path": "Unde",
+    "col_verdict": "Decizie",
+    "col_count": "De câte ori",
+    "col_at": "Ultima dată",
+    "none": "Acest box nu are o blocare care să-ți aparțină.",
+    "open": "Blochează acest box",
+    "confirm_title": "Blochezi acest box pentru proprietarii lui?",
+    "confirm_body": "Doar proprietarii numiți în blocare vor ajunge la agenții acestui box. Niciun administrator, operator sau cheie rădăcină nu o poate ridica sau ocoli; doar o cerere semnată cu cheia de blocare a proprietarului poate.",
+    "paste_label": "Lipește ieșirea comenzii {cmd}, rulată pe acest box",
+    "paste_bad": "Aceasta nu este ieșirea acelei comenzi.",
+    "paste_other_box": "Această ieșire blochează alt box, nu pe acesta.",
+    "preview": "Proprietari în această blocare: {owners}",
+    "confirm": "Blochează boxul",
+    "locking": "Se blochează…",
+    "done": "Boxul este blocat. Agenții lui rămân offline până când proprietarul îl deblochează chiar pe box.",
+    "err_not_owner": "Nu ești proprietar în această blocare: doar un proprietar o poate confirma.",
+    "err_bad_box_sig": "Semnătura boxului nu se potrivește cu cheia lui fixată.",
+    "err_bad_sig": "Semnătura cheii de blocare nu se potrivește.",
+    "err_already": "Acest box este deja blocat.",
+    "err_bad_body": "Hubul nu a putut citi această blocare.",
+    "err_no_box": "Hubul nu cunoaște acest box.",
+    "err_failed": "Blocarea nu a putut fi salvată. Încearcă din nou."
   }
 }

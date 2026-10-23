@@ -14,6 +14,7 @@ import { storageGetJson } from './prefs.mjs'
 import { mockReadFault } from './plain-error.mjs'
 import { isPublicChannel, normalizeChannelId } from './spool-client.mjs'
 import { mentionedIds } from './notify.mjs'
+import { mockBoxSendRefusal } from './box-lock.mjs'
 
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
@@ -96,6 +97,8 @@ export function mockSendMessage(state, p, uuid) {
   /* spec 068: what the hub's insert stores - <to>@<to_box> for a
      message to one agent; the mock reads a bare peer's box off the roster */
   const seatBox = toBox || Object.keys(state.roster || {}).find((b) => (state.roster[b] || []).includes(to))
+  /* spec 025 box owner lock (B8): the hub's 403 box_locked, under the e2e hook `spool.mock.box-lock` */
+  if (isAgentId(to)) mockBoxSendRefusal(state.me.id, seatBox)
   const row = {
     v: 1,
     msg_id: msg_id || uuid(),

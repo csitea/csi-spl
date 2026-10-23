@@ -251,7 +251,7 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 			return nil, nil, err
 		}
 		sec.Results = mod.keepResults(sec.Results)
-		if sec.Results, err = s.lockKeepResults(ctx, t.ID, base.Viewer, lv, ty, sec.Results); err != nil {
+		if sec.Results, err = s.lockKeepResults(ctx, t.ID, base.Viewer, lv, sec.Results); err != nil {
 			return nil, nil, err
 		}
 		groups[ty.Group()] = sec
@@ -369,7 +369,7 @@ func fileSection(ctx context.Context, se store.Searcher, tenant string, q *searc
 			"file_id": strPtr(f.FileID), "kind": f.Kind, "mode": f.Mode, "bytes": bytes,
 			"name":   hl{f.Name, q.HighlightSubstrings(f.Name)},
 			"msg_id": f.Msg.MsgID, "task_id": f.Msg.TaskID, "channel": strPtr(f.Msg.Channel),
-			"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "received_at": rfc(f.Msg.ReceivedAt)})
+			"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "to_box": f.Msg.ToBox, "received_at": rfc(f.Msg.ReceivedAt)})
 	}
 	return out, nil
 }

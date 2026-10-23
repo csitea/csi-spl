@@ -28,7 +28,8 @@ import (
 // box (box-sh: CLE-02), both in channel #ops, an owner of the lock (a
 // developer: the lock reads no role) and another admin, both members of
 // #ops (spec 025 box-owner-lock.md, row B5). Each agent posted one line in
-// #ops carrying a file, in its own topic.
+// #ops carrying a file, in its own topic, and CLE-02 posted one more to
+// box-own (the cross topic, its file named "wombat").
 type viewRig struct {
 	e                 *env
 	tid               string
@@ -38,6 +39,7 @@ type viewRig struct {
 	ownTask, shTask   string
 	ownMsg, shMsg     string
 	ownFile, shFile   string
+	xTask, xFile      string
 	ownToken, shToken string
 }
 
@@ -50,11 +52,6 @@ func newViewRig(t *testing.T) *viewRig {
 	for _, b := range []*box{r.own, r.sh} {
 		e.pin(tid, b)
 	}
-	kbox, err := sign.LoadPrivate(r.own.cfg.KeysDir, r.own.id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, klock, _ := ed25519.GenerateKey(nil)
 	r.owner, r.admin = seat(t, e, tid, rbac.Developer), seat(t, e, tid, rbac.Admin)
 	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "ops", Name: "ops",
 		CreatedBy: "hub", CreatedAt: now}); err != nil {
@@ -70,23 +67,41 @@ func newViewRig(t *testing.T) *viewRig {
 	}
 	r.ownTask, r.ownMsg, r.ownFile = r.post(t, r.own, "CLE-01")
 	r.shTask, r.shMsg, r.shFile = r.post(t, r.sh, "CLE-02")
-	l := store.BoxLock{TenantID: tid, BoxID: "box-own", LockPubKey: lb64(klock.Public().(ed25519.PublicKey)),
-		BoxPubKey: lb64(kbox.Public().(ed25519.PublicKey)), Owners: []string{r.owner}, HidePosts: true, Version: 1}
-	l.SignedBody = store.BoxLockBody(l)
-	l.Signature = lb64(ed25519.Sign(klock, []byte(l.SignedBody)))
-	if err := e.st.(store.BoxLockStore).CreateBoxLock(ctx, l, r.owner, now); err != nil {
-		t.Fatal(err)
-	}
+	r.xTask, _, r.xFile = r.postTo(t, r.sh, "CLE-02", "box-own", "CLE-01", "wombat")
+	lockTo(t, e, tid, r.own, r.owner)
 	r.ownToken, r.shToken = e.uploadToken(tid, r.own), e.uploadToken(tid, r.sh)
 	return r
+}
+
+// lockTo locks box b of tid to owner (a signed lock row, store side).
+func lockTo(t *testing.T, e *env, tid string, b *box, owner string) {
+	t.Helper()
+	kbox, err := sign.LoadPrivate(b.cfg.KeysDir, b.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, klock, _ := ed25519.GenerateKey(nil)
+	l := store.BoxLock{TenantID: tid, BoxID: b.id, LockPubKey: lb64(klock.Public().(ed25519.PublicKey)),
+		BoxPubKey: lb64(kbox.Public().(ed25519.PublicKey)), Owners: []string{owner}, HidePosts: true, Version: 1}
+	l.SignedBody = store.BoxLockBody(l)
+	l.Signature = lb64(ed25519.Sign(klock, []byte(l.SignedBody)))
+	if err := e.st.(store.BoxLockStore).CreateBoxLock(context.Background(), l, owner, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // post is agent's line in #ops, in a topic of its own, carrying a file
 // uploaded by its box: the task, the msg id and the file id.
 func (r *viewRig) post(t *testing.T, b *box, agent string) (task, id, file string) {
 	t.Helper()
+	return r.postTo(t, b, agent, hub.WUIBox, "ALL-0", "quokka")
+}
+
+// postTo is post addressed to toBox / to, its body and file named word.
+func (r *viewRig) postTo(t *testing.T, b *box, agent, toBox, to, word string) (task, id, file string) {
+	t.Helper()
 	ctx := context.Background()
-	src := filepath.Join(t.TempDir(), agent+".txt")
+	src := filepath.Join(t.TempDir(), word+"-"+agent+".txt")
 	if err := os.WriteFile(src, []byte("load report of "+agent), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -102,10 +117,10 @@ func (r *viewRig) post(t *testing.T, b *box, agent string) (task, id, file strin
 	if err := cli.UploadFile(ctx, att.FileID); err != nil {
 		t.Fatalf("%s upload: %v", agent, err)
 	}
-	m := chanMsg(uuidV4(), "ALL-0", "note", "quokka load report from "+agent)
+	m := chanMsg(uuidV4(), to, "note", word+" load report from "+agent)
 	m.From = agent
-	m.Files = []msg.Attachment{{Mode: "blob", Kind: "file", FileID: att.FileID, Name: agent + ".txt"}}
-	if _, err := cli.Send(ctx, signedIn(t, b, hub.WUIBox, "ops", "", m)); err != nil {
+	m.Files = []msg.Attachment{{Mode: "blob", Kind: "file", FileID: att.FileID, Name: word + "-" + agent + ".txt"}}
+	if _, err := cli.Send(ctx, signedIn(t, b, toBox, "ops", "", m)); err != nil {
 		t.Fatalf("%s post: %v", agent, err)
 	}
 	return m.TaskID, m.MsgID, att.FileID
@@ -203,6 +218,19 @@ func TestBoxLockViewPaths(t *testing.T) {
 			if code != http.StatusOK || strings.Contains(adm, r.ownTask) || !strings.Contains(adm, r.shTask) {
 				t.Fatalf("admin %s: %d %s, want CLE-02's topic only", path, code, adm)
 			}
+		}
+		// R7 D1: a file on CLE-02's line TO box-own is in a topic the admin
+		// reads as 404, so no hit of it (file, line or topic) reaches the admin.
+		_, own := r.get(t, "/v1/view/search?q=wombat", r.owner)
+		code, adm := r.get(t, "/v1/view/search?q=wombat", r.admin)
+		if !strings.Contains(own, r.xFile) {
+			t.Fatalf("owner search wombat: %s, want the cross file", own)
+		}
+		if code != http.StatusOK || strings.Contains(adm, r.xFile) || strings.Contains(adm, r.xTask) {
+			t.Fatalf("admin search wombat: %d %s, want no hit of the cross topic", code, adm)
+		}
+		if code, _ := r.get(t, "/v1/view/topics/"+r.xTask, r.admin); code != http.StatusNotFound {
+			t.Fatalf("admin reads the cross topic: %d, want 404", code)
 		}
 	})
 
@@ -351,4 +379,53 @@ func TestBoxLockViewPaths(t *testing.T) {
 			t.Fatalf("owner assigns CLE-01: %d %v", code, out)
 		}
 	})
+}
+
+// Row B5 path 10b (R7 follow-up): the operator workspace's admin, not an
+// owner of box-own's lock, reads the fleet load without box-own's band and
+// order place, and a PATCH of the order or the bands that names box-own (new
+// or stored) is a 403 box_locked with one refused audit row. CONTROL: a
+// PATCH of the order without box-own lands while none is stored.
+func TestBoxLockFleetLoadPaths(t *testing.T) {
+	e, op, _, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	ctx, admin := context.Background(), who[rbac.Admin]
+	own := e.box(op, "box-own", "CLE-01")
+	e.pin(op, own)
+	lockTo(t, e, op, own, who[rbac.Developer])
+	refused := func() int {
+		t.Helper()
+		rows, err := e.st.(store.BoxLockStore).BoxLockAudits(ctx, op, "box-own", 200)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, a := range rows {
+			if a.Path == "operator_workspace" && a.Verdict == store.BoxLockRefused {
+				n += a.Count
+			}
+		}
+		return n
+	}
+	locked := func(what string, body map[string]any) {
+		t.Helper()
+		before := refused()
+		code, out := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, body)
+		if code != http.StatusForbidden || out["error"] != "box_locked" || refused()-before != 1 {
+			t.Fatalf("%s: %d %v, refused +%d; want 403 box_locked, +1", what, code, out, refused()-before)
+		}
+	}
+	if code, out := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"box_order": []string{"box-a"}}); code != http.StatusOK {
+		t.Fatalf("CONTROL: admin orders box-a: %d %v", code, out)
+	}
+	locked("admin orders box-own", map[string]any{"box_order": []string{"box-own", "box-a"}})
+	locked("admin bands box-own", map[string]any{"boxes": map[string]any{"box-own": map[string]any{"low": 10, "high": 20}}})
+	fl := e.st.(store.FleetLoadTarget)
+	if _, err := fl.SetFleetLoad(ctx, op, store.FleetLoadPatch{OrderSet: true, BoxOrder: []string{"box-own", "box-a"}}); err != nil {
+		t.Fatal(err)
+	}
+	code, out := call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil)
+	if o, _ := out["box_order"].([]any); code != http.StatusOK || len(o) != 1 || o[0] != "box-a" {
+		t.Fatalf("admin reads the fleet load: %d %v, want box_order [box-a]", code, out["box_order"])
+	}
+	locked("admin re-orders over a stored box-own", map[string]any{"box_order": []string{"box-a"}})
 }

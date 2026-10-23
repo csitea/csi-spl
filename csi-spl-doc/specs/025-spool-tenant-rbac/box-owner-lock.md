@@ -279,11 +279,17 @@ ids, 5 s cache that a lock write through the same store clears) and `TopicAccess
 `from_box` / `to_box` of the topic). A workspace with no lock pays the one `LockedBoxes` read per request and
 nothing else. Test: `TestBoxLockViewPaths` (`internal/hub/box_lock_view_test.go`), one pair per path: the owner
 sees or changes it, the other admin is hidden, 404 or 403 `box_locked`, and the admin's control on the open box
-passes.
+passes. Path 10b: `TestBoxLockFleetLoadPaths`; the live snapshot: `TestLockSnapsFailClosed`.
+
+R7 fixes (c-986 FAIL on `c8afc00d5`): a file hit now carries `to_box` and every search hit in a hidden topic is
+dropped (D1: a file on a line TO a locked box stayed in another admin's search). The live snapshot `lockSnaps` is
+known (read, with or without locks) or unknown (never read on this instance, or its last read failed); an unknown
+workspace hides every frame with a box end from everyone until one read succeeds (D2: a store error at fan-out
+used to keep, or find empty, the last snapshot and show the frame). A frame with no box end is never hidden.
 
 | path | where | what a non-owner gets |
 |---|---|---|
-| 4 | `topicDoor` (`privacy.go`): `canReadTopic` and the fused page door (`view.go`); the topic list and its inline messages; the topic page; search (`search.go`: message, file, box and robot hits, topic hits by their `TopicAccess`); flow (`flow.go`, the page and the live event) | a topic that touches a locked box reads 404 and leaves every list; a message or event from or to one is left out |
+| 4 | `topicDoor` (`privacy.go`): `canReadTopic` and the fused page door (`view.go`); the topic list and its inline messages; the topic page; search (`search.go`: message, file, box and robot hits by their ends, and every hit with a `task_id` by its topic's `TopicAccess`, once per topic); flow (`flow.go`, the page and the live event) | a topic that touches a locked box reads 404 and leaves every list; a message or event from or to one is left out |
 | 4b | `wants` (`wui.go`), so every live frame that asks it (new posts, edits, reactions, moves, merges, archive); subscribe goes through `canReadTopic` | no frame; subscribe answers `not_found` |
 | 5 | `handleViewRoster` (`view.go`); the welcome presence snapshot (`wui.go`) | the box's row and its agents' presence are left out |
 | 5b | `handleBoxStats` (`box_stats.go`); `handleAgentLifecycleEvents` (`agent_lifecycle.go`) | the box's rows, hours and lifecycle events are left out |

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -102,17 +101,20 @@ func (v lockView) hidesAny(boxes []string) bool {
 func (s *Server) tenantLocks(ctx context.Context, tenant string) (map[string]*store.BoxLock, error) {
 	lister, ok := s.o.Store.(store.LockedBoxLister)
 	if !ok || tenant == "" {
+		s.locks.put(tenant, nil) // no lock store: known to hold no lock
 		return nil, nil
 	}
 	ids, err := lister.LockedBoxes(ctx, tenant)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("box locks list")
+		s.locks.forget(tenant)
 		return nil, err
 	}
 	var out map[string]*store.BoxLock
 	for _, id := range ids {
 		l, err := s.boxLock(ctx, tenant, id)
 		if err != nil {
+			s.locks.forget(tenant)
 			return nil, err
 		}
 		if l != nil {
@@ -197,11 +199,13 @@ func (s *Server) fileLockHidden(ctx context.Context, tenant, fileID, hum string)
 
 // lockKeepResults is one search section without what a lock hides from hum:
 // a message or file hit from or to a hidden box, a box or robot on one, and
-// a topic hit that touches one (its TopicAccess, as canReadTopic asks it).
-func (s *Server) lockKeepResults(ctx context.Context, tenant, hum string, v lockView, ty search.Type, rs []any) ([]any, error) {
+// any hit in a topic that touches one (its TopicAccess, as canReadTopic asks
+// it; once per topic), so no file or line hit outlives its 404 topic.
+func (s *Server) lockKeepResults(ctx context.Context, tenant, hum string, v lockView, rs []any) ([]any, error) {
 	if !v.any() {
 		return rs, nil
 	}
+	topics := map[string]bool{}
 	kept := rs[:0]
 	for _, r := range rs {
 		m, _ := r.(map[string]any)
@@ -211,14 +215,19 @@ func (s *Server) lockKeepResults(ctx context.Context, tenant, hum string, v lock
 				hidden = true
 			}
 		}
-		if task, _ := m["task_id"].(string); !hidden && ty == search.TypeTopic && task != "" {
-			a, err := s.o.Store.TopicAccess(ctx, tenant, task, s.o.Now())
-			if err != nil {
-				return nil, err
+		if task, _ := m["task_id"].(string); !hidden && task != "" {
+			h, seen := topics[task]
+			if !seen {
+				a, err := s.o.Store.TopicAccess(ctx, tenant, task, s.o.Now())
+				if err != nil {
+					return nil, err
+				}
+				if h, err = s.topicLockHidden(ctx, tenant, task, a, hum); err != nil {
+					return nil, err
+				}
+				topics[task] = h
 			}
-			if hidden, err = s.topicLockHidden(ctx, tenant, task, a, hum); err != nil {
-				return nil, err
-			}
+			hidden = h
 		}
 		if !hidden {
 			kept = append(kept, r)
@@ -489,7 +498,10 @@ func writeLockRefusal(w http.ResponseWriter, rf *frameRefusal) {
 }
 
 // lockSnaps is the locks last read per workspace (tenantLocks), for the
-// live fan-out, which cannot read the store under the hub mutex.
+// live fan-out, which cannot read the store under the hub mutex. A
+// workspace is known (read, with or without locks) or unknown (never read
+// on this instance, or its last read failed); an unknown one hides every
+// frame with a box end, as point (d) asks: hide, never show.
 type lockSnaps struct {
 	mu sync.RWMutex
 	m  map[string]map[string]*store.BoxLock
@@ -498,9 +510,8 @@ type lockSnaps struct {
 func (n *lockSnaps) put(tenant string, locks map[string]*store.BoxLock) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if len(locks) == 0 {
-		delete(n.m, tenant)
-		return
+	if locks == nil {
+		locks = map[string]*store.BoxLock{}
 	}
 	if n.m == nil {
 		n.m = map[string]map[string]*store.BoxLock{}
@@ -508,15 +519,26 @@ func (n *lockSnaps) put(tenant string, locks map[string]*store.BoxLock) {
 	n.m[tenant] = locks
 }
 
+// forget makes tenant unknown again (its locks read failed).
+func (n *lockSnaps) forget(tenant string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	delete(n.m, tenant)
+}
+
 // hides reports whether a live message with ends p is hidden from hum by
-// the last locks read for tenant.
+// the last locks read for tenant: a box end locked to someone else, or any
+// box end while tenant is unknown.
 func (n *lockSnaps) hides(tenant, hum string, p parties) bool {
-	if n == nil {
+	if n == nil || tenant == "" {
 		return false
 	}
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	ls := n.m[tenant]
+	ls, known := n.m[tenant]
+	if !known {
+		return p.fromBox != "" || p.toBox != ""
+	}
 	if len(ls) == 0 {
 		return false
 	}

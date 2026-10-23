@@ -3,7 +3,9 @@
 # the runtime role (the cloud shape, as hub-pg.tst.sh), one tenant, then
 # `spool serve` with the view door off on a kernel-picked port. It runs the
 # command given with HUB_URL=http://<tenant>.localhost:<port> and exits with
-# that command's status; everything is torn down on exit.
+# that command's status; everything is torn down on exit. The command also
+# gets SPOOL_TEST_PG_DSN (SPL-3107): the migrated database as the schema-owner
+# role spool_app, the role the Go store suites use (app_dsn in hub-pg.tst.sh).
 #
 # Usage: bash csi-spl-api/src/bash/hub-live-stack.sh <cmd> [args...]
 #   e.g. bash csi-spl-api/src/bash/hub-live-stack.sh pnpm -C csi-spl-wui run test:live
@@ -133,6 +135,8 @@ say "hub up at $HUB_URL (pid $HUB_PID)"
 
 # 5. the caller's command, with the hub log on a failure
 export HUB_URL
+SPOOL_TEST_PG_DSN="$(dsn "$APP_ROLE")"
+export SPOOL_TEST_PG_DSN
 rc=0
 "$@" || rc=$?
 if [ "$rc" -ne 0 ]; then

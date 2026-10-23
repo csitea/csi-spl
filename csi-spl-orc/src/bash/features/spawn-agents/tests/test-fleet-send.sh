@@ -142,6 +142,11 @@ has "5. a task NAME travels as its one uuid (the hub keys topics on a uuid)" "--
 rl --from CLE-100004 --to CLE-001 --kind result --body hi --task 07af027a-4174-4709-b7f0-3a382553fb00 --to-box box-desk >/dev/null 2>&1
 has "5. a uuid task travels as it is" "--task 07af027a-4174-4709-b7f0-3a382553fb00" "$(cat "$T_TMP/stub.args")"
 has "5. the box travels as to_box" "--to-box box-desk" "$(cat "$T_TMP/stub.args")"
+# b07-01: an 8-hex topic prefix is a short topic id, not a task name; hashed,
+# it landed in a new empty topic (c-002 msg 4592d4c0). The relay refuses it.
+rm -f "$T_TMP/stub.args"; out="$(rl --from CLE-100004 --to CLE-001 --kind result --body hi --task 9e1e51f3 --to-box box-desk 2>&1)"; rc=$?
+check "b07-01. an 8-hex topic prefix is refused (exit != 0)" test "$rc" -ne 0
+check "b07-01. ... and nothing reaches the hub" test ! -e "$T_TMP/stub.args"
 # spec 130 L3: an acceptance carries accepts; --to-this-box is the sidecar's own box
 ACC=0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b
 rl --from CLE-100004 --to CLE-001 --kind result --body ok --accept "$ACC" --to-this-box >/dev/null 2>&1; rc=$?

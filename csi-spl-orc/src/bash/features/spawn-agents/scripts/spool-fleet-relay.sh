@@ -131,6 +131,14 @@ args=(send --from "$SENDER" --to "$TO" --kind "$KIND" --body "$BODY")
 # "dispatch-gaps") made Postgres refuse the insert, the hub answered
 # "internal (message not stored)", and the sidecar retried it for ever
 # (2026-10-02, prd hub log). A name maps to ONE uuid (v5), so a topic stays one.
+# A task of 6 to 31 hex digits is not a name: it is the short form of a real
+# topic (the form posts carry). Hashed, it landed in a new empty topic nobody
+# reads and the relay printed success (c-002 msg 4592d4c0, 2026-10-23), so it is
+# refused before anything is sent. Local sends are not relayed and keep theirs.
+if [[ "$TASK" =~ ^[0-9a-fA-F]{6,31}$ ]]; then
+  say "task '$TASK' looks like a short topic id: pass the full uuid (or dispatch-<topic8> for an owner topic). Nothing was sent."
+  exit 2
+fi
 if [ -n "$TASK" ] && ! [[ "$TASK" =~ ^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$ ]]; then
   TASK="$(python3 -c 'import sys, uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spool-task:" + sys.argv[1]))' "$TASK")" ||
     { say "cannot map task '$TASK' to a uuid"; exit 2; }

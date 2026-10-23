@@ -50,6 +50,15 @@ Refined the same morning (binding where it differs from the first request):
 - **Phones (<= 820 px, SPL-992)**: unchanged. The sheet is a card list (level
   2) and an opened issue is the full-screen level 3, which is what a modal is
   on a phone.
+- **The opened issue's hierarchy (issues-06, SPL-3072)**: the title is the
+  pane's heading (1.25rem, no box until hovered or focused), then the
+  description, then the property panel (beside them above 820 px, below them
+  on a phone). The panel is a grid: one label column width for every row
+  (`--issues-meta-k`), 12 px between rows, every value on one edge; the
+  created / updated lines sit under it on that value edge. Tests:
+  `tests/unit/issue-detail-layout.test.mjs`, and
+  `tests/e2e/issue-detail-layout.test.mjs` at 412x915 and 1280x800, light
+  and dark.
 
 ## Attributes (FR-001)
 

@@ -2033,15 +2033,20 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-detail-in[data-modal="true"] .issues-detail-side { grid-area: side; min-width: 0; border-inline-start: 1px solid var(--color-border); padding-inline-start: 20px; }
 /* the phone stacks one column, in DOM order: description, panel, subtasks, discussion */
 .issues-detail-cols { display: flex; flex-direction: column; gap: 12px; }
-.issues-detail-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-detail-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .issues-detail-desc { min-height: 6.5rem; }
 .issues-detail-create { align-self: flex-start; }
 /* the property panel: one property per row, label | control aligned in a grid.
    Every row uses the same track sizes, so the label edges and the control left
-   edges line up down the panel (owner: "vertically aligned"). */
-.issues-panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.issues-prow { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; column-gap: 10px; min-width: 0; }
-.issues-prow__k { font-size: 0.75rem; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; }
+   edges line up down the panel (owner: "vertically aligned").
+   issues-06 (SPL-3072): one label column width (--issues-meta-k) for every row
+   and the created/updated lines under it, 12 px between rows. The column
+   geometry stays 5.5rem + 10 px: the pickers open right under their field
+   (tests/e2e/issues-crud-modal.test.mjs M3). */
+.issues-detail-side { --issues-meta-k: 5.5rem; --issues-meta-gap: 10px; }
+.issues-panel { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 12px; min-width: 0; }
+.issues-prow { display: grid; grid-template-columns: var(--issues-meta-k) minmax(0, 1fr); align-items: center; column-gap: var(--issues-meta-gap); min-width: 0; }
+.issues-prow__k { font-size: 0.75rem; font-weight: 500; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .issues-pctl, .issues-pval {
   box-sizing: border-box;
   width: 100%;
@@ -2073,7 +2078,9 @@ select.issues-pctl { appearance: auto; }
    the calendar button always stays inside the panel */
 .issues-prow .issues-deadline { width: 100%; flex-wrap: nowrap; }
 .issues-prow .issues-deadline :deep(.dlp__text) { flex: 1 1 auto; min-width: 0; }
-.issues-detail-meta { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 2px; }
+/* created / updated by: under the panel, its text on the value column's edge */
+.issues-detail-meta { margin-top: 12px; padding-top: 12px; padding-inline-start: calc(var(--issues-meta-k) + var(--issues-meta-gap)); border-top: 1px solid var(--color-border); display: grid; row-gap: 4px; min-width: 0; }
+.issues-detail-meta .issues-meta { overflow-wrap: anywhere; }
 .issues-detail__hgap { flex: 1 1 auto; }
 /* SPL-1027: the sheet's CRUD cells */
 .issues-c-act { width: 1%; white-space: nowrap; text-align: center; }
@@ -2168,7 +2175,13 @@ select.issues-pctl { appearance: auto; }
   padding: 6px 8px;
   font: inherit;
 }
-.issues-detail__title { font-size: 1.125rem; font-weight: 600; }
+/* issues-06: the title is the pane's heading - larger, no box until hovered or
+   focused, so it reads above the description and the property panel. Pulled
+   out by its padding + border (9 px) so its text starts on the description's
+   label edge. */
+.issues-detail__title { font-size: 1.25rem; font-weight: 600; line-height: 1.3; background: transparent; border-color: transparent; margin-inline: -9px; width: calc(100% + 18px); max-width: none; }
+.issues-detail__title:hover { border-color: var(--color-border); }
+.issues-detail__title:focus { border-color: var(--color-accent); background: var(--color-bg-2); outline: none; }
 .issues-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
 .issues-props { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; min-width: 0; }
 /* the deadline takes a row of its own: a chip beside it would stretch to its height */

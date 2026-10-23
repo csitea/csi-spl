@@ -85,8 +85,11 @@ type Memory struct {
 	agentCaps map[string]map[string]memCap
 	// box_locks_memory.go (rdb 0213): box locks and their audit, guarded by mu
 	boxLocks *memBoxLocks
-	// topic_priority_memory.go (rdb 0214): (tenant, task) -> priority, guarded by mu
+	// topic_priority_memory.go (rdb 0215): (tenant, task) -> priority, guarded by mu
 	topicPrio map[[2]string]TopicPriority
+	// dm_agents.go (rdb 0223, spec 151): the agents added to a DM, nil until
+	// the first add; guarded by mu
+	dmAgents map[memDMAgentKey]DMAgent
 	// box_locks_expected.go: cnf hub.box_locks_expected, read without mu
 	expectLocks expectedBoxLocks
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu

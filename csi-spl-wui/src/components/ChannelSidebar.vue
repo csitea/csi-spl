@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || eventsRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, flow,
@@ -490,18 +490,19 @@
              features" is the panel's only section, at the top. -->
         <LazyIssueEpicsPanel v-if="tab === 'issues'" />
       </div>
-      <!-- the personal Event log; the list lives on /events -->
+      <!-- the personal Event log. SPL-3212 (owner, t1 986e0918: "I should not
+           have to click this link"): a phone's level 1 shows the log itself,
+           the /events page's own lazy chunk (no copy, no link); above 820 px
+           /events is the view and this sidebar the rail (eventsRailOnly) -->
       <div
-        v-if="tab === 'events' || (tabsBuilt.events && !phone)"
-        v-show="tab === 'events'"
+        v-if="tab === 'events' && phone && mobileStack.level.value === 1"
         id="sidebar-panel-events"
         class="sidebar-panel"
         role="tabpanel"
         aria-labelledby="sidebar-tab-events"
         data-testid="sidebar-panel-events"
       >
-        <h2>{{ t('sidebar.events') }}</h2>
-        <NuxtLink class="nav-row" data-testid="sidebar-events-open" :to="localePath('/events')">{{ t('events.title') }}</NuxtLink>
+        <EventLogPane />
       </div>
       <!-- CLE-77794: People - every tenant member. The list is here; the chosen
            person's card (avatar, role, last seen, interests) opens in the
@@ -653,6 +654,8 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 /* CLE-77884: async too - only a search needs it */
 const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
+/* SPL-3212: the phone's Events panel is the /events page itself, its own lazy chunk */
+const EventLogPane = defineAsyncComponent(() => import('~/pages/events.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
@@ -818,7 +821,7 @@ const selfStatus = computed(() => {
 const { onKeydown: onSubmitKey } = useSubmitKey()
 const localePath = useLocalePath()
 /* the pages that keep the icon rail alone, .sidebar--rail (useSidebarRailOnly) */
-const { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, helpRailOnly, docsRailOnly, railOnly } = useSidebarRailOnly(tab, mobileStack.isMobile, route)
+const { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, eventsRailOnly, helpRailOnly, docsRailOnly, railOnly } = useSidebarRailOnly(tab, mobileStack.isMobile, route)
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))

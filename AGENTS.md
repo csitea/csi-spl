@@ -2,7 +2,10 @@
 
 The rules for this repo are in [CLAUDE.md](CLAUDE.md), and they bind every
 agent, whatever its vendor. Read it first, whole. This file only points to it,
-so each rule is stated once.
+so each rule is stated once. The coding standards every coder follows, human
+or agent, have their one home in the
+[developer guide, coding standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43);
+CLAUDE.md points there too.
 
 Why this file exists: vibe (mistral) loads a trusted dir's `AGENTS.md`, never
 `CLAUDE.md` (spec 110 T005). The fleet's global rules reach vibe as

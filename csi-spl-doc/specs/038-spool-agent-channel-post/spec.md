@@ -246,6 +246,23 @@ delivers again; a non-owner member is refused. Each gate removed turns it red.
   refused (`#lobby` too), members GET carries `"humans_only": true`, and the
   automatic joins (`do_spl_dispatch_subscribe`) and the unanswered sweep skip
   it. Proof: `internal/hub/channel_humans_only_test.go`.
+- **FR-047** The hub refuses a broken poll form (SPL-3203, owner HUM-10
+  2026-10-24, t1 8f476aa8 msg 64f8633b, csitea 348d8011 msg 27761df2): a box
+  send (`spool send`, the MCP `spool_send`, the desk actions: every agent
+  post) whose `poll` block the WUI would show as a code block, not a form, is
+  refused `422 poll_not_a_form` and nothing is stored; the detail is
+  pollProblems' lines (how-to-post section 7). A body with no `poll` block
+  and a sealed (v:3) body pass unchanged; browser posts (`wui.go`) and
+  edits are not checked. The rule is a Go port of `readPoll` /
+  `pollProblems` (`csi-spl-wui/src/utils/poll.mjs`, option keys 1-8 since
+  SPL-3202): `internal/pollform`, held equal to the JS by the shared case
+  file `internal/pollform/testdata/poll-form-cases.json` (each body with the
+  JS's exact problem lines). Why the hub: the send check of the desk actions
+  (SPL-3062) ran only when the sender's tree had it. Measured on prd
+  2026-10-24 00:00-09:26Z: 11 agent posts carried a `poll` block, 3 were no
+  form under the 1-3 key rule (keys `NONE`/`LATER`, `DROP`, `K180`), all 11
+  are forms under 1-8. Proof: `internal/pollform/pollform_test.go`,
+  `internal/hub/poll_not_a_form_test.go` (memory and Postgres).
 
 ## Security note
 

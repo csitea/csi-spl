@@ -21,6 +21,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/pollform"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -741,7 +742,8 @@ func (s *Server) sendTenantRefusal(ctx context.Context, x *session, id string) *
 // sendContentRefusal: every attached file is held and readable by the box
 // (an unreadable one answers as missing: no oracle for what the box may not
 // read), the ts parses, the channel / parent tags fit, the agent is in the
-// channel it posts to (specs/038 FR-004), and a typed_by claim is bound.
+// channel it posts to (specs/038 FR-004), a typed_by claim is bound, and a
+// ```poll fence is a form (SPL-3203).
 func (s *Server) sendContentRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message, typedBy string) *frameRefusal {
 	if missing := s.missingFile(ctx, x.tenant, m.Files); missing != "" {
 		return &frameRefusal{"missing_file", http.StatusBadRequest, "file_id " + missing + " is not held by the hub"}
@@ -770,6 +772,22 @@ func (s *Server) sendContentRefusal(ctx context.Context, x *session, env *wire.E
 		if detail := s.typedByRefusal(ctx, x, m.From, typedBy); detail != "" {
 			return &frameRefusal{"typed_by_not_bound", http.StatusForbidden, detail}
 		}
+	}
+	return pollRefusal(m.Body)
+}
+
+// CodePollNotAForm refuses a box send whose ```poll fence the WUI would show
+// as a code block, not a form (SPL-3203, internal/pollform). A body with no
+// ```poll fence, and a sealed body the hub cannot read, pass. Not named
+// Token*: gosec G101 reads a Token const as a credential.
+const CodePollNotAForm = "poll_not_a_form"
+
+// pollRefusal is the 422 of a body whose ```poll fences are no form; the
+// detail is pollProblems' lines, so the sender reads what to fix.
+func pollRefusal(body string) *frameRefusal {
+	if p := pollform.Problems(body); len(p) > 0 {
+		return &frameRefusal{CodePollNotAForm, http.StatusUnprocessableEntity,
+			strings.Join(p, "; ") + " (how-to-post section 7)"}
 	}
 	return nil
 }

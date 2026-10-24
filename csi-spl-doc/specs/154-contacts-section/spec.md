@@ -1,7 +1,7 @@
 # 154 Contacts section, synced with Google Contacts
 
-Version v0.2 (2026-10-24), the editor's draft with the agy seat's review
-folded in (section 10). Step 2 of the
+Version v0.3 (2026-10-24), the editor's draft with both panel seats'
+reviews folded in (section 10). Step 2 of the
 owner rule for a big change: the written spec, then the panel, then the
 build. Written by c-951@sat (claude) because agy, the main vendor for
 specs, is out of quota; a panel follows. Nothing in it is built.
@@ -79,7 +79,7 @@ is red on master today unless marked (C).
 | 12 | the command palette | `wui/composables/usePaletteItems.ts:40` `PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'settings']`; client-side over the stores' lists (`:83-107`) | an optional `contacts` group (B10) |
 | 13 | rail sections | `wui/utils/rail-order.ts:20` `export const RAIL_TABS`; the palette lists them (`usePaletteItems.ts:63-80`) | a new rail tab `contacts` |
 | 14 | spec 149's Google connection | landed: `rdb/0217_google_calendar.sql:17-41` `gcal_connections`, `UNIQUE (tenant_id, human_id)` (:40), sealed tokens `access_sealed`, `refresh_sealed`, `kms_key_id` (:26-28); no column for the granted scopes | one Google connection per member per workspace exists; contacts adds a scope to it, not a second login (2.2) |
-| 15 | spec 149's Google client | landed (`bf5a169e4`): `api/internal/gcal/oauth.go:172-174` sends `scope` from cnf `gcal.scopes` (:58) and `include_granted_scopes=true`; the token answer's `scope` is parsed (`:235`, :247) | incremental consent works with the landed client; the granted scope string is already in hand |
+| 15 | spec 149's Google client | landed (`bf5a169e4`): `api/internal/gcal/oauth.go:172-174` sends `scope` from cnf `gcal.scopes` (:58) and `include_granted_scopes=true`; the token answer's `scope` is parsed (`:235`, :247) | the granted scope string is already in hand; but `AuthorizeURL(state)` (:167) takes no scope argument, the scope is fixed per client from cnf (:58, :172), so asking for one part's scope needs a change in `oauth.go` (B7) |
 | 16 | spec 149's hub side | `ls hub/ \| grep -c gcal` -> 0: no connect route, sync or WUI yet (149 B5-B10 not landed) | B7, B8 and B9 here come after 149 B5, B6a and B8 |
 | 17 | sign-in scopes | `cnf/all.env.yaml:704` `SPOOL_HUB_AUTH_GOOGLE_SCOPES: "openid email profile"`; `auth/idp.go:146` `access_type=online` | sign-in never returns a refresh token; the connect flow is 149's (149 P1) |
 | 18 | the sealer | `api/internal/marketing/seal.go:115` `Seal`, `:139` `Open`; `:87` names 149's purpose `spool-gcal-token/v1` | tokens stay sealed under 149's purpose; contacts adds no token |
@@ -119,16 +119,19 @@ login:
 
 1. The connect URL takes `?want=calendar|contacts|calendar,contacts`; the
    hub asks for `openid email` plus the scopes of each wanted part (cnf
-   `gcal.scopes` for calendar, new cnf `contacts.scopes` for contacts) with
+   `gcal.scopes` for calendar, new cnf `contacts.scopes` for contacts;
+   B7 gives `AuthorizeURL` in `api/internal/gcal/oauth.go` the scope to
+   ask, as today it sends the one cnf string) with
    `include_granted_scopes=true` (`api/internal/gcal/oauth.go:174`), so an
    existing calendar grant is kept and only the contacts scope is asked for.
 2. The callback stores the token answer's `scope` string (oauth.go:235,
    :247) in a new column `gcal_connections.granted_scopes`. The callback
    UPDATES the existing row in place (`INSERT ... ON CONFLICT (tenant_id,
    human_id) DO UPDATE`), never delete-and-insert: a delete would cascade
-   to `contacts_sync` (section 3). A token answer with no `refresh_token`
-   (Google may omit it on incremental consent) keeps the stored
-   `refresh_sealed` (C14c). Each sync
+   to `contacts_sync` (section 3). The new refresh token replaces the old
+   one: the landed client forces consent (`oauth.go:175`) and `Exchange`
+   refuses an answer without a refresh token (`oauth.go:204-206`), so the
+   callback never sees one (C14c). Each sync
    checks the scope it needs in that string: calendar sync skips a row
    without the calendar scope, contacts sync skips a row without the
    contacts scope. 149's calendar cycle needs that one check (B7), or a
@@ -210,7 +213,18 @@ watch channel), so polling is the only trigger.
   `sync_lease_until`. A separate lease from the calendar's, so a long
   calendar sync never holds back contacts and the other way round. The
   claim, fencing token and per-page renewal are 149 2.5's, applied to
-  `contacts_sync`.
+  `contacts_sync`. The claim joins `gcal_connections` and takes only rows
+  with `status = 'connected'` (as 149's due index, `0217:42`); an
+  `ErrInvalidGrant` (`oauth.go:210-211`) in a contacts cycle marks the
+  connection revoked through the same helper 149 2.4 uses, never a second
+  copy (C23b).
+- **One token pair, two cycles**: the calendar and the contacts cycle may
+  both refresh the access token of one row at once. The refresh is written
+  by one shared helper (149's) with a single `UPDATE gcal_connections SET
+  access_sealed, access_expiry` and nothing else, so neither cycle
+  overwrites the other's `due_at`, `sync_token` or `out_cursor`. Last
+  writer wins on the access token (unchecked, I believe, that an older
+  access token stays valid until it expires).
 - **In (Google -> Spool)**: `people.connections.list` on `people/me` with
   `personFields=names,emailAddresses,phoneNumbers,metadata`,
   `requestSyncToken=true`, page size 1000, then the stored `syncToken`
@@ -244,6 +258,9 @@ watch channel), so polling is the only trigger.
   deletes the person at Google (O1 = A). The first sync of a new connection
   never deletes on either side; it links contacts that match by email, else
   inserts (no duplicate for a contact typed in Spool before connecting).
+  Email is not unique per owner: of several Spool contacts with the
+  person's email, the oldest (`created_at`) with no `google_resource` is
+  linked, the others stay unlinked (C20b).
 - **An expired sync token** (unchecked, I believe: after 7 days, answered
   410 or `EXPIRED_SYNC_TOKEN`): cleared, a full list, matched by
   `google_resource`, no duplicates, no deletes from that pass.
@@ -274,19 +291,33 @@ Contacts are personal data of people who never agreed to be in Spool.
 - **Export**: `GET /v1/me/contacts/export` answers the member's contacts as
   CSV with exactly the four columns plus `google_resource`.
 - **Erase**: `DELETE /v1/me/contacts/{id}` (one; also at Google when the
-  sync is two-way) is a soft delete (`deleted_at = now()`,
-  `deleted_by = 'member'`): the row leaves every read at once, the sync
-  cycle sees it through `out_cursor` and, with O1 = A and a
-  `google_resource`, calls `people.deleteContact` (C17b). `DELETE
+  sync is two-way) leaves every read at once. With a Google delete to
+  send (O1 = A, a `google_resource`, the contacts sync on) it is a soft
+  delete (`deleted_at = now()`, `deleted_by = 'member'`): the sync cycle
+  sees it through `out_cursor` and calls `people.deleteContact` (C17b).
+  With nothing to send to Google it is a hard delete at once (C7b). `DELETE
   /v1/me/contacts?scope=spool` (all, in Spool only, nothing at Google) is a
   hard delete in one transaction that also sets `contacts_sync.enabled =
   false` for the member's connection, so a later full list does not import
-  them again. Soft-deleted rows are purged after 30 days by the sync
-  ticker.
-- **Leaving the workspace**: when a member is removed
-  (`DELETE /v1/members/{human_id}`, `hub/rbac.go:556`) their contacts in
-  that workspace are deleted in the same transaction (B4); when their
-  human is deleted, `ON DELETE CASCADE` on `humans` does it.
+  them again. Soft-deleted rows are purged 30 days after `deleted_at` by
+  B3's job on the existing `RunSweeper` retention (`hub/server.go:585`),
+  not by the sync, so the purge works before B8 and O1. A member-deleted
+  row whose Google delete has not gone out by then (sync off, backoff) is
+  purged anyway and `contacts_sync.status_detail` says the delete did not
+  reach Google (C7c).
+- **Leaving the workspace**: by whatever path the membership row goes,
+  the contacts in that workspace go with it, by the schema: `contacts`
+  references `tenant_memberships (tenant_id, human_id)` with `ON DELETE
+  CASCADE` (section 3). Four store paths delete memberships today
+  (`git grep -ln 'DELETE FROM tenant_memberships' -- csi-spl-api
+  ':!*_test.go'` -> `clones.go`, `demo_stay.go`,
+  `embed_visitor_messages.go`, `humans_rbac_postgres.go`), and the demo
+  workspace removes by `BanMember` (`hub/rbac.go:510-511`), so one call in
+  `RemoveMember` would miss three of them. Each of the four is a real leave
+  (a clone retired, a demo stay ended, a channel guest erased, a member
+  removed), none a delete-and-insert of a member who stays. When their human is deleted,
+  the cascade on `humans` does it. Valid for O5 = A; on O5 = B `tenant_id`
+  leaves `contacts` and B1 changes anyway.
 - **Disconnect** keeps the contacts in Spool unless the member ticks
   "remove imported contacts" (those with a `google_resource`).
 
@@ -331,6 +362,7 @@ CREATE TABLE contacts (
     contact_id      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       text        NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
     owner_id        text        NOT NULL REFERENCES humans (human_id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, owner_id) REFERENCES tenant_memberships (tenant_id, human_id) ON DELETE CASCADE,
     first_name      text        NOT NULL DEFAULT '' CHECK (length(first_name) <= 100),
     last_name       text        NOT NULL DEFAULT '' CHECK (length(last_name) <= 100),
     email           text        NULL
@@ -420,7 +452,10 @@ control then carries its twin.
 | C5 | B3 | `POST /v1/me/contacts` with `FirstName`, `LastName`, `first.last@example.com`, `+1 555 010 0000` | 404 | 201, the four values back | Go test |
 | C6 | B3 | the same in a workspace not in `contacts.workspaces` | 404 | 404 (C) | Go test |
 | C7 | B3 | export | 404 | CSV header `first_name,last_name,email,phone,google_resource`, own rows only | Go test with two members |
-| C8 | B4 | M1 is removed from the workspace | contacts n/a | M1's contacts there are gone; M1's contacts in another workspace stay | Postgres test; twin: another member's stay |
+| C7b | B3 | delete a contact with no `google_resource` | n/a | the row is gone (hard) | Go test; twin: with a `google_resource` and the sync on, soft |
+| C7c | B3 | a soft-deleted row 31 days old, Google delete never sent | n/a | purged; `status_detail` set | Go test, fake clock; twin: 29 days old stays |
+| C8 | B4 | M1 is removed from the workspace (`RemoveMember`) | contacts n/a | M1's contacts there are gone; M1's contacts in another workspace stay | Postgres test; twin: another member's stay |
+| C8b | B4 | a demo user is banned (`BanMember`), and a demo stay expires (`demo_stay.go`) | contacts n/a | their contacts there are gone | Postgres test; twin: a member who stays keeps theirs |
 | C9 | B5 | `/v1/view/search?q=FirstName` as M1 | no `contact` section | M1's matching contact in it | Go test |
 | C10 | B5 | the same query as M2 | n/a | no M1 contact | Go test; twin: M1's own search finds it (else it passes on an empty result) |
 | C10b | B5 | `q=5550100000` against `+1 555 010 0000` | n/a | found | Go test |
@@ -431,8 +466,8 @@ control then carries its twin.
 | C13c | B6 | the address is a member of another workspace only | n/a | 404 | Go test; twin: a member here matches |
 | C13d | B6 | the matched member is disabled | n/a | 404 | Go test |
 | C14 | B7 | connect with `want=contacts` on a row that holds the calendar scope | no `want` | the URL asks the contacts scope with `include_granted_scopes=true`; the callback stores both scopes in `granted_scopes` | Go test beside the 149 connect test |
-| C14c | B7 | reconnect with a token answer that has no `refresh_token` | n/a | the same `connection_id`, `refresh_sealed` unchanged, the `contacts_sync` row kept | Go test; twin: an answer with a new refresh token replaces it |
-| C14b | B7 | a contacts-only connection, one 149 calendar cycle | a calendar would be created | no calendar call at the fake | Go test counts the fake's calendar calls |
+| C14c | B7 | reconnect of a connected row | n/a | the same `connection_id`, the new `refresh_sealed`, the `contacts_sync` row kept | Postgres test; twin: a delete-and-insert callback loses the `contacts_sync` row |
+| C14b | B7 | a contacts-only connection, one 149 calendar cycle | n/a (149 B6a not landed) | no calendar call at the fake | Go test counts the fake's calendar calls; twin: the calendar scope present -> one calendar call |
 | C15 | B8 | a new person on the fake | n/a | a contact with the four values and `google_resource` | Go test on `fakegcal` |
 | C15b | B8 | a Google person with two emails, the second primary | n/a | the primary one stored | Go test |
 | C15c | B8 | `metadata.deleted` on the fake | n/a | soft-deleted, `deleted_by = 'google-sync'` | Go test |
@@ -442,9 +477,12 @@ control then carries its twin.
 | C18 | B8 | conflict: both edited, Google later | n/a | Google's values in Spool, no update sent | Go test, fake clock |
 | C19 | B8 | expired sync token | n/a | full list, no duplicates, no deletes | Go test |
 | C20 | B8 | first sync with a Spool contact of the same email | n/a | linked, one contact | Go test |
+| C20b | B8 | first sync, two Spool contacts of that email | n/a | the older one linked, the newer unlinked | Go test |
 | C21 | B8 | a 429 from the fake | n/a | `backoff_until` set, no further call that cycle | Go test |
 | C22 | B8 | 300 pending Spool writes | n/a | 200 sent this cycle, 100 the next | Go test counts the fake's writes |
 | C23 | B8 | two cycles at once (Postgres) | n/a | each connection synced once; no transaction open during a fake call | Postgres test, as 149 C21 |
+| C23b | B8 | a revoked connection; and an `invalid_grant` from the fake | n/a | no fake call; the connection turns `revoked` | Go test; twin: a connected row is synced |
+| C23c | B8 | a calendar refresh and a contacts cycle on one row | n/a | `due_at`, `sync_token`, `out_cursor` of the other cycle unchanged | Postgres test |
 | C24 | B9 | the Contacts tab and page on the mock bundle: add, find, Message for a member, no Message for a non-member | absent | as stated | e2e on the mock bundle |
 | C25 | B9 | initial JS budget | - | not raised (C) | `csi-spl-orc/src/bash/scripts/perf-budget.py` |
 | C26 | B10 | palette `contacts` group | 6 groups | 7, filled on first open | wui unit test on `usePaletteItems.ts` |
@@ -467,12 +505,12 @@ tests" = `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; "full tier" =
 |---|---|---|---|---|---|---|---|
 | B1 data | rdb, api | new `rdb/<next>_contacts.sql`; `store/crosstenant_test.go` (seed both tables) | **O5** | C1-C2b | rdb apply + Postgres tests; full tier | claude | grok (claude) |
 | B2 store | api | new `store/contacts.go`, `store/contacts_memory.go`, `store/contacts_postgres.go`, `store/contacts_test.go`; one field in `store/memory.go` | B1 | C3 | `store/contacts_test.go`, memory and Postgres; full tier | claude | grok (claude) |
-| B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase); one route line in `hub/server.go`; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
-| B4 leave = erase | api | the member-remove store path behind `hub/rbac.go:473` in `store/humans_rbac.go`, `store/humans_rbac_postgres.go` (one call to B2's delete-by-owner method), its test in `store/humans_rbac_test.go` | B2 | C8 | the new Postgres test; full tier | claude | grok (claude) |
+| B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase); one route line and one Options field in `hub/server.go`; one opts line in `api/cmd/spool/hub.go` (as 149 B5); the purge on `RunSweeper`'s retention; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7c, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
+| B4 leave = erase | api | tests only: the cascade is B1's foreign key; new Postgres cases in `store/humans_rbac_test.go` (remove) and the demo ban and stay tests beside `store/demo_stay.go`; the memory store's membership deletes drop the owner's contacts too (`store/contacts_memory.go` hook, B2's file) | B2 | C8-C8b | the new Postgres test; full tier | claude | grok (claude) |
 | B5 search | api | `search/grammar.go` (`TypeContact`); `hub/search.go` (the `contact` section); their tests | B2 | C9-C11 | `go test ./internal/search/ ./internal/hub/ -run Search`; api tests | claude | grok (claude) |
 | B6 member match | api | new `hub/contacts_peer.go` + `_test.go` (`/peer`); one registration line in `hub/contacts.go`'s route func (B3's file, so B6 lands after B3); no new `server.go` line | B3, **O3** | C13-C13d | `hub/contacts_peer_test.go`; api tests | claude | grok (claude) |
-| B7 the contacts scope | api | `hub/gcal_connect.go` (149 B5's file: `want`, `granted_scopes`) and one scope check in `hub/gcal_sync.go` (149 B6a's file); their tests | 149 B5, 149 B6a, B1 | C14-C14c | the 149 connect and sync tests plus the two new ones; api tests | claude | grok (claude) |
-| B8 contacts sync | api | new `hub/contacts_sync.go` + `_test.go`; new `api/internal/gcal/people.go` + test; new `api/internal/gcal/fakegcal/people.go`; one line in `hub/server.go` `RunSweeper` (:585) | B3, B7, **O1** | C12, C15-C23 | `go test ./internal/gcal/... ./internal/hub/ -run Contacts`; api tests; full tier | claude | grok (claude) |
+| B7 the contacts scope | api | `api/internal/gcal/oauth.go` (`AuthorizeURL` takes the scope to ask) + `oauth_test.go`; `hub/gcal_connect.go` (149 B5's file: `want`, `granted_scopes`, the upsert) and one scope check in `hub/gcal_sync.go` (149 B6a's file); their tests | 149 B5, 149 B6a, B1 | C14-C14c | the 149 connect and sync tests plus the two new ones; api tests | claude | grok (claude) |
+| B8 contacts sync | api | new `hub/contacts_sync.go` + `_test.go`; new `api/internal/gcal/people.go` + test; new `api/internal/gcal/fakegcal/people.go`; a `PeopleBase` in `api/internal/gcal/oauth.go` Config (after B7's edit of the same file), `api/internal/config/config.go`, `api/cmd/spool/hub_gcal.go` (149 B5's file) and its cnf key; one line in `hub/server.go` `RunSweeper` (:585) | B3, B7, **O1** | C12, C15-C23c | `go test ./internal/gcal/... ./internal/hub/ -run Contacts`; api tests; full tier | claude | grok (claude) |
 | B9 WUI | wui | `wui/utils/rail-order.ts` (one tab); new `wui/pages/contacts/index.vue`, `wui/pages/contacts/[id].vue`, `wui/utils/contacts-client.mjs`; the Contacts switch in `wui/components/settings/calendar-google.vue` (149 B8's file); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests | B3, B6, 149 B8, **O4** | C24-C25 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | grok (claude) |
 | B10 palette | wui | `wui/composables/usePaletteItems.ts` (the `contacts` group) + its unit test | B9 | C26 | the unit test; `perf-budget.py` | claude | grok (claude) |
 | B11 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); agy has the last word (`LANE_MIX_KIND=i18n`) | B9, B10 | C27 | the two ratchet tests | agy | claude |
@@ -484,7 +522,8 @@ B6 after B3 and only once O3 is answered; B7 after spec 149's B5 and B6a
 have landed (it edits their files, so it rebases onto them and its brief
 names their lanes); B8 after B7 and only once O1 is answered; B9 after B3,
 B6, 149 B8 and O4; B10 after B9; B11 and B12 last. B3 and B8 both edit
-`hub/server.go` (one line each): B8 rebases onto B3.
+`hub/server.go` (one line each): B8 rebases onto B3. B7 and B8 both edit
+`api/internal/gcal/oauth.go`: B8 rebases onto B7, and its brief says so.
 
 What waits on the owner: B1 (O5), B6 (O3), B8 (O1) and B9's non-member
 action (O4). O2 and S1-S4 gate switching the Google part on, not any row:
@@ -504,7 +543,7 @@ every row is tested on the fake (2.8) and lands behind
 
 | # | question | proposal | reason |
 |---|---|---|---|
-| P1 | a second Google connection for contacts | no: 149's row, one more scope, a `granted_scopes` column | one Google account per member; incremental consent is in the landed client (`gcal/oauth.go:174`) |
+| P1 | a second Google connection for contacts | no: 149's row, one more scope, a `granted_scopes` column | one Google account per member; `include_granted_scopes=true` is in the landed client (`gcal/oauth.go:174`), a per-call scope is not (B7 adds it, 1.2 row 15) |
 | P2 | rename `gcal_connections` to a neutral name | not in v1 | a rename of a landed table with rows is its own migration; the name is internal |
 | P3 | Contacts inside People, or its own section | its own rail tab | People is the workspace's members (`wui/pages/people/index.vue:1-2`); contacts are private and may not be members |
 | P4 | several emails or phones | one each, the primary; write-back keeps Google's others | the owner's four attributes; losing a second number at Google would be data loss |
@@ -539,7 +578,7 @@ O3. When a contact's email belongs to a member of the same workspace, may Spool 
 
 ```poll
 O4. What can a person do with a contact who is not a member of the workspace?
-(A) Workspace admins see an Invite button that sends a workspace invite to the contact's email; others see only the email and phone links
+(A) People who may invite members see an Invite button that sends a workspace invite to the contact's email; others see only the email and phone links
 (B) Nothing in Spool: only the email and phone links
 ```
 
@@ -555,6 +594,8 @@ O5. Whose list is it, when a person is in several workspaces?
 |---|---|---|
 | 2026-10-24 | c-951@sat | v0.1 `0618ced5f`: section 1 measured on `9e8ece102` (24 rows), sections 2-9 written; agy (main) out of quota |
 | 2026-10-24 04:21 | a-957@sat (seat agy) | review d5f81cad on `fb7b73093`: 1.2 rows 1-23 OK, row 24 stale (next migration 0221); member delete must be soft (2.6 vs 2.5, C17b); callback must upsert and keep the refresh token; B4, B6 file lists. Scope class "sensitive, not restricted": stated without a source, kept "unchecked, I believe" (dispatch holder c-003, dcb58aae) |
-| 2026-10-24 | c-951@sat | v0.2, this commit: all of a-957's findings folded except the scope-class wording; C14c added |
+| 2026-10-24 | c-951@sat | v0.2 `813557fe5`: all of a-957's findings folded except the scope-class wording; C14c added |
+| 2026-10-24 04:29 | c-958@sat (seat claude) | review b362b28a on `813557fe5`: 1.2 rows 1-24 OK; W1 the landed `AuthorizeURL` has no per-call scope (row 15, P1, B7); W2 `Exchange` refuses an answer without a refresh token, so v0.2's keep-the-old-token clause was wrong (C14c); W3 four store paths delete memberships, so leave = erase belongs in the schema; G1 claim only connected rows, revoke on invalid_grant; G2 one token pair, two cycles; G3 B8 needs a People base URL; G4 B3 wiring; G5 purge before B8, hard delete when nothing goes to Google; G6 first-sync link with a duplicate email; G7 C14b is n/a on master; O4 wording |
+| 2026-10-24 | c-951@sat | v0.3, this commit: all of c-958's findings folded (each checked on the tree); W2 by its option (a), no landed code changes; new cases C7b, C7c, C8b, C20b, C23b, C23c |
 
-<!-- version: 0.2 · updated: 2026-10-24 -->
+<!-- version: 0.3 · updated: 2026-10-24 -->

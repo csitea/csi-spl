@@ -71,6 +71,7 @@ type Memory struct {
 	marketingOn map[string]bool
 	marketing   *memMarketing // rdb 0187 (spec 090, SPL-1634): see marketing_memory.go
 	gcal        *memGcal      // rdb 0217 (spec 149 B2, SPL-3170): see gcal_memory.go
+	dedicated   *memDedicated // rdb 0219 (spec 144 T002, SPL-3182): see dedicated_memory.go
 	// box_join_switch.go (rdb 0170): spec 108 joins turned on, guarded by mu. Missing = off.
 	boxJoinOn map[string]bool
 	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.
@@ -483,12 +484,12 @@ func (s *Memory) TaskEnvelopes(_ context.Context, tenant, taskID string) ([][]by
 	return out, nil
 }
 
-func (s *Memory) BoxTaskEnvelopes(_ context.Context, tenant, taskID, box string, now time.Time) ([][]byte, error) {
+func (s *Memory) BoxTaskEnvelopes(ctx context.Context, tenant, taskID, box string, now time.Time) ([][]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var ms []*Message
 	for k, m := range s.messages {
-		if k[0] != tenant || m.TaskID != taskID || !m.ExpiresAt.After(now) {
+		if k[0] != tenant || m.TaskID != taskID || !m.ExpiresAt.After(now) || !s.dedicatedTailOKLocked(tenant, box, TailAgent(ctx), m) {
 			continue
 		}
 		if _, got := s.deliveries[[3]string{tenant, m.MsgID, box}]; m.FromBox == box || m.ToBox == box || got {

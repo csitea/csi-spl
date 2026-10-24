@@ -54,7 +54,8 @@ and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §14.
 
 ## Phase 2: Hub API Store & Bidirectional Enforcement (GO)
 
-- [ ] **T002: Hub store interface and Postgres implementation**
+- [x] **T002: Hub store interface and Postgres implementation**
+  - **Built:** `store.DedicatedStore` (SPL-3182), Postgres + memory twin: the five methods plus `SetPrivateScope` (the setter T005's endpoints call; a topic flags every message of its task). Set is keyed by the agent: the same scope again is a no-op (a `SPAWN_REUSE_ID` respawn keeps it), another scope is `ErrDedicatedRebind`. `BoxTaskEnvelopes` applies rdb 0219's `spool_agent_scope_ok` in its read: the reading agent rides on ctx (`store.WithTailAgent`); a bound agent reads only its scope, any other reader (and a tail naming no agent, today's hub call) no private envelope. Until T003..T005 pass the agent, a dedicated agent's own tail of its private scope reads empty: fails closed. Test `store/dedicated_test.go` on memory, the owner and the runtime login; red control: on master the hub's tail call returns a flagged topic's envelope (1), with T002 none (0).
   - **Layer:** Hub Store (GO)
   - **Owns:** `GO/store/dedicated.go`, `GO/store/dedicated_postgres.go`, `GO/store/dedicated_memory.go`, `GO/store/dedicated_test.go`
   - **Waits on:** T001

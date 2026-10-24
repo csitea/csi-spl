@@ -360,6 +360,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { useFleetLoadBoxes } from '~/composables/useFleetLoadBoxes'
+import { useFleetLoadDefaults } from '~/composables/useFleetLoadDefaults'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FLEET_AGENT_KINDS,
@@ -423,48 +424,6 @@ function when(iso: string) {
 
 const offer = computed(() => suggestions.value.filter((id) => !boxes.value.includes(id)))
 
-const lowUsesDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetLow.value) return true
-  return s.stored.low == null && Number(low.value) === s.defaults.low
-})
-const highUsesDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetHigh.value) return true
-  return s.stored.high == null && Number(high.value) === s.defaults.high
-})
-const orderUsesDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetOrder.value) return true
-  return s.stored.boxOrder == null && boxes.value.length === 0
-})
-const bandsUseDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetBoxes.value) return true
-  return s.stored.boxes == null && bands.value.length === 0
-})
-const cpuUsesDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetCpu.value) return true
-  return s.stored.runnerCpuPct == null && Number(cpu.value) === s.defaults.runnerCpuPct
-})
-const overflowUsesDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetOverflow.value) return true
-  return s.stored.ciOverflow == null && overflow.value === s.defaults.ciOverflow
-})
-const cpusUseDefault = computed(() => {
-  const s = view.value
-  if (!s) return false
-  if (resetCpus.value) return true
-  return s.stored.runnerCpus == null && Number(cpus.value) === s.defaults.runnerCpus
-})
 /* what an empty per-box core count falls back to: the fleet's as edited */
 const fleetCpus = computed(() => (cpus.value === '' ? view.value?.runnerCpus ?? '' : cpus.value))
 /* what an empty per-box cap falls back to: the fleet cap as edited */
@@ -525,57 +484,13 @@ function liftPause(k: string) {
   if (!lift.value.includes(k)) lift.value = lift.value.concat(k)
 }
 
-function editLow(raw: string) {
-  resetLow.value = false
-  low.value = raw === '' ? '' : Number(raw)
-}
-function editHigh(raw: string) {
-  resetHigh.value = false
-  high.value = raw === '' ? '' : Number(raw)
-}
-
-function editCpu(raw: string) {
-  resetCpu.value = false
-  cpu.value = raw === '' ? '' : Number(raw)
-}
-
-function editOverflow(on: boolean) {
-  resetOverflow.value = false
-  overflow.value = on
-}
-
-function editCpus(raw: string) {
-  resetCpus.value = false
-  cpus.value = raw === '' ? '' : Number(raw)
-}
-
-function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu' | 'overflow' | 'cpus') {
-  const s = view.value
-  if (!s) return
-  formError.value = ''
-  if (which === 'low') {
-    low.value = s.defaults.low
-    resetLow.value = true
-  } else if (which === 'high') {
-    high.value = s.defaults.high
-    resetHigh.value = true
-  } else if (which === 'cpu') {
-    cpu.value = s.defaults.runnerCpuPct
-    resetCpu.value = true
-  } else if (which === 'overflow') {
-    overflow.value = s.defaults.ciOverflow
-    resetOverflow.value = true
-  } else if (which === 'cpus') {
-    cpus.value = s.defaults.runnerCpus
-    resetCpus.value = true
-  } else if (which === 'order') {
-    boxes.value = []
-    resetOrder.value = true
-  } else {
-    bands.value = []
-    resetBoxes.value = true
-  }
-}
+const {
+  lowUsesDefault, highUsesDefault, orderUsesDefault, bandsUseDefault, cpuUsesDefault, overflowUsesDefault, cpusUseDefault,
+  editLow, editHigh, editCpu, editOverflow, editCpus, resetToDefault,
+} = useFleetLoadDefaults({
+  view, low, high, cpu, overflow, cpus, boxes, bands,
+  resetLow, resetHigh, resetOrder, resetBoxes, resetCpu, resetOverflow, resetCpus, formError,
+})
 
 const { editBand, removeBand, addBand, move, removeAt, addBox } = useFleetLoadBoxes({
   bands, boxes, resetBoxes, resetOrder, bandBox, candidate, formError, low, high, view, t,

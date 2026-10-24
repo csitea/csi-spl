@@ -1,11 +1,11 @@
 # 154 Contacts section, synced with Google Contacts
 
-Version v1.1 draft (2026-10-24), NOT signed yet: it folds the owner's five
-answers (section 9) into v1.0 (`225f4e583`, signed by both panel seats,
-section 10). The two review seats sign v1.1 in their own messages before it
-is final. The agy seat signed `13ae1f710` (msg `fde59b73`); the claude
-seat's five WRONG rows (W1-W5, `seat-claude-v11.md`) are folded in this
-version and wait for its re-check. Step 2 of the owner rule for a big change: the written spec, then
+Version v1.1, signed (2026-10-24): it folds the owner's five answers
+(section 9) into v1.0 (`225f4e583`, signed by both panel seats, section
+10). Both review seats signed v1.1 at `dcd3904a3` in their own messages:
+the claude seat c-991 (msg `33fd4b7d`) and the agy seat a-990 (msg
+`d9d5c027`); this commit changes only this header and the section 10
+record. Step 2 of the owner rule for a big change: the written spec, then
 the panel, then the build. v1.0 by c-951@sat, v1.1 by c-988@sat (both
 claude). Nothing in it is built.
 
@@ -979,5 +979,8 @@ No new owner question in v1.1.
 | 2026-10-24 | a-990@sat (seat agy) | signed v1.1 on `13ae1f710` (msg `fde59b73`, verdict file `seat-agy-v11.md`, `7cf2f1d4c`): 10 check areas OK, 0 WRONG; concurs with c-991's W1-W5 and offers a re-check after the fold |
 | 2026-10-24 | c-991@sat (seat claude) | NOT SIGNED on `13ae1f710` (msg `8150e0a3`, verdict file `seat-claude-v11.md`, `86967ee50`): W1 B1 misses two realm test seeds; W2 the post-deploy RLS check's definer allow-list; W3 the purger needs `USAGE, CREATE ON SCHEMA personal`; W4 no row owns the purge's store method; W5 the WUI cannot learn the kill switch without the forbidden call. Notes N1-N8 |
 | 2026-10-24 | c-988@sat | v1.1 seat fold, this commit (SPL-3192): W1-W5 folded as c-991 proposed (each line re-read on the tree): B1 gains `store/personal_rls_test.go`, the `seedRealm` seed, the orc RLS-check allow-list and its test (C1d); the purger's schema grant; B2 owns `PurgeDeletedContacts` (plain transaction) and `MarkContactsPurgePending` (operator) (C2e); `/v1/view/me` gains `contacts` (C6b, C24f twin). Notes N1-N7 folded (N1 policy names, N2 the three literal lists, N3 `TestRLSContacts…`, N4 the binding read, N5 plain INSERT, N6 the hit opens the card, N7 C8c); N8 kept as written. Not signed: the claude seat re-checks W1-W5 |
+| 2026-10-24 | c-991@sat (seat claude) | signed v1.1 at `dcd3904a3` (msg `33fd4b7d`, verdict file `seat-claude-v11.md` section 5, `ad1b61825`): W1-W5 re-checked on the tree, N1-N7 folded, N8 accepted as kept |
+| 2026-10-24 | a-990@sat (seat agy) | re-signed v1.1 at `dcd3904a3` (msg `d9d5c027`, verdict file `seat-agy-v11.md` section 4, `dd7e530c2`), as the dispatcher c-002 asked (msg `e886e5c6`): W1-W5 and N1-N7 checked on the tree |
+| 2026-10-24 | c-988@sat | v1.1 signed, this commit (SPL-3192): the header and these two rows only; the spec text is `dcd3904a3` as both seats signed it |
 
-<!-- version: 1.1-draft (amended: People merge; seat fold W1-W5) · updated: 2026-10-24 -->
+<!-- version: 1.1 signed at dcd3904a3 (amended: People merge; seat fold W1-W5) · updated: 2026-10-24 -->

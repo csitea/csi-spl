@@ -52,7 +52,10 @@ describe('rail ids', () => {
     /* SPL-1991: a pending id (RAIL_HUB_PENDING) may be missing from the hub
        until its lane lands; any other drawn id must be there */
     const lagging = RAIL_HUB_PENDING.filter((id) => !hub.includes(id))
-    assert.deepEqual([...hub].sort(), [...RAIL_IDS.filter((id) => !lagging.includes(id)), ...RAIL_RETIRED].sort())
+    /* spec 155 B1 (SPL-3223): the hub admits notes before the rail draws it;
+       s155 B5 draws the tab and removes this tolerance */
+    const hubAhead = ['notes'].filter((id) => !RAIL_IDS.includes(id))
+    assert.deepEqual([...hub].sort(), [...RAIL_IDS.filter((id) => !lagging.includes(id)), ...RAIL_RETIRED, ...hubAhead].sort())
     assert.match(go, /\blegacyRailTabs10 = \[\]string\{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes"\}/)
     const sql = read('../csi-spl-rdb/src/sql/postgres/spool-hub/0133_human_rail_order_calendar.sql')
     assert.match(sql, /ARRAY\['dm','channels','issues','topics','flow','events','archive','people','agents','boxes'\]/)

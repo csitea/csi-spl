@@ -5570,6 +5570,195 @@
         ]
       }
     },
+    "/v1/me/google-calendar": {
+      "delete": {
+        "operationId": "deleteMeGoogleCalendar",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "1 moves the events that came from Google to the member's trash; default 0 keeps them",
+            "in": "query",
+            "name": "remove_imported",
+            "required": false,
+            "schema": {
+              "enum": [
+                "0",
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: disconnected"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Disconnect: revoke the grant at Google and delete the connection",
+        "tags": [
+          "calendar"
+        ]
+      },
+      "get": {
+        "operationId": "getMeGoogleCalendar",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {connected:false} or {connected, google_email, calendar_title, status, status_detail, last_synced_at}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "The member's own Google Calendar connection (spec 149), never a token",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/v1/me/google-calendar/callback": {
+      "get": {
+        "operationId": "getMeGoogleCalendarCallback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to the workspace's settings, gcal=connected or gcal_error=<code>"
+          },
+          "400": {
+            "description": "invalid_state: an HTML page; nothing stored"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "gcal_not_configured: the Google client or the KMS key is not set on this hub"
+          }
+        },
+        "summary": "Google's OAuth redirect (state + nonce cookie, no session)",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/v1/me/google-calendar/connect": {
+      "get": {
+        "operationId": "getMeGoogleCalendarConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to Google's consent page; sets the nonce cookie"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "gcal_not_configured: the Google client or the KMS key is not set on this hub"
+          }
+        },
+        "summary": "Connect the member's Google Calendar (browser link)",
+        "tags": [
+          "calendar"
+        ]
+      },
+      "post": {
+        "operationId": "postMeGoogleCalendarConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {authorize_url}; sets the nonce cookie"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "gcal_not_configured: the Google client or the KMS key is not set on this hub"
+          }
+        },
+        "summary": "Connect the member's Google Calendar (the WUI)",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
     "/v1/me/hours": {
       "get": {
         "operationId": "getMeHours",

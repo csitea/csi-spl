@@ -119,6 +119,7 @@ func (s *Server) routeMe(mux *http.ServeMux) {
 	s.routeRealmHoursRead(mux)  // spec 118 T003: GET /v1/me/realm/hours, realm_hours_read.go
 	s.routeRealmHoursWrite(mux) // spec 118 T004: PUT /v1/me/realm/hours + targets, realm_hours_write.go
 	s.routeRealm(mux)
+	s.routeGcal(mux) // spec 149 B5: /v1/me/google-calendar*, gcal_connect.go
 }
 
 // channelOrderPreflight: PUT with the headers every browser route allows (no

@@ -225,6 +225,9 @@ type Options struct {
 	// MarketingLinkedIn connects LinkedIn accounts and shares the blog with
 	// them (spec 090, SPL-1634, marketing_channels.go); nil = not configured.
 	MarketingLinkedIn *MarketingLinkedIn
+	// Gcal connects a member's own Google Calendar (spec 149 B5, SPL-3208,
+	// gcal_connect.go); nil = off: every /v1/me/google-calendar route is 404.
+	Gcal *GcalConnect
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.

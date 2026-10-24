@@ -454,6 +454,19 @@ type Hub struct {
 	MarketingLinkedInClientSecret string `env:"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_SECRET"`
 	MarketingKMSKey               string `env:"SPOOL_HUB_MARKETING_KMS_KEY"`
 	MarketingLinkedInVersion      string `env:"SPOOL_HUB_MARKETING_LINKEDIN_VERSION" envDefault:"202606"`
+	// The Google Calendar connect (spec 149 B5, SPL-3208, cnf gcal): the
+	// allow-list (workspace ids or the one entry "all"; empty = off
+	// everywhere, every /v1/me/google-calendar route answers 404), the
+	// scopes the connect asks for, and Google's endpoints, none defaulted in
+	// code. The OAuth client is the sign-in one (SPOOL_HUB_AUTH_GOOGLE_*,
+	// P2) and the tokens are sealed with SPOOL_HUB_MARKETING_KMS_KEY (P6).
+	GcalWorkspaces   []string `env:"SPOOL_HUB_GCAL_WORKSPACES" envSeparator:","`
+	GcalScopes       string   `env:"SPOOL_HUB_GCAL_SCOPES"`
+	GcalAuthURL      string   `env:"SPOOL_HUB_GCAL_AUTH_URL"`
+	GcalTokenURL     string   `env:"SPOOL_HUB_GCAL_TOKEN_URL"`
+	GcalRevokeURL    string   `env:"SPOOL_HUB_GCAL_REVOKE_URL"`
+	GcalUserinfoURL  string   `env:"SPOOL_HUB_GCAL_USERINFO_URL"`
+	GcalCalendarBase string   `env:"SPOOL_HUB_GCAL_CALENDAR_BASE"`
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`

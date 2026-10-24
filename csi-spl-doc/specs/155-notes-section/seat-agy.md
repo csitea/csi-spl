@@ -1,10 +1,11 @@
-# Spec 155 v1.0 (Notes section) - agy cross-vendor reviewer seat review & verdict
+# Spec 155 (Notes section) - agy cross-vendor reviewer seat review & verdict
 
 Seat: `a-089` (agy, cross-vendor reviewer seat).
 Epic: `SPL-2403`. Issue: `SPL-3216`.
 Placement slug: `c002-s155-agy-reviewer`.
-Spec reviewed: `csi-spl-doc/specs/155-notes-section/spec.md` (v1.0 written by c-005@sat at `471c55f24`).
-Verified on tree: `origin/master` at `851294586` (spec.md at `471c55f24`).
+Spec reviewed: `csi-spl-doc/specs/155-notes-section/spec.md`.
+Commits reviewed: `471c55f24` (v1.0 draft) and `12443cd0d` (v1.1 fold of W1-W4).
+Verified on tree: `origin/master` at `12443cd0d`.
 
 ---
 
@@ -12,18 +13,18 @@ Verified on tree: `origin/master` at `851294586` (spec.md at `471c55f24`).
 
 | # | Check / Area | Verdict | Notes |
 |---|---|---|---|
-| 1 | Section 1.2 code facts (29 facts) | **OK** | All 29 facts printed via `git show origin/master:<path>` and verified; all 29 hold. |
+| 1 | Section 1.2 code facts (29 facts in v1.0, rows 30-32 in v1.1) | **OK** | All 32 facts printed via `git show origin/master:<path>` and verified; all hold. |
 | 2 | Data and privacy (D1 personal realm, RLS, operator scope, erase / export) | **OK** | Notes reside in `personal.*` with `person_scope` RLS. Other persons, workspace admins, and operator read 0 rows. Erase/export complete. |
 | 3 | Links and privacy (D7, B7, D4) | **OK** | Links store typed ref + label, no object body. Non-member workspaces return `label: ""` and `left: true`; clicks navigate to target origin where target RBAC protects content. No leakage. |
-| 4 | Build rows (B1-B10 disjointness, dependencies, smallest first, precedent `2835ff381`) | **DEFECTS FOUND (W1-W4)** | Parallel rows B8 and B9 are strictly disjoint. B1 follows `2835ff381`. However, B2, B4, B5, and B10 have missing files and test seed gaps (W1-W4). |
+| 4 | Build rows (B1-B10 disjointness, dependencies, smallest first, precedent `2835ff381`) | **OK (folded in v1.1)** | Parallel rows B8 and B9 are strictly disjoint. B1 follows `2835ff381`. Defects W1-W4 in B2, B4, B5, and B10 are fully resolved and folded in v1.1. |
 | 5 | Cases C1-C31 with red controls | **OK** | Every case C1-C31 has a verifiable red control failing on master today. |
 | 6 | WUI requirements (first-screen strings, no page-meta keys, no `:style`, CSP, chunk budget) | **OK** | Translations loaded in B5 for all 19 locales; CSS in stylesheets; `/notes` page is its own async route chunk. |
 
-Final verdict: **NOT SIGNED** pending resolution and fold of numbered defects **W1..W4** into v1.1.
+Final verdict: **SIGN**. All checks verified OK with 0 outstanding defects.
 
 ---
 
-## 2. Section 1.2 Code Facts Verification (All 29 Facts)
+## 2. Section 1.2 Code Facts Verification (All 32 Facts)
 
 Every cited file and line range was printed directly from `origin/master` using `git show origin/master:<path> | sed -n '<a>,<b>p'`:
 
@@ -58,6 +59,9 @@ Every cited file and line range was printed directly from `origin/master` using 
 | 27 | Realm routes today | `csi-spl-api/src/go/spool-hub-api/internal/hub/realm.go:431-438`; `csi-spl-api/src/go/spool-hub-api/internal/hub/channel_order.go:119-120` | `routeRealm` in `realm.go`; `routeRealmHoursRead`/`Write` registered in `channel_order.go:119-120` | **Holds** |
 | 28 | Settings sections | `csi-spl-wui/src/utils/settings-nav.mjs:6`; `csi-spl-wui/src/pages/settings/[[section]].vue` | `SETTINGS_SECTIONS` array at :6; `[[section]].vue` exists | **Holds** |
 | 29 | Next migration | `csi-spl-rdb/src/sql/postgres/spool-hub/` | Latest migration is `0222_hours_v2_terminals.sql`; `<next>` is 0223 | **Holds** |
+| 30 | Realm RLS seeds (v1.1, W1) | `store/personal_rls_test.go:274-277, 317`; `store/personal_catalogue_test.go:256` | `realmSeedPG` seeds P & Q, loops over `personalTables`; `seedRealm` plants rows of policy test | **Holds** |
+| 31 | Hub env config plumbing (v1.1, W2) | `api/internal/config/config.go:281-283`; `api/cmd/spool/hub.go:319`; `hub/server.go:42`; `csi-spl-cnf/csi-spl/all.env.yaml:748` | `config.Hub` struct env tags; `baseOptions` builds `hub.Options`; `all.env.yaml` sets hub env vars | **Holds** |
+| 32 | Help coverage gates (v1.1, W3, W4) | `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs:32, 66-69`; `csi-spl-wui/tests/unit/help-sync.test.mjs` | `RAIL_HELP` maps rail tabs to help pages; lines 66-69 require `/settings/<id>` documented; `sync-help.mjs` syncs copy | **Holds** |
 
 ---
 
@@ -103,42 +107,33 @@ Every cited file and line range was printed directly from `origin/master` using 
 
 ---
 
-## 4. Numbered Defects (W1..W4)
+## 4. Initial Review Defects (W1..W4) in v1.0
 
-Before signing, the following four defects in the build rows and test suites must be resolved and folded into spec 155:
-
-### W1: B2 files list omits `store/personal_rls_test.go` and test seed requirements
-- **File & line**: `csi-spl-doc/specs/155-notes-section/spec.md:411` (row B2 files)
-- **Problem**: In B2, `personalTables` (`store/personal_catalogue_test.go:23`) will be widened to include `notes`, `note_items`, and `note_links`. Because `store/personal_rls_test.go:264, 317` shares package `store` and iterates over `personalTables`, `TestRLSPersonStore` will fail with:
-  `T-N1: inPerson(P) reads P: 0 rows of personal.<tb>, want > 0`
-  unless `realmSeedPG` in `store/personal_rls_test.go:277-301` seeds rows for those three tables.
-  Similarly, `seedRealm` in `store/personal_catalogue_test.go:256-288` must seed rows for those three tables so `TestRLSPersonalPolicy` passes "P reads P (control)".
-- **Fix**: Add `api/internal/store/personal_rls_test.go` to B2's files list in Section 8 and document that `seedRealm` (in `personal_catalogue_test.go`) and `realmSeedPG` (in `personal_rls_test.go`) seed test rows for `personal.notes`, `personal.note_items`, and `personal.note_links`.
-
-### W2: B4 files list omits Go config, server options, and session claims plumbing
-- **File & line**: `csi-spl-doc/specs/155-notes-section/spec.md:353-356, 413` (Section 6 and row B4 files)
-- **Problem**: Section 6 specifies kill switch `env.hub.notes.enabled` in `csi-spl-cnf/csi-spl/all.env.yaml`, stating that "every notes route answers 404 and the WUI hides the tab and the 'Add to note' items (the flag rides the session claims)."
-  However, B4's file list includes only `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/channel_order.go`, and `all.env.yaml`. It omits the Go config loader `api/internal/config/config.go`, server options in `api/internal/hub/server.go`, CLI instantiation in `api/cmd/spool/hub.go`, and the session claims handler in `api/internal/auth/handler.go` (or `api/internal/hub/rbac.go`). Without these files, the config flag cannot be loaded into the hub process, C15 cannot be tested against server options, and the flag cannot ride session claims into the WUI.
-- **Fix**: Add `api/internal/config/config.go`, `api/internal/hub/server.go`, `api/cmd/spool/hub.go`, and the relevant session claims handler (`api/internal/auth/handler.go` or `api/internal/hub/rbac.go`) to B4's files list in Section 8.
-
-### W3: B5 files list omits `help-settings-coverage.test.mjs` and synced help markdown files
-- **File & line**: `csi-spl-doc/specs/155-notes-section/spec.md:414` (row B5 files)
-- **Problem**:
-  1. Adding `notes` to `RAIL_TABS` in `csi-spl-wui/src/utils/rail-order.ts` causes `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs:83-88` to fail immediately on `pnpm test`:
-     `RAIL_TABS has "notes" but no RAIL_HELP mapping — add a help page and map it`.
-  2. Adding `csi-spl-doc/doc/help/notes.md` causes `csi-spl-wui/tests/unit/help-sync.test.mjs:18-20` to fail because the served copy in `csi-spl-wui/src/public/help-md/` drifts from `csi-spl-doc/doc/help/`.
-- **Fix**: Add `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs`, `csi-spl-wui/src/public/help-md/notes.md`, and `csi-spl-wui/src/public/help-md/pages.json` to B5's files list in Section 8 (precedent commit `8708821ac`).
-
-### W4: B10 files list omits `user-settings.md` documentation coverage
-- **File & line**: `csi-spl-doc/specs/155-notes-section/spec.md:419` (row B10 files)
-- **Problem**: Adding `notes` to `SETTINGS_SECTIONS` in `csi-spl-wui/src/utils/settings-nav.mjs` causes `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs:51-55` to fail:
-  `SETTINGS_SECTIONS has "notes" but user-settings.md never names /settings/notes`.
-- **Fix**: Add `csi-spl-doc/doc/help/user-settings.md` (and `csi-spl-wui/src/public/help-md/user-settings.md`) to B10's files list in Section 8.
+The initial review of v1.0 (`fafbb86d0`, `seat-agy.md`) returned **NOT SIGNED** and identified four defects:
+- **W1 (spec.md:411, row B2 files)**: B2 omitted `store/personal_rls_test.go` and test seed requirements.
+- **W2 (spec.md:353-356, 413, Section 6 and row B4 files)**: B4 omitted Go config, server options, and kill switch plumbing.
+- **W3 (spec.md:414, row B5 files)**: B5 omitted `help-settings-coverage.test.mjs` (`RAIL_HELP`) and synced help files.
+- **W4 (spec.md:419, row B10 files)**: B10 omitted `user-settings.md` coverage and synced help copy.
 
 ---
 
-## 5. Verdict
+## 5. Re-check of v1.1 Fold on `12443cd0d` (W1..W4)
 
-**NOT SIGNED**
+Editor c-005@sat folded all four findings into `spec.md` at `12443cd0d` on `origin/master`. Re-checked empirically:
 
-The spec architecture, data privacy model, RLS guarantees, link privacy design, and case controls (C1-C31) are solid and well-conceived. Once defects **W1..W4** are folded into spec 155 v1.1, this seat will re-check and sign.
+| Defect | Fold Verified | Status |
+|---|---|---|
+| **W1** | Section 8 row B2 now includes `store/personal_rls_test.go` (`realmSeedPG`, v1.1 W1) and `store/personal_catalogue_test.go` (`seedRealm`). Section 1.2 row 30 explains that widening `personalTables` requires seed rows in both tests. | **OK** |
+| **W2** | Section 6 redesigned cleanly: the kill switch is environment variable `SPOOL_HUB_NOTES_ENABLED` set via `all.env.yaml`, loaded through `config.go`, `cmd/spool/hub.go`, and `hub.Options`. When off, routes return 404 `notes_off`. The WUI detects 404 `notes_off` directly from `GET /v1/me/realm/notes`, avoiding session-claims bloat. Section 8 row B4 lists `hub/server.go`, `config.go`, `cmd/spool/hub.go`, and `all.env.yaml`. C15 updated to test `notes_off`. | **OK** |
+| **W3** | Section 8 row B5 now lists `wui-tests/unit/help-settings-coverage.test.mjs` (`RAIL_HELP`), `doc/help/notes.md`, and its synced copies `wui/public/help-md/notes.md` + `pages.json` via `sync-help.mjs`. Section 1.2 row 32 documents the gate requirement. | **OK** |
+| **W4** | Section 8 row B10 now lists `doc/help/user-settings.md` and synced copy `wui/public/help-md/user-settings.md` (documenting `/settings/notes`). Section 1.2 row 32 correctly points to coverage check lines 66-69 in `help-settings-coverage.test.mjs`. | **OK** |
+
+All four items are correctly, cleanly, and completely addressed. No secondary defects or broken references were introduced.
+
+---
+
+## 6. Signature
+
+All 32 code facts, privacy designs, link safety guarantees, red controls (C1-C31), and build row boundaries have been verified on `origin/master`. All review findings (W1..W4) are completely folded in v1.1.
+
+**SIGN**: `a-089` (agy cross-vendor reviewer seat) signs **spec 155 v1.1** (`12443cd0d`).

@@ -413,8 +413,9 @@ try {
   ok('print branch prints the item and its subtree', printed.calls === 1 && printed.cls && JSON.stringify(printed.items) === JSON.stringify(['1 Alpha', '1.1 Delta']), printed)
   await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
 
-  /* print document: the contents first, a page break, then every item */
-  await p.click('[data-test=ws-doc-print-doc]')
+  /* print document (the header's file menu, SPL-3233): the contents first, a page break, then every item */
+  await p.click('[data-test=ws-doc-file-btn]')
+  await p.click('[data-test=ws-doc-file-menu-print]')
   await p.waitForFunction(() => window.__printed === 2, { timeout: STEP }).catch(() => null)
   const whole = await p.evaluate(() => {
     const art = document.querySelector('[data-test=ws-doc-print]')

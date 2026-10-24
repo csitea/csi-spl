@@ -467,7 +467,10 @@ try {
   /* SPL-2094 (owner t1 8f704763): on a desktop the three buttons are in the
      header row (Documents, +, the doc picker), at its right end, and the doc
      view has no toolbar row of its own; a phone keeps the row atop the doc */
-  console.log('-- print + TOC row (t1 28155201), desktop in the header row (SPL-2094)')
+  /* SPL-3233 (owner t1 a1b42c34, msg 7caac933) replaced the print + TOC + export trio (t1 28155201,
+     SPL-2094): the contents toggle and ONE file menu button (Print, Export to Markdown) sit in the
+     header row on every width, and the doc view has no bar row of its own */
+  console.log('-- TOC + file menu in the header row (SPL-2094, SPL-3233)')
   for (const [w, h, mobile] of [[1440, 900, false], [390, 844, true]]) {
     const r = await browser.newPage()
     await r.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile })
@@ -483,34 +486,33 @@ try {
       const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }
       const face = (el) => { const s = getComputedStyle(el); return { border: s.borderTopStyle, borderW: s.borderTopWidth, borderC: s.borderTopColor, bg: s.backgroundColor } }
       const view = document.querySelector('[data-test=ws-doc-view]')
-      const pr = document.querySelector('[data-test=ws-doc-print-doc]')
       const toc = document.querySelector('[data-test=ws-doc-toc-toggle]')
-      const ex = document.querySelector('[data-test=ws-doc-export-doc]')
+      const file = document.querySelector('[data-test=ws-doc-file-btn]')
       const head = document.querySelector('[data-test=ws-docs-page] .wsdocs-head')
       const doc = document.querySelector('[data-test=ws-doc-doctitle]')
-      if (!view || !pr || !toc || !ex || !head || !doc) return null
+      if (!view || !toc || !file || !head || !doc) return null
       return {
-        view: box(view), pr: box(pr), toc: box(toc), ex: box(ex), head: box(head), doc: box(doc),
+        view: box(view), toc: box(toc), file: box(file), head: box(head), doc: box(doc),
         barInView: Boolean(view.querySelector('[data-test=ws-doc-bar]')),
-        prFace: face(pr), tocFace: face(toc),
+        tocFace: face(toc), fileFace: face(file),
       }
     })
     const at = `${w}px`
-    ok(`${at}: the print and TOC buttons are shown`, Boolean(row), row)
+    ok(`${at}: the TOC and file menu buttons are shown`, Boolean(row), row)
     if (row) {
-      const gap = row.toc.x - (row.pr.x + row.pr.w)
-      ok(`${at}: print and TOC sit on one line, side by side, <= 4px apart`, Math.abs(row.pr.y - row.toc.y) < 2 && gap >= 0 && gap <= 4, { gap, pr: row.pr, toc: row.toc })
-      if (mobile) ok(`${at}: the row is the top of the doc view`, row.barInView && row.pr.y - row.view.y < 12 && row.toc.y - row.view.y < 12, { view: row.view })
-      else {
-        const inHead = (b) => b.y >= row.head.y && b.y + b.h <= row.head.y + row.head.h
-        const right = row.head.x + row.head.w - (row.ex.x + row.ex.w)
-        ok(`${at}: the three buttons sit in the header row, right edge <= 24px from its end`, [row.pr, row.toc, row.ex].every(inHead) && right >= 0 && right <= 24, { head: row.head, pr: row.pr, toc: row.toc, ex: row.ex, right })
-        ok(`${at}: no toolbar row above the doc body: the doc view starts with its title`, !row.barInView && row.doc.y - row.view.y < 40, { view: row.view, doc: row.doc })
+      const gap = row.file.x - (row.toc.x + row.toc.w)
+      ok(`${at}: TOC and the file menu sit on one line, side by side, <= 4px apart`, Math.abs(row.toc.y - row.file.y) < 2 && gap >= 0 && gap <= 4, { gap, toc: row.toc, file: row.file })
+      const inHead = (b) => b.y >= row.head.y && b.y + b.h <= row.head.y + row.head.h
+      ok(`${at}: both buttons sit in the header row`, [row.toc, row.file].every(inHead), { head: row.head, toc: row.toc, file: row.file })
+      if (!mobile) {
+        const right = row.head.x + row.head.w - (row.file.x + row.file.w)
+        ok(`${at}: the file menu's right edge is <= 24px from the header's end`, right >= 0 && right <= 24, { head: row.head, file: row.file, right })
       }
+      ok(`${at}: no toolbar row above the doc body: the doc view starts with its title`, !row.barInView && row.doc.y - row.view.y < 40, { view: row.view, doc: row.doc })
       const plain = (f) => (f.border === 'none' || f.borderW === '0px' || f.borderC === 'rgba(0, 0, 0, 0)') && f.bg === 'rgba(0, 0, 0, 0)'
-      ok(`${at}: neither button has browser chrome (border, grey face)`, plain(row.prFace) && plain(row.tocFace), { pr: row.prFace, toc: row.tocFace })
+      ok(`${at}: neither button has browser chrome (border, grey face)`, plain(row.tocFace) && plain(row.fileFace), { toc: row.tocFace, file: row.fileFace })
     }
-    await shot(r, `print-toc-row-${w}`)
+    await shot(r, `toc-file-row-${w}`)
     await r.close()
   }
 
@@ -542,18 +544,18 @@ try {
     }
   }
   
-  // Verify the print and TOC buttons are in a tight row at the top
+  // Verify the TOC and file menu buttons are in a tight row at the top (SPL-3233: print is in the file menu)
   await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const printBtn = await b.waitForSelector('[data-test=ws-doc-print-doc]', { timeout: 15000 }).catch(() => null)
   const tocBtn = await b.waitForSelector('[data-test=ws-doc-toc-toggle]', { timeout: 15000 }).catch(() => null)
-  ok('the print button is present', Boolean(printBtn))
+  const fileBtn = await b.waitForSelector('[data-test=ws-doc-file-btn]', { timeout: 15000 }).catch(() => null)
   ok('the TOC button is present', Boolean(tocBtn))
+  ok('the file menu button is present', Boolean(fileBtn))
   
-  if (printBtn && tocBtn) {
-    const printBox = await printBtn.boundingBox()
+  if (fileBtn && tocBtn) {
+    const fileBox = await fileBtn.boundingBox()
     const tocBox = await tocBtn.boundingBox()
     /* boundingBox() is {x, y, width, height}: top = y, left = x, right = x + width */
-    ok('the print and TOC buttons are in a tight row at the top', Boolean(printBox && tocBox && Math.abs(printBox.y - tocBox.y) < 5 && printBox.x + printBox.width <= tocBox.x + 10), { printBox, tocBox })
+    ok('the TOC and file menu buttons are in a tight row at the top', Boolean(fileBox && tocBox && Math.abs(fileBox.y - tocBox.y) < 5 && tocBox.x + tocBox.width <= fileBox.x + 10), { tocBox, fileBox })
   }
   
   await b.close()

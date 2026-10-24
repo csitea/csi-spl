@@ -109,14 +109,15 @@ try {
   await p.waitForSelector(PRE, { timeout: STEP }).catch(() => null)
   ok('a branch opened alone has no preamble; the whole document has it again', !inBranch.shown && (await preamble(p)).shown, { inBranch })
 
-  /* the bar's Export to Markdown: the preamble, then section 1 */
+  /* the file menu's Export to Markdown (SPL-3233): the preamble, then section 1 */
   await p.evaluate(() => {
     window.__exports = []
     const make = URL.createObjectURL
     URL.createObjectURL = (b) => { b.text().then((t) => window.__exports.push(t)); return make.call(URL, b) }
     HTMLAnchorElement.prototype.click = function () { if (this.download) window.__exportNames = [...(window.__exportNames || []), this.download] }
   })
-  await p.click('[data-test=ws-doc-export-doc]').catch(() => null)
+  await p.click('[data-test=ws-doc-file-btn]').catch(() => null)
+  await p.click('[data-test=ws-doc-file-menu-export_md]').catch(() => null)
   await p.waitForFunction(() => window.__exports.length === 1, { timeout: STEP }).catch(() => null)
   const ex = await p.evaluate(() => ({ files: window.__exportNames, md: window.__exports[0] }))
   ok('Export to Markdown opens with the preamble, then section 1', JSON.stringify(ex.files) === JSON.stringify(['E2E-preamble.md'])

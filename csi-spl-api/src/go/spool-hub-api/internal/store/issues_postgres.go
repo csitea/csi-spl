@@ -382,6 +382,22 @@ func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, erro
 	return s.listIssueRows(ctx, tenant, issueCols, scanIssue)
 }
 
+// IssueNumbersByDiscussion returns the numbers of the issues that link topic
+// taskID (on Postgres), from the issue_discussions_task index.
+func (s *Postgres) IssueNumbersByDiscussion(ctx context.Context, tenant, taskID string) ([]int, error) {
+	out := []int{}
+	err := s.queryTenant(ctx, tenant, `SELECT number FROM issue_discussions WHERE tenant_id = $1 AND task_id = $2::uuid ORDER BY number`,
+		[]any{tenant, taskID}, func(r pgx.Rows) error {
+			var n int
+			if err := r.Scan(&n); err != nil {
+				return err
+			}
+			out = append(out, n)
+			return nil
+		})
+	return out, err
+}
+
 // ListIssueSheet is ListIssues without description, for the issue sheet
 // (P5-06: up to 0.9 MB of description detoasted per list read on prd).
 // Search, hours export and the calendar keep ListIssues.

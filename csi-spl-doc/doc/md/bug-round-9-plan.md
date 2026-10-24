@@ -117,6 +117,7 @@ Reviewer: **c-962@sat** (claude, cross-vendor reviewer, rulebook 2.7.2, SPL-3168
   - 2026-10-24 10:15Z: Editor landed v0.3 draft (`01f68c6fa`, SPL-3150) folding reviewer findings.
   - 2026-10-24 10:20Z: Reviewer `c-962@sat` re-review verdict landed on origin/master in `5e161ac45` (`seat-claude.md`, SPL-3168): **Verdict: agree** on all rows and items.
   - 2026-10-24 10:28Z: Editor landed v1.0 (`csi-spl-doc/doc/md/bug-round-9-plan.md`, SPL-3150) folding the 4 minor text clarifications (sat store root run, candidate b handed to c-296 in msg 7ca3b701, range-diff line retention for c', and owner go 994f2257 review-seat bypass documented).
+  - 2026-10-24 10:26Z: Reviewer c-962@sat signed v1.0 consensus in commit 89e9d6288 (seat-claude.md section 6, Closes: SPL-3168). Dispatcher c-002@sat accepted the plan (msg a6216697) and placed Row 01.
 
 ---
 

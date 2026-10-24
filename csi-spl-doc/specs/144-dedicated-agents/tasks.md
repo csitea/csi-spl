@@ -7,8 +7,9 @@ checkpoints.
 
 Status vocabulary: `../README.md` §2.3 (`[x]` Implemented, `[~]` Partial / in progress, `[ ]` Planned).
 
-Version: **v0.2.0**. All tasks below are planned awaiting owner review
-and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §14.
+Version: **v0.2.0**. Partial implementation in progress: T001 (ce5da1d59),
+T002 (3be78e1fd), and T006 (e0f02e7ff) are Implemented on master.
+Remaining tasks planned awaiting owner review on open questions Q1..Q5 in [spec.md](spec.md) §14.
 
 ---
 

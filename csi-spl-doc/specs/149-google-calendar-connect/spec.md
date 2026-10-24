@@ -8,7 +8,7 @@ its re-check of v0.3 (msg `1f8697a5`) (section 10). The owner gave the go
 to build on 2026-10-23 21:42Z ("Go, implement", msg `40744f59`, relayed by
 c-002 msg `a9c444bf`), so v1.0 did not wait for the agy seat, which had
 not been placed (agy out of quota); it did not review and does not sign
-(section 11). Nothing in it is built.
+(section 11). Build rows B1-B5 are landed on master (B1: 3d88cca60, B2: 2e3c1534c, B3: b02cd72bc, B4: bf5a169e4, B5: 01e3724d4); rows B6a-B10 not yet built.
 
 Source: prd topic in the owner's workspace,
 `topic:838e3484-d09c-4cd8-b06a-0c211d00e535`. Issue: SPL-3098 (this panel),
@@ -429,11 +429,11 @@ backup. "api tests" = `bash csi-spl-api/src/bash/tests/run-all-tests.sh`;
 
 | row | area | files (only these) | after | cases | test (red on master, green on the row) | author | R7 reviewer (backup) |
 |---|---|---|---|---|---|---|---|
-| B1 data | rdb, api | new `rdb/<next>_google_calendar.sql`; `store/crosstenant_test.go` (`seedTenantAll`: both tables, same commit, or `TestCrossTenantEveryTable` goes red) | - | C1-C2, C1b | the rdb apply + Postgres tests of C1, C2, C1b; full tier | claude | agy (mistral) |
-| B2 store | api | new `store/gcal.go`, `store/gcal_memory.go`, `store/gcal_postgres.go`, `store/gcal_test.go`; one field in `store/memory.go` (as `marketing *memMarketing`, :72) | B1 | C3 | `store/gcal_test.go` (memory and Postgres); api tests; full tier | claude | agy (mistral) |
-| B3 seal purpose | api | `api/internal/marketing/seal.go` (an AAD option on `NewSealer`, default unchanged), `seal_test.go` | - | C4-C5 | `go test ./internal/marketing/`; api tests | claude | agy (mistral) |
-| B4 Google client | api | new `api/internal/gcal/` (`client.go`, `oauth.go`, `fakegcal/fakegcal.go`, tests) | - | C6 | `go test ./internal/gcal/...`; api tests | claude | agy (mistral) |
-| B5 connect routes | api, cnf | new `hub/gcal_connect.go` + `_test.go`; new `api/cmd/spool/hub_gcal.go`; one opts line in `api/cmd/spool/hub.go` (as :284); one block in `api/internal/config/config.go`; `hub/server.go`: one Options field (as :225-227) and one route line (:411-450); a `gcal:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` holding only `openid email` until S2) and its tpl-gen output | B2, B3, B4 | C7-C12, C24-C24c | `hub/gcal_connect_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | agy (mistral) |
+| B1 data (Implemented, 3d88cca60) | rdb, api | new `rdb/<next>_google_calendar.sql`; `store/crosstenant_test.go` (`seedTenantAll`: both tables, same commit, or `TestCrossTenantEveryTable` goes red) | - | C1-C2, C1b | the rdb apply + Postgres tests of C1, C2, C1b; full tier | claude | agy (mistral) |
+| B2 store (Implemented, 2e3c1534c) | api | new `store/gcal.go`, `store/gcal_memory.go`, `store/gcal_postgres.go`, `store/gcal_test.go`; one field in `store/memory.go` (as `marketing *memMarketing`, :72) | B1 | C3 | `store/gcal_test.go` (memory and Postgres); api tests; full tier | claude | agy (mistral) |
+| B3 seal purpose (Implemented, b02cd72bc) | api | `api/internal/marketing/seal.go` (an AAD option on `NewSealer`, default unchanged), `seal_test.go` | - | C4-C5 | `go test ./internal/marketing/`; api tests | claude | agy (mistral) |
+| B4 Google client (Implemented, bf5a169e4) | api | new `api/internal/gcal/` (`client.go`, `oauth.go`, `fakegcal/fakegcal.go`, tests) | - | C6 | `go test ./internal/gcal/...`; api tests | claude | agy (mistral) |
+| B5 connect routes (Implemented, 01e3724d4) | api, cnf | new `hub/gcal_connect.go` + `_test.go`; new `api/cmd/spool/hub_gcal.go`; one opts line in `api/cmd/spool/hub.go` (as :284); one block in `api/internal/config/config.go`; `hub/server.go`: one Options field (as :225-227) and one route line (:411-450); a `gcal:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` holding only `openid email` until S2) and its tpl-gen output | B2, B3, B4 | C7-C12, C24-C24c | `hub/gcal_connect_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | agy (mistral) |
 | B6a sync out | api | new `hub/gcal_sync.go` + `_test.go` (claim, lease, refresh, the Spool -> Google half); new `hub/gcal_map.go` (mapping, hash) + test; one line in `hub/server.go` `RunSweeper` (:585) | B5 | C13-C13c, C14, C20, C21 | `hub/gcal_sync_test.go`, `hub/gcal_map_test.go`; api tests; full tier | claude | agy (mistral) |
 | B6b sync in | api | new `hub/gcal_sync_in.go` + `_test.go` (the Google -> Spool half, called from B6a's cycle by one line in `hub/gcal_sync.go`) | B6a, **O1 = A or C** | C15-C19 | `hub/gcal_sync_in_test.go`; api tests; full tier | claude | agy (mistral) |
 | B7 push | api | new `hub/gcal_push.go` + `_test.go` (the route registered from `gcal_connect.go`'s route func: no new `server.go` line); channel create, renew and stop live here; one call to `s.gcalWatchTick` in `hub/gcal_sync.go` (a B6a file, B7 runs after it) and one in the disconnect path of `hub/gcal_connect.go` (a B5 file) | B6a (B6b too if placed) | C22-C23b | `hub/gcal_push_test.go`; api tests | claude | agy (mistral) |

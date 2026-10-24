@@ -1,6 +1,6 @@
 # Feature Specification: Dedicated Agents (Private Scopes for Channel and Topic Isolation)
 
-**Feature ID**: `144-dedicated-agents` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only)
+**Feature ID**: `144-dedicated-agents` · **Milestone**: M3 / M4 · **Status**: Partial (T001, T002, T006 landed on master: ce5da1d59, 3be78e1fd, e0f02e7ff)
 **Created**: 2026-10-17 · **Updated**: 2026-10-19 · **Lanes**: a-424-dedicated-agents (SPL-2343), a-778-dedicated-agents (SPL-2585)
 **Authority**: this file for behaviour, protocol rules, data model, and contracts; `tasks.md` for the concrete implementation tasks and verification checkpoints. Status vocabulary: `../README.md` §2.3.
 

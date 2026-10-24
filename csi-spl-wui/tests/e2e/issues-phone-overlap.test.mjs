@@ -10,7 +10,8 @@
 //   3 the "sorted by" line ends before the Sort square
 //   4 the composer's hint stops >= 4 px before the Search button (it was cut
 //     mid-letter at the button's edge: Chrome draws no ellipsis on a
-//     textarea's placeholder), and a hint that does not fit fades out
+//     textarea's placeholder), and a hint that does not fit fades out; the
+//     text area itself still runs to the button (t1 e142d4a0, phone-composer-target)
 //   5 the targets stay 44 px, the filter dot sits inside the Filter square
 //
 //   pnpm run test:e2e issues-phone-overlap
@@ -79,9 +80,18 @@ async function measure(p) {
     const rtl = cs.direction === 'rtl'
     /* where the hint's text is cut: the text area's content edge */
     const textEnd = rtl ? tr.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft) : tr.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight)
+    const textStart = rtl ? tr.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) : tr.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)
     const ctx = document.createElement('canvas').getContext('2d')
     ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
     const room = tr.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth)
+    const inkW = ctx.measureText(ta.placeholder).width
+    const mask = cs.maskImage || cs.webkitMaskImage || 'none'
+    /* the mask's last stop, "transparent calc(100% - Npx)": the ink is gone N px before the box's end */
+    const clear = mask === 'none' ? 0 : Number((mask.match(/calc\(100% - ([\d.]+)px\)\)\s*$/) || [0, 0])[1])
+    /* where the hint's ink visibly ends: its own width when it fits, else the cut less the fade */
+    const inkEnd = inkW <= room
+      ? (rtl ? textStart - inkW : textStart + inkW)
+      : (rtl ? textEnd + clear : textEnd - clear)
     const r1 = (n) => Math.round(n * 10) / 10
     return {
       railGap: r1(Math.min(...sq.map((s) => s.t - rail.bottom))),
@@ -90,9 +100,10 @@ async function measure(p) {
       sortedGap: r1(rtl ? sorted.left - sq[0].r : sq[0].l - sorted.right),
       tap: tap.map(r1),
       dotIn: !dot || (dot.top >= sq[1].t && dot.bottom <= sq[1].b && dot.left >= sq[1].l && dot.right <= sq[1].r),
-      hintGap: r1(rtl ? textEnd - btn.right : btn.left - textEnd),
-      hintFits: ctx.measureText(ta.placeholder).width <= room,
-      fade: (cs.maskImage || cs.webkitMaskImage || 'none') !== 'none',
+      hintGap: r1(rtl ? inkEnd - btn.right : btn.left - inkEnd),
+      boxGap: r1(rtl ? textEnd - btn.right : btn.left - textEnd),
+      hintFits: inkW <= room,
+      fade: mask !== 'none',
       shown: ta.matches(':placeholder-shown'),
     }
   })
@@ -129,7 +140,7 @@ try {
       ok(`1 ${c}: Sort and Filter draw their square >= 2 px below the tab rail`, m.railGap >= 2, { railGap: m.railGap })
       ok(`2 ${c}: ... and >= 1 px above the epic chips' pills`, m.pills > 0 && m.pillGap >= 1, { pillGap: m.pillGap, pills: m.pills })
       ok(`3 ${c}: the "sorted by" line ends before the Sort square`, m.sortedGap >= 0, { sortedGap: m.sortedGap })
-      ok(`4 ${c}: the composer hint stops >= 4 px before Search; a hint that does not fit fades out`, m.shown && m.hintGap >= 4 && (m.hintFits || m.fade), { hintGap: m.hintGap, hintFits: m.hintFits, fade: m.fade })
+      ok(`4 ${c}: the composer hint stops >= 4 px before Search; a hint that does not fit fades out`, m.shown && m.hintGap >= 4 && (m.hintFits || m.fade) && m.boxGap <= 1, { hintGap: m.hintGap, boxGap: m.boxGap, hintFits: m.hintFits, fade: m.fade })
       ok(`5 ${c}: the targets stay >= 44 px; the filter dot is inside the Filter square`, m.tap.every((t) => t >= 43.5) && m.dotIn, { tap: m.tap, dotIn: m.dotIn })
       if (SHOTS) await p.screenshot({ path: join(SHOTS, `issues-phone-overlap-${lang}-${w}.png`) })
     }

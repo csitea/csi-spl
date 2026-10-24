@@ -999,9 +999,8 @@ textarea.in-code {
   /* SPL-3190 (owner, t1 22e98a50: "a small overlap of the icons"): Chrome
      draws no ellipsis on a textarea's placeholder, so the long hint was cut
      mid-letter right at the Search button's edge and read as covered by it.
-     The text now stops 8px before the button, and a hint that does not fit
-     fades out over its last 24px instead of being cut */
-  .composer--dock.composer--dock textarea { padding-inline-end: 8px; }
+     The text area still runs to the square (t1 e142d4a0); a hint that does
+     not fit fades out over 24px and is clear 8px before the button */
   .composer--dock.composer--dock textarea:placeholder-shown {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent calc(100% - 8px));
     mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent calc(100% - 8px));

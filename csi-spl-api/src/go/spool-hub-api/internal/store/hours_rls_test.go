@@ -292,6 +292,9 @@ func TestHoursWidenings(t *testing.T) {
 		{"13 with reporting, no monitoring", append([]string{"reporting", "hours"}, eleven...), false},
 		{"13 with monitoring and an unknown", append([]string{"gauges", "monitoring"}, eleven...), false},
 		{"14 with hours, monitoring and reporting", append([]string{"hours", "reporting", "monitoring"}, eleven...), false},
+		{"14 with monitoring, reporting and notes (rdb 0223)", append([]string{"notes", "reporting", "monitoring"}, eleven...), true},
+		{"14 with notes, no reporting", append([]string{"notes", "hours", "monitoring"}, eleven...), false},
+		{"15 with notes and an unknown", append([]string{"gauges", "notes", "reporting", "monitoring"}, eleven...), false},
 	} {
 		_, err := pg.pool.Exec(ctx, `UPDATE humans SET rail_order = $2 WHERE human_id = $1`, hum, c.order)
 		if c.ok != (err == nil) || (!c.ok && pgCode(err) != "23514") {

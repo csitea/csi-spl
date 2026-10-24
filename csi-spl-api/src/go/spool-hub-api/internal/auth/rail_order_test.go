@@ -26,8 +26,8 @@ func TestIsRailOrderMonitoring(t *testing.T) {
 			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
 		}
 	}
-	if !isPermutation(append([]string{"reporting"}, append([]string{"monitoring"}, eleven...)...), RailTabs) {
-		t.Errorf("RailTabs = %v, want the eleven plus monitoring and reporting", RailTabs)
+	if !isPermutation(append([]string{"notes", "reporting", "monitoring"}, eleven...), RailTabs) {
+		t.Errorf("RailTabs = %v, want the eleven plus monitoring, reporting and notes", RailTabs)
 	}
 }
 
@@ -54,7 +54,35 @@ func TestIsRailOrderReporting(t *testing.T) {
 			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
 		}
 	}
-	if RailTabs[len(RailTabs)-1] != "reporting" {
-		t.Errorf("RailTabs ends with %q, want reporting last", RailTabs[len(RailTabs)-1])
+	if !isPermutation(append([]string{"notes", "reporting"}, twelve...), RailTabs) {
+		t.Errorf("RailTabs = %v, want the twelve plus reporting and notes", RailTabs)
+	}
+}
+
+// SPL-3223 (spec 155 B1, case C1): Notes is a rail entry. A 14-id order holding
+// it is admitted, every order stored before it still is, and a set the DB
+// check (rdb 0223) refuses is refused here too. Red control: on the RailTabs
+// before SPL-3223 the "fourteen with notes" row fails.
+func TestIsRailOrderNotes(t *testing.T) {
+	thirteen := []string{"reporting", "monitoring", "calendar", "boxes", "agents", "people", "events", "archive", "flow", "topics", "issues", "channels", "dm"}
+	for _, c := range []struct {
+		name  string
+		order []string
+		want  bool
+	}{
+		{"fourteen with notes", append([]string{"notes"}, thirteen...), true},
+		{"thirteen, stored before notes", thirteen, true},
+		{"twelve, stored before reporting", thirteen[1:], true},
+		{"notes without reporting", append([]string{"notes"}, thirteen[1:]...), false},
+		{"notes twice", append([]string{"notes", "notes"}, thirteen...), false},
+		{"fourteen with an unknown", append([]string{"gauges"}, thirteen...), false},
+		{"fifteen with notes and an unknown", append([]string{"gauges", "notes"}, thirteen...), false},
+	} {
+		if got := IsRailOrder(c.order); got != c.want {
+			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
+		}
+	}
+	if RailTabs[len(RailTabs)-1] != "notes" {
+		t.Errorf("RailTabs ends with %q, want notes last", RailTabs[len(RailTabs)-1])
 	}
 }

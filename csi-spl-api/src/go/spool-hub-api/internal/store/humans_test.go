@@ -432,6 +432,21 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetRailOrder(ctx, hum, append([]string{"gauges"}, twelve...)); err == nil {
 				t.Fatal("SetRailOrder accepted an unknown thirteenth tab")
 			}
+			// SPL-3223 (spec 155 B1, case C2; rdb 0223): the fourteen with notes store
+			// and read back; notes without reporting and a 15th unknown id are refused
+			fourteen := append([]string{"notes"}, thirteen...)
+			if err := h.SetRailOrder(ctx, hum, fourteen); err != nil {
+				t.Fatal("fourteen with notes", err)
+			}
+			if got, err := h.RailOrder(ctx, hum); err != nil || strings.Join(got, ",") != strings.Join(fourteen, ",") {
+				t.Fatalf("rail order with notes got %v %v", got, err)
+			}
+			if err := h.SetRailOrder(ctx, hum, append([]string{"notes"}, twelve...)); err == nil {
+				t.Fatal("SetRailOrder accepted notes without reporting")
+			}
+			if err := h.SetRailOrder(ctx, hum, append([]string{"gauges"}, fourteen...)); err == nil {
+				t.Fatal("SetRailOrder accepted an unknown fifteenth tab")
+			}
 			if err := h.SetRailOrder(ctx, hum, nil); err != nil {
 				t.Fatal(err)
 			}

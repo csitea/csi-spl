@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,11 @@ import (
 // The database is migrated through 0155. "Before" is the same file with the
 // letters narrowed back to [acgq] and 'mistral' left out of the kinds list,
 // which are the 0101 / 0102 / 0110 / 0149 texts; it is applied in a
-// rolled-back transaction, then the real file on top of it.
+// rolled-back transaction, then the real file on top of it. Each narrowed
+// CHECK is added NOT VALID: Postgres still enforces it on every INSERT and
+// UPDATE, which is all the before-pair measures, and it skips the rows other
+// tests committed (an m- roster row in any tenant would fail a plain ADD with
+// 23514). The control: m-004 seated and committed in a second tenant first.
 //
 // Pair, one write per CHECK (n=8), plus the trigger (n=1):
 //   - refused before (n=8): roster, issues.assignee, fleet_lanes, the three
@@ -32,6 +37,9 @@ import (
 // roster seats the workspace for a human post to ALL-0 (n=1).
 const mistralKindFile = "0155_mistral_kind.sql"
 
+// mistralKindCheck is the CHECK clause closing each ADD CONSTRAINT in 0155.
+var mistralKindCheck = regexp.MustCompile(`(?m)^(\s+CHECK \(.*\));$`)
+
 func TestMistralKind0155(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -44,9 +52,23 @@ func TestMistralKind0155(t *testing.T) {
 	if before == after || strings.Contains(before, "'qwen', 'mistral'") {
 		t.Fatalf("%s: the before text did not narrow the grammar", mistralKindFile)
 	}
+	// n=9: the eight CHECKs that name the letters or kinds, plus the split sum.
+	if n := len(mistralKindCheck.FindAllString(before, -1)); n != 9 {
+		t.Fatalf("%s: %d ADD CONSTRAINT ... CHECK clauses, want 9", mistralKindFile, n)
+	}
+	before = mistralKindCheck.ReplaceAllString(before, "$1 NOT VALID;")
+
+	// The control: an m- row committed in another tenant before the tx.
+	other := newTenant(t, pg)
+	now := time.Now().UTC()
+	if err := pg.PutPin(ctx, other, "box-a", pubkey(), false, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.SetRoster(ctx, other, "box-a", []string{"m-004"}, now); err != nil {
+		t.Fatal(err)
+	}
 
 	tenant := newTenant(t, pg)
-	now := time.Now().UTC()
 	if err := pg.PutPin(ctx, tenant, "box-a", pubkey(), false, now, now); err != nil {
 		t.Fatal(err)
 	}

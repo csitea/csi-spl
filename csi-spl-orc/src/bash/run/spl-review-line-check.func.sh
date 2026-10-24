@@ -25,6 +25,17 @@
 # @description path is under, else the owner of its nearest existing parent):
 # @description a log not readable as this user is read that way, with a
 # @description `NOTE read as <owner> (sudo -n)` line.
+# @description The log must be the reviewer's own session (bug round 8 row 01):
+# @description an agent id found by (a) vibe `meta.json` (`environment.
+# @description working_directory` or top-level `origin_directory`), looked up
+# @description from the path up to the session dir, (b) a claude project slug
+# @description `-opt-csi-csi-spl-wt-<id>`, (c) `/var/spool-hub/<id>/`, (d) an
+# @description agy `/brain/<uuid>`: the seed's `spool agent id is <id>` (or its
+# @description `/var/spool-hub/<id>/lifetime/` pointer) in the first user input,
+# @description else its `cache/last_conversations.json` worktree row, and not
+# @description the reviewer -> `FATAL log <path> belongs to agent <found>, not
+# @description reviewer <id>`, exit 1. No rule matches (another repo's worktree,
+# @description a seat outside a worktree): only the commands are checked.
 # @description Prints `MISSING <name>` per test not run (exit 3), else
 # @description `OK <n> of <n>`. Exit 2: the log is on another box (named),
 # @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
@@ -44,13 +55,13 @@
 # @example REVIEW_LINE='review: m-159@box-a mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159@box-a:/path/journal' ./run -a do_spl_review_line_check
 #------------------------------------------------------------------------------
 do_spl_review_line_check() {
-  local line="${REVIEW_LINE:-}" ran box path me names owner=
+  local line="${REVIEW_LINE:-}" ran box path me names rid owner=
   [[ -n "$line" ]] || { echo "FATAL REVIEW_LINE must be set (the 'review: ...' line)"; return 1; }
   line="${line#"${line%%review: *}"}"
   [[ "$line" == "review: "* ]] || { echo "FATAL REVIEW_LINE holds no 'review: ' line"; return 1; }
   [[ "$line" =~ \|\ log:\ ([^[:space:]@]+)@([^[:space:]:]+):([^[:space:]]+) ]] ||
     { echo "FATAL the line has no '| log: <id>@<box>:<path>'"; return 1; }
-  box="${BASH_REMATCH[2]}" path="${BASH_REMATCH[3]}"
+  rid="${BASH_REMATCH[1]}" box="${BASH_REMATCH[2]}" path="${BASH_REMATCH[3]}"
   me="$(_spl_review_line_box)"
   [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "$box" "$me"; return $?; }
   _spl_review_line_reviewer "${line%%$'\n'*}" || return 1
@@ -71,7 +82,7 @@ do_spl_review_line_check() {
     }
     echo "NOTE read as $owner (sudo -n)"
   fi
-  _spl_review_line_match "$path" "$owner" <<<"$names"
+  _spl_review_line_match "$path" "$owner" "$rid" <<<"$names"
 }
 
 # _spl_review_line_owner <path> - the user whose passwd home the path is under
@@ -171,17 +182,20 @@ _spl_review_line_names() {
   } | awk '!seen[$0]++'
 }
 
-# _spl_review_line_match <log path> [owner] < names - prints MISSING per name
-# that no "command" in the log names, then the count; exit 0 all found, 3 any
-# missing. With an owner only this read runs through `sudo -n -u <owner>`.
+# _spl_review_line_match <log path> [owner] [reviewer id] < names - exit 1
+# when the log belongs to another agent than the reviewer, else prints MISSING
+# per name that no "command" in the log names, then the count; exit 0 all
+# found, 3 any missing. With an owner only this read runs through
+# `sudo -n -u <owner>`.
 _spl_review_line_match() {
-  _spl_review_line_as "${2:-}" python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1"
+  _spl_review_line_as "${2:-}" python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1" "${3:-}"
 }
 
 # shellcheck disable=SC2016
 _SPL_REVIEW_LINE_PY='
 import json, os, re, sys
 path = sys.argv[1]
+rid = sys.argv[2] if len(sys.argv) > 2 else ""
 names = [l.split(" ", 1) for l in sys.stdin.read().splitlines() if " " in l]
 cmds = []
 def agy(v):
@@ -209,6 +223,66 @@ def walk(v):
             walk(json.loads(v))
         except ValueError:
             pass
+ID = r"([acgmq]-[0-9]{3,})(?![0-9])"
+WT = "/opt/csi/csi-spl-wt/" + ID
+def load(f):
+    try:
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+def meta(p):
+    d = p if os.path.isdir(p) else os.path.dirname(p)
+    for _ in range(3):
+        m = load(os.path.join(d, "meta.json"))
+        if isinstance(m, dict):
+            e = m.get("environment")
+            for w in (e.get("working_directory") if isinstance(e, dict) else None, m.get("origin_directory")):
+                x = re.search(WT, w) if isinstance(w, str) else None
+                if x:
+                    return x.group(1)
+            return None
+        if os.path.exists(os.path.join(d, "CURRENT")) or os.path.isdir(os.path.join(d, "chunks")):
+            return None
+        d = os.path.dirname(d)
+    return None
+def seed(t):
+    try:
+        with open(t, encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                try:
+                    r = json.loads(raw)
+                except ValueError:
+                    continue
+                if isinstance(r, dict) and r.get("type") == "USER_INPUT":
+                    c = str(r.get("content", ""))
+                    x = re.search("spool agent id is " + ID, c, re.I) or re.search("/var/spool-hub/" + ID + "/lifetime/", c)
+                    return x.group(1) if x else None
+    except OSError:
+        pass
+    return None
+def brain(home, u):
+    for t in ("transcript.jsonl", "transcript_full.jsonl"):
+        s = seed(os.path.join(home, "brain", u, ".system_generated", "logs", t))
+        if s:
+            return s
+    rows = load(os.path.join(home, "cache", "last_conversations.json"))
+    for ws, v in (rows.items() if isinstance(rows, dict) else ()):
+        x = re.search(WT, ws) if v == u else None
+        if x:
+            return x.group(1)
+    return None
+def seat(p):
+    s = meta(p)
+    for rx in ("-opt-csi-csi-spl-wt-" + ID, "/var/spool-hub/" + ID + "/"):
+        x = None if s else re.search(rx, p)
+        s = x.group(1) if x else s
+    x = None if s else re.search(r"^(.*)/brain/([0-9a-f-]{36})(?:/|$)", p)
+    return brain(x.group(1), x.group(2)) if x else s
+who = seat(os.path.abspath(path)) if rid else None
+if who and who != rid:
+    print("FATAL log %s belongs to agent %s, not reviewer %s" % (path, who, rid))
+    sys.exit(1)
 try:
     if os.path.isdir(path):
         subs = [os.path.join(path, c) for c in os.listdir(path)]

@@ -32,6 +32,13 @@
 #      dir holding 2 session dirs (the store root) -> exit 1, names the count;
 #      control: one session dir of it -> OK; (b) a header reviewer that is no
 #      agent id, or is not the log: owner -> SYNTAX FAIL, exit 1, on this box
+#  11. the log is the reviewer's own session (bug round 8 row 01): a vibe
+#      session dir or journal FILE whose meta.json names m-901, cited by m-902
+#      -> FATAL belongs to agent m-901, exit 1; control m-902 -> OK; a claude
+#      project slug of c-901 cited by c-902 -> FATAL; an agy brain whose seed
+#      names a-901 first but says its id is a-902 (a takeover) -> OK for
+#      a-902, FATAL for a-901; an agy brain mapped only by
+#      last_conversations.json -> FATAL for another id, OK for its own
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -210,6 +217,44 @@ out="$(chk REVIEW_LINE="$l10")"; rc=$?
 l10="review: m-902@box-a mistral PASS $SHA ran: bash $TST | read: 9 PASS | log: m-901@box-a:$U/s2"
 out="$(chk REVIEW_LINE="$l10")"; rc=$?
 [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"not the log: owner"* ]] && pass "10. a reviewer that is not the log: owner -> SYNTAX FAIL, exit 1, on this box" || fail "10. not the owner (rc $rc: $out)"
+
+# 11. the log is the reviewer's own session (bug round 8 row 01) ---------------
+l11() { echo "review: $1@box-a $2 PASS $SHA ran: bash $TST | read: 9 PASS | log: $1@box-a:$3"; }
+U="$T/u11/s1"; mkdir -p "$U/chunks" "$U/journal"; echo '{}' >"$U/CURRENT"
+printf '%s' '[{"input":{"command":"cd /x && bash '"$TST"'"}}]' >"$U/chunks/c1.json"
+printf '%s\n' '{"input":{"command":"cd /x && bash '"$TST"'"}}' >"$U/journal/0001.jsonl"
+echo '{"environment":{"working_directory":"/opt/csi/csi-spl-wt/m-901"},"origin_directory":"/opt/csi/csi-spl-wt/m-901"}' >"$U/meta.json"
+out="$(chk REVIEW_LINE="$(l11 m-902 mistral "$U")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL log $U belongs to agent m-901, not reviewer m-902"* ]] \
+  && pass "11. m-902 citing m-901's vibe session dir (meta.json) -> FATAL, exit 1" || fail "11. other seat's session (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l11 m-902 mistral "$U/journal/0001.jsonl")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"belongs to agent m-901, not reviewer m-902"* ]] \
+  && pass "11. m-902 citing m-901's vibe journal FILE (meta.json two levels up) -> FATAL, exit 1" || fail "11. journal file (rc $rc: $out)"
+echo '{"environment":{"working_directory":"/opt/csi/csi-spl-wt/m-902"},"origin_directory":"/opt/csi/csi-spl-wt/m-902"}' >"$U/meta.json"
+out="$(chk REVIEW_LINE="$(l11 m-902 mistral "$U")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "11. control: meta.json names m-902 -> OK 1 of 1, exit 0" || fail "11. own session (rc $rc: $out)"
+P="$T/home/.claude/projects/-opt-csi-csi-spl-wt-c-901-csi-spl-orc"; mkdir -p "$P"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"bash '"$TST"'"}}]}}' >"$P/s.jsonl"
+out="$(chk REVIEW_LINE="$(l11 c-902 claude "$P/s.jsonl")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"belongs to agent c-901, not reviewer c-902"* ]] \
+  && pass "11. c-902 citing c-901's claude project log -> FATAL, exit 1" || fail "11. claude slug (rc $rc: $out)"
+H="$T/home/.gemini/antigravity-cli" B1=11111111-2222-3333-4444-555555555501 B2=11111111-2222-3333-4444-555555555502
+run11='{"step_index":9,"tool_calls":[{"name":"run_command","args":{"CommandLine":"\"cd /x && bash '"$TST"'\""}}]}'
+mkdir -p "$H/brain/$B1/.system_generated/logs" "$H/brain/$B2/.system_generated/logs" "$H/cache"
+printf '%s\n' '{"step_index":0,"type":"USER_INPUT","content":"TAKEOVER from a-901: do not read /opt/csi/csi-spl-wt/a-901. Your spool agent id is a-902. Worktree /opt/csi/csi-spl-wt/a-902"}' \
+  "$run11" >"$H/brain/$B1/.system_generated/logs/transcript.jsonl"
+printf '%s\n' '{"step_index":0,"type":"USER_INPUT","content":"review the row"}' "$run11" >"$H/brain/$B2/.system_generated/logs/transcript.jsonl"
+echo '{"/opt/csi/csi-spl-wt/a-902":"'"$B1"'","/opt/csi/csi-spl-wt/a-903":"'"$B2"'"}' >"$H/cache/last_conversations.json"
+out="$(chk REVIEW_LINE="$(l11 a-902 agy "$H/brain/$B1/.system_generated/logs/transcript.jsonl")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "11. takeover: the seed names a-901 first, its id is a-902 -> OK for a-902, exit 0" || fail "11. takeover (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l11 a-901 agy "$H/brain/$B1")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"belongs to agent a-902, not reviewer a-901"* ]] \
+  && pass "11. the takeover brain cited by a-901 -> FATAL, exit 1" || fail "11. takeover other (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l11 a-904 agy "$H/brain/$B2")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"belongs to agent a-903, not reviewer a-904"* ]] \
+  && pass "11. an agy brain mapped only by last_conversations.json to a-903, cited by a-904 -> FATAL, exit 1" || fail "11. agy cache other (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l11 a-903 agy "$H/brain/$B2/.system_generated/logs/transcript.jsonl")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "11. control: the same brain cited by a-903 -> OK 1 of 1, exit 0" || fail "11. agy cache own (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -32,7 +32,10 @@ if [ -z "$AGENT" ] || [ "$AGENT" = "$(id -un)" ] || ! getent passwd "$AGENT" >/d
   skip "run-as: no distinct agent user here"; done_
 fi
 
-T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; chmod 755 "$T"
+# Under /tmp, never under $TMPDIR: the agent user must traverse every parent,
+# and a caller's private TMPDIR (the pre-push features part's 0700
+# /tmp/ppf.*) failed both run-as cases on a clean trunk (a-304, 2026-10-24).
+T="$(mktemp -d /tmp/winch.XXXXXX)"; T="$(cd "$T" && pwd -P)"; chmod 755 "$T"
 mkdir "$T/log"; chmod 1777 "$T/log"
 SRV="winch-$$"
 trap 'tmux -L "$SRV" kill-server 2>/dev/null; rm -rf "$T"' EXIT

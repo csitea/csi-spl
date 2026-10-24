@@ -1,0 +1,6 @@
+Lay-What: On a phone, opening the Events tab now shows the event log right away.
+Lay-How: The Events panel now holds the log itself instead of a single link to it.
+Lay-Why: You had to tap a link before you could see any events, which was one tap too many.
+Tech-What: WUI ChannelSidebar mounts the /events page in the phone level-1 Events panel; desktop shows the icon rail only.
+Tech-How: defineAsyncComponent loads the events page chunk only at phone level 1; useSidebarRailOnly adds eventsRailOnly.
+Tech-Why: The level-1 Events panel rendered a heading and one link to /events, so the log needed an extra tap.

@@ -1,0 +1,7 @@
+date,member_id,member_name,worker_type,company,kind,absence_type,category,minutes,hours_decimal,overtime_minutes,extra_minutes,adjustment,corrects_day,reason
+2026-10-01,m1,Worker One,employee,,work,,normal,480,8.00,0,0,,,
+2026-10-02,m1,Worker One,employee,,work,,normal,510,8.50,0,0,,,
+2026-10-02,m1,Worker One,employee,,work,,evening,60,1.00,0,0,,,
+2026-10-02,m1,Worker One,employee,,travel,,normal,30,0.50,0,0,,,
+2026-10-03,m1,Worker One,employee,,work,,weekend,240,4.00,180,60,,,
+2026-10-04,m2,Worker Two,agency,Agency Oy,absence,sick,,480,8.00,0,0,,,

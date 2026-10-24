@@ -50,6 +50,11 @@ const (
 	// own hours need neither.
 	HoursRead    = "hours.read"    // every member's approved hours and period states; download
 	HoursApprove = "hours.approve" // approve or return a member's frozen period
+	// HoursRates gates rates and labour cost (specs/107 FR-20, rdb 0222):
+	// time_accountant only, the biz owner included in "no other role"; a
+	// CHECK on rbac_role_permissions pins it there. Nothing reads it until
+	// the accounting view (FR-19).
+	HoursRates = "hours.rates"
 	// CostsRead gates the cost lines and their coverage (specs/123 §5.1, rdb
 	// 0166): biz_owner and admin (owner Q-1 = A), not billing.manage. In the
 	// operator workspace it opens the estate view, elsewhere that workspace's rows.
@@ -77,6 +82,12 @@ const (
 	// visitor path authorizes by its bearer token under the channel scope.
 	// Not in RoleIDs.
 	ChannelGuest = "channel_guest"
+	// TimeAccountant is 107's separation-of-duties role (FR-20, rdb 0222):
+	// hours.read and hours.rates only, without the four permissions every
+	// member role holds and without topics.read (FR-21's external seat). It
+	// combines with any other role (025 §10.2). Not in RoleIDs: its invite,
+	// which requires access_until, is T047's.
+	TimeAccountant = "time_accountant"
 )
 
 // Exclusive reports a role that holds a set alone (025 §10.2 rule 3, rdb
@@ -122,11 +133,12 @@ var Permissions = []PermissionDoc{
 	{ChannelsEdit, "add or remove channel members and agents; archive or delete a channel"},
 	{HoursRead, "see every member's approved hours and period states; download them"},
 	{HoursApprove, "approve or return a member's frozen hours period"},
+	{HoursRates, "see rates and labour cost; compute approved hours x rate"},
 	{CostsRead, "see the cost lines and coverage of the workspace (the estate in the operator workspace)"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039, 0074, 0119, 0123, 0124, 0151, 0166). biz_owner holds every permission but agents.join:
+// 0029, 0039, 0074, 0119, 0123, 0124, 0151, 0166, 0222). biz_owner holds every permission but agents.join and hours.rates:
 // rdb 0039 had made members.invite the admin's only, and 0074 returns it
 // (owner 2026-09-28, specs/046: "the admins and the biz_owners of the tenant
 // can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1). rdb 0124
@@ -134,7 +146,9 @@ var Permissions = []PermissionDoc{
 // demo_user without them (specs/077). rdb 0151 gives hours.read and
 // hours.approve to biz_owner alone (specs/107 §6.1, owner Q5 = A). rdb 0166
 // gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A).
-// rdb 0169 adds channel_guest with no permission (specs/121).
+// rdb 0169 adds channel_guest with no permission (specs/121). rdb 0222 adds
+// time_accountant with hours.read and hours.rates, built without withMember
+// (specs/107 FR-20, FR-21).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
@@ -150,6 +164,7 @@ var Defaults = []Role{
 	{ID: RegularUser, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
 	{ID: DemoUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead)},
 	{ID: ChannelGuest, Perms: []string{}}, // empty, not nil: the store reads '{}'
+	{ID: TimeAccountant, Perms: sorted(HoursRead, HoursRates)},
 }
 
 // withMember is p plus the four permissions every member role holds and

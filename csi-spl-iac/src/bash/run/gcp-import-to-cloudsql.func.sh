@@ -21,11 +21,8 @@ do_gcp_import_to_cloudsql() {
   # explicitly to each call below, and logged before the first of them so the
   # identity is auditable afterwards rather than inferable from a config file
   # that will have moved by the time anyone looks.
-  local account
-  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
-  do_gcp_log_identity "${PROJ_ID:-<unset>}" "${account}" "do_gcp_import_to_cloudsql"
-
-  # Required variables for organization and application
+  # ORG, APP and ENV before the account: it is the per-env project SA from
+  # $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json (SPL-3260).
   do_resolve_oap ORG
   do_resolve_oap APP
   do_require_var ENV ${ENV:-}
@@ -33,6 +30,9 @@ do_gcp_import_to_cloudsql() {
   do_require_var GS_UTIL_URI ${GS_UTIL_URI}
 
   PROJ_ID="${ORG}-${APP}-${ENV}"
+  local account
+  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
+  do_gcp_log_identity "${PROJ_ID}" "${account}" "do_gcp_import_to_cloudsql"
   CNF_PATH="$APP_PATH/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.json"
   CLOUDSQL_INSTANCE=$(cat $CNF_PATH | jq -r '.env.rdb.cloud_sql_instance')
   APP_DB=$(cat $CNF_PATH | jq -r '.env.rdb.app_db')

@@ -7,7 +7,10 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 #              Authenticates with the per-environment service account key and
 #              runs `gcloud logging read` with sensible defaults.
 #
-# @param ENV        - target environment: dev | tst | prd | all  (required)
+# @param ENV        - target environment: dev | tst | prd | all  (required);
+#                     each env reads as its own project SA (ACCOUNT /
+#                     GCP_ACCOUNT override it); all refuses GCP_SA_KEY_FILE,
+#                     PROJ_ID, SPL_PROJECT and GCP_PROJECT (one project)
 # @param LINES      - max log entries to return            (default: 50)
 # @param FRESHNESS  - how far back to look, e.g. 1h 6h 1d (default: 1h)
 # @param SEVERITY   - minimum severity level               (default: DEFAULT  = all)
@@ -25,32 +28,33 @@ do_gcp_tail_logs() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1
   trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
-  # Pin the gcloud identity for this run (spec 012 C-2). `--project` says WHERE
-  # a call lands, never WHO it lands as, and `~/.config/gcloud` is one directory
-  # shared by every agent on this box — `gcloud config set account` and
-  # `auth activate-service-account` are both global writes, so the ambient
-  # account is whichever agent ran one last. Resolved ONCE here so another
-  # agent cannot move this run's identity between two of its own calls, passed
-  # explicitly to each call below, and logged before the first of them so the
-  # identity is auditable afterwards rather than inferable from a config file
-  # that will have moved by the time anyone looks.
-  local account
-  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
-  do_gcp_log_identity "${project_id:-<unset>}" "${account}" "do_gcp_tail_logs"
-
+  # ORG, APP and ENV first: the identity is the per-env project SA from
+  # $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json, so resolving it before them
+  # looked for a key with no project and refused (SPL-3260).
   do_resolve_oap ORG
   do_resolve_oap APP
 
   do_require_var ENV "${ENV:-}"
 
   _gcp_tail_logs_check_env "$ENV" || return 1
-  # Expand ENV=all into the standard envs
-  local envs=("$ENV")
-  [[ "$ENV" == "all" ]] && envs=(dev tst prd)
+  # Expand ENV=all into the standard envs. Each env resolves its OWN identity
+  # in _gcp_tail_logs_env: one account for all three would read two projects
+  # as the wrong SA. A one-project pin would do exactly that, so it refuses.
+  local envs=("$ENV") env n_read=0
+  if [[ "$ENV" == "all" ]]; then
+    envs=(dev tst prd)
+    if [[ -n "${GCP_SA_KEY_FILE:-}${PROJ_ID:-}${SPL_PROJECT:-}${GCP_PROJECT:-}" ]]; then
+      do_log "FATAL GCP_SA_KEY_FILE / PROJ_ID / SPL_PROJECT / GCP_PROJECT name one project: set ENV to one env, not all"
+      return 1
+    fi
+  fi
 
   for env in "${envs[@]}"; do
-    _gcp_tail_logs_env "$env" "${LINES:-50}" "${FRESHNESS:-1h}" "${SEVERITY:-DEFAULT}" "${FILTER:-}" "${FORMAT:-text}"
+    _gcp_tail_logs_env "$env" "${LINES:-50}" "${FRESHNESS:-1h}" "${SEVERITY:-DEFAULT}" "${FILTER:-}" "${FORMAT:-text}" \
+      && n_read=$((n_read + 1))
   done
+  # an env without an identity is skipped; none read at all is a failure
+  [[ $n_read -gt 0 ]]
 }
 
 # _gcp_tail_logs_check_env <ENV>: one of the standard envs or all, else fatal
@@ -93,8 +97,11 @@ _gcp_tail_logs_format() {
 }
 
 # _gcp_tail_logs_env <env> <lines> <freshness> <severity> <extra_filter> <format>
-# authenticates with the env's service account key, re-pins --account to it,
-# and reads its logs; a missing key or a failed activation skips the env
+# -> the rc of the logging read; resolves the env's identity ONCE (spec 012 C-2: ACCOUNT > GCP_ACCOUNT > the
+# env's project SA key, activated in the private config), logs it before the
+# first gcloud call, and reads its logs as it; returns 1, skipping the env,
+# when no identity resolves. `--project` says WHERE a call lands, never WHO it
+# lands as, so the account is passed explicitly to the call.
 _gcp_tail_logs_env() {
   local env="$1" lines="$2" freshness="$3" severity="$4" extra_filter="$5" format="$6"
   local project_id="${ORG}-${APP}-${env}"
@@ -106,20 +113,11 @@ _gcp_tail_logs_env() {
   echo "  ENV: ${env}   PROJECT: ${project_id}"
   echo "═══════════════════════════════════════════════════════════════════════"
 
-  if [[ ! -f "$key_file" ]]; then
-    do_log "ERROR Key file not found: $key_file — skipping ${env}"
-    return 0
+  if ! account=$(ENV="$env" do_gcp_account); then
+    do_log "ERROR no gcloud identity for ${env} (no ACCOUNT / GCP_ACCOUNT, no key at ${key_file}) — skipping ${env}"
+    return 1
   fi
-
-  # Authenticate with the environment's service account
-  do_log "INFO Authenticating with $key_file"
-  if ! gcloud auth activate-service-account --key-file="$key_file" --quiet 2>/dev/null; then
-    do_log "ERROR Failed to authenticate for ${env} — skipping"
-    return 0
-  fi
-  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
-
-  gcloud config set project "$project_id" --quiet 2>/dev/null
+  do_gcp_log_identity "$project_id" "$account" "do_gcp_tail_logs"
 
   filter_str=$(_gcp_tail_logs_filter "$severity" "$extra_filter")
 
@@ -149,4 +147,5 @@ _gcp_tail_logs_env() {
   else
     do_log "ERROR gcloud logging read failed for ${env} (exit ${exit_code})"
   fi
+  return "$exit_code"
 }

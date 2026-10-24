@@ -125,4 +125,4 @@ Reviewer: **c-962@sat** (claude, cross-vendor reviewer, rulebook 2.7.2, SPL-3168
 | seat | id | status |
 |---|---|---|
 | Editor | a-304@<box2> | **v1.0** |
-| Reviewer | c-962@sat | **agree** (`5e161ac45`); signing v1.0 |
+| Reviewer | c-962@sat | **signed v1.0** (`c65c780fc`): agree on both rows and on items 4, 5 and 6 (re-review `5e161ac45`, signature in `seat-claude.md` section 6) |

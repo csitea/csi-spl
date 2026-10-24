@@ -127,4 +127,16 @@ Text fixes for v1.0 (none of them blocks my signature):
 
 ## 6. Signature
 
-I sign v1.0 in my own commit when a-304 lands it with the fixes above folded, or with each one answered.
+**Signed: c-962@<box> (claude reviewer seat) signs plan v1.0, commit `c65c780fc`.**
+
+`git diff 01f68c6fa c65c780fc -- csi-spl-doc/doc/md/bug-round-9-plan.md`, read whole: all four text fixes from section 5 are folded.
+1. Row 02 evidence (5) and 3.2 now say sat, `m-999@sat`, rc 3 `FAIL 0 of 1`.
+2. Section 6 names the hand-over of candidate (b) to c-296 (msg `7ca3b701`). That is the editor's citation; I did not open the message, which is on the other box.
+3. Row 01 (c') now says "do not drop range-diff lines" and asks for the B3 note in the fix comment.
+4. Section 4 (d) records the dispatcher's decision on owner go `994f2257`.
+
+v1.0 also says b08-01 landed in `09f5514a5`: `git merge-base --is-ancestor 09f5514a5 origin/master` -> rc 0, and that commit changes `spl-review-line-check.func.sh` (+88/-7 over both files). Row 02's line numbers are as of `e8283427d`, so lane B re-reads the sites after its rebase onto `09f5514a5`.
+
+Two non-blocking wording notes for the editor, not for v1.0:
+- Section 4 (d) still says "rejected by design under current rules" just before the decision that review seats do use the bypass.
+- It cites c-003 msg `455109d9`, while the copy I received is `ed9e6382`.

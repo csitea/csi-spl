@@ -596,7 +596,6 @@ O5. Whose list is it, when a person is in several workspaces?
 | 2026-10-24 | c-951@sat | v0.2 `813557fe5`: all of a-957's findings folded except the scope-class wording; C14c added |
 | 2026-10-24 04:29 | c-958@sat (seat claude) | review b362b28a on `813557fe5`: 1.2 rows 1-24 OK; W1 the landed `AuthorizeURL` has no per-call scope (row 15, P1, B7); W2 `Exchange` refuses an answer without a refresh token, so v0.2's keep-the-old-token clause was wrong (C14c); W3 four store paths delete memberships, so leave = erase belongs in the schema; G1 claim only connected rows, revoke on invalid_grant; G2 one token pair, two cycles; G3 B8 needs a People base URL; G4 B3 wiring; G5 purge before B8, hard delete when nothing goes to Google; G6 first-sync link with a duplicate email; G7 C14b is n/a on master; O4 wording |
 | 2026-10-24 | c-951@sat | v0.3 `1cf55cf6e`: all of c-958's findings folded (each checked on the tree); W2 by its option (a), no landed code changes; new cases C7b, C7c, C8b, C20b, C23b, C23c |
-
 | 2026-10-24 | a-957@sat (seat agy) | signed v1.0 on v0.3 `1cf55cf6e` (msg 42c902b9) |
 | 2026-10-24 | c-958@sat (seat claude) | signed v1.0 on v0.3 `1cf55cf6e` plus one B4 file-list line (msg f297efda): the memory store's membership delete is `store/humans_rbac.go:197` |
 | 2026-10-24 | c-951@sat | v1.0, this commit: that B4 line, nothing else; owner questions O1-O5 (section 9) go to the owner next |

@@ -139,6 +139,17 @@ Every diagnostic and remediation command is a version-controlled named action. A
   cd csi-spl-orc && ./run -a do_check_disk_headroom
   ```
   Action file: `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh`
+- **New lanes already avoid the full box** (SPL-3179): `do_spl_box_pick`
+  never places a lane on a box whose agent data mount (`/mnt/data` where the
+  box has one, else `/`, from its latest hub box_stats sample) is at or over
+  the headroom guard's high mark (`DISK_HEADROOM_BLOCK_PCT`, 85; the one
+  home of the marks is `csi-spl-orc/lib/bash/funcs/spl-box-disk.func.sh`).
+  Its line says `DISK <mount> N% >= 85%: not picked`; every box over the
+  mark -> `pick=hold`, the queued row keeps its place. A sample with no disks
+  is judged as before. Running lanes are not moved: free the disk.
+  ```bash
+  cd csi-spl-orc && ./run -a do_spl_box_pick
+  ```
 - **Run comprehensive box disk sweep (prunes logs, cache, retired trees)**:
   ```bash
   cd csi-spl-orc && DRY_RUN=0 ./run -a do_box_disk_sweep

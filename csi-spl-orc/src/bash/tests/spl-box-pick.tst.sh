@@ -34,6 +34,12 @@
 #          17. a CORDONED box (do_spl_box_cordon, sat alone panel row 01)
 #          is never picked, not by the every-box-degraded fallback either;
 #          every box cordoned -> hold; an expired cordon is none.
+#          18. disk headroom (SPL-3179): a box whose agent data mount (the
+#          first of /mnt/data, / its sample lists) is at or over the headroom
+#          guard's HIGH mark (85) is never picked, not by the degraded
+#          fallback either; every box over -> hold; a sample without that
+#          mount is unknown and placed as before; the % from a stubbed df
+#          (spl_lane_box_disks) is df's Capacity.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -502,6 +508,75 @@ out="$(run)"
   pass "17. an expired cordon is none: box-a picked again" || fail "17. expired: $out"
 rm -f "$T/spool/dispatch/cordon/box-a" "$T/spool/dispatch/cordon/box-b"
 [[ "$(pick "$(run)")" == box-a ]] && pass "17. CONTROL no cordon file -> box-a, the pick as before" || fail "17. no cordon"
+
+# 18. disk headroom (SPL-3179). dstats BOX:LOAD5:CPUS:DISKS_JSON ... (one
+#     older sample first, as stats() writes it: the latest one is read)
+dstats() {
+  local rows="" s b l c d
+  for s in "$@"; do
+    IFS=: read -r b l c d <<<"$s"
+    rows+="{\"box\":\"$b\",\"at\":\"2026-10-04T10:00:00Z\",\"load5\":99,\"cpus\":$c,\"disks\":[]},"
+    rows+="{\"box\":\"$b\",\"at\":\"2026-10-04T10:05:00Z\",\"load5\":$l,\"cpus\":$c,\"disks\":$d},"
+  done
+  printf '{"since":"x","rows":[%s],"hours":[]}\n' "${rows%,}" >"$T/stats.json"
+}
+# dk MOUNT USED_PCT -> one disk row of 100000 kB, used + avail = total
+dk() { printf '{"mount":"%s","total_kb":100000,"avail_kb":%s,"used_kb":%s}' "$1" $((100000 - $2 * 1000)) $(($2 * 1000)); }
+ROOT40="$(dk / 40)"
+target 50 75 '["box-a","box-b"]'
+# box-a is first in order and under its low mark: only the disk moves the pick
+dstats "box-a:1:8:[$ROOT40,$(dk /mnt/data 91)]" "box-b:1:8:[$(dk / 30)]"
+out="$(run)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  DISK /mnt/data 91% >= 85%: not picked$' <<<"$out" &&
+  pass "18. RED CONTROL (FAILs on 9d389a1ff) box-a's /mnt/data at 91% is not picked, its line names the mount and the %; box-b takes it" ||
+  fail "18. one box full: $out"
+dstats "box-a:1:8:[$ROOT40,$(dk /mnt/data 84)]" "box-b:1:8:[$(dk / 30)]"
+[[ "$(pick "$(run)")" == box-a ]] && pass "18. edge: /mnt/data at 84% is under the mark, box-a picked" || fail "18. edge 84"
+dstats "box-a:1:8:[$ROOT40,$(dk /mnt/data 85)]" "box-b:1:8:[$(dk / 30)]"
+[[ "$(pick "$(run)")" == box-b ]] && pass "18. edge: /mnt/data at 85% (the mark) is not picked" || fail "18. edge 85"
+dstats "box-a:1:8:[$(dk / 90),$(dk /mnt/data 50)]" "box-b:1:8:[$(dk / 30)]"
+[[ "$(pick "$(run)")" == box-a ]] && pass "18. the data mount is /mnt/data where the sample lists it: / at 90% does not count" || fail "18. data mount"
+dstats "box-a:1:8:[$(dk / 88)]" "box-b:1:8:[$(dk / 30)]"
+[[ "$(pick "$(run)")" == box-b ]] && pass "18. no /mnt/data: / is the data mount, 88% -> not picked" || fail "18. root mount"
+out="$(run DISK_HEADROOM_BLOCK_PCT=95)"
+[[ "$(pick "$out")" == box-a ]] && pass "18. the mark is the guard's DISK_HEADROOM_BLOCK_PCT (95: 88% picked)" || fail "18. env mark: $out"
+# both over -> hold, the row keeps its place
+dstats "box-a:1:8:[$ROOT40,$(dk /mnt/data 91)]" "box-b:1:8:[$(dk / 87)]"
+out="$(run)"
+grep -q '^pick=hold reason=every box with a sample is at or over the disk headroom mark 85% (box-a /mnt/data 91%, box-b / 87%): queue the lane, spawn nothing$' <<<"$out" &&
+  pass "18. every box over the mark -> pick=hold naming each box, mount and %" || fail "18. hold: $out"
+out="$(run BEATS="$T/all.json" HUB_NOW=$((B0 + 600)))"
+[[ "$(pick "$out")" == hold ]] && pass "18. every box degraded too: the fallback does not take a disk-full box (hold)" || fail "18. degraded: $out"
+dstats "box-a:1:8:[$ROOT40,$(dk /mnt/data 91)]" "box-b:1:8:[$(dk / 30)]"
+out="$(run BEATS="$T/all.json" HUB_NOW=$((B0 + 600)))"
+[[ "$(pick "$out")" == box-b ]] && pass "18. every box degraded: the fallback skips the disk-full box-a (pick=box-b)" || fail "18. degraded one: $out"
+printf 'until=%s\n' $(( $(date +%s) + 3600 )) >"$T/spool/dispatch/cordon/box-b"
+out="$(run)"
+grep -q '^pick=hold reason=every box with a sample is at or over the disk headroom mark 85% (box-a /mnt/data 91%)' <<<"$out" &&
+  pass "18. box-b cordoned, box-a disk-full -> hold, the reason names the disk" || fail "18. cordon + disk: $out"
+rm -f "$T/spool/dispatch/cordon/box-b"
+# no sample: disks [] (before rdb 0121, df unreadable) or none of the mounts
+dstats "box-a:1:8:[]" "box-b:1:8:[$(dk / 30)]"
+out="$(run)"
+[[ "$(pick "$out")" == box-a ]] && ! grep -q 'DISK' <<<"$out" && pass "18. no disk sample (disks []) -> judged as before, box-a picked" || fail "18. no sample: $out"
+dstats "box-a:1:8:[$(dk /boot/efi 99)]" "box-b:1:8:[$(dk / 30)]"
+[[ "$(pick "$(run)")" == box-a ]] && pass "18. a sample without /mnt/data or / -> unknown, box-a picked" || fail "18. other mount only"
+stats "box-a:1:8" "box-b:1:8"
+[[ "$(pick "$(run)")" == box-a ]] && pass "18. CONTROL samples with no disks field -> the pick as before (box-a)" || fail "18. no field"
+# a stubbed df through the real sample code: the % is df's Capacity
+cat >"$T/df" <<'DF'
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/sda1         30723076 18168444  11181772      62% /
+/dev/sda15          126678     9104    117574       8% /boot/efi
+/dev/sdb         102626232 93390000   9236232      92% /mnt/data
+DF
+disks="$(LANE_DF_CMD="cat $T/df" PROJ_PATH=/x/csi-spl-orc bash -c '
+  do_log() { :; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-lane-map.func.sh"; spl_lane_box_disks')"
+dstats "box-a:1:8:$disks" "box-b:1:8:[$(dk / 30)]"
+got="$(source "$PROJ_ROOT/lib/bash/funcs/spl-box-disk.func.sh"; spl_box_disk_from_stats "$(cat "$T/stats.json")")"
+[[ "$got" == '{"box-a":{"mount":"/mnt/data","pct":92},"box-b":{"mount":"/","pct":30}}' ]] &&
+  pass "18. stubbed df -> spl_lane_box_disks -> /mnt/data 92%, df's own Capacity" || fail "18. df: $disks -> $got"
+[[ "$(pick "$(run)")" == box-b ]] && pass "18. that box at 92% is not picked" || fail "18. df pick"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

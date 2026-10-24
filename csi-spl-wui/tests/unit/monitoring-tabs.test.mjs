@@ -21,9 +21,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
-  it('Agents first (the landing tab, Q1 A), then Boxes, Costs (spec 123), then Tokens (spec 140)', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/monitoring/tokens'])
+  it('Agents first (the landing tab, Q1 A), then Boxes, Costs (spec 123), Tokens (spec 140), then Lanes (spec 153 C15)', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens', 'lanes'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
@@ -32,7 +32,7 @@ describe('monitoring tabs', () => {
     }
   })
   it('Tokens (spec 140 4.1, SPL-2322) shows beside Agents and Boxes for an operator admin, never for anyone else', () => {
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
     /* CONTROL: a member who is not an operator admin, or not known yet, never sees it */
     assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes'])
     assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes'])
@@ -43,10 +43,22 @@ describe('monitoring tabs', () => {
     assert.equal(costs.operatorsOnly, false, 'any workspace: biz_owner and admin read their own rows')
     const holds = (perms) => (p) => perms.includes(p)
     assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens', 'lanes'])
     /* CONTROL: without the permission (or before /v1/view/me answered) it is hidden */
     assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
+  })
+  it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready and for operator admins only until row B6', () => {
+    const lanes = MONITORING_TABS.find((t) => t.id === 'lanes')
+    assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: true, ready: true })
+    /* C16 CONTROL: not an operator admin, or not known yet, never sees it, costs.read or not */
+    for (const who of [undefined, { operator: false }, { operator: false, can: () => true }]) {
+      assert.ok(!visibleMonitoringTabs(who).some((t) => t.id === 'lanes'), JSON.stringify(who))
+    }
+    assert.equal(monitoringTabFor('/monitoring/lanes'), 'lanes')
+    assert.equal(monitoringTabFor('/fi/monitoring/lanes'), 'lanes')
+    /* Reporting keeps its own history tab (2.4): a different path and label key */
+    assert.notEqual(lanes.labelKey, 'reporting.tab.lanes')
   })
   it('an operator-only ready tab shows to operators only (Q3 A)', () => {
     const tokens = MONITORING_TABS.find((t) => t.id === 'tokens')

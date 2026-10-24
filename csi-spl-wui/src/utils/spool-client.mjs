@@ -66,6 +66,7 @@ const LAZY_METHODS = [
   'getFleetLoad',
   'getTenantCosts',
   'getFleetTokens',
+  'getFleetLanes',
   'reportingSql',
   'getFxCurrencies',
   'fleetPaid',

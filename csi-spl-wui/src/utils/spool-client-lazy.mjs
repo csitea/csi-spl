@@ -1676,6 +1676,19 @@ async function getFleetTokens(ctx, window = '') {
 }
 
 /**
+ * Spec 153 3.3 (SPL-3215, row B4): GET /v1/operator/fleet-lanes, the fleet's
+ * active lanes, each with its discussion and issues (403 operator.workspaces
+ * for anyone but an admin of the operator workspace, as getFleetTokens). The
+ * mock answers from monitoring-lanes.mjs, which loads only here and on the
+ * Lanes page.
+ */
+async function getFleetLanes(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await import('./monitoring-lanes.mjs')).mockFleetLanes()
+  return live('/v1/operator/fleet-lanes')
+}
+
+/**
  * Spec 143 3.7 (SPL-2789): POST /v1/reporting/sql {query}, the Reporting SQL
  * tab's one call: a read-only query in this workspace, at most 2,000 rows
  * (403 admin_required for anyone but a workspace admin; 400 names a refused
@@ -1912,6 +1925,7 @@ export const lazySpoolMethods = {
   patchFleetLoad,
   getTenantCosts,
   getFleetTokens,
+  getFleetLanes,
   reportingSql,
   getFxCurrencies,
   fleetPaid,

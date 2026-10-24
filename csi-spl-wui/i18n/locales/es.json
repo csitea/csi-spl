@@ -3035,7 +3035,8 @@
       "agents": "Agentes",
       "boxes": "Equipos",
       "tokens": "Tokens",
-      "costs": "Costes"
+      "costs": "Costes",
+      "lanes": "Líneas"
     },
     "alloc": {
       "title": "Asignación",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Sin medir",
         "status_no_fx_rate": "Sin tipo de cambio"
       }
+    },
+    "lanes": {
+      "loading": "Cargando las líneas activas…",
+      "forbidden": "Solo un administrador del espacio de trabajo del operador ve las líneas de la flota.",
+      "error": "No se pudieron cargar las líneas activas.",
+      "empty": "No hay líneas activas",
+      "stale_red": "Datos obsoletos: hub inaccesible",
+      "table_label": "Líneas activas",
+      "col_scope": "Alcance",
+      "col_updated": "Actualizado",
+      "min_ago": "hace {n} min"
     }
   },
   "takeover": {

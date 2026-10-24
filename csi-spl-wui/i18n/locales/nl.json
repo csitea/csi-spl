@@ -3035,7 +3035,8 @@
       "agents": "Assistenten",
       "boxes": "Boxen",
       "tokens": "Tokens",
-      "costs": "Kosten"
+      "costs": "Kosten",
+      "lanes": "Banen"
     },
     "alloc": {
       "title": "Toewijzing",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Niet gemeten",
         "status_no_fx_rate": "Geen wisselkoers"
       }
+    },
+    "lanes": {
+      "loading": "Actieve banen laden…",
+      "forbidden": "Alleen een beheerder van de operatorwerkruimte ziet de banen van de vloot.",
+      "error": "De actieve banen konden niet worden geladen.",
+      "empty": "Geen actieve banen",
+      "stale_red": "Verouderde gegevens: hub onbereikbaar",
+      "table_label": "Actieve banen",
+      "col_scope": "Reikwijdte",
+      "col_updated": "Bijgewerkt",
+      "min_ago": "{n} min geleden"
     }
   },
   "takeover": {

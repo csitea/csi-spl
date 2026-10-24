@@ -3035,7 +3035,8 @@
       "agents": "Agentai",
       "boxes": "Dėžės",
       "tokens": "Žetonai",
-      "costs": "Išlaidos"
+      "costs": "Išlaidos",
+      "lanes": "Linijos"
     },
     "alloc": {
       "title": "Paskirstymas",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Nematuojamas",
         "status_no_fx_rate": "Nėra keitimo kurso"
       }
+    },
+    "lanes": {
+      "loading": "Įkeliamos aktyvios linijos…",
+      "forbidden": "Laivyno linijas mato tik operatoriaus darbo srities administratorius.",
+      "error": "Nepavyko įkelti aktyvių linijų.",
+      "empty": "Aktyvių linijų nėra",
+      "stale_red": "Pasenę duomenys: centras nepasiekiamas",
+      "table_label": "Aktyvios linijos",
+      "col_scope": "Apimtis",
+      "col_updated": "Atnaujinta",
+      "min_ago": "prieš {n} min."
     }
   },
   "takeover": {

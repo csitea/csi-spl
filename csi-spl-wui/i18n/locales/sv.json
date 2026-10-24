@@ -3035,7 +3035,8 @@
       "agents": "Agenter",
       "boxes": "Maskiner",
       "tokens": "Token",
-      "costs": "Kostnader"
+      "costs": "Kostnader",
+      "lanes": "Banor"
     },
     "alloc": {
       "title": "Tilldelning",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Ej mätt",
         "status_no_fx_rate": "Ingen växelkurs"
       }
+    },
+    "lanes": {
+      "loading": "Läser in de aktiva banorna…",
+      "forbidden": "Bara en administratör för operatörens arbetsyta ser flottans banor.",
+      "error": "Det gick inte att läsa in de aktiva banorna.",
+      "empty": "Inga aktiva banor",
+      "stale_red": "Inaktuella data: navet nås inte",
+      "table_label": "Aktiva banor",
+      "col_scope": "Omfattning",
+      "col_updated": "Uppdaterad",
+      "min_ago": "för {n} min sedan"
     }
   },
   "takeover": {

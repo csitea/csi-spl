@@ -39,6 +39,12 @@
 //     header's last element under close_buttons 'windows' (C4), the start
 //     X before the heading and no end X under the default 'mac' (C4b).
 //     C5 is every other case here finding the bar by data-test.
+//   - spec 153 3.2 (SPL-3215, row B4): C3b, C3 again at 360 px with the
+//     fifth tab (Lanes) as an operator admin; C17, Monitoring -> Lanes on
+//     the mock fleet of 3 lanes: a row's discussion links /t/<uuid>, a
+//     foreign topic and no topic link nothing, the issue keys link
+//     /issues?issue=<KEY>; anyone else: no tab, the direct URL is the 403
+//     sentence. No Lanes code in the initial download.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -50,6 +56,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { COSTS_MOCK_KEY } from '../../src/utils/tenant-costs.mjs'
 import { TOKENS_MOCK_KEY, TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 import { PAID_MOCK_REFUSE_KEY } from '../../src/utils/monitoring-paid.mjs'
+import { LANES_MOCK_TOPIC } from '../../src/utils/monitoring-lanes.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -79,6 +86,7 @@ async function launch() {
 const MOCK_ME_KEY = 'spool.mock.me'
 const COSTS_MARKERS = /"costs-page"|"costs-pie"|"spool\.mock\.costs"/
 const TOKENS_MARKERS = /"tokens-page"|"costs-tokens-card"|"spool\.mock\.fleet_tokens"/
+const LANES_MARKERS = /"lanes-page"|"lanes-row"|"spool\.mock\.fleet_lanes"/
 const count = (p, sel) => p.$$eval(sel, (els) => els.length).catch(() => -1)
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
 const tabIds = (p) => p.$$eval('[data-test^=monitoring-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('monitoring-tab-'.length)))
@@ -235,12 +243,19 @@ async function tabRow(browser, base) {
     ['desktop 1280 mac', { width: 1280, height: 900 }, '/monitoring/agents', {}],
     ['desktop 1280 windows', { width: 1280, height: 900 }, '/monitoring/agents', { closeButtons: 'windows' }],
     ['phone 320 nl', { width: 320, height: 800 }, '/nl/monitoring/agents', {}],
+    /* C3b (spec 153, SPL-3215): C3 again with the five tabs of an operator admin, Lanes last */
+    ['phone 360 nl operator', { width: 360, height: 800 }, '/nl/monitoring/agents', { operator: true }],
   ]) {
     const { ctx, p } = await costsPage(browser, base, size, opts)
     await open(p, base, path)
-    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 3, { timeout: 15000 }).catch(() => null)
+    const want = opts.operator ? 5 : 3
+    await p.waitForFunction((n) => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= n, { timeout: 15000 }, want).catch(() => null)
     const g = await tabRowGeometry(p)
     const phone = size.width < 600
+    if (opts.operator) {
+      const ids = await tabIds(p)
+      ok(`C3b ${label}: five tabs, Lanes last`, ids.join(',') === 'agents,boxes,costs,tokens,lanes', ids)
+    }
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {
       ok(`C3 ${label}: no heading on a phone section page (CLE-77886)`, Boolean(g && !g.h2Shown), g)
@@ -266,6 +281,55 @@ async function tabRow(browser, base) {
   }
 }
 
+/** Spec 153 C17 (SPL-3215): the Lanes tab on the mock fleet of 3 lanes, an operator admin; CONTROL anyone else. CONTROL: on master the page is absent, so every check here FAILS there. */
+async function lanesTab(browser, base, size) {
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    const res = await open(p, base, '/monitoring/lanes')
+    ok('lanes: /monitoring/lanes answers 200', Boolean(res && res.status() === 200), res && res.status())
+    const rows = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 3, { timeout: 20000 }).then(() => true, () => false)
+    ok('C17 lanes: three rows, newest write first', rows && (await p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))) === 'c-085,a-277,m-039')
+    const row = (agent, sel) => p.$$eval(`[data-test=lanes-row][data-agent="${agent}"] ${sel}`, (els) => els.map((e) => ({ href: e.getAttribute('href') || '', text: e.textContent.trim() })))
+    const topic = await row('c-085', '[data-test=lanes-topic-link]')
+    ok('C17 lanes: the discussion link is /t/<uuid>', topic.length === 1 && topic[0].href === '/t/' + LANES_MOCK_TOPIC, topic)
+    const issues = await row('c-085', '[data-test=lanes-issue-link]')
+    ok('C17 lanes: the issue keys link /issues?issue=<KEY>', issues.map((i) => i.href).join(' ') === '/issues?issue=SPL-3075 /issues?issue=SPL-3215', issues)
+    ok('C17 lanes: the agent shows as id@box', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-agent]')) === 'c-085@box-a')
+    ok('C17 control: another workspace\'s topic links nothing, its id shown as text', (await row('a-277', '[data-test=lanes-topic-link]')).length === 0
+      && (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-topic]')) === '0b0c0d0e-1111-4222-8333-444455556666')
+    ok('C17 control: a key with no status (another prefix) is text, not a link', (await row('a-277', '[data-test=lanes-issue-link]')).length === 0
+      && (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-issues]')) === 'SPL-3216')
+    ok('C17 control: no topic and no issue show a dash', (await text(p, '[data-test=lanes-row][data-agent="m-039"] [data-test=lanes-topic]')) === '\u2014'
+      && (await text(p, '[data-test=lanes-row][data-agent="m-039"] [data-test=lanes-issues]')) === '\u2014')
+    ok('lanes: written 4 min ago, tokens 1 min ago', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-updated]')) === '4 min ago'
+      && (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-active]')) === '1 min ago')
+    const scope = await p.$eval('[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-scope]', (e) => ({ title: e.getAttribute('title') || '', ws: getComputedStyle(e).whiteSpace })).catch(() => null)
+    ok('lanes: a long scope stays on one line, its full text in the title', Boolean(scope && scope.ws === 'nowrap' && scope.title.startsWith('Spec 153 build row B4')), scope)
+    ok('lanes: the age of the answer shows', /^Updated \d+ s ago$/.test(await text(p, '[data-test=lanes-age]')), await text(p, '[data-test=lanes-age]'))
+    const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    ok('lanes: no sideways page scroll', wide <= 0, wide)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-${size.width}.png`, fullPage: true })
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    await p.evaluate(() => localStorage.setItem('spool.mock.fleet_lanes', 'empty'))
+    await open(p, base, '/monitoring/lanes')
+    ok('lanes empty: the one line "No active lanes"', await waitFor(p, '[data-test=lanes-empty]') && (await text(p, '[data-test=lanes-empty]')) === 'No active lanes')
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size)
+    await open(p, base, '/monitoring/agents')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
+    ok('lanes control: no Lanes tab for anyone but an operator admin', !(await tabIds(p)).includes('lanes'), await tabIds(p))
+    await open(p, base, '/monitoring/lanes')
+    ok('lanes control: the direct URL shows the 403 sentence', await waitFor(p, '[data-test=lanes-forbidden]'))
+    ok('lanes control: no table', (await count(p, '[data-test=lanes-row]')) === 0)
+    await ctx.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -278,20 +342,24 @@ try {
   ])]
   const withCosts = []
   const withTokens = []
+  const withLanes = []
   for (const src of initial) {
     const js = await (await fetch(server.base + src)).text()
     if (COSTS_MARKERS.test(js)) withCosts.push(src)
     if (TOKENS_MARKERS.test(js)) withTokens.push(src)
+    if (LANES_MARKERS.test(js)) withLanes.push(src)
   }
   ok('200.html names its initial chunks', initial.length > 0, initial.length)
   ok('no costs page, pie or tenant-costs code in the initial download', withCosts.length === 0, withCosts)
   ok('no Tokens page, card or monitoring-tokens code in the initial download', withTokens.length === 0, withTokens)
+  ok('no Lanes page or monitoring-lanes code in the initial download (C20)', withLanes.length === 0, withLanes)
 
   console.log('-- spec 153 tab row')
   await tabRow(browser, server.base)
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)
+    await lanesTab(browser, server.base, size)
 
     /* a full month, the mock's default me (unrestricted) */
     {

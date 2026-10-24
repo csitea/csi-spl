@@ -3035,7 +3035,8 @@
       "agents": "Agenti",
       "boxes": "Boxy",
       "tokens": "Tokeny",
-      "costs": "Náklady"
+      "costs": "Náklady",
+      "lanes": "Linky"
     },
     "alloc": {
       "title": "Pridelenie",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Nemeraný",
         "status_no_fx_rate": "Bez výmenného kurzu"
       }
+    },
+    "lanes": {
+      "loading": "Načítavajú sa aktívne linky…",
+      "forbidden": "Linky flotily vidí iba správca pracovného priestoru operátora.",
+      "error": "Aktívne linky sa nepodarilo načítať.",
+      "empty": "Žiadne aktívne linky",
+      "stale_red": "Zastarané údaje: hub je nedostupný",
+      "table_label": "Aktívne linky",
+      "col_scope": "Rozsah",
+      "col_updated": "Aktualizované",
+      "min_ago": "pred {n} min"
     }
   },
   "takeover": {

@@ -1,0 +1,170 @@
+{
+  "about": "SPL-3203: bodies and the exact pollProblems lines (csi-spl-wui/src/utils/poll.mjs, keys 1-8 since SPL-3202) the hub port (internal/pollform) must print; [] = every fence is a form, or there is none",
+  "cases": [
+    {
+      "name": "no fence",
+      "body": "plain text, no form",
+      "problems": []
+    },
+    {
+      "name": "radio form",
+      "body": "```poll\nWhich deploy path?\n(A) Deploy now\n(B) Wait for CI\n```",
+      "problems": []
+    },
+    {
+      "name": "checkbox form",
+      "body": "```poll\nWhich envs?\n[A] dev\n[B] prd\n```",
+      "problems": []
+    },
+    {
+      "name": "one option is a Go button",
+      "body": "```poll\nGo?\n(A) Go\n```",
+      "problems": []
+    },
+    {
+      "name": "owner screenshot: keys of 4 characters (S180)",
+      "body": "```poll\nWhich plan?\n(S90) Small 90 days\n(S180) Small 180 days\n(S365) Small 365 days\n(K90) Kit 90 days\n(K180) Kit 180 days\n(K365) Kit 365 days\n```",
+      "problems": []
+    },
+    {
+      "name": "keys of 8 characters",
+      "body": "```poll\nWhich?\n(ABCDEFGH) eight\n(LATER) later\n```",
+      "problems": []
+    },
+    {
+      "name": "key of 9 characters is no option",
+      "body": "```poll\nWhich?\n(ABCDEFGHI) nine\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which? (ABCDEFGHI) nine\" has no option line"
+      ]
+    },
+    {
+      "name": "question with no option line",
+      "body": "```poll\nWhich deploy path?\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which deploy path?\" has no option line"
+      ]
+    },
+    {
+      "name": "near option named",
+      "body": "```poll\nWhich deploy path?\nA) Deploy now\nB) Wait\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which deploy path? A) Deploy now B) Wait\" has no option line; not an option line: \"A) Deploy now\""
+      ]
+    },
+    {
+      "name": "dash colon options are no options",
+      "body": "```poll\nWhich?\n- A: first\n- B: second\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which? - A: first - B: second\" has no option line; not an option line: \"- A: first\""
+      ]
+    },
+    {
+      "name": "radios and checkboxes mixed",
+      "body": "```poll\nWhich?\n(A) one\n[B] two\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: radios `(A)` and checkboxes `[A]` are mixed (\"[B] two\")"
+      ]
+    },
+    {
+      "name": "key twice",
+      "body": "```poll\nWhich?\n(A) one\n(a) again\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: key A twice in question \"Which?\""
+      ]
+    },
+    {
+      "name": "empty fence",
+      "body": "```poll\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: the fence is empty"
+      ]
+    },
+    {
+      "name": "never closed",
+      "body": "```poll\nWhich?\n(A) one",
+      "problems": [
+        "the ```poll fence of line 1 is never closed"
+      ]
+    },
+    {
+      "name": "second fence",
+      "body": "```poll\nQ1?\n(A) one\n```\n\ntext\n\n```poll\nQ2?\n(A) one\n```",
+      "problems": [
+        "a second ```poll fence (line 8): one form per message"
+      ]
+    },
+    {
+      "name": "poll inside another fence is content",
+      "body": "````md\n```poll\nWhich deploy path?\n```\n````",
+      "problems": []
+    },
+    {
+      "name": "task-list marker before an option",
+      "body": "```poll\nWhich?\n- [ ] (A) one\n- [x] (B) two\n```",
+      "problems": []
+    },
+    {
+      "name": "task-list box alone is checkbox X",
+      "body": "```poll\nWhich?\n[x] text\n[ ] other\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"[ ] other\" has no option line"
+      ]
+    },
+    {
+      "name": "mismatched brackets",
+      "body": "```poll\nWhich?\n(A] one\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which? (A] one\" has no option line; not an option line: \"(A] one\""
+      ]
+    },
+    {
+      "name": "several questions",
+      "body": "```poll\nFirst?\n(A) yes\n(B) no\nSecond?\n(A) now\n(B) later\n```",
+      "problems": []
+    },
+    {
+      "name": "second question bare",
+      "body": "```poll\nFirst?\n(A) yes\nSecond?\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Second?\" has no option line"
+      ]
+    },
+    {
+      "name": "chat option dropped, question left bare",
+      "body": "```poll\nWhich?\n(A) Chat about this\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which?\" has no option line"
+      ]
+    },
+    {
+      "name": "option before any question",
+      "body": "```poll\n(A) one\n(B) two\n```",
+      "problems": []
+    },
+    {
+      "name": "CRLF line ends",
+      "body": "```poll\r\nWhich?\r\n(A) one\r\n(B) two\r\n```",
+      "problems": []
+    },
+    {
+      "name": "fence opener with trailing blanks",
+      "body": "```poll  \nWhich?\n(A) one\n```  ",
+      "problems": []
+    },
+    {
+      "name": "longer fence closes only on as many backticks",
+      "body": "````poll\nWhich?\n(A) one\n```\n````",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"```\" has no option line"
+      ]
+    },
+    {
+      "name": "question text wraps two lines",
+      "body": "```poll\nWhich deploy\npath today?\n```",
+      "problems": [
+        "the ```poll fence of line 1 is no form: question \"Which deploy path today?\" has no option line"
+      ]
+    }
+  ]
+}

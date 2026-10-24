@@ -1,0 +1,6 @@
+Lay-What: Working hours can now be filled in ahead of time from the shift plan, the normal working day, time off, public holidays and clock-ins.
+Lay-How: For each day it picks the first thing that applies, splits the normal day over the work you did, and takes off the lunch break on long days.
+Lay-Why: Site workers do almost nothing in the app, so their week had nothing to confirm; now it opens already filled.
+Tech-What: hours package gains Prefill, the spec 107 FR-17 prefill chain: per-day rows with kind, source, evidence, start and end.
+Tech-How: Pure Go over plan, standard day, absences, holidays, foreman rows, clocks and Suggest output; largest-remainder scaling, break from the longest row, midnight split.
+Tech-Why: The v2 member read (T042) and the clock route (T036) need one shared, tested chain; v1 Suggest only covered in-app activity.

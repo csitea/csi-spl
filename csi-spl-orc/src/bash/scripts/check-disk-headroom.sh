@@ -28,9 +28,12 @@
 # blocks and inodes), plus a WARN / CLEAR / PLAN line per change.
 #
 #   DRY_RUN=1 (default) | 0       1: no note sent, no state written
-#   DISK_HEADROOM_BLOCK_PCT       default 85
+#   DISK_HEADROOM_BLOCK_PCT       default 85 (SPL_BOX_DISK_HIGH_PCT in
+#                                 lib/bash/funcs/spl-box-disk.func.sh, the
+#                                 mark do_spl_box_pick also skips a box at)
 #   DISK_HEADROOM_INODE_PCT       default 80
-#   DISK_HEADROOM_CRIT_PCT        default 92 (blocks, <= 8% free; the sweep's
+#   DISK_HEADROOM_CRIT_PCT        default 92 (SPL_BOX_DISK_CRIT_PCT; blocks,
+#                                 <= 8% free; the sweep's
 #                                 crit level, BOX_SWEEP_CRIT_FREE_PCT 7, is
 #                                 under it: the note comes before the crit sweep)
 #   DISK_HEADROOM_SKIP_TYPES      space separated fs types not checked
@@ -50,6 +53,9 @@
 # 2 usage.
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+# SPL_BOX_DISK_HIGH_PCT / _CRIT_PCT: the default marks' one home, which
+# do_spl_box_pick reads too (SPL-3179)
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-box-disk.func.sh"
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
@@ -60,9 +66,9 @@ ORC="$(cd "$SELF/../../.." && pwd)"
 app="$(basename "$ORC")"; app="${app%-orc}"
 
 dry="${DRY_RUN:-1}"
-bpct="${DISK_HEADROOM_BLOCK_PCT:-85}"
+bpct="${DISK_HEADROOM_BLOCK_PCT:-$SPL_BOX_DISK_HIGH_PCT}"
 ipct="${DISK_HEADROOM_INODE_PCT:-80}"
-cpct="${DISK_HEADROOM_CRIT_PCT:-92}"
+cpct="${DISK_HEADROOM_CRIT_PCT:-$SPL_BOX_DISK_CRIT_PCT}"
 skip_types=" ${DISK_HEADROOM_SKIP_TYPES:-tmpfs devtmpfs ramfs overlay squashfs efivarfs autofs nsfs proc sysfs cgroup cgroup2} "
 state_dir="${DISK_HEADROOM_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/share/$app/cloud/self}/disk-headroom}"
 to="${DISK_HEADROOM_TO:-orchestrator}"

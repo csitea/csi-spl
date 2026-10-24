@@ -337,6 +337,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useChannelAgentPick } from '~/composables/useChannelAgentPick'
+import { useChannelPersonPick } from '~/composables/useChannelPersonPick'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -447,6 +448,9 @@ const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, 
 const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } = useChannelAgentPick({
   api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback,
 })
+const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
+  api, props, people, busy, canAdd, error, selfId, localMembers, chosenPerson, personQuery,
+})
 
 function rosterOf(data: unknown): Record<string, string[]> | undefined {
   if (!data || typeof data !== 'object' || !('roster' in data)) return undefined
@@ -512,59 +516,6 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 }, { immediate: true })
-
-/** The chosen display name, else the bare HUM id (no box). */
-function personLabel(id: unknown) {
-  return typeof id === 'string' && id ? people.label(id) : ''
-}
-
-function onPersonQuery(ev: Event) {
-  const el = ev.target
-  personQuery.value = el instanceof HTMLInputElement ? el.value : ''
-}
-
-function onChoosePerson(id: string | null) {
-  chosenPerson.value = id
-  personQuery.value = ''
-}
-
-async function addChosen() {
-  const id = String(chosenPerson.value || '')
-  if (!id || busy.value || !canAdd.value) return
-  await pick(id)
-  if (localMembers.value.includes(id)) {
-    chosenPerson.value = null
-    personQuery.value = ''
-  }
-}
-
-async function removePerson(id: string) {
-  if (busy.value || (!canAdd.value && id !== selfId.value)) return
-  busy.value = true
-  error.value = ''
-  try {
-    await withSessionRetry(api, () => api.removeChannelMember(props.channelId, id))
-    localMembers.value = localMembers.value.filter((member) => member !== id)
-  } catch (e) {
-    error.value = inviteErrorToken(e)
-  } finally {
-    busy.value = false
-  }
-}
-
-async function pick(id: string) {
-  if (busy.value || !canAdd.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    await withSessionRetry(api, () => api.addChannelMember(props.channelId, id))
-    if (!localMembers.value.includes(id)) localMembers.value = [...localMembers.value, id]
-  } catch (e) {
-    error.value = inviteErrorToken(e)
-  } finally {
-    busy.value = false
-  }
-}
 
 async function onToggleAIAgents(ev: Event) {
   const input = ev.target

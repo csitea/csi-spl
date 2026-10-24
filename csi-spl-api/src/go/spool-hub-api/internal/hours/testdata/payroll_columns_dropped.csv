@@ -1,0 +1,7 @@
+Employee,Day,category,Min,OT
+Worker One,2026-10-01,normal,480,0
+Worker One,2026-10-02,normal,510,0
+Worker One,2026-10-02,evening,60,0
+Worker One,2026-10-02,normal,30,0
+Worker One,2026-10-03,weekend,240,180
+Worker Two,2026-10-04,,480,0

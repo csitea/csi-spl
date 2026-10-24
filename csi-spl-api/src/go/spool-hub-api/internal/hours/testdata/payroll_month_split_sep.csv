@@ -1,0 +1,4 @@
+date,member_id,member_name,worker_type,company,kind,absence_type,category,minutes,hours_decimal,overtime_minutes,extra_minutes,adjustment,corrects_day,reason
+2026-09-28,m1,Worker One,employee,,work,,normal,480,8.00,0,0,,,
+2026-09-29,m1,Worker One,employee,,work,,normal,480,8.00,0,0,,,
+2026-09-30,m1,Worker One,employee,,work,,normal,480,8.00,0,0,,,

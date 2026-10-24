@@ -1,0 +1,4 @@
+date,member_id,member_name,worker_type,company,kind,absence_type,category,minutes,hours_decimal,overtime_minutes,extra_minutes,adjustment,corrects_day,reason
+2026-10-12,m1,Worker One,employee,,work,,normal,480,8.00,0,0,,,
+2026-10-12,m1,Worker One,employee,,work,,,-45,-0.75,0,0,yes,2026-09-30,double entry
+2026-10-12,m1,Worker One,employee,,travel,,,30,0.50,0,0,yes,2026-09-29,travel missed

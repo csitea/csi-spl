@@ -59,7 +59,7 @@
      dialog's own handler (spec 103 may fold it into the app-wide keys). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
-    <div ref="rootEl" class="rn" :class="{ 'rn--phone': narrow }" data-test="release-notes">
+    <div ref="rootEl" class="rn" :class="{ 'rn--phone': narrow, 'rn--back': note || openedVersion }" data-test="release-notes">
       <template v-if="note">
         <button type="button" class="rn__back" data-test="release-note-back" @click="showList">
           <UiIcon name="chevron-left" :size="16" /> {{ t('release_notes.back') }}
@@ -592,6 +592,27 @@ watch(() => props.initialRef, (r, old) => {
   .rn-note__part + .rn-note__part { border-inline-start: 0; border-top: 1px solid var(--color-border); }
   .rn-note__part dl { grid-template-columns: 1fr; gap: 0.125rem; }
   .rn-note__part dd + dt { margin-top: 0.5rem; }
+}
+/* "All versions" on a phone (owner HUM-10, t1 bca76ead msg 3b0917bb: "the
+   All Versions links should be in the bottom left on the screen on
+   mobile"): fixed at the bottom left over the full-screen dialog, above the
+   home indicator, while the note scrolls; the list gets bottom room so the
+   link never covers its last line. Still first in the DOM: focus order is
+   unchanged. */
+@media (max-width: 600px) {
+  .rn--phone .rn__back {
+    position: fixed;
+    inset-block-end: calc(12px + env(safe-area-inset-bottom));
+    inset-inline-start: calc(12px + env(safe-area-inset-left));
+    z-index: 2;
+    min-height: var(--tap, 44px);
+    padding-inline: 0.5rem 0.875rem;
+    background: var(--color-surface);
+    border-color: var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+  }
+  .rn--phone.rn--back { padding-block-end: calc(4.5rem + env(safe-area-inset-bottom)); }
 }
 @media (pointer: coarse) {
   .rn__back, .rn__icon, .rn__action { min-height: var(--tap, 44px); }

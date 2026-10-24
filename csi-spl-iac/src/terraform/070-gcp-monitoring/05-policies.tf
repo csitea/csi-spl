@@ -109,11 +109,13 @@ resource "google_monitoring_alert_policy" "rate_5xx" {
 
 # The hub logs zerolog JSON: its level is jsonPayload.level, which Cloud
 # Logging does not map to severity. Cloud Run's own entries (a crash, an OOM)
-# carry severity. The request log is left out: 5xx are rate_5xx's.
+# carry severity. The request log is left out: 5xx are rate_5xx's. So is the
+# hub's own "http 5xx" line (logServerError, one per 5xx answer): counted here
+# too, one stall paged twice (SPL-3232, 10-22 09:45-10:05Z).
 resource "google_logging_metric" "hub_errors" {
   name        = "${local.name}-hub-error-logs"
   description = "R03: hub error log entries (severity>=ERROR or zerolog level error/fatal/panic), request log excluded."
-  filter      = "${local.run} AND (severity >= ERROR OR jsonPayload.level = \"error\" OR jsonPayload.level = \"fatal\" OR jsonPayload.level = \"panic\") AND NOT logName : \"run.googleapis.com%2Frequests\""
+  filter      = "${local.run} AND (severity >= ERROR OR jsonPayload.level = \"error\" OR jsonPayload.level = \"fatal\" OR jsonPayload.level = \"panic\") AND NOT logName : \"run.googleapis.com%2Frequests\" AND NOT jsonPayload.message = \"http 5xx\""
 
   metric_descriptor {
     metric_kind = "DELTA"

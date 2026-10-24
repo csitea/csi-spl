@@ -23,6 +23,10 @@
 #      hashicorp/time, declared) with a create_duration and the metric's id
 #      in its triggers, so one apply waits for a new metric; controls drop
 #      each piece
+#   7. SPL-3232: hub_errors leaves out the hub's own "http 5xx" line (the
+#      message logServerError writes, read from the Go source), which rate_5xx
+#      already counts: one stall paged twice on 10-22; a real error line, a
+#      "handler panic" and Cloud Run's own entries (no message) stay counted
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -202,5 +206,31 @@ wait_ok "$(drop "$tf" time_sleep log_metrics)" "$prov" >/dev/null && fail "CONTR
 wait_ok "$(grep -v 'create_duration' <<<"$tf")" "$prov" >/dev/null && fail "CONTROL a time_sleep without create_duration passed" || pass "CONTROL a time_sleep without create_duration fails"
 wait_ok "$(grep -v '= google_logging_metric.view_5xx.id' <<<"$tf")" "$prov" >/dev/null && fail "CONTROL a trigger set without view_5xx passed" || pass "CONTROL a trigger set without view_5xx fails"
 wait_ok "$tf" "$(grep -v 'hashicorp/time' <<<"$prov")" >/dev/null && fail "CONTROL providers without hashicorp/time passed" || pass "CONTROL providers without hashicorp/time fails"
+
+# --- 7. SPL-3232: the hub's own 5xx line is not an error log entry --------------
+# counted <hub_errors block> <level> <message> -> 0 when an entry of the hub
+# (not the request log) with that zerolog level and message is counted: its
+# level is in the filter, and no "NOT jsonPayload.message = ..." names it
+counted() {
+  local f; f="$(attr "$1" filter)"
+  has "$f" "jsonPayload.level = \\\"$2\\\"" || return 1
+  ! has "$f" "NOT jsonPayload.message = \\\"$3\\\""
+}
+GO="$PROJ_ROOT/../csi-spl-api/src/go/spool-hub-api/internal/hub/server.go"
+msg5="$(sed -n '/^func (s \*Server) logServerError/,/^}/p' "$GO" | sed -nE 's/^[[:space:]]*ev\.Msg\("([^"]+)"\)$/\1/p')"
+[[ "$msg5" == "http 5xx" ]] && pass "the hub writes its 5xx line as message \"$msg5\" (logServerError)" \
+  || fail "logServerError's message is '$msg5', not 'http 5xx': re-match the hub_errors filter"
+he="$(block "$tf" google_logging_metric hub_errors)"
+[[ -n "$he" ]] || fail "hub_errors metric missing"
+counted "$he" error "$msg5" && fail "hub_errors counts the hub's own \"$msg5\" line (rate_5xx counts it: one stall pages twice)" \
+  || pass "hub_errors leaves out the hub's own \"$msg5\" line"
+counted "$he" error "store: query failed" && pass "hub_errors still counts a real error line" || fail "hub_errors drops a real error line"
+counted "$he" error "handler panic" && pass "hub_errors still counts a handler panic" || fail "hub_errors drops a handler panic"
+has "$(attr "$he" filter)" 'severity >= ERROR' && pass "hub_errors still counts Cloud Run's own ERROR entries (no jsonPayload.message)" \
+  || fail "hub_errors lost severity >= ERROR"
+has "$(attr "$he" filter)" 'NOT logName : \"run.googleapis.com%2Frequests\"' && pass "hub_errors still leaves out the request log" \
+  || fail "hub_errors counts the request log"
+counted "${he/ AND NOT jsonPayload.message = \\\"$msg5\\\"/}" error "$msg5" && pass "CONTROL the filter without the exclusion counts the 5xx line" \
+  || fail "CONTROL the filter without the exclusion still leaves out the 5xx line"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-incident-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

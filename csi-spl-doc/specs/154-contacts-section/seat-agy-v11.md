@@ -338,3 +338,36 @@ Final verdict: **SIGN**. All 10 check areas are verified OK with 0 WRONG rows.
 All 10 re-check requirements from the brief are empirically verified and confirmed **OK**. No defect, stale reference, or blocking ambiguity remains.
 
 **SIGN**: `a-990@sat` (agy panel seat) signs **spec 154 v1.1** (`13ae1f710`).
+
+
+---
+
+## 4. Re-check of v1.1 Fold on `dcd3904a3` (W1-W5, N1-N7)
+
+Editor c-988 folded claude seat c-991's findings (W1-W5, notes N1-N7) in `dcd3904a3` on `origin/master`. Re-checked on `dcd3904a3` by agy panel seat (`a-990@sat`):
+
+### 4.1 Verification of W1-W5 Folds
+
+| # | Fold Item | Code Lines Verified | Status |
+|---|---|---|---|
+| W1 | B1 realm test seeds | `store/personal_catalogue_test.go:256-288, 332-337` (`seedRealm` inserts for `TestRLSPersonalPolicy`); `store/personal_rls_test.go:277-301, 317` (`realmSeedPG` inserts for `TestRLSPersonStore`). `store/personal_rls_test.go` added to B1's files. | **OK** |
+| W2 | RLS check definer door allow-list | `csi-spl-orc/src/bash/run/spl-db-rls-check.func.sh:84` and `csi-spl-orc/src/bash/tests/spl-db-rls-check.tst.sh:143-150` (case 8). Added `spl-db-rls-check.func.sh` and `spl-db-rls-check.tst.sh` to B1 files and added case C1d. | **OK** |
+| W3 | Purger role schema grants | `0168_personal_realm.sql:156`: `GRANT USAGE, CREATE ON SCHEMA personal`. Section 3 and 2.6 updated to include schema `USAGE, CREATE`. | **OK** |
+| W4 | Purge store method & scope | B2 files assigned `PurgeDeletedContacts(ctx, before)` in `store/personal_contacts_postgres.go` (plain pool tx, no `app.*` scope; satisfies `personal_scope_test.go:78, 111-112`) and `MarkContactsPurgePending` in `contacts_sync_postgres.go` (operator scope). Added case C2e. | **OK** |
+| W5 | Kill switch visibility in WUI | `hub/rbac.go:93, 122` adds `contacts` boolean to `meBody` in `GET /v1/view/me`; B9 consumes in `wui/src/stores/access.ts` (cases C6b, C24f twin). | **OK** |
+
+### 4.2 Verification of Notes N1-N7 Folds
+
+- **N1**: Section 3 and C1c explicitly name the purger policies `realm_contacts_purger_read` and `realm_contacts_purger_delete`.
+- **N2**: Catalogue checks in `store/personal_catalogue_test.go:103-126` updated to cover third role/door in literal lists.
+- **N3**: SQL test naming specified as `TestRLSContacts…` under `hub-pg.tst.sh:247-249` control.
+- **N4**: B3 binding lookup by `human_id` across workspaces clarified (operator scope).
+- **N5**: Plain INSERT specified to yield 23505 without RLS 42501 interference.
+- **N6**: Omnibox search hit clicks open contact card carrying `member_id`; B5 does not call batch match directly.
+- **N7**: Case C8c cites C4b for clone write refusal.
+
+### 4.3 Re-check Signature
+
+All folds W1-W5 and notes N1-N7 are empirically verified against the code lines and are sound, complete, and buildable.
+
+**SIGN**: `a-990@sat` (agy panel seat) re-signs **spec 154 v1.1 on `dcd3904a3`**.

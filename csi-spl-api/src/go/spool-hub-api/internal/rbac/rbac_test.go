@@ -29,7 +29,8 @@ func (f *fakeSrc) TenantRoles(context.Context, string) (map[string]Role, error) 
 
 // 025 §3.2: the matrix as the spec states it, cell by cell for the cells the
 // OQs defaulted, plus the one tenant owner: biz_owner holds every permission
-// but agents.join, which is the admin's only (specs/073 §4.7, Q1).
+// but agents.join, which is the admin's only (specs/073 §4.7, Q1), and
+// hours.rates, which is time_accountant's only (specs/107 FR-20).
 func TestDefaultsMatrix(t *testing.T) {
 	roles := DefaultRoles()
 	has := func(role, perm string) bool {
@@ -40,9 +41,10 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 		return false
 	}
-	// demo_user (specs/077) and channel_guest (specs/121) are roles no member
-	// route grants: not in RoleIDs.
-	if len(roles) != 10 || len(RoleIDs) != len(roles)-2 {
+	// demo_user (specs/077), channel_guest (specs/121) and time_accountant
+	// (specs/107 T065; its invite is T047's) are roles no member route
+	// grants: not in RoleIDs.
+	if len(roles) != 11 || len(RoleIDs) != len(roles)-3 {
 		t.Fatalf("roles: %d", len(roles))
 	}
 	all := map[string]bool{}
@@ -60,8 +62,8 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-1 || has(BizOwner, AgentsJoin) {
-		t.Fatalf("biz_owner must be the one tenant owner with every permission but agents.join: %+v", roles[BizOwner])
+	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-2 || has(BizOwner, AgentsJoin) || has(BizOwner, HoursRates) {
+		t.Fatalf("biz_owner must be the one tenant owner with every permission but agents.join and hours.rates: %+v", roles[BizOwner])
 	}
 	for _, r := range roles { // specs/073 §4.7 (Q1): agents.join is admin only
 		if has(r.ID, AgentsJoin) != (r.ID == Admin) {
@@ -98,7 +100,7 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 	}
 	for _, r := range roles {
-		if r.ID != ChannelGuest && !has(r.ID, TopicsRead) {
+		if r.ID != ChannelGuest && r.ID != TimeAccountant && !has(r.ID, TopicsRead) {
 			t.Errorf("%s cannot read", r.ID)
 		}
 	}
@@ -121,7 +123,7 @@ func TestDefaultsMatrix(t *testing.T) {
 		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read only", roles[DemoUser])
 	}
 	for _, id := range RoleIDs {
-		if id == DemoUser || id == ChannelGuest {
+		if id == DemoUser || id == ChannelGuest || id == TimeAccountant {
 			t.Errorf("CONTROL: RoleIDs names %s: the Users page would offer it", id)
 		}
 	}
@@ -151,9 +153,11 @@ func TestCoversNoEscalation(t *testing.T) {
 	}
 }
 
-// specs/107 §6.1 (owner Q5 = A): hours.read and hours.approve are biz_owner's
-// alone; every other role, demo_user included, holds neither. CONTROL: the
-// Fixed seam answers the same, so a route asking for them denies an admin.
+// specs/107 §6.1 (owner Q5 = A): hours.read and hours.approve are biz_owner's;
+// every other role, demo_user included, holds neither, but for v2's
+// time_accountant, which reads (FR-20, TestTimeAccountantHoursRates).
+// CONTROL: the Fixed seam answers the same, so a route asking for them
+// denies an admin.
 func TestHoursPermissionsBizOwnerOnly(t *testing.T) {
 	roles := DefaultRoles()
 	for _, r := range roles {
@@ -162,8 +166,9 @@ func TestHoursPermissionsBizOwnerOnly(t *testing.T) {
 			for _, q := range r.Perms {
 				held = held || q == p
 			}
-			if held != (r.ID == BizOwner) {
-				t.Errorf("%s %s = %v, want %v (biz_owner only)", r.ID, p, held, r.ID == BizOwner)
+			want := r.ID == BizOwner || (r.ID == TimeAccountant && p == HoursRead)
+			if held != want {
+				t.Errorf("%s %s = %v, want %v (biz_owner only, time_accountant reads)", r.ID, p, held, want)
 			}
 		}
 	}
@@ -217,6 +222,54 @@ func TestCostsReadBizOwnerAndAdmin(t *testing.T) {
 	}
 	if a, _ := Fixed(Admin).Access(ctx, "HUM-2", "t1"); a.Can(BillingManage) {
 		t.Error("admin holds billing.manage: costs.read must not ride on it")
+	}
+}
+
+// specs/107 FR-20, FR-21 (T065): time_accountant holds exactly hours.read
+// and hours.rates, none of the four permissions every member role holds
+// (withMember) and no topics.read; hours.rates is pinned to it, the biz
+// owner's role included. CONTROL: a seat holding developer and
+// time_accountant gets the union, rates included; developer alone not.
+func TestTimeAccountantHoursRates(t *testing.T) {
+	roles := DefaultRoles()
+	ta, ok := roles[TimeAccountant]
+	if !ok || ta.TenantOwner || !reflect.DeepEqual(ta.Perms, []string{HoursRates, HoursRead}) {
+		t.Fatalf("time_accountant %+v (present %v), want exactly hours.rates + hours.read", ta, ok)
+	}
+	for _, r := range roles {
+		for _, q := range r.Perms {
+			if q == HoursRates && r.ID != TimeAccountant {
+				t.Errorf("%s holds hours.rates: it is time_accountant's only", r.ID)
+			}
+		}
+	}
+	documented := false
+	for _, p := range Permissions {
+		documented = documented || p.ID == HoursRates
+	}
+	if !documented {
+		t.Error("hours.rates is not in the Permissions catalogue")
+	}
+	ctx := context.Background()
+	a, err := FixedSet{TimeAccountant}.Access(ctx, "HUM-1", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.Can(HoursRates) || !a.Can(HoursRead) || a.Can(HoursApprove) || a.Can(TopicsRead) || a.Can(FilesWrite) || a.Can(DocsRead) {
+		t.Errorf("time_accountant seat grants %v", a.List())
+	}
+	both, err := FixedSet{Developer, TimeAccountant}.Access(ctx, "HUM-2", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !both.Can(HoursRates) || !both.Can(TopicsRead) || !both.Can(AgentsCommand) {
+		t.Errorf("developer + time_accountant grants %v, want the union", both.List())
+	}
+	if dev, _ := Fixed(Developer).Access(ctx, "HUM-3", "t1"); dev.Can(HoursRates) || dev.Can(HoursRead) {
+		t.Error("CONTROL: developer alone reads hours or rates")
+	}
+	if owner, _ := Fixed(BizOwner).Access(ctx, "HUM-4", "t1"); owner.Can(HoursRates) {
+		t.Error("biz_owner holds hours.rates: it assigns itself time_accountant instead (FR-20)")
 	}
 }
 

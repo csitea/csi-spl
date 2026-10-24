@@ -61,6 +61,43 @@ const (
 	CostsRead = "costs.read"
 )
 
+// The 23 action ids of spec 152 3.1 (rdb 0223, build row B1). Each one's
+// system grant is exactly the roles that may do the action today (3.6), so
+// with no tenant_role_grants row every workspace answers as before. No hub
+// site asks them yet: the site rows (B5-B7) switch each check to its id.
+const (
+	// Start work. The five agents.* ids (agents.reply is a steer action) go
+	// to every role holding agents.command, demo_user included, so the demo
+	// is unchanged.
+	IssuesCreate  = "issues.create"  // file an issue
+	AgentsDM      = "agents.dm"      // DM an agent
+	AgentsStart   = "agents.start"   // open a new channel topic that addresses an agent
+	AgentsMention = "agents.mention" // address an agent in an existing topic, the mention poke
+	AgentsPost    = "agents.post"    // a plain channel post reaches the channel's agents
+	// Steer.
+	AgentsReply      = "agents.reply"       // a reply in a channel-less topic goes on to its agent
+	IssuesEdit       = "issues.edit"        // an issue's fields, labels, discussion links; one's own delete and archive
+	IssuesAssign     = "issues.assign"      // set an issue's assignee
+	IssuesPrioritise = "issues.prioritise"  // an issue's priority or level, a topic's priority
+	ChannelsAIAgents = "channels.ai_agents" // switch the AI agents of a channel one did not create
+	MessagesKind     = "messages.kind"      // set the kind of someone else's message
+	// Review and accept.
+	IssuesStatus       = "issues.status"        // start, done, return, reopen an issue
+	IssuesBlocker      = "issues.blocker"       // make a blocker message an issue
+	TopicsChangeOthers = "topics.change_others" // edit, delete, move, merge, promote someone else's message or topic
+	IssuesRemoveOthers = "issues.remove_others" // delete or archive someone else's issue; restore any archived one
+	ResultsAccept      = "results.accept"       // accept or return an agent's result
+	// Ship.
+	ShipApprove      = "ship.approve"      // give an agent the go to release or deploy
+	RoadmapPublish   = "roadmap.publish"   // the roadmap public switch; approve a roadmap goal
+	MarketingPublish = "marketing.publish" // publish a marketing post
+	EmbedsManage     = "embeds.manage"     // put a channel on a website
+	// Administer.
+	PermsEdit      = "perms.edit"      // edit the workspace role x action list
+	ReportingSQL   = "reporting.sql"   // run reporting SQL
+	EmbedsVisitors = "embeds.visitors" // see and handle website visitors
+)
+
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
 // 2026-09-19: "tenant owner = biz-owner"). BizCustomer and RegularUser: owner
 // 2026-09-25, "for now will have the same permissions as the Developer role".
@@ -135,6 +172,29 @@ var Permissions = []PermissionDoc{
 	{HoursApprove, "approve or return a member's frozen hours period"},
 	{HoursRates, "see rates and labour cost; compute approved hours x rate"},
 	{CostsRead, "see the cost lines and coverage of the workspace (the estate in the operator workspace)"},
+	{IssuesCreate, "file an issue"},
+	{AgentsDM, "DM an agent"},
+	{AgentsStart, "open a new channel topic that addresses an agent"},
+	{AgentsMention, "address an agent in an existing topic; the mention poke"},
+	{AgentsPost, "a plain channel post reaches the channel's agents"},
+	{AgentsReply, "a reply in a channel-less topic goes on to its agent"},
+	{IssuesEdit, "edit an issue, its labels and discussion links; delete or archive one's own issue"},
+	{IssuesAssign, "set an issue's assignee"},
+	{IssuesPrioritise, "set an issue's priority or level, and a topic's priority"},
+	{ChannelsAIAgents, "switch the AI agents of a channel one did not create"},
+	{MessagesKind, "set the kind of someone else's message"},
+	{IssuesStatus, "change an issue's status: start, done, return, reopen"},
+	{IssuesBlocker, "make a blocker message an issue"},
+	{TopicsChangeOthers, "edit, delete, move, merge or promote someone else's message or topic"},
+	{IssuesRemoveOthers, "delete or archive someone else's issue; restore any archived issue"},
+	{ResultsAccept, "accept or return an agent's result"},
+	{ShipApprove, "give an agent the go to release or deploy"},
+	{RoadmapPublish, "make the workspace roadmap public or private; approve a roadmap goal"},
+	{MarketingPublish, "publish a marketing post"},
+	{EmbedsManage, "put a channel on a website: embeds and their keys"},
+	{PermsEdit, "edit the workspace role x action list"},
+	{ReportingSQL, "run reporting SQL"},
+	{EmbedsVisitors, "see and handle website visitors: lead, block"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
@@ -148,29 +208,50 @@ var Permissions = []PermissionDoc{
 // gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A).
 // rdb 0169 adds channel_guest with no permission (specs/121). rdb 0222 adds
 // time_accountant with hours.read and hours.rates, built without withMember
-// (specs/107 FR-20, FR-21).
+// (specs/107 FR-20, FR-21). rdb 0223 adds the 23 action ids of spec 152 3.1,
+// each granted to the roles that may do it today (3.6): the five agents.*
+// ids ride with agents.command (withAgents, demo_user included), the five
+// open issue ids with topics.manage (withMember, never demo_user), the rest
+// go to the roles their site names today.
 var Defaults = []Role{
-	{ID: BizOwner, TenantOwner: true, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
+	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
-		HoursRead, HoursApprove, CostsRead)},
-	{ID: ProductOwner, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite)},
-	{ID: Admin, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
+		HoursRead, HoursApprove, CostsRead,
+		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
+		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors)...)},
+	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
+		ResultsAccept, ShipApprove)...)},
+	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
-		CostsRead)},
-	{ID: Developer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+		CostsRead,
+		ChannelsAIAgents, MessagesKind, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
+		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors)...)},
+	{ID: Developer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
+		ResultsAccept, ShipApprove)...)},
 	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},
-	{ID: PureAgent, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite)},
-	{ID: BizCustomer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
-	{ID: RegularUser, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
-	{ID: DemoUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead)},
+	{ID: PureAgent, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite,
+		ResultsAccept, ShipApprove)...)},
+	{ID: BizCustomer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
+		ResultsAccept, ShipApprove)...)},
+	{ID: RegularUser, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
+		ResultsAccept, ShipApprove)...)},
+	{ID: DemoUser, Perms: sorted(withAgents(TopicsRead, NotesSend, AgentsCommand, DocsRead)...)},
 	{ID: ChannelGuest, Perms: []string{}}, // empty, not nil: the store reads '{}'
 	{ID: TimeAccountant, Perms: sorted(HoursRead, HoursRates)},
 }
 
 // withMember is p plus the four permissions every member role holds and
-// demo_user does not (rdb 0124), sorted.
+// demo_user does not (rdb 0124) and the five issue ids that ride with
+// topics.manage (rdb 0223), sorted.
 func withMember(p ...string) []string {
-	return sorted(append(p, FilesWrite, TopicsManage, SelfKeys, ChannelsEdit)...)
+	return sorted(append(p, FilesWrite, TopicsManage, SelfKeys, ChannelsEdit,
+		IssuesCreate, IssuesEdit, IssuesAssign, IssuesPrioritise, IssuesStatus)...)
+}
+
+// withAgents is p plus the five agents.* ids every agents.command holder
+// holds (rdb 0223, spec 152 3.6).
+func withAgents(p ...string) []string {
+	return append(p, AgentsDM, AgentsStart, AgentsMention, AgentsPost, AgentsReply)
 }
 
 // DefaultRoles is Defaults keyed by id (a fresh map each call).

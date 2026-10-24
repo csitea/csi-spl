@@ -100,7 +100,8 @@ and go-ahead on open questions Q1..Q5 in [spec.md](spec.md) §14.
 
 ## Phase 3: Hub Isolation & Leak-Proof Boundaries (GO & RUN)
 
-- [ ] **T006: Unanswered sweep query exclusion**
+- [x] **T006: Unanswered sweep query exclusion**
+  - **Built:** (SPL-3184) `_spl_sweep_private_sql` in `RUN/spl-unanswered-sweep.func.sh`: a topic whose last line is flagged `is_private_scope`, sits in a channel flagged `is_private_scope`, or has a `dedicated_agents` binding on its channel or topic is left out. The full read (`_spl_sweep_rows_sql`) drops it after picking the last line (the narrow scan is unchanged); the delta read (`_spl_sweep_delta_sql`) turns it into a key-only row, so the merge also drops the cached row of a topic that went private; the delta also re-reads a channel made private (`private_scope_at`) and a new binding (`bound_at`). Open for T005: a topic is seen as private by its last line's flag (spec 3.2), so `PUT /v1/topics/{task_id}/private-scope` on an existing topic must flag its lines (or the sweep lists it until the next post). Test `OT/unanswered-sweep-private-scope.tst.sh` (C3, full and delta; red control: the filter off lists the 4 private topics).
   - **Layer:** Orchestration / Database Query (RUN)
   - **Owns:** `RUN/spl-unanswered-sweep.func.sh`, `OT/unanswered-sweep-private-scope.tst.sh`
   - **Waits on:** T001

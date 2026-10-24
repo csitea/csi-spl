@@ -388,13 +388,22 @@ SQL
 # OLDEST human post after the topic's last agent reply (a terminal mirror
 # counts as one). The sweep ages and keys an item from it, so a burst of
 # human posts is not held as fresh by its newest one.
+# Spec 144 T006 (control C3): a private scope is not swept. k0 picks the last
+# line as before (the narrow scan stays narrow), k drops the topics whose last
+# line is private (_spl_sweep_private_sql): one pkey lookup per topic.
 _spl_sweep_rows_sql() {
   cat <<'SQL'
-WITH k AS MATERIALIZED (
+WITH k0 AS MATERIALIZED (
   SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id
     FROM messages m
    WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
-   ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC)
+   ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC),
+SQL
+  cat <<SQL
+k AS MATERIALIZED (
+  SELECT k0.tenant_id, k0.msg_id FROM k0
+    JOIN messages p ON p.tenant_id = k0.tenant_id AND p.msg_id = k0.msg_id
+   WHERE NOT $(_spl_sweep_private_sql p))
 SQL
   _spl_sweep_rows_tail "(l.tenant_id, l.task_id) IN (SELECT a.tenant_id, a.task_id FROM messages a
                                                WHERE a.archived_at IS NOT NULL)"
@@ -415,7 +424,9 @@ SQL
 # archived line. Not seen until the next full read (SWEEP_FULL_EVERY): a
 # channel un-archived, a workspace renamed, a workspace's AI agents default
 # changed (a channel's own switch is read: ai_agents_at), a humans-only mark
-# cleared (one set is read: humans_only_at, SPL-2423).
+# cleared (one set is read: humans_only_at, SPL-2423), a private scope
+# cleared or a dedicated agent unbound (a channel made private is read:
+# private_scope_at, and so is a new binding: bound_at, spec 144 T006).
 # SPL-2705: the edited lines are found from message_revisions (edited_at since
 # :since), each one's topic then one pkey lookup into messages. A plain join
 # let the planner (it underestimates messages under the operator RLS scope)
@@ -433,6 +444,14 @@ WITH mv AS MATERIALIZED (
     JOIN topic_head_parts p ON p.tenant_id = c.tenant_id AND p.channel = c.channel_id
    WHERE c.archived_at > to_timestamp(:since) OR c.deleted_at > to_timestamp(:since)
       OR c.ai_agents_at > to_timestamp(:since) OR c.humans_only_at > to_timestamp(:since)
+      OR c.private_scope_at > to_timestamp(:since)
+  UNION
+  SELECT p.tenant_id, p.task_id FROM dedicated_agents d
+    JOIN topic_head_parts p ON p.tenant_id = d.tenant_id AND p.channel = d.scope_id
+   WHERE d.scope_type = 'channel' AND d.bound_at > to_timestamp(:since)
+  UNION
+  SELECT d.tenant_id, d.scope_id::uuid FROM dedicated_agents d
+   WHERE d.scope_type = 'topic' AND d.bound_at > to_timestamp(:since)
   UNION
   SELECT v.tenant_id, v.task_id FROM (
     SELECT r.tenant_id, (SELECT e.task_id FROM messages e
@@ -442,13 +461,19 @@ WITH mv AS MATERIALIZED (
   UNION
   SELECT u.tn, u.tk FROM unnest(:'tns'::text[], :'tks'::uuid[]) u (tn, tk)
    WHERE NOT EXISTS (SELECT 1 FROM topic_heads o WHERE o.tenant_id = u.tn AND o.task_id = u.tk)),
-k AS MATERIALIZED (
+k1 AS MATERIALIZED (
   SELECT mv.tenant_id, mv.task_id, x.msg_id FROM mv
   LEFT JOIN LATERAL (
     SELECT m.msg_id FROM messages m
      WHERE m.tenant_id = mv.tenant_id AND m.task_id = mv.task_id
        AND m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
-     ORDER BY m.received_at DESC, m.msg_id DESC LIMIT 1) x ON true)
+     ORDER BY m.received_at DESC, m.msg_id DESC LIMIT 1) x ON true),
+SQL
+  cat <<SQL
+k AS MATERIALIZED (
+  SELECT k1.tenant_id, k1.task_id,
+         CASE WHEN p.msg_id IS NOT NULL AND $(_spl_sweep_private_sql p) THEN NULL ELSE k1.msg_id END AS msg_id
+    FROM k1 LEFT JOIN messages p ON p.tenant_id = k1.tenant_id AND p.msg_id = k1.msg_id)
 SQL
   _spl_sweep_rows_tail "EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
                                           AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)"
@@ -458,6 +483,21 @@ SELECT k.tenant_id, NULL, NULL, k.task_id, NULL, NULL, NULL, NULL, NULL, NULL, N
   FROM k WHERE k.msg_id IS NULL
  ORDER BY 1, 6
 SQL
+}
+
+# _spl_sweep_private_sql <alias>: true when that message, a topic's last
+# line, is in a private scope (spec 144 section 5.3, rdb 0219): the line is
+# flagged (a private topic flags its lines, spec 3.2), its channel is
+# flagged, or a dedicated agent is bound to its channel or its topic. The
+# delta read turns such a topic into a key-only row, so the merge drops a
+# cached row of a topic that went private.
+_spl_sweep_private_sql() {
+  printf '%s' "($1.is_private_scope
+          OR EXISTS (SELECT 1 FROM channels pc WHERE pc.tenant_id = $1.tenant_id
+                        AND pc.channel_id = $1.channel AND pc.is_private_scope)
+          OR EXISTS (SELECT 1 FROM dedicated_agents pd WHERE pd.tenant_id = $1.tenant_id
+                        AND ((pd.scope_type = 'channel' AND pd.scope_id = $1.channel)
+                          OR (pd.scope_type = 'topic' AND pd.scope_id = $1.task_id::text))))"
 }
 
 # _spl_sweep_rows_tail <archived predicate>: the select list and joins of

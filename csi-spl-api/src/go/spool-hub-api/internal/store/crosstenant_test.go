@@ -390,6 +390,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedHoursTerminals(ctx, pg, s.tenant, hum); err != nil {
 		t.Fatal(err)
 	}
+	// tenant_role_grants (rdb 0223, spec 152 row B1): one changed cell. No
+	// store API yet (B3), so a raw row under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO tenant_role_grants (tenant_id, role_id, permission_id, granted, set_by)
+			VALUES ($1, 'developer', 'agents.start', false, $2)`, s.tenant, hum)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
 	// spec 113 T001): a doc with its root and one rev-log entry, then its
 	// workspace_doc_node pair. No store API

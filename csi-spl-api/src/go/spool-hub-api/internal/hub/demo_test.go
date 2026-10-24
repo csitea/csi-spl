@@ -89,7 +89,8 @@ func TestDemoOffFencesDemoUser(t *testing.T) {
 }
 
 // 3.1: with the demo on, demo_user acts in the demo workspace only, and holds
-// exactly topics.read, notes.send, agents.command and docs.read there.
+// exactly topics.read, notes.send, agents.command and docs.read there, plus
+// the five agents.* ids that ride with agents.command (spec 152 3.6, rdb 0223).
 // CONTROL: the same role in another workspace is no membership.
 func TestDemoOnlyInDemoWorkspace(t *testing.T) {
 	e, demo := demoEnv(t)
@@ -101,8 +102,9 @@ func TestDemoOnlyInDemoWorkspace(t *testing.T) {
 	}
 	code, me := call(t, e, demo, http.MethodGet, "/v1/view/me", in, nil)
 	got := perms(me)
-	if code != http.StatusOK || me["role"] != rbac.DemoUser || len(got) != 4 ||
-		!got[rbac.TopicsRead] || !got[rbac.NotesSend] || !got[rbac.AgentsCommand] || !got[rbac.DocsRead] {
+	if code != http.StatusOK || me["role"] != rbac.DemoUser || len(got) != 9 ||
+		!got[rbac.TopicsRead] || !got[rbac.NotesSend] || !got[rbac.AgentsCommand] || !got[rbac.DocsRead] ||
+		!got[rbac.AgentsDM] || !got[rbac.AgentsStart] || !got[rbac.AgentsMention] || !got[rbac.AgentsPost] || !got[rbac.AgentsReply] {
 		t.Fatalf("demo_user /v1/view/me: %d %v", code, me)
 	}
 	if code, body := call(t, e, other, http.MethodGet, "/v1/view/me", out, nil); code != http.StatusForbidden {

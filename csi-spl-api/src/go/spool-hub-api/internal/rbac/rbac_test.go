@@ -62,8 +62,10 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-2 || has(BizOwner, AgentsJoin) || has(BizOwner, HoursRates) {
-		t.Fatalf("biz_owner must be the one tenant owner with every permission but agents.join and hours.rates: %+v", roles[BizOwner])
+	// reporting.sql is the admin role's by name today (spec 152 3.1, rdb 0223).
+	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-3 ||
+		has(BizOwner, AgentsJoin) || has(BizOwner, HoursRates) || has(BizOwner, ReportingSQL) {
+		t.Fatalf("biz_owner must be the one tenant owner with every permission but agents.join, hours.rates and reporting.sql: %+v", roles[BizOwner])
 	}
 	for _, r := range roles { // specs/073 §4.7 (Q1): agents.join is admin only
 		if has(r.ID, AgentsJoin) != (r.ID == Admin) {
@@ -111,7 +113,8 @@ func TestDefaultsMatrix(t *testing.T) {
 	}
 	// specs/077 §3.2: every member role holds files.write, topics.manage,
 	// self.keys and channels.edit; demo_user holds exactly read, post,
-	// agents.command and docs.read.
+	// agents.command and docs.read, plus the five agents.* ids that ride with
+	// agents.command (spec 152 3.6, rdb 0223) and no issue id (R29).
 	for _, id := range RoleIDs {
 		for _, p := range []string{FilesWrite, TopicsManage, SelfKeys, ChannelsEdit} {
 			if !has(id, p) {
@@ -119,8 +122,8 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if !reflect.DeepEqual(roles[DemoUser].Perms, sorted(AgentsCommand, DocsRead, NotesSend, TopicsRead)) || roles[DemoUser].TenantOwner {
-		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read only", roles[DemoUser])
+	if !reflect.DeepEqual(roles[DemoUser].Perms, sorted(withAgents(AgentsCommand, DocsRead, NotesSend, TopicsRead)...)) || roles[DemoUser].TenantOwner {
+		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read and the five agents.* ids only", roles[DemoUser])
 	}
 	for _, id := range RoleIDs {
 		if id == DemoUser || id == ChannelGuest || id == TimeAccountant {

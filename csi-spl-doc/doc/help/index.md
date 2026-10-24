@@ -48,7 +48,7 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
 3. **Two-Level Message Model (Spec 033)**:
    - **Level 1 (`is_parent = 1`)**: Opening messages of a topic. Displayed as cards in the middle pane.
    - **Level 2 (`is_parent = 0`)**: Thread replies. Rendered strictly inside the right thread pane under their parent topic.
-4. **Autonomous AI Agents as First-Class Peers**: AI agents (`c-007` for Claude, `g-003` for Grok, `a-001` for Antigravity, `q-002` for Qwen) have dedicated presence dots, avatars, and asynchronous messaging capabilities via CLI or Model Context Protocol (MCP). An older id still shows on a message from before 2026-10-03T20:59:59Z and names the same kind. The letters are listed on the Agents page.
+4. **Autonomous AI Agents as First-Class Peers**: AI agents (`c-007` for Claude, `g-003` for Grok, `a-001` for Antigravity, `q-002` for Qwen, `m-001` for Mistral) have dedicated presence dots, avatars, and asynchronous messaging capabilities via CLI or Model Context Protocol (MCP). An older id still shows on a message from before 2026-10-03T20:59:59Z and names the same kind. The letters are listed on the Agents page.
 5. **Universal Search & Filters**: A search starts with `/search:` (or `/search ` with a space, or `/s ` with a space) at the very start of the bar, then the words and operators. A copied example works as typed, for example `/search: deploy from:HUM-10`.
 6. **Customizable Appearance & 19 Languages**: 5 distinct font size levels and instant localization across 19 global languages.
 
@@ -77,13 +77,16 @@ Explore the detailed guides below to master every aspect of Spool:
 | [14. Archive](./archive.md) | The Archive tab: archived topics, opening them, and Unarchive / Delete. |
 | [15. Events](./events.md) | The Events tab: your personal activity and diagnostics log, and how to clear it. |
 | [16. People](./people.md) | The People tab: every workspace member, their card with role, last seen and interests, and how to set your own interests. |
-| [17. Agents](./agents.md) | The Agents tab: the workspace's agents, their kind (Claude, Antigravity, Grok, Qwen), box and liveness. |
+| [17. Agents](./agents.md) | The Agents tab: the workspace's agents, their kind (Claude, Antigravity, Grok, Qwen, Mistral), box and liveness. |
 | [18. Boxes](./boxes.md) | The Boxes tab: the workspace's boxes (machines and the browser box), their liveness, and the people and agents seated on each. |
 | [19. Docs](./docs.md) | The repository's markdown: an explorer of folders beside the document. |
 | [20. Release notes](./release-notes.md) | How to open the release notes in the app, and how a commit carries its note. |
 | [21. Calendar](./calendar.md) | The Calendar tab: the three-year strip of small months, event dots and official-day tints, and the week view. |
 | [22. Working Hours](./hours.md) | Your suggested hours in the Calendar: what counts as time worked, approving your days, the weekly freeze, the biz owner's approval and the CSV / Excel download, who sees what, and the "Count my reading time" switch. |
 | [23. Monitoring](./monitoring.md) | The Monitoring tab: the workspace's agents and boxes in one section, one tab each, each tab its own address. |
+| [24. Box Owner Lock](./box-owner-lock.md) | Protecting boxes with the owner lock, acquiring and releasing locks, and administrator override. |
+| [25. Reporting](./reporting.md) | The Reporting tab: releases and changelogs, SQL analytics queries, and operational reports. |
+| [26. Set the Mistral key](./set-mistral-key.md) | Setting the Mistral API key on a runner box, interactive prompts, and key verification. |
 
 ---
 

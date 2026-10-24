@@ -18,7 +18,9 @@
 # @description <current_schema>.spool_search_candidates (rdb 0143, tenant-pinned,
 # @description owned by NOLOGIN NOBYPASSRLS spool_search_reader), and spec 119's
 # @description personal.due_receipts and personal.delete_my_receipts (rdb 0168,
-# @description owned by NOLOGIN NOBYPASSRLS spool_realm_sweeper / _eraser).
+# @description owned by NOLOGIN NOBYPASSRLS spool_realm_sweeper / _eraser), and
+# @description spec 154's personal.purge_deleted_contacts (rdb 0225, owned by
+# @description NOLOGIN NOBYPASSRLS spool_realm_contacts_purger).
 # @description Spec 119 T-C1: every table in schema `personal` counts as a
 # @description forced table too (listed as personal.<table>), and owning one is
 # @description a lift path, like owning a tenant_id table.
@@ -81,7 +83,7 @@ SELECT json_build_object(
         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
        WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
          AND NOT (n.nspname = current_schema() AND p.proname = 'spool_search_candidates')
-         AND NOT (n.nspname = 'personal' AND p.proname IN ('due_receipts', 'delete_my_receipts'))
+         AND NOT (n.nspname = 'personal' AND p.proname IN ('due_receipts', 'delete_my_receipts', 'purge_deleted_contacts'))
          AND has_function_privilege(current_user, p.oid, 'EXECUTE')) l),
   'tables', (SELECT json_object_agg(c.relname, json_build_array(c.relrowsecurity, c.relforcerowsecurity) ORDER BY c.relname)
                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

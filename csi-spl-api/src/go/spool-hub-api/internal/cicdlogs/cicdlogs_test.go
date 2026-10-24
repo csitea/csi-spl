@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -267,8 +266,8 @@ func TestHTTPFetcherStripsAuthOnRedirect(t *testing.T) {
 }
 
 func TestM1DockerfileOmitsGh(t *testing.T) {
-	_, f, _, _ := runtime.Caller(0)
-	p := filepath.Join(filepath.Dir(f), "..", "..", "..", "..", "..", "..", "csi-spl-api", "src", "docker", "hub.Dockerfile")
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+	p := filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-api", "src", "docker", "hub.Dockerfile")
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		t.Fatal(err)

@@ -19,7 +19,11 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 set -euo pipefail
 
-export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+# -trimpath (SPL-3171): without it a compile action id holds the package dir,
+# so every lane worktree wrote its own copy of each package into the shared
+# build cache (sat 2026-10-24: 262 MB per hub-pg compile, 0.45 MB with it,
+# n=1); go-test-trimpath.tst.sh holds it. Never for build.sh (main.commit).
+export GOFLAGS="-mod=mod -trimpath" GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../use-go-toolchain.sh

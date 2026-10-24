@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -126,8 +125,8 @@ func sqlDir() string {
 	if d := os.Getenv("SPOOL_TEST_SQL_DIR"); d != "" {
 		return d
 	}
-	_, f, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(f), "..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+	return filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
 }
 
 // seed makes tenant hold rows messages received between the period start and

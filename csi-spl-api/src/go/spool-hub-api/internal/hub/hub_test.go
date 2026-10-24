@@ -15,7 +15,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -63,8 +62,8 @@ func newStore(t *testing.T) store.Store {
 	}
 	dir := os.Getenv("SPOOL_TEST_SQL_DIR")
 	if dir == "" {
-		_, f, _, _ := runtime.Caller(0)
-		dir = filepath.Join(filepath.Dir(f), "..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
+		// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+		dir = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
 	}
 	if _, err := store.Migrate(ctx, pg.Pool(), dir); err != nil {
 		t.Fatal(err)

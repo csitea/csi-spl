@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,11 +31,8 @@ const publicExportRole = "spool_public_export"
 // repoRoot is the checkout root, relative to this file.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, f, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	return filepath.Join(filepath.Dir(f), "..", "..", "..", "..", "..", "..")
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+	return filepath.Join("..", "..", "..", "..", "..", "..")
 }
 
 // allowList is the part of an allow-list file fence 1 reads.

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -370,8 +369,8 @@ func TestAcrossTOVRO(t *testing.T) {
 	if !stored.MatchString("  overlap_minutes integer NOT NULL") {
 		t.Fatal("control: the pattern misses a planted total column")
 	}
-	_, file, _, _ := runtime.Caller(0)
-	sqlDir := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..",
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+	sqlDir := filepath.Join("..", "..", "..", "..", "..", "..",
 		"csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
 	files, err := filepath.Glob(filepath.Join(sqlDir, "*.sql"))
 	if err != nil || len(files) == 0 {

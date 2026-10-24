@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -37,11 +36,8 @@ var knownSharedMigrationPrefixes = map[string][]string{
 // collision in the source tree.
 func spoolHubSQLDir(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	return filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..",
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
+	return filepath.Join("..", "..", "..", "..", "..", "..",
 		"csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
 }
 

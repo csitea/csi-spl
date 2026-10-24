@@ -6,7 +6,8 @@
 # Usage: bash csi-spl-api/src/bash/tests/hub-gcs.tst.sh
 set -euo pipefail
 
-export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+# -trimpath: worktrees share the build cache (SPL-3171, see run-all-tests.sh)
+export GOFLAGS="-mod=mod -trimpath" GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../use-go-toolchain.sh

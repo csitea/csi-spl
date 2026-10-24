@@ -93,7 +93,11 @@ spl_export_go_path
 # shellcheck source=../warm-go-mod-cache.sh
 source "$HERE/../warm-go-mod-cache.sh"
 spl_warm_go_mod_cache "$MOD"
-export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off
+# -trimpath (SPL-3171): without it a compile action id holds the package dir,
+# so every lane worktree wrote its own copy of each package into the shared
+# build cache (sat 2026-10-24: 262 MB per hub-pg compile, 0.45 MB with it,
+# n=1); go-test-trimpath.tst.sh holds it. Never for build.sh (main.commit).
+export GOFLAGS="-mod=mod -trimpath" GOPROXY=off GOSUMDB=off
 
 COVER_DIR="$(mktemp -d)"
 trap 'rm -rf "$COVER_DIR"' EXIT
@@ -103,6 +107,7 @@ echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
 bash "$HERE/warm-go-mod-cache.tst.sh"
 bash "$HERE/go-cache-throwaway.tst.sh"
+bash "$HERE/go-test-trimpath.tst.sh"
 if [ "$tier" = full ]; then bash "$HERE/build-stripped.tst.sh"; else slow build-stripped.tst.sh; fi
 if [ "$tier" = full ]; then bash "$HERE/build-warm-mod-cache.tst.sh"; else slow build-warm-mod-cache.tst.sh; fi
 if [ "$tier" = full ]; then bash "$HERE/cli-cross-build.tst.sh"; else slow cli-cross-build.tst.sh; fi

@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -229,10 +228,10 @@ func TestEmbedServePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pg.Close)
-	_, f, _, _ := runtime.Caller(0)
+	// go test runs in the package dir; runtime.Caller's file is module-relative under -trimpath (SPL-3171)
 	dir := os.Getenv("SPOOL_TEST_SQL_DIR")
 	if dir == "" {
-		dir = filepath.Join(filepath.Dir(f), "..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
+		dir = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-rdb", "src", "sql", "postgres", "spool-hub")
 	}
 	if _, err := store.Migrate(ctx, pg.Pool(), dir); err != nil {
 		t.Fatal(err)

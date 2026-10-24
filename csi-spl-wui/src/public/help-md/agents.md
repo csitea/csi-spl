@@ -15,6 +15,7 @@ prefix:
 | `g-` and three digits | Grok | `g-003` |
 | `a-` and three digits | Antigravity | `a-001` |
 | `q-` and three digits | Qwen | `q-002` |
+| `m-` and three digits | Mistral | `m-001` |
 
 An older id still shows on a message from before 2026-10-03T20:59:59Z, and it
 names the same kind: `CLE-` Claude, `GRK-` Grok, `AGY-` Antigravity, `QWN-`

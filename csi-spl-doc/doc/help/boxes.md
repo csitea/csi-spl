@@ -73,7 +73,7 @@ On a wide screen the Boxes page has three panes:
    person's card.
 3. **Right: statistics for the resource you selected** in the middle pane:
    - **Agents**: total, online and offline counts, then one row per agent with
-     its kind (Claude, Antigravity, Grok, Qwen), whether it is online, how long
+     its kind (Claude, Antigravity, Grok, Qwen, Mistral), whether it is online, how long
      its current holder has been seated and when it was last seen.
    - **Hardware**: the CPU model and count, total and free memory and swap in
      use, from the daily snapshot. Then the last 24 hours of load and memory,

@@ -43,12 +43,16 @@ const CLOSE_RE = /^(`{3,})[ \t]*$/
 /* SPL-3062 (owner HUM-10, msg fb2b4cdf): a markdown task-list marker `[ ]` / `[x]`
    before an option is dropped, so `- [ ] (A) text` is option A, not a code
    block; only when an option follows, so `[x] text` stays checkbox X */
-const OPTION_RE = /^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+(?=[([][ \t]*[A-Za-z0-9]{1,3}[ \t]*[)\]][ \t]+\S))?([([])[ \t]*([A-Za-z0-9]{1,3})[ \t]*([)\]])[ \t]+(\S.*)$/
+/* SPL-3202 (owner HUM-10, t1 8f476aa8 msg 64f8633b): a key is 1-8 letters or
+   digits, so `(S180)`, `(WAIT)`, `(LATER)` are options, not a code block */
+const KEY = '[A-Za-z0-9]{1,8}'
+const OPTION_RE = new RegExp(String.raw`^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+(?=[([][ \t]*${KEY}[ \t]*[)\]][ \t]+\S))?([([])[ \t]*(${KEY})[ \t]*([)\]])[ \t]+(\S.*)$`)
 const CHAT_RE = /^chat about this\.?$/i
 /* a line that tries to be an option but is none (`A) x`, `(A] x`, `A. x`): named in pollProblems' reason */
-const NEAR_OPTION_RE = /^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+)?[([]?[ \t]*[A-Za-z0-9]{1,3}[ \t]*[)\].:][ \t]+\S/
-const KEYS_SRC = String.raw`([A-Za-z0-9]{1,3}(?:[ \t]*,[ \t]*[A-Za-z0-9]{1,3})*|none)\b`
-const MARKER_ANSWER_RE = new RegExp(String.raw`^Answer(?:[ \t]+(\d+))?:[ \t]*${KEYS_SRC}`, 'gim')
+const NEAR_OPTION_RE = new RegExp(String.raw`^(?:[-*][ \t]+)?(?:\[[ xX]?\][ \t]+)?[([]?[ \t]*${KEY}[ \t]*[)\].:][ \t]+\S`)
+const KEYS_SRC = String.raw`(${KEY}(?:[ \t]*,[ \t]*${KEY})*|none)\b`
+/* the rest of the line tells a picked key NONE (`NONE — text`) from `none` (no pick) */
+const MARKER_ANSWER_RE = new RegExp(String.raw`^Answer(?:[ \t]+(\d+))?:[ \t]*${KEYS_SRC}([^\n]*)`, 'gim')
 /* SPL-1851: anywhere, not only leading: a reply sent while the caret sat
    before the marker (t1 d64c762a msg b09c5a8c) still counts as the chat */
 const MARKER_CHAT_RE = /Chat:[ \t]*wants to discuss\b/i
@@ -229,7 +233,8 @@ export function parseAnswer(body) {
   }
   const picks = {}
   for (const a of s.matchAll(MARKER_ANSWER_RE)) {
-    picks[a[1] ? Number(a[1]) : 1] = a[2].toLowerCase() === 'none' ? [] : a[2].split(',').map((k) => k.trim().toUpperCase())
+    const none = a[2].toLowerCase() === 'none' && !/^[ \t]*[—-]/.test(a[3])
+    picks[a[1] ? Number(a[1]) : 1] = none ? [] : a[2].split(',').map((k) => k.trim().toUpperCase())
   }
   return Object.keys(picks).length ? { msgId: p[1], chat: false, picks } : null
 }

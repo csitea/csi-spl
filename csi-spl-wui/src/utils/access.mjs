@@ -26,15 +26,18 @@ export function archivePolicyOf(v) {
 }
 
 /**
- * A /v1/view/me body → { humanId, role, tenantOwner, permissions, channelOrder,
- * topicArchivePolicy } (permissions null = unrestricted; channelOrder null =
- * never set, SPL-1034; topicArchivePolicy = the workspace archive setting).
+ * A /v1/view/me body → { humanId, role, roles, tenantOwner, permissions,
+ * channelOrder, topicArchivePolicy } (roles = the whole role set, the primary
+ * first, [] when not sent: spec 153 3.6 reads `admin` in it; permissions null
+ * = unrestricted; channelOrder null = never set, SPL-1034;
+ * topicArchivePolicy = the workspace archive setting).
  */
 export function normalizeMe(body) {
   const b = body && typeof body === 'object' ? body : {}
   return {
     humanId: typeof b.human_id === 'string' ? b.human_id : null,
     role: typeof b.role === 'string' && b.role ? b.role : null,
+    roles: Array.isArray(b.roles) ? b.roles.filter((r) => typeof r === 'string' && r) : [],
     tenantOwner: b.tenant_owner === true,
     permissions: Array.isArray(b.permissions) ? b.permissions.filter((p) => typeof p === 'string') : null,
     channelOrder: Array.isArray(b.channel_order) ? normalizeChannelOrder(b.channel_order) : null,

@@ -20,8 +20,9 @@ export const MONITORING_TABS = Object.freeze([
   Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true, perm: 'costs.read' }),
   /* spec 140 4.1 (SPL-2322): the fleet's live token burn per agent type and agent, operator admins only */
   Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: true }),
-  /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute, operator admins only */
-  Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: true, ready: true }),
+  /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute; operator admins see
+     every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229) */
+  Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true }),
 ])
 
 /** Where /monitoring itself goes (Q1 A: no Overview tab). */
@@ -29,13 +30,27 @@ export const MONITORING_DEFAULT_PATH = MONITORING_TABS[0].path
 
 /**
  * The tabs the bar draws for this reader: the ready ones, the operator-only
- * ones only for an operator, a tab naming a `perm` only when `who.can`
+ * ones only for an operator, a `staff` one for an operator or a workspace
+ * owner or admin (`who.staff`), a tab naming a `perm` only when `who.can`
  * grants it (no `can` = not known yet: hidden; the hub's 403 is the control).
- * @param {{ operator?: boolean, can?: (perm: string) => boolean }} [who]
+ * @param {{ operator?: boolean, staff?: boolean, can?: (perm: string) => boolean }} [who]
  */
 export function visibleMonitoringTabs(who = {}) {
   return MONITORING_TABS.filter((tab) => tab.ready && (!tab.operatorsOnly || who.operator === true)
+    && (!('staff' in tab) || who.operator === true || who.staff === true)
     && (!tab.perm || (typeof who.can === 'function' && who.can(tab.perm) === true)))
+}
+
+/**
+ * Spec 153 3.6 (row B6, SPL-3229): whether the reader is the workspace's
+ * owner or an admin, the hub's own pair (`TenantOwner || Has(rbac.Admin)`):
+ * tenant_owner, or `admin` anywhere in the role set (the primary role
+ * counts too, for a me answer with no `roles`). Not known yet (null): no.
+ * @param {{ tenantOwner?: boolean, role?: string | null, roles?: string[] } | null | undefined} me utils/access.mjs normalizeMe
+ */
+export function monitoringStaff(me) {
+  if (!me) return false
+  return me.tenantOwner === true || me.role === 'admin' || (Array.isArray(me.roles) && me.roles.includes('admin'))
 }
 
 /**

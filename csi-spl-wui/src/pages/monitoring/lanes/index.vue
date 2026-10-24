@@ -4,9 +4,13 @@
      agent id@box, its kind, the scope, the discussion (linked to /t/<uuid>
      when it is this workspace's topic), the issue keys (linked), when the
      row was written and the last token minute. Newest write first, as the
-     hub sends it. For admins of the operator workspace only (the tab shows
-     to them alone, utils/monitoring-tabs.mjs); anyone else reaching the URL
-     sees the hub's 403 as a sentence, never a table.
+     hub sends it. An admin of the operator workspace reads every lane; a
+     workspace's owner or admin (3.6, row B6, SPL-3229) reads the lanes on
+     its own topics from GET /v1/view/lanes: the page asks the fleet route
+     while the operator console shows (or is not known yet) and, once it
+     answers 403, the workspace route for the rest of the page's life. The
+     tab shows to those two alone (utils/monitoring-tabs.mjs); anyone else
+     reaching the URL sees the hub's 403 as a sentence, never a table.
      Refresh (P4): every 60 s while the browser tab is visible (a hidden tab
      makes no call; it catches up when shown), plus a Refresh button, with
      the age of the last answer: amber after 90 s, red after 180 s. -->
@@ -71,15 +75,19 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useOperatorPane } from '~/stores/operator-pane'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
 import { fleetLanesOf, laneIssuePath, laneName, laneTopicPath, lanesStaleLevel, minutesAgo, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 
-type LanesApi = { getFleetLanes: () => Promise<unknown> }
+type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
 type LanesView = ReturnType<typeof fleetLanesOf>
 
 const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
+const operator = useOperatorPane()
+/* the fleet route refused this reader (403): read the workspace's own lanes */
+let own = false
 const view = ref<LanesView | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const busy = ref(false)
@@ -100,7 +108,8 @@ async function load() {
   const mine = ++seq
   busy.value = true
   try {
-    const body = await (useSpoolApi() as unknown as LanesApi).getFleetLanes()
+    const api = useSpoolApi() as unknown as LanesApi
+    const body = await lanesOf(api)
     if (mine !== seq) return
     view.value = fleetLanesOf(body)
     fetchedAt.value = Date.now()
@@ -115,6 +124,18 @@ async function load() {
     } else state.value = 'error'
   } finally {
     if (mine === seq) busy.value = false
+  }
+}
+
+/** The fleet route for an operator admin, else (after its 403) the workspace's own. */
+async function lanesOf(api: LanesApi) {
+  if (own && !operator.visible) return api.getFleetLanes(true)
+  try {
+    return await api.getFleetLanes(false)
+  } catch (e) {
+    if ((e as { status?: number })?.status !== 403 || operator.visible) throw e
+    own = true
+    return api.getFleetLanes(true)
   }
 }
 

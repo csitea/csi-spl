@@ -123,7 +123,9 @@ func TestMembersAdminAPI(t *testing.T) {
 		rr := r.(map[string]any)
 		grant[rr["id"].(string)] = rr["grantable"].(bool)
 	}
-	if len(grant) != len(rbac.RoleIDs) || grant[rbac.BizOwner] || !grant[rbac.Admin] || !grant[rbac.Tester] {
+	// RoleIDs plus time_accountant (specs/107 T065, rdb 0221), which the admin
+	// cannot grant: it holds hours.read and hours.rates, the admin neither.
+	if len(grant) != len(rbac.RoleIDs)+1 || grant[rbac.BizOwner] || !grant[rbac.Admin] || !grant[rbac.Tester] || grant[rbac.TimeAccountant] {
 		t.Fatalf("roles: %v", grant)
 	}
 

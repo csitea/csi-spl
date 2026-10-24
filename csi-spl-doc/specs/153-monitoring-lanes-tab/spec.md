@@ -1,11 +1,17 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
-Version v1.0 (2026-10-23), the panel result, with the claude seat's D1
+Version v1.1 (2026-10-24): v1.0 plus the owner's answer to O1 = B
+(section 7), which changes 3.2 "Who sees it" and adds section 3.6, cases
+C25-C30 and build row B6. Nothing else changed. v1.1 is not reviewed yet:
+the dispatcher places one cross-vendor reviewer on it before B6 is built.
+
+v1.0 (2026-10-23) was the panel result, with the claude seat's D1
 text fix (section 8). Step 2 of the owner rule for a
 big change: the written spec, then the panel, then the build. v0.1
 (`20b5d6eae`) plus the editor's findings, the claude seat's findings and
 re-check, and the agy seat's findings (section 8). Signed by each seat's
-own message on this sha (section 9). Nothing in it is built.
+own message on this sha (section 9). Built since: B1 `41087d88d`, B3
+`b7fba33ad`, B5a `43ceebc3f`, B2 `cfc52d41c`.
 
 Source: prd topic in the owner's workspace,
 `topic:5e7b15c9-2995-427d-8b05-659762fbb9d8`. Issue: SPL-3075 (this spec),
@@ -296,10 +302,12 @@ section 3.3 serves the live list only (decision P6).
   "s" with no plural forms (he and tr do not: "{n} שניות", "sn"; the
   agy seat's call).
 - Sort: newest `updated_at` first. Empty list: one line, "No active lanes".
-- Who sees it: operator admins only (`operatorsOnly: true`), like Tokens:
-  lane rows name fleet boxes, agents and the operator workspace's topics.
-  The hub's 403 is the control; hiding the tab is only the UI. Owner
-  question O1.
+- Who sees it (owner O1 = B, section 7): an operator admin sees every
+  active lane, as built (3.3). A workspace's owners and admins see only
+  the active lanes working on that workspace's own topics (3.6, row B6).
+  Every other member sees no tab. The hub's 403 is the control; hiding
+  the tab is only the UI. Until B6 lands the tab stays `operatorsOnly:
+  true` (B4).
 
 ### 3.3 The hub view the tab reads
 
@@ -380,6 +388,80 @@ The view is empty of links while 207 of 212 rows carry no topic. So:
 - The lane row ALSO shows the issue keys (3.2), so the issue is one click
   away even before the topic chips land (decision P3).
 
+### 3.6 A workspace's owners and admins see their own lanes (O1 = B, row B6)
+
+What is on master, read on `0073343c2` (B1, B2, B3 and B5a landed; B4
+not: `ls csi-spl-wui/src/pages/monitoring/` -> agents, boxes, costs,
+tokens):
+
+- **How a lane is tied to a workspace.** Only by its topic:
+  `fleet_lanes.topic` (`rdb/0096_fleet_lanes.sql:15-29`), filled by
+  `_spawn_lane_put` (`orc/features/spawn-agents/scripts/spawn-core.inc.sh:277-308`,
+  B2): `SPAWN_LANE_TOPIC`, else `LANE_ISSUE_TOPIC`, else the brief's
+  first `topic:<id>` / `/t/<id>`. The row itself lives in the tenant of
+  the box that wrote it (`hub/box_lane.go:128-131`, `x.tenant`), i.e. the
+  operator workspace for the fleet's boxes. An 8-hex short id resolves
+  only among THAT tenant's topics (`hub/box_lane.go:22-23,154`), so a lane
+  is tied to a customer workspace only when its topic is a full uuid. The
+  lane's own issue key (rdb 0221) is an issue of the operator workspace,
+  not of the customer's. A lane with no topic, or with a topic that is not
+  one of the workspace's, is tied to no workspace: the workspace view
+  shows nothing for it.
+- **Why the hub must do the join.** `fleet_lanes` is tenant-scoped by RLS
+  (`rdb/0096_fleet_lanes.sql:33-39`): a session in workspace w1 cannot read
+  the operator's rows. Every piece the join needs already exists:
+  `ListFleetLanes(ctx, op, fleet, now)` in the operator scope
+  (`store/fleet_lane_postgres.go:55-58`), then `DiscussionStates(ctx, w1,
+  topics)` (`store/issue_discussions.go:358`), which reads only w1's
+  messages under w1's RLS (:350-355), so a topic it finds IS a w1 topic,
+  then `canReadTopic(ctx, w1, task, hum)` (`hub/privacy.go:129`) and
+  `FleetLaneIssues(ctx, w1, topics, nil)` (`store/fleet_lane_postgres.go:89`).
+- **The gate today.** `GET /v1/operator/fleet-lanes` admits only
+  `fleetLoadCaller` (`hub/fleet_load.go:120-139`): an admin of the
+  operator workspace (`hub/operator_workspaces.go:99-106`) or the operator
+  service account.
+- **Who is "owner" and "admin".** `rbac.Access` (`rbac/rbac.go:207-212`):
+  owner = `TenantOwner`, true when any role of the member's set is a tenant
+  owner (the system role `biz_owner`, `rbac/rbac.go:68,153`); admin = the
+  role id `admin` anywhere in the set, `Access.Has(rbac.Admin)`
+  (`rbac/rbac.go:70,215`). The hub already gates on exactly that pair:
+  `a.TenantOwner || a.Has(rbac.Admin)` (`hub/embed_staff.go:63`).
+- **How the WUI decides today.** `monitoring.vue:51` passes
+  `visibleMonitoringTabs({ operator: operator.visible, can })`;
+  `operator.visible` is `operatorConsoleVisible` (`wui/utils/operator-console.mjs:63-64`,
+  `wui/stores/operator-pane.ts:40`); an `operatorsOnly` tab needs it
+  (`wui/utils/monitoring-tabs.mjs:34-37`). `normalizeMe`
+  (`wui/utils/access.mjs:33-43`) keeps `role` (the primary one) and
+  `tenantOwner` but drops `roles`, though `GET /v1/view/me` sends the
+  whole set (`hub/rbac.go:96-100`): an admin whose primary role is not
+  `admin` is not seen as one today.
+
+The design:
+
+- `GET /v1/view/lanes?fleet=<default main>`, a member session of
+  workspace W. The gate: `TenantOwner || Has(rbac.Admin)` in W, else 403
+  `forbidden`; the operator service account is refused here (it keeps
+  3.3).
+- The rows: the operator workspace's active lanes (3.2's rule, the same
+  code path as 3.3, factored so both share it) whose `topic` is a topic of
+  W that the caller may open (`DiscussionStates` + `canReadTopic` in W). A
+  lane failing either is absent, never shown with a blank cell.
+- The answer has 3.3's shape, so the page reuses its table, with three
+  differences: `agent_box` is `""` (a fleet box name is the operator's);
+  `issues` = W's issues that `issue_discussions` links to the topic, with
+  their status; the lane's own key is left out (it is an operator
+  workspace issue).
+- Called in the operator workspace by its admin, the route answers the
+  lanes on the operator's own topics; the WUI's operator path still reads
+  3.3, which lists every lane.
+- WUI: `normalizeMe` keeps `roles`; the Lanes tab row gets
+  `operatorsOnly: false, staff: true`, and `visibleMonitoringTabs` draws a
+  `staff` tab for an operator OR for `who.staff === true` (= `tenantOwner`
+  or `roles` holds `admin`); `monitoring.vue` passes `staff`. The page
+  reads 3.3 when `operator.visible`, else `/v1/view/lanes`. No new text
+  key is planned (the tab, the columns and the empty line are B4's); a key
+  B6 does add gets the agy review of the language rule.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -424,6 +506,14 @@ rule" twin, named in its control column.
 | C22 | B5a | the filter with a topic of another tenant | n/a | empty list, never that tenant's issues | Go test; twin: the same link in the caller's tenant is listed |
 | C23 | B5b | topic `/t/<uuid>` with a linked issue: a chip `SPL-n` to `/issues?issue=SPL-n`, with its `aria-label` | no chip | the chip | e2e on the mock bundle |
 | C24 | B5b | a topic with no linked issue | no chip | no chip, no empty row (C) | e2e |
+| C25 | B6 | two active operator lanes, one on a w1 topic, one on a w2 topic: `GET /v1/view/lanes` as an `admin` of w1 | no route | 200, the w1 lane only, `agent_box ""` | Go test on Postgres (RLS, tenant scope); twin: the same call as an admin of w2 lists the w2 lane only. Master today 404 on the route |
+| C25b | B6 | C25 as w1's owner (`biz_owner`, no `admin` role), and as a member whose primary role is `developer` with `admin` as a second role | no route | both as C25 | Go test; twin: the same member without the `admin` role gets 403 (C26) |
+| C26 | B6 | a plain member of w1 (`developer` only): the route, and the tab | no route; no tab | 403 `forbidden`; `visibleMonitoringTabs({ staff: false })` has no lanes | Go test + unit test; twin: `{ staff: true }` has lanes |
+| C26b | B6 | `normalizeMe` on a me body with `roles: ['developer', 'admin']` | `roles` dropped, not staff | staff | unit test on `wui/utils/access.mjs` |
+| C27 | B6 | an operator admin: `GET /v1/operator/fleet-lanes` still lists the w1 AND the w2 lane, with `agent_box` and the own keys; the WUI tab reads that route | as B3 | unchanged (C) | B3's `fleet_lanes_view_test.go` unchanged and green; WUI e2e on the mock bundle as an operator |
+| C28 | B6 | an active lane with no topic, one on an operator topic, one stored with an empty topic after an 8-hex short id of a w1 topic | no route | none of the three in w1's view | Go test; twin: the same lane with the w1 topic's full uuid is listed |
+| C29 | B6 | a w1 lane whose own key is SPL-2 (operator) and whose topic links w1's issue 5 | no route | `issues` = w1's key for 5 with its status only; SPL-2 absent | Go test on Postgres; twin: the operator view of the same lane lists SPL-2 |
+| C30 | B6 | a w1 lane on a w1 topic the calling admin may not open (`canReadTopic` false) | no route | absent | Go test; twin: a topic the caller may open is listed |
 
 ## 5. Build rows
 
@@ -437,11 +527,13 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B4 Lanes tab | wui | `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/lanes/index.vue`; new `wui/utils/monitoring-lanes.mjs`; the hub client's fleet-lanes call; `csi-spl-wui/i18n/locales/*.json` (new keys only); `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; new `tests/unit/monitoring-lanes.test.mjs`; C17 and C3b in an existing monitoring e2e file (or a new one plus the shard-pack test) | B1, B3 | C3b, C15-C20 |
 | B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (one NEW interface method beside `ListIssues` at :392, which keeps its signature, and its memory store body) and `store/issues_postgres.go` (the new method only) | - | C21-C22 |
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
+| B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
 `store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;
 B5b after B5a. B4 and B5b both add locale keys: they land one after the
 other, and each ends with an agy review of its text (the language rule).
+B6 after B2, B3 and B4, and after the v1.1 review.
 
 ## 6. Panel decisions
 
@@ -474,6 +566,17 @@ O1. Who may see the Monitoring Lanes tab?
 (B) Also each workspace's admins, for the lanes working on that workspace's own topics only
 ```
 
+**O1 answered: B** (v1.1). Owner HUM-10, in the topic above:
+
+| msg | text |
+|---|---|
+| `4982c60e` (poll `a063c1ac`) | "Answer: B — Also each workspace's admins, for the lanes working on that workspace's own topics only" |
+| `1b07dd26` | "O1. Who may see the Monitoring Lanes tab? Actually, both the business owners and admins can see them." |
+
+So: an operator admin sees every lane (3.3, as built); each workspace's
+owners (`TenantOwner`) and admins (`admin`) see only the lanes working on
+that workspace's own topics (3.6, row B6). B1-B5 are unchanged.
+
 ## 8. Panel record
 
 | when (UTC) | who | what |
@@ -489,6 +592,7 @@ O1. Who may see the Monitoring Lanes tab?
 | 2026-10-23 22:5x | c-898@sat | D1 fix landed `5a8621a23`; re-sign asks to both seats (msgs `4c458805`, `efdf7279`) |
 | 2026-10-23 22:5x | c-228, a-277 (second box) | both sign `5a8621a23`, no dissent (msgs `0ed0fbf6`, `9f5cd2dd`). Panel closed |
 | 2026-10-23 22:54 | c-002@sat | ACCEPTED the panel result on `0b4e55c9f` (msg `64bc4a7e`); O1 goes to the owner, the build rows get placed |
+| 2026-10-24 | c-995@sat (claude) | v1.1, SPL-3210: O1 = B recorded (section 7), 3.2 changed, 3.6, C25-C30 and B6 added; code read on `0073343c2`; no prd read. One cross-vendor review of v1.1 to follow |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is

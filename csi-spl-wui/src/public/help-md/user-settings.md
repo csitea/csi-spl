@@ -291,8 +291,8 @@ permission. Its sections are:
 - **Agents**: the AI agents seated in the workspace and their online state, the
   fallback-responder order, and a *Connect an agent* block to paste on an
   agent's machine.
-- **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity
-  and Qwen. The four numbers add up to 100. They are a guideline, not a quota.
+- **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity,
+  Qwen and Mistral. The five numbers add up to 100. They are a guideline, not a quota.
 - **Agent takeover** (`/tenant-settings/takeover`): who takes over when an
   agent fails a task. One row per task kind (Specs and docs, Tests, Simple
   coding, Complex coding, Translations, Secrets and personal data). The row's

@@ -105,20 +105,11 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		}
 		v = map[string]any{"role": in.Role, "all": in.All, "free": in.Free}
 	case "put":
-		if in.Role == "" {
-			in.Role = "orch"
+		m, err := askPutBody(in)
+		if err != nil {
+			return nil, err
 		}
-		a := store.FleetAsk{Fleet: in.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary}
-		if why := store.CheckFleetAsk(a); why != "" {
-			return nil, fmt.Errorf("ask: %s", why)
-		}
-		if in.Deadline != "" {
-			if _, err := time.Parse(time.RFC3339, in.Deadline); err != nil {
-				return nil, fmt.Errorf("ask: --deadline must be RFC 3339 (e.g. 2026-10-02T06:00:00Z)")
-			}
-		}
-		v = map[string]any{"ask_id": a.AskID, "role": a.Role, "kind": a.Kind, "from": a.From, "topic": a.Topic,
-			"summary": a.Summary, "deadline_at": in.Deadline}
+		v = m
 	case "enqueue", "lock-next", "pool":
 		return odBody(in)
 	case "category":
@@ -142,39 +133,66 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		}
 		fallthrough
 	default:
-		if why := store.CheckFleetAskOp(in.Op, in.By, in.Reason); why != "" {
-			return nil, fmt.Errorf("ask: %s", why)
-		}
-		if !store.AskIDRe.MatchString(in.AskID) {
-			return nil, fmt.Errorf("ask: --id must be the ask's id (a lowercase UUID)")
-		}
-		if !store.AskPlacementRe.MatchString(in.Place) {
-			return nil, fmt.Errorf("ask: --placement must be <vendor>:<slug> (lowercase)")
-		}
-		if why := store.CheckAskClass(in.Class, in.Flag, in.FlagMsg); why != "" {
-			return nil, fmt.Errorf("ask: %s", why)
-		}
-		if (in.Class != "" || in.Flag != "") && in.Op != store.AskQueue {
-			return nil, fmt.Errorf("ask: --class and --flag go with queue only")
-		}
-		m := map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
-		if in.Place != "" {
-			m["placement"] = in.Place
-		}
-		for k, v := range map[string]string{"class": in.Class, "flag": in.Flag, "flag_msg": in.FlagMsg} {
-			if v != "" {
-				m[k] = v
-			}
-		}
-		if in.Gen != 0 {
-			m["gen"] = in.Gen
-		}
-		if in.Refuse != "" {
-			m["refuse"] = in.Refuse
+		m, err := askOpBody(in)
+		if err != nil {
+			return nil, err
 		}
 		v = m
 	}
 	return json.Marshal(v)
+}
+
+// askPutBody checks a put (role defaults to orch on this copy) and builds its ask object.
+func askPutBody(in AskArgs) (map[string]any, error) {
+	if in.Role == "" {
+		in.Role = "orch"
+	}
+	a := store.FleetAsk{Fleet: in.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary}
+	if why := store.CheckFleetAsk(a); why != "" {
+		return nil, fmt.Errorf("ask: %s", why)
+	}
+	if in.Deadline != "" {
+		if _, err := time.Parse(time.RFC3339, in.Deadline); err != nil {
+			return nil, fmt.Errorf("ask: --deadline must be RFC 3339 (e.g. 2026-10-02T06:00:00Z)")
+		}
+	}
+	return map[string]any{"ask_id": a.AskID, "role": a.Role, "kind": a.Kind, "from": a.From, "topic": a.Topic,
+		"summary": a.Summary, "deadline_at": in.Deadline}, nil
+}
+
+// askOpBody checks an op on one ask (ack, done, queue, release at gen, ...) and builds its object.
+func askOpBody(in AskArgs) (map[string]any, error) {
+	if why := store.CheckFleetAskOp(in.Op, in.By, in.Reason); why != "" {
+		return nil, fmt.Errorf("ask: %s", why)
+	}
+	if !store.AskIDRe.MatchString(in.AskID) {
+		return nil, fmt.Errorf("ask: --id must be the ask's id (a lowercase UUID)")
+	}
+	if !store.AskPlacementRe.MatchString(in.Place) {
+		return nil, fmt.Errorf("ask: --placement must be <vendor>:<slug> (lowercase)")
+	}
+	if why := store.CheckAskClass(in.Class, in.Flag, in.FlagMsg); why != "" {
+		return nil, fmt.Errorf("ask: %s", why)
+	}
+	if (in.Class != "" || in.Flag != "") && in.Op != store.AskQueue {
+		return nil, fmt.Errorf("ask: --class and --flag go with queue only")
+	}
+	m := map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
+	if in.Place != "" {
+		m["placement"] = in.Place
+	}
+	for k, v := range map[string]string{"class": in.Class, "flag": in.Flag, "flag_msg": in.FlagMsg} {
+		if v != "" {
+			m[k] = v
+		}
+	}
+	if in.Gen != 0 {
+		m["gen"] = in.Gen
+	}
+	if in.Refuse != "" {
+		m["refuse"] = in.Refuse
+	}
+	return m, nil
 }
 
 // odBody checks and builds the OD pool's insert, lock and pool ops (spec 134).

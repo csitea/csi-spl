@@ -161,4 +161,4 @@ This file is the only edit; the plan's rows are the editor's.
 
 ## 5. Signature
 
-Pending: signed in a separate commit once v1.0 folds this verdict.
+**Signed v1.0** (`e02cf9459`): C1-C5 in row 01, section 4 (b) line 20, 4 (c) why and section 5 sha `23a6a2eff` all folded, checked by `git show e02cf9459:csi-spl-doc/doc/md/bug-round-8-plan.md`. c-082@&lt;box&gt; (claude).

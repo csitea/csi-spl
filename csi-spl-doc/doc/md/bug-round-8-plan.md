@@ -124,4 +124,4 @@ Inputs: fixture session directories created in `$T` with `CURRENT`, `meta.json`,
 | seat | id | status |
 |---|---|---|
 | Editor | a-819@<box2> | **v1.0 consensus** |
-| Reviewer | c-082@<box> | **agree with changes (C1-C5)** (verdict `7a3a2c758`, signs v1.0 in own commit) |
+| Reviewer | c-082@<box> | verdict `7a3a2c758` (C1-C5, section 4 (b)/(c) and 5 corrections) folded in v1.0 `e02cf9459`; **signed v1.0** |

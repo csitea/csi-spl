@@ -792,6 +792,23 @@ _pp_pidfile_drop() {
   return 0
 }
 
+# The verdict line's name for a failure: its first 3 signature items, as
+# failing=<kind>:<item>,...,+<more> (blanks read '_', so the line still splits
+# on blanks), or nothing for an empty signature. Without it a FAIL line in
+# pre-push.log names no test, and a load flake that passes on the next run
+# (sat api part, c-001@sat 5f972333, 2026-10-24) leaves nothing to chase.
+_pp_sig_names() {  # <sig, one item per line> -> stdout
+  local item out="" n=0
+  while IFS= read -r item; do
+    [[ -n "$item" ]] || continue
+    n=$((n + 1)); [[ "$n" -le 3 ]] || continue
+    item="${item/ /:}"; out+="${out:+,}${item// /_}"
+  done <<<"$1"
+  [[ "$n" -gt 3 ]] && out+=",+$((n - 3))"
+  [[ -n "$out" ]] && printf 'failing=%s' "$out"
+  return 0
+}
+
 _pp_record() {  # <label> <STAT> <secs>
   _PP_NAMES+=("$1"); _PP_STAT+=("$2"); _PP_SECS+=("$3")
 }
@@ -859,7 +876,7 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
   el=$((SECONDS - start))
   if [[ "$brc" -eq 0 ]]; then
     _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
-    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green"
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green $(_pp_sig_names "$tsig")"
     if [[ ( "$rc" -eq 124 || "$rc" -eq 137 ) && -n "$bwt" ]]; then
       # a timeout under box load is not proven a break (SPL-3115): refuse, never blame
       do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree and passed on $base ($bsha): box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
@@ -962,7 +979,7 @@ _pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-s
   old="$(comm -12 <(printf '%s\n' "$tsig") <(printf '%s\n' "$bsig" | sed '/^$/d') | paste -sd';' -)"
   if [[ -n "$new" ]]; then
     _pp_record "$label (NEW on your tree: $new)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
-    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-red new=$(tr ';' '\n' <<<"$new" | wc -l)"
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-red new=$(tr ';' '\n' <<<"$new" | wc -l) $(_pp_sig_names "$(tr ';' '\n' <<<"$new")")"
     do_log "FATAL pre-push: FAIL $label ($note) -- $base $bsha is red too, but NOT with these: NEW on your tree: $new"
     [[ -n "$old" ]] && do_log "INFO pre-push: $label pre-existing: $old"
     return 0

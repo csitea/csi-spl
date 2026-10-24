@@ -50,6 +50,10 @@
 #        green trunk -> still REFUSED (rc 1, FAIL), but logged as a timeout,
 #        never "a NEW failure your commits introduce"; CONTROL: a non-timeout
 #        break on a green trunk (case 1's) keeps that line
+#    20. a FAIL verdict line names its failing items (failing=<kind>:<item>,
+#        at most 3, then +<more>), so a load flake that passes on the next
+#        run can still be chased in pre-push.log; CONTROL: an empty
+#        signature (a timeout with no output) writes no failing= field
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -456,6 +460,15 @@ grep -q 'a NEW failure your commits introduce' "$R.msgs" \
 R="$ROOT/r19c"; case19 "$R" bad; eq "19. CONTROL: a non-timeout break on a green trunk -> REFUSED" 1 "$?"
 grep -q 'FATAL pre-push: FAIL .*-- a NEW failure your commits introduce' "$R.msgs" \
   && pass "19. CONTROL: ... still a NEW failure your commits introduce" || fail "19. CONTROL: ... still a NEW failure your commits introduce" "$(cat "$R.msgs" 2>/dev/null)"
+
+# 20. the FAIL verdict names what failed (case 1's log), at most 3 items
+grep -q 'PART api FAIL .*trunk=[0-9a-f]*-green failing=fail:csi-spl-api_flag_is_not_good$' "$ROOT/r1.log" \
+  && pass "20. case 1's FAIL line names the failing item" || fail "20. case 1's FAIL line names the failing item" "$(cat "$ROOT/r1.log")"
+eq "20. five items -> 3 named, +2" "failing=go-test:TestA,go-test:TestB,test:a_b_c,+2" \
+  "$(_pp_sig_names $'go-test TestA\ngo-test TestB\ntest a b c\ngo-pkg x\npanic y')"
+eq "20. CONTROL: an empty signature -> no failing= field" "" "$(_pp_sig_names '')"
+grep -q 'failing=' "$ROOT/r19.log" \
+  && fail "20. CONTROL: case 19's silent timeout names nothing" "$(cat "$ROOT/r19.log")" || pass "20. CONTROL: case 19's silent timeout names nothing"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

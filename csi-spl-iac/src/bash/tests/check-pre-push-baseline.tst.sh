@@ -34,6 +34,7 @@
 #        c. no lock file is left behind
 #        d. a SIGKILLed run's stable leftover is reaped; a held one is kept
 #        e. (with go on PATH) a second re-check writes no new Go cache entry
+#           (module index off: its entries depend on file age, not the path)
 #        Red control: PP_FUNC_FROM=<the func file before SPL-3128>: 9a, 9d
 #        (reaped) and 9e FAIL there (9e: 10 cache files, then 14).
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
@@ -240,7 +241,10 @@ if command -v go >/dev/null 2>&1; then
   _gc_files() { find "$GOCACHE" -type f ! -name trim.txt ! -name README | wc -l; }
   _go_recheck() { local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
     _pp_run "go" _go_part "$RG" trunkbase >/dev/null 2>&1; _pp_baseline_cleanup "$RG" >/dev/null 2>&1; }
-  export GOCACHE="$ROOT/gocache" GOTOOLCHAIN=local GOFLAGS=
+  # goindex=0: Go's module index caches a dir only once its files are >2 s
+  # old, so a slow runner adds one index entry on the 2nd re-check (10 -> 12,
+  # wf 10 run 40046892424); it is not the build cache this case measures
+  export GOCACHE="$ROOT/gocache" GOTOOLCHAIN=local GOFLAGS="" GODEBUG=goindex=0
   _go_recheck; n1="$(_gc_files)"; _go_recheck; n2="$(_gc_files)"
   eq "9e. a second re-check writes no new Go cache entry (after the first: $n1 files)" "$n1" "$n2"
 else

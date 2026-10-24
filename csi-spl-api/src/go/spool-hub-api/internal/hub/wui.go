@@ -1150,19 +1150,8 @@ func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, string
 	out := make([]byte, 0, len(env))
 	out = append(out, '{')
 	for _, m := range top {
-		switch string(m.key) {
-		case "sig":
-			if wuiStringIs(m.val, "") {
-				continue
-			}
-		case "from_box", "to_box":
-			if wuiStringIs(m.val, WUIBox) {
-				continue
-			}
-		case "channel":
-			if channel != "" && wuiStringIs(m.val, channel) {
-				continue
-			}
+		if wuiTopDropped(m, channel) {
+			continue
 		}
 		if len(out) > 1 {
 			out = append(out, ',')
@@ -1172,23 +1161,45 @@ func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, string
 			out = appendCompactHTML(out, m.val)
 			continue
 		}
-		out = append(out, '{')
-		first := true
-		for _, f := range inner {
-			if string(f.key) == "files" && string(f.val) == "[]" ||
-				string(f.key) == "task_id" && wuiStringIs(f.val, taskID) {
-				continue
-			}
-			if !first {
-				out = append(out, ',')
-			}
-			first = false
-			out = append(append(append(out, '"'), f.key...), '"', ':')
-			out = appendCompactHTML(out, f.val)
-		}
-		out = append(out, '}')
+		out = appendWUIMsg(out, inner, taskID)
 	}
 	return append(out, '}'), parent, true
+}
+
+// wuiTopDropped is trimWUIEnvMap's drop rule for one top member: true
+// leaves it out - an empty sig, a from_box or to_box that is WUIBox, and
+// the channel when one is given and the member names it.
+func wuiTopDropped(m envMember, channel string) bool {
+	switch string(m.key) {
+	case "sig":
+		return wuiStringIs(m.val, "")
+	case "from_box", "to_box":
+		return wuiStringIs(m.val, WUIBox)
+	case "channel":
+		return channel != "" && wuiStringIs(m.val, channel)
+	}
+	return false
+}
+
+// appendWUIMsg appends the trimmed msg object, {...}, to out: its members
+// compacted in order, less an empty files list and a task_id that is the
+// topic.
+func appendWUIMsg(out []byte, inner []envMember, taskID string) []byte {
+	out = append(out, '{')
+	first := true
+	for _, f := range inner {
+		if string(f.key) == "files" && string(f.val) == "[]" ||
+			string(f.key) == "task_id" && wuiStringIs(f.val, taskID) {
+			continue
+		}
+		if !first {
+			out = append(out, ',')
+		}
+		first = false
+		out = append(append(append(out, '"'), f.key...), '"', ':')
+		out = appendCompactHTML(out, f.val)
+	}
+	return append(out, '}')
 }
 
 // wuiEnvField checks one top member as a wire.Envelope decode reads it:

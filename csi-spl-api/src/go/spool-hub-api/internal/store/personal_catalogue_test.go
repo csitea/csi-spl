@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // specs/119 T001 (spec sections 7.3..7.5, 8.1..8.3, 11): the personal realm's
@@ -20,17 +21,17 @@ import (
 // names start TestRLS, so hub-pg.tst.sh's RLS control counts them. No t.Run:
 // that control greps every "--- PASS: TestRLS".
 
-var personalTables = []string{"profile", "settings", "hours_receipts", "receipt_due"}
+var personalTables = []string{"profile", "settings", "hours_receipts", "receipt_due", "notes", "note_items", "note_links"}
 
 // personalCatalogueGaps is T-C1..T-C6 plus the two definer roles, read from
 // the catalogue. Each query returns a row only when its check fails, naming
 // what it found. rt is the runtime login.
 func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []string {
 	checks := []struct{ what, sql string }{
-		{"T-C1 personal holds exactly profile, settings, hours_receipts, receipt_due", `
+		{"T-C1 personal holds exactly profile, settings, hours_receipts, receipt_due, notes, note_items, note_links", `
 			SELECT COALESCE(string_agg(c.relname, ',' ORDER BY c.relname), 'none') FROM pg_class c
 			WHERE c.relnamespace = 'personal'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-			HAVING string_agg(c.relname, ',' ORDER BY c.relname) IS DISTINCT FROM 'hours_receipts,profile,receipt_due,settings'`},
+			HAVING string_agg(c.relname, ',' ORDER BY c.relname) IS DISTINCT FROM 'hours_receipts,note_items,note_links,notes,profile,receipt_due,settings'`},
 		{"T-C1 every personal table is ENABLE + FORCE row security", `
 			SELECT string_agg(format('%s enable=%s force=%s', relname, relrowsecurity, relforcerowsecurity), '; ') FROM pg_class
 			WHERE relnamespace = 'personal'::regnamespace AND relkind IN ('r', 'p') AND NOT (relrowsecurity AND relforcerowsecurity)
@@ -39,7 +40,7 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			SELECT COALESCE(string_agg(format('%s.%s', tablename, policyname), ',' ORDER BY tablename, policyname), 'none')
 			FROM pg_policies WHERE schemaname = 'personal'
 			HAVING string_agg(format('%s.%s', tablename, policyname), ',' ORDER BY tablename, policyname) IS DISTINCT FROM
-			       'hours_receipts.person_scope,profile.person_scope,receipt_due.person_scope,receipt_due.realm_sweeper_read,settings.person_scope'`},
+			       'hours_receipts.person_scope,note_items.person_scope,note_links.person_scope,notes.person_scope,profile.person_scope,receipt_due.person_scope,receipt_due.realm_sweeper_read,settings.person_scope'`},
 		{"T-C1 person_scope is PERMISSIVE ALL TO PUBLIC with the NULLIF person, tenant-unset and not-operator clauses in USING and WITH CHECK", `
 			SELECT string_agg(tablename, ',') FROM pg_policies
 			WHERE schemaname = 'personal' AND policyname = 'person_scope'
@@ -88,13 +89,13 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			SELECT string_agg(attname, ',' ORDER BY attnum) FROM pg_attribute
 			WHERE attrelid = 'personal.profile'::regclass AND attnum > 0 AND NOT attisdropped
 			HAVING string_agg(attname, ',' ORDER BY attnum) IS DISTINCT FROM 'person_id,time_zone,locale,comm_prefs,updated_at'`},
-		{"T-C6 the runtime's UPDATE in personal is profile, settings, receipt_due; DELETE profile, settings", fmt.Sprintf(`
+		{"T-C6 the runtime's UPDATE in personal is profile, settings, receipt_due and the notes tables; DELETE profile, settings and the notes tables", fmt.Sprintf(`
 			SELECT string_agg(format('%%s %%s', p, c.relname), ', ' ORDER BY p, c.relname) FROM pg_class c,
 			       unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
 			WHERE c.relnamespace = 'personal'::regnamespace AND c.relkind = 'r'
 			  AND has_table_privilege(%s, c.oid, p)
 			HAVING string_agg(format('%%s %%s', p, c.relname), ', ' ORDER BY p, c.relname) IS DISTINCT FROM
-			  'DELETE profile, DELETE settings, INSERT hours_receipts, INSERT profile, INSERT receipt_due, INSERT settings, SELECT hours_receipts, SELECT profile, SELECT receipt_due, SELECT settings, UPDATE profile, UPDATE receipt_due, UPDATE settings'`, quoteLit(rt))},
+			  'DELETE note_items, DELETE note_links, DELETE notes, DELETE profile, DELETE settings, INSERT hours_receipts, INSERT note_items, INSERT note_links, INSERT notes, INSERT profile, INSERT receipt_due, INSERT settings, SELECT hours_receipts, SELECT note_items, SELECT note_links, SELECT notes, SELECT profile, SELECT receipt_due, SELECT settings, UPDATE note_items, UPDATE note_links, UPDATE notes, UPDATE profile, UPDATE receipt_due, UPDATE settings'`, quoteLit(rt))},
 		{"T-C6 the only function deleting from hours_receipts is personal.delete_my_receipts", `
 			SELECT string_agg(oid::regprocedure::text, ', ') FROM pg_proc
 			WHERE prosrc ~* 'delete\s+from\s+(personal\.)?hours_receipts'
@@ -232,6 +233,13 @@ func TestRLSPersonalCatalogue(t *testing.T) {
 // plus one closed receipt_due row of W3.
 type realmSeed struct{ p, q, w1, w2, w3 string }
 
+// seedNoteSQL plants one note of $1 (spec 155 B2) with a checklist line and
+// a topic link into workspace $2, in $1's own person scope.
+const seedNoteSQL = `WITH n AS (INSERT INTO personal.notes (person_id, title, position) VALUES ($1, 'Plan', 1) RETURNING person_id, note_id),
+	i AS (INSERT INTO personal.note_items (person_id, note_id, text, position) SELECT person_id, note_id, 'line', 1 FROM n)
+	INSERT INTO personal.note_links (person_id, note_id, kind, workspace_id, ref, label, position)
+	SELECT person_id, note_id, 'topic', $2, gen_random_uuid()::text, 'Plan', 1 FROM n`
+
 // scope sets the three settings transaction-locally; "" leaves one empty.
 func scope(ctx context.Context, tx pgx.Tx, person, tenant, rls string) error {
 	_, err := tx.Exec(ctx, `SELECT set_config('app.person_id', $1, true), set_config('app.tenant_id', $2, true),
@@ -281,6 +289,7 @@ func seedRealm(t *testing.T, pg *Postgres, rt string, plants ...string) (pgx.Tx,
 			{`INSERT INTO personal.receipt_due (person_id, workspace_id, reason, due_at, done_at)
 				VALUES ($1, $2, 'removed', now() - interval '1 day', NULL), ($1, $3, 'access_until', now() - interval '1 day', NULL),
 				       ($1, $4, 'removed', now() - interval '1 day', now())`, []any{who, s.w1, s.w2, s.w3}},
+			{seedNoteSQL, []any{who, s.w1}},
 		}
 		for _, st := range stmts {
 			if _, err := tx.Exec(ctx, st.sql, st.args...); err != nil {
@@ -606,5 +615,76 @@ func TestRLSPersonalReceipts(t *testing.T) {
 	}
 	if strings.Contains(red, "after the call") {
 		t.Errorf("control: with the check dropped the policy still must keep every row outside P's scope:\n%s", red)
+	}
+}
+
+// TestRLSPersonalNotes is spec 155 C5 and C6 at SQL level as the runtime
+// login: P's note, its checklist line and its link are read in P's own
+// scope only (C5's twin), never in Q's, with a workspace set or under the
+// operator scope; a url link to a javascript: address and a msg link with
+// no workspace each violate a CHECK, an https://example.com link inserts.
+// CONTROL: the twin rows are > 0 and the twin insert passes.
+func TestRLSPersonalNotes(t *testing.T) {
+	pg := rlsStore(t)
+	_, rt := runtimeSession(t)
+	ctx := context.Background()
+	tx, s := seedRealm(t, pg, rt)
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var who string
+	var super, bypass bool
+	if err := tx.QueryRow(ctx, `SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(&who, &super, &bypass); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("C5 runs as %s rolsuper=%t rolbypassrls=%t", who, super, bypass)
+	if super || bypass {
+		t.Fatalf("C5 needs a role with rolsuper f and rolbypassrls f, got %s %t %t", who, super, bypass)
+	}
+	for _, tb := range []string{"notes", "note_items", "note_links"} {
+		for _, c := range []struct {
+			name, person, tenant, rls string
+			want                      bool
+		}{
+			{"twin: P's own scope", s.p, "", "", true},
+			{"Q's scope", s.q, "", "", false},
+			{"P's scope with a workspace set", s.p, s.w1, "", false},
+			{"the operator scope", "", "", "operator", false},
+		} {
+			var n int
+			err := inSavepoint(ctx, tx, func(sp pgx.Tx) error {
+				if err := scope(ctx, sp, c.person, c.tenant, c.rls); err != nil {
+					return err
+				}
+				return sp.QueryRow(ctx, `SELECT count(*) FROM personal.`+tb+` WHERE person_id = $1`, s.p).Scan(&n)
+			})
+			t.Logf("C5 %s reads %d row(s) of P's personal.%s", c.name, n, tb)
+			if err != nil || (n > 0) != c.want {
+				t.Errorf("C5 %s on personal.%s: %d row(s) err %v, want rows=%t", c.name, tb, n, err, c.want)
+			}
+		}
+	}
+	for _, c := range []struct {
+		name, kind, ref, constraint string
+		workspace                   any
+	}{
+		{"twin: an https://example.com url link", "url", "https://example.com", "", nil},
+		{"a url link to javascript:x", "url", "javascript:x", "note_links_url_http", nil},
+		{"a msg link with no workspace", "msg", uuid4(), "note_links_url_no_workspace", nil},
+	} {
+		err := inSavepoint(ctx, tx, func(sp pgx.Tx) error {
+			if err := scope(ctx, sp, s.p, "", ""); err != nil {
+				return err
+			}
+			_, err := sp.Exec(ctx, `INSERT INTO personal.note_links (person_id, note_id, kind, workspace_id, ref, position)
+				SELECT person_id, note_id, $2, $3, $4, 2 FROM personal.notes WHERE person_id = $1`, s.p, c.kind, c.workspace, c.ref)
+			return err
+		})
+		t.Logf("C6 %s: err %v", c.name, err)
+		var pe *pgconn.PgError
+		switch {
+		case c.constraint == "" && err != nil:
+			t.Errorf("C6 %s: %v, want it inserted", c.name, err)
+		case c.constraint != "" && (!errors.As(err, &pe) || pe.Code != "23514" || pe.ConstraintName != c.constraint):
+			t.Errorf("C6 %s: err %v, want the CHECK %s (23514)", c.name, err, c.constraint)
+		}
 	}
 }

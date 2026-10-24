@@ -273,7 +273,8 @@ func personRows(ctx context.Context, q interface {
 
 // realmSeedPG seeds P and Q with a row in every personal table: profile and
 // limits through the runtime store, a receipt and a receipt_due row as the
-// migrate login in the person's own scope.
+// migrate login in the person's own scope, and a note with its checklist
+// line and link (spec 155 B2).
 func realmSeedPG(t *testing.T) (pg, rt *Postgres, p, q string) {
 	t.Helper()
 	f, pg, rt := pgRealmFix(t)
@@ -292,7 +293,10 @@ func realmSeedPG(t *testing.T) (pg, rt *Postgres, p, q string) {
 			if _, err := tx.Exec(ctx, `SELECT set_config('app.person_id', $1, true)`, who); err != nil {
 				return err
 			}
-			_, err := tx.Exec(ctx, `INSERT INTO personal.receipt_due (person_id, workspace_id, reason) VALUES ($1, $2, 'removed')`, who, "ws-d-"+uuid4())
+			if _, err := tx.Exec(ctx, `INSERT INTO personal.receipt_due (person_id, workspace_id, reason) VALUES ($1, $2, 'removed')`, who, "ws-d-"+uuid4()); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, seedNoteSQL, who, "ws-n-"+uuid4())
 			return err
 		})
 		if err != nil {

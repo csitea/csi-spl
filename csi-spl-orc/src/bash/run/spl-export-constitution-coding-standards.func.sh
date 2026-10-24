@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# The qto node of the developer guide's "Coding Standards" section: the ONE
-# place its id lives (coding-standards-panel-plan.md section 3.2). Empty
-# until build row 01 lands that section and relays its node id.
-EXPORT_CS_NODE_ID=""
+# The qto node of the developer guide's "Coding Standards" section (qto doc
+# c65bbfbd, depth 1, relayed by build row 01, SPL-3249): the ONE place its
+# id lives (coding-standards-panel-plan.md section 3.2).
+EXPORT_CS_NODE_ID="5396f07f-c552-4cc4-a2e1-f4d29d060d43"
 _ECS_BEGIN='<!-- BEGIN CODING STANDARDS'
 _ECS_END='<!-- END CODING STANDARDS -->'
 

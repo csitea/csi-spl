@@ -206,3 +206,36 @@ describe('the WUI wiring', () => {
     assert.match(src, /v-if="form\.multi[^"]*"[^>]*data-testid="poll-send"|data-testid="poll-send"[^>]*v-if="form\.multi/)
   })
 })
+
+/* SPL-3202 (owner HUM-10, t1 8f476aa8 msg 64f8633b): prd msg 01ec04b6, keys of 4 characters */
+describe('SPL-3202: option keys of up to 8 letters or digits', () => {
+  const LIMITS = 'Default limit for every other secret (an enabled Secret Manager version)\n(S90) 90 days\n(S180) 180 days\n(S365) 365 days\n'
+    + 'Default limit for a service account key\n(K90) 90 days\n(K180) 180 days\n(K365) 365 days'
+  const days = (p) => ['90', '180', '365'].map((d) => ({ key: `${p}${d}`, text: `${d} days` }))
+  it('the owner\'s form is two radio questions keyed S90..K365, not a code block', () => {
+    assert.deepEqual(parsePoll(LIMITS), {
+      multi: false,
+      questions: [
+        { text: 'Default limit for every other secret (an enabled Secret Manager version)', kind: 'radio', options: days('S') },
+        { text: 'Default limit for a service account key', kind: 'radio', options: days('K') },
+      ],
+    })
+    assert.deepEqual(pollProblems(`intro\n${fence(LIMITS)}\nend`), [])
+    assert.deepEqual(splitPolls(fence(LIMITS)).map((s) => s.type), ['poll'])
+  })
+  it('its answer round-trips', () => {
+    const b = answerBody(parsePoll(LIMITS), [['S180'], ['K365']], MID)
+    assert.equal(b, `Poll: ${MID}\nAnswer 1: S180 — 180 days\nAnswer 2: K365 — 365 days`)
+    assert.deepEqual(parseAnswer(b).picks, { 1: ['S180'], 2: ['K365'] })
+  })
+  it('a picked key NONE (prd msg 8a3939f7) is a pick; a bare none stays no pick', () => {
+    const p = parsePoll('What did you mean?\n(ALL) Keep all\n(NONE) Leave them out\n(LATER) Tick again')
+    assert.deepEqual(p.questions[0].options.map((o) => o.key), ['ALL', 'NONE', 'LATER'])
+    assert.deepEqual(parseAnswer(answerBody(p, [['NONE']], MID)).picks, { 1: ['NONE'] })
+    assert.deepEqual(parseAnswer(`Poll: ${MID}\nAnswer: none`).picks, { 1: [] })
+  })
+  it('control: a key of 9 characters is no option', () => {
+    assert.equal(parsePoll('Q?\n(ABCDEFGHI) nine'), null)
+    assert.equal(parsePoll('Q?\n(ABCDEFGH) eight').questions[0].options[0].key, 'ABCDEFGH')
+  })
+})

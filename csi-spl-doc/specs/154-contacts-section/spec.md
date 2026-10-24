@@ -3,7 +3,9 @@
 Version v1.1 draft (2026-10-24), NOT signed yet: it folds the owner's five
 answers (section 9) into v1.0 (`225f4e583`, signed by both panel seats,
 section 10). The two review seats sign v1.1 in their own messages before it
-is final. Step 2 of the owner rule for a big change: the written spec, then
+is final. The agy seat signed `13ae1f710` (msg `fde59b73`); the claude
+seat's five WRONG rows (W1-W5, `seat-claude-v11.md`) are folded in this
+version and wait for its re-check. Step 2 of the owner rule for a big change: the written spec, then
 the panel, then the build. v1.0 by c-951@sat, v1.1 by c-988@sat (both
 claude). Nothing in it is built.
 
@@ -190,7 +192,12 @@ consent screen. Contacts adds one scope; it is not a second login:
    already in another workspace, the switch answers 409
    `contacts_sync_elsewhere`, and the settings page says that sync is on in
    another of their workspaces and must be turned off there first (P9).
-   That answer tells the person only about their own row.
+   That answer tells the person only about their own row. How B3 writes
+   it: first an UPDATE of the binding in W (visible in W's scope); when
+   that touches 0 rows, a plain INSERT, whose unique violation (23505) is
+   the 409. Never `INSERT … ON CONFLICT (human_id) DO UPDATE`: against a
+   binding in another workspace, invisible from W, that raises an RLS
+   error (42501), not 23505 (seat note N5).
 4. Turning contacts off in settings stops the contacts sync and keeps the
    connection; disconnect (149 2.4) ends both.
 5. **Leaving W ends W's binding, never the list.** `contacts_sync`
@@ -230,7 +237,9 @@ The owner's "searchable from the omnibox" is the composer's `/search <q>`
   workspace-scoped reads of the rest of the search, never nested in one
   (`TestPersonScopeCallers`, 1.2 row 26). An admin's search does not see a
   member's contacts, and neither does the operator scope (2.6).
-- A hit shows the name, email and phone, and its actions (2.4).
+- A hit shows the name, email and phone. Clicking it opens the contact
+  card (2.7), which carries `member_id` and the actions (2.4); B5 does not
+  call the member match (seat note N6).
 - The command palette lists contacts in its existing `people` group
   (B10; `PALETTE_GROUPS` stays at six, `usePaletteItems.ts:40`), filled
   from `GET /v1/me/contacts` the first time the palette opens. A contact
@@ -429,11 +438,15 @@ Contacts are personal data of people who never agreed to be in Spool.
   door, the realm's precedent (`personal.due_receipts`, `0168:168-176`):
   `personal.purge_deleted_contacts(before timestamptz) RETURNS TABLE
   (person_id text, pending_google boolean)`. The function is owned by a
-  new NOLOGIN NOBYPASSRLS role `spool_realm_contacts_purger`, which holds
-  column `SELECT (person_id, deleted_at, deleted_by, google_resource)` and
-  `DELETE` on `personal.contacts` only. The role gets two policies of its
-  own, `FOR SELECT` and `FOR DELETE` `TO spool_realm_contacts_purger
-  USING (deleted_at IS NOT NULL)`. The door deletes the rows soft-deleted
+  new NOLOGIN NOBYPASSRLS role `spool_realm_contacts_purger`. It holds
+  `USAGE, CREATE ON SCHEMA personal`, as 0168 gives its two roles
+  (`0168:156`), because the door is created as that role (`SET LOCAL
+  ROLE`, `0168:167`) and the CREATE FUNCTION is refused without it. On
+  tables it holds only column `SELECT (person_id, deleted_at, deleted_by,
+  google_resource)` and `DELETE` on `personal.contacts`. The role gets two
+  policies of its own, `realm_contacts_purger_read` `FOR SELECT` and
+  `realm_contacts_purger_delete` `FOR DELETE`, both `TO
+  spool_realm_contacts_purger USING (deleted_at IS NOT NULL)`. The door deletes the rows soft-deleted
   before `before` and returns each person whose purged rows held an unsent
   Google delete. EXECUTE goes to the runtime by name in
   `roles/runtime-grants.sql` (P11). For those persons the hub sets
@@ -441,6 +454,23 @@ Contacts are personal data of people who never agreed to be in Spool.
   delete did not reach Google (C7c). The door runs on `RunSweeper`'s
   retention (`hub/server.go:586`) and needs no Google connection, so it
   works before B8.
+  **Who calls it (W4).** B2's store method `PurgeDeletedContacts(ctx,
+  before)` in `store/personal_contacts_postgres.go` (and its memory twin)
+  runs the door in a plain pool transaction with no `app.*` setting, since
+  the door's own policies need none. It never opens `asOperator` or
+  `inTenant`: a function in a `personal*` file that opens a workspace or
+  operator scope is "mixed" and fails `TestPersonScopeCallers`
+  (`personal_scope_test.go:78`, :111-112). The `status_detail` write is a
+  separate B2 method, `MarkContactsPurgePending(ctx, persons)` in
+  `store/contacts_sync_postgres.go`, under `asOperator`. The hub calls the
+  two one after the other (C2e).
+  **The post-deploy RLS check (W2).** `do_spl_db_rls_check` with
+  `EXPECT_NOT_LIFTABLE=1` lists every SECURITY DEFINER function the runtime
+  can EXECUTE as a lift path, except an allow-list by exact name
+  (`csi-spl-orc/src/bash/run/spl-db-rls-check.func.sh:84`, today
+  `due_receipts` and `delete_my_receipts`). B1 adds
+  `purge_deleted_contacts` there, or the check exits 5 on dev and prd once
+  B1 is deployed (C1d).
 - **Never logged**: no contact value (name, email, phone) in a log line, an
   error body or a metric label; logs carry `contact_id` only (C12).
 - **Export**: `GET /v1/me/contacts/export` answers the person's contacts
@@ -448,7 +478,10 @@ Contacts are personal data of people who never agreed to be in Spool.
 - **Erase one**: `DELETE /v1/me/contacts/{id}` removes the contact from
   every read at once. If a Google delete must be sent (the contact is
   linked under the bound account and the binding is enabled), it is a soft
-  delete (`deleted_at = now()`, `deleted_by = 'member'`): the cycle sees it
+  delete. The binding may be in another workspace and invisible from the
+  session's scope, so B3 reads it by `human_id` under the operator scope
+  (`contacts_sync` has `operator_scope`), through a B2 method in
+  `store/contacts_sync_postgres.go` (seat note N4). A soft delete sets `deleted_at = now()` and `deleted_by = 'member'`: the cycle sees it
   through `out_cursor`, calls `people.deleteContact`, then hard-deletes the
   row (C17b). With nothing to send to Google it is a hard delete at once
   (C7b).
@@ -545,7 +578,10 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
   the panel header.
 - **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
   panel shows only members, with no filter and no Add button, exactly as
-  today apart from the new order.
+  today apart from the new order. The WUI learns the switch from the
+  `contacts` field of `GET /v1/view/me` (2.9), which `stores/access.ts`
+  already loads once per page life (:7-8), so it never calls
+  `/v1/me/contacts` to find out (C24f).
 - In the 149 settings section `calendar-google`: a **Contacts** switch
   (connect with `want=contacts`; off stops the sync), last sync time and
   status, Sync now. On 409 `contacts_sync_elsewhere` it says that sync is
@@ -572,7 +608,11 @@ an expired token, create, update with an etag check, delete, a 429) and
 cnf `contacts.workspaces` (per env, `[]` = off), as `gcal.workspaces`
 (149 2.9). In a workspace outside it, every `/v1/me/contacts*` route
 answers 404, the People panel shows members only (2.7) and `/search`
-returns no `contact` section. The person's list itself is untouched and shows again in any
+returns no `contact` section. `GET /v1/view/me` (`hub/rbac.go:548`,
+handler :122, body `meBody` :93) gains one field, `contacts: true|false`,
+true when the session's workspace is inside the switch; it is a cnf
+lookup with no query, so the route's round trips do not change (W5,
+C6b). The person's list itself is untouched and shows again in any
 workspace inside the switch. Turning it on in an env is an owner go (S4).
 The Google part also needs `gcal.workspaces`.
 
@@ -623,10 +663,12 @@ CREATE POLICY person_scope ON personal.contacts
     WITH CHECK (person_id = NULLIF(current_setting('app.person_id', true), '')
            AND NULLIF(current_setting('app.tenant_id', true), '') IS NULL
            AND current_setting('app.rls_scope', true) IS DISTINCT FROM 'operator');
--- The purge door (2.6): role spool_realm_contacts_purger, created and
--- granted as 0168:51-75 does for its two roles; column SELECT (person_id,
--- deleted_at, deleted_by, google_resource) + DELETE on personal.contacts;
--- policies FOR SELECT and FOR DELETE TO spool_realm_contacts_purger
+-- The purge door (2.6): role spool_realm_contacts_purger, created as
+-- 0168:51-75 does for its two roles; GRANT USAGE, CREATE ON SCHEMA personal
+-- (as 0168:156; the door is created as that role); on tables only column
+-- SELECT (person_id, deleted_at, deleted_by, google_resource) + DELETE on
+-- personal.contacts; policies realm_contacts_purger_read FOR SELECT and
+-- realm_contacts_purger_delete FOR DELETE TO spool_realm_contacts_purger
 -- USING (deleted_at IS NOT NULL); the function
 -- personal.purge_deleted_contacts(before timestamptz)
 -- RETURNS TABLE (person_id text, pending_google boolean), SECURITY DEFINER,
@@ -707,6 +749,7 @@ decides the kill switch (2.9), the Message match (O3) and the Invite target
 | `PUT /v1/me/contacts/sync` `{enabled}` | person | 204; 409 `gcal_not_connected` without a connection in this workspace; 409 `scope_missing` with a URL to add the scope; 409 `contacts_sync_elsewhere` when the person's binding is in another workspace |
 | `POST /v1/me/contacts/sync` | person | 202; 409 `sync_in_progress` while the lease is held; 409 `gcal_not_connected` when no binding is in this workspace |
 | `GET /v1/view/search?q=` | person | gains a `contact` section, own rows only |
+| `GET /v1/view/me` | member | (existing route) gains `contacts: true\|false`, the kill switch for the session's workspace (2.9) |
 | `OPTIONS` on each `/v1/me/contacts*` path | browser preflight | as every `/v1/me` route (149 section 4) |
 
 Errors: `{"error":"<code>"}`: `not_found` 404 (workspace off, or not the
@@ -731,7 +774,9 @@ W1 and W2 two workspaces.
 | C2 | B1 | (v1.1) a row of P2 in `personal.contacts`, read under P1's `app.person_id`; under P2's with `app.tenant_id` set; under the operator scope | n/a | 0 rows each | Postgres test at SQL level, as `personal_catalogue_test.go`; twin: under P2's `app.person_id` alone it is read |
 | C2b | B1 | insert a contact with all four empty | n/a | CHECK violation | Postgres test; twin: one value set inserts |
 | C2c | B1 | (v1.1) a second `contacts_sync` row for the same human in another workspace | n/a | unique violation | Postgres test; twin: another human's row inserts |
+| C1d | B1 | (v1.1, W2) `do_spl_db_rls_check EXPECT_NOT_LIFTABLE=1` with the door deployed | pass | pass (C) | `spl-db-rls-check.tst.sh`: a new case with `purge_deleted_contacts` allow-listed passes, and an unlisted definer is still exit 5 (as case 7's `second_definer`, :137-139) |
 | C2d | B1 | (v1.1) the purge door as the runtime: rows soft-deleted 31 days ago of P1 and P2 | n/a | both deleted, the result names each person once; rows 29 days old and live rows stay | Postgres test; twin: the runtime's own `DELETE` under the operator scope deletes 0 rows |
+| C2e | B2 | (v1.1, W4) `PurgeDeletedContacts` through the store, then `MarkContactsPurgePending` | n/a | as C2d through the store; the binding's `status_detail` set for each person returned; `TestPersonScopeCallers` passes | Postgres + memory test; twin: the runtime's own `DELETE` under the operator scope deletes 0 rows |
 | C3 | B2 | (v1.1) store: P2 lists, reads, patches, deletes P1's contact | n/a | not found, nothing changed | Go test, memory and Postgres; twin: P1 does each |
 | C3b | B2 | (v1.1) P1's list read through a W1 session and through a W2 session | n/a | the same rows | Go test, memory and Postgres |
 | C3c | B2 | (v1.1) `TestPersonScopeCallers` with the contacts methods | pass | pass (C); each contacts method that calls `inPerson` is in `personCallers`, `realmTenantCallers` stays empty | without the `personCallers` lines the test fails ("inPerson callers: new [...]") |
@@ -739,13 +784,14 @@ W1 and W2 two workspaces.
 | C4b | B3 | (v1.1) `POST /v1/me/contacts` from an act-as clone session, and from an agent session | 404 (no route) | 403 `person_only` | Go test; twin: the admin's own session gets 201 |
 | C5 | B3 | `POST /v1/me/contacts` with `FirstName`, `LastName`, `first.last@example.com`, `+1 555 010 0000` | 404 | 201, the four values back | Go test |
 | C6 | B3 | the same in a workspace not in `contacts.workspaces` | 404 | 404 (C) | Go test; twin (v1.1): the same person's list read from a workspace inside the switch is unchanged |
+| C6b | B3 | (v1.1, W5) `GET /v1/view/me` in a workspace outside `contacts.workspaces`, and inside it | `contacts` absent | `contacts: false`, then `contacts: true` | Go test; `TestRoundTripsPerRequest` unchanged (C) |
 | C7 | B3 | export | 404 | CSV header `first_name,last_name,email,phone,google_resource`, own rows only | Go test with two persons |
 | C7b | B3 | delete a contact not linked under the bound account | n/a | the row is gone (hard) | Go test; twin: linked and the binding enabled, soft |
 | C7c | B3 | (v1.1) a member-deleted, linked row 31 days old whose Google delete never went out | n/a | purged by the door; the binding's `status_detail` set | Go test, fake clock; twin: 29 days old stays |
 | C7d | B3 | (v1.1) `PUT /v1/me/contacts/sync {enabled:true}` in W2 while P1's binding is in W1 | 404 | 409 `contacts_sync_elsewhere`; W1's binding unchanged | Go test; twin: with no binding elsewhere, 204 |
 | C8 | B4 | (v1.1) P1 (in W1 and W2, binding in W1) is removed from W1 (`RemoveMember`) | contacts n/a | P1's list unchanged and read from W2; the W1 `contacts_sync` row gone | Postgres test; control: the row count of P1's list before and after |
 | C8b | B4 | (v1.1) a demo user with no other seat is banned (`BanMember`) and the stay expires (`demo_stay.go`) | contacts n/a | the human is deleted, so the list is gone | Postgres test; twin: a demo human with a seat in another workspace keeps the list |
-| C8c | B4 | (v1.1) a clone is retired (`clones.go` sweep) | contacts n/a | the clone holds 0 contacts before and after (C4b refuses its writes) | Postgres test |
+| C8c | B4 | (v1.1) a clone is retired (`clones.go` sweep) | contacts n/a | the clone holds 0 contacts before and after (C4b refuses its writes) | Postgres test; at store level this passes trivially, since the store does not gate a clone: C4b is the real control (seat note N7) |
 | C8d | B4 | (v1.1) a channel guest is erased (`embed_visitor_messages.go:128`), or any human row is deleted | contacts n/a | its list is gone (FK cascade) | Postgres test; twin: another person's list stays |
 | C8e | B3 | (v1.1) `DELETE /v1/me/contacts?scope=spool` | 404 | 0 rows of P1's list from every workspace; P1's binding `enabled = false` | Go test, memory and Postgres; twin: P2's list stays |
 | C9 | B5 | `/v1/view/search?q=FirstName` as P1 | no `contact` section | P1's matching contact in it | Go test |
@@ -786,7 +832,7 @@ W1 and W2 two workspaces.
 | C24c | B9 | (amendment) a presence frame turns B online | n/a | B moves into group 1 at its A-Z place | unit test; twin: B offline again moves back |
 | C24d | B9 | (amendment) the filter "In this workspace" | n/a | groups 1 and 2 only; contacts gone; a contact matched to a member stays as that member's row | unit test; twin: All shows group 3 |
 | C24e | B9 | (amendment) a contact whose `member_id` names member A | n/a | one row for A, with the "contact" tag, not two | unit test |
-| C24f | B9 | (amendment) a workspace outside `contacts.workspaces` | n/a | members only, no filter, no Add button; `GET /v1/me/contacts` not called | e2e on the mock bundle |
+| C24f | B9 | (amendment) a workspace outside `contacts.workspaces` | n/a | members only, no filter, no Add button; `GET /v1/me/contacts` not called (the panel reads `contacts: false` from `/v1/view/me`, C6b) | e2e on the mock bundle; twin: with `contacts: true` the list is called once |
 | C25 | B9 | initial JS budget | - | not raised (C) | `csi-spl-orc/src/bash/scripts/perf-budget.py` |
 | C26 | B10 | (amended) contacts in the palette's `people` group | 6 groups, no contact rows | still 6 groups; contact rows in `people`, filled on first open; a contact matched to a member appears once | wui unit test on `usePaletteItems.ts`; control: `PALETTE_GROUPS` length 6 |
 | C27 | B11 | the new keys in every locale; the two ratchet counts not raised | missing | present | `i18n-untranslated` and `i18n-no-raw-text` tests |
@@ -811,15 +857,15 @@ the row count stays twelve.
 
 | row | area | files (only these) | after | cases | test | author | R7 reviewer (backup) |
 |---|---|---|---|---|---|---|---|
-| B1 data | rdb, api | new `rdb/0223_contacts.sql` (section 3; the number re-checked at build time); `roles/runtime-grants.sql` (the `personal.contacts` grant and the door's EXECUTE, beside :45-51); `store/crosstenant_test.go` (seed `contacts_sync` in `seedTenantAll` (:28), beside its `gcal_connections` seed (`seedGcal`, :495, :503), on that row's tenant and human; the comment at :492-493 calls that human "the seeded member", and that it holds a `tenant_memberships` row is unchecked, I believe; if it does not, B1 seeds one); `store/personal_catalogue_test.go` (`personalTables` :23, the table and policy lists :30-42, the runtime grant list :91-97, the definer-role checks :109-121 for the third role and its door, plus a T-R7-like check that the purger role holds no grant on the other realm tables); a new `store/contacts_rls_test.go` (C2, C2c, C2d at SQL level) | - (v1.0: O5, answered B) | C1-C2d | `cd csi-spl-api/src/go/spool-hub-api && go test ./internal/store/ -run 'TestRLS\|TestCrossTenant\|TestContactsRLS'` against Postgres (hub-pg.tst.sh); full tier | claude | grok (claude) |
-| B2 store | api | new `store/personal_contacts.go`, `store/personal_contacts_memory.go`, `store/personal_contacts_postgres.go`, `store/personal_contacts_test.go` (the list, `inPerson` only); new `store/contacts_sync.go`, `store/contacts_sync_memory.go`, `store/contacts_sync_postgres.go`, `store/contacts_sync_test.go` (the binding: workspace and operator scope only, no `personal` prefix); one field in `store/memory.go`; the new method names in `personCallers` in `store/personal_scope_test.go` (:25) | B1 | C3-C3c | the four test files, memory and Postgres; `go test ./internal/store/ -run TestPersonScopeCallers`; full tier | claude | grok (claude) |
-| B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase one and all, the sync switch with 409 `contacts_sync_elsewhere`, the `realmRefuses` gate); one route line and one Options field in `hub/server.go`; one opts line in `api/cmd/spool/hub.go` (as 149 B5); the purge door call on `RunSweeper`'s retention; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7d, C8e, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
+| B1 data | rdb, api, orc | new `rdb/0223_contacts.sql` (section 3; the number re-checked at build time); `roles/runtime-grants.sql` (the `personal.contacts` grant and the door's EXECUTE, beside :45-51); `store/crosstenant_test.go` (seed `contacts_sync` in `seedTenantAll` (:28), beside its `gcal_connections` seed (`seedGcal`, called :495, the func :504), on that row's tenant and human; that human holds a membership: `pg.Admit(…, BootstrapOwner: true)` :159-160); `store/personal_catalogue_test.go` (`personalTables` :23, the table and policy lists :30-42 with the purger's two named policies, the runtime grant list :91-97, the definer-role checks :103-126 (EXECUTE :103-108, NOLOGIN :109-113, count :114-121, no login holds a realm role's privileges :122-126) for the third role and its door, plus a T-R7-like check that the purger role holds no grant on the other realm tables; W1: one contacts row per person in `seedRealm` (:256, its inserts :269-288), or `TestRLSPersonalPolicy`'s "P reads P (control)" (:337) reads 0 rows); `store/personal_rls_test.go` (W1: `TestRLSPersonStore` loops `personalTables` (:317), so `realmSeedPG` (:277-301) gets one raw `INSERT INTO personal.contacts` per person under `set_config('app.person_id', …)`, as its `receipt_due` insert :291-297, because B2's store does not exist yet); a new `store/contacts_rls_test.go` with tests named `TestRLSContacts…` (C2, C2c, C2d at SQL level; the `^TestRLS` name puts them under the hub-pg RLS control, `hub-pg.tst.sh:247-249`); W2: `csi-spl-orc/src/bash/run/spl-db-rls-check.func.sh` (`purge_deleted_contacts` in the allow-list :84 and its `@description` :15-21) and a new case in `csi-spl-orc/src/bash/tests/spl-db-rls-check.tst.sh` (after case 8, :143) | - (v1.0: O5, answered B) | C1-C2d | `cd csi-spl-api/src/go/spool-hub-api && go test ./internal/store/ -run 'TestRLS\|TestCrossTenant'` against Postgres (hub-pg.tst.sh); `bash csi-spl-orc/src/bash/tests/spl-db-rls-check.tst.sh`; full tier | claude | grok (claude) |
+| B2 store | api | new `store/personal_contacts.go`, `store/personal_contacts_memory.go`, `store/personal_contacts_postgres.go`, `store/personal_contacts_test.go` (the list, `inPerson` only); new `store/contacts_sync.go`, `store/contacts_sync_memory.go`, `store/contacts_sync_postgres.go`, `store/contacts_sync_test.go` (the binding: workspace and operator scope only, no `personal` prefix); W4: `PurgeDeletedContacts(ctx, before)` in the `personal_contacts` files (the door in a plain pool transaction, no `app.*` setting, never `asOperator`), `MarkContactsPurgePending(ctx, persons)` and the read of a person's binding by `human_id` (N4) in the `contacts_sync` files under `asOperator`; one field in `store/memory.go`; the new method names in `personCallers` in `store/personal_scope_test.go` (:25) | B1 | C2e, C3-C3c | the four test files, memory and Postgres; `go test ./internal/store/ -run TestPersonScopeCallers`; full tier | claude | grok (claude) |
+| B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase one and all, the sync switch with 409 `contacts_sync_elsewhere`, the `realmRefuses` gate); one route line and one Options field in `hub/server.go`; one opts line in `api/cmd/spool/hub.go` (as 149 B5); the call of B2's `PurgeDeletedContacts` then `MarkContactsPurgePending` on `RunSweeper`'s retention; W5: `hub/rbac.go` (one `contacts` field in `meBody` :93, one line in `handleViewMe` :122) and its test; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7d, C6b, C8e, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
 | B4 leave keeps, erase erases | api | tests only (the behaviour is B1's FKs and B3's gate): new Postgres cases in `store/humans_rbac_test.go` (remove), `store/demo_stay_test.go` (ban, stay), `store/clones_test.go` (retire) and one human-delete case; the memory store drops the person's binding (never the contacts) where it deletes a membership: one call beside `store/humans_rbac.go:197` (`removeMemberLocked`, which `BanMember` shares, :186) to a hook in `store/contacts_sync_memory.go` (B2's file) | B2, B3 | C8-C8d | the new Postgres tests; full tier | claude | grok (claude) |
 | B5 search | api | `search/grammar.go` (`TypeContact`); `hub/search.go` (the `contact` section, calling B2's `inPerson` search method in its own transaction); their tests | B2 | C9-C11 | `go test ./internal/search/ ./internal/hub/ -run Search`; api tests | claude | grok (claude) |
 | B6 member match | api | new `hub/contacts_match.go` + `_test.go` (the batch match of 2.4, in the session's workspace only); one call in `hub/contacts.go`'s list and card handlers that fills `member_id` (B3's file, so B6 lands after B3; until then `member_id` is `null`); no new route, no `server.go` line | B3 (v1.0: also O3, answered A) | C13-C13e | `hub/contacts_match_test.go`; api tests | claude | grok (claude) |
 | B7 the contacts scope | api | `api/internal/gcal/oauth.go` (`AuthorizeURL` takes the scope to ask) + `oauth_test.go`; `hub/gcal_connect.go` (149 B5's file: `want`, `granted_scopes`, the upsert) and one scope check in `hub/gcal_sync.go` (149 B6a's file); their tests | 149 B5, 149 B6a, B1 | C14-C14c | the 149 connect and sync tests plus the two new ones; api tests | claude | grok (claude) |
 | B8 contacts sync | api | new `hub/contacts_sync.go` + `_test.go`; new `api/internal/gcal/people.go` + test; new `api/internal/gcal/fakegcal/people.go`; a `PeopleBase` in `api/internal/gcal/oauth.go` Config (after B7's edit of the same file), `api/internal/config/config.go`, `api/cmd/spool/hub_gcal.go` (149 B5's file) and its cnf key; one line in `hub/server.go` `RunSweeper` (:586) | B3, B7 (v1.0: also O1, answered A) | C12, C15-C23g | `go test ./internal/gcal/... ./internal/hub/ -run Contacts`; api tests; full tier | claude | grok (claude) |
-| B9 WUI (People merge) | wui | `wui/components/ChannelSidebar.vue` (the People panel :506-544 and `memberRows` :931-933: the three groups, the A-Z order, the filter, the Add button, the lazy contact rows); new `wui/components/PeopleContactRows.vue`; new `wui/utils/people-order.mjs` (the group and A-Z function, unit-tested alone); new `wui/pages/people/contact/[id].vue` (the contact card); `wui/pages/people/[id].vue` (one "In your contacts" line); new `wui/utils/contacts-client.mjs` (including the Invite call to `POST /v1/members/invites`); the Contacts switch in `wui/components/settings/calendar-google.vue` (149 B8's file); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests. Not `wui/utils/rail-order.ts` | B3, B6, 149 B8 (v1.0: also O4, answered A) | C24-C25 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | grok (claude) |
+| B9 WUI (People merge) | wui | `wui/components/ChannelSidebar.vue` (the People panel :506-544 and `memberRows` :931-933: the three groups, the A-Z order, the filter, the Add button, the lazy contact rows); new `wui/components/PeopleContactRows.vue`; new `wui/utils/people-order.mjs` (the group and A-Z function, unit-tested alone); new `wui/pages/people/contact/[id].vue` (the contact card); `wui/pages/people/[id].vue` (one "In your contacts" line); new `wui/utils/contacts-client.mjs` (including the Invite call to `POST /v1/members/invites`); `wui/stores/access.ts` (keeps the `contacts` field of `/v1/view/me`, W5); the Contacts switch in `wui/components/settings/calendar-google.vue` (149 B8's file); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests. Not `wui/utils/rail-order.ts` | B3, B6, 149 B8 (v1.0: also O4, answered A) | C24-C25 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | grok (claude) |
 | B10 palette | wui | `wui/composables/usePaletteItems.ts` (contact rows in the existing `people` group, deduplicated against members) + its unit test | B9 | C26 | the unit test; `perf-budget.py` | claude | grok (claude) |
 | B11 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); agy has the last word (`LANE_MIX_KIND=i18n`) | B9, B10 | C27 | the two ratchet tests | agy | claude |
 | B12 help | doc | the People help page `csi-spl-doc/doc/help/people.md` and its WUI copy (amendment: no new page): contacts in People, the order and the filter, what is stored, that the list is one per person across workspaces, who sees it, Google sync, export and erase; written in its qto doc and exported (`do_spl_doctree_export_md`); agy review | B9 | - | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
@@ -928,7 +974,10 @@ No new owner question in v1.1.
 | 2026-10-24 | a-957@sat (seat agy) | signed v1.0 on v0.3 `1cf55cf6e` (msg 42c902b9) |
 | 2026-10-24 | c-958@sat (seat claude) | signed v1.0 on v0.3 `1cf55cf6e` plus one B4 file-list line (msg f297efda): the memory store's membership delete is `store/humans_rbac.go:197` |
 | 2026-10-24 | c-951@sat | v1.0 `225f4e583`: that B4 line, nothing else; owner questions O1-O5 (section 9) go to the owner next |
-| 2026-10-24 | c-988@sat | v1.1 draft, this commit (SPL-3192): the owner's five answers folded (O1 A, O2 A, O3 A, O4 A, O5 B). 1.2 re-measured on `e0f02e7ff`: row 20 corrected (person RLS exists, 0168), rows 21, 24 corrected (next migration 0223), rows 25-31 new. O5 = B: `personal.contacts` in the realm (no `tenant_id`, `person_scope`), `contacts_sync` one binding per person, leave keeps the list, the purge door; clones refused. Sections 0-10 updated; new cases C1c, C2c, C2d, C3b, C3c, C4b, C7d, C8c-C8e, C10c, C23d-C23g; B1, B2, B3, B4, B6, B8, B9 rows changed. Not signed: the two review seats sign in their own messages |
-| 2026-10-24 | c-988@sat | v1.1 amendment, this commit (SPL-3192): the owner's People merge (msgs `14cdf0ad`, `31bb12ea`, relayed by c-002 cc083bf1, c04f855b). The People section was measured: 1.2 rows 32-35 are new and rows 6, 12, 13 changed. 2.7 is rewritten (three groups, A-Z, the filter, the lazy contact rows, no rail tab). The `/peer` route is replaced by `member_id` on the list and card routes, and `GET /v1/me/contacts/{id}` is added. New cases C13e, C24b-C24f; C13-C13d, C24 and C26 amended; B6, B9, B10, B12 and P3 changed. B1 is unchanged. Not signed |
+| 2026-10-24 | c-988@sat | v1.1 draft, `79b8e3b0e` (SPL-3192): the owner's five answers folded (O1 A, O2 A, O3 A, O4 A, O5 B). 1.2 re-measured on `e0f02e7ff`: row 20 corrected (person RLS exists, 0168), rows 21, 24 corrected (next migration 0223), rows 25-31 new. O5 = B: `personal.contacts` in the realm (no `tenant_id`, `person_scope`), `contacts_sync` one binding per person, leave keeps the list, the purge door; clones refused. Sections 0-10 updated; new cases C1c, C2c, C2d, C3b, C3c, C4b, C7d, C8c-C8e, C10c, C23d-C23g; B1, B2, B3, B4, B6, B8, B9 rows changed. Not signed: the two review seats sign in their own messages |
+| 2026-10-24 | c-988@sat | v1.1 amendment, `13ae1f710` (SPL-3192): the owner's People merge (msgs `14cdf0ad`, `31bb12ea`, relayed by c-002 cc083bf1, c04f855b). The People section was measured: 1.2 rows 32-35 are new and rows 6, 12, 13 changed. 2.7 is rewritten (three groups, A-Z, the filter, the lazy contact rows, no rail tab). The `/peer` route is replaced by `member_id` on the list and card routes, and `GET /v1/me/contacts/{id}` is added. New cases C13e, C24b-C24f; C13-C13d, C24 and C26 amended; B6, B9, B10, B12 and P3 changed. B1 is unchanged. Not signed |
+| 2026-10-24 | a-990@sat (seat agy) | signed v1.1 on `13ae1f710` (msg `fde59b73`, verdict file `seat-agy-v11.md`, `7cf2f1d4c`): 10 check areas OK, 0 WRONG; concurs with c-991's W1-W5 and offers a re-check after the fold |
+| 2026-10-24 | c-991@sat (seat claude) | NOT SIGNED on `13ae1f710` (msg `8150e0a3`, verdict file `seat-claude-v11.md`, `86967ee50`): W1 B1 misses two realm test seeds; W2 the post-deploy RLS check's definer allow-list; W3 the purger needs `USAGE, CREATE ON SCHEMA personal`; W4 no row owns the purge's store method; W5 the WUI cannot learn the kill switch without the forbidden call. Notes N1-N8 |
+| 2026-10-24 | c-988@sat | v1.1 seat fold, this commit (SPL-3192): W1-W5 folded as c-991 proposed (each line re-read on the tree): B1 gains `store/personal_rls_test.go`, the `seedRealm` seed, the orc RLS-check allow-list and its test (C1d); the purger's schema grant; B2 owns `PurgeDeletedContacts` (plain transaction) and `MarkContactsPurgePending` (operator) (C2e); `/v1/view/me` gains `contacts` (C6b, C24f twin). Notes N1-N7 folded (N1 policy names, N2 the three literal lists, N3 `TestRLSContacts…`, N4 the binding read, N5 plain INSERT, N6 the hit opens the card, N7 C8c); N8 kept as written. Not signed: the claude seat re-checks W1-W5 |
 
-<!-- version: 1.1-draft (amended: People merge) · updated: 2026-10-24 -->
+<!-- version: 1.1-draft (amended: People merge; seat fold W1-W5) · updated: 2026-10-24 -->

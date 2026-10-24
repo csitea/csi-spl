@@ -75,17 +75,18 @@ cat >"$T/bin/hub" <<'STUB'
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ "$1" = box-stats ] && { echo "the lane map posts no box stats: $*" >>"$HUB_DIR/stats.calls"; exit 1; }
 shift
-fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" state=live
+echo "$*" >>"$HUB_DIR/calls"
+fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" issue="" state=live
 while [ $# -gt 0 ]; do case "$1" in
   --fleet) fleet="$2";; --agent) agent="$2";; --box) box="$2";; --repo) repo="$2";; --branch) branch="$2";;
-  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --state) state="$2";; esac; shift 2; done
+  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --issue) issue="$2";; --state) state="$2";; esac; shift 2; done
 f="$HUB_DIR/$fleet.json"; [ -s "$f" ] || echo '{"lanes":[]}' >"$f"
 if [ -n "$agent" ]; then
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "box must be the agent's desk box id" >&2; exit 1; }
   row="$(jq -n -c --arg a "$agent" --arg b "$box" --arg r "$repo" --arg br "$branch" --arg s "$scope" --arg fl "$files" \
-    --arg t "$topic" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
+    --arg t "$topic" --arg i "$issue" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
     '{agent_id:$a, agent_box:$b, repo:$r, branch:$br, scope:$s, files:($fl | split(",") | map(select(length > 0))),
-      topic:$t, state:$st, writer_box:$w, age_s:0}')"
+      topic:$t, issue_key:$i, state:$st, writer_box:$w, age_s:0}')"
   jq -c --argjson row "$row" '.lanes = ([.lanes[] | select(.agent_id != $row.agent_id or .agent_box != $row.agent_box)] + [$row])' "$f" >"$f.new" && mv "$f.new" "$f"
   jq -c --arg f "$fleet" --argjson row "$row" '{fleet:$f, lanes:[$row]}' <<<'{}'
 else
@@ -221,6 +222,21 @@ out="$(on sat do_spl_lane_map "${F[@]}" LANE_ALL=1)"
 grep -E '^c-920@box-desk +done' <<<"$out" >/dev/null && pass "LANE_ALL=1 shows it" || fail "LANE_ALL: $out"
 out="$(on sat 'LANE_CHECK=csi-spl-doc/specs/058-multi-machine-fleet/ do_spl_lane_map' "${F[@]}" LANE_AGENT=c-102)"; rc=$?
 [[ $rc -eq 0 ]] && pass "a done lane no longer collides" || fail "done collides (rc=$rc): $out"
+
+# 5b. spec 153 3.4: LANE_ISSUE is the row's issue_key, a done keeps it; no key
+# sends no --issue (a box binary built before the flag still writes the row).
+# Master sent no --issue, so the row had no issue_key.
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-940 LANE_ISSUE=SPL-9 >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-940 LANE_STATE="done" >/dev/null
+row="$(jq -c '.lanes[] | select(.agent_id == "c-940")' "$T/hub/main.json")"
+[[ "$(jq -r .issue_key <<<"$row")" == SPL-9 && "$(jq -r .state <<<"$row")" == "done" ]] &&
+  pass "LANE_ISSUE=SPL-9 is the row's issue_key, and done keeps it" || fail "issue row: $row"
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-941 LANE_STATE="done" >/dev/null
+calls="$(cat "$T/hub/calls")"
+grep -E -- '--agent c-941 .*--issue' <<<"$calls" >/dev/null &&
+  fail "a key-less put sent --issue: $(grep -- c-941 <<<"$calls")" || pass "a key-less put sends no --issue"
+grep -E -- '--agent c-940 .*--issue SPL-9 --state done' <<<"$calls" >/dev/null &&
+  pass "control: the done of c-940 sent --issue SPL-9 from the hub row" || fail "done args: $(grep -- c-940 <<<"$calls")"
 
 # 6. the hub down
 out="$(on pc do_spl_lane_map "${F[@]}" HUB_DOWN=1)"; rc=$?

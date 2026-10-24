@@ -548,6 +548,12 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
+  # The lane row's topic (spec 153 3.4): the ask's topic, set once for both
+  # launch lines, only when it is a full hub uuid (a dispatch-<topic8> alias
+  # is a spool task, not a hub topic: it sets nothing)
+  if [[ "$(jq -r '.topic // ""' <<<"$2")" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]]; then
+    local -x SPAWN_LANE_TOPIC="${BASH_REMATCH[0]}"
+  fi
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose

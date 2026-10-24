@@ -9,6 +9,7 @@
 # @param LANE_AGENT (required) - the agent id, e.g. CLE-77920; its box is LANE_BOX (default spl_desk_box_default)
 # @param LANE_STATE (optional) - live (default) or done
 # @param LANE_REPO / LANE_BRANCH / LANE_SCOPE / LANE_TOPIC (optional) - the row's fields; the scope is cut to one line of 500 bytes
+# @param LANE_ISSUE (optional) - the lane's issue key, e.g. SPL-12 (spec 153 3.4); a done write keeps the row's key
 # @param LANE_FILES (optional) - comma-separated paths the agent owns (at most 50)
 # @param LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_HUB_CMD (optional) - as do_spl_lane_map
 # @example LANE_AGENT=CLE-77920 LANE_REPO=csi-spl LANE_BRANCH=CLE-77920-lane-map LANE_SCOPE='fleet lane map' LANE_FILES=csi-spl-orc/src/bash/run/spl-lane-map.func.sh ./run -a do_spl_lane_put
@@ -41,12 +42,15 @@ do_spl_lane_put() {
   scope="$(printf '%s' "$scope" | tr '\t\r\n' '   ' | tr -d '\000-\037\177' | cut -b 1-500)"
   files="${LANE_FILES-$(lane_was files)}"
   files="$(printf '%s' "$files" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | sed -n 1,50p | paste -sd, -)"
-  local box="$LANE_BOX" out
+  local box="$LANE_BOX" out issue
+  # --issue only with a key: a box spool binary built before it took the
+  # flag still writes every key-less row
+  issue="${LANE_ISSUE-$(lane_was issue_key)}"
   [[ -n "$cur" ]] && box="$(lane_was agent_box)"
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL lane $LANE_AGENT: the box must be ONE box id, got '$box'"; return 1; }
   if ! out="$(spl_lane_hub --fleet "$LANE_FLEET" --agent "$LANE_AGENT" --box "$box" \
     --repo "${LANE_REPO-$(lane_was repo)}" --branch "${LANE_BRANCH-$(lane_was branch)}" \
-    --scope "$scope" --files "$files" --topic "${LANE_TOPIC-$(lane_was topic)}" --state "$state" 2>&1)"; then
+    --scope "$scope" --files "$files" --topic "${LANE_TOPIC-$(lane_was topic)}" ${issue:+--issue "$issue"} --state "$state" 2>&1)"; then
     do_log "WARN lane $LANE_AGENT@$box not written ($state): $(tail -1 <<<"$out")"
     return 2
   fi

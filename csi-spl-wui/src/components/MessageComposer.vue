@@ -1058,6 +1058,20 @@ textarea.in-code {
     scrollbar-width: none;
   }
   .composer--dock.composer--dock textarea::-webkit-scrollbar { display: none; }
+  /* SPL-3190 (owner, t1 22e98a50: "a small overlap of the icons"): Chrome
+     draws no ellipsis on a textarea's placeholder, so the long hint was cut
+     mid-letter right at the Search button's edge and read as covered by it.
+     The text now stops 8px before the button, and a hint that does not fit
+     fades out over its last 24px instead of being cut */
+  .composer--dock.composer--dock textarea { padding-inline-end: 8px; }
+  .composer--dock.composer--dock textarea:placeholder-shown {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent calc(100% - 8px));
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent calc(100% - 8px));
+  }
+  :global(html[dir="rtl"]) .composer--dock.composer--dock textarea:placeholder-shown {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent calc(100% - 8px));
+    mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent calc(100% - 8px));
+  }
   /* 085 FR-004: the Search button (magnifier), a 44 px target in the
      field's end corner; lit while the box is in search mode. t1 e142d4a0:
      its square is drawn, so the target is exactly what the eye sees.

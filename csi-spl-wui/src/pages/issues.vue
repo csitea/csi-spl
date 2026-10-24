@@ -2318,7 +2318,15 @@ select.issues-pctl { appearance: auto; }
   }
   .issues-mbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 0 12px; min-width: 0; }
   .issues-mbar { align-items: center; }
-  .issues-mbar__btn { position: relative; flex: none; min-height: var(--tap, 44px); min-width: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .issues-mbar__btn { position: relative; z-index: 0; flex: none; min-height: var(--tap, 44px); min-width: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  /* SPL-3190 (owner, t1 22e98a50: "a small overlap of the icons"): the bar's
+     top is the tab rail's bottom border and the chip row tucks 8px under it
+     (SPL-2527), so a square drawn on the whole 44px target touched the rail
+     and covered the pills' top. Like the chips, the target stays 44px and the
+     square is drawn 5px in on ::before: 5px clear of the rail, 2px of the pills */
+  .issues-mbar__btn.btn.ghost, .issues-mbar__btn.btn.ghost:active { border: 0; background: transparent; }
+  .issues-mbar__btn::before { content: ''; position: absolute; inset: 5px; z-index: -1; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+  .issues-mbar__btn:active::before { background: var(--color-selected); }
   .issues-mbar__sorted { flex: 1 1 auto; min-width: 0; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .issues-mbar__dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-accent); }
   .issues-sort-now { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }

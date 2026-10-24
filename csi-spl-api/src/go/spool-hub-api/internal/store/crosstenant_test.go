@@ -385,6 +385,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedHoursV2Plan(ctx, pg, s.tenant, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// hours_terminals, hours_member_pins (rdb 0221, spec 107 v2 T065): one
+	// terminal and the seeded member's PIN (hours_terminals_rls_test.go).
+	if err := seedHoursTerminals(ctx, pg, s.tenant, hum); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
 	// spec 113 T001): a doc with its root and one rev-log entry, then its
 	// workspace_doc_node pair. No store API

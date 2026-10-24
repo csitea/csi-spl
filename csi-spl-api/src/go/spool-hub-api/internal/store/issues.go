@@ -390,6 +390,12 @@ type Issues interface {
 	GetIssueAnyState(ctx context.Context, tenantID string, number int) (Issue, error)
 	// ListIssues is every issue of the tenant, newest number first.
 	ListIssues(ctx context.Context, tenantID string) ([]Issue, error)
+	// IssueNumbersByDiscussion is the numbers of the tenant's issues that
+	// link topic taskID (rdb 0194, spec 153 3.5), ascending; none for a topic
+	// no issue of the tenant links. taskID is a canonical uuid (the caller
+	// checks it). Archived or deleted rows may be among them: the caller
+	// keeps only the ones its list holds.
+	IssueNumbersByDiscussion(ctx context.Context, tenantID, taskID string) ([]int, error)
 	// IssuePrefix is the tenant's key prefix (IssuePrefixDefault when unset).
 	IssuePrefix(ctx context.Context, tenantID string) (string, error)
 	// SetIssuePrefix changes the prefix every key of the tenant renders with
@@ -931,6 +937,23 @@ func (s *Memory) ListIssues(_ context.Context, tenant string) ([]Issue, error) {
 		out = append(out, copyIssue(r))
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Number > out[b].Number })
+	return out, nil
+}
+
+// IssueNumbersByDiscussion returns the numbers of the issues that link topic taskID (on the Memory store).
+func (s *Memory) IssueNumbersByDiscussion(_ context.Context, tenant, taskID string) ([]int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []int{}
+	for n, ls := range s.iss.links[tenant] {
+		for _, l := range ls {
+			if l.TaskID == taskID {
+				out = append(out, n)
+				break
+			}
+		}
+	}
+	sort.Ints(out)
 	return out, nil
 }
 

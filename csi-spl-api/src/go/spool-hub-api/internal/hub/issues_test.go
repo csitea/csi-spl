@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
 // specs/039 issues-v1: create, read, patch, labels, filters and sort under
@@ -461,4 +463,86 @@ func descFrame(f map[string]any) []string {
 		}
 	}
 	return keys
+}
+
+// issueTitles is the list's titles, in its order.
+func issueTitles(body map[string]any) []string {
+	var out []string
+	list, _ := body["issues"].([]any)
+	for _, x := range list {
+		out = append(out, x.(map[string]any)["title"].(string))
+	}
+	return out
+}
+
+// Spec 153 3.5 (C21, C21b, C22): ?discussion=<topic> keeps the issues that
+// link that topic; a value that is not a uuid is a 400 before any query; a
+// topic another tenant's issues link lists nothing here until this tenant
+// links it too.
+func TestIssuesByDiscussion(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	talk := uid.New()
+	lobbyTopic(t, e, tid, talk, "## Lanes tab\n\nspec 153")
+	for _, b := range []map[string]any{
+		{"title": "A epic", "kind": "epic"},
+		{"title": "A linked", "epic": "SPL-1", "discussions": []string{talk}},
+		{"title": "A other", "epic": "SPL-1"},
+	} {
+		if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, b); code != http.StatusCreated {
+			t.Fatalf("create %v: %d %v", b["title"], code, out)
+		}
+	}
+	list := func(t *testing.T, q string) (int, map[string]any) {
+		t.Helper()
+		return call(t, e, tid, http.MethodGet, "/v1/view/issues?discussion="+q, dev, nil)
+	}
+
+	// C21: only the linked issue; the unlinked one and the epic are absent.
+	for _, q := range []string{talk, strings.ToUpper(talk)} {
+		code, out := list(t, q)
+		if got := issueTitles(out); code != http.StatusOK || !sameKeys(got, "A linked") || out["total"] != float64(1) {
+			t.Errorf("C21 %s: %d %v total %v", q, code, got, out["total"])
+		}
+	}
+	// No filter: all three, so the filter above is what dropped two.
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues", dev, nil); code != http.StatusOK || len(issueTitles(out)) != 3 {
+		t.Errorf("unfiltered: %d %v", code, issueTitles(out))
+	}
+
+	// C21b: not a uuid -> 400 bad_request, never a 500 (22P02 on Postgres).
+	for _, q := range []string{"abc", "5e7b15c9", "%27%3B--"} {
+		if code, out := list(t, q); code != http.StatusBadRequest || out["error"] != "bad_request" {
+			t.Errorf("C21b %q: %d %v", q, code, out["error"])
+		}
+	}
+
+	// C22: tenant B's topic, linked by B's issue, lists nothing in A.
+	tidB, _ := e.tenant()
+	devB := seat(t, e, tidB, rbac.Developer)
+	talkB := uid.New()
+	lobbyTopic(t, e, tidB, talkB, "## B only")
+	for _, b := range []map[string]any{
+		{"title": "B epic", "kind": "epic"},
+		{"title": "B linked", "epic": "SPL-1", "discussions": []string{talkB}},
+	} {
+		if code, out := call(t, e, tidB, http.MethodPost, "/v1/issues", devB, b); code != http.StatusCreated {
+			t.Fatalf("create B %v: %d %v", b["title"], code, out)
+		}
+	}
+	if code, out := call(t, e, tidB, http.MethodGet, "/v1/view/issues?discussion="+talkB, devB, nil); code != http.StatusOK || !sameKeys(issueTitles(out), "B linked") {
+		t.Errorf("C22 B sees its own: %d %v", code, issueTitles(out))
+	}
+	if code, out := list(t, talkB); code != http.StatusOK || len(issueTitles(out)) != 0 || out["total"] != float64(0) {
+		t.Errorf("C22 A with B's topic: %d %v", code, issueTitles(out))
+	}
+	// Twin: the same link in A's own tenant is listed, and only A's row.
+	d := e.st.(store.IssueDiscussions)
+	if _, err := d.LinkIssueDiscussion(context.Background(), tid, 3, talkB, dev, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := list(t, talkB); code != http.StatusOK || !sameKeys(issueTitles(out), "A other") {
+		t.Errorf("C22 twin: %d %v", code, issueTitles(out))
+	}
 }

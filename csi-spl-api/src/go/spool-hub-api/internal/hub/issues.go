@@ -524,6 +524,7 @@ type issueFilter struct {
 	kind                    map[string]bool // epic | feature | issue | subtask
 	viewer                  string          // SPL-1559: the member whose unopened marks the list carries; "" = none
 	sheet                   bool            // P5-06: the browser's sheet, read without descriptions
+	discussion              string          // spec 153 3.5: only issues linking this topic; "" = any
 }
 
 // issueSheetStore reads the list without descriptions (P5-06): the sheet
@@ -612,6 +613,11 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 			(*dst)[n] = true
 		}
 	}
+	if d := get("discussion"); d != "" { // checked here: the column is uuid, Postgres would throw 22P02
+		if f.discussion = strings.ToLower(strings.TrimSpace(d)); !uuidRe.MatchString(f.discussion) {
+			return f, &issueErr{http.StatusBadRequest, "bad_request", "discussion must be a topic id (a uuid)"}
+		}
+	}
 	f.kind = csvSet(get("kind"))
 	for k := range f.kind {
 		switch k {
@@ -688,6 +694,18 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	if err != nil {
 		return nil, &issueErr{http.StatusInternalServerError, "internal", "issues unavailable"}
 	}
+	var linked map[int]bool // spec 153 3.5: ?discussion= keeps the issues linking that topic
+	if f.discussion != "" {
+		ns, err := is.IssueNumbersByDiscussion(ctx, tenant, f.discussion)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("issues by discussion")
+			return nil, &issueErr{http.StatusInternalServerError, "internal", "issues unavailable"}
+		}
+		linked = make(map[int]bool, len(ns))
+		for _, n := range ns {
+			linked[n] = true
+		}
+	}
 	kept := make([]store.Issue, 0, len(all))
 	counts := map[string]int{}
 	for _, st := range store.IssueStatuses {
@@ -695,7 +713,7 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	}
 	get := getterOf(all)
 	for _, i := range all {
-		if f.match(i, get) {
+		if (linked == nil || linked[i.Number]) && f.match(i, get) {
 			kept = append(kept, i)
 			counts[i.Status]++
 		}

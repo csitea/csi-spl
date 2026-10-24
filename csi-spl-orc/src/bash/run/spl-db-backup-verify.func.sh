@@ -127,6 +127,11 @@ spl_db_backup_restore_counts() {
     return 1
   fi
   do_log "INFO restore-check container accepted TCP after ${i}s"
+  # SPL_RESTORE_PREP: a caller's setup of the empty cluster BEFORE the restore
+  # (SPL-3173: the drill's group roles), as SPL_RESTORE_CHECK below.
+  if [[ -n "${SPL_RESTORE_PREP:-}" ]]; then
+    "$SPL_RESTORE_PREP" "$con" >&2 || return $?
+  fi
 
   # The dump names the cloud logins as owners; they do not exist here, so
   # ON_ERROR_STOP stays OFF and the count comparison is what decides, not the

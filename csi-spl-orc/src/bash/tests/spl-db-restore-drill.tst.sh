@@ -140,4 +140,105 @@ o=$(SNIPPET="$DOCKER $COUNTS spl_db_restore_drill_file $T/good.sql.gz $T/spool $
 (( rc == 8 )) && grep -q '^restore_drill env=dev rc=8 ' <<<"$o" && pass "a schema mismatch fails the drill end to end (exit 8)" ||
   fail "mismatch e2e: rc=$rc $o"
 
+
+# --- 8. the group roles, read from the migration files (SPL-3173) -----------------
+mkdir -p "$T/rmig" "$T/rbad"
+cat >"$T/rmig/0001_a.sql" <<'SQL'
+-- CREATE ROLE in_a_comment LOGIN is not read
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'spool_one') THEN
+    CREATE ROLE spool_one NOLOGIN NOBYPASSRLS;
+  END IF;
+END $$;
+SQL
+cat >"$T/rmig/0002_b.sql" <<'SQL'
+DO $$ DECLARE r text; BEGIN
+  FOREACH r IN ARRAY ARRAY['spool_two', 'spool_three'] LOOP
+    EXECUTE format('CREATE ROLE %I NOLOGIN NOBYPASSRLS', r);
+  END LOOP;
+END $$;
+CREATE ROLE spool_four NOLOGIN;
+SQL
+printf 'CREATE ROLE spool_login LOGIN;\n' >"$T/rbad/0001_x.sql"
+o=$(SNIPPET="spl_db_restore_drill_group_roles $T/rmig" in_orc 2>&1); rc=$?
+(( rc == 0 )) && [[ "$o" == "spool_four NOLOGIN
+spool_one NOLOGIN NOBYPASSRLS
+spool_three NOLOGIN NOBYPASSRLS
+spool_two NOLOGIN NOBYPASSRLS" ]] &&
+  pass "CONTROL: the group roles are read from the migrations: literal, the ARRAY a %I loops over, comments skipped" ||
+  fail "group roles: rc=$rc [$o]"
+o=$(SNIPPET="spl_db_restore_drill_group_roles $T/rbad" in_orc 2>&1); rc=$?
+(( rc == 1 )) && grep -q '^UNREADABLE 0001_x.sql: CREATE ROLE spool_login LOGIN' <<<"$o" &&
+  pass "a CREATE ROLE form the reader does not know is exit 1, never a role silently skipped" || fail "unreadable form: rc=$rc [$o]"
+o=$(SNIPPET="spl_db_restore_drill_group_roles $APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" in_orc 2>&1); rc=$?
+(( rc == 0 )) && grep -qx 'spool_channel_scoped NOLOGIN NOBYPASSRLS' <<<"$o" && grep -qx 'spool_search_reader NOLOGIN NOBYPASSRLS' <<<"$o" &&
+  grep -qx 'spool_realm_eraser NOLOGIN NOBYPASSRLS' <<<"$o" && grep -qx 'spool_public_export NOLOGIN' <<<"$o" &&
+  pass "the repo's migrations read clean and name spool_channel_scoped (rdb 0197), among $(wc -l <<<"$o")" ||
+  fail "repo group roles: rc=$rc [$o]"
+
+# --- 9. the roles hook runs before the restore ------------------------------------
+printf 'SELECT 1;\n' | gzip >"$T/good.sql.gz"
+reset
+PREPC='spl_db_backup_restore_counts(){ echo "prep=${SPL_RESTORE_PREP:-}" >>"$STUB_LOG"; return 1; };'
+SNIPPET="$DOCKER $PREPC spl_db_restore_drill_file $T/good.sql.gz $T/spool $T/mig" in_orc >/dev/null 2>&1
+grep -qx 'prep=spl_db_restore_drill_roles' "$T/calls.log" &&
+  pass "the drill hands the restore its roles hook (SPL_RESTORE_PREP)" || fail "prep wiring: $(cat "$T/calls.log")"
+reset
+RDOCK='docker(){ echo "docker $*" >>"$STUB_LOG"; [[ "$1" == exec ]] && cat >>"$STUB_LOG"; return 0; };'
+o=$(SNIPPET="$RDOCK spl_db_restore_drill_roles con1" in_orc SPL_RESTORE_DRILL_MIGDIR="$T/rmig" 2>&1); rc=$?
+(( rc == 0 )) && grep -q '4 group role(s) before the restore: spool_four,spool_one,spool_three,spool_two' <<<"$o" &&
+  grep -qF "SELECT format('CREATE ROLE %I NOLOGIN NOBYPASSRLS', 'spool_two') WHERE NOT EXISTS" "$T/calls.log" &&
+  grep -q '^docker exec -i con1 psql .*ON_ERROR_STOP=1' "$T/calls.log" &&
+  pass "the roles hook creates each role idempotently in the container" || fail "roles hook: rc=$rc $o $(cat "$T/calls.log")"
+reset
+o=$(SNIPPET="$RDOCK spl_db_restore_drill_roles con1" in_orc SPL_RESTORE_DRILL_MIGDIR="$T/rbad" 2>&1); rc=$?
+(( rc == 1 )) && grep -q 'FAIL dev roles: 0001_x.sql' <<<"$o" && ! grep -q '^docker' "$T/calls.log" &&
+  pass "an unreadable role form fails the hook before any container call" || fail "roles hook bad: rc=$rc $o"
+
+# --- 10. on real Postgres: a dump that grants to a role, a pending migration ------
+# that names it (wf 49 run 40067941157, rdb 0197 + 0219). Red on the code
+# before SPL-3173: `role "spool_x" does not exist`, exit 9.
+PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
+if ! command -v docker >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/null 2>&1 || ! command -v psql >/dev/null; then
+  echo "SKIP: no cached $PG_IMAGE image or no psql; the real-Postgres part is not run"
+else
+  mkdir -p "$T/pmig"
+  cat >"$T/pmig/0001_base.sql" <<'SQL'
+CREATE TABLE tenants (id int);
+CREATE TABLE messages (id int);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'spool_x') THEN
+    CREATE ROLE spool_x NOLOGIN NOBYPASSRLS;
+  END IF;
+END $$;
+GRANT SELECT ON messages TO spool_x;
+SQL
+  printf 'CREATE POLICY x_scope ON messages AS RESTRICTIVE TO spool_x USING (true);\n' >"$T/pmig/0002_names_x.sql"
+  # the dump: 0001 applied, its GRANT to spool_x, and no role (a dump has none)
+  { printf 'CREATE TABLE spool_schema_migrations (filename text PRIMARY KEY, sha256 text);\n'
+    printf "INSERT INTO spool_schema_migrations VALUES ('0001_base.sql', '%s');\n" "$(sha256sum "$T/pmig/0001_base.sql" | cut -d' ' -f1)"
+    printf 'CREATE TABLE tenants (id int);\nCREATE TABLE messages (id int);\n'
+    printf 'INSERT INTO tenants VALUES (1);\nINSERT INTO messages VALUES (1), (2);\n'
+    printf 'GRANT SELECT ON messages TO spool_x;\n'
+  } | gzip >"$T/pg.sql.gz"
+  # the migrate: each repo file the ledger lacks, applied with ON_ERROR_STOP
+  cat >"$T/pgspool" <<'STUB'
+#!/usr/bin/env bash
+db="$3" dir="$5"
+for f in "$dir"/*.sql; do
+  b="$(basename "$f")"
+  [[ -n "$(psql "$db" -XAtc "SELECT 1 FROM spool_schema_migrations WHERE filename = '$b'")" ]] && { echo "skipped $b"; continue; }
+  psql "$db" -X -q -v ON_ERROR_STOP=1 -1 -f "$f" || { echo "spool: apply $b: failed" >&2; exit 1; }
+  psql "$db" -XAtqc "INSERT INTO spool_schema_migrations VALUES ('$b', '$(sha256sum "$f" | cut -d' ' -f1)')"
+  echo "applied $b"
+done
+STUB
+  chmod +x "$T/pgspool"
+  o=$(SNIPPET="spl_db_restore_drill_file $T/pg.sql.gz $T/pgspool $T/pmig" in_orc SPL_RESTORE_IMAGE="$PG_IMAGE" 2>&1); rc=$?
+  (( rc == 0 )) && grep -q 'roles: 1 group role(s) before the restore: spool_x' <<<"$o" &&
+    grep -q 'migrate: 1 applied, 1 already there' <<<"$o" && ! grep -q 'does not exist' "$T/pg.restore.log" &&
+    pass "real Postgres: the dump's GRANT to spool_x restores and the pending migration naming it applies" ||
+    fail "real Postgres: rc=$rc $o $(cat "$T/pg.restore.log" "$T/pg.sql.drill.migrate.log" 2>/dev/null)"
+fi
+
 (( fails == 0 )) && echo "OK spl-db-restore-drill: all checks passed" || { echo "FAIL spl-db-restore-drill: $fails check(s)"; exit 1; }

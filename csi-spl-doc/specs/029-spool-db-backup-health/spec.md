@@ -690,6 +690,7 @@ an owner go per run):
 | step | fails as |
 |---|---|
 | newest dev dump in the 045 bucket downloads, is gzip, is not empty | exit 1 / 4 / 5 |
+| before the restore, the empty cluster gets every NOLOGIN group role the migrations create (SPL-3173) | exit 1 |
 | restore into a throwaway `postgres:16-alpine` container lands tables | exit 1 |
 | every `spool_schema_migrations` row that names a repo file has that file's sha256 (the hub's migrate refuses a changed file) | exit 8 |
 | the hub's own `spool migrate` runs on the copy; afterwards no repo file is pending | exit 9 / 8 |
@@ -700,6 +701,23 @@ the old name behind, and the migrate reads repo files only. Measured on dev:
 `0040_tenants_display_name.sql` and `0046_default_channels_feedback.sql`,
 both renamed by `b4ef06302` (2026-09-25), are still in the ledger beside
 their new names.
+
+Group roles (SPL-3173). A role lives in the cluster, not in a database, so a
+dump carries none. Wf 49 run 40067941157 (2026-10-24, sha `b7fba33ad`) went
+red on it: the dump's ledger held `0197_channel_scope_hub_logins.sql`, which
+creates `spool_channel_scoped`, but the container had no such role, so the
+dump's `CREATE POLICY ... TO spool_channel_scoped` failed silently
+(`ON_ERROR_STOP` is off) and the first pending file naming the role failed
+the migrate: `apply 0219_dedicated_agents.sql: ERROR: role
+"spool_channel_scoped" does not exist`, exit 9. Live dev and prd have the
+role, so they migrated fine. The drill now creates, before the restore,
+every role that a `CREATE ROLE <name> NOLOGIN ...` in the migration files
+names, or that the `ARRAY` a `CREATE ROLE %I NOLOGIN ...` loops over names
+(rdb 0168). The one source is the migration files, no second list: a
+`CREATE ROLE` form the reader does not know is exit 1, never a skipped role.
+Today that is 6 roles (`spl_db_restore_drill_group_roles` on the repo tree).
+Logins (the runtime, export and names logins of `spool-hub-roles/`) stay
+absent: the copy is read and migrated as the superuser.
 
 Schedule: workflow `49_db-restore-drill.yml`, 05:47 UTC daily (after 45's
 03:17 backup), on ubuntu-latest like 45 (the dev key secret and docker are

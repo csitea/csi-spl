@@ -1,30 +1,33 @@
 <!-- SPL-1991 (owner HUM-10, t1 dbf2f39b, msg 94283d6b, A on Q1-Q4): the
      Monitoring section. The sidebar keeps the icon rail only (ChannelSidebar
-     monitoringRailOnly); this page is the tab bar, the summary strip above
-     every tab (Q1 A, its content is a later lane), and the open tab as a
-     child route. Each tab is its own path and chunk (D4, the list in
-     utils/monitoring-tabs.mjs); /monitoring itself lands on Agents. -->
+     monitoringRailOnly); this page is the tab bar (on the heading's row,
+     spec 153 3.1), the summary strip above every tab (Q1 A, its content is
+     a later lane), and the open tab as a child route. Each tab is its own
+     path and chunk (D4, the list in utils/monitoring-tabs.mjs); /monitoring
+     itself lands on Agents. -->
 <template>
   <div class="feed-col monitoring-page" data-test="monitoring-page">
     <header class="feed-header">
       <MobileBack />
       <SectionClose side="start" />
       <h2 data-test="monitoring-heading">{{ t('monitoring.title') }}</h2>
+      <!-- spec 153 3.1 (SPL-3157, owner HUM-10, t1 5e7b15c9): the tab bar on
+           the heading's row, its first label 20 px after "Monitoring" -->
+      <nav class="monitoring-tabs" :aria-label="t('monitoring.tabs_label')" data-test="monitoring-tabs">
+        <NuxtLink
+          v-for="tab in tabs"
+          :key="tab.id"
+          :to="localePath(tab.path)"
+          class="monitoring-tab"
+          :class="{ 'monitoring-tab--active': active === tab.id }"
+          :aria-current="active === tab.id ? 'page' : undefined"
+          :data-test="'monitoring-tab-' + tab.id"
+        >{{ t(tab.labelKey) }}</NuxtLink>
+      </nav>
       <SectionClose side="end" />
     </header>
     <!-- the summary strip's slot: empty until its lane fills it -->
     <div class="monitoring-summary" data-test="monitoring-summary" />
-    <nav class="monitoring-tabs" :aria-label="t('monitoring.tabs_label')" data-test="monitoring-tabs">
-      <NuxtLink
-        v-for="tab in tabs"
-        :key="tab.id"
-        :to="localePath(tab.path)"
-        class="monitoring-tab"
-        :class="{ 'monitoring-tab--active': active === tab.id }"
-        :aria-current="active === tab.id ? 'page' : undefined"
-        :data-test="'monitoring-tab-' + tab.id"
-      >{{ t(tab.labelKey) }}</NuxtLink>
-    </nav>
     <div class="feed-body monitoring-body">
       <NuxtPage />
     </div>

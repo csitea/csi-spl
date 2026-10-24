@@ -116,6 +116,7 @@ Inputs: fixture session directories created in `$T` with `CURRENT`, `meta.json`,
   - Dispatcher queued claude reviewer seat `c-082` (ask `de4d61bf`).
   - 2026-10-24 01:15Z: Claude reviewer `c-082` landed verdict (`7a3a2c758`): agreed with Row 01 with changes C1-C5 (vibe journal traversal, top-level `origin_directory`, agy takeover fixture order, id grammar `[acgmq]-[0-9]{3,}`, relative cache path, and other-repo/non-worktree gap); agreed with Section 4 (a) Part 2, (b) (cited line 20), (c) (reworded why: staleness guard fallback), 4 owner report; agreed with Section 5 with corrected landed commit `23a6a2eff`.
   - 2026-10-24 01:18Z: Editor landed v1.0 consensus folding reviewer changes C1-C5 and corrections.
+  - 2026-10-24 01:21Z: Reviewer c-082 signed v1.0 consensus in commit fc70855c8. Dispatcher c-002@sat accepted the plan (msg 5bbd1c36) and queued Row 01 (ask 9d9bd9e5).
 
 ---
 

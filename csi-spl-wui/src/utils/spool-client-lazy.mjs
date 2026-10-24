@@ -1678,14 +1678,34 @@ async function getFleetTokens(ctx, window = '') {
 /**
  * Spec 153 3.3 (SPL-3215, row B4): GET /v1/operator/fleet-lanes, the fleet's
  * active lanes, each with its discussion and issues (403 operator.workspaces
- * for anyone but an admin of the operator workspace, as getFleetTokens). The
- * mock answers from monitoring-lanes.mjs, which loads only here and on the
- * Lanes page.
+ * for anyone but an admin of the operator workspace, as getFleetTokens). With
+ * `own` (3.6, row B6, SPL-3229): GET /v1/view/lanes, the lanes on this
+ * workspace's own topics, for its owners and admins (403 for anyone else).
+ * The mock answers from monitoring-lanes.mjs, which loads only here and on
+ * the Lanes page.
  */
-async function getFleetLanes(ctx) {
+async function getFleetLanes(ctx, own = false) {
   const { live, mock } = ctx
+  if (mock && own) return mockOwnLanes(await import('./monitoring-lanes.mjs'))
   if (mock) return (await import('./monitoring-lanes.mjs')).mockFleetLanes()
+  if (own) return live('/v1/view/lanes')
   return live('/v1/operator/fleet-lanes')
+}
+
+/**
+ * The mock of spec 153 3.6: the mock fleet's lanes on this workspace's topics
+ * (a title), no box name, for a mock owner or admin (spool.mock.me role
+ * admin or biz_owner); anyone else gets the hub's 403.
+ * @param {typeof import('./monitoring-lanes.mjs')} ml
+ */
+function mockOwnLanes(ml) {
+  const me = mockMeGet()
+  if (!me || !['admin', 'biz_owner'].includes(me.role)) {
+    throw Object.assign(new Error('only the workspace owner or an admin sees its lanes'), { status: 403, token: 'forbidden', permission: 'workspace.lanes' })
+  }
+  const store = { getItem: (k) => (k === ml.LANES_MOCK_OPERATOR_KEY ? '1' : globalThis.localStorage?.getItem(k) ?? null) }
+  const all = ml.mockFleetLanes(store)
+  return { ...all, lanes: all.lanes.filter((l) => l.topic_title).map((l) => ({ ...l, agent_box: '' })) }
 }
 
 /**

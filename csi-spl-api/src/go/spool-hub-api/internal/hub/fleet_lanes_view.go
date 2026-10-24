@@ -100,15 +100,41 @@ func (s *Server) handleFleetLanesView(w http.ResponseWriter, r *http.Request) {
 // fleetLanesView reads the active lanes and fills their links; reader is the
 // admin whose topic door decides the titles ("" = the service account).
 func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader string) (fleetLanesViewJSON, error) {
+	out, active, burn, err := s.activeFleetLanes(ctx, tenant, fleet)
+	if err != nil {
+		return out, err
+	}
+	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, active)
+	if err != nil {
+		return out, err
+	}
+	for _, l := range active { // ListFleetLanes order: newest write first
+		v := fleetLaneRow(l, burn)
+		title, mine := titles[l.Topic]
+		if mine {
+			v.TopicTitle = title
+		}
+		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
+		out.Lanes = append(out.Lanes, v)
+	}
+	return out, nil
+}
+
+// activeFleetLanes is the answer's head (as_of, fleet, no lanes yet), the
+// tenant's active lanes of fleet (decision P1, newest write first) and the
+// token burn the rule read: the part the operator view (3.3) and the
+// workspace view (3.6) share.
+func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
+	fleetLanesViewJSON, []store.FleetLane, map[[2]string]store.FleetTokenBucket, error) {
 	now := s.o.Now()
 	out := fleetLanesViewJSON{AsOf: now.UTC().Format(time.RFC3339), Fleet: fleet, Lanes: []fleetLaneViewJSON{}}
 	ls, err := s.o.Store.ListFleetLanes(ctx, tenant, fleet, now)
 	if err != nil {
-		return out, err
+		return out, nil, nil, err
 	}
 	burn, err := s.fleetLaneBurn(ctx, now)
 	if err != nil {
-		return out, err
+		return out, nil, nil, err
 	}
 	active := []store.FleetLane{}
 	for _, l := range ls {
@@ -118,27 +144,20 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 			active = append(active, l)
 		}
 	}
-	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, active)
-	if err != nil {
-		return out, err
-	}
-	for _, l := range active { // ListFleetLanes order: newest write first
-		v := fleetLaneViewJSON{AgentID: l.AgentID, AgentBox: l.AgentBox, Vendor: agentid.Kind(l.AgentID), Scope: l.Scope,
-			TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
-		if b, ok := burn[[2]string{l.AgentBox, l.AgentID}]; ok {
-			v.LastActive = b.Minute.UTC().Format(time.RFC3339)
-			if b.Vendor != "" {
-				v.Vendor = b.Vendor
-			}
+	return out, active, burn, nil
+}
+
+// fleetLaneRow is one active lane's row before its links: no title, no issues.
+func fleetLaneRow(l store.FleetLane, burn map[[2]string]store.FleetTokenBucket) fleetLaneViewJSON {
+	v := fleetLaneViewJSON{AgentID: l.AgentID, AgentBox: l.AgentBox, Vendor: agentid.Kind(l.AgentID), Scope: l.Scope,
+		TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
+	if b, ok := burn[[2]string{l.AgentBox, l.AgentID}]; ok {
+		v.LastActive = b.Minute.UTC().Format(time.RFC3339)
+		if b.Vendor != "" {
+			v.Vendor = b.Vendor
 		}
-		title, mine := titles[l.Topic]
-		if mine {
-			v.TopicTitle = title
-		}
-		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
-		out.Lanes = append(out.Lanes, v)
 	}
-	return out, nil
+	return v
 }
 
 // fleetLaneBurn is each (box_tag, agent_id)'s newest token-burn minute within

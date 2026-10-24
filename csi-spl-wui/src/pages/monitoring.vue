@@ -40,7 +40,7 @@
 <script setup lang="ts">
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
-import { MONITORING_DEFAULT_PATH, monitoringTabFor, visibleMonitoringTabs } from '~/utils/monitoring-tabs.mjs'
+import { MONITORING_DEFAULT_PATH, monitoringStaff, monitoringTabFor, visibleMonitoringTabs } from '~/utils/monitoring-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -51,7 +51,7 @@ const access = useAccessStore()
 /* a permission tab (Costs: costs.read) shows once /v1/view/me answered;
    access.can fails open (no answer = unrestricted), the hub's 403 is the control */
 const meRead = ref(false)
-const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, can: meRead.value ? access.can : undefined }))
+const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, staff: monitoringStaff(access.me), can: meRead.value ? access.can : undefined }))
 const active = computed(() => monitoringTabFor(route.path))
 
 /* /monitoring has no page of its own: it lands on the first tab (Q1 A). In

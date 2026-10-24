@@ -105,6 +105,26 @@ The real store root on this box, plan's command with `log: m-999@<box>:~<HARNESS
 - **(c) agree.** `spl-ask-close.func.sh:6-7`: "Closing an ask another holder already closed is exit 3 and prints who closed it and why". `spl-ask-ack.func.sh:29-30`: `do_log "WARN ask ${id:0:8} is already <state> by <closed_by>: <reason>"`, `return 3`. Two fixes: the plan's quote "`rc 3: ask already closed`" is not in the file, and ack's exit 3 is not documented in its header (`grep -n -iE 'exit 3|rc 3'` -> no doc line, only `return 3` at 30 and 46).
 - **(d) agree with changes.** The refusal is `spl-spawn-enqueue.func.sh:68`: `[[ "$flag" != bypass || "$class" == feature ]] || { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" >&2; return 1; }`. Line 78 is `fi`, the queue call is 79. `fleet-rules-index.md:52` reads "`SPAWN_BYPASS=<owner msg id>`: a feature outside the bands, ONLY on the owner's explicit ask". The plan's quote ("Review seats and bug fixes run under their own bands") is not in the file. I believe, unchecked, that the dispatcher was told to enqueue review seats with a bypass (owner GO `994f2257`); `git grep 994f2257 e8283427d -- csi-spl-doc csi-spl-orc` -> nothing. If so, the code and that go disagree: ask the dispatcher which holds, rather than calling it "operator error".
 
-## 5. Signature
+## 5. Re-review of v0.3 (`01f68c6fa`)
 
-v1.0 not yet folded. I sign in my own commit once a-304 lands v1.0 with the changes above or answers each one.
+Read with `git show 01f68c6fa:csi-spl-doc/doc/md/bug-round-9-plan.md`; code re-read on `e8283427d`.
+Session log of this re-review: `~<HARNESS_USER>/.claude/projects/-opt-csi-csi-spl-wt-c-962/8ddc2ea5-68fb-4f01-a978-b94d178095cd.jsonl`.
+
+| item | v0.3 verdict |
+|---|---|
+| Row 01 | **agree**. Sites `:220-224,505-509,537-540,559-572` match 2.1; fix (b) dropped; (a') with the B-row fallback, (c') and (d) with the `-<topic>` match rule are what 2.4 / 2.5 asked for. |
+| Row 02 | **agree**. Sites `:15-17,213-218` (python 182-250) match 3.1; the FATAL says "(N sessions under it)"; section 3.1 / 6 now say b08-01 `f2cc74761` is not on master. |
+| 4 (b) -> section 6 | **agree** that it is a gate defect owned elsewhere. |
+| 4 (c) | **agree**. The quote is now the file's text: `git show e8283427d:csi-spl-orc/src/bash/run/spl-ask-close.func.sh \| sed -n '4,8p'` prints "Closing an ask another holder already closed is exit 3 / and prints who closed it and why" on lines 6-7. |
+| 4 (d) | **agree**. Line 68 and `fleet-rules-index.md:52` are quoted as they read. `askClassRank` (`fleet_ask.go:172-191`) ranks a flagged row 1, refactor 2, bug 3, feature 4, so "bug has queue priority over features" holds for the rank (the band comes first). |
+
+Text fixes for v1.0 (none of them blocks my signature):
+
+1. Row 02 evidence (5) and section 3.2 row 02: the 235,296-command, 43.9 s run was mine on **sat**, with `m-999@sat`, and it ended **rc 3 `FAIL 0 of 1`**, not `OK`. v0.3 labels it `m-999@<box2>`, and "on this box" in 3.2 reads as <box2>.
+2. Section 6, candidate (b): name the message that handed it to the CI seat (msg id), or write "not yet sent". An owner who was never told does not own it.
+3. Row 01 fix (c'): replace "keep candidate shas" with "do not drop range-diff lines", and add one line to the fix's comment saying a `Landed:` line hides other shas in the body (case B3, the same risk `sha:` lines carry since SPL-2338).
+4. Section 4 (d): I believe, unchecked, that an owner go (`994f2257`) asked for review seats to be enqueued with `SPAWN_BYPASS`. `git grep -n 994f2257 origin/master` -> only this file. If that go exists, it and line 68 disagree. One line "the dispatcher decides which holds" is enough. It is not a row.
+
+## 6. Signature
+
+I sign v1.0 in my own commit when a-304 lands it with the fixes above folded, or with each one answered.

@@ -34,8 +34,8 @@ It explains the terms as they are used in practice, highlights how they differ f
 
 | Pattern | Example | Where it is defined |
 |---|---|---|
-| `do_<verb>_<noun>` | `do_check_pre_push`, `do_check_dist_hygiene` | `CLAUDE.md#L57-L59` (Action entry function exposed by `./run`) |
-| `<verb>-<noun>.func.sh` | `check-dist-hygiene.func.sh` | `CLAUDE.md#L57-L59` (csi-rel naming: file = action without `do_`, `_` -> `-`) |
+| `do_<verb>_<noun>` | `do_check_pre_push`, `do_check_dist_hygiene` | `developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43` section 2.4 (Action entry function exposed by `./run`) |
+| `<verb>-<noun>.func.sh` | `check-dist-hygiene.func.sh` | `developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43` section 2.4 (csi-rel naming: file = action without `do_`, `_` -> `-`) |
 | `spl-<noun>-<verb>.func.sh` | `spl-lane-rotate.func.sh` (`do_spl_lane_rotate`) | `csi-spl-orc/src/bash/run/` (the spool action family: 394 of 482 action scripts start with `spl-`) |
 | `./run -a do_<verb>_<noun>` | `./run -a do_check_pre_push` | `CLAUDE.md#L58` (Standard action execution format) |
 | `<action>_args` | `do_read_cmd_args` | `csi-spl-orc/run#L31-L45` (Decentralized argument parsing hook) |
@@ -199,7 +199,7 @@ Per repository architectural standards, every fleet rule lives in exactly one au
 | **Lane issue & docs tracking** | Issue key in commit scope; documentation updates or explicit reason line | `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/27-lane-issue-and-docs.md` | `fleet-rules-index.md#L39`, `lane-issue-and-docs.md` |
 | **Lane integration** | Step-by-step commit, rebase, push, and teardown protocol | The agent seed, `spawn-core.inc.sh` | `lane-integration-rules.md`, `fleet-rules-index.md#L40` |
 | **Master push execution** | Background push execution via named action and status polling | The spawn seed (`spawn-core.inc.sh`), INTEGRATION (4) | `fleet-rules-index.md#L41`, `lane-integration-rules.md section 3.3 L108` |
-| **Never force-push master** | Strict prohibition on non-fast-forward push or deleting master | `spawn-core.inc.sh` (`NO_FORCE`), enforced by GitHub ruleset & hook | `fleet-rules-index.md#L42`, `developer-guide.md#3-never-force-push-or-delete-master` |
+| **Never force-push master** | Strict prohibition on non-fast-forward push or deleting master | `spawn-core.inc.sh` (`NO_FORCE`), enforced by GitHub ruleset & hook | `fleet-rules-index.md#L42`, `developer-guide.md#ws-doc-f0217fb8-6313-42f2-835c-881b59531456` |
 | **Two-language documentation** | Workspace `ws-b` dual documentation requirement (EN and BG) | `csi-spl-doc/doc/md/workspace-rules.md section 1.1` | `fleet-rules-index.md#L43` |
 | **Rounds rulebook** | Campaign item limits, push caps, continuous execution rules | `csi-spl-doc/doc/md/rounds-rulebook.md` | `fleet-rules-index.md#L44`, `SPEC-spool-fleet-roles.md` |
 | **Runbooks are Qto docs** | Authoritative runbooks maintained in Qto; markdown is export only | `csi-spl-doc/doc/md/qto-docs.tsv` | `fleet-rules-index.md#L45`, `runbook-dispatcher.md` |

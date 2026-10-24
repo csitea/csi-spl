@@ -1,7 +1,7 @@
 # 064: development keeps running while the PC is off
 
-Status: **draft for the owner, Q1..Q10 open** (section 9). Spec only;
-nothing is built, and no `lease.conf`, cron, sidecar or runner was touched.
+Status: **Partial** (lanes L1–L5, L9 landed on master: eecae222e, 01f07a151,
+e21ca5d88, 53fcc736c, 9243c7587, 83183be1b; Q7–Q10 remain open for drill L8).
 Draft 2026-10-03, c-048.
 Related: [057 the satellite](../057-satellite/spec.md), [058 the fleet on many
 machines](../058-multi-machine-fleet/spec.md), [060 role

@@ -92,7 +92,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 ### Phase 1: visitor channel (spec 3.1, 4)
 
 - [x] T000 **doc** (c-757): this file.
-- [ ] T101 **lane A, rdb** (claude; needs nothing). One new migration
+- [x] T101 **lane A, rdb** (claude; needs nothing). Landed: commit `0917c4e67`. One new migration
   (`spec.md` 4.1, 4.2, 5):
   - `embed_visitors` (tenant_id, embed_id, visitor_id uuid, token_hash,
     channel_id, ip_hash, email NULL, created_at, last_seen_at, expires_at),
@@ -238,7 +238,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   read them. Tests: `GO/hub/embed_serve_test.go` (Postgres row included),
   11 red controls. Live 5.9.7 dev + prd: `/v1/health` and `/embed/*` answer
   `'none'` + DENY (flag off).
-- [ ] T202 **loader + iframe chat page** (claude; needs T201, T104).
+- [x] T202 **loader + iframe chat page** (claude; needs T201, T104). Landed: commit `b30f1a7a0`.
   `/embed/v1/loader.js` (launcher button, iframe to
   `/embed/v1/chat?e=<embed-id>`) and the chat page; token in the iframe's
   own `localStorage`, sent as `Authorization: Bearer`; `postMessage` with

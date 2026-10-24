@@ -82,7 +82,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
   - Ports: the sibling's xls import (xls -> table/DB) and export (DB -> xls).
   - Done: an import builds the tree through T002's ops only, in ONE transaction that takes the doc lock once at the top (nested op calls reuse it); export then import of a 3-level doc round-trips to the same outline md5. Control: an xlsx row whose parent number does not exist is refused with its row number and nothing is written.
   - Vendor: claude. Box: any with docker Postgres.
-- [ ] **T006**: WUI `WorkspaceDocView` and `WorkspaceGridView`, lazy (one node's children per load); doc view context menu (add sibling / parent / child, move, indent / outdent, delete branch, print branch via standard print CSS, D-Q2); grid inline edit, filter, sort; i18n.
+- [x] **T006**: WUI `WorkspaceDocView` and `WorkspaceGridView`, lazy (one node's children per load); doc view context menu (add sibling / parent / child, move, indent / outdent, delete branch, print branch via standard print CSS, D-Q2); grid inline edit, filter, sort; i18n. Landed: commit `240b9e875`.
   - Depends: T004.
   - Owns: `csi-spl-wui/src/pages/workspace/docs.vue` (*new*), components under `csi-spl-wui/src/components/workspace-docs/` (*new*), their locale keys.
   - Done: `pnpm run typecheck` and the e2e drive add/move/delete in both views and read the same outline back; a 412 shows a reload prompt. Control: the initial-chunk budget test fails on an initial JS delta > 100 B (9g).

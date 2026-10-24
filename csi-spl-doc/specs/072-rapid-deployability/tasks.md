@@ -40,7 +40,7 @@ Rules for every lane: the spec's ranking rule (section 2: time to first deploy, 
 ## Phase 3: wave 2
 
 - [ ] T026 **L10** A10: org optional. Owns: `gcp-001-create-project.func.sh` + test. Needs: -
-- [ ] T027 **L11** A11: `do_spl_gh_wire`. Owns: a new action + test. Needs: -
+- [x] T027 **L11** A11: `do_spl_gh_wire`. Owns: a new action + test. Needs: - **Landed**: `6fa7d5959`. Check: `csi-spl-iac/src/bash/run/spl-gh-wire.func.sh` exists
 - [ ] T028 **L12** A12: optional steps in cnf. Owns: cnf `steps.*`, `tf-sweep-steps.func.sh`. Needs: -
 - [x] T029 **L13** A14: tpl-gen without a token. Owns: `setup-tpl-gen.func.mk`. Needs: - **Landed**: tpl-gen half: `5c74662d6`. Check: `do-setup-tpl-gen` demands no `GITHUB_TOKEN` (`setup-tpl-gen.func.mk:8`). `do-setup-tf-runner` still does (line 30): open as T029b
 - [ ] T029b **L13** A14 the rest: `do-setup-tf-runner` without `GITHUB_TOKEN` (only step 120 needs it), the key dir mounted read-only, no `~/.aws` / `~/.ssh` mounts (research 03 A5). Owns: `setup-tpl-gen.func.mk` tf-runner target, `docker-compose-tf-infra.yaml`. Needs: T029

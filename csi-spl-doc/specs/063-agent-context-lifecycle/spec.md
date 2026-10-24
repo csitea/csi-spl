@@ -5,7 +5,8 @@ section 8), with two changes: no threshold is hard-coded; every number lives
 in a per-workspace DB config table the admin edits (section 11), and every
 restart, compact and hand-over is logged so the numbers can be tuned
 empirically, in a table used for that only and at most 3 % slower
-(section 12). Nothing is built yet; the implementation split is
+(section 12). Partial implementation in progress: brief 01 landed on master
+(fbd6d16a5) and brief 05 landed on master (03ccae903); the implementation split is
 section 13. Draft 2026-10-03, c-079.
 Related: [060 hourly role rotation](../060-role-rotation/spec.md) (the
 handoff file, section 6), [SPEC-spool-fleet-roles.md section 1.1](../../doc/md/SPEC-spool-fleet-roles.md)

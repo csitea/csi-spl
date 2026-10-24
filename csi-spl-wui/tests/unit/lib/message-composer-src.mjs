@@ -18,6 +18,7 @@ export const MESSAGE_COMPOSER_FILES = [
   'src/composables/useComposerDock.ts',
   'src/composables/useComposerDraft.ts',
   'src/composables/useComposerFiles.ts',
+  'src/composables/useComposerKeys.ts',
   'src/composables/useComposerPickers.ts',
   'src/composables/useComposerSend.ts',
   'src/composables/useComposerSize.ts',

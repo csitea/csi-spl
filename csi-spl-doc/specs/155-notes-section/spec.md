@@ -1,6 +1,9 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.0, written 2026-10-24 by c-005@sat (claude), not reviewed yet.
+Version v1.1, 2026-10-24, by c-005@sat (claude). v1.0 (`471c55f24`) was
+reviewed by the agy seat a-089: NOT SIGNED, four defects W1-W4
+(`fafbb86d0`, `seat-agy.md`). v1.1 folds all four (section 9); it waits
+for that seat's re-check.
 The owner said "start with implementation" (2026-10-24, t1 topic
 `5586fe0e`, msg `ebf3abad`), so there is no owner-question round: every
 open choice is a default the owner may change (section 3). One reviewer
@@ -20,7 +23,8 @@ Paths used below:
 - `wui/` = `csi-spl-wui/src/`, `wui-tests/` = `csi-spl-wui/tests/`
 
 Every `file:line` below was read on origin/master `2daeaf1fa` with
-`grep -n` or `sed -n` on that tree. Nothing was read from prd.
+`grep -n` or `sed -n` on that tree; rows 30-32 (v1.1) on `fafbb86d0`.
+Nothing was read from prd.
 
 Builds on, and does not repeat:
 [119 personal realm](../119-personal-realm/spec.md) (where the notes are
@@ -86,6 +90,9 @@ marked (C).
 | 27 | realm routes today | `hub/realm.go:431-438` `routeRealm`: `GET /v1/me/realm/settings`, `/profile`, `/receipts`; `hub/channel_order.go:119-120` registers 118's realm hours routes inside `routeMe` | notes routes go under `/v1/me/realm/notes`, registered by one line in `routeMe` |
 | 28 | the settings sections | `wui/utils/settings-nav.mjs:6` `SETTINGS_SECTIONS`; the page `wui/pages/settings/[[section]].vue` | Settings -> Notes is one more section (B10) |
 | 29 | the next migration | `ls rdb/ \| tail -1` -> `0222_hours_v2_terminals.sql` | `<next>` = 0223 today; each build row fixes its number at build time |
+| 30 | the realm's RLS seeds (v1.1, W1) | `store/personal_rls_test.go:274-277` `realmSeedPG` seeds P and Q with a row in every personal table, then `:317` loops over `personalTables`; `store/personal_catalogue_test.go:256` `seedRealm` plants the rows of the policy test | widening `personalTables` without seed rows for the three notes tables fails both tests: B2 seeds them |
+| 31 | how a hub flag is read (v1.1, W2) | `api/internal/config/config.go:281-283` struct fields with `env:"SPOOL_HUB_…"` tags; `api/cmd/spool/hub.go:319` builds `hub.Options`; `hub/server.go:42` `type Options struct`; a cnf hub env value, e.g. `csi-spl-cnf/csi-spl/all.env.yaml:748` `SPOOL_HUB_AUTH_NATIVE_ENABLED` | the kill switch is one env var through those three files (section 6) |
+| 32 | the help coverage gates (v1.1, W3, W4) | `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs:32` `RAIL_HELP` (every `RAIL_TABS` id needs a help mapping, :117-121) and `:66-69` (every `SETTINGS_SECTIONS` id must be named as `/settings/<id>` in the user settings help); `csi-spl-wui/tests/unit/help-sync.test.mjs` compares `wui/public/help-md/` (with `pages.json`) to `csi-spl-doc/doc/help/`, rewritten by `node src/node/help/sync-help.mjs` | B5 maps `notes` in `RAIL_HELP` and syncs `notes.md`; B10 names `/settings/notes` in `user-settings.md` and syncs it |
 
 ## 2. The design
 
@@ -350,10 +357,14 @@ is not revealed.
 
 ## 6. Kill switch
 
-cnf `env.hub.notes.enabled` in `csi-spl-cnf/csi-spl/all.env.yaml`
-(`true` once B4 lands). `false`: every notes route answers 404 and the
-WUI hides the tab and the "Add to note" items (the flag rides the session
-claims). The stored notes stay.
+The hub env var `SPOOL_HUB_NOTES_ENABLED` (v1.1, W2), set in the hub's env
+in `csi-spl-cnf/csi-spl/all.env.yaml` like `SPOOL_HUB_AUTH_NATIVE_ENABLED`
+(1.2 row 31), `"true"` once B4 lands. It reaches the hub as one field in
+`api/internal/config/config.go`, copied into `hub.Options` in
+`api/cmd/spool/hub.go`. `false`: every notes route answers 404
+`notes_off`. The WUI needs no session claim: when
+`GET /v1/me/realm/notes` answers 404 `notes_off`, it hides the tab and the
+"Add to note" items. The stored notes stay.
 
 ## 7. Cases
 
@@ -378,7 +389,7 @@ workspaces.
 | C12 | B4 | P1 left W2; a note holds a `topic` link into W2 labelled "Plan" | n/a | GET returns `label: ""`, `left: true`; a PATCH erases the stored label | Go test, memory and Postgres; twin: the link into W1 keeps "Plan" |
 | C13 | B4 | a 201-character title; the 101st link | n/a | 400 each | Go test; twin: 200 characters and the 100th link pass |
 | C14 | B4 | export, then erase | n/a | the export holds every note incl. archived; erase leaves 0 | Go test |
-| C15 | B4 | `env.hub.notes.enabled=false` | n/a | 404 on every notes route | Go test; twin: true answers 200 |
+| C15 | B4 | `SPOOL_HUB_NOTES_ENABLED=false` | n/a | 404 `notes_off` on every notes route; the WUI store reads it as "off" | Go test; twin: true answers 200 |
 | C16 | B4 | a route's log line on create | n/a | holds the person and note id, never the title | Go test greps the captured log for the title |
 | C17 | B5 | a new member's rail | no Notes tab | `notes` after `calendar` | `rail-order.test.mjs`: today's default order has no `notes` |
 | C18 | B5 | an order saved before B5, read back | 10 tabs | `notes` drawn before Archive; the saved order omits it while `RAIL_HUB_PENDING` lists it | unit test on `parseRailOrder` / `wireRailOrder` |
@@ -408,15 +419,15 @@ its docs or a `Docs: none (<why>)` line.
 | row | does | files | cases | after |
 |---|---|---|---|---|
 | B1 | the hub admits `notes` in the rail order | `api/internal/auth/handler.go` (`RailTabs`), `api/internal/auth/rail_order_test.go`, `api/internal/auth/preferences_test.go`, `store/humans_test.go`, `store/hours_rls_test.go`, `rdb/<next>_human_rail_order_notes.sql` (the `2835ff381` precedent) | C1, C2 | - |
-| B2 | the three realm tables | `rdb/<next>_personal_notes.sql`, `roles/runtime-grants.sql`, `store/personal_catalogue_test.go` | C3-C6 | B1 (migration order) |
+| B2 | the three realm tables | `rdb/<next>_personal_notes.sql`, `roles/runtime-grants.sql`, `store/personal_catalogue_test.go` (the lists and `seedRealm`), `store/personal_rls_test.go` (`realmSeedPG`, v1.1 W1) | C3-C6 | B1 (migration order) |
 | B3 | the notes store, memory and Postgres | `store/personal_notes.go`, `store/personal_notes_memory.go`, `store/personal_notes_test.go`, `store/personal_scope_test.go` (`personCallers`) | C7-C9 | B2 |
-| B4 | the realm routes, the kill switch, labels after a leave | `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/channel_order.go` (one line in `routeMe`), `csi-spl-cnf/csi-spl/all.env.yaml` (+ its tpl-gen output); docs: section 5 of this spec marked built | C10-C16 | B3 |
-| B5 | WUI section shell: rail entry, `/notes` list page, notes store, i18n keys, help page | `wui/utils/rail-order.ts` (+ `RAIL_HUB_PENDING` until B1 is live), `wui/utils/rail-order.mjs`, `wui/utils/sidebar-tabs.mjs`, `wui/utils/section-strip.mjs`, `wui/utils/uiIcons.ts`, `wui/composables/useSidebarRailOnly.ts`, `wui/components/ChannelSidebar.vue`, `wui/pages/notes.vue`, `wui/stores/notes.ts`, `csi-spl-wui/i18n/locales/*.json`, `csi-spl-doc/doc/help/notes.md`, `wui-tests/unit/rail-order.test.mjs`, `wui-tests/e2e/rail-order-default.test.mjs` | C17-C19 | B4 for live data (the mock serves before) |
+| B4 | the realm routes, the kill switch, labels after a leave | `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/channel_order.go` (one line in `routeMe`), `hub/server.go` (`Options`), `api/internal/config/config.go`, `api/cmd/spool/hub.go` (v1.1 W2), `csi-spl-cnf/csi-spl/all.env.yaml` (+ its tpl-gen output); docs: section 5 of this spec marked built | C10-C16 | B3 |
+| B5 | WUI section shell: rail entry, `/notes` list page, notes store, i18n keys, help page | `wui/utils/rail-order.ts` (+ `RAIL_HUB_PENDING` until B1 is live), `wui/utils/rail-order.mjs`, `wui/utils/sidebar-tabs.mjs`, `wui/utils/section-strip.mjs`, `wui/utils/uiIcons.ts`, `wui/composables/useSidebarRailOnly.ts`, `wui/components/ChannelSidebar.vue`, `wui/pages/notes.vue`, `wui/stores/notes.ts`, `csi-spl-wui/i18n/locales/*.json`, `csi-spl-doc/doc/help/notes.md` + its synced copy `wui/public/help-md/notes.md` and `wui/public/help-md/pages.json` (`node src/node/help/sync-help.mjs`), `wui-tests/unit/help-settings-coverage.test.mjs` (`RAIL_HELP`, v1.1 W3), `wui-tests/unit/rail-order.test.mjs`, `wui-tests/e2e/rail-order-default.test.mjs` | C17-C19 | B4 for live data (the mock serves before) |
 | B6 | the open note: editor, checklist, pin, archive, delete + Undo, order | `wui/components/NoteDetail.vue`, `wui/components/NoteChecklist.vue`, `wui/utils/note-order.mjs`, their tests | C20-C22 | B5 |
 | B7 | links: parse, render, open | `wui/utils/note-links.mjs` (`parseNoteLink`, the href builder), `wui/components/NoteLinks.vue`, `wui-tests/unit/note-links.test.mjs` | C23-C25 | B6 |
 | B8 | "Add to note" everywhere + the picker | `wui/utils/msg-menu.mjs`, `wui/components/MessageMenu.vue`, `wui/utils/msg-shortcuts.mjs`, `wui/components/IssueRowMenu.vue`, `wui/components/IssueDetailActions.vue`, `wui/components/SidebarRowMenu.vue`, `wui/components/CalendarEventDialog.vue`, `wui/components/AddToNotePicker.vue`, `wui-tests/unit/msg-menu.test.mjs`, `wui-tests/unit/msg-shortcuts.test.mjs`, a new e2e | C26, C27 | B7 |
 | B9 | `/note` in the omnibox, the palette's `notes` group | `wui/utils/search.mjs` (`omniboxMode`), `wui/components/TopBar.vue`, `wui/composables/usePaletteItems.ts`, `wui-tests/unit/search.test.mjs`, `wui-tests/unit/palette.test.mjs` | C28-C30 | B7 |
-| B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, a new e2e | C31 | B5 |
+| B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, `csi-spl-doc/doc/help/user-settings.md` + its synced copy `wui/public/help-md/user-settings.md` (names `/settings/notes`, v1.1 W4), a new e2e | C31 | B5 |
 
 Only B5 changes locale files: agy reviews them last (2.7). B5 to B10 are
 WUI rows: never placed on mistral (developer guide 4.1). B8 and B9 both
@@ -424,5 +435,17 @@ come after B7 and touch no common file, so they may run side by side.
 
 ## 9. Review record
 
-Not reviewed yet. One reviewer from another vendor reads this before B1
-is placed; their verdict and any fix land as a v1.1 of this file.
+- v1.0 `471c55f24`: agy seat a-089, NOT SIGNED at `fafbb86d0`
+  (`seat-agy.md`, msg `1b611787`). It confirmed the 29 code facts, the
+  privacy design and C1-C31, and found four missing files:
+  - W1: B2 lacked the seed rows in `store/personal_rls_test.go`
+    (`realmSeedPG`) and `seedRealm`. Folded: B2's files, 1.2 row 30.
+  - W2: B4 lacked the flag's plumbing. Folded: section 6 is now one hub
+    env var through `config.go`, `cmd/spool/hub.go` and `hub.Options`; the
+    WUI reads the 404 instead of a session claim, so no auth file is
+    touched. B4's files, 1.2 row 31, C15.
+  - W3: B5 lacked `RAIL_HELP` in `help-settings-coverage.test.mjs` and the
+    synced help copy. Folded: B5's files, 1.2 row 32.
+  - W4: B10 lacked `/settings/notes` in `user-settings.md`. Folded: B10's
+    files, 1.2 row 32.
+- v1.1: waits for the same seat's re-check.

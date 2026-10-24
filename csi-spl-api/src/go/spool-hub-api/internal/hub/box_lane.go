@@ -19,6 +19,10 @@ import (
 //	lane_op put  - upsert the row of lane.agent_id (spawn: live, exit: done)
 //	lane_op list - every row of the fleet, live first
 //
+// A put's topic given as an 8-hex short id is stored as the one topic of the
+// tenant it starts, or "" when none or several do (spec 153 3.4): a short id
+// is never stored, so it never reaches the lanes view as a link.
+//
 // A row is the agent <agent_id>@<agent_box> (the fleet naming rule).
 // Who may: any box pinned in the tenant (the hello proved its key); the
 // writing box is recorded from the session, never from the frame.
@@ -32,6 +36,7 @@ type LaneRow struct {
 	Scope     string   `json:"scope"`
 	Files     []string `json:"files"`
 	Topic     string   `json:"topic"`
+	IssueKey  string   `json:"issue_key"` // rdb 0221, spec 153 3.4
 	State     string   `json:"state"`
 	WriterBox string   `json:"writer_box,omitempty"`
 	UpdatedAt string   `json:"updated_at,omitempty"`
@@ -46,7 +51,7 @@ type laneAnswer struct {
 
 func laneRow(l store.FleetLane) LaneRow {
 	return LaneRow{AgentID: l.AgentID, AgentBox: l.AgentBox, Repo: l.Repo, Branch: l.Branch, Scope: l.Scope,
-		Files: l.Files, Topic: l.Topic, State: l.State, WriterBox: l.WriterBox,
+		Files: l.Files, Topic: l.Topic, IssueKey: l.IssueKey, State: l.State, WriterBox: l.WriterBox,
 		UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
 }
 
@@ -116,9 +121,12 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 			return laneAnswer{}, ae
 		}
 		l := store.FleetLane{Fleet: f.Fleet, AgentID: agent, AgentBox: in.AgentBox, Repo: in.Repo, Branch: in.Branch,
-			Scope: in.Scope, Files: in.Files, Topic: in.Topic, State: in.State}
+			Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.IssueKey, State: in.State}
 		if why := store.CheckFleetLane(l); why != "" {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}
+		}
+		if l.Topic, ae = s.laneTopic(ctx, x.tenant, l.Topic); ae != nil {
+			return laneAnswer{}, ae
 		}
 		got, err := s.o.Store.PutFleetLane(ctx, x.tenant, l, x.box, now)
 		if err != nil {
@@ -141,4 +149,25 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be put or list"}
 	}
 	return out, nil
+}
+
+// laneTopic is the topic a put stores: an 8-hex short id becomes the one
+// topic of the tenant it starts, "" for none or two; anything else as sent.
+func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *issueErr) {
+	if !store.TopicPrefixRe.MatchString(topic) {
+		return topic, nil
+	}
+	d, ok := s.issueDiscussionStore()
+	if !ok {
+		return "", nil
+	}
+	ids, err := d.TopicsByPrefix(ctx, tenant, topic, 2)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fleet lane topic prefix")
+		return "", &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
+	}
+	if len(ids) != 1 {
+		return "", nil
+	}
+	return ids[0], nil
 }

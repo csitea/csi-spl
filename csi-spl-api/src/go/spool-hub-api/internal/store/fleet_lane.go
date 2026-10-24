@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"regexp"
+	"slices"
 	"sort"
 	"time"
 
@@ -23,6 +24,7 @@ type FleetLane struct {
 	Scope     string
 	Files     []string
 	Topic     string
+	IssueKey  string // the lane's own issue, "" for none (rdb 0221, spec 153 3.4)
 	State     string // live | done
 	WriterBox string // the box that last wrote it (from the authenticated hello)
 	UpdatedAt time.Time
@@ -37,6 +39,7 @@ var (
 	LaneRepoRe   = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9_.-]{0,63})?$`)
 	LaneBranchRe = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9._/-]{0,199})?$`)
 	LaneTopicRe  = regexp.MustCompile(`^([A-Za-z0-9_-]{1,64})?$`)
+	LaneIssueRe  = regexp.MustCompile(`^([A-Z][A-Z0-9]{1,9}-[0-9]{1,9})?$`) // rdb 0221
 )
 
 // ValidFleetAgent is a fleet row's agent id as 0096/0097 accept it: either
@@ -63,6 +66,12 @@ type FleetLanes interface {
 	// ListFleetLanes reads every row of the fleet, live first, then newest
 	// write first.
 	ListFleetLanes(ctx context.Context, tenantID, fleet string, now time.Time) ([]FleetLane, error)
+	// FleetLaneIssues is what the lanes view (spec 153 3.3) links: for each
+	// of topics the live issues issue_discussions links to it (ascending
+	// number, served by issue_discussions_task), and the status of every
+	// such issue and of each of numbers (the lanes' own keys). A topic or
+	// number with no live issue is absent; a topic that is not a uuid too.
+	FleetLaneIssues(ctx context.Context, tenantID string, topics []string, numbers []int) (map[string][]int, map[int]string, error)
 }
 
 // sortLanes is the list order both drivers share.
@@ -96,6 +105,40 @@ func (s *Memory) PutFleetLane(_ context.Context, tenant string, l FleetLane, box
 	l.WriterBox, l.UpdatedAt, l.Age = box, now, 0
 	s.lanes[[3]string{tenant, l.Fleet, l.AgentID + "@" + l.AgentBox}] = l
 	return l, nil
+}
+
+// FleetLaneIssues reads the lanes view's issue links (on the Memory store).
+func (s *Memory) FleetLaneIssues(_ context.Context, tenant string, topics []string, numbers []int) (map[string][]int, map[int]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	byTopic, status := map[string][]int{}, map[int]string{}
+	want := map[string]bool{}
+	for _, t := range topics {
+		want[t] = canonUUIDRe.MatchString(t)
+	}
+	rows := s.iss.rows[tenant]
+	for n, ls := range s.iss.links[tenant] {
+		r, live := rows[n]
+		if !live {
+			continue
+		}
+		for _, l := range ls {
+			if want[l.TaskID] && !slices.Contains(byTopic[l.TaskID], n) {
+				byTopic[l.TaskID] = append(byTopic[l.TaskID], n)
+				status[n] = r.Status
+			}
+		}
+	}
+	for _, ns := range byTopic {
+		sort.Ints(ns)
+	}
+	for _, n := range numbers {
+		if r, live := rows[n]; live {
+			status[n] = r.Status
+		}
+	}
+	return byTopic, status, nil
 }
 
 func (s *Memory) ListFleetLanes(_ context.Context, tenant, fleet string, now time.Time) ([]FleetLane, error) {
@@ -133,6 +176,8 @@ func CheckFleetLane(l FleetLane) string {
 		return "files lists at most 50 paths"
 	case !LaneTopicRe.MatchString(l.Topic):
 		return "topic must be a task id ([A-Za-z0-9_-], up to 64)"
+	case !LaneIssueRe.MatchString(l.IssueKey):
+		return "issue_key must be an issue key like SPL-12"
 	case l.State != "live" && l.State != "done":
 		return "state must be live or done"
 	}

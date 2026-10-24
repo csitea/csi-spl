@@ -22,6 +22,16 @@ settle what v1.0 left open: O1 = A (two-way sync), O2 = A (one combined
 Google review), O3 = A (Message, matched in the current workspace only) and
 O4 = A (Invite, to the current workspace only).
 
+**v1.1 amendment, the same day (owner msgs `14cdf0ad`, `31bb12ea`).** There
+is no separate Contacts section: the existing **People** section shows the
+reader's contacts together with the workspace's members, in one list. The
+list has three groups: members online now, then the other members, then
+the reader's other contacts, sorted A-Z inside each group. A filter shows
+only the members of the current workspace (2.7). B1 (data) does not change.
+B6 becomes a member match carried on every contact in the list, in place of
+the `/peer` route. B9 edits the People section and adds no rail tab. B10
+puts contacts in the palette's existing `people` group.
+
 Paths used below:
 
 - `api/` = `csi-spl-api/src/go/spool-hub-api/`
@@ -90,14 +100,14 @@ contact list. Every case in section 5 is red on master today unless marked
 | 3 | membership | `rdb/0006_users_and_memberships.sql:45` `tenant_memberships` | "member of this workspace" |
 | 4 | a phone column | none: `rdb/0193_human_contact_links.sql:21-23` `email_client`, `phone_app` are the app a link opens, not stored numbers | a contact's phone is new data; its link reuses 0193 (2.4) |
 | 5 | store types | `store/member_directory.go:20` `type Member struct`, `store/search.go:87` `type HumanEntry struct`; no `type Human struct` | a contact gets its own type |
-| 6 | the People section | `wui/pages/people/index.vue:1-2` and `[id].vue:1-4`: the workspace's members; the card has a Message button that opens the DM | Contacts is a separate section, not a filter of People (P3) |
+| 6 | the People section | `wui/pages/people/index.vue:1-2` and `[id].vue:1-4`: the workspace's members; the card has a Message button that opens the DM | the amendment merges contacts into it (2.7, P3; rows 32-34) |
 | 7 | a DM | `store/view.go:38` `DM bool // only messages with no channel`; the page is `wui/pages/dm/[peer].vue`, reached at `/dm/<peer>` (`wui/composables/usePaletteItems.ts:88-89`) | there is no DM to create: "message this contact" is a route to `/dm/<peer>` |
 | 8 | sending a message | a WebSocket frame: `GET /v1/wui/ws` (`hub/server.go:416`), `case "send"` (`hub/wui.go:368`) -> `wuiSend` (`hub/wui.go:571`), recipient from `wuiRecipient` (`hub/wui.go:859`, `to = f.To` :860) | Contacts sends nothing itself; the DM page does |
 | 9 | inviting a non-member | `POST /v1/members/invites` (`hub/rbac.go:552`, handler `:324`), gated by `rbac.MembersInvite` (`:325`); body email, role, ttl_hours, no_mail (`:329-336`) | the one existing way to bring a non-member in (O4) |
 | 10 | the omnibox | `wui/components/TopBar.vue:1-4`: one composer; plain text goes to the page's send target, `/search <q>` opens `/search?q=`; `wui/stores/omnibox.ts:5-7` "with no target ... the Omnibox only searches" | contacts are found through `/search` (2.3) |
 | 11 | the hub search | `GET /v1/view/search` (`hub/search.go:50`), handler `:111`; entity types `search/grammar.go:30-45` (message, topic, file, robot, user, channel, box, tenant, event, issue); members as hits from `TenantHumans` (`hub/search.go:484-485`) | a new type `contact`, the reader's own rows only |
-| 12 | the command palette | `wui/composables/usePaletteItems.ts:40` `PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'settings']`; client-side over the stores' lists (`:83-107`) | an optional `contacts` group (B10) |
-| 13 | rail sections | `wui/utils/rail-order.ts:20` `export const RAIL_TABS`; the palette lists them (`usePaletteItems.ts:63-80`) | a new rail tab `contacts` |
+| 12 | the command palette | `wui/composables/usePaletteItems.ts:40` `PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'settings']`; client-side over the stores' lists (`:83-107`) | contacts join the existing `people` group (B10, amendment) |
+| 13 | rail sections | `wui/utils/rail-order.ts:20` `export const RAIL_TABS`; `people` is one of them (:45); the palette lists them (`usePaletteItems.ts:63-80`) | no new rail tab (amendment): contacts live in `people` |
 | 14 | spec 149's Google connection | landed: `rdb/0217_google_calendar.sql:17-41` `gcal_connections`, `UNIQUE (tenant_id, human_id)` (:40), sealed tokens `access_sealed`, `refresh_sealed`, `kms_key_id` (:26-28); no column for the granted scopes | one Google connection per member per workspace exists; contacts adds a scope to it, not a second login (2.2) |
 | 15 | spec 149's Google client | landed (`bf5a169e4`): `api/internal/gcal/oauth.go:172-174` sends `scope` from cnf `gcal.scopes` (:58) and `include_granted_scopes=true`; the token answer's `scope` is parsed (`:235`, :247) | the granted scope string is already in hand; but `AuthorizeURL(state)` (:167) takes no scope argument, the scope is fixed per client from cnf (:58, :172), so asking for one part's scope needs a change in `oauth.go` (B7) |
 | 16 | spec 149's hub side | `ls hub/ \| grep -c gcal` -> 0: no connect route, sync or WUI yet (149 B5-B10 not landed); v1.1: `git ls-tree --name-only e0f02e7ff api/internal/hub/ \| grep -c gcal` -> 0 | B7, B8 and B9 here come after 149 B5, B6a and B8 |
@@ -116,6 +126,10 @@ contact list. Every case in section 5 is red on master today unless marked
 | 29 | who deletes a human (new) | `git grep -n 'DELETE FROM humans' e0f02e7ff -- csi-spl-api ':!*_test.go'` -> `store/demo_stay.go:227` (a demo human with no membership left, :227-228) and `store/embed_visitor_messages.go:128` (a channel guest). A clone is never deleted: `store/clones.go:132-138` drops its channel rows and membership and sets `disabled_at` | the humans FK cascade erases a demo human's or guest's list; a clone needs the gate of row 28 instead (2.6) |
 | 30 | 149's connection and membership (new) | `rdb/0217_google_calendar.sql:19-20`: `gcal_connections` references `tenants` and `humans` only, with no FK to `tenant_memberships` | leaving a workspace does not remove a 149 connection; `contacts_sync` gets its own membership FK, so the contacts sync stops on a leave (2.2) |
 | 31 | the membership key (new) | `rdb/0006_users_and_memberships.sql:45-52`: `PRIMARY KEY (tenant_id, human_id)` | the target of `contacts_sync`'s membership FK (3) |
+| 32 | the People list (new, amendment) | `wui/components/ChannelSidebar.vue:506-544`, the sidebar panel `sidebar-panel-people`: one `nav-item` row per entry of `memberRows`, linking to `/people/<id>` (:531), with the "you" or owner tag (:540-541). `memberRows` (:931-933) is `roster.people` filtered to human ids, so it needs no fetch of its own (comment :928-930) | the merged list is built here (2.7) |
+| 33 | how People is ordered today (new, amendment) | `roster.people` = `peopleRows(...)` (`wui/stores/roster.ts:38`), which ends `rows.sort((a, b) => a.label.localeCompare(b.label))` (`wui/utils/live-follow.mjs:296`). The label is `<id>@<box>` (`wui/utils/channel-feed.mjs:50-53`, used at `live-follow.mjs:281`), so today's order is by member id, not by the name shown, and online people are not put first | the owner's order (online, then members, then contacts, each A-Z) is new (2.7, C24b) |
+| 34 | what "online" means in People (new, amendment) | `wui/stores/roster.ts:12` `online`, the peer labels the hub calls online: from the `GET /v1/view/roster` snapshot (`roster.ts:62`, `mergeSnapshotOnline`) and from live `presence` frames over the WUI socket (`hub/channels.go:349-351` `presenceFrame`; applied by `applyPresence`, `wui/utils/live-follow.mjs:203`, through `roster.ts:45-48`). A row is online when its label is in that list (`live-follow.mjs:284`; `roster.isOnline`, `roster.ts:77-80`) | group 1 is the rows the roster store calls online right now; a presence frame moves a row between groups 1 and 2 at once |
+| 35 | the member card and the People help (new, amendment) | `wui/pages/people/[id].vue`: the member's card from `/v1/view/roster` (`:1-4`), its Message button (:48); `wui/pages/people/index.vue:12` shows only `people.empty` before a row is picked. The People help is `csi-spl-doc/doc/help/people.md` (its WUI copy `wui/public/help-md/people.md:3-5`: "lists every member of the workspace") | the contact card is a new page beside it; the help text changes (B12) |
 
 ## 2. The design
 
@@ -123,8 +137,10 @@ contact list. Every case in section 5 is red on master today unless marked
 
 In: a person's own contact list, **one list that follows the person into
 every workspace they belong to** (O5 = B). Each contact holds exactly four
-attributes: **first name, last name, email, phone** (one of each). In
-scope: add, edit and delete in Spool; find a contact from the omnibox
+attributes: **first name, last name, email, phone** (one of each). The
+list shows inside the existing **People** section, together with the
+workspace's members (amendment, 2.7). In scope: add, edit and delete in
+Spool; find a contact from the omnibox
 (`/search`); open a direct message with a contact who is a member of the
 current workspace; invite a contact who is not; a two-way sync with the
 person's Google Contacts; export and erase.
@@ -215,9 +231,12 @@ The owner's "searchable from the omnibox" is the composer's `/search <q>`
   (`TestPersonScopeCallers`, 1.2 row 26). An admin's search does not see a
   member's contacts, and neither does the operator scope (2.6).
 - A hit shows the name, email and phone, and its actions (2.4).
-- The command palette gets a `contacts` group (B10), filled from
-  `GET /v1/me/contacts` the first time the palette opens; it is a separate
-  row so B5 does not wait for it.
+- The command palette lists contacts in its existing `people` group
+  (B10; `PALETTE_GROUPS` stays at six, `usePaletteItems.ts:40`), filled
+  from `GET /v1/me/contacts` the first time the palette opens. A contact
+  row opens the contact's card (2.7); a contact matched to a member here
+  shows once, as that member. It is a separate row so B5 does not wait
+  for it.
 
 A person's list is small (Google caps an account at 25,000 contacts,
 unchecked, I believe), so an index on `person_id` and an `ILIKE` over that
@@ -233,15 +252,18 @@ The owner: "one should be able to send directly spool-hub.ai msgs from it".
   `rdb/0006_users_and_memberships.sql:34-35`; not `humans.email`, which is
   "informational", :23). That human must have a membership in the session's
   workspace and must not be disabled. The match answers the member's
-  `human_id`, and the WUI shows a **Message** button that opens
+  `human_id` as the contact's `member_id` on every contact the list and
+  card routes return (amendment: one match per list page, not one
+  request per contact, because the People list needs it for every row).
+  The WUI shows a **Message** button that opens
   `/dm/<peer>`, the same route the People card and the palette use
   (`usePaletteItems.ts:89`). The DM page sends as today (`hub/wui.go:571`).
 - **The match never looks outside the current workspace.** The list is the
   same in every workspace, but the match is not. A contact whose address
   belongs to a member of W1 shows Message while the reader is in W1, and
   not while they are in W2, unless that person is a member of W2 too.
-  Asked from W2, `/peer` answers the same 404 for "a member of W1 only" and
-  for "no Spool human at all" (C13c), so the list never reveals another
+  Read from W2, the contact's `member_id` is `null` both for "a member of
+  W1 only" and for "no Spool human at all" (C13c), so the list never reveals another
   workspace's membership. That holds even for a workspace the reader is in
   themselves.
 - **The contact is not a member here** (no match in the current
@@ -476,19 +498,65 @@ Contacts are personal data of people who never agreed to be in Spool.
   "remove imported contacts" (those linked under that connection's
   account).
 
-### 2.7 WUI
+### 2.7 WUI: contacts inside People (amendment)
 
-- A new rail tab **Contacts** (`wui/utils/rail-order.ts:20`), pages
-  `wui/pages/contacts/index.vue` and `[id].vue`, in the People section's
-  shape (1.2 row 6): the list, a filter box, Add, and a card with the four
-  fields, Edit, Delete, Message (2.4, O3) or Invite (2.4, O4) and the 0193
-  links. The list is the same in every workspace; Message and Invite are
-  worked out for the workspace on screen.
+The owner, 2026-10-24: "actually the new contacts section should be merged
+wit hthe current people section ... aka one should be able to see all of
+his contacts and just filter those which are part of the spool-hub
+workspace" (msg `14cdf0ad`), and "aka those which are online should be
+shown first and the other which are part of the spool-hub - ak amebers
+after that ... each of those in alpabetical order ..." (msg `31bb12ea`).
+The dispatcher's reading, posted to the owner: group 1 online now, group 2
+the other workspace members, group 3 the reader's other contacts; A-Z
+inside each; the "in this workspace" filter shows groups 1 and 2.
+
+- **No new rail tab.** The People panel (`ChannelSidebar.vue:506-544`,
+  1.2 row 32) shows one list in three groups:
+  1. **online now**: workspace members whose row the roster store calls
+     online (1.2 row 34);
+  2. **members**: the other workspace members;
+  3. **contacts**: the reader's contacts whose `member_id` is `null` in
+     this workspace (2.4).
+  A contact whose `member_id` names a member here is not listed twice: it
+  is that member's row, in group 1 or 2, with a small "contact" tag.
+- **A-Z inside each group**, by the name shown, compared case-insensitively
+  in the reader's locale (`Intl.Collator(locale, { sensitivity: 'base' })`).
+  A member is sorted by the name `HumanName` shows; a contact by
+  `first_name + ' ' + last_name`, else its email, else its phone. That
+  replaces today's sort by `<id>@<box>` (1.2 row 33) for this panel only;
+  `peopleRows` and the DM list keep theirs. The reader's own row stays in
+  the list, sorted like any member, with its "you" tag (`:540`).
+- **Live**: a `presence` frame moves a member between groups 1 and 2 at
+  once (the list is a `computed` over `roster.online`, 1.2 row 34). A
+  contact is never in group 1: the hub sends presence for members, and a
+  contact who is not a member here has none.
+- **The filter**: a two-choice control at the top of the panel, **All**
+  (default) and **In this workspace**. "In this workspace" shows groups 1
+  and 2 only, so the panel looks as it does today, apart from the new
+  order. The choice is a per-viewer convenience kept in `localStorage`
+  (wrapped in try/catch, default All).
+- **Rows and cards**: a member row opens `/people/<id>` as today
+  (`:531`). A contact row opens a new card page
+  `wui/pages/people/contact/[id].vue`. The card shows the four fields,
+  Edit and Delete, Message (when `member_id` is set) or Invite (2.4, O4),
+  and the 0193 links. The member card (`wui/pages/people/[id].vue`) gets one
+  line, "In your contacts", linking to the contact card when one of the
+  reader's contacts matches that member. An **Add contact** button sits in
+  the panel header.
+- **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
+  panel shows only members, with no filter and no Add button, exactly as
+  today apart from the new order.
 - In the 149 settings section `calendar-google`: a **Contacts** switch
   (connect with `want=contacts`; off stops the sync), last sync time and
   status, Sync now. On 409 `contacts_sync_elsewhere` it says that sync is
   on in another of the person's workspaces.
-- The section is its own lazy chunk: it does not raise `ci_initial_gzip_kb`.
+- **Budget**: `ChannelSidebar.vue` ships on the first screen. The contact
+  rows, the filter's list fetch and the contact card are a lazy component
+  (`<LazyPeopleContactRows>`, a new `wui/components/PeopleContactRows.vue`)
+  plus the lazily routed card page. `GET /v1/me/contacts` runs only when the
+  People panel first opens, so `ci_initial_gzip_kb` is not raised (C25).
+  The panel's own new strings follow the first-screen catalogue rule; the
+  contact rows' and the card's strings load with their chunk.
 - Every string is a translation key (developer guide 2.4).
 
 ### 2.8 Local dev and tests
@@ -503,8 +571,8 @@ an expired token, create, update with an etag check, delete, a 429) and
 
 cnf `contacts.workspaces` (per env, `[]` = off), as `gcal.workspaces`
 (149 2.9). In a workspace outside it, every `/v1/me/contacts*` route
-answers 404, the rail tab is hidden and `/search` returns no `contact`
-section. The person's list itself is untouched and shows again in any
+answers 404, the People panel shows members only (2.7) and `/search`
+returns no `contact` section. The person's list itself is untouched and shows again in any
 workspace inside the switch. Turning it on in an env is an owner go (S4).
 The Google part also needs `gcal.workspaces`.
 
@@ -629,13 +697,13 @@ decides the kill switch (2.9), the Message match (O3) and the Invite target
 
 | route | who | answer |
 |---|---|---|
-| `GET /v1/me/contacts?q=&cursor=` | person | `{contacts:[{contact_id, first_name, last_name, email, phone, google}], next}`, the caller's own list only (the same in every workspace) |
+| `GET /v1/me/contacts?q=&cursor=` | person | `{contacts:[{contact_id, first_name, last_name, email, phone, google, member_id}], next}`, the caller's own list only (the same in every workspace); `member_id` is the 2.4 match in the session's workspace, else `null` |
+| `GET /v1/me/contacts/{id}` | person | 200 `{contact}` with `member_id`; 404 for another person's id |
 | `POST /v1/me/contacts` | person | 201 `{contact}`; 400 `contact_empty` with none of the four |
 | `PATCH /v1/me/contacts/{id}` | person | 200 `{contact}`; 404 for another person's id |
 | `DELETE /v1/me/contacts/{id}` | person | 204; 404 for another person's id |
 | `DELETE /v1/me/contacts?scope=spool` | person | 204, the person's whole list (every workspace: it is one list) |
 | `GET /v1/me/contacts/export` | person | `text/csv`, own contacts |
-| `GET /v1/me/contacts/{id}/peer` | person | `{human_id}` when 2.4 matches a member of the session's workspace, else 404 (the same 404 for a member of another workspace only) |
 | `PUT /v1/me/contacts/sync` `{enabled}` | person | 204; 409 `gcal_not_connected` without a connection in this workspace; 409 `scope_missing` with a URL to add the scope; 409 `contacts_sync_elsewhere` when the person's binding is in another workspace |
 | `POST /v1/me/contacts/sync` | person | 202; 409 `sync_in_progress` while the lease is held; 409 `gcal_not_connected` when no binding is in this workspace |
 | `GET /v1/view/search?q=` | person | gains a `contact` section, own rows only |
@@ -686,10 +754,11 @@ W1 and W2 two workspaces.
 | C10c | B5 | (v1.1) P1 searches from W2 for a contact added in W1 | n/a | found | Go test |
 | C11 | B5 | `type:contact` | `bad_query` | contacts only | Go test |
 | C12 | B3, B8 | after create, search and a sync, no contact value appears in any captured log line | n/a | true | Go test greps the captured log for the fixture's four values |
-| C13 | B6 | `/peer` for a contact whose email is a verified identity of a member of the session's workspace | 404 | `{human_id}` | Go test |
-| C13b | B6 | the address is only in `humans.email`, not verified | n/a | 404 | Go test; twin: verified matches |
-| C13c | B6 | (v1.1) P1 is in W1 and W2; the address is a verified identity of a member of W1 only; asked from W2 | n/a | 404, the same body as for an address of no human | Go test; twin: asked from W1, it matches |
-| C13d | B6 | the matched member is disabled | n/a | 404 | Go test |
+| C13 | B6 | (amended) the list and the card for a contact whose email is a verified identity of a member of the session's workspace | 404 | `member_id` = that member's `human_id` | Go test |
+| C13b | B6 | the address is only in `humans.email`, not verified | n/a | `member_id` null | Go test; twin: verified matches |
+| C13c | B6 | (v1.1, amended) P1 is in W1 and W2; the address is a verified identity of a member of W1 only; read from W2 | n/a | `member_id` null, the same body as for an address of no human | Go test; twin: read from W1, it matches |
+| C13d | B6 | the matched member is disabled | n/a | `member_id` null | Go test |
+| C13e | B6 | (amendment) a page of 100 contacts | n/a | one match query for the page, not one per contact | Go test counts the store calls; twin: an empty page makes none |
 | C14 | B7 | connect with `want=contacts` on a row that holds the calendar scope | no `want` | the URL asks the contacts scope with `include_granted_scopes=true`; the callback stores both scopes in `granted_scopes` | Go test beside the 149 connect test |
 | C14c | B7 | reconnect of a connected row | n/a | the same `connection_id`, the new `refresh_sealed`, the `contacts_sync` row kept | Postgres test; twin: a delete-and-insert callback loses the `contacts_sync` row |
 | C14b | B7 | a contacts-only connection, one 149 calendar cycle | n/a (149 B6a not landed) | no calendar call at the fake | Go test counts the fake's calendar calls; twin: the calendar scope present -> one calendar call |
@@ -712,9 +781,14 @@ W1 and W2 two workspaces.
 | C23e | B8 | (v1.1) a contact edited in Spool, then deleted at Google, before the next cycle | n/a | soft-deleted in Spool, 0 updates sent | Go test |
 | C23f | B8 | (v1.1) a contact deleted in Spool, then edited at Google, before the next cycle | n/a | one delete at the fake; the contact not re-imported | Go test |
 | C23g | B8 | (v1.1) the cycle's contacts reads and writes run under `inPerson` of the binding's human | n/a | a cycle in which the claim's operator scope is used for contacts reads 0 rows | Postgres test; twin: under `inPerson` it reads them |
-| C24 | B9 | (v1.1) the Contacts tab and page on the mock bundle: add, find, Message for a member here, no Message for a non-member, Invite shown with `members.invite` and hidden without it, Invite posts the current workspace | absent | as stated | e2e on the mock bundle |
+| C24 | B9 | (amended) the People panel on the mock bundle: no new rail tab; add a contact, find it, open its card; Message for a contact who is a member here, no Message for a non-member; Invite shown with `members.invite` and hidden without it, and Invite posts the current workspace | no contacts in People | as stated | e2e on the mock bundle; control: `RAIL_TABS` length unchanged |
+| C24b | B9 | (amendment) the order: members A (online), B (offline), C (online), contacts D and E; names chosen so the id order differs from the name order | sorted by `<id>@<box>` (`live-follow.mjs:296`), online not first | the online members A-Z, then the offline members A-Z, then the contacts A-Z | unit test on the panel's order function; red control: today's `memberRows` order fails the expected sequence |
+| C24c | B9 | (amendment) a presence frame turns B online | n/a | B moves into group 1 at its A-Z place | unit test; twin: B offline again moves back |
+| C24d | B9 | (amendment) the filter "In this workspace" | n/a | groups 1 and 2 only; contacts gone; a contact matched to a member stays as that member's row | unit test; twin: All shows group 3 |
+| C24e | B9 | (amendment) a contact whose `member_id` names member A | n/a | one row for A, with the "contact" tag, not two | unit test |
+| C24f | B9 | (amendment) a workspace outside `contacts.workspaces` | n/a | members only, no filter, no Add button; `GET /v1/me/contacts` not called | e2e on the mock bundle |
 | C25 | B9 | initial JS budget | - | not raised (C) | `csi-spl-orc/src/bash/scripts/perf-budget.py` |
-| C26 | B10 | palette `contacts` group | 6 groups | 7, filled on first open | wui unit test on `usePaletteItems.ts` |
+| C26 | B10 | (amended) contacts in the palette's `people` group | 6 groups, no contact rows | still 6 groups; contact rows in `people`, filled on first open; a contact matched to a member appears once | wui unit test on `usePaletteItems.ts`; control: `PALETTE_GROUPS` length 6 |
 | C27 | B11 | the new keys in every locale; the two ratchet counts not raised | missing | present | `i18n-untranslated` and `i18n-no-raw-text` tests |
 
 ## 6. Build rows
@@ -731,7 +805,9 @@ tests" = `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; "full tier" =
 `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push`.
 
 v1.1 changed rows B1, B2, B3, B4, B5 (cases only), B6, B8 and B9 (cases and
-"after"); B7, B10, B11 and B12 are unchanged.
+"after"); B7, B10, B11 and B12 are unchanged. The amendment (People merge)
+changes B6, B9, B10 and B12 and leaves B1-B5, B7, B8 and B11 as they were;
+the row count stays twelve.
 
 | row | area | files (only these) | after | cases | test | author | R7 reviewer (backup) |
 |---|---|---|---|---|---|---|---|
@@ -740,13 +816,13 @@ v1.1 changed rows B1, B2, B3, B4, B5 (cases only), B6, B8 and B9 (cases and
 | B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase one and all, the sync switch with 409 `contacts_sync_elsewhere`, the `realmRefuses` gate); one route line and one Options field in `hub/server.go`; one opts line in `api/cmd/spool/hub.go` (as 149 B5); the purge door call on `RunSweeper`'s retention; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7d, C8e, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
 | B4 leave keeps, erase erases | api | tests only (the behaviour is B1's FKs and B3's gate): new Postgres cases in `store/humans_rbac_test.go` (remove), `store/demo_stay_test.go` (ban, stay), `store/clones_test.go` (retire) and one human-delete case; the memory store drops the person's binding (never the contacts) where it deletes a membership: one call beside `store/humans_rbac.go:197` (`removeMemberLocked`, which `BanMember` shares, :186) to a hook in `store/contacts_sync_memory.go` (B2's file) | B2, B3 | C8-C8d | the new Postgres tests; full tier | claude | grok (claude) |
 | B5 search | api | `search/grammar.go` (`TypeContact`); `hub/search.go` (the `contact` section, calling B2's `inPerson` search method in its own transaction); their tests | B2 | C9-C11 | `go test ./internal/search/ ./internal/hub/ -run Search`; api tests | claude | grok (claude) |
-| B6 member match | api | new `hub/contacts_peer.go` + `_test.go` (`/peer`, matching in the session's workspace only); one registration line in `hub/contacts.go`'s route func (B3's file, so B6 lands after B3); no new `server.go` line | B3 (v1.0: also O3, answered A) | C13-C13d | `hub/contacts_peer_test.go`; api tests | claude | grok (claude) |
+| B6 member match | api | new `hub/contacts_match.go` + `_test.go` (the batch match of 2.4, in the session's workspace only); one call in `hub/contacts.go`'s list and card handlers that fills `member_id` (B3's file, so B6 lands after B3; until then `member_id` is `null`); no new route, no `server.go` line | B3 (v1.0: also O3, answered A) | C13-C13e | `hub/contacts_match_test.go`; api tests | claude | grok (claude) |
 | B7 the contacts scope | api | `api/internal/gcal/oauth.go` (`AuthorizeURL` takes the scope to ask) + `oauth_test.go`; `hub/gcal_connect.go` (149 B5's file: `want`, `granted_scopes`, the upsert) and one scope check in `hub/gcal_sync.go` (149 B6a's file); their tests | 149 B5, 149 B6a, B1 | C14-C14c | the 149 connect and sync tests plus the two new ones; api tests | claude | grok (claude) |
 | B8 contacts sync | api | new `hub/contacts_sync.go` + `_test.go`; new `api/internal/gcal/people.go` + test; new `api/internal/gcal/fakegcal/people.go`; a `PeopleBase` in `api/internal/gcal/oauth.go` Config (after B7's edit of the same file), `api/internal/config/config.go`, `api/cmd/spool/hub_gcal.go` (149 B5's file) and its cnf key; one line in `hub/server.go` `RunSweeper` (:586) | B3, B7 (v1.0: also O1, answered A) | C12, C15-C23g | `go test ./internal/gcal/... ./internal/hub/ -run Contacts`; api tests; full tier | claude | grok (claude) |
-| B9 WUI | wui | `wui/utils/rail-order.ts` (one tab); new `wui/pages/contacts/index.vue`, `wui/pages/contacts/[id].vue`, `wui/utils/contacts-client.mjs` (including the Invite call to `POST /v1/members/invites`); the Contacts switch in `wui/components/settings/calendar-google.vue` (149 B8's file); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests | B3, B6, 149 B8 (v1.0: also O4, answered A) | C24-C25 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | grok (claude) |
-| B10 palette | wui | `wui/composables/usePaletteItems.ts` (the `contacts` group) + its unit test | B9 | C26 | the unit test; `perf-budget.py` | claude | grok (claude) |
+| B9 WUI (People merge) | wui | `wui/components/ChannelSidebar.vue` (the People panel :506-544 and `memberRows` :931-933: the three groups, the A-Z order, the filter, the Add button, the lazy contact rows); new `wui/components/PeopleContactRows.vue`; new `wui/utils/people-order.mjs` (the group and A-Z function, unit-tested alone); new `wui/pages/people/contact/[id].vue` (the contact card); `wui/pages/people/[id].vue` (one "In your contacts" line); new `wui/utils/contacts-client.mjs` (including the Invite call to `POST /v1/members/invites`); the Contacts switch in `wui/components/settings/calendar-google.vue` (149 B8's file); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests. Not `wui/utils/rail-order.ts` | B3, B6, 149 B8 (v1.0: also O4, answered A) | C24-C25 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | grok (claude) |
+| B10 palette | wui | `wui/composables/usePaletteItems.ts` (contact rows in the existing `people` group, deduplicated against members) + its unit test | B9 | C26 | the unit test; `perf-budget.py` | claude | grok (claude) |
 | B11 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (new keys only); agy has the last word (`LANE_MIX_KIND=i18n`) | B9, B10 | C27 | the two ratchet tests | agy | claude |
-| B12 help | doc | a new help page (what is stored, that the list is one per person across workspaces, who sees it, Google sync, export and erase), written in its qto doc and exported (`do_spl_doctree_export_md`); agy review | B9 | - | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
+| B12 help | doc | the People help page `csi-spl-doc/doc/help/people.md` and its WUI copy (amendment: no new page): contacts in People, the order and the filter, what is stored, that the list is one per person across workspaces, who sees it, Google sync, export and erase; written in its qto doc and exported (`do_spl_doctree_export_md`); agy review | B9 | - | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
 
 Order: B1 first; it no longer waits on the owner. Then B2. Then B3 and B5
 at once (no shared file), then B4 after B3, whose gate C8c relies on. B6
@@ -777,7 +853,7 @@ lands behind `contacts.workspaces: []`.
 |---|---|---|---|
 | P1 | a second Google connection for contacts | no: 149's row, one more scope, a `granted_scopes` column | one Google account per member; `include_granted_scopes=true` is in the landed client (`gcal/oauth.go:174`), a per-call scope is not (B7 adds it, 1.2 row 15) |
 | P2 | rename `gcal_connections` to a neutral name | not in v1 | a rename of a landed table with rows is its own migration; the name is internal |
-| P3 | Contacts inside People, or its own section | its own rail tab | People is the workspace's members (`wui/pages/people/index.vue:1-2`); contacts are private and may not be members |
+| P3 | Contacts inside People, or its own section (**decided by the owner, amendment**) | inside People: one list, online members first, then members, then contacts, A-Z in each, with an "In this workspace" filter | owner msgs `14cdf0ad`, `31bb12ea` (2026-10-24); v1.0 proposed its own rail tab |
 | P4 | several emails or phones | one each, the primary; write-back keeps Google's others | the owner's four attributes; losing a second number at Google would be data loss |
 | P5 | member match key | a verified identity email only | `humans.email` is informational (`rdb/0006_users_and_memberships.sql:23`); an unverified address could point a contact at the wrong person |
 | P6 | Postgres isolation of a person (**changed in v1.1**) | the personal realm's `person_scope` on `personal.contacts`, plus the store naming `person_id` | v1.0 said "store isolation, as 149" from a grep for the wrong setting; `rdb/0168` isolates persons on master (1.2 row 20), and O5 = B makes the list a person's |
@@ -853,5 +929,6 @@ No new owner question in v1.1.
 | 2026-10-24 | c-958@sat (seat claude) | signed v1.0 on v0.3 `1cf55cf6e` plus one B4 file-list line (msg f297efda): the memory store's membership delete is `store/humans_rbac.go:197` |
 | 2026-10-24 | c-951@sat | v1.0 `225f4e583`: that B4 line, nothing else; owner questions O1-O5 (section 9) go to the owner next |
 | 2026-10-24 | c-988@sat | v1.1 draft, this commit (SPL-3192): the owner's five answers folded (O1 A, O2 A, O3 A, O4 A, O5 B). 1.2 re-measured on `e0f02e7ff`: row 20 corrected (person RLS exists, 0168), rows 21, 24 corrected (next migration 0223), rows 25-31 new. O5 = B: `personal.contacts` in the realm (no `tenant_id`, `person_scope`), `contacts_sync` one binding per person, leave keeps the list, the purge door; clones refused. Sections 0-10 updated; new cases C1c, C2c, C2d, C3b, C3c, C4b, C7d, C8c-C8e, C10c, C23d-C23g; B1, B2, B3, B4, B6, B8, B9 rows changed. Not signed: the two review seats sign in their own messages |
+| 2026-10-24 | c-988@sat | v1.1 amendment, this commit (SPL-3192): the owner's People merge (msgs `14cdf0ad`, `31bb12ea`, relayed by c-002 cc083bf1, c04f855b). The People section was measured: 1.2 rows 32-35 are new and rows 6, 12, 13 changed. 2.7 is rewritten (three groups, A-Z, the filter, the lazy contact rows, no rail tab). The `/peer` route is replaced by `member_id` on the list and card routes, and `GET /v1/me/contacts/{id}` is added. New cases C13e, C24b-C24f; C13-C13d, C24 and C26 amended; B6, B9, B10, B12 and P3 changed. B1 is unchanged. Not signed |
 
-<!-- version: 1.1-draft · updated: 2026-10-24 -->
+<!-- version: 1.1-draft (amended: People merge) · updated: 2026-10-24 -->

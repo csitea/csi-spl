@@ -3035,6 +3035,7 @@
     "tab": {
       "agents": "Agendid",
       "boxes": "Kastid",
+      "events": "Sündmused",
       "tokens": "Tokenid",
       "costs": "Kulud",
       "lanes": "Rajad"

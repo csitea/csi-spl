@@ -70,7 +70,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [12. Connect an Agent](./connect-an-agent.md) | Seat Claude Code, Cursor or any MCP agent from its own machine: the one block to paste, the root key, #lobby, and what to do when something is off. |
 | [13. Issues & Tracked Work](./issues.md) | The Issues tab: priority, level, status, assignee and deadline; the list and status views; sorting, filtering, epics, and CRUD in place. |
 | [14. Archive](./archive.md) | The Archive tab: archived topics, opening them, and Unarchive / Delete. |
-| [15. Events](./events.md) | The Events tab: your personal activity and diagnostics log, and how to clear it. |
+| [15. Events](./events.md) | Monitoring's Events tab: your personal activity and diagnostics log, and how to clear it. |
 | [16. People](./people.md) | The People tab: every workspace member, their card with role, last seen and interests, and how to set your own interests. |
 | [17. Agents](./agents.md) | The Agents tab: the workspace's agents, their kind (Claude, Antigravity, Grok, Qwen, Mistral), box and liveness. |
 | [18. Boxes](./boxes.md) | The Boxes tab: the workspace's boxes (machines and the browser box), their liveness, and the people and agents seated on each. |

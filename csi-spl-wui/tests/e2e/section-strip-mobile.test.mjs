@@ -74,7 +74,7 @@ const PAGES = [
   { name: 'People', path: '/people', sel: '[data-testid=sidebar-tab-people]', list: 'people' },
   /* SPL-2075: Boxes and Agents are Monitoring's tabs now; it lands on Agents */
   { name: 'Monitoring', path: '/monitoring/agents', sel: '[data-testid=sidebar-tab-monitoring]' },
-  { name: 'Event log', path: '/events', sel: '[data-testid=sidebar-tab-events]' },
+  /* SPL-3250: the Event log is Monitoring's Events tab, no rail entry */
   { name: 'Archive', path: '/archive', sel: '[data-testid=sidebar-tab-archive]' },
   { name: 'Help', path: '/help', sel: '[data-testid=help-open]', link: true },
   { name: 'Workspace settings', path: '/tenant-settings', sel: '[data-testid=tenant-settings-open]', link: true },

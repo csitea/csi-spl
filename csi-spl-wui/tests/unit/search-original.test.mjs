@@ -66,7 +66,7 @@ test('FR-051: an issue discussion copies the topic page, not the bare Issues tab
 test('FR-051: entity rows keep their FR-023 page', () => {
   assert.equal(originalHref({ type: 'channels', channel: '#dev' }, { pathFor: loc }), '/bg/channel/dev')
   assert.equal(originalHref({ type: 'users', id: 'HUM-2' }), '/dm/HUM-2')
-  assert.equal(originalHref({ type: 'events', event_id: 7 }, { pathFor: loc }), '/bg/events#7')
+  assert.equal(originalHref({ type: 'events', event_id: 7 }, { pathFor: loc }), '/bg/monitoring/events#7')
   assert.equal(originalHref({ type: 'boxes', box_id: 'box-a' }), '/search?q=box%3Abox-a')
   assert.equal(originalHref({ type: 'tenants', tenant_id: 'e2e' }), '')
 })

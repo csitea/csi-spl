@@ -1,39 +1,44 @@
-// The Event log rail button (005 FR-017): directly after Flow,
-// /events selects it, and the shipper plugin is wired to the journal.
+// The Event log (005 FR-017): SPL-3250 (owner HUM-10, t1 463d7692, msgs
+// 24316f72 + ac1c95f9: "the event log section should be come just one tab of
+// the monitoring section", "on both mobile and the desktop") took it off the
+// rail into Monitoring -> Events; /events selects Monitoring, and the shipper
+// plugin is wired to the journal.
+// Control: on origin/master a1d2ced73 the first two cases fail (the rail has
+// an Events entry, /events selects 'events', the sidebar opens /events).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { EVENTS_TAB, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import * as sidebarTabs from '../../src/utils/sidebar-tabs.mjs'
 import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
+import { importTs } from './lib/load-ts.mjs'
+const { RAIL_TABS, RAIL_RETIRED, DEFAULT_RAIL_ORDER, parseRailOrder, wireRailOrder } = await importTs('src/utils/rail-order.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
-describe('Event log rail tab', () => {
-  it('/events selects the events tab', () => {
-    assert.equal(EVENTS_TAB, 'events')
-    assert.equal(tabForPath('/events'), 'events')
-    assert.equal(tabForPath('/fi/events'), 'events')
+describe('Event log: a Monitoring tab, no rail tab (SPL-3250)', () => {
+  it('case 1: the rail has no Events entry, on phone and desktop; the hub keeps its id', () => {
+    assert.ok(!RAIL_TABS.some((t) => t.id === 'events'), 'no Events rail tab')
+    assert.ok(!DEFAULT_RAIL_ORDER.includes('events'))
+    assert.ok(RAIL_RETIRED.includes('events'), 'retired like agents/boxes: the hub still admits it')
+    /* a stored order that holds events is drawn without it, and saved with it back */
+    const stored = ['events', 'channels', 'dm', 'issues', 'topics', 'flow', 'people', 'agents', 'boxes', 'calendar', 'monitoring', 'reporting', 'archive']
+    assert.ok(!parseRailOrder(stored).includes('events'))
+    assert.equal(wireRailOrder(parseRailOrder(stored)).filter((id) => id === 'events').length, 1)
+    assert.equal(sidebarTabs.EVENTS_TAB, undefined)
+    const src = channelSidebarSrc()
+    assert.doesNotMatch(src, /sidebar-panel-events|EventLogPane|localePath\('\/events'\)/)
+    assert.doesNotMatch(read('src/composables/useSidebarRailNav.ts'), /'\/events'/)
   })
 
-  it('follows flow and archive; People follows it (CLE-77794)', () => {
-    /* SPL-979: the default order lives in utils/rail-order.ts RAIL_TABS;
-       owner 2026-09-27 (topic 116646c8) left events out of the named order, so
-       it sits after archive; CLE-77794 added People and Agents after it;
-       SPL-2075 moved Agents into Monitoring. */
-    const tabs = read('src/utils/rail-order.ts')
-    const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
-    const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
-    const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
-    const people = tabs.indexOf("{ id: 'people', icon: 'users'")
-    assert.ok(flow > 0 && archive > flow && events > archive, 'events entry follows archive')
-    assert.ok(people > events, 'People follows events')
-    assert.equal(tabs.indexOf("{ id: 'agents', icon: 'bot'"), -1, 'no Agents rail tab (SPL-2075)')
-    const src = channelSidebarSrc()
-    assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
+  it('case 4: /events (any locale) selects Monitoring; it is no tab of its own', () => {
+    assert.equal(sidebarTabs.tabForPath('/events'), 'monitoring')
+    assert.equal(sidebarTabs.tabForPath('/fi/events'), 'monitoring')
+    assert.equal(sidebarTabs.tabForPath('/monitoring/events'), 'monitoring')
+    assert.equal(sidebarTabs.routeForTab('events'), null)
   })
 
   it('the shipper plugin feeds from the journal and follows the session', () => {

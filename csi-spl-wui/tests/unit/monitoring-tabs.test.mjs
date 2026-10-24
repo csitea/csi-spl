@@ -21,9 +21,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
-  it('Agents first (the landing tab, Q1 A), then Boxes, Costs (spec 123), Tokens (spec 140), then Lanes (spec 153 C15)', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens', 'lanes'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes'])
+  it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Costs (spec 123), Tokens (spec 140), then Lanes (spec 153 C15)', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
@@ -32,21 +32,37 @@ describe('monitoring tabs', () => {
     }
   })
   it('Tokens (spec 140 4.1, SPL-2322) shows beside Agents and Boxes for an operator admin, never for anyone else', () => {
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes'])
     /* CONTROL: a member who is not an operator admin, or not known yet, never sees it */
-    assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes'])
+    assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes', 'events'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes', 'events'])
   })
   it('Costs (spec 123 5, SPL-2056) shows to a member holding costs.read only, operator or not', () => {
     const costs = MONITORING_TABS.find((t) => t.id === 'costs')
     assert.equal(costs.perm, 'costs.read')
     assert.equal(costs.operatorsOnly, false, 'any workspace: biz_owner and admin read their own rows')
     const holds = (perms) => (p) => perms.includes(p)
-    assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'costs', 'tokens', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'costs'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes'])
     /* CONTROL: without the permission (or before /v1/view/me answered) it is hidden */
-    assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes', 'events'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes'])
+  })
+  it('case 2: Events (SPL-3250) shows to everyone who saw the Event log rail section: every reader, operator or not, any permission', () => {
+    const events = MONITORING_TABS.find((t) => t.id === 'events')
+    assert.deepEqual({ ...events }, { id: 'events', path: '/monitoring/events', labelKey: 'monitoring.tab.events', operatorsOnly: false, ready: true })
+    /* the rail tab it replaces had no gate (RAIL_TABS draws every tab to everyone), so neither has this one */
+    for (const who of [undefined, {}, { operator: false }, { operator: true }, { can: () => false }, { operator: true, can: () => true }]) {
+      assert.ok(visibleMonitoringTabs(who).some((t) => t.id === 'events'), JSON.stringify(who))
+    }
+    assert.equal(monitoringTabFor('/monitoring/events'), 'events')
+    assert.equal(monitoringTabFor('/fi/monitoring/events'), 'events')
+    assert.equal(isSectionPage('/monitoring/events'), true, 'a phone shows the section strip above it')
+    /* case 3: the tab is the event log page itself, rows and Clear log, its own chunk */
+    const page = read('src/pages/monitoring/events/index.vue')
+    for (const tid of ['events-page', 'events-table', 'events-row', 'events-clear', 'events-load-more']) assert.match(page, new RegExp(`data-test="${tid}"`), tid)
+    assert.match(page, /client\.clear\(\)/)
+    assert.doesNotMatch(page, /<MobileBack|<SectionClose|feed-header/, 'the Monitoring page holds the header and the tab bar')
   })
   it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready and for operator admins only until row B6', () => {
     const lanes = MONITORING_TABS.find((t) => t.id === 'lanes')
@@ -134,12 +150,16 @@ describe('old Agents / Boxes links (SPL-2075)', () => {
     assert.equal(legacyMonitoringPath('/boxes'), '/monitoring/boxes')
     assert.equal(legacyMonitoringPath('/fi/boxes/box-desk'), '/monitoring/boxes/box-desk')
     assert.equal(legacyMonitoringPath('/boxes/box-desk?r=hardware#box-people'), '/monitoring/boxes/box-desk')
+    /* case 4 (SPL-3250): the Event log's deep link, its #<id> the caller's (LegacyMonitoringRedirect keeps route.hash) */
+    assert.equal(legacyMonitoringPath('/events'), '/monitoring/events')
+    assert.equal(legacyMonitoringPath('/sv/events/'), '/monitoring/events')
+    assert.equal(legacyMonitoringPath('/events#42'), '/monitoring/events')
   })
   it('anything else is not an old link', () => {
-    for (const p of ['/', '/monitoring/boxes', '/people/HUM-1', '/boxes/a/b', '/agentsx', '/t/boxes']) assert.equal(legacyMonitoringPath(p), null, p)
+    for (const p of ['/', '/monitoring/boxes', '/monitoring/events', '/people/HUM-1', '/boxes/a/b', '/agentsx', '/t/boxes', '/events/1', '/eventsx']) assert.equal(legacyMonitoringPath(p), null, p)
   })
   it('the four old pages are the redirect, and the cards live under Monitoring', () => {
-    for (const f of ['agents/index', 'agents/[id]', 'boxes/index', 'boxes/[id]']) {
+    for (const f of ['agents/index', 'agents/[id]', 'boxes/index', 'boxes/[id]', 'events']) {
       assert.match(read(`src/pages/${f}.vue`), /<LegacyMonitoringRedirect \/>/, f)
     }
     const redirect = read('src/components/LegacyMonitoringRedirect.vue')

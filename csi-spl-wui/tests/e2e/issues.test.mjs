@@ -81,7 +81,7 @@ try {
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const rail = await p.$$eval('.sidebar-rail [role=tab]', (els) => els.map((e) => e.getAttribute('data-testid')))
   /* SPL-979 new-member order (owner 2026-09-27): Channels, DMs, Issues, ... */
-  ok('1 Issues is the third rail tab, after Channels and DMs', rail[0] === 'sidebar-tab-channels' && rail[1] === 'sidebar-tab-dm' && rail[2] === 'sidebar-tab-issues' && rail.indexOf('sidebar-tab-events') > rail.indexOf('sidebar-tab-issues'), rail)
+  ok('1 Issues is the third rail tab, after Channels and DMs', rail[0] === 'sidebar-tab-channels' && rail[1] === 'sidebar-tab-dm' && rail[2] === 'sidebar-tab-issues' && !rail.includes('sidebar-tab-events'), rail)
   await p.click('[data-testid=sidebar-tab-issues]')
   await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 the tab opens /issues', new URL(p.url()).pathname.endsWith('/issues'), p.url())

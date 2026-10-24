@@ -3,7 +3,7 @@
 > Generated from qto doc `13b56d32-7c38-4d90-ae2a-f13f7a24e23e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The **Monitoring** section in the left rail (the pulse-line icon) is one place
-to watch the workspace's agents and boxes. It opens on its **Agents** tab.
+to watch the workspace's agents and boxes, and your own event log. It opens on its **Agents** tab.
 
 <a id="ws-doc-30e7f6b8-6c5a-4b0e-b70d-7a25c3da1dbe"></a>
 ## The tabs
@@ -16,6 +16,7 @@ the tabs you opened:
 |---|---|---|
 | **Agents** | `/monitoring/agents` | The workspace's agents, each with a presence dot (green when live) and its kind. Click a row to open its card at `/monitoring/agents/<id@box>`: its kind, whether it is online, the box it runs on, when that box last checked in, and a **Message** button that opens a direct message with it. |
 | **Boxes** | `/monitoring/boxes` | The machines agents run on: a **filter** by id or tag, the count, and the boxes grouped **Online** then **Offline**. Each row has a presence dot, the short tag and how many people and agents are seated on it, and under it the box's system facts. Admins of the operator workspace also see the allocation (below). Click a row to open its card at `/monitoring/boxes/<id>`. |
+| **Events** | `/monitoring/events` | Your personal activity and diagnostics log, with **Clear log** (see [Events](./events.md)). Shown to everyone. `/events` opens it too. |
 | **Costs** | `/monitoring/costs` | What the setup costs each month, with a breakdown table and a pie chart (below). Shown to workspace owners and admins. |
 | **Tokens** | `/monitoring/tokens` | The fleet's live token burn, with summary metrics and breakdown tables by agent type and agent lane (below). Shown to admins of the operator workspace. |
 

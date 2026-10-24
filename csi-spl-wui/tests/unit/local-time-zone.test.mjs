@@ -148,7 +148,7 @@ describe('times written inside a message body (requirements 2 + 5)', () => {
     assert.match(runs, /bodyTimeRuns\(p\.text, bodyAt\(\), labelMod\?\.withShortTimes\)/)
     assert.match(runs, /<time v-if="tr\.iso"[^>]*:datetime="tr\.dt \|\| tr\.iso"[^>]*:title="tr\.iso"/)
     assert.match(readFileSync(join(SRC, 'components/MarkdownBlock.vue'), 'utf8'), /hasBodyTime\(s\)/)
-    const ev = readFileSync(join(SRC, 'pages/events.vue'), 'utf8')
+    const ev = readFileSync(join(SRC, 'pages/monitoring/events/index.vue'), 'utf8')
     assert.match(ev, /<time :datetime="utcOf\(r\) \|\| undefined" :title="utcOf\(r\) \|\| undefined"/)
     assert.match(readFileSync(join(SRC, 'app.vue'), 'utf8'), /setTimeZoneSource\(\(\) => String\(session\.claims\?\.time_zone \|\| ''\)\)/)
   })

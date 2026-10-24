@@ -67,7 +67,7 @@ describe('routeForTab (081 T003)', () => {
   })
 
   it('back then forward: the tab of a page routes to a path of the same tab', () => {
-    for (const path of ['/issues', '/users', '/events', '/archive', '/people', '/people/HUM-1', '/agents/c-001@box-a', '/boxes/box-a', '/fi/boxes']) {
+    for (const path of ['/issues', '/users', '/events', '/monitoring/events', '/archive', '/people', '/people/HUM-1', '/agents/c-001@box-a', '/boxes/box-a', '/fi/boxes']) {
       const tab = tabForPath(path)
       assert.ok(tab, path)
       assert.equal(tabForPath(routeForTab(tab)), tab, path)

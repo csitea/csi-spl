@@ -3035,6 +3035,7 @@
     "tab": {
       "agents": "Agenter",
       "boxes": "Maskiner",
+      "events": "Händelser",
       "tokens": "Token",
       "costs": "Kostnader",
       "lanes": "Banor"

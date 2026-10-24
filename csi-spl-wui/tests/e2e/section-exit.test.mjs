@@ -40,10 +40,9 @@ async function launch() {
 const SESSION = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
 const PAGES = [
   { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues' },
-  { name: 'Event log', tab: '[data-testid=sidebar-tab-events]', path: '/events' },
   { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive' },
   { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people' },
-  /* SPL-2075: Agents and Boxes are Monitoring's tabs now */
+  /* SPL-2075: Agents and Boxes are Monitoring's tabs now; SPL-3250 the Event log too */
   { name: 'Monitoring', tab: '[data-testid=sidebar-tab-monitoring]', path: '/monitoring' },
   { name: 'Help', tab: '[data-testid=help-open]', path: '/help' },
   { name: 'Workspace settings', tab: '[data-testid=tenant-settings-open]', path: '/tenant-settings' },
@@ -99,9 +98,9 @@ try {
   await go(p, '[data-testid=sidebar-tab-issues]', '/issues')
   await go(p, '[data-testid=sidebar-tab-channels]', '/channel/feedback')
   ok('1440 Issues -> rail Channels: back in the channel the reader left', (await path(p)) === '/channel/feedback', await path(p))
-  await go(p, '[data-testid=sidebar-tab-events]', '/events')
+  await go(p, '[data-testid=sidebar-tab-archive]', '/archive')
   await go(p, '[data-testid=sidebar-tab-flow]', '/channel/feedback')
-  ok('1440 Event log -> rail Flow: back in the last conversation', (await path(p)) === '/channel/feedback', await path(p))
+  ok('1440 Archive -> rail Flow: back in the last conversation', (await path(p)) === '/channel/feedback', await path(p))
 
   /* browser Back still leaves the page */
   await go(p, '[data-testid=sidebar-tab-issues]', '/issues')

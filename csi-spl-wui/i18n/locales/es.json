@@ -3035,6 +3035,7 @@
     "tab": {
       "agents": "Agentes",
       "boxes": "Equipos",
+      "events": "Eventos",
       "tokens": "Tokens",
       "costs": "Costes",
       "lanes": "Líneas"

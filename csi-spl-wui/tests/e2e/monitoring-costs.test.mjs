@@ -243,18 +243,18 @@ async function tabRow(browser, base) {
     ['desktop 1280 mac', { width: 1280, height: 900 }, '/monitoring/agents', {}],
     ['desktop 1280 windows', { width: 1280, height: 900 }, '/monitoring/agents', { closeButtons: 'windows' }],
     ['phone 320 nl', { width: 320, height: 800 }, '/nl/monitoring/agents', {}],
-    /* C3b (spec 153, SPL-3215): C3 again with the five tabs of an operator admin, Lanes last */
+    /* C3b (spec 153, SPL-3215): C3 again with the tabs of an operator admin (six since SPL-3250's Events), Lanes last */
     ['phone 360 nl operator', { width: 360, height: 800 }, '/nl/monitoring/agents', { operator: true }],
   ]) {
     const { ctx, p } = await costsPage(browser, base, size, opts)
     await open(p, base, path)
-    const want = opts.operator ? 5 : 3
+    const want = opts.operator ? 6 : 4
     await p.waitForFunction((n) => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= n, { timeout: 15000 }, want).catch(() => null)
     const g = await tabRowGeometry(p)
     const phone = size.width < 600
     if (opts.operator) {
       const ids = await tabIds(p)
-      ok(`C3b ${label}: five tabs, Lanes last`, ids.join(',') === 'agents,boxes,costs,tokens,lanes', ids)
+      ok(`C3b ${label}: six tabs, Lanes last`, ids.join(',') === 'agents,boxes,events,costs,tokens,lanes', ids)
     }
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {

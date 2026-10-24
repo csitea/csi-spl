@@ -1,4 +1,4 @@
-// ErrorSnackbar.vue + pages/events.vue + the default-layout mount
+// ErrorSnackbar.vue + pages/monitoring/events/index.vue (the event log) + the default-layout mount
 // (topic 4335f075). Source-read, same shape as error-journal.test.mjs.
 //
 // Run: node tests/unit/error-snackbar-ui.test.mjs
@@ -61,8 +61,8 @@ describe('layouts/default.vue mounts the snackbar next to DebugPanel', () => {
   })
 })
 
-describe('pages/events.vue', () => {
-  const src = read('src/pages/events.vue')
+describe('pages/monitoring/events/index.vue', () => {
+  const src = read('src/pages/monitoring/events/index.vue')
 
   it('lists and clears through createEventsClient', () => {
     assert.match(src, /createEventsClient\(/)
@@ -73,8 +73,9 @@ describe('pages/events.vue', () => {
   })
 
   it('uses the catalogue keys and shows signed-out without posting', () => {
+    /* SPL-3250: no events.title here: the tab's name is monitoring.tab.events, the heading Monitoring's */
     for (const k of [
-      'events.title', 'events.empty', 'events.clear', 'events.load_more',
+      'events.empty', 'events.clear', 'events.load_more',
       'events.col_when', 'events.col_id', 'events.col_source', 'events.col_status',
       'events.col_message', 'events.col_route', 'events.signed_out', 'events.load_failed',
     ]) {

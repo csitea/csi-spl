@@ -244,7 +244,7 @@ describe('operator autocomplete', () => {
     assert.match(src, /data-test="search-syntax-help"/)
     assert.match(src, /OP_PICKER_CAP/)
     assert.match(read('src/pages/search.vue'), /data-test="search-operator-help"/)
-    assert.match(read('src/pages/events.vue'), /scrollRowToTop/)
+    assert.match(read('src/pages/monitoring/events/index.vue'), /scrollRowToTop/)
   })
   it('the catalogue carries every operator the brief names', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)
@@ -447,9 +447,9 @@ describe('click targets', () => {
     assert.deepEqual(searchTarget({ type: 'channels', channel: 'lobby' }), { path: '/channel/lobby' })
     assert.deepEqual(searchTarget({ type: 'boxes', box_id: 'box-a' }), { search: 'box:box-a' })
     assert.deepEqual(searchTarget({ type: 'tenants', tenant_id: 't1' }), { tenant: 't1' })
-    assert.deepEqual(searchTarget({ type: 'events', event_id: 4 }), { path: '/events#4' })
-    assert.deepEqual(searchTarget({ type: 'events', id: 9 }), { path: '/events#9' })
-    assert.deepEqual(searchTarget({ type: 'events' }), { path: '/events' })
+    assert.deepEqual(searchTarget({ type: 'events', event_id: 4 }), { path: '/monitoring/events#4' })
+    assert.deepEqual(searchTarget({ type: 'events', id: 9 }), { path: '/monitoring/events#9' })
+    assert.deepEqual(searchTarget({ type: 'events' }), { path: '/monitoring/events' })
   })
   it('CONTROL: a row without an id goes nowhere', () => {
     for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'tenants' }, { type: 'nope', id: 'x' }]) {

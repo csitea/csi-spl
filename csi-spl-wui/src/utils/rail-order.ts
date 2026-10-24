@@ -13,7 +13,7 @@
 
 import type { UiIconName } from '~/utils/uiIcons'
 
-export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting'
+export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting'
 type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }
 
 /** The tabs in the default order, with their icon and catalogue key. */
@@ -33,9 +33,8 @@ export const RAIL_TABS: readonly RailTab[] = Object.freeze([
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
   /* SPL-983: Archive (owner, topic 8f58f802); the page is CLE-35018's. */
   Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
-  /* the personal Event log (owner, topic 4335f075); last by default
-     since 2026-09-27 (topic 116646c8 left it out of the named order). */
-  Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
+  /* the personal Event log (owner, topic 4335f075) is Monitoring -> Events
+     since SPL-3250 (t1 463d7692); the hub still stores its id (RAIL_RETIRED) */
   /* CLE-77794 (owner 2026-09-30, topic 1fc29f99): People lists every member
      with their interests on the right. Reorders and collapses like the rest;
      a stored order from before it is drawn with it appended (parseRailOrder),
@@ -75,8 +74,11 @@ export const RAIL_IDS: readonly RailId[] = Object.freeze(RAIL_TABS.map((t) => t.
  * SPL-2075 (owner HUM-10, t1 dbf2f39b, msg fd5a2bf4: "remove the Agents and
  * the Boxes icons both from mobile and on desktop"): agents and boxes too;
  * their pages are Monitoring -> Agents / Boxes.
+ * SPL-3250 (owner HUM-10, t1 463d7692, msgs 24316f72 + ac1c95f9: "the event
+ * log section should be come just one tab of the monitoring section", "on
+ * both mobile and the desktop"): events too; its page is Monitoring -> Events.
  */
-export const RAIL_RETIRED: readonly string[] = Object.freeze(['topics', 'agents', 'boxes'])
+export const RAIL_RETIRED: readonly string[] = Object.freeze(['topics', 'agents', 'boxes', 'events'])
 
 /**
  * SPL-1991: ids the rail draws before the hub admits them (auth.RailTabs and

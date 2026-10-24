@@ -3035,6 +3035,7 @@
     "tab": {
       "agents": "Agentit",
       "boxes": "Koneet",
+      "events": "Tapahtumat",
       "tokens": "Tokenit",
       "costs": "Kulut",
       "lanes": "Kaistat"

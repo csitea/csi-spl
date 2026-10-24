@@ -10,17 +10,12 @@ export const SIDE_TABS = ['dm', 'channels', 'flow']
  *  (tenant-users.mjs usersEntryVisible), so it is not in SIDE_TABS. */
 export const USERS_TAB = 'users'
 
-/** The personal Event log (005 FR-017): directly after flow, for
- *  everyone; the list lives on /events. Not in SIDE_TABS for the same reason
- *  as USERS_TAB: it is a page, not a sidebar list. */
-export const EVENTS_TAB = 'events'
-
-/** Issues: the third rail tab, directly after Channels. A page,
- *  like the event log, so it is not one of the four sidebar lists. */
+/** Issues: the third rail tab, directly after Channels. A page, so it is
+ *  not one of the four sidebar lists. */
 export const ISSUES_TAB = 'issues'
 
 /** Archive (SPL-983): archived threads on /archive, the 7th reorderable rail
- *  tab (last by default, utils/rail-order.ts). A page, like the event log. */
+ *  tab (last by default, utils/rail-order.ts). A page, like Issues. */
 export const ARCHIVE_TAB = 'archive'
 
 /** People (CLE-77794): every tenant member; the list is the sidebar, the
@@ -35,7 +30,9 @@ export const CALENDAR_TAB = 'calendar'
 /** Monitoring (SPL-1991, t1 dbf2f39b): /monitoring, its tabs Agents and
  *  Boxes as paths (/monitoring/agents, ...). A page, so not one of the
  *  sidebar lists. SPL-2075: the Agents and Boxes rail tabs (CLE-77794,
- *  CLE-77799) went into it; their old paths are Monitoring's. */
+ *  CLE-77799) went into it; their old paths are Monitoring's. SPL-3250: so
+ *  did the personal Event log (005 FR-017), /monitoring/events; /events is
+ *  Monitoring's too. */
 export const MONITORING_TAB = 'monitoring'
 
 /** Reporting (spec 143 1.1, SPL-2351): /reporting, its tabs as paths
@@ -58,7 +55,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -69,13 +66,14 @@ export function tabForPath(path) {
   if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'channels'
   if (p === '/issues') return ISSUES_TAB
   if (p === '/users') return USERS_TAB
-  if (p === '/events') return EVENTS_TAB
   if (p === '/archive') return ARCHIVE_TAB
   if (p === '/people' || p.startsWith('/people/')) return PEOPLE_TAB
   if (p === '/calendar') return CALENDAR_TAB
   /* SPL-2075: an old /agents or /boxes link redirects into Monitoring */
   if (p === '/monitoring' || p.startsWith('/monitoring/')) return MONITORING_TAB
   if (p === '/agents' || p.startsWith('/agents/') || p === '/boxes' || p.startsWith('/boxes/')) return MONITORING_TAB
+  /* SPL-3250: and an old /events link into Monitoring -> Events */
+  if (p === '/events') return MONITORING_TAB
   if (p === '/reporting' || p.startsWith('/reporting/')) return REPORTING_TAB
   return null
 }
@@ -84,7 +82,6 @@ export function tabForPath(path) {
 const TAB_ROUTES = {
   [ISSUES_TAB]: '/issues',
   [USERS_TAB]: '/users',
-  [EVENTS_TAB]: '/events',
   [ARCHIVE_TAB]: '/archive',
   [PEOPLE_TAB]: '/people',
   [CALENDAR_TAB]: '/calendar',

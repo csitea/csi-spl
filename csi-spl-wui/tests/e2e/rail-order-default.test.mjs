@@ -312,8 +312,9 @@ async function railDividerLabels(browser, base) {
   }
   /* a saved mixed order is drawn as saved (no reordering to group the tabs),
      so it keeps every line its own order makes: STORED is drawn
-     channels issues dm | events | flow | people | calendar | monitoring archive
-     (topics, which STORED still names, is not drawn: t1 e4bfddb1) */
+     channels issues dm flow | people | calendar | monitoring reporting archive
+     (topics and events, which STORED still names, are not drawn: t1 e4bfddb1,
+     SPL-3250) */
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
@@ -356,7 +357,8 @@ async function monitoringSection(browser, base) {
     await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)
     /* Costs (spec 123, SPL-2056) shows once /v1/view/me answered; the mock's me is unrestricted */
     await p.waitForSelector('[data-test=monitoring-tab-costs]', { timeout: NAV }).catch(() => null)
-    check(`${tag}: the bar draws Agents (current), Boxes, then Costs, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', ''], ['monitoring-tab-costs', '']]), await bar(p))
+    /* SPL-3250: Events (the Event log, off the rail) after Boxes, for everyone */
+    check(`${tag}: the bar draws Agents (current), Boxes, Events, then Costs, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', ''], ['monitoring-tab-events', ''], ['monitoring-tab-costs', '']]), await bar(p))
     check(`${tag}: the summary strip slot is there`, Boolean(await p.$('[data-test=monitoring-summary]')))
     check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-monitoring]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))

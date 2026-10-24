@@ -177,10 +177,11 @@ try {
 
   await railClick(p, 'channels')
   await openFirstCard(p)
-  await railClick(p, 'events')
+  /* SPL-3250: the Event log is Monitoring's tab now; Monitoring is the section page */
+  await railClick(p, 'monitoring')
   const e1 = await panes(p)
   const e1path = await path(p)
-  check('3 Event log: the reply panel closes, the event log shows', paneClosed(e1) && e1path.endsWith('/events'), { e1, e1path })
+  check('3 Monitoring: the reply panel closes, Monitoring shows', paneClosed(e1) && e1path.includes('/monitoring'), { e1, e1path })
 
   check('no page error', errors.length === 0, errors)
 } finally {

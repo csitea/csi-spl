@@ -239,9 +239,10 @@ export function searchTarget(row) {
       return id && !/[\s/#?]/.test(id) ? { tenant: id } : null
     }
     case 'events': {
+      /* SPL-3250: the Event log is Monitoring -> Events */
       const n = Number(r.event_id != null ? r.event_id : r.id)
-      if (!Number.isInteger(n) || n <= 0) return { path: '/events' }
-      return { path: `/events#${n}` }
+      if (!Number.isInteger(n) || n <= 0) return { path: '/monitoring/events' }
+      return { path: `/monitoring/events#${n}` }
     }
     case 'issues': {
       const raw = Object.prototype.hasOwnProperty.call(r, 'issue_key') ? r.issue_key : r.key

@@ -35,7 +35,6 @@ const RAIL_HELP = {
   issues: { slug: 'issues', word: 'issue' },
   flow: { slug: 'channels-and-direct-messages', word: 'flow' },
   archive: { slug: 'archive', word: 'archive' },
-  events: { slug: 'events', word: 'event' },
   people: { slug: 'people', word: 'people' },
   calendar: { slug: 'calendar', word: 'calendar' },
   monitoring: { slug: 'monitoring', word: 'monitoring' },

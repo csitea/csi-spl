@@ -24,6 +24,9 @@
           :data-test="'monitoring-tab-' + tab.id"
         >{{ t(tab.labelKey) }}</NuxtLink>
       </nav>
+      <!-- SPL-3250: a tab's own header actions (Events: Clear log, top right
+           on a desktop as on the old /events page), teleported in by the tab -->
+      <div id="monitoring-head-actions" class="monitoring-head-actions" data-test="monitoring-head-actions" />
       <SectionClose side="end" />
     </header>
     <!-- the summary strip's slot: empty until its lane fills it -->

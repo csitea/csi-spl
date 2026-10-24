@@ -10,7 +10,7 @@ import { useOperatorPane } from '~/stores/operator-pane'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { chatKind, isSectionPage } from '~/utils/section-strip.mjs'
-import { ARCHIVE_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
 const PHONE_LIST_TABS = new Set<string>(['dm', 'channels', 'flow', 'people'])
@@ -23,7 +23,6 @@ function railSwitchPath(next: string, kind: string, sectionExit: ReturnType<type
 
 /* a section with a page of its own opens it, unless the route is on it already */
 async function openSectionPage(next: string, phoneList: boolean, query: Record<string, string> | undefined, route: ReturnType<typeof useRoute>, localePath: ReturnType<typeof useLocalePath>) {
-  if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB && query) await navigateTo({ path: localePath('/issues'), query })
   else if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))

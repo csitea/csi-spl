@@ -9,7 +9,7 @@ import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath
 
 describe('isSectionPage', () => {
   it('every section page the owner named, with or without a locale', () => {
-    for (const p of ['/issues', '/people', '/monitoring/boxes', '/monitoring/agents', '/events', '/help', '/docs', '/tenant-settings', '/archive', '/', '/fi/issues', '/issues?epic=SPL-1', '/people/']) {
+    for (const p of ['/issues', '/people', '/monitoring/boxes', '/monitoring/agents', '/monitoring/events', '/help', '/docs', '/tenant-settings', '/archive', '/', '/fi/issues', '/issues?epic=SPL-1', '/people/']) {
       assert.equal(isSectionPage(p), true, p)
     }
   })

@@ -8,6 +8,7 @@
 // that follow are for admins of the operator workspace only (Q3 A).
 // SPL-2075: each of Agents and Boxes also has its card, /monitoring/agents/<id@box>
 // and /monitoring/boxes/<id> (the old /agents and /boxes pages, moved).
+// SPL-3250: the Event log is a tab too, /monitoring/events (the old /events page, moved).
 
 import { productPath } from './signed-out-redirect.mjs'
 
@@ -16,6 +17,9 @@ import { productPath } from './signed-out-redirect.mjs'
 export const MONITORING_TABS = Object.freeze([
   Object.freeze({ id: 'agents', path: '/monitoring/agents', labelKey: 'monitoring.tab.agents', operatorsOnly: false, ready: true }),
   Object.freeze({ id: 'boxes', path: '/monitoring/boxes', labelKey: 'monitoring.tab.boxes', operatorsOnly: false, ready: true }),
+  /* SPL-3250 (owner HUM-10, t1 463d7692, msgs 24316f72 + ac1c95f9: "the event log section should be come just one tab of the
+     monitoring section", "on both mobile and the desktop"): the personal Event log, for everyone, as its rail section was */
+  Object.freeze({ id: 'events', path: '/monitoring/events', labelKey: 'monitoring.tab.events', operatorsOnly: false, ready: true }),
   /* spec 123 5 (SPL-2056): the month's costs, for a member holding costs.read (biz_owner, admin) */
   Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true, perm: 'costs.read' }),
   /* spec 140 4.1 (SPL-2322): the fleet's live token burn per agent type and agent, operator admins only */
@@ -55,15 +59,19 @@ export function monitoringTabFor(path) {
 
 /**
  * SPL-2075 (owner HUM-10, t1 dbf2f39b, msg fd5a2bf4): the Agents and Boxes
- * sections went into Monitoring. An old link (/agents, /agents/<id@box>,
- * /boxes, /boxes/<id>, with or without a locale prefix) answers the matching
+ * sections went into Monitoring, SPL-3250 the Event log. An old link (/agents,
+ * /agents/<id@box>, /boxes, /boxes/<id>, /events, with or without a locale
+ * prefix) answers the matching
  * Monitoring path, no locale prefix (the caller adds it); anything else null.
  * Query (`?r=`) and hash (`#box-people`) are the caller's to keep.
  * @param {string} path
  * @returns {string | null}
  */
 export function legacyMonitoringPath(path) {
-  const m = productPath(path).match(/^\/(agents|boxes)(?:\/([^/]+))?$/)
+  const p = productPath(path)
+  /* SPL-3250: the Event log section went into Monitoring too; its `#<id>` is the caller's to keep */
+  if (p === '/events') return '/monitoring/events'
+  const m = p.match(/^\/(agents|boxes)(?:\/([^/]+))?$/)
   if (!m) return null
   return '/monitoring/' + m[1] + (m[2] ? '/' + m[2] : '')
 }

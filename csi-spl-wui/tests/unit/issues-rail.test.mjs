@@ -16,7 +16,7 @@ describe('Issues rail tab', () => {
     assert.equal(SIDE_TABS.includes('issues'), false)
     assert.equal(tabForPath('/issues'), 'issues')
     assert.equal(tabForPath('/fi/issues'), 'issues')
-    assert.equal(tabForPath('/events'), 'events')
+    assert.equal(tabForPath('/events'), 'monitoring', 'SPL-3250: the Event log is a Monitoring tab')
     assert.equal(tabForPath('/channel/lobby'), 'channels')
   })
 
@@ -41,10 +41,10 @@ describe('Issues rail tab', () => {
     assert.match(src, /sidebar--rail/)
     const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
     const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
-    const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
-    /* owner 2026-09-27: flow, archive, then the Event log last */
-    assert.ok(archive > flow && events > archive)
-    assert.equal(/\{ id:/.test(tabs.slice(archive, events).slice(1)), false)
+    /* owner 2026-09-27: flow, then archive; the Event log that followed it is
+       Monitoring -> Events since SPL-3250 */
+    assert.ok(archive > flow)
+    assert.equal(tabs.includes("{ id: 'events'"), false)
   })
 
   it('the description is only in the opened issue, and the list uses the shared helpers', () => {

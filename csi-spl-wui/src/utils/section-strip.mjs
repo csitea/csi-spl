@@ -10,7 +10,6 @@ import { productPath } from './signed-out-redirect.mjs'
 const SECTION_PAGES = new Set([
   '/',
   '/issues',
-  '/events',
   '/archive',
   '/users',
   '/people',
@@ -19,6 +18,8 @@ const SECTION_PAGES = new Set([
   '/monitoring',
   '/monitoring/agents',
   '/monitoring/boxes',
+  /* SPL-3250: the Event log, a Monitoring tab since it left the rail */
+  '/monitoring/events',
   /* spec 143 1.1 (SPL-2351): Reporting and its tab */
   '/reporting',
   '/reporting/releases',

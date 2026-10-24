@@ -298,14 +298,13 @@ declare module '~/utils/live-ws.mjs' {
 declare module '~/utils/sidebar-tabs.mjs' {
   export const SIDE_TABS: readonly ['dm', 'channels', 'flow']
   export const USERS_TAB: 'users'
-  export const EVENTS_TAB: 'events'
   export const ISSUES_TAB: 'issues'
   export const ARCHIVE_TAB: 'archive'
   export const PEOPLE_TAB: 'people'
   export const CALENDAR_TAB: 'calendar'
   export const MONITORING_TAB: 'monitoring'
   export const REPORTING_TAB: 'reporting'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null
+  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null
   export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'flow' | '' | null
 }
@@ -2085,7 +2084,7 @@ declare module '~/utils/unread-model.mjs' {
 
 // 081 T003: the forward of tabForPath (merges with its first declare block).
 declare module '~/utils/sidebar-tabs.mjs' {
-  export function routeForTab(id: string): '/issues' | '/users' | '/events' | '/archive' | '/people' | '/calendar' | '/monitoring' | '/reporting' | null
+  export function routeForTab(id: string): '/issues' | '/users' | '/archive' | '/people' | '/calendar' | '/monitoring' | '/reporting' | null
 }
 
 // 078 T004: the proportional topic default (merges with its first declare block).

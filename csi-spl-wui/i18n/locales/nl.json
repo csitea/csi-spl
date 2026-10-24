@@ -3035,6 +3035,7 @@
     "tab": {
       "agents": "Assistenten",
       "boxes": "Boxen",
+      "events": "Gebeurtenissen",
       "tokens": "Tokens",
       "costs": "Kosten",
       "lanes": "Banen"

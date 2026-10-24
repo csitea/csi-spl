@@ -40,8 +40,8 @@ How the three panes share a wide screen:
   360 px. A width you drag wins over this default (see
   [§6](#6-draggable-pane-dividers)).
 - **The right pane belongs to what you are doing.** Opening another section
-  (Issues, Events, Archive, People, Agents, Boxes, Help, Docs,
-  Workspace settings, or a search) closes it. Moving from one channel to
+  (Issues, Events, Archive, People, Calendar, Monitoring, Reporting,
+  Help, Docs, Workspace settings, or a search) closes it. Moving from one channel to
   another, or to a direct message, does not (see [§5](#5-pane-3-right-thread-context)).
 - **Lines stay readable.** A message card is at most about 100 characters
   wide, so on a wide screen a line does not run across the whole pane; the
@@ -83,11 +83,12 @@ and it is the one icon you cannot drag.
 | **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence. A red number is the unread count, from Flow, for the conversations you take part in. On a phone the section reads **Messages**. |
 | **Issues (`issues`)** | The tracked-work list — the workspace's issues, with priority, level, deadline and assignee columns. |
 | **Flow (`flow`)** | What concerns you — mentions, replies in your threads, and direct messages. **Mine** is the default; **All** is the wider stream. The number on this tab is the theme grey. |
+| **Archive (`archive`)** | Topics that have been archived out of the active lists. Always last. |
 | **Events (`events`)** | Your own activity log. |
 | **People (`people`)** | Every member of the workspace, with their card. |
-| **Agents (`agents`)** | The workspace's agents, their kind and whether they are online. |
-| **Boxes (`boxes`)** | The machines agents run on, who sits on each, and what the box reported. |
-| **Archive (`archive`)** | Topics that have been archived out of the active lists. Always last. |
+| **Calendar (`calendar`)** | The workspace calendar sheet with year strip and event views. |
+| **Monitoring (`monitoring`)** | Fleet observability: active agents, connected runner boxes, host resources and stats. |
+| **Reporting (`reporting`)** | Workspace analytics: release timelines, metrics dashboards and SQL exploration. |
 
 > [!TIP]
 > The rail order is yours to change. Drag an icon to a new spot, or set the
@@ -151,7 +152,7 @@ When you click on a message or its **Replies** button in the Middle Pane, the Ri
 - **Pinned Root Card**: The Level 1 message that started this topic remains pinned at the top for constant context.
 - **Live Thread Replies**: Displays all Level 2 replies in reverse-prepend order, complete with avatars, relative age timestamps (e.g. `sent 2m ago`), syntax-highlighted code, and attachments.
 - **Closing the Pane**: Clicking the close button (`✕`) collapses Pane 3 and expands the Middle Pane to fill the remaining space. On a phone the browser Back (or a right swipe) closes it.
-- **Changing section closes it**: On a wide screen, opening another section from the rail or a link (Issues, Events, Archive, People, Agents, Boxes, Help, Docs, Workspace settings) or running a search closes the right pane, whatever it holds: a topic, a channel's topic, or the operator console. Its rail button opens the console again. Moving between channels and direct messages keeps the pane, and the browser **Back** never closes it. Opening a topic link (`/?topic=<id>`) opens that topic instead.
+- **Changing section closes it**: On a wide screen, opening another section from the rail or a link (Issues, Events, Archive, People, Calendar, Monitoring, Reporting, Help, Docs, Workspace settings) or running a search closes the right pane, whatever it holds: a topic, a channel's topic, or the operator console. Its rail button opens the console again. Moving between channels and direct messages keeps the pane, and the browser **Back** never closes it. Opening a topic link (`/?topic=<id>`) opens that topic instead.
 
 > [!NOTE]
 > Where the `✕` sits — the top-left corner (**Mac style**, the default) or the
@@ -188,7 +189,7 @@ channels does not force the same width on Issues:
 | **Issues** | the issue list and an issue (`/issues…`) |
 | **Help** | these pages (`/help…`) |
 | **Docs** | a repository document (`/docs/…`) |
-| **Everything else** | Flow, People, Boxes and the other sections share one set |
+| **Everything else** | Flow, People, Monitoring and the other sections share one set |
 
 Dragging a divider changes only the view you are in. A view you never resized
 uses the defaults above.

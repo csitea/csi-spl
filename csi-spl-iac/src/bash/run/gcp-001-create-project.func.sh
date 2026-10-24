@@ -49,28 +49,9 @@ _gcp_001_cnf_envs() {
   printf '%s' "${envs}bkp all"
 }
 
-do_gcp_001_create_project() {
-
-  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
-
-  do_resolve_oap ORG
-  do_resolve_oap APP
-  do_require_var ENV "${ENV:-}"
-  do_gcp_pin_bootstrap_account || return 1
-  do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
-
-  # the envs are the cnf's <env>.env.yaml files (spec 072 A8), plus
-  # bkp: <org>-<app>-bkp, the off-project backup project (iac 046, spec 044 T077)
-  # all: <org>-<app>-all, the satellite agent box (iac 059/060, spec 057)
-  local cnf_dir="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}"
-  local envs
-  envs=$(_gcp_001_cnf_envs "${cnf_dir}")
-  [[ " ${envs} " == *" ${ENV} "* ]] || { do_log "FATAL ENV must be one of: ${envs}, got: ${ENV}"; return 1; }
-
-  # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
-  [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)
-
-  local parent_flag
+# The parent of the project, exactly one of GCP_ORG_ID and GCP_FOLDER_ID: sets
+# the caller's parent_flag (no $(...): a FATAL must reach the log).
+_gcp_001_parent_flag() {
   if [[ -n "${GCP_ORG_ID:-}" && -n "${GCP_FOLDER_ID:-}" ]]; then
     do_log "FATAL set exactly one of GCP_ORG_ID and GCP_FOLDER_ID, not both"; return 1
   elif [[ -n "${GCP_ORG_ID:-}" ]]; then
@@ -80,13 +61,14 @@ do_gcp_001_create_project() {
   else
     do_log "FATAL the environment variable GCP_ORG_ID or GCP_FOLDER_ID must have a value (no default)"; return 1
   fi
+}
 
-  local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
-
-  # The id comes from the committed config (spec 072 A8): a GCP project id is
-  # global, so the directory names cannot be what names it. The convention
-  # <org>-<app>-<env> is only the fallback for a cnf that names none.
+# The id comes from the committed config (spec 072 A8): a GCP project id is
+# global, so the directory names cannot be what names it. The convention
+# <org>-<app>-<env> is only the fallback for a cnf that names none. Sets the
+# caller's proj_id.
+_gcp_001_proj_id() {
+  local cnf_dir="$1"
   local cnf_file="${cnf_dir}/${ENV}.env.yaml"
   local cnf_proj=""
   # ENV=all: all.env.yaml is the SHARED base, not csi-spl-all's env file
@@ -96,21 +78,18 @@ do_gcp_001_create_project() {
     command -v yq &>/dev/null || { do_log "FATAL yq is needed to read env.gcp.gcp_project from ${cnf_file}"; return 1; }
     cnf_proj=$(yq -r '.env.gcp.gcp_project // ""' "${cnf_file}" 2>/dev/null)
   fi
-  local proj_id="${cnf_proj:-${ORG}-${APP}-${ENV}}"
+  proj_id="${cnf_proj:-${ORG}-${APP}-${ENV}}"
   # GCP's own rule: 6-30 chars, lowercase letters, digits, hyphens, a letter first
   if [[ ! "${proj_id}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
     do_log "FATAL project id ${proj_id} is not a GCP project id (6-30 lowercase letters, digits or -, a letter first); set env.gcp.gcp_project in ${cnf_file}"
     return 1
   fi
-  export PROJ_ID="${proj_id}"
+}
 
-  do_log "INFO ORG=${ORG} APP=${APP} ENV=${ENV} PROJ_ID=${PROJ_ID} GCP_ACCOUNT=${GCP_ACCOUNT} parent=${parent_flag} DRY_RUN=${dry_run}"
-
-  # ---- PRE-FLIGHT -- before ANY state is read -------------------------------
-  do_gcp_require_live_account "${GCP_ACCOUNT}" \
-    || quit_on "prove ${GCP_ACCOUNT} can mint an access token (gcloud auth login ${GCP_ACCOUNT}, run by the box user)"
-
-  # ---- Create the project (idempotent, and three-way) -----------------------
+# Create the project (idempotent, and three-way): exists / reported absent /
+# could not tell. Only "reported absent" may create.
+_gcp_001_ensure_project() {
+  local dry_run="$1" parent_flag="$2"
   local describe_out="" describe_rc=0
   describe_out=$(gcloud projects describe "${PROJ_ID}" \
                    --account="${GCP_ACCOUNT}" \
@@ -137,10 +116,12 @@ do_gcp_001_create_project() {
     do_log "FATAL Error: Failed to establish the state of ${PROJ_ID} — refusing to run 'projects create' on an unread answer"
     return "${describe_rc}"
   fi
+}
 
-  # ---- Link billing (idempotent) -------------------------------------------
-  # In a dry run on an absent project this describe fails; that is expected
-  # and reads as "not linked".
+# Link billing (idempotent). In a dry run on an absent project the describe
+# fails; that is expected and reads as "not linked".
+_gcp_001_link_billing() {
+  local dry_run="$1"
   if [[ "$(gcloud billing projects describe "${PROJ_ID}" \
              --account="${GCP_ACCOUNT}" \
              --format='value(billingEnabled)' 2>/dev/null)" == "True" ]]; then
@@ -153,6 +134,47 @@ do_gcp_001_create_project() {
       --billing-account="${GCP_BILLING_ACCOUNT_ID}" \
       --account="${GCP_ACCOUNT}" || quit_on "Billing account linking failed"
   fi
+}
+
+do_gcp_001_create_project() {
+
+  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
+
+  do_resolve_oap ORG
+  do_resolve_oap APP
+  do_require_var ENV "${ENV:-}"
+  do_gcp_pin_bootstrap_account || return 1
+  do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
+
+  # the envs are the cnf's <env>.env.yaml files (spec 072 A8), plus
+  # bkp: <org>-<app>-bkp, the off-project backup project (iac 046, spec 044 T077)
+  # all: <org>-<app>-all, the satellite agent box (iac 059/060, spec 057)
+  local cnf_dir="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}"
+  local envs
+  envs=$(_gcp_001_cnf_envs "${cnf_dir}")
+  [[ " ${envs} " == *" ${ENV} "* ]] || { do_log "FATAL ENV must be one of: ${envs}, got: ${ENV}"; return 1; }
+
+  # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
+  [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)
+
+  local parent_flag
+  _gcp_001_parent_flag || return 1
+
+  local dry_run="${DRY_RUN:-1}"
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
+
+  local proj_id
+  _gcp_001_proj_id "${cnf_dir}" || return 1
+  export PROJ_ID="${proj_id}"
+
+  do_log "INFO ORG=${ORG} APP=${APP} ENV=${ENV} PROJ_ID=${PROJ_ID} GCP_ACCOUNT=${GCP_ACCOUNT} parent=${parent_flag} DRY_RUN=${dry_run}"
+
+  # ---- PRE-FLIGHT -- before ANY state is read -------------------------------
+  do_gcp_require_live_account "${GCP_ACCOUNT}" \
+    || quit_on "prove ${GCP_ACCOUNT} can mint an access token (gcloud auth login ${GCP_ACCOUNT}, run by the box user)"
+
+  _gcp_001_ensure_project "${dry_run}" "${parent_flag}" || return $?
+  _gcp_001_link_billing "${dry_run}"
 
   if [[ "${dry_run}" == 1 ]]; then
     do_log "OK DRY_RUN for ${PROJ_ID} complete: nothing was created or linked. Re-run with DRY_RUN=0 to mutate."

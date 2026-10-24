@@ -3035,7 +3035,8 @@
       "agents": "Agents",
       "boxes": "Boxes",
       "tokens": "Tokens",
-      "costs": "Costs"
+      "costs": "Costs",
+      "lanes": "Lanes"
     },
     "alloc": {
       "title": "Allocation",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Not metered",
         "status_no_fx_rate": "No exchange rate"
       }
+    },
+    "lanes": {
+      "loading": "Loading the active lanes…",
+      "forbidden": "Only an admin of the operator workspace sees the fleet's lanes.",
+      "error": "Could not load the active lanes.",
+      "empty": "No active lanes",
+      "stale_red": "Data stale: hub unreachable",
+      "table_label": "Active lanes",
+      "col_scope": "Scope",
+      "col_updated": "Updated",
+      "min_ago": "{n} min ago"
     }
   },
   "takeover": {

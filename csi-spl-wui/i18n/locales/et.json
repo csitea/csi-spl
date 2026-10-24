@@ -3035,7 +3035,8 @@
       "agents": "Agendid",
       "boxes": "Kastid",
       "tokens": "Tokenid",
-      "costs": "Kulud"
+      "costs": "Kulud",
+      "lanes": "Rajad"
     },
     "alloc": {
       "title": "Jaotus",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Mõõtmata",
         "status_no_fx_rate": "Vahetuskurss puudub"
       }
+    },
+    "lanes": {
+      "loading": "Laadin aktiivseid radu…",
+      "forbidden": "Laevastiku radu näeb ainult operaatori tööruumi administraator.",
+      "error": "Aktiivsete radade laadimine ebaõnnestus.",
+      "empty": "Aktiivseid radu pole",
+      "stale_red": "Andmed on aegunud: jaotur pole kättesaadav",
+      "table_label": "Aktiivsed rajad",
+      "col_scope": "Ulatus",
+      "col_updated": "Uuendatud",
+      "min_ago": "{n} min tagasi"
     }
   },
   "takeover": {

@@ -3035,7 +3035,8 @@
       "agents": "Agenci",
       "boxes": "Boxy",
       "tokens": "Tokeny",
-      "costs": "Koszty"
+      "costs": "Koszty",
+      "lanes": "Linie"
     },
     "alloc": {
       "title": "Przydział",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Bez pomiaru",
         "status_no_fx_rate": "Brak kursu wymiany"
       }
+    },
+    "lanes": {
+      "loading": "Wczytywanie aktywnych linii…",
+      "forbidden": "Linie floty widzi tylko administrator przestrzeni roboczej operatora.",
+      "error": "Nie udało się wczytać aktywnych linii.",
+      "empty": "Brak aktywnych linii",
+      "stale_red": "Nieaktualne dane: hub nieosiągalny",
+      "table_label": "Aktywne linie",
+      "col_scope": "Zakres",
+      "col_updated": "Zaktualizowano",
+      "min_ago": "{n} min temu"
     }
   },
   "takeover": {

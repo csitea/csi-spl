@@ -3035,7 +3035,8 @@
       "agents": "Ajanlar",
       "boxes": "Kutular",
       "tokens": "Belirteçler",
-      "costs": "Maliyetler"
+      "costs": "Maliyetler",
+      "lanes": "Hatlar"
     },
     "alloc": {
       "title": "Tahsis",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Ölçülmüyor",
         "status_no_fx_rate": "Döviz kuru yok"
       }
+    },
+    "lanes": {
+      "loading": "Etkin hatlar yükleniyor…",
+      "forbidden": "Filonun hatlarını yalnızca operatör çalışma alanının yöneticisi görür.",
+      "error": "Etkin hatlar yüklenemedi.",
+      "empty": "Etkin hat yok",
+      "stale_red": "Veriler eski: merkeze ulaşılamıyor",
+      "table_label": "Etkin hatlar",
+      "col_scope": "Kapsam",
+      "col_updated": "Güncellendi",
+      "min_ago": "{n} dk önce"
     }
   },
   "takeover": {

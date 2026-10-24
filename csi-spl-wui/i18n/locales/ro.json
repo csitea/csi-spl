@@ -3035,7 +3035,8 @@
       "agents": "Agenți",
       "boxes": "Boxuri",
       "tokens": "Tokeni",
-      "costs": "Costuri"
+      "costs": "Costuri",
+      "lanes": "Linii"
     },
     "alloc": {
       "title": "Alocare",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Nemăsurat",
         "status_no_fx_rate": "Fără curs de schimb"
       }
+    },
+    "lanes": {
+      "loading": "Se încarcă liniile active…",
+      "forbidden": "Doar un administrator al spațiului de lucru al operatorului vede liniile flotei.",
+      "error": "Liniile active nu au putut fi încărcate.",
+      "empty": "Nicio linie activă",
+      "stale_red": "Date învechite: hub inaccesibil",
+      "table_label": "Linii active",
+      "col_scope": "Domeniu",
+      "col_updated": "Actualizat",
+      "min_ago": "acum {n} min"
     }
   },
   "takeover": {

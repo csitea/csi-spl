@@ -3035,7 +3035,8 @@
       "agents": "Agentit",
       "boxes": "Koneet",
       "tokens": "Tokenit",
-      "costs": "Kulut"
+      "costs": "Kulut",
+      "lanes": "Kaistat"
     },
     "alloc": {
       "title": "Allokointi",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Ei mitattu",
         "status_no_fx_rate": "Ei vaihtokurssia"
       }
+    },
+    "lanes": {
+      "loading": "Ladataan aktiivisia kaistoja…",
+      "forbidden": "Vain operaattorityötilan ylläpitäjä näkee laivaston kaistat.",
+      "error": "Aktiivisia kaistoja ei voitu ladata.",
+      "empty": "Ei aktiivisia kaistoja",
+      "stale_red": "Vanhentunutta tietoa: keskus ei vastaa",
+      "table_label": "Aktiiviset kaistat",
+      "col_scope": "Laajuus",
+      "col_updated": "Päivitetty",
+      "min_ago": "{n} min sitten"
     }
   },
   "takeover": {

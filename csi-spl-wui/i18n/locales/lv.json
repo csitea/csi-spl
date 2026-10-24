@@ -3035,7 +3035,8 @@
       "agents": "Aģenti",
       "boxes": "Kastes",
       "tokens": "Tokeni",
-      "costs": "Izmaksas"
+      "costs": "Izmaksas",
+      "lanes": "Līnijas"
     },
     "alloc": {
       "title": "Sadalījums",
@@ -3198,6 +3199,17 @@
         "status_not_metered": "Netiek mērīts",
         "status_no_fx_rate": "Nav maiņas kursa"
       }
+    },
+    "lanes": {
+      "loading": "Ielādē aktīvās līnijas…",
+      "forbidden": "Flotes līnijas redz tikai operatora darbvietas administrators.",
+      "error": "Neizdevās ielādēt aktīvās līnijas.",
+      "empty": "Nav aktīvu līniju",
+      "stale_red": "Novecojuši dati: centrs nav sasniedzams",
+      "table_label": "Aktīvās līnijas",
+      "col_scope": "Tvērums",
+      "col_updated": "Atjaunināts",
+      "min_ago": "pirms {n} min"
     }
   },
   "takeover": {

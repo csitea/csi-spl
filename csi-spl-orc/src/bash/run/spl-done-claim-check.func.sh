@@ -94,6 +94,12 @@
 # @description     with no <id>- prefix is the SENDING lane's, pending while
 # @description     it is in registry.tsv; a branch named for another id stays
 # @description     that id's; a sha on no branch alerts as before
+# @description   - SPL-3261 (notes 68215ba2, d72ab6e0): such a branch is also
+# @description     the lane's of registry.tsv whose worktree branch ends in
+# @description     -<topic> (an R7 reviewer citing its author's sha); a line
+# @description     "landed:" / "landed sha:" / "trunk sha:" is the claim ahead
+# @description     of the sha lines; a rotation branch <id>-rotate[-N] is no
+# @description     slug (the id keeps its previous one)
 # @description   - SPL-2327: a sha that is no object in any repo (a rebase in
 # @description     another tree) is verdict rewritten (landed, no note) when
 # @description     EXACTLY one trunk commit after the lane's spawn (registry.tsv,
@@ -156,7 +162,7 @@ do_spl_done_claim_check() {
     elif unchk="$(spl_done_claim_unchecked "$tmp/repos" "$tmp/unchk" "${from%@*}" "$bad")" &&
       bad="$(spl_done_claim_minus "$bad" "$unchk")" && [[ -n "$unchk" && -z "$bad" ]]; then
       verdict=unchecked; n_unchk=$((n_unchk + 1))
-    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad" "${from%@*}")" ]]; then
+    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad" "${from%@*}" "$root")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
@@ -216,10 +222,18 @@ spl_done_claim_results() {
 # list marks and bold (`sha:`, `- **sha**:`, `- **Sha:**`, `SHA:`), and one of
 # those lines holds a sha, only those lines count: a sha quoted on another line
 # (another lane's, another repo's, a reverted one) is context. Else every sha
-# of the body, as before. One line, space-separated.
+# of the body, as before. One line, space-separated. SPL-3261 (c-913's
+# 12472906: "- Landed: <sha>" beside "Range-diff, reviewed <review sha> ..."):
+# a line starting with "landed:", "landed sha:" or "trunk sha:" counts ahead of
+# the sha lines; "commit:" is too generic and is not one. Range-diff lines are
+# not dropped: with a Landed line they are not read anyway. The cost: a Landed
+# line hides every other sha of the body, the lane's own unlanded one too
+# (case B3), the same risk a sha line carries since SPL-2338.
 spl_done_claim_shas() {
-  local claim
-  claim="$(tr '\037' '\n' <<<"$1" | grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' | spl_done_claim_tokens "${2:-}")"
+  local claim lines
+  lines="$(tr '\037' '\n' <<<"$1")"
+  claim="$(grep -iE '^[[:space:]>*+_`-]*(landed( sha)?|trunk sha)[*_`]*:' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
+  [[ -n "$claim" ]] || claim="$(grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
   [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens "${2:-}" <<<"$1")"
   echo "$claim"
 }
@@ -519,7 +533,10 @@ spl_done_claim_r7() {
 # branch <id>-<slug> by tip commit date (a spawn branches off the trunk of its
 # day); else its newest worktree row of <root>/workdirs.tsv (agent, branch,
 # finished_at; an empty branch reads the newest local branch). An id whose
-# latest slug is a code slug, or that has none, is not listed.
+# latest slug is a code slug, or that has none, is not listed. SPL-3261
+# (a-709's 4c4de307): a rotation's branch <id>-rotate[-N] is no slug, so the
+# id keeps its previous one; an id whose only rows are rotation rows reads its
+# newest other local branch <id>-<slug>.
 spl_done_claim_seats() {
   local top ref
   {
@@ -538,6 +555,7 @@ spl_done_claim_seats() {
       while (sub(/-(claude|agy|mistral|grok|qwen|takeover|spl-?[0-9]+)$/, "", s)) ;
       return s ~ /-(seat[0-9]*|review|reviewer|plan|planner)$/
     }
+    $1 != "D" && $3 ~ /^[cmagq]-[0-9]+-rotate(-[0-9]+)?$/ { rot[$2] = 1; next }
     $1 == "L" { live[$2] = 1; if (!seat($3)) code[$2] = 1; next }
     $1 == "D" { det[$2] = 1; next }
     $1 == "B" { if (!($2 in bt) || $4 + 0 >= bt[$2]) { bt[$2] = $4 + 0; bb[$2] = $3 }; next }
@@ -548,6 +566,7 @@ spl_done_claim_seats() {
       for (id in rt) if (!(id in live) && !(id in det)) {
         s = (rb[id] != "" ? rb[id] : bb[id]); if (s != "" && seat(s)) print id
       }
+      for (id in rot) if (!(id in live) && !(id in det) && !(id in rt) && (id in bb) && seat(bb[id])) print id
     }' | sort -u
 }
 
@@ -556,19 +575,35 @@ spl_done_claim_seats() {
 # ids>: a plan lane's sha waiting there for a go is pending, not missing
 # (SPL-2313). SPL-3116: origin/review/<topic>... or origin/wip/<topic>... with
 # no lane id (c-912's review/s107-v2-t020) is the sender's own branch.
+# SPL-3261 (a-709's review of c-906's review/r19-04-...): it is also the branch
+# of each lane of [root]/registry.tsv whose worktree branch ends in -<topic>.
 spl_done_claim_unparked() {
-  local s full top ref ids ok out=()
+  local s full top ref ids brs ok out=()
   for s in $3; do
     ok=0
     while read -r top ref; do
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
-      ids="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null |
-        sed -nE -e 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p;t' -e "s#^origin/(review|wip)/.+#${4:-}#p")"
-      [[ -n "$ids" ]] && grep -qxFf "$2" <<<"$ids" && { ok=1; break; }
+      brs="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null)"
+      ids="$(sed -nE -e 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p;t' -e "s#^origin/(review|wip)/.+#${4:-}#p" <<<"$brs")"
+      ids+=$'\n'"$(spl_done_claim_topic_lanes "${5:-}" "$brs")"
+      grep -qxFf "$2" <<<"$ids" && { ok=1; break; }
     done <"$1"
     (( ok )) || out+=("$s")
   done
   echo "${out[*]}"
+}
+
+# spl_done_claim_topic_lanes <root> <remote branches>: the lane ids of
+# <root>/registry.tsv whose worktree (col 4) is on a branch ending in -<topic>,
+# for each origin/review/<topic> or origin/wip/<topic> with no lane id.
+spl_done_claim_topic_lanes() {
+  local tp lid lwt b
+  [[ -n "$1" && -f "$1/registry.tsv" ]] || return 0
+  sed -nE 's#^origin/(review|wip)/(.+)#\2#p' <<<"$2" | grep -vE '^[cmagq]-[0-9]+-' | while read -r tp; do
+    while IFS=$'\t' read -r lid lwt; do
+      b="$(git -C "$lwt" rev-parse --abbrev-ref HEAD 2>/dev/null)" && [[ "$b" == *"-$tp" ]] && echo "$lid"
+    done < <(awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ && $4 != "" { print $1 "\t" $4 }' "$1/registry.tsv")
+  done
 }
 
 # The recipient: DONE_CLAIM_TO, else the dispatch lease holder as the lease

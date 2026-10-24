@@ -561,4 +561,88 @@ run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && grep -q "c-822 result rq20 .*: sha ${T20:0:9}, ${T20X:0:9} not in the repository$" "$T/calls.log" &&
   pass "18. the lanes retired, their review-branch shas alert once" || fail "18. retired (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 19. SPL-3261 (notes 68215ba2 and d72ab6e0, 10-24; bug round 9 row 01,
+# fixtures of reviewer c-962, synthetic): A = a-709's shape, a retired R7
+# reviewer whose last branch is <id>-rotate, its R7 line nested below "##
+# Result"; A0 the same with its reviewer slug; R a rotate SUFFIX on a reviewer
+# slug; R2 a rotate row over an older local reviewer branch; B c-913's
+# 12472906 layout ("- Landed: <sha9>", "Range-diff, reviewed <rev9> vs landed
+# <sha9>"); B2 "Landed sha:" + "range-diff:" lines; B3 a FALSE claim, a
+# Landed line plus the lane's own unlanded sha on a range-diff line (the
+# accepted cost of the Landed rule); C a retired code-slug reviewer citing the
+# sha on origin/review/<topic> of a live author whose branch ends in -<topic>.
+SP="$T/spool19"
+mkdir -p "$SP/c-002/archive"
+mkrepo rr
+rg rr checkout -q -b rv origin/master && echo a >"$T/rr/x" && rg rr add x && rg rr commit -q -m "feat(rdb, SPL-9102): t021 (rdb 0215)" && lettered rr 9 rv
+REV2=$(rg rr rev-parse HEAD) && rg rr push -q origin HEAD:refs/heads/review/s107-v2-t021
+rg rr checkout -q master && echo b >"$T/rr/x" && rg rr add x && rg rr commit -q -m "feat(rdb, SPL-9102): t021 (rdb 0216)" && lettered rr 9 landed
+LAND19=$(rg rr rev-parse HEAD) && rg rr push -q origin HEAD:master
+rg rr checkout -q -b r4 origin/master && rg rr commit -q --allow-empty -m "r19-04 decompose" && lettered rr 9 r4
+REV4=$(rg rr rev-parse HEAD) && rg rr push -q origin HEAD:refs/heads/review/r19-04-wui-decompose-message-card-pointer
+rg rr checkout -q -b r5 origin/master && rg rr commit -q --allow-empty -m "unlanded code of the sender" && lettered rr 9 r5
+UNL19=$(rg rr rev-parse HEAD) && rg rr push -q origin HEAD:refs/heads/review/b3-topic
+rg rr checkout -q master
+for b in a-709-c002-r19-reviewer-agy a-709-rotate a-713-c002-r19-reviewer-agy; do rg rr branch -q "$b" origin/master; done
+rg rr worktree add -q -b c-906-c296-r19-04-wui-decompose-message-card-pointer "$T/wt/c-906" origin/master 2>/dev/null
+# m19 <id> <from> <body>: one result in c-002's archive, 30 min old.
+m19() { msg c-002/archive "$1" "$2" c-002 30 "$3"; }
+R7="review: a-709@box-b agy PASS $REV4 ran: x | read: y | log: a-709@box-b:/x/transcript.jsonl"
+m19 A a-709 "## Result: R7 review round 19 rows 01, 02, 03, 04 complete (SPL-9139)
+
+Reviewed all 4 rows.
+
+- **r19-04** (SPL-9091, \`$REV4\`, author c-906@box-a): PASS sent to c-906.
+  - Review line:
+    \`$R7\`"
+m19 A0 a-710 "## Result: R7 review done
+
+- **r19-04** (\`$REV4\`): PASS
+    \`${R7//a-709/a-710}\`"
+m19 R a-711 "Reviewed r19-04 ${REV4:0:9}: PASS, sent to c-906"
+m19 R2 a-713 "Reviewed r19-04 ${REV4:0:9}: PASS, sent to c-906"
+m19 B c-913 "**Live**: s107-v2 T021, people and plan tables (SPL-9102), slot 1.
+
+- Landed: ${LAND19:0:9} on origin/master at 00:49Z (\`git-fetch-fresh.sh --landed\` rc 0).
+
+Range-diff, reviewed ${REV2:0:9} vs landed ${LAND19:0:9} (\`git range-diff ${REV2:0:9}~1..${REV2:0:9} ${LAND19:0:9}~1..${LAND19:0:9}\`):
+- rename only."
+m19 B2 c-914 "**Live**: t021.
+
+Landed sha: ${LAND19:0:9}
+range-diff: reviewed ${REV2:0:9} vs landed ${LAND19:0:9}"
+m19 B3 c-915 "**Live**: my fix.
+
+Landed sha: ${LAND19:0:9}
+1:  ${UNL19:0:9} = 1:  ${UNL19:0:9} fix(x): the fix"
+m19 C a-712 "Reviewed r19-04 ${REV4:0:9}: PASS, sent to c-906"
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n' >"$SP/workdirs.tsv"
+for r in "a-709	a-709-rotate" "a-710	a-710-c002-r19-reviewer-agy" "a-711	a-711-c002-x-reviewer-agy-rotate" "a-713	a-713-rotate" \
+  "c-913	c-913-c002-s107-v2-t021" "c-914	c-914-c002-t021" "c-915	c-915-c002-fix" "a-712	a-712-c002-code"; do
+  printf '%s\tworktree\t%s\tbox-a\t%s\t%s\n' "$T/wt/${r%%	*}" "${r%%	*}" "${r#*	}" "$(iso "$NOW")" >>"$SP/workdirs.tsv"
+done
+printf 'c-906\tclaude\t%%1\t%s\t20261024T000000Z\n' "$T/wt/c-906" >"$SP/registry.tsv"
+! rg rr merge-base --is-ancestor "$REV2" origin/master && ! rg rr merge-base --is-ancestor "$REV4" origin/master &&
+  [[ "$(rg rr branch -r --contains "$REV4" --format='%(refname:short)')" == origin/review/r19-04-wui-decompose-message-card-pointer ]] &&
+  pass "19. control: the reviewed shas ${REV2:0:9} and ${REV4:0:9} are on review branches only, ${REV4:0:9} on one with no lane id" ||
+  fail "19. control: fixture"
+k19="A A0 R R2 B B2 B3 C"
+run DONE_CLAIM_REPO_DIRS="$T/rr" DONE_CLAIM_STATE_DIR="$T/st19"; rc=$?
+v="$(for k in $k19; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "A=seat A0=seat R=pending R2=seat B=landed B2=landed B3=landed C=pending " ] &&
+  [ "$(awk -F'\t' '$1 == "B" { print $4 }' "$T/o")" = "${LAND19:0:9}" ] &&
+  grep -q '^OK done-claim-check: 3 landed, 0 rewritten, 3 seat, 2 pending, 0 not checked, 0 would alert' "$T/o" &&
+  pass "19. SPL-3261: a rotation branch <id>-rotate[-N] is no slug (a retired reviewer keeps its reviewer slug from its local branch: seat); a reviewer citing its live author's sha on origin/review/<topic> is pending (the author's branch ends in -<topic>); a Landed: / Landed sha: line is the claim ahead of the range-diff's reviewed sha (c-913's 12472906 shape: landed)" ||
+  fail "19. rotation / review topic / Landed line (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_REPO_DIRS="$T/rr" DONE_CLAIM_STATE_DIR="$T/st19"; rc=$?
+[ "$rc" = 0 ] && [ ! -s "$T/calls.log" ] && ! grep -q '^R	\|^C	' "$T/st19/seen.tsv" &&
+  pass "19. DRY_RUN=0: no alert note for any of the eight; the two pending ones stay out of the ledger" ||
+  fail "19. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+: >"$SP/registry.tsv"
+run DONE_CLAIM_REPO_DIRS="$T/rr" DONE_CLAIM_STATE_DIR="$T/st19"; rc=$?
+v="$(for k in R C; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "R=would-alert C=would-alert " ] &&
+  pass "19. the author retired, the reviewers' review-branch shas alert again (the -<topic> match needs a live lane)" ||
+  fail "19. author retired (rc $rc) got '$v': $(cat "$T/o")"
+
 exit "$fails"

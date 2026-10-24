@@ -1,7 +1,7 @@
 # 146: Reliability round - 12 permanent checks that keep the boxes and the hub up
 
 Epic SPL-2364.
-Status: plan signed v1.0, owner approved all 12 rows.
+Status: Implemented (all 12 checks landed on master: dadff1744, b9d73435a, 377c36205, a3024b410, 27f6c86c7, 81840b7e4, 1da66fe29, e4fb9bc6b, f63906046, 6752317a0, 5947f748a, 9329c596e).
 
 ## Scope
 

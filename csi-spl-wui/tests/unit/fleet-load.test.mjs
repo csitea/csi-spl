@@ -344,6 +344,27 @@ const lists = () => {
   ok('bands: a remove drops that band and clears the reset', r.bands.value[0].box === 'b1' && !r.resetBoxes.value)
 }
 
+// The card's fleet-wide defaults (useFleetLoadDefaults, r19-08): a reset puts
+// the hub default in and raises the flag; an edit clears it. Nuxt
+// auto-imports computed.
+globalThis.computed = (await import('vue')).computed
+const { useFleetLoadDefaults } = await importTs('src/composables/useFleetLoadDefaults.ts')
+{
+  const r = {
+    view: ref(normalizeFleetLoad({ low: 30, high: 60 })), low: ref(30), high: ref(60), cpu: ref(80), overflow: ref(true), cpus: ref(0),
+    boxes: ref(['box-a']), bands: ref([]), resetLow: ref(false), resetHigh: ref(false), resetOrder: ref(false), resetBoxes: ref(false),
+    resetCpu: ref(false), resetOverflow: ref(false), resetCpus: ref(false), formError: ref('x'),
+  }
+  const fn = useFleetLoadDefaults(r)
+  ok('defaults: a stored low is not the default', !fn.lowUsesDefault.value && !fn.orderUsesDefault.value)
+  fn.resetToDefault('low')
+  ok('defaults: reset low sets 50, raises resetLow, clears the error', r.low.value === 50 && r.resetLow.value && r.formError.value === '' && fn.lowUsesDefault.value)
+  fn.resetToDefault('order')
+  ok('defaults: reset order empties it and raises resetOrder', r.boxes.value.length === 0 && r.resetOrder.value && fn.orderUsesDefault.value)
+  fn.editLow('')
+  ok('defaults: an edit clears the reset; an empty field is ""', r.low.value === '' && !r.resetLow.value && !fn.lowUsesDefault.value)
+}
+
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)
 

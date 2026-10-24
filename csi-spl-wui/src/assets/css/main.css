@@ -1001,6 +1001,7 @@ html.pane-dragging * {
   .topic header > .topic-close { display: none; }
   .topic header { padding: 4px 8px 4px 4px; }
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
+  .spool-shell[data-mobile-section="1"] .monitoring-tabs { flex: none; margin: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
   .feed-header__who--status { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
   .feed-header__who--status .feed-header__title,
   .feed-header__who--status .feed-header__status { max-width: 100%; }
@@ -1578,8 +1579,18 @@ html.pane-dragging * {
    not in each page, so the three pages add no CSS chunk to the router's
    dependency map in the first-load JS (ci_initial_gzip_kb). */
 .monitoring-summary:empty { display: none; }
-.monitoring-tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--color-border); }
-.monitoring-tab { padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+/* spec 153 3.1 (SPL-3157): the bar sits in the .feed-header row after the
+   h2. Its margin is the whole distance (the header's 12 px gap cancelled), so
+   the first label is 8 + 12 = 20 px after the heading. It stretches over the
+   header's block padding and its bottom border, so the active tab's underline
+   lies ON that border; tabs that do not fit scroll inside the bar, no
+   scrollbar drawn. The heading never shrinks or breaks on this page, and
+   sits on the labels' line: at the header's end, 3 px into its padding (its
+   1 px border + 12 px padding less a tab's 8 px padding + 2 px underline). */
+.monitoring-page .feed-header h2 { flex: none; white-space: nowrap; align-self: flex-end; margin-bottom: -3px; }
+.monitoring-tabs { display: flex; align-items: flex-end; align-self: stretch; gap: 4px; flex: 1 1 auto; min-width: 0; margin: -12px 0 -13px calc(0.5rem - 12px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.monitoring-tabs::-webkit-scrollbar { display: none; }
+.monitoring-tab { flex: none; white-space: nowrap; padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; }
 .monitoring-tab:hover, .monitoring-tab--active { color: var(--color-fg); }
 .monitoring-tab--active { border-bottom-color: var(--color-accent); }
 .monitoring-list { padding: 8px; }

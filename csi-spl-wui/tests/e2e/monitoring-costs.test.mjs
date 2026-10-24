@@ -29,6 +29,16 @@
 //     -> add one item -> it shows, the effective price for its vendor ->
 //     edit -> the hub's refusal text shows as it came -> delete -> empty.
 //     Anyone else: no Paid card.
+//   - spec 153 3.1 (SPL-3157), cases C1-C5: the tab bar sits on the
+//     heading's row, inside the header (C1), its first label 20 px after
+//     "Monitoring" on the same line (C2), the active underline on the
+//     header's bottom border (C2b); at 320 px in nl (the longest labels)
+//     one row, the bar scrolls inside itself with no scrollbar, the page
+//     never sideways (C3; a phone shows no heading, CLE-77886, so the bar
+//     is the row and never grows taller than a tab); the end X stays the
+//     header's last element under close_buttons 'windows' (C4), the start
+//     X before the heading and no end X under the default 'mac' (C4b).
+//     C5 is every other case here finding the bar by data-test.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -74,7 +84,7 @@ const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').
 const tabIds = (p) => p.$$eval('[data-test^=monitoring-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('monitoring-tab-'.length)))
 
 /** A fresh signed-in mock page at this size; `me` = the opt-in mock role + permissions, `scenario` = the mock month; `prefs`: PUT /preferences answered as the hub would, bodies kept in `p.saved`; `operator` = an operator admin, `tokens` = the mock fleet ('' busy, 'empty'). */
-async function costsPage(browser, base, { width, height }, { me = null, scenario = '', prefs = false, operator = false, tokens = '' } = {}) {
+async function costsPage(browser, base, { width, height }, { me = null, scenario = '', prefs = false, operator = false, tokens = '', closeButtons = null } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   const saved = []
@@ -90,11 +100,11 @@ async function costsPage(browser, base, { width, height }, { me = null, scenario
   p.saved = saved
   await p.setViewport({ width, height })
   await p.goto(base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.evaluate((meKey, m, costsKey, sc) => {
-    localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
+  await p.evaluate((meKey, m, costsKey, sc, cb) => {
+    localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock', ...(cb ? { close_buttons: cb } : {}) }))
     if (m) localStorage.setItem(meKey, JSON.stringify(m)); else localStorage.removeItem(meKey)
     if (sc) localStorage.setItem(costsKey, sc); else localStorage.removeItem(costsKey)
-  }, MOCK_ME_KEY, me, COSTS_MOCK_KEY, scenario)
+  }, MOCK_ME_KEY, me, COSTS_MOCK_KEY, scenario, closeButtons)
   await p.evaluate((opKey, op, tkKey, tk) => {
     if (op) localStorage.setItem(opKey, '1'); else localStorage.removeItem(opKey)
     if (tk) localStorage.setItem(tkKey, tk); else localStorage.removeItem(tkKey)
@@ -187,6 +197,75 @@ async function paidRound(p, base, size) {
   ok('paid: claude is back to the list price only', await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'list_only', { timeout: 10000 }).then(() => true, () => false))
 }
 
+/** Spec 153 3.1: where the heading, the bar, its first label, the active tab and the close X are drawn. Text edges come from a Range over the text, not the boxes. */
+const tabRowGeometry = (p) => p.evaluate(() => {
+  const header = document.querySelector('[data-test=monitoring-page] > header')
+  const h2 = document.querySelector('[data-test=monitoring-heading]')
+  const nav = document.querySelector('[data-test=monitoring-tabs]')
+  const first = nav?.querySelector('a')
+  const active = nav?.querySelector('[aria-current=page]')
+  const textRect = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect() }
+  if (!header || !h2 || !nav || !first) return null
+  const head = textRect(h2)
+  const label = textRect(first)
+  const kids = [...header.children]
+  const tabs = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect())
+  const at = (sel) => kids.findIndex((e) => e.matches(sel))
+  return {
+    inHeader: nav.closest('header') === header,
+    gap: Math.round((label.left - head.right) * 10) / 10,
+    topDiff: Math.round(Math.abs(label.top - head.top) * 10) / 10,
+    activeBottom: active ? Math.round((active.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom) * 10) / 10 : null,
+    activeToBar: active ? Math.round((active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom) * 10) / 10 : null,
+    h2Shown: getComputedStyle(h2).display !== 'none',
+    tabTops: Math.round((Math.max(...tabs.map((r) => r.top)) - Math.min(...tabs.map((r) => r.top))) * 10) / 10,
+    barOverTab: Math.round(nav.getBoundingClientRect().height - Math.max(...tabs.map((r) => r.height))),
+    pageWide: document.documentElement.scrollWidth - window.innerWidth,
+    navOverflows: nav.scrollWidth > nav.clientWidth,
+    navScrollbar: nav.offsetHeight - nav.clientHeight,
+    navRightGap: Math.round(header.getBoundingClientRect().right - parseFloat(getComputedStyle(header).paddingRight) - nav.getBoundingClientRect().right),
+    last: header.lastElementChild?.getAttribute('data-close-side') || header.lastElementChild?.tagName.toLowerCase(),
+    start: at('[data-close-side=start]'), h2: at('h2'), end: at('[data-close-side=end]'),
+  }
+})
+
+/** Spec 153 3.1 cases C1-C4b: the tab bar on the heading's row. CONTROL: on master before SPL-3157 the bar is a sibling below the header, so C1, C2 and C2b FAIL there, and C3's scroll inside the bar. */
+async function tabRow(browser, base) {
+  for (const [label, size, path, opts] of [
+    ['desktop 1280 mac', { width: 1280, height: 900 }, '/monitoring/agents', {}],
+    ['desktop 1280 windows', { width: 1280, height: 900 }, '/monitoring/agents', { closeButtons: 'windows' }],
+    ['phone 320 nl', { width: 320, height: 800 }, '/nl/monitoring/agents', {}],
+  ]) {
+    const { ctx, p } = await costsPage(browser, base, size, opts)
+    await open(p, base, path)
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 3, { timeout: 15000 }).catch(() => null)
+    const g = await tabRowGeometry(p)
+    const phone = size.width < 600
+    ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
+    if (phone) {
+      ok(`C3 ${label}: no heading on a phone section page (CLE-77886)`, Boolean(g && !g.h2Shown), g)
+      ok(`C3 ${label}: the tabs on one row`, Boolean(g && g.tabTops <= 1), g && g.tabTops)
+      ok(`C3 ${label}: the tabs overflow the row (the case is real)`, Boolean(g && g.navOverflows), g)
+      ok(`C3 ${label}: the bar scrolls inside itself, never taller than a tab`, Boolean(g && g.navOverflows && g.barOverTab === 0), g && g.barOverTab)
+      ok(`C3 ${label}: the active underline on the bar's bottom line`, Boolean(g && g.activeToBar !== null && Math.abs(g.activeToBar) <= 1), g && g.activeToBar)
+      ok(`C3 ${label}: no sideways page scroll`, Boolean(g && g.pageWide <= 0), g && g.pageWide)
+      ok(`C3 ${label}: no scrollbar drawn under the tabs`, Boolean(g && g.navScrollbar === 0), g && g.navScrollbar)
+    } else {
+      ok(`C2 ${label}: the first label on the heading's line`, Boolean(g && g.topDiff <= 4), g && g.topDiff)
+      ok(`C2 ${label}: the first label 20 px +-2 after the heading text`, Boolean(g && Math.abs(g.gap - 20) <= 2), g && g.gap)
+      ok(`C2b ${label}: the active tab's bottom on the header's bottom (+-1 px)`, Boolean(g && g.activeBottom !== null && Math.abs(g.activeBottom) <= 1), g && g.activeBottom)
+      if (opts.closeButtons === 'windows') {
+        ok(`C4 ${label}: the end close X is the header's last element`, Boolean(g && g.last === 'end' && g.end > g.h2), g)
+      } else {
+        ok(`C4b ${label}: the start X before the heading, no end X`, Boolean(g && g.start >= 0 && g.start < g.h2 && g.end === -1), g)
+        ok(`C4b ${label}: the bar runs to the row's end`, Boolean(g && g.navRightGap <= 1), g && g.navRightGap)
+      }
+    }
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-tab-row-${label.replace(/ /g, '-')}.png` })
+    await ctx.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -207,6 +286,9 @@ try {
   ok('200.html names its initial chunks', initial.length > 0, initial.length)
   ok('no costs page, pie or tenant-costs code in the initial download', withCosts.length === 0, withCosts)
   ok('no Tokens page, card or monitoring-tokens code in the initial download', withTokens.length === 0, withTokens)
+
+  console.log('-- spec 153 tab row')
+  await tabRow(browser, server.base)
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)

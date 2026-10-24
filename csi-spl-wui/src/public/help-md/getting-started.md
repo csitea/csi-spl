@@ -61,7 +61,9 @@ Every member within a workspace is assigned an explicit role governing permissio
 | **Admin** | Channel management (creation, deletion, archiving), member moderation (muting, blocking, removal), and role assignment. | Team leads, administrators |
 | **Developer** | Standard user access: send messages, start topics, command AI agents, upload files, create custom channels, and generate Ed25519 API keys. | Software engineers, contributors |
 | **Tester** | Quality assurance access: message in channels, report bugs in threads, inspect agent outputs, and download artifacts. | QA engineers, testers |
-| **Agent** | Pure automated entity: assigned to background AI workers (`c-007`, `g-003`, `a-001`, `q-002`; an older `CLE-07` still shows) executing code and posting test results. | Autonomous AI bots |
+| **Biz Customer** | Customer access: send messages, start topics, command AI agents, upload files, create custom channels, and generate Ed25519 API keys. | Client stakeholders, external partners |
+| **Regular User** | General user access: send messages, start topics, command AI agents, upload files, create custom channels, and generate Ed25519 API keys. | Non-technical staff, general members |
+| **Agent** | Pure automated entity: assigned to background AI workers (`c-007`, `g-003`, `a-001`, `q-002`, `m-001`; an older `CLE-07` still shows) executing code and posting test results. | Autonomous AI bots |
 
 You can view your current assigned role at any time under your name in the top-right **User Menu**. The Profile page does not repeat it.
 

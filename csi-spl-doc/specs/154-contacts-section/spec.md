@@ -1,7 +1,6 @@
 # 154 Contacts section, synced with Google Contacts
 
-Version v0.3 (2026-10-24), the editor's draft with both panel seats'
-reviews folded in (section 10). Step 2 of the
+Version v1.0 (2026-10-24), signed by both panel seats (section 10). Step 2 of the
 owner rule for a big change: the written spec, then the panel, then the
 build. Written by c-951@sat (claude) because agy, the main vendor for
 specs, is out of quota; a panel follows. Nothing in it is built.
@@ -506,7 +505,7 @@ tests" = `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; "full tier" =
 | B1 data | rdb, api | new `rdb/<next>_contacts.sql`; `store/crosstenant_test.go` (seed both tables) | **O5** | C1-C2b | rdb apply + Postgres tests; full tier | claude | grok (claude) |
 | B2 store | api | new `store/contacts.go`, `store/contacts_memory.go`, `store/contacts_postgres.go`, `store/contacts_test.go`; one field in `store/memory.go` | B1 | C3 | `store/contacts_test.go`, memory and Postgres; full tier | claude | grok (claude) |
 | B3 contacts routes | api, cnf | new `hub/contacts.go` + `_test.go` (CRUD, export, erase); one route line and one Options field in `hub/server.go`; one opts line in `api/cmd/spool/hub.go` (as 149 B5); the purge on `RunSweeper`'s retention; a `contacts:` block in `cnf/all.env.yaml` (`workspaces: []`, `scopes` empty until S2) and its tpl-gen output; one block in `api/internal/config/config.go` | B2 | C4-C7c, C12 | `hub/contacts_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` | claude | grok (claude) |
-| B4 leave = erase | api | tests only: the cascade is B1's foreign key; new Postgres cases in `store/humans_rbac_test.go` (remove) and the demo ban and stay tests beside `store/demo_stay.go`; the memory store's membership deletes drop the owner's contacts too (`store/contacts_memory.go` hook, B2's file) | B2 | C8-C8b | the new Postgres test; full tier | claude | grok (claude) |
+| B4 leave = erase | api | tests only: the cascade is B1's foreign key; new Postgres cases in `store/humans_rbac_test.go` (remove) and the demo ban and stay tests beside `store/demo_stay.go`; the memory store drops the owner's contacts where it deletes a membership: one call beside `store/humans_rbac.go:197` (`removeMemberLocked`, which `BanMember` shares, :186) to a hook in `store/contacts_memory.go` (B2's file) | B2 | C8-C8b | the new Postgres test; full tier | claude | grok (claude) |
 | B5 search | api | `search/grammar.go` (`TypeContact`); `hub/search.go` (the `contact` section); their tests | B2 | C9-C11 | `go test ./internal/search/ ./internal/hub/ -run Search`; api tests | claude | grok (claude) |
 | B6 member match | api | new `hub/contacts_peer.go` + `_test.go` (`/peer`); one registration line in `hub/contacts.go`'s route func (B3's file, so B6 lands after B3); no new `server.go` line | B3, **O3** | C13-C13d | `hub/contacts_peer_test.go`; api tests | claude | grok (claude) |
 | B7 the contacts scope | api | `api/internal/gcal/oauth.go` (`AuthorizeURL` takes the scope to ask) + `oauth_test.go`; `hub/gcal_connect.go` (149 B5's file: `want`, `granted_scopes`, the upsert) and one scope check in `hub/gcal_sync.go` (149 B6a's file); their tests | 149 B5, 149 B6a, B1 | C14-C14c | the 149 connect and sync tests plus the two new ones; api tests | claude | grok (claude) |
@@ -596,6 +595,10 @@ O5. Whose list is it, when a person is in several workspaces?
 | 2026-10-24 04:21 | a-957@sat (seat agy) | review d5f81cad on `fb7b73093`: 1.2 rows 1-23 OK, row 24 stale (next migration 0221); member delete must be soft (2.6 vs 2.5, C17b); callback must upsert and keep the refresh token; B4, B6 file lists. Scope class "sensitive, not restricted": stated without a source, kept "unchecked, I believe" (dispatch holder c-003, dcb58aae) |
 | 2026-10-24 | c-951@sat | v0.2 `813557fe5`: all of a-957's findings folded except the scope-class wording; C14c added |
 | 2026-10-24 04:29 | c-958@sat (seat claude) | review b362b28a on `813557fe5`: 1.2 rows 1-24 OK; W1 the landed `AuthorizeURL` has no per-call scope (row 15, P1, B7); W2 `Exchange` refuses an answer without a refresh token, so v0.2's keep-the-old-token clause was wrong (C14c); W3 four store paths delete memberships, so leave = erase belongs in the schema; G1 claim only connected rows, revoke on invalid_grant; G2 one token pair, two cycles; G3 B8 needs a People base URL; G4 B3 wiring; G5 purge before B8, hard delete when nothing goes to Google; G6 first-sync link with a duplicate email; G7 C14b is n/a on master; O4 wording |
-| 2026-10-24 | c-951@sat | v0.3, this commit: all of c-958's findings folded (each checked on the tree); W2 by its option (a), no landed code changes; new cases C7b, C7c, C8b, C20b, C23b, C23c |
+| 2026-10-24 | c-951@sat | v0.3 `1cf55cf6e`: all of c-958's findings folded (each checked on the tree); W2 by its option (a), no landed code changes; new cases C7b, C7c, C8b, C20b, C23b, C23c |
 
-<!-- version: 0.3 · updated: 2026-10-24 -->
+| 2026-10-24 | a-957@sat (seat agy) | signed v1.0 on v0.3 `1cf55cf6e` (msg 42c902b9) |
+| 2026-10-24 | c-958@sat (seat claude) | signed v1.0 on v0.3 `1cf55cf6e` plus one B4 file-list line (msg f297efda): the memory store's membership delete is `store/humans_rbac.go:197` |
+| 2026-10-24 | c-951@sat | v1.0, this commit: that B4 line, nothing else; owner questions O1-O5 (section 9) go to the owner next |
+
+<!-- version: 1.0 · updated: 2026-10-24 -->

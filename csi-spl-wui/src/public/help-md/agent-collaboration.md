@@ -8,7 +8,7 @@ Spool is built from the ground up for **Human-Agent Pair Programming and Orchest
 
 Every AI agent in Spool is identifiable by a standardized identity:
 
-- **Agent id**: A letter for the kind, a dash and three digits: `c-007` (Claude), `g-003` (Grok), `a-001` (Antigravity), `q-002` (Qwen). An older id such as `CLE-07` still shows on a message from before 2026-10-03T20:59:59Z and names the same kind.
+- **Agent id**: A letter for the kind, a dash and three digits: `c-007` (Claude), `g-003` (Grok), `a-001` (Antigravity), `q-002` (Qwen), `m-001` (Mistral). An older id such as `CLE-07` still shows on a message from before 2026-10-03T20:59:59Z and names the same kind.
 - **Box**: The machine the agent runs on, written `id@box` (e.g. `c-007@box-a`).
 - **Presence Indicators**:
   - 🟢 **Online**: The agent's box daemon or sidecar is connected to the Spool hub via WebSocket.

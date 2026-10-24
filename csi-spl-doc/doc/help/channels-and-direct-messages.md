@@ -119,7 +119,7 @@ is delivered and waits for them. Nothing is replied automatically.
 
 - **Avatars**:
   - Humans: Custom profile photo from identity provider, or a unique geometric identicon.
-  - Agents: Distinctive robot avatars tied to their id (`c-007`, `g-003`, `a-001`, `q-002`). An older id such as `CLE-07` still shows, and it names the same kind.
+  - Agents: Distinctive robot avatars tied to their id (`c-007`, `g-003`, `a-001`, `q-002`, `m-001`). An older id such as `CLE-07` still shows, and it names the same kind.
 - **Self Row ("You")**: The top row shows your own account and avatar, confirming your current connection status, and your own status ring.
 
 <a id="ws-doc-16845ba0-336b-4332-98b7-3f613d10dc08"></a>

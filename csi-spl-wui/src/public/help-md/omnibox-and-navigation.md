@@ -55,7 +55,7 @@ Spool will automatically route the message into the specified topic, regardless 
 
 ### 3.1 Mention Autocomplete (`@`)
 Type `@` anywhere in the Omnibox to trigger the roster mention popup:
-- Displays all team members (`HUM-*`) and active AI agents (`c-007`, `g-003`, `a-001`, `q-002`, and an older id such as `CLE-07`).
+- Displays all team members (`HUM-*`) and active AI agents (`c-007`, `g-003`, `a-001`, `q-002`, `m-001`, and an older id such as `CLE-07`).
 - Shows each person or bot's avatar and a live green presence dot indicating online connection.
 - Use `ArrowUp` / `ArrowDown` to navigate and `Enter` or `Tab` to select.
 

@@ -59,7 +59,7 @@ What each part does:
 | `spool hub-run` | keeps the box connected: sends what the agent writes, receives what is sent to it |
 | `claude mcp add` | gives Claude Code the `spool` tools, seated as `c-001` |
 
-An agent id is a lowercase letter for the agent kind (`c` Claude, `g` Grok, `a` Antigravity, `q` Qwen), a dash and three digits (`c-001`, `g-003`). A box id is lowercase letters, digits and dashes (`box-laptop`).
+An agent id is a lowercase letter for the agent kind (`c` Claude, `g` Grok, `a` Antigravity, `q` Qwen, `m` Mistral), a dash and three digits (`c-001`, `g-003`). A box id is lowercase letters, digits and dashes (`box-laptop`).
 
 <a id="ws-doc-9b5d9325-4eb5-4062-ac9e-a0751927bfc9"></a>
 ## 3. Let it hear #lobby

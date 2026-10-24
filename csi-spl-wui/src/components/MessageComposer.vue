@@ -338,7 +338,7 @@ import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
 import { useChannelStore } from '~/stores/channel'
 import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
-import { exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind } from '~/utils/file-preview'
@@ -351,8 +351,8 @@ import { useComposerSyntax } from '~/composables/useComposerSyntax'
 import { useComposerFiles } from '~/composables/useComposerFiles'
 import { useComposerTarget } from '~/composables/useComposerTarget'
 import { useComposerSend } from '~/composables/useComposerSend'
+import { useComposerKeys } from '~/composables/useComposerKeys'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
-import { perfKeydown } from '~/utils/perf-mark.mjs'
 import { omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 
 /* r13-03: the field's size, the phone dock, the pickers, the "?" button,
@@ -592,73 +592,11 @@ const { onSend } = useComposerSend({
   topicCatalogue, mp, openAsk, clearBox, sizeError, inCode,
 })
 
-function onKeydown(ev: KeyboardEvent) {
-  /* spec 066 M6: keydown -> the next paint (one in ten; a no-op with RUM off) */
-  perfKeydown(ev.timeStamp)
-  if (ev.isComposing) return
-  /* the choice is up: Enter opens, Esc keeps the text */
-  if (openAsk.onKey(ev)) return
-  if (syntaxOpen.value && ev.key === 'Escape') {
-    ev.preventDefault()
-    syntaxOpen.value = false
-    return
-  }
-  if (onOperatorKey(ev)) return
-  if (props.global && onGlobalKey(ev)) return
-  if (inCode.value && ev.key === 'Escape' && !pickerOpen.value && !inPickerOpen.value) {
-    // Slack's exit: close the block at the caret, keep typing below it
-    ev.preventDefault()
-    const next = exitFence(text.value, caret())
-    text.value = next.text
-    inCode.value = false
-    nextTick(() => inputEl.value?.setSelectionRange(next.cursor, next.cursor))
-    return
-  }
-  if (props.omnibox && ev.key === 'Escape' && !pickerOpen.value && !inPickerOpen.value) {
-    emit('search', '')
-    return
-  }
-  if (mp.onKeydown(ev) || onInKey(ev)) return
-  if (ev.key === 'Enter') {
-    const state = fenceStateAt(text.value, caret())
-    inCode.value = state.inCode
-    if (keyAction(ev, { inCode: state.inCode }) === 'submit') {
-      ev.preventDefault()
-      onSend()
-      collapseGlobalBox(false)
-    }
-  }
-}
-
-/** 022 top-bar keys; true = handled. */
-function onGlobalKey(ev: KeyboardEvent): boolean {
-  if (searchMode.value) {
-    if (ev.key === 'Enter' && !ev.shiftKey && (ev.ctrlKey || ev.metaKey)) {
-      ev.preventDefault()
-      onSend()
-      collapseGlobalBox(false)
-      return true
-    }
-    if (ev.key === 'Enter' && !ev.shiftKey) {
-      ev.preventDefault()
-      onSend()
-      collapseGlobalBox(false)
-      return true
-    }
-    if (ev.key === 'ArrowDown' && caret() === text.value.length) {
-      ev.preventDefault()
-      emit('results')
-      return true
-    }
-  }
-  if (ev.key === 'Escape' && !inCode.value && !pickerOpen.value && !inPickerOpen.value) {
-    ev.preventDefault()
-    if (text.value) text.value = ''
-    else emit('dismiss')
-    return true
-  }
-  return false
-}
+/* r20-01: the field's keys (the ask, the pickers, the fences, Enter -> send) */
+const { onKeydown } = useComposerKeys({
+  props, emit, text, inputEl, inCode, searchMode, syntaxOpen, pickerOpen, inPickerOpen, mp, openAsk,
+  onOperatorKey, onInKey, caret, keyAction, onSend, collapseGlobalBox,
+})
 
 /* e3e9ca61: the phone's top notice closes itself after this long */
 const ATTACH_NOTICE_MS = 8000

@@ -1755,7 +1755,10 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-row-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; white-space: nowrap; }
 .issues-status-dd { position: relative; }
 .issues-status-dd__btn { cursor: pointer; text-align: start; }
-/* the Status filter reads as the same control as the selects beside it (topic e00da93b) */
+/* the Status filter reads as the same control as the selects beside it
+   (topic e00da93b); row 07: the selects draw the same chevron, so the four
+   arrows sit on one line */
+.issues-frow select,
 .issues-frow .issues-status-dd__btn {
   appearance: none;
   padding-inline-end: 22px;
@@ -1844,6 +1847,21 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-table thead th { position: sticky; z-index: 2; background: var(--color-bg); }
 .issues-names th { top: 0; height: 1.75rem; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
 .issues-frow th { top: 1.75rem; font-weight: normal; }
+/* row 07 (plan issues-multiselect-panel-plan.md 3.6, t1 0f67a177): every
+   filter control is one 36 px box - it was 34 px x5, the deadline field 24
+   and its calendar button 44 - on one top edge */
+.issues-frow { --frow-h: 36px; }
+.issues-frow select,
+.issues-frow .issues-status-dd__btn,
+.issues-frow :deep(.issues-filter-assignee),
+.issues-frow :deep(.dlp__text),
+.issues-frow :deep(.dlp__open) {
+  box-sizing: border-box;
+  height: var(--frow-h);
+  min-height: var(--frow-h);
+  vertical-align: middle;
+}
+.issues-frow :deep(.dlp__open) { min-width: var(--frow-h); }
 .issues-c-key { width: 1%; }
 /* owner HUM-10 (t1 53ab04e7): Gmail's boxes - one per row before its key, the
    page box in the filter row above them; a checked row is tinted */

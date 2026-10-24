@@ -164,4 +164,16 @@ describe('issues column widths', () => {
     /* hum is omitempty on the hub (only "when wired"): the email stands in */
     assert.match(ts, /const person = \(\) => String\(session\.claims\?\.hum \|\| session\.claims\?\.email \|\| ''\)/)
   })
+  /* row 07 (plan issues-multiselect-panel-plan.md 3.6): the browser half is
+     tests/e2e/issues-frow-density.test.mjs */
+  it('every filter-row control is one 36 px box, the selects draw the Status chevron', () => {
+    const css = readFileSync(join(SRC, 'pages/issues.vue'), 'utf8').split('<style')[1] || ''
+    assert.match(css, /\.issues-frow \{ --frow-h: 36px; \}/)
+    const rule = css.match(/((?:\.issues-frow [^{,]+,\s*)+\.issues-frow [^{,]+)\{([^}]*)\}/g)?.find((r) => /height: var\(--frow-h\)/.test(r)) || ''
+    for (const sel of ['select', '.issues-status-dd__btn', ':deep(.issues-filter-assignee)', ':deep(.dlp__text)', ':deep(.dlp__open)']) {
+      assert.ok(rule.includes('.issues-frow ' + sel), `${sel} gets the 36 px height`)
+    }
+    assert.match(rule, /box-sizing: border-box;[\s\S]*min-height: var\(--frow-h\)/)
+    assert.match(css, /\.issues-frow select,\s*\.issues-frow \.issues-status-dd__btn \{\s*appearance: none;/)
+  })
 })

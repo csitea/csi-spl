@@ -77,7 +77,7 @@ does not avoid it: disabling the newest version breaks `latest` the same way.
 
 cnf `env.secrets.max_age_days.per_secret` (all.env.yaml) holds a max age in
 days for each secret the hub pins; it beats the class value
-`secret_version` (still `null`). `do_spl_secret_age_report` shows each
+`secret_version` (90 days, SPL-1945). `do_spl_secret_age_report` shows each
 secret's max age and flags it `OVER` past it (exit 1). A test keeps the list
 equal to the secrets pinned in dev and prd.
 

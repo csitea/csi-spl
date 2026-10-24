@@ -27,7 +27,9 @@ create date, age) and every user-managed service account key (key id prefix,
 created, age, expiry). Flags: `EMPTY` (0 enabled versions), `MULTI` (an older
 version is still usable), `OVER` (older than its max age), `NO-EXPIRY`. The
 max ages are cnf `env.secrets.max_age_days.secret_version` and `.sa_key`, in
-days. `null` means not set, and then nothing is `OVER`.
+days: 90 each, the owner's defaults (SPL-1945, t1 8f476aa8 msgs e8d4c60d and
+018e37eb). `null` would mean not set, and then nothing of that class is
+`OVER`.
 
 ## 2. Disable the old version of a secret (row 6)
 

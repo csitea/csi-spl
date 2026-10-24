@@ -3,8 +3,8 @@
 # Purpose: do_spl_secret_age_report (security round 1 row 6, SPL-1967) reports
 #          every secret's enabled versions and every user-managed SA key with
 #          its age, from metadata only, as the env's project SA.
-#   1. max ages null (the committed cnf): EMPTY, MULTI and NO-EXPIRY flagged,
-#      nothing OVER, exit 0, the header says the owner decides
+#   1. max ages null: EMPTY, MULTI and NO-EXPIRY flagged, nothing OVER,
+#      exit 0, the header says the owner decides
 #   2. every gcloud call as the dev project SA on csi-spl-dev, in a private
 #      CLOUDSDK_CONFIG; no `versions access` (no value is ever read)
 #   3. CONTROL: max ages set below the ages -> OVER on the old version and the
@@ -15,6 +15,9 @@
 #   7. per_secret (SPL-2657): a secret's own max age beats the class one,
 #      both ways, and is shown in its row; a per_secret value that is not
 #      whole days -> refused before any gcloud call
+#   8. the committed cnf (SPL-1945, owner: 90 days for both classes): a
+#      non-pinned secret version and a key older than 90 days -> OVER, the
+#      younger ones not; CONTROL: the same data with both null -> nothing OVER
 # gcloud is a stub on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -43,10 +46,10 @@ case "$*" in
   "secrets versions list a-key"*) echo "[$(v a-key 1 ENABLED 2026-10-10T08:00:00.1Z)]" ;;
   "secrets versions list b-empty"*) echo "[$(v b-empty 1 DISABLED 2026-09-01T08:00:00Z)]" ;;
   "secrets versions list c-multi"*) [[ -n "${STUB_FAIL:-}" ]] && exit 1
-    echo "[$(v c-multi 2 ENABLED 2026-10-01T08:00:00Z),$(v c-multi 1 ENABLED 2026-09-01T08:00:00Z)]" ;;
+    echo "[$(v c-multi 2 ENABLED 2026-10-01T08:00:00Z),$(v c-multi 1 ENABLED "${STUB_OLD:+2026-07-01T08:00:00Z}${STUB_OLD:-2026-09-01T08:00:00Z}")]" ;;
   "iam service-accounts list"*) echo '[{"email":"sa-one@csi-spl-dev.iam.gserviceaccount.com"}]' ;;
   "iam service-accounts keys list"*)
-    echo '[{"name":"projects/p/serviceAccounts/sa-one/keys/abcdef0123456789","validAfterTime":"2026-09-17T00:00:00Z","validBeforeTime":"9999-12-31T23:59:59Z","disabled":false},
+    echo '[{"name":"projects/p/serviceAccounts/sa-one/keys/abcdef0123456789","validAfterTime":"'"${STUB_OLD:+2026-07-01T00:00:00Z}${STUB_OLD:-2026-09-17T00:00:00Z}"'","validBeforeTime":"9999-12-31T23:59:59Z","disabled":false},
            {"name":"projects/p/serviceAccounts/sa-one/keys/0011223344556677","validAfterTime":"2026-08-01T00:00:00Z","validBeforeTime":"2027-08-01T00:00:00Z","disabled":true}]' ;;
 esac
 exit 0
@@ -65,9 +68,10 @@ act() {
 }
 set_max() { yq -i ".env.secrets.max_age_days.secret_version = $1 | .env.secrets.max_age_days.sa_key = $2" "$T/app/csi-spl-cnf/csi-spl/all.env.yaml"; }
 row() { grep -F "| $1 |" "$T/out"; }
+reset_cnf() { rm -rf "$T/app/csi-spl-cnf/csi-spl"; cp -r "$APP_ROOT/csi-spl-cnf/csi-spl" "$T/app/csi-spl-cnf/csi-spl"; }
 
 # --- 1. max ages not set ---------------------------------------------------------
-act; rc=$?
+set_max null null; act; rc=$?
 [[ $rc -eq 0 ]] && grep -q '^OVER: 0$' "$T/out" && pass "1. max ages null: exit 0, nothing OVER" || fail "1. rc=$rc $(cat "$T/out")"
 grep -q 'max age not set: the owner decides' "$T/out" && pass "1. the header says the max age is the owner's" || fail "1. header: $(head -3 "$T/out")"
 [[ "$(row b-empty)" == *"| 0 | - | EMPTY |"* ]] && pass "1. 0 enabled versions -> EMPTY" || fail "1. empty: $(row b-empty)"
@@ -115,6 +119,21 @@ set_max 30 null; set_per '{"c-multi": 60}'; act; rc=$?
 set_per '{"a-key": "90d"}'; act; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '|secrets ' "$T/calls.log" && grep -q 'per_secret must map a secret id to positive whole days, not: a-key' "$T/out" \
   && pass "7. per_secret '90d' -> refused before any gcloud call" || fail "7. bad rc=$rc $(cat "$T/out")"
+
+# --- 8. the committed 90-day defaults (SPL-1945) -------------------------------
+reset_cnf
+[[ "$(yq -r '.env.secrets.max_age_days | .secret_version + "/" + .sa_key' "$T/app/csi-spl-cnf/csi-spl/all.env.yaml")" == 90/90 ]] \
+  && pass "8. the committed cnf sets secret_version and sa_key to 90" || fail "8. committed max ages are not 90/90"
+act STUB_OLD=1; rc=$?
+[[ $rc -eq 1 ]] && grep -q '^OVER: 2$' "$T/out" && pass "8. committed cnf, a 105-day version + a 106-day key -> 2 OVER, exit 1" || fail "8. rc=$rc $(cat "$T/out")"
+[[ "$(row c-multi)" == *"| 1: 2026-07-01, 105, 2: 2026-10-01, 13 | MULTI OVER | 90 |" ]] \
+  && pass "8. the non-pinned c-multi's 105-day version is OVER 90" || fail "8. multi: $(row c-multi)"
+grep -q '| abcdef01 | 2026-07-01 | 106 | never | NO-EXPIRY OVER |' "$T/out" && pass "8. the 106-day key is OVER 90" || fail "8. key: $(cat "$T/out")"
+[[ "$(row a-key)" == *"|  | 90 |" ]] && pass "8. the 4-day a-key is under 90, no flag" || fail "8. a-key: $(row a-key)"
+act; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^OVER: 0$' "$T/out" && pass "8. committed cnf, everything under 90 days -> nothing OVER" || fail "8. young rc=$rc $(cat "$T/out")"
+set_max null null; act STUB_OLD=1; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^OVER: 0$' "$T/out" && pass "8. CONTROL: the same old data with both null -> nothing OVER" || fail "8. control rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

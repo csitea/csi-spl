@@ -532,8 +532,7 @@ func normalizeHoursEntries(member, by string, es []HoursEntry) (days []string, e
 	return days, nil
 }
 
-// hoursEntryKey is an entry's key within its member (rdb 0218's five-column
-// unique index; the PK once the contract migration lands).
+// hoursEntryKey is an entry's key within its member (rdb 0220's PK).
 type hoursEntryKey struct{ Day, Target, Kind string }
 
 func (e HoursEntry) key() hoursEntryKey { return hoursEntryKey{e.Day, e.Target, e.Kind} }

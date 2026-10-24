@@ -420,9 +420,8 @@ func TestHoursPeriodBounds(t *testing.T) {
 // joins the entry's key, a job: target, the proposed and disputed states,
 // the absence type, who entered it, a reason and the category split, on
 // Memory and Postgres. Red on 3724f6dc2: a job:j1 entry failed the target
-// CHECK and the memory store's target check. Until the contract migration
-// (TestHoursEntries0218Expand) a second kind on one (day, target) is refused
-// on Postgres, so each kind here has its own target.
+// CHECK and the memory store's target check, and a travel and a work row on
+// one (day, target) could not both exist.
 func TestHoursEntriesV2Kinds(t *testing.T) {
 	ctx := context.Background()
 	for name, st := range drivers(t) {
@@ -432,9 +431,9 @@ func TestHoursEntriesV2Kinds(t *testing.T) {
 			work := hoursEntry(day, "job:j1", 300)
 			work.State, work.EnteredBy = HoursProposed, "HUM-9"
 			work.CategoryMinutes = map[string]int{HoursCategoryNormal: 240, HoursCategoryEvening: 60}
-			travel := hoursEntry(day, "job:j1a", 30)
+			travel := hoursEntry(day, "job:j1", 30)
 			travel.Kind, travel.Reason = HoursKindTravel, "  bridge closed  "
-			wait := hoursEntry(day, "job:j1b", 15)
+			wait := hoursEntry(day, "job:j1", 15)
 			wait.Kind, wait.State = HoursKindWait, HoursDisputed
 			absent := hoursEntry(day, "ws", 120)
 			absent.Kind, absent.AbsenceType = HoursKindAbsence, HoursAbsenceSick
@@ -451,26 +450,26 @@ func TestHoursEntriesV2Kinds(t *testing.T) {
 				got += fmt.Sprintf("%s/%s/%s/%d/%s/%q/%q/%q/%v;", e.Target, e.Kind, e.State, e.Minutes,
 					e.AbsenceType, e.EnteredBy, e.Reason, e.Note, e.CategoryMinutes)
 			}
-			want := `job:j1/work/proposed/300//"HUM-9"/""/""/map[evening:60 normal:240];` +
-				`job:j1a/travel/approved/30//""/"bridge closed"/""/map[];` +
-				`job:j1b/wait/disputed/15//""/""/""/map[];` +
+			want := `job:j1/travel/approved/30//""/"bridge closed"/""/map[];` +
+				`job:j1/wait/disputed/15//""/""/""/map[];` +
+				`job:j1/work/proposed/300//"HUM-9"/""/""/map[evening:60 normal:240];` +
 				`ws/absence/approved/120/sick/""/""/""/map[];`
 			if got != want {
 				t.Fatalf("rows:\n got %s\nwant %s", got, want)
 			}
-			if es[1].CategoryMinutes != nil {
+			if es[0].CategoryMinutes != nil {
 				t.Errorf("no split stored reads %v, want nil", es[0].CategoryMinutes)
 			}
 
 			// The upsert is per (day, target, kind): the work row moves, the
-			// other rows stay.
+			// travel row on the same target stays.
 			work.State, work.Minutes, work.CategoryMinutes = HoursApproved, 280, nil
 			if err := h.PutHoursEntries(ctx, tid, hoursMember, []HoursEntry{work}, hoursMember, hoursT0); err != nil {
 				t.Fatal(err)
 			}
 			es, _ = h.HoursEntries(ctx, tid, hoursMember, day, day)
-			if len(es) != 4 || es[1].Minutes != 30 || es[0].Kind != HoursKindWork || es[0].Minutes != 280 ||
-				es[0].State != HoursApproved || es[0].CategoryMinutes != nil {
+			if len(es) != 4 || es[0].Minutes != 30 || es[2].Kind != HoursKindWork || es[2].Minutes != 280 ||
+				es[2].State != HoursApproved || es[2].CategoryMinutes != nil {
 				t.Fatalf("after the work upsert: %+v", es)
 			}
 
@@ -487,10 +486,10 @@ func TestHoursEntriesV2Kinds(t *testing.T) {
 			}
 
 			// Spans carry their entry's kind; a delete takes back the work row
-			// and its spans.
+			// only, and its spans with it.
 			d2 := "2026-10-07"
 			at := time.Date(2026, 10, 7, 8, 0, 0, 0, time.UTC)
-			w2, t2 := hoursEntry(d2, "job:j2", 60), hoursEntry(d2, "job:j2a", 30)
+			w2, t2 := hoursEntry(d2, "job:j2", 60), hoursEntry(d2, "job:j2", 30)
 			t2.Kind = HoursKindTravel
 			w2.Spans = []HoursSpan{hspan(at.Add(30*time.Minute), at.Add(90*time.Minute), HoursSpanTimer)}
 			t2.Spans = []HoursSpan{hspan(at, at.Add(30*time.Minute), HoursSpanPlan)}
@@ -542,7 +541,8 @@ func TestHoursEntriesV2Kinds(t *testing.T) {
 					t.Errorf("%s: %v, want ErrHoursBad", name, err)
 				}
 			}
-			// One write naming one (day, target, kind) twice is refused.
+			// One write naming one (day, target, kind) twice is refused; the
+			// same (day, target) with two kinds is not.
 			dup := hoursEntry("2026-10-08", "job:j3", 10)
 			if err := h.PutHoursEntries(ctx, tid, hoursMember, []HoursEntry{dup, dup}, hoursMember, hoursT0); !errors.Is(err, ErrHoursBad) {
 				t.Errorf("a key twice: %v", err)
@@ -567,9 +567,9 @@ func TestHoursEntriesV2Checks(t *testing.T) {
 		ok        bool
 	}{
 		{"job target", entry("2026-10-06", "job:j1", "work", "approved", "", ""), true},
-		{"travel on a job", entry("2026-10-06", "job:j2", "travel", "approved", "", ""), true},
-		{"wait proposed", entry("2026-10-06", "job:j3", "wait", "proposed", "", ""), true},
-		{"the same key again", entry("2026-10-06", "job:j2", "travel", "approved", "", ""), false},
+		{"travel on the same job", entry("2026-10-06", "job:j1", "travel", "approved", "", ""), true},
+		{"wait on the same job", entry("2026-10-06", "job:j1", "wait", "proposed", "", ""), true},
+		{"the same key again", entry("2026-10-06", "job:j1", "travel", "approved", "", ""), false},
 		{"job with no id", entry("2026-10-06", "job:", "work", "approved", "", ""), false},
 		{"state disputed", entry("2026-10-06", "t:a", "work", "disputed", "", ""), true},
 		{"state open", entry("2026-10-06", "t:b", "work", "open", "", ""), false},
@@ -611,51 +611,28 @@ func TestHoursEntriesV2Checks(t *testing.T) {
 	}
 }
 
-// TestHoursEntries0218Expand: rdb 0218 is the expand step of the key change,
-// so the v1 hub that still runs while wf 20 rolls keeps writing. The v1
-// upsert and the v1 sweep insert (their text on c099cc587, ON CONFLICT on the
-// four columns) and the T020 upsert (five columns) all land on one row; a
-// second kind on that (day, target) is refused by the v1 PK until the
-// contract migration promotes the five-column index.
-func TestHoursEntries0218Expand(t *testing.T) {
+// TestHoursEntriesKey0220: rdb 0220 is the contract step of rdb 0218, so the
+// PK is the five columns (the promoted hours_entries_kind_key) and the spans
+// FK still references it. Red on 9e8ece102 (0218 only): the PK has four
+// columns and a travel row beside a work row is refused (23505).
+func TestHoursEntriesKey0220(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
-	tn := newTenant(t, pg)
-	const v1Upsert = `INSERT INTO hours_entries (tenant_id, member_id, day, target, minutes,
-		suggested_minutes, state, note, updated_at, updated_by)
-	SELECT $1, $2, u.d, u.t, u.m, u.sm, u.st, NULLIF(u.n, ''), $9, $10
-	FROM unnest($3::date[], $4::text[], $5::int[], $6::int[], $7::text[], $8::text[]) AS u(d, t, m, sm, st, n)
-	ON CONFLICT (tenant_id, member_id, day, target) DO UPDATE
-	SET minutes = EXCLUDED.minutes, suggested_minutes = EXCLUDED.suggested_minutes, state = EXCLUDED.state,
-		note = EXCLUDED.note, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`
-	const v1Sweep = `INSERT INTO hours_entries (tenant_id, member_id, day, target, minutes,
-		suggested_minutes, state, updated_at, updated_by)
-	SELECT $1, $2, u.d, u.t, u.m, u.sm, 'approved', $7, $8
-	FROM unnest($3::date[], $4::text[], $5::int[], $6::int[]) AS u(d, t, m, sm)
-	ON CONFLICT (tenant_id, member_id, day, target) DO NOTHING`
-	days, tgs := []string{"2026-10-06"}, []string{"job:j1"}
-	for i, m := range []int{60, 90} {
-		if _, err := pg.execTenant(ctx, tn, v1Upsert, tn, hoursMember, days, tgs, []int{m}, []int{0},
-			[]string{HoursApproved}, []string{""}, hoursT0, hoursMember); err != nil {
-			t.Fatalf("v1 upsert %d: %v", i, err)
-		}
+	var cols string
+	if err := pg.pool.QueryRow(ctx, `SELECT string_agg(a.attname, ',' ORDER BY k.n)
+		FROM pg_constraint c, unnest(c.conkey) WITH ORDINALITY AS k(attnum, n), pg_attribute a
+		WHERE c.conname = 'hours_entries_pkey' AND a.attrelid = c.conrelid AND a.attnum = k.attnum`).Scan(&cols); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := pg.execTenant(ctx, tn, v1Sweep, tn, hoursMember, days, tgs, []int{5}, []int{0},
-		hoursT0, hoursMember); err != nil {
-		t.Fatalf("v1 sweep insert: %v", err)
+	if cols != "tenant_id,member_id,day,target,kind" {
+		t.Errorf("hours_entries_pkey columns %q, want the five-column key", cols)
 	}
-	h := hoursStore(t, pg)
-	if err := h.PutHoursEntries(ctx, tn, hoursMember, []HoursEntry{hoursEntry("2026-10-06", "job:j1", 120)},
-		hoursMember, hoursT0); err != nil {
-		t.Fatalf("T020 upsert on the v1 row: %v", err)
+	var fkIndex string
+	if err := pg.pool.QueryRow(ctx, `SELECT conindid::regclass::text FROM pg_constraint
+		WHERE conname = 'hours_entry_spans_entry_fkey'`).Scan(&fkIndex); err != nil {
+		t.Fatal(err)
 	}
-	es, err := h.HoursEntries(ctx, tn, hoursMember, "2026-10-06", "2026-10-06")
-	if err != nil || len(es) != 1 || es[0].Kind != HoursKindWork || es[0].Minutes != 120 {
-		t.Fatalf("one work row of 120 wanted: %+v (%v)", es, err)
-	}
-	travel := hoursEntry("2026-10-06", "job:j1", 30)
-	travel.Kind = HoursKindTravel
-	if err := h.PutHoursEntries(ctx, tn, hoursMember, []HoursEntry{travel}, hoursMember, hoursT0); pgCode(err) != "23505" {
-		t.Errorf("travel beside work before the contract: %v, want the v1 PK refusal (23505)", err)
+	if fkIndex != "hours_entries_pkey" {
+		t.Errorf("spans FK references %q, want hours_entries_pkey", fkIndex)
 	}
 }

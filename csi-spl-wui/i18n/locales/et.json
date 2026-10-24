@@ -272,7 +272,8 @@
       "rocket": "Rakett",
       "clock": "Kell",
       "wave": "Laine"
-    }
+    },
+    "calendar_google": "Google'i kalender"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Jaotur ei suutnud seda lukku lugeda.",
     "err_no_box": "Jaotur ei tunne seda kasti.",
     "err_failed": "Lukku ei õnnestunud salvestada. Proovi uuesti."
+  },
+  "gcal": {
+    "intro": "Ühendage oma Google'i konto, et teie sündmused püsiksid kooskõlas Google'i kalendriga, mille Spool Hub selle tööruumi jaoks loob.",
+    "unavailable": "Google'i kalender pole selles tööruumis saadaval.",
+    "not_configured": "Google'i kalender pole selles jaoturis veel seadistatud.",
+    "load_failed": "Teie Google'i kalendri ühendust ei õnnestunud lugeda.",
+    "retry": "Proovi uuesti",
+    "connect": "Ühenda Google'i kalender",
+    "connecting": "Google'i avamine…",
+    "connect_failed": "Ühendust Google'iga ei õnnestunud alustada.",
+    "reconnect": "Ühenda uuesti",
+    "account": "Google'i konto",
+    "calendar": "Sünkroonitud kalender",
+    "status": "Ühenduse olek",
+    "status_connected": "Ühendatud",
+    "status_error": "Sünkroonimise viga",
+    "status_revoked": "Juurdepääs tühistatud",
+    "last_sync": "Viimane sünkroonimine",
+    "never": "Veel mitte",
+    "sync_now": "Sünkrooni kohe",
+    "sync_started": "Sünkroonimine algas.",
+    "sync_busy": "Sünkroonimine juba käib.",
+    "sync_failed": "Sünkroonimist ei õnnestunud alustada.",
+    "disconnect": "Katkesta ühendus",
+    "remove_imported": "Eemalda ka Google'ist imporditud sündmused",
+    "disconnected": "Google'i kalendri ühendus on katkestatud.",
+    "disconnect_failed": "Ühendust ei õnnestunud katkestada.",
+    "notice_connected": "Google'i kalender on ühendatud.",
+    "notice_error": "Google'i kalendrit ei ühendatud. Proovige uuesti.",
+    "untitled_event": "(Pealkirjata)"
   }
 }

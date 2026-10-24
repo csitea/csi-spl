@@ -272,7 +272,8 @@
       "rocket": "Raketti",
       "clock": "Kello",
       "wave": "Aalto"
-    }
+    },
+    "calendar_google": "Google-kalenteri"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Keskitin ei voinut lukea tätä lukkoa.",
     "err_no_box": "Keskitin ei tunne tätä konetta.",
     "err_failed": "Lukkoa ei voitu tallentaa. Yritä uudelleen."
+  },
+  "gcal": {
+    "intro": "Yhdistä oma Google-tilisi, niin tapahtumasi pysyvät ajan tasalla Google-kalenterissa, jonka Spool Hub luo tälle työtilalle.",
+    "unavailable": "Google-kalenteri ei ole käytettävissä tässä työtilassa.",
+    "not_configured": "Google-kalenteria ei ole vielä otettu käyttöön tässä hubissa.",
+    "load_failed": "Google-kalenteriyhteyttäsi ei voitu lukea.",
+    "retry": "Yritä uudelleen",
+    "connect": "Yhdistä Google-kalenteri",
+    "connecting": "Avataan Googlea…",
+    "connect_failed": "Yhteyttä Googleen ei voitu aloittaa.",
+    "reconnect": "Yhdistä uudelleen",
+    "account": "Google-tili",
+    "calendar": "Synkronoitu kalenteri",
+    "status": "Yhteyden tila",
+    "status_connected": "Yhdistetty",
+    "status_error": "Synkronointivirhe",
+    "status_revoked": "Käyttöoikeus peruttu",
+    "last_sync": "Viimeisin synkronointi",
+    "never": "Ei vielä",
+    "sync_now": "Synkronoi nyt",
+    "sync_started": "Synkronointi aloitettu.",
+    "sync_busy": "Synkronointi on jo käynnissä.",
+    "sync_failed": "Synkronointia ei voitu aloittaa.",
+    "disconnect": "Katkaise yhteys",
+    "remove_imported": "Poista myös Googlesta tuodut tapahtumat",
+    "disconnected": "Google-kalenterin yhteys on katkaistu.",
+    "disconnect_failed": "Yhteyttä ei voitu katkaista.",
+    "notice_connected": "Google-kalenteri on yhdistetty.",
+    "notice_error": "Google-kalenteria ei yhdistetty. Yritä uudelleen.",
+    "untitled_event": "(Ei otsikkoa)"
   }
 }

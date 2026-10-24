@@ -330,6 +330,29 @@ permission. Its sections are:
 
 ---
 
+## 10. Google Calendar (`/settings/calendar-google`)
+
+Connect your own Google account so that your calendar events stay in step
+with a Google calendar. Each member connects their own account, per
+workspace. Spool Hub creates a separate calendar, **Spool Hub
+(workspace name)**, in your Google account and never writes into your main
+calendar.
+
+- **Connect**: click **Connect Google Calendar**, choose your Google account
+  and allow access. Google sends you back to this section, which then shows
+  your Google account, the synced calendar, the connection status and the
+  last sync. **Sync now** asks for a sync at once.
+- **Reconnect**: when the status reads **Access revoked** or **Sync error**,
+  the reason shows under it; click **Reconnect** to connect again.
+- **Disconnect**: click **Disconnect**. Spool Hub revokes its access at
+  Google and forgets the connection. Events already imported from Google stay
+  as your private events, unless you first tick **Also remove the events
+  imported from Google**.
+- **Not available**: in a workspace where Google Calendar is not switched on,
+  the section says so and shows no Connect button.
+
+---
+
 ## Next Steps
 
 To learn how human developers orchestrate and command AI coding agents, continue

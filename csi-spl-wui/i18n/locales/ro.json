@@ -272,7 +272,8 @@
       "rocket": "Rachetă",
       "clock": "Ceas",
       "wave": "Val"
-    }
+    },
+    "calendar_google": "Calendarul Google"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Hubul nu a putut citi această blocare.",
     "err_no_box": "Hubul nu cunoaște acest box.",
     "err_failed": "Blocarea nu a putut fi salvată. Încearcă din nou."
+  },
+  "gcal": {
+    "intro": "Conectează-ți propriul cont Google pentru ca evenimentele tale să rămână sincronizate cu un calendar Google pe care Spool Hub îl creează pentru acest spațiu de lucru.",
+    "unavailable": "Calendarul Google nu este disponibil în acest spațiu de lucru.",
+    "not_configured": "Calendarul Google nu este încă configurat pe acest hub.",
+    "load_failed": "Conexiunea ta cu Calendarul Google nu a putut fi citită.",
+    "retry": "Încearcă din nou",
+    "connect": "Conectează Calendarul Google",
+    "connecting": "Se deschide Google…",
+    "connect_failed": "Conexiunea cu Google nu a putut porni.",
+    "reconnect": "Reconectează",
+    "account": "Cont Google",
+    "calendar": "Calendar sincronizat",
+    "status": "Starea conexiunii",
+    "status_connected": "Conectat",
+    "status_error": "Eroare de sincronizare",
+    "status_revoked": "Acces revocat",
+    "last_sync": "Ultima sincronizare",
+    "never": "Încă nu",
+    "sync_now": "Sincronizează acum",
+    "sync_started": "Sincronizarea a început.",
+    "sync_busy": "O sincronizare rulează deja.",
+    "sync_failed": "Sincronizarea nu a putut porni.",
+    "disconnect": "Deconectează",
+    "remove_imported": "Elimină și evenimentele importate din Google",
+    "disconnected": "Calendarul Google este deconectat.",
+    "disconnect_failed": "Deconectarea nu a reușit.",
+    "notice_connected": "Calendarul Google este conectat.",
+    "notice_error": "Calendarul Google nu a fost conectat. Încearcă din nou.",
+    "untitled_event": "(Fără titlu)"
   }
 }

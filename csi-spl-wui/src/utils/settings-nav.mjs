@@ -11,6 +11,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'notifications', label: 'settings.notifications' },
   { id: 'security', label: 'settings.signin_security' },
   { id: 'keys', label: 'settings.keys_title' },
+  /* spec 149 B8 (SPL-3227): the member's own Google Calendar connection */
+  { id: 'calendar-google', label: 'settings.calendar_google' },
 ]
 
 export const DEFAULT_SETTINGS_SECTION = 'profile'
@@ -20,7 +22,7 @@ export const DEFAULT_SETTINGS_SECTION = 'profile'
  * '' when the path is not a known section (e.g. '/settings').
  */
 export function settingsSectionOf(path) {
-  const m = /\/settings\/([a-z]+)\/?$/.exec(String(path || '').split(/[?#]/)[0])
+  const m = /\/settings\/([a-z-]+)\/?$/.exec(String(path || '').split(/[?#]/)[0])
   return m && SETTINGS_SECTIONS.some((s) => s.id === m[1]) ? m[1] : ''
 }
 
@@ -55,7 +57,7 @@ export function settingsShownSection(section, isMobile) {
   return section || (isMobile ? '' : DEFAULT_SETTINGS_SECTION)
 }
 
-const SETTINGS_PATH = /^(\/[a-z]{2}(?:-[A-Za-z]+)?)?\/settings(?:\/([a-z]+))?\/?$/
+const SETTINGS_PATH = /^(\/[a-z]{2}(?:-[A-Za-z]+)?)?\/settings(?:\/([a-z-]+))?\/?$/
 
 /** True for an old Settings address: /settings, /settings/keys, /fi/settings/keys. */
 export function isSettingsPath(path) {

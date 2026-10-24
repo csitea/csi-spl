@@ -272,7 +272,8 @@
       "rocket": "Rakieta",
       "clock": "Zegar",
       "wave": "Fala"
-    }
+    },
+    "calendar_google": "Kalendarz Google"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Hub nie mógł odczytać tej blokady.",
     "err_no_box": "Hub nie zna tego boxa.",
     "err_failed": "Nie udało się zapisać blokady. Spróbuj ponownie."
+  },
+  "gcal": {
+    "intro": "Połącz własne konto Google, aby Twoje wydarzenia były zsynchronizowane z kalendarzem Google, który Spool Hub tworzy dla tego obszaru roboczego.",
+    "unavailable": "Kalendarz Google nie jest dostępny w tym obszarze roboczym.",
+    "not_configured": "Kalendarz Google nie został jeszcze skonfigurowany w tym hubie.",
+    "load_failed": "Nie udało się odczytać połączenia z Kalendarzem Google.",
+    "retry": "Spróbuj ponownie",
+    "connect": "Połącz Kalendarz Google",
+    "connecting": "Otwieranie Google…",
+    "connect_failed": "Nie udało się rozpocząć połączenia z Google.",
+    "reconnect": "Połącz ponownie",
+    "account": "Konto Google",
+    "calendar": "Synchronizowany kalendarz",
+    "status": "Stan połączenia",
+    "status_connected": "Połączono",
+    "status_error": "Błąd synchronizacji",
+    "status_revoked": "Dostęp cofnięty",
+    "last_sync": "Ostatnia synchronizacja",
+    "never": "Jeszcze nie",
+    "sync_now": "Synchronizuj teraz",
+    "sync_started": "Synchronizacja rozpoczęta.",
+    "sync_busy": "Synchronizacja już trwa.",
+    "sync_failed": "Nie udało się rozpocząć synchronizacji.",
+    "disconnect": "Rozłącz",
+    "remove_imported": "Usuń także wydarzenia zaimportowane z Google",
+    "disconnected": "Kalendarz Google został rozłączony.",
+    "disconnect_failed": "Nie udało się rozłączyć.",
+    "notice_connected": "Kalendarz Google jest połączony.",
+    "notice_error": "Kalendarz Google nie został połączony. Spróbuj ponownie.",
+    "untitled_event": "(Bez tytułu)"
   }
 }

@@ -272,7 +272,8 @@
       "rocket": "רקטה",
       "clock": "שעון",
       "wave": "גל"
-    }
+    },
+    "calendar_google": "יומן Google"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "הרכזת לא הצליחה לקרוא את הנעילה הזו.",
     "err_no_box": "הרכזת אינה מכירה את התיבה הזו.",
     "err_failed": "לא ניתן היה לשמור את הנעילה. נסו שוב."
+  },
+  "gcal": {
+    "intro": "חברו את חשבון Google שלכם כדי שהאירועים שלכם יישארו מסונכרנים עם יומן Google ש-Spool Hub יוצר עבור סביבת עבודה זו.",
+    "unavailable": "יומן Google אינו זמין בסביבת עבודה זו.",
+    "not_configured": "יומן Google עדיין לא הוגדר ב-hub הזה.",
+    "load_failed": "לא ניתן היה לקרוא את החיבור שלכם ליומן Google.",
+    "retry": "נסו שוב",
+    "connect": "חיבור יומן Google",
+    "connecting": "פותח את Google…",
+    "connect_failed": "לא ניתן היה להתחיל את החיבור ל-Google.",
+    "reconnect": "חיבור מחדש",
+    "account": "חשבון Google",
+    "calendar": "יומן מסונכרן",
+    "status": "מצב החיבור",
+    "status_connected": "מחובר",
+    "status_error": "שגיאת סנכרון",
+    "status_revoked": "הגישה בוטלה",
+    "last_sync": "סנכרון אחרון",
+    "never": "עדיין לא",
+    "sync_now": "סנכרון עכשיו",
+    "sync_started": "הסנכרון התחיל.",
+    "sync_busy": "סנכרון כבר פועל.",
+    "sync_failed": "לא ניתן היה להתחיל את הסנכרון.",
+    "disconnect": "ניתוק",
+    "remove_imported": "להסיר גם את האירועים שיובאו מ-Google",
+    "disconnected": "יומן Google נותק.",
+    "disconnect_failed": "לא ניתן היה לנתק.",
+    "notice_connected": "יומן Google מחובר.",
+    "notice_error": "יומן Google לא חובר. נסו שוב.",
+    "untitled_event": "(ללא כותרת)"
   }
 }

@@ -272,7 +272,8 @@
       "rocket": "Raķete",
       "clock": "Pulkstenis",
       "wave": "Vilnis"
-    }
+    },
+    "calendar_google": "Google kalendārs"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Centrmezgls nevarēja nolasīt šo slēdzeni.",
     "err_no_box": "Centrmezgls nepazīst šo kasti.",
     "err_failed": "Slēdzeni neizdevās saglabāt. Mēģiniet vēlreiz."
+  },
+  "gcal": {
+    "intro": "Savienojiet savu Google kontu, lai jūsu notikumi būtu sinhronizēti ar Google kalendāru, ko Spool Hub izveido šai darbvietai.",
+    "unavailable": "Google kalendārs šajā darbvietā nav pieejams.",
+    "not_configured": "Google kalendārs šajā centrmezglā vēl nav iestatīts.",
+    "load_failed": "Neizdevās nolasīt jūsu Google kalendāra savienojumu.",
+    "retry": "Mēģināt vēlreiz",
+    "connect": "Savienot Google kalendāru",
+    "connecting": "Atver Google…",
+    "connect_failed": "Neizdevās sākt savienojumu ar Google.",
+    "reconnect": "Savienot vēlreiz",
+    "account": "Google konts",
+    "calendar": "Sinhronizētais kalendārs",
+    "status": "Savienojuma statuss",
+    "status_connected": "Savienots",
+    "status_error": "Sinhronizācijas kļūda",
+    "status_revoked": "Piekļuve atsaukta",
+    "last_sync": "Pēdējā sinhronizācija",
+    "never": "Vēl nav",
+    "sync_now": "Sinhronizēt tagad",
+    "sync_started": "Sinhronizācija sākta.",
+    "sync_busy": "Sinhronizācija jau notiek.",
+    "sync_failed": "Neizdevās sākt sinhronizāciju.",
+    "disconnect": "Atvienot",
+    "remove_imported": "Noņemt arī no Google importētos notikumus",
+    "disconnected": "Google kalendārs ir atvienots.",
+    "disconnect_failed": "Neizdevās atvienot.",
+    "notice_connected": "Google kalendārs ir savienots.",
+    "notice_error": "Google kalendārs netika savienots. Mēģiniet vēlreiz.",
+    "untitled_event": "(Bez nosaukuma)"
   }
 }

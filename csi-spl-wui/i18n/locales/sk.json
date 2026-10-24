@@ -272,7 +272,8 @@
       "rocket": "Raketa",
       "clock": "Hodiny",
       "wave": "Vlna"
-    }
+    },
+    "calendar_google": "Kalendár Google"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Hub nedokázal načítať tento zámok.",
     "err_no_box": "Hub tento box nepozná.",
     "err_failed": "Zámok sa nepodarilo uložiť. Skúste to znova."
+  },
+  "gcal": {
+    "intro": "Pripojte svoj vlastný účet Google, aby boli vaše udalosti zosúladené s kalendárom Google, ktorý Spool Hub vytvorí pre tento pracovný priestor.",
+    "unavailable": "Kalendár Google nie je v tomto pracovnom priestore dostupný.",
+    "not_configured": "Kalendár Google zatiaľ nie je na tomto hube nastavený.",
+    "load_failed": "Vaše pripojenie ku Kalendáru Google sa nepodarilo načítať.",
+    "retry": "Skúsiť znova",
+    "connect": "Pripojiť Kalendár Google",
+    "connecting": "Otvára sa Google…",
+    "connect_failed": "Pripojenie ku Google sa nepodarilo spustiť.",
+    "reconnect": "Pripojiť znova",
+    "account": "Účet Google",
+    "calendar": "Synchronizovaný kalendár",
+    "status": "Stav pripojenia",
+    "status_connected": "Pripojené",
+    "status_error": "Chyba synchronizácie",
+    "status_revoked": "Prístup bol odvolaný",
+    "last_sync": "Posledná synchronizácia",
+    "never": "Zatiaľ nie",
+    "sync_now": "Synchronizovať teraz",
+    "sync_started": "Synchronizácia sa spustila.",
+    "sync_busy": "Synchronizácia už prebieha.",
+    "sync_failed": "Synchronizáciu sa nepodarilo spustiť.",
+    "disconnect": "Odpojiť",
+    "remove_imported": "Odstrániť aj udalosti importované z Google",
+    "disconnected": "Kalendár Google je odpojený.",
+    "disconnect_failed": "Odpojenie zlyhalo.",
+    "notice_connected": "Kalendár Google je pripojený.",
+    "notice_error": "Kalendár Google nebol pripojený. Skúste to znova.",
+    "untitled_event": "(Bez názvu)"
   }
 }

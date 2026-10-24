@@ -272,7 +272,8 @@
       "rocket": "Cohete",
       "clock": "Reloj",
       "wave": "Onda"
-    }
+    },
+    "calendar_google": "Calendario de Google"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "El hub no pudo leer este bloqueo.",
     "err_no_box": "El hub no conoce este equipo.",
     "err_failed": "No se pudo guardar el bloqueo. Inténtalo de nuevo."
+  },
+  "gcal": {
+    "intro": "Conecta tu propia cuenta de Google para mantener tus eventos sincronizados con un calendario de Google que Spool Hub crea para este espacio de trabajo.",
+    "unavailable": "Calendario de Google no está disponible en este espacio de trabajo.",
+    "not_configured": "Calendario de Google aún no está configurado en este hub.",
+    "load_failed": "No se pudo leer tu conexión con Calendario de Google.",
+    "retry": "Reintentar",
+    "connect": "Conectar Calendario de Google",
+    "connecting": "Abriendo Google…",
+    "connect_failed": "No se pudo iniciar la conexión con Google.",
+    "reconnect": "Volver a conectar",
+    "account": "Cuenta de Google",
+    "calendar": "Calendario sincronizado",
+    "status": "Estado de la conexión",
+    "status_connected": "Conectado",
+    "status_error": "Error de sincronización",
+    "status_revoked": "Acceso revocado",
+    "last_sync": "Última sincronización",
+    "never": "Todavía no",
+    "sync_now": "Sincronizar ahora",
+    "sync_started": "Sincronización iniciada.",
+    "sync_busy": "Ya hay una sincronización en curso.",
+    "sync_failed": "No se pudo iniciar la sincronización.",
+    "disconnect": "Desconectar",
+    "remove_imported": "Quitar también los eventos importados de Google",
+    "disconnected": "Calendario de Google está desconectado.",
+    "disconnect_failed": "No se pudo desconectar.",
+    "notice_connected": "Calendario de Google está conectado.",
+    "notice_error": "Calendario de Google no se conectó. Inténtalo de nuevo.",
+    "untitled_event": "(Sin título)"
   }
 }

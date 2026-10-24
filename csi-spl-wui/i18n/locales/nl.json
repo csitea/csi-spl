@@ -272,7 +272,8 @@
       "rocket": "Raket",
       "clock": "Klok",
       "wave": "Golf"
-    }
+    },
+    "calendar_google": "Google Agenda"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "De hub kon deze vergrendeling niet lezen.",
     "err_no_box": "De hub kent deze box niet.",
     "err_failed": "De vergrendeling kon niet worden opgeslagen. Probeer het opnieuw."
+  },
+  "gcal": {
+    "intro": "Koppel je eigen Google-account om je afspraken gelijk te houden met een Google-agenda die Spool Hub voor deze werkruimte aanmaakt.",
+    "unavailable": "Google Agenda is niet beschikbaar in deze werkruimte.",
+    "not_configured": "Google Agenda is op deze hub nog niet ingesteld.",
+    "load_failed": "Je koppeling met Google Agenda kon niet worden gelezen.",
+    "retry": "Opnieuw proberen",
+    "connect": "Google Agenda koppelen",
+    "connecting": "Google openen…",
+    "connect_failed": "De koppeling met Google kon niet worden gestart.",
+    "reconnect": "Opnieuw koppelen",
+    "account": "Google-account",
+    "calendar": "Gesynchroniseerde agenda",
+    "status": "Verbindingsstatus",
+    "status_connected": "Gekoppeld",
+    "status_error": "Synchronisatiefout",
+    "status_revoked": "Toegang ingetrokken",
+    "last_sync": "Laatste synchronisatie",
+    "never": "Nog niet",
+    "sync_now": "Nu synchroniseren",
+    "sync_started": "Synchronisatie gestart.",
+    "sync_busy": "Er loopt al een synchronisatie.",
+    "sync_failed": "De synchronisatie kon niet starten.",
+    "disconnect": "Ontkoppelen",
+    "remove_imported": "Ook de uit Google geïmporteerde afspraken verwijderen",
+    "disconnected": "Google Agenda is ontkoppeld.",
+    "disconnect_failed": "Ontkoppelen is mislukt.",
+    "notice_connected": "Google Agenda is gekoppeld.",
+    "notice_error": "Google Agenda is niet gekoppeld. Probeer het opnieuw.",
+    "untitled_event": "(Geen titel)"
   }
 }

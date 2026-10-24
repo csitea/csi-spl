@@ -272,7 +272,8 @@
       "rocket": "Raketa",
       "clock": "Laikrodis",
       "wave": "Banga"
-    }
+    },
+    "calendar_google": "Google kalendorius"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Centras negalėjo perskaityti šio užrakto.",
     "err_no_box": "Centras nepažįsta šios dėžės.",
     "err_failed": "Nepavyko išsaugoti užrakto. Bandykite dar kartą."
+  },
+  "gcal": {
+    "intro": "Prijunkite savo Google paskyrą, kad jūsų įvykiai būtų sinchronizuojami su Google kalendoriumi, kurį Spool Hub sukuria šiai darbo sričiai.",
+    "unavailable": "Google kalendorius šioje darbo srityje nepasiekiamas.",
+    "not_configured": "Google kalendorius šiame centre dar nesukonfigūruotas.",
+    "load_failed": "Nepavyko nuskaityti jūsų Google kalendoriaus ryšio.",
+    "retry": "Bandyti dar kartą",
+    "connect": "Prijungti Google kalendorių",
+    "connecting": "Atidaroma Google…",
+    "connect_failed": "Nepavyko pradėti ryšio su Google.",
+    "reconnect": "Prijungti iš naujo",
+    "account": "Google paskyra",
+    "calendar": "Sinchronizuojamas kalendorius",
+    "status": "Ryšio būsena",
+    "status_connected": "Prijungta",
+    "status_error": "Sinchronizavimo klaida",
+    "status_revoked": "Prieiga atšaukta",
+    "last_sync": "Paskutinis sinchronizavimas",
+    "never": "Dar ne",
+    "sync_now": "Sinchronizuoti dabar",
+    "sync_started": "Sinchronizavimas pradėtas.",
+    "sync_busy": "Sinchronizavimas jau vyksta.",
+    "sync_failed": "Nepavyko pradėti sinchronizavimo.",
+    "disconnect": "Atjungti",
+    "remove_imported": "Taip pat pašalinti iš Google importuotus įvykius",
+    "disconnected": "Google kalendorius atjungtas.",
+    "disconnect_failed": "Nepavyko atjungti.",
+    "notice_connected": "Google kalendorius prijungtas.",
+    "notice_error": "Google kalendorius nebuvo prijungtas. Bandykite dar kartą.",
+    "untitled_event": "(Be pavadinimo)"
   }
 }

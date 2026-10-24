@@ -272,7 +272,8 @@
       "rocket": "Raket",
       "clock": "Klocka",
       "wave": "Våg"
-    }
+    },
+    "calendar_google": "Google Kalender"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Navet kunde inte läsa det här låset.",
     "err_no_box": "Navet känner inte till den här maskinen.",
     "err_failed": "Låset kunde inte sparas. Försök igen."
+  },
+  "gcal": {
+    "intro": "Anslut ditt eget Google-konto så att dina händelser hålls i takt med en Google-kalender som Spool Hub skapar för den här arbetsytan.",
+    "unavailable": "Google Kalender är inte tillgänglig i den här arbetsytan.",
+    "not_configured": "Google Kalender är inte konfigurerad på den här hubben ännu.",
+    "load_failed": "Det gick inte att läsa din anslutning till Google Kalender.",
+    "retry": "Försök igen",
+    "connect": "Anslut Google Kalender",
+    "connecting": "Öppnar Google…",
+    "connect_failed": "Det gick inte att starta anslutningen till Google.",
+    "reconnect": "Anslut igen",
+    "account": "Google-konto",
+    "calendar": "Synkroniserad kalender",
+    "status": "Anslutningsstatus",
+    "status_connected": "Ansluten",
+    "status_error": "Synkroniseringsfel",
+    "status_revoked": "Åtkomsten återkallad",
+    "last_sync": "Senaste synkronisering",
+    "never": "Inte än",
+    "sync_now": "Synkronisera nu",
+    "sync_started": "Synkroniseringen har startat.",
+    "sync_busy": "En synkronisering pågår redan.",
+    "sync_failed": "Det gick inte att starta synkroniseringen.",
+    "disconnect": "Koppla från",
+    "remove_imported": "Ta även bort händelserna som importerats från Google",
+    "disconnected": "Google Kalender är frånkopplad.",
+    "disconnect_failed": "Det gick inte att koppla från.",
+    "notice_connected": "Google Kalender är ansluten.",
+    "notice_error": "Google Kalender anslöts inte. Försök igen.",
+    "untitled_event": "(Ingen titel)"
   }
 }

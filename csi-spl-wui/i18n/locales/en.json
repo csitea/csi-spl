@@ -272,7 +272,8 @@
       "rocket": "Rocket",
       "clock": "Clock",
       "wave": "Wave"
-    }
+    },
+    "calendar_google": "Google Calendar"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "The hub could not read this lock.",
     "err_no_box": "The hub does not know this box.",
     "err_failed": "The lock could not be saved. Try again."
+  },
+  "gcal": {
+    "intro": "Connect your own Google account to keep your calendar events in step with a Google calendar that Spool Hub creates for this workspace.",
+    "unavailable": "Google Calendar is not available in this workspace.",
+    "not_configured": "Google Calendar is not set up on this hub yet.",
+    "load_failed": "Could not read your Google Calendar connection.",
+    "retry": "Try again",
+    "connect": "Connect Google Calendar",
+    "connecting": "Opening Google…",
+    "connect_failed": "Could not start the connection to Google.",
+    "reconnect": "Reconnect",
+    "account": "Google account",
+    "calendar": "Synced calendar",
+    "status": "Connection status",
+    "status_connected": "Connected",
+    "status_error": "Sync error",
+    "status_revoked": "Access revoked",
+    "last_sync": "Last sync",
+    "never": "Not yet",
+    "sync_now": "Sync now",
+    "sync_started": "Sync started.",
+    "sync_busy": "A sync is already running.",
+    "sync_failed": "The sync could not start.",
+    "disconnect": "Disconnect",
+    "remove_imported": "Also remove the events imported from Google",
+    "disconnected": "Google Calendar is disconnected.",
+    "disconnect_failed": "Could not disconnect.",
+    "notice_connected": "Google Calendar is connected.",
+    "notice_error": "Google Calendar was not connected. Try again.",
+    "untitled_event": "(No title)"
   }
 }

@@ -272,7 +272,8 @@
       "rocket": "Roket",
       "clock": "Saat",
       "wave": "Dalga"
-    }
+    },
+    "calendar_google": "Google Takvim"
   },
   "auth": {
     "error": {
@@ -3364,5 +3365,35 @@
     "err_bad_body": "Merkez bu kilidi okuyamadı.",
     "err_no_box": "Merkez bu kutuyu tanımıyor.",
     "err_failed": "Kilit kaydedilemedi. Yeniden deneyin."
+  },
+  "gcal": {
+    "intro": "Etkinliklerinizin, Spool Hub’ın bu çalışma alanı için oluşturduğu bir Google takvimiyle uyumlu kalması için kendi Google hesabınızı bağlayın.",
+    "unavailable": "Google Takvim bu çalışma alanında kullanılamıyor.",
+    "not_configured": "Google Takvim bu hub’da henüz ayarlanmadı.",
+    "load_failed": "Google Takvim bağlantınız okunamadı.",
+    "retry": "Tekrar dene",
+    "connect": "Google Takvim’i bağla",
+    "connecting": "Google açılıyor…",
+    "connect_failed": "Google bağlantısı başlatılamadı.",
+    "reconnect": "Yeniden bağlan",
+    "account": "Google hesabı",
+    "calendar": "Eşitlenen takvim",
+    "status": "Bağlantı durumu",
+    "status_connected": "Bağlı",
+    "status_error": "Eşitleme hatası",
+    "status_revoked": "Erişim iptal edildi",
+    "last_sync": "Son eşitleme",
+    "never": "Henüz yok",
+    "sync_now": "Şimdi eşitle",
+    "sync_started": "Eşitleme başladı.",
+    "sync_busy": "Bir eşitleme zaten sürüyor.",
+    "sync_failed": "Eşitleme başlatılamadı.",
+    "disconnect": "Bağlantıyı kes",
+    "remove_imported": "Google’dan içe aktarılan etkinlikleri de kaldır",
+    "disconnected": "Google Takvim bağlantısı kesildi.",
+    "disconnect_failed": "Bağlantı kesilemedi.",
+    "notice_connected": "Google Takvim bağlandı.",
+    "notice_error": "Google Takvim bağlanmadı. Tekrar deneyin.",
+    "untitled_event": "(Başlıksız)"
   }
 }

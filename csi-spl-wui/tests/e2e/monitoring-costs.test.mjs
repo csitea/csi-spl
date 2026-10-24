@@ -295,6 +295,8 @@ async function lanesTab(browser, base, size) {
     const issues = await row('c-085', '[data-test=lanes-issue-link]')
     ok('C17 lanes: the issue keys link /issues?issue=<KEY>', issues.map((i) => i.href).join(' ') === '/issues?issue=SPL-3075 /issues?issue=SPL-3215', issues)
     ok('C17 lanes: the agent shows as id@box', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-agent]')) === 'c-085@box-a')
+    /* C27 (spec 153 3.6, row B6, SPL-3229): an operator admin's tab still reads the fleet route: every lane, with its box */
+    ok('C27 lanes: the operator admin reads the fleet route, the other workspace\'s lane and the box names included', (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-agent]')) === 'a-277@box-b')
     ok('C17 control: another workspace\'s topic links nothing, its id shown as text', (await row('a-277', '[data-test=lanes-topic-link]')).length === 0
       && (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-topic]')) === '0b0c0d0e-1111-4222-8333-444455556666')
     ok('C17 control: a key with no status (another prefix) is text, not a link', (await row('a-277', '[data-test=lanes-issue-link]')).length === 0
@@ -319,10 +321,23 @@ async function lanesTab(browser, base, size) {
     await ctx.close()
   }
   {
+    /* spec 153 3.6 (row B6, SPL-3229): a workspace admin who is no operator admin sees the tab and its own lanes only */
+    const { ctx, p } = await costsPage(browser, base, size, { me: { role: 'admin', permissions: ['topics.read'] } })
+    await open(p, base, '/monitoring/agents')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
+    const ids = await tabIds(p)
+    ok('C26 twin lanes: a workspace admin sees the Lanes tab, not Tokens', ids.includes('lanes') && !ids.includes('tokens'), ids)
+    await open(p, base, '/monitoring/lanes')
+    const one = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 1, { timeout: 20000 }).then(() => true, () => false)
+    ok('3.6 lanes: the workspace\'s own lane only (its topic), no box name', one
+      && (await text(p, '[data-test=lanes-row] [data-test=lanes-agent]')) === 'c-085', await count(p, '[data-test=lanes-row]'))
+    await ctx.close()
+  }
+  {
     const { ctx, p } = await costsPage(browser, base, size)
     await open(p, base, '/monitoring/agents')
     await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
-    ok('lanes control: no Lanes tab for anyone but an operator admin', !(await tabIds(p)).includes('lanes'), await tabIds(p))
+    ok('lanes control: no Lanes tab for anyone but an operator admin or a workspace admin', !(await tabIds(p)).includes('lanes'), await tabIds(p))
     await open(p, base, '/monitoring/lanes')
     ok('lanes control: the direct URL shows the 403 sentence', await waitFor(p, '[data-test=lanes-forbidden]'))
     ok('lanes control: no table', (await count(p, '[data-test=lanes-row]')) === 0)

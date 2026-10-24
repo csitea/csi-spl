@@ -19,6 +19,9 @@ ok('no answer (old hub / error): fails open', accessAllows(null, 'channels.manag
 // t1 5ea2e615: an owner's action (Make an issue of a blocker) fails open like accessAllows
 ok('ownerAllows: the owner yes, a tester no (CONTROL)', ownerAllows(owner) && !ownerAllows(tester))
 ok('ownerAllows: no answer or a door-off guest fails open', ownerAllows(null) && ownerAllows(guest))
+// spec 153 3.6 C26b (SPL-3229): the whole role set is kept, so an admin whose primary role is not admin is seen as one
+ok('C26b normalizeMe keeps roles', JSON.stringify(normalizeMe({ role: 'developer', roles: ['developer', 'admin'] }).roles) === '["developer","admin"]')
+ok('C26b roles: not sent = [], junk dropped', normalizeMe({ role: 'admin' }).roles.length === 0 && normalizeMe({ roles: ['admin', 3, '', null] }).roles.join() === 'admin')
 ok('junk permissions are dropped', normalizeMe({ permissions: ['a', 3, null] }).permissions.length === 1)
 ok('role keys for the eight roles', ROLE_IDS.length === 8 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
 ok('unknown / empty role has no key', roleLabelKey('custom_x') === '' && roleLabelKey(null) === '')

@@ -11,7 +11,9 @@ import {
   visibleMonitoringTabs,
   monitoringTabFor,
   legacyMonitoringPath,
+  monitoringStaff,
 } from '../../src/utils/monitoring-tabs.mjs'
+import { normalizeMe } from '../../src/utils/access.mjs'
 import { importTs } from './lib/load-ts.mjs'
 const { RAIL_TABS, RAIL_RETIRED, DEFAULT_RAIL_ORDER } = await importTs('src/utils/rail-order.ts')
 import { MONITORING_TAB, routeForTab, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
@@ -48,17 +50,33 @@ describe('monitoring tabs', () => {
     assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes'])
     assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
   })
-  it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready and for operator admins only until row B6', () => {
+  it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready; operator admins and, since row B6, a workspace\'s staff', () => {
     const lanes = MONITORING_TABS.find((t) => t.id === 'lanes')
-    assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: true, ready: true })
-    /* C16 CONTROL: not an operator admin, or not known yet, never sees it, costs.read or not */
-    for (const who of [undefined, { operator: false }, { operator: false, can: () => true }]) {
+    assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true })
+    /* C16 CONTROL: not an operator admin nor staff, or not known yet, never sees it, costs.read or not */
+    for (const who of [undefined, { operator: false }, { operator: false, can: () => true }, { operator: false, staff: false }]) {
       assert.ok(!visibleMonitoringTabs(who).some((t) => t.id === 'lanes'), JSON.stringify(who))
     }
     assert.equal(monitoringTabFor('/monitoring/lanes'), 'lanes')
     assert.equal(monitoringTabFor('/fi/monitoring/lanes'), 'lanes')
     /* Reporting keeps its own history tab (2.4): a different path and label key */
     assert.notEqual(lanes.labelKey, 'reporting.tab.lanes')
+  })
+  it('Lanes (spec 153 3.6, row B6, SPL-3229, C26): a workspace owner or admin sees the tab, a plain member does not', () => {
+    /* C26: staff false has no lanes; twin: staff true has it, and Tokens stays the operator's */
+    assert.deepEqual(visibleMonitoringTabs({ staff: false }).map((t) => t.id), ['agents', 'boxes'])
+    assert.deepEqual(visibleMonitoringTabs({ staff: true }).map((t) => t.id), ['agents', 'boxes', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, staff: false }).map((t) => t.id), ['agents', 'boxes', 'tokens', 'lanes'])
+    /* who is staff: the hub's pair, TenantOwner || Has(admin) anywhere in the role set (C25b, C26b) */
+    const me = (body) => normalizeMe(body)
+    assert.equal(monitoringStaff(me({ role: 'biz_owner', roles: ['biz_owner'], tenant_owner: true })), true, 'the owner')
+    assert.equal(monitoringStaff(me({ role: 'admin', roles: ['admin'] })), true, 'an admin')
+    assert.equal(monitoringStaff(me({ role: 'developer', roles: ['developer', 'admin'] })), true, 'C26b: admin as a second role')
+    assert.equal(monitoringStaff(me({ role: 'developer', roles: ['developer'] })), false, 'C26: a plain developer')
+    assert.equal(monitoringStaff(me({ role: 'developer' })), false, 'an old hub with no roles: the primary only')
+    assert.equal(monitoringStaff(null), false, 'not known yet')
+    /* the bar passes the rule (monitoring.vue) */
+    assert.match(read('src/pages/monitoring.vue'), /staff: monitoringStaff\(access\.me\)/)
   })
   it('an operator-only ready tab shows to operators only (Q3 A)', () => {
     const tokens = MONITORING_TABS.find((t) => t.id === 'tokens')

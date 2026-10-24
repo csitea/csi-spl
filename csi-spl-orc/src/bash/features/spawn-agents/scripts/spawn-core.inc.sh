@@ -274,8 +274,24 @@ _spawn_worktree() {
 # brief's first heading, else SLUG), SPAWN_LANE_FILES (comma-separated paths,
 # default the brief's first `Files:` line, so `--check` sees the lane's files
 # from spawn on) and SPAWN_LANE_TOPIC fill the row.
+# Spec 153 3.4: the topic is SPAWN_LANE_TOPIC, else LANE_ISSUE_TOPIC, else the
+# brief's first HUB topic written `topic:<id>`, `topic <id>` or `/t/<id>` (a
+# full uuid, or an 8-hex short id the hub resolves at put); never a bare uuid,
+# which may be a spool task alias's. The issue is lifetime/issue (written
+# before this put), else SPAWN_ISSUE, else the brief's `Issue:` line; a key
+# the hub would refuse is left out so the row still lands.
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
+  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue=""
+  if [ -z "$topic" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
+    topic="$(grep -oE '([Tt]opic[: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$BRIEF" 2>/dev/null |
+      head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
+  fi
+  if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then
+    issue="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"
+    [ -n "$issue" ] || issue="${SPAWN_ISSUE:-$(li_key_from_brief "$BRIEF")}"
+  fi
+  [[ "$issue" =~ ^[A-Z][A-Z0-9]{1,9}-[0-9]{1,9}$ ]] || issue=""
   if [ -z "$scope" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
     scope="$(grep -m1 -E '^#+ ' "$BRIEF" 2>/dev/null | sed -E 's/^#+ +//; s/^Brief: *//')"
   fi
@@ -285,11 +301,11 @@ _spawn_lane_put() {
   fi
   scope="${scope:-$SLUG}"
   [ -n "$REPO" ] && repo="$(basename "$REPO")"
-  _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${SPAWN_LANE_TOPIC:-}'"
+  _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${topic}' --issue '${issue}'"
   _sp_live || return 0
   log="${SPOOL_ROOT}/${TITLE}/lane.log"
   ( timeout 60 bash "${_SP_DIR}/lane-map.sh" put --agent "$TITLE" --repo "$repo" --branch "$BRANCH" \
-      --scope "$scope" --files "${SPAWN_LANE_FILES:-}" --topic "${SPAWN_LANE_TOPIC:-}" >"$log" 2>&1 & ) 2>/dev/null
+      --scope "$scope" --files "${SPAWN_LANE_FILES:-}" --topic "$topic" --issue "$issue" >"$log" 2>&1 & ) 2>/dev/null
 }
 
 # SCOPE INTEGRATION SPOOL_PROTO — the seed-prompt blocks every kind receives.

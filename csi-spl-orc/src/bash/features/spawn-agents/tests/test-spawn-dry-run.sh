@@ -164,6 +164,21 @@ out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-81 "$T_TMP/repo" "$T_TMP/brief-h.md
 has "git: the lane scope is the brief's first heading" "--scope 'fleet lane map'" "$out"
 out="$(SPAWN_LANE_SCOPE='lane map' SPAWN_LANE_FILES=a/b,c SPAWN_LANE_TOPIC=t-1 bash "$T_SCRIPTS/spawn-claude.sh" CLE-80 "$T_TMP/repo" "$T_TMP/brief.md" "fix it" 2>&1)"
 has "git: SPAWN_LANE_* fill the row" "--scope 'lane map' --files 'a/b,c' --topic 't-1'" "$out"
+# spec 153 C6, C6b, C7: the row's topic is the brief's first HUB topic
+# (topic:<uuid>, /t/<uuid>, or an 8-hex short id, passed unchanged), never a
+# bare uuid such as a spool task alias's; its issue is SPAWN_ISSUE, else the
+# brief's Issue: line. Master put --topic '' and no --issue on all three.
+U1=1a2b3c4d-1111-4222-8333-444455556666 U2=5e7b15c9-2995-427d-8b05-659762fbb9d8 UA=84f409b7-0000-4000-8000-000000000001
+printf '# C6\nSource: prd topic, `topic:%s`.\n' "$U1" > "$T_TMP/brief-c6.md"
+out="$(SPAWN_ISSUE=SPL-42 bash "$T_SCRIPTS/spawn-claude.sh" CLE-82 "$T_TMP/repo" "$T_TMP/brief-c6.md" "fix it" 2>&1)"
+has "C6: SPAWN_ISSUE and the brief's topic:<uuid> fill the row" "--topic '${U1}' --issue 'SPL-42'" "$out"
+printf '# C6b\nOn task dispatch-5e7b15c9 (spool uuid %s).\nThe hub topic: /t/%s\nIssue: SPL-77\n' "$UA" "$U2" > "$T_TMP/brief-c6b.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-83 "$T_TMP/repo" "$T_TMP/brief-c6b.md" "fix it" 2>&1)"
+has "C6b: the /t/<uuid> topic fills the row, the Issue: line its key" "--topic '${U2}' --issue 'SPL-77'" "$out"
+hasnt "C6b: ... never the alias's bare uuid planted first" "--topic '${UA}'" "$out"
+printf '# C7\nIn the owner topic 5e7b15c9, row B2.\n' > "$T_TMP/brief-c7.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-84 "$T_TMP/repo" "$T_TMP/brief-c7.md" "fix it" 2>&1)"
+has "C7: an 8-hex short id is passed unchanged (the hub resolves it)" "--topic '5e7b15c9' --issue ''" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.

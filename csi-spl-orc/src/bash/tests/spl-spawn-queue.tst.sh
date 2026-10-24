@@ -192,6 +192,7 @@ printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lane
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
+echo "$5 SPAWN_LANE_TOPIC=${SPAWN_LANE_TOPIC-<unset>}" >>"$LAUNCH_LOG.env"
 echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
@@ -304,6 +305,11 @@ if [[ "$(jq -r .state <<<"$r1")" == "done" && "$(jq -r .reason <<<"$r1")" == "pl
    grep -q "^c-001 c-002 note dispatch-c9beaa77 placed: c-281@box-desk" "$T/send.log"; then
   pass "room (39/40): the head is launched with its brief, closed 'placed: c-281@box-desk', its sender told"
 else fail "place: $out | $r1 | $(cat "$T/launch.log") | $(sends)"; fi
+# spec 153 C6c: an ask whose topic is a full uuid launches with
+# SPAWN_LANE_TOPIC=<uuid> (the twin, a dispatch-<topic8> alias, is the
+# hand-sat-qto-gap launch below); master set none
+grep -qx "hub-pg-split SPAWN_LANE_TOPIC=$OWNER_TOPIC" "$T/launch.log.env" &&
+  pass "C6c: the ask's full-uuid topic is SPAWN_LANE_TOPIC in the launch env" || fail "C6c: $(cat "$T/launch.log.env" 2>&1)"
 r2="$(listrow "$A2")"
 [[ "$(jq -r .position <<<"$r2")" == 1 && "$(jq -r .queue_len <<<"$r2")" == 1 ]] &&
   pass "the next request moves up: position 1 of 1" || fail "shift: $r2"
@@ -560,6 +566,8 @@ out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_BUSY" LAUNCH_ID=c-501 2>&1)"
   grep -q "^claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat$" "$T/launch.log" &&
   pass "hand-sat-qto-gap: the brief of qto-gap is found and launched with SPAWN_BOX=sat (control: sat under its overflow mark)" ||
   fail "pin launch: $out | $(hubrow "$P1") | $(cat "$T/launch.log")"
+grep -qx "qto-gap SPAWN_LANE_TOPIC=<unset>" "$T/launch.log.env" &&
+  pass "C6c twin: an ask topic dispatch-88982c94-p (an alias) sets no SPAWN_LANE_TOPIC" || fail "C6c twin: $(cat "$T/launch.log.env" 2>&1)"
 put "$P2" c-002@box-desk dispatch-88982c94-q "SPAWN REQUEST sathand"
 on pc do_spl_spawn_enqueue ASK_ID="$P2" SPAWN_CLASS=bug SPAWN_PLACE=claude:sathand-qto-gap >/dev/null 2>&1
 : >"$T/launch.log"

@@ -22,6 +22,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	scope := fs.String("scope", "", "write: its scope, one line")
 	files := fs.String("files", "", "write: the paths it owns, comma-separated")
 	topic := fs.String("topic", "", "write: its topic (task id)")
+	issue := fs.String("issue", "", "write: its issue key, e.g. SPL-12")
 	state := fs.String("state", "live", "write: live or done")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -38,7 +39,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Lane(ctx, cfg, action.LaneArgs{Fleet: *fleet, Agent: *agent, Box: *agentBox, Repo: *repo,
-		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, State: *state})
+		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, Issue: *issue, State: *state})
 	if err != nil {
 		return fail(err)
 	}

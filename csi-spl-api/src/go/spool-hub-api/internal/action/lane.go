@@ -22,6 +22,7 @@ type LaneArgs struct {
 	Scope  string            `json:"scope,omitempty"`
 	Files  []string          `json:"files,omitempty"`
 	Topic  string            `json:"topic,omitempty"`
+	Issue  string            `json:"issue_key,omitempty"` // the lane's own issue key, "" for none (spec 153 3.4)
 	State  string            `json:"state,omitempty"`
 	Hub    *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
 }
@@ -50,12 +51,13 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 		in.Files = []string{}
 	}
 	l := store.FleetLane{Fleet: in.Fleet, AgentID: in.Agent, AgentBox: in.Box, Repo: in.Repo, Branch: in.Branch,
-		Scope: in.Scope, Files: in.Files, Topic: in.Topic, State: in.State}
+		Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.Issue, State: in.State}
 	if why := store.CheckFleetLane(l); why != "" {
 		return nil, fmt.Errorf("lane: %s", why)
 	}
 	row, err := json.Marshal(map[string]any{"agent_id": l.AgentID, "agent_box": l.AgentBox, "repo": l.Repo,
-		"branch": l.Branch, "scope": l.Scope, "files": l.Files, "topic": l.Topic, "state": l.State})
+		"branch": l.Branch, "scope": l.Scope, "files": l.Files, "topic": l.Topic, "issue_key": l.IssueKey,
+		"state": l.State})
 	if err != nil {
 		return nil, err
 	}

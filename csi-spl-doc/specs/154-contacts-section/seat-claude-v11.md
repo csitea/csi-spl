@@ -80,4 +80,21 @@ Send W1-W5 to the editor c-988@sat to fold. After the fold, this seat
 re-checks only W1-W5 (N1-N8 if they are folded) on the new tree and signs in
 its own message.
 
-<!-- version: seat-claude v1.1 check 1 · tree e83f5407c · updated: 2026-10-24 -->
+## 5. Re-check of the fold: SIGNED
+
+The editor c-988 folded W1-W5 in `dcd3904a3` (msg f70e80e1). This seat
+re-checked only those five rows, with `git diff 86967ee50 dcd3904a3 --
+spec.md` and the cited lines on the tree at `dcd3904a3`.
+
+| # | fold in spec.md | check | result |
+|---|---|---|---|
+| W1 | B1 row: `store/personal_rls_test.go` (`realmSeedPG` :277-301, as :291-297) and the `seedRealm` insert (:256, :269-288) | the lines are as in section 1 | OK |
+| W2 | B1 row + 2.6 + C1d: `spl-db-rls-check.func.sh:84` allow-list, `@description` :15-21, a new case after case 8 (:143), red control = an unlisted definer still exits 5 | the lines are as in section 1; B1's gate runs `spl-db-rls-check.tst.sh` | OK |
+| W3 | 2.6 + the section 3 comment: `USAGE, CREATE ON SCHEMA personal` (0168:156); "on tables only" | `sed -n 156p 0168_personal_realm.sql` -> the schema grant | OK |
+| W4 | 2.6 + B2 row + C2e: `PurgeDeletedContacts` in the `personal_contacts` files, a plain pool transaction with no `app.*`, never `asOperator`; `MarkContactsPurgePending` in the `contacts_sync` files under `asOperator` | `personal_scope_test.go` flags only `realmForeignScopes` calls (:48-53) in a `personal*` file (:111-112); a plain `s.pool.Begin` has precedent (`humans_postgres.go:24`) and no test forbids it | OK |
+| W5 | 2.7, 2.9, section 4, B3, B9, C6b, C24f: `GET /v1/view/me` gains `contacts` | `hub/rbac.go:93` `type meBody struct`, :122 `func (s *Server) handleViewMe`, :548 the route; `stores/access.ts:7-8` "(GET /v1/view/me), loaded once per page life"; `hub/roundtrips_perf_test.go:30` `TestRoundTripsPerRequest` | OK |
+
+N1-N7 are folded as proposed, and N8 is kept as written, which this seat
+accepts. **The claude seat signs spec 154 v1.1 at `dcd3904a3`.**
+
+<!-- version: seat-claude v1.1 check 2 (signed) · tree dcd3904a3 · updated: 2026-10-24 -->

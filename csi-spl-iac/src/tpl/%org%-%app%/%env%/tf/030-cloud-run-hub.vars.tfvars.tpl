@@ -87,6 +87,15 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
     value, the workspace ids joined with commas, or the literal "all" #}
 {%- set mkt_ws = marketing["workspaces"] if (marketing is defined and marketing["workspaces"] is defined) else [] %}
 {%- set _ = run_env.update({"SPOOL_HUB_MARKETING_WORKSPACES": (mkt_ws if mkt_ws is string else (mkt_ws | join(",")))}) %}
+{#- spec 149 S5 (SPL-3331): cnf gcal reaches the hub as SPOOL_HUB_GCAL_*, the
+    workspaces joined with commas or the literal "all"; nothing while the list
+    is empty (= off: the hub mounts no /v1/me/google-calendar route) #}
+{%- set gc = gcal if gcal is defined else {} %}
+{%- set gc_ws = gc.get("workspaces", []) %}
+{%- set gc_ws = gc_ws if gc_ws is string else (gc_ws | join(",")) %}
+{%- if gc_ws %}
+{%- set _ = run_env.update({"SPOOL_HUB_GCAL_WORKSPACES": gc_ws, "SPOOL_HUB_GCAL_SCOPES": gc["scopes"], "SPOOL_HUB_GCAL_AUTH_URL": gc["auth_url"], "SPOOL_HUB_GCAL_TOKEN_URL": gc["token_url"], "SPOOL_HUB_GCAL_REVOKE_URL": gc["revoke_url"], "SPOOL_HUB_GCAL_USERINFO_URL": gc["userinfo_url"], "SPOOL_HUB_GCAL_CALENDAR_BASE": gc["calendar_base"]}) %}
+{%- endif %}
 {#- spec 025 box owner lock 6.4 (row B6, SPL-3014): hub.box_locks_expected
     reaches the hub as one plain env value, "<tenant>:<box>:<lock_pubkey>"
     entries joined with commas ("" = no box locked) #}

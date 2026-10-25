@@ -121,37 +121,52 @@ func operatorInviteTTL(hours int) (time.Duration, bool) {
 	return ttl, hours > 0 && ttl <= inviteTTLMax
 }
 
+// operatorInviteBody is the JSON body of POST /v1/operator/invites.
+type operatorInviteBody struct {
+	Tenant     string `json:"tenant"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	TTLHours   int    `json:"ttl_hours"`
+	InvitedBy  string `json:"invited_by"`
+	OrderedBy  string `json:"ordered_by"`
+	OrderedVia string `json:"ordered_via"`
+	Locale     string `json:"locale"`
+	NoMail     bool   `json:"no_mail"`
+}
+
 func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.operatorAuth(w, r); !ok {
 		return
 	}
-	var body struct {
-		Tenant     string `json:"tenant"`
-		Email      string `json:"email"`
-		Role       string `json:"role"`
-		TTLHours   int    `json:"ttl_hours"`
-		InvitedBy  string `json:"invited_by"`
-		OrderedBy  string `json:"ordered_by"`
-		OrderedVia string `json:"ordered_via"`
-		Locale     string `json:"locale"`
-		NoMail     bool   `json:"no_mail"`
-	}
+	var body operatorInviteBody
 	if !decodeMembers(w, r, &body) {
 		return
 	}
+	h, in, ttl, ok := s.operatorInviteRequest(w, body)
+	if !ok {
+		return
+	}
+	now := s.o.Now().UTC()
+	in.ExpiresAt = now.Add(ttl)
+	s.operatorInviteStore(w, r, h, in, now, body)
+}
+
+// operatorInviteRequest validates the decoded body into an invite (all but
+// its ExpiresAt) and its lifetime. ok=false means it already answered.
+func (s *Server) operatorInviteRequest(w http.ResponseWriter, body operatorInviteBody) (store.Humans, store.Invite, time.Duration, bool) {
 	if !msg.ValidTenantID(body.Tenant) {
 		writeErr(w, http.StatusBadRequest, "bad_tenant", "tenant must be a valid slug")
-		return
+		return nil, store.Invite{}, 0, false
 	}
 	email := strings.ToLower(strings.TrimSpace(body.Email))
 	if email == "" || len(email) > 320 || !strings.Contains(email, "@") {
 		writeErr(w, http.StatusBadRequest, "bad_email", "email must be an address")
-		return
+		return nil, store.Invite{}, 0, false
 	}
 	h, ok := s.o.Store.(store.Humans)
 	if !ok {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no invites")
-		return
+		return nil, store.Invite{}, 0, false
 	}
 	role := rbac.Legacy(strings.TrimSpace(body.Role))
 	if role == "" {
@@ -160,21 +175,26 @@ func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 	invitedBy, ok := validOperatorInvitedBy(body.InvitedBy)
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "bad_invited_by", "invited_by must be a HUM-* id, 'operator' or 'bootstrap'")
-		return
+		return nil, store.Invite{}, 0, false
 	}
 	orderedBy := strings.TrimSpace(body.OrderedBy)
 	if orderedBy != "" && !humanIDRe.MatchString(orderedBy) {
 		writeErr(w, http.StatusBadRequest, "bad_ordered_by", "ordered_by must be a HUM-* id")
-		return
+		return nil, store.Invite{}, 0, false
 	}
 	ttl, ok := operatorInviteTTL(body.TTLHours)
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "bad_json", "ttl_hours must be 1..720")
-		return
+		return nil, store.Invite{}, 0, false
 	}
-	now := s.o.Now().UTC()
 	in := store.Invite{TenantID: body.Tenant, Email: email, Role: role, InvitedBy: invitedBy,
-		ExpiresAt: now.Add(ttl), OrderedBy: orderedBy, OrderedVia: strings.TrimSpace(body.OrderedVia)}
+		OrderedBy: orderedBy, OrderedVia: strings.TrimSpace(body.OrderedVia)}
+	return h, in, ttl, true
+}
+
+// operatorInviteStore stores the validated invite and answers: one of the
+// four error mappings, or 201 with the mail outcome (skipped_no_mail on no_mail).
+func (s *Server) operatorInviteStore(w http.ResponseWriter, r *http.Request, h store.Humans, in store.Invite, now time.Time, body operatorInviteBody) {
 	switch err := h.PutInvite(r.Context(), in, now); {
 	case errors.Is(err, store.ErrNotFound):
 		// PutInvite maps both a missing tenant and an ordered_by that names no
@@ -187,14 +207,14 @@ func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "invite not stored")
 	default:
-		out := map[string]any{"tenant_id": body.Tenant, "email": email, "role": role,
-			"invited_by": invitedBy, "expires_at": rfc(in.ExpiresAt), "status": "invited"}
+		out := map[string]any{"tenant_id": in.TenantID, "email": in.Email, "role": in.Role,
+			"invited_by": in.InvitedBy, "expires_at": rfc(in.ExpiresAt), "status": "invited"}
 		if body.NoMail {
 			out["mail"] = invitemail.Result{Outcome: "skipped_no_mail"}
 		} else {
-			out["mail"] = s.operatorMail(r.Context(), body.Tenant, email, strings.TrimSpace(body.Locale))
+			out["mail"] = s.operatorMail(r.Context(), in.TenantID, in.Email, strings.TrimSpace(body.Locale))
 		}
-		s.o.Log.Info().Str("tenant", body.Tenant).Str("role", role).Str("invited_by", invitedBy).
+		s.o.Log.Info().Str("tenant", in.TenantID).Str("role", in.Role).Str("invited_by", in.InvitedBy).
 			Bool("no_mail", body.NoMail).Msg("operator.invited")
 		writeJSON(w, http.StatusCreated, out)
 	}

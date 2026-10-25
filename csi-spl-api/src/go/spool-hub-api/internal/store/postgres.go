@@ -50,6 +50,8 @@ type Postgres struct {
 	sig seatsProbe
 	// idx: is rdb 0143 spool_search_candidates there and executable (search_postgres.go)
 	idx seatsProbe
+	// docTSV: is rdb 0227 workspace_doc_item.search_tsv there yet (search_docs_postgres.go)
+	docTSV seatsProbe
 	// humStatus: is rdb 0141 human_status there yet (human_status.go)
 	humStatus seatsProbe
 	// kv: is rdb 0136 tenants.settings there yet (tenant_kv.go)

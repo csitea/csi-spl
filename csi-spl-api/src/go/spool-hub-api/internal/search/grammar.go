@@ -14,8 +14,9 @@ import (
 	"unicode/utf16"
 )
 
-// Version is the grammar version published by the operators endpoint.
-const Version = "1.3"
+// Version is the grammar version published by the operators endpoint. 1.4
+// (SPL-3337): type:doc, the Qto documents.
+const Version = "1.4"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -43,17 +44,24 @@ const (
 	// TypeIssue (1.2, CLE-34992 for spec 039): the tenant's issues, readable
 	// by every member (topics.read). Opt-in like tenant and event.
 	TypeIssue Type = "issue"
+	// TypeDoc (spec 100 section 14, SPL-3337): the workspace's own Qto
+	// documents, a hit per section (the root section stands for the document
+	// and its title), for a reader whose role grants docs.read. Default, so
+	// a plain search finds a document's words (owner HUM-10, t1 4e06a219).
+	TypeDoc Type = "doc"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc}
 
 // DefaultTypes are searched when no type: is given: content search (owner,
 // 2026-09-26: "the normal search should be by content, but there should be a
 // syntax to search by specific names"). tenant and event are opt-in with
 // type: - they cost DB reads the default search's round-trip budget (spec
-// 027 P2, TestRoundTripsPerRequest) does not carry.
-var DefaultTypes = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
+// 027 P2, TestRoundTripsPerRequest) does not carry. doc is default: the
+// owner asked for a search that includes the Qto documents (SPL-3337), and
+// its section is one batch.
+var DefaultTypes = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}
 
 // Group is the plural response key of t.
 func (t Type) Group() string {
@@ -74,6 +82,7 @@ var typeAliases = map[string]Type{
 	"tenant": TypeTenant, "tenants": TypeTenant, "workspace": TypeTenant, "workspaces": TypeTenant,
 	"event": TypeEvent, "events": TypeEvent, "log": TypeEvent, "error": TypeEvent, "errors": TypeEvent,
 	"issue": TypeIssue, "issues": TypeIssue, "ticket": TypeIssue, "tickets": TypeIssue,
+	"doc": TypeDoc, "docs": TypeDoc, "document": TypeDoc, "documents": TypeDoc, "qto": TypeDoc,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -142,13 +151,13 @@ type Operator struct {
 var (
 	msgTopicFile = []Type{TypeMessage, TypeTopic, TypeFile}
 	presence     = []Type{TypeRobot, TypeUser, TypeBox}
-	dated        = []Type{TypeMessage, TypeTopic, TypeFile, TypeEvent}
+	dated        = []Type{TypeMessage, TypeTopic, TypeFile, TypeEvent, TypeDoc}
 )
 
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
@@ -162,11 +171,11 @@ var Operators = []Operator{
 		"file": {TypeMessage}, "attachment": {TypeMessage}, "code": {TypeMessage},
 	}, Applies: []Type{TypeMessage}, Example: "has:file", Doc: "messages with attachments or a fenced code block"},
 	{Name: OpTopic, Values: "uuid", Applies: msgTopicFile, Example: "topic:<task_id>", Doc: "one topic (task id)"},
-	{Name: OpBefore, Values: "date", Applies: dated, Example: "before:2026-09-01", Doc: "received before a UTC day, or before an age (24h, 7d, 2w)"},
-	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
-	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received on a UTC day"},
-	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic}, Example: "title:migration", Doc: "topic title words"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title), never its content"},
+	{Name: OpBefore, Values: "date", Applies: dated, Example: "before:2026-09-01", Doc: "received (a doc section: last edited) before a UTC day, or before an age (24h, 7d, 2w)"},
+	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received (a doc section: last edited) on or after a UTC day, or within an age"},
+	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received (a doc section: last edited) on a UTC day"},
+	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic, TypeDoc}, Example: "title:migration", Doc: "topic title words; a doc section's heading (the document's title for its top)"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title, a document's title), never its content"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},

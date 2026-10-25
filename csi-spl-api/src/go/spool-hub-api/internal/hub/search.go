@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -283,6 +284,8 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 	case search.TypeFile:
 		sq.Relevance = false
 		return fileSection(ctx, se, t.ID, q, sq, c, limit)
+	case search.TypeDoc:
+		return s.docSection(ctx, t.ID, q, sq, c, limit)
 	}
 	out := section{Results: []any{}}
 	rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
@@ -370,6 +373,41 @@ func fileSection(ctx context.Context, se store.Searcher, tenant string, q *searc
 			"name":   hl{f.Name, q.HighlightSubstrings(f.Name)},
 			"msg_id": f.Msg.MsgID, "task_id": f.Msg.TaskID, "channel": strPtr(f.Msg.Channel),
 			"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "to_box": f.Msg.ToBox, "received_at": rfc(f.Msg.ReceivedAt)})
+	}
+	return out, nil
+}
+
+// docSection is the workspace's Qto document sections (spec 100 section 14,
+// SPL-3337), last edited first, paged by the last row's (updated_at, item
+// id). A hit is only for a reader who may open it: a signed-in member whose
+// role grants docs.read, the doctree routes' own rule (docTreeWho). No
+// reader (the door off) or no grant: the section is empty, never the
+// tenant's documents. The row links to the document and its section.
+func (s *Server) docSection(ctx context.Context, tenant string, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	ds, ok := s.o.Store.(store.DocSearcher)
+	if !ok || sq.Viewer == "" || !s.allowed(ctx, sq.Viewer, tenant, rbac.DocsRead) {
+		return out, nil
+	}
+	rows, err := ds.SearchDocs(ctx, tenant, sq)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		out.Next = searchCursor{T: c.T, H: c.H, At: rows[limit-1].UpdatedAt, ID: rows[limit-1].ItemID}.enc()
+	}
+	for _, d := range rows {
+		title := d.Title
+		if d.Top {
+			title = d.DocTitle
+		}
+		text, hs := q.Snippet(d.Body)
+		out.Results = append(out.Results, map[string]any{
+			"doc_id": d.DocID, "item_id": d.ItemID, "top": d.Top,
+			"doc_title": hl{d.DocTitle, q.HighlightWords(d.DocTitle)},
+			"title":     hl{title, q.HighlightWords(title)},
+			"snippet":   hl{text, hs}, "updated_at": rfc(d.UpdatedAt)})
 	}
 	return out, nil
 }

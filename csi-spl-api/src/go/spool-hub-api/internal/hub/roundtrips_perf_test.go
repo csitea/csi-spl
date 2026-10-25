@@ -120,7 +120,10 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// before its statement (spec 5.1, "the probe costs one extra round
 		// trip"); SPOOL_HUB_SEARCH_INDEX=off is 6 again (it was 6, measured 7/16).
 		// T007: the topic section probes too (measured 8/17, n=5).
-		{"GET /v1/view/search?q=seed", 8, get("/v1/view/search?q=seed")},
+		// SPL-3337 (spec 100 section 14): the doc section is a default
+		// section of its own, one batch, the owner's ask that search include
+		// the Qto documents (measured 9/21, n=5).
+		{"GET /v1/view/search?q=seed", 9, get("/v1/view/search?q=seed")},
 		// SPL-1206: the grammar is built once (sync.Once), so operators is only
 		// the view door's one membership read — it must never grow a read of its
 		// own (measured 1/1 against Postgres).

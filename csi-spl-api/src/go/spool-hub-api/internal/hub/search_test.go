@@ -89,7 +89,7 @@ func TestSearchAPI(t *testing.T) {
 
 	// grouped: every type the query applies to, fixed order, plural keys
 	code, _, r, raw := searchGet(t, e, ta, "deploy", "")
-	if code != http.StatusOK || strings.Join(r.Types, ",") != "message,topic,file,robot,user,channel,box" {
+	if code != http.StatusOK || strings.Join(r.Types, ",") != "message,topic,file,robot,user,channel,box,doc" {
 		t.Fatalf("grouped: %d %+v", code, r)
 	}
 	if n := len(r.Groups["messages"].Results); n != 4 {
@@ -202,7 +202,7 @@ func TestSearchAPI(t *testing.T) {
 			Applies []string `json:"applies_to"`
 		} `json:"operators"`
 	}
-	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.3" || len(ops.Types) != 10 || len(ops.Operators) < 21 || ops.Types[6].Group != "boxes" || ops.Types[8].Group != "events" || ops.Types[9].Group != "issues" {
+	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.4" || len(ops.Types) != 11 || len(ops.Operators) < 21 || ops.Types[6].Group != "boxes" || ops.Types[8].Group != "events" || ops.Types[9].Group != "issues" || ops.Types[10].Group != "docs" {
 		t.Fatalf("operators: %d %s", code, b)
 	}
 }

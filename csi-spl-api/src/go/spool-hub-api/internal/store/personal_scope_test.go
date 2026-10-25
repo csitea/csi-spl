@@ -31,6 +31,19 @@ var personCallers = map[string]string{
 	"RealmReceipts":       "personal.hours_receipts of the session's own person (118 C5, C6)",
 	"DeleteRealmReceipts": "personal.delete_my_receipts, the person's own erasure (8.3, OQ-4 A)",
 	"appendRealmReceipts": "personal.hours_receipts rev 0 + receipt_due of the leaver, the receipt copy's step 2 (8.1, T004)",
+	// spec 155 B3: the notes store, personal.notes / note_items / note_links
+	// of the session's own person; no notes method opens a tenant scope.
+	"ListNotes":      "personal.notes + counts of note_items, note_links of the session's own person (155 section 5)",
+	"CreateNote":     "personal.notes, note_items, note_links of the session's own person, the 2 000-note cap (155 C8)",
+	"NoteOf":         "personal.notes, note_items, note_links of the session's own person",
+	"PatchNote":      "personal.notes + the D4 label erase in note_links of the session's own person",
+	"DeleteNote":     "personal.notes of the session's own person; items and links cascade",
+	"PutNoteItems":   "personal.note_items (+ D4 in note_links) of the session's own person",
+	"AddNoteLink":    "personal.note_links of the session's own person, the 100-link cap",
+	"PatchNoteLink":  "personal.note_links of the session's own person",
+	"DeleteNoteLink": "personal.note_links of the session's own person",
+	"ExportNotes":    "personal.notes, note_items, note_links of the session's own person (155 2.8 export)",
+	"EraseNotes":     "personal.notes of the session's own person (155 2.8 erase)",
 }
 
 // realmTenantCallers is the realm code allowed to ALSO run a tenant scope,

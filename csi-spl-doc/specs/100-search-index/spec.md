@@ -1,5 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
+Version v1.1 (2026-10-25): section 14 adds the Qto documents (SPL-3337).
 Version v1.0 (2026-10-06). **Panel consensus recorded** (section 12). Doc only;
 the build starts on consensus (owner rule 2026-10-05). Each rdb file still
 needs the owner's go before it is applied.
@@ -470,6 +471,9 @@ before P1 is applied.
 
 ## 13. Changes
 
+- v1.1 (2026-10-25, c-884, SPL-3337): section 14, the Qto documents: their
+  index entries (rdb 0226), who may see a hit, `type:doc` (grammar 1.4) and
+  the WUI row.
 - v1.0 (2026-10-06): consensus recorded (section 12); r1's clause in
   section 7.
 - v0.8 (2026-10-06): r1's objections on the cap switch.
@@ -522,3 +526,125 @@ before P1 is applied.
 - v0.1 (2026-10-06): first draft. Takes in r1 (10x-A / 10x-B, cold as buffers,
   U1..U10, the benchmark's prefix and from: queries). Corrects S1 to S1r from
   the scratch probe.
+
+## 14. Qto documents (v1.1, SPL-3337)
+
+Owner HUM-10, t1 4e06a219 (msg 0be4d1cb): "If the search does not include the
+QTO documents, it must start including them as well. Create all of the search
+index and whatever entries support the search." Sections 1-13 cover messages
+only; this section adds the documents of spec 113 / 120 (`workspace_doc`,
+`workspace_doc_item`, rdb 0157; their tree, `workspace_doc_node`, rdb 0165).
+
+### 14.1 The red
+
+`cd csi-spl-orc && ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_search_doc_probe`
+makes one throwaway document of fresh random words as the m3 e2e member,
+searches it and deletes it. Dev, hub `8db6820a`, 2026-10-25T12:06Z, n=1:
+
+| search | answer |
+|---|---|
+| its word, plain | 200, 0 hits in every group |
+| `type:doc` + its word | 400 `bad_query` (no such type) |
+| its section's new word after an edit | 200, 0 hits |
+
+The only document search was the doctree route's own
+(`GET /v1/workspace/doctree/search`), which `GET /v1/view/search` never
+called, and it computed `to_tsvector` over every body on every query.
+
+Sizes, read-only (`do_spl_db_query`, 2026-10-25, n=1): prd 3 444 sections
+(t1 325, the system tenant's repository docs 3 022), `workspace_doc_item` 4 216
+kB in all, the longest body 20 626 characters; dev 0.
+
+### 14.2 The index entries (rdb 0226)
+
+| entry | what it holds |
+|---|---|
+| `workspace_doc_item.search_tsv` | one per section: its heading and body |
+| `workspace_doc.search_tsv` | one per document: its title |
+
+Both are STORED generated columns in `spool_search` (rdb 0048), the shape of
+`messages.search_tsv`, so a word, a phrase, a prefix, accents and case match a
+document exactly as they match a message.
+
+- **Backfill**: the migration itself. `ADD COLUMN .. STORED` rewrites each
+  table and computes the entry of every existing row, under an ACCESS
+  EXCLUSIVE lock held for the rewrite of 4 MB (`lock_timeout` 5 s, so a busy
+  table fails the file fast instead of queueing writes).
+- **Kept current**: by Postgres, in the statement of every write. Add, text
+  edit, move, delete, rename and the repository import all write the row, so
+  the lag is 0, as section 3.4 has it for messages, and there is no trigger
+  or write path to forget.
+- `TestDocSearchIndexBackfill` drops the columns in a rolled-back
+  transaction, writes a document, runs the file again and finds the entries.
+
+### 14.3 Why no GIN, and when one is worth it
+
+Both tables are FORCE RLS (rdb 0157) and `ts_match_vq` is not LEAKPROOF, so
+a GIN on `search_tsv` would never be used under the tenant policy (sections
+2.1, 2.2; rdb 0122 dropped the messages GIN for that). The one way past that
+is a second S1r door (section 5.1): a definer function, a `USING (true)`
+policy and the T1-T5 tests for it, which T5 counts as a second lift path.
+
+At 4 MB that buys nothing: the doc section reads the entries of ONE tenant
+through the tenant-leading keys (`workspace_doc_item_tenant_doc_id`,
+`workspace_doc_tenant_id`) and never calls `to_tsvector` on a body. Revisit
+when one workspace holds more than 20 000 sections (t1's messages were 19k
+when sections 1-13 became necessary), with the S1r pattern and its tests.
+
+### 14.4 Who may see a hit
+
+The open rule, nothing wider: **no hit a member could not open**.
+
+1. **The reader may read documents.** A signed-in member whose role grants
+   `docs.read` (spec 025 Layer 1), the check every doctree read route makes
+   (`docTreeWho`). No reader (the view door off) or no grant: the section is
+   `[]`. `hub/search.go` `docSection`.
+2. **The workspace's own documents only** (spec 114: private by default, not
+   intermixed). The statement pins `i.tenant_id = $1 AND d.tenant_id = $1`
+   under FORCE RLS. RLS alone is NOT enough here: rdb 0191 lets every scope
+   SELECT the system tenant's repository docs, so the pin is what keeps them
+   out (`TestSearchDocsTenantPin`, whose control removes it and sees the
+   system doc come back).
+3. **Not yet, and why.** The repository docs (the system tenant) are left
+   out: the WUI opens them by path from the docs bucket, so a hit on a
+   system Qto node would have no address. Spec 114's shared-in documents do
+   not exist yet (its grant is unbuilt); when they do, they come in as their
+   own labelled rows, never mixed into the workspace's. The node ACL (rdb
+   0192, spec 137 Layer 2) is read by no open route yet; when the open routes
+   apply it, `docSection` applies the same effect, so the rule stays the open
+   rule.
+
+### 14.5 `type:doc` (grammar 1.4)
+
+`type:doc` [`docs`, `document`, `documents`, `qto`], group `docs`. It is a
+default type, so a plain search includes the documents (the owner's ask);
+that costs one round trip (`TestRoundTripsPerRequest`: search 8 -> 9,
+measured 9/21, n=5). Free text matches a section's heading and body, and the
+root section's also the document's title; `title:` the heading (the title for
+the root); `name:` the document's title, on its root only; `before:` /
+`after:` / `on:` the section's last edit. Every other operator narrows the
+types away from `doc` (`from:x word` searches messages, topics and files).
+Answer row: search-v1 section 4.10.
+
+### 14.6 The WUI row
+
+The group "Documents" (`search.group.docs`, each locale's existing
+`ws_doctree.title` word), after Messages. A section shows its snippet when the
+words matched there, else its heading; a document's root shows its title. The
+row's place is the document's title, its time the last edit, and it opens
+`/workspace/docs?doc=<doc_id>&view=doc#ws-doc-<item_id>` (the root: no
+section anchor), the address the document page already scrolls to.
+
+### 14.7 Tests
+
+| test | holds |
+|---|---|
+| `store/search_docs_test.go` `TestSearchDocs` (Postgres) | the words of a section; the title finds the root; folded, prefix, phrase, NOT, dates; an edited section by its new words and not its old ones; a deleted document gone; B's and the system's documents never |
+| `TestSearchDocsPaging` | the keyset walks every row once |
+| `TestSearchDocsWithoutStoredEntries` | the answer before rdb 0226 reaches a database is the same (the probe computes the entries) |
+| `TestSearchDocsTenantPin` | CONTROL: without the tenant pin the system doc leaks through RLS |
+| `TestDocSearchIndexBackfill` | the migration fills existing rows, and runs twice |
+| `hub/search_docs_test.go` `TestSearchDocs` (Postgres) | the plain search, `type:doc`, the snippet, the root, an edit through the doctree route; CONTROLS: a member without `docs.read`, no reader, another workspace: no hit. Red control: dropping the `docs.read` check in `docSection` fails it (commit body) |
+| `search/doc_test.go` `TestDocGrammar` | the spellings, the default, which operators keep or drop `doc` |
+| `csi-spl-wui/tests/unit/search.test.mjs` "doc hits" | the group, the row text, the link, junk ids build no link |
+| `do_spl_search_doc_probe` (`csi-spl-orc`, test `spl-search-doc-probe.tst.sh`) | the live red and green on dev and prd |

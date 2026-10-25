@@ -135,7 +135,8 @@ attachment without `bytes`, or a directory) matches neither.
 `message` [`msg`, `messages`], `thread` [`threads`], `file` [`attachment`,
 `files`], `robot` [`agent`, `bot`, `robots`], `user` [`human`, `users`],
 `channel` [`channels`], `box` [`boxes`], `tenant` [`tenants`, `workspace`,
-`workspaces`], `event` [`events`, `log`, `error`, `errors`]. `thread`
+`workspaces`], `event` [`events`, `log`, `error`, `errors`], `doc` [`docs`,
+`document`, `documents`, `qto`] (grammar 1.4, SPL-3337). `thread`
 [`threads`] is accepted as the pre-rename spelling of `topic`.
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
@@ -145,6 +146,9 @@ attachment without `bytes`, or a directory) matches neither.
   only `type:tenant` / `type:event` searches them, so a plain search keeps the
   spec 027 round-trip budget (owner 2026-09-26: "the normal search should be by
   content, but there should be a syntax to search by specific names").
+  Since grammar 1.4 `doc` is a content type too: a plain search includes the
+  workspace's Qto documents (§4.10; owner HUM-10, t1 4e06a219), one more
+  round trip (spec 100 section 14).
 - **Applicability**: a section is searched only when **every** operator in
   the query applies to its type (§3.2). `from:CLE-07 report` searches
   messages, threads and files; `filename:plan` searches files only;
@@ -322,6 +326,20 @@ newest first, at most the newest 500 scanned: `{ "event_id", "error_id",
 "name": {text, highlights}, "code", "message", "status", "method", "path",
 "source", "received_at" }`. Free text matches error id, code, message, path,
 source and route.
+
+### 4.10 `doc`
+
+The workspace's own Qto documents (spec 100 section 14), one row per
+section, last edited first: `{ "doc_id", "item_id", "top", "doc_title":
+{text, highlights}, "title": {text, highlights}, "snippet": {text,
+highlights}, "updated_at" }`. `top` marks the document's root section, which
+stands for the document: its `title` is the document's title. Free text
+matches a section's heading and body (the root's also the document's title),
+in the message configuration (§2.2); `title:` the heading; `name:` the
+document's title (its root only); `before:` / `after:` / `on:` the section's
+last edit. Only for a signed-in member whose role grants `docs.read` (the
+rule that opens the document); anyone else gets `[]`. Never another
+workspace's documents, never the repository docs (the system tenant).
 
 ## 5. Errors and warnings
 

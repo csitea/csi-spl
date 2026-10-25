@@ -38,8 +38,9 @@ func eval(q *Query) want {
 // TestOperators is the table-driven suite of search-v1 §3.2: one row (at
 // least) per operator, with the sections it selects and what it matches.
 func TestOperators(t *testing.T) {
-	all := []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
+	all := []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}
 	mtf := []Type{TypeMessage, TypeTopic, TypeFile}
+	dated := []Type{TypeMessage, TypeTopic, TypeFile, TypeDoc} // before: / after: / on: (a doc section: last edited)
 	cases := []struct {
 		q     string
 		types []Type
@@ -87,20 +88,20 @@ func TestOperators(t *testing.T) {
 		{"topic:" + task1, mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
 		{"topic:" + strings.ToUpper(task1), mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
 		// dates
-		{"after:7d", mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
-		{"before:7d", mtf, want{dm: true, thrCh: true}},
-		{"after:2026-09-19", mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
-		{"before:2026-09-19", mtf, want{dm: true, thrCh: true}},
-		{"on:2026-09-09", mtf, want{dm: true}},
-		{"after:3h", mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
-		{"after:1h", mtf, want{thr: true}},
-		{"after:2w", mtf, want{tMsg: true, dm: true, pdf: true, dir: true, thr: true}},
+		{"after:7d", dated, want{tMsg: true, pdf: true, dir: true, thr: true}},
+		{"before:7d", dated, want{dm: true, thrCh: true}},
+		{"after:2026-09-19", dated, want{tMsg: true, pdf: true, dir: true, thr: true}},
+		{"before:2026-09-19", dated, want{dm: true, thrCh: true}},
+		{"on:2026-09-09", dated, want{dm: true}},
+		{"after:3h", dated, want{tMsg: true, pdf: true, dir: true, thr: true}},
+		{"after:1h", dated, want{thr: true}},
+		{"after:2w", dated, want{tMsg: true, dm: true, pdf: true, dir: true, thr: true}},
 		// title: / subject:
-		{"title:migrate", []Type{TypeTopic}, want{thr: true}},
-		{`subject:"disk full"`, []Type{TypeTopic}, want{thrCh: true}},
+		{"title:migrate", []Type{TypeTopic, TypeDoc}, want{thr: true}},
+		{`subject:"disk full"`, []Type{TypeTopic, TypeDoc}, want{thrCh: true}},
 		// name: / filename: / ext: / larger: / smaller:
-		{"name:box", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{robot: true, boxE: true}},
-		{"name:hum-3", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{user: true}},
+		{"name:box", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}, want{robot: true, boxE: true}},
+		{"name:hum-3", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}, want{user: true}},
 		{`filename:"q3 report"`, []Type{TypeFile}, want{pdf: true}},
 		{"ext:PDF", []Type{TypeFile}, want{pdf: true}},
 		{"ext:.pdf", []Type{TypeFile}, want{pdf: true}},

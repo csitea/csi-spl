@@ -95,7 +95,7 @@ func typeValue(term *Term, lv string, neg bool) string {
 	for _, part := range strings.Split(lv, ",") {
 		ty, ok := typeAliases[strings.TrimSpace(part)]
 		if !ok {
-			return "type: must be message, topic, file, robot, user, channel, box, tenant, event or issue"
+			return "type: must be message, topic, file, robot, user, channel, box, tenant, event, issue or doc"
 		}
 		if !seen[ty] {
 			seen[ty] = true

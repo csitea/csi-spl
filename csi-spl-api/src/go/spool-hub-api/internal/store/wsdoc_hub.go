@@ -88,8 +88,8 @@ func (s *Postgres) DocHeadOf(ctx context.Context, tenant, doc string) (DocHead, 
 // DocSearch matches q against the title and body of the items of doc ("" =
 // every document of the tenant), best first, at most limit. It uses spec
 // 100's spool_search configuration, so a word matches here as it does in a
-// message search, and runs under FORCE RLS: another tenant's items never
-// match.
+// message search, reads the items' index entries (rdb 0226, search_tsv), and
+// runs under FORCE RLS: another tenant's items never match.
 func (s *Postgres) DocSearch(ctx context.Context, tenant, doc, q string, limit int) ([]DocHit, error) {
 	var d any
 	if doc != "" {
@@ -99,11 +99,12 @@ func (s *Postgres) DocSearch(ctx context.Context, tenant, doc, q string, limit i
 		d = doc
 	}
 	var out []DocHit
+	tsv := docItemTSV(s.hasDocSearchTSV(ctx)) // the index entry of rdb 0226, computed before it
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: `WITH q AS (SELECT plainto_tsquery('spool_search', $2) AS q)
-		SELECT i.doc_id::text, i.id::text, i.title, ts_rank(to_tsvector('spool_search', i.title || ' ' || i.body), q.q)
+		SELECT i.doc_id::text, i.id::text, i.title, ts_rank(` + tsv + `, q.q)
 		FROM workspace_doc_item i, q
 		WHERE i.tenant_id = $4 AND ($1::uuid IS NULL OR i.doc_id = $1) AND i.parent_id IS NOT NULL
-			AND to_tsvector('spool_search', i.title || ' ' || i.body) @@ q.q
+			AND ` + tsv + ` @@ q.q
 		ORDER BY 4 DESC, 1, 2 LIMIT $3`, args: []any{d, q, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHit

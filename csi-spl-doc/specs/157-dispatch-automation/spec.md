@@ -1,7 +1,7 @@
 # Spec 157: Dispatch Automation — Deterministic Execution of Mechanical Dispatch Procedures
 
-**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.5 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
-**Created**: 2026-10-25 · **Updated**: 2026-10-25 (incorporating cross-vendor review feedback from `c-220@sat` resolving Y1–Y5) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
+**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.6 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
+**Created**: 2026-10-25 · **Updated**: 2026-10-25 (incorporating cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
 **Related Specs & Docs**:  
 - [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) (Fleet roles, 3-minute SLA, routing rules, lease failover, owner go gates, and asks ledger)  
 - [spec 060 Role Rotation](../060-role-rotation/spec.md) (Hourly rotation, standby states, handoff files)  
@@ -133,7 +133,7 @@ sequenceDiagram
             alt Unplaced reviewer or author not in brief table
                 W->>D: REFUSE: Reviewer unplaced or author not assigned in brief
             else Reviewer Validated
-                W->>W: Scan author brief for Owner-Go keywords (terraform apply, DRY_RUN=0, ENV=prd ./run, IAM, billing, service account key, /etc/)
+                W->>W: Scan author brief for Owner-Go keywords (apply, do-provision, do-tf-apply, PROBE_PRD_GO, DRY_RUN=0, ENV=prd, IAM, billing, service account key, /etc/)
                 alt Protected keyword found without verified Owner-go token
                     W->>D: REFUSE: Requires Owner Go per SPEC-spool-fleet-roles § 1.2
                 else Safe Task Scope
@@ -170,18 +170,37 @@ sequenceDiagram
    - Author briefs do not name a specific reviewer ID (they specify only requirements such as "a claude seat reviews it").
    - To strictly verify that the reviewer was legitimately placed for this specific review duty, Rule 1 reads the placed reviewer's brief directly from disk:  
      `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md`.
-   - **Provenance & File Mode**: This brief copy is written by `spawn_record_brief` in `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:398-404` (invoked during `_spawn_brief_step` in `spawn-window.sh`) with permissions mode `0664` (owned by the repo OS user, group `spool-agents`).
+   - **Provenance & File Mode**: This brief copy is written by `spawn_record_brief` in `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:398-404` (invoked during `_spawn_brief_step` in `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:423`) with permissions mode `0664` (owned by the repo OS user, group `spool-agents`).
    - **Threat Model**: Because the brief file is mode `0664` and writable by group `spool-agents`, it provides reliable seat evidence against misconfigurations, stale sessions, and unassigned reviews, rather than cryptographic immunity against same-UID tampering. (The hub queue DB record `placed: <ID>@<box>` provides the secondary canonical placement record).
    - Rule 1 verifies that `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md` exists, is non-empty, and contains the author `<author-id>` in its target review table row (`| author | branch | sha | task |`).
    - If the file is missing or the author is not listed, REFUSE: `REFUSED: unplaced reviewer or author not assigned in reviewer brief` and escalate.
-4. **Owner-Go Keyword Scan & Verification (Resolves N5, X1)**:
+4. **Owner-Go Keyword Scan & Verification (Resolves N5, X1, Y5, Z2)**:
    - In the fleet, `spl-spawn-enqueue.func.sh:60` strictly restricts classes to `^(ci|refactor|bug|feature)$`. Real tasks that touch infrastructure, apply Terraform steps, or mutate production are classified under `bug`, `feature`, or `refactor` (measured on sat: 129 briefs mentioning `terraform apply` or `ENV=prd` belong to classes `bug`, `feature`, or `refactor`).
-   - Therefore, to deterministically detect protected operations without human judgment, Rule 1 scans the author brief for a fixed list of protected operational keywords:  
-     `terraform apply`, `DRY_RUN=0`, `ENV=prd`, `prd`, `IAM`, `billing`, `key`, `/etc/`.
+   - **Empirical Measurement & False Positive / False Negative Elimination (Y5, Z2)**:
+     - Broad unanchored tokens like bare `prd` (matching 1,082 briefs due to "deployed dev AND prd") or bare `key` (matching 869 briefs due to "issue key") cause an unacceptable 77% false positive lockdown (1,447 of 1,888 briefs).
+     - Conversely, overly narrow tokens (such as lowercase `terraform apply` alone or restricted `ENV=prd ./run`) fail open on genuine infrastructure runs—such as `c001-tf-030-gcal-env-apply.md` ("terraform step 030-cloud-run-hub APPLY, dev then prd ... OWNER GO in hand", executed via `make do-provision`), causing 6 of 32 `do-provision` briefs and 57 of 149 `ENV=prd` briefs to be missed without triggering an owner-go check.
+     - Rule 1 applies a comprehensive operational filter matching both canonical provisioning commands and production environment flags:
+       `(?i:apply)`, `do-provision`, `do-tf-apply`, `PROBE_PRD_GO`, `DRY_RUN=0`, `ENV=prd`, `IAM`, `billing`, `service account key`, `/etc/`.
+     - **Empirical Measurements Over 1,888 Fleet Author Briefs**:
+       - `case-insensitive apply`: 213 briefs
+       - `do-provision`: 32 briefs
+       - `do-tf-apply`: 0 briefs
+       - `PROBE_PRD_GO`: 1 brief
+       - `DRY_RUN=0`: 163 briefs
+       - `ENV=prd`: 149 briefs
+       - `IAM`: 46 briefs
+       - `billing`: 17 briefs
+       - `service account key`: 10 briefs
+       - `/etc/`: 21 briefs
+       - **Total unique matched briefs**: 463 out of 1,888 (24.5%).
+       - **Miss rate on `do-provision` briefs**: 0 out of 32 (0.0% miss rate; 100% captured).
+       - **Miss rate on `ENV=prd` briefs**: 0 out of 149 (0.0% miss rate; 100% captured).
+     - This fails closed with 0% miss rate on all real infrastructure provisioning, apply operations, production runs, IAM/billing changes, SA key minting, and root filesystem edits, while leaving 75.5% (1,425 of 1,888 briefs) of routine bug, feature, and refactor tasks eligible for automated GO.
    - If ANY of these keywords match in the author brief:
      - The task is classified as requiring owner-go authorization.
      - Rule 1 checks if an explicit `Owner-go: <msg-id>` line exists in the author brief, and verifies that `<msg-id>` represents an authentic authorization message from human owner `HUM-<n>`.
      - **Default Refusal Invariant**: If protected keywords match and no verified `Owner-go:` line is present, Rule 1 strictly REFUSES: `REFUSED: task contains owner-go keywords without verified Owner-go token` and hands off to the dispatcher.
+
 5. **Review Line & Journal Execution Check (Resolves Minor item)**:
    - For `PASS` lines, execute `do_spl_review_line_check REVIEW_LINE="<line>"`.
    - **Remote Log Handling**: If the reviewer's log is on another box (e.g. `<box-remote>` while check runs on `sat`), `do_spl_review_line_check` returns exit code 2 (`REFUSED the log is on box...`). Remote logs are never fetched locally. The check must either be dispatched to run on the reviewer's box or refused and escalated to the dispatcher. It must never attempt to read remote paths locally.
@@ -218,7 +237,7 @@ sequenceDiagram
   1. *FAIL verdict*: Feed review message with `FAIL` -> script exits 1, asserts no `GO` emitted, asserts no `REJECT` emitted, asserts escalation logged.
   2. *Same vendor*: Feed review line where author and reviewer are both `claude` -> script exits 2, asserts no `GO` emitted, logs `REFUSED: same vendor`.
   3. *Unassigned reviewer (X5)*: Feed review line where author is not listed in reviewer brief table -> script exits 3, asserts no `GO` emitted, logs `REFUSED: unassigned reviewer`.
-  4. *Owner-go keyword without token (X1)*: Feed review for `Class: bug` brief containing `"terraform apply"` lacking `Owner-go:` line -> script exits 4, asserts no `GO` emitted, logs `REFUSED: task touches owner-go scope`.
+  4. *Owner-go keyword without token (Resolves X1, Y5, Z2)*: Feed review for brief matching `c001-tf-030-gcal-env-apply.md` (`APPLY`, `do-provision`, `ENV=prd`) lacking `Owner-go:` line -> script exits 4, asserts no `GO` emitted, logs `REFUSED: task touches owner-go scope`.
   5. *Branch head moved*: Branch ref points to commit different from `<sha>` -> script exits 5, asserts no `GO` emitted, logs `REFUSED: branch moved`.
   6. *Remote box log*: Reviewer log path on remote box -> script exits 6, asserts no local file read attempted, logs remote execution requirement.
 - **Green Pass**: Valid cross-vendor `PASS` from assigned reviewer on immutable branch with verified journal and no unapproved owner-go keywords -> script exits 0, writes `PASS ... <sha>` to `automation.log`, and executes `spool-send.sh --kind task --body "GO <sha>"`.
@@ -265,33 +284,39 @@ flowchart TD
    - Do NOT attempt to read reviewed SHAs from the author lane's brief (author briefs name only `review/<slug>` branches, not 40-hex SHAs, and branch tips can move after review; briefs may also cite other lanes' foreign branches).
    - Rule 2 reads the verified entry from `$SPOOL_ROOT/dispatch/automation.log` for that `<task_id>` / `<author_id>` to extract `<msg_id>` and `<sha>`.
    - **Invariable Refusal**: If no `PASS` entry exists in `automation.log` for that task/author, automated acceptance is strictly REFUSED: `REFUSED: no verified PASS record in automation.log`. Judgment remains with the dispatcher.
-2. **Journal Re-Verification & Threat Model (Resolves X2, Y2)**:
+2. **Journal Re-Verification & Threat Model (Resolves X2, Y2, Minor)**:
    - Because `automation.log` is located in `$SPOOL_ROOT/dispatch/` (group-writable by `spool-agents`), Rule 2 treats `automation.log` as a pointer rather than an unverified truth source.
    - Rule 2 locates the original review message `<msg_id>` in `$SPOOL_ROOT/<dispatch-holder>/archive/` (or inbox).
    - **Strict Field Equality (Y2)**: Rule 2 strictly verifies that every field in `automation.log` (`task_id`, `author_id`, `reviewer_id`, and `sha`) exactly matches the corresponding field in the archived review message. If any field mismatches, execution immediately halts with `REFUSED: journal transcript re-verification failed`.
    - Rule 2 re-executes `do_spl_review_line_check` against that review message, verifying the reviewer's private session transcript.
-   - **Honest Threat Model & Residual Risk (Y2)**:
-     - On the local box, all agent processes (across both Claude and Agy seats) execute under the single shared OS user configured by `env.box.box_agent_user`. The mode-700 transcript directories are owned by that shared agent user, and `$SPOOL_ROOT` is mode 2770 in group `spool-agents` (unsigned and group-writable).
+   - **Honest Threat Model & Residual Risk (Y2, Minor)**:
+     - On the local box, all agent processes (across both Claude and Agy seats) execute under the single shared OS user configured by `env.box.box_agent_user`. The mode-700 transcript directories are owned by that shared agent user, and `$SPOOL_ROOT` is mode 2770 in group `spool-agents` (unsigned and group-writable). Similarly, push status and `pushes.log` are writable by group `spool-agents`.
      - Therefore, this re-verification mechanism does NOT claim tamper-proof security against an active adversarial same-UID agent that deliberately crafts both a forged spool message and a forged journal transcript (the `m-857` class of agent failure).
      - Instead, re-verification provides robust deterministic protection against:
-       (a) accidental file corruption, truncation, or write collisions in `automation.log`;
+       (a) accidental file corruption, truncation, or write collisions in `automation.log` and push records;
        (b) stale or orphaned log entries left over from prior sessions;
        (c) bogus log injections where no reviewer session or journal ever existed.
      - **Residual Risk Retention**: To guard against same-UID forgery, residual risk remains explicitly with the human dispatcher: every automated `ACCEPTED` emits an audit notification note to the dispatch holder containing `<msg_id>`, `<task_id>`, `<author_id>`, `<reviewer_id>`, and `<sha>` for dispatcher oversight.
      - Note: Whether the central spool hub server enforces an authenticated sender identity for cross-box relayed review messages is **not checked** by this spec.
-3. **Anti-Extra Guard Across Pushed Commit Range (Resolves N2, X3, Y1)**:
+3. **Anti-Extra Guard Across All Pushed Commit Ranges (Resolves N2, X3, Y1, Z1, Z3)**:
    - **The Post-Land Invalidation Problem (Y1)**: Evaluating `git rev-list $(git merge-base origin/master <branch>)..<branch>` after landing is vacuous: once the lane has landed and pushed, `<branch>` HEAD is on `origin/master`, so the merge-base is HEAD itself and the commit list evaluates to empty (0 commits), allowing unreviewed extra commits pushed on top of trunk to slip past unnoticed.
-   - **Push-Time Range Capture (Y1)**: The commit range must originate at push time. Specifically, `do_spl_push_master` (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`, line 313) captures the pre-push remote trunk tip:
-     `pushed_base="$(git rev-parse "$remote/$branch")"`
-     Upon successful push of `<landed-sha>`, `_spl_push_master_end` records the pushed range in the lane's push status:
-     `range=$pushed_base..$sha`
-     persisted at `$SPOOL_ROOT/<author-id>/lifetime/push-master/status` (or `$(git rev-parse --absolute-git-dir)/spl-push-master/status`).
+   - **The Single-Status Overwrite Vulnerability (Z1)**: Lane seeds instruct agents to push continuously ("every commit at once, never more than ONE unpushed"). Because `_spl_push_master_end` overwrites `$PUSH_STATE/status` with `mv -f` on each push, relying on a single status file captures only the final push. If an unreviewed commit was pushed in push 1 and the reviewed commit in push 2, checking only the final push status completely misses the unreviewed commit in push 1, erroneously sending `ACCEPTED`.
+   - **Push-Time Append-Only Range Logging (Z1, Z3)**:
+     - To capture all pushes, Build Row B5 will enhance `do_spl_push_master` (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`):
+       - Before the push attempt at line 313, it captures the pre-push remote trunk tip:  
+         `pushed_base="$(git rev-parse "$remote/$branch")"`
+       - Upon successful push verification, `_spl_push_master_end` (lines 180–188) appends an entry to an append-only log file:  
+         `$PUSH_STATE/pushes.log` (and `$SPOOL_ROOT/<author-id>/lifetime/push-master/pushes.log`):  
+         `<iso-timestamp> <pushed_base>..<landed-sha>`
    - In addition, to locate the lane worktree, Rule 2 queries `$SPOOL_ROOT/registry.tsv` (column 4: worktree path; note that column 3 is the tmux pane, and there is no dedicated branch column). The active branch is read via `git -C <col 4> rev-parse --abbrev-ref HEAD`.
-   - **Range Enumeration & Patch-ID Guard**: Rule 2 reads the pushed range `$pushed_base..$landed-sha`. It enumerates every commit in that range:
-     `git rev-list "$pushed_base..$landed-sha"`
-     Every single commit in this sequence MUST have its patch-id match a commit in the verified reviewed set resolved from `automation.log`. If any unreviewed commit exists within the pushed range (such as an unreviewed fixup commit placed before or after the reviewed commit, even if it lacks an issue key), Rule 2 strictly REFUSES:
-     `REFUSED: unreviewed extra commit landed on master (<extra-sha>)`
-     and escalates to the dispatcher.
+   - **Cumulative Range Enumeration & Patch-ID Guard (Z1)**:
+     - Rule 2 reads all pushed ranges recorded in `pushes.log` for the lane's active task lifetime.
+     - For each recorded range `$pushed_base..$landed-sha`, Rule 2 enumerates every pushed commit:  
+       `git rev-list "$pushed_base..$landed-sha"`
+     - Rule 2 aggregates the full set of commits landed across all pushes by the lane.
+     - Every single commit in this aggregated sequence MUST have its patch-id match a commit in the verified reviewed set resolved from `automation.log`. If any unreviewed commit exists across any of the lane's pushes (e.g. an unreviewed fixup in push 1 or push 2, even if it lacks an issue key), Rule 2 strictly REFUSES:  
+       `REFUSED: unreviewed extra commit landed on master (<extra-sha>)`  
+       and escalates to the dispatcher.
    - **Cherry Patch-ID Verification (`do_spl_done_claim_check`)**:
      - Run `git cherry origin/master <review-sha>`: must return `-` for every reviewed commit (proving that the exact patch-id is on trunk).
      - **Multi-Commit Coverage**: For multi-commit branches, every individual reviewed commit patch must be present on master. A partial landing (e.g. landing 1 of 3 commits) is REFUSED.
@@ -345,7 +370,7 @@ flowchart TD
 - **Red Controls**:
   1. *Empty commit*: Fabricate landed commit with no file changes -> script exits 1, asserts no `ACCEPTED` emitted, logs refusal.
   2. *Partial landing*: 2-commit review branch where only 1 commit landed -> script exits 2, asserts no `ACCEPTED` emitted, logs missing patch.
-  3. *Unreviewed extra commit in pushed range (Resolves N2, X3, Y1)*: In a test fixture with a bare origin and clone, lane creates commit A ("reviewed PASS commit"), then creates commit B ("unreviewed fixup"), and executes `do_spl_push_master` pushing `origin/master^..HEAD` to trunk (recording the 2-commit range in push status). Rule 2 runs after the real push in its fixture, inspects the recorded pushed range, detects commit B lacking review verification in `automation.log`, exits 3, asserts no `ACCEPTED` emitted, and logs `REFUSED: unreviewed extra commit landed on master`.
+  3. *Unreviewed extra commit across multiple pushes (Resolves N2, X3, Y1, Z1)*: In a test fixture with a bare origin and clone, lane executes `do_spl_push_master` twice: push 1 pushes commit A ("unreviewed fixup"), push 2 pushes commit B ("reviewed PASS commit"), appending both ranges to `pushes.log`. Rule 2 runs after the second real push, evaluates all ranges in `pushes.log`, detects commit A lacking review verification in `automation.log`, exits 3, asserts no `ACCEPTED` emitted, and logs `REFUSED: unreviewed extra commit landed on master`.
   4. *Forged log entry (Resolves X2)*: Append fake PASS line to `automation.log` without valid reviewer journal transcript -> script exits 4, asserts no `ACCEPTED` emitted, logs journal failure.
   5. *Rebase logic change*: Range-diff detects altered code hunk -> script exits 5, asserts no `ACCEPTED` emitted, logs hunk mismatch.
   6. *Unreviewed row (Resolves N1)*: No `PASS` entry in `automation.log` -> script exits 6, asserts no `ACCEPTED` emitted, logs unreviewed row.
@@ -616,7 +641,7 @@ flowchart LR
 | **B2** | **Rule 4** | `csi-spl-orc/src/bash/run/spl-desk-live-proof-render.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-desk-live-proof-render.tst.sh` | Standalone named action `do_spl_desk_live_proof_render` (composes `_spl_served_env` and `do_check_deploy_lag`) | Synthesizes verified Markdown `**Live**` table. Requires mandatory `LIVE_CHECKED` and `LIVE_NOT_CHECKED`. Uses `merge-base --is-ancestor` for served check. | Control: omitted `LIVE_CHECKED` or `LIVE_NOT_CHECKED` refused; unlanded SHA refused; deployed commit outputs verified table. | Small | 2 |
 | **B3** | **Rule 5** | `csi-spl-orc/src/bash/run/spl-desk-poll-ack.func.sh`<br>`csi-spl-orc/src/bash/run/spl-desk-poll-ack-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-desk-poll-ack.tst.sh` | Standalone named action `do_spl_desk_poll_ack` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Does NOT touch `spl-dispatch-lease*`. | Evaluates incoming `HUM-<n>` poll votes matching `^Poll: <msg-id>`. Emits immediate `**In progress**: noted.` post via `do_spl_desk_reply` and wakes topic owner. | Control: non-owner vote ignored; duplicate vote ignored; owner vote immediately replied. | Medium | 3 |
 | **B4** | **Rule 1** | `csi-spl-orc/src/bash/run/spl-review-go.func.sh`<br>`csi-spl-orc/src/bash/run/spl-review-go-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-review-go.tst.sh` | Standalone named action `do_spl_review_go` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Does NOT touch `spl-dispatch-lease*`. | Evaluates cross-vendor `PASS` review lines, verifies reviewer via `$SPOOL_ROOT/<id>/lifetime/brief.md`, scans for protected owner-go keywords, branch immutability, and local module tests in `ran:`. Records verified `PASS <ts> <msg_id> ... <sha>` in `automation.log` and emits `GO <sha>`. | Controls: `FAIL` escalates without GO/REJECT; same vendor refused; unassigned reviewer refused; owner-go keyword refused; remote log refused. Valid `PASS` emits `GO`. | Medium | 4 |
-| **B5** | **Rule 2** | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`<br>`csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`<br>`csi-spl-orc/src/bash/run/spl-accepted-close-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh` | Standalone named action `do_spl_accepted_close` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Enhances `do_spl_push_master` to record pushed range upon success. Does NOT touch `kill-your-self-report.sh` or `spl-dispatch-lease*`. | Enhances `do_spl_push_master` to record `range=$pushed_base..$sha` upon push success. Composes `do_check_lane_served` and `do_spl_done_claim_check`. Reads `<msg_id>` from `automation.log` and re-verifies reviewer journal transcript; enforces anti-extra unreviewed commit guard across the recorded pushed range from `spl-push-master` status; verifies cherry patch-id presence, range-diff hunk parity, CI green/skipped, issue key, and served build. Emits `ACCEPTED (auto...)`. | Controls: empty commit refused; partial landing refused; unreviewed extra commit in pushed range refused (tested after real push); journal transcript failure refused; rebase logic change refused; unreviewed row refused. Valid landing emits `ACCEPTED (auto...)`. | Medium | 5 |
+| **B5** | **Rule 2** | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`<br>`csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`<br>`csi-spl-orc/src/bash/run/spl-accepted-close-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh` | Standalone named action `do_spl_accepted_close` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Enhances `do_spl_push_master` to append pushed range to `pushes.log`. Does NOT touch `kill-your-self-report.sh` or `spl-dispatch-lease*`. | Enhances `do_spl_push_master` to append `<iso-timestamp> <pushed_base>..<landed-sha>` to `pushes.log` upon push success. Composes `do_check_lane_served` and `do_spl_done_claim_check`. Reads `<msg_id>` from `automation.log` and re-verifies reviewer journal transcript; enforces cumulative anti-extra unreviewed commit guard across all recorded pushed ranges in `pushes.log`; verifies cherry patch-id presence, range-diff hunk parity, CI green/skipped, issue key, and served build. Emits `ACCEPTED (auto...)`. | Controls: empty commit refused; partial landing refused; unreviewed extra commit in multi-push sequence refused (tested after real 2-push sequence); journal transcript failure refused; rebase logic change refused; unreviewed row refused. Valid landing emits `ACCEPTED (auto...)`. | Medium | 5 |
 | **B6** | **Rule 3** | `csi-spl-orc/src/bash/run/spl-spawn-review-notify.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-spawn-review-notify.tst.sh` | Post-spawn hook in `spl-spawn-place.func.sh:584` (`spl_spawn_place_launch`). Ordered AFTER `c002-bug-placer-brief-other-box`. | Parses reviewer brief with decorated cells (`\| a-213@sat (agy) \|`) and notifies authors across boxes using registry. | Control: decorated cell matches; malformed brief logs warning; valid brief notifies authors. | Medium | 6 |
 
 ### 6.2 Secondary Extension Rows (Post-Rules 1–6)
@@ -631,7 +656,7 @@ flowchart LR
 
 ### 7.1 System Invariants
 1. **Safety First**: No automated script may execute an action if any prerequisite check yields ambiguous or non-zero return codes.
-2. **Dispatcher Judgment Preserved**: Any review `FAIL` verdict, rebase conflict with modified diff hunks, unreviewed row, unreviewed extra commit in pushed range, task touching protected owner-go keywords (`terraform apply`, `DRY_RUN=0`, `ENV=prd ./run`, `\bIAM\b`, `\bbilling\b`, `service account key`, `/etc/`), or docs-only review lacking test executions MUST be escalated to the dispatcher. Automation never rejects or authorizes these cases.
+2. **Dispatcher Judgment Preserved**: Any review `FAIL` verdict, rebase conflict with modified diff hunks, unreviewed row, unreviewed extra commit in any pushed range, task touching protected owner-go keywords (`(?i:\bapply\b)`, `do-provision`, `do-tf-apply`, `PROBE_PRD_GO`, `DRY_RUN=0`, `ENV=prd`, `\bIAM\b`, `\bbilling\b`, `service account key`, `/etc/`), or docs-only review lacking test executions MUST be escalated to the dispatcher. Automation never rejects or authorizes these cases.
 3. **Immutable History**: Automated `ACCEPTED` decisions must record the exact reviewed SHA, landed SHA, original review message ID, and verification receipts in `$SPOOL_ROOT/dispatch/automation.log`.
 4. **No Phantom Closes**: A lane must never be issued `ACCEPTED` unless all reviewed commits from its verified `PASS` record in `automation.log` are proven present on `origin/master` (via cherry patch-id equivalence), zero unreviewed extra commits are present on the lane branch, the original review message is re-verified against the reviewer's private transcript, verified by CI (success or skipped), and actively served on dev/prd.
 

@@ -270,31 +270,14 @@ _chs_read_lines() {
   done <<< "$tab"
 }
 
-do_cron_heartbeat_snitch() {
-  local t0="${EPOCHREALTIME/[.,]/}"
-  local dry="${DRY_RUN:-1}"
-  local state_dir="${CRON_HB_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
-  local hb_dir
-  hb_dir="$(_chs_hb_dir)"
-  local stamp_file="${CRON_HB_STAMP_FILE:-$state_dir/cron-heartbeat-snitch.stamp}"
-  local grace_min="${CRON_HB_GRACE_MIN_S:-300}" grace_pct="${CRON_HB_GRACE_PCT:-25}"
-  local now="${CRON_HB_NOW:-${EPOCHSECONDS:-$(date +%s)}}"
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
-  local to="${CRON_HB_ALERT_TO:-orchestrator}"
-  local from="${CRON_HB_ALERT_FROM:-${SPOOL_AGENT_ID:-cron-heartbeat-snitch@$box_name}}"
-  local task="${CRON_HB_ALERT_TASK:-cron-heartbeat-snitch}"
+# The four steps of do_cron_heartbeat_snitch below share its state by bash's
+# dynamic scope: the action declares the `local`s (hb_dir, now, mtime,
+# daemon, count, silent, ...) and calls each helper plainly, never inside
+# $(...), so the helper reads and fills the caller's variables.
 
-  # 1. The crontab, read once, and its tagged active lines.
-  local tab
-  if [[ -n "${CRON_HB_CRONTAB_FILE:-}" ]]; then
-    tab="$(< "$CRON_HB_CRONTAB_FILE")" || { do_log "WARN cannot read $CRON_HB_CRONTAB_FILE"; return 2; }
-  else
-    tab="$(crontab -l 2>/dev/null)" || { do_log "WARN no crontab for ${USER:-this user}"; return 2; }
-  fi
-  _chs_read_lines "$tab"
-
-  # 2. Every beat and log mtime in one stat call.
-  local -A mtime=()
+# _chs_mtimes: fill the caller's `mtime` map with every beat and log mtime
+# of the _CHS_* lines, in one stat call.
+_chs_mtimes() {
   local paths=() i p mt
   for i in "${!_CHS_TAGS[@]}"; do
     p="$hb_dir/${_CHS_TAGS[$i]//\//_}"
@@ -304,26 +287,32 @@ do_cron_heartbeat_snitch() {
   if (( ${#paths[@]} )); then
     while read -r mt p; do mtime[$p]=$mt; done < <(stat -c '%Y %n' -- "${paths[@]}" 2>/dev/null)
   fi
+  return 0
+}
 
-  # 3. The cron daemon: its pidfile and /proc, no process scan (pgrep reads
-  # every /proc entry, ~80 ms on a busy box); pgrep only without a pidfile.
-  local daemon=unchecked
-  if [[ "${CRON_HB_DAEMON_CHECK:-1}" == "1" ]]; then
-    local pidfile="${CRON_HB_PIDFILE:-/run/crond.pid}" proc="${CRON_HB_PROC_DIR:-/proc}" pid="" comm=""
-    daemon=down
-    if [[ -r "$pidfile" ]]; then
-      read -r pid < "$pidfile"
-      [[ "$pid" =~ ^[0-9]+$ && -r "$proc/$pid/comm" ]] && read -r comm < "$proc/$pid/comm"
-      [[ "$comm" == cron || "$comm" == crond ]] && daemon=up
-    else
-      local pg="${CRON_HB_PGREP_BIN:-pgrep}"
-      { "$pg" -x cron || "$pg" -x crond; } >/dev/null 2>&1 && daemon=up
-    fi
+# _chs_daemon: set the caller's `daemon` to up, down or unchecked. The
+# pidfile and /proc, no process scan (pgrep reads every /proc entry, ~80 ms
+# on a busy box); pgrep only without a pidfile.
+_chs_daemon() {
+  daemon=unchecked
+  [[ "${CRON_HB_DAEMON_CHECK:-1}" == "1" ]] || return 0
+  local pidfile="${CRON_HB_PIDFILE:-/run/crond.pid}" proc="${CRON_HB_PROC_DIR:-/proc}" pid="" comm=""
+  daemon=down
+  if [[ -r "$pidfile" ]]; then
+    read -r pid < "$pidfile"
+    [[ "$pid" =~ ^[0-9]+$ && -r "$proc/$pid/comm" ]] && read -r comm < "$proc/$pid/comm"
+    [[ "$comm" == cron || "$comm" == crond ]] && daemon=up
+  else
+    local pg="${CRON_HB_PGREP_BIN:-pgrep}"
+    { "$pg" -x cron || "$pg" -x crond; } >/dev/null 2>&1 && daemon=up
   fi
+  return 0
+}
 
-  # 4. One verdict per line.
-  local -A count=()
-  local silent=() silent_lines=() st tag period age grace src last rc hbf hbline limit log
+# _chs_verdicts: print one verdict line per tagged line and fill the
+# caller's `count` map and its `silent` / `silent_lines` arrays.
+_chs_verdicts() {
+  local i st tag period age grace src last rc hbf hbline limit log
   for i in "${!_CHS_TAGS[@]}"; do
     tag="${_CHS_TAGS[$i]}" period="${_CHS_PERIODS[$i]}" log="${_CHS_LOGS[$i]}"
     hbf="$hb_dir/${tag//\//_}"
@@ -362,10 +351,12 @@ do_cron_heartbeat_snitch() {
       silent_lines+=("  - $tag: schedule \"${_CHS_SCHEDS[$i]}\", last beat $last, limit $period + $grace")
     fi
   done
+  return 0
+}
 
-  local ms=$(( (${EPOCHREALTIME/[.,]/} - t0) / 1000 ))
-  do_log "INFO cron-heartbeat-snitch: lines=${#_CHS_TAGS[@]} ok=${count[OK]:-0} silent=${count[SILENT]:-0} log_ok=${count[LOG-OK]:-0} log_stale=${count[LOG-STALE]:-0} no_data=${count[NO-DATA]:-0} boot=${count[BOOT]:-0} unsched=${count[UNSCHED]:-0} daemon=$daemon hb_dir=$hb_dir elapsed_ms=$ms"
-
+# _chs_alert: clear the stamp on a clean run (return 0), else print the CRON
+# SILENT body and send it once per new set (DRY_RUN=0); return 1.
+_chs_alert() {
   if [[ "$daemon" != "down" && ${#silent[@]} -eq 0 ]]; then
     [[ "$dry" == "0" && -f "$stamp_file" ]] && rm -f "$stamp_file"
     return 0
@@ -395,6 +386,42 @@ do_cron_heartbeat_snitch() {
     do_log "INFO alert sent to $to"
   fi
   return 1
+}
+
+do_cron_heartbeat_snitch() {
+  local t0="${EPOCHREALTIME/[.,]/}"
+  local dry="${DRY_RUN:-1}"
+  local state_dir="${CRON_HB_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
+  local hb_dir
+  hb_dir="$(_chs_hb_dir)"
+  local stamp_file="${CRON_HB_STAMP_FILE:-$state_dir/cron-heartbeat-snitch.stamp}"
+  local grace_min="${CRON_HB_GRACE_MIN_S:-300}" grace_pct="${CRON_HB_GRACE_PCT:-25}"
+  local now="${CRON_HB_NOW:-${EPOCHSECONDS:-$(date +%s)}}"
+  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local to="${CRON_HB_ALERT_TO:-orchestrator}"
+  local from="${CRON_HB_ALERT_FROM:-${SPOOL_AGENT_ID:-cron-heartbeat-snitch@$box_name}}"
+  local task="${CRON_HB_ALERT_TASK:-cron-heartbeat-snitch}"
+
+  # 1. The crontab, read once, and its tagged active lines.
+  local tab
+  if [[ -n "${CRON_HB_CRONTAB_FILE:-}" ]]; then
+    tab="$(< "$CRON_HB_CRONTAB_FILE")" || { do_log "WARN cannot read $CRON_HB_CRONTAB_FILE"; return 2; }
+  else
+    tab="$(crontab -l 2>/dev/null)" || { do_log "WARN no crontab for ${USER:-this user}"; return 2; }
+  fi
+  _chs_read_lines "$tab"
+
+  # 2. Every beat and log mtime in one stat call. 3. The cron daemon.
+  local -A mtime=() count=()
+  local daemon silent=() silent_lines=()
+  _chs_mtimes
+  _chs_daemon
+
+  # 4. One verdict per line, the summary, then the alert and its stamp.
+  _chs_verdicts
+  local ms=$(( (${EPOCHREALTIME/[.,]/} - t0) / 1000 ))
+  do_log "INFO cron-heartbeat-snitch: lines=${#_CHS_TAGS[@]} ok=${count[OK]:-0} silent=${count[SILENT]:-0} log_ok=${count[LOG-OK]:-0} log_stale=${count[LOG-STALE]:-0} no_data=${count[NO-DATA]:-0} boot=${count[BOOT]:-0} unsched=${count[UNSCHED]:-0} daemon=$daemon hb_dir=$hb_dir elapsed_ms=$ms"
+  _chs_alert
 }
 
 # Run directly: the beat wrapper.

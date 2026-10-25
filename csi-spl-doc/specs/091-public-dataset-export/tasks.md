@@ -99,7 +99,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
 
 ### Phase 2: the export, the gate and storage
 
-- [ ] T005 **the gate and the names step** (§5.5, §5.6).
+- [x] T005 **the gate and the names step** (§5.5, §5.6). Done by c-206 (SPL-3386): the core is `orc/src/bash/scripts/public-dataset-gate.py` (no database, no network), the action reads the live catalog from `pg_attribute` (the export login cannot see withheld columns in `information_schema.columns`) and re-reads every key on a second connection as `spool_public_export` (refused for any other login, superusers included). A COPY may carry `tenant_id` and the allow-list `constants` columns besides the public ones; each constant must hold its fixed value, `msg` the v:1 object of its own row. A hit in `msg` counts as a body hit. MEMBER class: `HUM-n` ids only, no e-mail, every `HUM-n` in `from_id`/`to_id` exported (Q1b). For T006 and the allow-list owner: on the migrations at build time (head `0225`) allow-list v1 leaves 32 live columns of `tenants`, `channels`, `messages` and `humans` unclassified, so C3 fails the real schema until a v2 list classifies them (§4.5); the migration-seeded workspace `system` (0191) is on the names list, so the word `system` in a body drops that message.
   - **Build**:
     - `do_spl_public_dataset_gate` (`spl-public-dataset-gate.func.sh`), run by T006 on the candidate before staging. Classes:
       - **C3 shape**: every table and column in the file is a `public` column of the allow-list; **every live column of a listed table** (read from `information_schema.columns`, not a grep) is `public` or `withheld`; else FATAL.

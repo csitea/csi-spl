@@ -1,0 +1,6 @@
+Lay-What: the channel settings window's add-or-remove-a-person code now sits in its own small file; the window looks and works the same.
+Lay-How: the same code was moved word for word into a helper the window calls, like the twin helper that already picks agents.
+Lay-Why: the window's script was long; smaller parts are easier to read, test and change safely.
+Tech-What: refactor of csi-spl-wui ChannelPropertiesDialog.vue: the people pick moves to src/composables/useChannelPersonPick.ts.
+Tech-How: personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson and private pick moved verbatim; one options object like useChannelAgentPick; refs stay in the SFC.
+Tech-Why: SFC script was 290 lines (round 20 row 02 of spec 011); now 241, no template, store or behaviour change.

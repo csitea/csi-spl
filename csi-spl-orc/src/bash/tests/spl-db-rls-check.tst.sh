@@ -24,6 +24,10 @@
 #      personal.delete_my_receipts are allow-listed by exact name (exit 0).
 #      CONTROL: a third definer in personal, and a due_receipts in another
 #      schema, are each exit 5 and named.
+#   9. (spec 154 C1d, rdb 0226) the contacts purge door
+#      personal.purge_deleted_contacts, owned by NOLOGIN
+#      spool_realm_contacts_purger, is allow-listed too (exit 0). CONTROL:
+#      an unlisted definer of that role is still exit 5 and named.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -74,7 +78,7 @@ o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":
 [[ "$o" == "rc=4 FAIL"* ]] && pass "8. personal tables alone do not stand in for the tenant tables (exit 4)" || fail "8. no tenant tables: $o"
 sql8=$(SNIPPET=spl_db_rls_sql in_orc 2>&1)
 grep -q "'personal_tables'" <<<"$sql8" && grep -q "owner of personal." <<<"$sql8" && pass "8. SQL reads the personal tables and their owners" || fail "8. SQL lacks personal"
-grep -q "p.proname IN ('due_receipts', 'delete_my_receipts')" <<<"$sql8" && pass "8. SQL allow-lists the two realm definers by exact name" || fail "8. SQL lacks the realm allow-list"
+grep -q "p.proname IN ('due_receipts', 'delete_my_receipts', 'purge_deleted_contacts')" <<<"$sql8" && pass "8. SQL allow-lists the three realm definers by exact name" || fail "8. SQL lacks the realm allow-list"
 
 # --- 4. SQL -------------------------------------------------------------------------
 sql=$(SNIPPET=spl_db_rls_sql in_orc 2>&1)
@@ -174,6 +178,26 @@ EOF
   su_sql <<<"DROP FUNCTION other.due_receipts(); ALTER TABLE personal.receipt_due OWNER TO rt;"
   o=$(live)
   [[ "$o" == "rc=5 "*"owner of personal.receipt_due"* ]] && pass "8. owning a personal table is a lift path, exit 5, named" || fail "8. personal owner: $o"
+  # 9. spec 154 (rdb 0226): the contacts purge door, owned by a third NOLOGIN realm role
+  su_sql <<'EOF'
+ALTER TABLE personal.receipt_due OWNER TO own;
+CREATE ROLE spool_realm_contacts_purger NOLOGIN NOBYPASSRLS;
+GRANT USAGE, CREATE ON SCHEMA personal TO spool_realm_contacts_purger;
+SET ROLE own;
+CREATE TABLE personal.contacts (person_id text NOT NULL, deleted_at timestamptz);
+ALTER TABLE personal.contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personal.contacts FORCE ROW LEVEL SECURITY;
+SET ROLE spool_realm_contacts_purger;
+CREATE FUNCTION personal.purge_deleted_contacts(before timestamptz) RETURNS TABLE (person_id text, pending_google boolean)
+  LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 'SELECT NULL::text, NULL::boolean WHERE false';
+REVOKE ALL ON FUNCTION personal.purge_deleted_contacts(timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION personal.purge_deleted_contacts(timestamptz) TO rt;
+EOF
+  o=$(live)
+  [[ "$o" == "rc=0 "*'"personal.contacts" : [true, true]'*"liftable=0"* ]] && pass "9. the contacts purge door is allow-listed and personal.contacts counts as forced: exit 0" || fail "9. contacts purge allow-list: $o"
+  su_sql <<<"SET ROLE spool_realm_contacts_purger; CREATE FUNCTION personal.purge_all_contacts() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 0';"
+  o=$(live)
+  [[ "$o" == "rc=5 "*"FAIL"*"SECURITY DEFINER personal.purge_all_contacts (runs as spool_realm_contacts_purger)"* ]] && pass "9. CONTROL: an unlisted definer of the purger is liftable, exit 5, named" || fail "9. unlisted purger definer: $o"
 else
   echo "SKIP: 7. no cached $IMG image or no psql: real-Postgres leg not run"
 fi

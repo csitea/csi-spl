@@ -51,6 +51,12 @@ REVOKE DELETE, TRUNCATE, REFERENCES, TRIGGER ON personal.receipt_due FROM :"runt
 GRANT EXECUTE ON FUNCTION personal.delete_my_receipts(text), personal.due_receipts(timestamptz) TO :"runtime_role";
 -- spec 155 4 (rdb 0225): the Notes tables, a person's own to change and delete.
 GRANT SELECT, INSERT, UPDATE, DELETE ON personal.notes, personal.note_items, personal.note_links TO :"runtime_role";
+-- spec 154 (rdb 0226): the person's contacts, read and written in the
+-- person's own scope; the 30-day purge of soft-deleted rows runs through
+-- personal.purge_deleted_contacts, owned by NOLOGIN
+-- spool_realm_contacts_purger, of which the runtime login is no member.
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal.contacts TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION personal.purge_deleted_contacts(timestamptz) TO :"runtime_role";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";

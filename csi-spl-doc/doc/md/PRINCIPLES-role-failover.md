@@ -173,6 +173,22 @@ It cannot see a poke that never arrived.
 **Phase.** 2: first pokes by pane (the stopped c-040's branch), so the ping
 lands where the agent is; then the rule (the stopped c-039's branch).
 
+**Box health and a hub stall (SPL-3196).** The bench alert and
+NO-LOCAL-AGENT judge each box by its beats on the hub
+(`spl-box-health.func.sh`). One hub stall stops every box's beats at once:
+every box goes recovering, no healthy box is left to post, and each bench
+comes back as "the benched alert could not be delivered"
+(`alerts-fix-round-plan.md` 2.4). The common-mode gate,
+`spl_fleet_stall_view` in `spl-dispatch-lease.func.sh`, makes that one
+`fleet.hub-stall` episode: the watchdog's `wd/held` marker, a failed
+`spl_wd_hub_reachable` probe, or every judged box (2 or more) degraded or
+recovering with last beat gaps that start within `max_gap_s` and overlap. A
+box the stall explains is held while it is silent and counts as healthy
+once it beats again, so no bench, back or NO-LOCAL line comes from it. The
+stall posts one line, `Hub stall <start>..<end>: box alerts held`; the GCP
+policies already paged it. One box degraded on its own is benched as
+before. Test: `fleet-lease.tst.sh` sections 26 and 33.
+
 <a id="ws-doc-e7f0db4f-ef32-4a6b-a69d-aea120dd06e2"></a>
 ### 4.4 Shared edit log (Quorum Journal Manager)
 

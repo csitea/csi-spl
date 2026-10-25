@@ -1,7 +1,7 @@
 # Spec 157: Dispatch Automation — Deterministic Execution of Mechanical Dispatch Procedures
 
-**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.3 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
-**Created**: 2026-10-25 · **Updated**: 2026-10-25 (incorporating second-round cross-vendor review feedback from `c-220@sat` resolving N1–N11) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
+**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.4 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
+**Created**: 2026-10-25 · **Updated**: 2026-10-25 (incorporating cross-vendor review feedback from `c-220@sat` resolving X1–X6) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
 **Related Specs & Docs**:  
 - [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) (Fleet roles, 3-minute SLA, routing rules, lease failover, owner go gates, and asks ledger)  
 - [spec 060 Role Rotation](../060-role-rotation/spec.md) (Hourly rotation, standby states, handoff files)  
@@ -58,23 +58,24 @@ When dispatchers are forced to spend context tokens, prompt turns, and execution
 flowchart TD
     subgraph ReviewAndLanding["1. Review & Landing Flow"]
         Rev[Reviewer Lane] -->|review line| R1[Rule 1: Review Watcher]
-        R1 -->|Checks: cross-vendor, PASS rx, assigned brief row, owner-go marker, branch tip| R1Check{All Predicates Pass?}
-        R1Check -->|Yes: PASS & Valid| GoMsg[Send GO to Author & Record in automation.log]
+        R1 -->|Checks: cross-vendor, PASS rx, reviewer lifetime brief, owner-go keyword scan, branch tip| R1Check{All Predicates Pass?}
+        R1Check -->|Yes: PASS & Valid| GoMsg[Send GO to Author & Append to automation.log]
         R1Check -->|FAIL verdict / Moved branch / Owner-go needed / remote log / docs no-test| Esc1[Hold: Escalate to Dispatcher]
         
         Author[Author Lane] -->|Pushes to master| R2[Rule 2: Accepted Closer]
-        R2 -->|Reads reviewed SHA from automation.log| R2CheckSet{Reviewed PASS in automation.log?}
-        R2CheckSet -->|No| Esc2[Hold: Escalate to Dispatcher]
-        R2CheckSet -->|Yes| R2Check[Verify all landed patches in reviewed set, no extras, CI green, served]
-        R2Check -->|Yes: Full Parity & No Extras| AccMsg[Send ACCEPTED auto... from Dispatch Holder]
-        R2Check -->|Extra unreviewed commit / modified hunk / CI red| Esc3[Hold: Escalate to Dispatcher]
+        R2 -->|Reads msg_id & sha from automation.log| R2CheckLog{Review entry found?}
+        R2CheckLog -->|No| Esc2[Hold: Escalate to Dispatcher]
+        R2CheckLog -->|Yes| R2Recheck[Re-verify original review msg & journal transcript]
+        R2Recheck --> R2CheckBranch[Verify all commits on lane worktree branch match reviewed patch-id set]
+        R2CheckBranch -->|Extra unreviewed commit landed| Esc3[Hold: Escalate to Dispatcher]
+        R2CheckBranch -->|All patches match, no extras, CI green, served| AccMsg[Send ACCEPTED auto... from Dispatch Holder]
     end
 
     subgraph QueueAndProof["2. Queue & Owner Interaction Flow"]
         QP[Seat Placer spl-spawn-place.func.sh:584] -->|Places reviewer seat| R3[Rule 3: Review Notifier]
         R3 -->|Parses brief: decorated cells & registry| AuthNotif[Notify Authors across boxes]
         
-        OwnerPoll[Owner votes on Poll] -->|Desk spool delivery| R5[Rule 5: Poll Ack Daemon]
+        OwnerPoll[Owner votes on Poll] -->|Spool delivery to dispatcher| R5[Rule 5: Poll Ack Daemon]
         R5 -->|Matches ^Poll: msg-id| AckPost[Post '**In progress**: noted.' & wake topic owner]
         
         DeployVerif[Landed Change + LIVE_CHECKED + LIVE_NOT_CHECKED] -->|Empirical record| R4[Rule 4: Live Proof Builder]
@@ -91,15 +92,15 @@ The codebase already contains substantial verification primitives that Rules 1�
 
 | Component | Path on origin/master | Existing Capabilities | Missing Automation Gap |
 |---|---|---|---|
-| **R7 Review Line Check** | `csi-spl-orc/src/bash/run/spl-review-line-check.func.sh` | Strictly validates format of `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... \| read: ... \| log: <id>@<box>:<path>`. Requires test names in `ran:` (`_spl_review_line_names`). Reads reviewer session transcript and proves each test named in `ran:` was executed. Returns exit 2 if log is on a remote box (never fetched locally). Exits non-zero (exit 1 syntax fail / exit 3 missing) for docs-only reviews naming no module tests. | Invoked manually by dispatcher and called by `spl-done-claim-check.func.sh`. (Pre-push and push-master run `_spl_push_master_review_why`, which checks format, 40-hex sha, and log tag, not journal commands). Does not automatically trigger on inbound review messages, nor does it check branch head immutability, assigned reviewer brief rows, or cross-vendor rules. |
+| **R7 Review Line Check** | `csi-spl-orc/src/bash/run/spl-review-line-check.func.sh` | Strictly validates format of `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... \| read: ... \| log: <id>@<box>:<path>`. Requires test names in `ran:` (`_spl_review_line_names`). Reads reviewer session transcript and proves each test named in `ran:` was executed. Returns exit 2 if log is on a remote box (never fetched locally). Exits non-zero (exit 1 syntax fail / exit 3 missing) for docs-only reviews naming no module tests. | Invoked manually by dispatcher and called by `spl-done-claim-check.func.sh`. (Pre-push and push-master run `_spl_push_master_review_why`, which checks format, 40-hex sha, and log tag, not journal commands). Does not automatically trigger on inbound review messages, nor does it check branch head immutability, reviewer lifetime brief assignments, or cross-vendor rules. |
 | **Lane Served Checker** | `csi-spl-orc/src/bash/run/check-lane-served.func.sh` | Evaluates lane landing and deployment: proves commit is on trunk (`git merge-base --is-ancestor`), author/committer identity (`%ae %ce`), absence of AI trailers (`Co-Authored-By:`, `Claude-Session:`), and served status on dev and prd via `do_check_deploy_lag`. Does NOT check commit subject issue key (`SPL-XXXX`). | Standalone read-only checker. Does not verify review branch patch-id equivalence against original reviewed commits, does not check issue keys, and does not emit `ACCEPTED`. |
 | **Done Claim Checker** | `csi-spl-orc/src/bash/run/spl-done-claim-check.func.sh` | Checks lane done claims against repository trunk; uses `git cherry` patch-id comparison (`git cherry -`) to verify that rebased review-branch SHAs landed on trunk. | Periodic cron audit; does not check for unreviewed extra commits landed alongside reviewed patches, and does not emit `ACCEPTED`. |
 | **Trunk Push Action** | `csi-spl-orc/src/bash/run/spl-push-master.func.sh` | Detached background worker (`do_spl_push_master`). Enforces author identity, verifies R7 review line format on round rows (`_spl_push_master_review_why`), rejects unreviewed commits, handles fetch-and-rebase loops. | Does not verify semantic range-diff parity between reviewed SHA and rebased SHA after rebase conflicts. Does not emit `ACCEPTED`. |
-| **Exit-Clean Gate** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/kill-your-self-report.sh` | The `--gate` flag inspects `$SPOOL_ROOT/<id>/{inbox,archive}`. Passes on `ACCEPTED*` (case-insensitive prefix per line 173) from an authorized sender: a role seat (`c-001..003` / `lease.conf` `LEASE_*`), the lane's spawner/reporter, or `HUM-n`. | The `ACCEPTED` message is manually authored and sent by a human or model dispatcher typing into a terminal. |
+| **Exit-Clean Gate** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/kill-your-self-report.sh` | The `--gate` flag inspects `$SPOOL_ROOT/<id>/{inbox,archive}`. Performs case-sensitive prefix matching `[[ "$body" == ACCEPTED* ]]` (line 173) from an authorized sender: a role seat (`c-001..003` / `lease.conf` `LEASE_*`), the lane's spawner/reporter, or `HUM-n`. | The `ACCEPTED` message is manually authored and sent by a human or model dispatcher typing into a terminal. |
 | **Desk Live Proof Validator** | `csi-spl-orc/src/bash/run/spl-desk-live-proof.func.sh` | Evaluates posts opening with `**Live**`. Enforces commit existence on `origin/master`, checks deployment lag via `_spl_served_env` on `dev` and `prd` (`git merge-base --is-ancestor <sha> <served>` per `how-to-post.md` Rule 14), and verifies presence of `checked:` and `not checked:` clauses per Rule 16. | Purely a validator/linter that rejects invalid posts. Cannot synthesize or format the Live proof markdown table from git, CI, and deployment state. |
 | **Deploy Lag Checker** | `csi-spl-orc/src/bash/run/check-deploy-lag.func.sh` | `do_check_deploy_lag` queries live Cloud Run `/version` and Firebase Hosting `/build.json`. Accurately determines if a commit is served. | Queried manually by dispatchers during shift work. |
 | **Unanswered Post Sweep** | `csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh` | Sweeps active channel topics on an interval, classifying unanswered owner posts and escalating to the dispatch holder. | Standing cron sweep on interval; does not provide immediate sub-minute acknowledgment to poll answers. |
-| **Seat Placer & Launcher** | `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` | `do_spl_spawn_place` reads queue TSV and launches lane containers/tmux panes via `spawn-window.sh` at line 584 (`spl_spawn_place_one`). (`do_spl_spawn_queue` only manages queue list state). | Does not notify target authors when their designated reviewer seat is placed and launched. |
+| **Seat Placer & Launcher** | `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` | `do_spl_spawn_place` reads the queue from the hub DB (`do_spl_spawn_queue`) and launches lane containers/tmux panes via `spawn-window.sh` inside `spl_spawn_place_launch` at line 584. | Does not notify target authors when their designated reviewer seat is placed and launched. |
 
 ---
 
@@ -107,7 +108,7 @@ The codebase already contains substantial verification primitives that Rules 1�
 
 ### Rule 1: Automated GO After Review Approval
 
-> **Objective**: When a designated cross-vendor reviewer approves a lane's work with `PASS`, immediately record the verified 40-hex SHA into `$SPOOL_ROOT/dispatch/automation.log` and emit the authorization token (`GO <sha>`) to the author lane without human or model intervention, provided the code has not changed since the review, the reviewer matches the assigned seat table in the reviewer's brief, and no owner go is required.
+> **Objective**: When a designated cross-vendor reviewer approves a lane's work with `PASS`, immediately append an audit entry (`PASS <ts> <msg_id> <task_id> <author_id> <reviewer_id> <sha>`) into `$SPOOL_ROOT/dispatch/automation.log` and emit the authorization token (`GO <sha>`) to the author lane without human or model intervention, provided the code has not changed since the review, the reviewer is confirmed via `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md`, and the author brief contains no unapproved owner-go keywords.
 
 ```mermaid
 sequenceDiagram
@@ -128,12 +129,12 @@ sequenceDiagram
         alt Same vendor
             W->>D: REFUSE: Reviewer shares vendor with author
         else Cross-vendor OK
-            W->>W: Validate assigned reviewer seat via Reviewer Brief target table
-            alt Not assigned
-                W->>D: REFUSE: Reviewer not assigned in reviewer brief table
-            else Assigned OK
-                W->>W: Check task brief for Owner-Go markers (apply, infra, prd)
-                alt Owner-Go marker present without verified owner token
+            W->>W: Verify reviewer brief at $SPOOL_ROOT/<reviewer-id>/lifetime/brief.md
+            alt Unplaced reviewer or author not in brief table
+                W->>D: REFUSE: Reviewer unplaced or author not assigned in brief
+            else Reviewer Validated
+                W->>W: Scan author brief for Owner-Go keywords (terraform apply, DRY_RUN=0, ENV=prd, IAM, billing, key, /etc)
+                alt Protected keyword found without verified Owner-go token
                     W->>D: REFUSE: Requires Owner Go per SPEC-spool-fleet-roles § 1.2
                 else Safe Task Scope
                     W->>W: Run do_spl_review_line_check
@@ -144,7 +145,7 @@ sequenceDiagram
                         alt Branch HEAD != <sha> (Author pushed changes)
                             W->>D: REFUSE: Branch moved past reviewed commit
                         else Branch HEAD == <sha>
-                            W->>L: Record: PASS <ts> <task_id> <author_id> <reviewer_id> <sha>
+                            W->>L: Append: PASS <ts> <msg_id> <task_id> <author_id> <reviewer_id> <sha>
                             W->>A: spool-send --kind task --body "GO <sha>"
                             W->>D: Audit log: Automated GO sent to author
                         end
@@ -165,17 +166,20 @@ sequenceDiagram
    - **Critical**: `_spl_review_line_syntax` strictly requires `PASS`. Any line with `FAIL` fails syntax validation (`SYNTAX FAIL`). If the verdict is `FAIL` (or anything other than `PASS`), the script MUST NOT execute `do_spl_review_line_check`, and MUST NOT emit a `GO` or send an automated `REJECT`/send-back. It immediately logs the failure and escalates directly to the dispatcher (judgment preserved).
 2. **Cross-Vendor Verification**:
    - The reviewer's vendor (derived from reviewer ID prefix or registry record) must strictly differ from the author's vendor per `rounds-rulebook.md` § 2.7.2 (`same vendor = 0`). If author and reviewer share the same vendor, refuse and escalate to the dispatcher.
-3. **Assigned Seat Verification (Resolves N5)**:
+3. **Placed Reviewer Seat Verification (Resolves N5, X5)**:
    - Author briefs do not name a specific reviewer ID (they specify only requirements such as "a claude seat reviews it").
-   - The **authoritative deterministic data source** is the **placed reviewer seat's own brief** (`/var/spool-hub/dispatch/briefs/<reviewer-slug>.md`).
-   - The reviewer's brief contains an explicit assignment table with row format:  
-     `| author | branch | sha | task |` (or target lanes list, as in `c002-spec-157-claude-review.md`).
-   - Rule 1 reads the reviewer seat's brief file and verifies that the author lane `<author-id>` is listed in that reviewer brief's target table. If not found, REFUSE (`REFUSED: author not assigned in reviewer brief`) and escalate.
-4. **Owner-Go Gate Verification (Resolves N5)**:
-   - To eliminate subjective judgment, Rule 1 checks the target task brief for explicit machine markers:  
-     `Owner-go: <msg-id>` or `Class: apply` or `Class: infra` or `Class: terraform` or `Scope: prd`.
-   - If an infra/apply marker is present: verify whether an explicit `Owner-go: <msg-id>` line is recorded and that `<msg-id>` is a valid message from human owner `HUM-<n>`.
-   - **Default Refusal Rule**: If an owner-go marker is present without a verified owner-go token, or if the script cannot determine with 100% certainty that the task is exempt from owner authorization, it MUST strictly REFUSE (`REFUSED: task touches owner-go scope`) and hand off to the dispatcher (safety first, invariant 545).
+   - To strictly verify that the reviewer was legitimately placed for this specific review duty, Rule 1 reads the placed reviewer's brief directly from disk:  
+     `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md` (the local brief copy provisioned by `spl-spawn-share.func.sh:108` during seat placement).
+   - Rule 1 verifies that `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md` exists, is non-empty, and contains the author `<author-id>` in its target review table row (`| author | branch | sha | task |`).
+   - If the file is missing or the author is not listed, REFUSE: `REFUSED: unplaced reviewer or author not assigned in reviewer brief` and escalate.
+4. **Owner-Go Keyword Scan & Verification (Resolves N5, X1)**:
+   - In the fleet, `spl-spawn-enqueue.func.sh:60` strictly restricts classes to `^(ci|refactor|bug|feature)$`. Real tasks that touch infrastructure, apply Terraform steps, or mutate production are classified under `bug`, `feature`, or `refactor` (measured on sat: 129 briefs mentioning `terraform apply` or `ENV=prd` belong to classes `bug`, `feature`, or `refactor`).
+   - Therefore, to deterministically detect protected operations without human judgment, Rule 1 scans the author brief for a fixed list of protected operational keywords:  
+     `terraform apply`, `DRY_RUN=0`, `ENV=prd`, `prd`, `IAM`, `billing`, `key`, `/etc/`.
+   - If ANY of these keywords match in the author brief:
+     - The task is classified as requiring owner-go authorization.
+     - Rule 1 checks if an explicit `Owner-go: <msg-id>` line exists in the author brief, and verifies that `<msg-id>` represents an authentic authorization message from human owner `HUM-<n>`.
+     - **Default Refusal Invariant**: If protected keywords match and no verified `Owner-go:` line is present, Rule 1 strictly REFUSES: `REFUSED: task contains owner-go keywords without verified Owner-go token` and hands off to the dispatcher.
 5. **Review Line & Journal Execution Check (Resolves Minor item)**:
    - For `PASS` lines, execute `do_spl_review_line_check REVIEW_LINE="<line>"`.
    - **Remote Log Handling**: If the reviewer's log is on another box (e.g. `<box-remote>` while check runs on `sat`), `do_spl_review_line_check` returns exit code 2 (`REFUSED the log is on box...`). Remote logs are never fetched locally. The check must either be dispatched to run on the reviewer's box or refused and escalated to the dispatcher. It must never attempt to read remote paths locally.
@@ -188,131 +192,145 @@ sequenceDiagram
    - The resolved commit SHA must exactly match the 40-hex `<sha>` from the review line.
 7. **Author Liveness Check**:
    - Author lane must exist and be active in `$SPOOL_ROOT/<author-id>` or the fleet registry `$SPOOL_ROOT/registry.tsv`.
-8. **Authoritative Review Record Emission (Resolves N1)**:
+8. **Authoritative Review Record Emission (Resolves N1, X2)**:
    - Upon successful verification of all predicates 1–7, Rule 1 appends an authoritative audit entry to `$SPOOL_ROOT/dispatch/automation.log`:  
-     `PASS <timestamp> <task_id> <author_id> <reviewer_id> <40-hex-sha>`  
-   - This log entry serves as the sole, tamper-proof record of verified reviewed commits consumed by Rule 2.
+     `PASS <timestamp> <msg_id> <task_id> <author_id> <reviewer_id> <40-hex-sha>`  
+   - This log entry records the exact review message ID `<msg_id>` and verified SHA consumed by Rule 2.
 
 #### 3. Refusals & Escalations (Model/Human Judgment Preserved)
 - **Verdict == `FAIL`**: The script logs `REVIEW FAIL for author <id>` and escalates to the dispatcher. It sends NO `GO` and NO automated `REJECT`.
 - **Same-Vendor Review**: Refuses auto-GO (`REFUSED: reviewer shares vendor with author`). Escalates to dispatcher.
-- **Unassigned Reviewer**: Refuses auto-GO (`REFUSED: author not assigned in reviewer brief`). Escalates to dispatcher.
-- **Owner-Go Required**: Refuses auto-GO (`REFUSED: task touches owner-go scope`). Hands off to dispatcher to obtain owner authorization.
+- **Unassigned or Unplaced Reviewer (X5)**: Refuses auto-GO (`REFUSED: unplaced reviewer or author not assigned in brief`). Escalates to dispatcher.
+- **Owner-Go Keyword Match Lacking Token (X1)**: Refuses auto-GO (`REFUSED: task touches protected scope without Owner-go token`). Hands off to dispatcher.
 - **Branch Head Divergence**: If `git rev-parse origin/<branch>` != `<sha>`, author pushed additional commits during/after review. Script logs `REFUSED: branch moved past reviewed sha` and halts. Re-review is mandatory.
-- **Journal Check Failure, Remote Log, or Docs-Only No-Test**: If `do_spl_review_line_check` exits non-zero (syntax error, missing test command in journal, remote box exit 2, or no test names in `ran:`), refuse auto-GO and alert dispatcher.
+- **Journal Check Failure, Remote Log, or Docs-Only No-Test**: If `do_spl_review_line_check` exits non-zero, refuse auto-GO and alert dispatcher.
 
-#### 4. Execution Location (Resolves N10)
-- Named action `do_spl_review_go` in `csi-spl-orc/src/bash/run/spl-review-go.func.sh`, executed on a 60-second cron on the active dispatch box or invoked upon spool inbox review results. Queries `do_spl_dispatch_lease show` (read-only); skips if this box does not hold the dispatch lease. Does NOT modify or touch `spl-dispatch-lease*`.
+#### 4. Execution Location & Cron Installation (Resolves N10, X6)
+- Named action `do_spl_review_go` in `csi-spl-orc/src/bash/run/spl-review-go.func.sh`, executed on a 60-second cron on the active dispatch box or invoked upon spool inbox review results.
+- **Cron Installation**: Installed by `csi-spl-orc/src/bash/run/spl-review-go-install-cron.func.sh` under the OS user configured by `env.box.box_agent_user` in `csi-spl-cnf/csi-spl/all.env.yaml`.
+- The action queries `do_spl_dispatch_lease show` (read-only); if the local machine does not hold the dispatch lease, it exits 0 immediately without mutating state. Does NOT modify or touch `spl-dispatch-lease*`.
 
 #### 5. Test Plan & Red Controls
 - **Test File**: `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`
 - **Red Controls**:
   1. *FAIL verdict*: Feed review message with `FAIL` -> script exits 1, asserts no `GO` emitted, asserts no `REJECT` emitted, asserts escalation logged.
   2. *Same vendor*: Feed review line where author and reviewer are both `claude` -> script exits 2, asserts no `GO` emitted, logs `REFUSED: same vendor`.
-  3. *Unassigned reviewer*: Feed review line where author is not listed in reviewer brief table -> script exits 3, asserts no `GO` emitted, logs `REFUSED: unassigned reviewer`.
-  4. *Owner-go required*: Feed review for task with `Class: apply` lacking owner go token -> script exits 4, asserts no `GO` emitted, logs `REFUSED: task requires owner go`.
+  3. *Unassigned reviewer (X5)*: Feed review line where author is not listed in reviewer brief table -> script exits 3, asserts no `GO` emitted, logs `REFUSED: unassigned reviewer`.
+  4. *Owner-go keyword without token (X1)*: Feed review for `Class: bug` brief containing `"terraform apply"` lacking `Owner-go:` line -> script exits 4, asserts no `GO` emitted, logs `REFUSED: task touches owner-go scope`.
   5. *Branch head moved*: Branch ref points to commit different from `<sha>` -> script exits 5, asserts no `GO` emitted, logs `REFUSED: branch moved`.
   6. *Remote box log*: Reviewer log path on remote box -> script exits 6, asserts no local file read attempted, logs remote execution requirement.
-- **Green Pass**: Valid cross-vendor `PASS` from assigned reviewer on immutable branch with verified journal and no owner-go required -> script exits 0, writes `PASS ... <sha>` to `automation.log`, and executes `spool-send.sh --kind task --body "GO <sha>"`.
+- **Green Pass**: Valid cross-vendor `PASS` from assigned reviewer on immutable branch with verified journal and no unapproved owner-go keywords -> script exits 0, writes `PASS ... <sha>` to `automation.log`, and executes `spool-send.sh --kind task --body "GO <sha>"`.
 
 ---
 
 ## Rule 2: Automated ACCEPTED After Landing Verification
 
-> **Objective**: When an author lane lands changes on `origin/master`, compose `do_check_lane_served` and `do_spl_done_claim_check` to verify that every commit landed by the lane has its patch-id in the reviewed set recorded in `automation.log` by Rule 1, that no extra unreviewed commits were included, that no logic was altered during rebase, that CI is completely green, and that the change is actively served on dev and prd. Upon passing, emit `ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>` from the active dispatch role seat, enabling `/exit-clean`.
+> **Objective**: When an author lane lands changes on `origin/master`, compose `do_check_lane_served` and `do_spl_done_claim_check` to re-verify the original review message from `automation.log`, verify that every commit on the author's worktree branch matches a patch-id in the reviewed set (with zero extra unreviewed commits), verify that no logic was altered during rebase, that CI is completely green, and that the change is actively served on dev and prd. Upon passing, emit `ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>` from the active dispatch role seat, enabling `/exit-clean`.
 
 ```mermaid
 flowchart TD
     Start[Author reports Landing or Lease Tick] --> ReadLog[1. Read automation.log for author & task_id]
     ReadLog --> CheckLog{PASS entry found in automation.log?}
     CheckLog -->|No: Unreviewed row or bypass| RefuseLog[REFUSE: No verified PASS in automation.log - Dispatcher Review]
-    CheckLog -->|Yes: Extract Reviewed SHAs| GetLanded[2. Inspect Lane landed commits BASE..SHA on master]
-    GetLanded --> ExtraCheck{Any landed commit NOT in reviewed set?}
-    ExtraCheck -->|Yes: Extra unreviewed commit landed| RefuseExtra[REFUSE: Unreviewed extra commit landed - Dispatcher Review]
-    ExtraCheck -->|No: All landed commits in reviewed set| DoneClaim[3. Compose do_spl_done_claim_check: git cherry patch-id]
+    CheckLog -->|Yes: Extract msg_id & sha| Reverify[2. Re-verify review msg & reviewer journal transcript]
+    Reverify -->|Journal check fails| RefuseJournal[REFUSE: Journal re-verification failed - Tamper Alert]
+    Reverify -->|Journal PASS| GetBranch[3. Read lane worktree branch from registry.tsv col 4]
+    GetBranch --> CheckExtras{Any commit on lane branch NOT in reviewed patch-id set?}
+    CheckExtras -->|Yes: Extra unreviewed commit landed| RefuseExtra[REFUSE: Unreviewed extra commit landed - Dispatcher Review]
+    CheckExtras -->|No: All branch commits in reviewed set| DoneClaim[4. Compose do_spl_done_claim_check: git cherry patch-id]
     DoneClaim --> PatchMatch{All reviewed patches on origin/master?}
     PatchMatch -->|No: Missing patch or empty commit| RefusePatch[REFUSE: Incomplete landing or empty commit]
-    PatchMatch -->|Yes| RangeDiff[4. Check git range-diff vs reviewed commits]
+    PatchMatch -->|Yes| RangeDiff[5. Check git range-diff vs reviewed commits]
     RangeDiff --> HunkCheck{Any code hunk modified during rebase?}
     HunkCheck -->|Yes: Modified logic| RefuseHunk[REFUSE: Rebase conflict altered logic - Dispatcher Review]
-    HunkCheck -->|No: Clean rebase| LaneServed[5. Compose do_check_lane_served]
+    HunkCheck -->|No: Clean rebase| LaneServed[6. Compose do_check_lane_served]
     LaneServed --> ServedCheck{Landed, Identity %ae %ce, No AI Trailers, Served dev+prd?}
     ServedCheck -->|Lagging| DeferDeploy[DEFER: Wait next tick for deploy propagation]
     ServedCheck -->|Failed| RefuseServed[REFUSE: Identity / Trailer / Trunk failure]
-    ServedCheck -->|PASS| KeyCheck[6. Check SPL-XXXX key in commit subject or Closes trailer]
+    ServedCheck -->|PASS| KeyCheck[7. Check SPL-XXXX key in commit subject or Closes trailer]
     KeyCheck -->|Missing Key| RefuseKey[REFUSE: Missing tracked issue key]
-    KeyCheck -->|Valid Key| CICheck[7. Verify gh run list --commit SHA: success or skipped]
-    CICheck -->|Pending / Cancelled| DeferCI[DEFER: Wait next tick for CI completion]
+    KeyCheck -->|Valid Key| CICheck[8. Verify gh run list --commit SHA: success or skipped]
+    CICheck -->|Pending / Cancelled| DeferCI[DEFER / Escalate after 3 ticks if cancelled]
     CICheck -->|Failed| RefuseCI[REFUSE: CI Red - Lane must fix]
-    CICheck -->|All Green / Skipped| SendAcc[8. Send ACCEPTED auto... from active dispatch role seat]
+    CICheck -->|All Green / Skipped| SendAcc[9. Send ACCEPTED auto... from active dispatch role seat]
 ```
 
 #### 1. Trigger
 - Author lane sends result message on task `dispatch-<slug>` citing landed SHA, or periodic dispatch cron execution (`spl-accepted-close.func.sh`).
 
 #### 2. Exact Deterministic Checks (Safe for zero intelligence)
-1. **Authoritative Reviewed Commit Resolution (Resolves N1)**:
+1. **Authoritative Reviewed Commit Resolution (Resolves N1, X2)**:
    - Do NOT attempt to read reviewed SHAs from the author lane's brief (author briefs name only `review/<slug>` branches, not 40-hex SHAs, and branch tips can move after review; briefs may also cite other lanes' foreign branches).
-   - The reviewed commit set is read **strictly from the verified `PASS` entries in `$SPOOL_ROOT/dispatch/automation.log`** recorded by Rule 1 for that `<task_id>` / `<author_id>`.
-   - **Invariable Refusal**: If no `PASS` entry exists in `automation.log` for that task/author (e.g. an unreviewed row, an exploratory seat, or a lane that bypassed review), automated acceptance is strictly REFUSED: `REFUSED: no verified PASS record in automation.log`. Judgment remains with the dispatcher.
-2. **Anti-Extra Guard & Patch-ID Equivalence (Resolves N2)**:
-   - Take the author lane's landed commits on `origin/master`: `BASE..SHA` from `do_check_lane_served` (or commits citing its tracked issue key `SPL-XXXX`).
-   - **Anti-Extra Guard**: Every landed commit in the lane's range on master MUST have its patch-id match a commit in the reviewed set recorded in `automation.log`. If any landed commit is not in the reviewed set (the lane slipped an unreviewed extra commit into the rebase/push), Rule 2 strictly REFUSES: `REFUSED: unreviewed extra commit landed on master (<extra-sha>)` and escalates.
+   - Rule 2 reads the verified entry from `$SPOOL_ROOT/dispatch/automation.log` for that `<task_id>` / `<author_id>` to extract `<msg_id>` and `<sha>`.
+   - **Invariable Refusal**: If no `PASS` entry exists in `automation.log` for that task/author, automated acceptance is strictly REFUSED: `REFUSED: no verified PASS record in automation.log`. Judgment remains with the dispatcher.
+2. **Cryptographic & Journal Re-Verification (Resolves X2)**:
+   - Because `automation.log` is located in `$SPOOL_ROOT/dispatch/` (group-writable by `spool-agents`), Rule 2 treats `automation.log` as a pointer rather than an unverified truth source.
+   - Rule 2 locates the original review message `<msg_id>` in `$SPOOL_ROOT/<dispatch-holder>/archive/` (or inbox).
+   - Rule 2 re-executes `do_spl_review_line_check` against that review message.
+   - **Why this is tamper-proof**: `do_spl_review_line_check` reads the reviewer's private session transcript stored under the reviewer's home directory (mode 700, owned by the reviewer, where other agents cannot write). A spoofed `automation.log` entry fails journal transcript verification and halts execution.
+3. **Anti-Extra Guard Across Lane Worktree Branch (Resolves N2, X3)**:
+   - Take the author lane's worktree branch from `$SPOOL_ROOT/registry.tsv` (column 3: worktree path, column 4: branch).
+   - Query all commits belonging to that branch sequence landed on master: `git rev-list $(git merge-base origin/master <branch>)..<branch>`.
+   - **Anti-Extra Guard**: Every single commit on the lane's branch MUST have its patch-id match a commit in the verified reviewed set. If any commit on the branch was landed without prior review (e.g. an extra commit slipped in before or after the reviewed commit, even if it cites no issue key), Rule 2 strictly REFUSES: `REFUSED: unreviewed extra commit landed on master (<extra-sha>)` and escalates.
    - **Cherry Patch-ID Verification (`do_spl_done_claim_check`)**:
      - Run `git cherry origin/master <review-sha>`: must return `-` for every reviewed commit (proving that the exact patch-id is on trunk).
      - **Multi-Commit Coverage**: For multi-commit branches, every individual reviewed commit patch must be present on master. A partial landing (e.g. landing 1 of 3 commits) is REFUSED.
      - **Anti-Empty Guard**: Verify that the landed commit contains non-zero additions/deletions matching the touched deliverables (guarding against `m-689`'s empty commit and `T008`'s tasks.md-only tick).
-3. **Semantic Parity via Range-Diff**:
+4. **Semantic Parity via Range-Diff**:
    - Run `git range-diff <reviewed-sha>^..<reviewed-sha> <landed-sha>^..<landed-sha>` across each landed commit.
    - Diff hunks must contain zero substantive code changes (only commit SHAs and line offset numbers may vary).
-4. **Lane Served Verification (`do_check_lane_served`)**:
+5. **Lane Served Verification (`do_check_lane_served`)**:
    - Execute `do_check_lane_served SHA=<landed-sha> BASE=<parent>`:
      - *Trunk ancestry*: Verifies `git merge-base --is-ancestor <landed-sha> origin/master`.
      - *Committer identity*: Verifies `%ae %ce` match `LANE_EMAIL` (the canonical committer email per `developer-guide.md` § 2.9).
      - *Trailers*: Verifies absence of forbidden AI trailers (`Co-Authored-By:`, `Claude-Session:`).
      - *Served status*: Verifies `dev=served prd=served` via `do_check_deploy_lag` (or `dev=n/a prd=n/a` for docs/orc).
-5. **Issue Key Verification (Resolves N6)**:
+6. **Issue Key Verification (Resolves N6)**:
    - `do_check_lane_served` does NOT check the issue key.
    - Rule 2 (new code in B5) explicitly verifies that the commit subject cites `SPL-XXXX` or contains `Closes: SPL-XXXX` in the commit body. If missing, refuse acceptance.
-6. **CI Quality Gate (Resolves Minor item)**:
+7. **CI Quality Gate & Cancellation Handling (Resolves Minor items)**:
    - Query `gh run list --commit <landed-sha> --json name,status,conclusion`.
    - Every relevant workflow must have `status: "completed"`.
-   - Workflow conclusions must be `success` or `skipped` (where `skipped` represents workflows not triggered by the commit's touched file paths, such as WUI deploy skipped on documentation changes).
+   - Workflow conclusions must be `success` or `skipped` (where `skipped` represents workflows not triggered by the commit's touched file paths).
    - If any workflow reports `failure`, REFUSE.
-   - If any workflow is `in_progress`, `queued`, or `cancelled` (superseded deploy), DEFER to the next tick.
+   - If any workflow is `in_progress` or `queued`, DEFER to the next tick.
+   - If any workflow is `cancelled` (e.g. superseded deploy), DEFER for up to 3 ticks (3 minutes); if still cancelled with no newer succeeding workflow on trunk, escalate to the dispatcher (`HOLD: CI workflow cancelled`).
 
-#### 3. Sender Identity & Message Body Architecture (Resolves N3)
+#### 3. Sender Identity & Message Body Architecture (Resolves N3, X4)
 - **Honest Automated Attribution**:
   To prevent the `m-857` forged-ACCEPTED shape (where a script speaks in the persona of `c-002`), the emitted message body MUST explicitly state its automated origin:  
   `ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>`
-- The exit-clean gate in `kill-your-self-report.sh` line 173 checks `ACCEPTED*` (case-insensitive prefix), so `ACCEPTED (auto...)` passes the gate cleanly.
+- The exit-clean gate in `kill-your-self-report.sh` line 173 performs case-sensitive prefix matching `[[ "$body" == ACCEPTED* ]]`, so `ACCEPTED (auto...)` passes the gate cleanly.
 - Both human dispatchers and automated audit scans can immediately distinguish automated acceptances from model-judged acceptances.
-- **Process Architecture (Resolves N3, N10)**:
-  Rule 2 runs under the repo OS user via named action `do_spl_accepted_close` in `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`, executed on a 60-second cron on the box holding the dispatch lease.
+- **Process Architecture (Resolves N3, N10, X6)**:
+  Rule 2 runs under the OS user configured by `env.box.box_agent_user` via named action `do_spl_accepted_close` in `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`, executed on a 60-second cron on the box holding the dispatch lease.
   It queries `do_spl_dispatch_lease show` (read-only); if this box does not hold the dispatch lease, it exits cleanly.
   It emits messages using `--from "$DISPATCH_HOLDER"`, operating within the authority of the active dispatch lease. It does NOT modify `kill-your-self-report.sh` or `spl-dispatch-lease*`.
 
 #### 4. Refusals & Escalations (Model/Human Judgment Preserved)
 - **No Reviewed Record**: If row lacks a verified `PASS` in `automation.log`, log `REFUSED: no verified PASS in automation.log` and escalate.
-- **Unreviewed Extra Commit (Resolves N2)**: If landed commits include changes not present in the reviewed set, log `REFUSED: unreviewed extra commit landed on master` and escalate.
+- **Journal Re-verification Failure (X2)**: If transcript check fails or does not match message, log `REFUSED: journal transcript re-verification failed` and escalate.
+- **Unreviewed Extra Commit (Resolves N2, X3)**: If author's branch contains commits not present in the reviewed patch-id set, log `REFUSED: unreviewed extra commit landed on master` and escalate.
 - **Substantive Rebase Conflict Resolution**: If `git range-diff` reveals modified code hunks, log `REFUSED: rebase altered code logic` and escalate.
 - **Partial or Incomplete Landing**: If any reviewed patch is missing from master, or the commit is empty, log `REFUSED: incomplete landing` and escalate.
-- **CI Failure**: If CI reports `failure`, emit an alert; lane cannot exit until fixed.
-- **Deploy Lag / Pending CI**: Defer execution to next tick.
+- **CI Failure / Persistent Cancellation**: If CI reports `failure`, emit an alert; lane cannot exit until fixed. If `cancelled` persists past 3 ticks, escalate.
+- **Deploy Lag**: Defer execution to next tick.
 
-#### 5. Execution Location (Resolves N10)
-- Named action `do_spl_accepted_close` in `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`, executed on a 60-second cron on the active dispatch box. Queries `do_spl_dispatch_lease show` (read-only); does NOT touch `spl-dispatch-lease*`.
+#### 5. Execution Location & Cron Installation (Resolves N10, X6)
+- Named action `do_spl_accepted_close` in `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`, executed on a 60-second cron on the active dispatch box.
+- **Cron Installation**: Installed by `csi-spl-orc/src/bash/run/spl-accepted-close-install-cron.func.sh` under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` (read-only); does NOT touch `spl-dispatch-lease*`.
 
 #### 6. Test Plan & Red Controls
 - **Test File**: `csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh`
 - **Red Controls**:
   1. *Empty commit*: Fabricate landed commit with no file changes -> script exits 1, asserts no `ACCEPTED` emitted, logs refusal.
   2. *Partial landing*: 2-commit review branch where only 1 commit landed -> script exits 2, asserts no `ACCEPTED` emitted, logs missing patch.
-  3. *Unreviewed extra commit (Resolves N2)*: 1 reviewed commit + 1 unreviewed extra commit landed on master -> script exits 3, asserts no `ACCEPTED` emitted, logs unreviewed extra commit.
-  4. *Rebase logic change*: Range-diff detects altered code hunk -> script exits 4, asserts no `ACCEPTED` emitted, logs hunk mismatch.
-  5. *Unreviewed row (Resolves N1)*: No `PASS` entry in `automation.log` -> script exits 5, asserts no `ACCEPTED` emitted, logs unreviewed row.
-  6. *CI red*: Workflow failed -> script exits 6, asserts no `ACCEPTED` emitted.
-- **Green Pass**: All landed commits match reviewed set in `automation.log`, `do_check_lane_served` PASS, green/skipped CI -> script exits 0, executes `spool-send.sh --from "$DISPATCH_HOLDER" --to <lane> --kind result --body "ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>"`.
+  3. *Unreviewed extra commit before reviewed commit (Resolves N2, X3)*: Landed branch contains 1 extra commit before reviewed commit lacking issue key -> script exits 3, asserts no `ACCEPTED` emitted, logs unreviewed extra commit.
+  4. *Forged log entry (Resolves X2)*: Append fake PASS line to `automation.log` without valid reviewer journal transcript -> script exits 4, asserts no `ACCEPTED` emitted, logs journal failure.
+  5. *Rebase logic change*: Range-diff detects altered code hunk -> script exits 5, asserts no `ACCEPTED` emitted, logs hunk mismatch.
+  6. *Unreviewed row (Resolves N1)*: No `PASS` entry in `automation.log` -> script exits 6, asserts no `ACCEPTED` emitted, logs unreviewed row.
+  7. *CI red*: Workflow failed -> script exits 7, asserts no `ACCEPTED` emitted.
+- **Green Pass**: All landed commits on branch match reviewed set in `automation.log`, journal re-verified, `do_check_lane_served` PASS, green/skipped CI -> script exits 0, executes `spool-send.sh --from "$DISPATCH_HOLDER" --to <lane> --kind result --body "ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>"`.
 
 ---
 
@@ -320,8 +338,8 @@ flowchart TD
 
 > **Objective**: When the seat placer spawns and launches a reviewer seat, immediately and deterministically parse the reviewer brief and notify every referenced author lane across boxes, eliminating author idle time and dispatcher manual lookups.
 
-#### 1. Trigger (Resolves N4)
-- The seat placer in `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh:584` (`spawn-window.sh`) successfully places and starts a reviewer seat (`*-reviewer*`, `*-review`, or class `review`).
+#### 1. Trigger (Resolves N4, X4)
+- The seat placer in `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` inside `spl_spawn_place_launch` at line 584 (`spawn-window.sh`) successfully places and starts a reviewer seat (`*-reviewer*`, `*-review`, or class `review`).
 
 #### 2. Exact Deterministic Checks (Safe for zero intelligence)
 1. **Brief Parsing**: Read the placed seat's brief file at `/var/spool-hub/dispatch/briefs/<slug>.md`.
@@ -332,17 +350,17 @@ flowchart TD
    - Scan for explicit author headers:  
      `^Author:[[:space:]]*([acgmq]-[0-9]{3,})(@[A-Za-z0-9._-]+)?`
    - Extract `<author-id>` and optional `<box>`.
-3. **Cross-Box Author Existence & Routing (Resolves N9)**:
-   - Check author lane existence via local `$SPOOL_ROOT/<author-id>` or fleet registry `$SPOOL_ROOT/registry.tsv` (and `$SPOOL_ROOT/retired.tsv`).
+3. **Cross-Box Author Existence & Routing (Resolves N9, X4)**:
+   - Check author lane existence via local `$SPOOL_ROOT/<author-id>` or fleet registry `$SPOOL_ROOT/registry.tsv` (and `$SPOOL_ROOT/registry.retired.tsv`).
    - (Note: `lane-map.sh --check` takes file path arguments, not agent IDs).
    - Route to the destination box `<box>` extracted directly from the reviewer brief cell (e.g. `a-213@sat` routes to `sat`, `c-168@<box-remote>` routes to `<box-remote>` via `spool-send.sh --to <id>@<box>`).
 
 #### 3. Refusals & Escalations
 - **Brief Lacks Author Identifiers**: If brief contains no extractable author IDs, log a warning to `dispatch/queue.log` and notify the dispatcher.
-- **Retired Author**: If the extracted author lane has already retired in `retired.tsv`, skip messaging that lane and log `SKIP: author <id> already retired`.
+- **Retired Author (X4)**: If the extracted author lane has already retired in `$SPOOL_ROOT/registry.retired.tsv`, skip messaging that lane and log `SKIP: author <id> already retired`.
 
-#### 4. Execution Location & Dependency (Resolves N4)
-- Post-spawn hook in `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`, invoked immediately after successful seat launch at line 584 (`spawn-window.sh`).
+#### 4. Execution Location & Dependency (Resolves N4, X4)
+- Post-spawn hook in `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`, invoked inside `spl_spawn_place_launch` immediately after successful seat launch at line 584 (`spawn-window.sh`).
 - **Ordering Dependency**: Because `spl-spawn-place.func.sh` is touched by queued bug row `c002-bug-placer-brief-other-box` and `c-187`'s open change, Rule 3 (Row B6) touches `spl-spawn-place.func.sh` and **MUST be ordered AFTER `c002-bug-placer-brief-other-box`**.
 
 #### 5. Test Plan & Red Controls
@@ -350,7 +368,7 @@ flowchart TD
 - **Red Controls**:
   1. *Malformed brief*: Brief with no author IDs -> hook logs warning, exits 1, sends 0 spool messages.
   2. *Decorated cell verification*: Brief with `| a-213@sat (agy) |` must NOT fail to match (red control asserts author `a-213` is successfully extracted).
-  3. *Retired author*: Author marked retired in registry -> hook skips send, logs skip notice.
+  3. *Retired author (X4)*: Author marked retired in `registry.retired.tsv` -> hook skips send, logs skip notice.
 - **Green Pass**: Reviewer brief referencing authors `a-213@sat` and `c-168@<box-remote>` -> hook exits 0, sends notifications to both lanes with reviewer ID and review branch.
 
 ---
@@ -423,8 +441,8 @@ flowchart LR
 
 > **Objective**: Instantly reply to owner poll submissions with an immediate confirmation post ("**In progress**: noted."), assuring the human owner their input is received while dispatch logic is engaged.
 
-#### 1. Trigger (Resolves N8)
-- An inbound spool message in the active dispatch holder's inbox (delivered from the hub via the desk agent's channel subscription) matching the WUI poll reply format. (Note: `do_spl_desk_poll_check` is the outgoing poll form validator before sending, not the incoming receiver).
+#### 1. Trigger (Resolves N8, Minor item)
+- An inbound spool message in the active dispatch holder's inbox (delivered from the hub via the desk delivery loop to `$SPOOL_ROOT/<id>/inbox/`) matching the WUI poll reply format. (Note: `do_spl_desk_poll_check` is the outgoing poll form validator before sending, not the incoming receiver).
 
 #### 2. Exact Deterministic Checks (Safe for zero intelligence)
 1. **Sender Authentication**:
@@ -453,8 +471,9 @@ flowchart LR
 - **Already Answered**: If an agent reply exists, abort to avoid duplicate posts.
 - **Closed Topic**: If topic is locked/closed, abort.
 
-#### 4. Execution Location (Resolves N10)
-- Named action `do_spl_desk_poll_ack` in `csi-spl-orc/src/bash/run/spl-desk-poll-ack.func.sh`, executed on a 60-second cron or inbox event hook on the active dispatch box. Queries `do_spl_dispatch_lease show` (read-only); does NOT touch `spl-dispatch-lease*`.
+#### 4. Execution Location & Cron Installation (Resolves N10, X6)
+- Named action `do_spl_desk_poll_ack` in `csi-spl-orc/src/bash/run/spl-desk-poll-ack.func.sh`, executed on a 60-second cron or inbox event hook on the active dispatch box.
+- **Cron Installation**: Installed by `csi-spl-orc/src/bash/run/spl-desk-poll-ack-install-cron.func.sh` (or integrated into `desk-reconcile-cron.sh`) under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` (read-only); does NOT touch `spl-dispatch-lease*`.
 
 #### 5. Test Plan & Red Controls
 - **Test File**: `csi-spl-orc/src/bash/tests/spl-desk-poll-ack.tst.sh`
@@ -514,11 +533,11 @@ In message `604472ca`, standby dispatcher `c-003@sat` highlighted seven candidat
 | **C6** | **Deterministic Handoff Generation** | Each rotation requires manually writing open items handoff file. | Synthesize handoff file from active queue state (`do_spl_spawn_place`), open asks (`asks.json`), and hold notes. | **Accepted**: Extension row B10 (`spl-handoff-render.func.sh`). |
 | **C7** | **Unified `do_spl_verify_done`** | Multiple disjoint checks to confirm whether a lane is done. | Compose `do_check_lane_served` and `do_spl_done_claim_check` into a single action returning binary `PASS` or `FAIL`. | **Accepted**: Incorporated directly into Rule 2 (Row B5). |
 
-### Queued Bug Row Disjointness Confirmation (Resolves N4, N10, N11):
+### Queued Bug Row Disjointness Confirmation (Resolves N4, N10, N11, X6):
 1. `c002-bug-ksr-reporter-dispatch-holder` (Resolves N11): touches `csi-spl-orc/src/bash/features/spawn-agents/scripts/kill-your-self-report.sh` (`ksr_reporter`) and `test-kill-your-self-report.sh`. (Does NOT touch `spl-asks-tick.func.sh`, which is listed under "Must NOT touch"). Build rows B1–B6 touch neither of those files.
 2. `c002-bug-lane-issue-end-apply-only`: touches `spl-lane-issue.func.sh`. Build rows B1–B6 touch neither file.
-3. `c002-bug-placer-brief-other-box` (Resolves N4): touches `spl-spawn-place.func.sh`. Row B6 (Rule 3) touches `spl-spawn-place.func.sh:584` and is therefore **strictly ordered AFTER `c002-bug-placer-brief-other-box`**.
-4. `c-184@sat` lease scripts (Resolves N10): rows B1–B6 do NOT touch `spl-dispatch-lease*` or `spl-orch-lease*`. They perform read-only checks via `do_spl_dispatch_lease show`.
+3. `c002-bug-placer-brief-other-box` (Resolves N4, X4): touches `spl-spawn-place.func.sh`. Row B6 (Rule 3) touches `spl-spawn-place.func.sh:584` (`spl_spawn_place_launch`) and is therefore **strictly ordered AFTER `c002-bug-placer-brief-other-box`**.
+4. `c-184@sat` lease scripts (Resolves N10, X6): rows B1–B6 do NOT touch `spl-dispatch-lease*` or `spl-orch-lease*`. They perform read-only lease queries via `do_spl_dispatch_lease show`.
 
 ---
 
@@ -530,20 +549,21 @@ To prevent automation overreach and protect operational safety, the operational 
 flowchart TD
     subgraph FullyAutomated["STRICTLY AUTOMATED (0% Model Intelligence)"]
         A1[R7 Review Line syntax & test execution verification for PASS lines]
-        A2[Cross-vendor & assigned reviewer brief row table checks]
+        A2[Cross-vendor & reviewer brief lifetime verification]
         A3[Git branch head SHA immutability checks]
-        A4[Patch-id cherry comparison & anti-extra unreviewed commit guard]
-        A5[GitHub Actions CI workflow status queries success or skipped]
-        A6[Cloud Run /version & Firebase Hosting /build.json verification]
-        A7[Author notifications upon reviewer seat launch at spawn-place line 584]
-        A8[Immediate '**In progress**: noted' acknowledgment to ^Poll: msg-id votes]
-        A9[Machine UTC timestamp formatting and token expansion]
+        A4[Patch-id cherry comparison & anti-extra unreviewed commit guard over branch]
+        A5[Journal transcript re-verification of original review message in archive]
+        A6[GitHub Actions CI workflow status queries success or skipped]
+        A7[Cloud Run /version & Firebase Hosting /build.json verification]
+        A8[Author notifications upon reviewer seat launch at spawn-place line 584]
+        A9[Immediate '**In progress**: noted' acknowledgment to ^Poll: msg-id votes]
+        A10[Machine UTC timestamp formatting and token expansion]
     end
 
     subgraph HumanModel["STRICTLY MODEL / HUMAN (Preserved Dispatcher Judgment)"]
         H1[Review FAIL diagnosis: evaluating why code failed and deciding next action]
         H2[Rebase Conflict Semantics: judging whether modified range-diff hunks introduce defects]
-        H3[Owner Go Decisions: authorizing prd mutations, terraform apply, IAM/billing changes]
+        H3[Owner Go Decisions: authorizing tasks with protected operational keywords]
         H4[Unreviewed rows and ambiguous deliverables lacking PASS in automation.log]
         H5[Owner Conversation: discussing design alternatives, tradeoffs, priorities]
         H6[Emergency overrides and force-push requests]
@@ -553,13 +573,13 @@ flowchart TD
 ### 5.1 Hard Automation Safety Invariants
 1. **Never Bypass an Access Gate**: Automated scripts must never override pre-push hooks, skip review line checks, or force-push commits.
 2. **Fail Closed**: Any network timeout, git ambiguity, missing file, or unexpected exit code immediately halts automation and leaves state untouched.
-3. **Comprehensive Audit Trail**: Every automated action must write a structured log entry to `$SPOOL_ROOT/dispatch/automation.log` specifying timestamp, action taken, actor, input SHAs, and verification receipts. The log file and directory `$SPOOL_ROOT/dispatch/` are initialized on first append (`mkdir -p "$SPOOL_ROOT/dispatch" && touch ...`) introduced in build row B4 upon its first logged event and used by B4, B5, and B6.
+3. **Comprehensive Audit Trail**: Every automated action must write a structured log entry to `$SPOOL_ROOT/dispatch/automation.log` specifying timestamp, message ID, action taken, actor, input SHAs, and verification receipts. The log file and directory `$SPOOL_ROOT/dispatch/` are initialized on first append (`mkdir -p "$SPOOL_ROOT/dispatch" && touch ...`) introduced in build row B4 upon its first logged event and used by B4, B5, and B6.
 
 ---
 
 ## 6. Implementation Plan: Build Rows B1..B6 & Extension Rows
 
-### 6.1 Build Rows (Smallest first, completely disjoint files, ordered for safety) (Resolves N4, N10)
+### 6.1 Build Rows (Smallest first, completely disjoint files, ordered for safety) (Resolves N4, N10, X6)
 
 ```mermaid
 flowchart LR
@@ -574,10 +594,10 @@ flowchart LR
 |---|---|---|---|---|---|---|---|
 | **B1** | **Rule 6** | `csi-spl-orc/src/bash/run/spl-post-time.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-post-time.tst.sh` | Integrated into `spl-desk-reply.func.sh` and `spl-desk-post.func.sh` | Function `spl_post_timestamp` & template replacer for `{{NOW_UTC}}`, `{{TODAY_UTC}}`, `{{NOW_ISO}}`. Enforces Section 4 syntax. | Control: colloquial time rejected. Passes on valid token expansion and Section 4 times. | Small | 1 |
 | **B2** | **Rule 4** | `csi-spl-orc/src/bash/run/spl-desk-live-proof-render.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-desk-live-proof-render.tst.sh` | Standalone named action `do_spl_desk_live_proof_render` (composes `_spl_served_env` and `do_check_deploy_lag`) | Synthesizes verified Markdown `**Live**` table. Requires mandatory `LIVE_CHECKED` and `LIVE_NOT_CHECKED`. Uses `merge-base --is-ancestor` for served check. | Control: omitted `LIVE_CHECKED` or `LIVE_NOT_CHECKED` refused; unlanded SHA refused; deployed commit outputs verified table. | Small | 2 |
-| **B3** | **Rule 5** | `csi-spl-orc/src/bash/run/spl-desk-poll-ack.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-desk-poll-ack.tst.sh` | Standalone named action `do_spl_desk_poll_ack` on cron / inbox hook (queries `do_spl_dispatch_lease show` ro). Does NOT touch `spl-dispatch-lease*`. | Evaluates incoming `HUM-<n>` poll votes matching `^Poll: <msg-id>`. Emits immediate `**In progress**: noted.` post via `do_spl_desk_reply` and wakes topic owner. | Control: non-owner vote ignored; duplicate vote ignored; owner vote immediately replied. | Medium | 3 |
-| **B4** | **Rule 1** | `csi-spl-orc/src/bash/run/spl-review-go.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-review-go.tst.sh` | Standalone named action `do_spl_review_go` on cron / inbox hook (queries `do_spl_dispatch_lease show` ro). Does NOT touch `spl-dispatch-lease*`. | Evaluates cross-vendor `PASS` review lines, assigned seats in reviewer brief table, owner-go markers, branch immutability, and local module tests in `ran:`. Records verified `PASS` in `automation.log` and emits `GO <sha>`. | Controls: `FAIL` escalates without GO/REJECT; same vendor refused; unassigned reviewer refused; owner go marker refused; remote log refused. Valid `PASS` emits `GO`. | Medium | 4 |
-| **B5** | **Rule 2** | `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh` | Standalone named action `do_spl_accepted_close` on cron (queries `do_spl_dispatch_lease show` ro). Does NOT touch `kill-your-self-report.sh` or `spl-dispatch-lease*`. | Composes `do_check_lane_served` and `do_spl_done_claim_check`. Reads reviewed SHAs from `automation.log`; enforces anti-extra unreviewed commit guard; verifies cherry patch-id presence, range-diff hunk parity, CI green/skipped, issue key, and served build. Emits `ACCEPTED (auto...)`. | Controls: empty commit refused; partial landing refused; unreviewed extra commit refused; rebase logic change refused; unreviewed row refused. Valid landing emits `ACCEPTED (auto...)`. | Medium | 5 |
-| **B6** | **Rule 3** | `csi-spl-orc/src/bash/run/spl-spawn-review-notify.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-spawn-review-notify.tst.sh` | Post-spawn hook in `spl-spawn-place.func.sh:584` (`spl_spawn_place_one`). Ordered AFTER `c002-bug-placer-brief-other-box`. | Parses reviewer brief with decorated cells (`\| a-213@sat (agy) \|`) and notifies authors across boxes using registry. | Control: decorated cell matches; malformed brief logs warning; valid brief notifies authors. | Medium | 6 |
+| **B3** | **Rule 5** | `csi-spl-orc/src/bash/run/spl-desk-poll-ack.func.sh`<br>`csi-spl-orc/src/bash/run/spl-desk-poll-ack-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-desk-poll-ack.tst.sh` | Standalone named action `do_spl_desk_poll_ack` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Does NOT touch `spl-dispatch-lease*`. | Evaluates incoming `HUM-<n>` poll votes matching `^Poll: <msg-id>`. Emits immediate `**In progress**: noted.` post via `do_spl_desk_reply` and wakes topic owner. | Control: non-owner vote ignored; duplicate vote ignored; owner vote immediately replied. | Medium | 3 |
+| **B4** | **Rule 1** | `csi-spl-orc/src/bash/run/spl-review-go.func.sh`<br>`csi-spl-orc/src/bash/run/spl-review-go-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-review-go.tst.sh` | Standalone named action `do_spl_review_go` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Does NOT touch `spl-dispatch-lease*`. | Evaluates cross-vendor `PASS` review lines, verifies reviewer via `$SPOOL_ROOT/<id>/lifetime/brief.md`, scans for protected owner-go keywords, branch immutability, and local module tests in `ran:`. Records verified `PASS <ts> <msg_id> ... <sha>` in `automation.log` and emits `GO <sha>`. | Controls: `FAIL` escalates without GO/REJECT; same vendor refused; unassigned reviewer refused; owner-go keyword refused; remote log refused. Valid `PASS` emits `GO`. | Medium | 4 |
+| **B5** | **Rule 2** | `csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`<br>`csi-spl-orc/src/bash/run/spl-accepted-close-install-cron.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh` | Standalone named action `do_spl_accepted_close` on 1-minute cron installed under `env.box.box_agent_user`. Queries `do_spl_dispatch_lease show` ro. Does NOT touch `kill-your-self-report.sh` or `spl-dispatch-lease*`. | Composes `do_check_lane_served` and `do_spl_done_claim_check`. Reads `<msg_id>` from `automation.log` and re-verifies reviewer journal transcript; enforces anti-extra unreviewed commit guard across lane worktree branch; verifies cherry patch-id presence, range-diff hunk parity, CI green/skipped, issue key, and served build. Emits `ACCEPTED (auto...)`. | Controls: empty commit refused; partial landing refused; unreviewed extra commit refused; journal transcript failure refused; rebase logic change refused; unreviewed row refused. Valid landing emits `ACCEPTED (auto...)`. | Medium | 5 |
+| **B6** | **Rule 3** | `csi-spl-orc/src/bash/run/spl-spawn-review-notify.func.sh`<br>`csi-spl-orc/src/bash/tests/spl-spawn-review-notify.tst.sh` | Post-spawn hook in `spl-spawn-place.func.sh:584` (`spl_spawn_place_launch`). Ordered AFTER `c002-bug-placer-brief-other-box`. | Parses reviewer brief with decorated cells (`\| a-213@sat (agy) \|`) and notifies authors across boxes using registry. | Control: decorated cell matches; malformed brief logs warning; valid brief notifies authors. | Medium | 6 |
 
 ### 6.2 Secondary Extension Rows (Post-Rules 1–6)
 - **Row B7 (C1 Standby Auto-Archive)**: `csi-spl-orc/src/bash/run/spl-standby-archive.func.sh` — background daemon auto-archiving unaddressed notifications for standby seats.
@@ -591,9 +611,9 @@ flowchart LR
 
 ### 7.1 System Invariants
 1. **Safety First**: No automated script may execute an action if any prerequisite check yields ambiguous or non-zero return codes.
-2. **Dispatcher Judgment Preserved**: Any review `FAIL` verdict, rebase conflict with modified diff hunks, unreviewed row, unreviewed extra commit landed on master, task touching owner-go scope (production mutations, `terraform apply`, IAM/billing), or docs-only review lacking test executions MUST be escalated to the dispatcher. Automation never rejects or authorizes these cases.
-3. **Immutable History**: Automated `ACCEPTED` decisions must record the exact reviewed SHA, landed SHA, and verification receipts in `$SPOOL_ROOT/dispatch/automation.log`.
-4. **No Phantom Closes**: A lane must never be issued `ACCEPTED` unless all reviewed commits from its verified `PASS` record in `automation.log` are proven present on `origin/master` (via cherry patch-id equivalence), zero unreviewed extra commits are present in the landed range, verified by CI (success or skipped), and actively served on dev/prd.
+2. **Dispatcher Judgment Preserved**: Any review `FAIL` verdict, rebase conflict with modified diff hunks, unreviewed row, unreviewed extra commit landed on master, task touching protected owner-go keywords (`terraform apply`, `DRY_RUN=0`, `ENV=prd`, `prd`, `IAM`, `billing`, `key`, `/etc`), or docs-only review lacking test executions MUST be escalated to the dispatcher. Automation never rejects or authorizes these cases.
+3. **Immutable History**: Automated `ACCEPTED` decisions must record the exact reviewed SHA, landed SHA, original review message ID, and verification receipts in `$SPOOL_ROOT/dispatch/automation.log`.
+4. **No Phantom Closes**: A lane must never be issued `ACCEPTED` unless all reviewed commits from its verified `PASS` record in `automation.log` are proven present on `origin/master` (via cherry patch-id equivalence), zero unreviewed extra commits are present on the lane branch, the original review message is re-verified against the reviewer's private transcript, verified by CI (success or skipped), and actively served on dev/prd.
 
 ### 7.2 Acceptance Criteria for Build Rows
 1. Every build row must deliver its named `./run` action and test in the same commit.

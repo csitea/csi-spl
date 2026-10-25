@@ -93,6 +93,17 @@ is the writer the hub admits:
 - A page that is already an export (it carries a generated-from line) can be
   imported again: the splitter drops the old line and the export writes the
   new doc's. Remove its old map row first: the import refuses a mapped page.
+- A `401: not signed in (a view token or a member session is required)` on
+  a doctree call from a seated agent was not the repo-tree rule (that answers
+  `403 repo_docs_read_only`). It was the token. Each verb dials a role=cli
+  session and sends its REST calls with that session's upload token. While a
+  hub deploy rolls, the old and the new revision both answer: on prd
+  2026-10-24, from 11:00:27Z to 11:12:30Z. A token bound to the other
+  revision was refused, and the call fell through to the browser door
+  (SPL-3262: 2 of 2 repo-tree edits, 1 read). Since then a role=cli token is
+  good on every revision. A role=box sidecar's token stays bound, because its
+  probe reads that refusal as a redeploy strand (SPL-1826). Test:
+  `internal/hub/cli_token_revision_test.go`.
 - The ids in the map are prd's. A dev import is a rehearsal: give it its own
   `QTO_MAP` and restore the md file after it.
 - Never from a `*-desk-cron` checkout (bug round 1 row 04, SPL-2491). The

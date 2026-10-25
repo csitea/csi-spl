@@ -1151,61 +1151,17 @@ type topicDoorReader interface {
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	task := r.PathValue("task_id")
 	door, fused := s.o.Store.(topicDoorReader)
-	var hum string
-	var ok bool
-	if fused { // the door is asked inside the page's batch, below
-		hum, ok = s.topicReaderID(w, r, t.ID, task)
-	} else {
-		hum, ok = s.topicReader(w, r, t.ID, task)
-	}
+	hum, ok := s.viewTopicReader(w, r, t.ID, task, fused)
 	if !ok {
 		return
 	}
-	// specs/041: the lobby feed leaves its archived cards out; any other
-	// topic read by its id answers even while archived (the Archive view).
-	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now(),
-		HideArchived: s.o.LobbyTaskID != "" && task == s.o.LobbyTaskID}
-	if hum != "" {
-		mine, err := s.readerChannels(r.Context(), t.ID, hum)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-			return
-		}
-		sq.Reader, sq.ReaderChannels = hum, mine
-	}
-	if rf := topicWindow(r.URL.Query(), &sq); rf != nil {
-		writeErr(w, rf.status, rf.token, rf.detail)
+	sq, ok := s.topicQuery(w, r, t.ID, task, hum)
+	if !ok {
 		return
 	}
-	var rows []store.ViewMsg
-	var err error
-	if fused {
-		var may bool
-		_, may, rows, err = door.ViewTopicDoor(r.Context(), t.ID, sq, func(a store.TopicAccess) (bool, error) {
-			return s.topicDoor(r.Context(), t.ID, task, a, hum)
-		})
-		if err == nil && !may {
-			// 404, never 403, as topicReader answers it.
-			writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-			return
-		}
-	} else {
-		rows, err = s.o.Store.ViewTopic(r.Context(), t.ID, sq)
-	}
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+	rows, next, ok := s.topicPage(w, r, t.ID, task, hum, sq, door)
+	if !ok {
 		return
-	}
-	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
-		// the lobby exists before its first post (wui-live-ws.md §1)
-		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return
-	}
-	var next *string
-	if len(rows) == sq.Limit {
-		rows = rows[:sq.Limit-1]
-		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
-		next = &c
 	}
 	if rows, ok = s.lockedRows(w, r, t.ID, hum, rows); !ok {
 		return
@@ -1226,6 +1182,76 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// viewTopicReader is the HUM-* reading task: with the fused door (fused)
+// only the reader's id, since the door is asked inside the page's batch
+// (topicPage); otherwise topicReader answers the door here. false has
+// answered.
+func (s *Server) viewTopicReader(w http.ResponseWriter, r *http.Request, tenant, task string, fused bool) (string, bool) {
+	if fused {
+		return s.topicReaderID(w, r, tenant, task)
+	}
+	return s.topicReader(w, r, tenant, task)
+}
+
+// topicQuery is the page query of a topic read: its window, and the reader
+// hum's channels. false has answered (500, or topicWindow's refusal).
+func (s *Server) topicQuery(w http.ResponseWriter, r *http.Request, tenant, task, hum string) (store.TopicMsgQuery, bool) {
+	// specs/041: the lobby feed leaves its archived cards out; any other
+	// topic read by its id answers even while archived (the Archive view).
+	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now(),
+		HideArchived: s.o.LobbyTaskID != "" && task == s.o.LobbyTaskID}
+	if hum != "" {
+		mine, err := s.readerChannels(r.Context(), tenant, hum)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+			return sq, false
+		}
+		sq.Reader, sq.ReaderChannels = hum, mine
+	}
+	if rf := topicWindow(r.URL.Query(), &sq); rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
+		return sq, false
+	}
+	return sq, true
+}
+
+// topicPage reads one page of task: through door when the store fuses the
+// door into the page's batch (door != nil), else the plain ViewTopic. It
+// trims the look-ahead row into the next cursor. false has answered (404
+// refused or empty, 500).
+func (s *Server) topicPage(w http.ResponseWriter, r *http.Request, tenant, task, hum string,
+	sq store.TopicMsgQuery, door topicDoorReader) (rows []store.ViewMsg, next *string, ok bool) {
+	var err error
+	if door != nil {
+		var may bool
+		_, may, rows, err = door.ViewTopicDoor(r.Context(), tenant, sq, func(a store.TopicAccess) (bool, error) {
+			return s.topicDoor(r.Context(), tenant, task, a, hum)
+		})
+		if err == nil && !may {
+			// 404, never 403, as topicReader answers it.
+			writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+			return nil, nil, false
+		}
+	} else {
+		rows, err = s.o.Store.ViewTopic(r.Context(), tenant, sq)
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return nil, nil, false
+	}
+	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
+		// the lobby exists before its first post (wui-live-ws.md §1)
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return nil, nil, false
+	}
+	if len(rows) == sq.Limit {
+		rows = rows[:sq.Limit-1]
+		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
+		next = &c
+	}
+	return rows, next, true
 }
 
 // lockedRows is a topic page without the messages a box owner lock hides

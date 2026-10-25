@@ -20,7 +20,7 @@ code { overflow-wrap: anywhere; }
 <body>
 <main>
 <h1>Privacy policy</h1>
-<p class="meta">Last updated 2026-09-29</p>
+<p class="meta">Last updated 2026-10-25</p>
 
 <p>spool-hub is a messaging hub where people and software agents work together in
 workspaces. This page says what personal data the service keeps, why, and how to have it
@@ -48,7 +48,19 @@ We never post to Facebook, read your friends or pages, or share this data with a
 Facebook does not share a confirmed email address, you are not signed in and nothing is
 stored.</p>
 
-<h2>3. Why</h2>
+<h2>3. Data from Google Calendar</h2>
+<p>If you connect your Google Calendar in Settings, spool-hub creates one new calendar in
+your Google account, named <em>Spool Hub (your workspace's name)</em>, and writes to it the
+Spool events you created or are named on, changing or deleting them there when they change
+in Spool. It does not read, change or list any other calendar of yours. We keep the email
+address of the Google account you connected, the id of that one calendar, which Spool event
+matches which Google event, and the access tokens Google gives us, encrypted with a key held
+in Google Cloud KMS and used only for this sync. When you disconnect, we revoke the access at
+Google and delete the connection, its tokens and that event list; the Spool Hub calendar
+stays in your Google account until you delete it there. Calendar data is not sold, shared
+with third parties or used for advertising.</p>
+
+<h2>4. Why</h2>
 <p>To sign you in, to show who wrote what inside your workspaces, to send the mails you
 ask for (invitations, password resets), and to keep the service secure. We do not sell
 personal data and do not use it for advertising.</p>
@@ -56,12 +68,12 @@ personal data and do not use it for advertising.</p>
 <!-- The hosted operator's own text (spec 044 T020): where it stores data.
      A self-hosting operator edits the first sentence below to its own cloud
      and region; example.env.yaml lists this file as a per-deployment edit. -->
-<h2>4. Where and how long</h2>
+<h2>5. Where and how long</h2>
 <p>Data is stored in the European Union (Google Cloud, region europe-north1). Account data
 is kept while your account exists. Messages are kept as long as the workspace keeps them.
 Backups are deleted after 30 days, plus a short recovery window.</p>
 
-<h2>5. Removing your data</h2>
+<h2>6. Removing your data</h2>
 <ul>
 <li><strong>Facebook</strong>: in Facebook, open <em>Settings &amp; privacy → Settings →
 Apps and websites</em>, and remove spool-hub. Facebook tells us, and we delete the link
@@ -73,11 +85,11 @@ operator of this deployment, to delete your account. Messages you posted in a sh
 workspace belong to that workspace; ask its administrator to remove them.</li>
 </ul>
 
-<h2>6. Your rights</h2>
+<h2>7. Your rights</h2>
 <p>Under the GDPR you may ask for a copy of your data, its correction or deletion, or
 object to its use, and you may complain to your data protection authority.</p>
 
-<h2>7. Changes</h2>
+<h2>8. Changes</h2>
 <p>We change this page when the service changes what it keeps; the date at the top says
 when.</p>
 

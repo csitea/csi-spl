@@ -55,7 +55,7 @@ describe('example.env.yaml (spec 044 T020)', { skip: !existsSync(join(ROOT, 'csi
 
   it('names privacy.html as a per-deployment edit, and the page marks its operator text', () => {
     assert.match(readFileSync(EXAMPLE, 'utf8'), /csi-spl-wui\/src\/public\/privacy\.html/)
-    assert.match(read('src/public/privacy.html'), /<!-- The hosted operator's own text[^]*?-->\s*<h2>4\. Where and how long<\/h2>/)
+    assert.match(read('src/public/privacy.html'), /<!-- The hosted operator's own text[^]*?-->\s*<h2>5\. Where and how long<\/h2>/)
   })
 
   it('no product source but the operator text in privacy.html names a project id or region', () => {

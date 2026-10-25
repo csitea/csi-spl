@@ -206,6 +206,8 @@ CREATE TABLE personal.profile (person_id text); CREATE TABLE personal.settings (
 CREATE TABLE personal.hours_receipts (person_id text); CREATE TABLE personal.receipt_due (person_id text);
 CREATE FUNCTION personal.delete_my_receipts(workspace_id text) RETURNS int LANGUAGE sql AS 'SELECT 0';
 CREATE FUNCTION personal.due_receipts(now timestamptz) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
+-- rdb 0225's Notes tables (spec 155 4): runtime-grants.sql grants on them by name
+CREATE TABLE personal.notes (person_id text); CREATE TABLE personal.note_items (person_id text); CREATE TABLE personal.note_links (person_id text);
 EOF
   RPW="rt$RANDOM$RANDOM"
   real() { env PATH="$PATH" SPL_DB_USER=rt SPL_DB_OWNER_USER=own SPL_DB_ROLES_SQL="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles" \

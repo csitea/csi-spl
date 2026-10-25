@@ -13,6 +13,12 @@
 #      max) and a policy with no channels both fail the rule; a planted low
 #      memory threshold fires on a dev-shaped series where the cnf one stays
 #      quiet (condition semantics only, nothing applied)
+#   6. SPL-3424 (alerts fix round row 01, owner Q1 = A): instances_at_max
+#      pages only when the revision is at max AND busy: a second condition,
+#      container/cpu/utilizations p99 per revision above
+#      var.instances_at_max_cpu_p99 for the same duration, combiner "AND";
+#      the rendered tfvars carry the cnf value. CONTROLS: combiner "OR" and a
+#      literal threshold fail the rule; an idle at-max hour stays quiet
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -69,6 +75,9 @@ for env in dev prd; do
   vars="$CNF/$env/tf/070-gcp-monitoring.vars.tfvars"
   got="$(sed -nE 's/^hub_max_instances[[:space:]]*=[[:space:]]*([0-9]+)$/\1/p' "$vars")"
   [[ -n "$got" && "$got" == "$m" ]] && pass "$env 070 hub_max_instances $got = cnf max_instances $m" || fail "$env 070 hub_max_instances '$got' != cnf '$m'"
+  cpu="$(sed -nE 's/^instances_at_max_cpu_p99[[:space:]]*=[[:space:]]*([0-9.]+)$/\1/p' "$vars")"
+  want="$(yq -r '.env.steps["070-gcp-monitoring"].instances_at_max_cpu_p99' "$CNF/all.env.yaml")"
+  [[ -n "$cpu" && "$cpu" == "$want" ]] && pass "$env 070 instances_at_max_cpu_p99 $cpu = cnf" || fail "$env 070 instances_at_max_cpu_p99 '$cpu' != cnf '$want'"
   thr="$(sed -nE 's/^memory_utilization_threshold[[:space:]]*=[[:space:]]*([0-9.]+)$/\1/p' "$vars")"
   mem="$(yq -r '.env.hub.cloud_run.memory' "$CNF/all.env.yaml")"; mem="${mem%Mi}"
   lim="$(grep -oE '"SPOOL_HUB_GOMEMLIMIT": "[0-9]+MiB"' "$CNF/$env/tf/030-cloud-run-hub.vars.tfvars" | grep -oE '[0-9]+')"
@@ -89,5 +98,31 @@ cnf_thr="$(yq -r '.env.steps["070-gcp-monitoring"].memory_utilization_threshold'
 cnf_min=$(( $(yq -r '.env.steps["070-gcp-monitoring"].memory_high_seconds' "$CNF/all.env.yaml") / 60 ))
 fires "$cnf_thr" "$cnf_min" "${series[@]}" && fail "cnf threshold $cnf_thr fires on the dev series" || pass "cnf threshold $cnf_thr stays quiet on the dev series"
 fires 0.1 "$cnf_min" "${series[@]}" && pass "CONTROL planted threshold 0.1 fires on the dev series" || fail "CONTROL planted threshold 0.1 did not fire"
+
+# --- 6. at max AND busy (SPL-3424) -------------------------------------------------
+# cond <block> <metric> -> the conditions { } sub-block that reads that metric
+cond() {
+  awk -v m="run.googleapis.com/$2" '/^  conditions \{/{on=1; buf=""} on{buf=buf $0 "\n"} on&&/^  \}/{on=0; if(index(buf, m)) printf "%s", buf}' <<<"$1"
+}
+# busy <block> -> 0 when the policy ANDs a CPU p99 condition on the cnf variable
+busy() {
+  local c; c="$(cond "$1" container/cpu/utilizations)"
+  [[ "$(attr "$1" combiner)" == '"AND"' && -n "$c" ]] || return 1
+  rule "$(printf '  notification_channels = local.channels\n%s' "$c")" container/cpu/utilizations COMPARISON_GT \
+    var.instances_at_max_cpu_p99 instances_at_max_seconds || return 1
+  [[ "$(attr "$c" per_series_aligner)" == '"ALIGN_PERCENTILE_99"' ]]
+}
+busy "$im" && pass "instances_at_max: AND a CPU p99 per revision > instances_at_max_cpu_p99 for instances_at_max_seconds" \
+  || fail "instances_at_max does not AND a CPU p99 condition on var.instances_at_max_cpu_p99: $im"
+busy "$(sed -E 's/^(  combiner *= )"AND"/\1"OR"/' <<<"$im")" \
+  && fail "CONTROL combiner OR passed the busy rule" || pass "CONTROL combiner OR fails the busy rule"
+busy "$(sed -E 's/(threshold_value = )var.instances_at_max_cpu_p99/\10.6/' <<<"$im")" \
+  && fail "CONTROL a literal CPU threshold passed the busy rule" || pass "CONTROL a literal CPU threshold fails the busy rule"
+# the prd episode of 2026-10-21: at max for an hour, CPU p99 <= 0.06 -> quiet
+cpu_thr="$(yq -r '.env.steps["070-gcp-monitoring"].instances_at_max_cpu_p99' "$CNF/all.env.yaml")"
+at_min=$(( $(yq -r '.env.steps["070-gcp-monitoring"].instances_at_max_seconds' "$CNF/all.env.yaml") / 60 ))
+idle=(); hot=(); for ((i = 0; i <= at_min; i++)); do idle+=(0.06); hot+=(0.75); done
+fires "$cpu_thr" "$at_min" "${idle[@]}" && fail "an idle at-max hour (CPU p99 0.06) fires at '$cpu_thr'" || pass "an idle at-max hour (CPU p99 0.06) stays quiet at $cpu_thr"
+fires "$cpu_thr" "$at_min" "${hot[@]}" && pass "CONTROL a busy at-max hour (CPU p99 0.75) fires at $cpu_thr" || fail "CONTROL a busy at-max hour did not fire at '$cpu_thr'"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-capacity-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

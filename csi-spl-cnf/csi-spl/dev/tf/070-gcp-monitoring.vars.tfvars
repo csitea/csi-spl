@@ -21,6 +21,7 @@ rate_5xx_per_5min = 5
 error_logs_per_5min = 10
 sql_down_seconds = 120
 instances_at_max_seconds = 3600
+instances_at_max_cpu_p99 = 0.6
 memory_utilization_threshold = 0.8
 memory_high_seconds = 300
 signin_path = "/api/v1/auth/login"

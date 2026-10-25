@@ -170,6 +170,16 @@ variable "instances_at_max_seconds" {
   }
 }
 
+variable "instances_at_max_cpu_p99" {
+  type        = number
+  description = "instances_at_max pages only while the revision's p99 container CPU utilisation (0..1) is also above this (SPL-3424)."
+
+  validation {
+    condition     = var.instances_at_max_cpu_p99 > 0 && var.instances_at_max_cpu_p99 < 1
+    error_message = "instances_at_max_cpu_p99 is a fraction of the container CPU: above 0, below 1."
+  }
+}
+
 variable "memory_utilization_threshold" {
   type        = number
   description = "Page when a hub revision's p99 container memory utilisation (0..1) stays above this."

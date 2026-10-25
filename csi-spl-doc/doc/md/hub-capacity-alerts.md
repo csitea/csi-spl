@@ -7,7 +7,7 @@ Cloud SQL down). They page the same channels (cnf `env.gcp.alert_email_<n>` /
 
 | policy | condition | cnf (`steps.070-gcp-monitoring`) |
 |---|---|---|
-| `<org>-<app>-<env> hub at max instances` | `run.googleapis.com/container/instance_count`, max per minute, summed per revision, at `hub.cloud_run.max_instances` | `instances_at_max_seconds` (3600) |
+| `<org>-<app>-<env> hub at max instances` | `run.googleapis.com/container/instance_count`, max per minute, summed per revision, at `hub.cloud_run.max_instances`, AND `container/cpu/utilizations` p99 per minute, max per revision, above the CPU threshold (SPL-3424) | `instances_at_max_seconds` (3600), `instances_at_max_cpu_p99` (0.6) |
 | `<org>-<app>-<env> hub memory high` | `container/memory/utilizations` p99 per minute, max per revision, above the threshold | `memory_utilization_threshold` (0.8), `memory_high_seconds` (300) |
 
 `max_instances` is per revision, so both group by revision: during a roll or a
@@ -34,6 +34,19 @@ Measured read-only as each env's service account, 7 days to
   (460 MiB of 512 Mi = 0.9), past which the Go GC fights for memory and the
   next step is an OOM kill that drops every socket on the instance.
 
+### 1.1 At max AND busy (SPL-3424)
+
+At max alone paged 7 times from 2026-10-21, when it went live, to the
+alerts fix round, each time on an idle hub (CPU p99 <= 0.06 in the measured
+episode, plan section 4). The owner chose Q1 = A (msg e13d9db4;
+[alerts fix round plan](alerts-fix-round-plan.md) row 01): page only when
+the hub is at max AND busy. The policy now has two conditions with
+`combiner = "AND"`, both per revision and for `instances_at_max_seconds`:
+the instance count at its max, and the p99 container CPU utilisation above
+`instances_at_max_cpu_p99` (0.6, cnf `steps.070-gcp-monitoring`). An idle
+hour at max stays quiet; a busy one pages. Live only after the owner's go
+for the 070 apply, dev then prd.
+
 ## 2. First response
 
 - At max: `cd csi-spl-orc && ENV=<env> REQ_SINCE=<start> REQ_MINUTES=60 ./run -a do_spl_hub_run_metrics`
@@ -48,7 +61,11 @@ Measured read-only as each env's service account, 7 days to
 conditions, the rendered `hub_max_instances`, the memory threshold under
 `GOMEMLIMIT`; controls: a "greater than max" condition (never fires) and a
 policy with no channels fail the rule, a planted 0.1 memory threshold fires on
-a dev-shaped series where 0.8 stays quiet.
+a dev-shaped series where 0.8 stays quiet. SPL-3424: the at-max policy ANDs a
+CPU p99 condition on `var.instances_at_max_cpu_p99` and the rendered tfvars
+carry the cnf value; controls: combiner `OR` and a literal CPU threshold fail
+the rule, an idle at-max hour (CPU p99 0.06) stays quiet where a busy one
+(0.75) fires.
 
 ## 4. What fired: the alert incidents of a window
 

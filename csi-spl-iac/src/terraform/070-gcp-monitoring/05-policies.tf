@@ -187,9 +187,12 @@ resource "google_monitoring_alert_policy" "sql_down" {
 # SPL-2542 (Cloud Run radar step 5): capacity. max_instances is per revision,
 # so both conditions group by revision: during a roll or a canary two
 # revisions run side by side, each under its own ceiling.
+# SPL-3424 (alerts fix round row 01, owner Q1 = A): at max alone paged 7 times
+# on an idle hub (CPU p99 <= 0.06), so it pages only when the revision is
+# also busy: CPU p99 above instances_at_max_cpu_p99 for the same duration.
 resource "google_monitoring_alert_policy" "instances_at_max" {
   display_name          = "${local.name} hub at max instances"
-  combiner              = "OR"
+  combiner              = "AND"
   notification_channels = local.channels
 
   conditions {
@@ -208,13 +211,29 @@ resource "google_monitoring_alert_policy" "instances_at_max" {
     }
   }
 
+  conditions {
+    display_name = "and its p99 CPU is above ${format("%.0f", var.instances_at_max_cpu_p99 * 100)}% for ${var.instances_at_max_seconds}s"
+    condition_threshold {
+      filter          = "metric.type = \"run.googleapis.com/container/cpu/utilizations\" AND ${local.run}"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.instances_at_max_cpu_p99
+      duration        = "${var.instances_at_max_seconds}s"
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_99"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["resource.label.revision_name"]
+      }
+    }
+  }
+
   alert_strategy {
     auto_close = "${var.auto_close_seconds}s"
   }
 
   documentation {
     mime_type = "text/markdown"
-    content   = "The hub has run at its max instances (${var.hub_max_instances}) for ${var.instances_at_max_seconds}s: no headroom left, the next load step is 429s. Check CPU and requests in flight (`ENV=<env> ./run -a do_spl_hub_run_metrics`) before raising cnf hub.cloud_run.max_instances; more instances need a bigger DB tier."
+    content   = "The hub has run at its max instances (${var.hub_max_instances}) with p99 CPU above ${format("%.0f", var.instances_at_max_cpu_p99 * 100)}% for ${var.instances_at_max_seconds}s: no headroom left, the next load step is 429s. Check CPU and requests in flight (`ENV=<env> ./run -a do_spl_hub_run_metrics`) before raising cnf hub.cloud_run.max_instances; more instances need a bigger DB tier."
   }
 }
 

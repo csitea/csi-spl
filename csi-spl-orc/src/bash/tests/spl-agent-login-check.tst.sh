@@ -25,8 +25,11 @@
 #   9. the cred script refuses an input that is no Claude login
 #  10. the peers come from box.env (SPOOL_LOGIN_PEERS, a comma list); none
 #      named there = no peer is asked
-#  11. this box works but the peer's credential is newer: the peer's is
-#      never overwritten, it is reported
+#  11. this box works but the peer's credential is newer and works there:
+#      the peer's is pulled (copied=1, .bak-login-<UTC>, mode 600) and never
+#      overwritten (10-25: a peer's renewal kills the older copy here at the
+#      next refresh); DRY_RUN=1 plans it; the peer's newer one does not work
+#      there -> not pulled, reported
 #  12. two stuck seats: stop + restore per seat, in order, one id each
 #  13. two ticks on a healthy box = 0 stops
 #  14. a second call inside the cool-down = 0 stops (control: cool-down 0
@@ -239,12 +242,31 @@ out="$(NOPEERS=1 tick)"
 cmp -s "$T/here/cred.json" "$T/peer/cred.json" && grep -q 'copied=1' <<<"$out" \
   && pass "10. SPOOL_LOGIN_PEERS in box.env names the peer" || fail "10. box.env ($out; $(cat "$T/calls"))"
 
-# 11. a newer peer is never overwritten, even by a working one
+# 11. a newer working peer credential is pulled even while this box works
+reset; cred "$T/here/cred.json" GOOD 1000; cred "$T/peer/cred.json" GOODNEW 5000
+psha="$(sha256sum "$T/peer/cred.json" | cut -c1-12)"
+out="$(tick)"; rc=$?
+cmp -s "$T/here/cred.json" "$T/peer/cred.json" && grep -q rt-GOODNEW-secret "$T/peer/cred.json" && grep -q 'peer satellite get' "$T/calls" \
+  && ! grep -q 'peer satellite put' "$T/calls" && grep -q 'probe=ok .*copied=1 stopped=0 restored=0 failed=0 alerted=1' <<<"$out" \
+  && [ "$(grep -c "^- pulled peer sat $psha because the peer's is newer$" "$T/calls")" = 1 ] \
+  && pass "11. a newer working peer credential is pulled while this box works, the peer's untouched" || fail "11. (rc $rc: $out; $(cat "$T/calls"))"
+[ "$(find "$T/here" -maxdepth 1 -name 'cred.json.bak-login-*' | wc -l)" = 1 ] && grep -q rt-GOOD-secret "$T/here/"cred.json.bak-login-* \
+  && [ "$(stat -c %a "$T/here/cred.json")" = 600 ] && [ -z "$(find "$T/here" -maxdepth 1 -name '.cred-in*')" ] \
+  && pass "11. the older one kept as .bak-login-<UTC>, mode 600, no temp file" || fail "11. backup ($(ls -la "$T/here"))"
+printf '%s\n' "$out" >"$T/out11"
+[ "$(leaks "$T/out11" "$T/calls" "$T/state")" = 0 ] && pass "11. no credential content in any output, call or state" || fail "11. leak"
+reset; cred "$T/here/cred.json" GOOD 1000; cred "$T/peer/cred.json" GOODNEW 5000
+out="$(DRY=1 tick)"
+grep -q rt-GOOD-secret "$T/here/cred.json" && ! grep -q rt-GOODNEW "$T/here/cred.json" && [ "$(acts)" = 0 ] \
+  && grep -q "PLAN pull the credential of sat -> here .*the peer's is newer" <<<"$out" \
+  && pass "11. DRY_RUN=1 plans the pull and changes nothing" || fail "11. dry ($out; $(cat "$T/calls"))"
 reset; cred "$T/here/cred.json" GOOD 1000; cred "$T/peer/cred.json" NEWER 5000
+echo "OAuth session expired and could not be refreshed" >"$T/peer/probe"
 out="$(tick)"
-grep -q rt-NEWER-secret "$T/peer/cred.json" && ! grep -q put "$T/calls" && grep -q 'copied=0 stopped=0 restored=0 failed=0 alerted=1' <<<"$out" \
+grep -q rt-GOOD-secret "$T/here/cred.json" && grep -q rt-NEWER-secret "$T/peer/cred.json" && ! grep -qE 'peer [^ ]+ (get|put)' "$T/calls" \
+  && grep -q 'probe=ok .*copied=0 stopped=0 restored=0 failed=0 alerted=1' <<<"$out" \
   && grep -q '^- peer sat holds a NEWER credential' "$T/calls" \
-  && pass "11. a newer peer credential is reported, never overwritten" || fail "11. ($out; $(cat "$T/calls"))"
+  && pass "11. control: the newer peer credential does not work there: not pulled, reported" || fail "11. dead peer ($out; $(cat "$T/calls"))"
 
 # 12. two stuck seats, one at a time
 reset; stuck_login %11 999999701; stuck_login %12 999999702

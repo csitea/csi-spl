@@ -14,9 +14,13 @@
      its own: the allocation is per box (band, place in the order), so one
      fleet-load read serves the block and every row. Both are lazy chunks;
      the allocation shows only when GET /v1/operator/fleet-load answers (the
-     operator admins, as Settings -> Fleet load). -->
+     operator admins, as Settings -> Fleet load).
+
+     SPL-3399 (owner HUM-10, t1 fb9b6e4b, msgs f9e50fae + 56f0fd00): each
+     box's card carries the anchor #box-<id>; the agent card's Box links
+     here with it, and the list scrolls to that card and marks it. -->
 <template>
-  <div class="monitoring-list" data-test="monitoring-boxes">
+  <div ref="listEl" class="monitoring-list" data-test="monitoring-boxes">
     <MonitoringAllocation v-if="fleet" :view="fleet" :split="split" />
     <p v-if="rows.length === 0" class="muted monitoring-empty" data-test="monitoring-boxes-empty">{{ t('boxes.none') }}</p>
     <template v-else>
@@ -34,7 +38,16 @@
     <template v-for="g in groups" :key="g.key">
       <div v-if="g.rows.length" class="boxes-group" :data-test="'boxes-group-' + g.key">
         <p class="boxes-group__head muted">{{ g.label }} <span class="boxes-group__n">{{ g.rows.length }}</span></p>
-        <div v-for="b in g.rows" :key="b.id" class="monitoring-box" data-test="monitoring-box" :data-box="b.id">
+        <div
+          v-for="b in g.rows"
+          :id="'box-' + b.id"
+          :key="b.id"
+          class="monitoring-box"
+          :class="{ 'monitoring-box--target': b.id === target }"
+          data-test="monitoring-box"
+          :data-box="b.id"
+          :data-target="b.id === target ? '1' : undefined"
+        >
           <div class="nav-row">
             <NuxtLink
               class="nav-item"
@@ -85,6 +98,45 @@ const groups = computed(() => [
   { key: 'offline', label: t('people.offline'), rows: shown.value.filter((b) => !b.online) },
 ])
 
+/* #box-<id>: scroll to that card once it is drawn (the roster may answer
+   after mount), and mark it; a new hash jumps again. The lazy blocks above
+   it (the allocation, other boxes' facts) arrive later and push it down, so
+   for SETTLE_MS a resize of the list scrolls it back, until the reader
+   scrolls on their own. */
+const SETTLE_MS = 3000
+const route = useRoute()
+const listEl = ref<HTMLElement | null>(null)
+const target = computed(() => {
+  const m = /^#box-(.+)$/.exec(route.hash || '')
+  if (!m) return ''
+  try { return decodeURIComponent(m[1]) } catch { return m[1] }
+})
+let jumped = ''
+let settleUntil = 0
+function scrollToTarget() {
+  document.getElementById('box-' + target.value)?.scrollIntoView({ block: 'start' })
+}
+function jumpToTarget() {
+  const id = target.value
+  if (!id || jumped === id || !document.getElementById('box-' + id)) return
+  jumped = id
+  settleUntil = Date.now() + SETTLE_MS
+  scrollToTarget()
+}
+function stopSettle() { settleUntil = 0 }
+const READER_SCROLL = ['wheel', 'touchstart', 'keydown'] as const
+let settle: ResizeObserver | null = null
+onMounted(() => {
+  watch([target, () => rows.value.length], () => { void nextTick(jumpToTarget) }, { immediate: true })
+  settle = new ResizeObserver(() => { if (Date.now() < settleUntil) scrollToTarget() })
+  if (listEl.value) settle.observe(listEl.value)
+  for (const ev of READER_SCROLL) window.addEventListener(ev, stopSettle, { passive: true })
+})
+onUnmounted(() => {
+  settle?.disconnect()
+  for (const ev of READER_SCROLL) window.removeEventListener(ev, stopSettle)
+})
+
 const fleet = ref<FleetLoadView | null>(null)
 const split = ref<Record<string, number> | null>(null)
 const stats = ref<BoxStat[]>([])
@@ -107,7 +159,13 @@ onMounted(() => {
 
 <style scoped>
 .monitoring-list { display: flex; flex-direction: column; gap: 8px; }
-.monitoring-box { border-bottom: 1px solid var(--color-border); min-width: 0; }
+.monitoring-box { border-bottom: 1px solid var(--color-border); min-width: 0; scroll-margin-top: 8px; }
+/* SPL-3399: the card #box-<id> named (from an agent's Box link) */
+.monitoring-box--target {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+  border-radius: var(--radius-sm);
+}
 /* BoxSeatCounts sits on a second line under the name (absolute), as in the
    sidebar, whose row rules are scoped to ChannelSidebar */
 .monitoring-box .nav-row { position: relative; }

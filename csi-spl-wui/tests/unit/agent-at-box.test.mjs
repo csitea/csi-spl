@@ -120,8 +120,9 @@ describe('specs/058: the same id on two boxes is two agents (CLE-77932)', () => 
   it('a narrow rail row clips neither the id nor the box: the box is its own line', () => {
     const side = channelSidebarSrc()
     assert.match(side, /<HumanName class="label" :id="p\.id" :box="p\.box" stacked \/>/, 'DM rows')
-    /* SPL-2075: the Agents list is Monitoring -> Agents now */
-    const agents = src('src/pages/monitoring/agents/index.vue')
+    /* SPL-2075: the Agents list is Monitoring -> Agents now; SPL-3399: the
+       tab's parent route (list + detail) */
+    const agents = src('src/pages/monitoring/agents.vue')
     assert.match(agents, /<HumanName class="label" :id="a\.id" :box="a\.box" stacked \/>/, 'Agents rows (were the bare id)')
     assert.doesNotMatch(agents, /<span class="label">\{\{ a\.id \}\}<\/span>/, 'CONTROL: no bare agent id in the Agents list')
     const name = src('src/components/HumanName.vue')

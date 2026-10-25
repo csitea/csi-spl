@@ -7,7 +7,12 @@
      SPL-2075 (owner HUM-10, t1 dbf2f39b, msg fd5a2bf4): moved from
      /agents/<id@box> into Monitoring -> Agents, unchanged; the Monitoring
      page around it holds the header and Back, so the card names the agent
-     in its own heading. The old path redirects here (pages/agents/[id].vue). -->
+     in its own heading. The old path redirects here (pages/agents/[id].vue).
+
+     SPL-3399 (owner HUM-10, t1 fb9b6e4b, msg f9e50fae: "in this view I
+     should be able to click on the machine which will take me to this
+     box"): the right pane of the Agents tab (pages/monitoring/agents.vue);
+     its Box links to the Boxes tab at that box's card (#box-<id>). -->
 <template>
   <div class="monitoring-card" data-test="agent-page">
     <h3 class="agent-head">
@@ -31,7 +36,7 @@
           <dt>{{ t('agents.kind') }}</dt>
           <dd>{{ t(kindKey) }}</dd>
           <dt>{{ t('agents.box') }}</dt>
-          <dd data-test="agent-box"><code>{{ box }}</code></dd>
+          <dd data-test="agent-box"><NuxtLink v-if="box" class="agent-card__box" data-test="agent-box-link" :to="boxLink"><code>{{ box }}</code></NuxtLink></dd>
           <dt>{{ t('people.last_seen') }}</dt>
           <dd data-test="agent-last-seen">{{ lastHello }}</dd>
         </dl>
@@ -63,6 +68,8 @@ const online = computed(() => roster.isOnline(agentId.value, box.value))
 /* t1 bc1a43e1: its machine is online, the agent does not run */
 const idle = computed(() => roster.isIdle(agentId.value, box.value))
 const boxDetail = computed(() => roster.boxes[box.value] || { online: false, last_hello_at: '' })
+/* the Boxes tab scrolls to and marks this box's card (pages/monitoring/boxes/index.vue) */
+const boxLink = computed(() => localePath({ path: '/monitoring/boxes', hash: '#box-' + encodeURIComponent(box.value) }))
 const lastHello = computed(() => (boxDetail.value.last_hello_at ? isoDateTime(boxDetail.value.last_hello_at) : t('people.never_seen')))
 
 onMounted(() => { if (!roster.boxes[box.value]) void roster.refresh() })
@@ -93,6 +100,7 @@ function message() {
 .agent-card__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .agent-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .agent-card__actions { display: flex; gap: 8px; }
+.agent-card__box { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 480px) {
   .agent-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .agent-card__facts dd + dt { margin-top: 8px; }

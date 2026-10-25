@@ -21,6 +21,15 @@
 // /monitoring/agents/<id> or /monitoring/boxes/<id> card, no filter), the
 // rail draws Agents and Boxes, and the old URLs stay where they are.
 //
+// SPL-3399 (owner HUM-10, t1 fb9b6e4b, msgs 4a41a8ce / eaf140eb / f9e50fae /
+// 56f0fd00): section 4. On a desktop the Agents tab is list + detail: a click
+// shows the card on the right with the list still beside it, the URL names the
+// agent, the row stays selected, a deep link opens the same state. The card's
+// Box links to the Boxes tab, which scrolls to and marks that box's card
+// (#box-<id>). A phone keeps the full-page card, Back returns to the list.
+// RED CONTROL: on origin/master 55d2453e4 the list is gone once a row is
+// clicked (a separate page) and the Box is plain text, so the 1400 rows FAIL.
+//
 // Screenshots of the rail for the owner post land in $SHOT_DIR when set.
 //
 // Run:
@@ -194,6 +203,62 @@ try {
     ok(`${tag}: box - a resource opens its statistics (?r=)`, (await where(p)).search === '?r=system' && await has(p, '[data-test=box-stats-system]'), await where(p))
     ok(`${tag}: box - no sideways scroll`, await noXScroll(p))
     await shot(p, `monitoring-takeover-box-${w}`)
+    await p.close()
+  }
+
+  /* 4. SPL-3399: list + detail on a desktop, the Box jump; full page on a phone */
+  {
+    const vp = { width: 1400, height: 900 }
+    const p = await browser.newPage()
+    await setPageViewport(p, vp)
+    await p.goto(server.base + '/monitoring/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await applyViewport(p, vp)
+    const agentRow = `[data-test=monitoring-agents] a[data-key="${AGENT}"]`
+    if (await has(p, agentRow)) await p.click(agentRow)
+    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-card]')
+    const boxes = card ? await p.evaluate(() => {
+      const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, w: b.width } }
+      return { list: r('[data-test=monitoring-agents]'), card: r('[data-test=agent-card]') }
+    }) : null
+    ok('1400x900: split - a click shows the card on the right, the list still beside it', Boolean(boxes && boxes.list && boxes.card
+      && boxes.list.w > 0 && boxes.card.left >= boxes.list.right - 1), { where: await where(p), boxes })
+    ok('1400x900: split - the clicked row stays selected', await p.$eval(agentRow, (e) => e.classList.contains('active') && e.getAttribute('aria-current') === 'true').catch(() => false))
+    await shot(p, 'monitoring-agents-split-1400')
+    /* a deep link opens the same state */
+    await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent(AGENT), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    ok('1400x900: split - a deep link opens list + card, the row selected', await has(p, '[data-test=agent-card]') && await shown(p, '[data-test=monitoring-agents]')
+      && await p.$eval(agentRow, (e) => e.classList.contains('active')).catch(() => false))
+    /* the Box jumps to that box's card in Boxes */
+    if (await has(p, '[data-test=agent-box-link]', 5000)) await p.click('[data-test=agent-box-link]')
+    await at(p, '/monitoring/boxes')
+    const target = '[data-test=monitoring-boxes] #box-box-a'
+    const inView = await has(p, target) && await p.waitForFunction((s) => {
+      const e = document.querySelector(s)
+      if (!e || e.getAttribute('data-target') !== '1') return false
+      const b = e.getBoundingClientRect()
+      return b.top >= 0 && b.top < window.innerHeight / 2
+    }, { timeout: 15000 }, target).then(() => true, () => false)
+    await sleep(3500)
+    const top = await p.$eval(target, (e) => ({ top: Math.round(e.getBoundingClientRect().top), vh: window.innerHeight })).catch(() => null)
+    ok('1400x900: box jump - the Box opens Boxes at that card, in view and marked', inView && top && top.top >= 0 && top.top < top.vh / 2, { where: await where(p), top })
+    ok('1400x900: box jump - the URL names the card', (await where(p)).hash === '#box-box-a', await where(p))
+    await shot(p, 'monitoring-agents-box-jump-1400')
+    await p.close()
+  }
+  {
+    const vp = { width: 390, height: 844 }
+    const p = await browser.newPage()
+    await setPageViewport(p, vp)
+    await p.goto(server.base + '/monitoring/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await applyViewport(p, vp)
+    const agentRow = `[data-test=monitoring-agents] a[data-key="${AGENT}"]`
+    if (await has(p, agentRow)) await p.click(agentRow)
+    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-card]')
+    ok('390x844: phone - the card is full page, the list hidden', card && !(await shown(p, '[data-test=monitoring-agents]')), await where(p))
+    ok('390x844: phone - no sideways scroll', await noXScroll(p))
+    await shot(p, 'monitoring-agents-card-390')
+    if (await has(p, '[data-testid=mobile-back]', 5000)) await p.click('[data-testid=mobile-back]')
+    ok('390x844: phone - Back returns to the list', await at(p, '/monitoring/agents') && await has(p, agentRow), await where(p))
     await p.close()
   }
 } finally {

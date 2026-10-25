@@ -18,6 +18,8 @@ only a short notice and nothing is recorded.
 
 The log is a table, newest first, with a **Load older** button for older rows.
 
+Each column sorts and filters, on a phone and on a desktop.
+
 | Column | Meaning |
 |---|---|
 | **When** | When the event was recorded. |

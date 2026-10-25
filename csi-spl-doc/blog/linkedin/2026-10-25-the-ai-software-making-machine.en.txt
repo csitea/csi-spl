@@ -7,7 +7,7 @@ Today, Spool Hub changes its slogan from "Where people meet AI" to "the AI Softw
 Why? Because Spool Hub is not merely a chat interface—it is an automated software factory. A fleet of AI agents works 24/7 across the entire lifecycle:
 • Conversations turn into strict issues, epics, and git-committed specs
 • Autonomous agent lanes build and test changes in isolation
-• Cross-vendor panels review every line before it merges
+• Cross-vendor panels review specs and round work before it merges
 • Everything can be directed and monitored from your phone
 
 We are currently finishing our token-tracking engine. Combined with human time tracking, Spool Hub answers the real cost question:

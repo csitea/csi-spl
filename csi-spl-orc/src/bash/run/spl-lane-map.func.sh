@@ -18,6 +18,13 @@
 # @description a live pane has `files: []`: its scope is unknown, so one line per
 # @description such lane `unknown: <ID>@<box> <branch> has no files recorded; ask
 # @description it or read its brief` replaces `free`.
+# @description The hub read is tried up to 3 times inside 10 s (SPL-2180). A hub
+# @description that still does not answer leaves the local map, marked: the
+# @description table and the check open with `LOCAL-ONLY: the hub did not
+# @description answer ...`, the check says exit 5 where it would have said
+# @description `free` (other machines unread: not free), json says
+# @description `hub: unreachable`, and one #alerts note is raised per box per
+# @description 15 min (spl_lane_hub_down_alert).
 # @description The default table hides the rows 2 h old or older, and those with
 # @description no age while the hub answered, behind a footer
 # @description `N older rows hidden (--all)`; LANE_ALL=1 shows every row.
@@ -30,6 +37,11 @@
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
+# @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 10)
+# @param LANE_ALERT_GAP_S (optional) - at most one hub-down #alerts note per box in this many seconds, default 900
+# @param LANE_ALERT_DIR (optional) - where the alert's per-box stamp lives, default <spool root>/dispatch
+# @param LANE_ALERT_AGENT (optional) - the alert's author, default lease.conf LEASE_ORCH
+# @param LANE_ALERT_CMD (optional, tests) - replaces the #alerts post: gets the text on stdin
 # @param LANE_BOX_ROW_S (optional) - rewrite this box's BOX-0 load row when it is this old, default 300 s
 # @param LANE_BOX_ROW_MAX_S (optional) - a box's BOX-0 row older than this is not read, default 3600 s
 # @param LANE_PANES_CMD (optional, tests) - replaces the tmux read: prints `<pane_dead> <window name>` lines
@@ -47,11 +59,13 @@ do_spl_lane_map() {
   [[ "$fmt" =~ ^(table|json)$ ]] || { do_log "FATAL LANE_FORMAT must be table or json"; return 1; }
   spl_lane_init || return 1
   if [[ "$LANE_MODE" == hub ]]; then
-    if hub_json="$(spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" && jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$hub_json"; then
-      LANE_HUB_STATE=ok
+    if spl_lane_hub_read; then
+      LANE_HUB_STATE=ok hub_json="$LANE_HUB_JSON"
+      (( LANE_HUB_TRY > 1 )) && do_log "INFO the hub answered on try $LANE_HUB_TRY"
     else
       LANE_HUB_STATE=unreachable hub_json=""
-      do_log "WARN the hub did not answer: this map shows only this machine's lanes (local worktrees)"
+      do_log "WARN the hub did not answer ($LANE_HUB_TRIED tries): this map shows only this machine's lanes (local worktrees)"
+      spl_lane_hub_down_alert
     fi
   fi
   rows="$(spl_lane_merge "${hub_json:-{\"lanes\":[]\}}" "$(spl_lane_local_rows)")" || { do_log "FATAL cannot merge the lane rows"; return 1; }
@@ -63,9 +77,10 @@ do_spl_lane_map() {
   [[ "${LANE_ALL:-0}" == 1 ]] || rows="$(jq -c '[.[] | select(.state == "live")]' <<<"$rows")"
 
   if [[ "$fmt" == json ]]; then
-    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" --argjson load "$load" \
-      '{fleet: $f, hub: $h, load: $load, lanes: .}' <<<"$rows"
+    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" --argjson t "${LANE_HUB_TRIED:-0}" --argjson load "$load" \
+      '{fleet: $f, hub: $h, hub_tries: $t, load: $load, lanes: .}' <<<"$rows"
   elif [[ -z "${LANE_CHECK:-}" ]]; then
+    [[ "$LANE_HUB_STATE" == unreachable ]] && spl_lane_local_only_line
     spl_lane_load_header "$load"
     spl_lane_table_recent "$rows"
   fi
@@ -109,8 +124,86 @@ spl_lane_conf() {
   [[ -f "$f" ]] || return 0
   while IFS='=' read -r k v; do
     [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
-  done < <(grep -E '^LEASE_(FLEET|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$' "$f")
+  done < <(grep -E '^LEASE_(FLEET|ENV|TENANT|DESK_BOX|ORCH)=[a-z0-9][a-z0-9-]*$' "$f")
   return 0
+}
+
+# The hub's rows into LANE_HUB_JSON, tried LANE_HUB_TRIES times (default 3)
+# with LANE_HUB_BACKOFF seconds between them (default "1 2", the last value
+# repeats) inside LANE_HUB_BUDGET seconds (default 10): one dropped call no
+# longer turns the fleet map into this machine's (SPL-2180). A try's timeout
+# is what is left of the budget (at most LANE_TIMEOUT), so a hung hub costs
+# the budget, not 30 s a try. LANE_HUB_TRY: the try that answered (0: none);
+# LANE_HUB_TRIED: the tries made.
+spl_lane_hub_read() {
+  local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-10}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
+  local -a back
+  read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
+  [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
+  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=10
+  LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0
+  for (( n = 1; n <= tries; n++ )); do
+    left=$(( budget - (SECONDS - start) ))
+    (( left > 0 )) || break
+    LANE_HUB_TRIED=$n
+    if out="$(LANE_TIMEOUT=$(( left < max ? left : max )) spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" &&
+      jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+      LANE_HUB_JSON="$out" LANE_HUB_TRY=$n
+      return 0
+    fi
+    (( n < tries )) || break
+    wait="${back[n - 1]:-${back[${#back[@]} - 1]:-1}}"
+    [[ "$wait" =~ ^[0-9]+$ ]] || wait=1
+    (( wait < budget - (SECONDS - start) )) || break
+    sleep "$wait"
+  done
+  return 1
+}
+
+# The marker of a one-box map: the first line of the table, and of the
+# check's verdict. A caller must never read "free" or "every lane" from it.
+spl_lane_local_only_line() {
+  echo "LOCAL-ONLY: the hub did not answer after $LANE_HUB_TRIED tries; this map is $LANE_BOX's own lanes, not the fleet's"
+}
+
+# ONE #alerts note per box per LANE_ALERT_GAP_S (default 900 s) while the map
+# falls back to this machine's lanes, on the path the lease and the asks tick
+# use (do_spl_desk_post, kind note, never a blocker), authored by the orch
+# seat (lease.conf LEASE_ORCH; LANE_ALERT_AGENT overrides). The stamp
+# <LANE_ALERT_DIR, default <spool root>/dispatch>/lane-map.hub-down.<box>
+# holds the epoch of the last one; a stamp that cannot be written posts
+# nothing (no rate limit, no alert). The post runs in the background: the hub
+# just failed, and the map must not wait on it. LANE_ALERT_CMD (tests)
+# replaces it, in this shell, with the text on stdin.
+spl_lane_hub_down_alert() {
+  local dir="${LANE_ALERT_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}" gap="${LANE_ALERT_GAP_S:-900}" f last=0 now text who
+  f="$dir/lane-map.hub-down.$LANE_BOX"
+  now="$(date +%s)"
+  [[ -r "$f" ]] && read -r last <"$f"
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  if (( now - last < gap )); then
+    do_log "INFO the hub-down alert of $LANE_BOX was raised $(( now - last )) s ago: no second one inside ${gap} s"
+    return 0
+  fi
+  if ! { mkdir -p "$dir" && echo "$now" >"$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"; } 2>/dev/null; then
+    rm -f "$f.tmp.$$" 2>/dev/null
+    do_log "WARN cannot write $f: the hub-down alert is not raised"
+    return 0
+  fi
+  text="**ALERT** lane map on $LANE_BOX: the hub did not answer $LANE_HUB_TRIED tries in a row (fleet $LANE_FLEET), so the lane map and \`lane-map.sh --check\` there see that machine only and say LOCAL-ONLY (exit 5, not free). Do: check the hub (\`./run -a do_check_hub_deploy\`) and the desk of $LANE_BOX. At most one such alert per box per $(( gap / 60 )) min."
+  who="${LANE_ALERT_AGENT:-${LEASE_ORCH:-}}"
+  if [[ -n "${LANE_ALERT_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $LANE_ALERT_CMD <<<"$text" >/dev/null 2>&1 || do_log "WARN the hub-down alert command failed"
+  elif [[ -n "${LANE_HUB_CMD:-}" || -z "$who" ]]; then
+    do_log "ALERT (not posted: ${who:-no LEASE_ORCH}, ${LANE_HUB_CMD:+stub hub}): $text"
+    return 0
+  else
+    ( ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$who" DESK_CHANNEL=alerts \
+        DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 timeout "${LANE_ALERT_TIMEOUT:-120}" "${PROJ_PATH:-.}/run" -a do_spl_desk_post \
+        </dev/null >>"$dir/lane-map.hub-down.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
+  fi
+  do_log "ALERT the hub-down alert of $LANE_BOX is raised; the next one ${gap} s from now at the earliest"
 }
 
 # `spool lane <args>` as this machine's desk box, under a timeout.
@@ -523,6 +616,7 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
   rm -f "$chf"
   if [[ "$LANE_HUB_STATE" == unreachable ]]; then
     do_log "WARN the collision check saw this machine only (the hub did not answer)"
+    spl_lane_local_only_line
   fi
   if [[ -n "$hits" ]]; then
     printf '%s\n' "$hits"
@@ -533,6 +627,10 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
     printf '%s\n' "$unknown"
     do_log "WARN no live lane lists $LANE_CHECK, but $(wc -l <<<"$unknown") live lane(s) record no files: their scope is unknown, not free"
     return 4
+  fi
+  if [[ "$LANE_HUB_STATE" == unreachable ]]; then
+    do_log "WARN no lane on THIS machine owns $LANE_CHECK; the other machines were not read: not free (exit 5)"
+    return 5
   fi
   echo free
   do_log "INFO no live lane of another agent owns $LANE_CHECK"

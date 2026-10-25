@@ -54,6 +54,12 @@
 #      not unknown, a lane with no worktree here still is. That box's BOX-0
 #      row says `clean=<ids>`, so the other box skips the clean lane and
 #      still calls the dirty one unknown
+#  15. the hub read retries (SPL-2180): a hub that drops one read answers on
+#      the second try, the fleet map, no alert; a hub down every try (3) is
+#      the local map opening with `LOCAL-ONLY:`, ONE #alerts note per box per
+#      15 min, and the check exit 5 with no `free`. CONTROLS: the same check
+#      with the hub up is free; a stamp older than 15 min raises the next
+#      alert. RED on the action before it: one read, no marker, no alert
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -72,6 +78,14 @@ mkdir -p "$T/bin" "$T/hub"
 # one box id is refused, as the hub's CheckFleetLane does.
 cat >"$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
+# a map read (`lane --fleet F`, no --agent) is counted in $HUB_DIR/reads;
+# HUB_FAIL_FIRST=<n> drops the first n of them, as a hub that blinked would
+case " $* " in *" --agent "*) ;; " lane "*)
+  echo read >>"$HUB_DIR/reads"
+  if [ -n "${HUB_FAIL_FIRST:-}" ] && [ "$(wc -l <"$HUB_DIR/reads")" -le "$HUB_FAIL_FIRST" ]; then
+    echo "dial: i/o timeout" >&2; exit 1
+  fi ;;
+esac
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ "$1" = box-stats ] && { echo "the lane map posts no box stats: $*" >>"$HUB_DIR/stats.calls"; exit 1; }
 shift
@@ -114,7 +128,7 @@ on() {
   local m="$1" a="$2"; shift 2
   local box=box-desk; [[ "$m" == sat ]] && box=sat
   env PROJ_PATH="$T/$m/csi-spl" SPOOL_ROOT="$T/$m/spool" SPOOL_BOX_ENV="$T/$m/spool/box.env" SPOOL_DESK_BOX="$box" \
-    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_PANES_CMD=false LANE_CI_CMD="echo 0" SPOOL_VENDOR_CLIS_CMD=false "$@" bash -c '
+    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_PANES_CMD=false LANE_CI_CMD="echo 0" SPOOL_VENDOR_CLIS_CMD=false LANE_HUB_BACKOFF=0 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/spl-lane-map.func.sh"
@@ -439,6 +453,39 @@ row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "box-desk
 out="$(wchk sat z/free.md)"; rc=$?
 [[ $rc -eq 4 && "$out" == *"unknown: c-722@box-desk"* && "$out" == *"unknown: c-723@box-desk"* && "$out" != *c-721* ]] &&
   pass "sat skips c-721 (clean per pc's BOX-0 row) and still calls c-722 and c-723 unknown" || fail "sat reads clean (rc=$rc): $out"
+
+# 15. the hub read retries; a fallback is marked and raises ONE alert
+reads() { cat "$T/hub/reads" 2>/dev/null | wc -l; }
+A=(LANE_ALERT_CMD="tee -a $T/alerts" LANE_ALERT_DIR="$T/alert-dir")
+rm -f "$T/hub/reads" "$T/alerts"
+out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_FAIL_FIRST=1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *c-101@sat* && "$out" != *LOCAL-ONLY* && "$out" == *"answered on try 2"* && "$(reads)" -eq 2 && ! -e "$T/alerts" ]] &&
+  pass "a hub that drops one read: the second try answers, the FLEET map (c-101@sat), no alert" ||
+  fail "retry (rc=$rc, reads=$(reads), alerts=$(cat "$T/alerts" 2>/dev/null)): $out"
+rm -f "$T/hub/reads"
+out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1)"; rc=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$(grep -v '^WARN\|^ALERT\|^INFO' <<<"$out")")" == "LOCAL-ONLY: the hub did not answer after 3 tries"* &&
+  "$out" == *c-930@box-desk* && "$out" != *c-101* && "$(reads)" -eq 3 && "$(grep -c '^\*\*ALERT\*\* lane map on box-desk' "$T/alerts")" -eq 1 ]] &&
+  pass "a hub down 3 tries: the local map opens with LOCAL-ONLY, ONE #alerts note" ||
+  fail "fallback (rc=$rc, reads=$(reads), alerts=$(cat "$T/alerts" 2>/dev/null)): $out"
+out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_AGENT=c-921)"; rc=$?
+[[ $rc -eq 5 && "$out" == *"LOCAL-ONLY:"* && "$(grep -cx free <<<"$out")" -eq 0 && "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 1 &&
+  "$out" == *"no second one inside 900 s"* ]] &&
+  pass "the check inside 15 min: LOCAL-ONLY, exit 5, never 'free'; no second alert" || fail "local check (rc=$rc, alerts=$(grep -c '^\*\*ALERT' "$T/alerts")): $out"
+out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${A[@]}" LANE_AGENT=c-921)"; rc=$?
+[[ $rc -eq 0 && "$(grep -cx free <<<"$out")" -eq 1 && "$out" != *LOCAL-ONLY* ]] &&
+  pass "control: the same check with the hub up is free, exit 0" || fail "control check hub up (rc=$rc): $out"
+echo "$(( $(date +%s) - 901 ))" >"$T/alert-dir/lane-map.hub-down.box-desk"
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 >/dev/null
+[[ "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 2 && ! -e "$T/alert-dir/lane-map.hub-down.sat" ]] &&
+  pass "control: 15 min later a second alert is raised; the stamp is per box" || fail "alert after the gap: $(cat "$T/alerts")"
+rm -f "$T/hub/reads"
+s0=$SECONDS
+out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_HUB_TRIES=9 LANE_HUB_BACKOFF=1 LANE_HUB_BUDGET=3)"
+[[ "$(reads)" -le 3 && $(( SECONDS - s0 )) -le 6 ]] && pass "the budget bounds the tries: $(reads) reads in $(( SECONDS - s0 )) s for 9 tries asked, 3 s budget" ||
+  fail "budget: $(reads) reads in $(( SECONDS - s0 )) s"
+out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_FORMAT=json | tail -1)"
+[[ "$(jq -r '"\(.hub) \(.hub_tries)"' <<<"$out" 2>/dev/null)" == "unreachable 3" ]] && pass "json: hub unreachable, hub_tries 3" || fail "json fallback: $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

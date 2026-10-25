@@ -12,7 +12,8 @@
 #       --check prints ONLY `free` (exit 0), or `<path> owned by <ID>@<box>
 #       <branch>` per overlap (exit 3; an empty row's worktree edits count),
 #       or `unknown: <ID>@<box> <branch> has no files recorded; ask it or read
-#       its brief` per live lane, no files, no clean worktree (exit 4, NOT free)
+#       its brief` per live lane, no files, no clean worktree (exit 4, NOT free);
+#       the hub silent 3 tries: `LOCAL-ONLY: ...` first, exit 5 for free
 #       (--agent: the caller, never its own)
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T] [--issue K]
 #       write that agent's row, state live (the spawn path); K is its issue key, e.g. SPL-12
@@ -24,7 +25,9 @@
 # The action runs as the desk user, spool_desk_user (SPOOL_DESK_USER, else
 # $SPOOL_BOX_USER; spec 069 section 8.3): the desk keys that sign the hub call
 # are theirs. Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
-# write, 3 collision, 4 a live lane with no files: scope unknown); 64 usage, or a box setting that is not ONE box id.
+# write, 3 collision, 4 a live lane with no files: scope unknown, 5 nothing
+# owned on THIS machine but the hub did not answer: other machines unread,
+# NOT free); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
 set -uo pipefail
@@ -33,7 +36,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '9,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n '9,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
 verb=list
 case "${1:-}" in list|put|done) verb="$1"; shift ;; -h|--help) usage ;; esac

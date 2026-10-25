@@ -395,7 +395,7 @@ watch(() => route.hash, () => revealEvent())
 /* SPL-2120 (owner HUM-10, t1 28559e83 msg 68dd229e): the events alternate a
    lighter and a darker row, on a phone each card; the focused one (#<id>)
    keeps its selected fill over the shade. The filter row is a thead row, so
-   the stripe stays on the body. */
+   the alternate fill stays on the body rows. */
 .events-table tbody tr:nth-child(even) { background: var(--color-row-alt); }
 .events-table tbody tr.events-row--focus { background: var(--color-selected); }
 .events-table th,

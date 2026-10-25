@@ -58,7 +58,8 @@ export function eventSortLabel(sort) {
   return { colKey: columnKey(sort.col), dirKey: eventSortDirKey(sort.col, sort.dir), active: true }
 }
 
-export function eventInstant(row) {
+/** Milliseconds of at, else received_at. Missing or unparseable is 0. */
+function eventInstant(row) {
   const raw = (row && (row.at || row.received_at)) || ''
   const n = Date.parse(raw)
   return Number.isFinite(n) ? n : 0
@@ -111,6 +112,7 @@ export function sortEvents(rows, sort) {
   return list
 }
 
+/** True when any filter field has text that is not only spaces. */
 export function filtersActive(filters) {
   if (!filters) return false
   return FILTER_KEYS.some((key) => String(filters[key] || '').trim() !== '')
@@ -157,6 +159,7 @@ function rowMatches(row, filters, pinId) {
   return true
 }
 
+/** Rows that match. pinId stays even when the filter would hide it. */
 export function filterEvents(rows, filters, pinId) {
   const list = Array.isArray(rows) ? rows : []
   return list.filter((row) => rowMatches(row, filters, pinId))

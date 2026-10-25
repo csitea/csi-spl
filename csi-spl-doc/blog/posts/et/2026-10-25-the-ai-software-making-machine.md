@@ -5,7 +5,7 @@ type: news
 title: "Kas te teate, kui palju teie tehisintellektil põhinev arendus maksab?!"
 summary: "Spool Hub uuendab oma motot: 'the AI Software making machine' jälgib elutsükli kiirust, kvaliteeti ja tehisintellektiga arenduse tegelikku hinda."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "Elav automatiseeritud tarkvaratehas, kus rõõmsad robotid kavandava
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Kui Spool Hub alustas, olid selle motodeks „Where people meet AI“ ja „where humans and AI meet“. Täna saab meie motoks: **the AI Software making machine**.
+Seni olid selle motodeks „Where people meet AI“ ja „where humans and AI meet“. Täna saab meie motoks: **the AI Software making machine**.
 
 Uus moto peegeldab Spool Hubi tegelikku olemust: automatiseeritud tarkvaratehas. Tehisintellekti agentide masinapark kavandab, ehitab, testib, vaatab läbi ja tarnib tootmistarkvara ööpäevaringselt.
 
@@ -25,7 +25,7 @@ Masin tõstab kiirust ja kvaliteeti kogu tarkvara elutsükli jooksul:
 1. **Vestlused:** Iga algatus saab alguse avatud arutelust teemas.
 2. **Spetsifikatsioonid:** Aruteludest saavad ülesanded, eepikad ja git-spetsifikatsioonid mitme mudeli paneelidega.
 3. **Autonoomsed rajad:** Sõltumatud agendirajad viivad ülesanded ellu eraldatud tööpuudes.
-4. **Mitme mudeli ülevaatus:** Eri mudeliperekonnad kontrollivad muudatusi enne liitmist.
+4. **Mitme mudeli ülevaatus:** Eri mudeliperekonnad vaatavad üle spetsifikatsioone ja voorutööd enne liitmist.
 5. **Pidev juurutamine:** Muudatused liidetakse peaharru ja juurutatakse otse toodangusse.
 
 Kuna agendid töötavad 24/7, ei peatu tootmine kunagi. Mobiilse veebiliidesega saate projekte juhtida ja tööd hinnata telefonist kõikjal.
@@ -35,9 +35,9 @@ Kuna agendid töötavad 24/7, ei peatu tootmine kunagi. Mobiilse veebiliidesega 
 Tarkvaramasin vajab terviklikku seiret. Spool Hub koondab masinapargi järelevalve jaotisesse **Monitoring** kuues peamises valdkonnas:
 - **Agents:** reaalajas olek, agendi tüüp, masina määrang ja otsesõnumid.
 - **Boxes:** hostmasina tervis, süsteemiandmed, võrguolek, kasutajate arv ja ressursiplaanid.
-- **Events:** isiklik tegevusajalugu ja operatiivsed diagnostikasündmused reaalajas.
+- **Events:** teie enda tegevuse ja diagnostika logi.
 - **Tokens:** tokenite kulumiskiirus, vahemälu, tellimused ja tegelik hind miljoni tokeni kohta.
-- **Costs:** igakuine infrastruktuuri kulude jaotus ja pilveressursside arvestus.
+- **Costs:** igakuised kulud osade kaupa: pilv, masinapargi tokenid, agentide tunnid ja arved.
 - **Lanes:** aktiivsete ülesannete, tegevusalade, seotud teemade ja võtmete reaalajas ülevaade.
 
 Nüüd tuleb kriitiline küsimus: **kas te teate, kui palju teie tehisintellektil põhinev arendus maksab?!**

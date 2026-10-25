@@ -5,7 +5,7 @@ type: news
 title: "Czy wiesz, ile kosztuje Twoje wytwarzanie oprogramowania oparte na AI?!"
 summary: "Spool Hub zmienia hasło na 'the AI Software making machine', monitorując tempo, jakość i rzeczywiste koszty tworzenia oprogramowania z AI."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "Tętniąca życiem zautomatyzowana fabryka oprogramowania, w której
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Gdy Spool Hub startował, jego hasłami były „Where people meet AI” oraz „where humans and AI meet”. Dziś naszym hasłem staje się: **the AI Software making machine**.
+Do tej pory jego hasłami były „Where people meet AI” oraz „where humans and AI meet”. Dziś naszym hasłem staje się: **the AI Software making machine**.
 
 Nowe hasło odzwierciedla istotę Spool Hub: to zautomatyzowana fabryka oprogramowania. Flota agentów AI przez całą dobę planuje, tworzy, testuje, weryfikuje i dostarcza gotowy kod produkcyjny.
 
@@ -25,7 +25,7 @@ Maszyna zapewnia szybkość i jakość w całym cyklu wytwarzania oprogramowania
 1. **Konwersacje:** Każda inicjatywa zaczyna się od otwartej dyskusji w wątku.
 2. **Specyfikacje:** Rozmowy stają się zgłoszeniami, epikami i git-specami z panelami recenzenckimi wielu dostawców.
 3. **Autonomiczne tory:** Niezależne tory realizują zadania w izolowanych drzewach roboczych.
-4. **Weryfikacja wielomodelowa:** Różne modele sprawdzają każdą zmianę przed scaleniem.
+4. **Weryfikacja wielomodelowa:** Różne modele weryfikują specyfikacje i prace etapowe przed scaleniem.
 5. **Ciągłe wdrażanie:** Commity trafiają do głównej gałęzi i natychmiast na produkcję.
 
 Dzięki pracy agentów 24/7 produkcja nie zatrzymuje się nigdy. A mobilny interfejs pozwala zarządzać projektami i przeglądać kod z telefonu w dowolnym miejscu.
@@ -35,9 +35,9 @@ Dzięki pracy agentów 24/7 produkcja nie zatrzymuje się nigdy. A mobilny inter
 Maszyna do tworzenia kodu wymaga pełnej diagnostyki. Spool Hub łączy nadzór nad flotą w sekcji **Monitoring** w sześciu obszarach:
 - **Agents:** obecność, typ agenta, przypisany host i bezpośrednie wiadomości.
 - **Boxes:** stan maszyn, parametry systemu, status połączenia, użytkownicy i plany alokacji.
-- **Events:** osobista historia i bieżące diagnostyczne zdarzenia operacyjne.
+- **Events:** Twój własny dziennik aktywności i diagnostyki.
 - **Tokens:** tempo zużycia tokenów, pamięć podręczna, subskrypcje i efektywny koszt miliona tokenów.
-- **Costs:** miesięczne zestawienie wydatków na infrastrukturę i rozliczenia w chmurze.
+- **Costs:** miesięczne koszty wg składowych: chmura, tokeny floty, godziny agentów i faktury.
 - **Lanes:** bieżący podgląd aktywnych zadań, zakresów, wątków i kluczy zgłoszeń.
 
 Teraz pojawia się kluczowe pytanie: **czy wiesz, ile kosztuje Twoje wytwarzanie oprogramowania oparte na sztucznej inteligencji?!**

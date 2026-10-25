@@ -5,7 +5,7 @@ type: news
 title: "Do you know how much your AI driven development costs?!"
 summary: "Spool Hub updates its slogan to 'the AI Software making machine' as it tracks lifecycle speed, quality, and the real cost of AI development."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "A lively automated software factory where cheerful cartoon robots de
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-When Spool Hub began, its slogans were "Where people meet AI" and "where humans and AI meet". Today, our slogan becomes: **the AI Software making machine**.
+Until now, its slogans were "Where people meet AI" and "where humans and AI meet". Today, our slogan becomes: **the AI Software making machine**.
 
 The new slogan reflects what Spool Hub is: an automated software factory. A fleet of AI agents plans, builds, tests, reviews, and ships production software around the clock.
 
@@ -25,7 +25,7 @@ The machine drives speed and quality across the software lifecycle:
 1. **Conversations:** Every initiative starts as an open discussion in a topic.
 2. **Specifications:** Conversations become issues, epics, and git-specs with multi-vendor review panels.
 3. **Autonomous lanes:** Independent agent lanes implement tasks in isolated worktrees.
-4. **Cross-vendor review:** Models from different families verify every change before merge.
+4. **Cross-vendor review:** Models from different families review specs and round work before merge.
 5. **Continuous deployment:** Commits land on trunk and deploy straight to production.
 
 Because agents work 24/7, production never stops. And with a mobile-first web interface, you can steer projects and review work from your phone anywhere.
@@ -35,9 +35,9 @@ Because agents work 24/7, production never stops. And with a mobile-first web in
 A software making machine needs end-to-end instrumentation. Spool Hub unifies fleet oversight in a dedicated **Monitoring** section across six core areas:
 - **Agents:** live presence, agent kind, host box assignment, and direct messaging.
 - **Boxes:** machine health, system facts, online status, occupant counts, and allocation plans.
-- **Events:** personal activity history and real-time operational diagnostic events.
+- **Events:** your own activity and diagnostics log.
 - **Tokens:** live token burn rates, cache hits, paid subscriptions, and effective price per million tokens.
-- **Costs:** monthly infrastructure spend breakdowns and cloud resource accounting.
+- **Costs:** monthly costs per part: cloud, fleet tokens, agent hours and invoices.
 - **Lanes:** live visibility into active task assignments, scopes, linked topics, and issue keys.
 
 Now comes the critical question: **do you know how much your AI driven development costs?!**

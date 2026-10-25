@@ -5,7 +5,7 @@ type: news
 title: "Tiedätkö, mitä tekoälyvetoinen kehitystyösi todella maksaa?!"
 summary: "Spool Hub uudistaa tunnuslauseensa muotoon 'the AI Software making machine' seuraten elinkaaren nopeutta, laatua ja tekoälykehityksen todellisia kustannuksia."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "Vilkas automatisoitu ohjelmistotehdas, jossa iloiset piirrosrobotit 
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Kun Spool Hub aloitti, sen tunnuslauseina olivat ”Where people meet AI” ja ”where humans and AI meet”. Tänään uudeksi tunnuslauseeksemme tulee: **the AI Software making machine**.
+Tähän asti sen tunnuslauseina olivat ”Where people meet AI” ja ”where humans and AI meet”. Tänään uudeksi tunnuslauseeksemme tulee: **the AI Software making machine**.
 
 Uusi tunnuslause kuvastaa sitä, mitä Spool Hub on: automatisoitu ohjelmistotehdas. Tekoälyagenttien laivue suunnittelee, rakentaa, testaa, katselmoi ja toimittaa tuotantotasoista koodia kellon ympäri.
 
@@ -25,7 +25,7 @@ Kone parantaa nopeutta ja laatua ohjelmiston elinkaaren aikana:
 1. **Keskustelut:** Jokainen aloite alkaa avoimena keskusteluna aiheessa.
 2. **Määrittelyt:** Keskustelut muuttuvat tehtäviksi, eepikoiksi ja git-määrittelyiksi monitoimittajapaneelien tukemana.
 3. **Autonomiset kaistat:** Itsenäiset kaistat toteuttavat tehtäviä eristetyissä työpuissa.
-4. **Monitoimittajakatselmointi:** Eri malliperheet varmentavat muutokset ennen yhdistämistä.
+4. **Monitoimittajakatselmointi:** Eri malliperheet katselmoivat määrittelyt ja kierrostyön ennen yhdistämistä.
 5. **Jatkuva käyttöönotto:** Commitit viedään päähaaraan ja julkaistaan suoraan tuotantoon.
 
 Koska agantit toimivat 24/7, tuotanto ei pysähdy koskaan. Mobiilikäyttöliittymällä ohjaat projekteja ja arvioit työtä puhelimestasi missä vain.
@@ -35,9 +35,9 @@ Koska agantit toimivat 24/7, tuotanto ei pysähdy koskaan. Mobiilikäyttöliitty
 Ohjelmistokone tarvitsee kattavan mittariston. Spool Hub yhdistää valvonnan **Monitoring**-osioon kuudella pääalueella:
 - **Agents:** reaaliaikainen läsnäolo, agentin tyyppi, isäntäkone ja suoraviestintä.
 - **Boxes:** koneiden kunto, järjestelmätiedot, verkkotila, käyttäjämäärät ja allokointi.
-- **Events:** henkilökohtainen toimintahistoria ja reaaliaikaiset diagnostiikkatapahtumat.
+- **Events:** oma toiminta- ja diagnostiikkalokisi.
 - **Tokens:** tokenien kulumisnopeus, välimuistiosumat, tilaukset ja hinta miljoonaa tokenia kohden.
-- **Costs:** kuukausittainen infrastruktuurikulujen erittely ja pilviresurssien laskenta.
+- **Costs:** kuukausittaiset kulut osioittain: pilvi, laivueen tokenit, agenttitunnit ja laskut.
 - **Lanes:** näkyvyys aktiivisiin tehtäviin, laajuuksiin, linkitettyihin aiheisiin ja avaimiin.
 
 Nyt herää kriittinen kysymys: **tiedätkö, mitä tekoälyvetoinen kehitystyösi todella maksaa?!**

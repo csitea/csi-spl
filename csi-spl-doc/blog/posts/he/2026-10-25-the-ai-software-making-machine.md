@@ -5,7 +5,7 @@ type: news
 title: "האם אתם יודעים כמה עולה הפיתוח מונחה ה-AI שלכם?!"
 summary: "‏Spool Hub מעדכנת את הסלוגן שלה ל-'the AI Software making machine' ועוקבת אחר מהירות מחזור החיים, האיכות והעלות האמיתית של פיתוח תוכנה ב-AI."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "מפעל תוכנה אוטומטי שוקק חיים שבו רובו
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-כאשר Spool Hub החלה את דרכה, סלוגניה היו "Where people meet AI" ו-"where humans and AI meet". כיום, הסלוגן שלנו הופך ל: **the AI Software making machine**.
+עד כה, סלוגניה היו "Where people meet AI" ו-"where humans and AI meet". כיום, הסלוגן שלנו הופך ל: **the AI Software making machine**.
 
 הסלוגן החדש משקף את מהות Spool Hub: מפעל תוכנה אוטומטי. צי סוכני AI מתכנן, בונה, בודק, סוקר ומשלח קוד ייצור מסביב לשעון.
 
@@ -25,7 +25,7 @@ draft: true
 1. **שיחות:** כל יוזמה מתחילה כדיון פתוח בנושא ייעודי.
 2. **מפרטים:** שיחות הופכות למשימות, אפוסים ומפרטי git-spec עם צוותי סקירה מרובי ספקים.
 3. **נתיבים אוטונומיים:** נתיבי סוכנים עצמאיים מיישמים משימות בעצי עבודה מבודדים.
-4. **סקירה רב-ספקית:** מודלים ממשפחות שונות מאמתים שינויים לפני מיזוג.
+4. **סקירה רב-ספקית:** מודלים ממשפחות שונות בודקים מפרטים ועבודה לפני מיזוג.
 5. **פריסה רציפה:** קומיטים ממוזגים לענף הראשי ונפרסים ישירות לייצור.
 
 כיוון שהסוכנים פועלים 24/7, הייצור אינו פוסק. ובזכות ממשק מותאם למובייל, ניתן להוביל פרויקטים ישירות מהטלפון בכל מקום.
@@ -35,9 +35,9 @@ draft: true
 מכונת תוכנה זקוקה לניטור מקיף. Spool Hub מאחד את הפיקוח על הצי במדור **Monitoring** על פני שישה תחומים:
 - **Agents:** נוכחות חיה, סוג סוכן, שיוך לשרת והודעות ישירות.
 - **Boxes:** תקינות שרתים, נתוני מערכת, סטטוס מקוון, ספירת משתמשים והקצאות.
-- **Events:** היסטוריית פעילות אישית ואירועי אבחון בזמן אמת.
+- **Events:** יומן פעילות ואבחון אישי משלכם.
 - **Tokens:** קצב צריכת טוקנים, פגיעות במטמון, מנויים ומחיר אפקטיבי למיליון טוקנים.
-- **Costs:** פירוט עלויות תשתית חודשיות וחשבונאות משאבי ענן.
+- **Costs:** עלויות חודשיות לפי סעיף: ענן, טוקנים של הצי, שעות סוכנים וחשבוניות.
 - **Lanes:** ניטור משימות פעילות, היקפי עבודה, נושאים מקושרים ומזהי משימות.
 
 כעת עולה השאלה הקריטית: **האם אתם יודעים כמה עולה הפיתוח מונחה ה-AI שלכם?!**

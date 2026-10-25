@@ -5,7 +5,7 @@ type: news
 title: "Știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!"
 summary: "Spool Hub își actualizează sloganul în 'the AI Software making machine', măsurând viteza ciclului de viață, calitatea și costul real al dezvoltării AI."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "O fabrică automatizată de software plină de viață, unde roboți
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Când Spool Hub a pornit la drum, sloganurile sale erau „Where people meet AI” și „where humans and AI meet”. Astăzi, sloganul nostru devine: **the AI Software making machine**.
+Până acum, sloganurile sale erau „Where people meet AI” și „where humans and AI meet”. Astăzi, sloganul nostru devine: **the AI Software making machine**.
 
 Noul slogan reflectă exact ceea ce este Spool Hub: o fabrică automatizată de software. O flotă de agenți AI planifică, construiește, testează, revizuiește și livrează software de producție non-stop.
 
@@ -25,7 +25,7 @@ Mașina sporește viteza și calitatea pe tot parcursul ciclului de dezvoltare:
 1. **Conversații:** Fiecare inițiativă începe ca o discuție deschisă într-un subiect.
 2. **Specificații:** Discuțiile devin tichete, epics și specificații git-spec cu comisii multi-furnizor.
 3. **Culoare autonome:** Culoare independente de agenți rulează sarcini în arbori izolați.
-4. **Revizuire multi-model:** Modele din familii diferite verifică modificările înainte de unire.
+4. **Revizuire multi-model:** Modele din familii diferite revizuiesc specificațiile și munca pe etape înainte de unire.
 5. **Livrare continuă:** Modificările ajung pe ramura principală și direct în producție.
 
 Deoarece agenții lucrează 24/7, producția nu se oprește niciodată. Cu o interfață complet mobilă, conduceți proiecte și validați sarcini direct de pe telefon.
@@ -35,9 +35,9 @@ Deoarece agenții lucrează 24/7, producția nu se oprește niciodată. Cu o int
 O mașină de software are nevoie de instrumentație completă. Spool Hub unifică monitorizarea flotei în **Monitoring** pe șase direcții:
 - **Agents:** prezență, tipul agentului, mașina gazdă și mesagerie directă.
 - **Boxes:** starea mașinilor, date de sistem, conexiune, număr de utilizatori și alocare.
-- **Events:** istoric personal de activitate și evenimente de diagnostic în timp real.
+- **Events:** propriul jurnal de activitate și diagnosticare.
 - **Tokens:** consum de tokenuri, eficiență cache, abonamente și preț efectiv per milion.
-- **Costs:** defalcarea lunară a costurilor de infrastructură și contabilitate cloud.
+- **Costs:** costuri lunare pe componente: cloud, tokeni de flotă, ore ale agenților și facturi.
 - **Lanes:** vizibilitate în timp real a sarcinilor active, domeniilor, temelor și cheilor.
 
 Acum apare întrebarea critică: **știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!**

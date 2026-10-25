@@ -5,7 +5,7 @@ type: news
 title: "Viete, koľko stojí váš vývoj riadený umelou inteligenciou?!"
 summary: "Spool Hub aktualizuje svoj slogan na 'the AI Software making machine', pričom sleduje rýchlosť životného cyklu, kvalitu a skutočné náklady na vývoj s AI."
 date: 2026-10-25
-published: 2026-10-25T10:38:38Z
+published: 2026-10-25T13:05:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
@@ -14,7 +14,7 @@ image_alt: "Rušná automatizovaná softvérová továreň, kde veselé kreslen�
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Keď Spool Hub začínal, jeho sloganmi boli „Where people meet AI“ a „where humans and AI meet“. Dnes sa naším sloganom stáva: **the AI Software making machine**.
+Doteraz boli jeho sloganmi „Where people meet AI“ a „where humans and AI meet“. Dnes sa naším sloganom stáva: **the AI Software making machine**.
 
 Nový slogan vystihuje podstatu Spool Hubu: automatizovaná továreň na softvér. Flotila AI agentov nepretržite plánuje, stavia, testuje, kontroluje a dodáva produkčný softvér.
 
@@ -25,7 +25,7 @@ Stroj zvyšuje rýchlosť a kvalitu v každej fáze vývoja:
 1. **Konverzácie:** Každá iniciatíva začína otvorenou diskusiou v téme.
 2. **Špecifikácie:** Diskusie sa menia na úlohy, epiky a git-špecifikácie s multi-vendor komisiami.
 3. **Autonómne dráhy:** Nezávislé dráhy agentov vykonávajú úlohy v izolovaných stromoch.
-4. **Viacmodelové hodnotenie:** Modely z rôznych rodín overujú zmeny pred zlúčením.
+4. **Viacmodelové hodnotenie:** Modely z rôznych rodín hodnotia špecifikácie a etapovú prácu pred zlúčením.
 5. **Kontinuálne nasadzovanie:** Zmeny sa zlučujú do hlavnej vetvy a nasadzujú priamo do produkcie.
 
 Pretože agenti pracujú 24/7, produkcia sa nikdy nezastaví. A vďaka mobilnému webu môžete riadiť projekty a kontrolovať prácu priamo zo svojho telefónu.
@@ -35,9 +35,9 @@ Pretože agenti pracujú 24/7, produkcia sa nikdy nezastaví. A vďaka mobilném
 Stroj na tvorbu softvéru potrebuje ucelenú diagnostiku. Spool Hub zjednocuje dohľad v sekcii **Monitoring** v šiestich oblastiach:
 - **Agents:** prítomnosť, typ agenta, hostiteľský server a priama komunikácia.
 - **Boxes:** stav počítačov, systémové údaje, pripojenie, počty používateľov a alokácie.
-- **Events:** osobná história aktivít a prevádzková diagnostika v reálnom čase.
+- **Events:** váš vlastný denník aktivít a diagnostiky.
 - **Tokens:** spotreba tokenov, vyrovnávacia pamäť, predplatné a cena za milión tokenov.
-- **Costs:** mesačný rozpis nákladov na infraštruktúru a účtovanie cloudu.
+- **Costs:** mesačné náklady podľa položiek: cloud, tokeny flotily, hodiny agentov a faktúry.
 - **Lanes:** prehľad v reálnom čase o úlohách, rozsahoch, prepojených témach a kľúčoch.
 
 Teraz prichádza zásadná otázka: **viete, koľko stojí váš vývoj riadený umelou inteligenciou?!**

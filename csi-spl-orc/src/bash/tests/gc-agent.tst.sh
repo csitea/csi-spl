@@ -33,6 +33,9 @@
 #      dialog too = FAIL, no third start; no input box in the wait = kept.
 #      The stub screen draws no input box, so the suite waits
 #      GC_START_CHECK_S=0 s (one look) unless a case says otherwise
+#  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
+#      on origin/master = sent; a sha on a side branch only = refused, nothing
+#      sent; an 8-hex msg id that is no commit = sent; no sha = sent
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc, old, gp and out are read inside the check strings (eval)
 set -uo pipefail
@@ -345,6 +348,27 @@ check "14. the fallback on a dialog too = FAIL, both windows ended, no third sta
 reset
 s0=$SECONDS; gc start $(( H0 + 1800 )) GC_START_CHECK_S=1
 check "14. no input box within the wait = the window kept, as today (one start, grok)" '[ "$rc" = 0 ] && [ "$(n "$T/tmux/log" new-window)" = 1 ] && [ "$(awk "{print \$3}" "$D/gc/run")" = grok ] && ! grep -q FALLBACK "$D/gc/gc.log" && (( SECONDS - s0 < 5 ))'
+# --- 15. close-ask: a landed claim is checked (SPL-3270) ---------------------------------
+R="$T/repo"; rm -rf "$R" "$T/origin.git"
+gq() { git -C "$R" -c user.name=t -c user.email=t@example.com "$@" >/dev/null 2>&1; }
+git init -q --bare "$T/origin.git" && git init -q -b master "$R"
+gq remote add origin "$T/origin.git"; gq commit --allow-empty -m on-master; gq push -q origin master
+gq switch -q -c side; gq commit --allow-empty -m side-only; gq push -q origin side; gq switch -q master
+on="$(git -C "$R" rev-parse --short=9 master)"; side="$(git -C "$R" rev-parse --short=9 side)"
+close15() {
+  reset; lane c-917; gc start "$H0"; gc begin $(( H0 + 1 )) AGENT_ID=c-917
+  lease c-002@sat $(( H0 - 30 )); lease_orch c-002@sat $(( H0 - 20 ))
+  gc close-ask $(( H0 + 2 )) AGENT_ID=c-917 GC_REPO="$R" GC_WHY="$1"
+}
+close15 "PASS on $on, $on is on master"
+check "15. a sha on origin/master = sent" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--task gc-c-917")" = 1 ]'
+close15 "PASS on $side, $side is on master"
+check "15. a sha on a side branch only = refused, nothing sent" '[ "$rc" = 4 ] && [ "$(n "$T/send.log")" = 0 ] && grep -q "REFUSED close-ask c-917: GC_WHY says $side landed, but it is not on origin/master" "$D/gc/gc.log"'
+close15 "landed, see msg e211ca41"
+check "15. an 8-hex msg id that is no commit = sent" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--task gc-c-917")" = 1 ]'
+close15 "landed, ACCEPTED by c-001 at 20:00Z"
+check "15. a landed claim with no sha = sent" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--task gc-c-917")" = 1 ]'
+
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"

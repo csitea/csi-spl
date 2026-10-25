@@ -26,7 +26,9 @@
 # @description               changed or moved, or a post, ack or session since
 # @description               the poke = moved, no restart (SPL-2443)
 # @description   close-ask - GC_WHY to the report addressee (below): close this
-# @description               finished lane; the orch lease holder gets a cc
+# @description               finished lane; the orch lease holder gets a cc.
+# @description               A sha GC_WHY says landed that is not on
+# @description               origin/master (one fetch) = refused (SPL-3270)
 # @description   done      - GC_SUMMARY: one log line + one note to the report
 # @description               addressee, then the GC window is closed
 # @description The report addressee is read at send time (owner HUM-10, form
@@ -50,6 +52,7 @@
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
 # @param GC_REPORT_TO (optional) - a fixed addressee instead of the dispatch lease holder (no cc, no fallback)
+# @param GC_REPO (optional) - close-ask: the checkout whose origin/master a landed sha is checked on (default this tree)
 # @param GC_NOW / GC_CLOSE_DELAY / GC_RESTART_CMD / GC_SEND / ROTATE_TMUX / GC_PROC_ROOT (optional) - seams for the tests
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example GC_CMD=start ./run -a do_spl_gc
@@ -489,12 +492,35 @@ spl_gc_restart() {
   echo "RESTART $id (detached; log $GC_DIR/restart.$id.out)"
 }
 
+# spl_gc_landed_check ID: GC_WHY that claims a landing ("on master", "on
+# origin/master", "landed", anywhere in it) is checked: after one fetch, every
+# 7-40 hex token in it that resolves to a commit must be an ancestor of
+# origin/master, else the close-ask is refused. A token that is no commit (an
+# 8-hex msg id) is not a sha. Two false "<sha> is on master" asks, 10-24.
+spl_gc_landed_check() {
+  local id="$1" repo tok head fetched=0
+  grep -qiE 'on (origin/)?master|landed' <<<"$GC_WHY" || return 0
+  repo="${GC_REPO:-$(git -C "$SPL_GC_RUN_DIR" rev-parse --show-toplevel 2>/dev/null || true)}"
+  for tok in $(grep -oiE '\b[0-9a-f]{7,40}\b' <<<"$GC_WHY" | sort -u || true); do
+    if (( fetched == 0 )); then
+      fetched=1
+      git -C "$repo" fetch -q origin master 2>/dev/null || spl_gc_log "WARN close-ask $id: fetch failed, checking the last fetched origin/master"
+    fi
+    git -C "$repo" rev-parse --verify --quiet "$tok^{commit}" >/dev/null 2>&1 || continue
+    git -C "$repo" merge-base --is-ancestor "$tok" origin/master 2>/dev/null && continue
+    head="$(git -C "$repo" rev-parse --short origin/master 2>/dev/null || echo unknown)"
+    spl_gc_refuse close-ask "$id" "GC_WHY says $tok landed, but it is not on origin/master ($head): check it with git merge-base --is-ancestor $tok origin/master"
+    return
+  done
+}
+
 spl_gc_close_ask() {
   local id="$1" t
   [[ -n "${GC_WHY:-}" ]] || { do_log "FATAL GC_WHY is required: why $id looks done and idle"; return 1; }
   if read -r t 2>/dev/null < "$GC_DIR/$id.closeask" && [[ "$t" =~ ^[0-9]+$ ]] && (( GC_NOW - t < GC_CLOSE_ASK_EVERY )); then
     spl_gc_refuse close-ask "$id" "asked $(( GC_NOW - t ))s ago"; return
   fi
+  spl_gc_landed_check "$id" || return
   local body orch
   body="GC ($GC_BOX, $(spl_gc_rid)): $id@$GC_BOX looks done and idle: $GC_WHY. Close it if you agree."
   spl_gc_report_to

@@ -46,6 +46,8 @@ inbox, whether the GC poked it on an earlier pass, and its pane tail.
      recent or the agent moved; then leave it).
    - **done and idle**: `GC_CMD=close-ask AGENT_ID=<id> GC_WHY="<the
      evidence: e.g. ACCEPTED by c-001 at 21:04Z, idle since>"`.
+     If it says a sha landed, first run `git fetch` and `git merge-base
+     --is-ancestor <sha> origin/master` and cite the result in GC_WHY.
    - **working**: nothing.
 
 <a id="ws-doc-a72fdfc4-aaec-4b0a-8ae5-b3a7863b5850"></a>

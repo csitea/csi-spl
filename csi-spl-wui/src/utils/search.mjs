@@ -26,7 +26,7 @@ const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
  * `values` are closed value sets offered after the colon.
  */
 /** Canonical kinds first, then the aliases a person actually types. */
-const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets']
+const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'doc', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets', 'docs', 'document', 'qto']
 
 /** Rows the omnibox list shows. The nine kinds fit; a longer prefix narrows the rest. */
 export const OP_PICKER_CAP = 12

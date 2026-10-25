@@ -84,6 +84,11 @@ function itemOf(c: SearchSideItemsOpts, row: SearchRow): SideHitItem {
       return { ...base, badge: '#', where: metaOf(c, row) }
     case 'events':
       return { ...base, where: metaOf(c, row), when: when(r.received_at) }
+    case 'docs': {
+      /* a section: the document it is in; the document's own top: the section name */
+      const dt = r.doc_title && typeof r.doc_title === 'object' ? String((r.doc_title as { text?: unknown }).text ?? '') : ''
+      return { ...base, badge: '📄', where: r.top || !dt ? c.t('search.group.docs') : dt, when: when(r.updated_at) }
+    }
     default:
       return { ...base, where: metaOf(c, row) }
   }

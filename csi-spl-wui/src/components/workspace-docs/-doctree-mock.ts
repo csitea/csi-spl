@@ -473,6 +473,31 @@ function route(method: string, path: string, body: Body): MockReply {
   return fail(404, 'not_found', 'no such route')
 }
 
+/** The mock tenant's search-v1 `docs` group (spec 100 section 14, SPL-3337):
+    each section whose heading and body hold every free word of q (case-
+    insensitive), the root's heading being the document's title; operators
+    are left to the hub. The hub's row shape, last edited first. */
+export function mockSearchDocs(q: string): Record<string, unknown>[] {
+  seed()
+  const words = String(q || '').toLowerCase().split(/\s+/).filter((w) => w && !w.includes(':'))
+  if (!words.length) return []
+  const mark = (t: string) => words.flatMap((w) => {
+    const i = t.toLowerCase().indexOf(w)
+    return i < 0 ? [] : [[i, i + w.length]]
+  })
+  const out: Record<string, unknown>[] = []
+  for (const d of docs.values()) {
+    for (const it of d.items.values()) {
+      const top = !it.parent
+      const title = top ? d.title : it.title
+      if (!words.every((w) => `${title} ${it.body}`.toLowerCase().includes(w))) continue
+      out.push({ doc_id: d.id, item_id: it.id, top, doc_title: { text: d.title, highlights: mark(d.title) },
+        title: { text: title, highlights: mark(title) }, snippet: { text: it.body, highlights: mark(it.body) }, updated_at: d.updated })
+    }
+  }
+  return out
+}
+
 /** test hook (mock only): another writer commits a structural op, so the
     page's doc rev goes stale and its next structural op answers 412 */
 export function mockDocTreeBumpRev(doc: string): number {

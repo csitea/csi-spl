@@ -1125,7 +1125,8 @@
       "messages": "Повідомлення",
       "tenants": "Робочі простори",
       "events": "Журнал подій",
-      "issues": "Заявки"
+      "issues": "Заявки",
+      "docs": "Документи"
     },
     "placeholder_target": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
     "phone_hints": "Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",

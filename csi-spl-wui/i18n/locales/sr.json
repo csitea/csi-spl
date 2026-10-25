@@ -1125,7 +1125,8 @@
       "messages": "Поруке",
       "tenants": "Радни простори",
       "events": "Дневник догађаја",
-      "issues": "Проблеми"
+      "issues": "Проблеми",
+      "docs": "Документи"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "phone_hints": "Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",

@@ -1125,7 +1125,8 @@
       "messages": "Съобщения",
       "tenants": "Работни пространства",
       "events": "Дневник на събитията",
-      "issues": "Дела"
+      "issues": "Дела",
+      "docs": "Документи"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "phone_hints": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",

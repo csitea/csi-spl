@@ -1125,7 +1125,8 @@
       "messages": "Messages",
       "tenants": "Workspaces",
       "events": "Event log",
-      "issues": "Issues"
+      "issues": "Issues",
+      "docs": "Documents"
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "phone_hints": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",

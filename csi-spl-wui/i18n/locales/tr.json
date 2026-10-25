@@ -1125,7 +1125,8 @@
       "messages": "Mesajlar",
       "tenants": "Çalışma alanları",
       "events": "Olay günlüğü",
-      "issues": "Konular"
+      "issues": "Konular",
+      "docs": "Belgeler"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "phone_hints": "Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",

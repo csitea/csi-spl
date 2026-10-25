@@ -1125,7 +1125,8 @@
       "messages": "Berichten",
       "tenants": "Werkruimten",
       "events": "Gebeurtenissenlogboek",
-      "issues": "Kwesties"
+      "issues": "Kwesties",
+      "docs": "Documenten"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "phone_hints": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",

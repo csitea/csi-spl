@@ -1125,7 +1125,8 @@
       "messages": "Mensajes",
       "tenants": "Espacios de trabajo",
       "events": "Registro de eventos",
-      "issues": "Incidencias"
+      "issues": "Incidencias",
+      "docs": "Documentos"
     },
     "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
     "phone_hints": "Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",

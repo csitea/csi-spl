@@ -119,7 +119,9 @@ describe('focus + selection tokens', () => {
     /* and nothing in the shared treatment reaches for a second ring colour */
     /* the declarations only: a comment that QUOTES another rule is prose, not a ring */
     const treatment = MAIN.slice(MAIN.indexOf('/* ---- keyboard focus and selection')).replace(/\/\*[\s\S]*?\*\//g, '')
-    const NOT_A_COLOUR = ['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--radius']
+    /* --tab-lift (SPL-3397) is a blurred zero-spread shadow like --focus-3d,
+       its shape asserted by monitoring-tabs.test.mjs */
+    const NOT_A_COLOUR = ['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--tab-lift', '--radius']
     const ringColours = new Set(
       [...treatment.matchAll(/(?:outline|box-shadow):([^;]*);/g)]
         .flatMap((decl) => [...decl[1].matchAll(/var\((--[a-z0-9-]+)\)/g)].map((v) => v[1]))

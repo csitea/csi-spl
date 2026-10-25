@@ -226,7 +226,8 @@ const tabRowGeometry = (p) => p.evaluate(() => {
     activeBottom: active ? Math.round((active.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom) * 10) / 10 : null,
     activeToBar: active ? Math.round((active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom) * 10) / 10 : null,
     h2Shown: getComputedStyle(h2).display !== 'none',
-    tabTops: Math.round((Math.max(...tabs.map((r) => r.top)) - Math.min(...tabs.map((r) => r.top))) * 10) / 10,
+    /* SPL-3397: the selected folder tab stands taller, so one row is one BOTTOM line */
+    tabBottoms: Math.round((Math.max(...tabs.map((r) => r.bottom)) - Math.min(...tabs.map((r) => r.bottom))) * 10) / 10,
     barOverTab: Math.round(nav.getBoundingClientRect().height - Math.max(...tabs.map((r) => r.height))),
     pageWide: document.documentElement.scrollWidth - window.innerWidth,
     navOverflows: nav.scrollWidth > nav.clientWidth,
@@ -259,7 +260,7 @@ async function tabRow(browser, base) {
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {
       ok(`C3 ${label}: no heading on a phone section page (CLE-77886)`, Boolean(g && !g.h2Shown), g)
-      ok(`C3 ${label}: the tabs on one row`, Boolean(g && g.tabTops <= 1), g && g.tabTops)
+      ok(`C3 ${label}: the tabs on one row`, Boolean(g && g.tabBottoms <= 1), g && g.tabBottoms)
       ok(`C3 ${label}: the tabs overflow the row (the case is real)`, Boolean(g && g.navOverflows), g)
       ok(`C3 ${label}: the bar scrolls inside itself, never taller than a tab`, Boolean(g && g.navOverflows && g.barOverTab === 0), g && g.barOverTab)
       ok(`C3 ${label}: the active underline on the bar's bottom line`, Boolean(g && g.activeToBar !== null && Math.abs(g.activeToBar) <= 1), g && g.activeToBar)

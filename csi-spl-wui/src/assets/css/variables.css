@@ -458,11 +458,15 @@
   --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   --bevel-shade: inset 0 -2px 0 rgba(0, 0, 0, 0.38);
   --cal-dot-ring: 0 0 0 0 transparent;
+  /* SPL-3397: the selected Monitoring folder tab's lift - an UPWARD blurred
+     shadow, zero spread like --focus-3d, so it draws no ring and no colour line */
+  --tab-lift: 0 -2px 6px rgba(0, 0, 0, 0.55);
 }
 :root[data-theme^="light"] {
   --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --bevel-shade: inset 0 -2px 0 rgba(12, 40, 80, 0.16);
   --cal-dot-ring: 0 0 0 1px var(--color-muted);
+  --tab-lift: 0 -2px 6px rgba(12, 40, 80, 0.2);
 }
 
 /* SPL-2120 (owner HUM-10, t1 28559e83 msgs 1c268bf0 + 68dd229e): every list

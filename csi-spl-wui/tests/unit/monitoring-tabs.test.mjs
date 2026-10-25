@@ -187,3 +187,45 @@ describe('old Agents / Boxes links (SPL-2075)', () => {
     assert.match(read('src/pages/monitoring/boxes/[id].vue'), /<BoxLoadBand v-if="!box\.browser"/)
   })
 })
+
+/* SPL-3397 (owner HUM-10, t1 1b4b6250, msg 97fd74b3): the tab bar reads as
+   folder tabs with a 3D effect, the selected one raised above the others. */
+describe('monitoring tab bar: 3D folder tabs', () => {
+  const css = read('src/assets/css/main.css')
+  /* the declarations of the top-level rule whose selector list is exactly `sel` */
+  const rule = (sel) => {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = css.match(new RegExp(`^${esc}\\s*\\{([^}]*)\\}`, 'm'))
+    assert.ok(m, `rule ${sel} exists`)
+    return m[1]
+  }
+  it('every tab is a bordered folder tab with rounded top corners, behind on a muted fill', () => {
+    const tab = rule('.monitoring-tab')
+    assert.match(tab, /border:\s*1px solid var\(--color-border[a-z-]*\)/, 'a border on every side')
+    assert.match(tab, /border-radius:\s*var\(--radius-sm\) var\(--radius-sm\) 0 0/, 'rounded top corners only')
+    assert.match(tab, /background:\s*var\(--color-bg-2\)/, 'unselected tabs sit behind, muted')
+  })
+  it('the selected tab joins the panel below and is raised in front', () => {
+    const on = rule('.monitoring-tab--active')
+    assert.match(on, /background:\s*var\(--color-bg\)/, "the panel's own background")
+    assert.match(on, /border-bottom-color:\s*var\(--color-bg\)/, 'no bottom border: it joins the panel')
+    assert.match(on, /box-shadow:\s*var\(--tab-lift\)/, 'a shadow upward: it reads as in front')
+    const vars = read('src/assets/css/variables.css')
+    const lifts = [...vars.matchAll(/--tab-lift:\s*([^;]+);/g)].map((x) => x[1])
+    assert.equal(lifts.length, 2, 'one lift per theme family, dark and light')
+    for (const l of lifts) assert.match(l, /^0 -\d+px \d+px rgba\([^)]*\)$/, `upward, blurred, no spread, no inset: ${l}`)
+    assert.match(on, /z-index:\s*[1-9]/, 'drawn over its neighbours')
+    /* the bar aligns its tabs at the bottom (flex-end): the selected one stands taller */
+    const top = (body) => Number((body.match(/padding-top:\s*(\d+)px/) || body.match(/padding:\s*(\d+)px/))[1])
+    assert.ok(top(on) > top(rule('.monitoring-tab')), 'taller than the others')
+  })
+  it('both themes: the tab rules use theme tokens only, never a literal colour', () => {
+    for (const sel of ['.monitoring-tab', '.monitoring-tab--active']) assert.doesNotMatch(rule(sel), /#[0-9a-f]{3,8}\b|rgba?\(/i, sel)
+  })
+  it('the selected tab is marked for assistive tech, and no :style binding (CSP)', () => {
+    const page = read('src/pages/monitoring.vue')
+    assert.match(page, /'monitoring-tab--active': active === tab\.id/)
+    assert.match(page, /:aria-current="active === tab\.id \? 'page' : undefined"/)
+    assert.doesNotMatch(page, /:style=/)
+  })
+})

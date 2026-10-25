@@ -1592,9 +1592,22 @@ html.pane-dragging * {
 .monitoring-tabs::-webkit-scrollbar { display: none; }
 .monitoring-head-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; } /* SPL-3250: a tab's header actions (Events: Clear log) */
 .monitoring-head-actions:empty { display: none; }
-.monitoring-tab { flex: none; white-space: nowrap; padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; }
+/* SPL-3397 (owner HUM-10, t1 1b4b6250 msg 97fd74b3: "tabs with a 3 D effect
+   the selected tab should look like above the other ones"): folder tabs, as
+   the issue's Discussion | History (SPL-2655). Each tab is bordered with
+   rounded top corners on the muted --color-bg-2, its bottom edge ON the
+   header's line; its 1 px side border comes out of the side padding, so the
+   tabs are as wide as before and the first label still 20 px after the heading. The selected one has the panel's own fill and no bottom
+   line, so it joins the page below; it stands 4 px taller, is drawn over its
+   neighbours and casts a shadow upward. Padding + border below the label stay
+   10 px, so the heading keeps its line (above); widths never change between
+   states, so nothing shifts. The focus ring is drawn inside the tab: the bar
+   clips anything outside it. */
+.monitoring-tab { flex: none; white-space: nowrap; padding: 8px 11px 9px; border: 1px solid var(--color-border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--color-bg-2); color: var(--color-muted); text-decoration: none; }
 .monitoring-tab:hover, .monitoring-tab--active { color: var(--color-fg); }
-.monitoring-tab--active { border-bottom-color: var(--color-accent); }
+.monitoring-tab:hover:not(.monitoring-tab--active) { background: var(--color-surface-hover); }
+.monitoring-tab--active { position: relative; z-index: 1; padding-top: 12px; border-color: var(--color-border-strong); border-bottom-color: var(--color-bg); background: var(--color-bg); box-shadow: var(--tab-lift), inset 0 var(--select-bar-w) 0 var(--focus-ring); }
+.monitoring-tab:focus-visible { outline-offset: calc(-1 * var(--focus-ring-w)) !important; }
 .monitoring-list { padding: 8px; }
 .monitoring-empty { padding: 8px; margin: 0; }
 .monitoring-kind { margin-left: auto; }

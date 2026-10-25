@@ -15,8 +15,13 @@
 #------------------------------------------------------------------------------
 # @description Read cnf env.cost (all.env.yaml, deep-merged with <ENV>.env.yaml
 # @description when ENV names one) into COST_REREAD_DAYS, COST_EXPORT_PROJECT,
-# @description COST_DATASET, COST_LOCATION, COST_READER_SA, COST_READER_EMAIL and
-# @description COST_PROJECT_LIKE. Any empty value is a refusal.
+# @description COST_DATASET, COST_LOCATION, COST_READER_SA, COST_READER_EMAIL,
+# @description COST_PROJECT_LIKE, COST_SOURCE_PROJECT and COST_SOURCE_DATASET.
+# @description Any empty value is a refusal, but for the two export_source_*
+# @description keys: where the billing export is written (SPL-3376, the owner
+# @description set it up in a project of its own). Unset, they are
+# @description export_project / export_dataset. export_project stays the home of
+# @description the reader SA and the project its query jobs run in.
 # @param $1 (optional) the cnf dir, default $APP_PATH/<org>-<app>-cnf/<org>-<app>
 # @example do_spl_cost_gcp_cnf || return 1
 #------------------------------------------------------------------------------
@@ -29,8 +34,11 @@ do_spl_cost_gcp_cnf() {
   [[ -n "${ENV:-}" && -f "${cnf}/${ENV}.env.yaml" ]] && files+=("${cnf}/${ENV}.env.yaml")
   mapfile -t vals < <(yq eval-all '. as $i ireduce ({}; . * $i)' "${files[@]}" |
     yq -r '[.env.cost.reread_days, .env.cost.gcp.export_project, .env.cost.gcp.export_dataset,
-            .env.cost.gcp.export_location, .env.cost.gcp.reader_sa, .env.cost.gcp.project_like] | .[] | (. // "")')
-  [[ ${#vals[@]} -eq 6 ]] || { do_log "FATAL cannot read env.cost from ${files[*]}"; return 1; }
+            .env.cost.gcp.export_location, .env.cost.gcp.reader_sa, .env.cost.gcp.project_like,
+            .env.cost.gcp.export_source_project, .env.cost.gcp.export_source_dataset] | .[] | (. // "")')
+  [[ ${#vals[@]} -eq 8 ]] || { do_log "FATAL cannot read env.cost from ${files[*]}"; return 1; }
+  [[ -n "${vals[6]}" && "${vals[6]}" != null ]] || vals[6]="${vals[1]}"
+  [[ -n "${vals[7]}" && "${vals[7]}" != null ]] || vals[7]="${vals[2]}"
   for i in 0 1 2 3 4 5; do
     [[ -n "${vals[i]}" && "${vals[i]}" != null ]] || { do_log "FATAL env.cost value $((i + 1)) of 6 is empty in ${files[*]}"; return 1; }
   done
@@ -40,6 +48,8 @@ do_spl_cost_gcp_cnf() {
   [[ "${vals[3]}" =~ ^[A-Za-z0-9-]{2,40}$ ]] || { do_log "FATAL env.cost.gcp.export_location is no location: ${vals[3]}"; return 1; }
   [[ "${vals[4]}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { do_log "FATAL env.cost.gcp.reader_sa is no SA id: ${vals[4]}"; return 1; }
   [[ "${vals[5]}" =~ ^[a-z0-9-]+%$ ]] || { do_log "FATAL env.cost.gcp.project_like must be <prefix>%, got: ${vals[5]}"; return 1; }
+  [[ "${vals[6]}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { do_log "FATAL env.cost.gcp.export_source_project is no project id: ${vals[6]}"; return 1; }
+  [[ "${vals[7]}" =~ ^[A-Za-z0-9_]{1,1024}$ ]] || { do_log "FATAL env.cost.gcp.export_source_dataset is no dataset id: ${vals[7]}"; return 1; }
   COST_REREAD_DAYS="${vals[0]}"
   COST_EXPORT_PROJECT="${vals[1]}"
   COST_DATASET="${vals[2]}"
@@ -47,6 +57,8 @@ do_spl_cost_gcp_cnf() {
   COST_READER_SA="${vals[4]}"
   COST_READER_EMAIL="${vals[4]}@${vals[1]}.iam.gserviceaccount.com"
   COST_PROJECT_LIKE="${vals[5]}"
+  COST_SOURCE_PROJECT="${vals[6]}"
+  COST_SOURCE_DATASET="${vals[7]}"
 }
 
 #------------------------------------------------------------------------------

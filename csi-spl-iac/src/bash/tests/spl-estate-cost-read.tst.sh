@@ -16,6 +16,10 @@
 #      CONTROL: a revised day changes the amount in the second run's SQL.
 #   6. Identity: a reader key is used as is; a key of another SA, or a user
 #      (owner) account to impersonate from, is refused (`missing`).
+#   7. SPL-3376: the export table is found BY PREFIX in the source dataset of
+#      the repo cnf (csi-spl-prd.csi_spl_prd; the resource_v1 table beside it is
+#      not taken) and queried there, the job running in csi-spl-all; with no
+#      export_source_* in the cnf the read stays on export_project/dataset.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -60,11 +64,11 @@ m=GET; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == -X ]] && { j=$((i + 1)); m=
 url="${!#}"; p="${url#*/v2/}"; echo "curl $m $p" >>"$LOG"; cat >/dev/null
 body=""; for a in "$@"; do [[ "$a" == @* ]] && body=$(cat "${a#@}"); done
 case "$m $p" in
-  "GET projects/csi-spl-all/datasets/spl_billing_export/tables"*)
+  "GET projects/$SRC/tables"*)
     case "${EXPORT:-present}" in
       nodataset) printf "{\"error\":{\"message\":\"Not found: Dataset\"}}\n404" ;;
       notable) printf "{\"tables\":[{\"tableReference\":{\"tableId\":\"other\"}}]}\n200" ;;
-      *) printf "{\"tables\":[{\"tableReference\":{\"tableId\":\"%s\"}}]}\n200" "$TABLE" ;;
+      *) printf "{\"tables\":[{\"tableReference\":{\"tableId\":\"gcp_billing_export_resource_v1_0A1B2C_3D4E5F_6A7B8C\"}},{\"tableReference\":{\"tableId\":\"%s\"}}]}\n200" "$TABLE" ;;
     esac ;;
   "POST projects/csi-spl-all/queries")
     echo "$body" >>"$LOG.queries"
@@ -88,7 +92,7 @@ run_case() {
   local out="$1"; shift
   : >"$T/log"
   env -u DRY_RUN -u ACCOUNT -u GCP_ACCOUNT -u COST_DB_DSN -u COST_READER_KEY_FILE -u DAY \
-    PATH="$T/bin:$PATH" LOG="$T/log" HOME="$T/home" TABLE="$TABLE" ROWS="$T/rows.json" F="$F" LIB="$LIB" \
+    PATH="$T/bin:$PATH" LOG="$T/log" HOME="$T/home" TABLE="$TABLE" ROWS="$T/rows.json" F="$F" LIB="$LIB" SRC=csi-spl-prd/datasets/csi_spl_prd \
     APP_PATH="$APP_ROOT" ENV=prd DAY=2026-10-09 "$@" bash -c '
     do_log(){ echo "$*"; }
     do_resolve_oap(){ case "$1" in ORG) ORG=csi ;; APP) APP=spl ;; esac; }
@@ -200,6 +204,30 @@ run_case "$T/o"
 grep -q "gcloud auth print-access-token --account=csi-spl-prd@csi-spl-prd.iam.gserviceaccount.com --impersonate-service-account=$READER" "$T/log" \
   && pass "no reader key: the prd project SA acts as the reader (--account and --impersonate-service-account)" || fail "impersonation: $(grep gcloud "$T/log")"
 ! grep -q 'tok-' "$T/o" "$T/log" && pass "the token is never logged" || fail "token logged"
+
+# --- 7. SPL-3376: the source dataset, the table by prefix ----------------------------
+: >"$T/log.queries"
+run_case "$T/o"
+grep -q '^curl GET projects/csi-spl-prd/datasets/csi_spl_prd/tables' "$T/log" && ! grep -q 'spl_billing_export' "$T/log" \
+  && grep -q "export=csi-spl-prd.csi_spl_prd jobs=csi-spl-all " "$T/o" \
+  && pass "the read lists csi-spl-prd.csi_spl_prd (cnf export_source_*), never csi-spl-all.spl_billing_export" \
+  || fail "source list: $(grep '^curl' "$T/log") / $(grep export= "$T/o")"
+[[ "$(jq -rs '[.[].query | test("FROM `csi-spl-prd[.]csi_spl_prd[.]gcp_billing_export_v1_0A1B2C_3D4E5F_6A7B8C`")] | all' "$T/log.queries")" == true ]] \
+  && ! grep -q 'resource_v1' "$T/log.queries" && [[ "$(grep -c '^curl POST projects/csi-spl-all/queries$' "$T/log")" -eq 2 ]] \
+  && pass "both queries read \`csi-spl-prd.csi_spl_prd.gcp_billing_export_v1_*\` (found by prefix, not resource_v1); the jobs run in csi-spl-all" \
+  || fail "source query: $(jq -r '.query' "$T/log.queries" | grep FROM) / $(grep POST "$T/log")"
+grep -q "^OK DRY_RUN complete: nothing was written. DRY_RUN=0 applies 5 cost line(s)" "$T/o" \
+  && pass "the source read yields the same 5 cost lines" || fail "source read result: $(tail -n 2 "$T/o")"
+# no export_source_* in the cnf -> export_project / export_dataset, as before
+mkdir -p "$T/app/csi-spl-cnf/csi-spl"
+yq 'del(.env.cost.gcp.export_source_project) | del(.env.cost.gcp.export_source_dataset)' \
+  "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" >"$T/app/csi-spl-cnf/csi-spl/all.env.yaml"
+: >"$T/log.queries"
+run_case "$T/o" APP_PATH="$T/app" SRC=csi-spl-all/datasets/spl_billing_export
+grep -q '^curl GET projects/csi-spl-all/datasets/spl_billing_export/tables' "$T/log" \
+  && grep -q 'FROM `csi-spl-all.spl_billing_export.gcp_billing_export_v1_' "$T/log.queries" \
+  && pass "no export_source_* in the cnf -> the read stays on csi-spl-all.spl_billing_export" \
+  || fail "fallback: $(grep '^curl' "$T/log") / $(cat "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

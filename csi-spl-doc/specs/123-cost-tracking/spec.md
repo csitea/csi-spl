@@ -57,6 +57,7 @@ What exists on the billing side: `csi-spl-iac/src/terraform/059-gcp-satellite-bu
 ### 4.2 GCP read
 
 - `do_gcp_billing_export_setup` (owner, once, dry run by default) and the reader `do_spl_estate_cost_read`, as 122 section 9 specifies them, are built by 123 (section 9, lane 2): one BigQuery reader, writing daily `cost_lines` rows with `origin=billing_export`. 122 then reuses them.
+- **Where the export is** (SPL-3376, owner HUM-10 poll fe5d4bfb answer A): the owner set the export up in `csi-spl-prd` / `csi_spl_prd`, cnf `cost.gcp.export_source_project` / `export_source_dataset`. The reader finds its `gcp_billing_export_v1_*` table there by prefix (the billing account id stays out of git) and queries it as the reader SA, whose home and query jobs stay in `cost.gcp.export_project` (`csi-spl-all`). The setup's one grant on that dataset is `roles/bigquery.dataViewer` for the reader, made as the `csi-spl-prd` SA.
 - **Late and revised rows**: the export lags and revises recent days (lateness measured during the month, n stated). The nightly run re-reads a trailing window (cnf `cost.reread_days`, start 5) with UPSERT.
 - Until a closed month of export data exists, GCP rows carry `origin=estimate` from 047 section 4.2, marked so on the page.
 

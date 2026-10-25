@@ -4,6 +4,10 @@
 # @description cost_coverage (spec 123 section 4.2, build lane 2; rdb 0166).
 # @description Read-only on GCP: one BigQuery query, as the dedicated reader SA
 # @description (Q-2 = A), rows of every project LIKE env.cost.gcp.project_like.
+# @description The export table is found by its prefix gcp_billing_export_v1_ in
+# @description env.cost.gcp.export_source_project.export_source_dataset (where
+# @description the owner set up the export, SPL-3376); the query job runs in
+# @description env.cost.gcp.export_project, the reader SA's home.
 # @description
 # @description Identity of the read, never the owner account:
 # @description   - a reader key on disk (COST_READER_KEY_FILE, default
@@ -63,7 +67,7 @@ do_spl_estate_cost_read() {
   local tmp run_id
   tmp=$(umask 077 && mktemp -d) || return 1
   run_id="estate-cost-read-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  do_log "INFO ENV=${ENV} window=${days[0]}..${day} (${COST_REREAD_DAYS} days) export=${COST_EXPORT_PROJECT}.${COST_DATASET} projects LIKE '${COST_PROJECT_LIKE}' reader=${COST_READER_EMAIL} DRY_RUN=${dry_run}"
+  do_log "INFO ENV=${ENV} window=${days[0]}..${day} (${COST_REREAD_DAYS} days) export=${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET} jobs=${COST_EXPORT_PROJECT} projects LIKE '${COST_PROJECT_LIKE}' reader=${COST_READER_EMAIL} DRY_RUN=${dry_run}"
 
   _spl_cost_read_export "${tmp}" "${days[0]}" "${day}"
   _spl_cost_sql "${tmp}" "${run_id}" "${days[@]}" >"${tmp}/apply.sql" || { rm -rf "${tmp}"; do_log "FATAL cannot build the cost SQL"; return 1; }
@@ -90,16 +94,17 @@ _spl_cost_read_export() {
     local dir="$1" d0="$2" d1="$3" out rc table GCP_BQ_TOKEN
     _spl_cost_fail() { printf '%s' "$1" >"${dir}/fail"; do_log "WARNING export not read: $1"; exit 0; }
     _spl_cost_reader_token "${dir}" || _spl_cost_fail "$(cat "${dir}/token-err" 2>/dev/null)"
-    out=$(do_gcp_bq_api GET "projects/${COST_EXPORT_PROJECT}/datasets/${COST_DATASET}/tables?maxResults=1000"); rc=$?
+    local src="${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET}"
+    out=$(do_gcp_bq_api GET "projects/${COST_SOURCE_PROJECT}/datasets/${COST_SOURCE_DATASET}/tables?maxResults=1000"); rc=$?
     case "${rc}" in
       0) ;;
-      4) _spl_cost_fail "dataset ${COST_EXPORT_PROJECT}.${COST_DATASET} not found: the export is not set up (do_gcp_billing_export_setup, spec 123 Q-3)" ;;
-      3) _spl_cost_fail "${COST_READER_EMAIL} may not list ${COST_EXPORT_PROJECT}.${COST_DATASET} (permission, REPORT it): $(do_gcp_bq_error "${out}")" ;;
-      *) _spl_cost_fail "cannot list ${COST_EXPORT_PROJECT}.${COST_DATASET}: $(do_gcp_bq_error "${out}")" ;;
+      4) _spl_cost_fail "dataset ${src} not found: the export is not set up (do_gcp_billing_export_setup, spec 123 Q-3)" ;;
+      3) _spl_cost_fail "${COST_READER_EMAIL} may not list ${src} (permission, REPORT it): $(do_gcp_bq_error "${out}")" ;;
+      *) _spl_cost_fail "cannot list ${src}: $(do_gcp_bq_error "${out}")" ;;
     esac
     table=$(jq -r '[.tables[]?.tableReference.tableId | select(test("^gcp_billing_export_v1_[0-9A-Fa-f_]+$"))] | sort | .[0] // ""' <<<"${out}")
-    [[ -n "${table}" ]] || _spl_cost_fail "no gcp_billing_export_v1_* table in ${COST_EXPORT_PROJECT}.${COST_DATASET}: the billing export is not turned on yet (spec 123 Q-3)"
-    local fq="\`${COST_EXPORT_PROJECT}.${COST_DATASET}.${table}\`"
+    [[ -n "${table}" ]] || _spl_cost_fail "no gcp_billing_export_v1_* table in ${src}: the billing export is not turned on yet (spec 123 Q-3)"
+    local fq="\`${src}.${table}\`"
     _spl_cost_query "${dir}/rows.tsv" "$(_spl_cost_rows_sql "${fq}")" "${d0}" "${d1}" ||
       _spl_cost_fail "the cost query failed: $(cat "${dir}/q-err" 2>/dev/null)"
     _spl_cost_query "${dir}/frontier" "SELECT FORMAT_DATE('%F', MAX(DATE(usage_start_time))) FROM ${fq} WHERE DATE(usage_start_time) >= DATE_SUB(@d0, INTERVAL 31 DAY)" "${d0}" "${d1}" ||

@@ -23,6 +23,14 @@
 # @description      on, only the console can. The action checks for the
 # @description      gcp_billing_export_v1_* table and, while it is absent, prints
 # @description      the console step for the owner (billing account admin).
+# @description The export may live in a project of its own (SPL-3376: the owner
+# @description set it up in csi-spl-prd / csi_spl_prd): cnf
+# @description env.cost.gcp.export_source_project / export_source_dataset. Then
+# @description steps 2, 4 (dataViewer) and 6 act on THAT dataset, as THAT
+# @description project's SA (its key; the export project's SA has no role
+# @description there): the dataset must exist (it is never created in another
+# @description project) and its location must be export_location. The reader
+# @description SA, jobUser and tokenCreator stay in export_project.
 # @description GCP_BILLING_ACCOUNT_ID is never committed and is logged masked.
 # @description Unset, it is read as the pinned SA from the billing link of the
 # @description export project; an unreadable link stops the run before any step.
@@ -59,6 +67,12 @@ do_gcp_billing_export_setup() {
   GCP_BQ_TOKEN=$(gcloud auth print-access-token --account="${GCP_ACCOUNT}" 2>/dev/null)
   [[ -n "${GCP_BQ_TOKEN}" ]] || { rm -rf "${_BES_TMP}"; do_log "FATAL no access token for ${GCP_ACCOUNT}"; return 1; }
 
+  _BES_SRC_ACCOUNT="${GCP_ACCOUNT}" _BES_SRC_TOKEN="${GCP_BQ_TOKEN}"
+  if [[ "${COST_SOURCE_PROJECT}" != "${COST_EXPORT_PROJECT}" ]]; then
+    _bes_source_identity || { rm -rf "${_BES_TMP}"; return 1; }
+  fi
+  do_log "INFO export source=${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET} as=${_BES_SRC_ACCOUNT}"
+
   if [[ -n "${resolved}" ]]; then
     do_log "OK ${COST_EXPORT_PROJECT} is billed by XXXXXX-XXXXXX-${bill: -6} (GCP_BILLING_ACCOUNT_ID unset: read from its billing link)"
   else
@@ -86,6 +100,28 @@ _bes_run() {
   "$@" >/dev/null 2>"${_BES_TMP}/err" && return 0
   _BES_FAILED="${what} ($(tail -n 2 "${_BES_TMP}/err" | tr '\n' ' '))"
   return 1
+}
+
+# _bes_source_identity - the export lives in another project: its own SA (the
+# per-env key of COST_SOURCE_PROJECT) reads and grants on that dataset. Sets
+# _BES_SRC_ACCOUNT and _BES_SRC_TOKEN; never the owner account, never logged.
+_bes_source_identity() {
+  local got
+  got=$(unset ACCOUNT GCP_ACCOUNT; export PROJ_ID="${COST_SOURCE_PROJECT}"
+    do_gcp_pin_account >/dev/null 2>&1 || exit 1
+    [[ "${GCP_ACCOUNT}" == *.gserviceaccount.com ]] || exit 1
+    printf '%s\n' "${GCP_ACCOUNT}"
+    gcloud auth print-access-token --account="${GCP_ACCOUNT}" 2>/dev/null)
+  _BES_SRC_ACCOUNT="${got%%$'\n'*}" _BES_SRC_TOKEN="${got#*$'\n'}"
+  [[ "${got}" == *$'\n'?* && "${_BES_SRC_ACCOUNT}" == *.gserviceaccount.com ]] && return 0
+  do_log "FATAL no service account of ${COST_SOURCE_PROJECT} (its key) to read and grant on ${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET}: nothing was changed"
+  return 1
+}
+
+# _bes_src_api - do_gcp_bq_api as the export source's identity.
+_bes_src_api() {
+  local GCP_BQ_TOKEN="${_BES_SRC_TOKEN}"
+  do_gcp_bq_api "$@"
 }
 
 # _bes_billing_resolve - read only: print the id of the account that bills the
@@ -128,14 +164,21 @@ _bes_apis() {
 }
 
 # _bes_dataset - three-way, as gcp-001: exists / reported absent / cannot tell.
+# Absent in another project: a stop, the export there is the owner's to set up.
 _bes_dataset() {
-  local out rc path="projects/${COST_EXPORT_PROJECT}/datasets/${COST_DATASET}"
-  out=$(do_gcp_bq_api GET "${path}"); rc=$?
+  local out rc src="${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET}" path="projects/${COST_SOURCE_PROJECT}/datasets/${COST_SOURCE_DATASET}" loc
+  out=$(_bes_src_api GET "${path}"); rc=$?
   case "${rc}" in
-    0) printf '%s' "${out}" >"${_BES_TMP}/dataset.json"; do_log "OK dataset ${COST_EXPORT_PROJECT}.${COST_DATASET} exists"; return 0 ;;
+    0)
+      loc=$(jq -r '.location // ""' <<<"${out}")
+      [[ -z "${loc}" || "${loc}" == "${COST_LOCATION}" ]] \
+        || { _BES_FAILED="read ${src}: it is in ${loc}, the query jobs run in env.cost.gcp.export_location ${COST_LOCATION}"; return 1; }
+      printf '%s' "${out}" >"${_BES_TMP}/dataset.json"; do_log "OK dataset ${src} exists"; return 0 ;;
     4) ;;
-    *) _BES_FAILED="tell whether ${COST_EXPORT_PROJECT}.${COST_DATASET} exists ($(do_gcp_bq_error "${out}"))"; return 1 ;;
+    *) _BES_FAILED="tell whether ${src} exists ($(do_gcp_bq_error "${out}"))"; return 1 ;;
   esac
+  [[ "${COST_SOURCE_PROJECT}" == "${COST_EXPORT_PROJECT}" ]] \
+    || { _BES_FAILED="find the export dataset ${src}: it is not there, and none is created in another project (the owner sets up the export)"; return 1; }
   jq -n --arg p "${COST_EXPORT_PROJECT}" --arg d "${COST_DATASET}" --arg l "${COST_LOCATION}" \
     '{datasetReference: {projectId: $p, datasetId: $d}, location: $l,
       description: "GCP billing export (spec 123); read by the cost reader SA only"}' >"${_BES_TMP}/ds-new.json"
@@ -159,23 +202,24 @@ _bes_reader_sa() {
       --project="${COST_EXPORT_PROJECT}" --account="${GCP_ACCOUNT}"
 }
 
-# _bes_dataset_viewer - dataViewer on the export dataset ONLY (a dataset access
-# entry), never a project-level data role.
+# _bes_dataset_viewer - dataViewer on the export (source) dataset ONLY (a
+# dataset access entry), never a project-level data role.
 _bes_dataset_viewer() {
+  local src="${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET}"
   if [[ -s "${_BES_TMP}/dataset.json" ]] && jq -e --arg m "${COST_READER_EMAIL}" \
       '[.access[]? | select(.userByEmail == $m and (.role == "roles/bigquery.dataViewer" or .role == "READER"))] | length > 0' \
       "${_BES_TMP}/dataset.json" >/dev/null; then
-    do_log "OK ${COST_READER_EMAIL} reads ${COST_DATASET}"; return 0
+    do_log "OK ${COST_READER_EMAIL} reads ${src}"; return 0
   fi
   if [[ "${_BES_DRY}" == 1 ]]; then
-    do_log "INFO DRY_RUN would run: BigQuery datasets.patch ${COST_EXPORT_PROJECT}.${COST_DATASET} access += {role: roles/bigquery.dataViewer, userByEmail: ${COST_READER_EMAIL}}"
+    do_log "INFO DRY_RUN would run: BigQuery datasets.patch ${src} access += {role: roles/bigquery.dataViewer, userByEmail: ${COST_READER_EMAIL}} as=${_BES_SRC_ACCOUNT}"
     return 0
   fi
-  [[ -s "${_BES_TMP}/dataset.json" ]] || { _BES_FAILED="read the access list of ${COST_DATASET} before patching it"; return 1; }
+  [[ -s "${_BES_TMP}/dataset.json" ]] || { _BES_FAILED="read the access list of ${src} before patching it"; return 1; }
   jq --arg m "${COST_READER_EMAIL}" '{access: ((.access // []) + [{role: "roles/bigquery.dataViewer", userByEmail: $m}]), etag: .etag}' \
     "${_BES_TMP}/dataset.json" >"${_BES_TMP}/ds-access.json"
-  _bes_run "BigQuery datasets.patch ${COST_EXPORT_PROJECT}.${COST_DATASET} access += dataViewer ${COST_READER_EMAIL}" \
-    do_gcp_bq_api PATCH "projects/${COST_EXPORT_PROJECT}/datasets/${COST_DATASET}" "${_BES_TMP}/ds-access.json"
+  _bes_run "BigQuery datasets.patch ${src} access += dataViewer ${COST_READER_EMAIL} as=${_BES_SRC_ACCOUNT}" \
+    _bes_src_api PATCH "projects/${COST_SOURCE_PROJECT}/datasets/${COST_SOURCE_DATASET}" "${_BES_TMP}/ds-access.json"
 }
 
 _bes_job_user() {
@@ -211,12 +255,12 @@ _bes_token_creators() {
 # gcp_billing_export_v1_<account> table; until then, the console step.
 _bes_export_table() {
   local out rc
-  out=$(do_gcp_bq_api GET "projects/${COST_EXPORT_PROJECT}/datasets/${COST_DATASET}/tables?maxResults=1000"); rc=$?
+  out=$(_bes_src_api GET "projects/${COST_SOURCE_PROJECT}/datasets/${COST_SOURCE_DATASET}/tables?maxResults=1000"); rc=$?
   if [[ ${rc} -eq 0 ]] && jq -e '[.tables[]?.tableReference.tableId | select(startswith("gcp_billing_export_v1_"))] | length > 0' <<<"${out}" >/dev/null; then
     do_log "OK the billing export is on: $(jq -r '[.tables[]?.tableReference.tableId | select(startswith("gcp_billing_export_v1_"))][0]' <<<"${out}" | sed -E 's/[0-9A-F]{6}_[0-9A-F]{6}_/XXXXXX_XXXXXX_/')"
     return 0
   fi
   do_log "INFO the billing export is NOT on yet. The API cannot turn it on; the owner (billing account admin) does, once, in the console:"
   do_log "INFO   https://console.cloud.google.com/billing/<GCP_BILLING_ACCOUNT_ID>/export -> BigQuery export -> Standard usage cost -> EDIT SETTINGS"
-  do_log "INFO   project ${COST_EXPORT_PROJECT}, dataset ${COST_DATASET} -> SAVE. The table gcp_billing_export_v1_<account> appears within hours."
+  do_log "INFO   project ${COST_SOURCE_PROJECT}, dataset ${COST_SOURCE_DATASET} -> SAVE. The table gcp_billing_export_v1_<account> appears within hours."
 }

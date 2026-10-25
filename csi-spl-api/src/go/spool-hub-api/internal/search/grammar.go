@@ -292,25 +292,22 @@ func tokenize(q string) ([]token, error) {
 	rs := []rune(q)
 	var out []token
 	pos := 0 // UTF-16 offset of rs[i]
-	adv := func(r rune) int {
-		if r >= 0x10000 {
-			return 2
-		}
-		return 1
-	}
 	i := 0
 	for i < len(rs) {
 		r := rs[i]
+		var tok token
+		var err error
 		switch {
 		case unicode.IsSpace(r):
-			pos += adv(r)
+			pos += runeUnits(r)
 			i++
+			continue
 		case r == '(':
-			out = append(out, token{kind: tLParen, text: "(", pos: pos, raw: "("})
+			tok = token{kind: tLParen, text: "(", pos: pos, raw: "("}
 			pos++
 			i++
 		case r == ')':
-			out = append(out, token{kind: tRParen, text: ")", pos: pos, raw: ")"})
+			tok = token{kind: tRParen, text: ")", pos: pos, raw: ")"}
 			pos++
 			i++
 		case r == '-' && startOfToken(rs, i) && i+1 < len(rs) && !unicode.IsSpace(rs[i+1]) && rs[i+1] != ')' && rs[i+1] != '-':
@@ -318,52 +315,74 @@ func tokenize(q string) ([]token, error) {
 			// end, before ')' or another '-') is plain text: the default
 			// branch reads it as a word with no letter or digit, which is
 			// dropped with a warning (owner 2026-10-16, SPL-2172).
-			out = append(out, token{kind: tNeg, text: "-", pos: pos, raw: "-"})
+			tok = token{kind: tNeg, text: "-", pos: pos, raw: "-"}
 			pos++
 			i++
 		case r == '"':
-			start, sp := i, pos
-			pos++
-			i++
-			for i < len(rs) && rs[i] != '"' {
-				pos += adv(rs[i])
-				i++
-			}
-			if i >= len(rs) {
-				return nil, &Error{Pos: sp, Token: string(rs[start:]), Detail: "unterminated \""}
-			}
-			out = append(out, token{kind: tPhrase, text: string(rs[start+1 : i]), pos: sp, raw: string(rs[start : i+1])})
-			pos++
-			i++
+			tok, i, pos, err = scanPhrase(rs, i, pos)
 		default:
-			start, sp := i, pos
-			for i < len(rs) && !unicode.IsSpace(rs[i]) && rs[i] != '(' && rs[i] != ')' && rs[i] != '"' {
-				pos += adv(rs[i])
-				i++
-			}
-			w := string(rs[start:i])
-			// name:"value" is one operator term; so is name="value" for a
-			// known operator (1.3).
-			if opQuoteStart(w) && i < len(rs) && rs[i] == '"' {
-				vs := i
-				pos++
-				i++
-				for i < len(rs) && rs[i] != '"' {
-					pos += adv(rs[i])
-					i++
-				}
-				if i >= len(rs) {
-					return nil, &Error{Pos: sp, Token: string(rs[start:]), Detail: "unterminated \""}
-				}
-				out = append(out, token{kind: tOpPhrase, text: w[:len(w)-1], val: string(rs[vs+1 : i]), pos: sp, raw: string(rs[start : i+1])})
-				pos++
-				i++
-				continue
-			}
-			out = append(out, token{kind: tWord, text: w, pos: sp, raw: w})
+			tok, i, pos, err = scanWord(rs, i, pos)
 		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, tok)
 	}
 	return out, nil
+}
+
+// runeUnits is the length of r in UTF-16 code units (the offset unit).
+func runeUnits(r rune) int {
+	if r >= 0x10000 {
+		return 2
+	}
+	return 1
+}
+
+// scanPhrase reads the "quoted phrase" opening at rs[i] (UTF-16 offset pos)
+// and returns its token with the index and offset just past its closing '"'.
+func scanPhrase(rs []rune, i, pos int) (tok token, ni, npos int, err error) {
+	start, sp := i, pos
+	pos++
+	i++
+	for i < len(rs) && rs[i] != '"' {
+		pos += runeUnits(rs[i])
+		i++
+	}
+	if i >= len(rs) {
+		return token{}, i, pos, &Error{Pos: sp, Token: string(rs[start:]), Detail: "unterminated \""}
+	}
+	tok = token{kind: tPhrase, text: string(rs[start+1 : i]), pos: sp, raw: string(rs[start : i+1])}
+	return tok, i + 1, pos + 1, nil
+}
+
+// scanWord reads the bare word starting at rs[i] (UTF-16 offset pos), with
+// its "value" tail when the word opens an operator, and returns its token
+// with the index and offset just past it.
+func scanWord(rs []rune, i, pos int) (tok token, ni, npos int, err error) {
+	start, sp := i, pos
+	for i < len(rs) && !unicode.IsSpace(rs[i]) && rs[i] != '(' && rs[i] != ')' && rs[i] != '"' {
+		pos += runeUnits(rs[i])
+		i++
+	}
+	w := string(rs[start:i])
+	// name:"value" is one operator term; so is name="value" for a
+	// known operator (1.3).
+	if !opQuoteStart(w) || i >= len(rs) || rs[i] != '"' {
+		return token{kind: tWord, text: w, pos: sp, raw: w}, i, pos, nil
+	}
+	vs := i
+	pos++
+	i++
+	for i < len(rs) && rs[i] != '"' {
+		pos += runeUnits(rs[i])
+		i++
+	}
+	if i >= len(rs) {
+		return token{}, i, pos, &Error{Pos: sp, Token: string(rs[start:]), Detail: "unterminated \""}
+	}
+	tok = token{kind: tOpPhrase, text: w[:len(w)-1], val: string(rs[vs+1 : i]), pos: sp, raw: string(rs[start : i+1])}
+	return tok, i + 1, pos + 1, nil
 }
 
 // startOfToken: '-' negates only at the start of a token (search-v1 §2.1).

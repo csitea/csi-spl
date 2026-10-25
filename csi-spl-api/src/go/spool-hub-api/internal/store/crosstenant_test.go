@@ -504,6 +504,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedGcal(ctx, pg, s.tenant, hum, ev.ID); err != nil {
 		t.Fatal(err)
 	}
+	// contacts_sync (rdb 0226, spec 154 B1): the seeded member's binding on
+	// that Google connection (its FKs: gcal_connections and the membership
+	// Admit wrote). No store API yet (B2), so a raw row under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO contacts_sync (human_id, tenant_id) VALUES ($1, $2)`, hum, s.tenant)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

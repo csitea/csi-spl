@@ -20,27 +20,29 @@ import (
 // transaction as the migrate login, never committed) wants its own. The
 // names start TestRLS, so hub-pg.tst.sh's RLS control counts them. No t.Run:
 // that control greps every "--- PASS: TestRLS".
+// Spec 154 B1 (rdb 0226) adds personal.contacts, the third realm role
+// spool_realm_contacts_purger and its door personal.purge_deleted_contacts.
 
-var personalTables = []string{"profile", "settings", "hours_receipts", "receipt_due", "notes", "note_items", "note_links"}
+var personalTables = []string{"profile", "settings", "hours_receipts", "receipt_due", "notes", "note_items", "note_links", "contacts"}
 
-// personalCatalogueGaps is T-C1..T-C6 plus the two definer roles, read from
+// personalCatalogueGaps is T-C1..T-C6 plus the three definer roles, read from
 // the catalogue. Each query returns a row only when its check fails, naming
 // what it found. rt is the runtime login.
 func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []string {
 	checks := []struct{ what, sql string }{
-		{"T-C1 personal holds exactly profile, settings, hours_receipts, receipt_due, notes, note_items, note_links", `
+		{"T-C1 personal holds exactly profile, settings, hours_receipts, receipt_due, notes, note_items, note_links, contacts", `
 			SELECT COALESCE(string_agg(c.relname, ',' ORDER BY c.relname), 'none') FROM pg_class c
 			WHERE c.relnamespace = 'personal'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-			HAVING string_agg(c.relname, ',' ORDER BY c.relname) IS DISTINCT FROM 'hours_receipts,note_items,note_links,notes,profile,receipt_due,settings'`},
+			HAVING string_agg(c.relname, ',' ORDER BY c.relname) IS DISTINCT FROM 'contacts,hours_receipts,note_items,note_links,notes,profile,receipt_due,settings'`},
 		{"T-C1 every personal table is ENABLE + FORCE row security", `
 			SELECT string_agg(format('%s enable=%s force=%s', relname, relrowsecurity, relforcerowsecurity), '; ') FROM pg_class
 			WHERE relnamespace = 'personal'::regnamespace AND relkind IN ('r', 'p') AND NOT (relrowsecurity AND relforcerowsecurity)
 			HAVING count(*) > 0`},
-		{"T-C1 policies are exactly person_scope per table plus realm_sweeper_read on receipt_due", `
+		{"T-C1 policies are exactly person_scope per table plus realm_sweeper_read on receipt_due and the purger's two on contacts", `
 			SELECT COALESCE(string_agg(format('%s.%s', tablename, policyname), ',' ORDER BY tablename, policyname), 'none')
 			FROM pg_policies WHERE schemaname = 'personal'
 			HAVING string_agg(format('%s.%s', tablename, policyname), ',' ORDER BY tablename, policyname) IS DISTINCT FROM
-			       'hours_receipts.person_scope,note_items.person_scope,note_links.person_scope,notes.person_scope,profile.person_scope,receipt_due.person_scope,receipt_due.realm_sweeper_read,settings.person_scope'`},
+			       'contacts.person_scope,contacts.realm_contacts_purger_delete,contacts.realm_contacts_purger_read,hours_receipts.person_scope,note_items.person_scope,note_links.person_scope,notes.person_scope,profile.person_scope,receipt_due.person_scope,receipt_due.realm_sweeper_read,settings.person_scope'`},
 		{"T-C1 person_scope is PERMISSIVE ALL TO PUBLIC with the NULLIF person, tenant-unset and not-operator clauses in USING and WITH CHECK", `
 			SELECT string_agg(tablename, ',') FROM pg_policies
 			WHERE schemaname = 'personal' AND policyname = 'person_scope'
@@ -54,6 +56,12 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			SELECT format('cmd=%s roles=%s qual=%s', cmd, roles, qual) FROM pg_policies
 			WHERE schemaname = 'personal' AND policyname = 'realm_sweeper_read'
 			  AND NOT (cmd = 'SELECT' AND roles = '{spool_realm_sweeper}' AND qual = '(done_at IS NULL)')`},
+		{"realm_contacts_purger_read / _delete are FOR SELECT / FOR DELETE TO spool_realm_contacts_purger on soft-deleted rows", `
+			SELECT string_agg(format('%s cmd=%s roles=%s qual=%s', policyname, cmd, roles, qual), '; ') FROM pg_policies
+			WHERE schemaname = 'personal' AND policyname IN ('realm_contacts_purger_read', 'realm_contacts_purger_delete')
+			  AND NOT (permissive = 'PERMISSIVE' AND roles = '{spool_realm_contacts_purger}' AND qual = '(deleted_at IS NOT NULL)'
+			       AND cmd = CASE policyname WHEN 'realm_contacts_purger_read' THEN 'SELECT' ELSE 'DELETE' END)
+			HAVING count(*) > 0`},
 		{"T-C2 no FK from personal to a table outside personal except public.humans", `
 			SELECT string_agg(format('%s -> %s', conrelid::regclass, confrelid::regclass), ', ') FROM pg_constraint
 			WHERE contype = 'f' AND connamespace = 'personal'::regnamespace
@@ -89,40 +97,42 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			SELECT string_agg(attname, ',' ORDER BY attnum) FROM pg_attribute
 			WHERE attrelid = 'personal.profile'::regclass AND attnum > 0 AND NOT attisdropped
 			HAVING string_agg(attname, ',' ORDER BY attnum) IS DISTINCT FROM 'person_id,time_zone,locale,comm_prefs,updated_at'`},
-		{"T-C6 the runtime's UPDATE in personal is profile, settings, receipt_due and the notes tables; DELETE profile, settings and the notes tables", fmt.Sprintf(`
+		{"T-C6 the runtime's UPDATE in personal is profile, settings, receipt_due, the notes tables and contacts; DELETE profile, settings, the notes tables and contacts", fmt.Sprintf(`
 			SELECT string_agg(format('%%s %%s', p, c.relname), ', ' ORDER BY p, c.relname) FROM pg_class c,
 			       unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
 			WHERE c.relnamespace = 'personal'::regnamespace AND c.relkind = 'r'
 			  AND has_table_privilege(%s, c.oid, p)
 			HAVING string_agg(format('%%s %%s', p, c.relname), ', ' ORDER BY p, c.relname) IS DISTINCT FROM
-			  'DELETE note_items, DELETE note_links, DELETE notes, DELETE profile, DELETE settings, INSERT hours_receipts, INSERT note_items, INSERT note_links, INSERT notes, INSERT profile, INSERT receipt_due, INSERT settings, SELECT hours_receipts, SELECT note_items, SELECT note_links, SELECT notes, SELECT profile, SELECT receipt_due, SELECT settings, UPDATE note_items, UPDATE note_links, UPDATE notes, UPDATE profile, UPDATE receipt_due, UPDATE settings'`, quoteLit(rt))},
+			  'DELETE contacts, DELETE note_items, DELETE note_links, DELETE notes, DELETE profile, DELETE settings, INSERT contacts, INSERT hours_receipts, INSERT note_items, INSERT note_links, INSERT notes, INSERT profile, INSERT receipt_due, INSERT settings, SELECT contacts, SELECT hours_receipts, SELECT note_items, SELECT note_links, SELECT notes, SELECT profile, SELECT receipt_due, SELECT settings, UPDATE contacts, UPDATE note_items, UPDATE note_links, UPDATE notes, UPDATE profile, UPDATE receipt_due, UPDATE settings'`, quoteLit(rt))},
 		{"T-C6 the only function deleting from hours_receipts is personal.delete_my_receipts", `
 			SELECT string_agg(oid::regprocedure::text, ', ') FROM pg_proc
 			WHERE prosrc ~* 'delete\s+from\s+(personal\.)?hours_receipts'
 			  AND oid <> 'personal.delete_my_receipts(text)'::regprocedure
 			HAVING count(*) > 0`},
-		{"T-C6 the runtime can EXECUTE both realm definers, PUBLIC neither", fmt.Sprintf(`
+		{"T-C6 the runtime can EXECUTE the three realm definers, PUBLIC none", fmt.Sprintf(`
 			SELECT string_agg(oid::regprocedure::text, ', ') FROM pg_proc
-			WHERE oid IN ('personal.delete_my_receipts(text)'::regprocedure, 'personal.due_receipts(timestamptz)'::regprocedure)
+			WHERE oid IN ('personal.delete_my_receipts(text)'::regprocedure, 'personal.due_receipts(timestamptz)'::regprocedure,
+			              'personal.purge_deleted_contacts(timestamptz)'::regprocedure)
 			  AND (NOT has_function_privilege(%s, oid, 'EXECUTE')
 			       OR EXISTS (SELECT 1 FROM aclexplode(proacl) a WHERE a.grantee = 0))
 			HAVING count(*) > 0`, quoteLit(rt))},
-		{"the two realm roles are NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE", `
+		{"the three realm roles are NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE", `
 			SELECT string_agg(rolname, ',') FROM pg_roles
-			WHERE rolname IN ('spool_realm_sweeper', 'spool_realm_eraser')
+			WHERE rolname IN ('spool_realm_sweeper', 'spool_realm_eraser', 'spool_realm_contacts_purger')
 			  AND (rolcanlogin OR rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication)
 			HAVING count(*) > 0`},
 		{"each realm role owns exactly its one SECURITY DEFINER function with search_path pg_catalog, pg_temp", `
 			SELECT COALESCE(string_agg(format('%s owner=%s definer=%s config=%s', p.oid::regprocedure, pg_get_userbyid(p.proowner),
 			                                  p.prosecdef, p.proconfig), '; '), 'none')
-			FROM pg_proc p WHERE p.proowner IN ('spool_realm_sweeper'::regrole, 'spool_realm_eraser'::regrole)
+			FROM pg_proc p WHERE p.proowner IN ('spool_realm_sweeper'::regrole, 'spool_realm_eraser'::regrole, 'spool_realm_contacts_purger'::regrole)
 			   OR p.pronamespace = 'personal'::regnamespace
-			HAVING count(*) <> 2 OR bool_or(NOT p.prosecdef OR p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, pg_temp']
+			HAVING count(*) <> 3 OR bool_or(NOT p.prosecdef OR p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, pg_temp']
 			    OR NOT ((p.oid = 'personal.due_receipts(timestamptz)'::regprocedure AND p.proowner = 'spool_realm_sweeper'::regrole)
-			         OR (p.oid = 'personal.delete_my_receipts(text)'::regprocedure AND p.proowner = 'spool_realm_eraser'::regrole)))`},
+			         OR (p.oid = 'personal.delete_my_receipts(text)'::regprocedure AND p.proowner = 'spool_realm_eraser'::regrole)
+			         OR (p.oid = 'personal.purge_deleted_contacts(timestamptz)'::regprocedure AND p.proowner = 'spool_realm_contacts_purger'::regrole)))`},
 		{"no login holds a realm role's privileges", `
 			SELECT string_agg(format('%s via %s', l.rolname, r.rolname), ', ') FROM pg_roles l, pg_roles r
-			WHERE l.rolcanlogin AND NOT l.rolsuper AND r.rolname IN ('spool_realm_sweeper', 'spool_realm_eraser')
+			WHERE l.rolcanlogin AND NOT l.rolsuper AND r.rolname IN ('spool_realm_sweeper', 'spool_realm_eraser', 'spool_realm_contacts_purger')
 			  AND l.oid <> r.oid AND pg_has_role(l.oid, r.oid, 'USAGE')
 			HAVING count(*) > 0`},
 		{"T-R7 due_receipts returns only (person_id, workspace_id)", `
@@ -134,6 +144,30 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			       unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
 			WHERE has_table_privilege('spool_realm_sweeper', t, p)
 			   OR (p <> 'DELETE' AND has_any_column_privilege('spool_realm_sweeper', t, p))
+			HAVING count(*) > 0`},
+		{"purge_deleted_contacts returns only (person_id, pending_google)", `
+			SELECT format('%s %s', array_to_string(proargnames, ','), array_to_string(proargmodes, ',')) FROM pg_proc
+			WHERE oid = 'personal.purge_deleted_contacts(timestamptz)'::regprocedure
+			  AND array_to_string(proargnames, ',') || '/' || array_to_string(proargmodes, ',') IS DISTINCT FROM 'before,person_id,pending_google/i,t,t'`},
+		{"spool_realm_contacts_purger holds no grant on profile, settings, hours_receipts, receipt_due and the notes tables", `
+			SELECT string_agg(format('%s %s', p, t), ', ') FROM unnest(ARRAY['personal.profile', 'personal.settings', 'personal.hours_receipts', 'personal.receipt_due',
+			                                                                 'personal.notes', 'personal.note_items', 'personal.note_links']) t,
+			       unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
+			WHERE has_table_privilege('spool_realm_contacts_purger', t, p)
+			   OR (p <> 'DELETE' AND has_any_column_privilege('spool_realm_contacts_purger', t, p))
+			HAVING count(*) > 0`},
+		{"spool_realm_contacts_purger on contacts: DELETE and SELECT of person_id, deleted_at, deleted_by, google_resource only", `
+			SELECT string_agg(x, ', ') FROM (
+			  SELECT format('%s %s', p, 'contacts') x FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']) p
+			  WHERE has_table_privilege('spool_realm_contacts_purger', 'personal.contacts', p)
+			     OR (p <> 'SELECT' AND has_any_column_privilege('spool_realm_contacts_purger', 'personal.contacts', p))
+			  UNION ALL
+			  SELECT 'no DELETE' WHERE NOT has_table_privilege('spool_realm_contacts_purger', 'personal.contacts', 'DELETE')
+			  UNION ALL
+			  SELECT format('SELECT (%s) is %s', a.attname, has_column_privilege('spool_realm_contacts_purger', 'personal.contacts', a.attname, 'SELECT'))
+			  FROM pg_attribute a WHERE a.attrelid = 'personal.contacts'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+			    AND has_column_privilege('spool_realm_contacts_purger', 'personal.contacts', a.attname, 'SELECT')
+			        <> (a.attname IN ('person_id', 'deleted_at', 'deleted_by', 'google_resource'))) g
 			HAVING count(*) > 0`},
 	}
 	var gaps []string
@@ -202,6 +236,11 @@ func TestRLSPersonalCatalogue(t *testing.T) {
 		{"the sweeper may log in", "NOLOGIN", []string{`ALTER ROLE spool_realm_sweeper LOGIN`}},
 		{"the sweeper reads profile", "T-R7 spool_realm_sweeper holds no grant", []string{
 			`GRANT SELECT (person_id) ON personal.profile TO spool_realm_sweeper`}},
+		{"the purger reads receipt_due", "spool_realm_contacts_purger holds no grant", []string{
+			`GRANT SELECT (person_id) ON personal.receipt_due TO spool_realm_contacts_purger`}},
+		{"the purger reads contact names", "DELETE and SELECT of person_id", []string{
+			`GRANT SELECT (first_name) ON personal.contacts TO spool_realm_contacts_purger`}},
+		{"the purger may log in", "NOLOGIN", []string{`ALTER ROLE spool_realm_contacts_purger LOGIN`}},
 	}
 	for _, p := range plants {
 		func() {
@@ -230,7 +269,7 @@ func TestRLSPersonalCatalogue(t *testing.T) {
 
 // realmSeed is two persons P and Q, each with a row in every personal table:
 // receipts of workspaces W1 (rev 0 and 1) and W2, both receipt_due rows open,
-// plus one closed receipt_due row of W3.
+// plus one closed receipt_due row of W3, and one contact.
 type realmSeed struct{ p, q, w1, w2, w3 string }
 
 // seedNoteSQL plants one note of $1 (spec 155 B2) with a checklist line and
@@ -290,6 +329,8 @@ func seedRealm(t *testing.T, pg *Postgres, rt string, plants ...string) (pgx.Tx,
 				VALUES ($1, $2, 'removed', now() - interval '1 day', NULL), ($1, $3, 'access_until', now() - interval '1 day', NULL),
 				       ($1, $4, 'removed', now() - interval '1 day', now())`, []any{who, s.w1, s.w2, s.w3}},
 			{seedNoteSQL, []any{who, s.w1}},
+			// spec 154 B1 (rdb 0226): one contact per person.
+			{`INSERT INTO personal.contacts (person_id, first_name, last_name, email) VALUES ($1, 'FirstName', 'LastName', 'first.last@example.com')`, []any{who}},
 		}
 		for _, st := range stmts {
 			if _, err := tx.Exec(ctx, st.sql, st.args...); err != nil {

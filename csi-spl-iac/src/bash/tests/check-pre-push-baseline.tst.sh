@@ -232,6 +232,11 @@ if ! git -C "$R9" worktree list | grep -F "$p1" >/dev/null && [[ ! -e "$p1" && !
   pass "9d. a dead run's stable base tree is reaped"
 else fail "9d. reap stable" "$(git -C "$R9" worktree list)"; fi
 # 9e. the point of it: the second re-check re-uses Go's cache entries
+# Go is found the way the gate's api part finds it (use-go-toolchain.sh), not
+# on the bare PATH: the hook runs as a non-login user whose PATH has no Go,
+# and a fast-tier SKIP reds the whole iac suite (SPL-3329).
+# shellcheck source=/dev/null
+source "$TEST_DIR/../../../../csi-spl-api/src/bash/use-go-toolchain.sh" 2>/dev/null && spl_export_go_path 2>/dev/null
 if command -v go >/dev/null 2>&1; then
   RG="$ROOT/rg"; git init -q "$RG"
   printf 'module x\n\ngo 1.21\n' >"$RG/go.mod"; printf 'package p\n\nfunc F() int { return 1 }\n' >"$RG/p.go"

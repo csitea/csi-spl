@@ -78,3 +78,12 @@ per spool issue (epic SPL-1152, prd t1).
       `f31e481f`; kill-your-self-report (8) `10a343f0`; tmux-utf8 (7) and the
       window sorter + its hooks in the snippet (9). harness-parity.tsv: 0
       deferred (46 ported, 49 replaced, 15 excluded)
+- [x] SPL-2177 (epic SPL-2175) seed + brief token budget before the CLI
+      starts: `scripts/brief-token-estimate.sh` (bytes / 4, no network),
+      called by `spool-harness.sh` step 5c on the seed pointer and the
+      `brief.md` beside it; over `SPOOL_BRIEF_TOKEN_BUDGET` (default 16000)
+      = one FATAL line with both numbers, exit 65, never a truncate.
+      Measured 2026-10-25: largest of the last 20 dispatch briefs 9726 B,
+      largest live seed + brief 18212 B (~4553 tokens). Check:
+      `tests/test-brief-token-estimate.sh` 18 PASS; CONTROL on origin/master's
+      harness 7 FAIL (n=1)

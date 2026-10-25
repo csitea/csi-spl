@@ -28,6 +28,11 @@
 #                agent's web UI DM, from its desk seat; no seat, no post
 #   5b. grok     grok only: the context cap of cnf env.box.grok_cli into
 #                ~/.grok/config.toml (lib/grok-compact.inc.sh, SPL-2215)
+#   5c. budget   a launch whose argv carries the seed pointer ("Read and
+#                follow your seed: <file>") estimates seed + the brief.md next
+#                to it (brief-token-estimate.sh, bytes / 4) and refuses one over
+#                SPOOL_BRIEF_TOKEN_BUDGET (default 16000) with one FATAL line
+#                naming both numbers, exit 65; never truncates (SPL-2177)
 #   6. exec      replaces itself with the agent command; --umask <octal> sets
 #                the agent's own umask first (the spool dirs above keep 0002).
 #                qwen launches with 077: its state files under ~/.qwen were
@@ -57,6 +62,7 @@
 #
 # Exit codes (before the exec; afterwards the agent's own):
 #   2   usage
+#   65  the seed + brief token estimate is over SPOOL_BRIEF_TOKEN_BUDGET (5c)
 #   69  hub mode: no spool binary to start the sidecar; or, strict, the
 #       sidecar is not running or the agent is not announced
 #   73  a spool dir cannot be created or is not writable
@@ -261,6 +267,16 @@ if [ "$(basename "$1")" = grok ]; then
     "${SPOOL_GROK_COMPACT_PCT-$(grok_compact_cnf "$HARNESS_DIR/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml")}" ||
     say "warning: grok context cap not written; grok compacts at its own default"
 fi
+
+# ── 5c. seed + brief token budget (SPL-2177) ────────────────────────────────
+# Only a fresh launch carries the seed pointer; a resume or a bare command has
+# none and is not estimated.
+for a in "$@"; do
+  case "$a" in "Read and follow your seed: "*)
+    seed="${a#Read and follow your seed: }"
+    est="$(bash "$HARNESS_DIR/brief-token-estimate.sh" "$seed" "${seed%/*}/brief.md" 2>&1)" || { say "$est"; exit 65; } ;;
+  esac
+done
 
 # ── 6. exec ────────────────────────────────────────────────────────────────
 [ -n "$agent_umask" ] && umask "$agent_umask"

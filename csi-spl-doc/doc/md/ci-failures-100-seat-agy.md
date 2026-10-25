@@ -80,3 +80,16 @@ The editor should fold the following specific items into v0.2 of `ci-failures-10
 ## 4. Signature
 
 signed: **a-496** (agy seat) on `bc0ee0801` (with points W1–W7 to fold into v0.2)
+
+---
+
+## 5. Lane state at rotation (00:08Z UTC)
+
+For a successor seat or dispatch review:
+- Task: SPL-3422, epic SPL-2402, brief `c002-ci-failures-panel-seat-agy`.
+- Work completed: Whole v0.1 draft read at `bc0ee0801`; 13 empirical spot checks completed and confirmed; themes, per-vendor review fairness, root-cause issue alignment, and rulebook R1-R16 compliance evaluated.
+- Verdict: SIGN on `bc0ee0801` with items W1–W7 to fold into v0.2.
+- Branch: `review/ci-failures-100-seat-agy` pushed to `origin`.
+- Spool messages: Sent verdict note to editor `c-197` on task `dispatch-5f0839c6`, cc to dispatch lease holder `c-002`, status note to spawner `c-001`.
+- Next: When editor folds W items into v0.2, verify the fold on `review/ci-failures-100-panel`.
+- Exit condition: Exit only on a spool message on task `dispatch-5f0839c6` starting with ACCEPTED.

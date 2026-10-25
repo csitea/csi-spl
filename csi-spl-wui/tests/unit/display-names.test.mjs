@@ -101,7 +101,7 @@ describe('the name is shown where the id was', () => {
     assert.match(side, /<HumanName class="label" :id="roster\.self\.id" :box="roster\.self\.box" \/>/)
     /* topic 635f8072: a Flow entry names its sender through the shared left list */
     assert.match(read('src/components/SideHitList.vue'), /<HumanName v-if="item\.who && item\.who\.id"/)
-    assert.match(read('src/components/FlowList.vue'), /who: \{ id: e\.from, box: e\.from_box \}/)
+    assert.match(read('src/composables/useFlowListItems.ts'), /who: \{ id: e\.from, box: e\.from_box \}/)
     const name = read('src/components/HumanName.vue')
     assert.match(name, /personTitle/)
     assert.match(name, /shownPerson/)

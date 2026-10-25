@@ -130,7 +130,8 @@ describe('the Flow panel', () => {
   it('renders the shared left list in flow mode', () => {
     const list = readFileSync(new URL('../../src/components/FlowList.vue', import.meta.url), 'utf8')
     assert.match(list, /<LazySideHitList[\s\S]*mode="flow"/)
-    assert.match(list, /msgId: e\.msg_id/)
+    const items = readFileSync(new URL('../../src/composables/useFlowListItems.ts', import.meta.url), 'utf8')
+    assert.match(items, /msgId: e\.msg_id/)
     /* lane A (CLE-77882): the entry opens in its original place, the whole row passed */
     assert.match(list, /await openMessage\(row\)/)
   })

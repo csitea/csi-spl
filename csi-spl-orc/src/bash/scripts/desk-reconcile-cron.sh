@@ -201,6 +201,47 @@ fi
 
 check_tools || exit $?
 
+# ONE TICK PER ENV AT A TIME (SPL-3287). The crontab starts a dev and a prd tick
+# every 3 min. On a satellite box after a boot (2026-10-25, load 103..125 on 16
+# CPUs) one tick ran over 10 min, so ticks of the same env piled up (5 at once,
+# the oldest 1116 s) and each new one slowed the others. The checkout lock (fd 7)
+# and the recovery lock (fd 9) cover only their parts, so the whole tick takes
+# $mark_dir/tick-<env>-<tenant>.lock, non-blocking: a tick that cannot get it
+# logs one INFO line and exits 0; a running tick is never killed. The lock is
+# held by a HOLDER process (flock -o ... tail --pid=$$), never by an fd of this
+# shell: an fd lock would be inherited by every sidecar and tmux server the
+# reconcile starts and stay held long after the tick (spl_agent_id_lock's
+# pattern). The tick's EXIT trap stops its own holder, so the lock ends with the
+# tick. A lock it cannot open or a holder that never reports runs the tick
+# without the lock, with a WARN: the old behaviour, never a lost tick.
+mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
+tick_holder="$mark_dir/tick-$ENV_NAME-$TENANT.holder"
+tick_lock() {
+  local lock="$mark_dir/tick-$ENV_NAME-$TENANT.lock" tok="$$.$RANDOM.$SECONDS" hp rc t0=$SECONDS
+  { mkdir -p "$mark_dir" && : >>"$lock"; } 2>/dev/null ||
+    { say "WARN cannot open the tick lock $lock: this tick runs without it"; return 0; }
+  flock -n -o -E 75 "$lock" bash -c 'printf "%s\n" "$2" >"$3"; exec tail --pid="$1" -s 0.2 -f /dev/null' \
+    _ "$$" "$$ since $(date -u +%FT%TZ) [$tok]" "$tick_holder" \
+    </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+  hp=$!
+  while [ $((SECONDS - t0)) -lt "${DESK_TICK_LOCK_WAIT:-10}" ]; do
+    grep -qF "[$tok]" "$tick_holder" 2>/dev/null && { tick_hp=$hp; trap 'kill "$tick_hp" 2>/dev/null' EXIT; return 0; }
+    if ! kill -0 "$hp" 2>/dev/null; then
+      rc=0; wait "$hp" 2>/dev/null || rc=$?
+      [ "$rc" = 75 ] && return 1
+      grep -qF "[$tok]" "$tick_holder" 2>/dev/null && return 0
+      say "WARN the tick lock holder exited $rc: this tick runs without the lock"; return 0
+    fi
+    sleep 0.1
+  done
+  say "WARN the tick lock holder did not report in ${DESK_TICK_LOCK_WAIT:-10}s: this tick runs without the lock"
+}
+if ! tick_lock; then
+  tick_pid="$(sed -n '1s/^\([0-9][0-9]*\) .*/\1/p' "$tick_holder" 2>/dev/null)"
+  say "INFO tick skipped: the $ENV_NAME tick from ${tick_pid:-?} still runs"
+  exit 0
+fi
+
 # IS THIS CHECKOUT ON TRUNK? The crontab line moves it with
 # `git checkout --detach origin/master` before every tick, and on 2026-09-30
 # that checkout failed on four dirty files for ~18 h: every tick ran code 27
@@ -279,7 +320,6 @@ stale=0
 if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${DESK_TRUNK_REF:-origin/master}" >/dev/null 2>&1; then
   head_sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   trunk_sha="$(git -C "$ROOT" rev-parse "${DESK_TRUNK_REF:-origin/master}")"
-  mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
   lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
   to_alert="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | sed -n 1p)}"
   seen="$mark_dir/behind-head.${head_sha:0:12}"

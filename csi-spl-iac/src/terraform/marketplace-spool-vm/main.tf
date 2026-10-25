@@ -73,6 +73,7 @@ resource "google_compute_instance" "spool" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.spool.id
+    # trivy:ignore:GCP-0031 The customer WUI is served on the ephemeral address. SSH is not open. SPL-3363
     access_config {}
   }
 
